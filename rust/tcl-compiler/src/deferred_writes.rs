@@ -26,18 +26,21 @@
 //! of whatever fires it, so a plain name in it can be a variable the
 //! registering function holds.
 //!
-//! Which words are such scripts is the registry's answer
-//! ([`CommandRegistry::callback_script_indices`]): the words it states as
-//! deferred, less the body of a definition, which runs in a frame of its own.
-//! This module holds no command name. It reads each such word's text as the
+//! Supplied modules select callback operands from the original invocation's
+//! descriptor under the retained availability and installer command world.
+//! Missing metadata, unknown future scope and unreadable values remain opaque.
+//! Explicit standalone callers use [`CommandRegistry::callback_script_indices`].
+//! These source queries grant no callback entry, physical frame or store.
+//! This module holds no command name. It reads each selected value as the
 //! script it is, and collects every name a command of it writes, destroys or
 //! binds — the variable-name roles the registry gives each command, and the
-//! aliases a `global`, `upvar` or `variable` declares. A callback whose
-//! command is a procedure of the module (`after 100 tick`) writes what that
+//! aliases a `global`, `upvar` or `variable` declares. In standalone mode,
+//! a callback whose command is a procedure of the module (`after 100 tick`) writes what that
 //! procedure writes in the global frame
 //! ([`crate::cfg_builder::global_write_info`]).
 //!
-//! A callback word that is one `[…]` substitution of a command the registry
+//! Standalone mode also reads a callback word that is one `[…]` substitution
+//! of a command the registry
 //! states builds a command prefix (`after 100 [list tick $n]`, `-command [list
 //! set done 1]`) is read as the command it builds, and so is a command prefix
 //! the registry places at a word that more words follow (`interp alias {} safe
@@ -54,6 +57,8 @@
 //! module nor one of the registry (`after 100 finish`, an `interp alias`),
 //! whose code the module does not contain.
 
+mod supplied;
+
 use std::cell::OnceCell;
 use std::collections::HashMap;
 
@@ -66,13 +71,14 @@ use tcl_registry::{
 use tcl_syntax::word_rules::WordValueRules;
 
 use crate::cfg_builder::global_write_info::{
-    GlobalWriteInfo, detect_global_write_procs_with_registry, own_frame_global_writes,
+    GlobalWriteInfo, detect_global_write_procs_with_registry, own_frame_global_writes_standalone,
+    own_frame_global_writes_with_metadata_context,
 };
 use crate::command_binding::ModuleCommandBindings;
 use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::ir::{DeferredWrites, Module, Script, Statement, WordExpr};
 use crate::ir_helpers::{CommandWord, evaluated_command_substitutions, tokenise_command_words};
-use crate::registry_invocation::EffectiveInvocationWord;
+use crate::registry_invocation::{EffectiveInvocationWord, InvocationMetadataContext};
 
 /// The names the callback scripts of `module` write, destroy or bind.
 ///
@@ -82,31 +88,103 @@ use crate::registry_invocation::EffectiveInvocationWord;
 /// `set id [after 100 { … }]` is as real as a bare one.
 #[must_use]
 pub(crate) fn scan_module(module: &Module, registry: &CommandRegistry) -> DeferredWrites {
+    if module.source_metadata_input.is_some()
+        || !module.source_entry.metadata_context.is_standalone()
+    {
+        let mut effects = supplied::scan_module(module, registry);
+        include_original_callback_procedure_writes(module, registry, &mut effects);
+        return effects;
+    }
     let mut scan = Scan {
         module,
         registry,
-        config: LexerConfig::for_profile(registry.profile()),
+        config: module.lexer_config,
         procedure_writes: OnceCell::new(),
         bindings: OnceCell::new(),
         out: DeferredWrites::default(),
     };
     let procedures = module.procedures.values().map(|proc| &proc.body);
     let methods = module.methods.values().map(|method| &method.body);
-    let redefined = module
-        .redefined_methods
-        .values()
-        .flatten()
-        .map(|method| &method.body);
-    let units = module.body_units.values().map(|unit| &unit.body);
+    let units = module.body_lowerings().map(|(_, unit)| &unit.body);
     for script in std::iter::once(&module.top_level)
         .chain(procedures)
         .chain(methods)
-        .chain(redefined)
         .chain(units)
     {
         scan.registrations(script);
     }
+    include_original_callback_procedure_writes(module, registry, &mut scan.out);
     scan.out
+}
+
+/// Conditional original registration targets contribute MAY writes without
+/// selecting a reached callback or removing unknown future-table residuals.
+fn include_original_callback_procedure_writes(
+    module: &Module,
+    registry: &CommandRegistry,
+    effects: &mut DeferredWrites,
+) {
+    let Some(input) = module.source_metadata_input.as_ref() else {
+        return;
+    };
+    let Some(realm) = crate::realm::document_realm_bindings_for_module(module, registry) else {
+        return;
+    };
+    let writes = OnceCell::new();
+    let mut pending = vec![&module.top_level];
+    pending.extend(module.procedures.values().map(|procedure| &procedure.body));
+    pending.extend(module.methods.values().map(|method| &method.body));
+    pending.extend(module.body_lowerings().map(|(_, body)| &body.body));
+    while let Some(script) = pending.pop() {
+        for statement in &script.statements {
+            pending.extend(statement.child_scripts());
+            let Some(tokens) = script.retained_source_tokens_for_statement(statement) else {
+                continue;
+            };
+            let Some(rows) = realm.original_source_callback_targets_for_tokens(input, tokens)
+            else {
+                continue;
+            };
+            for row in rows {
+                if row.prefix().scope() != Some(tcl_registry::ScriptLookupScope::GlobalFrame) {
+                    continue;
+                }
+                let Some(target) = row.target() else {
+                    continue;
+                };
+                let Some(declaration) = target.declaration() else {
+                    continue;
+                };
+                let Some(id) = target.original_ir_procedure_id(&module.procedures) else {
+                    continue;
+                };
+                let Some(procedure) = module.procedures.get(&id) else {
+                    continue;
+                };
+                if !module.procedure_ids.owns(id)
+                    || procedure.declaration_site.as_ref() != Some(declaration.site())
+                    || !module
+                        .retained_source_bindings
+                        .as_ref()
+                        .is_some_and(|owner| {
+                            owner.matches_original_procedure_summary(id, procedure)
+                        })
+                {
+                    continue;
+                }
+                let summaries = writes
+                    .get_or_init(|| detect_global_write_procs_with_registry(module, registry));
+                let Some(summary) = summaries.get(&id) else {
+                    effects.any = true;
+                    continue;
+                };
+                effects.any |= summary.opaque_global_frame;
+                for name in &summary.names {
+                    Scan::note_name(effects, name);
+                }
+            }
+        }
+    }
 }
 
 /// One word of an invocation, as far as the scan can read it.
@@ -160,7 +238,7 @@ struct Scan<'r> {
     config: LexerConfig,
     /// What each procedure of the module writes in the global frame, taken
     /// the first time a callback names one.
-    procedure_writes: OnceCell<HashMap<String, GlobalWriteInfo>>,
+    procedure_writes: OnceCell<HashMap<crate::ir::ProcedureId, GlobalWriteInfo>>,
     /// What the module binds each command name to, taken the first time a
     /// callback command that is no procedure of the module needs placing.
     bindings: OnceCell<ModuleCommandBindings>,
@@ -175,6 +253,12 @@ impl Scan<'_> {
     }
 
     fn statement(&mut self, stmt: &Statement) {
+        if matches!(stmt, Statement::NativeCall { .. }) {
+            // Ordinary dispatch may register an unmodelled future write.
+            // Original words do not select a catalogue callback descriptor.
+            self.out.any = true;
+            return;
+        }
         if let Statement::Call {
             command,
             canonical_command,
@@ -233,8 +317,13 @@ impl Scan<'_> {
             WordValueRules::from_config(&self.config),
         ) {
             EffectiveInvocationWord::Literal(text) => Some(Arg::Literal(text)),
-            EffectiveInvocationWord::Dynamic => Some(Arg::Dynamic),
-            EffectiveInvocationWord::Expanded | EffectiveInvocationWord::Opaque => None,
+            EffectiveInvocationWord::Dynamic
+            | EffectiveInvocationWord::ArrayElementName { .. }
+            | EffectiveInvocationWord::ByteLiteral(_) => Some(Arg::Dynamic),
+            EffectiveInvocationWord::Expanded
+            | EffectiveInvocationWord::KnownExpansion(_)
+            | EffectiveInvocationWord::KnownByteExpansion(_)
+            | EffectiveInvocationWord::Opaque => None,
         }
     }
 
@@ -528,8 +617,8 @@ impl Scan<'_> {
     /// procedure runs its body, so it writes in the global frame what a
     /// procedure with that body would: the names its `global`, `variable`,
     /// `upvar #0` and qualified spellings reach, and what the procedures it
-    /// calls write there ([`own_frame_global_writes`]); and the callbacks the
-    /// body registers are callbacks too. `apply` reads the lambda as a list of
+    /// calls write there ([`own_frame_global_writes_with_metadata_context`]);
+    /// and the callbacks the body registers are callbacks too. `apply` reads the lambda as a list of
     /// its parameters, its body and the namespace the body runs in; a word that
     /// is no such list raises before the body runs.
     fn lambda(&mut self, text: &str, depth: u32) {
@@ -537,8 +626,7 @@ impl Scan<'_> {
             self.out.any = true;
             return;
         }
-        let Ok(elements) = WordValueRules::of_profile(self.registry.profile()).split_list(text)
-        else {
+        let Ok(elements) = WordValueRules::from_config(&self.config).split_list(text) else {
             return;
         };
         let (Some(body), 2..=3) = (elements.get(1), elements.len()) else {
@@ -548,35 +636,79 @@ impl Scan<'_> {
             || "::".to_owned(),
             |namespace| tcl_syntax::naming::qualify("::", namespace),
         );
-        let lowered = crate::lowering::lower_to_ir_with_dialect(
-            body,
-            self.registry,
-            self.config,
-            self.registry.profile(),
-        );
+        let metadata = InvocationMetadataContext::for_module(self.registry, self.module);
+        if metadata.is_none()
+            && (self.module.source_metadata_input.is_some()
+                || !self.module.source_entry.metadata_context.is_standalone())
+        {
+            self.out.any = true;
+            return;
+        }
+        let config = self.config.nested().normalized();
+        let lowered = match metadata.and_then(InvocationMetadataContext::source_analysis_input) {
+            Some(input) => crate::lowering::lower_to_ir_with(
+                crate::lowering::Lowerer::with_config(self.registry, config)
+                    .with_resolved_analysis_input(input.for_nested_source()),
+                body,
+            ),
+            None => crate::lowering::lower_to_ir_with_dialect(
+                body,
+                self.registry,
+                config,
+                self.module.dialect_profile,
+            ),
+        };
         let procedures = self
             .procedure_writes
             .get_or_init(|| detect_global_write_procs_with_registry(self.module, self.registry));
         let bindings = self
             .bindings
             .get_or_init(|| ModuleCommandBindings::analyse(self.module, self.registry));
-        // The lambdas the body applies are body units of its own lowering,
-        // each run in a frame of its own in the namespace its name holds.
-        let frames = std::iter::once((&lowered.top_level, namespace)).chain(
-            lowered
-                .body_units
-                .iter()
-                .filter(|(name, _)| lowered.lambda_body_units.contains(*name))
-                .map(|(name, unit)| {
-                    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(name);
-                    let namespace = if holder.is_empty() { "::" } else { holder };
-                    (&unit.body, namespace.to_owned())
-                }),
-        );
+        let mut frames = vec![(&lowered.top_level, namespace)];
+        for (id, unit) in &lowered.body_units {
+            if !lowered.lambda_body_units.contains(id) {
+                continue;
+            }
+            let Some(namespace) = unit
+                .body
+                .namespace_context
+                .as_deref()
+                .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+            else {
+                self.out.any = true;
+                continue;
+            };
+            frames.push((&unit.body, namespace));
+        }
         let mut names = Vec::new();
         for (body, namespace) in frames {
-            let info =
-                own_frame_global_writes(body, self.registry, bindings, &namespace, procedures);
+            let info = match metadata {
+                Some(metadata) => own_frame_global_writes_with_metadata_context(
+                    body,
+                    self.registry,
+                    bindings,
+                    &namespace,
+                    procedures,
+                    &crate::cfg_builder::OriginalProcedureSummaryOwners::for_module(
+                        self.module,
+                        self.registry,
+                    ),
+                    Some(metadata),
+                    config,
+                ),
+                None => own_frame_global_writes_standalone(
+                    body,
+                    self.registry,
+                    bindings,
+                    &namespace,
+                    procedures,
+                    &crate::cfg_builder::OriginalProcedureSummaryOwners::for_module(
+                        self.module,
+                        self.registry,
+                    ),
+                    config,
+                ),
+            };
             self.out.any |= info.opaque_global_frame;
             names.extend(info.names);
         }
@@ -600,11 +732,10 @@ impl Scan<'_> {
     /// ([`Module::declared_frame_effects`]).
     fn frame_reach(&mut self, head: &str) {
         let effect = self.registry.frame_effect(head).or_else(|| {
-            self.module
-                .declared_frame_effects
-                .get(&tcl_syntax::naming::normalise_qualified_name(head))
-                .copied()
-                .flatten()
+            crate::declared_frame_effects::declared_frame_effect_for_metadata(
+                &self.module.declared_frame_effects,
+                head,
+            )
         });
         if effect.is_some_and(|effect| effect.layout == FrameArgLayout::OpaqueCallerVars) {
             self.out.any = true;
@@ -615,28 +746,9 @@ impl Scan<'_> {
     /// what the body writes in the global frame changes when the callback
     /// fires.
     fn procedure(&mut self, head: &str) {
-        let is_procedure = self.module.procedures.keys().any(|qualified| {
-            crate::cfg_builder::qualified_lookup_keys(qualified)
-                .iter()
-                .any(|key| key == head)
-        });
-        if !is_procedure {
-            // What a command that is neither a procedure of the module nor a
-            // command of the registry runs is code the module does not contain.
-            self.out.any |= !self.is_unbound_registry_command(head);
-            return;
-        }
-        let writes = self
-            .procedure_writes
-            .get_or_init(|| detect_global_write_procs_with_registry(self.module, self.registry));
-        let Some(info) = writes.get(head) else {
-            return;
-        };
-        self.out.any |= info.opaque_global_frame;
-        let names = info.names.clone();
-        for name in &names {
-            self.note(name);
-        }
+        // A materialized callback head carries no original future lookup.
+        // It cannot select a body summary from a name or reporting label.
+        self.out.any |= !self.is_unbound_registry_command(head);
     }
 
     /// Whether `head`, run at the global level, is a command of the registry
@@ -656,7 +768,12 @@ impl Scan<'_> {
         };
         target.registry_backed
             && target.prepended.is_empty()
-            && target.command.trim_start_matches("::") == head.trim_start_matches("::")
+            && self.registry.get(head).is_some_and(|spec| {
+                tcl_registry::command_descriptor_labels_match(
+                    &target.command,
+                    spec.descriptor_key().label(),
+                )
+            })
     }
 
     /// The variables the registry says a command writes, destroys, binds or
@@ -736,22 +853,25 @@ impl Scan<'_> {
 
     fn subject(&mut self, subject: &TransitionSubject) {
         match subject {
-            TransitionSubject::Literal(name) => self.note(name),
-            TransitionSubject::Unknown { .. } => self.out.any = true,
+            TransitionSubject::Literal(name)
+            | TransitionSubject::LocatedLiteral { value: name, .. } => self.note(name),
+            TransitionSubject::LocatedNativeBytes { .. } | TransitionSubject::Unknown { .. } => {
+                self.out.any = true;
+            }
         }
     }
 
     /// Record a name: without a leading `::`, and with an element's array.
     fn note(&mut self, name: &str) {
-        let name = name.strip_prefix("::").unwrap_or(name);
-        if name.is_empty() {
-            return;
-        }
-        self.out.names.insert(name.to_owned());
-        let base = crate::sccp::place_base(name);
-        if base != name {
-            self.out.names.insert(base.to_owned());
-        }
+        Self::note_name(&mut self.out, name);
+    }
+
+    fn note_name(out: &mut DeferredWrites, name: &str) {
+        crate::variable_observation_names::record_variable_write_name(
+            &mut out.names,
+            name,
+            crate::variable_observation_names::VariableWriteObservationPurpose::DeferredGlobal,
+        );
     }
 }
 
@@ -759,19 +879,188 @@ impl Scan<'_> {
 mod tests {
     use super::*;
 
-    fn writes(source: &str) -> DeferredWrites {
-        let registry = CommandRegistry::build_default();
-        let module = crate::lowering::lower_to_ir_with_dialect(
-            source,
-            &registry,
-            LexerConfig::for_profile(registry.profile()),
-            registry.profile(),
+    #[test]
+    fn deferred_write_names_preserve_empty_literal_and_array_protection() {
+        let mut writes = DeferredWrites::default();
+        for name in ["", "$counter", "::n::array(key)"] {
+            Scan::note_name(&mut writes, name);
+        }
+        assert!(writes.names.contains(""));
+        assert!(writes.names.contains("$counter"));
+        assert!(!writes.names.contains("counter"));
+        assert!(writes.names.contains("n::array(key)"));
+        assert!(writes.names.contains("n::array"));
+        assert!(!writes.names.contains("array"));
+        assert!(!writes.any);
+    }
+
+    #[test]
+    fn ordinary_native_dispatch_keeps_deferred_effects_unknown() {
+        let module = Module {
+            top_level: Script::from_statements(vec![crate::ir::native_call_for_test(
+                b"after 1 {set future VALUE}",
+            )]),
+            ..Module::default()
+        };
+        let writes = scan_module(&module, &CommandRegistry::build_default());
+        assert!(writes.any);
+        assert!(
+            writes.names.is_empty(),
+            "native words alone do not select callback metadata"
         );
-        scan_module(&module, &registry)
+    }
+
+    fn writes(source: &str) -> DeferredWrites {
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = crate::environment_ingress::resolve_environment("tcl").unit_profile();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), input.lexer_config())
+                .with_resolved_analysis_input(input),
+            source,
+        );
+        scan_module(&module, context.commands())
     }
 
     fn names(source: &str) -> Vec<String> {
         writes(source).names.into_iter().collect()
+    }
+
+    #[test]
+    fn lambda_deferred_writes_retain_module_metadata_and_refuse_withdrawn_input() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let profile = crate::environment_ingress::resolve_environment("tcl").unit_profile();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let source = "after 10 {apply {{} {set ::done 1}}}";
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(registry, input.lexer_config())
+                .with_resolved_analysis_input(input.clone()),
+            source,
+        );
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(scan_module(&module, registry).names.contains("done"));
+
+        let mut missing = module.clone();
+        missing.source_metadata_input = None;
+        let effects = scan_module(&missing, registry);
+        assert!(effects.any);
+        assert!(!effects.names.contains("done"));
+
+        let foreign =
+            crate::environment_ingress::resolve_environment("tcl9.1").default_context_registry();
+        let mut foreign_module = module.clone();
+        foreign_module.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            foreign,
+            input.lexer_config(),
+        ));
+        let effects = scan_module(&foreign_module, registry);
+        assert!(effects.any);
+        assert!(!effects.names.contains("done"));
+
+        let mut stale = module;
+        stale.lexer_config.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        let effects = scan_module(&stale, registry);
+        assert!(effects.any);
+        assert!(!effects.names.contains("done"));
+    }
+
+    fn supplied_module(
+        source: &str,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> Module {
+        let profile = crate::environment_ingress::resolve_environment("tcl").unit_profile();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(context),
+            LexerConfig::for_file_grammar(profile.grammar),
+        );
+        crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), input.lexer_config())
+                .with_resolved_analysis_input(input),
+            source,
+        )
+    }
+
+    #[test]
+    fn deferred_source_installers_keep_original_horizons_and_literal_names() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Conditional source names only; the retained world is the installer's,
+        // not an observation of the command table when a future callback runs.
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let module = supplied_module(
+            "after 1 {set before VALUE}; proc set args {}; after 1 {set hidden VALUE}",
+            &context,
+        );
+        assert!(module.source_entry.native_entry.is_none());
+        let effects = scan_module(&module, context.commands());
+        assert!(effects.names.contains("before"));
+        assert!(!effects.names.contains("hidden"));
+        assert!(
+            effects.any,
+            "user callback command retains its unknown effects"
+        );
+
+        let module = supplied_module(
+            "rename set moved; interp alias {} put {} moved {$literal}; after 1 {put VALUE}",
+            &context,
+        );
+        let effects = scan_module(&module, context.commands());
+        assert!(effects.names.contains("$literal"));
+        assert!(!effects.names.contains("literal"));
+    }
+
+    #[test]
+    fn deferred_source_installers_use_actual_availability_and_refuse_missing_input() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let mut registry = CommandRegistry::build_default();
+        let installer = registry.get("after").unwrap().clone();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "later",
+            surface: registry.get("dict").unwrap().surface,
+            ..installer
+        });
+        let commands = registry.snapshot().shared_registry();
+        let current = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6")
+                .with_command_store(std::sync::Arc::clone(&commands)),
+        );
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4").with_command_store(commands),
+        );
+        for (context, expected) in [(&current, true), (&older, false)] {
+            let module = supplied_module("later 1 {set done VALUE}", context);
+            let effects = scan_module(&module, context.commands());
+            assert_eq!(effects.names.contains("done"), expected, "{effects:?}");
+            if !expected {
+                assert!(effects.any, "unavailable installer keeps its residual");
+            }
+        }
+        let mut missing = supplied_module("later 1 {set done VALUE}", &current);
+        missing.source_metadata_input = None;
+        let effects = scan_module(&missing, current.commands());
+        assert!(effects.any);
+        assert!(effects.names.is_empty());
     }
 
     /// The callbacks `after`, `after idle`, `trace`, `bind`, `fileevent`,

@@ -189,6 +189,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
+name = "bytecount"
+version = "0.6.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "175812e0be2bccb6abe50bb8d566126198344f707e304f45c648fd8f2cc0365e"
+
+[[package]]
 name = "bytes"
 version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -673,9 +679,9 @@ dependencies = [
 
 [[package]]
 name = "inout"
-version = "0.2.3"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8c0d789294fb457b791f7797a04478704788f30b407e5d0b01deaa846572d9f"
+checksum = "3b5cf4372d022092674a83b8febf5865f7a573cc0c5baec5e49c879b6a20978f"
 dependencies = [
  "hybrid-array",
 ]
@@ -1239,9 +1245,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.15"
+version = "0.103.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2"
+checksum = "4443b1b6d39d7c663139942cc4558262562d2c84123bb6282ef177009ca8b281"
 dependencies = [
  "aws-lc-rs",
  "ring",
@@ -1579,6 +1585,7 @@ dependencies = [
  "md-5",
  "sha1",
  "sha2",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-platform",
  "tcl-runtime-api",
@@ -1618,6 +1625,7 @@ dependencies = [
  "serde_json",
  "tcl-compiler",
  "tcl-dialect",
+ "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
@@ -1628,6 +1636,7 @@ name = "tcl-dialect"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "tcl-core-types",
 ]
 
 [[package]]
@@ -1657,6 +1666,7 @@ dependencies = [
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
+ "bytecount",
  "tcl-core-types",
  "tcl-dialect",
  "thiserror",
@@ -1672,6 +1682,7 @@ version = "0.1.0"
 dependencies = [
  "tcl-cmd-core",
  "tcl-core-types",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -1697,6 +1708,8 @@ version = "0.1.0"
 dependencies = [
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-lexer",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -1728,6 +1741,7 @@ dependencies = [
  "num-bigint 0.5.1",
  "num-integer",
  "num-traits",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
 ]
@@ -1904,9 +1918,9 @@ dependencies = [
 
 [[package]]
 name = "webpki-roots"
-version = "1.0.9"
+version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dcd9d09a39985f5344844e66b0c530a33843579125f23e21e9f0f220850f22a"
+checksum = "1c1c8e20c8a38fc7d65abfe74eb7280e4aa667e8eec8bc84996d2874810748d9"
 dependencies = [
  "rustls-pki-types",
 ]

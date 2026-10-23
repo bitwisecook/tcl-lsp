@@ -46,6 +46,7 @@ import { buildIruleEventSkeleton } from "./iruleSkeleton";
 import { isTclLanguage } from "./languageIds";
 import { loadTemplateSnippets, renderTemplateSnippet } from "./templateSnippets";
 import { getClient } from "./extension";
+import { snapshotDocumentSource, replaceDocumentFromSnapshot } from "./chat/codeUtils";
 import {
   switchCompilerExplorerTab,
   closeCompilerExplorer,
@@ -983,7 +984,8 @@ async function applyAllOptimisations(editor: vscode.TextEditor): Promise<ApplyOp
     return { count: 0, source: undefined, optimisations: [] };
   }
 
-  const uri = editor.document.uri.toString();
+  const snapshot = snapshotDocumentSource(editor.document);
+  const uri = snapshot.uri.toString();
   const result = (await client.sendRequest("workspace/executeCommand", {
     command: "tcl-lsp.optimiseDocument",
     arguments: [uri],
@@ -1012,13 +1014,10 @@ async function applyAllOptimisations(editor: vscode.TextEditor): Promise<ApplyOp
     };
   });
 
-  const fullRange = new vscode.Range(
-    editor.document.positionAt(0),
-    editor.document.positionAt(editor.document.getText().length),
-  );
-  await editor.edit((editBuilder) => {
-    editBuilder.replace(fullRange, source);
-  });
+  const appliedSnapshot = await replaceDocumentFromSnapshot(snapshot, source);
+  if (!appliedSnapshot) {
+    return { count: 0, source: undefined, optimisations: [] };
+  }
   return {
     count: optimisations.length,
     source,
@@ -1032,7 +1031,8 @@ async function applyAllSafeFixes(editor: vscode.TextEditor): Promise<number> {
     return 0;
   }
 
-  const uri = editor.document.uri.toString();
+  const snapshot = snapshotDocumentSource(editor.document);
+  const uri = snapshot.uri.toString();
   const result = (await client.sendRequest("workspace/executeCommand", {
     command: "tcl-lsp.fixAllSafeIssues",
     arguments: [uri],
@@ -1044,13 +1044,10 @@ async function applyAllSafeFixes(editor: vscode.TextEditor): Promise<number> {
     return 0;
   }
 
-  const fullRange = new vscode.Range(
-    editor.document.positionAt(0),
-    editor.document.positionAt(editor.document.getText().length),
-  );
-  await editor.edit((editBuilder) => {
-    editBuilder.replace(fullRange, source);
-  });
+  const appliedSnapshot = await replaceDocumentFromSnapshot(snapshot, source);
+  if (!appliedSnapshot) {
+    return 0;
+  }
   return applied.length;
 }
 
@@ -1468,7 +1465,7 @@ function buildScenes(): Scene[] {
       },
     },
     {
-      name: "18-rename",
+      name: "18-rename-authored-demo",
       run: async () => {
         await closePanel();
         const baseFile = path.join(workspaceRoot(), "samples/for_screenshots/03-completions.tcl");
@@ -1482,6 +1479,8 @@ function buildScenes(): Scene[] {
           waitForSemanticTokens(split.left.document.uri, 60, 10_000),
           waitForSemanticTokens(split.right.document.uri, 60, 10_000),
         ]);
+        // Explicitly authored screenshot illustration, not provider output.
+        // Keep the original sample transformation as a demo fixture only.
         await split.right.edit((editBuilder) => {
           const text = split.right.document.getText();
           const renamed = text.replace(/\badd\b/g, "sum_values");

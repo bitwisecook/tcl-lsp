@@ -175,6 +175,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
+name = "bytecount"
+version = "0.6.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "175812e0be2bccb6abe50bb8d566126198344f707e304f45c648fd8f2cc0365e"
+
+[[package]]
 name = "bytes"
 version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1465,6 +1471,7 @@ dependencies = [
  "md-5",
  "sha1",
  "sha2",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-platform",
  "tcl-runtime-api",
@@ -1504,6 +1511,7 @@ dependencies = [
  "serde_json",
  "tcl-compiler",
  "tcl-dialect",
+ "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
@@ -1514,19 +1522,26 @@ name = "tcl-dialect"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "tcl-core-types",
 ]
 
 [[package]]
 name = "tcl-engine-api"
 version = "0.1.0"
+dependencies = [
+ "tcl-core-types",
+ "tcl-runtime-api",
+]
 
 [[package]]
 name = "tcl-engine-tclvm"
 version = "0.1.0"
 dependencies = [
  "tcl-compiler",
+ "tcl-dialect",
  "tcl-engine-api",
  "tcl-registry",
+ "tcl-runtime-api",
  "tcl-syntax",
  "tcl-vm",
 ]
@@ -1546,10 +1561,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-host-c-abi"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "libc",
+ "sha2",
+ "tcl-platform",
+]
+
+[[package]]
 name = "tcl-host-native"
 version = "0.1.0"
 dependencies = [
  "nix",
+ "tcl-host-c-abi",
  "tcl-platform",
 ]
 
@@ -1571,6 +1597,7 @@ dependencies = [
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
+ "bytecount",
  "tcl-core-types",
  "tcl-dialect",
  "thiserror 2.0.21",
@@ -1580,6 +1607,8 @@ dependencies = [
 name = "tcl-lsp-core"
 version = "0.1.0"
 dependencies = [
+ "fluent-uri",
+ "getrandom 0.2.17",
  "regex",
  "rustc-hash",
  "serde",
@@ -1602,10 +1631,12 @@ version = "0.1.0"
 dependencies = [
  "salsa",
  "tcl-compiler",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -1617,6 +1648,7 @@ dependencies = [
  "gloo-timers",
  "js-sys",
  "salsa",
+ "serde",
  "serde_json",
  "sha2",
  "tcl-bigip",
@@ -1631,6 +1663,7 @@ dependencies = [
  "tcl-lsp-db",
  "tcl-registry",
  "tcl-spectcl",
+ "tcl-syntax",
  "tcl-version",
  "tokio",
  "tower",
@@ -1673,6 +1706,7 @@ version = "0.1.0"
 dependencies = [
  "tcl-cmd-core",
  "tcl-core-types",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -1698,6 +1732,8 @@ version = "0.1.0"
 dependencies = [
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-lexer",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -1708,6 +1744,7 @@ dependencies = [
  "tcl-engine-api",
  "tcl-engine-tclvm",
  "tcl-registry",
+ "tcl-syntax",
  "tcl-vm",
 ]
 
@@ -1759,6 +1796,7 @@ dependencies = [
  "num-bigint 0.5.1",
  "num-integer",
  "num-traits",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
 ]

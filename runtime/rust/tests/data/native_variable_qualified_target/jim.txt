@@ -1,0 +1,6 @@
+0 {}
+0 {}
+1 {can't read "::a::x": no such variable}
+0 5
+1 {can't unset "::a::x": no such variable}
+procedure 0 7

@@ -19,7 +19,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import * as path from "path";
-import { getDocUri, activate, waitForDiagnostics, scaledTimeout } from "./helper";
+import { getDocUri, activate, scaledTimeout, waitForCurrentDiagnosticsSnapshot } from "./helper";
 
 // `initialized()` kicks off `scan_workspace_folders()`
 // (which populates `workspace_index` / `package_resolver`, the inputs the
@@ -71,15 +71,22 @@ suite("W120 workspace-index reschedule (#829)", () => {
       "and requires it, without editing the caller",
     async function () {
       this.timeout(scaledTimeout(60_000));
-      await activate(callerUri);
+      const caller = await activate(callerUri);
+      const callerSource = caller.getText();
+      const callerVersion = caller.version;
 
       // Precondition: with no ancestor on disk, the single-file W120 stands
       // -- proves the fixture genuinely exercises the diagnostic rather than
       // the assertion below trivially passing on an already-clean document.
-      const before = await waitForDiagnostics(callerUri, {
+      const currentSnapshotFor_before = await waitForCurrentDiagnosticsSnapshot(callerUri, {
+        expectedSource: callerSource,
+        timeout: scaledTimeout(20_000),
         predicate: (diags) => diags.some((d) => codeOf(d) === "W120"),
-        timeout: 20_000,
       });
+      if (!currentSnapshotFor_before.isCurrent()) {
+        throw new Error("The retained diagnostics report became stale before its assertions");
+      }
+      const before = [...currentSnapshotFor_before.report.diagnostics];
       assert.ok(
         before.some((d) => codeOf(d) === "W120"),
         `precondition failed: W120 should fire with no ancestor on disk, got: ${JSON.stringify(
@@ -92,12 +99,27 @@ suite("W120 workspace-index reschedule (#829)", () => {
       // watcher the server registered turns this real disk write into a
       // `workspace/didChangeWatchedFiles` CREATE notification.
       const entryContent = Buffer.from("package require report\nsource caller.tcl\n", "utf8");
+      const afterDeadline = Date.now() + scaledTimeout(30_000);
       await vscode.workspace.fs.writeFile(entryUri, entryContent);
-
-      const after = await waitForDiagnostics(callerUri, {
+      const remaining = afterDeadline - Date.now();
+      if (remaining <= 0) {
+        throw new Error("Timed out waiting for the rescheduled W120 result");
+      }
+      const currentSnapshotFor_after = await waitForCurrentDiagnosticsSnapshot(callerUri, {
+        expectedSource: callerSource,
+        timeout: remaining,
         predicate: (diags) => !diags.some((d) => codeOf(d) === "W120"),
-        timeout: 30_000,
       });
+      if (!currentSnapshotFor_after.isCurrent()) {
+        throw new Error("The retained diagnostics report became stale before its assertions");
+      }
+      const after = [...currentSnapshotFor_after.report.diagnostics];
+      assert.strictEqual(
+        caller.version,
+        callerVersion,
+        "the caller source version must not change",
+      );
+      assert.strictEqual(caller.getText(), callerSource, "the caller source bytes must not change");
       assert.ok(
         !after.some((d) => codeOf(d) === "W120"),
         "W120 must clear once the on-disk ancestor's `package require` + `source` " +

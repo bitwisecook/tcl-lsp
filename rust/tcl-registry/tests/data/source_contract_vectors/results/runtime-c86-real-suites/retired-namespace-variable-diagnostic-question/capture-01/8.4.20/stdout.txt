@@ -1,0 +1,12 @@
+PROVIDER 8.4.20
+MARK literal-scalar before-write
+ROW literal-scalar 0 {0 2 1 {can't set "foo": upvar refers to variable in deleted namespace} NONE} NONE
+MARK literal-element before-write
+ROW literal-element 0 {0 2 1 {can't set "foo(3)": upvar refers to variable in deleted namespace} NONE} NONE
+MARK dynamic-scalar before-write
+ROW dynamic-scalar 0 {0 2 1 {can't set "foo": upvar refers to variable in deleted namespace} NONE} NONE
+MARK dynamic-element before-write
+ROW dynamic-element 0 {0 2 1 {can't set "foo(3)": upvar refers to variable in deleted namespace} NONE} NONE
+MARK original-sequence before-scalar-write
+MARK original-sequence before-element-write
+ROW original-sequence 0 {{0 2 1 {can't set "foo": upvar refers to variable in deleted namespace} 1 {can't set "foo(3)": upvar refers to variable in deleted namespace}} NONE NONE} NONE

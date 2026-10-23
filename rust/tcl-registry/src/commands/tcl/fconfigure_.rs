@@ -332,6 +332,12 @@ pub fn resolve_fconfigure_option(
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fconfigure",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("fconfigure"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN,
@@ -345,6 +351,8 @@ pub fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         options: OPTIONS,
+        channel_configuration: Some(ChannelConfigurationSpec::EncodingTranslation),
+        option_prefix_words: 1,
         hover: Some(HoverSnippet {
             summary: "Set and get options on a channel.",
             synopsis: &[
@@ -377,7 +385,8 @@ mod tests {
         assert_eq!(
             resolve_fconfigure_option(tcl8, "-prof")
                 .expect_err("Tcl 8 has no profile option")
-                .message(),
+                .message()
+                .unwrap(),
             "bad option \"-prof\": must be -blocking, -buffering, -buffersize, -encoding, -eofchar, or -translation"
         );
     }

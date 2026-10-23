@@ -86,15 +86,10 @@ fn count_irule_lines(body: &str) -> usize {
 }
 
 fn partition_of(full_path: &str) -> String {
-    if !full_path.starts_with('/') {
-        return "(no partition)".to_owned();
-    }
-    let parts: Vec<&str> = full_path.splitn(3, '/').collect();
-    if parts.len() >= 2 {
-        format!("/{}/", parts[1])
-    } else {
-        "(no partition)".to_owned()
-    }
+    crate::object_names::object_path_partition(full_path).map_or_else(
+        || "(no partition)".to_owned(),
+        |partition| format!("/{partition}/"),
+    )
 }
 
 /// An insertion-ordered counter: increments preserve first-seen key order.

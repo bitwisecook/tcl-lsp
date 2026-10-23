@@ -37,7 +37,8 @@ use tcl_syntax::number::NumberSyntax;
 
 use crate::diag::{BpfDiag, BpfError};
 use crate::lower::parse_int;
-use crate::source::lower_bpf_source;
+pub use crate::source::OriginalBpfSource;
+use crate::source::{selected_arguments, selected_command, synthetic_operation_call};
 
 /// The deepest a `use` may nest (one template using another), a guard against
 /// mutually-recursive templates expanding forever.
@@ -53,6 +54,8 @@ pub struct TemplateDef {
     pub params: Vec<String>,
     /// The lowered template body.
     pub body: Script,
+    /// Original body source and full grammar, retained until a reached `use`.
+    pub source: OriginalBpfSource,
 }
 
 /// Collect every top-level `template NAME {params} {body}` declaration.
@@ -62,19 +65,18 @@ pub struct TemplateDef {
 pub fn collect_templates(
     top_level: &Script,
     registry: &CommandRegistry,
+    source: &OriginalBpfSource,
 ) -> Result<Vec<TemplateDef>, BpfError> {
+    source.validate_script(top_level, registry, BpfDiag::BadTemplate)?;
     let mut out: Vec<TemplateDef> = Vec::new();
     for stmt in &top_level.statements {
+        let kind = source.declaration_kind(stmt, registry, BpfDiag::BadTemplate)?;
         if let Statement::Call {
-            command,
-            canonical_command,
-            args,
-            span,
-            ..
+            args, span, tokens, ..
         } = stmt
-            && canonical_command.as_deref().unwrap_or(command.as_str()) == "template"
+            && kind == Some(tcl_registry::bpf_op::BpfDeclKind::Template)
         {
-            let def = parse_template(args, *span, registry)?;
+            let def = parse_template(args, tokens.as_ref(), *span, registry, source)?;
             if out.iter().any(|t| t.name == def.name) {
                 return Err(BpfError::new(
                     BpfDiag::BadTemplate,
@@ -90,8 +92,10 @@ pub fn collect_templates(
 
 fn parse_template(
     args: &[String],
+    tokens: Option<&tcl_compiler::ir::CommandTokens>,
     span: Span,
     registry: &CommandRegistry,
+    source: &OriginalBpfSource,
 ) -> Result<TemplateDef, BpfError> {
     // template NAME {params} {body}
     if args.len() != 3 {
@@ -101,12 +105,39 @@ fn parse_template(
             "`template` expects: template NAME { params } { body }",
         ));
     }
-    let params = args[1].split_whitespace().map(str::to_owned).collect();
-    let body = lower_bpf_source(&args[2], registry).top_level;
+    let name = source.scalar(tokens, args, 0).ok_or_else(|| {
+        BpfError::new(
+            BpfDiag::BadTemplate,
+            span,
+            "template name requires an original static scalar",
+        )
+    })?;
+    let params = source
+        .argument(tokens, args, 1)
+        .and_then(|word| tcl_syntax::word_rules::original_static_word_list_elements(&word))
+        .ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::BadTemplate,
+                span,
+                "template parameters require an original static list",
+            )
+        })?
+        .into_iter()
+        .map(|field| field.value().to_owned())
+        .collect();
+    let source = source.body(tokens, args, 2).ok_or_else(|| {
+        BpfError::new(
+            BpfDiag::BadTemplate,
+            span,
+            "template body requires unchanged original literal source",
+        )
+    })?;
+    let body = source.lower(registry).top_level;
     Ok(TemplateDef {
-        name: args[0].clone(),
+        name,
         params,
         body,
+        source,
     })
 }
 
@@ -119,28 +150,34 @@ fn parse_template(
 pub fn expand_uses(
     script: &Script,
     templates: &[TemplateDef],
-    numbers: NumberSyntax,
+    registry: &CommandRegistry,
 ) -> Result<Script, BpfError> {
-    expand_script(script, templates, numbers, 0)
+    expand_script(script, templates, registry, 0)
 }
 
 fn expand_script(
     script: &Script,
     templates: &[TemplateDef],
-    numbers: NumberSyntax,
+    registry: &CommandRegistry,
     depth: usize,
 ) -> Result<Script, BpfError> {
     let mut out = Vec::with_capacity(script.statements.len());
     for stmt in &script.statements {
+        let kind = match stmt {
+            Statement::Call { .. } | Statement::Barrier { .. } => selected_command(stmt, registry)?
+                .and_then(|spec| spec.bpf_op)
+                .map(|op| op.kind),
+            _ => None,
+        };
         match stmt {
-            Statement::Call {
-                command,
-                canonical_command,
-                args,
-                span,
-                ..
-            } if canonical_command.as_deref().unwrap_or(command.as_str()) == "use" => {
-                expand_use(args, *span, templates, numbers, depth, &mut out)?;
+            Statement::Call { span, .. }
+                if kind
+                    == Some(tcl_registry::bpf_op::BpfOpKind::Framework(
+                        tcl_registry::bpf_op::BpfDeclKind::Use,
+                    )) =>
+            {
+                let args = selected_arguments(stmt, registry)?;
+                expand_use(&args, *span, templates, registry, depth, &mut out)?;
             }
             Statement::If {
                 span,
@@ -154,7 +191,7 @@ fn expand_script(
                     else_body.as_ref(),
                     *else_span,
                     templates,
-                    numbers,
+                    registry,
                     depth,
                 )?);
             }
@@ -170,7 +207,7 @@ fn expand_if(
     else_body: Option<&Script>,
     else_span: Option<Span>,
     templates: &[TemplateDef],
-    numbers: NumberSyntax,
+    registry: &CommandRegistry,
     depth: usize,
 ) -> Result<Statement, BpfError> {
     let clauses = clauses
@@ -180,13 +217,13 @@ fn expand_if(
                 condition: c.condition.clone(),
                 condition_span: c.condition_span,
                 condition_base: c.condition_base,
-                body: expand_script(&c.body, templates, numbers, depth)?,
+                body: expand_script(&c.body, templates, registry, depth)?,
                 body_span: c.body_span,
             })
         })
         .collect::<Result<Vec<_>, BpfError>>()?;
     let else_body = else_body
-        .map(|b| expand_script(b, templates, numbers, depth))
+        .map(|b| expand_script(b, templates, registry, depth))
         .transpose()?;
     Ok(Statement::If {
         span,
@@ -200,7 +237,7 @@ fn expand_use(
     args: &[String],
     span: Span,
     templates: &[TemplateDef],
-    numbers: NumberSyntax,
+    registry: &CommandRegistry,
     depth: usize,
     out: &mut Vec<Statement>,
 ) -> Result<(), BpfError> {
@@ -226,7 +263,7 @@ fn expand_use(
         )
     })?;
 
-    let pairs = parse_bindings(bindings, span, numbers)?;
+    let pairs = parse_bindings(bindings, span, registry.numbers())?;
     // Every declared parameter must be bound; bind it via a synthetic `setint`.
     for p in &tmpl.params {
         let (_, val) = pairs.iter().find(|(k, _)| k == p).ok_or_else(|| {
@@ -236,7 +273,12 @@ fn expand_use(
                 format!("template `{name}` is missing a binding for `{p}`"),
             )
         })?;
-        out.push(synth_setint(p, *val, span));
+        out.push(synthetic_operation_call(
+            tcl_registry::bpf_op::BpfOpKind::ScalarSet(tcl_registry::bpf_op::BpfScalarWidth::I64),
+            vec![p.to_owned(), (*val).to_string()],
+            span,
+            registry,
+        )?);
     }
     // Reject bindings that don't name a parameter.
     if let Some((k, _)) = pairs.iter().find(|(k, _)| !tmpl.params.contains(k)) {
@@ -248,7 +290,14 @@ fn expand_use(
     }
 
     // Splice the body, expanding any nested `use` one level deeper.
-    let expanded = expand_script(&tmpl.body, templates, numbers, depth + 1)?;
+    let expanded = tmpl
+        .source
+        .prepared_body(registry)
+        .and_then(|body| expand_script(&body, templates, registry, depth + 1))
+        .and_then(|body| crate::unroll::unroll_loops(&body, registry, &tmpl.source))
+        // A reached expansion diagnostic belongs to this actual use site; the
+        // template body's independent coordinates cannot become handler offsets.
+        .map_err(|error| BpfError::new(error.code, span, error.msg))?;
     out.extend(expanded.statements);
     Ok(())
 }
@@ -279,20 +328,4 @@ fn parse_bindings(
         pairs.push((k.to_owned(), n));
     }
     Ok(pairs)
-}
-
-/// Build a synthetic `setint VAR <n>` IR call (a parameter binding).
-fn synth_setint(var: &str, n: i64, span: Span) -> Statement {
-    Statement::Call {
-        span,
-        command: "setint".to_owned(),
-        canonical_command: None,
-        args: vec![var.to_owned(), n.to_string()],
-        defs: Vec::new(),
-        reads: Vec::new(),
-        reads_own_defs: false,
-        safe_on_uninit: false,
-        tokens: None,
-        foreach_groups: None,
-    }
 }

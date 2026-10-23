@@ -115,7 +115,8 @@ impl Descended {
 /// and is always *recovered*.  `sm` maps the region containing `token`
 /// (used to resolve its position, inner text, and whether the delimiter
 /// is terminated); `config` is the dialect the inner text is re-lexed
-/// under.
+/// under. The extracted inner source uses [`LexerConfig::nested`]; the
+/// whole document's leading-BOM treatment belongs to its parent boundary.
 #[must_use]
 pub fn descend_token(sm: &SourceMap<'_>, token: Token, config: LexerConfig) -> Descended {
     let (start, _end) = sm.range_positions(token.span);
@@ -130,7 +131,7 @@ pub fn descend_token(sm: &SourceMap<'_>, token: Token, config: LexerConfig) -> D
         (start.offset, start.line, start.character.get(), false)
     };
     let inner = sm.token_text(token);
-    let (document, _warnings) = build_document(inner, config);
+    let (document, _warnings) = build_document(inner, config.nested());
     let tree = SyntaxTree::with_parts(
         document,
         b_off,
@@ -213,6 +214,51 @@ mod tests {
     use super::super::red::SyntaxElement;
     use super::*;
     use tcl_lexer::Lexer;
+
+    #[test]
+    fn original_descended_body_keeps_parent_word_config_and_nested_bom_content() {
+        // naming.source.original-configured-script-completeness
+
+        // Source geometry and grammar; no header/value/worker authority.
+        let source = "\u{feff}proc p {} {\u{feff}set name value}";
+        let config = LexerConfig::for_file_grammar(
+            crate::environment_ingress::resolve_environment("tcl9.1").grammar(),
+        );
+        let image = tcl_lexer::SourceImage::document(source);
+        let original = tcl_lexer::native_script_words_in(
+            image.clone(),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let word = original.commands[0].words.last().unwrap();
+        let token = *word
+            .tokens()
+            .iter()
+            .find(|token| token.kind == TokenType::Str)
+            .unwrap();
+        assert_eq!(word.config(), config);
+        assert_eq!(word.image(), &image);
+        let sm = SourceMap::from_image(&image);
+        for leading_bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let selected = LexerConfig {
+                leading_bom,
+                strict_quoting: true,
+                ..config
+            };
+            let descended = descend_token(&sm, token, selected);
+            let commands =
+                crate::parsing::syntax::segment::segments_from_tree(descended.tree(), &sm);
+            assert!(descended.is_terminated());
+            assert_eq!(commands.len(), 1);
+            assert_eq!(commands[0].texts[0], "\u{feff}set");
+            assert_eq!(
+                commands[0].argv[0].span.start(),
+                word.content_span().unwrap().start()
+            );
+            assert_eq!(word.config(), config);
+        }
+    }
 
     /// Lex `src` and return the first token of `kind`.
     fn first_of(src: &str, kind: TokenType) -> Token {

@@ -142,8 +142,16 @@ const DOWNLOAD_GAP_MS = 120;
  * honest option, and the browser's own "download several files?" prompt is the
  * one confirmation it costs.
  */
-export function downloadAll(files: { path: string; source: string }[]): void {
-  files.forEach((file, index) => {
-    window.setTimeout(() => download(file.path, file.source), index * DOWNLOAD_GAP_MS);
-  });
+export function downloadAll(
+  files: { path: string; source: string }[],
+  admitted: () => boolean = () => true,
+): void {
+  // Retain the actual requested bytes, not mutable list entries through timers.
+  files
+    .map(({ path, source }) => ({ path, source }))
+    .forEach((file, index) => {
+      window.setTimeout(() => {
+        if (admitted()) download(file.path, file.source);
+      }, index * DOWNLOAD_GAP_MS);
+    });
 }

@@ -304,20 +304,15 @@ fn resolve_attached_profile(
     virtual_server: &BigipVirtualServer,
     profiles: &BTreeMap<String, &BigipProfile>,
 ) -> Option<String> {
-    if profiles.contains_key(reference) {
-        return Some(reference.to_owned());
-    }
-    if !reference.starts_with('/')
-        && let Some(partition) = virtual_server
-            .full_path
-            .strip_prefix('/')
-            .and_then(|path| path.split('/').next())
-        && let candidate = format!("/{partition}/{reference}")
-        && profiles.contains_key(&candidate)
-    {
-        return Some(candidate);
-    }
-    resolve_reference(reference, profiles)
+    crate::object_names::object_name_candidates(
+        reference,
+        profiles.keys().map(|path| (path.as_str(), path.as_str())),
+        crate::object_names::ObjectNamePolicy::ExactThenOwnerPartitionOrReferenceLeaf {
+            owner: &virtual_server.full_path,
+        },
+    )
+    .unique()
+    .map(ToOwned::to_owned)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -848,38 +843,39 @@ fn lookup_material(
     reference: &str,
     material: &BTreeMap<String, Vec<Certificate>>,
 ) -> Option<Vec<Certificate>> {
-    material.get(reference).cloned().or_else(|| {
-        let leaf = reference.rsplit('/').next().unwrap_or(reference);
+    crate::object_names::object_name_candidates(
+        reference,
         material
             .iter()
-            .find(|(path, _)| path.rsplit('/').next().unwrap_or(path) == leaf)
-            .map(|(_, certificates)| certificates.clone())
-    })
+            .map(|(path, certificates)| (path.as_str(), certificates)),
+        crate::object_names::ObjectNamePolicy::ExactThenReferenceLeaf,
+    )
+    .first_in_order()
+    .cloned()
 }
 
 fn lookup_key_material<'a>(
     reference: &str,
     material: &'a BTreeMap<String, String>,
 ) -> Option<&'a str> {
-    material.get(reference).map(String::as_str).or_else(|| {
-        let leaf = reference.rsplit('/').next().unwrap_or(reference);
+    crate::object_names::object_name_candidates(
+        reference,
         material
             .iter()
-            .find(|(path, _)| path.rsplit('/').next().unwrap_or(path.as_str()) == leaf)
-            .map(|(_, key)| key.as_str())
-    })
+            .map(|(path, key)| (path.as_str(), key.as_str())),
+        crate::object_names::ObjectNamePolicy::ExactThenReferenceLeaf,
+    )
+    .first_in_order()
 }
 
 fn resolve_reference<T>(reference: &str, objects: &BTreeMap<String, T>) -> Option<String> {
-    if objects.contains_key(reference) {
-        return Some(reference.to_owned());
-    }
-    let leaf = reference.rsplit('/').next().unwrap_or(reference);
-    let matches: Vec<&String> = objects
-        .keys()
-        .filter(|path| path.rsplit('/').next().unwrap_or(path) == leaf)
-        .collect();
-    (matches.len() == 1).then(|| matches[0].clone())
+    crate::object_names::object_name_candidates(
+        reference,
+        objects.keys().map(|path| (path.as_str(), path.as_str())),
+        crate::object_names::ObjectNamePolicy::ExactThenReferenceLeaf,
+    )
+    .unique()
+    .map(ToOwned::to_owned)
 }
 
 fn profile_side(profile_type: ProfileType) -> TlsProfileSide {
@@ -1112,7 +1108,10 @@ ltm virtual https {
 ";
         let config = parse_bigip_conf(source, "Common");
         let imported = import_bigip_tls(&config, None, &HashMap::new());
-        assert!(imported.endpoints[0].endpoint.protocols.is_empty());
+        assert_eq!(
+            imported.endpoints[0].endpoint.protocols,
+            [] as [tcl_sslictcl::ProtocolVersion; 0]
+        );
         assert!(imported.notices.iter().any(|notice| {
             notice.kind == "unknown-tmos-version" && notice.object == "/Common/custom"
         }));
@@ -1140,7 +1139,10 @@ ltm virtual https {
         );
         assert_eq!(profile.used_by_virtuals, ["/Common/https"]);
         assert_eq!(imported.endpoints.len(), 1);
-        assert!(imported.endpoints[0].certificates.is_empty());
+        assert_eq!(
+            imported.endpoints[0].certificates,
+            [] as [tcl_sslictcl::Certificate; 0]
+        );
         assert_eq!(
             imported.endpoints[0].key_match.status,
             tcl_sslictcl::KeyMatchStatus::Unknown
@@ -1153,7 +1155,10 @@ ltm virtual https {
             BigipVersion::parse("17.1"),
             &HashMap::new(),
         );
-        assert!(mutated_import.endpoints.is_empty());
+        assert_eq!(
+            mutated_import.endpoints,
+            [] as [crate::tls::VirtualTlsEndpoint; 0]
+        );
     }
 
     #[test]
@@ -1203,7 +1208,13 @@ ltm virtual /Common/https {
 
     #[test]
     fn dynamic_options_do_not_project_a_partial_protocol_set() {
-        assert!(protocols_from_options("no-tlsv1 $runtime_options").is_empty());
-        assert!(protocols_from_options("[profile::options]").is_empty());
+        assert_eq!(
+            protocols_from_options("no-tlsv1 $runtime_options"),
+            [] as [tcl_sslictcl::ProtocolVersion; 0]
+        );
+        assert_eq!(
+            protocols_from_options("[profile::options]"),
+            [] as [tcl_sslictcl::ProtocolVersion; 0]
+        );
     }
 }

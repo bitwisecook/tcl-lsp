@@ -21,11 +21,11 @@ import * as vscode from "vscode";
 import {
   getDocUri,
   activate,
-  waitForDiagnostics,
   waitForDeepDiagnostics,
   getServerLogSize,
   pollUntil,
   scaledTimeout,
+  waitForDiagnosticsSnapshot,
 } from "./helper";
 
 function labelOf(item: vscode.CompletionItem): string {
@@ -510,7 +510,13 @@ suite("Variable Completion: W215 unreachable-name diagnostic", () => {
 
   test("W215 fires on a variable name that contains '}'", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     const w215 = diagnostics.filter((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
       return code === "W215";
@@ -531,7 +537,13 @@ suite("Variable Completion: W215 unreachable-name diagnostic", () => {
 
   test("W216 fires on `${arr}(foo)` (parsed as scalar+literal)", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     const w216 = diagnostics.filter((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
       return code === "W216";
@@ -550,7 +562,13 @@ suite("Variable Completion: W215 unreachable-name diagnostic", () => {
 
   test("W216 quick fix offers the bare-form replacement", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     // Pick the ``${arr}(name)`` (pattern 1) diagnostic specifically.
     const w216 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -598,7 +616,13 @@ suite("Variable Completion: W215 unreachable-name diagnostic", () => {
     // quick fix uses the ``[set "name(idx)"]`` indirection form which
     // works for any name, with index substitution preserved.
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     const w216 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
       return code === "W216" && d.message.includes("funny name");
@@ -627,7 +651,13 @@ suite("Variable Completion: W215 unreachable-name diagnostic", () => {
 
   test("W215 has Warning severity", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     const w215 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
       return code === "W215";

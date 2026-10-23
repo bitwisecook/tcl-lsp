@@ -35,7 +35,12 @@ VS Code
 
 ## Operational context
 
-There are two adapters. On `auto`, the dialect picks one.
+There are two adapters. On `auto`, the dialect picks one from a completed
+analysis report tied to the open document's current URI, version, source, and
+analysis context. An unavailable report fails validation; if the document or
+analysis context changes while validation runs, the stale result is suppressed.
+Choosing `tcl-syntax` or `irules-stub` explicitly does not wait for LSP analysis;
+it validates the captured source with that adapter.
 
 - **Tcl syntax adapter** — reads the file and runs `info complete`. It never
   evaluates your code, so a script with side effects is safe to check. It

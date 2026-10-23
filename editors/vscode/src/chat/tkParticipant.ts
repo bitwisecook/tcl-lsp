@@ -19,14 +19,15 @@
 import * as vscode from "vscode";
 import { getActiveDialect, getClient, isAiEnabled, isTclLanguage } from "../extension";
 import { runAgenticLoop } from "./agenticLoop";
-import { extractCodeBlock, resolveIruleCode } from "./codeUtils";
+import { extractCodeBlock, isDocumentSourceSnapshotCurrent, resolveIruleSource } from "./codeUtils";
 import { sendContextualRequest } from "./contextPack";
-import { renderDiagnosticSection } from "./diagnosticAccess";
+import { isAnalysisContextCurrent, renderDiagnosticSection } from "./diagnosticAccess";
 import { CommandContext } from "./types";
-import { buildPrompt } from "./promptLoader";
+import { buildDialectNeutralSourcePrompt, buildPrompt } from "./promptLoader";
 import { handleHelp } from "./commands/help";
 
 const PARTICIPANT_ID = "tcl-lsp.tk";
+const TK_SOURCE_DIALECT = "tk";
 
 export function registerTkParticipant(context: vscode.ExtensionContext): void {
   const participant = vscode.chat.createChatParticipant(PARTICIPANT_ID, tkRequestHandler);
@@ -44,7 +45,9 @@ const tkRequestHandler: vscode.ChatRequestHandler = async (request, context, res
     return {};
   }
 
-  const systemPrompt = buildPrompt(getActiveDialect());
+  const systemPrompt = buildPrompt(
+    request.command === "create" ? TK_SOURCE_DIALECT : getActiveDialect(),
+  );
   const ctx: CommandContext = {
     request,
     context,
@@ -125,7 +128,7 @@ async function handleTkCreate(ctx: CommandContext): Promise<vscode.ChatResult> {
   }
 
   const result = await runAgenticLoop(ctx, initialCode, undefined, {
-    targetDialect: getActiveDialect(),
+    targetDialect: TK_SOURCE_DIALECT,
   });
 
   ctx.response.markdown(`## Generated Tk GUI\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`);
@@ -154,30 +157,72 @@ async function handleTkCreate(ctx: CommandContext): Promise<vscode.ChatResult> {
     title: "Open Tk Preview",
   });
 
-  return { metadata: { command: "create", clean: result.clean, iterations: result.iterations } };
+  return {
+    metadata: {
+      command: "create",
+      clean: result.clean,
+      iterations: result.iterations,
+    },
+  };
+}
+
+function tkExplainSourceIsCurrent(source: Awaited<ReturnType<typeof resolveIruleSource>>): boolean {
+  const snapshot = source?.snapshot;
+  return (
+    snapshot === undefined ||
+    (isDocumentSourceSnapshotCurrent(snapshot) &&
+      (snapshot.analysisContext === undefined ||
+        isAnalysisContextCurrent(snapshot.analysisContext)))
+  );
 }
 
 async function handleTkExplain(ctx: CommandContext): Promise<vscode.ChatResult> {
-  const code = await resolveIruleCode(ctx);
-  if (!code) {
-    ctx.response.markdown("Open a Tk file, select code, or attach `#file` to explain.");
+  const source = await resolveIruleSource(ctx);
+  if (!source?.source || (source.languageId && !isTclLanguage(source.languageId))) {
+    ctx.response.markdown("Open a Tcl/Tk file, select code, or attach `#file` to explain.");
+    return {};
+  }
+  if (!tkExplainSourceIsCurrent(source)) {
+    ctx.response.markdown(
+      "The source changed while it was being selected. Run the explanation again.",
+    );
     return {};
   }
 
   ctx.response.progress("Analysing Tk GUI layout...");
+  const sourceOnlyContext: CommandContext = {
+    ...ctx,
+    systemPrompt:
+      buildDialectNeutralSourcePrompt() +
+      "\n\nThe user requested a Tk GUI layout explanation. Treat that as the requested focus, " +
+      "not as proof of the source file's configured dialect.",
+  };
   const llmResponse = await sendContextualRequest(
-    ctx,
-    `Explain this Tk GUI code. Cover:\n` +
+    sourceOnlyContext,
+    `Explain this Tcl/Tk GUI source using only the supplied text. Cover:\n` +
       `- Widget hierarchy (parent-child relationships)\n` +
       `- Geometry manager usage (grid/pack/place layout)\n` +
       `- Event bindings and callbacks\n` +
-      `- Any potential issues (mixed geometry managers, missing parents)\n\n` +
-      `\`\`\`tcl\n${code}\n\`\`\``,
-    { code, allowAmbientContext: false },
+      `- Potential issues, with dialect-sensitive conclusions marked as uncertain\n\n` +
+      `\`\`\`tcl\n${source.source}\n\`\`\``,
+    {
+      code: source.source,
+      allowAmbientContext: false,
+      includeDiagnostics: false,
+      includeSymbolDefinitions: false,
+      includeEventMetadata: false,
+      isSourceCurrent: () => tkExplainSourceIsCurrent(source),
+    },
   );
+  let responseText = "";
   for await (const chunk of llmResponse.text) {
-    ctx.response.markdown(chunk);
+    responseText += chunk;
   }
+  if (!tkExplainSourceIsCurrent(source)) {
+    ctx.response.markdown("The source changed while the explanation was generated. Run it again.");
+    return {};
+  }
+  ctx.response.markdown(responseText);
   return { metadata: { command: "explain" } };
 }
 

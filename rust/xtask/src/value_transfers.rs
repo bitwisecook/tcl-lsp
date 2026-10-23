@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `value-transfers` — the value-transfer drift gate
-//! (`docs/design/compiler/value-transfers-migration.md` § *The drift gate
+//! (`docs/design/compiler/value-transfer-consumers.md` § *The drift gate
 //! and the generated inventory*).
 //!
 //! Per-command knowledge on the value axis belongs to the registry's
@@ -76,7 +76,7 @@ use crate::util::{ANALYSIS_TIER_ROOTS, repo_root};
 const REPORT_PATH: &str = "docs/generated/value-transfers.md";
 
 /// The design page whose ledger lists every ratcheted file with its pin.
-const LEDGER_PATH: &str = "docs/design/compiler/value-transfers-migration.md";
+const LEDGER_PATH: &str = "docs/design/compiler/value-transfer-consumers.md";
 
 /// The files the lint holds clean: every recogniser-shaped site is waived
 /// or gone. A review that rewrites a file adds it here, and a file never
@@ -208,7 +208,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
         }
     }
     let ledger = fs::read_to_string(root.join(LEDGER_PATH))
-        .with_context(|| format!("reading {LEDGER_PATH}, the ratchet's ledger"))?;
+        .with_context(|| format!("reading {LEDGER_PATH}, the ratchet contract"))?;
     let rows = enumerate()?;
     for problem in ratchet_verdicts(&lint, RATCHET, CLEAN_FILES)
         .into_iter()
@@ -1158,8 +1158,8 @@ fn render_ratchet(out: &mut String, lint: &Lint) {
         "The files the gate holds clean, with every site waived or gone: {}.\n\nEvery other \
          scanned file with an unwaived recogniser-shaped site, and its count, which is the pin in \
          `rust/xtask/src/value_transfers.rs`. The count may only fall: a pin is lowered \
-         beside the review that removes or waives the file's sites, and the ledger in \
-         `docs/design/compiler/value-transfers-migration.md` names that review or axis migration.\n",
+         beside the review that removes or waives the file's sites, and the consumer contract in \
+         `docs/design/compiler/value-transfer-consumers.md` records the owning axis or constraint.\n",
         clean.join(", ")
     );
     let _ = writeln!(out, "| File | Unwaived sites |");
@@ -1297,7 +1297,7 @@ mod tests {
         let verdicts = ratchet_verdicts(&lint, &pins, &[]);
         assert_eq!(verdicts.len(), 2, "{verdicts:?}");
         assert!(verdicts.iter().all(|v| v.contains("lower the pin")));
-        assert!(ratchet_verdicts(&lint, &[("rust/x/a.rs", 1)], &[]).is_empty());
+        assert_eq!(ratchet_verdicts(&lint, &[("rust/x/a.rs", 1)], &[]).len(), 0);
     }
 
     #[test]
@@ -1336,7 +1336,7 @@ mod tests {
                 .any(|v| v.contains("`rust/x/c.rs`, which RATCHET does not pin"))
         );
         let agreed = [("rust/x/a.rs", 2), ("rust/x/b.rs", 5), ("rust/x/c.rs", 1)];
-        assert!(ledger_verdicts(doc, &agreed).is_empty());
+        assert_eq!(ledger_verdicts(doc, &agreed).len(), 0);
     }
 
     #[test]
@@ -1349,7 +1349,8 @@ mod tests {
             lint.clean_hits
         );
         assert!(lint.problems.is_empty(), "{:?}", lint.problems);
-        let ledger = fs::read_to_string(root.join(LEDGER_PATH)).expect("the ledger page");
+        let ledger =
+            fs::read_to_string(root.join(LEDGER_PATH)).expect("the consumer contract page");
         let verdicts: Vec<String> = ratchet_verdicts(&lint, RATCHET, CLEAN_FILES)
             .into_iter()
             .chain(ledger_verdicts(&ledger, RATCHET))

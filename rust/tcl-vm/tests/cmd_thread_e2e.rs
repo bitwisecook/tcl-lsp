@@ -35,7 +35,7 @@ use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect;
 use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileService, Vm};
+use tcl_vm::CompileService;
 
 /// A `Write` sink over a shared byte buffer — used for both the main
 /// interpreter's output and (as the `Send` sink) every worker's, so a test can
@@ -62,10 +62,10 @@ fn run(src: &str) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let buf = Arc::new(Mutex::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(SharedBuf(Arc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(SharedBuf(Arc::clone(&buf))));
     vm.set_compiler(compiler());
     vm.enable_threads(
         Arc::new(compiler),
@@ -96,9 +96,11 @@ fn assert_workers_inherit_a_separate_host_command_surface() {
     let source = "set w [thread::create]; set threaded [thread::send $w {llength [info commands interp]}]; thread::release $w; set p [tpool::create -maxworkers 1]; set j [tpool::post $p {llength [info commands interp]}]; set pooled [tpool::get $p $j]; tpool::release $p; list $threaded $pooled";
     let ir = lower_to_ir_for_bytecode_with_dialect(source, registry, config, Some(dialect));
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, registry);
+    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
 
-    let mut vm = Vm::with_output(Box::new(std::io::sink()));
+    // The iRules source dialect has no native core of its own: it runs on the
+    // host release's engine.
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(host, Box::new(std::io::sink()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(dialect)));
     vm.set_dialect_profile(dialect);
     assert!(vm.set_command_surface_profile(host));
@@ -140,8 +142,8 @@ fn thread_package_absent_without_enable() {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir("set tcl_platform(threaded)", &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
-    let mut vm = Vm::with_output(Box::new(std::io::sink()));
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(std::io::sink()));
     vm.set_compiler(compiler());
     let c = vm.run_module(&asm);
     assert!(c.code.is_ok());

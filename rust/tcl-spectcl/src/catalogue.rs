@@ -34,9 +34,13 @@
 use std::sync::LazyLock;
 
 use tcl_dialect::model::{EnvironmentRegistry, SpecSurface};
+use tcl_registry::hooks::{
+    AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId, ReturnTypeHookId,
+};
 use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::taint::{TaintColour, TaintColourAtom};
 use tcl_registry::traits::{Trait, Traits};
+use tcl_registry::value_transfer::NativeEvalId;
 
 /// One selectable value in a picker — the Rust spelling plus a one-line
 /// description.
@@ -53,6 +57,68 @@ pub struct Variant {
 const fn v(key: &'static str, doc: &'static str) -> Variant {
     Variant { key, doc }
 }
+
+/// Project the owner's complete presentation without another membership roster.
+const fn catalogue_rows<const N: usize>(source: &[(&'static str, &'static str)]) -> [Variant; N] {
+    let mut rows = [v("", ""); N];
+    let mut at = 0;
+    while at < N {
+        rows[at] = v(source[at].0, source[at].1);
+        at += 1;
+    }
+    rows
+}
+
+const fn catalogue_label(key: &'static str, labels: &[Variant]) -> &'static str {
+    let mut at = 0;
+    while at < labels.len() {
+        let left = key.as_bytes();
+        let right = labels[at].key.as_bytes();
+        let mut equal = left.len() == right.len();
+        let mut byte = 0;
+        while equal && byte < left.len() {
+            equal = left[byte] == right[byte];
+            byte += 1;
+        }
+        if equal {
+            return labels[at].doc;
+        }
+        at += 1;
+    }
+    key
+}
+
+/// Independently declared frame at executable argument entry.
+pub const SCRIPT_LOOKUP_SCOPES: &[Variant] = &[
+    v(
+        "InvokingFrame",
+        "Current invoking frame when the executable argument runs",
+    ),
+    v(
+        "GlobalFrame",
+        "Global interpreter frame at a deferred callback entry",
+    ),
+    v(
+        "TriggerFrame",
+        "Frame of the operation that triggers an installed trace",
+    ),
+];
+
+/// Conditional source flow grammars, without handler or execution permission.
+pub const IRULES_SOURCE_FLOWS: &[Variant] = &[
+    v(
+        "DropsConnection",
+        "Possible source connection drop requiring a following guard",
+    ),
+    v(
+        "ReturnsDnsPacket",
+        "Possible source DNS return requiring a following script return",
+    ),
+    v(
+        "EventControl",
+        "Effective source operands choose later event suppression",
+    ),
+];
 
 /// [`ArgRole`] — how a consumer should treat an argument position.
 pub const ARG_ROLES: &[Variant] = &[
@@ -198,6 +264,52 @@ pub const BYTE_ARRAY_EFFECTS: &[Variant] = &[
     ),
 ];
 
+/// [`tcl_registry::ChannelConfigurationSpec`] conditional source option relationships.
+pub const CHANNEL_CONFIGURATIONS: &[Variant] = &[v(
+    "EncodingTranslation",
+    "original encoding and translation option values",
+)];
+
+/// [`tcl_registry::SourceConfigurationReferenceLayout`] conditional source object references.
+pub const SOURCE_CONFIGURATION_REFERENCES: &[Variant] = &[
+    v(
+        "DataGroupComparison",
+        "data-group operand after a comparison item and operator",
+    ),
+    v(
+        "DataGroupLookup",
+        "data-group operand after a literal or dynamic lookup key",
+    ),
+];
+
+/// [`tcl_registry::SourceIndexBounds`] conditional original index relationships.
+pub const SOURCE_INDEX_BOUNDS: &[Variant] = &[
+    v("ListIndex", "literal list index descent"),
+    v("ListRange", "literal list slice bounds"),
+    v("ListReplace", "literal list replacement bounds"),
+    v("StringIndex", "literal string character index"),
+    v("StringRange", "literal string slice bounds"),
+    v("StringReplace", "literal string replacement bounds"),
+    v("StringInsert", "literal string insertion bounds"),
+];
+
+/// [`tcl_registry::SourcePathOperation`] conditional source path algebra.
+pub const SOURCE_PATH_OPERATIONS: &[Variant] = &[
+    v("Join", "join exact source argument values"),
+    v("Dirname", "parent directory in the explicit path algebra"),
+    v(
+        "Normalize",
+        "lexical normalisation of an anchored source path",
+    ),
+    v("ScriptPath", "explicit caller-supplied document filename"),
+];
+
+/// [`tcl_registry::deprecation::SourceDeprecationAdvice`] source review plans.
+pub const SOURCE_DEPRECATION_ADVICE: &[Variant] = &[v(
+    "IruleMatchclass",
+    "review proposal replacing the declared legacy shape with class match",
+)];
+
 /// [`CommandTableEffect`] — how a command rebinds command names.
 pub const COMMAND_TABLE_EFFECTS: &[Variant] = &[
     v("DefinesProcedure", "defines a new procedure (`proc`)"),
@@ -275,132 +387,30 @@ pub const CONNECTION_SIDES: &[Variant] = &[
 ];
 
 /// [`LoweringHookId`] — the per-command lowering specialisation.
-pub const LOWERING_HOOKS: &[Variant] = &[
-    v("Expr", "expr"),
-    v("Return", "return"),
-    v("Set", "set"),
-    v("Incr", "incr"),
-    v("AppendOrLappend", "append / lappend"),
-    v("Unset", "unset"),
-    v("Global", "global"),
-    v("Variable", "variable"),
-    v("Upvar", "upvar"),
-    v("Proc", "proc"),
-    v("When", "iRules when"),
-    v("NamespaceEval", "namespace eval"),
-    v("If", "if"),
-    v("Switch", "switch"),
-    v("For", "for"),
-    v("While", "while"),
-    v("Foreach", "foreach"),
-    v("Lmap", "lmap"),
-    v("ForeachLine", "foreach-line reader idiom"),
-    v("Catch", "catch"),
-    v("Try", "try"),
-    v("Dict", "dict"),
-    v("Eval", "eval"),
-    v("Uplevel", "uplevel"),
-    v("Apply", "apply"),
-    v("ArrayFor", "array for"),
-];
+pub const LOWERING_HOOKS: &[Variant] = &catalogue_rows::<
+    { LoweringHookId::SOURCE_PRESENTATION.len() },
+>(LoweringHookId::SOURCE_PRESENTATION);
 
 /// [`CodegenHookId`] — the per-command `TclVM` bytecode emitter.
-pub const CODEGEN_HOOKS: &[Variant] = &[
-    v("Lassign", "lassign"),
-    v("Llength", "llength"),
-    v("Lrange", "lrange"),
-    v("Linsert", "linsert"),
-    v("Lset", "lset"),
-    v("Dict", "dict"),
-    v("Array", "array"),
-    v("Namespace", "namespace"),
-    v("Append", "append"),
-    v("Lappend", "lappend"),
-    v("Unset", "unset"),
-    v("Tailcall", "tailcall"),
-    v("Concat", "concat"),
-    v("Global", "global"),
-    v("Upvar", "upvar"),
-    v("Set", "set"),
-    v("ArraySet", "array set"),
-    v("ArrayUnset", "array unset"),
-    v("Variable", "variable"),
-    v("NamespaceUpvar", "namespace upvar"),
-];
+pub const CODEGEN_HOOKS: &[Variant] = &catalogue_rows::<{ CodegenHookId::SOURCE_PRESENTATION.len() }>(
+    CodegenHookId::SOURCE_PRESENTATION,
+);
 
 /// [`InlineCodegenHookId`] — the value-position / catch-body emitter.
-pub const INLINE_CODEGEN_HOOKS: &[Variant] = &[
-    v("Expr", "expr"),
-    v("Incr", "incr"),
-    v("Set", "set"),
-    v("InfoExists", "info exists"),
-    v("String", "string"),
-    v("Lindex", "lindex"),
-    v("Lrange", "lrange"),
-    v("Lreplace", "lreplace"),
-    v("Linsert", "linsert"),
-    v("Regexp", "regexp"),
-    v("List", "list"),
-    v("Array", "array"),
-    v("DictGet", "dict get"),
-    v("Catch", "catch"),
-    v("Return", "return"),
-    v("Error", "error"),
-    v("Break", "break"),
-    v("Continue", "continue"),
-    v("Try", "try"),
-    v("StringIs", "string is"),
-    v("StringMatch", "string match"),
-    v("StringReplace", "string replace"),
-    v("StringTrim", "string trim"),
-    v("StringTrimLeft", "string trimleft"),
-    v("StringTrimRight", "string trimright"),
-];
+pub const INLINE_CODEGEN_HOOKS: &[Variant] = &catalogue_rows::<
+    { InlineCodegenHookId::SOURCE_PRESENTATION.len() },
+>(InlineCodegenHookId::SOURCE_PRESENTATION);
 
 /// [`ReturnTypeHookId`] — the algorithm that types a call whose result shape
 /// moves with the call.
-pub const RETURN_TYPE_HOOKS: &[Variant] = &[
-    v("Regexp", "regexp -inline / -about"),
-    v("Lsearch", "lsearch -all / -inline / -subindices"),
-    v("Regsub", "regsub with or without varName"),
-    v("Scan", "scan inline or variable-writing"),
-    v("Pid", "pid with or without fileId"),
-];
+pub const RETURN_TYPE_HOOKS: &[Variant] = &catalogue_rows::<
+    { ReturnTypeHookId::SOURCE_PRESENTATION.len() },
+>(ReturnTypeHookId::SOURCE_PRESENTATION);
 
 /// [`AnalyserHookId`] — the per-command analyser handler family.
-pub const ANALYSER_HOOKS: &[Variant] = &[
-    v("Proc", "proc"),
-    v("OptProc", "argparse-style proc"),
-    v("Apply", "apply"),
-    v("Uplevel", "uplevel"),
-    v("NamespaceEval", "namespace eval"),
-    v("NamespaceEnsemble", "namespace ensemble"),
-    v("NamespaceImport", "namespace import"),
-    v("NamespaceExport", "namespace export"),
-    v("NamespaceForget", "namespace forget"),
-    v("NamespacePath", "namespace path"),
-    v("NamespaceUnknown", "namespace unknown"),
-    v("Foreach", "foreach"),
-    v("Switch", "switch"),
-    v("Catch", "catch"),
-    v("DictWith", "dict with"),
-    v("InterpAlias", "interp alias"),
-    v("InterpEval", "interp eval"),
-    v("InterpCreate", "interp create"),
-    v("InterpDelete", "interp delete"),
-    v("InterpHide", "interp hide"),
-    v("InterpExpose", "interp expose"),
-    v("Rename", "rename"),
-    v("OoDefine", "oo::define"),
-    v("OoObjdefine", "oo::objdefine"),
-    v("PackageRequire", "package require"),
-    v("PackageProvide", "package provide"),
-    v("PackageIfneeded", "package ifneeded"),
-    v("PackagePrefer", "package prefer"),
-    v("Source", "source"),
-    v("RegexPatternCapture", "regexp capture binding"),
-    v("Load", "load"),
-];
+pub const ANALYSER_HOOKS: &[Variant] = &catalogue_rows::<
+    { AnalyserHookId::SOURCE_PRESENTATION.len() },
+>(AnalyserHookId::SOURCE_PRESENTATION);
 
 /// [`tcl_registry::pack_hooks::ARG_ROLE_RESOLVER_NATIVE`] — `arg_role_resolver
 /// -native ID`, `SCOPE::FIELD` spelled. Every `*_NATIVE` catalogue below
@@ -408,188 +418,260 @@ pub const ANALYSER_HOOKS: &[Variant] = &[
 /// `-native` statement is actually matched against
 /// (`docs/design/compiler/value-evaluation.md` § *`-native ID`, and the
 /// per-family catalogues*).
-pub const ARG_ROLE_RESOLVER_NATIVE: &[Variant] = &[];
+pub const ARG_ROLE_RESOLVER_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::ARG_ROLE_RESOLVER_NATIVE;
+    let labels: &[Variant] = &[];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::ARG_ROLE_RESOLVER_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::pack_hooks::COMMAND_PREFIX_RESOLVER_NATIVE`].
-pub const COMMAND_PREFIX_RESOLVER_NATIVE: &[Variant] = &[];
+pub const COMMAND_PREFIX_RESOLVER_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::COMMAND_PREFIX_RESOLVER_NATIVE;
+    let labels: &[Variant] = &[];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::COMMAND_PREFIX_RESOLVER_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::pack_hooks::SCRIPT_TIMING_RESOLVER_NATIVE`].
-pub const SCRIPT_TIMING_RESOLVER_NATIVE: &[Variant] = &[];
+pub const SCRIPT_TIMING_RESOLVER_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::SCRIPT_TIMING_RESOLVER_NATIVE;
+    let labels: &[Variant] = &[];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::SCRIPT_TIMING_RESOLVER_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::pack_hooks::CONST_FOLD_NATIVE`] — the shipped folders.
-pub const CONST_FOLD_NATIVE: &[Variant] = &[
-    v("string::range::const_fold", "string range"),
-    v("string::replace::const_fold", "string replace"),
-    v("regsub::const_fold", "regsub"),
-    v("scan::const_fold", "scan"),
-    v("list::const_fold", "list"),
-    v("lindex::const_fold", "lindex"),
-    v("concat::const_fold", "concat"),
-    v("llength::const_fold", "llength"),
-    v("lreverse::const_fold", "lreverse"),
-    v("join::const_fold", "join"),
-    v("split::const_fold", "split"),
-    v("lrepeat::const_fold", "lrepeat"),
-    v("lrange::const_fold", "lrange"),
-    v("dict::get::const_fold", "dict get"),
-    v("dict::exists::const_fold", "dict exists"),
-    v("dict::size::const_fold", "dict size"),
-    v("dict::keys::const_fold", "dict keys"),
-    v("dict::values::const_fold", "dict values"),
-    v("dict::create::const_fold", "dict create"),
-    v("dict::merge::const_fold", "dict merge"),
-    v("::tcl::dict::get::const_fold", "::tcl::dict::get"),
-    v("::tcl::dict::exists::const_fold", "::tcl::dict::exists"),
-    v("::tcl::dict::size::const_fold", "::tcl::dict::size"),
-    v("::tcl::dict::keys::const_fold", "::tcl::dict::keys"),
-    v("::tcl::dict::values::const_fold", "::tcl::dict::values"),
-    v("::tcl::dict::create::const_fold", "::tcl::dict::create"),
-    v("::tcl::dict::merge::const_fold", "::tcl::dict::merge"),
-    v("string::cat::const_fold", "string cat"),
-    v("string::compare::const_fold", "string compare"),
-    v("string::equal::const_fold", "string equal"),
-    v("string::first::const_fold", "string first"),
-    v("string::index::const_fold", "string index"),
-    v("string::last::const_fold", "string last"),
-    v("string::length::const_fold", "string length"),
-    v("string::map::const_fold", "string map"),
-    v("string::match::const_fold", "string match"),
-    v("string::repeat::const_fold", "string repeat"),
-    v("string::reverse::const_fold", "string reverse"),
-    v("string::tolower::const_fold", "string tolower"),
-    v("string::totitle::const_fold", "string totitle"),
-    v("string::toupper::const_fold", "string toupper"),
-    v("string::trim::const_fold", "string trim"),
-    v("string::trimleft::const_fold", "string trimleft"),
-    v("string::trimright::const_fold", "string trimright"),
-    v("namespace::qualifiers::const_fold", "namespace qualifiers"),
-    v("namespace::tail::const_fold", "namespace tail"),
-    v("subst::const_fold", "subst"),
-];
+pub const CONST_FOLD_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::CONST_FOLD_NATIVE;
+    let labels: &[Variant] = &[
+        v("string::range::const_fold", "string range"),
+        v("string::replace::const_fold", "string replace"),
+        v("regsub::const_fold", "regsub"),
+        v("scan::const_fold", "scan"),
+        v("list::const_fold", "list"),
+        v("lindex::const_fold", "lindex"),
+        v("concat::const_fold", "concat"),
+        v("llength::const_fold", "llength"),
+        v("lreverse::const_fold", "lreverse"),
+        v("join::const_fold", "join"),
+        v("split::const_fold", "split"),
+        v("lrepeat::const_fold", "lrepeat"),
+        v("lrange::const_fold", "lrange"),
+        v("dict::get::const_fold", "dict get"),
+        v("dict::exists::const_fold", "dict exists"),
+        v("dict::size::const_fold", "dict size"),
+        v("dict::keys::const_fold", "dict keys"),
+        v("dict::values::const_fold", "dict values"),
+        v("dict::create::const_fold", "dict create"),
+        v("dict::merge::const_fold", "dict merge"),
+        v("::tcl::dict::get::const_fold", "::tcl::dict::get"),
+        v("::tcl::dict::exists::const_fold", "::tcl::dict::exists"),
+        v("::tcl::dict::size::const_fold", "::tcl::dict::size"),
+        v("::tcl::dict::keys::const_fold", "::tcl::dict::keys"),
+        v("::tcl::dict::values::const_fold", "::tcl::dict::values"),
+        v("::tcl::dict::create::const_fold", "::tcl::dict::create"),
+        v("::tcl::dict::merge::const_fold", "::tcl::dict::merge"),
+        v("string::cat::const_fold", "string cat"),
+        v("string::compare::const_fold", "string compare"),
+        v("string::equal::const_fold", "string equal"),
+        v("string::first::const_fold", "string first"),
+        v("string::index::const_fold", "string index"),
+        v("string::last::const_fold", "string last"),
+        v("string::length::const_fold", "string length"),
+        v("string::map::const_fold", "string map"),
+        v("string::match::const_fold", "string match"),
+        v("string::repeat::const_fold", "string repeat"),
+        v("string::reverse::const_fold", "string reverse"),
+        v("string::tolower::const_fold", "string tolower"),
+        v("string::totitle::const_fold", "string totitle"),
+        v("string::toupper::const_fold", "string toupper"),
+        v("string::trim::const_fold", "string trim"),
+        v("string::trimleft::const_fold", "string trimleft"),
+        v("string::trimright::const_fold", "string trimright"),
+        v("namespace::qualifiers::const_fold", "namespace qualifiers"),
+        v("namespace::tail::const_fold", "namespace tail"),
+        v("subst::const_fold", "subst"),
+    ];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::CONST_FOLD_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE`].
-pub const CONST_FOLD_VERSIONED_NATIVE: &[Variant] = &[
-    v("string::is::const_fold_versioned", "string is"),
-    v("string::range::const_fold_versioned", "string range"),
-    v("format::const_fold_versioned", "format"),
-    v("regsub::const_fold_versioned", "regsub"),
-];
+pub const CONST_FOLD_VERSIONED_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE;
+    let labels: &[Variant] = &[
+        v("string::is::const_fold_versioned", "string is"),
+        v("string::range::const_fold_versioned", "string range"),
+        v("format::const_fold_versioned", "format"),
+        v("regsub::const_fold_versioned", "regsub"),
+    ];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::pack_hooks::TAINT_SINK_GATE_NATIVE`].
-pub const TAINT_SINK_GATE_NATIVE: &[Variant] = &[];
+pub const TAINT_SINK_GATE_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::TAINT_SINK_GATE_NATIVE;
+    let labels: &[Variant] = &[];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::TAINT_SINK_GATE_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::pack_hooks::CONTEXT_GATE_NATIVE`].
-pub const CONTEXT_GATE_NATIVE: &[Variant] = &[];
+pub const CONTEXT_GATE_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::CONTEXT_GATE_NATIVE;
+    let labels: &[Variant] = &[];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::CONTEXT_GATE_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::pack_hooks::LITERAL_ARGUMENT_VALIDATOR_NATIVE`].
-pub const LITERAL_ARGUMENT_VALIDATOR_NATIVE: &[Variant] = &[];
+pub const LITERAL_ARGUMENT_VALIDATOR_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::LITERAL_ARGUMENT_VALIDATOR_NATIVE;
+    let labels: &[Variant] = &[];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::LITERAL_ARGUMENT_VALIDATOR_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::pack_hooks::CLAUSE_SHAPE_CHECK_NATIVE`].
-pub const CLAUSE_SHAPE_CHECK_NATIVE: &[Variant] = &[];
+pub const CLAUSE_SHAPE_CHECK_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::CLAUSE_SHAPE_CHECK_NATIVE;
+    let labels: &[Variant] = &[];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::CLAUSE_SHAPE_CHECK_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::pack_hooks::OPTION_ARITY_NATIVE`].
-pub const OPTION_ARITY_NATIVE: &[Variant] = &[];
+pub const OPTION_ARITY_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::OPTION_ARITY_NATIVE;
+    let labels: &[Variant] = &[];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::OPTION_ARITY_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::pack_hooks::CONSTRAINTS_NATIVE`].
-pub const CONSTRAINTS_NATIVE: &[Variant] = &[];
+pub const CONSTRAINTS_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::CONSTRAINTS_NATIVE;
+    let labels: &[Variant] = &[];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::CONSTRAINTS_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::pack_hooks::STATE_TRANSITION_RESOLVER_NATIVE`] —
 /// `state_transitions { resolver -native ID }`.
-pub const STATE_TRANSITION_RESOLVER_NATIVE: &[Variant] = &[];
+pub const STATE_TRANSITION_RESOLVER_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::STATE_TRANSITION_RESOLVER_NATIVE;
+    let labels: &[Variant] = &[];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::STATE_TRANSITION_RESOLVER_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::pack_hooks::SEMANTICS_NATIVE`] — `semantics -native ID`.
-pub const SEMANTICS_NATIVE: &[Variant] = &[];
+pub const SEMANTICS_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::SEMANTICS_NATIVE;
+    let labels: &[Variant] = &[];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::SEMANTICS_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::pack_hooks::EVALUATE_NATIVE`] — `evaluate -native ID`.
-pub const EVALUATE_NATIVE: &[Variant] = &[];
+pub const EVALUATE_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::EVALUATE_NATIVE;
+    let labels: &[Variant] = &[];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::EVALUATE_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::pack_hooks::FACTS_NATIVE`] — `facts -native ID`.
-pub const FACTS_NATIVE: &[Variant] = &[];
+pub const FACTS_NATIVE: &[Variant] = &{
+    let table = tcl_registry::pack_hooks::FACTS_NATIVE;
+    let labels: &[Variant] = &[];
+    let mut rows = [v("", ""); tcl_registry::pack_hooks::FACTS_NATIVE.len()];
+    let mut at = 0;
+    while at < table.len() {
+        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
+        at += 1;
+    }
+    rows
+};
 
 /// [`tcl_registry::value_transfer::NativeEvalId::ALL`] — `evaluate -direct
 /// ID`, the Rust variant spelling (unlike the `*_NATIVE` tables above, this
 /// catalogue's own id predates `-native` and was already Rust-spelled).
-pub const NATIVE_EVAL_IDS: &[Variant] = &[
-    v("CellIncrement", "the cell increment behind incr"),
-    v("CellAppend", "the cell append behind append"),
-    v("CellListAppend", "the cell list-append behind lappend"),
-    v("CellWrite", "the exact-value write behind set"),
-    v("ConstWrite", "the constant's creation behind const"),
-    v("DictSet", "dict set"),
-    v("DictUnset", "dict unset"),
-    v("DictIncr", "dict incr"),
-    v("DictAppend", "dict append"),
-    v("DictListAppend", "dict lappend"),
-    v("StringRange", "string range"),
-    v("ListOfArgs", "list"),
-    v("FormatTemplate", "format"),
-    v("ListLength", "llength"),
-    v("StringLength", "string length"),
-    v("RegexpMatch", "regexp"),
-    v("RegsubSubstitute", "regsub"),
-    v("ScanFormat", "scan"),
-    v("BinaryScan", "binary scan"),
-    v("ListAssign", "lassign"),
-    v("ArraySet", "array set"),
-    v("BinaryFormat", "binary format"),
-    v("VariableUnset", "the unbinds behind unset"),
-    v("ErrorRaise", "the error completion behind error"),
-    v(
-        "ReturnComplete",
-        "the completion behind return, from its -code and -level",
-    ),
-    v("BreakComplete", "the break completion behind break"),
-    v(
-        "ContinueComplete",
-        "the continue completion behind continue",
-    ),
-    v(
-        "CatchProtected",
-        "the protected script's completion behind catch",
-    ),
-    v(
-        "ParameterDefault",
-        "the parameter default behind info default",
-    ),
-    v("ListSet", "lset"),
-    v("ListEdit", "ledit"),
-    v("ListPop", "lpop"),
-    v("Base64Encode", "the iRules b64encode"),
-    v("Base64Decode", "the iRules b64decode"),
-    v("Crc32Checksum", "the iRules crc32"),
-    v("Md5Digest", "the iRules md5"),
-    v("Sha1Digest", "the iRules sha1"),
-    v("Sha256Digest", "the iRules sha256"),
-    v("Sha384Digest", "the iRules sha384"),
-    v("Sha512Digest", "the iRules sha512"),
-    v("FindString", "the iRules findstr"),
-    v("StringField", "the iRules getfield"),
-    v("Substring", "the iRules substr"),
-    v("DomainLabels", "the iRules domain"),
-    v("UriBasename", "the iRules URI::basename"),
-    v("UriPath", "the iRules URI::path"),
-    v("UriQuery", "the iRules URI::query"),
-    v("UriHost", "the iRules URI::host"),
-    v("UriPort", "the iRules URI::port"),
-    v("UriProtocol", "the iRules URI::protocol"),
-    v("UriDecode", "the iRules URI::decode"),
-    v("UriEncode", "the iRules URI::encode"),
-    v("UriCompare", "the iRules URI::compare"),
-    v("IpAddrEquals", "the iRules IP::addr ... equals ..."),
-    v("PathJoin", "file join"),
-    v("PathDirname", "file dirname"),
-    v("PathTail", "file tail"),
-    v("PathExtension", "file extension"),
-    v("PathRootname", "file rootname"),
-    v("PathSplit", "file split"),
-    v("ListSplit", "split"),
-    v("StringFirst", "string first"),
-    v("StringMatch", "string match"),
-    v("Base32Encode", "base32::encode"),
-    v("Base32Decode", "base32::decode"),
-    v("Base32HexEncode", "base32::hex::encode"),
-    v("Base32HexDecode", "base32::hex::decode"),
-];
+pub const NATIVE_EVAL_IDS: &[Variant] = &catalogue_rows::<
+    { NativeEvalId::SOURCE_PRESENTATION.len() },
+>(NativeEvalId::SOURCE_PRESENTATION);
 
 /// [`tcl_registry::value_transfer::LanguageProfileId::ALL`] — `evaluate
 /// -expression ID`.
@@ -694,22 +776,8 @@ pub static TAINT_COLOURS: LazyLock<Vec<Variant>> = LazyLock::new(|| {
 /// through the registry's vocabulary rather than a parallel spelling. The EDA
 /// shells are deliberately absent, being a base Tcl version plus
 /// package-gated command libraries rather than surfaces of their own.
-const DIALECT_SURFACES: &[(&str, &[SpecSurface])] = &[
-    ("tcl8.4", SpecSurface::TCL84),
-    ("tcl8.5", SpecSurface::TCL85),
-    ("tcl8.6", SpecSurface::TCL86),
-    ("tcl9.0", SpecSurface::TCL90),
-    ("tcl9.1", SpecSurface::TCL91),
-    ("f5-irules", SpecSurface::IRULES),
-    ("f5-iapps", SpecSurface::IAPPS),
-    ("tk", SpecSurface::TK),
-    ("expect", SpecSurface::EXPECT),
-    ("bpf", SpecSurface::BPF),
-    ("f5-tmsh", SpecSurface::TMSH),
-    ("f5-bigip", SpecSurface::BIGIP),
-    ("spectcl", SpecSurface::SPECTCL),
-    ("sslictcl", SpecSurface::SSLICTCL),
-];
+const DIALECT_SURFACES: &[(&str, &[SpecSurface])] =
+    tcl_dialect::model::authored_surface::SOURCE_AUTHORING_ENVIRONMENT_SURFACES;
 
 /// The display name of the selectable environment `name` (`tk` included), or
 /// `name` itself when no selectable environment carries it.
@@ -810,7 +878,7 @@ const TAINT_BITS: &[(&str, TaintColour)] = &[
 /// no parallel name table, only the catalogues above (which exist for the
 /// picker).
 pub fn variant_name<T: std::fmt::Debug>(value: &T) -> String {
-    format!("{value:?}")
+    tcl_registry::metadata_catalogue::metadata_variant_name(value)
 }
 
 /// [`variant_name`] prefixed with its enum's type path, for a field the studio
@@ -950,6 +1018,14 @@ mod tests {
     }
 
     /// Witnesses for the small enums, grouped so one test covers them all.
+    fn covered_irules_source_flow(flow: tcl_registry::events::IrulesSourceFlowSpec) -> bool {
+        match flow {
+            tcl_registry::events::IrulesSourceFlowSpec::DropsConnection
+            | tcl_registry::events::IrulesSourceFlowSpec::ReturnsDnsPacket
+            | tcl_registry::events::IrulesSourceFlowSpec::EventControl => true,
+        }
+    }
+
     fn covered_small_enums() -> bool {
         // `BodyKind` is `#[non_exhaustive]`, so the wildcard is required and
         // this witness cannot compile-gate a new variant. The catalogue test
@@ -1106,6 +1182,7 @@ mod tests {
             | CodegenHookId::Concat
             | CodegenHookId::Global
             | CodegenHookId::Upvar
+            | CodegenHookId::Uplevel
             | CodegenHookId::Set
             | CodegenHookId::ArraySet
             | CodegenHookId::ArrayUnset
@@ -1121,6 +1198,11 @@ mod tests {
             | InlineCodegenHookId::Incr
             | InlineCodegenHookId::Set
             | InlineCodegenHookId::InfoExists
+            | InlineCodegenHookId::InfoLevel
+            | InlineCodegenHookId::NamespaceCurrent
+            | InlineCodegenHookId::NamespaceOrigin
+            | InlineCodegenHookId::NamespaceCode
+            | InlineCodegenHookId::InfoCommandsResolve
             | InlineCodegenHookId::String
             | InlineCodegenHookId::Lindex
             | InlineCodegenHookId::Lrange
@@ -1136,6 +1218,8 @@ mod tests {
             | InlineCodegenHookId::Break
             | InlineCodegenHookId::Continue
             | InlineCodegenHookId::Try
+            | InlineCodegenHookId::Yield
+            | InlineCodegenHookId::YieldTo
             | InlineCodegenHookId::StringIs
             | InlineCodegenHookId::StringMatch
             | InlineCodegenHookId::StringReplace
@@ -1182,12 +1266,91 @@ mod tests {
         }
     }
 
+    fn covered_source_index_bounds(operation: tcl_registry::SourceIndexBounds) -> bool {
+        use tcl_registry::SourceIndexBounds as Kind;
+        match operation {
+            Kind::ListIndex
+            | Kind::ListRange
+            | Kind::ListReplace
+            | Kind::StringIndex
+            | Kind::StringRange
+            | Kind::StringReplace
+            | Kind::StringInsert => true,
+        }
+    }
+
+    fn covered_source_path_operation(operation: tcl_registry::SourcePathOperation) -> bool {
+        match operation {
+            tcl_registry::SourcePathOperation::Join
+            | tcl_registry::SourcePathOperation::Dirname
+            | tcl_registry::SourcePathOperation::Normalize
+            | tcl_registry::SourcePathOperation::ScriptPath => true,
+        }
+    }
+
+    fn covered_source_configuration_reference(
+        descriptor: tcl_registry::SourceConfigurationReferenceLayout,
+    ) -> bool {
+        match descriptor {
+            tcl_registry::SourceConfigurationReferenceLayout::DataGroupComparison
+            | tcl_registry::SourceConfigurationReferenceLayout::DataGroupLookup => true,
+        }
+    }
+
+    fn covered_channel_configuration(descriptor: tcl_registry::ChannelConfigurationSpec) -> bool {
+        match descriptor {
+            tcl_registry::ChannelConfigurationSpec::EncodingTranslation => true,
+        }
+    }
+
+    fn covered_source_deprecation_advice(advice: tcl_registry::SourceDeprecationAdvice) -> bool {
+        match advice {
+            tcl_registry::SourceDeprecationAdvice::IruleMatchclass => true,
+        }
+    }
+
     #[test]
     fn enum_witnesses_compile_and_hold() {
+        for descriptor in tcl_registry::SourceConfigurationReferenceLayout::ALL {
+            assert!(covered_source_configuration_reference(*descriptor));
+            let name = variant_name(descriptor);
+            assert!(
+                SOURCE_CONFIGURATION_REFERENCES
+                    .iter()
+                    .any(|variant| variant.key == name)
+            );
+        }
+        for descriptor in tcl_registry::ChannelConfigurationSpec::ALL {
+            assert!(covered_channel_configuration(*descriptor));
+            let name = variant_name(descriptor);
+            assert!(
+                CHANNEL_CONFIGURATIONS
+                    .iter()
+                    .any(|variant| variant.key == name)
+            );
+        }
+        for operation in tcl_registry::SourceIndexBounds::ALL {
+            assert!(covered_source_index_bounds(*operation));
+            let name = variant_name(operation);
+            assert!(
+                SOURCE_INDEX_BOUNDS
+                    .iter()
+                    .any(|variant| variant.key == name)
+            );
+        }
+        for operation in tcl_registry::SourcePathOperation::ALL {
+            assert!(covered_source_path_operation(*operation));
+        }
+        assert!(covered_source_deprecation_advice(
+            tcl_registry::SourceDeprecationAdvice::IruleMatchclass
+        ));
         assert!(covered_arg_role(ArgRole::Value));
         assert!(covered_tcl_type(TclType::String));
         assert!(covered_side_effect_target(SideEffectTarget::Unknown));
         assert!(covered_small_enums());
+        assert!(covered_irules_source_flow(
+            tcl_registry::events::IrulesSourceFlowSpec::EventControl
+        ));
         assert!(covered_lowering(LoweringHookId::Expr));
         assert!(covered_codegen(CodegenHookId::Dict));
         assert!(covered_inline(InlineCodegenHookId::Expr));
@@ -1201,10 +1364,17 @@ mod tests {
             TCL_TYPES,
             BODY_KINDS,
             SCRIPT_TIMINGS,
+            SCRIPT_LOOKUP_SCOPES,
+            IRULES_SOURCE_FLOWS,
             VARIABLE_SCOPES,
             ARG_PRESENTATIONS,
             STORAGE_TYPES,
             BYTE_ARRAY_EFFECTS,
+            SOURCE_DEPRECATION_ADVICE,
+            SOURCE_PATH_OPERATIONS,
+            SOURCE_INDEX_BOUNDS,
+            CHANNEL_CONFIGURATIONS,
+            SOURCE_CONFIGURATION_REFERENCES,
             COMMAND_TABLE_EFFECTS,
             PATTERN_TYPES,
             TAINT_TRANSFORM_CONDITIONS,
@@ -1360,5 +1530,54 @@ mod tests {
                 "catalogue is self-consistent"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod owner_vocabulary_controls {
+    use super::*;
+
+    #[test]
+    fn actual_registration_tables_are_the_picker_membership_source() {
+        assert_eq!(
+            CONST_FOLD_NATIVE
+                .iter()
+                .map(|row| row.key)
+                .collect::<Vec<_>>(),
+            tcl_registry::pack_hooks::CONST_FOLD_NATIVE
+                .iter()
+                .map(|row| row.0)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            CONST_FOLD_VERSIONED_NATIVE
+                .iter()
+                .map(|row| row.key)
+                .collect::<Vec<_>>(),
+            tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE
+                .iter()
+                .map(|row| row.0)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            catalogue_label("new-unlabelled-native", &[v("foreign", "foreign prose")]),
+            "new-unlabelled-native"
+        );
+        assert!(ARG_ROLE_RESOLVER_NATIVE.is_empty());
+    }
+
+    #[test]
+    fn declaration_projection_preserves_historical_picker_order() {
+        assert_eq!(LOWERING_HOOKS[0], v("Expr", "expr"));
+        assert_eq!(
+            INLINE_CODEGEN_HOOKS[7],
+            v("InfoCommandsResolve", "info commands absolute literal")
+        );
+        assert_eq!(
+            NATIVE_EVAL_IDS[0],
+            v("CellIncrement", "the cell increment behind incr")
+        );
+        assert!(dialect_surface("foreign-source-dialect").is_none());
+        assert_eq!(dialect_surface("tcl8.6"), Some(SpecSurface::TCL86));
     }
 }

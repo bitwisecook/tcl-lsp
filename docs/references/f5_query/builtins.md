@@ -1313,7 +1313,7 @@ ascii(65)                                # -> "A"
 
 ### `ascii_downcase`
 
-ASCII-only lowercase — jq parity alias of ``downcase``.
+Unicode lowercase — compatibility alias named ``ascii_downcase``.
 
 **Signatures**
 
@@ -1321,8 +1321,9 @@ ASCII-only lowercase — jq parity alias of ``downcase``.
 
 **Details**
 
-Matches jq's ``ascii_downcase``.  Identical to ``downcase`` in
-this DSL.  Provided for jq compatibility.
+This compatibility alias is identical to ``downcase`` in this DSL and
+uses Rust's Unicode lowercase mapping. Despite its name, it is not
+ASCII-limited. Provided for jq-compatible spelling only.
 
 Related: ``downcase``, ``ascii_upcase``.
 
@@ -1330,11 +1331,12 @@ Related: ``downcase``, ``ascii_upcase``.
 
 ```
 ascii_downcase("VS_PROD")                # -> "vs_prod"
+ascii_downcase("É")                      # -> "é" (Unicode mapping)
 ```
 
 ### `ascii_upcase`
 
-ASCII-only uppercase — jq parity alias of ``upcase``.
+Unicode uppercase — compatibility alias named ``ascii_upcase``.
 
 **Signatures**
 
@@ -1342,12 +1344,10 @@ ASCII-only uppercase — jq parity alias of ``upcase``.
 
 **Details**
 
-Matches jq's ``ascii_upcase``: returns *value* with every ASCII
-letter (a-z) converted to uppercase, leaving non-ASCII letters
-untouched.  Identical to ``upcase`` in this DSL — both are
-ASCII-only.
-
-Provided for jq compatibility so snippets paste through.
+This compatibility alias is identical to ``upcase`` in this DSL and
+uses Rust's Unicode uppercase mapping. Despite its name, it is not
+ASCII-limited. Provided for jq-compatible spelling only; the value behaviour
+does not match jq's ASCII-only casing for non-ASCII text.
 
 Related: ``upcase``, ``ascii_downcase``.
 
@@ -1355,6 +1355,7 @@ Related: ``upcase``, ``ascii_downcase``.
 
 ```
 ascii_upcase("vs_prod")                  # -> "VS_PROD"
+ascii_upcase("é")                        # -> "É" (Unicode mapping)
 ```
 
 ### `base64`
@@ -1511,8 +1512,9 @@ Lowercase a string.
 
 **Details**
 
-Returns *value* with every ASCII letter converted to lowercase.
-Accepts :class:`PathRef`.
+Returns *value* with Rust's Unicode lowercase mapping. This is not
+locale-aware and may map a character to multiple characters. Accepts
+:class:`PathRef`.
 
 Related: ``upcase``.
 
@@ -2204,10 +2206,10 @@ Uppercase a string.
 
 **Details**
 
-Returns *value* with every letter converted to uppercase.
-Accepts :class:`PathRef`; the result is a plain string (the path
-is normalised).  This is not locale-aware casing (e.g. Turkish
-dotless i) — this wrapper just calls Rust's ``str::to_uppercase``.
+Returns *value* using Rust's Unicode uppercase mapping
+(``str::to_uppercase``). This is not locale-aware casing (for example,
+Turkish dotless i); a character can map to multiple characters. Accepts
+:class:`PathRef`; the result is a plain string (the path is normalised).
 
 Related: ``downcase``.
 

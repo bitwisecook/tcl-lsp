@@ -1,0 +1,4 @@
+0|unset -nocomplain errorCode
+1|list
+2|upvar #0 target errorCode
+3|set scalar ODD; upvar #0 scalar(member) errorCode

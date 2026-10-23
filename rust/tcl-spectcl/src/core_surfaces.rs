@@ -92,9 +92,37 @@ fn packs() -> &'static [Pack] {
     PACKS.get_or_init(|| {
         CORE_SURFACES
             .iter()
-            .map(|(_, source)| crate::loader::evaluate_pack(source))
+            .map(|(_, source)| prepare_builtin_pack(crate::loader::evaluate_pack(source)))
             .collect()
     })
+}
+
+// Only the fixed CORE_SURFACES load above reaches this preparation boundary.
+fn prepare_builtin_pack(mut pack: Pack) -> Pack {
+    for command in &mut pack.commands {
+        let original = command.spec;
+        if original.procedure_definition.is_some() {
+            continue;
+        }
+        let descriptor = tcl_registry::native_procedure::BUILTIN_CORE_PROCEDURE_DESCRIPTORS
+            .iter()
+            .find(|descriptor| {
+                original.name == descriptor.name
+                    && original.analyser_hook == Some(descriptor.analyser_hook)
+                    && original.traits.contains(descriptor.traits)
+                    && original.surface.is_some_and(|surface| {
+                        surface
+                            .iter()
+                            .any(|row| row.provider == descriptor.provider)
+                    })
+            });
+        if let Some(descriptor) = descriptor {
+            let mut canonical = original.clone();
+            canonical.procedure_definition = Some(descriptor.definition);
+            command.spec = Box::leak(Box::new(canonical));
+        }
+    }
+    pack
 }
 
 /// The roster rows the compiled-in sources declare, parsed once.
@@ -117,9 +145,9 @@ pub fn builtin_rosters() -> Vec<InheritedSurface> {
 
 /// The commands the compiled-in sources declare, in source order.
 ///
-/// Each spec is the loader's own interned `&'static` value, so a caller can
-/// register the same set repeatedly and the registry recognises it as
-/// unchanged.
+/// The fixed compiled-in loader prepares descriptor metadata once; this read
+/// neither seeds nor replaces the active registry. Every registration shares
+/// these canonical row pointers and therefore recognises an unchanged set.
 #[must_use]
 pub fn builtin_commands() -> Vec<&'static CommandSpec> {
     packs()

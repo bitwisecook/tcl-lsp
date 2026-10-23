@@ -48,10 +48,8 @@
 //! * No dynamic name access (``set $varname value``).
 
 use std::collections::{BTreeMap, HashSet};
-use std::sync::OnceLock;
 
-use tcl_registry::value_transfer::resolve_semantics;
-use tcl_registry::{ArgRole, CommandRegistry, Traits};
+use tcl_registry::{ArgRole, Traits};
 
 use crate::ir::{Module, Script, Statement};
 use crate::var_escape::types::ProcEscapeSummary;
@@ -61,58 +59,96 @@ use crate::var_escape::types::ProcEscapeSummary;
 /// constant too.
 pub const LOCALS_ARRAY_CAP: usize = 16;
 
-/// Commands whose call shape forces the entire proc out of slot
-/// resolution.  ``upvar`` / ``global`` / ``variable`` install
-/// aliases on the frame's hash bucket; ``info exists`` /
-/// ``info vars`` / ``info locals`` walk the bucket;
-/// ``trace add variable`` registers against the bucket.
-/// Memoised set of commands that alias / read / write variables through
-/// the frame's hash bucket by name (`upvar` / `global` / `variable` /
-/// `lassign` / `lset` / `regexp` / `regsub` / `scan` / `binary` / `vwait`
-/// / `tkwait`), sourced from the registry's [`Traits::FRAME_HASH_BUILTIN`]
-/// trait.
-fn frame_hash_builtins() -> &'static HashSet<String> {
-    static SET: OnceLock<HashSet<String>> = OnceLock::new();
-    SET.get_or_init(|| {
-        CommandRegistry::build_default()
-            .commands_with_trait(Traits::FRAME_HASH_BUILTIN)
-            .into_iter()
-            .map(str::to_owned)
-            .collect()
-    })
-}
-
-/// Memoised set of commands carrying [`Traits::DYNAMIC_EVAL_BODY`] —
-/// those whose body is executed by the interpreter, opening a
-/// name-resolution channel back into the local frame (`eval` / `uplevel`
-/// / `apply` / `source` / `namespace` / `interp`). Sourced from the
-/// registry (the single source of truth); cached once because the set is
-/// dialect-agnostic core Tcl.
-fn dynamic_eval_set() -> &'static HashSet<String> {
-    static SET: OnceLock<HashSet<String>> = OnceLock::new();
-    SET.get_or_init(|| {
-        CommandRegistry::build_default()
-            .commands_with_trait(Traits::DYNAMIC_EVAL_BODY)
-            .into_iter()
-            .map(str::to_owned)
-            .collect()
-    })
-}
-
-/// Strip a leading `::` from a command name for canonical lookup.
-fn normalise_cmd(cmd: &str) -> &str {
-    cmd.strip_prefix("::").unwrap_or(cmd)
-}
-
-/// True when *value* is a Tcl value with substitutions.
-fn is_dynamic_value(value: &str) -> bool {
-    if value.is_empty() {
-        return false;
+/// Scalar destination data and its independent original Normal correspondence.
+/// Missing source evidence cannot borrow the standalone IR compatibility purpose.
+fn typed_local_slot_name<'a>(
+    script: &Script,
+    statement: &'a Statement,
+) -> Result<Option<&'a str>, ()> {
+    let name = match statement {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::Incr { name, .. } => name.as_str(),
+        _ => return Ok(None),
+    };
+    let tokens = script.retained_source_tokens_for_statement(statement);
+    if let Some(tokens) = tokens {
+        let binding = tokens.source_binding.as_ref().ok_or(())?;
+        let registry = binding.retained_registry_for_tokens(tokens).ok_or(())?;
+        let metadata = binding
+            .original_source_metadata_for_advice(tokens, registry)
+            .map_err(|_| ())?;
+        let normal =
+            crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            )
+            .ok_or(())?;
+        let selected =
+            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            )
+            .or_else(|| {
+                crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+                    registry, metadata, tokens,
+                )
+            })
+            .ok_or(())?;
+        if normal.descriptor_key() != Some(selected.facts.descriptor_key())
+            || normal.argument_offset() != selected.facts.argument_offset
+        {
+            return Err(());
+        }
+        let argument = selected.facts.argument_offset;
+        let word = selected.effective.words.get(argument + 1).ok_or(())?;
+        if !matches!(
+            selected.effective.origins.get(argument + 1),
+            Some(crate::registry_invocation::InvocationWordOrigin::Written(_))
+        ) || crate::registry_invocation::compiled_local_name_word(word)
+            != crate::registry_invocation::CompiledLocalNameWord::Direct
+            || name.contains('\0')
+        {
+            return Err(());
+        }
+        let (original, unknown) =
+            crate::registry_invocation::original_assignment_name_operand(registry, tokens, name)
+                .ok_or(())?;
+        if unknown
+            || normal.argument_literal(normal.argument_offset()).as_deref()
+                != Some(original.as_str())
+            || binding.variable_context.frame_kind != crate::var_resolve::VariableFrameKind::Local
+        {
+            return Err(());
+        }
+        let policy = binding
+            .variable_context
+            .invocation_dialect
+            .and_then(|dialect| dialect.variable_lookup_policy)
+            .ok_or(())?;
+        if tcl_syntax::naming::split_element_ref(name).is_some()
+            || !tcl_syntax::naming::source_variable_name_is_frame_local(name.as_bytes(), policy)
+        {
+            return Ok(None);
+        }
+        return Ok(Some(name));
     }
-    if value.starts_with('$') || value.starts_with('[') {
-        return true;
+    if script.executed_source.is_some()
+        || script.command_binding_sites.iter().next().is_some()
+        || statement.tokens().is_some()
+    {
+        return Err(());
     }
-    value.contains('$') || value.contains('[')
+    if crate::ir_helpers::structural_variable_write_projection(statement).opaque_variable_frame {
+        return Err(());
+    }
+    // Unattributed IR retains only the common, unambiguous scalar shape.
+    if name.is_empty() || tcl_syntax::naming::is_dynamic_word(name) {
+        return Err(());
+    }
+    if name.contains('(') || tcl_syntax::naming::is_qualified(name.as_bytes()) {
+        return Ok(None);
+    }
+    Ok(Some(name))
 }
 
 /// Pre-screen on the escape summary alone.  Cheap path — bails
@@ -145,12 +181,12 @@ const MAX_SLOT_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::Recu
 /// slot-assignment loop sees names in the same order codegen
 /// emits them. `depth` is the nesting level of `script` — see
 /// [`MAX_SLOT_WALK_DEPTH`].
-fn walk_statements<'a>(script: &'a Script, out: &mut Vec<&'a Statement>, depth: u32) {
+fn walk_statements<'a>(script: &'a Script, out: &mut Vec<(&'a Script, &'a Statement)>, depth: u32) {
     if MAX_SLOT_WALK_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {
-        out.push(stmt);
+        out.push((script, stmt));
         match stmt {
             Statement::If {
                 clauses, else_body, ..
@@ -212,28 +248,18 @@ fn walk_statements<'a>(script: &'a Script, out: &mut Vec<&'a Statement>, depth: 
 ///
 /// Returns ``true`` when the statement's shape forces the entire
 /// proc to skip slot resolution.
-fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>) -> bool {
+fn stmt_disables_slots(
+    script: &Script,
+    stmt: &Statement,
+    ineligible_names: &mut HashSet<String>,
+) -> bool {
     match stmt {
         Statement::Barrier { .. } => true,
-        // Dynamic-name writes via the `Assign*` / `Incr` variants
-        // would target any local at runtime; we can't know which
-        // one and indexed storage can't satisfy the by-name lookup
-        // the runtime would perform.  Disable the whole proc.
-        // The IR lowering can preserve dynamic names on these
-        // assignment variants directly, so an empty or dynamic
-        // name here is enough to bail.
-        Statement::AssignConst { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::AssignValue { name, .. }
-        | Statement::Incr { name, .. }
-            if name.is_empty() || is_dynamic_value(name) =>
-        {
-            true
-        }
-        Statement::Call { command, args, .. } => {
-            is_dynamic_value(command)
-                || call_disables_slots(normalise_cmd(command), args, ineligible_names)
-        }
+        Statement::AssignConst { .. }
+        | Statement::AssignExpr { .. }
+        | Statement::AssignValue { .. }
+        | Statement::Incr { .. } => typed_local_slot_name(script, stmt).is_err(),
+        Statement::Call { .. } => call_disables_slots(script, stmt, ineligible_names),
         _ => false,
     }
 }
@@ -241,52 +267,101 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
 /// The verdict on one call, from the registry's declarations for the
 /// invocation: `true` takes the whole proc out of slot resolution; otherwise
 /// the literal locals its by-name words target join *`ineligible_names`*.
-fn call_disables_slots(cmd: &str, args: &[String], ineligible_names: &mut HashSet<String>) -> bool {
-    if dynamic_eval_set().contains(cmd) || frame_hash_builtins().contains(cmd) {
+fn call_disables_slots(
+    script: &Script,
+    statement: &Statement,
+    ineligible_names: &mut HashSet<String>,
+) -> bool {
+    let Some(tokens) = script.retained_source_tokens_for_statement(statement) else {
+        return true;
+    };
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return true;
+    };
+    let Some(registry) = binding.retained_registry_for_tokens(tokens) else {
+        return true;
+    };
+    if binding.variable_context.frame_kind != crate::var_resolve::VariableFrameKind::Local {
         return true;
     }
-    let registry = tcl_registry::default_registry();
-    let words: Vec<&str> = args.iter().map(String::as_str).collect();
-    let Some(call) = registry.resolve_call(cmd, &words, None) else {
-        return false;
+    let Ok(metadata) = binding.original_source_metadata_for_advice(tokens, registry) else {
+        return true;
     };
-    let named = |role| registry.arg_indices_for_role(cmd, &words, role);
-    let dynamic = |index: &usize| args.get(*index).is_some_and(|word| is_dynamic_value(word));
-    // A cell write whose name word substitutes reaches any local.
-    if resolve_semantics(call.spec, call.sub, call.form).writes_value_word() {
-        return named(ArgRole::VarWrite).iter().any(dynamic)
-            || named(ArgRole::VarRead).iter().any(dynamic);
+    let Some(normal) =
+        crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )
+    else {
+        return true;
+    };
+    if !normal.is_frameless_runtime() {
+        return true;
     }
-    let traits = call.spec.traits | call.sub.map_or_else(Traits::empty, |sub| sub.traits);
-    let targets = if traits.contains(Traits::INTROSPECTS_BY_NAME) {
-        // The introspected name is the word after the subcommand.
-        let Some(target) = args.get(usize::from(call.sub.is_some())) else {
+    let Some(invocation) =
+        crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )
+        .or_else(|| {
+            crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            )
+        })
+    else {
+        return true;
+    };
+    let facts = &invocation.facts;
+    if !facts.arg_roles_complete
+        || facts.arity_accepts_frozen_arguments() != Some(true)
+        || facts.traits.intersects(
+            Traits::DYNAMIC_EVAL_BODY
+                | Traits::FRAME_HASH_BUILTIN
+                | Traits::CURRENT_FRAME_INTROSPECTION,
+        )
+    {
+        return true;
+    }
+    let Some(realm) = binding.invocation_realm() else {
+        return true;
+    };
+    let writes_value_word = invocation.with_argument_words(|words| {
+        let selected =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                registry,
+                metadata.map(crate::registry_invocation::InvocationMetadataContext::context),
+                words,
+                realm,
+            )
+            .resolved()?;
+        (selected.descriptor_key() == facts.descriptor_key())
+            .then(|| selected.semantics.value.writes_value_word())
+    });
+    let Some(writes_value_word) = writes_value_word else {
+        return true;
+    };
+    let mut has_variable_operand = false;
+    for &(index, role) in &facts.arg_roles {
+        if !matches!(role, ArgRole::VarRead | ArgRole::VarWrite) {
+            continue;
+        }
+        has_variable_operand = true;
+        let Some(name) = invocation.argument_literal(facts.argument_offset + usize::from(index))
+        else {
             return true;
         };
-        vec![target]
-    } else if traits.contains(Traits::CURRENT_FRAME_INTROSPECTION) {
-        return true;
-    } else if traits.contains(Traits::TARGETS_VARIABLE_BY_NAME) {
-        let written = named(ArgRole::VarWrite);
-        if written.is_empty() {
-            // With no `VarWrite` word the invocation targets a command, or a
-            // cell its roles do not place; only the first leaves the locals.
-            return named(ArgRole::CommandName).is_empty();
+        if !writes_value_word
+            && facts
+                .traits
+                .intersects(Traits::INTROSPECTS_BY_NAME | Traits::TARGETS_VARIABLE_BY_NAME)
+        {
+            ineligible_names.insert(name);
         }
-        written
-            .iter()
-            .filter_map(|&index| args.get(index))
-            .collect()
-    } else {
-        return false;
-    };
-    for target in targets {
-        if is_dynamic_value(target) {
-            return true;
-        }
-        ineligible_names.insert(target.clone());
     }
-    false
+    facts.traits.contains(Traits::TARGETS_VARIABLE_BY_NAME)
+        && !has_variable_operand
+        && !facts
+            .arg_roles
+            .iter()
+            .any(|(_, role)| *role == ArgRole::CommandName)
 }
 
 /// Return a `{local_name: slot_index}` mapping for *script*'s
@@ -326,32 +401,17 @@ pub fn assign_local_slots(
         }
     }
 
-    let mut all_stmts: Vec<&Statement> = Vec::new();
+    let mut all_stmts: Vec<(&Script, &Statement)> = Vec::new();
     walk_statements(script, &mut all_stmts, 0);
 
-    for stmt in &all_stmts {
-        if stmt_disables_slots(stmt, &mut ineligible) {
+    for (owner, stmt) in &all_stmts {
+        if stmt_disables_slots(owner, stmt, &mut ineligible) {
             return BTreeMap::new();
         }
-        // Record assign target names in source order.
-        let target: Option<&str> = match stmt {
-            Statement::AssignConst { name, .. }
-            | Statement::AssignExpr { name, .. }
-            | Statement::AssignValue { name, .. }
-            | Statement::Incr { name, .. } => Some(name.as_str()),
-            _ => None,
-        };
-        if let Some(name) = target {
-            // Skip names that include array-element notation —
-            // those route through the array directory regardless.
-            if !name.is_empty()
-                && !seen.contains(name)
-                && !name.contains('(')
-                && !name.starts_with("::")
-            {
-                ordered_names.push(name.to_string());
-                seen.insert(name.to_string());
-            }
+        if let Ok(Some(name)) = typed_local_slot_name(owner, stmt)
+            && seen.insert(name.to_owned())
+        {
+            ordered_names.push(name.to_owned());
         }
     }
 
@@ -380,30 +440,32 @@ pub fn assign_local_slots(
 /// Pure transformation — never mutates the input map.  Procs that
 /// aren't slot-eligible round-trip unchanged.
 pub fn populate_local_slots<S>(
-    summaries: &std::collections::HashMap<String, ProcEscapeSummary, S>,
+    summaries: &std::collections::HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary, S>,
     ir_module: Option<&Module>,
-) -> std::collections::HashMap<String, ProcEscapeSummary>
+) -> std::collections::HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>
 where
     S: std::hash::BuildHasher,
 {
     let Some(module) = ir_module else {
-        return summaries
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
+        return summaries.iter().map(|(k, v)| (*k, v.clone())).collect();
     };
-    let mut out: std::collections::HashMap<String, ProcEscapeSummary> =
+    let mut out: std::collections::HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary> =
         std::collections::HashMap::with_capacity(summaries.len());
     for (qname, summary) in summaries {
-        if let Some(proc) = module.procedures.get(qname) {
+        if let tcl_core_types::BodyFrameId::Body(id) = qname
+            && let Some(proc) = module
+                .procedures
+                .get(id)
+                .or_else(|| module.body_lowering(id))
+        {
             let slots = assign_local_slots(&proc.body, summary, &proc.params);
             if slots.is_empty() {
-                out.insert(qname.clone(), summary.clone());
+                out.insert(*qname, summary.clone());
             } else {
-                out.insert(qname.clone(), summary.with_local_slots(slots));
+                out.insert(*qname, summary.with_local_slots(slots));
             }
         } else {
-            out.insert(qname.clone(), summary.clone());
+            out.insert(*qname, summary.clone());
         }
     }
     out
@@ -590,6 +652,35 @@ mod tests {
         let body = script_with(vec![assign_const("x", "1"), call("eval", &["body"])]);
         let slots = assign_local_slots(&body, &s, &[]);
         assert!(slots.is_empty());
+    }
+
+    #[test]
+    fn slot_metadata_uses_registry_rooted_selection_and_refuses_unknown_heads() {
+        for head in [
+            "upvar",
+            "::upvar",
+            "eval",
+            "::eval",
+            "::::upvar",
+            ":upvar",
+            "upvar::",
+            "upvar:::member",
+            "missing",
+            "",
+        ] {
+            let body = script_with(vec![
+                assign_const("x", "1"),
+                call(head, &["1", "source", "target"]),
+            ]);
+            assert!(assign_local_slots(&body, &ProcEscapeSummary::default(), &[]).is_empty());
+        }
+        for head in ["list", "::list"] {
+            let body = script_with(vec![assign_const("x", "1"), call(head, &["value"])]);
+            assert_eq!(
+                assign_local_slots(&body, &ProcEscapeSummary::default(), &[]).get("x"),
+                Some(&0)
+            );
+        }
     }
 
     #[test]
@@ -792,13 +883,185 @@ mod tests {
     }
 
     #[test]
+    fn actual_bytecode_frameless_handler_roles_preserve_other_local_slots() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        for head in ["list", "::list"] {
+            let source = format!("proc p {{}} {{set x 1; {head} value}}");
+            let module = crate::lowering::lower_to_ir_for_bytecode_with_dialect(
+                &source,
+                registry,
+                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                Some(profile),
+            );
+            let procedure = module.procedures.values().next().unwrap();
+            let statement = procedure.body.statements.last().unwrap();
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let metadata = binding
+                .original_source_metadata_for_advice(tokens, registry)
+                .unwrap();
+            let normal =
+                crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                    registry, metadata, tokens,
+                )
+                .expect("actual selected bytecode handler");
+            assert!(normal.is_frameless_runtime());
+            assert_eq!(
+                assign_local_slots(&procedure.body, &ProcEscapeSummary::default(), &[]).get("x"),
+                Some(&0),
+            );
+        }
+    }
+
+    #[test]
+    fn original_typed_slot_names_preserve_literal_data_under_actual_lookup_policy() {
+        for (label, qualified_local) in [("tcl8.6", false), ("jim", true)] {
+            let context = tcl_registry::model::ingress::static_context_for(label);
+            let registry = context.commands();
+            let profile = registry.profile().unwrap();
+            let source = "namespace eval N {}; proc p {} {set {$literal} 1; set {[literal]} 2; set {} 3; set N::x 4}";
+            let module = crate::lowering::lower_to_ir_for_bytecode_with_dialect(
+                source,
+                registry,
+                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                Some(profile),
+            );
+            let procedure = module
+                .procedures
+                .values()
+                .find(|procedure| procedure.name == "p" || procedure.name == "::p")
+                .unwrap();
+            let slots = assign_local_slots(&procedure.body, &ProcEscapeSummary::default(), &[]);
+            assert_eq!(slots.get("$literal"), Some(&0), "{label}: {slots:?}");
+            assert_eq!(slots.get("[literal]"), Some(&1), "{label}: {slots:?}");
+            assert_eq!(slots.get(""), Some(&2), "{label}: {slots:?}");
+            assert_eq!(
+                slots.contains_key("N::x"),
+                qualified_local,
+                "{label}: {slots:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn typed_slot_data_refuses_changed_or_unowned_original_names() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let module = crate::lowering::lower_to_ir_for_bytecode_with_dialect(
+            "proc p {} {set {$literal} 1}",
+            registry,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            Some(profile),
+        );
+        let procedure = module.procedures.values().next().unwrap();
+        assert_eq!(
+            assign_local_slots(&procedure.body, &ProcEscapeSummary::default(), &[]).get("$literal"),
+            Some(&0)
+        );
+        let mut changed = procedure.body.clone();
+        let statement = changed.statements.first_mut().unwrap();
+        match statement {
+            Statement::AssignConst { name, .. } => *name = "relabelled".to_owned(),
+            _ => panic!("actual typed scalar assignment"),
+        }
+        assert!(assign_local_slots(&changed, &ProcEscapeSummary::default(), &[]).is_empty());
+        let mut missing = procedure.body.clone();
+        missing.command_binding_sites = Default::default();
+        assert!(assign_local_slots(&missing, &ProcEscapeSummary::default(), &[]).is_empty());
+        let mut unowned = assign_const("$literal", "1");
+        if let Statement::AssignConst { name_braced, .. } = &mut unowned {
+            *name_braced = true;
+        }
+        assert!(
+            assign_local_slots(
+                &script_with(vec![unowned]),
+                &ProcEscapeSummary::default(),
+                &[]
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn unowned_builtin_spelling_cannot_donate_physical_slot_eligibility() {
+        let body = script_with(vec![
+            assign_const("x", "1"),
+            call("string", &["length", "value"]),
+        ]);
+        assert!(assign_local_slots(&body, &ProcEscapeSummary::default(), &[]).is_empty());
+    }
+
+    #[test]
+    fn original_global_handler_does_not_supply_local_slot_frame() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let module = crate::lowering::lower_to_ir_for_bytecode_with_dialect(
+            "list value",
+            registry,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            Some(profile),
+        );
+        let statement = &module.top_level.statements[0];
+        let tokens = module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert_eq!(
+            binding.variable_context.frame_kind,
+            crate::var_resolve::VariableFrameKind::Global
+        );
+        let metadata = binding
+            .original_source_metadata_for_advice(tokens, registry)
+            .unwrap();
+        let normal =
+            crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            )
+            .unwrap();
+        assert!(normal.is_frameless_runtime());
+        assert!(call_disables_slots(
+            &module.top_level,
+            statement,
+            &mut HashSet::new()
+        ));
+    }
+
+    #[test]
+    fn authored_source_name_roles_cannot_donate_normal_slot_eligibility() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir("puts value", &registry);
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(matches!(
+            &module.top_level.statements[0],
+            Statement::Call { .. }
+        ));
+        let mut ineligible = HashSet::new();
+        assert!(call_disables_slots(
+            &module.top_level,
+            &module.top_level.statements[0],
+            &mut ineligible
+        ));
+    }
+
+    #[test]
     fn populate_local_slots_handles_none_module() {
         use std::collections::HashMap;
-        let mut summaries: HashMap<String, ProcEscapeSummary> = HashMap::new();
-        summaries.insert("::foo".into(), ProcEscapeSummary::default());
+        let id = tcl_core_types::BodyFrameId::Body(
+            tcl_core_types::ProcedureIdIssuer::default().allocate(),
+        );
+        let mut summaries = HashMap::new();
+        summaries.insert(id, ProcEscapeSummary::default());
         let result = populate_local_slots(&summaries, None);
         assert_eq!(result.len(), 1);
-        assert!(result["::foo"].local_slots.is_empty());
+        assert!(result[&id].local_slots.is_empty());
     }
 
     #[test]

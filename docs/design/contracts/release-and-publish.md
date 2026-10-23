@@ -225,6 +225,24 @@ that did attach (`TCL_LSP_NO_VERIFY=1` is the documented escape hatch, and is no
 to recommend).  Fix forward and re-run the failed jobs on the same tag; the
 assets that already uploaded are overwritten in place.
 
+## Curated capability notes
+
+`RELEASE_NOTES.md` is the curated publication input consumed by
+`scripts/release/github_release.sh`. Its first line must be the selected
+`# vX.Y.Z`: `rust_release.sh tag` checks that exact heading. An `Unreleased`
+heading is not a separate supported staging mechanism, and the generated
+Performance section belongs to `perf_notes.py`.
+
+Use the current [capability bounds](../../capabilities.md#source-aware-editor-behaviour-and-execution-limits)
+as the input when curating the next release's prose: shared context/profile and
+revision-aware lookups; uncertainty that declines unsafe edits; the ILX opaque
+call boundary; the declared SpecTcl EDA, UPF and Jim execution surfaces; and the
+deferred general VM/backend parity limit. Describe only the capabilities and
+validation established for that release. Those contracts do not imply passing
+CI, complete host coverage or migration completion. Preserve a released
+version's notes and its generated performance record until preparing a distinct
+version through the release mechanism below.
+
 ## The pre-release sequence is a program, not a procedure
 
 Step 2 above is the *primitive*.  The `rust` line has work that must happen
@@ -252,10 +270,9 @@ what `scripts/perf/results/` renders to with the release highlighted.**
 check rather than an approximation, and it runs again inside `tag` — a
 graph set that has drifted from its inputs cannot reach a release.
 
-Two things this deliberately leaves to a human: the prose changelog
-(a judgement, not a derivation) and pushing the notes branch / opening
-the PR (`prepare` stops at a local commit and prints both commands,
-the same way `publish_zed.sh` stops before touching an external repo).
+The maintainer writes the prose changelog. By default, `prepare` stops at a
+local commit and prints commands to push the notes branch and open the PR.
+`prepare --push` pushes the branch; opening the PR remains a separate step.
 
 The measurement host matters.  `scripts/perf/README.md` documents that CI
 and macOS take different code paths, so the *committed* result — taken

@@ -19,26 +19,10 @@
 //! `workflow-sync` — keep the installed GitHub Actions workflows byte-identical
 //! to their canonical sources.
 //!
-//! Two workflows are maintained under `rust/bigip-report-gen/python/deploy/`
-//! and *installed* into `.github/workflows/` by copying. The split exists
-//! because writing a file under `.github/workflows/` needs the GitHub
-//! `workflow` OAuth scope, which automation tokens have not always carried —
-//! so the canonical copy lives somewhere any token can edit, and a human with
-//! the scope installs it.
-//!
-//! A copied artefact with no gate is a drift generator, and this pair has
-//! drifted twice: an earlier pass reconciled a stale comment in both files,
-//! and the two later diverged again — `.github/workflows/` gained
-//! `fetch-depth: 0`, the release-version stamping step and an explicit stable
-//! toolchain, while the canonical copies gained a self-description neither
-//! installed copy had. Each side held a fix the other lacked, so *either*
-//! direction of the documented `cp` would have silently reverted real work:
-//! reinstalling from canon would have dropped the version stamping and
-//! restored the `0.1.0` placeholder bug, and at that point the Pages deploy
-//! would also have lost the spec studio entirely.
-//!
-//! This gate makes that impossible to do quietly. `--check` fails on any
-//! difference; without it, the canonical copy is reinstalled.
+//! `github-pages.yml` and `report-pyz.yml` are maintained under
+//! `rust/bigip-report-gen/python/deploy/` and copied into `.github/workflows/`.
+//! `--check` fails on any difference; without it, the canonical copy is
+//! reinstalled.
 
 use std::fmt::Write as _;
 use std::path::PathBuf;
@@ -198,7 +182,7 @@ mod tests {
 
     /// A release tag must publish all Pages applications from the exact tagged
     /// commit, even when the release commit only changed notes or performance
-    /// assets and therefore misses the development-branch path filter (#1687).
+    /// assets and therefore misses the development-branch path filter.
     #[test]
     fn pages_workflow_deploys_every_release_tag() {
         let root = crate::util::repo_root();

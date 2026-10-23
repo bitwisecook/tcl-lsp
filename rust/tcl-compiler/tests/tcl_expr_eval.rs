@@ -1020,7 +1020,7 @@ fn irules_matches_regex_is_never_folded() {
 // iRules `in` / `ni`
 
 /// The F5 interpreters run an 8.4.6 core and lack 8.5's `in` and `ni`
-/// (`docs/design/f5/bigip-irule-parser-measurements.md`, "No 8.5 features
+/// (`docs/design/f5/embedded-tcl-contract.md`, "No 8.5 features
 /// anywhere"; W003 reports them), so a membership test folds nothing there:
 /// the program raises, and no fold may give it a value.
 #[test]

@@ -27,8 +27,7 @@
 //!   (`cannot use non-numeric string "abc" as left operand of "+"`); Tcl
 //!   8.4-8.6 name neither (`can't use non-numeric string as operand of "+"`),
 //!   and have no separate "a list" branch at all — a multi-element list is
-//!   just a non-numeric string there. Both engines used to emit the 9.0 form
-//!   at every `--tcl-version` (issue #1581).
+//!   just a non-numeric string there.
 //! * The **`-errorcode`** is `ARITH DOMAIN {<description>}` from 8.5, with
 //!   `list` as the description for 9.0's list branch; 8.4 sets none but for
 //!   a formal integer it could not hold.
@@ -243,20 +242,59 @@ pub fn illegal_operand_message(
     op: &str,
     release: TclVersion,
 ) -> String {
-    let desc = desc.of_value(value, release);
-    if release >= TclVersion::V9_0 {
-        if desc == OperandDesc::List {
-            format!("cannot use a list as {}operand of \"{op}\"", side.prefix())
-        } else {
-            format!(
-                "cannot use {} \"{value}\" as {}operand of \"{op}\"",
-                desc.as_str(),
-                side.prefix()
-            )
-        }
+    String::from_utf8(illegal_operand_message_bytes(
+        desc,
+        value.as_bytes(),
+        side,
+        op.as_bytes(),
+        release,
+    ))
+    .expect("Unicode operands produce Unicode diagnostic bytes")
+}
+
+/// C operand diagnostic on native string bytes, without a Unicode projection.
+/// Earlier releases never read the unused operand spelling into the result.
+#[must_use]
+pub fn illegal_operand_message_bytes(
+    desc: OperandDesc,
+    value: &[u8],
+    side: OperandSide,
+    op: &[u8],
+    release: TclVersion,
+) -> Vec<u8> {
+    // The release's description reads the operand's text (empty, bad octal,
+    // 8.4's too-large formal integer); a spelling that is not Unicode is none
+    // of those, so it keeps the release's plain description.
+    let desc = std::str::from_utf8(tcl_core_types::c_string_extent(value)).map_or_else(
+        |_| desc.for_release(release),
+        |text| desc.of_value(text, release),
+    );
+    let mut output = if release >= TclVersion::V9_0 {
+        b"cannot use ".to_vec()
     } else {
-        format!("can't use {} as operand of \"{op}\"", desc.as_str())
+        b"can't use ".to_vec()
+    };
+    output.extend_from_slice(desc.as_str().as_bytes());
+    if release >= TclVersion::V9_0 && desc != OperandDesc::List {
+        output.extend_from_slice(b" \"");
+        output.extend_from_slice(tcl_core_types::c_string_extent(value));
+        output.push(b'"');
     }
+    output.extend_from_slice(b" as ");
+    if release >= TclVersion::V9_0 {
+        output.extend_from_slice(side.prefix().as_bytes());
+    }
+    output.extend_from_slice(b"operand of \"");
+    output.extend_from_slice(op);
+    output.push(b'"');
+    output
+}
+
+/// Tcl 8.4's operand diagnostic when a string's integer magnitude exceeds
+/// its native unsigned-wide range. The error code remains `ARITH IOVERFLOW`.
+#[must_use]
+pub fn oversized_integer_operand_message(operator: &str) -> String {
+    format!("can't use integer value too large to represent as operand of \"{operator}\"")
 }
 
 /// The `-errorcode` C stamps on an operand-type error for `value`:
@@ -292,6 +330,90 @@ pub const BOOLEAN_OPERAND_CODE: &str = "TCL VALUE NUMBER";
 pub const NAN_MESSAGE: &str = "floating point value is Not a Number";
 /// See [`NAN_MESSAGE`].
 pub const NAN_CODE: &str = "TCL VALUE DOUBLE NAN";
+
+/// A reached native arithmetic failure, independent of the numeric backend.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeArithmeticFailure {
+    /// Integer division or remainder by zero.
+    DivideByZero,
+    /// Zero raised to a negative exponent.
+    ZeroToNegativePower,
+    /// Floating-point arithmetic produced NaN.
+    NanResult,
+    /// Shift count is negative.
+    NegativeShift,
+}
+
+/// Native floating-point diagnostic after the original caller reached
+/// `TclExprFloatError`. Host error facts are independent of object spelling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeFloatError {
+    /// EDOM or NaN takes precedence over every range condition.
+    Domain,
+    /// ERANGE with a zero result.
+    Underflow,
+    /// ERANGE or infinity with a nonzero result.
+    Overflow,
+    /// A reached error with neither domain nor range classification.
+    Unknown(i32),
+}
+impl NativeFloatError {
+    /// Apply the native ordering to independently observed host facts.
+    #[must_use]
+    pub fn classify(value: f64, errno: i32, domain_error: bool, range_error: bool) -> Self {
+        if domain_error || value.is_nan() {
+            Self::Domain
+        } else if range_error || value.is_infinite() {
+            if value == 0.0 {
+                Self::Underflow
+            } else {
+                Self::Overflow
+            }
+        } else {
+            Self::Unknown(errno)
+        }
+    }
+    /// Counted original message and Tcl errorCode spelling.
+    #[must_use]
+    pub fn diagnostic(self) -> (String, String) {
+        let (kind, message) = match self {
+            Self::Domain => ("DOMAIN", DOMAIN_MESSAGE.to_owned()),
+            Self::Underflow => (
+                "UNDERFLOW",
+                "floating-point value too small to represent".to_owned(),
+            ),
+            Self::Overflow => (
+                "OVERFLOW",
+                "floating-point value too large to represent".to_owned(),
+            ),
+            Self::Unknown(errno) => (
+                "UNKNOWN",
+                format!("unknown floating-point error, errno = {errno}"),
+            ),
+        };
+        let code = format!("ARITH {kind} {{{message}}}");
+        (message, code)
+    }
+}
+
+impl NativeArithmeticFailure {
+    /// Native guest diagnostic and independently assigned errorCode.
+    #[must_use]
+    pub const fn diagnostic(self) -> (&'static str, Option<&'static str>) {
+        match self {
+            Self::DivideByZero => ("divide by zero", Some("ARITH DIVZERO {divide by zero}")),
+            Self::ZeroToNegativePower => (
+                "exponentiation of zero by negative power",
+                Some("ARITH DOMAIN {exponentiation of zero by negative power}"),
+            ),
+            Self::NanResult => (
+                "domain error: argument not in valid range",
+                Some("ARITH DOMAIN {domain error: argument not in valid range}"),
+            ),
+            Self::NegativeShift => ("negative shift argument", None),
+        }
+    }
+}
 
 /// The message and `-errorcode` for an infinity reaching an integer
 /// conversion (`entier`/`int`/`wide`/`round`/`isqrt`). tclsh 8.6.16/9.0.4:
@@ -363,6 +485,31 @@ mod tests {
     /// Every numeral grammar answers a wording release, and each answers
     /// the release whose engine actually raises the error: the C grammars
     /// their own, `JimTcl` the Tcl 9.0 backend the model executes it as.
+    #[test]
+    fn native_operand_bytes_require_no_unicode_or_unused_value_access() {
+        let bytes = b"a\xc0\x80\xff\0tail";
+        assert_eq!(
+            illegal_operand_message_bytes(
+                OperandDesc::NonNumericString,
+                bytes,
+                OperandSide::Left,
+                b"+",
+                TclVersion::V8_4
+            ),
+            b"can't use non-numeric string as operand of \"+\""
+        );
+        assert_eq!(
+            illegal_operand_message_bytes(
+                OperandDesc::NonNumericString,
+                bytes,
+                OperandSide::Left,
+                b"+",
+                TclVersion::V9_0
+            ),
+            b"cannot use non-numeric string \"a\xc0\x80\xff\" as left operand of \"+\""
+        );
+    }
+
     #[test]
     fn every_numeral_grammar_names_its_wording_release() {
         use tcl_dialect::NumberSyntax;

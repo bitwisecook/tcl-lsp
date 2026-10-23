@@ -118,8 +118,8 @@ pub trait DebugBackend {
     /// If the backend is not paused at a statement.
     fn variables(&self, frame_id: u32) -> Result<Vec<Variable>, DebugError>;
 
-    /// Evaluate a simple variable reference (`$name` / `name`) at the current
-    /// step.
+    /// Read a captured variable by its label or a complete Tcl variable
+    /// reference. Array-index substitutions are unsupported.
     ///
     /// # Errors
     /// [`DebugError::Unsupported`] for anything but a captured variable.
@@ -189,13 +189,18 @@ impl VmBackend {
         let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
         let module = Svc::for_profile(profile)
             .compile(source)
-            .map_err(|e| DebugError::Failed(e.0))?;
+            .map_err(|error| DebugError::Failed(error.to_string()))?;
 
         let trace: Rc<RefCell<Vec<DebugSnapshot>>> = Rc::new(RefCell::new(Vec::new()));
         let sink = Rc::clone(&trace);
 
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(profile);
+        let mut vm = Vm::with_native_core(
+            Box::new(std::io::stdout()),
+            tcl_vm::standard_host(),
+            profile,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .ok_or_else(|| DebugError::Failed("no native core for Tcl 9.0".to_owned()))?;
         vm.set_compiler(Box::new(Svc::for_profile(profile)));
         vm.set_debug_hook(Some(Box::new(move |snap: &DebugSnapshot| {
             sink.borrow_mut().push(snap.clone());
@@ -323,17 +328,38 @@ impl DebugBackend for VmBackend {
     }
 
     fn evaluate(&mut self, expression: &str) -> Result<String, DebugError> {
-        let name = expression.strip_prefix('$').unwrap_or(expression);
         let snap = self.current().ok_or(DebugError::Finished)?;
-        snap.variables
+        let unsupported = || {
+            DebugError::Unsupported(format!(
+                "replay evaluate only resolves captured variables, not {expression:?}"
+            ))
+        };
+        let name = if expression.starts_with('$') {
+            let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
+            let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+            let reference = tcl_lexer::word_parts::whole_var_ref(expression.as_bytes(), config)
+                .ok()
+                .flatten()
+                .ok_or_else(unsupported)?;
+            if reference.index.is_some_and(|index| {
+                !std::str::from_utf8(index).is_ok_and(tcl_syntax::naming::array_key_is_literal)
+            }) {
+                return Err(unsupported());
+            }
+            // The parsed spelling selects a captured label, never a live variable cell.
+            tcl_syntax::naming::var_reference_for_style(expression, config.braced_var)
+        } else {
+            expression
+        };
+        let mut matches = snap
+            .variables
             .iter()
-            .find(|v| v.name == name)
-            .map(|v| v.value.clone())
-            .ok_or_else(|| {
-                DebugError::Unsupported(format!(
-                    "replay evaluate only resolves captured variables, not {expression:?}"
-                ))
-            })
+            .filter(|variable| variable.name == name);
+        let variable = matches.next().ok_or_else(unsupported)?;
+        if matches.next().is_some() {
+            return Err(unsupported());
+        }
+        Ok(variable.value.clone())
     }
 
     fn terminate(&mut self) {
@@ -424,6 +450,83 @@ mod tests {
             "{vars:?}"
         );
         assert_eq!(b.evaluate("$x").unwrap(), "1");
+    }
+
+    #[test]
+    fn evaluate_uses_whole_original_variable_references() {
+        let mut b = launched(
+            "set x SCALAR\nset {odd name} SPACE\nset {cash$name} CASH\n\
+             set {scalar(open} OPEN\nset {a{b}c} NESTED\nset {} EMPTY\nset after 1\n",
+        );
+        for _ in 0..6 {
+            b.step_in().expect("reach the captured assignments");
+        }
+        for (expression, value) in [
+            ("x", "SCALAR"),
+            ("$x", "SCALAR"),
+            ("${x}", "SCALAR"),
+            ("odd name", "SPACE"),
+            ("${odd name}", "SPACE"),
+            ("cash$name", "CASH"),
+            ("${cash$name}", "CASH"),
+            ("${scalar(open}", "OPEN"),
+            ("${a{b}c}", "NESTED"),
+            ("${}", "EMPTY"),
+        ] {
+            assert_eq!(b.evaluate(expression).unwrap(), value, "{expression}");
+        }
+        for expression in ["$x suffix", "${x}suffix", "${missing", "$x(k)", "$x($i)"] {
+            assert!(
+                matches!(b.evaluate(expression), Err(DebugError::Unsupported(_))),
+                "{expression}"
+            );
+        }
+    }
+
+    #[test]
+    fn evaluate_does_not_promote_array_roots_to_element_values() {
+        let mut b = launched("set a(k) ELEMENT\nset x SCALAR\nset after 1\n");
+        for _ in 0..2 {
+            b.step_in().expect("reach the captured assignments");
+        }
+        for expression in ["a(k)", "$a(k)", "${a(k)}", "$a($x)", "${a}(k)"] {
+            assert!(
+                matches!(b.evaluate(expression), Err(DebugError::Unsupported(_))),
+                "{expression}"
+            );
+        }
+        assert_eq!(b.evaluate("$x").unwrap(), "SCALAR");
+    }
+
+    #[test]
+    fn evaluate_refuses_ambiguous_captured_labels() {
+        let mut backend = launched("set x SCALAR\nset after 1\n");
+        backend.step_in().expect("capture the assignment");
+        let snapshot = &mut backend.trace[backend.cursor.unwrap()];
+        snapshot.variables.extend([
+            tcl_vm::debug::DebugVar {
+                name: "opaque\\u00ff".into(),
+                value: "BYTE".into(),
+            },
+            tcl_vm::debug::DebugVar {
+                name: "opaque\\u00ff".into(),
+                value: "TEXT".into(),
+            },
+        ]);
+        assert_eq!(backend.evaluate("$x").unwrap(), "SCALAR");
+        assert!(matches!(
+            backend.evaluate("opaque\\u00ff"),
+            Err(DebugError::Unsupported(_))
+        ));
+        assert_eq!(
+            backend
+                .variables(0)
+                .unwrap()
+                .iter()
+                .filter(|variable| variable.name == "opaque\\u00ff")
+                .count(),
+            2
+        );
     }
 
     #[test]

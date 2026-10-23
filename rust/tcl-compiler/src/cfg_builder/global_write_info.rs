@@ -16,50 +16,260 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Per-proc summary of global/namespace variable writes.
+//! Body-keyed MAY writes to global and namespace variables.
 //!
-//! Mirrors [`super::upvar_info`]'s shape and role in the pipeline, for the
-//! complementary correctness gap: `upvar_info` tells a caller which of
-//! *its own* frame variables a callee will alias and write; this module
-//! tells a caller which *global/namespace* variables a callee will alias
-//! (via `global` / `variable` / `upvar #0`) and write, so that
-//! [`super::CfgBuilder::apply_upvar_invalidation`] can widen a call's
-//! `defs` for those too. Without this, SCCP treats a bare global/namespace
-//! name as an ordinary private local across an opaque call — unsound
-//! (`proc mutate {} { global x; set x 99 }; set x 5; mutate; expr {$x+1}`
-//! must not fold to `6`; tclsh yields `100`).
+//! The flow-insensitive scan collects every possible outer-place declaration
+//! before projecting writes, so disjoint branches conservatively share alias
+//! facts. Exact original procedure calls then propagate these summaries to a
+//! monotone fixpoint. Unknown targets widen the outer frame instead of selecting
+//! a body by its display name.
 //!
-//! ## Flow-insensitive, sound over-approximation
-//!
-//! Real Tcl style declares `global`/`variable` before using the name, but
-//! this scan does not depend on that ordering: it first unions every
-//! `global` / `variable` / `upvar #0` declaration in the whole proc body
-//! (via the shared [`crate::var_observability::stmt_gen`] recognition
-//! logic — reused, not re-derived) into one flag state, then checks every
-//! write-target name found anywhere in the body against that *complete*
-//! state. A write on a conditional branch that never executes together
-//! with the declaring branch is still counted — the goal is soundness
-//! (never *miss* a global write), not maximal precision.
-//!
-//! Dynamic command-binding transitions consume the registry's typed widening
-//! facts and make the summary opaque; literal transitions retain a per-name
-//! may-binding lattice. Dynamic `global`/`variable`/`upvar` variable targets
-//! remain governed by the shared variable-observability and caller-frame
-//! barriers rather than a second command-specific parser here.
+//! Registry variable roles and binding-transition descriptors own recognition;
+//! dynamic target and caller-frame obligations remain opaque.
+
+mod source_may;
+pub(crate) use source_may::OriginalSourceCallMayWrites;
 
 use std::collections::{BTreeSet, HashMap};
 
 use crate::command_binding::ModuleCommandBindings;
 use crate::ir::{Module, Script, Statement};
 use crate::ir_helpers::{ExecutionNamespace, nested_execution_bodies};
-use crate::naming::normalise_var_name;
-use crate::var_observability::{State, stmt_gen};
+use crate::registry_invocation::{InvocationMetadataContext, InvocationMetadataInput};
+use crate::var_observability::{State, stmt_gen_with_metadata_context};
+
+/// Exact borrowed input for conditional global/caller-frame source summaries.
+struct GlobalWriteSemantics<'a> {
+    module: Option<&'a Module>,
+    registry: &'a tcl_registry::CommandRegistry,
+    aliases: &'a ModuleCommandBindings,
+    selection: InvocationMetadataInput<'a>,
+    metadata: Option<InvocationMetadataContext<'a>>,
+    config: tcl_lexer::LexerConfig,
+    input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
+    logical_realm: Option<crate::realm::CommandBindingRealm>,
+}
+
+impl<'a> GlobalWriteSemantics<'a> {
+    fn logical_source(&self) -> bool {
+        self.input
+            .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context)
+    }
+
+    fn logical_footprint(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<(
+        tcl_registry::VariableWriteProjection,
+        Vec<tcl_registry::VariableCellAliasTransition>,
+    )> {
+        if let Some(module) = self.module {
+            let input = module.source_metadata_input.as_ref()?;
+            let words = crate::registry_invocation::source_structure::original_logical_registry_words_for_module(
+                module, self.registry, tokens,
+            )?;
+            return words.with_source_schema(input.borrowed_context_registry(), |schema| {
+                Some((
+                    tcl_registry::CommandRegistry::variable_write_projection_for_selected_source(
+                        schema,
+                    ),
+                    schema.authored_logical_source_variable_aliases()?,
+                ))
+            })?;
+        }
+        crate::registry_invocation::original_logical_variable_footprint_with_metadata_context(
+            self.registry,
+            self.metadata?,
+            tokens,
+        )
+    }
+
+    fn standalone(&self) -> bool {
+        matches!(self.selection, InvocationMetadataInput::Standalone)
+    }
+
+    fn resolve_statement(
+        &self,
+        statement: &Statement,
+        namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
+    ) -> Vec<crate::command_binding::ResolvedBindingInvocation> {
+        if self.standalone() {
+            self.aliases
+                .resolve_statement(statement, self.registry, namespace)
+        } else {
+            self.aliases.resolve_statement_with_metadata_context(
+                statement,
+                self.registry,
+                self.metadata,
+                namespace,
+            )
+        }
+    }
+
+    fn resolve_words(
+        &self,
+        words: &[crate::ir_helpers::CommandWord],
+        namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
+    ) -> Vec<tcl_registry::InvocationFacts> {
+        if self.standalone() {
+            self.aliases
+                .resolve_command_words(words, self.registry, namespace)
+        } else {
+            self.aliases.resolve_command_words_with_metadata_context(
+                words,
+                self.registry,
+                self.metadata,
+                namespace,
+            )
+        }
+    }
+
+    fn statement_writes(
+        &self,
+        statement: &Statement,
+        tokens: Option<&crate::ir::CommandTokens>,
+        namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
+    ) -> tcl_registry::VariableWriteProjection {
+        if self.logical_source() {
+            return tokens
+                .and_then(|tokens| self.logical_footprint(tokens))
+                .map(|(writes, _)| writes)
+                .unwrap_or(tcl_registry::VariableWriteProjection {
+                    opaque_variable_frame: true,
+                    ..Default::default()
+                });
+        }
+        if !self.standalone() {
+            return self
+                .aliases
+                .variable_write_projection_with_metadata_context(
+                    statement,
+                    self.registry,
+                    namespace,
+                    self.metadata,
+                );
+        }
+        let mut projection = tcl_registry::VariableWriteProjection::default();
+        self.aliases
+            .for_each_resolved_invocation(statement, namespace, |target, words| {
+                if target.registry_backed {
+                    merge_write_projection(
+                        &mut projection,
+                        self.registry.variable_write_projection(words),
+                    );
+                }
+            });
+        projection
+    }
+
+    fn command_writes(
+        &self,
+        words: &[crate::ir_helpers::CommandWord],
+        namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
+    ) -> tcl_registry::VariableWriteProjection {
+        if !self.standalone() {
+            return self
+                .aliases
+                .variable_write_projection_for_command_words_with_metadata_context(
+                    words,
+                    self.registry,
+                    self.metadata,
+                    namespace,
+                );
+        }
+        let Some(head) = words
+            .first()
+            .and_then(crate::ir_helpers::CommandWord::literal)
+        else {
+            return tcl_registry::VariableWriteProjection {
+                opaque_variable_frame: true,
+                ..Default::default()
+            };
+        };
+        let mut projection = tcl_registry::VariableWriteProjection {
+            opaque_variable_frame: self
+                .aliases
+                .target_resolution_may_be_unknown(head, namespace),
+            ..Default::default()
+        };
+        self.aliases
+            .for_each_resolved_command_words(words, namespace, |target, invocation| {
+                if target.registry_backed {
+                    merge_write_projection(
+                        &mut projection,
+                        self.registry.variable_write_projection(invocation),
+                    );
+                }
+            });
+        projection
+    }
+
+    fn from_module(
+        module: &'a Module,
+        registry: &'a tcl_registry::CommandRegistry,
+        aliases: &'a ModuleCommandBindings,
+    ) -> Option<Self> {
+        let metadata = InvocationMetadataContext::for_module(registry, module)?;
+        let input = metadata.source_analysis_input()?;
+        Some(Self {
+            module: Some(module),
+            registry,
+            aliases,
+            selection: InvocationMetadataInput::SuppliedSource(Some(input)),
+            metadata: Some(metadata),
+            config: module.lexer_config,
+            input: Some(input),
+            logical_realm: original_logical_effect_realm(module, registry),
+        })
+    }
+}
+
+fn original_logical_effect_realm(
+    module: &Module,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<crate::realm::CommandBindingRealm> {
+    module
+        .source_metadata_input
+        .as_ref()?
+        .has_logical_source_name_context()
+        .then_some(())?;
+    crate::realm::original_logical_realm_from_source_bindings(
+        module
+            .retained_source_bindings
+            .as_deref()?
+            .positioned_for_module(module, registry)?,
+    )
+}
+
+fn merge_write_projection(
+    into: &mut tcl_registry::VariableWriteProjection,
+    from: tcl_registry::VariableWriteProjection,
+) {
+    into.opaque_variable_frame |= from.opaque_variable_frame;
+    for name in from.literal_names {
+        if !into.literal_names.contains(&name) {
+            into.literal_names.push(name);
+        }
+    }
+    for name in from.read_before_write_names {
+        if !into.read_before_write_names.contains(&name) {
+            into.read_before_write_names.push(name);
+        }
+    }
+}
+
+fn literal_root(name: &str) -> &str {
+    tcl_syntax::naming::split_element_ref(name).map_or(name, |(root, _)| root)
+}
 
 /// Per-proc summary: the outer-scope (global/namespace) variable names a
 /// proc's body writes while aliased via `global` / `variable` / `upvar #0`,
 /// or through a script it runs **at the global frame** (`uplevel #0 …`).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct GlobalWriteInfo {
+    /// Original Logical MAY-write geometry; opaque frame effects remain independent.
+    source_writes:
+        Option<Vec<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence>>,
     /// Literal outer-scope names this proc's body writes.
     pub names: BTreeSet<String>,
     /// The proc runs a script at the **global frame** that this analysis
@@ -72,7 +282,22 @@ pub struct GlobalWriteInfo {
     pub opaque_global_frame: bool,
 }
 
+impl std::hash::Hash for GlobalWriteInfo {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&self.names, state);
+        std::hash::Hash::hash(&self.opaque_global_frame, state);
+    }
+}
+
 impl GlobalWriteInfo {
+    /// Complete retained source MAY footprint; opacity never proves absence.
+    pub(crate) fn original_source_writes(
+        &self,
+    ) -> Option<&[crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence]> {
+        (!self.opaque_global_frame).then_some(())?;
+        self.source_writes.as_deref()
+    }
+
     /// True when the proc's body writes no outer-scope name.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -80,180 +305,180 @@ impl GlobalWriteInfo {
     }
 
     fn union_from(&mut self, other: &Self) -> bool {
-        let old_len = self.names.len();
-        let old_opaque = self.opaque_global_frame;
+        let old = self.clone();
         self.names.extend(other.names.iter().cloned());
         self.opaque_global_frame |= other.opaque_global_frame;
-        self.names.len() != old_len || self.opaque_global_frame != old_opaque
+        match (&mut self.source_writes, &other.source_writes) {
+            (Some(held), Some(incoming)) => {
+                for place in incoming {
+                    insert_source_write(held, place.clone());
+                }
+            }
+            _ => self.source_writes = None,
+        }
+        *self != old
     }
 }
 
-/// Detect, for every proc in `module`, which outer-scope (global/
-/// namespace) variable names its body writes — see the module doc for the
-/// two-pass, flow-insensitive algorithm. Both the qualified and short
-/// forms are registered for every proc, matching
-/// [`super::detect_upvar_procs`]'s convention (the caller-side lookup at
-/// [`super::CfgBuilder::apply_upvar_invalidation`] resolves a `Statement::
-/// Call::command` by whichever spelling appears in source).
-///
-/// Then closes the per-proc summaries transitively over the direct-call
-/// graph (a proc that calls a global-writing proc also "writes" those
-/// names, recursively) via a bounded fixpoint — monotonic set-union, so
-/// recursive/mutually-recursive cycles terminate safely.
-#[must_use]
-pub fn detect_global_write_procs(module: &Module) -> HashMap<String, GlobalWriteInfo> {
-    let registry = tcl_registry::model::ingress::static_context_for(
-        module.dialect.as_deref().unwrap_or("tcl"),
-    )
-    .commands();
-    detect_global_write_procs_with_registry(module, registry)
+/// Close body-keyed outer-place MAY facts over exact original call edges.
+/// Missing source ownership or a missing callee summary widens the outer frame.
+pub(crate) fn detect_global_write_bodies_with_registry(
+    module: &Module,
+    registry: &tcl_registry::CommandRegistry,
+) -> HashMap<crate::ir::ProcedureId, GlobalWriteInfo> {
+    let bindings = ModuleCommandBindings::analyse(module, registry);
+    let semantics = GlobalWriteSemantics::from_module(module, registry, &bindings);
+    let owners = super::OriginalProcedureSummaryOwners::for_module(module, registry);
+    let mut rows = HashMap::new();
+    let mut edges = HashMap::new();
+    for (id, procedure) in module.original_source_procedure_bodies() {
+        let namespace = procedure
+            .body
+            .namespace_context
+            .as_deref()
+            .and_then(crate::command_binding::SourceNamespaceKey::advisory_key);
+        let mut info = match (semantics.as_ref(), namespace) {
+            (Some(semantics), Some(namespace))
+                if module.procedure_ids.owns(*id)
+                    && module
+                        .retained_source_bindings
+                        .as_ref()
+                        .is_some_and(|owner| {
+                            owner.matches_original_procedure_summary(*id, procedure)
+                        }) =>
+            {
+                own_body_global_writes(&procedure.body, semantics, &namespace)
+            }
+            _ => GlobalWriteInfo {
+                opaque_global_frame: true,
+                ..GlobalWriteInfo::default()
+            },
+        };
+        let (calls, opaque) = direct_call_targets(&procedure.body, &owners, registry);
+        info.opaque_global_frame |= opaque;
+        edges.insert(*id, calls);
+        rows.insert(*id, info);
+    }
+    loop {
+        let prior = rows.clone();
+        for (id, callees) in &edges {
+            let row = rows.get_mut(id).expect("retained body row");
+            for callee in callees {
+                match prior.get(callee) {
+                    Some(facts) => {
+                        row.union_from(facts);
+                    }
+                    None => row.opaque_global_frame = true,
+                }
+            }
+        }
+        if rows == prior {
+            break;
+        }
+    }
+    rows
 }
 
-/// Detect global/namespace writes against the exact registry that lowered the
-/// module.
-///
-/// Besides release-specific core descriptors, this preserves custom and pack
-/// command argument roles used by constructed or embedded scripts.  The
-/// default wrapper above is retained for standalone structural callers; the
-/// whole-module CFG path always enters here.
+/// Outer-place MAY facts for each retained body, with original source-selected edges.
+#[must_use]
+pub fn detect_global_write_procs(
+    module: &Module,
+) -> HashMap<crate::ir::ProcedureId, GlobalWriteInfo> {
+    detect_global_write_procs_with_registry(module, module.resolved_registry())
+}
+
+/// Outer-place MAY writes under the Module's exact retained registry.
 #[must_use]
 pub fn detect_global_write_procs_with_registry(
     module: &Module,
     registry: &tcl_registry::CommandRegistry,
-) -> HashMap<String, GlobalWriteInfo> {
-    let bindings = ModuleCommandBindings::analyse(module, registry);
-    detect_global_write_procs_with_bindings(module, registry, &bindings)
-}
-
-/// Detect global/namespace writes using the module binding summary already
-/// prepared by the whole-module CFG pipeline.
-pub(crate) fn detect_global_write_procs_with_bindings(
-    module: &Module,
-    registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
-) -> HashMap<String, GlobalWriteInfo> {
-    let mut own: HashMap<String, GlobalWriteInfo> = HashMap::new();
-    let mut direct_calls: HashMap<String, BTreeSet<String>> = HashMap::new();
-    // Iterate procedures in a deterministic (qualified-name) order, for the same
-    // reason [`super::prepare_cfg_context`] does it for `proc_params`: every proc
-    // registers its *short* name as well as its qualified one, so procedures
-    // sharing a short name (`::a::run` and `::b::run`) both write the `run` key
-    // and the last writer wins.  Off a `HashMap`, "last" is the random per-process
-    // hash seed — and this map is part of the `CfgContext` folded into *every*
-    // procedure's `function_lattice` memo key, so a nondeterministic winner makes
-    // the whole file's per-procedure cache hit or miss by luck of the process
-    // start — measured flipping a one-keystroke edit between rebuilding 1
-    // procedure and rebuilding all 40, run to run, on the same file.
-    let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
-    entries.sort_by(|a, b| a.0.cmp(b.0));
-    for (qname, proc) in &entries {
-        let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
-        let namespace = if holder.is_empty() { "::" } else { holder };
-        let mut info = own_body_global_writes(&proc.body, registry, aliases, namespace);
-        let (calls, calls_opaque) = direct_call_targets(&proc.body, registry, aliases, namespace);
-        info.opaque_global_frame |= calls_opaque;
-        for key in registered_keys(qname) {
-            own.entry(key.clone()).or_default().union_from(&info);
-            direct_calls.entry(key).or_default().extend(calls.clone());
-        }
-    }
-
-    // Multiple live generations currently share one qualified-name summary
-    // key while only one body is retained in Module::procedures. Preserve
-    // soundness until generation identities are carried end to end.
-    for qname in &module.redefined_procedures {
-        let opaque = GlobalWriteInfo {
-            names: BTreeSet::new(),
-            opaque_global_frame: true,
-        };
-        for key in registered_keys(qname) {
-            own.entry(key).or_default().union_from(&opaque);
-        }
-    }
-
-    // Transitive closure: monotonic union over direct-callee summaries.
-    // Bounded by the number of registered names, so an adversarial call
-    // graph still terminates.
-    //
-    // Walk the callers in sorted order too: the union itself is order-independent,
-    // but the `guard` bound can cut the fixpoint short on an adversarial graph, and
-    // a truncated result must at least be the *same* truncated result every run.
-    let mut callers: Vec<String> = direct_calls.keys().cloned().collect();
-    callers.sort();
-    let mut changed = true;
-    let mut guard = 0usize;
-    while changed && guard <= own.len() {
-        changed = false;
-        guard += 1;
-        let snapshot = own.clone();
-        for caller in &callers {
-            let Some(callee_names) = direct_calls.get(caller) else {
-                continue;
-            };
-            let Some(target_summary) = own.get_mut(caller) else {
-                continue;
-            };
-            for callee in callee_names {
-                let Some(source_summary) = snapshot.get(callee) else {
-                    // A terminal recovered procedure can be present in the
-                    // binding lattice without a retained Module::procedures
-                    // body. It is not an effect-free call.
-                    target_summary.opaque_global_frame = true;
-                    continue;
-                };
-                // An opaque global-frame script is transitive the same way
-                // the names are: a caller of `setter` clobbers whatever
-                // `setter`'s `uplevel #0 $body` clobbers.
-                changed |= target_summary.union_from(source_summary);
-            }
-        }
-    }
-
-    // Publish every statically enumerable source spelling into the same
-    // summary map the CFG builder consumes.  A procedure body can have been
-    // lowered before a later `interp alias`/`rename` establishes the spelling,
-    // so its `Statement::Call` may not carry a lower-time canonical target.
-    // Keeping this projection here makes direct and embedded call sites share
-    // the module-wide may-binding result instead of re-deriving alias facts.
-    let closed = own.clone();
-    for binding_key in aliases.source_spellings() {
-        let mut projected = own.get(&binding_key).cloned().unwrap_or_default();
-        for target in aliases.targets(&binding_key, "::") {
-            if let Some(summary) = closed.get(&target.command) {
-                projected.union_from(summary);
-            } else if !target.registry_backed {
-                projected.opaque_global_frame = true;
-            }
-        }
-        projected.opaque_global_frame |=
-            aliases.target_resolution_may_be_unknown(&binding_key, "::");
-        if projected.is_empty() {
-            continue;
-        }
-        for key in registered_keys(&binding_key) {
-            own.entry(key).or_default().union_from(&projected);
-        }
-    }
-
-    own
+) -> HashMap<crate::ir::ProcedureId, GlobalWriteInfo> {
+    detect_global_write_bodies_with_registry(module, registry)
 }
 
 /// What `body`, run in a frame of its own whose commands resolve in
 /// `namespace` — a lambda's body, as `apply` runs it — writes in the global
 /// frame: what a procedure body's summary states of its own statements
 /// ([`own_body_global_writes`]), unioned with the summary of each procedure it
-/// calls (`procedures`, the map [`detect_global_write_procs_with_bindings`]
+/// calls (`procedures`, the map [`detect_global_write_procs_with_registry`]
 /// builds), a called procedure the map does not hold making it opaque, as a
 /// procedure's transitive closure does.
-pub(crate) fn own_frame_global_writes(
+pub(crate) fn own_frame_global_writes_with_metadata_context<'a>(
+    body: &Script,
+    registry: &'a tcl_registry::CommandRegistry,
+    aliases: &'a ModuleCommandBindings,
+    namespace: &str,
+    procedures: &HashMap<crate::ir::ProcedureId, GlobalWriteInfo>,
+    owners: &'a super::OriginalProcedureSummaryOwners,
+    metadata: Option<InvocationMetadataContext<'a>>,
+    config: tcl_lexer::LexerConfig,
+) -> GlobalWriteInfo {
+    let Some(metadata) = metadata.filter(|metadata| {
+        metadata.matches_registry(registry)
+            && metadata.source_analysis_input().map_or_else(
+                || metadata.is_standalone(),
+                |input| input.lexer_config().nested().normalized() == config.nested().normalized(),
+            )
+    }) else {
+        return GlobalWriteInfo {
+            opaque_global_frame: true,
+            ..GlobalWriteInfo::default()
+        };
+    };
+    let module = owners.module(registry);
+    let semantics = GlobalWriteSemantics {
+        module,
+        logical_realm: module.and_then(|module| original_logical_effect_realm(module, registry)),
+        registry,
+        aliases,
+        selection: if metadata.is_standalone() {
+            InvocationMetadataInput::Standalone
+        } else {
+            InvocationMetadataInput::SuppliedSource(metadata.source_analysis_input())
+        },
+        metadata: Some(metadata),
+        config,
+        input: metadata.source_analysis_input(),
+    };
+    frame_global_writes(body, &semantics, namespace, procedures, owners)
+}
+
+/// Explicit source-only catalogue compatibility. An unprofiled catalogue has
+/// no `SemanticContext`; that deliberate absence never admits supplied refusal.
+pub(crate) fn own_frame_global_writes_standalone(
     body: &Script,
     registry: &tcl_registry::CommandRegistry,
     aliases: &ModuleCommandBindings,
     namespace: &str,
-    procedures: &HashMap<String, GlobalWriteInfo>,
+    procedures: &HashMap<crate::ir::ProcedureId, GlobalWriteInfo>,
+    owners: &super::OriginalProcedureSummaryOwners,
+    config: tcl_lexer::LexerConfig,
 ) -> GlobalWriteInfo {
-    let mut info = own_body_global_writes(body, registry, aliases, namespace);
-    let (calls, calls_opaque) = direct_call_targets(body, registry, aliases, namespace);
+    let semantics = GlobalWriteSemantics {
+        module: None,
+        logical_realm: None,
+        registry,
+        aliases,
+        selection: InvocationMetadataInput::Standalone,
+        metadata: registry
+            .profile()
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+            .map(Into::into),
+        config,
+        input: None,
+    };
+    frame_global_writes(body, &semantics, namespace, procedures, owners)
+}
+
+fn frame_global_writes(
+    body: &Script,
+    semantics: &GlobalWriteSemantics<'_>,
+    namespace: &str,
+    procedures: &HashMap<crate::ir::ProcedureId, GlobalWriteInfo>,
+    owners: &super::OriginalProcedureSummaryOwners,
+) -> GlobalWriteInfo {
+    let mut info = own_body_global_writes(body, semantics, namespace);
+    let (calls, calls_opaque) = direct_call_targets(body, owners, semantics.registry);
     info.opaque_global_frame |= calls_opaque;
     for callee in calls {
         match procedures.get(&callee) {
@@ -266,12 +491,135 @@ pub(crate) fn own_frame_global_writes(
     info
 }
 
-/// Every call-site spelling of `qname`, from the one helper
-/// [`super::detect_upvar_procs`] and [`super::prepare_cfg_context`] also
-/// use — the three maps are looked up by the same key at the same call
-/// site, so they must agree on what keys exist.
-fn registered_keys(qname: &str) -> Vec<String> {
-    super::qualified_lookup_keys(qname)
+fn insert_source_write(
+    writes: &mut Vec<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence>,
+    place: crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+) {
+    if !writes.iter().any(|held| held.symbol() == place.symbol()) {
+        writes.push(place);
+    }
+}
+
+fn own_logical_body_global_writes(
+    body: &Script,
+    semantics: &GlobalWriteSemantics<'_>,
+) -> GlobalWriteInfo {
+    use crate::signature_scan::variable_symbol::{
+        SignatureSourceVariableOccurrence, SignatureSourceVariableSlot,
+    };
+    let inventory = || -> Option<Vec<SignatureSourceVariableOccurrence>> {
+        let module = semantics.module?;
+        if module.has_dynamic_trace
+            || !module.traced_commands.is_empty()
+            || module.has_dynamic_variable_trace
+            || !module.traced_variables.is_empty()
+        {
+            return None;
+        }
+        let realm = semantics.logical_realm.as_ref()?;
+        let operands = crate::registry_invocation::source_structure::OriginalLogicalVariableOperands::borrowing(
+            module, semantics.registry, realm,
+        );
+        let commands = operands.body_commands(body)?;
+        let mut aliases: HashMap<
+            SignatureSourceVariableSlot,
+            Vec<SignatureSourceVariableOccurrence>,
+        > = HashMap::new();
+        let mut writes = Vec::new();
+        for tokens in &commands {
+            if crate::registry_invocation::original_logical_procedure_calls_for_module(
+                tokens,
+                module,
+                semantics.registry,
+            )
+            .is_some()
+            {
+                continue;
+            }
+            let operation = operands.operation(tokens)?;
+            let (_, declared) = semantics.logical_footprint(tokens)?;
+            for alias in declared {
+                let local = operands.alias_local_slot(tokens, &alias)?;
+                if let tcl_registry::VariableAliasTarget::CallerSelectedFrame { frame, .. } =
+                    &alias.target
+                {
+                    let level = match frame {
+                        tcl_registry::CallerFrameSelection::DefaultCaller => {
+                            Some(tcl_registry::FrameLevel::Relative(1))
+                        }
+                        tcl_registry::CallerFrameSelection::Explicit(level) => {
+                            tcl_registry::FrameLevel::parse_for_dialect(
+                                level.literal()?,
+                                operation.dialect?,
+                            )
+                        }
+                    }?;
+                    if !level.is_global_frame() {
+                        // The caller-frame owner retains these separate effects.
+                        continue;
+                    }
+                }
+                let target = operands.alias_source_place(tokens, &alias)?;
+                insert_source_write(aliases.entry(local).or_default(), target.clone());
+                if alias.writes_value {
+                    insert_source_write(&mut writes, target);
+                }
+            }
+        }
+        for tokens in &commands {
+            if crate::registry_invocation::original_logical_procedure_calls_for_module(
+                tokens,
+                module,
+                semantics.registry,
+            )
+            .is_some()
+            {
+                continue;
+            }
+            let (projection, _) = semantics.logical_footprint(tokens)?;
+            if projection.opaque_variable_frame {
+                return None;
+            }
+            for (written, form) in operands.write_arguments(tokens)? {
+                let place = operands.argument_source_place(tokens, written, form)?;
+                match place.symbol().slot() {
+                    local @ SignatureSourceVariableSlot::Local { .. } => {
+                        if let Some(targets) = aliases.get(local) {
+                            for target in targets {
+                                insert_source_write(&mut writes, target.clone());
+                            }
+                        }
+                    }
+                    SignatureSourceVariableSlot::C { .. } | SignatureSourceVariableSlot::Jim(_) => {
+                        insert_source_write(&mut writes, place);
+                    }
+                }
+            }
+        }
+        Some(writes)
+    }();
+    let Some(writes) = inventory else {
+        return GlobalWriteInfo {
+            opaque_global_frame: true,
+            ..GlobalWriteInfo::default()
+        };
+    };
+    let mut info = GlobalWriteInfo {
+        source_writes: Some(writes),
+        ..GlobalWriteInfo::default()
+    };
+    for place in info
+        .source_writes
+        .as_ref()
+        .expect("original source inventory")
+    {
+        let Some(report) = place.symbol().checked_c_namespace_key() else {
+            info.opaque_global_frame = true;
+            continue;
+        };
+        insert_outer_name(&mut info.names, &report);
+    }
+    info
 }
 
 /// Pass 1: union every `global` / `variable` declaration in `body` into one
@@ -286,10 +634,19 @@ fn registered_keys(qname: &str) -> Vec<String> {
 /// falling back to the flag-state identity check.
 fn own_body_global_writes(
     body: &Script,
-    registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
+    semantics: &GlobalWriteSemantics<'_>,
     namespace: &str,
 ) -> GlobalWriteInfo {
+    if semantics.logical_source() {
+        let mut info = own_logical_body_global_writes(body, semantics);
+        info.opaque_global_frame |=
+            semantics
+                .aliases
+                .script_has_opaque_binding_effect(body, semantics.registry, namespace);
+        return info;
+    }
+    let registry = semantics.registry;
+    let aliases = semantics.aliases;
     let mut state = State::default();
     let mut renamed_aliases = OuterAliasProjection::default();
     let execution_namespace = ExecutionNamespace::exact(namespace);
@@ -297,8 +654,7 @@ fn own_body_global_writes(
         body,
         &mut state,
         &mut renamed_aliases,
-        registry,
-        aliases,
+        semantics,
         &execution_namespace,
     );
 
@@ -308,7 +664,7 @@ fn own_body_global_writes(
     // procedure that writes the global frame. Unrelated module-wide opacity
     // is runtime-provenance state, not a per-call variable effect.
     if aliases.script_has_opaque_binding_effect(body, registry, namespace)
-        || script_invokes_unknown_binding(body, aliases, namespace)
+        || (!semantics.logical_source() && script_invokes_unknown_binding(body, aliases, namespace))
     {
         info.opaque_global_frame = true;
     }
@@ -316,12 +672,11 @@ fn own_body_global_writes(
         body,
         &state,
         &renamed_aliases,
-        registry,
-        aliases,
+        semantics,
         &execution_namespace,
         &mut info,
     );
-    collect_global_frame_effects(body, registry, aliases, namespace, &mut info);
+    collect_global_frame_effects(body, semantics, namespace, &mut info);
     info
 }
 
@@ -342,10 +697,10 @@ fn script_invokes_unknown_binding(
         script.statements.iter().any(|stmt| {
             let own = match stmt {
                 Statement::Call { command, .. } | Statement::Barrier { command, .. } => {
-                    let Some(command_namespace) = namespace.for_head(command) else {
+                    let Some(command_namespace) = namespace.for_head_context(command) else {
                         return true;
                     };
-                    aliases.target_resolution_may_be_unknown(command, command_namespace)
+                    aliases.target_resolution_may_be_unknown(command, command_namespace.as_ref())
                 }
                 _ => false,
             };
@@ -377,12 +732,11 @@ fn script_invokes_unknown_binding(
 /// and `uplevel 0` stays in the callee's own frame.
 fn collect_global_frame_effects(
     script: &Script,
-    registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
+    semantics: &GlobalWriteSemantics<'_>,
     namespace: &str,
     info: &mut GlobalWriteInfo,
 ) {
-    collect_global_frame_effects_in_frame(script, registry, aliases, namespace, false, info);
+    collect_global_frame_effects_in_frame(script, semantics, namespace, false, info);
 }
 
 /// Continue the global-frame pass under a known selected frame.  A nested
@@ -392,14 +746,11 @@ fn collect_global_frame_effects(
 /// from being silently treated as a body in the defining procedure's frame.
 fn collect_global_frame_effects_in_frame(
     script: &Script,
-    registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
+    semantics: &GlobalWriteSemantics<'_>,
     namespace: &str,
     in_global_frame: bool,
     info: &mut GlobalWriteInfo,
 ) {
-    use tcl_registry::frame_effect::FrameLevel;
-
     for stmt in &script.statements {
         if !stmt.is_executable_invocation() {
             continue;
@@ -411,8 +762,8 @@ fn collect_global_frame_effects_in_frame(
                 body,
                 ..
             } => {
-                record_global_upframe_body(body, registry, aliases, info);
-                collect_global_frame_effects_in_frame(body, registry, aliases, "::", true, info);
+                record_global_upframe_body(body, semantics, info);
+                collect_global_frame_effects_in_frame(body, semantics, "::", true, info);
                 continue;
             }
             // Relative level zero preserves the selected frame.  It is a
@@ -424,8 +775,8 @@ fn collect_global_frame_effects_in_frame(
                 body,
                 ..
             } if in_global_frame => {
-                record_global_upframe_body(body, registry, aliases, info);
-                collect_global_frame_effects_in_frame(body, registry, aliases, "::", true, info);
+                record_global_upframe_body(body, semantics, info);
+                collect_global_frame_effects_in_frame(body, semantics, "::", true, info);
                 continue;
             }
             Statement::UpFrame { body, .. } => {
@@ -433,45 +784,17 @@ fn collect_global_frame_effects_in_frame(
                 // an absolute `#0` nested inside it still is; keep walking to
                 // find that explicit reset without attributing ordinary body
                 // writes to the global frame.
-                collect_global_frame_effects_in_frame(
-                    body, registry, aliases, namespace, false, info,
-                );
+                collect_global_frame_effects_in_frame(body, semantics, namespace, false, info);
                 continue;
             }
-            Statement::Call { .. } | Statement::Barrier { .. } => {
-                let execution_namespace = ExecutionNamespace::exact(namespace);
-                for invocation in aliases.resolve_statement(stmt, registry, namespace) {
-                    use crate::command_binding::{ResolvedFrameBody, ResolvedFrameBodySelection};
-                    let body =
-                        invocation.resolved_frame_body(registry, aliases, &execution_namespace);
-                    let selected_global = |selection| match selection {
-                        ResolvedFrameBodySelection::Current => in_global_frame,
-                        ResolvedFrameBodySelection::Selected(FrameLevel::Absolute(0)) => true,
-                        ResolvedFrameBodySelection::Selected(FrameLevel::Relative(0)) => {
-                            in_global_frame
-                        }
-                        ResolvedFrameBodySelection::Selected(
-                            FrameLevel::Relative(_) | FrameLevel::Absolute(_) | FrameLevel::Dynamic,
-                        ) => false,
-                    };
-                    match body {
-                        ResolvedFrameBody::Readable { source, selection }
-                            if selected_global(selection) =>
-                        {
-                            if !record_literal_global_body(&source, registry, aliases, info) {
-                                info.opaque_global_frame = true;
-                            }
-                        }
-                        ResolvedFrameBody::Opaque { selection } if selected_global(selection) => {
-                            info.opaque_global_frame = true;
-                        }
-                        ResolvedFrameBody::NotApplicable
-                        | ResolvedFrameBody::KnownError
-                        | ResolvedFrameBody::Readable { .. }
-                        | ResolvedFrameBody::Opaque { .. } => {}
-                    }
-                }
-            }
+            Statement::Call { .. } | Statement::Barrier { .. } => record_selected_global_body(
+                stmt,
+                script.retained_source_tokens_for_statement(stmt),
+                semantics,
+                namespace,
+                in_global_frame,
+                info,
+            ),
             _ => {}
         }
         let execution_namespace = crate::ir_helpers::ExecutionNamespace::exact(namespace);
@@ -485,8 +808,7 @@ fn collect_global_frame_effects_in_frame(
             };
             collect_global_frame_effects_in_frame(
                 body,
-                registry,
-                aliases,
+                semantics,
                 &body_namespace,
                 in_global_frame,
                 info,
@@ -495,10 +817,128 @@ fn collect_global_frame_effects_in_frame(
     }
 }
 
+fn record_selected_global_body(
+    stmt: &Statement,
+    tokens: Option<&crate::ir::CommandTokens>,
+    semantics: &GlobalWriteSemantics<'_>,
+    namespace: &str,
+    in_global_frame: bool,
+    info: &mut GlobalWriteInfo,
+) {
+    use tcl_registry::frame_effect::FrameLevel;
+    if semantics.logical_source() {
+        record_original_logical_global_body(tokens, semantics, in_global_frame, info);
+        return;
+    }
+    let registry = semantics.registry;
+    let aliases = semantics.aliases;
+    let execution_namespace = ExecutionNamespace::exact(namespace);
+    for invocation in semantics.resolve_statement(stmt, namespace) {
+        use crate::command_binding::{ResolvedFrameBody, ResolvedFrameBodySelection};
+        let body = if semantics.standalone() {
+            invocation.resolved_frame_body_standalone(registry, aliases, &execution_namespace)
+        } else {
+            invocation.resolved_frame_body_with_metadata_context(
+                registry,
+                aliases,
+                &execution_namespace,
+                semantics.metadata,
+            )
+        };
+        let selected_global = |selection| match selection {
+            ResolvedFrameBodySelection::Current => in_global_frame,
+            ResolvedFrameBodySelection::Selected(FrameLevel::Absolute(0)) => true,
+            ResolvedFrameBodySelection::Selected(FrameLevel::Relative(0)) => in_global_frame,
+            ResolvedFrameBodySelection::Selected(
+                FrameLevel::Relative(_) | FrameLevel::Absolute(_) | FrameLevel::Dynamic,
+            ) => false,
+        };
+        match body {
+            ResolvedFrameBody::Readable { source, selection } if selected_global(selection) => {
+                if !record_literal_global_body(&source, semantics, info) {
+                    info.opaque_global_frame = true;
+                }
+            }
+            ResolvedFrameBody::Opaque { selection } if selected_global(selection) => {
+                info.opaque_global_frame = true;
+            }
+            ResolvedFrameBody::NotApplicable
+            | ResolvedFrameBody::KnownError
+            | ResolvedFrameBody::Readable { .. }
+            | ResolvedFrameBody::Opaque { .. } => {}
+        }
+    }
+}
+
+fn record_original_logical_global_body(
+    tokens: Option<&crate::ir::CommandTokens>,
+    semantics: &GlobalWriteSemantics<'_>,
+    in_global_frame: bool,
+    info: &mut GlobalWriteInfo,
+) {
+    use tcl_registry::frame_effect::{FrameArgLayout, FrameArgumentResolution};
+    let Some((tokens, module, metadata)) = tokens
+        .zip(semantics.module)
+        .zip(semantics.metadata)
+        .map(|((tokens, module), metadata)| (tokens, module, metadata))
+    else {
+        info.opaque_global_frame = true;
+        return;
+    };
+    let Some(invocation) =
+        crate::registry_invocation::original_logical_frame_invocation_with_metadata_context(
+            semantics.registry,
+            metadata,
+            tokens,
+        )
+    else {
+        // Direct-call closure and variable footprints keep their independent
+        // unknown-target obligations; this pass adds selected script effects.
+        return;
+    };
+    let Some(layout) = invocation.layout().filter(|layout| {
+        matches!(
+            layout,
+            FrameArgLayout::ScriptInCurrentFrame | FrameArgLayout::ScriptInSelectedFrame
+        )
+    }) else {
+        return;
+    };
+    let (level, start) = match invocation.arguments() {
+        Some(FrameArgumentResolution::Valid {
+            level,
+            level_word_len,
+        }) => (level, invocation.offset() + level_word_len),
+        Some(FrameArgumentResolution::Invalid) => return,
+        Some(FrameArgumentResolution::Unknown) | None => {
+            info.opaque_global_frame |=
+                layout == FrameArgLayout::ScriptInSelectedFrame || in_global_frame;
+            return;
+        }
+    };
+    let selected_global = if layout == FrameArgLayout::ScriptInCurrentFrame {
+        in_global_frame
+    } else {
+        level.is_global_frame() || (level.is_current_frame() && in_global_frame)
+    };
+    if !selected_global {
+        return;
+    }
+    if invocation.count() != start + 1 {
+        info.opaque_global_frame = true;
+        return;
+    }
+    let Some(body) = invocation.source_body(module, semantics.registry, tokens, start) else {
+        info.opaque_global_frame = true;
+        return;
+    };
+    record_global_upframe_body(&body, semantics, info);
+    collect_global_frame_effects_in_frame(&body, semantics, "::", true, info);
+}
+
 fn record_global_upframe_body(
     body: &Script,
-    registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
+    semantics: &GlobalWriteSemantics<'_>,
     info: &mut GlobalWriteInfo,
 ) {
     // The literal body was lowered before all later module command-binding
@@ -506,7 +946,7 @@ fn record_global_upframe_body(
     // lattice so an alias prefix such as `interp alias {} put {} set x`
     // contributes `x` even when the source call's lower-time `defs` is empty.
     // The body runs at #0, so bare command heads resolve in the global namespace.
-    let projection = script_value_write_projection(body, registry, aliases, "::");
+    let projection = project_script_writes(body, semantics, &ExecutionNamespace::exact("::"));
     for name in projection.literal_names {
         record_global_frame_write(&name, info);
     }
@@ -515,23 +955,35 @@ fn record_global_upframe_body(
 
 fn record_literal_global_body(
     source: &str,
-    registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
+    semantics: &GlobalWriteSemantics<'_>,
     info: &mut GlobalWriteInfo,
 ) -> bool {
-    let config = registry
-        .profile()
-        .map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-            tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-        });
-    let module =
-        crate::lowering::lower_to_ir_with_dialect(source, registry, config, registry.profile());
+    let registry = semantics.registry;
+    let mut lowerer = crate::lowering::Lowerer::with_config(registry, semantics.config);
+    if let Some(input) = semantics.input {
+        lowerer = lowerer
+            .with_dialect(Some(input.unit_profile()))
+            .with_resolved_analysis_input(input.clone());
+        if let Some(entry) = crate::command_binding::SourceAnalysisEntry::for_logical_source(input)
+        {
+            lowerer.set_source_analysis_options(entry.options());
+        }
+    } else if semantics.standalone() {
+        lowerer = lowerer.with_dialect(registry.profile());
+    } else {
+        return false;
+    }
+    let module = crate::lowering::lower_to_ir_with(lowerer, source);
     // An alias-baked `uplevel #0` reaches this path as an ordinary call, so
     // its body did not participate in the original module lowering. Project
     // the freshly lowered body through the original module's closed bindings:
     // a later `interp alias {} put {} set x` must be just as visible here as
     // it is for a directly lowered `Statement::UpFrame`.
-    let projection = script_value_write_projection(&module.top_level, registry, aliases, "::");
+    let projection = project_script_writes(
+        &module.top_level,
+        semantics,
+        &ExecutionNamespace::exact("::"),
+    );
     for name in projection.literal_names {
         record_global_frame_write(&name, info);
     }
@@ -568,61 +1020,157 @@ pub(super) fn script_has_dynamic_write_target(script: &Script) -> bool {
     })
 }
 
-/// Record one global-frame write target: a plain literal name is
-/// enumerable, anything else widens.
+/// Record a known global-frame destination under the shared observation purpose.
 fn record_global_frame_write(name: &str, info: &mut GlobalWriteInfo) {
-    let name = normalise_var_name(name);
-    if !name.is_empty() && !name.contains(['$', '[', '{', '"', ' ']) {
-        info.names.insert(name.to_owned());
-    } else {
-        info.opaque_global_frame = true;
-    }
+    crate::variable_observation_names::record_variable_write_name(
+        &mut info.names,
+        literal_root(name),
+        crate::variable_observation_names::VariableWriteObservationPurpose::OuterScope,
+    );
 }
 
 fn accumulate_state(
     script: &Script,
     state: &mut State,
     renamed_aliases: &mut OuterAliasProjection,
-    registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
+    semantics: &GlobalWriteSemantics<'_>,
     namespace: &ExecutionNamespace,
 ) {
+    let registry = semantics.registry;
     for stmt in &script.statements {
         if let Some(command_namespace) = statement_command_namespace(stmt, namespace) {
-            stmt_gen(stmt, state, registry);
+            stmt_gen_with_metadata_context(stmt, state, registry, semantics.metadata);
             collect_renamed_outer_alias(
                 stmt,
+                script.retained_source_tokens_for_statement(stmt),
                 renamed_aliases,
-                registry,
-                aliases,
-                command_namespace,
+                semantics,
+                command_namespace.as_ref(),
             );
         }
-        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, registry);
-        for words in embedded.commands {
+        if semantics.logical_source()
+            && let Some(tokens) = script.retained_source_tokens_for_statement(stmt)
+        {
+            let (_, aliases) = original_nested_footprint(tokens, semantics);
+            for alias in &aliases {
+                collect_renamed_outer_alias_transition(alias, renamed_aliases, semantics);
+            }
+        }
+        let embedded = if semantics.logical_source() && semantics.module.is_some() {
+            crate::ir_helpers::EvaluatedCommandSubstitutions::default()
+        } else {
+            source_substitutions(stmt, semantics, namespace)
+        };
+        for words in embedded.all_commands() {
             let Some(head) = words
                 .first()
                 .and_then(crate::ir_helpers::CommandWord::literal)
             else {
                 continue;
             };
-            let Some(command_namespace) = namespace.for_head(head) else {
+            let Some(command_namespace) = namespace.for_head_context(head) else {
                 continue;
             };
-            for facts in aliases.resolve_command_words(&words, registry, command_namespace) {
-                collect_renamed_outer_alias_facts(&facts, renamed_aliases, registry);
+            for facts in semantics.resolve_words(words, command_namespace.as_ref()) {
+                collect_renamed_outer_alias_facts(&facts, renamed_aliases, semantics);
             }
         }
         for (body, body_namespace) in nested_execution_bodies(stmt, namespace) {
-            accumulate_state(
-                body,
-                state,
-                renamed_aliases,
-                registry,
-                aliases,
-                &body_namespace,
-            );
+            accumulate_state(body, state, renamed_aliases, semantics, &body_namespace);
         }
+    }
+}
+
+/// Child words retain their own original lookup and complete source input;
+/// the parent's text cannot select a descriptor for an extracted fragment.
+fn original_nested_footprint(
+    tokens: &crate::ir::CommandTokens,
+    semantics: &GlobalWriteSemantics<'_>,
+) -> (
+    tcl_registry::VariableWriteProjection,
+    Vec<tcl_registry::VariableCellAliasTransition>,
+) {
+    let mut writes = tcl_registry::VariableWriteProjection::default();
+    let mut aliases = Vec::new();
+    let Some(metadata) = semantics.metadata else {
+        writes.opaque_variable_frame = true;
+        return (writes, aliases);
+    };
+    let mut pending = vec![(tokens.clone(), 0_u32)];
+    let mut seen = BTreeSet::new();
+    while let Some((parent, depth)) = pending.pop() {
+        if depth > 8 {
+            writes.opaque_variable_frame = true;
+            continue;
+        }
+        if depth != 0 {
+            let Some(site) = parent
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.invocation_site())
+            else {
+                writes.opaque_variable_frame = true;
+                continue;
+            };
+            if !seen.insert(site.offset) {
+                continue;
+            }
+            if let Some((child_writes, child_aliases)) = semantics.logical_footprint(&parent) {
+                merge_write_projection(&mut writes, child_writes);
+                aliases.extend(child_aliases);
+            } else {
+                writes.opaque_variable_frame = true;
+            }
+            if let Some(module) = semantics.module {
+                if let Some(bodies) = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
+                    module, semantics.registry, &parent,
+                ) {
+                    pending.extend(bodies.into_iter().map(|body| (body, depth + 1)));
+                } else {
+                    writes.opaque_variable_frame = true;
+                }
+            }
+        }
+        let Some(children) = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+            &parent,
+            semantics.config,
+            semantics.registry,
+            metadata,
+        ) else {
+            writes.opaque_variable_frame = true;
+            continue;
+        };
+        for child in children {
+            if let Some(child) = child.tokens {
+                pending.push((child, depth + 1));
+            } else {
+                writes.opaque_variable_frame = true;
+            }
+        }
+    }
+    (writes, aliases)
+}
+
+fn source_substitutions(
+    stmt: &Statement,
+    semantics: &GlobalWriteSemantics<'_>,
+    namespace: &ExecutionNamespace,
+) -> crate::ir_helpers::EvaluatedCommandSubstitutions {
+    let resolve = |head: &str| semantics.aliases.resolved_embedded_head(head, namespace);
+    if semantics.standalone() {
+        crate::ir_helpers::evaluated_command_substitutions_with_heads(
+            stmt,
+            semantics.registry,
+            Some(&resolve),
+        )
+    } else {
+        crate::ir_helpers::evaluated_command_substitutions_with_heads_and_metadata_context(
+            stmt,
+            semantics.registry,
+            Some(&resolve),
+            semantics.metadata,
+            semantics.config,
+        )
     }
 }
 
@@ -633,12 +1181,12 @@ fn accumulate_state(
 fn statement_command_namespace<'a>(
     stmt: &Statement,
     namespace: &'a ExecutionNamespace,
-) -> Option<&'a str> {
+) -> Option<std::borrow::Cow<'a, crate::command_binding::SourceNamespaceKey>> {
     match stmt {
         Statement::Call { command, .. } | Statement::Barrier { command, .. } => {
-            namespace.for_head(command)
+            namespace.for_head_context(command)
         }
-        _ => namespace.for_head(""),
+        _ => namespace.for_head_context(""),
     }
 }
 
@@ -666,105 +1214,122 @@ enum OuterAliasTarget {
 
 fn collect_renamed_outer_alias(
     stmt: &Statement,
+    tokens: Option<&crate::ir::CommandTokens>,
     renamed_aliases: &mut OuterAliasProjection,
-    registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
-    namespace: &str,
+    semantics: &GlobalWriteSemantics<'_>,
+    namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
 ) {
-    for invocation in aliases.resolve_statement(stmt, registry, namespace) {
-        collect_renamed_outer_alias_facts(&invocation.facts, renamed_aliases, registry);
+    if semantics.logical_source() {
+        if let Some((_, aliases)) = tokens.and_then(|tokens| semantics.logical_footprint(tokens)) {
+            for alias in &aliases {
+                collect_renamed_outer_alias_transition(alias, renamed_aliases, semantics);
+            }
+        }
+        return;
+    }
+    for invocation in semantics.resolve_statement(stmt, namespace) {
+        collect_renamed_outer_alias_facts(&invocation.facts, renamed_aliases, semantics);
+    }
+}
+
+fn selected_outer_alias_target(
+    target: &tcl_registry::VariableAliasTarget,
+    semantics: &GlobalWriteSemantics<'_>,
+) -> Option<OuterAliasTarget> {
+    let literal = |variable: &tcl_registry::TransitionSubject| {
+        variable.literal().map_or(OuterAliasTarget::Opaque, |name| {
+            OuterAliasTarget::Exact(literal_root(name).to_owned())
+        })
+    };
+    match target {
+        tcl_registry::VariableAliasTarget::Global { variable }
+        | tcl_registry::VariableAliasTarget::CurrentNamespace { variable } => {
+            Some(literal(variable))
+        }
+        tcl_registry::VariableAliasTarget::Namespace {
+            namespace,
+            variable,
+        } => Some(if namespace.literal().is_some() {
+            literal(variable)
+        } else {
+            OuterAliasTarget::Opaque
+        }),
+        tcl_registry::VariableAliasTarget::CallerSelectedFrame { frame, variable } => {
+            let tcl_registry::CallerFrameSelection::Explicit(level) = frame else {
+                return None;
+            };
+            let Some(level) = level.literal() else {
+                return Some(OuterAliasTarget::Opaque);
+            };
+            let Some(dialect) = semantics
+                .input
+                .map(|input| tcl_registry::InvocationDialect::of_profile(input.unit_profile()))
+                .or_else(|| {
+                    semantics
+                        .metadata
+                        .and_then(|metadata| metadata.context().environment.point())
+                        .map(tcl_registry::InvocationDialect::of_point)
+                })
+            else {
+                return Some(OuterAliasTarget::Opaque);
+            };
+            match tcl_registry::frame_effect::FrameLevel::parse_native_bytes(
+                level.as_bytes(),
+                dialect,
+            ) {
+                Some(Some(level)) if level.is_global_frame() => Some(literal(variable)),
+                // Invalid literal levels install no alias; other known levels
+                // belong to the caller-frame summary instead of this one.
+                Some(_) => None,
+                // Counted NUL and unavailable numeric recipes are unresolved,
+                // not evidence that an alias cannot have been installed.
+                None => Some(OuterAliasTarget::Opaque),
+            }
+        }
     }
 }
 
 fn collect_renamed_outer_alias_facts(
     facts: &tcl_registry::InvocationFacts,
     renamed_aliases: &mut OuterAliasProjection,
-    registry: &tcl_registry::CommandRegistry,
+    semantics: &GlobalWriteSemantics<'_>,
 ) {
-    if let Some(transitions) = facts.state_transitions.declared() {
-        for fact in transitions.facts() {
-            let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition else {
-                continue;
-            };
-            let outer = match &alias.target {
-                tcl_registry::VariableAliasTarget::Global { variable }
-                | tcl_registry::VariableAliasTarget::CurrentNamespace { variable } => variable
-                    .literal()
-                    .map_or(OuterAliasTarget::Opaque, |outer| {
-                        OuterAliasTarget::Exact(normalise_var_name(outer).to_owned())
-                    }),
-                tcl_registry::VariableAliasTarget::Namespace {
-                    namespace,
-                    variable,
-                } => {
-                    if namespace.literal().is_none() {
-                        OuterAliasTarget::Opaque
-                    } else {
-                        variable
-                            .literal()
-                            .map_or(OuterAliasTarget::Opaque, |outer| {
-                                OuterAliasTarget::Exact(normalise_var_name(outer).to_owned())
-                            })
-                    }
-                }
-                tcl_registry::VariableAliasTarget::CallerSelectedFrame { frame, variable } => {
-                    let tcl_registry::CallerFrameSelection::Explicit(level) = frame else {
-                        continue;
-                    };
-                    let Some(level) = level.literal() else {
-                        if let Some(local) = alias.local.literal() {
-                            renamed_aliases
-                                .opaque_locals
-                                .insert(normalise_var_name(local).to_owned());
-                        } else {
-                            renamed_aliases.dynamic_local_opaque = true;
-                        }
-                        continue;
-                    };
-                    let Some(level) =
-                        tcl_registry::frame_effect::FrameLevel::parse_in(level, registry)
-                    else {
-                        // A malformed literal level errors before installing
-                        // an alias, so it contributes no reachable binding.
-                        continue;
-                    };
-                    if !level.is_global_frame() {
-                        continue;
-                    }
-                    variable
-                        .literal()
-                        .map_or(OuterAliasTarget::Opaque, |outer| {
-                            OuterAliasTarget::Exact(normalise_var_name(outer).to_owned())
-                        })
-                }
-            };
-            match (alias.local.literal(), outer) {
-                (Some(local), OuterAliasTarget::Exact(outer)) => {
-                    let local = normalise_var_name(local);
-                    if !local.is_empty() && !outer.is_empty() {
-                        renamed_aliases
-                            .targets
-                            .entry(local.to_owned())
-                            .or_default()
-                            .insert(outer);
-                    }
-                }
-                (Some(local), OuterAliasTarget::Opaque) => {
-                    let local = normalise_var_name(local);
-                    if !local.is_empty() {
-                        renamed_aliases.opaque_locals.insert(local.to_owned());
-                    }
-                }
-                (None, OuterAliasTarget::Exact(outer)) => {
-                    if !outer.is_empty() {
-                        renamed_aliases.dynamic_local_targets.insert(outer);
-                    }
-                }
-                (None, OuterAliasTarget::Opaque) => {
-                    renamed_aliases.dynamic_local_opaque = true;
-                }
-            }
+    let Some(transitions) = facts.state_transitions.declared() else {
+        return;
+    };
+    for fact in transitions.facts() {
+        let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition else {
+            continue;
+        };
+        collect_renamed_outer_alias_transition(alias, renamed_aliases, semantics);
+    }
+}
+
+fn collect_renamed_outer_alias_transition(
+    alias: &tcl_registry::VariableCellAliasTransition,
+    renamed_aliases: &mut OuterAliasProjection,
+    semantics: &GlobalWriteSemantics<'_>,
+) {
+    let Some(outer) = selected_outer_alias_target(&alias.target, semantics) else {
+        return;
+    };
+    match (alias.local.literal(), outer) {
+        (Some(local), OuterAliasTarget::Exact(outer)) => {
+            let local = literal_root(local);
+            renamed_aliases
+                .targets
+                .entry(local.to_owned())
+                .or_default()
+                .insert(outer);
         }
+        (Some(local), OuterAliasTarget::Opaque) => {
+            let local = literal_root(local);
+            renamed_aliases.opaque_locals.insert(local.to_owned());
+        }
+        (None, OuterAliasTarget::Exact(outer)) => {
+            renamed_aliases.dynamic_local_targets.insert(outer);
+        }
+        (None, OuterAliasTarget::Opaque) => renamed_aliases.dynamic_local_opaque = true,
     }
 }
 
@@ -772,17 +1337,16 @@ fn collect_write_targets(
     script: &Script,
     state: &State,
     renamed_aliases: &OuterAliasProjection,
-    registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
+    semantics: &GlobalWriteSemantics<'_>,
     namespace: &ExecutionNamespace,
     info: &mut GlobalWriteInfo,
 ) {
     for stmt in &script.statements {
-        if let Some(command_namespace) = statement_command_namespace(stmt, namespace) {
-            let (targets, opaque) = own_write_targets(stmt, registry, aliases, command_namespace);
+        if statement_command_namespace(stmt, namespace).is_some() {
+            let (targets, opaque) = own_write_targets(script, stmt, semantics, namespace);
             info.opaque_global_frame |= opaque;
             for target in targets {
-                let target = normalise_var_name(&target);
+                let target = literal_root(&target);
                 if let Some(outers) = renamed_aliases.targets.get(target) {
                     for outer in outers {
                         insert_outer_name(&mut info.names, outer);
@@ -816,8 +1380,7 @@ fn collect_write_targets(
                 body,
                 state,
                 renamed_aliases,
-                registry,
-                aliases,
+                semantics,
                 &body_namespace,
                 info,
             );
@@ -832,117 +1395,114 @@ fn collect_write_targets(
 /// definition of `::hits` alone leaves the caller's `hits` forwarding a
 /// stale constant across the call.
 fn insert_outer_name(names: &mut BTreeSet<String>, name: &str) {
-    if let Some(relative) = name.strip_prefix("::")
-        && !relative.is_empty()
-    {
-        names.insert(relative.to_owned());
-    }
-    names.insert(name.to_owned());
+    crate::variable_observation_names::record_variable_write_name(
+        names,
+        name,
+        crate::variable_observation_names::VariableWriteObservationPurpose::OuterScope,
+    );
 }
 
 /// The variable name(s) `stmt` itself directly writes — its own `name`
 /// field for the direct-assignment statement kinds, `Call::defs` for a
-/// direct call to a registry-known var-mutating builtin (`incr x`,
-/// `lappend x …`, …; the registry-driven mechanism already used
-/// throughout the compiler — see `AGENTS.md`'s "registry is the source of
-/// truth"), plus any embedded builtin var-mutator command substitution in
-/// the statement's evaluated value/argument/expression surfaces (`set y
-/// [incr x]`), reusing the shared dialect-aware substitution inventory.
-///
-/// Excludes defs whose exact invocation facts describe a variable-cell alias
-/// or variable-trace target: those calls change cell identity or trace state,
-/// not necessarily the cell's value.  A custom command installed under a
-/// builtin spelling is therefore not suppressed unless its own descriptor
-/// says so, while a renamed declaration spelling remains declaration-only.
+/// Possible value destinations of the structured statement and its evaluated
+/// substitutions. Generic calls use the current selected roles and original
+/// alias prefix, rather than stale lower-time Call definitions. The Registry
+/// distinguishes cell aliasing and trace installation from value writes.
 fn own_write_targets(
+    script: &Script,
     stmt: &Statement,
-    registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
-    namespace: &str,
+    semantics: &GlobalWriteSemantics<'_>,
+    namespace: &ExecutionNamespace,
 ) -> (Vec<String>, bool) {
-    let mut out = Vec::new();
-    match stmt {
-        Statement::AssignConst { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::AssignValue { name, .. }
-        | Statement::Incr { name, .. } => out.push(name.clone()),
-        Statement::Call { defs, .. } => {
-            let declaration_targets = declaration_only_targets(stmt, registry, aliases, namespace);
-            out.extend(
-                defs.iter()
-                    .filter(|name| !declaration_targets.contains(normalise_var_name(name)))
-                    .cloned(),
-            );
-        }
-        // A command kept whole as a barrier writes what the SSA states it
-        // defines: a loop header's iteration variables, the targets of its
-        // variable-name words.
-        Statement::Barrier { .. } => {
-            out.extend(crate::ssa::defs_of_with_registry(stmt, Some(registry)));
-        }
-        // A structured statement's own bindings — a loop's iteration
-        // variables, a `catch`'s result and options variables, a `try`
-        // handler's — are writes as an assignment is; its bodies are walked
-        // as statements of their own.
-        Statement::Foreach { iterators, .. } => {
-            for iterator in iterators {
-                out.extend(
-                    iterator
-                        .vars
-                        .iter()
-                        .map(|name| crate::naming::element_var_name(name).to_owned()),
-                );
-            }
-        }
-        Statement::Catch {
-            result_var,
-            options_var,
-            ..
-        } => out.extend(result_var.iter().chain(options_var).cloned()),
-        Statement::Try { handlers, .. } => {
-            for handler in handlers {
-                out.extend(handler.var_name.iter().chain(&handler.options_var).cloned());
-            }
-        }
-        _ => {}
-    }
-    let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, registry);
-    let direct = aliases.variable_write_projection(stmt, registry, namespace);
+    let structural = crate::ir_helpers::structural_variable_write_projection(stmt);
+    let mut out = structural.literal_names;
+    let Some(command_namespace) = statement_command_namespace(stmt, namespace) else {
+        return (out, true);
+    };
+    let embedded = if semantics.logical_source() && semantics.module.is_some() {
+        crate::ir_helpers::EvaluatedCommandSubstitutions::default()
+    } else {
+        source_substitutions(stmt, semantics, namespace)
+    };
+    let direct = semantics.statement_writes(
+        stmt,
+        script.retained_source_tokens_for_statement(stmt),
+        command_namespace.as_ref(),
+    );
     // Variable writes count from an in-frame expression word too: `set y
     // [expr {[incr ::hits]}]` writes the global exactly as `[incr ::hits]` in
     // a bare word does.
-    let nested =
-        crate::ir_helpers::variable_write_effects_from_commands(embedded.all_commands(), registry);
+    let mut opaque =
+        structural.opaque_variable_frame || direct.opaque_variable_frame || embedded.opaque;
     out.extend(direct.literal_names);
-    out.extend(nested.names);
-    (
-        out,
-        direct.opaque_variable_frame || nested.opaque || embedded.opaque,
-    )
+    if semantics.logical_source()
+        && let Some(tokens) = script.retained_source_tokens_for_statement(stmt)
+    {
+        let (nested, _) = original_nested_footprint(tokens, semantics);
+        out.extend(nested.literal_names);
+        opaque |= nested.opaque_variable_frame;
+    }
+    for words in embedded.all_commands() {
+        let Some(holder) = words
+            .first()
+            .and_then(crate::ir_helpers::CommandWord::literal)
+            .and_then(|head| namespace.for_head_context(head))
+        else {
+            opaque = true;
+            continue;
+        };
+        let projection = semantics.command_writes(words, holder.as_ref());
+        out.extend(projection.literal_names);
+        opaque |= projection.opaque_variable_frame;
+    }
+    (out, opaque)
 }
 
-/// Project every variable value write performed by a statically lowered
-/// script through the module's closed command-binding lattice.
-///
-/// [`crate::ir_helpers::defs_from_ir_script`] retains structural definitions
-/// such as `foreach` variables and `catch` result variables.  The statement
-/// walk supplements those lower-time facts with registry-owned, source-aware
-/// write projections, which is necessary when a later `rename` or
-/// `interp alias` changes the implementation reached by a literal source
-/// head.  Both global-frame and caller-frame `uplevel` summaries enter here so
-/// their view of alias prefixes, embedded commands, and dialect-specific
-/// variable-write roles cannot drift.
-pub(super) fn script_value_write_projection(
+/// Conditional source write footprint under exact availability and grammar.
+/// Missing or foreign metadata stays opaque; this grants no frame entry/write.
+pub(super) fn script_value_write_projection_with_metadata_context(
     script: &Script,
     registry: &tcl_registry::CommandRegistry,
     aliases: &ModuleCommandBindings,
-    namespace: &str,
+    namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
+    metadata: Option<InvocationMetadataContext<'_>>,
+    config: tcl_lexer::LexerConfig,
+) -> tcl_registry::VariableWriteProjection {
+    let Some(metadata) = metadata.filter(|metadata| metadata.matches_registry(registry)) else {
+        return tcl_registry::VariableWriteProjection {
+            opaque_variable_frame: true,
+            ..tcl_registry::VariableWriteProjection::default()
+        };
+    };
+    project_script_writes(
+        script,
+        &GlobalWriteSemantics {
+            module: None,
+            logical_realm: None,
+            registry,
+            aliases,
+            selection: if metadata.is_standalone() {
+                InvocationMetadataInput::Standalone
+            } else {
+                InvocationMetadataInput::SuppliedSource(metadata.source_analysis_input())
+            },
+            metadata: Some(metadata),
+            config,
+            input: metadata.source_analysis_input(),
+        },
+        &ExecutionNamespace::SourceContext(namespace.namespace_key().into_owned()),
+    )
+}
+
+fn project_script_writes(
+    script: &Script,
+    semantics: &GlobalWriteSemantics<'_>,
+    namespace: &ExecutionNamespace,
 ) -> tcl_registry::VariableWriteProjection {
     fn walk(
         script: &Script,
-        registry: &tcl_registry::CommandRegistry,
-        aliases: &ModuleCommandBindings,
-        namespace: &str,
+        semantics: &GlobalWriteSemantics<'_>,
+        namespace: &ExecutionNamespace,
         names: &mut BTreeSet<String>,
         opaque: &mut bool,
         depth: u32,
@@ -952,7 +1512,7 @@ pub(super) fn script_value_write_projection(
             return;
         }
         for stmt in &script.statements {
-            let (targets, stmt_opaque) = own_write_targets(stmt, registry, aliases, namespace);
+            let (targets, stmt_opaque) = own_write_targets(script, stmt, semantics, namespace);
             names.extend(targets);
             *opaque |= stmt_opaque;
             // A nested UpFrame explicitly selects a different variable
@@ -962,41 +1522,22 @@ pub(super) fn script_value_write_projection(
             if matches!(stmt, Statement::UpFrame { .. }) {
                 continue;
             }
-            let execution_namespace = crate::ir_helpers::ExecutionNamespace::exact(namespace);
+            let execution_namespace = namespace;
             for (body, body_namespace) in
-                crate::ir_helpers::nested_execution_bodies(stmt, &execution_namespace)
+                crate::ir_helpers::nested_execution_bodies(stmt, execution_namespace)
             {
-                let crate::ir_helpers::ExecutionNamespace::Exact(body_namespace) = body_namespace
-                else {
+                if matches!(body_namespace, ExecutionNamespace::RuntimeSelected) {
                     *opaque = true;
                     continue;
-                };
-                walk(
-                    body,
-                    registry,
-                    aliases,
-                    &body_namespace,
-                    names,
-                    opaque,
-                    depth + 1,
-                );
+                }
+                walk(body, semantics, &body_namespace, names, opaque, depth + 1);
             }
         }
     }
 
-    let mut names: BTreeSet<String> = crate::ir_helpers::defs_from_ir_script(script)
-        .into_iter()
-        .collect();
+    let mut names = BTreeSet::new();
     let mut opaque = false;
-    walk(
-        script,
-        registry,
-        aliases,
-        namespace,
-        &mut names,
-        &mut opaque,
-        0,
-    );
+    walk(script, semantics, namespace, &mut names, &mut opaque, 0);
     tcl_registry::VariableWriteProjection {
         literal_names: names.into_iter().collect(),
         read_before_write_names: Vec::new(),
@@ -1004,196 +1545,586 @@ pub(super) fn script_value_write_projection(
     }
 }
 
-/// Variable names mentioned by state transitions that are not value writes.
-fn declaration_only_targets(
-    stmt: &Statement,
-    registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
-    namespace: &str,
-) -> BTreeSet<String> {
-    let mut targets = BTreeSet::new();
-    for invocation in aliases.resolve_statement(stmt, registry, namespace) {
-        let Some(transitions) = invocation.facts.state_transitions.declared() else {
-            continue;
-        };
-        for fact in transitions.facts() {
-            match &fact.transition {
-                tcl_registry::StateTransition::VariableCellAlias(alias) => {
-                    if alias.writes_value {
-                        continue;
-                    }
-                    if let Some(local) = alias.local.literal() {
-                        targets.insert(normalise_var_name(local).to_owned());
-                    }
-                    let variable = match &alias.target {
-                        tcl_registry::VariableAliasTarget::Global { variable }
-                        | tcl_registry::VariableAliasTarget::CurrentNamespace { variable }
-                        | tcl_registry::VariableAliasTarget::CallerSelectedFrame {
-                            variable, ..
-                        }
-                        | tcl_registry::VariableAliasTarget::Namespace { variable, .. } => variable,
-                    };
-                    if let Some(variable) = variable.literal() {
-                        targets.insert(normalise_var_name(variable).to_owned());
-                    }
-                }
-                tcl_registry::StateTransition::Trace(
-                    tcl_registry::TraceTransition::Add { target, .. }
-                    | tcl_registry::TraceTransition::Remove { target, .. },
-                ) => {
-                    if let tcl_registry::TraceTarget::Variable(variable) = target
-                        && let Some(variable) = variable.literal()
-                    {
-                        targets.insert(normalise_var_name(variable).to_owned());
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    targets
-}
-
-/// Direct-call targets in `body` — the command name of every
-/// direct statement and evaluated `[…]` substitution, recursed into every
-/// nested body. Used to build the call graph for the transitive-closure step;
-/// resolution against `module.procedures` (qualified vs. short name) happens
-/// at the lookup site in [`detect_global_write_procs`].
-fn direct_call_targets(
+/// Original issued callees in direct statements, substitutions and nested bodies.
+/// Incomplete source receipts leave an opaque edge in the summary graph.
+pub(super) fn direct_call_targets(
     body: &Script,
+    owners: &super::OriginalProcedureSummaryOwners,
     registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
-    namespace: &str,
-) -> (BTreeSet<String>, bool) {
+) -> (BTreeSet<crate::ir::ProcedureId>, bool) {
     let mut calls = BTreeSet::new();
     let mut opaque = false;
-    collect_direct_calls(
-        body,
-        registry,
-        aliases,
-        &crate::ir_helpers::ExecutionNamespace::exact(namespace),
-        &mut calls,
-        &mut opaque,
-        0,
-    );
-    (calls, opaque)
-}
-
-fn collect_direct_calls(
-    script: &Script,
-    registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
-    namespace: &crate::ir_helpers::ExecutionNamespace,
-    calls: &mut BTreeSet<String>,
-    opaque: &mut bool,
-    depth: u32,
-) {
-    fn collect_resolved_head(
-        head: &str,
-        command_namespace: &str,
-        aliases: &ModuleCommandBindings,
-        calls: &mut BTreeSet<String>,
-        opaque: &mut bool,
-    ) {
-        // Publish only terminal identities selected by the shared binding
-        // lattice.  Retaining the raw short spelling as well can accidentally
-        // attach a sibling namespace's same-tailed procedure summary after an
-        // enclosing `uplevel` selected a different frame.
-        calls.extend(
-            aliases
-                .targets(head, command_namespace)
-                .into_iter()
-                // Registry-backed effects are projected directly from their
-                // descriptors. Only user procedures participate in the
-                // procedure-summary call graph; treating every builtin as a
-                // missing procedure body makes ordinary calls spuriously
-                // opaque.
-                .filter(|target| !target.registry_backed)
-                .map(|target| target.command),
-        );
-        *opaque |= aliases.target_resolution_may_be_unknown(head, command_namespace);
-    }
-
-    if crate::optimiser::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
-        *opaque = true;
-        return;
-    }
-    for stmt in &script.statements {
-        if let Statement::Call {
-            command, tokens, ..
-        }
-        | Statement::Barrier {
-            command, tokens, ..
-        } = stmt
-        {
-            let command_namespace = namespace.for_head(command);
-            match tokens.as_ref() {
-                Some(tokens) if tokens.synthetic.is_some() => {}
-                Some(tokens) => match tokens
-                    .words()
-                    .first()
-                    .map(|head| crate::registry_invocation::invocation_word(head))
-                {
-                    Some(tcl_registry::InvocationWord::Literal(_)) | None => {
-                        let Some(command_namespace) = command_namespace else {
-                            *opaque = true;
-                            continue;
-                        };
-                        collect_resolved_head(command, command_namespace, aliases, calls, opaque);
+    let mut pending = vec![body];
+    while let Some(script) = pending.pop() {
+        for statement in &script.statements {
+            pending.extend(statement.child_scripts());
+            let Some(tokens) = script.retained_source_tokens_for_statement(statement) else {
+                if statement.is_executable_invocation() {
+                    opaque = true;
+                }
+                continue;
+            };
+            if statement.is_executable_invocation() {
+                match owners.may_calls(tokens, registry) {
+                    Some(selected) => {
+                        calls.extend(selected.bodies);
+                        opaque |= selected.unknown_alternatives;
                     }
-                    Some(_) => *opaque = true,
-                },
-                None => {
-                    let Some(command_namespace) = command_namespace else {
-                        *opaque = true;
-                        continue;
-                    };
-                    collect_resolved_head(command, command_namespace, aliases, calls, opaque);
+                    None => opaque = true,
                 }
             }
-        }
-        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, registry);
-        *opaque |= embedded.opaque;
-        for words in embedded.commands {
-            let Some(head) = words.first() else {
-                continue;
-            };
-            let Some(head_name) = head.literal() else {
-                *opaque = true;
-                continue;
-            };
-            let Some(command_namespace) = namespace.for_head(head_name) else {
-                *opaque = true;
-                continue;
-            };
-            collect_resolved_head(head_name, command_namespace, aliases, calls, opaque);
-        }
-        for (body, body_namespace) in crate::ir_helpers::nested_execution_bodies(stmt, namespace) {
-            collect_direct_calls(
-                body,
-                registry,
-                aliases,
-                &body_namespace,
-                calls,
-                opaque,
-                depth + 1,
-            );
+            match owners.children(tokens, registry) {
+                Some(children) => {
+                    for child in children {
+                        match owners.may_calls(&child, registry) {
+                            Some(selected) => {
+                                calls.extend(selected.bodies);
+                                opaque |= selected.unknown_alternatives;
+                            }
+                            None => opaque = true,
+                        }
+                    }
+                }
+                None if tokens
+                    .words()
+                    .iter()
+                    .any(|word| word.legacy_text().contains('[')) =>
+                {
+                    opaque = true;
+                }
+                None => {}
+            }
         }
     }
+    (calls, opaque)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lowering::lower_to_ir;
     use tcl_registry::{ArgRole, CommandRegistry, CommandSpec, StateTransitionDescriptor};
+    fn summary_id(module: &Module, label: &str) -> crate::ir::ProcedureId {
+        let mut matching: Vec<_> = module
+            .original_source_procedure_bodies()
+            .filter(|(_, procedure)| {
+                procedure.qualified_name == label
+                    || procedure.name == label
+                    || tcl_syntax::naming::key_tail(&procedure.name) == label
+            })
+            .map(|(id, _)| *id)
+            .collect();
+        if matching.is_empty() {
+            let registry = module.resolved_registry();
+            let owners = super::super::OriginalProcedureSummaryOwners::for_module(module, registry);
+            for script in std::iter::once(&module.top_level).chain(
+                module
+                    .original_source_procedure_bodies()
+                    .map(|(_, procedure)| &procedure.body),
+            ) {
+                for statement in &script.statements {
+                    let Some(tokens) = script.retained_source_tokens_for_statement(statement)
+                    else {
+                        continue;
+                    };
+                    if super::super::summary_candidates::original_head(tokens).as_deref()
+                        == Some(label)
+                    {
+                        for (id, _) in owners
+                            .calls(tokens, registry)
+                            .expect("original fixture call is closed")
+                        {
+                            if !matching.contains(&id) {
+                                matching.push(id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            matching.len(),
+            1,
+            "authored fixture summary {label:?} must identify one body"
+        );
+        matching[0]
+    }
 
     fn module(src: &str) -> Module {
-        lower_to_ir(src, &CommandRegistry::build_default())
+        module_with_registry(src, &CommandRegistry::build_default())
     }
 
     fn module_with_registry(src: &str, registry: &CommandRegistry) -> Module {
-        lower_to_ir(src, registry)
+        let context = tcl_registry::model::ingress::static_context_for("tcl")
+            .with_command_store(registry.snapshot().shared_registry());
+        let profile = tcl_registry::model::ingress::static_context_for("tcl")
+            .commands()
+            .profile()
+            .unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(context),
+            config,
+        );
+        let lowerer = crate::lowering::Lowerer::with_config(registry, config)
+            .with_dialect(Some(profile))
+            .with_resolved_analysis_input(input);
+        crate::lowering::lower_to_ir_with(lowerer, src)
+    }
+
+    #[test]
+    fn original_logical_outer_writes_retain_typed_alias_targets_and_incomplete_coverage() {
+        let original =
+            module("proc left {} {global ::g; set g 1}\nproc right {} {global ::::g; set g 2}");
+        let rows = detect_global_write_procs(&original);
+        let left = &rows[&summary_id(&original, "::left")];
+        let right = &rows[&summary_id(&original, "::right")];
+        let [left] = left
+            .original_source_writes()
+            .expect("complete first source footprint")
+        else {
+            panic!("one original alias target");
+        };
+        let [right] = right
+            .original_source_writes()
+            .expect("complete second source footprint")
+        else {
+            panic!("one original alias target");
+        };
+        assert_eq!(left.symbol(), right.symbol());
+        assert_ne!(left.span(), right.span());
+        let mut changed = original.clone();
+        changed.source = tcl_lexer::SourceImage::document(
+            "proc left {} {global ::other; set other 1}\nproc right {} {global ::::g; set g 2}",
+        );
+        assert!(
+            detect_global_write_procs(&changed)
+                .values()
+                .all(|row| row.original_source_writes().is_none())
+        );
+        let mut observed = original.clone();
+        observed.traced_commands.insert("::set".to_owned());
+        assert!(
+            detect_global_write_procs(&observed)
+                .values()
+                .all(|row| row.original_source_writes().is_none())
+        );
+        let unknown = module("proc p {} {global g; set g 1; unknown_call}");
+        let rows = detect_global_write_procs(&unknown);
+        let row = &rows[&summary_id(&unknown, "::p")];
+        assert!(row.opaque_global_frame);
+        assert!(
+            row.original_source_writes().is_none(),
+            "a known write cannot close an unknown call remainder"
+        );
+        let dynamic = module("proc p {name} {global g; set $name 1}");
+        let rows = detect_global_write_procs(&dynamic);
+        assert!(
+            rows[&summary_id(&dynamic, "::p")]
+                .original_source_writes()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_global_source_write_keeps_empty_scalar_and_array_root() {
+        for body in ["set {} SCALAR", "set {(key)} ARRAY"] {
+            let module = module(&format!("proc p {{}} {{uplevel #0 {{{body}}}}}"));
+            assert!(module.source_entry.native_entry.is_none());
+            let summaries = detect_global_write_procs(&module);
+            assert!(summaries[&summary_id(&module, "::p")].names.contains(""));
+        }
+        let dynamic = module("proc p {name} {uplevel #0 {set $name VALUE}}");
+        assert!(
+            detect_global_write_procs(&dynamic)[&summary_id(&dynamic, "::p")].opaque_global_frame
+        );
+    }
+
+    #[test]
+    fn original_immediate_body_inventory_keeps_protected_children_and_refusals() {
+        let module = module("catch {set ::hits VALUE}");
+        let registry = module.resolved_registry();
+        let parent = module
+            .top_level
+            .retained_source_tokens_for_statement(module.top_level.statements.first().unwrap())
+            .unwrap();
+        let children = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
+            &module, registry, parent,
+        ).expect("complete original protected body");
+        assert_eq!(children.len(), 1);
+        assert!(module.source_entry.native_entry.is_none());
+        assert_eq!(
+            crate::registry_invocation::original_logical_variable_footprint_with_metadata_context(
+                registry,
+                crate::registry_invocation::InvocationMetadataContext::for_module(
+                    registry, &module
+                )
+                .unwrap(),
+                &children[0]
+            )
+            .unwrap()
+            .0
+            .literal_names,
+            vec!["::hits"]
+        );
+        let mut stale = parent.clone();
+        stale.argv_texts[1] = "set ::other VALUE".to_owned();
+        assert!(crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
+            &module, registry, &stale,
+        ).is_none());
+        let mut changed = module.clone();
+        changed.source_metadata_input = None;
+        assert!(crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
+            &changed, registry, parent,
+        ).is_none());
+        let dynamic = self::module("catch $script");
+        let parent = dynamic
+            .top_level
+            .retained_source_tokens_for_statement(dynamic.top_level.statements.first().unwrap())
+            .unwrap();
+        assert!(crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
+            &dynamic, dynamic.resolved_registry(), parent,
+        ).is_none());
+    }
+
+    #[test]
+    fn logical_source_child_effects_keep_readonly_ownership_and_refuse_stale_modules() {
+        let module = module("catch {set ::hits VALUE}");
+        let registry = module.resolved_registry();
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let parent = module
+            .top_level
+            .retained_source_tokens_for_statement(&module.top_level.statements[0])
+            .unwrap();
+        let children = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(&module, registry, parent).unwrap();
+        let child = &children[0];
+        let binding = child.source_binding.as_ref().unwrap();
+        assert!(binding.lookup_state.is_none());
+        assert!(
+            binding
+                .original_invocation_metadata_for_module(child, &module, registry)
+                .is_none()
+        );
+        let words = binding
+            .original_logical_source_words(child, input, registry)
+            .unwrap();
+        assert!(matches!(
+            words.source(),
+            crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+                _
+            )
+        ));
+        assert!(!words.operands_preserve_source_lookup());
+        assert_eq!(
+            words
+                .with_source_schema(
+                    input.borrowed_context_registry(),
+                    tcl_registry::CommandRegistry::variable_write_projection_for_selected_source
+                )
+                .unwrap()
+                .literal_names,
+            vec!["::hits"]
+        );
+        let mut stale = child.clone();
+        stale.argv_texts[1] = "::other".to_owned();
+        assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&module, registry, &stale).is_none());
+        let mut missing_carrier = child.clone();
+        missing_carrier.source_binding = Some(Default::default());
+        assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&module, registry, &missing_carrier).is_none());
+        let mut missing_words = child.clone();
+        missing_words.source_binding = None;
+        assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&module, registry, &missing_words).is_none());
+        for facet in 0..5 {
+            let mut stale = module.clone();
+            match facet {
+                0 => stale.source_metadata_input = None,
+                1 => stale.source = tcl_lexer::SourceImage::document("catch {set ::other VALUE}"),
+                2 => stale.retained_source_bindings = None,
+                3 => stale.lexer_config.strict_quoting = !stale.lexer_config.strict_quoting,
+                4 => stale.source_entry.unknown_entry = true,
+                _ => unreachable!(),
+            }
+            assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&stale, registry, child).is_none(), "changed facet {facet}");
+        }
+        let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
+        let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let mut stronger = module.clone();
+        stronger.source_entry.native_entry = Some(std::sync::Arc::new(entry));
+        assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&stronger, registry, child).is_none());
+    }
+
+    #[test]
+    fn protected_child_substitutions_retain_their_own_source_effect_carriers() {
+        let module = module("catch {set ::hits [incr ::other]}");
+        let registry = module.resolved_registry();
+        let metadata =
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, &module)
+                .unwrap();
+        let parent = module
+            .top_level
+            .retained_source_tokens_for_statement(&module.top_level.statements[0])
+            .unwrap();
+        let body = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(&module, registry, parent).unwrap();
+        let children = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+            &body[0],
+            module.native_lexer_config(),
+            registry,
+            metadata,
+        )
+        .unwrap();
+        assert_eq!(children.len(), 1);
+        let child = children[0].tokens.as_ref().unwrap();
+        let (writes, _) =
+            crate::registry_invocation::original_logical_variable_footprint_with_metadata_context(
+                registry, metadata, child,
+            )
+            .unwrap();
+        assert_eq!(writes.literal_names, vec!["::other"]);
+        assert!(!writes.opaque_variable_frame);
+        assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&module, registry, child).is_some());
+        let mut stale = child.clone();
+        stale.argv_texts[1] = "::unowned".to_owned();
+        assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&module, registry, &stale).is_none());
+    }
+
+    #[test]
+    fn original_substitution_protected_bodies_share_global_write_coverage() {
+        for body in [
+            "catch {incr ::hits}",
+            "catch {catch {incr ::hits}}",
+            "try {incr ::hits} finally {incr ::done}",
+        ] {
+            let module = module(&format!("proc p {{}} {{set result [{body}]}}"));
+            let info = detect_global_write_procs(&module);
+            assert!(
+                info[&summary_id(&module, "::p")].names.contains("hits"),
+                "{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_global_alias_writes_keep_empty_local_and_remote_names() {
+        for (body, target) in [
+            ("upvar #0 {} local; set local VALUE", ""),
+            ("upvar #0 target {}; set {} VALUE", "target"),
+            ("upvar #0 {} {}; set {} VALUE", ""),
+        ] {
+            let module = module(&format!("proc p {{}} {{{body}}}"));
+            let summaries = detect_global_write_procs(&module);
+            assert!(
+                summaries[&summary_id(&module, "::p")]
+                    .names
+                    .contains(target),
+                "{body}"
+            );
+        }
+        let module = module("proc p {name} {upvar #0 {} $name; set ordinary VALUE}");
+        let summaries = detect_global_write_procs(&module);
+        assert!(summaries[&summary_id(&module, "::p")].names.contains(""));
+    }
+
+    #[test]
+    fn standalone_frame_write_advice_keeps_unprofiled_catalogue_separate_from_missing_input() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Explicit catalogue advice proves no actual source input, frame or write.
+        let registry = CommandRegistry::build_default();
+        assert!(registry.profile().is_none());
+        let module = crate::lowering::lower_to_ir("set ::standalone VALUE", &registry);
+        let bindings = ModuleCommandBindings::analyse(&module, &registry);
+        let procedures = HashMap::new();
+        let compatible = own_frame_global_writes_standalone(
+            &module.top_level,
+            &registry,
+            &bindings,
+            "::",
+            &procedures,
+            &super::super::OriginalProcedureSummaryOwners::for_module(&module, &registry),
+            module.lexer_config,
+        );
+        assert!(compatible.names.contains("::standalone"));
+        assert!(compatible.names.contains("standalone"));
+        let missing = own_frame_global_writes_with_metadata_context(
+            &module.top_level,
+            &registry,
+            &bindings,
+            "::",
+            &procedures,
+            &super::super::OriginalProcedureSummaryOwners::for_module(&module, &registry),
+            None,
+            module.lexer_config,
+        );
+        assert!(missing.opaque_global_frame);
+        assert!(missing.names.is_empty());
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let refused = own_frame_global_writes_with_metadata_context(
+            &module.top_level,
+            &registry,
+            &bindings,
+            "::",
+            &procedures,
+            &super::super::OriginalProcedureSummaryOwners::for_module(&module, &registry),
+            Some(foreign.as_ref().into()),
+            module.lexer_config,
+        );
+        assert!(refused.opaque_global_frame);
+        assert!(refused.names.is_empty());
+    }
+
+    #[test]
+    fn supplied_global_write_metadata_keeps_alias_arguments_and_literal_names() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Conditional source summaries establish no Native frame/link/current cell.
+        let registry = CommandRegistry::build_default();
+        for (source, expected) in [
+            (
+                "interp alias {} put {} set {$scalar(open}; proc p {} {global {$scalar(open}; put VALUE}",
+                "$scalar(open",
+            ),
+            (
+                "rename set moved; interp alias {} put {} moved {café}; proc p {} {global café; set result [put VALUE]}",
+                "café",
+            ),
+            (
+                "interp alias {} bind {} upvar #0 {$outer}; proc p {} {bind {$local}; set {$local} VALUE}",
+                "$outer",
+            ),
+            (
+                "proc p {} {uplevel #0 {set {scalar(open} VALUE}}",
+                "scalar(open",
+            ),
+            (
+                "interp alias {} at-root {} uplevel #0; proc p {} {at-root {set {café(open} VALUE}}",
+                "café(open",
+            ),
+        ] {
+            let module = module_with_registry(source, &registry);
+            let information = detect_global_write_procs_with_registry(&module, &registry);
+            assert!(
+                information[&summary_id(&module, "::p")]
+                    .names
+                    .contains(expected),
+                "{source}: {information:?}"
+            );
+        }
+        for source in [
+            "proc set args {}; interp alias {} put {} set hidden; proc p {} {put VALUE}",
+            "interp alias {} put {} set hidden; rename set moved; proc set args {}; proc p {} {put VALUE}",
+        ] {
+            let module = module_with_registry(source, &registry);
+            assert!(
+                !detect_global_write_procs_with_registry(&module, &registry)
+                    [&summary_id(&module, "::p")]
+                    .names
+                    .contains("hidden")
+            );
+        }
+    }
+
+    #[test]
+    fn supplied_global_write_summary_refuses_missing_foreign_and_stale_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let registry = CommandRegistry::build_default();
+        let module = module_with_registry("proc p {} {uplevel #0 {set g VALUE}}", &registry);
+        assert!(
+            detect_global_write_procs_with_registry(&module, &registry)
+                [&summary_id(&module, "::p")]
+                .names
+                .contains("g")
+        );
+        let mut missing = module.clone();
+        missing.source_metadata_input = None;
+        assert!(
+            detect_global_write_procs_with_registry(&missing, &registry)
+                [&summary_id(&missing, "::p")]
+                .opaque_global_frame
+        );
+        let mut foreign = module.clone();
+        let input = module.source_metadata_input.as_ref().unwrap();
+        foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry(),
+            input.lexer_config(),
+        ));
+        assert!(
+            detect_global_write_procs_with_registry(&foreign, &registry)
+                [&summary_id(&foreign, "::p")]
+                .opaque_global_frame
+        );
+        let mut stale = module;
+        stale.lexer_config.expand_syntax = !stale.lexer_config.expand_syntax;
+        assert!(
+            detect_global_write_procs_with_registry(&stale, &registry)[&summary_id(&stale, "::p")]
+                .opaque_global_frame
+        );
+    }
+
+    #[test]
+    fn supplied_script_write_projection_uses_current_roles_instead_of_call_defs() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "gated-write",
+            surface: registry.get("dict").unwrap().surface,
+            arg_roles: &[(0, ArgRole::VarWrite)],
+            ..CommandSpec::DEFAULT
+        });
+        let module = module_with_registry("gated-write {$scalar(open} VALUE", &registry);
+        let aliases = ModuleCommandBindings::analyse(&module, &registry);
+        for (environment, available) in [("tcl8.4", false), ("tcl9.0", true)] {
+            let context = tcl_registry::model::ingress::static_context_for(environment)
+                .with_command_store(registry.snapshot().shared_registry());
+            let projection = script_value_write_projection_with_metadata_context(
+                &module.top_level,
+                &registry,
+                &aliases,
+                "::",
+                Some((&context).into()),
+                module.lexer_config,
+            );
+            assert_eq!(
+                projection
+                    .literal_names
+                    .contains(&"$scalar(open".to_owned()),
+                available,
+                "{environment}: {projection:?}"
+            );
+            if !available {
+                assert!(projection.opaque_variable_frame);
+            }
+        }
+        assert!(
+            script_value_write_projection_with_metadata_context(
+                &module.top_level,
+                &registry,
+                &aliases,
+                "::",
+                None,
+                module.lexer_config
+            )
+            .opaque_variable_frame
+        );
+    }
+
+    #[test]
+    fn supplied_global_write_call_closure_includes_source_expression_targets() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let module = module(
+            "proc mutate {} {global g; set g VALUE; return 0}; proc p {} {return [expr {[mutate]}]}",
+        );
+        assert!(
+            detect_global_write_procs(&module)[&summary_id(&module, "::p")]
+                .names
+                .contains("g")
+        );
     }
 
     #[test]
@@ -1202,64 +2133,107 @@ mod tests {
         assert!(detect_global_write_procs(&m).is_empty());
     }
 
-    /// Procedures sharing a short spelling both contribute to that spelling's
-    /// may-summary. A call through `run` may resolve to either definition as
-    /// namespaces and aliases change, so last-writer selection is unsound.
+    /// Equal leaf names retain independent body summaries.
     #[test]
-    fn short_name_collision_unions_every_qualified_summary() {
+    fn same_tailed_bodies_retain_independent_write_summaries() {
+        // naming.compiler.original-analysis-metadata-context
+
         let m = module(
-            "proc ::b::run {} { global bbb; set bbb 1 }\n\
+            "namespace eval ::b {}; namespace eval ::a {}\n\
+             proc ::b::run {} { global bbb; set bbb 1 }\n\
              proc ::a::run {} { global aaa; set aaa 1 }\n",
         );
         let info = detect_global_write_procs(&m);
-        assert_eq!(
-            info.get("run").expect("short key registered").names,
-            BTreeSet::from(["aaa".to_owned(), "bbb".to_owned()]),
-        );
-        assert!(info["run"].names.contains("bbb"));
-        assert!(info["run"].names.contains("aaa"));
+        let a = summary_id(&m, "::a::run");
+        let b = summary_id(&m, "::b::run");
+        assert_ne!(a, b);
+        assert_eq!(info[&a].names, BTreeSet::from(["aaa".to_owned()]));
+        assert_eq!(info[&b].names, BTreeSet::from(["bbb".to_owned()]));
+        let union: BTreeSet<_> = info[&a].names.union(&info[&b].names).cloned().collect();
+        assert_eq!(union, BTreeSet::from(["aaa".to_owned(), "bbb".to_owned()]));
     }
 
     #[test]
     fn proc_with_no_global_write_is_empty() {
+        // naming.compiler.original-analysis-metadata-context
+
         let m = module("proc ::p {} { set x 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().is_empty());
+        assert!(info.get(&summary_id(&m, "::p")).unwrap().is_empty());
     }
 
     #[test]
     fn direct_global_write_recorded() {
+        // naming.compiler.original-analysis-metadata-context
+
         // The `mutate` repro: global x; set x 99.
         let m = module("proc ::mutate {} { global x; set x 99 }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::mutate").unwrap().names.contains("x"));
-        // Registered under both the qualified and short forms.
-        assert!(info.get("mutate").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "::mutate"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
+        // The fixture selector accepts either display for this single body.
+        assert!(
+            info.get(&summary_id(&m, "mutate"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
     }
 
     #[test]
     fn variable_namespace_write_recorded() {
         let m = module("proc ::ns::p {} { variable v; set v 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::ns::p").unwrap().names.contains("v"));
+        assert!(
+            info.get(&summary_id(&m, "::ns::p"))
+                .unwrap()
+                .names
+                .contains("v")
+        );
     }
 
     #[test]
     fn upvar_hash_zero_counts_as_global() {
         let m = module("proc ::p {} { upvar #0 g local; set local 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().names.contains("g"));
+        assert!(
+            info.get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("g")
+        );
         // Not the local alias name — recording "local" would be a no-op at
         // the caller (no such caller-frame variable), missing the real "g".
-        assert!(!info.get("::p").unwrap().names.contains("local"));
+        assert!(
+            !info
+                .get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("local")
+        );
     }
 
     #[test]
     fn namespace_upvar_rename_resolves_to_outer_name() {
         let m = module("proc ::ns::p {} { namespace upvar ::ns nsvar localvar\nset localvar 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::ns::p").unwrap().names.contains("nsvar"));
-        assert!(!info.get("::ns::p").unwrap().names.contains("localvar"));
+        assert!(
+            info.get(&summary_id(&m, "::ns::p"))
+                .unwrap()
+                .names
+                .contains("nsvar")
+        );
+        assert!(
+            !info
+                .get(&summary_id(&m, "::ns::p"))
+                .unwrap()
+                .names
+                .contains("localvar")
+        );
     }
 
     #[test]
@@ -1267,7 +2241,7 @@ mod tests {
         let m = module("proc ::p {c} { if {$c} { upvar #0 a x } else { upvar #0 b x }; set x 1 }");
         let info = detect_global_write_procs(&m);
         assert_eq!(
-            info["::p"].names,
+            info[&summary_id(&m, "::p")].names,
             BTreeSet::from(["a".to_owned(), "b".to_owned()])
         );
     }
@@ -1276,14 +2250,22 @@ mod tests {
     fn dynamic_outer_alias_target_widens_the_global_frame() {
         let m = module("proc ::p {name} { upvar #0 $name x; set x 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info["::p"].opaque_global_frame, "got {:?}", info["::p"]);
+        assert!(
+            info[&summary_id(&m, "::p")].opaque_global_frame,
+            "got {:?}",
+            info[&summary_id(&m, "::p")]
+        );
     }
 
     #[test]
     fn dynamic_namespace_alias_target_widens_the_global_frame() {
         let m = module("proc ::p {ns} { namespace upvar $ns x local; set local 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info["::p"].opaque_global_frame, "got {:?}", info["::p"]);
+        assert!(
+            info[&summary_id(&m, "::p")].opaque_global_frame,
+            "got {:?}",
+            info[&summary_id(&m, "::p")]
+        );
     }
 
     #[test]
@@ -1292,7 +2274,7 @@ mod tests {
         // must not be treated as an outer-scope write.
         let m = module("proc ::p {} { upvar 1 caller_x local; set local 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().is_empty());
+        assert!(info.get(&summary_id(&m, "::p")).unwrap().is_empty());
     }
 
     #[test]
@@ -1300,9 +2282,9 @@ mod tests {
         let m = module("proc ::p {} { global x; puts $x }");
         let info = detect_global_write_procs(&m);
         assert!(
-            info.get("::p").unwrap().is_empty(),
+            info.get(&summary_id(&m, "::p")).unwrap().is_empty(),
             "read-only declaration produced effects: {:?}",
-            info.get("::p").unwrap()
+            info.get(&summary_id(&m, "::p")).unwrap()
         );
     }
 
@@ -1315,7 +2297,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1327,7 +2312,7 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert!(info["::p"].is_empty());
+        assert!(info[&summary_id(&m, "::p")].is_empty());
     }
 
     #[test]
@@ -1337,11 +2322,23 @@ mod tests {
             name: "global",
             arg_roles: &[(0, ArgRole::VarWrite)],
             state_transitions: Some(StateTransitionDescriptor::EMPTY),
+            world_effects: Some(tcl_registry::WorldEffectDescriptor::VARIABLE_WRITE),
+            native_compilation: Some(tcl_registry::native_compilation::NativeCompilationSpec {
+                grammar: tcl_registry::native_compilation::NativeCompilationGrammar::NoHook,
+                operation: tcl_registry::SemanticOperationId::Invoke,
+                body: tcl_registry::native_compilation::NativeBodyCompilation::Direct,
+            }),
+            successful_handler: Some(
+                tcl_registry::native_compilation::SuccessfulHandlerSpec::VariableOperands,
+            ),
             ..CommandSpec::DEFAULT
         });
         let m = module_with_registry("proc ::p {} { variable x; global x value }", &registry);
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1349,7 +2346,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let m = module_with_registry("proc ::p {} { variable x }", &registry);
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert!(info["::p"].is_empty());
+        assert!(info[&summary_id(&m, "::p")].is_empty());
     }
 
     #[test]
@@ -1357,7 +2354,10 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let m = module_with_registry("proc ::p {} { variable x 1 }", &registry);
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1365,7 +2365,10 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let m = module_with_registry("proc ::p {} { variable x 1 y }", &registry);
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1377,7 +2380,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1389,7 +2395,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1400,7 +2409,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1415,7 +2427,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1427,7 +2442,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::n::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::n::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1439,7 +2457,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1451,7 +2472,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1462,7 +2486,7 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert!(info["::p"].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::p")].opaque_global_frame);
     }
 
     #[test]
@@ -1475,7 +2499,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::outer"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::outer")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1488,8 +2515,14 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["call_mutate"].names, BTreeSet::from(["x".to_owned()]));
-        assert_eq!(info["::outer"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "call_mutate")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
+        assert_eq!(
+            info[&summary_id(&m, "::outer")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1503,8 +2536,14 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["call_mutate"].names, BTreeSet::from(["x".to_owned()]));
-        assert_eq!(info["::outer"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "call_mutate")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
+        assert_eq!(
+            info[&summary_id(&m, "::outer")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1518,13 +2557,19 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
         // Summaries deliberately use the module-wide may-state: `g` was a live
         // binding at one executable point, so a stored body calling it remains
         // conservative even though this particular definition follows the
         // rename. Lifetime-sensitive procedure reachability is not encoded in
         // the summary key.
-        assert_eq!(info["::old_name"].names, BTreeSet::from(["y".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::old_name")].names,
+            BTreeSet::from(["y".to_owned()])
+        );
     }
 
     #[test]
@@ -1538,7 +2583,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1549,8 +2597,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["g".to_owned()]));
-        assert!(!info["::p"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["g".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::p")].opaque_global_frame);
     }
 
     #[test]
@@ -1562,8 +2613,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["g".to_owned()]));
-        assert!(!info["::p"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["g".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::p")].opaque_global_frame);
     }
 
     #[test]
@@ -1574,8 +2628,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
-        assert!(!info["::p"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::p")].opaque_global_frame);
     }
 
     #[test]
@@ -1588,7 +2645,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::n::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::n::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1601,7 +2661,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1616,7 +2679,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::n::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::n::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1631,7 +2697,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1643,7 +2712,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1655,7 +2727,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1667,7 +2742,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1684,7 +2762,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1693,7 +2774,12 @@ mod tests {
         // an `if` still counts even though it may not always execute.
         let m = module("proc ::p {} { global x\nif {$c} { set x 1 } }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
     }
 
     #[test]
@@ -1701,21 +2787,67 @@ mod tests {
         // Flow-insensitive union: order within the body doesn't matter.
         let m = module("proc ::p {} { set x 1\nglobal x }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
+    }
+
+    #[test]
+    fn logical_nested_write_projection_requires_original_children_not_literal_brackets() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let registry = CommandRegistry::build_default();
+        for (source, expected) in [
+            ("proc p {} {set y [incr x]}", true),
+            ("proc p {} {set y {[incr x]}}", false),
+        ] {
+            let module = module_with_registry(source, &registry);
+            let bindings = ModuleCommandBindings::analyse(&module, &registry);
+            let semantics =
+                GlobalWriteSemantics::from_module(&module, &registry, &bindings).unwrap();
+            let procedure = &module.procedures[&summary_id(&module, "::p")];
+            let statement = procedure.body.statements.first().unwrap();
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let (writes, _) = original_nested_footprint(tokens, &semantics);
+            assert_eq!(
+                writes.literal_names.contains(&"x".to_owned()),
+                expected,
+                "{source}"
+            );
+            assert!(!writes.opaque_variable_frame, "{source}");
+            let mut changed = tokens.clone();
+            changed.argv_texts[2] = "[incr foreign]".to_owned();
+            let (rejected, _) = original_nested_footprint(&changed, &semantics);
+            assert!(rejected.opaque_variable_frame, "{source}");
+            assert!(rejected.literal_names.is_empty(), "{source}");
+        }
     }
 
     #[test]
     fn embedded_incr_in_command_substitution_recorded() {
+        // naming.compiler.original-analysis-metadata-context
+
         let m = module("proc ::p {} { global x\nset y [incr x] }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
     }
 
     #[test]
     fn expanded_global_write_target_widens_the_global_frame() {
         let m = module("proc ::p {names} { global {*}$names; set x 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info["::p"].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::p")].opaque_global_frame);
     }
 
     #[test]
@@ -1725,7 +2857,7 @@ mod tests {
              proc ::outer {} { set result \"value=[mutate]\" }",
         );
         let info = detect_global_write_procs(&m);
-        assert!(info["::outer"].names.contains("x"));
+        assert!(info[&summary_id(&m, "::outer")].names.contains("x"));
     }
 
     #[test]
@@ -1737,7 +2869,7 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert!(info["::caller"].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::caller")].opaque_global_frame);
     }
 
     #[test]
@@ -1751,8 +2883,8 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert!(info["::p"].opaque_global_frame);
-        assert!(info["::caller"].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::p")].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::caller")].opaque_global_frame);
     }
 
     #[test]
@@ -1762,7 +2894,7 @@ mod tests {
              proc ::outer {} { return [mutate] }",
         );
         let info = detect_global_write_procs(&m);
-        assert!(info["::outer"].names.contains("x"));
+        assert!(info[&summary_id(&m, "::outer")].names.contains("x"));
     }
 
     #[test]
@@ -1773,8 +2905,8 @@ mod tests {
              proc ::expr_eval {} { expr {[mutate] + 1} }",
         );
         let info = detect_global_write_procs(&m);
-        assert!(info["::assign_expr"].names.contains("x"));
-        assert!(info["::expr_eval"].names.contains("x"));
+        assert!(info[&summary_id(&m, "::assign_expr")].names.contains("x"));
+        assert!(info[&summary_id(&m, "::expr_eval")].names.contains("x"));
     }
 
     #[test]
@@ -1785,8 +2917,8 @@ mod tests {
              proc ::loop {} { while {[mutate]} { break } }",
         );
         let info = detect_global_write_procs(&m);
-        assert!(info["::conditional"].names.contains("x"));
-        assert!(info["::loop"].names.contains("x"));
+        assert!(info[&summary_id(&m, "::conditional")].names.contains("x"));
+        assert!(info[&summary_id(&m, "::loop")].names.contains("x"));
     }
 
     #[test]
@@ -1801,7 +2933,7 @@ mod tests {
              outer {interp alias {} late {} mutate}",
         );
         let info = detect_global_write_procs(&m);
-        assert!(info["::outer"].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::outer")].opaque_global_frame);
     }
 
     #[test]
@@ -1810,7 +2942,12 @@ mod tests {
         // summary must include `x` too (transitive).
         let m = module("proc ::mutate {} { global x; set x 99 }\nproc ::outer {} { mutate }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::outer").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "::outer"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
     }
 
     #[test]
@@ -1819,15 +2956,30 @@ mod tests {
             "proc ::p {n} { if {$n == 0} { return }\n global x\n incr x\n p [expr {$n-1}] }",
         );
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
     }
 
     #[test]
     fn mutually_recursive_procs_share_the_write() {
         let m = module("proc ::a {} { global x; set x 1; b }\nproc ::b {} { a }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::a").unwrap().names.contains("x"));
-        assert!(info.get("::b").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "::a"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
+        assert!(
+            info.get(&summary_id(&m, "::b"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
     }
 
     #[test]
@@ -1837,8 +2989,18 @@ mod tests {
         // really is 99 afterwards).
         let m = module("proc ::setter {} { uplevel #0 { set x 99 } }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::setter").unwrap().names.contains("x"));
-        assert!(!info.get("::setter").unwrap().opaque_global_frame);
+        assert!(
+            info.get(&summary_id(&m, "::setter"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
+        assert!(
+            !info
+                .get(&summary_id(&m, "::setter"))
+                .unwrap()
+                .opaque_global_frame
+        );
     }
 
     #[test]
@@ -1854,8 +3016,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::setter"].names, BTreeSet::from(["x".to_owned()]));
-        assert!(!info["::setter"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::setter")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::setter")].opaque_global_frame);
     }
 
     #[test]
@@ -1871,8 +3036,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::setter"].names, BTreeSet::from(["x".to_owned()]));
-        assert!(!info["::setter"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::setter")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::setter")].opaque_global_frame);
     }
 
     #[test]
@@ -1881,8 +3049,14 @@ mod tests {
         // returning to the defining procedure's frame.
         let m = module("proc ::setter {} { uplevel #0 { uplevel 0 { ::set g 1 } } }");
         let info = detect_global_write_procs(&m);
-        assert!(info["::setter"].names.contains("g"), "got {info:?}");
-        assert!(!info["::setter"].opaque_global_frame, "got {info:?}");
+        assert!(
+            info[&summary_id(&m, "::setter")].names.contains("g"),
+            "got {info:?}"
+        );
+        assert!(
+            !info[&summary_id(&m, "::setter")].opaque_global_frame,
+            "got {info:?}"
+        );
     }
 
     #[test]
@@ -1894,8 +3068,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::setter"].names, BTreeSet::from(["g".to_owned()]));
-        assert!(!info["::setter"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::setter")].names,
+            BTreeSet::from(["g".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::setter")].opaque_global_frame);
     }
 
     #[test]
@@ -1907,8 +3084,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::setter"].names, BTreeSet::from(["g".to_owned()]));
-        assert!(!info["::setter"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::setter")].names,
+            BTreeSet::from(["g".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::setter")].opaque_global_frame);
     }
 
     #[test]
@@ -1923,12 +3103,18 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert!(info["::n::setter"].names.contains("global_hit"));
         assert!(
-            !info["::n::setter"].names.contains("namespaced_hit"),
+            info[&summary_id(&m, "::n::setter")]
+                .names
+                .contains("global_hit")
+        );
+        assert!(
+            !info[&summary_id(&m, "::n::setter")]
+                .names
+                .contains("namespaced_hit"),
             "a transparent block must not restore its lowering-time namespace: {info:?}"
         );
-        assert!(!info["::n::setter"].opaque_global_frame);
+        assert!(!info[&summary_id(&m, "::n::setter")].opaque_global_frame);
     }
 
     #[test]
@@ -1944,11 +3130,11 @@ mod tests {
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
         assert_eq!(
-            info["::n::setter"].names,
+            info[&summary_id(&m, "::n::setter")].names,
             BTreeSet::from(["x".to_owned()]),
             "a transparent Block inherits the selected global command namespace"
         );
-        assert!(!info["::n::setter"].opaque_global_frame);
+        assert!(!info[&summary_id(&m, "::n::setter")].opaque_global_frame);
     }
 
     #[test]
@@ -1956,16 +3142,26 @@ mod tests {
         // `uplevel #0 [list set k 77]` — tclsh 9.0.4: the global `k` is 77.
         let m = module("proc ::s3 {} { uplevel #0 [list set k 77] }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::s3").unwrap().names.contains("k"));
-        assert!(!info.get("::s3").unwrap().opaque_global_frame);
+        assert!(
+            info.get(&summary_id(&m, "::s3"))
+                .unwrap()
+                .names
+                .contains("k")
+        );
+        assert!(
+            !info
+                .get(&summary_id(&m, "::s3"))
+                .unwrap()
+                .opaque_global_frame
+        );
     }
 
     #[test]
     fn constructed_global_body_with_dynamic_operand_is_opaque() {
         let m = module("proc ::p {name} { uplevel #0 [list set $name 1] }");
         let info = detect_global_write_procs(&m);
-        assert!(info["::p"].opaque_global_frame);
-        assert!(info["::p"].names.is_empty());
+        assert!(info[&summary_id(&m, "::p")].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::p")].names.is_empty());
     }
 
     #[test]
@@ -1975,8 +3171,8 @@ mod tests {
              proc ::p {} { uplevel #0 [list set claimed 1] }",
         );
         let info = detect_global_write_procs(&m);
-        assert!(info["::p"].opaque_global_frame);
-        assert!(info["::p"].names.is_empty());
+        assert!(info[&summary_id(&m, "::p")].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::p")].names.is_empty());
     }
 
     #[test]
@@ -1988,8 +3184,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
-        assert!(!info["::p"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::p")].opaque_global_frame);
     }
 
     #[test]
@@ -2002,7 +3201,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::n::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::n::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -2010,15 +3212,23 @@ mod tests {
         // `uplevel #0 $body` — any global may be written or read.
         let m = module("proc ::s2 {body} { uplevel #0 $body }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::s2").unwrap().opaque_global_frame);
-        assert!(!info.get("::s2").unwrap().is_empty());
+        assert!(
+            info.get(&summary_id(&m, "::s2"))
+                .unwrap()
+                .opaque_global_frame
+        );
+        assert!(!info.get(&summary_id(&m, "::s2")).unwrap().is_empty());
     }
 
     #[test]
     fn uplevel_hash_zero_opaqueness_is_transitive() {
         let m = module("proc ::s2 {body} { uplevel #0 $body }\nproc ::outer {body} { s2 $body }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::outer").unwrap().opaque_global_frame);
+        assert!(
+            info.get(&summary_id(&m, "::outer"))
+                .unwrap()
+                .opaque_global_frame
+        );
     }
 
     #[test]
@@ -2027,7 +3237,7 @@ mod tests {
         // [list puts hi]`) contributes neither names nor opaqueness.
         let m = module("proc ::shout {} { uplevel #0 [list puts hi] }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::shout").unwrap().is_empty());
+        assert!(info.get(&summary_id(&m, "::shout")).unwrap().is_empty());
     }
 
     #[test]
@@ -2038,7 +3248,7 @@ mod tests {
         // writing procedure and must therefore widen this summary.
         let m = module("proc ::p {} { uplevel 1 { ::set n 1 } }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().is_empty());
+        assert!(info.get(&summary_id(&m, "::p")).unwrap().is_empty());
     }
 
     #[test]
@@ -2047,7 +3257,11 @@ mod tests {
         // name is not.
         let m = module("proc ::p {n} { uplevel #0 \"set $n 1\" }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().opaque_global_frame);
+        assert!(
+            info.get(&summary_id(&m, "::p"))
+                .unwrap()
+                .opaque_global_frame
+        );
     }
 
     #[test]
@@ -2055,7 +3269,42 @@ mod tests {
         let m =
             module("proc ::mutate_y {} { global y; set y 1 }\nproc ::p {} { global x; set x 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().names.contains("x"));
-        assert!(!info.get("::p").unwrap().names.contains("y"));
+        assert!(
+            info.get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
+        assert!(
+            !info
+                .get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("y")
+        );
+    }
+    #[test]
+    fn global_body_summaries_use_issued_identity_and_preserve_current_header_truth() {
+        let original = module("proc mutate {} {set ::x VALUE}");
+        let id = summary_id(&original, "::mutate");
+        let expected = detect_global_write_procs(&original);
+        assert!(expected[&id].names.contains("x"));
+        let mut labelled = original.clone();
+        if let Some(procedure) = labelled.procedures.get_mut(&id) {
+            procedure.qualified_name = "report-only-label".to_owned();
+        } else {
+            labelled.body_units.get_mut(&id).unwrap().qualified_name =
+                "report-only-label".to_owned();
+        }
+        assert_eq!(detect_global_write_procs(&labelled), expected);
+        let mut wrong_kind = original.clone();
+        if let Some(procedure) = wrong_kind.procedures.get_mut(&id) {
+            procedure.body_kind = crate::ir::ProcedureBodyKind::Event;
+        } else {
+            wrong_kind.body_units.get_mut(&id).unwrap().body_kind =
+                crate::ir::ProcedureBodyKind::Event;
+        }
+        let changed = detect_global_write_procs(&wrong_kind);
+        assert!(changed.get(&id).is_none_or(|info| info.opaque_global_frame));
     }
 }

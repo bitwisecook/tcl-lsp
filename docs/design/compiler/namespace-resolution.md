@@ -1,113 +1,102 @@
-# Namespace resolution
+# Namespace and command resolution
 
-How qualified names such as `::foo::bar` are normalised and resolved through
-the pipeline, and how a bareword call is matched to the procedure that defines
-it.
+The shared naming owner parses written names and constructs lookup candidates.
+The source command-world owner resolves those candidates at the actual invocation.
+Consumers retain the resulting slot, implementation and source receipts through
+lowering, analysis, optimisation and LSP features.
 
-Tcl uses `::` as the namespace separator with `::` as the global namespace.
-`normalise_qualified_name()` canonicalises names, and lowering propagates
-namespace context so that `proc` definitions inside `namespace eval` receive
-fully qualified names. Same-file call resolution (the analyser's shadow /
-arity-suppression checks, the optimiser's interprocedural proc-identity
-resolution, and interprocedural/taint analysis's call-graph edges) all
-resolve a bareword call the same way, via one shared candidate-list
-function.
+Use the [semantic query contract](../contracts/resolved-semantic-queries.md) and
+[implementer guide](name-resolution-implementer-guide.md) when changing these
+APIs.
 
-Source: `rust/tcl-syntax/src/naming.rs`,
-`rust/tcl-compiler/src/lowering/mod.rs`,
-`rust/tcl-compiler/src/interprocedural.rs`
+## Written names and constructed keys
 
-### `normalise_qualified_name()`
+A written name is input to native lookup. A constructed key already identifies
+retained namespace segments. Passing a constructed key through written-name
+normalisation can change its meaning, particularly for literal colon segments
+and empty command names.
 
-```rust
-normalise_qualified_name("helper")          // → "::helper"
-normalise_qualified_name("::helper")        // → "::helper"
-normalise_qualified_name("mylib::helper")   // → "::mylib::helper"
-normalise_qualified_name("::::foo::::bar")  // → "::foo::bar"
-```
+`tcl_syntax::naming` owns these distinct operations:
 
-Rules: strip trailing `::`, collapse multiple `::` runs, ensure leading `::`.
+| Input and purpose | Shared operation |
+| --- | --- |
+| Written command spelling | `canonical_written_command`, `written_command_tail` |
+| Constructed namespace/command key | `key_holder_and_tail`, `key_tail` |
+| Add or remove a constructed key's root marker | `root_unrooted_key`, `unroot_rooted_key` |
+| Ordered candidates for actual namespace and path | `command_resolution_candidates` |
+| Path-free candidate enumeration | `bareword_resolution_candidates` |
+| C library autoload index keys | `native_autoload_command_candidates` with actual C string protocol; analytical `autoload_command_candidates` |
+| Jim global variable key from an actual rooted namespace | `jim_global_variable_key_bytes` |
 
-### Namespace context propagation during lowering
+Candidate enumeration does not establish command existence, a native handler,
+procedure identity, or execution. `normalise_qualified_name` remains a
+compatibility/display helper; it must not replace a retained physical key or
+implementation allocation.
 
-Lowering threads a `namespace` parameter through the walk:
+Procedure publication has its own native contract:
+`native_procedure::{procedure_name_publication,published_procedure_key}`.
+The selected namespace owner can differ from the owner obtained by parsing its
+rendered name. Retain the published slot directly instead of looking up that
+rendered spelling a second time. The native colon-namespace controls cover the
+release differences between C Tcl 8.4/8.5, later C Tcl, and Jim.
 
-1. Top-level: `namespace = "::"`.
-2. `namespace eval mylib { ... }`: joins to `"::mylib"`; the body lowers
-   with that namespace.
-3. `proc helper` inside `::mylib` is qualified to `"::mylib::helper"`.
+## Lookup order and temporal state
 
-### Bareword call resolution: `bareword_resolution_candidates()`
-
-`tcl_syntax::naming::bareword_resolution_candidates(namespace, cmd_name)`
-returns the candidate qualified names for a call, in the priority order Tcl
-itself uses — current namespace first, then global:
-
-```rust
-bareword_resolution_candidates("::mylib", "helper")       // → ["::mylib::helper", "::helper"]
-bareword_resolution_candidates("::mylib", "other::helper") // → ["::mylib::other::helper", "::other::helper"]
-bareword_resolution_candidates("::mylib", "::helper")      // → ["::helper"]
-bareword_resolution_candidates("::", "helper")             // → ["::helper"]
-```
-
-The rule is **exactly two levels** — the caller's own namespace, then
-global — never every enclosing ancestor namespace. Real Tcl command lookup
-does not walk intermediate namespaces absent an explicit `namespace path`,
-which none of these consumers model: a `::a::b::c::caller` calling bare
-`foo` does **not** reach a `::a::foo` defined in the grandparent namespace,
-even though `::a` encloses `::a::b::c`. This also applies to a *relative
-dotted* word (`other::helper`, containing `::` but not starting with it) —
-it is still resolved against the current namespace first, not rooted
-straight at global (confirmed against tclsh 9.0.4: calling `other::helper`
-from inside `namespace eval ::mylib { … }` reaches `::mylib::other::helper`
-before `::other::helper`, when both exist).
-
-Every same-file resolution consumer builds its own candidates through this
-one function and then walks them against its own lookup table (procedures,
-aliases, classes, …), so a fix to the rule — or a bug in it — cannot drift
-between call sites:
-
-- **Analyser** — `Analyser::resolve_proc_call` (go-to-definition / symbol
-  lookup) and `UserResolutionFacts::resolves_to_user` (the W002
-  disabled-in-dialect and E002/E003 builtin-arity same-file shadow
-  suppression checks) compute the caller's namespace from the live scope
-  tree via `Analyser::command_resolution_namespace`.
-- **Optimiser** — `resolve_proc_qname` (O103 static-proc-call folding)
-  computes it the same way, from the enclosing proc's scope.
-- **Interprocedural / taint** — `resolve_internal_call` computes the
-  caller's namespace from its own qualified name
-  (`namespace_parts_from_proc`, since interprocedural analysis works over
-  IR qnames rather than a live scope tree).
-
-### Resulting IR module
+Absolute written names select their rooted route. Relative names, including
+`inner::p`, search the current namespace, each supported `namespace path` entry,
+then the global namespace. Lookup selects the first existing command; the
+existence of an intermediate namespace does not prevent later command fallback.
+There is no implicit ancestor walk. Namespace path entries are resolved against
+the namespace that sets the path, without command-style global fallback.
 
 ```rust
-Module {
-    procedures: {
-        "::mylib::helper": Procedure { name: "helper", .. },
-        "::mylib::compute": Procedure { name: "compute", .. },
-    },
-    ..
-}
+use tcl_syntax::naming::command_resolution_candidates;
+assert_eq!(
+    command_resolution_candidates("::caller", &["::library"], "inner::p"),
+    vec!["::caller::inner::p", "::library::inner::p", "::inner::p"],
+);
 ```
 
-All procedure names in the IR module are fully qualified.
+The source owner applies the actual dialect's availability and retains every
+namespace-path alternative. Its private `ModuleCommandBindings::source_lookup_paths`
+is shared by execution, slot presence and navigation. A consumer must not
+reconstruct a path from the document's final namespace or search unrelated
+namespaces for a matching tail.
 
-## Decision rule
+At a source invocation, retrieve the original binding through
+`SourceCommandBindings::invocation_at_source`. Argument substitutions may change
+lookup before dispatch. Compiler admission retains a separate earlier snapshot;
+it does not donate the handler selected after arguments evaluate.
 
-- Always pass names through `normalise_qualified_name()` before using them
-  as map keys or comparison targets.
-- Always build same-file call-resolution candidates through
-  `bareword_resolution_candidates()` rather than hand-rolling the
-  current-namespace/global logic again.
-- If a procedure call fails to resolve, check that the caller's namespace
-  context was propagated correctly through lowering (or, for the analyser,
-  through the scope tree).
-- `normalise_var_name()` is for variables (handles `::` prefix only);
-  `normalise_qualified_name()` is for procedures and commands.
+| Question | Positioned query |
+| --- | --- |
+| Does the called slot exist? | `SourceInvocationBinding::selected_slot_presence` |
+| Is missing-command advice supported? | `selected_slot_diagnostic_presence` |
+| Which slot supports navigation? | `command_reference` |
+| Which original terminal declaration supports navigation? | `linked_definition` |
+| Which implementation executes after argv? | `proved_execution_target` |
+| Which converged handler supplies a normal-transfer contract? | `proved_handler_target` with its purpose-specific adapter |
+| Which recipe was admitted before argv? | `admitted_inline_invocation`, `admitted_named_invocation` |
 
-## Related docs
+Missing evidence remains unknown. A present alias can have a missing terminal
+command. A missing slot can invoke an autoloader or custom `unknown` handler.
+A procedure token can survive redefinition while its implementation allocation
+changes. An import retains its native origin relationship through rename and
+retirement. These distinctions cannot be represented by one qualified-name map.
 
-- [Example 26 in walkthroughs](../../../docs/design/compiler/example-walkthroughs.md#example-26-namespace-resolution)
-- [compiler-pipeline-overview.md](compiler-pipeline-overview.md)
-- [interprocedural-analysis.md](interprocedural-analysis.md)
+## Consumer and test requirements
+
+Lowering, compiler emitters, variable transfer, call graphs, taint, optimisation,
+and LSP navigation consume their specific retained proof. Final procedure and
+class maps supply declaration assistance, rather than temporal execution
+identity. Loaded or materialised sources also need their own source origin;
+matching name bytes cannot provide an editable authored span.
+
+When changing lookup, test current/path/global order, relative qualified names,
+absolute names, empty names, literal colons, path alternatives, imports and
+aliases, deletion/recreation, redefinition, and mutations during argv. Pair
+known namespace absence advice with an external unknown namespace. Run the
+shared command-resolution and execution vectors against all five pinned C Tcl
+releases and current Jim, then check every affected consumer and cache. Keep
+native observations, source-analysis tests and emitted execution tests separate
+when evaluating each contract.

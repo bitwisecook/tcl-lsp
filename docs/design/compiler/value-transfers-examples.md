@@ -8,7 +8,7 @@ the examples as they are written in the Rust command registry and in
 [value-transfers.md](value-transfers.md) are the shortest of these;
 [value-evaluation.md](value-evaluation.md) states the routes the
 declarations name, and
-[value-transfers-migration.md](value-transfers-migration.md) indexes the
+[value-transfer-consumers.md](value-transfer-consumers.md) indexes the
 codes the programs exercise.
 
 > **How the observations were made.** Every comment on a program line is an
@@ -482,7 +482,7 @@ proc p {L s} {
 ```
 
 Its length-position table is debt on the `arg_roles` axis
-([value-transfers-migration.md](value-transfers-migration.md) § *The
+([value-transfer-consumers.md](value-transfer-consumers.md) § *The
 ratchet over unreviewed files*).
 
 ### O129 · fold a pure builtin substitution
@@ -1853,7 +1853,7 @@ implementation's identity.
 
 - [value-transfers.md](value-transfers.md) — the consumer interface contract these programs exercise
 - [value-evaluation.md](value-evaluation.md) — the routes the declarations name
-- [value-transfers-migration.md](value-transfers-migration.md) — the inventory and the tables these examples index
+- [value-transfer-consumers.md](value-transfer-consumers.md) — the inventory and the tables these examples index
 - [diagnostic-policy.md](diagnostic-policy.md) — the one findings pipeline the O111 and W100 rows answer to
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) — the other axes these programs touch and do not own
 - [interprocedural-call-site-seeding.md](interprocedural-call-site-seeding.md) — the call-site seed the proc-level summaries rest on

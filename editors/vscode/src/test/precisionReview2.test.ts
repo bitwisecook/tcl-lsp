@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnosticsSnapshot } from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string {
   return typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
@@ -45,9 +45,13 @@ suite("Diagnostics deep review 2 precision", () => {
 
   test("S100 range is tight on the expression operand", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "S100"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const s100 = withCode(diags, "S100");
     assert.ok(s100.length >= 1, "the String operand in arithmetic shimmers");
     const r = s100[0].range;
@@ -58,9 +62,13 @@ suite("Diagnostics deep review 2 precision", () => {
 
   test("W313 range is tight on the dynamic path argument", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W313"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w313 = withCode(diags, "W313");
     assert.strictEqual(w313.length, 1, "one destructive-file path in the fixture");
     const r = w313[0].range;
@@ -71,9 +79,13 @@ suite("Diagnostics deep review 2 precision", () => {
 
   test("I230 message quotes the bare $n as the source spells it", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "I230"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const i230 = withCode(diags, "I230");
     assert.ok(i230.length >= 1, "the constant `if $n` condition draws I230");
     assert.ok(
@@ -84,9 +96,13 @@ suite("Diagnostics deep review 2 precision", () => {
 
   test("W110 range is tight on the == operator", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W110"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w110 = withCode(diags, "W110");
     assert.strictEqual(w110.length, 1, "one string-compare `==` in the fixture");
     const r = w110[0].range;

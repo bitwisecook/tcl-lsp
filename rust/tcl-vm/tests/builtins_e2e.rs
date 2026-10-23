@@ -31,7 +31,6 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::Vm;
 
 #[derive(Clone)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -135,9 +134,9 @@ fn run(src: &str) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let c = vm.run_module(&asm);
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8");
@@ -186,13 +185,13 @@ fn exec_command_capability() {
     // Sandboxed host — subprocess capability off, the posture every WASM/WASI
     // host has. `exec` yields the faithful "unsupported" error, not a panic.
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     vm.set_host(Rc::new(tcl_vm::host_native::NativeHost::sandboxed()));
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir("exec echo hello", &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     let c = vm.run_module(&asm);
     assert!(!c.code.is_ok(), "sandboxed exec should error, got ok");
     assert!(
@@ -1128,7 +1127,7 @@ fn bootstrap_globals_present() {
 
 #[test]
 fn host_rebind_replaces_bytecode_vm_bootstrap_globals() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     vm.set_host(Rc::new(SyntheticHost::new(&[
         ("USER", "first-user"),
@@ -2370,10 +2369,7 @@ fn string_is_classes() {
 
 #[test]
 fn backslash_substituted_command_arguments() {
-    // A non-braced literal command argument with backslash escapes must be
-    // backslash-substituted at call time, like real Tcl. Previously the raw
-    // escapes reached the VM unchanged (e.g. `\{` arrived as the two chars
-    // `\{`). Covers pure escapes and an *escaped* `$`/`[` (no real subst).
+    // Non-braced arguments decode escapes once; escaped sigils remain literal data.
     out_eq(
         "proc p {a} { puts [string length $a]:$a }\n\
          p \\{\n\

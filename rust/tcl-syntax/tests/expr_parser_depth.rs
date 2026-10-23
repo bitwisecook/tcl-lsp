@@ -521,8 +521,8 @@ impl ExprOps for Tower {
         }
     }
 
-    fn compare_string(&mut self, left: &Val, right: &Val) -> Ordering {
-        left.text().cmp(&right.text())
+    fn compare_string(&mut self, left: &Val, right: &Val) -> Result<Ordering, EvalError> {
+        Ok(left.text().cmp(&right.text()))
     }
 
     fn in_list(&mut self, needle: &Val, list: &Val) -> Result<bool, EvalError> {
@@ -537,6 +537,22 @@ impl ExprOps for Tower {
         }
     }
 
+    // Explicit mathematical adapter: no original native object/effect claim.
+    fn to_bool_for_purpose(
+        &mut self,
+        value: &Val,
+        _purpose: tcl_syntax::native_boolean_truth::NativeBooleanTruthPurpose,
+    ) -> Result<bool, EvalError> {
+        self.to_bool(value)
+    }
+    fn logical_right_truth(
+        &mut self,
+        _left: &Val,
+        right: &Val,
+        _conjunction: bool,
+    ) -> Result<bool, EvalError> {
+        self.to_bool(right)
+    }
     fn bool_value(&mut self, b: bool) -> Val {
         Val::N(Num::Int(i64::from(b)))
     }
@@ -792,7 +808,7 @@ fn eval_binary_other_override_is_reached() {
 #[test]
 fn eval_errors_propagate_from_seams() {
     // A `Raw` (unparseable) node surfaces `unsupported`.
-    let node = ExprNode::Raw { text: "@#%".into() };
+    let node: ExprNode = ExprNode::Raw { text: "@#%".into() };
     let mut ops = Tower::default();
     assert_eq!(
         eval(&node, &mut ops).unwrap_err(),

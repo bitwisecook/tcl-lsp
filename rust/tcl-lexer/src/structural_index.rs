@@ -165,10 +165,20 @@ impl BracketIndex {
     /// Build the index for `source` (one forward scan).
     #[must_use]
     pub fn build(source: &str) -> Self {
+        Self::build_with_config(source, crate::LexerConfig::default())
+    }
+
+    /// Build source structural geometry with the actual retained lexical axes.
+    /// The braced-variable inertness follows this configuration. Existing
+    /// structural recovery approximations remain independent of tokenisation,
+    /// command binding and semantic execution.
+    #[must_use]
+    pub fn build_with_config(source: &str, config: crate::LexerConfig) -> Self {
         let bytes = source.as_bytes();
         let mut b = Builder {
             source,
             bytes,
+            config,
             events: Vec::new(),
             inert: Vec::new(),
         };
@@ -302,6 +312,7 @@ impl BracketIndex {
 struct Builder<'a> {
     source: &'a str,
     bytes: &'a [u8],
+    config: crate::LexerConfig,
     events: Vec<(u32, i32)>,
     inert: Vec<(u32, u32, bool)>,
 }
@@ -414,7 +425,8 @@ impl Builder<'_> {
                     command_start = false;
                 }
                 b'$' if self.bytes.get(i + 1) == Some(&b'{') => {
-                    let (end, terminated) = scan_dollar_brace(self.bytes, i);
+                    let (end, terminated) =
+                        scan_dollar_brace(self.bytes, i, self.config.braced_var);
                     self.push_inert(i, end, terminated);
                     i = end;
                     newword = false;
@@ -499,7 +511,8 @@ impl Builder<'_> {
                     }
                 }
                 b'$' if self.bytes.get(i + 1) == Some(&b'{') => {
-                    let (end, terminated) = scan_dollar_brace(self.bytes, i);
+                    let (end, terminated) =
+                        scan_dollar_brace(self.bytes, i, self.config.braced_var);
                     self.push_inert(i, end, terminated);
                     i = end;
                     newword = false;
@@ -563,35 +576,18 @@ fn scan_brace_word(bytes: &[u8], start: usize) -> (usize, bool) {
     (n, false) // unterminated
 }
 
-/// Scan a `${…}` variable-name brace starting at the `$` at `start`.
-/// Returns (offset just past the matching `}`, true) when terminated,
-/// or (EOF, false) when unterminated. The interior is inert for brackets.
-///
-/// Matches `Lexer::parse_var`'s braced branch under the **Tcl 9** rule
-/// (`BracedVarStyle::Tcl9Nesting`): inner `{…}` nests with brace counting
-/// and `\X` is consumed as a literal pair, so the closer is the first `}`
-/// at depth zero — `${a{b}c}` and `${a\}b}` both close at their final `}`.
-/// The structural index is dialect-blind (its `build` API takes no config),
-/// so 8.x sources with a `{`/`\` inside a `${…}` name — where the real
-/// closer is the FIRST `}` — can mis-scan here; the effect is limited to
-/// bracket/fold structure (inert spans), never token or diagnostic
-/// semantics, which come from the dialect-aware lexer.
-fn scan_dollar_brace(bytes: &[u8], start: usize) -> (usize, bool) {
-    let n = bytes.len();
-    let mut i = start + 2; // skip `${`
-    let mut depth: u32 = 0;
-    while i < n {
-        match bytes[i] {
-            b'}' if depth == 0 => return (i + 1, true), // terminated
-            b'{' => depth += 1,
-            b'}' => depth -= 1,
-            // Skip the backslash; the loop step skips the escaped byte.
-            b'\\' => i += 1,
-            _ => {}
-        }
-        i += 1;
+/// Scan an original braced variable reference under the selected close rule.
+/// The shared variable-name owner supplies its exact closer; no local Tcl9
+/// brace-counting parser can override a retained Tcl8 source configuration.
+fn scan_dollar_brace(
+    bytes: &[u8],
+    start: usize,
+    style: tcl_dialect::BracedVarStyle,
+) -> (usize, bool) {
+    match crate::braced_var_name_end(bytes, start + 2, style) {
+        crate::BracedVarEnd::Closed(end) => (end + 1, true),
+        crate::BracedVarEnd::Unterminated => (bytes.len(), false),
     }
-    (n, false) // unterminated
 }
 
 // Brace dimension (`{` / `}`) — the second script sublanguage the doc names
@@ -623,9 +619,19 @@ impl BraceIndex {
     /// Build the index for `source` (one forward scan).
     #[must_use]
     pub fn build(source: &str) -> Self {
+        Self::build_with_config(source, crate::LexerConfig::default())
+    }
+
+    /// Build source structural geometry with the actual retained lexical axes.
+    /// The braced-variable inertness follows this configuration. Existing
+    /// structural recovery approximations remain independent of tokenisation,
+    /// command binding and semantic execution.
+    #[must_use]
+    pub fn build_with_config(source: &str, config: crate::LexerConfig) -> Self {
         let bytes = source.as_bytes();
         let mut b = BraceBuilder {
             bytes,
+            config,
             events: Vec::new(),
             inert: Vec::new(),
         };
@@ -716,6 +722,7 @@ impl BraceIndex {
 /// Brace-dimension scanner state.
 struct BraceBuilder<'a> {
     bytes: &'a [u8],
+    config: crate::LexerConfig,
     events: Vec<(u32, i32)>,
     inert: Vec<(u32, u32, bool)>,
 }
@@ -807,6 +814,18 @@ impl BraceBuilder<'_> {
         j
     }
 
+    /// Whether the byte at `i` legitimately follows a closed brace/quote word.
+    fn separates_closed_word(&self, i: usize, stop_at_bracket: bool) -> bool {
+        match self.bytes[i] {
+            b' ' | b'\t' | b'\r' | b'\n' | b';' => true,
+            b'\\' => backslash_continuation_end(self.bytes, i).is_some(),
+            // A `]` terminating the enclosing command sub is a
+            // legitimate follow (`[set x {b}]`), not extra-chars.
+            b']' => stop_at_bracket,
+            _ => false,
+        }
+    }
+
     fn scan_script(&mut self, start: usize, stop_at_bracket: bool, depth: u32) -> (usize, bool) {
         let n = self.bytes.len();
         let mut i = start;
@@ -832,19 +851,13 @@ impl BraceBuilder<'_> {
                 );
                 continue;
             }
-            // "Extra characters after close-brace/quote" gate.
+            // "Extra characters after close-brace/quote" gate: terminal
+            // extra-chars stop and propagate "complete".
             if just_closed_word {
-                match self.bytes[i] {
-                    b' ' | b'\t' | b'\r' | b'\n' | b';' => just_closed_word = false,
-                    b'\\' if backslash_continuation_end(self.bytes, i).is_some() => {
-                        just_closed_word = false;
-                    }
-                    // A `]` terminating the enclosing command sub is a
-                    // legitimate follow (`[set x {b}]`), not extra-chars.
-                    b']' if stop_at_bracket => just_closed_word = false,
-                    // Terminal extra-chars: stop and propagate "complete".
-                    _ => return (i, true),
+                if !self.separates_closed_word(i, stop_at_bracket) {
+                    return (i, true);
                 }
+                just_closed_word = false;
             }
             // Command / word context.
             match self.bytes[i] {
@@ -894,7 +907,8 @@ impl BraceBuilder<'_> {
                     just_closed_word = true;
                 }
                 b'$' if self.bytes.get(i + 1) == Some(&b'{') => {
-                    let (end, terminated) = scan_dollar_brace(self.bytes, i);
+                    let (end, terminated) =
+                        scan_dollar_brace(self.bytes, i, self.config.braced_var);
                     if !terminated {
                         self.push_event(i + 1, 1); // unterminated `${`
                     }
@@ -951,7 +965,7 @@ impl BraceBuilder<'_> {
                     i = end;
                 }
                 b'$' if self.bytes.get(i + 1) == Some(&b'{') => {
-                    let (end, _) = scan_dollar_brace(self.bytes, i);
+                    let (end, _) = scan_dollar_brace(self.bytes, i, self.config.braced_var);
                     i = end;
                 }
                 _ => i += 1,
@@ -1169,7 +1183,7 @@ pub fn stdin_chunk_ends(src: &[u8]) -> Vec<usize> {
 
 /// `true` when `b` ends with a backslash-newline continuation: an odd
 /// run of backslashes immediately before the final LF.
-fn ends_with_line_continuation(b: &[u8]) -> bool {
+pub(crate) fn ends_with_line_continuation(b: &[u8]) -> bool {
     let mut k = b.len();
     if k == 0 || b[k - 1] != b'\n' {
         return false;
@@ -2872,5 +2886,31 @@ while {1} {
                 "non-minimal lo for {s:?}",
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod configured_variable_inertness_tests {
+    use super::*;
+
+    #[test]
+    fn original_tcl8_variable_closer_exposes_real_suffix_structure() {
+        let source = "${a{b}[x]}";
+        let tcl8 = crate::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..crate::LexerConfig::default()
+        };
+        let tcl9 = crate::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::Tcl9Nesting,
+            ..tcl8
+        };
+        let old = BracketIndex::build_with_config(source, tcl8);
+        let modern = BracketIndex::build_with_config(source, tcl9);
+        assert_eq!(old.events().len(), 2);
+        assert_eq!(modern.events().len(), 0);
+        let bracket = u32::try_from(source.find('[').unwrap()).unwrap();
+        assert!(!old.is_inert(bracket));
+        assert!(modern.is_inert(bracket));
+        assert_eq!(BracketIndex::build(source).events(), modern.events());
     }
 }

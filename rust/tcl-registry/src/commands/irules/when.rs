@@ -25,9 +25,9 @@ use tcl_dialect::model::SpecSurface;
 ///
 /// The last argument is always the event-handler body.  The
 /// optional `priority` token sits between `EVENT` and `BODY`.
-fn when_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() >= 2
-        && let Ok(idx) = u8::try_from(args.len() - 1)
+fn when_arg_roles(argument_count: usize) -> Vec<(u8, ArgRole)> {
+    if argument_count >= 2
+        && let Ok(idx) = u8::try_from(argument_count - 1)
     {
         return vec![(idx, ArgRole::Body)];
     }
@@ -48,7 +48,13 @@ const WHEN_KEYWORD_VALUES: &[ArgValue] = &[
     },
 ];
 
-/// Timing values: `enable` / `disable` after the `timing` keyword.
+/// Timing values completion offers after the `timing` keyword: `enable` /
+/// `disable`, the spellings this command's documentation
+/// (<https://clouddocs.f5.com/api/irules/when.html>, quoted in the hover
+/// synopsis below as `when EVENT timing enable|disable { body }`) writes. The
+/// declaration layout still accepts every documented spelling
+/// ([`crate::events::IRULES_TIMING_SPELLINGS`], `on`/`off` included); only
+/// these are offered.
 const WHEN_TIMING_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "enable",
@@ -76,7 +82,7 @@ pub const fn spec() -> CommandSpec {
         surface: Some(SpecSurface::IRULES),
         event_handler_priority: Some(BIGIP_EVENT_HANDLER_PRIORITY),
         arity: Arity::new(2, 6),
-        arg_role_resolver: Some(when_arg_roles),
+        arg_role_count_resolver: Some(when_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Body],
         // The event name (argument 0) is the handler's outline entry: an
         // iRule's structure *is* its `when` blocks, so the outline, the
@@ -111,18 +117,14 @@ pub const fn spec() -> CommandSpec {
                 ..FormSpec::DEFAULT
             },
         ],
-        // Command-level arg-value completion for the keyword tail:
-        // `when EVENT priority|timing …` and `when EVENT timing
-        // enable|disable …`.  Even indices that follow `timing` carry
-        // the enable/disable values, odd indices carry the
-        // priority/timing keywords.  Event-name completion at index 0
-        // is handled separately via `Traits::IS_EVENT_HANDLER`.
-        arg_values: &[
-            (1, WHEN_KEYWORD_VALUES),
-            (2, WHEN_TIMING_VALUES),
-            (3, WHEN_KEYWORD_VALUES),
-            (4, WHEN_TIMING_VALUES),
-        ],
+        // The clause vocabulary of the declaration layout: argument 1 holds
+        // the clause keywords and argument 2 the timing values (the value
+        // position of a leading `timing` clause). Which of them a given
+        // position takes — a clause keyword at most once and in layout order,
+        // a timing value only after `timing` — is the registry's
+        // `irules_event_declaration_slot`, not a per-index table.  Event-name
+        // completion at index 0 is handled via `Traits::IS_EVENT_HANDLER`.
+        arg_values: &[(1, WHEN_KEYWORD_VALUES), (2, WHEN_TIMING_VALUES)],
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             writes: true,
@@ -130,5 +132,151 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The slot each position of an incomplete `when` takes, by the layout
+    /// `irules_event_declaration_shape` validates.
+    #[test]
+    fn declaration_slots_follow_the_declaration_layout() {
+        use crate::events::IrulesDeclarationSlot as Slot;
+        let context = crate::model::ingress::static_context_for("f5-irules");
+        let registry = context.commands();
+        let when = registry.get("when").expect("when");
+        let slot = |written: &[Option<&str>]| {
+            registry.irules_event_declaration_slot(when, written, written.len(), None)
+        };
+        let words = |slot: Option<Slot>| match slot {
+            Some(Slot::Clause(values) | Slot::Timing(values)) => {
+                values.iter().map(|value| value.value).collect::<Vec<_>>()
+            }
+            other => panic!("expected a word list, got {other:?}"),
+        };
+        let e = Some("HTTP_REQUEST");
+        assert_eq!(slot(&[]), Some(Slot::Event));
+        assert_eq!(words(slot(&[e])), ["priority", "timing"]);
+        assert_eq!(slot(&[e, Some("priority")]), Some(Slot::Priority));
+        assert_eq!(words(slot(&[e, Some("timing")])), ["enable", "disable"]);
+        assert_eq!(slot(&[e, Some("bogus")]), None);
+        // After `priority N` only `timing` may follow; after `timing V` only
+        // the body.
+        assert_eq!(words(slot(&[e, Some("priority"), Some("10")])), ["timing"]);
+        assert_eq!(slot(&[e, Some("timing"), Some("enable")]), Some(Slot::Body));
+        assert_eq!(
+            words(slot(&[e, Some("priority"), Some("10"), Some("timing")])),
+            ["enable", "disable"]
+        );
+        assert_eq!(
+            slot(&[e, Some("priority"), Some("10"), Some("timing"), Some("off")]),
+            Some(Slot::Body)
+        );
+        // Out-of-order, repeated or rejected clauses leave the layout.
+        assert_eq!(
+            slot(&[e, Some("timing"), Some("on"), Some("priority")]),
+            None
+        );
+        assert_eq!(
+            slot(&[e, Some("priority"), Some("1001"), Some("timing")]),
+            None
+        );
+        assert_eq!(
+            slot(&[e, Some("timing"), Some("sometimes"), Some("x")]),
+            None
+        );
+        // A non-literal word before the position is not inferred across.
+        assert_eq!(slot(&[None, Some("priority")]), None);
+        assert_eq!(slot(&[e, None]), None);
+        // Not an event handler.
+        let proc_spec = registry.get("proc").expect("proc");
+        assert_eq!(
+            registry.irules_event_declaration_slot(proc_spec, &[e], 1, None),
+            None
+        );
+    }
+
+    /// Walking the slots along every complete form the shape accepts reaches
+    /// the body exactly where the shape puts it: the two read one layout.
+    #[test]
+    fn declaration_slots_agree_with_the_complete_shape() {
+        use crate::events::IrulesDeclarationSlot as Slot;
+        let context = crate::model::ingress::static_context_for("f5-irules");
+        let registry = context.commands();
+        let when = registry.get("when").expect("when");
+        for form in [
+            &["HTTP_REQUEST"][..],
+            &["HTTP_REQUEST", "priority", "0"],
+            &["HTTP_REQUEST", "timing", "on"],
+            &["HTTP_REQUEST", "timing", "disable"],
+            &["HTTP_REQUEST", "priority", "1000", "timing", "off"],
+        ] {
+            let written: Vec<Option<&str>> = form.iter().copied().map(Some).collect();
+            let body_slot =
+                registry.irules_event_declaration_slot(when, &written, written.len(), None);
+            let source = format!("when {} {{}}\n", form.join(" "));
+            let accepted =
+                crate::events::top_level_when_handler_candidates_with_registry_and_head_resolver(
+                    &source,
+                    registry,
+                    &crate::events::WrittenHeadResolver,
+                );
+            assert_eq!(accepted.len(), 1, "{form:?}: the shape accepts the form");
+            if form.len() == 5 {
+                assert_eq!(body_slot, Some(Slot::Body), "{form:?}");
+            } else {
+                assert!(
+                    matches!(body_slot, Some(Slot::Body | Slot::Clause(_))),
+                    "{form:?}: {body_slot:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn source_body_roles_require_cardinality_and_preserve_unknown_values() {
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        let context = crate::model::ingress::static_context_for("f5-irules");
+        for arguments in [
+            vec![Literal("HTTP_REQUEST"), Dynamic],
+            vec![
+                Literal("HTTP_REQUEST"),
+                Literal("priority"),
+                Literal("10"),
+                Dynamic,
+            ],
+        ] {
+            let resolution =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(),
+                    Some(context.context()),
+                    crate::InvocationWords::structured(Literal("when"), &arguments),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                );
+            let selected = resolution.resolved().unwrap();
+            assert_eq!(
+                selected.authored_source_argument_roles(),
+                (
+                    vec![(u8::try_from(arguments.len() - 1).unwrap(), ArgRole::Body)],
+                    true
+                )
+            );
+        }
+        let arguments = [Literal("HTTP_REQUEST"), Expanded];
+        let resolution = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            context.commands(),
+            Some(context.context()),
+            crate::InvocationWords::structured(Literal("when"), &arguments),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        );
+        assert!(
+            !resolution
+                .resolved()
+                .unwrap()
+                .authored_source_argument_roles()
+                .1
+        );
     }
 }

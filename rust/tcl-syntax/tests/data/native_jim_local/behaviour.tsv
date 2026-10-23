@@ -1,0 +1,5 @@
+0	4c4f43414c2042415345	proc p {} {return BASE};proc driver {} {local proc p {} {return LOCAL};return [p]};list [driver] [p]
+1	424153452042415345	proc p {} {return BASE};proc driver {} {local proc p {} {return [upcall p]};local proc p {} {return [upcall p]};return [p]};list [driver] [p]
+2	46524553482030	proc driver {} {local proc p {} {return FRESH};return [p]};list [driver] [llength [info commands p]]
+3	63616e27742072656e616d65206c6f63616c20636f6d6d616e6420227022	proc p {} {return BASE};proc driver {} {local proc p {} {return LOCAL};catch {rename p q} r;return $r};driver
+4	444f4e452030	proc p {} {return BASE};proc driver {} {local proc p {} {return LOCAL};rename p {};return DONE};list [driver] [llength [info commands p]]

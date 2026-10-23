@@ -70,7 +70,7 @@ fn net_builtins() {
     let raw = include_str!("../fixtures/net.json");
     let cases: J = serde_json::from_str(raw).expect("fixture is valid JSON");
     let cases = cases.as_array().expect("fixture is an array");
-    assert!(!cases.is_empty());
+    assert_ne!(cases.as_slice(), [] as [J; 0]);
 
     let mut failures = Vec::new();
     for case in cases {

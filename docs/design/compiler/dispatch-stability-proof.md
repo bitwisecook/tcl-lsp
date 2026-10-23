@@ -10,6 +10,15 @@ reported as `O105`).
 
 The user-facing half is [the O105 note](../../kcs/codes/kcs-optimisation-o105-constant-var-ref-propagation.md).
 
+Production GVN and native lowering call `analyse_original_dispatch_stability`.
+It shares the contents fixpoint and checks the original whole invocation,
+actual metadata, central source purpose and complete selected facts before
+publishing a site proof. Only a Logical/Standalone direct unmoved builtin slot
+can supply the subject of these authored ledgers. Native entry, authored
+simulation, alias/import/move and unavailable original owners supply no proof.
+The public `analyse_dispatch_stability` accepts an explicit authored entry
+assumption; it does not authenticate a live Native interpreter world.
+
 ## §1 — Why result stability is not observational removability
 
 World-state SSA (`rust/tcl-compiler/src/world_state_ssa.rs`) versions the
@@ -138,8 +147,9 @@ direction, because entry contents are asserted by the entry contract and every
 subsequent change is observed. A `SubjectPattern` is either `Exact(name)` or
 `NamespacePrefix(prefix)`; the prefix form covers a namespace deletion or
 import, and the empty prefix (Tcl's global namespace, and therefore the current
-namespace of an analysed unit) matches every candidate. Names are normalised
-(`::llength` and `llength` compare equal) before comparison.
+namespace of an analysed unit) matches every candidate. Written transition keys use Syntax `canonical_written_command` and remove
+exactly one constructed root before comparison. This is an authored model,
+not Native lookup or descriptor-label interpretation.
 
 **Trace ledgers** are the interesting case, because trace liveness is a
 counting question rather than a set-membership one. C Tcl appends a fresh trace
@@ -318,7 +328,12 @@ pub struct SiteDispatchProof {
 ```
 
 `covers` is computed by testing all six domains against the state at the site,
-for the subject `normalise_name(&resolved.canonical_command)`:
+for the subject issued by the original called-slot owner. The checked source
+consumer matches the complete original invocation and selected facts, then
+requires a direct builtin reference at that same source point with unchanged
+slot/origin. Its constructed rooted key loses exactly one root. Descriptor
+labels remain byte-exact metadata, and unavailable or unsupported subjects
+publish no site proof:
 
 | Domain | Proven when |
 |---|---|
@@ -449,20 +464,18 @@ that the intentionally caller-selected low-level assumption is unforgeable.
 
 These are real, current limitations, not incidental gaps.
 
-- **Structured statements are opaque.** Under the linear compatibility
-  executable IR, `Block`, `UpFrame`, `If`, `For`, `While`, `Foreach`, `Catch`,
-  `Try`, and `Switch` become `ExecuteOpaqueRegion` — an all-world barrier. A
-  call inside an `if` body therefore has no exact invocation mapping and cannot
-  be proved, and everything after the region starts from top.
+- **Opaque structured regions widen.** An `ExecuteOpaqueRegion` is an
+  all-world barrier. Exact retained executable body sites can be analysed only
+  through their original point-specific metadata and the same entry contract;
+  the presence of a source statement alone supplies no site mapping.
 - **Expansion.** `{*}` in any operand word makes the site inadmissible.
 - **Command substitution in operands.** A `[...]` operand widens the world at
   the `EvaluateWord` that evaluates it, and makes the site inadmissible.
-- **PRE and LICM are not proof-gated.** `find_partial_redundancies` and
-  `find_loop_invariants` still call `statement_occurrences`, which uses the
-  legacy `is_pure_command` string classifier over the legacy CFG/SSA. Only
-  `find_redundancies_for_function` (and therefore `find_redundancies_for_cu`)
-  consumes the proof. This is tracked debt: the partial-redundancy and
-  loop-invariant halves of the reports need the same seam.
+- **Public CFG compatibility is separate.** The direct CFG/SSA APIs retain
+  their authored compatibility classifier. Production FunctionUnit CSE, PRE
+  and LICM all use `GvnSemanticFacts::from_function` and its original checked
+  dispatch subject; a missing semantic/source proof cannot fall back to the
+  compatibility route.
 - **Procedure bodies never prove.** Every proc, method, and body unit runs
   under `UnknownWorld` pending a runtime-owned sealed-session entry contract
   (§8), so repeated stable calls inside a procedure are never reported by the

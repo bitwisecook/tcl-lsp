@@ -16,36 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The document dialect must survive the salsa seam.
+//! Document grammar and analysis configuration survive the Salsa query boundary.
 //!
-//! `semantic_tokens`, `semantic_tokens_project` and `folding_ranges` each read
-//! `file.dialect(db)` and resolve it to a **profile** before handing off to
-//! `tcl-lsp-core`. Nothing else in this crate's suite discriminated on that
-//! resolution: hardcoding the profile argument to plain Tcl at any of the three
-//! call sites left the whole `tcl-lsp-db` suite green.
-//!
-//! Getting a *discriminating* pin here needs care. Each of these queries hands
-//! `tcl-lsp-core` a registry alongside the profile, and that registry is built
-//! separately from the same `file.dialect(db)`. So the obvious test — tokenise
-//! one source under two dialects and assert the answers differ — passes even
-//! with the profile pinned to plain Tcl, because the registries still differ
-//! and carry the whole difference on their own. Such a test pins the *query's*
-//! dialect handling in aggregate but says nothing about the profile argument.
-//!
-//! The tests below therefore assert on token/fold content that only the
-//! profile can produce:
-//!
-//! - `collect_entries` gates its BIG-IP object-reference pass on
-//!   `profile.is_irules()`, so an `object` token on `pool /Common/web_pool`
-//!   exists if and only if the profile reached it.
-//! - `folding::folding_ranges` reads `dialect.grammar` for the lexer config and
-//!   `dialect.name` for the analyser, so an `expect` pattern arm folds only
-//!   under the `expect` profile.
-//!
-//! The seam carries a second thing with the dialect: the workspace's pack
-//! overlay, a bare `u64` the packs' owner installed a registry generation
-//! under. The last test pins that the unit built under it resolves the packs'
-//! commands, and is built again without them when the overlay goes.
+//! Semantic tokens and folding use the current file's resolved analysis,
+//! profile and Registry together. These checks compare plain Tcl with hosted
+//! object roles and Expect pattern regions, whose source grammar differs.
 
 use salsa::Setter as _;
 use tcl_compiler::analyses::LatticeValue;
@@ -187,9 +162,10 @@ fn project_semantic_tokens_carry_the_profile_across_the_seam() {
 #[test]
 fn folding_ranges_carry_the_profile_across_the_seam() {
     let db = TclDatabase::default();
+    let cfg = config(&db);
 
     let fold_lines = |file| {
-        let mut v: Vec<(u32, u32)> = folding_ranges(&db, file)
+        let mut v: Vec<(u32, u32)> = folding_ranges(&db, file, cfg)
             .iter()
             .map(|r| (r.start_line, r.end_line))
             .collect();
@@ -232,7 +208,24 @@ const VENDOR_PACK: &str = "speclib vendor 2.0 {\n    \
 /// what defines it, so it is there if and only if the unit resolved the
 /// pack's command.
 fn defined_by_the_pack(unit: &CompilationUnit) -> Option<LatticeValue> {
-    let p = unit.procedures.get("::p").expect("::p");
+    let mut bodies = unit
+        .ir_module
+        .procedures
+        .keys()
+        .chain(unit.ir_module.body_units.keys())
+        .filter_map(|id| Some((*id, unit.original_procedure_for_body(*id)?)))
+        .filter(|(_, procedure)| {
+            procedure.declaration_site.as_ref().is_some_and(|site| {
+                site.offset == 0 && site.source.source_image() == &unit.ir_module.source
+            })
+        });
+    let (id, _) = bodies
+        .next()
+        .expect("original fixture declaration at offset zero");
+    assert!(bodies.next().is_none(), "unique fixture declaration body");
+    let p = unit
+        .function_for_body(Some(id))
+        .expect("current fixture body");
     let symbol = p.ssa.var_symbol("a").expect("`return $a` names it");
     p.sccp.values.get(&(symbol, 1)).cloned()
 }

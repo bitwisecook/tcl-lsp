@@ -19,19 +19,11 @@
 //! Scaling and result pins for the W210 phi-from-undef trace
 //! (`src/analyser/diagnostics/helpers.rs::phi_can_undef`).
 //!
-//! The trace answers "can this SSA version be undefined on some executable
-//! path?" over the phi graph. It used to do that with a DFS per query whose
-//! `seen` set was a *path* (grey) set — a version is removed again when its
-//! frame closes, and no answer was kept — so it enumerated every simple path
-//! through the graph: N sibling conditional writes to one variable followed by
-//! a read cost ~2^N visits, and a well-written script was the slow case,
-//! because only a genuinely undefined path short-circuits the search
-//! (issue #2021). Real Quartus sources reach N ≈ 105. It is now one
-//! reverse-reachability pass that answers every version at once.
+//! One reverse-reachability pass answers potential undefined contents for
+//! every SSA version in the phi graph, sharing results across queries.
 //!
-//! [`nested_if_stages_analyse_in_linear_time`] is the regression pin: 60
-//! stages is ~2^60 visits for the old walk and must instead finish in well
-//! under the wall-clock budget asserted here. The rest of the file pins that
+//! [`nested_if_stages_analyse_in_linear_time`] bounds a fixed 60-stage graph
+//! within its declared wall-clock budget. The rest of the file pins that
 //! no answer moved — the classic W210 phi shapes (undef on one path, defined
 //! on all paths, a loop-header cycle, an `unset` kill, an `info exists` guard)
 //! keep the verdicts they had before.

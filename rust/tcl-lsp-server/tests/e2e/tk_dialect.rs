@@ -209,10 +209,7 @@ fn package_require_tk_inside_a_body_still_activates() {
     assert!(codes.iter().any(|c| c == "TK1002"), "{codes:?}");
 }
 
-/// **FP, at scale** — a large generated document with no `package require Tk`
-/// publishes no TK diagnostics and keeps answering requests: the `filetypes.tcl`
-/// shape that used to be forced onto a whole-file re-analysis, per keystroke,
-/// by the word `Tk` appearing in generated data.
+/// Generated data mentioning Tk cannot establish package availability.
 #[ignore = "at-scale TK false-positive check (2,000-branch generated proc, ~80 s); run \
             explicitly with --ignored — the ~20 other tk_dialect tests pin the same \
             availability and dialect gating on small documents"]

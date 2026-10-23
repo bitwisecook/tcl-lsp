@@ -682,9 +682,10 @@ fn file_extension_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut 
     let mut display = extension.clone();
     let mut index = 2;
     while index < words.len() {
+        let rejected_flag_word = words[index].clone();
         match words[index].text.as_str() {
             "-name" => display = next_text(words, &mut index),
-            other => log.unknown_flag("file_extension", stmt.line, other),
+            _ => log.unknown_flag("file_extension", stmt.line, &rejected_flag_word),
         }
         index += 1;
     }
@@ -751,6 +752,7 @@ fn core_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut Log) -> bo
     let words = &stmt.words;
     let mut index = 3;
     while index < words.len() {
+        let rejected_flag_word = words[index].clone();
         match words[index].text.as_str() {
             "-build" => {
                 let named = next_text(words, &mut index);
@@ -769,8 +771,8 @@ fn core_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut Log) -> bo
                     }
                 }
             }
-            other => {
-                log.unknown_flag("core", stmt.line, other);
+            _ => {
+                log.unknown_flag("core", stmt.line, &rejected_flag_word);
             }
         }
         index += 1;

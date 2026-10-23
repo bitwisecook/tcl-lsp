@@ -25,13 +25,12 @@
 //! version diagnostics already consume the same registry profile data.
 
 use tcl_dialect::TclVersion;
-use tcl_vm::Vm;
 
 #[test]
 fn boolean_word_prefixes_are_literals_in_every_release() {
     for version in TclVersion::ALL {
-        let mut vm = Vm::new();
-        vm.set_runtime_version(version);
+        let mut vm =
+            tcl_vm::test_support::native_vm_for_release(version, Box::new(std::io::stdout()));
 
         for source in ["t", "tru", "y", "ye", "f", "n", "of"] {
             assert_eq!(
@@ -63,21 +62,40 @@ fn boolean_word_prefixes_are_literals_in_every_release() {
         let ambiguous = vm
             .eval_expr("o")
             .expect_err("the shared on/off prefix remains ambiguous");
+        assert_eq!(
+            ambiguous
+                .guest_completion()
+                .expect("original guest error")
+                .code,
+            tcl_vm::Code::Error,
+        );
         if version == TclVersion::V8_4 {
             // tclsh 8.4.20: its own expression parser, and no error code.
             assert_eq!(
-                ambiguous.message,
-                "syntax error in expression \"o\": variable references require preceding $"
+                &*ambiguous.message_bytes().unwrap(),
+                b"syntax error in expression \"o\": variable references require preceding $"
+                    .as_slice()
             );
-            assert_eq!(ambiguous.error_code, None);
+            assert!(matches!(
+                ambiguous.error_code_bytes().unwrap().as_deref(),
+                None | Some(b"NONE")
+            ));
         } else if version == TclVersion::V8_5 {
             // tclsh 8.5.19: the message, and still no error code.
-            assert!(ambiguous.message.starts_with("invalid bareword \"o\""));
-            assert_eq!(ambiguous.error_code, None);
+            assert!(
+                ambiguous
+                    .message_bytes()
+                    .unwrap()
+                    .starts_with(b"invalid bareword \"o\"")
+            );
+            assert!(matches!(
+                ambiguous.error_code_bytes().unwrap().as_deref(),
+                None | Some(b"NONE")
+            ));
         } else {
             assert_eq!(
-                ambiguous.error_code.as_deref(),
-                Some("TCL PARSE EXPR BAREWORD"),
+                ambiguous.error_code_bytes().unwrap().as_deref(),
+                Some(b"TCL PARSE EXPR BAREWORD".as_slice()),
                 "{version:?}"
             );
         }
@@ -86,19 +104,29 @@ fn boolean_word_prefixes_are_literals_in_every_release() {
 
 #[test]
 fn tip461_and_tip521_follow_the_registry_selected_runtime_release() {
-    let mut old = Vm::new();
-    old.set_runtime_version(TclVersion::V8_6);
+    let mut old =
+        tcl_vm::test_support::native_vm_for_release(TclVersion::V8_6, Box::new(std::io::stdout()));
 
     // FN: Tcl 8.6 must not accept Tcl 9's string-ordering grammar.
     let operator = old
         .eval_expr("{a} lt {b}")
         .expect_err("Tcl 8.6 rejects the 9.0-only operator");
     assert_eq!(
-        operator.error_code.as_deref(),
-        Some("TCL PARSE EXPR BAREWORD")
+        operator
+            .guest_completion()
+            .expect("original guest error")
+            .code,
+        tcl_vm::Code::Error,
     );
     assert_eq!(
-        operator.message,
+        operator.error_code_bytes().unwrap().as_deref(),
+        Some(b"TCL PARSE EXPR BAREWORD".as_slice())
+    );
+    assert_eq!(
+        operator
+            .message_unicode()
+            .expect("Unicode fixture error")
+            .as_ref(),
         "invalid bareword \"lt\"\nin expression \"{a} lt {b}\";\nshould be \"$lt\" or \"{lt}\" or \"lt(...)\" or ..."
     );
 
@@ -108,11 +136,21 @@ fn tip461_and_tip521_follow_the_registry_selected_runtime_release() {
         .eval_expr("isfinite(1.0)")
         .expect_err("Tcl 8.6 has no built-in isfinite");
     assert_eq!(
-        function.error_code.as_deref(),
-        Some("TCL LOOKUP COMMAND tcl::mathfunc::isfinite")
+        function
+            .guest_completion()
+            .expect("original guest error")
+            .code,
+        tcl_vm::Code::Error,
     );
     assert_eq!(
-        function.message,
+        function.error_code_bytes().unwrap().as_deref(),
+        Some(b"TCL LOOKUP COMMAND tcl::mathfunc::isfinite".as_slice())
+    );
+    assert_eq!(
+        function
+            .message_unicode()
+            .expect("Unicode fixture error")
+            .as_ref(),
         "invalid command name \"tcl::mathfunc::isfinite\""
     );
 
@@ -126,8 +164,8 @@ fn tip461_and_tip521_follow_the_registry_selected_runtime_release() {
         "5"
     );
 
-    let mut modern = Vm::new();
-    modern.set_runtime_version(TclVersion::V9_0);
+    let mut modern =
+        tcl_vm::test_support::native_vm_for_release(TclVersion::V9_0, Box::new(std::io::stdout()));
 
     // TP: both features are accepted at their 9.0 floor.
     assert_eq!(

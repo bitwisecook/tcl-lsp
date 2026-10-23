@@ -15,7 +15,7 @@ use crate::obj::TclObj;
 
 /// Register `format`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"format", format_cmd);
+    interp.register_stock_builtin(b"format", format_cmd);
 }
 
 fn format_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {

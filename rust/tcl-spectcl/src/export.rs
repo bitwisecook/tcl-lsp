@@ -159,6 +159,8 @@ impl Registration {
 /// rule the evaluation loader's own capture uses.
 pub(crate) fn synth_word(text: &str, line: u32) -> Word {
     Word {
+        local_source: None,
+        original_source: None,
         braced: text.is_empty() || text.contains(char::is_whitespace),
         text: text.to_owned(),
         line,
@@ -166,58 +168,6 @@ pub(crate) fn synth_word(text: &str, line: u32) -> Word {
 }
 
 // Words
-
-/// Whether `text` can be written as a bare word.
-///
-/// The same rule the studio's renderer applies, and for the same reason:
-/// anything a bare word would let the lexer substitute (`$`, `[`, a quote, a
-/// brace, whitespace, a leading `#`) has to take the braced form instead.
-fn bare_safe(text: &str) -> bool {
-    !text.is_empty()
-        && !text.starts_with('#')
-        && text.chars().all(|c| {
-            c.is_ascii_alphanumeric() || "-_.:/+@=,<>*?!%^~|'`".contains(c) && c.is_ascii()
-        })
-}
-
-/// Whether `{text}` is a well-formed braced word the loader reads back as
-/// `text` byte for byte.
-///
-/// The scan is the brace counting Tcl's lexer does: a backslash escapes the
-/// next character (so `\{` and `\}` do not nest), the depth never goes
-/// negative, and a trailing backslash would escape the closing brace rather
-/// than be part of the value.
-///
-/// **A backslash-newline is fine here**, where the studio's otherwise
-/// identical check refuses it. The difference is what the two are rendering:
-/// the studio writes a `&'static str` out of the registry and must be sure
-/// Tcl's *reader* returns it unchanged, while this renders a word the
-/// loader itself read — and the loader keeps every byte between the braces,
-/// continuation included (`Word`). The shipped EDA packs write
-/// backslash-continued examples inside `hover` blocks, and refusing them
-/// here would report a loss on a word that round-trips exactly.
-fn brace_safe(text: &str) -> bool {
-    let mut depth = 0i32;
-    let mut chars = text.chars();
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' => {
-                if chars.next().is_none() {
-                    return false;
-                }
-            }
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth < 0 {
-                    return false;
-                }
-            }
-            _ => {}
-        }
-    }
-    depth == 0
-}
 
 /// One word this export could not write down faithfully.
 ///
@@ -238,24 +188,23 @@ pub struct ExportLoss {
 
 /// `text` as a Tcl word carrying it verbatim, or `None` when nothing does.
 fn spelling(word: &Word) -> Option<String> {
-    if word.braced || !bare_safe(&word.text) {
-        return brace_safe(&word.text).then(|| format!("{{{}}}", word.text));
-    }
-    Some(word.text.clone())
+    use tcl_compiler::parsing::spectcl_source::{
+        PackWordSourcePurpose, PackWordSourceStyle, pack_verbatim_source_word,
+    };
+    pack_verbatim_source_word(
+        &word.text,
+        PackWordSourcePurpose::CapturedRegistration,
+        if word.braced {
+            PackWordSourceStyle::Braced
+        } else {
+            PackWordSourceStyle::Compact
+        },
+    )
 }
 
-/// The quoted last resort for a word no verbatim spelling carries.
+/// Explicitly lossy recovery after the export records the unrepresentable word.
 fn quoted(text: &str) -> String {
-    let mut out = String::with_capacity(text.len() + 2);
-    out.push('"');
-    for c in text.chars() {
-        if matches!(c, '"' | '\\' | '$' | '[' | ']') {
-            out.push('\\');
-        }
-        out.push(c);
-    }
-    out.push('"');
-    out
+    tcl_compiler::parsing::spectcl_source::pack_lossy_quoted_source_word(text)
 }
 
 // Render
@@ -356,11 +305,15 @@ pub fn export_pack(pack: &Pack) -> String {
 pub fn export_pack_reporting(pack: &Pack) -> (String, Vec<ExportLoss>) {
     let mut out = Out::default();
     let name = Word {
+        local_source: None,
+        original_source: None,
         text: pack.name.clone(),
         braced: false,
         line: 1,
     };
     let version = Word {
+        local_source: None,
+        original_source: None,
         text: pack.dsl_version.clone(),
         braced: false,
         line: 1,
@@ -426,6 +379,8 @@ mod tests {
             spelling(&Word {
                 text: text.to_owned(),
                 braced,
+                local_source: None,
+                original_source: None,
                 line: 1,
             })
         };

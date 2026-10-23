@@ -143,9 +143,9 @@ reconstructed object compares equal to the parsed one.
 
 `tcl_bigip::graph::pilot_references(module, object_type, property, raw)` is
 the registry-first edge path. It returns `Some(refs)` for a property whose
-reference extraction is modelled, and `None` for one that is not — in which
-case `build_forward_edges` falls through to the unconditional legacy
-passes. Adding a property to this dispatch is the unit of migration.
+reference extraction is modelled, and `None` for one that is not.
+`build_forward_edges` runs this dispatch before the unconditional legacy
+passes; a shared edge accumulator deduplicates their results.
 
 Each arm is a slim extractor over the raw property text rather than a full
 typed-value materialisation, because the graph only consumes each

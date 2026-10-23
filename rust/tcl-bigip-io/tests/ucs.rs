@@ -191,3 +191,152 @@ fn prompt_skipped_when_disabled() {
     };
     assert!(tcl_bigip_io::resolve_passphrase(&opts).is_err());
 }
+
+fn original_member_archive(members: &[(&str, &[u8])]) -> Vec<u8> {
+    let gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    let mut archive = tar::Builder::new(gzip);
+    for (name, bytes) in members {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(u64::try_from(bytes.len()).unwrap());
+        header.set_mode(0o644);
+        header.set_cksum();
+        archive.append_data(&mut header, name, *bytes).unwrap();
+    }
+    archive.into_inner().unwrap().finish().unwrap()
+}
+
+#[test]
+fn original_selected_archive_members_control_source_fidelity() {
+    use tcl_bigip_io::ucs_to_scf_source;
+    let invalid = b"ltm pool /Common/\xff { }\n";
+    let replacement = "ltm pool /Common/\u{fffd} { }\n".as_bytes();
+    let source = ucs_to_scf_source(
+        &original_member_archive(&[("config/bigip.conf", invalid)]),
+        false,
+    )
+    .unwrap();
+    assert!(source.text().contains('\u{fffd}'));
+    assert!(
+        source
+            .require_faithful()
+            .unwrap_err()
+            .to_string()
+            .contains("config/bigip.conf")
+    );
+    let literal = ucs_to_scf_source(
+        &original_member_archive(&[("config/bigip.conf", replacement)]),
+        false,
+    )
+    .unwrap();
+    assert_eq!(source.text(), literal.text());
+    literal.require_faithful().unwrap();
+    let selected = original_member_archive(&[
+        ("config/bigip.conf", invalid),
+        ("config/bigip.conf", replacement),
+        ("config/unselected.conf", invalid),
+    ]);
+    ucs_to_scf_source(&selected, false)
+        .unwrap()
+        .require_faithful()
+        .unwrap();
+    assert!(
+        ucs_to_scf_source(&selected, true)
+            .unwrap()
+            .require_faithful()
+            .is_err()
+    );
+}
+
+#[test]
+fn strict_archive_path_reads_validate_selected_member_bytes() {
+    let dir = std::env::temp_dir().join(format!("f5-ucs-fidelity-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("invalid.ucs");
+    std::fs::write(
+        &path,
+        original_member_archive(&[("config/bigip.conf", b"ltm pool /Common/\xff { }\n")]),
+    )
+    .unwrap();
+    assert!(read_path(path.to_str().unwrap(), false, &no_passphrase()).is_ok());
+    assert!(read_path(path.to_str().unwrap(), true, &no_passphrase()).is_err());
+    let input = tcl_bigip_io::read_path_source(path.to_str().unwrap(), &no_passphrase()).unwrap();
+    assert!(input.source().contains('\u{fffd}'));
+    assert!(input.require_faithful().is_err());
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn archive_path_preview_collisions_cannot_certify_source_selection() {
+    let gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    let mut archive = tar::Builder::new(gzip);
+    let bytes = b"ltm pool /Common/p { }\n";
+    for name in [
+        b"config/partitions/\xff/bigip.conf".as_slice(),
+        "config/partitions/\u{fffd}/bigip.conf".as_bytes(),
+    ] {
+        let mut header = tar::Header::new_gnu();
+        header.as_mut_bytes()[..name.len()].copy_from_slice(name);
+        header.set_size(u64::try_from(bytes.len()).unwrap());
+        header.set_mode(0o644);
+        header.set_cksum();
+        archive.append(&header, bytes.as_slice()).unwrap();
+    }
+    let archive = archive.into_inner().unwrap().finish().unwrap();
+    let source = tcl_bigip_io::ucs_to_scf_source(&archive, false).unwrap();
+    assert!(source.text().contains("/Common/p"));
+    assert!(
+        source
+            .require_faithful()
+            .unwrap_err()
+            .to_string()
+            .contains("member path")
+    );
+}
+
+#[test]
+fn selected_member_sources_keep_first_match_bytes_and_completed_absence_separate() {
+    use tcl_bigip_io::{find_ucs_member_source, read_ucs_member_source};
+    let archive =
+        original_member_archive(&[("etc/donor", b"\xff"), ("etc/donor", "\u{fffd}".as_bytes())]);
+    let source =
+        read_ucs_member_source(&archive, "etc/donor", &|| Ok(String::new()), "fixture").unwrap();
+    assert_eq!(source.path(), "etc/donor");
+    assert_eq!(source.bytes(), b"\xff");
+    assert!(source.require_faithful().is_err());
+    assert!(
+        find_ucs_member_source(&archive, "absent", &|| Ok(String::new()), "fixture")
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        find_ucs_member_source(
+            b"invalid archive",
+            "absent",
+            &|| Ok(String::new()),
+            "fixture"
+        )
+        .is_err()
+    );
+    let archive =
+        original_member_archive(&[("etc/donor", "\u{fffd}".as_bytes()), ("etc/donor", b"\xff")]);
+    read_ucs_member_source(&archive, "etc/donor", &|| Ok(String::new()), "fixture")
+        .unwrap()
+        .require_faithful()
+        .unwrap();
+}
+
+#[test]
+fn archive_inventory_reporting_labels_cannot_replace_original_path_owners() {
+    use tcl_bigip_io::{MemberScope, list_ucs_members};
+    let archive = original_member_archive(&[("etc/donor", b"content")]);
+    let mut entries = list_ucs_members(
+        &archive,
+        &|| Ok(String::new()),
+        "fixture",
+        MemberScope::FullTree,
+    )
+    .unwrap();
+    entries[0].require_faithful_path().unwrap();
+    entries[0].path = "etc/other".to_owned();
+    assert!(entries[0].require_faithful_path().is_err());
+}

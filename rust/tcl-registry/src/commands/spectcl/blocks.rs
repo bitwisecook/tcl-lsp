@@ -109,21 +109,32 @@ const OBJECT_CLASS_OPTIONS: &[OptionSpec] = &[
 /// optional flags sit between them. A resolver rather than a fixed pair
 /// because `OptionSpec`-shaped flags of differing widths can intervene, so
 /// the index is genuinely a function of the call's own words.
-fn object_class_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let mut roles = vec![(0u8, ArgRole::Name)];
-    if args.len() >= 2
-        && let Ok(last) = u8::try_from(args.len() - 1)
-    {
-        roles.push((last, ArgRole::Body));
+fn object_class_arg_roles(
+    args: crate::InvocationArguments<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_, '_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    let count = args.exact_argv_len()?;
+    let option_end = options.leading_word_count(args)?;
+    if option_end < 1 || option_end > count {
+        return None;
     }
-    roles
+    let mut roles = vec![(0, ArgRole::Name)];
+    match count.checked_sub(option_end)? {
+        0 => {}
+        1 => roles.push((u8::try_from(option_end).ok()?, ArgRole::Body)),
+        _ => return None,
+    }
+    Some(roles)
 }
 
 fn object_class() -> CommandSpec {
+    const OBJECT_CLASS_STATIC_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Name)];
     CommandSpec {
         arity: Arity::new(1, 7),
         options: OBJECT_CLASS_OPTIONS,
-        arg_role_resolver: Some(object_class_arg_roles),
+        option_prefix_words: 1,
+        arg_role_layout_resolver: Some(object_class_arg_roles),
+        arg_roles: OBJECT_CLASS_STATIC_ROLES,
         arg_role_resolver_roles: &[ArgRole::Name, ArgRole::Body],
         ..block(
             "object_class",
@@ -254,7 +265,7 @@ fn dialect_statement() -> CommandSpec {
         "dialect",
         Arity::exact(2),
         "Declare a language family and its grammar axes.",
-        "`dialect NAME { … }` declares a language family: `release R ?-build P?` rows build the ladder, and `axis NAME VALUE` rows set values for axes Rust defines (`expand_syntax`, `braced_var`, `array_index`, `expr_comments`, `numbers`, `escapes`, `irules_brace_separator`, `brace_line_continuation`, `bom_skip`, `word_separators`, `brace_backslash_newline`, `quote_termination`, `var_syntax`, `list_parse`). The axis vocabulary is CLOSED — a new axis is a Rust change, because the lexer has to implement it — so an unknown axis or an unknown value rejects the whole block and names the axis. A block whose axes reproduce an existing family release is not a dialect at all but a selection of one, and is rejected with the `environment` it should have been (redesign §2).",
+        "`dialect NAME { … }` declares a language family: `release R ?-build P?` rows build the ladder, and `axis NAME VALUE` rows set values for axes Rust defines (`expand_syntax`, `braced_var`, `array_index`, `expr_comments`, `numbers`, `escapes`, `irules_brace_separator`, `brace_line_continuation`, `bom_skip`, `word_separators`, `brace_backslash_newline`, `quote_termination`, `var_syntax`, `list_parse`, `source_line_endings`). The axis vocabulary is CLOSED — a new axis is a Rust change, because the lexer has to implement it — so an unknown axis or an unknown value rejects the whole block and names the axis. A block whose axes reproduce an existing family release is not a dialect at all but a selection of one, and is rejected with the `environment` it should have been (redesign §2).",
     )
 }
 
@@ -405,7 +416,7 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             "definition_body",
             &crate::definer::SPECTCL_DEFINITION_BODY_GRAMMAR,
             "Declare (or name) the member grammar of this command's definition body.",
-            "`definition_body NAME` names a shipped grammar (`tcloo`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`); the block spells one out from `DefinitionBodyGrammar`'s own fields. `-roles {N ROLE …}` *is* the `MemberSpec::arg_roles` field, which is why it replaced the sketched one-flag-per-role spelling.",
+            "`definition_body NAME` names a shipped grammar (`tcloo`, `tcloo-abstract`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`); the block spells one out from `DefinitionBodyGrammar`'s own fields. `-roles {N ROLE …}` *is* the `MemberSpec::arg_roles` field, which is why it replaced the sketched one-flag-per-role spelling.",
         ),
         block(
             "body_scope",
@@ -415,4 +426,41 @@ pub(super) fn specs() -> Vec<CommandSpec> {
         ),
         object_class(),
     ]
+}
+
+#[cfg(test)]
+mod object_class_role_tests {
+    use super::{OBJECT_CLASS_OPTIONS, object_class_arg_roles};
+    use crate::arg_role::ArgRole;
+
+    fn roles(args: &[&str]) -> Option<Vec<(u8, ArgRole)>> {
+        object_class_arg_roles(
+            crate::InvocationArguments::literals(args),
+            crate::resolved_invocation::InvocationOptions {
+                availability: crate::resolved_invocation::InvocationAvailability::default(),
+                parent_surface: None,
+                form_surface: None,
+                prefix_matching: crate::abbrev::PrefixMatching::Enabled,
+                positional_prefix_words: 1,
+                reserved_trailing_words: 0,
+                case_list: None,
+                base: OBJECT_CLASS_OPTIONS,
+                form: &[],
+            },
+        )
+    }
+
+    #[test]
+    fn body_role_follows_selected_option_values() {
+        assert_eq!(
+            roles(&["C", "-superclass", "{A B}"]),
+            Some(vec![(0, ArgRole::Name)])
+        );
+        assert_eq!(
+            roles(&["C", "-superclass", "{A B}", "{method m {} {}}"]),
+            Some(vec![(0, ArgRole::Name), (3, ArgRole::Body)])
+        );
+        assert_eq!(roles(&["C", "-mystery", "x"]), None);
+        assert_eq!(roles(&["C", "-superclass"]), None);
+    }
 }

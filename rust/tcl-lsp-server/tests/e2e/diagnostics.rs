@@ -2740,7 +2740,7 @@ fn autoload_library_command_not_unknown_issue_832() {
     // startup, so its `tclIndex` enters the package database.
     let mut lsp = Lsp::with_config(serde_json::json!({
         "features": { "linkedEditingRange": true },
-        "libraryPaths": [ libdir.to_string_lossy() ],
+        "libraryPaths": [ libdir.to_str().expect("libraryPaths requires a UTF-8 path") ],
     }));
 
     let uri = unique_uri("tcl");
@@ -2806,7 +2806,7 @@ fn autoload_library_command_go_to_definition_m8() {
     .expect("write tclIndex");
 
     let mut lsp = Lsp::with_config(serde_json::json!({
-        "libraryPaths": [ libdir.to_string_lossy() ],
+        "libraryPaths": [ libdir.to_str().expect("libraryPaths requires a UTF-8 path") ],
     }));
 
     let uri = unique_uri("tcl");
@@ -2900,7 +2900,7 @@ fn pkg_libdir_with_index(index: &str) -> std::path::PathBuf {
 fn guarded_pkg_child_diagnostics(dialect: &str, libdir: &std::path::Path) -> Vec<Value> {
     let mut lsp = Lsp::with_config(serde_json::json!({
         "dialect": dialect,
-        "libraryPaths": [ libdir.to_string_lossy() ],
+        "libraryPaths": [ libdir.to_str().expect("libraryPaths requires a UTF-8 path") ],
     }));
     let child = unique_uri("tcl");
     let child_name = child.rsplit('/').next().expect("child basename").to_owned();
@@ -2909,22 +2909,10 @@ fn guarded_pkg_child_diagnostics(dialect: &str, libdir: &std::path::Path) -> Vec
         &entry,
         &format!("package require mypkg\nsource {child_name}\n"),
     );
-    lsp.open_document(&child, "mypkgHello\n");
+    let child_source = "mypkgHello\n";
+    lsp.open_document(&child, child_source);
 
-    // The package database is (re)built asynchronously at startup; the pull
-    // path is deterministic once it is live.  Poll until the answer stops
-    // changing rather than assuming either outcome.
-    let mut diags = lsp.pull_diagnostics(&child);
-    let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(15));
-    while std::time::Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(100));
-        let next = lsp.pull_diagnostics(&child);
-        if codes(&next) == codes(&diags) {
-            return next;
-        }
-        diags = next;
-    }
-    diags
+    lsp.current_complete_diagnostics(&child, 1, child_source, Duration::from_secs(15))
 }
 
 /// TP: under a 9.x target the guard's `return` fires, `mypkg`
@@ -3096,7 +3084,7 @@ fn a_load_only_package_does_not_suppress_unrelated_w120s_923_idx72() {
     .expect("write pkgIndex.tcl");
 
     let mut lsp = Lsp::with_config(serde_json::json!({
-        "libraryPaths": [ libdir.to_string_lossy() ],
+        "libraryPaths": [ libdir.to_str().expect("libraryPaths requires a UTF-8 path") ],
     }));
     let baseline_uri = unique_uri("tcl");
     lsp.open_ready(&baseline_uri, "http::register https 443 ::tls::socket\n");
@@ -3211,7 +3199,7 @@ fn autoload_library_command_references_and_rename_m8() {
     .expect("write tclIndex");
 
     let mut lsp = Lsp::with_config(serde_json::json!({
-        "libraryPaths": [ libdir.to_string_lossy() ],
+        "libraryPaths": [ libdir.to_str().expect("libraryPaths requires a UTF-8 path") ],
     }));
 
     let uri = unique_uri("tcl");
@@ -4220,7 +4208,9 @@ fn consumer_rename_resolves_through_a_real_workspace_folder_m8() {
     let mut lsp = Lsp::tcl();
     // Attach the real folder (the fake `initialize` root indexes nothing) and
     // let the rescan index rbclib/graph.tcl from disk.
-    let folder_uri = format!("file://{}", root.to_string_lossy());
+    let folder_uri = tcl_lsp_server::canonical_file_uri(&root)
+        .expect("workspace fixture has a representable file URI")
+        .to_string();
     lsp.notify(
         "workspace/didChangeWorkspaceFolders",
         serde_json::json!({
@@ -4231,7 +4221,9 @@ fn consumer_rename_resolves_through_a_real_workspace_folder_m8() {
         }),
     );
 
-    let uri = format!("file://{}", consumer_path.to_string_lossy());
+    let uri = tcl_lsp_server::canonical_file_uri(&consumer_path)
+        .expect("consumer fixture has a representable file URI")
+        .to_string();
     lsp.open_document(&uri, "Rbc_ActiveLegend .g\nRbc_ZoomStack .g\n");
 
     // The folder scan runs asynchronously; poll the rename until the library
@@ -4303,7 +4295,7 @@ fn consumer_rename_resolves_through_a_real_workspace_folder_m8() {
 #[test]
 fn iapps_embedded_84_trunk_gates_the_85_core_end_to_end() {
     // iApps ride the `f5-tcl` trunk — a fork of Tcl at 8.4.6 (measured,
-    // bigip-irule-parser-measurements.md §4a: `dict`, `lassign` and
+    // embedded-tcl-contract.md §4a: `dict`, `lassign` and
     // `apply` all fail in `IAppImplementation`) — so the 8.5 core draws
     // the availability diagnostics, while the 8.4 core stays clean.
     let mut lsp = Lsp::tcl();
@@ -4406,7 +4398,7 @@ fn argument_dsl_rung_gates_format_and_string_is_end_to_end() {
 
 #[test]
 fn tmsh_first_class_gates_both_directions_end_to_end() {
-    // D8, corrected by measurement (bigip-irule-parser-measurements.md
+    // D8, corrected by measurement (embedded-tcl-contract.md
     // §4a): a tmsh document analyses under TCL84|TMSH — the tmsh::
     // surface and the 8.4 core are clean, while the 8.5+ core draws the
     // availability diagnostics (a tmsh `cli script` fails every 8.5
@@ -4862,15 +4854,13 @@ fn objdefine_per_object_variable_read_publishes_no_w210() {
     );
 }
 
-// W315 covers `oo::objdefine` bodies, judged against the binding's
-// cross-block per-object member state.
+// Per-object reporting tables grant no current Native table closure.
 
-/// TP: a per-object retraction of a member nothing declares per-object
-/// aborts the object definition in real Tcl (`method ghost does not exist`,
-/// 9.0.4 / 8.6.14 — a per-object retraction never reaches a class member),
-/// and the report reaches the client.
+/// A source construction report cannot prove Native per-object member absence.
 #[test]
-fn objdefine_retraction_of_undeclared_member_publishes_w315() {
+fn native_objdefine_retraction_of_undeclared_member_withdraws_w315() {
+    // naming.diagnostics.original-object-abort-admission
+
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
@@ -4880,8 +4870,8 @@ fn objdefine_retraction_of_undeclared_member_publishes_w315() {
          oo::objdefine $k { deletemethod ghost }\n",
     );
     assert!(
-        has_code(&diags, "W315"),
-        "objdefine retract-of-undeclared must publish W315: {:?}",
+        !has_code(&diags, "W315"),
+        "unproved Native per-object abort must be withdrawn: {:?}",
         codes(&diags)
     );
 }
@@ -5044,7 +5034,9 @@ fn a_cross_file_upvar_helper_draws_no_false_read_before_set_end_to_end() {
     std::fs::write(&options, text).expect("write options.tcl");
 
     let mut lsp = Lsp::at_workspace_root(&root);
-    let uri = format!("file://{}", options.to_string_lossy());
+    let uri = tcl_lsp_server::canonical_file_uri(&options)
+        .expect("options fixture has a representable file URI")
+        .to_string();
     let diags = lsp.open_ready(&uri, text);
     assert!(
         !has_code(&diags, "W210"),
@@ -5057,7 +5049,9 @@ fn a_cross_file_upvar_helper_draws_no_false_read_before_set_end_to_end() {
     let control = root.join("control.tcl");
     let control_text = "proc demo::build2 {} {\n    setdef options name -default nothing\n    return $neverPassed\n}\n";
     std::fs::write(&control, control_text).expect("write control.tcl");
-    let control_uri = format!("file://{}", control.to_string_lossy());
+    let control_uri = tcl_lsp_server::canonical_file_uri(&control)
+        .expect("control fixture has a representable file URI")
+        .to_string();
     let control_diags = lsp.open_ready(&control_uri, control_text);
     let hits = with_code(&control_diags, "W210");
     assert_eq!(

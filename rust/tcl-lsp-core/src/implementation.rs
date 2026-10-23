@@ -24,8 +24,8 @@
 //!
 //! - **Cursor on a class name** → the classes that list it among their
 //!   `superclasses` / `mixins` (its direct subclasses).
-//! - **Cursor on a method name, outside any class** → every class that
-//!   defines a method of that name (all implementations).
+//! - **Cursor on a retained method declaration or selector** → its own
+//!   implementation and descendant overrides selected by exact relation inputs.
 //! - **Cursor on a method name, inside a class body** → the enclosing
 //!   class's own definition plus the overrides in its descendants
 //!   (ancestor definitions are intentionally omitted — they are
@@ -39,11 +39,12 @@
 
 use std::collections::BTreeSet;
 
-use tcl_compiler::analyser::{AnalysisResult, ClassDef};
+use tcl_compiler::analyser::AnalysisResult;
+#[cfg(test)]
+use tcl_compiler::analyser::ClassDef;
 use tcl_lexer::{LineIndex, Span};
 
 use crate::definition::{LspRange, byte_offset_at, span_to_range};
-use crate::hover::find_word_span_at_position;
 
 /// Compute "go-to-implementation" locations for the symbol at the
 /// cursor.  Returns an empty vector when the cursor is not on a class
@@ -55,78 +56,330 @@ pub fn implementation(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Vec<LspRange> {
-    let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
+    if crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)
+        .is_none()
+    {
+        return Vec::new();
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        return original_implementation(source, line, character, analysis);
+    }
+    logical_implementation_advice("", source, line, character, analysis)
+        .map_or_else(Vec::new, |advice| advice.possible_source_ranges().to_vec())
+}
+
+/// Current possible-positive implementation result with retained applicability.
+/// It supplies no complete inheritance graph, dispatch or lookup absence.
+#[derive(Debug, Clone)]
+pub struct LogicalImplementationAdvice {
+    uri: String,
+    image: tcl_lexer::SourceImage,
+    input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    root: LogicalImplementationRoot,
+    targets: Vec<LogicalImplementationRoot>,
+    ranges: Vec<LspRange>,
+    incomplete: bool,
+}
+#[derive(Debug, Clone)]
+enum LogicalImplementationRoot {
+    Class(Box<crate::type_hierarchy::LogicalHierarchyClass>),
+    Member(Box<tcl_compiler::analyser::types::LogicalSourceMemberDeclaration>),
+}
+impl LogicalImplementationAdvice {
+    /// Revalidate the independent current document and selected source root.
+    #[must_use]
+    pub fn is_current(&self, uri: &str, source: &str, analysis: &AnalysisResult) -> bool {
+        if uri != self.uri
+            || crate::original_context::CurrentSourceContext::capture(source, analysis).is_none()
+            || self.image != tcl_lexer::SourceImage::document(source)
+            || analysis.resolved_input.as_ref() != Some(&self.input)
+        {
+            return false;
+        }
+        std::iter::once(&self.root)
+            .chain(&self.targets)
+            .all(|target| match target {
+                LogicalImplementationRoot::Class(identity) => {
+                    identity.is_current(uri, source, analysis)
+                }
+                LogicalImplementationRoot::Member(member) => {
+                    analysis.logical_source_member_class(member).is_some()
+                }
+            })
+    }
+    /// Borrow possible positive ranges under the host's final current-source
+    /// lease. An empty projection establishes no absence or graph completeness.
+    #[must_use]
+    pub fn possible_source_ranges(&self) -> &[LspRange] {
+        &self.ranges
+    }
+    /// Earlier mutation or unavailable relation coverage remains an obligation.
+    #[must_use]
+    pub const fn has_unresolved_applicability(&self) -> bool {
+        self.incomplete
+    }
+}
+
+/// Prepare typed conditional implementation advice for final readonly publication.
+#[must_use]
+pub fn logical_implementation_advice(
+    uri: &str,
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<LogicalImplementationAdvice> {
+    let position =
+        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)?;
+    analysis
+        .allows_retained_logical_declaration_advice()
+        .then_some(())?;
+    let image = tcl_lexer::SourceImage::document(source);
+    let index = LineIndex::new_lsp(source);
+    let mut spans = BTreeSet::new();
+    if let Some(selection) =
+        crate::type_hierarchy::logical_class_at(uri, source, analysis, position.offset())
+    {
+        let target =
+            crate::type_hierarchy::LogicalHierarchyClass::class(&selection, source, analysis)?;
+        let classes: crate::type_hierarchy::LogicalImplementationClasses<'_> =
+            crate::type_hierarchy::logical_implementation_classes(source, analysis, target, false)?;
+        let mut targets = Vec::new();
+        for class in classes.classes {
+            targets.push(LogicalImplementationRoot::Class(Box::new(
+                crate::type_hierarchy::LogicalHierarchyClass::capture(
+                    uri, source, analysis, class,
+                )?,
+            )));
+            spans.insert((class.name_span.start(), class.name_span.end()));
+        }
+        let incomplete = classes.incomplete || selection.has_unresolved_applicability();
+        return Some(LogicalImplementationAdvice {
+            uri: uri.to_owned(),
+            image,
+            input: analysis.resolved_input.as_ref()?.clone(),
+            root: LogicalImplementationRoot::Class(Box::new(selection)),
+            targets,
+            ranges: finish(source, &index, spans),
+            incomplete,
+        });
+    }
+    let member = analysis.logical_source_member_at(
+        &image,
+        position.context().config(),
+        position.offset(),
+    )?;
+    let root = analysis.logical_source_member_class(&member)?;
+    let name = member
+        .original_name_word()
+        .and_then(tcl_syntax::word_rules::original_static_word_unicode_value)?;
+    let (mut descendants, incomplete) = if member.side()
+        == tcl_compiler::analyser::MemberSide::Instance
+    {
+        let classes: crate::type_hierarchy::LogicalImplementationClasses<'_> =
+            crate::type_hierarchy::logical_implementation_classes(source, analysis, root, true)?;
+        (classes.classes, classes.incomplete)
+    } else {
+        (Vec::new(), false)
+    };
+    let mut targets = Vec::new();
+    descendants.push(root);
+    for class in descendants {
+        let owner = analysis.logical_source_class_declaration(class)?;
+        let methods = match member.side() {
+            tcl_compiler::analyser::MemberSide::Instance => &class.methods,
+            tcl_compiler::analyser::MemberSide::ClassObject => &class.class_methods,
+        };
+        for method in methods.values() {
+            let candidate = owner.member(member.side(), method)?;
+            if candidate
+                .original_name_word()
+                .and_then(tcl_syntax::word_rules::original_static_word_unicode_value)
+                .as_ref()
+                == Some(&name)
+            {
+                targets.push(LogicalImplementationRoot::Member(Box::new(candidate)));
+                spans.insert((method.name_span.start(), method.name_span.end()));
+            }
+        }
+    }
+    Some(LogicalImplementationAdvice {
+        uri: uri.to_owned(),
+        image,
+        input: analysis.resolved_input.as_ref()?.clone(),
+        root: LogicalImplementationRoot::Member(Box::new(member)),
+        targets,
+        ranges: finish(source, &index, spans),
+        incomplete,
+    })
+}
+
+// Native queries use the same declaration/selector owners as navigation.
+// A bare matching argument or reporting MRO cannot identify an implementation.
+fn original_implementation(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Vec<LspRange> {
+    use std::ops::ControlFlow;
+    let index = LineIndex::new(source);
+    let cursor = byte_offset_at(&index, source, line, character);
+    let Some(config) = analysis.body_lexer_config else {
         return Vec::new();
     };
-    let line_index = LineIndex::new(source);
-
-    // Collected target spans, de-duplicated and ordered by start
-    // offset so the response is deterministic.
-    let mut spans: BTreeSet<(u32, u32)> = BTreeSet::new();
-
-    let cursor = byte_offset_at(&line_index, source, line, character);
-
-    // Case 1: the word names a class — resolve the single class the cursor
-    // denotes namespace-aware (declaration under the cursor, else the
-    // caller-namespace candidate order), not every same-named class across
-    // namespaces, then list its direct subclasses as the implementations.
-    //
-    // The subclass edges come from the shared class-hierarchy index rather
-    // than a local `superclasses`/`mixins` scan: those fields hold the names
-    // *as written* (a bare `superclass Shape` inside `::A` stays `"Shape"`),
-    // so a leading-`::`-only tail comparison never matches the resolved
-    // `::A::Shape` target and every namespaced subclass is missed.  The index
-    // already resolves each written super/mixin owner-aware (the same
-    // `normalise` the MRO builder uses) and unions super + mixin edges, so
-    // it is the single source of truth `type_hierarchy::subtypes` shares.
-    if let Some((target_qname, _target)) = crate::definition::resolve_class_target_at(
-        analysis,
-        crate::definition::CallResolution::document_only(),
-        cursor,
-        &word,
-    ) {
-        if let Some(subs) = analysis.class_hierarchy().subclasses.get(target_qname) {
-            for sub_qname in subs {
-                if let Some(cd) = analysis.all_classes.get(sub_qname) {
-                    spans.insert((cd.name_span.start(), cd.name_span.end()));
-                }
-            }
-        }
-        return finish(source, &line_index, spans);
+    let image = tcl_lexer::SourceImage::document(source);
+    if !analysis.matches_original_source_image(&image, config)
+        || analysis
+            .original_variable_root_in_source(&image, config, cursor)
+            .is_some()
+    {
+        return Vec::new();
     }
-
-    // Case 2/3: the word names a method
-    let enclosing = crate::definition::enclosing_class_at(analysis, cursor);
-
-    match enclosing {
-        // Outside any class body: every class that defines the method
-        // is an implementation.
-        None => {
-            for cd in analysis.all_classes.values() {
-                if let Some(span) = method_span(cd, &word) {
-                    spans.insert((span.start(), span.end()));
-                }
-            }
+    match crate::original_oo::class_at_cursor(analysis, source, cursor) {
+        ControlFlow::Break(Some(class)) => {
+            let Some(identity) =
+                crate::original_declaration::OriginalDeclarationIdentity::for_class(
+                    "", source, analysis, class,
+                )
+            else {
+                return Vec::new();
+            };
+            return crate::type_hierarchy::related_from_inventory(
+                &identity,
+                &[crate::type_hierarchy::OriginalHierarchyDocument {
+                    uri: "",
+                    source,
+                    analysis,
+                }],
+                true,
+            )
+            .into_iter()
+            .map(|item| item.selection_range)
+            .collect();
         }
-        // Inside a class body: the enclosing class's own definition plus
-        // the overrides defined in its descendants.  Ancestor
-        // definitions are skipped (go-to-definition reaches those).
-        Some(enclosing_qname) => {
-            for cd in analysis.all_classes.values() {
-                let Some(span) = method_span(cd, &word) else {
+        ControlFlow::Break(None) => return Vec::new(),
+        ControlFlow::Continue(()) => {}
+    }
+    let ControlFlow::Break(Some(method)) =
+        crate::method_symbol::local_candidate(source, analysis, line, character)
+    else {
+        return Vec::new();
+    };
+    method_implementations_in_inventory(
+        &method,
+        &[crate::original_declaration::OriginalDeclarationDocument {
+            uri: "",
+            source,
+            analysis,
+        }],
+    )
+    .into_iter()
+    .map(|target| target.range)
+    .collect()
+}
+
+/// One readonly implementation target with independent document ownership.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalImplementationTarget {
+    /// Full current declaration identity; its label is not a lookup operand.
+    pub identity: crate::original_declaration::OriginalDeclarationIdentity,
+    /// Canonical method's source range in that identity's document.
+    pub range: LspRange,
+}
+
+/// Select own declarations and instance descendant overrides from complete
+/// current source inventories. The shared original relation kernel determines
+/// ancestry; class-object methods use only their declaring class's own table.
+/// Source relationships do not establish a live native MRO or dispatch entry.
+#[must_use]
+pub fn method_implementations_in_inventory(
+    method: &crate::method_symbol::OriginalMethodCandidate,
+    documents: &[crate::original_declaration::OriginalDeclarationDocument<'_>],
+) -> Vec<OriginalImplementationTarget> {
+    use crate::original_declaration::OriginalDeclarationIdentity;
+    let Some(inventory) =
+        crate::original_declaration::OriginalClassInventory::from_documents(documents)
+    else {
+        return Vec::new();
+    };
+    let records = inventory.records();
+    let occupied = inventory.occupied_non_classes();
+    let selected = records
+        .iter()
+        .enumerate()
+        .filter(|(index, class)| {
+            inventory.owner(*index).is_some_and(|owner| {
+                owner.uri == method.uri()
+                    && method.declaring_class_in(owner.source, owner.analysis) == Some(**class)
+            })
+        })
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    let [declaring_class] = selected.as_slice() else {
+        return Vec::new();
+    };
+    let mut targets = Vec::new();
+    for (root, class) in records.iter().enumerate() {
+        let order =
+            if method.method().side() == tcl_compiler::analyser::types::MemberSide::ClassObject {
+                if root != *declaring_class {
                     continue;
-                };
-                let is_self = qname_eq(&cd.qualified_name, enclosing_qname);
-                let is_descendant =
-                    !is_self && is_descendant_of(analysis, &cd.qualified_name, enclosing_qname);
-                if is_self || is_descendant {
-                    spans.insert((span.start(), span.end()));
                 }
+                vec![root]
+            } else {
+                let Some(order) = tcl_compiler::analyser::class_hierarchy::original_metadata::
+                original_instance_metadata_order_for_inventory(records, root, occupied)
+            else { continue; };
+                order
+            };
+        if !order.contains(declaring_class) {
+            continue;
+        }
+        let Some(own_methods) = class
+            .metadata()
+            .original_members
+            .methods(method.method().side())
+        else {
+            continue;
+        };
+        let Some(owner) = inventory.owner(root) else {
+            return Vec::new();
+        };
+        let index = LineIndex::new(owner.source);
+        for own in own_methods {
+            if own.original_name_input().policy() != method.method().original_name_input().policy()
+                || own.original_name_input().bytes()
+                    != method.method().original_name_input().bytes()
+            {
+                continue;
             }
+            let Some(identity) = OriginalDeclarationIdentity::for_method(
+                owner.uri,
+                owner.source,
+                owner.analysis,
+                class,
+                &own,
+            ) else {
+                continue;
+            };
+            if targets
+                .iter()
+                .any(|target: &OriginalImplementationTarget| target.identity == identity)
+            {
+                continue;
+            }
+            targets.push(OriginalImplementationTarget {
+                range: span_to_range(
+                    owner.source,
+                    &index,
+                    own.declaration().original_word().span(),
+                ),
+                identity,
+            });
         }
     }
-
-    finish(source, &line_index, spans)
+    targets
 }
 
 /// Materialise the collected `(start, end)` byte spans into
@@ -136,60 +389,6 @@ fn finish(source: &str, line_index: &LineIndex, spans: BTreeSet<(u32, u32)>) -> 
         .into_iter()
         .map(|(s, e)| span_to_range(source, line_index, Span::new(s, e)))
         .collect()
-}
-
-/// Iterate a class's direct parents — superclasses then mixins.
-fn parents_of(cd: &ClassDef) -> impl Iterator<Item = &str> {
-    cd.superclasses
-        .iter()
-        .chain(cd.mixins.iter())
-        .map(String::as_str)
-}
-
-fn qname_eq(a: &str, b: &str) -> bool {
-    strip_colons(a) == strip_colons(b)
-}
-
-fn strip_colons(name: &str) -> &str {
-    name.trim_start_matches(':')
-}
-
-/// The method `name_span` for `word` on `cd`, checking instance then
-/// class methods.
-fn method_span(cd: &ClassDef, word: &str) -> Option<Span> {
-    cd.methods
-        .get(word)
-        .or_else(|| cd.class_methods.get(word))
-        .map(|m| m.name_span)
-}
-
-/// True when `candidate` transitively lists `ancestor` among its
-/// superclasses / mixins (i.e. `candidate` is a descendant of
-/// `ancestor`).  BFS over the parent edges with a visited guard.
-fn is_descendant_of(analysis: &AnalysisResult, candidate: &str, ancestor: &str) -> bool {
-    let mut seen: BTreeSet<String> = BTreeSet::new();
-    let mut work: Vec<&str> = vec![candidate];
-    while let Some(cur) = work.pop() {
-        let key = strip_colons(cur).to_owned();
-        if !seen.insert(key) {
-            continue;
-        }
-        // Resolve the class def for `cur` (match either spelling).
-        let Some(cd) = analysis
-            .all_classes
-            .values()
-            .find(|c| qname_eq(&c.qualified_name, cur))
-        else {
-            continue;
-        };
-        for parent in parents_of(cd) {
-            if qname_eq(parent, ancestor) {
-                return true;
-            }
-            work.push(parent);
-        }
-    }
-    false
 }
 
 #[cfg(test)]
@@ -234,7 +433,7 @@ mod tests {
     }
 
     #[test]
-    fn method_outside_class_returns_all_definers() {
+    fn unknown_command_argument_cannot_supply_method_implementation_identity() {
         let src = "oo::class create A {\n\
                    method run {} {}\n\
                    }\n\
@@ -246,8 +445,9 @@ mod tests {
         // Cursor on `run` in the top-level call (last occurrence).
         let (l, c) = pos_of(src, "run", 3);
         let locs = implementation(src, l, c, &analysis);
-        // Both A::run and B::run are implementations.
-        assert_eq!(locs.len(), 2, "{locs:?}");
+        // The unresolved lowercase command is not an original OO receiver;
+        // its same-spelled argument cannot identify either source method.
+        assert!(locs.is_empty(), "{locs:?}");
     }
 
     #[test]
@@ -355,5 +555,425 @@ mod tests {
         let locs = implementation(src, l, c, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 2, "{locs:?}");
+    }
+
+    #[test]
+    fn logical_method_implementations_use_resolved_bare_relations_in_nested_namespace() {
+        for relation in ["superclass", "mixin"] {
+            let source = format!(
+                "namespace eval Outer {{
+namespace eval Inner {{
+\
+                 oo::class create Base {{method run {{}} {{}}}}
+\
+                 oo::class create Child {{{relation} Base; method run {{}} {{}}}}
+\
+                 oo::class create Grandchild {{superclass Child; method run {{}} {{}}}}
+\
+                 }}
+}}
+"
+            );
+            let analysis = Analyser::new().analyse(&source, "tcl");
+            assert!(analysis.allows_lexical_declaration_advice());
+            let (line, character) = pos_of(&source, "run", 1);
+            let locations = implementation(&source, line, character, &analysis);
+            assert_eq!(
+                locations
+                    .iter()
+                    .map(|location| location.start_line)
+                    .collect::<Vec<_>>(),
+                vec![2, 3, 4],
+                "{relation}: {locations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_method_implementations_do_not_join_equal_tail_class_owners() {
+        let source = "namespace eval A {
+\
+            oo::class create Base {method run {} {}}
+\
+            }
+\
+            namespace eval B {
+\
+            oo::class create Base {method run {} {}}
+\
+            oo::class create Child {superclass Base; method run {} {}}
+\
+            }
+";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        for (occurrence, expected) in [(1, vec![1]), (2, vec![4, 5])] {
+            let (line, character) = pos_of(source, "run", occurrence);
+            let locations = implementation(source, line, character, &analysis);
+            assert_eq!(
+                locations
+                    .iter()
+                    .map(|location| location.start_line)
+                    .collect::<Vec<_>>(),
+                expected,
+                "{locations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn constructed_implementation_ancestry_keeps_root_marker_distinct_from_colon_segment() {
+        // naming.analysis.constructed-key-consumer-projections
+
+        // Explicit metadata graph only, under the existing lexical caller gate.
+        let mut analysis = Analyser::new().analyse("", "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        for (key, parents) in [
+            ("::茶", vec![]),
+            (":::茶", vec![]),
+            ("::leaf", vec![":::茶"]),
+        ] {
+            analysis.all_classes.insert(
+                key.to_owned(),
+                ClassDef {
+                    qualified_name: key.to_owned(),
+                    superclasses: parents.into_iter().map(str::to_owned).collect(),
+                    ..ClassDef::default()
+                },
+            );
+        }
+        assert_eq!(tcl_syntax::naming::unroot_rooted_key("::茶"), Some("茶"));
+        assert_ne!(
+            tcl_syntax::naming::unroot_rooted_key(":::茶"),
+            tcl_syntax::naming::unroot_rooted_key("::茶")
+        );
+        let hierarchy = analysis.class_hierarchy();
+        assert!(hierarchy.transitive_subtypes[":::茶"].contains("::leaf"));
+        assert!(!hierarchy.transitive_subtypes["::茶"].contains("::leaf"));
+        analysis
+            .all_classes
+            .get_mut(":::茶")
+            .unwrap()
+            .superclasses
+            .push("::leaf".to_owned());
+        let hierarchy = tcl_compiler::analyser::build_class_hierarchy(analysis.all_classes.clone());
+        assert!(
+            hierarchy
+                .transitive_subtypes
+                .get("::missing")
+                .is_none_or(|descendants| !descendants.contains("::leaf"))
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_implementation_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+    #[test]
+    fn original_implementation_uses_opaque_method_identity_and_exact_descendant_relations() {
+        // Implementation contract: naming.consumer.original-type-and-implementation-navigation
+
+        let source = "oo::class create B {method m\\uD800 {} {}; method m\\uD801 {} {}}\noo::class create C {superclass B; method m\\uD800 {} {}}\noo::class create Other {method m\\uD800 {} {}}\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_classes.clear();
+        analysis.superseded_classes.clear();
+        analysis.all_procs.clear();
+        let cursor = u32::try_from(source.find("m\\uD800").unwrap()).unwrap();
+        let ranges = implementation(source, 0, cursor, &analysis);
+        assert_eq!(ranges.len(), 2, "{ranges:?}");
+        assert_eq!(
+            ranges
+                .iter()
+                .map(|range| range.start_line)
+                .collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+        let other = u32::try_from(source.find("m\\uD801").unwrap()).unwrap();
+        assert_eq!(implementation(source, 0, other, &analysis).len(), 1);
+        assert!(implementation(&format!("# changed\n{source}"), 1, cursor, &analysis).is_empty());
+    }
+    #[test]
+    fn original_method_implementations_keep_cross_document_owners_and_block_ambiguous_parents() {
+        // Implementation contract: naming.consumer.original-type-and-implementation-navigation
+
+        let base = r"oo::class create B\uD800 {method m\uD800 {} {}}";
+        let child = r"oo::class create C {superclass B\uD800; method m\uD800 {} {}}";
+        let unrelated = r"oo::class create Other {method m\uD800 {} {}}";
+        let mut base_analysis = Analyser::new().analyse(base, "tcl8.6");
+        let mut child_analysis = Analyser::new().analyse(child, "tcl8.6");
+        let other_analysis = Analyser::new().analyse(unrelated, "tcl8.6");
+        base_analysis.all_classes.clear();
+        child_analysis.all_classes.clear();
+        let cursor = u32::try_from(base.find(r"m\uD800").unwrap()).unwrap();
+        let std::ops::ControlFlow::Break(Some(method)) =
+            crate::method_symbol::local_candidate(base, &base_analysis, 0, cursor)
+        else {
+            panic!("original method declaration must be selectable");
+        };
+        let documents = [
+            crate::original_declaration::OriginalDeclarationDocument {
+                uri: "",
+                source: base,
+                analysis: &base_analysis,
+            },
+            crate::original_declaration::OriginalDeclarationDocument {
+                uri: "file:///child.tcl",
+                source: child,
+                analysis: &child_analysis,
+            },
+            crate::original_declaration::OriginalDeclarationDocument {
+                uri: "file:///other.tcl",
+                source: unrelated,
+                analysis: &other_analysis,
+            },
+        ];
+        let targets = method_implementations_in_inventory(&method, &documents);
+        assert_eq!(targets.len(), 2);
+        assert_eq!(targets[0].identity.uri(), "");
+        assert_eq!(targets[1].identity.uri(), "file:///child.tcl");
+        let duplicated = [
+            crate::original_declaration::OriginalDeclarationDocument {
+                uri: "",
+                source: base,
+                analysis: &base_analysis,
+            },
+            crate::original_declaration::OriginalDeclarationDocument {
+                uri: "file:///equal-source.tcl",
+                source: base,
+                analysis: &base_analysis,
+            },
+            crate::original_declaration::OriginalDeclarationDocument {
+                uri: "file:///child.tcl",
+                source: child,
+                analysis: &child_analysis,
+            },
+        ];
+        let targets = method_implementations_in_inventory(&method, &duplicated);
+        assert!(
+            targets
+                .iter()
+                .all(|target| target.identity.uri() != "file:///child.tcl")
+        );
+        let stale = [crate::original_declaration::OriginalDeclarationDocument {
+            uri: "",
+            source: "# unrelated source",
+            analysis: &base_analysis,
+        }];
+        assert!(method_implementations_in_inventory(&method, &stale).is_empty());
+    }
+    #[test]
+    fn original_class_object_implementation_does_not_borrow_instance_superclass_order() {
+        // Implementation contract: naming.consumer.original-type-and-implementation-navigation
+
+        let source = "oo::class create B {self method shared {} {}}\noo::class create C {superclass B; self method shared {} {}}\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl9.0");
+        analysis.all_classes.clear();
+        analysis.superseded_classes.clear();
+        assert_eq!(
+            analysis
+                .original_class_declarations()
+                .flat_map(|class| class
+                    .metadata()
+                    .original_members
+                    .methods(tcl_compiler::analyser::MemberSide::ClassObject)
+                    .unwrap())
+                .count(),
+            2
+        );
+        let cursor = u32::try_from(source.find("shared").unwrap()).unwrap();
+        let ranges = implementation(source, 0, cursor, &analysis);
+        assert_eq!(ranges.len(), 1, "{ranges:?}");
+        assert_eq!(ranges[0].start_line, 0);
+    }
+}
+
+#[cfg(test)]
+mod current_source_implementation_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_method_implementation_requires_current_source_and_complete_input() {
+        let source = "oo::class create C {method run {} {}}\nrun";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        assert_eq!(implementation(source, 1, 1, &analysis).len(), 1);
+        assert!(implementation(&format!("{source}\n# changed"), 1, 1, &analysis).is_empty());
+        let config = analysis.body_lexer_config.unwrap();
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+        assert!(implementation(source, 1, 1, &analysis).is_empty());
+        analysis.body_lexer_config = Some(config);
+        let input = analysis.resolved_input.take().unwrap();
+        analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::resolve_environment("tcl8.4").default_context_registry(),
+            config,
+        ));
+        assert!(implementation(source, 1, 1, &analysis).is_empty());
+        analysis.resolved_input = None;
+        assert!(implementation(source, 1, 1, &analysis).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod logical_source_selection_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn at(source: &str, offset: usize, analysis: &AnalysisResult) -> Vec<LspRange> {
+        let position =
+            LineIndex::new_lsp(source).position_at_utf16(u32::try_from(offset).unwrap(), source);
+        implementation(source, position.line, position.character.get(), analysis)
+    }
+
+    #[test]
+    fn logical_implementation_uses_real_member_operand_and_rejects_equal_spelled_data() {
+        let source = "oo::class create Base {method run {} {}}\noo::class create Child {superclass Base; method run {} {}}\nputs run\nrun\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        let locations = at(source, source.find("run").unwrap(), &analysis);
+        assert_eq!(
+            locations
+                .iter()
+                .map(|range| range.start_line)
+                .collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+        assert!(at(source, source.find("puts run").unwrap() + 5, &analysis).is_empty());
+        assert!(at(source, source.rfind("run").unwrap(), &analysis).is_empty());
+    }
+
+    #[test]
+    fn logical_implementation_keeps_unicode_self_selector_and_exact_source_configuration() {
+        let source = "oo::class create C {method 茶 {} {}; method again {} {my 茶}}";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        assert_eq!(at(source, source.rfind('茶').unwrap(), &analysis).len(), 1);
+        assert!(
+            at(
+                &format!("{source}\n# changed"),
+                source.rfind('茶').unwrap(),
+                &analysis
+            )
+            .is_empty()
+        );
+        let config = analysis.body_lexer_config.unwrap();
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+        assert!(at(source, source.rfind('茶').unwrap(), &analysis).is_empty());
+    }
+    #[test]
+    fn logical_implementation_lifts_lone_cr_source_positions() {
+        let source = "set z 0;\roo::class create C {method run {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let locations = at(source, source.find("run").unwrap(), &analysis);
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].start_line, 1);
+        assert_eq!(locations[0].end_line, 1);
+    }
+}
+
+#[cfg(test)]
+mod conditional_source_implementation_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn conditional_edges_keep_root_and_genuine_descendant_without_inventing_unknown_parent() {
+        let source = "oo::class create Base {method run {} {}}\nmystery\noo::class create Child {superclass Base; method run {} {}}\noo::class create Other {superclass $missing; method run {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let root = &analysis.all_classes["::Base"];
+        let advice =
+            crate::type_hierarchy::logical_implementation_classes(source, &analysis, root, true)
+                .unwrap();
+        assert!(advice.incomplete);
+        assert_eq!(advice.classes.len(), 1);
+        assert!(std::ptr::eq(
+            advice.classes[0],
+            &raw const analysis.all_classes["::Child"]
+        ));
+        let at = LineIndex::new_lsp(source)
+            .position_at_utf16(u32::try_from(source.find("run").unwrap()).unwrap(), source);
+        assert_eq!(
+            implementation(source, at.line, at.character.get(), &analysis)
+                .iter()
+                .map(|range| range.start_line)
+                .collect::<Vec<_>>(),
+            vec![0, 2]
+        );
+        assert!(
+            analysis
+                .logical_source_direct_classes(&analysis.all_classes["::Child"])
+                .is_none()
+        );
+        assert!(
+            analysis
+                .logical_source_class_relation_candidates(&analysis.all_classes["::Other"])
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn unrelated_unrepresented_relation_does_not_erase_root_own_member() {
+        let source = "oo::class create Base {method run {} {}}\noo::class create Other {superclass Missing; mystery; method run {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let at = LineIndex::new_lsp(source)
+            .position_at_utf16(u32::try_from(source.find("run").unwrap()).unwrap(), source);
+        let selected = implementation(source, at.line, at.character.get(), &analysis);
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].start_line, 0);
+        assert!(
+            analysis
+                .logical_source_class_relation_candidates(&analysis.all_classes["::Other"])
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod retained_implementation_applicability_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn implementation_reply_keeps_debt_and_revalidates_every_positive_target() {
+        let source = "oo::class create Base {method run {} {}}\nmystery\noo::class create Child {superclass Base; method run {} {}}\noo::class create Other {superclass $missing}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let at = LineIndex::new_lsp(source)
+            .position_at_utf16(u32::try_from(source.find("run").unwrap()).unwrap(), source);
+        let advice = logical_implementation_advice(
+            "file:///classes.tcl",
+            source,
+            at.line,
+            at.character.get(),
+            &analysis,
+        )
+        .unwrap();
+        assert!(advice.has_unresolved_applicability());
+        assert_eq!(
+            advice
+                .possible_source_ranges()
+                .iter()
+                .map(|range| range.start_line)
+                .collect::<Vec<_>>(),
+            vec![0, 2]
+        );
+        assert!(advice.is_current("file:///classes.tcl", source, &analysis));
+        let mut changed = analysis.clone();
+        changed
+            .all_classes
+            .get_mut("::Child")
+            .unwrap()
+            .methods
+            .get_mut("run")
+            .unwrap()
+            .visibility = "private".into();
+        assert!(!advice.is_current("file:///classes.tcl", source, &changed));
+        assert!(!advice.is_current("file:///other.tcl", source, &analysis));
+        assert!(!advice.is_current(
+            "file:///classes.tcl",
+            &format!("{source}\n# changed"),
+            &analysis
+        ));
     }
 }

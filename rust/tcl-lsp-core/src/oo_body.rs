@@ -64,7 +64,7 @@
 //! `property … -get/-set …` (flag-keyed bodies).
 
 use tcl_dialect::model::SurfaceQuery;
-use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberSpec};
+use tcl_registry::definer::{DefinitionBodyGrammar, MemberRefKind};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 /// The definition-body grammar for `command`'s body when it is an *outer*
@@ -80,16 +80,7 @@ pub fn outer_definition_grammar(
     args: &[&str],
     registry: &CommandRegistry,
 ) -> Option<&'static DefinitionBodyGrammar> {
-    let grammar = registry.get(command)?.definition_body?;
-    if matches!(command, "oo::define" | "oo::objdefine") {
-        // The script form resolves its definition body at argument index 1;
-        // every member form resolves a (method) body at index ≥ 2.
-        return registry
-            .arg_indices_for_role(command, args, ArgRole::Body)
-            .contains(&1)
-            .then_some(grammar);
-    }
-    Some(grammar)
+    registry.outer_definition_body_grammar(command, args)
 }
 
 pub use tcl_compiler::realm::HeadWords;
@@ -112,7 +103,11 @@ pub fn next_definition_grammar(
 ) -> Option<&'static DefinitionBodyGrammar> {
     let HeadWords { written, resolved } = head;
     let command = written;
-    if let Some(g) = outer_definition_grammar(resolved, args, registry) {
+    if let Some(g) =
+        cur.and_then(|grammar| registry.authored_document_member_grammar(grammar, command))
+    {
+        Some(g)
+    } else if let Some(g) = outer_definition_grammar(resolved, args, registry) {
         Some(g)
     } else if let Some(g) = cur.filter(|g| is_member(g, command)) {
         // A member command inside a definition body normally drops out of
@@ -189,6 +184,10 @@ pub fn member_body_indices_in(
     grammar.member_body_indices_in(command, args, dialect)
 }
 
+/// Explicit standalone vocabulary utility over caller-supplied source metadata.
+/// This compatibility projection does not select current commands or bodies.
+/// Actual editor consumers use `definition_grammar_from_analysis` and retain
+/// typed unavailable child traversal separately from ordinary script positions.
 /// The innermost definition-body grammar in force at `offset`, or `None` when
 /// the position is an ordinary open command position.
 ///
@@ -239,10 +238,9 @@ pub fn definition_grammar_at(
         depth: u32,
         cur: Option<&'static DefinitionBodyGrammar>,
     ) -> Option<&'static DefinitionBodyGrammar> {
-        // The same bound the folding and token walks carry: a pathological
-        // nest answers with the grammar it had rather than recursing forever.
+        // An unexamined child cannot borrow the previous vocabulary.
         if depth > 32 {
-            return cur;
+            return None;
         }
         for cmd in tcl_compiler::segmenter::segment_commands_with_offset_and_config(
             slice,
@@ -304,6 +302,17 @@ pub fn definition_grammar_at(
         dialect,
     };
     walk(&ctx, source, 0, 0, registry.document_grammar())
+}
+
+/// Current selected source grammar from the shared original body inventory.
+/// Standalone root authoring, ordinary script positions and unavailable nested
+/// traversal remain different purposes; no rendered head reselects a handler.
+pub(crate) fn definition_grammar_from_analysis(
+    source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    offset: u32,
+) -> crate::source_structure::SourceDefinitionGrammar {
+    crate::source_structure::SourceStructure::definition_grammar_at(source, analysis, offset)
 }
 
 /// Braced-block argument indices for a member call under `grammar` — the
@@ -386,21 +395,7 @@ pub fn member_ref_indices(
     command: &str,
     args: &[&str],
 ) -> Option<(MemberRefKind, Vec<usize>)> {
-    let member = grammar.member(command)?;
-    match member.kind {
-        MemberKind::Flat => {
-            let kind = member.all_args_ref?;
-            Some((kind, (slot_value_start(member, args)..args.len()).collect()))
-        }
-        // `self mixin M` / itcl `public method …` — resolve through the inner
-        // member and shift its indices past the wrapper word.
-        MemberKind::Wrapper => {
-            let inner = args.first()?;
-            let (kind, idx) = member_ref_indices(grammar, inner, args.get(1..)?)?;
-            Some((kind, idx.into_iter().map(|i| i + 1).collect()))
-        }
-        MemberKind::FlagKeyed => None,
-    }
+    grammar.member_ref_indices_in(command, args, None)
 }
 
 /// Declared-variable argument indices for a member call under `grammar` — the
@@ -485,122 +480,7 @@ fn member_role_indices(
     dialect: Option<SurfaceQuery<'_>>,
     role: ArgRole,
 ) -> Vec<usize> {
-    let Some(member) = grammar.member(command) else {
-        return Vec::new();
-    };
-    if member.unavailable_option_for(args, dialect).is_some() {
-        return Vec::new();
-    }
-    match member.kind {
-        MemberKind::Flat => flat_member_indices(member, args, dialect, role),
-        MemberKind::Wrapper => wrapper_member_indices(grammar, member, args, dialect, role),
-        MemberKind::FlagKeyed => match role {
-            ArgRole::Body => collect_property_body_indices(args),
-            // `property NAME… ?-get script? ?-set script?` — every leading bare
-            // word before the first flag is a declared property name.  Without
-            // this the name fell through to the default literal classifier and
-            // painted as a plain string, unlike every other member's name.
-            ArgRole::Name => args
-                .iter()
-                .take_while(|a| !a.starts_with('-'))
-                .enumerate()
-                .map(|(i, _)| i)
-                .collect(),
-            _ => Vec::new(),
-        },
-    }
-}
-
-/// The `role`-carrying argument indices for a flat member, given `args`
-/// (0-based *after* the member keyword).  Handles the unbounded `variable a b
-/// c` form (`all_args_var`) as well as the fixed `arg_roles` layout.
-fn flat_member_indices(
-    member: &MemberSpec,
-    args: &[&str],
-    dialect: Option<SurfaceQuery<'_>>,
-    role: ArgRole,
-) -> Vec<usize> {
-    if member.unavailable_option_for(args, dialect).is_some() {
-        return Vec::new();
-    }
-    if role == ArgRole::VarWrite && member.all_args_var {
-        (slot_value_start(member, args)..args.len()).collect()
-    } else {
-        let indices: Vec<usize> = dialect.map_or_else(
-            || member.indices_for_call(args, role).collect(),
-            |dialect| {
-                member
-                    .indices_for_call_in(args, Some(dialect), role)
-                    .collect()
-            },
-        );
-        indices.into_iter().filter(|&i| i < args.len()).collect()
-    }
-}
-
-/// The index of the first *value* argument of a slot member call — `1` when
-/// the member is a slot ([`MemberSpec::slot`]) and `args[0]` is
-/// an explicit slot-operation word (`variable -set c`, `filter -append f`),
-/// else `0`.  The operation word names no variable / method / class, so the
-/// walker must not paint it as one; a `-word` that is *not* a recognised
-/// operation stays classified as data, exactly as real Tcl treats it past
-/// argument 0.
-fn slot_value_start(member: &MemberSpec, args: &[&str]) -> usize {
-    usize::from(
-        member.slot.is_some()
-            && args
-                .first()
-                .is_some_and(|a| tcl_registry::definer::SlotOp::parse(a).is_some()),
-    )
-}
-
-/// A [`MemberKind::Wrapper`] member (`self method …`, itcl `public method …`)
-/// nests an inner member keyword at `args[0]`; the inner member's own roles
-/// (including its `variable a b c` unbounded form) apply shifted one place
-/// right (past the wrapper word).  `args` is the wrapper call minus the wrapper
-/// word itself (so `args[0]` is `method`/`constructor`/`variable`/…).
-///
-/// When the following word is *not* a recognised inner member and the wrapper
-/// declares [`MemberSpec::wrapper_block_body`] (`TclOO`'s `private { … }` /
-/// `self { … }`), the wrapper's own roles apply directly — `args[0]` is the
-/// definition-script body — rather than resolving nothing.
-fn wrapper_member_indices(
-    grammar: &DefinitionBodyGrammar,
-    member: &MemberSpec,
-    args: &[&str],
-    dialect: Option<SurfaceQuery<'_>>,
-    role: ArgRole,
-) -> Vec<usize> {
-    let Some((inner, rest)) = args.split_first() else {
-        return Vec::new();
-    };
-    if let Some(m) = grammar.member(inner) {
-        // Shift the inner member's indices one place right, past the wrapper.
-        return flat_member_indices(m, rest, dialect, role)
-            .into_iter()
-            .map(|i| i + 1)
-            .collect();
-    }
-    if member.wrapper_block_body {
-        // Bare script-block form: the wrapper's own roles (a single body at
-        // arg 0) apply unshifted.
-        return flat_member_indices(member, args, dialect, role);
-    }
-    Vec::new()
-}
-
-/// Collect the `-set BODY` / `-get BODY` flag-value indices of an inner
-/// `property NAME ?-set BODY? ?-get BODY?` invocation.
-fn collect_property_body_indices(args: &[&str]) -> Vec<usize> {
-    let n = args.len();
-    if n == 0 {
-        return Vec::new();
-    }
-    args.iter()
-        .enumerate()
-        .take(n.saturating_sub(1))
-        .filter_map(|(i, &a)| ((a == "-set" || a == "-get") && i + 1 < n).then_some(i + 1))
-        .collect()
+    grammar.member_arg_indices_for_role_in(command, args, dialect, role)
 }
 
 #[cfg(test)]
@@ -964,5 +844,299 @@ mod tests {
             !is_wrapper_block_form(&TCLOO_GRAMMAR, "method", &["{b}"]),
             "method is not a wrapper-block member",
         );
+    }
+}
+
+#[cfg(test)]
+mod original_definition_grammar_cursor_tests {
+    use super::definition_grammar_from_analysis;
+    use crate::source_structure::{DefinitionGrammarUnavailable, SourceDefinitionGrammar};
+    use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+
+    fn at(source: &str, analysis: &AnalysisResult, needle: &str) -> SourceDefinitionGrammar {
+        definition_grammar_from_analysis(
+            source,
+            analysis,
+            u32::try_from(source.find(needle).unwrap()).unwrap(),
+        )
+    }
+
+    fn keywords(
+        selection: &SourceDefinitionGrammar,
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> Vec<&'static str> {
+        selection
+            .for_selected_source(source, analysis)
+            .map(|grammar| {
+                grammar
+                    .members
+                    .iter()
+                    .map(|member| member.keyword)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn original_cursor_joins_nested_member_parents_and_drops_method_script_context() {
+        // naming.core.original-definition-grammar-cursor
+
+        let source = "oo::class create C {\n if {1} {\n  self {\n   method m {} {set ordinary 1}\n  }\n }\n}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let selected = at(source, &analysis, "method m");
+        assert!(matches!(&selected, SourceDefinitionGrammar::Selected(_)));
+        assert!(keywords(&selected, source, &analysis).contains(&"method"));
+        assert!(matches!(
+            at(source, &analysis, "set ordinary"),
+            SourceDefinitionGrammar::OrdinaryScript
+        ));
+        let ordinary = "set plain value";
+        let ordinary_analysis = Analyser::new().analyse(ordinary, "tcl");
+        assert!(matches!(
+            at(ordinary, &ordinary_analysis, "set"),
+            SourceDefinitionGrammar::OrdinaryScript
+        ));
+    }
+
+    #[test]
+    fn original_cursor_uses_actual_authored_child_schema_and_parent_vocabulary() {
+        // naming.core.original-definition-grammar-cursor
+
+        let source = "speclib demo 1 {\n command demo::x {\n  arty 1\n }\n}";
+        let analysis = Analyser::new().analyse(source, "spectcl");
+        let selected = at(source, &analysis, "arty");
+        assert!(matches!(&selected, SourceDefinitionGrammar::Selected(_)));
+        let candidates = keywords(&selected, source, &analysis);
+        assert!(candidates.contains(&"arity"), "{candidates:?}");
+        assert!(!candidates.contains(&"speclib"));
+        let misplaced = "command demo::x {\n arty 1\n}";
+        let misplaced_analysis = Analyser::new().analyse(misplaced, "spectcl");
+        let refused = at(misplaced, &misplaced_analysis, "arty");
+        assert!(matches!(
+            &refused,
+            SourceDefinitionGrammar::StandaloneRoot {
+                nested_unavailable: Some(DefinitionGrammarUnavailable::UnrepresentedInterior),
+                ..
+            }
+        ));
+        assert!(
+            refused
+                .for_selected_source(misplaced, &misplaced_analysis)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_cursor_withdraws_shadowed_dynamic_and_equal_spelled_data_bodies() {
+        // naming.core.original-definition-grammar-cursor
+
+        for source in [
+            "proc oo::class args {}; oo::class create C {method fake {} {}}",
+            "$maker create C {method fake {} {}}",
+            "set data {oo::class create C {method fake {} {}}}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let selection = at(source, &analysis, "method fake");
+            assert!(
+                matches!(
+                    selection,
+                    SourceDefinitionGrammar::Unavailable(
+                        DefinitionGrammarUnavailable::UnrepresentedInterior
+                    )
+                ),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_root_authoring_retains_unavailable_child_without_donating_edit_grammar() {
+        // naming.core.original-definition-grammar-cursor
+
+        let source = "\u{feff}endpoint www {\n hsts {\n max\n }\n}";
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("sslictcl").analyser_profile();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Content,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input = ResolvedAnalysisInput::new(profile, profile, context, config);
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        let selection = at(source, &analysis, "max");
+        assert!(matches!(
+            &selection,
+            SourceDefinitionGrammar::StandaloneRoot {
+                nested_unavailable: Some(DefinitionGrammarUnavailable::UnrepresentedInterior),
+                ..
+            }
+        ));
+        assert!(
+            selection
+                .for_authoring(source, &analysis)
+                .unwrap()
+                .members
+                .iter()
+                .any(|member| member.keyword == "endpoint")
+        );
+        assert!(selection.for_selected_source(source, &analysis).is_none());
+    }
+
+    #[test]
+    fn original_cursor_reborrows_full_input_image_and_configuration() {
+        // naming.core.original-definition-grammar-cursor
+
+        let source = "oo::class create C {method m {} {}}";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let selection = at(source, &analysis, "method m");
+        assert!(selection.for_selected_source(source, &analysis).is_some());
+        analysis.dialect = "presentation label".into();
+        assert!(selection.for_selected_source(source, &analysis).is_some());
+        assert!(
+            selection
+                .for_selected_source(&source.replace('C', "D"), &analysis)
+                .is_none()
+        );
+        let input = analysis.resolved_input.take().unwrap();
+        analysis.resolved_input = Some(ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            tcl_lexer::LexerConfig {
+                strict_quoting: !input.lexer_config().strict_quoting,
+                ..input.lexer_config()
+            },
+        ));
+        assert!(selection.for_selected_source(source, &analysis).is_none());
+        assert!(matches!(
+            at(source, &analysis, "method m"),
+            SourceDefinitionGrammar::Unavailable(DefinitionGrammarUnavailable::CurrentSource)
+        ));
+    }
+
+    #[test]
+    fn original_cursor_depth_limit_and_malformed_regions_never_reuse_prior_grammar() {
+        // naming.core.original-definition-grammar-cursor
+
+        let source = format!(
+            "oo::class create C {{{}method deep {{}} {{}}{}}}",
+            "if {1} {".repeat(33),
+            "}".repeat(33)
+        );
+        let analysis = Analyser::new().analyse(&source, "tcl");
+        assert!(matches!(
+            at(&source, &analysis, "method deep"),
+            SourceDefinitionGrammar::Unavailable(DefinitionGrammarUnavailable::DepthLimit)
+        ));
+        let malformed = "oo::class create C {method m {} {";
+        let malformed_analysis = Analyser::new().analyse(malformed, "tcl");
+        let selection = definition_grammar_from_analysis(
+            malformed,
+            &malformed_analysis,
+            u32::try_from(malformed.len()).unwrap(),
+        );
+        assert!(matches!(selection, SourceDefinitionGrammar::Unavailable(_)));
+    }
+
+    #[test]
+    fn original_cursor_uses_the_actual_overlay_body_grammar_and_rejects_foreign_reborrow() {
+        // naming.core.original-definition-grammar-cursor
+
+        let source = "endpoint www {\n max\n}";
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("sslictcl").analyser_profile();
+        let overlay =
+            tcl_registry::registry_for_profile_with_overlay(profile, 0xC075_0725, |registry| {
+                let mut endpoint = registry.get("endpoint").unwrap().clone();
+                endpoint.definition_body = Some(&tcl_registry::definer::SSLICTCL_HSTS_GRAMMAR);
+                registry.insert(endpoint);
+            });
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let analysis =
+            crate::source_structure::analyse_document(source, profile, overlay.as_ref(), config);
+        let selection = at(source, &analysis, "max");
+        assert!(matches!(&selection, SourceDefinitionGrammar::Selected(_)));
+        assert!(keywords(&selection, source, &analysis).contains(&"max-age"));
+        let ordinary = Analyser::new().analyse(source, "sslictcl");
+        assert!(selection.for_selected_source(source, &ordinary).is_none());
+        let labels = crate::completion::completions(source, 1, 4, &analysis, None, None, profile)
+            .into_iter()
+            .map(|item| item.label)
+            .collect::<Vec<_>>();
+        assert!(labels.iter().any(|label| label == "max-age"), "{labels:?}");
+    }
+
+    #[test]
+    fn original_cursor_completion_preserves_unicode_utf16_and_selected_store() {
+        // naming.core.original-definition-grammar-cursor
+
+        let source = "# 😀\nendpoint www {\n hsts {\n  max\n }\n}";
+        let analysis = Analyser::new().analyse(source, "sslictcl");
+        let profile = analysis.resolved_profile().unwrap();
+        let labels = crate::completion::completions(source, 3, 5, &analysis, None, None, profile)
+            .into_iter()
+            .map(|item| item.label)
+            .collect::<Vec<_>>();
+        assert!(labels.iter().any(|label| label == "max-age"), "{labels:?}");
+        assert!(!labels.iter().any(|label| label == "endpoint"));
+        assert!(
+            crate::original_context::CurrentSourcePosition::capture(source, &analysis, 0, 3)
+                .is_none()
+        );
+        assert!(
+            definition_grammar_from_analysis(source, &analysis, 3)
+                .unavailable()
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn original_cursor_quick_fix_requires_selected_parent_even_for_real_typed_subject() {
+        // naming.core.original-definition-grammar-cursor
+
+        use crate::code_actions::{
+            ContextDiagnostic, ContextDiagnosticData, SPEC_PACK_DIAGNOSTIC_CODE,
+            SpecPackNoticeKind, SpecPackNoticeSubject,
+        };
+        for (source, line, expected) in [
+            ("speclib demo 1 {\n command demo::x {\n arty 1\n }\n}", 3, 1),
+            (
+                "$builder demo 1 {\n command demo::x {\n arty 1\n }\n}",
+                3,
+                0,
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(source, "spectcl");
+            // This compatibility notice does not donate a selected parent;
+            // the production candidate vocabulary must obtain that separately.
+            let subject = SpecPackNoticeSubject::from_loader(
+                source,
+                analysis.body_lexer_config.unwrap(),
+                line,
+                "arty",
+                SpecPackNoticeKind::Property,
+            )
+            .unwrap();
+            let diagnostic = ContextDiagnostic {
+                data: ContextDiagnosticData::from_spec_pack_notice(&subject, &analysis),
+                code: SPEC_PACK_DIAGNOSTIC_CODE.into(),
+                message: "independent prose".into(),
+                range: crate::definition::LspRange {
+                    start_line: line - 1,
+                    end_line: line - 1,
+                    start_character: 0,
+                    end_character: 7,
+                },
+            };
+            let actions =
+                crate::code_actions::spec_pack_quick_fixes(source, &analysis, &[diagnostic]);
+            assert_eq!(actions.len(), expected, "{source}");
+            if expected == 1 {
+                assert_eq!(actions[0].edits[0].new_text, "arity");
+            }
+        }
     }
 }

@@ -71,6 +71,10 @@
 //! command-substitution RHS ⇒ kept because of its side effect) are the
 //! tclsh-anchored ones.
 
+#[path = "support/function_identity.rs"]
+mod function_identity;
+use function_identity::OriginalFixtureFunctions;
+
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::dataflow_graph::{
     DataFlowGraph, EdgeKind, FunctionInputs, extract_dataflow_graph, extract_function_dataflow,
@@ -80,7 +84,6 @@ use tcl_compiler::def_use::{DefKind, DefUseChain, UseKind};
 use tcl_compiler::ssa::Version;
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
-use tcl_registry::model::semantic::SemanticContext;
 
 // Shared helpers
 
@@ -102,18 +105,31 @@ fn top_fu(cu: &CompilationUnit) -> &FunctionUnit {
 
 /// A specific procedure's `FunctionUnit`.
 fn proc_fu<'a>(cu: &'a CompilationUnit, qname: &str) -> &'a FunctionUnit {
-    cu.function(qname)
+    cu.fixture_function(qname)
         .unwrap_or_else(|| panic!("function {qname} not found"))
 }
 
 /// Look up the def-use chain for `(name, version)` in a unit.
 fn chain<'a>(fu: &'a FunctionUnit, name: &str, version: Version) -> Option<&'a DefUseChain> {
-    fu.def_use.chain_for(name, version)
+    let symbol = fu.ssa.var_symbol(name)?;
+    fu.def_use.symbol(&fu.ssa, symbol)?;
+    fu.def_use.chain_for(symbol, version)
 }
 
 /// All SSA versions defined for `name` in a unit.
 fn reaching_defs(fu: &FunctionUnit, name: &str) -> Vec<(String, Version)> {
-    fu.def_use.reaching_defs(name)
+    let Some(symbol) = fu.ssa.var_symbol(name) else {
+        return Vec::new();
+    };
+    fu.def_use
+        .reaching_defs(symbol)
+        .into_iter()
+        .filter_map(|(key, version)| {
+            fu.def_use
+                .symbol(&fu.ssa, key)
+                .map(|symbol| (fu.ssa.var_name(symbol).to_owned(), version))
+        })
+        .collect()
 }
 
 /// Build the module data-flow graph from a (memory-SSA populated) unit.
@@ -124,6 +140,8 @@ fn build_graph(cu: &CompilationUnit) -> DataFlowGraph {
         .functions()
         .map(|fu| FunctionInputs {
             name: &fu.name,
+            body_id: fu.body_id,
+            is_top_level: std::ptr::eq(fu, &cu.top_level),
             ssa: &fu.ssa,
             du: &fu.def_use,
             sccp: Some(&fu.sccp),
@@ -136,10 +154,7 @@ fn build_graph(cu: &CompilationUnit) -> DataFlowGraph {
 
 /// Build the data-flow graph for `source`, with memory-SSA populated.
 fn graph_for(source: &str) -> DataFlowGraph {
-    let cu = build_cu(source).with_memory_ssa(
-        &CommandRegistry::build_default(),
-        Some(SemanticContext::for_environment("tcl8.6")),
-    );
+    let cu = build_cu(source).with_retained_memory_ssa(registry());
     build_graph(&cu)
 }
 
@@ -211,7 +226,10 @@ fn def_use_if_merge_creates_phi_chain() {
         .def_use
         .chains
         .iter()
-        .filter(|(k, c)| k.0 == "a" && c.definition.kind == DefKind::Phi)
+        .filter(|(k, c)| {
+            fu.ssa.var_symbol("a").is_some_and(|symbol| k.0 == symbol)
+                && c.definition.kind == DefKind::Phi
+        })
         .collect();
     assert!(!phi_defs.is_empty(), "expected ≥1 phi def for `a`");
     let (_, phi_chain) = phi_defs[0];
@@ -286,8 +304,14 @@ fn def_use_proc_parameters() {
     // tclsh: foo 3 4 ⇒ 7 (each param read once).
     let cu = build_cu("proc foo {x y} { set z [expr {$x + $y}]\n return $z }");
     let fu = proc_fu(&cu, "::foo");
-    assert_eq!(fu.def_use.uses_of("x", 0).len(), 1);
-    assert_eq!(fu.def_use.uses_of("y", 0).len(), 1);
+    assert_eq!(
+        fu.def_use.uses_of(fu.ssa.var_symbol("x").unwrap(), 0).len(),
+        1
+    );
+    assert_eq!(
+        fu.def_use.uses_of(fu.ssa.var_symbol("y").unwrap(), 0).len(),
+        1
+    );
     // Both are genuine parameter defs (version 0, read-before-set).
     assert_eq!(
         chain(fu, "x", 0).unwrap().definition.kind,
@@ -302,11 +326,11 @@ fn def_use_proc_parameters() {
 #[test]
 fn def_use_is_dead_method() {
     // `set x 1\nset y $x` — x read (not dead), y never read (dead). Uses the
-    // `DefUseResult::is_dead(name, version)` method.
+    // `DefUseResult::is_dead(symbol, version)` method.
     let cu = build_cu("set x 1\nset y $x");
     let fu = top_fu(&cu);
-    assert!(!fu.def_use.is_dead("x", 1));
-    assert!(fu.def_use.is_dead("y", 1));
+    assert!(!fu.def_use.is_dead(fu.ssa.var_symbol("x").unwrap(), 1));
+    assert!(fu.def_use.is_dead(fu.ssa.var_symbol("y").unwrap(), 1));
 }
 
 #[test]
@@ -314,7 +338,7 @@ fn def_use_is_dead_nonexistent_key() {
     // A missing key is reported dead (the `is_none_or(is_dead)` contract).
     let cu = build_cu("set x 1");
     let fu = top_fu(&cu);
-    assert!(fu.def_use.is_dead("nonexistent", 99));
+    assert!(fu.def_use.is_dead(fu.ssa.var_symbol("x").unwrap(), 99));
 }
 
 #[test]
@@ -477,10 +501,7 @@ fn dataflow_prebuilt_cu() {
     // the same ≥2 defs. The API *only* consumes pre-built per-function inputs,
     // so this is the same path as `build_graph` but spelled out: reuse one
     // `CompilationUnit`.
-    let cu = build_cu("set x 1\nset y $x").with_memory_ssa(
-        &CommandRegistry::build_default(),
-        Some(SemanticContext::for_environment("tcl8.6")),
-    );
+    let cu = build_cu("set x 1\nset y $x").with_retained_memory_ssa(registry());
     let g = build_graph(&cu);
     assert!(g.total_defs() >= 2);
 }

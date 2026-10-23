@@ -32,14 +32,20 @@ use crate::{FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand, str_cla
 /// codepoints are escaped; backslashes are NOT doubled.
 #[must_use]
 pub fn esc(text: &str, limit: usize) -> String {
-    let mut parts = String::with_capacity(text.len());
+    esc_bytes(text.as_bytes(), limit)
+}
+
+/// Escape exact native bytes for disassembly without interpreting them as Unicode.
+#[must_use]
+pub fn esc_bytes(bytes: &[u8], limit: usize) -> String {
+    let mut parts = String::with_capacity(bytes.len());
     // C Tcl's disassembler escapes the literal *byte-wise*: only the named
     // forms `\t \n \r \v \f` (and `"`) are used; every other control byte
     // and every non-ASCII byte renders as `\uXXXX` of the raw byte. So the
     // two UTF-8 bytes of `e-acute` become `\u00c3\u00a9`, an astral char is
     // its four `\u00XX` bytes, and a 0x01 control byte is `\u0001`. Iterating
     // bytes (not chars) reproduces that exactly.
-    for &b in text.as_bytes() {
+    for &b in bytes {
         match b {
             b'"' => parts.push_str("\\\""),
             b'\n' => parts.push_str("\\n"),
@@ -69,6 +75,14 @@ pub fn esc(text: &str, limit: usize) -> String {
     }
 }
 
+fn signed_operand(value: i32) -> String {
+    if value >= 0 {
+        format!("+{value}")
+    } else {
+        format!("{value}")
+    }
+}
+
 /// Render a [`FunctionAsm`] to disassembly text.
 #[must_use]
 #[allow(
@@ -89,21 +103,13 @@ fn format_operand<S: BuildHasher>(
         Operand::Label(label) if instr.op.is_jump() => {
             let target = labels.get(label.as_str()).copied().unwrap_or(0);
             let relative = target as i32 - instr.offset;
-            let part = if relative >= 0 {
-                format!("+{relative}")
-            } else {
-                format!("{relative}")
-            };
+            let part = signed_operand(relative);
             (part, format!("\t# pc {target}"))
         }
         Operand::Label(label) if instr.op == Op::START_CMD && j == 0 => {
             let target = labels.get(label.as_str()).copied().unwrap_or(0);
             let relative = target as i32 - instr.offset;
-            let part = if relative >= 0 {
-                format!("+{relative}")
-            } else {
-                format!("{relative}")
-            };
+            let part = signed_operand(relative);
             let count = match instr.operands.get(1) {
                 Some(Operand::Imm(c)) => *c,
                 Some(_) | None => 1,
@@ -118,6 +124,21 @@ fn format_operand<S: BuildHasher>(
             (format!("pc {target}"), String::new())
         }
         Operand::Imm(val) if instr.op.is_lvt_op() && j == 0 => (format!("%v{val}"), String::new()),
+        Operand::Imm(val)
+            if (instr.op == Op::LIST_INDEX_IMM && instr.native_list_index.is_some())
+                || (instr.op == Op::LIST_RANGE_IMM && instr.native_list_range.is_some()) =>
+        {
+            let part = if *val <= -2 {
+                if *val == -2 {
+                    "end".to_owned()
+                } else {
+                    format!("end{}", i64::from(*val) + 2)
+                }
+            } else {
+                val.to_string()
+            };
+            (part, String::new())
+        }
         Operand::Imm(val)
             if matches!(
                 instr.op,
@@ -143,19 +164,11 @@ fn format_operand<S: BuildHasher>(
                     | Op::REGEXP
             ) =>
         {
-            let part = if *val >= 0 {
-                format!("+{val}")
-            } else {
-                format!("{val}")
-            };
+            let part = signed_operand(*val);
             (part, String::new())
         }
         Operand::Imm(val) if matches!(instr.op, Op::RETURN_IMM | Op::SYNTAX) && j == 0 => {
-            let part = if *val >= 0 {
-                format!("+{val}")
-            } else {
-                format!("{val}")
-            };
+            let part = signed_operand(*val);
             (part, String::new())
         }
         Operand::Imm(val) if instr.op == Op::STR_CLASS => {
@@ -224,14 +237,21 @@ pub fn format_function_asm(asm: &FunctionAsm) -> String {
     if !asm.literals.is_empty() {
         lines.push("  Literals:".into());
         for (i, lit) in asm.literals.entries().iter().enumerate() {
-            lines.push(format!("    {i}: \"{}\"", esc(lit, 40)));
+            if let Some(bytes) = lit.byte_payload() {
+                lines.push(format!("    {i}: \"{}\"", esc_bytes(bytes, 40)));
+            } else {
+                lines.push(format!(
+                    "    {i}: <private original {:?}>",
+                    lit.allocation()
+                ));
+            }
         }
     }
 
     if !asm.lvt.is_empty() {
         lines.push("  Local variables:".into());
         for (i, var) in asm.lvt.entries().iter().enumerate() {
-            lines.push(format!("    %v{i}: \"{var}\""));
+            lines.push(format!("    %v{i}: \"{}\"", esc_bytes(var.as_bytes(), 40)));
         }
     }
 
@@ -280,36 +300,64 @@ pub fn format_function_asm(asm: &FunctionAsm) -> String {
             instr.op.mnemonic()
         ));
 
-        if instr.op == Op::JUMP_TABLE
-            && let Some(ref jt) = instr.jump_table
-        {
-            // `jump_table` is a `HashMap`, so sort by pattern for deterministic
-            // output (the table is order-independent at run time).
-            let mut sorted: Vec<(&String, &String)> = jt.iter().collect();
-            sorted.sort_unstable_by(|a, b| a.0.cmp(b.0));
-            let entries: Vec<String> = sorted
-                .into_iter()
-                .map(|(pattern, label)| {
-                    let target_pc = asm.labels.get(label.as_str()).copied().unwrap_or(0);
-                    format!("\"{}\"->pc {target_pc}", esc(pattern, 40))
-                })
-                .collect();
-            lines.push(format!("\t\t[{}]", entries.join(", ")));
-        }
+        format_instruction_tables(asm, instr, &mut lines);
     }
 
     lines.join("\n")
+}
+
+fn format_instruction_tables(asm: &FunctionAsm, instr: &Instruction, lines: &mut Vec<String>) {
+    if let Some(table) = &instr.native_switch_bytes {
+        let mut entries = table.iter().collect::<Vec<_>>();
+        entries.sort_unstable_by(|a, b| a.0.cmp(b.0));
+        let entries = entries
+            .into_iter()
+            .map(|(pattern, label)| {
+                let target = asm.labels.get(label.as_str()).copied().unwrap_or(0);
+                format!("\"{}\"->pc {target}", esc_bytes(pattern, 40))
+            })
+            .collect::<Vec<_>>();
+        lines.push(format!("\t\t[{}]", entries.join(", ")));
+    }
+    if let Some(table) = &instr.native_switch_integers {
+        let mut entries = table.iter().collect::<Vec<_>>();
+        entries.sort_unstable_by_key(|(integer, _)| **integer);
+        let entries = entries
+            .into_iter()
+            .map(|(integer, label)| {
+                let target = asm.labels.get(label.as_str()).copied().unwrap_or(0);
+                format!("{integer}->pc {target}")
+            })
+            .collect::<Vec<_>>();
+        lines.push(format!("\t\t[{}]", entries.join(", ")));
+    }
+    if instr.op == Op::JUMP_TABLE
+        && let Some(ref jt) = instr.jump_table
+    {
+        // `jump_table` is a `HashMap`, so sort by pattern for deterministic
+        // output (the table is order-independent at run time).
+        let mut sorted: Vec<(&String, &String)> = jt.iter().collect();
+        sorted.sort_unstable_by(|a, b| a.0.cmp(b.0));
+        let entries: Vec<String> = sorted
+            .into_iter()
+            .map(|(pattern, label)| {
+                let target_pc = asm.labels.get(label.as_str()).copied().unwrap_or(0);
+                format!("\"{}\"->pc {target_pc}", esc(pattern, 40))
+            })
+            .collect();
+        lines.push(format!("\t\t[{}]", entries.join(", ")));
+    }
 }
 
 /// Format an entire [`ModuleAsm`] for display.
 #[must_use]
 pub fn format_module_asm(module: &ModuleAsm) -> String {
     let mut parts = vec![format_function_asm(&module.top_level)];
-    let mut proc_names: Vec<&String> = module.procedures.keys().collect();
-    proc_names.sort();
-    for name in proc_names {
+    let mut body_ids: Vec<_> = module.procedures.keys().collect();
+    body_ids.sort();
+    for id in body_ids {
         parts.push(String::new());
-        parts.push(format_function_asm(&module.procedures[name]));
+        parts.push(format_function_asm(&module.procedures[id]));
     }
     parts.join("\n")
 }
@@ -317,6 +365,55 @@ pub fn format_module_asm(module: &ModuleAsm) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_list_index_clone_and_display_preserve_the_native_coordinate() {
+        use tcl_syntax::native_compiled_index::NativeCompiledListIndex;
+        let labels = HashMap::<String, usize>::new();
+        for (encoded, expected) in [(-3, "end-1"), (-2, "end"), (-1, "-1"), (0, "0")] {
+            let mut original = Instruction::new(Op::LIST_INDEX_IMM, vec![Operand::Imm(encoded)]);
+            original.native_list_index = Some(NativeCompiledListIndex::from_encoded(encoded));
+            let copied = original.clone();
+            assert_eq!(copied.native_list_index, original.native_list_index);
+            assert_eq!(
+                format_operand(&copied.operands[0], &copied, 0, &labels).0,
+                expected
+            );
+        }
+        let portable = Instruction::new(Op::LIST_INDEX_IMM, vec![Operand::Imm(crate::INDEX_END)]);
+        assert!(portable.native_list_index.is_none());
+        assert_eq!(
+            format_operand(&portable.operands[0], &portable, 0, &labels).0,
+            "end"
+        );
+    }
+
+    #[test]
+    fn native_list_range_clone_and_display_preserve_both_coordinates() {
+        use tcl_syntax::native_compiled_index::{NativeCompiledListIndex, NativeCompiledListRange};
+        let labels = HashMap::<String, usize>::new();
+        let mut original =
+            Instruction::new(Op::LIST_RANGE_IMM, vec![Operand::Imm(0), Operand::Imm(-3)]);
+        original.native_list_range = Some(NativeCompiledListRange {
+            first: NativeCompiledListIndex::from_encoded(0),
+            last: NativeCompiledListIndex::from_encoded(-3),
+        });
+        let copied = original.clone();
+        assert_eq!(copied.native_list_range, original.native_list_range);
+        assert_eq!(
+            format_operand(&copied.operands[0], &copied, 0, &labels).0,
+            "0"
+        );
+        assert_eq!(
+            format_operand(&copied.operands[1], &copied, 1, &labels).0,
+            "end-1"
+        );
+        assert!(
+            Instruction::new(Op::LIST_RANGE_IMM, vec![])
+                .native_list_range
+                .is_none()
+        );
+    }
 
     #[test]
     fn esc_basic() {
@@ -387,6 +484,11 @@ mod tests {
 
         let asm = FunctionAsm {
             name: "test".into(),
+            native_compilation_failure: None,
+            native_compilation_preflight: tcl_runtime_api::NativeCompilationPreflight::NotRequired,
+            native_math_table_prerequisite: None,
+            native_compiler_prerequisites: Vec::new(),
+            required_compiled_local_layout: None,
             literals: lit,
             lvt: LocalVarTable::new(&[]),
             instructions: instrs,

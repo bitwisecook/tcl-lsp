@@ -39,20 +39,319 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::hash::Hash;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 use crate::alias::is_current_interpreter;
 use crate::cfg::BlockId;
 use crate::cfg::Function as CfgFunction;
 use crate::ir::{Module, Script, Statement};
 use crate::ir_helpers::{evaluated_command_substitutions_with_replay, nested_bodies};
-use crate::naming::is_dynamic_word;
 use crate::naming::normalise_qualified_name as nqn;
 use crate::var_escape::helpers::invocation_facts;
 use tcl_registry::{
     CommandBindingDefinitionKind, CommandBindingTransition, CommandRegistry,
-    EffectiveRegistrySemantics, NamespaceTransition, StateTransition, StateTransitionDomain,
-    TransitionSubject,
+    EffectiveRegistrySemantics, InvocationFacts, NamespaceTransition, StateTransition,
+    StateTransitionDomain, TransitionSubject,
+};
+
+mod default_manufacture_advice;
+mod deferred_body_index;
+mod deferred_namespace_index;
+mod executed_expression_source;
+mod executed_script_source;
+mod frozen_arguments;
+mod future_bodies;
+mod hosted_procedure_body;
+mod incomplete_body_metadata;
+mod logical_definition;
+pub use hosted_procedure_body::OriginalHostedProcedureBody;
+mod logical_operation;
+mod logical_prefix;
+mod logical_word_values;
+mod materialized_footprint;
+mod native_list_assignment;
+mod original_callback_lookup;
+mod original_compiler_effects;
+mod original_missing_command;
+mod original_source_projection;
+pub(crate) use original_missing_command::OriginalMissingCommandContext;
+mod pre_handler_failure;
+#[cfg(any(test, debug_assertions))]
+mod source_arguments;
+mod source_name_lookup;
+mod source_unavailability_advice;
+pub use default_manufacture_advice::OriginalDefaultManufactureShape;
+pub use original_callback_lookup::OriginalCallbackPrefix;
+mod insertion_template;
+mod original_command_mutation;
+mod original_command_table;
+mod original_namespace_binding;
+mod original_namespace_body;
+pub(crate) mod original_namespace_deletion;
+pub(crate) mod original_namespace_ensure;
+mod original_namespace_path;
+mod own_object_configuration;
+pub use insertion_template::OriginalScalarAssignmentCommand;
+mod original_class_configuration;
+pub use original_class_configuration::OriginalSourceClassConfigurationTarget;
+pub use original_class_configuration::OriginalSourceObjectConfigurationTarget;
+pub use source_name_lookup::OriginalCommandLookup;
+mod source_command_world;
+pub use future_bodies::{SourceFutureBodyInventory, SourceFutureCallSite};
+pub use source_command_world::{
+    OriginalClassInstanceMethodRoster, OriginalCommandPublication, OriginalCommandPublicationKind,
+    OriginalCompletedCommandWorld,
+};
+mod operand_layout;
+mod retained_source;
+pub use retained_source::RetainedSourceModuleBindings;
+pub(crate) use retained_source::source_analysis_frame;
+#[cfg(test)]
+mod semantic_equality;
+mod shared_inventory;
+pub use operand_layout::SourceNativeOperandLayoutProof;
+use shared_inventory::SharedSourceInventory;
+mod conditional_body;
+mod declaration_flow;
+mod source_declared_command;
+mod source_declared_method_template;
+pub(crate) use declaration_flow::DeclarationFlowReport;
+pub(crate) use source_declared_command::{DeclaredSourceSelection, OriginalLogicalLambdaBody};
+pub use source_declared_command::{
+    OriginalDeclaredCommandWords, OriginalDeclaredLogicalBodyContext,
+    OriginalDeclaredSourceBodyFrame, OriginalDeclaredSourceObligation,
+};
+mod declaration_body_ownership;
+mod declaration_layout;
+mod logical_variable_scope;
+pub(crate) use declaration_layout::OriginalBodyParameterSourceScope;
+pub use declaration_layout::SourceOriginalVariableFrame;
+pub(crate) use logical_variable_scope::OriginalLogicalVariableScope;
+mod declaration_preview;
+mod source_read_scope;
+pub(crate) use declaration_preview::{
+    OriginalAuthoredProcedureSourceGeometry, OriginalProcedureReadDeclaration,
+};
+pub(crate) use source_read_scope::{SourceReadScope, source_targets_match_advice};
+mod scalar_body_alpha;
+pub use scalar_body_alpha::{OriginalLocalStoreAlphaRename, OriginalScalarBodyAlphaRename};
+mod vendor_catalogue_advice;
+pub use vendor_catalogue_advice::{
+    VendorCatalogueSourceCandidate, VendorCatalogueSourceObligation,
+};
+mod source_catalogue_advice;
+mod source_transition_advice;
+pub use source_catalogue_advice::{
+    OriginalCatalogueSourceCandidate, OriginalCatalogueSourceObligation,
+};
+pub(crate) use source_transition_advice::LogicalSourceClassRelationProvider;
+pub use source_transition_advice::OriginalAuthoredJimClassCall;
+pub use source_transition_advice::{
+    LogicalExternalClassMemberSelector, OriginalLogicalAbsoluteCommandCandidate,
+    OriginalLogicalCallbackCandidates, OriginalLogicalCommandCandidates,
+    OriginalLogicalMathFunctionOccurrence, OriginalLogicalNameReference,
+    OriginalLogicalProcedureBody, OriginalLogicalProcedureCall, OriginalLogicalSourceNameInput,
+    OriginalSourceAuthoredCommandPrefix, OriginalSourceCallbackProcedureLookup,
+    OriginalSourceCallbackProcedureRefusal, OriginalSourceCallbackProcedureTarget,
+    OriginalSourceCallbackProcedureTargetKind, OriginalSourceCallbackRegistration,
+    OriginalSourceClassCandidate, OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding,
+    OriginalSourceClassInstance, OriginalSourceClassInstanceWords, OriginalSourceClassProcCall,
+    OriginalSourceClassPublication, OriginalSourceClassPublications, OriginalSourceClassReference,
+    OriginalSourceCommandTransition, OriginalSourceCommandTransitionAdvice,
+    OriginalSourceConfiguredClassReference, OriginalSourceConstructorBodyAttempt,
+    OriginalSourceConstructorBodyCoverage, OriginalSourceConstructorBodyDisposition,
+    OriginalSourceConstructorCall, OriginalSourceConstructorShape,
+    OriginalSourceInterpreterHandleBody, OriginalSourceInterpreterPathBinding,
+    OriginalSourceProcedureCandidate, OriginalSourceProcedurePublication,
+    OriginalSourceProcedurePublications, OriginalSourceProducedCommandPrefix,
+    OriginalSourceRegisteredHandleBinding, OriginalSourceRegisteredInstance,
+    OriginalSourceRegisteredInstanceWords, SourceAdviceNameInput,
+    SourceCommandTransitionObligation,
+};
+pub use source_transition_advice::{
+    LogicalSourceClassRelationCandidates, LogicalSourceClassRelationTarget,
+    OriginalSourceClassRelationProvider, OriginalSourcePublicationProposal,
+};
+pub use source_transition_advice::{
+    OriginalAuthoredJimClass, OriginalConditionalLambdaFormattingBody,
+};
+pub use source_transition_advice::{
+    OriginalNativeProcedureBodyCommand, OriginalSourceProcedureCall,
+};
+pub(crate) use source_transition_advice::{
+    OriginalNativeSourceBodyChildren, OriginalSourceCataloguePurpose,
+};
+pub(crate) use source_transition_advice::{
+    OriginalSourceTransitionAdviceLookup, OriginalSourceTransitionAdviceTape,
+};
+pub(crate) use source_transition_advice::{
+    original_single_command_substitution_words, original_single_command_substitution_words_in_plan,
+};
+mod original_literal_argv_rewrite;
+pub(crate) use original_literal_argv_rewrite::configured_expression_syntax_gaps;
+pub use original_literal_argv_rewrite::{
+    OriginalExpressionGapCompaction, OriginalLiteralExpressionBracing,
+};
+mod expression_operand_advice;
+mod formal_call_advice;
+mod lifecycle_advice;
+mod trusted_package_transfer;
+pub(crate) use expression_preparation::SourceConditionalExpressionEvaluation;
+mod original_math_function;
+pub use original_math_function::OriginalMathFunctionOccurrence;
+mod math_occurrence;
+pub use math_occurrence::{SourceConditionalMathInvocation, SourceMathInvocation};
+pub(crate) mod formal_topology;
+mod formal_value;
+mod origin_inventory;
+pub(crate) use origin_inventory::OriginalInvocationSourcePurpose;
+mod retained_body_inventory;
+pub(crate) use retained_body_inventory::RetainedSourceBodyInventory;
+mod original_body_namespace;
+pub(crate) use original_body_namespace::original_logical_frame_body_namespace_for_module;
+#[cfg(test)]
+mod original_restoration_obligation_tests;
+#[cfg(test)]
+mod original_restored_nested_declaration_tests;
+#[cfg(test)]
+mod original_script_parse_entry_tests;
+pub(crate) use conditional_body::SourceConditionalBodyEntry;
+pub use conditional_body::{SourceCallerFrameInvocationTemplate, SourceDeclaredReceiverBodyEntry};
+pub use source_declared_method_template::OriginalDeclaredSelfMethodTemplate;
+mod source_file;
+mod substitution_template;
+pub use executed_expression_source::ExecutedExpressionSource;
+pub use executed_script_source::{ExecutedScriptMapping, ExecutedScriptSource};
+mod analysis_body_correspondence;
+pub(crate) use analysis_body_correspondence::AnalyticalBodyCorrespondence;
+mod body_template;
+pub use body_template::{BodyProofScope, BodySourceProofs, NativeBodyTemplate};
+mod command_publication;
+mod compiled_invocation;
+mod ensemble_compilation;
+mod named_arguments;
+mod named_invocation;
+pub use named_invocation::SourceNamedInvocationProof;
+mod argument_reads;
+mod read_store_schedule;
+pub use read_store_schedule::SourceReadStoreObservation;
+mod method_prefix;
+pub use method_prefix::SourceCapturedMethodPrefix;
+mod array_destruction;
+mod array_iteration;
+mod command_mutations;
+mod command_observers;
+mod command_reference;
+mod declaration_lookup;
+mod linked_definition;
+pub use command_reference::{
+    SourceCommandDefinition, SourceCommandDefinitionKind, SourceCommandReference,
+    SourceCommandReferenceBinding,
+};
+mod command_presence;
+mod definition_method_references;
+pub use definition_method_references::SourceDefinitionMethodReference;
+mod definition_reference_inventory;
+mod generated_procedures;
+pub use command_presence::SourceCommandSlotPresence;
+pub use generated_procedures::{
+    OriginalNativeProcedureBody, SourceInstalledProcedureBody, SourceProcedureImplementationBody,
+};
+mod compiled_preflight;
+mod compiler_inventory;
+pub(crate) use compiler_inventory::OriginalCompilerArgumentSyntax;
+mod variable_observers;
+mod variable_outputs;
+pub use compiled_preflight::{
+    SourceNativeCompilationContext, SourceNativeCompilationDependency,
+    SourceNativeCompilationFailure,
+};
+pub use compiler_inventory::SourceRuntimeReachability;
+mod case_bodies;
+#[cfg(test)]
+mod conditional_expression_tests;
+mod constructor_execution;
+mod deferred_forward;
+mod deferred_method;
+mod dictionary_scope;
+mod dictionary_store;
+mod evaluated_word;
+mod expression_preparation;
+mod interpreter_manufacture;
+#[cfg(test)]
+mod logical_dispatch_purpose_tests;
+pub(crate) mod named_manufacture;
+mod native_class_factory_roles;
+mod original_alias_creation;
+mod original_class_factory_transfer;
+pub(crate) mod original_receiver_body_context;
+mod receiver_self;
+pub(crate) mod receiver_variable_inventory;
+mod registered_class_factory;
+pub use receiver_self::SourceReceiverBuiltinCandidates;
+mod rule_declaration;
+pub use rule_declaration::SourceRuleDeclarationCandidate;
+mod try_bodies;
+pub use expression_preparation::{SourceExpressionPreparation, SourceExpressionScriptCompilation};
+mod invocation_reads;
+mod literal_object_pool;
+pub use literal_object_pool::SourceStockLiteralObject;
+mod normal_result;
+mod normal_variable_continuation;
+mod original_variable_inventory;
+pub use normal_result::SourceNormalResult;
+pub(crate) mod object_callbacks;
+pub use invocation_reads::{
+    SourceInvocationVariableRead, SourceInvocationVariableReads, SourceVariableReadResidual,
+};
+mod container_coercion;
+mod native_result;
+mod numeric_operand_cache;
+mod object_instance;
+pub(crate) mod original_name_value;
+pub(crate) use original_name_value::OriginalBodyWrittenWordOwner;
+pub(crate) mod original_variable_compilation;
+mod package_target_survey;
+pub(crate) use package_target_survey::OriginalPackageIndexSourceModel;
+mod conditional_source;
+pub(crate) use conditional_source::OriginalSourceFiniteCut;
+mod source_analysis_cache;
+mod source_analysis_entry;
+mod source_point_entry;
+pub use conditional_source::{
+    OriginalSourceConditionalContinuation, OriginalSourceConditionalOutcome,
+    OriginalSourceConditionalRegion, OriginalSourceConditionalRegionSet,
+};
+mod source_argument_syntax;
+use source_analysis_entry::native_compilation_dialect;
+pub use source_analysis_entry::{SourceAnalysisEntry, SourceAnalysisOptions};
+pub(crate) use source_analysis_entry::{SourceDeclaredCommandContracts, source_input_dialect};
+pub use source_point_entry::{
+    OriginalSourcePointEntry, OriginalSourcePointObligation, OriginalSourcePointOrigin,
+};
+mod source_loop;
+mod source_representation;
+pub use deferred_method::{
+    SourceMethodReceiver, SourceReceiverMethodEntries, SourceReceiverMethodEntry,
+};
+pub use object_instance::{SourceObjectAllocation, SourceObjectInstanceProof};
+mod cfg_lookup_context;
+mod namespace_context;
+use cfg_lookup_context::{CfgLookupContexts, CfgPointContext};
+mod namespace_slots;
+pub(crate) use namespace_context::NamespaceKeyQuery;
+pub(crate) use namespace_context::SourceCommandKey;
+pub use namespace_context::SourceNamespaceKey;
+use namespace_context::{
+    CommandKeyQuery, SourceCommandTable, SourceNamespaceMap, SourceNamespaceSet,
+};
+mod native_variable_tables;
+mod runtime_entry;
+mod snit_definition;
+pub use compiled_invocation::{
+    CompiledExecutionCertainty, CompiledExecutionResidual, NativeCompilationSnapshot,
+    NativeCompilerTargets, NativeInlineRejection, SourceCompiledInvocationProof,
+    SourceNativeNamespaceBindingPreparation, SourceNativeStructuredPreparation,
 };
 
 /// The lattice element a command name resolves to.
@@ -60,7 +359,7 @@ use tcl_registry::{
 /// Height-3 join lattice: [`BindingKind::Bottom`] (⊥) is the identity,
 /// a concrete binding joined with itself is unchanged, and two
 /// *different* bindings rise to [`BindingKind::Unknown`] (⊤).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BindingKind {
     /// ⊥ — identity for join (no contribution yet).
     Bottom,
@@ -102,22 +401,505 @@ pub struct Binding {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct ResolvedCommandTarget {
     pub(crate) command: String,
-    pub(crate) prepended: Vec<String>,
+    pub(crate) prepended: Vec<crate::registry_invocation::EffectiveInvocationWord>,
     /// Whether `command` denotes the registry descriptor of that spelling.
     /// A retained user procedure is an exact call-graph target but must not
     /// inherit a same-named builtin's registry semantics.
     pub(crate) registry_backed: bool,
+    kind: BindingKind,
+    implementation_generation: u32,
+    implementation_allocation: Option<CommandAllocation>,
     terminal: bool,
+    target_lookup: tcl_registry::AliasTargetLookup,
+    token: Option<CommandToken>,
+}
+
+/// Object identity survives movement of its command-table slot. Imports keep
+/// this identity; interpreter aliases perform target-name lookup instead.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CommandIdentity {
+    /// Actual interpreter token supplied by a live runtime entry snapshot.
+    pub runtime: Option<RuntimeCommandTokenIdentity>,
+    /// Slot in which this token was originally created.
+    pub origin: String,
+    /// Source creation site; zero denotes an explicit entry implementation.
+    pub declaration: u32,
+    /// Allocation identity; source offsets alone do not identify derived code
+    /// or a command recreated by another execution of the same source site.
+    pub allocation: Option<CommandAllocation>,
+}
+
+/// Stable runtime command identity; generations belong to implementations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RuntimeCommandTokenIdentity {
+    /// Interpreter owner and non-reused interpreter arena identity.
+    pub interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+    /// Non-reused command token within the interpreter.
+    pub token: u64,
+}
+
+type CommandToken = CommandIdentity;
+
+/// Source instance in which an executable command was allocated.
+#[derive(Debug, Clone)]
+pub struct SourceOriginId {
+    kind: Arc<SourceOriginKind>,
+    fingerprint: u64,
+    activation_key: u64,
+}
+
+/// Memo sidecars never participate in source Eq/Hash or allocation identity.
+/// Entries retain only a weak actual owner; dead owners are retired on access.
+struct AllocationMemoTable<O, M> {
+    entries: HashMap<usize, (Weak<O>, Arc<M>)>,
+}
+impl<O, M> Default for AllocationMemoTable<O, M> {
+    fn default() -> Self {
+        Self {
+            entries: HashMap::new(),
+        }
+    }
+}
+impl<O, M: Default> AllocationMemoTable<O, M> {
+    fn get_or_init(&mut self, owner: &Arc<O>) -> Arc<M> {
+        self.entries
+            .retain(|_, (owner, _)| owner.strong_count() != 0);
+        let key = Arc::as_ptr(owner) as usize;
+        if let Some((retained, memo)) = self.entries.get(&key)
+            && retained
+                .upgrade()
+                .is_some_and(|retained| Arc::ptr_eq(&retained, owner))
+        {
+            return Arc::clone(memo);
+        }
+        let memo = Arc::new(M::default());
+        self.entries
+            .insert(key, (Arc::downgrade(owner), Arc::clone(&memo)));
+        memo
+    }
+}
+
+#[derive(Default)]
+struct SourceOriginInterner {
+    buckets: HashMap<u64, Vec<(Weak<SourceOriginKind>, u64)>>,
+    next_key: u64,
+}
+
+impl SourceOriginInterner {
+    fn intern(&mut self, source: &Arc<SourceOriginKind>, fingerprint: u64) -> u64 {
+        if self.next_key.is_multiple_of(64) {
+            self.buckets.retain(|_, sources| {
+                sources.retain(|(source, _)| source.strong_count() != 0);
+                !sources.is_empty()
+            });
+        }
+        let bucket = self.buckets.entry(fingerprint).or_default();
+        let existing = bucket.iter().find_map(|(retained, key)| {
+            retained
+                .upgrade()
+                .filter(|retained| retained == source)
+                .map(|_| *key)
+        });
+        let key = existing.unwrap_or_else(|| {
+            self.next_key = self
+                .next_key
+                .checked_add(1)
+                .expect("source identity exhausted");
+            self.next_key
+        });
+        bucket.push((Arc::downgrade(source), key));
+        key
+    }
+}
+
+/// Semantic source identity retained behind a cached fingerprint.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SourceOriginKind {
+    /// Source-only child view from an authentic parent point. This is neither
+    /// actual file loading nor an entered Native/runtime source instance.
+    InheritedPoint {
+        /// Privately issued identity; the full entry independently owns state.
+        parent: OriginalSourcePointOrigin,
+        /// Exact child image and source channel supplied for this view.
+        source: tcl_lexer::SourceImage,
+    },
+    /// Authored source bytes supplied by the compilation driver.
+    Authored(tcl_lexer::SourceImage),
+    /// Driver-attested file bytes, retaining distinct file/provider identity.
+    Loaded {
+        /// Exact selected path; no filename catalogue proves this source.
+        path: Arc<str>,
+        /// Stable selected implementation identity supplied by the driver.
+        implementation_id: Arc<str>,
+        /// Exact decoded script bytes consumed by native source evaluation.
+        source: tcl_lexer::SourceImage,
+    },
+    /// Conditional source syntax decoded from an original configured list field.
+    /// This is not native script materialisation, a document root or body entry.
+    ConditionalField {
+        /// Actual original parent invocation in its own source instance.
+        parent: CommandAllocationSite,
+        /// Actual effective post-head lambda argument ordinal.
+        argument: usize,
+        /// Actual list field ordinal within the complete lambda word.
+        field: usize,
+        /// Decoded source-only script bytes in their distinct source instance.
+        source: tcl_lexer::SourceImage,
+    },
+    /// Script materialised from the frozen operands of another invocation.
+    Derived {
+        /// Parent invocation, including its source instance.
+        parent: CommandAllocationSite,
+        /// Effective argument positions contributing to the script.
+        arguments: Vec<usize>,
+        /// Exact concatenated source, retaining semantic equality beyond hashes.
+        source: tcl_lexer::SourceImage,
+        /// Parsing protocol of the materialised value.
+        kind: MaterialisedSourceKind,
+    },
+}
+
+impl SourceOriginId {
+    /// Retain one authored source instance without hashing its bytes at each
+    /// command allocation or immutable interpreter snapshot.
+    #[must_use]
+    pub fn authored(source: &Arc<str>) -> Self {
+        Self::authored_image(tcl_lexer::SourceImage::document(source))
+    }
+
+    /// Retain the exact original source and its selected input channel.
+    #[must_use]
+    pub fn authored_image(source: tcl_lexer::SourceImage) -> Self {
+        Self::from_kind(SourceOriginKind::Authored(source))
+    }
+
+    /// Retain an actual selected file independently of equal bytes in another file.
+    #[must_use]
+    pub fn loaded(path: Arc<str>, implementation_id: Arc<str>, source: &Arc<str>) -> Self {
+        Self::loaded_image(
+            path,
+            implementation_id,
+            tcl_lexer::SourceImage::native(Arc::<[u8]>::from(source.as_bytes())),
+        )
+    }
+
+    /// Retain selected file identity and the driver's exact source receipt.
+    #[must_use]
+    pub fn loaded_image(
+        path: Arc<str>,
+        implementation_id: Arc<str>,
+        source: tcl_lexer::SourceImage,
+    ) -> Self {
+        Self::from_kind(SourceOriginKind::Loaded {
+            path,
+            implementation_id,
+            source,
+        })
+    }
+
+    /// Full semantic identity; fingerprints never substitute for this data.
+    #[must_use]
+    pub fn kind(&self) -> &SourceOriginKind {
+        self.kind.as_ref()
+    }
+
+    /// Original source bytes and channel, without a display conversion.
+    #[must_use]
+    pub fn source_image(&self) -> &tcl_lexer::SourceImage {
+        match self.kind() {
+            SourceOriginKind::InheritedPoint { source, .. }
+            | SourceOriginKind::Authored(source)
+            | SourceOriginKind::Loaded { source, .. }
+            | SourceOriginKind::Derived { source, .. }
+            | SourceOriginKind::ConditionalField { source, .. } => source,
+        }
+    }
+
+    /// Whole-source Unicode view for consumers whose contract requires text.
+    ///
+    /// # Errors
+    /// Returns the original UTF-8 failure; opaque bytes retain their identity.
+    pub fn try_text(&self) -> Result<&str, std::str::Utf8Error> {
+        self.source_image().try_text()
+    }
+
+    fn derived(
+        parent: CommandAllocationSite,
+        arguments: Vec<usize>,
+        source: &Arc<str>,
+        kind: MaterialisedSourceKind,
+    ) -> Self {
+        Self::derived_image(
+            parent,
+            arguments,
+            tcl_lexer::SourceImage::native(Arc::<[u8]>::from(source.as_bytes())),
+            kind,
+        )
+    }
+
+    fn derived_image(
+        parent: CommandAllocationSite,
+        arguments: Vec<usize>,
+        source: tcl_lexer::SourceImage,
+        kind: MaterialisedSourceKind,
+    ) -> Self {
+        Self::from_kind(SourceOriginKind::Derived {
+            parent,
+            arguments,
+            source,
+            kind,
+        })
+    }
+
+    fn from_kind(kind: SourceOriginKind) -> Self {
+        static INTERNER: OnceLock<Mutex<SourceOriginInterner>> = OnceLock::new();
+        let kind = Arc::new(kind);
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        kind.hash(&mut hasher);
+        let fingerprint = std::hash::Hasher::finish(&hasher);
+        let activation_key = INTERNER
+            .get_or_init(|| Mutex::new(SourceOriginInterner::default()))
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .intern(&kind, fingerprint);
+        Self {
+            kind,
+            fingerprint,
+            activation_key,
+        }
+    }
+
+    /// Reuse only derived lexical geometry of this immutable source instance.
+    /// Complete config, offset and original vector are matched independently
+    /// of every caller's current lookup, input, metadata and Native admission.
+    pub(crate) fn original_lexical_command(
+        &self,
+        words: &[crate::ir::WordExpr],
+        offset: u32,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<Arc<crate::registry_invocation::OriginalSourceCommandProjection>> {
+        self.original_lexical_projection()
+            .capture(self.source_image(), words, offset, config)
+    }
+
+    /// Checked original words of `region` in this source's own image. Clean
+    /// nested command-body verdicts are shared with every other walk of this
+    /// immutable source instance; the plan equals the unshared capture.
+    pub(crate) fn original_script_words_in(
+        &self,
+        region: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+        purpose: tcl_lexer::SourceSegmentationPurpose,
+    ) -> Result<tcl_lexer::NativeScriptWordsPlan, tcl_lexer::NativeScriptWordsUnavailable> {
+        let projection = self.original_lexical_projection();
+        tcl_lexer::native_script_words_in_with_purpose_and_memo(
+            self.source_image().clone(),
+            region,
+            config,
+            purpose,
+            projection.nested_cuts(),
+        )
+    }
+
+    fn original_lexical_projection(
+        &self,
+    ) -> Arc<original_source_projection::OriginalSourceProjectionMemo> {
+        static MEMOS: OnceLock<
+            Mutex<
+                AllocationMemoTable<
+                    SourceOriginKind,
+                    original_source_projection::OriginalSourceProjectionMemo,
+                >,
+            >,
+        > = OnceLock::new();
+        MEMOS
+            .get_or_init(|| Mutex::new(AllocationMemoTable::default()))
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get_or_init(&self.kind)
+    }
+
+    const fn fingerprint(&self) -> u64 {
+        self.fingerprint
+    }
+
+    fn activation_key(source: &Arc<Self>) -> u64 {
+        source.activation_key
+    }
+}
+
+fn source_activation_name(
+    origin: Option<&Arc<SourceOriginId>>,
+    label: &str,
+    offset: u32,
+) -> String {
+    origin.map_or_else(
+        || format!("{label}/site:{offset}"),
+        |origin| {
+            format!(
+                "{label}/source:{}/site:{offset}",
+                SourceOriginId::activation_key(origin)
+            )
+        },
+    )
+}
+
+fn source_procedure_activation_name(
+    origin: Option<&Arc<SourceOriginId>>,
+    target: &SourceCommandTarget,
+    site: u32,
+) -> String {
+    let mut label = format!("{}@{}", target.command, target.implementation_generation);
+    if let Some(allocation) = &target.implementation_allocation {
+        use std::fmt::Write;
+        write!(
+            label,
+            "/implementation:{}:{}:{:?}",
+            SourceOriginId::activation_key(&allocation.site.source),
+            allocation.site.offset,
+            allocation.incarnation,
+        )
+        .expect("formatting an activation identity into a String");
+    }
+    source_activation_name(origin, &label, site)
+}
+
+fn source_called_body_activation_name(
+    origin: Option<&Arc<SourceOriginId>>,
+    target: &SourceCommandTarget,
+    body: &DeferredSourceBody,
+    site: u32,
+) -> String {
+    let parent = source_procedure_activation_name(origin, target, site);
+    if body.receiver_method
+        && let Some((declaration, _, _)) = &body.executed_script
+    {
+        return format!(
+            "{parent}/body:{}:{}",
+            SourceOriginId::activation_key(&declaration.source),
+            declaration.offset,
+        );
+    }
+    parent
+}
+
+impl PartialEq for SourceOriginId {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.kind, &other.kind)
+            || (self.fingerprint() == other.fingerprint() && self.kind == other.kind)
+    }
+}
+
+impl Eq for SourceOriginId {}
+
+impl Hash for SourceOriginId {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.fingerprint().hash(state);
+    }
+}
+
+impl PartialOrd for SourceOriginId {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SourceOriginId {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        if Arc::ptr_eq(&self.kind, &other.kind) {
+            return std::cmp::Ordering::Equal;
+        }
+        self.fingerprint()
+            .cmp(&other.fingerprint())
+            .then_with(|| self.kind.cmp(&other.kind))
+    }
+}
+
+/// Native protocol interpreting a materialised argv value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MaterialisedSourceKind {
+    /// Tcl script parser.
+    Script,
+    /// Tcl expression parser.
+    Expression,
+}
+
+/// An allocation instruction in one authored or materialised source instance.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CommandAllocationSite {
+    /// Source instance; derived offsets are never authored document offsets.
+    pub source: Arc<SourceOriginId>,
+    /// Offset within that source instance.
+    pub offset: u32,
+}
+
+impl CommandAllocationSite {
+    /// Compact storage projection for this exact source allocation instruction.
+    /// Callers retain the typed site as the equality proof and append their
+    /// allocation incarnation and implementation generation independently.
+    #[must_use]
+    pub fn variable_storage_identity(&self) -> String {
+        format!(
+            "source:{}:{}",
+            SourceOriginId::activation_key(&self.source),
+            self.offset
+        )
+    }
+}
+
+/// Bounded incarnation of an allocation instruction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AllocationIncarnation {
+    /// First reached execution.
+    First,
+    /// Second reached execution, distinct from an earlier captured token.
+    Second,
+    /// Further executions; no unique runtime token is asserted.
+    RepeatedFresh,
+}
+
+/// Command allocation, distinct from its current name and implementation.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CommandAllocation {
+    /// Instruction allocating the token or implementation.
+    pub site: CommandAllocationSite,
+    /// Repeated executions must not alias a prior captured runtime identity.
+    pub incarnation: AllocationIncarnation,
+    /// Presentation of the evaluated output slot, without lookup authority.
+    pub command: String,
+    /// Exact namespace owning the allocation, independent of its presentation.
+    pub namespace: SourceNamespaceKey,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum MayBinding {
     Target(ResolvedCommandTarget),
+    Imported(ImportedCommandBinding),
     /// The binding is absent on this path, so Tcl falls back from a local name
     /// to the global spelling (or reports `unknown` at the root).
     Missing,
     /// A command exists, but its implementation cannot be named statically.
     Unknown,
+}
+
+/// Callable origin and independently retained compiler token of an import.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct ImportedCommandBinding {
+    origin: CommandToken,
+    compiler: Option<CommandToken>,
+}
+
+impl From<CommandToken> for ImportedCommandBinding {
+    fn from(origin: CommandToken) -> Self {
+        Self {
+            origin,
+            compiler: None,
+        }
+    }
+}
+
+fn is_repeated_fresh_binding(binding: &MayBinding) -> bool {
+    matches!(binding, MayBinding::Target(target) if target.implementation_allocation.as_ref().is_some_and(|allocation| allocation.incarnation == AllocationIncarnation::RepeatedFresh))
 }
 
 /// Immutable registry facts shared by every may-state in one analysis.
@@ -127,21 +909,74 @@ enum MayBinding {
 /// during that walk, so carrying them in each [`ModuleCommandBindings`] clone
 /// made every branch and join copy the whole registry universe. Keep that
 /// baseline behind one [`Arc`] and let the lattice state stay sparse.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 struct BindingBaseline {
+    source_point_entry: Option<OriginalSourcePointEntry>,
+    metadata_context: crate::registry_invocation::OwnedInvocationMetadataContext,
+    /// Explicit module-declared frame effects, independent of native cells.
+    declared: Arc<crate::ir::DeclaredFrameEffects>,
+    logical_source_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    source_read_config: crate::var_resolve::SourceReadConfiguration,
+    vendor_source_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    hosted_execution_context: Option<tcl_registry::f5::BigIpExecutionContext>,
+    execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
+    compiled_variable_provider:
+        Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
+    invocation_realm: tcl_dialect::model::InvocationRealm,
+    unknown_entry: bool,
+    native_entry: Option<Arc<tcl_runtime_api::NativeCompilationEntry>>,
+    native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
+    fingerprint: u64,
+    registry_snapshot: Option<tcl_registry::RegistrySemanticKey>,
+    registry_owner: Option<tcl_registry::RegistrySnapshot>,
+    declared_commands: Arc<BTreeMap<String, String>>,
+    declared_surface: Option<Arc<source_analysis_entry::SourceDeclaredCommandContracts>>,
+    catalogue_commands: Arc<BTreeMap<String, String>>,
     /// Registry-owned, generation-specific facts shared with CFG construction.
     semantics: Arc<EffectiveRegistrySemantics>,
-    /// The commands the analysed document declares as plain calls
-    /// ([`Module::declared_frame_effects`]), with the frame effect each
-    /// declaration states. The fresh interpreter binds them beside the
-    /// registry's names: the document states that they exist and what they
-    /// do to the frame that calls them.
-    declared: Arc<crate::ir::DeclaredFrameEffects>,
+    /// Derived fixed descriptor projection, excluded from equality and hashing.
+    metadata_slots: OnceLock<Option<original_command_table::RegistryMetadataSlotIndex>>,
+    /// Derived descriptor geometry keyed by the actual immutable map and policy.
+    advice_slots: Arc<original_command_table::RegistryAdviceSlotMemo>,
+    import_binding: Option<tcl_dialect::NamespaceImportBinding>,
+    trusted_loaders: BTreeMap<String, TrustedPackageLoader>,
+    trusted_source_modules: Vec<TrustedSourceModuleLoader>,
+    release: Option<tcl_dialect::TclVersion>,
+    dialect: Option<tcl_registry::InvocationDialect>,
 }
 
 impl PartialEq for BindingBaseline {
     fn eq(&self, other: &Self) -> bool {
-        self.semantics.binding_names() == other.semantics.binding_names()
+        self.source_point_entry == other.source_point_entry
+            && self.metadata_context == other.metadata_context
+            && self.source_read_config == other.source_read_config
+            && self.logical_source_input == other.logical_source_input
+            && self.vendor_source_input == other.vendor_source_input
+            && self.hosted_execution_context == other.hosted_execution_context
+            && self.invocation_realm == other.invocation_realm
+            && self.execution_name_policy == other.execution_name_policy
+            && self.unknown_entry == other.unknown_entry
+            && self.registry_snapshot == other.registry_snapshot
+            && self
+                .registry_owner
+                .as_ref()
+                .map(tcl_registry::RegistrySnapshot::semantic_key)
+                == other
+                    .registry_owner
+                    .as_ref()
+                    .map(tcl_registry::RegistrySnapshot::semantic_key)
+            && self.native_entry == other.native_entry
+            && self.native_compilation == other.native_compilation
+            && self.compiled_variable_provider == other.compiled_variable_provider
+            && self.trusted_loaders == other.trusted_loaders
+            && self.trusted_source_modules == other.trusted_source_modules
+            && self.declared_commands == other.declared_commands
+            && self.declared_surface == other.declared_surface
+            && self.catalogue_commands == other.catalogue_commands
+            && self.release == other.release
+            && self.dialect == other.dialect
+            && self.import_binding == other.import_binding
+            && self.semantics.binding_names() == other.semantics.binding_names()
             && self.semantics.unresolved_command_handlers()
                 == other.semantics.unresolved_command_handlers()
             && self.declared == other.declared
@@ -151,25 +986,12046 @@ impl PartialEq for BindingBaseline {
 impl Eq for BindingBaseline {}
 
 impl BindingBaseline {
-    fn for_module(registry: &CommandRegistry, module: &Module) -> Self {
+    /// Original compiler engine only; handler policies remain in `dialect`.
+    fn compilation_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+        if self.source_point_entry.is_some() {
+            return None;
+        }
+        native_compilation_dialect(self.native_entry.as_deref(), self.dialect)
+    }
+
+    /// Fresh F5 rule-loader world: hosted source entered from a known entry in
+    /// the rule loader's realm (user decision 2026-10-21T00:10Z;
+    /// [`SourceAnalysisEntry::for_fresh_hosted_source`]).
+    fn hosted_rule_loader_world(&self) -> bool {
+        self.native_entry.is_none()
+            && !self.unknown_entry
+            && self.invocation_realm == tcl_dialect::model::InvocationRealm::RuleLoader
+            && self
+                .vendor_source_input
+                .as_ref()
+                .is_some_and(crate::analyser::ResolvedAnalysisInput::has_hosted_source_name_context)
+    }
+
+    /// Compilation context of an entered procedure or event body. In the fresh
+    /// F5 world each body runs in the TMM execution context, whose vendor
+    /// compiler protocol is unmeasured: its commands are selected when they
+    /// execute, after argv, as `Direct` states. Other worlds keep the
+    /// dialect's procedure-object protocol.
+    fn body_compilation(&self) -> tcl_registry::native_compilation::NativeCompilationContext {
+        if self.source_point_entry.is_some() {
+            return tcl_registry::native_compilation::NativeCompilationContext::default();
+        }
+        if self.hosted_rule_loader_world() {
+            return crate::environment_ingress::authoring_native_compilation();
+        }
+        procedure_compilation(self.compilation_dialect())
+    }
+
+    fn for_registry(registry: &CommandRegistry) -> Self {
+        let mut baseline = Self {
+            source_point_entry: None,
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::Standalone,
+            declared: Arc::new(crate::ir::DeclaredFrameEffects::default()),
+            logical_source_input: None,
+            source_read_config: crate::var_resolve::SourceReadConfiguration::Standalone,
+            vendor_source_input: None,
+            hosted_execution_context: None,
+            execution_name_policy: registry
+                .profile()
+                .and_then(|profile| {
+                    tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+                })
+                .map(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe),
+            invocation_realm: tcl_dialect::model::InvocationRealm::RuleLoader,
+            unknown_entry: false,
+            native_entry: None,
+            compiled_variable_provider: None,
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext::default(
+            ),
+            fingerprint: 0,
+            registry_snapshot: Some(registry.snapshot().semantic_key()),
+            registry_owner: Some(registry.snapshot()),
+            declared_commands: Arc::default(),
+            declared_surface: None,
+            catalogue_commands: Arc::new(
+                tcl_registry::unique_command_descriptor_coordinates(
+                    registry.command_descriptor_keys(),
+                )
+                .map(|(coordinate, key)| (coordinate, key.label().to_owned()))
+                .collect(),
+            ),
+            semantics: registry.profile().map_or_else(
+                || registry.effective_semantics(),
+                |profile| {
+                    registry.effective_semantics_for_dialect_in_realm(
+                        tcl_registry::InvocationDialect::of_profile(profile),
+                        tcl_dialect::model::InvocationRealm::InterpreterRuntime,
+                    )
+                },
+            ),
+            metadata_slots: OnceLock::new(),
+            advice_slots: Arc::default(),
+            import_binding: registry
+                .profile()
+                .and_then(tcl_dialect::DialectProfile::namespace_import_binding),
+            trusted_loaders: BTreeMap::new(),
+            trusted_source_modules: Vec::new(),
+            release: registry.runtime_version(),
+            dialect: registry
+                .profile()
+                .map(tcl_registry::InvocationDialect::of_profile),
+        };
+        baseline.refresh_fingerprint();
+        baseline
+    }
+
+    fn refresh_fingerprint(&mut self) {
+        let mut state = std::collections::hash_map::DefaultHasher::new();
+        self.source_point_entry.hash(&mut state);
+        self.registry_snapshot.hash(&mut state);
+        self.registry_owner
+            .as_ref()
+            .map(tcl_registry::RegistrySnapshot::semantic_key)
+            .hash(&mut state);
+        self.execution_name_policy.hash(&mut state);
+        self.metadata_context.hash(&mut state);
+        self.declared.hash(&mut state);
+        self.source_read_config.hash(&mut state);
+        self.logical_source_input.hash(&mut state);
+        self.vendor_source_input.hash(&mut state);
+        self.hosted_execution_context.hash(&mut state);
+        self.native_entry.hash(&mut state);
+        self.native_compilation.hash(&mut state);
+        self.compiled_variable_provider.hash(&mut state);
+        self.invocation_realm.hash(&mut state);
+        self.unknown_entry.hash(&mut state);
+        self.declared_commands.hash(&mut state);
+        self.declared_surface.hash(&mut state);
+        self.catalogue_commands.hash(&mut state);
+        self.semantics.binding_fingerprint().hash(&mut state);
+        self.import_binding.hash(&mut state);
+        self.trusted_loaders.hash(&mut state);
+        self.trusted_source_modules.hash(&mut state);
+        self.release.hash(&mut state);
+        self.dialect.hash(&mut state);
+        self.fingerprint = std::hash::Hasher::finish(&state);
+    }
+}
+
+/// A selected standard-distribution loader contract supplied by the driver.
+/// Package-name advertisements alone never create this provenance.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TrustedPackageLoader {
+    /// Native engine family audited by this provider, independent of its name.
+    pub required_core_family: Option<tcl_dialect::model::Family>,
+    /// Package whose unmodified loader is supplied at entry.
+    pub package: String,
+    /// Exact selected package version, when established by the provider.
+    pub version: Option<String>,
+    /// Stable provider/source implementation identity.
+    pub implementation_id: String,
+    /// Commands installed by this selected loader.
+    pub command_surface: Vec<String>,
+    /// Actual compiler registrations of installed commands, independently of handler semantics.
+    /// Missing rows preserve uncertainty; a package name or factory shape is not a stamp.
+    pub compiler_hooks:
+        BTreeMap<String, tcl_runtime_api::native_compilation::NativeCompilerHookPresence>,
+    /// Driver-attested definition recipes for these exact installed factories.
+    /// The command, lookup and namespace-state dependencies must also remain live.
+    /// This attestation does not prove constructor closure or an object class.
+    pub definition_dispatchers: BTreeSet<(String, tcl_registry::definer::DefinitionDispatcher)>,
+    /// Commands present in some audited version alternatives, never assumed absent.
+    pub optional_command_surface: Vec<String>,
+    /// Export patterns installed by this selected loader.
+    pub namespace_exports: BTreeMap<String, Vec<String>>,
+    /// Export patterns present in some audited version alternatives.
+    pub optional_namespace_exports: BTreeMap<String, Vec<String>>,
+    /// Lookup dependencies required before executing the selected loader.
+    /// They remain prerequisites of its installed implementation afterwards.
+    pub lookup_dependencies: Vec<TrustedCommandLookup>,
+    /// Lookup dependencies of the installed implementation, checked after loading.
+    /// Commands supplied by the loader itself cannot be preload prerequisites.
+    pub installed_lookup_dependencies: Vec<TrustedCommandLookup>,
+    /// Namespace storage whose callbacks influence the implementation.
+    pub state_dependency_namespaces: Vec<String>,
+    /// Cells with effects explicitly represented by the provider contract.
+    pub modelled_state_variables: Vec<String>,
+}
+
+/// A driver-attested file read consumed only by a reached native source handler.
+///
+/// The decoded bytes and physical file identity are exact. A workspace filename
+/// or known procedure declaration does not certify that this file is loaded.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TrustedSourceModuleLoader {
+    /// Native engine family audited by the driver.
+    pub required_core_family: tcl_dialect::model::Family,
+    /// Actual evaluated filename accepted by this file-read contract.
+    pub path: String,
+    /// Explicit encoding name, or the audited native default when absent.
+    pub encoding: Option<String>,
+    /// Exact decoded source and its driver-owned file implementation identity.
+    pub source: ExecutedScriptSource,
+}
+
+impl TrustedSourceModuleLoader {
+    /// Retain an actual driver-validated file implementation and decoded bytes.
+    /// The driver must apply the selected native encoding and file EOF protocol.
+    #[must_use]
+    pub fn new(
+        required_core_family: tcl_dialect::model::Family,
+        path: String,
+        encoding: Option<String>,
+        implementation_id: String,
+        text: &Arc<str>,
+    ) -> Self {
+        let origin = Arc::new(SourceOriginId::loaded(
+            Arc::from(path.as_str()),
+            Arc::from(implementation_id),
+            text,
+        ));
         Self {
-            semantics: registry.effective_semantics(),
-            declared: Arc::new(module.declared_frame_effects.clone()),
+            required_core_family,
+            path,
+            encoding,
+            source: ExecutedScriptSource {
+                text: origin.source_image().clone(),
+                origin,
+                mapping: ExecutedScriptMapping::Contiguous { base: 0 },
+            },
         }
     }
 
-    /// Whether the fresh interpreter binds `key`, a normalised qualified
-    /// name: one the registry ships for the dialect, or one the document
-    /// declares as a plain call.
-    fn binds(&self, key: &str) -> bool {
-        self.semantics.binding_names().contains(key) || self.declared.contains_key(key)
+    /// Validate a selected native file read against this exact retained contract.
+    #[must_use]
+    pub fn matches_selected_file(
+        &self,
+        path: &str,
+        encoding: Option<&str>,
+        dialect: tcl_registry::InvocationDialect,
+    ) -> bool {
+        dialect.family() == Some(self.required_core_family)
+            && self.path == path
+            && self.encoding.as_deref() == encoding
+            && self.source.base() == 0
+            && matches!(self.source.origin.kind(), SourceOriginKind::Loaded {
+                path: retained, implementation_id, source,
+            } if retained.as_ref() == path && !implementation_id.is_empty() && source == &self.source.text)
+    }
+}
+
+/// One implementation lookup consumed by an explicitly selected provider.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TrustedCommandLookup {
+    /// Command word evaluated by the selected implementation.
+    pub head: String,
+    /// Original rooted namespace operand declared by the provider. Selection
+    /// uses the retained native root and exact namespace rows, never a display.
+    pub namespace: String,
+    /// Registry implementation identity required by the provider.
+    pub registry_identity: String,
+    /// Whether this dependency exists in every audited version alternative.
+    pub required: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct PackageProvision {
+    present: bool,
+    version: Option<String>,
+    implementation: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct ClassDefinitionReceipt {
+    factory: String,
+    original_factory: Option<registered_class_factory::OriginalClassFactoryState>,
+    implementation_generation: u32,
+    dispatcher: Option<tcl_registry::definer::DefinitionDispatcher>,
+    dispatcher_methods: Arc<BTreeSet<String>>,
+    instance_methods: Option<Arc<BTreeSet<tcl_core_types::NameBytes>>>,
+    instance_variables: Option<Arc<receiver_variable_inventory::OriginalReceiverVariableInventory>>,
+    constructor_entry: Option<Arc<SourceConstructorEntry>>,
+    constructor_provider: Option<SourceCommandTarget>,
+    destructor_entry: Option<Arc<SourceConstructorEntry>>,
+    destructor_provider: Option<SourceCommandTarget>,
+    lifecycle_entries_closed: bool,
+    receiver_method_entries: Arc<SourceReceiverMethodEntries>,
+    forward_method_entries: Arc<deferred_forward::OriginalForwardEntries>,
+    inherited_classes: Arc<Vec<SourceCommandTarget>>,
+}
+
+/// Original constructor entry retained at a class incarnation. This authorizes
+/// argument-to-formal advice only; it proves no successful manufacture result.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SourceConstructorEntry {
+    declaration: CommandAllocationSite,
+    body: ExecutedScriptSource,
+    formals: Vec<(String, Option<String>)>,
+    frame: crate::var_resolve::VariableExecutionFrame,
+}
+
+impl SourceConstructorEntry {
+    /// Exact authored constructor declaration and its source instance.
+    #[must_use]
+    pub fn declaration(&self) -> &CommandAllocationSite {
+        &self.declaration
+    }
+    /// Original evaluated constructor body, before any callback executes.
+    #[must_use]
+    pub fn body(&self) -> &ExecutedScriptSource {
+        &self.body
+    }
+    /// Parsed native formal names and default values at the declaration.
+    #[must_use]
+    pub fn formals(&self) -> &[(String, Option<String>)] {
+        &self.formals
+    }
+    /// Actual receiver-method frame selected for this retained body entry.
+    #[must_use]
+    pub fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+        &self.frame
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct BoundedClassConstruction {
+    factory: String,
+    implementation_generation: u32,
+}
+
+impl PackageProvision {
+    fn absent() -> Self {
+        Self {
+            present: false,
+            version: None,
+            implementation: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+enum SourceObserverExecution {
+    #[default]
+    Unobserved,
+    MayObserved,
+}
+
+impl SourceObserverExecution {
+    fn from_observed(observed: bool) -> Self {
+        if observed {
+            Self::MayObserved
+        } else {
+            Self::Unobserved
+        }
+    }
+
+    fn observed(self) -> bool {
+        self == Self::MayObserved
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum OriginalArgumentCompletion {
+    Unknown,
+    Normal,
+}
+
+impl OriginalArgumentCompletion {
+    fn from_normal(normal: bool) -> Self {
+        if normal { Self::Normal } else { Self::Unknown }
+    }
+    fn is_normal(self) -> bool {
+        self == Self::Normal
+    }
+    fn join(&mut self, other: Self) {
+        if !other.is_normal() {
+            *self = Self::Unknown;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum SourceCompilerNameClosure {
+    Unknown,
+    Preserved,
+}
+
+impl From<bool> for SourceCompilerNameClosure {
+    fn from(preserved: bool) -> Self {
+        if preserved {
+            Self::Preserved
+        } else {
+            Self::Unknown
+        }
+    }
+}
+
+impl SourceCompilerNameClosure {
+    fn is_preserved(self) -> bool {
+        self == Self::Preserved
+    }
+
+    fn join(&mut self, other: Self) {
+        if !other.is_preserved() {
+            *self = Self::Unknown;
+        }
+    }
+}
+
+/// A resolved source invocation without discarding absence or an unknown
+/// residual. Catalogue identity alone does not establish loader provenance.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceInvocationBinding {
+    /// Native opcodes selected before the later runtime command lookup.
+    pub compiled_candidates: Vec<SourceCompiledInvocationProof>,
+    /// Private names selected at compilation, with their independent late lookup.
+    pub compiled_named_candidates: Vec<SourceNamedInvocationProof>,
+    /// At least one execution uses ordinary lookup after argument evaluation.
+    pub may_use_live_dispatch: bool,
+    /// The native compiler may have selected an operation with no closed descriptor.
+    pub compiled_execution_residual: CompiledExecutionResidual,
+    /// Closed compiler-table selection, independent of later runtime lookup.
+    pub(crate) native_compilation_admission:
+        Option<tcl_registry::native_compilation::NativeCompilationSelection>,
+    pub(crate) native_compiler_admission:
+        Option<Arc<compiled_invocation::SourceNativeCompilerAdmission>>,
+    /// Independent name-effect closure of the original compiler traversal.
+    original_compiler_preserves_names: SourceCompilerNameClosure,
+    /// Original ordered compiler preparation, including a declined prefix.
+    native_structured_preparation: Option<Arc<SourceNativeStructuredPreparation>>,
+    native_switch_preparation: Option<Arc<compiled_invocation::SourceNativeSwitchPreparation>>,
+    runtime_reachability: SourceRuntimeReachability,
+    entered_execution_observer: SourceObserverExecution,
+    /// Compiler-inline withdrawal selected by the shared chunk preflight.
+    pub native_inline_rejection: NativeInlineRejection,
+    /// Same immutable native handler before and after argv, independent of opcode selection.
+    pub native_handler_envelope: Option<SourceCommandTarget>,
+    /// Reads reached after this invocation's argv, with explicit unenumerated effects.
+    pub invocation_variable_reads: Option<Arc<SourceInvocationVariableReads>>,
+    pub(crate) lookup_state: Option<Arc<SourceLookupSnapshot>>,
+    pub(crate) compiler_lookup_state: Option<Arc<SourceLookupSnapshot>>,
+    original_logical_source_advice: Option<Arc<OriginalSourceCommandTransitionAdvice>>,
+    original_analysis_owner: Option<Arc<OriginalSourceAnalysisOwner>>,
+    original_source_operand_attachment:
+        Option<declaration_preview::OriginalDeclarationSourceOperandAttachment>,
+    original_authored_source_body_scope:
+        Option<Arc<crate::registry_invocation::OriginalAuthoredSourceBodyScope>>,
+    original_native_source_command:
+        Option<Arc<source_transition_advice::OriginalNativeSourceCommand>>,
+    declaration_layout_observations:
+        Option<Arc<[declaration_layout::DeclarationLayoutObservation]>>,
+    declaration_flow_inventory: Option<Arc<declaration_flow::DeclarationFlowInventory>>,
+    /// Original declaration availability when this source has no dispatch point.
+    /// The private source receipt never supplies runtime targets or lookup state.
+    original_logical_declaration_targets:
+        Option<Arc<declaration_layout::OriginalLogicalDeclarationTargets>>,
+    compiler_policy: Option<Arc<compiler_inventory::SourceNativeCompilerPolicy>>,
+    original_compiler_words: Option<Arc<compiled_invocation::SourceOriginalCompilerWords>>,
+    original_written_words: Option<Arc<original_name_value::OriginalWrittenSourceWords>>,
+    original_argument_syntax: Option<Arc<source_argument_syntax::OriginalSourceArgumentSyntax>>,
+    conditional_expression_evaluations:
+        Option<Arc<[expression_preparation::SourceConditionalExpressionEvaluation]>>,
+    pub(crate) lookup_namespace: String,
+    pub(crate) lookup_namespace_key: SourceNamespaceKey,
+    pub(crate) lookup_word: Option<String>,
+    dispatch_site: Option<CommandAllocationSite>,
+    /// Providers whose private callback state may have been altered.
+    pub provider_state_taint: Vec<String>,
+    /// Applicable declaration assistance; never executable dispatch proof.
+    pub declared_command: Option<DeclaredCommandCandidate>,
+    /// Applicable nominal catalogue slot, including an unloaded provider.
+    /// This carries assistance only and never establishes an implementation.
+    pub catalogue_command: Option<DeclaredCommandCandidate>,
+    /// Authoritative variable bindings, traces, lifetimes and allocation facts.
+    pub variable_context: Arc<crate::var_resolve::ResolveContext>,
+    original_argument_completion: OriginalArgumentCompletion,
+    normal_variable_continuation: Option<Arc<crate::var_resolve::ResolveContext>>,
+    original_variable_operands: Option<Arc<crate::variable_bindings::OriginalVariableInvocation>>,
+    normal_result_observations: Option<Arc<[normal_result::InvocationResultObservation]>>,
+    rhs_read_store_observations: Option<Arc<[SourceReadStoreObservation]>>,
+    object_callback_effects: Option<object_callbacks::ObjectCallbackEffects>,
+    /// Actual variable activation selected for this invocation.
+    pub variable_frame: crate::var_resolve::VariableExecutionFrame,
+    /// Namespace cells allocated on every reaching execution path.
+    pub existing_namespace_cells: Vec<crate::var_resolve::VariableCellKey>,
+    /// Complete allocation knowledge, retaining possible cells and closure.
+    pub namespace_cell_presence: crate::var_resolve::NamespaceCellPresence,
+    /// Namespace objects proved to exist on every path to this dispatch.
+    pub known_namespaces: Vec<String>,
+    /// Written argv values frozen left-to-right, excluding the command word.
+    /// Unknown results and expansion retain `None`; aliases add their own
+    /// separate prefixes and never change these original word indices.
+    pub evaluated_argument_values: Vec<Option<String>>,
+    /// Argument facts frozen at their own evaluation points, including unknown indices.
+    pub evaluated_argument_words: Vec<crate::registry_invocation::EffectiveInvocationWord>,
+    frozen_written_words: Option<Arc<[crate::registry_invocation::EffectiveInvocationWord]>>,
+    frozen_written_names:
+        Option<Arc<[Option<Arc<original_name_value::OriginalProducedNameValue>>]>>,
+    frozen_head_object: Option<Arc<receiver_self::FrozenSourceObjectHead>>,
+    method_prefix_arguments: Vec<(usize, Arc<SourceCapturedMethodPrefix>)>,
+    native_operand_layout: Option<Arc<SourceNativeOperandLayoutProof>>,
+    /// Terminal implementations and effective alias argument prefixes.
+    pub targets: Vec<SourceCommandTarget>,
+    /// Lookup may fail on an execution path.
+    pub may_be_absent: bool,
+    /// An execution path has no bounded implementation identity.
+    pub unknown: bool,
+}
+
+impl SourceInvocationBinding {
+    pub(crate) fn has_original_source_layout_owner(&self) -> bool {
+        self.lookup_state.is_some()
+            || self.compiler_lookup_state.is_some()
+            || self.declaration_layout_observations.is_some()
+    }
+
+    /// A retained non-point source purpose keeps its own terminal validation.
+    /// This presence query supplies no selected facts or alternative source owner.
+    pub(crate) fn has_nonpoint_original_source_name_role_owner(&self) -> bool {
+        self.compiler_lookup_state.is_some()
+            || self.compiler_policy.is_some()
+            || self.original_compiler_words.is_some()
+            || self.native_compilation_admission.is_some()
+            || self.native_compiler_admission.is_some()
+            || self.native_structured_preparation.is_some()
+            || self.native_switch_preparation.is_some()
+            || self.native_operand_layout.is_some()
+            || self.conditional_expression_evaluations.is_some()
+            || !self.compiled_candidates.is_empty()
+            || !self.compiled_named_candidates.is_empty()
+            || self.native_handler_envelope.is_some()
+            || self.declaration_layout_observations.is_some()
+            || self.original_logical_source_advice.is_some()
+            || self.original_logical_declaration_targets.is_some()
+            || self.original_authored_source_body_scope.is_some()
+            || self.original_native_source_command.is_some()
+    }
+
+    /// Whether an original Logical source owner requires its own terminal query.
+    pub(crate) fn has_original_logical_source_advice(&self) -> bool {
+        self.original_logical_source_advice.is_some()
+    }
+
+    pub(crate) fn retain_original_logical_source_advice(
+        &mut self,
+        advice: OriginalSourceCommandTransitionAdvice,
+    ) {
+        if !self.has_original_source_layout_owner() && advice.logical_source_input().is_some() {
+            self.original_logical_source_advice = Some(Arc::new(advice));
+        }
+    }
+
+    pub(crate) fn original_analysis_attachment(&self) -> Option<&Arc<OriginalSourceAnalysisOwner>> {
+        self.original_analysis_owner.as_ref()
+    }
+
+    pub(crate) fn retain_original_authored_source_body_scope(
+        &mut self,
+        scope: Arc<crate::registry_invocation::OriginalAuthoredSourceBodyScope>,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<()> {
+        if self.has_original_source_layout_owner()
+            || self.original_logical_source_advice.is_some()
+            || self.original_native_source_command.is_some()
+        {
+            return None;
+        }
+        scope.original_words(tokens, scope.registry())?;
+        self.original_analysis_owner = scope.original_analysis_attachment().cloned();
+        self.original_authored_source_body_scope = Some(scope);
+        Some(())
+    }
+
+    pub(crate) fn retain_original_authored_scalar_body_scope(
+        &mut self,
+        scope: Arc<crate::registry_invocation::OriginalAuthoredSourceBodyScope>,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<()> {
+        let advice = self.original_authored_declaration_scalar_layout(tokens, scope.registry())?;
+        if advice.has_unclosed_source_coverage() || scope.has_unclosed_declaration_source_coverage()
+        {
+            return None;
+        }
+        scope.original_words(tokens, scope.registry())?;
+        if advice.namespace() != scope.namespace()
+            || self
+                .original_analysis_owner
+                .as_ref()
+                .zip(scope.original_analysis_attachment())
+                .is_none_or(|(actual, original)| !Arc::ptr_eq(actual, original))
+        {
+            return None;
+        }
+        self.original_authored_source_body_scope = Some(scope);
+        Some(())
+    }
+
+    /// Held scalar body syntax under its independent Standalone declaration lookup.
+    /// Other source layouts retain their terminal role/control readers.
+    pub(crate) fn original_authored_scalar_body_scope(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&crate::registry_invocation::OriginalAuthoredSourceBodyScope> {
+        if tokens.source_binding.as_ref() != Some(self) {
+            return None;
+        }
+        let scope = self.original_authored_source_body_scope.as_deref()?;
+        let advice = self.original_authored_declaration_scalar_layout(tokens, registry)?;
+        if advice.has_unclosed_source_coverage() || scope.has_unclosed_declaration_source_coverage()
+        {
+            return None;
+        }
+        scope.original_words(tokens, registry)?;
+        (advice.namespace() == scope.namespace()
+            && self
+                .original_analysis_owner
+                .as_ref()
+                .zip(scope.original_analysis_attachment())
+                .is_some_and(|(actual, original)| Arc::ptr_eq(actual, original)))
+        .then_some(scope)
+    }
+
+    pub(crate) fn has_original_authored_source_body_name_role_owner(&self) -> bool {
+        self.original_authored_source_body_scope.is_some()
+    }
+
+    pub(crate) fn original_authored_source_body_scope_for_name_roles(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&crate::registry_invocation::OriginalAuthoredSourceBodyScope> {
+        if self.has_original_source_layout_owner()
+            || self.original_logical_source_advice.is_some()
+            || self.original_native_source_command.is_some()
+            || tokens.source_binding.as_ref() != Some(self)
+        {
+            return None;
+        }
+        let scope = self.original_authored_source_body_scope.as_deref()?;
+        scope.original_words(tokens, registry)?;
+        Some(scope)
+    }
+
+    pub(crate) fn has_original_logical_source_name_role_owner(&self) -> bool {
+        self.original_logical_source_advice.is_some()
+    }
+
+    /// Actual readonly Logical input for name-role metadata, without a point grant.
+    /// A stronger retained source layout keeps its terminal owner route.
+    pub(crate) fn original_logical_source_input_for_name_roles(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&crate::analyser::ResolvedAnalysisInput> {
+        if self.has_original_source_layout_owner() {
+            return None;
+        }
+        let input = self
+            .original_logical_source_advice
+            .as_deref()?
+            .logical_source_input()?;
+        self.original_logical_source_words(tokens, input, registry)?;
+        Some(input)
+    }
+
+    pub(crate) fn original_logical_source_site_for_name_roles(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&CommandAllocationSite> {
+        self.original_logical_source_input_for_name_roles(tokens, registry)?;
+        Some(self.original_logical_source_advice.as_deref()?.site())
+    }
+
+    pub(crate) fn original_logical_source_words(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
+        if self.has_original_source_layout_owner()
+            || tokens.source_binding.as_ref() != Some(self)
+            || tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+            || !input.has_logical_source_name_context()
+        {
+            return None;
+        }
+        let advice = self.original_logical_source_advice.as_deref()?;
+        let context = input.borrowed_context_registry();
+        let image = advice.site().source.source_image();
+        let config = input.lexer_config();
+        if registry.snapshot().semantic_key() != context.commands().snapshot().semantic_key()
+            || advice.logical_source_input() != Some(input)
+            || !advice.matches_source(image, config)
+            || !advice.matches_context(context)
+            || crate::registry_invocation::original_native_compiler_words(
+                image,
+                tokens.words(),
+                advice.site().offset,
+                config,
+            )?
+            .as_slice()
+                != advice.original_words()
+        {
+            return None;
+        }
+        crate::registry_invocation::source_structure::source_transition_words_from_advice(
+            image.try_text().ok()?,
+            config,
+            context,
+            advice.clone(),
+        )
+    }
+}
+
+impl Default for SourceInvocationBinding {
+    fn default() -> Self {
+        Self {
+            compiled_candidates: Vec::new(),
+            compiled_named_candidates: Vec::new(),
+            may_use_live_dispatch: true,
+            compiled_execution_residual: CompiledExecutionResidual::Closed,
+            native_compilation_admission: None,
+            native_compiler_admission: None,
+            original_compiler_preserves_names: SourceCompilerNameClosure::Unknown,
+            native_structured_preparation: None,
+            native_switch_preparation: None,
+            runtime_reachability: SourceRuntimeReachability::Unknown,
+            entered_execution_observer: SourceObserverExecution::Unobserved,
+            native_inline_rejection: NativeInlineRejection::None,
+            native_handler_envelope: None,
+            invocation_variable_reads: None,
+            lookup_state: None,
+            compiler_lookup_state: None,
+            original_logical_source_advice: None,
+            original_analysis_owner: None,
+            original_source_operand_attachment: None,
+            original_argument_syntax: None,
+            original_authored_source_body_scope: None,
+            original_native_source_command: None,
+            declaration_layout_observations: None,
+            declaration_flow_inventory: None,
+            original_logical_declaration_targets: None,
+            compiler_policy: None,
+            original_compiler_words: None,
+            original_written_words: None,
+            conditional_expression_evaluations: None,
+            lookup_namespace: String::new(),
+            lookup_namespace_key: SourceNamespaceKey::default(),
+            lookup_word: None,
+            dispatch_site: None,
+            provider_state_taint: Vec::new(),
+            declared_command: None,
+            catalogue_command: None,
+            variable_context: Arc::default(),
+            original_argument_completion: OriginalArgumentCompletion::Unknown,
+            normal_variable_continuation: None,
+            original_variable_operands: None,
+            normal_result_observations: None,
+            rhs_read_store_observations: None,
+            object_callback_effects: None,
+            variable_frame: crate::var_resolve::VariableExecutionFrame::default(),
+            existing_namespace_cells: Vec::new(),
+            namespace_cell_presence: crate::var_resolve::NamespaceCellPresence::default(),
+            known_namespaces: Vec::new(),
+            evaluated_argument_values: Vec::new(),
+            evaluated_argument_words: Vec::new(),
+            frozen_written_words: None,
+            frozen_written_names: None,
+            frozen_head_object: None,
+            method_prefix_arguments: Vec::new(),
+            native_operand_layout: None,
+            targets: Vec::new(),
+            may_be_absent: false,
+            unknown: false,
+        }
+    }
+}
+
+impl Hash for SourceInvocationBinding {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.compiled_candidates.hash(state);
+        self.compiled_named_candidates.hash(state);
+        self.may_use_live_dispatch.hash(state);
+        self.compiled_execution_residual.hash(state);
+        self.native_compilation_admission.hash(state);
+        self.native_compiler_admission.hash(state);
+        self.original_compiler_preserves_names.hash(state);
+        self.native_structured_preparation.hash(state);
+        self.native_switch_preparation.hash(state);
+        self.native_operand_layout.hash(state);
+        self.runtime_reachability.hash(state);
+        self.entered_execution_observer.hash(state);
+        self.native_inline_rejection.hash(state);
+        self.native_handler_envelope.hash(state);
+        self.invocation_variable_reads.hash(state);
+        self.original_argument_completion.hash(state);
+        self.normal_variable_continuation.hash(state);
+        self.original_variable_operands.hash(state);
+        self.rhs_read_store_observations.hash(state);
+        self.object_callback_effects.hash(state);
+        self.original_analysis_owner.hash(state);
+        self.lookup_state.hash(state);
+        self.compiler_lookup_state.hash(state);
+        self.declaration_layout_observations.hash(state);
+        self.declaration_flow_inventory.hash(state);
+        self.original_logical_declaration_targets.hash(state);
+        self.compiler_policy.hash(state);
+        self.original_compiler_words.hash(state);
+        self.original_written_words.hash(state);
+        self.conditional_expression_evaluations.hash(state);
+        self.lookup_namespace.hash(state);
+        self.lookup_namespace_key.hash(state);
+        self.lookup_word.hash(state);
+        self.dispatch_site.hash(state);
+        self.targets.hash(state);
+        self.unknown.hash(state);
+        self.may_be_absent.hash(state);
+        self.declared_command.hash(state);
+        self.catalogue_command.hash(state);
+        self.provider_state_taint.hash(state);
+        self.evaluated_argument_values.hash(state);
+        self.evaluated_argument_words.hash(state);
+        self.frozen_written_words.hash(state);
+        self.frozen_written_names.hash(state);
+        self.frozen_head_object.hash(state);
+        self.method_prefix_arguments.hash(state);
+        if self.lookup_state.is_none() {
+            self.variable_context.hash(state);
+            self.variable_frame.hash(state);
+            self.existing_namespace_cells.hash(state);
+            self.namespace_cell_presence.hash(state);
+            self.known_namespaces.hash(state);
+        }
+    }
+}
+
+/// A retained declaration whose lookup slot has not been changed.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DeclaredCommandCandidate {
+    /// Name in the retained document/workspace declaration surface.
+    pub name: String,
+    /// Execution namespace used to select this declaration slot.
+    pub lookup_namespace: String,
+    /// Canonical lookup slot carrying the assistance contract.
+    pub slot: String,
+}
+
+/// One terminal implementation selected by the shared command-table owner.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SourceCommandTarget {
+    /// Initial runtime implementation incarnation, independent of source offsets.
+    pub runtime_implementation_generation: Option<u64>,
+    /// Captured registry implementation identity or retained document target.
+    /// For registry-backed targets this preserves the issuer's identifier,
+    /// which need not be rooted or match the current command-table slot.
+    /// It is not a source lookup spelling or namespace presentation.
+    pub command: String,
+    /// Arguments inserted before the written argument sequence.
+    pub prepended: Vec<crate::registry_invocation::EffectiveInvocationWord>,
+    /// Original producers of captured prefix values, joined at every actual
+    /// alias allocation. They supply no written operand or compiler geometry.
+    original_prepended: Option<Vec<crate::signature_scan::scope::SignatureSourceNameInput>>,
+    logical_original_prefix: Option<logical_prefix::LogicalCapturedCommandPrefix>,
+    /// Only registry-backed implementations may select registry semantics.
+    pub registry_backed: bool,
+    /// Registry, procedure, object, or generic implementation category.
+    pub kind: BindingKind,
+    /// Stable object identity, independent of its present command slot.
+    pub identity: Option<CommandIdentity>,
+    /// Source implementation site; changes when a live token is redefined.
+    pub implementation_generation: u32,
+    /// Source-instance allocation of the retained implementation.
+    pub implementation_allocation: Option<CommandAllocation>,
+}
+
+impl SourceInvocationBinding {
+    pub(crate) fn original_logical_prefix_source_input(
+        &self,
+    ) -> Option<&crate::analyser::ResolvedAnalysisInput> {
+        let state = &self.lookup_state.as_ref()?.state;
+        let input = state.logical_source_name_advice_input()?;
+        (input.has_logical_source_name_context()
+            && state.baseline.native_entry.is_none()
+            && !state.baseline.unknown_entry
+            && state.baseline.execution_name_policy.is_none()
+            && state.baseline.hosted_execution_context.is_none())
+        .then_some(input)
+    }
+}
+
+impl SourceCommandTarget {
+    /// Captured prefix inputs from this exact selected implementation chain.
+    /// A missing or conflicting producer never falls back to literal bytes.
+    #[must_use]
+    pub fn original_prepended_name_inputs(
+        &self,
+    ) -> Option<&[crate::signature_scan::scope::SignatureSourceNameInput]> {
+        let inputs = self.original_prepended.as_deref()?;
+        (inputs.len() == self.prepended.len()).then_some(inputs)
+    }
+    /// Genuine captured Logical source words, independently of Native prefix inputs.
+    pub(crate) fn original_logical_prepended_name_inputs(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<&[crate::signature_scan::scope::SignatureSourceNameInput]> {
+        let prefix = self.logical_original_prefix.as_ref()?;
+        let inputs = prefix.inputs()?;
+        (prefix.matches_source_input(input, image, config)
+            && inputs.len() == self.prepended.len()
+            && inputs
+                .iter()
+                .zip(&self.prepended)
+                .all(|(input, word)| word.literal_bytes() == Some(input.bytes())))
+        .then_some(inputs)
+    }
+
+    /// Captured Logical source data from the same actual alias allocations.
+    /// This has no Native/authored name-key policy or written call-site anchor.
+    pub(crate) fn original_logical_prepended_source_inputs(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<&[OriginalLogicalSourceNameInput]> {
+        let prefix = self.logical_original_prefix.as_ref()?;
+        let inputs = prefix.source_inputs();
+        (prefix.matches_source_words(input, image, config)
+            && inputs.len() == self.prepended.len()
+            && inputs
+                .iter()
+                .zip(&self.prepended)
+                .all(|(input, word)| word.literal_bytes() == Some(input.bytes())))
+        .then_some(inputs)
+    }
+
+    /// Original registry descriptor identity, independent of the current slot.
+    /// Native issuers preserve their exact identifier bytes; authored registry
+    /// rows may use a rooted descriptor name. This supplies no lookup spelling.
+    #[must_use]
+    pub fn registry_identity(&self) -> Option<&str> {
+        self.registry_backed.then_some(self.command.as_str())
+    }
+}
+
+/// Conditional candidates selected from an original retained lookup world.
+/// Compiler, declaration and Logical source callers validate separate purposes.
+/// This layout cannot be used as an execution binding or a Normal result.
+#[derive(Debug)]
+pub(crate) struct OriginalCompilationLookupAdvice {
+    snapshot: Arc<SourceLookupSnapshot>,
+    site: CommandAllocationSite,
+    words: Arc<[crate::ir::WordExpr]>,
+    config: tcl_lexer::LexerConfig,
+    targets: Vec<SourceCommandTarget>,
+    dialect: tcl_registry::InvocationDialect,
+    namespace: SourceNamespaceKey,
+    unknown: bool,
+    may_be_absent: bool,
+}
+
+impl OriginalCompilationLookupAdvice {
+    /// An opaque original command world can contain unrelated handlers. A
+    /// retained candidate then supplies diagnostic layout, not its operation.
+    pub(crate) fn has_opaque_handler_alternatives(&self) -> bool {
+        self.snapshot.state.has_opaque_domain()
+    }
+
+    /// Unclosed candidate coverage remains an explicit source-only residual.
+    pub(crate) fn has_unclosed_source_coverage(&self) -> bool {
+        !self.closed_lookup()
+            || self.has_opaque_handler_alternatives()
+            || self.snapshot.state.source_step_observed()
+            || !self.snapshot.state.command_observers.is_quiet()
+    }
+
+    /// Independently selected Authored/Standalone model, never a missing Native input.
+    pub(crate) fn is_authored_standalone_source(&self) -> bool {
+        let baseline = &self.snapshot.state.baseline;
+        baseline.metadata_context.is_standalone()
+            && baseline.native_entry.is_none()
+            && baseline.logical_source_input.is_none()
+            && baseline.vendor_source_input.is_none()
+            && baseline.hosted_execution_context.is_none()
+            && !baseline.unknown_entry
+    }
+
+    /// Original candidate lookup is complete in its independently known namespace.
+    pub(crate) fn closed_lookup(&self) -> bool {
+        !self.unknown
+            && !self.may_be_absent
+            && crate::var_resolve::ResolveContext::default()
+                .in_frame(&self.snapshot.state.variable_frame)
+                .namespace_known
+            && self
+                .snapshot
+                .state
+                .variable_frame
+                .namespace_identity()
+                .is_none_or(|namespace| namespace == &self.namespace)
+    }
+
+    /// Closed command layout in the positively retained Logical source world.
+    /// Namespace and original target consensus are independent of a physical
+    /// variable frame; this cannot certify native lookup or an entered frame.
+    pub(crate) fn closed_logical_source_lookup(&self) -> bool {
+        let state = &self.snapshot.state;
+        state
+            .logical_source_name_advice_input()
+            .is_some_and(|input| source_analysis_entry::source_input_dialect(input) == self.dialect)
+            && !self.unknown
+            && !self.may_be_absent
+            && !self.targets.is_empty()
+            && !state.has_opaque_domain()
+            && matches!(&self.namespace, SourceNamespaceKey::Authored(_))
+            && state.namespaces.contains(&self.namespace)
+    }
+
+    /// A declaration's conditional receiver-body traits use its authentic
+    /// source namespace. The future private runtime namespace stays unknown.
+    pub(crate) fn closed_receiver_trait_lookup(
+        &self,
+        entry: &SourceDeclaredReceiverBodyEntry,
+    ) -> bool {
+        // naming.tcloo.original-declared-receiver-caller-traits
+
+        let state = &self.snapshot.state;
+        !self.unknown
+            && !self.may_be_absent
+            && !self.targets.is_empty()
+            && self.frame() == entry.preview_frame()
+            && self.namespace() == entry.declaration_namespace_context()
+            && !self.has_opaque_handler_alternatives()
+            && !state.source_step_observed()
+            && state.command_observers.is_quiet()
+            && self.targets.iter().all(|target| {
+                target.registry_backed
+                    && target.kind == BindingKind::Builtin
+                    && !state.source_execution_observed(target.identity.as_ref())
+                    && !state.runtime_execution_observed(target.identity.as_ref())
+            })
+    }
+
+    /// Original procedure-body syntax for a conditional parameter report.
+    /// Actual entry, Native lookup and successful alias operations stay open.
+    pub(crate) fn closed_body_parameter_source_lookup(
+        &self,
+        entry: &SourceConditionalBodyEntry,
+    ) -> bool {
+        self.closed_body_parameter_source_parts(
+            entry.owns_source(&self.site.source, self.site.offset),
+            entry.frame(),
+            entry.namespace_context(),
+        )
+    }
+
+    fn closed_body_parameter_source_parts(
+        &self,
+        owns_source: bool,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        namespace: Option<&SourceNamespaceKey>,
+    ) -> bool {
+        let state = &self.snapshot.state;
+        self.closed_lookup()
+            && state.logical_source_name_advice_input().is_none()
+            && owns_source
+            && self.frame() == frame
+            && Some(self.namespace()) == namespace
+            && !self.targets.is_empty()
+            && !self.has_opaque_handler_alternatives()
+            && !state.source_step_observed()
+            && state.command_observers.is_quiet()
+            && self.targets.iter().all(|target| {
+                target.registry_backed
+                    && target.kind == BindingKind::Builtin
+                    && target.prepended.is_empty()
+                    && !state.source_execution_observed(target.identity.as_ref())
+                    && !state.runtime_execution_observed(target.identity.as_ref())
+            })
+    }
+
+    /// Reborrow complete original words only after the exact declaration row,
+    /// metadata owner and actual body/frame join. No executed read is issued.
+    pub(crate) fn original_body_parameter_source_words(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        entry: &SourceConditionalBodyEntry,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+    ) -> Option<Vec<tcl_lexer::NativeWord>> {
+        (self.config == config).then_some(())?;
+        self.closed_body_parameter_source_lookup(entry)
+            .then_some(())?;
+        self.original_declaration_metadata_context(registry, tokens)
+            .ok()?;
+        let original = self.site.source.original_lexical_command(
+            tokens.words(),
+            self.site.offset,
+            self.config,
+        )?;
+        Some(original.native_words().to_vec())
+    }
+
+    pub(crate) fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+        &self.snapshot.state.variable_frame
+    }
+    pub(crate) fn namespace(&self) -> &SourceNamespaceKey {
+        &self.namespace
+    }
+
+    pub(crate) fn expression_pool_state(
+        &self,
+    ) -> tcl_registry::conditional_expression::ConditionalExpressionPoolState {
+        use tcl_registry::conditional_expression::ConditionalExpressionPoolState as Pool;
+        let state = &self.snapshot.state;
+        if !state.opaque_domain
+            && !state.source_variables.dynamic_traces
+            && state.ordinary_literal_pool.as_ref().is_some_and(
+                literal_object_pool::SourceOrdinaryLiteralPool::initial_numeric_representations,
+            )
+        {
+            Pool::InitialAuthoredPool
+        } else {
+            Pool::Unknown
+        }
+    }
+    pub(crate) fn targets(&self) -> &[SourceCommandTarget] {
+        &self.targets
+    }
+
+    pub(crate) const fn dialect(&self) -> tcl_registry::InvocationDialect {
+        self.dialect
+    }
+
+    pub(crate) fn realm(&self) -> tcl_dialect::model::InvocationRealm {
+        self.snapshot.realm
+    }
+
+    /// Original variable context for declaration-only name projections.
+    pub(crate) fn original_variable_context(&self) -> &Arc<crate::var_resolve::ResolveContext> {
+        &self.snapshot.state.source_variables
+    }
+
+    pub(crate) fn alias_frame(&self) -> tcl_registry::VariableAliasFrame {
+        self.snapshot.state.source_variables.alias_frame()
+    }
+}
+
+/// Immutable semantic point. Ordinary lookup retains the original full world
+/// without hashing it. Hashing initializes a derived fingerprint once;
+/// equality compares the complete retained state and realm directly, allowing
+/// immutable shared fields to use their existing structural equality.
+/// A reached state join invalidates the memo on its detached snapshot only.
+#[derive(Debug, Clone)]
+pub(crate) struct SourceLookupSnapshot {
+    realm: tcl_dialect::model::InvocationRealm,
+    state: ModuleCommandBindings,
+    fingerprint: OnceLock<u64>,
+    compiler_name_effects: original_compiler_effects::SourceCompilerNameEffectsCache,
+}
+
+impl SourceLookupSnapshot {
+    fn new(state: ModuleCommandBindings) -> Self {
+        Self::in_realm(state, tcl_dialect::model::InvocationRealm::RuleLoader)
+    }
+
+    fn in_realm(state: ModuleCommandBindings, realm: tcl_dialect::model::InvocationRealm) -> Self {
+        Self {
+            realm,
+            state,
+            fingerprint: OnceLock::new(),
+            compiler_name_effects:
+                original_compiler_effects::SourceCompilerNameEffectsCache::default(),
+        }
+    }
+
+    fn fingerprint(&self) -> u64 {
+        *self.fingerprint.get_or_init(|| {
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            self.state.hash(&mut hasher);
+            self.realm.hash(&mut hasher);
+            std::hash::Hasher::finish(&hasher)
+        })
+    }
+}
+
+impl PartialEq for SourceLookupSnapshot {
+    fn eq(&self, other: &Self) -> bool {
+        self.realm == other.realm && self.state == other.state
+    }
+}
+
+impl Eq for SourceLookupSnapshot {}
+
+impl Hash for SourceLookupSnapshot {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.fingerprint().hash(state);
+    }
+}
+
+impl SourceInvocationBinding {
+    /// Explicit absence of bounded runtime dispatch and compiler admission.
+    #[must_use]
+    pub fn unknown() -> Self {
+        Self {
+            unknown: true,
+            ..Self::default()
+        }
+    }
+
+    /// Explicit availability phase retained at this exact execution point.
+    /// Missing entry evidence supplies no phase assumption.
+    #[must_use]
+    pub fn invocation_realm(&self) -> Option<tcl_dialect::model::InvocationRealm> {
+        self.lookup_state.as_ref().map(|snapshot| snapshot.realm)
+    }
+
+    /// Command-word value retained at this lookup, before alias composition.
+    /// Different reaching values join to unknown rather than borrowing the
+    /// terminal implementation's name.
+    #[must_use]
+    pub fn evaluated_command_word(&self) -> Option<&str> {
+        self.lookup_word.as_deref()
+    }
+
+    /// Relocate physical cell worlds without changing command allocations or source ownership.
+    pub fn relocate_variable_proofs(
+        &mut self,
+        relocation: &crate::var_resolve::VariableProofRelocation,
+    ) {
+        self.relocate_invocation_reads(relocation);
+        self.variable_context = Arc::new(self.variable_context.relocated(relocation));
+        self.normal_variable_continuation = self
+            .normal_variable_continuation
+            .as_ref()
+            .map(|context| Arc::new(context.relocated(relocation)));
+        self.variable_frame = relocation.frame(&self.variable_frame);
+        // Captured receiver identities have no physical-frame relocation grant.
+        self.method_prefix_arguments.clear();
+        self.original_argument_completion = OriginalArgumentCompletion::Unknown;
+        self.normal_result_observations = None;
+        self.rhs_read_store_observations = None;
+        if let Some(snapshot) = &self.lookup_state {
+            let mut state = snapshot.state.clone();
+            state.source_variables = Arc::new(state.source_variables.relocated(relocation));
+            state.variable_frame = relocation.frame(&state.variable_frame);
+            self.lookup_state = Some(Arc::new(SourceLookupSnapshot::in_realm(
+                state,
+                snapshot.realm,
+            )));
+        }
+    }
+
+    /// Contents bytes frozen for one original written argument, before later argv.
+    /// This excludes alias prefixes and does not flatten an expanded word into
+    /// actual argument positions. It grants no native object representation,
+    /// coercion-erasure or command-dispatch licence.
+    #[must_use]
+    pub fn evaluated_written_argument_value(&self, argument: usize) -> Option<&str> {
+        self.evaluated_argument_values.get(argument)?.as_deref()
+    }
+
+    /// Whether this point belongs to the fresh F5 rule-loader world
+    /// ([`SourceAnalysisEntry::for_fresh_hosted_source`]).
+    pub(crate) fn in_hosted_rule_loader_world(&self) -> bool {
+        self.lookup_state
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.state.hosted_rule_loader_world())
+    }
+
+    /// Resolve another command word in this exact immutable interpreter point.
+    /// Uncertainty and possible document implementations remain represented.
+    #[must_use]
+    pub fn lookup_command_word(&self, head: &str) -> Self {
+        self.lookup_state.as_ref().map_or_else(
+            || Self {
+                unknown: true,
+                variable_context: Arc::clone(&self.variable_context),
+                variable_frame: self.variable_frame.clone(),
+                ..Self::default()
+            },
+            |snapshot| {
+                let mut binding =
+                    source_binding_projection(&snapshot.state, head, &self.lookup_namespace_key);
+                binding.lookup_state = Some(Arc::clone(snapshot));
+                binding
+            },
+        )
+    }
+
+    /// Actual immutable command store belonging to this complete source vector.
+    /// This reborrow supplies metadata only, without lookup or execution authority.
+    pub(crate) fn retained_registry_for_tokens(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<&tcl_registry::CommandRegistry> {
+        if !self.has_original_source_layout_owner()
+            && let Some(scope) = self.original_authored_source_body_scope.as_deref()
+        {
+            return Some(
+                self.original_authored_source_body_scope_for_name_roles(tokens, scope.registry())?
+                    .registry(),
+            );
+        }
+        Some(
+            self.retained_registry_snapshot_for_tokens(tokens)?
+                .registry(),
+        )
+    }
+
+    pub(crate) fn retained_registry_snapshot_for_tokens(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<&tcl_registry::RegistrySnapshot> {
+        let owner = self
+            .lookup_state
+            .as_ref()?
+            .state
+            .baseline
+            .registry_owner
+            .as_ref()?;
+        self.original_lexer_config_for_tokens(tokens)?;
+        self.original_invocation_metadata_at_point(tokens, owner.registry())
+            .ok()?;
+        Some(owner)
+    }
+
+    /// MAY layout from the genuine Authored/Standalone world at this source point.
+    /// Present Native, hosted or supplied-source ownership cannot enter this route.
+    pub(crate) fn original_authored_source_layout(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<OriginalCompilationLookupAdvice> {
+        let retained = self.retained_registry_for_tokens(tokens)?;
+        if retained.snapshot().semantic_key() != registry.snapshot().semantic_key() {
+            return None;
+        }
+        let point = self.lookup_state.as_ref()?;
+        let baseline = &point.state.baseline;
+        if !baseline.metadata_context.is_standalone()
+            || baseline.native_entry.is_some()
+            || baseline.logical_source_input.is_some()
+            || baseline.vendor_source_input.is_some()
+            || baseline.hosted_execution_context.is_some()
+            || baseline.unknown_entry
+        {
+            return None;
+        }
+        let advice = original_site_operand_layout_advice(
+            self.invocation_site()?,
+            tokens,
+            point,
+            &self.lookup_namespace_key,
+            self.original_lexer_config_for_tokens(tokens)?,
+        )?;
+        if !advice.is_authored_standalone_source()
+            || advice
+                .targets()
+                .iter()
+                .any(|target| !target.prepended.is_empty())
+        {
+            return None;
+        }
+        Some(advice)
+    }
+
+    /// Candidate lexical layout of this original static head, captured before
+    /// its arguments ran. Source geometry and logical grammar are retained;
+    /// replaced/non-native implementations cannot borrow catalogue contracts.
+    /// This query supplies no normal handler, entered body or absence proof.
+    pub(crate) fn original_compilation_lookup_advice(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<OriginalCompilationLookupAdvice> {
+        let snapshot = self.compiler_lookup_state.as_ref()?;
+        let site = CommandAllocationSite {
+            source: Arc::clone(snapshot.state.current_source_origin.as_ref()?),
+            offset: tokens.words().first()?.source().span.start(),
+        };
+        original_site_operand_layout_advice(
+            &site,
+            tokens,
+            snapshot,
+            &self.lookup_namespace_key,
+            self.original_lexer_config_for_tokens(tokens)?,
+        )
+    }
+
+    /// Conditional operand layout at the original source point. Declaration
+    /// and compiler observations keep their existing purposes; only their
+    /// absence permits the separate positively Logical reached-source route.
+    /// This supplies no compiler preparation, Native handler or Normal result.
+    pub(crate) fn original_conditional_operand_layout_advice(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &CommandRegistry,
+    ) -> Option<OriginalCompilationLookupAdvice> {
+        self.declaration_operand_layout_advice(tokens)
+            .or_else(|| self.original_compilation_lookup_advice(tokens))
+            .or_else(|| self.original_logical_source_operand_layout_advice(tokens, registry))
+    }
+
+    /// Source roles from the captured post-operand Logical lookup world.
+    /// A refused present compiler/declaration owner cannot use this sibling.
+    fn original_logical_source_operand_layout_advice(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &CommandRegistry,
+    ) -> Option<OriginalCompilationLookupAdvice> {
+        if self.compiler_lookup_state.is_some() || self.declaration_layout_observations.is_some() {
+            return None;
+        }
+        let metadata = self
+            .original_source_metadata_for_advice(tokens, registry)
+            .ok()??;
+        metadata.permits_logical_source_names().then_some(())?;
+        let input = metadata.source_analysis_input()?;
+        self.original_invocation_metadata_for_input(tokens, input, registry)?;
+        let snapshot = self.lookup_state.as_ref()?;
+        let state = &snapshot.state;
+        if state.logical_source_name_advice_input() != Some(input)
+            || self.variable_context.as_ref() != state.source_variables.as_ref()
+            || self.variable_frame != state.variable_frame
+            || self.lookup_namespace != self.lookup_namespace_key.display().unwrap_or_default()
+            || self.unknown
+            || self.may_be_absent
+        {
+            return None;
+        }
+        let variables = &state.source_variables;
+        let namespace_matches = variables.namespace_identity.as_ref().map_or_else(
+            || {
+                matches!(&self.lookup_namespace_key,
+                SourceNamespaceKey::Authored(namespace) if namespace == &variables.namespace)
+            },
+            |namespace| namespace == &self.lookup_namespace_key,
+        );
+        namespace_matches.then_some(())?;
+        let advice = original_site_operand_layout_advice(
+            self.invocation_site()?,
+            tokens,
+            snapshot,
+            &self.lookup_namespace_key,
+            self.original_lexer_config_for_tokens(tokens)?,
+        )?;
+        (advice.closed_logical_source_lookup() && advice.targets == self.targets).then_some(advice)
+    }
+
+    pub(crate) fn frozen_written_words(
+        &self,
+    ) -> Option<&[crate::registry_invocation::EffectiveInvocationWord]> {
+        self.frozen_written_words.as_deref()
+    }
+
+    fn same_dispatch_projection(&self, other: &Self) -> bool {
+        let mut left = self.clone();
+        let mut right = other.clone();
+        left.lookup_state = None;
+        right.lookup_state = None;
+        left.normal_result_observations = None;
+        right.normal_result_observations = None;
+        left.declaration_layout_observations = None;
+        left.declaration_flow_inventory = None;
+        right.declaration_layout_observations = None;
+        right.declaration_flow_inventory = None;
+        left.original_logical_declaration_targets = None;
+        right.original_logical_declaration_targets = None;
+        left == right
+    }
+
+    fn join_original_operand_receipts(&mut self, other: &Self) {
+        if self.original_source_operand_attachment != other.original_source_operand_attachment {
+            self.original_source_operand_attachment = None;
+        }
+        if self.original_analysis_owner != other.original_analysis_owner {
+            self.original_analysis_owner = None;
+        }
+        if self.original_argument_syntax != other.original_argument_syntax {
+            self.original_argument_syntax = None;
+        }
+        if self.original_authored_source_body_scope != other.original_authored_source_body_scope {
+            self.original_authored_source_body_scope = None;
+        }
+        if self.original_native_source_command != other.original_native_source_command {
+            self.original_native_source_command = None;
+        }
+        if self.original_logical_source_advice != other.original_logical_source_advice {
+            self.original_logical_source_advice = None;
+        }
+        if self.original_variable_operands != other.original_variable_operands {
+            self.original_variable_operands = None;
+        }
+        if other.entered_execution_observer.observed() {
+            self.entered_execution_observer = SourceObserverExecution::MayObserved;
+        }
+        if self.runtime_reachability != other.runtime_reachability {
+            self.runtime_reachability = SourceRuntimeReachability::Unknown;
+        }
+        if self.native_operand_layout != other.native_operand_layout {
+            self.native_operand_layout = None;
+        }
+        if self.original_written_words != other.original_written_words {
+            self.original_written_words = None;
+        }
+        if self.original_compiler_words != other.original_compiler_words {
+            self.original_compiler_words = None;
+        }
+        if self.conditional_expression_evaluations != other.conditional_expression_evaluations {
+            self.conditional_expression_evaluations = None;
+        }
+        if self.frozen_written_words != other.frozen_written_words {
+            self.frozen_written_words = None;
+        }
+        if self.frozen_written_names != other.frozen_written_names {
+            self.frozen_written_names = None;
+        }
+        if self.frozen_head_object != other.frozen_head_object {
+            self.frozen_head_object = None;
+        }
+        self.method_prefix_arguments
+            .retain(|prefix| other.method_prefix_arguments.contains(prefix));
+    }
+
+    fn join(&mut self, other: &Self) {
+        if self.original_logical_declaration_targets != other.original_logical_declaration_targets {
+            self.original_logical_declaration_targets = None;
+        }
+        self.join_original_operand_receipts(other);
+        self.join_compiled_execution(other);
+        self.join_invocation_reads(other);
+        self.original_argument_completion
+            .join(other.original_argument_completion);
+        self.join_normal_variable_continuation(other);
+        if self.normal_result_observations != other.normal_result_observations {
+            self.normal_result_observations = None;
+        }
+        if self.rhs_read_store_observations != other.rhs_read_store_observations {
+            self.rhs_read_store_observations = None;
+        }
+        self.join_object_callback_effects(other);
+        join_evaluated_words(
+            &mut self.evaluated_argument_values,
+            &other.evaluated_argument_values,
+        );
+        compiled_invocation::join_argument_words(
+            &mut self.evaluated_argument_words,
+            &other.evaluated_argument_words,
+        );
+        if let (Some(state), Some(incoming)) = (&mut self.lookup_state, &other.lookup_state)
+            && state.realm == incoming.realm
+        {
+            let snapshot = Arc::make_mut(state);
+            snapshot.state.join(&incoming.state);
+            // The joined state owns a new immutable semantic point. A cloned
+            // snapshot must not retain its predecessor's derived fingerprint.
+            snapshot.fingerprint = OnceLock::new();
+            snapshot.compiler_name_effects =
+                original_compiler_effects::SourceCompilerNameEffectsCache::default();
+        } else {
+            self.lookup_state = None;
+        }
+        if self.lookup_namespace_key != other.lookup_namespace_key {
+            self.lookup_state = None;
+        }
+        if self.compiler_lookup_state != other.compiler_lookup_state {
+            self.compiler_lookup_state = None;
+            self.native_structured_preparation = None;
+            self.native_switch_preparation = None;
+        }
+        if self.declaration_flow_inventory != other.declaration_flow_inventory {
+            self.declaration_flow_inventory = None;
+        }
+        if self.declaration_layout_observations != other.declaration_layout_observations {
+            self.declaration_layout_observations = None;
+        }
+        if self.compiler_policy != other.compiler_policy {
+            self.compiler_policy = None;
+        }
+        if self.dispatch_site != other.dispatch_site {
+            self.dispatch_site = None;
+        }
+        if self.lookup_word != other.lookup_word {
+            self.lookup_word = None;
+        }
+        self.provider_state_taint
+            .extend(other.provider_state_taint.iter().cloned());
+        self.provider_state_taint.sort();
+        self.provider_state_taint.dedup();
+        if self.declared_command != other.declared_command {
+            self.declared_command = None;
+        }
+        if self.catalogue_command != other.catalogue_command {
+            self.catalogue_command = None;
+        }
+        self.unknown |= other.unknown;
+        self.may_be_absent |= other.may_be_absent;
+        self.known_namespaces
+            .retain(|namespace| other.known_namespaces.contains(namespace));
+        self.existing_namespace_cells
+            .retain(|cell| other.existing_namespace_cells.contains(cell));
+        self.namespace_cell_presence
+            .join(&other.namespace_cell_presence);
+        let mut variables = self.variable_context.as_ref().clone();
+        variables.join(&other.variable_context);
+        if self.variable_frame != other.variable_frame {
+            self.variable_frame = crate::var_resolve::VariableExecutionFrame::Unknown;
+        }
+        if self.variable_frame == crate::var_resolve::VariableExecutionFrame::Unknown {
+            variables = variables.in_frame(&self.variable_frame);
+        }
+        self.variable_context = Arc::new(variables);
+        for target in &other.targets {
+            if !self.targets.contains(target) {
+                self.targets.push(target.clone());
+            }
+        }
+    }
+
+    /// A unique target, provided every possible path reaches that target.
+    #[must_use]
+    pub fn proved_target(&self) -> Option<&SourceCommandTarget> {
+        (!self.unknown && !self.may_be_absent && self.targets.len() == 1).then(|| &self.targets[0])
+    }
+
+    /// Original class definition manufacturer, without invoking its constructor.
+    /// The returned target retains the exact live class identity and allocation.
+    #[must_use]
+    pub fn proved_class_definition_factory(&self) -> Option<(&str, &SourceCommandTarget)> {
+        if self.runtime_reachability == SourceRuntimeReachability::Conditional {
+            return None;
+        }
+        let target = self
+            .proved_target()
+            .filter(|target| target.kind == BindingKind::Class)?;
+        if target.identity.as_ref()?.runtime.is_none()
+            && target
+                .implementation_allocation
+                .as_ref()
+                .is_some_and(|allocation| {
+                    allocation.incarnation == AllocationIncarnation::RepeatedFresh
+                })
+        {
+            return None;
+        }
+        let snapshot = &self.lookup_state.as_ref()?.state;
+        if snapshot.tainted_object_dispatch.contains("*")
+            || snapshot.tainted_object_dispatch.contains(&target.command)
+        {
+            return None;
+        }
+        let definition = snapshot.class_definitions.get(target.identity.as_ref()?)?;
+        (definition.dispatcher.is_none()
+            && target.implementation_generation == definition.implementation_generation
+            && snapshot.class_definition_dependencies_hold(definition))
+        .then_some((definition.factory.as_str(), target))
+    }
+
+    /// A class result whose original manufacturer and construction closure
+    /// are proved at this invocation, with the captured effective arguments.
+    #[must_use]
+    pub fn proved_construction_result(&self, registry: &CommandRegistry) -> Option<String> {
+        let target = self
+            .proved_execution_target()
+            .filter(|target| target.kind == BindingKind::Class)?;
+        let snapshot = self.lookup_state.as_ref()?;
+        let words = target
+            .prepended
+            .iter()
+            .cloned()
+            .chain(self.evaluated_argument_values.iter().map(|value| {
+                value.as_ref().map_or(
+                    crate::registry_invocation::EffectiveInvocationWord::Dynamic,
+                    |value| {
+                        crate::registry_invocation::EffectiveInvocationWord::Literal(value.clone())
+                    },
+                )
+            }))
+            .collect::<Vec<_>>();
+        let namespace = self.lookup_namespace_key.advisory_key()?;
+        let mut state = boxed_source_branch(&snapshot.state);
+        state
+            .apply_bounded_constructor(
+                target,
+                &words,
+                registry,
+                &namespace,
+                self.invocation_realm()?,
+            )
+            .then(|| target.command.clone())
+    }
+
+    /// Original constructor entry and its actual declaring class provider.
+    /// The payload offset is in the composed effective post-head argv. Callback
+    /// completion and the result's object class remain independent unknowns.
+    #[must_use]
+    pub fn constructor_entry(
+        &self,
+        registry: &CommandRegistry,
+    ) -> Option<(&SourceCommandTarget, &SourceConstructorEntry, usize)> {
+        let (factory, target) = self.proved_class_definition_factory()?;
+        let snapshot = &self.lookup_state.as_ref()?.state;
+        let grammar = registry.native_default_construction_grammar(
+            factory,
+            snapshot.baseline.dialect?,
+            self.invocation_realm()?,
+        )?;
+        if !snapshot.default_construction_dependencies_hold(grammar) {
+            return None;
+        }
+        let first = match target.prepended.first() {
+            Some(word) => word.as_registry_word().literal()?,
+            None => self.evaluated_argument_values.first()?.as_deref()?,
+        };
+        let manufacturer = grammar.manufacturer(first)?;
+        let definition = snapshot.class_definitions.get(target.identity.as_ref()?)?;
+        let entry = definition.constructor_entry.as_deref()?;
+        let provider = definition.constructor_provider.as_ref()?;
+        if !snapshot.retained_target_is_current(provider)
+            || !snapshot.class_definition_dependencies_hold(definition)
+        {
+            return None;
+        }
+        let payload_from = usize::from(manufacturer.constructor_args_from);
+        let payload_count = target
+            .prepended
+            .len()
+            .checked_add(self.evaluated_argument_values.len())?
+            .checked_sub(payload_from)?;
+        let parameters = entry
+            .formals
+            .iter()
+            .map(
+                |(name, default)| tcl_syntax::formal_params::FormalParameter {
+                    name: name.clone(),
+                    default: default.clone(),
+                },
+            )
+            .collect::<Vec<_>>();
+        tcl_syntax::formal_params::bind_formal_arguments(
+            &parameters,
+            payload_count,
+            snapshot.baseline.dialect?.parameter_grammar()?,
+        )
+        .ok()?;
+        Some((provider, entry, payload_from))
+    }
+}
+
+/// Validate original geometry and logical word rules before projecting candidate layout.
+fn original_operand_layout_advice(
+    binding: &SourceInvocationBinding,
+    tokens: &crate::ir::CommandTokens,
+    snapshot: &Arc<SourceLookupSnapshot>,
+    namespace: &SourceNamespaceKey,
+    config: tcl_lexer::LexerConfig,
+) -> Option<OriginalCompilationLookupAdvice> {
+    original_site_operand_layout_advice(
+        binding.invocation_site()?,
+        tokens,
+        snapshot,
+        namespace,
+        config,
+    )
+}
+
+fn original_declaration_call_layout_advice(
+    binding: &SourceInvocationBinding,
+    tokens: &crate::ir::CommandTokens,
+    snapshot: &Arc<SourceLookupSnapshot>,
+    namespace: &SourceNamespaceKey,
+    config: tcl_lexer::LexerConfig,
+) -> Option<OriginalCompilationLookupAdvice> {
+    original_site_layout_advice(
+        binding.invocation_site()?,
+        tokens,
+        snapshot,
+        namespace,
+        OriginalOperandLayoutPurpose::DeclarationTargets,
+        config,
+    )
+}
+
+// Logical source declarations have no physical implementation allocation.
+// This projection shares the exact original geometry and source world checks,
+// while the allocation-bearing declaration/formal purpose stays separate.
+fn original_logical_declaration_call_layout_advice(
+    binding: &SourceInvocationBinding,
+    tokens: &crate::ir::CommandTokens,
+    snapshot: &Arc<SourceLookupSnapshot>,
+    namespace: &SourceNamespaceKey,
+    config: tcl_lexer::LexerConfig,
+) -> Option<OriginalCompilationLookupAdvice> {
+    original_site_layout_advice(
+        binding.invocation_site()?,
+        tokens,
+        snapshot,
+        namespace,
+        OriginalOperandLayoutPurpose::LogicalDeclarationTargets,
+        config,
+    )
+}
+
+fn original_site_operand_layout_advice(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    snapshot: &Arc<SourceLookupSnapshot>,
+    namespace: &SourceNamespaceKey,
+    config: tcl_lexer::LexerConfig,
+) -> Option<OriginalCompilationLookupAdvice> {
+    original_site_layout_advice(
+        site,
+        tokens,
+        snapshot,
+        namespace,
+        OriginalOperandLayoutPurpose::RegistryMetadata,
+        config,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum OriginalOperandLayoutPurpose {
+    RegistryMetadata,
+    DeclarationTargets,
+    LogicalDeclarationTargets,
+}
+
+fn original_site_layout_advice(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    snapshot: &Arc<SourceLookupSnapshot>,
+    namespace: &SourceNamespaceKey,
+    purpose: OriginalOperandLayoutPurpose,
+    config: tcl_lexer::LexerConfig,
+) -> Option<OriginalCompilationLookupAdvice> {
+    if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
+        return None;
+    }
+    let dialect = snapshot.state.source_variables.invocation_dialect?;
+    let logical_source = snapshot
+        .state
+        .logical_source_name_advice_input()
+        .is_some_and(|input| {
+            input.lexer_config() == config
+                && source_analysis_entry::source_input_dialect(input) == dialect
+        });
+    // Logical declaration targets and Native formal allocations consume distinct
+    // purposes, even when the readonly model retains an internal source allocation.
+    if (matches!(
+        purpose,
+        OriginalOperandLayoutPurpose::LogicalDeclarationTargets
+    ) && !logical_source)
+        || (matches!(purpose, OriginalOperandLayoutPurpose::DeclarationTargets) && logical_source)
+    {
+        return None;
+    }
+    // Conditional Logical command layout uses its retained source namespace
+    // and lookup world. It does not require or issue a physical variable frame.
+    if snapshot.state.current_source_origin.as_ref() != Some(&site.source)
+        || (!logical_source
+            && matches!(
+                snapshot.state.variable_frame,
+                crate::var_resolve::VariableExecutionFrame::Unknown
+            ))
+    {
+        return None;
+    }
+    let original = site
+        .source
+        .original_lexical_command(tokens.words(), site.offset, config)?;
+    let head = original.native_words().first()?;
+    let projection = original_static_layout_projection(
+        snapshot,
+        namespace,
+        head,
+        config,
+        dialect,
+        logical_source,
+    )?;
+    if projection.targets.is_empty()
+        || projection.targets.iter().any(|target| {
+            !target.registry_backed
+                && match purpose {
+                    OriginalOperandLayoutPurpose::RegistryMetadata => true,
+                    OriginalOperandLayoutPurpose::DeclarationTargets => {
+                        target.kind != BindingKind::Proc
+                            || target.implementation_allocation.is_none()
+                    }
+                    OriginalOperandLayoutPurpose::LogicalDeclarationTargets => {
+                        target.kind != BindingKind::Proc
+                    }
+                }
+        })
+    {
+        return None;
+    }
+    Some(OriginalCompilationLookupAdvice {
+        snapshot: Arc::clone(snapshot),
+        site: site.clone(),
+        words: Arc::from(tokens.words()),
+        config,
+        targets: projection.targets,
+        dialect,
+        namespace: namespace.clone(),
+        unknown: projection.unknown,
+        may_be_absent: projection.may_be_absent,
+    })
+}
+
+fn original_static_layout_projection(
+    snapshot: &SourceLookupSnapshot,
+    namespace: &SourceNamespaceKey,
+    head: &tcl_lexer::NativeWord,
+    config: tcl_lexer::LexerConfig,
+    dialect: tcl_registry::InvocationDialect,
+    logical_source: bool,
+) -> Option<SourceInvocationBinding> {
+    if let Some(policy) = snapshot
+        .state
+        .source_variables
+        .execution_name_policy
+        .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+    {
+        let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            head,
+            tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            policy,
+        )?;
+        source_binding_from_original_input_in(
+            &snapshot.state,
+            &crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key),
+            namespace,
+            CommandTargetLookup::NamedSlots,
+        )
+    } else {
+        // Independent authored simulation metadata does not issue a Native slot.
+        (logical_source || dialect.authored_name_policy().is_none()).then_some(())?;
+        let presentation = if logical_source {
+            tcl_syntax::word_rules::original_static_word_unicode_value(head)?
+        } else {
+            tcl_syntax::word_rules::original_static_word_ascii_presentation(head)?
+        };
+        let head = std::str::from_utf8(&presentation).ok()?;
+        Some(source_binding_projection_in(
+            &snapshot.state,
+            head,
+            namespace,
+            CommandTargetLookup::NamedSlots,
+        ))
+    }
+}
+
+#[derive(Debug, Clone)]
+struct SourceBindingPoint {
+    declaration_preview: bool,
+    original_arguments_complete_normally: bool,
+    observer_execution: SourceObserverExecution,
+    realm: tcl_dialect::model::InvocationRealm,
+    compilation: tcl_registry::native_compilation::NativeCompilationContext,
+    compiled_execution: compiled_invocation::CompiledInvocationSelection,
+    head: Option<String>,
+    original_head_input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
+    original_written_words: Option<Arc<original_name_value::OriginalWrittenSourceWords>>,
+    evaluated_argument_values: Vec<Option<String>>,
+    evaluated_argument_words: Vec<crate::registry_invocation::EffectiveInvocationWord>,
+    frozen_written_words: Option<Arc<[crate::registry_invocation::EffectiveInvocationWord]>>,
+    frozen_written_names:
+        Option<Arc<[Option<Arc<original_name_value::OriginalProducedNameValue>>]>>,
+    frozen_head_object: Option<Arc<receiver_self::FrozenSourceObjectHead>>,
+    method_prefix_arguments: Vec<(usize, Arc<SourceCapturedMethodPrefix>)>,
+    offset: u32,
+    end: u32,
+    namespace: String,
+    namespace_key: SourceNamespaceKey,
+    state: ModuleCommandBindings,
+    lookup_snapshot: OnceLock<Arc<SourceLookupSnapshot>>,
+    dispatch: bool,
+    /// The actual source invocation whose modeled continuation produced this state.
+    continuation_of: Option<CommandAllocationSite>,
+}
+
+// Derived lookup caches do not change the retained source interpretation.
+impl PartialEq for SourceBindingPoint {
+    fn eq(&self, other: &Self) -> bool {
+        self.declaration_preview == other.declaration_preview
+            && self.original_arguments_complete_normally
+                == other.original_arguments_complete_normally
+            && self.observer_execution == other.observer_execution
+            && self.realm == other.realm
+            && self.compilation == other.compilation
+            && self.compiled_execution == other.compiled_execution
+            && self.head == other.head
+            && self.original_head_input == other.original_head_input
+            && self.original_written_words == other.original_written_words
+            && self.evaluated_argument_values == other.evaluated_argument_values
+            && self.evaluated_argument_words == other.evaluated_argument_words
+            && self.frozen_written_words == other.frozen_written_words
+            && self.frozen_written_names == other.frozen_written_names
+            && self.frozen_head_object == other.frozen_head_object
+            && self.method_prefix_arguments == other.method_prefix_arguments
+            && self.offset == other.offset
+            && self.end == other.end
+            && self.namespace_key == other.namespace_key
+            && self.state == other.state
+            && self.dispatch == other.dispatch
+            && self.continuation_of == other.continuation_of
+    }
+}
+
+impl Eq for SourceBindingPoint {}
+
+impl SourceBindingPoint {
+    fn lookup_binding(&self, head: &str) -> SourceInvocationBinding {
+        let mut proof = if self.dispatch && self.head.as_deref() == Some(head) {
+            self.original_lookup_binding()
+        } else {
+            source_binding_projection(&self.state, head, &self.namespace_key)
+        };
+        proof.compiled_execution_residual = CompiledExecutionResidual::Unknown;
+        proof.lookup_state = Some(Arc::clone(self.lookup_snapshot.get_or_init(|| {
+            Arc::new(SourceLookupSnapshot::in_realm(
+                self.state.clone(),
+                self.realm,
+            ))
+        })));
+        proof
+    }
+
+    fn binding(&self, head: &str) -> SourceInvocationBinding {
+        self.binding_projection(head, false)
+    }
+
+    fn original_logical_lookup_head(&self) -> Option<&str> {
+        let input = self.state.logical_source_name_advice_input()?;
+        // The complete source owner remains independent of Native head input.
+        // A withdrawn or different supplied owner cannot reopen this projection.
+        if self.state.baseline.metadata_context.source_analysis_input() != Some(input) {
+            return None;
+        }
+        self.head.as_deref()
+    }
+
+    fn original_lookup_binding(&self) -> SourceInvocationBinding {
+        // naming.consumer.original-workspace-diagnostic-refinement
+
+        // The immutable Logical entry owns this interpreted head. It does
+        // not supply a Native name input or permit a source-label fallback.
+        if let Some(head) = self.original_logical_lookup_head() {
+            return source_binding_projection(&self.state, head, &self.namespace_key);
+        }
+        self.original_head_input
+            .as_ref()
+            .and_then(|input| {
+                source_binding_from_original_input(&self.state, input, &self.namespace_key)
+            })
+            .unwrap_or_else(|| SourceInvocationBinding {
+                unknown: true,
+                lookup_namespace: self.namespace.clone(),
+                lookup_namespace_key: self.namespace_key.clone(),
+                variable_context: Arc::clone(&self.state.source_variables),
+                variable_frame: self.state.variable_frame.clone(),
+                ..Default::default()
+            })
+    }
+
+    fn original_dispatch_binding(&self) -> SourceInvocationBinding {
+        self.binding_projection("", true)
+    }
+
+    fn binding_projection(&self, head: &str, original: bool) -> SourceInvocationBinding {
+        let mut proof = if original {
+            self.original_lookup_binding()
+        } else {
+            self.lookup_binding(head)
+        };
+        if original {
+            proof.lookup_state = Some(Arc::clone(self.lookup_snapshot.get_or_init(|| {
+                Arc::new(SourceLookupSnapshot::in_realm(
+                    self.state.clone(),
+                    self.realm,
+                ))
+            })));
+        }
+        if self.dispatch {
+            proof.dispatch_site =
+                self.state
+                    .current_source_origin
+                    .as_ref()
+                    .map(|source| CommandAllocationSite {
+                        source: Arc::clone(source),
+                        offset: self.offset,
+                    });
+        }
+        if self.dispatch && (original || self.head.as_deref() == Some(head)) {
+            proof.original_argument_completion =
+                OriginalArgumentCompletion::from_normal(self.original_arguments_complete_normally);
+            proof
+                .method_prefix_arguments
+                .clone_from(&self.method_prefix_arguments);
+            proof.entered_execution_observer = self.observer_execution;
+            // A retained Logical source continuation is conditional even at
+            // the root. Its interpreted target supplies no entered handler.
+            proof.runtime_reachability =
+                if self.declaration_preview || self.original_logical_lookup_head().is_some() {
+                    SourceRuntimeReachability::Conditional
+                } else {
+                    SourceRuntimeReachability::Reached
+                };
+            proof
+                .frozen_written_words
+                .clone_from(&self.frozen_written_words);
+            proof
+                .frozen_written_names
+                .clone_from(&self.frozen_written_names);
+            proof
+                .original_written_words
+                .clone_from(&self.original_written_words);
+            proof
+                .compiled_candidates
+                .clone_from(&self.compiled_execution.proofs);
+            proof.compiled_named_candidates = self
+                .compiled_execution
+                .named
+                .iter()
+                .map(|candidate| candidate.with_late_lookup(&self.state))
+                .collect();
+            proof.may_use_live_dispatch = self.compiled_execution.live;
+            proof.compiled_execution_residual = self.compiled_execution.unknown.into();
+            proof.native_compilation_admission = self.compiled_execution.admission;
+            proof.original_compiler_preserves_names =
+                self.compiled_execution.compiler_preserves_names().into();
+            proof
+                .native_operand_layout
+                .clone_from(&self.compiled_execution.operand_layout);
+            proof
+                .native_compiler_admission
+                .clone_from(&self.compiled_execution.admitted);
+            proof
+                .native_structured_preparation
+                .clone_from(&self.compiled_execution.structured);
+            proof
+                .native_switch_preparation
+                .clone_from(&self.compiled_execution.switch);
+            proof
+                .compiler_policy
+                .clone_from(&self.compiled_execution.policy);
+            proof
+                .original_compiler_words
+                .clone_from(&self.compiled_execution.original_words);
+            proof.native_inline_rejection = self.compiled_execution.rejection;
+            proof.native_handler_envelope = self
+                .compiled_execution
+                .stable_handler_after_original_arguments(
+                    self.original_head_input.as_ref(),
+                    &self.state,
+                    &self.namespace_key,
+                )
+                .cloned();
+        }
+        proof
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DeferredSourceBody {
+    realm: tcl_dialect::model::InvocationRealm,
+    identity: String,
+    implementation_generation: u32,
+    implementation_allocation: Option<CommandAllocation>,
+    source_origin: Option<Arc<SourceOriginId>>,
+    executed_script: Option<(CommandAllocationSite, usize, ExecutedScriptSource)>,
+    executed_word: Option<(Arc<SourceOriginId>, tcl_lexer::Span)>,
+    source: String,
+    offset: u32,
+    namespace: String,
+    namespace_key: SourceNamespaceKey,
+    event: Option<String>,
+    receiver_method: bool,
+    future_frame: Option<crate::var_resolve::VariableExecutionFrame>,
+    parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
+    original_parameters: Option<formal_topology::OriginalFormalTopology>,
+    statics: Option<crate::raw_binding::CapturedStaticBindings>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct DeferredImplementationId {
+    command: String,
+    generation: u32,
+    allocation: Option<CommandAllocation>,
+}
+
+/// Future callable outcomes retained independently of actual document continuation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SourceDeferredOutcome {
+    implementation: DeferredImplementationId,
+    namespace_key: SourceNamespaceKey,
+    frame: crate::var_resolve::VariableExecutionFrame,
+    realm: tcl_dialect::model::InvocationRealm,
+    route: tcl_registry::completion_route::InvocationCompletionRoute,
+    state: Arc<ModuleCommandBindings>,
+}
+
+impl DeferredSourceBody {
+    fn implementation_id(&self) -> DeferredImplementationId {
+        DeferredImplementationId {
+            command: self.identity.clone(),
+            generation: self.implementation_generation,
+            allocation: self.implementation_allocation.clone(),
+        }
+    }
+}
+
+impl CommandAllocation {
+    /// Correlate a reached implementation with an analysed declaration's bytes
+    /// and offset. Loaded files retain their own identity; this value-purpose
+    /// match grants no edit, native compiler, frame or object-erasure licence.
+    #[must_use]
+    pub fn matches_source_declaration(&self, source: &str, offset: u32) -> bool {
+        self.matches_source_declaration_image(&tcl_lexer::SourceImage::document(source), offset)
+    }
+
+    /// Match the exact source bytes and input channel of a declaration.
+    #[must_use]
+    pub fn matches_source_declaration_image(
+        &self,
+        source: &tcl_lexer::SourceImage,
+        offset: u32,
+    ) -> bool {
+        self.site.offset == offset
+            && self.incarnation != AllocationIncarnation::RepeatedFresh
+            && match self.site.source.kind() {
+                SourceOriginKind::Authored(text) => text == source,
+                SourceOriginKind::Loaded {
+                    source: text,
+                    implementation_id,
+                    ..
+                } => !implementation_id.is_empty() && text == source,
+                SourceOriginKind::InheritedPoint { .. }
+                | SourceOriginKind::Derived { .. }
+                | SourceOriginKind::ConditionalField { .. } => false,
+            }
+    }
+}
+
+impl SourceCommandTarget {
+    /// Whether this retained implementation was allocated by the indicated
+    /// authored declaration. Derived sources and repeated fresh summaries do
+    /// not become that implementation merely by sharing its numeric offset.
+    #[must_use]
+    pub fn matches_authored_implementation(&self, source: &str, offset: u32) -> bool {
+        self.matches_authored_implementation_image(
+            &tcl_lexer::SourceImage::document(source),
+            offset,
+        )
+    }
+
+    /// Match the implementation's original bytes and source input channel.
+    #[must_use]
+    pub fn matches_authored_implementation_image(
+        &self,
+        source: &tcl_lexer::SourceImage,
+        offset: u32,
+    ) -> bool {
+        self.implementation_generation == offset
+            && self.implementation_allocation.as_ref().is_some_and(|allocation| {
+                allocation.site.offset == offset
+                    && allocation.incarnation != AllocationIncarnation::RepeatedFresh
+                    && matches!(allocation.site.source.kind(), SourceOriginKind::Authored(text) if text == source)
+            })
+    }
+
+    fn implementation_id(&self) -> DeferredImplementationId {
+        DeferredImplementationId {
+            command: self
+                .identity
+                .as_ref()
+                .map_or_else(|| self.command.clone(), |identity| identity.origin.clone()),
+            generation: self.implementation_generation,
+            allocation: self.implementation_allocation.clone(),
+        }
+    }
+}
+
+/// Execution phase selected by a registry-owned caller-frame lifecycle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SourceBodyPhase {
+    /// Setup; normal completion permits the main phase.
+    Setup,
+    /// Main script reached after setup completes normally.
+    Body,
+    /// Cleanup reached after catchable completions of the earlier phases.
+    Cleanup,
+}
+
+/// Coverage of a lifecycle phase across every retained selected traversal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceBodyPhaseReachability {
+    /// Every completed traversal skipped this phase.
+    NotEntered,
+    /// At least one completed traversal entered this phase.
+    MayEntered,
+    /// A traversal or its lifecycle selection remains unresolved.
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SourcePhasePoint {
+    site: u32,
+    phase: SourceBodyPhase,
+    point: SourceBindingPoint,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SourceLifecycleCoverage {
+    declaration_preview: bool,
+    frame: crate::var_resolve::VariableExecutionFrame,
+    namespace: SourceNamespaceKey,
+    entered: Option<[bool; 3]>,
+}
+
+/// Temporal owner of a reached read, independently of its lexical source span.
+/// A nested invocation retains the evaluation in which it was entered; native
+/// body evaluation is distinct from evaluation of that invocation's argv.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SourceVariableEvaluationOwner {
+    /// Original command-word evaluation, before dispatch.
+    InvocationArguments {
+        /// Exact invocation in its authored or materialised source instance.
+        invocation: CommandAllocationSite,
+        /// Enclosing evaluation, when this invocation is itself a substitution.
+        parent: Option<Arc<Self>>,
+    },
+    /// Expression evaluation performed by a selected native invocation.
+    NativeExpression {
+        /// Invocation selecting this native expression evaluation.
+        invocation: CommandAllocationSite,
+        /// Enclosing evaluation, when native evaluation occurs in a substitution.
+        parent: Option<Arc<Self>>,
+    },
+    /// Post-argv execution of a reached invocation and its entered bodies.
+    InvocationBody {
+        /// Actual caller site, independent of the callee's lexical body source.
+        invocation: CommandAllocationSite,
+        /// Active enclosing evaluation when this call was itself entered there.
+        parent: Option<Arc<Self>>,
+    },
+    /// The same lexical read was reached from several temporal evaluations.
+    Alternatives(Vec<Self>),
+    /// No exact temporal evaluation owner was retained.
+    Unspecified,
+}
+
+impl SourceVariableEvaluationOwner {
+    fn is_argument_evaluation_of(&self, site: &CommandAllocationSite) -> bool {
+        match self {
+            Self::InvocationArguments { invocation, parent } => {
+                invocation == site
+                    || parent
+                        .as_deref()
+                        .is_some_and(|parent| parent.is_argument_evaluation_of(site))
+            }
+            Self::NativeExpression { parent, .. } | Self::InvocationBody { parent, .. } => parent
+                .as_deref()
+                .is_some_and(|parent| parent.is_argument_evaluation_of(site)),
+            Self::Alternatives(owners) => owners
+                .iter()
+                .any(|owner| owner.is_argument_evaluation_of(site)),
+            Self::Unspecified => false,
+        }
+    }
+
+    fn is_direct_arguments_of(&self, site: &CommandAllocationSite) -> bool {
+        match self {
+            Self::InvocationArguments { invocation, .. } => invocation == site,
+            Self::Alternatives(owners) => owners
+                .iter()
+                .any(|owner| owner.is_direct_arguments_of(site)),
+            Self::NativeExpression { .. } | Self::InvocationBody { .. } | Self::Unspecified => {
+                false
+            }
+        }
+    }
+
+    pub(crate) fn is_expression_evaluation_of(&self, site: &CommandAllocationSite) -> bool {
+        match self {
+            Self::NativeExpression { invocation, parent } => {
+                invocation == site
+                    || parent
+                        .as_deref()
+                        .is_some_and(|parent| parent.is_expression_evaluation_of(site))
+            }
+            Self::InvocationArguments { parent, .. } | Self::InvocationBody { parent, .. } => {
+                parent
+                    .as_deref()
+                    .is_some_and(|parent| parent.is_expression_evaluation_of(site))
+            }
+            Self::Alternatives(owners) => owners
+                .iter()
+                .any(|owner| owner.is_expression_evaluation_of(site)),
+            Self::Unspecified => false,
+        }
+    }
+
+    fn join(&mut self, other: Self) {
+        if *self == other {
+            return;
+        }
+        if let Self::Alternatives(owners) = self {
+            if !owners.contains(&other) {
+                owners.push(other);
+            }
+        } else {
+            *self = Self::Alternatives(vec![self.clone(), other]);
+        }
+    }
+}
+
+/// Variable lookup immediately before one reached source substitution reads.
+/// Earlier word parts and array-index evaluation have already run; the read's
+/// own observer callback has not. Missing records do not license another point.
+#[derive(Debug, Clone)]
+pub struct SourceVariableAccess {
+    /// Exact source reference, including its variable wrapper and index.
+    pub source: crate::ir::SourceSite,
+    /// Actual evaluation that reached this read; lexical containment alone is insufficient.
+    pub owner: SourceVariableEvaluationOwner,
+    /// Original undecoded source spelling used by the variable grammar owner.
+    pub original_spelling: String,
+    /// Shared place-resolution context at the actual read.
+    pub variable_context: Arc<crate::var_resolve::ResolveContext>,
+    context_alternatives: Vec<Arc<crate::var_resolve::ResolveContext>>,
+    context_fingerprint: u64,
+    object_instance: Option<Arc<SourceObjectInstanceProof>>,
+    selected_places: Vec<SelectedSourceVariablePlace>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SelectedSourceVariablePlace {
+    context: Arc<crate::var_resolve::ResolveContext>,
+    place: Option<Arc<crate::place::Place>>,
+}
+
+impl SourceVariableAccess {
+    /// Physical address frozen after index evaluation and before the read's
+    /// own observers. Disagreeing reached addresses retain the original
+    /// unresolved lookup rather than selecting one evaluated index.
+    #[must_use]
+    pub(crate) fn place_in_context(
+        &self,
+        context: &crate::var_resolve::ResolveContext,
+        registry: &CommandRegistry,
+    ) -> crate::place::Place {
+        self.selected_places
+            .iter()
+            .find(|selected| selected.context.as_ref() == context)
+            .and_then(|selected| selected.place.as_deref())
+            .or_else(|| {
+                if context != self.variable_context.as_ref() {
+                    return None;
+                }
+                let place = self.selected_places.first()?.place.as_deref()?;
+                self.selected_places
+                    .iter()
+                    .all(|selected| selected.place.as_deref() == Some(place))
+                    .then_some(place)
+            })
+            .map_or_else(
+                || {
+                    crate::var_resolve::resolve_substitution_access(
+                        &self.original_spelling,
+                        context,
+                        registry,
+                        tcl_registry::TraceOperation::Read,
+                    )
+                },
+                Clone::clone,
+            )
+    }
+
+    fn retain_selected_place(
+        &mut self,
+        context: &Arc<crate::var_resolve::ResolveContext>,
+        place: &crate::place::Place,
+    ) {
+        if let Some(selected) = self
+            .selected_places
+            .iter_mut()
+            .find(|selected| selected.context == *context)
+        {
+            if selected.place.as_deref() != Some(place) {
+                selected.place = None;
+            }
+        } else {
+            self.selected_places.push(SelectedSourceVariablePlace {
+                context: Arc::clone(context),
+                place: Some(Arc::new(place.clone())),
+            });
+        }
+    }
+
+    /// Actual instance allocation and current dispatch at this exact read.
+    /// Nominal type labels and an unchanged variable version cannot supply it.
+    #[must_use]
+    pub fn proved_object_instance(&self) -> Option<&SourceObjectInstanceProof> {
+        self.object_instance.as_deref()
+    }
+
+    /// Actual physical read contexts before their compatibility lattice join.
+    /// Distinct activations remain distinct; this supplies no logical-slot alias.
+    #[must_use]
+    pub fn context_alternatives(&self) -> &[Arc<crate::var_resolve::ResolveContext>] {
+        &self.context_alternatives
+    }
+
+    /// Whether retained contexts leave additional address uncertainty.
+    #[must_use]
+    pub fn context_residual(&self) -> SourceVariableReadResidual {
+        if self
+            .context_alternatives
+            .iter()
+            .any(|context| context.dynamic_bindings)
+        {
+            SourceVariableReadResidual::Unknown
+        } else {
+            SourceVariableReadResidual::Closed
+        }
+    }
+
+    fn selected_namespace_context(&self, namespace: &SourceNamespaceKey) -> Option<Self> {
+        let matches = |context: &crate::var_resolve::ResolveContext| {
+            context
+                .namespace_identity
+                .as_ref()
+                .is_some_and(|identity| identity == namespace)
+                || (context.namespace_identity.is_none()
+                    && matches!(namespace, SourceNamespaceKey::Authored(text) if text == &context.namespace))
+        };
+        let contexts = self
+            .context_alternatives
+            .iter()
+            .filter(|context| matches(context))
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut context = contexts.first()?.as_ref().clone();
+        for other in contexts.iter().skip(1) {
+            context.join(other);
+        }
+        let mut selected = self.clone();
+        selected.variable_context = Arc::new(context);
+        selected.context_fingerprint = Self::fingerprint(&selected.variable_context);
+        selected.context_alternatives = contexts;
+        selected
+            .selected_places
+            .retain(|place| matches(&place.context));
+        // Joined source ownership and receiver uncertainty remain withdrawn;
+        // selecting a namespace cannot recreate a discarded read/result proof.
+        Some(selected)
+    }
+
+    /// Relocate physical variable proof while retaining lexical/temporal source ownership.
+    #[must_use]
+    pub fn relocated_variables(
+        &self,
+        relocation: &crate::var_resolve::VariableProofRelocation,
+    ) -> Self {
+        let mut access = self.clone();
+        access.object_instance = None;
+        access.selected_places = self
+            .selected_places
+            .iter()
+            .map(|selected| SelectedSourceVariablePlace {
+                context: Arc::new(selected.context.relocated(relocation)),
+                place: selected
+                    .place
+                    .as_ref()
+                    .map(|place| Arc::new(relocation.place(place))),
+            })
+            .collect();
+        access.variable_context = Arc::new(self.variable_context.relocated(relocation));
+        access.context_alternatives = self
+            .context_alternatives
+            .iter()
+            .map(|context| Arc::new(context.relocated(relocation)))
+            .collect();
+        access.context_fingerprint = Self::fingerprint(&access.variable_context);
+        access
+    }
+
+    /// Select one exact lexical read from a retained access inventory.
+    /// An enclosing invocation or another read of the same name cannot supply
+    /// its context. Duplicate records at the exact site remain unresolved,
+    /// including duplicates with a different spelling.
+    #[must_use]
+    pub fn find_at_source<'a>(
+        accesses: &'a [Self],
+        source: &crate::ir::SourceSite,
+        original_spelling: &str,
+    ) -> Option<&'a Self> {
+        Self::find_at_site(accesses, source)
+            .filter(|access| access.original_spelling == original_spelling)
+    }
+
+    /// Retrieve the original spelling of one unique exact source reference.
+    /// Conflicting retained records at that site remain unresolved; a matching
+    /// name elsewhere in the containing word is never consulted.
+    #[must_use]
+    pub fn find_at_site<'a>(
+        accesses: &'a [Self],
+        source: &crate::ir::SourceSite,
+    ) -> Option<&'a Self> {
+        let mut candidates = accesses.iter().filter(|access| access.source == *source);
+        let candidate = candidates.next()?;
+        candidates.next().is_none().then_some(candidate)
+    }
+
+    /// Containment in an authored command range uses the original token's
+    /// byte extent. Native read sites retain their grammar-specific inner end.
+    #[must_use]
+    pub fn is_contained_in(&self, span: tcl_lexer::Span) -> bool {
+        u32::try_from(self.original_spelling.len())
+            .ok()
+            .and_then(|length| self.source.span.start().checked_add(length))
+            .is_some_and(|end| {
+                self.source.span.start() >= span.start() && end <= span.end().saturating_add(1)
+            })
+    }
+
+    fn fingerprint(context: &crate::var_resolve::ResolveContext) -> u64 {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        context.hash(&mut hasher);
+        std::hash::Hasher::finish(&hasher)
+    }
+}
+
+impl PartialEq for SourceVariableAccess {
+    fn eq(&self, other: &Self) -> bool {
+        self.source == other.source
+            && self.owner == other.owner
+            && self.original_spelling == other.original_spelling
+            && self.context_fingerprint == other.context_fingerprint
+            && self.variable_context == other.variable_context
+            && self.context_alternatives == other.context_alternatives
+            && self.object_instance == other.object_instance
+            && self.selected_places == other.selected_places
+    }
+}
+
+impl Eq for SourceVariableAccess {}
+
+impl Hash for SourceVariableAccess {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.source.hash(state);
+        self.owner.hash(state);
+        self.original_spelling.hash(state);
+        self.context_fingerprint.hash(state);
+        self.context_alternatives.hash(state);
+        self.object_instance.hash(state);
+        for selected in &self.selected_places {
+            Self::fingerprint(&selected.context).hash(state);
+            selected.place.hash(state);
+        }
+    }
+}
+
+/// Positioned source projection of the executable command-binding kernel.
+/// Source interpretation and IR interpretation use the same lookup and
+/// registry-transition transfer functions.
+/// Cache derived from an immutable point inventory. A cloned builder starts
+/// empty, so later mutation cannot publish a projection into its sibling's world.
+#[derive(Debug, Default)]
+struct SourceHeadProjectionCache(Mutex<HashMap<String, SourceInvocationBinding>>);
+
+impl Clone for SourceHeadProjectionCache {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+/// Reached implicit expression dispatch, sampled after its argument evaluations.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SourceImplicitMathInvocation {
+    /// Exact source instance owning the expression AST.
+    pub origin: Arc<SourceOriginId>,
+    /// AST function-call start in that source instance.
+    pub site: u32,
+    /// Function name retained by the expression parser.
+    pub function: String,
+    /// Actual lookup evidence also proves execution observers absent.
+    pub unobserved: bool,
+    pub(crate) object_callback_effects: Option<object_callbacks::ObjectCallbackEffects>,
+    /// Actual mutable command-table lookup; absent for a fixed-table engine.
+    pub command_binding: Option<SourceInvocationBinding>,
+    /// Actual fixed table retained from interpreter entry, independently of names.
+    pub fixed_functions: Option<tcl_runtime_api::native_compilation::NativeMathFunctionTable>,
+    /// Actual interpreter owner plus fixed registration identities for emitted guards.
+    pub fixed_prerequisite:
+        Option<tcl_runtime_api::native_compilation::NativeMathFunctionPrerequisite>,
+}
+
+impl SourceImplicitMathInvocation {
+    /// Actual original operand objects have closed native conversion effects.
+    /// Implementation identity and successful value analysis are independent.
+    pub(crate) fn object_callback_effects_closed(&self) -> bool {
+        self.object_callback_effects == Some(object_callbacks::ObjectCallbackEffects::Closed)
+    }
+}
+
+type EnteredWordKey = (Arc<SourceOriginId>, (u32, u32), Option<usize>);
+type ImplicitMathSite = (Arc<SourceOriginId>, u32, String);
+type ImplicitMathInvocations = BTreeMap<ImplicitMathSite, Vec<SourceInvocationBinding>>;
+type SourceVariableAccesses = BTreeMap<u32, Vec<SourceVariableAccess>>;
+type OriginVariableAccesses = BTreeMap<Arc<SourceOriginId>, SourceVariableAccesses>;
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FixedMathObservation {
+    declaration_preview: bool,
+    frame: crate::var_resolve::VariableExecutionFrame,
+    namespace: SourceNamespaceKey,
+    prerequisite: Option<tcl_runtime_api::native_compilation::NativeMathFunctionPrerequisite>,
+}
+
+type ImplicitFixedMathInvocations = BTreeMap<ImplicitMathSite, Vec<FixedMathObservation>>;
+
+#[derive(Debug, Clone)]
+pub(crate) struct OriginalSourceAnalysisOwner {
+    source: Arc<SourceOriginId>,
+    metadata: crate::registry_invocation::OwnedInvocationMetadataContext,
+    config: tcl_lexer::LexerConfig,
+}
+/// Derived products are owned outside every immutable identity used as a key.
+#[derive(Debug, Default)]
+struct OriginalSourceAnalysisMemo {
+    // Derived readonly source metadata cannot change this owner's identity.
+    registered_instance_sources: std::sync::OnceLock<
+        std::sync::Weak<original_name_value::OriginalRegisteredInstanceSourceCache>,
+    >,
+    source_operand_layouts: std::sync::OnceLock<
+        std::sync::Weak<declaration_preview::OriginalDeclarationSourceOperandCache>,
+    >,
+    conditional_procedure_declarations:
+        std::sync::OnceLock<source_transition_advice::OriginalConditionalProcedureDeclarationMemo>,
+}
+impl PartialEq for OriginalSourceAnalysisOwner {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+impl Eq for OriginalSourceAnalysisOwner {}
+impl Hash for OriginalSourceAnalysisOwner {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::ptr::from_ref(self).hash(state);
+    }
+}
+impl OriginalSourceAnalysisOwner {
+    fn derived_memo(self: &Arc<Self>) -> Arc<OriginalSourceAnalysisMemo> {
+        static MEMOS: OnceLock<
+            Mutex<AllocationMemoTable<OriginalSourceAnalysisOwner, OriginalSourceAnalysisMemo>>,
+        > = OnceLock::new();
+        MEMOS
+            .get_or_init(|| Mutex::new(AllocationMemoTable::default()))
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get_or_init(self)
+    }
+    pub(crate) fn matches(
+        &self,
+        bindings: &SourceCommandBindings,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        bindings
+            .source_origin()
+            .is_some_and(|source| Arc::ptr_eq(source, &self.source))
+            && bindings.lexer_config == Some(self.config)
+            && input.lexer_config() == self.config
+            && self.metadata.source_analysis_input() == Some(input)
+            && bindings.source_metadata_owner().source_analysis_input() == Some(input)
+    }
+}
+
+/// Segmentation purpose and the survey-only conditional source control of
+/// one whole-source interpretation.
+#[derive(Clone, Copy)]
+struct SourceInterpretationEntry {
+    purpose: tcl_lexer::SourceSegmentationPurpose,
+    logical_conditional_source_control: bool,
+}
+
+/// Retained source-point command and substitution proofs for one analysed script.
+#[derive(Debug, Clone, Default)]
+pub struct SourceCommandBindings {
+    conditional_source: conditional_source::SourceConditionalKernel,
+    analyser_source_settings:
+        Option<Arc<crate::analyser::source_settings::OriginalAnalyserSourceSettings>>,
+    original_analysis_owner: Option<Arc<OriginalSourceAnalysisOwner>>,
+    // The original analysis retains derived receipts through Module lifetime.
+    // Equality and execution identity remain independent of cache warmth.
+    original_registered_instance_sources:
+        Arc<original_name_value::OriginalRegisteredInstanceSourceCache>,
+    original_source_operand_layouts:
+        Arc<declaration_preview::OriginalDeclarationSourceOperandCache>,
+    declaration_preview_depth: usize,
+    /// Survey-scoped Logical conditional source control. Only
+    /// `analyse_package_index_survey` sets it; see
+    /// `package_target_survey` for its exact admission.
+    logical_conditional_source_control: bool,
+    compilation_scope: tcl_runtime_api::SourceCompilationScope,
+    lexer_config: Option<tcl_lexer::LexerConfig>,
+    declaration_layouts: SharedSourceInventory<declaration_layout::DeclarationLayouts>,
+    original_script_activations: Vec<Arc<declaration_layout::OriginalDiagnosticFrameEntry>>,
+    pre_handler_failures: SharedSourceInventory<pre_handler_failure::PreHandlerFailures>,
+    unrepresented_entries: SharedSourceInventory<pre_handler_failure::UnrepresentedEntries>,
+    unpositioned_projections: SourceHeadProjectionCache,
+    declaration_flow_cache: declaration_flow::SourceDeclarationFlowCache,
+    deferred_namespace_index: deferred_namespace_index::DeferredNamespaceIndexCache,
+    deferred_body_index: deferred_body_index::DeferredBodyIndexCache,
+    root_origin: Option<Arc<SourceOriginId>>,
+    original_argument_syntax_commands:
+        SharedSourceInventory<BTreeMap<CommandAllocationSite, Option<tcl_lexer::LexerConfig>>>,
+    origin_points: SharedSourceInventory<BTreeMap<Arc<SourceOriginId>, Vec<SourceBindingPoint>>>,
+    implicit_math_invocations: SharedSourceInventory<ImplicitMathInvocations>,
+    invocation_reads:
+        SharedSourceInventory<BTreeMap<CommandAllocationSite, Arc<SourceInvocationVariableReads>>>,
+    normal_variable_continuations:
+        SharedSourceInventory<normal_variable_continuation::NormalVariableContinuations>,
+    original_variable_invocations:
+        SharedSourceInventory<original_variable_inventory::OriginalVariableInvocations>,
+    invocation_normal_results: SharedSourceInventory<normal_result::InvocationNormalResults>,
+    conditional_procedure_results:
+        SharedSourceInventory<normal_result::ConditionalProcedureResults>,
+    object_callback_effects: SharedSourceInventory<object_callbacks::ObjectCallbackInventory>,
+    rhs_read_store_observations: SharedSourceInventory<read_store_schedule::ReadStoreObservations>,
+    definition_method_references:
+        SharedSourceInventory<definition_reference_inventory::DefinitionMethodReferences>,
+    expression_preparations: SharedSourceInventory<
+        BTreeMap<CommandAllocationSite, Option<Vec<SourceExpressionPreparation>>>,
+    >,
+    conditional_expression_evaluations: SharedSourceInventory<
+        BTreeMap<
+            CommandAllocationSite,
+            Vec<expression_preparation::SourceConditionalExpressionEvaluation>,
+        >,
+    >,
+    current_expression_reads: expression_preparation::CurrentExpressionReadCaptures,
+    origin_variable_accesses: SharedSourceInventory<OriginVariableAccesses>,
+    implicit_fixed_math_invocations: SharedSourceInventory<ImplicitFixedMathInvocations>,
+    fixed_math_diagnostic_presence:
+        SharedSourceInventory<BTreeMap<ImplicitMathSite, SourceCommandSlotPresence>>,
+    entered_scripts: SharedSourceInventory<
+        BTreeMap<
+            CommandAllocationSite,
+            BTreeMap<usize, Vec<origin_inventory::EnteredScriptObservation>>,
+        >,
+    >,
+    entered_words: SharedSourceInventory<BTreeMap<EnteredWordKey, Vec<ExecutedScriptSource>>>,
+    points: SharedSourceInventory<Vec<SourceBindingPoint>>,
+    dispatch_points: SharedSourceInventory<BTreeMap<u32, Vec<usize>>>,
+    final_state: Arc<ModuleCommandBindings>,
+    /// Closed normal root world, independently of the partial fallback state.
+    /// This source-model fact grants no physical interpreter execution.
+    original_completed_root_state: Option<Arc<ModuleCommandBindings>>,
+    deferred: SharedSourceInventory<BTreeMap<DeferredImplementationId, DeferredSourceBody>>,
+    rule_declarations:
+        SharedSourceInventory<BTreeMap<CommandAllocationSite, Vec<SourceRuleDeclarationCandidate>>>,
+    deferred_outcomes: SharedSourceInventory<Vec<SourceDeferredOutcome>>,
+    future_bodies: SharedSourceInventory<Vec<SourceFutureBodyInventory>>,
+    active_calls: BTreeSet<DeferredImplementationId>,
+    active_variable_observers: Vec<variable_observers::ActiveVariableObserver>,
+    called_implementations: BTreeSet<DeferredImplementationId>,
+    phases: SharedSourceInventory<Vec<SourcePhasePoint>>,
+    lifecycle_coverage:
+        SharedSourceInventory<BTreeMap<CommandAllocationSite, Vec<SourceLifecycleCoverage>>>,
+    variable_accesses: SharedSourceInventory<BTreeMap<u32, Vec<SourceVariableAccess>>>,
+    compilation_failures: SharedSourceInventory<Vec<SourceNativeCompilationFailure>>,
+    compilation_boundaries: SharedSourceInventory<
+        BTreeMap<CommandAllocationSite, Option<SourceNativeCompilationFailure>>,
+    >,
+    compilation_provider_required: SharedSourceInventory<BTreeSet<CommandAllocationSite>>,
+    compilation_sources:
+        SharedSourceInventory<BTreeMap<CommandAllocationSite, Option<ExecutedScriptSource>>>,
+    compiled_children: SharedSourceInventory<
+        BTreeMap<CommandAllocationSite, Vec<compiled_preflight::SourceCompiledChild>>,
+    >,
+    compiler_invocations: SharedSourceInventory<
+        BTreeMap<CommandAllocationSite, Vec<compiler_inventory::SourceCompilerInvocation>>,
+    >,
+    runtime_coverage: SharedSourceInventory<BTreeMap<CommandAllocationSite, (usize, bool)>>,
+}
+
+// Derived lookup caches do not change the retained source interpretation.
+impl PartialEq for SourceCommandBindings {
+    fn eq(&self, other: &Self) -> bool {
+        self.analyser_source_settings == other.analyser_source_settings
+            && self.conditional_source == other.conditional_source
+            && self.declaration_preview_depth == other.declaration_preview_depth
+            && self.logical_conditional_source_control == other.logical_conditional_source_control
+            && self.lexer_config == other.lexer_config
+            && self.declaration_layouts == other.declaration_layouts
+            && self.pre_handler_failures == other.pre_handler_failures
+            && self.unrepresented_entries == other.unrepresented_entries
+            && self.root_origin == other.root_origin
+            && self.original_argument_syntax_commands == other.original_argument_syntax_commands
+            && self.origin_points == other.origin_points
+            && self.implicit_math_invocations == other.implicit_math_invocations
+            && self.invocation_reads == other.invocation_reads
+            && self.normal_variable_continuations == other.normal_variable_continuations
+            && self.original_variable_invocations == other.original_variable_invocations
+            && self.invocation_normal_results == other.invocation_normal_results
+            && self.conditional_procedure_results == other.conditional_procedure_results
+            && self.object_callback_effects == other.object_callback_effects
+            && self.rhs_read_store_observations == other.rhs_read_store_observations
+            && self.definition_method_references == other.definition_method_references
+            && self.expression_preparations == other.expression_preparations
+            && self.conditional_expression_evaluations == other.conditional_expression_evaluations
+            && self.origin_variable_accesses == other.origin_variable_accesses
+            && self.implicit_fixed_math_invocations == other.implicit_fixed_math_invocations
+            && self.fixed_math_diagnostic_presence == other.fixed_math_diagnostic_presence
+            && self.entered_scripts == other.entered_scripts
+            && self.entered_words == other.entered_words
+            && self.points == other.points
+            && self.dispatch_points == other.dispatch_points
+            && self.final_state == other.final_state
+            && self.deferred == other.deferred
+            && self.rule_declarations == other.rule_declarations
+            && self.deferred_outcomes == other.deferred_outcomes
+            && self.future_bodies == other.future_bodies
+            && self.active_calls == other.active_calls
+            && self.active_variable_observers == other.active_variable_observers
+            && self.called_implementations == other.called_implementations
+            && self.phases == other.phases
+            && self.lifecycle_coverage == other.lifecycle_coverage
+            && self.variable_accesses == other.variable_accesses
+            && self.compilation_failures == other.compilation_failures
+            && self.compilation_boundaries == other.compilation_boundaries
+            && self.compilation_provider_required == other.compilation_provider_required
+            && self.compilation_sources == other.compilation_sources
+            && self.compiled_children == other.compiled_children
+            && self.compiler_invocations == other.compiler_invocations
+            && self.runtime_coverage == other.runtime_coverage
+    }
+}
+
+impl Eq for SourceCommandBindings {}
+
+/// Resolve the potentially large descriptor snapshot outside recursive source
+/// frames. Only its owned heap pointer remains live while nested scripts run.
+#[inline(never)]
+fn resolve_source_invocation_facts(
+    registry: &CommandRegistry,
+    context: Option<tcl_registry::model::semantic::SemanticContext>,
+    invocation: tcl_registry::InvocationWords<'_>,
+    realm: tcl_dialect::model::InvocationRealm,
+) -> Option<Box<tcl_registry::InvocationFacts>> {
+    tcl_registry::model::semantic::resolve_structured_invocation_in_realm(
+        registry, context, invocation, realm,
+    )
+    .resolved()
+    .map(|resolved| Box::new(resolved.facts()))
+    .or_else(|| {
+        registry
+            .native_registration_invocation_facts(invocation)
+            .map(Box::new)
+    })
+}
+
+#[inline(never)]
+fn resolve_source_success_facts(
+    registry: &CommandRegistry,
+    context: Option<tcl_registry::model::semantic::SemanticContext>,
+    invocation: tcl_registry::InvocationWords<'_>,
+    realm: tcl_dialect::model::InvocationRealm,
+) -> Option<Box<tcl_registry::InvocationFacts>> {
+    tcl_registry::model::semantic::resolve_structured_invocation_in_realm(
+        registry, context, invocation, realm,
+    )
+    .resolved()
+    .map(|resolved| Box::new(resolved.facts_after_success()))
+    .or_else(|| {
+        registry
+            .native_registration_success_facts(invocation)
+            .map(Box::new)
+    })
+}
+
+fn native_procedure_parameters(
+    facts: &InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+) -> Option<Vec<tcl_syntax::formal_params::FormalParameter>> {
+    let grammar = arguments
+        .dialect()
+        .and_then(tcl_registry::InvocationDialect::parameter_grammar)?;
+    let source = facts.arg_roles.iter().find_map(|(index, role)| {
+        (*role == tcl_registry::ArgRole::ParamList)
+            .then(|| arguments.literal_at(facts.argument_offset + usize::from(*index)))
+            .flatten()
+    })?;
+    tcl_syntax::formal_params::parse_formal_parameters_in(source, grammar).ok()
+}
+
+fn seed_deferred_inputs(
+    branch: &mut ModuleCommandBindings,
+    root: &DeferredSourceBody,
+    frame: &crate::var_resolve::VariableExecutionFrame,
+    registry: &CommandRegistry,
+) {
+    if root.event.is_none() {
+        branch.source_variables = Arc::new(branch.source_variables.in_frame(frame));
+        branch.variable_frame = frame.clone();
+        Arc::make_mut(&mut branch.source_variables).widen_deferred_namespace_inputs();
+        if let Some(statics) = &root.statics {
+            Arc::make_mut(&mut branch.source_variables).install_callable_statics(statics, registry);
+        }
+        if let Some(topology) = &root.original_parameters {
+            topology.seed_unknown(Arc::make_mut(&mut branch.source_variables), registry);
+        } else if let Some(grammar) = branch
+            .source_variables
+            .invocation_dialect
+            .and_then(tcl_registry::InvocationDialect::parameter_grammar)
+            && let Ok(parameters) = tcl_syntax::formal_params::bind_formal_arguments(
+                &root.parameters,
+                root.parameters.len(),
+                grammar,
+            )
+        {
+            use tcl_syntax::formal_params::FormalArgumentBinding as Binding;
+            for parameter in parameters {
+                match parameter {
+                    Binding::Value { parameter, .. } | Binding::Default { parameter } => {
+                        Arc::make_mut(&mut branch.source_variables)
+                            .bind_unknown_incoming(&root.parameters[parameter].name, registry);
+                    }
+                    Binding::Rest { name, .. } => {
+                        Arc::make_mut(&mut branch.source_variables)
+                            .bind_unknown_incoming(&name, registry);
+                    }
+                    Binding::CallerLink { name, .. } => {
+                        crate::variable_bindings::bind_caller_reference(
+                            Arc::make_mut(&mut branch.source_variables),
+                            &name,
+                            None,
+                            registry,
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Clone a binding branch outside recursive frames, retaining it on the heap.
+#[inline(never)]
+fn boxed_source_branch(state: &ModuleCommandBindings) -> Box<ModuleCommandBindings> {
+    Box::new(state.clone())
+}
+
+/// Move a completed branch without materialising its owned state in a driver
+/// frame that remains live through the next recursive command/body descent.
+#[inline(never)]
+fn publish_source_branch(state: &mut ModuleCommandBindings, branch: Box<ModuleCommandBindings>) {
+    *state = *branch;
+}
+
+fn original_variable_arena(
+    original: Option<&(&str, crate::ir::SourceSite)>,
+    state: &ModuleCommandBindings,
+    config: tcl_lexer::LexerConfig,
+) -> Option<tcl_lexer::ExecutablePartArena> {
+    original.and_then(|(raw, read_site)| {
+        let image = state.current_source_origin.as_ref()?.source_image();
+        let end = read_site
+            .span
+            .start()
+            .checked_add(u32::try_from(raw.len()).ok()?)?;
+        let span = tcl_lexer::Span::new(read_site.span.start(), end);
+        (image.bytes().get(span.as_range())? == raw.as_bytes()).then_some(())?;
+        tcl_lexer::ExecutablePartArena::decompose(
+            image.clone(),
+            span,
+            tcl_lexer::word_parts::SubstFlags::default(),
+            config,
+        )
+        .ok()
+    })
+}
+
+fn original_variable_source<'s>(
+    document: &'s str,
+    base: u32,
+    source: &crate::ir::SourceSite,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(&'s str, crate::ir::SourceSite)> {
+    let start = usize::try_from(source.span.start().checked_sub(base)?).ok()?;
+    if document.as_bytes().get(start) != Some(&b'$') {
+        return None;
+    }
+    let reference =
+        tcl_lexer::word_parts::scan_var_ref(document.as_bytes(), start, config).ok()??;
+    let spelling = document.get(start..reference.next)?;
+    let span = reference.source_span(document.as_bytes(), start, base)?;
+    Some((
+        spelling,
+        crate::ir::SourceSite {
+            span,
+            provenance: source.provenance.clone(),
+        },
+    ))
+}
+
+#[derive(Clone, Copy)]
+struct SourceIndexView<'a> {
+    arena: &'a tcl_lexer::word_parts::ExecutablePartArena,
+    offset: u32,
+}
+
+enum SourceIndexFrame {
+    List {
+        id: tcl_lexer::word_parts::PartListId,
+        next: usize,
+        outcomes: Box<SourceOutcomes>,
+        value: Option<String>,
+        native_value: Option<original_name_value::OriginalProducedNameValue>,
+        native_complete: bool,
+    },
+    Variable {
+        id: tcl_lexer::word_parts::PartListId,
+        position: usize,
+    },
+}
+
+fn join_index_fragment(
+    outcomes: &mut SourceOutcomes,
+    value: &mut Option<String>,
+    fragment: &SourceOutcomes,
+    native_value: &mut Option<original_name_value::OriginalProducedNameValue>,
+    native_complete: &mut bool,
+) {
+    if *native_complete {
+        *native_value = match (native_value.take(), fragment.normal_name_value.as_deref()) {
+            (None, Some(component)) => Some(component.clone()),
+            (Some(value), Some(component)) => value.concatenated(component),
+            _ => None,
+        };
+        *native_complete = native_value.is_some();
+    }
+    *value = value
+        .take()
+        .zip(fragment.normal_value.as_ref())
+        .map(|(mut text, fragment)| {
+            text.push_str(&fragment.text);
+            text
+        });
+    outcomes.join(fragment);
+}
+
+fn index_normal_result(
+    outcomes: &SourceOutcomes,
+    value: Option<String>,
+) -> Option<Arc<native_result::EvaluatedSourceValue>> {
+    outcomes.normal.as_ref().and(value).map(|text| {
+        Arc::new(native_result::EvaluatedSourceValue {
+            text,
+            representation: tcl_syntax::value::ValueRepresentation::Unknown,
+            numeric: None,
+        })
+    })
+}
+
+fn index_text_fragment(
+    source: SourceIndexView<'_>,
+    component: &tcl_lexer::word_parts::SpannedExecutablePart,
+    state: &ModuleCommandBindings,
+) -> SourceOutcomes {
+    let mut fragment = SourceOutcomes::normal(state);
+    fragment.normal_name_value = state.source_variables.execution_name_policy
+        .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+        .and_then(|policy| {
+            let value = crate::signature_scan::scope::SignatureSourceNameValue::from_original_executable_text_fragment(
+                source.arena, source.arena.image(), source.arena.config(), component.span, policy)?;
+            original_name_value::OriginalProducedNameValue::from_source_input(
+                &crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue(value), &state.source_variables)
+        }).map(Arc::new);
+    fragment.retain_complete_normal_evaluation();
+    fragment.normal_value = source
+        .arena
+        .text(component)
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .map(|text| {
+            Arc::new(native_result::EvaluatedSourceValue {
+                text: text.to_owned(),
+                representation: tcl_syntax::value::ValueRepresentation::Unknown,
+                numeric: None,
+            })
+        });
+    fragment
+}
+
+/// Source selection is independent of an actual entered-body observation.
+/// Conditional descendants retain their selected source and analysis frame.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SourceBodyEntryPurpose {
+    Selected,
+    Conditional,
+}
+
+#[derive(Clone, Copy)]
+struct SourceExecutionContext<'a> {
+    source_purpose: tcl_lexer::SourceSegmentationPurpose,
+    body_entry: SourceBodyEntryPurpose,
+    realm: tcl_dialect::model::InvocationRealm,
+    compilation: tcl_registry::native_compilation::NativeCompilationContext,
+    compilation_snapshot: Option<&'a NativeCompilationSnapshot>,
+    selected_compilation: Option<&'a tcl_registry::native_compilation::NativeCompilationSelection>,
+    original_variable_compilation:
+        Option<&'a original_name_value::OriginalSourceVariableCompilation<'a>>,
+    namespace: &'a str,
+    namespace_key: Option<&'a SourceNamespaceKey>,
+    config: tcl_lexer::LexerConfig,
+    registry: &'a CommandRegistry,
+    depth: u32,
+    frame: &'a crate::var_resolve::VariableExecutionFrame,
+    invocation_offset: u32,
+    variable_read_owner: Option<&'a SourceVariableEvaluationOwner>,
+    original_written_projection: Option<&'a named_arguments::OriginalNamedWords>,
+    written_arguments: Option<&'a [crate::registry_invocation::EffectiveInvocationWord]>,
+    written_values: Option<&'a [Option<Arc<native_result::EvaluatedSourceValue>>]>,
+    written_name_values: Option<&'a [Option<Arc<original_name_value::OriginalProducedNameValue>>]>,
+    written_representations:
+        Option<&'a [Option<source_representation::FrozenSourceRepresentation>]>,
+    written_objects: Option<&'a [Option<Arc<SourceObjectInstanceProof>>]>,
+    written_method_prefixes: Option<&'a [Option<Arc<SourceCapturedMethodPrefix>>]>,
+    written_variable_reads: Option<&'a [Option<Arc<argument_reads::FrozenSourceArgumentRead>>]>,
+    expression_source: Option<&'a ExecutedExpressionSource>,
+}
+
+impl<'a> SourceExecutionContext<'a> {
+    fn conditional(self) -> Self {
+        Self {
+            body_entry: SourceBodyEntryPurpose::Conditional,
+            ..self
+        }
+    }
+
+    fn entered_frame(&self) -> Option<&'a crate::var_resolve::VariableExecutionFrame> {
+        (self.body_entry == SourceBodyEntryPurpose::Selected).then_some(self.frame)
+    }
+
+    fn withdraw_observed_operand_facts(&mut self, observed: bool) {
+        if observed {
+            self.written_method_prefixes = None;
+            self.written_name_values = None;
+            self.written_representations = None;
+            self.written_variable_reads = None;
+        }
+    }
+
+    fn namespace_identity(&self) -> SourceNamespaceKey {
+        self.namespace_key
+            .cloned()
+            .unwrap_or_else(|| SourceNamespaceKey::authored(self.namespace))
+    }
+}
+
+struct PreparedSourceNativeInvocation<'a> {
+    arguments: Vec<tcl_registry::InvocationWord<'a>>,
+    dialect: Option<tcl_registry::InvocationDialect>,
+    route: tcl_registry::completion_route::InvocationCompletionRoute,
+    facts: Box<InvocationFacts>,
+    original_variable_operands: OnceLock<crate::variable_bindings::OriginalVariableInvocation>,
+}
+
+impl PreparedSourceNativeInvocation<'_> {
+    fn completion_route(
+        &self,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> tcl_registry::completion_route::InvocationCompletionRoute {
+        // Source-inspection proof: naming.list.constructor-intrinsic-return-code
+
+        if self.facts.successful_handler
+            == Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::Leaf)
+            && let Some(code) = self.facts.native_result.and_then(|contract| {
+                contract.list_constructor_completion_code(
+                    self.invocation("").arguments(),
+                    self.facts.argument_offset,
+                )
+            })
+        {
+            return tcl_registry::completion_route::InvocationCompletionRoute::Tcl(code);
+        }
+        if state.closed_rename_receiver(&self.facts, context)
+            || crate::variable_bindings::alias_registration_is_closed(
+                &state.source_variables,
+                &self.facts,
+                self.invocation("").arguments(),
+                context.registry,
+            )
+            || self.original_variable_operands.get().is_some_and(|operands| {
+                crate::variable_bindings::variable_trace_registration_is_closed_with_original_operands(
+                    &state.source_variables, &self.facts, context.registry, operands,
+                )
+            })
+        {
+            tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                tcl_registry::completion::CompletionCode::Ok,
+            )
+        } else {
+            self.route
+        }
+    }
+
+    fn invocation<'a>(&'a self, head: &'a str) -> tcl_registry::InvocationWords<'a> {
+        let words = tcl_registry::InvocationWords::structured(
+            tcl_registry::InvocationWord::Literal(head),
+            &self.arguments,
+        );
+        self.dialect
+            .map_or(words, |dialect| words.with_dialect(dialect))
+    }
+
+    /// Keep the dialect-bearing argv view on the heap through body traversal.
+    #[inline(never)]
+    fn invocation_boxed<'a>(&'a self, head: &'a str) -> Box<tcl_registry::InvocationWords<'a>> {
+        Box::new(self.invocation(head))
+    }
+}
+
+enum SourceNativePreparationError {
+    Unresolved(tcl_registry::completion_route::InvocationCompletionRoute),
+    InvalidArguments,
+}
+
+/// Build source word carriers in a leaf frame rather than retaining their
+/// inline construction temporary through recursive command substitution.
+#[inline(never)]
+fn source_command_tokens_boxed(
+    image: &tcl_lexer::SourceImage,
+    base: u32,
+    config: tcl_lexer::LexerConfig,
+    segment: &crate::segmenter::SegmentedCommand,
+) -> Box<crate::ir::CommandTokens> {
+    Box::new(crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(image).with_base(base, 0, 0),
+        config,
+        segment,
+    ))
+}
+
+/// Materialise argv and descriptors outside frames retained through descent.
+#[inline(never)]
+fn prepare_source_native_invocation<'a>(
+    target: &'a SourceCommandTarget,
+    effective: &'a [crate::registry_invocation::EffectiveInvocationWord],
+    state: &ModuleCommandBindings,
+    registry: &CommandRegistry,
+    realm: tcl_dialect::model::InvocationRealm,
+) -> Result<Box<PreparedSourceNativeInvocation<'a>>, SourceNativePreparationError> {
+    let mut arguments = target
+        .prepended
+        .iter()
+        .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+        .collect::<Vec<_>>();
+    arguments.extend(
+        effective
+            .iter()
+            .skip(1)
+            .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word),
+    );
+    let dialect = state.baseline.dialect;
+    if state.baseline.native_entry.is_some() && dialect.is_none() {
+        return Err(SourceNativePreparationError::Unresolved(
+            tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
+        ));
+    }
+    let mut invocation = tcl_registry::InvocationWords::structured(
+        tcl_registry::InvocationWord::Literal(&target.command),
+        &arguments,
+    );
+    if let Some(dialect) = dialect {
+        invocation = invocation.with_dialect(dialect);
+    }
+    let route = registry
+        .invocation_completion_route_in_frame(
+            &target.command,
+            invocation.arguments(),
+            invocation
+                .arguments()
+                .dialect()
+                .and_then(tcl_registry::InvocationDialect::authoring_query)
+                .map(|query| query.with_realm(realm)),
+            state.source_variables.alias_frame(),
+        )
+        .or_else(|| {
+            registry.native_registration_completion_route(
+                invocation,
+                state.source_variables.alias_frame(),
+            )
+        })
+        .unwrap_or(tcl_registry::completion_route::InvocationCompletionRoute::Unknown);
+    let semantic_context = registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    let facts = resolve_source_invocation_facts(registry, semantic_context, invocation, realm)
+        .ok_or(SourceNativePreparationError::Unresolved(route))?;
+    if source_target_arguments_invalid(&facts, invocation.arguments()) {
+        return Err(SourceNativePreparationError::InvalidArguments);
+    }
+    let facts = resolve_source_success_facts(registry, semantic_context, invocation, realm)
+        .unwrap_or(facts);
+    Ok(Box::new(PreparedSourceNativeInvocation {
+        arguments,
+        dialect,
+        route,
+        facts,
+        original_variable_operands: OnceLock::new(),
+    }))
+}
+
+/// Borrow the original source operands and their prepared runtime values together.
+#[derive(Clone, Copy)]
+struct SourceCommandInput<'a> {
+    image: &'a tcl_lexer::SourceImage,
+    segment: &'a crate::segmenter::SegmentedCommand,
+    words: &'a [crate::ir::WordExpr],
+    effective: &'a [crate::registry_invocation::EffectiveInvocationWord],
+}
+
+#[derive(Clone, Copy)]
+struct SourceNativeInvocation<'a> {
+    compilation_spec: Option<&'a tcl_registry::native_compilation::NativeCompilationSpec>,
+    compilation_selection: &'a tcl_registry::native_compilation::NativeCompilationSelection,
+    segment: &'a crate::segmenter::SegmentedCommand,
+    words: &'a [crate::ir::WordExpr],
+    written_arguments: Option<&'a [crate::registry_invocation::EffectiveInvocationWord]>,
+    target: &'a SourceCommandTarget,
+    invocation: &'a tcl_registry::InvocationWords<'a>,
+    original_variable_operands: &'a crate::variable_bindings::OriginalVariableInvocation,
+}
+
+fn finish_index_list(
+    mut outcomes: Box<SourceOutcomes>,
+    value: Option<String>,
+    native_value: Option<original_name_value::OriginalProducedNameValue>,
+    state: &mut ModuleCommandBindings,
+) -> SourceOutcomes {
+    outcomes.normal_name_value = native_value
+        .filter(|value| {
+            outcomes
+                .normal
+                .as_ref()
+                .is_some_and(|normal| value.is_current(&normal.source_variables))
+        })
+        .map(Arc::new);
+    outcomes.normal_value = index_normal_result(&outcomes, value);
+    outcomes.publish(state);
+    *outcomes
+}
+
+struct CapturedNativeCompletionReceipts {
+    mutation: Option<Box<original_command_mutation::OriginalCommandMove>>,
+    alias_creation: Option<Box<original_alias_creation::OriginalAliasCreation>>,
+    namespace_binding: Option<Box<original_namespace_binding::OriginalNamespaceBinding>>,
+    namespace_deletion: Option<Box<original_namespace_deletion::OriginalNamespaceDeletion>>,
+}
+
+impl CapturedNativeCompletionReceipts {
+    fn capture(
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        state: &ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> Self {
+        let mutation = boxed_source_completion_receipt(|| {
+            original_command_mutation::OriginalCommandMove::capture(native, facts, state, *context)
+        });
+        let alias_creation = boxed_source_completion_receipt(|| {
+            original_alias_creation::OriginalAliasCreation::capture(native, facts, state, *context)
+        });
+        let namespace_binding = boxed_source_completion_receipt(|| {
+            original_namespace_binding::OriginalNamespaceBinding::capture(
+                native, facts, state, *context,
+            )
+        });
+        let namespace_deletion = boxed_source_completion_receipt(|| {
+            original_namespace_deletion::OriginalNamespaceDeletion::capture(
+                native, facts, state, *context,
+            )
+        });
+        Self {
+            mutation,
+            alias_creation,
+            namespace_binding,
+            namespace_deletion,
+        }
+    }
+
+    fn captured(&self) -> bool {
+        self.mutation.is_some()
+            || self.alias_creation.is_some()
+            || self.namespace_binding.is_some()
+            || self.namespace_deletion.is_some()
+    }
+
+    fn completed(
+        &self,
+        outcomes: &SourceOutcomes,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        self.mutation.as_ref().is_some_and(|receipt| {
+            outcomes.abrupt.is_empty()
+                && outcomes
+                    .normal
+                    .as_ref()
+                    .is_some_and(|normal| receipt.completed(native, facts, normal, context))
+        }) || self.alias_creation.as_ref().is_some_and(|receipt| {
+            outcomes.abrupt.is_empty()
+                && outcomes
+                    .normal
+                    .as_ref()
+                    .is_some_and(|normal| receipt.completed(native, facts, normal, context))
+        }) || self.namespace_binding.as_ref().is_some_and(|receipt| {
+            outcomes.abrupt.is_empty()
+                && outcomes
+                    .normal
+                    .as_ref()
+                    .is_some_and(|normal| receipt.completed(native, normal, context))
+        }) || self.namespace_deletion.as_ref().is_some_and(|receipt| {
+            outcomes.abrupt.is_empty()
+                && outcomes
+                    .normal
+                    .as_ref()
+                    .is_some_and(|normal| receipt.completed(native, facts, normal, context))
+        })
+    }
+}
+
+/// An actual registration or selected executable prefix prevents the fresh
+/// builtin shortcut. A possible callback is not a registration receipt:
+/// `UNKNOWN` includes every kind, and ordinary variable accesses carry `TRACE`.
+/// Their independent unresolved effects remain with the generic handler guards.
+fn requires_reentry_guard(facts: &InvocationFacts) -> bool {
+    use tcl_registry::{CallbackKinds, NamespaceTransition, StateTransition, TraceTransition};
+    let kinds = facts.effects.callback().kinds;
+    let precise_callback = !kinds.is_unknown()
+        && (kinds.contains(CallbackKinds::COMMAND_PREFIX) || kinds.contains(CallbackKinds::HOST));
+    let source_retention = facts.source_callback_retention()
+        != tcl_registry::resolved_invocation::SourceCallbackRetention::Absent;
+    let registration = facts
+        .state_transitions
+        .declared()
+        .is_some_and(|transitions| {
+            transitions.facts().iter().any(|fact| {
+                matches!(
+                    fact.transition,
+                    StateTransition::Trace(TraceTransition::Add { .. })
+                        | StateTransition::Namespace(NamespaceTransition::SetUnknown { .. })
+                )
+            })
+        });
+    precise_callback
+        || source_retention
+        || registration
+        || facts
+            .traits
+            .intersects(tcl_registry::extension_default::TRACES)
+}
+
+impl ModuleCommandBindings {
+    /// Whether `::unknown` is still the fresh interpreter's handler (or
+    /// absent). A redefined handler is a hook the closed-builtin shortcut
+    /// does not model, so it withholds that shortcut.
+    fn unknown_handler_is_original(&self) -> bool {
+        let root = self
+            .native_root_namespace_key()
+            .unwrap_or_else(|| SourceNamespaceKey::Authored("::".to_owned()));
+        let binding = source_binding_projection(self, "::unknown", &root);
+        // The stock handler is the interpreter's own; any source-allocated
+        // or redefined implementation is a hook.
+        !binding.unknown
+            && binding.targets.iter().all(|target| {
+                target.registry_backed
+                    && target.prepended.is_empty()
+                    && target.implementation_generation == 0
+                    && target.implementation_allocation.is_none()
+            })
+    }
+}
+
+/// Whether a handler without its own closed receipt still leaves the command
+/// world exactly as the walk models it on normal return.
+///
+/// Only a command resolved to an unperturbed registry builtin qualifies, and
+/// only when its selected descriptor is complete: every argument role is
+/// known, the subcommand (if any) was selected, and it declares no
+/// command-table mutation. A descriptor with declared transitions must
+/// declare none at all (`list`, `string length`) and no re-entrant callback
+/// (`lsort -command`), which could rebind commands before the invocation
+/// returns. A builtin without declared transitions (`puts`) is the walk's
+/// generic invocation; it qualifies only when its own traits claim no code
+/// evaluation, dynamic barrier or trace, which every evaluator and every
+/// extension-default command (`extension_default::EVALUATION`) carries.
+/// Unknown commands, procedures, objects, aliases and incompletely described
+/// commands keep the completed world withheld.
+fn command_world_closed_on_normal_return(
+    target: &SourceCommandTarget,
+    facts: &InvocationFacts,
+) -> bool {
+    use tcl_registry::OwnedSubcommandResolution;
+    let complete_builtin = target.registry_backed
+        && target.kind == BindingKind::Builtin
+        && target.prepended.is_empty()
+        && facts.arg_roles_complete
+        && matches!(
+            facts.subcommand,
+            OwnedSubcommandResolution::NotApplicable
+                | OwnedSubcommandResolution::Exact { .. }
+                | OwnedSubcommandResolution::UniquePrefix { .. }
+        )
+        && !facts.effects.legacy().command_table_mutation;
+    if !complete_builtin {
+        return false;
+    }
+    match facts.state_transitions.declared() {
+        Some(transitions) => {
+            transitions.facts().is_empty() && !facts.effects.requires_world_barrier()
+        }
+        None => !facts.traits.intersects(
+            tcl_registry::extension_default::EVALUATION
+                .union(tcl_registry::extension_default::TRACES),
+        ),
+    }
+}
+
+fn source_frame_namespace(frame: &crate::var_resolve::VariableExecutionFrame) -> &str {
+    use crate::var_resolve::VariableExecutionFrame;
+    match frame.layout() {
+        VariableExecutionFrame::Namespace(namespace)
+        | VariableExecutionFrame::NamespaceActivation { namespace, .. }
+        | VariableExecutionFrame::Procedure { namespace, .. }
+        | VariableExecutionFrame::Selected {
+            namespace: Some(namespace),
+            ..
+        } => namespace,
+        VariableExecutionFrame::Selected {
+            namespace: None, ..
+        }
+        | VariableExecutionFrame::ReceiverMethod { .. }
+        | VariableExecutionFrame::Global
+        | VariableExecutionFrame::Unknown => "::",
+        VariableExecutionFrame::NamespaceIdentity { .. } => {
+            unreachable!("layout excludes identity wrappers")
+        }
+    }
+}
+
+/// Keep formal value representation and object identity from the same call operands.
+fn retain_called_body_value_formals(
+    state: &mut ModuleCommandBindings,
+    called: &mut crate::var_resolve::ResolveContext,
+    body: &DeferredSourceBody,
+    actual_count: usize,
+    target: &SourceCommandTarget,
+    context: SourceExecutionContext<'_>,
+) {
+    source_representation::retain_value_formals(
+        called,
+        &body.parameters,
+        actual_count,
+        1,
+        target,
+        context,
+    );
+    object_instance::retain_value_formals(
+        state,
+        called,
+        &body.parameters,
+        actual_count,
+        1,
+        target,
+        context,
+    );
+}
+
+enum PreparedSourceLambda {
+    Ready {
+        lambda: tcl_registry::lambda_invocation::LambdaInvocation,
+        parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
+    },
+    Invalid,
+    Unknown,
+}
+
+/// Selection and formal parsing precede entry into a lambda frame.
+fn prepare_source_lambda(
+    selection: tcl_registry::lambda_invocation::LambdaInvocationSelection,
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> PreparedSourceLambda {
+    use tcl_registry::lambda_invocation::LambdaInvocationSelection;
+    let lambda = match selection {
+        LambdaInvocationSelection::Selected(lambda) => lambda,
+        LambdaInvocationSelection::Invalid => return PreparedSourceLambda::Invalid,
+        LambdaInvocationSelection::Unknown => return PreparedSourceLambda::Unknown,
+    };
+    let Some(grammar) = dialect.and_then(tcl_registry::InvocationDialect::parameter_grammar) else {
+        return PreparedSourceLambda::Unknown;
+    };
+    let Ok(parameters) =
+        tcl_syntax::formal_params::parse_formal_parameters_in(&lambda.parameters, grammar)
+    else {
+        return PreparedSourceLambda::Invalid;
+    };
+    PreparedSourceLambda::Ready { lambda, parameters }
+}
+
+fn root_source_execution_context<'a>(
+    frame: &'a crate::var_resolve::VariableExecutionFrame,
+    namespace: &'a str,
+    namespace_key: &'a SourceNamespaceKey,
+    config: tcl_lexer::LexerConfig,
+    registry: &'a CommandRegistry,
+    options: SourceAnalysisOptions<'a>,
+    source_purpose: tcl_lexer::SourceSegmentationPurpose,
+) -> SourceExecutionContext<'a> {
+    SourceExecutionContext {
+        body_entry: if options.source_point_entry.is_some() {
+            SourceBodyEntryPurpose::Conditional
+        } else {
+            SourceBodyEntryPurpose::Selected
+        },
+        source_purpose,
+        realm: options.invocation_realm,
+        compilation: options.native_compilation,
+        compilation_snapshot: None,
+        selected_compilation: None,
+        original_variable_compilation: None,
+        namespace,
+        config,
+        registry,
+        depth: 0,
+        frame,
+        invocation_offset: 0,
+        variable_read_owner: None,
+        original_written_projection: None,
+        written_arguments: None,
+        written_values: None,
+        written_name_values: None,
+        written_representations: None,
+        written_objects: None,
+        written_method_prefixes: None,
+        written_variable_reads: None,
+        namespace_key: Some(namespace_key),
+        expression_source: None,
+    }
+}
+
+#[derive(Clone, Copy)]
+struct SourceArgumentReceipts<'a> {
+    arguments: &'a [crate::registry_invocation::EffectiveInvocationWord],
+    values: &'a [Option<Arc<native_result::EvaluatedSourceValue>>],
+    name_values: &'a [Option<Arc<original_name_value::OriginalProducedNameValue>>],
+    representations: &'a [Option<source_representation::FrozenSourceRepresentation>],
+    objects: &'a [Option<Arc<SourceObjectInstanceProof>>],
+    prefixes: &'a [Option<Arc<SourceCapturedMethodPrefix>>],
+    reads: &'a [Option<Arc<argument_reads::FrozenSourceArgumentRead>>],
+}
+
+fn is_default_namespace_unknown_handler(
+    state: &ModuleCommandBindings,
+    handler: &TransitionSubject,
+) -> bool {
+    handler.literal().is_some_and(|handler| {
+        state.baseline.dialect.is_some_and(|dialect| {
+            dialect
+                .word_values
+                .split_list(handler)
+                .is_ok_and(|prefix| prefix.is_empty())
+        })
+    })
+}
+
+struct CapturedNativeResultReceipts {
+    normal_read: Option<crate::var_resolve::OriginalNormalValueRead>,
+    normal_write: Option<crate::var_resolve::OriginalNormalValueWrite>,
+    range: Option<Box<source_representation::CapturedRangeResult>>,
+    coercion: Option<Box<container_coercion::CapturedContainerCoercion>>,
+    numeric_operands: Vec<numeric_operand_cache::CapturedNumericOperandCache>,
+}
+
+/// Build physical operand receipts outside recursive body-driver frames.
+#[inline(never)]
+fn capture_source_native_results_boxed(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+    state: &ModuleCommandBindings,
+    context: &SourceExecutionContext<'_>,
+) -> Box<CapturedNativeResultReceipts> {
+    let context = *context;
+    Box::new(CapturedNativeResultReceipts {
+        normal_read: native_result::capture_original_read_completion(
+            native,
+            facts,
+            state,
+            context.registry,
+        ),
+        normal_write: native_result::original_store_receiver(
+            facts,
+            native.target,
+            native.invocation.arguments(),
+            context,
+            &state.source_variables,
+        )
+        .and_then(|(receiver, _)| {
+            state
+                .source_variables
+                .original_normal_value_write(&receiver, context.registry)
+        }),
+        range: source_representation::capture_range_result(native, facts, state, context),
+        coercion: container_coercion::capture(native, facts, state, context).map(Box::new),
+        numeric_operands: numeric_operand_cache::capture_indices(native, facts, state, context),
+    })
+}
+
+/// Unpack post-handler receipts only after recursive body traversal has ended.
+#[inline(never)]
+fn finish_source_native_results(
+    outcomes: &mut SourceOutcomes,
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+    incoming: &ModuleCommandBindings,
+    context: &SourceExecutionContext<'_>,
+    receipts: &mut CapturedNativeResultReceipts,
+) {
+    let context = *context;
+    let range_result = receipts.range.take();
+    let coercion = receipts.coercion.take();
+    let numeric_operands = std::mem::take(&mut receipts.numeric_operands);
+    numeric_operand_cache::finish_indices(outcomes, numeric_operands, context.registry);
+    container_coercion::finish(outcomes, coercion.map(|receipt| *receipt), context);
+    dictionary_store::retain_dictionary_store(outcomes, native, facts, incoming, context);
+    source_representation::retain_created_result(
+        outcomes,
+        native,
+        facts,
+        context,
+        range_result
+            .as_deref()
+            .map(source_representation::CapturedRangeResult::representation),
+    );
+    source_representation::retain_range_result_bytes(outcomes, range_result);
+    native_result::retain_store_results(
+        outcomes,
+        facts,
+        native.target,
+        native.invocation.arguments(),
+        context,
+    );
+    method_prefix::retain_created_prefix(outcomes, native, facts, context);
+    method_prefix::retain_scoped_prefix(outcomes, native, facts, context);
+    method_prefix::retain_prefix_store(
+        outcomes,
+        facts,
+        native.target,
+        native.invocation.arguments(),
+        context,
+    );
+}
+
+#[derive(Clone, Copy)]
+struct SourceScriptOperands<'a> {
+    compilation_spec: Option<&'a tcl_registry::native_compilation::NativeCompilationSpec>,
+    compilation_selection: &'a tcl_registry::native_compilation::NativeCompilationSelection,
+    words: &'a [crate::ir::WordExpr],
+    written_arguments: Option<&'a [crate::registry_invocation::EffectiveInvocationWord]>,
+    target: &'a SourceCommandTarget,
+    arguments: &'a tcl_registry::InvocationArguments<'a>,
+}
+
+impl<'a> SourceNativeInvocation<'a> {
+    fn script_operands(self) -> SourceScriptOperands<'a> {
+        SourceScriptOperands {
+            compilation_spec: self.compilation_spec,
+            compilation_selection: self.compilation_selection,
+            words: self.words,
+            written_arguments: self.written_arguments,
+            target: self.target,
+            arguments: self.invocation.arguments_ref(),
+        }
+    }
+}
+
+fn frozen_script_operands(
+    arguments: tcl_registry::InvocationArguments<'_>,
+    from: usize,
+) -> Option<Vec<&str>> {
+    let count = arguments.exact_argv_len()?;
+    (from..count)
+        .map(|index| arguments.literal_at(index))
+        .collect()
+}
+
+/// Preserve the enclosing admission realm only for literal source operands.
+/// Decoding literal escapes does not turn authored code into a runtime script;
+/// substitution and alias-prefix values do, independently of source mapping.
+fn evaluated_script_realm(
+    arguments: std::ops::Range<usize>,
+    operands: SourceScriptOperands<'_>,
+    context: SourceExecutionContext<'_>,
+) -> tcl_dialect::model::InvocationRealm {
+    let rules = tcl_syntax::word_rules::WordValueRules::from_config(&context.config);
+    if arguments.into_iter().all(|index| {
+        operands.written_word(index).is_some_and(|word| {
+            matches!(
+                crate::registry_invocation::effective_invocation_word(
+                    word,
+                    context.config.escapes,
+                    rules,
+                ),
+                crate::registry_invocation::EffectiveInvocationWord::Literal(_)
+            )
+        })
+    }) {
+        context.realm
+    } else {
+        tcl_dialect::model::InvocationRealm::InterpreterRuntime
+    }
+}
+
+/// Retain the derived body context on the heap while its script descends.
+/// Its native realm and compiler inheritance are selected before entry.
+#[inline(never)]
+fn boxed_body_operand_context<'a>(
+    index: usize,
+    operands: SourceScriptOperands<'_>,
+    state: &ModuleCommandBindings,
+    context: &SourceExecutionContext<'a>,
+) -> Box<SourceExecutionContext<'a>> {
+    let realm = evaluated_script_realm(index..index + 1, operands, *context);
+    let context = compiled_invocation::body_context(index, operands, state, *context);
+    Box::new(SourceExecutionContext { realm, ..context })
+}
+
+fn authored_braced_operand<'a>(
+    native: SourceNativeInvocation<'a>,
+    argument: usize,
+    value: &str,
+) -> Option<&'a crate::ir::SourceSite> {
+    match native.script_operands().written_word(argument)? {
+        crate::ir::WordExpr::BracedLiteral { text, source } if text == value => Some(source),
+        _ => None,
+    }
+}
+
+fn retained_script_operand(
+    argument: usize,
+    operands: SourceScriptOperands<'_>,
+    state: &ModuleCommandBindings,
+    invocation: u32,
+    config: tcl_lexer::LexerConfig,
+) -> Option<ExecutedScriptSource> {
+    let parent = CommandAllocationSite {
+        source: Arc::clone(state.current_source_origin.as_ref()?),
+        offset: invocation,
+    };
+    if let Some(bytes) = operands.arguments.native_bytes_at(argument) {
+        if let Some(crate::registry_invocation::InvocationWordOrigin::Written(written)) =
+            operands.written_origin(argument)
+            && let Some(protocol) =
+                compiler_inventory::SourceNativeCompilerPolicy::source_protocol_of(state)
+            && let Some(original) =
+                parent
+                    .source
+                    .original_lexical_command(operands.words, invocation, config)
+            && let Some(word) = original.native_words().get(written)
+        {
+            return Some(ExecutedScriptSource::from_original_word_value(
+                parent, argument, word, bytes, protocol,
+            ));
+        }
+        return Some(ExecutedScriptSource::materialised_image(
+            parent,
+            vec![argument],
+            tcl_lexer::SourceImage::native(Arc::<[u8]>::from(bytes)),
+        ));
+    }
+    let value = operands.arguments.literal_at(argument)?;
+    let script = operands.written_word(argument).map_or_else(
+        || ExecutedScriptSource::materialised(parent.clone(), vec![argument], value),
+        |word| ExecutedScriptSource::from_word(parent.clone(), argument, word, value, config),
+    );
+    Some(script)
+}
+
+/// Carry both value-formal receipts through the same original lambda argv.
+/// Preparation ends before recursive body descent.
+#[inline(never)]
+fn retain_lambda_value_formals(
+    state: &mut ModuleCommandBindings,
+    variables: &mut crate::var_resolve::ResolveContext,
+    parameters: &[tcl_syntax::formal_params::FormalParameter],
+    actual_count: usize,
+    lambda: &tcl_registry::lambda_invocation::LambdaInvocation,
+    native: SourceNativeInvocation<'_>,
+    context: SourceExecutionContext<'_>,
+) {
+    let first_actual_word = lambda.call_arguments_from + 1;
+    source_representation::retain_value_formals(
+        variables,
+        parameters,
+        actual_count,
+        first_actual_word,
+        native.target,
+        context,
+    );
+    object_instance::retain_value_formals(
+        state,
+        variables,
+        parameters,
+        actual_count,
+        first_actual_word,
+        native.target,
+        context,
+    );
+}
+
+fn retained_lambda_body(
+    lambda: &tcl_registry::lambda_invocation::LambdaInvocation,
+    native: SourceNativeInvocation<'_>,
+    state: &ModuleCommandBindings,
+    config: tcl_lexer::LexerConfig,
+) -> Option<ExecutedScriptSource> {
+    let parent = CommandAllocationSite {
+        source: Arc::clone(state.current_source_origin.as_ref()?),
+        offset: native.segment.span.start(),
+    };
+    let dialect = native.invocation.arguments().dialect()?;
+    let value = native
+        .invocation
+        .arguments()
+        .literal_at(lambda.lambda_argument)?;
+    let list = lambda
+        .lambda_argument
+        .checked_sub(native.target.prepended.len())
+        .and_then(|written| native.words.get(written + 1))
+        .map_or_else(
+            || {
+                ExecutedScriptSource::materialised(
+                    parent.clone(),
+                    vec![lambda.lambda_argument],
+                    value,
+                )
+            },
+            |word| {
+                ExecutedScriptSource::from_word(
+                    parent.clone(),
+                    lambda.lambda_argument,
+                    word,
+                    value,
+                    config,
+                )
+            },
+        );
+    let body = list.list_element(parent, lambda.lambda_argument, 1, dialect.word_values)?;
+    (body.text.bytes() == lambda.body.as_bytes()).then_some(body)
+}
+
+fn note_source_command_lookup(
+    state: &mut ModuleCommandBindings,
+    compiled: &compiled_invocation::CompiledInvocationSelection,
+    effective: &[crate::registry_invocation::EffectiveInvocationWord],
+) {
+    if (compiled.live || compiled.unknown)
+        && let (Some(pool), Some(dialect)) =
+            (&mut state.ordinary_literal_pool, state.baseline.dialect)
+        && let Some(head) = effective
+            .first()
+            .and_then(|word| word.as_registry_word().literal())
+    {
+        pool.note_command_lookup(head, dialect);
+    }
+}
+
+struct PreparedSourceArguments {
+    effective: Vec<crate::registry_invocation::EffectiveInvocationWord>,
+    written_arguments: Arc<[crate::registry_invocation::EffectiveInvocationWord]>,
+    written_values: Vec<Option<Arc<native_result::EvaluatedSourceValue>>>,
+    written_name_values: Vec<Option<Arc<original_name_value::OriginalProducedNameValue>>>,
+    written_representations: Vec<Option<source_representation::FrozenSourceRepresentation>>,
+    written_objects: Vec<Option<Arc<SourceObjectInstanceProof>>>,
+    written_method_prefixes: Vec<Option<Arc<SourceCapturedMethodPrefix>>>,
+    written_variable_reads: Vec<Option<Arc<argument_reads::FrozenSourceArgumentRead>>>,
+    outcomes: SourceOutcomes,
+    complete_normally: bool,
+    ready: bool,
+}
+
+impl PreparedSourceArguments {
+    fn finish_normal_completions(&mut self, observed: bool) {
+        self.outcomes.normal_completion = self
+            .outcomes
+            .normal_completion
+            .filter(|_| self.complete_normally && !observed);
+        self.outcomes.complete_procedure_return = self
+            .outcomes
+            .complete_procedure_return
+            .filter(|_| self.complete_normally && !observed);
+    }
+
+    /// Construct the owned preparation only in a nonrecursive leaf frame.
+    #[inline(never)]
+    fn boxed(word_count: usize) -> Box<Self> {
+        Box::new(Self {
+            effective: Vec::with_capacity(word_count),
+            written_arguments: Arc::from([]),
+            written_values: Vec::with_capacity(word_count),
+            written_name_values: Vec::with_capacity(word_count),
+            written_representations: Vec::with_capacity(word_count),
+            written_objects: Vec::with_capacity(word_count),
+            written_method_prefixes: Vec::with_capacity(word_count),
+            written_variable_reads: Vec::with_capacity(word_count),
+            outcomes: SourceOutcomes::default(),
+            complete_normally: true,
+            ready: false,
+        })
+    }
+
+    #[inline(never)]
+    fn into_outcomes(self: Box<Self>) -> SourceOutcomes {
+        self.outcomes
+    }
+}
+
+/// The evaluator owns the updated original facade; transient Copy views
+/// borrow it for no longer than this holder. No view points at a helper local.
+struct SourceArgumentExecutionContext<'a> {
+    context: SourceExecutionContext<'a>,
+    compilation: Option<original_name_value::OriginalSourceVariableCompilation<'a>>,
+}
+
+impl SourceArgumentExecutionContext<'_> {
+    fn context(&self) -> SourceExecutionContext<'_> {
+        SourceExecutionContext {
+            original_variable_compilation: self.compilation.as_ref(),
+            ..self.context
+        }
+    }
+}
+
+/// Capture the original argument receipts without retaining construction
+/// temporaries in the recursive command driver.
+#[inline(never)]
+fn source_argument_context_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+    receipts: SourceArgumentReceipts<'a>,
+) -> Box<SourceArgumentExecutionContext<'a>> {
+    let SourceArgumentReceipts {
+        arguments,
+        values,
+        name_values,
+        representations,
+        objects,
+        prefixes,
+        reads,
+    } = receipts;
+    let context = *context;
+    let compilation = context
+        .original_variable_compilation
+        .and_then(|original| (*original).with_evaluated_words(name_values));
+    Box::new(SourceArgumentExecutionContext {
+        context: SourceExecutionContext {
+            original_written_projection: None,
+            written_arguments: Some(arguments),
+            written_values: Some(values),
+            written_name_values: Some(name_values),
+            original_variable_compilation: None,
+            written_representations: Some(representations),
+            written_objects: Some(objects),
+            written_method_prefixes: Some(prefixes),
+            written_variable_reads: Some(reads),
+            ..context
+        },
+        compilation,
+    })
+}
+
+#[inline(never)]
+fn source_execution_context_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+    owner: Option<&'a SourceVariableEvaluationOwner>,
+    offset: u32,
+) -> Box<SourceExecutionContext<'a>> {
+    let context = *context;
+    Box::new(SourceExecutionContext {
+        invocation_offset: offset,
+        variable_read_owner: owner,
+        ..context
+    })
+}
+
+#[inline(never)]
+fn source_context_clone_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+) -> Box<SourceExecutionContext<'a>> {
+    Box::new(*context)
+}
+
+#[inline(never)]
+fn source_context_conditional_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+) -> Box<SourceExecutionContext<'a>> {
+    Box::new(context.conditional())
+}
+
+/// Derived traversal contexts live on the heap at genuine entry changes.
+/// Every unmodified field retains its exact original frame and source receipt.
+#[inline(never)]
+fn source_chunk_context_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+    snapshot: Option<&'a NativeCompilationSnapshot>,
+) -> Box<SourceExecutionContext<'a>> {
+    Box::new(SourceExecutionContext {
+        expression_source: None,
+        original_variable_compilation: None,
+        compilation_snapshot: context.compilation_snapshot.or(snapshot),
+        ..*context
+    })
+}
+
+#[inline(never)]
+fn source_selected_context_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+    selected: &'a tcl_registry::native_compilation::NativeCompilationSelection,
+) -> Box<SourceExecutionContext<'a>> {
+    Box::new(SourceExecutionContext {
+        selected_compilation: Some(selected),
+        original_variable_compilation: context
+            .original_variable_compilation
+            .filter(|original| original.selection() == selected),
+        ..*context
+    })
+}
+
+#[inline(never)]
+fn source_body_context_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+    namespace: &'a str,
+    frame: &'a crate::var_resolve::VariableExecutionFrame,
+) -> Box<SourceExecutionContext<'a>> {
+    Box::new(SourceExecutionContext {
+        source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        namespace,
+        namespace_key: frame.namespace_identity().or_else(|| {
+            (context.namespace == namespace)
+                .then_some(context.namespace_key)
+                .flatten()
+        }),
+        frame,
+        depth: context.depth + 1,
+        ..*context
+    })
+}
+
+/// Construct frame copies and derived contexts before recursive descent.
+#[inline(never)]
+fn source_selected_frame_boxed(
+    context: &SourceExecutionContext<'_>,
+    namespace_known: bool,
+) -> Box<crate::var_resolve::VariableExecutionFrame> {
+    Box::new(if namespace_known {
+        context
+            .frame
+            .clone()
+            .with_namespace_identity(context.namespace_identity())
+    } else {
+        context.frame.clone()
+    })
+}
+
+#[inline(never)]
+fn source_parent_frame_boxed(
+    frame: &crate::var_resolve::VariableExecutionFrame,
+) -> Box<crate::var_resolve::VariableExecutionFrame> {
+    Box::new(frame.clone())
+}
+
+#[inline(never)]
+fn source_frame_context_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+    frame: &'a crate::var_resolve::VariableExecutionFrame,
+) -> Box<SourceExecutionContext<'a>> {
+    Box::new(SourceExecutionContext { frame, ..*context })
+}
+
+#[inline(never)]
+fn source_original_compilation_context_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+    original: Option<&'a original_name_value::OriginalSourceVariableCompilation<'a>>,
+) -> Box<SourceExecutionContext<'a>> {
+    Box::new(SourceExecutionContext {
+        original_variable_compilation: original,
+        ..*context
+    })
+}
+
+#[inline(never)]
+fn source_namespace_context_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+    namespace: &'a SourceNamespaceKey,
+) -> Box<SourceExecutionContext<'a>> {
+    Box::new(SourceExecutionContext {
+        namespace_key: Some(namespace),
+        ..*context
+    })
+}
+
+#[inline(never)]
+fn source_loop_context_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+) -> Box<SourceExecutionContext<'a>> {
+    Box::new(SourceExecutionContext {
+        compilation: tcl_registry::native_compilation::NativeCompilationContext {
+            loop_depth: context.compilation.loop_depth.saturating_add(1),
+            ..context.compilation
+        },
+        ..*context
+    })
+}
+
+#[inline(never)]
+fn retain_source_native_result(
+    outcomes: &mut SourceOutcomes,
+    incoming: &ModuleCommandBindings,
+    target: &SourceCommandTarget,
+    arguments: &[crate::registry_invocation::EffectiveInvocationWord],
+    context: &SourceExecutionContext<'_>,
+) {
+    outcomes.retain_native_result(incoming, target, arguments, *context);
+}
+
+struct SourceNativeDefinition {
+    statics: Option<crate::raw_binding::CapturedStaticBindings>,
+}
+
+fn original_procedure_publication_key(
+    native: SourceNativeInvocation<'_>,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+    facts: &InvocationFacts,
+) -> Option<SourceCommandKey> {
+    original_command_table::OriginalCommandOperands::capture(native, facts, state, context)
+        .procedure_key(facts, state, &context.namespace_identity())
+}
+
+fn closed_procedure_definition(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    if state.has_opaque_domain()
+        || !matches!(
+            facts.procedure_definition,
+            Some(tcl_registry::native_procedure::NativeProcedureDefinitionSelection::Valid(_))
+        )
+        || formal_topology::from_invocation(native, facts, state, context).is_none()
+    {
+        return false;
+    }
+    let Some(key) = original_procedure_publication_key(native, state, context, facts) else {
+        return false;
+    };
+    let holder = key.holder();
+    state.namespaces.contains(holder.as_ref())
+        && !state
+            .installed_procedure_targets(&key, native.segment.span.start())
+            .is_empty()
+}
+
+fn source_invocation_argument_owner(
+    state: &ModuleCommandBindings,
+    offset: u32,
+    parent: Option<&SourceVariableEvaluationOwner>,
+) -> Option<SourceVariableEvaluationOwner> {
+    state.current_source_origin.as_ref().map(|source| {
+        SourceVariableEvaluationOwner::InvocationArguments {
+            invocation: CommandAllocationSite {
+                source: Arc::clone(source),
+                offset,
+            },
+            parent: parent.cloned().map(Arc::new),
+        }
+    })
+}
+
+fn empty_source_command_outcomes(
+    state: &ModuleCommandBindings,
+    earlier: &SourceOutcomes,
+) -> SourceOutcomes {
+    let mut result = SourceOutcomes::normal(state);
+    result.normal_value = Some(Arc::new(native_result::EvaluatedSourceValue {
+        text: String::new(),
+        representation: tcl_syntax::value::ValueRepresentation::Unknown,
+        numeric: None,
+    }));
+    result.join(earlier);
+    result
+}
+
+fn procedure_body_admission_refusal(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+    realm: tcl_dialect::model::InvocationRealm,
+    state: &mut ModuleCommandBindings,
+) -> Option<SourceOutcomes> {
+    match source_procedure_body_admission(native, facts, realm) {
+        Some(true) => None,
+        Some(false) => Some(SourceOutcomes::invocation(
+            state,
+            tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                tcl_registry::completion::CompletionCode::Error,
+            ),
+        )),
+        None => Some(opaque_source_invocation(state)),
+    }
+}
+
+fn source_procedure_body_admission(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+    realm: tcl_dialect::model::InvocationRealm,
+) -> Option<bool> {
+    use tcl_registry::native_procedure::{
+        NativeProcedureDefinitionSelection as Definition, procedure_definition_body_policy,
+    };
+    let Some(Definition::Valid(definition)) = facts.procedure_definition else {
+        return Some(true);
+    };
+    let dialect = native.invocation.arguments().dialect()?;
+    let policy = procedure_definition_body_policy(dialect, realm)?;
+    if policy == tcl_registry::native_procedure::ProcedureDefinitionBodyPolicy::EvaluatedValue {
+        return Some(true);
+    }
+    let word = native.script_operands().written_word(definition.body_at)?;
+    policy.accepts(crate::registry_invocation::native_compilation_word_shape(
+        word,
+    ))
+}
+
+fn transfer_native_definition(
+    native: SourceNativeInvocation<'_>,
+    state: &mut ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+    facts: &InvocationFacts,
+) -> Result<SourceNativeDefinition, crate::raw_binding::StaticCaptureResult> {
+    use tcl_registry::native_procedure::NativeProcedureDefinitionSelection as Definition;
+    if !matches!(facts.procedure_definition, Some(Definition::Valid(definition)) if definition.statics_at.is_some())
+    {
+        transfer_native_invocation(native, state, context, facts);
+        return Ok(SourceNativeDefinition { statics: None });
+    }
+    let mut candidate = boxed_source_branch(state);
+    transfer_native_invocation(native, &mut candidate, context, facts);
+    let statics = prepare_source_callable_statics(native, &mut candidate, context, facts)?;
+    *state = *candidate;
+    Ok(SourceNativeDefinition { statics })
+}
+
+fn prepare_source_callable_statics(
+    native: SourceNativeInvocation<'_>,
+    state: &mut ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+    facts: &InvocationFacts,
+) -> Result<
+    Option<crate::raw_binding::CapturedStaticBindings>,
+    crate::raw_binding::StaticCaptureResult,
+> {
+    use crate::raw_binding::{CallableStorageIdentity, StaticCaptureResult as Capture};
+    use tcl_registry::native_procedure::NativeProcedureDefinitionSelection as Definition;
+    let Some(Definition::Valid(definition)) = facts.procedure_definition else {
+        return Ok(None);
+    };
+    let Some(index) = definition.statics_at else {
+        return Ok(None);
+    };
+    let input = native
+        .original_variable_operands
+        .input(index, &state.source_variables)
+        .ok_or(Capture::Unknown)?;
+    tcl_registry::native_procedure::parse_static_variables_bytes(
+        input.bytes(),
+        state
+            .source_variables
+            .invocation_dialect
+            .ok_or(Capture::Unknown)?,
+    )
+    .ok_or(Capture::Unknown)?
+    .map_err(|_| Capture::Invalid)?;
+    let key = original_procedure_publication_key(native, state, context, facts)
+        .ok_or(Capture::Unknown)?;
+    let targets = state.installed_procedure_targets(&key, native.segment.span.start());
+    if targets.len() != 1 {
+        return Err(Capture::Unknown);
+    }
+    let target = targets.first().ok_or(Capture::Unknown)?;
+    let allocation = target
+        .implementation_allocation
+        .as_ref()
+        .ok_or(Capture::Unknown)?;
+    let identity = CallableStorageIdentity {
+        site: allocation.site.clone(),
+        incarnation: allocation.incarnation,
+        implementation_generation: target.implementation_generation,
+    };
+    match Arc::make_mut(&mut state.source_variables).capture_original_callable_statics(
+        &identity,
+        input,
+        context.registry,
+    ) {
+        Capture::Prepared {
+            bindings,
+            may_error: false,
+        } => Ok(Some(bindings)),
+        Capture::Prepared {
+            may_error: true, ..
+        } => Err(Capture::Unknown),
+        outcome => Err(outcome),
+    }
+}
+
+fn opaque_source_invocation(state: &mut ModuleCommandBindings) -> SourceOutcomes {
+    state.mark_opaque_binding_mutation();
+    SourceOutcomes::invocation(
+        state,
+        tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
+    )
+}
+
+fn procedure_compilation(
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> tcl_registry::native_compilation::NativeCompilationContext {
+    use tcl_registry::native_compilation::{
+        NativeBodyCompilation, NativeCompilationGrammar, NativeCompilationSpec,
+    };
+    NativeCompilationSpec {
+        grammar: NativeCompilationGrammar::NoHook,
+        operation: tcl_registry::SemanticOperationId::Invoke,
+        body: NativeBodyCompilation::ProcedureObject,
+    }
+    .body_context(
+        dialect,
+        tcl_registry::native_compilation::NativeCompilationContext::default(),
+    )
+}
+
+fn source_target_arguments_invalid(
+    facts: &InvocationFacts,
+    arguments: tcl_registry::InvocationArguments<'_>,
+) -> bool {
+    use tcl_registry::native_procedure::NativeProcedureDefinitionSelection as Selection;
+    if facts.arity_accepts_frozen_arguments() == Some(false) {
+        return true;
+    }
+    let Some(selection) = facts.procedure_definition else {
+        return false;
+    };
+    let definition = match selection {
+        Selection::Invalid => return true,
+        Selection::Unknown => return false,
+        Selection::Valid(definition) => definition,
+    };
+    let invalid_parameters = arguments
+        .literal_at(definition.parameters_at)
+        .zip(
+            arguments
+                .dialect()
+                .and_then(tcl_registry::InvocationDialect::parameter_grammar),
+        )
+        .is_some_and(|(parameters, grammar)| {
+            tcl_syntax::formal_params::parse_formal_parameters_in(parameters, grammar).is_err()
+        });
+    invalid_parameters
+        || definition
+            .statics_at
+            .and_then(|index| arguments.native_bytes_at(index))
+            .zip(arguments.dialect())
+            .is_some_and(|(statics, dialect)| {
+                tcl_registry::native_procedure::parse_static_variables_bytes(statics, dialect)
+                    .is_some_and(|result| result.is_err())
+            })
+}
+
+fn select_contents_write_source(state: &mut ModuleCommandBindings) {
+    if state.source_variables.contents_write_source() != state.current_source_origin.as_ref() {
+        let origin = state.current_source_origin.clone();
+        Arc::make_mut(&mut state.source_variables).set_contents_write_source(origin);
+    }
+}
+
+fn transfer_native_invocation(
+    native: SourceNativeInvocation<'_>,
+    state: &mut ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+    facts: &InvocationFacts,
+) -> Option<String> {
+    select_contents_write_source(state);
+    if matches!(
+        native_output_binding_phase(facts),
+        tcl_registry::native_compilation::VariableOperandBindingPhase::NormalContinuation
+            | tcl_registry::native_compilation::VariableOperandBindingPhase::BodyProtocol
+    ) {
+        return None;
+    }
+    let SourceNativeInvocation {
+        segment,
+        invocation,
+        ..
+    } = native;
+    let SourceExecutionContext { registry, .. } = context;
+    let execution =
+        crate::ir_helpers::ExecutionNamespace::SourceContext(context.namespace_identity());
+    let original_operands =
+        original_command_table::OriginalCommandOperands::capture(native, facts, state, context);
+    let procedure = original_operands
+        .procedure_key(facts, state, &context.namespace_identity())
+        .map(|key| ModuleCommandBindings::command_key_label(&key).unwrap_or_default());
+    if let Some(procedure) = &procedure {
+        state.extend_procedure_bodies([procedure.clone()]);
+    }
+    let read_projection =
+        crate::variable_bindings::source_variable_read_places_with_original_operands(
+            facts,
+            invocation.arguments(),
+            &state.source_variables,
+            registry,
+            native.original_variable_operands,
+        );
+    let write_projection =
+        crate::variable_bindings::source_variable_write_places_with_original_operands(
+            facts,
+            invocation.arguments(),
+            &state.source_variables,
+            registry,
+            native.original_variable_operands,
+        );
+    if read_projection.iter().any(|place| place.observed)
+        || write_projection.iter().any(|place| place.observed)
+    {
+        state.mark_opaque_binding_mutation();
+    }
+    let publication =
+        command_publication::PreservingCommandPublication::capture(native, facts, state, context);
+    let original_transfer = source_command_world::capture(native, facts, state, context);
+    let namespace_ensures = original_namespace_ensure::OriginalNamespaceEnsureTransfer::capture(
+        native, facts, state, context,
+    );
+    let namespace_deletions =
+        original_namespace_deletion::OriginalNamespaceDeletionTransfer::capture(
+            native, facts, state, context,
+        );
+    apply_declared_binding_transitions(
+        facts,
+        state,
+        &execution,
+        procedure.as_deref(),
+        segment.span.start(),
+        publication.as_ref(),
+        Some(&original_operands),
+    );
+    if let Some(transfer) = original_transfer {
+        transfer.finish(state);
+    } else {
+        Arc::make_mut(&mut state.original_command_world).withdraw();
+    }
+    let namespace_deletions =
+        namespace_deletions.and_then(|transfer| transfer.after_command_transfer(state));
+    let namespace_ensures =
+        namespace_ensures.and_then(|transfer| transfer.after_command_transfer(state));
+    transfer_native_namespace_writes(
+        native,
+        state,
+        context,
+        facts,
+        original_namespace_ensure::OriginalNamespaceCellOperations {
+            ensures: namespace_ensures.as_ref(),
+            deletions: namespace_deletions.as_ref(),
+        },
+    );
+    procedure
+}
+
+fn transfer_native_namespace_writes(
+    native: SourceNativeInvocation<'_>,
+    state: &mut ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+    facts: &InvocationFacts,
+    namespace_operations: original_namespace_ensure::OriginalNamespaceCellOperations<'_>,
+) {
+    let registry = context.registry;
+    let SourceNativeInvocation {
+        segment,
+        invocation,
+        ..
+    } = native;
+    let script_interpreted = facts.body_execution.is_some()
+        || facts.traits.contains(tcl_registry::Traits::DEFERS_BODY)
+        || !matches!(
+            tcl_registry::script_body_flow::script_body_flow(facts),
+            tcl_registry::script_body_flow::ScriptBodyFlow::None
+        );
+    state.record_provider_state_writes(
+        facts,
+        *invocation,
+        registry,
+        native.original_variable_operands,
+    );
+    let variables = Arc::make_mut(&mut state.source_variables);
+    variables.namespace_identities = state.namespaces.iter().cloned().collect();
+    variables.known_namespaces = state
+        .namespaces
+        .iter()
+        .filter_map(SourceNamespaceKey::advisory_key)
+        .collect();
+    let order = native_output_order(native, facts);
+    crate::variable_bindings::transfer_source_namespace_cells_with_input(
+        variables,
+        facts,
+        invocation.arguments(),
+        registry,
+        crate::variable_bindings::SourceNamespaceTransfer::new(
+            script_interpreted,
+            segment.span.start(),
+            order.as_deref(),
+        )
+        .with_original_operands(native.original_variable_operands)
+        .with_namespace_operations(namespace_operations),
+    );
+}
+
+#[inline(never)]
+fn native_implementation_dependency_holds(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+    effective: &[crate::registry_invocation::EffectiveInvocationWord],
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    use tcl_registry::native_compilation::NormalHandlerImplementationLookup;
+    if matches!(
+        context.selected_compilation,
+        Some(tcl_registry::native_compilation::NativeCompilationSelection::Inline { .. })
+    ) {
+        return true;
+    }
+    let binding = original_name_value::original_command_head_input(
+        native.words,
+        native.segment.span.start(),
+        state,
+        context,
+    )
+    .and_then(|input| {
+        source_binding_from_original_input(state, &input, &context.namespace_identity())
+    });
+    let normal = facts.normal_handler_implementation_lookup(state.baseline.dialect);
+    if match normal {
+        NormalHandlerImplementationLookup::NoneRequired => false,
+        NormalHandlerImplementationLookup::Required(lookup) => !binding
+            .as_ref()
+            .is_some_and(|binding| binding.proves_native_implementation_lookup(&lookup)),
+        NormalHandlerImplementationLookup::RequiredPath(paths) => {
+            let arguments = binding
+                .as_ref()
+                .and_then(SourceInvocationBinding::proved_handler_target)
+                .into_iter()
+                .flat_map(|target| target.prepended.iter())
+                .chain(effective.iter().skip(1))
+                .map(|word| word.as_registry_word())
+                .collect::<Vec<_>>();
+            let mut invocation = tcl_registry::InvocationWords::structured(
+                tcl_registry::InvocationWord::Literal(""),
+                &arguments,
+            );
+            if let Some(dialect) = state.baseline.dialect {
+                invocation = invocation.with_dialect(dialect);
+            }
+            !binding.as_ref().is_some_and(|binding| {
+                binding.proves_native_handler_path(
+                    paths,
+                    invocation.arguments(),
+                    facts.argument_offset,
+                )
+            })
+        }
+        NormalHandlerImplementationLookup::Unknown => true,
+    } {
+        return false;
+    }
+    facts
+        .native_compilation
+        .and_then(|spec| {
+            state
+                .baseline
+                .dialect
+                .and_then(|dialect| spec.implementation_lookup(dialect))
+        })
+        .is_none_or(|lookup| {
+            binding
+                .as_ref()
+                .is_some_and(|binding| binding.proves_native_implementation_lookup(&lookup))
+        })
+}
+
+#[inline(never)]
+fn transfer_native_completion_outputs(
+    outcomes: &mut SourceOutcomes,
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+    route: tcl_registry::completion_route::InvocationCompletionRoute,
+    context: SourceExecutionContext<'_>,
+) {
+    if native_output_binding_phase(facts)
+        == tcl_registry::native_compilation::VariableOperandBindingPhase::NormalContinuation
+        && let Some(normal) = &mut outcomes.normal
+    {
+        let before_outputs = boxed_source_branch(normal);
+        transfer_native_outputs(native, facts, normal, context);
+        if route.abrupt_possible() {
+            let after_outputs = boxed_source_branch(normal);
+            outcomes.add_abrupt(
+                tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                    tcl_registry::completion::CompletionCode::Error,
+                ),
+                &before_outputs,
+            );
+            outcomes.add_abrupt(
+                tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                    tcl_registry::completion::CompletionCode::Error,
+                ),
+                &after_outputs,
+            );
+        }
+    }
+}
+
+fn native_output_binding_phase(
+    facts: &InvocationFacts,
+) -> tcl_registry::native_compilation::VariableOperandBindingPhase {
+    facts.successful_handler.map_or(
+        tcl_registry::native_compilation::VariableOperandBindingPhase::AfterArguments,
+        tcl_registry::native_compilation::SuccessfulHandlerSpec::variable_binding_phase,
+    )
+}
+
+fn native_output_order(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+) -> Option<Vec<usize>> {
+    use tcl_registry::native_compilation::VariableOutputLookup;
+    match facts
+        .successful_handler
+        .map(tcl_registry::native_compilation::SuccessfulHandlerSpec::variable_output_lookup)
+    {
+        Some(VariableOutputLookup::CatchSelected) => {
+            let dialect = native.invocation.arguments().dialect()?;
+            let tcl_registry::catch_invocation::CatchInvocationSelection::Valid(capture) =
+                tcl_registry::catch_invocation::select_catch_invocation(
+                    native.invocation.arguments(),
+                    dialect,
+                )
+            else {
+                return None;
+            };
+            Some(
+                capture
+                    .output_order(dialect, *native.compilation_selection)
+                    .indices(capture)?
+                    .into_iter()
+                    .flatten()
+                    .collect(),
+            )
+        }
+        Some(VariableOutputLookup::Sequential | VariableOutputLookup::SingleTarget) => Some(
+            facts
+                .arg_roles
+                .iter()
+                .filter_map(|&(index, role)| {
+                    (role == tcl_registry::ArgRole::VarWrite)
+                        .then_some(facts.argument_offset + usize::from(index))
+                })
+                .collect(),
+        ),
+        None | Some(VariableOutputLookup::BodyProtocol) => None,
+    }
+}
+
+fn transfer_native_outputs(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+    state: &mut ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) {
+    let registry = context.registry;
+    select_contents_write_source(state);
+    let order = native_output_order(native, facts);
+    let places = crate::variable_bindings::source_variable_write_places_with_output_order_and_original_operands(
+        facts,
+        native.invocation.arguments(),
+        &state.source_variables,
+        registry,
+        order.as_deref(),
+        native.original_variable_operands,
+    );
+    if places.iter().any(|place| place.observed) {
+        state.mark_opaque_binding_mutation();
+    }
+    state.record_provider_state_writes(
+        facts,
+        *native.invocation,
+        registry,
+        native.original_variable_operands,
+    );
+    let variables = Arc::make_mut(&mut state.source_variables);
+    variables.namespace_identities = state.namespaces.iter().cloned().collect();
+    variables.known_namespaces = state
+        .namespaces
+        .iter()
+        .filter_map(SourceNamespaceKey::advisory_key)
+        .collect();
+    crate::variable_bindings::transfer_source_namespace_cells_with_input(
+        variables,
+        facts,
+        native.invocation.arguments(),
+        registry,
+        crate::variable_bindings::SourceNamespaceTransfer::new(
+            true,
+            native.segment.span.start(),
+            order.as_deref(),
+        )
+        .with_original_operands(native.original_variable_operands),
+    );
+}
+
+/// Keep physical variable-frame construction out of recursive script frames.
+#[inline(never)]
+fn source_variables_in_frame(
+    variables: &Arc<crate::var_resolve::ResolveContext>,
+    frame: &crate::var_resolve::VariableExecutionFrame,
+) -> Arc<crate::var_resolve::ResolveContext> {
+    Arc::new(variables.in_frame(frame))
+}
+
+#[derive(Default)]
+struct PreparedSourceChunk {
+    snapshot: Option<NativeCompilationSnapshot>,
+    entry_error: Option<Box<ModuleCommandBindings>>,
+    failed_outcome: Option<Box<SourceOutcomes>>,
+}
+
+struct SourceNativeFrameSelection {
+    namespace: String,
+    namespace_key: SourceNamespaceKey,
+    frame: crate::var_resolve::VariableExecutionFrame,
+    variables: Option<Arc<crate::var_resolve::ResolveContext>>,
+    namespace_activation: bool,
+}
+
+fn entered_receiver_body_context(
+    body: &DeferredSourceBody,
+    target: &SourceCommandTarget,
+    receiver: Option<receiver_self::CalledBodyReceiver>,
+    frame: &crate::var_resolve::VariableExecutionFrame,
+    called: &crate::var_resolve::ResolveContext,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Arc<original_receiver_body_context::OriginalReceiverBodyContext>> {
+    receiver
+        .and_then(|receiver| {
+            original_receiver_body_context::OriginalReceiverBodyContext::at_entered_call(
+                body, target, receiver, frame, called, config,
+            )
+        })
+        .map(Arc::new)
+}
+
+fn source_lambda_frame(
+    state: &ModuleCommandBindings,
+    namespace: &str,
+    namespace_key: &SourceNamespaceKey,
+    site: u32,
+) -> crate::var_resolve::VariableExecutionFrame {
+    crate::var_resolve::VariableExecutionFrame::Procedure {
+        namespace: namespace.to_owned(),
+        identity: source_activation_name(state.current_source_origin.as_ref(), "lambda", site),
+    }
+    .with_namespace_identity(namespace_key.clone())
+}
+
+fn called_body_frame(
+    body: &DeferredSourceBody,
+    identity: String,
+    namespace: &str,
+    namespace_key: &SourceNamespaceKey,
+) -> crate::var_resolve::VariableExecutionFrame {
+    let frame = if body.receiver_method {
+        crate::var_resolve::VariableExecutionFrame::ReceiverMethod { identity }
+    } else {
+        crate::var_resolve::VariableExecutionFrame::Procedure {
+            namespace: namespace.to_owned(),
+            identity,
+        }
+    };
+    frame.with_namespace_identity(namespace_key.clone())
+}
+
+fn called_body_namespace(
+    state: &ModuleCommandBindings,
+    target: &SourceCommandTarget,
+    body: &DeferredSourceBody,
+) -> Option<SourceNamespaceKey> {
+    Some(if body.receiver_method {
+        body.namespace_key.clone()
+    } else {
+        let holders = state
+            .bindings
+            .iter()
+            .filter(|&(_, bindings)| {
+                bindings.iter().any(|binding| matches!(binding,
+                    MayBinding::Target(installed) if installed.terminal
+                        && installed.kind == BindingKind::Proc
+                        && installed.implementation_generation == target.implementation_generation
+                        && installed.implementation_allocation == target.implementation_allocation
+                        && installed.token == target.identity
+                ))
+            })
+            .map(|(slot, _)| slot.holder().into_owned())
+            .collect::<BTreeSet<_>>();
+        let mut holders = holders.into_iter();
+        let holder = holders.next()?;
+        if holders.next().is_some() {
+            return None;
+        }
+        holder
+    })
+}
+
+fn retain_source_namespace_world(
+    state: &mut ModuleCommandBindings,
+    context: &SourceExecutionContext<'_>,
+) {
+    let policy = match state.baseline.native_entry.as_ref() {
+        Some(entry) => entry.execution_name_policy(),
+        None => state.baseline.execution_name_policy,
+    };
+    let variables = Arc::make_mut(&mut state.source_variables);
+    variables.execution_name_policy = policy;
+    variables.retain_namespace_world(
+        context.namespace_identity(),
+        state.namespaces.iter().cloned(),
+        policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+            .map(tcl_syntax::naming::NamePolicyProtocol::recipe),
+    );
+}
+
+fn apply_selected_native_frame_effect(
+    selection: &mut SourceNativeFrameSelection,
+    invocation: &tcl_registry::InvocationWords<'_>,
+    facts: &InvocationFacts,
+    state: &ModuleCommandBindings,
+) -> Result<(), tcl_registry::completion_route::InvocationCompletionRoute> {
+    if let Some(effect) = facts.frame_effect.filter(|effect| {
+        effect.layout == tcl_registry::frame_effect::FrameArgLayout::ScriptInSelectedFrame
+    }) {
+        match effect.successful_layout(invocation.arguments()).layout {
+            tcl_registry::frame_effect::FrameArgumentResolution::Valid { level, .. }
+                if level.is_current_frame() => {}
+            tcl_registry::frame_effect::FrameArgumentResolution::Valid { level, .. }
+                if level.is_global_frame() =>
+            {
+                selection.frame = crate::var_resolve::VariableExecutionFrame::Global;
+                selection.namespace_key = state
+                    .native_root_namespace_key()
+                    .unwrap_or_else(|| SourceNamespaceKey::authored("::"));
+                "::".clone_into(&mut selection.namespace);
+            }
+            tcl_registry::frame_effect::FrameArgumentResolution::Valid { level, .. } => {
+                if let Some(selected) = state.source_variables.selected_frame_context(level) {
+                    selection.namespace.clone_from(&selected.namespace);
+                    selection.namespace_key = selected
+                        .namespace_identity
+                        .clone()
+                        .unwrap_or_else(|| SourceNamespaceKey::authored(&selected.namespace));
+                    selection.variables = Some(Arc::new(selected));
+                }
+                selection.frame = crate::var_resolve::VariableExecutionFrame::Selected {
+                    selector: level,
+                    namespace: selection
+                        .variables
+                        .as_ref()
+                        .map(|selected| selected.namespace.clone()),
+                };
+            }
+            tcl_registry::frame_effect::FrameArgumentResolution::Invalid => {
+                return Err(
+                    tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                        tcl_registry::completion::CompletionCode::Error,
+                    ),
+                );
+            }
+            tcl_registry::frame_effect::FrameArgumentResolution::Unknown => {
+                selection.frame = crate::var_resolve::VariableExecutionFrame::Unknown;
+            }
+        }
+    }
+    Ok(())
+}
+
+#[inline(never)]
+fn select_native_frame(
+    native: SourceNativeInvocation<'_>,
+    state: &mut ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+    facts: &InvocationFacts,
+    route: tcl_registry::completion_route::InvocationCompletionRoute,
+) -> Result<SourceNativeFrameSelection, tcl_registry::completion_route::InvocationCompletionRoute> {
+    let SourceNativeInvocation {
+        segment,
+        invocation,
+        ..
+    } = native;
+    let namespace = context.namespace;
+    let mut namespace_key = context.namespace_identity();
+    if facts.operation
+        == tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::NamespaceEval,
+        )
+    {
+        let Some(target) = facts.state_transitions.declared().and_then(|transitions| {
+            let mut targets =
+                transitions
+                    .facts()
+                    .iter()
+                    .filter_map(|fact| match &fact.transition {
+                        StateTransition::Namespace(tcl_registry::NamespaceTransition::Ensure {
+                            namespace,
+                        }) => Some(namespace),
+                        _ => None,
+                    });
+            let selected = targets.next()?;
+            targets.all(|target| target == selected).then_some(selected)
+        }) else {
+            state.mark_opaque_resolution();
+            return Err(route);
+        };
+        let selected = match target {
+            tcl_registry::NamespaceTransitionTarget::Named(subject)
+                if matches!(
+                    state
+                        .baseline
+                        .execution_name_policy
+                        .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+                        .map(tcl_syntax::naming::NamePolicyProtocol::recipe),
+                    Some(tcl_syntax::naming::NativeNameProtocol::C(_))
+                ) && (subject.literal().is_none()
+                    || !matches!(namespace_key, SourceNamespaceKey::Authored(_))) =>
+            {
+                original_command_table::original_operand(native, subject, state, context).and_then(
+                    |input| state.original_namespace_key_for_input(&namespace_key, &input),
+                )
+            }
+            _ => state.ensure_namespace_key_at(target, &namespace_key, segment.span.start()),
+        };
+        let Some(selected) = selected else {
+            state.mark_opaque_resolution();
+            return Err(route);
+        };
+        namespace_key = selected;
+    }
+    let body_namespace = namespace_key
+        .display()
+        .unwrap_or_else(|| namespace.to_owned());
+    let namespace_activation = facts.operation
+        == tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::NamespaceEval,
+        );
+    let frame = if namespace_activation {
+        crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+            namespace: body_namespace.clone(),
+            identity: source_activation_name(
+                state.current_source_origin.as_ref(),
+                "namespace-eval",
+                segment.span.start(),
+            ),
+        }
+    } else {
+        context.frame.clone()
+    };
+    let mut selection = SourceNativeFrameSelection {
+        namespace: body_namespace,
+        namespace_key,
+        frame,
+        variables: None,
+        namespace_activation,
+    };
+    apply_selected_native_frame_effect(&mut selection, invocation, facts, state)?;
+    if matches!(
+        selection.frame.layout(),
+        crate::var_resolve::VariableExecutionFrame::Unknown
+            | crate::var_resolve::VariableExecutionFrame::Selected {
+                namespace: None,
+                ..
+            }
+    ) {
+        return Err(tcl_registry::completion_route::InvocationCompletionRoute::Unknown);
+    }
+    selection.frame = selection
+        .frame
+        .with_namespace_identity(selection.namespace_key.clone());
+    Ok(selection)
+}
+
+#[inline(never)]
+fn install_selected_native_frame(
+    state: &mut ModuleCommandBindings,
+    frame: &crate::var_resolve::VariableExecutionFrame,
+    namespace_key: &SourceNamespaceKey,
+    namespace_activation: bool,
+    selected_variables: Option<Arc<crate::var_resolve::ResolveContext>>,
+) {
+    if namespace_activation {
+        let mut variables = state.source_variables.enter_called_frame(frame);
+        // This exact selected Ensure/frame owns the source namespace identity.
+        // Authored frame presentation deliberately supplies no native token;
+        // retain the independent source key without decoding that presentation.
+        variables.namespace_identity = Some(namespace_key.clone());
+        state.source_variables = Arc::new(variables);
+        state.variable_frame = frame.clone();
+    } else if let Some(selected) = selected_variables {
+        state.source_variables = selected;
+        state.variable_frame = frame.clone();
+    }
+}
+
+struct PreparedSourceNativeBody {
+    selection: SourceNativeFrameSelection,
+    parent_variables: Arc<crate::var_resolve::ResolveContext>,
+    parent_frame: crate::var_resolve::VariableExecutionFrame,
+    flow: tcl_registry::script_body_flow::ScriptBodyFlow,
+}
+
+/// Construct frame and body descriptors before retaining recursive descent.
+#[inline(never)]
+fn prepare_selected_native_body(
+    native: SourceNativeInvocation<'_>,
+    state: &mut ModuleCommandBindings,
+    context: &SourceExecutionContext<'_>,
+    facts: &InvocationFacts,
+    route: tcl_registry::completion_route::InvocationCompletionRoute,
+) -> Result<Box<PreparedSourceNativeBody>, tcl_registry::completion_route::InvocationCompletionRoute>
+{
+    let context = *context;
+    let flow = tcl_registry::case_bodies::script_body_flow_in_registry(
+        context.registry,
+        facts,
+        native.invocation.arguments(),
+    );
+    if matches!(flow, tcl_registry::script_body_flow::ScriptBodyFlow::None) {
+        return Err(route);
+    }
+    let parent_variables = Arc::clone(&state.source_variables);
+    let parent_frame = state.variable_frame.clone();
+    let mut selection = select_native_frame(native, state, context, facts, route)?;
+    install_selected_native_frame(
+        state,
+        &selection.frame,
+        &selection.namespace_key,
+        selection.namespace_activation,
+        selection.variables.take(),
+    );
+    Ok(Box::new(PreparedSourceNativeBody {
+        selection,
+        parent_variables,
+        parent_frame,
+        flow,
+    }))
+}
+
+#[derive(Clone, Copy)]
+struct SourceLifecycleInvocation<'a> {
+    spec: &'a tcl_registry::body_execution::CapturedLifecycleSpec,
+    arguments: tcl_registry::InvocationArguments<'a>,
+    site: u32,
+    words: &'a [crate::ir::WordExpr],
+    written_arguments: Option<&'a [crate::registry_invocation::EffectiveInvocationWord]>,
+    target: &'a SourceCommandTarget,
+}
+
+#[derive(Clone, Copy)]
+struct SourceLifecyclePhase<'a> {
+    phase: SourceBodyPhase,
+    operand: Option<tcl_registry::body_execution::BodyOperand>,
+    hook: Option<&'a str>,
+}
+
+#[derive(Clone, Copy)]
+struct SourceLoopBodyIndices<'a> {
+    initial: &'a [usize],
+    conditions: &'a [usize],
+    repeated: &'a [usize],
+    continued: &'a [usize],
+}
+
+#[derive(Clone, Copy)]
+struct SourceLoopOperands<'a> {
+    entry: tcl_registry::iteration_entry::IterationEntry,
+    finite: Option<&'a tcl_registry::iteration_entry::FiniteIteration>,
+    variable_lists: &'a [usize],
+    initial: &'a [usize],
+    conditions: &'a [usize],
+    repeated: &'a [usize],
+    continued: &'a [usize],
+}
+
+fn source_iteration_variable_lists(
+    native: SourceNativeInvocation<'_>,
+    registry: &CommandRegistry,
+    realm: tcl_dialect::model::InvocationRealm,
+) -> Vec<usize> {
+    resolve_source_invocation_facts(registry, None, *native.invocation, realm)
+        .map(|facts| {
+            facts
+                .arg_roles
+                .iter()
+                .filter_map(|&(index, role)| {
+                    (role == tcl_registry::ArgRole::LoopVarList)
+                        .then_some(facts.argument_offset + usize::from(index))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct SourceNormalCompletion;
+
+/// A closed native leaf handler at this exact original invocation. A body's
+/// normal child result cannot supply the enclosing handler's certificate.
+#[derive(Clone, PartialEq, Eq)]
+struct SourceNativeNormalCompletion {
+    site: CommandAllocationSite,
+    config: tcl_lexer::LexerConfig,
+    words: Vec<crate::ir::WordExpr>,
+    operation: tcl_registry::SemanticOperationId,
+}
+
+impl SourceNativeNormalCompletion {
+    fn matches(
+        &self,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        self.config == context.config
+            && self.words == native.words
+            && self.operation == facts.operation
+            && self.site.offset == native.segment.span.start()
+            && state.current_source_origin.as_ref() == Some(&self.site.source)
+            && !state.source_step_observed()
+            && !state.source_execution_observed(None)
+    }
+}
+
+/// Selected source-only handler's conditional normal route. This receipt has
+/// no Native value/store, entered-frame or physical compiler interpretation.
+#[derive(Clone, PartialEq, Eq)]
+struct SourceConditionalHandlerNormal {
+    site: CommandAllocationSite,
+    config: tcl_lexer::LexerConfig,
+    words: Vec<crate::ir::WordExpr>,
+    operation: tcl_registry::SemanticOperationId,
+    entry: OriginalSourcePointEntry,
+}
+impl SourceConditionalHandlerNormal {
+    fn matches(
+        &self,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        state.baseline.source_point_entry.as_ref() == Some(&self.entry)
+            && context.body_entry == SourceBodyEntryPurpose::Conditional
+            && context.compilation == Default::default()
+            && self.config == context.config
+            && self.words == native.words
+            && self.operation == facts.operation
+            && self.site.offset == native.segment.span.start()
+            && state.current_source_origin.as_ref() == Some(&self.site.source)
+            && !state.source_step_observed()
+            && !state.source_execution_observed(None)
+    }
+}
+
+#[derive(Clone, Default, PartialEq, Eq)]
+struct SourceOutcomes {
+    normal_completion: Option<SourceNormalCompletion>,
+    native_normal_completion: Option<SourceNativeNormalCompletion>,
+    conditional_normal_completion: Option<SourceConditionalHandlerNormal>,
+    complete_procedure_return: Option<tcl_registry::completion_route::InvocationCompletionRoute>,
+    normal: Option<Box<ModuleCommandBindings>>,
+    normal_value: Option<Arc<native_result::EvaluatedSourceValue>>,
+    normal_name_value: Option<Arc<original_name_value::OriginalProducedNameValue>>,
+    // Immutable proof storage stays off frames retained by recursive bodies.
+    normal_representation: Option<Arc<source_representation::FrozenSourceRepresentation>>,
+    normal_object: Option<Arc<SourceObjectInstanceProof>>,
+    normal_method_prefix: Option<Arc<SourceCapturedMethodPrefix>>,
+    normal_rhs_read: Option<Arc<read_store_schedule::CapturedExpressionRead>>,
+    abrupt_objects: Vec<(
+        tcl_registry::completion_route::InvocationCompletionRoute,
+        Arc<SourceObjectInstanceProof>,
+    )>,
+    abrupt_name_values: Vec<(
+        tcl_registry::completion_route::InvocationCompletionRoute,
+        Arc<original_name_value::OriginalProducedNameValue>,
+    )>,
+    abrupt_values: Vec<(
+        tcl_registry::completion_route::InvocationCompletionRoute,
+        Arc<native_result::EvaluatedSourceValue>,
+    )>,
+    abrupt: Vec<(
+        tcl_registry::completion_route::InvocationCompletionRoute,
+        Box<ModuleCommandBindings>,
+    )>,
+}
+
+/// Allocate the outcome accumulator outside frames retained by live body
+/// recursion. The heap owner preserves all normal/abrupt alternatives.
+/// Preserve complete completion premises on the heap across body descent.
+/// Construction temporaries end in this leaf before recursion begins.
+#[inline(never)]
+fn boxed_source_completion_receipt<T>(capture: impl FnOnce() -> Option<T>) -> Option<Box<T>> {
+    // Implementation contract: naming.source.recursive-driver-state-transport
+
+    capture().map(Box::new)
+}
+
+#[inline(never)]
+fn boxed_source_outcomes() -> Box<SourceOutcomes> {
+    Box::new(SourceOutcomes::default())
+}
+
+/// Construct the special empty result before returning to native body dispatch.
+#[inline(never)]
+fn join_source_procedure_noop(outcomes: &mut SourceOutcomes, incoming: &ModuleCommandBindings) {
+    let mut result = SourceOutcomes::normal(incoming);
+    result.normal_value = Some(Arc::new(native_result::EvaluatedSourceValue {
+        text: String::new(),
+        representation: tcl_syntax::value::ValueRepresentation::Unknown,
+        numeric: None,
+    }));
+    outcomes.join(&result);
+}
+
+impl SourceOutcomes {
+    fn retain_closed_native_handler_completion(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        context: SourceExecutionContext<'_>,
+    ) {
+        let Some(normal) = self.normal.as_ref().filter(|_| self.abrupt.is_empty()) else {
+            return;
+        };
+        let Some(source) = normal.current_source_origin.as_ref() else {
+            return;
+        };
+        if normal.source_step_observed() || normal.source_execution_observed(None) {
+            return;
+        }
+        if normal.baseline.source_point_entry.is_some() {
+            self.retain_conditional_handler_completion(native, facts, context);
+            return;
+        }
+        self.native_normal_completion = Some(SourceNativeNormalCompletion {
+            site: CommandAllocationSite {
+                source: Arc::clone(source),
+                offset: native.segment.span.start(),
+            },
+            config: context.config,
+            words: native.words.to_vec(),
+            operation: facts.operation,
+        });
+        self.retain_complete_normal_evaluation();
+    }
+
+    fn retain_conditional_handler_completion(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        context: SourceExecutionContext<'_>,
+    ) {
+        let Some(normal) = self.normal.as_ref().filter(|_| self.abrupt.is_empty()) else {
+            return;
+        };
+        let Some(entry) = normal.baseline.source_point_entry.as_ref() else {
+            return;
+        };
+        if context.body_entry != SourceBodyEntryPurpose::Conditional
+            || context.compilation != Default::default()
+            || normal.baseline.native_entry.is_some()
+            || normal.source_step_observed()
+            || normal.source_execution_observed(None)
+        {
+            return;
+        }
+        let Some(source) = &normal.current_source_origin else {
+            return;
+        };
+        self.conditional_normal_completion = Some(SourceConditionalHandlerNormal {
+            site: CommandAllocationSite {
+                source: Arc::clone(source),
+                offset: native.segment.span.start(),
+            },
+            config: context.config,
+            words: native.words.to_vec(),
+            operation: facts.operation,
+            entry: entry.clone(),
+        });
+        self.retain_complete_normal_evaluation();
+    }
+
+    fn discard_normal_handler_entry(&mut self) {
+        self.normal = None;
+        self.normal_value = None;
+        self.normal_name_value = None;
+        self.normal_representation = None;
+        self.normal_object = None;
+        self.normal_method_prefix = None;
+        self.normal_rhs_read = None;
+    }
+
+    /// The completed command world is the world on the normal-completion
+    /// path of the whole document. A possible error never reaches it, so it
+    /// does not withhold that world; any other abrupt route (a top-level
+    /// `return`, `break`, exit or tail call) may also finish the document
+    /// elsewhere and keeps it withheld. Unknown normal-return
+    /// effects stay withheld by the opaque and observer premises.
+    fn completed_normal_world(&self) -> Option<Arc<ModuleCommandBindings>> {
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        let normal = self.normal.as_ref()?;
+        // `Unknown` is a handler's uncatalogued residue beside a possible
+        // normal return (`puts`'s channel error). A document-finishing
+        // `return`, `exit` or tail call keeps its own route; a script whose
+        // text is unknown also marks the normal state opaque.
+        let errors_only = self.abrupt.iter().all(|(route, _)| {
+            matches!(
+                route,
+                Route::Tcl(tcl_registry::completion::CompletionCode::Error) | Route::Unknown
+            )
+        });
+        // `original_completed_command_world` separately refuses a withdrawn
+        // command world and unknown entry.
+        let closed = (self.normal_completion.is_some() && self.abrupt.is_empty())
+            || (errors_only
+                && !normal.unclosed_command_world
+                && !normal.has_opaque_domain()
+                && !normal.source_step_observed()
+                && !normal.source_execution_observed(None)
+                && normal.unknown_handler_is_original());
+        closed.then(|| Arc::new((**normal).clone()))
+    }
+
+    fn retain_complete_normal_evaluation(&mut self) {
+        self.normal_completion =
+            (self.normal.is_some() && self.abrupt.is_empty()).then_some(SourceNormalCompletion);
+    }
+
+    fn normal(state: &ModuleCommandBindings) -> Self {
+        Self {
+            normal: Some(boxed_source_branch(state)),
+            abrupt: Vec::new(),
+            ..Self::default()
+        }
+    }
+
+    fn invocation(
+        state: &ModuleCommandBindings,
+        route: tcl_registry::completion_route::InvocationCompletionRoute,
+    ) -> Self {
+        let mut outcomes = Self::default();
+        outcomes.add(route, state);
+        outcomes
+    }
+
+    fn native_invocation(
+        before: &ModuleCommandBindings,
+        after: &ModuleCommandBindings,
+        route: tcl_registry::completion_route::InvocationCompletionRoute,
+    ) -> Self {
+        let mut outcomes = Self::default();
+        if route.normal_possible() {
+            outcomes.normal = Some(boxed_source_branch(after));
+        }
+        if route.abrupt_possible() {
+            let mut partial = boxed_source_branch(before);
+            partial.join(after);
+            outcomes.add_abrupt(route, &partial);
+        }
+        outcomes
+    }
+
+    fn add(
+        &mut self,
+        route: tcl_registry::completion_route::InvocationCompletionRoute,
+        state: &ModuleCommandBindings,
+    ) {
+        if route.normal_possible() {
+            self.normal_value = None;
+            self.normal_name_value = None;
+            self.normal_representation = None;
+            self.normal_object = None;
+            self.normal_method_prefix = None;
+            self.normal_rhs_read = None;
+            if let Some(normal) = &mut self.normal {
+                normal.join(state);
+            } else {
+                self.normal = Some(boxed_source_branch(state));
+            }
+        }
+        if route.abrupt_possible() {
+            self.add_abrupt(route, state);
+        }
+    }
+
+    fn add_abrupt(
+        &mut self,
+        route: tcl_registry::completion_route::InvocationCompletionRoute,
+        state: &ModuleCommandBindings,
+    ) {
+        self.normal_completion = None;
+        self.complete_procedure_return = None;
+        self.abrupt_values.retain(|(known, _)| *known != route);
+        self.abrupt_name_values.retain(|(known, _)| *known != route);
+        self.abrupt_objects.retain(|(known, _)| *known != route);
+        if matches!(
+            route,
+            tcl_registry::completion_route::InvocationCompletionRoute::TailcallOrError { .. }
+        ) {
+            for alternative in route.alternatives() {
+                self.add_abrupt(alternative, state);
+            }
+            return;
+        }
+        if let tcl_registry::completion_route::InvocationCompletionRoute::TclAlternatives(codes) =
+            route
+        {
+            for code in codes {
+                if *code != tcl_registry::completion::CompletionCode::Ok {
+                    self.add_abrupt(
+                        tcl_registry::completion_route::InvocationCompletionRoute::Tcl(*code),
+                        state,
+                    );
+                }
+            }
+            return;
+        }
+        if let Some((_, previous)) = self
+            .abrupt
+            .iter_mut()
+            .find(|(previous, _)| *previous == route)
+        {
+            previous.join(state);
+        } else {
+            self.abrupt.push((route, boxed_source_branch(state)));
+        }
+    }
+
+    fn join(&mut self, other: &Self) {
+        let complete_return = if self.normal.is_none() && self.abrupt.is_empty() {
+            other.complete_procedure_return
+        } else {
+            self.complete_procedure_return
+                .filter(|proof| Some(*proof) == other.complete_procedure_return)
+        };
+        let complete = if self.normal.is_none() && self.abrupt.is_empty() {
+            other.normal_completion
+        } else {
+            self.normal_completion
+                .filter(|proof| Some(*proof) == other.normal_completion)
+        };
+        if let Some(normal) = &other.normal {
+            let representation = if self.normal.is_none()
+                || self.normal_representation == other.normal_representation
+            {
+                other.normal_representation.clone()
+            } else {
+                None
+            };
+            let object = if self.normal.is_none() || self.normal_object == other.normal_object {
+                other.normal_object.clone()
+            } else {
+                None
+            };
+            let rhs_read = if self.normal.is_none() || self.normal_rhs_read == other.normal_rhs_read
+            {
+                other.normal_rhs_read.clone()
+            } else {
+                None
+            };
+            let prefix = if self.normal.is_none()
+                || self.normal_method_prefix == other.normal_method_prefix
+            {
+                other.normal_method_prefix.clone()
+            } else {
+                None
+            };
+            let name_value = if self.normal.is_none() {
+                other.normal_name_value.clone()
+            } else {
+                self.normal_name_value
+                    .as_ref()
+                    .zip(other.normal_name_value.as_ref())
+                    .and_then(|(left, right)| left.joined(right))
+                    .map(Arc::new)
+            };
+            self.add_with_result(
+                tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                    tcl_registry::completion::CompletionCode::Ok,
+                ),
+                normal,
+                other.normal_value.as_ref(),
+            );
+            self.normal_name_value = name_value;
+            self.normal_object = object;
+            self.normal_method_prefix = prefix;
+            self.normal_rhs_read = rhs_read;
+            self.normal_representation = representation;
+        }
+        for (route, state) in &other.abrupt {
+            let present = self.abrupt.iter().any(|(known, _)| known == route);
+            let name_value = if present {
+                self.abrupt_name_values
+                    .iter()
+                    .find(|(known, _)| known == route)
+                    .map(|(_, value)| value)
+                    .zip(
+                        other
+                            .abrupt_name_values
+                            .iter()
+                            .find(|(known, _)| known == route)
+                            .map(|(_, value)| value),
+                    )
+                    .and_then(|(left, right)| left.joined(right))
+                    .map(Arc::new)
+            } else {
+                other
+                    .abrupt_name_values
+                    .iter()
+                    .find(|(known, _)| known == route)
+                    .map(|(_, value)| Arc::clone(value))
+            };
+            self.join_abrupt_result(
+                *route,
+                state,
+                other.result_for(*route),
+                other.object_for(*route),
+            );
+            if let Some(value) = name_value {
+                self.abrupt_name_values.push((*route, value));
+            }
+        }
+        self.normal_completion = complete.filter(|_| self.abrupt.is_empty());
+        self.complete_procedure_return = complete_return.filter(|route| {
+            self.normal.is_none() && self.abrupt.len() == 1 && self.abrupt[0].0 == *route
+        });
+    }
+
+    fn publish(&self, state: &mut ModuleCommandBindings) {
+        let mut combined = self.normal.clone();
+        for (_, abrupt) in &self.abrupt {
+            if let Some(combined) = &mut combined {
+                combined.join(abrupt);
+            } else {
+                combined = Some(abrupt.clone());
+            }
+        }
+        if let Some(combined) = combined {
+            *state = *combined;
+        }
+    }
+
+    fn through_procedure_boundary(&self, dialect: Option<tcl_registry::InvocationDialect>) -> Self {
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        let mut outcomes = Self::default();
+        let mut representation = self.normal.as_ref().and_then(|normal| {
+            self.normal_representation
+                .as_ref()
+                .filter(|receipt| receipt.is_current(&normal.source_variables))
+                .cloned()
+        });
+        if let Some(normal) = &self.normal {
+            let name_value = self
+                .normal_name_value
+                .as_ref()
+                .filter(|value| value.is_current(&normal.source_variables))
+                .cloned();
+            outcomes.add_with_object_result(
+                Route::Tcl(tcl_registry::completion::CompletionCode::Ok),
+                normal,
+                self.normal_value.as_ref(),
+                self.normal_object.as_ref(),
+            );
+            outcomes.normal_name_value = name_value;
+        }
+        for (route, state) in &self.abrupt {
+            let converted = route.through_procedure_boundary_in(dialect);
+            if converted.normal_possible() {
+                // Abrupt results have no representation receipt. Their
+                // conversion cannot inherit the fall-through result's object.
+                representation = None;
+            }
+            let name_value = self
+                .abrupt_name_values
+                .iter()
+                .find(|(known, _)| known == route)
+                .map(|(_, value)| value)
+                .filter(|value| value.is_current(&state.source_variables));
+            let joined_name = if converted.normal_possible() {
+                if outcomes.normal.is_some() {
+                    outcomes
+                        .normal_name_value
+                        .as_ref()
+                        .zip(name_value)
+                        .and_then(|(left, right)| left.joined(right))
+                        .map(Arc::new)
+                } else {
+                    name_value.cloned()
+                }
+            } else {
+                outcomes.normal_name_value.clone()
+            };
+            outcomes.add_with_object_result(
+                converted,
+                state,
+                self.result_for(*route),
+                self.object_for(*route),
+            );
+            outcomes.normal_name_value = joined_name;
+            if converted.abrupt_possible()
+                && let Some(value) = name_value
+            {
+                outcomes
+                    .abrupt_name_values
+                    .push((converted, Arc::clone(value)));
+            }
+        }
+        outcomes.normal_completion = if self.complete_procedure_return.is_some()
+            && self.normal.is_none()
+            && self.abrupt.len() == 1
+            && outcomes.normal.is_some()
+            && outcomes.abrupt.is_empty()
+        {
+            Some(SourceNormalCompletion)
+        } else {
+            self.normal_completion
+                .filter(|_| self.abrupt.is_empty() && outcomes.abrupt.is_empty())
+        };
+        outcomes.normal_representation = representation.filter(|receipt| {
+            outcomes
+                .normal
+                .as_ref()
+                .is_some_and(|normal| receipt.is_current(&normal.source_variables))
+        });
+        outcomes
+    }
+
+    fn capture_with(&self, selection: tcl_registry::catch_invocation::CatchInvocation) -> Self {
+        let mut captured = Self::default();
+        if let Some(normal) = &self.normal {
+            captured.join(&Self::normal(normal));
+        }
+        for (route, state) in &self.abrupt {
+            let selected = selection.route(*route);
+            if selected.captured {
+                captured.join(&Self::normal(state));
+            }
+            for route in selected.propagated {
+                captured.add(route, state);
+            }
+        }
+        captured
+    }
+
+    fn capture_tcl_completions(&self) -> Self {
+        self.capture_with(tcl_registry::catch_invocation::CatchInvocation::CAPTURE_TCL_PHASE)
+    }
+
+    fn restore_frame(
+        &mut self,
+        parent: &crate::var_resolve::ResolveContext,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+    ) {
+        for state in self
+            .normal
+            .iter_mut()
+            .chain(self.abrupt.iter_mut().map(|(_, state)| state))
+        {
+            state.source_variables = Arc::new(crate::var_resolve::restore_execution_frame(
+                parent,
+                &state.source_variables,
+            ));
+            state.variable_frame = frame.clone();
+        }
+    }
+
+    fn restore_source_origin(&mut self, origin: Option<&Arc<SourceOriginId>>) {
+        for state in self
+            .normal
+            .iter_mut()
+            .chain(self.abrupt.iter_mut().map(|(_, state)| state))
+        {
+            state.current_source_origin = origin.cloned();
+        }
+    }
+}
+
+impl SourceCommandBindings {
+    pub(crate) fn retain_analyser_source_settings(
+        &mut self,
+        settings: Arc<crate::analyser::source_settings::OriginalAnalyserSourceSettings>,
+    ) {
+        self.analyser_source_settings = Some(settings);
+    }
+
+    pub(crate) fn retained_analyser_source_settings(
+        &self,
+    ) -> Option<&crate::analyser::source_settings::OriginalAnalyserSourceSettings> {
+        self.analyser_source_settings.as_deref()
+    }
+
+    pub(crate) fn original_analysis_owner(&self) -> Option<&Arc<OriginalSourceAnalysisOwner>> {
+        self.original_analysis_owner.as_ref()
+    }
+
+    /// Borrow the original analysis availability ingress, including terminal
+    /// supplied-missing ownership. This creates no source or execution entry.
+    pub(crate) fn source_metadata_owner(
+        &self,
+    ) -> &crate::registry_invocation::OwnedInvocationMetadataContext {
+        &self.final_state.baseline.metadata_context
+    }
+
+    /// Interpret a fresh authoring entry using the selected registry profile,
+    /// or the compiler convenience driver's Tcl 9.0 native target when none
+    /// is selected. Use [`Self::analyse_with_options`] for another runtime or
+    /// interpreter history; assistance metadata alone is not an entry proof.
+    #[must_use]
+    pub fn analyse(
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+    ) -> Self {
+        Self::analyse_in_namespace(source, "::", config, registry)
+    }
+
+    /// Interpret an isolated source instance in its actual command namespace.
+    #[must_use]
+    pub fn analyse_in_namespace(
+        source: &str,
+        namespace: &str,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+    ) -> Self {
+        Self::analyse_in_namespace_with_options(
+            source,
+            namespace,
+            config,
+            registry,
+            SourceAnalysisOptions {
+                invocation_dialect: Some(crate::environment_ingress::authoring_invocation_dialect(
+                    registry, None, config,
+                )),
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..SourceAnalysisOptions::default()
+            },
+        )
+    }
+
+    /// Interpret source under explicitly supplied entry and loader contracts.
+    #[must_use]
+    pub fn analyse_with_options(
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+        options: SourceAnalysisOptions<'_>,
+    ) -> Self {
+        Self::analyse_in_namespace_with_options(source, "::", config, registry, options)
+    }
+
+    /// Interpret a source instance with its namespace and explicit entry facts.
+    #[must_use]
+    pub fn analyse_in_namespace_with_options(
+        source: &str,
+        namespace: &str,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+        options: SourceAnalysisOptions<'_>,
+    ) -> Self {
+        let frame = if namespace == "::" {
+            crate::var_resolve::VariableExecutionFrame::Global
+        } else {
+            crate::var_resolve::VariableExecutionFrame::Namespace(namespace.to_owned())
+        };
+        Self::analyse_in_frame_with_options(source, &frame, config, registry, options)
+    }
+
+    /// Interpret source in a proved activation rather than inferring variable
+    /// ownership from a namespace spelling.
+    #[must_use]
+    pub fn analyse_in_frame_with_options(
+        source: &str,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+        options: SourceAnalysisOptions<'_>,
+    ) -> Self {
+        Self::analyse_image_in_frame_with_options(
+            &tcl_lexer::SourceImage::document(source),
+            frame,
+            config,
+            registry,
+            options,
+        )
+        .expect("document source is valid UTF-8")
+    }
+
+    /// Interpret a checked text view while retaining the original source channel.
+    /// Opaque native source has no Unicode analysis projection.
+    #[must_use]
+    pub fn analyse_image_in_frame_with_options(
+        image: &tcl_lexer::SourceImage,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+        options: SourceAnalysisOptions<'_>,
+    ) -> Option<Self> {
+        Self::analyse_image_in_frame_with_purpose(
+            image,
+            frame,
+            config,
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+    }
+
+    /// Interpret a producer-selected whole input or nested script while keeping
+    /// the complete parent config for original word and metadata correspondence.
+    /// Parser purpose supplies no entered source/frame/Native implementation.
+    #[must_use]
+    pub fn analyse_image_in_frame_with_purpose(
+        image: &tcl_lexer::SourceImage,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+        options: SourceAnalysisOptions<'_>,
+        purpose: tcl_lexer::SourceSegmentationPurpose,
+    ) -> Option<Self> {
+        let source = image.try_text().ok()?;
+        Some(Self::analyse_source_in_frame_with_options(
+            source,
+            image,
+            frame,
+            config,
+            registry,
+            options,
+            SourceInterpretationEntry {
+                purpose,
+                logical_conditional_source_control: false,
+            },
+        ))
+    }
+
+    /// Interpret the fixed package-index source survey's whole document under
+    /// its positively retained Logical input, entering first-match conditional
+    /// bodies as C Tcl selects them. This interpretation is never memoised, so
+    /// no general Logical consumer can receive it; other inputs decline.
+    pub(crate) fn analyse_package_index_survey(
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+        options: SourceAnalysisOptions<'_>,
+    ) -> Option<Self> {
+        options.retained_logical_source_input(registry, Some(config))?;
+        Some(Self::analyse_source_in_frame_with_options(
+            source,
+            &tcl_lexer::SourceImage::document(source),
+            &crate::var_resolve::VariableExecutionFrame::Global,
+            config,
+            registry,
+            options,
+            SourceInterpretationEntry {
+                purpose: tcl_lexer::SourceSegmentationPurpose::WholeInput,
+                logical_conditional_source_control: true,
+            },
+        ))
+    }
+
+    fn analyse_source_in_frame_with_options(
+        source: &str,
+        image: &tcl_lexer::SourceImage,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+        options: SourceAnalysisOptions<'_>,
+        entry: SourceInterpretationEntry,
+    ) -> Self {
+        let SourceInterpretationEntry {
+            purpose,
+            logical_conditional_source_control,
+        } = entry;
+        let config = options.native_lexer_config(config);
+        let inherited_frame = options
+            .source_point_entry
+            .map(|entry| entry.frame().clone());
+        let frame = inherited_frame.as_ref().unwrap_or(frame);
+        // The survey-scoped interpretation is never shared through the memo.
+        let memo_key = if logical_conditional_source_control {
+            None
+        } else {
+            source_analysis_cache::SourceAnalysisCacheKey::at_entry(
+                image, frame, config, registry, options, purpose,
+            )
+        };
+        if let Some(mut bindings) = memo_key.as_ref().and_then(source_analysis_cache::lookup) {
+            // Reused source facts retain a distinct attachment to this analysis call.
+            bindings.original_analysis_owner = bindings
+                .original_analysis_owner
+                .as_deref()
+                .cloned()
+                .map(Arc::new);
+            return bindings;
+        }
+        let namespace = source_frame_namespace(frame);
+        let mut bindings = Self {
+            analyser_source_settings: options
+                .source_point_entry
+                .map(OriginalSourcePointEntry::analyser_source_settings),
+            logical_conditional_source_control,
+            compilation_scope: options.compilation_scope,
+            lexer_config: Some(config),
+            ..Self::default()
+        };
+        let mut state =
+            ModuleCommandBindings::initial_with_options(registry, options, Some(config));
+        state.current_source_origin = Some(Arc::new(match options.source_point_entry {
+            Some(parent) => SourceOriginId::from_kind(SourceOriginKind::InheritedPoint {
+                parent: parent.source_origin(),
+                source: image.clone(),
+            }),
+            None => SourceOriginId::authored_image(image.clone()),
+        }));
+        state.ordinary_literal_pool =
+            literal_object_pool::SourceOrdinaryLiteralPool::at_entry(&state, options);
+        bindings
+            .root_origin
+            .clone_from(&state.current_source_origin);
+        bindings.original_analysis_owner = state.current_source_origin.as_ref().map(|source| {
+            Arc::new(OriginalSourceAnalysisOwner {
+                source: Arc::clone(source),
+                metadata: state.baseline.metadata_context.clone(),
+                config,
+            })
+        });
+        let namespace_key = options
+            .source_point_entry
+            .map(|entry| entry.namespace().clone())
+            .or_else(|| frame.namespace_identity().cloned())
+            .or_else(|| {
+                options
+                    .native_entry
+                    .and_then(|entry| SourceNamespaceKey::from_native_entry(entry).ok())
+            })
+            .unwrap_or_else(|| SourceNamespaceKey::authored(namespace));
+        let frame = frame.clone().with_namespace_identity(namespace_key.clone());
+        // This API's supplied frame is the entry activation. It is not a
+        // nested call whose final state should restore the initial model frame.
+        if state.variable_frame != frame {
+            state.source_variables = source_variables_in_frame(&state.source_variables, &frame);
+            state.variable_frame = frame.clone();
+        }
+        for name in options.incoming_formals {
+            Arc::make_mut(&mut state.source_variables).bind_unknown_incoming(name, registry);
+        }
+        let root_outcomes = bindings.walk_source(
+            source,
+            0,
+            &mut state,
+            &root_source_execution_context(
+                &frame,
+                namespace,
+                &namespace_key,
+                config,
+                registry,
+                options,
+                purpose,
+            ),
+        );
+        bindings.conditional_source.root_outcomes = Some(Arc::new(root_outcomes.clone()));
+        bindings.original_completed_root_state = options
+            .source_point_entry
+            .is_none()
+            .then(|| root_outcomes.completed_normal_world())
+            .flatten();
+        if let Some(normal) = root_outcomes.normal {
+            state = *normal;
+        }
+        if options.compilation_scope == tcl_runtime_api::SourceCompilationScope::WholeModule {
+            bindings.analyse_deferred_entries(&state, config, registry);
+        }
+        bindings.invalidate_unpositioned_projections();
+        bindings.final_state = Arc::new(state);
+        bindings.retain_logical_receiver_source_catalogues(config, registry);
+        bindings.retain_original_declaration_source_operand_layouts(registry);
+        if let Some(key) = memo_key {
+            source_analysis_cache::retain(key, &bindings);
+        }
+        bindings
+    }
+
+    fn analyse_deferred_entries(
+        &mut self,
+        incoming: &ModuleCommandBindings,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+    ) {
+        loop {
+            let root_count = self.deferred.len();
+            for (root, entry) in self.deferred_entry_states(incoming) {
+                if self
+                    .called_implementations
+                    .contains(&root.implementation_id())
+                {
+                    continue;
+                }
+                let after_load = self.uncalled_body_after_load(&root, &entry);
+                self.walk_deferred_entry_with(&root, &entry, config, registry, after_load);
+            }
+            if root_count == self.deferred.len() {
+                break;
+            }
+        }
+        self.analyse_called_declaration_results(incoming, config, registry);
+        self.retain_called_receiver_source_catalogues(incoming, config, registry);
+        self.retain_uninstalled_declaration_body_layouts(registry);
+    }
+
+    fn analyse_called_declaration_results(
+        &mut self,
+        incoming: &ModuleCommandBindings,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+    ) {
+        let entries = self
+            .deferred_entry_states(incoming)
+            .into_iter()
+            .filter(|(root, _)| {
+                self.called_implementations
+                    .contains(&root.implementation_id())
+                    && !root.receiver_method
+                    && root.event.is_none()
+                    && root.future_frame.is_none()
+                    && root.statics.is_none()
+            })
+            .collect::<Vec<_>>();
+        if entries.is_empty() {
+            return;
+        }
+        // The separate collector retains the original declaration and lookup
+        // environment. seed_deferred_inputs installs unknown formals and
+        // widens namespace contents before the shared body walker runs.
+        // Its dispatch/read/compiler observations cannot become actual calls.
+        let mut conditional = self.clone();
+        conditional.conditional_procedure_results = SharedSourceInventory::default();
+        conditional.active_calls.clear();
+        conditional.active_variable_observers.clear();
+        for (root, entry) in entries {
+            conditional.walk_deferred_entry(&root, &entry, config, registry);
+        }
+        self.merge_original_declaration_layouts(&conditional);
+        self.merge_conditional_procedure_results(&conditional);
+    }
+
+    fn deferred_entry_states(
+        &self,
+        incoming: &ModuleCommandBindings,
+    ) -> Vec<(DeferredSourceBody, Arc<ModuleCommandBindings>)> {
+        let entry = Arc::new(incoming.clone());
+        let mut entries = self
+            .deferred_entry_bodies(incoming)
+            .into_iter()
+            .map(|root| (root, Arc::clone(&entry)))
+            .collect::<Vec<_>>();
+        let initial = entries
+            .iter()
+            .map(|(root, _)| root.implementation_id())
+            .collect::<BTreeSet<_>>();
+        if initial.len() == self.deferred.len() {
+            return entries;
+        }
+        // A future invocation can install a new callable even when its final
+        // completion is abrupt. Its exact outcome supplies that callable's
+        // lookup table; the actual document continuation remains untouched.
+        for outcome in &self.deferred_outcomes {
+            if outcome.route
+                == tcl_registry::completion_route::InvocationCompletionRoute::ProcessExit
+            {
+                continue;
+            }
+            for root in self.deferred_entry_bodies(&outcome.state) {
+                if !initial.contains(&root.implementation_id())
+                    && !entries.iter().any(|(known, state)| {
+                        known.implementation_id() == root.implementation_id()
+                            && known.namespace_key == root.namespace_key
+                            && state.same_state(&outcome.state)
+                    })
+                {
+                    entries.push((root, Arc::clone(&outcome.state)));
+                }
+            }
+        }
+        entries
+    }
+
+    fn deferred_entry_bodies(&self, incoming: &ModuleCommandBindings) -> Vec<DeferredSourceBody> {
+        let namespaces = OnceLock::new();
+        self.deferred
+            .values()
+            .flat_map(|root| {
+                if root.event.is_some() || root.receiver_method || root.future_frame.is_some() {
+                    return vec![root.clone()];
+                }
+                namespaces
+                    .get_or_init(|| {
+                        self.deferred_namespace_index
+                            .for_bindings(&incoming.bindings)
+                    })
+                    .for_implementation(&root.implementation_id())
+                    .into_iter()
+                    .flatten()
+                    .cloned()
+                    .map(|namespace_key| DeferredSourceBody {
+                        namespace: namespace_key.display().unwrap_or_default(),
+                        namespace_key,
+                        ..root.clone()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>()
+    }
+
+    /// An uncalled procedure body is analysed as if called after the
+    /// document finished running at top level (user decision
+    /// 2026-10-21T08:20Z, "world after load"): its commands resolve in the
+    /// procedure's namespace against the command world at the end of the
+    /// script. That needs a normal completion of the whole document and this
+    /// very end-of-script state; event handlers, receiver methods, future
+    /// frames and bodies first installed by deferred outcomes keep their own
+    /// conditional entries.
+    fn uncalled_body_after_load(
+        &self,
+        root: &DeferredSourceBody,
+        incoming: &ModuleCommandBindings,
+    ) -> bool {
+        incoming.baseline.source_point_entry.is_none()
+            && root.event.is_none()
+            && !root.receiver_method
+            && root.future_frame.is_none()
+            && self
+                .original_completed_root_state
+                .as_deref()
+                .is_some_and(|completed| completed.same_state(incoming))
+    }
+
+    fn walk_deferred_entry(
+        &mut self,
+        root: &DeferredSourceBody,
+        incoming: &ModuleCommandBindings,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+    ) {
+        self.walk_deferred_entry_with(root, incoming, config, registry, false);
+    }
+
+    fn walk_deferred_entry_with(
+        &mut self,
+        root: &DeferredSourceBody,
+        incoming: &ModuleCommandBindings,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+        after_load: bool,
+    ) {
+        use crate::var_resolve::VariableExecutionFrame;
+        if root.future_frame.is_some() {
+            self.walk_future_body(root, incoming, config, registry);
+            return;
+        }
+        let mut branch = boxed_source_branch(incoming);
+        branch.current_source_origin.clone_from(&root.source_origin);
+        let parent = Arc::clone(&branch.source_variables);
+        let frame = if root.receiver_method {
+            VariableExecutionFrame::ReceiverMethod {
+                identity: source_activation_name(
+                    root.source_origin.as_ref(),
+                    &root.identity,
+                    root.implementation_generation,
+                ),
+            }
+        } else if let Some(event) = &root.event {
+            let mut entry = crate::connection_scope::event_resolve_context(event);
+            entry.invocation_dialect = branch.baseline.dialect;
+            entry.source_read_configuration = parent.source_read_configuration;
+            entry.namespace_cells = parent.namespace_cells.clone();
+            let frame = if entry.dynamic_bindings {
+                VariableExecutionFrame::Unknown
+            } else if entry.global_frame() {
+                VariableExecutionFrame::Global
+            } else {
+                VariableExecutionFrame::Procedure {
+                    namespace: root.namespace.clone(),
+                    identity: source_activation_name(
+                        root.source_origin.as_ref(),
+                        &root.identity,
+                        root.implementation_generation,
+                    ),
+                }
+            };
+            branch.source_variables = Arc::new(entry.in_frame(&frame));
+            branch.variable_frame = frame.clone();
+            frame
+        } else {
+            VariableExecutionFrame::Procedure {
+                namespace: root.namespace.clone(),
+                identity: source_activation_name(
+                    root.source_origin.as_ref(),
+                    &root.identity,
+                    root.implementation_generation,
+                ),
+            }
+        };
+        let frame = if root.receiver_method {
+            frame
+        } else {
+            frame.with_namespace_identity(root.namespace_key.clone())
+        };
+        seed_deferred_inputs(&mut branch, root, &frame, registry);
+        if let Some((parent, argument, script)) = &root.executed_script {
+            self.record_executed_script(parent.clone(), *argument, script.clone(), None, None);
+            if let Some((origin, span)) = &root.executed_word {
+                self.record_executed_word(origin, *span, None, script.clone());
+            }
+        }
+        let compilation = branch.baseline.body_compilation();
+        // This root is already being interpreted in its selected preview
+        // frame. A recursive call must reach the ordinary backedge residual,
+        // rather than re-enter this body once before noticing the cycle.
+        // Preview ownership does not mark a document call as reached.
+        let implementation = root.implementation_id();
+        let activated = self.active_calls.insert(implementation.clone());
+        let preview = usize::from(!after_load);
+        self.declaration_preview_depth += preview;
+        let outcomes = self.walk_source(
+            &root.source,
+            root.offset,
+            &mut branch,
+            &SourceExecutionContext {
+                body_entry: if after_load {
+                    SourceBodyEntryPurpose::Selected
+                } else {
+                    SourceBodyEntryPurpose::Conditional
+                },
+                source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                realm: root.realm,
+                compilation,
+                compilation_snapshot: None,
+                selected_compilation: None,
+                original_variable_compilation: None,
+                namespace: &root.namespace,
+                config,
+                registry,
+                depth: 0,
+                frame: &frame,
+                invocation_offset: 0,
+                variable_read_owner: None,
+                original_written_projection: None,
+                written_arguments: None,
+                written_values: None,
+                written_name_values: None,
+                written_representations: None,
+                written_objects: None,
+                written_method_prefixes: None,
+                written_variable_reads: None,
+                namespace_key: (!root.receiver_method).then_some(&root.namespace_key),
+                expression_source: None,
+            },
+        );
+        self.declaration_preview_depth -= preview;
+        if activated {
+            self.active_calls.remove(&implementation);
+        }
+        self.record_conditional_procedure_result(root, &outcomes, branch.baseline.dialect);
+        self.retain_deferred_outcomes(root, &frame, outcomes);
+        // Declaration analysis supplies body points; it is not an execution
+        // edge and does not alter the document's actual continuation.
+    }
+
+    fn retain_deferred_outcomes(
+        &mut self,
+        root: &DeferredSourceBody,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        outcomes: SourceOutcomes,
+    ) {
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        let normal = outcomes.normal.into_iter().map(|state| {
+            (
+                Route::Tcl(tcl_registry::completion::CompletionCode::Ok),
+                state,
+            )
+        });
+        for (route, state) in normal.chain(outcomes.abrupt) {
+            let implementation = root.implementation_id();
+            if let Some(known) = self.deferred_outcomes.iter_mut().find(|known| {
+                known.implementation == implementation
+                    && known.namespace_key == root.namespace_key
+                    && known.frame == *frame
+                    && known.realm == root.realm
+                    && known.route == route
+            }) {
+                Arc::make_mut(&mut known.state).join(&state);
+            } else {
+                self.deferred_outcomes.push(SourceDeferredOutcome {
+                    implementation,
+                    namespace_key: root.namespace_key.clone(),
+                    frame: frame.clone(),
+                    realm: root.realm,
+                    route,
+                    state: Arc::from(state),
+                });
+            }
+        }
+    }
+
+    /// Reached variable reads wholly contained in an original source span.
+    /// Records use this analysis instance's source root and absolute offsets;
+    /// absent or skipped reads remain absent instead of inheriting dispatch facts.
+    #[must_use]
+    pub fn variable_accesses_in_span(&self, span: tcl_lexer::Span) -> Vec<SourceVariableAccess> {
+        self.variable_accesses
+            .range(span.start()..=span.end())
+            .flat_map(|(_, accesses)| accesses)
+            .filter(|access| access.is_contained_in(span))
+            .cloned()
+            .collect()
+    }
+
+    /// Reads directly owned by this invocation's original word evaluation.
+    /// Nested commands and native body phases have their own temporal owners;
+    /// the lexical inventory is deliberately broader than this projection.
+    #[must_use]
+    pub fn variable_accesses_for_invocation_args(&self, offset: u32) -> Vec<SourceVariableAccess> {
+        let Some(source) = &self.root_origin else {
+            return Vec::new();
+        };
+        let site = CommandAllocationSite {
+            source: Arc::clone(source),
+            offset,
+        };
+        self.variable_accesses
+            .values()
+            .flatten()
+            .filter(|access| access.owner.is_direct_arguments_of(&site))
+            .cloned()
+            .collect()
+    }
+
+    /// Reads executed during original argv evaluation, including entered nested
+    /// substitutions. This transitive evaluation projection is distinct from
+    /// the directly owned argv projection and never relies on lexical nesting.
+    #[must_use]
+    pub fn variable_accesses_during_argument_evaluation(
+        &self,
+        offset: u32,
+    ) -> Vec<SourceVariableAccess> {
+        let Some(source) = &self.root_origin else {
+            return Vec::new();
+        };
+        let site = CommandAllocationSite {
+            source: Arc::clone(source),
+            offset,
+        };
+        self.variable_accesses
+            .values()
+            .flatten()
+            .filter(|access| access.owner.is_argument_evaluation_of(&site))
+            .cloned()
+            .collect()
+    }
+
+    /// Reached reads while evaluating this invocation's original argv or its
+    /// selected native expression, including substitutions entered by either
+    /// evaluation. Native script bodies have separate temporal ownership.
+    #[must_use]
+    pub fn variable_accesses_during_expression_invocation(
+        &self,
+        offset: u32,
+    ) -> Vec<SourceVariableAccess> {
+        let Some(source) = &self.root_origin else {
+            return Vec::new();
+        };
+        let site = CommandAllocationSite {
+            source: Arc::clone(source),
+            offset,
+        };
+        self.variable_accesses
+            .values()
+            .flatten()
+            .filter(|access| {
+                access.owner.is_argument_evaluation_of(&site)
+                    || access.owner.is_expression_evaluation_of(&site)
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// Query one exact original reference; an unrecorded read is unresolved.
+    #[must_use]
+    pub fn variable_access_at(
+        &self,
+        source: &crate::ir::SourceSite,
+        original_spelling: &str,
+    ) -> Option<&SourceVariableAccess> {
+        SourceVariableAccess::find_at_source(
+            self.variable_accesses.get(&source.span.start())?,
+            source,
+            original_spelling,
+        )
+    }
+
+    fn record_variable_access(
+        &mut self,
+        source: &crate::ir::SourceSite,
+        original_spelling: &str,
+        state: &ModuleCommandBindings,
+        owner: Option<&SourceVariableEvaluationOwner>,
+        registry: &CommandRegistry,
+        selected_place: &crate::place::Place,
+    ) {
+        let Some(origin) = &state.current_source_origin else {
+            return;
+        };
+        let context = &state.source_variables;
+        let object_instance = state.object_read_proof(selected_place, registry);
+        let owner = owner
+            .cloned()
+            .unwrap_or(SourceVariableEvaluationOwner::Unspecified);
+        let reached_read = SourceVariableAccess {
+            source: source.clone(),
+            owner: owner.clone(),
+            original_spelling: original_spelling.to_owned(),
+            variable_context: Arc::clone(context),
+            context_alternatives: vec![Arc::clone(context)],
+            context_fingerprint: SourceVariableAccess::fingerprint(context),
+            object_instance: object_instance.clone(),
+            selected_places: vec![SelectedSourceVariablePlace {
+                context: Arc::clone(context),
+                place: Some(Arc::new(selected_place.clone())),
+            }],
+        };
+        self.capture_current_expression_read(origin, &state.variable_frame, &reached_read);
+        self.record_invocation_substitution_read(reached_read);
+        let inventory = if self.root_origin.as_ref() == Some(origin) {
+            &mut self.variable_accesses
+        } else {
+            self.origin_variable_accesses
+                .entry(Arc::clone(origin))
+                .or_default()
+        };
+        let accesses = inventory.entry(source.span.start()).or_default();
+        if let Some(access) = accesses.iter_mut().find(|access| {
+            access.source == *source && access.original_spelling == original_spelling
+        }) {
+            access.owner.join(owner);
+            access.retain_selected_place(context, selected_place);
+            if access.object_instance != object_instance {
+                access.object_instance = None;
+            }
+            if !access.context_alternatives.contains(context) {
+                access.context_alternatives.push(Arc::clone(context));
+            }
+            if access.variable_context != *context {
+                Arc::make_mut(&mut access.variable_context).join(context);
+                access.context_fingerprint =
+                    SourceVariableAccess::fingerprint(&access.variable_context);
+            }
+        } else {
+            accesses.push(SourceVariableAccess {
+                source: source.clone(),
+                owner,
+                original_spelling: original_spelling.to_owned(),
+                variable_context: Arc::clone(context),
+                context_alternatives: vec![Arc::clone(context)],
+                context_fingerprint: SourceVariableAccess::fingerprint(context),
+                object_instance,
+                selected_places: vec![SelectedSourceVariablePlace {
+                    context: Arc::clone(context),
+                    place: Some(Arc::new(selected_place.clone())),
+                }],
+            });
+        }
+    }
+
+    /// A source query can only prove dispatch for a represented invocation.
+    #[must_use]
+    pub fn has_site(&self, offset: u32) -> bool {
+        self.dispatch_points.contains_key(&offset)
+    }
+
+    /// Namespace objects proved to exist immediately before this invocation.
+    #[must_use]
+    pub fn known_namespaces_at(&self, offset: u32) -> Vec<String> {
+        let mut points = self.dispatch_points_at(offset);
+        let Some(first) = points.next() else {
+            return Vec::new();
+        };
+        let mut namespaces = first.state.namespaces.as_ref().clone();
+        for point in points {
+            namespaces.retain(|namespace| point.state.namespaces.contains(namespace));
+        }
+        namespaces
+            .into_iter()
+            .filter_map(|key| key.advisory_key())
+            .collect()
+    }
+
+    /// Exact source-site namespace proof, shared with place resolution.
+    #[must_use]
+    pub fn namespaces_at_source(&self, offset: u32) -> Vec<String> {
+        self.known_namespaces_at(offset)
+    }
+
+    /// Command absence before dispatch, independently of `unknown` fallback.
+    #[must_use]
+    pub fn command_is_absent_at(&self, command: &str, offset: u32) -> bool {
+        let mut points = self.dispatch_points_at(offset);
+        let Some(first) = points.next() else {
+            return false;
+        };
+        first.state.definitely_absent(command, &first.namespace_key)
+            && points.all(|point| point.state.definitely_absent(command, &point.namespace_key))
+    }
+
+    /// Whether every selected lifecycle traversal proves a phase unentered.
+    /// Missing or unfinished traversal evidence remains explicit uncertainty.
+    #[must_use]
+    pub fn lifecycle_phase_reachability_at(
+        &self,
+        site: &CommandAllocationSite,
+        phase: SourceBodyPhase,
+    ) -> SourceBodyPhaseReachability {
+        let Some(coverage) = self.lifecycle_coverage.get(site) else {
+            return SourceBodyPhaseReachability::Unknown;
+        };
+        let coverage = coverage
+            .iter()
+            .filter(|entry| !entry.declaration_preview)
+            .collect::<Vec<_>>();
+        if coverage.is_empty() || coverage.iter().any(|entry| entry.entered.is_none()) {
+            return SourceBodyPhaseReachability::Unknown;
+        }
+        let index = match phase {
+            SourceBodyPhase::Setup => 0,
+            SourceBodyPhase::Body => 1,
+            SourceBodyPhase::Cleanup => 2,
+        };
+        if coverage
+            .iter()
+            .filter_map(|entry| entry.entered)
+            .any(|entered| entered[index])
+        {
+            SourceBodyPhaseReachability::MayEntered
+        } else {
+            SourceBodyPhaseReachability::NotEntered
+        }
+    }
+
+    /// Exact phase-entry binding used for hook and phase dependency proofs.
+    #[must_use]
+    pub fn invocation_at_phase(
+        &self,
+        command: &str,
+        site: u32,
+        phase: SourceBodyPhase,
+    ) -> SourceInvocationBinding {
+        Self::query_points(
+            command,
+            self.phases
+                .iter()
+                .filter(|point| {
+                    point.site == site
+                        && point.phase == phase
+                        && point.point.state.current_source_origin.as_ref()
+                            == self.root_origin.as_ref()
+                        && !point.point.declaration_preview
+                })
+                .map(|point| &point.point),
+        )
+    }
+
+    /// Command absence at a represented lifecycle phase entry.
+    #[must_use]
+    pub fn command_is_absent_at_phase(
+        &self,
+        command: &str,
+        site: u32,
+        phase: SourceBodyPhase,
+    ) -> bool {
+        let points = self
+            .phases
+            .iter()
+            .filter(|point| {
+                point.site == site
+                    && point.phase == phase
+                    && point.point.state.current_source_origin.as_ref() == self.root_origin.as_ref()
+                    && !point.point.declaration_preview
+            })
+            .collect::<Vec<_>>();
+        !points.is_empty()
+            && points.iter().all(|point| {
+                point
+                    .point
+                    .state
+                    .definitely_absent(command, &point.point.namespace_key)
+            })
+    }
+
+    /// Whether text-only body lowering can reuse a fresh isolated proof.
+    /// Every invocation is compared through the same binding interpretation;
+    /// namespace and provider facts are part of the proof, not lexical keys.
+    #[must_use]
+    pub fn can_reuse_isolated_body(
+        &self,
+        body: &str,
+        base: u32,
+        namespace: &str,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+    ) -> bool {
+        if self.final_state.baseline.source_point_entry.is_some() {
+            return false;
+        }
+
+        let loaders = self
+            .final_state
+            .baseline
+            .trusted_loaders
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        let options = SourceAnalysisOptions {
+            source_point_entry: None,
+            metadata_context: crate::registry_invocation::InvocationMetadataInput::Retained(
+                &self.final_state.baseline.metadata_context,
+            ),
+            compilation_scope: tcl_runtime_api::SourceCompilationScope::WholeModule,
+            invocation_realm: self
+                .points
+                .iter()
+                .find(|point| point.dispatch && point.offset >= base)
+                .map_or(self.final_state.baseline.invocation_realm, |point| {
+                    point.realm
+                }),
+            incoming_formals: &[],
+            native_entry: self.final_state.baseline.native_entry.as_deref(),
+            native_compilation: self
+                .points
+                .iter()
+                .find(|point| point.dispatch && point.offset >= base)
+                .map_or(self.final_state.baseline.native_compilation, |point| {
+                    point.compilation
+                }),
+            declared_commands: None,
+            trusted_package_loaders: &loaders,
+            trusted_source_modules: &self.final_state.baseline.trusted_source_modules,
+            unknown_entry: false,
+            invocation_dialect: self.final_state.baseline.dialect,
+            hosted_execution_context: self.final_state.baseline.hosted_execution_context,
+            execution_name_policy: self.final_state.baseline.execution_name_policy,
+            logical_source_input: self.final_state.baseline.logical_source_input.as_ref(),
+            vendor_source_input: self.final_state.baseline.vendor_source_input.as_ref(),
+            compiled_variable_provider: self.final_state.baseline.compiled_variable_provider,
+        };
+        let fallback = crate::var_resolve::VariableExecutionFrame::Namespace(namespace.to_owned());
+        let frame = self
+            .points
+            .iter()
+            .find(|point| {
+                point.dispatch
+                    && point.offset >= base
+                    && point.offset
+                        < base.saturating_add(u32::try_from(body.len()).unwrap_or(u32::MAX))
+            })
+            .map_or(&fallback, |point| &point.state.variable_frame);
+        let isolated = Self::analyse_in_frame_with_options(body, frame, config, registry, options);
+        // A cached isolated Script does not replay document declaration,
+        // import/export or deferred-unit publication into the enclosing
+        // lowerer. Admit cache reuse only when the shared transfer proves no
+        // such state changes, before comparing every actual dispatch point.
+        if isolated.has_transitions() || !isolated.deferred.is_empty() {
+            return false;
+        }
+        isolated
+            .points
+            .iter()
+            .filter(|point| point.dispatch)
+            .all(|point| {
+                let Some(original_offset) = base.checked_add(point.offset) else {
+                    return false;
+                };
+                let Some(head) = point.head.as_deref() else {
+                    return false;
+                };
+                if isolated
+                    .invocation_at_source(head, point.offset)
+                    .targets
+                    .iter()
+                    .any(|target| {
+                        registry
+                            .get(&target.command)
+                            .is_some_and(|spec| spec.body_execution.is_some())
+                    })
+                {
+                    return false;
+                }
+                if !isolated
+                    .invocation_at_source(head, point.offset)
+                    .same_dispatch_projection(&self.invocation_at_source(head, original_offset))
+                {
+                    return false;
+                }
+                self.same_isolated_body_dependencies(
+                    &isolated,
+                    head,
+                    point.offset,
+                    original_offset,
+                    registry,
+                )
+            })
+    }
+
+    fn same_isolated_body_dependencies(
+        &self,
+        isolated: &Self,
+        head: &str,
+        offset: u32,
+        original_offset: u32,
+        registry: &CommandRegistry,
+    ) -> bool {
+        let contracts = isolated.invocation_at_source(head, offset).targets;
+        contracts.iter().all(|target| {
+            registry
+                .get(&target.command)
+                .and_then(|spec| spec.body_execution)
+                .is_none_or(|contract| {
+                    let tcl_registry::body_execution::BodyExecutionSpec::CapturedLifecycle(
+                        contract,
+                    ) = contract
+                    else {
+                        return true;
+                    };
+                    isolated.loaded_implementation_at(contract.provider.package, offset)
+                        == self.loaded_implementation_at(contract.provider.package, original_offset)
+                })
+        })
+    }
+
+    /// Restore carriers from their selected original source instance.
+    /// Native compiler obligations must match that boundary in full and stay
+    /// unresolved. Phase-region dependencies require a separate relocation
+    /// contract and are declined here instead of retaining stale provenance.
+    pub fn restore_script_bindings(&self, script: &mut Script) -> bool {
+        let mut valid = true;
+        crate::ir::for_each_script_mut(script, &mut |script| {
+            let Some(source) = self.restored_script_source(script) else {
+                valid = false;
+                return;
+            };
+            let Some(namespace) = script
+                .namespace_context
+                .as_deref()
+                .cloned()
+                .or_else(|| self.executed_script_namespace_context(&source))
+            else {
+                valid = false;
+                return;
+            };
+            let Some(bindings) = self.selected_source_in_context(&source, &namespace) else {
+                valid = false;
+                return;
+            };
+            // Restoring source bindings does not resolve a compiler entry.
+            // Retain only the complete obligation already recorded at this
+            // original boundary; a cache cannot supply or repair its source,
+            // required provider, failure contexts or dependency generations.
+            let failure = bindings.native_compilation_failure_at(source.base());
+            let provider_required = bindings.native_compilation_provider_required_at(source.base())
+                || failure.is_some();
+            let original_obligation = match script.native_compilation_admission.as_deref() {
+                Some(admission) => {
+                    admission.provider_required == provider_required
+                        && admission.failure.as_deref() == failure
+                        && admission.source.as_ref() == Some(&source)
+                        && bindings.native_compilation_source_at(source.base()) == Some(&source)
+                }
+                None => !provider_required,
+            };
+            if script.native_compilation_failure.as_deref() != failure || !original_obligation {
+                valid = false;
+                return;
+            }
+            script.namespace_context = Some(Box::new(namespace));
+            {
+                script.implicit_math_invocations =
+                    bindings.implicit_math_invocations_for_script(&source);
+                script.expression_preparations =
+                    bindings.expression_preparations_for_script(&source);
+                script.executed_source = Some(Arc::new(source));
+            }
+            for site in script.command_binding_sites.iter_mut() {
+                let proof = bindings.invocation_at_source(&site.binding.name, site.span.start());
+                if !proof.proved_execution_target().is_some_and(|target| {
+                    target.registry_backed
+                        && tcl_registry::command_descriptor_labels_match(
+                            &target.command,
+                            &site.binding.identity,
+                        )
+                }) {
+                    valid = false;
+                }
+                site.known_namespaces = Some(proof.known_namespaces);
+                site.variable_frame = Some(proof.variable_frame);
+                site.variable_context = Some(proof.variable_context);
+                site.existing_namespace_cells = Some(proof.existing_namespace_cells);
+                if let Some(tokens) = &mut site.source_tokens {
+                    tokens.source_binding =
+                        Some(bindings.invocation_at_source("", site.span.start()));
+                    bindings.stamp_original_logical_declaration_targets(tokens);
+                    tokens.variable_accesses =
+                        bindings.variable_accesses_during_expression_invocation(site.span.start());
+                    bindings.restore_original_nested_bindings(tokens);
+                }
+            }
+            for statement in &mut script.statements {
+                let span = statement.span();
+                let offset = span.start();
+                let Some(tokens) = statement.tokens_mut() else {
+                    continue;
+                };
+                if tokens.evaluated_body.is_some() {
+                    valid = false;
+                }
+                tokens.source_binding = Some(bindings.invocation_at_source("", offset));
+                bindings.stamp_original_logical_declaration_targets(tokens);
+                tokens.variable_accesses =
+                    bindings.variable_accesses_during_expression_invocation(offset);
+                bindings.restore_original_nested_bindings(tokens);
+            }
+        });
+        valid
+    }
+
+    /// Refresh only the retained child inventory, then re-seal an original
+    /// Logical declaration through its existing full source/vector issuer.
+    /// Unmatched children keep the ordinary raw query; no offset is added.
+    fn restore_original_nested_bindings(&self, tokens: &mut crate::ir::CommandTokens) {
+        // naming.compiler.original-positioned-callee-body-availability
+
+        for (offset, binding) in &mut tokens.nested_bindings {
+            *binding = self.invocation_at_source("", *offset);
+        }
+        let Some(config) = self.lexer_config else {
+            return;
+        };
+        let Some(parent) = tokens.source_binding.as_ref() else {
+            return;
+        };
+        let Some(site) = parent.invocation_site() else {
+            return;
+        };
+        let mut original_parent = parent.clone();
+        original_parent.original_logical_declaration_targets = None;
+        if parent.original_lexer_config_for_tokens(tokens) != Some(config)
+            || self.root_origin.as_ref() != Some(&site.source)
+            || original_parent != self.invocation_at_source("", site.offset)
+        {
+            return;
+        }
+        let Some(calls) = crate::word_subst::checked_lifted_calls(tokens, config) else {
+            return;
+        };
+        for index in 0..tokens.nested_bindings.len() {
+            let offset = tokens.nested_bindings[index].0;
+            if tokens
+                .nested_bindings
+                .iter()
+                .filter(|(site, _)| *site == offset)
+                .count()
+                != 1
+            {
+                continue;
+            }
+            let mut matching = calls.iter().filter_map(|call| {
+                let child = call.tokens.as_ref()?;
+                child
+                    .words()
+                    .first()
+                    .is_some_and(|head| head.source().span.start() == offset)
+                    .then_some(child)
+            });
+            let Some(original) = matching.next() else {
+                continue;
+            };
+            if matching.any(|other| other.words() != original.words()) {
+                continue;
+            }
+            let mut child = original.clone();
+            child.source_binding = Some(tokens.nested_bindings[index].1.clone());
+            self.stamp_original_logical_declaration_targets(&mut child);
+            if let Some(binding) = child.source_binding {
+                tokens.nested_bindings[index].1 = binding;
+            }
+        }
+    }
+
+    /// Attach exact retained source proofs to original command words. Missing
+    /// reached sites stay explicitly unknown; this never constructs entry facts.
+    pub fn stamp_original_tokens(&self, tokens: &mut crate::ir::CommandTokens) {
+        self.stamp_original_tokens_with_bindings(tokens, |offset| {
+            self.invocation_at_source("", offset)
+        });
+    }
+
+    /// Retain the same original offset inventory and attachments while an
+    /// immutable owner supplies its complete derived point projection.
+    /// Mutable builders use the ordinary query and retain no projection memo.
+    pub(crate) fn stamp_original_tokens_with_bindings(
+        &self,
+        tokens: &mut crate::ir::CommandTokens,
+        mut binding_at: impl FnMut(u32) -> SourceInvocationBinding,
+    ) {
+        // Implementation contract: naming.source.original-invocation-projection-memo
+
+        let Some(head) = tokens.words().first() else {
+            return;
+        };
+        let offset = head.source().span.start();
+        tokens.variable_accesses = self.variable_accesses_during_expression_invocation(offset);
+        tokens.nested_bindings.clear();
+        let config = self.lexer_config.unwrap_or_default();
+        let argument_syntax = self.original_argument_syntax_for_tokens(tokens, config);
+        for lifted in crate::word_subst::lifted_calls(Some(tokens), config) {
+            if let Some(mut nested) = lifted.tokens
+                && let Some(head) = nested.words().first()
+            {
+                let offset = head.source().span.start();
+                nested.source_binding = Some(binding_at(offset));
+                self.stamp_original_logical_declaration_targets(&mut nested);
+                let syntax = argument_syntax
+                    .as_ref()
+                    .and_then(|syntax| syntax.child(&nested));
+                if let Some(binding) = &mut nested.source_binding {
+                    binding.original_argument_syntax = syntax.map(Arc::new);
+                }
+                if let Some(binding) = nested.source_binding {
+                    tokens.nested_bindings.push((offset, binding));
+                }
+            }
+        }
+        let mut retained = tokens
+            .nested_bindings
+            .iter()
+            .map(|(offset, _)| *offset)
+            .collect::<BTreeSet<_>>();
+        let nested_offsets = tokens
+            .words()
+            .iter()
+            .flat_map(|word| {
+                let span = &word.source().span;
+                self.dispatch_points
+                    .range(span.start()..=span.end())
+                    .map(|(offset, _)| *offset)
+            })
+            .filter(|nested| *nested != offset)
+            .collect::<BTreeSet<_>>();
+        let compiled_offsets = self
+            .compiler_invocations
+            .keys()
+            .filter(|site| {
+                self.root_origin.as_ref() == Some(&site.source)
+                    && site.offset != offset
+                    && tokens.words().iter().any(|word| {
+                        word.source().span.start() <= site.offset
+                            && site.offset <= word.source().span.end()
+                    })
+            })
+            .map(|site| site.offset)
+            .collect::<Vec<_>>();
+        for nested in nested_offsets.into_iter().chain(compiled_offsets) {
+            if retained.insert(nested) {
+                tokens.nested_bindings.push((nested, binding_at(nested)));
+            }
+        }
+        tokens.source_binding = Some(binding_at(offset));
+        self.stamp_original_logical_declaration_targets(tokens);
+        for binding in tokens.source_binding.iter_mut().chain(
+            tokens
+                .nested_bindings
+                .iter_mut()
+                .map(|(_, binding)| binding),
+        ) {
+            binding.original_analysis_owner = self.original_analysis_owner.clone();
+            binding.original_source_operand_attachment = None;
+        }
+        if let Some(binding) = &mut tokens.source_binding {
+            binding.original_argument_syntax = argument_syntax.map(Arc::new);
+        }
+        // This attachment authenticates the actual current declaration inventory;
+        // a cloned analysis with withdrawn rows cannot reuse a derived cache.
+        let attachment = self.original_declaration_source_operand_attachment(tokens);
+        if let Some(binding) = &mut tokens.source_binding {
+            binding.original_source_operand_attachment = attachment;
+        }
+    }
+
+    /// Loader provenance live at an exact invocation site, independently of
+    /// its current command-table binding.
+    #[must_use]
+    pub fn loaded_implementation_at(
+        &self,
+        package: &str,
+        offset: u32,
+    ) -> Option<&TrustedPackageLoader> {
+        let mut points = self.dispatch_points_at(offset);
+        let first = points.next()?;
+        let loader = first.state.loaded_provider(package)?;
+        points
+            .all(|point| point.state.loaded_provider(package) == Some(loader))
+            .then_some(loader)
+    }
+
+    /// Every possible provider command is original or absent on its audited
+    /// version path; document bindings and unknown targets withdraw proof.
+    #[must_use]
+    pub fn provider_surface_untampered(
+        &self,
+        package: &str,
+        implementation_id: &str,
+        offset: u32,
+    ) -> bool {
+        let mut points = self.dispatch_points_at(offset).peekable();
+        points.peek().is_some()
+            && points.all(|point| {
+                point.state.loaded_provider(package).is_some_and(|loader| {
+                    loader.implementation_id == implementation_id
+                        && point.state.provider_surface_is_live(loader)
+                })
+            })
+    }
+
+    /// Provider closure proof at the exact lifecycle phase entry.
+    #[must_use]
+    pub fn provider_surface_untampered_at_phase(
+        &self,
+        package: &str,
+        implementation_id: &str,
+        site: u32,
+        phase: SourceBodyPhase,
+    ) -> bool {
+        let points = self
+            .phases
+            .iter()
+            .filter(|point| {
+                point.site == site
+                    && point.phase == phase
+                    && point.point.state.current_source_origin.as_ref() == self.root_origin.as_ref()
+                    && !point.point.declaration_preview
+            })
+            .collect::<Vec<_>>();
+        !points.is_empty()
+            && points.iter().all(|point| {
+                point
+                    .point
+                    .state
+                    .loaded_provider(package)
+                    .is_some_and(|loader| {
+                        loader.implementation_id == implementation_id
+                            && point.point.state.provider_surface_is_live(loader)
+                    })
+            })
+    }
+
+    /// Query the binding immediately before dispatch at a source site.
+    #[must_use]
+    pub fn invocation_at(
+        &self,
+        _head: &str,
+        namespace: &str,
+        offset: u32,
+    ) -> SourceInvocationBinding {
+        self.attach_invocation_reads(
+            Self::query_dispatch_points(
+                self.dispatch_points_at(offset)
+                    .filter(|point| point.namespace == namespace),
+            ),
+            self.root_origin.as_ref(),
+            offset,
+        )
+    }
+
+    /// Query with the execution namespace recorded for the source region.
+    #[must_use]
+    pub fn invocation_at_source(&self, _head: &str, offset: u32) -> SourceInvocationBinding {
+        self.attach_invocation_reads(
+            Self::query_dispatch_points(self.dispatch_points_at(offset)),
+            self.root_origin.as_ref(),
+            offset,
+        )
+    }
+
+    fn dispatch_points_at(&self, offset: u32) -> impl Iterator<Item = &SourceBindingPoint> {
+        self.dispatch_points
+            .get(&offset)
+            .into_iter()
+            .flatten()
+            .map(|index| &self.points[*index])
+    }
+
+    /// Interpret a materialised script using the actual before-call state and
+    /// selected activation. Missing dispatch points cannot create entry proof.
+    #[must_use]
+    pub fn analyse_script_at_site(
+        &self,
+        script: &str,
+        source_base: u32,
+        callsite: u32,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+    ) -> Option<Self> {
+        let mut points = self.dispatch_points_at(callsite);
+        let first = points.next()?;
+        let realm = first.realm;
+        let mut state = first.state.clone();
+        for point in points {
+            if point.realm != realm {
+                return None;
+            }
+            state.join(&point.state);
+        }
+        let selected = state.source_variables.in_frame(frame);
+        let config = selected
+            .invocation_dialect
+            .map_or(config, |native| config.with_grammar(native.lexer_grammar));
+        let namespace = selected.namespace.clone();
+        let mut bindings = Self {
+            lexer_config: Some(config),
+            root_origin: state.current_source_origin.clone(),
+            deferred: self.deferred.clone(),
+            ..Self::default()
+        };
+        let compilation = state.baseline.native_compilation;
+        let root_outcomes = bindings.walk_source(
+            script,
+            source_base,
+            &mut state,
+            &SourceExecutionContext {
+                body_entry: SourceBodyEntryPurpose::Selected,
+                source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                realm,
+                compilation,
+                compilation_snapshot: None,
+                selected_compilation: None,
+                original_variable_compilation: None,
+                namespace: &namespace,
+                frame,
+                config,
+                registry,
+                depth: 0,
+                invocation_offset: 0,
+                variable_read_owner: None,
+                original_written_projection: None,
+                written_arguments: None,
+                written_values: None,
+                written_name_values: None,
+                written_representations: None,
+                written_objects: None,
+                written_method_prefixes: None,
+                written_variable_reads: None,
+                namespace_key: selected.namespace_identity.as_ref(),
+                expression_source: None,
+            },
+        );
+        bindings.original_completed_root_state = root_outcomes.completed_normal_world();
+        if let Some(normal) = root_outcomes.normal {
+            state = *normal;
+        }
+        bindings.invalidate_unpositioned_projections();
+        bindings.final_state = Arc::new(state);
+        bindings.retain_logical_receiver_source_catalogues(config, registry);
+        bindings.retain_original_declaration_source_operand_layouts(registry);
+        Some(bindings)
+    }
+
+    fn query_points<'a>(
+        head: &str,
+        mut points: impl Iterator<Item = &'a SourceBindingPoint>,
+    ) -> SourceInvocationBinding {
+        let Some(first) = points.next() else {
+            return SourceInvocationBinding {
+                unknown: true,
+                ..SourceInvocationBinding::default()
+            };
+        };
+        let mut result = first.binding(head);
+        for point in points {
+            result.join(&point.binding(head));
+        }
+        result
+    }
+
+    fn query_dispatch_points<'a>(
+        points: impl Iterator<Item = &'a SourceBindingPoint>,
+    ) -> SourceInvocationBinding {
+        let points = points.collect::<Vec<_>>();
+        let actual = points.iter().any(|point| !point.declaration_preview);
+        let mut points = points
+            .into_iter()
+            .filter(|point| !actual || !point.declaration_preview);
+        let Some(first) = points.next() else {
+            return SourceInvocationBinding {
+                unknown: true,
+                ..SourceInvocationBinding::default()
+            };
+        };
+        let binding = |point: &SourceBindingPoint| {
+            let mut binding = point.original_dispatch_binding();
+            binding
+                .frozen_head_object
+                .clone_from(&point.frozen_head_object);
+            if point.frozen_head_object.is_some() {
+                binding.entered_execution_observer = point.observer_execution;
+                binding
+                    .frozen_written_words
+                    .clone_from(&point.frozen_written_words);
+                binding
+                    .frozen_written_names
+                    .clone_from(&point.frozen_written_names);
+            }
+            binding
+                .evaluated_argument_values
+                .clone_from(&point.evaluated_argument_values);
+            binding
+                .evaluated_argument_words
+                .clone_from(&point.evaluated_argument_words);
+            // naming.source.logical-original-operation-transfer
+
+            // Keep the same conditional Logical lookup selected above. It has
+            // no Native head receipt and supplies no Native execution permits.
+            if point.original_head_input.is_none() && point.original_logical_lookup_head().is_none()
+            {
+                binding.unknown = true;
+                binding.targets.clear();
+                binding.declared_command = None;
+                binding.catalogue_command = None;
+            }
+            binding
+        };
+        let mut result = binding(first);
+        for point in points {
+            result.join(&binding(point));
+        }
+        result
+    }
+
+    /// Compatibility source-position projection for assistance consumers.
+    /// Semantic lowering must query an exact dispatch site instead.
+    #[must_use]
+    pub fn projection_at_source(&self, head: &str, offset: u32) -> SourceInvocationBinding {
+        if self
+            .final_state
+            .baseline
+            .source_point_entry
+            .as_ref()
+            .is_some_and(|entry| entry.conditional_region().is_some())
+            && !self.dispatch_points.contains_key(&offset)
+        {
+            return SourceInvocationBinding {
+                unknown: true,
+                ..SourceInvocationBinding::default()
+            };
+        }
+
+        let point = self
+            .points
+            .iter()
+            .filter(|point| point.offset <= offset && offset <= point.end)
+            .max_by_key(|point| point.offset);
+        point.map_or_else(
+            || {
+                let mut proof = source_binding(&self.final_state, head, "::");
+                proof.compiled_execution_residual = CompiledExecutionResidual::Unknown;
+                proof
+            },
+            |point| point.lookup_binding(head),
+        )
+    }
+
+    /// Offset-free consumers must agree across every represented state.
+    #[must_use]
+    pub fn invocation_unpositioned(&self, head: &str) -> SourceInvocationBinding {
+        if self
+            .final_state
+            .baseline
+            .source_point_entry
+            .as_ref()
+            .is_some_and(|entry| entry.conditional_region().is_some())
+        {
+            return SourceInvocationBinding {
+                unknown: true,
+                ..SourceInvocationBinding::default()
+            };
+        }
+
+        if let Some(projection) = self
+            .unpositioned_projections
+            .0
+            .lock()
+            .expect("source projection cache")
+            .get(head)
+            .cloned()
+        {
+            return projection;
+        }
+        let mut result = source_binding(&self.final_state, head, "::");
+        result.compiled_execution_residual = CompiledExecutionResidual::Unknown;
+        for point in &self.points {
+            result.join(&point.lookup_binding(head));
+        }
+        self.unpositioned_projections
+            .0
+            .lock()
+            .expect("source projection cache")
+            .insert(head.to_owned(), result.clone());
+        result
+    }
+
+    fn invalidate_unpositioned_projections(&mut self) {
+        self.unpositioned_projections
+            .0
+            .get_mut()
+            .expect("source projection cache")
+            .clear();
+    }
+
+    /// Whether the document changes the registry entry table.
+    #[must_use]
+    pub fn has_transitions(&self) -> bool {
+        !self.final_state.bindings.is_empty()
+            || self.final_state.opaque_domain
+            || self.final_state.namespace_resolution.changed
+    }
+
+    fn walk_source(
+        &mut self,
+        source: &str,
+        base: u32,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let channel = state
+            .current_source_origin
+            .as_ref()
+            .map_or(tcl_lexer::SourceChannel::Document, |origin| {
+                origin.source_image().channel()
+            });
+        let image = tcl_lexer::SourceImage::from_bytes(source.as_bytes(), channel);
+        self.walk_source_image(&image, base, state, context)
+    }
+
+    fn walk_source_image(
+        &mut self,
+        image: &tcl_lexer::SourceImage,
+        base: u32,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let Ok(source) = image.try_text() else {
+            self.record_unrepresented_source_entry(state, context);
+            return opaque_source_invocation(state);
+        };
+        let entry_context = source_chunk_context_boxed(context, None);
+        let context = entry_context.as_ref();
+        let config = context.source_purpose.config(context.config);
+        // Physical Direct parsing is independent of lexical prefix recovery and
+        // unentered declaration previews. Only the actual baseline entry can
+        // select it; explicitly authored advice remains its separate route.
+        if self.declaration_preview_depth == 0
+            && context.compilation.mode
+                == tcl_registry::native_compilation::NativeCompilationMode::Direct
+            && let Some(entry) = state.baseline.native_entry.as_deref()
+        {
+            use tcl_registry::native_compilation::NativeDirectScriptParseEntry;
+            match context.compilation.direct_script_parse_entry(entry) {
+                Some(NativeDirectScriptParseEntry::CommandAtTime) => {}
+                Some(NativeDirectScriptParseEntry::WholeScript) => {
+                    match tcl_lexer::jim_script_syntax_tokens(image, config) {
+                        Ok(syntax) if syntax.missing.is_none() => {}
+                        Ok(_syntax_error) => {
+                            compiled_preflight::materialise_error_storage(state, context.registry);
+                            let failed = SourceOutcomes::invocation(
+                                state,
+                                tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                                    tcl_registry::completion::CompletionCode::Error,
+                                ),
+                            );
+                            self.record_unrepresented_source_entry(state, context);
+                            self.record_runtime_coverage(
+                                state.current_source_origin.as_ref(),
+                                base,
+                                source.len(),
+                                &failed,
+                            );
+                            return failed;
+                        }
+                        Err(_) => {
+                            self.record_unrepresented_source_entry(state, context);
+                            return opaque_source_invocation(state);
+                        }
+                    }
+                }
+                None => {
+                    self.record_unrepresented_source_entry(state, context);
+                    return opaque_source_invocation(state);
+                }
+            }
+        }
+        let depth = context.depth;
+        let mut prepared = Box::<PreparedSourceChunk>::default();
+        self.prepare_source_chunk(image, base, state, context, &mut prepared);
+        if let Some(failed) = prepared.failed_outcome.take() {
+            self.record_incomplete_body_header(image, base, state, context);
+            self.record_unrepresented_source_entry(state, context);
+            self.record_runtime_coverage(
+                state.current_source_origin.as_ref(),
+                base,
+                source.len(),
+                &failed,
+            );
+            return *failed;
+        }
+        let prepared_context = source_chunk_context_boxed(context, prepared.snapshot.as_ref());
+        let context = prepared_context.as_ref();
+        if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth) {
+            self.record_unrepresented_source_entry(state, context);
+            state.mark_opaque_binding_mutation();
+            return SourceOutcomes::invocation(
+                state,
+                tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
+            );
+        }
+        let segments = {
+            crate::segmenter::segment_commands_image_with_offset_and_config(image, base, config)
+        };
+        let Some(segments) = segments else {
+            self.record_unrepresented_source_entry(state, context);
+            return opaque_source_invocation(state);
+        };
+        let namespace_known = context.namespace_key.is_some()
+            || context.frame.namespace_identity().is_some()
+            || !matches!(
+                context.frame.layout(),
+                crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                    | crate::var_resolve::VariableExecutionFrame::Unknown
+                    | crate::var_resolve::VariableExecutionFrame::Selected {
+                        namespace: None,
+                        ..
+                    }
+            );
+        let selected_frame = source_selected_frame_boxed(context, namespace_known);
+        let selected_context = source_frame_context_boxed(context, &selected_frame);
+        let context = selected_context.as_ref();
+        let previous_frame = source_parent_frame_boxed(&state.variable_frame);
+        let parent =
+            (previous_frame.as_ref() != context.frame).then(|| Arc::clone(&state.source_variables));
+        if parent.is_some() {
+            state.source_variables =
+                source_variables_in_frame(&state.source_variables, context.frame);
+            state.variable_frame = context.frame.clone();
+        }
+        if namespace_known {
+            retain_source_namespace_world(state, context);
+        }
+        self.retain_original_script_activation(image, base, state, context);
+        let mut outcomes = self.walk_source_segments(
+            image,
+            base,
+            &segments,
+            state,
+            context,
+            prepared.entry_error.as_deref(),
+        );
+        {
+            if let Some(parent) = parent {
+                outcomes.restore_frame(&parent, &previous_frame);
+            }
+            outcomes.publish(state);
+        }
+        self.record_runtime_coverage(
+            state.current_source_origin.as_ref(),
+            base,
+            source.len(),
+            &outcomes,
+        );
+        outcomes
+    }
+
+    fn walk_source_segments(
+        &mut self,
+        image: &tcl_lexer::SourceImage,
+        base: u32,
+        segments: &[crate::segmenter::SegmentedCommand],
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        entry_error: Option<&ModuleCommandBindings>,
+    ) -> SourceOutcomes {
+        self.conditional_source
+            .enter_script(image, base, segments, state, context);
+        self.retain_original_argument_syntax_commands(base, segments, state, context);
+        let mut outcomes = SourceOutcomes::normal(state);
+        outcomes.retain_complete_normal_evaluation();
+        if let Some(abrupt) = entry_error {
+            outcomes.add_abrupt(
+                tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                    tcl_registry::completion::CompletionCode::Error,
+                ),
+                abrupt,
+            );
+        }
+        for (index, segment) in segments.iter().enumerate() {
+            let Some(mut continuing) = outcomes.normal.take() else {
+                if !outcomes.abrupt.is_empty() {
+                    let mut declaration_state = boxed_source_branch(state);
+                    outcomes.publish(&mut declaration_state);
+                    self.record_unentered_declaration_suffix(
+                        image,
+                        base,
+                        &segments[index..],
+                        &declaration_state,
+                        context,
+                    );
+                }
+                break;
+            };
+            self.conditional_source.retain_command_plan(
+                index,
+                segment,
+                &continuing,
+                context,
+                outcomes.normal_completion.is_some(),
+            );
+            let prefix_complete = outcomes.normal_completion;
+            let command = self.walk_source_command(image, base, &mut continuing, segment, context);
+            outcomes.join(&command);
+            outcomes.normal_completion = outcomes
+                .normal_completion
+                .filter(|_| prefix_complete.is_some());
+            outcomes.complete_procedure_return = outcomes
+                .complete_procedure_return
+                .filter(|_| prefix_complete.is_some());
+            let Some(continuing) = &outcomes.normal else {
+                continue;
+            };
+            self.record_continuation_source_point(segment, continuing, context);
+        }
+        self.conditional_source.leave_script();
+        outcomes
+    }
+
+    /// Resolve the chunk entry outside recursive script frames. Failure
+    /// carriers and compilation snapshots remain on the heap during descent.
+    #[inline(never)]
+    fn prepare_source_chunk(
+        &mut self,
+        image: &tcl_lexer::SourceImage,
+        base: u32,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        prepared: &mut PreparedSourceChunk,
+    ) {
+        // A source-point interpretation has no physical compiler ingress.
+        // Its positive lexer/body grammar still diagnoses source syntax; a
+        // missing physical provider cannot become a guest Error alternative.
+        if state.baseline.source_point_entry.is_some() {
+            return;
+        }
+        let context = *context;
+        prepared.snapshot = (context.compilation_snapshot.is_none()
+            && context.compilation.mode
+                != tcl_registry::native_compilation::NativeCompilationMode::Direct)
+            .then(|| state.native_compilation_snapshot_in_realm(context.realm));
+        let Some(snapshot) = &mut prepared.snapshot else {
+            return;
+        };
+        let assessment = compiled_preflight::preflight_image(image, base, state, context, snapshot);
+        // A declaration template interprets possible compilation locally. It
+        // never publishes an actual compiler visit or chunk-entry obligation.
+        if self.declaration_preview_depth == 0 {
+            self.record_compilation_source(image, base, state);
+            self.retain_compiler_invocations(&assessment.compiler_invocations);
+            for (site, children) in &assessment.compiled_children {
+                let retained = self.compiled_children.entry(site.clone()).or_default();
+                for child in children {
+                    if !retained.contains(child) {
+                        retained.push(child.clone());
+                    }
+                }
+            }
+            self.record_compilation_boundary(base, state, assessment.failure.as_ref());
+            if (assessment.possible_error || assessment.native_entry_unavailable)
+                && let Some(origin) = &state.current_source_origin
+            {
+                self.compilation_provider_required
+                    .insert(CommandAllocationSite {
+                        source: Arc::clone(origin),
+                        offset: base,
+                    });
+            }
+        }
+        if let Some(failure) = assessment.failure {
+            if self.declaration_preview_depth == 0 && !self.compilation_failures.contains(&failure)
+            {
+                self.compilation_failures.push(failure);
+            }
+            compiled_preflight::materialise_error_storage(state, context.registry);
+            prepared.failed_outcome = Some(Box::new(SourceOutcomes::invocation(
+                state,
+                tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                    tcl_registry::completion::CompletionCode::Error,
+                ),
+            )));
+        } else if assessment.possible_error && self.declaration_preview_depth == 0 {
+            // An unentered declaration preview supplies conditional source
+            // advice. Missing compiler evidence is an execution obligation,
+            // not a guest error state owned by that declaration.
+            let mut abrupt = boxed_source_branch(state);
+            compiled_preflight::materialise_error_storage(&mut abrupt, context.registry);
+            prepared.entry_error = Some(abrupt);
+        }
+    }
+
+    /// Materialise a continuation snapshot outside the recursive script frame.
+    #[inline(never)]
+    fn record_continuation_source_point(
+        &mut self,
+        segment: &crate::segmenter::SegmentedCommand,
+        state: &ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) {
+        let context = *context;
+        if self.root_origin != state.current_source_origin {
+            return;
+        }
+        self.invalidate_unpositioned_projections();
+        self.points.push(SourceBindingPoint {
+            declaration_preview: self.declaration_preview_depth != 0,
+            original_arguments_complete_normally: false,
+            observer_execution: SourceObserverExecution::Unobserved,
+            realm: context.realm,
+            compilation: context.compilation,
+            compiled_execution: compiled_invocation::CompiledInvocationSelection::default(),
+            head: None,
+            original_head_input: None,
+            original_written_words: None,
+            evaluated_argument_values: Vec::new(),
+            evaluated_argument_words: Vec::new(),
+            frozen_written_words: None,
+            frozen_written_names: None,
+            frozen_head_object: None,
+            method_prefix_arguments: Vec::new(),
+            offset: segment.span.end().saturating_add(1),
+            end: u32::MAX,
+            namespace: context.namespace.to_owned(),
+            namespace_key: context.namespace_identity(),
+            state: state.clone(),
+            lookup_snapshot: OnceLock::new(),
+            dispatch: false,
+            continuation_of: state.current_source_origin.as_ref().map(|source| {
+                CommandAllocationSite {
+                    source: Arc::clone(source),
+                    offset: segment.span.start(),
+                }
+            }),
+        });
+    }
+
+    fn walk_source_command(
+        &mut self,
+        image: &tcl_lexer::SourceImage,
+        base: u32,
+        state: &mut ModuleCommandBindings,
+        segment: &crate::segmenter::SegmentedCommand,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let SourceExecutionContext { config, .. } = *context;
+        let Ok(source) = image.try_text() else {
+            return opaque_source_invocation(state);
+        };
+        let words = source_command_tokens_boxed(image, base, config, segment);
+        self.record_declaration_operand_layout(state, context, segment.span.start(), &words);
+        let compiled = compiled_invocation::select_invocation_boxed(
+            words.words(),
+            state,
+            context,
+            segment.span.start(),
+        );
+
+        let original_variable_compilation =
+            original_name_value::OriginalSourceVariableCompilation::from_selected(
+                &compiled, state, *context,
+            );
+        let original_context = source_original_compilation_context_boxed(
+            context,
+            original_variable_compilation.as_ref(),
+        );
+        let context = original_context.as_ref();
+        if let Some(outcomes) = self.walk_original_list_assignment(
+            SourceCommandInput {
+                image,
+                segment,
+                words: words.words(),
+                effective: &[],
+            },
+            base,
+            state,
+            &compiled,
+            context,
+        ) {
+            return outcomes;
+        }
+        // Unknown opcode admission alone does not establish name effects.
+        // Unclosed compiler effects can precede the original argv, so their
+        // possible world cannot borrow argv-first absence.
+        if compiled.unknown && !compiled.compile_error && !compiled.compiler_preserves_names() {
+            state.mark_opaque_binding_mutation();
+        }
+        let argument_entry =
+            pre_handler_failure::ArgumentEntry::capture(state, context, segment.span.start());
+        let arguments =
+            self.prepare_source_arguments(source, base, state, segment, words.words(), context);
+        if !arguments.ready {
+            self.record_pre_handler_failure(argument_entry, words.words(), &arguments.outcomes);
+            return arguments.into_outcomes();
+        }
+        if arguments.effective.is_empty() {
+            return empty_source_command_outcomes(state, &arguments.outcomes);
+        }
+        note_source_command_lookup(state, &compiled, &arguments.effective);
+        self.walk_evaluated_source_command(
+            SourceCommandInput {
+                image,
+                segment,
+                words: words.words(),
+                effective: &[],
+            },
+            state,
+            &compiled,
+            context,
+            arguments,
+        )
+    }
+
+    #[inline(never)]
+    fn walk_evaluated_source_command(
+        &mut self,
+        input: SourceCommandInput<'_>,
+        state: &mut ModuleCommandBindings,
+        compiled: &compiled_invocation::CompiledInvocationSelection,
+        context: &SourceExecutionContext<'_>,
+        mut arguments: Box<PreparedSourceArguments>,
+    ) -> SourceOutcomes {
+        let SourceCommandInput {
+            image,
+            segment,
+            words,
+            ..
+        } = input;
+        let argument_context = source_argument_context_boxed(
+            context,
+            SourceArgumentReceipts {
+                arguments: &arguments.written_arguments,
+                values: &arguments.written_values,
+                name_values: &arguments.written_name_values,
+                representations: &arguments.written_representations,
+                objects: &arguments.written_objects,
+                prefixes: &arguments.written_method_prefixes,
+                reads: &arguments.written_variable_reads,
+            },
+        );
+        let context = Box::new(argument_context.context());
+
+        let execution_owner = self.begin_invocation_reads(
+            state.current_source_origin.as_ref(),
+            segment.span.start(),
+            context.variable_read_owner,
+        );
+        let mut execution_context = source_execution_context_boxed(
+            &context,
+            execution_owner.as_ref(),
+            segment.span.start(),
+        );
+        let mut observer_scope =
+            self.prepare_command_observers(&arguments.effective, state, &execution_context);
+        arguments.outcomes.join(&observer_scope.entry);
+        let Some(continuing) = observer_scope.entry.normal.take() else {
+            self.finish_invocation_reads(execution_owner.as_ref(), &arguments.outcomes);
+            arguments.outcomes.publish(state);
+            return arguments.into_outcomes();
+        };
+        // Only abrupt callback paths join the eventual handler completion.
+        arguments.outcomes.discard_normal_handler_entry();
+        publish_source_branch(state, continuing);
+        let input = SourceCommandInput {
+            image,
+            segment,
+            words,
+            effective: &arguments.effective,
+        };
+        let normal_result_basis = self.record_evaluated_source_point(
+            input,
+            state,
+            compiled,
+            SourceObserverExecution::from_observed(observer_scope.was_observed),
+            arguments.complete_normally && !observer_scope.was_observed,
+            &context,
+        );
+        execution_context.withdraw_observed_operand_facts(observer_scope.was_observed);
+        let dispatched =
+            self.walk_selected_source_command(input, state, compiled, &execution_context);
+        let dispatched =
+            self.finish_command_observer_scope(dispatched, &observer_scope, &execution_context);
+        self.complete_normal_variable_continuation(
+            state.current_source_origin.as_ref(),
+            segment.span.start(),
+            &dispatched,
+            observer_scope.was_observed,
+        );
+        arguments.outcomes.join(&dispatched);
+        arguments.finish_normal_completions(observer_scope.was_observed);
+        self.finish_invocation_reads(execution_owner.as_ref(), &arguments.outcomes);
+        self.record_invocation_normal_result(normal_result_basis, &arguments.outcomes);
+        arguments.outcomes.publish(state);
+        arguments.into_outcomes()
+    }
+
+    /// Freeze argv in its own frame before retaining recursive body dispatch.
+    #[inline(never)]
+    fn prepare_source_arguments(
+        &mut self,
+        source: &str,
+        base: u32,
+        state: &mut ModuleCommandBindings,
+        segment: &crate::segmenter::SegmentedCommand,
+        words: &[crate::ir::WordExpr],
+        context: &SourceExecutionContext<'_>,
+    ) -> Box<PreparedSourceArguments> {
+        self.prepare_source_argument_range(
+            source_arguments::SourceArgumentSlice {
+                source,
+                base,
+                words,
+                selected: 0..words.len(),
+            },
+            state,
+            segment,
+            context,
+        )
+    }
+
+    /// Capture large point projections before entering any recursive body.
+    #[inline(never)]
+    fn record_evaluated_source_point(
+        &mut self,
+        input: SourceCommandInput<'_>,
+        state: &ModuleCommandBindings,
+        compiled: &compiled_invocation::CompiledInvocationSelection,
+        observer_execution: SourceObserverExecution,
+        arguments_complete_normally: bool,
+        context: &SourceExecutionContext<'_>,
+    ) -> Box<normal_result::InvocationResultBasis> {
+        let SourceCommandInput {
+            segment,
+            words,
+            effective,
+            ..
+        } = input;
+        let head_word = words.first();
+        let context = *context;
+        let head = effective
+            .first()
+            .and_then(|word| word.as_registry_word().literal());
+        let point = SourceBindingPoint {
+            declaration_preview: self.declaration_preview_depth != 0,
+            original_arguments_complete_normally: arguments_complete_normally,
+            observer_execution,
+            realm: context.realm,
+            compilation: context.compilation,
+            compiled_execution: compiled.clone(),
+            head: head.map(str::to_owned),
+            original_head_input: original_name_value::original_command_head_input(
+                words,
+                segment.span.start(),
+                state,
+                context,
+            ),
+            original_written_words: original_name_value::OriginalWrittenSourceWords::at_dispatch(
+                words,
+                segment.span.start(),
+                state,
+                context.config,
+            )
+            .map(Arc::new),
+            evaluated_argument_values: context
+                .written_arguments
+                .unwrap_or(effective)
+                .iter()
+                .skip(1)
+                .map(|word| word.as_registry_word().literal().map(str::to_owned))
+                .collect(),
+            evaluated_argument_words: context
+                .written_arguments
+                .unwrap_or(effective)
+                .iter()
+                .skip(1)
+                .cloned()
+                .collect(),
+            frozen_written_words: context.written_arguments.map(Arc::from),
+            frozen_written_names: context.written_name_values.map(Arc::from),
+            frozen_head_object: head_word.and_then(|word| {
+                context
+                    .written_objects
+                    .and_then(|words| words.first())
+                    .and_then(Option::as_ref)
+                    .map(|object| {
+                        Arc::new(receiver_self::FrozenSourceObjectHead {
+                            word: word.clone(),
+                            object: Arc::clone(object),
+                        })
+                    })
+            }),
+            method_prefix_arguments: context
+                .written_method_prefixes
+                .into_iter()
+                .flatten()
+                .enumerate()
+                .skip(1)
+                .filter_map(|(written, prefix)| {
+                    prefix
+                        .as_ref()
+                        .filter(|prefix| prefix.is_current(state))
+                        .map(|prefix| (written - 1, Arc::clone(prefix)))
+                })
+                .collect(),
+            offset: segment.span.start(),
+            end: segment.span.end(),
+            namespace: context.namespace.to_owned(),
+            namespace_key: context.namespace_identity(),
+            state: state.clone(),
+            lookup_snapshot: OnceLock::new(),
+            dispatch: true,
+            continuation_of: None,
+        };
+        let basis = Box::new(normal_result::InvocationResultBasis::of(&point, words));
+        self.record_point(point);
+        basis
+    }
+
+    fn walk_selected_source_command(
+        &mut self,
+        input: SourceCommandInput<'_>,
+        state: &mut ModuleCommandBindings,
+        compiled: &compiled_invocation::CompiledInvocationSelection,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::native_compilation::NativeCompilationSelection;
+        let SourceCommandInput {
+            image,
+            segment,
+            words,
+            effective,
+        } = input;
+        if let Some(outcomes) =
+            self.prepare_selected_source_command(input, state, compiled, context)
+        {
+            return *outcomes;
+        }
+        // Called here rather than from the preparation above, so that frame
+        // is gone before the survey's conditional descent recurses.
+        if let Some(outcomes) =
+            self.walk_logical_survey_command(segment, words, effective, compiled, state, context)
+        {
+            return *outcomes;
+        }
+        let mut outcomes = boxed_source_outcomes();
+        let incoming = boxed_source_branch(state);
+        if compiled.live {
+            self.join_live_source_command(input, &incoming, context, &mut outcomes);
+        }
+        for proof in &compiled.proofs {
+            if proof.operation
+                == tcl_registry::SemanticOperationId::Intrinsic(
+                    tcl_registry::IntrinsicId::ProcedureNoOp,
+                )
+            {
+                join_source_procedure_noop(&mut outcomes, &incoming);
+                continue;
+            }
+            let mut native = incoming.clone();
+            let selection = NativeCompilationSelection::Inline {
+                operation: proof.operation,
+                guard: proof.guard,
+            };
+            let selected_entry =
+                if proof.certainty == compiled_invocation::CompiledExecutionCertainty::May {
+                    context.conditional()
+                } else {
+                    *context
+                };
+            let selected_context = source_selected_context_boxed(&selected_entry, &selection);
+            let mut result = self.walk_source_target(
+                segment,
+                words,
+                effective,
+                &mut native,
+                &proof.target,
+                &selected_context,
+            );
+            retain_source_native_result(&mut result, &incoming, &proof.target, effective, context);
+            outcomes.join(&result);
+        }
+        self.join_other_selected_source_commands(
+            SourceCommandInput {
+                image,
+                segment,
+                words,
+                effective,
+            },
+            &incoming,
+            compiled,
+            context,
+            &mut outcomes,
+        );
+        outcomes.publish(state);
+        *outcomes
+    }
+
+    #[inline(never)]
+    fn prepare_selected_source_command(
+        &mut self,
+        input: SourceCommandInput<'_>,
+        state: &mut ModuleCommandBindings,
+        compiled: &compiled_invocation::CompiledInvocationSelection,
+        context: &SourceExecutionContext<'_>,
+    ) -> Option<Box<SourceOutcomes>> {
+        let SourceCommandInput {
+            segment,
+            words,
+            effective,
+            ..
+        } = input;
+        self.retain_rule_loader_events(segment, words, effective, state, *context);
+        if let Some(outcomes) =
+            logical_definition::transfer_selected(words, segment.span.start(), state, *context)
+        {
+            return Some(Box::new(outcomes));
+        }
+        if !compiled.compile_error {
+            return self.walk_selected_receiver_command(segment, words, effective, state, context);
+        }
+        None
+    }
+
+    /// Receiver-only temporaries do not remain live through native body descent.
+    #[inline(never)]
+    fn walk_selected_receiver_command(
+        &mut self,
+        segment: &crate::segmenter::SegmentedCommand,
+        words: &[crate::ir::WordExpr],
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> Option<Box<SourceOutcomes>> {
+        let context = *context;
+        if let Some(result) = Self::retained_receiver_result(effective, state, context) {
+            return Some(Box::new(result));
+        }
+        if let Some(result) = Self::walk_receiver_builtin_links(effective, state, context) {
+            return Some(Box::new(result));
+        }
+        self.walk_retained_receiver_method(segment.span.start(), words, effective, state, context)
+            .map(Box::new)
+    }
+
+    /// Live lookup owns its preparation only on the live dispatch branch.
+    #[inline(never)]
+    fn join_live_source_command(
+        &mut self,
+        input: SourceCommandInput<'_>,
+        incoming: &ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        outcomes: &mut SourceOutcomes,
+    ) {
+        let mut live = boxed_source_branch(incoming);
+        let selected_context = source_selected_context_boxed(
+            context,
+            &tcl_registry::native_compilation::NativeCompilationSelection::Generic,
+        );
+        let mut live_outcomes = boxed_source_outcomes();
+        self.walk_resolved_source_command(input, &mut live, &selected_context, &mut live_outcomes);
+        outcomes.join(&live_outcomes);
+    }
+
+    /// Named and residual branches follow inline execution without retaining
+    /// their construction slots across that execution.
+    #[inline(never)]
+    fn join_other_selected_source_commands(
+        &mut self,
+        input: SourceCommandInput<'_>,
+        incoming: &ModuleCommandBindings,
+        compiled: &compiled_invocation::CompiledInvocationSelection,
+        context: &SourceExecutionContext<'_>,
+        outcomes: &mut SourceOutcomes,
+    ) {
+        let SourceCommandInput {
+            segment,
+            words,
+            effective,
+            ..
+        } = input;
+        for proof in &compiled.named {
+            outcomes
+                .join(&self.walk_named_source_command(
+                    segment, words, effective, incoming, proof, context,
+                ));
+        }
+        if compiled.unknown {
+            outcomes.join(&self.walk_unknown_compiler_handler(
+                segment, words, effective, incoming, compiled, context,
+            ));
+        }
+        if compiled.compile_error {
+            let mut residual = boxed_source_branch(incoming);
+            residual.mark_opaque_binding_mutation();
+            outcomes.join(&SourceOutcomes::invocation(
+                &residual,
+                tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
+            ));
+        }
+    }
+
+    fn walk_unknown_compiler_handler(
+        &mut self,
+        segment: &crate::segmenter::SegmentedCommand,
+        words: &[crate::ir::WordExpr],
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        incoming: &ModuleCommandBindings,
+        compiled: &compiled_invocation::CompiledInvocationSelection,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::native_compilation::NativeCompilationSelection;
+        let mut outcomes = SourceOutcomes::default();
+        let head = original_name_value::original_command_head_input(
+            words,
+            segment.span.start(),
+            incoming,
+            *context,
+        );
+        if let Some(target) = compiled.stable_handler_after_original_arguments(
+            head.as_ref(),
+            incoming,
+            &context.namespace_identity(),
+        ) && let Some(declaration) =
+            self.walk_rule_loader_procedure(segment, words, effective, incoming, target, *context)
+        {
+            return declaration;
+        }
+        if let Some((target, transfer)) = compiled
+            .stable_handler_after_original_arguments(
+                head.as_ref(),
+                incoming,
+                &context.namespace_identity(),
+            )
+            .and_then(|target| {
+                compiled_invocation::successful_handler_transfer(
+                    target,
+                    effective,
+                    incoming,
+                    context.registry,
+                    context.realm,
+                )
+                .map(|transfer| (target, transfer))
+            })
+        {
+            let mut stable = boxed_source_branch(incoming);
+            let conditional =
+                if transfer == compiled_invocation::HandlerSourceTransfer::PossibleBodies {
+                    context.conditional()
+                } else {
+                    *context
+                };
+            let selected_context =
+                source_selected_context_boxed(&conditional, &NativeCompilationSelection::Unknown);
+            let mut result = self.walk_source_target(
+                segment,
+                words,
+                effective,
+                &mut stable,
+                target,
+                &selected_context,
+            );
+            retain_source_native_result(&mut result, incoming, target, effective, context);
+            if transfer == compiled_invocation::HandlerSourceTransfer::PossibleBodies {
+                // The inventory is conditional on body entry. Retain the
+                // unchanged normal branch so these effects remain May.
+                result.join(&SourceOutcomes::normal(incoming));
+            }
+            outcomes.join(&result);
+            outcomes.add_abrupt(
+                tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                    tcl_registry::completion::CompletionCode::Error,
+                ),
+                incoming,
+            );
+        } else {
+            let mut residual = boxed_source_branch(incoming);
+            residual.mark_opaque_binding_mutation();
+            outcomes.join(&SourceOutcomes::invocation(
+                &residual,
+                tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
+            ));
+        }
+        outcomes
+    }
+
+    fn walk_named_source_command(
+        &mut self,
+        segment: &crate::segmenter::SegmentedCommand,
+        words: &[crate::ir::WordExpr],
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        incoming: &ModuleCommandBindings,
+        selected: &SourceNamedInvocationProof,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        let proof = selected.with_late_lookup(incoming);
+        let Ok(projected) = named_arguments::ProjectedNamedArguments::capture(
+            words,
+            effective,
+            incoming,
+            context,
+            proof.arguments_from,
+        ) else {
+            let mut residual = boxed_source_branch(incoming);
+            residual.mark_opaque_binding_mutation();
+            return SourceOutcomes::invocation(&residual, Route::Unknown);
+        };
+        let mut outcomes = SourceOutcomes::default();
+        if proof.unknown {
+            let mut residual = boxed_source_branch(incoming);
+            residual.mark_opaque_binding_mutation();
+            outcomes.join(&SourceOutcomes::invocation(&residual, Route::Unknown));
+        }
+        if proof.may_be_absent {
+            outcomes.add_abrupt(Route::UnknownAbrupt, incoming);
+        }
+        for target in &proof.targets {
+            let mut branch = boxed_source_branch(incoming);
+            let selected_context = projected.context(context);
+            let conditional = if proof.unknown || proof.may_be_absent || proof.targets.len() != 1 {
+                selected_context.conditional()
+            } else {
+                *selected_context
+            };
+            let context = &conditional;
+            let mut result = if target.registry_backed {
+                self.walk_source_target(
+                    segment,
+                    &projected.words,
+                    &projected.effective,
+                    &mut branch,
+                    target,
+                    context,
+                )
+            } else {
+                self.walk_document_target(
+                    segment.span.start(),
+                    Some(&projected.words),
+                    &projected.effective,
+                    &mut branch,
+                    target,
+                    *context,
+                )
+            };
+            retain_source_native_result(
+                &mut result,
+                incoming,
+                target,
+                &projected.effective,
+                context,
+            );
+            outcomes.join(&result);
+        }
+        outcomes
+    }
+
+    fn walk_resolved_source_command(
+        &mut self,
+        input: SourceCommandInput<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        outcomes: &mut SourceOutcomes,
+    ) {
+        let SourceCommandInput {
+            segment,
+            words,
+            effective,
+            ..
+        } = input;
+        let binding =
+            Self::prepare_original_source_binding(words, segment.span.start(), state, context);
+        let Some(binding) = binding else {
+            state.mark_opaque_binding_mutation();
+            outcomes.join(&SourceOutcomes::invocation(
+                state,
+                tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
+            ));
+            return;
+        };
+        let incoming = boxed_source_branch(state);
+        if binding.unknown {
+            let mut residual = incoming.clone();
+            residual.mark_opaque_binding_mutation();
+            residual.loader_handler_unknown = true;
+            outcomes.join(&SourceOutcomes::invocation(
+                &residual,
+                tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
+            ));
+        }
+        if binding.may_be_absent {
+            outcomes.add_abrupt(
+                tcl_registry::completion_route::InvocationCompletionRoute::UnknownAbrupt,
+                &incoming,
+            );
+        }
+        let selected_context =
+            if binding.unknown || binding.may_be_absent || binding.targets.len() != 1 {
+                context.conditional()
+            } else {
+                *context
+            };
+        let context = &selected_context;
+        for target in &binding.targets {
+            let mut alternative = boxed_source_branch(&incoming);
+            let mut result = if target.registry_backed {
+                self.walk_source_target(
+                    segment,
+                    words,
+                    effective,
+                    &mut alternative,
+                    target,
+                    context,
+                )
+            } else {
+                self.walk_document_target(
+                    segment.span.start(),
+                    Some(words),
+                    effective,
+                    &mut alternative,
+                    target,
+                    *context,
+                )
+            };
+            retain_source_native_result(&mut result, &incoming, target, effective, context);
+            outcomes.join(&result);
+        }
+        outcomes.publish(state);
+    }
+
+    #[inline(never)]
+    fn prepare_original_source_binding(
+        words: &[crate::ir::WordExpr],
+        offset: u32,
+        state: &ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> Option<Box<SourceInvocationBinding>> {
+        let namespace = context.namespace_identity();
+        let head = original_name_value::original_command_head_input(words, offset, state, *context);
+        let head = head?;
+        let binding = source_binding_from_original_input_boxed(state, &head, &namespace);
+        binding
+    }
+
+    fn walk_document_target(
+        &mut self,
+        site: u32,
+        original_words: Option<&[crate::ir::WordExpr]>,
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        state: &mut ModuleCommandBindings,
+        target: &SourceCommandTarget,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        if self.compilation_scope == tcl_runtime_api::SourceCompilationScope::EnteredSource {
+            if let Some(body) = self.deferred.get(&target.implementation_id()).cloned() {
+                self.record_unrepresented_called_body(site, state, target, &body);
+            }
+            return opaque_source_invocation(state);
+        }
+        if state.installed_definition_dispatcher(target).is_some() {
+            // No constructor or typemethod execution contract is donated by
+            // the definition receipt. Its nominal result query is separate.
+            return opaque_source_invocation(state);
+        }
+        if let Some(result) = original_words.and_then(|words| {
+            self.walk_original_constructor(site, words, effective, state, target, context)
+        }) {
+            return result;
+        }
+        let body = self.deferred.get(&target.implementation_id()).cloned();
+        let Some(body) = body else {
+            state.mark_opaque_binding_mutation();
+            return SourceOutcomes::invocation(state, Route::Unknown);
+        };
+        if self.declaration_preview_depth == 0 {
+            self.called_implementations.insert(body.implementation_id());
+        }
+        let implementation = body.implementation_id();
+        if !self.active_calls.insert(implementation.clone()) {
+            self.record_unrepresented_called_body(site, state, target, &body);
+            state.mark_opaque_binding_mutation();
+            return SourceOutcomes::invocation(state, Route::Unknown);
+        }
+        let result = self.walk_called_body(
+            site,
+            effective,
+            state,
+            receiver_self::CalledBodyTarget {
+                target,
+                receiver: None,
+            },
+            &body,
+            context,
+        );
+        self.active_calls.remove(&implementation);
+        result
+    }
+
+    fn walk_called_body(
+        &mut self,
+        site: u32,
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        state: &mut ModuleCommandBindings,
+        selected: receiver_self::CalledBodyTarget<'_>,
+        body: &DeferredSourceBody,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        let target = selected.target;
+        if effective.iter().skip(1).any(|word| {
+            matches!(
+                word,
+                crate::registry_invocation::EffectiveInvocationWord::Expanded
+                    | crate::registry_invocation::EffectiveInvocationWord::Opaque
+            )
+        }) {
+            self.record_unrepresented_called_body(site, state, target, body);
+            state.mark_opaque_binding_mutation();
+            return SourceOutcomes::invocation(state, Route::Unknown);
+        }
+        let Some(namespace_key) = called_body_namespace(state, target, body) else {
+            self.record_unrepresented_called_body(site, state, target, body);
+            return opaque_source_invocation(state);
+        };
+        let holder = namespace_key.display().unwrap_or_default();
+        let identity = source_called_body_activation_name(
+            state.current_source_origin.as_ref(),
+            target,
+            body,
+            site,
+        );
+        let frame = called_body_frame(body, identity, &holder, &namespace_key);
+        let parent = Arc::clone(&state.source_variables);
+        let previous_frame = state.variable_frame.clone();
+        let mut called = parent.enter_called_frame(&frame);
+        if let Some(statics) = &body.statics {
+            called.install_callable_statics(statics, context.registry);
+        }
+        let actual = source_call_arguments(target, effective);
+        match bind_called_body_parameters(&mut called, body, &actual, target, context) {
+            Some(true) => {}
+            Some(false) => {
+                return SourceOutcomes::invocation(
+                    state,
+                    Route::Tcl(tcl_registry::completion::CompletionCode::Error),
+                );
+            }
+            None => {
+                self.record_unrepresented_called_body(site, state, target, body);
+                return opaque_source_invocation(state);
+            }
+        }
+        state.bind_called_receiver_variables(
+            &mut called,
+            body,
+            target,
+            selected.receiver,
+            context.registry,
+        );
+        retain_called_body_value_formals(state, &mut called, body, actual.len(), target, context);
+        let receiver_context = entered_receiver_body_context(
+            body,
+            target,
+            selected.receiver,
+            &frame,
+            &called,
+            context.config,
+        );
+        self.record_called_body_source(
+            body,
+            context.body_entry,
+            &frame,
+            Some(&namespace_key),
+            receiver_context,
+        );
+        state.source_variables = Arc::new(called);
+        state.variable_frame = frame.clone();
+        let previous_origin = state.current_source_origin.clone();
+        state.current_source_origin.clone_from(&body.source_origin);
+        let mut outcomes = self
+            .walk_source(
+                &body.source,
+                body.offset,
+                state,
+                &SourceExecutionContext {
+                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                    compilation: state.baseline.body_compilation(),
+                    compilation_snapshot: None,
+                    selected_compilation: None,
+                    original_variable_compilation: None,
+                    namespace: &holder,
+                    namespace_key: Some(&namespace_key),
+                    depth: context.depth + 1,
+                    frame: &frame,
+                    ..context
+                },
+            )
+            .through_procedure_boundary(state.baseline.dialect);
+        outcomes.restore_frame(&parent, &previous_frame);
+        outcomes.restore_source_origin(previous_origin.as_ref());
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn record_called_body_source(
+        &mut self,
+        body: &DeferredSourceBody,
+        entry: SourceBodyEntryPurpose,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        namespace: Option<&SourceNamespaceKey>,
+        receiver_context: Option<Arc<original_receiver_body_context::OriginalReceiverBodyContext>>,
+    ) {
+        if let Some((parent, argument, script)) = &body.executed_script {
+            self.record_executed_script(
+                parent.clone(),
+                *argument,
+                script.clone(),
+                (entry == SourceBodyEntryPurpose::Selected).then_some(frame),
+                namespace,
+            );
+            self.record_original_receiver_body_context(
+                parent,
+                *argument,
+                script,
+                frame,
+                (entry == SourceBodyEntryPurpose::Selected)
+                    .then_some(receiver_context)
+                    .flatten(),
+            );
+            if let Some((origin, span)) = &body.executed_word {
+                self.record_executed_word(origin, *span, None, script.clone());
+            }
+        }
+    }
+
+    fn walk_substitutions(
+        &mut self,
+        word: &crate::ir::WordExpr,
+        document: &str,
+        base: u32,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use crate::ir::WordExpr;
+        match word {
+            WordExpr::Variable { spelling, source } => {
+                self.observe_variable_substitution(spelling, source, document, base, state, context)
+            }
+            WordExpr::CommandSubstitution { spelling, source } => {
+                let script = spelling
+                    .strip_prefix('[')
+                    .and_then(|text| text.strip_suffix(']'))
+                    .unwrap_or(spelling);
+                self.walk_source(
+                    script,
+                    source.span.start() + 1,
+                    state,
+                    &SourceExecutionContext {
+                        source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                        ..context
+                    },
+                )
+            }
+            WordExpr::Template { parts, .. } => {
+                self.walk_template_substitutions(word, parts, document, base, state, context)
+            }
+            WordExpr::Expand { word, .. } => {
+                let mut outcomes = self.walk_substitutions(word, document, base, state, context);
+                // Element expansion has an independent list conversion and arity.
+                outcomes.normal_completion = None;
+                outcomes
+            }
+            WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => {
+                let mut outcomes = SourceOutcomes::normal(state);
+                outcomes.retain_complete_normal_evaluation();
+                outcomes
+            }
+            WordExpr::Opaque { .. } => SourceOutcomes::normal(state),
+        }
+    }
+
+    fn observe_variable_substitution(
+        &mut self,
+        spelling: &str,
+        source: &crate::ir::SourceSite,
+        document: &str,
+        base: u32,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let original = original_variable_source(document, base, source, context.config);
+        let arena = original_variable_arena(original.as_ref(), state, context.config);
+        let root = arena.as_ref().zip(original.as_ref()).and_then(|(arena, (_, read_site))| {
+            let policy = state.source_variables.execution_name_policy?.native_recipe()?;
+            crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_executable(
+                arena, arena.image(), context.config, read_site.span,
+                tcl_syntax::word_rules::WordValueRules::from_config(&context.config), policy)
+        });
+        let lexical = original_variable_compilation::OriginalSourceLexicalCompilation::at_source(
+            state, context,
+        );
+        let mut outcomes = SourceOutcomes::normal(state);
+        let mut evaluated_index = root.as_ref().and_then(
+            crate::signature_scan::variable_name::SignatureSourceVariableRoot::static_index_input,
+        );
+        if let Some(arena) = &arena {
+            for part in arena.list(arena.root()) {
+                if let tcl_lexer::ExecutablePart::Variable {
+                    index: Some(index), ..
+                } = part.part
+                {
+                    let Some(continuing) = outcomes.normal.take() else {
+                        break;
+                    };
+                    publish_source_branch(state, continuing);
+                    let index_outcomes = self.walk_variable_index_arena(
+                        SourceIndexView { arena, offset: 0 },
+                        index,
+                        state,
+                        context,
+                    );
+                    if evaluated_index.is_none() {
+                        evaluated_index = index_outcomes.normal_name_value.as_deref().map(|value|
+                            crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue(
+                                crate::signature_scan::scope::SignatureSourceNameValue::from_original_produced_value(value)));
+                    }
+                    outcomes.join(&index_outcomes);
+                }
+            }
+        }
+        if let Some(continuing) = outcomes.normal.take() {
+            *state = *continuing;
+            let spelling = original.as_ref().map_or(spelling, |(original, _)| original);
+            let logical = original_variable_compilation::logical_original_substitution_access(
+                original.as_ref(),
+                arena.as_ref(),
+                state,
+                context,
+            );
+            let access = logical.unwrap_or_else(|| {
+                root.as_ref().zip(lexical.as_ref()).map_or_else(
+                    crate::place::unknown_top,
+                    |(root, lexical)| {
+                        lexical.resolve_root(
+                            root,
+                            evaluated_index.as_ref(),
+                            &state.source_variables,
+                            context.registry,
+                            tcl_registry::TraceOperation::Read,
+                        )
+                    },
+                )
+            });
+            if let Some((original, read_site)) = &original
+                && read_site.provenance == crate::ir::Provenance::Source
+            {
+                self.record_variable_access(
+                    read_site,
+                    original,
+                    state,
+                    context.variable_read_owner,
+                    context.registry,
+                    &access,
+                );
+            }
+            if access.observed {
+                let observed = self.walk_captured_observed_read(
+                    source.span.start(),
+                    &access,
+                    Some(tcl_syntax::naming::var_reference_for_style(
+                        spelling,
+                        context.config.braced_var,
+                    )),
+                    state,
+                    context,
+                );
+                outcomes.join(&observed);
+            } else {
+                let mut normal =
+                    source_representation::unobserved_read_result(state, &access, context.registry);
+                normal.normal_object = state.object_read_proof(&access, context.registry);
+                outcomes.join(&normal);
+            }
+        }
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn walk_variable_index_arena(
+        &mut self,
+        source: SourceIndexView<'_>,
+        root: tcl_lexer::word_parts::PartListId,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use SourceIndexFrame as Frame;
+        use tcl_lexer::word_parts::ExecutablePart;
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+
+        let new_list = |id, state: &ModuleCommandBindings| Frame::List {
+            id,
+            next: 0,
+            outcomes: Box::new(SourceOutcomes::normal(state)),
+            value: Some(String::new()),
+            native_value: None,
+            native_complete: true,
+        };
+        let mut pending = vec![new_list(root, state)];
+        let mut completed: Option<SourceOutcomes> = None;
+        while let Some(frame) = pending.pop() {
+            match frame {
+                Frame::Variable { id, position } => {
+                    let index = completed.take().expect("completed native index list");
+                    completed = Some(self.finish_index_variable(
+                        source,
+                        &source.arena.list(id)[position],
+                        index,
+                        state,
+                        context,
+                    ));
+                }
+                Frame::List {
+                    id,
+                    next,
+                    mut outcomes,
+                    mut value,
+                    mut native_value,
+                    mut native_complete,
+                } => {
+                    if let Some(fragment) = completed.take() {
+                        join_index_fragment(
+                            &mut outcomes,
+                            &mut value,
+                            &fragment,
+                            &mut native_value,
+                            &mut native_complete,
+                        );
+                    }
+                    let component = source.arena.list(id).get(next);
+                    if component.is_none() || outcomes.normal.is_none() {
+                        completed = Some(finish_index_list(outcomes, value, native_value, state));
+                        continue;
+                    }
+                    let component = component.expect("remaining index component");
+                    publish_source_branch(
+                        state,
+                        outcomes.normal.take().expect("continuing index branch"),
+                    );
+                    pending.push(Frame::List {
+                        id,
+                        next: next + 1,
+                        outcomes,
+                        value,
+                        native_value,
+                        native_complete,
+                    });
+                    match component.part {
+                        ExecutablePart::Variable {
+                            index: Some(index), ..
+                        } => {
+                            pending.push(Frame::Variable { id, position: next });
+                            pending.push(new_list(index, state));
+                        }
+                        ExecutablePart::Variable { index: None, .. } => {
+                            completed = Some(self.finish_index_variable(
+                                source,
+                                component,
+                                SourceOutcomes::normal(state),
+                                state,
+                                context,
+                            ));
+                        }
+                        ExecutablePart::Command { body } => {
+                            completed = Some(self.walk_index_command(source, body, state, context));
+                        }
+                        ExecutablePart::Expression { .. } => {
+                            completed = Some(opaque_source_invocation(state));
+                        }
+                        ExecutablePart::ParseError(_) => {
+                            completed = Some(SourceOutcomes::invocation(
+                                state,
+                                Route::Tcl(tcl_registry::completion::CompletionCode::Error),
+                            ));
+                        }
+                        ExecutablePart::Text(_) => {
+                            completed = Some(index_text_fragment(source, component, state));
+                        }
+                    }
+                }
+            }
+        }
+        completed.expect("completed original index evaluation")
+    }
+
+    fn walk_index_command(
+        &mut self,
+        source: SourceIndexView<'_>,
+        body: tcl_lexer::Span,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        match source
+            .arena
+            .bytes(body)
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            .zip(source.offset.checked_add(body.start()))
+        {
+            Some((script, offset)) => self.walk_source(
+                script,
+                offset,
+                state,
+                &SourceExecutionContext {
+                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                    depth: context.depth + 1,
+                    ..context
+                },
+            ),
+            None => opaque_source_invocation(state),
+        }
+    }
+
+    fn finish_index_variable(
+        &mut self,
+        source: SourceIndexView<'_>,
+        component: &tcl_lexer::word_parts::SpannedExecutablePart,
+        mut outcomes: SourceOutcomes,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let Some(continuing) = outcomes.normal.take() else {
+            return outcomes;
+        };
+        publish_source_branch(state, continuing);
+        let Some(spelling) = source
+            .arena
+            .bytes(component.span)
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        else {
+            outcomes.join(&opaque_source_invocation(state));
+            return outcomes;
+        };
+        let tcl_lexer::word_parts::ExecutablePart::Variable { index, .. } = component.part else {
+            unreachable!("selected index variable component")
+        };
+        let root = state.source_variables.execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+            .and_then(|policy| crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_executable(
+                source.arena, source.arena.image(), context.config, component.span,
+                tcl_syntax::word_rules::WordValueRules::from_config(&context.config), policy));
+        let evaluated_index = root.as_ref().and_then(crate::signature_scan::variable_name::SignatureSourceVariableRoot::static_index_input)
+            .or_else(|| index.and(outcomes.normal_name_value.as_deref()).map(|value|
+                crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue(
+                    crate::signature_scan::scope::SignatureSourceNameValue::from_original_produced_value(value))));
+        let lexical = original_variable_compilation::OriginalSourceLexicalCompilation::at_source(
+            state, context,
+        );
+        let access = root.as_ref().zip(lexical.as_ref()).map_or_else(
+            crate::place::unknown_top,
+            |(root, lexical)| {
+                lexical.resolve_root(
+                    root,
+                    evaluated_index.as_ref(),
+                    &state.source_variables,
+                    context.registry,
+                    tcl_registry::TraceOperation::Read,
+                )
+            },
+        );
+        if let Some(span) = source.arena.source_span(component)
+            && let Some((start, end)) = source
+                .offset
+                .checked_add(span.start())
+                .zip(source.offset.checked_add(span.end()))
+        {
+            self.record_variable_access(
+                &crate::ir::SourceSite::source(tcl_lexer::Span::new(start, end)),
+                spelling,
+                state,
+                context.variable_read_owner,
+                context.registry,
+                &access,
+            );
+        } else {
+            outcomes.join(&opaque_source_invocation(state));
+            return outcomes;
+        }
+        let read = if access.observed {
+            self.walk_captured_observed_read(
+                context.invocation_offset,
+                &access,
+                Some(tcl_syntax::naming::var_reference_for_style(
+                    spelling,
+                    context.config.braced_var,
+                )),
+                state,
+                context,
+            )
+        } else {
+            source_representation::unobserved_read_result(state, &access, context.registry)
+        };
+        outcomes.join(&read);
+        outcomes
+    }
+
+    fn record_point(&mut self, point: SourceBindingPoint) {
+        self.invalidate_unpositioned_projections();
+        if self.root_origin != point.state.current_source_origin {
+            self.record_origin_point(point);
+            return;
+        }
+        let indices = self.dispatch_points.entry(point.offset).or_default();
+        if let Some(index) = indices.iter().find(|index| {
+            self.points[**index].namespace_key == point.namespace_key
+                && self.points[**index].declaration_preview == point.declaration_preview
+                && self.points[**index].realm == point.realm
+                && self.points[**index].state.variable_frame == point.state.variable_frame
+        }) {
+            self.points[*index].original_arguments_complete_normally &=
+                point.original_arguments_complete_normally;
+            if point.observer_execution.observed() {
+                self.points[*index].observer_execution = SourceObserverExecution::MayObserved;
+            }
+            if self.points[*index].head != point.head {
+                self.points[*index].head = None;
+            }
+            if self.points[*index].original_head_input != point.original_head_input {
+                self.points[*index].original_head_input = None;
+            }
+            if self.points[*index].original_written_words != point.original_written_words {
+                self.points[*index].original_written_words = None;
+            }
+            join_evaluated_words(
+                &mut self.points[*index].evaluated_argument_values,
+                &point.evaluated_argument_values,
+            );
+            self.points[*index].state.join(&point.state);
+            self.points[*index]
+                .compiled_execution
+                .join(&point.compiled_execution);
+            if self.points[*index].frozen_written_words != point.frozen_written_words {
+                self.points[*index].frozen_written_words = None;
+            }
+            if self.points[*index].frozen_written_names != point.frozen_written_names {
+                self.points[*index].frozen_written_names = None;
+            }
+            if self.points[*index].frozen_head_object != point.frozen_head_object {
+                self.points[*index].frozen_head_object = None;
+            }
+            self.points[*index]
+                .method_prefix_arguments
+                .retain(|prefix| point.method_prefix_arguments.contains(prefix));
+            compiled_invocation::join_argument_words(
+                &mut self.points[*index].evaluated_argument_words,
+                &point.evaluated_argument_words,
+            );
+            self.points[*index].lookup_snapshot = OnceLock::new();
+        } else {
+            indices.push(self.points.len());
+            self.points.push(point);
+        }
+    }
+
+    fn walk_source_target_after_observers(
+        &mut self,
+        segment: &crate::segmenter::SegmentedCommand,
+        words: &[crate::ir::WordExpr],
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        state: &mut ModuleCommandBindings,
+        target: &SourceCommandTarget,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        select_contents_write_source(state);
+        if let Some(outcomes) =
+            logical_definition::transfer(words, target, segment.span.start(), state, *context)
+        {
+            return outcomes;
+        }
+        let incoming = boxed_source_branch(state);
+        let prepared = match prepare_source_native_invocation(
+            target,
+            effective,
+            state,
+            context.registry,
+            context.realm,
+        ) {
+            Ok(prepared) => prepared,
+            Err(SourceNativePreparationError::Unresolved(route)) => {
+                state.mark_opaque_binding_mutation();
+                return SourceOutcomes::native_invocation(&incoming, state, route);
+            }
+            Err(SourceNativePreparationError::InvalidArguments) => {
+                return SourceOutcomes::invocation(
+                    state,
+                    tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                        tcl_registry::completion::CompletionCode::Error,
+                    ),
+                );
+            }
+        };
+        let invocation = prepared.invocation_boxed(&target.command);
+        let facts = prepared.facts.as_ref();
+        let selection = context
+            .selected_compilation
+            .unwrap_or(&tcl_registry::native_compilation::NativeCompilationSelection::Unknown);
+        let operands = SourceScriptOperands {
+            compilation_spec: facts.native_compilation.as_ref(),
+            compilation_selection: selection,
+            words,
+            written_arguments: context.written_arguments,
+            target,
+            arguments: invocation.arguments_ref(),
+        };
+        let original_variable_operands = prepared.original_variable_operands.get_or_init(|| {
+            original_name_value::original_variable_invocation(
+                operands,
+                segment.span.start(),
+                state,
+                *context,
+            )
+        });
+        self.retain_original_variable_operands(
+            state.current_source_origin.as_ref(),
+            segment.span.start(),
+            original_variable_operands,
+        );
+        let native = SourceNativeInvocation {
+            compilation_spec: facts.native_compilation.as_ref(),
+            compilation_selection: selection,
+            segment,
+            words,
+            written_arguments: context.written_arguments,
+            target,
+            invocation: &invocation,
+            original_variable_operands,
+        };
+        self.walk_prepared_source_target(native, &prepared, effective, state, context, &incoming)
+    }
+
+    fn walk_prepared_source_target(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        prepared: &PreparedSourceNativeInvocation<'_>,
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        incoming: &ModuleCommandBindings,
+    ) -> SourceOutcomes {
+        let facts = prepared.facts.as_ref();
+        if let Some(mut outcomes) =
+            Self::prepare_non_body_source_result(native, facts, state, context)
+        {
+            if (requires_reentry_guard(facts)
+                || (outcomes.normal_completion.is_none()
+                    && !command_world_closed_on_normal_return(native.target, facts)))
+                && let Some(normal) = outcomes.normal.as_mut()
+            {
+                normal.unclosed_command_world = true;
+            }
+            return *outcomes;
+        }
+        let completions = CapturedNativeCompletionReceipts::capture(native, facts, state, context);
+        let mut receipts = capture_source_native_results_boxed(native, facts, state, context);
+        let route = match self.prepare_native_handler(prepared, native, effective, state, context) {
+            Ok(route) => route,
+            Err(outcomes) => return *outcomes,
+        };
+        let read_complete = receipts
+            .normal_read
+            .as_ref()
+            .is_some_and(|proof| proof.is_current(&state.source_variables, context.registry));
+        let write_complete = receipts
+            .normal_write
+            .as_ref()
+            .is_some_and(|proof| proof.is_current(&state.source_variables, context.registry));
+        let route = if read_complete || write_complete || completions.captured() {
+            tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                tcl_registry::completion::CompletionCode::Ok,
+            )
+        } else {
+            route
+        };
+        let mut outcomes =
+            self.walk_prepared_native_target(native, state, context, facts, route, incoming);
+        // Implementation contract: naming.variable.original-set-read-completion
+
+        if read_complete
+            || write_complete
+            || completions.completed(&outcomes, native, facts, *context)
+        {
+            outcomes.retain_closed_native_handler_completion(native, facts, *context);
+        }
+        finish_source_native_results(
+            &mut outcomes,
+            native,
+            facts,
+            incoming,
+            context,
+            &mut receipts,
+        );
+        self.finish_native_source_completion(
+            &mut outcomes,
+            native,
+            facts,
+            incoming,
+            context,
+            receipts.normal_write.as_ref().filter(|_| write_complete),
+        );
+        if (requires_reentry_guard(facts)
+            || (outcomes.normal_completion.is_none()
+                && !command_world_closed_on_normal_return(native.target, facts)))
+            && let Some(normal) = outcomes.normal.as_mut()
+        {
+            normal.unclosed_command_world = true;
+        }
+        outcomes.publish(state);
+        *outcomes
+    }
+
+    #[inline(never)]
+    fn prepare_non_body_source_result(
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> Option<Box<SourceOutcomes>> {
+        // An attested definition recipe owns its installation prerequisites;
+        // scripted providers do not borrow a stock normal-handler envelope.
+        if let Some(outcomes) = Self::walk_snit_definition(native, state, *context) {
+            return Some(Box::new(outcomes));
+        }
+        source_representation::opaque_result_producer(native, facts, state, *context).map(Box::new)
+    }
+
+    fn finish_native_source_completion(
+        &mut self,
+        outcomes: &mut SourceOutcomes,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        incoming: &ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        write: Option<&crate::var_resolve::OriginalNormalValueWrite>,
+    ) {
+        // A selected total arithmetic expression owns this certificate.
+        // Other native body handlers have independent condition, iteration,
+        // restoration and completion obligations, even with a normal child.
+        let handler_complete = outcomes
+            .native_normal_completion
+            .as_ref()
+            .is_some_and(|proof| {
+                outcomes
+                    .normal
+                    .as_ref()
+                    .is_some_and(|normal| proof.matches(native, facts, normal, *context))
+            });
+        let conditional_complete =
+            outcomes
+                .conditional_normal_completion
+                .as_ref()
+                .is_some_and(|proof| {
+                    outcomes
+                        .normal
+                        .as_ref()
+                        .is_some_and(|normal| proof.matches(native, facts, normal, *context))
+                });
+        if handler_complete && let Some(write) = write {
+            self.retain_quiet_normal_variables(
+                native,
+                facts,
+                incoming,
+                outcomes,
+                write,
+                context.registry,
+            );
+        }
+        if facts.operation
+            != tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::Expr,
+            )
+            && !handler_complete
+            && !conditional_complete
+        {
+            outcomes.normal_completion = None;
+        }
+        outcomes.native_normal_completion = None;
+        outcomes.conditional_normal_completion = None;
+        // The default value-only Return has no code/level conversion. Its
+        // exact pending successful route becomes Normal only at the actual
+        // procedure boundary; options and configured returns remain separate.
+        if facts.operation
+            == tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::Return,
+            )
+            && native
+                .invocation
+                .arguments()
+                .exact_argv_len()
+                .is_some_and(|count| count <= 1)
+            && outcomes.normal.is_none()
+            && outcomes.abrupt.len() == 1
+            && matches!(
+                outcomes.abrupt[0].0,
+                tcl_registry::completion_route::InvocationCompletionRoute::Return(
+                    tcl_registry::completion_route::ReturnCompletionRoute {
+                        eventual_code: tcl_registry::completion::CompletionCode::Ok,
+                        remaining_level: 1,
+                    }
+                )
+            )
+        {
+            outcomes.complete_procedure_return = Some(outcomes.abrupt[0].0);
+        }
+    }
+
+    /// Retain only the selected handler contract through recursive execution.
+    #[inline(never)]
+    fn prepare_native_handler(
+        &mut self,
+        prepared: &PreparedSourceNativeInvocation<'_>,
+        native: SourceNativeInvocation<'_>,
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> Result<tcl_registry::completion_route::InvocationCompletionRoute, Box<SourceOutcomes>>
+    {
+        let context = *context;
+        let facts = prepared.facts.as_ref();
+        if state.command_observer_registration_invalid(facts, &context.namespace_identity()) {
+            return Err(Box::new(SourceOutcomes::invocation(
+                state,
+                tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                    tcl_registry::completion::CompletionCode::Error,
+                ),
+            )));
+        }
+        let route =
+            container_coercion::ordinary_list_length_completion(native, facts, state, context)
+                .unwrap_or_else(|| prepared.completion_route(state, context));
+        let implementation =
+            native_implementation_dependency_holds(native, facts, effective, state, context);
+        if !implementation {
+            return Err(Box::new(opaque_source_invocation(state)));
+        }
+        self.record_native_invocation_reads(
+            facts,
+            native.invocation.arguments(),
+            state,
+            context,
+            native.original_variable_operands,
+        );
+        let object_protocol = self.prepare_object_callbacks(native, facts, state, context);
+        if !object_protocol.preserves_representation() {
+            object_callbacks::coerce_closed_list_representations(
+                native,
+                facts,
+                state,
+                context,
+                object_protocol,
+            );
+        }
+        self.record_rhs_read_store(native, facts, state, context);
+        let writes = crate::variable_bindings::source_variable_write_places_with_original_operands(
+            facts,
+            native.invocation.arguments(),
+            &state.source_variables,
+            context.registry,
+            native.original_variable_operands,
+        );
+        if !writes.is_empty() {
+            Arc::make_mut(&mut state.object_instances).invalidate_writes(&writes);
+        }
+        Ok(route)
+    }
+
+    fn walk_native_body_protocol(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+        facts: &InvocationFacts,
+    ) -> Option<SourceOutcomes> {
+        if let Some(outcomes) = Self::walk_array_entries_store(native, facts, state, context) {
+            return Some(outcomes);
+        }
+        match facts.body_execution {
+            Some(tcl_registry::body_execution::BodyExecutionSpec::ArrayIteration) => {
+                Some(self.walk_array_iteration(native, facts, state, context))
+            }
+            Some(tcl_registry::body_execution::BodyExecutionSpec::SourceFile) => {
+                Some(self.walk_selected_source_file(native, state, context))
+            }
+            Some(tcl_registry::body_execution::BodyExecutionSpec::SubstitutionTemplate) => {
+                Some(self.walk_native_substitution_template(native, state, context))
+            }
+            _ => None,
+        }
+    }
+
+    fn walk_prepared_native_target(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        facts: &InvocationFacts,
+        route: tcl_registry::completion_route::InvocationCompletionRoute,
+        incoming: &ModuleCommandBindings,
+    ) -> Box<SourceOutcomes> {
+        let route = match self.prepare_native_target(native, state, context, facts, route, incoming)
+        {
+            Ok(route) => route,
+            Err(outcomes) => return outcomes,
+        };
+        if let Some(tcl_registry::body_execution::BodyExecutionSpec::CapturedLifecycle(spec)) =
+            facts.body_execution.as_ref()
+        {
+            return Box::new(self.walk_prepared_native_lifecycle(spec, native, state, *context));
+        }
+        let mut outcomes = Box::new(
+            self.walk_selected_native_body(native, state, context, facts, route, incoming),
+        );
+        transfer_native_completion_outputs(&mut outcomes, native, facts, route, *context);
+        outcomes.publish(state);
+        outcomes
+    }
+
+    /// Runtime body entry cannot prepare a child of a generic invocation.
+    /// Native compiler-selected bodies retain their own traversal and checks.
+    fn defers_runtime_body(
+        &self,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+    ) -> bool {
+        use tcl_registry::{
+            body_execution::BodyExecutionSpec,
+            native_compilation::NativeCompilationSelection,
+            script_body_flow::{ScriptBodyFlow, script_body_flow},
+        };
+        self.compilation_scope == tcl_runtime_api::SourceCompilationScope::EnteredSource
+            && !matches!(
+                native.compilation_selection,
+                NativeCompilationSelection::Inline { .. }
+            )
+            && (matches!(
+                facts.body_execution,
+                Some(
+                    BodyExecutionSpec::SourceFile
+                        | BodyExecutionSpec::ArrayIteration
+                        | BodyExecutionSpec::SubstitutionTemplate
+                )
+            ) || !matches!(
+                script_body_flow(facts),
+                ScriptBodyFlow::None
+                    | ScriptBodyFlow::Deferred
+                    | ScriptBodyFlow::Expressions(_)
+                    | ScriptBodyFlow::ConcatenatedExpression { .. }
+            ))
+    }
+
+    /// Finish cold handler/definition checks before retaining a recursive body.
+    #[inline(never)]
+    fn prepare_native_target(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        facts: &InvocationFacts,
+        route: tcl_registry::completion_route::InvocationCompletionRoute,
+        incoming: &ModuleCommandBindings,
+    ) -> Result<tcl_registry::completion_route::InvocationCompletionRoute, Box<SourceOutcomes>>
+    {
+        let context = *context;
+        if let Some(outcomes) = trusted_package_transfer::OriginalTrustedPackageTransfer::capture(
+            native, facts, state, context,
+        )
+        .map(|transfer| transfer.finish(native, facts, state, context))
+        {
+            return Err(Box::new(outcomes));
+        }
+        if self.defers_runtime_body(native, facts) {
+            return Err(Box::new(opaque_source_invocation(state)));
+        }
+        if let Some(outcomes) = self.walk_native_body_protocol(native, state, context, facts) {
+            return Err(Box::new(outcomes));
+        }
+        if let Some(outcomes) = variable_outputs::walk_known_outputs(native, facts, state, context)
+        {
+            return Err(Box::new(outcomes));
+        }
+        if let Some(refusal) = procedure_body_admission_refusal(native, facts, context.realm, state)
+        {
+            return Err(Box::new(refusal));
+        }
+        if let Some(outcomes) =
+            self.walk_observed_native_store(native, facts, state, context, route, incoming)
+        {
+            self.retain_captured_normal_variables(
+                native,
+                facts,
+                incoming,
+                &outcomes,
+                context.registry,
+            );
+            return Err(Box::new(outcomes));
+        }
+        let route =
+            self.prepare_native_definition(native, state, context, facts, route, incoming)?;
+        Ok(route)
+    }
+
+    /// Only lifecycle entry retains its dialect-bearing argument construction.
+    #[inline(never)]
+    fn walk_prepared_native_lifecycle(
+        &mut self,
+        spec: &tcl_registry::body_execution::CapturedLifecycleSpec,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        self.walk_lifecycle(
+            SourceLifecycleInvocation {
+                spec,
+                arguments: native.invocation.arguments(),
+                site: native.segment.span.start(),
+                words: native.words,
+                written_arguments: context.written_arguments,
+                target: native.target,
+            },
+            state,
+            context,
+        )
+    }
+
+    /// End definition and registration temporaries before recursive body execution.
+    #[inline(never)]
+    fn prepare_native_definition(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+        facts: &InvocationFacts,
+        route: tcl_registry::completion_route::InvocationCompletionRoute,
+        incoming: &ModuleCommandBindings,
+    ) -> Result<tcl_registry::completion_route::InvocationCompletionRoute, Box<SourceOutcomes>>
+    {
+        if let Some(outcomes) =
+            self.walk_closed_own_object_method_configuration(native, facts, state, context)
+        {
+            return Err(Box::new(outcomes));
+        }
+        let class_transfer = original_class_factory_transfer::OriginalClassFactoryTransfer::capture(
+            native, facts, state, context,
+        );
+        self.retain_standalone_definition_references(native, facts, state, context);
+        let definition = match transfer_native_definition(native, state, context, facts) {
+            Ok(definition) => definition,
+            Err(crate::raw_binding::StaticCaptureResult::Invalid) => {
+                return Err(Box::new(SourceOutcomes::invocation(
+                    state,
+                    tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                        tcl_registry::completion::CompletionCode::Error,
+                    ),
+                )));
+            }
+            Err(_) => return Err(Box::new(opaque_source_invocation(state))),
+        };
+        let procedure_complete = closed_procedure_definition(native, facts, state, context);
+        let route = if procedure_complete {
+            tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                tcl_registry::completion::CompletionCode::Ok,
+            )
+        } else {
+            route
+        };
+        let deferred_class = self.register_bounded_methods(native, state, context, facts);
+        if state.record_bounded_class(facts, native.words, native.target, context) || deferred_class
+        {
+            let complete = deferred_class
+                && class_transfer.as_ref().is_some_and(|transfer| {
+                    transfer.retain_completed_definition(native, facts, state, context)
+                });
+            let route = if complete {
+                tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                    tcl_registry::CompletionCode::Ok,
+                )
+            } else {
+                route
+            };
+            let mut outcomes = SourceOutcomes::native_invocation(incoming, state, route);
+            if complete {
+                outcomes.retain_closed_native_handler_completion(native, facts, context);
+            }
+            return Err(Box::new(outcomes));
+        }
+        if facts
+            .traits
+            .contains(tcl_registry::Traits::LOADS_EXTERNAL_UNIT)
+            && !facts
+                .state_transitions
+                .declared()
+                .is_some_and(|transitions| {
+                    transitions
+                        .facts()
+                        .iter()
+                        .any(|fact| matches!(fact.transition, StateTransition::Package(_)))
+                })
+        {
+            state.mark_opaque_binding_mutation();
+            state.loader_handler_unknown = true;
+        }
+        if facts.traits.contains(tcl_registry::Traits::DEFERS_BODY) {
+            self.register_deferred_native(
+                native,
+                state,
+                context,
+                facts,
+                definition.statics.as_ref(),
+            );
+            let mut outcomes = SourceOutcomes::native_invocation(incoming, state, route);
+            if procedure_complete {
+                outcomes.retain_closed_native_handler_completion(native, facts, context);
+            }
+            return Err(Box::new(outcomes));
+        }
+        Ok(route)
+    }
+
+    fn register_deferred_native(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+        facts: &InvocationFacts,
+        statics: Option<&crate::raw_binding::CapturedStaticBindings>,
+    ) {
+        if matches!(
+            facts.procedure_definition,
+            Some(tcl_registry::native_procedure::NativeProcedureDefinitionSelection::Valid(_))
+        ) {
+            self.register_deferred_procedure(native, state, context, facts, statics);
+        } else if facts.operation
+            == tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::When,
+            )
+        {
+            self.register_deferred_event(native, state, context, facts);
+        } else {
+            self.register_future_body(native, state, context, facts);
+        }
+    }
+
+    fn register_deferred_procedure(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+        facts: &InvocationFacts,
+        statics: Option<&crate::raw_binding::CapturedStaticBindings>,
+    ) {
+        let SourceNativeInvocation {
+            segment,
+            invocation,
+            ..
+        } = native;
+        let original_parameters = formal_topology::from_invocation(native, facts, state, context);
+        let Some(parameters) = original_parameters
+            .as_ref()
+            .map(formal_topology::OriginalFormalTopology::advisory_parameters)
+            .or_else(|| native_procedure_parameters(facts, invocation.arguments()))
+        else {
+            return;
+        };
+        let Some(key) = original_procedure_publication_key(native, state, context, facts) else {
+            return;
+        };
+        let namespace_key = key.holder().into_owned();
+        let holder = namespace_key.display().unwrap_or_default();
+        for (index, role) in &facts.arg_roles {
+            if *role != tcl_registry::ArgRole::Body {
+                continue;
+            }
+            if let Some(script) = retained_script_operand(
+                facts.argument_offset + usize::from(*index),
+                native.script_operands(),
+                state,
+                segment.span.start(),
+                context.config,
+            ) {
+                let Ok(source) = script.try_text() else {
+                    continue;
+                };
+                let source = source.to_owned();
+                let offset = script.base();
+                let source_origin = Arc::clone(&script.origin);
+                let entered = state.current_source_origin.as_ref().map(|origin| {
+                    (
+                        CommandAllocationSite {
+                            source: Arc::clone(origin),
+                            offset: segment.span.start(),
+                        },
+                        facts.argument_offset + usize::from(*index),
+                        script.clone(),
+                    )
+                });
+                for created in state.installed_procedure_targets(&key, segment.span.start()) {
+                    let Some(identity) = created.token.map(|identity| identity.origin) else {
+                        continue;
+                    };
+                    self.deferred.insert(
+                        DeferredImplementationId {
+                            command: identity.clone(),
+                            generation: segment.span.start(),
+                            allocation: created.implementation_allocation.clone(),
+                        },
+                        DeferredSourceBody {
+                            realm: evaluated_script_realm(
+                                facts.argument_offset + usize::from(*index)
+                                    ..facts.argument_offset + usize::from(*index) + 1,
+                                native.script_operands(),
+                                context,
+                            ),
+                            identity,
+                            implementation_generation: segment.span.start(),
+                            source: source.clone(),
+                            offset,
+                            namespace: holder.clone(),
+                            namespace_key: namespace_key.clone(),
+                            event: None,
+                            receiver_method: false,
+                            future_frame: None,
+                            parameters: parameters.clone(),
+                            original_parameters: original_parameters.clone(),
+                            statics: statics.cloned(),
+                            implementation_allocation: created.implementation_allocation,
+                            source_origin: Some(Arc::clone(&source_origin)),
+                            executed_script: entered.clone(),
+                            executed_word: facts
+                                .argument_offset
+                                .checked_add(usize::from(*index))
+                                .and_then(|argument| {
+                                    argument.checked_sub(native.target.prepended.len())
+                                })
+                                .and_then(|written| native.words.get(written + 1))
+                                .zip(state.current_source_origin.as_ref())
+                                .map(|(word, origin)| (Arc::clone(origin), word.source().span)),
+                        },
+                    );
+                }
+            }
+        }
+    }
+
+    fn register_deferred_event(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+        facts: &InvocationFacts,
+    ) {
+        let SourceNativeInvocation {
+            segment,
+            invocation,
+            ..
+        } = native;
+        let event = invocation.arguments().literal_at(0).map(str::to_owned);
+        for (index, role) in &facts.arg_roles {
+            if *role != tcl_registry::ArgRole::Body {
+                continue;
+            }
+            if let Some(script) = retained_script_operand(
+                facts.argument_offset + usize::from(*index),
+                native.script_operands(),
+                state,
+                segment.span.start(),
+                context.config,
+            ) {
+                let Ok(source) = script.try_text() else {
+                    continue;
+                };
+                let source = source.to_owned();
+                let offset = script.base();
+                let source_origin = Arc::clone(&script.origin);
+                let entered = state.current_source_origin.as_ref().map(|origin| {
+                    (
+                        CommandAllocationSite {
+                            source: Arc::clone(origin),
+                            offset: segment.span.start(),
+                        },
+                        facts.argument_offset + usize::from(*index),
+                        script.clone(),
+                    )
+                });
+                let identity = format!("event:{}", segment.span.start());
+                self.deferred.insert(
+                    DeferredImplementationId {
+                        command: identity.clone(),
+                        generation: segment.span.start(),
+                        allocation: None,
+                    },
+                    DeferredSourceBody {
+                        realm: evaluated_script_realm(
+                            facts.argument_offset + usize::from(*index)
+                                ..facts.argument_offset + usize::from(*index) + 1,
+                            native.script_operands(),
+                            context,
+                        ),
+                        identity,
+                        implementation_generation: segment.span.start(),
+                        source,
+                        offset,
+                        namespace: "::".to_owned(),
+                        namespace_key: state.native_root_namespace_key().unwrap_or_default(),
+                        event: Some(event.clone().unwrap_or_default()),
+                        receiver_method: false,
+                        future_frame: None,
+                        parameters: Vec::new(),
+                        original_parameters: None,
+                        statics: None,
+                        implementation_allocation: None,
+                        source_origin: Some(source_origin),
+                        executed_script: entered,
+                        executed_word: facts
+                            .argument_offset
+                            .checked_add(usize::from(*index))
+                            .and_then(|argument| {
+                                argument.checked_sub(native.target.prepended.len())
+                            })
+                            .and_then(|written| native.words.get(written + 1))
+                            .zip(state.current_source_origin.as_ref())
+                            .map(|(word, origin)| (Arc::clone(origin), word.source().span)),
+                    },
+                );
+            }
+        }
+    }
+
+    fn walk_selected_native_body(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        facts: &InvocationFacts,
+        route: tcl_registry::completion_route::InvocationCompletionRoute,
+        incoming: &ModuleCommandBindings,
+    ) -> SourceOutcomes {
+        let prepared = match prepare_selected_native_body(native, state, context, facts, route) {
+            Ok(prepared) => prepared,
+            Err(route) => return SourceOutcomes::native_invocation(incoming, state, route),
+        };
+        let body_context = source_body_context_boxed(
+            context,
+            &prepared.selection.namespace,
+            &prepared.selection.frame,
+        );
+        let body_context =
+            source_namespace_context_boxed(&body_context, &prepared.selection.namespace_key);
+        let namespace_body = boxed_source_completion_receipt(|| {
+            original_namespace_body::OriginalNamespaceBody::capture(
+                native, facts, state, *context, &prepared,
+            )
+        });
+        let previous_namespace_exit = self.conditional_source.pending_namespace.take();
+        self.conditional_source.pending_namespace =
+            original_namespace_body::conditional_source_namespace_exit(
+                native, facts, state, *context, &prepared,
+            );
+        let conditional_namespace = self.conditional_source.pending_namespace.clone();
+        let mut outcomes = self.walk_body_flow(&prepared.flow, native, state, &body_context);
+        self.conditional_source.pending_namespace = previous_namespace_exit;
+        if prepared.selection.namespace_activation
+            || prepared.parent_frame != prepared.selection.frame
+        {
+            outcomes.restore_frame(&prepared.parent_variables, &prepared.parent_frame);
+        }
+        if namespace_body
+            .as_ref()
+            .is_some_and(|receipt| receipt.completed(native, &outcomes, *context, &prepared))
+        {
+            outcomes.retain_closed_native_handler_completion(native, facts, *context);
+        }
+        if conditional_namespace.as_ref().is_some_and(|receipt| {
+            original_namespace_body::conditional_namespace_completed(
+                receipt, native, &outcomes, *context, &prepared,
+            )
+        }) {
+            outcomes.retain_conditional_handler_completion(native, facts, *context);
+        }
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn record_phase(
+        &mut self,
+        site: u32,
+        phase: SourceBodyPhase,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) {
+        if let Some(previous) = self.phases.iter_mut().find(|point| {
+            point.site == site
+                && point.phase == phase
+                && point.point.namespace_key == context.namespace_identity()
+                && point.point.realm == context.realm
+                && point.point.state.current_source_origin == state.current_source_origin
+                && point.point.declaration_preview == (self.declaration_preview_depth != 0)
+                && point.point.state.variable_frame == state.variable_frame
+        }) {
+            previous.point.state.join(state);
+            previous.point.lookup_snapshot = OnceLock::new();
+        } else {
+            self.phases.push(SourcePhasePoint {
+                site,
+                phase,
+                point: SourceBindingPoint {
+                    declaration_preview: self.declaration_preview_depth != 0,
+                    original_arguments_complete_normally: false,
+                    observer_execution: SourceObserverExecution::Unobserved,
+                    realm: context.realm,
+                    compilation: context.compilation,
+                    compiled_execution: compiled_invocation::CompiledInvocationSelection::default(),
+                    head: None,
+                    original_head_input: None,
+                    original_written_words: None,
+                    evaluated_argument_values: Vec::new(),
+                    evaluated_argument_words: Vec::new(),
+                    frozen_written_words: None,
+                    frozen_written_names: None,
+                    frozen_head_object: None,
+                    method_prefix_arguments: Vec::new(),
+                    offset: site,
+                    end: site,
+                    namespace: context.namespace.to_owned(),
+                    namespace_key: context.namespace_identity(),
+                    state: state.clone(),
+                    lookup_snapshot: OnceLock::new(),
+                    dispatch: false,
+                    continuation_of: None,
+                },
+            });
+        }
+    }
+
+    fn walk_lifecycle(
+        &mut self,
+        invocation: SourceLifecycleInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let repetition = state
+            .loaded_provider(invocation.spec.provider.package)
+            .map_or(
+                tcl_registry::body_execution::BodyRepetition::MayRepeat,
+                |loader| invocation.spec.repetition(loader.version.as_deref()),
+            );
+        let mut outcomes = SourceOutcomes::normal(state);
+        let mut head = boxed_source_branch(state);
+        loop {
+            let before = head.clone();
+            // A transfer may publish into its mutable input, including an
+            // early unknown-provider path. Keep the loop predecessor intact
+            // so differing issuance histories meet at the back edge rather
+            // than comparing a newly issued stamp with itself.
+            let mut iteration_state = head.clone();
+            let iteration = self.walk_lifecycle_iteration(
+                invocation,
+                &mut iteration_state,
+                context.conditional(),
+            );
+            outcomes.join(&iteration);
+            if let Some(normal) = iteration.normal {
+                head.join(&normal);
+            }
+            if repetition == tcl_registry::body_execution::BodyRepetition::Once
+                || head.same_state(&before)
+            {
+                break;
+            }
+        }
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn begin_lifecycle_coverage(
+        &mut self,
+        invocation_site: u32,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<(CommandAllocationSite, usize)> {
+        state.current_source_origin.as_ref().map(|origin| {
+            let site = CommandAllocationSite {
+                source: Arc::clone(origin),
+                offset: invocation_site,
+            };
+            let entries = self.lifecycle_coverage.entry(site.clone()).or_default();
+            let index = entries.len();
+            entries.push(SourceLifecycleCoverage {
+                declaration_preview: self.declaration_preview_depth != 0,
+                frame: state.variable_frame.clone(),
+                namespace: context.namespace_identity(),
+                entered: None,
+            });
+            (site, index)
+        })
+    }
+
+    fn walk_lifecycle_iteration(
+        &mut self,
+        invocation: SourceLifecycleInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::body_execution::BodyExecutionSelection;
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        let coverage = self.begin_lifecycle_coverage(invocation.site, state, context);
+        let mut entered = [false; 3];
+        let spec = invocation.spec;
+        if spec.has_unmodelled_pre_phase_effects(invocation.arguments) {
+            state.mark_opaque_binding_mutation();
+            return SourceOutcomes::invocation(state, Route::Unknown);
+        }
+        let Some(loader) = state.loaded_provider(spec.provider.package).cloned() else {
+            state.mark_opaque_binding_mutation();
+            return SourceOutcomes::invocation(state, Route::Unknown);
+        };
+        if loader.implementation_id != spec.provider.implementation_id
+            || !state.provider_surface_is_live(&loader)
+        {
+            state.mark_opaque_binding_mutation();
+            return SourceOutcomes::invocation(state, Route::Unknown);
+        }
+        let phases = match spec.select(invocation.arguments) {
+            BodyExecutionSelection::CapturedLifecycle(phases) => phases,
+            BodyExecutionSelection::InvalidArguments => {
+                return SourceOutcomes::invocation(
+                    state,
+                    Route::Tcl(tcl_registry::completion::CompletionCode::Error),
+                );
+            }
+            BodyExecutionSelection::UnknownArguments => {
+                state.mark_opaque_binding_mutation();
+                return SourceOutcomes::invocation(state, Route::Unknown);
+            }
+        };
+        let incoming = boxed_source_branch(state);
+        let mut pending = SourceOutcomes::normal(state);
+        for (phase, operand, hook) in [
+            (
+                SourceBodyPhase::Setup,
+                phases.setup,
+                spec.hook_commands.first(),
+            ),
+            (
+                SourceBodyPhase::Body,
+                phases.body,
+                spec.hook_commands.get(1),
+            ),
+        ] {
+            let Some(mut normal) = pending.normal.take() else {
+                break;
+            };
+            entered[match phase {
+                SourceBodyPhase::Setup => 0,
+                SourceBodyPhase::Body => 1,
+                SourceBodyPhase::Cleanup => 2,
+            }] = true;
+            let executed = self.walk_lifecycle_phase(
+                invocation,
+                SourceLifecyclePhase {
+                    phase,
+                    operand,
+                    hook: hook.copied(),
+                },
+                &loader,
+                &mut normal,
+                context,
+            );
+            pending.join(&executed);
+        }
+        // Stock lifecycle catches phase completions. Only normal setup enters
+        // the body; every catchable completion proceeds through cleanup.
+        let mut escaped = pending.capture_tcl_completions();
+        if let Some(mut cleanup_entry) = escaped.normal.take() {
+            entered[2] = true;
+            let cleanup = self.walk_lifecycle_phase(
+                invocation,
+                SourceLifecyclePhase {
+                    phase: SourceBodyPhase::Cleanup,
+                    operand: phases.cleanup,
+                    hook: spec.hook_commands.get(2).copied(),
+                },
+                &loader,
+                &mut cleanup_entry,
+                context,
+            );
+            escaped.join(&cleanup.capture_tcl_completions());
+        }
+        if let Some((site, index)) = coverage {
+            self.lifecycle_coverage
+                .get_mut(&site)
+                .expect("recorded lifecycle traversal")[index]
+                .entered = Some(entered);
+        }
+        // Test-selection skip is an independently possible successful path.
+        escaped.join(&SourceOutcomes::normal(&incoming));
+        escaped.publish(state);
+        escaped
+    }
+
+    fn walk_lifecycle_phase(
+        &mut self,
+        invocation: SourceLifecycleInvocation<'_>,
+        selected: SourceLifecyclePhase<'_>,
+        loader: &TrustedPackageLoader,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        let SourceLifecyclePhase {
+            phase,
+            operand,
+            hook,
+        } = selected;
+        if !state.provider_surface_is_live(loader) {
+            state.mark_opaque_binding_mutation();
+        }
+        self.record_phase(invocation.site, phase, state, context);
+        let hooks = invocation
+            .spec
+            .required_absent_hooks(loader.version.as_deref());
+        if hook.is_some_and(|hook| {
+            hooks.contains(&hook) && !state.definitely_absent(hook, context.namespace)
+        }) {
+            state.mark_opaque_binding_mutation();
+            return SourceOutcomes::invocation(state, Route::Unknown);
+        }
+        let Some(operand) = operand else {
+            return SourceOutcomes::normal(state);
+        };
+        if operand.list_element.is_some() {
+            state.mark_opaque_binding_mutation();
+            return SourceOutcomes::invocation(state, Route::Unknown);
+        }
+        self.walk_body_operand(
+            operand.argument,
+            SourceScriptOperands {
+                compilation_spec: Some(&tcl_registry::native_compilation::NativeCompilationSpec {
+                    grammar: tcl_registry::native_compilation::NativeCompilationGrammar::NoHook,
+                    operation: tcl_registry::SemanticOperationId::Invoke,
+                    body: invocation.spec.phase_compilation,
+                }),
+                compilation_selection:
+                    &tcl_registry::native_compilation::NativeCompilationSelection::Generic,
+                words: invocation.words,
+                written_arguments: invocation.written_arguments,
+                target: invocation.target,
+                arguments: &invocation.arguments,
+            },
+            state,
+            &SourceExecutionContext {
+                source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                depth: context.depth + 1,
+                ..context
+            },
+        )
+    }
+
+    fn walk_expression_sequence(
+        &mut self,
+        indices: &[usize],
+        operands: SourceScriptOperands<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let mut evaluated = SourceOutcomes::normal(state);
+        for &index in indices {
+            let Some(mut normal) = evaluated.normal.take() else {
+                break;
+            };
+            evaluated.join(&self.walk_expression_operand(index, operands, &mut normal, context));
+        }
+        evaluated
+    }
+
+    fn walk_body_flow(
+        &mut self,
+        flow: &tcl_registry::script_body_flow::ScriptBodyFlow,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::script_body_flow::ScriptBodyFlow;
+        let outcomes = match flow {
+            ScriptBodyFlow::Conditional(branches) => {
+                self.walk_conditional(branches, native.script_operands(), state, *context)
+            }
+            ScriptBodyFlow::Loop {
+                initial,
+                conditions,
+                repeated,
+                continued,
+            } => self.walk_loop_body_flow(
+                SourceLoopBodyIndices {
+                    initial,
+                    conditions,
+                    repeated,
+                    continued,
+                },
+                native,
+                state,
+                context,
+            ),
+            other => self.walk_non_loop_body_flow(other, native, state, context),
+        };
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn walk_loop_body_flow(
+        &mut self,
+        indices: SourceLoopBodyIndices<'_>,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let variable_lists =
+            source_iteration_variable_lists(native, context.registry, context.realm);
+        let facts = resolve_source_invocation_facts(
+            context.registry,
+            None,
+            *native.invocation,
+            context.realm,
+        );
+        let entry = facts.as_ref().map_or(
+            tcl_registry::iteration_entry::IterationEntry::Unknown,
+            |facts| facts.iteration_entry(native.invocation.arguments()),
+        );
+        let finite = facts
+            .as_ref()
+            .and_then(|facts| facts.finite_iteration(native.invocation.arguments()));
+        let loop_context = source_loop_context_boxed(context);
+        self.walk_source_loop(
+            SourceLoopOperands {
+                entry,
+                finite: finite.as_ref(),
+                variable_lists: &variable_lists,
+                initial: indices.initial,
+                conditions: indices.conditions,
+                repeated: indices.repeated,
+                continued: indices.continued,
+            },
+            native.script_operands(),
+            state,
+            &loop_context,
+        )
+    }
+
+    /// Borrow the selected grammar across recursive bodies. Owning a clone of
+    /// the largest selection would charge every nested sequence for its stack.
+    fn walk_non_loop_body_flow(
+        &mut self,
+        flow: &tcl_registry::script_body_flow::ScriptBodyFlow,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::script_body_flow::ScriptBodyFlow;
+        match flow {
+            ScriptBodyFlow::Deferred | ScriptBodyFlow::None | ScriptBodyFlow::CapturedLifecycle => {
+                SourceOutcomes::normal(state)
+            }
+            ScriptBodyFlow::Sequence(indices) => {
+                self.walk_body_sequence(indices, native.script_operands(), state, context)
+            }
+            ScriptBodyFlow::ConcatenatedScript { argument_offset } => {
+                self.walk_concatenated_script(*argument_offset, native, state, context)
+            }
+            other => self.walk_other_body_flow(other, native, state, context),
+        }
+    }
+
+    /// Other grammar temporaries stay outside source-sequence recursion.
+    #[inline(never)]
+    fn walk_other_body_flow(
+        &mut self,
+        flow: &tcl_registry::script_body_flow::ScriptBodyFlow,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::script_body_flow::ScriptBodyFlow;
+        match flow {
+            ScriptBodyFlow::ConcatenatedExpression { argument_offset } => {
+                self.walk_concatenated_expression(*argument_offset, native, state, *context)
+            }
+            ScriptBodyFlow::Lambda(_)
+            | ScriptBodyFlow::DictionaryScope(_)
+            | ScriptBodyFlow::Capture(_) => {
+                self.walk_owned_body_selection(flow, native, state, *context)
+            }
+            ScriptBodyFlow::Expressions(indices) => {
+                self.walk_expression_sequence(indices, native.script_operands(), state, *context)
+            }
+            ScriptBodyFlow::Try(selection) => {
+                self.walk_try_bodies(selection.as_ref(), native, state, *context)
+            }
+            ScriptBodyFlow::Unknown(indices) => {
+                state.mark_opaque_binding_mutation();
+                self.walk_possible_body_alternatives(indices, native, state, *context, false)
+            }
+            ScriptBodyFlow::CaseBodies(selection) => {
+                self.walk_case_bodies(selection, native, state, *context)
+            }
+            ScriptBodyFlow::Alternatives(indices) => {
+                self.walk_possible_body_alternatives(indices, native, state, *context, true)
+            }
+            ScriptBodyFlow::Conditional(_) => {
+                unreachable!("conditional flow uses its ordered condition handler")
+            }
+            ScriptBodyFlow::Loop { .. } => unreachable!("loop flow uses its iteration handler"),
+            ScriptBodyFlow::Deferred
+            | ScriptBodyFlow::None
+            | ScriptBodyFlow::CapturedLifecycle
+            | ScriptBodyFlow::Sequence(_)
+            | ScriptBodyFlow::ConcatenatedScript { .. } => {
+                unreachable!("source sequences use their borrowed context")
+            }
+        }
+    }
+
+    /// Only these handlers consume a selection. Their owned temporaries stay
+    /// outside the common sequence/namespace recursion path.
+    #[inline(never)]
+    fn walk_owned_body_selection(
+        &mut self,
+        flow: &tcl_registry::script_body_flow::ScriptBodyFlow,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::script_body_flow::ScriptBodyFlow;
+        match flow {
+            ScriptBodyFlow::Lambda(selection) => {
+                self.walk_lambda_invocation(selection.clone(), native, state, context)
+            }
+            ScriptBodyFlow::DictionaryScope(selection) => {
+                self.walk_dictionary_scope(selection.clone(), native, state, context)
+            }
+            ScriptBodyFlow::Capture(selection) => {
+                self.walk_captured_operand(*selection, native.script_operands(), state, context)
+            }
+            _ => unreachable!("only owned selections enter this handler"),
+        }
+    }
+
+    fn walk_possible_body_alternatives(
+        &mut self,
+        indices: &[usize],
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+        retain_unchanged: bool,
+    ) -> SourceOutcomes {
+        let mut possible = if retain_unchanged {
+            SourceOutcomes::normal(state)
+        } else {
+            SourceOutcomes::invocation(
+                state,
+                tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
+            )
+        };
+        let incoming = boxed_source_branch(state);
+        let context = context.conditional();
+        for &index in indices {
+            let mut branch = boxed_source_branch(&incoming);
+            possible.join(&self.walk_body_operand(
+                index,
+                native.script_operands(),
+                &mut branch,
+                &context,
+            ));
+        }
+        possible
+    }
+
+    fn walk_captured_operand(
+        &mut self,
+        selection: tcl_registry::catch_invocation::CatchInvocationSelection,
+        operands: SourceScriptOperands<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::catch_invocation::CatchInvocationSelection;
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        match selection {
+            CatchInvocationSelection::Valid(selected) => self
+                .walk_body_operand(selected.script_at, operands, state, &context)
+                .capture_with(selected),
+            CatchInvocationSelection::Invalid => SourceOutcomes::invocation(
+                state,
+                Route::Tcl(tcl_registry::completion::CompletionCode::Error),
+            ),
+            CatchInvocationSelection::Unknown => {
+                state.mark_opaque_binding_mutation();
+                SourceOutcomes::invocation(state, Route::Unknown)
+            }
+        }
+    }
+
+    fn walk_lambda_invocation(
+        &mut self,
+        selection: tcl_registry::lambda_invocation::LambdaInvocationSelection,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::completion::CompletionCode as Code;
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        let (lambda, parameters) = match prepare_source_lambda(selection, state.baseline.dialect) {
+            PreparedSourceLambda::Ready { lambda, parameters } => (lambda, parameters),
+            PreparedSourceLambda::Invalid => {
+                return SourceOutcomes::invocation(state, Route::Tcl(Code::Error));
+            }
+            PreparedSourceLambda::Unknown => return opaque_source_invocation(state),
+        };
+        let arguments = native.invocation.arguments();
+        let actual = (lambda.call_arguments_from..arguments.exact_argv_len().unwrap())
+            .map(|index| arguments.literal_at(index))
+            .collect::<Vec<_>>();
+        let Some(namespace_key) = native
+            .original_variable_operands
+            .input(lambda.lambda_argument, &state.source_variables)
+            .and_then(|input| state.namespace_for_lambda_operand(input, context.config))
+        else {
+            return opaque_source_invocation(state);
+        };
+        let namespace = namespace_key.display().unwrap_or_default();
+        let frame = source_lambda_frame(
+            state,
+            &namespace,
+            &namespace_key,
+            native.segment.span.start(),
+        );
+        let parent_variables = Arc::clone(&state.source_variables);
+        let parent_frame = state.variable_frame.clone();
+        let mut variables = parent_variables.enter_called_frame(&frame);
+        match bind_source_parameters(
+            &mut variables,
+            &parameters,
+            &actual,
+            lambda.body.is_empty(),
+            context.registry,
+            None,
+        ) {
+            Some(true) => {}
+            Some(false) => return SourceOutcomes::invocation(state, Route::Tcl(Code::Error)),
+            None => return opaque_source_invocation(state),
+        }
+        retain_lambda_value_formals(
+            state,
+            &mut variables,
+            &parameters,
+            actual.len(),
+            &lambda,
+            native,
+            context,
+        );
+        let Some(script) = retained_lambda_body(&lambda, native, state, context.config) else {
+            return opaque_source_invocation(state);
+        };
+        self.record_lambda_body(
+            &lambda,
+            native,
+            state,
+            &script,
+            &frame,
+            Some(&namespace_key),
+            context.body_entry,
+        );
+        let realm = evaluated_script_realm(
+            lambda.lambda_argument..lambda.lambda_argument + 1,
+            native.script_operands(),
+            context,
+        );
+        let offset = script.base();
+        let parent_origin = state.current_source_origin.replace(script.origin);
+        state.source_variables = Arc::new(variables);
+        state.variable_frame = frame.clone();
+        let mut outcomes = self
+            .walk_source(
+                &lambda.body,
+                offset,
+                state,
+                &SourceExecutionContext {
+                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                    realm,
+                    compilation: state.baseline.body_compilation(),
+                    compilation_snapshot: None,
+                    selected_compilation: None,
+                    original_variable_compilation: None,
+                    namespace: &namespace,
+                    namespace_key: Some(&namespace_key),
+                    frame: &frame,
+                    depth: context.depth + 1,
+                    ..context
+                },
+            )
+            .through_procedure_boundary(state.baseline.dialect);
+        outcomes.restore_frame(&parent_variables, &parent_frame);
+        outcomes.restore_source_origin(parent_origin.as_ref());
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn record_lambda_body(
+        &mut self,
+        lambda: &tcl_registry::lambda_invocation::LambdaInvocation,
+        native: SourceNativeInvocation<'_>,
+        state: &ModuleCommandBindings,
+        script: &ExecutedScriptSource,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        namespace: Option<&SourceNamespaceKey>,
+        entry: SourceBodyEntryPurpose,
+    ) {
+        let parent = CommandAllocationSite {
+            source: Arc::clone(state.current_source_origin.as_ref().unwrap()),
+            offset: native.segment.span.start(),
+        };
+        if let Some(word) = lambda
+            .lambda_argument
+            .checked_sub(native.target.prepended.len())
+            .and_then(|written| native.words.get(written + 1))
+        {
+            self.record_executed_word(&parent.source, word.source().span, Some(1), script.clone());
+        }
+        self.record_executed_script(
+            parent,
+            lambda.lambda_argument,
+            script.clone(),
+            (entry == SourceBodyEntryPurpose::Selected).then_some(frame),
+            namespace,
+        );
+    }
+
+    fn walk_body_sequence(
+        &mut self,
+        indices: &[usize],
+        operands: SourceScriptOperands<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let mut outcomes = SourceOutcomes::normal(state);
+        for index in indices {
+            let Some(mut normal) = outcomes.normal.take() else {
+                break;
+            };
+            outcomes.join(&self.walk_body_operand(*index, operands, &mut normal, context));
+        }
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn walk_concatenated_script(
+        &mut self,
+        argument_offset: usize,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        if let Some(count) = native.invocation.arguments().exact_argv_len()
+            && argument_offset.checked_add(1) == Some(count)
+        {
+            return self.walk_body_operand(
+                argument_offset,
+                native.script_operands(),
+                state,
+                context,
+            );
+        }
+        self.walk_materialised_concatenated_script(argument_offset, native, state, context)
+    }
+
+    /// Materialisation temporaries are absent from an original single-body descent.
+    #[inline(never)]
+    fn walk_materialised_concatenated_script(
+        &mut self,
+        argument_offset: usize,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let Some(values) = frozen_script_operands(native.invocation.arguments(), argument_offset)
+        else {
+            return opaque_source_invocation(state);
+        };
+        let script = if values.len() == 1 {
+            values[0].to_owned()
+        } else if native
+            .invocation
+            .arguments()
+            .dialect()
+            .is_some_and(|dialect| {
+                matches!(
+                    dialect.concat_policy(),
+                    Some(tcl_dialect::ConcatPolicy::Tcl(_))
+                )
+            })
+        {
+            tcl_syntax::list::concat_values(values.iter().copied())
+        } else {
+            return opaque_source_invocation(state);
+        };
+        let realm = evaluated_script_realm(
+            argument_offset..argument_offset + values.len(),
+            native.script_operands(),
+            *context,
+        );
+        let context = compiled_invocation::body_context(
+            argument_offset,
+            native.script_operands(),
+            state,
+            *context,
+        );
+        self.walk_materialised_source(
+            &script,
+            argument_offset..argument_offset + values.len(),
+            MaterialisedSourceKind::Script,
+            state,
+            SourceExecutionContext { realm, ..context },
+        )
+    }
+
+    fn walk_materialised_source(
+        &mut self,
+        source: &str,
+        arguments: std::ops::Range<usize>,
+        kind: MaterialisedSourceKind,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let Some(origin) = state.current_source_origin.clone() else {
+            return opaque_source_invocation(state);
+        };
+        let expression_owner = SourceVariableEvaluationOwner::NativeExpression {
+            invocation: CommandAllocationSite {
+                source: Arc::clone(&origin),
+                offset: context.invocation_offset,
+            },
+            parent: context.variable_read_owner.cloned().map(Arc::new),
+        };
+        let indices = arguments.collect::<Vec<_>>();
+        let parent = CommandAllocationSite {
+            source: Arc::clone(&origin),
+            offset: context.invocation_offset,
+        };
+        let derived = Arc::new(SourceOriginId::derived(
+            parent.clone(),
+            indices.clone(),
+            &Arc::from(source),
+            kind,
+        ));
+        if kind == MaterialisedSourceKind::Script {
+            let script = ExecutedScriptSource {
+                text: tcl_lexer::SourceImage::native(Arc::<[u8]>::from(source.as_bytes())),
+                origin: Arc::clone(&derived),
+                mapping: ExecutedScriptMapping::Materialised,
+            };
+            for argument in indices {
+                self.record_executed_script(
+                    parent.clone(),
+                    argument,
+                    script.clone(),
+                    context.entered_frame(),
+                    state.source_variables.namespace_identity.as_ref(),
+                );
+            }
+        }
+        state.current_source_origin = Some(Arc::clone(&derived));
+        let mut outcomes = if kind == MaterialisedSourceKind::Expression {
+            self.walk_prepared_expression(
+                parent,
+                ExecutedScriptSource {
+                    text: tcl_lexer::SourceImage::native(Arc::<[u8]>::from(source.as_bytes())),
+                    origin: derived,
+                    mapping: ExecutedScriptMapping::Materialised,
+                },
+                state,
+                SourceExecutionContext {
+                    variable_read_owner: Some(&expression_owner),
+                    ..context
+                },
+            )
+        } else {
+            self.walk_source(
+                source,
+                0,
+                state,
+                &SourceExecutionContext {
+                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                    ..context
+                },
+            )
+        };
+        outcomes.restore_source_origin(Some(&origin));
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn walk_conditional(
+        &mut self,
+        branches: &[(Option<usize>, usize)],
+        operands: SourceScriptOperands<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let mut outcomes = SourceOutcomes::default();
+        let mut fallthrough = Some(boxed_source_branch(state));
+        let mut branch_context = context;
+        for (condition, body) in branches {
+            let Some(mut incoming) = fallthrough.take() else {
+                break;
+            };
+            if let Some(condition) = condition {
+                let evaluated = self.walk_expression_operand(
+                    *condition,
+                    operands,
+                    &mut incoming,
+                    branch_context,
+                );
+                for (route, state) in &evaluated.abrupt {
+                    outcomes.add_abrupt(*route, state);
+                }
+                let Some(normal) = evaluated.normal else {
+                    break;
+                };
+                incoming = normal;
+                let truth = source_operand_truth(*condition, operands, &incoming, context.registry);
+                if truth.is_none() {
+                    branch_context = branch_context.conditional();
+                }
+                if truth != Some(true) {
+                    fallthrough = Some(incoming.clone());
+                }
+                if truth == Some(false) {
+                    continue;
+                }
+            }
+            outcomes.join(&self.walk_body_operand(*body, operands, &mut incoming, &branch_context));
+        }
+        if let Some(fallthrough) = fallthrough {
+            outcomes.join(&SourceOutcomes::normal(&fallthrough));
+        }
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn walk_body_operand(
+        &mut self,
+        index: usize,
+        operands: SourceScriptOperands<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let context = boxed_body_operand_context(index, operands, state, context);
+        let Some(script) = retained_script_operand(
+            index,
+            operands,
+            state,
+            context.invocation_offset,
+            context.config,
+        ) else {
+            return opaque_source_invocation(state);
+        };
+        let Some(origin) = &state.current_source_origin else {
+            return opaque_source_invocation(state);
+        };
+        let parent = CommandAllocationSite {
+            source: Arc::clone(origin),
+            offset: context.invocation_offset,
+        };
+        if let Some(word) = operands.written_word(index) {
+            self.record_executed_word(&parent.source, word.source().span, None, script.clone());
+        }
+        if context.entered_frame().is_some() {
+            self.record_executed_script(
+                parent,
+                index,
+                script.clone(),
+                context.entered_frame(),
+                state.source_variables.namespace_identity.as_ref(),
+            );
+        } else {
+            // The selected body context names the namespace it would run in.
+            self.record_conditional_in_frame_script(
+                parent,
+                index,
+                script.clone(),
+                Some(&context.namespace_identity()),
+            );
+        }
+        let previous_origin = state
+            .current_source_origin
+            .replace(Arc::clone(&script.origin));
+        let mut outcomes = self.walk_source_image(&script.text, script.base(), state, &context);
+        outcomes.restore_source_origin(previous_origin.as_ref());
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn walk_concatenated_expression(
+        &mut self,
+        offset: usize,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let Some(values) = frozen_script_operands(native.invocation.arguments(), offset) else {
+            return opaque_source_invocation(state);
+        };
+        if values.len() == 1 && authored_braced_operand(native, offset, values[0]).is_some() {
+            return self.walk_expression_operand(offset, native.script_operands(), state, context);
+        }
+        self.walk_mapped_expression(offset, &values, native.script_operands(), state, context)
+    }
+
+    fn walk_expression_operand(
+        &mut self,
+        index: usize,
+        operands: SourceScriptOperands<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let Some(value) = operands.arguments.literal_at(index) else {
+            return opaque_source_invocation(state);
+        };
+        let word = operands.written_word(index);
+        let Some(word) = word else {
+            return self.walk_materialised_source(
+                value,
+                index..index + 1,
+                MaterialisedSourceKind::Expression,
+                state,
+                context,
+            );
+        };
+        let (text, source, offset) = match word {
+            crate::ir::WordExpr::BracedLiteral { text, source } if text == value => {
+                (text.as_str(), source, 1)
+            }
+            crate::ir::WordExpr::Literal { text, source } => {
+                let effective = source_effective_words(
+                    std::slice::from_ref(word),
+                    state.baseline.dialect,
+                    Some((&state.source_variables, context.registry)),
+                );
+                if text != value
+                    || effective
+                        .first()
+                        .and_then(|word| word.as_registry_word().literal())
+                        != Some(text.as_str())
+                {
+                    // Changed decoded text cannot carry original source spans.
+                    return self.walk_materialised_source(
+                        value,
+                        index..index + 1,
+                        MaterialisedSourceKind::Expression,
+                        state,
+                        context,
+                    );
+                }
+                (text.as_str(), source, 0)
+            }
+            _ => {
+                return self.walk_materialised_source(
+                    value,
+                    index..index + 1,
+                    MaterialisedSourceKind::Expression,
+                    state,
+                    context,
+                );
+            }
+        };
+        let owner = state.current_source_origin.as_ref().map(|source| {
+            SourceVariableEvaluationOwner::NativeExpression {
+                invocation: CommandAllocationSite {
+                    source: Arc::clone(source),
+                    offset: context.invocation_offset,
+                },
+                parent: context.variable_read_owner.cloned().map(Arc::new),
+            }
+        });
+        let Some(origin) = state.current_source_origin.clone() else {
+            return opaque_source_invocation(state);
+        };
+        let Some(expression_source) = ExecutedScriptSource::contiguous(
+            Arc::clone(&origin),
+            text,
+            source.span.start() + offset,
+        ) else {
+            return opaque_source_invocation(state);
+        };
+        self.walk_prepared_expression(
+            CommandAllocationSite {
+                source: origin,
+                offset: context.invocation_offset,
+            },
+            expression_source,
+            state,
+            SourceExecutionContext {
+                variable_read_owner: owner.as_ref(),
+                ..context
+            },
+        )
+    }
+
+    fn walk_expression(
+        &mut self,
+        expression: &crate::expr_ast::ExprNode,
+        base: u32,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use crate::expr_ast::ExprNode;
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(context.depth) {
+            state.mark_opaque_binding_mutation();
+            return SourceOutcomes::invocation(state, Route::Unknown);
+        }
+        let nested = SourceExecutionContext {
+            source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            depth: context.depth + 1,
+            ..context
+        };
+        let coercion = matches!(
+            expression,
+            ExprNode::Unary { .. } | ExprNode::Binary { .. } | ExprNode::Ternary { .. }
+        )
+        .then(|| {
+            expression_preparation::RuntimeExpressionCoercion::capture(expression, state, context)
+        })
+        .flatten();
+        let mut outcomes = match expression {
+            ExprNode::Command { text, start, .. } => {
+                if let Some(script) = text
+                    .strip_prefix('[')
+                    .and_then(|text| text.strip_suffix(']'))
+                {
+                    self.walk_source(
+                        script,
+                        base.saturating_add(*start).saturating_add(1),
+                        state,
+                        &nested,
+                    )
+                } else {
+                    state.mark_opaque_binding_mutation();
+                    SourceOutcomes::invocation(state, Route::Unknown)
+                }
+            }
+            ExprNode::Binary { op, left, right } => {
+                self.walk_binary_expression(*op, left, right, base, state, nested)
+            }
+            ExprNode::Unary { operand, .. } => self.walk_expression(operand, base, state, nested),
+            ExprNode::Var { text, start, .. } => {
+                self.walk_expression_variable(expression, text, *start, base, state, nested)
+            }
+
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => self.walk_ternary_expression(
+                condition,
+                true_branch,
+                false_branch,
+                base,
+                state,
+                nested,
+            ),
+            ExprNode::Call {
+                function,
+                args,
+                start,
+                ..
+            } => self.walk_expression_call(
+                function,
+                args,
+                base,
+                base.saturating_add(*start),
+                state,
+                nested,
+            ),
+            ExprNode::Raw { .. } => {
+                state.mark_opaque_binding_mutation();
+                SourceOutcomes::invocation(state, Route::Unknown)
+            }
+            ExprNode::String { text, start, .. } => {
+                self.walk_expression_string(text, base.saturating_add(*start), state, nested)
+            }
+            _ => SourceOutcomes::normal(state),
+        };
+        if let Some(normal) = &mut outcomes.normal
+            && let Some(coercion) = coercion
+        {
+            coercion.apply(normal);
+        }
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn walk_expression_call(
+        &mut self,
+        function: &str,
+        args: &[crate::expr_ast::ExprNode],
+        base: u32,
+        site: u32,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let mut outcomes = SourceOutcomes::normal(state);
+        let mut input = source_representation::SourceMathInput {
+            arity: args.len(),
+            closed: false,
+        };
+        for argument in args {
+            let Some(continuing) = outcomes.normal.take() else {
+                break;
+            };
+            *state = *continuing;
+            let evaluated = self.walk_expression(argument, base, state, context);
+            if args.len() == 1 {
+                input.closed =
+                    source_representation::scalar_math_input_is_closed(argument, &evaluated);
+            }
+            outcomes.join(&evaluated);
+        }
+        if let Some(continuing) = outcomes.normal.take() {
+            *state = *continuing;
+            if args.len() != 1 {
+                input.closed = args.iter().all(|argument| {
+                    literal_object_pool::SourceOrdinaryLiteralObject::capture_expression_literal(
+                        argument, state,
+                    )
+                    .is_some()
+                });
+            }
+            outcomes.join(&self.walk_math_function(function, input, site, state, context));
+        }
+        outcomes
+    }
+
+    fn walk_expression_string(
+        &mut self,
+        text: &str,
+        offset: u32,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(
+            text,
+            offset,
+            context.config.nested(),
+        );
+        if let Some(segment) = segments.first() {
+            let tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(text).with_base(offset, 0, 0),
+                context.config,
+                segment,
+            );
+            if let Some(word) = tokens.words().first() {
+                self.walk_substitutions(word, text, offset, state, context)
+            } else {
+                SourceOutcomes::normal(state)
+            }
+        } else {
+            SourceOutcomes::normal(state)
+        }
+    }
+
+    fn walk_binary_expression(
+        &mut self,
+        op: crate::expr_ast::BinOp,
+        left: &crate::expr_ast::ExprNode,
+        right: &crate::expr_ast::ExprNode,
+        base: u32,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use crate::expr_ast::BinOp;
+        let short = match op {
+            BinOp::And | BinOp::WordAnd => Some(false),
+            BinOp::Or | BinOp::WordOr => Some(true),
+            _ => None,
+        };
+        let condition_coercion =
+            short.and_then(|_| expression_preparation::root_result_coercion(left, state, context));
+        let mut outcomes = self.walk_expression(left, base, state, context);
+        if let Some(continuing) = outcomes.normal.take() {
+            *state = *continuing;
+            if let Some(coercion) = condition_coercion {
+                coercion.apply(state);
+            }
+            let truth = source_expression_truth(left, state, context.registry);
+            if short.is_some() && truth == short {
+                outcomes.join(&SourceOutcomes::normal(state));
+            } else {
+                let incoming = state.clone();
+                outcomes.join(&self.walk_expression(right, base, state, context));
+                if short.is_some() && truth.is_none() {
+                    outcomes.join(&SourceOutcomes::normal(&incoming));
+                }
+            }
+        }
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn walk_ternary_expression(
+        &mut self,
+        condition: &crate::expr_ast::ExprNode,
+        true_branch: &crate::expr_ast::ExprNode,
+        false_branch: &crate::expr_ast::ExprNode,
+        base: u32,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let condition_coercion =
+            expression_preparation::root_result_coercion(condition, state, context);
+        let mut outcomes = self.walk_expression(condition, base, state, context);
+        if let Some(continuing) = outcomes.normal.take() {
+            *state = *continuing;
+            if let Some(coercion) = condition_coercion {
+                coercion.apply(state);
+            }
+            match source_expression_truth(condition, state, context.registry) {
+                Some(true) => {
+                    outcomes.join(&self.walk_expression(true_branch, base, state, context));
+                }
+                Some(false) => {
+                    outcomes.join(&self.walk_expression(false_branch, base, state, context));
+                }
+                None => {
+                    let mut alternative = state.clone();
+                    outcomes.join(&self.walk_expression(true_branch, base, state, context));
+                    outcomes.join(&self.walk_expression(
+                        false_branch,
+                        base,
+                        &mut alternative,
+                        context,
+                    ));
+                }
+            }
+        }
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn walk_math_function(
+        &mut self,
+        function: &str,
+        input: source_representation::SourceMathInput,
+        site: u32,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        use tcl_registry::mathfunc::NativeMathFunctionDispatch;
+        let dispatch = state
+            .baseline
+            .dialect
+            .or_else(|| {
+                context
+                    .registry
+                    .profile()
+                    .map(tcl_registry::InvocationDialect::of_profile)
+            })
+            .and_then(tcl_registry::mathfunc::native_function_dispatch);
+        let Some(dispatch) = dispatch else {
+            state.mark_opaque_binding_mutation();
+            return SourceOutcomes::invocation(state, Route::Unknown);
+        };
+        self.retain_math_object_callback_effects(state, site, input.closed);
+        match dispatch {
+            NativeMathFunctionDispatch::FixedTable => {
+                self.record_fixed_math_diagnostic_presence(function, site, state);
+                if let Some(origin) = &state.current_source_origin {
+                    let table = (!state.opaque_domain)
+                        .then(|| {
+                            state
+                                .baseline
+                                .native_entry
+                                .as_ref()
+                                .and_then(|entry| entry.math_functions.clone().map(|table| tcl_runtime_api::native_compilation::NativeMathFunctionPrerequisite { interpreter: entry.interpreter, table }))
+                        })
+                        .flatten();
+                    let observation = FixedMathObservation {
+                        declaration_preview: self.declaration_preview_depth != 0,
+                        frame: state.variable_frame.clone(),
+                        namespace: context.namespace_identity(),
+                        prerequisite: table.clone(),
+                    };
+                    let observations = self
+                        .implicit_fixed_math_invocations
+                        .entry((Arc::clone(origin), site, function.to_owned()))
+                        .or_default();
+                    if !observations.contains(&observation) {
+                        observations.push(observation);
+                    }
+                    if let Some(prerequisite) = table.as_ref()
+                        && let tcl_runtime_api::native_compilation::NativeMathFunctionResolution::Present(row) = prerequisite.table.lookup(function)
+                        && let Some(identity) = row.registry_identity.as_deref()
+                        && let Some(dialect) = state.baseline.dialect
+                        && let Some(protocol) = context.registry.fixed_scalar_math_protocol(
+                            dialect, identity, row.arity, input.arity,
+                        )
+                    {
+                        return source_representation::scalar_math_result(state, protocol, input.closed);
+                    }
+                }
+                state.mark_opaque_binding_mutation();
+                return SourceOutcomes::invocation(state, Route::Unknown);
+            }
+            NativeMathFunctionDispatch::CommandTable => {}
+        }
+        self.walk_command_table_math_function(function, input, site, state, context)
+    }
+
+    fn walk_command_table_math_function(
+        &mut self,
+        function: &str,
+        input: source_representation::SourceMathInput,
+        site: u32,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        let absolute = tcl_registry::mathfunc::qualified_name(function);
+        let mut effective = vec![
+            crate::registry_invocation::EffectiveInvocationWord::Literal(
+                tcl_syntax::naming::unroot_rooted_key(&absolute)
+                    .unwrap_or(&absolute)
+                    .to_owned(),
+            ),
+        ];
+        effective.extend(std::iter::repeat_n(
+            crate::registry_invocation::EffectiveInvocationWord::Dynamic,
+            input.arity,
+        ));
+        let context = SourceExecutionContext {
+            invocation_offset: site,
+            ..context
+        };
+        let mut scope = self.prepare_command_observers(&effective, state, &context);
+        let Some(continuing) = scope.entry.normal.take() else {
+            scope.entry.publish(state);
+            return scope.entry;
+        };
+        *state = *continuing;
+        let mut outcomes = std::mem::take(&mut scope.entry);
+        let mut input = input;
+        if scope.was_observed {
+            input.closed = false;
+            self.retain_math_object_callback_effects(state, site, false);
+        }
+        let namespace_key = context.namespace_key.cloned().or_else(|| {
+            state
+                .baseline
+                .native_entry
+                .is_none()
+                .then(|| SourceNamespaceKey::authored(context.namespace))
+        });
+        let mut binding =
+            namespace_key
+                .as_ref()
+                .map_or_else(SourceInvocationBinding::default, |namespace| {
+                    source_binding(
+                        state,
+                        tcl_syntax::naming::unroot_rooted_key(&absolute).unwrap_or(&absolute),
+                        namespace,
+                    )
+                });
+        binding.entered_execution_observer = if scope.was_observed {
+            SourceObserverExecution::MayObserved
+        } else {
+            SourceObserverExecution::Unobserved
+        };
+        binding.object_callback_effects = Some(if input.closed {
+            object_callbacks::ObjectCallbackEffects::Closed
+        } else {
+            object_callbacks::ObjectCallbackEffects::Unknown
+        });
+        if let Some(origin) = &state.current_source_origin {
+            let bindings = self
+                .implicit_math_invocations
+                .entry((Arc::clone(origin), site, function.to_owned()))
+                .or_default();
+            if !bindings.contains(&binding) {
+                bindings.push(binding.clone());
+            }
+        }
+        let Some(target) = binding.proved_target() else {
+            state.mark_opaque_binding_mutation();
+            let dispatched = SourceOutcomes::invocation(state, Route::Unknown);
+            outcomes.join(&self.finish_command_observer_scope(dispatched, &scope, &context));
+            outcomes.publish(state);
+            return outcomes;
+        };
+        let dispatched = if target.registry_backed {
+            Self::walk_registry_math_function(target, input, state, context)
+        } else {
+            self.walk_document_target(site, None, &effective, state, target, context)
+        };
+        outcomes.join(&self.finish_command_observer_scope(dispatched, &scope, &context));
+        outcomes.publish(state);
+        outcomes
+    }
+
+    fn walk_registry_math_function(
+        target: &SourceCommandTarget,
+        input: source_representation::SourceMathInput,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+        let mut arguments = target
+            .prepended
+            .iter()
+            .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+            .collect::<Vec<_>>();
+        arguments.extend(std::iter::repeat_n(
+            tcl_registry::InvocationWord::DynamicNonOption,
+            input.arity,
+        ));
+        let mut invocation = tcl_registry::InvocationWords::structured(
+            tcl_registry::InvocationWord::Literal(&target.command),
+            &arguments,
+        );
+        if let Some(dialect) = state.baseline.dialect {
+            invocation = invocation.with_dialect(dialect);
+        }
+        let route = context
+            .registry
+            .invocation_completion_route_in_frame(
+                &target.command,
+                invocation.arguments(),
+                invocation
+                    .arguments()
+                    .dialect()
+                    .and_then(tcl_registry::InvocationDialect::authoring_query)
+                    .map(|query| query.with_realm(context.realm)),
+                state.source_variables.alias_frame(),
+            )
+            .unwrap_or(Route::Unknown);
+        if let Some(facts) = tcl_registry::model::semantic::resolve_structured_invocation_in_realm(
+            context.registry,
+            context
+                .registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+            invocation,
+            context.realm,
+        )
+        .resolved()
+        .map(|resolved| resolved.facts())
+            && facts.effects.callback().kinds == tcl_registry::CallbackKinds::NONE
+            && facts.effects.accesses().iter().all(|access| {
+                access.mode == tcl_registry::EffectAccessMode::Read
+                    || !matches!(
+                        access.domain,
+                        tcl_registry::WorldStateDomain::CommandBindings
+                            | tcl_registry::WorldStateDomain::NamespaceLookup
+                            | tcl_registry::WorldStateDomain::VariableStore
+                    )
+            })
+        {
+            if let Some(protocol) = facts.normal_scalar_math_protocol(invocation.arguments()) {
+                return source_representation::scalar_math_result(state, protocol, input.closed);
+            }
+            if facts
+                .numeric_object_conversion_arguments(invocation.arguments())
+                .is_some()
+                && !input.closed
+            {
+                // The selected implementation remains current for this call,
+                // but its original operands can mutate interpreter worlds
+                // through updateStringProc/freeIntRepProc during conversion.
+                state.mark_opaque_binding_mutation();
+            }
+            return SourceOutcomes::invocation(state, route);
+        }
+        state.mark_opaque_binding_mutation();
+        SourceOutcomes::invocation(state, route)
+    }
+}
+
+fn parse_source_expression(
+    source: &str,
+    state: &ModuleCommandBindings,
+    registry: &CommandRegistry,
+) -> crate::expr_ast::ExprNode {
+    if let Some(dialect) = state.baseline.dialect {
+        crate::expr_parser::parse_expr_with_syntax_context(
+            source,
+            &dialect.expression_parse_context(registry.profile()),
+        )
+    } else {
+        crate::expr_parser::parse_expr_for_profile(source, registry.profile())
+    }
+}
+
+fn source_operand_truth(
+    index: usize,
+    operands: SourceScriptOperands<'_>,
+    state: &ModuleCommandBindings,
+    registry: &CommandRegistry,
+) -> Option<bool> {
+    let value = operands.arguments.literal_at(index)?;
+    let expression = parse_source_expression(value, state, registry);
+    source_expression_truth(&expression, state, registry)
+}
+
+fn source_expression_truth(
+    expression: &crate::expr_ast::ExprNode,
+    state: &ModuleCommandBindings,
+    registry: &CommandRegistry,
+) -> Option<bool> {
+    use crate::expr_ast::ExprNode;
+    let mut env = crate::tcl_expr_eval::Env::new();
+    let mut pending = vec![expression];
+    while let Some(node) = pending.pop() {
+        match node {
+            ExprNode::Literal { .. } => {}
+            ExprNode::Var { text, name, .. } => {
+                let value = state
+                    .source_variables
+                    .substitution_literal_value(text, registry)?;
+                env.insert(
+                    name.clone(),
+                    crate::tcl_expr_eval::EnvValue::Str(value.to_owned()),
+                );
+            }
+            ExprNode::Binary { left, right, .. } => pending.extend([left.as_ref(), right.as_ref()]),
+            ExprNode::Unary { operand, .. } => pending.push(operand),
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => pending.extend([
+                condition.as_ref(),
+                true_branch.as_ref(),
+                false_branch.as_ref(),
+            ]),
+            // Calls can name replaced math commands; folding their nominal
+            // builtin implementation would lose the source binding proof.
+            _ => return None,
+        }
+    }
+    let mut policy = crate::tcl_expr_eval::FoldPolicy::from_registry(registry);
+    if let Some(dialect) = state.baseline.dialect {
+        policy = policy.with_invocation_dialect(dialect);
+    }
+    crate::tcl_expr_eval::analyse_tcl_expr_with_resolved_math_bindings(
+        expression,
+        &env,
+        policy,
+        &|_, _| None,
+        None,
+    )
+    .and_then(|evaluation| match evaluation.value {
+        crate::tcl_expr_eval::TclValue::Float(value) if value.is_nan() => None,
+        value => Some(value.is_truthy()),
+    })
+}
+
+fn bind_called_body_parameters(
+    called: &mut crate::var_resolve::ResolveContext,
+    body: &DeferredSourceBody,
+    actual: &[Option<&str>],
+    target: &SourceCommandTarget,
+    context: SourceExecutionContext<'_>,
+) -> Option<bool> {
+    if let Some(topology) = &body.original_parameters {
+        if called
+            .invocation_dialect?
+            .parameter_grammar()?
+            .skips_empty_body_activation()
+            && body.source.is_empty()
+        {
+            return Some(true);
+        }
+        return topology.bind(called, actual, context.registry);
+    }
+    bind_source_parameters(
+        called,
+        &body.parameters,
+        actual,
+        body.source.is_empty(),
+        context.registry,
+        native_result::numeric_call_arguments(context, target),
+    )
+}
+
+fn bind_source_parameters(
+    context: &mut crate::var_resolve::ResolveContext,
+    parameters: &[tcl_syntax::formal_params::FormalParameter],
+    actual: &[Option<&str>],
+    body_is_empty: bool,
+    registry: &CommandRegistry,
+    numeric_values: Option<&[Option<Arc<native_result::EvaluatedSourceValue>>]>,
+) -> Option<bool> {
+    use tcl_syntax::formal_params::FormalArgumentBinding as Binding;
+    let grammar = context.invocation_dialect?.parameter_grammar()?;
+    let Ok(bindings) =
+        tcl_syntax::formal_params::bind_formal_arguments(parameters, actual.len(), grammar)
+    else {
+        return Some(false);
+    };
+    if grammar.skips_empty_body_activation() && body_is_empty {
+        return Some(true);
+    }
+    for binding in bindings {
+        match binding {
+            Binding::Value {
+                parameter,
+                argument,
+            } => {
+                let name = &parameters[parameter].name;
+                if let Some(value) = actual[argument] {
+                    context.bind_literal_incoming(name, value, registry);
+                    if let Some(receipt) = numeric_values
+                        .and_then(|values| values.get(argument))
+                        .and_then(Option::as_deref)
+                        .filter(|receipt| receipt.text == value)
+                        .and_then(|receipt| receipt.numeric.as_ref())
+                    {
+                        context.retain_incoming_native_numeric(name, receipt, registry);
+                    }
+                } else {
+                    context.bind_unknown_incoming(name, registry);
+                }
+            }
+            Binding::Default { parameter } => {
+                context.bind_literal_incoming(
+                    &parameters[parameter].name,
+                    parameters[parameter].default.as_deref()?,
+                    registry,
+                );
+            }
+            Binding::Rest {
+                name, start, len, ..
+            } => {
+                if let Some(values) = actual
+                    .get(start..start + len)
+                    .and_then(|values| values.iter().copied().collect::<Option<Vec<_>>>())
+                {
+                    context.bind_literal_incoming(
+                        &name,
+                        &tcl_syntax::list::join_list(values),
+                        registry,
+                    );
+                } else {
+                    context.bind_unknown_incoming(&name, registry);
+                }
+            }
+            Binding::CallerLink { name, argument, .. } => {
+                match crate::variable_bindings::bind_caller_reference(
+                    context,
+                    &name,
+                    actual[argument],
+                    registry,
+                ) {
+                    crate::variable_bindings::CallerReferenceBinding::Bound => {}
+                    crate::variable_bindings::CallerReferenceBinding::Missing => {
+                        return Some(false);
+                    }
+                    crate::variable_bindings::CallerReferenceBinding::Unknown => return None,
+                }
+            }
+        }
+    }
+    Some(true)
+}
+
+fn join_evaluated_words(values: &mut Vec<Option<String>>, other: &[Option<String>]) {
+    if values.len() != other.len() {
+        *values = vec![None; values.len().max(other.len())];
+        return;
+    }
+    for (value, other) in values.iter_mut().zip(other) {
+        if value != other {
+            *value = None;
+        }
+    }
+}
+
+fn source_effective_words(
+    words: &[crate::ir::WordExpr],
+    dialect: Option<tcl_registry::InvocationDialect>,
+    context: Option<(&crate::var_resolve::ResolveContext, &CommandRegistry)>,
+) -> Vec<crate::registry_invocation::EffectiveInvocationWord> {
+    use crate::registry_invocation::EffectiveInvocationWord;
+    words
+        .iter()
+        .map(|word| {
+            if let (crate::ir::WordExpr::Variable { spelling, .. }, Some((variables, registry))) =
+                (word, context)
+                && let Some(value) = variables.substitution_literal_value(spelling, registry)
+            {
+                return EffectiveInvocationWord::Literal(value.to_owned());
+            }
+            dialect.map_or_else(
+                || match crate::registry_invocation::invocation_word(word) {
+                    tcl_registry::InvocationWord::Literal(value) => {
+                        EffectiveInvocationWord::Literal(value.to_owned())
+                    }
+                    tcl_registry::InvocationWord::KnownBytes(value) => {
+                        EffectiveInvocationWord::from_bytes(value)
+                    }
+                    tcl_registry::InvocationWord::Dynamic
+                    | tcl_registry::InvocationWord::DynamicNonOption => {
+                        EffectiveInvocationWord::Dynamic
+                    }
+                    tcl_registry::InvocationWord::Expanded => EffectiveInvocationWord::Expanded,
+                    tcl_registry::InvocationWord::Opaque => EffectiveInvocationWord::Opaque,
+                    tcl_registry::InvocationWord::ArrayElementName { root } => {
+                        EffectiveInvocationWord::ArrayElementName {
+                            root: root.to_owned(),
+                        }
+                    }
+                },
+                |dialect| {
+                    crate::registry_invocation::effective_invocation_word(
+                        word,
+                        dialect.lexer_grammar.escapes,
+                        dialect.word_values,
+                    )
+                },
+            )
+        })
+        .collect()
+}
+
+/// Materialise the complete dispatch carrier before a recursive target walk.
+#[inline(never)]
+/// Lookup the authoritative command table from a current original producer.
+/// Unicode metadata is presentation; it never reconstructs the selected slot.
+fn source_binding_from_original_input(
+    state: &ModuleCommandBindings,
+    head: &crate::signature_scan::scope::SignatureSourceNameInput,
+    namespace: &SourceNamespaceKey,
+) -> Option<SourceInvocationBinding> {
+    source_binding_from_original_input_in(state, head, namespace, CommandTargetLookup::WithFallback)
+}
+
+/// Keep the complete original binding outside frames retained by nested bodies.
+#[inline(never)]
+fn source_binding_from_original_input_boxed(
+    state: &ModuleCommandBindings,
+    head: &crate::signature_scan::scope::SignatureSourceNameInput,
+    namespace: &SourceNamespaceKey,
+) -> Option<Box<SourceInvocationBinding>> {
+    source_binding_from_original_input(state, head, namespace).map(Box::new)
+}
+
+fn source_binding_from_original_input_in(
+    state: &ModuleCommandBindings,
+    head: &crate::signature_scan::scope::SignatureSourceNameInput,
+    namespace: &SourceNamespaceKey,
+    lookup: CommandTargetLookup,
+) -> Option<SourceInvocationBinding> {
+    head.is_current(&state.source_variables).then_some(())?;
+    let (declared_command, catalogue_command) =
+        state.original_advice_candidates_for_input(namespace, head);
+    let selected = state
+        .original_targets_for_input(head, namespace, lookup)
+        .or_else(|| {
+            (declared_command.is_some() || catalogue_command.is_some()).then(|| {
+                original_command_table::OriginalCommandTargetSelection {
+                    targets: BTreeSet::new(),
+                    original_prefixes: BTreeMap::new(),
+                    may_be_absent: true,
+                    unknown: true,
+                }
+            })
+        })?;
+    Some(SourceInvocationBinding {
+        declared_command,
+        catalogue_command,
+        lookup_state: Some(Arc::new(SourceLookupSnapshot::new(state.clone()))),
+        lookup_namespace: namespace.display().unwrap_or_default(),
+        lookup_namespace_key: namespace.clone(),
+        lookup_word: std::str::from_utf8(head.bytes()).ok().map(str::to_owned),
+        targets: selected
+            .targets
+            .into_iter()
+            .map(|target| {
+                let original_prepended = (!target.prepended.is_empty())
+                    .then(|| selected.original_prefixes.get(&target).cloned().flatten())
+                    .flatten();
+                SourceCommandTarget {
+                    runtime_implementation_generation: state
+                        .runtime_implementation_generation(target.token.as_ref()),
+                    command: target.command,
+                    prepended: target.prepended,
+                    original_prepended,
+                    logical_original_prefix: None,
+                    registry_backed: target.registry_backed,
+                    kind: target.kind,
+                    identity: target.token,
+                    implementation_generation: target.implementation_generation,
+                    implementation_allocation: target.implementation_allocation,
+                }
+            })
+            .collect(),
+        may_be_absent: selected.may_be_absent,
+        unknown: selected.unknown,
+        provider_state_taint: state.tainted_provider_state.iter().cloned().collect(),
+        variable_context: Arc::clone(&state.source_variables),
+        variable_frame: state.variable_frame.clone(),
+        namespace_cell_presence: state.source_variables.namespace_cells.clone(),
+        known_namespaces: state
+            .namespaces
+            .iter()
+            .filter_map(SourceNamespaceKey::advisory_key)
+            .collect(),
+        ..SourceInvocationBinding::default()
+    })
+}
+
+fn source_binding(
+    state: &ModuleCommandBindings,
+    head: &str,
+    namespace: &(impl NamespaceKeyQuery + ?Sized),
+) -> SourceInvocationBinding {
+    let mut projection = source_binding_projection(state, head, namespace);
+    projection.lookup_state = Some(Arc::new(SourceLookupSnapshot::new(state.clone())));
+    projection
+}
+
+#[derive(Clone, Copy)]
+enum CommandTargetLookup {
+    WithFallback,
+    NamedSlots,
+    CompilerSlots,
+}
+
+fn source_binding_projection(
+    state: &ModuleCommandBindings,
+    head: &str,
+    namespace: &(impl NamespaceKeyQuery + ?Sized),
+) -> SourceInvocationBinding {
+    source_binding_projection_in(state, head, namespace, CommandTargetLookup::WithFallback)
+}
+
+fn source_binding_projection_in(
+    state: &ModuleCommandBindings,
+    head: &str,
+    namespace: &(impl NamespaceKeyQuery + ?Sized),
+    lookup: CommandTargetLookup,
+) -> SourceInvocationBinding {
+    let namespace_key = namespace.namespace_key();
+    let namespace_display = namespace_key.display().unwrap_or_default();
+    let (declared_command, catalogue_command) =
+        state.original_advice_candidates_for_metadata(namespace_key.as_ref(), head);
+    let keys = state.source_keys(head, namespace);
+    let selection =
+        state.resolve_targets_with_prefixes_in(head, namespace, &mut BTreeSet::new(), lookup);
+    let may_be_absent = keys.last().is_none_or(|key| {
+        state
+            .binding_alternatives(key)
+            .contains(&MayBinding::Missing)
+    });
+    SourceInvocationBinding {
+        compiled_candidates: Vec::new(),
+        compiled_named_candidates: Vec::new(),
+        may_use_live_dispatch: true,
+        compiled_execution_residual: CompiledExecutionResidual::Closed,
+        native_compilation_admission: None,
+        native_compiler_admission: None,
+        original_compiler_preserves_names: SourceCompilerNameClosure::Unknown,
+        native_structured_preparation: None,
+        native_switch_preparation: None,
+        native_operand_layout: None,
+        runtime_reachability: SourceRuntimeReachability::Unknown,
+        entered_execution_observer: SourceObserverExecution::Unobserved,
+        native_inline_rejection: NativeInlineRejection::None,
+        native_handler_envelope: None,
+        invocation_variable_reads: None,
+        lookup_state: None,
+        compiler_lookup_state: None,
+        original_logical_source_advice: None,
+        original_authored_source_body_scope: None,
+        original_analysis_owner: None,
+        original_source_operand_attachment: None,
+        original_argument_syntax: None,
+        original_native_source_command: None,
+        declaration_layout_observations: None,
+        declaration_flow_inventory: None,
+        original_logical_declaration_targets: None,
+        compiler_policy: None,
+        original_compiler_words: None,
+        original_written_words: None,
+        conditional_expression_evaluations: None,
+        lookup_namespace: namespace_display.clone(),
+        lookup_namespace_key: namespace_key.into_owned(),
+        lookup_word: Some(head.to_owned()),
+        dispatch_site: None,
+        provider_state_taint: state.tainted_provider_state.iter().cloned().collect(),
+        declared_command,
+        catalogue_command,
+        variable_context: Arc::clone(&state.source_variables),
+        original_argument_completion: OriginalArgumentCompletion::Unknown,
+        normal_variable_continuation: None,
+        original_variable_operands: None,
+        normal_result_observations: None,
+        rhs_read_store_observations: None,
+        object_callback_effects: None,
+        variable_frame: state.variable_frame.clone(),
+        existing_namespace_cells: {
+            let mut cells = state
+                .source_variables
+                .namespace_cells
+                .present
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>();
+            cells.sort_by_cached_key(|key| format!("{key:?}"));
+            cells
+        },
+        namespace_cell_presence: state.source_variables.namespace_cells.clone(),
+        known_namespaces: state
+            .namespaces
+            .iter()
+            .filter_map(SourceNamespaceKey::advisory_key)
+            .collect(),
+        evaluated_argument_values: Vec::new(),
+        evaluated_argument_words: Vec::new(),
+        frozen_written_words: None,
+        frozen_written_names: None,
+        frozen_head_object: None,
+        method_prefix_arguments: Vec::new(),
+        targets: selection
+            .targets
+            .into_iter()
+            .map(|target| {
+                let logical_original_prefix = selection
+                    .prefixes
+                    .get(&target)
+                    .cloned()
+                    .flatten()
+                    .filter(|_| !target.prepended.is_empty());
+                SourceCommandTarget {
+                    runtime_implementation_generation: state
+                        .runtime_implementation_generation(target.token.as_ref()),
+                    command: target.command,
+                    prepended: target.prepended,
+                    original_prepended: None,
+                    logical_original_prefix,
+                    registry_backed: target.registry_backed,
+                    kind: target.kind,
+                    identity: target.token,
+                    implementation_generation: target.implementation_generation,
+                    implementation_allocation: target.implementation_allocation,
+                }
+            })
+            .collect(),
+        may_be_absent,
+        unknown: state.target_may_be_unknown(head, namespace)
+            || (!head.starts_with("::")
+                && namespace.namespace_key().native_context().is_none()
+                && !state.source_variables.namespace_known
+                && state.receiver_command_lookup_path(head).is_none()),
+    }
+}
+
+fn command_holder(command: &str) -> String {
+    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(command);
+    if holder.is_empty() {
+        "::".to_owned()
+    } else {
+        holder.to_owned()
     }
 }
 
 impl Hash for BindingBaseline {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.semantics.binding_fingerprint().hash(state);
-        self.declared.hash(state);
+        self.fingerprint.hash(state);
     }
 }
 
@@ -180,8 +13036,20 @@ impl Hash for BindingBaseline {
 struct NamespaceResolutionProjection {
     changed: bool,
     dynamic: bool,
+    ensembles: EnsembleManagement,
     rebound_names: BTreeSet<String>,
     opaque_namespaces: BTreeSet<String>,
+}
+
+/// Ensemble management observed so far; each axis only rises.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+struct EnsembleManagement {
+    /// A configuration change may have remapped any ensemble, including a
+    /// stock one, so no stock member-to-worker mapping is proved.
+    reconfigured: bool,
+    /// A creation may have replaced any command, including a stock ensemble,
+    /// so a compiled body selects no stock ensemble worker.
+    created: bool,
 }
 
 /// Compact identity for every mutable observation axis other than the live
@@ -189,15 +13057,40 @@ struct NamespaceResolutionProjection {
 /// walk, so their cardinality changes exactly when their semantic value grows.
 /// The immutable baseline and the once-published root-boundary map are omitted:
 /// neither can change during one invocation transfer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(clippy::struct_excessive_bools)] // Mirrors independent monotone observation axes.
 struct NonBindingObservationStamp {
+    original_command_world: Arc<source_command_world::OriginalSourceCommandWorld>,
+    logical_alias_prefixes:
+        Arc<BTreeMap<ResolvedCommandTarget, Option<Arc<logical_prefix::LogicalAliasPrefix>>>>,
+    ordinary_literal_pool: Option<literal_object_pool::SourceOrdinaryLiteralPool>,
+    class_definitions: Arc<BTreeMap<CommandIdentity, ClassDefinitionReceipt>>,
+    object_instances: Arc<object_instance::SourceObjectState>,
+    bounded_constructions: Arc<BTreeMap<CommandIdentity, BoundedClassConstruction>>,
+    tainted_object_dispatch: Arc<BTreeSet<String>>,
+    tainted_provider_state: Arc<BTreeSet<String>>,
+    command_observers: Arc<command_observers::SourceCommandObservers>,
+    source_variables: Arc<crate::var_resolve::ResolveContext>,
+    variable_frame: crate::var_resolve::VariableExecutionFrame,
+    objects: Arc<BTreeMap<CommandToken, BTreeSet<MayBinding>>>,
+    namespace_exports: Arc<SourceNamespaceMap<BTreeSet<Vec<tcl_core_types::NameBytes>>>>,
+    namespace_paths: Arc<SourceNamespaceMap<BTreeSet<Vec<SourceNamespaceKey>>>>,
+    namespaces: Arc<SourceNamespaceSet>,
+    unknown_lookup_namespaces: Arc<SourceNamespaceSet>,
+    unknown_namespace_paths: Arc<SourceNamespaceSet>,
+    namespace_unknown_handlers: Arc<SourceNamespaceSet>,
+    unknown_export_namespaces: Arc<SourceNamespaceSet>,
+    packages: Arc<BTreeMap<String, BTreeSet<PackageProvision>>>,
+    revoked_loaders: Arc<BTreeSet<String>>,
+    loader_handler_unknown: bool,
     opaque_domain: bool,
     opaque_binding_mutation: bool,
     dynamic_proc_binding: bool,
     unnameable_rebinding_subject: bool,
+    unclosed_command_world: bool,
     namespace_changed: bool,
     namespace_dynamic: bool,
+    namespace_ensembles: EnsembleManagement,
     namespace_rebound_count: usize,
     namespace_opaque_count: usize,
     procedure_body_count: usize,
@@ -214,8 +13107,17 @@ impl NamespaceResolutionProjection {
     ) {
         let site = match namespace {
             crate::ir_helpers::ExecutionNamespace::Exact(site) => Some(site.as_str()),
-            crate::ir_helpers::ExecutionNamespace::RuntimeSelected => None,
+            crate::ir_helpers::ExecutionNamespace::SourceContext(_)
+            | crate::ir_helpers::ExecutionNamespace::RuntimeSelected => None,
         };
+        if let NamespaceTransition::Ensemble { operation, .. } = transition {
+            use tcl_registry::state_transition::EnsembleManagementOperation as Operation;
+            match operation {
+                Some(Operation::Exists) => {}
+                Some(Operation::Create) => self.ensembles.created = true,
+                _ => self.ensembles.reconfigured = true,
+            }
+        }
         let mut rebound = std::collections::HashSet::new();
         let mut opaque = std::collections::HashSet::new();
         let mut changed = false;
@@ -236,6 +13138,14 @@ impl NamespaceResolutionProjection {
         }
         if other.dynamic && !self.dynamic {
             self.dynamic = true;
+            joined = true;
+        }
+        let ensembles = EnsembleManagement {
+            reconfigured: self.ensembles.reconfigured || other.ensembles.reconfigured,
+            created: self.ensembles.created || other.ensembles.created,
+        };
+        if ensembles != self.ensembles {
+            self.ensembles = ensembles;
             joined = true;
         }
         let rebound_count = self.rebound_names.len();
@@ -260,18 +13170,51 @@ impl NamespaceResolutionProjection {
 #[derive(Debug, Clone, Default)]
 #[allow(clippy::struct_excessive_bools)] // Independent opacity/trust axes; none implies another.
 pub struct ModuleCommandBindings {
+    /// Canonical original byte publications and modeled namespace geometry.
+    original_command_world: Arc<source_command_world::OriginalSourceCommandWorld>,
+    logical_alias_prefixes:
+        Arc<BTreeMap<ResolvedCommandTarget, Option<Arc<logical_prefix::LogicalAliasPrefix>>>>,
+    current_source_origin: Option<Arc<SourceOriginId>>,
+    /// Original fresh pool provenance, permanently withdrawn by unknown host
+    /// or object methods. New result objects cannot restore this history.
+    ordinary_literal_pool: Option<literal_object_pool::SourceOrdinaryLiteralPool>,
+    allocation_counts: Arc<BTreeMap<(CommandAllocationSite, SourceCommandKey), u8>>,
+    namespace_allocation_counts:
+        Arc<BTreeMap<(CommandAllocationSite, tcl_core_types::ByteNamespacePath), u8>>,
+    class_definitions: Arc<BTreeMap<CommandIdentity, ClassDefinitionReceipt>>,
+    object_instances: Arc<object_instance::SourceObjectState>,
+    bounded_constructions: Arc<BTreeMap<CommandIdentity, BoundedClassConstruction>>,
+    tainted_object_dispatch: Arc<BTreeSet<String>>,
+    tainted_provider_state: Arc<BTreeSet<String>>,
+    command_observers: Arc<command_observers::SourceCommandObservers>,
+    source_variables: Arc<crate::var_resolve::ResolveContext>,
+    variable_frame: crate::var_resolve::VariableExecutionFrame,
     /// Sparse flow-sensitive binding state. Analysis forks this state for
     /// every executable root, while most roots leave the command table
     /// unchanged. Copy-on-write keeps those forks allocation-cheap and
     /// detaches only at the centralised replacement/join seams below.
-    bindings: Arc<HashMap<String, BTreeSet<MayBinding>>>,
+    bindings: Arc<SourceCommandTable<BTreeSet<MayBinding>>>,
+    original_entry_bindings: Arc<SourceCommandTable<BTreeSet<MayBinding>>>,
+    /// Implementations of command objects followed by namespace imports.
+    objects: Arc<BTreeMap<CommandToken, BTreeSet<MayBinding>>>,
+    /// Exact export/path alternatives are joined alongside command bindings.
+    namespace_exports: Arc<SourceNamespaceMap<BTreeSet<Vec<tcl_core_types::NameBytes>>>>,
+    namespace_paths: Arc<SourceNamespaceMap<BTreeSet<Vec<SourceNamespaceKey>>>>,
+    namespaces: Arc<SourceNamespaceSet>,
+    unknown_lookup_namespaces: Arc<SourceNamespaceSet>,
+    unknown_namespace_paths: Arc<SourceNamespaceSet>,
+    namespace_unknown_handlers: Arc<SourceNamespaceSet>,
+    unknown_export_namespaces: Arc<SourceNamespaceSet>,
+    packages: Arc<BTreeMap<String, BTreeSet<PackageProvision>>>,
+    revoked_loaders: Arc<BTreeSet<String>>,
+    loader_handler_unknown: bool,
     /// Binding state reachable between executable roots. Unlike `bindings`,
     /// this excludes transient pre/post states within a top-level or body
     /// execution and is therefore safe to replay as another root's entry. It
     /// is published once after the fixpoint and then cloned into each
     /// per-script analysis, so allocation sharing is the natural ownership
     /// model.
-    root_boundary_bindings: Arc<HashMap<String, BTreeSet<MayBinding>>>,
+    root_boundary_bindings: Arc<SourceCommandTable<BTreeSet<MayBinding>>>,
     /// Immutable registry facts. Kept separate from `bindings` so the sparse
     /// may-state only publishes names that a module transition actually
     /// affects.
@@ -295,6 +13238,11 @@ pub struct ModuleCommandBindings {
     /// which moves a binding. Only this dimension may withdraw the claim that
     /// an untouched name still denotes its builtin (#2168).
     unnameable_rebinding_subject: bool,
+    /// A command-world transition (binding, namespace resolution, package or
+    /// interpreter effect) completed without a closed normal-return receipt.
+    /// The normal path then holds no exact completed command world, even when
+    /// every abrupt alternative is an error.
+    unclosed_command_world: bool,
     /// Namespace resolution transitions selected after alias-prefix and
     /// command-binding resolution. This is historical rather than final-state
     /// data: restoring a path/import later cannot make an earlier fold sound.
@@ -314,7 +13262,7 @@ pub struct ModuleCommandBindings {
     /// move/delete/alias transition. Unlike `bindings`, this is historical:
     /// restoring the final binding does not restore trust in the intervening
     /// procedure identity.
-    rebound_names: BTreeSet<String>,
+    rebound_names: BTreeSet<SourceCommandKey>,
     /// Flow-insensitive, namespace-candidate rebound names for procedure
     /// call-site trust: a conservative local-or-global interpretation, kept
     /// separate so it cannot weaken the exact binding resolver above.
@@ -335,12 +13283,39 @@ impl PartialEq for ModuleCommandBindings {
         // independent analyses of the same registry must therefore compare
         // equal even though each owns a distinct baseline allocation.
         self.baseline == other.baseline
+            && self.original_command_world == other.original_command_world
+            && self.logical_alias_prefixes == other.logical_alias_prefixes
+            && self.current_source_origin == other.current_source_origin
+            && self.ordinary_literal_pool == other.ordinary_literal_pool
+            && self.allocation_counts == other.allocation_counts
+            && self.namespace_allocation_counts == other.namespace_allocation_counts
+            && self.class_definitions == other.class_definitions
+            && self.object_instances == other.object_instances
+            && self.bounded_constructions == other.bounded_constructions
+            && self.tainted_object_dispatch == other.tainted_object_dispatch
+            && self.tainted_provider_state == other.tainted_provider_state
+            && self.command_observers == other.command_observers
+            && self.source_variables == other.source_variables
+            && self.variable_frame == other.variable_frame
             && self.bindings == other.bindings
+            && self.objects == other.objects
+            && self.namespace_exports == other.namespace_exports
+            && self.namespace_paths == other.namespace_paths
+            && self.namespaces == other.namespaces
+            && self.unknown_lookup_namespaces == other.unknown_lookup_namespaces
+            && self.unknown_namespace_paths == other.unknown_namespace_paths
+            && self.namespace_unknown_handlers == other.namespace_unknown_handlers
+            && self.unknown_export_namespaces == other.unknown_export_namespaces
+            && self.packages == other.packages
+            && self.revoked_loaders == other.revoked_loaders
+            && self.loader_handler_unknown == other.loader_handler_unknown
             && self.root_boundary_bindings == other.root_boundary_bindings
+            && self.original_entry_bindings == other.original_entry_bindings
             && self.opaque_domain == other.opaque_domain
             && self.opaque_binding_mutation == other.opaque_binding_mutation
             && self.dynamic_proc_binding == other.dynamic_proc_binding
             && self.unnameable_rebinding_subject == other.unnameable_rebinding_subject
+            && self.unclosed_command_world == other.unclosed_command_world
             && self.namespace_resolution == other.namespace_resolution
             && self.procedure_bodies == other.procedure_bodies
             && self.rebound_names == other.rebound_names
@@ -353,6 +13328,12 @@ impl PartialEq for ModuleCommandBindings {
 impl Eq for ModuleCommandBindings {}
 
 impl ModuleCommandBindings {
+    /// Availability phase retained by the source-entry owner. Reading this
+    /// phase grants no entered body, native handler or compiler admission.
+    pub(crate) fn invocation_realm(&self) -> tcl_dialect::model::InvocationRealm {
+        self.baseline.invocation_realm
+    }
+
     /// Registry head and prepended arguments for the shared expression-word
     /// descent. CFG projection and binding replay use the same alias answer.
     pub(crate) fn resolved_embedded_head(
@@ -360,18 +13341,22 @@ impl ModuleCommandBindings {
         head: &str,
         namespace: &crate::ir_helpers::ExecutionNamespace,
     ) -> Option<crate::ir_helpers::ResolvedEmbeddedHead> {
-        let namespace = namespace.for_head(head)?;
-        if self.target_resolution_may_be_unknown(head, namespace) {
+        let namespace = namespace.for_head_context(head)?;
+        if self.target_resolution_may_be_unknown(head, namespace.as_ref()) {
             return None;
         }
-        let mut found = self.targets(head, namespace).into_iter();
+        let mut found = self.targets(head, namespace.as_ref()).into_iter();
         let target = found.next()?;
         if found.next().is_some() || !target.registry_backed {
             return None;
         }
         Some(crate::ir_helpers::ResolvedEmbeddedHead {
             command: target.command,
-            prepended: target.prepended,
+            prepended: target
+                .prepended
+                .iter()
+                .map(|word| word.as_registry_word().literal().map(str::to_owned))
+                .collect::<Option<Vec<_>>>()?,
         })
     }
 
@@ -408,6 +13393,30 @@ impl ModuleCommandBindings {
         registry: &CommandRegistry,
         namespace: &crate::ir_helpers::ExecutionNamespace,
     ) {
+        let owner = self.baseline.metadata_context.clone();
+        self.source_order_registry_barrier_for_command_with_metadata_context(
+            words,
+            conditional,
+            registry,
+            namespace,
+            tcl_registry::Traits::empty(),
+            owner
+                .metadata_context(registry)
+                .and_then(crate::registry_invocation::InvocationMetadataSelection::context),
+        );
+    }
+    /// Advance conditional source effects using the independently retained
+    /// availability. Missing or foreign metadata widens instead of borrowing
+    /// catalogue effects; this supplies no physical command execution.
+    pub(crate) fn source_order_registry_barrier_for_command_with_metadata_context(
+        &mut self,
+        words: &[crate::ir_helpers::CommandWord],
+        conditional: bool,
+        registry: &CommandRegistry,
+        namespace: &crate::ir_helpers::ExecutionNamespace,
+        barrier_traits: tcl_registry::Traits,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    ) -> bool {
         if self.source_order_user_call_effects.is_none() {
             self.source_order_user_call_effects = Some(self.source_order_call_boundary());
         }
@@ -416,19 +13425,32 @@ impl ModuleCommandBindings {
             .and_then(crate::ir_helpers::CommandWord::literal)
         else {
             self.mark_opaque_binding_mutation();
-            return;
+            return true;
         };
-        let Some(command_namespace) = namespace.for_head(head) else {
+        let Some(command_namespace) = namespace.for_head_context(head) else {
             self.mark_opaque_binding_mutation();
-            return;
+            return true;
         };
         let skipped = conditional.then(|| self.clone());
-        let source_may_be_unknown = self.target_may_be_unknown(head, command_namespace);
+        let source_may_be_unknown = self.target_may_be_unknown(head, command_namespace.as_ref());
         let reaches_user_procedure = self
-            .targets(head, command_namespace)
+            .targets(head, command_namespace.as_ref())
             .iter()
             .any(|target| !target.registry_backed);
-        let facts = self.resolve_command_words(words, registry, command_namespace);
+        let Some(metadata) = metadata.filter(|metadata| metadata.matches_registry(registry)) else {
+            self.mark_opaque_binding_mutation();
+            return true;
+        };
+        let facts = self.resolve_command_words_with_metadata_context(
+            words,
+            registry,
+            Some(metadata),
+            command_namespace.as_ref(),
+        );
+        let barrier = source_may_be_unknown
+            || facts
+                .iter()
+                .any(|facts| facts.traits.intersects(barrier_traits));
         apply_resolved_may_transitions(facts, source_may_be_unknown, true, self, namespace);
         if reaches_user_procedure {
             self.mark_source_order_user_procedure_call();
@@ -436,8 +13458,757 @@ impl ModuleCommandBindings {
         if let Some(skipped) = skipped {
             self.join(&skipped);
         }
+        barrier
     }
 
+    fn default_construction_dependencies_hold(
+        &self,
+        grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+    ) -> bool {
+        let Some(root) = self.source_root_namespace_key() else {
+            return false;
+        };
+        let Some(policy) = self
+            .baseline
+            .execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+        else {
+            return false;
+        };
+        !self.tainted_object_dispatch.contains("*")
+            && grammar
+                .default_construction_lookup_dependencies()
+                .is_some_and(|dependencies| {
+                    dependencies.iter().all(|command| {
+                        let selected =
+                            self.original_registry_metadata_target(&root, command, policy);
+                        !self.tainted_object_dispatch.contains(*command)
+                            && selected.is_some_and(|target| {
+                                target.registry_backed
+                                    && target.prepended.is_empty()
+                                    && tcl_registry::command_descriptor_labels_match(
+                                        &target.command,
+                                        command,
+                                    )
+                                    && target.implementation_generation == 0
+                            })
+                    })
+                })
+    }
+
+    fn record_bounded_class(
+        &mut self,
+        facts: &tcl_registry::InvocationFacts,
+        words: &[crate::ir::WordExpr],
+        target: &SourceCommandTarget,
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        let Some(dialect) = self.baseline.dialect else {
+            return false;
+        };
+        let Some(grammar) = context.registry.native_default_construction_grammar(
+            &target.command,
+            dialect,
+            context.realm,
+        ) else {
+            return false;
+        };
+        if !self.default_construction_dependencies_hold(grammar) {
+            return false;
+        }
+        let Some(name) = facts.state_transitions.declared().and_then(|transitions| {
+            transitions
+                .facts()
+                .iter()
+                .find_map(|fact| match &fact.transition {
+                    StateTransition::ObjectDispatch(
+                        tcl_registry::ObjectDispatchTransition::Create {
+                            target: tcl_registry::ObjectDispatchTarget::Named(subject),
+                            kind: tcl_registry::ObjectDispatchKind::Class,
+                            ..
+                        },
+                    ) => subject.literal(),
+                    _ => None,
+                })
+        }) else {
+            return false;
+        };
+        let source = facts.arg_roles.iter().find_map(|(index, role)| {
+            (*role == tcl_registry::ArgRole::Body)
+                .then_some(facts.argument_offset + usize::from(*index))
+        });
+        if let Some(index) = source {
+            let Some(index) = index.checked_sub(target.prepended.len()) else {
+                return false;
+            };
+            if let Some(word) = words.get(index + 1) {
+                let effective = source_effective_words(
+                    std::slice::from_ref(word),
+                    self.baseline.dialect,
+                    Some((&self.source_variables, context.registry)),
+                );
+                let Some(body) = effective[0].as_registry_word().literal() else {
+                    return false;
+                };
+                if !self.definition_has_only_deferred_members(body, grammar, context) {
+                    return false;
+                }
+            }
+        }
+        let proof = source_binding(self, name, &context.namespace_identity());
+        let Some(created) = proof.proved_target() else {
+            return false;
+        };
+        let Some(identity) = &created.identity else {
+            return false;
+        };
+        Arc::make_mut(&mut self.bounded_constructions).insert(
+            identity.clone(),
+            BoundedClassConstruction {
+                factory: target.command.clone(),
+                implementation_generation: created.implementation_generation,
+            },
+        );
+        true
+    }
+
+    fn definition_has_only_deferred_members(
+        &self,
+        body: &str,
+        grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        definition_body_command_tokens(body, context.config).all(|words| {
+                let effective = source_effective_words(
+                    words.words(),
+                    self.baseline.dialect,
+                    Some((&self.source_variables, context.registry)),
+                );
+                let Some(head) = effective
+                    .first()
+                    .and_then(|word| word.as_registry_word().literal())
+                else {
+                    return false;
+                };
+                let Some(member) = grammar.member(head) else {
+                    return false;
+                };
+                if member.visibility_effect.is_some()
+                    && grammar.preserves_local_constructor_entry(member)
+                    && grammar.manufacture_member_effect(member)
+                        == tcl_registry::definer::MemberManufactureDispatchEffect::PreservesNativeFactory
+                {
+                    return deferred_method::original_definition_member(
+                        grammar,
+                        member,
+                        tcl_registry::definer::DefinitionReceiver::Instance,
+                        self,
+                        context,
+                    ) && effective
+                        .iter()
+                        .all(|word| word.as_registry_word().literal().is_some());
+                }
+                let query = self.baseline.dialect
+                    .and_then(tcl_registry::InvocationDialect::authoring_query)
+                    .map(|query| query.with_realm(context.realm));
+                let delegate_preserves_manufacturers = member.arg_roles.iter()
+                    .find_map(|(index, role)| (*role == tcl_registry::ArgRole::Name)
+                        .then_some(usize::from(*index) + 1))
+                    .and_then(|index| effective.get(index))
+                    .and_then(|word| word.as_registry_word().literal())
+                    .is_some_and(|name| grammar.native_classmethod_preserves_default_manufacturers(member, name, query));
+                if grammar.construction_member_effect(member)
+                    != tcl_registry::definer::MemberConstructionEffect::DeferredInstanceMethod
+                    && !delegate_preserves_manufacturers
+                {
+                    return self
+                        .closed_inherited_member(grammar, member, &effective, context)
+                        .is_some();
+                }
+                let Some(lookup) =
+                    grammar.definition_member_lookup(member, query)
+                else {
+                    return false;
+                };
+                if !source_binding(self, head, lookup.namespace)
+                    .proved_target()
+                    .is_some_and(|target| {
+                        target.registry_backed
+                            && target.prepended.is_empty()
+                            && target.command == lookup.implementation
+                            && target.implementation_generation == 0
+                    })
+                {
+                    return false;
+                }
+                let expected = member
+                    .arg_roles
+                    .iter()
+                    .map(|(index, _)| usize::from(*index) + 2)
+                    .max()
+                    .unwrap_or(1);
+                effective.len() == expected
+                    && effective
+                        .iter()
+                        .all(|word| word.as_registry_word().literal().is_some())
+                    && member.arg_roles.iter().all(|(index, role)| {
+                        if *role != tcl_registry::ArgRole::ParamList {
+                            return true;
+                        }
+                        effective
+                            .get(usize::from(*index) + 1)
+                            .and_then(|word| word.as_registry_word().literal())
+                            .is_some_and(|parameters| {
+                                self.baseline.dialect
+                                    .and_then(tcl_registry::InvocationDialect::parameter_grammar)
+                                    .is_some_and(|grammar| {
+                                        tcl_syntax::formal_params::parse_formal_parameters_in(
+                                            parameters, grammar,
+                                        ).is_ok()
+                                    })
+                            })
+                    })
+            })
+    }
+
+    fn apply_bounded_constructor(
+        &mut self,
+        target: &SourceCommandTarget,
+        words: &[crate::registry_invocation::EffectiveInvocationWord],
+        registry: &CommandRegistry,
+        namespace: &str,
+        realm: tcl_dialect::model::InvocationRealm,
+    ) -> bool {
+        let Some(identity) = &target.identity else {
+            return false;
+        };
+        let Some(construction) = self.bounded_constructions.get(identity) else {
+            return false;
+        };
+        if target.implementation_generation != construction.implementation_generation {
+            return false;
+        }
+        if self
+            .class_definitions
+            .get(identity)
+            .is_none_or(|definition| !self.class_definition_dependencies_hold(definition))
+        {
+            return false;
+        }
+        let Some(grammar) = self.baseline.dialect.and_then(|dialect| {
+            registry.native_default_construction_grammar(&construction.factory, dialect, realm)
+        }) else {
+            return false;
+        };
+        if !self.default_construction_dependencies_hold(grammar) {
+            return false;
+        }
+        let Some(method) = words
+            .first()
+            .and_then(|word| word.as_registry_word().literal())
+            .and_then(|method| grammar.manufacturer(method))
+        else {
+            return false;
+        };
+        if method.visibility != tcl_registry::definer::MemberVisibility::Exported
+            || words.len() != usize::from(method.constructor_args_from)
+            || words.iter().any(|word| {
+                matches!(
+                    word,
+                    crate::registry_invocation::EffectiveInvocationWord::Expanded
+                        | crate::registry_invocation::EffectiveInvocationWord::Opaque
+                )
+            })
+        {
+            return false;
+        }
+        self.install_manufacture_slot(target, method, words, namespace)
+    }
+
+    fn install_manufacture_slot(
+        &mut self,
+        target: &SourceCommandTarget,
+        method: &tcl_registry::definer::ManufacturerMethod,
+        words: &[crate::registry_invocation::EffectiveInvocationWord],
+        namespace: &str,
+    ) -> bool {
+        if let Some(index) = method.names_instance_at {
+            let Some(name) = words
+                .get(usize::from(index))
+                .and_then(|word| word.as_registry_word().literal())
+                .filter(|name| !name.is_empty())
+            else {
+                return false;
+            };
+            if !name.starts_with("::") && !self.source_variables.namespace_known {
+                return false;
+            }
+            let name = tcl_syntax::naming::qualify(namespace, name);
+            if !self.definitely_absent(&name, namespace) {
+                return false;
+            }
+            // A proved fresh root slot cannot replace an existing object's
+            // private dispatcher. Other namespace routes keep that dependency
+            // conservative until their actual namespace object is retained.
+            let preserves_dispatcher = tcl_syntax::naming::key_holder_and_tail(&name).0 == "::";
+            let dispatcher_generation = self.object_instances.receiver_dispatcher_generation;
+            let receivers = preserves_dispatcher.then(|| self.object_instances.receivers.clone());
+            self.install(
+                name.clone(),
+                MayBinding::Target(ResolvedCommandTarget {
+                    command: name.clone(),
+                    prepended: Vec::new(),
+                    registry_backed: false,
+                    kind: BindingKind::Command,
+                    implementation_generation: 0,
+                    terminal: true,
+                    target_lookup: tcl_registry::AliasTargetLookup::Global,
+                    token: Some(CommandIdentity {
+                        runtime: None,
+                        origin: name,
+                        declaration: target.implementation_generation,
+                        allocation: None,
+                    }),
+                    implementation_allocation: None,
+                }),
+            );
+            if let Some(receivers) = receivers {
+                let objects = Arc::make_mut(&mut self.object_instances);
+                objects.receiver_dispatcher_generation = dispatcher_generation;
+                objects.receivers = receivers;
+            }
+        }
+        true
+    }
+    /// Runtime policies supplied by the source execution entry contract.
+    #[must_use]
+    pub(crate) fn invocation_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+        self.baseline.dialect
+    }
+    fn definitely_absent(&self, name: &str, namespace: &(impl NamespaceKeyQuery + ?Sized)) -> bool {
+        self.source_slot_presence(name, namespace) == SourceCommandSlotPresence::Absent
+    }
+
+    fn provider_surface_is_live(&self, loader: &TrustedPackageLoader) -> bool {
+        let Some(root) = self.source_root_namespace_key() else {
+            return false;
+        };
+        if self.tainted_provider_state.contains(&loader.package) {
+            return false;
+        }
+        let required = loader.command_surface.iter().all(|command| {
+            let proof = source_binding(self, command, &root);
+            proof.proved_target().is_some_and(|target| {
+                target.registry_backed
+                    && target.prepended.is_empty()
+                    && tcl_registry::command_descriptor_labels_match(&target.command, command)
+                    && target.implementation_generation == 0
+            })
+        });
+        required
+            && self.provider_lookups_are_live(loader)
+            && loader.optional_command_surface.iter().all(|command| {
+                let slot = tcl_registry::rooted_command_descriptor_label(command);
+                let keys = self.source_keys(command, &root);
+                keys.len() == 1
+                    && self.bindings.get(&keys[0]).is_some_and(|alternatives| {
+                        alternatives.iter().all(|binding| match binding {
+                            MayBinding::Missing => true,
+                            MayBinding::Target(target) => {
+                                target.registry_backed
+                                    && target.terminal
+                                    && target.prepended.is_empty()
+                                    && target.command == slot
+                                    && target.implementation_generation == 0
+                            }
+                            MayBinding::Imported(_) | MayBinding::Unknown => false,
+                        })
+                    })
+            })
+    }
+
+    fn record_provider_state_writes(
+        &mut self,
+        facts: &tcl_registry::InvocationFacts,
+        invocation: tcl_registry::InvocationWords<'_>,
+        registry: &CommandRegistry,
+        operands: &crate::variable_bindings::OriginalVariableInvocation,
+    ) {
+        let mut places =
+            crate::variable_bindings::source_variable_write_places_with_original_operands(
+                facts,
+                invocation.arguments(),
+                &self.source_variables,
+                registry,
+                operands,
+            );
+        let mut observer_places = Vec::new();
+        for fact in facts
+            .state_transitions
+            .declared()
+            .into_iter()
+            .flat_map(tcl_registry::StateTransitions::facts)
+        {
+            if let StateTransition::Trace(tcl_registry::TraceTransition::Add {
+                target: tcl_registry::TraceTarget::Variable(subject),
+                ..
+            }) = &fact.transition
+            {
+                observer_places.push(
+                    subject
+                        .argument_index()
+                        .map_or_else(crate::place::unknown_top, |index| {
+                            operands.trace_subject_access(index, &self.source_variables, registry)
+                        }),
+                );
+            }
+        }
+        places.extend(observer_places.iter().cloned());
+        self.record_provider_write_places(&places, &observer_places, registry);
+    }
+
+    fn record_provider_write_places(
+        &mut self,
+        places: &[crate::place::Place],
+        observer_places: &[crate::place::Place],
+        registry: &CommandRegistry,
+    ) {
+        if places.is_empty() {
+            return;
+        }
+        let protocol = self
+            .baseline
+            .dialect
+            .and_then(|dialect| dialect.package_protocol)
+            .unwrap_or(tcl_dialect::PackageProtocol::Tcl);
+        let dependencies = tcl_registry::model::binding::package_resolver_dependencies(protocol).iter().filter_map(|dependency| {
+            let name = match dependency {
+                tcl_registry::model::binding::PackageResolverDependency::GlobalVariable(name) => (*name).to_owned(),
+                tcl_registry::model::binding::PackageResolverDependency::GlobalArrayElement { array, element } => format!("{array}({element})"),
+                tcl_registry::model::binding::PackageResolverDependency::WorkingDirectory
+                | tcl_registry::model::binding::PackageResolverDependency::Filesystem => return None,
+            };
+            Some(crate::var_resolve::resolve_place(&name, &self.source_variables, false, registry))
+        }).collect::<Vec<_>>();
+        if places.iter().any(|place| {
+            dependencies
+                .iter()
+                .any(|dependency| crate::place::overlap(place, dependency))
+        }) {
+            Arc::make_mut(&mut self.revoked_loaders)
+                .extend(self.baseline.trusted_loaders.keys().cloned());
+        }
+        for loader in self.baseline.trusted_loaders.values() {
+            if loader.state_dependency_namespaces.is_empty() {
+                continue;
+            }
+            let modelled = loader
+                .modelled_state_variables
+                .iter()
+                .map(|name| {
+                    crate::var_resolve::resolve_place(name, &self.source_variables, false, registry)
+                })
+                .collect::<Vec<_>>();
+            let affected = places.iter().any(|place| {
+                if place.dynamic
+                    || place.kind == crate::place::PlaceKind::UpvarAlias
+                    || (place.kind == crate::place::PlaceKind::Unknown
+                        && place.ns == crate::place::LOCAL_NS)
+                {
+                    return true;
+                }
+                let actual = tcl_syntax::naming::key_segments(&place.ns);
+                if !loader.state_dependency_namespaces.iter().any(|namespace| {
+                    let dependency = tcl_syntax::naming::key_segments(namespace);
+                    actual.starts_with(&dependency)
+                        || (place.kind == crate::place::PlaceKind::Unknown
+                            && dependency.starts_with(&actual))
+                }) {
+                    return false;
+                }
+                observer_places.contains(place)
+                    || !modelled.iter().any(|allowed| {
+                        allowed.kind == place.kind
+                            && allowed.ns == place.ns
+                            && allowed.name == place.name
+                            && allowed.index == place.index
+                    })
+            });
+            if affected {
+                Arc::make_mut(&mut self.tainted_provider_state).insert(loader.package.clone());
+            }
+        }
+    }
+
+    fn provider_lookups_are_live(&self, loader: &TrustedPackageLoader) -> bool {
+        self.provider_lookup_dependencies_are_live(
+            loader
+                .lookup_dependencies
+                .iter()
+                .chain(&loader.installed_lookup_dependencies),
+        )
+    }
+
+    fn provider_lookup_dependencies_are_live<'a>(
+        &self,
+        mut dependencies: impl Iterator<Item = &'a TrustedCommandLookup>,
+    ) -> bool {
+        dependencies.all(|dependency| {
+            let Some(namespace_key) = self.namespace_for_rooted_operand(&dependency.namespace)
+            else {
+                return false;
+            };
+            let proof = source_binding(self, &dependency.head, &namespace_key);
+            if proof.proved_target().is_some_and(|target| {
+                target.registry_backed
+                    && target.prepended.is_empty()
+                    && tcl_registry::command_descriptor_labels_match(
+                        &target.command,
+                        &dependency.registry_identity,
+                    )
+                    && target.implementation_generation == 0
+            }) {
+                return true;
+            }
+            !dependency.required
+                && self.definitely_absent(&dependency.head, &namespace_key)
+                && self
+                    .source_keys(&dependency.head, &namespace_key)
+                    .iter()
+                    .all(|slot| {
+                        !self.bindings.contains_key(slot)
+                            && !slot.authored_spelling().is_some_and(|slot| {
+                                self.baseline.semantics.binding_names().contains(slot)
+                            })
+                    })
+        })
+    }
+
+    fn loaded_provider(&self, package: &str) -> Option<&TrustedPackageLoader> {
+        if self.opaque_domain {
+            return None;
+        }
+        let provisions = self.packages.get(package)?;
+        if provisions.len() != 1 {
+            return None;
+        }
+        let provision = provisions.first()?;
+        let loader = self.baseline.trusted_loaders.get(package)?;
+        if loader.required_core_family.is_some_and(|family| {
+            self.baseline
+                .dialect
+                .and_then(tcl_registry::InvocationDialect::family)
+                != Some(family)
+        }) {
+            return None;
+        }
+        (provision.present
+            && provision.implementation.as_deref() == Some(loader.implementation_id.as_str()))
+        .then_some(loader)
+    }
+
+    fn initial(registry: &CommandRegistry) -> Self {
+        let baseline = Arc::new(BindingBaseline::for_registry(registry));
+        Self::initial_from_baseline(registry, baseline)
+    }
+
+    fn initial_from_baseline(registry: &CommandRegistry, baseline: Arc<BindingBaseline>) -> Self {
+        let mut exports: BTreeMap<String, Vec<tcl_core_types::NameBytes>> = BTreeMap::new();
+        let mut namespaces = BTreeSet::from(["::".to_owned()]);
+        if let Some(context) = baseline.hosted_execution_context {
+            namespaces.extend(
+                tcl_registry::f5::runtime_namespaces(context)
+                    .iter()
+                    .map(|namespace| (*namespace).to_owned()),
+            );
+        }
+        for command in baseline.semantics.binding_names() {
+            let (holder, tail) = tcl_syntax::naming::key_holder_and_tail(command);
+            namespaces.insert(if holder.is_empty() {
+                "::".to_owned()
+            } else {
+                holder.to_owned()
+            });
+            if registry
+                .get(command)
+                .is_some_and(|spec| spec.is_namespace_exported)
+                && command.is_ascii()
+                && !command.as_bytes().contains(&0)
+            {
+                exports
+                    .entry(holder.to_owned())
+                    .or_default()
+                    .push(tcl_core_types::NameBytes::from(tail.as_bytes()));
+            }
+        }
+        let mut state = Self {
+            baseline,
+            namespace_exports: Arc::new(
+                exports
+                    .into_iter()
+                    .map(|(name, patterns)| (name, BTreeSet::from([patterns])))
+                    .collect(),
+            ),
+            namespaces: Arc::new(namespaces.into_iter().collect()),
+            ..Self::default()
+        };
+        state.original_command_world =
+            Arc::new(source_command_world::OriginalSourceCommandWorld::for_baseline(&state));
+        if state.baseline.native_entry.is_none()
+            && !state.baseline.unknown_entry
+            && let Some(dialect) = state.baseline.dialect
+            && let Some(support) = registry
+                .native_class_factory_recipe(
+                    "oo::configurable",
+                    dialect,
+                    state.baseline.invocation_realm,
+                )
+                .and_then(tcl_registry::native_tcloo_bootstrap::NativeClassFactoryRecipe::support)
+        {
+            for receiver in [
+                tcl_registry::definer::DefinitionReceiver::Instance,
+                tcl_registry::definer::DefinitionReceiver::Class,
+            ] {
+                let namespace =
+                    SourceNamespaceKey::authored(support.definition_namespace(receiver));
+                let path = support
+                    .definition_path(receiver)
+                    .iter()
+                    .map(|name| SourceNamespaceKey::authored(*name))
+                    .collect::<Vec<_>>();
+                if state.namespaces.contains(&namespace)
+                    && path.iter().all(|key| state.namespaces.contains(key))
+                {
+                    Arc::make_mut(&mut state.namespace_paths)
+                        .insert(namespace, BTreeSet::from([path]));
+                }
+            }
+        }
+        state
+    }
+
+    fn initial_with_options(
+        registry: &CommandRegistry,
+        options: SourceAnalysisOptions<'_>,
+        config: Option<tcl_lexer::LexerConfig>,
+    ) -> Self {
+        if let Some(entry) = options.source_point_entry {
+            if let Some(state) = entry.child_state(registry, options, config) {
+                return state;
+            }
+            // An invalid inherited point is terminal unavailable history.
+            // It must never fall through to a fresh authoring baseline.
+            let mut baseline = BindingBaseline {
+                source_point_entry: Some(entry.clone()),
+                metadata_context:
+                    crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable,
+                execution_name_policy: None,
+                unknown_entry: true,
+                ..BindingBaseline::for_registry(registry)
+            };
+            baseline.refresh_fingerprint();
+            return Self::initial_entry_from_baseline(registry, Arc::new(baseline));
+        }
+        let mut baseline = BindingBaseline::for_registry(registry);
+        if options.native_entry.is_some()
+            || options.execution_name_policy.is_some()
+            || options.invocation_dialect.is_some()
+            || options.vendor_source_input.is_some()
+        {
+            baseline.execution_name_policy = options.execution_name_policy();
+        }
+        baseline.metadata_context = options.retained_metadata_context();
+        baseline.source_read_config = config.map_or(
+            crate::var_resolve::SourceReadConfiguration::Standalone,
+            crate::var_resolve::SourceReadConfiguration::Selected,
+        );
+        baseline.logical_source_input = options.retained_logical_source_input(registry, config);
+        baseline.vendor_source_input = options.retained_vendor_source_input(registry, config);
+        baseline.hosted_execution_context = options.hosted_execution_context;
+        baseline.native_compilation = options.native_compilation;
+        baseline.compiled_variable_provider = options.compiled_variable_provider;
+        baseline.invocation_realm = options.invocation_realm;
+        baseline.unknown_entry = options.unknown_entry;
+        baseline.native_entry = options.native_entry.cloned().map(Arc::new);
+        baseline.declared_surface = options.retained_declared_command_contracts();
+        baseline.declared_commands = Arc::new(
+            tcl_registry::unique_command_descriptor_coordinates(
+                tcl_registry::model::DocumentCommandSurface::new(
+                    registry,
+                    options.declared_commands,
+                )
+                .declared_descriptor_keys(),
+            )
+            .map(|(coordinate, key)| (coordinate, key.label().to_owned()))
+            .collect(),
+        );
+        baseline.trusted_source_modules = options.trusted_source_modules.to_vec();
+        baseline.trusted_loaders = options
+            .trusted_package_loaders
+            .iter()
+            .map(|loader| (loader.package.clone(), loader.clone()))
+            .collect();
+        let logical = config.map_or_else(
+            || options.logical_invocation_dialect(),
+            |config| options.source_invocation_dialect(config),
+        );
+        if options.native_entry.is_some() && logical.is_none() {
+            baseline.dialect = None;
+            baseline.release = None;
+            baseline.import_binding = None;
+        }
+        if let Some(dialect) = logical {
+            baseline.semantics = match baseline.logical_source_input.as_ref() {
+                Some(input) => registry.authored_source_semantics_in_context(
+                    input.context_registry().context(),
+                    baseline.invocation_realm,
+                ),
+                None => registry.effective_semantics_for_dialect_in_realm(
+                    dialect,
+                    tcl_dialect::model::InvocationRealm::InterpreterRuntime,
+                ),
+            };
+            baseline.import_binding = dialect.namespace_import_binding;
+            baseline.release = dialect.tcl_version;
+            baseline.dialect = Some(dialect);
+        }
+        baseline.refresh_fingerprint();
+        Self::initial_entry_from_baseline(registry, Arc::new(baseline))
+    }
+
+    /// Rebuild entry state from immutable entry facts, never a dispatch world's
+    /// already-applied substitutions, declarations or command mutations.
+    fn initial_entry_from_baseline(
+        registry: &CommandRegistry,
+        baseline: Arc<BindingBaseline>,
+    ) -> Self {
+        let mut state = Self::initial_from_baseline(registry, baseline);
+        let mut variables = crate::var_resolve::ResolveContext::for_namespace("::");
+        variables.frame_kind = crate::var_resolve::VariableFrameKind::Global;
+        variables.invocation_dialect = state.baseline.dialect;
+        variables.source_read_configuration = state.baseline.source_read_config;
+        variables.execution_name_policy = state.baseline.execution_name_policy;
+        variables.hosted_execution_context = state.baseline.hosted_execution_context;
+        variables.namespace_identities = state.namespaces.iter().cloned().collect();
+        variables.known_namespaces = state
+            .namespaces
+            .iter()
+            .filter_map(SourceNamespaceKey::advisory_key)
+            .collect();
+        if !state.baseline.unknown_entry {
+            variables.namespace_cells = crate::variable_bindings::fresh_namespace_cells(registry);
+        }
+        state.source_variables = Arc::new(variables);
+        state.variable_frame = crate::var_resolve::VariableExecutionFrame::Global;
+        if let Some(entry) = state.baseline.native_entry.clone() {
+            state.install_runtime_entry(&entry);
+        }
+        if state.baseline.unknown_entry && state.baseline.native_entry.is_none() {
+            state.mark_opaque_binding_mutation();
+            state.loader_handler_unknown = true;
+        }
+        state
+    }
     #[cfg(test)]
     pub(crate) fn effective_semantics(&self) -> &Arc<EffectiveRegistrySemantics> {
         &self.baseline.semantics
@@ -448,29 +14219,78 @@ impl ModuleCommandBindings {
     /// owns one baseline [`Arc`], so its allocation identity is sufficient.
     fn same_state(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.baseline, &other.baseline)
+            && (Arc::ptr_eq(&self.original_command_world, &other.original_command_world)
+                || self.original_command_world == other.original_command_world)
+            && self.logical_alias_prefixes == other.logical_alias_prefixes
+            && self.ordinary_literal_pool == other.ordinary_literal_pool
+            && self.class_definitions == other.class_definitions
+            && self.object_instances == other.object_instances
+            && self.bounded_constructions == other.bounded_constructions
+            && self.tainted_object_dispatch == other.tainted_object_dispatch
+            && self.tainted_provider_state == other.tainted_provider_state
+            && self.command_observers == other.command_observers
+            && self.source_variables == other.source_variables
+            && self.variable_frame == other.variable_frame
             && (Arc::ptr_eq(&self.bindings, &other.bindings) || self.bindings == other.bindings)
+            && self.objects == other.objects
+            && self.namespace_exports == other.namespace_exports
+            && self.namespace_paths == other.namespace_paths
+            && self.namespaces == other.namespaces
+            && self.unknown_lookup_namespaces == other.unknown_lookup_namespaces
+            && self.unknown_namespace_paths == other.unknown_namespace_paths
+            && self.namespace_unknown_handlers == other.namespace_unknown_handlers
+            && self.unknown_export_namespaces == other.unknown_export_namespaces
+            && self.packages == other.packages
+            && self.revoked_loaders == other.revoked_loaders
+            && self.loader_handler_unknown == other.loader_handler_unknown
             && (Arc::ptr_eq(&self.root_boundary_bindings, &other.root_boundary_bindings)
                 || self.root_boundary_bindings == other.root_boundary_bindings)
             && self.opaque_domain == other.opaque_domain
             && self.opaque_binding_mutation == other.opaque_binding_mutation
             && self.dynamic_proc_binding == other.dynamic_proc_binding
             && self.unnameable_rebinding_subject == other.unnameable_rebinding_subject
+            && self.unclosed_command_world == other.unclosed_command_world
             && self.namespace_resolution == other.namespace_resolution
             && (Arc::ptr_eq(&self.procedure_bodies, &other.procedure_bodies)
                 || self.procedure_bodies == other.procedure_bodies)
             && self.rebound_names == other.rebound_names
             && self.proc_rebound_names == other.proc_rebound_names
             && self.has_redefined_procedures == other.has_redefined_procedures
+            && self.source_order_user_call_effects == other.source_order_user_call_effects
     }
 
     fn non_binding_observation_stamp(&self) -> NonBindingObservationStamp {
         NonBindingObservationStamp {
+            original_command_world: Arc::clone(&self.original_command_world),
+            logical_alias_prefixes: Arc::clone(&self.logical_alias_prefixes),
+            ordinary_literal_pool: self.ordinary_literal_pool.clone(),
+            class_definitions: Arc::clone(&self.class_definitions),
+            object_instances: Arc::clone(&self.object_instances),
+            bounded_constructions: Arc::clone(&self.bounded_constructions),
+            tainted_object_dispatch: Arc::clone(&self.tainted_object_dispatch),
+            tainted_provider_state: Arc::clone(&self.tainted_provider_state),
+            command_observers: Arc::clone(&self.command_observers),
+            source_variables: Arc::clone(&self.source_variables),
+            variable_frame: self.variable_frame.clone(),
+            objects: Arc::clone(&self.objects),
+            namespace_exports: Arc::clone(&self.namespace_exports),
+            namespace_paths: Arc::clone(&self.namespace_paths),
+            namespaces: Arc::clone(&self.namespaces),
+            unknown_lookup_namespaces: Arc::clone(&self.unknown_lookup_namespaces),
+            unknown_namespace_paths: Arc::clone(&self.unknown_namespace_paths),
+            namespace_unknown_handlers: Arc::clone(&self.namespace_unknown_handlers),
+            unknown_export_namespaces: Arc::clone(&self.unknown_export_namespaces),
+            packages: Arc::clone(&self.packages),
+            revoked_loaders: Arc::clone(&self.revoked_loaders),
+            loader_handler_unknown: self.loader_handler_unknown,
             opaque_domain: self.opaque_domain,
             opaque_binding_mutation: self.opaque_binding_mutation,
             dynamic_proc_binding: self.dynamic_proc_binding,
             unnameable_rebinding_subject: self.unnameable_rebinding_subject,
+            unclosed_command_world: self.unclosed_command_world,
             namespace_changed: self.namespace_resolution.changed,
             namespace_dynamic: self.namespace_resolution.dynamic,
+            namespace_ensembles: self.namespace_resolution.ensembles,
             namespace_rebound_count: self.namespace_resolution.rebound_names.len(),
             namespace_opaque_count: self.namespace_resolution.opaque_namespaces.len(),
             procedure_body_count: self.procedure_bodies.len(),
@@ -483,9 +14303,34 @@ impl ModuleCommandBindings {
 
 impl std::hash::Hash for ModuleCommandBindings {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.original_command_world.hash(state);
+        self.logical_alias_prefixes.hash(state);
+        self.current_source_origin.hash(state);
+        self.ordinary_literal_pool.hash(state);
+        self.allocation_counts.hash(state);
+        self.namespace_allocation_counts.hash(state);
+        self.class_definitions.hash(state);
+        self.object_instances.hash(state);
+        self.bounded_constructions.hash(state);
+        self.tainted_object_dispatch.hash(state);
+        self.tainted_provider_state.hash(state);
+        self.command_observers.hash(state);
+        self.source_variables.hash(state);
+        self.variable_frame.hash(state);
         let mut entries: Vec<_> = self.bindings.iter().collect();
         entries.sort_unstable_by(|a, b| a.0.cmp(b.0));
         entries.hash(state);
+        self.objects.hash(state);
+        self.namespace_exports.hash(state);
+        self.namespace_paths.hash(state);
+        self.namespaces.hash(state);
+        self.unknown_lookup_namespaces.hash(state);
+        self.unknown_namespace_paths.hash(state);
+        self.namespace_unknown_handlers.hash(state);
+        self.unknown_export_namespaces.hash(state);
+        self.packages.hash(state);
+        self.revoked_loaders.hash(state);
+        self.loader_handler_unknown.hash(state);
         let mut boundary_entries: Vec<_> = self.root_boundary_bindings.iter().collect();
         boundary_entries.sort_unstable_by(|a, b| a.0.cmp(b.0));
         boundary_entries.hash(state);
@@ -494,6 +14339,7 @@ impl std::hash::Hash for ModuleCommandBindings {
         self.opaque_binding_mutation.hash(state);
         self.dynamic_proc_binding.hash(state);
         self.unnameable_rebinding_subject.hash(state);
+        self.unclosed_command_world.hash(state);
         self.namespace_resolution.hash(state);
         self.procedure_bodies.hash(state);
         self.rebound_names.hash(state);
@@ -515,6 +14361,8 @@ pub(crate) struct ResolvedBindingInvocation {
     /// [`Self::arguments`] retains their source spelling for diagnostics and
     /// token metadata alignment.
     literal_arguments: Vec<Option<String>>,
+    /// Genuine written scalar substitutions; captured alias values have none.
+    source_scalar_arguments: Vec<Option<String>>,
     /// Exact effective argv length after alias-prefix insertion. Expansion or
     /// another indeterminate source word leaves this unknown.
     exact_argument_count: Option<usize>,
@@ -547,14 +14395,95 @@ pub(crate) enum ResolvedFrameBody {
 }
 
 impl ResolvedBindingInvocation {
-    /// Resolve a frame-evaluated body after alias-prefix composition. This is
-    /// the sole owner of body-word positioning for late aliases to `eval`,
-    /// `uplevel`, and any dialect command with the same registry descriptor.
-    pub(crate) fn resolved_frame_body(
+    pub(crate) fn frame_alias_layout(
+        &self,
+        spec: tcl_registry::frame_effect::FrameEffectSpec,
+        registry: &CommandRegistry,
+        dialect: Option<tcl_registry::InvocationDialect>,
+    ) -> tcl_registry::frame_effect::FrameArgumentResolution {
+        if self.exact_argument_count != Some(self.arguments.len()) {
+            return tcl_registry::frame_effect::FrameArgumentResolution::Unknown;
+        }
+        let words = self
+            .literal_arguments
+            .iter()
+            .map(|value| {
+                value.as_deref().map_or(
+                    tcl_registry::InvocationWord::Dynamic,
+                    tcl_registry::InvocationWord::Literal,
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut arguments =
+            tcl_registry::InvocationArguments::Structured(&words).with_profile(registry.profile());
+        if let Some(dialect) = dialect {
+            arguments = arguments.with_dialect(dialect);
+        }
+        spec.successful_layout(arguments).layout
+    }
+
+    pub(crate) fn literal_argument(&self, index: usize) -> Option<&str> {
+        self.literal_arguments.get(index)?.as_deref()
+    }
+
+    pub(crate) fn scalar_parameter_argument<'a>(
+        &'a self,
+        index: usize,
+        parameters: &[String],
+    ) -> Option<&'a str> {
+        let name = self.source_scalar_arguments.get(index)?.as_deref()?;
+        parameters
+            .iter()
+            .any(|parameter| parameter == name)
+            .then_some(name)
+    }
+
+    /// Explicit standalone frame-body shape under the caller's catalogue.
+    /// A deliberate unprofiled query keeps its own-surface route; it does not
+    /// manufacture an analysis input, native entry or default context.
+    pub(crate) fn resolved_frame_body_standalone(
         &self,
         registry: &CommandRegistry,
         bindings: &ModuleCommandBindings,
         namespace: &crate::ir_helpers::ExecutionNamespace,
+    ) -> ResolvedFrameBody {
+        let metadata = registry
+            .profile()
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+            .map(crate::registry_invocation::InvocationMetadataContext::from);
+        self.resolved_frame_body_with_optional_metadata(registry, bindings, namespace, metadata)
+    }
+
+    /// Frame-body layout under actual supplied availability, without a
+    /// Native frame-entry or execution grant. Missing input widens selection.
+    pub(crate) fn resolved_frame_body_with_metadata_context(
+        &self,
+        registry: &CommandRegistry,
+        bindings: &ModuleCommandBindings,
+        namespace: &crate::ir_helpers::ExecutionNamespace,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    ) -> ResolvedFrameBody {
+        let Some(metadata) = metadata.filter(|metadata| metadata.matches_registry(registry)) else {
+            return ResolvedFrameBody::Opaque {
+                selection: ResolvedFrameBodySelection::Selected(
+                    tcl_registry::frame_effect::FrameLevel::Dynamic,
+                ),
+            };
+        };
+        self.resolved_frame_body_with_optional_metadata(
+            registry,
+            bindings,
+            namespace,
+            Some(metadata),
+        )
+    }
+
+    fn resolved_frame_body_with_optional_metadata(
+        &self,
+        registry: &CommandRegistry,
+        bindings: &ModuleCommandBindings,
+        namespace: &crate::ir_helpers::ExecutionNamespace,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
     ) -> ResolvedFrameBody {
         use tcl_registry::frame_effect::FrameArgLayout;
 
@@ -567,7 +14496,42 @@ impl ResolvedBindingInvocation {
                 (0, refs.len(), ResolvedFrameBodySelection::Current)
             }
             FrameArgLayout::ScriptInSelectedFrame => {
-                let (level, body) = spec.resolve_for_version(&refs, registry.runtime_version());
+                let words = self
+                    .literal_arguments
+                    .iter()
+                    .map(|word| {
+                        word.as_deref().map_or(
+                            tcl_registry::InvocationWord::Dynamic,
+                            tcl_registry::InvocationWord::Literal,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let mut invocation = tcl_registry::InvocationWords::structured(
+                    tcl_registry::InvocationWord::Literal(&self.command),
+                    &words,
+                )
+                .with_profile(registry.profile());
+                if let Some(dialect) = bindings.baseline.dialect {
+                    invocation = invocation.with_dialect(dialect);
+                }
+                let arguments = invocation.arguments();
+                let (width, level) = match spec.resolve_arguments(arguments) {
+                    tcl_registry::frame_effect::FrameArgumentResolution::Valid {
+                        level_word_len,
+                        level,
+                    } => (level_word_len, level),
+                    tcl_registry::frame_effect::FrameArgumentResolution::Invalid => {
+                        return ResolvedFrameBody::KnownError;
+                    }
+                    tcl_registry::frame_effect::FrameArgumentResolution::Unknown => {
+                        return ResolvedFrameBody::Opaque {
+                            selection: ResolvedFrameBodySelection::Selected(
+                                tcl_registry::frame_effect::FrameLevel::Dynamic,
+                            ),
+                        };
+                    }
+                };
+                let body = &refs[width..];
                 (
                     refs.len().saturating_sub(body.len()),
                     body.len(),
@@ -584,10 +14548,12 @@ impl ResolvedBindingInvocation {
         if self.exact_argument_count.is_none() || body_len != 1 {
             return ResolvedFrameBody::Opaque { selection };
         }
-        readable_script_argument(self, body_index, registry, bindings, namespace)
-            .map_or(ResolvedFrameBody::Opaque { selection }, |source| {
-                ResolvedFrameBody::Readable { source, selection }
-            })
+        readable_script_argument_with_optional_metadata(
+            self, body_index, registry, bindings, namespace, metadata,
+        )
+        .map_or(ResolvedFrameBody::Opaque { selection }, |source| {
+            ResolvedFrameBody::Readable { source, selection }
+        })
     }
 }
 
@@ -608,18 +14574,29 @@ impl ModuleCommandBindings {
         true
     }
 
+    /// Fresh F5 rule-loader world ([`BindingBaseline::hosted_rule_loader_world`]).
+    pub(super) fn hosted_rule_loader_world(&self) -> bool {
+        self.baseline.hosted_rule_loader_world()
+    }
+
     /// Widen command resolution without claiming an unknown command-table
     /// mutation. Namespace lookup changes are relevant to source-safe
     /// resolution but do not by themselves invalidate optimiser trust.
     fn mark_opaque_resolution(&mut self) {
+        Arc::make_mut(&mut self.original_command_world).withdraw();
         self.opaque_domain = true;
     }
 
     /// Widen both command resolution and the optimiser's command-trust
     /// projection because an unbounded command-binding effect may occur.
     fn mark_opaque_binding_mutation(&mut self) {
+        Arc::make_mut(&mut self.original_command_world).withdraw();
+        self.ordinary_literal_pool = None;
+        Arc::make_mut(&mut self.object_instances).invalidate_dispatch(true);
         self.opaque_domain = true;
         self.opaque_binding_mutation = true;
+        Arc::make_mut(&mut self.namespaces).retain(SourceNamespaceKey::is_root);
+        Arc::make_mut(&mut self.source_variables).widen();
     }
 
     /// Record the narrow event that invalidates an otherwise-retained
@@ -641,16 +14618,109 @@ impl ModuleCommandBindings {
         name: &str,
         namespace: &crate::ir_helpers::ExecutionNamespace,
     ) {
-        let crate::ir_helpers::ExecutionNamespace::Exact(namespace) = namespace else {
+        let Some(context) = namespace.for_head_context(name) else {
             self.mark_dynamic_proc_binding();
             return;
         };
-        insert_rebound_candidates(name, namespace, &mut self.proc_rebound_names);
+        if let SourceNamespaceKey::Authored(namespace) = context.as_ref() {
+            self.proc_rebound_names.extend(
+                tcl_syntax::naming::bareword_resolution_candidates(namespace, name)
+                    .into_iter()
+                    .map(|candidate| nqn(&candidate)),
+            );
+            return;
+        }
+        let Ok(candidates) = self.source_keys_checked(name, context.as_ref()) else {
+            self.mark_dynamic_proc_binding();
+            return;
+        };
+        let Some(labels) = candidates
+            .iter()
+            .map(crate::command_binding::ModuleCommandBindings::command_key_label)
+            .collect::<Option<Vec<_>>>()
+        else {
+            self.mark_dynamic_proc_binding();
+            return;
+        };
+        // Labels only invalidate procedure trust. The original typed slots
+        // remain the command-table lookup and mutation identities.
+        self.proc_rebound_names.extend(labels);
     }
 
     /// Build the closed may-binding state for every retained executable root.
     #[must_use]
     pub(crate) fn analyse(module: &Module, registry: &CommandRegistry) -> Self {
+        Self::analyse_with_options(module, registry, module.source_entry.options())
+    }
+
+    /// Build the executable may-state under the same entry contract as source
+    /// interpretation. Catalogue-only callers retain unknown loader effects.
+    #[must_use]
+    pub(crate) fn analyse_with_options(
+        module: &Module,
+        registry: &CommandRegistry,
+        options: SourceAnalysisOptions<'_>,
+    ) -> Self {
+        if let Some(observed) = Self::analyse_retained_source(module, registry, options) {
+            return observed;
+        }
+        Self::analyse_retained_roots(module, registry, options)
+    }
+
+    /// Prefer the source kernel's actual execution history over IR replay.
+    fn analyse_retained_source(
+        module: &Module,
+        registry: &CommandRegistry,
+        options: SourceAnalysisOptions<'_>,
+    ) -> Option<Self> {
+        if let Some(retained) = &module.retained_source_bindings
+            && let Some(observed) = retained.projection(module, registry, options)
+        {
+            return Some(observed);
+        }
+        if !module.source.is_empty() {
+            let config = module.native_lexer_config();
+            let namespace = if module.top_level_namespace.is_empty() {
+                "::"
+            } else {
+                &module.top_level_namespace
+            };
+            let frame = options.source_point_entry.map_or_else(
+                || {
+                    retained_source::source_analysis_frame(
+                        options.native_entry,
+                        namespace,
+                        module.top_level_kind,
+                    )
+                },
+                |point| point.frame().clone(),
+            );
+            let interpreted = SourceCommandBindings::analyse_image_in_frame_with_purpose(
+                &module.source,
+                &frame,
+                config,
+                registry,
+                options,
+                match module.top_level_kind {
+                    crate::ir::TopLevelKind::Script => {
+                        tcl_lexer::SourceSegmentationPurpose::WholeInput
+                    }
+                    crate::ir::TopLevelKind::ProcedureBody => {
+                        tcl_lexer::SourceSegmentationPurpose::NestedScript
+                    }
+                },
+            )?;
+            return Some(interpreted.module_projection(module));
+        }
+        None
+    }
+
+    /// An IR-only caller supplies executable roots without an original source instance.
+    fn analyse_retained_roots(
+        module: &Module,
+        registry: &CommandRegistry,
+        options: SourceAnalysisOptions<'_>,
+    ) -> Self {
         let discarded = discarded_procedure_history(module, registry);
         let opaque_binding_mutation = discarded.opaque
             || module.oo_evidence.unretained_executable_roots
@@ -665,20 +14735,35 @@ impl ModuleCommandBindings {
                 matches!(namespace, crate::ir::ExecutionNamespace::RuntimeSelected)
                     && crate::ir_helpers::requires_runtime_command_namespace(script, registry)
             });
-        let mut procedure_bodies: BTreeSet<String> = module.procedures.keys().cloned().collect();
+        let mut procedure_bodies: BTreeSet<String> = module
+            .procedures
+            .values()
+            .map(|procedure| procedure.qualified_name.clone())
+            .collect();
         for discarded_module in &discarded.modules {
-            procedure_bodies.extend(discarded_module.procedures.keys().cloned());
+            procedure_bodies.extend(
+                discarded_module
+                    .procedures
+                    .values()
+                    .map(|procedure| procedure.qualified_name.clone()),
+            );
         }
-        let state = Self {
-            baseline: Arc::new(BindingBaseline::for_module(registry, module)),
-            opaque_domain: opaque_binding_mutation,
-            opaque_binding_mutation,
+        let mut state = Self {
+            opaque_domain: opaque_binding_mutation || options.unknown_entry,
+            opaque_binding_mutation: opaque_binding_mutation || options.unknown_entry,
             dynamic_proc_binding,
             procedure_bodies: Arc::new(procedure_bodies),
-            rebound_names: discarded.rebound_names,
+            rebound_names: discarded
+                .rebound_names
+                .into_iter()
+                .map(SourceCommandKey::authored)
+                .collect(),
             has_redefined_procedures: !module.redefined_procedures.is_empty(),
-            ..Self::default()
+            ..Self::initial_with_options(registry, options, Some(module.native_lexer_config()))
         };
+        let baseline = Arc::make_mut(&mut state.baseline);
+        baseline.declared = Arc::new(module.declared_frame_effects.clone());
+        baseline.refresh_fingerprint();
         // Execute the top-level root once in source order. Its intermediate
         // states are observable, but they are not valid entry states for a
         // later procedure invocation: replaying a rename/restore sequence
@@ -692,15 +14777,13 @@ impl ModuleCommandBindings {
         for discarded_module in &discarded.modules {
             retained_roots.extend_module_roots(discarded_module, false);
         }
-        let top = {
-            let mut context = BindingWalkContext {
-                registry,
-                retained_roots: &mut retained_roots,
-                timeline: None,
-                source_order_mode: false,
-            };
-            collect_binding_states(top_level, &mut context, &state, &top_namespace)
-        };
+        let top = collect_normal_binding_states(
+            top_level,
+            registry,
+            &state,
+            &top_namespace,
+            &mut retained_roots,
+        );
         let mut live = top.post;
         let mut observed = top.observed;
 
@@ -714,15 +14797,13 @@ impl ModuleCommandBindings {
             let body_roots = retained_roots.snapshot();
             let mut next = live.clone();
             for root in &body_roots {
-                let outcome = {
-                    let mut context = BindingWalkContext {
-                        registry,
-                        retained_roots: &mut retained_roots,
-                        timeline: None,
-                        source_order_mode: false,
-                    };
-                    collect_binding_states(&root.script, &mut context, &live, &root.namespace)
-                };
+                let outcome = collect_normal_binding_states(
+                    &root.script,
+                    registry,
+                    &live,
+                    &root.namespace,
+                    &mut retained_roots,
+                );
                 if !next.same_state(&outcome.post) {
                     next.join(&outcome.post);
                 }
@@ -736,6 +14817,29 @@ impl ModuleCommandBindings {
                 if !live.same_state(&outcome.observed) && !observed.same_state(&outcome.observed) {
                     observed.join(&outcome.observed);
                 }
+            }
+            for root in retained_roots
+                .source_roots
+                .values()
+                .cloned()
+                .collect::<Vec<_>>()
+            {
+                let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+                    namespace: root.namespace.clone(),
+                    identity: root.identity.clone(),
+                }
+                .with_namespace_identity(root.namespace_key.clone());
+                let outcome = interpret_binding_source(
+                    &root.source,
+                    root.offset,
+                    &root.namespace,
+                    &frame,
+                    registry,
+                    &live,
+                    &mut retained_roots,
+                );
+                next.join(&outcome.post);
+                observed.join(&outcome.observed);
             }
             if next.same_state(&before) && retained_roots.len() == root_count_before {
                 // Publish every state that was genuinely observable during a
@@ -780,8 +14884,9 @@ impl ModuleCommandBindings {
             initial.source_order_user_call_effects = Some(self.source_order_call_boundary());
         }
         if top_level_root {
-            initial.bindings = Arc::new(HashMap::new());
-            initial.root_boundary_bindings = Arc::new(HashMap::new());
+            initial.bindings = Arc::new(SourceCommandTable::default());
+            initial.root_boundary_bindings = Arc::new(SourceCommandTable::default());
+            initial.logical_alias_prefixes = Arc::new(BTreeMap::new());
             initial.opaque_domain = false;
             initial.opaque_binding_mutation = false;
             initial.dynamic_proc_binding = false;
@@ -823,7 +14928,38 @@ impl ModuleCommandBindings {
         &self,
         stmt: &Statement,
         registry: &CommandRegistry,
-        namespace: &str,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+    ) -> Vec<ResolvedBindingInvocation> {
+        let context = registry
+            .profile()
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+        let context = context.map(crate::registry_invocation::InvocationMetadataContext::from);
+        self.resolve_statement_with_optional_metadata(stmt, registry, context, namespace)
+    }
+
+    /// Original may-target metadata under supplied complete availability.
+    /// Missing or foreign metadata refuses; targets and composed original
+    /// operands do not establish a Native frame, completion or physical effect.
+    #[must_use]
+    pub(crate) fn resolve_statement_with_metadata_context(
+        &self,
+        stmt: &Statement,
+        registry: &CommandRegistry,
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+    ) -> Vec<ResolvedBindingInvocation> {
+        let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+            return Vec::new();
+        };
+        self.resolve_statement_with_optional_metadata(stmt, registry, Some(context), namespace)
+    }
+
+    fn resolve_statement_with_optional_metadata(
+        &self,
+        stmt: &Statement,
+        registry: &CommandRegistry,
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
     ) -> Vec<ResolvedBindingInvocation> {
         if !stmt.is_executable_invocation() {
             return Vec::new();
@@ -836,24 +14972,37 @@ impl ModuleCommandBindings {
         if tokens.is_none() {
             return Vec::new();
         }
-        let context = registry
-            .profile()
-            .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+
+        let realm = tokens
+            .as_ref()
+            .and_then(|tokens| tokens.source_binding.as_ref())
+            .and_then(SourceInvocationBinding::invocation_realm)
+            .unwrap_or(self.baseline.invocation_realm);
         let mut resolved = Vec::new();
         self.for_each_resolved_invocation(stmt, namespace, |target, words| {
             if !target.registry_backed {
                 return;
             }
             let Some(facts) =
-                tcl_registry::model::semantic::resolve_structured_invocation_in_context(
-                    registry, context, words,
+                tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    registry,
+                    context.map(crate::registry_invocation::InvocationMetadataContext::context),
+                    words,
+                    realm,
                 )
                 .resolved()
                 .map(|resolved| Box::new(resolved.facts()))
             else {
                 return;
             };
-            let mut arguments = target.prepended.clone();
+            let Some(mut arguments) = target
+                .prepended
+                .iter()
+                .map(|word| word.as_registry_word().literal().map(str::to_owned))
+                .collect::<Option<Vec<_>>>()
+            else {
+                return;
+            };
             arguments.extend(args.iter().cloned());
             let invocation_arguments = words.arguments();
             let exact_argument_count = invocation_arguments.exact_argv_len();
@@ -867,12 +15016,35 @@ impl ModuleCommandBindings {
                     | tcl_registry::InvocationArgument::Missing => None,
                 })
                 .collect();
+            let source_scalar_arguments = arguments
+                .iter()
+                .enumerate()
+                .map(|(index, _)| {
+                    let written = index.checked_sub(target.prepended.len())?;
+                    let tokens = tokens.as_ref()?;
+                    let word = tokens.words().get(written.checked_add(1)?)?;
+                    if word.legacy_text() != *args.get(written)? {
+                        return None;
+                    }
+                    let config = tokens
+                        .source_binding
+                        .as_ref()?
+                        .original_lexer_config_for_tokens(tokens)?;
+                    let (spelling, source) = word.sole_variable_substitution()?;
+                    if source.provenance != crate::ir::Provenance::Source {
+                        return None;
+                    }
+                    tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
+                        .map(str::to_owned)
+                })
+                .collect();
             resolved.push(ResolvedBindingInvocation {
                 command: target.command.clone(),
                 source_span,
                 facts,
                 arguments,
                 literal_arguments,
+                source_scalar_arguments,
                 exact_argument_count,
             });
         });
@@ -888,10 +15060,24 @@ impl ModuleCommandBindings {
     /// A source-aware statement keeps substitution and expansion opaque, while
     /// a hand-built statement without tokens falls back to the all-literal
     /// argument view.
+    fn contextual_invocation_words<'w>(
+        &self,
+        command: &'w str,
+        arguments: &'w [tcl_registry::InvocationWord<'w>],
+    ) -> tcl_registry::InvocationWords<'w> {
+        let words = tcl_registry::InvocationWords::structured(
+            tcl_registry::InvocationWord::Literal(command),
+            arguments,
+        );
+        self.baseline
+            .dialect
+            .map_or(words, |dialect| words.with_dialect(dialect))
+    }
+
     pub(crate) fn for_each_resolved_invocation<F>(
         &self,
         stmt: &Statement,
-        namespace: &str,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
         mut visit: F,
     ) where
         F: for<'w> FnMut(&'w ResolvedCommandTarget, tcl_registry::InvocationWords<'w>),
@@ -929,7 +15115,7 @@ impl ModuleCommandBindings {
                 let mut arguments: Vec<_> = target
                     .prepended
                     .iter()
-                    .map(|word| tcl_registry::InvocationWord::Literal(word.as_str()))
+                    .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
                     .collect();
                 arguments.extend(
                     words
@@ -940,10 +15126,7 @@ impl ModuleCommandBindings {
                 );
                 visit(
                     &target,
-                    tcl_registry::InvocationWords::structured(
-                        tcl_registry::InvocationWord::Literal(&target.command),
-                        &arguments,
-                    ),
+                    self.contextual_invocation_words(&target.command, &arguments),
                 );
             }
             return;
@@ -953,15 +15136,15 @@ impl ModuleCommandBindings {
             let arguments: Vec<_> = target
                 .prepended
                 .iter()
-                .chain(args.iter())
-                .map(|word| tcl_registry::InvocationWord::Literal(word.as_str()))
+                .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+                .chain(
+                    args.iter()
+                        .map(|word| tcl_registry::InvocationWord::Literal(word.as_str())),
+                )
                 .collect();
             visit(
                 &target,
-                tcl_registry::InvocationWords::structured(
-                    tcl_registry::InvocationWord::Literal(&target.command),
-                    &arguments,
-                ),
+                self.contextual_invocation_words(&target.command, &arguments),
             );
         }
     }
@@ -976,7 +15159,7 @@ impl ModuleCommandBindings {
     pub(crate) fn for_each_resolved_command_words<F>(
         &self,
         words: &[crate::ir_helpers::CommandWord],
-        namespace: &str,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
         mut visit: F,
     ) where
         F: for<'w> FnMut(&'w ResolvedCommandTarget, tcl_registry::InvocationWords<'w>),
@@ -991,7 +15174,7 @@ impl ModuleCommandBindings {
             let mut arguments: Vec<_> = target
                 .prepended
                 .iter()
-                .map(|word| tcl_registry::InvocationWord::Literal(word.as_str()))
+                .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
                 .collect();
             arguments.extend(
                 words
@@ -1002,10 +15185,7 @@ impl ModuleCommandBindings {
             );
             visit(
                 &target,
-                tcl_registry::InvocationWords::structured(
-                    tcl_registry::InvocationWord::Literal(&target.command),
-                    &arguments,
-                ),
+                self.contextual_invocation_words(&target.command, &arguments),
             );
         }
     }
@@ -1017,21 +15197,50 @@ impl ModuleCommandBindings {
         &self,
         words: &[crate::ir_helpers::CommandWord],
         registry: &CommandRegistry,
-        namespace: &str,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
     ) -> Vec<tcl_registry::InvocationFacts> {
         let context = registry
             .profile()
             .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+        let context = context.map(crate::registry_invocation::InvocationMetadataContext::from);
+        self.resolve_command_words_with_optional_metadata(words, registry, context, namespace)
+    }
+
+    /// Original may-target metadata under supplied complete availability.
+    /// Missing or foreign metadata refuses; targets and composed original
+    /// operands do not establish a Native frame, completion or physical effect.
+    #[must_use]
+    pub(crate) fn resolve_command_words_with_metadata_context(
+        &self,
+        words: &[crate::ir_helpers::CommandWord],
+        registry: &CommandRegistry,
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+    ) -> Vec<tcl_registry::InvocationFacts> {
+        let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+            return Vec::new();
+        };
+        self.resolve_command_words_with_optional_metadata(words, registry, Some(context), namespace)
+    }
+
+    fn resolve_command_words_with_optional_metadata(
+        &self,
+        words: &[crate::ir_helpers::CommandWord],
+        registry: &CommandRegistry,
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+    ) -> Vec<tcl_registry::InvocationFacts> {
         let mut resolved = Vec::new();
         self.for_each_resolved_command_words(words, namespace, |target, invocation_words| {
             if !target.registry_backed {
                 return;
             }
             if let Some(facts) =
-                tcl_registry::model::semantic::resolve_structured_invocation_in_context(
+                tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
                     registry,
-                    context,
+                    context.map(crate::registry_invocation::InvocationMetadataContext::context),
                     invocation_words,
+                    self.baseline.invocation_realm,
                 )
                 .resolved()
                 .map(|invocation| invocation.facts())
@@ -1055,8 +15264,35 @@ impl ModuleCommandBindings {
         &self,
         stmt: &Statement,
         registry: &CommandRegistry,
-        namespace: &str,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
     ) -> tcl_registry::VariableWriteProjection {
+        self.variable_write_projection_with_metadata_context(
+            stmt,
+            registry,
+            namespace,
+            registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                .map(Into::into),
+        )
+    }
+
+    /// Conditional source footprint using the supplied availability generation.
+    /// Missing or foreign metadata widens; original alias prefixes retain their
+    /// values without certifying a variable write or Native frame entry.
+    pub(crate) fn variable_write_projection_with_metadata_context(
+        &self,
+        stmt: &Statement,
+        registry: &CommandRegistry,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    ) -> tcl_registry::VariableWriteProjection {
+        let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+            return tcl_registry::VariableWriteProjection {
+                opaque_variable_frame: true,
+                ..tcl_registry::VariableWriteProjection::default()
+            };
+        };
         let literal_head = match stmt {
             Statement::Call { tokens, .. } | Statement::Barrier { tokens, .. } => {
                 tokens.as_ref().is_none_or(|tokens| {
@@ -1076,12 +15312,31 @@ impl ModuleCommandBindings {
             return tcl_registry::VariableWriteProjection::default();
         }
 
+        let realm = match stmt
+            .tokens()
+            .and_then(|tokens| tokens.source_binding.as_ref())
+        {
+            Some(binding) => {
+                let Some(realm) = binding.invocation_realm() else {
+                    return tcl_registry::VariableWriteProjection {
+                        opaque_variable_frame: true,
+                        ..tcl_registry::VariableWriteProjection::default()
+                    };
+                };
+                realm
+            }
+            None => self.baseline.invocation_realm,
+        };
         let mut projection = tcl_registry::VariableWriteProjection::default();
         self.for_each_resolved_invocation(stmt, namespace, |target, words| {
             if !target.registry_backed {
                 return;
             }
-            let candidate = registry.variable_write_projection(words);
+            let candidate = registry.variable_write_projection_in_resolved_context(
+                context.context(),
+                words,
+                realm,
+            );
             projection.opaque_variable_frame |= candidate.opaque_variable_frame;
             for name in candidate.literal_names {
                 if !projection.literal_names.contains(&name) {
@@ -1092,12 +15347,149 @@ impl ModuleCommandBindings {
         projection
     }
 
-    /// Every source spelling explicitly represented by the closed may-state.
-    #[must_use]
-    pub(crate) fn source_spellings(&self) -> Vec<String> {
-        let mut names: Vec<_> = self.bindings.keys().cloned().collect();
-        names.sort_unstable();
-        names
+    /// Conditional variable writes from one original embedded command vector.
+    /// The terminal source target composes retained alias prefixes before the
+    /// Registry footprint; unavailable metadata/targets remain opaque.
+    pub(crate) fn variable_write_projection_for_command_words_with_metadata_context(
+        &self,
+        words: &[crate::ir_helpers::CommandWord],
+        registry: &CommandRegistry,
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+    ) -> tcl_registry::VariableWriteProjection {
+        let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+            return tcl_registry::VariableWriteProjection {
+                opaque_variable_frame: true,
+                ..tcl_registry::VariableWriteProjection::default()
+            };
+        };
+        let Some(head) = words
+            .first()
+            .and_then(crate::ir_helpers::CommandWord::literal)
+        else {
+            return tcl_registry::VariableWriteProjection {
+                opaque_variable_frame: true,
+                ..tcl_registry::VariableWriteProjection::default()
+            };
+        };
+        let mut projection = tcl_registry::VariableWriteProjection {
+            opaque_variable_frame: self.target_resolution_may_be_unknown(head, namespace),
+            ..tcl_registry::VariableWriteProjection::default()
+        };
+        self.for_each_resolved_command_words(words, namespace, |target, invocation| {
+            if !target.registry_backed {
+                return;
+            }
+            let candidate = registry.variable_write_projection_in_resolved_context(
+                context.context(),
+                invocation,
+                self.baseline.invocation_realm,
+            );
+            projection.opaque_variable_frame |= candidate.opaque_variable_frame;
+            for name in candidate.literal_names {
+                if !projection.literal_names.contains(&name) {
+                    projection.literal_names.push(name);
+                }
+            }
+            for name in candidate.read_before_write_names {
+                if !projection.read_before_write_names.contains(&name) {
+                    projection.read_before_write_names.push(name);
+                }
+            }
+        });
+        projection
+    }
+
+    /// Join possible source effects from an alternative of this same retained
+    /// world. This grants no execution; the existing baseline invariant applies.
+    pub(crate) fn join_possible_source_effects(&mut self, other: &Self) {
+        self.join(other);
+    }
+
+    /// Selected by-name reads under complete supplied availability and aliases.
+    /// Missing metadata or target alternatives retain an opaque residual.
+    pub(crate) fn variable_read_projection_for_command_words_with_metadata_context(
+        &self,
+        words: &[crate::ir_helpers::CommandWord],
+        registry: &CommandRegistry,
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+    ) -> tcl_registry::VariableReadProjection {
+        let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+            return tcl_registry::VariableReadProjection {
+                opaque_variable_frame: true,
+                ..tcl_registry::VariableReadProjection::default()
+            };
+        };
+        let Some(head) = words
+            .first()
+            .and_then(crate::ir_helpers::CommandWord::literal)
+        else {
+            return tcl_registry::VariableReadProjection {
+                opaque_variable_frame: true,
+                ..tcl_registry::VariableReadProjection::default()
+            };
+        };
+        let mut projection = tcl_registry::VariableReadProjection {
+            opaque_variable_frame: self.target_resolution_may_be_unknown(head, namespace),
+            ..tcl_registry::VariableReadProjection::default()
+        };
+        self.for_each_resolved_command_words(words, namespace, |target, invocation| {
+            if !target.registry_backed {
+                return;
+            }
+            let candidate = registry.variable_read_projection_in_resolved_context(
+                context.context(),
+                invocation,
+                self.baseline.invocation_realm,
+            );
+            projection.opaque_variable_frame |= candidate.opaque_variable_frame;
+            for name in candidate.literal_names {
+                if !projection.literal_names.contains(&name) {
+                    projection.literal_names.push(name);
+                }
+            }
+        });
+        projection
+    }
+
+    /// Current changed cells and retained mutation history exclude the
+    /// independently captured initial command table. A restored slot remains
+    /// in the history even when its current implementation matches the entry.
+    fn changed_command_spellings(&self) -> impl Iterator<Item = String> + '_ {
+        self.rebound_names
+            .iter()
+            .chain(self.bindings.iter().filter_map(|(key, observed)| {
+                let original = self
+                    .original_entry_bindings
+                    .get(key)
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        Self::unmodified_bindings(key, self.baseline.semantics.binding_names())
+                    });
+                (*observed != original).then_some(key)
+            }))
+            .filter_map(|key| self.callable_spelling_for_key(key))
+            .chain(self.namespace_resolution.rebound_names.iter().cloned())
+    }
+
+    fn callable_spelling_for_key(&self, key: &SourceCommandKey) -> Option<String> {
+        match key {
+            SourceCommandKey::Authored(text) => Some(text.clone()),
+            SourceCommandKey::Slot { namespace, simple } => {
+                let protocol = self
+                    .baseline
+                    .native_entry
+                    .as_ref()?
+                    .command_name_policy()?
+                    .recipe();
+                let slot = tcl_core_types::NativeByteCommandSlot::new(
+                    namespace.exact_native_path()?.clone(),
+                    simple.clone(),
+                );
+                tcl_syntax::naming::native_command_source_spelling(protocol, &slot)
+            }
+        }
     }
 
     /// Whether any command spelling may have been affected by an unbounded
@@ -1144,14 +15536,23 @@ impl ModuleCommandBindings {
     #[must_use]
     pub(crate) fn mutation_projection(&self, registry: &CommandRegistry) -> ModuleCommandMutations {
         let mut names = std::collections::HashSet::new();
-        for (name, observed) in self.bindings.iter() {
-            let original = Self::unmodified_bindings(name, &self.baseline);
+        for (key, observed) in self.bindings.iter() {
+            let Some(name) = self.callable_spelling_for_key(key) else {
+                continue;
+            };
+            let original = self
+                .original_entry_bindings
+                .get(key)
+                .cloned()
+                .unwrap_or_else(|| {
+                    Self::unmodified_bindings(key, self.baseline.semantics.binding_names())
+                });
             if *observed == original {
                 continue;
             }
-            if default_binding(name, registry).kind == BindingKind::Builtin {
+            if default_binding(&name, registry).kind == BindingKind::Builtin {
                 names.insert(name.clone());
-            } else if let Some(shadowed) = builtin_shadowed_by_qualified_definition(name, registry)
+            } else if let Some(shadowed) = builtin_shadowed_by_qualified_definition(&name, registry)
             {
                 // The same tail projection the source scan applies, so a
                 // qualified shadow installed through a recovered binding is
@@ -1169,8 +15570,8 @@ impl ModuleCommandBindings {
             rebound: self
                 .rebound_names
                 .iter()
-                .chain(self.namespace_resolution.rebound_names.iter())
-                .cloned()
+                .filter_map(|key| self.callable_spelling_for_key(key))
+                .chain(self.namespace_resolution.rebound_names.iter().cloned())
                 .collect(),
             dynamic: self.opaque_binding_mutation
                 || self.namespace_resolution.dynamic
@@ -1247,21 +15648,55 @@ impl ModuleCommandBindings {
     }
 
     #[cfg(test)]
-    fn rebound_names(&self) -> impl Iterator<Item = &String> {
-        self.rebound_names.iter()
+    fn rebound_names(&self) -> impl Iterator<Item = &str> {
+        self.rebound_names
+            .iter()
+            .filter_map(SourceCommandKey::authored_spelling)
     }
 
     /// Resolve every terminal target a source spelling may invoke in
     /// `namespace`, including arguments prepended by alias chains.
     #[must_use]
-    pub(crate) fn targets(&self, name: &str, namespace: &str) -> BTreeSet<ResolvedCommandTarget> {
+    pub(crate) fn targets(
+        &self,
+        name: &str,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+    ) -> BTreeSet<ResolvedCommandTarget> {
         self.resolve_targets(name, namespace, &mut BTreeSet::new())
+    }
+
+    /// A just-published declaration key is already constructed; resolving it
+    /// again as written syntax could select a different namespace object.
+    fn installed_procedure_targets(
+        &self,
+        key: &(impl CommandKeyQuery + ?Sized),
+        declaration: u32,
+    ) -> Vec<ResolvedCommandTarget> {
+        self.bindings
+            .get(key)
+            .into_iter()
+            .flatten()
+            .filter_map(|binding| match binding {
+                MayBinding::Target(target)
+                    if target.terminal
+                        && target.kind == BindingKind::Proc
+                        && target.implementation_generation == declaration =>
+                {
+                    Some(target.clone())
+                }
+                _ => None,
+            })
+            .collect()
     }
 
     /// Whether invoking `name` in `namespace` may reach an implementation that
     /// cannot be named statically.
     #[must_use]
-    pub(crate) fn target_may_be_unknown(&self, name: &str, namespace: &str) -> bool {
+    pub(crate) fn target_may_be_unknown(
+        &self,
+        name: &str,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+    ) -> bool {
         self.has_opaque_domain() || self.target_resolution_may_be_unknown(name, namespace)
     }
 
@@ -1270,139 +15705,357 @@ impl ModuleCommandBindings {
     /// this narrower query; runtime provenance still consumes
     /// [`Self::target_may_be_unknown`] and [`Self::has_opaque_domain`].
     #[must_use]
-    pub(crate) fn target_resolution_may_be_unknown(&self, name: &str, namespace: &str) -> bool {
-        self.resolve_target_may_be_unknown(name, namespace, &mut BTreeSet::new())
-    }
-
-    /// Whether invoking `name` in `namespace` may reach no implementation the
-    /// module can name: the spelling is neither a command the registry ships
-    /// for the dialect nor one the module binds, so Tcl dispatches it through
-    /// the unresolved-command handler to whatever the running interpreter
-    /// holds — a procedure of another file, an autoloaded one. What runs
-    /// there is code the module does not contain.
-    ///
-    /// The narrower sibling of [`Self::target_resolution_may_be_unknown`],
-    /// which answers for an implementation that exists and cannot be named:
-    /// this one is true for an absent literal too, which that one leaves to
-    /// the handler's own summary.
-    #[must_use]
-    pub(crate) fn may_dispatch_unresolved(&self, name: &str, namespace: &str) -> bool {
-        self.dispatches_unresolved(name, namespace, &mut BTreeSet::new())
-    }
-
-    fn dispatches_unresolved(
+    pub(crate) fn target_resolution_may_be_unknown(
         &self,
         name: &str,
-        namespace: &str,
-        visiting: &mut BTreeSet<String>,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
     ) -> bool {
-        let Some(key) = self.lookup_key(name, namespace) else {
-            return !self.baseline.binds(&nqn(name));
-        };
-        if !visiting.insert(key.clone()) {
-            return false;
-        }
-        // The module's binding is the join over its whole walk, so a
-        // procedure defined part way through holds `Missing` beside its
-        // target. A target the module names makes the head seen wherever it
-        // is called after the definition; only a head with no target at all
-        // is left to the handler.
-        let mut named = false;
-        let mut unresolved = false;
-        for binding in &self.bindings[&key] {
-            match binding {
-                MayBinding::Unknown => unresolved = true,
-                MayBinding::Missing => {}
-                MayBinding::Target(target) if target.terminal => named = true,
-                MayBinding::Target(target) => {
-                    named = true;
-                    unresolved |= self.dispatches_unresolved(&target.command, "::", visiting);
+        self.source_keys_checked(name, namespace).is_err()
+            || self.resolve_target_may_be_unknown(name, namespace, &mut BTreeSet::new())
+    }
+
+    /// Original-word candidates in the exact retained namespace domain. A
+    /// later native fallback is validated only after earlier slots permit it.
+    fn original_source_keys_for_paths(
+        &self,
+        paths: Vec<Vec<SourceCommandKey>>,
+    ) -> Result<
+        Vec<SourceCommandKey>,
+        tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable,
+    > {
+        let mut keys = Vec::new();
+        for path in paths {
+            for (index, key) in path.iter().enumerate() {
+                let bindings = self.original_bindings_for_key(key).ok_or(
+                    tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable::Namespace,
+                )?;
+                let absent = bindings.contains(&MayBinding::Missing);
+                if (!absent || bindings.len() > 1 || index + 1 == path.len()) && !keys.contains(key)
+                {
+                    keys.push(key.clone());
+                }
+                if !absent {
+                    break;
                 }
             }
         }
-        if !named {
-            let falls_back = !name.starts_with("::")
-                && namespace != "::"
-                && key == tcl_syntax::naming::qualify(namespace, name);
-            unresolved |= !falls_back || self.dispatches_unresolved(name, "::", visiting);
-        }
-        visiting.remove(&key);
-        unresolved
+        Ok(keys)
     }
 
-    fn lookup_key(&self, name: &str, namespace: &str) -> Option<String> {
-        if name.starts_with("::") {
-            let key = nqn(name);
-            return self.bindings.contains_key(&key).then_some(key);
+    fn source_keys_checked<Q: NamespaceKeyQuery + ?Sized>(
+        &self,
+        name: &str,
+        namespace: &Q,
+    ) -> Result<
+        Vec<SourceCommandKey>,
+        tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable,
+    > {
+        let namespace = namespace.namespace_key();
+        if let Some(paths) = self.receiver_native_lookup_paths(name, namespace.as_ref()) {
+            return paths.map(|paths| paths.into_iter().flatten().collect());
         }
-        if namespace != "::" {
-            let key = tcl_syntax::naming::qualify(namespace, name);
-            if self.bindings.contains_key(&key) {
-                return Some(key);
-            }
+        if name.is_ascii()
+            && !name.as_bytes().contains(&0)
+            && !matches!(namespace.as_ref(), SourceNamespaceKey::Native(_))
+            && let Some(policy) = self
+                .baseline
+                .execution_name_policy
+                .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+        {
+            let paths = self
+                .original_registry_command_paths(namespace.as_ref(), name, policy)
+                .ok_or(
+                    tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable::Namespace,
+                )?;
+            return self.original_source_keys_for_paths(paths);
         }
-        let key = nqn(name);
-        self.bindings.contains_key(&key).then_some(key)
-    }
-
-    /// Candidate source bindings for Tcl's local-then-global lookup. A local
-    /// may-set containing `Missing` does not suppress global fallback.
-    fn source_keys(&self, name: &str, namespace: &str) -> Vec<String> {
-        if name.starts_with("::") || namespace == "::" {
-            return vec![nqn(name)];
+        if !name.starts_with("::") && self.unknown_lookup_namespaces.contains(namespace.as_ref()) {
+            return Err(
+                tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable::Namespace,
+            );
         }
-        let local = tcl_syntax::naming::qualify(namespace, name);
-        let global = nqn(name);
-        let Some(bindings) = self.bindings.get(&local) else {
-            return vec![global];
+        if !matches!(namespace.as_ref(), SourceNamespaceKey::Authored(_)) {
+            return self
+                .native_source_lookup_paths(name, namespace.as_ref())
+                .map(|paths| {
+                    let mut result = Vec::new();
+                    for key in paths.into_iter().flatten() {
+                        if !result.contains(&key) {
+                            result.push(key);
+                        }
+                    }
+                    result
+                });
+        }
+        let SourceNamespaceKey::Authored(namespace_name) = namespace.as_ref() else {
+            return Err(
+                tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable::Namespace,
+            );
+        };
+        let paths = if let Some(path) = self.receiver_command_lookup_path(name) {
+            vec![path]
+        } else {
+            let default_path = BTreeSet::from([Vec::new()]);
+            self.namespace_paths
+                .get(namespace.as_ref())
+                .unwrap_or(&default_path)
+                .iter()
+                .map(|path| {
+                    let path = path
+                        .iter()
+                        .map(|key| match key {
+                            SourceNamespaceKey::Authored(text) => Some(text.as_str()),
+                            _ => None,
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    Some(
+                        tcl_syntax::naming::command_resolution_candidates_from_namespace_keys(
+                            namespace_name,
+                            &path,
+                            name,
+                        ),
+                    )
+                })
+                .collect::<Option<Vec<_>>>()
+                .ok_or(
+                    tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable::Namespace,
+                )?
         };
         let mut keys = Vec::new();
-        if bindings
-            .iter()
-            .any(|binding| !matches!(binding, MayBinding::Missing))
+        for candidates in paths {
+            for (index, text) in candidates.iter().enumerate() {
+                let key = SourceCommandKey::authored(text.clone());
+                let bindings = self.bindings.get(&key).cloned().unwrap_or_else(|| {
+                    Self::unmodified_bindings(&key, self.baseline.semantics.binding_names())
+                });
+                let absent = bindings.contains(&MayBinding::Missing);
+                if (!absent || bindings.len() > 1 || index + 1 == candidates.len())
+                    && !keys.contains(&key)
+                {
+                    keys.push(key);
+                }
+                if !absent {
+                    break;
+                }
+            }
+        }
+        Ok(keys)
+    }
+
+    fn source_lookup_paths<Q: NamespaceKeyQuery + ?Sized>(
+        &self,
+        name: &str,
+        namespace: &Q,
+    ) -> Vec<Vec<SourceCommandKey>> {
+        let key = namespace.namespace_key();
+        if let Some(paths) = self.receiver_native_lookup_paths(name, key.as_ref()) {
+            return paths.unwrap_or_default();
+        }
+        if name.is_ascii()
+            && !name.as_bytes().contains(&0)
+            && let Some(policy) = self
+                .baseline
+                .execution_name_policy
+                .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
         {
-            keys.push(local);
+            return self
+                .original_registry_command_paths(key.as_ref(), name, policy)
+                .unwrap_or_default();
         }
-        if bindings.contains(&MayBinding::Missing) {
-            keys.push(global);
+        if !matches!(key.as_ref(), SourceNamespaceKey::Authored(_)) {
+            return self
+                .native_source_lookup_paths(name, key.as_ref())
+                .unwrap_or_default();
         }
-        keys
+        let SourceNamespaceKey::Authored(namespace) = key.as_ref() else {
+            return Vec::new();
+        };
+        if let Some(path) = self.receiver_command_lookup_path(name) {
+            return vec![path.into_iter().map(SourceCommandKey::authored).collect()];
+        }
+        let default_path = BTreeSet::from([Vec::new()]);
+        self.namespace_paths
+            .get(key.as_ref())
+            .unwrap_or(&default_path)
+            .iter()
+            .map(|path| {
+                let path = path
+                    .iter()
+                    .filter_map(|context| match context {
+                        SourceNamespaceKey::Authored(text) => Some(text.as_str()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                tcl_syntax::naming::command_resolution_candidates_from_namespace_keys(
+                    namespace, &path, name,
+                )
+                .into_iter()
+                .map(SourceCommandKey::authored)
+                .collect()
+            })
+            .collect()
+    }
+
+    fn source_keys<Q: NamespaceKeyQuery + ?Sized>(
+        &self,
+        name: &str,
+        namespace: &Q,
+    ) -> Vec<SourceCommandKey> {
+        self.source_keys_checked(name, namespace)
+            .unwrap_or_default()
+    }
+
+    /// Conditional unresolved dispatch against this exact original source table.
+    /// Historical missing alternatives do not erase a named module target.
+    pub(crate) fn may_dispatch_unresolved<Q: NamespaceKeyQuery + ?Sized>(
+        &self,
+        name: &str,
+        namespace: &Q,
+    ) -> bool {
+        self.dispatches_unresolved(name, namespace, &mut BTreeSet::new())
+    }
+    fn dispatches_unresolved<Q: NamespaceKeyQuery + ?Sized>(
+        &self,
+        name: &str,
+        namespace: &Q,
+        visiting: &mut BTreeSet<SourceCommandKey>,
+    ) -> bool {
+        let Ok(keys) = self.source_keys_checked(name, namespace) else {
+            return true;
+        };
+        let mut named = false;
+        let mut unresolved = false;
+        for key in keys {
+            if !visiting.insert(key.clone()) {
+                continue;
+            }
+            if !self.bindings.contains_key(&key)
+                && key
+                    .authored_spelling()
+                    .is_some_and(|name| self.baseline.declared.contains_key(name))
+            {
+                named = true;
+            }
+            for binding in self.binding_alternatives(&key) {
+                match binding {
+                    MayBinding::Unknown => unresolved = true,
+                    MayBinding::Missing => {}
+                    MayBinding::Imported(import) => {
+                        named = true;
+                        unresolved |= self.objects.get(&import.origin).is_none_or(|alternatives| {
+                            alternatives
+                                .iter()
+                                .any(|binding| matches!(binding, MayBinding::Unknown))
+                        });
+                    }
+                    MayBinding::Target(target) if target.terminal => named = true,
+                    MayBinding::Target(target) => {
+                        named = true;
+                        unresolved |= self.dispatches_unresolved(
+                            &target.command,
+                            &self.alias_target_namespace_key(&target, namespace),
+                            visiting,
+                        );
+                    }
+                }
+            }
+            visiting.remove(&key);
+        }
+        unresolved || !named
+    }
+
+    fn alias_target_namespace_key<Q: NamespaceKeyQuery + ?Sized>(
+        &self,
+        target: &ResolvedCommandTarget,
+        caller: &Q,
+    ) -> SourceNamespaceKey {
+        if target.target_lookup == tcl_registry::AliasTargetLookup::CallerNamespace {
+            return caller.namespace_key().into_owned();
+        }
+        self.native_root_namespace_key()
+            .unwrap_or_else(|| SourceNamespaceKey::authored("::"))
+    }
+
+    fn source_root_namespace_key(&self) -> Option<SourceNamespaceKey> {
+        if self.baseline.native_entry.is_some() {
+            self.native_root_namespace_key()
+        } else {
+            Some(SourceNamespaceKey::default())
+        }
+    }
+
+    fn native_root_namespace_key(&self) -> Option<SourceNamespaceKey> {
+        let entry = self.baseline.native_entry.as_ref()?;
+        let mut roots = entry
+            .namespaces
+            .iter()
+            .filter(|row| row.visible && row.path.is_root());
+        let root = roots.next()?;
+        if roots.next().is_some() {
+            return None;
+        }
+        runtime_entry::native_namespace_key(entry, root.token)
     }
 
     fn resolve_target_may_be_unknown(
         &self,
         name: &str,
-        namespace: &str,
-        visiting: &mut BTreeSet<String>,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+        visiting: &mut BTreeSet<SourceCommandKey>,
     ) -> bool {
-        let Some(key) = self.lookup_key(name, namespace) else {
-            // Sparse state omits untouched registry commands. Any other
-            // absent literal is dispatched through this dialect's active
-            // registry-declared unknown-handler carrier, when one exists.
-            if self.baseline.binds(&nqn(name)) {
-                return false;
-            }
-            return self.unresolved_target_may_be_unknown(name, visiting);
-        };
-        if !visiting.insert(key.clone()) {
+        if self.source_keys_checked(name, namespace).is_err() {
             return true;
         }
-        let unknown = self.bindings[&key].iter().any(|binding| match binding {
-            MayBinding::Unknown => true,
-            MayBinding::Missing
-                if !name.starts_with("::")
-                    && namespace != "::"
-                    && key == tcl_syntax::naming::qualify(namespace, name) =>
-            {
-                self.resolve_target_may_be_unknown(name, "::", visiting)
+        let keys = self.source_keys(name, namespace);
+        let mut unknown = false;
+        for (index, key) in keys.iter().enumerate() {
+            if !visiting.insert(key.clone()) {
+                return true;
             }
-            MayBinding::Missing => self.unresolved_target_may_be_unknown(name, visiting),
-            MayBinding::Target(target) if target.terminal => false,
-            MayBinding::Target(target) => {
-                self.resolve_target_may_be_unknown(&target.command, "::", visiting)
-            }
-        });
-        visiting.remove(&key);
+            let bindings = self.binding_alternatives(key);
+            unknown |= bindings.iter().any(|binding| match binding {
+                MayBinding::Unknown => true,
+                MayBinding::Imported(token) => {
+                    self.runtime_execution_observed(token.compiler.as_ref())
+                        || self
+                            .objects
+                            .get(&token.origin)
+                            .is_none_or(|implementations| {
+                                implementations
+                                    .iter()
+                                    .any(|implementation| match implementation {
+                                        MayBinding::Target(target) if target.terminal => false,
+                                        MayBinding::Target(target) => self
+                                            .resolve_target_may_be_unknown(
+                                                &target.command,
+                                                &self.alias_target_namespace_key(target, namespace),
+                                                visiting,
+                                            ),
+                                        MayBinding::Missing
+                                        | MayBinding::Unknown
+                                        | MayBinding::Imported(_) => true,
+                                    })
+                            })
+                }
+                MayBinding::Missing => {
+                    index + 1 == keys.len()
+                        && (self.namespace_unknown_handlers.contains(namespace)
+                            || self.unresolved_target_may_be_unknown(name, visiting))
+                }
+                MayBinding::Target(target)
+                    if self.runtime_execution_observed(target.token.as_ref()) =>
+                {
+                    true
+                }
+                MayBinding::Target(target) if target.terminal => false,
+                MayBinding::Target(target) => self.resolve_target_may_be_unknown(
+                    &target.command,
+                    &self.alias_target_namespace_key(target, namespace),
+                    visiting,
+                ),
+            });
+            visiting.remove(key);
+        }
         unknown
     }
 
@@ -1412,15 +16065,18 @@ impl ModuleCommandBindings {
     fn unresolved_target_may_be_unknown(
         &self,
         missing_name: &str,
-        visiting: &mut BTreeSet<String>,
+        visiting: &mut BTreeSet<SourceCommandKey>,
     ) -> bool {
         let missing_key = nqn(missing_name);
+        let Some(root) = self.source_root_namespace_key() else {
+            return true;
+        };
         self.baseline
             .semantics
             .unresolved_command_handlers()
             .iter()
             .filter(|handler| **handler != missing_key)
-            .any(|handler| self.resolve_target_may_be_unknown(handler, "::", visiting))
+            .any(|handler| self.resolve_target_may_be_unknown(handler, &root, visiting))
     }
 
     /// Resolve Tcl's registry-declared unresolved-command fallback, retaining
@@ -1429,9 +16085,12 @@ impl ModuleCommandBindings {
     fn unresolved_targets(
         &self,
         missing_name: &str,
-        visiting: &mut BTreeSet<String>,
+        visiting: &mut BTreeSet<SourceCommandKey>,
     ) -> BTreeSet<ResolvedCommandTarget> {
         let missing_key = nqn(missing_name);
+        let Some(root) = self.source_root_namespace_key() else {
+            return BTreeSet::new();
+        };
         let mut resolved = BTreeSet::new();
         for handler in self
             .baseline
@@ -1440,8 +16099,12 @@ impl ModuleCommandBindings {
             .iter()
             .filter(|handler| **handler != missing_key)
         {
-            for mut terminal in self.resolve_targets(handler, "::", visiting) {
-                terminal.prepended.push(missing_name.to_owned());
+            for mut terminal in self.resolve_targets(handler, &root, visiting) {
+                terminal.prepended.push(
+                    crate::registry_invocation::EffectiveInvocationWord::Literal(
+                        missing_name.to_owned(),
+                    ),
+                );
                 resolved.insert(terminal);
             }
         }
@@ -1451,51 +16114,110 @@ impl ModuleCommandBindings {
     fn resolve_targets(
         &self,
         name: &str,
-        namespace: &str,
-        visiting: &mut BTreeSet<String>,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+        visiting: &mut BTreeSet<SourceCommandKey>,
     ) -> BTreeSet<ResolvedCommandTarget> {
-        let Some(key) = self.lookup_key(name, namespace) else {
-            if self.baseline.binds(&nqn(name)) {
-                return BTreeSet::from([ResolvedCommandTarget {
-                    command: name.to_owned(),
-                    prepended: Vec::new(),
-                    registry_backed: true,
-                    terminal: true,
-                }]);
+        self.resolve_targets_in(name, namespace, visiting, CommandTargetLookup::WithFallback)
+    }
+
+    /// Named-slot lookup and executable fallback share ordering and alias
+    /// traversal. A fallback handler is not the written command's operation
+    /// and cannot supply original compilation-layout advice.
+    fn resolve_targets_in(
+        &self,
+        name: &str,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+        visiting: &mut BTreeSet<SourceCommandKey>,
+        lookup: CommandTargetLookup,
+    ) -> BTreeSet<ResolvedCommandTarget> {
+        self.resolve_targets_with_prefixes_in(name, namespace, visiting, lookup)
+            .targets
+    }
+
+    fn resolve_targets_with_prefixes_in(
+        &self,
+        name: &str,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+        visiting: &mut BTreeSet<SourceCommandKey>,
+        lookup: CommandTargetLookup,
+    ) -> logical_prefix::LogicalPrefixResolution {
+        let mut resolved = logical_prefix::LogicalPrefixResolution::default();
+        let keys = self.source_keys(name, namespace);
+        for (index, key) in keys.iter().enumerate() {
+            if !visiting.insert(key.clone()) {
+                continue;
             }
-            return self.unresolved_targets(name, visiting);
-        };
-        if !visiting.insert(key.clone()) {
-            return BTreeSet::new();
-        }
-        let mut resolved = BTreeSet::new();
-        for binding in &self.bindings[&key] {
-            match binding {
-                MayBinding::Missing
-                    if !name.starts_with("::")
-                        && namespace != "::"
-                        && key == tcl_syntax::naming::qualify(namespace, name) =>
-                {
-                    resolved.extend(self.resolve_targets(name, "::", visiting));
-                }
-                MayBinding::Target(target) if target.terminal => {
-                    resolved.insert(target.clone());
-                }
-                MayBinding::Target(target) => {
-                    // Alias targets execute in the target interpreter's global
-                    // command namespace, independent of the source namespace.
-                    for mut terminal in self.resolve_targets(&target.command, "::", visiting) {
-                        terminal.prepended.extend(target.prepended.iter().cloned());
-                        resolved.insert(terminal);
+            let bindings = self.binding_alternatives(key);
+            for binding in &bindings {
+                match binding {
+                    MayBinding::Imported(token) => {
+                        if let Some(implementations) = self.objects.get(&token.origin) {
+                            for implementation in implementations {
+                                if let MayBinding::Target(target) = implementation {
+                                    if target.terminal {
+                                        resolved.insert(target.clone(), target.prepended.is_empty().then(|| logical_prefix::LogicalCapturedCommandPrefix::empty(self)).flatten());
+                                    } else {
+                                        let children = self.resolve_targets_with_prefixes_in(
+                                            &target.command,
+                                            &self.alias_target_namespace_key(target, namespace),
+                                            visiting,
+                                            lookup,
+                                        );
+                                        for mut terminal in children.targets {
+                                            let prefix = self.compose_logical_alias_prefix(
+                                                target,
+                                                children.prefixes.get(&terminal).cloned().flatten(),
+                                            );
+                                            terminal
+                                                .prepended
+                                                .extend(target.prepended.iter().cloned());
+                                            resolved.insert(terminal, prefix);
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
+                    MayBinding::Target(target) if target.terminal => {
+                        resolved.insert(
+                            target.clone(),
+                            target
+                                .prepended
+                                .is_empty()
+                                .then(|| logical_prefix::LogicalCapturedCommandPrefix::empty(self))
+                                .flatten(),
+                        );
+                    }
+                    MayBinding::Target(target) => {
+                        let children = self.resolve_targets_with_prefixes_in(
+                            &target.command,
+                            &self.alias_target_namespace_key(target, namespace),
+                            visiting,
+                            lookup,
+                        );
+                        for mut terminal in children.targets {
+                            let prefix = self.compose_logical_alias_prefix(
+                                target,
+                                children.prefixes.get(&terminal).cloned().flatten(),
+                            );
+                            terminal.prepended.extend(target.prepended.iter().cloned());
+                            resolved.insert(terminal, prefix);
+                        }
+                    }
+                    MayBinding::Missing
+                        if index + 1 == keys.len()
+                            && matches!(lookup, CommandTargetLookup::WithFallback)
+                            && !self.namespace_unknown_handlers.contains(namespace) =>
+                    {
+                        for target in self.unresolved_targets(name, visiting) {
+                            resolved.insert(target, None);
+                        }
+                    }
+                    MayBinding::Missing | MayBinding::Unknown => {}
                 }
-                MayBinding::Missing => {
-                    resolved.extend(self.unresolved_targets(name, visiting));
-                }
-                MayBinding::Unknown => {}
             }
+            visiting.remove(key);
         }
-        visiting.remove(&key);
         resolved
     }
 
@@ -1503,20 +16225,25 @@ impl ModuleCommandBindings {
     /// every requested value is already present.
     fn replace_bindings(
         &mut self,
-        bindings: impl IntoIterator<Item = (String, BTreeSet<MayBinding>)>,
+        bindings: impl IntoIterator<Item = (impl Into<SourceCommandKey>, BTreeSet<MayBinding>)>,
     ) -> bool {
         let replacements: Vec<_> = bindings
             .into_iter()
+            .map(|(key, value)| (key.into(), value))
             .filter(|(key, value)| self.bindings.get(key) != Some(value))
             .collect();
         if replacements.is_empty() {
             return false;
         }
+        // The actual object-private namespace is not a displayed command
+        // name. A command-table mutation cannot prove that its injected
+        // dispatcher survived merely from the class incarnation.
+        Arc::make_mut(&mut self.object_instances).invalidate_receiver_dispatcher();
         Arc::make_mut(&mut self.bindings).extend(replacements);
         true
     }
 
-    fn replace(&mut self, key: String, bindings: BTreeSet<MayBinding>) {
+    fn replace(&mut self, key: impl Into<SourceCommandKey>, bindings: BTreeSet<MayBinding>) {
         self.replace_bindings([(key, bindings)]);
     }
 
@@ -1524,33 +16251,155 @@ impl ModuleCommandBindings {
     /// ordinary lattice join handles arbitrary branches; a deterministic
     /// registry transition already identifies its exact key and should not
     /// rescan every unchanged binding merely to publish that one delta.
-    fn join_binding_from(&mut self, other: &Self, key: &str) -> bool {
-        let mut joined = self
-            .bindings
-            .get(key)
-            .cloned()
-            .unwrap_or_else(|| Self::unmodified_bindings(key, &self.baseline));
-        joined.extend(
-            other
-                .bindings
-                .get(key)
-                .cloned()
-                .unwrap_or_else(|| Self::unmodified_bindings(key, &self.baseline)),
-        );
-        self.replace_bindings([(key.to_owned(), joined)])
+    fn join_binding_from(&mut self, other: &Self, key: &(impl CommandKeyQuery + ?Sized)) -> bool {
+        let mut joined = self.binding_alternatives(key);
+        joined.extend(other.binding_alternatives(key));
+        self.replace_bindings([(key.command_key().into_owned(), joined)])
     }
 
-    fn remove(&mut self, key: String) {
+    fn remove(&mut self, key: impl Into<SourceCommandKey>) {
+        let key = key.into();
+        self.rebound_names.insert(key.clone());
+        let tokens = self
+            .bindings
+            .get(&key)
+            .into_iter()
+            .flatten()
+            .filter_map(|binding| match binding {
+                MayBinding::Target(target) => target.token.clone(),
+                MayBinding::Imported(_) | MayBinding::Missing | MayBinding::Unknown => None,
+            })
+            .collect::<BTreeSet<_>>();
+        for token in tokens {
+            Arc::make_mut(&mut self.objects).remove(&token);
+            let imported = self
+                .bindings
+                .iter()
+                .filter_map(|(name, alternatives)| {
+                    alternatives
+                        .iter().any(|binding| matches!(binding, MayBinding::Imported(import) if import.origin == token))
+                        .then_some(name.clone())
+                })
+                .collect::<Vec<_>>();
+            for name in imported {
+                let mut alternatives = self.bindings[&name].clone();
+                alternatives.retain(|binding| !matches!(binding, MayBinding::Imported(import) if import.origin == token));
+                alternatives.insert(MayBinding::Missing);
+                self.replace(name, alternatives);
+            }
+        }
         self.replace(key, BTreeSet::from([MayBinding::Missing]));
     }
 
-    fn unmodified_bindings(key: &str, baseline: &BindingBaseline) -> BTreeSet<MayBinding> {
-        if baseline.binds(key) {
+    fn allocate_command(
+        &mut self,
+        command: &SourceCommandKey,
+        offset: u32,
+    ) -> Option<CommandAllocation> {
+        let site = CommandAllocationSite {
+            source: Arc::clone(self.current_source_origin.as_ref()?),
+            offset,
+        };
+        let count = Arc::make_mut(&mut self.allocation_counts)
+            .entry((site.clone(), command.clone()))
+            .or_default();
+        *count = count.saturating_add(1).min(3);
+        Some(CommandAllocation {
+            site,
+            incarnation: match *count {
+                1 => AllocationIncarnation::First,
+                2 => AllocationIncarnation::Second,
+                _ => AllocationIncarnation::RepeatedFresh,
+            },
+            command: crate::command_binding::ModuleCommandBindings::command_key_label(command)
+                .unwrap_or_default(),
+            namespace: command.holder().into_owned(),
+        })
+    }
+
+    fn install(&mut self, key: impl Into<SourceCommandKey>, mut implementation: MayBinding) {
+        let key = key.into();
+        self.rebound_names.insert(key.clone());
+        let label = crate::command_binding::ModuleCommandBindings::command_key_label(&key)
+            .unwrap_or_default();
+        if let MayBinding::Target(target) = &mut implementation
+            && (!target.registry_backed || target.kind == BindingKind::Alias)
+            && target.implementation_allocation.is_none()
+        {
+            target.implementation_allocation =
+                self.allocate_command(&key, target.implementation_generation);
+            target.token = Some(CommandIdentity {
+                runtime: None,
+                origin: label,
+                declaration: target.implementation_generation,
+                allocation: target.implementation_allocation.clone(),
+            });
+        }
+        let prior = self.binding_alternatives(&key);
+        let tokens = prior
+            .iter()
+            .filter_map(|binding| {
+                if let MayBinding::Target(target) = binding {
+                    target.token.clone()
+                } else {
+                    None
+                }
+            })
+            .filter(|token| !self.command_token_replaced_on_install(token, &key))
+            .collect::<BTreeSet<_>>();
+        for token in &tokens {
+            self.remove_command_observers_for_token(token);
+        }
+        let mut installed = BTreeSet::new();
+        for token in tokens {
+            let mut existing = implementation.clone();
+            if let MayBinding::Target(target) = &mut existing {
+                target.token = Some(token.clone());
+            }
+            let mut implementations = BTreeSet::from([existing.clone()]);
+            if is_repeated_fresh_binding(&existing) {
+                implementations.insert(MayBinding::Unknown);
+            }
+            Arc::make_mut(&mut self.objects).insert(token, implementations);
+            installed.insert(existing);
+        }
+        if installed.is_empty()
+            || prior.iter().any(
+                |binding| !matches!(binding, MayBinding::Target(target) if target.token.is_some()),
+            )
+        {
+            installed.insert(implementation);
+        }
+        if installed.iter().any(is_repeated_fresh_binding) {
+            installed.insert(MayBinding::Unknown);
+        }
+        self.replace(key, installed);
+    }
+
+    fn unmodified_bindings(
+        key: &(impl CommandKeyQuery + ?Sized),
+        initial_registry_bindings: &BTreeSet<String>,
+    ) -> BTreeSet<MayBinding> {
+        let key = key.command_key();
+        let Some(key) = key.authored_spelling() else {
+            return BTreeSet::from([MayBinding::Missing]);
+        };
+        if initial_registry_bindings.contains(key) {
             BTreeSet::from([MayBinding::Target(ResolvedCommandTarget {
                 command: key.to_owned(),
                 prepended: Vec::new(),
                 registry_backed: true,
+                kind: BindingKind::Builtin,
+                implementation_generation: 0,
                 terminal: true,
+                target_lookup: tcl_registry::AliasTargetLookup::Global,
+                token: Some(CommandIdentity {
+                    runtime: None,
+                    origin: key.to_owned(),
+                    declaration: 0,
+                    allocation: None,
+                }),
+                implementation_allocation: None,
             })])
         } else {
             // A name first introduced by this module did not exist on the
@@ -1570,6 +16419,188 @@ impl ModuleCommandBindings {
             Arc::ptr_eq(&self.baseline, &other.baseline),
             "a binding analysis may only join states from one registry baseline"
         );
+        let mut changed = self.join_activation_values(other);
+        if !Arc::ptr_eq(&self.original_command_world, &other.original_command_world)
+            && self.original_command_world != other.original_command_world
+        {
+            changed |=
+                Arc::make_mut(&mut self.original_command_world).join(&other.original_command_world);
+        }
+        changed |= self.join_logical_alias_prefixes(other);
+        changed |= self.join_lookup_support(other);
+        changed |= self.join_binding_history(other);
+        if !Arc::ptr_eq(&self.bindings, &other.bindings) && self.bindings != other.bindings {
+            let keys: BTreeSet<SourceCommandKey> = self
+                .bindings
+                .keys()
+                .chain(other.bindings.keys())
+                .cloned()
+                .collect();
+            let joined = keys.into_iter().map(|key| {
+                let mut bindings = self.bindings.get(&key).cloned().unwrap_or_else(|| {
+                    Self::unmodified_bindings(&key, self.baseline.semantics.binding_names())
+                });
+                bindings.extend(other.bindings.get(&key).cloned().unwrap_or_else(|| {
+                    Self::unmodified_bindings(&key, self.baseline.semantics.binding_names())
+                }));
+                (key, bindings)
+            });
+            changed |= self.replace_bindings(joined.collect::<Vec<_>>());
+        }
+        changed
+    }
+
+    /// Join the activation's reachable values and construction prerequisites.
+    fn join_activation_values(&mut self, other: &Self) -> bool {
+        let pool = self
+            .ordinary_literal_pool
+            .as_ref()
+            .zip(other.ordinary_literal_pool.as_ref())
+            .and_then(|(left, right)| left.joined(right));
+        let pool_changed = self.ordinary_literal_pool != pool;
+        self.ordinary_literal_pool = pool;
+        // naming.command.shared-noop-source-joins
+
+        // The enclosing join requires one original baseline. Skip only a pure
+        // collection self-join authenticated by its actual immutable Arc;
+        // the literal-pool currency query above still runs independently.
+        let mut changed = pool_changed;
+        if !Arc::ptr_eq(&self.object_instances, &other.object_instances) {
+            let before_objects = Arc::clone(&self.object_instances);
+            Arc::make_mut(&mut self.object_instances).join(&other.object_instances);
+            changed |= self.object_instances != before_objects;
+        }
+        for (site, incoming) in other.allocation_counts.iter() {
+            let current = self.allocation_counts.get(site).copied().unwrap_or(0);
+            if *incoming > current {
+                Arc::make_mut(&mut self.allocation_counts).insert(site.clone(), *incoming);
+                changed = true;
+            }
+        }
+        for (site, incoming) in other.namespace_allocation_counts.iter() {
+            let current = self
+                .namespace_allocation_counts
+                .get(site)
+                .copied()
+                .unwrap_or(0);
+            if *incoming > current {
+                Arc::make_mut(&mut self.namespace_allocation_counts)
+                    .insert(site.clone(), *incoming);
+                changed = true;
+            }
+        }
+        if !Arc::ptr_eq(&self.class_definitions, &other.class_definitions) {
+            let before = self.class_definitions.len();
+            Arc::make_mut(&mut self.class_definitions).retain(|identity, definition| {
+                other.class_definitions.get(identity) == Some(definition)
+            });
+            changed |= before != self.class_definitions.len();
+        }
+        if !Arc::ptr_eq(&self.bounded_constructions, &other.bounded_constructions) {
+            let before = self.bounded_constructions.len();
+            Arc::make_mut(&mut self.bounded_constructions).retain(|identity, construction| {
+                other.bounded_constructions.get(identity) == Some(construction)
+            });
+            changed |= before != self.bounded_constructions.len();
+        }
+        if !Arc::ptr_eq(&self.command_observers, &other.command_observers) {
+            changed |= Arc::make_mut(&mut self.command_observers).join(&other.command_observers);
+        }
+        if !Arc::ptr_eq(
+            &self.tainted_object_dispatch,
+            &other.tainted_object_dispatch,
+        ) {
+            let before = self.tainted_object_dispatch.len();
+            Arc::make_mut(&mut self.tainted_object_dispatch)
+                .extend(other.tainted_object_dispatch.iter().cloned());
+            changed |= before != self.tainted_object_dispatch.len();
+        }
+        if self.source_variables != other.source_variables {
+            let mut joined = self.source_variables.as_ref().clone();
+            joined.join(&other.source_variables);
+            if *self.source_variables != joined {
+                self.source_variables = Arc::new(joined);
+                changed = true;
+            }
+        }
+        if self.variable_frame != other.variable_frame
+            && self.variable_frame != crate::var_resolve::VariableExecutionFrame::Unknown
+        {
+            self.variable_frame = crate::var_resolve::VariableExecutionFrame::Unknown;
+            changed = true;
+        }
+        changed
+    }
+
+    /// Lookup depends on command objects, namespace alternatives and provider state.
+    fn join_lookup_support(&mut self, other: &Self) -> bool {
+        let mut changed = false;
+        changed |= join_alternatives(&mut self.objects, &other.objects);
+        if !Arc::ptr_eq(&self.namespace_exports, &other.namespace_exports) {
+            changed |= Arc::make_mut(&mut self.namespace_exports)
+                .join_with_default(&other.namespace_exports, &Vec::new());
+        }
+        if !Arc::ptr_eq(&self.namespace_paths, &other.namespace_paths) {
+            changed |= Arc::make_mut(&mut self.namespace_paths)
+                .join_with_default(&other.namespace_paths, &Vec::new());
+        }
+        changed |= join_alternatives_with_default(
+            &mut self.packages,
+            &other.packages,
+            PackageProvision::absent(),
+        );
+        if other.loader_handler_unknown && !self.loader_handler_unknown {
+            self.loader_handler_unknown = true;
+            changed = true;
+        }
+        if !Arc::ptr_eq(&self.namespaces, &other.namespaces) {
+            let before = self.namespaces.len();
+            Arc::make_mut(&mut self.namespaces)
+                .retain(|namespace| other.namespaces.contains(namespace));
+            changed |= self.namespaces.len() != before;
+        }
+        for (destination, incoming) in [
+            (
+                &mut self.unknown_lookup_namespaces,
+                &other.unknown_lookup_namespaces,
+            ),
+            (
+                &mut self.unknown_namespace_paths,
+                &other.unknown_namespace_paths,
+            ),
+            (
+                &mut self.namespace_unknown_handlers,
+                &other.namespace_unknown_handlers,
+            ),
+            (
+                &mut self.unknown_export_namespaces,
+                &other.unknown_export_namespaces,
+            ),
+        ] {
+            if !Arc::ptr_eq(destination, incoming) {
+                let before = destination.len();
+                Arc::make_mut(destination).extend(incoming.iter().cloned());
+                changed |= destination.len() != before;
+            }
+        }
+        for (destination, incoming) in [
+            (&mut self.revoked_loaders, &other.revoked_loaders),
+            (
+                &mut self.tainted_provider_state,
+                &other.tainted_provider_state,
+            ),
+        ] {
+            if !Arc::ptr_eq(destination, incoming) {
+                let before = destination.len();
+                Arc::make_mut(destination).extend(incoming.iter().cloned());
+                changed |= destination.len() != before;
+            }
+        }
+        changed
+    }
+
+    /// Historical opacity survives restoration of the current lookup state.
+    fn join_binding_history(&mut self, other: &Self) -> bool {
         let mut changed = false;
         if other.opaque_domain && !self.opaque_domain {
             self.opaque_domain = true;
@@ -1585,6 +16616,10 @@ impl ModuleCommandBindings {
         }
         if other.unnameable_rebinding_subject && !self.unnameable_rebinding_subject {
             self.unnameable_rebinding_subject = true;
+            changed = true;
+        }
+        if other.unclosed_command_world && !self.unclosed_command_world {
+            self.unclosed_command_world = true;
             changed = true;
         }
         changed |= self.namespace_resolution.join(&other.namespace_resolution);
@@ -1605,32 +16640,62 @@ impl ModuleCommandBindings {
             self.has_redefined_procedures = true;
             changed = true;
         }
-        if !Arc::ptr_eq(&self.bindings, &other.bindings) && self.bindings != other.bindings {
-            let keys: BTreeSet<String> = self
-                .bindings
-                .keys()
-                .chain(other.bindings.keys())
-                .cloned()
-                .collect();
-            let joined = keys.into_iter().map(|key| {
-                let mut bindings = self
-                    .bindings
-                    .get(&key)
-                    .cloned()
-                    .unwrap_or_else(|| Self::unmodified_bindings(&key, &self.baseline));
-                bindings.extend(
-                    other
-                        .bindings
-                        .get(&key)
-                        .cloned()
-                        .unwrap_or_else(|| Self::unmodified_bindings(&key, &self.baseline)),
-                );
-                (key, bindings)
-            });
-            changed |= self.replace_bindings(joined.collect::<Vec<_>>());
-        }
         changed
     }
+}
+
+fn join_alternatives<K: Clone + Ord, V: Clone + Ord>(
+    destination: &mut Arc<BTreeMap<K, BTreeSet<V>>>,
+    incoming: &Arc<BTreeMap<K, BTreeSet<V>>>,
+) -> bool {
+    if destination == incoming {
+        return false;
+    }
+    let mut changed = false;
+    for (key, values) in incoming.iter() {
+        let entry = Arc::make_mut(destination).entry(key.clone()).or_default();
+        let previous = entry.len();
+        entry.extend(values.iter().cloned());
+        changed |= entry.len() != previous;
+    }
+    changed
+}
+
+fn join_alternatives_with_default<K: Clone + Ord, V: Clone + Ord>(
+    destination: &mut Arc<BTreeMap<K, BTreeSet<V>>>,
+    incoming: &Arc<BTreeMap<K, BTreeSet<V>>>,
+    default: V,
+) -> bool {
+    if destination == incoming {
+        return false;
+    }
+    let keys = destination
+        .keys()
+        .chain(incoming.keys())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let fallback = BTreeSet::from([default]);
+    let joined = keys
+        .into_iter()
+        .map(|key| {
+            let mut values = destination
+                .get(&key)
+                .cloned()
+                .unwrap_or_else(|| fallback.clone());
+            values.extend(
+                incoming
+                    .get(&key)
+                    .cloned()
+                    .unwrap_or_else(|| fallback.clone()),
+            );
+            (key, values)
+        })
+        .collect::<BTreeMap<_, _>>();
+    if **destination == joined {
+        return false;
+    }
+    *destination = Arc::new(joined);
+    true
 }
 
 #[derive(Default)]
@@ -1689,7 +16754,7 @@ fn discarded_procedure_history(
                         history.opaque = true;
                     }
                 } else if let Some(body) = body {
-                    let recovered = lower_recovered_procedure_body(&body, &qname, registry);
+                    let recovered = recovered_procedure_source(&body, &qname);
                     // A second generation of discarded bodies is not
                     // available from the parent module's declaration
                     // history. Preserve soundness rather than recursively
@@ -1721,7 +16786,7 @@ fn discarded_procedure_history(
     let retained_procedures = module
         .procedures
         .iter()
-        .map(|(qname, procedure)| (qname.clone(), procedure.span))
+        .map(|(_, procedure)| (procedure.qualified_name.clone(), procedure.span))
         .collect();
     let mut occurrences = HashMap::new();
     // Keep body units here: namespace/apply barriers do not retain their body
@@ -1804,18 +16869,12 @@ fn procedure_namespace(qname: &str) -> String {
     }
 }
 
-fn lower_recovered_procedure_body(body: &str, qname: &str, registry: &CommandRegistry) -> Module {
-    let body_namespace = procedure_namespace(qname);
-    let config = registry
-        .profile()
-        .map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-            tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-        });
-    let mut lowerer =
-        crate::lowering::Lowerer::with_config(registry, config).with_dialect(registry.profile());
-    let unrooted = body_namespace.strip_prefix("::").unwrap_or(&body_namespace);
-    lowerer.lower_procedure_target(body, unrooted);
-    lowerer.finish_module(body)
+fn recovered_procedure_source(body: &str, qname: &str) -> Module {
+    Module {
+        source: tcl_lexer::SourceImage::document(body),
+        top_level_namespace: procedure_namespace(qname),
+        ..Module::default()
+    }
 }
 
 struct BindingWalkOutcome {
@@ -1981,6 +17040,80 @@ struct BindingWalkContext<'a> {
 struct InvocationBindingContext<'a> {
     retained_roots: &'a mut RetainedBindingRoots,
     source_order_mode: bool,
+    metadata: BindingInvocationMetadata<'a>,
+}
+
+/// Explicit compatibility is separate from a supplied metadata refusal.
+#[derive(Clone, Copy)]
+enum BindingInvocationMetadata<'a> {
+    Standalone,
+    Supplied(Option<crate::registry_invocation::InvocationMetadataContext<'a>>),
+}
+
+fn interpret_binding_source(
+    source: &str,
+    offset: u32,
+    namespace: &str,
+    frame: &crate::var_resolve::VariableExecutionFrame,
+    registry: &CommandRegistry,
+    bindings: &ModuleCommandBindings,
+    retained: &mut RetainedBindingRoots,
+) -> BindingWalkOutcome {
+    let config = registry
+        .profile()
+        .map_or_else(tcl_lexer::LexerConfig::default, |profile| {
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar)
+        });
+    let mut interpretation = SourceCommandBindings {
+        deferred: retained.source_roots.clone().into(),
+        ..SourceCommandBindings::default()
+    };
+    let mut post = bindings.clone();
+    interpretation.walk_source(
+        source,
+        offset,
+        &mut post,
+        &SourceExecutionContext {
+            body_entry: SourceBodyEntryPurpose::Conditional,
+            source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            realm: bindings.baseline.invocation_realm,
+            compilation: if matches!(
+                frame.layout(),
+                crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+                    | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+            ) {
+                bindings.baseline.body_compilation()
+            } else {
+                bindings.baseline.native_compilation
+            },
+            compilation_snapshot: None,
+            selected_compilation: None,
+            original_variable_compilation: None,
+            namespace,
+            namespace_key: frame.namespace_identity(),
+            config,
+            registry,
+            frame,
+            depth: 0,
+            invocation_offset: 0,
+            variable_read_owner: None,
+            original_written_projection: None,
+            written_arguments: None,
+            written_values: None,
+            written_name_values: None,
+            written_representations: None,
+            written_objects: None,
+            written_method_prefixes: None,
+            written_variable_reads: None,
+            expression_source: None,
+        },
+    );
+    let mut observed = post.clone();
+    for point in &interpretation.points {
+        observed.join(&point.state);
+    }
+    retained.source_roots.extend(interpretation.deferred);
+    BindingWalkOutcome { post, observed }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1998,6 +17131,7 @@ struct RetainedBindingRoot {
 /// identity contain only observable command-table state.
 #[derive(Default)]
 struct RetainedBindingRoots {
+    source_roots: BTreeMap<DeferredImplementationId, DeferredSourceBody>,
     roots: Vec<RetainedBindingRoot>,
     seen: HashSet<RetainedBindingRoot>,
     evaluated_bodies: HashMap<crate::ir::ExecutionNamespace, Vec<RetainedEvaluatedBody>>,
@@ -2022,30 +17156,76 @@ impl RetainedBindingRoots {
 
     /// Retain every non-top root, or every root when `skip_top` is false.
     fn extend_module_roots(&mut self, module: &Module, skip_top: bool) {
+        if !skip_top
+            && module.top_level.statements.is_empty()
+            && !module.source.is_empty()
+            && let Ok(source) = module.source.try_text()
+        {
+            let namespace = if module.top_level_namespace.is_empty() {
+                "::"
+            } else {
+                &module.top_level_namespace
+            };
+            let identity = format!("recovered:{namespace}:{source}");
+            self.source_roots.insert(
+                DeferredImplementationId {
+                    command: identity.clone(),
+                    generation: 0,
+                    allocation: None,
+                },
+                DeferredSourceBody {
+                    realm: module.source_entry.invocation_realm,
+                    identity,
+                    implementation_generation: 0,
+                    source: source.to_owned(),
+                    offset: 0,
+                    namespace: namespace.to_owned(),
+                    namespace_key: module
+                        .top_level_namespace_context
+                        .clone()
+                        .unwrap_or_else(|| SourceNamespaceKey::authored(namespace)),
+                    event: None,
+                    receiver_method: false,
+                    future_frame: None,
+                    parameters: Vec::new(),
+                    original_parameters: None,
+                    statics: None,
+                    implementation_allocation: None,
+                    source_origin: None,
+                    executed_script: None,
+                    executed_word: None,
+                },
+            );
+        }
         // Evaluated bodies keep their owning source location so identical Tcl
         // text lowered under different command states cannot collide. The
         // binding walk selects one only from inside the invocation currently
         // being replayed.
-        let mut body_units: Vec<_> = module.body_units.iter().collect();
+        let mut body_units: Vec<_> = module.body_lowerings().collect();
         body_units.sort_by(|a, b| {
             a.1.span
                 .start()
                 .cmp(&b.1.span.start())
                 .then_with(|| a.0.cmp(b.0))
         });
-        for (qname, unit) in body_units {
+        for (_, unit) in body_units {
             let Ok(start) = usize::try_from(unit.span.start()) else {
                 continue;
             };
             let Ok(end) = usize::try_from(unit.span.end()) else {
                 continue;
             };
-            let Some(source) = module.source.get(start..end) else {
+            let Some(source) = module
+                .source
+                .try_text()
+                .ok()
+                .and_then(|source| source.get(start..end))
+            else {
                 continue;
             };
-            let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
-            let namespace =
-                crate::ir::ExecutionNamespace::exact(if holder.is_empty() { "::" } else { holder });
+            let namespace = unit
+                .body
+                .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected);
             self.evaluated_bodies
                 .entry(namespace)
                 .or_default()
@@ -2082,7 +17262,7 @@ impl RetainedBindingRoots {
     }
 
     fn len(&self) -> usize {
-        self.roots.len()
+        self.roots.len() + self.source_roots.len()
     }
 
     fn snapshot(&self) -> Vec<RetainedBindingRoot> {
@@ -2107,6 +17287,22 @@ fn observe_binding_state(
 }
 
 // Flow-sensitive recursive join over every structured IR form.
+fn collect_normal_binding_states(
+    script: &Script,
+    registry: &CommandRegistry,
+    initial: &ModuleCommandBindings,
+    namespace: &crate::ir::ExecutionNamespace,
+    retained_roots: &mut RetainedBindingRoots,
+) -> BindingWalkOutcome {
+    let mut context = BindingWalkContext {
+        registry,
+        retained_roots,
+        timeline: None,
+        source_order_mode: false,
+    };
+    collect_binding_states(script, &mut context, initial, namespace)
+}
+
 #[allow(clippy::too_many_lines)]
 fn collect_binding_states(
     script: &Script,
@@ -2144,6 +17340,9 @@ fn collect_binding_states(
         }
         let statement_spans: HashSet<_> = script.statements.iter().map(Statement::span).collect();
         for stmt in &script.statements {
+            if !stmt.is_executable_invocation() {
+                continue;
+            }
             let source_order_entry = context.source_order_mode.then(|| current.clone());
             if let Some(timeline) = &mut context.timeline {
                 timeline.record_before_substitutions(stmt.span(), current);
@@ -2198,17 +17397,18 @@ fn collect_binding_states(
                 observe_binding_state(observed, current);
             }
             if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt {
-                if let Some(statement_namespace) = namespace.for_head(command) {
+                if let Some(statement_namespace) = namespace.for_head_context(command) {
                     let mut invocation_context = InvocationBindingContext {
                         retained_roots: context.retained_roots,
                         source_order_mode: context.source_order_mode,
+                        metadata: BindingInvocationMetadata::Standalone,
                     };
                     let observation_was_updated = apply_may_invocation_transitions(
                         stmt,
                         context.registry,
                         current,
                         observed,
-                        statement_namespace,
+                        statement_namespace.as_ref(),
                         namespace,
                         &mut invocation_context,
                     );
@@ -2331,22 +17531,20 @@ fn command_binding_site_is_exact(
     bindings: &ModuleCommandBindings,
     namespace: &crate::ir_helpers::ExecutionNamespace,
 ) -> bool {
-    let source_namespace = if site.binding.name.starts_with("::") {
-        "::"
-    } else {
-        let crate::ir_helpers::ExecutionNamespace::Exact(namespace) = namespace else {
-            return false;
-        };
-        let recorded = tcl_syntax::naming::root_unrooted_key(&site.binding.resolution_namespace);
-        if recorded != *namespace {
+    let Some(source_namespace) = namespace.for_head_context(&site.binding.name) else {
+        return false;
+    };
+    if let Some(retained) = &site.binding.namespace_context {
+        if source_namespace.to_compiled_context().as_ref() != Some(retained) {
             return false;
         }
-        namespace
-    };
-    if bindings.target_may_be_unknown(&site.binding.name, source_namespace) {
+    } else if !matches!(source_namespace.as_ref(), SourceNamespaceKey::Authored(_)) {
         return false;
     }
-    let targets = bindings.targets(&site.binding.name, source_namespace);
+    if bindings.target_may_be_unknown(&site.binding.name, source_namespace.as_ref()) {
+        return false;
+    }
+    let targets = bindings.targets(&site.binding.name, source_namespace.as_ref());
     let mut targets = targets.iter();
     let Some(target) = targets.next() else {
         return false;
@@ -2356,7 +17554,7 @@ fn command_binding_site_is_exact(
     }
     target.registry_backed
         && target.prepended.is_empty()
-        && nqn(&target.command) == nqn(&site.binding.identity)
+        && tcl_registry::command_descriptor_labels_match(&target.command, &site.binding.identity)
 }
 
 /// Apply command-table effects from evaluated `[...]` words before the outer
@@ -2369,6 +17567,27 @@ fn apply_embedded_transitions(
     namespace: &crate::ir_helpers::ExecutionNamespace,
     source_order_mode: bool,
 ) -> bool {
+    apply_embedded_transitions_in(
+        stmt,
+        registry,
+        bindings,
+        namespace,
+        source_order_mode,
+        (BindingInvocationMetadata::Standalone, None),
+    )
+}
+
+fn apply_embedded_transitions_in(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    bindings: &mut ModuleCommandBindings,
+    namespace: &crate::ir_helpers::ExecutionNamespace,
+    source_order_mode: bool,
+    selection: (
+        BindingInvocationMetadata<'_>,
+        Option<tcl_lexer::LexerConfig>,
+    ),
+) -> bool {
     let state = std::cell::RefCell::new(bindings);
     let resolve = |head: &str| state.borrow().resolved_embedded_head(head, namespace);
     let observe = |words: &[crate::ir_helpers::CommandWord], conditional: bool| {
@@ -2379,13 +17598,34 @@ fn apply_embedded_transitions(
             &mut state.borrow_mut(),
             namespace,
             source_order_mode,
+            selection.0,
         );
         if let Some(skipped) = skipped {
             state.borrow_mut().join(&skipped);
         }
     };
-    let embedded =
-        evaluated_command_substitutions_with_replay(stmt, registry, Some(&resolve), Some(&observe));
+    let embedded = match selection {
+        (BindingInvocationMetadata::Standalone, _) => evaluated_command_substitutions_with_replay(
+            stmt,
+            registry,
+            Some(&resolve),
+            Some(&observe),
+        ),
+        (BindingInvocationMetadata::Supplied(metadata), Some(config)) => {
+            crate::ir_helpers::evaluated_command_substitutions_with_replay_and_metadata_context(
+                stmt,
+                registry,
+                Some(&resolve),
+                Some(&observe),
+                metadata,
+                config,
+            )
+        }
+        (BindingInvocationMetadata::Supplied(_), None) => {
+            state.borrow_mut().mark_opaque_binding_mutation();
+            return true;
+        }
+    };
     let observed = embedded.opaque || embedded.all_commands().next().is_some();
     if embedded.opaque {
         state.borrow_mut().mark_opaque_binding_mutation();
@@ -2399,6 +17639,7 @@ fn apply_embedded_command_transition(
     bindings: &mut ModuleCommandBindings,
     namespace: &crate::ir_helpers::ExecutionNamespace,
     source_order_mode: bool,
+    metadata: BindingInvocationMetadata<'_>,
 ) {
     let Some(head) = words.first() else {
         return;
@@ -2407,20 +17648,32 @@ fn apply_embedded_command_transition(
         bindings.mark_opaque_binding_mutation();
         return;
     };
-    let Some(command_namespace) = namespace.for_head(head_name) else {
+    let Some(command_namespace) = namespace.for_head_context(head_name) else {
         bindings.mark_opaque_binding_mutation();
         return;
     };
-    let source_may_be_unknown = bindings.target_may_be_unknown(head_name, command_namespace);
+    let source_may_be_unknown =
+        bindings.target_may_be_unknown(head_name, command_namespace.as_ref());
     if source_order_mode
         && bindings
-            .targets(head_name, command_namespace)
+            .targets(head_name, command_namespace.as_ref())
             .iter()
             .any(|target| !target.registry_backed)
     {
         bindings.mark_source_order_user_procedure_call();
     }
-    let facts = bindings.resolve_command_words(words, registry, command_namespace);
+    let facts = match metadata {
+        BindingInvocationMetadata::Standalone => {
+            bindings.resolve_command_words(words, registry, command_namespace.as_ref())
+        }
+        BindingInvocationMetadata::Supplied(metadata) => bindings
+            .resolve_command_words_with_metadata_context(
+                words,
+                registry,
+                metadata,
+                command_namespace.as_ref(),
+            ),
+    };
     apply_resolved_may_transitions(
         facts,
         source_may_be_unknown,
@@ -2436,8 +17689,9 @@ fn invocation_transition_inputs(
     stmt: &Statement,
     registry: &CommandRegistry,
     bindings: &ModuleCommandBindings,
-    command_namespace: &str,
+    command_namespace: &(impl NamespaceKeyQuery + ?Sized),
     source_order_mode: bool,
+    metadata: BindingInvocationMetadata<'_>,
 ) -> (bool, Vec<ResolvedBindingInvocation>, bool) {
     let (Statement::Call { command, .. } | Statement::Barrier { command, .. }) = stmt else {
         return (false, Vec::new(), false);
@@ -2450,7 +17704,18 @@ fn invocation_transition_inputs(
             .any(|target| !target.registry_backed);
     (
         source_may_be_unknown,
-        bindings.resolve_statement(stmt, registry, command_namespace),
+        match metadata {
+            BindingInvocationMetadata::Standalone => {
+                bindings.resolve_statement(stmt, registry, command_namespace)
+            }
+            BindingInvocationMetadata::Supplied(metadata) => bindings
+                .resolve_statement_with_metadata_context(
+                    stmt,
+                    registry,
+                    metadata,
+                    command_namespace,
+                ),
+        },
         reaches_user_procedure,
     )
 }
@@ -2473,7 +17738,7 @@ fn apply_may_invocation_transitions(
     registry: &CommandRegistry,
     bindings: &mut ModuleCommandBindings,
     observed: &mut Option<ModuleCommandBindings>,
-    command_namespace: &str,
+    command_namespace: &(impl NamespaceKeyQuery + ?Sized),
     execution_namespace: &crate::ir_helpers::ExecutionNamespace,
     context: &mut InvocationBindingContext<'_>,
 ) -> bool {
@@ -2483,6 +17748,7 @@ fn apply_may_invocation_transitions(
         bindings,
         command_namespace,
         context.source_order_mode,
+        context.metadata,
     );
     let single_exact_invocation = !source_may_be_unknown && invocations.len() == 1;
     let mut joined: Option<ModuleCommandBindings> = source_may_be_unknown.then(|| bindings.clone());
@@ -2499,19 +17765,32 @@ fn apply_may_invocation_transitions(
         };
         let non_binding_before =
             single_exact_invocation.then(|| alternative.non_binding_observation_stamp());
-        let procedure_body =
-            recover_procedure_definition(&invocation, registry, execution_namespace);
+        let procedure_body = recover_procedure_definition(
+            &invocation,
+            execution_namespace,
+            alternative.baseline.dialect,
+        );
         let precise_procedure = match &procedure_body {
             ProcedureDefinitionReplay::Recovered { qname, module } => {
                 let inventory_was_complete = !module.oo_evidence.unretained_executable_roots
                     && std::iter::once(qname)
-                        .chain(module.procedures.keys())
+                        .chain(
+                            module
+                                .procedures
+                                .values()
+                                .map(|procedure| &procedure.qualified_name),
+                        )
                         .all(|name| alternative.procedure_bodies.contains(name));
                 if module.oo_evidence.unretained_executable_roots {
                     alternative.mark_opaque_binding_mutation();
                 }
                 alternative.extend_procedure_bodies(
-                    std::iter::once(qname.clone()).chain(module.procedures.keys().cloned()),
+                    std::iter::once(qname.clone()).chain(
+                        module
+                            .procedures
+                            .values()
+                            .map(|procedure| procedure.qualified_name.clone()),
+                    ),
                 );
                 context.retained_roots.extend_module_roots(module, false);
                 if single_exact_invocation && inventory_was_complete {
@@ -2519,6 +17798,7 @@ fn apply_may_invocation_transitions(
                         &invocation.facts,
                         execution_namespace,
                         qname,
+                        alternative.baseline.dialect,
                     );
                 }
                 Some(qname.as_str())
@@ -2533,6 +17813,9 @@ fn apply_may_invocation_transitions(
                 &mut alternative,
                 execution_namespace,
                 precise_procedure,
+                invocation.source_span.start(),
+                None,
+                None,
             );
         }
         let body_shape_is_selected = invocation_selects_evaluated_body(&invocation.facts);
@@ -2555,17 +17838,12 @@ fn apply_may_invocation_transitions(
                 execution_namespace,
                 context,
             );
-        if invocation
-            .facts
-            .traits
-            .contains(tcl_registry::Traits::LOADS_EXTERNAL_UNIT)
-            || (invocation
-                .facts
-                .traits
-                .contains(tcl_registry::Traits::DYNAMIC_EVAL_BODY)
-                && ((!body_shape_is_selected && body_selection_is_indeterminate)
-                    || (body_shape_is_selected && !readable_body_was_applied)))
-        {
+        if invocation_body_requires_widening(
+            &invocation.facts,
+            body_shape_is_selected,
+            body_selection_is_indeterminate,
+            readable_body_was_applied,
+        ) {
             alternative.mark_opaque_binding_mutation();
         }
         if non_binding_before
@@ -2588,6 +17866,32 @@ fn apply_may_invocation_transitions(
     observe_exact_procedure_definition(observed, bindings, exact_definition_key)
 }
 
+/// Preserve external loading and unreadable body effects beyond declared transfers.
+fn invocation_body_requires_widening(
+    facts: &tcl_registry::InvocationFacts,
+    body_selected: bool,
+    selection_indeterminate: bool,
+    readable_body_applied: bool,
+) -> bool {
+    facts
+        .traits
+        .contains(tcl_registry::Traits::LOADS_EXTERNAL_UNIT)
+        && !facts
+            .state_transitions
+            .declared()
+            .is_some_and(|transitions| {
+                transitions
+                    .facts()
+                    .iter()
+                    .any(|fact| matches!(fact.transition, StateTransition::Package(_)))
+            })
+        || (facts
+            .traits
+            .contains(tcl_registry::Traits::DYNAMIC_EVAL_BODY)
+            && ((!body_selected && selection_indeterminate)
+                || (body_selected && !readable_body_applied)))
+}
+
 /// Publish one exact definition into the historical view without a full-map
 /// lattice join. Returns whether the caller's ordinary observation is already
 /// complete.
@@ -2608,14 +17912,13 @@ fn observe_exact_procedure_definition(
     // exact definition that state is the registry baseline; seed it explicitly
     // before joining the new procedure target.
     let mut history = bindings.clone();
-    let mut historical = ModuleCommandBindings::unmodified_bindings(&key, &history.baseline);
-    historical.extend(
-        bindings
-            .bindings
-            .get(&key)
-            .cloned()
-            .unwrap_or_else(|| ModuleCommandBindings::unmodified_bindings(&key, &history.baseline)),
+    let mut historical = ModuleCommandBindings::unmodified_bindings(
+        &key,
+        history.baseline.semantics.binding_names(),
     );
+    historical.extend(bindings.bindings.get(&key).cloned().unwrap_or_else(|| {
+        ModuleCommandBindings::unmodified_bindings(&key, history.baseline.semantics.binding_names())
+    }));
     history.replace(key, historical);
     *observed = Some(history);
     true
@@ -2628,6 +17931,7 @@ fn exact_procedure_definition_key(
     facts: &tcl_registry::InvocationFacts,
     namespace: &crate::ir_helpers::ExecutionNamespace,
     precise_procedure: &str,
+    dialect: Option<tcl_registry::InvocationDialect>,
 ) -> Option<String> {
     let transitions = facts.state_transitions.declared()?;
     let [fact] = transitions.facts() else {
@@ -2641,7 +17945,7 @@ fn exact_procedure_definition_key(
     if *kind != CommandBindingDefinitionKind::Procedure {
         return None;
     }
-    let key = qualify_execution_name(namespace, name.literal()?)?;
+    let key = procedure_publication_key(namespace, name.literal()?, dialect)?;
     (key == precise_procedure).then_some(key)
 }
 
@@ -2658,6 +17962,15 @@ fn apply_resolved_may_transitions(
         if facts
             .traits
             .contains(tcl_registry::Traits::LOADS_EXTERNAL_UNIT)
+            && !facts
+                .state_transitions
+                .declared()
+                .is_some_and(|transitions| {
+                    transitions
+                        .facts()
+                        .iter()
+                        .any(|fact| matches!(fact.transition, StateTransition::Package(_)))
+                })
             || (dynamic_body_is_opaque
                 && facts
                     .traits
@@ -2667,7 +17980,15 @@ fn apply_resolved_may_transitions(
         {
             alternative.mark_opaque_binding_mutation();
         }
-        apply_declared_binding_transitions(&facts, &mut alternative, namespace, None);
+        apply_declared_binding_transitions(
+            &facts,
+            &mut alternative,
+            namespace,
+            None,
+            0,
+            None,
+            None,
+        );
         if let Some(state) = &mut joined {
             if !state.same_state(&alternative) {
                 state.join(&alternative);
@@ -2726,32 +18047,77 @@ fn apply_declared_binding_transitions(
     bindings: &mut ModuleCommandBindings,
     namespace: &crate::ir_helpers::ExecutionNamespace,
     precise_procedure: Option<&str>,
+    declaration: u32,
+    publication: Option<&command_publication::PreservingCommandPublication>,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
 ) {
     let Some(transitions) = facts.state_transitions.declared() else {
         return;
     };
-    if matches!(
-        transitions.command_resolution_impact(),
-        tcl_registry::CommandResolutionImpact::Unbounded
-    ) {
+    let interpreted_execution =
+        facts.body_execution.is_some() || invocation_selects_evaluated_body(facts);
+    if !interpreted_execution && transitions.facts().iter().any(|fact| matches!(&fact.transition, StateTransition::Widen(widening) if widening.domains.contains(&StateTransitionDomain::CommandResolution))) {
         bindings.mark_opaque_resolution();
     }
     for fact in transitions.facts() {
         if let StateTransition::Namespace(transition) = &fact.transition {
             bindings.namespace_resolution.record(transition, namespace);
+            apply_namespace_transition(
+                bindings,
+                transition,
+                namespace,
+                declaration,
+                original_operands,
+            );
+        } else if let StateTransition::Interpreter(transition) = &fact.transition {
+            bindings.retain_created_interpreter_command(transition, declaration);
+        } else if let StateTransition::Package(transition) = &fact.transition {
+            apply_package_transition(bindings, transition);
+        } else if let StateTransition::ObjectDispatch(
+            tcl_registry::ObjectDispatchTransition::Configure { target, .. },
+        ) = &fact.transition
+        {
+            Arc::make_mut(&mut bindings.object_instances).invalidate_class_delegates(false);
+            Arc::make_mut(&mut bindings.object_instances).invalidate_dispatch(false);
+            if let (Some(name), crate::ir_helpers::ExecutionNamespace::Exact(namespace)) =
+                (target.literal(), namespace)
+            {
+                let targets = bindings.targets(name, namespace);
+                for target in targets {
+                    if let Some(identity) = target.token {
+                        Arc::make_mut(&mut bindings.class_definitions).remove(&identity);
+                        Arc::make_mut(&mut bindings.bounded_constructions).remove(&identity);
+                    }
+                    Arc::make_mut(&mut bindings.tainted_object_dispatch).insert(target.command);
+                }
+            } else {
+                Arc::make_mut(&mut bindings.tainted_object_dispatch).insert("*".to_owned());
+            }
+        } else if let StateTransition::Trace(transition) = &fact.transition {
+            bindings.retain_command_observer(transition, namespace);
         }
     }
-    if transitions.facts().iter().any(|fact| {
-        matches!(
-            &fact.transition,
-            StateTransition::Widen(widening)
-                if widening.domains.contains(&StateTransitionDomain::CommandBindings)
-        )
-    }) {
+    if !interpreted_execution
+        && transitions.facts().iter().any(|fact| {
+            matches!(
+                &fact.transition,
+                StateTransition::Widen(widening)
+                    if widening.domains.contains(&StateTransitionDomain::CommandBindings)
+            )
+        })
+    {
         bindings.mark_dynamic_proc_binding();
     }
     for transition in transitions.command_bindings() {
-        apply_may_binding_transition(bindings, transition, namespace, precise_procedure);
+        apply_may_binding_transition(
+            bindings,
+            transition,
+            namespace,
+            precise_procedure,
+            declaration,
+            publication,
+            original_operands,
+        );
     }
 }
 
@@ -2774,8 +18140,8 @@ enum ProcedureDefinitionReplay {
 /// could otherwise dispatch to a procedure whose effects were never walked.
 fn recover_procedure_definition(
     invocation: &ResolvedBindingInvocation,
-    registry: &CommandRegistry,
     namespace: &crate::ir_helpers::ExecutionNamespace,
+    dialect: Option<tcl_registry::InvocationDialect>,
 ) -> ProcedureDefinitionReplay {
     use tcl_registry::SemanticOperationId;
     use tcl_registry::hooks::LoweringHookId;
@@ -2783,14 +18149,10 @@ fn recover_procedure_definition(
     if invocation.facts.operation != SemanticOperationId::StructuredLowering(LoweringHookId::Proc) {
         return ProcedureDefinitionReplay::NotProcedure;
     }
-    let Some(argument_count) = invocation.exact_argument_count else {
-        return ProcedureDefinitionReplay::Unavailable;
-    };
-    // The definer's own arity decides which call shapes define a procedure:
-    // three words for `proc name args body`, three or four for a definer that
-    // also takes a static-variable list.
-    if !u16::try_from(argument_count).is_ok_and(|count| invocation.facts.arity.accepts(count)) {
-        return ProcedureDefinitionReplay::KnownError;
+    match invocation.facts.arity_accepts_frozen_arguments() {
+        Some(true) => {}
+        Some(false) => return ProcedureDefinitionReplay::KnownError,
+        None => return ProcedureDefinitionReplay::Unavailable,
     }
     if !invocation.facts.arg_roles_complete {
         return ProcedureDefinitionReplay::Unavailable;
@@ -2839,14 +18201,17 @@ fn recover_procedure_definition(
     ) else {
         return ProcedureDefinitionReplay::Unavailable;
     };
-    if tcl_syntax::formal_params::parse_formal_parameters(params).is_err() {
+    let Some(grammar) = dialect.and_then(tcl_registry::InvocationDialect::parameter_grammar) else {
+        return ProcedureDefinitionReplay::Unavailable;
+    };
+    if tcl_syntax::formal_params::parse_formal_parameters_in(params, grammar).is_err() {
         return ProcedureDefinitionReplay::KnownError;
     }
 
-    let Some(qname) = qualify_execution_name(namespace, name) else {
+    let Some(qname) = procedure_publication_key(namespace, name, dialect) else {
         return ProcedureDefinitionReplay::Unavailable;
     };
-    let module = lower_recovered_procedure_body(body, &qname, registry);
+    let module = recovered_procedure_source(body, &qname);
     ProcedureDefinitionReplay::Recovered {
         qname,
         module: Box::new(module),
@@ -2892,32 +18257,38 @@ fn apply_readable_evaluated_body(
             else {
                 return false;
             };
-            let Ok(elements) = tcl_syntax::list::split_list(lambda) else {
+            let Some(dialect) = bindings.baseline.dialect else {
+                return false;
+            };
+            let Some(grammar) = dialect.parameter_grammar() else {
+                return false;
+            };
+            // This body replay models an ordinary C lambda activation. Jim
+            // caller links need their own entered-frame receipt; accepted
+            // formal/count syntax cannot supply that activation.
+            if grammar != tcl_dialect::ParameterGrammar::Tcl {
+                return false;
+            }
+            let Ok(elements) = dialect.word_values.split_list(lambda) else {
                 // Tcl rejects a malformed lambda before entering its body.
                 return true;
             };
             if !(2..=3).contains(&elements.len()) {
                 return true;
             }
-            let Ok(parameters) =
-                tcl_syntax::formal_params::parse_formal_parameters(elements[0].as_ref())
-            else {
+            let Ok(parameters) = tcl_syntax::formal_params::parse_formal_parameters_in(
+                elements[0].as_ref(),
+                grammar,
+            ) else {
                 return true;
             };
-            let variadic = tcl_syntax::formal_params::has_trailing_args(&parameters);
-            let fixed_parameters = if variadic {
-                &parameters[..parameters.len().saturating_sub(1)]
-            } else {
-                parameters.as_slice()
-            };
-            let minimum_arguments = fixed_parameters
-                .iter()
-                .rposition(|parameter| parameter.default.is_none())
-                .map_or(0, |index| index + 1);
-            let supplied_arguments = argument_count.saturating_sub(1);
-            if supplied_arguments < minimum_arguments
-                || (!variadic && supplied_arguments > fixed_parameters.len())
-            {
+            let count = tcl_syntax::formal_params::formal_argument_count_shape(
+                parameters
+                    .iter()
+                    .map(|parameter| (parameter.name == "args", parameter.default.is_some())),
+                grammar,
+            );
+            if !count.accepts(argument_count.saturating_sub(1)) {
                 // Known arity errors occur before any body command executes.
                 return true;
             }
@@ -2979,8 +18350,30 @@ fn apply_readable_evaluated_body(
                     (Some(effect), _) => match effect.layout {
                         FrameArgLayout::ScriptInCurrentFrame => (0, Some(namespace.clone())),
                         FrameArgLayout::ScriptInSelectedFrame => {
-                            let (level, body) =
-                                effect.resolve_for_version(&arg_refs, registry.runtime_version());
+                            let words = invocation
+                                .literal_arguments
+                                .iter()
+                                .map(|word| {
+                                    word.as_deref().map_or(
+                                        tcl_registry::InvocationWord::Dynamic,
+                                        tcl_registry::InvocationWord::Literal,
+                                    )
+                                })
+                                .collect::<Vec<_>>();
+                            let arguments = tcl_registry::InvocationWords::structured(
+                                tcl_registry::InvocationWord::Literal(&invocation.command),
+                                &words,
+                            )
+                            .with_profile(registry.profile())
+                            .arguments();
+                            let tcl_registry::frame_effect::FrameArgumentResolution::Valid {
+                                level_word_len,
+                                level,
+                            } = effect.resolve_arguments(arguments)
+                            else {
+                                return false;
+                            };
+                            let body = &arg_refs[level_word_len..];
                             let body_namespace = match level {
                                 FrameLevel::Absolute(0) => {
                                     Some(crate::ir::ExecutionNamespace::exact("::"))
@@ -3081,49 +18474,26 @@ fn apply_readable_evaluated_body(
             *bindings = outcome.post;
             continue;
         }
-        let config = registry
-            .profile()
-            .map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-                tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-            });
-        let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
-            .with_dialect(registry.profile());
-        let unrooted_namespace = body_namespace.strip_prefix("::").unwrap_or(&body_namespace);
-        if procedure_target {
-            lowerer.lower_procedure_target(&source, unrooted_namespace);
+        let frame = if procedure_target {
+            crate::var_resolve::VariableExecutionFrame::Procedure {
+                namespace: body_namespace.clone(),
+                identity: format!("evaluated:{}", invocation.source_span.start()),
+            }
         } else {
-            lowerer.lower_script_target(&source, unrooted_namespace);
-        }
-        let module = lowerer.finish_module(&source);
-        // Evaluating a script executes only its top-level root. Procedure and
-        // method bodies defined by that script become possible future roots;
-        // executing them here would invent command-table mutations at
-        // definition time and poison later exact binding resolution.
-        bindings.extend_procedure_bodies(module.procedures.keys().cloned());
-        if module.oo_evidence.unretained_executable_roots {
-            bindings.mark_opaque_binding_mutation();
-        }
-        context.retained_roots.extend_module_roots(&module, true);
-        let script_namespace = if module.top_level_namespace.is_empty() {
-            "::"
-        } else {
-            &module.top_level_namespace
+            crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+                namespace: body_namespace.clone(),
+                identity: format!("evaluated:{}", invocation.source_span.start()),
+            }
         };
-        let execution_namespace = crate::ir::ExecutionNamespace::exact(script_namespace);
-        let outcome = {
-            let mut context = BindingWalkContext {
-                registry,
-                retained_roots: context.retained_roots,
-                timeline: None,
-                source_order_mode: context.source_order_mode,
-            };
-            collect_binding_states(
-                &module.top_level,
-                &mut context,
-                bindings,
-                &execution_namespace,
-            )
-        };
+        let outcome = interpret_binding_source(
+            &source,
+            0,
+            &body_namespace,
+            &frame,
+            registry,
+            bindings,
+            context.retained_roots,
+        );
         observe_binding_state(observed, &outcome.observed);
         *bindings = outcome.post;
     }
@@ -3144,11 +18514,6 @@ fn command_bindings_unchanged_by_script(
     registry: &CommandRegistry,
     bindings: &ModuleCommandBindings,
 ) -> bool {
-    let config = registry
-        .profile()
-        .map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-            tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-        });
     let mut namespaces = BTreeSet::from([
         "::".to_owned(),
         "::__tcl_compiler_unknown_caller".to_owned(),
@@ -3156,7 +18521,8 @@ fn command_bindings_unchanged_by_script(
     for qname in bindings
         .bindings
         .keys()
-        .chain(bindings.procedure_bodies.iter())
+        .filter_map(|key| key.authored_spelling())
+        .chain(bindings.procedure_bodies.iter().map(String::as_str))
     {
         let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
         namespaces.insert(if holder.is_empty() {
@@ -3166,30 +18532,17 @@ fn command_bindings_unchanged_by_script(
         });
     }
     namespaces.into_iter().all(|namespace| {
-        // Typed-lowering dependencies are namespace-bearing provenance. Re-
-        // lower for each candidate instead of stamping the sentinel namespace
-        // onto a script subsequently interpreted elsewhere.
-        let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
-            .with_dialect(registry.profile());
-        let unrooted = namespace.strip_prefix("::").unwrap_or(&namespace);
-        lowerer.lower_script_target(source, unrooted);
-        let module = lowerer.finish_module(source);
         let mut retained_roots = RetainedBindingRoots::default();
-        let execution_namespace = crate::ir::ExecutionNamespace::exact(&namespace);
-        let outcome = {
-            let mut context = BindingWalkContext {
-                registry,
-                retained_roots: &mut retained_roots,
-                timeline: None,
-                source_order_mode: false,
-            };
-            collect_binding_states(
-                &module.top_level,
-                &mut context,
-                bindings,
-                &execution_namespace,
-            )
-        };
+        let frame = crate::var_resolve::VariableExecutionFrame::Namespace(namespace.clone());
+        let outcome = interpret_binding_source(
+            source,
+            0,
+            &namespace,
+            &frame,
+            registry,
+            bindings,
+            &mut retained_roots,
+        );
         outcome.post.same_state(bindings) && outcome.observed.same_state(bindings)
     })
 }
@@ -3201,6 +18554,19 @@ fn readable_script_argument(
     bindings: &ModuleCommandBindings,
     namespace: &crate::ir_helpers::ExecutionNamespace,
 ) -> Option<String> {
+    readable_script_argument_with_optional_metadata(
+        invocation, index, registry, bindings, namespace, None,
+    )
+}
+
+fn readable_script_argument_with_optional_metadata(
+    invocation: &ResolvedBindingInvocation,
+    index: usize,
+    registry: &CommandRegistry,
+    bindings: &ModuleCommandBindings,
+    namespace: &crate::ir_helpers::ExecutionNamespace,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<String> {
     invocation
         .literal_arguments
         .get(index)
@@ -3211,8 +18577,10 @@ fn readable_script_argument(
             let crate::ir_helpers::ExecutionNamespace::Exact(namespace) = namespace else {
                 return None;
             };
-            constructed_script_words(source, registry, bindings, namespace)
-                .map(tcl_syntax::list::join_list)
+            constructed_script_words_with_optional_metadata(
+                source, registry, bindings, namespace, metadata,
+            )
+            .map(tcl_syntax::list::join_list)
         })
 }
 
@@ -3220,20 +18588,28 @@ fn qualify_execution_name(
     namespace: &crate::ir_helpers::ExecutionNamespace,
     name: &str,
 ) -> Option<String> {
-    if name.is_empty() {
-        return None;
-    }
-    let canonical = nqn(name);
     if name.starts_with("::") {
-        return Some(canonical);
+        return Some(tcl_syntax::naming::canonical_written_command(name));
     }
-    let crate::ir_helpers::ExecutionNamespace::Exact(namespace) = namespace else {
+    // An authored source context is the same symbolic namespace as an exact
+    // one; native and allocated identities keep refusing a display join.
+    let (crate::ir_helpers::ExecutionNamespace::Exact(namespace)
+    | crate::ir_helpers::ExecutionNamespace::SourceContext(SourceNamespaceKey::Authored(
+        namespace,
+    ))) = namespace
+    else {
         return None;
     };
-    Some(tcl_syntax::naming::qualify(
-        namespace,
-        canonical.strip_prefix("::").unwrap_or(&canonical),
-    ))
+    Some(tcl_syntax::naming::qualify(namespace, name))
+}
+
+fn procedure_publication_key(
+    namespace: &crate::ir_helpers::ExecutionNamespace,
+    name: &str,
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> Option<String> {
+    let constructed = qualify_execution_name(namespace, name)?;
+    tcl_registry::native_procedure::published_procedure_key(constructed, dialect)
 }
 
 fn qualified_namespace(parent: &str, child: &str) -> Option<String> {
@@ -3249,7 +18625,7 @@ fn qualified_namespace(parent: &str, child: &str) -> Option<String> {
     } else {
         Some(tcl_syntax::naming::qualify(
             parent,
-            canonical.strip_prefix("::").unwrap_or(&canonical),
+            tcl_syntax::naming::unroot_rooted_key(&canonical).unwrap_or(&canonical),
         ))
     }
 }
@@ -3263,21 +18639,61 @@ fn qualified_namespace(parent: &str, child: &str) -> Option<String> {
 /// must have one literal value under the active lexer grammar: substitution,
 /// expansion, recovery, or a rebound constructor fails closed so the caller
 /// can widen the affected frame.
+#[cfg(test)]
 pub(crate) fn constructed_script_words(
     word: &str,
     registry: &CommandRegistry,
     bindings: &ModuleCommandBindings,
     namespace: &str,
 ) -> Option<Vec<String>> {
+    constructed_script_words_with_optional_metadata(word, registry, bindings, namespace, None)
+}
+
+/// Source-safe constructed argv under actual supplied availability.
+/// The existing may-binding proof remains required independently; no original
+/// evaluated builder, Native lookup, frame or result object is invented.
+pub(crate) fn constructed_script_words_with_metadata_context(
+    word: &str,
+    registry: &CommandRegistry,
+    bindings: &ModuleCommandBindings,
+    namespace: &(impl NamespaceKeyQuery + ?Sized),
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<Vec<String>> {
+    let metadata = metadata.filter(|metadata| metadata.matches_registry(registry))?;
+    constructed_script_words_with_optional_metadata(
+        word,
+        registry,
+        bindings,
+        namespace,
+        Some(metadata),
+    )
+}
+
+fn constructed_script_words_with_optional_metadata(
+    word: &str,
+    registry: &CommandRegistry,
+    bindings: &ModuleCommandBindings,
+    namespace: &(impl NamespaceKeyQuery + ?Sized),
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<Vec<String>> {
     let inner = word
         .strip_prefix('[')
         .and_then(|word| word.strip_suffix(']'))?;
-    let config = registry
-        .profile()
-        .map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-            tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-        });
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
+    let config = match metadata {
+        Some(metadata) => match metadata.source_analysis_input() {
+            Some(input) => input.lexer_config(),
+            None => tcl_lexer::LexerConfig::from_grammar(
+                tcl_registry::InvocationDialect::of_point(metadata.context().environment.point()?)
+                    .lexer_grammar,
+            ),
+        },
+        None => bindings.invocation_dialect().map_or_else(
+            || tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+        ),
+    };
+    let commands =
+        crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config.nested());
     let [command] = commands.as_slice() else {
         return None;
     };
@@ -3296,8 +18712,14 @@ pub(crate) fn constructed_script_words(
                 tcl_syntax::word_rules::WordValueRules::from_config(&config),
             ) {
                 crate::registry_invocation::EffectiveInvocationWord::Literal(value) => Some(value),
-                crate::registry_invocation::EffectiveInvocationWord::Dynamic
+                crate::registry_invocation::EffectiveInvocationWord::ByteLiteral(_)
+                | crate::registry_invocation::EffectiveInvocationWord::Dynamic
+                | crate::registry_invocation::EffectiveInvocationWord::ArrayElementName {
+                    ..
+                }
                 | crate::registry_invocation::EffectiveInvocationWord::Expanded
+                | crate::registry_invocation::EffectiveInvocationWord::KnownExpansion(_)
+                | crate::registry_invocation::EffectiveInvocationWord::KnownByteExpansion(_)
                 | crate::registry_invocation::EffectiveInvocationWord::Opaque => None,
             }
         })
@@ -3320,14 +18742,26 @@ pub(crate) fn constructed_script_words(
         if !target.registry_backed {
             return None;
         }
-        let mut arguments = target.prepended;
+        let mut arguments = target
+            .prepended
+            .iter()
+            .map(|word| word.as_registry_word().literal().map(str::to_owned))
+            .collect::<Option<Vec<_>>>()?;
         arguments.extend(operands.iter().cloned());
         let argument_refs: Vec<&str> = arguments.iter().map(String::as_str).collect();
-        let invocation = registry.resolve_invocation(
-            &target.command,
-            &argument_refs,
-            registry.own_surface_query(),
-        )?;
+        let invocation = match metadata {
+            Some(metadata) => tcl_registry::model::assembly::resolve_invocation_in_context(
+                registry,
+                Some(metadata.context()),
+                &target.command,
+                &argument_refs,
+            ),
+            None => registry.resolve_invocation(
+                &target.command,
+                &argument_refs,
+                registry.own_surface_query(),
+            ),
+        }?;
         let Some(tcl_registry::ReturnElements::ListOfArgs { from }) =
             invocation.semantics.return_elements
         else {
@@ -3351,7 +18785,55 @@ fn apply_may_binding_transition(
     transition: &CommandBindingTransition,
     namespace: &crate::ir_helpers::ExecutionNamespace,
     precise_procedure: Option<&str>,
+    declaration: u32,
+    publication: Option<&command_publication::PreservingCommandPublication>,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
 ) {
+    let preserves =
+        publication.is_some_and(|receipt| receipt.preserves(transition, bindings, declaration));
+    if !preserves
+        && matches!(
+            transition,
+            CommandBindingTransition::Move { .. }
+                | CommandBindingTransition::Delete { .. }
+                | CommandBindingTransition::Alias { .. }
+                | CommandBindingTransition::Define { .. }
+        )
+    {
+        Arc::make_mut(&mut bindings.object_instances).invalidate_class_delegates(false);
+    }
+    if !preserves
+        && matches!(
+            transition,
+            CommandBindingTransition::Define { .. }
+                | CommandBindingTransition::Move { .. }
+                | CommandBindingTransition::Delete { .. }
+        )
+    {
+        Arc::make_mut(&mut bindings.object_instances).invalidate_dispatch(false);
+    }
+    if bindings.apply_captured_command_mutation(transition, declaration) {
+        return;
+    }
+
+    if let Some(original) = original_operands {
+        let current = match namespace {
+            crate::ir_helpers::ExecutionNamespace::SourceContext(current) => Some(current.clone()),
+            crate::ir_helpers::ExecutionNamespace::Exact(namespace) => {
+                Some(SourceNamespaceKey::authored(namespace))
+            }
+            crate::ir_helpers::ExecutionNamespace::RuntimeSelected => None,
+        };
+        if current
+            .as_ref()
+            .and_then(|current| original.apply(bindings, transition, current, declaration))
+            .is_none()
+        {
+            bindings.mark_unnameable_rebinding_subject();
+        }
+        return;
+    }
+
     match transition {
         CommandBindingTransition::Alias {
             source_interpreter,
@@ -3359,6 +18841,7 @@ fn apply_may_binding_transition(
             target_interpreter,
             target,
             arguments,
+            target_lookup,
         } => {
             let Some(source_interpreter) = source_interpreter.literal() else {
                 bindings.mark_unnameable_rebinding_subject();
@@ -3371,32 +18854,54 @@ fn apply_may_binding_transition(
                 bindings.mark_unnameable_rebinding_subject();
                 return;
             };
-            bindings.record_proc_rebound_candidates(alias, namespace);
-            let key = nqn(alias);
+            let current = bindings
+                .native_root_namespace_key()
+                .unwrap_or_else(|| SourceNamespaceKey::authored("::"));
+            bindings.record_proc_rebound_candidates(
+                alias,
+                &crate::ir_helpers::ExecutionNamespace::SourceContext(current.clone()),
+            );
+            let Some(key) = bindings.publication_key_at(
+                &current,
+                alias,
+                namespace_slots::PublicationPurpose::Alias,
+            ) else {
+                bindings.mark_unnameable_rebinding_subject();
+                return;
+            };
             bindings.rebound_names.insert(key.clone());
             let binding = if is_current_interpreter(target_interpreter) {
-                target.literal().and_then(|target| {
-                    arguments
+                target.literal().map(|target| {
+                    let prepended = arguments
                         .iter()
                         .map(TransitionSubject::literal)
-                        .map(|argument| argument.map(str::to_owned))
-                        .collect::<Option<Vec<_>>>()
-                        .map(|prepended| {
-                            MayBinding::Target(ResolvedCommandTarget {
-                                command: target.to_owned(),
-                                prepended,
-                                registry_backed: true,
-                                terminal: false,
-                            })
+                        .map(|argument| {
+                            argument.map_or(
+                                crate::registry_invocation::EffectiveInvocationWord::Dynamic,
+                                |value| {
+                                    crate::registry_invocation::EffectiveInvocationWord::Literal(
+                                        value.to_owned(),
+                                    )
+                                },
+                            )
                         })
+                        .collect();
+                    MayBinding::Target(ResolvedCommandTarget {
+                        command: target.to_owned(),
+                        prepended,
+                        registry_backed: true,
+                        kind: BindingKind::Alias,
+                        implementation_generation: declaration,
+                        terminal: false,
+                        target_lookup: *target_lookup,
+                        token: None,
+                        implementation_allocation: None,
+                    })
                 })
             } else {
                 None
             };
-            bindings.replace(
-                key,
-                BTreeSet::from([binding.unwrap_or(MayBinding::Unknown)]),
-            );
+            bindings.install(key, binding.unwrap_or(MayBinding::Unknown));
         }
         CommandBindingTransition::Move { from, to } => {
             let (Some(from), Some(to)) = (from.literal(), to.literal()) else {
@@ -3407,15 +18912,23 @@ fn apply_may_binding_transition(
             if !to.is_empty() {
                 bindings.record_proc_rebound_candidates(to, namespace);
             }
-            let Some(from_namespace) = namespace.for_head(from) else {
+            let Some(from_namespace) = namespace.for_head_context(from) else {
                 bindings.mark_unnameable_rebinding_subject();
                 return;
             };
-            let Some(to_key) = qualify_execution_name(namespace, to) else {
+            let Some(to_context) = namespace.for_head_context(to) else {
                 bindings.mark_unnameable_rebinding_subject();
                 return;
             };
-            let from_keys = bindings.source_keys(from, from_namespace);
+            let Some(to_key) = bindings.publication_key_at(
+                to_context.as_ref(),
+                to,
+                namespace_slots::PublicationPurpose::Rename,
+            ) else {
+                bindings.mark_unnameable_rebinding_subject();
+                return;
+            };
+            let from_keys = bindings.source_keys(from, from_namespace.as_ref());
             if from_keys.len() != 1 {
                 bindings.mark_unnameable_rebinding_subject();
             }
@@ -3430,14 +18943,29 @@ fn apply_may_binding_transition(
                         .unwrap_or_else(|| {
                             ModuleCommandBindings::unmodified_bindings(
                                 &from_key,
-                                &bindings.baseline,
+                                bindings.baseline.semantics.binding_names(),
                             )
                         }),
                 );
-                bindings.remove(from_key);
+                bindings.replace(from_key, BTreeSet::from([MayBinding::Missing]));
             }
             bindings.rebound_names.insert(to_key.clone());
-            bindings.replace(to_key, moved);
+            let mut moved = moved.into_iter().collect::<Vec<_>>();
+            for binding in &mut moved {
+                if let MayBinding::Target(target) = binding
+                    && !target.registry_backed
+                    && target.terminal
+                {
+                    if let Some(spelling) = bindings.callable_spelling_for_key(&to_key) {
+                        target.command = spelling;
+                    }
+                    if let Some(token) = &target.token {
+                        Arc::make_mut(&mut bindings.objects)
+                            .insert(token.clone(), BTreeSet::from([binding.clone()]));
+                    }
+                }
+            }
+            bindings.replace(to_key, moved.into_iter().collect());
         }
         CommandBindingTransition::Delete { interpreter, name } => {
             let affects_current = match interpreter.as_ref().and_then(TransitionSubject::literal) {
@@ -3460,15 +18988,19 @@ fn apply_may_binding_transition(
             // interpreter's global namespace; bare `rename NAME {}` uses the
             // current command namespace.
             let deletion_namespace = if interpreter.is_some() {
-                Some("::")
+                Some(std::borrow::Cow::Owned(
+                    bindings
+                        .native_root_namespace_key()
+                        .unwrap_or_else(|| SourceNamespaceKey::authored("::")),
+                ))
             } else {
-                namespace.for_head(name)
+                namespace.for_head_context(name)
             };
             let Some(deletion_namespace) = deletion_namespace else {
                 bindings.mark_unnameable_rebinding_subject();
                 return;
             };
-            let keys = bindings.source_keys(name, deletion_namespace);
+            let keys = bindings.source_keys(name, deletion_namespace.as_ref());
             if keys.len() != 1 {
                 bindings.mark_unnameable_rebinding_subject();
             }
@@ -3479,28 +19011,72 @@ fn apply_may_binding_transition(
         }
         CommandBindingTransition::Define { name, kind } => {
             if let Some(name) = name.literal() {
-                let Some(key) = qualify_execution_name(namespace, name) else {
+                let Some(context) = namespace.for_head_context(name) else {
+                    bindings.mark_opaque_binding_mutation();
+                    return;
+                };
+                let purpose = if *kind == CommandBindingDefinitionKind::Procedure {
+                    namespace_slots::PublicationPurpose::Procedure
+                } else {
+                    namespace_slots::PublicationPurpose::Command
+                };
+                let Some(key) = bindings.publication_key_at(context.as_ref(), name, purpose) else {
+                    bindings.mark_opaque_binding_mutation();
+                    return;
+                };
+                let Some(label) =
+                    crate::command_binding::ModuleCommandBindings::command_key_label(&key)
+                else {
                     bindings.mark_opaque_binding_mutation();
                     return;
                 };
                 let binding = if *kind == CommandBindingDefinitionKind::Procedure {
-                    if precise_procedure == Some(key.as_str())
-                        && bindings.procedure_bodies.contains(&key)
+                    if precise_procedure == Some(label.as_str())
+                        && bindings.procedure_bodies.contains(&label)
                     {
                         MayBinding::Target(ResolvedCommandTarget {
-                            command: key.clone(),
+                            command: label.clone(),
                             prepended: Vec::new(),
                             registry_backed: false,
+                            kind: BindingKind::Proc,
+                            implementation_generation: declaration,
                             terminal: true,
+                            target_lookup: tcl_registry::AliasTargetLookup::Global,
+                            token: Some(CommandToken {
+                                runtime: None,
+                                origin: label.clone(),
+                                declaration,
+                                allocation: None,
+                            }),
+                            implementation_allocation: None,
                         })
                     } else {
                         bindings.mark_opaque_binding_mutation();
                         MayBinding::Unknown
                     }
                 } else {
-                    MayBinding::Unknown
+                    MayBinding::Target(ResolvedCommandTarget {
+                        command: label.clone(),
+                        prepended: Vec::new(),
+                        registry_backed: false,
+                        kind: if *kind == CommandBindingDefinitionKind::Object {
+                            BindingKind::Class
+                        } else {
+                            BindingKind::Command
+                        },
+                        implementation_generation: declaration,
+                        terminal: true,
+                        target_lookup: tcl_registry::AliasTargetLookup::Global,
+                        token: Some(CommandToken {
+                            runtime: None,
+                            origin: label.clone(),
+                            declaration,
+                            allocation: None,
+                        }),
+                        implementation_allocation: None,
+                    })
                 };
-                bindings.replace(key, BTreeSet::from([binding]));
+                bindings.install(key, binding);
             } else {
                 bindings.mark_opaque_binding_mutation();
             }
@@ -3527,77 +19103,721 @@ impl Binding {
     }
 }
 
-/// A sparse per-name binding map.  An absent name takes its *default*
-/// binding (a pure function of the name — builtin if the registry knows
-/// the bare global name, else opaque).  `wildcard` marks "every name is
-/// ⊤ from here" after a dynamic mutation.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct State {
-    map: HashMap<String, Binding>,
-    wildcard: bool,
-}
-
-/// The unperturbed binding of `qname` before any rename/proc/alias.
-///
-/// A name the registry knows is a `Builtin`, global or namespaced alike:
-/// `::string` → `string`, a math function's wrapper — from 8.5
-/// `expr` dispatches `abs(…)` to `::tcl::mathfunc::abs`, so a `proc` or
-/// `rename` of it rebinds the builtin every `abs(…)` reaches (tclsh 8.5 to
-/// 9.1 run the module's `proc`) — and a package's command such as
-/// `::base32::encode`, which a `proc` of that name, or of `encode` inside
-/// `namespace eval base32`, replaces for every caller (tclsh 8.5 to 9.1 run
-/// the module's `proc`). A name the registry does not know is `Opaque`.
+/// Catalogue baseline at the supplied key, using exact-first Registry selection.
+/// Rooted method-only names cannot borrow a bare descriptor. This baseline
+/// does not establish a current Native command binding or implementation.
 fn default_binding(qname: &str, registry: &CommandRegistry) -> Binding {
-    let bare = qname.strip_prefix("::").unwrap_or(qname);
-    let builtin = if bare.contains("::") {
-        registry.get(qname).is_some()
-    } else {
-        registry.get(bare).is_some()
-    };
-    if builtin {
+    if registry.get(qname).is_some() {
         Binding::of(BindingKind::Builtin)
     } else {
         Binding::of(BindingKind::Opaque)
     }
 }
 
-/// Resolve `qname`'s binding within `state`, honouring wildcard + default.
-fn binding_in(state: &State, qname: &str, registry: &CommandRegistry) -> Binding {
-    if state.wildcard {
-        return Binding::of(BindingKind::Unknown);
+fn apply_package_transition(
+    state: &mut ModuleCommandBindings,
+    transition: &tcl_registry::model::binding::PackageTransition,
+) {
+    use tcl_registry::model::binding::PackageTransition;
+    match transition {
+        PackageTransition::Provide { package, version } => {
+            apply_package_provision(state, package, version.as_ref());
+        }
+        PackageTransition::Require {
+            package,
+            requirements,
+            exact,
+        } => {
+            let Some(package) = package.literal() else {
+                state.mark_opaque_binding_mutation();
+                return;
+            };
+            if state
+                .packages
+                .get(package)
+                .is_some_and(|provisions| provisions.iter().all(|provision| provision.present))
+            {
+                return;
+            }
+            if state
+                .packages
+                .get(package)
+                .is_some_and(|provisions| provisions.iter().any(|provision| provision.present))
+            {
+                // A previously provided version and a loadable version are
+                // distinct paths. Do not replace both with loader provenance.
+                state.mark_opaque_binding_mutation();
+                return;
+            }
+            let loader = state.baseline.trusted_loaders.get(package).cloned();
+            let selected = loader
+                .filter(|loader| trusted_loader_is_selected(state, loader, requirements, *exact));
+            let Some(loader) = selected else {
+                state.mark_opaque_binding_mutation();
+                return;
+            };
+            install_trusted_package_provider(state, package, loader);
+        }
+        PackageTransition::Ifneeded {
+            package,
+            script_provided,
+            ..
+        } if *script_provided => {
+            if let Some(package) = package.literal() {
+                Arc::make_mut(&mut state.revoked_loaders).insert(package.to_owned());
+            } else {
+                state.loader_handler_unknown = true;
+            }
+        }
+        PackageTransition::Forget { packages } => {
+            for package in packages {
+                if let Some(package) = package.literal() {
+                    Arc::make_mut(&mut state.packages).remove(package);
+                    Arc::make_mut(&mut state.revoked_loaders).insert(package.to_owned());
+                } else {
+                    state.loader_handler_unknown = true;
+                }
+            }
+        }
+        PackageTransition::UnknownHandler { handler: Some(_) }
+        | PackageTransition::Prefer { mode: Some(_) } => {
+            state.loader_handler_unknown = true;
+        }
+        PackageTransition::SourceLoad { .. } => {
+            state.mark_opaque_binding_mutation();
+            state.loader_handler_unknown = true;
+        }
+        PackageTransition::DiscoveryDependencyChanged { .. } => {
+            Arc::make_mut(&mut state.revoked_loaders)
+                .extend(state.baseline.trusted_loaders.keys().cloned());
+        }
+        PackageTransition::Ifneeded { .. }
+        | PackageTransition::UnknownHandler { handler: None }
+        | PackageTransition::Prefer { mode: None } => {}
     }
-    state
-        .map
-        .get(qname)
-        .cloned()
-        .unwrap_or_else(|| default_binding(qname, registry))
 }
 
-/// Lattice join: ⊥ is identity, equal stays, anything else rises to ⊤.
-fn join_binding(a: &Binding, b: &Binding) -> Binding {
-    if a.kind == BindingKind::Bottom {
-        return b.clone();
+fn apply_package_provision(
+    state: &mut ModuleCommandBindings,
+    package: &TransitionSubject,
+    version: Option<&TransitionSubject>,
+) {
+    let Some(package) = package.literal() else {
+        state.loader_handler_unknown = true;
+        return;
+    };
+    if let Some(version) = version {
+        let advertised = PackageProvision {
+            present: true,
+            version: version.literal().map(str::to_owned),
+            implementation: None,
+        };
+        let entry = Arc::make_mut(&mut state.packages)
+            .entry(package.to_owned())
+            .or_insert_with(|| BTreeSet::from([PackageProvision::absent()]));
+        *entry = entry
+            .iter()
+            .map(|provision| {
+                if provision.present {
+                    provision.clone()
+                } else {
+                    advertised.clone()
+                }
+            })
+            .collect();
+        Arc::make_mut(&mut state.revoked_loaders).insert(package.to_owned());
     }
-    if b.kind == BindingKind::Bottom {
-        return a.clone();
-    }
-    if a == b {
-        return a.clone();
-    }
-    Binding::of(BindingKind::Unknown)
 }
 
-/// Record a namespace transition's effect on command *resolution*.
-///
-/// Returns `false` when the target namespace is not literal, which the caller
-/// takes as the lattice top: the transition could have landed anywhere.
-///
-/// An import binds each pattern's *tail* in the target namespace, so a
-/// literal, glob-free pattern is exact — `namespace import -force
-/// ::evil::answer` shadowing a declared `::ns::answer`. A glob (`::lib::*`)
-/// names commands this scan cannot enumerate, so only the *target* namespace
-/// becomes opaque, and a name elsewhere — including in the namespace imported
-/// *from* — stays trustworthy.
+fn trusted_loader_is_selected(
+    state: &ModuleCommandBindings,
+    loader: &TrustedPackageLoader,
+    requirements: &[TransitionSubject],
+    exact: bool,
+) -> bool {
+    if loader.required_core_family.is_some_and(|family| {
+        state
+            .baseline
+            .dialect
+            .and_then(tcl_registry::InvocationDialect::family)
+            != Some(family)
+    }) {
+        return false;
+    }
+    if state.loader_handler_unknown || state.revoked_loaders.contains(&loader.package) {
+        return false;
+    }
+    if !trusted_package_transfer::preload_dependencies_hold(state, loader) {
+        return false;
+    }
+    if requirements.is_empty() {
+        return true;
+    }
+    let (Some(version), Some(release)) = (loader.version.as_deref(), state.baseline.release) else {
+        return false;
+    };
+    requirements
+        .iter()
+        .all(|requirement| requirement.literal().is_some())
+        && requirements
+            .iter()
+            .filter_map(TransitionSubject::literal)
+            .any(|requirement| {
+                if exact {
+                    tcl_dialect::compare_versions_for(version, requirement, release).is_eq()
+                } else {
+                    tcl_dialect::version_satisfies_for(version, requirement, release)
+                }
+            })
+}
+
+fn install_trusted_package_namespace_exports(
+    state: &mut ModuleCommandBindings,
+    loader: &TrustedPackageLoader,
+) {
+    for (namespace, exports) in &loader.namespace_exports {
+        Arc::make_mut(&mut state.namespaces).insert(namespace.clone());
+        if exports
+            .iter()
+            .any(|pattern| !pattern.is_ascii() || pattern.as_bytes().contains(&0))
+        {
+            Arc::make_mut(&mut state.unknown_export_namespaces).insert(namespace.clone());
+        } else {
+            Arc::make_mut(&mut state.namespace_exports).insert(
+                namespace.clone(),
+                BTreeSet::from([exports
+                    .iter()
+                    .map(|pattern| tcl_core_types::NameBytes::from(pattern.as_bytes()))
+                    .collect()]),
+            );
+        }
+    }
+    for (namespace, optional) in &loader.optional_namespace_exports {
+        if optional
+            .iter()
+            .any(|pattern| !pattern.is_ascii() || pattern.as_bytes().contains(&0))
+        {
+            Arc::make_mut(&mut state.unknown_export_namespaces).insert(namespace.clone());
+        }
+        let exports = Arc::make_mut(&mut state.namespace_exports)
+            .entry(namespace.clone())
+            .or_insert_with(|| BTreeSet::from([Vec::new()]));
+        let with_optional = exports
+            .iter()
+            .map(|patterns| {
+                let mut patterns = patterns.clone();
+                patterns.extend(
+                    optional
+                        .iter()
+                        .filter(|pattern| pattern.is_ascii() && !pattern.as_bytes().contains(&0))
+                        .map(|pattern| tcl_core_types::NameBytes::from(pattern.as_bytes())),
+                );
+                patterns
+            })
+            .collect::<Vec<_>>();
+        exports.extend(with_optional);
+    }
+}
+
+fn install_trusted_package_provider(
+    state: &mut ModuleCommandBindings,
+    package: &str,
+    loader: TrustedPackageLoader,
+) {
+    // Proof: naming.package.attested-source-loader-transfer
+
+    let Some(publication_keys) = trusted_package_transfer::publication_keys(state, &loader) else {
+        state.mark_opaque_binding_mutation();
+        return;
+    };
+    for command in &loader.command_surface {
+        let slot = tcl_registry::rooted_command_descriptor_label(command);
+        let (namespace, _) = tcl_syntax::naming::key_holder_and_tail(&slot);
+        Arc::make_mut(&mut state.namespaces).insert(namespace.to_owned());
+        state.install(
+            publication_keys[command].clone(),
+            MayBinding::Target(ResolvedCommandTarget {
+                command: slot.clone(),
+                prepended: Vec::new(),
+                registry_backed: true,
+                kind: BindingKind::Builtin,
+                implementation_generation: 0,
+                terminal: true,
+                target_lookup: tcl_registry::AliasTargetLookup::Global,
+                token: Some(CommandToken {
+                    runtime: None,
+                    origin: slot,
+                    declaration: 0,
+                    allocation: None,
+                }),
+                implementation_allocation: None,
+            }),
+        );
+    }
+    for command in &loader.optional_command_surface {
+        let slot = tcl_registry::rooted_command_descriptor_label(command);
+        Arc::make_mut(&mut state.namespaces).insert(command_holder(&slot));
+        let original = MayBinding::Target(ResolvedCommandTarget {
+            command: slot.clone(),
+            prepended: Vec::new(),
+            registry_backed: true,
+            kind: BindingKind::Builtin,
+            implementation_generation: 0,
+            terminal: true,
+            target_lookup: tcl_registry::AliasTargetLookup::Global,
+            token: Some(CommandToken {
+                runtime: None,
+                origin: slot.clone(),
+                declaration: 0,
+                allocation: None,
+            }),
+            implementation_allocation: None,
+        });
+        state.replace(
+            publication_keys[command].clone(),
+            BTreeSet::from([original, MayBinding::Missing]),
+        );
+    }
+    install_trusted_package_namespace_exports(state, &loader);
+    Arc::make_mut(&mut state.packages).insert(
+        package.to_owned(),
+        BTreeSet::from([PackageProvision {
+            present: true,
+            version: loader.version,
+            implementation: Some(loader.implementation_id),
+        }]),
+    );
+}
+
+fn apply_namespace_ensure(
+    state: &mut ModuleCommandBindings,
+    namespace: &tcl_registry::NamespaceTransitionTarget,
+    current: &SourceNamespaceKey,
+    offset: u32,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
+) {
+    if let (Some(operands), tcl_registry::NamespaceTransitionTarget::Named(subject)) =
+        (original_operands, namespace)
+        && matches!(
+            state
+                .baseline
+                .execution_name_policy
+                .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+                .map(tcl_syntax::naming::NamePolicyProtocol::recipe),
+            Some(tcl_syntax::naming::NativeNameProtocol::C(_))
+        )
+        && (subject.literal().is_none() || !matches!(current, SourceNamespaceKey::Authored(_)))
+    {
+        let selected = operands
+            .namespace_ensure_input(subject)
+            .and_then(|input| state.ensure_original_namespace_key_at(current, input, offset));
+        if selected.is_none() {
+            state.mark_opaque_resolution();
+        }
+        return;
+    }
+    if let SourceNamespaceKey::Authored(_) = current {
+        if let Some(SourceNamespaceKey::Authored(mut ancestor)) =
+            state.namespace_target_key_at(namespace, current)
+        {
+            loop {
+                Arc::make_mut(&mut state.namespaces).insert(ancestor.clone());
+                if ancestor == "::" {
+                    break;
+                }
+                ancestor = command_holder(&ancestor);
+            }
+        }
+    } else if state
+        .ensure_namespace_key_at(namespace, current, offset)
+        .is_none()
+    {
+        state.mark_opaque_resolution();
+    }
+}
+
+fn apply_namespace_path(
+    state: &mut ModuleCommandBindings,
+    namespace: &tcl_registry::NamespaceTransitionTarget,
+    path: &TransitionSubject,
+    current: &SourceNamespaceKey,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
+) {
+    let Some(name) = state.namespace_target_key_at(namespace, current) else {
+        state.mark_opaque_resolution();
+        return;
+    };
+    if matches!(
+        state.baseline.execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+            .map(tcl_syntax::naming::NamePolicyProtocol::recipe),
+        Some(tcl_syntax::naming::NativeNameProtocol::C(version))
+            if version >= tcl_dialect::TclVersion::V8_5
+    ) {
+        let entries = original_operands
+            .and_then(|operands| operands.namespace_input(path))
+            .and_then(|input| original_namespace_path::select(state, &name, input));
+        match entries {
+            Some(entries) => {
+                Arc::make_mut(&mut state.unknown_namespace_paths).remove(&name);
+                Arc::make_mut(&mut state.namespace_paths).insert(name, BTreeSet::from([entries]));
+            }
+            None => {
+                Arc::make_mut(&mut state.unknown_namespace_paths).insert(name);
+            }
+        }
+        return;
+    }
+    let Some(path) = path
+        .literal()
+        .and_then(|value| tcl_syntax::list::split_list(value).ok())
+    else {
+        Arc::make_mut(&mut state.unknown_namespace_paths).insert(name);
+        return;
+    };
+    let Some(entries) = path
+        .iter()
+        .map(|entry| {
+            state.namespace_target_key_at(
+                &tcl_registry::NamespaceTransitionTarget::Named(TransitionSubject::Literal(
+                    entry.to_string(),
+                )),
+                &name,
+            )
+        })
+        .collect::<Option<Vec<_>>>()
+    else {
+        Arc::make_mut(&mut state.unknown_namespace_paths).insert(name);
+        return;
+    };
+    Arc::make_mut(&mut state.unknown_namespace_paths).remove(&name);
+    Arc::make_mut(&mut state.namespace_paths).insert(name, BTreeSet::from([entries]));
+}
+
+fn apply_namespace_transition(
+    state: &mut ModuleCommandBindings,
+    transition: &NamespaceTransition,
+    execution: &crate::ir_helpers::ExecutionNamespace,
+    offset: u32,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
+) {
+    if matches!(
+        transition,
+        NamespaceTransition::SetPath { .. }
+            | NamespaceTransition::SetUnknown { .. }
+            | NamespaceTransition::Ensemble { .. }
+    ) {
+        Arc::make_mut(&mut state.object_instances).invalidate_receiver_dispatcher();
+    }
+    let Some(current) = execution.for_head_context("") else {
+        state.mark_opaque_resolution();
+        return;
+    };
+    let current = current.as_ref();
+    match transition {
+        NamespaceTransition::Ensure { namespace } => {
+            apply_namespace_ensure(state, namespace, current, offset, original_operands);
+        }
+        NamespaceTransition::Export {
+            namespace,
+            patterns,
+        } => {
+            apply_namespace_exports(state, namespace, patterns, current, original_operands);
+        }
+        NamespaceTransition::Import {
+            namespace,
+            force,
+            patterns,
+        } => {
+            let Some(name) = state.namespace_target_key_at(namespace, current) else {
+                state.mark_opaque_resolution();
+                return;
+            };
+            for pattern in patterns {
+                let Some(pattern) = namespace_pattern_operand_bytes(
+                    pattern,
+                    original_operands,
+                    state.baseline.native_entry.is_some(),
+                ) else {
+                    Arc::make_mut(&mut state.unknown_lookup_namespaces).insert(name.clone());
+                    break;
+                };
+                if !import_pattern(state, &name, pattern, *force) {
+                    break;
+                }
+            }
+        }
+        NamespaceTransition::Forget {
+            namespace,
+            patterns,
+        } => {
+            let Some(name) = state.namespace_target_key_at(namespace, current) else {
+                state.mark_opaque_resolution();
+                return;
+            };
+            for pattern in patterns {
+                let Some(pattern) = namespace_pattern_operand_bytes(
+                    pattern,
+                    original_operands,
+                    state.baseline.native_entry.is_some(),
+                ) else {
+                    Arc::make_mut(&mut state.unknown_lookup_namespaces).insert(name.clone());
+                    break;
+                };
+                forget_pattern(state, &name, pattern);
+            }
+        }
+        NamespaceTransition::SetPath { namespace, path } => {
+            apply_namespace_path(state, namespace, path, current, original_operands);
+        }
+        NamespaceTransition::Delete { namespace } => {
+            Arc::make_mut(&mut state.object_instances).invalidate_class_delegates(false);
+            Arc::make_mut(&mut state.object_instances).invalidate_dispatch(false);
+            apply_namespace_deletion(state, namespace, current, offset, original_operands);
+        }
+        NamespaceTransition::SetUnknown { namespace, handler } => {
+            if let Some(name) = state.namespace_target_key_at(namespace, current) {
+                let default = is_default_namespace_unknown_handler(state, handler);
+                if default {
+                    Arc::make_mut(&mut state.namespace_unknown_handlers).remove(&name);
+                } else {
+                    Arc::make_mut(&mut state.namespace_unknown_handlers).insert(name);
+                }
+            } else {
+                state.mark_opaque_resolution();
+            }
+        }
+        NamespaceTransition::Ensemble { namespace, .. } => {
+            if let Some(name) = state.namespace_target_key_at(namespace, current) {
+                Arc::make_mut(&mut state.unknown_lookup_namespaces).insert(name);
+            } else {
+                state.mark_opaque_resolution();
+            }
+        }
+    }
+}
+
+fn apply_namespace_deletion(
+    state: &mut ModuleCommandBindings,
+    namespace: &tcl_registry::NamespaceTransitionTarget,
+    current: &SourceNamespaceKey,
+    offset: u32,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
+) {
+    let name = match (namespace, original_operands) {
+        (tcl_registry::NamespaceTransitionTarget::Named(subject), Some(operands)) => operands
+            .namespace_input(subject)
+            .and_then(|input| state.original_namespace_key_for_input(current, input)),
+        _ => state.namespace_target_key_at(namespace, current),
+    };
+    let Some(name) = name else {
+        state.mark_opaque_resolution();
+        return;
+    };
+    // A retained retired activation must not delete a replacement object at
+    // the same component path. The deletion target is its actual incarnation.
+    if !matches!(name, SourceNamespaceKey::Authored(_)) && !state.namespaces.contains(&name) {
+        return;
+    }
+    crate::variable_bindings::delete_namespace_cells_in_identity(
+        Arc::make_mut(&mut state.source_variables),
+        &name,
+        offset,
+    );
+    let slots = state
+        .all_command_keys()
+        .into_iter()
+        .filter(|slot| {
+            let holder = slot.holder();
+            holder.as_ref() == &name || holder.is_descendant_of(&name)
+        })
+        .collect::<Vec<_>>();
+    for slot in slots {
+        state.remove(slot);
+    }
+    Arc::make_mut(&mut state.namespaces).retain(|ns| ns != &name && !ns.is_descendant_of(&name));
+    Arc::make_mut(&mut state.namespace_exports)
+        .retain(|ns, _| ns != &name && !ns.is_descendant_of(&name));
+    Arc::make_mut(&mut state.namespace_paths)
+        .retain(|ns, _| ns != &name && !ns.is_descendant_of(&name));
+}
+
+/// Exact original values take precedence over logical transition advice.
+/// The legacy authored adapter supports explicit ASCII metadata only; a
+/// supplied native entry never borrows those bytes for an absent original.
+fn namespace_pattern_operand_bytes<'a>(
+    subject: &'a TransitionSubject,
+    original_operands: Option<&'a original_command_table::OriginalCommandOperands>,
+    native_entry: bool,
+) -> Option<&'a [u8]> {
+    match original_operands {
+        Some(operands) => operands
+            .namespace_input(subject)
+            .map(crate::signature_scan::scope::SignatureSourceNameInput::bytes),
+        None => subject.native_bytes().or_else(|| {
+            (!native_entry).then_some(())?;
+            let metadata = subject.literal()?;
+            (metadata.is_ascii() && !metadata.as_bytes().contains(&0))
+                .then_some(metadata.as_bytes())
+        }),
+    }
+}
+
+fn apply_namespace_exports(
+    state: &mut ModuleCommandBindings,
+    namespace: &tcl_registry::NamespaceTransitionTarget,
+    patterns: &[TransitionSubject],
+    current: &SourceNamespaceKey,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
+) {
+    let Some(namespace) = state.namespace_target_key_at(namespace, current) else {
+        state.mark_opaque_resolution();
+        return;
+    };
+    let inputs = patterns
+        .iter()
+        .map(|pattern| {
+            namespace_pattern_operand_bytes(
+                pattern,
+                original_operands,
+                state.baseline.native_entry.is_some(),
+            )
+        })
+        .collect::<Option<Vec<_>>>();
+    if inputs
+        .as_ref()
+        .and_then(|inputs| original_namespace_binding::apply_exports(state, &namespace, inputs))
+        .is_none()
+    {
+        Arc::make_mut(&mut state.unknown_export_namespaces).insert(namespace);
+    }
+}
+
+fn import_pattern(
+    state: &mut ModuleCommandBindings,
+    destination: &SourceNamespaceKey,
+    pattern: &[u8],
+    force: Option<bool>,
+) -> bool {
+    original_namespace_binding::apply_import(state, destination, pattern, force).is_some()
+}
+
+fn imported_binding_links(
+    state: &mut ModuleCommandBindings,
+    slot: &SourceCommandKey,
+    implementations: BTreeSet<MayBinding>,
+    name_binding: bool,
+) -> (BTreeSet<MayBinding>, BTreeSet<MayBinding>) {
+    let mut links = BTreeSet::new();
+    let mut source_bindings = BTreeSet::new();
+    let spelling = state.callable_spelling_for_key(slot);
+    for mut implementation in implementations {
+        if spelling.is_none()
+            && (name_binding
+                || matches!(&implementation, MayBinding::Target(target) if target.token.is_none()))
+        {
+            links.insert(MayBinding::Unknown);
+            source_bindings.insert(implementation);
+            continue;
+        }
+        if name_binding && !matches!(implementation, MayBinding::Missing | MayBinding::Unknown) {
+            let token = CommandToken {
+                runtime: None,
+                origin: spelling.clone().unwrap_or_default(),
+                declaration: u32::MAX,
+                allocation: None,
+            };
+            Arc::make_mut(&mut state.objects).insert(
+                token.clone(),
+                BTreeSet::from([MayBinding::Target(ResolvedCommandTarget {
+                    command: spelling.clone().unwrap_or_default(),
+                    prepended: Vec::new(),
+                    registry_backed: false,
+                    terminal: false,
+                    target_lookup: tcl_registry::AliasTargetLookup::Global,
+                    token: None,
+                    kind: BindingKind::Alias,
+                    implementation_generation: 0,
+                    implementation_allocation: None,
+                })]),
+            );
+            links.insert(MayBinding::Imported(token.into()));
+            source_bindings.insert(implementation);
+            continue;
+        }
+        match &mut implementation {
+            MayBinding::Imported(token) => {
+                links.insert(MayBinding::Imported(ImportedCommandBinding {
+                    origin: token.origin.clone(),
+                    compiler: None,
+                }));
+            }
+            MayBinding::Target(target) => match state.baseline.import_binding {
+                Some(tcl_dialect::NamespaceImportBinding::CommandToken) => {
+                    let token = target
+                        .token
+                        .get_or_insert_with(|| CommandToken {
+                            runtime: None,
+                            origin: spelling.clone().unwrap_or_default(),
+                            declaration: 0,
+                            allocation: None,
+                        })
+                        .clone();
+                    Arc::make_mut(&mut state.objects)
+                        .insert(token.clone(), BTreeSet::from([implementation.clone()]));
+                    links.insert(MayBinding::Imported(token.into()));
+                }
+                Some(tcl_dialect::NamespaceImportBinding::SourceName) => {
+                    let token = CommandToken {
+                        runtime: None,
+                        origin: spelling.clone().unwrap_or_default(),
+                        declaration: u32::MAX,
+                        allocation: None,
+                    };
+                    Arc::make_mut(&mut state.objects).insert(
+                        token.clone(),
+                        BTreeSet::from([MayBinding::Target(ResolvedCommandTarget {
+                            command: spelling.clone().unwrap_or_default(),
+                            prepended: Vec::new(),
+                            registry_backed: false,
+                            terminal: false,
+                            target_lookup: tcl_registry::AliasTargetLookup::Global,
+                            token: None,
+                            kind: BindingKind::Alias,
+                            implementation_generation: 0,
+                            implementation_allocation: None,
+                        })]),
+                    );
+                    links.insert(MayBinding::Imported(token.into()));
+                }
+                None => {
+                    links.insert(MayBinding::Unknown);
+                }
+            },
+            MayBinding::Unknown => {
+                links.insert(MayBinding::Unknown);
+            }
+            MayBinding::Missing => {
+                links.insert(MayBinding::Missing);
+            }
+        }
+        source_bindings.insert(implementation);
+    }
+    (links, source_bindings)
+}
+
+fn forget_pattern(
+    state: &mut ModuleCommandBindings,
+    destination: &SourceNamespaceKey,
+    pattern: &[u8],
+) {
+    if original_namespace_binding::apply_forget(state, destination, pattern).is_none() {
+        Arc::make_mut(&mut state.unknown_lookup_namespaces).insert(destination.clone());
+    }
+}
+
+/// Project literal import tails under the retained current namespace key.
+/// Unknown patterns or targets widen lookup advice without selecting a command.
 fn collect_namespace_resolution(
     transition: &NamespaceTransition,
     site: Option<&str>,
@@ -3609,6 +19829,7 @@ fn collect_namespace_resolution(
         NamespaceTransition::Import {
             namespace,
             patterns,
+            ..
         }
         | NamespaceTransition::Forget {
             namespace,
@@ -3616,7 +19837,7 @@ fn collect_namespace_resolution(
         } => (namespace, Some(patterns)),
         NamespaceTransition::SetPath { namespace, .. }
         | NamespaceTransition::SetUnknown { namespace, .. }
-        | NamespaceTransition::Ensemble { namespace }
+        | NamespaceTransition::Ensemble { namespace, .. }
         | NamespaceTransition::Delete { namespace } => (namespace, None),
         // Creating a namespace, or changing its export list, resolves nothing
         // differently for a caller in it.
@@ -3633,8 +19854,10 @@ fn collect_namespace_resolution(
     for pattern in patterns {
         match literal_subject(pattern) {
             Some(text) if !text.contains(['*', '?', '[']) => {
-                let tail = text.rsplit("::").next().unwrap_or(text);
-                rebound.insert(nqn(&join_ns(&target, tail)));
+                let tail =
+                    core::str::from_utf8(tcl_syntax::naming::written_command_tail(text.as_bytes()))
+                        .expect("tail of a Unicode pattern");
+                rebound.insert(tcl_syntax::naming::qualify(&target, tail));
             }
             _ => {
                 opaque.insert(target.clone());
@@ -3652,337 +19875,174 @@ fn transition_namespace(
     current: Option<&str>,
 ) -> Option<String> {
     match target {
-        tcl_registry::NamespaceTransitionTarget::Current => current.map(nqn),
+        tcl_registry::NamespaceTransitionTarget::Current => current.map(str::to_owned),
         tcl_registry::NamespaceTransitionTarget::Named(subject) => {
             literal_subject(subject).map(nqn)
         }
     }
 }
 
-/// `ns` + `tail` as one qualified name, without doubling the separator.
-fn join_ns(ns: &str, tail: &str) -> String {
-    if ns == "::" {
-        format!("::{tail}")
-    } else {
-        format!("{ns}::{tail}")
-    }
-}
-
 fn literal_subject(subject: &TransitionSubject) -> Option<&str> {
-    match subject {
-        TransitionSubject::Literal(value) => Some(value),
-        TransitionSubject::Unknown { .. } => None,
-    }
+    subject.literal()
 }
 
-fn definition_binding(kind: CommandBindingDefinitionKind, qname: String) -> Binding {
-    let kind = match kind {
-        CommandBindingDefinitionKind::Command => BindingKind::Command,
-        CommandBindingDefinitionKind::Procedure => BindingKind::Proc,
-        CommandBindingDefinitionKind::Object => BindingKind::Class,
-    };
-    Binding {
-        kind,
-        target: Some(qname),
-    }
-}
-
-fn apply_binding_transition(
-    transition: &CommandBindingTransition,
-    state: &mut State,
-    registry: &CommandRegistry,
-) {
-    match transition {
-        CommandBindingTransition::Define { name, kind } => {
-            let Some(name) = literal_subject(name) else {
-                state.wildcard = true;
-                return;
-            };
-            if name.is_empty() {
-                return;
-            }
-            let qname = nqn(name);
-            state
-                .map
-                .insert(qname.clone(), definition_binding(*kind, qname));
-        }
-        CommandBindingTransition::Move { from, to } => {
-            let (Some(from), Some(to)) = (literal_subject(from), literal_subject(to)) else {
-                state.wildcard = true;
-                return;
-            };
-            let from = nqn(from);
-            let moved = binding_in(state, &from, registry);
-            state.map.insert(from, Binding::of(BindingKind::Opaque));
-            if !to.is_empty() {
-                state.map.insert(nqn(to), moved);
-            }
-        }
-        CommandBindingTransition::Delete { interpreter, name } => {
-            let affects_current = match interpreter {
-                None => true,
-                Some(subject) => match literal_subject(subject) {
-                    Some("") => true,
-                    Some(_) => false,
-                    None => {
-                        state.wildcard = true;
-                        return;
-                    }
-                },
-            };
-            if !affects_current {
-                return;
-            }
-            let Some(name) = literal_subject(name) else {
-                state.wildcard = true;
-                return;
-            };
-            state
-                .map
-                .insert(nqn(name), Binding::of(BindingKind::Opaque));
-        }
-        CommandBindingTransition::Alias {
-            source_interpreter,
-            alias,
-            target_interpreter: _,
-            target,
-            arguments: _,
-        } => {
-            let Some(source_interpreter) = literal_subject(source_interpreter) else {
-                state.wildcard = true;
-                return;
-            };
-            if !source_interpreter.is_empty() {
-                return;
-            }
-            let (Some(alias), Some(target)) = (literal_subject(alias), literal_subject(target))
-            else {
-                state.wildcard = true;
-                return;
-            };
-            state.map.insert(
-                nqn(alias),
-                Binding {
-                    kind: BindingKind::Alias,
-                    target: Some(nqn(target)),
-                },
-            );
-        }
-        CommandBindingTransition::Unknown { .. } => state.wildcard = true,
-    }
-}
-
-/// Apply the registry's closed transition description.
-///
-/// `None` means the invocation was unresolved or deliberately unstamped.
-/// `Some(false)` means the selected descriptor was closed but did not change
-/// command bindings.  That distinction is load-bearing for a registry spelling
-/// shadowed by a live object command: an explicitly transition-free static
-/// descriptor must not suppress the registry-described runtime receiver path.
-fn apply_registry_transitions(
-    stmt: &Statement,
-    state: &mut State,
-    registry: &CommandRegistry,
-) -> Option<bool> {
-    let facts = invocation_facts(stmt, registry)?;
-    let transitions = facts.state_transitions.declared()?;
-    let mut applied = false;
-    for fact in transitions.facts() {
-        match &fact.transition {
-            StateTransition::CommandBinding(transition) => {
-                apply_binding_transition(transition, state, registry);
-                applied = true;
-            }
-            StateTransition::Widen(widening)
-                if widening
-                    .domains
-                    .contains(&StateTransitionDomain::CommandBindings) =>
-            {
-                state.wildcard = true;
-                return Some(true);
-            }
-            StateTransition::Interpreter(_)
-            | StateTransition::VariableCellAlias(_)
-            | StateTransition::Namespace(_)
-            | StateTransition::Trace(_)
-            | StateTransition::ObjectDispatch(_)
-            | StateTransition::Widen(_) => {}
-        }
-    }
-    Some(applied)
-}
-
-/// Apply `stmt`'s command-table mutation to `state` in place.
-///
-/// Registry-declared [`StateTransition`] facts are authoritative for ordinary
-/// definitions, renames, deletions, and aliases.  An unstamped mutator
-/// widens conservatively instead of being re-decoded here.  Runtime object
-/// receiver calls remain a small separate path because their source head is a
-/// value, not a statically registered command.
-fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
-    if !stmt.is_executable_invocation() {
-        return;
-    }
-    let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
-        return;
-    };
-    if state.wildcard {
-        return; // already maximally conservative
-    }
-    if apply_registry_transitions(stmt, state, registry) == Some(true) {
-        return;
-    }
-
-    // The canonical command falls back to the source spelling.
-    let cmd = stmt.canonical_command_or_source();
-
-    // Class lifecycle.  A registry-described definer creates a command;
-    // registry-declared object-surface methods can delete it or manufacture
-    // another named object command.
-    if let Some(created) = definer_created_command(registry, cmd, args) {
-        state.map.insert(
-            nqn(&created),
-            Binding {
-                kind: BindingKind::Class,
-                target: Some(nqn(&created)),
-            },
-        );
-        return;
-    }
-    let head = nqn(cmd);
-    let head_binding = binding_in(state, &head, registry);
-    if head_binding.kind == BindingKind::Class {
-        if args
-            .first()
-            .is_some_and(|w| registry.is_destructive_object_method(w))
-        {
-            state.map.insert(head, Binding::of(BindingKind::Opaque));
-        } else if let Some(name_idx) = args.first().and_then(|method| {
-            registry
-                .is_manufacturer_method(method)
-                .then(|| registry.uniform_manufacturer_names_instance_at(method))
-                .flatten()
-        }) && let Some(name) = args.get(name_idx)
-            && !is_dynamic_word(name)
-        {
-            state.map.insert(
-                nqn(name),
-                Binding {
-                    kind: BindingKind::Class,
-                    target: head_binding.target,
-                },
-            );
-        }
-    }
-}
-
-/// The command a registry-described class definer creates, when this call
-/// is a creation: `METACLASS create NAME …` / `METACLASS createWithNamespace
-/// NAME …` for the `TclOo` family (gated on `IS_OO_METACLASS`, mirroring the
-/// analyser's dual gate), `DEFINER NAME BODY` for snit/itcl and
-/// `DEFINER NAME ?BASES? VARS` for a Jim class.  `None` for
-/// non-definers, `new` (auto-named), or a dynamic name.
-fn definer_created_command(
-    registry: &CommandRegistry,
-    cmd: &str,
-    args: &[String],
-) -> Option<String> {
-    let spec = registry.get(cmd)?;
-    let grammar = spec.definition_body?;
-    if !grammar.family.manufactures_runtime_commands() {
-        return None;
-    }
-    let name = match grammar.family {
-        tcl_registry::definer::DefinerFamily::TclOo => {
-            if !spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS) {
-                return None;
-            }
-            let method = registry.exported_manufacturer_method(cmd, args.first()?)?;
-            args.get(usize::from(method.names_instance_at?))?
-        }
-        tcl_registry::definer::DefinerFamily::Snit
-        | tcl_registry::definer::DefinerFamily::Itcl
-        | tcl_registry::definer::DefinerFamily::JimClass => args.first()?,
-        tcl_registry::definer::DefinerFamily::SpecTcl
-        | tcl_registry::definer::DefinerFamily::SslicTcl => return None,
-    };
-    (!name.is_empty() && !is_dynamic_word(name)).then(|| name.clone())
-}
-
-/// Join predecessor exit states into a block-entry state.
-///
-/// A name absent from a finished predecessor exit takes its **default**
-/// binding, whereas a name not yet contributed to the accumulator is
-/// **⊥** (identity for join) — so the merge is per-name across all
-/// predecessors at once, seeded at ⊥.  One wildcard predecessor forces
-/// the whole merge to wildcard.
-fn merge_preds(pred_exits: &[&State], registry: &CommandRegistry) -> State {
-    if pred_exits.is_empty() {
-        return State::default();
-    }
-    if pred_exits.iter().any(|pe| pe.wildcard) {
-        return State {
-            map: HashMap::new(),
-            wildcard: true,
-        };
-    }
-    let mut relevant: HashSet<&String> = HashSet::new();
-    for pe in pred_exits {
-        relevant.extend(pe.map.keys());
-    }
-    let mut entry = State::default();
-    for name in relevant {
-        let mut acc = Binding::of(BindingKind::Bottom);
-        for pe in pred_exits {
-            let b = pe
-                .map
-                .get(name)
-                .cloned()
-                .unwrap_or_else(|| default_binding(name, registry));
-            acc = join_binding(&acc, &b);
-        }
-        if acc != default_binding(name, registry) {
-            entry.map.insert(name.clone(), acc);
-        }
-    }
-    entry
-}
-
-/// Result of the command-binding analysis for one function/script.
-///
-/// `block_entry` holds the lattice state at each block's entry;
-/// point-wise queries replay the gen of the statements before the
-/// queried index.  Borrows the `cfg` and `registry` for the
-/// point-wise query API.
+/// CFG queries are projections of the shared command-table state.
 pub struct CommandBinding<'a> {
-    block_entry: HashMap<BlockId, State>,
+    block_entry: HashMap<BlockId, ModuleCommandBindings>,
     ordered_blocks: Vec<BlockId>,
     cfg: &'a CfgFunction,
     registry: &'a CommandRegistry,
+    seed: ModuleCommandBindings,
+    lookup_contexts: CfgLookupContexts,
+}
+
+fn unavailable_cfg_entry(registry: &CommandRegistry) -> ModuleCommandBindings {
+    let mut unknown = ModuleCommandBindings::initial(registry);
+    let baseline = Arc::make_mut(&mut unknown.baseline);
+    baseline.source_read_config = crate::var_resolve::SourceReadConfiguration::Unavailable;
+    baseline.refresh_fingerprint();
+    Arc::make_mut(&mut unknown.source_variables).source_read_configuration =
+        crate::var_resolve::SourceReadConfiguration::Unavailable;
+    unknown.mark_opaque_binding_mutation();
+    unknown.loader_handler_unknown = true;
+    unknown
+}
+
+fn cfg_entry_state(cfg: &CfgFunction, registry: &CommandRegistry) -> ModuleCommandBindings {
+    let mut retained: Option<Arc<BindingBaseline>> = None;
+    let registry_key = registry.snapshot().semantic_key();
+    for statement in cfg.blocks.values().flat_map(|block| &block.statements) {
+        if !statement.is_executable_invocation() {
+            continue;
+        }
+        let tokens = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+            &cfg.command_binding_sites,
+            statement,
+        );
+        let Some(tokens) = tokens else {
+            if statement.tokens().is_some()
+                || cfg
+                    .command_binding_sites
+                    .iter()
+                    .any(|site| site.span == statement.span() && site.source_tokens.is_some())
+            {
+                return unavailable_cfg_entry(registry);
+            }
+            continue;
+        };
+        let Some(binding) = tokens.source_binding.as_ref() else {
+            continue;
+        };
+        let baseline = binding
+            .lookup_state
+            .as_ref()
+            .map(|snapshot| &snapshot.state.baseline);
+        let Some(baseline) = baseline.filter(|baseline| {
+            baseline.registry_snapshot.as_ref() == Some(&registry_key)
+                && retained.as_ref().is_none_or(|old| old == *baseline)
+        }) else {
+            return unavailable_cfg_entry(registry);
+        };
+        retained = Some(Arc::clone(baseline));
+    }
+    retained.map_or_else(
+        || {
+            if cfg.statement_sources.values().any(Option::is_some)
+                || cfg.executed_source.is_some()
+                || cfg.namespace_context.is_some()
+                || !matches!(
+                    &cfg.metadata_context,
+                    crate::cfg_builder::CfgMetadataContext::Standalone
+                )
+            {
+                unavailable_cfg_entry(registry)
+            } else {
+                ModuleCommandBindings::initial(registry)
+            }
+        },
+        |baseline| ModuleCommandBindings::initial_entry_from_baseline(registry, baseline),
+    )
+}
+
+fn transfer_cfg_statement(
+    stmt: &Statement,
+    state: &mut ModuleCommandBindings,
+    registry: &CommandRegistry,
+    point: Option<&CfgPointContext>,
+    metadata: BindingInvocationMetadata<'_>,
+) {
+    if !stmt.is_executable_invocation() {
+        return;
+    }
+    let Some(point) = point else {
+        state.mark_opaque_binding_mutation();
+        return;
+    };
+    let namespace = &point.namespace;
+    apply_embedded_transitions_in(
+        stmt,
+        registry,
+        state,
+        namespace,
+        false,
+        (metadata, point.config),
+    );
+    if !matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
+        return;
+    }
+    let Some(command_namespace) = namespace.for_head_context(stmt.canonical_command_or_source())
+    else {
+        state.mark_opaque_binding_mutation();
+        return;
+    };
+    let mut observed = None;
+    let mut retained = RetainedBindingRoots::default();
+    let mut context = InvocationBindingContext {
+        retained_roots: &mut retained,
+        source_order_mode: false,
+        metadata,
+    };
+    apply_may_invocation_transitions(
+        stmt,
+        registry,
+        state,
+        &mut observed,
+        command_namespace.as_ref(),
+        namespace,
+        &mut context,
+    );
 }
 
 impl CommandBinding<'_> {
-    fn state_at_block(&self, block: BlockId, stmt_idx: usize) -> State {
-        let mut state = self.block_entry.get(&block).cloned().unwrap_or_default();
+    fn state_at_block(&self, block: BlockId, stmt_idx: usize) -> ModuleCommandBindings {
+        let mut state = self
+            .block_entry
+            .get(&block)
+            .cloned()
+            .unwrap_or_else(|| self.seed.clone());
         if let Some(blk) = self.cfg.blocks.get(&block) {
-            for stmt in blk.statements.iter().take(stmt_idx) {
-                stmt_gen(stmt, &mut state, self.registry);
+            for (index, stmt) in blk.statements.iter().enumerate().take(stmt_idx) {
+                transfer_cfg_statement(
+                    stmt,
+                    &mut state,
+                    self.registry,
+                    self.lookup_contexts.point(block, index),
+                    CfgLookupContexts::metadata(self.cfg, self.registry),
+                );
             }
         }
         state
     }
 
-    /// The binding of `command_name` when `block::stmt_idx` executes.
+    /// Project the exact slot's binding without inventing a second resolver.
     #[must_use]
     pub fn binding_at(&self, block: BlockId, stmt_idx: usize, command_name: &str) -> Binding {
-        binding_in(
-            &self.state_at_block(block, stmt_idx),
-            &nqn(command_name),
-            self.registry,
-        )
+        let state = self.state_at_block(block, stmt_idx);
+        self.lookup_contexts
+            .binding_at(self.cfg, &state, block, stmt_idx, command_name)
     }
 
-    /// True when `command_name` still denotes its core builtin here.
+    /// Whether the source name still selects its original registry command.
     #[must_use]
     pub fn is_original_builtin_at(
         &self,
@@ -3994,62 +20054,85 @@ impl CommandBinding<'_> {
             .is_original_builtin()
     }
 
-    /// Every command name perturbed from its default *anywhere* in the
-    /// body — the flow-insensitive union over all points of names whose
-    /// binding ever differs from its default.
+    /// Every source spelling changed at a represented program point.
     #[must_use]
     pub fn rebound_names(&self) -> HashSet<String> {
         let mut names = HashSet::new();
         for block in &self.ordered_blocks {
-            let mut state = self.block_entry.get(block).cloned().unwrap_or_default();
-            self.collect_rebound(&state, &mut names);
+            let mut state = self
+                .block_entry
+                .get(block)
+                .cloned()
+                .unwrap_or_else(|| self.seed.clone());
+            names.extend(state.changed_command_spellings());
             if let Some(blk) = self.cfg.blocks.get(block) {
-                for stmt in &blk.statements {
-                    stmt_gen(stmt, &mut state, self.registry);
-                    self.collect_rebound(&state, &mut names);
+                for (index, stmt) in blk.statements.iter().enumerate() {
+                    transfer_cfg_statement(
+                        stmt,
+                        &mut state,
+                        self.registry,
+                        self.lookup_contexts.point(*block, index),
+                        CfgLookupContexts::metadata(self.cfg, self.registry),
+                    );
+                    names.extend(state.changed_command_spellings());
                 }
             }
         }
         names
     }
 
-    fn collect_rebound(&self, state: &State, names: &mut HashSet<String>) {
-        for (name, binding) in &state.map {
-            if *binding != default_binding(name, self.registry) {
-                names.insert(name.clone());
-            }
-        }
-    }
-
-    /// True when some path performs a *dynamic* command-table mutation.
+    /// Whether some executable path has an unbounded command mutation.
     #[must_use]
     pub fn has_wildcard(&self) -> bool {
-        for block in &self.ordered_blocks {
-            let mut state = self.block_entry.get(block).cloned().unwrap_or_default();
-            if state.wildcard {
-                return true;
-            }
-            if let Some(blk) = self.cfg.blocks.get(block) {
-                for stmt in &blk.statements {
-                    stmt_gen(stmt, &mut state, self.registry);
-                    if state.wildcard {
-                        return true;
-                    }
-                }
-            }
-        }
-        false
+        self.ordered_blocks.iter().any(|block| {
+            let end = self
+                .cfg
+                .blocks
+                .get(block)
+                .map_or(0, |block| block.statements.len());
+            self.state_at_block(*block, end).opaque_domain
+        })
     }
 }
 
-/// Compute the flow-sensitive command-binding lattice for `cfg`.
-///
-/// `initial` seeds the entry block's state — the command bindings
-/// already in force when this function begins.  The top-level analysis
-/// seeds it with every module procedure (`{qname: Proc(qname)}`) so a
-/// proc defined inside a `namespace eval` block is still known to be a
-/// proc, while top-level `rename` / redefinition events perturb it
-/// flow-sensitively.
+fn cfg_seed_with_initial(
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
+    initial: &[(String, Binding)],
+) -> ModuleCommandBindings {
+    let mut seed = cfg_entry_state(cfg, registry);
+    for (name, binding) in initial {
+        let name = nqn(name);
+        let value = match binding.kind {
+            BindingKind::Unknown => MayBinding::Unknown,
+            BindingKind::Opaque | BindingKind::Bottom => MayBinding::Missing,
+            kind => MayBinding::Target(ResolvedCommandTarget {
+                command: binding.target.clone().unwrap_or_else(|| name.clone()),
+                prepended: Vec::new(),
+                registry_backed: kind == BindingKind::Builtin,
+                kind,
+                terminal: kind != BindingKind::Alias,
+                target_lookup: tcl_registry::AliasTargetLookup::Global,
+                implementation_generation: 0,
+                token: Some(CommandToken {
+                    runtime: None,
+                    origin: name.clone(),
+                    declaration: 0,
+                    allocation: None,
+                }),
+                implementation_allocation: None,
+            }),
+        };
+        if binding.kind == BindingKind::Proc {
+            seed.extend_procedure_bodies([name.clone()]);
+        }
+        seed.install(name, value);
+    }
+    seed
+}
+
+/// Flow-sensitive CFG analysis using the same state and transition kernel as
+/// source interpretation and module effect summaries.
 #[must_use]
 pub fn analyse_command_binding<'a>(
     cfg: &'a CfgFunction,
@@ -4060,60 +20143,66 @@ pub fn analyse_command_binding<'a>(
         cfg.blocks.keys().map(|id| (*id, Vec::new())).collect();
     for &id in cfg.blocks.keys() {
         for succ in cfg.block_successors(id) {
-            if let Some(v) = preds.get_mut(&succ) {
-                v.push(id);
+            if let Some(incoming) = preds.get_mut(&succ) {
+                incoming.push(id);
             }
         }
     }
-
+    let seed = cfg_seed_with_initial(cfg, registry, initial);
     let order = cfg.reverse_postorder();
-    let seed = State {
-        map: initial.iter().cloned().collect(),
-        wildcard: false,
-    };
-
-    let mut block_entry: HashMap<BlockId, State> = cfg
-        .blocks
-        .keys()
-        .map(|id| (*id, State::default()))
-        .collect();
-    let mut block_exit = block_entry.clone();
-
-    // Monotonic forward fixpoint: the per-name lattice has height 3 and
-    // the join only rises, so RPO iteration terminates.
-    let mut changed = true;
-    while changed {
-        changed = false;
+    let lookup_contexts = CfgLookupContexts::new(cfg, registry, &seed);
+    let mut block_entry = HashMap::<BlockId, ModuleCommandBindings>::new();
+    let mut block_exit = HashMap::<BlockId, ModuleCommandBindings>::new();
+    loop {
+        let mut changed = false;
         for id in &order {
-            let entry = {
-                let mut pred_states: Vec<&State> = preds
-                    .get(id)
-                    .map(|ps| ps.iter().map(|p| &block_exit[p]).collect())
-                    .unwrap_or_default();
-                if *id == cfg.entry {
-                    pred_states.push(&seed);
-                }
-                merge_preds(&pred_states, registry)
+            let mut predecessors = preds
+                .get(id)
+                .into_iter()
+                .flatten()
+                .filter_map(|id| block_exit.get(id));
+            let mut entry = if *id == cfg.entry {
+                seed.clone()
+            } else if let Some(first) = predecessors.next() {
+                first.clone()
+            } else {
+                continue;
             };
+            for predecessor in predecessors {
+                entry.join(predecessor);
+            }
             block_entry.insert(*id, entry.clone());
-            let mut exit_state = entry;
-            if let Some(blk) = cfg.blocks.get(id) {
-                for stmt in &blk.statements {
-                    stmt_gen(stmt, &mut exit_state, registry);
+            let mut exit = entry;
+            if let Some(block) = cfg.blocks.get(id) {
+                for (index, stmt) in block.statements.iter().enumerate() {
+                    transfer_cfg_statement(
+                        stmt,
+                        &mut exit,
+                        registry,
+                        lookup_contexts.point(*id, index),
+                        CfgLookupContexts::metadata(cfg, registry),
+                    );
                 }
             }
-            if exit_state != block_exit[id] {
-                block_exit.insert(*id, exit_state);
+            if block_exit
+                .get(id)
+                .is_none_or(|previous| !previous.same_state(&exit))
+            {
+                block_exit.insert(*id, exit);
                 changed = true;
             }
         }
+        if !changed {
+            break;
+        }
     }
-
     CommandBinding {
         block_entry,
         ordered_blocks: order,
         cfg,
         registry,
+        seed,
+        lookup_contexts,
     }
 }
 
@@ -4135,16 +20224,6 @@ pub enum RebindingSubjects {
 }
 
 impl RebindingSubjects {
-    /// `SomeUnnameable` when *either* side saw one — the join over the axis.
-    #[must_use]
-    fn join(self, other: Self) -> Self {
-        if self == Self::SomeUnnameable || other == Self::SomeUnnameable {
-            Self::SomeUnnameable
-        } else {
-            Self::AllNameable
-        }
-    }
-
     /// The axis a `bool`-valued observation stands for.
     #[must_use]
     fn from_unnameable(unnameable: bool) -> Self {
@@ -4287,14 +20366,17 @@ impl ModuleCommandMutations {
         self.dynamic
     }
 
-    /// Whether `name` sits in a namespace whose resolution this scan could
-    /// not enumerate — see [`Self::opaque_namespaces`].
+    /// The constructed command-key label contributes only MAY trust invalidation;
+    /// its written empty tail remains part of the namespace geometry.
     fn import_shadowed(&self, name: &str) -> bool {
         if self.opaque_namespaces.is_empty() {
             return false;
         }
-        let qualified = nqn(name);
-        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&qualified);
+        let parts = tcl_syntax::naming::written_command_parts(name.as_bytes());
+        let path = tcl_core_types::ByteNamespacePath::from_segments(parts.qualifiers);
+        let Some(namespace) = tcl_syntax::naming::checked_namespace_path_key(&path) else {
+            return true;
+        };
         self.opaque_namespaces.contains(&namespace)
     }
 
@@ -4315,9 +20397,9 @@ impl ModuleCommandMutations {
     /// natively (C Tcl then raises `invalid command name`).
     #[must_use]
     pub fn rebinds_under(&self, prefix: &str) -> bool {
-        let bare = prefix.strip_prefix("::").unwrap_or(prefix);
+        let bare = tcl_syntax::naming::unroot_rooted_key(prefix).unwrap_or(prefix);
         self.rebound.iter().any(|name| {
-            let canonical = name.strip_prefix("::").unwrap_or(name);
+            let canonical = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
             canonical.starts_with(bare)
         })
     }
@@ -4328,6 +20410,20 @@ impl ModuleCommandMutations {
     #[must_use]
     pub fn trusts(&self, command_name: &str) -> bool {
         !self.dynamic && self.observed_binding_is_the_builtin(command_name)
+    }
+
+    /// Descriptor-label eligibility under the module's MAY mutation and
+    /// observer inventories. This supplies no actual command or trace owner.
+    #[must_use]
+    pub(crate) fn trusts_unobserved_descriptor(
+        &self,
+        descriptor: tcl_registry::CanonicalCommandDescriptorKey<'_>,
+        dynamic_trace: bool,
+        traced: &std::collections::BTreeSet<String>,
+    ) -> bool {
+        let name = descriptor.label();
+        let key = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
+        self.trusts(key) && !dynamic_trace && !traced.contains(key) && !traced.contains(name)
     }
 
     /// The **named-subject** half of [`Self::trusts`]: whether the module's
@@ -4353,6 +20449,19 @@ impl ModuleCommandMutations {
         self.rebinding_subjects == RebindingSubjects::AllNameable
             && !self.import_shadowed(command_name)
             && !self.names.contains(&nqn(command_name))
+    }
+
+    /// Whether this summary reports no command-table mutation that could
+    /// change what a *builtin* name denotes — [`Self::trusts`] then answers
+    /// `true` for every name, exactly as [`Self::default`] does.
+    ///
+    /// Consumers that omit the complete mutation snapshot may use this query
+    /// to establish agreement with an untouched-module baseline. The function
+    /// lattice memo retains the full snapshot and therefore keys separately
+    /// for namespace-local shadows and unknown mutation obligations.
+    #[must_use]
+    pub fn agrees_with_untouched_bindings(&self) -> bool {
+        !self.dynamic && self.names.is_empty() && self.opaque_namespaces.is_empty()
     }
 
     /// Whether any body runs in a namespace chosen at run time while naming a
@@ -4507,34 +20616,6 @@ impl CommandTrustSnapshot {
     }
 }
 
-/// Collect tampered-with *core builtins* (default `Builtin` but observed
-/// otherwise) plus the wildcard flag from `state` into the accumulators.
-/// A freshly-defined user proc (default `Opaque` → `Proc`) is deliberately
-/// excluded: it doesn't untrust any builtin.
-fn collect_tampered_builtins(
-    state: &State,
-    registry: &CommandRegistry,
-    names: &mut std::collections::HashSet<String>,
-    dynamic: &mut bool,
-) {
-    if state.wildcard {
-        *dynamic = true;
-    }
-    for (name, binding) in &state.map {
-        let default = default_binding(name, registry);
-        if *binding == default {
-            continue;
-        }
-        if default.kind == BindingKind::Builtin {
-            names.insert(name.clone());
-            continue;
-        }
-        if let Some(shadowed) = builtin_shadowed_by_qualified_definition(name, registry) {
-            names.insert(shadowed);
-        }
-    }
-}
-
 /// The builtin a *qualified* definition shadows for bodies that resolve in its
 /// namespace, if any.
 ///
@@ -4571,267 +20652,6 @@ fn builtin_shadowed_by_qualified_definition(
         return registry.get(&wrapper).is_some().then(|| nqn(&wrapper));
     }
     (default_binding(tail, registry).kind == BindingKind::Builtin).then(|| nqn(tail))
-}
-
-/// Record that a `rename` / `interp alias` / delete ran whose **subject**
-/// could not be named.
-///
-/// Every `dynamic` [`collect_proc_rebindings`] raises is one of these — an
-/// operand it could not spell — as distinct from the other `dynamic` sources
-/// (an unresolved command head, a changed namespace resolution, the walk depth
-/// cap), which rebind nothing. Both axes rise together here and only here.
-fn mark_unknown_subject(rebind: &mut RebindState<'_>) {
-    *rebind.dynamic = true;
-    *rebind.rebinding_subjects = RebindingSubjects::SomeUnnameable;
-}
-
-/// Record the proc-binding-relevant names touched by a `rename` or `interp
-/// alias` statement: the *source* name (vacated — no longer denotes what it
-/// used to) and, for a static target, the *destination* name (now denoting
-/// whatever the source used to, not its own original declaration, if it
-/// even had one). A `proc` (re)declaration is deliberately NOT recorded —
-/// declaring `NAME` as itself is the expected, trustworthy binding; only
-/// *moving* a binding onto a name, or *vacating* a name that used to denote
-/// a proc, breaks the "this bare name still denotes the proc it was
-/// declared as" invariant [`ModuleCommandMutations::trusts_proc_binding`]
-/// needs. Independent of the [`State`] lattice — a direct syntactic scan,
-/// since (unlike the builtin-only trust gate) there is no meaningful
-/// "default" binding to diff a proc name against: a plain declaration
-/// *also* changes the name's binding away from its textual default, so
-/// diffing against `default_binding` cannot distinguish "declared itself"
-/// from "rebound to something else".
-fn collect_proc_rebindings(
-    stmt: &Statement,
-    namespace: &str,
-    registry: &CommandRegistry,
-    rebind: &mut RebindState<'_>,
-) {
-    let rebound = &mut *rebind.rebound;
-    let resolution = &mut *rebind.resolution;
-    let opaque = &mut *rebind.opaque;
-    if !matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
-        return;
-    }
-    let ns_of_site = namespace;
-    if let Some(facts) = invocation_facts(stmt, registry)
-        && let Some(transitions) = facts.state_transitions.declared()
-    {
-        for fact in transitions.facts() {
-            match &fact.transition {
-                StateTransition::CommandBinding(CommandBindingTransition::Move { from, to }) => {
-                    let (Some(from), Some(to)) = (literal_subject(from), literal_subject(to))
-                    else {
-                        mark_unknown_subject(rebind);
-                        return;
-                    };
-                    insert_rebound_candidates(from, namespace, rebound);
-                    if !to.is_empty() {
-                        insert_rebound_candidates(to, namespace, rebound);
-                    }
-                }
-                StateTransition::CommandBinding(CommandBindingTransition::Delete {
-                    interpreter,
-                    name,
-                }) => {
-                    let affects_current = match interpreter {
-                        None => true,
-                        Some(subject) => match literal_subject(subject) {
-                            Some("") => true,
-                            Some(_) => false,
-                            None => {
-                                mark_unknown_subject(rebind);
-                                return;
-                            }
-                        },
-                    };
-                    if affects_current {
-                        let Some(name) = literal_subject(name) else {
-                            mark_unknown_subject(rebind);
-                            return;
-                        };
-                        insert_rebound_candidates(name, namespace, rebound);
-                    }
-                }
-                StateTransition::CommandBinding(CommandBindingTransition::Alias {
-                    source_interpreter,
-                    alias,
-                    ..
-                }) => {
-                    let Some(source_interpreter) = literal_subject(source_interpreter) else {
-                        mark_unknown_subject(rebind);
-                        return;
-                    };
-                    if source_interpreter.is_empty() {
-                        let Some(alias) = literal_subject(alias) else {
-                            mark_unknown_subject(rebind);
-                            return;
-                        };
-                        insert_rebound_candidates(alias, namespace, rebound);
-                    }
-                }
-                StateTransition::CommandBinding(CommandBindingTransition::Unknown { .. }) => {
-                    mark_unknown_subject(rebind);
-                    return;
-                }
-                StateTransition::Widen(widening)
-                    if widening
-                        .domains
-                        .contains(&StateTransitionDomain::CommandBindings) =>
-                {
-                    mark_unknown_subject(rebind);
-                    return;
-                }
-                // Resolution changes, not rebindings: no name moves, but what
-                // a name resolves to in some namespace does.
-                //
-                // An import binds each pattern's *tail* in the target
-                // namespace, so a literal, glob-free pattern is exact — that
-                // is `namespace import -force ::evil::answer` shadowing a
-                // declared `::ns::answer`. A glob (`::lib::*`) names commands
-                // this scan cannot enumerate, so only the *target* namespace
-                // becomes opaque; a name elsewhere stays trustworthy.
-                StateTransition::Namespace(transition) => {
-                    if !collect_namespace_resolution(
-                        transition,
-                        Some(ns_of_site),
-                        rebound,
-                        resolution,
-                        opaque,
-                    ) {
-                        mark_unknown_subject(rebind);
-                        return;
-                    }
-                }
-                StateTransition::CommandBinding(CommandBindingTransition::Define { .. })
-                | StateTransition::Interpreter(_)
-                | StateTransition::VariableCellAlias(_)
-                | StateTransition::Trace(_)
-                | StateTransition::ObjectDispatch(_)
-                | StateTransition::Widen(_) => {}
-            }
-        }
-    }
-}
-
-/// Record every name a bare `rename` / `interp alias` argument could
-/// resolve to when it runs inside `namespace` — Tcl resolves an
-/// unqualified command name against the *current* namespace at the point
-/// the `rename`/`interp alias` executes, not the global namespace (a
-/// `proc ::ns::doit {} { rename triple double }` renames `::ns::triple`
-/// to `::ns::double`, not `::triple`/`::double` — confirmed against
-/// tclsh 9.0.4). This scan is flow-insensitive and doesn't know whether a
-/// same-named command already exists in `namespace` at that point, so it
-/// conservatively records BOTH the namespace-relative and the
-/// global-rooted candidate for a bare name — the same sound
-/// over-approximation [`collect_tampered_builtins`] already applies.
-/// A name that already contains `::` resolves unambiguously (rooted at
-/// `::`, matching the optimiser's own `resolve_proc_qname` simplified
-/// qualification rule), so only one candidate is recorded for it.
-fn insert_rebound_candidates(name: &str, namespace: &str, rebound: &mut impl Extend<String>) {
-    if name.contains("::") || namespace == "::" {
-        rebound.extend([nqn(name)]);
-        return;
-    }
-    rebound.extend([nqn(&format!("{namespace}::{name}")), nqn(name)]);
-}
-
-/// The mutable rebinding-tracking state [`walk_body_calls`] threads
-/// through its recursive descent, grouped into one struct (rather than
-/// three separate `&mut` parameters) so adding the depth-cap parameter
-/// below doesn't push the function over clippy's `too_many_arguments`
-/// threshold.
-struct RebindState<'a> {
-    names: &'a mut std::collections::HashSet<String>,
-    rebound: &'a mut std::collections::HashSet<String>,
-    dynamic: &'a mut bool,
-    /// See [`ModuleCommandMutations::rebinding_subjects`]. Set only by
-    /// [`collect_proc_rebindings`], whose every `dynamic` is an unnameable
-    /// rebinding subject.
-    rebinding_subjects: &'a mut RebindingSubjects,
-    resolution: &'a mut bool,
-    opaque: &'a mut std::collections::HashSet<String>,
-}
-
-/// Apply the gen of every `Call` / `Barrier` in `script` (recursing into
-/// nested structured bodies, in source order) to `state`, collecting
-/// after *each* mutation — so a builtin renamed away and later restored
-/// (`rename string ms; …; rename ms string`) is still recorded as
-/// tampered within that window. `depth` is the nesting level of `script`
-/// — reuses [`crate::optimiser::MAX_OPTIMISER_WALK_DEPTH`] (this walker
-/// isn't itself part of the optimiser module, but shares the same
-/// `Script`/`Statement`-tree-depth semantics as every walker guarded by
-/// that constant, so a second identically-valued constant would only add
-/// drift risk).
-fn walk_body_calls(
-    script: &crate::ir::Script,
-    state: &mut State,
-    registry: &CommandRegistry,
-    namespace: &str,
-    rebind: &mut RebindState<'_>,
-    depth: u32,
-) {
-    if crate::optimiser::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
-        *rebind.dynamic = true;
-        return;
-    }
-    for stmt in &script.statements {
-        match stmt {
-            Statement::Call { .. } | Statement::Barrier { .. } => {
-                collect_proc_rebindings(stmt, namespace, registry, rebind);
-                stmt_gen(stmt, state, registry);
-                collect_tampered_builtins(state, registry, rebind.names, rebind.dynamic);
-            }
-            Statement::If {
-                clauses, else_body, ..
-            } => {
-                for c in clauses {
-                    walk_body_calls(&c.body, state, registry, namespace, rebind, depth + 1);
-                }
-                if let Some(b) = else_body {
-                    walk_body_calls(b, state, registry, namespace, rebind, depth + 1);
-                }
-            }
-            Statement::For {
-                init, next, body, ..
-            } => {
-                walk_body_calls(init, state, registry, namespace, rebind, depth + 1);
-                walk_body_calls(next, state, registry, namespace, rebind, depth + 1);
-                walk_body_calls(body, state, registry, namespace, rebind, depth + 1);
-            }
-            Statement::While { body, .. }
-            | Statement::Catch { body, .. }
-            | Statement::Foreach { body, .. } => {
-                walk_body_calls(body, state, registry, namespace, rebind, depth + 1);
-            }
-            Statement::Try {
-                body,
-                handlers,
-                finally_body,
-                ..
-            } => {
-                walk_body_calls(body, state, registry, namespace, rebind, depth + 1);
-                for h in handlers {
-                    walk_body_calls(&h.body, state, registry, namespace, rebind, depth + 1);
-                }
-                if let Some(fb) = finally_body {
-                    walk_body_calls(fb, state, registry, namespace, rebind, depth + 1);
-                }
-            }
-            Statement::Switch {
-                arms, default_body, ..
-            } => {
-                for a in arms {
-                    if let Some(b) = &a.body {
-                        walk_body_calls(b, state, registry, namespace, rebind, depth + 1);
-                    }
-                }
-                if let Some(b) = default_body {
-                    walk_body_calls(b, state, registry, namespace, rebind, depth + 1);
-                }
-            }
-            _ => {}
-        }
-    }
 }
 
 /// Whether `script` declares anything that could change what a command name
@@ -4891,6 +20711,7 @@ fn statement_declares_command_binding_effect(stmt: &Statement, registry: &Comman
                 .domains
                 .contains(&StateTransitionDomain::CommandBindings),
             StateTransition::Interpreter(_)
+            | StateTransition::Package(_)
             | StateTransition::VariableCellAlias(_)
             | StateTransition::Trace(_)
             | StateTransition::ObjectDispatch(_) => false,
@@ -4928,88 +20749,17 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
     registry: &CommandRegistry,
     command_bindings: &ModuleCommandBindings,
 ) -> ModuleCommandMutations {
-    let mut names = std::collections::HashSet::new();
-    let mut rebound = std::collections::HashSet::new();
-    let mut dynamic = !ir_module.redefined_procedures.is_empty();
-    let mut rebinding_subjects = RebindingSubjects::AllNameable;
-    let mut resolution_changed = false;
-    let mut opaque_namespaces = std::collections::HashSet::new();
-
-    let mut has_runtime_selected_root = false;
-    let mut runtime_selected_frames = false;
-    {
-        let mut visit = |script: &crate::ir::Script, namespace: &str| {
-            let mut state = State::default();
-            let mut rebind = RebindState {
-                names: &mut names,
-                rebound: &mut rebound,
-                dynamic: &mut dynamic,
-                rebinding_subjects: &mut rebinding_subjects,
-                resolution: &mut resolution_changed,
-                opaque: &mut opaque_namespaces,
-            };
-            walk_body_calls(script, &mut state, registry, namespace, &mut rebind, 0);
-        };
-
-        // This flow-insensitive mutation projection must inspect body units:
-        // unlike the closed binding walk above, it does not replay readable
-        // invocation bodies from source.
-        for (script, namespace) in ir_module.executable_script_roots() {
-            match namespace {
-                crate::ir::ExecutionNamespace::Exact(namespace) => visit(script, &namespace),
-                crate::ir::ExecutionNamespace::RuntimeSelected => {
-                    // A relative command in a receiver/caller-selected namespace
-                    // can reach an implementation absent from the static module.
-                    // Absolute-only bodies remain namespace-invariant and can use
-                    // the ordinary scan. The closed binding analysis below still
-                    // retains exact absolute transitions in opaque bodies.
-                    if crate::ir_helpers::requires_runtime_command_namespace(script, registry) {
-                        // Nothing derived inside the frame is trustworthy: the
-                        // receiver's namespace can shadow any head it names.
-                        runtime_selected_frames = true;
-                        // Only a binding change carries beyond the frame. Its
-                        // subject resolves where this scan cannot look, so no
-                        // name in the module survives it. A body that merely
-                        // calls commands moves nothing, and the names the rest
-                        // of the module resolves keep their meaning.
-                        if declares_command_binding_effect(script, registry, 0) {
-                            has_runtime_selected_root = true;
-                        }
-                    } else {
-                        visit(script, "::");
-                    }
-                }
-            }
+    let mut projected = command_bindings.mutation_projection(registry);
+    for (script, namespace) in ir_module.executable_script_roots() {
+        if namespace == crate::ir::ExecutionNamespace::RuntimeSelected
+            && crate::ir_helpers::requires_runtime_command_namespace(script, registry)
+        {
+            projected.runtime_selected_frames = true;
+            projected.dynamic |= declares_command_binding_effect(script, registry, 0);
         }
     }
-    dynamic |= has_runtime_selected_root;
-
-    // The source-recursive walk above sees bodies retained in `Module`, while
-    // this owner also recovers bodies installed through alias prefixes.
-    // Project its closed may-state into the same optimiser trust summary so
-    // every compiler consumer agrees about those runtime-created procedures.
-    let projected = command_bindings.mutation_projection(registry);
-    names.extend(projected.names);
-    rebound.extend(projected.rebound);
-    dynamic |= projected.dynamic;
-    // Joined like every other axis: the source-recursive walk never sees a
-    // body installed through an alias prefix, so for those the projection is
-    // the *only* witness that a rebinding subject was unnameable. Taking the
-    // local value alone re-opens #2168 one level down.
-    rebinding_subjects = rebinding_subjects.join(projected.rebinding_subjects);
-    resolution_changed |= projected.resolution_changed;
-    opaque_namespaces.extend(projected.opaque_namespaces);
-
-    ModuleCommandMutations {
-        names,
-        rebound,
-        dynamic,
-        rebinding_subjects,
-        runtime_selected_frames,
-        resolution_changed,
-        opaque_namespaces,
-        precision_written: module_may_set_precision(ir_module, registry),
-    }
+    projected.precision_written = module_may_set_precision(ir_module, registry);
+    projected
 }
 
 /// Whether `ir_module` may set the variable that changes how `registry`'s
@@ -5019,7 +20769,7 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
 /// command writes a variable whose name, or a script that it runs, the
 /// program computes ([`crate::dynamic_names::statement_barrier`]). Code the
 /// module loads (`source`, `package require`) is not seen, as no fold sees
-/// it.
+/// it. The original source bytes are searched as bytes.
 fn module_may_set_precision(
     ir_module: &crate::ir::Module,
     registry: &CommandRegistry,
@@ -5027,7 +20777,12 @@ fn module_may_set_precision(
     let Some(variable) = registry.numbers().precision_variable() else {
         return PrecisionWrites::Unwritten;
     };
-    if ir_module.source.contains(variable) {
+    if ir_module
+        .source
+        .bytes()
+        .windows(variable.len())
+        .any(|window| window == variable.as_bytes())
+    {
         return PrecisionWrites::MayBeWritten;
     }
     let config = crate::dynamic_names::lexer_config_for(registry);
@@ -5059,6 +20814,29 @@ enum PrecisionWrites {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
+    #[test]
+    fn catalogue_baseline_retains_rootability_and_exact_descriptor_coordinates() {
+        let mut registry = CommandRegistry::build_default();
+        assert!(registry.get("my").is_some());
+        assert!(registry.get("::my").is_none());
+        assert_eq!(default_binding("::my", &registry).kind, BindingKind::Opaque);
+        for label in ["expr", "::expr"] {
+            assert_eq!(default_binding(label, &registry).kind, BindingKind::Builtin);
+        }
+        for label in [":expr", "::::expr", "::missing", "::"] {
+            assert_eq!(default_binding(label, &registry).kind, BindingKind::Opaque);
+        }
+        let mut rooted = registry.get_exact("expr").unwrap().clone();
+        rooted.name = "::my";
+        registry.insert(rooted);
+        assert_eq!(
+            default_binding("::my", &registry).kind,
+            BindingKind::Builtin
+        );
+    }
+
     use super::*;
     use crate::compilation_unit::CompilationUnit;
 
@@ -5066,6 +20844,921 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(src, &reg, false);
         (cu, reg)
+    }
+
+    fn source_proof(
+        source: &str,
+        head: &str,
+        dialect: tcl_registry::InvocationDialect,
+    ) -> SourceInvocationBinding {
+        let registry = CommandRegistry::build_default();
+        let binding = SourceCommandBindings::analyse_with_options(
+            source,
+            tcl_lexer::LexerConfig::default(),
+            &registry,
+            SourceAnalysisOptions {
+                invocation_dialect: Some(dialect),
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..SourceAnalysisOptions::default()
+            },
+        );
+        binding.invocation_at_source(head, u32::try_from(source.rfind(head).unwrap()).unwrap())
+    }
+
+    fn allocation_source(source: &str) -> SourceCommandBindings {
+        SourceCommandBindings::analyse_with_options(
+            source,
+            tcl_lexer::LexerConfig::default(),
+            &CommandRegistry::build_default(),
+            SourceAnalysisOptions {
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                    tcl_dialect::TclVersion::V8_6,
+                )),
+                ..SourceAnalysisOptions::default()
+            },
+        )
+    }
+
+    #[test]
+    fn logical_command_layout_keeps_unknown_physical_frames_separate() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let image = tcl_lexer::SourceImage::document("proc subject {} {return VALUE}");
+        let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
+            &image,
+            &crate::var_resolve::VariableExecutionFrame::Unknown,
+            config,
+            context.commands(),
+            SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+        )
+        .unwrap();
+        let point = bindings.points.first().expect("original source command");
+        assert_eq!(point.state.logical_source_name_advice_input(), Some(&input));
+        assert_eq!(
+            point.state.variable_frame,
+            crate::var_resolve::VariableExecutionFrame::Unknown
+        );
+        let segment =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+                .unwrap()
+                .remove(0);
+        let tokens =
+            crate::ir::CommandTokens::from_segmented(&image.source_map(), config, &segment);
+        let site = CommandAllocationSite {
+            source: Arc::clone(point.state.current_source_origin.as_ref().unwrap()),
+            offset: segment.span.start(),
+        };
+        let snapshot = Arc::new(SourceLookupSnapshot::new(point.state.clone()));
+        let selected = original_site_operand_layout_advice(
+            &site,
+            &tokens,
+            &snapshot,
+            &point.namespace_key,
+            config,
+        )
+        .expect("conditional original Logical layout");
+        assert_eq!(
+            selected.frame(),
+            &crate::var_resolve::VariableExecutionFrame::Unknown
+        );
+        assert!(selected.targets.iter().all(|target| target.registry_backed));
+        assert!(snapshot.state.baseline.native_entry.is_none());
+        assert!(snapshot.state.baseline.execution_name_policy.is_none());
+
+        let mut stale = config;
+        stale.strict_quoting = !stale.strict_quoting;
+        assert!(
+            original_site_operand_layout_advice(
+                &site,
+                &tokens,
+                &snapshot,
+                &point.namespace_key,
+                stale,
+            )
+            .is_none()
+        );
+        let mut unowned = snapshot.state.clone();
+        Arc::make_mut(&mut unowned.baseline).logical_source_input = None;
+        let unowned = Arc::new(SourceLookupSnapshot::new(unowned));
+        assert!(
+            original_site_operand_layout_advice(
+                &site,
+                &tokens,
+                &unowned,
+                &point.namespace_key,
+                config,
+            )
+            .is_none()
+        );
+        let mut foreign_source = snapshot.state.clone();
+        foreign_source.current_source_origin = None;
+        let foreign_source = Arc::new(SourceLookupSnapshot::new(foreign_source));
+        assert!(
+            original_site_operand_layout_advice(
+                &site,
+                &tokens,
+                &foreign_source,
+                &point.namespace_key,
+                config,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn constructed_builder_argv_preserves_retained_lexer_overlays() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = current.commands();
+        let unit = CompilationUnit::build_for_dialect("set x 1", registry, false, "tcl8.6");
+        let bindings = ModuleCommandBindings::analyse(&unit.ir_module, registry);
+        let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
+        let mut config = input.lexer_config();
+        config.escapes = tcl_dialect::EscapeSyntax::Tcl84;
+        let overlay = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        let spelling = r"[list \U00000041]";
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, &overlay,
+        )
+        .unwrap();
+        assert_eq!(
+            constructed_script_words_with_metadata_context(
+                spelling,
+                registry,
+                &bindings,
+                "::",
+                Some(metadata),
+            ),
+            Some(vec!["U00000041".to_owned()]),
+        );
+        assert_eq!(
+            constructed_script_words_with_metadata_context(
+                spelling,
+                registry,
+                &bindings,
+                "::",
+                Some(current.into()),
+            ),
+            Some(vec!["A".to_owned()]),
+        );
+        assert_eq!(
+            constructed_script_words(spelling, registry, &bindings, "::"),
+            Some(vec!["A".to_owned()]),
+        );
+        assert_eq!(
+            constructed_script_words_with_metadata_context(
+                spelling, registry, &bindings, "::", None,
+            ),
+            None,
+        );
+    }
+
+    #[test]
+    fn literal_procedure_returns_preserve_later_dispatch_points() {
+        let source = "proc helper {mode} {return $mode}; helper a; helper b; set final 1";
+        let analysis = allocation_source(source);
+        for head in ["helper a", "helper b", "set final"] {
+            let offset = u32::try_from(source.find(head).unwrap()).unwrap();
+            let proof =
+                analysis.invocation_at_source(head.split_whitespace().next().unwrap(), offset);
+            assert!(proof.proved_target().is_some(), "{head}: {proof:#?}");
+        }
+    }
+
+    #[test]
+    fn hypothetical_lookup_does_not_inherit_a_different_selected_operation() {
+        let source = "set x 1";
+        let owner = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let analysis = SourceCommandBindings::analyse_with_options(
+            source,
+            tcl_lexer::LexerConfig::for_profile(owner.commands().profile()),
+            owner.commands(),
+            SourceAnalysisOptions {
+                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                    tcl_dialect::TclVersion::V8_6,
+                )),
+                native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                    mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+                    frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        let actual = analysis.invocation_at_source("set", 0);
+        assert!(matches!(
+            actual.native_compilation_selection(),
+            tcl_registry::native_compilation::NativeCompilationSelection::Inline { .. }
+        ));
+        for proof in [
+            analysis.projection_at_source("list", 0),
+            analysis.invocation_unpositioned("list"),
+        ] {
+            assert!(
+                proof
+                    .proved_target()
+                    .is_some_and(|target| nqn(&target.command) == "::list")
+            );
+            assert_eq!(
+                proof.native_compilation_selection(),
+                tcl_registry::native_compilation::NativeCompilationSelection::Unknown
+            );
+            assert!(proof.native_handler_envelope.is_none());
+            assert_eq!(
+                proof.compiled_candidates,
+                [] as [crate::command_binding::SourceCompiledInvocationProof; 0]
+            );
+        }
+        let unknown = analysis.projection_at_source("missing", 0);
+        assert_eq!(unknown.targets, [] as [SourceCommandTarget; 0]);
+        assert_eq!(
+            unknown.native_compilation_selection(),
+            tcl_registry::native_compilation::NativeCompilationSelection::Unknown
+        );
+    }
+
+    #[test]
+    fn whole_source_head_cache_preserves_proof_and_invalidates_on_point_changes() {
+        let mut bindings = allocation_source("set x 1; set x 2");
+        let first = bindings.invocation_unpositioned("set");
+        let second = bindings.invocation_unpositioned("set");
+        assert_eq!(first, second);
+        assert!(Arc::ptr_eq(
+            first.lookup_state.as_ref().unwrap(),
+            second.lookup_state.as_ref().unwrap()
+        ));
+        assert_eq!(bindings.unpositioned_projections.0.lock().unwrap().len(), 1);
+        let cloned = bindings.clone();
+        assert!(cloned.unpositioned_projections.0.lock().unwrap().is_empty());
+        assert_eq!(cloned.invocation_unpositioned("set"), first);
+        let mut changed = bindings
+            .points
+            .iter()
+            .find(|point| point.dispatch)
+            .unwrap()
+            .clone();
+        changed.state.mark_opaque_binding_mutation();
+        bindings.record_point(changed);
+        assert!(
+            bindings
+                .unpositioned_projections
+                .0
+                .lock()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(bindings.invocation_unpositioned("set").unknown);
+    }
+
+    #[test]
+    fn cached_source_origin_fingerprints_do_not_replace_semantic_identity() {
+        let mut left = SourceOriginId::authored(&Arc::from("proc p {} {return LEFT}"));
+        let mut right = SourceOriginId::authored(&Arc::from("proc p {} {return RIGHT}"));
+        left.fingerprint = 7;
+        right.fingerprint = 7;
+        assert_ne!(left, right);
+        assert_ne!(left.cmp(&right), std::cmp::Ordering::Equal);
+        let mut identical = SourceOriginId::authored(&Arc::from("proc p {} {return LEFT}"));
+        identical.fingerprint = 7;
+        assert_eq!(left, identical);
+    }
+
+    #[test]
+    fn activation_source_ids_check_full_equality_and_keep_equal_live_clones() {
+        let left = Arc::new(SourceOriginId::authored(&Arc::from("left")));
+        let right = Arc::new(SourceOriginId::authored(&Arc::from("right")));
+        let mut interner = SourceOriginInterner::default();
+        let collision_key = interner.intern(&left.kind, 7);
+        assert_ne!(collision_key, interner.intern(&right.kind, 7));
+        let retained_payload = Arc::clone(&left.kind);
+        assert_eq!(collision_key, interner.intern(&retained_payload, 7));
+        let first = SourceOriginId::activation_key(&left);
+        assert_ne!(first, SourceOriginId::activation_key(&right));
+        let clone = Arc::new(left.as_ref().clone());
+        assert_eq!(first, SourceOriginId::activation_key(&clone));
+        drop(left);
+        let equal = Arc::new(clone.as_ref().clone());
+        assert_eq!(first, SourceOriginId::activation_key(&equal));
+        let derived = Arc::new(SourceOriginId::derived(
+            CommandAllocationSite {
+                source: Arc::clone(&equal),
+                offset: 0,
+            },
+            vec![1],
+            &Arc::from("left"),
+            MaterialisedSourceKind::Script,
+        ));
+        assert_ne!(first, SourceOriginId::activation_key(&derived));
+    }
+
+    #[test]
+    fn known_concatenated_script_mutates_the_shared_command_table() {
+        let source = "eval {rename set} {saved}; set x 1";
+        let analysis = allocation_source(source);
+        let binding = analysis
+            .invocation_at_source("set", u32::try_from(source.rfind("set").unwrap()).unwrap());
+        assert!(binding.proved_target().is_none());
+        assert!(!analysis.has_site(6));
+    }
+
+    #[test]
+    fn derived_procedure_body_retains_its_source_and_completion() {
+        let source = "eval {proc p {} } {{return; rename set saved}}; p; set x 1";
+        let analysis = allocation_source(source);
+        let call = analysis.invocation_at_source(
+            "p",
+            u32::try_from(source.find("; p;").unwrap()).unwrap() + 2,
+        );
+        let target = call.proved_target().unwrap();
+        assert!(matches!(
+            target
+                .implementation_allocation
+                .as_ref()
+                .unwrap()
+                .site
+                .source
+                .kind(),
+            SourceOriginKind::Derived { .. }
+        ));
+        assert!(!target.matches_authored_implementation(source, 0));
+        let final_set = analysis
+            .invocation_at_source("set", u32::try_from(source.rfind("set").unwrap()).unwrap());
+        assert!(
+            final_set
+                .proved_target()
+                .is_some_and(|target| target.registry_backed)
+        );
+    }
+
+    #[test]
+    fn derived_procedure_mutation_reaches_the_authored_continuation() {
+        let source = "eval {proc p {} } {{rename set saved}}; p; set x 1";
+        let analysis = allocation_source(source);
+        let final_set = analysis
+            .invocation_at_source("set", u32::try_from(source.rfind("set").unwrap()).unwrap());
+        assert!(final_set.proved_target().is_none());
+    }
+
+    #[test]
+    fn repeated_definition_site_allocates_distinct_tokens_after_a_move() {
+        let source = "proc make {} {proc ::f {} {}}; make; rename f old; make; list ready";
+        let analysis = allocation_source(source);
+        let point = analysis
+            .invocation_at_source("list", u32::try_from(source.find("list").unwrap()).unwrap());
+        let old = point.lookup_command_word("old");
+        let new = point.lookup_command_word("f");
+        let old = old.proved_target().unwrap().identity.as_ref().unwrap();
+        let new = new.proved_target().unwrap().identity.as_ref().unwrap();
+        assert_ne!(old, new);
+        assert_eq!(
+            old.allocation.as_ref().unwrap().incarnation,
+            AllocationIncarnation::First
+        );
+        assert_eq!(
+            new.allocation.as_ref().unwrap().incarnation,
+            AllocationIncarnation::Second
+        );
+    }
+
+    #[test]
+    fn repeated_fresh_implementation_cannot_become_a_unique_runtime_token() {
+        let source = "proc make {} {proc ::f {} {}}; make; make; make; list ready";
+        let analysis = allocation_source(source);
+        let point = analysis
+            .invocation_at_source("list", u32::try_from(source.find("list").unwrap()).unwrap());
+        let implementation = point.lookup_command_word("f");
+        assert!(implementation.unknown);
+        assert!(implementation.proved_target().is_none());
+    }
+
+    #[test]
+    fn derived_expression_effects_are_resolved_after_native_concatenation() {
+        let source = "catch {expr {1 +} {[rename set saved]}}; set x 1";
+        let analysis = allocation_source(source);
+        let final_set = analysis
+            .invocation_at_source("set", u32::try_from(source.rfind("set").unwrap()).unwrap());
+        assert!(final_set.proved_target().is_none());
+    }
+
+    #[test]
+    fn frozen_script_values_execute_in_the_shared_source_world() {
+        for source in [
+            "set script {rename set saved}; catch $script; set x 1",
+            "set script {rename ::set ::saved}; namespace eval n $script; set x 1",
+            "set script {rename set saved}; proc p {} $script; p; set x 1",
+            "interp alias {} run {} catch {rename set saved}; run; set x 1",
+        ] {
+            let analysis = allocation_source(source);
+            let last = u32::try_from(source.rfind("set x").unwrap()).unwrap();
+            assert!(
+                analysis
+                    .invocation_at_source("set", last)
+                    .proved_target()
+                    .is_none(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn explicit_availability_phase_is_part_of_retained_point_identity() {
+        use tcl_dialect::model::InvocationRealm;
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let source = "set x 1";
+        let analyse = |invocation_realm| {
+            SourceCommandBindings::analyse_with_options(
+                source,
+                tcl_lexer::LexerConfig::for_file_grammar(registry.profile().unwrap().grammar),
+                registry,
+                SourceAnalysisOptions {
+                    invocation_realm,
+                    ..SourceAnalysisOptions::default()
+                },
+            )
+        };
+        let loader = analyse(InvocationRealm::RuleLoader).invocation_at_source("set", 0);
+        let runtime = analyse(InvocationRealm::InterpreterRuntime).invocation_at_source("set", 0);
+        assert_eq!(loader.invocation_realm(), Some(InvocationRealm::RuleLoader));
+        assert_eq!(
+            runtime.invocation_realm(),
+            Some(InvocationRealm::InterpreterRuntime)
+        );
+        assert_ne!(loader.lookup_state, runtime.lookup_state);
+        assert_eq!(
+            runtime.lookup_command_word("gets").invocation_realm(),
+            Some(InvocationRealm::InterpreterRuntime)
+        );
+        assert!(
+            runtime
+                .lookup_command_word("gets")
+                .proved_target()
+                .is_some()
+        );
+        assert!(
+            runtime
+                .lookup_command_word("open")
+                .proved_target()
+                .is_none()
+        );
+        let mut joined = loader;
+        joined.join(&runtime);
+        assert_eq!(joined.invocation_realm(), None);
+    }
+
+    #[test]
+    fn retained_computed_procedure_body_preserves_its_abrupt_completion() {
+        let source = "set script {return; rename set saved}; proc p {} $script; p; set x 1";
+        let analysis = allocation_source(source);
+        let last = u32::try_from(source.rfind("set x").unwrap()).unwrap();
+        assert!(
+            analysis
+                .invocation_at_source("set", last)
+                .proved_target()
+                .is_some_and(|target| target.registry_backed)
+        );
+        let original_body = u32::try_from(source.find("return").unwrap()).unwrap();
+        assert!(
+            !analysis.has_site(original_body),
+            "a stored value does not execute at its original literal location"
+        );
+    }
+
+    #[test]
+    fn lambda_invocation_binds_actual_values_in_the_selected_namespace() {
+        let source = "namespace eval n {}; apply {{name} {proc $name {} {}} n} helper; list ready";
+        let analysis = allocation_source(source);
+        let site = u32::try_from(source.find("list ready").unwrap()).unwrap();
+        let point = analysis.invocation_at_source("list", site);
+        assert!(
+            point
+                .lookup_command_word("::n::helper")
+                .proved_target()
+                .is_some_and(|target| target.kind == BindingKind::Proc),
+            "{point:#?}"
+        );
+        assert!(
+            point
+                .lookup_command_word("::helper")
+                .proved_target()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn lambda_uses_its_actual_caller_frame_and_stops_at_return() {
+        let source = "set n 1; apply {{name} {upvar 1 $name v; incr v; return; rename set saved}} n; list $n";
+        let analysis = allocation_source(source);
+        let site = u32::try_from(source.find("list $n").unwrap()).unwrap();
+        let point = analysis.invocation_at_source("list", site);
+        assert_eq!(point.evaluated_argument_values, vec![Some("2".to_owned())]);
+        assert!(
+            point
+                .lookup_command_word("set")
+                .proved_target()
+                .is_some_and(|target| target.registry_backed)
+        );
+    }
+
+    #[test]
+    fn trusted_loader_requires_the_audited_native_engine() {
+        use tcl_dialect::model::Family;
+        let registry = CommandRegistry::build_default();
+        let loader = TrustedPackageLoader {
+            required_core_family: Some(Family::Tcl),
+            package: "audited".to_owned(),
+            version: Some("1.0".to_owned()),
+            implementation_id: "audited-implementation".to_owned(),
+            command_surface: vec!["::audited::run".to_owned()],
+            compiler_hooks: BTreeMap::new(),
+            definition_dispatchers: std::collections::BTreeSet::new(),
+            optional_command_surface: Vec::new(),
+            namespace_exports: BTreeMap::new(),
+            optional_namespace_exports: BTreeMap::new(),
+            lookup_dependencies: Vec::new(),
+            installed_lookup_dependencies: Vec::new(),
+            state_dependency_namespaces: Vec::new(),
+            modelled_state_variables: Vec::new(),
+        };
+        for family in [
+            Some(Family::Tcl),
+            Some(Family::Jim),
+            Some(Family::F5Tcl),
+            None,
+        ] {
+            let mut dialect =
+                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+            dialect.native_family = family;
+            let mut state = ModuleCommandBindings::initial_with_options(
+                &registry,
+                SourceAnalysisOptions {
+                    trusted_package_loaders: std::slice::from_ref(&loader),
+                    invocation_dialect: Some(dialect),
+                    ..SourceAnalysisOptions::default()
+                },
+                None,
+            );
+            apply_package_transition(
+                &mut state,
+                &tcl_registry::model::binding::PackageTransition::Require {
+                    package: TransitionSubject::Literal("audited".to_owned()),
+                    requirements: Vec::new(),
+                    exact: false,
+                },
+            );
+            assert_eq!(
+                state.loaded_provider("audited").is_some(),
+                family == Some(Family::Tcl),
+                "engine {family:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn conditional_expression_mutation_reaches_the_selected_body() {
+        let source = "if {[rename set saved; expr 1]} {set x 1}";
+        let proof = source_proof(
+            source,
+            "set",
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        assert!(
+            proof
+                .proved_target()
+                .is_none_or(|target| target.command != "::set")
+        );
+    }
+
+    #[test]
+    fn source_pending_return_never_executes_dead_command_restoration() {
+        let source = "rename set stockset; proc set {args} {return CUSTOM}; proc p {} {return; rename set {}; rename stockset set}; p; set x 1";
+        let binding = source_proof(
+            source,
+            "set",
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        assert!(
+            binding
+                .proved_target()
+                .is_none_or(|target| !target.registry_backed)
+        );
+    }
+
+    #[test]
+    fn source_invocation_freezes_values_before_later_argument_effects() {
+        let source = "set v OLD; list $v [set v NEW]";
+        let binding = source_proof(
+            source,
+            "list",
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        assert_eq!(
+            binding
+                .evaluated_argument_values
+                .first()
+                .and_then(Option::as_deref),
+            Some("OLD")
+        );
+    }
+
+    #[test]
+    fn source_literal_callee_parameters_select_the_actual_caller_alias() {
+        let source = "proc bump {name} {upvar 1 $name v; incr v}; set n 1; bump n; list $n";
+        let binding = source_proof(
+            source,
+            "list",
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        assert_eq!(
+            binding
+                .evaluated_argument_values
+                .first()
+                .and_then(Option::as_deref),
+            Some("2"),
+            "{binding:#?}"
+        );
+        assert!(
+            binding
+                .proved_target()
+                .is_some_and(|target| target.command == "::list")
+        );
+    }
+
+    #[test]
+    fn source_catch_resumes_after_a_pending_return_without_running_dead_mutations() {
+        let source = "catch {return; rename set {}}; set x 1";
+        let binding = source_proof(
+            source,
+            "set",
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        assert!(
+            binding
+                .proved_target()
+                .is_some_and(|target| target.command == "::set")
+        );
+    }
+
+    #[test]
+    fn source_abrupt_substitution_skips_later_words_and_outer_dispatch() {
+        for source in [
+            "catch {puts \"[return stop][rename set oldSet]\"}; set final 1",
+            "catch {puts $a([return stop][rename set oldSet])}; set final 1",
+        ] {
+            let binding = source_proof(
+                source,
+                "set",
+                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            );
+            assert!(
+                binding
+                    .proved_target()
+                    .is_some_and(|target| target.command == "::set"),
+                "{source}"
+            );
+        }
+        let source = "catch {expr {[return stop] + [rename puts oldPuts]}}; puts final";
+        let binding = source_proof(
+            source,
+            "puts",
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        assert!(
+            binding
+                .proved_target()
+                .is_some_and(|target| target.command == "::puts")
+        );
+    }
+
+    #[test]
+    fn source_math_callee_preserves_return_boundary_and_global_effects() {
+        let source = "proc ::tcl::mathfunc::f {x} {global y; set y 1; return 5; rename puts dead}; expr {f(0)}; list $y";
+        let binding = source_proof(
+            source,
+            "list",
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        assert_eq!(
+            binding
+                .evaluated_argument_values
+                .first()
+                .and_then(Option::as_deref),
+            Some("1"),
+            "{binding:#?}"
+        );
+        assert!(
+            binding
+                .lookup_command_word("puts")
+                .proved_target()
+                .is_some_and(|target| target.command == "::puts")
+        );
+    }
+
+    #[test]
+    fn source_c_import_follows_the_original_command_object() {
+        let source = "rename auto_import savedPrelude; namespace eval a {proc f {} {return OLD}; namespace export f}\nnamespace eval b {namespace import ::a::f}\nrename ::a::f ::a::saved\nproc ::a::f {} {return NEW}\n::b::f";
+        let binding = source_proof(
+            source,
+            "::b::f",
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        let target = binding.proved_target().expect("stable imported command");
+        assert_eq!(target.command, "::a::saved");
+        assert_eq!(target.identity.as_ref().unwrap().origin, "::a::f");
+    }
+
+    #[test]
+    fn source_body_namespace_statements_with_a_closed_prelude_keep_lookup_closed() {
+        // tclsh 8.6 / 9.0: with the import preload renamed away, export,
+        // import and forget in namespace bodies rebind no root command.
+        let source = "rename auto_import savedPrelude\nnamespace eval src {proc p {} {return P}; namespace export p}\nnamespace eval dst {namespace import ::src::*}\nnamespace eval dst {namespace forget ::src::p}\nset x 0\nincr x\nset after 1";
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        for head in ["namespace export", "namespace import", "namespace forget"] {
+            let binding = source_proof(source, head, dialect);
+            assert!(!binding.execution_is_unknown(), "{head}: {binding:#?}");
+        }
+        for head in ["incr x", "set after"] {
+            let binding = source_proof(source, head, dialect);
+            assert!(
+                binding
+                    .proved_target()
+                    .is_some_and(|target| target.registry_backed),
+                "{head}: {binding:#?}"
+            );
+        }
+    }
+
+    #[test]
+    fn source_body_namespace_statements_outside_the_closed_premises_stay_open() {
+        // tclsh 8.6 / 9.0 (each source rebinds the root `incr`, and the
+        // document completes early): a document `auto_import`, the stock
+        // `auto_import` loading an `auto_index` entry or an `auto_path`
+        // index, a delete trace fired by a forget or a forced import, a
+        // destructor of an object a forced import replaces, an ensemble map
+        // changed for `namespace` or `string`, and an ensemble created over
+        // `::namespace` or, by its namespace name, over `::string`.
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let hijack = "proc ::hijack {args} {rename ::incr ::saved_incr; proc ::incr {args} {return -code return}}\n";
+        let export = "namespace eval ::m {proc h {} {}; namespace export h}\n";
+        let tail = "set x 0\nincr x\nset after 1";
+        for body in [
+            format!("{export}proc auto_import {{pattern}} {{::hijack}}\nnamespace eval ::a {{namespace import ::m::*}}\n"),
+            format!("{export}set ::auto_index(::m::zz) {{::hijack}}\nnamespace eval ::a {{namespace import ::m::*}}\n"),
+            format!("lappend ::auto_path /autolib\n{export}namespace eval ::a {{namespace import ::m::*}}\n"),
+            format!("rename auto_import savedPrelude\n{export}namespace eval ::a {{namespace import ::m::*}}\ntrace add command ::a::h delete ::hijack\nnamespace eval ::a {{namespace forget ::m::h}}\n"),
+            format!("rename auto_import savedPrelude\n{export}namespace eval ::a {{proc h {{}} {{}}}}\ntrace add command ::a::h delete ::hijack\nnamespace eval ::a {{namespace import -force ::m::*}}\n"),
+            format!("rename auto_import savedPrelude\n{export}oo::class create C {{destructor {{::hijack}}}}\nnamespace eval ::a {{}}\nC create ::a::h\nnamespace eval ::a {{namespace import -force ::m::*}}\n"),
+            "namespace eval ::z {namespace ensemble configure ::namespace -map {eval ::tcl::namespace::eval export ::hijack}}\nnamespace eval ::a {proc h {} {}; namespace export h}\n".to_owned(),
+            "namespace eval ::z {namespace ensemble configure ::string -map {repeat ::hijack}}\nstring repeat a 2\n".to_owned(),
+            "rename auto_import savedPrelude\nnamespace eval ::fake {namespace ensemble create -command ::namespace -map {eval ::tcl::namespace::eval export ::hijack}}\nnamespace eval ::a {proc h {} {}; namespace export h}\n".to_owned(),
+            "namespace eval ::string {proc repeat {args} {::hijack}; namespace export repeat; namespace ensemble create}\nnamespace eval ::b {string repeat a 2}\n".to_owned(),
+        ] {
+            let source = format!("{hijack}{body}{tail}");
+            let binding = source_proof(&source, "incr x", dialect);
+            assert!(binding.proved_target().is_none(), "{source}: {binding:#?}");
+        }
+        // An import brings a renamed `namespace` or `set` into `::a`, or a
+        // renamed `eval` into the root; those heads no longer reach the stock
+        // command there.
+        for (source, head) in [
+            (
+                "namespace eval ::m {namespace export h namespace; proc h {} {return M}; proc helper args {}; rename helper namespace}\nnamespace eval ::a {namespace import ::m::*}\nnamespace eval ::a {namespace forget ::m::h}\nset ::after 1",
+                "namespace forget",
+            ),
+            (
+                "namespace eval ::m {proc h {} {return M}; namespace export h}\nnamespace import ::m::h\nnamespace eval ::q {namespace export eval; proc helper args {}; rename helper eval}\nnamespace eval :: {namespace import -force ::q::eval}\neval {namespace forget ::m::h}\nset ::after 1",
+                "eval {namespace forget",
+            ),
+            (
+                "namespace eval ::m {proc h {} {return M}; namespace export h}\nnamespace import ::m::h\nnamespace eval ::q {namespace export set; proc helper args {return -code return}; rename helper set}\nnamespace eval ::a {namespace import ::q::*}\nnamespace eval ::a {set x 1}\nnamespace forget ::m::h\nset ::after 1",
+                "set x 1",
+            ),
+        ] {
+            let binding = source_proof(source, head, dialect);
+            assert!(
+                binding
+                    .proved_target()
+                    .is_none_or(|target| !target.registry_backed),
+                "{head}: {binding:#?}"
+            );
+        }
+    }
+
+    #[test]
+    fn source_renamed_procedure_executes_its_retained_implementation_generation() {
+        let source = "proc p {} {rename set saved_set}\nrename p saved_p\nproc p {} {}\nsaved_p\nset after 1";
+        assert!(
+            source_proof(
+                source,
+                "set after",
+                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+            )
+            .proved_target()
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn source_jim_import_retargets_the_original_source_name() {
+        let source = "namespace eval a {proc f {} {return OLD}; namespace export f}\nnamespace eval b {namespace import ::a::f}\nrename ::a::f ::a::saved\nproc ::a::f {} {return NEW}\n::b::f";
+        let binding = source_proof(
+            source,
+            "::b::f",
+            tcl_registry::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+                tcl_dialect::model::Release::JIM_0_84,
+            )),
+        );
+        assert_eq!(
+            binding
+                .proved_target()
+                .expect("name-based imported command")
+                .command,
+            "::a::f"
+        );
+    }
+
+    #[test]
+    fn source_alias_expands_prefixes_after_late_target_lookup() {
+        let source = "interp alias {} outer {} inner A\ninterp alias {} inner {} set B\nouter C";
+        let binding = source_proof(
+            source,
+            "outer",
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        let target = binding.proved_target().expect("effective alias target");
+        assert_eq!(target.command, "::set");
+        assert_eq!(
+            target.prepended,
+            [
+                crate::registry_invocation::EffectiveInvocationWord::Literal("B".to_owned()),
+                crate::registry_invocation::EffectiveInvocationWord::Literal("A".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn source_original_empty_and_native_method_classes_have_bounded_construction() {
+        for body in ["", "method local {} {return OK}"] {
+            let source = format!("oo::class create Dog {{{body}}}\nset dog [Dog new]\nset after 1");
+            let binding = source_proof(
+                &source,
+                "set after",
+                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            );
+            assert_eq!(
+                binding
+                    .proved_target()
+                    .expect("default construction retains command proof")
+                    .command,
+                "::set"
+            );
+        }
+    }
+
+    #[test]
+    fn source_constructor_and_rebound_member_implementations_withdraw_construction_proof() {
+        for source in [
+            "oo::class create Dog {constructor {} {rename set saved_set}}\nset dog [Dog new]\nset after 1",
+            "proc ::oo::define::method {args} {rename set saved_set}\noo::class create Dog {method local {} {}}\nset dog [Dog new]\nset after 1",
+            "oo::objdefine ::oo::class {filter hidden}\noo::class create Dog {}\nset dog [Dog new]\nset after 1",
+        ] {
+            assert!(
+                source_proof(
+                    source,
+                    "set after",
+                    tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+                )
+                .proved_target()
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn source_repeated_body_joins_future_rebindings_before_specialisation() {
+        let source = "foreach x {a b} {if {$x eq {a}} {proc set {args} {return CUSTOM}}; set y1}";
+        let binding = source_proof(
+            source,
+            "set y1",
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        assert!(binding.proved_target().is_none());
     }
 
     /// A `namespace import` that shadows a proc declared in the same
@@ -5203,6 +21896,21 @@ mod tests {
     /// key: a memo taken under one binding state must never answer for
     /// another. The literal names every field, so a field added to the
     /// summary fails to compile here until it is carried.
+    #[test]
+    fn opaque_namespace_imports_preserve_empty_command_tails() {
+        // naming.analysis.constructed-key-consumer-projections
+
+        let mutations = ModuleCommandMutations {
+            opaque_namespaces: ["::ns".to_owned()].into_iter().collect(),
+            ..ModuleCommandMutations::default()
+        };
+        for name in ["ns::", "::ns::", "::ns::::", "::ns::ordinary"] {
+            assert!(!mutations.trusts_proc_binding(name), "{name}");
+        }
+        assert!(mutations.trusts_proc_binding("::ns"));
+        assert!(mutations.trusts_proc_binding("::other::"));
+    }
+
     #[test]
     fn the_trust_snapshot_round_trips_every_mutation_field() {
         let every = ModuleCommandMutations {
@@ -5404,12 +22112,37 @@ mod tests {
     fn exact_procedure_delta_preserves_history_and_root_boundary() {
         let (cu, reg) = analyse("proc first {} {return 1}\nproc second {} {return 2}");
         let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
-        let procedure_target = MayBinding::Target(ResolvedCommandTarget {
-            command: "::first".to_owned(),
-            prepended: Vec::new(),
-            registry_backed: false,
-            terminal: true,
-        });
+        let history = bindings
+            .bindings
+            .get("::first")
+            .expect("historical procedure slot");
+        let procedure_target = history
+            .iter()
+            .find_map(|binding| match binding {
+                MayBinding::Target(target) if target.kind == BindingKind::Proc => Some(target),
+                MayBinding::Target(_)
+                | MayBinding::Imported(_)
+                | MayBinding::Missing
+                | MayBinding::Unknown => None,
+            })
+            .expect("actual installed procedure");
+        assert_eq!(procedure_target.command, "::first");
+        assert!(!procedure_target.registry_backed);
+        assert!(procedure_target.prepended.is_empty());
+        let allocation = procedure_target
+            .implementation_allocation
+            .as_ref()
+            .expect("actual definition allocation");
+        assert_eq!(allocation.site.offset, 0);
+        assert_eq!(allocation.command, "::first");
+        assert_eq!(
+            procedure_target
+                .token
+                .as_ref()
+                .and_then(|identity| identity.allocation.as_ref()),
+            Some(allocation)
+        );
+        let procedure_target = MayBinding::Target(procedure_target.clone());
 
         assert_eq!(
             bindings.bindings.get("::first"),
@@ -5519,6 +22252,85 @@ mod tests {
             !trust.trusts_proc_binding("::retained"),
             "the legacy source scan also records a global fallback candidate"
         );
+    }
+
+    #[test]
+    fn consumed_cfg_commands_retain_the_original_native_entry_baseline() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let (owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = SourceAnalysisEntry {
+            native_entry: Some(Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            "set result VALUE",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            Arc::clone(&context),
+        );
+        let cfg = &unit.top_level.cfg;
+        let statement = &cfg.blocks[&cfg.entry].statements[0];
+        assert!(matches!(statement, Statement::AssignConst { .. }));
+        assert!(statement.tokens().is_none());
+        let original = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+            &cfg.command_binding_sites,
+            statement,
+        )
+        .unwrap();
+        assert!(
+            original
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .proved_execution_target()
+                .is_some()
+        );
+        let selected = analyse_command_binding(cfg, context.commands(), &[]);
+        assert!(selected.is_original_builtin_at(cfg.entry, 0, "set"));
+        let mut missing = cfg.clone();
+        missing.command_binding_sites.clear();
+        assert!(missing.statement_sources.values().any(Option::is_some));
+        assert!(
+            !analyse_command_binding(&missing, context.commands(), &[]).is_original_builtin_at(
+                missing.entry,
+                0,
+                "set"
+            )
+        );
+        let mut conflicting = cfg.clone();
+        let mut other = conflicting.command_binding_sites[0].clone();
+        other.source_tokens.as_mut().unwrap().argv_texts[0] = "other".into();
+        conflicting.command_binding_sites.push(other);
+        assert!(
+            !analyse_command_binding(&conflicting, context.commands(), &[]).is_original_builtin_at(
+                conflicting.entry,
+                0,
+                "set"
+            )
+        );
+        let mut foreign = context.commands().project_for_profile(profile);
+        let mut setter = foreign.get("set").unwrap().clone();
+        setter.lowering_hook = None;
+        foreign.insert(setter);
+        assert!(
+            !analyse_command_binding(cfg, &foreign, &[])
+                .is_original_builtin_at(cfg.entry, 0, "set")
+        );
+        drop(owner);
     }
 
     #[test]
@@ -5650,17 +22462,49 @@ Animal new",
     }
 
     #[test]
-    fn snit_type_creation_binds_a_class() {
-        let (cu, reg) = analyse(
-            "snit::type Dog {}
-Dog destroy
-Dog create d",
+    fn snit_type_creation_has_only_its_attested_dispatcher() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let selected =
+            crate::provider_fixtures::entry(registry, &[crate::provider_fixtures::Provider::Snit]);
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let source = "package require snit\nsnit::type Dog {}\nDog create d";
+        let offset = u32::try_from(source.find("Dog create").unwrap()).unwrap();
+        let bindings = SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            registry,
+            selected.options(),
         );
-        let fu = cu.function("::top").unwrap();
-        let cb = analyse_command_binding(&fu.cfg, &reg, &[]);
-        let entry = fu.cfg.entry;
-        assert_eq!(cb.binding_at(entry, 1, "Dog").kind, BindingKind::Class);
-        assert_eq!(cb.binding_at(entry, 2, "Dog").kind, BindingKind::Opaque);
+        let call = bindings.invocation_at_source("Dog", offset);
+        assert_eq!(
+            call.proved_execution_target().unwrap().kind,
+            BindingKind::Command
+        );
+        assert_eq!(
+            call.nominal_definition_name_result(registry),
+            Some(tcl_registry::definer::DefinitionDispatcher::SnitType)
+        );
+        let unprovided = SourceCommandBindings::analyse(source, config, registry);
+        assert!(
+            unprovided
+                .invocation_at_source("Dog", offset)
+                .nominal_definition_name_result(registry)
+                .is_none()
+        );
+        let retired_source = "package require snit\nsnit::type Dog {}\nDog destroy\nDog create d";
+        let retired_offset = u32::try_from(retired_source.find("Dog create").unwrap()).unwrap();
+        let retired = SourceCommandBindings::analyse_with_options(
+            retired_source,
+            config,
+            registry,
+            selected.options(),
+        );
+        assert!(
+            retired
+                .invocation_at_source("Dog", retired_offset)
+                .nominal_definition_name_result(registry)
+                .is_none()
+        );
     }
 
     #[test]
@@ -5718,28 +22562,44 @@ Dog create d",
 
     #[test]
     fn expanded_embedded_rename_widens_module_bindings() {
-        // Tcl 9.0.4 expands this one source word into rename's two arguments:
-        // `saved_llength {a b c}` subsequently returns 3. The source position
-        // before expansion is therefore not a literal one-argument rename.
-        let (cu, reg) = analyse("set ignored [rename {*}{llength saved_llength}]");
-        let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
-        assert!(
-            bindings.has_opaque_domain(),
-            "expanded rename operands must conservatively widen command bindings"
-        );
+        for (source, opaque) in [
+            ("set ignored [rename {*}{llength saved_llength}]", false),
+            ("set argv [read stdin]; set ignored [rename {*}$argv]", true),
+        ] {
+            let (cu, reg) = analyse(source);
+            let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
+            assert_eq!(bindings.has_opaque_domain(), opaque, "{source}");
+            if !opaque {
+                assert!(
+                    bindings
+                        .targets("::saved_llength", "::")
+                        .iter()
+                        .any(|target| target.command == "::llength"),
+                    "{source}"
+                );
+            }
+        }
     }
 
     #[test]
     fn expanded_embedded_command_head_widens_module_bindings() {
-        // Tcl 9.0.4 executes this as `rename string saved_string`; the expanded
-        // source word is not a static command name, even though its wrapped
-        // value is literal.
-        let (cu, reg) = analyse("set ignored [{*}{rename string saved_string}]");
-        let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
-        assert!(
-            bindings.has_opaque_domain(),
-            "an expanded command head has unknown command identity and argv shape"
-        );
+        for (source, opaque) in [
+            ("set ignored [{*}{rename string saved_string}]", false),
+            ("set argv [read stdin]; set ignored [{*}$argv]", true),
+        ] {
+            let (cu, reg) = analyse(source);
+            let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
+            assert_eq!(bindings.has_opaque_domain(), opaque, "{source}");
+            if !opaque {
+                assert!(
+                    bindings
+                        .targets("::saved_string", "::")
+                        .iter()
+                        .any(|target| target.command == "::string"),
+                    "{source}"
+                );
+            }
+        }
     }
 
     #[test]
@@ -5801,6 +22661,36 @@ Dog create d",
             assert!(
                 bindings.has_opaque_domain(),
                 "a current, unknown, or command-mutating child body must fail closed: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn namespace_resolution_projection_preserves_written_runs_and_constructed_colons() {
+        for (pattern, expected) in [
+            ("::source:::tail", ":::::tail"),
+            ("::source::a:b", ":::::a:b"),
+            ("::source::", ":::::"),
+        ] {
+            let transition = NamespaceTransition::Forget {
+                namespace: tcl_registry::NamespaceTransitionTarget::Current,
+                patterns: vec![TransitionSubject::Literal(pattern.to_owned())],
+            };
+            let mut rebound = std::collections::HashSet::new();
+            let mut changed = false;
+            let mut opaque = std::collections::HashSet::new();
+            assert!(collect_namespace_resolution(
+                &transition,
+                Some(":::"),
+                &mut rebound,
+                &mut changed,
+                &mut opaque,
+            ));
+            assert!(changed);
+            assert!(opaque.is_empty());
+            assert_eq!(
+                rebound,
+                std::collections::HashSet::from([expected.to_owned()])
             );
         }
     }
@@ -6017,15 +22907,26 @@ Dog create d",
 
     #[test]
     fn dynamic_apply_lambda_keeps_the_command_domain_opaque() {
-        let (cu, reg) = analyse(
-            "set lambda {{} {rename set saved_set}}\n\
-             apply $lambda",
-        );
-        let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
-        assert!(
-            bindings.has_opaque_domain(),
-            "a substituted lambda may execute unavailable command mutations"
-        );
+        for (source, opaque) in [
+            (
+                "set lambda {{} {rename set saved_set}}; apply $lambda",
+                false,
+            ),
+            ("set lambda [read stdin]; apply $lambda", true),
+        ] {
+            let (cu, reg) = analyse(source);
+            let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
+            assert_eq!(bindings.has_opaque_domain(), opaque, "{source}");
+            if !opaque {
+                assert!(
+                    bindings
+                        .targets("::saved_set", "::")
+                        .iter()
+                        .any(|target| target.command == "::set"),
+                    "{source}"
+                );
+            }
+        }
     }
 
     #[test]
@@ -6105,15 +23006,34 @@ Dog create d",
     #[test]
     fn dynamic_namespace_eval_target_or_body_keeps_the_domain_opaque() {
         for source in [
-            "set ns ::n\nnamespace eval $ns { rename set saved_set }",
-            "set body {rename set saved_set}\nnamespace eval ::n $body",
-            "set old set\nnamespace eval ::n [list rename $old saved_set]",
+            "proc change {ns} {namespace eval $ns {rename set saved_set}}",
+            "proc change {body} {namespace eval ::n $body}",
+            "proc change {old} {namespace eval ::n [list rename $old saved_set]}",
         ] {
             let (cu, reg) = analyse(source);
             let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
             assert!(
                 bindings.has_opaque_domain(),
                 "dynamic namespace eval input must not be replayed as source: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn frozen_namespace_eval_inputs_retain_the_actual_entered_rename() {
+        for source in [
+            "set ns ::n\nnamespace eval $ns {rename set saved_set}",
+            "set body {rename set saved_set}\nnamespace eval ::n $body",
+            "set old set\nnamespace eval ::n [list rename $old saved_set]",
+        ] {
+            let (cu, reg) = analyse(source);
+            let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
+            assert!(
+                bindings
+                    .targets("::n::saved_set", "::")
+                    .iter()
+                    .any(|target| { target.command == "::set" }),
+                "{source}"
             );
         }
     }
@@ -6136,20 +23056,29 @@ Dog create d",
     }
 
     #[test]
-    fn empty_namespace_eval_prefix_does_not_execute_the_body() {
-        let (cu, reg) = analyse(
-            "interp alias {} in_empty {} namespace eval {}\n\
-             in_empty {rename set saved_set}",
-        );
-        let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
-        assert!(!bindings.has_opaque_domain());
-        assert!(
-            !bindings
-                .targets("::saved_set", "::")
-                .iter()
-                .any(|target| target.command == "::set"),
-            "namespace eval rejects an empty target before entering its body"
-        );
+    fn empty_namespace_eval_prefix_enters_the_global_body() {
+        // Pinned C 8.4–9.1 accepts the empty namespace selector as global.
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(profile).unit_profile();
+            let reg = CommandRegistry::build_default().project_for_profile(profile);
+            for (body, moved) in [("rename set saved_set", true), ("\"unterminated", false)] {
+                let source = format!(
+                    "interp alias {{}} in_empty {{}} namespace eval {{}}\nin_empty {{{body}}}"
+                );
+                let cu = CompilationUnit::build_for_profile(&source, &reg, false, profile);
+                let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
+                assert!(!bindings.has_opaque_domain(), "{}: {body}", profile.name);
+                assert_eq!(
+                    bindings
+                        .targets("::saved_set", "::")
+                        .iter()
+                        .any(|target| target.command == "::set"),
+                    moved,
+                    "{}: {body}",
+                    profile.name,
+                );
+            }
+        }
     }
 
     #[test]
@@ -6230,7 +23159,10 @@ Dog create d",
              rename ::set ::saved_set",
         );
         assert!(
-            cu.ir_module.procedures["::uses_set"]
+            cu.ir_module
+                .procedures
+                .get(&fixture_id(&cu.ir_module.procedures, "::uses_set"))
+                .expect("authored fixture body")
                 .body
                 .command_binding_sites
                 .iter()
@@ -6418,7 +23350,11 @@ Dog create d",
              } }",
         );
         assert_eq!(
-            cu.ir_module.methods["::n::C::mutate"].execution_namespace,
+            cu.ir_module
+                .methods
+                .get(&fixture_id(&cu.ir_module.methods, "::n::C::mutate"))
+                .expect("authored fixture body")
+                .execution_namespace,
             crate::ir::ExecutionNamespace::RuntimeSelected
         );
         let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
@@ -6558,10 +23494,16 @@ Dog create d",
         assert!(m.trusts("lappend"), "an untouched builtin stays trusted");
         assert!(m.trusts("myproc"), "a fresh user proc untrusts nothing");
 
-        // A dynamic mutation distrusts every name.
-        let cu2 = CompilationUnit::build_for("set x foo\nrename $x bar", &reg, false);
+        // An actual unknown Value formal keeps the mutation subject unknown.
+        let cu2 = CompilationUnit::build_for("proc clobber {x} {rename $x bar}", &reg, false);
         let m2 = scan_module_command_mutations(&cu2.ir_module, &reg);
         assert!(!m2.trusts("string") && !m2.trusts("lappend"));
+
+        // A frozen absent subject errors before moving any command. Its
+        // written substitution does not turn the subject into a dynamic one.
+        let cu3 = CompilationUnit::build_for("set x foo\nrename $x bar", &reg, false);
+        let m3 = scan_module_command_mutations(&cu3.ir_module, &reg);
+        assert!(m3.trusts("string") && m3.trusts("lappend"));
     }
 
     /// `walk_body_calls` recurses once
@@ -6786,6 +23728,26 @@ Dog create d",
     }
 
     #[test]
+    fn rebound_candidates_include_relative_qualified_names() {
+        // naming.analysis.constructed-key-consumer-projections
+
+        let namespace = crate::ir::ExecutionNamespace::exact("::ns");
+        for (written, expected) in [
+            ("inner::p", vec!["::inner::p", "::ns::inner::p"]),
+            ("p", vec!["::ns::p", "::p"]),
+            ("::inner::p", vec!["::inner::p"]),
+        ] {
+            let mut bindings = ModuleCommandBindings::default();
+            bindings.record_proc_rebound_candidates(written, &namespace);
+            assert_eq!(
+                bindings.proc_rebound_names,
+                expected.into_iter().map(String::from).collect()
+            );
+            assert!(bindings.bindings.is_empty());
+        }
+    }
+
+    #[test]
     fn trusts_proc_binding_false_for_namespace_relative_rename() {
         // FP guard (reported in code review): a bare `rename` argument
         // inside a namespaced proc resolves relative to THAT proc's own
@@ -6851,3 +23813,1517 @@ Dog create d",
         );
     }
 }
+
+#[cfg(test)]
+mod source_variable_access_tests {
+
+    use super::*;
+
+    fn analyse(source: &str) -> (SourceCommandBindings, Arc<CommandRegistry>) {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = Arc::clone(context.commands());
+        let bindings = SourceCommandBindings::analyse_with_options(
+            source,
+            tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            &registry,
+            SourceAnalysisOptions {
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                    tcl_dialect::TclVersion::V8_6,
+                )),
+                ..SourceAnalysisOptions::default()
+            },
+        );
+        (bindings, registry)
+    }
+
+    fn reads(bindings: &SourceCommandBindings, source: &str) -> Vec<SourceVariableAccess> {
+        bindings.variable_accesses_in_span(tcl_lexer::Span::new(
+            0,
+            u32::try_from(source.len().saturating_sub(1)).unwrap(),
+        ))
+    }
+
+    #[test]
+    fn full_depth_array_indices_resolve_every_source_read_after_its_index() {
+        let source = include_str!("../tests/data/native_deep_array_source.tcl");
+        let (bindings, registry) = analyse(source);
+        let accesses = reads(&bindings, source);
+        let elements = accesses
+            .iter()
+            .filter(|access| access.original_spelling.starts_with("$a("))
+            .collect::<Vec<_>>();
+        assert_eq!(elements.len(), 2000);
+        for access in elements {
+            for context in access.context_alternatives() {
+                let place = access.place_in_context(context, &registry);
+                let index = place.index.as_ref().expect("resolved native element");
+                assert_eq!(index.kind, crate::place::IndexKind::Literal);
+                assert_eq!(index.value, "x");
+            }
+        }
+    }
+
+    #[test]
+    fn evaluated_indices_freeze_values_before_later_parts_and_read_observers() {
+        for (source, spelling, key, observed) in [
+            (
+                "set k old; set a(oldnew) VALUE; set view $a($k[set k new])",
+                "$a($k[set k new])",
+                "oldnew",
+                false,
+            ),
+            (
+                "proc observe {name key op} {upvar 1 $name value; set value old}; set k new; set a(old) VALUE; trace add variable k read observe; set view $a($k)",
+                "$a($k)",
+                "old",
+                false,
+            ),
+            (
+                "proc observe args {}; set k k; set a(k) VALUE; trace add variable a(k) read observe; set view $a($k)",
+                "$a($k)",
+                "k",
+                true,
+            ),
+            (
+                "set k k; set {a($k)} VALUE; set view ${a($k)}",
+                "${a($k)}",
+                "$k",
+                false,
+            ),
+        ] {
+            let (bindings, registry) = analyse(source);
+            let all = reads(&bindings, source);
+            let access = all
+                .iter()
+                .find(|access| access.original_spelling == spelling)
+                .unwrap();
+            for context in access.context_alternatives() {
+                let place = access.place_in_context(context, &registry);
+                let index = place.index.as_ref().expect("actual element address");
+                assert_eq!(index.kind, crate::place::IndexKind::Literal, "{source}");
+                assert_eq!(index.value, key, "{source}");
+                assert_eq!(place.observed, observed, "{source}");
+                if observed {
+                    assert!(!context.read_produces_value(&place, &registry));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn evaluated_element_addresses_relocate_and_disagreements_remain_unknown() {
+        let source = "proc f {} {set k k; set a(k) VALUE; set view $a($k)}";
+        let (bindings, registry) = analyse(source);
+        let all = reads(&bindings, source);
+        let access = all
+            .iter()
+            .find(|access| access.original_spelling == "$a($k)")
+            .unwrap();
+        let context = &access.context_alternatives()[0];
+        let place = access.place_in_context(context, &registry);
+        let crate::place::CellOwner::Activation(owner) = &place.cell.as_ref().unwrap().owner else {
+            panic!("actual local element owner");
+        };
+        let mut relocation = crate::var_resolve::VariableProofRelocation::default();
+        relocation
+            .activations
+            .insert(owner.clone(), "relocated-read".to_owned());
+        let relocated = access.relocated_variables(&relocation);
+        let target = relocated.place_in_context(&relocated.context_alternatives()[0], &registry);
+        assert_eq!(
+            target.cell.as_ref().unwrap().owner,
+            crate::place::CellOwner::Activation("relocated-read".to_owned())
+        );
+        assert_eq!(target.index.as_ref().unwrap().value, "k");
+        assert_eq!(relocated.source, access.source);
+        assert_eq!(relocated.original_spelling, access.original_spelling);
+
+        let mut conflicting = access.clone();
+        let mut other = place;
+        other.index = Some(crate::place::Index::literal("different"));
+        conflicting.retain_selected_place(context, &other);
+        let unresolved = conflicting.place_in_context(context, &registry);
+        assert_eq!(
+            unresolved.index.as_ref().unwrap().kind,
+            crate::place::IndexKind::Dynamic
+        );
+        assert!(!context.read_produces_value(&unresolved, &registry));
+    }
+
+    #[test]
+    fn word_variable_sites_equal_the_native_read_inventory_on_every_c_release() {
+        let source = r#"set a k; set arr(k) VALUE; set {} EMPTY; puts $a; puts ${a}; puts "$a"; puts "${a}"; puts $arr(k); puts "$arr($a)"; puts ${}"#;
+        for release in tcl_dialect::TclVersion::ALL {
+            let registry =
+                tcl_registry::model::ingress::static_context_for(release.dialect_profile_name())
+                    .commands();
+            let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+            let bindings = SourceCommandBindings::analyse_with_options(
+                source,
+                config,
+                registry,
+                SourceAnalysisOptions {
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(release)),
+                    ..SourceAnalysisOptions::default()
+                },
+            );
+            let accesses = reads(&bindings, source);
+            let map = tcl_lexer::SourceMap::new(source);
+            let mut represented = 0;
+            for segment in
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+            {
+                let tokens = crate::ir::CommandTokens::from_segmented(&map, config, &segment);
+                for word in tokens.words() {
+                    let Some((_, site)) = word.sole_variable_substitution() else {
+                        continue;
+                    };
+                    let access = SourceVariableAccess::find_at_site(&accesses, site)
+                        .unwrap_or_else(|| {
+                            panic!("missing exact site on {release:?}: {site:?}; {accesses:#?}")
+                        });
+                    let at = usize::try_from(site.span.start()).unwrap();
+                    let native = tcl_lexer::word_parts::scan_var_ref(source.as_bytes(), at, config)
+                        .unwrap()
+                        .unwrap();
+                    assert_eq!(
+                        site.span,
+                        native.source_span(source.as_bytes(), at, 0).unwrap()
+                    );
+                    assert_eq!(access.original_spelling, &source[at..native.next]);
+                    represented += 1;
+                }
+            }
+            assert_eq!(represented, 7);
+            assert_eq!(
+                accesses.len(),
+                8,
+                "nested index read is independently represented"
+            );
+        }
+    }
+
+    #[test]
+    fn argument_read_ownership_follows_evaluation_instead_of_lexical_nesting() {
+        let source = "set x 1; proc p {} {puts $x}; puts [expr {$x + 1}]";
+        let (bindings, _) = analyse(source);
+        let definition = u32::try_from(source.find("proc p").unwrap()).unwrap();
+        assert_eq!(
+            bindings.variable_accesses_during_argument_evaluation(definition),
+            [] as [SourceVariableAccess; 0]
+        );
+        let outer = u32::try_from(source.rfind("puts [").unwrap()).unwrap();
+        let nested = u32::try_from(source.find("expr {").unwrap()).unwrap();
+        assert_eq!(
+            bindings.variable_accesses_for_invocation_args(outer),
+            [] as [SourceVariableAccess; 0]
+        );
+        assert_eq!(
+            bindings.variable_accesses_for_invocation_args(nested),
+            [] as [SourceVariableAccess; 0]
+        );
+        let reached = bindings.variable_accesses_during_argument_evaluation(outer);
+        assert_eq!(reached.len(), 1);
+        assert!(matches!(
+            reached[0].owner,
+            SourceVariableEvaluationOwner::NativeExpression { .. }
+        ));
+        assert_eq!(
+            bindings
+                .variable_accesses_during_expression_invocation(nested)
+                .len(),
+            1
+        );
+        assert_eq!(
+            bindings.variable_accesses_during_argument_evaluation(nested),
+            [] as [SourceVariableAccess; 0]
+        );
+    }
+
+    #[test]
+    fn script_body_reads_belong_to_enclosing_arguments_but_not_the_script_invocation() {
+        let source = "set x 1; puts [catch {puts $x}]";
+        let (bindings, _) = analyse(source);
+        let outer = u32::try_from(source.find("puts [").unwrap()).unwrap();
+        let captured = u32::try_from(source.find("catch {").unwrap()).unwrap();
+        assert_eq!(
+            bindings
+                .variable_accesses_during_argument_evaluation(outer)
+                .len(),
+            1
+        );
+        assert_eq!(
+            bindings.variable_accesses_during_argument_evaluation(captured),
+            [] as [SourceVariableAccess; 0]
+        );
+        assert_eq!(
+            bindings.variable_accesses_during_expression_invocation(captured),
+            [] as [SourceVariableAccess; 0]
+        );
+    }
+
+    #[test]
+    fn reads_in_one_word_keep_their_actual_alias_selection() {
+        let source = r#"set x X; set y Y; upvar 0 x a; puts "$a[upvar 0 y a]$a""#;
+        let (bindings, registry) = analyse(source);
+        let accesses = reads(&bindings, source);
+        assert_eq!(accesses.len(), 2);
+        let places: Vec<_> = accesses
+            .iter()
+            .map(|access| {
+                crate::var_resolve::resolve_substitution_access(
+                    &access.original_spelling,
+                    &access.variable_context,
+                    &registry,
+                    tcl_registry::TraceOperation::Read,
+                )
+            })
+            .collect();
+        assert_eq!(places[0].name, "x");
+        assert_eq!(places[1].name, "y");
+        assert_ne!(accesses[0].source, accesses[1].source);
+        assert!(
+            SourceVariableAccess::find_at_source(&accesses, &accesses[0].source, "$unrecorded",)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn exact_read_query_requires_one_retained_record_at_the_site() {
+        let source = "set x X; puts $x";
+        let (bindings, _) = analyse(source);
+        let accesses = reads(&bindings, source);
+        let original = &accesses[0];
+        assert!(SourceVariableAccess::find_at_source(&accesses, &original.source, "$x").is_some());
+        for spelling in ["$x", "$z"] {
+            let mut conflicting = original.clone();
+            conflicting.original_spelling = spelling.to_owned();
+            let duplicated = [original.clone(), conflicting];
+            assert!(
+                SourceVariableAccess::find_at_source(&duplicated, &original.source, "$x").is_none()
+            );
+            assert!(SourceVariableAccess::find_at_site(&duplicated, &original.source).is_none());
+        }
+    }
+
+    #[test]
+    fn array_read_context_follows_index_effects_and_records_nested_reads() {
+        let source =
+            r#"set k 0; set a(0) FIRST; set a(1) SECOND; puts "$a([set k 1])[set k 0]$a($k)""#;
+        let (bindings, registry) = analyse(source);
+        let accesses = reads(&bindings, source);
+        assert_eq!(accesses.len(), 3, "{accesses:#?}");
+        for (spelling, wanted) in [("$a([set k 1])", "1"), ("$a($k)", "0"), ("$k", "0")] {
+            let access = accesses
+                .iter()
+                .find(|access| access.original_spelling == spelling)
+                .expect("reached original reference");
+            assert_eq!(
+                access
+                    .variable_context
+                    .substitution_literal_value("$k", &registry),
+                Some(wanted)
+            );
+            let start = usize::try_from(access.source.span.start()).unwrap();
+            assert_eq!(&source[start..start + spelling.len()], spelling);
+        }
+    }
+
+    #[test]
+    fn skipped_lazy_and_abrupt_reads_have_no_dispatch_fallback() {
+        let source =
+            "set x 1; expr {0 && $lazy}; catch {return; puts $abrupt}; expr {1 ? $x : $other}";
+        let (bindings, _) = analyse(source);
+        let accesses = reads(&bindings, source);
+        assert_eq!(accesses.len(), 1, "{accesses:#?}");
+        assert_eq!(accesses[0].original_spelling, "$x");
+    }
+
+    #[test]
+    fn read_snapshot_precedes_its_own_observer_effect() {
+        let source = "set x 1; proc observer args {}; trace add variable x read observer; puts $x";
+        let (bindings, registry) = analyse(source);
+        let accesses = reads(&bindings, source);
+        assert_eq!(accesses.len(), 1);
+        let access = &accesses[0];
+        assert!(!access.variable_context.dynamic_bindings);
+        let place = crate::var_resolve::resolve_substitution_access(
+            &access.original_spelling,
+            &access.variable_context,
+            &registry,
+            tcl_registry::TraceOperation::Read,
+        );
+        assert!(place.observed);
+    }
+}
+
+#[cfg(test)]
+mod source_callable_static_tests {
+
+    use super::*;
+
+    fn analyse(source: &str) -> SourceCommandBindings {
+        let context = tcl_registry::model::ingress::static_context_for("jim");
+        let registry = context.commands();
+        SourceCommandBindings::analyse_with_options(
+            source,
+            tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            registry,
+            SourceAnalysisOptions {
+                invocation_dialect: registry
+                    .profile()
+                    .map(tcl_registry::InvocationDialect::of_profile),
+                ..SourceAnalysisOptions::default()
+            },
+        )
+    }
+
+    fn assert_saved_native_set(source: &str) {
+        let bindings = analyse(source);
+        let site = u32::try_from(source.rfind("saved x").unwrap()).unwrap();
+        let target = bindings.invocation_at_source("saved", site);
+        assert!(
+            target
+                .proved_execution_target()
+                .is_some_and(|target| target.registry_backed && target.command == "::set"),
+            "{target:#?}"
+        );
+    }
+
+    #[test]
+    fn static_formals_update_one_retained_slot_across_actual_calls() {
+        assert_saved_native_set(
+            "proc p {x} {{x OLD}} {return $x}; p OTHER; eval [p {rename set saved}]; saved x 1",
+        );
+    }
+
+    #[test]
+    fn captured_raw_wrapper_observes_later_alias_retargeting() {
+        assert_saved_native_set(
+            "set a OLD; set b {rename set saved}; upvar 0 a x; proc p {} {&x} {return $x}; upvar 0 b x; eval [p]; saved x 1",
+        );
+    }
+
+    #[test]
+    fn raw_capture_retains_old_cell_after_global_name_recreation() {
+        assert_saved_native_set(
+            "set x {rename set saved}; proc p {} {&x} {return $x}; unset x; set x OTHER; eval [p]; saved x 1",
+        );
+    }
+}
+
+#[cfg(test)]
+mod source_alias_lookup_tests {
+
+    use super::*;
+
+    #[test]
+    fn jim_alias_targets_use_each_actual_callers_namespace() {
+        let source = "proc target {} {return ROOT}; namespace eval A {proc target {} {return A}}; alias a target; a; namespace eval A {a}";
+        let context = tcl_registry::model::ingress::static_context_for("jim");
+        let registry = context.commands();
+        let bindings = SourceCommandBindings::analyse_with_options(
+            source,
+            tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            registry,
+            SourceAnalysisOptions {
+                invocation_dialect: registry
+                    .profile()
+                    .map(tcl_registry::InvocationDialect::of_profile),
+                ..SourceAnalysisOptions::default()
+            },
+        );
+        for (offset, expected) in [
+            (source.find("; a;").unwrap() + 2, "::target"),
+            (source.rfind("{a}").unwrap() + 1, "::A::target"),
+        ] {
+            let binding = bindings.invocation_at_source("a", u32::try_from(offset).unwrap());
+            assert_eq!(
+                binding
+                    .proved_target()
+                    .map(|target| target.command.as_str()),
+                Some(expected)
+            );
+        }
+    }
+}
+
+/// Build called-frame operands before descending into the original body.
+#[inline(never)]
+fn source_call_arguments<'a>(
+    target: &'a SourceCommandTarget,
+    effective: &'a [crate::registry_invocation::EffectiveInvocationWord],
+) -> Vec<Option<&'a str>> {
+    let mut actual = target
+        .prepended
+        .iter()
+        .map(|value| value.as_registry_word().literal())
+        .collect::<Vec<_>>();
+    actual.extend(
+        effective
+            .iter()
+            .skip(1)
+            .map(|word| word.as_registry_word().literal()),
+    );
+    actual
+}
+
+#[cfg(test)]
+mod compiled_variable_policy_tests {
+
+    use super::SourceAnalysisOptions;
+    use tcl_registry::{
+        InvocationDialect, native_compiled_variables::LogicalCompiledVariableProvider,
+    };
+    use tcl_syntax::naming::{NativeCompiledVariableAuthority, NativeCompiledVariableRecipe};
+
+    #[test]
+    fn supplied_live_entry_withdraws_missing_compiler_local_policy() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
+        assert!(entry.compiled_variable_protocol.is_some());
+        entry.compiled_variable_protocol = None;
+        let options = SourceAnalysisOptions {
+            native_entry: Some(&entry),
+            invocation_dialect: Some(InvocationDialect::for_version(
+                tcl_dialect::TclVersion::V9_0,
+            )),
+            compiled_variable_provider: Some(LogicalCompiledVariableProvider::Tcl84CoreSimulation),
+            ..Default::default()
+        };
+        assert!(options.compiled_variable_protocol().is_none());
+    }
+
+    #[test]
+    fn explicit_local_compiler_provider_participates_in_owned_baseline_identity() {
+        let mut ordinary = super::BindingBaseline::default();
+        ordinary.refresh_fingerprint();
+        let mut authored = ordinary.clone();
+        authored.compiled_variable_provider =
+            Some(LogicalCompiledVariableProvider::Tcl84CoreSimulation);
+        authored.refresh_fingerprint();
+        assert_ne!(ordinary, authored);
+        assert_ne!(ordinary.fingerprint, authored.fingerprint);
+        let retained = authored.clone();
+        assert_eq!(retained, authored);
+        assert_eq!(
+            retained.compiled_variable_provider,
+            authored.compiled_variable_provider
+        );
+    }
+
+    #[test]
+    fn authored_f5_local_compiler_requires_its_explicit_provider() {
+        let f5 = InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
+        let mut options = SourceAnalysisOptions {
+            invocation_dialect: Some(f5),
+            ..Default::default()
+        };
+        assert!(options.compiled_variable_protocol().is_none());
+        options.compiled_variable_provider =
+            Some(LogicalCompiledVariableProvider::Tcl84CoreSimulation);
+        let policy = options.compiled_variable_protocol().unwrap();
+        assert_eq!(
+            policy.authority(),
+            NativeCompiledVariableAuthority::AuthoredSimulation
+        );
+        assert_eq!(
+            policy.recipe(),
+            NativeCompiledVariableRecipe::C(tcl_dialect::TclVersion::V8_4)
+        );
+        options.invocation_dialect = Some(InvocationDialect::for_version(
+            tcl_dialect::TclVersion::V9_0,
+        ));
+        assert!(options.compiled_variable_protocol().is_none());
+    }
+}
+
+#[cfg(test)]
+mod hosted_storage_entry_tests {
+
+    use super::*;
+
+    #[test]
+    // Implementation contract: naming.variable.hosted-storage-context
+
+    fn hosted_storage_entry_is_independent_of_registry_and_source_name_policy() {
+        use tcl_registry::f5::BigIpExecutionContext;
+        let stock = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let irules = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let entry = SourceAnalysisEntry {
+            hosted_execution_context: Some(BigIpExecutionContext::TmmIRule),
+            ..Default::default()
+        };
+        assert_eq!(
+            entry.options().hosted_execution_context,
+            entry.hosted_execution_context
+        );
+        let selected = ModuleCommandBindings::initial_with_options(stock, entry.options(), None);
+        assert_eq!(
+            selected.source_variables.hosted_execution_context,
+            entry.hosted_execution_context
+        );
+        assert!(
+            selected
+                .namespaces
+                .contains(&SourceNamespaceKey::authored("::static"))
+        );
+        let catalogue = ModuleCommandBindings::initial_with_options(
+            irules,
+            SourceAnalysisOptions::default(),
+            None,
+        );
+        assert_eq!(catalogue.source_variables.hosted_execution_context, None);
+        let different = SourceAnalysisEntry {
+            hosted_execution_context: Some(BigIpExecutionContext::IAppImplementation),
+            ..entry.clone()
+        };
+        let selected =
+            ModuleCommandBindings::initial_with_options(irules, different.options(), None);
+        assert_eq!(
+            selected.source_variables.hosted_execution_context,
+            different.hosted_execution_context
+        );
+        assert_ne!(entry, different);
+        assert_ne!(
+            entry.options().hosted_execution_context,
+            different.options().hosted_execution_context
+        );
+        assert!(selected.source_variables.authored_tmm_static.is_none());
+        assert!(selected.source_variables.execution.is_none());
+    }
+}
+
+#[cfg(test)]
+mod selected_replay_formal_tests {
+
+    use super::*;
+
+    fn invocation(parameters: &str) -> ResolvedBindingInvocation {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        let arguments = vec!["target".to_owned(), parameters.to_owned(), String::new()];
+        let refs = arguments.iter().map(String::as_str).collect::<Vec<_>>();
+        let facts = registry
+            .commands()
+            .resolve_invocation("proc", &refs, registry.commands().own_surface_query())
+            .unwrap()
+            .facts();
+        ResolvedBindingInvocation {
+            command: "proc".into(),
+            source_span: tcl_lexer::Span::new(0, 1),
+            facts: Box::new(facts),
+            literal_arguments: arguments.iter().cloned().map(Some).collect(),
+            source_scalar_arguments: vec![None; arguments.len()],
+            exact_argument_count: Some(arguments.len()),
+            arguments,
+        }
+    }
+
+    #[test]
+    fn original_procedure_replay_validity_requires_the_selected_formal_grammar() {
+        // naming.variable.original-readonly-formal-topology
+
+        // Registry replay syntax only, without installed procedure or body entry.
+        let namespace = crate::ir::ExecutionNamespace::exact("::");
+        let c = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let jim = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
+        for parameters in ["a::b", "a(1)"] {
+            let invocation = invocation(parameters);
+            assert!(matches!(
+                recover_procedure_definition(&invocation, &namespace, Some(c)),
+                ProcedureDefinitionReplay::KnownError
+            ));
+            assert!(matches!(
+                recover_procedure_definition(&invocation, &namespace, Some(jim)),
+                ProcedureDefinitionReplay::Recovered { .. }
+            ));
+            assert!(matches!(
+                recover_procedure_definition(&invocation, &namespace, None),
+                ProcedureDefinitionReplay::Unavailable
+            ));
+        }
+        let duplicate = invocation("args args");
+        assert!(matches!(
+            recover_procedure_definition(&duplicate, &namespace, Some(jim)),
+            ProcedureDefinitionReplay::KnownError
+        ));
+        assert!(matches!(
+            recover_procedure_definition(&duplicate, &namespace, Some(c)),
+            ProcedureDefinitionReplay::Recovered { .. }
+        ));
+    }
+}
+
+fn definition_body_command_tokens(
+    body: &str,
+    parent_config: tcl_lexer::LexerConfig,
+) -> impl Iterator<Item = crate::ir::CommandTokens> + '_ {
+    let config = parent_config.nested();
+    let map = tcl_lexer::SourceMap::new(body);
+    crate::segmenter::segment_commands_with_offset_and_config(body, 0, config)
+        .into_iter()
+        .map(move |segment| crate::ir::CommandTokens::from_segmented(&map, config, &segment))
+}
+
+#[cfg(test)]
+mod original_definition_body_purpose_tests {
+
+    use super::*;
+
+    #[test]
+    fn original_definition_body_projection_keeps_bom_geometry_and_parent_config_separate() {
+        // naming.source.original-configured-script-completeness
+
+        // Local syntax shared by validation/publication, never a member or Native admission receipt.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let body = "\u{feff}method hidden {} {}; method shown {} {}";
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let mut config = input.lexer_config();
+            config.leading_bom = bom;
+            let tokens = definition_body_command_tokens(body, config).collect::<Vec<_>>();
+            assert_eq!(tokens.len(), 2);
+            assert_eq!(tokens[0].argv_texts, ["\u{feff}method", "hidden", "", ""]);
+            assert_eq!(tokens[1].argv_texts, ["method", "shown", "", ""]);
+            assert_eq!(tokens[0].argv[0].start(), 0);
+            assert_eq!(
+                body.get(tokens[0].argv[0].as_range()),
+                Some("\u{feff}method")
+            );
+            assert_eq!(body.get(tokens[1].argv[1].as_range()), Some("shown"));
+            assert!(
+                tokens
+                    .iter()
+                    .all(|command| command.source_binding.is_none())
+            );
+            assert_eq!(config.leading_bom, bom);
+
+            let nested = definition_body_command_tokens("method ${outer{inner}}", config)
+                .next()
+                .unwrap();
+            assert!(matches!(
+                nested.words()[1],
+                crate::ir::WordExpr::Variable { .. }
+            ));
+            let first_close = tcl_lexer::LexerConfig {
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                ..config
+            };
+            let nested = definition_body_command_tokens("method ${outer{inner}}", first_close)
+                .next()
+                .unwrap();
+            assert!(matches!(
+                nested.words()[1],
+                crate::ir::WordExpr::Template { .. }
+            ));
+            assert!(nested.source_binding.is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod shared_noop_source_join_tests {
+
+    use super::*;
+
+    fn original(source: &str) -> SourceCommandBindings {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = registry.profile().unwrap();
+        SourceCommandBindings::analyse_with_options(
+            source,
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            registry,
+            SourceAnalysisOptions {
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..Default::default()
+            },
+        )
+    }
+
+    #[test]
+    fn actual_same_owner_join_keeps_shared_storage_and_complete_semantics() {
+        // naming.command.shared-noop-source-joins
+
+        // Original model snapshot storage only; no external interpreter or
+        // Native currency/handler/read/write authority is asserted here.
+        let bindings = original("namespace eval N {variable value 1}; proc helper {} {}");
+        let actual = bindings.final_state.as_ref();
+        let mut branch = actual.clone();
+        let before = branch.clone();
+        assert!(Arc::ptr_eq(&branch.baseline, &actual.baseline));
+        assert!(Arc::ptr_eq(
+            branch.current_source_origin.as_ref().unwrap(),
+            actual.current_source_origin.as_ref().unwrap()
+        ));
+        assert!(!branch.join(actual));
+        assert_eq!(branch, before);
+        assert!(Arc::ptr_eq(
+            &branch.object_instances,
+            &actual.object_instances
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.class_definitions,
+            &actual.class_definitions
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.bounded_constructions,
+            &actual.bounded_constructions
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.command_observers,
+            &actual.command_observers
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.tainted_object_dispatch,
+            &actual.tainted_object_dispatch
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.namespace_exports,
+            &actual.namespace_exports
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.namespace_paths,
+            &actual.namespace_paths
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.unknown_lookup_namespaces,
+            &actual.unknown_lookup_namespaces
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.unknown_namespace_paths,
+            &actual.unknown_namespace_paths
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.namespace_unknown_handlers,
+            &actual.namespace_unknown_handlers
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.unknown_export_namespaces,
+            &actual.unknown_export_namespaces
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.revoked_loaders,
+            &actual.revoked_loaders
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.tainted_provider_state,
+            &actual.tainted_provider_state
+        ));
+    }
+
+    #[test]
+    fn genuine_different_observer_and_namespace_owners_still_join_without_mutating_snapshots() {
+        // naming.command.shared-noop-source-joins
+
+        let source = "proc helper {} {}; trace add execution helper enter {list}";
+        let observed = original(source);
+        let site = u32::try_from(source.find("trace add").unwrap()).unwrap();
+        let previous = &observed.dispatch_points_at(site).next().unwrap().state;
+        let actual = observed.final_state.as_ref();
+        assert!(Arc::ptr_eq(&previous.baseline, &actual.baseline));
+        assert_ne!(previous.command_observers, actual.command_observers);
+        assert!(!Arc::ptr_eq(
+            &previous.command_observers,
+            &actual.command_observers
+        ));
+        let old = actual.clone();
+        let mut joined = actual.clone();
+        assert!(joined.join(previous));
+        assert_ne!(joined.command_observers, actual.command_observers);
+        assert_ne!(joined.command_observers, previous.command_observers);
+        assert_eq!(actual, &old);
+        let stable = joined.clone();
+        assert!(!joined.join(previous));
+        assert_eq!(joined, stable);
+
+        let source = "namespace eval N {}; namespace delete N";
+        let removed = original(source);
+        let site = u32::try_from(source.find("namespace delete").unwrap()).unwrap();
+        let previous = &removed.dispatch_points_at(site).next().unwrap().state;
+        let actual = removed.final_state.as_ref();
+        let removed_namespaces = previous
+            .namespaces
+            .iter()
+            .filter(|namespace| !actual.namespaces.contains(*namespace))
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(
+            removed_namespaces.len(),
+            1,
+            "the actual namespace transition removes one typed owner"
+        );
+        let namespace = &removed_namespaces[0];
+        assert!(previous.namespaces.contains(namespace));
+        assert!(!actual.namespaces.contains(namespace));
+        let old = previous.clone();
+        let mut joined = previous.clone();
+        assert!(joined.join(actual));
+        assert!(!joined.namespaces.contains(namespace));
+        assert_eq!(previous, &old);
+        assert!(previous.namespaces.contains(namespace));
+    }
+}
+
+#[cfg(test)]
+mod original_explicit_script_purpose_tests {
+
+    use super::*;
+
+    fn input() -> crate::analyser::ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            strict_quoting: true,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry(),
+            config,
+        )
+    }
+
+    #[test]
+    fn original_binding_purpose_retains_full_input_and_separates_cached_interpretations() {
+        // naming.source.original-configured-script-completeness
+
+        // The same original Document can have independently selected parser purposes.
+        // Neither interpretation issues Native admission or a fresh body activation.
+        let input = input();
+        let config = input.lexer_config();
+        let context = input.context_registry();
+        let registry = context.commands();
+        let image = tcl_lexer::SourceImage::document("\u{feff}puts ${a{b}");
+        let frame = crate::var_resolve::VariableExecutionFrame::Global;
+        let options = SourceAnalysisOptions::for_logical_source(&input).unwrap();
+        let whole_key = source_analysis_cache::SourceAnalysisCacheKey::at_entry(
+            &image,
+            &frame,
+            config,
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .unwrap();
+        let body_key = source_analysis_cache::SourceAnalysisCacheKey::at_entry(
+            &image,
+            &frame,
+            config,
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .unwrap();
+        assert!(whole_key != body_key);
+        for purpose in [
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        ] {
+            let bindings = SourceCommandBindings::analyse_image_in_frame_with_purpose(
+                &image, &frame, config, registry, options, purpose,
+            )
+            .unwrap();
+            assert_eq!(bindings.lexer_config, Some(config));
+            let point = bindings.points.first().unwrap();
+            assert_eq!(point.state.logical_source_name_advice_input(), Some(&input));
+            let offset = if purpose == tcl_lexer::SourceSegmentationPurpose::WholeInput {
+                3
+            } else {
+                0
+            };
+            let head = if offset == 3 { "puts" } else { "\u{feff}puts" };
+            assert_eq!(point.offset, offset);
+            let binding = bindings.invocation_at_source(head, offset);
+            let (command, tokens) = binding.original_recorded_command().unwrap();
+            assert_eq!(command.texts[0], head);
+            assert_eq!(command.texts[1], "${a{b}");
+            assert_eq!(
+                binding.original_lexer_config_for_tokens(&tokens),
+                Some(config)
+            );
+            let original = crate::registry_invocation::original_native_compiler_words(
+                &image,
+                tokens.words(),
+                offset,
+                config,
+            )
+            .unwrap();
+            assert_eq!(original.len(), 2);
+            assert!(
+                original
+                    .iter()
+                    .all(|word| word.config() == config && word.image() == &image)
+            );
+            let stale = tcl_lexer::LexerConfig {
+                braced_var: tcl_lexer::BracedVarStyle::Tcl9Nesting,
+                ..config
+            };
+            assert!(
+                crate::registry_invocation::original_native_compiler_words(
+                    &image,
+                    tokens.words(),
+                    offset,
+                    stale,
+                )
+                .is_none()
+            );
+            assert!(point.state.baseline.native_entry.is_none());
+            assert!(point.state.baseline.execution_name_policy.is_none());
+            let mut foreign = tokens.clone();
+            foreign.synthetic = Some(crate::ir::SyntheticMarker::IterationBindings(None));
+            assert!(binding.original_lexer_config_for_tokens(&foreign).is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_logical_source_layout_tests {
+
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+    use crate::registry_invocation::InvocationMetadataContext;
+
+    fn input() -> ResolvedAnalysisInput {
+        crate::analyser::Analyser::new()
+            .prepare_analysis_input("tcl")
+            .unwrap()
+    }
+
+    fn original(source: &str, input: &ResolvedAnalysisInput) -> crate::ir::CommandTokens {
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = input.lexer_config();
+        let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
+            &image,
+            &crate::var_resolve::VariableExecutionFrame::Unknown,
+            config,
+            input.borrowed_context_registry().commands(),
+            SourceAnalysisOptions::for_logical_source(input).unwrap(),
+        )
+        .unwrap();
+        let segment =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+                .unwrap()
+                .pop()
+                .unwrap();
+        let mut tokens =
+            crate::ir::CommandTokens::from_segmented(&image.source_map(), config, &segment);
+        bindings.stamp_original_tokens(&mut tokens);
+        tokens
+    }
+
+    #[test]
+    fn original_logical_reached_roles_distinguish_literal_and_expression_inventory() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Actual original source roles; no Native parser, compiler or handler grant.
+        let input = input();
+        let registry = input.borrowed_context_registry().commands();
+        let metadata = InvocationMetadataContext::for_analysis_input(registry, &input).unwrap();
+        let literal = original("puts {[dict size DATA]}", &input);
+        let binding = literal.source_binding.as_ref().unwrap();
+        assert!(binding.lookup_state.is_some());
+        assert!(binding.compiler_lookup_state.is_none());
+        assert!(binding.declaration_layout_observations.is_none());
+        assert!(binding.original_compiler_words.is_none());
+        assert_eq!(
+            binding.variable_frame,
+            crate::var_resolve::VariableExecutionFrame::Unknown
+        );
+        let advice = binding
+            .original_conditional_operand_layout_advice(&literal, registry)
+            .unwrap();
+        assert!(advice.closed_logical_source_lookup());
+        assert!(!advice.closed_lookup());
+        assert_eq!(advice.targets(), binding.targets.as_slice());
+        assert!(
+            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                &literal,
+                input.lexer_config(),
+                registry,
+                metadata,
+            )
+            .unwrap()
+            .is_empty()
+        );
+        let expression = original("expr {[dict size DATA]}", &input);
+        let calls = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+            &expression,
+            input.lexer_config(),
+            registry,
+            metadata,
+        )
+        .unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].command, "dict");
+        assert_eq!(calls[0].args, ["size", "DATA"]);
+        assert!(binding.proved_execution_target().is_none());
+        assert!(binding.proved_handler_target().is_none());
+        assert!(binding.native_compiler_admission.is_none());
+    }
+
+    #[test]
+    fn original_logical_reached_roles_refuse_unknown_observers_and_rebound_tokens() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let input = input();
+        let registry = input.borrowed_context_registry().commands();
+        for source in [
+            "unknown; puts {[dict size DATA]}",
+            "rename puts retired; puts {[dict size DATA]}",
+            "proc puts {value} {}; puts {[dict size DATA]}",
+            "puts [rename puts retired; proc puts {value} {}]",
+        ] {
+            let tokens = original(source, &input);
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(binding.lookup_state.is_some(), "{source}");
+            assert!(
+                binding
+                    .original_logical_source_operand_layout_advice(&tokens, registry)
+                    .is_none(),
+                "{source}"
+            );
+            assert!(binding.proved_handler_target().is_none());
+        }
+    }
+
+    #[test]
+    fn original_logical_reached_roles_require_same_scope_source_targets_and_vector() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let input = input();
+        let registry = input.borrowed_context_registry().commands();
+        let tokens = original("puts {[dict size DATA]}", &input);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(
+            binding
+                .original_logical_source_operand_layout_advice(&tokens, registry)
+                .is_some()
+        );
+        let mut changed = tokens.clone();
+        changed.argv_texts[0].push('!');
+        assert!(
+            binding
+                .original_logical_source_operand_layout_advice(&changed, registry)
+                .is_none()
+        );
+        let mut foreign = binding.clone();
+        Arc::make_mut(&mut foreign.variable_context).namespace = "::foreign".into();
+        assert!(
+            foreign
+                .original_logical_source_operand_layout_advice(&tokens, registry)
+                .is_none()
+        );
+        let mut namespace = binding.clone();
+        namespace.lookup_namespace_key = SourceNamespaceKey::Authored("::foreign".into());
+        namespace.lookup_namespace = "::foreign".into();
+        assert!(
+            namespace
+                .original_logical_source_operand_layout_advice(&tokens, registry)
+                .is_none()
+        );
+        let mut missing = binding.clone();
+        missing.targets.clear();
+        assert!(
+            missing
+                .original_logical_source_operand_layout_advice(&tokens, registry)
+                .is_none()
+        );
+        let mut source = binding.clone();
+        Arc::make_mut(source.lookup_state.as_mut().unwrap())
+            .state
+            .current_source_origin = None;
+        assert!(
+            source
+                .original_logical_source_operand_layout_advice(&tokens, registry)
+                .is_none()
+        );
+        let mut snapshot = binding.lookup_state.as_ref().unwrap().as_ref().clone();
+        snapshot.state.current_source_origin = None;
+        let mut refused_compiler = binding.clone();
+        refused_compiler.compiler_lookup_state = Some(Arc::new(snapshot));
+        assert!(
+            refused_compiler
+                .original_compilation_lookup_advice(&tokens)
+                .is_none()
+        );
+        assert!(
+            refused_compiler
+                .original_conditional_operand_layout_advice(&tokens, registry)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_logical_reached_roles_keep_full_metadata_and_selected_availability() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let input = input();
+        let registry = input.borrowed_context_registry().commands();
+        let tokens = original("puts {[dict size DATA]}", &input);
+        let current = InvocationMetadataContext::for_analysis_input(registry, &input).unwrap();
+        assert!(crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            registry, current, &tokens,
+        ).is_some());
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let changed = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        let changed = InvocationMetadataContext::for_analysis_input(registry, &changed).unwrap();
+        assert!(crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            registry, changed, &tokens,
+        ).is_none());
+        let foreign = tcl_registry::model::ingress::resolve_known_environment("tcl8.4")
+            .unwrap()
+            .default_context_registry();
+        let foreign = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            foreign,
+            input.lexer_config(),
+        );
+        assert!(InvocationMetadataContext::for_analysis_input(registry, &foreign).is_none());
+        let unbound = original("missing {[dict size DATA]}", &input);
+        assert!(
+            unbound
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_logical_source_operand_layout_advice(&unbound, registry)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_native_unknown_frame_cannot_borrow_logical_source_layout() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let environment =
+            tcl_registry::model::ingress::resolve_known_environment("tcl9.0").unwrap();
+        let profile = environment.unit_profile();
+        let context = environment.default_context_registry();
+        let (owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let config = SourceAnalysisOptions {
+            native_entry: Some(&entry),
+            ..Default::default()
+        }
+        .native_lexer_config(tcl_lexer::LexerConfig::for_file_grammar(profile.grammar));
+        let input = ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
+        assert!(SourceAnalysisOptions::for_logical_source(&input).is_none());
+        let image = tcl_lexer::SourceImage::document("puts {[dict size DATA]}");
+        let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
+            &image,
+            &crate::var_resolve::VariableExecutionFrame::Unknown,
+            config,
+            context.commands(),
+            SourceAnalysisOptions {
+                native_entry: Some(&entry),
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                metadata_context:
+                    crate::registry_invocation::InvocationMetadataInput::SuppliedSource(Some(
+                        &input,
+                    )),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let segment =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+                .unwrap()
+                .pop()
+                .unwrap();
+        let mut tokens =
+            crate::ir::CommandTokens::from_segmented(&image.source_map(), config, &segment);
+        bindings.stamp_original_tokens(&mut tokens);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.logical_source_name_advice_input().is_none());
+        assert!(
+            binding
+                .original_logical_source_operand_layout_advice(&tokens, context.commands())
+                .is_none()
+        );
+        assert!(binding.proved_handler_target().is_none());
+        assert_eq!(entry.execution_point, environment.point());
+        drop(owner);
+    }
+}
+
+#[cfg(test)]
+mod logical_source_advice_join_tests {
+    use super::*;
+
+    fn original_child(source: &str) -> (crate::ir::Module, crate::ir::CommandTokens) {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), config)
+                .with_resolved_analysis_input(input),
+            source,
+        );
+        let parent = module
+            .top_level
+            .retained_source_tokens_for_statement(&module.top_level.statements[0])
+            .unwrap();
+        let mut children = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(&module, context.commands(), parent).unwrap();
+        (module, children.remove(0))
+    }
+
+    #[test]
+    fn logical_source_advice_join_requires_the_same_complete_original_owner() {
+        let (module, tokens) = original_child("catch {set ::hits VALUE}");
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let registry = module.resolved_registry();
+        let original = tokens.source_binding.as_ref().unwrap();
+        assert!(original.original_logical_source_advice.is_some());
+        let mut same = original.clone();
+        same.join(original);
+        let mut joined = tokens.clone();
+        joined.source_binding = Some(same);
+        assert!(
+            joined
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_logical_source_words(&joined, input, registry)
+                .is_some()
+        );
+        let (_, other) = original_child("catch {set ::other VALUE}");
+        let mut different = original.clone();
+        different.join(other.source_binding.as_ref().unwrap());
+        assert!(different.original_logical_source_advice.is_none());
+        joined.source_binding = Some(different);
+        assert!(
+            joined
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_logical_source_words(&joined, input, registry)
+                .is_none()
+        );
+        let mut absent = original.clone();
+        absent.original_logical_source_advice = None;
+        let mut mixed = original.clone();
+        mixed.join(&absent);
+        assert!(mixed.original_logical_source_advice.is_none());
+        joined.source_binding = Some(mixed);
+        assert!(
+            joined
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_logical_source_words(&joined, input, registry)
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod retained_source_read_configuration_tests {
+    use super::*;
+
+    #[test]
+    fn source_entry_and_baseline_rebuild_keep_actual_full_lexer_config() {
+        let registry = CommandRegistry::build_default();
+        let mut config = tcl_lexer::LexerConfig::default();
+        config.strict_quoting = true;
+        config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        let selected = ModuleCommandBindings::initial_with_options(
+            &registry,
+            SourceAnalysisOptions::default(),
+            Some(config),
+        );
+        assert_eq!(
+            selected.source_variables.read_lexer_config(&registry),
+            Some(config)
+        );
+        let rebuilt = ModuleCommandBindings::initial_entry_from_baseline(
+            &registry,
+            Arc::clone(&selected.baseline),
+        );
+        assert_eq!(
+            rebuilt.source_variables.read_lexer_config(&registry),
+            Some(config)
+        );
+        let mut changed = config;
+        changed.strict_quoting = false;
+        let alternate = ModuleCommandBindings::initial_with_options(
+            &registry,
+            SourceAnalysisOptions::default(),
+            Some(changed),
+        );
+        assert_ne!(selected.baseline, alternate.baseline);
+    }
+}
+
+#[cfg(test)]
+mod unavailable_source_read_configuration_tests {
+    use super::*;
+
+    #[test]
+    fn actual_unavailable_cfg_entry_cannot_reconstruct_source_config_on_rebuild() {
+        let registry = CommandRegistry::build_default();
+        let refused = unavailable_cfg_entry(&registry);
+        assert_eq!(refused.source_variables.read_lexer_config(&registry), None);
+        let rebuilt = ModuleCommandBindings::initial_entry_from_baseline(
+            &registry,
+            Arc::clone(&refused.baseline),
+        );
+        assert_eq!(rebuilt.source_variables.read_lexer_config(&registry), None);
+        let child = rebuilt
+            .source_variables
+            .in_frame(&crate::var_resolve::VariableExecutionFrame::Global);
+        assert_eq!(child.read_lexer_config(&registry), None);
+    }
+}
+
+#[cfg(test)]
+mod immutable_source_memo_lifetime_tests {
+    use super::*;
+
+    #[test]
+    fn source_memos_do_not_change_identity_or_retain_dead_allocations() {
+        let text: Arc<str> = Arc::from("set value 1");
+        let first = SourceOriginId::authored(&text);
+        let equal = SourceOriginId::authored(&text);
+        assert_eq!(first, equal);
+        assert!(!Arc::ptr_eq(&first.kind, &equal.kind));
+        let memo = first.original_lexical_projection();
+        let clone = first.clone();
+        assert!(Arc::ptr_eq(&memo, &clone.original_lexical_projection()));
+        assert!(!Arc::ptr_eq(&memo, &equal.original_lexical_projection()));
+        let hash = |source: &SourceOriginId| {
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            source.hash(&mut hasher);
+            std::hash::Hasher::finish(&hasher)
+        };
+        let before = hash(&first);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(
+            tcl_dialect::DialectProfile::plain_tcl().grammar,
+        );
+        assert!(first.original_lexical_command(&[], 0, config).is_none());
+        assert_eq!(hash(&first), before);
+        assert_eq!(first, equal);
+        let owner = Arc::downgrade(&first.kind);
+        let memo_lifetime = Arc::downgrade(&memo);
+        drop(memo);
+        drop(first);
+        drop(clone);
+        assert!(owner.upgrade().is_none());
+        let _ = equal.original_lexical_projection();
+        assert!(memo_lifetime.upgrade().is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_compiled_list_owner_join_tests {
+    use super::SourceInvocationBinding;
+
+    fn bytecode_list_fixture(
+        source: &str,
+    ) -> (crate::compilation_unit::CompilationUnit, tcl_vm::Vm) {
+        let context = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+            .unwrap()
+            .default_context_registry();
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let mut entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+            registry,
+            &input,
+            config,
+            Some(profile),
+        );
+        entry.native_entry = Some(std::sync::Arc::new(native));
+        entry.native_compilation.mode =
+            tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject;
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        (unit, owner)
+    }
+
+    #[test]
+    fn compiled_list_head_original_owner_refuses_unknown_binding_join() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let (unit, _owner) =
+            bytecode_list_fixture("set payload [gets stdin]; puts [list puts $payload]");
+        let ssa = &unit.top_level.ssa;
+        let parent = ssa
+            .blocks
+            .iter()
+            .flat_map(|(block, data)| {
+                (0..data.statements.len()).filter_map(move |index| {
+                    crate::ssa::SsaSourceView::at_statement(ssa, *block, index).source_tokens()
+                })
+            })
+            .find(|tokens| tokens.argv_texts.first().is_some_and(|head| head == "puts"))
+            .unwrap();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &unit.ir_module,
+        )
+        .unwrap();
+        let mut joined =
+            crate::word_subst::checked_original_argument_lifted_calls(parent, registry, metadata)
+                .unwrap()
+                .into_iter()
+                .find_map(|child| child.tokens)
+                .unwrap();
+        assert_eq!(
+            crate::registry_invocation::original_compiled_list_head(
+                registry, metadata, parent, &joined,
+            )
+            .as_deref(),
+            Some("puts")
+        );
+        joined
+            .source_binding
+            .as_mut()
+            .unwrap()
+            .join(&SourceInvocationBinding::default());
+        assert!(
+            crate::registry_invocation::original_compiled_list_head(
+                registry, metadata, parent, &joined,
+            )
+            .is_none()
+        );
+    }
+}
+
+// Temporary bounded original-g4 attribution. Existing assertions remain exact.

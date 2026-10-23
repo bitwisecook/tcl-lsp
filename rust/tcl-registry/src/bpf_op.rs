@@ -207,6 +207,9 @@ impl BpfProgTypeSet {
 /// declaration it stands for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BpfOpKind {
+    /// Static conditional syntax, expanded into CFG branches by the closed
+    /// BPF language frontend. This grants no Tcl handler or compiler proof.
+    Conditional,
     /// `setint`/`seti32`/`setu32 NAME {EXPR}` — evaluate and commit a scalar.
     ScalarSet(BpfScalarWidth),
     /// `setbuf NAME ctx` — bind the packet buffer.
@@ -801,16 +804,61 @@ pub const BPF_EVENTS: &[BpfEventSpec] = &[
     },
 ];
 
+/// One selected row of the immutable BPF event catalogue. Display spellings
+/// and copied descriptors cannot construct an event identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BpfEventId(usize);
+
+impl BpfEventId {
+    /// Metadata of this actual selected catalogue row.
+    #[must_use]
+    pub fn spec(self) -> &'static BpfEventSpec {
+        &BPF_EVENTS[self.0]
+    }
+}
+
+/// Select an actual catalogue row using its declared name/alias policy.
+#[must_use]
+pub fn lookup_bpf_event_id(name: &str) -> Option<BpfEventId> {
+    BPF_EVENTS
+        .iter()
+        .position(|event| {
+            event.name.eq_ignore_ascii_case(name)
+                || event
+                    .aliases
+                    .iter()
+                    .any(|alias| alias.eq_ignore_ascii_case(name))
+        })
+        .map(BpfEventId)
+}
+
+/// Select a program type's event only when the catalogue declares exactly one.
+#[must_use]
+pub fn bpf_event_for_prog_type(prog_type: BpfEventProgType) -> Option<BpfEventId> {
+    let mut events = BPF_EVENTS
+        .iter()
+        .enumerate()
+        .filter(|(_, event)| event.prog_type == prog_type);
+    let (index, _) = events.next()?;
+    events.next().is_none().then_some(BpfEventId(index))
+}
+
+/// Project a program type's ELF section only when all matching rows agree.
+#[must_use]
+pub fn bpf_elf_section(prog_type: BpfEventProgType) -> Option<&'static str> {
+    let mut events = BPF_EVENTS
+        .iter()
+        .filter(|event| event.prog_type == prog_type);
+    let section = events.next()?.elf_section;
+    events
+        .all(|event| event.elf_section == section)
+        .then_some(section)
+}
+
 /// Resolve an event name or alias (case-insensitive) to its spec.
 #[must_use]
 pub fn lookup_bpf_event(name: &str) -> Option<&'static BpfEventSpec> {
-    let upper = name.to_ascii_uppercase();
-    BPF_EVENTS.iter().find(|e| {
-        e.name == upper
-            || e.aliases
-                .iter()
-                .any(|a| a.eq_ignore_ascii_case(upper.as_str()))
-    })
+    lookup_bpf_event_id(name).map(BpfEventId::spec)
 }
 
 /// The canonical event names, for diagnostics and help text.
@@ -871,8 +919,8 @@ mod tests {
                 "{} must allow drop",
                 e.name
             );
-            assert!(!e.elf_section.is_empty());
-            assert!(!e.description.is_empty());
+            assert_ne!(e.elf_section.len(), 0);
+            assert_ne!(e.description.len(), 0);
         }
     }
 

@@ -41,6 +41,18 @@ use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
 use crate::tcl_expr_eval::FoldPolicy;
 use crate::value_transfer::{AnalysisContextKey, LatticeDriver};
 
+mod original_value_facts;
+pub(crate) use original_value_facts::DiagnosticValueFacts;
+pub use original_value_facts::{
+    ExistenceFrame, ExistenceMetadataInputs, ExpressionAnalysis, ExpressionEvaluationPoint,
+    SemanticValueFacts, SemanticValueProjection, ValueFactInputs, evaluate_branch,
+    execution_value_facts, existence_constant_branches,
+    existence_constant_branches_with_metadata_context, existence_constant_branches_with_ssa,
+    existence_constant_branches_with_ssa_with_metadata_context, semantic_value_facts,
+};
+#[cfg(test)]
+use original_value_facts::{evaluate_fixture_def, evaluate_fixture_def_with_folds};
+
 // Public aliases
 
 /// Predecessor map: block → set of blocks that branch into it. Thin
@@ -288,6 +300,10 @@ impl SelectionRecord {
 /// constant-folded branch annotations for reachable blocks.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SccpResult {
+    /// Original native math dependencies, independent of numerical knowledge.
+    pub required_math_invocations: Vec<crate::command_binding::SourceMathInvocation>,
+    /// Actual expression entry preparations retained by producer proofs.
+    pub required_expression_preparations: Vec<crate::command_binding::SourceExpressionPreparation>,
     /// Per-SSA-value lattice entry.
     pub values: HashMap<ValueKey, LatticeValue>,
     /// Blocks reachable from `cfg.entry` under current assumptions.
@@ -591,7 +607,7 @@ impl SccpResult {
 ///
 /// - Phi handling uses the incoming versions for each *executable*
 ///   predecessor, joining them onto the phi's SSA value.
-/// - Statement handling uses [`evaluate_def`] below, which folds
+/// - Statement handling uses [`evaluate_defs_under`], which folds
 ///   [`Statement::AssignConst`] and [`Statement::AssignExpr`] via
 ///   the expression evaluator. Other statement kinds and
 ///   [`Statement::Barrier`] widen their defs to `Overdefined`.
@@ -657,6 +673,8 @@ pub fn sccp(
 /// also gets the registry `const_fold` engine.
 #[derive(Clone, Copy)]
 pub struct BuiltinFoldInputs<'a> {
+    /// Actual supplied source availability; absent input cannot recreate it.
+    pub source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     /// Command / subcommand specs — the fold callbacks live here. Carried
     /// here (as well as on [`TraceInputs`]) so the statement-evaluation
     /// helpers need only this one bundle.
@@ -713,6 +731,8 @@ pub enum FoldTrust {
 /// under the clippy `too_many_arguments` ceiling.
 #[derive(Clone, Copy)]
 pub struct TraceInputs<'a> {
+    /// Actual supplied source availability and lexer axes.
+    pub source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     /// Resolves the variable-trace grammar for the intra-procedural
     /// [`crate::var_observability`] lattice `sccp` builds internally.
     pub registry: &'a CommandRegistry,
@@ -766,15 +786,27 @@ impl TraceInputs<'_> {
     }
 }
 
+/// Initial variable presence, independently of a place's external mutability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExistenceInitialState {
+    /// A genuine declared frame supplies its parameter and linked-state facts.
+    DeclaredFrame,
+    /// A conditional child may inherit earlier caller writes or destruction.
+    InheritedFrame,
+}
+
 /// What a function's frame binds on entry, for the existence rung
 /// (`docs/design/compiler/value-transfers.md` § *Existence*, the entry
 /// state): parameters bound as scalars; a `TclOO` method's instance
 /// variables and, in an iRules `when` handler, the connection's variables,
 /// linked to state another invocation may have bound; in the document's
 /// initial global frame the registry's special variables as startup binds
-/// them. Every other local enters unbound.
+/// them. Other locals in a declared frame enter unbound; an inherited frame
+/// supplies no incoming absence and starts may-bound.
 #[derive(Clone, Copy)]
 pub struct ExistenceEntry<'a> {
+    /// Whether ordinary places begin in a new declared or inherited frame.
+    pub initial_state: ExistenceInitialState,
     /// The formal parameter names: bound as scalars on entry.
     pub params: &'a [String],
     /// A `TclOO` method body's instance variables
@@ -907,6 +939,7 @@ pub fn sccp_with_builtin_folds(
 /// the function aliases them.
 #[derive(Clone, Copy)]
 pub(crate) struct ModuleRun<'a> {
+    pub(crate) analysis_body: Option<Option<crate::ir::ProcedureId>>,
     /// The module's procedures, where the caller holds them.
     pub(crate) procedures: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
     /// Names the function links to a caller's place which the run treats as
@@ -945,6 +978,7 @@ impl<'a> ModuleRun<'a> {
     /// A run that reads nothing of the module.
     pub(crate) const NONE: Self = Self {
         procedures: None,
+        analysis_body: None,
         owned: None,
         level: ModuleLevel::Places,
         reads_exits: false,
@@ -957,6 +991,7 @@ impl<'a> ModuleRun<'a> {
     ) -> Self {
         Self {
             procedures,
+            analysis_body: None,
             owned: None,
             level: ModuleLevel::Places,
             reads_exits: false,
@@ -1021,7 +1056,8 @@ impl<'a> SolveInputs<'a> {
     /// run reads of the module.
     fn driver(&self, trace: TraceInputs<'a>, escaping: &HashSet<String>) -> LatticeDriver<'a> {
         LatticeDriver::new(trace, self.folds, self.policy, escaping)
-            .in_module(&self.cfg.name, self.module)
+            .with_cfg_metadata(&self.cfg.metadata_context)
+            .in_module(self.cfg, self.module)
     }
 }
 
@@ -1060,10 +1096,15 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
     let preds = compute_predecessors(cfg);
     let mut values = seeded_values(ssa, param_constants);
 
-    let grammar = trace
-        .registry
-        .profile()
-        .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar);
+    let grammar = trace.source_metadata_input.map_or_else(
+        || {
+            trace
+                .registry
+                .profile()
+                .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar)
+        },
+        |input| input.unit_profile().grammar,
+    );
     seed_live_in_roots(cfg, ssa, &mut values, grammar);
 
     let escaping = escaping_names(cfg, &trace, extra_escaping, inputs.module.owned);
@@ -1075,7 +1116,12 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
     // What every branch edge's condition proves, in every domain, read
     // under the document's grammar.
     let config = trace.existence.map_or_else(
-        || crate::dynamic_names::lexer_config_for(trace.registry),
+        || {
+            trace.source_metadata_input.map_or_else(
+                || crate::dynamic_names::lexer_config_for(trace.registry),
+                crate::analyser::ResolvedAnalysisInput::lexer_config,
+            )
+        },
         |entry| entry.config,
     );
     let facts = branch_facts(cfg, (trace.registry, config, policy), &driver);
@@ -1151,7 +1197,7 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
     }
     Solved::Settled(Box::new(settled_result(
         (cfg, ssa, &order),
-        (&driver, grammar),
+        &driver,
         SettledRun {
             values,
             executable_blocks,
@@ -1178,7 +1224,7 @@ struct SettledRun {
 /// every fact the run recorded.
 fn settled_result(
     (cfg, ssa, order): (&CfgFunction, &SsaFunction, &[BlockId]),
-    (driver, grammar): (&LatticeDriver<'_>, tcl_dialect::LexerGrammar),
+    driver: &LatticeDriver<'_>,
     run: SettledRun,
 ) -> SccpResult {
     let SettledRun {
@@ -1196,7 +1242,7 @@ fn settled_result(
         (&mut values, narrowing),
         &executable_blocks,
         order,
-        BranchFold { grammar, driver },
+        BranchFold { driver },
         existence.as_ref().map(|run| &run.exits),
     );
     let rung = existence.map_or_else(RungResults::default, |run| run.finish(ssa));
@@ -1446,6 +1492,22 @@ impl SweepContext<'_> {
         );
         self.driver.set_throwing(false);
         changed |= run.changed;
+        if self
+            .ssa
+            .value_clobbers
+            .get(&bn)
+            .is_some_and(|markers| markers.contains_key(&usize::MAX))
+        {
+            changed |= clobber_at_unseen_call(
+                &mut state.values,
+                (
+                    usize::MAX,
+                    self.ssa.value_clobbers.get(&bn),
+                    run.exit.completes,
+                ),
+                (self.driver, None),
+            );
+        }
         if let Some(at) = &at {
             at.before_terminator(self.driver);
         }
@@ -1836,8 +1898,12 @@ impl ExistenceRun {
             .collect();
         let mutable: Vec<bool> = names
             .iter()
-            .map(|name| {
-                entry.dynamic_trace
+            .enumerate()
+            .map(|(slot, name)| {
+                u32::try_from(slot)
+                    .ok()
+                    .is_some_and(|slot| ssa.source_variable_symbol(Symbol(slot)).is_some())
+                    || entry.dynamic_trace
                     || name.contains("::")
                     || escaping.contains(name.as_str())
                     || escaping.contains(place_base(name))
@@ -2134,18 +2200,13 @@ fn branch_facts(
     driver: &LatticeDriver<'_>,
 ) -> Vec<BranchFact> {
     let trusted = |head: &str| driver.trusted(head);
-    let reading = crate::tcl_expr_eval::ConditionReading {
-        registry,
-        config,
-        policy,
-        trusted: &trusted,
-    };
     let mut out = Vec::new();
     for (&block_id, block) in &cfg.blocks {
         let Some(Terminator::Branch {
             condition,
             true_target,
             false_target,
+            condition_base,
             ..
         }) = &block.terminator
         else {
@@ -2154,6 +2215,19 @@ fn branch_facts(
         if true_target == false_target {
             continue;
         }
+        let reading = crate::tcl_expr_eval::ConditionReading {
+            registry,
+            config,
+            policy,
+            trusted: &trusted,
+            existence: crate::existence_query::QueryReading::for_cfg(
+                cfg,
+                registry,
+                config,
+                cfg.source_tokens_at(block_id, usize::MAX),
+                *condition_base,
+            ),
+        };
         let facts = crate::tcl_expr_eval::condition_edge_facts(condition, reading);
         for (target, facts) in [
             (*true_target, facts.on_true),
@@ -2807,30 +2881,100 @@ fn query_only_places(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Vec<String> {
-    let mut texts: Vec<String> = Vec::new();
-    for block in cfg.blocks.values() {
-        for statement in &block.statements {
+    let mut names = Vec::new();
+    for (&block_id, block) in &cfg.blocks {
+        for (index, statement) in block.statements.iter().enumerate() {
+            let parent = cfg.source_tokens_at(block_id, index);
             match statement {
-                Statement::AssignExpr { expr, .. } => {
-                    crate::ir_helpers::collect_expr_commands(expr, &mut texts);
+                Statement::AssignExpr {
+                    expr, expr_base, ..
+                } => {
+                    collect_query_names(
+                        expr,
+                        crate::existence_query::QueryReading::for_cfg(
+                            cfg, registry, config, parent, *expr_base,
+                        ),
+                        &mut names,
+                    );
                 }
-                Statement::AssignValue { value, .. } => texts.push(value.clone()),
+                Statement::AssignValue { value, .. } => {
+                    let reading = crate::existence_query::QueryReading::for_cfg(
+                        cfg, registry, config, parent, None,
+                    );
+                    if cfg.metadata_context.is_standalone() {
+                        names.extend(reading.in_text(value).map(|query| query.var));
+                    } else if let Some(calls) = parent
+                        .and_then(|parent| crate::word_subst::checked_lifted_calls(parent, config))
+                    {
+                        for call in calls {
+                            names.extend(
+                                call.tokens
+                                    .as_ref()
+                                    .or(call.words.as_ref())
+                                    .and_then(|tokens| reading.in_tokens(tokens))
+                                    .map(|query| query.var),
+                            );
+                        }
+                    }
+                }
                 _ => {}
             }
         }
-        if let Some(Terminator::Branch { condition, .. }) = &block.terminator {
-            crate::ir_helpers::collect_expr_commands(condition, &mut texts);
+        if let Some(Terminator::Branch {
+            condition,
+            condition_base,
+            ..
+        }) = &block.terminator
+        {
+            collect_query_names(
+                condition,
+                crate::existence_query::QueryReading::for_cfg(
+                    cfg,
+                    registry,
+                    config,
+                    cfg.source_tokens_at(block_id, usize::MAX),
+                    *condition_base,
+                ),
+                &mut names,
+            );
         }
     }
-    let mut places: Vec<String> = texts
+    let mut places: Vec<String> = names
         .iter()
-        .filter_map(|text| crate::existence_query::in_text(text, registry, config))
-        .map(|(name, _)| place_base(&name).to_owned())
+        .map(|name| place_base(name).to_owned())
         .filter(|place| ssa.var_symbol(place).is_none())
         .collect();
     places.sort_unstable();
     places.dedup();
     places
+}
+
+/// Keep command leaves attached to the same original expression site while
+/// walking its tree. The explicit stack avoids native recursion depth limits.
+fn collect_query_names(
+    expression: &ExprNode,
+    reading: crate::existence_query::QueryReading<'_>,
+    names: &mut Vec<String>,
+) {
+    let mut pending = vec![expression];
+    while let Some(node) = pending.pop() {
+        match node {
+            ExprNode::Command { .. } => {
+                names.extend(reading.in_expr(node).map(|query| query.var));
+            }
+            ExprNode::Binary { left, right, .. } => pending.extend([&**left, &**right]),
+            ExprNode::Unary { operand, .. } => pending.push(operand),
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                pending.extend([&**condition, &**true_branch, &**false_branch]);
+            }
+            ExprNode::Call { args, .. } => pending.extend(args.iter()),
+            _ => {}
+        }
+    }
 }
 
 /// The fact a place named `name` enters an unaliased frame with: a
@@ -2844,6 +2988,9 @@ fn entry_fact(
     registry: &CommandRegistry,
     dialect: Option<tcl_dialect::model::SurfaceQuery<'static>>,
 ) -> Existence {
+    if entry.initial_state == ExistenceInitialState::InheritedFrame {
+        return Existence::MayBound;
+    }
     let linked = |name: &str| linked_to_state(name, entry);
     let special = |name: &str| special_at_entry(name, entry, registry, dialect);
     let base = place_base(name);
@@ -2939,11 +3086,8 @@ fn statement_clobber(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Clobber {
-    let mut clobber = Clobber::of_names(crate::dynamic_names::statement_barrier(
-        statement,
-        registry,
-        &cfg.declared_frame_effects,
-        config,
+    let mut clobber = Clobber::of_names(crate::dynamic_names::statement_barrier_for_cfg(
+        statement, cfg, registry, config,
     ));
     if matches!(
         statement,
@@ -2973,11 +3117,8 @@ fn terminator_clobber(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Clobber {
-    let mut clobber = Clobber::of_names(crate::dynamic_names::terminator_barrier(
-        terminator,
-        registry,
-        &cfg.declared_frame_effects,
-        config,
+    let mut clobber = Clobber::of_names(crate::dynamic_names::terminator_barrier_for_cfg(
+        terminator, cfg, registry, config,
     ));
     let mut touch = BodyTouch::default();
     match terminator {
@@ -2990,7 +3131,9 @@ fn terminator_clobber(
                 touch.expr(expr, registry, config, 0);
             }
         }
-        Terminator::Goto { .. } => {}
+        // Complete records an already observed invocation in this block;
+        // its operands and effects are accounted for by the original statement.
+        Terminator::Goto { .. } | Terminator::Complete { .. } => {}
     }
     clobber.all |= touch.all;
     clobber.touched = touched_symbols(&touch.names, ssa);
@@ -3161,9 +3304,7 @@ impl BodyTouch {
 /// The variable that holds the place `name`: the array for an element
 /// `base(key)`, the name itself otherwise.
 pub(crate) fn place_base(name: &str) -> &str {
-    name.split_once('(')
-        .filter(|_| name.ends_with(')'))
-        .map_or(name, |(base, _)| base)
+    tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base)
 }
 
 /// Per handler block, the region its exception edges leave from: every
@@ -3529,6 +3670,36 @@ fn sccp_process_statements(
             }
             continue;
         }
+        if ssa.source_may_requires_unknown_at(block, index) {
+            prepared = None;
+            driver.record_raised((block, index), false);
+            for (&symbol, &version) in &stmt_ssa.defs {
+                changed |= set_value(values, (symbol, version), &LatticeValue::Overdefined);
+                driver.record_folded((symbol, version), None);
+                driver.record_preserved((symbol, version), None);
+                if let Some(at) = existence.as_deref_mut() {
+                    changed |= at.advance(
+                        (symbol, version),
+                        crate::value_transfer::ExistenceStep::UNKNOWN,
+                        driver,
+                    );
+                }
+            }
+            if !ssa.source_may_clobber_is_current_at(block, index) {
+                // A changed CFG cannot retain a partial source footprint as
+                // permission to preserve the rest of the frame.
+                let keys: Vec<_> = values.keys().copied().collect();
+                for key in keys {
+                    changed |= set_value(values, key, &LatticeValue::Overdefined);
+                }
+                driver.forget_folded();
+                driver.existence_clobber(|_| Existence::MayBound);
+            }
+            if let Some(at) = existence.as_deref_mut() {
+                at.finish_statement(index, driver);
+            }
+            continue;
+        }
         // An opaque `catch` body the enumeration runs gives the names it
         // writes what it leaves, before the marker that states them widens.
         let body_run = catches.and_then(|catches| {
@@ -3827,17 +3998,7 @@ fn define_values(
     // An element write's base def carries no scalar value of its own —
     // `set arr(k) 5` / `set arr($i) 5` refresh `arr` for whole-array
     // readers but must never let `$arr` fold to the element's value.
-    let element_write_base = match &stmt_ssa.statement {
-        Statement::AssignConst { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::AssignValue { name, .. }
-        | Statement::Incr { name, .. }
-            if name.contains('(') =>
-        {
-            ssa.var_symbol(crate::naming::normalise_var_name(name))
-        }
-        _ => None,
-    };
+    let element_write_base = typed_element_write_base(&stmt_ssa.statement, ssa);
     let raised = raised_writes(evaluated.as_ref());
     let keeps_all =
         matches!(&evaluated, Some(DefValues::Raised(raised)) if raised.prefix.is_none());
@@ -3858,56 +4019,56 @@ fn define_values(
         // or a joined definition states none. One whose outcome left its
         // place untouched names the version the place held.
         let mut preserved = None;
-        let (val, folded) =
-            if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
-                || element_write_base == Some(var)
-            {
-                (LatticeValue::Overdefined, None)
-            } else if keeps_all {
-                // The statement raised before it stored anything.
+        let (val, folded) = if ssa.source_variable_symbol(var).is_some()
+            || is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
+            || element_write_base == Some(var)
+        {
+            (LatticeValue::Overdefined, None)
+        } else if keeps_all {
+            // The statement raised before it stored anything.
+            let prior = prior_version(ssa_block, index, var);
+            preserved = Some(prior);
+            (held_value(values, (var, prior)), None)
+        } else if stmt_ssa.may_defs.contains(&var) {
+            // A synthetic array-element may-def: the write may or may
+            // not have hit this element, so its value is the JOIN of
+            // the prior version (recorded as a use) and the written
+            // value — unless the statement's evaluated outcome names
+            // the element's place (`array set arr {k v}` writes
+            // `arr(k)`), which makes the write definite. The base
+            // refresh of an element write carries no prior use — the
+            // base holds no value of its own.
+            match stmt_ssa.uses.get(&var) {
+                Some(prev_ver) => {
+                    let (written, folded, stated, _, _) = value_of(values);
+                    if stated {
+                        (written, folded)
+                    } else {
+                        let prev = values
+                            .get(&(var, *prev_ver))
+                            .cloned()
+                            .unwrap_or(LatticeValue::Overdefined);
+                        (join(&prev, &written), None)
+                    }
+                }
+                None => (LatticeValue::Overdefined, None),
+            }
+        } else {
+            let (value, folded, _, kept, _) = value_of(values);
+            if kept {
                 let prior = prior_version(ssa_block, index, var);
                 preserved = Some(prior);
-                (held_value(values, (var, prior)), None)
-            } else if stmt_ssa.may_defs.contains(&var) {
-                // A synthetic array-element may-def: the write may or may
-                // not have hit this element, so its value is the JOIN of
-                // the prior version (recorded as a use) and the written
-                // value — unless the statement's evaluated outcome names
-                // the element's place (`array set arr {k v}` writes
-                // `arr(k)`), which makes the write definite. The base
-                // refresh of an element write carries no prior use — the
-                // base holds no value of its own.
-                match stmt_ssa.uses.get(&var) {
-                    Some(prev_ver) => {
-                        let (written, folded, stated, _, _) = value_of(values);
-                        if stated {
-                            (written, folded)
-                        } else {
-                            let prev = values
-                                .get(&(var, *prev_ver))
-                                .cloned()
-                                .unwrap_or(LatticeValue::Overdefined);
-                            (join(&prev, &written), None)
-                        }
-                    }
-                    None => (LatticeValue::Overdefined, None),
-                }
-            } else {
-                let (value, folded, _, kept, _) = value_of(values);
-                if kept {
-                    let prior = prior_version(ssa_block, index, var);
-                    preserved = Some(prior);
-                    // A statement that raised before it reached a place
-                    // left what the place held, whether or not it read it.
-                    if raised.is_some() {
-                        (held_value(values, (var, prior)), folded)
-                    } else {
-                        (value, folded)
-                    }
+                // A statement that raised before it reached a place
+                // left what the place held, whether or not it read it.
+                if raised.is_some() {
+                    (held_value(values, (var, prior)), folded)
                 } else {
                     (value, folded)
                 }
-            };
+            } else {
+                (value, folded)
+            }
+        };
         driver.record_folded((var, ver), folded);
         driver.record_preserved((var, ver), preserved);
         if set_value(values, (var, ver), &val) {
@@ -3971,6 +4132,24 @@ fn keep_prior(
         }
     }
     changed
+}
+
+fn typed_element_write_base(statement: &Statement, ssa: &SsaFunction) -> Option<Symbol> {
+    if !matches!(
+        statement,
+        Statement::AssignConst { .. }
+            | Statement::AssignExpr { .. }
+            | Statement::AssignValue { .. }
+            | Statement::Incr { .. }
+    ) {
+        return None;
+    }
+    let names = crate::ir_helpers::structural_variable_write_projection(statement);
+    let [name] = names.literal_names.as_slice() else {
+        return None;
+    };
+    let (root, _) = crate::naming::split_element_ref(name)?;
+    ssa.var_symbol(root)
 }
 
 /// The existence step a typed assignment (`set`'s lowering) takes on the
@@ -4112,18 +4291,20 @@ fn sccp_process_terminator(
             true_target,
             false_target,
             span,
+            condition_base,
             ..
         } => {
             let Some(ssa_block) = ssa.blocks.get(&bn) else {
                 return changed;
             };
             driver.explaining(*span);
-            let decision = evaluate_branch(
+            let decision = evaluate_branch_under(
                 ssa_block,
                 condition,
                 values,
                 ssa,
-                BranchFold { grammar, driver },
+                BranchFold { driver },
+                cfg.source_tokens_at(bn, usize::MAX).zip(*condition_base),
             );
             driver.explaining(None);
             let targets: Vec<BlockId> = match decision {
@@ -4154,7 +4335,9 @@ fn sccp_process_terminator(
                 }
             }
         }
-        Terminator::Return { .. } => {}
+        // Observed completion has no normal successor and performs no second
+        // operand evaluation. Original block exception edges remain below.
+        Terminator::Return { .. } | Terminator::Complete { .. } => {}
     }
     // `try` exception edges sourced at `bn`: when `bn` is executable the
     // handler is reachable (a throw can occur in the body).
@@ -4201,6 +4384,7 @@ fn collect_constant_branches(
             true_target,
             false_target,
             span: term_span,
+            condition_base,
             ..
         }) = &block.terminator
         else {
@@ -4215,7 +4399,14 @@ fn collect_constant_branches(
             fold.driver.existence_enter(exit.clone());
         }
         let narrowed = narrowing.narrow(values, *bn);
-        let decision = evaluate_branch(ssa_block, condition, values, ssa, fold);
+        let decision = evaluate_branch_under(
+            ssa_block,
+            condition,
+            values,
+            ssa,
+            fold,
+            cfg.source_tokens_at(*bn, usize::MAX).zip(*condition_base),
+        );
         restore_values(values, narrowed);
         fold.driver.existence_leave();
         fold.driver.explaining(None);
@@ -4340,42 +4531,6 @@ fn record_condition_preserves(
 /// cell update, a synthetic loop header, or a command substitution, and a
 /// conservative `Overdefined` fallback for everything else.
 ///
-/// Holds no whole-module command view, so no resolved command answers: there
-/// is no evidence that `[llength …]` or `incr` still means the builtin
-/// rather than a user `proc` of that name. A caller with the fact uses
-/// [`evaluate_def_with_folds`]; a run over a unit's own registry goes
-/// through [`sccp_with_builtin_folds`].
-#[must_use]
-pub fn evaluate_def<S: std::hash::BuildHasher>(
-    stmt_ssa: &SsaStatement,
-    values: &HashMap<ValueKey, LatticeValue, S>,
-    ssa: &SsaFunction,
-    policy: FoldPolicy,
-) -> LatticeValue {
-    evaluate_def_with_folds(stmt_ssa, values, ssa, policy, None)
-}
-
-/// [`evaluate_def`] with an optional registry builtin-fold context: when
-/// `folds` is supplied, an `AssignValue` command-substitution RHS
-/// additionally consults the registry `const_fold` engine — see
-/// [`BuiltinFoldInputs`] — and every resolved head answers to the
-/// whole-module trust fact. `None` is byte-identical to [`evaluate_def`].
-///
-/// A statement that defines several variables (`regexp … a b`) answers
-/// for the first one its command names; the solver itself reads every
-/// definition's own value.
-#[must_use]
-pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
-    stmt_ssa: &SsaStatement,
-    values: &HashMap<ValueKey, LatticeValue, S>,
-    ssa: &SsaFunction,
-    policy: FoldPolicy,
-    folds: Option<BuiltinFoldInputs<'_>>,
-) -> LatticeValue {
-    let driver = LatticeDriver::detached(folds, policy);
-    evaluate_defs_under(stmt_ssa, values, ssa, &driver).primary(stmt_ssa, ssa)
-}
-
 /// What one statement's evaluation leaves in its definitions: the one
 /// value a typed statement computes, which every definition takes, or a
 /// call's value per definition, from its ordered stores.
@@ -4466,32 +4621,9 @@ impl DefValues {
                 .map_or(ExistenceStep::UNKNOWN, |answer| answer.existence),
         }
     }
-
-    /// The value of the statement's first named definition: the only one,
-    /// or the first variable a call's command names.
-    fn primary(&self, stmt_ssa: &SsaStatement, ssa: &SsaFunction) -> LatticeValue {
-        let key = if stmt_ssa.defs.len() == 1 {
-            stmt_ssa.defs.iter().next().map(|(&sym, &ver)| (sym, ver))
-        } else if let Statement::Call { defs, .. } = &stmt_ssa.statement {
-            defs.first()
-                .and_then(|name| ssa.var_symbol(crate::naming::normalise_var_name(name)))
-                .and_then(|sym| stmt_ssa.defs.get(&sym).map(|&ver| (sym, ver)))
-        } else {
-            None
-        };
-        match (self, key) {
-            (Self::Each(value, _), _) => value.clone(),
-            (Self::PerDef(_) | Self::Raised(_), Some(key)) => self.of(key),
-            (Self::PerDef(_) | Self::Raised(_), None) => LatticeValue::Overdefined,
-        }
-    }
 }
 
-/// [`evaluate_def_with_folds`] under one run's driver, for every
-/// definition of the statement: it is dispatched by its typed shape, and
-/// every command-specific answer comes from the registry's declaration for
-/// the resolved invocation (`docs/design/compiler/value-transfers.md`). No
-/// command is recognised by its spelling here.
+/// Resolve each typed definition through the run's actual Registry driver.
 fn evaluate_defs_under<S: std::hash::BuildHasher>(
     stmt_ssa: &SsaStatement,
     values: &HashMap<ValueKey, LatticeValue, S>,
@@ -4549,11 +4681,14 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
         Statement::AssignExpr {
             expr,
             command_binding,
+            expr_base,
             ..
         } => {
+            let original = driver.original_expression_parent(&stmt_ssa.statement);
             return driver.evaluate_assign_expr(
                 expr,
                 command_binding.as_ref(),
+                original.as_ref().zip(*expr_base),
                 &stmt_ssa.uses,
                 values,
                 ssa,
@@ -4562,9 +4697,18 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
         Statement::ExprEval {
             expr,
             command_binding,
+            expr_base,
             ..
         } => {
-            return driver.evaluate_expr_eval(expr, command_binding, &stmt_ssa.uses, values, ssa);
+            let original = driver.original_expression_parent(&stmt_ssa.statement);
+            return driver.evaluate_expr_eval(
+                expr,
+                command_binding,
+                original.as_ref().zip(*expr_base),
+                &stmt_ssa.uses,
+                values,
+                ssa,
+            );
         }
         Statement::Call { .. } => {
             return driver.evaluate_call(stmt_ssa, values, ssa, &stmt_ssa.uses);
@@ -4597,8 +4741,9 @@ fn resolve_simple_var_ref<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<LatticeValue> {
-    let key = simple_var_ref_key(text, uses, ssa)?;
+    let key = simple_var_ref_key(text, uses, ssa, config)?;
     Some(values.get(&key).cloned().unwrap_or(LatticeValue::Unknown))
 }
 
@@ -4608,31 +4753,17 @@ fn simple_var_ref_key<S: std::hash::BuildHasher>(
     text: &str,
     uses: &HashMap<Symbol, crate::ssa::Version, S>,
     ssa: &SsaFunction,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<ValueKey> {
-    let name = if let Some(name) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
-        name
-    } else {
-        let name = text.strip_prefix('$')?;
-        if name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
-        {
-            name
-        } else {
-            return None;
-        }
-    };
+    let name = tcl_syntax::naming::whole_scalar_variable_reference_name(text, config)?;
     let sym = ssa.var_symbol(name)?;
     let ver = *uses.get(&sym)?;
     Some((sym, ver))
 }
 
-/// What a branch fold needs: the grammar its condition text was written
-/// under, and the run's driver, whose services (and the target release's
-/// fold policy) the condition is evaluated through.
+/// The branch's driver retains its actual source configuration and services.
 #[derive(Clone, Copy)]
 pub(crate) struct BranchFold<'a> {
-    grammar: tcl_dialect::LexerGrammar,
     /// The run's value-transfer driver, whose services the condition is
     /// evaluated through.
     driver: &'a LatticeDriver<'a>,
@@ -4651,12 +4782,13 @@ pub(crate) struct BranchFold<'a> {
 /// operand reads a variable only as [`with_whole_variable_operands`] proves
 /// it; any other `Raw` text leaves the condition undecided.
 #[must_use]
-pub(crate) fn evaluate_branch<S: std::hash::BuildHasher>(
+pub(crate) fn evaluate_branch_under<S: std::hash::BuildHasher>(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue, S>,
     ssa: &SsaFunction,
     fold: BranchFold<'_>,
+    original: Option<(&crate::ir::CommandTokens, u32)>,
 ) -> Option<bool> {
     // A substituted condition word reads as the word written as the
     // expression, which agrees with C whenever its value is a number.
@@ -4669,15 +4801,23 @@ pub(crate) fn evaluate_branch<S: std::hash::BuildHasher>(
         .iter()
         .map(|(&sym, &ver)| (sym, ver))
         .collect();
-    let config = tcl_lexer::LexerConfig::from_grammar(fold.grammar);
+    let config = fold.driver.source_lexer_config();
     for name in condition.vars_element_qualified_with_config(config) {
         if let Some(sym) = ssa.var_symbol(&name) {
             uses.entry(sym).or_insert(0);
         }
     }
-    let resolved = with_whole_variable_operands(condition, fold.grammar.braced_var);
-    fold.driver
-        .evaluate_condition(resolved.as_ref().unwrap_or(condition), &uses, values, ssa)
+    let resolved = fold
+        .driver
+        .source_reference_lexer_config()
+        .and_then(|config| with_whole_variable_operands(condition, config));
+    fold.driver.evaluate_condition(
+        resolved.as_ref().unwrap_or(condition),
+        original,
+        &uses,
+        values,
+        ssa,
+    )
 }
 
 /// `condition` with every `Raw` *operand* the variable-name owner proves is
@@ -4685,24 +4825,24 @@ pub(crate) fn evaluate_branch<S: std::hash::BuildHasher>(
 /// dispatch's whole-variable subject, which
 /// `switch_subject_operand` keeps `Raw` so codegen loads the name intact.
 /// `None` when no operand resolves. The proof is
-/// [`crate::value_transfer::whole_variable_operand`] under `style`, the
-/// document's `${…}` close rule; a root `Raw` is an unparsed condition, not
+/// [`crate::value_transfer::whole_variable_operand`] under the complete
+/// document configuration; a root `Raw` is an unparsed condition, not
 /// an operand, and stays undecided, as does any `Raw` text the owner does
 /// not prove.
 fn with_whole_variable_operands(
     condition: &ExprNode,
-    style: tcl_dialect::BracedVarStyle,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<ExprNode> {
     let operand = |node: &ExprNode| match node {
         ExprNode::Raw { text } => {
-            crate::value_transfer::whole_variable_operand(text, style).map(|name| ExprNode::Var {
+            crate::value_transfer::whole_variable_operand(text, config).map(|name| ExprNode::Var {
                 text: text.clone(),
                 name: name.to_owned(),
                 start: 0,
                 end: 0,
             })
         }
-        other => with_whole_variable_operands(other, style),
+        other => with_whole_variable_operands(other, config),
     };
     let or_same = |resolved: Option<ExprNode>, node: &ExprNode| {
         Box::new(resolved.unwrap_or_else(|| node.clone()))
@@ -4802,28 +4942,14 @@ pub fn resolve_foreach_list_via_lattice<S1, S2>(
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
     rules: tcl_syntax::word_rules::WordValueRules,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<String>>
 where
     S1: std::hash::BuildHasher,
     S2: std::hash::BuildHasher,
 {
     let stripped = list_text.trim();
-    let name = if let Some(name) = stripped
-        .strip_prefix("${")
-        .and_then(|s| s.strip_suffix('}'))
-    {
-        name
-    } else {
-        let name = stripped.strip_prefix('$')?;
-        if name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
-        {
-            name
-        } else {
-            return None;
-        }
-    };
+    let name = tcl_syntax::naming::whole_scalar_variable_reference_name(stripped, config)?;
     let sym = ssa.var_symbol(name)?;
     let ver = uses.get(&sym).copied()?;
     match values.get(&(sym, ver))? {
@@ -4878,8 +5004,11 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     }
     // Simple var reference: a copy shares its source's value, and the
     // source's folded type with it.
-    if let Some(resolved) = resolve_simple_var_ref(value, uses, values, ssa) {
-        let folded = simple_var_ref_key(value, uses, ssa).and_then(|key| driver.folded_of(key));
+    if let Some(config) = driver.source_reference_lexer_config()
+        && let Some(resolved) = resolve_simple_var_ref(value, uses, values, ssa, config)
+    {
+        let folded =
+            simple_var_ref_key(value, uses, ssa, config).and_then(|key| driver.folded_of(key));
         return (resolved, folded);
     }
     // Command substitution.
@@ -4910,6 +5039,8 @@ pub fn parse_literal_value(text: &str) -> ConstValue {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
 
     /// Whitespace inside a Tcl word is data, so the lattice keeps the exact
@@ -4946,12 +5077,12 @@ mod tests {
         CommandRegistry::build_default()
     }
 
-    /// [`evaluate_def_with_folds`] under a module that mutates no command
+    /// [`evaluate_fixture_def_with_folds`] under a module that mutates no command
     /// binding — the stance the shared per-unit lattice takes for an
     /// untouched file ([`FoldTrust::ObservedBindings`] over
     /// [`crate::command_binding::ModuleCommandMutations`]'s `Default`).
     ///
-    /// Plain [`evaluate_def`] holds no whole-module command view at all and
+    /// Plain [`evaluate_fixture_def`] holds no whole-module command view at all and
     /// therefore folds no builtin command substitution, so a fold-arm test
     /// has to state the trust fact it folds under.
     fn evaluate_pristine<S: std::hash::BuildHasher>(
@@ -4960,12 +5091,13 @@ mod tests {
         ssa: &SsaFunction,
         policy: FoldPolicy,
     ) -> LatticeValue {
-        evaluate_def_with_folds(
+        evaluate_fixture_def_with_folds(
             stmt,
             values,
             ssa,
             policy,
             Some(BuiltinFoldInputs {
+                source_metadata_input: None,
                 registry: &registry(),
                 mutations: &crate::command_binding::ModuleCommandMutations::default(),
                 dialect: None,
@@ -4974,6 +5106,7 @@ mod tests {
                 trust: FoldTrust::ObservedBindings,
                 proven_pure_parameters: false,
             }),
+            tcl_lexer::LexerConfig::default(),
         )
     }
 
@@ -4991,6 +5124,7 @@ mod tests {
             param_constants,
             policy,
             TraceInputs {
+                source_metadata_input: None,
                 registry: &registry(),
                 traced_variables: &BTreeSet::new(),
                 has_dynamic_variable_trace: false,
@@ -5014,6 +5148,7 @@ mod tests {
             policy,
             &HashSet::new(),
             TraceInputs {
+                source_metadata_input: None,
                 registry: &registry,
                 traced_variables: &BTreeSet::new(),
                 has_dynamic_variable_trace: false,
@@ -5022,6 +5157,7 @@ mod tests {
                 existence: None,
             },
             Some(BuiltinFoldInputs {
+                source_metadata_input: None,
                 registry: &registry,
                 mutations: &crate::command_binding::ModuleCommandMutations::default(),
                 dialect: None,
@@ -5159,6 +5295,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let p = compute_predecessors(&f);
@@ -5181,6 +5319,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let order = cfg_order(&f);
@@ -5856,6 +5996,59 @@ mod tests {
         SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()])
     }
 
+    #[test]
+    fn typed_element_base_keeps_literal_name_data_and_distinct_root_symbols() {
+        let mut ssa = bare_ssa();
+        let ordinary = ssa.intern_var("array");
+        let sigil = ssa.intern_var("$array");
+        let braced_sigil = ssa.intern_var("${array}");
+        let empty = ssa.intern_var("");
+        let nul = ssa.intern_var("array\0tail");
+        let statement = |name: &str, name_braced| Statement::AssignConst {
+            span: Span::new(0, 0),
+            name: name.to_owned(),
+            name_braced,
+            value: "VALUE".into(),
+            value_span: None,
+        };
+        for (name, root) in [
+            ("array(key)", ordinary),
+            ("array()", ordinary),
+            ("$array(key)", sigil),
+            ("${array}()", braced_sigil),
+            ("(key)", empty),
+            ("()", empty),
+            ("array\0tail(key)", nul),
+        ] {
+            assert_eq!(
+                typed_element_write_base(&statement(name, true), &ssa),
+                Some(root),
+                "{name:?}"
+            );
+        }
+        for name in [
+            "array",
+            "$array",
+            "",
+            "array(key",
+            "array(key)tail",
+            ")",
+            "array\0tail",
+        ] {
+            assert_eq!(
+                typed_element_write_base(&statement(name, true), &ssa),
+                None,
+                "{name:?}"
+            );
+        }
+        assert_eq!(
+            typed_element_write_base(&statement("$array(key)", false), &ssa),
+            None
+        );
+        assert_ne!(ordinary, sigil);
+        assert_ne!(ordinary, braced_sigil);
+    }
+
     fn assign_const_stmt(ssa: &mut SsaFunction, name: &str, value: &str, ver: u32) -> SsaStatement {
         let mut defs = HashMap::new();
         defs.insert(ssa.intern_var(name), ver);
@@ -5870,6 +6063,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -5954,6 +6148,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         });
@@ -6056,6 +6251,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let mut ssa = make_ssa(&f, vec![]);
@@ -6084,6 +6281,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
@@ -6091,6 +6290,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let ssa = make_ssa(&f, vec![]);
@@ -6117,6 +6318,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
@@ -6124,6 +6327,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let ssa = make_ssa(&f, vec![]);
@@ -6152,6 +6357,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
@@ -6159,6 +6366,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let ssa = make_ssa(&f, vec![]);
@@ -6174,12 +6383,24 @@ mod tests {
         let mut ssa = bare_ssa();
         let s_int = assign_const_stmt(&mut ssa, "x", "42", 1);
         assert_eq!(
-            evaluate_def(&s_int, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &s_int,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(42))
         );
         let s_str = assign_const_stmt(&mut ssa, "x", "hello", 1);
         assert_eq!(
-            evaluate_def(&s_str, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &s_str,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::String("hello".into()))
         );
     }
@@ -6222,6 +6443,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };
@@ -6230,7 +6452,13 @@ mod tests {
         values.insert((a, 1), LatticeValue::Const(ConstValue::Int(2)));
 
         assert_eq!(
-            evaluate_def(&stmt_ssa, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt_ssa,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(5))
         );
     }
@@ -6279,6 +6507,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };
@@ -6291,13 +6520,25 @@ mod tests {
         let irules =
             FoldPolicy::for_profile(Some(true), Some(tcl_dialect::DialectProfile::irules()));
         assert_eq!(
-            evaluate_def(&stmt_ssa, &values, &ssa, irules),
+            evaluate_fixture_def(
+                &stmt_ssa,
+                &values,
+                &ssa,
+                irules,
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(1)),
             "`$s contains \"cd\"` with $s = abcde must fold to 1 under an iRules policy"
         );
         // TN: without the dialect fact the fold is declined, not guessed.
         assert_eq!(
-            evaluate_def(&stmt_ssa, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt_ssa,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Overdefined,
             "a dialect-blind policy must decline the word-operator fold"
         );
@@ -6324,6 +6565,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -6423,7 +6665,7 @@ mod tests {
         );
     }
 
-    // evaluate_def for Incr.
+    // evaluate_fixture_def for Incr.
 
     fn incr_stmt(
         ssa: &mut SsaFunction,
@@ -6449,6 +6691,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -6535,7 +6778,13 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Overdefined
         );
         assert_eq!(
@@ -6601,6 +6850,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -6612,6 +6862,7 @@ mod tests {
             OnceLock::new();
         let environment = tcl_registry::model::ingress::resolve_environment(dialect);
         BuiltinFoldInputs {
+            source_metadata_input: None,
             registry: tcl_registry::model::ingress::static_context_for(dialect).commands(),
             mutations: MUTATIONS.get_or_init(Default::default),
             dialect: Some(environment.analyser_profile()),
@@ -6722,6 +6973,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };
@@ -6831,12 +7083,13 @@ mod tests {
             let folds = folds_for(dialect);
             let mut values = HashMap::new();
             values.insert((x, 1), base);
-            evaluate_def_with_folds(
+            evaluate_fixture_def_with_folds(
                 &stmt,
                 &values,
                 &ssa,
                 FoldPolicy::from_registry(folds.registry),
                 Some(folds),
+                tcl_lexer::LexerConfig::default(),
             )
         };
         let zero = || LatticeValue::Const(ConstValue::String("010".into()));
@@ -6961,12 +7214,13 @@ mod tests {
         let stmt = assign_value_stmt(&mut ssa, "s", "[string range abcdefghijkl 010 end]", 1);
         let under = |dialect: &str| {
             let folds = folds_for(dialect);
-            evaluate_def_with_folds(
+            evaluate_fixture_def_with_folds(
                 &stmt,
                 &HashMap::new(),
                 &ssa,
                 FoldPolicy::from_registry(folds.registry),
                 Some(folds),
+                tcl_lexer::LexerConfig::default(),
             )
         };
         assert_eq!(
@@ -6999,7 +7253,9 @@ mod tests {
             &registry,
             false,
         );
-        let fu = cu.procedures.get("::p").expect("proc");
+        let fu = fixture_id_if_present(&cu.procedures, "::p")
+            .and_then(|id| cu.procedures.get(&id))
+            .expect("proc");
         let explained: Vec<(String, String)> = fu
             .sccp
             .explanations
@@ -7029,6 +7285,56 @@ mod tests {
     }
 
     #[test]
+    fn lattice_reference_shapes_keep_actual_grammar_and_refuse_compound_or_array_names() {
+        let mut ssa = bare_ssa();
+        let mut uses = HashMap::new();
+        let mut values = HashMap::new();
+        for name in ["a", "a:b", "café", "", "scalar(open", "arr(key)", "a{b}c"] {
+            let symbol = ssa.intern_var(name);
+            uses.insert(symbol, 1);
+            values.insert(
+                (symbol, 1),
+                LatticeValue::Const(ConstValue::String("one two".into())),
+            );
+        }
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = tcl_lexer::LexerConfig::for_dialect(profile);
+            let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
+            for source in ["$a", "${}", "${scalar(open}"] {
+                assert!(
+                    resolve_simple_var_ref(source, &uses, &values, &ssa, config).is_some(),
+                    "{profile}: {source}"
+                );
+                assert_eq!(
+                    resolve_foreach_list_via_lattice(source, &uses, &values, &ssa, rules, config),
+                    Some(vec!["one".into(), "two".into()]),
+                    "{profile}: {source}"
+                );
+            }
+            for source in ["$a:b", "${arr(key)}", "$arr(key)", "$a$b"] {
+                assert_eq!(
+                    resolve_simple_var_ref(source, &uses, &values, &ssa, config),
+                    None,
+                    "{profile}: {source}"
+                );
+                assert_eq!(
+                    resolve_foreach_list_via_lattice(source, &uses, &values, &ssa, rules, config),
+                    None,
+                    "{profile}: {source}"
+                );
+            }
+            assert_eq!(
+                resolve_simple_var_ref("$café", &uses, &values, &ssa, config).is_some(),
+                profile == "jim"
+            );
+            assert_eq!(
+                resolve_simple_var_ref("${a{b}c}", &uses, &values, &ssa, config).is_some(),
+                matches!(profile, "tcl9.0" | "tcl9.1")
+            );
+        }
+    }
+
+    #[test]
     fn resolve_simple_var_ref_accepts_bare_and_braced() {
         let mut ssa = bare_ssa();
         let x = ssa.intern_var("x");
@@ -7037,15 +7343,45 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(7)));
         assert_eq!(
-            resolve_simple_var_ref("$x", &uses, &values, &ssa),
+            resolve_simple_var_ref(
+                "$x",
+                &uses,
+                &values,
+                &ssa,
+                tcl_lexer::LexerConfig::default()
+            ),
             Some(LatticeValue::Const(ConstValue::Int(7)))
         );
         assert_eq!(
-            resolve_simple_var_ref("${x}", &uses, &values, &ssa),
+            resolve_simple_var_ref(
+                "${x}",
+                &uses,
+                &values,
+                &ssa,
+                tcl_lexer::LexerConfig::default()
+            ),
             Some(LatticeValue::Const(ConstValue::Int(7)))
         );
-        assert_eq!(resolve_simple_var_ref("$y", &uses, &values, &ssa), None);
-        assert_eq!(resolve_simple_var_ref("plain", &uses, &values, &ssa), None);
+        assert_eq!(
+            resolve_simple_var_ref(
+                "$y",
+                &uses,
+                &values,
+                &ssa,
+                tcl_lexer::LexerConfig::default()
+            ),
+            None
+        );
+        assert_eq!(
+            resolve_simple_var_ref(
+                "plain",
+                &uses,
+                &values,
+                &ssa,
+                tcl_lexer::LexerConfig::default()
+            ),
+            None
+        );
     }
 
     // Foreach constset extraction.
@@ -7072,6 +7408,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -7293,6 +7630,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -7303,7 +7641,13 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "hello", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::String("hello".into()))
         );
     }
@@ -7313,7 +7657,13 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "42", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(42))
         );
     }
@@ -7327,7 +7677,13 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(7)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(7))
         );
     }
@@ -7379,12 +7735,13 @@ mod tests {
         registry: &CommandRegistry,
         mutations: &crate::command_binding::ModuleCommandMutations,
     ) -> LatticeValue {
-        evaluate_def_with_folds(
+        evaluate_fixture_def_with_folds(
             stmt,
             &HashMap::new(),
             ssa,
             FoldPolicy::default(),
             Some(BuiltinFoldInputs {
+                source_metadata_input: None,
                 registry,
                 mutations,
                 dialect: None,
@@ -7393,6 +7750,7 @@ mod tests {
                 trust: FoldTrust::WholeModule,
                 proven_pure_parameters: false,
             }),
+            tcl_lexer::LexerConfig::default(),
         )
     }
 
@@ -7454,12 +7812,13 @@ mod tests {
         registry: &CommandRegistry,
         mutations: &crate::command_binding::ModuleCommandMutations,
     ) -> LatticeValue {
-        evaluate_def_with_folds(
+        evaluate_fixture_def_with_folds(
             stmt,
             &HashMap::new(),
             ssa,
             FoldPolicy::default(),
             Some(BuiltinFoldInputs {
+                source_metadata_input: None,
                 registry,
                 mutations,
                 dialect: None,
@@ -7468,6 +7827,7 @@ mod tests {
                 trust: FoldTrust::ObservedBindings,
                 proven_pure_parameters: false,
             }),
+            tcl_lexer::LexerConfig::default(),
         )
     }
 
@@ -7639,12 +7999,13 @@ p
         let stmt = assign_value_stmt(&mut ssa, "n", "[string length \"\u{1D11E}\"]", 1);
         let fold = |dialect: &str| {
             let folds = folds_for(dialect);
-            evaluate_def_with_folds(
+            evaluate_fixture_def_with_folds(
                 &stmt,
                 &HashMap::new(),
                 &ssa,
                 FoldPolicy::from_registry(folds.registry),
                 Some(folds),
+                tcl_lexer::LexerConfig::default(),
             )
         };
         assert_eq!(fold("tcl9.0"), LatticeValue::Const(ConstValue::Int(1)));
@@ -7712,7 +8073,13 @@ p
             LatticeValue::Const(ConstValue::String("beta".into())),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Overdefined
         );
     }
@@ -7815,6 +8182,8 @@ p
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         f.blocks.get_mut(&dead).unwrap().terminator = Some(Terminator::Return {
@@ -7822,6 +8191,8 @@ p
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let order = cfg_order(&f);

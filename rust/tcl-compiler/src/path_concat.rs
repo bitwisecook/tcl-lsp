@@ -83,18 +83,9 @@ fn is_simple_path_segment(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
 }
 
-/// Return `true` when `s` is a pure `$name` / `${name}` reference with
-/// a conservative identifier body (first char alpha/`_`, then
-/// alphanumerics / `_` / `:`).
-fn is_simple_path_var(s: &str) -> bool {
-    let inner = if let Some(rest) = s.strip_prefix("${") {
-        match rest.strip_suffix('}') {
-            Some(i) => i,
-            None => return false,
-        }
-    } else if let Some(rest) = s.strip_prefix('$') {
-        rest
-    } else {
+/// Conservative scalar spellings accepted by the path rewrite.
+fn is_simple_path_var(s: &str, config: tcl_lexer::LexerConfig) -> bool {
+    let Some(inner) = tcl_syntax::naming::whole_scalar_variable_reference_name(s, config) else {
         return false;
     };
     let mut chars = inner.chars();
@@ -123,7 +114,10 @@ fn is_simple_path_var(s: &str) -> bool {
 /// too — `file join` emits forward slashes, so a `\`-separated value
 /// would not round-trip textually.
 #[must_use]
-pub fn build_file_join_fix(path_expr: &str) -> Option<String> {
+pub fn build_file_join_fix_with_config(
+    path_expr: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
     let mut text = path_expr.trim();
     if text.len() >= 2 && text.starts_with('"') && text.ends_with('"') {
         text = &text[1..text.len() - 1];
@@ -152,13 +146,18 @@ pub fn build_file_join_fix(path_expr: &str) -> Option<String> {
         return None;
     }
     for part in &parts {
-        if !is_simple_path_var(part) && !is_simple_path_segment(part) {
+        if !is_simple_path_var(part, config) && !is_simple_path_segment(part) {
             return None;
         }
     }
     let joined = parts.join(" ");
     let prefix = if absolute { "/" } else { "" };
     Some(format!("[file join {prefix}{joined}]"))
+}
+
+#[cfg(test)]
+fn build_file_join_fix(path_expr: &str) -> Option<String> {
+    build_file_join_fix_with_config(path_expr, tcl_lexer::LexerConfig::for_dialect("tcl8.6"))
 }
 
 /// Find W201 warnings in `cfg` / `ssa`.
@@ -217,7 +216,7 @@ where
             // Skip pure `$var` aliases and pure `[cmd …]` subs — these are
             // structural forms, not manual path concatenation.
             let trimmed = value.trim();
-            if is_pure_var_ref(trimmed) {
+            if is_pure_var_ref(trimmed, config) {
                 continue;
             }
             if parse_command_substitution_with_config(trimmed, config).is_some() {
@@ -308,7 +307,8 @@ where
             // warning span, so it is only built when that span is the
             // value word's own token range — on the whole-statement
             // fallback the rewrite would swallow `set name` too.
-            let replacement = value_span.and_then(|_| build_file_join_fix(value));
+            let replacement =
+                value_span.and_then(|_| build_file_join_fix_with_config(value, config));
             out.push(PathConcatWarning {
                 span: value_span.unwrap_or(*span),
                 variable: name.clone(),

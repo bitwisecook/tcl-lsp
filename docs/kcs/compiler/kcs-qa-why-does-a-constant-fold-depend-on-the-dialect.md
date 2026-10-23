@@ -95,4 +95,4 @@ it once for every route.
 - [Glossary](../../GLOSSARY.md)
 - [kcs-qa-what-does-a-value-transfer-declaration-say.md](kcs-qa-what-does-a-value-transfer-declaration-say.md)
 - [value-evaluation.md](../../design/compiler/value-evaluation.md) § *The direct route* — the value model, the admissibility set, and the core table
-- [value-transfers-migration.md](../../design/compiler/value-transfers-migration.md) — the inventory and the ledger
+- [value-transfer-consumers.md](../../design/compiler/value-transfer-consumers.md) — the inventory and the ledger

@@ -25,7 +25,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnosticsSnapshot } from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string | undefined {
   return typeof d.code === "object" ? String(d.code.value) : (d.code as string | undefined);
@@ -39,10 +39,14 @@ suite("Issue #968: expr math functions", () => {
     // Wait for the deep pass to settle: the unknown `frobnicate` call on
     // line 12 must eventually surface its W123 — once it has, the earlier
     // (fixed) lines are guaranteed to have been analysed too.
-    const diagnostics = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (diags) => diags.some((d) => codeOf(d) === "W123" && d.range.start.line === 12),
       timeout: 15_000,
     });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     const w123Lines = diagnostics
       .filter((d) => codeOf(d) === "W123")

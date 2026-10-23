@@ -551,7 +551,9 @@ fn expr_comparison_inversion_string_equal() {
     // tclsh-proof: with a=foo b=bar both `!($a eq $b)` and `$a ne $b` -> 1;
     //   with a=foo b=foo both -> 0 (8.6 + 9.0): the rewrite preserves the
     //   boolean result.
-    assert_eq!(min("if {!($a eq $b)} {puts x}\n"), "if {$a ne $b} {puts x}");
+    // 2026-10-22T13:17Z removes safe gaps; wordop-manual-oracle-20261022.json.
+    // Keep the independent ne inversion expectation; remove only its safe gap.
+    assert_eq!(min("if {!($a eq $b)} {puts x}\n"), "if {$a ne$b} {puts x}");
 }
 
 #[test]
@@ -562,7 +564,8 @@ fn expr_comparison_inversion_membership() {
     //   both -> 0 (8.6 + 9.0).
     assert_eq!(
         min("if {!($x in {a b})} {puts y}\n"),
-        "if {$x ni {a b}} {puts y}",
+        // 13:17 decision and the same pinned wordop source controls.
+        "if {$x ni{a b}} {puts y}",
     );
 }
 
@@ -719,4 +722,186 @@ fn isolated_compact_renames_global_and_round_trips_value() {
             .any(|m| m.get("greeting").map(String::as_str) == Some("a")),
         "{map:?}",
     );
+}
+
+// Review N15 (naming-migration-review-20261022.md): compact / aggressive
+// minification must not run its own unsafe naming transformation. Until the
+// shared transactional rename planner exists both the native and the lexical
+// ("tcl") paths refuse alpha renaming explicitly, and the emitted source keeps
+// the program's output (tclsh 8.6.18 / 9.0.4 outputs recorded per fixture).
+const N15_FIXTURES: &[(&str, &str)] = &[
+    (
+        "proc a {} {return OLD}\nproc longName {} {return NEW}\nputs [a]\nputs [longName]\n",
+        "OLD\nNEW\n",
+    ),
+    (
+        "proc longName {} {return NEW}\nputs [::longName]\n",
+        "NEW\n",
+    ),
+];
+
+#[test]
+fn n15_compact_and_aggressive_refuse_unsafe_renaming_and_keep_the_output() {
+    use tcl_lsp_core::minify::{MinifyOptions, MinifyRefusal, MinifyTier, minify_with_profile};
+    let tclsh = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0)
+        .or_else(|| tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V8_6));
+    for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
+        let profile = tcl_dialect::DialectProfile::find(dialect).expect("known dialect");
+        let registry = static_context_for(dialect).commands();
+        for tier in [MinifyTier::Compact, MinifyTier::Aggressive] {
+            for (source, expected) in N15_FIXTURES {
+                let result = minify_with_profile(
+                    source,
+                    profile,
+                    registry,
+                    MinifyOptions {
+                        tier,
+                        isolated: true,
+                        ..MinifyOptions::default()
+                    },
+                );
+                assert!(
+                    result
+                        .refusals
+                        .contains(&MinifyRefusal::MissingAlphaRenameContract),
+                    "{dialect} {tier:?}: alpha renaming must refuse: {:?}\n{}",
+                    result.refusals,
+                    result.source
+                );
+                if let Some(tclsh) = &tclsh {
+                    let outcome =
+                        tcl_test_support::run_script(&tclsh.path, result.source.as_bytes())
+                            .unwrap_or_else(|error| panic!("running Tcl oracle: {error}"));
+                    assert!(outcome.success(), "{dialect} {tier:?}:\n{}", result.source);
+                    assert_eq!(
+                        String::from_utf8_lossy(&outcome.stdout),
+                        *expected,
+                        "{dialect} {tier:?} changed the output:\n{}",
+                        result.source
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn default_minify_compacts_expression_gaps_and_preserves_oracle_results() {
+    // Decision 2026-10-22T13:17Z: Default minify removes safe expression gaps.
+    let source = "puts [expr {3 + 4 * 2}]\n\
+        proc fact {n} {\n\
+            if {$n <= 1} { return 1 }\n\
+            return [expr { $n * [ fact   [expr { $n - 1 }] ] }]\n\
+        }\n\
+        puts [fact 5]\n";
+    // Outer expression gaps and nested script separators compact independently.
+    for (dialect, version) in [
+        ("tcl8.4", Some(tcl_dialect::TclVersion::V8_4)),
+        ("tcl8.5", Some(tcl_dialect::TclVersion::V8_5)),
+        ("tcl8.6", Some(tcl_dialect::TclVersion::V8_6)),
+        ("tcl9.0", Some(tcl_dialect::TclVersion::V9_0)),
+        ("tcl9.1", Some(tcl_dialect::TclVersion::V9_1)),
+        ("jim", None),
+    ] {
+        let output = min_dialect(source, dialect);
+        assert!(output.contains("expr {3+4*2}"), "{dialect}: {output}");
+        assert!(output.contains("if {$n<=1}"), "{dialect}: {output}");
+        assert!(
+            output.contains("expr {$n*[fact [expr {$n-1}]]}"),
+            "{dialect}: {output}"
+        );
+        assert_eq!(
+            min_dialect(&output, dialect),
+            output,
+            "{dialect} idempotence"
+        );
+        let oracle = if let Some(version) = version {
+            tcl_test_support::witness_tclsh(version).map(|interpreter| interpreter.path)
+        } else {
+            tcl_test_support::locate_jimsh()
+                .expect("valid Jim override")
+                .map(|_| {
+                    tcl_test_support::require_jimsh()
+                        .expect("pinned Jim oracle")
+                        .path
+                })
+        };
+        if let Some(oracle) = oracle {
+            let before = tcl_test_support::run_script(&oracle, source.as_bytes())
+                .expect("original oracle execution");
+            let after = tcl_test_support::run_script(&oracle, output.as_bytes())
+                .expect("minified oracle execution");
+            assert!(before.success() && after.success(), "{dialect}: {output}");
+            assert_eq!(before.stdout, b"11\n120\n", "{dialect} original output");
+            assert_eq!(after.stdout, before.stdout, "{dialect}: {output}");
+            assert_eq!(after.stderr, before.stderr, "{dialect}: {output}");
+        }
+    }
+}
+
+#[test]
+fn native_word_operators_remove_safe_gaps_without_changing_tokens_or_data() {
+    // Decision 2026-10-22T13:17Z; pinned control families and negative
+    // boundaries in lsp/wordop-manual-oracle-20261022.json. This executes
+    // actual minifier output while preserving the complete token/data guard.
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        let mut source = String::from(
+            "set a a\nset b a\nset c c\nset items {a b}\n\
+             puts [expr { $a eq $b }]\n\
+             puts [expr { ($a) ne ($c) }]\n\
+             puts [expr { {a  b} eq {a b} }]\n",
+        );
+        let mut expected = String::from("1\n1\n0\n");
+        if dialect != "tcl8.4" {
+            source.push_str("puts [expr { $a in $items }]\nputs [expr { $c ni $items }]\n");
+            expected.push_str("1\n1\n");
+        }
+        if matches!(dialect, "tcl9.0" | "tcl9.1" | "jim") {
+            source.push_str("puts [expr { ($a) lt ($c) }]\n");
+            expected.push_str("1\n");
+        }
+        let output = min_dialect(&source, dialect);
+        assert!(output.contains("expr {$a eq$b}"), "{dialect}: {output}");
+        assert!(output.contains("expr {($a)ne($c)}"), "{dialect}: {output}");
+        assert!(
+            output.contains("expr {{a  b}eq{a b}}"),
+            "{dialect}: {output}"
+        );
+        if dialect != "tcl8.4" {
+            assert!(output.contains("expr {$a in$items}"), "{dialect}: {output}");
+            assert!(output.contains("expr {$c ni$items}"), "{dialect}: {output}");
+        }
+        if matches!(dialect, "tcl9.0" | "tcl9.1" | "jim") {
+            assert!(output.contains("expr {($a)lt($c)}"), "{dialect}: {output}");
+        }
+        assert_eq!(min_dialect(&output, dialect), output, "{dialect}");
+        let version = match dialect {
+            "tcl8.4" => Some(tcl_dialect::TclVersion::V8_4),
+            "tcl8.5" => Some(tcl_dialect::TclVersion::V8_5),
+            "tcl8.6" => Some(tcl_dialect::TclVersion::V8_6),
+            "tcl9.0" => Some(tcl_dialect::TclVersion::V9_0),
+            "tcl9.1" => Some(tcl_dialect::TclVersion::V9_1),
+            _ => None,
+        };
+        let interpreter = version
+            .and_then(tcl_test_support::witness_tclsh)
+            .map(|oracle| oracle.path)
+            .or_else(|| {
+                (dialect == "jim").then(|| {
+                    tcl_test_support::require_jimsh()
+                        .expect("pinned Jim oracle")
+                        .path
+                })
+            });
+        if let Some(interpreter) = interpreter {
+            let before = tcl_test_support::run_script(&interpreter, source.as_bytes())
+                .expect("original word-operator script");
+            let after = tcl_test_support::run_script(&interpreter, output.as_bytes())
+                .expect("actual minified word-operator script");
+            assert!(before.success() && after.success(), "{dialect}: {output}");
+            assert_eq!(before.stdout, expected.as_bytes(), "{dialect}");
+            assert_eq!(after.stdout, before.stdout, "{dialect}: {output}");
+            assert_eq!(after.stderr, before.stderr, "{dialect}: {output}");
+        }
+    }
 }

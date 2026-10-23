@@ -48,8 +48,12 @@ pub fn run_grep(
     let opts = passphrase.to_options();
     let paths: Vec<String> = inputs
         .iter()
-        .map(|p| p.to_string_lossy().into_owned())
-        .collect();
+        .map(|p| {
+            p.to_str()
+                .map(str::to_owned)
+                .ok_or_else(|| anyhow::anyhow!("input path is not representable as Unicode"))
+        })
+        .collect::<anyhow::Result<_>>()?;
     let loaded = tcl_bigip_io::load_paths(&paths, &opts).map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let sources: Vec<(String, String)> = loaded

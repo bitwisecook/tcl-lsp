@@ -133,9 +133,9 @@
 //! | [`ItemBodyKey`] | `body_text` — the procedure/method body source |
 //! | [`FnLatticeKey`] | `body` — the whole post-inline procedure IR |
 //! | [`ProcBodyKey`] | `body_text` |
-//! | [`OptDepsKey`] | `body_source` + `proc_body_source` |
-//! | [`TaintSummaryKey`] | `reachable` — shifts as the projections move |
-//! | [`SummaryDepsKey`] | `interproc_reachable` + `callee_summaries` |
+//! | [`OptDepsKey`] | current compilation capsule |
+//! | [`TaintSummaryKey`] | current compilation capsule |
+//! | [`SummaryDepsKey`] | current compilation capsule + actual-ID summary inputs |
 //!
 //! Typing inside a body therefore mints a brand-new interned id for every one
 //! of them on every keystroke, each holding a body's worth of `Arc` payload in
@@ -162,10 +162,8 @@
 //!
 //! 1. **[`SourceFile`], [`AnalyserConfig`], [`Project`], and
 //!    [`EvaluatorEpoch`] stay at `Durability::LOW`** — salsa's default,
-//!    which this workspace never overrides.  Marking the document text or
-//!    the analyser config `HIGH` "because it rarely changes" would stamp
-//!    every key in the table above non-`LOW`, and none would ever be
-//!    collected again.
+//!    for production inputs. Query durability is the minimum of its input
+//!    reads; collection becomes unavailable when no `LOW` read remains.
 //! 2. **The per-body keys are interned from inside a tracked query.**  That is
 //!    why `memoised_compilation_unit` is crate-private and documented as
 //!    tracked-query-only: reached from [`compilation_unit`] its interning
@@ -173,39 +171,55 @@
 //!    untracked code mints immortal slots holding whole `CompilationUnit`
 //!    lattices.
 //!
-//! Interned structs with a *bounded* key space are outside this contract:
-//! [`LexerCfgKey`] is two booleans and [`CommandTail`] one command name, so
-//! minting them from untracked host code (as [`compilation_unit`]'s own
-//! signature requires) can retain only a handful of tiny slots.
+//! [`LexerCfgKey`], [`OriginalCommandSlot`] and [`LogicalSourceCommandSlot`]
+//! have different churn boundaries from these per-body keys. Production lexer
+//! keys retain the resolved environment id; command keys retain exact original
+//! source coordinates under their independently selected naming purpose.
+//! New environments or symbols can add entries, but body text and revision
+//! offsets do not enter these keys. They are not covered by the six-key growth
+//! control below; [`compilation_unit`]'s signature takes a lexer key interned
+//! by its caller.
 //! [`CfgContext`] is content-keyed but signature-level, so a body edit leaves
 //! it alone; it is collected by the same mechanism when a signature does move.
 //!
-//! Neither rule is expressible in the type system, so both are pinned
-//! behaviourally by `tests/interned_gc.rs`.  It drives a typing session through
-//! the production queries and counts salsa's `DidReuseInternedValue` events per
-//! ingredient (see [`TclDatabase::with_interned_reuse_logger`]) — the event the
-//! collector fires when it recycles a slot, and one that a non-`LOW` or
-//! untracked slot can never produce.  A control session repeats the run with
-//! both inputs at `Durability::HIGH` and asserts the collector goes silent,
-//! which is what keeps the first test from going vacuous.  A third test fails
-//! on any `with_durability` / input-builder `durability` call site in this
-//! crate or in `tcl-lsp-server` (its only dependant), because durability is
-//! chosen at the setter call site where the behavioural tests cannot see it.
+//! `tests/interned_gc.rs` compares live slots after 24 and 96 edits through
+//! the production queries. Each of the six ingredients must have a nonempty
+//! short-session slot set and at most twice as many slots after the longer
+//! session. Reuse counts (see [`TclDatabase::with_interned_reuse_logger`]) are
+//! diagnostics: a bounded working set spread across many shards can have no
+//! reuse events. The control sets [`SourceFile`], [`AnalyserConfig`] and
+//! [`EvaluatorEpoch`] to `Durability::HIGH`, requires the four body-keyed
+//! ingredients to exceed the same growth bound, and requires zero reuse for
+//! all six. This guards against a corpus that cannot detect the leak.
+//! A source-level test rejects production `with_durability` / input-builder
+//! `durability` calls in this crate and `tcl-lsp-server`, because setter calls
+//! outside the database's query graph can escape the behavioural controls.
 //! The full contract is written up in
 //! `docs/design/rust/salsa-interned-gc.md`.
 
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+// Retained analysis receipts require deeper auto-trait evaluation.
+#![recursion_limit = "256"]
+// Long linear fail-closed guard chains and scenario tests; splitting them is
+// tracked as follow-up debt (Luna-41 notes) rather than done mid-merge.
+#![allow(clippy::too_many_lines)]
+
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 
-use tcl_compiler::cfg_builder::build_cfg_function_with_upvars_and_config;
+use tcl_compiler::body_analysis_capsule::{BodyLatticeCommandBindings, BodyLatticeInputs};
 use tcl_compiler::cfg_builder::global_write_info::GlobalWriteInfo;
 use tcl_compiler::cfg_builder::upvar_info::UpvarInfo;
+use tcl_compiler::cfg_builder::{
+    OriginalProcedureSummaryOwners, PreparedCfgContext, build_cfg_function_with_prepared_context,
+};
+#[cfg(test)]
 use tcl_compiler::command_binding::ModuleCommandBindings;
 use tcl_compiler::compilation_unit::{
     CompilationUnit, FunctionUnit, LatticeRequest, ModuleTraceFacts, UnitBuildOptions,
 };
 use tcl_compiler::compiler_checks::{DiagCode, Diagnostic as CompilerCheck};
-use tcl_compiler::interprocedural::{InterproceduralAnalysis, ProcSummary};
+#[cfg(test)]
+use tcl_compiler::interprocedural::ProcSummary;
 use tcl_compiler::ir::Script;
 use tcl_compiler::optimiser::Optimisation;
 use tcl_compiler::ssa::ValueKey;
@@ -624,7 +638,7 @@ pub struct SourceFile {
     /// `None` means "no workspace view", and the walk abstains on every such
     /// call — the deliberate behaviour every standalone consumer keeps.
     ///
-    /// Set by the server from [`project_class_factories`] (compare-then-set),
+    /// Set by the server from [`project_class_factories_for_inputs`] (compare-then-set),
     /// the same discipline [`Self::external_call_sites`] uses: an index that
     /// does not move invalidates nothing, and almost no edit moves it, since
     /// almost no document declares a metaclass.
@@ -730,6 +744,87 @@ pub struct AnalyserConfig {
     pub package_provides: Vec<(String, Vec<String>)>,
 }
 
+/// Immutable values of the actual selected diagnostic configuration.
+/// Editing input identity is independent: options such as declared target
+/// ranges change findings without changing the lexer or Registry generation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiagnosticConfigurationSnapshot {
+    disabled_diagnostics: Vec<String>,
+    non_ascii_mode: NonAsciiMode,
+    extra_commands: Vec<String>,
+    generic_variable_patterns: Option<Vec<String>>,
+    bigip_version: Option<String>,
+    spec_pack_key: u64,
+    targets: Vec<(String, String)>,
+    package_provides: Vec<(String, Vec<String>)>,
+}
+
+impl AnalyserConfig {
+    /// Retain every actual configuration field independently of the selected
+    /// editing input. This grants no analysis completion or Native policy.
+    #[must_use]
+    pub fn diagnostic_report_configuration(
+        self,
+        db: &dyn salsa::Database,
+    ) -> DiagnosticConfigurationSnapshot {
+        DiagnosticConfigurationSnapshot {
+            disabled_diagnostics: self.disabled_diagnostics(db).clone(),
+            non_ascii_mode: self.non_ascii_mode(db),
+            extra_commands: self.extra_commands(db).clone(),
+            generic_variable_patterns: self.generic_variable_patterns(db).clone(),
+            bigip_version: self.bigip_version(db).clone(),
+            spec_pack_key: self.spec_pack_key(db),
+            targets: self.targets(db).clone(),
+            package_provides: self.package_provides(db).clone(),
+        }
+    }
+}
+
+fn document_analyser(
+    db: &dyn salsa::Database,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Analyser {
+    let disabled = config.disabled_diagnostics(db).iter().cloned().collect();
+    let extra = config.extra_commands(db).iter().cloned().collect();
+    Analyser::with_disabled_diagnostics(disabled)
+        .with_non_ascii_mode(config.non_ascii_mode(db))
+        .with_pack_overlay(config.spec_pack_key(db))
+        .with_extra_commands(extra)
+        .with_bigip_version(config.bigip_version(db).clone())
+        .with_declared_targets(config.targets(db).clone())
+        .with_package_provides(config.package_provides(db).clone())
+        .with_file_path(file.path(db).clone())
+        .with_workspace_class_factories(file.workspace_class_factories(db).clone())
+        .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone())
+}
+
+/// The checked document input shared by analysis and compilation. This query
+/// resolves context only; it performs no source walk and depends on no CU query.
+///
+/// # Errors
+/// An unavailable overlay remains a typed miss until its epoch changes.
+#[salsa::tracked(returns(clone))]
+pub fn document_analysis_input(
+    db: &dyn salsa::Database,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Result<Arc<tcl_compiler::analyser::ResolvedAnalysisInput>, OverlayMiss> {
+    if config.spec_pack_key(db) != 0 {
+        let _epoch = OverlayEpoch::try_get(db).map_or(0, |epoch| epoch.generation(db));
+    }
+    document_analyser(db, file, config)
+        .prepare_analysis_input(file.dialect(db))
+        .map(Arc::new)
+}
+
+fn unavailable_document_analysis(dialect: &str, miss: OverlayMiss) -> Arc<AnalysisResult> {
+    let mut result = AnalysisResult::default();
+    dialect.clone_into(&mut result.dialect);
+    result.analysis_context_unavailable = Some(miss);
+    Arc::new(result)
+}
+
 /// Whole-file analysis, behind an `Arc` so reads bump a refcount rather than
 /// deep-clone.
 ///
@@ -763,34 +858,114 @@ pub fn file_analysis(
     config: AnalyserConfig,
 ) -> Arc<AnalysisResult> {
     let _sidecar_stubs_epoch = file.sidecar_stubs_epoch(db);
-    let disabled: HashSet<String> = config.disabled_diagnostics(db).iter().cloned().collect();
-    let extra: HashSet<String> = config.extra_commands(db).iter().cloned().collect();
-    let mut analyser = Analyser::with_disabled_diagnostics(disabled)
-        .with_non_ascii_mode(config.non_ascii_mode(db))
-        .with_pack_overlay(config.spec_pack_key(db))
-        .with_extra_commands(extra)
-        .with_bigip_version(config.bigip_version(db).clone())
-        .with_declared_targets(config.targets(db).clone())
-        .with_package_provides(config.package_provides(db).clone())
-        .with_file_path(file.path(db).clone())
-        .with_workspace_class_factories(file.workspace_class_factories(db).clone())
-        .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone());
-    Arc::new(analyser.analyse(file.text(db), file.dialect(db)))
+    let input = match document_analysis_input(db, file, config) {
+        Ok(input) => input,
+        Err(miss) => return unavailable_document_analysis(file.dialect(db), miss),
+    };
+    Arc::new(
+        document_analyser(db, file, config)
+            .with_resolved_input((*input).clone())
+            .analyse(file.text(db), file.dialect(db)),
+    )
 }
 
-/// Offset-stable item tree — the per-item firewall's foundation
-/// (`docs/design/rust/incremental-analysis.md`). One item per declaration, keyed
-/// by stable name + kind so a shifted-but-unedited proc keeps its identity.
+/// Complete current source owner for independently retained procedure headers.
+/// Declarations supply source correspondence, never loaded implementations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileOriginalProcedureFacts {
+    input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    image: tcl_lexer::SourceImage,
+    declarations: Vec<
+        tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+            tcl_compiler::analyser::ProcDef,
+        >,
+    >,
+}
+
+impl FileOriginalProcedureFacts {
+    #[must_use]
+    pub fn input(&self) -> &tcl_compiler::analyser::ResolvedAnalysisInput {
+        &self.input
+    }
+
+    #[must_use]
+    pub fn image(&self) -> &tcl_lexer::SourceImage {
+        &self.image
+    }
+
+    #[must_use]
+    pub fn declarations(
+        &self,
+    ) -> &[tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::ProcDef,
+    >] {
+        &self.declarations
+    }
+}
+
+#[salsa::tracked(returns(clone))]
+pub fn file_original_procedure_facts(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Option<Arc<FileOriginalProcedureFacts>> {
+    let input = document_analysis_input(db, file, config).ok()?;
+    let analysis = file_analysis(db, file, config);
+    let (image, source_config) =
+        tcl_compiler::source_graph::current_analysis(file.text(db), &analysis)?;
+    if analysis.resolved_input.as_ref() != Some(input.as_ref())
+        || source_config != input.lexer_config()
+    {
+        return None;
+    }
+    let context = input.context_registry();
+    tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+        context.commands(),
+        &input,
+        source_config,
+        Some(input.unit_profile()),
+    )?;
+    let declarations = analysis
+        .original_procedure_declarations()
+        .filter(|declaration| {
+            declaration.name_input().source_image() == &image
+                && declaration.name_input().lexer_config() == source_config
+        })
+        .cloned()
+        .collect();
+    Some(Arc::new(FileOriginalProcedureFacts {
+        input: (*input).clone(),
+        image,
+        declarations,
+    }))
+}
+
+/// Each configured file retains its own source declarations and input owner.
+/// Missing mappings remain unavailable beside the project's label roster.
+#[salsa::tracked(returns(clone))]
+pub fn project_original_procedure_facts(
+    db: &dyn TclDb,
+    project: Project,
+) -> Arc<Vec<(SourceFile, Arc<FileOriginalProcedureFacts>)>> {
+    Arc::new(
+        project
+            .files(db)
+            .iter()
+            .filter_map(|&file| {
+                let config = project_token_inputs::configuration_for_file(db, project, file)?;
+                Some((file, file_original_procedure_facts(db, file, config)?))
+            })
+            .collect(),
+    )
+}
+
+/// Explicit standalone item inventory, keyed by stable declaration name/kind.
+/// Configured document providers use [`item_tree_for_config`] so selected
+/// pack definitions, source grammar and available generations stay attached.
 ///
-/// **Anchor.** `ensemble_namespaces` lives on the `Analyser`, not the
-/// returned `AnalysisResult`, so this query runs `analyse` directly and reads
-/// the ensemble set off the instance rather than reusing [`file_analysis`]. The
-/// item set therefore *cannot* diverge from `analyse`; it is guarded by the
-/// `file_decls` corpus
-/// gate + the `incremental == fresh` differential fuzzer + the full-rebuild
-/// fallback (item detection is config-independent, hence no `AnalyserConfig`;
-/// the one cross-file input it does read, `SourceFile::workspace_class_factories`,
-/// is a property of the *file*, so the query key is unchanged).
+/// `ensemble_namespaces` is retained on the analyser, so this structure-only
+/// query reads the item/header projection directly from that same source walk.
+/// The published workspace factory oracle remains an input to the file.
 #[salsa::tracked(returns(clone))]
 pub fn item_tree(db: &dyn salsa::Database, file: SourceFile) -> Arc<ItemTree> {
     // `structure_only` skips diagnostic emission (the dominant analyse cost)
@@ -813,7 +988,7 @@ pub fn item_tree(db: &dyn salsa::Database, file: SourceFile) -> Arc<ItemTree> {
     ))
 }
 
-/// Item signatures — the cross-item-relevant headers, with bodies stripped
+/// Explicit standalone item signatures — cross-item headers with bodies stripped
 /// (`item_sig*` in the design graph). A body-only edit leaves these equal, so
 /// [`file_decls`] and the future cross-item passes early-cutoff.
 #[salsa::tracked(returns(clone))]
@@ -845,11 +1020,22 @@ pub fn file_decls(db: &dyn salsa::Database, file: SourceFile) -> Arc<FileDecls> 
 /// interns under its durability, and only `Durability::LOW` slots are
 /// garbage-collected.  See the crate docs' "The interned garbage collector is
 /// load-bearing".
-#[salsa::input]
+#[salsa::input(constructor = with_token_configurations)]
 pub struct Project {
     /// The project's files (workspace + open documents).
     #[returns(ref)]
     pub files: Vec<SourceFile>,
+    /// Actual per-file settings captured by the document driver. Missing
+    /// mappings withhold supplied project source facts; standalone queries are separate.
+    #[returns(ref)]
+    pub token_configurations: Option<Vec<(SourceFile, AnalyserConfig)>>,
+}
+
+impl Project {
+    /// Construct a project for the explicit standalone aggregate queries.
+    pub fn new(db: &dyn salsa::Database, files: Vec<SourceFile>) -> Self {
+        Self::with_token_configurations(db, files, None)
+    }
 }
 
 /// The project-wide set of declared `proc` qualified names — the cross-file
@@ -916,17 +1102,41 @@ pub fn file_class_factories(
 /// Unordered, exactly as the workspace index's other cross-file facts are: a
 /// `source` graph can prove a load order, but nothing requires one here —
 /// a metaclass declaration either exists in the project or it does not.
-/// Later entries win on a duplicate qualified name, which cannot be told
-/// apart from the earlier one by anything the index knows.
+/// Duplicate qualified names retain no unique provider and withdraw that hint.
 #[salsa::tracked(returns(clone))]
 pub fn project_class_factories(
     db: &dyn salsa::Database,
     project: Project,
 ) -> Arc<tcl_compiler::analyser::ClassFactoryIndex> {
+    let mut providers = HashSet::new();
+    merge_class_factories(
+        project
+            .files(db)
+            .iter()
+            .filter(|&&file| providers.insert(file))
+            .map(|&file| file_class_factories(db, file)),
+    )
+}
+
+fn merge_class_factories(
+    parts: impl IntoIterator<Item = Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
+) -> Arc<tcl_compiler::analyser::ClassFactoryIndex> {
     let mut merged = tcl_compiler::analyser::ClassFactoryIndex::new();
-    for &file in project.files(db) {
-        for (qname, factory) in file_class_factories(db, file).iter() {
-            merged.insert(qname.clone(), factory.clone());
+    let mut ambiguous = HashSet::new();
+    for part in parts {
+        for (qname, factory) in part.iter() {
+            if ambiguous.contains(qname) {
+                continue;
+            }
+            match merged.entry(qname.clone()) {
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(factory.clone());
+                }
+                std::collections::btree_map::Entry::Occupied(entry) => {
+                    entry.remove();
+                    ambiguous.insert(qname.clone());
+                }
+            }
         }
     }
     Arc::new(merged)
@@ -934,10 +1144,13 @@ pub fn project_class_factories(
 
 /// The coverage-relevant projection of one `source` site.
 ///
-/// Spans are intentionally absent: inserting text before an unchanged source
-/// command must not invalidate project topology or cross-file coverage.
+/// Original ownership remains attached; the derived link query keeps unchanged
+/// project associations equal when original source geometry moves.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileSourceTarget {
+    /// Genuine conditional current-interpreter path, independent of report text.
+    pub original_source_load:
+        Option<Arc<tcl_compiler::registry_invocation::source_structure::OriginalProjectSourceLoad>>,
     /// Verbatim path text, including any substitution markers.
     pub raw_path: String,
     /// Whether the path is a plain literal known at analysis time.
@@ -952,13 +1165,15 @@ pub struct FileSourceTarget {
 /// workspace index.
 #[salsa::tracked(returns(clone))]
 pub fn file_source_targets(db: &dyn TclDb, file: SourceFile) -> Arc<Vec<FileSourceTarget>> {
-    let dialect = file.dialect(db).clone();
-    let registry = db.registry(&dialect);
+    let result = Analyser::new()
+        .structure_only()
+        .analyse(file.text(db), file.dialect(db));
     Arc::new(
-        tcl_compiler::signature_scan::extract_signatures(file.text(db), registry)
+        result
             .source_targets
             .into_iter()
             .map(|target| FileSourceTarget {
+                original_source_load: target.original_project_source_load,
                 raw_path: target.raw_path,
                 is_literal: target.is_literal,
             })
@@ -966,35 +1181,34 @@ pub fn file_source_targets(db: &dyn TclDb, file: SourceFile) -> Arc<Vec<FileSour
     )
 }
 
-/// The project files this file pulls into its own interpreter — its resolved
-/// literal `source` targets, as document-path strings keyed the same way
-/// [`SourceFile::path`] is.
-///
-/// Only *literal* targets are recorded. A computed path (`source [file join
-/// $dir x.tcl]`) is not resolved here: guessing an edge would be worse than
-/// missing one, because the edge widens what an unenumerable dispatch is
-/// allowed to reach (see [`file_dispatch_reach`]).
-///
-/// Signature-level, like [`file_decls`]: a body edit that does not add or
-/// remove a `source` leaves this equal, so it backdates and no cross-file
-/// query re-runs.
+/// Conditional script-directory source associations for display consumers.
+/// An empty compatibility projection does not establish complete source coverage.
+/// Dispatch bounds use the checked projection and retain unknown paths.
 #[salsa::tracked(returns(clone))]
 pub fn file_link_targets(db: &dyn TclDb, file: SourceFile) -> Arc<BTreeSet<String>> {
-    let Some(path) = file.path(db).as_deref() else {
-        return Arc::new(BTreeSet::new());
-    };
-    let parent = std::path::Path::new(path);
-    Arc::new(
-        file_source_targets(db, file)
-            .iter()
-            .filter(|target| target.is_literal)
-            .map(|target| {
-                tcl_lsp_core::source_graph::resolve_source_target(parent, &target.raw_path)
-                    .to_string_lossy()
-                    .into_owned()
-            })
-            .collect(),
-    )
+    checked_file_link_targets(db, file).unwrap_or_default()
+}
+
+#[salsa::tracked(returns(clone))]
+fn checked_file_link_targets(db: &dyn TclDb, file: SourceFile) -> Option<Arc<BTreeSet<String>>> {
+    conditional_source_links(file.path(db).as_deref(), &file_source_targets(db, file)).map(Arc::new)
+}
+
+fn conditional_source_links(
+    path: Option<&str>,
+    targets: &[FileSourceTarget],
+) -> Option<BTreeSet<String>> {
+    targets
+        .iter()
+        .map(|target| {
+            let load = target.original_source_load.as_ref()?;
+            let target = tcl_lsp_core::source_graph::conditional_project_source_target(
+                std::path::Path::new(path?),
+                load,
+            )?;
+            Some(target.to_str()?.to_owned())
+        })
+        .collect()
 }
 
 /// Union-find root of `i`, with path halving.
@@ -1021,61 +1235,55 @@ pub struct DispatchComponents {
 }
 
 impl DispatchComponents {
-    /// The procedures the file at `index` in [`Project::files`] may reach
-    /// through an unenumerable dispatch; `None` when `index` is past the file
-    /// set this was computed for.
+    /// Conditional procedure names in this represented source component.
+    /// Missing project membership supplies no bound or actual interpreter proof.
     #[must_use]
     pub fn reach(&self, index: usize) -> Option<&Arc<BTreeSet<String>>> {
         self.procs.get(*self.component_of.get(index)?)
     }
 }
 
-/// Decompose the project into `source`-connected components once per revision.
-///
-/// `set cmd [gets stdin]; $cmd dev` names a command this analysis cannot
-/// determine, so it is a caller of *something*. Which something is bounded by
-/// the interpreter the file's script runs in, and `source` is what puts two
-/// files in one interpreter — in **both** directions: a file reaches the procs
-/// of what it sources, and equally the procs of whatever sources *it*, because
-/// its script runs in that caller's interpreter. Hence connected components of
-/// the undirected `source` graph, not reachability along its arrows.
-///
-/// Bounding it this way is what keeps the blast radius proportionate: an
-/// unrelated file in the same workspace folder is not in the component, so its
-/// `eval $script` cannot withdraw this file's seeds. Without any bound, one
-/// such file disables interprocedural folding project-wide; with a
-/// *directional* bound (what the file loads, but not what loads it) a sourced
-/// library's unreadable dispatch silently fails to retract its sourcing file's
-/// seeds — the hole this replaces.
-///
-/// **Why this is a project query rather than per-file work:** the
-/// union-find is over the whole `source` graph and the merge visits every
-/// component member's [`file_decls`], so computing it inside
-/// [`file_dispatch_reach`] cost `O(N)` *per file* — `O(N²)` `String` clones and
-/// path-map inserts across a project, which a signature edit re-paid in full
-/// because it invalidates every file's reach at once. Hoisted here it is paid
-/// once, and each file's reach becomes an `Arc` clone.
-///
-/// Depends only on signature-level facts ([`file_link_targets`],
-/// [`file_decls`]), so it sits behind the same firewall as the rest of the
-/// cross-file layer.
+/// Decompose the declared project source associations once per revision.
+/// Each genuine literal path uses the explicit script-directory policy, without
+/// proving actual loads, shared interpreters or runtime working directories.
+/// Dynamic/unowned paths and targets outside the represented project withdraw
+/// the finite bound. Parameter evidence then retains only unknown callers.
+/// Per-file checked associations and declarations retain signature early cutoff.
 #[salsa::tracked(returns(clone))]
-pub fn project_dispatch_components(db: &dyn TclDb, project: Project) -> Arc<DispatchComponents> {
-    let files = project.files(db);
+pub fn project_dispatch_components(
+    db: &dyn TclDb,
+    project: Project,
+) -> Option<Arc<DispatchComponents>> {
+    let rows = project
+        .files(db)
+        .iter()
+        .map(|&file| {
+            Some((
+                file.path(db).clone(),
+                checked_file_link_targets(db, file)?,
+                file_decls(db, file),
+            ))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    merge_dispatch_components(rows)
+}
+
+fn merge_dispatch_components(
+    rows: impl IntoIterator<Item = (Option<String>, Arc<BTreeSet<String>>, Arc<FileDecls>)>,
+) -> Option<Arc<DispatchComponents>> {
+    let rows: Vec<_> = rows.into_iter().collect();
     // Index files by path so `source` targets can be matched to project files.
     let mut by_path: HashMap<&str, usize> = HashMap::new();
-    for (i, f) in files.iter().enumerate() {
-        if let Some(p) = f.path(db).as_deref() {
+    for (i, (path, _, _)) in rows.iter().enumerate() {
+        if let Some(p) = path.as_deref() {
             by_path.insert(p, i);
         }
     }
     // Union-find over the undirected `source` graph.
-    let mut parent: Vec<usize> = (0..files.len()).collect();
-    for (i, f) in files.iter().enumerate() {
-        for target in file_link_targets(db, *f).iter() {
-            let Some(&j) = by_path.get(target.as_str()) else {
-                continue;
-            };
+    let mut parent: Vec<usize> = (0..rows.len()).collect();
+    for (i, (_, links, _)) in rows.iter().enumerate() {
+        for target in links.iter() {
+            let &j = by_path.get(target.as_str())?;
             let (a, b) = (
                 component_root(&mut parent, i),
                 component_root(&mut parent, j),
@@ -1087,28 +1295,28 @@ pub fn project_dispatch_components(db: &dyn TclDb, project: Project) -> Arc<Disp
     }
     // Number the roots densely, then merge each component's declarations once.
     let mut number: HashMap<usize, usize> = HashMap::new();
-    let mut component_of: Vec<usize> = Vec::with_capacity(files.len());
-    for i in 0..files.len() {
+    let mut component_of: Vec<usize> = Vec::with_capacity(rows.len());
+    for i in 0..rows.len() {
         let root = component_root(&mut parent, i);
         let next = number.len();
         component_of.push(*number.entry(root).or_insert(next));
     }
     let mut merged: Vec<BTreeSet<String>> = vec![BTreeSet::new(); number.len()];
-    for (i, f) in files.iter().enumerate() {
-        merged[component_of[i]].extend(file_decls(db, *f).procs.iter().cloned());
+    for (i, (_, _, declarations)) in rows.iter().enumerate() {
+        merged[component_of[i]].extend(declarations.procs.iter().cloned());
     }
-    Arc::new(DispatchComponents {
+    Some(Arc::new(DispatchComponents {
         component_of,
         procs: merged.into_iter().map(Arc::new).collect(),
-    })
+    }))
 }
 
-/// The procedures an *unenumerable* dispatch in `file` may reach — every proc
-/// declared by a file in the same `source`-connected component.
+/// Conditional project procedure names for an unenumerable source dispatch.
+/// A missing association bound remains unavailable, including unrepresented loads.
 ///
 /// An index into [`project_dispatch_components`], which does the work; see
 /// there for what the component bound means and why it is not computed here.
-/// A file the project does not contain reaches only its own declarations.
+/// Missing project membership or incomplete source paths leave the bound unavailable.
 ///
 /// Kept as its own query so the result still early-cutoffs per file: a decl
 /// change in one component recomputes the project decomposition, but every
@@ -1119,15 +1327,13 @@ pub fn file_dispatch_reach(
     db: &dyn TclDb,
     file: SourceFile,
     project: Project,
-) -> Arc<BTreeSet<String>> {
-    let Some(me) = project.files(db).iter().position(|f| *f == file) else {
-        return Arc::new(file_decls(db, file).procs.clone());
-    };
-    let components = project_dispatch_components(db, project);
-    match components.reach(me) {
-        Some(reach) => Arc::clone(reach),
-        None => Arc::new(file_decls(db, file).procs.clone()),
-    }
+) -> Option<Arc<BTreeSet<String>>> {
+    let me = project
+        .files(db)
+        .iter()
+        .position(|member| *member == file)?;
+    let components = project_dispatch_components(db, project)?;
+    components.reach(me).cloned()
 }
 
 /// Every call site **this** file contributes, resolved against the whole
@@ -1151,46 +1357,60 @@ pub fn file_call_site_evidence(
     file: SourceFile,
     project: Project,
 ) -> Arc<CallSiteEvidence> {
-    let dialect = file.dialect(db).clone();
-    let registry = db.registry(&dialect);
-    let known: std::collections::HashSet<String> =
-        project_proc_names(db, project).iter().cloned().collect();
-    let reach: Vec<String> = file_dispatch_reach(db, file, project)
-        .iter()
-        .cloned()
-        .collect();
-    // The file's own stub declarations, through the same query the build
-    // reads: a call site sitting in a stub-declared body or behind a
-    // stub-declared callback counts for this file exactly as a catalogue one
-    // does.
+    let known: HashSet<String> = project_proc_names(db, project).iter().cloned().collect();
+    let Some(reach) = file_dispatch_reach(db, file, project) else {
+        let mut unavailable = CallSiteEvidence::default();
+        unavailable.record_unenumerable_caller(&known.iter().cloned().collect::<Vec<_>>());
+        return Arc::new(unavailable);
+    };
+    let reach = reach.iter().cloned().collect::<Vec<_>>();
     let declared = declared_command_surface(db, file);
-    let scanned = tcl_compiler::unit_scope::scan_source_call_sites(
-        file.text(db),
-        registry,
-        Some(&declared),
-        tcl_lsp_core::profile_for_dialect(&dialect),
-        &known,
-        &reach,
-    );
-    // Drop the callees *this* file declares. A call to a name the file also
-    // defines binds to its own definition, so it is in-unit evidence (already
-    // collected during the build) — not evidence about a same-named proc in
-    // some other file.
-    //
-    // Without this, any two unrelated workspace files that happen to reuse a
-    // common helper name (`helper`, `init`, `run` — pervasive in Tcl) pool
-    // their call sites: differing arities make `binds_position` fail and
-    // differing literals contradict each other, so *both* files lose folds
-    // they are individually entitled to, and editing one changes diagnostics
-    // in the other. Excluding self-declared callees keeps the merge to what
-    // the query name promises — the call sites a file contributes to *other*
-    // files' procedures.
-    let declared = file_decls(db, file);
-    let external: Vec<&str> = scanned
-        .callees()
-        .filter(|qname| !declared.procs.contains(*qname))
+    let config = project_token_inputs::configuration_for_file(db, project, file);
+    let own = config.and_then(|config| file_original_procedure_facts(db, file, config));
+    let scanned = match config {
+        Some(config) => {
+            if let Ok(input) = document_analysis_input(db, file, config) {
+                let external: Vec<_> = project_original_procedure_facts(db, project)
+                    .iter()
+                    .filter(|(provider, _)| *provider != file)
+                    .filter_map(|(_, facts)| {
+                        tcl_compiler::unit_scope::ExternalSourceProcedureFacts::capture(
+                            facts.input(),
+                            facts.image(),
+                            facts.declarations(),
+                        )
+                    })
+                    .collect();
+                tcl_compiler::unit_scope::scan_source_call_sites_with_original_source(
+                    file.text(db),
+                    Some(&declared),
+                    &known,
+                    &reach,
+                    &input,
+                    None,
+                    &external,
+                )
+            } else {
+                let mut unavailable = CallSiteEvidence::default();
+                unavailable.record_unenumerable_caller(&known.iter().cloned().collect::<Vec<_>>());
+                unavailable
+            }
+        }
+        None => tcl_compiler::unit_scope::scan_source_call_sites(
+            file.text(db),
+            db.registry(file.dialect(db)),
+            Some(&declared),
+            tcl_lsp_core::profile_for_dialect(file.dialect(db)),
+            &known,
+            &reach,
+        ),
+    };
+    let sites: Vec<_> = own
+        .iter()
+        .flat_map(|facts| facts.declarations())
+        .map(|declaration| declaration.declaration_site().clone())
         .collect();
-    Arc::new(scanned.slice_for(external.into_iter()))
+    Arc::new(scanned.without_original_declarations(&sites))
 }
 
 /// The project-wide merge of every file's [`file_call_site_evidence`].
@@ -1221,46 +1441,26 @@ pub fn file_external_call_sites(
     file: SourceFile,
     project: Project,
 ) -> Arc<CallSiteEvidence> {
-    let declared = file_decls(db, file);
     let all = project_call_site_evidence(db, project);
-    Arc::new(all.slice_for(declared.procs.iter().map(String::as_str)))
+    let own = project_token_inputs::configuration_for_file(db, project, file)
+        .and_then(|config| file_original_procedure_facts(db, file, config));
+    let sites: Vec<_> = own
+        .iter()
+        .flat_map(|facts| facts.declarations())
+        .map(|declaration| declaration.declaration_site().clone())
+        .collect();
+    Arc::new(all.slice_for_original_declarations(&sites))
 }
 
-/// Extract the unknown-command name from a W123 message
-/// (`"Unknown command 'NAME'"`, optionally `+ "; did you mean 'X'?"`) — the first
-/// single-quoted token, which is the bare name the analyser failed to resolve.
-fn w123_command(message: &str) -> Option<&str> {
-    let start = message.find('\'')? + 1;
-    let rest = &message[start..];
-    let end = rest.find('\'')?;
-    Some(&rest[..end])
-}
-
-/// Inclusive `(min, max)` argument-arity of a proc from its parameter list
-/// (`max == usize::MAX` ⇒ a trailing `args` makes it unbounded).
-///
-/// Delegates to [`tcl_compiler::signature_scan::arity::arity_of`], the
-/// single canonical computation shared with the same-file/TclOO-method
-/// arity checks — Tcl's argument binding is strictly positional, so the
-/// minimum is the position of the *last* required (non-default) parameter,
-/// not a count of required parameters (a required parameter after a
-/// defaulted one raises the minimum past the defaulted ones, since a
-/// caller cannot supply a later position without also supplying every
-/// position before it).
-/// A **computed** parameter list (`proc p [makeargs] {…}`, `proc q $params
-/// {…}`) declares an unknown number of formals, so this abstains with the
-/// fully-open `0..MAX` rather than reading the empty recorded list as "takes
-/// no arguments" — which would draw a false cross-file `E003` on code both
-/// interpreters run. Same abstention rule as the same-file
-/// [`tcl_compiler::analyser::ProcDef::arity`].
+/// Inclusive count bounds from the formal owner's frozen header metadata.
+/// Unknown counts remain fully open. Selected C/Jim grammar and original
+/// formal storage are projected before the body-free database boundary.
 fn proc_arity(
-    params: &[tcl_compiler::signature_scan::types::ParamDef],
-    params_computed: bool,
+    count: tcl_compiler::signature_scan::formal_count::SourceFormalCountProjection,
 ) -> (usize, usize) {
-    if params_computed {
-        return (0, usize::MAX);
-    }
-    let arity = tcl_compiler::signature_scan::arity::arity_of(params);
+    // naming.database.original-formal-count-header
+
+    let arity = count.arity();
     let max = if arity.is_unlimited() {
         usize::MAX
     } else {
@@ -1269,101 +1469,342 @@ fn proc_arity(
     (usize::from(arity.min), max)
 }
 
-/// The project's cross-file command-resolution domain, keyed by **tail** name,
-/// each carrying the `(min, max)` arities of any **procs** with that tail.
-/// A bare command `foo` is resolved cross-file if some
-/// project declaration has tail `foo` — procs, classes (the class command),
-/// `interp alias`es, and ensembles, matching the analyser's *local* suppression
-/// domains (`proc_tail_names` / `class_tail_names` / `alias_names` /
-/// `ensemble_cmds`).  Non-proc kinds carry an **empty** arity list (resolved, but
-/// no arg-count signature), so they suppress W123 without ever drawing an arity error.
-///
-/// **Mixed tails are arity-less.**  If a tail is claimed by *both* a proc and a
-/// non-proc command (e.g. `oo::class create Widget` plus `proc ns::Widget`), a
-/// call to it may dispatch to the class/alias/ensemble — which has no fixed
-/// arity — so the proc arities are dropped (empty list): the tail still suppresses
-/// W123 but never draws a (possibly wrong) arity error.
-///
-/// Depends only on each file's `item_sigs` (the signature firewall), so a body
-/// edit anywhere recomputes nothing here.
+/// Body-free original source headers under their exact publication keys.
+/// Current source declarations grant no installed command or callback entry.
 #[salsa::tracked(returns(clone))]
-pub fn project_command_arities(
+pub fn project_original_command_signatures(
     db: &dyn TclDb,
     project: Project,
-) -> Arc<HashMap<String, Vec<(usize, usize)>>> {
-    use tcl_compiler::analyser::ItemKind;
-    // tail -> (proc arities, has a non-proc command claiming this tail).
-    let mut acc: HashMap<String, (Vec<(usize, usize)>, bool)> = HashMap::new();
-    for &file in project.files(db) {
-        for sig in item_sigs(db, file).iter() {
-            // Command-resolvable kinds only — methods are object-dispatched and
-            // namespaces aren't commands, so neither suppresses a bare-command W123.
-            let resolvable = matches!(
-                sig.id.kind,
-                ItemKind::Proc | ItemKind::Class | ItemKind::Alias | ItemKind::Ensemble
-            );
-            if resolvable
-                && let Some((_, tail)) = sig.id.key.rsplit_once("::")
-                && !tail.is_empty()
-            {
-                let entry = acc.entry(tail.to_owned()).or_default();
-                if sig.id.kind == ItemKind::Proc {
-                    entry.0.push(proc_arity(&sig.params, sig.params_computed));
-                } else {
-                    entry.1 = true;
-                }
+) -> Arc<
+    HashMap<
+        tcl_compiler::signature_scan::scope::SignatureSourceCommand,
+        Vec<tcl_compiler::analyser::SourceDeclarationSignature>,
+    >,
+> {
+    merge_original_command_signatures(project.files(db).iter().map(|&file| item_sigs(db, file)))
+}
+
+fn merge_original_command_signatures(
+    signatures: impl IntoIterator<Item = Arc<Vec<ItemSig>>>,
+) -> Arc<
+    HashMap<
+        tcl_compiler::signature_scan::scope::SignatureSourceCommand,
+        Vec<tcl_compiler::analyser::SourceDeclarationSignature>,
+    >,
+> {
+    let mut entries: HashMap<_, Vec<_>> = HashMap::new();
+    for signatures in signatures {
+        for signature in signatures.iter() {
+            let Some(header) = signature.original_declaration.as_ref() else {
+                continue;
+            };
+            let entry = entries.entry(header.name().clone()).or_default();
+            if !entry.contains(header) {
+                entry.push(header.clone());
             }
         }
     }
-    // A tail with any non-proc resolver can't be arity-checked (the call may
-    // dispatch to the arity-less class/alias/ensemble), so drop its proc arities —
-    // it still resolves (suppresses W123) but never draws an arity error.
-    let map: HashMap<String, Vec<(usize, usize)>> = acc
-        .into_iter()
-        .map(|(tail, (arities, has_non_proc))| {
-            (tail, if has_non_proc { Vec::new() } else { arities })
-        })
-        .collect();
-    Arc::new(map)
+    Arc::new(entries)
 }
 
-/// Interned identity of a single command **tail** name — the key for the
-/// per-symbol cross-file resolution accessor [`command_arity`].
-#[salsa::interned]
-pub struct CommandTail<'db> {
-    #[returns(ref)]
-    pub name: String,
-}
-
-/// Per-symbol cross-file resolution accessor — the **early-cutoff** point that
-/// gives cross-file diagnostics *per-symbol* (not whole-project) invalidation
-/// precision.
-///
-/// Reads the firewalled whole-project [`project_command_arities`] table and
-/// projects out **one** tail: `Some(arities)` when the workspace resolves a
-/// command with this tail (`arities` empty ⇒ resolved by a non-proc — class /
-/// alias / ensemble — so it suppresses W123 but draws no arity error); `None`
-/// when nothing in the project claims it.
-///
-/// Why this is its own query: [`project_diagnostics`] for a file demands
-/// `command_arity` only for the tails that file actually references, so it depends
-/// on **those symbols' resolutions, not the whole table**.  A signature edit to an
-/// *unrelated* proc recomputes the aggregate table and re-runs this accessor for
-/// each demanded tail — but a tail this file does not call keeps the same
-/// projected output, so salsa **early-cutoff backdates** it and the file's
-/// `project_diagnostics` does not re-run.  Changing a widely-called utility's
-/// signature still re-checks exactly its callers (correct fan-out); changing a
-/// proc nobody in file B calls wakes nobody in B.  Proven by
-/// `project_diagnostics_per_symbol_cutoff`.
+/// Count projection of the shared original source-header query. Non-procedure
+/// publications retain lookup barriers without borrowing procedure counts.
 #[salsa::tracked(returns(clone))]
-pub fn command_arity<'db>(
+pub fn project_original_command_arities(
+    db: &dyn TclDb,
+    project: Project,
+) -> Arc<HashMap<tcl_compiler::signature_scan::scope::SignatureSourceCommand, Vec<(usize, usize)>>>
+{
+    use tcl_compiler::analyser::ItemKind;
+    Arc::new(
+        project_original_command_signatures(db, project)
+            .iter()
+            .map(|(name, headers)| {
+                let mut arities = if headers
+                    .iter()
+                    .any(|header| header.kind() == ItemKind::Class)
+                {
+                    Vec::new()
+                } else {
+                    headers
+                        .iter()
+                        .filter(|header| header.kind() == ItemKind::Proc)
+                        .map(|header| proc_arity(header.formal_count_projection()))
+                        .collect::<Vec<_>>()
+                };
+                arities.sort_unstable();
+                arities.dedup();
+                (name.clone(), arities)
+            })
+            .collect(),
+    )
+}
+
+/// Interned exact byte lookup key, without a command-publication grant.
+#[salsa::interned]
+pub struct OriginalCommandSlot<'db> {
+    /// Complete selected name policy, including authored/native authority.
+    #[returns(copy)]
+    pub policy: tcl_syntax::naming::NamePolicyProtocol,
+    /// Exact lookup geometry, without a publication or allocation receipt.
+    #[returns(ref)]
+    pub slot: tcl_core_types::ByteCommandSlot,
+}
+
+/// Per-slot exact source headers retain independent query early cutoff.
+/// Display tails and current command occupancy do not enter this key.
+#[salsa::tracked(returns(clone))]
+pub fn original_command_signatures<'db>(
     db: &'db dyn TclDb,
     project: Project,
-    tail: CommandTail<'db>,
+    name: OriginalCommandSlot<'db>,
+) -> Option<Arc<Vec<tcl_compiler::analyser::SourceDeclarationSignature>>> {
+    let table = project_original_command_signatures(db, project);
+    select_original_command_signatures(db, name, &table)
+}
+
+fn select_original_command_signatures(
+    db: &dyn TclDb,
+    name: OriginalCommandSlot<'_>,
+    table: &HashMap<
+        tcl_compiler::signature_scan::scope::SignatureSourceCommand,
+        Vec<tcl_compiler::analyser::SourceDeclarationSignature>,
+    >,
+) -> Option<Arc<Vec<tcl_compiler::analyser::SourceDeclarationSignature>>> {
+    let selected = tcl_compiler::signature_scan::scope::first_matching_byte_publications(
+        name.policy(db),
+        std::slice::from_ref(name.slot(db)),
+        table.iter(),
+    );
+    if selected.is_empty() {
+        return None;
+    }
+    Some(Arc::new(
+        selected
+            .into_iter()
+            .flat_map(|headers| headers.iter().cloned())
+            .collect(),
+    ))
+}
+
+/// Exact current source headers under the original lookup's retained ordered
+/// alternatives. This does not select a future implementation or entered frame.
+#[must_use]
+pub fn original_lookup_command_signatures(
+    db: &dyn TclDb,
+    project: Project,
+    lookup: &tcl_compiler::command_binding::OriginalCommandLookup,
+) -> Option<Arc<Vec<tcl_compiler::analyser::SourceDeclarationSignature>>> {
+    original_lookup_command_signatures_using(db, lookup, |key| {
+        original_command_signatures(db, project, key)
+    })
+}
+
+fn original_lookup_command_signatures_using<'db>(
+    db: &'db dyn TclDb,
+    lookup: &tcl_compiler::command_binding::OriginalCommandLookup,
+    mut query: impl FnMut(
+        OriginalCommandSlot<'db>,
+    ) -> Option<Arc<Vec<tcl_compiler::analyser::SourceDeclarationSignature>>>,
+) -> Option<Arc<Vec<tcl_compiler::analyser::SourceDeclarationSignature>>> {
+    let mut slots = Vec::new();
+    for candidate in lookup.candidates().iter().flatten() {
+        if slots.iter().any(|(slot, _)| slot == candidate) {
+            continue;
+        }
+        let key = OriginalCommandSlot::new(db, lookup.policy(), candidate.clone());
+        if let Some(headers) = query(key) {
+            slots.push((candidate.clone(), headers));
+        }
+    }
+    let selected = lookup.matching_slot_publications(
+        slots
+            .iter()
+            .map(|(slot, headers)| (slot, lookup.policy(), Arc::clone(headers))),
+    )?;
+    if selected.is_empty() {
+        return None;
+    }
+    Some(Arc::new(
+        selected
+            .into_iter()
+            .flat_map(|headers| headers.as_ref().clone())
+            .collect(),
+    ))
+}
+
+/// Per-slot original declaration arities. Early cutoff retains independent
+/// consumers when an unrelated header changes; UI tails cannot enter the key.
+#[salsa::tracked(returns(clone))]
+pub fn original_command_arity<'db>(
+    db: &'db dyn TclDb,
+    project: Project,
+    name: OriginalCommandSlot<'db>,
 ) -> Option<Arc<Vec<(usize, usize)>>> {
-    project_command_arities(db, project)
-        .get(tail.name(db).as_str())
-        .map(|arities| Arc::new(arities.clone()))
+    let table = project_original_command_arities(db, project);
+    let matching = tcl_compiler::signature_scan::scope::first_matching_byte_publications(
+        name.policy(db),
+        std::slice::from_ref(name.slot(db)),
+        table.iter(),
+    );
+    if matching.is_empty() {
+        return None;
+    }
+    if matching.iter().any(|arities| arities.is_empty()) {
+        return Some(Arc::new(Vec::new()));
+    }
+    let mut arities = matching
+        .into_iter()
+        .flat_map(|arities| arities.iter().copied())
+        .collect::<Vec<_>>();
+    arities.sort_unstable();
+    arities.dedup();
+    Some(Arc::new(arities))
+}
+
+#[salsa::tracked(returns(clone))]
+fn original_command_arity_for_inputs<'db>(
+    db: &'db dyn TclDb,
+    project: Project,
+    name: OriginalCommandSlot<'db>,
+) -> Option<Arc<Vec<(usize, usize)>>> {
+    use tcl_compiler::analyser::ItemKind;
+    let headers = original_command_signatures_for_inputs(db, project, name)?;
+    let mut arities = if headers.iter().any(|header| header.kind() != ItemKind::Proc) {
+        Vec::new()
+    } else {
+        headers
+            .iter()
+            .map(|header| proc_arity(header.formal_count_projection()))
+            .collect()
+    };
+    arities.sort_unstable();
+    arities.dedup();
+    Some(Arc::new(arities))
+}
+
+/// Header arity assistance at an authentic original call's retained lookup.
+/// Ordered paths and policy come from the shared owner; unknown alternatives
+/// cannot be replaced by a bare-tail search. Each demanded slot retains the
+/// signature query's early cutoff independently of unrelated declarations.
+#[must_use]
+pub fn original_lookup_command_arities(
+    db: &dyn TclDb,
+    project: Project,
+    lookup: &tcl_compiler::command_binding::OriginalCommandLookup,
+) -> Option<Arc<Vec<(usize, usize)>>> {
+    original_lookup_command_arities_with_mode(
+        (db, project, ProjectSourceInputMode::Standalone),
+        lookup,
+    )
+}
+
+fn original_lookup_command_arities_with_mode(
+    source: (&dyn TclDb, Project, ProjectSourceInputMode),
+    lookup: &tcl_compiler::command_binding::OriginalCommandLookup,
+) -> Option<Arc<Vec<(usize, usize)>>> {
+    let (db, project, mode) = source;
+    let mut slots = Vec::new();
+    for candidate in lookup.candidates().iter().flatten() {
+        if slots.iter().any(|(slot, _)| slot == candidate) {
+            continue;
+        }
+        let key = OriginalCommandSlot::new(db, lookup.policy(), candidate.clone());
+        let arities = match mode {
+            ProjectSourceInputMode::Standalone => original_command_arity(db, project, key),
+            ProjectSourceInputMode::Supplied => original_command_arity_for_inputs(db, project, key),
+        };
+        if let Some(arities) = arities {
+            slots.push((candidate.clone(), arities));
+        }
+    }
+    let selected = lookup.matching_slot_publications(
+        slots
+            .iter()
+            .map(|(slot, arities)| (slot, lookup.policy(), Arc::clone(arities))),
+    )?;
+    if selected.is_empty() {
+        return None;
+    }
+    if selected.iter().any(|arities| arities.is_empty()) {
+        return Some(Arc::new(Vec::new()));
+    }
+    let mut arities = selected
+        .iter()
+        .flat_map(|arities| arities.iter().copied())
+        .collect::<Vec<_>>();
+    arities.sort_unstable();
+    arities.dedup();
+    Some(Arc::new(arities))
+}
+
+/// A Logical source slot carries no Native lookup policy or publication.
+#[salsa::interned]
+struct LogicalSourceCommandSlot<'db> {
+    #[returns(ref)]
+    slot: tcl_core_types::ByteCommandSlot,
+}
+
+// Each entry is a body-free projection of independently checked source headers.
+// Missing command-like header ownership keeps the project inventory unavailable.
+fn merge_logical_source_arities(
+    signatures: impl IntoIterator<Item = Arc<Vec<ItemSig>>>,
+) -> Option<HashMap<tcl_core_types::ByteCommandSlot, Vec<(usize, usize)>>> {
+    use tcl_compiler::analyser::ItemKind;
+    let mut entries: HashMap<_, (Vec<_>, bool)> = HashMap::new();
+    for signatures in signatures {
+        for signature in signatures.iter().filter(|signature| {
+            matches!(
+                signature.id.kind,
+                ItemKind::Proc | ItemKind::Class | ItemKind::Alias | ItemKind::Ensemble
+            )
+        }) {
+            let slot = signature.logical_source_coordinate.as_ref()?;
+            let entry = entries.entry(slot.clone()).or_default();
+            if signature.id.kind == ItemKind::Proc {
+                entry.0.push(proc_arity(signature.formal_count));
+            } else {
+                entry.1 = true;
+            }
+        }
+    }
+    Some(
+        entries
+            .into_iter()
+            .map(|(slot, (arities, non_proc))| (slot, if non_proc { Vec::new() } else { arities }))
+            .collect(),
+    )
+}
+
+#[salsa::tracked(returns(clone))]
+fn project_logical_source_arities(
+    db: &dyn TclDb,
+    project: Project,
+    supplied: bool,
+) -> Option<Arc<HashMap<tcl_core_types::ByteCommandSlot, Vec<(usize, usize)>>>> {
+    let mut signatures = Vec::new();
+    for &file in project.files(db) {
+        signatures.push(if supplied {
+            let config = project_token_inputs::configuration_for_file(db, project, file)?;
+            project_source_inputs::checked_item_sigs_for_config(db, file, config)?
+        } else {
+            item_sigs(db, file)
+        });
+    }
+    merge_logical_source_arities(signatures).map(Arc::new)
+}
+
+#[salsa::tracked(returns(clone))]
+fn logical_source_command_arity<'db>(
+    db: &'db dyn TclDb,
+    project: Project,
+    key: LogicalSourceCommandSlot<'db>,
+    supplied: bool,
+) -> Option<Arc<Vec<(usize, usize)>>> {
+    project_logical_source_arities(db, project, supplied)?
+        .get(key.slot(db))
+        .cloned()
+        .map(Arc::new)
 }
 
 /// Build the cross-file wrong-argument-count diagnostic for a call to a workspace
@@ -1409,6 +1850,7 @@ fn cross_file_arity_diagnostic(
         return None;
     };
     Some(Diagnostic {
+        subject: None,
         code,
         span,
         message,
@@ -1418,8 +1860,8 @@ fn cross_file_arity_diagnostic(
 }
 
 /// Diagnose one exact callback argument count when no visible proc candidate
-/// accepts it. Unlike the direct-call compatibility helper above, this also
-/// handles a genuine gap between disjoint same-tail proc arities: every
+/// accepts it. Unlike the direct-call count envelope above, this also
+/// handles a genuine gap between disjoint selected proc arities: every
 /// possible target rejects the count, so E005 is the precise shape error.
 fn callback_exact_arity_diagnostic(
     name: &str,
@@ -1439,6 +1881,7 @@ fn callback_exact_arity_diagnostic(
         return Some(diag);
     }
     Some(Diagnostic {
+        subject: None,
         code: DiagCode::E005,
         span,
         message: format!(
@@ -1449,167 +1892,140 @@ fn callback_exact_arity_diagnostic(
     })
 }
 
-/// Legacy standalone project resolution: a W123 (unknown
-/// command) whose command tail is a workspace proc is **suppressed** (resolved
-/// cross-file); if that call's arg count is known and fits **none** of the
-/// proc's arities, a cross-file arity error (`E002`/`E003`, the analyser's own
-/// codes) replaces it. The server does not use this direct-call resolver: it
-/// settles direct calls once through its workspace-index oracle. `arities`
-/// empty ⇒ no project context ⇒ status-quo diagnostics.
-///
-/// `unresolved_sites` are the call sites of unknown commands
-/// ([`AnalysisResult::unresolved_command_sites`]), recorded by the analyser
-/// **regardless of whether W123 is disabled** — so cross-file arity is independent
-/// of the W123 toggle (matching local arity), since the arity check keys off these
-/// rather than the (possibly filtered) W123 diagnostic.
-///
-/// `is_disabled` reads the analyser's `disabled_diagnostics` for the
-/// synthesised arity code: the synthesised arity codes honour the same
-/// production skip as the analyser's own; whether they show is the policy
-/// step's decision.
-#[must_use]
-pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
-    diags: &[tcl_compiler::analyser::types::Diagnostic],
-    unresolved_sites: &[(tcl_lexer::Span, String)],
-    invocations: &[tcl_compiler::signature_scan::types::SignatureCommandInvocation],
-    arities: &HashMap<String, Vec<(usize, usize)>, S>,
-    is_disabled: impl Fn(&str) -> bool,
-) -> Vec<tcl_compiler::analyser::types::Diagnostic> {
-    if arities.is_empty() {
-        return diags.to_vec();
-    }
-    // Suppress every W123 that resolves cross-file (its tail is a workspace
-    // command); a genuinely-unknown command's W123 is kept.
-    let mut out: Vec<tcl_compiler::analyser::types::Diagnostic> = diags
-        .iter()
-        .filter(|d| {
-            d.code != DiagCode::W123
-                || !w123_command(&d.message).is_some_and(|name| arities.contains_key(name))
-        })
-        .cloned()
-        .collect();
-    // Cross-file arity: for each unresolved call site that resolves to a workspace
-    // **proc** (non-empty arity list) with a known arg count fitting no arity, emit
-    // E002/E003 — unless that code is disabled.  Driven off the toggle-independent
-    // `unresolved_sites`, so disabling W123 does not also silence arity.
-    let argc_by_span: HashMap<(u32, u32), Option<usize>> = invocations
-        .iter()
-        .map(|inv| ((inv.range.start(), inv.range.end()), inv.argc))
-        .collect();
-    for (span, name) in unresolved_sites {
-        if let Some(candidates) = arities.get(name)
-            && !candidates.is_empty()
-            && let Some(Some(argc)) = argc_by_span.get(&(span.start(), span.end()))
-            && let Some(diag) =
-                cross_file_arity_diagnostic(name, *span, (*argc, Some(*argc)), candidates)
-            && !is_disabled(diag.code.as_str())
-        {
-            out.push(diag);
+#[derive(Clone, Copy)]
+enum ProjectSourceInputMode {
+    Standalone,
+    Supplied,
+}
+
+/// Local canonical signatures do not read the project table. Authenticated
+/// external source names and unknown local targets use exact byte geometry;
+/// explicit source refusals never borrow a surviving project declaration.
+fn callback_source_target_signatures(
+    db: &dyn TclDb,
+    project: Project,
+    selection: &tcl_compiler::analyser::SourceCallbackSignatureLookup,
+    mode: ProjectSourceInputMode,
+) -> Option<Arc<Vec<tcl_compiler::analyser::SourceDeclarationSignature>>> {
+    use tcl_compiler::command_binding::OriginalSourceCallbackProcedureTargetKind as Kind;
+    let original = selection.original();
+    if let Some(target) = original.target() {
+        match target.kind() {
+            Kind::LocalProcedure => Some(Arc::new(Vec::new())),
+            Kind::ExternalSourceName => {
+                let key = OriginalCommandSlot::new(
+                    db,
+                    target.target_input().native_input()?.policy(),
+                    target.source_slot().clone(),
+                );
+                match mode {
+                    ProjectSourceInputMode::Standalone => {
+                        original_command_signatures(db, project, key)
+                    }
+                    ProjectSourceInputMode::Supplied => {
+                        original_command_signatures_for_inputs(db, project, key)
+                    }
+                }
+            }
         }
+    } else if original.permits_external_signature_lookup() {
+        match mode {
+            ProjectSourceInputMode::Standalone => {
+                original_lookup_command_signatures(db, project, selection.prefix().lookup()?)
+            }
+            ProjectSourceInputMode::Supplied => original_lookup_command_signatures_for_inputs(
+                db,
+                project,
+                selection.prefix().lookup()?,
+            ),
+        }
+    } else {
+        None
     }
-    apply_callback_arity(&mut out, invocations, arities, &is_disabled);
-    out
 }
 
-/// Add only command-prefix callback arity diagnostics to a file's analyser
-/// diagnostics.
-///
-/// Direct cross-file command existence and direct-call arity are settled by
-/// the server's workspace-index oracle. Keeping this helper limited to
-/// callback metadata lets the opt-in project pass retain that independent
-/// check without competing for direct-call verdicts.
-///
-/// `is_disabled` reads the analyser's `disabled_diagnostics`: the synthesised
-/// arity codes honour the same production skip as the analyser's own; whether
-/// they show is the policy step's decision.
-#[must_use]
-pub fn apply_project_callback_arity<S: std::hash::BuildHasher>(
-    diags: &[tcl_compiler::analyser::types::Diagnostic],
-    invocations: &[tcl_compiler::signature_scan::types::SignatureCommandInvocation],
-    arities: &HashMap<String, Vec<(usize, usize)>, S>,
-    is_disabled: impl Fn(&str) -> bool,
-) -> Vec<tcl_compiler::analyser::types::Diagnostic> {
-    let mut out = diags.to_vec();
-    apply_callback_arity(&mut out, invocations, arities, is_disabled);
-    out
-}
-
-/// Validate command-prefix **callback** arity: for each recorded callback head
-/// (`lsort -command myCompare` → `myCompare` with `callback_arity =
-/// Exactly(2)`), check that the referenced project proc accepts the arguments
-/// the calling command appends.
-///
-/// The effective arg count is `baked` args already in the prefix (`{myCmp
-/// extra}` bakes one; a bare word bakes zero) plus the command's appended
-/// arity. `Exactly(n)` checks one count; `OneOf(set)` requires the proc to
-/// accept every exact alternative; `AtLeast(n)` retains the conservative open
-/// range. Skipped for `Unknown`/absent arities and for tails the project
-/// resolves with a non-proc (empty candidate list).
-/// Same-file callbacks are covered too: `project_command_arities` aggregates
-/// every file, so a same-file proc's arity is in `arities`.
-fn apply_callback_arity<S: std::hash::BuildHasher>(
+#[cfg(test)]
+fn apply_original_callback_arity<'a>(
+    db: &dyn TclDb,
+    project: Project,
     out: &mut Vec<tcl_compiler::analyser::types::Diagnostic>,
-    invocations: &[tcl_compiler::signature_scan::types::SignatureCommandInvocation],
-    arities: &HashMap<String, Vec<(usize, usize)>, S>,
+    invocations: impl IntoIterator<
+        Item = &'a tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    >,
     is_disabled: impl Fn(&str) -> bool,
 ) {
-    for inv in invocations {
-        let Some(appended) = inv.callback_arity else {
+    apply_original_callback_arity_with_mode(
+        (db, project, ProjectSourceInputMode::Standalone),
+        out,
+        invocations,
+        is_disabled,
+    );
+}
+
+fn apply_original_callback_arity_with_mode<'a>(
+    source: (&dyn TclDb, Project, ProjectSourceInputMode),
+    out: &mut Vec<tcl_compiler::analyser::types::Diagnostic>,
+    invocations: impl IntoIterator<
+        Item = &'a tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    >,
+    is_disabled: impl Fn(&str) -> bool,
+) {
+    let (db, project, mode) = source;
+    use tcl_compiler::analyser::{
+        Diagnostic, DiagnosticSubject, Severity, SourceCallbackArityIssue as Issue,
+        SourceCallbackAritySubject,
+    };
+    for invocation in invocations {
+        let Some(selection) = invocation.original_callback_signature_lookup.as_ref() else {
+            // A prefix's scope geometry alone does not own source occupancy.
             continue;
         };
-        if !appended.is_checkable() {
-            continue;
-        }
-        // Tail-resolve the callback head against the project arity table.
-        let tail = inv.name.rsplit("::").next().unwrap_or(&inv.name);
-        let Some(candidates) = arities.get(tail) else {
+        let Some(headers) = callback_source_target_signatures(db, project, selection, mode) else {
             continue;
         };
-        if candidates.is_empty() {
+        let Some(subject) =
+            SourceCallbackAritySubject::from_source_lookup(Arc::clone(selection), &headers)
+        else {
+            continue;
+        };
+        let issue = subject.issue();
+        let code = issue.code();
+        if is_disabled(code.as_str()) {
             continue;
         }
-        // Baked args already present in the prefix (0 for a bareword head,
-        // N for a braced multi-word prefix like `-command {cb a b}`).
-        let baked = inv.callback_baked_args;
-        let diagnostic = if let Some(exact_counts) = appended.exact_counts() {
-            exact_counts
-                .map(|count| baked + usize::from(count))
-                .find_map(|count| {
-                    callback_exact_arity_diagnostic(&inv.name, inv.range, count, candidates)
-                })
-        } else {
-            let lo = baked + appended.min() as usize;
-            let hi = appended.max().map(|m| baked + m as usize);
-            cross_file_arity_diagnostic(&inv.name, inv.range, (lo, hi), candidates)
+        // Presentation is independent of exact retained name bytes and policy.
+        let name = String::from_utf8_lossy(subject.prefix().name_input().bytes());
+        let message = match issue {
+            Issue::TooFew {
+                supplied,
+                expected_minimum,
+            } => format!(
+                "Too few arguments for '{name}': expected at least {expected_minimum}, got {supplied}"
+            ),
+            Issue::TooMany {
+                supplied,
+                expected_maximum,
+            } => format!(
+                "Too many arguments for '{name}': expected at most {expected_maximum}, got {supplied}"
+            ),
+            Issue::NoCompatibleSignature { supplied } => format!(
+                "Wrong argument count for callback '{name}': no visible definition accepts {supplied} arguments"
+            ),
         };
-        if let Some(diag) = diagnostic
-            && !is_disabled(diag.code.as_str())
-        {
-            out.push(diag);
-        }
+        out.push(
+            Diagnostic::new(code, subject.span(), message, Severity::Error)
+                .with_subject(DiagnosticSubject::CallbackSourceArity(Arc::new(subject))),
+        );
     }
 }
 
-/// Legacy standalone analyser diagnostics for `file` resolved against the
-/// project:
-/// cross-file-resolvable W123 (unknown command) suppressed, plus a
-/// cross-file arity error (`E002`/`E003`) for calls to workspace procs with a bad
-/// arg count. Server diagnostics use the workspace index for direct calls;
-/// this query remains for the database corpus and incremental-resolution tests.
-///
-/// Deliberately a **separate query off the paramount [`file_analysis`] path**:
-/// `file_analysis` stays project-independent (so a signature change in another
-/// file cannot regress this file's time-to-first-tokens), and this
-/// debounced/non-paramount query layers cross-file resolution on top.  It depends
-/// only on `file_analysis(file, config)` + the firewalled [`project_command_arities`],
-/// so a **body** edit in any file recomputes nothing here; only a proc-decl /
-/// signature change (or this file's own edit) does — precise cross-file
-/// reverse-dependency invalidation, for free, from salsa.
-///
-/// Cross-file arity is **independent of the W123 toggle**: it keys off
-/// [`AnalysisResult::unresolved_command_sites`], which the analyser records even
-/// when W123 is disabled, so a wrong-arg cross-file call still reports `E002`/`E003`
-/// (matching local arity) regardless of the user's W123 setting.
+/// Standalone project source-header advice for retained original occurrences.
+/// Foreign headers use each file's explicit compatibility defaults. Use
+/// [`project_diagnostics_for_inputs`] for checked per-file project inputs.
+/// Native source lookups keep their independent retained policy/slot purpose;
+/// Logical calls require their genuine Document/body frame recipe and complete
+/// original argv. Missing ownership and earlier opaque mutations preserve the
+/// original diagnostics. Project headers supply no installed lookup or entry.
 #[salsa::tracked(returns(clone))]
 pub fn project_diagnostics(
     db: &dyn TclDb,
@@ -1626,55 +2042,349 @@ pub fn project_diagnostics(
     // `file` — a cache hit, not a second whole-file analysis.
     let analysis = file_analysis_incremental(db, file, config);
 
-    // Per-symbol demand (the precision lever): resolve only the command tails this
-    // file actually references — every unknown-command (W123) tail and every
-    // recorded unresolved call site — through the early-cutoff `command_arity`
-    // accessor, building the same `tail -> arities` map shape
-    // `apply_cross_file_resolution` reads.  Depending on *those symbols'*
-    // resolutions rather than the whole `project_command_arities` table is what
-    // stops an unrelated proc's signature edit from re-running this file's
-    // cross-file diagnostics (see `command_arity`).
-    let mut tails: BTreeSet<&str> = BTreeSet::new();
-    for diag in &analysis.diagnostics {
-        if diag.code == DiagCode::W123
-            && let Some(name) = w123_command(&diag.message)
-        {
-            tails.insert(name);
-        }
-    }
-    for (_, name) in &analysis.unresolved_command_sites {
-        tails.insert(name.as_str());
-    }
-    // Command-prefix callback heads (`lsort -command myCompare`) resolve (they
-    // are not W123/unresolved), so their target proc's arity would not be
-    // loaded — pull each callback tail in so `apply_callback_arity` can check it.
-    for inv in &analysis.command_invocations {
-        if inv.callback_arity.is_some() {
-            tails.insert(inv.name.rsplit("::").next().unwrap_or(&inv.name));
-        }
-    }
-    let mut arities: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
-    for tail in tails {
-        if let Some(resolved) = command_arity(db, project, CommandTail::new(db, tail.to_owned())) {
-            arities.insert(tail.to_owned(), (*resolved).clone());
-        }
-    }
-
-    Arc::new(apply_cross_file_resolution(
-        &analysis.diagnostics,
-        &analysis.unresolved_command_sites,
-        &analysis.command_invocations,
-        &arities,
-        |code| disabled.iter().any(|c| c == code),
+    Arc::new(project_source_diagnostics_for_analysis(
+        (db, project, ProjectSourceInputMode::Standalone),
+        file.text(db),
+        &analysis,
+        |code| disabled.iter().any(|disabled| disabled == code),
     ))
 }
 
-/// Opt-in project diagnostics that validate command-prefix callback arity.
-///
-/// Direct command calls deliberately do not pass through this query: the
-/// server settles their existence and arity once, against the workspace index,
-/// for both settings of `crossFileResolution`. This query preserves the
-/// project-wide callback check, whose command metadata is not a direct call.
+/// Project source-header advice using every member's checked document input.
+/// Missing member configuration or source ownership preserves diagnostics;
+/// compatibility defaults never replace an unavailable supplied header.
+#[salsa::tracked(returns(clone))]
+pub fn project_diagnostics_for_inputs(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+    project: Project,
+) -> Arc<Vec<tcl_compiler::analyser::types::Diagnostic>> {
+    let analysis = file_analysis_incremental(db, file, config);
+    if project_token_inputs::configuration_for_file(db, project, file) != Some(config) {
+        return Arc::new(analysis.diagnostics.clone());
+    }
+    Arc::new(project_source_diagnostics_for_analysis(
+        (db, project, ProjectSourceInputMode::Supplied),
+        file.text(db),
+        &analysis,
+        |code| {
+            config
+                .disabled_diagnostics(db)
+                .iter()
+                .any(|disabled| disabled == code)
+        },
+    ))
+}
+
+fn project_source_diagnostics_for_analysis(
+    source: (&dyn TclDb, Project, ProjectSourceInputMode),
+    text: &str,
+    analysis: &AnalysisResult,
+    is_disabled: impl Fn(&str) -> bool,
+) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    let (db, project, mode) = source;
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return analysis.diagnostics.clone();
+    };
+    if !analysis.matches_original_source_image(
+        &tcl_lexer::SourceImage::document(text),
+        input.lexer_config(),
+    ) {
+        return analysis.diagnostics.clone();
+    }
+    // Each original coordinate is demanded independently so unrelated header
+    // changes keep the per-slot query's early cutoff.
+    let unresolved = analysis
+        .unresolved_command_sites
+        .iter()
+        .map(|(span, _)| (span.start(), span.end()))
+        .collect::<std::collections::HashSet<_>>();
+    let logical_source = analysis.allows_retained_logical_declaration_advice();
+    let original_sites = analysis
+        .command_invocations
+        .iter()
+        .filter(|invocation| {
+            !logical_source
+                && invocation.original_name_input.is_some()
+                && unresolved.contains(&(invocation.range.start(), invocation.range.end()))
+        })
+        .map(|invocation| {
+            (
+                (invocation.range.start(), invocation.range.end()),
+                invocation.original_lookup.as_ref().and_then(|lookup| {
+                    original_lookup_command_arities_with_mode((db, project, mode), lookup)
+                }),
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    let mut logical_sites = BTreeMap::new();
+    for candidate in
+        tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates(
+            text, analysis,
+        )
+        .into_iter()
+        .flatten()
+    {
+        let Some(head) = candidate.original_head() else {
+            continue;
+        };
+        let span = head.span();
+        let key = (span.start(), span.end());
+        if original_sites.contains_key(&key) {
+            // A present original Native source owner is terminal even when it
+            // cannot supply a project signature.
+            continue;
+        }
+        let Some(coordinates) = candidate.external_header_coordinates() else {
+            continue;
+        };
+        if candidate.has_earlier_unknown_mutations() || candidate.has_lookup_operand_effects() {
+            continue;
+        }
+        let Some(arities) = coordinates.iter().find_map(|slot| {
+            logical_source_command_arity(
+                db,
+                project,
+                LogicalSourceCommandSlot::new(db, slot.clone()),
+                matches!(mode, ProjectSourceInputMode::Supplied),
+            )
+        }) else {
+            continue;
+        };
+        logical_sites.insert(key, (candidate, arities));
+    }
+    let mut diagnostics = analysis
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic.code != DiagCode::W123
+                || (!original_sites.contains_key(&(diagnostic.span.start(), diagnostic.span.end()))
+                    && !logical_sites
+                        .contains_key(&(diagnostic.span.start(), diagnostic.span.end())))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    diagnostics.extend(
+        analysis
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| {
+                diagnostic.code == DiagCode::W123
+                    && original_sites
+                        .get(&(diagnostic.span.start(), diagnostic.span.end()))
+                        .is_some_and(Option::is_none)
+            })
+            .cloned(),
+    );
+    for invocation in &analysis.command_invocations {
+        let Some(Some(candidates)) =
+            original_sites.get(&(invocation.range.start(), invocation.range.end()))
+        else {
+            continue;
+        };
+        let Some(argc) = invocation.argc else {
+            continue;
+        };
+        if !candidates.is_empty()
+            && let Some(diagnostic) = cross_file_arity_diagnostic(
+                &invocation.name,
+                invocation.range,
+                (argc, Some(argc)),
+                candidates,
+            )
+            && !is_disabled(diagnostic.code.as_str())
+        {
+            diagnostics.push(diagnostic);
+        }
+    }
+    for (candidate, arities) in logical_sites.values() {
+        if arities.is_empty() {
+            continue;
+        }
+        let Some(argc) = candidate.argument_count() else {
+            continue;
+        };
+        let Some(head) = candidate.original_head() else {
+            continue;
+        };
+        let Some(name) = tcl_syntax::word_rules::original_static_word_unicode_value(head) else {
+            continue;
+        };
+        let name = String::from_utf8_lossy(&name);
+        if let Some(diagnostic) =
+            cross_file_arity_diagnostic(&name, head.span(), (argc, Some(argc)), arities)
+            && !is_disabled(diagnostic.code.as_str())
+        {
+            diagnostics.push(diagnostic);
+        }
+    }
+    apply_logical_source_callback_arity(
+        (db, project, mode),
+        text,
+        analysis,
+        &mut diagnostics,
+        &is_disabled,
+    );
+    apply_original_callback_arity_with_mode(
+        (db, project, mode),
+        &mut diagnostics,
+        retained_callback_invocations(analysis),
+        &is_disabled,
+    );
+    diagnostics
+}
+
+/// Original callback rows that still belong to this analysis's complete input.
+/// Reissuing the existing lower-owner join also verifies its local canonical
+/// declaration, independently of mutable invocation labels and count fields.
+fn retained_callback_invocations(
+    analysis: &AnalysisResult,
+) -> impl Iterator<Item = &tcl_compiler::signature_scan::types::SignatureCommandInvocation> {
+    analysis.command_invocations.iter().filter(|invocation| {
+        let Some(selection) = invocation.original_callback_signature_lookup.as_ref() else {
+            return false;
+        };
+        tcl_compiler::analyser::SourceCallbackSignatureLookup::from_original_lookup(
+            analysis,
+            Arc::new(selection.prefix().clone()),
+            Arc::new(selection.original().clone()),
+        )
+        .as_ref()
+            == Some(selection.as_ref())
+    })
+}
+
+/// Add project callback signature advice to an already analysed complete source.
+/// The source channel, lexer configuration and retained input must agree;
+/// foreign or missing ownership preserves the supplied analyser diagnostics.
+/// Known source barriers and missing registration horizons never borrow tails.
+/// Local canonical headers and exact held external names share the original
+/// callback owner. Logical prefixes require their independently selected source
+/// role, frame recipe and exact declaration coordinate; reported names and counts
+/// supply no lookup assistance.
+/// This supplies no installed callback, future entry or execution verdict.
+/// Project headers in this compatibility entry use the explicit standalone
+/// provider. Document callers use [`project_callback_diagnostics_for_analysis_with_inputs`].
+#[must_use]
+pub fn project_callback_diagnostics_for_analysis(
+    db: &dyn TclDb,
+    project: Project,
+    source: &str,
+    analysis: &AnalysisResult,
+    is_disabled: impl Fn(&str) -> bool,
+) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    project_callback_diagnostics_with_mode(
+        (db, project, ProjectSourceInputMode::Standalone),
+        source,
+        analysis,
+        is_disabled,
+    )
+}
+
+fn apply_logical_source_callback_arity(
+    source: (&dyn TclDb, Project, ProjectSourceInputMode),
+    text: &str,
+    analysis: &AnalysisResult,
+    out: &mut Vec<tcl_compiler::analyser::Diagnostic>,
+    is_disabled: impl Fn(&str) -> bool,
+) {
+    let (db, project, mode) = source;
+    let Some(callbacks) =
+        tcl_compiler::registry_invocation::source_structure::source_logical_callback_candidates(
+            text, analysis,
+        )
+    else {
+        return;
+    };
+    for callback in callbacks {
+        // Earlier opaque mutations retain their unresolved alternatives. A
+        // conditional source prefix is not permission to discard that risk.
+        if callback.registration().obligations().contains(
+            &tcl_compiler::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation,
+        ) { continue; }
+        if callback.has_lookup_operand_effects() {
+            continue;
+        }
+        let appended = callback.appended_arity();
+        if !appended.is_checkable() {
+            continue;
+        }
+        let Some(coordinates) = callback.external_header_coordinates() else {
+            continue;
+        };
+        let Some(candidates) = coordinates.iter().find_map(|slot| {
+            logical_source_command_arity(
+                db,
+                project,
+                LogicalSourceCommandSlot::new(db, slot.clone()),
+                matches!(mode, ProjectSourceInputMode::Supplied),
+            )
+        }) else {
+            continue;
+        };
+        if candidates.is_empty() {
+            continue;
+        }
+        let Some(span) = callback.head().source_span() else {
+            continue;
+        };
+        let baked = callback.baked_argument_count();
+        let name = callback.head().value();
+        let diagnostic = if let Some(counts) = appended.exact_counts() {
+            counts
+                .map(|count| baked + usize::from(count))
+                .find_map(|count| callback_exact_arity_diagnostic(name, span, count, &candidates))
+        } else {
+            let minimum = baked + appended.min() as usize;
+            let maximum = appended.max().map(|maximum| baked + maximum as usize);
+            cross_file_arity_diagnostic(name, span, (minimum, maximum), &candidates)
+        };
+        if let Some(diagnostic) = diagnostic
+            && !is_disabled(diagnostic.code.as_str())
+        {
+            out.push(diagnostic);
+        }
+    }
+}
+
+fn project_callback_diagnostics_with_mode(
+    project_input: (&dyn TclDb, Project, ProjectSourceInputMode),
+    source: &str,
+    analysis: &AnalysisResult,
+    is_disabled: impl Fn(&str) -> bool,
+) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    let (db, project, mode) = project_input;
+    // naming.database.original-project-callback-projection
+
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return analysis.diagnostics.clone();
+    };
+    if !analysis.matches_original_source_image(
+        &tcl_lexer::SourceImage::document(source),
+        input.lexer_config(),
+    ) {
+        return analysis.diagnostics.clone();
+    }
+    let mut diagnostics = analysis.diagnostics.clone();
+    apply_logical_source_callback_arity(
+        (db, project, mode),
+        source,
+        analysis,
+        &mut diagnostics,
+        &is_disabled,
+    );
+    apply_original_callback_arity_with_mode(
+        (db, project, mode),
+        &mut diagnostics,
+        retained_callback_invocations(analysis),
+        is_disabled,
+    );
+    diagnostics
+}
+
+/// Opt-in callback signature diagnostics from the same supplied-analysis owner.
+/// Direct calls retain the server's separate workspace-index settlement.
 #[salsa::tracked(returns(clone))]
 pub fn project_callback_diagnostics(
     db: &dyn TclDb,
@@ -1684,23 +2394,12 @@ pub fn project_callback_diagnostics(
 ) -> Arc<Vec<tcl_compiler::analyser::types::Diagnostic>> {
     let disabled = config.disabled_diagnostics(db);
     let analysis = file_analysis_incremental(db, file, config);
-    let mut tails: BTreeSet<&str> = BTreeSet::new();
-    for inv in &analysis.command_invocations {
-        if inv.callback_arity.is_some() {
-            tails.insert(inv.name.rsplit("::").next().unwrap_or(&inv.name));
-        }
-    }
-    let mut arities: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
-    for tail in tails {
-        if let Some(resolved) = command_arity(db, project, CommandTail::new(db, tail.to_owned())) {
-            arities.insert(tail.to_owned(), (*resolved).clone());
-        }
-    }
-    Arc::new(apply_project_callback_arity(
-        &analysis.diagnostics,
-        &analysis.command_invocations,
-        &arities,
-        |code| disabled.iter().any(|c| c == code),
+    Arc::new(project_callback_diagnostics_for_analysis(
+        db,
+        project,
+        file.text(db),
+        &analysis,
+        |code| disabled.iter().any(|disabled| disabled == code),
     ))
 }
 
@@ -1794,14 +2493,12 @@ pub struct ItemBodyKey<'db> {
     ///     opt-out exactly as much as the whole-file walk does; the nested
     ///     pair is what stops a future edit from cloning one without the
     ///     other.
-    /// - `.1` — the enclosing safe-interpreter visibility context, mirroring
-    ///   [`tcl_compiler::analyser::per_item::DeferredBody::safe_interp_ctx`]
-    ///   exactly (same flattened, sorted-`Vec` shape, for the same reason:
-    ///   a live `HashSet`-based `SafeInterpCtx` isn't `Hash` and can't key
-    ///   an interned salsa struct). Part of the cache key so a proc/apply
-    ///   body that moves in or out of a tracked safe interpreter between
-    ///   edits gets re-analysed rather than serving a stale cached `W129`
-    ///   verdict.
+    /// - `.1` — the complete original conditional child-visibility receipt,
+    ///   mirroring
+    ///   [`tcl_compiler::analyser::per_item::DeferredBody::safe_interp_ctx`].
+    ///   Its hash retains full source/configuration, immutable editing input,
+    ///   scoped visible slots and independent hidden-token relationships.
+    ///   It never supplies selected callability or native hidden-table identity.
     /// - `.2` — the workspace **class factory** oracle
     ///   ([`SourceFile::workspace_class_factories`]). A
     ///   `Meta create …` inside a proc body is classified by the whole-file
@@ -1822,8 +2519,9 @@ pub struct ItemBodyKey<'db> {
             )>,
             Vec<String>,
         ),
-        Option<(bool, Vec<String>, Vec<String>)>,
+        Option<tcl_compiler::analyser::SourceInterpreterVisibilitySnapshot>,
         Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
+        Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
     ),
     #[returns(ref)]
     pub dialect: String,
@@ -1847,6 +2545,7 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
         None => (None, None),
     };
     let body = DeferredBody {
+        resolved_input: key.body_env(db).3.clone(),
         body_text: Arc::clone(key.body_text(db)),
         body_tok: tcl_lexer::Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, 0)),
         scope_path: Vec::new(),
@@ -1881,18 +2580,30 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
 /// CFG is built under. Interned once per build and shared by every
 /// [`FnLatticeKey`] so a procedure's key stays small and the per-build
 /// interning cost is `O(procs)`, not `O(procs²)`. The entry vecs are sorted
-/// by name before interning so an equal context (regardless of hash-map
+/// by actual body coordinate before interning so an equal context (regardless of hash-map
 /// iteration order) yields the same id.
 #[salsa::interned]
 pub struct CfgContext<'db> {
     #[returns(ref)]
-    pub upvar_ctx: Vec<(String, UpvarInfo)>,
+    pub upvar_ctx: Vec<(tcl_compiler::ir::ProcedureId, UpvarInfo)>,
     #[returns(ref)]
-    pub proc_params: Vec<(String, Vec<String>)>,
+    pub proc_params: Vec<(tcl_compiler::ir::ProcedureId, Vec<String>)>,
     #[returns(ref)]
-    pub global_write_ctx: Vec<(String, GlobalWriteInfo)>,
+    pub global_write_ctx: Vec<(tcl_compiler::ir::ProcedureId, GlobalWriteInfo)>,
     #[returns(ref)]
-    pub command_bindings: ModuleCommandBindings,
+    pub command_bindings: tcl_compiler::body_analysis_capsule::BodyLatticeCommandBindings,
+    /// Genuine Module/source owner of every procedure-effect coordinate.
+    #[returns(ref)]
+    pub procedure_summary_owners: OriginalProcedureSummaryOwners,
+}
+
+/// Exact selected compiler inputs shared by lattice and body memo identities.
+/// Metadata labels are separate; consumers read this retained registry and
+/// reconstruct policy from its full value snapshot.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CompilerMemoSnapshot {
+    pub profile: Option<tcl_dialect::DialectProfileKey>,
+    pub registry: tcl_registry::RegistrySnapshot,
 }
 
 /// Interned identity of one procedure's **offset-0** baseline lattice
@@ -1914,6 +2625,26 @@ pub struct CfgContext<'db> {
 /// reuse is what frees both, and it only reclaims `Durability::LOW` slots
 /// interned inside a tracked query.  See the crate docs' "The interned garbage
 /// collector is load-bearing"; pinned by `tests/interned_gc.rs`.
+/// Conditional entry axes retained together in each function lattice key.
+/// The descriptor is sealed by actual lowering; dispatch mode grants no event.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FnLatticeEntry {
+    /// Actual original declaration-body role, independently of a callable entry.
+    pub original_declaration_body: Option<tcl_compiler::ir::ProcedureId>,
+    /// Trace-visible mode preserves ordinary dynamically replaceable dispatch.
+    pub plain_command_dispatch: bool,
+    /// Original availability purpose; explicit standalone and missing supplied
+    /// metadata are distinct even when both lack a complete source input.
+    pub metadata_context: tcl_compiler::registry_invocation::OwnedInvocationMetadataContext,
+    /// Exact supplied source availability and command generation. Missing input
+    /// declines metadata rather than rebuilding a profile-default context.
+    pub source_metadata_input: Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
+    /// Full original event producer, including source/configuration and Registry.
+    pub irules_event_body: Option<Arc<tcl_compiler::ir::SourceIrulesEventBody>>,
+    /// Full module mutation obligations; no untouched-world substitution.
+    pub command_trust: tcl_compiler::command_binding::CommandTrustSnapshot,
+}
+
 /// The value-transfer analysis context of one module, interned once per
 /// distinct value so a per-procedure [`FnLatticeKey`] carries an id rather
 /// than the context's fields: every procedure of a module shares it, an edit
@@ -1953,10 +2684,35 @@ impl<'db> ValueTransferContext<'db> {
     }
 }
 
+/// Whole-module facts shared by each function lattice. Each original field
+/// participates structurally in equality and hashing of the interned key.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FnLatticeModuleFacts {
+    /// Fully-qualified names of every class in the compilation unit (sorted) —
+    /// a whole-unit fact identical for every procedure, folded into the key so
+    /// adding/removing a class anywhere invalidates each procedure's lattice (a
+    /// new class can change a body's constructor typing).  Threaded into the
+    /// type-propagation pass in [`function_lattice`].
+    pub known_classes: Vec<String>,
+    /// Literal variable-trace target names (sorted) from
+    /// [`tcl_compiler::ir::Module::traced_variables`] — a whole-module fact
+    /// identical for every procedure, folded into the key exactly like
+    /// `known_classes`: SCCP's trace-safety gate (see
+    /// [`tcl_compiler::sccp::sccp`]) treats a name in this set as never a
+    /// compile-time constant, so a trace installed anywhere in the module can
+    /// change any procedure's cached lattice.
+    pub traced_variables: Vec<String>,
+    /// [`tcl_compiler::ir::Module::has_dynamic_variable_trace`] — `true` when
+    /// a variable-trace install/remove call targets a non-literal name
+    /// anywhere in the module. Folded into the key alongside
+    /// `traced_variables`.
+    pub has_dynamic_variable_trace: bool,
+}
+
 #[salsa::interned]
 pub struct FnLatticeKey<'db> {
     #[returns(ref)]
-    pub body: Script,
+    pub body: tcl_compiler::body_analysis_capsule::BodyLatticeInputs,
     #[returns(ref)]
     pub qname: String,
     #[returns(ref)]
@@ -1970,44 +2726,21 @@ pub struct FnLatticeKey<'db> {
     pub lexer_config: tcl_lexer::LexerConfig,
     #[returns(ref)]
     pub dialect: String,
+    /// Full profile and actual authored command surface at ingress.
+    #[returns(ref)]
+    pub snapshot: CompilerMemoSnapshot,
     /// Encoded interprocedural SCCP seeds (`(param, version, string)`, sorted);
     /// empty means none.  Decoded by
     /// [`tcl_compiler::compilation_unit::decode_param_constants`] in [`function_lattice`].
     #[returns(ref)]
     pub param_constants: Vec<(String, u32, String)>,
-    /// Fully-qualified names of every class in the compilation unit (sorted) —
-    /// a whole-unit fact identical for every procedure, folded into the key so
-    /// adding/removing a class anywhere invalidates each procedure's lattice (a
-    /// new class can change a body's constructor typing).  Threaded into the
-    /// type-propagation pass in [`function_lattice`].
+    /// Exact whole-module class and variable-trace facts.
     #[returns(ref)]
-    pub known_classes: Vec<String>,
-    /// Literal variable-trace target names (sorted) from
-    /// [`tcl_compiler::ir::Module::traced_variables`] — a whole-module fact
-    /// identical for every procedure, folded into the key exactly like
-    /// `known_classes`: SCCP's trace-safety gate (see
-    /// [`tcl_compiler::sccp::sccp`]) treats a name in this set as never a
-    /// compile-time constant, so a trace installed anywhere in the module can
-    /// change any procedure's cached lattice.
+    pub module_facts: FnLatticeModuleFacts,
+    /// Exact dispatch mode and sealed source entry, compared structurally.
     #[returns(ref)]
-    pub traced_variables: Vec<String>,
-    /// [`tcl_compiler::ir::Module::has_dynamic_variable_trace`] — `true` when
-    /// a variable-trace install/remove call targets a non-literal name
-    /// anywhere in the module. Folded into the key alongside
-    /// `traced_variables`.
-    #[returns(copy)]
-    pub has_dynamic_variable_trace: bool,
-    /// Trace-visible compilation mode: registry command traits must not turn a
-    /// dynamically replaceable command spelling into builtin-only CFG edges.
-    #[returns(copy)]
-    pub plain_command_dispatch: bool,
-    /// The analysis context every value-transfer answer in the body is
-    /// keyed under (`docs/design/compiler/value-transfers.md` § *One
-    /// invocation, one context*): the module's command-binding evidence, the
-    /// registry and overlay generations, the tier, and the evaluator
-    /// revision. A whole-module fact folded into the key like
-    /// `traced_variables`, so a `rename` anywhere in the file re-keys every
-    /// procedure's lattice — the sensitivity the design asks for.
+    pub entry: FnLatticeEntry,
+    /// Actual module value-transfer context and evaluator revision.
     #[returns(copy)]
     pub analysis_context: ValueTransferContext<'db>,
 }
@@ -2016,78 +2749,141 @@ pub struct FnLatticeKey<'db> {
 /// rendered → intra-procedural taint) for one procedure, built from its interned
 /// offset-0 body + context.  A body-only edit changes only that procedure's
 /// `FnLatticeKey`, so salsa reuses every other procedure's lattice; a shifted
-/// body interns to the same key (cache hit).  Rebuilds the CFG via the same
-/// `build_cfg_function_with_upvars_and_config` call `build_cfg` makes per procedure, so the
+/// body interns to the same key (cache hit). Event bodies additionally retain
+/// their full original event descriptor and source; a changed producer gets a
+/// different key even when executable body bytes agree. Exact supplied source
+/// availability also participates in identity, independently of the profile.
+/// Rebuilds the CFG via the same `build_cfg_function_with_prepared_context`
+/// call `build_cfg` makes per procedure, so the
 /// result equals the whole-module build's unit (modulo offset).  SCCP is seeded
 /// with the key's interprocedural `param_constants` (caller-uniform-literal
 /// folds), decoded back to the seed map `build_for_inner` would pass on the
 /// fresh path — so a procedure with such seeds memoises instead of bypassing the
 /// cache, and rebuilds only when a caller's literal at that position changes (a
 /// new key).  The interprocedural taint re-run still happens at aggregation time
-/// (`with_interprocedural`).  Uses `db.registry` — byte-identical to the
-/// registry both diagnostics consumers build (`build_default` + `load_dialect`).
+/// (`with_interprocedural`). The lowering request retains its exact command
+/// store and supplied source availability; missing or foreign input declines
+/// conditional CFG metadata.
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<FunctionUnit> {
     let context = key.context(db);
-    let upvar: HashMap<String, UpvarInfo> = context.upvar_ctx(db).iter().cloned().collect();
-    let proc_params: HashMap<String, Vec<String>> =
+    let upvar: HashMap<tcl_compiler::ir::ProcedureId, UpvarInfo> =
+        context.upvar_ctx(db).iter().cloned().collect();
+    let proc_params: HashMap<tcl_compiler::ir::ProcedureId, Vec<String>> =
         context.proc_params(db).iter().cloned().collect();
-    let global_write_procs: HashMap<String, GlobalWriteInfo> =
+    let global_write_procs: HashMap<tcl_compiler::ir::ProcedureId, GlobalWriteInfo> =
         context.global_write_ctx(db).iter().cloned().collect();
-    let registry = lattice_registry(db, key);
-    let registry: &CommandRegistry = &registry;
+    let registry = key.snapshot(db).registry.registry();
     // The request's exact grammar, not one reconstructed from the registry or
     // environment name: grammar overrides are part of the memo identity.
     let config = key.lexer_config(db);
-    let cfg = build_cfg_function_with_upvars_and_config(
-        key.qname(db),
-        key.body(db),
-        true,
-        registry,
-        key.plain_command_dispatch(db),
+    let original_inputs = tcl_compiler::compilation_unit::OriginalFunctionLatticeInputs {
+        qname: key.qname(db),
+        params: key.params(db),
+        upvar_procs: &upvar,
+        proc_params: &proc_params,
+        global_write_procs: &global_write_procs,
+        command_bindings: context.command_bindings(db),
+        procedure_summary_owners: context.procedure_summary_owners(db),
+        lexer_config: config,
+        profile: key.snapshot(db).profile,
+        dialect: key.dialect(db),
+        param_constants: key.param_constants(db),
+        known_classes: &key.module_facts(db).known_classes,
+        traced_variables: &key.module_facts(db).traced_variables,
+        has_dynamic_variable_trace: key.module_facts(db).has_dynamic_variable_trace,
+        original_declaration_body: key.entry(db).original_declaration_body,
+        plain_command_dispatch: key.entry(db).plain_command_dispatch,
+        metadata_context: &key.entry(db).metadata_context,
+        source_metadata_input: key.entry(db).source_metadata_input.as_ref(),
+        event_body: key.entry(db).irules_event_body.as_ref(),
+        command_trust: &key.entry(db).command_trust,
+        analysis_context: key.analysis_context(db).key(db),
+    };
+    if let Some(unit) = key
+        .body(db)
+        .original_function_lattice(&original_inputs, registry)
+    {
+        return Arc::new(unit);
+    }
+    let prepared = PreparedCfgContext::from_metadata_input(
         (
             upvar,
             proc_params,
             global_write_procs,
-            context.command_bindings(db).clone(),
+            context.command_bindings(db).bindings().clone(),
+            context.procedure_summary_owners(db).clone(),
         ),
+        registry,
+        tcl_compiler::registry_invocation::InvocationMetadataInput::Retained(
+            &key.entry(db).metadata_context,
+        ),
+    );
+    let cfg = build_cfg_function_with_prepared_context(
+        key.qname(db),
+        key.body(db).body(),
+        true,
+        registry,
+        key.entry(db).plain_command_dispatch,
+        &prepared,
         config,
     );
     let param_constants =
         tcl_compiler::compilation_unit::decode_param_constants(key.param_constants(db));
-    let known_classes: HashSet<String> = key.known_classes(db).iter().cloned().collect();
-    let traced_variables: BTreeSet<String> = key.traced_variables(db).iter().cloned().collect();
+    let known_classes: HashSet<String> =
+        key.module_facts(db).known_classes.iter().cloned().collect();
+    let traced_variables: BTreeSet<String> = key
+        .module_facts(db)
+        .traced_variables
+        .iter()
+        .cloned()
+        .collect();
+    let command_trust = key.entry(db).command_trust.to_mutations();
     let trace_facts = ModuleTraceFacts {
         traced_variables: &traced_variables,
-        has_dynamic_variable_trace: key.has_dynamic_variable_trace(db),
+        has_dynamic_variable_trace: key.module_facts(db).has_dynamic_variable_trace,
         deferred_writes: &key.analysis_context(db).key(db).deferred_writes,
     };
-    Arc::new(
-        FunctionUnit::build_with_param_constants_and_classes_under(
+    let inputs = tcl_compiler::compilation_unit::FunctionLatticeInputs {
+        dialect: tcl_compiler::compilation_unit::UnitDialect {
+            registry,
+            config,
+            source_metadata_input: key.entry(db).source_metadata_input.as_ref(),
+        },
+        param_constants: param_constants.as_ref(),
+        known_classes: &known_classes,
+        trace_facts,
+        analysis_context: key.analysis_context(db).key(db),
+        command_trust: &command_trust,
+        event_body: key
+            .entry(db)
+            .irules_event_body
+            .as_ref()
+            .map(|event| (event, key.body(db).body())),
+    };
+    let unit = if let Some(body_id) = key
+        .entry(db)
+        .original_declaration_body
+        .or_else(|| key.body(db).certified_readonly_source_body_id())
+    {
+        FunctionUnit::build_for_original_declaration_lattice(
+            body_id,
             key.qname(db),
             cfg,
             key.params(db),
-            tcl_compiler::compilation_unit::UnitDialect { registry, config },
-            param_constants.as_ref(),
-            &known_classes,
-            tcl_compiler::compilation_unit::ModuleAnalysisFacts {
-                trace: trace_facts,
-                analysis_context: key.analysis_context(db).key(db),
-                command_trust: key.analysis_context(db).mutations(db),
-            },
+            inputs,
         )
-        .with_semantic_analysis(
-            registry,
-            tcl_compiler::compilation_unit::semantic_context(
-                tcl_lsp_core::optional_profile_for_dialect(key.dialect(db)),
-            ),
-            Some(key.body(db)),
-            // A procedure body runs only after arbitrary interposed history,
-            // so its dispatch proofs start from an unknown world.
-            tcl_compiler::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
-        ),
-    )
+    } else {
+        FunctionUnit::build_for_lattice(key.qname(db), cfg, key.params(db), inputs)
+    };
+    Arc::new(unit.with_retained_semantic_analysis(
+        registry,
+        Some(key.body(db).body()),
+        // A procedure body runs only after arbitrary interposed history,
+        // so its dispatch proofs start from an unknown world.
+        tcl_compiler::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
+    ))
 }
 
 /// Interned identity of one top-level `proc`'s **offset-0** static body source
@@ -2099,7 +2895,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
 /// that proc's `ProcBodyKey`, so salsa reuses every other proc body's lowered
 /// IR; an edit that merely *shifts* a body leaves its key unchanged (the caller
 /// rebases the offset-0 `Script` back to the body's real offset).  Used only for
-/// **context-free bodies** (the per-body gate `lowering::body_cache_eligible`)
+/// **context-free bodies** (the positioned binding owner proves cache eligibility)
 /// where the isolated lowering is byte-identical to the in-place `lower_body`;
 /// guarded by the corpus differential gates (`file_analysis_corpus` /
 /// `compiler_check_corpus`).
@@ -2118,11 +2914,12 @@ pub struct ProcBodyKey<'db> {
     pub namespace: String,
     #[returns(ref)]
     pub dialect: String,
-    /// The workspace pack overlay the body lowers against (`0` for none):
-    /// a pack command's declared roles shape its lowering as a shipped
-    /// command's do.
+    /// Full profile and actual authored command surface at ingress.
+    #[returns(ref)]
+    pub snapshot: CompilerMemoSnapshot,
+    /// Exact normalised grammar used by the original body lowering.
     #[returns(copy)]
-    pub overlay: u64,
+    pub lexer_config: tcl_lexer::LexerConfig,
 }
 
 /// Memoised offset-0 isolated lowering of one top-level `proc` body.
@@ -2134,20 +2931,41 @@ pub struct ProcBodyKey<'db> {
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Script> {
-    let registry = nested_registry(db, key.dialect(db), key.overlay(db));
-    // The body's own environment grammar — the key already carries the
-    // dialect, so the three truncated `LexerConfig` fields are derived
-    // rather than interned as duplicate key fields.
-    let config = tcl_lexer::LexerConfig::from_grammar(
-        tcl_lsp_core::environment_for_dialect(key.dialect(db)).grammar(),
-    );
-    Arc::new(tcl_compiler::lowering::lower_proc_body_isolated(
+    Arc::new(original_lower_proc_body(db, key).body().clone())
+}
+
+/// One actual isolated lowering pass, retaining its complete worker recipe.
+/// The compatibility Script query above projects this same immutable result.
+#[salsa::tracked(lru = 512, returns(clone))]
+pub fn original_lower_proc_body<'db>(
+    db: &'db dyn TclDb,
+    key: ProcBodyKey<'db>,
+) -> tcl_compiler::lowering::OriginalBodyLoweringTemplate {
+    let registry = key.snapshot(db).registry.registry();
+    let profile = key.snapshot(db).profile.map(|snapshot| snapshot.profile());
+    tcl_compiler::lowering::OriginalBodyLoweringTemplate::lower(
         key.body_text(db),
         key.namespace(db),
-        &registry,
-        config,
-        tcl_lsp_core::optional_profile_for_dialect(key.dialect(db)),
-    ))
+        registry,
+        key.lexer_config(db),
+        profile,
+    )
+}
+
+/// Dependency-certified original source syntax request.
+#[salsa::interned]
+pub struct SourceProcBodyKey<'db> {
+    #[returns(ref)]
+    pub request: tcl_compiler::lowering::SourceBodySyntaxRequest,
+}
+
+/// Lower neutral call syntax from genuine pre-lowering source dependencies.
+#[salsa::tracked(lru = 512, returns(clone))]
+pub fn lower_proc_body_source<'db>(
+    db: &'db dyn TclDb,
+    key: SourceProcBodyKey<'db>,
+) -> tcl_compiler::lowering::SourceBodySyntaxTemplate {
+    key.request(db).lower_neutral()
 }
 
 /// Build a `CompilationUnit` (with interprocedural summary applied) whose
@@ -2156,16 +2974,11 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
 ///
 /// Shared by the analyser's CFG/SSA diagnostic tail
 /// ([`file_analysis_incremental`]) and the optimiser's compiler-checks pass
-/// ([`compiler_check_diagnostics`]) so an unchanged procedure's lattice is built
-/// once and reused (rebased to its new offset) across edits *and* across both
-/// consumers' passes — and garbage-collected by salsa, not a process-wide
-/// content cache.  Byte-identical to
-/// [`CompilationUnit::build_for_with_config`] `+ with_interprocedural`.
-///
-/// The two consumers lower with different [`tcl_lexer::LexerConfig`]s (which can
-/// change a `{*}`/`}{` body's IR), so the same procedure can intern to two
-/// different bodies; because the **post-lowering body is part of the key**, the
-/// two never cross-pollute — no explicit namespace is needed.
+/// ([`compiler_check_diagnostics`]). Admitted baseline lattices and neutral
+/// source syntax use tracked per-body queries; current input, entry state,
+/// grammar and retained source owners independently govern reuse and restoration.
+/// Unsupported source templates use the exact full-world lattice key or fresh
+/// lowering. The resulting unit receives the interprocedural summary.
 ///
 /// # Must be called from inside a tracked query
 ///
@@ -2190,49 +3003,55 @@ pub(crate) fn memoised_compilation_unit(
     build_unit_with_keys(db, source, options).0
 }
 
-/// `qname`'s offset-0 lattice key, when the unit reads its lattice from the
-/// memo: a lattice that read another procedure of the module was built
-/// afresh for the unit (`SccpResult::reads_module`), and every reader of the
-/// memo — the checks, the rewrites, the taint cascade — takes the unit's.
+/// Return the issued body's retained lattice key when its memo does not read
+/// another procedure of the module. Module-reading lattices use the current
+/// unit's result for checks, rewrites and the taint cascade.
 fn memo_key<'db>(
     db: &'db dyn TclDb,
-    keys: &HashMap<String, FnLatticeKey<'db>>,
-    qname: &str,
+    keys: &HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
+    body_id: Option<tcl_compiler::ir::ProcedureId>,
 ) -> Option<FnLatticeKey<'db>> {
-    keys.get(qname)
+    keys.get(&body_id?)
         .copied()
         .filter(|&key| !function_lattice(db, key).sccp.reads_module)
 }
 
-/// `memoised_compilation_unit` that also returns the per-procedure
-/// [`FnLatticeKey`] map built during lowering (qname → offset-0 baseline key).
+/// Build the unit and retain its issued body-ID to [`FnLatticeKey`] mapping.
 ///
-/// [`proc_taint_solve`] needs those keys to memoise the interprocedural summary
-/// fixpoint per procedure ([`proc_summary_cascade`]), but they **cannot be
-/// threaded out of the shared [`compilation_unit`] query**: a salsa tracked
-/// return must be `'static`, and `FnLatticeKey<'db>` is `'db`-interned (the
-/// finished `CompilationUnit` keeps only the rebased `FunctionUnit`s, not the
-/// offset-0 bodies the keys are built from).  So the checks path re-derives them
-/// with this second build — whose per-procedure lattice/cascade demands hit the
-/// **same** [`function_lattice`] / [`taint_cascade`] memos the shared build
-/// already populated, making the duplicate build mostly cache hits (~29 ms warm
-/// vs ~57 ms cold, measured on `linalg.tcl`).
+/// [`proc_taint_solve`] uses these keys for the interprocedural summary fixpoint
+/// ([`proc_summary_cascade`]). A salsa tracked return must be `'static`, while
+/// `FnLatticeKey<'db>` is interned for `'db`, so this mapping cannot leave the
+/// shared [`compilation_unit`] query. The checks path builds its current unit
+/// and requests the tracked memos independently; a hit requires the actual
+/// query key and successful current-owner restoration.
 fn build_unit_with_keys<'db>(
     db: &'db dyn TclDb,
     source: &str,
     options: UnitBuildOptions<'_>,
-) -> (CompilationUnit, HashMap<String, FnLatticeKey<'db>>) {
+) -> (
+    CompilationUnit,
+    HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
+) {
+    build_unit_with_keys_and_input(db, source, options, None)
+}
+
+fn build_unit_with_keys_and_input<'db>(
+    db: &'db dyn TclDb,
+    source: &str,
+    options: UnitBuildOptions<'_>,
+    input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+) -> (
+    CompilationUnit,
+    HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
+) {
     let UnitBuildOptions { registry, .. } = options;
     let dialect = options.dialect;
-    // Salsa keys own their fields, so the memo identity is the profile's
-    // canonical *name*. Unknown ingress names all resolve to the plain-Tcl
-    // profile and so share one memo entry instead of one per spelling —
-    // the analysis they produce is identical either way.
+    // Values, rather than an environment-name round trip, own memo identity.
     let dialect_key = dialect.map_or("", |profile| profile.name);
-    let dialect_opt =
-        dialect.and_then(|profile| tcl_lsp_core::stated_profile_for_dialect(profile.name));
-    // A tracked read: a new epoch re-runs the query this build is part of,
-    // and the contexts below carry it into every lattice key.
+    let dialect_opt = dialect;
+    let profile_key = dialect.map(tcl_dialect::DialectProfile::cache_key);
+    let registry_snapshot = registry.snapshot();
+    let body_config = options.config.normalized();
     let epoch = evaluator_epoch(db);
     // The module CFG context is the same for every procedure in this build;
     // intern it once on the first request and reuse the id (O(procs), not
@@ -2242,459 +3061,328 @@ fn build_unit_with_keys<'db>(
     // interprocedural taint pass below can demand the procedure's offset-0
     // baseline (`function_lattice`) again to layer the `taint_cascade` memo on
     // top — without re-deriving the offset-0 body/context.
-    let mut lattice_keys: HashMap<String, FnLatticeKey<'db>> = HashMap::new();
+    let mut lattice_keys: HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>> =
+        HashMap::new();
+    let mut returned_candidates: HashMap<tcl_compiler::ir::ProcedureId, FunctionUnit> =
+        HashMap::new();
     let mut lattice_memo = |req: &LatticeRequest<'_>| -> FunctionUnit {
         let context = *context.get_or_insert_with(|| {
-            let mut upvar: Vec<(String, UpvarInfo)> = req
+            let mut upvar: Vec<(tcl_compiler::ir::ProcedureId, UpvarInfo)> = req
                 .upvar_procs
                 .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
+                .map(|(id, value)| (*id, value.clone()))
                 .collect();
-            upvar.sort_by(|a, b| a.0.cmp(&b.0));
-            let mut proc_params: Vec<(String, Vec<String>)> = req
+            upvar.sort_by_key(|a| a.0);
+            let mut proc_params: Vec<(tcl_compiler::ir::ProcedureId, Vec<String>)> = req
                 .proc_params
                 .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
+                .map(|(id, value)| (*id, value.clone()))
                 .collect();
-            proc_params.sort_by(|a, b| a.0.cmp(&b.0));
-            let mut global_write: Vec<(String, GlobalWriteInfo)> = req
+            proc_params.sort_by_key(|a| a.0);
+            let mut global_write: Vec<(tcl_compiler::ir::ProcedureId, GlobalWriteInfo)> = req
                 .global_write_procs
                 .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
+                .map(|(id, value)| (*id, value.clone()))
                 .collect();
-            global_write.sort_by(|a, b| a.0.cmp(&b.0));
+            global_write.sort_by_key(|a| a.0);
             CfgContext::new(
                 db,
                 upvar,
                 proc_params,
                 global_write,
-                req.command_bindings.clone(),
+                BodyLatticeCommandBindings::from(req.command_bindings.clone()),
+                req.procedure_summary_owners.clone(),
             )
         });
-        let key = FnLatticeKey::new(
+        let template = BodyLatticeInputs::retain_original_worker_template(req, registry);
+        if let Some(template) = template {
+            let template_context = CfgContext::new(
+                db,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                template.command_bindings(),
+                OriginalProcedureSummaryOwners::default(),
+            );
+            let key = lattice_request_key(
+                db,
+                req,
+                template.body().clone(),
+                template_context,
+                &registry_snapshot,
+                epoch,
+            );
+            let unit = template.rebind_cached(&function_lattice(db, key));
+            if let Some(unit) = unit {
+                lattice_keys.insert(req.body_id, key);
+                returned_candidates.insert(req.body_id, unit.clone());
+                return unit;
+            }
+        }
+        if let Some(inputs) =
+            tcl_compiler::body_analysis_capsule::BodyLatticeInputs::retain(req, registry)
+            && let Some(bindings) = inputs.command_bindings()
+        {
+            let analytical_context = CfgContext::new(
+                db,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                bindings,
+                OriginalProcedureSummaryOwners::default(),
+            );
+            let key = lattice_request_key(
+                db,
+                req,
+                inputs.clone(),
+                analytical_context,
+                &registry_snapshot,
+                epoch,
+            );
+            if let Some(unit) = inputs.rebind_cached(key.body(db), &function_lattice(db, key)) {
+                lattice_keys.insert(req.body_id, key);
+                returned_candidates.insert(req.body_id, unit.clone());
+                return unit;
+            }
+        }
+        // Exact full-world identity is the fallback when template admission or
+        // restoration cannot establish equivalence. No partially relocated
+        // artifact crosses this boundary.
+        let key = lattice_request_key(
             db,
-            req.body.clone(),
-            req.qname.to_owned(),
-            req.params.to_vec(),
+            req,
+            BodyLatticeInputs::retain_original_worker_request(req, registry)
+                .unwrap_or_else(|| BodyLatticeInputs::from(req.body.clone())),
             context,
-            req.lexer_config,
-            req.dialect.map_or("", |profile| profile.name).to_owned(),
-            req.param_constants.to_vec(),
-            req.known_classes.to_vec(),
-            req.traced_variables.to_vec(),
-            req.has_dynamic_variable_trace,
-            req.plain_command_dispatch,
-            ValueTransferContext::of(db, req.analysis_context.clone(), epoch),
+            &registry_snapshot,
+            epoch,
         );
-        lattice_keys.insert(req.qname.to_owned(), key);
-        // The memo stores the unit at **offset 0** and the builder rebases the
-        // returned unit to the procedure's real position
-        // (`lattice_rebase::rebase_function_unit` mutates `cfg` / `ssa` /
-        // `sccp.constant_branches` in place), so the span-carrying half genuinely
-        // has to be owned here — an `Arc` reader would only defer the copy to
-        // the rebase. The *span-free* half (`def_use` / `types` / `taints` /
-        // `rendered_props`) is `Arc`-held inside `FunctionUnit`, so this clone
-        // is a refcount bump for each of those four lattices and copies only
-        // what the rebase must rewrite.
-        // Making the whole read an `Arc` would mean lazy rebasing via
-        // `FunctionUnit::base_offset` / `abs_span`, which was deliberately
-        // rejected: consumers read `fu.cfg` spans directly and would silently
-        // get relative positions.
-        (*function_lattice(db, key)).clone()
+        lattice_keys.insert(req.body_id, key);
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE").is_some() {
+            eprintln!(
+                "ORIGINAL_FUNCTION_LATTICE qname={} event={} untouched={}",
+                req.qname,
+                req.irules_event_body.is_some(),
+                req.command_trust.agrees_with_untouched_bindings()
+            );
+        }
+        let unit = (*function_lattice(db, key)).clone();
+        returned_candidates.insert(req.body_id, unit.clone());
+        unit
     };
-    // Lower each *eligible* top-level proc body through the
-    // `lower_proc_body` memo so a body-only edit re-lowers only the edited proc's
-    // body (every other body's IR is reused). The per-body gate
-    // (`lowering::body_cache_eligible`) decides which bodies take it, so a
-    // context-carrying sibling does not disable the cache for the whole file.
-    // Byte-identical to the whole-file lowering (corpus differential gates).
-    //
-    // File-level precondition: a command alias declared *outside* any body
-    // (`interp alias`) populates the alias table that `resolve_alias` consults
-    // while lowering every body, but the isolated body lowering starts with an
-    // empty table — so a file that may establish aliases forgoes the cache
-    // entirely (the per-body scan cannot see a top-level alias).
-    let cu = if tcl_compiler::lowering::source_may_alias_commands(source) {
-        CompilationUnit::build_for_memoized(source, options, &mut lattice_memo)
-    } else {
-        // Same offset-0-plus-rebase contract as `lattice_memo` above: the caller
-        // shifts the returned `Script` to the body's real position, so it needs
-        // an owned copy.
-        let overlay = registry.overlay_generation().unwrap_or(0);
-        let body_memo = |body_text: &str, namespace: &str| -> Script {
+    // Isolated-body and readonly source-syntax caches have separate request
+    // owners. Each admitted hit must restore its positioned carriers against
+    // the current input and entry state before the unit can retain it.
+    let cu = {
+        // The isolated-body caller positions this owned baseline Script and
+        // restores current binding proofs. Source-only syntax uses its separate
+        // genuine pre-lowering request below.
+        let body_memo = |body_text: &str, namespace: &str| {
             let key = ProcBodyKey::new(
                 db,
                 body_text.to_owned(),
                 namespace.to_owned(),
                 dialect_key.to_owned(),
-                overlay,
+                CompilerMemoSnapshot {
+                    profile: profile_key,
+                    registry: registry_snapshot.clone(),
+                },
+                body_config,
             );
-            (*lower_proc_body(db, key)).clone()
+            original_lower_proc_body(db, key)
         };
-        CompilationUnit::build_for_memoized_with_body_cache(
+        let source_body_memo = |request: &tcl_compiler::lowering::SourceBodySyntaxRequest| {
+            let key = SourceProcBodyKey::new(db, request.clone());
+            lower_proc_body_source(db, key)
+        };
+        CompilationUnit::build_memoized_with_original_body_lowering(
             source,
             options,
             &mut lattice_memo,
             &body_memo,
+            &source_body_memo,
+            None,
+            input,
         )
     };
-    // Memoise the per-procedure interprocedural taint re-run via `taint_cascade`.
-    // The whole-module summary is still rebuilt here (it is the memo's input);
-    // only unchanged procedures' `propagate_taints` is skipped.
-    let unit = cu.with_interprocedural_memoized(
+    // Validate the candidate returned after current source restoration, rather
+    // than its cached donor. Rejected callbacks cannot seed downstream memos.
+    lattice_keys.retain(|id, _| {
+        returned_candidates.get(id).is_some_and(|candidate| {
+            cu.accepts_original_procedure_lattice(*id, candidate, registry)
+        })
+    });
+    drop(returned_candidates);
+    // The private summary producer owns this request. Memoisation retains the
+    // actual body report, not a publicly cloned CU with a substituted summary.
+    let unit = cu.with_original_interprocedural_memoized(
         registry,
         dialect_opt,
-        &mut |qname: &str, ia: &InterproceduralAnalysis| {
-            let key = memo_key(db, &lattice_keys, qname)?;
-            let summary_key = taint_summary_key(db, ia, qname, dialect_key);
-            // A hit returns the memoised map by refcount: `FunctionUnit::taints`
-            // is span-free (the offset rebase never touches it), so the unit can
-            // share the cached lattice rather than deep-copying it per procedure
-            // per build.
-            Some(taint_cascade(db, key, summary_key))
+        &mut |request: &tcl_compiler::compilation_unit::OriginalInterproceduralTaintRequest,
+              body_id: tcl_compiler::ir::ProcedureId,
+              _display: &str| {
+            memo_key(db, &lattice_keys, Some(body_id))?;
+            let capsule = request.body_capsule(body_id, registry)?;
+            let original_context =
+                capsule.original_optimiser_analysis_context(registry, dialect_opt);
+            let key = OriginalTaintSummaryKey::new(
+                db,
+                capsule,
+                dialect_opt.map(tcl_dialect::DialectProfile::cache_key),
+                original_context,
+            );
+            Some((*original_taint_cascade(db, key)).clone())
         },
     );
     (unit, lattice_keys)
 }
 
-/// The taint-relevant projection of one procedure's [`ProcSummary`], in the
-/// deterministic, hashable form interned into [`TaintSummaryKey`].  Holds only
-/// the fields `propagate_taints` reads from a summary — `writes_global`
-/// (reachable-global seeding), `return_passthrough_param` + `params` (passthrough
-/// taint transfer), and `calls` (only the cascade root's transitive callee list,
-/// used by the reachable-global check).
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct ProcTaintSummary {
-    /// Fully-qualified procedure name.
-    pub qname: String,
-    /// Declared parameter names, in order.
-    pub params: Vec<String>,
-    /// Transitive callee qnames (populated only for the cascade root; sorted).
-    pub calls: Vec<String>,
-    /// Whether the procedure (or a callee) writes a global/namespace variable.
-    pub writes_global: bool,
-    /// The parameter the return value passes through, when any.
-    pub return_passthrough_param: Option<String>,
-}
-
-/// Interned identity of a procedure's interprocedural taint dependencies — the
-/// `taint_cascade` key alongside its [`FnLatticeKey`] baseline.  Holds exactly
-/// what `propagate_taints` reads from the interprocedural summary: the full set
-/// of procedure **names** (so call resolution picks the same target as the whole
-/// summary) and the taint-relevant projection of the cascade root + its
-/// transitive callees.  A body edit that leaves these unchanged is a cache hit;
-/// an edit that flips a reachable callee's `writes_global` / passthrough
-/// re-interns this key for exactly the callers that reach it.
-///
-/// **Per-revision key — reclaimed by salsa's interned garbage collector.**
-/// `reachable` moves as the edited procedure's projections move, so a typing
-/// session mints fresh ids steadily.  Only the collector's reuse of stale LRU
-/// slots keeps the table flat, and it reclaims `Durability::LOW` slots interned
-/// inside a tracked query only.  See the crate docs' "The interned garbage
-/// collector is load-bearing"; pinned by `tests/interned_gc.rs`.
-#[salsa::interned]
-pub struct TaintSummaryKey<'db> {
-    /// All procedure names in the module (sorted) — the call-resolution domain.
-    #[returns(ref)]
-    pub known_procs: Vec<String>,
-    /// The cascade root + its transitive callees' taint projections (sorted by
-    /// qname).
-    #[returns(ref)]
-    pub reachable: Vec<ProcTaintSummary>,
-    #[returns(ref)]
-    pub dialect: String,
-}
-
-/// Build the [`TaintSummaryKey`] for procedure `qname` from the whole-module
-/// summary `ia`.  Includes every procedure **name** (resolution domain) plus the
-/// taint projection of `qname` and each of its transitive callees.
-fn taint_summary_key<'db>(
+fn lattice_request_key<'db>(
     db: &'db dyn TclDb,
-    ia: &InterproceduralAnalysis,
-    qname: &str,
-    dialect: &str,
-) -> TaintSummaryKey<'db> {
-    let mut known: Vec<String> = ia.procedures.keys().cloned().collect();
-    known.sort();
-    let mut reachable: Vec<ProcTaintSummary> = Vec::new();
-    if let Some(root) = ia.procedures.get(qname) {
-        let mut calls = root.calls.clone();
-        calls.sort();
-        reachable.push(ProcTaintSummary {
-            qname: qname.to_owned(),
-            params: root.params.clone(),
-            calls,
-            writes_global: root.writes_global,
-            return_passthrough_param: root.return_passthrough_param.clone(),
-        });
-        for callee in &root.calls {
-            if callee == qname {
-                continue;
-            }
-            if let Some(s) = ia.procedures.get(callee) {
-                reachable.push(ProcTaintSummary {
-                    qname: callee.clone(),
-                    params: s.params.clone(),
-                    calls: Vec::new(),
-                    writes_global: s.writes_global,
-                    return_passthrough_param: s.return_passthrough_param.clone(),
-                });
-            }
-        }
-    }
-    reachable.sort_by(|a, b| a.qname.cmp(&b.qname));
-    TaintSummaryKey::new(db, known, reachable, dialect.to_owned())
-}
-
-/// Memoised interprocedural taint for one procedure (backlog #1 — the
-/// `taint_cascade` query layered on [`function_lattice`]'s offset-0 baseline).
-///
-/// Reconstructs the minimal [`InterproceduralAnalysis`] the key encodes —
-/// every procedure name (so call resolution is identical to the whole summary)
-/// with the taint projection overlaid for the cascade root + its transitive
-/// callees — and re-runs `propagate_taints` over the offset-0 baseline.  Because
-/// the taint lattice is `ValueKey`-keyed (span-free), the offset-0 result is
-/// installed directly into the rebased unit (no rebase needed).  Byte-identical
-/// to [`CompilationUnit::with_interprocedural`]'s per-procedure re-run, guarded
-/// by the `compiler_check` corpus differential + the taint-cascade edit tests.
-// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
-#[salsa::tracked(lru = 512, returns(clone))]
-pub fn taint_cascade<'db>(
-    db: &'db dyn TclDb,
-    lattice_key: FnLatticeKey<'db>,
-    summary_key: TaintSummaryKey<'db>,
-) -> Arc<HashMap<ValueKey, TaintLattice>> {
-    let baseline = function_lattice(db, lattice_key);
-    let dialect = summary_key.dialect(db);
-    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
-    let registry = lattice_registry(db, lattice_key);
-    let registry: &CommandRegistry = &registry;
-
-    // Reconstruct the minimal summary: a stub per known name (resolution
-    // domain), with the real taint-relevant fields overlaid for the reachable
-    // set.  `propagate_taints` reads only those fields, so this is byte-identical
-    // to running against the whole summary.
-    let mut ia = InterproceduralAnalysis::default();
-    for name in summary_key.known_procs(db) {
-        ia.procedures
-            .insert(name.clone(), ProcSummary::unknown(name));
-    }
-    for r in summary_key.reachable(db) {
-        let mut s = ProcSummary::unknown(&r.qname);
-        s.params.clone_from(&r.params);
-        s.calls.clone_from(&r.calls);
-        s.writes_global = r.writes_global;
-        s.return_passthrough_param
-            .clone_from(&r.return_passthrough_param);
-        ia.procedures.insert(r.qname.clone(), s);
-    }
-
-    Arc::new(baseline.interproc_taints(registry, &ia, dialect_opt))
-}
-
-/// Interned identity of one procedure's *interprocedural summary-fixpoint*
-/// dependencies — the [`proc_summary_cascade`] key alongside its [`FnLatticeKey`]
-/// baseline.  `infer_proc_summary(P)` is a pure function of
-/// `P`'s offset-0 body (the `FnLatticeKey`) and, from the *current* summaries it
-/// reads: the resolution domain (`known_procs`), the interprocedural
-/// [`ProcSummary`] projection of `P`'s reachable set (`interproc_reachable` —
-/// what `propagate_taints` reads for call resolution + reachable-global seeding,
-/// identical to [`TaintSummaryKey`]), and the [`ReturnTaintSummary`] of every
-/// procedure in `P`'s transitive call closure (`callee_summaries` — the return
-/// transfer functions `propagate_taints` applies at `P`'s call sites).  A body
-/// edit that leaves all of these unchanged re-interns to the same key, so `P`'s
-/// inference is a cache hit; an edit that flips a reachable callee's summary
-/// re-keys exactly the callers that reach it.
-///
-/// **Per-revision key — reclaimed by salsa's interned garbage collector.**
-/// `interproc_reachable` / `callee_summaries` move with the edited procedure's
-/// projections, exactly as [`TaintSummaryKey`]'s `reachable` does, so the same
-/// contract applies: collection needs `Durability::LOW` slots interned inside a
-/// tracked query.  See the crate docs' "The interned garbage collector is
-/// load-bearing"; pinned by `tests/interned_gc.rs`.
-#[salsa::interned]
-pub struct SummaryDepsKey<'db> {
-    /// All procedure names in the module (sorted) — the call-resolution domain.
-    #[returns(ref)]
-    pub known_procs: Vec<String>,
-    /// The interproc-analysis projection of the root + its transitive callees
-    /// (sorted by qname) — mirrors [`TaintSummaryKey::reachable`].
-    #[returns(ref)]
-    pub interproc_reachable: Vec<ProcTaintSummary>,
-    /// The colour-aware return-taint summaries the root reads from `summaries`:
-    /// every procedure in its transitive call closure (sorted by qname, deduped).
-    #[returns(ref)]
-    pub callee_summaries: Vec<ReturnTaintSummary>,
-    #[returns(ref)]
-    pub dialect: String,
-}
-
-/// Build the [`SummaryDepsKey`] for procedure `qname` from the in-progress
-/// summary-fixpoint state.  Reachable set = the root + its transitive callees
-/// (`ProcSummary::calls`), exactly as [`taint_summary_key`] computes it, so the
-/// interproc projection is identical; `callee_summaries` overlays the
-/// return-taint summary of each reachable procedure (including `qname` itself
-/// when it is in its own closure — i.e. recursive).  Over-approximating the
-/// summaries read (transitive, not just direct callees) is sound: a wrong/missed
-/// dependency is caught by the debug fixpoint guard in `converge_summaries_with`,
-/// which re-runs the real `infer_proc_summary`.
-// A cache-key builder that must observe every input the summary fixpoint reads;
-// bundling them into a struct would just move the argument list off-site.
-#[allow(clippy::too_many_arguments)]
-fn summary_deps_key<'db>(
-    db: &'db dyn TclDb,
-    qname: &str,
-    fu: &FunctionUnit,
-    body_source: Option<&str>,
-    interproc: Option<&InterproceduralAnalysis>,
-    summaries: &HashMap<String, ReturnTaintSummary>,
-    known: &HashSet<String>,
-    dialect: &str,
-) -> SummaryDepsKey<'db> {
-    let mut known_procs: Vec<String> = known.iter().cloned().collect();
-    known_procs.sort();
-
-    let mut interproc_reachable: Vec<ProcTaintSummary> = Vec::new();
-    let mut callee_summaries: Vec<ReturnTaintSummary> = Vec::new();
-    if let Some(ia) = interproc
-        && let Some(root) = ia.procedures.get(qname)
-    {
-        let mut calls = root.calls.clone();
-        calls.sort();
-        calls.dedup();
-        // Root: full interproc projection (with its transitive `calls`), plus
-        // its own return summary when recursive (qname appears in `calls`).
-        interproc_reachable.push(ProcTaintSummary {
-            qname: qname.to_owned(),
-            params: root.params.clone(),
-            calls: calls.clone(),
-            writes_global: root.writes_global,
-            return_passthrough_param: root.return_passthrough_param.clone(),
-        });
-        // Complete the callee set: `root.calls` comes from `direct_calls`, which
-        // misses a callee buried in a nested command substitution under a dynamic
-        // command (e.g. `symbolNodeOf` in `[$t get [symbolNodeOf …] …]`). The real
-        // `infer_proc_summary` reads that callee's summary anyway (it scans the
-        // FunctionUnit), so without it here the cascade would seed the callee clean
-        // and under-taint — diverging from the whole-module solve (and tripping its
-        // debug fixpoint guard). `resolved_callees` scans `fu` exactly as the
-        // inference does, so we overlay the same callee projections + summaries.
-        // The root's own `.calls` field above is left as the real `root.calls` so
-        // the reconstructed `ia` still matches the whole-module projection.
-        let mut callee_set = calls.clone();
-        callee_set.extend(tcl_compiler::taint_interproc::resolved_callees(
-            fu,
-            known,
-            tcl_lexer::LexerConfig::for_profile(tcl_lsp_core::stated_profile_for_dialect(dialect)),
-        ));
-        if let Some(src) = body_source {
-            callee_set.extend(tcl_compiler::taint_interproc::command_subst_callees(
-                src, qname, known,
-            ));
-        }
-        callee_set.sort();
-        callee_set.dedup();
-        for callee in &callee_set {
-            if callee != qname
-                && let Some(s) = ia.procedures.get(callee)
-            {
-                interproc_reachable.push(ProcTaintSummary {
-                    qname: callee.clone(),
-                    params: s.params.clone(),
-                    calls: Vec::new(),
-                    writes_global: s.writes_global,
-                    return_passthrough_param: s.return_passthrough_param.clone(),
-                });
-            }
-            if let Some(ts) = summaries.get(callee) {
-                callee_summaries.push(ts.clone());
-            }
-        }
-    }
-    interproc_reachable.sort_by(|a, b| a.qname.cmp(&b.qname));
-    callee_summaries.sort_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
-    callee_summaries.dedup();
-
-    SummaryDepsKey::new(
+    req: &LatticeRequest<'_>,
+    body: tcl_compiler::body_analysis_capsule::BodyLatticeInputs,
+    context: CfgContext<'db>,
+    registry: &tcl_registry::RegistrySnapshot,
+    epoch: u64,
+) -> FnLatticeKey<'db> {
+    let certified_readonly_source = body.certified_readonly_source_body_id().is_some();
+    FnLatticeKey::new(
         db,
-        known_procs,
-        interproc_reachable,
-        callee_summaries,
-        dialect.to_owned(),
+        body,
+        req.qname.to_owned(),
+        req.params.to_vec(),
+        context,
+        req.lexer_config,
+        req.dialect.map_or("", |profile| profile.name).to_owned(),
+        CompilerMemoSnapshot {
+            profile: req.dialect.map(tcl_dialect::DialectProfile::cache_key),
+            registry: registry.clone(),
+        },
+        req.param_constants.to_vec(),
+        FnLatticeModuleFacts {
+            known_classes: req.known_classes.to_vec(),
+            traced_variables: req.traced_variables.to_vec(),
+            has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+        },
+        FnLatticeEntry {
+            original_declaration_body: (!certified_readonly_source)
+                .then(|| {
+                    req.original_source_procedure()
+                        .filter(|procedure| {
+                            procedure.body_kind
+                                == tcl_compiler::ir::ProcedureBodyKind::OriginalDeclaration
+                        })
+                        .map(|_| req.body_id)
+                })
+                .flatten(),
+            plain_command_dispatch: req.plain_command_dispatch,
+            metadata_context: req.original_metadata_context(registry.registry()),
+            source_metadata_input: req.source_metadata_input.cloned(),
+            irules_event_body: req.irules_event_body.cloned(),
+            command_trust: req.command_trust.snapshot(),
+        },
+        ValueTransferContext::of(db, req.analysis_context.clone(), epoch),
     )
 }
 
-/// Memoised per-procedure interprocedural summary inference — the
-/// `infer_proc_summary` half of the summary fixpoint, layered on
-/// [`function_lattice`]'s offset-0 baseline the way [`taint_cascade`] layers the
-/// per-proc taint re-run.
-///
-/// Reconstructs the minimal context [`SummaryDepsKey`] encodes — every procedure
-/// name (so call resolution matches the whole summary), the interproc projection
-/// of the reachable set, and the reachable return-taint summaries — and re-runs
-/// the real [`tcl_compiler::taint_interproc::infer_proc_summary`] over the
-/// offset-0 baseline.  Span-free (the summary is a transfer function over
-/// parameter/return taint, not positions), so the offset-0 result is the same
-/// the whole-module build computes.  A body edit re-keys only the edited
-/// procedure and the callers that reach it; everything else is a cache hit.
-// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+/// Actual compilation owner for a per-body interprocedural taint demand.
+#[salsa::interned]
+pub struct TaintSummaryKey<'db> {
+    #[returns(ref)]
+    pub capsule: tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule,
+}
+
+#[salsa::tracked(lru = 512, returns(clone))]
+pub fn taint_cascade<'db>(
+    db: &'db dyn TclDb,
+    summary_key: TaintSummaryKey<'db>,
+) -> Arc<HashMap<ValueKey, TaintLattice>> {
+    let capsule = summary_key.capsule(db);
+    let registry = capsule.registry_snapshot().shared_registry();
+    let taints = capsule.unit().interproc.as_ref().map_or_else(
+        || (*capsule.function().taints).clone(),
+        |analysis| {
+            capsule
+                .unit()
+                .original_interproc_taints_for_body(Some(capsule.body_id()), &registry, analysis)
+                .unwrap_or_else(|| (*capsule.function().taints).clone())
+        },
+    );
+    Arc::new(taints)
+}
+
+/// Actual body taint request, retaining its effective dialect independently of
+/// the source module's optional reporting profile. The legacy map memo above
+/// remains available to its original callers without issuing source ownership.
+#[salsa::interned]
+pub struct OriginalTaintSummaryKey<'db> {
+    #[returns(ref)]
+    pub capsule: tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule,
+    #[returns(copy)]
+    pub effective_dialect: Option<tcl_dialect::DialectProfileKey>,
+    /// Actual prepared worker context; None is a reporting-only purpose.
+    #[returns(ref)]
+    pub original_context: Option<tcl_compiler::value_transfer::AnalysisContextKey>,
+}
+
+/// One real taint worker pass and its sealed request correspondence. Missing
+/// issuance keeps its reporting map and never reruns the worker to gain it.
+#[salsa::tracked(lru = 512, returns(clone))]
+pub fn original_taint_cascade<'db>(
+    db: &'db dyn TclDb,
+    key: OriginalTaintSummaryKey<'db>,
+) -> Arc<tcl_compiler::body_analysis_capsule::OriginalInterproceduralTaintReport> {
+    let capsule = key.capsule(db);
+    let registry = capsule.registry_snapshot().shared_registry();
+    let dialect = key.effective_dialect(db).map(|profile| profile.profile());
+    Arc::new(capsule.original_interproc_taint_report(&registry, dialect))
+}
+
+/// Original fixpoint inputs with independently certified body correspondence.
+#[salsa::interned]
+pub struct SummaryDepsKey<'db> {
+    #[returns(ref)]
+    pub inputs: tcl_compiler::body_analysis_capsule::BodySummaryInputs,
+    #[returns(ref)]
+    pub dialect: String,
+}
+
+fn summary_deps_key<'db>(
+    db: &'db dyn TclDb,
+    capsule: tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule,
+    summaries: &HashMap<tcl_compiler::ir::ProcedureId, ReturnTaintSummary>,
+    known: &HashSet<tcl_compiler::ir::ProcedureId>,
+    dialect: &str,
+) -> SummaryDepsKey<'db> {
+    let inputs =
+        tcl_compiler::body_analysis_capsule::BodySummaryInputs::retain(capsule, known, summaries)
+            .expect("the solver supplies current original procedure coordinates and formals");
+    SummaryDepsKey::new(db, inputs, dialect.to_owned())
+}
+
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn proc_summary_cascade<'db>(
     db: &'db dyn TclDb,
-    lattice_key: FnLatticeKey<'db>,
     deps_key: SummaryDepsKey<'db>,
 ) -> Arc<ReturnTaintSummary> {
-    let fu = function_lattice(db, lattice_key);
-    let qname = lattice_key.qname(db);
-    let params = lattice_key.params(db);
-    let dialect = deps_key.dialect(db);
-    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
-    let registry = lattice_registry(db, lattice_key);
-    let registry: &CommandRegistry = &registry;
-
-    // Reconstruct the minimal interproc summary (stub per known name + real
-    // fields for the reachable set) — identical to `taint_cascade`'s rebuild.
-    let mut ia = InterproceduralAnalysis::default();
-    for name in deps_key.known_procs(db) {
-        ia.procedures
-            .insert(name.clone(), ProcSummary::unknown(name));
-    }
-    for r in deps_key.interproc_reachable(db) {
-        let mut s = ProcSummary::unknown(&r.qname);
-        s.params.clone_from(&r.params);
-        s.calls.clone_from(&r.calls);
-        s.writes_global = r.writes_global;
-        s.return_passthrough_param
-            .clone_from(&r.return_passthrough_param);
-        ia.procedures.insert(r.qname.clone(), s);
-    }
-    let known: HashSet<String> = deps_key.known_procs(db).iter().cloned().collect();
-    // Seed the whole resolution domain with clean summaries — the worklist passes
-    // `infer_proc_summary` a map with an entry for *every* procedure, and a
-    // resolved callee that is *absent* (vs. present-but-clean) makes
-    // `propagate_taints` fall through to its conservative bare-argument join and
-    // over-taint (`taint.rs`'s `summaries.get(&target)?`).  So the seed is
-    // load-bearing; the reachable overlay then installs the real (possibly
-    // tainted) summaries the edited proc actually depends on.
-    let mut summaries: HashMap<String, ReturnTaintSummary> = deps_key
-        .known_procs(db)
-        .iter()
-        .map(|name| (name.clone(), ReturnTaintSummary::untainted(name, &[])))
-        .collect();
-    for s in deps_key.callee_summaries(db) {
-        summaries.insert(s.qualified_name.clone(), s.clone());
-    }
-
-    Arc::new(tcl_compiler::taint_interproc::infer_proc_summary(
-        qname,
-        params,
-        &fu,
-        registry,
-        Some(&ia),
-        dialect_opt,
-        &known,
-        &summaries,
-    ))
+    let inputs = deps_key.inputs(db);
+    let capsule = inputs.capsule();
+    let known = inputs.known().iter().copied().collect();
+    let summaries = inputs.summaries().iter().cloned().collect();
+    let registry = capsule.registry_snapshot().shared_registry();
+    Arc::new(
+        tcl_compiler::taint_interproc::infer_proc_summary(
+            capsule.unit(),
+            capsule.body_id(),
+            &registry,
+            capsule.unit().interproc.as_ref(),
+            capsule.unit().ir_module.dialect_profile,
+            &known,
+            &summaries,
+        )
+        .expect("capsule retains the genuine root declaration and function"),
+    )
 }
 
 /// Memoised per-procedure **non-taint** compiler checks (SCCP constant branches,
@@ -2708,8 +3396,7 @@ pub fn proc_summary_cascade<'db>(
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<Vec<CompilerCheck>> {
     let fu = function_lattice(db, key);
-    let dialect = key.dialect(db);
-    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
+    let dialect_opt = key.snapshot(db).profile.map(|profile| profile.profile());
     let registry = lattice_registry(db, key);
     let registry: &CommandRegistry = &registry;
     // Per-procedure memo — procs have no implicit instance variables.
@@ -2725,8 +3412,10 @@ pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<V
 /// result **and** the rebased per-procedure non-taint checks, both
 /// gathered from a single re-derived [`build_unit_with_keys`] so the duplicate
 /// build is paid once for both halves.  `PartialEq` for salsa early-cutoff.
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct CheckSolve {
+    /// Actual immutable compilation whose Module-issued IDs key this solve.
+    unit: Arc<CompilationUnit>,
     /// Interprocedural taint solve (`proc_summary_cascade`-memoised summaries).
     pub taints: InterprocTaintResult,
     /// Per-procedure non-taint checks (`function_checks`-memoised), already
@@ -2737,6 +3426,16 @@ pub struct CheckSolve {
     /// tail (or the whole-module `optimise_unit` fallback).  Byte-identical to a
     /// bare `optimise_unit`.
     pub optimisations: Vec<Optimisation>,
+}
+
+impl PartialEq for CheckSolve {
+    fn eq(&self, other: &Self) -> bool {
+        self.unit == other.unit
+            && self.taints == other.taints
+            && self.fn_checks == other.fn_checks
+            && self.optimisations == other.optimisations
+            && same_optimisation_provenance(&self.optimisations, &other.optimisations)
+    }
 }
 
 /// The checks-path memoised solve for one document.
@@ -2797,7 +3496,6 @@ pub fn proc_taint_solve<'db>(
     overlay: u64,
 ) -> Option<Arc<CheckSolve>> {
     let dialect = file.dialect(db).clone();
-    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
     let Ok(registry) = unit_registry(db, &dialect, overlay) else {
         return abstain();
     };
@@ -2809,45 +3507,55 @@ pub fn proc_taint_solve<'db>(
         file.text(db),
         unit_build_options(db, file, cfg, registry, external.as_deref(), &declared),
     );
-    let interproc = cu.interproc.as_ref();
+    Some(solve_checks_for_unit(
+        db,
+        &dialect,
+        registry,
+        cu,
+        &lattice_keys,
+        tcl_lsp_core::stated_profile_for_dialect(&dialect),
+    ))
+}
 
+fn solve_checks_for_unit<'db>(
+    db: &'db dyn TclDb,
+    dialect: &str,
+    registry: &CommandRegistry,
+    cu: CompilationUnit,
+    lattice_keys: &HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
+    dialect_opt: Option<&'static tcl_dialect::DialectProfile>,
+) -> Arc<CheckSolve> {
+    let retained = Arc::new(cu);
+    let cu = retained.as_ref();
     let taints = tcl_compiler::taint_interproc::solve_interprocedural_taints_with(
-        &cu,
+        cu,
         registry,
         dialect_opt,
-        &mut |qname, params, fu, known, summaries| match memo_key(db, &lattice_keys, qname) {
-            // Memoised path: the proc has an offset-0 baseline key.
-            Some(lattice_key) => {
-                let body_source = cu
-                    .ir_module
-                    .procedures
-                    .get(qname)
-                    .and_then(|p| p.body_source.as_deref());
-                let deps_key = summary_deps_key(
-                    db,
-                    qname,
-                    fu,
-                    body_source,
-                    interproc,
-                    summaries,
+        &mut |actual, body_id, analysis, known, summaries| {
+            let fresh = || {
+                tcl_compiler::taint_interproc::infer_proc_summary(
+                    actual,
+                    body_id,
+                    registry,
+                    analysis,
+                    dialect_opt,
                     known,
-                    &dialect,
-                );
-                (*proc_summary_cascade(db, lattice_key, deps_key)).clone()
+                    summaries,
+                )
+                .expect("solver supplied its actual procedure and function")
+            };
+            if analysis != retained.interproc.as_ref() {
+                return fresh();
             }
-            // Fallback (a proc without a memoised lattice — e.g. an unanalysable
-            // body — or whose lattice read another procedure): run the real
-            // inference directly, exactly as the bare solve.
-            None => tcl_compiler::taint_interproc::infer_proc_summary(
-                qname,
-                params,
-                fu,
+            let Some(capsule) = tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
+                Arc::clone(&retained),
+                body_id,
                 registry,
-                interproc,
-                dialect_opt,
-                known,
-                summaries,
-            ),
+            ) else {
+                return fresh();
+            };
+            let dependencies = summary_deps_key(db, capsule, summaries, known, dialect);
+            (*proc_summary_cascade(db, dependencies)).clone()
         },
     );
 
@@ -2859,14 +3567,17 @@ pub fn proc_taint_solve<'db>(
     // to the direct per-function computation on the *already-rebased* built unit
     // (no offset add).
     let mut fn_checks: Vec<CompilerCheck> = Vec::new();
-    for fu in cu.analysable_functions() {
-        match memo_key(db, &lattice_keys, &fu.name) {
+    for fu in cu.analysable_body_function_units() {
+        match memo_key(db, lattice_keys, fu.body_id) {
             Some(key) => {
                 let body_offset = cu
-                    .ir_module
-                    .procedures
-                    .get(&fu.name)
-                    .map_or(0, |p| p.span.start());
+                    .original_procedure_for_body(
+                        fu.body_id
+                            .expect("memo selection retained the exact body ID"),
+                    )
+                    .expect("memo selection retained the original declaration")
+                    .span
+                    .start();
                 fn_checks.extend(
                     function_checks(db, key)
                         .iter()
@@ -2882,7 +3593,7 @@ pub fn proc_taint_solve<'db>(
                     fu,
                     registry,
                     dialect_opt,
-                    None::<&std::collections::HashSet<String>>,
+                    cu.method_instance_vars(fu.body_id),
                 ) {
                     fn_checks.push(d);
                 }
@@ -2890,56 +3601,18 @@ pub fn proc_taint_solve<'db>(
         }
     }
 
-    // The per-function non-taint checks over `TclOO` method bodies and
-    // synthetic body units (`apply` lambdas, `namespace eval` bodies). The
-    // main per-function loop above iterates the proc-only
-    // `analysable_functions`, unlike `compiler_checks::run_all_checks_with_solved_and_patterns`'s
-    // direct path (which iterates the wider `analysable_body_function_units`
-    // and so needs no separate top-up — see `analysable_methods_and_body_units`'s
-    // own doc comment for why adding it there too would double-count), so
-    // this memoised path needs its own top-up loop to reach the same
-    // methods/body units.
-    //
-    // This must run the **whole** `function_nontaint_checks` family, not just
-    // its `shimmer_family_checks` half: the direct path folds the SCCP
-    // constant-branch (O100) and GVN full / partial / loop-invariant
-    // (O105/O106) halves in here too, and running only the shimmer half would
-    // make the memoised path silently drop every O1xx finding inside a method
-    // or a `namespace eval` body — 20 of them on one large TclOO corpus file
-    // — a diff users on the LSP (memoised) path would see as missing hints
-    // the CLI reported.
-    //
-    // These units never get an offset-0 `FnLatticeKey`, so they carry absolute
-    // spans already and need no rebase, same as the `None` arm above (the
-    // direct path's `shift` is likewise the identity here — a whole-module
-    // build leaves every `FunctionUnit::base_offset` at 0).
-    for fu in cu.analysable_methods_and_body_units() {
-        for d in tcl_compiler::compiler_checks::function_nontaint_checks(
-            fu,
-            registry,
-            dialect_opt,
-            cu.method_instance_vars(&fu.name),
-        ) {
-            fn_checks.push(d);
-        }
-    }
-
-    let optimisations = solve_optimisations(
-        db,
-        &cu,
-        &lattice_keys,
-        registry,
-        tcl_lsp_core::stated_profile_for_dialect(&dialect),
-    );
-    Some(Arc::new(CheckSolve {
+    let optimisations = solve_optimisations(db, cu, lattice_keys, registry, dialect_opt);
+    Arc::new(CheckSolve {
+        unit: retained,
         taints,
         fn_checks,
         optimisations,
-    }))
+    })
 }
 
 /// Hashable normalisation of a callee's `ConstantReturn` (`f64` isn't `Hash`/`Eq`)
 /// for the interned [`OptDepsKey`].
+#[cfg(test)]
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum ConstReturnKey {
     Int(i64),
@@ -2951,6 +3624,7 @@ pub enum ConstReturnKey {
 /// The opt-relevant projection of a direct-callee `ProcSummary` — the fields the
 /// optimiser passes read from `cu.interproc` (O103 static-call folding + the
 /// purity / effect gates). Hashable, so it can live in the interned [`OptDepsKey`].
+#[cfg(test)]
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[allow(clippy::struct_excessive_bools)] // a faithful projection of ProcSummary's fold/purity flags
 pub struct OptCalleeSummary {
@@ -2979,9 +3653,10 @@ pub struct OptCalleeSummary {
     /// procedure, which the same proof takes as callable from its body. The
     /// positions they are proved from stay out of the key, so an edit that
     /// only moves text leaves it alone.
-    pub defined_callees: Vec<String>,
+    pub defined_callees: Vec<tcl_compiler::ir::ProcedureId>,
 }
 
+#[cfg(test)]
 fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
     use tcl_compiler::interprocedural::ConstantReturn;
     let mut param_traits: Vec<(String, Vec<tcl_compiler::interprocedural::ProcArgTrait>)> = s
@@ -3024,6 +3699,7 @@ fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
     }
 }
 
+#[cfg(test)]
 fn opt_callee_to_summary(o: &OptCalleeSummary) -> ProcSummary {
     use tcl_compiler::interprocedural::ConstantReturn;
     let mut s = ProcSummary::unknown(&o.qname);
@@ -3055,244 +3731,28 @@ fn opt_callee_to_summary(o: &OptCalleeSummary) -> ProcSummary {
     s
 }
 
-/// Interned per-procedure optimiser dependency key: the offset-0 body source (for
-/// the optimiser's `source[span]` reads), the cross-proc resolution domain (every
-/// module proc qname), the opt-relevant summaries of this proc's resolved direct
-/// callees (O103 fold / purity inputs), and the module `redefined_procedures` set
-/// (the O103 don't-fold-a-redefined-callee gate).  A body edit to an unrelated proc
-/// whose summary this proc doesn't read leaves this key unchanged → cache hit.
-///
-/// **Per-revision key — reclaimed by salsa's interned garbage collector.**
-/// `body_source` and `proc_body_source` change on every keystroke inside the
-/// procedure, and the memo behind a stale id holds that procedure's whole
-/// optimisation set.  Slot reuse releases it, for `Durability::LOW` slots
-/// interned inside a tracked query only.  See the crate docs' "The interned
-/// garbage collector is load-bearing"; pinned by `tests/interned_gc.rs`.
+/// Original compilation owner for one body's source optimisations.
 #[salsa::interned]
 pub struct OptDepsKey<'db> {
     #[returns(ref)]
-    pub body_source: String,
+    pub capsule: tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule,
+    /// The actual worker argument; None cannot be replaced by a module label.
+    #[returns(copy)]
+    pub effective_dialect: Option<tcl_dialect::DialectProfileKey>,
+    /// Actual prepared worker context; None is a reporting-only purpose.
     #[returns(ref)]
-    pub proc_names: Vec<String>,
-    #[returns(ref)]
-    pub callees: Vec<OptCalleeSummary>,
-    #[returns(ref)]
-    pub redefined: Vec<String>,
-    /// The procedure's `name` field exactly as the whole-module lowering records
-    /// it — the *written* name (a fully-qualified `proc ::ns::p` keeps its `::`
-    /// prefix; a short `proc p` inside `namespace eval` stays short). Name-bearing
-    /// optimisation messages (e.g. O121 "tailcall for self-recursion in proc
-    /// '<name>'") echo this verbatim, so the single-proc memo must reconstruct the
-    /// same `proc.name` rather than deriving a short name from the qualified key.
-    #[returns(ref)]
-    pub proc_name: String,
-    /// The procedure's `body_source` exactly as the whole-module lowering records
-    /// it — the **body text only** (`args[2]`), *not* the whole-command slice used
-    /// for `Module.source` span alignment. O122's loop-conversion rewrite
-    /// (`emit_loop_conversion`) locates `body_source` inside the proc text and
-    /// wraps it in `proc … { while {1} { <body> } }`, so it must be the body — a
-    /// whole-`proc …` slice would nest the entire declaration into the replacement.
-    #[returns(ref)]
-    pub proc_body_source: String,
-    /// The procedure's `params_raw` (`args[1]`) as written, so O122's replacement
-    /// reproduces the original parameter-list text verbatim (spacing, defaults)
-    /// rather than a `params.join(" ")` reconstruction.
-    #[returns(ref)]
-    pub proc_params_raw: String,
+    pub original_context: Option<tcl_compiler::value_transfer::AnalysisContextKey>,
 }
 
-/// Build the [`OptDepsKey`] for `qname` from the whole-module interproc summary.
-///
-/// Captures **every** module proc's opt-relevant summary (the resolution domain +
-/// fold/purity inputs).  A proc's call to a callee can come from a bare statement
-/// *or* a `[…]` command substitution (which `direct_calls` does not record), so a
-/// resolved-direct-callee-only key would miss an O103 fold inside a substitution.
-/// Keying on every proc's *opt-projection* is the correct superset: it only changes
-/// when some proc's fold/purity facts (`can_fold_static_calls` / `constant_return` /
-/// `pure` / …) change — **not** on every body edit, since most edits leave those
-/// summary fields untouched (a `set y 1` → `set y 2` edit re-keys only the edited
-/// proc's own `FnLatticeKey`, not every caller's `OptDepsKey`).
-fn opt_deps_key<'db>(
-    db: &'db dyn TclDb,
-    ia: &InterproceduralAnalysis,
-    redefined: &HashSet<String>,
-    body_source: &str,
-    proc_name: &str,
-    proc_body_source: &str,
-    proc_params_raw: &str,
-) -> OptDepsKey<'db> {
-    let mut proc_names: Vec<String> = ia.procedures.keys().cloned().collect();
-    proc_names.sort();
-    let mut callees: Vec<OptCalleeSummary> = ia
-        .procedures
-        .values()
-        .map(opt_callee_from_summary)
-        .collect();
-    callees.sort_by(|a, b| a.qname.cmp(&b.qname));
-    let mut redef: Vec<String> = redefined.iter().cloned().collect();
-    redef.sort();
-    OptDepsKey::new(
-        db,
-        body_source.to_owned(),
-        proc_names,
-        callees,
-        redef,
-        proc_name.to_owned(),
-        proc_body_source.to_owned(),
-        proc_params_raw.to_owned(),
-    )
-}
-
-/// Memoised offset-0 raw optimisations for one procedure.
-/// Builds a single-procedure offset-0 [`CompilationUnit`] — the proc's offset-0
-/// `function_lattice` unit, its offset-0 IR body, and the reconstructed interproc
-/// (domain stubs overlaid with the resolved direct callees' real opt summaries) —
-/// and runs [`optimise_unit_raw`] on it.  Returns the **raw** (pre-overlap-select,
-/// pre-renumber) optimisations at **offset 0**; the caller rebases by the proc's
-/// `body_offset` and runs the whole-module [`finalise_optimisations`] over the
-/// assembled set.  A body edit re-runs only the edited proc; an unrelated proc's
-/// edit is a cache hit unless this proc reads its summary (a resolved direct call).
-// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn function_optimisations<'db>(
     db: &'db dyn TclDb,
-    key: FnLatticeKey<'db>,
     deps: OptDepsKey<'db>,
-) -> Arc<Vec<Optimisation>> {
-    let fu = function_lattice(db, key);
-    let qname = key.qname(db).clone();
-    let params = key.params(db).clone();
-    let body = key.body(db).clone();
-    let dialect = key.dialect(db).clone();
-    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
-    let registry = lattice_registry(db, key);
-    let registry: &CommandRegistry = &registry;
-    let body_source = deps.body_source(db).clone();
-
-    let mut ia = InterproceduralAnalysis::default();
-    for name in deps.proc_names(db) {
-        ia.procedures
-            .insert(name.clone(), ProcSummary::unknown(name));
-    }
-    for c in deps.callees(db) {
-        ia.procedures
-            .insert(c.qname.clone(), opt_callee_to_summary(c));
-    }
-    let redefined: HashSet<String> = deps.redefined(db).iter().cloned().collect();
-
-    let body_len = u32::try_from(body_source.len()).unwrap_or(u32::MAX);
-    let proc = tcl_compiler::ir::Procedure {
-        name: deps.proc_name(db).clone(),
-        qualified_name: qname.clone(),
-        params: params.clone(),
-        span: tcl_lexer::Span::new(0, body_len),
-        body,
-        // `params_raw` / `body_source` are the *written* param-list and body text
-        // (matching the whole-module `Procedure`), NOT the whole-command slice held
-        // in `body_source` for `Module.source` span alignment — O122's rewrite wraps
-        // the body verbatim, so a slice here would nest the whole `proc …`.
-        params_raw: deps.proc_params_raw(db).clone(),
-        body_source: Some(deps.proc_body_source(db).clone()),
-        // The unit source here *is* the body text, so it opens at offset 0.
-        body_offset: 0,
-        namespace_scoped: false,
-        base_priority: 0,
-    };
-    let mut ir_procs = HashMap::new();
-    ir_procs.insert(qname.clone(), proc);
-    let ir_module = tcl_compiler::ir::Module {
-        top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
-        source: body_source.clone(),
-        // This synthetic module has no executable top-level script; the
-        // procedure entry below carries its own qualified-name namespace.
-        top_level_namespace: "::".to_owned(),
-        // The document's dialect, not `None`. The unit is synthesised, but the
-        // release it is analysed under is real and known right here
-        // (`dialect_opt`, which is also what `optimise_unit_raw` below is
-        // given), so labelling the module "no release" is simply false.
-        //
-        // Nothing on *this* path reads it today — `Module::dialect`'s numeral
-        // consumers (`native_integer_proof`, `common_aot_plan`) hang off the
-        // wasm codegen pipeline, and the optimisations this path does produce
-        // take their grammar from `dialect_opt` directly, so the folds are
-        // correct either way (`0755 + 1` → 494 under 8.6, 756 under 9.0).
-        // It is set correctly because a synthesised module carrying the wrong
-        // release is a trap for the next consumer: `numbers_for_dialect(None)`
-        // silently means Tcl 9.0, so a future reader would mis-fold rather than
-        // fail. Cheap to keep honest, expensive to debug later.
-        dialect: dialect_opt.map(|profile| profile.name.to_owned()),
-        // This synthetic optimisation unit models the ordinary compiler path;
-        // it is never a trace/mutation recovery artefact.
-        plain_command_dispatch: false,
-        top_level_evaluation: tcl_compiler::ir::CommandEvaluation::Compiled,
-        top_level: tcl_compiler::ir::Script::new(),
-        procedures: ir_procs,
-        methods: HashMap::new(),
-        body_units: HashMap::new(),
-        lambda_body_units: std::collections::BTreeSet::new(),
-        redefined_procedures: redefined,
-        redefined_methods: HashMap::new(),
-        oo_unanalysed_classes: HashSet::new(),
-        oo_evidence: tcl_compiler::ir::OoDefinitionEvidence::default(),
-        class_relations: Vec::new(),
-        namespace_imports: Vec::new(),
-        namespace_exports: Vec::new(),
-        // Always empty/false here — the caller (`memoised_module_optimisations`)
-        // falls back to the whole-module `optimise_unit` whenever the real
-        // module carries any trace fact, so this per-proc offset-0 unit is
-        // only ever built for a module with none. See that fallback's
-        // comment for why threading these through the salsa `OptDepsKey`
-        // instead was not the chosen fix.
-        traced_commands: BTreeSet::new(),
-        has_dynamic_trace: false,
-        traced_variables: BTreeSet::new(),
-        has_dynamic_variable_trace: false,
-        deferred_writes: tcl_compiler::ir::DeferredWrites::default(),
-        reference_bodies: tcl_compiler::ir::ReferenceBodies::default(),
-        declared_frame_effects: std::collections::BTreeMap::new(),
-    };
-    let empty_cfg = tcl_compiler::cfg::Function::new("::", "entry");
-    let top_fu = FunctionUnit::build(
-        "::",
-        empty_cfg.clone(),
-        &[],
-        registry,
-        tcl_lexer::LexerConfig::from_grammar(
-            tcl_lsp_core::environment_for_dialect(&dialect).grammar(),
-        ),
-    );
-    let mut cfg_procs = HashMap::new();
-    cfg_procs.insert(qname.clone(), fu.cfg.clone());
-    let mut fu_procs = HashMap::new();
-    fu_procs.insert(qname.clone(), (*fu).clone());
-    let cu = CompilationUnit {
-        source: body_source,
-        ir_module,
-        cfg_module: tcl_compiler::cfg::CfgModule {
-            top_level: empty_cfg,
-            procedures: cfg_procs,
-        },
-        // This per-procedure memo path is entered only after the whole-unit
-        // solver proves there are no command mutations.
-        command_mutations: tcl_compiler::command_binding::ModuleCommandMutations::default(),
-        top_level: top_fu,
-        procedures: fu_procs,
-        methods: HashMap::new(),
-        body_units: HashMap::new(),
-        interproc: Some(ia),
-        connection_scope: None,
-        // A synthetic single-procedure unit: no source text of its own to
-        // scan for boundaries, no cross-file view to inherit, and no
-        // document of its own to carry stub declarations.
-        caller_scope: tcl_compiler::compilation_unit::UnitCallerScope::default(),
-        declared_commands: tcl_registry::model::DeclaredSurface::new(),
-        transfers: tcl_compiler::interprocedural::TransferSummaries::default(),
-    };
-    Arc::new(tcl_compiler::optimiser::optimise_unit_raw(
-        &cu,
-        registry,
-        dialect_opt,
-    ))
+) -> Arc<tcl_compiler::optimiser::OriginalBodyOptimiserReport> {
+    let capsule = deps.capsule(db);
+    let registry = capsule.registry_snapshot().shared_registry();
+    let dialect = deps.effective_dialect(db).map(|profile| profile.profile());
+    Arc::new(capsule.original_body_optimiser_report(&registry, dialect))
 }
 
 /// Whether `module` carries any whole-module trace fact (execution *or*
@@ -3300,16 +3760,7 @@ pub fn function_optimisations<'db>(
 /// `traced_variables` / `has_dynamic_variable_trace`) or any callback script
 /// that writes a variable (`Module::deferred_writes`).
 ///
-/// The single-proc offset-0 `Module` [`function_optimisations`] builds has
-/// no way to reconstruct these — its `OptDepsKey` threads `proc_names` /
-/// `callees` / `redefined`, but not trace state, so a memoised per-proc
-/// unit would silently see "nothing is traced" regardless of the real
-/// module content. [`solve_optimisations`] falls back to the whole-module
-/// build whenever this is `true`, exactly like its `mutations` /
-/// `has_arg_sensitive_target` fallbacks — traces are rare enough in
-/// practice that this costs little, and it is far lower-risk than
-/// widening the salsa dependency key to thread four more whole-module
-/// facts through the per-proc cache.
+/// Whole-unit trace and deferred-write obligations require a whole-unit solve.
 fn module_has_trace_facts(module: &tcl_compiler::ir::Module) -> bool {
     !module.traced_commands.is_empty()
         || module.has_dynamic_trace
@@ -3318,29 +3769,39 @@ fn module_has_trace_facts(module: &tcl_compiler::ir::Module) -> bool {
         || !module.deferred_writes.is_clear()
 }
 
-/// Assemble a document's optimisations from the per-procedure memo.
-///
-/// For a non-iRules module with no command mutations and a lattice key for every
-/// analysable procedure, each proc's raw optimisations come from the memoised
-/// [`function_optimisations`] (offset 0), rebased by the proc's `body_offset`; the
-/// top-level body's raw optimisations are computed on a top-level-only unit (small,
-/// not memoised), and the whole-module [`finalise_optimisations`] runs once over the
-/// assembled set.  Otherwise (iRules / command mutations / a complexity-guarded
-/// proc without a key / a memoised lattice that read another procedure) it falls
-/// back to the whole-module [`optimise_unit`] — always byte-identical, guarded by
-/// the `compiler_check` random-edit + corpus fuzzers.
+/// Assemble a document's optimisations from checked per-body memo owners.
+/// Each selected body retains its current lattice key and complete capsule;
+/// raw optimisations are computed on the authentic full unit, filtered to that
+/// body's groups and rebased before whole-module finalisation. Source mutation
+/// and trace hazards remain dependencies of an independently certified readonly
+/// source analysis. Other world hazards, missing keys, methods, cross-function
+/// lattice reads and argument-sensitive folds require the whole-unit solve.
 fn solve_optimisations<'db>(
     db: &'db dyn TclDb,
     cu: &CompilationUnit,
-    lattice_keys: &HashMap<String, FnLatticeKey<'db>>,
+    lattice_keys: &HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
     registry: &CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
     let mutations = cu.command_mutations.clone();
-    let every_proc_keyed = cu
-        .procedures
-        .keys()
-        .all(|qname| lattice_keys.contains_key(qname));
+    let source_bodies: Vec<_> = cu
+        .all_body_function_units()
+        .filter_map(|function| {
+            let id = function.body_id?;
+            let current = cu.function_for_body(Some(id))?;
+            (std::ptr::eq(current, function) && cu.original_procedure_for_body(id).is_some())
+                .then_some(id)
+        })
+        .collect();
+    let every_proc_keyed = source_bodies.iter().all(|id| lattice_keys.contains_key(id))
+        && cu
+            .procedures
+            .keys()
+            .chain(cu.body_lowering_functions().map(|(id, _)| id))
+            .all(|id| {
+                cu.original_procedure_for_body(*id).is_some()
+                    && cu.function_for_body(Some(*id)).is_some()
+            });
     let is_irules = dialect.is_some_and(tcl_dialect::DialectProfile::is_irules);
     let dialect_opt = dialect;
     // The **argument-sensitive** O103 fold re-runs a *pure* callee's body with the
@@ -3362,171 +3823,93 @@ fn solve_optimisations<'db>(
         .any(|&key| function_lattice(db, key).sccp.reads_module);
     if is_irules
         || !cu.methods.is_empty()
-        || mutations != tcl_compiler::command_binding::ModuleCommandMutations::default()
         || has_arg_sensitive_target
         || !every_proc_keyed
         || reads_module
-        || module_has_trace_facts(&cu.ir_module)
     {
         return tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt);
     }
 
-    let ia = cu.interproc.clone().unwrap_or_default();
-    let redefined = &cu.ir_module.redefined_procedures;
-    let mut raw: Vec<Optimisation> = Vec::new();
-    // Each per-proc `optimise_unit_raw` allocates group ids from 0, so the procs'
-    // raw sets carry **colliding** group ids; offset each proc's groups into a
-    // disjoint range so the assembled set has unique ids (the whole-module build's
-    // invariant). The final group numbers are then identical: `renumber_groups`
-    // reassigns by sorted first-appearance, which only depends on the (unchanged)
-    // span order and the preserved per-proc grouping — not the offset values.
-    let mut group_base: u32 = 0;
-
-    // Per-procedure memoised raw optimisations, rebased to absolute spans.
-    for qname in cu.procedures.keys() {
-        let Some(&key) = lattice_keys.get(qname) else {
+    let retained = Arc::new(cu.clone());
+    let capsules: Option<HashMap<_, _>> = source_bodies
+        .iter()
+        .map(|id| {
+            tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
+                Arc::clone(&retained),
+                *id,
+                registry,
+            )
+            .map(|capsule| (*id, capsule))
+        })
+        .collect();
+    let Some(capsules) = capsules else {
+        return tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt);
+    };
+    // Readonly source certificates retain the actual mutation/trace facts in
+    // their dependency value. Reusing that same conservative analysis does not
+    // turn unknown source effects into a quiet runtime or entered execution.
+    let world_hazards = mutations
+        != tcl_compiler::command_binding::ModuleCommandMutations::default()
+        || module_has_trace_facts(&cu.ir_module);
+    if world_hazards
+        && (capsules.is_empty()
+            || !capsules.values().all(tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::has_closed_readonly_source_correspondence))
+    {
+        return tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt);
+    }
+    let body_capsules: Vec<_> = source_bodies
+        .iter()
+        .map(|id| capsules[id].clone())
+        .collect();
+    let mut assembly = tcl_compiler::optimiser::OriginalOptimiserAssembly::for_body_partition(
+        cu,
+        registry,
+        dialect_opt,
+        &body_capsules,
+    );
+    // Each entire memo report (including complete-empty) is consumed once.
+    // Actual capsule correspondence owns span/group rebasing; callers do not
+    // reconstruct a batch from mutable members or infer missing-body absence.
+    for body_id in &source_bodies {
+        if !lattice_keys.contains_key(body_id) || cu.original_procedure_for_body(*body_id).is_none()
+        {
             continue;
-        };
-        let Some(proc) = cu.ir_module.procedures.get(qname) else {
-            continue;
-        };
-        // The offset-0 lattice normalises every span by `-proc.span.start()`
-        // (the body offset), so the single-proc unit's `source` must be the file
-        // sliced at `[body_offset, body_end)` — `proc.body_source` is the body text
-        // but not necessarily at that exact base. Reading the slice keeps
-        // `source[offset0_span]` byte-aligned with the whole-module read.
-        let body_offset = proc.span.start();
-        let body_end = proc.span.end();
-        let body_source = cu
-            .source
-            .get(body_offset as usize..body_end as usize)
-            .unwrap_or("")
-            .to_owned();
-        // `body_source` (the whole-command slice) is `Module.source` for span
-        // alignment; the proc's real `body_source` (`args[2]`) + `params_raw`
-        // (`args[1]`) are threaded separately so O122's rewrite matches the
-        // whole-module `Procedure` (see `OptDepsKey`).
-        let deps = opt_deps_key(
+        }
+        let capsule = &capsules[body_id];
+        let deps = OptDepsKey::new(
             db,
-            &ia,
-            redefined,
-            &body_source,
-            &proc.name,
-            proc.body_source.as_deref().unwrap_or(""),
-            &proc.params_raw,
+            capsule.clone(),
+            dialect_opt.map(tcl_dialect::DialectProfile::cache_key),
+            capsule.original_optimiser_analysis_context(registry, dialect_opt),
         );
-        let mut max_group: Option<u32> = None;
-        for opt in function_optimisations(db, key, deps).iter() {
-            let mut opt = opt.clone();
-            opt.span =
-                tcl_lexer::Span::new(opt.span.start() + body_offset, opt.span.end() + body_offset);
-            if let Some(g) = opt.group {
-                opt.group = Some(group_base + g);
-                max_group = Some(max_group.map_or(g, |m| m.max(g)));
-            }
-            raw.push(opt);
-        }
-        if let Some(m) = max_group {
-            group_base += m + 1;
-        }
+        let report = function_optimisations(db, deps);
+        assembly.append_body(capsule, report.as_ref());
     }
 
-    // Top-level body: not per-proc memoised (it changes on top-level edits), but it
-    // is usually tiny.  Run the passes on a top-level-only unit — `procedures`
-    // empty so only the top-level is optimised, `interproc` retained so the
-    // top-level's O103 calls resolve — producing absolute-span raw optimisations.
-    let top_unit = top_level_only_unit(cu, redefined);
-    for mut opt in tcl_compiler::optimiser::optimise_unit_raw(&top_unit, registry, dialect_opt) {
-        if let Some(g) = opt.group {
-            opt.group = Some(group_base + g);
-        }
-        raw.push(opt);
-    }
-
-    tcl_compiler::optimiser::finalise_optimisations(&raw, cu, registry, dialect_opt)
+    // This parent-derived top view retains the actual current root witness.
+    // The same single raw worker and unchanged whole-module tail are reused.
+    let top_unit = top_level_only_unit(&assembly);
+    let top_report =
+        tcl_compiler::optimiser::optimise_unit_raw_report(&top_unit, registry, dialect_opt);
+    assembly.append_top_level(&top_report);
+    assembly.finish_report()
 }
 
-/// The top-level-only [`CompilationUnit`] [`solve_optimisations`] runs the
-/// passes over: `procedures` empty so only the top-level is optimised,
-/// `interproc` / `caller_scope` retained so the top-level's O103 calls
-/// resolve against the same boundary / cross-file facts the whole-module
-/// build resolved. Trace facts are copied from the real module (the
-/// `has_trace_facts` fallback means this path only runs when there are
-/// none, but copy the real values rather than asserting that by omission).
+/// The source producer derives the existing top-level-only analysis view.
+/// Its actual root owns the complete body roster, full prepared analyses and
+/// effective dialect; a public clone-and-clear cannot supply that receipt.
 fn top_level_only_unit(
-    cu: &CompilationUnit,
-    redefined: &std::collections::HashSet<String>,
+    assembly: &tcl_compiler::optimiser::OriginalOptimiserAssembly,
 ) -> CompilationUnit {
-    CompilationUnit {
-        source: cu.source.clone(),
-        ir_module: tcl_compiler::ir::Module {
-            top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
-            source: cu.source.clone(),
-            top_level_namespace: cu.ir_module.top_level_namespace.clone(),
-            dialect: cu.ir_module.dialect.clone(),
-            plain_command_dispatch: cu.ir_module.plain_command_dispatch,
-            top_level_evaluation: cu.ir_module.top_level_evaluation,
-            top_level: cu.ir_module.top_level.clone(),
-            procedures: HashMap::new(),
-            methods: HashMap::new(),
-            body_units: HashMap::new(),
-            lambda_body_units: std::collections::BTreeSet::new(),
-            redefined_procedures: redefined.clone(),
-            redefined_methods: HashMap::new(),
-            oo_unanalysed_classes: HashSet::new(),
-            oo_evidence: tcl_compiler::ir::OoDefinitionEvidence::default(),
-            class_relations: Vec::new(),
-            namespace_imports: Vec::new(),
-            namespace_exports: Vec::new(),
-            traced_commands: cu.ir_module.traced_commands.clone(),
-            has_dynamic_trace: cu.ir_module.has_dynamic_trace,
-            traced_variables: cu.ir_module.traced_variables.clone(),
-            has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
-            deferred_writes: cu.ir_module.deferred_writes.clone(),
-            reference_bodies: cu.ir_module.reference_bodies.clone(),
-            declared_frame_effects: cu.ir_module.declared_frame_effects.clone(),
-        },
-        cfg_module: tcl_compiler::cfg::CfgModule {
-            top_level: cu.cfg_module.top_level.clone(),
-            procedures: HashMap::new(),
-        },
-        command_mutations: cu.command_mutations.clone(),
-        top_level: cu.top_level.clone(),
-        procedures: HashMap::new(),
-        methods: HashMap::new(),
-        body_units: HashMap::new(),
-        interproc: cu.interproc.clone(),
-        connection_scope: None,
-        caller_scope: cu.caller_scope.clone(),
-        declared_commands: cu.declared_commands.clone(),
-        transfers: cu.transfers.clone(),
-    }
+    assembly.top_level_unit()
 }
 
-/// Interned identity of the lexer grammar a [`compilation_unit`] build lexes
-/// under: **the resolved environment id**, not an expanded
-/// [`tcl_lexer::LexerConfig`].  The call-site knobs (`strict_quoting = false`,
-/// zero base offsets) are genuinely the default on every path.
-///
-/// Interning only three of the six dialect-derived `LexerConfig` fields
-/// (`expand_syntax`, `irules_brace_separator`, `brace_line_continuation`) and
-/// letting `to_config` restore the rest from
-/// [`tcl_lexer::LexerConfig::default`] would pin the memoised path's
-/// `braced_var` to `Tcl9Nesting` and `escapes` to `Tcl90` regardless of the
-/// document's dialect, so a `tcl8.6` document would lex `${a{b}c}` under the
-/// 9.0 close rule.  Keying on the environment id
-/// instead of the expanded fields makes `to_config` name
-/// [`tcl_lexer::LexerConfig::for_dialect`] itself, so every field is the
-/// document's.
-///
-/// **And it keeps the sharing**, which widening the tuple would have cost:
-/// with all four hosts of the CFG/SSA tail's unit (this crate's
-/// [`analyse_per_item_with`], `Analyser::emit_cfg_ssa_diagnostics`'s own
-/// build, `tcl diag`'s `collect_rows`, and `xtask fp_sweep`) lexing under the
-/// document's environment, both diagnostics consumers intern the **same** id
-/// for a document and demand one [`compilation_unit`] build per edit — for
-/// every environment, where the truncated tuple shared for 15 of the 20 and
-/// built twice for the other five.
+/// Interned complete-document lexer policy for the resolved environment.
+/// The environment owns every grammar axis and the file BOM boundary; strict
+/// quoting and sub-lexing offsets retain their default entry-point values.
+/// Supplied document builds compare this policy with their genuine complete
+/// analysis input before issuing a compilation unit. Nested bodies receive
+/// their separately retained child input and policy.
 #[salsa::interned]
 pub struct LexerCfgKey<'db> {
     /// The resolved environment id (`tcl8.6`, `f5-irules`, …) whose grammar
@@ -3536,10 +3919,9 @@ pub struct LexerCfgKey<'db> {
 }
 
 impl LexerCfgKey<'_> {
-    /// The full [`tcl_lexer::LexerConfig`] this key represents: the
-    /// environment's own grammar plus the invariant call-site knobs.
+    /// The full complete-document policy selected by this environment key.
     fn to_config(self, db: &dyn TclDb) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::from_grammar(
+        tcl_lexer::LexerConfig::for_file_grammar(
             tcl_lsp_core::environment_for_dialect(self.environment(db)).grammar(),
         )
     }
@@ -3601,31 +3983,9 @@ fn unit_registry(db: &dyn TclDb, dialect: &str, overlay: u64) -> Result<UnitRegi
         .map(UnitRegistry::Overlaid)
 }
 
-/// The registry a memoised per-procedure query resolves against: the one the
-/// unit query that keyed it resolved.
-///
-/// A per-procedure query runs inside, or is re-verified for, a unit query
-/// that has already resolved this overlay through
-/// [`TclDb::registry_with_overlay`], and the database holds what it resolved,
-/// so this cannot miss for a key a unit query resolved. Being asked for one
-/// none did is a caller error, and it stops here: a lattice computed against
-/// a registry the packs are missing from would be memoised under the packs'
-/// key.
-fn nested_registry(db: &dyn TclDb, dialect: &str, overlay: u64) -> UnitRegistry {
-    unit_registry(db, dialect, overlay).unwrap_or_else(|miss| {
-        panic!("{miss}: a per-procedure query ran for an overlay no unit query resolved")
-    })
-}
-
-/// [`nested_registry`] for a lattice key, which carries its overlay in the
-/// analysis context.
-fn lattice_registry(db: &dyn TclDb, key: FnLatticeKey<'_>) -> UnitRegistry {
-    let overlay = key
-        .analysis_context(db)
-        .key(db)
-        .overlay_generation
-        .unwrap_or(0);
-    nested_registry(db, key.dialect(db), overlay)
+/// The exact shared registry retained by this lattice key's analysis snapshot.
+fn lattice_registry(db: &dyn TclDb, key: FnLatticeKey<'_>) -> Arc<CommandRegistry> {
+    key.snapshot(db).registry.shared_registry()
 }
 
 /// A query that cannot be answered without packs nobody has installed
@@ -3642,6 +4002,7 @@ fn abstain_diagnostics() -> Arc<CompilerDiagnostics> {
     Arc::new(CompilerDiagnostics {
         checks: Vec::new(),
         optimisations: Vec::new(),
+        taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
     })
 }
 
@@ -3709,12 +4070,9 @@ pub fn declared_command_surface(db: &dyn TclDb, file: SourceFile) -> Arc<Declare
 /// declarations reach every lattice of the file and a pack edit, which
 /// changes the overlay, invalidates them.  Tracked + keyed on
 /// `(file, cfg, overlay)` so the analyser tail ([`file_analysis_incremental`]) and the
-/// optimiser/compiler-checks pass ([`compiler_check_diagnostics`]) **share one
-/// build per edit** whenever their configs coincide — every dialect bar
-/// `tcl8.4` and the three `f5-tcl`-grammar dialects (`f5-irules`, `f5-tmsh`,
-/// `f5-iapps`, all of which select `GRAMMAR_F5_TCL`);
-/// for those four the configs differ, so each consumer builds its own.  Byte-identical to a direct
-/// `memoised_compilation_unit` call.
+/// compiler-checks pass share the same complete-document config key when
+/// their supplied source inputs agree. Original full-input guards remain
+/// independent of memo sharing.
 ///
 /// **`None` is an abstention, not an error page.** A non-zero `overlay` names a
 /// pack generation only the pack loader can build, so when nothing has
@@ -3748,6 +4106,86 @@ pub fn compilation_unit<'db>(
     )))
 }
 
+/// Memoised source compilation under the document's checked complete input.
+/// Missing context or a stale requested grammar withholds the unit.
+#[salsa::tracked(lru = 512, returns(clone))]
+pub fn compilation_unit_for_config<'db>(
+    db: &'db dyn TclDb,
+    file: SourceFile,
+    cfg: LexerCfgKey<'db>,
+    config: AnalyserConfig,
+) -> Option<Arc<CompilationUnit>> {
+    let input = document_analysis_input(db, file, config).ok()?;
+    let registry = input.borrowed_context_registry().commands();
+    let external = file.external_call_sites(db).clone();
+    let declared = declared_command_surface(db, file);
+    let options = supplied_unit_build_options(
+        db,
+        file,
+        cfg,
+        registry,
+        external.as_deref(),
+        &declared,
+        &input,
+    )?;
+    Some(Arc::new(
+        build_unit_with_keys_and_input(db, file.text(db), options, Some(&input)).0,
+    ))
+}
+
+#[salsa::tracked(lru = 512, returns(clone))]
+pub fn proc_taint_solve_for_config<'db>(
+    db: &'db dyn TclDb,
+    file: SourceFile,
+    cfg: LexerCfgKey<'db>,
+    config: AnalyserConfig,
+) -> Option<Arc<CheckSolve>> {
+    let input = document_analysis_input(db, file, config).ok()?;
+    let registry = input.borrowed_context_registry().commands();
+    let external = file.external_call_sites(db).clone();
+    let declared = declared_command_surface(db, file);
+    let options = supplied_unit_build_options(
+        db,
+        file,
+        cfg,
+        registry,
+        external.as_deref(),
+        &declared,
+        &input,
+    )?;
+    let (cu, keys) = build_unit_with_keys_and_input(db, file.text(db), options, Some(&input));
+    Some(solve_checks_for_unit(
+        db,
+        file.dialect(db),
+        registry,
+        cu,
+        &keys,
+        Some(input.unit_profile()),
+    ))
+}
+
+fn supplied_unit_build_options<'a>(
+    db: &dyn TclDb,
+    file: SourceFile,
+    cfg: LexerCfgKey<'_>,
+    registry: &'a CommandRegistry,
+    external: Option<&'a CallSiteEvidence>,
+    declared: &'a DeclaredSurface,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> Option<UnitBuildOptions<'a>> {
+    tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+        registry,
+        input,
+        cfg.to_config(db),
+        Some(input.unit_profile()),
+    )?;
+    Some(UnitBuildOptions {
+        dialect: Some(input.unit_profile()),
+        config: input.lexer_config(),
+        ..unit_build_options(db, file, cfg, registry, external, declared)
+    })
+}
+
 /// Incremental whole-file analysis: the per-item path with each `proc` body's
 /// isolated analysis memoised via [`item_body_analysis`], so a body edit
 /// recomputes one body + the cheap shell instead of the whole walk; the
@@ -3775,20 +4213,14 @@ pub fn file_analysis_incremental(
     let _sidecar_stubs_epoch = file.sidecar_stubs_epoch(db);
     let disabled_vec = config.disabled_diagnostics(db).clone();
     let non_ascii = config.non_ascii_mode(db);
-    let extra_commands: HashSet<String> = config.extra_commands(db).iter().cloned().collect();
     let dialect = file.dialect(db).clone();
     let text = file.text(db).clone();
     let workspace_class_factories = file.workspace_class_factories(db).clone();
-    let mut analyser = Analyser::with_disabled_diagnostics(disabled_vec.iter().cloned().collect())
-        .with_non_ascii_mode(non_ascii)
-        .with_pack_overlay(config.spec_pack_key(db))
-        .with_extra_commands(extra_commands)
-        .with_bigip_version(config.bigip_version(db).clone())
-        .with_declared_targets(config.targets(db).clone())
-        .with_package_provides(config.package_provides(db).clone())
-        .with_file_path(file.path(db).clone())
-        .with_workspace_class_factories(workspace_class_factories.clone())
-        .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone());
+    let input = match document_analysis_input(db, file, config) {
+        Ok(input) => input,
+        Err(miss) => return unavailable_document_analysis(&dialect, miss),
+    };
+    let mut analyser = document_analyser(db, file, config).with_resolved_input((*input).clone());
 
     // Build the CFG/SSA tail's compilation unit with per-procedure lattices
     // memoised by `function_lattice`, and feed it through the analyser's
@@ -3800,10 +4232,9 @@ pub fn file_analysis_incremental(
     // for *every* environment, because both consumers intern the same
     // environment id.
     let cfg_key = lexer_cfg_key(db, &dialect);
-    // Without the packs' generation there is no shared unit, and the analyser
-    // builds its own against the registry it reads (the plain one until the
-    // packs are installed): analysis advises and runs again once they are.
-    if let Some(unit) = compilation_unit(db, file, cfg_key, config.spec_pack_key(db)) {
+    // The input was checked before either producer walked source. A missing
+    // generation returns above; it cannot reopen standalone compilation.
+    if let Some(unit) = compilation_unit_for_config(db, file, cfg_key, config) {
         analyser.set_cu_override(unit);
     }
 
@@ -3827,6 +4258,7 @@ pub fn file_analysis_incremental(
                 ),
                 body.safe_interp_ctx.clone(),
                 workspace_class_factories.clone(),
+                body.resolved_input.clone(),
             ),
             dialect.clone(),
             disabled_vec.clone(),
@@ -3846,13 +4278,35 @@ pub fn file_analysis_incremental(
 /// converts these to findings, and the policy step decides what shows.
 /// Kept independent of the runtime gate so the query caches across config
 /// toggles.  `Clone + PartialEq` for salsa early-cutoff.
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct CompilerDiagnostics {
     /// `run_all_checks` output (GVN / shimmer / thunking / taint / iRules-flow /
     /// SCCP), severities preserved.
     pub checks: Vec<CompilerCheck>,
     /// `optimise_unit` rewrites (`O1xx`), surfaced as HINT-severity suggestions.
     pub optimisations: Vec<Optimisation>,
+    /// Command-head replay availability for compiler checks, independent of warning count.
+    /// Stored callbacks belong to the separate whole-unit taint report.
+    pub taint_replays: tcl_compiler::taint::TaintReplayAnalysis,
+}
+
+impl PartialEq for CompilerDiagnostics {
+    fn eq(&self, other: &Self) -> bool {
+        self.checks == other.checks
+            && self.optimisations == other.optimisations
+            && self.taint_replays == other.taint_replays
+            && same_optimisation_provenance(&self.optimisations, &other.optimisations)
+    }
+}
+
+// Salsa must not retain an old source-action receipt when report text agrees.
+// Optimisation's public payload equality remains independent of that currency.
+fn same_optimisation_provenance(left: &[Optimisation], right: &[Optimisation]) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.same_original_rewrite_provenance(right))
 }
 
 /// Run the compiler-checks + optimiser passes over a built unit.  Shared by the
@@ -3864,15 +4318,16 @@ fn compiler_diagnostics_from_unit(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     generic_patterns: Option<&[String]>,
 ) -> CompilerDiagnostics {
-    let dialect_opt = dialect;
+    let report = tcl_compiler::compiler_checks::compiler_check_report_with_generic_patterns(
+        cu,
+        registry,
+        dialect,
+        generic_patterns,
+    );
     CompilerDiagnostics {
-        checks: tcl_compiler::compiler_checks::run_all_checks_with_generic_patterns(
-            cu,
-            registry,
-            dialect_opt,
-            generic_patterns,
-        ),
-        optimisations: tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt),
+        checks: report.diagnostics,
+        optimisations: tcl_compiler::optimiser::optimise_unit(cu, registry, dialect),
+        taint_replays: report.taint_replays,
     }
 }
 
@@ -3890,50 +4345,59 @@ pub fn compiler_check_diagnostics(
     file: SourceFile,
     config: AnalyserConfig,
 ) -> Arc<CompilerDiagnostics> {
+    compiler_check_diagnostics_if_available(db, file, config).unwrap_or_else(abstain_diagnostics)
+}
+
+/// The actual compiler diagnostic pass, preserving unavailable preparation.
+/// `Some` follows successful checked unit preparation and the real solve/check
+/// producer. `None` carries no completed empty report. This supplies no Native
+/// execution, normal completion or closure of unavailable nested analyses.
+#[salsa::tracked(lru = 64, returns(clone))]
+pub fn compiler_check_diagnostics_if_available(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Option<Arc<CompilerDiagnostics>> {
     let dialect = file.dialect(db).clone();
-    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
-    let overlay = config.spec_pack_key(db);
-    // No packs installed, no unit and no rewrites: nothing is offered in place
-    // of what the workspace's own declarations would have decided.
-    let Ok(registry) = unit_registry(db, &dialect, overlay) else {
-        return abstain_diagnostics();
+    let Ok(input) = document_analysis_input(db, file, config) else {
+        return None;
     };
-    let registry: &CommandRegistry = &registry;
-    // Share the analyser tail's build via the [`compilation_unit`] query when the
-    // dialect's lexer config matches the default (every dialect but `tcl8.4` /
-    // `f5-irules`): the optimiser lowers with the dialect config, so a matching
-    // config interns the same `LexerCfgKey` and reuses the same per-edit build.
+    let registry: &CommandRegistry = input.borrowed_context_registry().commands();
+    let dialect_opt = Some(input.unit_profile());
+    // The analyser tail and compiler checks share the complete document
+    // policy key. The supplied input must still pass its exact guard.
     let cfg_key = lexer_cfg_key(db, &dialect);
-    let Some(cu) = compilation_unit(db, file, cfg_key, overlay) else {
-        return abstain_diagnostics();
-    };
+    let _shared_unit = compilation_unit_for_config(db, file, cfg_key, config)?;
     // Both halves of `run_all_checks` come from the memoised [`proc_taint_solve`]:
     // the interprocedural taint solve (`solve.taints`)
     // and the per-procedure non-taint checks (`solve.fn_checks`, already rebased),
     // so an unchanged procedure contributes neither a re-solve nor a re-check.
     // The remaining taint-family + iRules module checks (which read the solved
-    // taints) are appended over the shared build, then the combined set is sorted
+    // taints) are appended over the solve's retained unit, then the set is sorted
     // into the same deterministic order `run_all_checks` produces.  Byte-identical
     // to the in-line build; guarded by the corpus differential.  Optimiser
     // unchanged.
-    let Some(solve) = proc_taint_solve(db, file, cfg_key, overlay) else {
-        return abstain_diagnostics();
-    };
+    let solve = proc_taint_solve_for_config(db, file, cfg_key, config)?;
+    // Procedure IDs belong to this solve's genuine construction. A separate
+    // shared build retains its own source ingress and cannot select these maps.
+    let cu = solve.unit.as_ref();
     let mut checks = solve.fn_checks.clone();
     let generic_patterns = config.generic_variable_patterns(db).as_deref();
-    tcl_compiler::compiler_checks::push_taint_and_module_checks(
-        &cu,
+    let taint_replays = tcl_compiler::compiler_checks::push_taint_and_module_checks(
+        cu,
         registry,
         dialect_opt,
         &solve.taints,
         generic_patterns,
         &mut checks,
     );
+    tcl_compiler::compiler_checks::retain_diagnostic_source_context(cu, registry, &mut checks);
     tcl_compiler::compiler_checks::sort_diagnostics(&mut checks);
-    Arc::new(CompilerDiagnostics {
+    Some(Arc::new(CompilerDiagnostics {
         checks,
         optimisations: solve.optimisations.clone(),
-    })
+        taint_replays,
+    }))
 }
 
 /// No-salsa-input fallback for [`compiler_check_diagnostics`]: build the unit
@@ -3947,31 +4411,140 @@ pub fn compiler_check_diagnostics_uncached(
     generic_patterns: Option<&[String]>,
     external_call_sites: Option<&CallSiteEvidence>,
 ) -> CompilerDiagnostics {
-    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
-    // No `SourceFile` here means no path, so only the document's own inline
-    // block is reachable; a command only a sidecar declares answers as the
-    // catalogue has it.
-    let declared = tcl_compiler::analyser::utils::document_declared_surface(text, None, dialect);
-    let cu = CompilationUnit::build_with_options(
-        text,
-        UnitBuildOptions {
-            registry,
-            defer_top_level: false,
-            config: tcl_lexer::LexerConfig::from_grammar(
-                tcl_lsp_core::environment_for_dialect(dialect).grammar(),
-            ),
-            dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
-            external_call_sites,
-            declared_commands: Some(&declared),
-        },
-    )
-    .with_interprocedural(registry, dialect_opt);
+    let cu = fresh_compiler_document_unit(text, registry, dialect, external_call_sites);
     compiler_diagnostics_from_unit(
         &cu,
         registry,
         tcl_lsp_core::stated_profile_for_dialect(dialect),
         generic_patterns,
     )
+}
+
+/// Fresh document source ingress over the exact caller-selected command store.
+/// This driver resolves its own complete editing input; supplied-owner callers
+/// use their independent checked route and cannot reopen this constructor.
+fn fresh_compiler_document_unit(
+    text: &str,
+    registry: &CommandRegistry,
+    dialect: &str,
+    external_call_sites: Option<&CallSiteEvidence>,
+) -> CompilationUnit {
+    let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+    let baseline = environment.default_context_registry();
+    let context =
+        if baseline.commands().snapshot().semantic_key() == registry.snapshot().semantic_key() {
+            baseline
+        } else {
+            Arc::new(baseline.with_command_store(registry.snapshot().shared_registry()))
+        };
+    let config = tcl_lexer::LexerConfig::for_file_grammar(environment.grammar());
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        environment.analyser_profile(),
+        environment.unit_profile(),
+        context,
+        config,
+    );
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(text, None, dialect);
+    let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(
+        registry,
+        &input,
+        config,
+        Some(input.unit_profile()),
+    );
+    CompilationUnit::build_with_analysis_input(
+        text,
+        UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config,
+            dialect: Some(input.unit_profile()),
+            external_call_sites,
+            declared_commands: Some(&declared),
+        },
+        Some(&entry),
+        &input,
+    )
+    .with_interprocedural(registry, Some(input.unit_profile()))
+}
+
+/// Build a source-advice unit from the document's complete retained analysis.
+/// Missing, changed-source, foreign-store or changed-grammar ownership refuses
+/// the build. This does not supply a native execution entry or erasure licence.
+#[must_use]
+pub fn compilation_unit_uncached_from_analysis(
+    text: &str,
+    registry: &CommandRegistry,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    external_call_sites: Option<&CallSiteEvidence>,
+) -> Option<CompilationUnit> {
+    if analysis.analysis_context_unavailable.is_some() {
+        return None;
+    }
+    let (_image, config) = tcl_compiler::source_graph::current_analysis(text, analysis)?;
+    let input = analysis.resolved_input.as_ref()?;
+    tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+        registry,
+        input,
+        config,
+        Some(input.unit_profile()),
+    )?;
+    if let Some(unit) = analysis.original_optimiser_source_unit(text, registry, external_call_sites)
+    {
+        return Some(unit);
+    }
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(
+        text,
+        None,
+        input.unit_profile().name,
+    );
+    let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(
+        registry,
+        input,
+        config,
+        Some(input.unit_profile()),
+    );
+    Some(CompilationUnit::build_with_analysis_input(
+        text,
+        UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config,
+            dialect: Some(input.unit_profile()),
+            external_call_sites,
+            declared_commands: Some(&declared),
+        },
+        Some(&entry),
+        input,
+    ))
+}
+
+/// Uncached compiler findings for an already analysed document. The actual
+/// input owns availability, unit profile and lexer configuration. A refused
+/// supplied build returns no compiler projections; it never enters the scalar
+/// standalone API. Diagnostic subjects and source contexts stay intact.
+#[must_use]
+pub fn compiler_check_diagnostics_uncached_from_analysis(
+    text: &str,
+    registry: &CommandRegistry,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    generic_patterns: Option<&[String]>,
+    external_call_sites: Option<&CallSiteEvidence>,
+) -> CompilerDiagnostics {
+    let Some(cu) =
+        compilation_unit_uncached_from_analysis(text, registry, analysis, external_call_sites)
+    else {
+        return CompilerDiagnostics {
+            checks: Vec::new(),
+            optimisations: Vec::new(),
+            taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
+        };
+    };
+    let profile = analysis
+        .resolved_input
+        .as_ref()
+        .map(tcl_compiler::analyser::ResolvedAnalysisInput::unit_profile);
+    let cu = cu.with_interprocedural(registry, profile);
+    compiler_diagnostics_from_unit(&cu, registry, profile, generic_patterns)
 }
 
 /// Document outline — wraps `document_symbols_from_analysis`, reusing the
@@ -4018,7 +4591,7 @@ pub fn document_compilation_unit_for(
     config: AnalyserConfig,
 ) -> Option<Arc<CompilationUnit>> {
     let cfg_key = lexer_cfg_key(db, file.dialect(db));
-    compilation_unit(db, file, cfg_key, config.spec_pack_key(db))
+    compilation_unit_for_config(db, file, cfg_key, config)
 }
 
 /// Semantic tokens — wraps `semantic_tokens::full_with_cu`; reads the durable
@@ -4060,25 +4633,47 @@ pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig)
     )
 }
 
+mod project_call_inputs;
+pub use project_call_inputs::{
+    file_external_call_sites_for_inputs, file_source_targets_for_inputs,
+};
+mod project_source_inputs;
+pub use project_source_inputs::{
+    item_sigs_for_config, item_tree_for_config,
+    project_callback_diagnostics_for_analysis_with_inputs, project_callback_diagnostics_for_inputs,
+    project_class_factories_for_inputs, project_original_command_signatures_for_inputs,
+};
+use project_source_inputs::{
+    original_command_signatures_for_inputs, original_lookup_command_signatures_for_inputs,
+};
+
+mod project_token_inputs;
+pub use project_token_inputs::{
+    file_token_facts_for_config, project_class_index_for_inputs,
+    project_named_instance_index_for_inputs, project_proc_var_index_for_inputs,
+    semantic_tokens_project_for_inputs,
+};
+
 /// The cross-file facts the project-level token aggregates read from **one**
 /// file: its class definitions and its inferred variable-name argument roles.
 ///
-/// Deliberately small and `PartialEq`: it is the per-file firewall in front of
-/// [`project_class_index`] / [`project_proc_var_index`], so an edit that leaves
-/// a file's classes and parameter roles alone — which is nearly every keystroke
-/// — backdates here and the project aggregates do not re-execute at all.
+/// The structure-only per-file boundary retains original source-display
+/// receipts as well as compatibility projections. Original-image changes
+/// invalidate those receipts; unchanged aggregate display maps can backdate
+/// independently after their original providers have been checked.
 #[derive(Clone, Default, PartialEq)]
 pub struct FileTokenFacts {
     /// Classes declared in this file, keyed by qualified name.
     pub classes: HashMap<String, ClassDef>,
     /// The file's user-proc parameter roles.
     pub proc_roles: VarNameArgRoles,
-    /// Bareword instance-command names this file binds via `CLASS create
-    /// NAME`, mapped to the (locally-resolved) qualified class name — the
-    /// named-object dispatch form, gated on
-    /// `created_instance_commands` exactly like the LSP's
-    /// `receiver_instance_class`.
-    pub named_instances: HashMap<String, String>,
+    /// Readonly named-instance reports with separate existing compatibility
+    /// and conditional source-display modes. Conditional labels supply no
+    /// receiver identity; actual project token selection uses `class_cards`.
+    pub named_instances: tcl_lsp_core::semantic_tokens::NamedInstanceMap,
+    /// Genuine original class/factory/instance source-display owners.
+    pub class_cards:
+        Option<tcl_compiler::registry_invocation::source_structure::OriginalProjectClassCards>,
 }
 
 /// The light (structure-only) per-file tier feeding [`project_class_index`] and
@@ -4103,25 +4698,31 @@ pub struct FileTokenFacts {
 /// the cost — for the same 883 files in ~2.9 s, and the result is a projection
 /// small enough to backdate.
 ///
-/// Config-independent by construction: `structure_only` emits no diagnostics,
-/// so the disabled-diagnostic set / non-ASCII mode / extra commands cannot
-/// reach the class and role facts.  That is what lets both aggregates drop
-/// their `AnalyserConfig` key — one index per project rather than one per
-/// distinct per-folder config.
+/// This explicit standalone query uses the file's stated dialect. Actual
+/// document consumers use [`file_token_facts_for_config`], whose checked input
+/// retains pack roles, availability and source grammar on the same light tier.
 #[salsa::tracked(returns(clone))]
 pub fn file_token_facts(db: &dyn TclDb, file: SourceFile) -> Arc<FileTokenFacts> {
     let mut analyser = Analyser::new()
         .structure_only()
         .with_file_path(file.path(db).clone());
     let result = analyser.analyse(file.text(db), file.dialect(db));
-    let named_instances = result
-        .instance_classes
-        .iter()
-        .filter(|(name, _)| result.created_instance_commands.contains(name.as_str()))
-        .map(|(name, class)| (name.clone(), class.clone()))
-        .collect();
+    token_facts_from_analysis(result)
+}
+
+fn token_facts_from_analysis(result: AnalysisResult) -> Arc<FileTokenFacts> {
+    let mut named_instances =
+        tcl_lsp_core::semantic_tokens::NamedInstanceMap::from_analysis(&result);
+    let class_cards =
+        tcl_compiler::registry_invocation::source_structure::OriginalProjectClassCards::capture(
+            &result,
+        );
+    if let Some(cards) = &class_cards {
+        named_instances.extend_conditional_source_cards(cards);
+    }
     Arc::new(FileTokenFacts {
-        proc_roles: VarNameArgRoles::from_procs(result.all_procs.values()),
+        proc_roles: VarNameArgRoles::from_analysis(&result),
+        class_cards,
         classes: result.all_classes,
         named_instances,
     })
@@ -4137,6 +4738,19 @@ pub fn file_token_facts(db: &dyn TclDb, file: SourceFile) -> Arc<FileTokenFacts>
 /// recompute — the correct cross-file invalidation.
 #[salsa::tracked(returns(clone))]
 pub fn project_class_index(db: &dyn TclDb, project: Project) -> Arc<ClassHierarchy> {
+    let mut providers = HashSet::new();
+    merge_project_classes(
+        project
+            .files(db)
+            .iter()
+            .filter(|&&file| providers.insert(file))
+            .map(|&file| file_token_facts(db, file)),
+    )
+}
+
+fn merge_project_classes(
+    facts: impl IntoIterator<Item = Arc<FileTokenFacts>>,
+) -> Arc<ClassHierarchy> {
     // `project.files(db)` is an unordered `Vec` with no stable identity, so a
     // "first definition wins" merge would make the winner for a duplicate
     // qualified class name depend on file-enumeration order — non-deterministic
@@ -4147,8 +4761,8 @@ pub fn project_class_index(db: &dyn TclDb, project: Project) -> Arc<ClassHierarc
     // feature's highlight-only / sound-by-abstention posture.
     let mut merged: HashMap<String, ClassDef> = HashMap::new();
     let mut ambiguous: HashSet<String> = HashSet::new();
-    for &file in project.files(db) {
-        for (name, class) in &file_token_facts(db, file).classes {
+    for facts in facts {
+        for (name, class) in &facts.classes {
             if ambiguous.contains(name) {
                 continue;
             }
@@ -4181,25 +4795,32 @@ pub fn project_class_index(db: &dyn TclDb, project: Project) -> Arc<ClassHierarc
 /// Reads the same light [`file_token_facts`] firewall as [`project_class_index`].
 #[salsa::tracked(returns(clone))]
 pub fn project_proc_var_index(db: &dyn TclDb, project: Project) -> Arc<VarNameArgRoles> {
-    let per_file: Vec<Arc<FileTokenFacts>> = project
-        .files(db)
-        .iter()
-        .map(|&file| file_token_facts(db, file))
-        .collect();
+    let mut providers = HashSet::new();
+    merge_project_proc_roles(
+        project
+            .files(db)
+            .iter()
+            .filter(|&&file| providers.insert(file))
+            .map(|&file| file_token_facts(db, file)),
+    )
+}
+
+fn merge_project_proc_roles(
+    facts: impl IntoIterator<Item = Arc<FileTokenFacts>>,
+) -> Arc<VarNameArgRoles> {
+    let per_file = facts.into_iter().collect::<Vec<_>>();
     Arc::new(VarNameArgRoles::merge(
-        per_file.iter().map(|f| &f.proc_roles),
+        per_file.iter().map(|facts| &facts.proc_roles),
     ))
 }
 
-/// The project's workspace-merged `CLASS create NAME` bareword
-/// instance-command index: every file's `named_instances`
-/// unioned into one cross-file map, so `$obj method` on a named object
-/// bound in *another* project file's file resolves too.
+/// Workspace named-instance display reports, preserving each row's existing
+/// compatibility or conditional source-display mode. Conditional labels never
+/// enter legacy classification; actual project receiver selection uses the
+/// independently retained original `FileTokenFacts::class_cards`.
 ///
-/// A name bound to a *different* class in two or more files is genuinely
-/// ambiguous — dropped from the merged index, matching
-/// [`project_class_index`]'s order-independent abstention posture, rather
-/// than depending on `project.files`' unordered enumeration.
+/// Conflicting class labels are omitted from this report in either file order.
+/// Agreement between labels supplies no command or receiver identity.
 ///
 /// Reads the same light [`file_token_facts`] firewall as [`project_class_index`].
 #[salsa::tracked(returns(clone))]
@@ -4207,25 +4828,22 @@ pub fn project_named_instance_index(
     db: &dyn TclDb,
     project: Project,
 ) -> Arc<tcl_lsp_core::semantic_tokens::NamedInstanceMap> {
-    let mut merged: HashMap<String, String> = HashMap::new();
-    let mut ambiguous: HashSet<String> = HashSet::new();
-    for &file in project.files(db) {
-        for (name, class) in &file_token_facts(db, file).named_instances {
-            if ambiguous.contains(name) {
-                continue;
-            }
-            match merged.entry(name.clone()) {
-                std::collections::hash_map::Entry::Occupied(e) => {
-                    if e.get() != class {
-                        e.remove();
-                        ambiguous.insert(name.clone());
-                    }
-                }
-                std::collections::hash_map::Entry::Vacant(e) => {
-                    e.insert(class.clone());
-                }
-            }
-        }
+    let mut providers = HashSet::new();
+    merge_project_named_instances(
+        project
+            .files(db)
+            .iter()
+            .filter(|&&file| providers.insert(file))
+            .map(|&file| file_token_facts(db, file)),
+    )
+}
+
+fn merge_project_named_instances(
+    facts: impl IntoIterator<Item = Arc<FileTokenFacts>>,
+) -> Arc<tcl_lsp_core::semantic_tokens::NamedInstanceMap> {
+    let mut merged = tcl_lsp_core::semantic_tokens::NamedInstanceMap::default();
+    for facts in facts {
+        merged.merge_reports(&facts.named_instances);
     }
     Arc::new(merged)
 }
@@ -4235,10 +4853,9 @@ pub fn project_named_instance_index(
 /// resolves too.  The server calls this when a [`Project`] is available; the
 /// bare [`semantic_tokens`] (local file only) is the fallback.
 ///
-/// Takes no [`AnalyserConfig`]: every input it reads — the document's
-/// compilation unit and the three project indexes — is config-independent, so
-/// keying on one would only fragment the memo across per-folder configs that
-/// cannot change the answer.
+/// This compatibility query keeps standalone cross-file indexes. Actual
+/// workspace document callers use [`semantic_tokens_project_for_inputs`] and
+/// the driver's per-file configuration map.
 // `returns(clone)` for the same reason as [`semantic_tokens`].
 #[salsa::tracked(returns(clone))]
 pub fn semantic_tokens_project(
@@ -4250,6 +4867,14 @@ pub fn semantic_tokens_project(
     let registry = token_registry(db, file.dialect(db), config.spec_pack_key(db));
     let cu = document_compilation_unit_for(db, file, config);
     let classes = project_class_index(db, project);
+    let mut seen = HashSet::new();
+    let class_cards = project
+        .files(db)
+        .iter()
+        .filter(|&&member| member != file && seen.insert(member))
+        .map(|&file| file_token_facts(db, file).class_cards.clone())
+        .collect::<Option<Vec<_>>>()
+        .unwrap_or_default();
     let proc_roles = project_proc_var_index(db, project);
     let named_instances = project_named_instance_index(db, project);
     let analysis = file_analysis_incremental(db, file, config);
@@ -4260,6 +4885,7 @@ pub fn semantic_tokens_project(
         cu.as_deref(),
         tcl_lsp_core::semantic_tokens::WorkspaceTokenFacts {
             classes: Some(&classes),
+            project_classes: Some(&class_cards),
             proc_roles: Some(&proc_roles),
             named_instances: Some(&named_instances),
             analysis: Some(&analysis),
@@ -4273,22 +4899,119 @@ pub fn semantic_tokens_project(
 // straight-line segmenter walk), so the read region must stay as short as
 // possible and the projection must happen outside it.
 #[salsa::tracked(returns(clone))]
-pub fn folding_ranges(db: &dyn TclDb, file: SourceFile) -> Vec<FoldingRange> {
-    let registry = db.registry(file.dialect(db));
-    tcl_lsp_core::folding::folding_ranges(
-        file.text(db),
-        tcl_lsp_core::profile_for_dialect(file.dialect(db)),
-        registry,
-    )
+pub fn folding_ranges(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Vec<FoldingRange> {
+    let analysis = file_analysis_incremental(db, file, config);
+    tcl_lsp_core::folding::folding_ranges_with_analysis(file.text(db), &analysis)
 }
 
 #[cfg(test)]
 mod value_transfer_parity;
 
 #[cfg(test)]
+mod original_uncached_metadata_tests;
+
+#[cfg(test)]
+mod original_tracked_metadata_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::Mutex;
+
+    fn original_test_body_id(
+        unit: &CompilationUnit,
+        offset: usize,
+    ) -> tcl_compiler::ir::ProcedureId {
+        let offset = u32::try_from(offset).expect("finite original fixture offset");
+        let mut bodies = unit
+            .ir_module
+            .procedures
+            .iter()
+            .chain(unit.ir_module.body_units.iter())
+            .filter(|(id, _)| unit.original_procedure_for_body(**id).is_some())
+            .filter(|(_, procedure)| {
+                procedure.declaration_site.as_ref().is_some_and(|site| {
+                    site.offset == offset
+                        && site.source.source_image().bytes() == unit.source.as_bytes()
+                })
+            });
+        let (&id, _) = bodies.next().expect("actual original fixture declaration");
+        assert!(
+            bodies.next().is_none(),
+            "one body at the original fixture site"
+        );
+        assert!(unit.ir_module.procedure_ids.owns(id));
+        id
+    }
+
+    #[test]
+    fn original_procedure_facts_retain_each_current_declaration_site() {
+        use salsa::Setter as _;
+        let mut db = TclDatabase::default();
+        let source = "proc repeated {} {return FIRST}\nproc repeated {} {return SECOND}";
+        let file = SourceFile::new(&db, source.to_owned(), "tcl8.6".to_owned(), None);
+        let config = cfg(&db);
+        let first = file_original_procedure_facts(&db, file, config).unwrap();
+        assert_eq!(first.declarations().len(), 2);
+        assert_ne!(
+            first.declarations()[0].declaration_site(),
+            first.declarations()[1].declaration_site()
+        );
+        for declaration in first.declarations() {
+            assert_eq!(declaration.name_input().source_image(), first.image());
+            assert_eq!(
+                declaration.name_input().lexer_config(),
+                first.input().lexer_config()
+            );
+        }
+        assert!(Arc::ptr_eq(
+            &first,
+            &file_original_procedure_facts(&db, file, config).unwrap()
+        ));
+        file.set_text(&mut db).to(format!("{source}\n# new image"));
+        let changed = file_original_procedure_facts(&db, file, config).unwrap();
+        assert_ne!(first.image(), changed.image());
+        assert!(
+            changed
+                .declarations()
+                .iter()
+                .all(|declaration| { declaration.name_input().source_image() == changed.image() })
+        );
+    }
+
+    #[test]
+    fn project_procedure_facts_keep_missing_file_inputs_unavailable() {
+        let db = TclDatabase::default();
+        let first = SourceFile::new(
+            &db,
+            "proc first {} {return FIRST}".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+        let other = SourceFile::new(
+            &db,
+            "proc other {} {return OTHER}".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+        let config = cfg(&db);
+        let standalone = Project::new(&db, vec![first, other]);
+        assert!(project_original_procedure_facts(&db, standalone).is_empty());
+        let partial = Project::with_token_configurations(
+            &db,
+            vec![first, other],
+            Some(vec![(first, config)]),
+        );
+        let facts = project_original_procedure_facts(&db, partial);
+        assert_eq!(facts.len(), 1);
+        assert!(facts[0].0 == first);
+        assert_eq!(facts[0].1.declarations().len(), 1);
+        assert!(facts.iter().all(|(file, _)| *file != other));
+    }
 
     /// A key that misses, installs, retires and misses again is reported each
     /// time it misses: the log keeps a miss once while it stands, and forgets
@@ -4348,6 +5071,613 @@ mod tests {
     const SRC: &str = "proc greet {name} {\n    puts \"hi $name\"\n}\n# c\nset x 1\n";
 
     #[test]
+    fn logical_callback_source_receipts_replace_reporting_count_and_tail_joins() {
+        use salsa::Setter as _;
+        let mut db = TclDatabase::default();
+        let provider = SourceFile::new(&db, "proc helper {} {}".to_owned(), "tcl".to_owned(), None);
+        let caller_source = "lsort -command {helper baked} {a b}";
+        let caller = SourceFile::new(&db, caller_source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![provider, caller]);
+        let analysis = Analyser::new().analyse(caller_source, "tcl");
+        let diagnose = |db: &TclDatabase, analysis: &AnalysisResult| {
+            project_callback_diagnostics_for_analysis(db, project, caller_source, analysis, |_| {
+                false
+            })
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::E003)
+            .map(|diagnostic| (diagnostic.span, diagnostic.message))
+            .collect::<Vec<_>>()
+        };
+        let original = diagnose(&db, &analysis);
+        assert_eq!(original.len(), 1);
+        assert!(original[0].1.contains("got 3"));
+        let mut labels = analysis.clone();
+        for invocation in &mut labels.command_invocations {
+            invocation.name = "foreign_report".to_owned();
+            invocation.callback_arity = None;
+            invocation.callback_baked_args = 100;
+            invocation.resolution_candidates.clear();
+        }
+        assert_eq!(diagnose(&db, &labels), original);
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(diagnose(&db, &missing).is_empty());
+        provider
+            .set_text(&mut db)
+            .to("proc helper {first second third} {}".to_owned());
+        assert!(diagnose(&db, &analysis).is_empty());
+    }
+
+    #[test]
+    fn logical_callback_source_unknown_mutations_keep_unresolved_alternatives() {
+        let db = TclDatabase::default();
+        let provider = SourceFile::new(&db, "proc helper {} {}".to_owned(), "tcl".to_owned(), None);
+        let source = "unmodelled_registry_mutation; lsort -command {::helper baked} {a b}";
+        let caller = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![provider, caller]);
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let callbacks = tcl_compiler::registry_invocation::source_structure::source_logical_callback_candidates(source, &analysis).unwrap();
+        assert_eq!(callbacks.len(), 1);
+        assert!(callbacks[0].registration().obligations().contains(
+            &tcl_compiler::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation));
+        let diagnostics =
+            project_callback_diagnostics_for_analysis(&db, project, source, &analysis, |_| false);
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::E003)
+        );
+    }
+
+    #[test]
+    fn logical_callback_project_headers_keep_installer_operand_effects_unknown() {
+        let db = TclDatabase::default();
+        let provider = SourceFile::new(&db, "proc helper {} {}".to_owned(), "tcl".to_owned(), None);
+        let source = "lsort -command helper [set items {a b}]";
+        let caller = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![provider, caller]);
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let diagnostics =
+            project_callback_diagnostics_for_analysis(&db, project, source, &analysis, |_| false);
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != DiagCode::E003)
+        );
+    }
+
+    #[test]
+    fn logical_callback_project_headers_preserve_selected_source_occupants() {
+        let db = TclDatabase::default();
+        let provider = SourceFile::new(
+            &db,
+            "proc puts {} {}; proc helper {} {}".to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
+        for source in [
+            "lsort -command puts {a b}",
+            "proc helper {a b} {}; lsort -command helper {a b}",
+            "interp alias {} helper {} puts; lsort -command helper {a b}",
+            "proc helper {a b} {}; rename helper {}; lsort -command helper {a b}",
+        ] {
+            let caller = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+            let project = Project::new(&db, vec![provider, caller]);
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let callbacks = tcl_compiler::registry_invocation::source_structure::source_logical_callback_candidates(source, &analysis).unwrap();
+            assert_eq!(callbacks.len(), 1, "{source}");
+            assert!(
+                callbacks[0].external_header_coordinates().is_none(),
+                "{source}"
+            );
+            let mut local = analysis.clone();
+            local.diagnostics.clear();
+            let diagnostics =
+                project_callback_diagnostics_for_analysis(&db, project, source, &local, |_| false);
+            assert!(diagnostics.is_empty(), "{source}: {diagnostics:?}");
+        }
+    }
+
+    #[test]
+    fn logical_callback_project_headers_use_callback_scope_and_skip_deleted_alternatives() {
+        let db = TclDatabase::default();
+        let provider = SourceFile::new(
+            &db,
+            "proc helper {} {}; namespace eval A {proc helper {a b} {}}".to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
+        for (source, expected) in [
+            (
+                "namespace eval A {proc helper {a b} {}; after 1 {helper baked}}",
+                1,
+            ),
+            (
+                "proc helper {a b} {}; namespace eval A {lsort -command helper {a b}}",
+                0,
+            ),
+            (
+                "namespace eval A {proc helper {a b} {}; rename helper {}; lsort -command helper {a b}}",
+                1,
+            ),
+        ] {
+            let caller = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+            let project = Project::new(&db, vec![provider, caller]);
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let mut local = analysis.clone();
+            local.diagnostics.clear();
+            let diagnostics =
+                project_callback_diagnostics_for_analysis(&db, project, source, &local, |_| false);
+            assert_eq!(
+                diagnostics
+                    .iter()
+                    .filter(|diagnostic| diagnostic.code == DiagCode::E003)
+                    .count(),
+                expected,
+                "{source}: {diagnostics:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_direct_project_headers_do_not_depend_on_unknown_command_reporting() {
+        let db = TclDatabase::default();
+        let provider = SourceFile::new(
+            &db,
+            "proc helper {a b} {}".to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
+        let source = "helper ONE";
+        let caller = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![provider, caller]);
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        analysis.unresolved_command_sites.clear();
+        analysis.diagnostics.clear();
+        analysis.command_invocations.clear();
+        let diagnostics = project_source_diagnostics_for_analysis(
+            (&db, project, ProjectSourceInputMode::Standalone),
+            source,
+            &analysis,
+            |_| false,
+        );
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, DiagCode::E002);
+    }
+
+    #[test]
+    fn logical_callback_source_slots_preserve_namespace_order_and_missing_project_inputs() {
+        let db = TclDatabase::default();
+        let provider = SourceFile::new(&db,
+            "namespace eval A {proc helper {first second} {}}; namespace eval B {proc helper {} {}}".to_owned(),
+            "tcl".to_owned(), None);
+        let source = "namespace eval A {proc caller {} {lsort -command helper {a b}}}; namespace eval B {proc caller {} {lsort -command helper {a b}}}";
+        let caller = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![provider, caller]);
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let diagnostics =
+            project_callback_diagnostics_for_analysis(&db, project, source, &analysis, |_| false);
+        let errors = diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::E003)
+            .collect::<Vec<_>>();
+        assert_eq!(errors.len(), 1);
+        assert!(
+            errors[0].span.start()
+                > u32::try_from(source.find("namespace eval B").unwrap()).unwrap()
+        );
+        let unavailable = Project::with_token_configurations(
+            &db,
+            vec![provider, caller],
+            Some(vec![(caller, cfg(&db))]),
+        );
+        let supplied = project_callback_diagnostics_for_analysis_with_inputs(
+            &db,
+            unavailable,
+            source,
+            &analysis,
+            |_| false,
+        );
+        assert!(
+            !supplied
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::E003)
+        );
+    }
+
+    #[test]
+    fn original_callback_missing_future_lookup_declines_reporting_candidates() {
+        // Implementation contract naming.database.original-callback-future-lookup:
+
+        let db = TclDatabase::default();
+        let file = SourceFile::new(
+            &db,
+            "proc cb {} {}\ncb\n".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+        let analysis = file_analysis_incremental(&db, file, cfg(&db));
+        let mut invocation = analysis
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.name == "cb" && invocation.original_name_input.is_some())
+            .expect("an actual original command producer")
+            .clone();
+        // This checks missing-purpose refusal, not callback context inference:
+        // the independently retained name cannot manufacture a future lookup.
+        invocation.original_lookup = None;
+        invocation.resolved_command_reference = None;
+        invocation.callback_arity = Some(tcl_registry::AppendedArity::Exactly(2));
+        assert!(invocation.logical_callback_candidate_keys().is_empty());
+        let mut missing = (*analysis).clone();
+        missing.command_invocations = vec![invocation];
+        let library = SourceFile::new(&db, "proc cb {} {}".to_owned(), "tcl8.6".to_owned(), None);
+        let project = Project::new(&db, vec![library, file]);
+        assert!(
+            project_callback_diagnostics_for_analysis(
+                &db,
+                project,
+                file.text(&db),
+                &missing,
+                |_| false,
+            )
+            .iter()
+            .all(|diagnostic| !matches!(
+                diagnostic.code,
+                DiagCode::E002 | DiagCode::E003 | DiagCode::E005
+            ))
+        );
+    }
+
+    #[test]
+    fn formal_count_project_headers_keep_the_selected_c_and_jim_contract() {
+        // naming.database.original-formal-count-header
+
+        use salsa::Setter as _;
+        use tcl_compiler::signature_scan::formal_count::SourceFormalCountOrigin;
+        for (dialect, minimum, grammar) in [
+            ("tcl8.4", 3, tcl_dialect::ParameterGrammar::Tcl),
+            ("tcl8.5", 3, tcl_dialect::ParameterGrammar::Tcl),
+            ("tcl8.6", 3, tcl_dialect::ParameterGrammar::Tcl),
+            ("tcl9.0", 3, tcl_dialect::ParameterGrammar::Tcl),
+            ("tcl9.1", 3, tcl_dialect::ParameterGrammar::Tcl),
+            ("jim", 2, tcl_dialect::ParameterGrammar::Jim),
+        ] {
+            let mut db = TclDatabase::default();
+            let file = SourceFile::new(
+                &db,
+                "proc mixed {a {b B} c} {return FIRST}".to_owned(),
+                dialect.to_owned(),
+                None,
+            );
+            let project = Project::new(&db, vec![file]);
+            let headers = item_sigs(&db, file);
+            let signature = &headers[0];
+            let header = signature.original_declaration.as_ref().unwrap();
+            let count = header.formal_count_projection();
+            assert_eq!(
+                count.origin(),
+                SourceFormalCountOrigin::OriginalSource,
+                "{dialect}"
+            );
+            assert_eq!(count.parameter_grammar(), Some(grammar), "{dialect}");
+            let key = header.name().clone();
+            let original = project_original_command_arities(&db, project);
+            assert_eq!(original.get(&key), Some(&vec![(minimum, 3)]), "{dialect}");
+            let selected = original_command_arity(
+                &db,
+                project,
+                OriginalCommandSlot::new(&db, key.policy(), key.slot().clone()),
+            );
+            assert_eq!(selected.as_deref(), Some(&vec![(minimum, 3)]), "{dialect}");
+            file.set_text(&mut db)
+                .to("proc mixed {a {b B} c} {return A_LONGER_BODY}".to_owned());
+            assert_eq!(
+                project_original_command_arities(&db, project),
+                original,
+                "{dialect}"
+            );
+            assert_eq!(
+                original_command_arity(
+                    &db,
+                    project,
+                    OriginalCommandSlot::new(&db, key.policy(), key.slot().clone()),
+                ),
+                selected,
+                "{dialect}"
+            );
+            assert_eq!(item_sigs(&db, file), headers, "{dialect}");
+        }
+    }
+
+    #[test]
+    fn original_project_headers_keep_opaque_slots_and_body_free_arity() {
+        // Proof naming.database.original-header-arity:
+
+        use salsa::Setter as _;
+        let mut db = TclDatabase::default();
+        let file = SourceFile::new(
+            &db,
+            r"proc p\uD800 {a} {return FIRST}
+proc p\uD801 {a b} {return SECOND}"
+                .to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+        let project = Project::new(&db, vec![file]);
+        let declarations = file_decls(&db, file);
+        let first = declarations
+            .original_declarations
+            .iter()
+            .find(|header| header.name().slot().simple.as_bytes() == b"p\xed\xa0\x80")
+            .expect("first original byte declaration")
+            .name()
+            .clone();
+        let second = declarations
+            .original_declarations
+            .iter()
+            .find(|header| header.name().slot().simple.as_bytes() == b"p\xed\xa0\x81")
+            .expect("second original byte declaration")
+            .name()
+            .clone();
+        let first_key = OriginalCommandSlot::new(&db, first.policy(), first.slot().clone());
+        let second_key = OriginalCommandSlot::new(&db, second.policy(), second.slot().clone());
+        assert_eq!(
+            original_command_arity(&db, project, first_key)
+                .unwrap()
+                .as_ref(),
+            &[(1, 1)]
+        );
+        assert_eq!(
+            original_command_arity(&db, project, second_key)
+                .unwrap()
+                .as_ref(),
+            &[(2, 2)]
+        );
+        let wrong_provider = OriginalCommandSlot::new(
+            &db,
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_5),
+            first.slot().clone(),
+        );
+        assert!(original_command_arity(&db, project, wrong_provider).is_none());
+        let before = project_original_command_arities(&db, project);
+        file.set_text(&mut db)
+            .to(r"proc p\uD800 {a} {return A_LONGER_BODY}
+proc p\uD801 {a b} {return ANOTHER_BODY}"
+                .to_owned());
+        assert_eq!(project_original_command_arities(&db, project), before);
+        assert_eq!(
+            original_command_arity(
+                &db,
+                project,
+                OriginalCommandSlot::new(&db, first.policy(), first.slot().clone())
+            )
+            .unwrap()
+            .as_ref(),
+            &[(1, 1)]
+        );
+        file.set_text(&mut db)
+            .to(r"proc p\uD800 {a b c} {return FIRST}
+proc p\uD801 {a b} {return SECOND}"
+                .to_owned());
+        assert_eq!(
+            original_command_arity(
+                &db,
+                project,
+                OriginalCommandSlot::new(&db, first.policy(), first.slot().clone())
+            )
+            .unwrap()
+            .as_ref(),
+            &[(3, 3)]
+        );
+        assert_eq!(
+            original_command_arity(
+                &db,
+                project,
+                OriginalCommandSlot::new(&db, second.policy(), second.slot().clone())
+            )
+            .unwrap()
+            .as_ref(),
+            &[(2, 2)]
+        );
+    }
+
+    #[test]
+    fn original_project_diagnostics_select_opaque_call_slots_and_namespace_priority() {
+        // Implementation contract: naming.database.original-call-arity-diagnostics
+
+        let db = TclDatabase::default();
+        let config = cfg(&db);
+        let provider = SourceFile::new(
+            &db,
+            r"proc p\uD800 {a} {}; proc p\uD801 {a b} {};
+namespace eval N {proc only_here {a} {}}"
+                .to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+        let caller = SourceFile::new(
+            &db,
+            r"p\uD800 A B
+p\uD801 A B"
+                .to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+        let project = Project::new(&db, vec![provider, caller]);
+        let analysis = file_analysis_incremental(&db, caller, config);
+        let calls = analysis
+            .command_invocations
+            .iter()
+            .filter(|invocation| invocation.original_name_input.is_some())
+            .collect::<Vec<_>>();
+        let first = calls
+            .iter()
+            .find(|invocation| {
+                invocation
+                    .original_name_input
+                    .as_ref()
+                    .is_some_and(|input| input.bytes() == b"p\xed\xa0\x80")
+            })
+            .expect("original first call");
+        let second = calls
+            .iter()
+            .find(|invocation| {
+                invocation
+                    .original_name_input
+                    .as_ref()
+                    .is_some_and(|input| input.bytes() == b"p\xed\xa0\x81")
+            })
+            .expect("original second call");
+        let diagnostics = project_diagnostics(&db, caller, config, project);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::E003
+                    && diagnostic.span == first.range),
+            "first byte name accepts exactly one argument"
+        );
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.span == second.range),
+            "distinct second byte name accepts two arguments"
+        );
+        // Namespace advice is an independent source point. The external
+        // calls above do not close the world for a following command.
+        let unrelated = SourceFile::new(&db, "only_here A".to_owned(), "tcl8.6".to_owned(), None);
+        let unrelated_project = Project::new(&db, vec![provider, unrelated]);
+        let unrelated_diagnostics = project_diagnostics(&db, unrelated, config, unrelated_project);
+        let unresolved = unrelated_diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::W123)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            unresolved.len(),
+            1,
+            "unrelated namespace tails cannot suppress this call"
+        );
+        assert_eq!(
+            unresolved[0]
+                .unresolved_command()
+                .unwrap()
+                .name_input()
+                .bytes(),
+            b"only_here"
+        );
+    }
+
+    #[test]
+    fn original_db_token_roles_keep_opaque_declarations_and_full_caller_currency() {
+        // Implementation contract: naming.database.original-token-role-consumer
+
+        use tcl_lsp_core::semantic_tokens::{
+            WorkspaceTokenFacts, full_with_cu_and_facts, legend_token_types,
+        };
+        let source = r"proc p\uD800 {target} {upvar 1 $target cell; set cell 1}
+proc p\uD801 {target} {return $target}
+p\uD800 written
+p\uD801 ordinary";
+        let db = TclDatabase::default();
+        let file = SourceFile::new(&db, source.to_owned(), "tcl8.6".to_owned(), None);
+        let project = Project::new(&db, vec![file]);
+        let facts = file_token_facts(&db, file);
+        let roles = project_proc_var_index(&db, project);
+        assert!(
+            !facts.proc_roles.is_empty(),
+            "the retained writer declaration has a role"
+        );
+        assert_eq!(facts.proc_roles, *roles);
+        let mut analysis = (*file_analysis_incremental(&db, file, cfg(&db))).clone();
+        analysis.all_procs.clear();
+        analysis.superseded_procs.clear();
+        for invocation in &mut analysis.command_invocations {
+            invocation.name = "REPORT-COLLISION".to_owned();
+            invocation.resolution_candidates = vec!["REPORT-COLLISION".to_owned()];
+        }
+        let registry = db.registry(file.dialect(&db));
+        let profile = tcl_lsp_core::profile_for_dialect(file.dialect(&db));
+        let unit = document_compilation_unit(&db, file);
+        let render = |image: &str, current: &AnalysisResult| {
+            full_with_cu_and_facts(
+                image,
+                profile,
+                registry,
+                Some(&unit),
+                WorkspaceTokenFacts {
+                    proc_roles: Some(&roles),
+                    analysis: Some(current),
+                    ..Default::default()
+                },
+            )
+        };
+        let variable = u32::try_from(
+            legend_token_types()
+                .iter()
+                .position(|kind| *kind == "variable")
+                .unwrap(),
+        )
+        .unwrap();
+        let is_variable = |tokens: &SemanticTokens, image: &str, needle: &str| {
+            let offset = u32::try_from(image.rfind(needle).unwrap()).unwrap();
+            let target = tcl_lexer::LineIndex::new(image).position_at_utf16(offset, image);
+            let mut line = 0;
+            let mut column = 0;
+            tokens.data.as_chunks::<5>().0.iter().any(|entry| {
+                if entry[0] == 0 {
+                    column += entry[1];
+                } else {
+                    line += entry[0];
+                    column = entry[1];
+                }
+                line == target.line
+                    && column <= target.character.get()
+                    && target.character.get() < column + entry[2]
+                    && entry[3] == variable
+            })
+        };
+        let tokens = render(source, &analysis);
+        assert!(
+            is_variable(&tokens, source, "written"),
+            "the exact opaque writer retains its caller argument role after reporting clear"
+        );
+        assert!(
+            !is_variable(&tokens, source, "ordinary"),
+            "the distinct opaque ordinary procedure does not borrow the writer role"
+        );
+        let changed = format!("{source} ");
+        assert!(!is_variable(
+            &render(&changed, &analysis),
+            &changed,
+            "written"
+        ));
+        let mut changed_config = analysis.clone();
+        changed_config
+            .body_lexer_config
+            .as_mut()
+            .unwrap()
+            .strict_quoting ^= true;
+        assert!(!is_variable(
+            &render(source, &changed_config),
+            source,
+            "written"
+        ));
+        let mut missing_input = analysis;
+        let call = u32::try_from(source.rfind(r"p\uD800 written").unwrap()).unwrap();
+        missing_input
+            .command_invocations
+            .iter_mut()
+            .find(|invocation| invocation.range.start() == call)
+            .unwrap()
+            .original_name_input = None;
+        assert!(!is_variable(
+            &render(source, &missing_input),
+            source,
+            "written"
+        ));
+    }
+
+    #[test]
     fn body_cache_gate_is_per_body_and_whitespace_aware() {
         use tcl_compiler::lowering::body_cache_eligible;
         // A plain, context-free body is eligible.
@@ -4391,6 +5721,172 @@ mod tests {
     }
 
     #[test]
+    fn original_document_policy_key_admits_actual_input_and_root_bom_geometry() {
+        // naming.source.original-configured-script-completeness
+
+        // The actual memoised source build supplies no Native entry or execution.
+        let source = "\u{feff}probe root\n\u{feff}probe later\n";
+        for name in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+            "f5-iapps",
+            "f5-tmsh",
+        ] {
+            let db = TclDatabase::default();
+            let file = SourceFile::new(&db, source.to_owned(), name.to_owned(), None);
+            let policy = cfg(&db);
+            let input =
+                document_analysis_input(&db, file, policy).expect("actual document source input");
+            let key = lexer_cfg_key(&db, name);
+            assert_eq!(key.to_config(&db), input.lexer_config(), "{name}");
+            let unit = compilation_unit_for_config(&db, file, key, policy)
+                .expect("complete document policy must join its actual input");
+            assert_eq!(
+                unit.ir_module.source,
+                tcl_lexer::SourceImage::document(source),
+                "{name}"
+            );
+            assert_eq!(
+                unit.ir_module.source_metadata_input.as_ref(),
+                Some(input.as_ref()),
+                "{name}"
+            );
+            assert_eq!(unit.ir_module.lexer_config, input.lexer_config(), "{name}");
+            assert_eq!(unit.ir_module.top_level.statements.len(), 2, "{name}");
+            let first = unit.ir_module.top_level.statements[0]
+                .tokens()
+                .expect("original root command");
+            let expected = if input.unit_profile().grammar.script_skips_leading_bom {
+                "probe"
+            } else {
+                "\u{feff}probe"
+            };
+            assert_eq!(first.argv_texts[0], expected, "{name}");
+            assert_eq!(&source[first.argv[0].as_range()], expected, "{name}");
+            let later = unit.ir_module.top_level.statements[1]
+                .tokens()
+                .expect("original later command");
+            assert_eq!(later.argv_texts[0], "\u{feff}probe", "{name}");
+            assert_eq!(&source[later.argv[0].as_range()], "\u{feff}probe", "{name}");
+        }
+    }
+
+    #[test]
+    fn original_document_policy_key_refuses_foreign_or_changed_full_input() {
+        // naming.source.original-configured-script-completeness
+
+        let db = TclDatabase::default();
+        let file = SourceFile::new(
+            &db,
+            "\u{feff}probe root".to_owned(),
+            "tcl9.1".to_owned(),
+            None,
+        );
+        let policy = cfg(&db);
+        let input = document_analysis_input(&db, file, policy).unwrap();
+        let key = lexer_cfg_key(&db, "tcl9.1");
+        let registry = input.borrowed_context_registry().commands();
+        let declared = declared_command_surface(&db, file);
+        assert!(
+            supplied_unit_build_options(&db, file, key, registry, None, &declared, &input)
+                .is_some()
+        );
+        let foreign_key = lexer_cfg_key(&db, "tcl8.6");
+        assert!(compilation_unit_for_config(&db, file, foreign_key, policy).is_none());
+        for config in [
+            tcl_lexer::LexerConfig {
+                leading_bom: tcl_lexer::LeadingBom::Content,
+                ..input.lexer_config()
+            },
+            tcl_lexer::LexerConfig {
+                strict_quoting: !input.lexer_config().strict_quoting,
+                ..input.lexer_config()
+            },
+        ] {
+            let changed = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                config,
+            );
+            assert!(
+                supplied_unit_build_options(&db, file, key, registry, None, &declared, &changed)
+                    .is_none()
+            );
+        }
+        let mut foreign_registry = registry.project_for_profile(input.unit_profile());
+        let mut changed_spec = foreign_registry.get("puts").unwrap().clone();
+        if changed_spec
+            .traits
+            .contains(tcl_registry::Traits::EVALUATES_CODE)
+        {
+            changed_spec
+                .traits
+                .remove(tcl_registry::Traits::EVALUATES_CODE);
+        } else {
+            changed_spec
+                .traits
+                .insert(tcl_registry::Traits::EVALUATES_CODE);
+        }
+        foreign_registry.insert(changed_spec);
+        assert!(
+            supplied_unit_build_options(&db, file, key, &foreign_registry, None, &declared, &input)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_standalone_compiler_document_keeps_root_and_later_bom_roles() {
+        // naming.source.original-configured-script-completeness
+
+        // The scalar diagnostics route shares this genuine fresh source builder.
+        let source = "\u{feff}probe root\n\u{feff}probe later\n";
+        for name in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+            "f5-iapps",
+            "f5-tmsh",
+        ] {
+            let environment = tcl_registry::model::ingress::resolve_known_environment(name)
+                .expect("actual known source policy");
+            let context = environment.default_context_registry();
+            let unit = fresh_compiler_document_unit(source, context.commands(), name, None);
+            assert_eq!(
+                unit.ir_module.lexer_config,
+                tcl_lexer::LexerConfig::for_file_grammar(environment.grammar()),
+                "{name}"
+            );
+            assert_eq!(
+                unit.ir_module.source,
+                tcl_lexer::SourceImage::document(source),
+                "{name}"
+            );
+            assert_eq!(unit.ir_module.top_level.statements.len(), 2, "{name}");
+            let first = unit.ir_module.top_level.statements[0].tokens().unwrap();
+            let expected = if environment.grammar().script_skips_leading_bom {
+                "probe"
+            } else {
+                "\u{feff}probe"
+            };
+            assert_eq!(first.argv_texts[0], expected, "{name}");
+            assert_eq!(&source[first.argv[0].as_range()], expected, "{name}");
+            let later = unit.ir_module.top_level.statements[1].tokens().unwrap();
+            assert_eq!(later.argv_texts[0], "\u{feff}probe", "{name}");
+            assert_eq!(&source[later.argv[0].as_range()], "\u{feff}probe", "{name}");
+        }
+    }
+
+    #[test]
     fn file_analysis_matches_direct_analyse() {
         let db = TclDatabase::default();
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
@@ -4428,14 +5924,14 @@ mod tests {
         let file_b = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
         let first = compilation_unit(&db, file_a, cfg_key, 0).expect("no overlay always builds");
         let second = compilation_unit(&db, file_b, cfg_key, 0).expect("no overlay always builds");
-        for qname in ["::alpha", "::beta"] {
+        for (qname, offset) in [("::alpha", 0), ("::beta", SRC.find("proc beta").unwrap())] {
+            let first_id = original_test_body_id(&first, offset);
+            let second_id = original_test_body_id(&second, offset);
             let a = first
-                .procedures
-                .get(qname)
+                .function_for_body(Some(first_id))
                 .expect("procedure in first build");
             let b = second
-                .procedures
-                .get(qname)
+                .function_for_body(Some(second_id))
                 .expect("procedure in second build");
             assert!(
                 Arc::ptr_eq(&a.def_use, &b.def_use),
@@ -4468,9 +5964,10 @@ mod tests {
         let cfg_key = lexer_cfg_key(&db, "tcl8.4");
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl8.4".to_owned(), None);
         let unit = compilation_unit(&db, file, cfg_key, 0).expect("no overlay always builds");
+        let subject_id = original_test_body_id(&unit, SRC.find("proc subject").unwrap());
         let subject = unit
             .procedures
-            .get("::subject")
+            .get(&subject_id)
             .expect("subject procedure lattice");
 
         assert!(
@@ -4488,6 +5985,556 @@ mod tests {
     }
 
     #[test]
+    // Implementation contract: naming.variable.registry-event-frame-identity
+
+    // Implementation contract: naming.compiler.original-function-lattice-mutation-identity
+
+    fn original_event_lattice_cache_retains_conditional_entry_and_reuses_same_source() {
+        let source = "when HTTP_REQUEST {set local 1}";
+        let db = TclDatabase::default();
+        let config = lexer_cfg_key(&db, "f5-irules");
+        let first_file = SourceFile::new(&db, source.to_owned(), "f5-irules".to_owned(), None);
+        let second_file = SourceFile::new(&db, source.to_owned(), "f5-irules".to_owned(), None);
+        let first = compilation_unit(&db, first_file, config, 0)
+            .expect("zero overlay selects the retained stock F5 Registry");
+        let second = compilation_unit(&db, second_file, config, 0)
+            .expect("zero overlay selects the retained stock F5 Registry");
+        let first_id = original_test_body_id(&first, 0);
+        let second_id = original_test_body_id(&second, 0);
+        let a = first.procedures.get(&first_id).unwrap();
+        let b = second.procedures.get(&second_id).unwrap();
+        assert!(
+            Arc::ptr_eq(&a.def_use, &b.def_use),
+            "the sealed event participates in the lattice memo"
+        );
+        for unit in [a, b] {
+            let event = unit
+                .irules_event_body
+                .as_ref()
+                .expect("actual event producer");
+            assert_eq!(event.event(), "HTTP_REQUEST");
+            assert!(event.matches_source(
+                &tcl_lexer::SourceImage::document(source),
+                first.ir_module.lexer_config
+            ));
+            let (&block, _) = unit
+                .cfg
+                .blocks
+                .iter()
+                .find(|(_, block)| !block.statements.is_empty())
+                .unwrap();
+            let point = unit
+                .ssa
+                .point_contexts
+                .as_ref()
+                .unwrap()
+                .context_before(block, 0)
+                .unwrap();
+            assert_eq!(
+                point.frame_kind,
+                tcl_compiler::var_resolve::VariableFrameKind::Local
+            );
+            assert_eq!(
+                point.hosted_execution_context,
+                Some(tcl_registry::f5::BigIpExecutionContext::TmmIRule)
+            );
+            assert_eq!(
+                point.execution, None,
+                "memoisation cannot manufacture an executing worker"
+            );
+        }
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.registry-event-frame-identity
+
+    fn original_event_lattice_key_rejects_foreign_source_body_config_and_registry() {
+        let source = "when HTTP_REQUEST {set local 1}";
+        let db = TclDatabase::default();
+        let config_key = lexer_cfg_key(&db, "f5-irules");
+        let file = SourceFile::new(&db, source.to_owned(), "f5-irules".to_owned(), None);
+        let unit = compilation_unit(&db, file, config_key, 0)
+            .expect("zero overlay selects the retained stock F5 Registry");
+        let qname = "::when::HTTP_REQUEST";
+        let body_id = original_test_body_id(&unit, 0);
+        let event = unit.ir_module.irules_event_bodies.get(&body_id).unwrap();
+        let procedure = unit.ir_module.procedures.get(&body_id).unwrap();
+        assert_eq!(
+            procedure.span.start(),
+            0,
+            "this actual declaration already owns the normalization origin"
+        );
+        let config = unit.ir_module.lexer_config.nested().normalized();
+        let context = CfgContext::new(
+            &db,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            BodyLatticeCommandBindings::from(ModuleCommandBindings::default()),
+            OriginalProcedureSummaryOwners::default(),
+        );
+        let snapshot = CompilerMemoSnapshot {
+            profile: Some(tcl_dialect::DialectProfile::irules().cache_key()),
+            registry: db.registry("f5-irules").snapshot(),
+        };
+        let make_key = |body: Script, config, snapshot, event| {
+            FnLatticeKey::new(
+                &db,
+                BodyLatticeInputs::from(body),
+                qname.to_owned(),
+                Vec::new(),
+                context,
+                config,
+                "f5-irules".to_owned(),
+                snapshot,
+                Vec::new(),
+                FnLatticeModuleFacts {
+                    known_classes: Vec::new(),
+                    traced_variables: Vec::new(),
+                    has_dynamic_variable_trace: false,
+                },
+                FnLatticeEntry {
+                    original_declaration_body: None,
+                    plain_command_dispatch: false,
+                    metadata_context: unit.ir_module.source_entry.metadata_context.clone(),
+                    source_metadata_input: unit.ir_module.source_metadata_input.clone(),
+                    irules_event_body: event,
+                    command_trust: tcl_compiler::command_binding::ModuleCommandMutations::default()
+                        .snapshot(),
+                },
+                ValueTransferContext::of(
+                    &db,
+                    tcl_compiler::value_transfer::AnalysisContextKey::for_module(
+                        &unit.command_mutations,
+                        unit.ir_module.resolved_registry(),
+                    ),
+                    0,
+                ),
+            )
+        };
+        let selected = make_key(
+            procedure.body.clone(),
+            config,
+            snapshot.clone(),
+            Some(Arc::clone(event)),
+        );
+        let plain = make_key(procedure.body.clone(), config, snapshot.clone(), None);
+        assert!(
+            selected != plain,
+            "the same name and body cannot donate event entry"
+        );
+        // Implementation contract: naming.compiler.original-function-lattice-mutation-identity
+
+        let changed_mutations = FnLatticeKey::new(
+            &db,
+            selected.body(&db).clone(),
+            selected.qname(&db).clone(),
+            selected.params(&db).clone(),
+            selected.context(&db),
+            selected.lexer_config(&db),
+            selected.dialect(&db).clone(),
+            selected.snapshot(&db).clone(),
+            selected.param_constants(&db).clone(),
+            selected.module_facts(&db).clone(),
+            FnLatticeEntry {
+                original_declaration_body: None,
+                plain_command_dispatch: selected.entry(&db).plain_command_dispatch,
+                metadata_context: selected.entry(&db).metadata_context.clone(),
+                source_metadata_input: selected.entry(&db).source_metadata_input.clone(),
+                irules_event_body: selected.entry(&db).irules_event_body.clone(),
+                command_trust: tcl_compiler::command_binding::ModuleCommandMutations::distrust_all(
+                )
+                .snapshot(),
+            },
+            selected.analysis_context(&db),
+        );
+        assert!(
+            selected != changed_mutations,
+            "unchanged event/source/Registry/body cannot erase mutation obligations"
+        );
+        assert!(!function_lattice(&db, selected).complexity_guarded);
+        assert!(function_lattice(&db, selected).irules_event_body.is_some());
+        assert!(function_lattice(&db, plain).irules_event_body.is_none());
+        let changed_file = SourceFile::new(
+            &db,
+            format!("{source}\n# changed source"),
+            "f5-irules".to_owned(),
+            None,
+        );
+        let changed_unit = compilation_unit(&db, changed_file, config_key, 0)
+            .expect("zero overlay selects the retained stock F5 Registry");
+        let changed_body_id = original_test_body_id(&changed_unit, 0);
+        let foreign = make_key(
+            procedure.body.clone(),
+            config,
+            snapshot.clone(),
+            changed_unit
+                .ir_module
+                .irules_event_bodies
+                .get(&changed_body_id)
+                .cloned(),
+        );
+        assert!(
+            selected != foreign,
+            "complete original source participates in key equality"
+        );
+        assert!(function_lattice(&db, foreign).complexity_guarded);
+        let wrong_body = make_key(
+            Script::default(),
+            config,
+            snapshot.clone(),
+            Some(Arc::clone(event)),
+        );
+        assert!(function_lattice(&db, wrong_body).complexity_guarded);
+        let mut wrong_config = config;
+        wrong_config.strict_quoting = !wrong_config.strict_quoting;
+        let wrong_config_key = make_key(
+            procedure.body.clone(),
+            wrong_config,
+            snapshot.clone(),
+            Some(Arc::clone(event)),
+        );
+        assert!(function_lattice(&db, wrong_config_key).complexity_guarded);
+        let wrong_registry = make_key(
+            procedure.body.clone(),
+            config,
+            CompilerMemoSnapshot {
+                profile: Some(tcl_lsp_core::profile_for_dialect("tcl8.6").cache_key()),
+                registry: db.registry("tcl8.6").snapshot(),
+            },
+            Some(Arc::clone(event)),
+        );
+        assert!(function_lattice(&db, wrong_registry).complexity_guarded);
+    }
+
+    fn supplied_cfg_lattice_key<'db>(
+        db: &'db dyn TclDb,
+        module: &tcl_compiler::ir::Module,
+        input: Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
+    ) -> FnLatticeKey<'db> {
+        let registry = module.resolved_registry();
+        let (upvars, params, globals, bindings, owners) =
+            tcl_compiler::cfg_builder::prepare_cfg_context_with_registry(module, registry);
+        assert!(upvars.is_empty() && params.is_empty() && globals.is_empty());
+        let context = CfgContext::new(
+            db,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            BodyLatticeCommandBindings::from(bindings),
+            owners,
+        );
+        FnLatticeKey::new(
+            db,
+            BodyLatticeInputs::from(module.top_level.clone()),
+            "::subject".to_owned(),
+            Vec::new(),
+            context,
+            module.lexer_config.normalized(),
+            module.dialect.clone().unwrap(),
+            CompilerMemoSnapshot {
+                profile: module
+                    .dialect_profile
+                    .map(tcl_dialect::DialectProfile::cache_key),
+                registry: registry.snapshot(),
+            },
+            Vec::new(),
+            FnLatticeModuleFacts {
+                known_classes: Vec::new(),
+                traced_variables: Vec::new(),
+                has_dynamic_variable_trace: false,
+            },
+            FnLatticeEntry {
+                original_declaration_body: None,
+                plain_command_dispatch: module.plain_command_dispatch,
+                metadata_context: tcl_compiler::registry_invocation::OwnedInvocationMetadataContext::for_source_input(input.as_ref()),
+                source_metadata_input: input,
+                irules_event_body: None,
+                command_trust: tcl_compiler::command_binding::ModuleCommandMutations::default()
+                    .snapshot(),
+            },
+            ValueTransferContext::of(
+                db,
+                tcl_compiler::value_transfer::AnalysisContextKey::for_module(
+                    &tcl_compiler::command_binding::ModuleCommandMutations::default(),
+                    registry,
+                ),
+                0,
+            ),
+        )
+    }
+
+    #[test]
+    fn function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Conditional source CFG completion only; no Native execution or handler grant.
+        let db = TclDatabase::default();
+        let generation = tcl_registry::model::ingress::context_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        let supplied = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+            Arc::clone(&generation),
+            config,
+        );
+        let mut lowerer =
+            tcl_compiler::lowering::Lowerer::with_config(generation.commands(), config)
+                .with_resolved_analysis_input(supplied.clone());
+        // Without an entry the document runs in a fresh interpreter; unknown
+        // history must be supplied explicitly.
+        lowerer.set_source_analysis_options(
+            tcl_compiler::command_binding::SourceAnalysisEntry {
+                metadata_context:
+                    tcl_compiler::registry_invocation::OwnedInvocationMetadataContext::for_source_input(
+                        Some(&supplied),
+                    ),
+                unknown_entry: true,
+                ..tcl_compiler::command_binding::SourceAnalysisEntry::default()
+            }
+            .options(),
+        );
+        let source = "throw ERROR payload; set reached 1";
+        let unknown_module = lowerer.lower(source).clone();
+        assert!(unknown_module.source_entry.unknown_entry);
+        assert!(unknown_module.source_entry.native_entry.is_none());
+        let input = unknown_module.source_metadata_input.as_ref().unwrap();
+        let unknown = supplied_cfg_lattice_key(&db, &unknown_module, Some(input.clone()));
+
+        struct Capture(
+            std::rc::Rc<std::cell::RefCell<Option<tcl_runtime_api::NativeCompilationEntry>>>,
+        );
+        impl tcl_vm::CompileService for Capture {
+            type Module = <tcl_compiler::compile_service::BytecodeCompileService as tcl_vm::CompileService>::Module;
+
+            fn compile(&self, _: &str) -> Result<Self::Module, tcl_vm::CompileError> {
+                Err(tcl_vm::CompileError::Unsupported(
+                    "entry capture only".into(),
+                ))
+            }
+
+            fn compile_script_with_entry(
+                &self,
+                _: tcl_runtime_api::ScriptCompileTarget<'_>,
+                _: &'static tcl_dialect::DialectProfile,
+                entry: &tcl_runtime_api::NativeCompilationEntry,
+            ) -> Result<Self::Module, tcl_vm::CompileError> {
+                *self.0.borrow_mut() = Some(entry.clone());
+                self.compile("")
+            }
+        }
+        let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut owner = tcl_vm::Vm::with_native_core(
+            Box::new(std::io::sink()),
+            std::rc::Rc::new(tcl_vm::host_native::NativeHost::new()),
+            profile,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        owner.set_compiler(Box::new(Capture(std::rc::Rc::clone(&captured))));
+        assert!(owner.try_compile_function("set entry_probe 1").is_err());
+        let native = captured
+            .borrow_mut()
+            .take()
+            .expect("actual VM compiler entry");
+        assert_eq!(
+            native.execution_point,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").point()
+        );
+        assert!(
+            native
+                .compiler_pass_environment
+                .as_ref()
+                .unwrap()
+                .is_current_for(native.interpreter)
+        );
+        let entry = tcl_compiler::command_binding::SourceAnalysisEntry {
+            metadata_context:
+                tcl_compiler::registry_invocation::OwnedInvocationMetadataContext::for_source_input(
+                    Some(input),
+                ),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+                loop_depth: 0,
+                catch_depth: Some(0),
+            },
+            native_entry: Some(Arc::new(native)),
+            ..tcl_compiler::command_binding::SourceAnalysisEntry::default()
+        };
+        let mut lowerer =
+            tcl_compiler::lowering::Lowerer::with_config(generation.commands(), config)
+                .with_resolved_analysis_input(input.clone());
+        lowerer.set_source_analysis_options(entry.options());
+        let module = lowerer.lower(source).clone();
+        assert!(!module.source_entry.unknown_entry);
+        assert!(module.source_entry.native_entry.is_some());
+        assert_eq!(module.source_metadata_input.as_ref(), Some(input));
+        let input = module.source_metadata_input.as_ref().unwrap();
+        assert!(Arc::ptr_eq(&input.context_registry(), &generation));
+        let selected = supplied_cfg_lattice_key(&db, &module, Some(input.clone()));
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(generation.commands())),
+        );
+        assert!(Arc::ptr_eq(older.commands(), generation.commands()));
+        let unavailable = supplied_cfg_lattice_key(
+            &db,
+            &module,
+            Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                older,
+                input.lexer_config(),
+            )),
+        );
+        let foreign = supplied_cfg_lattice_key(
+            &db,
+            &module,
+            Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                tcl_registry::model::ingress::context_for_profile(
+                    tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
+                ),
+                input.lexer_config(),
+            )),
+        );
+        let missing = supplied_cfg_lattice_key(&db, &module, None);
+        let expected = Some(tcl_compiler::cfg::Terminator::Complete {
+            route: tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                tcl_registry::CompletionCode::Error,
+            ),
+            span: Some(module.top_level.statements[0].span()),
+        });
+        let current = function_lattice(&db, selected);
+        assert_eq!(current.cfg.blocks[&current.cfg.entry].terminator, expected);
+        assert_eq!(current.cfg.blocks[&current.cfg.entry].statements.len(), 1);
+        for negative in [unavailable, foreign, missing, unknown] {
+            assert!(
+                selected != negative,
+                "complete source input owns memo identity"
+            );
+            let conservative = function_lattice(&db, negative);
+            let entry = &conservative.cfg.blocks[&conservative.cfg.entry];
+            assert_ne!(entry.terminator, expected);
+            assert_eq!(
+                entry.statements.len(),
+                2,
+                "withheld completion keeps the following call"
+            );
+        }
+        assert!(Arc::ptr_eq(&current, &function_lattice(&db, selected)));
+        assert!(
+            entry
+                .native_entry
+                .as_ref()
+                .unwrap()
+                .compiler_pass_environment
+                .as_ref()
+                .unwrap()
+                .is_current_for(entry.native_entry.as_ref().unwrap().interpreter)
+        );
+        drop(owner);
+    }
+
+    fn semantic_bundle_has_source_metadata(
+        unit: &tcl_compiler::compilation_unit::FunctionUnit,
+    ) -> bool {
+        unit.semantic_facts
+            .conditional_source_metadata()
+            .invocations()
+            .next()
+            .is_some()
+    }
+
+    #[test]
+    fn function_lattice_semantic_bundle_uses_retained_availability() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let db = TclDatabase::default();
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut puts = registry.get("puts").unwrap().clone();
+        puts.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(puts);
+        let registry = registry
+            .project_for_profile(tcl_registry::model::resolve_environment("tcl8.6").unit_profile());
+        let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        assert!(
+            current
+                .context()
+                .resolve_spec(current.commands(), "puts")
+                .is_some()
+        );
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        let mut lowerer = tcl_compiler::lowering::Lowerer::with_config(current.commands(), config)
+            .with_resolved_analysis_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+                tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+                Arc::clone(&current),
+                config,
+            ));
+        let module = lowerer.lower("puts VALUE").clone();
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let selected = supplied_cfg_lattice_key(&db, &module, Some(input.clone()));
+        assert!(semantic_bundle_has_source_metadata(&function_lattice(
+            &db, selected
+        )));
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(current.commands())),
+        );
+        assert!(Arc::ptr_eq(older.commands(), current.commands()));
+        assert!(
+            older
+                .context()
+                .resolve_spec(older.commands(), "puts")
+                .is_none()
+        );
+        let unavailable = supplied_cfg_lattice_key(
+            &db,
+            &module,
+            Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                older,
+                input.lexer_config(),
+            )),
+        );
+        assert!(selected != unavailable);
+        assert!(!semantic_bundle_has_source_metadata(&function_lattice(
+            &db,
+            unavailable
+        )));
+        let foreign = supplied_cfg_lattice_key(
+            &db,
+            &module,
+            Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                tcl_registry::model::ingress::resolve_environment("tcl9.1")
+                    .default_context_registry(),
+                input.lexer_config(),
+            )),
+        );
+        let missing = supplied_cfg_lattice_key(&db, &module, None);
+        for negative in [foreign, missing] {
+            assert!(selected != negative);
+            assert!(matches!(
+                function_lattice(&db, negative).semantic_facts.executable(),
+                tcl_compiler::semantic_analysis::ExecutableAnalysisAvailability::ContextUnavailable
+            ));
+        }
+    }
+
+    #[test]
     fn function_lattice_key_keeps_the_exact_normalized_lexer_config() {
         let db = TclDatabase::default();
         let context = CfgContext::new(
@@ -4495,22 +6542,37 @@ mod tests {
             Vec::new(),
             Vec::new(),
             Vec::new(),
-            ModuleCommandBindings::default(),
+            BodyLatticeCommandBindings::from(ModuleCommandBindings::default()),
+            OriginalProcedureSummaryOwners::default(),
         );
         let make_key = |config: tcl_lexer::LexerConfig| {
             FnLatticeKey::new(
                 &db,
-                Script::default(),
+                BodyLatticeInputs::from(Script::default()),
                 "::subject".to_owned(),
                 Vec::new(),
                 context,
                 config.normalized(),
                 "tcl8.6".to_owned(),
+                CompilerMemoSnapshot {
+                    profile: Some(tcl_lsp_core::profile_for_dialect("tcl8.6").cache_key()),
+                    registry: db.registry("tcl8.6").snapshot(),
+                },
                 Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                false,
-                false,
+                FnLatticeModuleFacts {
+                    known_classes: Vec::new(),
+                    traced_variables: Vec::new(),
+                    has_dynamic_variable_trace: false,
+                },
+                FnLatticeEntry {
+                    original_declaration_body: None,
+                    plain_command_dispatch: false,
+                    metadata_context: tcl_compiler::registry_invocation::OwnedInvocationMetadataContext::Unavailable,
+                    source_metadata_input: None,
+                    irules_event_body: None,
+                    command_trust: tcl_compiler::command_binding::ModuleCommandMutations::default()
+                        .snapshot(),
+                },
                 ValueTransferContext::of(
                     &db,
                     tcl_compiler::value_transfer::AnalysisContextKey::detached(),
@@ -4570,7 +6632,7 @@ mod tests {
                 false,
                 Vec::new(),
                 None,
-                ((Vec::new(), Vec::new()), None, None),
+                ((Vec::new(), Vec::new()), None, None, None),
                 "tcl8.6".to_owned(),
                 Vec::new(),
                 NonAsciiMode::Default,
@@ -4593,7 +6655,7 @@ mod tests {
             false,
             Vec::new(),
             None,
-            ((Vec::new(), Vec::new()), None, None),
+            ((Vec::new(), Vec::new()), None, None, None),
             "tcl8.6".to_owned(),
             Vec::new(),
             NonAsciiMode::Default,
@@ -4872,8 +6934,9 @@ mod tests {
         }
 
         fn folds_mode(cu: &CompilationUnit) -> bool {
+            let body_id = original_test_body_id(cu, 0);
             !cu.procedures
-                .get("::helper")
+                .get(&body_id)
                 .expect("helper analysed")
                 .sccp
                 .constant_branches
@@ -4963,9 +7026,10 @@ mod tests {
             );
             ctl.set_external_call_sites(&mut db).to(Some(evidence));
             let cu = document_compilation_unit(&db, ctl);
+            let body_id = original_test_body_id(&cu, 0);
             assert!(
                 !cu.procedures
-                    .get("::helper")
+                    .get(&body_id)
                     .expect("helper analysed")
                     .sccp
                     .constant_branches
@@ -5022,9 +7086,12 @@ mod tests {
                 Some("/w/c.tcl".to_owned()),
             );
             let project = Project::new(&db, vec![a, b, unlinked]);
-            let reach_a = file_dispatch_reach(&db, a, project);
-            let reach_b = file_dispatch_reach(&db, b, project);
-            let reach_c = file_dispatch_reach(&db, unlinked, project);
+            let reach_a = file_dispatch_reach(&db, a, project)
+                .expect("complete original project source paths");
+            let reach_b = file_dispatch_reach(&db, b, project)
+                .expect("complete original project source paths");
+            let reach_c = file_dispatch_reach(&db, unlinked, project)
+                .expect("complete original project source paths");
             assert_eq!(
                 reach_a.iter().map(String::as_str).collect::<Vec<_>>(),
                 vec!["::a", "::b"],
@@ -5119,7 +7186,9 @@ mod tests {
                 "a decl change recomputes the decomposition once, not once per file"
             );
             assert!(
-                file_dispatch_reach(&db, files[0], project).contains("::extra"),
+                file_dispatch_reach(&db, files[0], project)
+                    .unwrap()
+                    .contains("::extra"),
                 "the new proc joins every component member's reach"
             );
         }
@@ -5329,7 +7398,7 @@ mod tests {
     fn folding_matches_direct() {
         let db = TclDatabase::default();
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
-        let got = folding_ranges(&db, file);
+        let got = folding_ranges(&db, file, cfg(&db));
         let reg = db.registry("tcl");
         let expected = tcl_lsp_core::folding::folding_ranges(
             SRC,
@@ -5359,13 +7428,13 @@ mod tests {
                 .count()
         };
 
-        let _ = folding_ranges(&db, file);
+        let _ = folding_ranges(&db, file, cfg(&db));
         assert_eq!(
             executions(&drain()),
             1,
             "cold: one execution for the first request"
         );
-        let _ = folding_ranges(&db, file);
+        let _ = folding_ranges(&db, file, cfg(&db));
         assert_eq!(
             executions(&drain()),
             0,
@@ -5950,6 +8019,52 @@ mod tests {
         );
     }
 
+    #[test]
+    fn configured_taint_checks_consume_the_solve_original_module_owner() {
+        let source = "proc pass {x} { return $x }\n\
+                      proc danger {} { set u [gets stdin]; set p [pass $u]; exec $p }\n\
+                      proc other {} { set z 1 }\n";
+        let dialect = "tcl8.6";
+        let db = TclDatabase::default();
+        let file = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+        let policy = cfg(&db);
+        let key = lexer_cfg_key(&db, dialect);
+        let input = document_analysis_input(&db, file, policy).unwrap();
+        let shared = compilation_unit_for_config(&db, file, key, policy).unwrap();
+        let solved = proc_taint_solve_for_config(&db, file, key, policy).unwrap();
+        let owner = solved.unit.as_ref();
+        assert_eq!(
+            owner.ir_module.source,
+            tcl_lexer::SourceImage::document(source)
+        );
+        assert_eq!(
+            owner.ir_module.source_metadata_input.as_ref(),
+            Some(input.as_ref())
+        );
+        assert_eq!(owner.ir_module.lexer_config, input.lexer_config());
+        assert!(!solved.taints.proc_taints.is_empty());
+        for (id, taints) in &solved.taints.proc_taints {
+            assert!(owner.ir_module.procedure_ids.owns(*id));
+            assert!(!shared.ir_module.procedure_ids.owns(*id));
+            let function = owner.function_for_body(Some(*id)).unwrap();
+            assert!(std::ptr::eq(
+                solved.taints.taints_for_function(owner, function),
+                taints,
+            ));
+        }
+        let registry = input.borrowed_context_registry().commands();
+        let expected = compiler_check_diagnostics_uncached(source, registry, dialect, None, None);
+        assert!(
+            expected
+                .checks
+                .iter()
+                .any(|check| check.code == DiagCode::T100)
+        );
+        let actual = compiler_check_diagnostics(&db, file, policy);
+        assert_eq!(actual.checks, expected.checks);
+        assert_eq!(actual.optimisations, expected.optimisations);
+    }
+
     /// The interprocedural taint cascade (`taint_cascade`, backlog #1) must stay
     /// byte-identical to the non-memoised `with_interprocedural` re-run **across
     /// edits** — the cold corpus differential only proves the reconstruction is
@@ -6452,7 +8567,7 @@ mod tests {
         );
 
         // Edit only `b`'s body — `a`/`c` summaries are cache hits; only `b`'s
-        // `proc_summary_cascade` re-executes (its `FnLatticeKey` changed).
+        // `proc_summary_cascade` re-executes when its original summary inputs change.
         file.set_text(&mut db).to("proc a {} { set x 11111 }\n\
              proc b {} { set y 99999999 }\n\
              proc c {} { set z 33333 }\n"
@@ -6477,6 +8592,211 @@ mod tests {
             1,
             "unrelated body edit -> exactly ONE summary inference recomputes"
         );
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct SummaryDependencyProbe {
+        caller_name: String,
+        caller_body: String,
+        provider: ReturnTaintSummary,
+        dependencies: Vec<ReturnTaintSummary>,
+        caller: ReturnTaintSummary,
+    }
+
+    #[salsa::tracked(returns(clone))]
+    fn summary_dependency_probe<'db>(
+        db: &'db dyn TclDb,
+        file: SourceFile,
+        cfg: LexerCfgKey<'db>,
+        analysis_config: AnalyserConfig,
+        caller_offset: usize,
+        caller: String,
+    ) -> SummaryDependencyProbe {
+        let dialect = file.dialect(db);
+        let input = document_analysis_input(db, file, analysis_config)
+            .expect("actual selected document input");
+        let registry = input.borrowed_context_registry().commands();
+        let declared = declared_command_surface(db, file);
+        let options = supplied_unit_build_options(db, file, cfg, registry, None, &declared, &input)
+            .expect("the document's original grammar and Registry");
+        let (cu, _) = build_unit_with_keys_and_input(db, file.text(db), options, Some(&input));
+        let source_bodies: Vec<_> = cu
+            .ir_module
+            .procedures
+            .iter()
+            .chain(cu.ir_module.body_units.iter())
+            .filter(|(id, _)| cu.original_procedure_for_body(**id).is_some())
+            .collect();
+        let known: HashSet<_> = source_bodies.iter().map(|(id, _)| **id).collect();
+        let mut summaries: HashMap<_, _> = source_bodies
+            .into_iter()
+            .map(|(id, procedure)| {
+                (
+                    *id,
+                    ReturnTaintSummary::untainted(&procedure.qualified_name, &procedure.params),
+                )
+            })
+            .collect();
+        let provider_id = original_test_body_id(&cu, 0);
+        let caller_id = original_test_body_id(&cu, caller_offset);
+        let provider = tcl_compiler::taint_interproc::infer_proc_summary(
+            &cu,
+            provider_id,
+            registry,
+            cu.interproc.as_ref(),
+            tcl_lsp_core::stated_profile_for_dialect(dialect),
+            &known,
+            &summaries,
+        )
+        .expect("actual provider source unit");
+        summaries.insert(provider_id, provider.clone());
+        let body = cu
+            .original_procedure_for_body(caller_id)
+            .unwrap()
+            .body_source
+            .clone()
+            .expect("actual caller source body");
+        let capsule = tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
+            Arc::new(cu),
+            caller_id,
+            registry,
+        )
+        .expect("actual current compiler owners");
+        let dependencies = summary_deps_key(db, capsule, &summaries, &known, dialect);
+        let summary = proc_summary_cascade(db, dependencies);
+        SummaryDependencyProbe {
+            caller_name: caller,
+            caller_body: body,
+            provider,
+            dependencies: dependencies
+                .inputs(db)
+                .summaries()
+                .iter()
+                .map(|(_, summary)| summary.clone())
+                .collect(),
+            caller: (*summary).clone(),
+        }
+    }
+
+    #[test]
+    fn summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads() {
+        // naming.compiler.original-summary-dependency-source-heads
+
+        // Actual document units feed the tracked summary query. This proves
+        // dependency currency, not that a procedure or substitution executes.
+        use salsa::Setter as _;
+        let log = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let log = Arc::clone(&log);
+            move |event: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = event.kind {
+                    log.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+        };
+        let source = |provider: &str| {
+            format!(
+                "proc producer {{}} {{{provider}}}\n\
+             proc quoted {{}} {{return [\"producer\"]}}\n\
+             proc braced {{}} {{return [{{producer}}]}}\n"
+            )
+        };
+        let initial = source("return CLEAN");
+        let changed = source("return [gets stdin]");
+        let file = SourceFile::new(&db, initial, "tcl".to_owned(), None);
+        let config = lexer_cfg_key(&db, "tcl");
+        let analysis_config = cfg(&db);
+        let callers = |text: &str| {
+            [
+                ("::quoted", text.find("proc quoted ").unwrap()),
+                ("::braced", text.find("proc braced ").unwrap()),
+            ]
+        };
+        let before: Vec<_> = callers(file.text(&db))
+            .into_iter()
+            .map(|(caller, offset)| {
+                summary_dependency_probe(
+                    &db,
+                    file,
+                    config,
+                    analysis_config,
+                    offset,
+                    caller.to_owned(),
+                )
+            })
+            .collect();
+        let runs = || {
+            std::mem::take(&mut *log.lock().unwrap())
+                .into_iter()
+                .filter(|query| query.contains("proc_summary_cascade"))
+                .count()
+        };
+        assert_eq!(runs(), 2, "two actual caller summary queries");
+        for (caller, offset) in callers(file.text(&db)) {
+            let _ = summary_dependency_probe(
+                &db,
+                file,
+                config,
+                analysis_config,
+                offset,
+                caller.to_owned(),
+            );
+        }
+        assert_eq!(runs(), 0, "unchanged document retains the summary memos");
+        file.set_text(&mut db).to(changed.clone());
+        let config = lexer_cfg_key(&db, "tcl");
+        let after: Vec<_> = callers(file.text(&db))
+            .into_iter()
+            .map(|(caller, offset)| {
+                summary_dependency_probe(
+                    &db,
+                    file,
+                    config,
+                    analysis_config,
+                    offset,
+                    caller.to_owned(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            runs(),
+            2,
+            "callee summary edit invalidates both caller queries"
+        );
+        for (old, new) in before.iter().zip(&after) {
+            assert_eq!(
+                old.caller_body, new.caller_body,
+                "caller source did not change"
+            );
+            assert_ne!(
+                old.provider, new.provider,
+                "the actual callee summary changed"
+            );
+            assert!(old.dependencies.contains(&old.provider));
+            assert!(new.dependencies.contains(&new.provider));
+            assert_ne!(old.dependencies, new.dependencies);
+        }
+        let fresh = TclDatabase::default();
+        let fresh_file = SourceFile::new(&fresh, changed, "tcl".to_owned(), None);
+        let fresh_config = lexer_cfg_key(&fresh, "tcl");
+        let fresh_analysis_config = cfg(&fresh);
+        for ((caller, offset), expected) in callers(fresh_file.text(&fresh)).into_iter().zip(after)
+        {
+            assert_eq!(
+                summary_dependency_probe(
+                    &fresh,
+                    fresh_file,
+                    fresh_config,
+                    fresh_analysis_config,
+                    offset,
+                    caller.to_owned()
+                ),
+                expected
+            );
+        }
     }
 
     /// The project proc-name set lifted into salsa
@@ -6551,12 +8871,8 @@ mod tests {
         assert_eq!(names.len(), 3, "the new proc joins the project set");
     }
 
-    /// Cross-file arity firewall: `project_command_arities`
-    /// depends only on each file's `item_sigs`, so a body edit anywhere must
-    /// recompute **zero** — while a *signature* edit (changing a proc's parameter
-    /// list) must recompute it exactly once and flow the new arity through.  This is
-    /// the firewall that keeps the workspace arity table from waking on a keystroke
-    /// inside a proc body.
+    /// Original header arities ignore body edits and recompute once when the
+    /// selected signature changes.
     #[test]
     fn project_command_arities_firewall() {
         use salsa::Setter as _;
@@ -6572,7 +8888,7 @@ mod tests {
         let runs = |log: &Arc<Mutex<Vec<String>>>| {
             std::mem::take(&mut *log.lock().unwrap())
                 .into_iter()
-                .filter(|s| s.contains("project_command_arities"))
+                .filter(|s| s.contains("project_original_command_arities"))
                 .count()
         };
         let mut db = TclDatabase {
@@ -6592,9 +8908,17 @@ mod tests {
         );
         let project = Project::new(&db, vec![a, b]);
 
+        let headers = item_sigs(&db, a);
+        let header = headers[0].original_declaration.as_ref().unwrap().name();
+
         // Cold: `helper` is a 2-param proc → arity (2, 2).
         assert_eq!(
-            project_command_arities(&db, project).get("helper").cloned(),
+            original_command_arity(
+                &db,
+                project,
+                OriginalCommandSlot::new(&db, header.policy(), header.slot().clone()),
+            )
+            .map(|arities| (*arities).clone()),
             Some(vec![(2, 2)]),
             "cold: helper has arity (2, 2)"
         );
@@ -6604,27 +8928,230 @@ mod tests {
         // unchanged), so the arity table backdates and does NOT recompute.
         a.set_text(&mut db)
             .to("proc helper {x y} { set z 99999 }\n".to_owned());
-        let _ = project_command_arities(&db, project);
+        let _ = original_command_arity(
+            &db,
+            project,
+            OriginalCommandSlot::new(&db, header.policy(), header.slot().clone()),
+        );
         assert_eq!(
             runs(&log),
             0,
-            "body edit must not recompute project_command_arities"
+            "body edit must not recompute project_original_command_arities"
         );
 
         // SIGNATURE edit — drop a parameter — `item_sigs(a)` changes, so the table
         // recomputes exactly once and the new arity (1, 1) flows through.
         a.set_text(&mut db)
             .to("proc helper {x} { set z 99999 }\n".to_owned());
-        let arities = project_command_arities(&db, project);
+        let arities = original_command_arity(
+            &db,
+            project,
+            OriginalCommandSlot::new(&db, header.policy(), header.slot().clone()),
+        );
         assert_eq!(
             runs(&log),
             1,
-            "signature edit must recompute project_command_arities exactly once"
+            "signature edit must recompute project_original_command_arities exactly once"
         );
         assert_eq!(
-            arities.get("helper").cloned(),
+            arities.map(|arities| (*arities).clone()),
             Some(vec![(1, 1)]),
             "the new parameter list flows through to arity (1, 1)"
+        );
+    }
+
+    #[test]
+    fn project_direct_logical_calls_use_original_occurrences_and_namespace_slots() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        );
+        let definitions = SourceFile::new(
+            &db,
+            "namespace eval A {proc helper {x} {}}; namespace eval B {proc helper {x y} {}}"
+                .to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
+        let source = "proc callA {} {namespace eval A {helper ONE}}; proc callB {} {namespace eval B {helper ONE}}";
+        let calls = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![definitions, calls]);
+        let diagnostics = project_diagnostics(&db, calls, cfg, project);
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::W123)
+        );
+        let arity = diagnostics
+            .iter()
+            .filter(|diagnostic| matches!(diagnostic.code, DiagCode::E002 | DiagCode::E003))
+            .collect::<Vec<_>>();
+        assert_eq!(arity.len(), 1);
+        assert_eq!(arity[0].code, DiagCode::E002);
+        assert_eq!(
+            arity[0].span.start(),
+            u32::try_from(source.rfind("helper").unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn project_direct_logical_headers_preserve_source_occupants() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        );
+        let definitions = SourceFile::new(
+            &db,
+            "proc puts {x y} {}; proc helper {x y} {}; proc delegated {x y} {}".to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
+        for source in [
+            "puts ONE",
+            "proc helper {x} {}; helper ONE",
+            "interp alias {} delegated {} puts; delegated ONE",
+        ] {
+            let calls = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+            let project = Project::new(&db, vec![definitions, calls]);
+            let diagnostics = project_diagnostics(&db, calls, cfg, project);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| matches!(diagnostic.code, DiagCode::E002 | DiagCode::E003)),
+                "{source}: {diagnostics:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn project_direct_logical_headers_do_not_restore_deleted_local_slots() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        );
+        let source = "namespace eval A {proc helper {x} {}; rename helper {}; helper ONE}";
+        let calls = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        for (headers, expected) in [
+            (
+                "namespace eval A {proc helper {x y} {}}; proc helper {x} {}",
+                0,
+            ),
+            (
+                "namespace eval A {proc helper {x} {}}; proc helper {x y} {}",
+                1,
+            ),
+        ] {
+            let definitions = SourceFile::new(&db, headers.to_owned(), "tcl".to_owned(), None);
+            let project = Project::new(&db, vec![definitions, calls]);
+            let diagnostics = project_diagnostics(&db, calls, cfg, project);
+            let arity = diagnostics
+                .iter()
+                .filter(|diagnostic| matches!(diagnostic.code, DiagCode::E002 | DiagCode::E003))
+                .collect::<Vec<_>>();
+            assert_eq!(arity.len(), expected, "{headers}: {diagnostics:?}");
+            if let Some(diagnostic) = arity.first() {
+                assert_eq!(diagnostic.code, DiagCode::E002);
+                assert_eq!(
+                    diagnostic.span.start(),
+                    u32::try_from(source.find("helper ONE").unwrap()).unwrap()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn project_direct_logical_calls_keep_operand_mutations_unresolved() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        );
+        let definitions = SourceFile::new(
+            &db,
+            "proc rooted {x y} {}".to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
+        let source = "rooted [set value VALUE]";
+        let calls = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![definitions, calls]);
+        let diagnostics = project_diagnostics(&db, calls, cfg, project);
+        assert!(diagnostics.iter().any(|diagnostic| diagnostic.code == DiagCode::W123 && diagnostic.span.start() == 0));
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|diagnostic| matches!(diagnostic.code, DiagCode::E002 | DiagCode::E003))
+        );
+    }
+
+    #[test]
+    fn project_direct_logical_calls_keep_root_recipe_and_missing_namespace_unknown() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        );
+        let definitions = SourceFile::new(
+            &db,
+            "proc rooted {x} {}; namespace eval A {proc helper {x} {}}".to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
+        let source = "rooted ONE; namespace eval Missing {helper ONE}";
+        let calls = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![definitions, calls]);
+        let diagnostics = project_diagnostics(&db, calls, cfg, project);
+        let unknown = diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::W123)
+            .collect::<Vec<_>>();
+        assert_eq!(unknown.len(), 1);
+        assert_eq!(
+            unknown[0].span.start(),
+            u32::try_from(source.find("helper").unwrap()).unwrap()
+        );
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|diagnostic| matches!(diagnostic.code, DiagCode::E002 | DiagCode::E003))
         );
     }
 
@@ -6632,10 +9159,9 @@ mod tests {
     /// the defining file must **not** re-run a calling file's `project_diagnostics`.
     ///
     /// `b` calls only `foo` (defined in `a`); `a` also defines `bar`, which `b`
-    /// never calls.  Because `project_diagnostics(b)` demands `command_arity` only
-    /// for the tails `b` references (`foo`), a signature edit to `bar` recomputes
-    /// the whole-project arity table and the `command_arity(foo)` accessor, but the
-    /// accessor's projected output for `foo` is unchanged → salsa backdates it →
+    /// never calls. Each demanded original source slot has its own arity query.
+    /// A signature edit to `bar` changes the project header table while the
+    /// projected `foo` header is unchanged, so salsa backdates that result →
     /// `project_diagnostics(b)` does **not** re-execute (the per-symbol early-cutoff
     /// the whole-table dependency could not give).  Editing `foo` itself, by
     /// contrast, *must* re-run `b` and flow the new arity through.
@@ -6692,7 +9218,7 @@ mod tests {
         let _ = runs(&log);
 
         // Signature edit to the UNRELATED `bar` (add a param).  The arity table and
-        // `command_arity(bar)` recompute, but `command_arity(foo)` backdates → `b`'s
+        // The project table changes, but the `foo` slot backdates → `b`'s
         // cross-file diagnostics must NOT re-run.
         a.set_text(&mut db)
             .to("proc foo {x} {}\nproc bar {y z} {}\n".to_owned());
@@ -7043,15 +9569,20 @@ mod tests {
             "tcl8.6".to_owned(),
             None,
         );
-        // The arity table must record `Widget` as resolvable but arity-less
-        // (mixed), so it can never draw an arity error.
+        // The actual root class slot is occupied without a procedure arity;
+        // a same-tailed declaration in another namespace cannot donate one.
         let proj_names = Project::new(&db, vec![b]);
+        let headers = item_sigs(&db, b);
+        let class = headers
+            .iter()
+            .find(|header| header.id.kind == tcl_compiler::analyser::ItemKind::Class)
+            .unwrap();
+        let name = class.original_declaration.as_ref().unwrap().name();
+        let slot = OriginalCommandSlot::new(&db, name.policy(), name.slot().clone());
         assert_eq!(
-            project_command_arities(&db, proj_names)
-                .get("Widget")
-                .cloned(),
+            original_command_arity(&db, proj_names, slot).map(|arities| (*arities).clone()),
             Some(Vec::new()),
-            "a mixed proc/non-proc tail must carry an empty arity list"
+            "an occupied non-procedure slot must carry an empty arity list"
         );
         // A calls `Widget new extra` (3 args) — fits no proc arity, but resolves to
         // the class → neither an arity error nor W123.
@@ -7632,7 +10163,7 @@ mod tests {
     }
 
     /// Analyse a single-file project and return its diagnostic codes+messages.
-    fn callback_arity_codes(src: &str) -> Vec<(String, String)> {
+    fn callback_arity_diagnostics(src: &str) -> Vec<tcl_compiler::analyser::types::Diagnostic> {
         let db = TclDatabase::default();
         let cfg = AnalyserConfig::new(
             &db,
@@ -7647,10 +10178,195 @@ mod tests {
         );
         let f = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
         let proj = Project::new(&db, vec![f]);
-        project_diagnostics(&db, f, cfg, proj)
+        project_diagnostics(&db, f, cfg, proj).as_ref().clone()
+    }
+
+    fn callback_arity_codes(src: &str) -> Vec<(String, String)> {
+        callback_arity_diagnostics(src)
             .iter()
             .map(|d| (d.code.as_str().to_owned(), d.message.clone()))
             .collect()
+    }
+
+    fn assert_callback_source_count(
+        source: &str,
+        input: &[u8],
+        expected: tcl_compiler::analyser::SourceCallbackArgumentCounts,
+    ) {
+        let diagnostics = callback_arity_diagnostics(source);
+        let subject = diagnostics
+            .iter()
+            .find_map(|diagnostic| {
+                let subject = diagnostic.callback_source_arity()?;
+                (diagnostic.code == DiagCode::E003
+                    && subject.prefix().name_input().bytes() == input)
+                    .then_some(subject)
+            })
+            .unwrap_or_else(|| {
+                panic!("{source}: no genuine E003 source subject in {diagnostics:?}")
+            });
+        assert_eq!(subject.argument_counts(), &expected);
+        assert!(subject.source_lookup().is_some());
+    }
+
+    #[test]
+    fn original_callback_diagnostics_keep_typed_subject_and_ignore_mutable_counts() {
+        // naming.diagnostic.original-callback-signature-subject
+
+        // Current source headers only; no callback registration or execution.
+        let db = TclDatabase::default();
+        let file = SourceFile::new(
+            &db,
+            "proc cb {a b} {return 0}\nlsort -command {cb fixed} {3 1 2}".to_owned(),
+            "tcl9.0".to_owned(),
+            None,
+        );
+        let project = Project::new(&db, vec![file]);
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(file.text(&db), "tcl9.0");
+        let mut invocations = analysis.command_invocations;
+        for invocation in &mut invocations {
+            if invocation.original_callback_prefix.is_some() {
+                invocation.name = "wrong presentation".to_owned();
+                invocation.range = tcl_lexer::Span::new(0, 1);
+                invocation.callback_arity = Some(tcl_registry::AppendedArity::Unknown);
+                invocation.callback_baked_args = usize::MAX;
+                invocation.original_name_input = None;
+                invocation.original_lookup = None;
+            }
+        }
+        let mut output = Vec::new();
+        apply_original_callback_arity(&db, project, &mut output, &invocations, |_| false);
+        let diagnostic = output
+            .first()
+            .expect("authentic prefix, not mutable scalar counts");
+        assert_eq!(output.len(), 1);
+        assert_eq!(diagnostic.code, DiagCode::E003);
+        let subject = diagnostic.callback_source_arity().unwrap();
+        assert_eq!(subject.prefix().baked_argument_count(), 1);
+        assert_eq!(
+            subject.argument_counts(),
+            &tcl_compiler::analyser::SourceCallbackArgumentCounts::Finite(vec![3])
+        );
+        assert_eq!(&file.text(&db)[diagnostic.span.as_range()], "cb");
+        assert!(
+            invocations
+                .iter()
+                .find(|inv| inv.original_callback_prefix.is_some())
+                .unwrap()
+                .logical_callback_candidate_keys()
+                .is_empty()
+        );
+        assert_eq!(
+            tcl_lsp_core::diagnostic_subject::diagnostic_subject_data(diagnostic).unwrap()["subject"]
+                ["purpose"],
+            "signature"
+        );
+    }
+
+    #[test]
+    fn original_callback_signature_query_updates_headers_without_tail_substitution() {
+        // naming.diagnostic.original-callback-signature-subject
+
+        use salsa::Setter as _;
+        let mut db = TclDatabase::default();
+        let definitions = SourceFile::new(&db,"namespace eval a {proc cb {one} {return FIRST}}\nnamespace eval b {proc cb {one two} {return 0}}".to_owned(),"tcl9.0".to_owned(),None);
+        let call_source = "lsort -command ::a::cb {3 1 2}";
+        let calls = SourceFile::new(&db, call_source.to_owned(), "tcl9.0".to_owned(), None);
+        let project = Project::new(&db, vec![definitions, calls]);
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(call_source, "tcl9.0");
+        let prefix = analysis
+            .command_invocations
+            .iter()
+            .find_map(|inv| inv.original_callback_prefix.as_ref())
+            .unwrap();
+        let lookup = prefix.lookup().unwrap();
+        let first = original_lookup_command_signatures(&db, project, lookup).unwrap();
+        assert_eq!(first.len(), 1);
+        assert_eq!(
+            first[0].formal_count_projection().arity(),
+            tcl_registry::Arity::exact(1)
+        );
+        definitions.set_text(&mut db).to("namespace eval a {proc cb {one} {return LATER}}\nnamespace eval b {proc cb {one two} {return 0}}".to_owned());
+        assert_eq!(
+            original_lookup_command_signatures(&db, project, lookup).unwrap(),
+            first,
+            "body-free header equality"
+        );
+        definitions.set_text(&mut db).to("namespace eval a {proc cb {one two} {return LATER}}\nnamespace eval b {proc cb {one} {return 0}}".to_owned());
+        let updated = original_lookup_command_signatures(&db, project, lookup).unwrap();
+        assert_eq!(updated.len(), 1);
+        assert_eq!(
+            updated[0].formal_count_projection().arity(),
+            tcl_registry::Arity::exact(2)
+        );
+        assert!(
+            tcl_compiler::analyser::SourceCallbackAritySubject::from_source_signatures(
+                Arc::clone(prefix),
+                &updated
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn original_callback_signature_gap_retains_disjoint_source_headers() {
+        // naming.diagnostic.original-callback-signature-subject
+
+        // Two current source candidates, not two installed implementations.
+        let db = TclDatabase::default();
+        let one = SourceFile::new(&db, "proc cb {a} {}".to_owned(), "tcl9.0".to_owned(), None);
+        let three = SourceFile::new(
+            &db,
+            "proc cb {a b c} {}".to_owned(),
+            "tcl9.0".to_owned(),
+            None,
+        );
+        let source = "lsort -command cb {1 2}";
+        let call = SourceFile::new(&db, source.to_owned(), "tcl9.0".to_owned(), None);
+        let project = Project::new(&db, vec![one, three, call]);
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl9.0");
+        let mut diagnostics = Vec::new();
+        apply_original_callback_arity(
+            &db,
+            project,
+            &mut diagnostics,
+            &analysis.command_invocations,
+            |_| false,
+        );
+        let diagnostic = diagnostics
+            .first()
+            .expect("finite count falls in a signature gap");
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostic.code, DiagCode::E005);
+        let subject = diagnostic.callback_source_arity().unwrap();
+        assert_eq!(subject.declarations().len(), 2);
+        assert_eq!(
+            subject.issue(),
+            tcl_compiler::analyser::SourceCallbackArityIssue::NoCompatibleSignature { supplied: 2 }
+        );
+    }
+
+    #[test]
+    fn qualified_callback_arity_keeps_same_tailed_namespaces_separate() {
+        let diagnostics = callback_arity_codes(
+            "namespace eval a {proc cb {one} {return 0}}\n\
+             namespace eval b {proc cb {one two} {return 0}}\n\
+             lsort -command ::a::cb {3 1 2}\n",
+        );
+        assert!(
+            diagnostics.iter().any(|(code, _)| code == "E003"),
+            "{diagnostics:?}"
+        );
+        let absent = callback_arity_codes(
+            "namespace eval b {proc cb {one} {return 0}}\n\
+             lsort -command ::absent::cb {3 1 2}\n",
+        );
+        assert!(
+            absent
+                .iter()
+                .all(|(code, _)| !matches!(code.as_str(), "E002" | "E003" | "E005")),
+            "{absent:?}"
+        );
     }
 
     #[test]
@@ -7751,48 +10467,77 @@ mod tests {
     }
 
     #[test]
-    fn execution_trace_callback_arity_distinguishes_enter_and_leave() {
-        for (operations, params, expected_code) in [
-            ("enter", "a b", None),
-            ("enterstep", "a b c d", Some("E002")),
-            ("leave", "a b c d", None),
-            ("leavestep", "a b", Some("E003")),
+    fn execution_trace_source_counts_keep_unavailable_future_frame() {
+        // naming.callback.lookup-scope-owner
+
+        // Registration syntax retains suffix metadata; it does not observe
+        // the command table or namespace of a future triggering frame.
+        for (operations, appended) in [
+            ("enter", 2),
+            ("enterstep", 2),
+            ("leave", 4),
+            ("leavestep", 4),
         ] {
             let source = format!(
-                "proc h {{{params}}} {{ return 0 }}\ntrace add execution somecmd {operations} h\n"
+                "proc h {{a b c}} {{return 0}}\ntrace add execution somecmd {operations} h"
             );
-            let diagnostics = callback_arity_codes(&source);
-            let actual = diagnostics
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(&source, "tcl9.0");
+            let prefix = analysis
+                .command_invocations
                 .iter()
-                .find(|(code, _)| matches!(code.as_str(), "E002" | "E003" | "E005"))
-                .map(|(code, _)| code.as_str());
+                .find_map(|inv| inv.original_callback_prefix.as_ref())
+                .expect(operations);
             assert_eq!(
-                actual, expected_code,
-                "unexpected callback result for {operations}/{params}: {diagnostics:?}"
+                prefix.appended_arity(),
+                Some(tcl_registry::AppendedArity::Exactly(appended))
+            );
+            assert_eq!(
+                prefix.scope(),
+                Some(tcl_registry::ScriptLookupScope::TriggerFrame)
+            );
+            assert!(prefix.lookup().is_none());
+            assert!(
+                callback_arity_codes(&source)
+                    .iter()
+                    .all(|(code, _)| !matches!(code.as_str(), "E002" | "E003" | "E005"))
             );
         }
     }
 
     #[test]
-    fn mixed_execution_trace_requires_every_exact_alternative() {
-        for (params, expected_code) in [
-            ("a b", Some("E003")),
-            ("a b c", Some("E002")),
-            ("a b c d", Some("E002")),
-            ("a b {c default} {d default}", None),
-            ("a b args", None),
+    fn mixed_execution_trace_source_counts_do_not_issue_a_future_lookup() {
+        // naming.callback.lookup-scope-owner
+
+        for params in [
+            "a b",
+            "a b c",
+            "a b c d",
+            "a b {c default} {d default}",
+            "a b args",
         ] {
             let source = format!(
-                "proc h {{{params}}} {{ return 0 }}\ntrace add execution somecmd {{enter leave}} h\n"
+                "proc h {{{params}}} {{return 0}}\ntrace add execution somecmd {{enter leave}} h"
             );
-            let diagnostics = callback_arity_codes(&source);
-            let actual = diagnostics
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(&source, "tcl9.0");
+            let prefix = analysis
+                .command_invocations
                 .iter()
-                .find(|(code, _)| matches!(code.as_str(), "E002" | "E003" | "E005"))
-                .map(|(code, _)| code.as_str());
+                .find_map(|inv| inv.original_callback_prefix.as_ref())
+                .expect(params);
             assert_eq!(
-                actual, expected_code,
-                "the callback must accept both 2 and 4 arguments for params {params:?}: {diagnostics:?}"
+                prefix
+                    .appended_arity()
+                    .unwrap()
+                    .exact_counts()
+                    .unwrap()
+                    .collect::<Vec<_>>(),
+                vec![2, 4]
+            );
+            assert!(prefix.lookup().is_none());
+            assert!(
+                callback_arity_codes(&source)
+                    .iter()
+                    .all(|(code, _)| !matches!(code.as_str(), "E002" | "E003" | "E005"))
             );
         }
     }
@@ -7815,14 +10560,344 @@ mod tests {
 
     #[test]
     fn callback_arity_namespace_unknown_zero_param_draws_e003() {
-        // `namespace unknown h` invokes `h cmd ?args...?` (AtLeast(1)); a 0-param
-        // handler can never accept the appended command name → E003 too-many. A
-        // real bug (ground truth: tclsh 9.0 raises "called with too many args").
-        let d = callback_arity_codes("proc h {} { return 0 }\nnamespace unknown h\n");
-        assert!(
-            d.iter().any(|(c, m)| c == "E003" && m.contains("'h'")),
-            "a 0-param `namespace unknown` handler must draw E003; got {d:?}"
+        // naming.source.original-callback-procedure-target
+
+        // The absolute head selects a conditional source declaration without
+        // borrowing the unentered trigger's namespace. AtLeast(1) cannot fit
+        // the zero-parameter source header; registration itself calls nothing.
+        assert_callback_source_count(
+            "proc h {} { return 0 }\nnamespace unknown ::h\n",
+            b"::h",
+            tcl_compiler::analyser::SourceCallbackArgumentCounts::AtLeast(1),
         );
+    }
+
+    #[test]
+    fn callback_arity_namespace_unknown_relative_trigger_does_not_borrow_installer_frame() {
+        // naming.source.original-callback-procedure-target
+
+        let diagnostics = callback_arity_codes("proc h {} {}; namespace unknown h");
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|(code, _)| code == "E002" || code == "E003")
+        );
+    }
+
+    #[test]
+    fn callback_arity_closed_tk_descriptors_do_not_select_local_headers() {
+        let available = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        let commands = Arc::clone(available.commands());
+        let available = Arc::new(available.with_command_store(Arc::clone(&commands)));
+        let unavailable = Arc::new(
+            tcl_registry::model::ingress::static_context_for("bpf")
+                .with_command_store(Arc::clone(&commands)),
+        );
+        assert!(Arc::ptr_eq(available.commands(), unavailable.commands()));
+        assert!(
+            available
+                .context()
+                .resolve_spec(&commands, "scale")
+                .is_some()
+        );
+        assert!(
+            unavailable
+                .context()
+                .resolve_spec(&commands, "scale")
+                .is_none()
+        );
+        assert!(!unavailable.context().required_package_available(Some("Tk")));
+        assert_eq!(unavailable.context().environment.id.as_str(), "bpf");
+        assert_eq!(
+            unavailable
+                .context()
+                .environment
+                .policy_defaults
+                .closed_world,
+            tcl_dialect::model::WorldPolicy::Closed
+        );
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        let input = |context| {
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config)
+        };
+        let analyse = |source: &str, context| {
+            tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input(context))
+                .analyse(source, "tcl9.0")
+        };
+        let db = TclDatabase::default();
+        let project = Project::new(&db, Vec::new());
+        for source in [
+            "proc cb {} {}; scale .s -command cb",
+            "proc cb {} {}; scale .s -command ::cb",
+            "package require Tk; proc cb {} {}; scale .s -command ::cb",
+        ] {
+            let analysis = analyse(source, Arc::clone(&unavailable));
+            let supplied = input(Arc::clone(&unavailable));
+            assert_eq!(analysis.resolved_input.as_ref(), Some(&supplied));
+            assert!(
+                analysis
+                    .retained_command_realm()
+                    .unwrap()
+                    .matches_resolved_analysis_input(&supplied)
+            );
+            assert!(
+                analysis.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config
+                )
+            );
+            assert!(
+                analysis
+                    .resolved_input
+                    .as_ref()
+                    .unwrap()
+                    .borrowed_context_registry()
+                    .context()
+                    .resolve_spec(&commands, "scale")
+                    .is_none()
+            );
+            let diagnostics =
+                project_callback_diagnostics_for_analysis(&db, project, source, &analysis, |_| {
+                    false
+                });
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| matches!(diagnostic.code, DiagCode::E002 | DiagCode::E003))
+            );
+        }
+        let source = "proc cb {} {}; scale .s -command ::cb";
+        let analysis = analyse(source, Arc::clone(&available));
+        assert!(
+            analysis
+                .resolved_input
+                .as_ref()
+                .unwrap()
+                .borrowed_context_registry()
+                .context()
+                .resolve_spec(&commands, "scale")
+                .is_some()
+        );
+        let diagnostics =
+            project_callback_diagnostics_for_analysis(&db, project, source, &analysis, |_| false);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::E003)
+        );
+    }
+
+    #[test]
+    fn callback_arity_foreign_library_source_contexts_do_not_select_local_headers() {
+        // naming.database.original-project-callback-projection
+
+        let available = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        let commands = Arc::clone(available.commands());
+        let available = Arc::new(available.with_command_store(Arc::clone(&commands)));
+        let unavailable = Arc::new(
+            tcl_registry::model::ingress::static_context_for("bpf")
+                .with_command_store(Arc::clone(&commands)),
+        );
+        assert!(Arc::ptr_eq(available.commands(), unavailable.commands()));
+        for command in [
+            "smtp::sendmessage",
+            "mime::getbody",
+            "struct::graph",
+            "struct::tree",
+        ] {
+            assert!(
+                available
+                    .context()
+                    .resolve_spec(&commands, command)
+                    .is_some()
+            );
+            assert!(
+                unavailable
+                    .context()
+                    .resolve_spec(&commands, command)
+                    .is_some()
+            );
+        }
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        let input = |context| {
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config)
+        };
+        assert_eq!(unavailable.context().environment.id.as_str(), "bpf");
+        assert_eq!(
+            unavailable
+                .context()
+                .environment
+                .policy_defaults
+                .closed_world,
+            tcl_dialect::model::WorldPolicy::Closed,
+        );
+        assert!(
+            unavailable
+                .context()
+                .environment
+                .expected_packages
+                .is_empty()
+        );
+        let excluded_input = input(Arc::clone(&unavailable));
+        assert!(!excluded_input.has_hosted_source_name_context());
+        assert_eq!(excluded_input.vendor_source_policy(), None);
+        let analyse = |source: &str, context| {
+            tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input(context))
+                .analyse(source, "tcl9.0")
+        };
+        let db = TclDatabase::default();
+        let project = Project::new(&db, Vec::new());
+        let diagnostics_for = |source: &str, analysis: &AnalysisResult| {
+            project_callback_diagnostics_for_analysis(&db, project, source, analysis, |_| false)
+                .into_iter()
+                .map(|diagnostic| (diagnostic.code.as_str().to_owned(), diagnostic.message))
+                .collect::<Vec<_>>()
+        };
+        for source in [
+            "proc cb {} {}; scale .s -command cb",
+            "proc cb {x y} {}; math::calculus::integral 0 1 100 cb",
+            "proc cb {x} {}; smtp::sendmessage $t -tlspolicy cb",
+            "proc cb {x} {}; tcl::chan::halfpipe -write-command cb",
+            "proc cb {} {}; mime::getbody $t -command cb",
+            "proc cb {x y} {}; struct::graph g; g walk root -command cb",
+            "proc cb {x y} {}; struct::tree t; t walkproc root cb",
+            "package require smtp; proc cb {x} {}; smtp::sendmessage $t -tlspolicy ::cb",
+            "package require mime; proc cb {} {}; mime::getbody $t -command ::cb",
+            "package require struct::graph; proc cb {x y} {}; struct::graph g; g walk root -command ::cb",
+            "package require struct::tree; proc cb {x y} {}; struct::tree t; t walkproc root ::cb",
+        ] {
+            // These library descriptors remain available in the closed model.
+            // Its supplied input cannot borrow the other source producer's receipts.
+            let mut analysis = analyse(source, Arc::clone(&available));
+            assert!(
+                analysis.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config,
+                )
+            );
+            let supplied = input(Arc::clone(&unavailable));
+            analysis.resolved_input = Some(supplied.clone());
+            assert!(
+                analysis.resolved_input.as_ref() == Some(&supplied),
+                "{source}: exact retained editing input"
+            );
+            let resolved = analysis.resolved_input.as_ref().unwrap();
+            let current = resolved.context_registry();
+            assert!(Arc::ptr_eq(current.commands(), &commands));
+            assert_eq!(resolved.lexer_config(), config);
+            assert_eq!(resolved.vendor_source_policy(), None);
+            assert!(!resolved.has_hosted_source_name_context());
+            for command in [
+                "smtp::sendmessage",
+                "mime::getbody",
+                "struct::graph",
+                "struct::tree",
+            ] {
+                assert!(
+                    current.context().resolve_spec(&commands, command).is_some(),
+                    "{source}: ordinary library metadata remains available"
+                );
+            }
+            assert!(
+                !analysis
+                    .retained_command_realm()
+                    .unwrap()
+                    .matches_resolved_analysis_input(&supplied)
+            );
+            assert!(
+                !analysis.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config
+                )
+            );
+            assert!(
+                analysis
+                    .original_procedure_declarations()
+                    .any(|declaration| declaration.metadata().qualified_name == "::cb")
+            );
+            let control_source = format!(
+                "proc availability_control {{x}} {{}}; lsort -command ::availability_control {{2 1}}; {source}"
+            );
+            let control = analyse(&control_source, Arc::clone(&available));
+            assert!(control.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(&control_source),
+                config
+            ));
+            let control_diagnostics = project_callback_diagnostics_for_analysis(
+                &db,
+                project,
+                &control_source,
+                &control,
+                |_| false,
+            );
+            assert!(
+                control_diagnostics.iter().any(|diagnostic| {
+                    diagnostic.code == DiagCode::E003
+                        && diagnostic.callback_source_arity().is_some_and(|subject| {
+                            subject.prefix().name_input().bytes() == b"::availability_control"
+                                && subject.source_lookup().is_some()
+                        })
+                }),
+                "{control_source}"
+            );
+            let diagnostics = diagnostics_for(source, &analysis);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|(code, _)| code == "E002" || code == "E003"),
+                "{source}: {diagnostics:?}"
+            );
+        }
+        for source in [
+            "package require smtp; proc cb {x} {}; smtp::sendmessage $t -tlspolicy ::cb",
+            "package require mime; proc cb {} {}; mime::getbody $t -command ::cb",
+            "package require struct::graph; proc cb {x y} {}; struct::graph g; g walk root -command ::cb",
+            "package require struct::tree; proc cb {x y} {}; struct::tree t; t walkproc root ::cb",
+        ] {
+            let analysis = analyse(source, Arc::clone(&available));
+            let diagnostics = diagnostics_for(source, &analysis);
+            assert!(
+                diagnostics.iter().any(|(code, _)| code == "E003"),
+                "{source}: {diagnostics:?}"
+            );
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(
+                !diagnostics_for(source, &missing)
+                    .iter()
+                    .any(|(code, _)| code == "E002" || code == "E003")
+            );
+            let mut foreign = analysis.clone();
+            foreign.resolved_input = Some(input(Arc::clone(&unavailable)));
+            assert!(
+                !diagnostics_for(source, &foreign)
+                    .iter()
+                    .any(|(code, _)| code == "E002" || code == "E003")
+            );
+            let foreign_store = Arc::new(available.with_command_store(Arc::new(
+                tcl_registry::CommandRegistry::build_default().project_for_profile(profile),
+            )));
+            assert_ne!(
+                foreign_store.commands().snapshot().semantic_key(),
+                commands.snapshot().semantic_key()
+            );
+            let mut foreign = analysis.clone();
+            foreign.resolved_input = Some(input(foreign_store));
+            assert!(
+                !diagnostics_for(source, &foreign)
+                    .iter()
+                    .any(|(code, _)| code == "E002" || code == "E003")
+            );
+            assert!(
+                !diagnostics_for(&format!("{source}\nputs OTHER"), &analysis)
+                    .iter()
+                    .any(|(code, _)| code == "E002" || code == "E003")
+            );
+        }
     }
 
     #[test]
@@ -7838,23 +10913,29 @@ mod tests {
 
     #[test]
     fn callback_arity_tk_scale_command_arity_checked() {
-        // Post-conversion: `scale -command` appends the new value (Exactly(1)).
+        // Conditional source descriptor: `scale -command` appends Exactly(1).
         // A 0-param callback can't accept it → E003; a bareword 1-param callback
         // is silent (TN).
-        let bad = callback_arity_codes("proc onChange {} { }\nscale .s -command onChange\n");
+        let bad = callback_arity_codes(
+            "# tcl-lsp: requires Tk\npackage require Tk\nproc onChange {} { }\nscale .s -command ::onChange\n",
+        );
         assert!(
             bad.iter()
                 .any(|(c, m)| c == "E003" && m.contains("onChange")),
             "a 0-param `scale -command` callback (1 appended) must draw E003; got {bad:?}"
         );
-        let ok = callback_arity_codes("proc onChange {v} { }\nscale .s -command onChange\n");
+        let ok = callback_arity_codes(
+            "# tcl-lsp: requires Tk\npackage require Tk\nproc onChange {v} { }\nscale .s -command ::onChange\n",
+        );
         assert!(
             !ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
             "a correct 1-param scale callback must be silent; got {ok:?}"
         );
         // A braced widget-path scroll callback is never arity-checked (not a
         // literal bareword head) — no false arity error.
-        let widget = callback_arity_codes("listbox .lb -yscrollcommand {.sb set}\n");
+        let widget = callback_arity_codes(
+            "# tcl-lsp: requires Tk\npackage require Tk\nlistbox .lb -yscrollcommand {.sb set}\n",
+        );
         assert!(
             !widget.iter().any(|(c, _)| c == "E002" || c == "E003"),
             "a braced widget-path scroll callback must not draw an arity error; got {widget:?}"
@@ -7866,15 +10947,15 @@ mod tests {
         // `math::calculus::integral begin end nosteps func` calls `func x`
         // (Exactly(1), man-page-pinned).  A 2-param func is under-fed → E002.
         let d = callback_arity_codes(
-            "proc f {x y} { expr {$x + $y} }\nmath::calculus::integral 0 1 100 f\n",
+            "# tcl-lsp: requires math::calculus\npackage require math::calculus\nproc f {x y} { expr {$x + $y} }\nmath::calculus::integral 0 1 100 ::f\n",
         );
         assert!(
-            d.iter().any(|(c, m)| c == "E002" && m.contains("'f'")),
+            d.iter().any(|(c, m)| c == "E002" && m.contains("'::f'")),
             "a 2-param func where calculus::integral appends 1 must draw E002; got {d:?}"
         );
         // The correct 1-param shape is silent (TN).
         let ok = callback_arity_codes(
-            "proc f {x} { expr {$x * 2} }\nmath::calculus::integral 0 1 100 f\n",
+            "# tcl-lsp: requires math::calculus\npackage require math::calculus\nproc f {x} { expr {$x * 2} }\nmath::calculus::integral 0 1 100 ::f\n",
         );
         assert!(
             !ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
@@ -7899,44 +10980,49 @@ mod tests {
 
     #[test]
     fn callback_arity_option_value_exactly_checked() {
+        // naming.database.original-project-callback-projection
+
+        // Required package metadata supplies source grammar, never loader or
+        // future callback execution. The subject retains the actual prefix.
         // `smtp -tlspolicy` and `halfpipe -write-command` both append exactly 2;
         // a 1-param callback is over-fed → E003, a 2-param callback is silent.
-        let smtp_bad =
-            callback_arity_codes("proc pol {code} { }\nsmtp::sendmessage $t -tlspolicy pol\n");
-        assert!(
-            smtp_bad
-                .iter()
-                .any(|(c, m)| c == "E003" && m.contains("'pol'")),
-            "a 1-param -tlspolicy callback (2 appended) must draw E003; got {smtp_bad:?}"
+        assert_callback_source_count(
+            "# tcl-lsp: requires smtp\npackage require smtp\nproc pol {code} { }\nsmtp::sendmessage $t -tlspolicy ::pol\n",
+            b"::pol",
+            tcl_compiler::analyser::SourceCallbackArgumentCounts::Finite(vec![2]),
         );
-        let smtp_ok =
-            callback_arity_codes("proc pol {code diag} { }\nsmtp::sendmessage $t -tlspolicy pol\n");
+        let smtp_ok = callback_arity_codes(
+            "# tcl-lsp: requires smtp\npackage require smtp\nproc pol {code diag} { }\nsmtp::sendmessage $t -tlspolicy ::pol\n",
+        );
         assert!(
             !smtp_ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
             "a correct 2-param -tlspolicy callback must be silent; got {smtp_ok:?}"
         );
-        let pipe_bad =
-            callback_arity_codes("proc w {chan} { }\ntcl::chan::halfpipe -write-command w\n");
-        assert!(
-            pipe_bad
-                .iter()
-                .any(|(c, m)| c == "E003" && m.contains("'w'")),
-            "a 1-param -write-command callback (2 appended) must draw E003; got {pipe_bad:?}"
+        assert_callback_source_count(
+            "# tcl-lsp: requires tcl::chan::halfpipe\npackage require tcl::chan::halfpipe\nproc w {chan} { }\ntcl::chan::halfpipe -write-command ::w\n",
+            b"::w",
+            tcl_compiler::analyser::SourceCallbackArgumentCounts::Finite(vec![2]),
         );
     }
 
     #[test]
     fn callback_arity_mime_getbody_command_atleast_one() {
+        // naming.database.original-project-callback-projection
+
+        // Required package metadata supplies source grammar, never loader or
+        // future callback execution. The subject retains the actual prefix.
         // `mime::getbody -command` appends AtLeast(1) (reason keyword + optional
         // payload).  A 0-param callback can't accept the reason word → E003; the
         // canonical `{reason args}` shape is silent (open-ended max ⇒ no
         // false "too many").
-        let bad = callback_arity_codes("proc cb {} { }\nmime::getbody $t -command cb\n");
-        assert!(
-            bad.iter().any(|(c, m)| c == "E003" && m.contains("'cb'")),
-            "a 0-param mime -command callback must draw E003; got {bad:?}"
+        assert_callback_source_count(
+            "# tcl-lsp: requires mime\npackage require mime\nproc cb {} { }\nmime::getbody $t -command ::cb\n",
+            b"::cb",
+            tcl_compiler::analyser::SourceCallbackArgumentCounts::AtLeast(1),
         );
-        let ok = callback_arity_codes("proc cb {reason args} { }\nmime::getbody $t -command cb\n");
+        let ok = callback_arity_codes(
+            "# tcl-lsp: requires mime\npackage require mime\nproc cb {reason args} { }\nmime::getbody $t -command ::cb\n",
+        );
         assert!(
             !ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
             "a `{{reason args}}` mime -command callback must be silent; got {ok:?}"
@@ -7944,29 +11030,31 @@ mod tests {
         // FP guard: comm's 14-arg reply callback is virtually always `{args}` —
         // the catch-all absorbs all 14 → no arity error.
         let comm = callback_arity_codes(
-            "proc reply {args} { }\ncomm::comm send -command reply $id {list x}\n",
+            "# tcl-lsp: requires comm\npackage require comm\nproc reply {args} { }\ncomm::comm send -command ::reply $id {list x}\n",
         );
         assert!(
             !comm.iter().any(|(c, _)| c == "E002" || c == "E003"),
-            "a variadic comm -command reply handler must be silent; got {comm:?}"
+            "a variadic comm -command ::reply handler must be silent; got {comm:?}"
         );
     }
 
     #[test]
     fn callback_arity_struct_graph_walk_command_checked() {
-        // `$g walk … -command cb` (object instance method) appends 3 (action
+        // naming.database.original-project-callback-projection
+
+        // Required package metadata supplies source grammar, never loader or
+        // future callback execution. The subject retains the actual prefix.
+        // `$g walk … -command ::cb` (object instance method) appends 3 (action
         // graphName node).  A 2-param callback is over-fed → E003; a 3-param one
         // is silent.  Exercises both the named (`struct::graph name`) and handle
         // (`set g [struct::graph]`) instance forms.
-        let bad = callback_arity_codes(
-            "proc twoP {a b} { }\nstruct::graph myG\nmyG walk root -command twoP\n",
-        );
-        assert!(
-            bad.iter().any(|(c, m)| c == "E003" && m.contains("'twoP'")),
-            "a 2-param graph walk -command callback (3 appended) must draw E003; got {bad:?}"
+        assert_callback_source_count(
+            "# tcl-lsp: requires struct::graph\npackage require struct::graph\nproc twoP {a b} { }\nstruct::graph myG\nmyG walk root -command ::twoP\n",
+            b"::twoP",
+            tcl_compiler::analyser::SourceCallbackArgumentCounts::Finite(vec![3]),
         );
         let ok = callback_arity_codes(
-            "proc threeP {a b c} { }\nset g [struct::graph]\n$g walk root -command threeP\n",
+            "# tcl-lsp: requires struct::graph\npackage require struct::graph\nproc threeP {a b c} { }\nset g [struct::graph]\n$g walk root -command ::threeP\n",
         );
         assert!(
             !ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
@@ -7976,13 +11064,16 @@ mod tests {
 
     #[test]
     fn callback_arity_struct_tree_walkproc_checked() {
+        // naming.database.original-project-callback-projection
+
+        // Required package metadata supplies source grammar, never loader or
+        // future callback execution. The subject retains the actual prefix.
         // `$t walkproc … cmdprefix` (trailing positional prefix) appends 3 (tree
         // node action).  A 2-param callback → E003.
-        let bad =
-            callback_arity_codes("proc twoP {a b} { }\nstruct::tree myT\nmyT walkproc root twoP\n");
-        assert!(
-            bad.iter().any(|(c, m)| c == "E003" && m.contains("'twoP'")),
-            "a 2-param tree walkproc callback (3 appended) must draw E003; got {bad:?}"
+        assert_callback_source_count(
+            "# tcl-lsp: requires struct::tree\npackage require struct::tree\nproc twoP {a b} { }\nstruct::tree myT\nmyT walkproc root ::twoP\n",
+            b"::twoP",
+            tcl_compiler::analyser::SourceCallbackArgumentCounts::Finite(vec![3]),
         );
     }
 
@@ -8176,15 +11267,8 @@ mod tests {
         );
     }
 
-    /// A procedure that takes a parameter every caller passes the same literal
-    /// for (interprocedural `param_constants`) must engage the salsa-native
-    /// lattice memo — historically it bypassed it and was rebuilt fresh every
-    /// edit.  Folding the encoded seeds into [`FnLatticeKey`] means: (1) all
-    /// three procedures' lattices are `function_lattice` executions on the cold
-    /// build; (2) a length-changing edit to an *unrelated* proc shifts the
-    /// param-constant callee but reuses its lattice (offset-invariant cache
-    /// hit), recomputing exactly one; (3) changing the caller's literal
-    /// re-interns the callee's key, so its lattice rebuilds.
+    /// Constant parameter seeds participate in the lattice memo key.
+    /// An unrelated edit reuses the callee; changed caller input rebuilds it.
     #[test]
     fn function_lattice_memoises_param_constant_procs() {
         use salsa::Setter as _;
@@ -8343,5 +11427,837 @@ mod tests {
             1,
             "after an edit, tcl8.6 again shares one build across both consumers"
         );
+    }
+    #[test]
+    fn fresh_compiler_document_retains_actual_input_and_selected_registry() {
+        let db = TclDatabase::default();
+        let analysis_config = cfg(&db);
+        for dialect in ["tcl", "tcl8.6"] {
+            let registry = db.registry(dialect);
+            let file = SourceFile::new(&db, "set value 1".to_owned(), dialect.to_owned(), None);
+            let input = document_analysis_input(&db, file, analysis_config).unwrap();
+            let fresh = fresh_compiler_document_unit(file.text(&db), registry, dialect, None);
+            assert_eq!(
+                fresh.ir_module.source_metadata_input.as_ref(),
+                Some(input.as_ref())
+            );
+            assert!(fresh.ir_module.source_entry.native_entry.is_none());
+            assert!(
+                !fresh
+                    .ir_module
+                    .source_entry
+                    .metadata_context
+                    .is_standalone()
+            );
+            assert_eq!(
+                fresh
+                    .ir_module
+                    .source_metadata_input
+                    .as_ref()
+                    .unwrap()
+                    .borrowed_context_registry()
+                    .commands()
+                    .snapshot()
+                    .semantic_key(),
+                registry.snapshot().semantic_key()
+            );
+        }
+        let registry = db.registry("tcl8.6");
+        let profile = registry.profile().unwrap();
+        let mut changed = registry.project_for_profile(profile);
+        let mut spec = changed.get("puts").unwrap().clone();
+        spec.traits.insert(tcl_registry::Traits::EVALUATES_CODE);
+        changed.insert(spec);
+        let fresh = fresh_compiler_document_unit("puts VALUE", &changed, "tcl8.6", None);
+        assert_eq!(
+            fresh
+                .ir_module
+                .source_metadata_input
+                .as_ref()
+                .unwrap()
+                .borrowed_context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key(),
+            changed.snapshot().semantic_key()
+        );
+        assert_ne!(
+            changed.snapshot().semantic_key(),
+            registry.snapshot().semantic_key()
+        );
+    }
+
+    #[test]
+    fn compiler_taint_replay_status_is_retained_by_memo_and_direct_paths() {
+        let db = TclDatabase::default();
+        let source = "set value 1";
+        let dialect = "tcl8.6";
+        let file = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+        let memo = compiler_check_diagnostics(&db, file, cfg(&db));
+        let registry = db.registry(dialect);
+        let fresh = compiler_check_diagnostics_uncached(source, registry, dialect, None, None);
+        assert_eq!(memo.checks, fresh.checks);
+        assert_eq!(memo.taint_replays, fresh.taint_replays);
+        let unavailable = abstain_diagnostics();
+        assert!(unavailable.checks.is_empty());
+        assert!(!unavailable.taint_replays.is_complete());
+        assert!(matches!(
+            unavailable.taint_replays,
+            tcl_compiler::taint::TaintReplayAnalysis::Unavailable { .. }
+        ));
+    }
+}
+
+#[cfg(test)]
+mod compiler_snapshot_memo_tests {
+    use super::*;
+    use tcl_dialect::model::{DialectPoint, Release};
+
+    #[test]
+    fn same_name_body_memos_preserve_the_selected_execution_snapshot() {
+        let db = TclDatabase::default();
+        let mut keys = Vec::new();
+        for release in [Release::JIM_0_80, Release::JIM_0_84] {
+            let point = DialectPoint::canonical(release);
+            let profile =
+                tcl_dialect::DialectProfile::projected_from_point("jim", &[], "Jim", point)
+                    .intern();
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let key = ProcBodyKey::new(
+                &db,
+                "return DONE".to_owned(),
+                "::".to_owned(),
+                "jim".to_owned(),
+                CompilerMemoSnapshot {
+                    profile: Some(profile.cache_key()),
+                    registry: registry.snapshot(),
+                },
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            );
+            assert_eq!(
+                key.snapshot(&db).profile.unwrap().profile().core_point,
+                Some(point)
+            );
+            assert_eq!(
+                key.snapshot(&db)
+                    .registry
+                    .registry()
+                    .profile()
+                    .unwrap()
+                    .core_point,
+                Some(point)
+            );
+            let body = lower_proc_body(&db, key);
+            let dialect = body
+                .statements
+                .iter()
+                .filter_map(|statement| statement.tokens())
+                .filter_map(|tokens| tokens.source_binding.as_ref())
+                .find_map(|binding| binding.variable_context.invocation_dialect)
+                .unwrap();
+            assert_eq!(dialect.core_point, Some(point));
+            keys.push(key);
+        }
+        assert!(
+            keys[0] != keys[1],
+            "distinct selected profiles must intern different body keys"
+        );
+    }
+
+    #[test]
+    fn body_memo_registry_identity_preserves_authored_overrides_and_pins() {
+        let db = TclDatabase::default();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut registry = CommandRegistry::build_default().project_for_profile(profile);
+        let make_key = |snapshot| {
+            ProcBodyKey::new(
+                &db,
+                "return DONE".to_owned(),
+                "::".to_owned(),
+                "tcl8.6".to_owned(),
+                CompilerMemoSnapshot {
+                    profile: Some(profile.cache_key()),
+                    registry: snapshot,
+                },
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            )
+        };
+        let original = make_key(registry.snapshot());
+        registry.insert_ambient_package("MemoPackage", "1.0");
+        let changed = make_key(registry.snapshot());
+        assert!(
+            original != changed,
+            "ambient pins participate in memo equality"
+        );
+        assert!(
+            !original
+                .snapshot(&db)
+                .registry
+                .registry()
+                .ambient_package_rows()
+                .contains(&("MemoPackage", "1.0"))
+        );
+        assert!(
+            changed
+                .snapshot(&db)
+                .registry
+                .registry()
+                .ambient_package_rows()
+                .contains(&("MemoPackage", "1.0"))
+        );
+        let mut spec = registry.get("set").unwrap().clone();
+        spec.traits = tcl_registry::Traits::PURE;
+        registry.insert(spec);
+        let authored = make_key(registry.snapshot());
+        assert!(
+            changed != authored,
+            "authored overrides participate in memo equality"
+        );
+        assert_eq!(
+            authored
+                .snapshot(&db)
+                .registry
+                .registry()
+                .get("set")
+                .unwrap()
+                .traits,
+            tcl_registry::Traits::PURE
+        );
+    }
+    #[test]
+    fn original_callback_alias_diagnostics_keep_target_and_separate_counts() {
+        // naming.source.original-callback-procedure-target
+
+        let db = TclDatabase::default();
+        let source = "proc target {a b c} {}\ninterp alias {} cb {} target FIXED\nlsort -command {cb BAKED} {2 1}";
+        let file = SourceFile::new(&db, source.to_owned(), "tcl9.0".to_owned(), None);
+        let project = Project::new(&db, vec![file]);
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl9.0");
+        let mut invocations = analysis.command_invocations;
+        for row in &mut invocations {
+            if row
+                .original_callback_signature_lookup
+                .as_ref()
+                .is_some_and(|selection| {
+                    selection.prefix().appended_arity()
+                        == Some(tcl_registry::AppendedArity::Exactly(2))
+                })
+            {
+                row.original_callback_prefix = None;
+                row.original_lookup = None;
+                row.original_name_input = None;
+                row.name = "unrelated presentation".to_owned();
+                row.range = tcl_lexer::Span::new(0, 1);
+                row.callback_arity = Some(tcl_registry::AppendedArity::Unknown);
+                row.callback_baked_args = usize::MAX;
+            }
+        }
+        let mut output = Vec::new();
+        apply_original_callback_arity(&db, project, &mut output, &invocations, |_| false);
+        let diagnostic = output
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.callback_source_arity().is_some_and(|subject| {
+                    subject.prefix().appended_arity()
+                        == Some(tcl_registry::AppendedArity::Exactly(2))
+                })
+            })
+            .unwrap();
+        assert_eq!(diagnostic.code, DiagCode::E003);
+        let subject = diagnostic.callback_source_arity().unwrap();
+        assert_eq!(subject.prefix().baked_argument_count(), 1);
+        assert_eq!(
+            subject
+                .source_lookup()
+                .unwrap()
+                .captured_argument_count()
+                .unwrap()
+                .minimum,
+            1
+        );
+        assert_eq!(
+            subject.argument_counts(),
+            &tcl_compiler::analyser::SourceCallbackArgumentCounts::Finite(vec![4])
+        );
+        assert_eq!(
+            subject.declarations()[0].name().slot().simple.as_bytes(),
+            b"target"
+        );
+        assert_eq!(&source[diagnostic.span.as_range()], "cb");
+        assert!(
+            invocations
+                .iter()
+                .all(|row| row.original_callback_signature_lookup.is_none()
+                    || row.logical_callback_candidate_keys().is_empty())
+        );
+    }
+
+    #[test]
+    fn original_callback_alias_external_headers_use_held_target_slot() {
+        // naming.source.original-callback-procedure-target
+
+        let db = TclDatabase::default();
+        let library = SourceFile::new(
+            &db,
+            "proc external {a b c d} {}\nproc cb {a b c} {}".to_owned(),
+            "tcl9.0".to_owned(),
+            None,
+        );
+        let source = "interp alias {} cb {} external FIXED\nlsort -command cb {2 1}";
+        let caller = SourceFile::new(&db, source.to_owned(), "tcl9.0".to_owned(), None);
+        let project = Project::new(&db, vec![library, caller]);
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl9.0");
+        let mut output = Vec::new();
+        apply_original_callback_arity(
+            &db,
+            project,
+            &mut output,
+            &analysis.command_invocations,
+            |_| false,
+        );
+        let subject = output
+            .iter()
+            .filter_map(|diagnostic| diagnostic.callback_source_arity())
+            .find(|subject| {
+                subject.prefix().appended_arity() == Some(tcl_registry::AppendedArity::Exactly(2))
+            })
+            .unwrap();
+        assert_eq!(
+            subject.issue(),
+            tcl_compiler::analyser::SourceCallbackArityIssue::TooFew {
+                supplied: 3,
+                expected_minimum: 4
+            }
+        );
+        assert_eq!(subject.declarations().len(), 1);
+        assert_eq!(
+            subject.declarations()[0].name().slot().simple.as_bytes(),
+            b"external"
+        );
+        assert_eq!(subject.source_lookup().unwrap().original().target().unwrap().kind(), tcl_compiler::command_binding::OriginalSourceCallbackProcedureTargetKind::ExternalSourceName);
+    }
+
+    #[test]
+    fn original_callback_alias_database_refuses_deleted_and_unowned_horizons() {
+        // naming.source.original-callback-procedure-target
+
+        let db = TclDatabase::default();
+        let source = "proc cb {a b c} {}\nrename cb {}\nlsort -command cb {2 1}";
+        let file = SourceFile::new(&db, source.to_owned(), "tcl9.0".to_owned(), None);
+        let project = Project::new(&db, vec![file]);
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl9.0");
+        let mut output = Vec::new();
+        apply_original_callback_arity(
+            &db,
+            project,
+            &mut output,
+            &analysis.command_invocations,
+            |_| false,
+        );
+        assert!(
+            output
+                .iter()
+                .all(|diagnostic| diagnostic.callback_source_arity().is_none())
+        );
+        let source = "proc cb {a b c} {}\nlsort -command cb {2 1}";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl9.0");
+        for row in &mut analysis.command_invocations {
+            row.original_callback_signature_lookup = None;
+        }
+        output.clear();
+        apply_original_callback_arity(
+            &db,
+            project,
+            &mut output,
+            &analysis.command_invocations,
+            |_| false,
+        );
+        assert!(
+            output.is_empty(),
+            "lookup geometry without a source horizon cannot borrow a project header"
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_project_callback_projection_tests;
+
+#[cfg(test)]
+mod readonly_source_optimisation_owner_tests {
+    use super::*;
+
+    #[test]
+    fn source_optimisation_certificates_retain_unknown_world_hazards() {
+        let source = "proc a {} {puts VALUE}\nproc b {} {puts OTHER}\n";
+        // Test-input correction (user decision 2026-10-19T14:20Z): a document
+        // with no explicit entry is analysed as a fresh interpreter, so the
+        // unknown runtime history this test is about must be supplied as an
+        // explicit unknown entry. The unit is otherwise built exactly as the
+        // document driver builds it; every assertion below is unchanged.
+        let unit = {
+            let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+            let context = environment.default_context_registry();
+            let registry = context.commands();
+            let config = tcl_lexer::LexerConfig::for_file_grammar(environment.grammar());
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                environment.analyser_profile(),
+                environment.unit_profile(),
+                Arc::clone(&context),
+                config,
+            );
+            let declared =
+                tcl_compiler::analyser::utils::document_declared_surface(source, None, "tcl8.6");
+            let mut entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(
+                registry,
+                &input,
+                config,
+                Some(input.unit_profile()),
+            );
+            entry.unknown_entry = true;
+            Arc::new(
+                CompilationUnit::build_with_analysis_input(
+                    source,
+                    UnitBuildOptions {
+                        registry,
+                        defer_top_level: false,
+                        config,
+                        dialect: Some(input.unit_profile()),
+                        external_call_sites: None,
+                        declared_commands: Some(&declared),
+                    },
+                    Some(&entry),
+                    &input,
+                )
+                .with_interprocedural(registry, Some(input.unit_profile())),
+            )
+        };
+        assert!(unit.ir_module.source_entry.unknown_entry);
+        let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert_ne!(
+            unit.command_mutations,
+            tcl_compiler::command_binding::ModuleCommandMutations::default()
+        );
+        assert!(module_has_trace_facts(&unit.ir_module));
+        assert!(unit.top_level.body_id.is_none());
+        let functions = unit
+            .ir_module
+            .original_native_declaration_body_units
+            .keys()
+            .map(|id| unit.function_for_body(Some(*id)).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(functions.len(), 2);
+        for function in functions {
+            let id = function.body_id.unwrap();
+            let capsule = tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
+                Arc::clone(&unit),
+                id,
+                registry,
+            )
+            .unwrap();
+            assert!(capsule.has_closed_readonly_source_correspondence());
+            assert!(!capsule.has_closed_native_correspondence());
+            assert_eq!(capsule.unit().command_mutations, unit.command_mutations);
+            assert!(module_has_trace_facts(&capsule.unit().ir_module));
+            assert!(function.cfg.executed_source.is_none());
+            assert!(function.cfg.native_compilation_admission.is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_optimiser_memo_transport_tests {
+    use super::*;
+
+    #[test]
+    fn isolated_body_report_and_legacy_projection_share_the_actual_lowering_pass() {
+        let log = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = Arc::clone(&log);
+        let db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(move |event: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = event.kind {
+                    sink.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }))),
+        };
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let profile = tcl_lsp_core::stated_profile_for_dialect("tcl8.6").unwrap();
+        let key = ProcBodyKey::new(
+            &db,
+            "set value 1; return $value".to_owned(),
+            "::".to_owned(),
+            profile.name.to_owned(),
+            CompilerMemoSnapshot {
+                profile: Some(profile.cache_key()),
+                registry: registry.snapshot(),
+            },
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
+        let original = original_lower_proc_body(&db, key);
+        let legacy = lower_proc_body(&db, key);
+        assert_eq!(*legacy, *original.body());
+        let repeated = original_lower_proc_body(&db, key);
+        assert_eq!(original, repeated);
+        assert_eq!(
+            log.lock()
+                .unwrap()
+                .iter()
+                .filter(|query| query.contains("original_lower_proc_body"))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn body_optimiser_memo_retains_the_actual_optional_worker_dialect() {
+        let log = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = Arc::clone(&log);
+        let db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(move |event: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = event.kind {
+                    sink.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }))),
+        };
+        let file = SourceFile::new(
+            &db,
+            "proc sample {} {puts VALUE}\n".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+        let config = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        );
+        let unit = document_compilation_unit_for(&db, file, config).unwrap();
+        let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        // Test-input correction (user decision 2026-10-19T14:20Z, fresh
+        // interpreter): a document with no explicit entry runs `proc sample`,
+        // so its body is the installed procedure, not a declaration-only
+        // native body unit. The memo assertions below are unchanged.
+        let body_ids: Vec<_> = unit.ir_module.procedures.keys().copied().collect();
+        assert_eq!(body_ids.len(), 1, "{body_ids:?}");
+        let body_id = body_ids[0];
+        let capsule = tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
+            Arc::clone(&unit),
+            body_id,
+            registry,
+        )
+        .unwrap();
+        let none = OptDepsKey::new(
+            &db,
+            capsule.clone(),
+            None,
+            capsule.original_optimiser_analysis_context(registry, None),
+        );
+        let selected = OptDepsKey::new(
+            &db,
+            capsule.clone(),
+            Some(input.unit_profile().cache_key()),
+            capsule.original_optimiser_analysis_context(registry, Some(input.unit_profile())),
+        );
+        assert!(none != selected);
+        log.lock().unwrap().clear();
+        let none_report = function_optimisations(&db, none);
+        let selected_report = function_optimisations(&db, selected);
+        assert!(Arc::ptr_eq(
+            &none_report,
+            &function_optimisations(&db, none)
+        ));
+        assert!(Arc::ptr_eq(
+            &selected_report,
+            &function_optimisations(&db, selected)
+        ));
+        assert_eq!(
+            log.lock()
+                .unwrap()
+                .iter()
+                .filter(|query| query.contains("function_optimisations"))
+                .count(),
+            2
+        );
+        assert_eq!(
+            none_report.members(),
+            capsule.original_body_optimisations(registry, None)
+        );
+        assert_eq!(
+            selected_report.members(),
+            capsule.original_body_optimisations(registry, Some(input.unit_profile()))
+        );
+    }
+    #[test]
+    fn a_legacy_lattice_key_cannot_replace_a_later_original_worker_request() {
+        let db = TclDatabase::default();
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = tcl_lsp_core::stated_profile_for_dialect("tcl8.6").unwrap();
+        let mut checked = 0;
+        let mut memo = |request: &LatticeRequest<'_>| {
+            let mut upvar: Vec<_> = request
+                .upvar_procs
+                .iter()
+                .map(|(k, v)| (*k, v.clone()))
+                .collect();
+            let mut params: Vec<_> = request
+                .proc_params
+                .iter()
+                .map(|(k, v)| (*k, v.clone()))
+                .collect();
+            let mut writes: Vec<_> = request
+                .global_write_procs
+                .iter()
+                .map(|(k, v)| (*k, v.clone()))
+                .collect();
+            upvar.sort_by_key(|(id, _)| *id);
+            params.sort_by_key(|(id, _)| *id);
+            writes.sort_by_key(|(id, _)| *id);
+            let context = CfgContext::new(
+                &db,
+                upvar,
+                params,
+                writes,
+                BodyLatticeCommandBindings::from(request.command_bindings.clone()),
+                request.procedure_summary_owners.clone(),
+            );
+            let snapshot = registry.snapshot();
+            let legacy = lattice_request_key(
+                &db,
+                request,
+                BodyLatticeInputs::from(request.body.clone()),
+                context,
+                &snapshot,
+                evaluator_epoch(&db),
+            );
+            let legacy_report = function_lattice(&db, legacy);
+            let actual_body = BodyLatticeInputs::retain_original_worker_request(request, registry)
+                .expect("the real private source callback retains its own request");
+            let original = lattice_request_key(
+                &db,
+                request,
+                actual_body,
+                context,
+                &snapshot,
+                evaluator_epoch(&db),
+            );
+            assert!(legacy != original);
+            let original_report = function_lattice(&db, original);
+            assert!(!Arc::ptr_eq(&legacy_report, &original_report));
+            assert_eq!(*legacy_report, *original_report);
+            assert!(Arc::ptr_eq(
+                &original_report,
+                &function_lattice(&db, original)
+            ));
+            checked += 1;
+            (*original_report).clone()
+        };
+        let unit = CompilationUnit::build_for_memoized(
+            "proc sample {value} {puts $value}\n",
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &mut memo,
+        );
+        assert_eq!(checked, 1);
+        assert_eq!(unit.procedures.len() + unit.body_units.len(), 1);
+    }
+    #[test]
+    fn legacy_equal_capsules_cannot_occupy_original_report_memo_keys() {
+        let mut analyser = tcl_compiler::analyser::Analyser::new();
+        let input = analyser.prepare_analysis_input("tcl8.6").unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let profile = input.unit_profile();
+        let base = CompilationUnit::build_standalone_with_analysis_input(
+            "proc sample {value} {set length [llength $value]; puts $length}\n",
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &input,
+        )
+        .unwrap();
+        let current = Arc::new(base.clone().with_interprocedural(registry, Some(profile)));
+        let mut legacy_calls = 0;
+        let legacy = Arc::new(base.clone().with_interprocedural_memoized(
+            registry,
+            Some(profile),
+            &mut |body_id, _, summary| {
+                legacy_calls += 1;
+                base.original_interproc_taints_for_body(Some(body_id), registry, summary)
+                    .map(Arc::new)
+            },
+        ));
+        assert_eq!(legacy_calls, 1);
+        assert_eq!(*legacy, *current);
+        let body_id = current
+            .all_body_function_units()
+            .find_map(|function| function.body_id)
+            .unwrap();
+        let legacy = tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
+            legacy, body_id, registry,
+        )
+        .unwrap();
+        let current = tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
+            current, body_id, registry,
+        )
+        .unwrap();
+        assert_eq!(legacy, current);
+        let dialect = Some(profile);
+        let legacy_context = legacy.original_optimiser_analysis_context(registry, dialect);
+        let current_context = current.original_optimiser_analysis_context(registry, dialect);
+        assert!(legacy_context.is_none());
+        assert!(current_context.is_some());
+        let db = TclDatabase::default();
+        let key_profile = Some(profile.cache_key());
+        let legacy_taint =
+            OriginalTaintSummaryKey::new(&db, legacy.clone(), key_profile, legacy_context.clone());
+        let legacy_taint_report = original_taint_cascade(&db, legacy_taint);
+        let current_taint = OriginalTaintSummaryKey::new(
+            &db,
+            current.clone(),
+            key_profile,
+            current_context.clone(),
+        );
+        assert!(legacy_taint != current_taint);
+        let current_taint_report = original_taint_cascade(&db, current_taint);
+        assert_eq!(legacy_taint_report.taints(), current_taint_report.taints());
+        assert_ne!(*legacy_taint_report, *current_taint_report);
+        assert!(Arc::ptr_eq(
+            &current_taint_report,
+            &original_taint_cascade(&db, current_taint)
+        ));
+        let legacy_opts = OptDepsKey::new(&db, legacy, key_profile, legacy_context);
+        let legacy_opt_report = function_optimisations(&db, legacy_opts);
+        let current_opts = OptDepsKey::new(&db, current, key_profile, current_context);
+        assert!(legacy_opts != current_opts);
+        let current_opt_report = function_optimisations(&db, current_opts);
+        assert_eq!(legacy_opt_report.members(), current_opt_report.members());
+        assert_ne!(*legacy_opt_report, *current_opt_report);
+        assert!(Arc::ptr_eq(
+            &current_opt_report,
+            &function_optimisations(&db, current_opts)
+        ));
+    }
+    #[test]
+    fn original_report_keys_keep_actual_evaluator_context_across_neutral_capsules() {
+        std::thread::spawn(|| {
+            use tcl_registry::pack_hooks::{
+                HookAnswer, HookCall, HookSlot, PackHookHost, clear_host, install_host,
+            };
+            struct AbstainHost;
+            impl PackHookHost for AbstainHost {
+                fn invoke(&self, _slot: HookSlot, _call: &HookCall<'_>) -> HookAnswer {
+                    HookAnswer::Abstain
+                }
+            }
+            struct ClearHost;
+            impl Drop for ClearHost {
+                fn drop(&mut self) {
+                    clear_host();
+                }
+            }
+            let _clear = ClearHost;
+            install_host(std::rc::Rc::new(AbstainHost));
+            let mut analyser = tcl_compiler::analyser::Analyser::new();
+            let input = analyser.prepare_analysis_input("tcl8.6").unwrap();
+            let registry = input.borrowed_context_registry().commands();
+            let profile = input.unit_profile();
+            let dialect = Some(profile);
+            let build = || {
+                let unit = Arc::new(
+                    CompilationUnit::build_standalone_with_analysis_input(
+                        "proc sample {value} {set length [llength $value]; puts $length}\n",
+                        UnitBuildOptions {
+                            registry,
+                            defer_top_level: false,
+                            config: input.lexer_config(),
+                            dialect,
+                            external_call_sites: None,
+                            declared_commands: None,
+                        },
+                        &input,
+                    )
+                    .unwrap()
+                    .with_interprocedural(registry, dialect),
+                );
+                let body_id = unit
+                    .all_body_function_units()
+                    .find_map(|function| function.body_id)
+                    .unwrap();
+                tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
+                    unit, body_id, registry,
+                )
+                .unwrap()
+            };
+            let db = TclDatabase::default();
+            let first = build();
+            let first_context = first
+                .original_optimiser_analysis_context(registry, dialect)
+                .unwrap();
+            let profile_key = Some(profile.cache_key());
+            let first_opts =
+                OptDepsKey::new(&db, first.clone(), profile_key, Some(first_context.clone()));
+            let first_opt_report = function_optimisations(&db, first_opts);
+            let first_taint = OriginalTaintSummaryKey::new(
+                &db,
+                first.clone(),
+                profile_key,
+                Some(first_context.clone()),
+            );
+            let first_taint_report = original_taint_cascade(&db, first_taint);
+            install_host(std::rc::Rc::new(AbstainHost));
+            let second = build();
+            let second_context = second
+                .original_optimiser_analysis_context(registry, dialect)
+                .unwrap();
+            assert_ne!(
+                first_context.evaluator_revision,
+                second_context.evaluator_revision
+            );
+            assert_eq!(first, second);
+            let second_opts = OptDepsKey::new(
+                &db,
+                second.clone(),
+                profile_key,
+                Some(second_context.clone()),
+            );
+            let second_taint =
+                OriginalTaintSummaryKey::new(&db, second, profile_key, Some(second_context));
+            assert!(first_opts != second_opts);
+            assert!(first_taint != second_taint);
+            let second_opt_report = function_optimisations(&db, second_opts);
+            let second_taint_report = original_taint_cascade(&db, second_taint);
+            assert_eq!(first_opt_report.members(), second_opt_report.members());
+            assert_eq!(first_taint_report.taints(), second_taint_report.taints());
+            assert_ne!(*first_opt_report, *second_opt_report);
+            assert_ne!(*first_taint_report, *second_taint_report);
+            assert!(Arc::ptr_eq(
+                &second_opt_report,
+                &function_optimisations(&db, second_opts)
+            ));
+            assert!(Arc::ptr_eq(
+                &second_taint_report,
+                &original_taint_cascade(&db, second_taint)
+            ));
+        })
+        .join()
+        .unwrap();
     }
 }

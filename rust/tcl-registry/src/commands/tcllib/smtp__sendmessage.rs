@@ -108,6 +108,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         options: OPTIONS,
+        option_prefix_words: 1,
         side_effects: SIDE_EFFECTS,
         tcllib_package: Some("smtp"),
         required_package: Some("smtp"),

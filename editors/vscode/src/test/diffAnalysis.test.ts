@@ -24,7 +24,7 @@ import {
   displayDiagnostics,
   symmetricDifference,
 } from "../diffAnalysis";
-import { activate, getDocUri, pollUntil, waitForDiagnostics } from "./helper";
+import { activate, getDocUri, pollUntil, waitForDiagnosticsSnapshot } from "./helper";
 
 function fakeTab(input: unknown): vscode.Tab {
   return { input } as unknown as vscode.Tab;
@@ -153,7 +153,11 @@ suite("Diff Editor Diagnostics Suppression", () => {
       // Baseline: the file is open in a normal editor, so — even with the
       // setting on — its diagnostics are visible (it is not diff-only).
       await activate(docUri);
-      const baseline = await waitForDiagnostics(docUri, { minCount: 1 });
+      const currentSnapshotFor_baseline = await waitForDiagnosticsSnapshot(docUri, { minCount: 1 });
+      if (!currentSnapshotFor_baseline.isCurrent()) {
+        throw new Error("The retained diagnostics report became stale before its assertions");
+      }
+      const baseline = [...currentSnapshotFor_baseline.report.diagnostics];
       assert.ok(baseline.length > 0, "expected the fixture to produce diagnostics");
 
       // Open the same file as the modified side of a diff editor…

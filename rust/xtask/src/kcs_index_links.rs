@@ -46,8 +46,7 @@ use crate::util::repo_root;
 /// Applies-to tags accepted on diagnostic KCS pages. Keep this in lockstep
 /// with the tables in `docs/kcs/STYLE.md` and the short vocabulary in
 /// `AGENTS.md`. Diagnostic pages are deliberately checked here rather than
-/// relying on the CLI help builder, which only indexes feature pages and
-/// historically accepted arbitrary tokens.
+/// relying on the CLI help builder, which only indexes feature pages.
 ///
 /// This is the complete vocabulary from STYLE.md: editor, tool, KCS type,
 /// content, and compiler-pass tags. A diagnostic page may use any of these
@@ -941,7 +940,7 @@ mod tests {
     fn fragments_cover_intra_file_and_ignore_fences_and_templates() {
         let headings = heading_slugs("# Current section\n```md\n# Hidden section\n```\n");
         let (path, fragment) = split_link_fragment("#current-section");
-        assert!(path.is_empty());
+        assert_eq!(path.len(), 0);
         assert!(headings.contains(fragment.unwrap()));
         assert!(!headings.contains("hidden-section"));
         assert!(is_template_placeholder("<pass-anchor>"));

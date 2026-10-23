@@ -48,6 +48,7 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     if delta == 0 {
         return;
     }
+    fu.invalidate_semantic_values();
     for block in fu.cfg.blocks.values_mut() {
         for stmt in &mut block.statements {
             rebase_statement(stmt, delta);
@@ -82,9 +83,20 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     }
     for site in &mut fu.cfg.command_binding_sites {
         shift(&mut site.span, delta);
+        if let Some(tokens) = &mut site.source_tokens {
+            rebase_command_tokens(tokens, delta);
+        }
     }
-    for site in fu.cfg.command_boundary_sites.values_mut() {
+    for site in fu
+        .cfg
+        .command_boundary_sites
+        .values_mut()
+        .chain(fu.cfg.condition_binding_sites.values_mut())
+    {
         shift(&mut site.span, delta);
+        if let Some(tokens) = &mut site.source_tokens {
+            rebase_command_tokens(tokens, delta);
+        }
     }
     fu.cfg.condition_owners = std::mem::take(&mut fu.cfg.condition_owners)
         .into_iter()
@@ -100,6 +112,9 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
         for ssa_stmt in &mut block.statements {
             rebase_statement(&mut ssa_stmt.statement, delta);
         }
+    }
+    if let Some(points) = &mut fu.ssa.point_contexts {
+        points.rebase_source_tokens(delta);
     }
     for cb in &mut fu.sccp.constant_branches {
         shift_opt(&mut cb.span, delta);
@@ -123,6 +138,10 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     for record in &mut fu.sccp.loop_enumerations {
         shift(&mut record.span, delta);
     }
+}
+
+pub(crate) fn rebase_span(span: &mut Span, delta: i64) {
+    shift(span, delta);
 }
 
 fn shift(span: &mut Span, delta: i64) {
@@ -152,20 +171,35 @@ fn shift_base(base: &mut Option<u32>, delta: i64) {
 
 fn rebase_tokens(tokens: &mut Option<CommandTokens>, delta: i64) {
     if let Some(tokens) = tokens {
-        for span in &mut tokens.argv {
-            shift(span, delta);
-        }
-        for span in &mut tokens.all_tokens {
-            shift(span, delta);
-        }
-        for word in &mut tokens.word_exprs {
-            rebase_word_expr(word, delta);
-        }
+        rebase_command_tokens(tokens, delta);
     }
 }
 
+pub(crate) fn rebase_command_tokens(tokens: &mut CommandTokens, delta: i64) {
+    let bpf = tokens
+        .source_bpf_command
+        .take()
+        .filter(|binding| binding.matches_tokens(tokens));
+    for span in &mut tokens.argv {
+        shift(span, delta);
+    }
+    for span in &mut tokens.all_tokens {
+        shift(span, delta);
+    }
+    for word in &mut tokens.word_exprs {
+        rebase_source_word(word, delta);
+    }
+    for (offset, _) in &mut tokens.nested_bindings {
+        *offset = u32::try_from((i64::from(*offset) + delta).max(0)).unwrap_or(u32::MAX);
+    }
+    for access in &mut tokens.variable_accesses {
+        shift(&mut access.source.span, delta);
+    }
+    tokens.source_bpf_command = bpf.and_then(|binding| binding.rebased(delta));
+}
+
 /// Rebase the source sites retained by the structured word compatibility view.
-fn rebase_word_expr(word: &mut WordExpr, delta: i64) {
+pub(crate) fn rebase_source_word(word: &mut WordExpr, delta: i64) {
     match word {
         WordExpr::Literal { source, .. }
         | WordExpr::BracedLiteral { source, .. }
@@ -180,7 +214,7 @@ fn rebase_word_expr(word: &mut WordExpr, delta: i64) {
         }
         WordExpr::Expand { source, word } => {
             shift(&mut source.span, delta);
-            rebase_word_expr(word, delta);
+            rebase_source_word(word, delta);
         }
     }
 }
@@ -208,18 +242,25 @@ pub fn rebase_script(script: &mut Script, delta: i64) {
     }
     for site in script.command_binding_sites.iter_mut() {
         shift(&mut site.span, delta);
+        if let Some(tokens) = &mut site.source_tokens {
+            rebase_command_tokens(tokens, delta);
+        }
     }
 }
 
 fn rebase_terminator(term: &mut Terminator, delta: i64) {
     match term {
-        Terminator::Goto { span, .. } => shift_opt(span, delta),
+        Terminator::Goto { span, .. } | Terminator::Complete { span, .. } => shift_opt(span, delta),
         Terminator::Return {
-            span, value_word, ..
+            span,
+            value_word,
+            expr_base,
+            ..
         } => {
             shift_opt(span, delta);
+            shift_base(expr_base, delta);
             if let Some(word) = value_word {
-                rebase_word_expr(word, delta);
+                rebase_source_word(word, delta);
             }
         }
         Terminator::Branch {
@@ -241,13 +282,19 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
             shift(span, delta);
             shift_opt(value_span, delta);
         }
-        Statement::Incr { span, .. } => shift(span, delta),
+        Statement::Incr { span, .. } | Statement::NativeCall { span, .. } => shift(span, delta),
         Statement::Return {
-            span, value_word, ..
+            span,
+            value_word,
+            tokens,
+            expr_base,
+            ..
         } => {
             shift(span, delta);
+            shift_base(expr_base, delta);
+            rebase_tokens(tokens, delta);
             if let Some(word) = value_word {
-                rebase_word_expr(word, delta);
+                rebase_source_word(word, delta);
             }
         }
         Statement::AssignExpr {
@@ -314,7 +361,9 @@ fn rebase_loop_statement(stmt: &mut Statement, delta: i64) {
             rebase_script(init, delta);
             rebase_script(next, delta);
             rebase_script(body, delta);
-            rebase_tokens(raw_tokens, delta);
+            if let Some(tokens) = raw_tokens.as_deref_mut() {
+                rebase_command_tokens(tokens, delta);
+            }
         }
         Statement::While {
             span,
@@ -431,6 +480,8 @@ fn rebase_branching_statement(stmt: &mut Statement, delta: i64) {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use crate::compilation_unit::CompilationUnit;
     use crate::ir::WordExpr;
@@ -558,42 +609,112 @@ mod tests {
         assert_eq!(rebased_word_span.end(), return_word_span.end() + 23);
     }
 
-    /// The load-bearing invariant behind the per-procedure lattice memo: a
-    /// procedure's body, normalised to offset 0, must be **byte-identical**
-    /// whether the procedure sits at offset X or at X+delta.
-    ///
-    /// `compilation_unit::build_for_memoized` normalises with exactly this call
-    /// before interning `FnLatticeKey`, so if this does not hold then inserting
-    /// a line anywhere above a procedure re-keys it and rebuilds its lattice,
-    /// its checks, and its taint cascade — the whole point of the memo is that
-    /// a *shift* is free and only a *content* change costs.
+    /// A closed native body uses the memo owner's injective physical/source
+    /// normalisation. Span rebasing alone cannot equate independent instances.
     #[test]
     fn offset_zero_body_is_identical_under_a_pure_shift() {
-        let reg = CommandRegistry::build_default();
+        let reg = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let src = "proc a {} {set x 1; set x}\nproc b {} {set z READY; set z}\n";
+        let shifted = format!("# a comment line that shifts everything below it\n{src}");
+        let base = CompilationUnit::build_for(src, reg, false);
+        let moved = CompilationUnit::build_for(&shifted, reg, false);
+        let template = |cu: &CompilationUnit, source: &str, qname: &str| {
+            let procedure = &cu
+                .ir_module
+                .procedures
+                .get(&fixture_id(&cu.ir_module.procedures, qname))
+                .expect("authored fixture body");
+            let mut body = procedure.body.clone();
+            rebase_script(&mut body, -i64::from(procedure.span.start()));
+            crate::command_binding::ModuleCommandBindings::analyse(&cu.ir_module, reg)
+                .prepare_native_body_template(
+                    &body,
+                    crate::command_binding::BodyProofScope {
+                        source,
+                        body_source: procedure.body_source.as_deref().unwrap(),
+                        original_body_offset: procedure.span.start(),
+                        executable_body_offset: procedure.body_offset,
+                        metadata: crate::registry_invocation::InvocationMetadataInput::Standalone,
+                        config: tcl_lexer::LexerConfig::for_profile(reg.profile())
+                            .nested()
+                            .normalized(),
+                    },
+                    reg,
+                )
+                .expect("closed native body has an alpha-normalisation proof")
+        };
+        for qname in ["::a", "::b"] {
+            let first = template(&base, src, qname);
+            let second = template(&moved, &shifted, qname);
+            assert_eq!(first.body, second.body, "{qname}");
+            assert_eq!(first.command_bindings, second.command_bindings, "{qname}");
+            assert!(first.variable_relocation.inverse().is_some());
+            assert!(second.variable_relocation.inverse().is_some());
+        }
+    }
+
+    #[test]
+    fn source_faithful_rebasing_preserves_instances_and_round_trips() {
+        let reg = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let src = "proc a {x} {\n    set y $x\n    if {$y > 1} { puts hi } else { puts lo }\n    \
                    foreach i {1 2 3} { incr y $i }\n    return $y\n}\n\
                    proc b {} {\n    set z [expr {1 + 2}]\n    return $z\n}\n";
         let shifted = format!("# a comment line that shifts everything below it\n{src}");
-        let base = CompilationUnit::build_for(src, &reg, false);
-        let moved = CompilationUnit::build_for(&shifted, &reg, false);
-
-        let at_zero = |cu: &CompilationUnit, qname: &str| {
-            let p = cu
+        let base = CompilationUnit::build_for(src, reg, false);
+        let moved = CompilationUnit::build_for(&shifted, reg, false);
+        for qname in ["::a", "::b"] {
+            let procedure = &base
                 .ir_module
                 .procedures
-                .get(qname)
-                .unwrap_or_else(|| panic!("{qname} lowered"));
-            let mut body = p.body.clone();
-            rebase_script(&mut body, -i64::from(p.span.start()));
-            body
-        };
-        for qname in ["::a", "::b"] {
-            assert_eq!(
-                at_zero(&base, qname),
-                at_zero(&moved, qname),
-                "offset-0 body for {qname} changed under a pure shift — every \
-                 procedure below an edit will miss its lattice memo",
+                .get(&fixture_id(&base.ir_module.procedures, qname))
+                .expect("authored fixture body");
+            let mut body = procedure.body.clone();
+            rebase_script(&mut body, -i64::from(procedure.span.start()));
+            let mut other = moved
+                .ir_module
+                .procedures
+                .get(&fixture_id(&moved.ir_module.procedures, qname))
+                .expect("authored fixture body")
+                .body
+                .clone();
+            rebase_script(
+                &mut other,
+                -i64::from(
+                    moved
+                        .ir_module
+                        .procedures
+                        .get(&fixture_id(&moved.ir_module.procedures, qname))
+                        .expect("authored fixture body")
+                        .span
+                        .start(),
+                ),
             );
+            assert_ne!(
+                body, other,
+                "independent source/cell instances stay distinct"
+            );
+            assert!(
+                crate::command_binding::ModuleCommandBindings::analyse(&base.ir_module, reg)
+                    .prepare_native_body_template(
+                        &body,
+                        crate::command_binding::BodyProofScope {
+                            source: src,
+                            body_source: procedure.body_source.as_deref().unwrap(),
+                            original_body_offset: procedure.span.start(),
+                            executable_body_offset: procedure.body_offset,
+                            metadata:
+                                crate::registry_invocation::InvocationMetadataInput::Standalone,
+                            config: tcl_lexer::LexerConfig::for_profile(reg.profile())
+                                .nested()
+                                .normalized(),
+                        },
+                        reg,
+                    )
+                    .is_none(),
+                "IO and prepared-expression dependencies retain full identity"
+            );
+            rebase_script(&mut body, i64::from(procedure.span.start()));
+            assert_eq!(body, procedure.body, "{qname} round trip preserves proofs");
         }
     }
 }

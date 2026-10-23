@@ -167,9 +167,50 @@ fn is_macos_cruft(name: &str) -> bool {
             .is_some_and(|base| base.starts_with("._") || base == ".DS_Store")
 }
 
+#[derive(Debug, Clone)]
+struct OriginalUcsMember {
+    name: String,
+    path: Vec<u8>,
+    bytes: Vec<u8>,
+}
+
+/// Extracted preview and the original selected archive members.
+#[derive(Debug, Clone)]
+pub struct UcsScfSource {
+    text: String,
+    members: Vec<OriginalUcsMember>,
+}
+
+impl UcsScfSource {
+    /// Display text may contain replacement characters for invalid input.
+    #[must_use]
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    /// Require exact UTF-8 for the actual selected member names and contents.
+    ///
+    /// # Errors
+    /// Returns the selected member whose original bytes cannot be represented.
+    pub fn require_faithful(&self) -> Result<(), UcsError> {
+        for member in &self.members {
+            std::str::from_utf8(&member.path).map_err(|error| {
+                UcsError::new(format!("invalid UTF-8 in UCS member path: {error}"))
+            })?;
+            std::str::from_utf8(&member.bytes).map_err(|error| {
+                UcsError::new(format!(
+                    "invalid UTF-8 in UCS member {}: {error}",
+                    member.name
+                ))
+            })?;
+        }
+        Ok(())
+    }
+}
+
 /// Read every regular-file member of a gzip-tar into `(name, bytes)`, with the
 /// leading `./` / `/` stripped from each name. Members keep archive order.
-fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
+fn read_original_members(ucs_bytes: &[u8]) -> Result<Vec<OriginalUcsMember>, UcsError> {
     let gz = GzDecoder::new(Cursor::new(ucs_bytes));
     let mut archive = Archive::new(gz);
     let entries = archive
@@ -181,6 +222,7 @@ fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
         if !entry.header().entry_type().is_file() {
             continue;
         }
+        let original_path = entry.path_bytes().into_owned();
         let name = entry
             .path()
             .map_err(|e| UcsError::new(format!("invalid UCS archive: {e}")))?
@@ -197,7 +239,11 @@ fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
         entry
             .read_to_end(&mut data)
             .map_err(|e| UcsError::new(format!("invalid UCS archive: {e}")))?;
-        members.push((lstrip_dot_slash(&name).to_owned(), data));
+        members.push(OriginalUcsMember {
+            name: lstrip_dot_slash(&name).to_owned(),
+            path: original_path,
+            bytes: data,
+        });
     }
     Ok(members)
 }
@@ -208,12 +254,20 @@ fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
 /// the canonical order are appended at the end (in deterministic alphabetical
 /// order). Members not present in the archive are silently skipped.
 pub fn ucs_to_scf(ucs_bytes: &[u8], include_extras: bool) -> Result<String, UcsError> {
-    let members = read_members(ucs_bytes)?;
+    Ok(ucs_to_scf_source(ucs_bytes, include_extras)?.text)
+}
+
+/// Extract selected SCF members while retaining their original bytes.
+///
+/// # Errors
+/// Returns invalid archive input; source fidelity is checked separately.
+pub fn ucs_to_scf_source(ucs_bytes: &[u8], include_extras: bool) -> Result<UcsScfSource, UcsError> {
+    let members = read_original_members(ucs_bytes)?;
     // Build a name → last-occurrence index map (last write wins:
     // a later member with the same name wins).
     let mut by_name: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
-    for (i, (name, _)) in members.iter().enumerate() {
-        by_name.insert(name.as_str(), i);
+    for (i, member) in members.iter().enumerate() {
+        by_name.insert(member.name.as_str(), i);
     }
 
     let decode = |bytes: &[u8]| -> String { String::from_utf8_lossy(bytes).trim_end().to_owned() };
@@ -226,7 +280,7 @@ pub fn ucs_to_scf(ucs_bytes: &[u8], include_extras: bool) -> Result<String, UcsE
                 return;
             }
             if let Some(&idx) = by_name.get(name) {
-                let text = decode(&members[idx].1);
+                let text = decode(&members[idx].bytes);
                 chunks.push(format!("#\n# {name}\n#\n{text}\n"));
                 seen.insert(name.to_owned());
             }
@@ -297,7 +351,21 @@ pub fn ucs_to_scf(ucs_bytes: &[u8], include_extras: bool) -> Result<String, UcsE
         emit(name, &mut chunks, &mut seen);
     }
 
-    Ok(chunks.join("\n"))
+    let text = chunks.join("\n");
+    let selected = members
+        .iter()
+        .enumerate()
+        .filter(|(index, member)| {
+            seen.contains(&member.name)
+                && (by_name.get(member.name.as_str()) == Some(index)
+                    || std::str::from_utf8(&member.path).is_err())
+        })
+        .map(|(_, member)| member.clone())
+        .collect();
+    Ok(UcsScfSource {
+        text,
+        members: selected,
+    })
 }
 
 /// Return plaintext UCS bytes, decrypting `raw` first if it is `OpenPGP`.
@@ -335,66 +403,150 @@ pub fn ucs_archive_to_scf(
     include_extras: bool,
     label: &str,
 ) -> Result<String, UcsError> {
+    Ok(ucs_archive_to_scf_source(raw, provider, include_extras, label)?.text)
+}
+
+/// Decrypt and extract with the actual selected source members retained.
+///
+/// # Errors
+/// Returns decryption or archive failure before any source fidelity decision.
+pub fn ucs_archive_to_scf_source(
+    raw: &[u8],
+    provider: &PassphraseProvider<'_>,
+    include_extras: bool,
+    label: &str,
+) -> Result<UcsScfSource, UcsError> {
     let data = decrypt_if_encrypted(raw, provider, label)?;
     if !is_ucs_bytes(&data) {
         return Err(UcsError::new(format!("{label}: not a valid UCS archive")));
     }
-    ucs_to_scf(&data, include_extras)
+    ucs_to_scf_source(&data, include_extras)
 }
 
-/// Return the bytes of a single file member from a UCS archive.
+/// One actual selected archive member, with its original source bytes.
+#[derive(Debug, Clone)]
+pub struct UcsMemberSource {
+    member: OriginalUcsMember,
+    matching_paths: Vec<Vec<u8>>,
+}
+
+impl UcsMemberSource {
+    #[must_use]
+    pub fn bytes(&self) -> &[u8] {
+        &self.member.bytes
+    }
+
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.member.name
+    }
+
+    fn require_faithful_path(&self) -> Result<(), UcsError> {
+        for path in &self.matching_paths {
+            std::str::from_utf8(path).map_err(|error| {
+                UcsError::new(format!("invalid UTF-8 in UCS member path: {error}"))
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Require original selected names and contents before textual editing.
+    ///
+    /// # Errors
+    /// Returns invalid source bytes, including colliding path previews.
+    pub fn require_faithful(&self) -> Result<(), UcsError> {
+        self.require_faithful_path()?;
+        std::str::from_utf8(&self.member.bytes).map_err(|error| {
+            UcsError::new(format!(
+                "invalid UTF-8 in UCS member {}: {error}",
+                self.member.name
+            ))
+        })?;
+        Ok(())
+    }
+}
+
+/// Read a member using the existing exact-first, leaf and filestore preference.
 ///
-/// Decrypts `raw` first when it is OpenPGP-encrypted, then extracts the member
-/// named by `member_path` — typically a BIG-IP filestore `cache-path`. Matching
-/// is tolerant: the leading `/` is optional, and the `:partition:` filename
-/// prefix is matched even when one side omits it. Returns [`UcsError`] when no
-/// member matches or the archive is corrupt.
-pub fn read_ucs_member(
+/// # Errors
+/// Returns decryption, archive or missing-member failure. Original source
+/// fidelity is retained separately from preview selection.
+pub fn read_ucs_member_source(
     raw: &[u8],
     member_path: &str,
     provider: &PassphraseProvider<'_>,
     label: &str,
-) -> Result<Vec<u8>, UcsError> {
+) -> Result<UcsMemberSource, UcsError> {
+    find_ucs_member_source(raw, member_path, provider, label)?
+        .ok_or_else(|| UcsError::new(format!("member not found in UCS archive: {member_path}")))
+}
+
+/// Select a member while distinguishing completed absence from archive failure.
+///
+/// # Errors
+/// Returns decryption or archive failure without reporting a missing member.
+pub fn find_ucs_member_source(
+    raw: &[u8],
+    member_path: &str,
+    provider: &PassphraseProvider<'_>,
+    label: &str,
+) -> Result<Option<UcsMemberSource>, UcsError> {
     let data = decrypt_if_encrypted(raw, provider, label)?;
     if !is_ucs_bytes(&data) {
         return Err(UcsError::new(format!("{label}: not a valid UCS archive")));
     }
     let want = lstrip_dot_slash(member_path.trim_start_matches('/'));
     let base = want.rsplit('/').next().unwrap_or(want);
-    // The `:partition:` prefix is informational for matching — compare the
-    // bare leaf so a stanza cache-path and the on-disk filename agree.
     let leaf = base.rsplit(':').next().unwrap_or(base);
-
-    let members = read_members(&data)?;
-    // Exact match first.
-    if let Some((_, bytes)) = members.iter().find(|(n, _)| n == want) {
-        return Ok(bytes.clone());
-    }
-    let mut candidates: Vec<&(String, Vec<u8>)> = members
+    let members = read_original_members(&data)?;
+    let selected = members
         .iter()
-        .filter(|(n, _)| {
-            let mbase = n.rsplit('/').next().unwrap_or(n);
-            mbase == base || mbase.rsplit(':').next().unwrap_or(mbase) == leaf
-        })
+        .find(|member| member.name == want)
+        .or_else(|| {
+            let candidates = members
+                .iter()
+                .filter(|member| {
+                    let mbase = member.name.rsplit('/').next().unwrap_or(&member.name);
+                    mbase == base || mbase.rsplit(':').next().unwrap_or(mbase) == leaf
+                })
+                .collect::<Vec<_>>();
+            if candidates.len() > 1 {
+                candidates
+                    .iter()
+                    .copied()
+                    .find(|member| member.name.contains("/filestore/"))
+                    .or_else(|| candidates.first().copied())
+            } else {
+                candidates.first().copied()
+            }
+        });
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    let matching_paths = members
+        .iter()
+        .filter(|member| member.name == selected.name)
+        .map(|member| member.path.clone())
         .collect();
-    if candidates.len() > 1 {
-        // Prefer a filestore path so a same-named pair in different stores
-        // doesn't collide.
-        let narrowed: Vec<&(String, Vec<u8>)> = candidates
-            .iter()
-            .copied()
-            .filter(|(n, _)| n.contains("/filestore/"))
-            .collect();
-        if !narrowed.is_empty() {
-            candidates = narrowed;
-        }
-    }
-    match candidates.first() {
-        Some((_, bytes)) => Ok(bytes.clone()),
-        None => Err(UcsError::new(format!(
-            "member not found in UCS archive: {member_path}"
-        ))),
-    }
+    Ok(Some(UcsMemberSource {
+        member: selected.clone(),
+        matching_paths,
+    }))
+}
+
+/// Read bytes from the original selected member without decoding its contents.
+///
+/// # Errors
+/// Returns source-selection failure or an unrepresentable selected path.
+pub fn read_ucs_member(
+    raw: &[u8],
+    member_path: &str,
+    provider: &PassphraseProvider<'_>,
+    label: &str,
+) -> Result<Vec<u8>, UcsError> {
+    let selected = read_ucs_member_source(raw, member_path, provider, label)?;
+    selected.require_faithful_path()?;
+    Ok(selected.member.bytes)
 }
 
 /// Which members [`list_ucs_members`] returns.
@@ -416,6 +568,7 @@ pub enum MemberScope {
 pub struct UcsFileEntry {
     /// Archive path, leading `./` / `/` stripped (e.g. `etc/passwd`).
     pub path: String,
+    original_path: Vec<u8>,
     /// Uncompressed size in bytes.
     pub size: u64,
     /// Lowercase hex SHA-256 of the member's content — lets a reviewer diff a
@@ -424,6 +577,23 @@ pub struct UcsFileEntry {
     /// Whether the content decodes as UTF-8 with no NUL bytes (i.e. safe to
     /// show as text rather than a binary blob).
     pub is_text: bool,
+}
+
+impl UcsFileEntry {
+    /// Validate the original path and its unchanged public reporting projection.
+    ///
+    /// # Errors
+    /// Returns undecodable original names or a changed display label.
+    pub fn require_faithful_path(&self) -> Result<(), UcsError> {
+        let original = std::str::from_utf8(&self.original_path)
+            .map_err(|error| UcsError::new(format!("invalid UTF-8 in UCS member path: {error}")))?;
+        if lstrip_dot_slash(original) != self.path {
+            return Err(UcsError::new(
+                "UCS member path no longer matches its original source",
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// Lowercase hex SHA-256 of `bytes`.
@@ -515,14 +685,17 @@ pub fn list_ucs_members(
     if !is_ucs_bytes(&data) {
         return Err(UcsError::new(format!("{label}: not a valid UCS archive")));
     }
-    let members = read_members(&data)?;
+    let members = read_original_members(&data)?;
     let mut out = Vec::new();
-    for (name, bytes) in &members {
+    for member in &members {
+        let name = &member.name;
+        let bytes = &member.bytes;
         if matches!(scope, MemberScope::Forensic) && !is_forensic_path(name) {
             continue;
         }
         out.push(UcsFileEntry {
             path: name.clone(),
+            original_path: member.path.clone(),
             size: bytes.len() as u64,
             sha256: sha256_hex(bytes),
             is_text: is_text_bytes(bytes),

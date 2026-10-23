@@ -24,6 +24,48 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+mod original_configurations;
+mod original_constructor_call;
+mod original_linked_member;
+pub use original_linked_member::{
+    OriginalSourceLinkedMember, original_source_linked_member_at,
+    original_source_linked_member_reference_spans, original_source_linked_members_for_class,
+};
+mod logical_procedures;
+pub use logical_procedures::LogicalSourceProcedureDeclaration;
+mod logical_object_members;
+pub use logical_object_members::{LogicalSourceObjectMemberState, LogicalSourceObjectMembers};
+mod logical_members;
+pub use logical_members::{
+    LogicalSourceClassDeclaration, LogicalSourceMemberDeclaration, LogicalSourceMemberInsertion,
+    LogicalSourceRelationStatement, LogicalSourceSelfSelector,
+};
+mod original_member_context;
+mod original_members;
+mod original_properties;
+mod original_receiver_body;
+mod original_relations;
+mod original_special_members;
+pub use original_configurations::{
+    OriginalSourceClassConfiguration, OriginalSourceObjectConfiguration,
+};
+pub use original_constructor_call::{OriginalConstructorArityAdvice, OriginalConstructorArityCall};
+pub use original_member_context::{OriginalLexicalMemberContext, OriginalLexicalNextCall};
+pub(crate) use original_members::OriginalSourceMethodNameBody;
+pub use original_members::{
+    OriginalSourceMemberDeclaration, OriginalSourceMemberEffect, OriginalSourceMemberEffectKind,
+    OriginalSourceMemberLedger, OriginalSourceMethodMetadata,
+};
+pub use original_properties::{OriginalSourcePropertyLedger, OriginalSourcePropertyMetadata};
+pub use original_receiver_body::OriginalSourceReceiverBodyDeclaration;
+pub use original_relations::{
+    OriginalSourceClassRelation, OriginalSourceClassRelationEffect,
+    OriginalSourceClassRelationKind, OriginalSourceClassRelationLedger,
+};
+pub use original_special_members::{
+    OriginalSourceSpecialMemberLedger, OriginalSourceSpecialMemberMetadata,
+};
+
 use tcl_lexer::{Span, Token};
 
 use crate::signature_scan::types::{
@@ -93,6 +135,8 @@ pub use crate::irules_checks::{CodeFix, FixSafety};
 /// [`Severity`], and optional [`CodeFix`] suggestions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
+    /// Optional typed subject from the emitting semantic owner.
+    pub subject: Option<super::DiagnosticSubject>,
     /// Stable W-/IRULE-coded identifier.
     pub code: DiagCode,
     /// Source span the diagnostic anchors to.
@@ -121,6 +165,177 @@ impl Diagnostic {
             message: message.into(),
             severity,
             fixes: Vec::new(),
+            subject: None,
+        }
+    }
+
+    /// Retain the genuine semantic subject independently of reporting text.
+    #[must_use]
+    pub fn with_subject(mut self, subject: super::DiagnosticSubject) -> Self {
+        self.subject = Some(subject);
+        self
+    }
+
+    /// Borrow the retained semantic subject, if the emitter could authenticate it.
+    #[must_use]
+    pub fn subject(&self) -> Option<&super::DiagnosticSubject> {
+        self.subject.as_ref()
+    }
+
+    /// Selected package database key, without parsing the diagnostic message.
+    #[must_use]
+    pub fn required_package_key(
+        &self,
+    ) -> Option<&tcl_registry::native_package::NativePackageNameKey> {
+        match self.subject()? {
+            super::DiagnosticSubject::RequiredPackage(key) => Some(key),
+            super::DiagnosticSubject::RegistrySource(source) => source.required_package_key(),
+            super::DiagnosticSubject::CallbackSourceArity(_)
+            | super::DiagnosticSubject::ObjectSourceArity(_)
+            | super::DiagnosticSubject::PrivateTclNamespace(_)
+            | super::DiagnosticSubject::UserSourceArity(_)
+            | super::DiagnosticSubject::CommandAvailability(_)
+            | super::DiagnosticSubject::RegisteredInstanceSource(_)
+            | super::DiagnosticSubject::DeclaredSource(_)
+            | super::DiagnosticSubject::UnresolvedCommand(_)
+            | super::DiagnosticSubject::UnresolvedMathFunction(_)
+            | super::DiagnosticSubject::ConditionalInterpreterVisibility(_) => None,
+        }
+    }
+
+    /// Original unresolved name and source invocation, without message parsing.
+    #[must_use]
+    pub fn unresolved_command(&self) -> Option<&super::SourceUnresolvedCommandSubject> {
+        match self.subject()? {
+            super::DiagnosticSubject::UnresolvedCommand(subject) => Some(subject),
+            super::DiagnosticSubject::CallbackSourceArity(_)
+            | super::DiagnosticSubject::ObjectSourceArity(_)
+            | super::DiagnosticSubject::PrivateTclNamespace(_)
+            | super::DiagnosticSubject::UserSourceArity(_)
+            | super::DiagnosticSubject::CommandAvailability(_)
+            | super::DiagnosticSubject::RegisteredInstanceSource(_)
+            | super::DiagnosticSubject::DeclaredSource(_)
+            | super::DiagnosticSubject::RegistrySource(_)
+            | super::DiagnosticSubject::RequiredPackage(_)
+            | super::DiagnosticSubject::UnresolvedMathFunction(_)
+            | super::DiagnosticSubject::ConditionalInterpreterVisibility(_) => None,
+        }
+    }
+
+    /// Original unresolved expression function, without a command-head issuer.
+    #[must_use]
+    pub fn unresolved_math_function(&self) -> Option<&super::SourceUnresolvedMathFunctionSubject> {
+        match self.subject()? {
+            super::DiagnosticSubject::UnresolvedMathFunction(subject) => Some(subject),
+            super::DiagnosticSubject::CallbackSourceArity(_)
+            | super::DiagnosticSubject::ObjectSourceArity(_)
+            | super::DiagnosticSubject::PrivateTclNamespace(_)
+            | super::DiagnosticSubject::UserSourceArity(_)
+            | super::DiagnosticSubject::CommandAvailability(_)
+            | super::DiagnosticSubject::RegisteredInstanceSource(_)
+            | super::DiagnosticSubject::DeclaredSource(_)
+            | super::DiagnosticSubject::RegistrySource(_)
+            | super::DiagnosticSubject::RequiredPackage(_)
+            | super::DiagnosticSubject::UnresolvedCommand(_)
+            | super::DiagnosticSubject::ConditionalInterpreterVisibility(_) => None,
+        }
+    }
+
+    /// Conditional child source visibility and its explicit assumptions.
+    /// This is not a selected hidden callable or an effects exclusion.
+    #[must_use]
+    pub fn conditional_interpreter_visibility(
+        &self,
+    ) -> Option<&super::ConditionalInterpreterVisibilitySubject> {
+        match self.subject()? {
+            super::DiagnosticSubject::ConditionalInterpreterVisibility(subject) => Some(subject),
+            super::DiagnosticSubject::CallbackSourceArity(_)
+            | super::DiagnosticSubject::ObjectSourceArity(_)
+            | super::DiagnosticSubject::PrivateTclNamespace(_)
+            | super::DiagnosticSubject::UserSourceArity(_)
+            | super::DiagnosticSubject::CommandAvailability(_)
+            | super::DiagnosticSubject::RegisteredInstanceSource(_)
+            | super::DiagnosticSubject::DeclaredSource(_)
+            | super::DiagnosticSubject::RegistrySource(_)
+            | super::DiagnosticSubject::RequiredPackage(_)
+            | super::DiagnosticSubject::UnresolvedCommand(_)
+            | super::DiagnosticSubject::UnresolvedMathFunction(_) => None,
+        }
+    }
+
+    /// Original whole-command exclusion metadata, independent of reporting text.
+    #[must_use]
+    pub fn command_availability(
+        &self,
+    ) -> Option<&crate::registry_invocation::OriginalSourceCommandAvailability> {
+        match self.subject.as_ref()? {
+            super::DiagnosticSubject::CommandAvailability(subject) => Some(subject),
+            _ => None,
+        }
+    }
+
+    /// Original Registry source syntax retained independently of presentation.
+    #[must_use]
+    pub fn registry_source(&self) -> Option<&super::RegistrySourceDiagnosticSubject> {
+        match self.subject()? {
+            super::DiagnosticSubject::RegistrySource(subject) => Some(subject),
+            _ => None,
+        }
+    }
+
+    /// Authored declaration purpose and original operands, without message parsing.
+    #[must_use]
+    pub fn declared_source(&self) -> Option<&super::DeclaredSourceDiagnosticSubject> {
+        match self.subject()? {
+            super::DiagnosticSubject::DeclaredSource(subject) => Some(subject),
+            _ => None,
+        }
+    }
+
+    /// Original lexical object signature ownership, without receiver dispatch.
+    #[must_use]
+    pub fn object_source_arity(&self) -> Option<&super::ObjectSourceAritySubject> {
+        match self.subject()? {
+            super::DiagnosticSubject::ObjectSourceArity(subject) => Some(subject),
+            _ => None,
+        }
+    }
+
+    /// Original private namespace source policy, without actual lookup authority.
+    #[must_use]
+    pub fn private_tcl_namespace(&self) -> Option<&super::SourcePrivateTclNamespaceSubject> {
+        match self.subject()? {
+            super::DiagnosticSubject::PrivateTclNamespace(subject) => Some(subject),
+            _ => None,
+        }
+    }
+
+    /// Original conditional procedure signature, never an entered call proof.
+    #[must_use]
+    pub fn user_source_arity(&self) -> Option<&super::SourceUserCallAritySubject> {
+        match self.subject()? {
+            super::DiagnosticSubject::UserSourceArity(subject) => Some(subject),
+            _ => None,
+        }
+    }
+
+    /// Conditional callback signature advice, without future dispatch proof.
+    #[must_use]
+    pub fn callback_source_arity(&self) -> Option<&super::SourceCallbackAritySubject> {
+        match self.subject()? {
+            super::DiagnosticSubject::CallbackSourceArity(subject) => Some(subject),
+            _ => None,
+        }
+    }
+
+    /// Genuine registered-instance source metadata and its diagnostic purpose.
+    #[must_use]
+    pub fn registered_instance_source(
+        &self,
+    ) -> Option<&super::RegisteredInstanceSourceDiagnosticSubject> {
+        match self.subject()? {
+            super::DiagnosticSubject::RegisteredInstanceSource(subject) => Some(subject),
+            _ => None,
         }
     }
 
@@ -159,131 +374,36 @@ pub struct EnsembleSubcommandTarget {
     pub provenance: crate::signature_scan::types::EnsembleSubcommandProvenance,
 }
 
-/// One same-file user-call arity candidate, buffered during the command
-/// walk for post-walk resolution against same-file procs / `TclOO`
-/// forwards / `interp alias` / static `rename` targets — the set the
-/// registry-only [`super::diagnostics::validity`] arity check can't see
-/// (see `Analyser::resolve_indirect_call_target`).  Distinct from
-/// [`super::state::Analyser::pending_arity`] (the registry-command
-/// candidate queue): this one is queued for *every* call, independent of
-/// whether `cmd_name` also resolves to a registry signature, since a
-/// user proc/alias/rename can shadow a builtin name.
+/// A diagnostic request position and reporting label, not a selected target.
+/// Post-walk user arity advice reborrows its genuine original call/header/argv;
+/// these fields cannot supply namespace identity, captured arguments or edits.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingUserCallArity {
-    /// Command name as written at the call site — also the diagnostic's
-    /// display name (a same-file call has no subcommand-style split).
+    /// Presentation only, including literal sigil bytes as originally reported.
     pub cmd_name: String,
-    /// Call-site resolution namespace
-    /// (`Analyser::command_resolution_namespace`).
-    pub ns: String,
-    /// `false` inside a proc/method body (definitions there are visible
-    /// regardless of textual order, since bodies only run after the
-    /// whole file has loaded); `true` at top level (order-gated —
-    /// mirrors `pending_arity`'s identical field).
-    pub enforce_order: bool,
-    /// Offset of the command-name token, for the top-level order gate.
+    /// Original command-head request position; the shared source issuer must
+    /// independently authenticate the complete current source/input at this site.
     pub call_off: u32,
-    /// Full diagnostic span (command head through the last argument).
-    pub full_span: Span,
-    /// Lower-bound positional argument count (exact when
-    /// `positional_any_expand` is `false`).
-    pub nargs_min: usize,
-    /// Whether any positional word is `{*}`-expanded — when true,
-    /// `nargs_min` is a lower bound only, so E002 ("too few") can never
-    /// fire (expansion may still supply the missing arguments at run
-    /// time), but E003 ("too many") can still fire when even that lower
-    /// bound already exceeds the max; matches the identical convention
-    /// in the registry-command arity check.
-    pub positional_any_expand: bool,
-    /// Widened source span of each argument word (closer included), so the
-    /// flush — which only then knows the resolved arity's `max` — can
-    /// anchor E003 on the surplus run and target the removal fix.  Empty
-    /// when the call has a `{*}` expansion (the surplus run is ambiguous).
-    pub arg_spans: Vec<Span>,
-    /// Widened end of the command-head word: the removal fix's deletion
-    /// start when every positional argument is surplus (`max == 0`).
-    pub head_end: u32,
 }
 
-/// A queued class-constructor arity candidate, mirroring
-/// [`PendingUserCallArity`]'s architecture. It is queued when registry data
-/// identifies the first argument as a possible manufacturer method, and is
-/// resolved post-walk
-/// ([`super::state::Analyser::flush_ctor_arity_diagnostics`]) once
-/// `all_classes` — and thus the class hierarchy a constructor may be
-/// inherited through — is fully populated.  A candidate that doesn't
-/// resolve to a locally-known class, or resolves to one with no explicit
-/// constructor anywhere in its MRO (`TclOO`'s default constructor accepts
-/// any argument count), is silently dropped at flush time.
+/// Queued genuine source factory/call signature, with no runtime receiver.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingCtorArity {
-    /// Class name as written at the call site (`Dog`, `::ns::Dog`).
-    pub class_name: String,
-    /// Call-site resolution namespace
-    /// (`Analyser::command_resolution_namespace`).
-    pub ns: String,
-    /// Same order-gating convention as [`PendingUserCallArity::enforce_order`]
-    /// — a top-level `Dog new` must have `Dog`'s definition lexically
-    /// precede it; a call inside a proc/method body is not order-gated.
-    pub enforce_order: bool,
-    /// Manufacturer method as written at the call site. Its reachability and
-    /// argument layout are resolved from the class family's registry grammar
-    /// after all class facts are available.
-    pub manufacturer: String,
-    /// Offset of the class-name token, for the top-level order gate.
-    pub call_off: u32,
-    /// Full diagnostic span (class-name head through the last argument).
-    pub full_span: Span,
-    /// Lower-bound positional count of the words after the manufacturer
-    /// keyword, including any registry-declared structural words before the
-    /// constructor payload.
-    pub nargs_min: usize,
-    /// Whether any positional word is `{*}`-expanded — same convention as
-    /// [`PendingUserCallArity::positional_any_expand`].
-    pub positional_any_expand: bool,
+    /// Complete source-call issuer and independent source-order requirement.
+    pub original: std::sync::Arc<OriginalConstructorArityCall>,
+    /// Reporting label, never a class/provider selection key.
+    pub display_name: String,
 }
 
-/// A queued `TclOO` `next` / `nextto` call-site arity candidate.
-///
-/// Unlike [`PendingUserCallArity`] / [`PendingCtorArity`] (queued
-/// unconditionally and resolved by *name*), this is queued only when the
-/// call site is lexically inside a method body — the callee is never
-/// named at the call site at all; it is derived entirely from *where*
-/// the call sits (`Analyser::current_method_context`). Resolved post-walk
-/// ([`super::state::Analyser::flush_next_arity_diagnostics`]) once
-/// `all_classes` is fully populated, via
-/// [`super::class_hierarchy::ClassHierarchy::next_provider`]. A candidate
-/// whose enclosing method has no further provider along the MRO (`next`
-/// past the end of the chain, or a `nextto` target that isn't a locally
-/// known class) is silently dropped — see the same abstention convention
-/// documented on [`PendingCtorArity`].
+/// A queued readonly next-chain signature question with exact source identity.
+/// Declaration context and Registry source shape supply no entered receiver,
+/// installed method, current dispatch or successful completion.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingNextArity {
-    /// Qualified name of the class whose method body the call sits in —
-    /// always the class that *textually declares* this method, since a
-    /// method's `Method` scope is only ever created while walking that
-    /// class's own body.
-    pub class_qualified: String,
-    /// Simple name of the enclosing method (`next`/`nextto` always
-    /// re-invoke the *same* method name, never a different one).
-    pub method_name: String,
-    /// `nextto`'s explicit target class as written at the call site
-    /// (`None` for bare `next`, which starts the MRO search one past
-    /// `class_qualified`).
-    pub target_class: Option<String>,
-    /// Call-site resolution namespace, for resolving `target_class`.
-    pub ns: String,
-    /// Command name as written (`"next"` / `"nextto"`) — the
-    /// diagnostic's display name.
+    /// Retained declaration/body and complete selected source invocation.
+    pub original: std::sync::Arc<OriginalLexicalNextCall>,
+    /// Reporting label used only in the eventual diagnostic.
     pub display_name: String,
-    /// Full diagnostic span (command head through the last argument).
-    pub full_span: Span,
-    /// Lower-bound positional argument count, *excluding* `nextto`'s own
-    /// target-class word.
-    pub nargs_min: usize,
-    /// Whether any positional word is `{*}`-expanded — same convention as
-    /// [`PendingUserCallArity::positional_any_expand`].
-    pub positional_any_expand: bool,
 }
 
 /// Variable definition record.
@@ -423,6 +543,8 @@ impl ProcArgTrait {
 /// param shape, same parser.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProcDef {
+    /// Exact authored publication geometry, independent of this declaration's report.
+    pub source_name: Option<crate::signature_scan::scope::SignatureSourceCommand>,
     /// Proc name as written (no namespace qualifiers).
     pub name: String,
     /// Fully-qualified proc name with leading ``::``.
@@ -432,6 +554,9 @@ pub struct ProcDef {
     /// Empty *and* [`Self::params_computed`] set means "unknown", not
     /// "none" — see that field.
     pub params: Vec<ParamDef>,
+    /// Original formal count owner or explicit authored metadata. Display
+    /// parameter labels cannot recreate an original binding/count recipe.
+    pub formal_count: crate::signature_scan::formal_count::SourceFormalCount,
     /// The parameter-list word was **computed**, so the proc's formals are
     /// unmodelled.
     ///
@@ -457,6 +582,13 @@ pub struct ProcDef {
     /// name.  Populated by ``infer_param_traits`` after the
     /// body walk.  Empty when no traits inferred (parameter
     /// unused, or proc body wasn't statically scannable).
+    ///
+    /// These are conditional May source-usage reports. They retain no actual
+    /// alias, variable cell, quiet observer, entered frame, Native/Normal or
+    /// completion grant. Consumers independently select the original callee,
+    /// formals and caller-source template before navigation or display. This
+    /// analyser type is separate from the IR-produced
+    /// [`crate::interprocedural::ProcArgTrait`] used by optimiser summaries.
     pub param_traits: HashMap<String, std::collections::HashSet<ProcArgTrait>>,
     /// Parameters whose *value* names a variable in the **immediate caller's**
     /// frame — the `upvar 1 $param local` shape, and only that one.
@@ -471,19 +603,29 @@ pub struct ProcDef {
     /// caller-frame variable) must intersect the two rather than trust the
     /// trait alone.  Populated by
     /// [`super::param_traits::caller_frame_upvar_params`].
+    /// A symbolic source recipe only: conditional formal reads and unknown
+    /// observer/caller applicability cannot establish an entered caller alias.
     pub caller_frame_params: std::collections::HashSet<String>,
     /// **Literal** caller-frame names this proc binds in its immediate
     /// caller's frame — spelled in the proc's *own* body (`upvar 1 name
     /// name`), so no call-site argument word carries them.
     /// `name → written-through-alias`: `true` means
-    /// a call *creates* the variable in the calling frame, `false` that it
-    /// only reads it.  Populated by
+    /// the conditional callee template writes through the alias, `false` that
+    /// it only reads through it. This proves no actual caller cell or completed
+    /// write. Navigation requires a separate original call/allocation/frame
+    /// receipt. Populated by
     /// [`super::param_traits::caller_frame_literal_targets`]; empty when
     /// the body binds none.
+    /// Readonly source usage, never a successful caller store or physical cell.
     pub caller_frame_literals: std::collections::HashMap<String, bool>,
 }
 
 impl ProcDef {
+    /// Callable source spelling only when both publication and lookup round-trip.
+    #[must_use]
+    pub fn source_spelling(&self) -> Option<String> {
+        self.source_name.as_ref()?.source_spelling()
+    }
     /// The proc's declared argument arity — or the **abstaining**
     /// `0..unlimited` when its parameter list was computed
     /// ([`Self::params_computed`]).
@@ -498,10 +640,16 @@ impl ProcDef {
     /// directly, so the abstention cannot be forgotten at one call site.
     #[must_use]
     pub fn arity(&self) -> tcl_registry::Arity {
-        if self.params_computed {
-            return tcl_registry::Arity::new(0, tcl_registry::Arity::UNLIMITED);
-        }
-        crate::signature_scan::arity::arity_of(&self.params)
+        self.formal_count_projection().arity()
+    }
+
+    /// Stable descriptive header count, without source bytes or runtime grants.
+    #[must_use]
+    pub fn formal_count_projection(
+        &self,
+    ) -> crate::signature_scan::formal_count::SourceFormalCountProjection {
+        self.formal_count
+            .projection(&self.params, self.params_computed)
     }
 }
 
@@ -515,6 +663,10 @@ impl ProcDef {
 /// come from that descriptor, so no command name is hardcoded here.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DefinedSymbol {
+    /// Independently produced original name under positioned Registry advice.
+    /// None belongs only to explicitly logical declaration reporting; this is
+    /// neither a command publication nor an editable computed name.
+    pub original_name_input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
     /// Definition name as resolved (constant-propagated from the name
     /// argument).  For a test this is the test-case label (`foo-1.1`).
     pub name: String,
@@ -547,23 +699,13 @@ pub struct MethodDef {
     /// Empty *and* [`Self::params_computed`] set means "unknown", not
     /// "none" — see that field.
     pub params: Vec<ParamDef>,
-    /// The method's formals are unmodelled: either the parameter-list word
-    /// was itself computed, or — the case this field was added for
-    /// — the *method* itself was installed by a literal
-    /// loop (`foreach m {alpha beta gamma} { method $m {args} {…} }`)
-    /// whose per-iteration name this walk can read off the loop's own
-    /// literal list, but whose per-iteration signature it deliberately
-    /// does not attempt to re-derive (a reflective installer's parameter
-    /// list can itself be computed per iteration — `method $m {*}[classDef
-    /// $m]` — so treating one iteration's literal `{args}` as
-    /// representative of every other would be a fabrication for the
-    /// general shape this exists to cover, even on the rare iteration
-    /// where it happens to be right).
-    ///
-    /// Mirrors [`crate::analyser::ProcDef::params_computed`] exactly: every
-    /// arity-shaped consumer must ask [`Self::arity`] rather than compute
-    /// one from [`Self::params`] directly, so the abstention cannot be
-    /// forgotten at one call site.
+    /// Original formal count owner or explicit authored metadata. Display
+    /// parameter labels cannot recreate an original binding/count recipe.
+    pub formal_count: crate::signature_scan::formal_count::SourceFormalCount,
+    /// Unknown formals from a computed parameter word or reflective loop install.
+    /// Literal loop names do not establish each iteration's signature.
+    /// Arity consumers must use [`Self::arity`], as for
+    /// [`crate::analyser::ProcDef::params_computed`].
     pub params_computed: bool,
     /// Source span of the name token.
     pub name_span: Span,
@@ -616,10 +758,16 @@ impl MethodDef {
     /// zero-argument one.
     #[must_use]
     pub fn arity(&self) -> tcl_registry::Arity {
-        if self.params_computed {
-            return tcl_registry::Arity::new(0, tcl_registry::Arity::UNLIMITED);
-        }
-        crate::signature_scan::arity::arity_of(&self.params)
+        self.formal_count_projection().arity()
+    }
+
+    /// Stable descriptive header count, without source bytes or runtime grants.
+    #[must_use]
+    pub fn formal_count_projection(
+        &self,
+    ) -> crate::signature_scan::formal_count::SourceFormalCountProjection {
+        self.formal_count
+            .projection(&self.params, self.params_computed)
     }
 
     /// Whether this nameless member — a constructor or destructor, recorded
@@ -713,6 +861,8 @@ pub struct ObjectMethodDef {
 /// consumers (definition, completion) and the `oo::objdefine` W315 need.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ObjectMemberState {
+    /// Independently selected Logical source names and visibility masks.
+    pub logical_source_members: Option<LogicalSourceObjectMemberState>,
     /// The object's own member table after every walked block: declared
     /// methods, minus retractions, with renames applied — each entry
     /// carrying its effective visibility.
@@ -1255,6 +1405,32 @@ pub enum MetaclassProvenance {
     Observed,
 }
 
+/// Whether distinct original source slots have collided in one report key.
+/// An unobserved collision is not proof of a unique or live native class.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SourceNameAmbiguity {
+    /// No collision was retained by the source publication join.
+    #[default]
+    Unobserved,
+    /// A distinct original slot or policy was retained under the report key.
+    Observed,
+}
+
+impl SourceNameAmbiguity {
+    /// Reports only the retained collision observation.
+    #[must_use]
+    pub const fn is_observed(self) -> bool {
+        matches!(self, Self::Observed)
+    }
+
+    /// Accumulate an observation without withdrawing an earlier collision.
+    pub fn observe_if(&mut self, observed: bool) {
+        if observed {
+            *self = Self::Observed;
+        }
+    }
+}
+
 /// Class definition record.
 ///
 /// The structural fields (`superclasses`, `mixins`, `methods`,
@@ -1265,13 +1441,32 @@ pub enum MetaclassProvenance {
 /// the full record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClassDef {
+    /// Authoritative original counted member declarations and ordered effects.
+    /// Reporting-name maps do not supply this ledger's identity or coverage.
+    pub original_members: OriginalSourceMemberLedger,
+    /// Canonical nameless lifecycle declarations, without dispatch or absence.
+    pub original_special_members: OriginalSourceSpecialMemberLedger,
+    /// Original property source names, kinds and accessor-body producers.
+    /// This ledger supplies declaration advice, not native property admission.
+    pub original_properties: OriginalSourcePropertyLedger,
+    /// Original relation operands and own receiver effects, without report keys.
+    pub original_relations: OriginalSourceClassRelationLedger,
+    /// Retained original object publication geometry; no runtime class token.
+    pub source_name: Option<crate::signature_scan::scope::SignatureSourceCommand>,
+    /// Distinct component slots share this record's rendered map key.
+    pub source_name_ambiguous: SourceNameAmbiguity,
+    /// Original metaclass-head lookup; supplies no reached provider identity.
+    pub metaclass_lookup: Option<crate::signature_scan::scope::SignatureSourceLookup>,
+    /// Original caller contexts of relation words; ambiguity remains unavailable.
+    pub relation_lookups:
+        HashMap<String, Option<crate::signature_scan::scope::SignatureSourceLookup>>,
     /// Class name as written.
     pub name: String,
     /// Fully-qualified class name with leading ``::``.
     pub qualified_name: String,
     /// Source span of the name token.
     pub name_span: Span,
-    /// Source span of the class body (braces excluded).
+    /// Class body span retained by its declaration producer.
     pub body_span: Span,
     /// Metaclass — one of ``"oo::class"`` / ``"oo::configurable"``
     /// / ``"oo::abstract"`` / ``"oo::singleton"``.  Defaults to
@@ -1422,14 +1617,8 @@ pub struct ClassDef {
     /// re-analyses the document and reads it from the recorded class, so it has
     /// to survive into `all_classes`.
     pub renamed_members: Vec<RenamedMember>,
-    /// Names genuinely bareword-callable from any method body of this
-    /// class, because ``link`` (``oo::Helpers::link``) installed a
-    /// per-object-namespace alias — keyed by the alias name, valued by
-    /// the real member name it dispatches to via ``my TARGET`` (alias ==
-    /// target for the plain ``link NAME`` form). In contrast, a bareword
-    /// matching an un-linked sibling method/classmethod/property name is
-    /// **not** reachable that way and errors "invalid command name" at
-    /// runtime.
+    /// Readonly alias/target display inventory. Navigation and edits use
+    /// original link invocations and member declarations instead.
     pub linked_members: HashMap<String, String>,
     /// Doc-comment text harvested from the line(s) above the
     /// ``oo::class create`` / ``oo::define`` statement.
@@ -1634,6 +1823,14 @@ impl ClassDef {
         // `ClassDef` fails to compile here until it has been classified,
         // rather than being quietly dropped by every join.
         let Self {
+            original_members: _,
+            original_special_members: _,
+            original_properties: _,
+            original_relations: _,
+            source_name: _,
+            source_name_ambiguous: _,
+            metaclass_lookup: _,
+            relation_lookups: _,
             name: _,
             qualified_name: _,
             name_span: _,
@@ -1671,6 +1868,7 @@ impl ClassDef {
         // When *this* record is the stub the ordering is simply reversed:
         // `other` ran first and only fills what this one never mentions.
         let other_ran_second = *via_define && !self.via_define;
+        self.absorb_original_declarations(other, other_ran_second);
         for (key, def) in methods {
             insert_declaration(&mut self.methods, key, def, other_ran_second);
         }
@@ -1727,6 +1925,37 @@ impl ClassDef {
         }
         if self.doc.is_empty() {
             self.doc.clone_from(doc);
+        }
+    }
+
+    fn absorb_original_declarations(&mut self, other: &Self, other_ran_second: bool) {
+        self.original_members
+            .absorb(&other.original_members, other_ran_second);
+        self.original_special_members
+            .absorb(&other.original_special_members, other_ran_second);
+        self.original_relations
+            .absorb(&other.original_relations, other_ran_second);
+        self.original_properties
+            .absorb(&other.original_properties, other_ran_second);
+        if self.source_name.is_none() {
+            self.source_name.clone_from(&other.source_name);
+        }
+        self.source_name_ambiguous
+            .observe_if(other.source_name_ambiguous.is_observed());
+        if self.metaclass_lookup.is_none() {
+            self.metaclass_lookup.clone_from(&other.metaclass_lookup);
+        }
+        for (written, lookup) in &other.relation_lookups {
+            match self.relation_lookups.entry(written.clone()) {
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(lookup.clone());
+                }
+                std::collections::hash_map::Entry::Occupied(mut entry) => {
+                    if entry.get() != lookup {
+                        entry.insert(None);
+                    }
+                }
+            }
         }
     }
 
@@ -1828,6 +2057,14 @@ impl Default for ClassDef {
     fn default() -> Self {
         let zero = Span::new(0, 0);
         Self {
+            original_members: OriginalSourceMemberLedger::default(),
+            original_special_members: OriginalSourceSpecialMemberLedger::default(),
+            original_properties: OriginalSourcePropertyLedger::default(),
+            original_relations: OriginalSourceClassRelationLedger::default(),
+            source_name: None,
+            source_name_ambiguous: SourceNameAmbiguity::Unobserved,
+            metaclass_lookup: None,
+            relation_lookups: HashMap::new(),
             name: String::new(),
             qualified_name: String::new(),
             name_span: zero,
@@ -1882,6 +2119,14 @@ impl ClassCommandFallback {
     }
 }
 
+/// Whether this body belongs to the surrounding interpreter's source walk.
+/// This is independent of lambda context and `TclOO` lookup/callability axes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum InterpreterSourceBody {
+    Enclosing,
+    Independent,
+}
+
 /// A lexical scope (global, namespace, or proc body).
 ///
 /// The analyser builds a tree of these as it walks; the root is
@@ -1895,6 +2140,29 @@ impl ClassCommandFallback {
 /// tree, not rewrite back-pointers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Scope {
+    /// Genuine readonly class/member/body declaration context. No runtime
+    /// receiver, activation, dispatch or Normal authority follows from it.
+    pub original_member_context: Option<Box<OriginalLexicalMemberContext>>,
+    /// Independent original method body declaration. Its source ownership does
+    /// not establish a native factory, receiver frame or executing namespace.
+    pub original_receiver_body_declaration:
+        Option<std::sync::Arc<OriginalSourceReceiverBodyDeclaration>>,
+    /// Original child-interpreter reporting domain. Its source namespace
+    /// geometry remains separate from parent-file reporting identity.
+    pub original_interpreter_source_domain:
+        Option<std::sync::Arc<super::OriginalInterpreterSourceDomain>>,
+    /// Conditional lambda namespace source owner. Whole input, fields and
+    /// applicability remain retained independently of this scope's report name.
+    /// This supplies no lambda activation, formal binding or physical frame.
+    pub(super) original_logical_lambda_namespace:
+        Option<std::sync::Arc<super::interp_visibility::OriginalInterpreterLambdaBody>>,
+    /// An actual lambda body cannot borrow an enclosing source frame when
+    /// its own call/formal/source context is unavailable.
+    pub(super) requires_original_lambda_source_context: bool,
+    /// An independently walked interpreter script has its own source root.
+    pub(super) interpreter_source_body: InterpreterSourceBody,
+    /// Retained authored namespace geometry; supplies no actual activation or token.
+    pub naming_scope: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
     /// Scope kind (global, namespace, proc).
     pub kind: ScopeKind,
     /// Scope identifier — namespace name for namespace/global
@@ -1919,6 +2187,11 @@ pub struct Scope {
     pub name_span: Option<Span>,
     /// Variables defined directly in this scope.
     pub variables: HashMap<String, VarDef>,
+    /// Producer-owned first declaration extents, coupled to actual variable
+    /// map entries. These storage keys supply no name or scope interpretation.
+    pub(super) original_variable_declaration_spans: HashMap<String, Span>,
+    pub(crate) readonly_dictionary_keys:
+        HashMap<String, super::scope::ReadonlyDictionaryKeyVariable>,
     /// Procs defined directly in this scope.
     pub procs: HashMap<String, ProcDef>,
     /// Classes defined directly in this scope.
@@ -1982,15 +2255,31 @@ pub struct Scope {
 }
 
 impl Scope {
+    pub(super) const fn is_independent_interpreter_source_body(&self) -> bool {
+        matches!(
+            self.interpreter_source_body,
+            InterpreterSourceBody::Independent
+        )
+    }
+
     /// Construct a fresh empty scope.
     #[must_use]
     pub fn new(kind: ScopeKind, name: impl Into<String>) -> Self {
         Self {
             kind,
+            original_interpreter_source_domain: None,
+            original_logical_lambda_namespace: None,
+            requires_original_lambda_source_context: false,
+            interpreter_source_body: InterpreterSourceBody::Enclosing,
+            naming_scope: None,
+            original_member_context: None,
+            original_receiver_body_declaration: None,
             name: name.into(),
             body_span: None,
             name_span: None,
             variables: HashMap::new(),
+            original_variable_declaration_spans: HashMap::new(),
+            readonly_dictionary_keys: HashMap::new(),
             procs: HashMap::new(),
             classes: HashMap::new(),
             defined_symbols: Vec::new(),
@@ -2028,6 +2317,10 @@ pub struct UnknownProcInfo {
     /// Command names explicitly dispatched (e.g. switch arm
     /// labels).
     pub dispatch_targets: std::collections::BTreeSet<String>,
+    /// Canonical possible source bodies with their option-selection and
+    /// no-match residuals. These describe advisory syntax, independently of
+    /// selected effects, current command occupancy or Native execution.
+    pub case_body_residuals: Vec<tcl_registry::case_bodies::CaseBodyOperands>,
     /// Calls a renamed original ``unknown`` (e.g.
     /// ``_original_unknown``).
     pub chains_original: bool,
@@ -2109,12 +2402,50 @@ impl ScopedBodyRegion {
 /// Holds the full field set the analyser can produce. Fields that
 /// no emitter populates default to empty / `None` — they're carried
 /// in the shape so a consumer can serialise the complete result.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default)]
 pub struct AnalysisResult {
+    pub(super) optimiser_source_origin:
+        Option<crate::compilation_unit::OriginalOptimiserSourceOrigin>,
+    /// The requested command generation is unavailable. No source walk was
+    /// performed; an empty diagnostic set therefore does not indicate success.
+    pub analysis_context_unavailable: Option<tcl_registry::model::OverlayMiss>,
+    pub(super) command_realm: Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
+    pub(super) original_command_world:
+        Option<crate::command_binding::OriginalCompletedCommandWorld>,
+    pub(crate) original_source_region:
+        Option<crate::command_binding::OriginalSourceConditionalRegion>,
+    pub(super) lexical_declaration_advice: bool,
+    /// Actual editing inputs retained independently of the dialect label.
+    /// This is not a native execution or implementation-identity proof.
+    pub resolved_input: Option<super::ResolvedAnalysisInput>,
+    pub(super) original_vendor_source_names: HashMap<
+        tcl_lexer::Span,
+        Option<crate::signature_scan::vendor_name::VendorSourceNameOccurrence>,
+    >,
+    pub(super) original_vendor_variable_advice:
+        Vec<crate::signature_scan::vendor_variable::VendorSourceVariableAdvice>,
+    pub(super) original_vendor_variable_bodies:
+        Vec<crate::signature_scan::vendor_variable::VendorSourceVariableBody>,
     /// Root scope tree (`::`).
     pub global_scope: Scope,
     /// Procs keyed by qualified name.
     pub all_procs: HashMap<String, ProcDef>,
+    /// Authentic original declaration records, including byte-distinct names
+    /// whose Unicode presentation collides. UI maps are projections only.
+    pub original_procedure_metadata:
+        Vec<crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>>,
+    /// Independently selected hosted procedure source cards, without native slots.
+    pub(super) original_vendor_procedure_metadata:
+        Vec<crate::signature_scan::vendor_name::VendorSourceDeclarationMetadata<ProcDef>>,
+    /// Independently selected hosted class source cards, without native object grants.
+    pub(super) original_vendor_class_metadata:
+        Vec<crate::signature_scan::vendor_name::VendorSourceDeclarationMetadata<ClassDef>>,
+    /// Immutable original Registry-defined source cards, independent of UI maps.
+    pub(super) original_symbol_metadata:
+        Vec<crate::signature_scan::symbol_name::OriginalSourceSymbolDeclaration>,
+    /// Independently selected hosted Registry symbol source cards.
+    pub(super) original_vendor_symbol_metadata:
+        Vec<crate::signature_scan::vendor_name::VendorSourceDeclarationMetadata<DefinedSymbol>>,
     /// Every `proc` declaration's own name-token span, in source order —
     /// unlike `all_procs` (a map that, for a qualified name declared more
     /// than once in the same document, retains only the *last* processed
@@ -2145,6 +2476,22 @@ pub struct AnalysisResult {
     pub superseded_procs: HashMap<String, Vec<ProcDef>>,
     /// Classes keyed by qualified name.
     pub all_classes: HashMap<String, ClassDef>,
+    /// Genuine Logical headers retain insertion names separately from report labels.
+    pub(super) logical_procedure_declarations: Vec<LogicalSourceProcedureDeclaration>,
+    /// Completed Logical class walks retain source membership without Native identity.
+    pub(super) logical_class_declarations: Vec<LogicalSourceClassDeclaration>,
+    /// Authentic original class declarations, separate from UI `QName` maps.
+    pub original_class_metadata:
+        Vec<crate::signature_scan::original_name::SourceDeclarationMetadata<ClassDef>>,
+    /// Independently targeted original configuration deltas, in analyser walk order.
+    pub original_class_configuration_metadata: Vec<OriginalSourceClassConfiguration>,
+    /// Own-object configuration deltas keyed by their actual bounded allocations.
+    /// This source inventory never selects a later dispatch or an offset epoch.
+    pub original_object_configuration_metadata: Vec<OriginalSourceObjectConfiguration>,
+    /// Original class declarations displaced by a later declaration of the
+    /// same name. Positioned navigation uses these records; the final class
+    /// inventory alone cannot identify an earlier selected implementation.
+    pub superseded_classes: HashMap<String, Vec<ClassDef>>,
     /// Every class-body span contributing member declarations to a
     /// qualified class name, in source order: the `oo::class create`
     /// block's own body span, plus one entry per later same-class
@@ -2195,10 +2542,10 @@ pub struct AnalysisResult {
     pub has_dynamic_providers: bool,
     /// Source-target records.
     pub source_targets: Vec<SignatureSource>,
-    /// Every path-constant fact the document's load-time surface records —
-    /// top-level `set`s, and `variable`/`set` writes inside literal
-    /// `namespace eval` bodies — in document order, values **unfolded**
-    /// ([`crate::auto_path_eval::constant_path_assignments`]).
+    /// Conditional source path writes from the same retained analysis input,
+    /// immutable realm, whole source and grammar, in document order, values
+    /// **unfolded** ([`crate::auto_path_eval::constant_path_assignments_from_analysis`]).
+    /// Constructed namespace source scopes supply no entered frame or current value.
     ///
     /// Recorded raw rather than folded because folding the
     /// `[file dirname [info script]]` idiom needs the document's own
@@ -2208,7 +2555,7 @@ pub struct AnalysisResult {
     /// folding) chain-fold these with
     /// [`crate::auto_path_eval::fold_constant_assignments`], which also owns
     /// the multi-write poisoning rule.
-    pub path_constant_assignments: Vec<crate::auto_path_eval::PathConstantWrite>,
+    pub path_constant_assignments: crate::auto_path_eval::PathConstantAssignments,
     /// Command-alias records keyed by qualified alias name.
     pub command_aliases: HashMap<String, SignatureCommandAlias>,
     /// Byte offset of the `interp alias` command token that established each
@@ -2280,6 +2627,10 @@ pub struct AnalysisResult {
     /// order gate ([`super::indirection::in_effect`]) the export snapshot
     /// and the `rename` / `interp alias` timeline already use.
     pub namespace_forgets: Vec<SignatureNamespaceForget>,
+    /// Authentic original import/forget operands, including opaque byte units.
+    /// Display inventories are independent projections and cannot recover these.
+    pub(super) original_namespace_patterns:
+        Vec<crate::signature_scan::original_name::SourceNamespacePattern>,
     /// Byte offset of the statement that **destroyed** each qualified command
     /// — `rename OLD {}` and `interp alias {} NAME {}`, the two forms that
     /// delete the command *object* rather than move it.
@@ -2308,6 +2659,11 @@ pub struct AnalysisResult {
     /// Namespace `export` records — see [`SignatureNamespaceExport`] for why
     /// they exist (gating wildcard-import bareword resolution).
     pub namespace_exports: Vec<SignatureNamespaceExport>,
+    /// Original counted export patterns and clear operands with caller geometry.
+    pub(super) original_namespace_exports:
+        Vec<crate::signature_scan::original_name::SourceNamespaceExport>,
+    /// Unrepresented export operands are May obligations, not evaluated names.
+    pub(super) original_namespace_export_unknowns: Vec<Span>,
     /// Recorded `namespace path {…}` declarations, keyed by the declaring
     /// namespace's fully-qualified name (`::` for global).  Each entry is the
     /// path list *as written*; a relative entry roots against the declaring
@@ -2336,11 +2692,41 @@ pub struct AnalysisResult {
     /// [`QualifiedVarRef`].  The cross-document variable reference set is
     /// built from these; an unqualified occurrence is never recorded.
     pub qualified_var_refs: Vec<QualifiedVarRef>,
+    /// Original variable naming occurrences with typed byte geometry. This
+    /// metadata supplies no successful store, allocation or live cell receipt.
+    pub original_variable_symbols:
+        Vec<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence>,
+    /// Conditional original write-name source cards. These retain selected
+    /// naming grammar and optional authentic frame/home geometry independently
+    /// of executed stores, variable-cell selection and rename coverage.
+    pub original_variable_write_advice:
+        Vec<crate::signature_scan::variable_symbol::OriginalVariableWriteAdvice>,
+    /// Same-site producer/namespace disagreement withdraws navigation advice.
+    pub original_variable_symbol_conflicts: Vec<Span>,
+    pub(super) original_variable_roots:
+        Vec<crate::signature_scan::variable_name::SignatureSourceVariableRoot>,
+    pub(super) original_variable_alias_sites: Vec<Span>,
+    pub(super) original_variable_name_unknowns: Vec<Span>,
+    pub(super) original_variable_alias_obligations: Vec<(u32, usize)>,
+    pub(super) original_variable_alias_operands: Vec<(
+        u32,
+        Span,
+        Span,
+        crate::registry_invocation::DeclarationVariableAliasPurpose,
+    )>,
+    pub(super) original_variable_alias_source_operands:
+        Vec<crate::registry_invocation::OriginalSourceVariableAliasOperands>,
+    pub(super) original_variable_alias_receipts:
+        Vec<crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt>,
     /// Words naming a **namespace**, in source order — see [`NamespaceRef`].
     /// Both the declaring `namespace eval` name tokens (`declares: true`) and
     /// every other spelling of the same namespace, so go-to-definition /
     /// hover / find-references treat a namespace as a first-class symbol.
     pub namespace_refs: Vec<NamespaceRef>,
+    /// Namespace-role assistance words whose original value could not be
+    /// retained. These spans are May obligations for refactoring coverage;
+    /// they establish no namespace selection, successful call or edit grant.
+    pub namespace_name_unknowns: Vec<Span>,
     /// Variable-name argument words computed at run time, in source order —
     /// see [`DynamicVariableNameSite`].  The per-site provenance a
     /// post-analysis consumer needs to ask what a `$n` in a name position can
@@ -2388,24 +2774,14 @@ pub struct AnalysisResult {
     /// **Contract.** Best-effort, exactly like [`Self::instance_classes`]: an
     /// absent key means *no evidence was found in this document*, never *proof
     /// that the name holds no object*.  An empty value (the default) is what
-    /// every CU-less analysis path produces, so a consumer must degrade to its
-    /// pre-lattice behaviour rather than concluding anything from emptiness.
+    /// every CU-less analysis path produces, so a runtime-proof consumer must
+    /// abstain rather than concluding anything from emptiness.
     ///
-    /// **Which map to read.**  `by_scope` is keyed by the owning unit and is
-    /// the *narrow* map: it never merges a `chart` in one proc with a `chart`
-    /// in another.  That holds through the *propagation*, not just the keying —
-    /// every variable read an edge resolves is resolved in the reading unit's
-    /// own scope (or its class, for an instance variable), so one proc's
-    /// binding can never reach another's same-named local and leave a false
-    /// singleton behind.  `any_scope` is the union across every scope and is
-    /// the *wide* map — deliberately imprecise, and unchanged.  So:
-    ///
-    /// | consumer | map | why |
-    /// |---|---|---|
-    /// | edits (rename), find-references | `by_scope` only | widening here rewrites an unrelated variable — a wrong edit, not a missed one |
-    /// | navigation (definition, type-definition), hover | `by_scope`, then `any_scope` labelled as a guess | a wrong jump is recoverable; a missing one is not |
-    /// | semantic tokens / highlighting | either | colour-only, so the union's imprecision is harmless |
-    /// | "provably a *different* class, so refuse/skip" gates | `by_scope` singletons only | widening turns an abstention into a false certainty, which silences a refusal that protects the user |
+    /// **Which map to read.** `proven_reads` retains the original substitution
+    /// and reaching SSA contents. Edits, references and refusal gates require
+    /// that positioned proof; a singleton candidate is insufficient.
+    /// `by_scope` and `any_scope` union contents versions and supply assistance
+    /// only. Empty proof means abstention, never a fallback to a nominal class.
     ///
     /// Populated once per analysis, from the same `CompilationUnit` the
     /// CFG/SSA diagnostics ride on (`analyser/diagnostics.rs`); no other
@@ -2489,6 +2865,9 @@ pub struct AnalysisResult {
     /// completion providers read them to surface the scoped command set.  Empty
     /// for documents with no scoped-body commands.
     pub scoped_command_regions: Vec<ScopedBodyRegion>,
+    pub(crate) original_scoped_bodies: Vec<crate::registry_invocation::OriginalSourceScopedBody>,
+    pub(crate) original_conditional_registry_metadata:
+        HashMap<u32, Option<crate::registry_invocation::OriginalConditionalRegistryMetadata>>,
     /// Names introduced by a scoped-body definer command whose environment sets
     /// `include_sibling_definitions` — keyed by the environment name.  A
     /// `report::defstyle simpletable …` records `"simpletable"` under
@@ -2509,12 +2888,1272 @@ pub struct AnalysisResult {
     /// global fallback ([`Self::ns_var_global_fallback`]) — without
     /// re-detecting the dialect.  Empty for a default-constructed result.
     pub dialect: String,
+    /// Actual body grammar selected at the analysis ingress. Navigation
+    /// reparses use this retained context rather than interpreting a profile
+    /// name again. A default-constructed assistance result carries no grammar
+    /// authority for matching a positioned source definition.
+    pub body_lexer_config: Option<tcl_lexer::LexerConfig>,
     /// Session library-version overrides used for this analysis. Downstream
     /// providers use the same keyed BIG-IP/tool floors as diagnostics.
     pub library_versions: tcl_dialect::LibraryVersionOverrides,
 }
 
+// Reports compare original source coordinates; retained consumer ownership stays exact.
+// Exhaustive destructuring makes a newly added field a compile error until its
+// reporting comparison is chosen. The object-handle report is the sole field
+// with a purpose-specific comparison; every other field retains ordinary Eq.
+macro_rules! analysis_result_report_eq {
+    ($left:expr, $right:expr; [$($before:ident),*]; $report:ident; [$($after:ident),*]) => {{
+        let AnalysisResult { $($before,)* $report, $($after,)* } = $left;
+        $($before == &$right.$before &&)*
+            $report.analysis_report_eq(&$right.$report)
+            $(&& $after == &$right.$after)*
+    }};
+}
+
+impl PartialEq for AnalysisResult {
+    fn eq(&self, other: &Self) -> bool {
+        analysis_result_report_eq!(self, other; [
+            optimiser_source_origin,
+            analysis_context_unavailable,
+            command_realm,
+            original_command_world,
+            original_source_region,
+            lexical_declaration_advice,
+            resolved_input,
+            original_vendor_source_names,
+            original_vendor_variable_advice,
+            original_vendor_variable_bodies,
+            global_scope,
+            all_procs,
+            original_procedure_metadata,
+            original_vendor_procedure_metadata,
+            original_vendor_class_metadata,
+            original_symbol_metadata,
+            original_vendor_symbol_metadata,
+            proc_declaration_sites,
+            superseded_procs,
+            all_classes,
+            logical_procedure_declarations,
+            logical_class_declarations,
+            original_class_metadata,
+            original_class_configuration_metadata,
+            original_object_configuration_metadata,
+            superseded_classes,
+            class_body_spans,
+            all_variables,
+            all_defined_symbols,
+            diagnostics,
+            command_invocations,
+            package_requires,
+            package_provides,
+            package_ifneededs,
+            package_prefer_latest,
+            has_dynamic_providers,
+            source_targets,
+            path_constant_assignments,
+            command_aliases,
+            alias_offsets,
+            renamed_commands,
+            rename_offsets,
+            ensemble_subcommand_targets,
+            prefixless_ensembles,
+            namespace_imports,
+            namespace_forgets,
+            original_namespace_patterns,
+            destroyed_commands,
+            namespace_exports,
+            original_namespace_exports,
+            original_namespace_export_unknowns,
+            namespace_paths,
+            namespace_path_computed,
+            auto_path_entries,
+            qualified_var_refs,
+            original_variable_symbols,
+            original_variable_write_advice,
+            original_variable_symbol_conflicts,
+            original_variable_roots,
+            original_variable_alias_sites,
+            original_variable_name_unknowns,
+            original_variable_alias_obligations,
+            original_variable_alias_operands,
+            original_variable_alias_source_operands,
+            original_variable_alias_receipts,
+            namespace_refs,
+            namespace_name_unknowns,
+            dynamic_variable_names,
+            namespace_overrides,
+            stub_commands,
+            stub_expr_defs,
+            regex_patterns,
+            suppressed_lines,
+            unknown_proc_info,
+            instance_classes
+        ]; object_handle_facts; [
+            created_instance_commands,
+            instance_command_bindings,
+            ambiguous_instance_names,
+            object_methods,
+            object_member_state,
+            unresolved_command_sites,
+            scoped_command_regions,
+            original_scoped_bodies,
+            original_conditional_registry_metadata,
+            scoped_sibling_defs,
+            hierarchy_cache,
+            dialect,
+            body_lexer_config,
+            library_versions
+        ])
+    }
+}
+
+#[cfg(test)]
 impl AnalysisResult {
+    /// Bounded description of where two results differ, for comparison tests.
+    /// Whole-result `Debug` output can reach gigabytes (it renders retained IR
+    /// and source bindings), so each differing field is rendered through a
+    /// capped writer instead; equality itself is unchanged ([`PartialEq`]).
+    pub(crate) fn bounded_mismatch_summary(&self, other: &Self) -> String {
+        fn bounded(value: &dyn std::fmt::Debug) -> String {
+            struct Capped(String);
+            const LIMIT: usize = 1500;
+            impl std::fmt::Write for Capped {
+                fn write_str(&mut self, text: &str) -> std::fmt::Result {
+                    let room = LIMIT.saturating_sub(self.0.len());
+                    if text.len() > room {
+                        let mut cut = room;
+                        while !text.is_char_boundary(cut) {
+                            cut -= 1;
+                        }
+                        self.0.push_str(&text[..cut]);
+                        self.0.push_str("…");
+                        return Err(std::fmt::Error);
+                    }
+                    self.0.push_str(text);
+                    Ok(())
+                }
+            }
+            let mut out = Capped(String::new());
+            let _ = std::fmt::write(&mut out, format_args!("{value:?}"));
+            out.0
+        }
+        fn field(name: &str, left: &dyn std::fmt::Debug, right: &dyn std::fmt::Debug) -> String {
+            format!(
+                "  {name}:\n    left:  {}\n    right: {}",
+                bounded(left),
+                bounded(right)
+            )
+        }
+        let Self {
+            optimiser_source_origin,
+            analysis_context_unavailable,
+            command_realm,
+            original_command_world,
+            original_source_region,
+            lexical_declaration_advice,
+            resolved_input,
+            original_vendor_source_names,
+            original_vendor_variable_advice,
+            original_vendor_variable_bodies,
+            global_scope,
+            all_procs,
+            original_procedure_metadata,
+            original_vendor_procedure_metadata,
+            original_vendor_class_metadata,
+            original_symbol_metadata,
+            original_vendor_symbol_metadata,
+            proc_declaration_sites,
+            superseded_procs,
+            all_classes,
+            logical_procedure_declarations,
+            logical_class_declarations,
+            original_class_metadata,
+            original_class_configuration_metadata,
+            original_object_configuration_metadata,
+            superseded_classes,
+            class_body_spans,
+            all_variables,
+            all_defined_symbols,
+            diagnostics,
+            command_invocations,
+            package_requires,
+            package_provides,
+            package_ifneededs,
+            package_prefer_latest,
+            has_dynamic_providers,
+            source_targets,
+            path_constant_assignments,
+            command_aliases,
+            alias_offsets,
+            renamed_commands,
+            rename_offsets,
+            ensemble_subcommand_targets,
+            prefixless_ensembles,
+            namespace_imports,
+            namespace_forgets,
+            original_namespace_patterns,
+            destroyed_commands,
+            namespace_exports,
+            original_namespace_exports,
+            original_namespace_export_unknowns,
+            namespace_paths,
+            namespace_path_computed,
+            auto_path_entries,
+            qualified_var_refs,
+            original_variable_symbols,
+            original_variable_write_advice,
+            original_variable_symbol_conflicts,
+            original_variable_roots,
+            original_variable_alias_sites,
+            original_variable_name_unknowns,
+            original_variable_alias_obligations,
+            original_variable_alias_operands,
+            original_variable_alias_source_operands,
+            original_variable_alias_receipts,
+            namespace_refs,
+            namespace_name_unknowns,
+            dynamic_variable_names,
+            namespace_overrides,
+            stub_commands,
+            stub_expr_defs,
+            regex_patterns,
+            suppressed_lines,
+            unknown_proc_info,
+            instance_classes,
+            object_handle_facts,
+            created_instance_commands,
+            instance_command_bindings,
+            ambiguous_instance_names,
+            object_methods,
+            object_member_state,
+            unresolved_command_sites,
+            scoped_command_regions,
+            original_scoped_bodies,
+            original_conditional_registry_metadata,
+            scoped_sibling_defs,
+            hierarchy_cache,
+            dialect,
+            body_lexer_config,
+            library_versions,
+        } = self;
+        let mut differing = Vec::new();
+        macro_rules! compare {
+            ($($field:ident),* $(,)?) => {
+                $(if $field != &other.$field {
+                    differing.push(field(stringify!($field), $field, &other.$field));
+                })*
+            };
+        }
+        if !object_handle_facts.analysis_report_eq(&other.object_handle_facts) {
+            differing.push(field(
+                "object_handle_facts",
+                object_handle_facts,
+                &other.object_handle_facts,
+            ));
+        }
+        compare!(
+            optimiser_source_origin,
+            analysis_context_unavailable,
+            command_realm,
+            original_command_world,
+            original_source_region,
+            lexical_declaration_advice,
+            resolved_input,
+            original_vendor_source_names,
+            original_vendor_variable_advice,
+            original_vendor_variable_bodies,
+            global_scope,
+            all_procs,
+            original_procedure_metadata,
+            original_vendor_procedure_metadata,
+            original_vendor_class_metadata,
+            original_symbol_metadata,
+            original_vendor_symbol_metadata,
+            proc_declaration_sites,
+            superseded_procs,
+            all_classes,
+            logical_procedure_declarations,
+            logical_class_declarations,
+            original_class_metadata,
+            original_class_configuration_metadata,
+            original_object_configuration_metadata,
+            superseded_classes,
+            class_body_spans,
+            all_variables,
+            all_defined_symbols,
+            diagnostics,
+            command_invocations,
+            package_requires,
+            package_provides,
+            package_ifneededs,
+            package_prefer_latest,
+            has_dynamic_providers,
+            source_targets,
+            path_constant_assignments,
+            command_aliases,
+            alias_offsets,
+            renamed_commands,
+            rename_offsets,
+            ensemble_subcommand_targets,
+            prefixless_ensembles,
+            namespace_imports,
+            namespace_forgets,
+            original_namespace_patterns,
+            destroyed_commands,
+            namespace_exports,
+            original_namespace_exports,
+            original_namespace_export_unknowns,
+            namespace_paths,
+            namespace_path_computed,
+            auto_path_entries,
+            qualified_var_refs,
+            original_variable_symbols,
+            original_variable_write_advice,
+            original_variable_symbol_conflicts,
+            original_variable_roots,
+            original_variable_alias_sites,
+            original_variable_name_unknowns,
+            original_variable_alias_obligations,
+            original_variable_alias_operands,
+            original_variable_alias_source_operands,
+            original_variable_alias_receipts,
+            namespace_refs,
+            namespace_name_unknowns,
+            dynamic_variable_names,
+            namespace_overrides,
+            stub_commands,
+            stub_expr_defs,
+            regex_patterns,
+            suppressed_lines,
+            unknown_proc_info,
+            instance_classes,
+            created_instance_commands,
+            instance_command_bindings,
+            ambiguous_instance_names,
+            object_methods,
+            object_member_state,
+            unresolved_command_sites,
+            scoped_command_regions,
+            original_scoped_bodies,
+            original_conditional_registry_metadata,
+            scoped_sibling_defs,
+            hierarchy_cache,
+            dialect,
+            body_lexer_config,
+            library_versions,
+        );
+        differing.join("\n")
+    }
+}
+
+/// Assert two analysis results are equal, reporting only a bounded summary
+/// of the differing fields on failure.
+#[cfg(test)]
+#[track_caller]
+pub(crate) fn assert_analysis_results_eq(
+    left: &AnalysisResult,
+    right: &AnalysisResult,
+    context: &str,
+) {
+    if left != right {
+        panic!(
+            "analysis results differ ({context}); differing fields:\n{}",
+            left.bounded_mismatch_summary(right)
+        );
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ScalarAlphaFormalSelection {
+    Single,
+    Fixed,
+}
+
+impl AnalysisResult {
+    /// Source declaration cards from genuine original operands and selected
+    /// Registry `SymbolDef` roles. No publication, entered handler, cell or edit
+    /// capability is supplied by this immutable inventory.
+    pub fn original_symbol_declarations(
+        &self,
+    ) -> impl Iterator<Item = &crate::signature_scan::symbol_name::OriginalSourceSymbolDeclaration>
+    {
+        self.original_symbol_metadata.iter()
+    }
+
+    /// Original export/clear events in source traversal order. These are readonly
+    /// source naming advice, not export completion or live-import receipts.
+    pub fn original_namespace_exports(
+        &self,
+    ) -> impl Iterator<Item = &crate::signature_scan::original_name::SourceNamespaceExport> {
+        self.original_namespace_exports.iter()
+    }
+
+    /// May obligations for export operands without an original evaluated input.
+    /// These spans provide no role, namespace, runtime or editable value proof.
+    #[must_use]
+    pub fn original_namespace_export_unknowns(&self) -> &[Span] {
+        &self.original_namespace_export_unknowns
+    }
+
+    /// Every retained original import/forget pattern, in source traversal order.
+    /// This is source assistance without import completion or namespace lifetime.
+    pub fn original_namespace_patterns(
+        &self,
+    ) -> impl Iterator<Item = &crate::signature_scan::original_name::SourceNamespacePattern> {
+        self.original_namespace_patterns.iter()
+    }
+
+    /// The analyser independently selected lexical-only declaration advice
+    /// because no native name recipe was supplied. Byte-policy failures do not
+    /// enable this compatibility surface; default-constructed results abstain.
+    /// An independently retained hosted input remains outside this domain even
+    /// when no complete source name occurrence can be retained.
+    #[must_use]
+    pub fn allows_lexical_declaration_advice(&self) -> bool {
+        self.analysis_context_unavailable.is_none()
+            && self.lexical_declaration_advice
+            && !self.has_original_vendor_source_names()
+            && self
+                .resolved_input
+                .as_ref()
+                .is_some_and(super::ResolvedAnalysisInput::has_logical_source_name_context)
+    }
+
+    /// Positively retained Logical declaration advice for reporting consumers.
+    /// Missing input, Native recipes and hosted source cannot borrow this domain
+    /// from a copied flag or display profile. This grants no executed operation,
+    /// current method-table closure, successful effect or writable identity.
+    #[must_use]
+    pub fn allows_retained_logical_declaration_advice(&self) -> bool {
+        self.allows_lexical_declaration_advice()
+    }
+
+    /// Original hosted source producers remain present even when interpreted
+    /// name units are unsupported. Consumers must not use reporting maps in
+    /// place of these inputs or derive a C/Jim recipe from compatibility.
+    pub fn original_vendor_source_names(
+        &self,
+    ) -> impl Iterator<Item = &crate::signature_scan::vendor_name::VendorSourceNameOccurrence> {
+        self.original_vendor_source_names
+            .values()
+            .filter_map(Option::as_ref)
+    }
+
+    /// Whether this analysis owns hosted source names, including conflicting
+    /// producers whose selected input has been withdrawn.
+    #[must_use]
+    pub fn has_original_vendor_source_names(&self) -> bool {
+        !self.original_vendor_source_names.is_empty()
+    }
+
+    /// Exact original word at this consumer's source point. Registry name
+    /// roles and purpose-specific materialisation are independent queries.
+    #[must_use]
+    pub fn original_vendor_source_name_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        span: tcl_lexer::Span,
+    ) -> Option<&crate::signature_scan::vendor_name::VendorSourceNameOccurrence> {
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let occurrence = self.original_vendor_source_names.get(&span)?.as_ref()?;
+        occurrence
+            .name_input()
+            .matches_source(image, config)
+            .then_some(occurrence)
+    }
+
+    /// Registry-selected hosted variable and formal source advice. These rows
+    /// supply neither selected cells nor entered frames or runtime name units.
+    pub fn original_vendor_variable_advice(
+        &self,
+    ) -> impl Iterator<Item = &crate::signature_scan::vendor_variable::VendorSourceVariableAdvice>
+    {
+        self.original_vendor_variable_advice.iter()
+    }
+
+    /// Authentic hosted source body at a cursor, independently of runtime
+    /// activation and execution-domain state. Conflicting body owners abstain.
+    #[must_use]
+    pub fn original_vendor_variable_body_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        offset: u32,
+    ) -> Option<&crate::signature_scan::vendor_variable::VendorSourceVariableBody> {
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let contains =
+            |body: &&crate::signature_scan::vendor_variable::VendorSourceVariableBody| {
+                body.matches_source(image, config) && body.contains_cursor(offset)
+            };
+        let length = self
+            .original_vendor_variable_bodies
+            .iter()
+            .filter(contains)
+            .map(|body| body.span().end() - body.span().start())
+            .min()?;
+        let mut bodies = self
+            .original_vendor_variable_bodies
+            .iter()
+            .filter(contains)
+            .filter(|body| body.span().end() - body.span().start() == length);
+        let first = bodies.next()?;
+        bodies.all(|body| body == first).then_some(first)
+    }
+
+    /// Hosted procedure declaration advice from authentic source words and roles.
+    pub fn original_vendor_procedure_declarations(
+        &self,
+    ) -> impl Iterator<
+        Item = &crate::signature_scan::vendor_name::VendorSourceDeclarationMetadata<ProcDef>,
+    > {
+        self.original_vendor_procedure_metadata.iter()
+    }
+
+    /// Hosted class declaration advice, separate from runtime class allocations.
+    pub fn original_vendor_class_declarations(
+        &self,
+    ) -> impl Iterator<
+        Item = &crate::signature_scan::vendor_name::VendorSourceDeclarationMetadata<ClassDef>,
+    > {
+        self.original_vendor_class_metadata.iter()
+    }
+
+    /// Hosted Registry symbol declarations, including owned unsupported names.
+    pub fn original_vendor_symbol_declarations(
+        &self,
+    ) -> impl Iterator<
+        Item = &crate::signature_scan::vendor_name::VendorSourceDeclarationMetadata<DefinedSymbol>,
+    > {
+        self.original_vendor_symbol_metadata.iter()
+    }
+
+    /// Every independently retained original procedure declaration.
+    pub fn original_procedure_declarations(
+        &self,
+    ) -> impl Iterator<Item = &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>>
+    {
+        self.original_procedure_metadata.iter()
+    }
+
+    /// Original byte formal topology from this exact retained procedure
+    /// declaration and unanimous Registry-selected declaration recipe.
+    /// Reporting parameter names supply no fallback or activation authority.
+    #[must_use]
+    pub fn original_procedure_formals(
+        &self,
+        declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::signature_scan::formal_parameters::SignatureSourceFormalParameters> {
+        if !self.original_procedure_metadata.contains(declaration)
+            || !self.matches_original_source_image(
+                declaration.name_input().source_image(),
+                declaration.name_input().lexer_config(),
+            )
+        {
+            return None;
+        }
+        self.command_realm
+            .as_ref()?
+            .source_bindings_ref()
+            .original_procedure_formals_at(declaration.declaration_site(), registry)
+    }
+
+    /// Readonly formal names at this exact original declaration. Native topology
+    /// and the independently selected Logical source recipe remain separate.
+    #[must_use]
+    pub fn original_procedure_formal_name_sources(
+        &self,
+        declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<Vec<crate::signature_scan::formal_parameters::OriginalSourceFormalName>> {
+        if !self.original_procedure_metadata.contains(declaration)
+            || !self.matches_original_source_image(
+                declaration.name_input().source_image(),
+                declaration.name_input().lexer_config(),
+            )
+        {
+            return None;
+        }
+        let input = self.resolved_input.as_ref()?;
+        if input.has_logical_source_name_context() {
+            self.command_realm
+                .as_ref()?
+                .source_bindings_ref()
+                .original_logical_formal_name_sources_at(
+                    declaration.declaration_site(),
+                    registry,
+                    input,
+                )
+        } else {
+            self.original_procedure_formals(declaration, registry)
+                .map(|formals| formals.name_sources())
+        }
+    }
+
+    /// Semantic alpha equivalence of a closed source containing one procedure
+    /// whose sole required scalar formal is returned as the same whole object.
+    /// Actual frame/read/handler effects are proved separately from source
+    /// rename coverage. The receipt supplies neither an edit nor a reached call.
+    #[must_use]
+    pub fn original_scalar_body_alpha_rename(
+        &self,
+        declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
+        new_native_tail: &[u8],
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::command_binding::OriginalScalarBodyAlphaRename> {
+        self.original_scalar_alpha_for_formals(
+            declaration,
+            new_native_tail,
+            registry,
+            ScalarAlphaFormalSelection::Single,
+        )
+    }
+
+    /// Fixed scalar formal equivalence in a closed original return body.
+    /// Every actual formal and original read keeps its separate edit coverage.
+    #[must_use]
+    pub fn original_fixed_scalar_body_alpha_rename(
+        &self,
+        declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
+        new_native_tail: &[u8],
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::command_binding::OriginalScalarBodyAlphaRename> {
+        self.original_scalar_alpha_for_formals(
+            declaration,
+            new_native_tail,
+            registry,
+            ScalarAlphaFormalSelection::Fixed,
+        )
+    }
+
+    fn original_scalar_alpha_for_formals(
+        &self,
+        declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
+        new_native_tail: &[u8],
+        registry: &tcl_registry::CommandRegistry,
+        selection: ScalarAlphaFormalSelection,
+    ) -> Option<crate::command_binding::OriginalScalarBodyAlphaRename> {
+        use crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver;
+        if !self.original_procedure_metadata.contains(declaration)
+            || !self.matches_original_source_image(
+                declaration.name_input().source_image(),
+                declaration.name_input().lexer_config(),
+            )
+        {
+            return None;
+        }
+        let bindings = self.command_realm.as_ref()?.source_bindings_ref();
+        let mut agreed = None;
+        for occurrence in &self.original_variable_symbols {
+            if occurrence.receiver() != OriginalVariableSymbolReceiver::FormalDeclaration
+                || !occurrence.is_declaration()
+                || !self.original_variable_rename_is_complete(occurrence.symbol())
+            {
+                continue;
+            }
+            let receipt = match selection {
+                ScalarAlphaFormalSelection::Single => bindings.original_scalar_body_alpha_rename(
+                    declaration,
+                    occurrence.symbol(),
+                    new_native_tail,
+                    registry,
+                ),
+                ScalarAlphaFormalSelection::Fixed => bindings
+                    .original_fixed_scalar_body_alpha_rename(
+                        declaration,
+                        occurrence.symbol(),
+                        new_native_tail,
+                        registry,
+                    ),
+            };
+            let Some(receipt) = receipt else {
+                continue;
+            };
+            if agreed.as_ref().is_some_and(|previous| previous != &receipt) {
+                return None;
+            }
+            agreed = Some(receipt);
+        }
+        agreed
+    }
+
+    /// Closed literal-local store/return equivalence, independently of edits.
+    #[must_use]
+    pub fn original_local_store_alpha_rename(
+        &self,
+        declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
+        proposed: &[u8],
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::command_binding::OriginalLocalStoreAlphaRename> {
+        if !self.original_procedure_metadata.contains(declaration)
+            || !self.matches_original_source_image(
+                declaration.name_input().source_image(),
+                declaration.name_input().lexer_config(),
+            )
+        {
+            return None;
+        }
+        let bindings = self.command_realm.as_ref()?.source_bindings_ref();
+        let mut agreed = None;
+        for occurrence in &self.original_variable_symbols {
+            if !self.original_variable_rename_is_complete(occurrence.symbol()) {
+                continue;
+            }
+            let symbol = occurrence.symbol();
+            let crate::signature_scan::variable_symbol::SignatureSourceVariableSlot::Local {
+                frame,
+                simple,
+            } = symbol.slot()
+            else {
+                continue;
+            };
+            if self.original_variable_symbols.iter().any(|other| {
+                matches!(other.symbol().slot(), crate::signature_scan::variable_symbol::SignatureSourceVariableSlot::Local { frame: other_frame, simple: other_name }
+                    if other_frame == frame && other_name != simple && other_name.as_bytes() == proposed)
+            }) { continue; }
+            let Some(receipt) =
+                bindings.original_local_store_alpha_rename(declaration, symbol, proposed, registry)
+            else {
+                continue;
+            };
+            if agreed.as_ref().is_some_and(|previous| previous != &receipt) {
+                return None;
+            }
+            agreed = Some(receipt);
+        }
+        agreed
+    }
+
+    /// Every independently retained original class declaration.
+    pub fn original_class_declarations(
+        &self,
+    ) -> impl Iterator<Item = &crate::signature_scan::original_name::SourceDeclarationMetadata<ClassDef>>
+    {
+        self.original_class_metadata.iter()
+    }
+
+    /// Original class configurations retain their own target lookup obligations.
+    /// These deltas do not inherit a class identity from reporting maps.
+    pub fn original_class_configurations(
+        &self,
+    ) -> impl Iterator<Item = &OriginalSourceClassConfiguration> {
+        self.original_class_configuration_metadata.iter()
+    }
+
+    /// Own-object source deltas retain their independently selected instance.
+    /// Consumers must prove a current allocation join; walk order is not a clock.
+    pub fn original_object_configurations(
+        &self,
+    ) -> impl Iterator<Item = &OriginalSourceObjectConfiguration> {
+        self.original_object_configuration_metadata.iter()
+    }
+
+    /// Byte-slot declaration candidates in local-before-root lookup order.
+    /// Every declaration at the first matching slot is retained; this metadata
+    /// query does not select a temporal installation or reached implementation.
+    #[must_use]
+    pub fn procedures_for_original_name<'a>(
+        &'a self,
+        input: &crate::signature_scan::scope::SignatureSourceNameInput,
+        namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+    ) -> Vec<&'a ProcDef> {
+        let Some(lookup) = crate::signature_scan::scope::SignatureSourceLookup::from_input(
+            namespace.clone(),
+            input,
+        ) else {
+            return Vec::new();
+        };
+        lookup.first_matching_publications(
+            self.original_procedure_metadata
+                .iter()
+                .map(|record| (record.name(), record.metadata())),
+        )
+    }
+
+    /// Actual retained naming geometry of the innermost source scope. Missing
+    /// geometry cannot be reconstructed from its UI namespace label.
+    #[must_use]
+    pub fn original_namespace_scope_at(
+        &self,
+        offset: u32,
+    ) -> Option<&crate::signature_scan::scope::SignatureNamespaceScope> {
+        super::scope::original_namespace_scope_at(&self.global_scope, offset)
+    }
+
+    /// Rejoin the actual source-build request retained by the diagnostic producer.
+    /// This does not grant worker, final group, edit or runtime authority.
+    #[must_use]
+    pub fn matches_optimiser_source_origin(
+        &self,
+        origin: &crate::compilation_unit::OriginalOptimiserSourceOrigin,
+    ) -> bool {
+        self.optimiser_source_origin.as_ref() == Some(origin)
+            && origin.is_current_analysis_context()
+    }
+
+    /// Reborrow the actual retained source-build issuer after the complete
+    /// current source/input/Registry/evaluator request joins. Identity alone
+    /// supplies no token, invocation, body or edit permission.
+    pub(crate) fn original_optimiser_request_owner(
+        &self,
+        source: &str,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&crate::compilation_unit::OriginalOptimiserSourceOrigin> {
+        if self.analysis_context_unavailable.is_some() {
+            return None;
+        }
+        crate::source_graph::current_analysis(source, self)?;
+        let input = self.resolved_input.as_ref()?;
+        let origin = self.optimiser_source_origin.as_ref()?;
+        origin.source_analysis_entry_for_current_analysis(source, registry, input, None)?;
+        Some(origin)
+    }
+
+    /// Rebuild the actual retained source request once for an uncached report.
+    /// The source/config/Registry and independently requested external evidence
+    /// must still match. This supplies no Native entry or edit permission;
+    /// optimiser findings need their own complete worker and final group.
+    #[must_use]
+    pub fn original_optimiser_source_unit(
+        &self,
+        source: &str,
+        registry: &tcl_registry::CommandRegistry,
+        external: Option<&crate::unit_scope::CallSiteEvidence>,
+    ) -> Option<crate::compilation_unit::CompilationUnit> {
+        if self.analysis_context_unavailable.is_some() {
+            return None;
+        }
+        crate::source_graph::current_analysis(source, self)?;
+        let input = self.resolved_input.as_ref()?;
+        self.optimiser_source_origin
+            .as_ref()?
+            .rebuild_for_current_analysis(source, registry, input, external)
+    }
+
+    /// Reborrow the actual source entry without rebuilding a unit. Missing or
+    /// stale ownership refuses; no fresh entry is substituted for this request.
+    #[must_use]
+    pub fn original_source_analysis_entry(
+        &self,
+        source: &str,
+        registry: &tcl_registry::CommandRegistry,
+        external: Option<&crate::unit_scope::CallSiteEvidence>,
+    ) -> Option<std::sync::Arc<crate::command_binding::SourceAnalysisEntry>> {
+        if self.analysis_context_unavailable.is_some() {
+            return None;
+        }
+        crate::source_graph::current_analysis(source, self)?;
+        let input = self.resolved_input.as_ref()?;
+        let realm = self.retained_command_realm()?;
+        realm.matches_resolved_analysis_input(input).then_some(())?;
+        let entry = self
+            .optimiser_source_origin
+            .as_ref()?
+            .source_analysis_entry_for_current_analysis(source, registry, input, external)?;
+        if entry
+            .source_point_entry
+            .as_ref()
+            .is_some_and(|point| !point.matches_child_analysis(self))
+        {
+            return None;
+        }
+        Some(entry)
+    }
+
+    /// Exact temporal source world used by this analysis. Missing evidence
+    /// remains unknown; rebuilding a realm from the dialect label cannot
+    /// Exact retained partial-region owner. Whole-document query APIs must not
+    /// treat this as complete coverage; hosts retain publication leases separately.
+    #[must_use]
+    pub fn original_source_region(
+        &self,
+    ) -> Option<&crate::command_binding::OriginalSourceConditionalRegion> {
+        let region = self.original_source_region.as_ref()?;
+        region.matches_region_analysis(self).then_some(region)
+    }
+
+    /// replace its native entry, provider or source-instance obligations.
+    #[must_use]
+    pub fn retained_command_realm(&self) -> Option<&crate::realm::CommandBindingRealm> {
+        self.command_realm.as_deref()
+    }
+
+    /// Borrow the same immutable interpretation owner for source-derived
+    /// batch currency. Arc identity grants no invocation or execution facts.
+    pub(crate) fn retained_command_realm_arc(
+        &self,
+    ) -> Option<&std::sync::Arc<crate::realm::CommandBindingRealm>> {
+        self.command_realm.as_ref()
+    }
+
+    /// Independently completed Normal source publication world. This is final
+    /// source liveness advice, separate from positioned invocation lookup and
+    /// physical interpreter existence. Unknown or abrupt source stays absent.
+    #[must_use]
+    pub const fn original_completed_command_world(
+        &self,
+    ) -> Option<&crate::command_binding::OriginalCompletedCommandWorld> {
+        self.original_command_world.as_ref()
+    }
+
+    /// Actual compilation profile retained at analysis ingress. Assistance
+    /// records without retained inputs leave this unknown.
+    #[must_use]
+    pub fn resolved_profile(&self) -> Option<&'static tcl_dialect::DialectProfile> {
+        self.resolved_input.as_ref().map(|input| input.unit_profile)
+    }
+
+    /// Select the smallest original naming occurrence at a byte cursor. Equal
+    /// source geometry must unanimously identify the same typed byte symbol.
+    /// Display strings and current runtime cells are not consulted.
+    #[must_use]
+    pub fn original_variable_symbol_at_offset(
+        &self,
+        offset: u32,
+    ) -> Option<&crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
+        let contains = |span: Span| span.start() <= offset && offset < span.end();
+        if self
+            .original_variable_symbol_conflicts
+            .iter()
+            .copied()
+            .any(contains)
+        {
+            return None;
+        }
+        let length = self
+            .original_variable_symbols
+            .iter()
+            .filter(|site| contains(site.span()))
+            .map(|site| site.span().end() - site.span().start())
+            .min()?;
+        let mut sites = self.original_variable_symbols.iter().filter(|site| {
+            contains(site.span()) && site.span().end() - site.span().start() == length
+        });
+        let first = sites.next()?;
+        sites
+            .all(|site| site.symbol() == first.symbol())
+            .then_some(first)
+    }
+
+    /// Whether every selected alias declaration has its original byte/frame
+    /// receipt. Unknown computed variable names remain a rename barrier. This
+    /// is source coverage only, never executed alias or current-cell authority.
+    /// A document need not contain the symbol; selection and edit existence
+    /// remain independent caller obligations.
+    #[must_use]
+    pub fn original_variable_rename_is_complete(
+        &self,
+        symbol: &crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+    ) -> bool {
+        if self.original_variable_symbols.iter().any(|occurrence| {
+            occurrence.symbol() == symbol && occurrence.has_source_applicability_obligation()
+        }) {
+            return false;
+        }
+        if self.retained_command_realm().is_none_or(|realm| {
+            if let Some(input) = self
+                .resolved_input
+                .as_ref()
+                .filter(|input| input.has_logical_source_name_context())
+            {
+                realm.original_logical_variable_formal_name_is_unrepresented(input, symbol)
+            } else {
+                realm
+                    .source_bindings_ref()
+                    .original_variable_formal_name_is_unrepresented(symbol)
+            }
+        }) {
+            return false;
+        }
+        self.original_variable_alias_coverage()
+    }
+
+    /// Whether the selected recorded variable-alias declarations have complete
+    /// source-name coverage in this actual current image/input/configuration.
+    /// This is not a runtime alias census, successful link, binding continuity,
+    /// element/lifetime, physical cell or editable-reference-set certificate.
+    #[must_use]
+    pub fn original_variable_alias_source_is_complete(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        self.matches_original_source_image(image, config) && self.original_variable_alias_coverage()
+    }
+
+    fn original_variable_alias_coverage(&self) -> bool {
+        self.dynamic_variable_names.is_empty()
+            && self.original_variable_name_unknowns.is_empty()
+            && self
+                .original_variable_alias_obligations
+                .iter()
+                .all(|&(site, count)| {
+                    self.original_variable_alias_receipts
+                        .iter()
+                        .filter(|receipt| receipt.invocation_offset() == site)
+                        .count()
+                        == count
+                })
+            && self.original_variable_symbol_conflicts.is_empty()
+    }
+
+    /// Original naming advice belongs to the exact complete consumer image,
+    /// channel and scanner configuration. Copied producer images may differ;
+    /// they do not replace this independently retained consumer correspondence.
+    #[must_use]
+    pub fn original_variable_symbol_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        offset: u32,
+    ) -> Option<&crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let occurrence = self.original_variable_symbol_at_offset(offset)?;
+        occurrence
+            .matches_logical_source(image, self.resolved_input.as_ref()?)
+            .then_some(occurrence)
+    }
+
+    /// Authentic lexical substitution at this cursor, even when its selected
+    /// variable symbol is unknown. Membership, complete source and grammar
+    /// agree; no namespace-role operand or computed value becomes a root.
+    #[must_use]
+    pub fn original_variable_root_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        offset: u32,
+    ) -> Option<&crate::signature_scan::variable_name::SignatureSourceVariableRoot> {
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let contains =
+            |root: &&crate::signature_scan::variable_name::SignatureSourceVariableRoot| {
+                let span = root.part_span();
+                root.source_image() == image
+                    && root.lexer_config() == config
+                    && span.start() <= offset
+                    && offset < span.end()
+            };
+        let length = self
+            .original_variable_roots
+            .iter()
+            .filter(contains)
+            .map(|root| root.part_span().end() - root.part_span().start())
+            .min()?;
+        let mut roots = self
+            .original_variable_roots
+            .iter()
+            .filter(contains)
+            .filter(|root| root.part_span().end() - root.part_span().start() == length);
+        let first = roots.next()?;
+        roots.all(|root| root == first).then_some(first)
+    }
+
+    /// Source-only local alias candidates retained by their original
+    /// declarations, even when the body has no complete read of that alias.
+    /// The whole consumer image/configuration must still match. Target cells,
+    /// entered links and editable reference coverage remain independent.
+    #[must_use]
+    pub fn original_variable_alias_advice_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<Vec<crate::signature_scan::variable_symbol::OriginalVariableAliasAdvice<'_>>> {
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        Some(self.original_variable_alias_receipts.iter()
+            .filter(|receipt| receipt.frame().lexer_config() == config)
+            .map(crate::signature_scan::variable_symbol::OriginalVariableAliasAdvice::from_receipt)
+            .collect())
+    }
+
+    /// Original local naming frame at this cursor, including whitespace inside
+    /// an authenticated body. This is lexical visibility only, without an
+    /// entered activation, current contents or native frame capability.
+    #[must_use]
+    pub fn original_variable_frame_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        offset: u32,
+    ) -> Option<crate::command_binding::SourceOriginalVariableFrame> {
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let input = self.resolved_input.as_ref()?;
+        if input.has_logical_source_name_context() {
+            let mut pending = vec![&self.global_scope];
+            let mut nearest = Vec::new();
+            let mut length = u32::MAX;
+            while let Some(scope) = pending.pop() {
+                pending.extend(&scope.children);
+                let Some(span) = scope
+                    .body_span
+                    .filter(|span| span.start() <= offset && offset <= span.end())
+                else {
+                    continue;
+                };
+                let size = span.end() - span.start();
+                if size < length {
+                    nearest.clear();
+                    length = size;
+                }
+                if size == length {
+                    nearest.push(scope);
+                }
+            }
+            if nearest
+                .iter()
+                .any(|scope| scope.requires_original_lambda_source_context)
+            {
+                let first = *nearest.first()?;
+                let receipt = first.original_logical_lambda_namespace.as_ref()?;
+                if nearest.iter().any(|scope| {
+                    !scope.requires_original_lambda_source_context
+                        || scope.body_span != first.body_span
+                        || scope.original_logical_lambda_namespace.as_ref() != Some(receipt)
+                }) {
+                    return None;
+                }
+                let frame = crate::command_binding::SourceOriginalVariableFrame::from_logical_lambda_source(
+                    std::sync::Arc::clone(receipt.logical_source_owner()?), input,
+                )?;
+                let span = first.body_span?;
+                if span.start().checked_add(1) != Some(frame.source().base())
+                    || span.end()
+                        != frame
+                            .source()
+                            .base()
+                            .checked_add(u32::try_from(frame.source().text.bytes().len()).ok()?)?
+                    || image.bytes().get(span.start() as usize) != Some(&b'{')
+                {
+                    return None;
+                }
+                let selected = self
+                    .retained_command_realm()?
+                    .original_logical_variable_frame_at_offset(input, image, offset)?;
+                return (selected == frame).then_some(selected);
+            }
+            return self
+                .retained_command_realm()?
+                .original_logical_variable_frame_at_offset(input, image, offset);
+        }
+        self.retained_command_realm()?
+            .source_bindings_ref()
+            .original_variable_frame_at_offset(offset, config)
+    }
+
+    /// Complete original analysis/source correspondence, including input
+    /// channel and every lexer override. This supplies no current value,
+    /// completed execution, namespace existence or native capability.
+    #[must_use]
+    pub fn matches_original_source_image(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        if self.analysis_context_unavailable.is_some() || self.body_lexer_config != Some(config) {
+            return false;
+        }
+        let Some(input) = self.resolved_input.as_ref() else {
+            return false;
+        };
+        self.retained_command_realm().is_some_and(|realm| {
+            realm.matches_resolved_analysis_input(input)
+                && input.lexer_config() == config
+                && realm
+                    .source_bindings_ref()
+                    .matches_original_source_image(image, config)
+        })
+    }
+
+    /// Checked original expression function at this source position. Fixed
+    /// native tables and command-table navigation retain separate purposes;
+    /// this supplies no command-head word, evaluation or compiler admission.
+    #[must_use]
+    pub fn original_math_function_at_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        offset: u32,
+    ) -> Option<crate::command_binding::OriginalMathFunctionOccurrence> {
+        let registry = self.resolved_registry()?;
+        let end = offset.checked_add(1)?;
+        if usize::try_from(end).ok()? > image.bytes().len() {
+            return None;
+        }
+        let matches = self.original_math_functions_in_source(
+            image,
+            config,
+            tcl_lexer::Span::new(offset, end),
+        )?;
+        let mut selected = matches.into_iter().filter(|function| {
+            let span = function.span();
+            offset >= span.start()
+                && offset < span.end()
+                && function.matches_source(image, config, registry)
+        });
+        let first = selected.next()?;
+        selected.all(|other| other == first).then_some(first)
+    }
+
+    /// Readonly checked function occurrences in an original source region.
+    /// The complete image, channel, lexer configuration and retained Registry
+    /// must agree. Missing ownership returns `None`, independently of an empty
+    /// occurrence list; no body entry or runtime function roster is issued.
+    #[must_use]
+    pub fn original_math_functions_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        region: tcl_lexer::Span,
+    ) -> Option<Vec<crate::command_binding::OriginalMathFunctionOccurrence>> {
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        if region.start() > region.end() || usize::try_from(region.end()).ok()? > image.len() {
+            return None;
+        }
+        let registry = self.resolved_registry()?;
+        let rows = self
+            .retained_command_realm()?
+            .source_bindings_ref()
+            .original_math_functions_in_source(registry, image, config, region);
+        rows.iter()
+            .all(|row| row.matches_source(image, config, registry))
+            .then_some(rows)
+    }
+
+    /// Exact editing command store retained with its availability generation.
+    /// It supplies metadata, independently of reached command identities.
+    #[must_use]
+    pub fn resolved_registry(&self) -> Option<&tcl_registry::CommandRegistry> {
+        self.resolved_input
+            .as_ref()
+            .map(|input| input.context.commands().as_ref())
+    }
+
+    /// Publish a class assistance record while retaining original declarations
+    /// for navigation. Updating members of the same declaration does not mint
+    /// a second declaration or a positioned execution fact.
+    pub(crate) fn retain_class_declaration(&mut self, qualified: String, mut class: ClassDef) {
+        if let Some(previous) = self.all_classes.get(&qualified) {
+            class.source_name_ambiguous.observe_if(previous.source_name_ambiguous.is_observed()
+                || matches!((&class.source_name, &previous.source_name), (Some(left), Some(right)) if left.slot() != right.slot() || left.policy() != right.policy()));
+        }
+        if let Some(previous) = self.all_classes.insert(qualified.clone(), class)
+            && self.all_classes[&qualified].name_span != previous.name_span
+        {
+            self.superseded_classes
+                .entry(qualified)
+                .or_default()
+                .push(previous);
+        }
+    }
+
     /// Does this document configure the ensemble resolving to `ensemble`
     /// with `namespace ensemble … -prefixes 0`?
     ///
@@ -2526,7 +4165,9 @@ impl AnalysisResult {
         self.prefixless_ensembles.contains(ensemble)
             || self
                 .prefixless_ensembles
-                .contains(&format!("::{}", ensemble.trim_start_matches(':')))
+                .contains(&crate::naming::root_unrooted_key(
+                    crate::naming::unroot_rooted_key(ensemble).unwrap_or(ensemble),
+                ))
     }
 
     /// Resolve `sub` against the subcommands recorded for the ensemble
@@ -2601,7 +4242,8 @@ impl AnalysisResult {
     /// (the stricter 9.0 semantics).
     #[must_use]
     pub fn ns_var_global_fallback(&self) -> bool {
-        tcl_dialect::DialectProfile::find(&self.dialect)
+        self.resolved_profile()
+            .or_else(|| tcl_dialect::DialectProfile::find(&self.dialect))
             .is_some_and(tcl_dialect::DialectProfile::namespace_var_global_fallback)
     }
 
@@ -2642,6 +4284,153 @@ impl AnalysisResult {
             .chain(self.all_procs.get(qualified))
     }
 
+    /// Match a retained implementation allocation to its original authored
+    /// declaration. This is navigation only; no lexical-order or final-name
+    /// reconstruction substitutes for the selected allocation. A materialised
+    /// or loaded script has no editable declaration in this document.
+    #[must_use]
+    pub fn proc_for_definition(
+        &self,
+        definition: &crate::command_binding::SourceCommandDefinition,
+        source: &str,
+    ) -> Option<&ProcDef> {
+        if definition.kind() != crate::command_binding::SourceCommandDefinitionKind::Procedure {
+            return None;
+        }
+        let allocation = definition.allocation();
+        if matches!(
+            allocation.site.source.kind(),
+            crate::command_binding::SourceOriginKind::InheritedPoint { .. }
+        ) {
+            if allocation.site.source.source_image().bytes() != source.as_bytes()
+                || !self.matches_inherited_declaration_origin(&allocation.site.source)
+            {
+                return None;
+            }
+            let mut records = self
+                .original_procedure_metadata
+                .iter()
+                .filter(|record| record.declaration_site() == &allocation.site);
+            let first = records.next()?;
+            return records
+                .all(|record| record == first)
+                .then_some(first.metadata());
+        }
+        if !matches!(allocation.site.source.kind(), crate::command_binding::SourceOriginKind::Authored(authored) if authored.bytes() == source.as_bytes())
+        {
+            return None;
+        }
+        let mut original = self
+            .original_procedure_metadata
+            .iter()
+            .filter(|record| record.declaration_site() == &allocation.site);
+        if let Some(first) = original.next() {
+            return original
+                .all(|record| record == first)
+                .then_some(first.metadata());
+        }
+        let tokens = self.definition_tokens(definition, source)?;
+        self.proc_declarations(&definition.allocation().command)
+            .find(|declaration| tokens.contains(&declaration.name_span))
+    }
+
+    /// Navigate to the original authored class declaration matching a retained
+    /// class receipt. Instance and procedure allocations cannot borrow a class
+    /// record; overwritten or foreign records cannot supply its source span.
+    #[must_use]
+    pub fn class_for_definition(
+        &self,
+        definition: &crate::command_binding::SourceCommandDefinition,
+        source: &str,
+    ) -> Option<&ClassDef> {
+        if definition.kind() != crate::command_binding::SourceCommandDefinitionKind::Class {
+            return None;
+        }
+        let allocation = definition.allocation();
+        if matches!(
+            allocation.site.source.kind(),
+            crate::command_binding::SourceOriginKind::InheritedPoint { .. }
+        ) {
+            if allocation.site.source.source_image().bytes() != source.as_bytes()
+                || !self.matches_inherited_declaration_origin(&allocation.site.source)
+            {
+                return None;
+            }
+            let mut records = self
+                .original_class_metadata
+                .iter()
+                .filter(|record| record.declaration_site() == &allocation.site);
+            let first = records.next()?;
+            return records
+                .all(|record| record == first)
+                .then_some(first.metadata());
+        }
+        if !matches!(allocation.site.source.kind(), crate::command_binding::SourceOriginKind::Authored(authored) if authored.bytes() == source.as_bytes())
+        {
+            return None;
+        }
+        let mut original = self
+            .original_class_metadata
+            .iter()
+            .filter(|record| record.declaration_site() == &allocation.site);
+        if let Some(first) = original.next() {
+            return original
+                .all(|record| record == first)
+                .then_some(first.metadata());
+        }
+        let tokens = self.definition_tokens(definition, source)?;
+        let qualified = &definition.allocation().command;
+        self.superseded_classes
+            .get(qualified)
+            .into_iter()
+            .flatten()
+            .chain(self.all_classes.get(qualified))
+            .find(|declaration| tokens.contains(&declaration.name_span))
+    }
+
+    fn matches_inherited_declaration_origin(
+        &self,
+        origin: &crate::command_binding::SourceOriginId,
+    ) -> bool {
+        let Some(input) = self.resolved_input.as_ref() else {
+            return false;
+        };
+        self.matches_original_source_image(origin.source_image(), input.lexer_config())
+            && self.retained_command_realm().is_some_and(|realm| {
+                realm
+                    .source_bindings_ref()
+                    .matches_inherited_source_origin(origin)
+            })
+    }
+
+    fn definition_tokens(
+        &self,
+        definition: &crate::command_binding::SourceCommandDefinition,
+        source: &str,
+    ) -> Option<Vec<Span>> {
+        let allocation = definition.allocation();
+        if !matches!(allocation.site.source.kind(),
+            crate::command_binding::SourceOriginKind::Authored(authored) if authored.bytes() == source.as_bytes())
+        {
+            return None;
+        }
+        let config = self.body_lexer_config?;
+        let start = usize::try_from(allocation.site.offset).ok()?;
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            source.get(start..)?,
+            allocation.site.offset,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+        );
+        Some(
+            commands
+                .first()?
+                .argv
+                .iter()
+                .map(|word| word.span)
+                .collect(),
+        )
+    }
+
     /// The definition of `qualified` a call at `call_off` actually reaches.
     ///
     /// Order-gated the same way every other command-table fact is
@@ -2674,6 +4463,27 @@ impl AnalysisResult {
     /// redefinition fails `wrong # args: should be "p a"`.
     #[must_use]
     pub fn proc_def_in_effect_at(&self, qualified: &str, call_off: u32) -> Option<&ProcDef> {
+        let mut retained = self.command_invocations.iter().filter_map(|invocation| {
+            (invocation.range.start() == call_off
+                && (invocation.resolved_qualified_name.as_deref() == Some(qualified)
+                    || invocation
+                        .resolved_definition
+                        .as_ref()
+                        .is_some_and(|definition| definition.allocation().command == qualified)))
+            .then_some(invocation.resolved_definition.as_ref())
+            .flatten()
+        });
+        if let Some(definition) = retained.next() {
+            if !retained.all(|alternative| alternative == definition) {
+                return None;
+            }
+            let crate::command_binding::SourceOriginKind::Authored(source) =
+                definition.allocation().site.source.kind()
+            else {
+                return None;
+            };
+            return self.proc_for_definition(definition, source.try_text().ok()?);
+        }
         let winner = self.all_procs.get(qualified)?;
         let Some(earlier) = self.superseded_procs.get(qualified) else {
             return Some(winner);
@@ -2695,6 +4505,20 @@ impl AnalysisResult {
             .rfind(|def| in_this_body(def) && def.name_span.start() < call_off)
             .or_else(|| declarations().rfind(|def| !in_this_body(def)))
             .or(Some(winner))
+    }
+
+    /// Innermost declaration body extent retained by genuine original source
+    /// metadata. It supplies source ordering geometry without entered execution.
+    #[must_use]
+    pub fn original_definition_body_span(&self, off: u32) -> Option<Span> {
+        self.original_procedure_declarations()
+            .map(|record| record.metadata().body_span)
+            .chain(
+                self.original_class_declarations()
+                    .map(|record| record.metadata().body_span),
+            )
+            .filter(|span| span.start() <= off && off < span.end())
+            .min_by_key(|span| span.end() - span.start())
     }
 
     /// The body span of the *innermost* recorded proc or class definition
@@ -2742,6 +4566,8 @@ impl AnalysisResult {
 /// `package provide NAME ?VERSION?` record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageProvide {
+    /// Authentic original package operand and selected native package key.
+    pub original_name: Option<crate::signature_scan::original_name::SourcePackageName>,
     /// Provided package name.
     pub name: String,
     /// Version string when present.
@@ -2775,6 +4601,8 @@ pub struct PackageProvide {
 /// order needs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageIfneeded {
+    /// Authentic original package operand and selected native package key.
+    pub original_name: Option<crate::signature_scan::original_name::SourcePackageName>,
     /// Package the load script is registered for.
     pub name: String,
     /// Version the script is registered for.
@@ -2808,6 +4636,12 @@ pub struct QualifiedVarRef {
     pub qualified_name: String,
     /// Byte span of the name token as written.
     pub span: Span,
+    /// Original lexical root or retained evaluated variable-name operand. The
+    /// producer kind selects neither a compiler primary nor an executed cell.
+    pub original_name_input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
+    /// Independently retained namespace geometry at this occurrence. Missing
+    /// geometry cannot be reconstructed from `qualified_name`.
+    pub original_namespace: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
 }
 
 /// One occurrence of a word that **names a namespace** — every argument the
@@ -2832,6 +4666,20 @@ pub struct QualifiedVarRef {
 /// words at global scope answer `0`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NamespaceRef {
+    /// Original namespace operand. List children and evaluated values remain
+    /// readonly; their source lineage cannot acquire complete-word geometry.
+    pub original_name_input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
+    /// Exact namespace context before interpreting the original operand.
+    pub source_context: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+    /// Original selected word value, retained before any report rendering.
+    pub original_name: String,
+    /// Candidate literal value range. Consumers verify these exact original bytes
+    /// against source before projecting editable subranges; escaped/computed words decline.
+    pub source_span: Option<Span>,
+    /// Exact original namespace selection, independent of its rendered report.
+    pub source_namespace: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+    /// Independently selected naming policy for the original namespace operand.
+    pub name_policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
     /// The `::`-rooted namespace the occurrence names, with a relative
     /// spelling already rooted against the occurrence's own namespace.
     pub qualified_name: String,
@@ -2844,37 +4692,148 @@ pub struct NamespaceRef {
     pub declares: bool,
 }
 
-/// One variable-name argument whose word is **computed at run time** — a
-/// registry [`tcl_registry::ArgRole::VarWrite`] / [`tcl_registry::ArgRole::VarRead`]
-/// position holding a `$`/`[…]` substitution (`set $n 2`, `variable $n`,
-/// `namespace upvar ::ns $n local`) — together with what the analyser could
-/// prove about the value.
-///
-/// The proof is analyser *state*: `Scope::lookup_dominating_const_string`
-/// knows, while the walk is in progress, that the `$n` in `set n other; set
-/// $n 2` is `other` and can never be anything else at that site.  Nothing
-/// per-site survived into [`AnalysisResult`], so a post-analysis consumer —
-/// the namespace-variable rename gate, which has to be exhaustive about which
-/// cells a document can name — had only the word's own text to reason from
-/// and refused on every bare `$n`, which is a lone wildcard.
-///
-/// Recording the site is what lets that gate ask the *value* question as well
-/// as the textual one.  Abstain-toward-refuse is unchanged: a site whose
-/// resolution is [`None`] proves nothing, and a site the walk never reached
-/// leaves no row at all, so a consumer that only *narrows* on a
-/// [`Some`] resolution can never widen what it accepts.
-///
-/// A **brace-quoted** word is not here: `set {$n} 1` names the variable
-/// literally called `$n` and substitutes nothing (tclsh 8.6.14: `set {$n} v;
-/// info exists {$n}` -> 1 while `info exists n` -> 0), so it is not a dynamic
-/// name at all.
+impl NamespaceRef {
+    /// Select the original namespace operand using independently retained context.
+    /// The report fallback supplies presentation only when that context is absent.
+    #[must_use]
+    pub(crate) fn from_original(
+        source_context: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+        name_policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+        original_name: &str,
+        span: Span,
+        content_offset: u16,
+        declares: bool,
+        report_fallback: String,
+    ) -> Self {
+        // A native policy cannot interpret the reporting String as original
+        // native units. The genuine input producer is joined separately below.
+        let source_namespace = name_policy
+            .is_none()
+            .then(|| {
+                source_context
+                    .as_ref()
+                    .and_then(|current| current.child(original_name, None))
+            })
+            .flatten();
+        let qualified_name = source_namespace
+            .as_ref()
+            .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
+            .unwrap_or(report_fallback);
+        let source_span = span
+            .start()
+            .checked_add(u32::from(content_offset))
+            .and_then(|start| {
+                Some(Span::new(
+                    start,
+                    start.checked_add(u32::try_from(original_name.len()).ok()?)?,
+                ))
+            });
+        Self {
+            original_name_input: None,
+            source_context,
+            original_name: original_name.to_owned(),
+            source_span,
+            source_namespace,
+            name_policy,
+            qualified_name,
+            span,
+            declares,
+        }
+    }
+
+    pub(crate) fn with_original_input(
+        mut self,
+        input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
+    ) -> Self {
+        if let Some(input) = &input {
+            self.name_policy = Some(input.policy());
+            self.source_namespace = self
+                .source_context
+                .as_ref()
+                .and_then(|scope| scope.child_from_input(input));
+            if let Some(report) = self
+                .source_namespace
+                .as_ref()
+                .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
+            {
+                self.qualified_name = report;
+            }
+        }
+        self.original_name_input = input;
+        self
+    }
+
+    fn original_extent_span(
+        &self,
+        source: &str,
+        wanted: &crate::signature_scan::scope::SignatureNamespaceScope,
+        member: bool,
+    ) -> Option<Span> {
+        let input = self.original_name_input.as_ref()?;
+        let key = input.original_word_key()?;
+        let word = key.original_word();
+        if word.image() != &tcl_lexer::SourceImage::document(source) {
+            return None;
+        }
+        let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+            std::slice::from_ref(word),
+            input.policy().string_protocol(),
+        )
+        .ok()?;
+        if captured.literal(0)? != input.bytes() {
+            return None;
+        }
+        let protocol = input.policy().recipe();
+        let current = self.source_context.as_ref()?.context()?;
+        let wanted = wanted.context()?;
+        let extent = if member {
+            tcl_syntax::naming::native_written_namespace_member_extent(
+                protocol,
+                current,
+                input.bytes(),
+                wanted,
+            )?
+        } else {
+            tcl_syntax::naming::native_written_namespace_prefix_extent(
+                protocol,
+                current,
+                input.bytes(),
+                wanted,
+            )?
+        };
+        captured.original_literal_extent(0, extent)
+    }
+
+    /// Covering original prefix for an exact retained ancestor namespace.
+    #[must_use]
+    pub fn written_ancestor_span(
+        &self,
+        source: &str,
+        wanted: &crate::signature_scan::scope::SignatureNamespaceScope,
+    ) -> Option<Span> {
+        self.original_extent_span(source, wanted, false)
+    }
+    /// Original component range for an exact retained namespace.
+    #[must_use]
+    pub fn written_member_span(
+        &self,
+        source: &str,
+        wanted: &crate::signature_scan::scope::SignatureNamespaceScope,
+    ) -> Option<Span> {
+        self.original_extent_span(source, wanted, true)
+    }
+}
+
+/// An original variable-name argument containing substitutions.
+/// The resolved value requires dominating Logical declaration and source provenance;
+/// an unresolved site cannot narrow the set of variable names it might reference.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DynamicVariableNameSite {
     /// Byte span of the name word as written.
     pub span: Span,
     /// The name the word evaluates to when every substitution in it has a
     /// value that **dominates** this site — the straight-line constant
-    /// `Scope::lookup_dominating_const_string` proves.
+    /// retained original declaration and value provenance proves.
     ///
     /// [`None`] when it does not: a branch-dependent binding, a parameter, a
     /// command substitution, or any variable the constant lattice does not
@@ -2911,9 +4870,11 @@ pub struct InstanceCommandBinding {
 /// | `set auto_path {/o/p1 /o/p2}` | 2 — the right-hand side is a *list* |
 /// | `set auto_path {/o/a {/o/w s} /o/b}` | 3 — the braced element stays one |
 ///
-/// [`crate::auto_path_eval::evaluate_auto_path_entry`] is the consumer that
-/// applies the distinction; it is the only supported way to turn one of these
-/// records into directories.
+/// Retained-analysis consumers use
+/// [`crate::auto_path_eval::capture_source_auto_path_expression`] to join the
+/// row to its original selected mutation and apply the actual list grammar.
+/// [`crate::auto_path_eval::evaluate_auto_path_entry`] is the separate
+/// standalone authoring simulation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AutoPathForm {
     /// `lappend auto_path WORD …` — one record per argument word, and that
@@ -3196,25 +5157,37 @@ mod tests {
         let s = Scope::default();
         assert_eq!(s.kind, ScopeKind::Global);
         assert_eq!(s.name, "::");
-        assert!(s.variables.is_empty());
-        assert!(s.procs.is_empty());
-        assert!(s.classes.is_empty());
-        assert!(s.children.is_empty());
+        assert_eq!(s.variables.len(), 0);
+        assert_eq!(s.procs.len(), 0);
+        assert_eq!(s.classes.len(), 0);
+        assert_eq!(s.children, [] as [crate::analyser::types::Scope; 0]);
     }
 
     #[test]
     fn analysis_result_default_is_empty() {
         let r = AnalysisResult::default();
         assert_eq!(r.global_scope.kind, ScopeKind::Global);
-        assert!(r.all_procs.is_empty());
-        assert!(r.all_classes.is_empty());
-        assert!(r.all_variables.is_empty());
-        assert!(r.diagnostics.is_empty());
-        assert!(r.command_invocations.is_empty());
-        assert!(r.package_requires.is_empty());
-        assert!(r.source_targets.is_empty());
-        assert!(r.command_aliases.is_empty());
-        assert!(r.namespace_imports.is_empty());
+        assert_eq!(r.all_procs.len(), 0);
+        assert_eq!(r.all_classes.len(), 0);
+        assert_eq!(r.all_variables.len(), 0);
+        assert_eq!(r.diagnostics, [] as [crate::analyser::types::Diagnostic; 0]);
+        assert_eq!(
+            r.command_invocations,
+            [] as [crate::signature_scan::types::SignatureCommandInvocation; 0]
+        );
+        assert_eq!(
+            r.package_requires,
+            [] as [crate::signature_scan::types::SignaturePackageRequire; 0]
+        );
+        assert_eq!(
+            r.source_targets,
+            [] as [crate::signature_scan::types::SignatureSource; 0]
+        );
+        assert_eq!(r.command_aliases.len(), 0);
+        assert_eq!(
+            r.namespace_imports,
+            [] as [crate::signature_scan::types::SignatureNamespaceImport; 0]
+        );
         assert!(r.unknown_proc_info.is_none());
     }
 
@@ -3226,14 +5199,14 @@ mod tests {
         assert_eq!(c.metaclass, "oo::class");
         // …and it is a stand-in, not an observation.
         assert_eq!(c.metaclass_provenance, MetaclassProvenance::StandIn);
-        assert!(c.constructors.is_empty());
+        assert_eq!(c.constructors, [] as [crate::analyser::types::MethodDef; 0]);
         assert!(c.destructor.is_none());
-        assert!(c.variables.is_empty());
-        assert!(c.properties.is_empty());
-        assert!(c.filters.is_empty());
-        assert!(c.exports.is_empty());
-        assert!(c.unexports.is_empty());
-        assert!(c.doc.is_empty());
+        assert_eq!(c.variables, [] as [std::string::String; 0]);
+        assert_eq!(c.properties.len(), 0);
+        assert_eq!(c.filters, [] as [std::string::String; 0]);
+        assert_eq!(c.exports.len(), 0);
+        assert_eq!(c.unexports.len(), 0);
+        assert_eq!(c.doc, "");
     }
 
     fn strings(items: &[&str]) -> Vec<String> {
@@ -3256,6 +5229,9 @@ mod tests {
                 })
                 .collect(),
             params_computed: false,
+            formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                tcl_dialect::ParameterGrammar::Tcl,
+            ),
             name_span: Span::new(0, 0),
             body_span: Span::new(0, 0),
             kind: "method".to_owned(),
@@ -3562,5 +5538,894 @@ mod tests {
         );
         // A record with no doc of its own takes the other's.
         assert_eq!(into.doc, "theirs");
+    }
+}
+
+#[cfg(test)]
+mod original_declaration_inventory_tests {
+    use super::*;
+
+    #[test]
+    fn original_procedure_byte_slots_survive_display_collision_and_ui_removal() {
+        let source = r"proc p\uD800 {} {return FIRST}
+proc p\uD801 {} {return SECOND}
+p\uD800
+p\uD801";
+        let mut result = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let declarations = result.original_procedure_declarations().collect::<Vec<_>>();
+        assert_eq!(declarations.len(), 2);
+        assert_ne!(declarations[0].name().slot(), declarations[1].name().slot());
+        assert_eq!(declarations[0].name_input().bytes(), b"p\xed\xa0\x80");
+        assert_eq!(declarations[1].name_input().bytes(), b"p\xed\xa0\x81");
+        let first = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+            declarations[0].name_input().clone(),
+        );
+        let second = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+            declarations[1].name_input().clone(),
+        );
+        result.all_procs.clear();
+        result.superseded_procs.clear();
+        let scope = result.original_namespace_scope_at(0).unwrap();
+        let first = result.procedures_for_original_name(&first, scope);
+        let second = result.procedures_for_original_name(&second, scope);
+        assert_eq!(first.len(), 1);
+        assert_eq!(second.len(), 1);
+        assert_ne!(first[0].name_span, second[0].name_span);
+        let call_offsets = [
+            source.rfind(r"p\uD800").unwrap(),
+            source.rfind(r"p\uD801").unwrap(),
+        ];
+        let calls = result
+            .command_invocations
+            .iter()
+            .filter(|invocation| call_offsets.contains(&(invocation.range.start() as usize)))
+            .filter_map(|invocation| invocation.original_name_input.as_ref())
+            .collect::<Vec<_>>();
+        assert!(calls.iter().any(|input| input.bytes() == b"p\xed\xa0\x80"));
+        assert!(calls.iter().any(|input| input.bytes() == b"p\xed\xa0\x81"));
+    }
+
+    #[test]
+    fn original_colon_collision_keeps_both_slots_and_allocation_joins() {
+        // N01: C Tcl 8.6/9.0/9.1 keep a:/p and a/:p distinct despite
+        // their colliding full-name reports. Original slots own this join.
+        let source = "namespace eval {a:} {proc p {} {return LEFT}}\n\
+namespace eval a {proc :p {} {return RIGHT}}\n\
+namespace eval {a:} {p}\n\
+namespace eval a {:p}";
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut result = crate::analyser::Analyser::new().analyse(source, dialect);
+            result.all_procs.clear();
+            result.superseded_procs.clear();
+            let declarations = result.original_procedure_declarations().collect::<Vec<_>>();
+            assert_eq!(declarations.len(), 2, "{dialect}");
+            let slots =
+                [(b"a:".as_slice(), b"p".as_slice()), (b"a", b":p")].map(|(namespace, simple)| {
+                    tcl_core_types::ByteCommandSlot {
+                        namespace: tcl_core_types::ByteNamespacePath::from_segments([namespace]),
+                        simple: tcl_core_types::NameBytes::from(simple),
+                    }
+                });
+            let offsets = [
+                source.rfind("{p}").unwrap() + 1,
+                source.rfind("{:p}").unwrap() + 1,
+            ];
+            for (index, offset) in offsets.into_iter().enumerate() {
+                let call = result
+                    .command_invocations
+                    .iter()
+                    .find(|call| call.range.start() == u32::try_from(offset).unwrap())
+                    .expect("original authored call");
+                assert!(call.original_lookup.is_some(), "{dialect}: {offset}");
+                for (target, slot) in slots.iter().enumerate() {
+                    let declaration = declarations
+                        .iter()
+                        .find(|declaration| declaration.name().slot() == slot)
+                        .expect("independently retained typed slot");
+                    assert_eq!(
+                        crate::source_graph::invocation_targets_declaration_in(
+                            source,
+                            &result,
+                            source,
+                            &result,
+                            call,
+                            declaration,
+                            false
+                        ),
+                        index == target,
+                        "{dialect}: call {index}, target {target}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn original_scope_lookup_uses_native_namespace_and_local_priority() {
+        let source = r"proc p\u0000tail {} {return ROOT}
+namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
+        let result = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let call = result
+            .command_invocations
+            .iter()
+            .find(|invocation| {
+                invocation.range.start()
+                    == u32::try_from(source.rfind(r"p\u0000tail").unwrap()).unwrap()
+            })
+            .unwrap();
+        let input = call.original_name_input.as_ref().unwrap();
+        assert_eq!(input.bytes(), b"p\xc0\x80tail");
+        let matches = result.procedures_for_original_name(
+            input,
+            result
+                .original_namespace_scope_at(call.range.start())
+                .unwrap(),
+        );
+        assert_eq!(matches.len(), 1);
+        let local_declaration = result
+            .original_procedure_declarations()
+            .find(|declaration| {
+                declaration.declaration_site().offset
+                    == u32::try_from(source.rfind(r"proc p\u0000tail").unwrap()).unwrap()
+            })
+            .unwrap();
+        assert_eq!(matches[0].name_span, local_declaration.metadata().name_span);
+    }
+
+    #[test]
+    fn invocation_transports_opaque_original_lookup_without_reporting_name() {
+        let source = r"missing\uD800";
+        let result = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let invocation = result
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.range.start() == 0)
+            .unwrap();
+        let input = invocation.original_name_input.as_ref().unwrap();
+        let lookup = invocation.original_lookup.as_ref().unwrap();
+        assert_eq!(input.bytes(), b"missing\xed\xa0\x80");
+        assert_eq!(lookup.name_input(), input);
+        assert_eq!(lookup.site().offset, 0);
+        assert_eq!(lookup.candidates()[0][0].simple.as_bytes(), input.bytes());
+        assert!(invocation.resolved_definition.is_none());
+    }
+
+    #[test]
+    fn computed_head_retains_readonly_input_and_positioned_lookup() {
+        let source = "proc p {} {}; set cmd p; $cmd";
+        let result = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.rfind("$cmd").unwrap()).unwrap();
+        let invocation = result
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.range.start() == offset && invocation.indirect)
+            .unwrap();
+        let input = invocation.original_name_input.as_ref().unwrap();
+        assert!(input.original_word_key().is_none());
+        assert_eq!(input.bytes(), b"p");
+        let lookup = invocation.original_lookup.as_ref().unwrap();
+        assert_eq!(lookup.name_input(), input);
+        assert_eq!(lookup.site().offset, offset);
+        assert_eq!(lookup.candidates()[0][0].simple.as_bytes(), b"p");
+    }
+
+    #[test]
+    fn substituted_heads_and_consumed_names_retain_original_lookup() {
+        // naming.source.original-command-lookup
+        // tclsh 8.6.18 / 9.0.4: each `greet` below runs (or, for `info body`,
+        // names) the procedure declared at offset 0.
+        let declaration = "proc greet {} { return hi }\n";
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            for (use_site, count) in [
+                ("greet\ngreet\n", 2),
+                ("puts [greet]\nputs [greet]\n", 2),
+                ("set a [greet]\n", 1),
+                ("puts [list [greet] x]\n", 1),
+                ("set a \"<[greet]>\"\n", 1),
+                ("info body greet\n", 1),
+                ("puts [info body greet]\n", 1),
+            ] {
+                let source = format!("{declaration}{use_site}");
+                let result = crate::analyser::Analyser::new().analyse(&source, dialect);
+                let target = result
+                    .original_procedure_declarations()
+                    .find(|declaration| declaration.declaration_site().offset == 0)
+                    .unwrap();
+                let rows = result
+                    .command_invocations
+                    .iter()
+                    .filter(|invocation| {
+                        invocation.name == "greet"
+                            && invocation.range.start() >= declaration.len() as u32
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    rows.iter()
+                        .filter(
+                            |row| crate::source_graph::invocation_targets_declaration_in(
+                                &source, &result, &source, &result, row, target, false
+                            )
+                        )
+                        .count(),
+                    count,
+                    "{dialect}: {use_site:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups() {
+        // naming.source.closed-leaf-handler-completion
+        // The completed command world is the world after the document runs
+        // to normal completion: a command that may raise (`puts`, `list`
+        // arity) only adds a path that never reaches it. `exit` or an
+        // unknown command keeps it withheld.
+        let declaration = "proc greet {} { return hi }\n";
+        let mut mismatches = Vec::new();
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            for (use_site, completed) in [
+                ("", true),
+                ("greet\ngreet\n", true),
+                ("puts hi\n", true),
+                ("puts [greet]\nputs [greet]\n", true),
+                ("set a [list [greet]]\n", true),
+                ("set a [string length x]\n", true),
+                ("missing_command\n", false),
+                ("puts [missing_command]\n", false),
+                ("exit 0\n", false),
+                // A procedure whose analysed body closes the world, and one
+                // whose body runs an unknown command.
+                ("proc say {} { puts hi }\nsay\n", true),
+                ("proc bad {} { missing_command }\nbad\n", false),
+                // Incomplete descriptors: a re-entrant callback, a subcommand
+                // the registry cannot select, and a dynamically chosen script.
+                ("lsort -command greet {b a}\n", false),
+                ("string $op x\n", false),
+                ("eval $script\n", false),
+                // The closed-builtin shortcut rests on the fresh-interpreter
+                // premise: nothing lets a builtin re-enter Tcl. A program
+                // that installs such a hook withholds the completed world.
+                ("proc xf args {}\nchan push stdout ::xf\nputs hi\n", false),
+                (
+                    "proc rc args {}\nset c [chan create write ::rc]\nputs $c hi\n",
+                    false,
+                ),
+                (
+                    "proc cb args {}\ntrace add variable x write ::cb\nset x 1\n",
+                    false,
+                ),
+                (
+                    "proc cb args {}\ntrace add execution puts enter ::cb\nputs hi\n",
+                    false,
+                ),
+                ("proc cb args {}\nnamespace unknown ::cb\nputs hi\n", false),
+                // Retained scripts include empty timer scripts and concatenated
+                // multiword forms. Their single-body ordinals are not complete
+                // registration inventories. Getter/removal precision belongs to
+                // the selected registry contract, not this conservative guard.
+                ("after 0 {greet}\nputs hi\n", false),
+                ("after 0 {}\nputs hi\n", false),
+                ("after 0 greet extra\nputs hi\n", false),
+                ("after idle greet extra\nputs hi\n", false),
+                ("fileevent stdin readable {greet}\nputs hi\n", false),
+                ("chan event stdout writable {greet}\nputs hi\n", false),
+                ("set callback greet\nafter 0 $callback\nputs hi\n", false),
+                ("proc unknown args {}\nputs hi\n", false),
+            ] {
+                let source = format!("{declaration}{use_site}");
+                let result = crate::analyser::Analyser::new().analyse(&source, dialect);
+                if result
+                    .retained_command_realm()
+                    .and_then(crate::realm::CommandBindingRealm::original_completed_command_world)
+                    .is_some()
+                    != completed
+                {
+                    mismatches.push(format!(
+                        "{dialect}: {use_site:?}: world expected {completed}"
+                    ));
+                }
+                // Every command of the body keeps its own original lookup
+                // however often, and from wherever, the body is entered.
+                let body_returns = result
+                    .command_invocations
+                    .iter()
+                    .filter(|invocation| {
+                        invocation.name == "return"
+                            && invocation.range.start() < declaration.len() as u32
+                    })
+                    .collect::<Vec<_>>();
+                if body_returns.is_empty()
+                    || !body_returns
+                        .iter()
+                        .all(|invocation| invocation.original_lookup.is_some())
+                {
+                    mismatches.push(format!(
+                        "{dialect}: {use_site:?}: body lookup missing or lost"
+                    ));
+                }
+            }
+        }
+        assert!(mismatches.is_empty(), "{mismatches:#?}");
+    }
+
+    #[test]
+    fn crlf_class_method_bodies_analyse_without_lexer_panics() {
+        // A Windows document: every line ends in CR LF, and the method body
+        // reads `$label` inside a quoted word.
+        let source = concat!(
+            "oo::class create Widget {\n",
+            "    superclass WidgetBase\n",
+            "    variable label\n",
+            "    constructor {text} {\n",
+            "        set label $text\n",
+            "    }\n",
+            "    method render {} {\n",
+            "        puts \"widget $label\"\n",
+            "    }\n",
+            "}",
+        )
+        .replace('\n', "\r\n");
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            for text in [source.clone(), format!("{source}\r\n")] {
+                let result = crate::analyser::Analyser::new().analyse(&text, dialect);
+                assert!(result.all_classes.contains_key("::Widget"), "{dialect}");
+            }
+        }
+    }
+
+    #[test]
+    fn advisory_invocation_and_unknown_body_scope_cannot_issue_source_names() {
+        let invocation =
+            SignatureCommandInvocation::written("p".to_owned(), Span::new(0, 1), Some(0));
+        assert!(invocation.original_name_input.is_none());
+        let mut result = crate::analyser::Analyser::new().analyse("set x 1", "tcl8.6");
+        let mut child = Scope::new(ScopeKind::Method, "opaque".to_owned());
+        child.body_span = Some(Span::new(0, 7));
+        result.global_scope.children.push(child);
+        assert!(result.original_namespace_scope_at(2).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_definition_metadata_tests {
+    #[test]
+    fn positioned_procedure_reference_navigates_without_reported_maps() {
+        let source = "proc p {} {return BODY}\np";
+        let mut result = crate::analyser::Analyser::new().analyse(source, "tcl9.0");
+        let definition = result
+            .command_invocations
+            .iter()
+            .find(|invocation| {
+                invocation.range.start() == u32::try_from(source.rfind('p').unwrap()).unwrap()
+            })
+            .unwrap()
+            .resolved_definition
+            .clone()
+            .unwrap();
+        let expected = result
+            .original_procedure_declarations()
+            .next()
+            .unwrap()
+            .metadata()
+            .name_span;
+        result.all_procs.clear();
+        result.superseded_procs.clear();
+        assert_eq!(
+            result
+                .proc_for_definition(&definition, source)
+                .unwrap()
+                .name_span,
+            expected
+        );
+        assert!(
+            result
+                .proc_for_definition(&definition, "proc p {} {return OTHER}\np")
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_completed_world_transport_tests {
+    #[test]
+    fn completed_world_survives_ui_clear_and_retains_moved_implementation() {
+        let source = "proc P {} {}; rename P Q";
+        let mut result = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let declaration = result
+            .original_procedure_declarations()
+            .next()
+            .unwrap()
+            .clone();
+        let policy = declaration.name().policy();
+        let former_slot = declaration.name().slot().clone();
+        result.all_procs.clear();
+        result.superseded_procs.clear();
+        let world = result
+            .original_completed_command_world()
+            .expect("independently completed Normal root");
+        assert_eq!(world.source_image().bytes(), source.as_bytes());
+        assert!(world.declaration_at(&former_slot, policy).is_none());
+        let moved = world
+            .declarations()
+            .find(|publication| publication.slot().simple.as_bytes() == b"Q")
+            .unwrap();
+        assert_eq!(moved.declaration_site(), declaration.declaration_site());
+        assert!(moved.definition().is_some());
+    }
+
+    #[test]
+    fn abrupt_or_unknown_roots_cannot_transport_completed_world() {
+        for source in [
+            "proc P {} {}; error BOOM",
+            "proc P {} {}; eval $unknown",
+            "proc P {} {}; rename $unknown Q",
+        ] {
+            let result = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+            assert!(
+                result.original_completed_command_world().is_none(),
+                "{source}"
+            );
+        }
+        assert!(
+            super::AnalysisResult::default()
+                .original_completed_command_world()
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_namespace_operand_tests {
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn original_namespace_names_keep_surrogate_and_nul_units_in_their_receipts() {
+        let source =
+            r"namespace eval n\uD800 {}; namespace eval n\uD801 {}; namespace eval n\u0000tail {}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let declarations = analysis
+            .namespace_refs
+            .iter()
+            .filter(|reference| reference.declares)
+            .collect::<Vec<_>>();
+        assert_eq!(declarations.len(), 3);
+        let names = declarations
+            .iter()
+            .map(|reference| {
+                reference
+                    .original_name_input
+                    .as_ref()
+                    .unwrap()
+                    .bytes()
+                    .to_vec()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(names[0], b"n\xed\xa0\x80");
+        assert_eq!(names[1], b"n\xed\xa0\x81");
+        assert_eq!(names[2], b"n\xc0\x80tail");
+        assert_ne!(
+            declarations[0].source_namespace,
+            declarations[1].source_namespace
+        );
+        assert!(
+            declarations
+                .iter()
+                .all(|reference| reference.source_namespace.is_some())
+        );
+    }
+
+    #[test]
+    fn computed_namespace_values_have_identity_without_word_edit_geometry() {
+        let source = r"set target ::n; namespace eval $target {}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.find("$target").unwrap()).unwrap();
+        let references = analysis
+            .namespace_refs
+            .iter()
+            .filter(|reference| reference.span.start() == offset)
+            .collect::<Vec<_>>();
+        assert_eq!(references.len(), 1, "one authentic namespace occurrence");
+        let reference = references[0];
+        let input = reference
+            .original_name_input
+            .as_ref()
+            .expect("retained evaluated bytes");
+        assert_eq!(input.bytes(), b"::n");
+        assert!(input.original_word_key().is_none());
+        assert!(reference.source_namespace.is_some());
+        assert!(
+            reference
+                .original_extent_span(source, reference.source_namespace.as_ref().unwrap(), false)
+                .is_none()
+        );
+        let child = analysis
+            .global_scope
+            .children
+            .iter()
+            .find(|scope| scope.name_span == Some(reference.span))
+            .unwrap();
+        assert_eq!(child.naming_scope, reference.source_namespace);
+    }
+
+    #[test]
+    fn namespace_path_values_retain_parent_list_lineage_without_word_geometry() {
+        let source = r"namespace eval n {}; namespace path {::n ::n\u0000tail}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let values = analysis
+            .namespace_refs
+            .iter()
+            .filter(|reference| !reference.declares)
+            .collect::<Vec<_>>();
+        assert_eq!(values.len(), 2);
+        let second = values[1].original_name_input.as_ref().unwrap();
+        assert_eq!(second.bytes(), b"::n\xc0\x80tail");
+        assert!(second.original_word_key().is_none());
+        assert!(
+            values
+                .iter()
+                .all(|reference| reference.source_namespace.is_some())
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_namespace_pattern_tests {
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn original_namespace_patterns_retain_opaque_source_and_tail_without_ui_rows() {
+        let source = r"namespace import ::n\uD800::*; namespace forget ::n\uD801::p\uD802";
+        let mut result = Analyser::new().analyse(source, "tcl8.6");
+        let patterns = result
+            .original_namespace_patterns()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(patterns.len(), 2);
+        assert_eq!(patterns[0].parts().tail.as_bytes(), b"*");
+        assert_eq!(patterns[1].parts().tail.as_bytes(), b"p\xed\xa0\x82");
+        assert_ne!(patterns[0].parts().source, patterns[1].parts().source);
+        assert_eq!(
+            patterns[0].purpose(),
+            tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern
+        );
+        assert_eq!(
+            patterns[1].purpose(),
+            tcl_syntax::naming::NativeNamePurpose::NamespaceForgetPattern
+        );
+        assert_eq!(
+            patterns[0]
+                .name_input()
+                .original_word_key()
+                .unwrap()
+                .source_image(),
+            &tcl_lexer::SourceImage::document(source)
+        );
+        result.namespace_imports.clear();
+        result.namespace_forgets.clear();
+        assert_eq!(
+            result
+                .original_namespace_patterns()
+                .cloned()
+                .collect::<Vec<_>>(),
+            patterns
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_namespace_unknown_tests {
+    #[test]
+    fn original_namespace_unknown_operands_remain_coverage_obligations() {
+        let source = "namespace eval ::old {}\nproc mk {ns} {namespace eval $ns {}; namespace eval ::other::$ns {}}";
+        let mut analyser = crate::analyser::Analyser::new();
+        let analysis = analyser.analyse(source, "tcl8.6");
+        let spellings = analysis
+            .namespace_name_unknowns
+            .iter()
+            .map(|span| &source[span.as_range()])
+            .collect::<Vec<_>>();
+        assert_eq!(spellings, ["$ns", "::other::$ns"]);
+        assert!(
+            analysis
+                .namespace_refs
+                .iter()
+                .all(|row| row.original_name != "$ns")
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_namespace_export_inventory_tests {
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn original_namespace_export_inventory_keeps_opaque_patterns_clear_and_prefix_abort() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+
+        for version in tcl_dialect::TclVersion::ALL {
+            let source = r"namespace export {p\uD800}; namespace export -clear p\uD801; namespace export -clear -clear; namespace export first ::invalid never";
+            let mut result = Analyser::new().analyse(source, version.dialect_name());
+            let events = result
+                .original_namespace_exports()
+                .cloned()
+                .collect::<Vec<_>>();
+            assert_eq!(
+                events.iter().filter(|event| event.clears()).count(),
+                2,
+                "{version:?}"
+            );
+            assert!(
+                events
+                    .iter()
+                    .any(|event| event.pattern() == Some(b"p\\uD800".as_slice())),
+                "braced word keeps its literal backslash"
+            );
+            assert!(
+                events
+                    .iter()
+                    .any(|event| event.pattern() == Some(b"p\xed\xa0\x81".as_slice())),
+                "{version:?}"
+            );
+            assert!(
+                events
+                    .iter()
+                    .any(|event| event.pattern() == Some(b"-clear".as_slice()))
+            );
+            assert!(
+                events
+                    .iter()
+                    .any(|event| event.pattern() == Some(b"first".as_slice()))
+            );
+            assert!(
+                !events
+                    .iter()
+                    .any(|event| event.pattern() == Some(b"never".as_slice()))
+            );
+            assert!(events.iter().all(|event| event.context().is_root()
+                && event.site().source.source_image()
+                    == &tcl_lexer::SourceImage::document(source)));
+            result.namespace_exports.clear();
+            assert_eq!(
+                result
+                    .original_namespace_exports()
+                    .cloned()
+                    .collect::<Vec<_>>(),
+                events
+            );
+        }
+    }
+
+    #[test]
+    fn original_namespace_export_inventory_retains_unknown_operand_as_may_only() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+
+        let source = "namespace export $unavailable";
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        assert!(result.original_namespace_exports().next().is_none());
+        assert_eq!(result.original_namespace_export_unknowns().len(), 1);
+        let span = result.original_namespace_export_unknowns()[0];
+        assert!(span.start() >= u32::try_from(source.find('$').unwrap()).unwrap());
+    }
+
+    #[test]
+    fn original_namespace_inventory_keeps_conditional_source_scopes_after_unknown_import() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+
+        let source = "unavailable_provider\nnamespace eval C {proc p {} {}; namespace export p}\nnamespace eval B {namespace import ::C::*; namespace export p}\nnamespace eval A {namespace import ::B::*}\n";
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        let exports = result.original_namespace_exports().collect::<Vec<_>>();
+        let imports = result.original_namespace_patterns().collect::<Vec<_>>();
+        assert_eq!(exports.len(), 2);
+        assert_eq!(imports.len(), 2);
+        assert!(result.original_namespace_export_unknowns().is_empty());
+        assert!(
+            exports
+                .iter()
+                .any(|event| event.conditional_declaration().is_some())
+        );
+        assert!(
+            imports
+                .iter()
+                .any(|event| event.conditional_declaration().is_some())
+        );
+        for event in &exports {
+            assert_eq!(
+                event
+                    .name_input()
+                    .original_word_key()
+                    .unwrap()
+                    .source_image(),
+                &tcl_lexer::SourceImage::document(source)
+            );
+        }
+        assert_eq!(
+            exports
+                .iter()
+                .map(|event| event.context().display().unwrap())
+                .collect::<Vec<_>>(),
+            ["::C", "::B"]
+        );
+        assert_eq!(
+            imports
+                .iter()
+                .map(|event| event.context().display().unwrap())
+                .collect::<Vec<_>>(),
+            ["::B", "::A"]
+        );
+        assert!(
+            result.original_completed_command_world().is_none(),
+            "source declaration geometry cannot close the actual import prelude or source mode"
+        );
+    }
+
+    #[test]
+    fn original_namespace_inventory_does_not_borrow_a_parent_for_unknown_source_scope() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+
+        let source = "namespace eval $unknown {namespace export p; namespace import ::C::*}";
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        assert!(result.original_namespace_exports().next().is_none());
+        assert!(result.original_namespace_patterns().next().is_none());
+        assert!(!result.original_namespace_export_unknowns().is_empty());
+        assert!(result.original_completed_command_world().is_none());
+    }
+
+    #[test]
+    fn original_namespace_inventory_does_not_extend_static_scope_through_an_unentered_callable() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+
+        let source =
+            "proc unused {} {namespace eval B {namespace export p; namespace import ::C::*}}";
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            result
+                .original_namespace_exports()
+                .all(|event| event.conditional_declaration().is_none())
+        );
+        assert!(
+            result
+                .original_namespace_patterns()
+                .all(|event| event.conditional_declaration().is_none())
+        );
+    }
+}
+
+#[cfg(test)]
+mod lexical_source_advice_domain_tests;
+
+#[cfg(test)]
+mod original_source_context_tests;
+
+#[cfg(test)]
+mod original_definition_suffix_purpose_tests {
+    #[test]
+    fn original_definition_suffix_keeps_bom_definer_and_authored_allocation() {
+        // naming.source.original-configured-script-completeness
+
+        // Retained authored declaration navigation; no completed call or editable definition grant.
+        let mut prepared = crate::analyser::Analyser::new();
+        let base = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..base.lexer_config()
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            base.analyser_profile(),
+            base.unit_profile(),
+            base.context_registry(),
+            config,
+        );
+        let source = "\u{feff}rename proc {\u{feff}Maker}\n\u{feff}Maker p {} {return BODY}\np";
+        let mut result = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "presentation");
+        let offset = u32::try_from(source.rfind('p').unwrap()).unwrap();
+        let definition = result
+            .command_invocations
+            .iter()
+            .find(|call| call.range.start() == offset)
+            .unwrap()
+            .resolved_definition
+            .clone()
+            .unwrap();
+        let declaration = result
+            .original_procedure_declarations()
+            .find(|record| record.metadata().name == "p")
+            .unwrap()
+            .metadata()
+            .name_span;
+        let tokens = result.definition_tokens(&definition, source).unwrap();
+        assert!(tokens.contains(&declaration));
+        assert_eq!(
+            definition.allocation().site.offset,
+            u32::try_from(source.find("\u{feff}Maker p").unwrap()).unwrap()
+        );
+        assert_eq!(result.resolved_input.as_ref(), Some(&input));
+        assert_eq!(result.body_lexer_config, Some(config));
+        result.original_procedure_metadata.clear();
+        assert_eq!(
+            result
+                .proc_for_definition(&definition, source)
+                .unwrap()
+                .name_span,
+            declaration
+        );
+        assert!(
+            result
+                .definition_tokens(&definition, &source.replace("BODY", "OTHER"))
+                .is_none()
+        );
+        result.body_lexer_config = None;
+        assert!(result.definition_tokens(&definition, source).is_none());
+    }
+}
+
+#[cfg(test)]
+mod source_alias_coverage_tests {
+    #[test]
+    fn selected_alias_source_coverage_requires_current_input_and_all_actual_receipts() {
+        let source = "proc p {} {global shared; puts $shared}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.body_lexer_config.unwrap();
+        assert!(!analysis.original_variable_alias_obligations.is_empty());
+        assert_eq!(analysis.original_variable_alias_receipts.len(), 1);
+        assert!(analysis.original_variable_alias_source_is_complete(&image, config));
+        let mut missing_receipts = analysis.clone();
+        missing_receipts.original_variable_alias_receipts.clear();
+        assert!(!missing_receipts.original_variable_alias_source_is_complete(&image, config));
+        let mut missing_input = analysis.clone();
+        missing_input.resolved_input = None;
+        assert!(!missing_input.original_variable_alias_source_is_complete(&image, config));
+        assert!(!analysis.original_variable_alias_source_is_complete(
+            &tcl_lexer::SourceImage::document(&format!("{source} ")),
+            config
+        ));
+        let mut changed_config = config;
+        changed_config.leading_bom = match config.leading_bom {
+            tcl_lexer::LeadingBom::Content => tcl_lexer::LeadingBom::Skip,
+            tcl_lexer::LeadingBom::Skip => tcl_lexer::LeadingBom::Content,
+        };
+        assert!(!analysis.original_variable_alias_source_is_complete(&image, changed_config));
+        let dynamic_source = "set $unknown 1";
+        let dynamic = crate::analyser::Analyser::new().analyse(dynamic_source, "tcl");
+        assert!(!dynamic.original_variable_alias_source_is_complete(
+            &tcl_lexer::SourceImage::document(dynamic_source),
+            dynamic.body_lexer_config.unwrap()
+        ));
+    }
+}
+
+#[cfg(test)]
+mod original_body_syntax_request_tests {
+    #[test]
+    fn equal_source_and_same_realm_do_not_replace_body_inventory_request() {
+        use crate::registry_invocation::source_structure::OriginalBodySyntaxInventory;
+        use std::sync::Arc;
+        let source = "proc sample {x} {if {$x <= 1} { return 1 }}\nsample 0\n";
+        let first = crate::analyser::Analyser::new()
+            .analyse(source, "tcl8.6")
+            .clone();
+        let other = crate::analyser::Analyser::new()
+            .analyse(source, "tcl8.6")
+            .clone();
+        let inventory = OriginalBodySyntaxInventory::capture(source, &first)
+            .expect("actual retained original body request");
+        let mut changed_request = first.clone();
+        changed_request
+            .optimiser_source_origin
+            .clone_from(&other.optimiser_source_origin);
+        assert!(Arc::ptr_eq(
+            first.retained_command_realm_arc().unwrap(),
+            changed_request.retained_command_realm_arc().unwrap(),
+        ));
+        assert!(!first.optimiser_source_origin.as_ref().unwrap().same_request_allocation(
+            changed_request.optimiser_source_origin.as_ref().unwrap(),
+        ));
+        assert!(!inventory.matches_analysis(source, &changed_request));
+        assert!(inventory.matches_analysis(source, &first));
     }
 }

@@ -318,7 +318,7 @@ fn additive_profiles_resolve_their_embedded_tcl_core() {
     // (profile, resolves, still_unavailable)
     let cases: &[(&str, &[&str], &[&str])] = &[
         // iApps ride the `f5-tcl` trunk — a fork of Tcl at 8.4.6, NOT an
-        // 8.5 host (measured: bigip-irule-parser-measurements.md §4a —
+        // 8.5 host (measured: embedded-tcl-contract.md §4a —
         // `IAppImplementation` fails every 8.5 discriminator, dict/
         // lassign/apply included). exec/file/socket are ALLOWED (host
         // interpreter, not the TMM sandbox).
@@ -442,7 +442,7 @@ fn option_gating_honours_the_version_ceiling() {
     // TN/FN-guard: hidden below 8.5 — tcl8.4 (ceiling V8_4), iRules
     // (embedded 8.4; its bare mask never intersects a pure version gate),
     // and the trunk-riding iApps host (fork of Tcl at 8.4.6 — measured,
-    // bigip-irule-parser-measurements.md §4a).
+    // embedded-tcl-contract.md §4a).
     for d in ["tcl8.4", "f5-irules", "f5-iapps"] {
         assert!(
             !static_document_context_for(d).option_available(nocase, switch_spec.surface),

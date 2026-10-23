@@ -93,15 +93,9 @@ REQUEST_TIMEOUT_S = 30.0
 SEED = 20260807
 
 #: Outer wall-clock budget for one bench.py run (one version), in seconds.
-#: Independent of REQUEST_TIMEOUT_S: that bounds a single LSP round-trip
-#: (and, since lsp_client.py's `_send` fix, the write side of it too); this
-#: bounds the *whole process* — corpus staging, the workspace scan, every
-#: check, teardown — so a fault outside any individually-bounded wait still
-#: produces a clean, attributed failure instead of relying on an external
-#: killer (sweep.sh's `timeout --foreground`, CI's job timeout) with no idea
-#: which phase died.  Generous for `--scope small` (a
-#: healthy run finishes in well under a minute per sweep.sh's own comment);
-#: override with `--deadline` or `BENCH_DEADLINE_S` for a larger scope or a
+#: Covers corpus staging, workspace scan, checks and teardown independently
+#: of the per-request transport timeouts, reporting the phase on expiry.
+#: Override with `--deadline` or `BENCH_DEADLINE_S` for a larger scope or
 #: slower host.
 DEFAULT_DEADLINE_S = 240.0
 
@@ -148,13 +142,8 @@ class Sampler(threading.Thread):
         self.pid = pid
         self.interval = interval
         self.samples: list[dict] = []
-        # NOT `_stop`: `threading.Thread` defines a private `_stop()`
-        # method that `join(timeout=...)` calls internally once the
-        # thread has finished, so an attribute of that name shadows it.
-        # Every run died with `TypeError: 'Event' object is not
-        # callable` in `Sampler.stop()` — raised from the `finally`
-        # block *before* the result file is written, so the benchmark
-        # completed all 15 checks and then produced nothing.
+        # Keep the event name distinct from Thread._stop(), which join()
+        # calls internally after the thread finishes.
         self._halt = threading.Event()
         self._t0 = time.perf_counter()
 
@@ -215,20 +204,12 @@ class Watchdog(threading.Thread):
     """Kills the process if the run hasn't finished within *deadline*
     seconds of the watchdog starting.
 
-    A per-request timeout (`REQUEST_TIMEOUT_S`, and now the write side of it
-    too — see `lsp_client.LspClient._send`) bounds one LSP round-trip; this
-    bounds the *whole run*, so a fault no individual wait can see — a chain
-    of many separately-bounded waits that together outlast the sweep's
-    external timeout, a hang in corpus staging or teardown, or simply a
-    slower host than `--deadline` assumed — still ends in a clean,
-    attributed nonzero exit instead of an external `timeout(1)` SIGKILL that
-    explains nothing (see sweep.sh's own wedge-timing note).
+    Per-request transport timeouts bound individual waits; this bounds the
+    whole run, including corpus staging and teardown, and reports the phase,
+    server binary and last request before exiting nonzero.
 
-    Deliberately a hard `os._exit`, not a raised exception the main thread
-    could ignore or get stuck handling: the whole point is that this fires
-    when the main thread is *not* responsive, so anything that depends on
-    the main thread cooperating (a raised exception, a graceful shutdown)
-    is not a safe assumption to build the escape hatch on.
+    Uses `os._exit` because the main thread may be unresponsive and cannot
+    be relied on to handle an exception or finish a graceful shutdown.
     """
 
     def __init__(self, progress: Progress, deadline: float) -> None:
@@ -276,9 +257,8 @@ class Watchdog(threading.Thread):
             with contextlib.suppress(Exception):
                 client.process.kill()
         # A daemon thread cannot unwind the main thread's call stack, and the
-        # main thread may be blocked in a call this fix does not (or cannot)
-        # bound — os._exit is the one escape that does not depend on it
-        # cooperating.
+        # main thread may be blocked in an unbounded call, so os._exit
+        # must not depend on it cooperating.
         os._exit(1)
 
 

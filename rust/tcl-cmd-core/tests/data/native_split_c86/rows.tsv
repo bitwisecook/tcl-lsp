@@ -1,0 +1,18 @@
+ascii-default	raw	61206209630a	61206209630a	DEFAULT	4	61,62,63,
+ascii-single	raw	2c612c2c622c	2c612c2c622c	2c	5	,61,,62,
+ascii-duplicate	raw	2c612c2c622c	2c612c2c622c	2c2c	5	,61,,62,
+empty-input	raw			2c	0	
+empty-delimiter-reuse	raw	6162616261	6162616261		5	61,62,61,62,61
+literal-nul-single	raw	61002c62	61002c62	2c	1	61002c62
+literal-nul-duplicate	raw	61002c62	61002c62	2c2c	2	6100,62
+encoded-nul-delimiter	raw	616263c080	616263c080	c080	2	616263,
+binary-nul-delimiter	binary	61626300	616263c080	c080	2	616263,
+nonbmp-empty	raw	78f09f988079	78f09f988079		3	78,f09f9880,79
+nonbmp-delimiter	raw	61f09f988062f09f9880	61f09f988062f09f9880	f09f9880	5	61,,62,,
+surrogate-pair-empty	raw	eda0bdedb880	eda0bdedb880		1	eda0bdedb880
+lone-surrogate-delimiter	raw	61eda08062	61eda08062	eda080	2	61,62
+invalid-ff-delimiter	raw	61ff62	61ff62	ff	2	61,62
+truncated-empty	raw	61e282	61e282		3	61,e2,82
+encoded-nul-empty	raw	616263c080	616263c080		4	61,62,63,c080
+invalid-delimiter-only	raw	616263	616263	ff	1	616263
+empty-input-invalid-delimiter	raw			ff	0	

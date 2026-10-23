@@ -1938,7 +1938,7 @@ mod builtin_shadow {
 // Version-gated on the dialect's *effective Tcl version* (the §6
 // argument-DSL rung): it warns under 8.4-based runtimes (tcl8.4, and the
 // whole F5 trunk — iRules, iApps and tmsh all ride the fork of Tcl at
-// 8.4.6, measured in bigip-irule-parser-measurements.md §4a) and is clean
+// 8.4.6, measured in embedded-tcl-contract.md §4a) and is clean
 // from 8.5 up.
 mod binary_format_modifiers {
     use super::*;
@@ -1952,7 +1952,7 @@ mod binary_format_modifiers {
         assert_eq!(count("binary scan $data su x", "tcl8.4", "W200"), 1);
         assert_eq!(count("binary format su $val", IR, "W200"), 1);
         // iApps ride the `f5-tcl` trunk (fork of Tcl at 8.4.6 — measured,
-        // bigip-irule-parser-measurements.md §4a: every 8.5 discriminator
+        // embedded-tcl-contract.md §4a: every 8.5 discriminator
         // fails), so the 8.5 u/s modifiers flag there too.
         assert_eq!(count("binary format su $val", "f5-iapps", "W200"), 1);
     }
@@ -2643,18 +2643,8 @@ mod catch_body_defs_no_false_w210 {
     }
 }
 
-// W210 — a brace-quoted script word of a command the registry does not
-// describe (#2117).
-//
-// Tcl substitutes nothing inside `{…}`, so such a word is only a read of this
-// frame if the script runs here *and* the name is not its own. The second half
-// used to be read as "contains a top-level `set NAME`", which is one binding
-// spelling out of many: a `set` one block deeper, a `foreach` loop variable,
-// and a `catch` output operand all read as "never binds it", and every name a
-// test body bound drew a warning anchored at the command word.
-//
-// tclsh 8.6.18 / 9.0.4: `proc mycmd {args} {}` then the bodies below run
-// without error — nothing reads an unset variable.
+// Braced script data needs its own execution and binding context.
+// Original C8.6.18/C9.0.4: these unknown-command operands read no unset variable.
 mod undescribed_script_word_bindings_no_false_w210 {
     use super::*;
 

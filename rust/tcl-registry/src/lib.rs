@@ -50,25 +50,35 @@
 pub mod abbrev;
 pub mod arg_role;
 pub mod arity;
+pub mod array_iteration;
+pub mod authored_math_functions;
 pub mod base_objects;
 pub mod bigip;
+pub mod body_execution;
 pub mod body_kind;
 pub mod bpf_op;
 pub mod byte_array_effect;
 pub(crate) mod cache;
+pub mod case_bodies;
+pub mod catch_invocation;
+pub mod channel_configuration;
 pub mod clause_grammar;
 pub mod clause_shape;
 pub mod codegen_stamp;
+pub mod command_lookup;
 pub mod command_prefix_target;
 pub mod command_snapshot;
 pub mod command_table;
 pub mod commands;
 pub mod compile_84;
 pub mod completion;
+pub mod completion_route;
+pub mod conditional_expression;
 pub mod const_fold;
 pub mod definer;
 pub mod deprecation;
 pub mod dialects;
+pub mod dictionary_scope;
 pub mod dispatch_stability;
 pub mod documentation;
 mod event_descriptions;
@@ -87,11 +97,116 @@ pub mod implementation_hash;
 pub mod intrinsic;
 pub mod invocation_words;
 pub mod irules_policy;
+pub mod iteration_entry;
+pub mod lambda_invocation;
 pub mod lifecycle;
+pub mod list_object_methods;
 pub mod literal_validation;
+pub mod logical_core_simulation;
 pub mod mathfunc;
+pub mod metadata_catalogue;
 pub mod model;
+pub mod native_alias_registration;
+pub mod native_argument_role_hook;
+pub mod native_array;
+pub mod native_array_compilation;
+pub mod native_binary_usage;
+pub mod native_binary_value;
+pub mod native_command_creation;
+pub mod native_command_literal;
+pub mod native_compilation;
+pub mod native_compiled_variables;
+pub mod native_compiler_word_projection;
+pub mod native_compiler_words;
+pub mod native_control_compilation;
+pub mod native_control_instructions;
+pub mod native_coroutine_compilation;
+pub mod native_dictionary;
+pub mod native_dictionary_compilation;
+pub mod native_dictionary_scope_compilation;
+pub mod native_each_compilation;
+#[cfg(test)]
+mod native_each_try_compilation_tests;
+pub mod native_error_compilation;
+pub mod native_expression_program;
+pub mod native_introspection_compilation;
+pub mod native_mathop_compilation;
+pub mod native_namespace_binding_compilation;
+pub mod native_namespace_string_compilation;
+pub mod native_namespace_upvar_compilation;
+pub mod native_scalar_compilation;
+pub mod native_string_compilation;
+pub mod native_string_is_compilation;
+pub mod native_string_operand_compilation;
+pub mod native_string_trim_compilation;
+pub mod native_switch_compilation;
+pub mod native_tcloo_bootstrap;
+pub mod native_tcloo_compilation;
+pub mod native_tcloo_info;
+pub mod native_tcloo_method_cache;
+pub mod native_tcloo_method_definition;
+pub mod native_tcloo_registration;
+pub mod native_try_compilation;
+pub mod native_variable_declaration;
+
+pub mod native_boolean_truth;
+pub mod native_bytecode;
+pub mod native_compiler_pass;
+pub mod native_each_loop;
+pub mod native_encoding;
+pub mod native_ensemble;
+pub mod native_ensemble_rewrite;
+/// Actual native command-source error-info formatting.
+pub mod native_error_log;
+pub mod native_error_objects;
+pub mod native_eval_object;
+pub mod native_event;
+pub mod native_expression_error;
+pub mod native_handler_path;
+pub mod native_index_lookup;
+pub mod native_info_exists_compilation;
+/// Independent native info version-reporting sources.
+pub mod native_info_version;
+pub mod native_instruction_plan;
+pub mod native_lambda;
+pub mod native_list_assignment;
+pub mod native_list_index;
+pub mod native_list_index_compilation;
+pub mod native_list_operations_compilation;
 pub mod native_lowering;
+pub mod native_namespace_code;
+/// Authenticated native C namespace-name primary semantics.
+pub mod native_namespace_name;
+pub mod native_namespace_upvar;
+pub mod native_numeric_conversion;
+pub mod native_numeric_error;
+pub mod native_object_append;
+pub mod native_object_vector;
+pub mod native_package;
+pub mod native_procedure;
+pub mod native_procedure_body;
+pub mod native_result;
+pub mod native_return_compilation;
+pub mod native_return_options;
+pub mod native_rmw;
+pub mod native_scripted_distribution;
+pub mod native_selected_worker;
+pub mod native_stock_list;
+pub mod native_string_length;
+pub mod native_string_materialization;
+mod native_try;
+pub mod native_unset_compilation;
+pub mod native_unset_options;
+pub mod native_upvar_compilation;
+pub mod native_vwait;
+pub use native_try::{NativeTryClauseArgument, NativeTryClauseFailure};
+mod command_descriptor_key;
+pub mod native_regex;
+pub mod native_usage;
+pub mod native_variable_destruction;
+pub mod native_variable_name;
+/// Selected native and explicitly authored logical argument-count error metadata.
+pub mod native_wrong_arguments;
 pub mod option_effect;
 pub mod pack_hooks;
 pub mod pack_origin;
@@ -108,14 +223,26 @@ pub mod remote_method;
 pub mod repeated;
 pub mod representation;
 pub mod resolved_invocation;
+pub use command_descriptor_key::{
+    CanonicalCommandDescriptorKey, command_descriptor_labels_match,
+    rooted_command_descriptor_label, unique_command_descriptor_coordinates,
+};
 pub mod result_stability;
 pub mod return_type;
 pub mod runtime_backing;
+pub mod runtime_expr_validation;
 pub mod scoped;
+pub mod script_body_flow;
 pub mod security_floor;
 pub mod semantic_operation;
 pub mod side_effects;
 pub mod snapshot;
+pub mod source_configuration_reference;
+pub mod source_file;
+pub mod source_index_bounds;
+pub mod source_name_ownership;
+pub mod source_navigation;
+pub mod source_path;
 pub mod spec;
 pub mod special_vars;
 pub mod stamp_window;
@@ -127,6 +254,7 @@ pub mod tk_geometry;
 pub mod traits;
 pub mod types;
 pub mod value_transfer;
+pub mod variable_output;
 pub mod version;
 pub mod version_range;
 pub mod world_effect;
@@ -138,6 +266,7 @@ pub use crate::hover::{first_positional_index, leading_option_specs};
 /// `use crate::prelude::*;` in each command file brings in all the
 /// types needed to construct a `CommandSpec`.
 pub mod prelude {
+    pub use crate::ScriptLookupScope;
     pub use crate::abbrev::{KeywordMatch, KeywordTable, PrefixMatching};
     pub use crate::arg_role::{AppendedArity, AppendedAritySet, ArgRole};
     pub use crate::arity::Arity;
@@ -147,11 +276,14 @@ pub mod prelude {
         BpfVerdictKind,
     };
     pub use crate::byte_array_effect::ByteArrayEffect;
+    pub use crate::channel_configuration::ChannelConfigurationSpec;
     pub use crate::clause_grammar::{
         ClauseGrammarSpec, ClauseRow, ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming,
         DefaultClause, LoopPhase,
     };
-    pub use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
+    pub use crate::clause_shape::{
+        ClauseShapeChecker, ClauseShapeError, ClauseShapeIssue, ClauseShapeRepair,
+    };
     pub use crate::command_table::CommandTableEffect;
     pub use crate::completion::{
         CompletionCode, CompletionCodeDomain, CompletionDescriptor, CompletionPayloadObligation,
@@ -163,7 +295,9 @@ pub mod prelude {
         MemberRefKind, MemberRetraction, MemberRow, MemberSpec, MemberVisibility, RelationSlot,
         RetractionWords, StateScope, WrapperShift,
     };
-    pub use crate::deprecation::{DeprecationFixHook, DeprecationFixSafety};
+    pub use crate::deprecation::{
+        DeprecationFixHook, DeprecationFixSafety, SourceDeprecationAdvice,
+    };
     pub use crate::dispatch_stability::{
         DispatchDependencies, DispatchDependencyComposition, DispatchDependencyDescriptor,
         DispatchDependencyDomain,
@@ -180,7 +314,10 @@ pub mod prelude {
         WS_COLLECT, WS_PAYLOAD, WS_RELEASE, XML_PAYLOAD,
     };
     pub use crate::forms::{CommandForm, LiteralArgumentPrefix, SubCommandForm};
-    pub use crate::frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWord};
+    pub use crate::frame_effect::{
+        FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWord, FrameSuccessProjection,
+        NativeFrameLevelCache, NativeFrameLevelProtocol,
+    };
     pub use crate::handle_binding::{
         BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
     };
@@ -220,6 +357,9 @@ pub mod prelude {
     pub use crate::side_effects::{
         ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
     };
+    pub use crate::source_configuration_reference::SourceConfigurationReferenceLayout;
+    pub use crate::source_index_bounds::SourceIndexBounds;
+    pub use crate::source_path::SourcePathOperation;
     pub use crate::spec::{
         BytePayloadSpec, CaseForceListShape, CaseListSpec, CaseMatchMode, CommandSpec,
         ConstraintReport, ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord,
@@ -236,7 +376,8 @@ pub mod prelude {
         StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
         StateTransitionDescriptor, StateTransitionDomain, StateTransitionOperandLayout,
         StateTransitionResolver, StateTransitionWideningRule, StateTransitions, TraceOperation,
-        TraceOperationSet, TraceTarget, TraceTransition, TransitionSubject, VariableAliasTarget,
+        TraceOperationSet, TraceTarget, TraceTransition, TransitionSubject,
+        VariableAliasDestination, VariableAliasFrame, VariableAliasTarget,
         VariableCellAliasTransition,
     };
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
@@ -269,12 +410,13 @@ pub use cache::{
     core_surface_generation, default_registry, overlay_epoch, register_core_surface_specs,
     registry_for_profile_with_overlay, safe_interp_hidden_commands,
 };
+pub use channel_configuration::{AuthoredSourceChannelConfiguration, ChannelConfigurationSpec};
 pub use clause_grammar::{
     ClauseAbstention, ClauseGrammarSpec, ClauseKeyword, ClausePlan, ClauseRow, ClauseRowId,
     ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming, DefaultClause, LoopPhase,
     ResolvedClause,
 };
-pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
+pub use clause_shape::{ClauseShapeChecker, ClauseShapeError, ClauseShapeIssue, ClauseShapeRepair};
 pub use command_prefix_target::CommandPrefixTarget;
 pub use command_table::CommandTableEffect;
 pub use completion::{
@@ -294,15 +436,20 @@ pub use events::{
     DataCollectionProtocol, EventHandlerPriority, PayloadCollectionRequirement,
     PayloadCollectionRequirementForm,
 };
-pub use frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWord};
+pub use frame_effect::{
+    FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWord, FrameSuccessProjection,
+    NativeFrameLevelCache, NativeFrameLevelProtocol,
+};
 pub use handle_binding::{
     BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
 };
 pub use hover::{ArgValue, CallbackTaintInput, ScriptTiming, VariableScope};
 pub use intrinsic::{IntrinsicFamily, IntrinsicId, intrinsic_table_hash};
 pub use invocation_words::{
-    CommandPrefixArguments, InvocationArgument, InvocationArguments, InvocationWord,
-    InvocationWordKind, InvocationWords, VariableReadProjection, VariableWriteProjection,
+    CommandPrefixArguments, CompletionOptionsPolicy, EnsembleImplementationFamily,
+    InvocationArgument, InvocationArguments, InvocationDialect, InvocationWord, InvocationWordKind,
+    InvocationWords, NativeArgumentUsageHeader, RoleOperandAlternatives, RoleOperandValues,
+    VariableReadProjection, VariableWriteProjection,
 };
 pub use literal_validation::{
     LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
@@ -318,8 +465,9 @@ pub use presentation::ArgPresentation;
 pub use profile_queries::VendorSurface;
 pub use registry::{
     CommandRegistry, EffectiveCommandSemantics, EffectiveRegistrySemantics, FormatStringArg,
-    MethodDispatchKind, NameProviders, ProcedureWords, ResolvedCall, ResolvedTerminator,
-    TryClauseKind, TryControlClause, TryControlInvocation,
+    MethodDispatchKind, NameProviders, ProcedureWords, RegistrySemanticKey, RegistrySnapshot,
+    ResolvedCall, ResolvedTerminator, TryClauseKind, TryCompletionSelector, TryControlClause,
+    TryControlInvocation, selected_try_control_invocation,
 };
 pub use relation::{
     Relation, RelationFactSource, RelationKind, RelationMode, RelationTermKind, RelationVerdict,
@@ -328,9 +476,17 @@ pub use relation::{
 pub use repeated::RepeatedArgLayout;
 pub use representation::RepresentationEffect;
 pub use resolved_invocation::{
+    AuthoredSourceAppendArguments, AuthoredSourceArity, AuthoredSourceCaseBody,
+    AuthoredSourceCommandPublication, AuthoredSourceCommandPublicationKind,
+    AuthoredSourceCredentialArgument, AuthoredSourceCredentialPosition, AuthoredSourceDescriptors,
+    AuthoredSourceExpressionArguments, AuthoredSourceLambdaCall, AuthoredSourceOption,
+    AuthoredSourceOptionArguments, AuthoredSourceOptionBoundary, AuthoredSourceOptionRelationships,
+    AuthoredSourceOptionScan, AuthoredSourceProcedureArguments, AuthoredSourceScopeAliasArgument,
+    AuthoredSourceSelfDispatch, AuthoredSourceSubcommandDiagnostic, InvocationArgumentCount,
     InvocationFacts, InvocationOptions, InvocationResolutionUnresolved, InvocationSemantics,
-    OwnedSubcommandResolution, ResolvedForm, ResolvedInvocation, ResolvedSubcommand,
-    StructuredInvocationResolution, SubcommandResolution, SubcommandResolutionKind,
+    NamedObjectFactory, OwnedSubcommandResolution, ResolvedForm, ResolvedInvocation,
+    ResolvedSubcommand, StructuredInvocationResolution, SubcommandResolution,
+    SubcommandResolutionKind,
 };
 pub use result_stability::ResultStability;
 pub use runtime_backing::{BodySource, RuntimeBacking};
@@ -349,16 +505,17 @@ pub use special_vars::{
     special_var_write_effect, special_vars_for_dialect,
 };
 pub use state_transition::{
-    AbruptTransitionTransfer, AliasWords, CallerFrameSelection, ChildInterpreterSafety,
-    CommandBindingDefinitionKind, CommandBindingTransition, CommandResolutionImpact,
-    InterpreterTransition, NamespaceTransition, NamespaceTransitionTarget, ObjectDispatchKind,
-    ObjectDispatchLayer, ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace,
-    ResolvedStateTransitions, StateTransition, StateTransitionArgumentShape, StateTransitionCommit,
-    StateTransitionComposition, StateTransitionDescriptor, StateTransitionDomain,
-    StateTransitionFact, StateTransitionKnowledge, StateTransitionOperandLayout,
-    StateTransitionResolver, StateTransitionWidening, StateTransitionWideningRule,
-    StateTransitions, TraceOperation, TraceOperationSet, TraceTarget, TraceTransition,
-    TransitionSubject, VariableAliasTarget, VariableCellAliasTransition,
+    AbruptTransitionTransfer, AliasTargetLookup, AliasWords, CallerFrameSelection,
+    ChildInterpreterSafety, CommandBindingDefinitionKind, CommandBindingTransition,
+    CommandResolutionImpact, InterpreterTransition, NamespaceTransition, NamespaceTransitionTarget,
+    ObjectDispatchKind, ObjectDispatchLayer, ObjectDispatchTarget, ObjectDispatchTransition,
+    ObjectPrivateNamespace, ResolvedStateTransitions, StateTransition,
+    StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
+    StateTransitionDescriptor, StateTransitionDomain, StateTransitionFact,
+    StateTransitionKnowledge, StateTransitionOperandLayout, StateTransitionResolver,
+    StateTransitionWidening, StateTransitionWideningRule, StateTransitions, TraceOperation,
+    TraceOperationSet, TraceTarget, TraceTransition, TransitionSubject, VariableAliasDestination,
+    VariableAliasFrame, VariableAliasTarget, VariableCellAliasTransition,
 };
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour, TaintColourAtom};
@@ -379,3 +536,38 @@ pub use world_effect::{
 /// assert!(!tcl_registry::VERSION.is_empty());
 /// ```
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+pub mod script_lookup_scope;
+pub mod simulator_mock_name;
+pub mod source_operation;
+pub use script_lookup_scope::ScriptLookupScope;
+
+mod selected_script_timing;
+
+pub mod native_jim_local;
+/// Selected variable-table hash and entry-order policy.
+pub mod native_jim_lookup;
+pub mod native_jim_switch;
+pub mod native_variable_table;
+
+/// Actual direct C variable trace registration policy.
+pub mod native_variable_trace;
+
+/// Actual interpreter option declarations and two-stage native lookup.
+pub mod native_interpreter_options;
+
+/// Jim Enum and immediate-string original cache recipes.
+pub mod native_jim_enum;
+
+pub mod native_property_lookup;
+
+#[cfg(test)]
+mod native_test_provider;
+
+pub use deprecation::SourceDeprecationAdvice;
+pub use source_configuration_reference::{
+    AuthoredSourceConfigurationReference, ConfigurationObjectFamily,
+    SourceConfigurationReferenceLayout, is_data_group_comparison_operator,
+};
+pub use source_index_bounds::{SourceIndexBounds, SourceIndexBoundsInvocation};
+pub use source_path::SourcePathOperation;

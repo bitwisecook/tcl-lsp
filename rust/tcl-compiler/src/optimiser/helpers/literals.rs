@@ -19,12 +19,7 @@
 //! Literal parsing and Tcl-source rendering for the optimiser.
 
 use crate::analyses::ConstValue;
-// The static variable-name grammar lives with the other word-shape
-// predicates in `value_shapes`; re-exported here so the optimiser's
-// `helpers::literals::is_static_var_word` call sites keep one import
-// path and there is still only one definition.
-use crate::tcl_expr_eval::{TclValue, format_tcl_value};
-pub use crate::value_shapes::is_static_var_word;
+use crate::tcl_expr_eval::{FoldPolicy, TclValue, format_tcl_value_with_policy};
 
 /// Grammar of a word that can be emitted into Tcl source without
 /// needing brace quoting:
@@ -123,6 +118,7 @@ pub fn render_folded_literal(value: &Literal) -> Option<String> {
 ///   escaping the caller must handle).
 /// - otherwise → `{value}`.
 #[must_use]
+#[cfg(test)]
 pub fn render_static_string_word(value: &str) -> Option<String> {
     if value.is_empty() {
         return Some("{}".into());
@@ -136,15 +132,34 @@ pub fn render_static_string_word(value: &str) -> Option<String> {
     Some(format!("{{{value}}}"))
 }
 
+/// Configured literal source word under the optimiser's existing conservative
+/// construction policy. Braces, backslashes and line breaks remain excluded;
+/// the shared full-word constructor validates the actual supplied grammar.
+/// This provides syntax only, not result/object or rewrite equivalence.
+#[must_use]
+pub fn render_static_string_word_in(value: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    if value.contains(['{', '}', '\\', '\n', '\r']) {
+        return None;
+    }
+    tcl_syntax::word_rules::lexical_unicode_source_word(value, config)
+}
+
 /// Render a [`ConstValue`] (from the SCCP lattice) as Tcl source
-/// text. The float case delegates to [`format_tcl_value`] so the
-/// rendered value round-trips.
+/// text. Without an execution policy, floating string materialisation is
+/// unproved; use [`format_constant_with_policy`] when the caller retains one.
 #[must_use]
 pub fn format_constant(value: &ConstValue) -> Option<String> {
+    format_constant_with_policy(value, FoldPolicy::default())
+}
+
+/// Render an SCCP value with its selected native string policy. An unproved
+/// mutable precision cannot be replaced by a preformatted floating string.
+#[must_use]
+pub fn format_constant_with_policy(value: &ConstValue, policy: FoldPolicy) -> Option<String> {
     match value {
         ConstValue::Bool(b) => Some(if *b { "1".into() } else { "0".into() }),
         ConstValue::Int(i) => Some(i.to_string()),
-        ConstValue::Float(f) => Some(format_tcl_value(&TclValue::Float(*f))),
+        ConstValue::Float(f) => format_tcl_value_with_policy(&TclValue::Float(*f), policy),
         ConstValue::String(s) => Some(s.clone()),
     }
 }
@@ -197,13 +212,17 @@ mod tests {
 
     #[test]
     fn static_var_word_grammar() {
-        assert!(is_static_var_word("foo"));
-        assert!(is_static_var_word("_foo"));
-        assert!(is_static_var_word("ns::var"));
-        assert!(!is_static_var_word(""));
-        assert!(!is_static_var_word("1abc"));
-        assert!(!is_static_var_word("ab-cd"));
-        assert!(!is_static_var_word("has space"));
+        assert!(tcl_syntax::naming::is_static_variable_source_word("foo"));
+        assert!(tcl_syntax::naming::is_static_variable_source_word("_foo"));
+        assert!(tcl_syntax::naming::is_static_variable_source_word(
+            "ns::var"
+        ));
+        assert!(!tcl_syntax::naming::is_static_variable_source_word(""));
+        assert!(!tcl_syntax::naming::is_static_variable_source_word("1abc"));
+        assert!(!tcl_syntax::naming::is_static_variable_source_word("ab-cd"));
+        assert!(!tcl_syntax::naming::is_static_variable_source_word(
+            "has space"
+        ));
     }
 
     #[test]
@@ -307,9 +326,17 @@ mod tests {
             Some("hello"),
         );
         // Float renders via format_tcl_value.
-        let rendered = format_constant(&ConstValue::Float(1.0)).unwrap();
+        let rendered = format_constant_with_policy(
+            &ConstValue::Float(1.0),
+            FoldPolicy::for_profile(Some(false), tcl_dialect::DialectProfile::find("tcl9.0")),
+        )
+        .unwrap();
         assert_eq!(rendered, "1.0");
-        let rendered = format_constant(&ConstValue::Float(3.5)).unwrap();
+        let rendered = format_constant_with_policy(
+            &ConstValue::Float(3.5),
+            FoldPolicy::for_profile(Some(false), tcl_dialect::DialectProfile::find("tcl9.0")),
+        )
+        .unwrap();
         assert_eq!(rendered, "3.5");
     }
 
@@ -325,5 +352,24 @@ mod tests {
         assert!(parse_decimal_int("abc").is_none());
         assert!(parse_decimal_int("").is_none());
         assert!(parse_decimal_int("   ").is_none());
+    }
+
+    #[test]
+    fn configured_static_literal_word_uses_shared_source_constructor_with_existing_policy() {
+        let mut config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        config.expand_syntax = false;
+        for value in ["", "hello world", "$literal [data]", "quoted \"value\""] {
+            let spelling = render_static_string_word_in(value, config).unwrap();
+            assert!(tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+                &spelling, value, config
+            ));
+        }
+        for value in ["a{b", "a}b", "back\\slash", "a\nb", "a\rb"] {
+            assert!(render_static_string_word_in(value, config).is_none());
+        }
+        assert_eq!(
+            render_static_string_word_in("hello world", config).as_deref(),
+            Some("{hello world}")
+        );
     }
 }

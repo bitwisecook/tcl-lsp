@@ -1314,9 +1314,7 @@ fn a_benign_redefinition_no_longer_bars_propagation() {
     // TP: every retained body of the
     // redefined `helper` is caller-frame-clean, so its presence does not
     // impose a class-wide barrier on an exact, dispatch-free sibling method.
-    // The formerly-used bare `my` is intentionally absent: it is resolved in
-    // the receiver namespace and therefore has an independent reason to make
-    // that calling method abstain.
+    // Bare `my` would add an independent receiver-namespace lookup obligation.
     let src = "oo::class create D {\n    method helper {} { ::return a }\n    method m {} { ::set x 1\n        ::puts $x }\n}\noo::define D { method helper {} { ::return b } }\n";
     let r = o100(src);
     assert!(

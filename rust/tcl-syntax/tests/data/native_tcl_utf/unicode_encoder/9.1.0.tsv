@@ -1,0 +1,14 @@
+character	0	c080
+character	128	c280
+character	255	c3bf
+character	55296	eda080
+character	56320	edb080
+character	128512	f09f9880
+units	0	c080
+units	55296	eda080
+units	56320	edb080
+units	55296,56320	eda080edb080
+units	55357,56832	eda0bdedb880
+units	56320,55296	edb080eda080
+units	128512	f09f9880
+units	0,128,255,55357,56832	c080c280c3bfeda0bdedb880

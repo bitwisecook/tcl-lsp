@@ -25,112 +25,53 @@
 //!   bodies.
 //! * The `handle_call` dispatcher that routes a
 //!   [`Statement::Call`] to the per-command handlers in
-//!   [`super::handlers`], plus value/expr scans for embedded
-//!   `[info ...]` hazards and non-frameless command substitutions.
+//!   [`super::handlers`], plus original-source substitutions for introspection
+//!   hazards and non-frameless command substitutions.
 //! * `walk` (recursive structural traversal) and
 //!   [`analyse_script`] (the public per-proc entry point).
 
-use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 use crate::var_escape::handlers::{
-    handle_dynamic_name_first, handle_introspection, handle_variable_aliases, has_expand_word,
+    handle_normal_variable_aliases, handle_source_introspection, handle_source_name_first,
+    has_expand_word,
 };
 use crate::var_escape::helpers::{
-    default_registry, invocation_facts, invocation_facts_from_tokens, is_dynamic_name,
-    is_dynamic_token, is_frameless_runtime_command_in, normalise_cmd_subst_head,
-    scan_value_for_info_hazards,
+    invocation_facts, invocation_facts_from_tokens, is_dynamic_name, is_dynamic_token,
+    normal_handler_is_frameless, original_substitution_invocations, retained_registry_for_script,
+    statement_needs_original_substitution_inventory,
 };
-use crate::var_escape::known_names::collect_known_names;
+use crate::var_escape::known_names::{
+    collect_known_name_inventory_with_registry, collect_known_names,
+};
 use crate::var_escape::state::EscapeState;
 use crate::var_escape::types::{EscapeTag, ProcEscapeSummary};
 
-// Walk a value text looking for embedded ``[cmd ...]`` substitution
-// heads. Apply [`scan_value_for_info_hazards`] for ``info`` shapes
-// and flag a fallback when any non-frameless head appears.
-pub(crate) fn apply_value_scan(
-    value: &str,
+fn apply_original_substitution_scan(
+    tokens: Option<&crate::ir::CommandTokens>,
     state: &mut EscapeState,
     registry: &tcl_registry::CommandRegistry,
 ) {
-    if value.is_empty() {
-        return;
-    }
-    if value.contains('[') {
-        for head in extract_cmd_subst_heads(value) {
-            let canonical = normalise_cmd_subst_head(&head);
-            // The selected registry, not the plain-Tcl allow-list: a head
-            // inside a substitution is the same command as a direct one, and
-            // must answer from the same profile (#2179).
-            if !is_frameless_runtime_command_in(canonical, registry) {
-                state.record_fallback();
-                break;
-            }
-        }
-    }
-    let (pessimistic, names) = scan_value_for_info_hazards(value);
-    if pessimistic {
+    let Some(tokens) = tokens else {
         state.mark_pessimistic();
         return;
-    }
-    for n in names {
-        state.escape(&n);
-    }
-}
-
-/// Apply the value scan to an expression's rendered source.
-pub(crate) fn apply_expr_scan(
-    expr: Option<&ExprNode>,
-    state: &mut EscapeState,
-    registry: &tcl_registry::CommandRegistry,
-) {
-    let Some(expr) = expr else {
+    };
+    let Some(calls) = original_substitution_invocations(tokens, registry) else {
+        state.mark_pessimistic();
         return;
     };
-    // ``ExprNode`` doesn't currently carry its own source text on
-    // every variant; rendering walks the tree and returns the
-    // canonical Tcl source. The hazard scan only needs to find
-    // ``[info ...]`` substitutions, which appear verbatim in the
-    // rendered text.
-    let text = crate::expr_ast::render_expr(expr);
-    apply_value_scan(&text, state, registry);
-}
-
-/// Find the leading command-word of every `[cmd ...]` substitution
-/// in *value*. Trims leading whitespace inside the brackets.
-fn extract_cmd_subst_heads(value: &str) -> Vec<String> {
-    let bytes = value.as_bytes();
-    let n = bytes.len();
-    let mut heads: Vec<String> = Vec::new();
-    let mut i = 0usize;
-    while i < n {
-        let Some(open_off) = value[i..].find('[') else {
-            break;
-        };
-        let open = i + open_off;
-        let mut j = open + 1;
-        while j < n && (bytes[j] == b' ' || bytes[j] == b'\t') {
-            j += 1;
-        }
-        // Optional ``::`` qualifier prefix.
-        let head_start = j;
-        if value[j..].starts_with("::") {
-            j += 2;
-        }
-        // Identifier head: leading alpha/underscore, then alphanumerics
-        // / underscore / colons.
-        let leading = bytes.get(j).copied();
-        if !matches!(leading, Some(b) if b.is_ascii_alphabetic() || b == b'_') {
-            i = open + 1;
-            continue;
-        }
-        j += 1;
-        while j < n && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':') {
-            j += 1;
-        }
-        heads.push(value[head_start..j].to_string());
-        i = j;
+    if calls.unknown_residual {
+        state.mark_pessimistic();
     }
-    heads
+    for call in calls {
+        if !call.frameless {
+            state.record_fallback();
+        }
+        if let Some(invocation) = call.invocation {
+            handle_source_introspection(&invocation, state);
+        } else {
+            state.mark_pessimistic();
+        }
+    }
 }
 
 /// Handle a generic [`Statement::Call`] — dispatch to the per-
@@ -141,24 +82,20 @@ pub(crate) fn handle_call(
     registry: &tcl_registry::CommandRegistry,
 ) {
     let Statement::Call {
-        command,
-        args,
-        tokens,
-        ..
+        command, tokens, ..
     } = stmt
     else {
         return;
     };
     let cmd = command.as_str();
     let facts = invocation_facts(stmt, registry);
+    let source_names = tokens.as_ref().and_then(|tokens| {
+        crate::registry_invocation::original_source_name_roles(registry, tokens)
+    });
 
     // Commands outside the frameless-runtime allow-list could
     // reach the eval fallback via the codegen. Mark accordingly.
-    if !facts.as_ref().is_some_and(|facts| {
-        facts
-            .traits
-            .contains(tcl_registry::prelude::Traits::FRAMELESS_RUNTIME)
-    }) {
+    if !normal_handler_is_frameless(stmt, registry) {
         if cmd.is_empty() || is_dynamic_token(cmd) {
             state.record_fallback();
         } else {
@@ -183,14 +120,27 @@ pub(crate) fn handle_call(
         return;
     }
 
+    if let Some(normal) = tokens.as_ref().and_then(|tokens| {
+        let metadata = tokens
+            .source_binding
+            .as_ref()?
+            .original_source_metadata_for_advice(tokens, registry)
+            .ok()?;
+        crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )
+    }) {
+        handle_normal_variable_aliases(&normal, state);
+    }
+    if let Some(source) = &source_names {
+        handle_source_introspection(source, state);
+    }
     if let Some(facts) = facts.as_deref() {
-        handle_variable_aliases(facts, state, registry);
-        handle_introspection(facts, args, state);
         if facts
             .traits
             .contains(tcl_registry::prelude::Traits::FIRST_ARG_VARNAME)
         {
-            handle_dynamic_name_first(&facts.canonical_command, args, state);
+            handle_source_name_first(&facts.canonical_command, source_names.as_ref(), state);
         }
     }
     // Record statically resolvable callees for interprocedural
@@ -258,7 +208,7 @@ fn handle_eval(args: &[String], state: &mut EscapeState, registry: &tcl_registry
         registry,
         tcl_lexer::LexerConfig::for_profile(registry.profile()),
     );
-    escape_every_name_touched(&sub_module.top_level.statements, state, registry);
+    escape_every_name_touched(&sub_module.top_level, state, registry);
 }
 
 /// Handle an ``uplevel`` barrier: only ``#0`` / ``0`` with a
@@ -395,15 +345,29 @@ fn is_eval_block(
 /// body runs through the interpreter which resolves names against
 /// the frame, so any name it touches must be visible there.
 pub(crate) fn escape_every_name_touched(
-    stmts: &[Statement],
+    script: &Script,
     state: &mut EscapeState,
     registry: &tcl_registry::CommandRegistry,
 ) {
-    for stmt in stmts {
+    for stmt in &script.statements {
+        if stmt.is_executable_invocation()
+            && stmt
+                .tokens()
+                .is_some_and(|tokens| tokens.synthetic.is_none())
+        {
+            apply_original_substitution_scan(stmt.tokens(), state, registry);
+        } else if statement_needs_original_substitution_inventory(stmt) {
+            state.mark_pessimistic();
+        }
         if state.dynamic_barrier() {
             return;
         }
-        if escape_assign_or_incr(stmt, state, registry) {
+        if escape_assign_or_incr(
+            stmt,
+            script.retained_source_tokens_for_statement(stmt),
+            state,
+            registry,
+        ) {
             continue;
         }
         if escape_call_or_barrier(stmt, state, registry) {
@@ -417,37 +381,54 @@ pub(crate) fn escape_every_name_touched(
 /// Returns `true` when *stmt* matched.
 fn escape_assign_or_incr(
     stmt: &Statement,
+    tokens: Option<&crate::ir::CommandTokens>,
     state: &mut EscapeState,
     registry: &tcl_registry::CommandRegistry,
 ) -> bool {
+    let name = match stmt {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::Incr { name, .. } => tokens.and_then(|tokens| {
+            crate::registry_invocation::original_assignment_name_operand(registry, tokens, name)
+        }),
+        _ => None,
+    };
+    if let Some((name, unknown)) = name {
+        state.escape_original_name_with_reason(
+            &name,
+            crate::var_escape::types::EscapeReason::new(
+                crate::var_escape::types::EscapeReasonKind::EvalReference,
+            ),
+        );
+        if unknown {
+            state.mark_pessimistic();
+        }
+        return true;
+    }
     match stmt {
-        Statement::AssignConst { name, value, .. } | Statement::AssignValue { name, value, .. } => {
+        Statement::AssignConst { name, .. } | Statement::AssignValue { name, .. } => {
             if name.is_empty() || is_dynamic_token(name) {
                 state.mark_pessimistic();
                 return true;
             }
             state.escape(name);
-            apply_value_scan(value, state, registry);
             true
         }
-        Statement::AssignExpr { name, expr, .. } => {
+        Statement::AssignExpr { name, .. } => {
             if name.is_empty() || is_dynamic_token(name) {
                 state.mark_pessimistic();
                 return true;
             }
             state.escape(name);
-            apply_expr_scan(Some(expr), state, registry);
             true
         }
-        Statement::Incr { name, amount, .. } => {
+        Statement::Incr { name, .. } => {
             if name.is_empty() || is_dynamic_token(name) {
                 state.mark_pessimistic();
                 return true;
             }
             state.escape(name);
-            if let Some(a) = amount {
-                apply_value_scan(a, state, registry);
-            }
             true
         }
         _ => false,
@@ -475,17 +456,8 @@ fn escape_call_or_barrier(
             handle_barrier(stmt, args, state, registry);
             true
         }
-        Statement::Return { value, expr, .. } => {
-            if let Some(v) = value {
-                apply_value_scan(v, state, registry);
-            }
-            apply_expr_scan(expr.as_ref(), state, registry);
-            true
-        }
-        Statement::ExprEval { expr, .. } => {
-            apply_expr_scan(Some(expr), state, registry);
-            true
-        }
+        Statement::Return { .. } => true,
+        Statement::ExprEval { .. } => true,
         _ => false,
     }
 }
@@ -503,41 +475,27 @@ fn escape_structural(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                apply_expr_scan(Some(&c.condition), state, registry);
-                escape_every_name_touched(&c.body.statements, state, registry);
+                escape_every_name_touched(&c.body, state, registry);
             }
             if let Some(b) = else_body {
-                escape_every_name_touched(&b.statements, state, registry);
+                escape_every_name_touched(b, state, registry);
             }
         }
         Statement::For {
-            init,
-            condition,
-            next,
-            body,
-            ..
+            init, next, body, ..
         } => {
-            escape_every_name_touched(&init.statements, state, registry);
-            apply_expr_scan(Some(condition), state, registry);
-            escape_every_name_touched(&next.statements, state, registry);
-            escape_every_name_touched(&body.statements, state, registry);
+            escape_every_name_touched(init, state, registry);
+            escape_every_name_touched(next, state, registry);
+            escape_every_name_touched(body, state, registry);
         }
-        Statement::While {
-            condition, body, ..
-        } => {
-            apply_expr_scan(Some(condition), state, registry);
-            escape_every_name_touched(&body.statements, state, registry);
+        Statement::While { body, .. } => {
+            escape_every_name_touched(body, state, registry);
         }
-        Statement::Foreach {
-            iterators, body, ..
-        } => {
-            for it in iterators {
-                apply_value_scan(&it.list_arg, state, registry);
-            }
-            escape_every_name_touched(&body.statements, state, registry);
+        Statement::Foreach { body, .. } => {
+            escape_every_name_touched(body, state, registry);
         }
         Statement::Catch { body, .. } => {
-            escape_every_name_touched(&body.statements, state, registry);
+            escape_every_name_touched(body, state, registry);
         }
         Statement::Try {
             body,
@@ -545,12 +503,12 @@ fn escape_structural(
             finally_body,
             ..
         } => {
-            escape_every_name_touched(&body.statements, state, registry);
+            escape_every_name_touched(body, state, registry);
             for h in handlers {
-                escape_every_name_touched(&h.body.statements, state, registry);
+                escape_every_name_touched(&h.body, state, registry);
             }
             if let Some(f) = finally_body {
-                escape_every_name_touched(&f.statements, state, registry);
+                escape_every_name_touched(f, state, registry);
             }
         }
         Statement::Switch {
@@ -558,11 +516,11 @@ fn escape_structural(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    escape_every_name_touched(&b.statements, state, registry);
+                    escape_every_name_touched(b, state, registry);
                 }
             }
             if let Some(d) = default_body {
-                escape_every_name_touched(&d.statements, state, registry);
+                escape_every_name_touched(d, state, registry);
             }
         }
         Statement::Block { body, tokens, .. } => {
@@ -571,7 +529,7 @@ fn escape_structural(
                 state.record_fallback();
                 handle_eval(&args, state, registry);
             } else {
-                escape_every_name_touched(&body.statements, state, registry);
+                escape_every_name_touched(body, state, registry);
             }
         }
         Statement::UpFrame { tokens, .. } => {
@@ -583,21 +541,61 @@ fn escape_structural(
     }
 }
 
-/// Resolve a (possibly-dynamic) name and call `escape` — used by
-/// the `walk` arms.
+/// Unattributed hints preserve possible names without closing dynamic targets.
 fn walk_dynamic_name_escape(state: &mut EscapeState, name: &str) {
     if let Some(literal) = state.resolve_literal(name) {
         state.escape(&literal);
-    } else {
-        state.escape_all_known();
     }
+    state.mark_pessimistic();
+    state.escape_all_known();
 }
 
 fn walk_assign_or_incr(
     stmt: &Statement,
+    tokens: Option<&crate::ir::CommandTokens>,
     state: &mut EscapeState,
     registry: &tcl_registry::CommandRegistry,
 ) -> bool {
+    let original_name = match stmt {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::Incr { name, .. } => tokens.and_then(|tokens| {
+            crate::registry_invocation::original_assignment_name_operand(registry, tokens, name)
+        }),
+        _ => None,
+    };
+    if let Some((name, unknown)) = original_name {
+        if unknown {
+            state.mark_pessimistic();
+            return true;
+        }
+        match stmt {
+            Statement::AssignConst { value, .. } => {
+                state.note_original_literal_assign(&name, value);
+            }
+            Statement::AssignValue { value, .. }
+                if !value.is_empty() && !is_dynamic_token(value) =>
+            {
+                state.note_original_literal_assign(&name, value);
+            }
+            _ => state.invalidate_original_literal(&name),
+        }
+        return true;
+    }
+    if tokens.is_some()
+        && matches!(
+            stmt,
+            Statement::AssignConst { .. }
+                | Statement::AssignValue { .. }
+                | Statement::AssignExpr { .. }
+                | Statement::Incr { .. }
+        )
+    {
+        state.mark_pessimistic();
+        state.escape_all_known();
+        return true;
+    }
     match stmt {
         Statement::AssignConst { name, value, .. } => {
             if is_dynamic_name(name) {
@@ -605,7 +603,6 @@ fn walk_assign_or_incr(
             } else {
                 state.note_literal_assign(name, value);
             }
-            apply_value_scan(value, state, registry);
             true
         }
         Statement::AssignValue { name, value, .. } => {
@@ -616,26 +613,21 @@ fn walk_assign_or_incr(
             } else {
                 state.invalidate_literal(name);
             }
-            apply_value_scan(value, state, registry);
             true
         }
-        Statement::AssignExpr { name, expr, .. } => {
+        Statement::AssignExpr { name, .. } => {
             if is_dynamic_name(name) {
                 walk_dynamic_name_escape(state, name);
             } else {
                 state.invalidate_literal(name);
             }
-            apply_expr_scan(Some(expr), state, registry);
             true
         }
-        Statement::Incr { name, amount, .. } => {
+        Statement::Incr { name, .. } => {
             if is_dynamic_name(name) {
                 walk_dynamic_name_escape(state, name);
             } else {
                 state.invalidate_literal(name);
-            }
-            if let Some(a) = amount {
-                apply_value_scan(a, state, registry);
             }
             true
         }
@@ -652,10 +644,9 @@ fn walk_assign_or_incr(
 /// this crate.
 const MAX_ESCAPE_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
-/// Walk *stmts* with the standard escape-rule transfer functions. `depth`
-/// is the nesting level of `stmts` — see [`MAX_ESCAPE_WALK_DEPTH`].
+/// Walk each retained script and its statements with the escape transfer functions.
 fn walk(
-    stmts: &[Statement],
+    script: &Script,
     state: &mut EscapeState,
     depth: u32,
     registry: &tcl_registry::CommandRegistry,
@@ -663,21 +654,36 @@ fn walk(
     if MAX_ESCAPE_WALK_DEPTH.exceeded(depth) {
         return;
     }
-    for stmt in stmts {
+    for stmt in &script.statements {
         if state.dynamic_barrier() {
             return;
         }
-        walk_statement(stmt, state, depth, registry);
+        walk_statement(script, stmt, state, depth, registry);
     }
 }
 
 fn walk_statement(
+    script: &Script,
     stmt: &Statement,
     state: &mut EscapeState,
     depth: u32,
     registry: &tcl_registry::CommandRegistry,
 ) {
-    if walk_assign_or_incr(stmt, state, registry) {
+    if stmt.is_executable_invocation()
+        && stmt
+            .tokens()
+            .is_some_and(|tokens| tokens.synthetic.is_none())
+    {
+        apply_original_substitution_scan(stmt.tokens(), state, registry);
+    } else if statement_needs_original_substitution_inventory(stmt) {
+        state.mark_pessimistic();
+    }
+    if walk_assign_or_incr(
+        stmt,
+        script.retained_source_tokens_for_statement(stmt),
+        state,
+        registry,
+    ) {
         return;
     }
     match stmt {
@@ -688,13 +694,8 @@ fn walk_statement(
             state.record_fallback();
             handle_uplevel(&args, state, registry);
         }
-        Statement::Return { value, expr, .. } => {
-            if let Some(v) = value {
-                apply_value_scan(v, state, registry);
-            }
-            apply_expr_scan(expr.as_ref(), state, registry);
-        }
-        Statement::ExprEval { expr, .. } => apply_expr_scan(Some(expr), state, registry),
+        Statement::Return { .. } => {}
+        Statement::ExprEval { .. } => {}
         _ => walk_structured_statement(stmt, state, depth, registry),
     }
 }
@@ -711,41 +712,27 @@ fn walk_structured_statement(
             clauses, else_body, ..
         } => {
             for clause in clauses {
-                apply_expr_scan(Some(&clause.condition), state, registry);
-                walk(&clause.body.statements, state, nested_depth, registry);
+                walk(&clause.body, state, nested_depth, registry);
             }
             if let Some(body) = else_body {
-                walk(&body.statements, state, nested_depth, registry);
+                walk(body, state, nested_depth, registry);
             }
         }
         Statement::For {
-            init,
-            condition,
-            next,
-            body,
-            ..
+            init, next, body, ..
         } => {
-            walk(&init.statements, state, nested_depth, registry);
-            apply_expr_scan(Some(condition), state, registry);
-            walk(&next.statements, state, nested_depth, registry);
-            walk(&body.statements, state, nested_depth, registry);
+            walk(init, state, nested_depth, registry);
+            walk(next, state, nested_depth, registry);
+            walk(body, state, nested_depth, registry);
         }
-        Statement::While {
-            condition, body, ..
-        } => {
-            apply_expr_scan(Some(condition), state, registry);
-            walk(&body.statements, state, nested_depth, registry);
+        Statement::While { body, .. } => {
+            walk(body, state, nested_depth, registry);
         }
-        Statement::Foreach {
-            iterators, body, ..
-        } => {
-            for iterator in iterators {
-                apply_value_scan(&iterator.list_arg, state, registry);
-            }
-            walk(&body.statements, state, nested_depth, registry);
+        Statement::Foreach { body, .. } => {
+            walk(body, state, nested_depth, registry);
         }
         Statement::Catch { body, .. } => {
-            walk(&body.statements, state, nested_depth, registry);
+            walk(body, state, nested_depth, registry);
         }
         Statement::Try {
             body,
@@ -753,12 +740,12 @@ fn walk_structured_statement(
             finally_body,
             ..
         } => {
-            walk(&body.statements, state, nested_depth, registry);
+            walk(body, state, nested_depth, registry);
             for handler in handlers {
-                walk(&handler.body.statements, state, nested_depth, registry);
+                walk(&handler.body, state, nested_depth, registry);
             }
             if let Some(finally_body) = finally_body {
-                walk(&finally_body.statements, state, nested_depth, registry);
+                walk(finally_body, state, nested_depth, registry);
             }
         }
         Statement::Switch {
@@ -766,11 +753,11 @@ fn walk_structured_statement(
         } => {
             for arm in arms {
                 if let Some(body) = &arm.body {
-                    walk(&body.statements, state, nested_depth, registry);
+                    walk(body, state, nested_depth, registry);
                 }
             }
             if let Some(default_body) = default_body {
-                walk(&default_body.statements, state, nested_depth, registry);
+                walk(default_body, state, nested_depth, registry);
             }
         }
         Statement::Block { body, tokens, .. } => {
@@ -779,7 +766,7 @@ fn walk_structured_statement(
                 state.record_fallback();
                 handle_eval(&args, state, registry);
             } else {
-                walk(&body.statements, state, nested_depth, registry);
+                walk(body, state, nested_depth, registry);
             }
         }
         _ => {}
@@ -798,7 +785,14 @@ pub fn analyse_script<I: IntoIterator<Item = String>>(
     body: &Script,
     params: I,
 ) -> ProcEscapeSummary {
-    analyse_script_with_registry(body, params, default_registry())
+    if let Some(registry) = retained_registry_for_script(body) {
+        return analyse_script_with_registry(body, params, registry);
+    }
+    let mut state = EscapeState::new(collect_known_names(params, body));
+    if !body.statements.is_empty() {
+        state.mark_pessimistic();
+    }
+    summary_from_state(state)
 }
 
 /// Registry-aware form of [`analyse_script`]. Production callers that already
@@ -810,9 +804,16 @@ pub fn analyse_script_with_registry<I: IntoIterator<Item = String>>(
     params: I,
     registry: &tcl_registry::CommandRegistry,
 ) -> ProcEscapeSummary {
-    let known = collect_known_names(params, body);
-    let mut state = EscapeState::new(known);
-    walk(&body.statements, &mut state, 0, registry);
+    let inventory = collect_known_name_inventory_with_registry(params, body, registry);
+    let mut state = EscapeState::new(inventory.names);
+    if inventory.unknown_residual {
+        state.mark_pessimistic();
+    }
+    walk(body, &mut state, 0, registry);
+    summary_from_state(state)
+}
+
+fn summary_from_state(state: EscapeState) -> ProcEscapeSummary {
     let frame_needed =
         state.dynamic_barrier() || state.tags.values().any(|t| *t == EscapeTag::Frame);
     // Tentative pure_leaf — the interprocedural fixpoint can only
@@ -845,6 +846,8 @@ pub fn analyse_script_with_registry<I: IntoIterator<Item = String>>(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use crate::lowering::lower_to_ir;
     use tcl_registry::CommandRegistry;
@@ -855,7 +858,12 @@ mod tests {
 
     fn analyse(src: &str) -> ProcEscapeSummary {
         let m = lower_to_ir(src, &reg());
-        analyse_script(&m.top_level, std::iter::empty::<String>())
+        let registry = m
+            .registry_snapshot
+            .as_ref()
+            .expect("actual lowered command store")
+            .registry();
+        analyse_script_with_registry(&m.top_level, std::iter::empty::<String>(), registry)
     }
 
     /// `walk` recurses once per
@@ -871,6 +879,92 @@ mod tests {
     /// the full un-truncated source nesting before that cap trims it —
     /// same rationale as
     /// `codegen::structured::tests::deeply_nested_if_survives_structured_walk`.
+    #[test]
+    fn original_scalar_owner_refusal_cannot_use_standalone_alias_hints() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = registry.profile().unwrap();
+        let module = crate::lowering::lower_to_ir_for_bytecode_with_dialect(
+            "proc p {} {set original 1}",
+            registry,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            Some(profile),
+        );
+        let body = &module.procedures.values().next().unwrap().body;
+        let statement = &body.statements[0];
+        let tokens = body
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let mut relabelled = statement.clone();
+        let Statement::AssignConst { name, .. } = &mut relabelled else {
+            panic!("actual original scalar producer");
+        };
+        *name = "$selector".to_owned();
+        let mut state = EscapeState::new(["protected".to_owned()]);
+        state.note_literal_assign("selector", "guessed_target");
+        assert!(walk_assign_or_incr(
+            &relabelled,
+            Some(tokens),
+            &mut state,
+            &registry
+        ));
+        assert!(state.dynamic_barrier());
+        assert!(state.tags.contains_key("protected"));
+        assert!(!state.tags.contains_key("guessed_target"));
+    }
+
+    #[test]
+    fn standalone_alias_hints_keep_other_dynamic_targets_unknown() {
+        let mut state = EscapeState::new(["protected".to_owned()]);
+        state.note_literal_assign("selector", "guessed_target");
+        walk_dynamic_name_escape(&mut state, "$selector");
+        assert!(state.dynamic_barrier());
+        assert!(state.tags.contains_key("protected"));
+        assert!(state.tags.contains_key("guessed_target"));
+    }
+
+    #[test]
+    fn scalar_transfers_reborrow_actual_statement_name_words() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        for body in ["set {} 1; incr {}", "set {$literal} 1; incr {$literal}"] {
+            let source = format!("proc p {{}} {{{body}}}");
+            let module = crate::lowering::lower_to_ir_for_bytecode_with_dialect(
+                &source,
+                registry,
+                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                Some(profile),
+            );
+            let procedure = module.procedures.values().next().unwrap();
+            for statement in &procedure.body.statements {
+                let expected = match statement {
+                    Statement::AssignConst { name, .. } | Statement::Incr { name, .. } => name,
+                    _ => panic!("actual bytecode scalar statement expected"),
+                };
+                let tokens = procedure
+                    .body
+                    .retained_source_tokens_for_statement(statement)
+                    .unwrap();
+                let (name, unknown) = crate::registry_invocation::original_assignment_name_operand(
+                    registry, tokens, expected,
+                )
+                .expect("exact actual statement name operand");
+                assert_eq!(name.as_str(), expected);
+                let mut state = EscapeState::new(["untouched".to_owned()]);
+                assert!(walk_assign_or_incr(
+                    statement,
+                    Some(tokens),
+                    &mut state,
+                    registry
+                ));
+                assert_eq!(state.dynamic_barrier(), unknown);
+                if !unknown {
+                    assert!(!state.tags.contains_key("untouched"));
+                }
+            }
+        }
+    }
+
     #[test]
     fn deeply_nested_if_survives_escape_walk() {
         const DEPTH: usize = 1000;
@@ -908,9 +1002,23 @@ mod tests {
     }
 
     #[test]
-    fn global_escapes_named_var() {
-        let s = analyse("global g");
-        assert!(s.is_frame("g"));
+    fn global_escapes_named_var_in_an_actual_procedure_frame() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let module = lower_to_ir("proc p {} {global g}", registry);
+        let summary = analyse_script_with_registry(
+            &module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .expect("authored fixture body")
+                .body,
+            std::iter::empty::<String>(),
+            registry,
+        );
+        assert!(summary.is_frame("g"));
+        assert!(
+            !analyse("global g").is_frame("g"),
+            "global frame declaration is a no-op"
+        );
     }
 
     #[test]

@@ -59,7 +59,8 @@ fn runtime_output(script: &str, release: TclVersion, entry: Entry) -> String {
     let completion = match entry {
         Entry::File => interp.eval_script_file_completion(script.as_bytes(), b"literal-index.tcl"),
         Entry::Stdin => interp.eval_stdin(script.as_bytes(), |_, _| {}),
-    };
+    }
+    .expect("no host refusal");
     let result = String::from_utf8(completion.result).expect("utf-8");
     assert_eq!(completion.code, CompletionCode::Ok, "{result}");
     result
@@ -426,10 +427,13 @@ mod printed {
                 interp.eval_script_file_completion(script.as_bytes(), b"literal-index.tcl")
             }
             Entry::Stdin => interp.eval_stdin(script.as_bytes(), |_, _| {}),
-        };
+        }
+        .expect("no host refusal");
         let result = String::from_utf8(completion.result).expect("utf-8");
         assert_eq!(completion.code, CompletionCode::Ok, "{result}");
-        interp.eval_completion(b"flush stdout");
+        interp
+            .eval_completion(b"flush stdout")
+            .expect("no host refusal");
         let printed = stdout.borrow().clone();
         String::from_utf8(printed).expect("utf-8")
     }

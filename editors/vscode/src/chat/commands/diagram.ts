@@ -19,7 +19,7 @@
 import * as vscode from "vscode";
 import { CommandContext } from "../types";
 import { sendContextualRequest } from "../contextPack";
-import { resolveIruleCode } from "../codeUtils";
+import { resolveIruleSource } from "../codeUtils";
 import { openDiagramPanel } from "../../diagramPanel";
 
 interface DiagramData {
@@ -61,21 +61,21 @@ Produce:
 - If procedures are called, show them as separate subgraphs linked from the call site
 - Keep node labels concise (under 40 characters) — abbreviate long strings with "..."
 - Use meaningful node IDs (e.g., \`hr_switch\` not \`A1\`)
-- Show the event subgraphs in firing order (top to bottom)
+- Order the event subgraphs by the declared event order in the structured data (top to bottom). That is the registry's declared lifecycle order, not proof that each event fires: a handler runs only when its event occurs, and some events can be skipped or repeat
 - If events have a non-default priority (not 500), mention it in the subgraph label
 - For switch statements, show the subject being switched on in the diamond, and label each outgoing edge with the match pattern
-- Connect the last node of one event subgraph to the first node of the next event subgraph to show event ordering
+- Connect consecutive event subgraphs with a dashed edge labelled \`may follow\` (\`-.->|may follow|\`), never a solid edge, so the diagram does not present a possible order as a guaranteed sequence
 - Use double-quoted strings for node labels containing special characters
 - In node labels, use the word \`and\` instead of \`&&\`, \`or\` instead of \`||\`, and \`not\` instead of \`!\` — Mermaid treats \`&\` as an HTML entity
 - Wrap data-group (class) names in single quotes in node labels (e.g., \`'AppCheck_trusted'\` not \`AppCheck_trusted\`)
 
 ## Rules for the explanation
 - 2-4 paragraphs summarising what the iRule does
-- Note the event firing order and any cross-event data flow (e.g. variables set in CLIENT_ACCEPTED used in HTTP_REQUEST)
+- Note the declared event order and any possible cross-event data flow (e.g. variables set in CLIENT_ACCEPTED used in HTTP_REQUEST), saying that it holds only when both events fire on the same connection
 - Highlight key decision points and routing logic
 - Mention any security-relevant actions (respond, redirect, header manipulation)
 
-## Structured flow data (authoritative — extracted from the compiler IR)
+## Structured flow data (authoritative for the source's structure — extracted from the compiler IR of the supplied source; it lists what the source may do, not what runs)
 \`\`\`json
 ${structuredData}
 \`\`\`
@@ -105,8 +105,24 @@ function extractMermaid(text: string): string | undefined {
   return fallback;
 }
 
+/**
+ * What a diagram describes: the supplied text, analysed standalone as iRule
+ * source. A document's own URI and version are named, but its configured
+ * analysis context is not what the diagram producer reads.
+ */
+export function diagramSourceLine(
+  resolved: Awaited<ReturnType<typeof resolveIruleSource>>,
+): string {
+  const snapshot = resolved?.snapshot;
+  const which = snapshot
+    ? `${snapshot.selection ? "a selection of " : ""}\`${snapshot.uri.toString()}\` (version ${snapshot.version})`
+    : "the supplied text";
+  return `Diagram of ${which}, analysed as standalone iRule source; it shows what the source may do, not what runs on a BIG-IP.`;
+}
+
 export async function handleDiagram(ctx: CommandContext): Promise<vscode.ChatResult> {
-  const code = await resolveIruleCode(ctx);
+  const resolved = await resolveIruleSource(ctx);
+  const code = resolved?.source;
   if (!code) {
     ctx.response.markdown(
       "Please open an iRule file, select iRule code, or attach a file with `#file` to generate a diagram.",
@@ -144,6 +160,7 @@ export async function handleDiagram(ctx: CommandContext): Promise<vscode.ChatRes
   }
 
   ctx.response.progress("Generating Mermaid diagram...");
+  ctx.response.markdown(`_${diagramSourceLine(resolved)}_\n\n`);
 
   const structuredDataStr = JSON.stringify(diagramData, null, 2);
   const userExtra = ctx.request.prompt.trim()

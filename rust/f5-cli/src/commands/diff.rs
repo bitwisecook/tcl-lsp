@@ -252,8 +252,8 @@ fn read_config(path: &Path) -> anyhow::Result<BigipConfig> {
     // Read via the UCS-aware resolver so a `.ucs` — plain or encrypted — is
     // transparently extracted to SCF, exactly like a `.conf`/`.scf`.
     let opts = crate::cli::PassphraseArgs::default().to_options();
-    let (_uri, source) = tcl_bigip_io::read_path(&path.to_string_lossy(), false, &opts)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let (_uri, source) =
+        tcl_bigip_io::read_path(path, false, &opts).map_err(|e| anyhow::anyhow!("{e}"))?;
     // Accept tmsh-script input as well as SCF so `tmsh create/modify` headers
     // compare against the same objects, not `tmsh`-module generics.
     Ok(parse_bigip_conf(

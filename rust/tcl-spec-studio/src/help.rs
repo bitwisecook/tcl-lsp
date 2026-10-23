@@ -81,7 +81,9 @@ no maximum, so leave max unbounded. `incr x ?increment?` is 1 to 2; \
 `list` is 0 to unbounded.\n\nOn a subcommand, count after the subcommand \
 word instead: `string length string` is exactly 1. The step and \
 extra-exact-count fields cover commands whose argument tail comes in pairs \
-(`array set` style `name value` lists).",
+(`array set` style `name value` lists). Select positional operands to exclude \
+options and their values using the declared option grammar; the default counts \
+every argument.",
     ),
     (
         "arg_roles",
@@ -717,6 +719,12 @@ outside the set is then a diagnostic, not just a missing completion. Only \
 close a position when the real command genuinely accepts nothing else.",
     ),
     (
+        "arg_values_accept_prefix",
+        "Whether this command's closed argument values accept unique prefixes \
+rather than requiring exact spellings. This is the command-level twin of \
+the subcommand value policy; it is independent of option/subcommand prefix matching.",
+    ),
+    (
         "event_requires",
         "iRules only: what the surrounding event context must provide for \
 this command to work — transport layer, profile, connection side. Feeds \
@@ -750,6 +758,10 @@ the command-level emission.",
 protocol, which action, when payload data is available, and how release \
 behaves. Drives the collect/release pairing diagnostics and their quick \
 fixes.",
+    ),
+    (
+        "irules_source_flow",
+        "iRules source warning grammar: possible connection drops and DNS returns require following guards; event-control operands identify an all-event guard. This is conditional source metadata, independent of dispatch, actual connection state and successful effects.",
     ),
     (
         "side_switch_target",
@@ -835,6 +847,30 @@ in a separate context of its own (`proc` bodies, class definition bodies — \
 \"Structural\"). Plain bodies join the surrounding data flow: a `set` \
 inside them changes the enclosing scope. Structural bodies deliberately do \
 not.",
+    ),
+    (
+        "native_compilation",
+        "Actual native compiler grammar and command selection timing. Stock implementation tokens, compilation entry, private ensemble members and compiler-hook dependencies must all be proved. Loadable declarations cannot certify these native implementation contracts.",
+    ),
+    (
+        "native_result",
+        "The actual native handler's result value, identity and representation contract. Successful dispatch and all observer boundaries must be proved; a nominal return type alone does not establish this contract. Loadable packs cannot certify native implementation results.",
+    ),
+    (
+        "procedure_definition",
+        "Native procedure installation grammar, including Jim persistent static storage. This native implementation contract is excluded from pack-authored strong analysis.",
+    ),
+    (
+        "variable_receivers",
+        "Positions and selected naming purposes of argv variable names after the command or subcommand. Plain positions use combined root/index geometry; {index trace-subject} selects the trace name ingress first. A declared empty list withdraws the grammar; unset inherits it. This grants no trace installation, successful access, compiler local or live runtime cell.",
+    ),
+    (
+        "successful_handler",
+        "Audited normal variable effects of a converged native implementation. Physical cell, alias, observer and output-order proofs remain required. This contract cannot select an opcode or license callback-body execution, and a loadable pack cannot certify it.",
+    ),
+    (
+        "body_execution",
+        "An evaluated-body grammar and completion contract. Script phases share semantic control flow only after live command implementation and optional-hook dependencies are proved. Package hook support is resolved independently of the Tcl core version.",
     ),
     (
         "body_interpreter",
@@ -945,6 +981,10 @@ risk than bare `subst`. Code, carried by reference; state the condition in \
 the issue notes.",
     ),
     (
+        "channel_configuration",
+        "The selected command or subcommand describes channel configuration. EncodingTranslation projects the original available encoding and translation value positions for source advice; it does not establish a channel, native handler or completed configuration.",
+    ),
+    (
         "credential_options",
         "Option flags whose value is a secret — `-password`, `-token`. A \
 literal secret passed to one is reported as a hard-coded credential, and \
@@ -1051,6 +1091,10 @@ either direction.",
         "The command to use instead, shown in the deprecation warning and \
 offered by the quick fix — the `lmap` to your deprecated mapping \
 helper.",
+    ),
+    (
+        "source_deprecation_advice",
+        "Choose the typed source shape advice declared by this command. A consumer retains original argument words and proposes the replacement for review; the descriptor does not establish runtime equivalence.",
     ),
     (
         "deprecated_replacement_drop_in",
@@ -1324,6 +1368,18 @@ Path-aware checks then follow the value — e.g. the path-taint colours \
 that prove a user-influenced path stays inside a known root.",
     ),
     (
+        "source_index_bounds",
+        "Selects conditional bounds advice from the original index/container operands. Availability, aliases and original operand ownership remain separate; the descriptor proves no native handler, current value or successful result.",
+    ),
+    (
+        "source_path_operation",
+        "A source path operation selected from the current authored schema and exact argument values. It describes conditional navigation advice, without proving a runtime handler, current filename or filesystem result.",
+    ),
+    (
+        "source_configuration_reference",
+        "Selects the registry-owned source grammar that locates a configuration-object operand. DataGroupComparison identifies a data-group reference after the comparison item and operator, including an explicit `--` separator. Selection may remain conditional when the item is computed. This metadata does not establish a native handler, an existing object or a successful comparison.",
+    ),
+    (
         "is_unescape",
         "The subcommand *decodes* — URL-decoding, HTML-unescaping. In taint \
 terms it undoes sanitisation: a value that was safe because it was \
@@ -1340,8 +1396,8 @@ packages.",
         "A third level of keywords — operations selected by the word *after* \
 this subcommand, as in `info object isa`. Deliberately lighter than a full \
 subcommand: each carries its name, a one-line detail, a synopsis, and an \
-optional dialect gate — enough for highlighting, hover, and completion. \
-Arity stays on the owning subcommand. An operation may also carry its own \
+optional dialect gate and positional option prefix — enough for highlighting, hover, and completion. \
+Arity stays on the owning subcommand. `option_prefix_words` counts required data words after the nested selector before its own option table; `configure` consumes a command name there. An operation may also carry its own \
 **option table**, and should whenever the operations disagree about which \
 options exist: `namespace ensemble create` takes `-command`, `configure` \
 takes `-namespace`, and each rejects the other's. A table here replaces the \
@@ -1487,6 +1543,16 @@ separate definition context of its own, like a `proc` body. The first \
 joins the surrounding data flow; the second deliberately does not.",
     ),
     (
+        "irulesSourceFlow",
+        "iRules source flow grammars",
+        "Select the source operation grammar. Original operands and command bindings remain necessary; the declaration supplies no reached handler, body entry or successful effect.",
+    ),
+    (
+        "scriptLookupScope",
+        "Executable lookup frames",
+        "Which frame supplies namespace lookup when an executable operand runs: current invoker, global interpreter or triggering operation. This is independent of timing and does not prove a future command table or callback reach.",
+    ),
+    (
         "scriptTiming",
         "Script timing",
         "When a script-valued option is evaluated relative to the command that \
@@ -1530,6 +1596,26 @@ Drives the binary-data corruption check.",
         "Ways a command changes which commands exist: defining a procedure, \
 renaming or deleting one, or creating an alias. Keeps \"unknown \
 command\" honest after such calls.",
+    ),
+    (
+        "channelConfiguration",
+        "Channel configuration",
+        "Conditional source option relationship vocabulary. Original values and current channel state remain independent.",
+    ),
+    (
+        "sourceIndexBounds",
+        "Source index bounds",
+        "The source index relationship vocabulary, independently of native operation identity or runtime values.",
+    ),
+    (
+        "sourcePathOperation",
+        "Source path operations",
+        "The shared source algebra for joining paths, taking a parent directory, lexically normalising an anchored path or using an explicitly supplied document filename. Runtime execution and filesystem state remain separate.",
+    ),
+    (
+        "sourceConfigurationReference",
+        "Source configuration references",
+        "Registry-owned source operand grammars for configuration objects. DataGroupComparison describes the comparison tail and its data-group operand; it grants no native execution authority.",
     ),
     (
         "patternType",
@@ -1684,6 +1770,11 @@ judges; the wrong answer either misses a relation or invents one.",
         "The value shapes a non-subcommand first word may take to select a \
 command's default form — `after 200 …`, where an integer first word \
 means a delay rather than an unknown subcommand.",
+    ),
+    (
+        "sourceDeprecationAdvice",
+        "Source deprecation advice",
+        "Typed source shape proposals owned by the selected Registry descriptor. Every edit needs original written word coordinates and review.",
     ),
     (
         "prefixMatching",

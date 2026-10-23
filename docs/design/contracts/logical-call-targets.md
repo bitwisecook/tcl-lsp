@@ -1,0 +1,15 @@
+# Logical call hierarchy targets
+
+`LogicalCallTarget::capture` selects a unique procedure or class member from the actual current source analysis and the declaration's exact name-token range. Its private constructor retains the complete source, lexer configuration, resolved input, Registry generation and positively selected Logical advice purpose. A missing, stale, foreign, ambiguous or nondeclaration range is unavailable. Item names, detail and dialect labels are display data.
+
+The target exposes a readonly `LogicalCallDeclaration`: either the actual procedure and its qualified source key, or the actual class/member with `MemberSide`. Instance and class-object tables remain independent even when their displayed titles are equal. Member names containing `::` retain their original boundary; no title splitter recovers a class name. Exact declaration positions in prepare use the same owner before resolving call-site names.
+
+Local incoming, outgoing and unresolved-outgoing consumers use this target. Server cross-document incoming captures it from the queried document before scanning independently owned caller documents. A procedure target uses only the procedure path. A member target uses the corresponding workspace instance or class-object chain and its visibility result, then scans only that side's actual source frames. Constructors and destructors belong to the instance-side frame inventory.
+
+The shared Logical class-command selector uses the existing original class-call receipt independently of constructor admission. The receipt checks the full caller source/context and its actual conditional class factory; the direct original selector word supplies the call-site range. Selected direct aliases and renames retain that source lineage. A captured prefix selector has no written call-site span and cannot borrow one. A caller without an actual class-source owner cannot recover a receiver from a workspace name. Bare class-command edges additionally require the actual class-side visibility relationship. The selector supplies source geometry independently of that visibility decision.
+
+These edges are conditional source relationships. They supply no Native allocation, live dispatch, method-table closure, entered frame, constructor execution or edit permission. Native and hosted source requests use their separate sealed `OriginalDeclarationIdentity` paths; wire labels and ranges never issue that identity. Call-site, callback, Registry selection and workspace provider guards remain independent of target selection.
+
+Implementers should capture the target once from the actual queried source and analysis, branch on its declaration kind and `MemberSide`, and pass the same owner to downstream scans. Retain each caller document's own full source/input/configuration and propagate unavailable ownership. Use names projected from selected metadata only for the existing descriptive workspace query; never accept a display title as a replacement target.
+
+Finite source/API controls refer to logical-call-target-owner. Those controls establish source selection and handoff only; provider execution requires independently retained evidence.

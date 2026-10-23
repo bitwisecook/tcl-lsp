@@ -1,0 +1,57 @@
+{
+  "source": "/workspace/tcl-lsp/rust/tcl-host-c-abi/testdata/native_integer_formatter/probe.c",
+  "source_sha256": "2c1e656d0a1bdc6a86f84a08a8601cb414eef16ce7f53ec9b1d882c99f91ff6e",
+  "archive": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+  "archive_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+  "header": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h",
+  "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+  "loaded": "/workspace/.proofs/2286-loaded-c84-formatter/libtcl8.4-observed.so",
+  "loaded_sha256": "813db8263380a10191ffbc60726325bf63cf62c72a249bbd9548793e1a746e29",
+  "link_command": [
+    "cc",
+    "-shared",
+    "-Wl,--whole-archive",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+    "-Wl,--no-whole-archive",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/2286-loaded-c84-formatter/libtcl8.4-observed.so"
+  ],
+  "probe_command": [
+    "cc",
+    "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+    "/workspace/tcl-lsp/rust/tcl-host-c-abi/testdata/native_integer_formatter/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/2286-loaded-c84-formatter/probe"
+  ],
+  "native_records": [
+    {
+      "name": "archive",
+      "args": [],
+      "exit": 0,
+      "rows": 812,
+      "sha256": "cc19ad501bb96674935c4dd855ec055b3095b97673f1dca64f5cdc8a06a6929c"
+    },
+    {
+      "name": "loaded",
+      "args": [
+        "/workspace/.proofs/2286-loaded-c84-formatter/libtcl8.4-observed.so"
+      ],
+      "exit": 0,
+      "rows": 812,
+      "sha256": "cc19ad501bb96674935c4dd855ec055b3095b97673f1dca64f5cdc8a06a6929c"
+    }
+  ],
+  "row_count_each": 812,
+  "native_comparison": "archive and loaded image outputs identical; payload/class/resident sampled before updater; errno captured around reached updater; result bytes last",
+  "rust_comparisons": 0
+}

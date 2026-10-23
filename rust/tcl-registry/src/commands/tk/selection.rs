@@ -39,8 +39,11 @@ fn selection_handle_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u
     }
 }
 
-fn selection_handle_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    match u8::try_from(args.len()) {
+fn selection_handle_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    match u8::try_from(count) {
         Ok(n) if n >= 2 => vec![(n - 1, ScriptTiming::Deferred)],
         _ => Vec::new(),
     }

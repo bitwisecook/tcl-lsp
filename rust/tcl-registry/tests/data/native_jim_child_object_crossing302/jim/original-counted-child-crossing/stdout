@@ -1,0 +1,16 @@
+VERSION|0|302e38342d392d6735626163376339
+ORIGINAL|0|
+version 0.84-9-g5bac7c9
+roundtrip empty 0 1 1
+roundtrip spaced 3 1 1
+roundtrip nul 3 1 1
+roundtrip unicode 2 1 1
+roundtrip escaped 5 1 1
+concat {A B}
+single {{A B}}
+completion {return VALUE} 2 VALUE
+completion {return -code 7 VALUE} 2 VALUE
+completion break 3 {}
+completion continue 4 {}
+completion {error ERR} 1 ERR
+parent_frame {LOCAL ::N}

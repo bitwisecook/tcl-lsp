@@ -20,6 +20,18 @@ the `tcl-spectcl` loader (see [`../registry/spec-packs.md`](../registry/spec-pac
 Registry metadata drives IR lowering, SCCP, GVN, taint, side-effects,
 diagnostics, and code completion.
 
+Configuration-reference candidates use the selected subcommand's
+`source_configuration_reference` descriptor. The `DataGroupComparison` layout
+defines an item/operator/reference tail and the shared comparison vocabulary.
+`ResolvedInvocation::authored_source_configuration_reference_operand` returns
+the original effective operand ordinal, its configuration family and whether
+option/data selection remains unknown. Consumers retain their own original
+literal and source-geometry checks; a candidate establishes no live object or
+accepted invocation. Missing metadata, uncertain option prefixes, expansions
+and unknown operators or references decline. Generic name roles and side
+effects do not supply this purpose. See the
+source candidate contract.
+
 Source: `rust/tcl-registry/src/spec.rs` (`CommandSpec`, `SubCommand`),
 `rust/tcl-registry/src/registry.rs` (`CommandRegistry`),
 `rust/tcl-registry/src/cache.rs` (`registry_for_dialect`),
@@ -193,34 +205,28 @@ So the vocabulary follows three rules:
   word is still dropped — the replacement is a descriptor the pack already
   writes. A test forbids a retired name from being declared again.
 
-| Retired | Carried now by |
+| Unsupported trait spelling | Current descriptor or loader behavior |
 |---------|----------------|
 | `HAS_SWITCH_BODY` | `case_list`; derived as `CommandSpec::has_switch_body` |
 | `HAS_DESTRUCTIVE_OPS` | `SubCommand::destructive`; derived as `CommandSpec::has_destructive_ops` |
-| `HAS_INTERP_EVAL` | `taint_interp_eval_subcommands`, which is consumed and disagreed with the flag in both directions; `send` carries `EVALUATES_CODE` on its own |
+| `HAS_INTERP_EVAL` | `taint_interp_eval_subcommands`, which describes the selected interpreter-evaluation subcommands; `send` carries `EVALUATES_CODE` independently |
 | `CONFIGURES_CHANNEL` | the `FileIo` side effect with `reads` and `writes` that both carriers, `chan` and `fconfigure`, already declare |
 | `STRING_LIST_CONFUSION` | nothing — an authoring hint about `append`, not a behavioural fact |
 
-One fact was deliberately let go. `registry` models its operations as
-`ArgValue`s rather than a subcommand table, because Tcl accepts any unique
-abbreviation and the table would misreport `registry se`; so
-`has_destructive_ops` answers false for it. Its persistent write is carried
-by its `FileIo` side effect, which is read. The command-level boolean was
-not.
+`registry` models its operations as `ArgValue`s because Tcl accepts unique
+abbreviations; a subcommand table would misreport `registry se`.
+`has_destructive_ops` therefore returns false for this command. Its persistent
+writes are described by the consumed `FileIo` side effect.
 
-`HAS_LOOP_BODY` is the trait the first rule would have retired and did not:
-nothing else in the model says a body may run more than once
-(`NEVER_INLINE_BODY` marks a different set — `timerate` and `array for` are
-loops without it, and `switch` has it without being one). It was given the
-consumer it should have had instead. Whether a command is a loop is
-`CommandRegistry::is_loop_command`, and the W240/W241/W242 termination
-checks read the condition, body, init and step positions off its declared
-argument roles (the `Expr` word, the `Body` words around it), so a pack
-shipping its own loop construct is analysed under whatever name it has; a
-loop with no boolean condition (`foreach`, `lmap`) has no termination shape
-to check. The literal `while` / `for` positions survive only as the
-registry-less fallback, the same shape `is_loop_exit_command` already
-documents.
+`HAS_LOOP_BODY` describes a body that may run repeatedly.
+`NEVER_INLINE_BODY` describes a different set: `timerate` and `array for` are
+loops without it, and `switch` has it without being a loop.
+`CommandRegistry::is_loop_command` and the W240/W241/W242 termination checks
+consume `HAS_LOOP_BODY` with the declared condition, body, init and step roles.
+A pack's loop construct is analysed through those roles independently of its
+name. Loops without boolean conditions, such as `foreach` and `lmap`, have no
+termination shape to check. Literal `while` / `for` positions are the
+registry-less fallback documented by `is_loop_exit_command`.
 
 #### Purity and optimisation
 
@@ -234,7 +240,7 @@ typed descriptor fields.
 | `Traits::CSE_CANDIDATE` | trait bit | unset | Result can be cached by GVN (common subexpression elimination) |
 | `result_stability` | `Option<ResultStability>` | `None` | Separates argument-only, versioned-world, volatile, and unknown results. Purity alone never proves replay returns the same value. |
 | `world_effects` | `Option<WorldEffectDescriptor>` | `None` | Typed reads, writes, callbacks, and clobbers of mutable Tcl-world domains. |
-| `state_transitions` | `Option<StateTransitionDescriptor>` | `None` | Known binding, namespace, interpreter, trace, and variable-cell identity changes; dynamic operands widen their typed domain. |
+| `state_transitions` | `Option<StateTransitionDescriptor>` | `None` | Known binding, namespace, interpreter, trace, and variable-cell identity changes; dynamic operands retain typed uncertainty. An optional success resolver projects normal-edge facts independently of invocation/error facts. |
 | `dispatch_dependencies` | `Option<DispatchDependencyDescriptor>` | `None` | Mutable domains whose contents must be proved stable before resolved registry semantics are treated as live dispatch. |
 | `representation_effect` | `Option<RepresentationEffect>` | `None` | Tcl dual-representation and copy-on-write behaviour, independent of the inferred value type. |
 
@@ -244,6 +250,28 @@ transparent result is still only a static GVN candidate: call reuse also needs
 closed transitions, no relevant effects, and a site proof covering every
 dispatch dependency. A world-state version does not prove that a command or
 execution trace is absent.
+
+The native `RepresentationEffect` variants `CoerceOrdinaryList`,
+`CoerceOrdinaryDictionary`, and `CoerceOrdinaryListPairs` describe successful
+ordinary-container conversions. Query
+`successful_ordinary_container_coercions(arguments, argument_offset)` with the
+retained actual dialect and exact argv cardinality. The pair form selects only
+foreach list-value operands, independently of whether its body runs. Consumers
+must first prove an ordinary List/Dictionary object; a semantic type or a C 9
+abstract-list capability does not satisfy that precondition. The returned policy
+can preserve an empty input, so known empty bytes do not establish a Must
+conversion. No variant grants a result representation, object freshness or an
+opcode. SpecTcl exports the same typed forms as `{CoerceOrdinaryList N}`,
+`{CoerceOrdinaryDictionary N}`, and `{CoerceOrdinaryListPairs N}`.
+
+Indexed list recipes keep the input and index objects separate:
+`representation_effect {CoerceOrdinaryListIndices 0 1}` identifies the list and
+the start of its index operands; `{CoerceOrdinaryListRange 0 1 2}` identifies
+the list and both range indices. The selected native dialect determines index
+parsing and possible input preservation. Numeric-index proof excludes only
+ordinary-container sharing; it supplies neither an index value nor numeric
+cache preservation. These declarations grant no handler identity, native
+compilation or result representation.
 
 #### Argument semantics
 
@@ -461,6 +489,12 @@ only names which one applies. `rust/tcl-registry/src/hooks.rs` declares them.
 | `defines_symbol` | `Option<SymbolDef>` | `None` | Command binds a navigable definition *name* the outline lists (`tcltest::test` → test case, `tcltest::testConstraint` → constraint, `tcltest::customMatch` → match mode).  `SymbolDef` carries the name argument index, an optional description-argument index, an optional `requires_arg` (record only when that argument is present — so a `testConstraint NAME value` setter defines but the `testConstraint NAME` getter does not), and the outline category (`DefinedSymbolKind`: `Test` / `Constraint` / `Matcher`).  Every symbol consumer (document + workspace symbols) reads it generically — no command-name check.  Distinct from `traits.DEFINES_PROCEDURE` / `definition_body`, which carry the richer proc / class records |
 | `definition_body` | `Option<&'static DefinitionBodyGrammar>` | `None` | The member grammar of a definer's body (`oo::class create`, `snit::type`, `itcl::class`, the `.tclspec` and `.sslictcl` document blocks): one `MemberSpec` per member keyword with its layout (`MemberKind`, `arg_roles`, an optional closed-vocabulary word) and its **effect** (`MemberSpec::effect`, a `MemberEffect`: `Callable` with receiver, role and name / params / body slots, `Forward`, `StateDeclaration`, `Relation`, `Visibility`, `Retraction`, `InitScript`, `Configuration`) — plus a wrapper's `WrapperShift` and the family's object model (built-in methods, manufacturers, member-body commands).  `DefinitionBodyGrammar::member_row` answers one member statement's `MemberRow` (effect, resolved receiver, literal name, `MemberArity`, visibility, body operand, slot operation, surface); a computed name abstains the name, a computed optional word the row.  See `tcl_registry::definer` |
 
+`DefinitionBodyGrammar::source_member_script_layout_arguments` projects a
+complete source script-argument layout from the same member, wrapper, optional
+word, and property-option descriptors without applying release availability.
+It answers source roles only; it does not claim that a member is installed,
+dispatchable, or executable in the selected interpreter.
+
 ### SubCommand field reference
 
 SubCommand shares many fields with CommandSpec but at the subcommand level.
@@ -669,10 +703,8 @@ namespace upvar ::ns o1 l1 o2 l2   ;# the local of each pair, after a fixed pref
 dict update d k1 v1 k2 v2 { ... }  ;# the same, with the body excluded
 ```
 
-Every consumer that needed one of these re-derived the stride from the
-command's *name* -- three separate copies in the semantic-token walk alone.
-`repeated_args: &[RepeatedArgLayout]` (on both `CommandSpec` and `SubCommand`)
-declares the layout as data instead:
+`repeated_args: &[RepeatedArgLayout]`, on both `CommandSpec` and `SubCommand`,
+supplies role positions, stride and excluded trailing operands to consumers:
 
 | Field | Meaning |
 |---|---|
@@ -982,8 +1014,8 @@ is the single query every consumer uses instead of a `head == "my"` /
 name, so a consumer capturing that target queries the role rather than
 matching the spelling.
 
-A future dialect variant of any of these keywords propagates through its
-`CommandSpec`, never through a walker edit; the contract tests in
+Dialect-specific keyword rows propagate through the shared `CommandSpec`;
+consumers do not maintain their own keyword lists. The contract tests in
 `registry_commands.rs` assert the consumer-visible keyword set equals the
 trait-carrying specs, per dialect.
 
@@ -1282,9 +1314,8 @@ registry has never heard of.  Version gating is deliberately not filtered
 either: a 9.0-only option is still declared, and whether its `surface` gate
 is *correct* is what the tclsh audit itself measures.
 
-A genuinely-missing option goes in `KNOWN_UNSPECIFIED` with the issue
-tracking the registry work -- a gap is tracked, not grandfathered.
-A waiver whose option has since been declared,
+A missing option requires a `KNOWN_UNSPECIFIED` entry with its tracking issue.
+A waiver for an option already declared,
 or that names no probe, fails the gate too, so an entry cannot outlive the
 gap it documents.
 
@@ -1313,7 +1344,7 @@ three-valued `KeywordMatch`:
 |---|---|
 | `Unique(canonical)` | Resolves to exactly one keyword. Everything downstream — arity, arg roles, side-effect traits, safe-interp hiding, version gates — treats it exactly as the canonical spelling. |
 | `Ambiguous(candidates)` | Prefixes more than one keyword. A guaranteed runtime error in real Tcl; the candidate set is what the user needs. |
-| `Unknown` | Prefixes nothing. The pre-existing unknown-keyword path. |
+| `Unknown` | Prefixes nothing. The unknown-keyword path. |
 
 An exact spelling always wins over a prefix (`string trim` is `trim`, not
 ambiguous with `trimleft`). In a **strict** table an abbreviation is
@@ -1575,9 +1606,9 @@ policy over typed facts, documented where it runs:
 - source and library loading — `Source`, `Load`.
 
 Two more — `DictWith` and `RegexPatternCapture` — are command-specific,
-and each is a row of the compiler-owned handlers ledger
-([value-transfers-migration.md](value-transfers-migration.md) § *Compiler-owned
-handlers*). A new hook variant whose handler would implement one command's
+and each is recorded in the command-knowledge inventory's
+[compiler-owned handlers](value-transfer-consumers.md#compiler-owned-handlers).
+A new hook variant whose handler would implement one command's
 binding rules is a missing descriptor, not residue
 ([registry-consumer-contracts.md](registry-consumer-contracts.md)
 § *The analyser: the description contract*).
@@ -1659,72 +1690,55 @@ canonical name has already been substituted in.
 
 ### The source-text consumers resolve identity themselves
 
-Each source-text consumer resolves its head's **effective command identity**
-once, before any registry query, through the document's realm
-command-binding state (`rust/tcl-compiler/src/realm.rs`):
+Source-text consumers share the positioned `SourceCommandBindings` owner
+(`rust/tcl-compiler/src/command_binding/`), which retains source command
+transitions and lookup worlds at their relevant source positions.
+`document_realm_bindings` in `realm.rs` is a legacy head projection over that
+owner, not a separate top-level statement map. Consumers can ask for the
+effective command identity before registry queries; conditional and
+unsupported transitions remain uncertain rather than becoming binding facts:
 
 ```rust
 enum RealmBinding<'a> {
-    Command(&'a str),  // the registry name this spelling really invokes
-    Rebound,           // the binding was provably taken over -- no grammar applies
+    Command(&'a str),  // registry name projected for this source spelling
+    Rebound,           // proven takeover; no registry grammar applies
 }
 ```
 
-`document_realm_bindings` scans the document's **top-level** statements once
-and records an offset-keyed fact per head spelling. Which commands mutate the
-command table is registry data (`CommandTableEffect`), and the argument shapes
-come from the compiler's own `alias.rs` detectors -- the same ones the
-IR-lowering pipeline uses -- so nothing here spells a command name. Four
-sources feed it:
+The shared owner uses registry transition metadata and compiler invocation /
+alias owners. It can retain supported nested and conditional source contexts;
+it does not claim that every Tcl effect or runtime mutation is statically
+known. Dynamic operands, unsupported transitions, incomplete provenance, and
+applicability/currentness questions remain unknown. These examples illustrate
+source facts rather than an exhaustive input list:
 
-| Statement | Fact |
+| Statement | Example projected fact |
 |---|---|
-| `namespace import ::tcltest::*` | `test` -> `::tcltest::test` |
-| `interp alias {} myfmt {} format` | `myfmt` and `::myfmt` -> `format` |
-| `rename format origfmt` | `origfmt` -> `format`, **and** `format` -> `Rebound` |
-| `proc format {args} {...}` | `format` -> `Rebound` |
+| `namespace import ::tcltest::*` | `test` may resolve to `::tcltest::test` |
+| `interp alias {} myfmt {} format` | `myfmt` may resolve to `format` |
+| `rename format origfmt` | `origfmt` may resolve to `format`; `format` is rebound |
+| `proc format {args} {...}` | `format` is rebound |
 
-A binding **source** is read through the map before the registry, so chains
-compose: `interp alias {} a {} format; rename a b` leaves `b` naming `format`
-(tclsh 8.6.16 and 9.0.4, byte-identical: `b %08x 42` answers `0000002a` while
-`info commands a` answers empty), and `proc format {…} {…}; rename format
-myfmt` correctly leaves `myfmt` `Rebound` rather than inheriting the built-in's
-grammar. An alias always *takes over* the name it binds, because C Tcl lets one
-shadow an existing command outright.
-
-Both the bare and the explicitly `::`-qualified spelling of a bound name are
-recorded, and the *latest* fact at or before the call's byte offset wins, so a
-binding never retroactively re-tags an earlier call:
-
-```tcl
-format {%08x} 42       ;# still the built-in -- specifier sub-tokens
-rename format origfmt
-origfmt {%08x} 42      ;# now the built-in
-format  {%08x} 42      ;# Rebound -- a plain string argument
-```
+At a supported source position, known transitions compose: an alias followed
+by a rename can preserve the alias target, while a proc takeover prevents
+registry grammar from being borrowed through a later rename. Such source facts
+do not prove successful execution, a live native command token, or
+applicability when unmodelled effects may intervene. An earlier call is not
+retroactively retagged by a later transition. Rooted and unrooted spellings
+follow the selected command-name policy, rather than an unconditional string
+rewrite.
 
 `RealmBinding::spec_name()` answers `""` for `Rebound`, which
-`CommandRegistry::get` never resolves -- so every registry query the walker
-already makes (`arg_indices_for_role`, `format_string_args`,
-`handle_binding`, ...) answers "unknown command" without a variant check at
-each call site.
+`CommandRegistry::get` never resolves. This is a registry-grammar filter; it
+does not confer runtime dispatch authority or turn conditional source advice
+into a certain binding.
 
-**Explicit limits.** The table is sound by abstention, and states nothing for:
-
-- a **dynamic** binding -- `rename $old new`, `interp alias {} $n {} eval`,
-  `interp alias {} n {} $t` (rejected by `is_dynamic_word`);
-- an alias with **pre-bound arguments** -- `interp alias {} pad {} format %08x`
-  shifts every index, so the target's layout cannot be reused; the name is
-  marked `Rebound` rather than aliased;
-- **another interpreter** -- a non-empty `srcPath` binds a name in a *child*
-  interpreter and states nothing here; a non-empty `targetPath` marks the name
-  `Rebound`. Hidden commands in a safe interpreter are invisible for the same
-  reason: this is a description of *this* document's command table;
-- a **conditional or nested** binding -- only top-level statements are scanned,
-  so a `rename` inside an `if` / proc / `eval`, and a `proc` inside
-  `namespace eval ::n` (which defines `::n::format`, not `::format`), state
-  nothing;
-- `unknown` fallback, traces, and computed heads -- nothing is inferred.
+**Applicability limits.** Dynamic heads or transition operands, unsupported
+command-table effects, incomplete source input, and uncertain lookup or
+fallback state yield unknown advice. Interpreter-domain facts remain scoped
+to their retained source/native domain. A conditional or nested transition is
+usable only where the shared owner retains its source, position, and
+applicability premises; it is not globally promoted from a catalogue example.
 
 #### Positioned and unpositioned readers
 
@@ -1865,6 +1879,156 @@ See the KCS how-tos: [creating a command spec without knowing
 Rust](../../kcs/kcs-howto-create-command-specs-without-rust.md) and [writing
 a SpecTcl pack](../../kcs/kcs-howto-write-a-tclspec-pack.md).
 
+## Native implementation admission and normal handler effects
+
+A runtime handler's name is not stock compiler provenance. The VM's public
+`register`, `register_guarded_builtin`, and `register_spec_builtin` doors retain
+host callables and explicitly requested semantic guards without granting C Tcl
+compiler-hook identity. Engine bootstrap uses private `register_stock_builtin`
+and `register_stock_spec_builtin` doors. Aliases and imports retain the actual
+implementation provenance, and release visibility follows that provenance.
+`CommandRegistry::native_compilation_for_registration` selects compiler metadata
+for a proved stock registration's canonical identity. Private workers use their
+authored parent command and frozen prefix to select the member descriptor;
+looking up the parent alone would lose, for example, the `info exists` compiler.
+Conflicting reverse mappings and unavailable native versions remain unknown.
+The VM's private `register_stock_namespace_ensemble` bootstrap door constructs
+real mutable ensemble tokens and actual private member registrations together.
+`info` uses its measured C Tcl 8.5+ surface; `array` uses the registry-selected
+implementation namespace on C Tcl 8.6+. Older releases and Jim keep their
+monolithic command registrations. Profile changes replace only stock workers,
+preserving user replacements. They retire an empty implementation namespace
+only with an exact bootstrap birth token; user namespace contents, child
+namespaces, ensemble tokens and same-name recreations remain independent. A private member's compiler hook remains its
+actual authored hook: the Basic array workers have hooks, rather than borrowing
+absence from their public ensemble's fallback behaviour. The array backing
+continues to advertise only the members this engine implements.
+The query supplies metadata only: the runtime must retain actual registration
+identity and independently validate selection before the original arguments.
+
+`NativeCompilationBinding::compiler_hook` records actual hook presence
+separately: a host handler with an opaque semantic identity can still prove
+that compilation emits generic dispatch. Missing audited registration evidence
+remains `Unknown`; the absence of a catalogue descriptor is not proof that
+the interpreter has no compiler hook.
+
+`native_tcloo_registration` supplies explicit absent-hook metadata for the
+qualified C Tcl 8.6–9.1 definition workers and the applicable C9 helpers and
+slot objects. The VM projects a simulated bare definition adapter to that
+qualified registration only while its original stock identity and active
+definition frame are retained. Class and object definition workers remain
+distinct. Outside that frame, on an unsupported native engine, or after a
+replacement, the projection supplies no authority. The native `next`, `nextto`
+and method-context `self` registrations have real compiler hooks; this
+absent-hook roster excludes them. Jim's scripted object package cannot borrow
+C TclOO registration evidence. Absent-hook metadata authorizes generic compiler
+dispatch only; it grants no normal handler, body, value or effect closure.
+
+`NativeCompilationBinding::compiler` separately retains the actual compiler
+implementation and its mutable ensemble configuration. Changing a stock
+ensemble's map makes its handler identity opaque while retaining its original
+native compiler. Export the current namespace token, member prefixes, roster,
+parameters, abbreviation policy and unknown callback without forcing lazy
+value objects to acquire strings. A mapped worker's compiler hook remains a
+separate lookup obligation. Compiler metadata never restores the ensemble's
+original handler identity or licenses its former runtime effects.
+
+`NativeCompilationEntry::inline_compilation_disabled` records the actual
+interpreter flag installed while a step-traced invocation executes. Merely
+registering a step trace does not install this flag. The flag makes compiler
+hook selection generic while retaining bytecode-object parsing, argument
+substitutions and compiler traversal; it does not turn execution into a direct
+script. Retiring the final active step-trace scope restores hook selection.
+
+`NativeCompilationEntry::variable_observers` exports an independent actual
+observer-table contract. `Absent` and `BoundedNativeOnly` prove that variable
+accesses cannot enter arbitrary Tcl or opaque callbacks; neither proves values,
+links, generations, or newly allocated cells. The VM's native precision hook
+uses `BoundedNativeOnly`; script registrations and retained active trace firing
+use `Present`. Foreign providers that cannot close their table use `Unknown`.
+The source adapter closes only dynamic callback uncertainty at entry, and later
+source trace installation remains visible. The entry's structural cache key
+and mutation epoch retain this evidence. A write callback replacing `return`
+after procedure compilation yields `CUSTOM` on C Tcl 8.5, while 8.4 and 8.6–9.1
+retain the selected native return and yield `X`; the VM corpus compares all five
+actual releases without treating callback absence as fresh variable contents.
+
+Coroutine relay bytecode follows the native stack contract: the relay list
+starts with the namespace captured before operand evaluation, followed by the
+command and its arguments. The VM carries that namespace through suspension
+and uses the shared explicit-namespace command lookup when the resumer runs the
+relay. The target still executes in the resumer's variable frame; its written
+head and trace ownership stay intact. Generic `yieldto` captures its namespace
+at handler entry. The native conformance corpus covers relative target lookup,
+resumer variables and namespace, missing targets, repeated suspension and arity
+on C Tcl 8.6, 9.0 and 9.1.
+
+Procedure command headers have their own captured registration descriptor.
+Across C Tcl 8.4–9.1, bare `args` formals with only surrounding ASCII spaces
+and a whitespace body install `TclCompileNoOp`; equivalent parsed formals such
+as `{args}` do not. C 8.5+ also admits body backslash-newline whitespace, while
+8.4 does not. Jim has no corresponding header compiler. The shared
+`native_procedure::procedure_header_compilation` policy consumes retained
+definition bytes and precompiled-body representation, and the neutral entry
+retains `Absent`, `NoOp`, or `Unknown` independently of body compilation.
+The no-op compiler still evaluates argument substitutions; it does not enter
+the procedure body. Forty-eight fixed native observations cover these cases.
+Its bytecode selection carries an exact runtime interpreter, lookup namespace,
+constructed slot, callable token, and implementation incarnation. C 8.4 freezes
+the selection at chunk entry; later C cores freeze it before the command's
+arguments. The VM retains that selected range through its continuation rather
+than rechecking a replaced callable during substitutions. A failed selection
+replays the original command once through ordinary dispatch. A source-only
+nominal procedure name cannot supply this runtime prerequisite.
+
+C Tcl 8.5+ `info` is a real mutable namespace ensemble with registered private
+member handlers. Native admission checks the original ensemble map,
+configuration, and private implementation token. Reconfiguration or replacement
+of a private member invalidates the corresponding compiler proof. An operation
+already selected by the native compiler retains its selected implementation and
+execution-trace disposition; ordinary generic invocation uses the live map and
+trace registrations.
+
+A captured-name invocation retains its mapped worker's compilation snapshot
+separately from the public ensemble configuration guard. Replacing a worker
+with an empty variadic procedure does not invalidate a warmed generic compiler
+cache; that captured name still resolves its handler after argument evaluation.
+Rechecking the old worker token at every invocation would incorrectly replay
+the public ensemble and could select a map changed by those arguments.
+
+`SuccessfulHandlerSpec` is a separate registry contract for converged normal
+transfer when compiler selection remains unknown. The purpose-limited
+`CommandBindingTransition` contract records audited alias installation without
+executing its deferred prefix or granting a pure value leaf. Leaf effects,
+variable operands, and catch outputs can provide their audited normal effects
+without licensing a native opcode, script body traversal, or completion timing.
+The separate `PossibleBodies` contract uses the shared `ScriptBodyFlow` grammar
+to retain candidate caller-frame script entries under unknown compilation.
+Candidate inventory retains possible effects and unknown entry failures.
+Analysis topology preserves the shared conditional grammar, frozen expression
+value, original argument source and retained variable reads, including conditions
+whose bodies are empty. It does not select executable control flow or a
+successful compiler operation. Unknown expression values retain both possible
+branches without inventing an expression or a source read.
+Container element typing consumes the same normal contract after proving an
+unobserved physical store. These engine contracts are authored in Rust; ordinary
+catalogue declarations and stubs do not establish native compiler provenance.
+
+User-procedure invokers have a purpose-limited call-edge contract: the
+frozen callee operand and argument tail may contribute caller evidence when
+actual runtime lookup is closed. Compiler uncertainty can prevent entry, but
+cannot create an arbitrary caller. Successful result representation and element
+shapes use a separate projection; neither grants an opcode, body-entry or
+constant-fold licence.
+
+Output variable names are looked up in the selected native write order, with
+write traces between lookups. The generic C catch handler and the C 8.5 inline
+compiler store result then options. C 8.6+ inline compilation stores options then
+result. `CatchInvocation::output_order` owns this difference. Unknown compilation
+protocol retains unknown ordering, and a previous observed output cannot prove
+a later output's address. The shared `tcl-test-support::variable_outputs` corpus
+compares these protocols and trace-driven retargeting against actual C cores.
+
 ## Related docs
 
 - [Command infrastructure in walkthroughs](example-walkthroughs.md#command-infrastructure)
@@ -1873,3 +2037,93 @@ a SpecTcl pack](../../kcs/kcs-howto-write-a-tclspec-pack.md).
 - [side-effects-system.md](side-effects-system.md)
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md)
 - [dialects-events.md](dialects-events.md)
+
+The VM's list-update opcodes share `lappend_list_update` at the variable-cell
+owner. Before a read callback, it captures and retains the reached scalar or
+array element and its parent. An empty append returns an existing valid list
+with its original bytes and performs no write; a missing value creates an empty
+list in the captured cell. Deleting the parent array cannot redirect the pending
+write to a replacement array. This differs from the generic C `lappend x` handler,
+which resolves the name again when its initial read reports a missing value.
+Scalar reads use the same operation references, so unset-and-recreate callbacks
+retain the native variable shell throughout the access.
+
+## Selected namespace metadata queries
+
+`ProfileRegistry::namespace_for_command_spec` projects protocol namespace metadata
+from an already selected F5 command row. It uses that row's constructed holder
+and exact namespace spelling. Selection, current source and argument-form
+applicability stay with the caller; command-owned profile requirements take
+precedence over namespace defaults.
+
+`ContextRegistry::namespace_package_ownership` returns an immutable descriptive
+index from the rows selected by its complete context and command store.
+`package_for_namespace` accepts an already constructed namespace key and removes
+exactly one optional root marker. `package_for_flat_key` asks for the most specific
+declared namespace prefix of a flat command key without constructing a C namespace
+path. An unowned or conflicting most-specific prefix blocks a broader hint.
+
+A namespace has package ownership only when every selected row agrees on the same
+nonempty `required_package` or `tcllib_package`. Disagreeing fields on one row also
+make that namespace unknown. Case, Unicode and literal colon segments stay exact.
+The package name is independent of the namespace spelling. These queries describe
+selected declarations; they establish no package loading, installed command,
+Native namespace identity, source correspondence or edit permission.
+
+
+`CommandRegistry::declares_command_at_rooted_key` reads source-catalogue
+declaration metadata from a rooted constructed reporting key. Syntax removes
+exactly one root; the remaining bytes must select an exact Registry descriptor
+label. `declares_command_at` retains rooted/unrooted compatibility through the
+same worker. Written-name fallback and repeated-colon canonicalisation do not
+participate. Bare operator imports and method-only global names retain their
+declaration exclusions. Package rows retain `required_package` / `tcllib_package`
+metadata independently of loading. These answers supply no installed command
+table, Native binding, namespace identity or source import/export permission.
+
+
+### Selected package and dictionary source layouts
+
+`db.unit.registry.package.require-original-option-layout` shares the package
+require descriptor's one optional exact flag between structured source roles
+and package transitions. A repeated flag-shaped word is the package operand
+after the first flag, not another consumed option. Known byte operands remain
+bytes; expansion, unresolved leading values and unavailable NUL-sensitive
+extent do not acquire a positional identity. Unknown transition layout widens
+the existing package-state domain. Original release-specific version and
+requirement validation remains independent of operand selection.
+
+`db.unit.registry.dictionary.filter-selected-source-body` uses the actual
+closed filter-mode table and its shared prefix policy. Script mode requires
+the complete fixed dictionary/mode/binder/body shape; source body position is
+not guessed from the last arbitrary argument. Unsupported shapes retain
+unavailable source roles. These metadata grant neither reached iteration nor
+Native dict availability (in particular, Tcl8.4 does not install dict).
+
+`db.unit.registry.dictionary.qualified-source-facets` projects standalone
+worker source metadata from its actual selected SubCommand descriptor,
+including clause grammar, repeated conditional binders, scope-alias semantic
+traits and option/selector facts. Public-ensemble versus worker native compiler
+geometry remains independent and unchanged. No label equality supplies
+physical worker registration, currentness or callability.
+
+
+### Command-level closed-value prefix policy
+
+`CommandSpec::arg_values_accept_prefix` is the default-false command-level
+counterpart of the existing selected SubCommand value-vocabulary policy.
+Qualified dictionary command projections carry the actual selected subcommand
+flag alongside its values and closed ordinals, including `dict filter`'s
+filter-type abbreviations. W127 and its existing W137 value-lifecycle query
+read the actual top descriptor flag instead of a hardcoded exact policy.
+Other command descriptors retain their exact/default or open-value behavior;
+this does not automatically close any previously open vocabulary. Option and
+subcommand prefix selection remain independent.
+
+The existing SpecTcl flag reader handles both scopes; Studio command schema,
+draft, Rust rendering, SpecTcl rendering and exhaustive coverage transport the
+same boolean. No new matcher/parser, enumerated prefix alias list, name-local
+exception, runtime lookup or successful handler/Native/equivalence grant is
+introduced. This repairs the concrete invalid CommandSpec field projection in
+the pending dictionary layout packet; source checks alone do not establish
+compilation, round-trip or diagnostic efficacy.

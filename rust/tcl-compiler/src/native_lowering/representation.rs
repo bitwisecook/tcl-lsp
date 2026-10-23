@@ -18,7 +18,7 @@
 
 //! The value-representation lattice and the interval proofs that let native
 //! integer arithmetic drop its overflow edge.  See
-//! `docs/design/compiler/wasm-native-lowering-plan.md` §3.4.
+//! `docs/design/compiler/wasm-native-lowering.md` §3.4.
 //!
 //! A representation says what the emitter may assume about a value without
 //! testing it at run time. `NativeInt` carries the closed interval the value

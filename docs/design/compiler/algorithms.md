@@ -251,19 +251,18 @@ recomputation idea: recompute a unit only when its inputs change.
 **Where.** `rust/tcl-compiler/src/compilation_unit.rs`; the salsa-backed
 query layer in `rust/tcl-lsp-db/src/lib.rs`.
 
-**Adaptation.** The unit of reuse is the per-proc `FunctionUnit`, memoised by
-`tcl-lsp-db`'s `function_lattice` query on an interned `FnLatticeKey`: the
-procedure's **post-inline IR body normalised to offset 0**, its qualified name
-and parameter list, the interned module-wide `CfgContext` (the `upvar_procs` /
-`proc_params` / `global_write_procs` maps from `prepare_cfg_context`), the
-dialect, any interprocedural SCCP parameter seeds, the sorted known-class list,
-and the module's variable-trace facts.  The body's **position is deliberately
-not in the key** — a shifted-but-unchanged body interns to the same key and the
-builder rebases the cached result to the body's real span through
-`FunctionUnit::base_offset`.  Cross-proc invalidation rides the `CfgContext`
-and the whole-module fact fields.  Every key component is an
-over-approximation, which is the safe
-bias: a key that changes more often than strictly necessary forces extra
-recomputation, but can never serve a stale result.  The hard contract on any
-change here is that incremental analysis must equal a full rebuild
-byte-for-byte.
+**Adaptation.** The salsa `function_lattice` query is keyed by `FnLatticeKey`,
+which retains a `BodyLatticeInputs` value plus the qualified name, parameters,
+prepared CFG context, exact lexer configuration, dialect and compiler registry
+snapshot, parameter seeds, whole-module class/trace facts, source-entry and
+command-trust metadata, and value-transfer analysis context. `BodyLatticeInputs`
+is not always just normalised body text: an uncertified input compares by its
+IR body, while a retained source certificate compares the checked original
+declaration and analytical source correspondence. The `retain` path validates
+the current source, body, lexer/metadata context and registry before issuing
+that certificate. Offset normalisation and rebasing are separate from this
+correspondence check; a shifted body can reuse a key only when the complete
+key inputs still match. The database rebuilds the prepared CFG under the
+retained context and checks it against the current procedure CFG before reusing
+a candidate. Therefore prose listing a body, qname and CFG context alone is not
+a complete cache identity or proof of safe reuse.

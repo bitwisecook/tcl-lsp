@@ -18,9 +18,17 @@
 
 //! Tcl code minifier.
 //!
-//! Pure function: source in, minified source out.  The **default
-//! tier** ([`minify_tcl`]) is complete and preserves semantic
-//! equivalence by:
+//! [`minify_with_analysis`] retains the complete current editing input. Native
+//! syntax compaction retains original words and edits only separators in
+//! authenticated original script regions. Expansions, escaping and variable
+//! syntax retain their original bytes. Every selected region checks emitted
+//! lexical correspondence independently; this makes no
+//! runtime reflection or line-number equivalence claim. Native naming,
+//! insertion, semantic and keyword passes require separate contracts and report
+//! typed refusals while those contracts are unavailable.
+//!
+//! The following transformations belong to explicit lexical authoring advice.
+//! Its **default tier** ([`minify_tcl`]) performs:
 //!
 //! 1. Stripping all comments.
 //! 2. Collapsing inter-command whitespace to `;`.
@@ -37,10 +45,8 @@
 //!    `case_list` commands (`switch`, Expect's `expect`) with the
 //!    Tcl **list** grammar — a braced case list is a list, not a
 //!    script, so `#` is an ordinary pattern there, never a comment.
-//! 9. Abbreviating ensemble subcommands for fixed-ensemble
-//!    dialects (`f5-irules` / `f5-iapps` / `f5-bigip`).
 //!
-//! The default tier never introduces variables, writes, or any other
+//! Syntax compaction never introduces variables, writes, or any other
 //! observable behaviour — its output is frame-transparent.  That rules
 //! out `[subst $alias]` template deduplication, whose `set alias {…}`
 //! preamble can clobber a live variable, fire traces, and change
@@ -124,20 +130,30 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write as _;
 
+mod lexical_keywords;
+mod lexical_metadata;
+mod original;
+pub use original::{MinifyOptions, MinifyRefusal, MinifyTier, minify_with_analysis};
+
 use rustc_hash::FxHashSet;
 
-use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef, Scope, ScopeKind};
+use tcl_compiler::analyser::{AnalysisResult, Scope, ScopeKind};
 use tcl_compiler::analyses::{ConstValue, LatticeValue};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::expr_ast::render_expr;
+#[cfg(test)]
 use tcl_compiler::ir::Statement;
-use tcl_compiler::lambda_literal::split_lambda_literal_decoded;
+#[cfg(test)]
 use tcl_compiler::ssa::Version;
-use tcl_compiler::taint::{TaintColour, TaintLattice};
+use tcl_compiler::taint::TaintColour;
+#[cfg(test)]
+use tcl_compiler::taint::TaintLattice;
 use tcl_compiler::{BinOp, ExprNode, UnaryOp, parse_expr_for_profile};
-use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType, close_quote_offset};
-use tcl_registry::abbrev::{KeywordTable, PrefixMatching};
+#[cfg(test)]
+use tcl_lexer::close_quote_offset;
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
+use tcl_syntax::naming::AuthoredCompactNameSequence;
 
 /// Depth cap for [`minify_body`]'s recursion over nested control-flow
 /// bodies, `[…]` command substitutions, and `expr` bodies.
@@ -161,9 +177,11 @@ struct Arg {
 
 /// Map of original names to compacted names, grouped by scope
 /// (only the fields the active tiers populate).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SymbolMap {
-    /// Per-scope `{original_var: short}` maps, keyed by scope label.
+    /// Per-scope `{original_var: short}` reports, keyed by display label.
+    /// Colliding labels are disambiguated after edit selection.
     pub variables: BTreeMap<String, BTreeMap<String, String>>,
     /// `{original_proc: short}`.
     pub procs: BTreeMap<String, String>,
@@ -178,8 +196,37 @@ pub struct SymbolMap {
     pub static_folds: BTreeMap<String, String>,
 }
 
+/// Separate report labels, without a source scope, frame or variable identity.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ScopedSymbolMapLabel {
+    /// Original transformation's display scope label.
+    pub scope_label: String,
+    /// Compacted spelling recorded by that transformation.
+    pub compacted: String,
+}
+
+/// Failure of the lossless structured report, independently of legacy display.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SymbolMapReportError {
+    /// No structured record is present; legacy display parsing remains possible.
+    MissingRecord,
+    /// A present structured record is malformed or has trailing non-report data.
+    InvalidRecord,
+    /// The record uses a schema this reader does not understand.
+    UnsupportedVersion(u32),
+}
+
+const SYMBOL_MAP_RECORD: &str = "# tcl-lsp-symbol-map ";
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SymbolMapReport {
+    version: u32,
+    symbols: SymbolMap,
+}
+
 impl SymbolMap {
-    /// Human-readable symbol map.
+    /// Human-readable labels followed by the authoritative lossless report.
     #[must_use]
     pub fn format(&self) -> String {
         let mut lines: Vec<String> = Vec::new();
@@ -223,21 +270,62 @@ impl SymbolMap {
                 lines.push(format!("  {folded:?} <- {original:?}"));
             }
         }
+        let record = serde_json::json!({"version": 1, "symbols": self});
+        lines.push(format!("{SYMBOL_MAP_RECORD}{record}"));
         lines.join("\n")
     }
 
-    /// Reverse lookup: compacted name → original.  Variables also
-    /// get a `scope:short` → `scope:original` entry; the bare entry
-    /// keeps the first scope seen.
+    /// Exact separate scope/compacted report labels, retaining every original
+    /// spelling when a compacted label is duplicated. This supplies no binding.
+    #[must_use]
+    pub fn scoped_reverse(&self) -> BTreeMap<ScopedSymbolMapLabel, Vec<String>> {
+        let mut reversed: BTreeMap<ScopedSymbolMapLabel, Vec<String>> = BTreeMap::new();
+        for (scope, variables) in &self.variables {
+            for (original, compacted) in variables {
+                reversed
+                    .entry(ScopedSymbolMapLabel {
+                        scope_label: scope.clone(),
+                        compacted: compacted.clone(),
+                    })
+                    .or_default()
+                    .push(original.clone());
+            }
+        }
+        reversed
+    }
+
+    /// Approximate display labels. Bare ties keep the first row; ambiguous
+    /// concatenated scope labels are omitted. This grants no name identity.
     #[must_use]
     pub fn reverse(&self) -> BTreeMap<String, String> {
+        let mut reversed = self.bare_reverse();
+        let mut scoped: BTreeMap<String, Option<String>> = BTreeMap::new();
+        for (label, originals) in self.scoped_reverse() {
+            let key = format!("{}:{}", label.scope_label, label.compacted);
+            let value = match originals.as_slice() {
+                [original] => Some(format!("{}:{original}", label.scope_label)),
+                _ => None,
+            };
+            scoped
+                .entry(key)
+                .and_modify(|value| *value = None)
+                .or_insert(value);
+        }
+        for (label, original) in scoped {
+            if let Some(original) = original {
+                reversed.entry(label).or_insert(original);
+            }
+        }
+        reversed
+    }
+
+    fn bare_reverse(&self) -> BTreeMap<String, String> {
         let mut rev: BTreeMap<String, String> = BTreeMap::new();
         for (original, short) in &self.procs {
             rev.entry(short.clone()).or_insert_with(|| original.clone());
         }
-        for (scope, var_map) in &self.variables {
+        for var_map in self.variables.values() {
             for (original, short) in var_map {
-                rev.insert(format!("{scope}:{short}"), format!("{scope}:{original}"));
                 rev.entry(short.clone()).or_insert_with(|| original.clone());
             }
         }
@@ -253,10 +341,41 @@ impl SymbolMap {
         rev
     }
 
-    /// Parse a symbol map from the [`Self::format`] text (only the
-    /// sections the active tiers emit).
+    /// Read the terminal structured record exactly. A malformed or unsupported
+    /// record cannot fall back to the lossy display sections.
+    ///
+    /// # Errors
+    /// Returns the missing, malformed or unsupported structured-record category.
+    pub fn parse_structured(text: &str) -> Result<Self, SymbolMapReportError> {
+        let record = text
+            .lines()
+            .rfind(|line| !line.trim().is_empty())
+            .and_then(|line| line.strip_prefix(SYMBOL_MAP_RECORD))
+            .ok_or_else(|| {
+                if text.lines().any(|line| line.starts_with(SYMBOL_MAP_RECORD)) {
+                    SymbolMapReportError::InvalidRecord
+                } else {
+                    SymbolMapReportError::MissingRecord
+                }
+            })?;
+        let report: SymbolMapReport =
+            serde_json::from_str(record).map_err(|_| SymbolMapReportError::InvalidRecord)?;
+        if report.version != 1 {
+            return Err(SymbolMapReportError::UnsupportedVersion(report.version));
+        }
+        Ok(report.symbols)
+    }
+
+    /// Parse the lossless [`Self::format`] report, or legacy variable/procedure
+    /// display sections. Invalid structured records produce an empty report;
+    /// [`Self::parse_structured`] exposes their exact refusal category.
     #[must_use]
     pub fn parse(text: &str) -> Self {
+        match Self::parse_structured(text) {
+            Ok(report) => return report,
+            Err(SymbolMapReportError::MissingRecord) => {}
+            Err(_) => return Self::default(),
+        }
         let mut sm = SymbolMap::default();
         let mut section = "";
         let mut section_name = String::new();
@@ -313,7 +432,7 @@ impl SymbolMap {
 /// handled separately by [`remap_line_references`].
 #[must_use]
 pub fn unminify_error(error_message: &str, symbol_map: &SymbolMap) -> String {
-    let rev = symbol_map.reverse();
+    let rev = symbol_map.bare_reverse();
     if rev.is_empty() {
         return error_message.to_owned();
     }
@@ -487,17 +606,20 @@ fn try_remap_procline(
     ))
 }
 
-/// Full result from aggressive minification.
+/// Result and requested-pass refusals from minification.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MinifyResult {
     /// The minified source.
     pub source: String,
     /// Compaction symbol map.
     pub symbol_map: SymbolMap,
-    /// Number of optimiser rewrites applied.
+    /// Number of retained naming or optimiser rewrites applied.
     pub optimisations_applied: usize,
     /// Length of the original source (bytes).
     pub original_length: usize,
+    /// Requested transformations whose independent contracts are unavailable.
+    /// Syntax compaction can succeed while a naming or insertion pass refuses.
+    pub refusals: Vec<MinifyRefusal>,
 }
 
 impl MinifyResult {
@@ -519,41 +641,23 @@ impl MinifyResult {
     }
 }
 
-/// Minify a Tcl source string for the given dialect (default tier).
+/// Minify under explicit driver profile/store inputs. Native output changes
+/// only lexical separators and comments, keeping whole original words.
+/// Use [`minify_with_profile`] or [`minify_with_analysis`] to retain refusals.
 #[must_use]
 pub fn minify_tcl(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
 ) -> String {
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
-    minify_body(
-        source,
-        MinifyEnv {
-            dialect,
-            registry,
-            identities: &identities,
-        },
-        0,
-    )
+    minify_with_profile(source, dialect, registry, MinifyOptions::default()).source
 }
 
-/// Aggressive minification: apply the compiler's optimiser
-/// rewrites, compact names, alias repeated commands / arguments /
-/// string substrings, then minify whitespace.  Returns a
-/// [`MinifyResult`].
-///
-/// **Not frame-transparent**: the aliasing phases
-/// inject `set alias …` preambles, which create real Tcl variables
-/// — observable via `info vars`, variable traces, and any
-/// same-named variable in the hosting interpreter.  The alias
-/// generators avoid every name the compiler can see (compacted
-/// shorts, every analysed / SSA-known variable name, every textual
-/// `$name` reference — [`collect_live_names`]), so a collision with
-/// a name *present in the script* cannot happen, but names that
-/// exist only in the hosting interpreter's frames cannot be proven
-/// absent.  Use the default or compact tier where the script must
-/// not add variables.
+/// Request aggressive minification under explicit driver profile/store inputs.
+/// Native analyses retain whole original words and report unavailable naming,
+/// semantic, keyword and alias-insertion contracts in [`MinifyResult::refusals`].
+/// Only explicit lexical authoring advice uses the compatibility passes, whose
+/// inserted assignments are observable and are not frame-transparent.
 #[must_use]
 pub fn minify_tcl_aggressive(
     source: &str,
@@ -578,6 +682,31 @@ pub fn minify_tcl_aggressive_with(
     registry: &CommandRegistry,
     abbreviations: bool,
 ) -> MinifyResult {
+    minify_with_profile(
+        source,
+        dialect,
+        registry,
+        MinifyOptions {
+            tier: MinifyTier::Aggressive,
+            isolated,
+            abbreviations,
+        },
+    )
+}
+
+/// Aggressive authoring transformations, reached only after the retained
+/// analysis explicitly selects lexical advice and the complete configuration
+/// and availability generation match these compatibility passes. Native
+/// planning never enters this path.
+fn lexical_aggressive(
+    source: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    isolated: bool,
+    abbreviations: bool,
+) -> Result<MinifyResult, MinifyRefusal> {
+    let dialect = input.unit_profile();
+    let context = input.context_registry();
+    let registry = context.commands().as_ref();
     let original_length = source.len();
 
     // Apply the optimiser's semantic-preserving rewrites.
@@ -599,64 +728,52 @@ pub fn minify_tcl_aggressive_with(
     let optimised = apply_edits(source, opt_edits);
 
     // Fold static substrings (SCCP-proven constants).
-    let (folded, fold_count, static_folds) = fold_static_substrings(&optimised, dialect, registry);
+    let (folded, fold_count, static_folds) = fold_original_static_substrings(&optimised, input);
 
     // Compact names.
-    let (renamed, mut symbol_map) = compact_names(&folded, dialect, isolated, registry);
+    let (renamed, mut symbol_map) = compact_names(&folded, input, isolated);
     symbol_map.static_folds = static_folds;
 
-    // Alias repeated commands, arguments and strings.  Seed claimed names
-    // with every compacted short so aliases never shadow a local variable, and
-    // with every live name the compiler can see in the renamed
-    // source (analysed scopes, SSA symbol tables, textual `$refs`)
-    // so a preamble `set alias …` never clobbers a variable the
-    // script reads through a name-taking command like `[set a]`.
+    // Keep observed collision candidates separate from the source/body gaps
+    // that remain unresolved. This preserves the existing aggressive
+    // authoring policy; it is not a completeness or absence certificate.
+    let live_names = collect_live_names(&renamed, input);
+    let _unresolved_collision_debt = &live_names.gaps;
     let mut claimed_names = collect_symbol_shorts(&symbol_map);
-    claimed_names.extend(collect_live_names(&renamed, dialect, registry));
-    let (renamed, cmd_aliases) =
-        alias_repeated_commands(&renamed, dialect, &mut claimed_names, registry);
+    claimed_names.extend(live_names.names.iter().cloned());
+    let (renamed, cmd_aliases) = alias_repeated_commands(&renamed, input, &mut claimed_names);
     symbol_map.command_aliases = cmd_aliases;
-    let (renamed, arg_aliases) = alias_repeated_arguments(&renamed, dialect, &mut claimed_names);
+    let (renamed, arg_aliases) = alias_repeated_arguments(&renamed, input, &mut claimed_names);
     symbol_map.argument_aliases = arg_aliases;
-    let (renamed, str_aliases) = alias_string_literals(&renamed, dialect, &mut claimed_names);
+    let (renamed, str_aliases) = alias_string_literals(&renamed, input, &mut claimed_names);
     symbol_map.string_aliases = str_aliases;
 
     // Emit unique-prefix keyword abbreviations.
     let (renamed, abbrev_count) = if abbreviations {
-        abbreviate_keywords(&renamed, dialect, registry)
+        abbreviate_keywords(&renamed, input)
     } else {
         (renamed, 0)
     };
 
-    // Minify whitespace.
-    // The identity facts come from the *renamed* text, which is what the
-    // recursion below actually sees.
-    let identities = tcl_compiler::realm::document_realm_bindings(&renamed, dialect, registry);
-    let minified = minify_body(
-        &renamed,
-        MinifyEnv {
-            dialect,
-            registry,
-            identities: &identities,
-        },
-        0,
-    );
+    // Rewritten source retains the same full editing input before any further
+    // script/body selection; no reporting label rebuilds its context.
+    let current = original::analysis_with_input(&renamed, input);
+    let minified = lexical_default(&renamed, &current)?;
 
-    MinifyResult {
+    Ok(MinifyResult {
         source: minified,
         symbol_map,
         optimisations_applied: opt_count + fold_count + abbrev_count,
         original_length,
-    }
+        refusals: Vec::new(),
+    })
 }
 
-/// Minify with local-name compaction: rename proc-local variables,
-/// parameters, and proc names to short identifiers, then run the
-/// default minifier.  Returns the minified source plus a
-/// [`SymbolMap`].
-///
-/// `isolated` also compacts global-scope variables (safe for
-/// self-contained scripts like iRules event handlers).
+/// Request name compaction under explicit driver profile/store inputs.
+/// Native naming passes require separate complete-coverage/observer contracts;
+/// until available this returns syntax compaction and an empty symbol map.
+/// Use [`minify_with_profile`] or [`minify_with_analysis`] to retain the refusal.
+/// Explicit lexical advice preserves the compatibility rename pass.
 #[must_use]
 pub fn minify_tcl_compact(
     source: &str,
@@ -664,32 +781,94 @@ pub fn minify_tcl_compact(
     isolated: bool,
     registry: &CommandRegistry,
 ) -> (String, SymbolMap) {
-    let (renamed, symbol_map) = compact_names(source, dialect, isolated, registry);
-    // The identity facts come from the *renamed* text, which is what the
-    // recursion below actually sees.
-    let identities = tcl_compiler::realm::document_realm_bindings(&renamed, dialect, registry);
-    let minified = minify_body(
-        &renamed,
+    let result = minify_with_profile(
+        source,
+        dialect,
+        registry,
+        MinifyOptions {
+            tier: MinifyTier::Compact,
+            isolated,
+            ..MinifyOptions::default()
+        },
+    );
+    (result.source, result.symbol_map)
+}
+
+fn lexical_compact(
+    source: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    isolated: bool,
+) -> Result<(String, SymbolMap), MinifyRefusal> {
+    // Implementation contract: naming.minifier.lexical-authoring-passes
+
+    let (renamed, symbol_map) = compact_names(source, input, isolated);
+    let current = original::analysis_with_input(&renamed, input);
+    let minified = lexical_default(&renamed, &current)?;
+    Ok((minified, symbol_map))
+}
+
+/// Analyse an explicitly supplied profile and command store once, then use the
+/// retained-analysis planner. Custom editor inputs should call
+/// [`minify_with_analysis`] directly. The display label is not re-resolved.
+#[must_use]
+pub fn minify_with_profile(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
+    options: MinifyOptions,
+) -> MinifyResult {
+    let analysis = original::analysis_for_profile(source, dialect, registry);
+    minify_with_analysis(source, &analysis, options)
+}
+
+fn lexical_default(source: &str, analysis: &AnalysisResult) -> Result<String, MinifyRefusal> {
+    // naming.minifier.retained-lexical-context
+
+    let input = analysis
+        .resolved_input
+        .as_ref()
+        .ok_or(MinifyRefusal::MissingAnalysisContext)?;
+    let context = input.context_registry();
+    let identities = analysis
+        .retained_command_realm()
+        .ok_or(MinifyRefusal::MissingAnalysisContext)?;
+    Ok(minify_body(
+        source,
         MinifyEnv {
-            dialect,
-            registry,
-            identities: &identities,
+            original_source: source,
+            analysis,
+            input,
+            dialect: input.unit_profile(),
+            config: input.lexer_config(),
+            registry: context.commands(),
+            context: &context,
+            identities,
         },
         0,
-    );
-    (minified, symbol_map)
+        tcl_lexer::SourceSegmentationPurpose::WholeInput,
+    ))
 }
 
 /// The document-wide context every step of the minify recursion carries
 /// unchanged.
 ///
-/// Bundled rather than passed as three parameters because the recursion is
+/// Bundled rather than passed as separate parameters because the recursion is
 /// deep (`minify_body` → `render_command` → `reconstruct_raw` → `minify_body`)
 /// and one of its steps was already at the argument limit.
 #[derive(Clone, Copy)]
 struct MinifyEnv<'a> {
+    /// Complete unchanged source backing every borrowed rendering region.
+    original_source: &'a str,
+    /// Actual analysis owning this complete source, input and Realm.
+    analysis: &'a AnalysisResult,
+    /// Same immutable complete driver input sealed by the retained Realm.
+    input: &'a tcl_compiler::analyser::ResolvedAnalysisInput,
     /// The document's dialect, for the lexer and the abbreviation tables.
     dialect: &'static tcl_dialect::DialectProfile,
+    /// Complete actual body grammar, already checked for compatibility support.
+    config: LexerConfig,
+    /// Actual full availability generation; no profile-default re-selection.
+    context: &'a tcl_registry::model::ContextRegistry,
     /// The registry the argument roles and clause-list shapes come from.
     registry: &'a CommandRegistry,
     /// The document's statically proven command-identity facts
@@ -703,19 +882,30 @@ struct MinifyEnv<'a> {
     identities: &'a tcl_compiler::realm::CommandBindingRealm,
 }
 
-impl<'a> MinifyEnv<'a> {
-    /// The registry name a head spelling effectively resolves to.
-    fn resolve<'h>(&'h self, head: &'h str) -> &'h str
-    where
-        'a: 'h,
-    {
-        self.identities.head_words_unpositioned(head).resolved
+impl MinifyEnv<'_> {
+    /// Only an actual subslice of the complete held input retains coordinates.
+    /// Decoded or generated text cannot recapture a source-body occurrence.
+    fn original_region(self, source: &str) -> Option<Span> {
+        let start =
+            (source.as_ptr() as usize).checked_sub(self.original_source.as_ptr() as usize)?;
+        let end = start.checked_add(source.len())?;
+        (self.original_source.get(start..end)? == source).then_some(())?;
+        Some(Span::new(
+            u32::try_from(start).ok()?,
+            u32::try_from(end).ok()?,
+        ))
     }
 }
 
 /// Minify a Tcl script body (top-level or inside braces). `depth` is this
 /// body's nesting level — see [`MAX_MINIFY_DEPTH`].
-fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32) -> String {
+fn minify_body(
+    source: &str,
+    env: MinifyEnv<'_>,
+    depth: u32,
+    purpose: tcl_lexer::SourceSegmentationPurpose,
+) -> String {
+    let local_config = purpose.config(env.config);
     let dialect = env.dialect;
     // Native-stack safety net — see `MAX_MINIFY_DEPTH`'s doc comment.
     // Past the cap, leave this (deeply nested) body unminified rather than
@@ -725,25 +915,49 @@ fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32) -> String {
         return source.to_owned();
     }
     let sm = SourceMap::new(source);
-    let Ok(tokens) =
-        Lexer::with_config(source, LexerConfig::for_profile(Some(dialect))).tokenise_all()
-    else {
+    let Ok(tokens) = Lexer::with_config(source, local_config).tokenise_all() else {
         return source.to_owned();
     };
 
-    let commands = parse_commands(source, &tokens);
+    let commands = parse_commands(source, &tokens, local_config);
+    let original_words = if let Some(region) = env.original_region(source) {
+        let capture = || -> Option<tcl_lexer::NativeScriptWordsPlan> {
+            let image = env.identities.original_source_image()?.clone();
+            if image.bytes() != env.original_source.as_bytes()
+                || env.config != env.input.lexer_config()
+                || !env.identities.matches_resolved_analysis_input(env.input)
+                || !env
+                    .identities
+                    .matches_original_source_image(&image, env.config)
+            {
+                return None;
+            }
+            let plan =
+                tcl_lexer::native_script_words_in_with_purpose(image, region, env.config, purpose)
+                    .ok()?;
+            (plan.fatal_tail.is_none() && plan.commands.len() == commands.len()).then_some(plan)
+        };
+        let Some(plan) = capture() else {
+            return source.to_owned();
+        };
+        Some(plan)
+    } else {
+        // Deliberately decoded/generated fields have no original coordinates.
+        None
+    };
     if commands.is_empty() {
         return String::new();
     }
 
-    // Render each command, abbreviating ensemble subcommands.
     let mut rendered: Vec<Vec<String>> = Vec::with_capacity(commands.len());
-    for cmd_args in &commands {
-        let mut arg_strs = render_command(&sm, cmd_args, env, depth);
-        if arg_strs.len() >= 2 {
-            arg_strs[1] = abbreviated_subcommand(&arg_strs[0], &arg_strs[1], dialect, env.registry);
-        }
-        rendered.push(arg_strs);
+    for (index, cmd_args) in commands.iter().enumerate() {
+        let original = original_words
+            .as_ref()
+            .and_then(|plan| plan.commands.get(index));
+        let Some(command) = render_command(&sm, cmd_args, original, env, depth) else {
+            return source.to_owned();
+        };
+        rendered.push(command);
     }
 
     // NB: no template deduplication here.  The former `[subst $alias]`
@@ -777,45 +991,6 @@ fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32) -> String {
     parts.join(";")
 }
 
-/// Lazy generator of short identifier names: `a`, `b`, …, `z`,
-/// `aa`, `ab`, ….
-struct NameGenerator {
-    indices: Vec<usize>,
-}
-
-impl NameGenerator {
-    fn new() -> Self {
-        Self { indices: vec![0] }
-    }
-
-    fn next_name(&mut self) -> String {
-        let name: String = self
-            .indices
-            .iter()
-            .map(|&i| (b'a' + u8::try_from(i).unwrap_or(0)) as char)
-            .collect();
-        self.advance();
-        name
-    }
-
-    fn advance(&mut self) {
-        let mut pos = self.indices.len();
-        loop {
-            if pos == 0 {
-                // All positions wrapped — grow the length.
-                self.indices = vec![0; self.indices.len() + 1];
-                return;
-            }
-            pos -= 1;
-            if self.indices[pos] + 1 < 26 {
-                self.indices[pos] += 1;
-                return;
-            }
-            self.indices[pos] = 0;
-        }
-    }
-}
-
 // Local-name compaction (compact_names tier)
 
 /// A text edit: replace `length` bytes at `offset` with `text`.
@@ -842,7 +1017,7 @@ fn apply_edits(source: &str, mut edits: Vec<Edit>) -> String {
     result
 }
 
-/// Scope label: `::` for the root, then `parent::child`.
+/// Display label only: `::` for the root, then `parent::child`.
 fn child_scope_label(parent_label: &str, child_name: &str) -> String {
     if parent_label == "::" {
         format!("::{child_name}")
@@ -851,40 +1026,55 @@ fn child_scope_label(parent_label: &str, child_name: &str) -> String {
     }
 }
 
-/// Deepest scope label whose body span contains `offset`
-/// (byte-offset based).
-fn scope_label_at_offset(
-    scope: &Scope,
+/// Reborrow the actual deepest source scope and render its separate label.
+fn source_scope_at_offset<'a>(
+    scope: &'a Scope,
     offset: u32,
     prefix: &str,
     include_global: bool,
-) -> Option<String> {
+) -> Option<(&'a Scope, String)> {
     for child in &scope.children {
         let label = child_scope_label(prefix, &child.name);
         if let Some(body) = child.body_span
             && body.start() <= offset
             && offset <= body.end()
         {
-            if let Some(deeper) = scope_label_at_offset(child, offset, &label, include_global) {
+            if let Some(deeper) = source_scope_at_offset(child, offset, &label, include_global) {
                 return Some(deeper);
             }
-            return Some(label);
+            return Some((child, label));
         }
     }
     match scope.kind {
-        ScopeKind::Proc => Some(prefix.to_owned()),
-        ScopeKind::Global if include_global => Some(prefix.to_owned()),
+        ScopeKind::Proc => Some((scope, prefix.to_owned())),
+        ScopeKind::Global if include_global => Some((scope, prefix.to_owned())),
         _ => None,
     }
+}
+
+/// Report collisions are rendered after edits have been selected. These keys
+/// never select a source scope or decide whether an edit is authorised.
+fn record_variable_report(
+    symbol_map: &mut SymbolMap,
+    label: &str,
+    mapping: BTreeMap<String, String>,
+) {
+    let mut report_label = label.to_owned();
+    let mut occurrence = 2;
+    while symbol_map.variables.contains_key(&report_label) {
+        report_label = format!("{label} [source {occurrence}]");
+        occurrence += 1;
+    }
+    symbol_map.variables.insert(report_label, mapping);
 }
 
 /// Where renaming is unsafe, as proven by registry-declared
 /// observability facts over the script's command invocations.
 #[derive(Debug, Default)]
-struct RenameBarriers {
-    /// Scope labels where variable renaming is barred (a
-    /// dynamic-barrier or variable-introspection command runs there).
-    scopes: FxHashSet<String>,
+struct RenameBarriers<'a> {
+    /// Actual borrowed source scopes containing a local rename barrier.
+    /// Equality is allocation correspondence within this retained analysis.
+    scopes: Vec<&'a Scope>,
     /// Variable renaming is barred in **every** scope: a caller-frame
     /// command (`upvar` / `uplevel`) or a cross-proc parameter
     /// introspection (`info args PROC`) can observe any frame.
@@ -899,318 +1089,100 @@ struct RenameBarriers {
     procs: bool,
 }
 
-impl RenameBarriers {
-    /// Whether variables in the scope with the given label may be renamed.
-    fn allows_scope(&self, label: &str) -> bool {
+impl RenameBarriers<'_> {
+    fn allows_scope(&self, scope: &Scope) -> bool {
         !self.all_variable_scopes
-            && !self.scopes.contains(label)
-            && (label != "::" || !self.global_variables)
+            && !self
+                .scopes
+                .iter()
+                .any(|barred| std::ptr::eq(*barred, scope))
+            && (scope.kind != ScopeKind::Global || !self.global_variables)
     }
 }
 
-/// The literal subcommand word following a command head at `inv`, or
-/// `None` when the next word is dynamic (`$var` / `[…]` / quoted) or
-/// absent.  A dynamic subcommand word means the invocation could be
-/// *any* subcommand, so callers must assume the worst-case traits.
-fn static_subcommand_word<'s>(
-    source: &'s str,
-    inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
-) -> Option<&'s str> {
-    let bytes = source.as_bytes();
-    let mut pos = inv.range.end() as usize;
-    while bytes.get(pos).is_some_and(|b| matches!(b, b' ' | b'\t')) {
-        pos += 1;
-    }
-    let start = pos;
-    while bytes
-        .get(pos)
-        .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_' || *b == b'-' || *b == b':')
-    {
-        pos += 1;
-    }
-    if pos == start {
-        return None;
-    }
-    source.get(start..pos)
-}
-
-/// Compute every rename barrier the script's invocations impose.
-///
-/// All observability knowledge is command-surface data — traits on command
-/// and subcommand specs, and the traits a document's `# tcl-lsp: stub`
-/// flags state for the commands it declares (`-barrier` is
-/// `CREATES_DYNAMIC_BARRIER`, `-scope_alias` is `CREATES_SCOPE_ALIAS`) —
-/// never a spelled command name. A declared name answers from its
-/// declaration (nearest wins; a declaration has no subcommands):
-///
-/// * [`Traits::CREATES_DYNAMIC_BARRIER`] (command level) bars the
-///   containing scope, as before.
-/// * [`Traits::CREATES_SCOPE_ALIAS`] (`global` / `variable` /
-///   `upvar`) additionally bars the global scope — the alias links a
-///   global / namespace cell by name from elsewhere.
-/// * [`Traits::ALIASES_CALLER_FRAME`] (`upvar`) and
-///   [`Traits::EVALUATES_IN_SHIFTED_FRAME`] (`uplevel`) bar **every**
-///   scope: the observed frame is chosen at runtime.
-/// * [`Traits::REFLECTS_COMMAND_NAMES`] (command or subcommand
-///   level) bars proc renaming, as does any computed command name
-///   (`inv.indirect`).
-/// * [`Traits::INTROSPECTS_BY_NAME`] / [`Traits::TARGETS_VARIABLE_BY_NAME`]
-///   subcommands (`info locals` / `info exists` / `trace add
-///   variable`) bar the containing scope and the global scope; a
-///   subcommand that *also* reflects command names (`info args PROC`
-///   — another proc's parameter list) bars every scope.
-/// * A **dynamic** subcommand word on a command that has any flagged
-///   subcommand is assumed to be the worst-case subcommand.
-fn find_rename_barriers(
-    source: &str,
-    analysis: &AnalysisResult,
-    registry: &CommandRegistry,
-    identities: &tcl_compiler::realm::CommandBindingRealm,
+/// Observability comes from the same selected complete-word metadata.
+/// Missing table/selector coverage is a barrier, rather than an empty trait.
+fn find_rename_barriers<'a>(
+    analysis: &'a AnalysisResult,
+    env: MinifyEnv<'_>,
+    commands: &[tcl_lexer::NativeScriptCommandWords],
     include_global: bool,
-) -> RenameBarriers {
-    let mut out = RenameBarriers::default();
-    let scope_at =
-        |offset: u32| scope_label_at_offset(&analysis.global_scope, offset, "::", include_global);
-    // A carrier, not a consumer: this holds the set `build_declared_surface`
-    // returns only to hand it to `DocumentCommandSurface` below, and never
-    // spells `DeclaredSurface` itself (`rust/xtask/src/retired_api_gate.rs`
-    // relies on that to keep this file off the type's owner list).
-    let declared = tcl_compiler::analyser::types::build_declared_surface(&analysis.stub_commands);
-    let surface = tcl_registry::model::DocumentCommandSurface::new(registry, Some(&declared));
-    for inv in &analysis.command_invocations {
-        if inv.indirect {
-            // A computed command head can spell any proc name at runtime.
-            out.procs = true;
-            continue;
-        }
-        // The head's *effective command identity*: an observability trait
-        // belongs to the command a head really names.  A proven
-        // `interp alias {} peek {} upvar` still bars every variable scope, and
-        // a `proc upvar …` that takes the name over does not.
-        // The invocation carries its own absolute offset, so this is the
-        // positioned read.
-        let written = inv.name.trim_start_matches(':');
-        let head = identities.head_words(written, inv.range.start()).resolved;
-        let Some(traits) = surface.traits(head) else {
-            continue;
-        };
-        if traits.contains(Traits::CREATES_DYNAMIC_BARRIER)
-            && let Some(label) = scope_at(inv.range.start())
-        {
-            out.scopes.insert(label);
-        }
-        if traits.contains(Traits::CREATES_SCOPE_ALIAS) {
-            out.global_variables = true;
-        }
-        if traits.contains(Traits::ALIASES_CALLER_FRAME)
-            || traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME)
-        {
-            out.all_variable_scopes = true;
-        }
-        if traits.contains(Traits::REFLECTS_COMMAND_NAMES) {
-            out.procs = true;
-        }
-        if surface.declares(head) {
-            continue;
-        }
-        let Some(spec) = registry.get(head) else {
-            continue;
-        };
+) -> RenameBarriers<'a> {
+    // naming.minifier.complete-logical-metadata
 
-        // Subcommand-level observability.
-        let var_subs = Traits::INTROSPECTS_BY_NAME | Traits::TARGETS_VARIABLE_BY_NAME;
-        let flagged: Vec<&tcl_registry::SubCommand> = spec
-            .subcommands
-            .iter()
-            .filter(|s| {
-                s.traits.intersects(var_subs) || s.traits.contains(Traits::REFLECTS_COMMAND_NAMES)
-            })
-            .collect();
-        if flagged.is_empty() {
-            continue;
-        }
-        let (reflects_vars, reflects_cmds) = match static_subcommand_word(source, inv) {
-            Some(word) => {
-                let hit = flagged.iter().find(|s| s.name == word);
-                (
-                    hit.is_some_and(|s| s.traits.intersects(var_subs)),
-                    hit.is_some_and(|s| s.traits.contains(Traits::REFLECTS_COMMAND_NAMES)),
-                )
+    let mut out = RenameBarriers::default();
+    for command in commands {
+        let traits = lexical_metadata::with_editable_command_schema(env, command, |schema| {
+            let spec = env.context.context().resolve_spec_in_realm(
+                env.registry,
+                schema.canonical_command,
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            )?;
+            if !spec.subcommands.is_empty() && schema.subcommand.resolved().is_none() {
+                return None;
             }
-            // Dynamic subcommand word — assume the worst flagged one.
-            None => (
-                flagged.iter().any(|s| s.traits.intersects(var_subs)),
-                flagged
-                    .iter()
-                    .any(|s| s.traits.contains(Traits::REFLECTS_COMMAND_NAMES)),
-            ),
-        };
-        if reflects_cmds {
+            Some(schema.semantics.traits)
+        })
+        .flatten();
+        let Some(traits) = traits else {
+            out.all_variable_scopes = true;
             out.procs = true;
-        }
-        if reflects_vars {
-            if let Some(label) = scope_at(inv.range.start()) {
-                out.scopes.insert(label);
-            }
-            // `info globals` (and a dynamic `info $sub`) can enumerate the
-            // global frame from anywhere.
-            out.global_variables = true;
-            if reflects_cmds {
-                // `info args PROC` / `info default PROC` reflect *another*
-                // proc's parameter names — any scope may be observed.
-                out.all_variable_scopes = true;
-            }
-        }
+            continue;
+        };
+        apply_rename_traits(
+            &mut out,
+            traits,
+            source_scope_at_offset(
+                &analysis.global_scope,
+                command.span.start(),
+                "::",
+                include_global,
+            )
+            .map(|(scope, _)| scope),
+        );
     }
     out
 }
 
-/// Next short name avoiding existing and claimed names.
-fn next_unused_name(
-    r#gen: &mut NameGenerator,
-    existing: &FxHashSet<String>,
-    claimed: &FxHashSet<String>,
-) -> Option<String> {
-    for _ in 0..1000 {
-        let short = r#gen.next_name();
-        if !existing.contains(&short) && !claimed.contains(&short) {
-            return Some(short);
-        }
-    }
-    None
-}
-
-/// Rename parameter *names* within the proc's parameter-list region.
-///
-/// Only each parameter's name is renamed — the first word of a
-/// `{name default}` pair, or a bare `name`. A raw word-boundary byte scan over
-/// the whole region also rewrote occurrences inside *other* parameters' default
-/// values (`proc f {{x 1} {y x}}` renamed `y`'s default `x` too), changing the
-/// default the proc receives.
-fn rename_params_in_list(
-    source: &str,
-    proc_def: &ProcDef,
-    var_map: &BTreeMap<String, String>,
-    edits: &mut Vec<Edit>,
-) {
-    let region_start = proc_def.name_span.end() as usize;
-    let region_end = proc_def.body_span.start() as usize;
-    if region_start > region_end || region_end > source.len() {
-        return;
-    }
-    let Some(region) = source.get(region_start..region_end) else {
-        return;
-    };
-    let bytes = region.as_bytes();
-    let is_ws = |b: u8| matches!(b, b' ' | b'\t' | b'\n' | b'\r');
-    let is_sep = |b: u8| is_ws(b) || matches!(b, b'{' | b'}');
-
-    // A bare (unbraced) param list is a single word (`proc f args …`).
-    let Some(open) = bytes.iter().position(|&b| b == b'{') else {
-        let trimmed_start = bytes.iter().position(|&b| !is_ws(b));
-        if let Some(s) = trimmed_start {
-            let mut e = s;
-            while e < bytes.len() && !is_sep(bytes[e]) {
-                e += 1;
-            }
-            maybe_rename(source, region_start, s, e - s, var_map, edits);
-        }
-        return;
-    };
-
-    // Braced list: walk top-level elements between the outer `{ … }`.
-    let mut i = open + 1;
-    while i < bytes.len() {
-        while i < bytes.len() && is_ws(bytes[i]) {
-            i += 1;
-        }
-        if i >= bytes.len() || bytes[i] == b'}' {
-            break;
-        }
-        if bytes[i] == b'{' {
-            // `{name default…}` — the name is the first inner word.
-            let mut j = i + 1;
-            while j < bytes.len() && is_ws(bytes[j]) {
-                j += 1;
-            }
-            let name_start = j;
-            while j < bytes.len() && !is_sep(bytes[j]) {
-                j += 1;
-            }
-            maybe_rename(
-                source,
-                region_start,
-                name_start,
-                j - name_start,
-                var_map,
-                edits,
-            );
-            // Skip to the end of this balanced braced element.
-            let mut depth = 1u32;
-            let mut k = i + 1;
-            while k < bytes.len() && depth > 0 {
-                match bytes[k] {
-                    b'{' => depth += 1,
-                    b'}' => depth -= 1,
-                    _ => {}
-                }
-                k += 1;
-            }
-            i = k;
-        } else {
-            // Bare-word param (no default).
-            let name_start = i;
-            while i < bytes.len() && !is_sep(bytes[i]) {
-                i += 1;
-            }
-            maybe_rename(
-                source,
-                region_start,
-                name_start,
-                i - name_start,
-                var_map,
-                edits,
-            );
-        }
-    }
-}
-
-/// Emit a rename edit for the param name at `region_start + rel_off` (length
-/// `len`) when it is in `var_map`.
-fn maybe_rename(
-    source: &str,
-    region_start: usize,
-    rel_off: usize,
-    len: usize,
-    var_map: &BTreeMap<String, String>,
-    edits: &mut Vec<Edit>,
-) {
-    if len == 0 {
-        return;
-    }
-    let abs = region_start + rel_off;
-    if let Some(name) = source.get(abs..abs + len)
-        && let Some(short) = var_map.get(name)
+fn apply_rename_traits<'a>(out: &mut RenameBarriers<'a>, traits: Traits, scope: Option<&'a Scope>) {
+    let reflects_vars =
+        traits.intersects(Traits::INTROSPECTS_BY_NAME | Traits::TARGETS_VARIABLE_BY_NAME);
+    let reflects_commands = traits.contains(Traits::REFLECTS_COMMAND_NAMES);
+    if (reflects_vars || traits.contains(Traits::CREATES_DYNAMIC_BARRIER))
+        && let Some(scope) = scope
+        && !out.scopes.iter().any(|barred| std::ptr::eq(*barred, scope))
     {
-        edits.push((abs, len, short.clone()));
+        out.scopes.push(scope);
+    }
+    out.global_variables |= reflects_vars || traits.contains(Traits::CREATES_SCOPE_ALIAS);
+    out.all_variable_scopes |= traits
+        .intersects(Traits::ALIASES_CALLER_FRAME | Traits::EVALUATES_IN_SHIFTED_FRAME)
+        || (reflects_vars && reflects_commands);
+    out.procs |= reflects_commands;
+}
+
+/// Apply only the original formal-name fields already checked for this header.
+/// Defaults, list wrappers and unchanged rest parameters remain outside edits.
+fn rename_params_in_list(
+    formals: &[tcl_compiler::signature_scan::formal_parameters::OriginalSourceFormalName],
+    var_map: &BTreeMap<String, String>,
+    edits: &mut Vec<Edit>,
+) {
+    for formal in formals {
+        let (Ok(name), Some(span)) = (std::str::from_utf8(formal.name()), formal.source_span())
+        else {
+            continue;
+        };
+        if let Some(short) = var_map.get(name) {
+            let range = span.as_range();
+            edits.push((range.start, range.len(), short.clone()));
+        }
     }
 }
 
 /// Whether `b` is `[A-Za-z0-9_]`.
 fn is_word_byte(b: Option<u8>) -> bool {
     matches!(b, Some(c) if c.is_ascii_alphanumeric() || c == b'_')
-}
-
-/// Whether a following byte would extend a bare `$name` reference, so a
-/// preceding `${name}` cannot safely drop its braces.
-///
-/// Beyond the `[A-Za-z0-9_]` name characters this includes `(` (an array
-/// index — `${x}(k)` is scalar `$x` + literal `(k)`, but `$x(k)` is an array
-/// element) and `:` (a namespace separator — `$x` + `::y` vs the variable
-/// `x::y`). Keeping the braces when any of these follow is always safe;
-/// dropping them changes the reference.
-fn extends_dollar_ref(b: Option<u8>) -> bool {
-    is_word_byte(b) || matches!(b, Some(b'(' | b':'))
 }
 
 /// Byte-span slice of `source`.
@@ -1223,9 +1195,46 @@ fn slice(source: &str, span: Span) -> &str {
     }
 }
 
-/// Call sites of the proc `name` / `qualified_name`.
+/// Written execution heads selected by the shared current procedure reader.
+fn current_proc_call_sites(
+    source: &str,
+    procedure: &tcl_compiler::analyser::ProcDef,
+    analysis: &AnalysisResult,
+) -> Vec<Span> {
+    if !analysis.allows_lexical_declaration_advice()
+        || crate::original_context::CurrentSourceContext::capture(source, analysis).is_none()
+        || !analysis
+            .all_procs
+            .values()
+            .any(|current| std::ptr::eq(current, procedure))
+    {
+        return Vec::new();
+    }
+    let mut seen = FxHashSet::default();
+    analysis
+        .command_invocations
+        .iter()
+        .filter(|invocation| {
+            !invocation.indirect
+                && invocation.lookup.is_execution_site()
+                && crate::references::invocation_references_proc(
+                    analysis,
+                    invocation,
+                    &procedure.qualified_name,
+                    procedure,
+                    source,
+                )
+                && seen.insert((invocation.range.start(), invocation.range.end()))
+        })
+        .map(|invocation| invocation.range)
+        .collect()
+}
+
+/// Constructed presentation rows retained independently from source rewriting.
+#[cfg(test)]
 fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisResult) -> Vec<Span> {
-    let qn_no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
+    let qn_no_prefix =
+        tcl_syntax::naming::unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
     let mut out = Vec::new();
     let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
     for inv in &analysis.command_invocations {
@@ -1254,20 +1263,57 @@ fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisRes
 /// serialisation, not a private compiler symbol.
 fn compact_names(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
     isolated: bool,
-    registry: &CommandRegistry,
 ) -> (String, SymbolMap) {
-    let analysis = Analyser::new().analyse(source, dialect.name).clone();
+    let analysis = original::analysis_with_input(source, input);
+    let context = input.context_registry();
+    let Some(identities) = analysis.retained_command_realm() else {
+        return (source.to_owned(), SymbolMap::default());
+    };
+    let env = MinifyEnv {
+        original_source: source,
+        analysis: &analysis,
+        input,
+        dialect: input.unit_profile(),
+        config: input.lexer_config(),
+        registry: context.commands(),
+        context: &context,
+        identities,
+    };
+    let Some(census) = lexical_metadata::command_census(source, env) else {
+        return (source.to_owned(), SymbolMap::default());
+    };
+    let commands = lexical_metadata::CommandCensus::observed_commands(&census);
     let mut symbol_map = SymbolMap::default();
     let mut edits: Vec<Edit> = Vec::new();
 
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
-    let barriers = find_rename_barriers(source, &analysis, registry, &identities, isolated);
-    let rmw_targets = rmw_target_var_names(source, dialect, registry);
-    let builtin_names: FxHashSet<&str> = registry.command_names().collect();
+    let mut barriers = find_rename_barriers(&analysis, env, commands, isolated);
+    if !lexical_metadata::CommandCensus::is_complete(&census, source, &analysis) {
+        barriers.all_variable_scopes = true;
+        barriers.procs = true;
+    }
+    let rmw_targets = rmw_target_var_names(env, commands);
+    let builtin_names: FxHashSet<&str> = context
+        .command_names()
+        .filter(|name| {
+            context
+                .context()
+                .resolve_spec_in_realm(
+                    context.commands(),
+                    name,
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                )
+                .is_some()
+        })
+        .collect();
 
+    let references =
+        crate::source_structure::OriginalVariableReferences::capture(source, &analysis);
+    let mut renamed_scopes = Vec::new();
     let scope_ctx = ScopeCtx {
+        references: references.as_ref(),
+        config: input.lexer_config(),
         source,
         analysis: &analysis,
         isolated,
@@ -1281,6 +1327,7 @@ fn compact_names(
         &mut ScopeOut {
             symbol_map: &mut symbol_map,
             edits: &mut edits,
+            renamed_scopes: &mut renamed_scopes,
         },
     );
 
@@ -1291,14 +1338,14 @@ fn compact_names(
     // asserts a closed world (`isolated`) AND no command-name
     // reflection or computed command name is present.
     if isolated && !barriers.procs {
-        let mut proc_gen = NameGenerator::new();
+        let mut proc_gen = AuthoredCompactNameSequence::new(input.lexer_config());
         let mut used_proc_names: FxHashSet<String> = FxHashSet::default();
         let mut proc_keys: Vec<&String> = analysis.all_procs.keys().collect();
         proc_keys.sort();
         for qname in proc_keys {
             let proc_def = &analysis.all_procs[qname];
             let name = &proc_def.name;
-            if name.len() <= 1 || name.contains("::") {
+            if name.len() <= 1 || tcl_syntax::naming::is_qualified(name.as_bytes()) {
                 continue;
             }
             // A proc that overrides a registry-known command (`proc unknown
@@ -1308,10 +1355,13 @@ fn compact_names(
             if builtin_names.contains(name.as_str()) {
                 continue;
             }
-            let mut short = proc_gen.next_name();
-            while builtin_names.contains(short.as_str()) || used_proc_names.contains(&short) {
-                short = proc_gen.next_name();
-            }
+            let Some(short) = proc_gen.next_avoiding_observed(
+                |name| builtin_names.contains(name) || used_proc_names.contains(name),
+                None,
+            ) else {
+                continue;
+            };
+            let short = short.into_name();
             if short.len() >= name.len() {
                 continue;
             }
@@ -1323,7 +1373,7 @@ fn compact_names(
             if actual == *name {
                 edits.push((r.start() as usize, actual.len(), short.clone()));
             }
-            for call in find_proc_call_sites(name, &proc_def.qualified_name, &analysis) {
+            for call in current_proc_call_sites(source, proc_def, &analysis) {
                 let call_text = slice(source, call);
                 let key = (call.start() as usize, call_text.len());
                 if key != def_key && call_text == *name {
@@ -1334,8 +1384,103 @@ fn compact_names(
         }
     }
 
+    compact_logical_formals(
+        source,
+        input,
+        &analysis,
+        isolated,
+        &renamed_scopes,
+        &mut symbol_map,
+        &mut edits,
+    );
     let result = apply_edits(source, edits);
     (result, symbol_map)
+}
+
+/// The isolated Logical formal purpose has its own exact binding inventory.
+/// General unknown-mutation keyword and variable barriers remain unchanged.
+fn compact_logical_formals(
+    source: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    analysis: &AnalysisResult,
+    isolated: bool,
+    renamed_scopes: &[&Scope],
+    symbol_map: &mut SymbolMap,
+    edits: &mut Vec<Edit>,
+) {
+    // naming.minifier.logical-formal-binding-alpha
+
+    if !isolated {
+        return;
+    }
+    let Some(inventory) =
+        tcl_compiler::registry_invocation::logical_formals::original_logical_procedure_bindings(
+            source, analysis,
+        )
+    else {
+        return;
+    };
+    for procedure in inventory {
+        if !procedure.matches_source(source, input) || !procedure.alpha_binding_lookup_closed() {
+            continue;
+        }
+        let selected_scope = source_scope_at_offset(
+            &analysis.global_scope,
+            procedure.body().content_span().start(),
+            "::",
+            false,
+        )
+        .filter(|(scope, _)| {
+            scope.kind == ScopeKind::Proc
+                && scope.body_span == Some(procedure.body().content_span())
+        });
+        if selected_scope.as_ref().is_some_and(|(scope, _)| {
+            renamed_scopes
+                .iter()
+                .any(|renamed| std::ptr::eq(*renamed, *scope))
+        }) {
+            continue;
+        }
+        let label = selected_scope.map_or_else(
+            || format!("logical@{}", procedure.body().content_span().start()),
+            |(_, label)| label,
+        );
+        let existing = procedure
+            .formals()
+            .iter()
+            .map(|formal| formal.name().to_owned())
+            .chain(std::iter::once("args".to_owned()))
+            .collect::<FxHashSet<_>>();
+        let mut names = AuthoredCompactNameSequence::new(input.lexer_config());
+        let mut mapping = BTreeMap::new();
+        let mut claimed = FxHashSet::default();
+        for formal in procedure.formals() {
+            if formal.name().len() <= 1 {
+                continue;
+            }
+            let Some(short) = names.next_avoiding_observed(
+                |name| existing.contains(name) || claimed.contains(name),
+                Some(1000),
+            ) else {
+                continue;
+            };
+            let short = short.into_name();
+            if short.len() >= formal.name().len() {
+                continue;
+            }
+            claimed.insert(short.clone());
+            for span in std::iter::once(formal.declaration_span())
+                .chain(formal.references().iter().map(tcl_compiler::registry_invocation::logical_formals::OriginalLogicalFormalReference::name_span))
+            {
+                let range = span.as_range();
+                edits.push((range.start, range.len(), short.clone()));
+            }
+            mapping.insert(formal.name().to_owned(), short);
+        }
+        if !mapping.is_empty() {
+            record_variable_report(symbol_map, &label, mapping);
+        }
+    }
 }
 
 /// Read-only context for the recursive scope rename walk: the document
@@ -1343,24 +1488,63 @@ fn compact_names(
 /// rename-barrier / read-modify-write-target sets.
 #[derive(Clone, Copy)]
 struct ScopeCtx<'a> {
+    references: Option<&'a crate::source_structure::OriginalVariableReferences<'a>>,
+    config: LexerConfig,
     source: &'a str,
     analysis: &'a AnalysisResult,
     isolated: bool,
-    barriers: &'a RenameBarriers,
+    barriers: &'a RenameBarriers<'a>,
     rmw_targets: &'a FxHashSet<String>,
 }
 
 /// Mutable outputs accumulated by [`process_scope`]: the symbol map and the
 /// edit list.
-struct ScopeOut<'a> {
+struct ScopeOut<'a, 'scope> {
     symbol_map: &'a mut SymbolMap,
     edits: &'a mut Vec<Edit>,
+    renamed_scopes: &'a mut Vec<&'scope Scope>,
+}
+
+/// Exact name extents within current original reads, plus unchanged bare role
+/// operands. Missing correspondence prevents a partial variable rename.
+fn variable_reference_name_spans(
+    source: &str,
+    geometry: &crate::source_structure::OriginalVariableReferences<'_>,
+    name: &str,
+    references: &[tcl_lexer::Span],
+) -> Option<Vec<tcl_lexer::Span>> {
+    let mut names = Vec::new();
+    for &span in references {
+        if let Some(original) = geometry.reference_at(span.start()) {
+            if original.root != name
+                || (original.token_span != span && original.whole_span != span)
+                || source.get(original.name_span.as_range()) != Some(name)
+            {
+                return None;
+            }
+            names.push(original.name_span);
+        } else if source.get(span.as_range()) == Some(name) {
+            names.push(span);
+        } else {
+            return None;
+        }
+    }
+    names.sort_by_key(|span| (span.start(), span.end()));
+    names.dedup();
+    Some(names)
 }
 
 /// Recursively rename variables (and params) in a scope, mirroring
 /// `_process_scope`.
-fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut ScopeOut<'_>) {
+fn process_scope<'a>(
+    ctx: ScopeCtx<'a>,
+    scope: &'a Scope,
+    scope_label: &str,
+    out: &mut ScopeOut<'_, 'a>,
+) {
     let ScopeCtx {
+        references,
+        config,
         source,
         analysis,
         isolated,
@@ -1369,7 +1553,7 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
     } = ctx;
     let rename_scope = (scope.kind == ScopeKind::Proc
         || (isolated && scope.kind == ScopeKind::Global))
-        && barriers.allows_scope(scope_label);
+        && barriers.allows_scope(scope);
 
     if rename_scope {
         // Identify the proc this scope belongs to by its body span — unique per
@@ -1391,8 +1575,13 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
         let param_names: FxHashSet<&str> = proc_def
             .map(|pd| pd.params.iter().map(|p| p.name.as_str()).collect())
             .unwrap_or_default();
+        // Obtain all formal geometry before adding any parameter-body edits.
+        // An unavailable header or cooked name cannot leave a partial rename.
+        let formal_sources = proc_def.and_then(|procedure| {
+            lexical_metadata::parameter_name_sources(source, analysis, procedure)
+        });
 
-        let mut var_gen = NameGenerator::new();
+        let mut var_gen = AuthoredCompactNameSequence::new(config);
         let existing: FxHashSet<String> = scope.variables.keys().cloned().collect();
         let mut var_map: BTreeMap<String, String> = BTreeMap::new();
 
@@ -1400,7 +1589,10 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
         var_names.sort();
         for var_name in var_names {
             let var_def = &scope.variables[var_name];
-            if var_name.len() <= 1 || var_name.contains("::") {
+            if var_name.len() <= 1
+                || var_name.contains('\0')
+                || tcl_syntax::naming::is_qualified(var_name.as_bytes())
+            {
                 continue;
             }
             // A local that aliases a namespace / global cell (`global v`,
@@ -1423,59 +1615,57 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
             if rmw_targets.contains(var_name.as_str()) {
                 continue;
             }
-            let claimed: FxHashSet<String> = var_map.values().cloned().collect();
-            let Some(short) = next_unused_name(&mut var_gen, &existing, &claimed) else {
+            let is_param = param_names.contains(var_name.as_str());
+            if is_param
+                && (var_name == "args"
+                    || formal_sources.as_ref().is_none_or(|formals| {
+                        !formals
+                            .iter()
+                            .any(|formal| formal.name() == var_name.as_bytes())
+                    }))
+            {
+                continue;
+            }
+
+            if !is_param && slice(source, var_def.definition_span) != *var_name {
+                continue;
+            }
+            let Some(reference_names) = references.and_then(|geometry| {
+                variable_reference_name_spans(source, geometry, var_name, &var_def.references)
+            }) else {
                 continue;
             };
+            let claimed: FxHashSet<String> = var_map.values().cloned().collect();
+            let Some(short) = var_gen.next_avoiding_observed(
+                |name| existing.contains(name) || claimed.contains(name),
+                Some(1000),
+            ) else {
+                continue;
+            };
+            let short = short.into_name();
             if short.len() >= var_name.len() {
                 continue;
             }
-            let is_param = param_names.contains(var_name.as_str());
-
-            // Definition site (non-params only — param defs point at
-            // the proc-name token).
             if !is_param {
-                let r = var_def.definition_span;
-                if slice(source, r) == *var_name {
-                    out.edits
-                        .push((r.start() as usize, var_name.len(), short.clone()));
-                }
+                let span = var_def.definition_span;
+                out.edits
+                    .push((span.start() as usize, span.len() as usize, short.clone()));
             }
-            // Reference sites.  A reference is either a `$var` read (skip
-            // the `$`) or a **bare name word** — a re-definition (`set x 2`
-            // twice), a registry `VarRead`/`VarWrite`-role argument
-            // (`unset x`, `lappend x …`, `catch {…} x`).  Bare sites must
-            // be rewritten in lock-step: renaming the declaration and the
-            // `$` reads while leaving `set x 2` / `unset x` spelled with
-            // the old name silently splits one variable into two:
-            // `set v 1;set v 2;return $v` then returns 1.
-            for &reference in &var_def.references {
-                let ref_text = slice(source, reference);
-                if let Some(rest) = ref_text.strip_prefix('$') {
-                    if rest == var_name {
-                        out.edits.push((
-                            reference.start() as usize + 1,
-                            var_name.len(),
-                            short.clone(),
-                        ));
-                    }
-                } else if ref_text == var_name {
-                    out.edits
-                        .push((reference.start() as usize, var_name.len(), short.clone()));
-                }
+            for span in reference_names {
+                out.edits
+                    .push((span.start() as usize, span.len() as usize, short.clone()));
             }
             var_map.insert(var_name.clone(), short);
         }
 
-        if let Some(pd) = proc_def
+        if let Some(formals) = formal_sources.as_deref()
             && !var_map.is_empty()
         {
-            rename_params_in_list(source, pd, &var_map, out.edits);
+            rename_params_in_list(formals, &var_map, out.edits);
         }
         if !var_map.is_empty() {
-            out.symbol_map
-                .variables
-                .insert(scope_label.to_owned(), var_map);
+            out.renamed_scopes.push(scope);
+            record_variable_report(out.symbol_map, scope_label, var_map);
         }
     }
 
@@ -1496,33 +1686,42 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
 /// sites while leaving the `incr var` / `unset var` target untouched
 /// (which would corrupt the program).
 fn rmw_target_var_names(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    registry: &CommandRegistry,
+    env: MinifyEnv<'_>,
+    commands: &[tcl_lexer::NativeScriptCommandWords],
 ) -> FxHashSet<String> {
-    let cu = CompilationUnit::build_for_profile(source, registry, false, dialect);
+    // naming.minifier.complete-logical-metadata
+
     let mut names = FxHashSet::default();
-    let mut units: Vec<&FunctionUnit> = vec![&cu.top_level];
-    units.extend(cu.procedures.values());
-    for fu in units {
-        for block in fu.cfg.blocks.values() {
-            for stmt in &block.statements {
-                match stmt {
-                    Statement::Incr { name, .. } => {
-                        names.insert(name.clone());
-                    }
-                    Statement::Call { command, defs, .. }
-                        if registry.rmw_first_arg_variable(command)
-                            || registry
-                                .get(command)
-                                .is_some_and(|s| s.traits.contains(Traits::DESTROYS_VARIABLE)) =>
-                    {
-                        names.extend(defs.iter().cloned());
-                    }
-                    _ => {}
+    for command in commands {
+        lexical_metadata::with_command_schema(env, command, |schema| {
+            if !schema
+                .semantics
+                .traits
+                .contains(Traits::FIRST_ARG_VARNAME | Traits::READS_BEFORE_WRITE)
+                && !schema.semantics.traits.contains(Traits::DESTROYS_VARIABLE)
+            {
+                return;
+            }
+            let (roles, complete) = schema.authored_source_argument_roles();
+            if !complete {
+                return;
+            }
+            for (index, role) in roles {
+                if role != ArgRole::VarWrite {
+                    continue;
+                }
+                if let Some(name) = schema
+                    .semantics
+                    .argument_offset
+                    .checked_add(usize::from(index))
+                    .and_then(|index| index.checked_add(1))
+                    .and_then(|index| command.words.get(index))
+                    .and_then(lexical_metadata::ascii_value)
+                {
+                    names.insert(name);
                 }
             }
-        }
+        });
     }
     names
 }
@@ -1558,29 +1757,49 @@ fn collect_symbol_shorts(sm: &SymbolMap) -> HashSet<String> {
 /// analyser's per-scope variable tables (recursively), the SSA
 /// symbol tables of every function unit (which include names only
 /// *read* through name-taking commands, e.g. `[set a]`), and every
-/// textual `$name` / `${name}` reference.  Conservative superset —
-/// an alias name is rejected on any hit.
+/// textual `$name` / `${name}` reference, plus inert UTF-8 name candidates.
+/// Conservative observed candidate set; misses remain explicit debts and
+/// do not establish source or physical-name absence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LiveNameInventoryGap {
+    VariableNameCoverage,
+    CompilationUnit,
+    ComplexityGuardedBody,
+    SourceSyntaxCoverage,
+}
+
+#[derive(Debug)]
+struct LiveNameInventory {
+    names: HashSet<String>,
+    gaps: Vec<LiveNameInventoryGap>,
+}
+
 fn collect_live_names(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    registry: &CommandRegistry,
-) -> HashSet<String> {
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> LiveNameInventory {
     let mut out: HashSet<String> = HashSet::new();
 
     // Analyser scope tables.
-    let analysis = Analyser::new().analyse(source, dialect.name).clone();
+    let analysis = original::analysis_with_input(source, input);
     let mut stack: Vec<&Scope> = vec![&analysis.global_scope];
     while let Some(scope) = stack.pop() {
         out.extend(scope.variables.keys().cloned());
         stack.extend(scope.children.iter());
     }
 
-    // SSA symbol tables (per function unit).
-    let cu = CompilationUnit::build_for_profile(source, registry, false, dialect);
-    let mut units: Vec<&FunctionUnit> = vec![&cu.top_level];
-    units.extend(cu.procedures.values());
-    for fu in units {
-        out.extend(fu.ssa.var_names().iter().cloned());
+    // SSA symbol tables (per function unit). Guarded units retain only a
+    // deliberately incomplete trivial report; their names are candidates,
+    // while their omitted names remain an explicit collision gap.
+    let compilation_unit = crate::original_invocation::source_compilation_unit(
+        source,
+        &analysis,
+        input.context_registry().commands(),
+    );
+    if let Some(cu) = &compilation_unit {
+        for fu in cu.all_body_function_units() {
+            out.extend(fu.ssa.var_names().iter().cloned());
+        }
     }
 
     // Textual `$name` / `${name}` references.
@@ -1588,16 +1807,145 @@ fn collect_live_names(
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'$' {
-            let (end, name) = parse_var_ref(source, i, dialect.grammar.braced_var);
-            if let Some(name) = name {
+            // Collision reservations may include inert UTF-8 source candidates.
+            // This superset grants no configured reference, lookup or edit.
+            let start = i + 1;
+            let end = tcl_core_types::naming::scan_var_name_end_with(bytes, start, true);
+            if let Some(candidate) = source.get(start..end).filter(|name| !name.is_empty()) {
+                out.insert(candidate.to_owned());
+            }
+            if let Ok(Some(reference)) = tcl_lexer::scan_var_ref(bytes, i, input.lexer_config())
+                && let Ok(name) = std::str::from_utf8(reference.name)
+            {
                 out.insert(name.to_owned());
-                i = end.max(i + 1);
-                continue;
+                if reference.index.is_none() {
+                    i = reference.next.max(i + 1);
+                    continue;
+                }
             }
         }
         i += 1;
     }
-    out
+    let mut gaps = Vec::new();
+    let syntax_complete = crate::SourceSyntaxCoverage::capture(source, &analysis)
+        .and_then(|coverage| coverage.applicability(source, &analysis))
+        == Some(crate::SourceSyntaxCoverageApplicability::Complete);
+    if !syntax_complete {
+        gaps.push(LiveNameInventoryGap::SourceSyntaxCoverage);
+    }
+    if !analysis.original_variable_alias_source_is_complete(
+        &tcl_lexer::SourceImage::document(source),
+        input.lexer_config(),
+    ) {
+        gaps.push(LiveNameInventoryGap::VariableNameCoverage);
+    }
+    match &compilation_unit {
+        None => gaps.push(LiveNameInventoryGap::CompilationUnit),
+        Some(cu) if cu.all_body_function_units().any(|fu| fu.complexity_guarded) => {
+            gaps.push(LiveNameInventoryGap::ComplexityGuardedBody);
+        }
+        Some(_) => {}
+    }
+
+    LiveNameInventory { names: out, gaps }
+}
+
+/// Configured syntax only; insertion, store, frame and dispatch obligations
+/// remain the separate explicit aggressive-authoring policy, never Native grants.
+struct AuthoredAliasSpelling {
+    assignment: String,
+    reference: String,
+}
+
+fn authored_alias_spelling(
+    alias: &str,
+    value: &str,
+    config: LexerConfig,
+) -> Option<AuthoredAliasSpelling> {
+    let command = tcl_syntax::word_rules::lexical_unicode_source_word("set", config)?;
+    let target = tcl_syntax::word_rules::lexical_unicode_source_word(alias, config)?;
+    let literal = tcl_syntax::word_rules::lexical_unicode_source_word(value, config)?;
+    let reference = tcl_syntax::naming::scalar_source_reference(alias, config, false)?;
+    Some(AuthoredAliasSpelling {
+        assignment: format!("{command} {target} {literal}\n"),
+        reference,
+    })
+}
+
+#[derive(Clone, Copy)]
+enum AliasWordPurpose {
+    CommandHead,
+    Argument,
+}
+
+/// Reborrow original complete words from the existing configured source-phase
+/// owner. Observed partial candidates provide no absence or complete inventory.
+fn source_alias_uses(
+    source: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    purpose: AliasWordPurpose,
+) -> (Vec<String>, HashMap<String, Vec<usize>>) {
+    let mut order = Vec::new();
+    let mut uses = HashMap::<String, Vec<usize>>::new();
+    let analysis = original::analysis_with_input(source, input);
+    let Some(identities) = analysis.retained_command_realm() else {
+        return (order, uses);
+    };
+    let context = input.context_registry();
+    let env = MinifyEnv {
+        original_source: source,
+        analysis: &analysis,
+        input,
+        dialect: input.unit_profile(),
+        config: input.lexer_config(),
+        registry: context.commands(),
+        context: &context,
+        identities,
+    };
+    let Some(census) = lexical_metadata::command_census(source, env) else {
+        return (order, uses);
+    };
+    let mut seen = HashSet::new();
+    for command in census.observed_commands() {
+        // Selected descriptor compression heuristic, not nominal lookup.
+        // Unavailable metadata is unknown; unknown written commands retain the
+        // existing explicit behavior-changing Logical authoring policy.
+        let known_byte_compiled = matches!(purpose, AliasWordPurpose::CommandHead)
+            && lexical_metadata::with_command_schema(env, command, |schema| {
+                schema.semantics.traits.contains(Traits::BYTE_COMPILED)
+            }) == Some(true);
+        if known_byte_compiled {
+            continue;
+        }
+        for (ordinal, word) in command.words.iter().enumerate() {
+            if matches!(purpose, AliasWordPurpose::CommandHead) != (ordinal == 0)
+                || word.group().expand
+                || word.group().kind != tcl_lexer::WordKind::Bare
+            {
+                continue;
+            }
+            let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                .and_then(|bytes| String::from_utf8(bytes).ok())
+            else {
+                continue;
+            };
+            let span = word.word_span();
+            if value.len() < 3
+                || source.get(span.as_range()) != Some(value.as_str())
+                || (matches!(purpose, AliasWordPurpose::Argument) && is_clause_keyword(&value))
+                || !seen.insert((span.start(), span.end()))
+            {
+                continue;
+            }
+            uses.entry(value.clone())
+                .or_insert_with(|| {
+                    order.push(value);
+                    Vec::new()
+                })
+                .push(span.start() as usize);
+        }
+    }
+    (order, uses)
 }
 
 /// Shared cost-benefit + apply for command / argument aliasing:
@@ -1609,6 +1957,7 @@ fn alias_by_uses(
     order: &[String],
     uses: &HashMap<String, Vec<usize>>,
     claimed: &mut HashSet<String>,
+    config: LexerConfig,
 ) -> (String, BTreeMap<String, String>) {
     if order.is_empty() {
         return (source.to_owned(), BTreeMap::new());
@@ -1623,25 +1972,34 @@ fn alias_by_uses(
                 .cmp(&order.iter().position(|x| x == b))
         })
     });
-    let mut r#gen = NameGenerator::new();
-    let mut aliases: Vec<(String, String)> = Vec::new();
+    let mut names = AuthoredCompactNameSequence::new(config);
+    let mut aliases: Vec<(String, String, AuthoredAliasSpelling)> = Vec::new();
     for name in &cands {
         let count = uses[name].len();
         if count < 2 {
             continue;
         }
-        let mut alias = r#gen.next_name();
-        while claimed.contains(&alias) {
-            alias = r#gen.next_name();
+        let Some(alias) = names.next_avoiding_observed(|name| claimed.contains(name), None) else {
+            continue;
+        };
+        let alias = alias.into_name();
+        let Some(spelling) = authored_alias_spelling(&alias, name, config) else {
+            continue;
+        };
+        if uses[name].iter().any(|off| {
+            off.checked_add(name.len())
+                .and_then(|end| source.get(*off..end))
+                != Some(name.as_str())
+        }) {
+            continue;
         }
         let original_cost = count * name.len();
-        let preamble_cost = 4 + alias.len() + 1 + name.len() + 1;
-        let aliased_cost = preamble_cost + count * (alias.len() + 1);
+        let aliased_cost = spelling.assignment.len() + count * spelling.reference.len();
         if aliased_cost >= original_cost {
             continue;
         }
         claimed.insert(alias.clone());
-        aliases.push((name.clone(), alias));
+        aliases.push((name.clone(), alias, spelling));
     }
     if aliases.is_empty() {
         return (source.to_owned(), BTreeMap::new());
@@ -1649,10 +2007,10 @@ fn alias_by_uses(
     let mut edits: Vec<Edit> = Vec::new();
     let mut preamble = String::new();
     let mut map = BTreeMap::new();
-    for (name, alias) in &aliases {
-        let _ = writeln!(preamble, "set {alias} {name}");
+    for (name, alias, spelling) in &aliases {
+        preamble.push_str(&spelling.assignment);
         for &off in &uses[name] {
-            edits.push((off, name.len(), format!("${alias}")));
+            edits.push((off, name.len(), spelling.reference.clone()));
         }
         map.insert(name.clone(), alias.clone());
     }
@@ -1664,26 +2022,11 @@ fn alias_by_uses(
 /// three aliasing passes.
 fn alias_repeated_commands(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
     claimed: &mut HashSet<String>,
-    registry: &CommandRegistry,
 ) -> (String, BTreeMap<String, String>) {
-    let analysis = Analyser::new().analyse(source, dialect.name).clone();
-    let mut order: Vec<String> = Vec::new();
-    let mut uses: HashMap<String, Vec<usize>> = HashMap::new();
-    for inv in &analysis.command_invocations {
-        let name = &inv.name;
-        if inv.indirect || name.len() <= 2 || registry.is_byte_compiled(name) {
-            continue;
-        }
-        uses.entry(name.clone())
-            .or_insert_with(|| {
-                order.push(name.clone());
-                Vec::new()
-            })
-            .push(inv.range.start() as usize);
-    }
-    alias_by_uses(source, &order, &uses, claimed)
+    let (order, uses) = source_alias_uses(source, input, AliasWordPurpose::CommandHead);
+    alias_by_uses(source, &order, &uses, claimed, input.lexer_config())
 }
 
 /// Emit unique-prefix keyword abbreviations, after the aliasing passes.
@@ -1713,352 +2056,37 @@ fn alias_repeated_commands(
 /// the registry does not resolve `Unique`.
 fn abbreviate_keywords(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    registry: &CommandRegistry,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
 ) -> (String, usize) {
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
-    let mut edits: Vec<Edit> = Vec::new();
-    let mut stack: Vec<(String, u32)> = vec![(source.to_owned(), 0)];
-    let later = later_core_registries(dialect);
-    while let Some((text, base)) = stack.pop() {
-        let sm = SourceMap::new(&text);
-        let Ok(tokens) =
-            Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
-        else {
-            continue;
-        };
-        for command in command_word_runs(&sm, &tokens) {
-            // Recurse into braced/bracketed words so nested scripts get the
-            // same treatment.
-            for word in &command {
-                if matches!(word.kind, TokenType::Str | TokenType::Cmd) {
-                    let inner = sm.token_text(word.token);
-                    if inner.len() >= 3 {
-                        stack.push((inner.to_owned(), base + word.token.span.start() + 1));
-                    }
-                }
-            }
-            abbreviate_command(
-                &command,
-                registry,
-                &later,
-                AbbrevSite {
-                    base,
-                    identities: &identities,
-                },
-                &mut edits,
-            );
-        }
-    }
-    if edits.is_empty() {
+    let analysis = original::analysis_with_input(source, input);
+    let Some(identities) = analysis.retained_command_realm() else {
         return (source.to_owned(), 0);
-    }
-    let count = edits.len();
-    (apply_edits(source, edits), count)
-}
-
-/// Where an abbreviation candidate sits, and what the document has proven
-/// about the command it belongs to.
-///
-/// Bundled so [`abbreviate_command`] keeps a small signature — the scan
-/// re-enters nested braced words with a shifted `base`, and both fields travel
-/// together.
-#[derive(Clone, Copy)]
-struct AbbrevSite<'a> {
-    /// Byte offset of the scanned slice within the whole document, so a head's
-    /// own span resolves to a document-absolute offset.
-    base: u32,
-    /// The document's proven command-identity facts.
-    identities: &'a tcl_compiler::realm::CommandBindingRealm,
-}
-
-/// One word of a command, with the token it came from.
-struct CommandWord {
-    token: Token,
-    kind: TokenType,
-    text: String,
-    /// The word is a substitution / expansion — never rewritten.
-    dynamic: bool,
-}
-
-/// Split a token stream into per-command word runs.
-fn command_word_runs(sm: &SourceMap, tokens: &[Token]) -> Vec<Vec<CommandWord>> {
-    let mut out: Vec<Vec<CommandWord>> = Vec::new();
-    let mut current: Vec<CommandWord> = Vec::new();
-    let mut expand_next = false;
-    for tok in tokens {
-        match tok.kind {
-            TokenType::Eof => break,
-            TokenType::Eol => {
-                if !current.is_empty() {
-                    out.push(std::mem::take(&mut current));
-                }
-                expand_next = false;
-            }
-            TokenType::Sep => {}
-            TokenType::Expand => expand_next = true,
-            kind => {
-                let dynamic =
-                    expand_next || matches!(kind, TokenType::Var | TokenType::Cmd | TokenType::Str);
-                current.push(CommandWord {
-                    token: *tok,
-                    kind,
-                    text: sm.token_text(*tok).to_owned(),
-                    dynamic,
-                });
-                expand_next = false;
-            }
-        }
-    }
-    if !current.is_empty() {
-        out.push(current);
-    }
-    out
-}
-
-/// The core-Tcl registries for every release *after* `dialect`, so a prefix
-/// that a later Tcl makes ambiguous is never emitted.
-///
-/// The range and its packs come from
-/// [`tcl_registry::version_range`] — the one helper the formatter and the
-/// analyser share — rather than a release list kept here. The
-/// target's own pack is dropped because the caller already holds it and
-/// [`keyword_tables`] puts it first.
-fn later_core_registries(
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> Vec<&'static CommandRegistry> {
-    use tcl_registry::version_range::{forward_range, registries_over_range};
-    let mut packs = registries_over_range(forward_range(dialect.name));
-    if !packs.is_empty() {
-        packs.remove(0);
-    }
-    packs
-}
-
-/// Shorten every abbreviable keyword word of one command.
-fn abbreviate_command(
-    words: &[CommandWord],
-    registry: &CommandRegistry,
-    later: &[&'static CommandRegistry],
-    site: AbbrevSite<'_>,
-    edits: &mut Vec<Edit>,
-) {
-    let AbbrevSite { base, identities } = site;
-    let Some(head) = words.first() else { return };
-    if head.dynamic || head.kind != TokenType::Esc {
-        return;
-    }
-    // Which subcommands and options a head has is registry data about the
-    // command it *is*: abbreviating `myfmt`'s words under `format`'s tables
-    // when `myfmt` is not `format` would rewrite live text.
-    // `base` makes the head's offset document-absolute even inside a
-    // recursively-scanned braced word, so this is the positioned read.
-    let head_name = identities
-        .head_words(&head.text, base + head.token.span.start())
-        .resolved;
-    let Some(spec) = registry.get(head_name) else {
-        return;
     };
-    let args = &words[1..];
-    let mut subcommand: Option<&'static str> = None;
-    let mut start = 0usize;
-    if !spec.subcommands.is_empty() {
-        let Some(word) = args.first() else { return };
-        if word.dynamic || word.kind != TokenType::Esc {
-            return;
-        }
-        let Some(canonical) = spec
-            .resolve_subcommand_word(&word.text, None, None, None)
-            .unique()
-        else {
-            return;
-        };
-        let tables = keyword_tables(head_name, TableScope::Subcommands, registry, later);
-        if let Some(short) = shortest_spelling(&tables, canonical)
-            && short.len() < word.text.len()
-        {
-            push_word_edit(word, base, short, edits);
-        }
-        subcommand = Some(canonical);
-        start = 1;
-    }
-    let scope = subcommand.map_or(TableScope::CommandOptions, TableScope::SubcommandOptions);
-    let option_tables = keyword_tables(head_name, scope, registry, later);
-    if option_tables.iter().all(KeywordTable::is_empty) {
-        return;
-    }
-    for word in &args[start.min(args.len())..] {
-        // registry-axis-ok: irreducible — same reason as
-        // `formatting/keywords.rs`'s `scan_options`: generic across every
-        // command's option table, and only 2 of the 23 commands that
-        // declare a "--" row have `OptionEffectKind::EndsOptions` populated
-        // on it today, so a per-command lookup here would stop recognising
-        // "--" as ending option scanning for the rest; until never
-        if word.text == "--" {
-            break;
-        }
-        if word.dynamic || word.kind != TokenType::Esc || !word.text.starts_with('-') {
-            continue;
-        }
-        let Some(canonical) = option_tables
-            .first()
-            .and_then(|t| t.names().find(|n| *n == word.text))
-        else {
-            continue;
-        };
-        if let Some(short) = shortest_spelling(&option_tables, canonical)
-            && short.len() < word.text.len()
-        {
-            push_word_edit(word, base, short, edits);
-        }
-    }
-}
-
-fn push_word_edit(word: &CommandWord, base: u32, short: &str, edits: &mut Vec<Edit>) {
-    let start = (base + word.token.span.start()) as usize;
-    edits.push((start, word.text.len(), short.to_owned()));
-}
-
-/// The keyword tables for `cmd` in the target registry followed by every
-/// later core-Tcl registry — the subcommand table when `subcommand` is
-/// `None`, otherwise that subcommand's option table.
-///
-/// The target's table is always first; the rest are what the version-range
-/// check consults. A later release that no longer carries the command (or
-/// the subcommand) contributes an empty table, which can never vouch for a
-/// prefix, so the abbreviation is abandoned.
-fn keyword_tables(
-    cmd: &str,
-    scope: TableScope<'_>,
-    registry: &CommandRegistry,
-    later: &[&'static CommandRegistry],
-) -> Vec<KeywordTable<'static>> {
-    let table_for = |reg: &CommandRegistry| -> KeywordTable<'static> {
-        let empty = KeywordTable::new(std::iter::empty(), PrefixMatching::Enabled);
-        let Some(spec) = reg.get(cmd) else {
-            return empty;
-        };
-        match scope {
-            TableScope::Subcommands => spec.subcommand_table(None, None, None),
-            TableScope::CommandOptions => spec.option_table(None, None, None),
-            TableScope::SubcommandOptions(name) => spec
-                .subcommands
-                .iter()
-                .find(|s| s.name == name)
-                .map_or(empty, |sub| sub.option_table(None, None, None)),
-        }
-    };
-    std::iter::once(table_for(registry))
-        .chain(later.iter().map(|reg| table_for(reg)))
-        .collect()
-}
-
-/// Which keyword table of a command [`keyword_tables`] should build.
-#[derive(Debug, Clone, Copy)]
-enum TableScope<'a> {
-    /// The ensemble's subcommand words.
-    Subcommands,
-    /// The command's own option words (a command with no subcommands).
-    CommandOptions,
-    /// The named subcommand's option words.
-    SubcommandOptions(&'a str),
-}
-
-/// The shortest spelling of `canonical` that resolves to it in **every**
-/// table, or `None` when no abbreviation is safe across the whole range.
-fn shortest_spelling(
-    tables: &[KeywordTable<'static>],
-    canonical: &'static str,
-) -> Option<&'static str> {
-    let short = tables.first()?.minimal_unique_prefix(canonical)?;
-    tables[1..]
-        .iter()
-        .all(|t| t.resolve(short).unique() == Some(canonical))
-        .then_some(short)
+    let context = input.context_registry();
+    lexical_keywords::abbreviate(
+        source,
+        MinifyEnv {
+            original_source: source,
+            analysis: &analysis,
+            input,
+            dialect: input.unit_profile(),
+            config: input.lexer_config(),
+            context: &context,
+            registry: context.commands(),
+            identities,
+        },
+    )
 }
 
 /// Alias repeated literal arguments (`-normalized` → `$a`) — the second
 /// aliasing pass.
 fn alias_repeated_arguments(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
     claimed: &mut HashSet<String>,
 ) -> (String, BTreeMap<String, String>) {
-    let mut order: Vec<String> = Vec::new();
-    let mut uses: HashMap<String, Vec<usize>> = HashMap::new();
-    let mut stack: Vec<(String, u32)> = vec![(source.to_owned(), 0)];
-    while let Some((text, base)) = stack.pop() {
-        let sm = SourceMap::new(&text);
-        let Ok(tokens) =
-            Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
-        else {
-            continue;
-        };
-        let mut is_command_word = true;
-        let mut in_quoted = false;
-        for tok in &tokens {
-            match tok.kind {
-                TokenType::Eof => break,
-                TokenType::Eol => {
-                    is_command_word = true;
-                    in_quoted = false;
-                    continue;
-                }
-                TokenType::Sep => {
-                    is_command_word = false;
-                    in_quoted = false;
-                    continue;
-                }
-                TokenType::Str => {
-                    let inner = sm.token_text(*tok);
-                    if inner.len() >= 3 {
-                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
-                    }
-                    is_command_word = false;
-                    in_quoted = false;
-                    continue;
-                }
-                TokenType::Cmd => {
-                    let inner = sm.token_text(*tok);
-                    if inner.len() >= 3 {
-                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
-                    }
-                    is_command_word = false;
-                    continue;
-                }
-                _ => {}
-            }
-            if is_command_word {
-                is_command_word = false;
-                continue;
-            }
-            if tok.kind != TokenType::Esc {
-                in_quoted = false;
-                continue;
-            }
-            let abs_off = (base + tok.span.start()) as usize;
-            if source.as_bytes().get(abs_off) == Some(&b'"') {
-                in_quoted = true;
-            }
-            if in_quoted {
-                continue;
-            }
-            let val = sm.token_text(*tok);
-            if val.len() < 3
-                || val.contains([' ', '\t', '\n', '"', '{', '}', '[', ']', '$', '\\', ';'])
-                || is_clause_keyword(val)
-            {
-                continue;
-            }
-            uses.entry(val.to_owned())
-                .or_insert_with(|| {
-                    order.push(val.to_owned());
-                    Vec::new()
-                })
-                .push(abs_off);
-        }
-    }
-    alias_by_uses(source, &order, &uses, claimed)
+    let (order, uses) = source_alias_uses(source, input, AliasWordPurpose::Argument);
+    alias_by_uses(source, &order, &uses, claimed, input.lexer_config())
 }
 
 /// Build a suffix array for `text` (naive sort of byte suffixes).
@@ -2099,11 +2127,7 @@ fn build_lcp_array(text: &[u8], sa: &[usize]) -> Vec<usize> {
 /// occurrences) across the quoted-string segments of `source`,
 /// returning `substring -> source byte offsets`.  Steps 1–5 of
 /// `_alias_string_literals`.
-fn string_alias_candidates(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> BTreeMap<Vec<u8>, Vec<usize>> {
-    let segments = collect_string_literals(source, dialect);
+fn string_alias_candidates(segments: &[StringLiteralFragment]) -> BTreeMap<Vec<u8>, Vec<usize>> {
     if segments.is_empty() {
         return BTreeMap::new();
     }
@@ -2111,8 +2135,9 @@ fn string_alias_candidates(
     // source byte offset (`usize::MAX` for sentinels).
     let mut concat: Vec<u8> = Vec::new();
     let mut concat_to_src: Vec<usize> = Vec::new();
-    for &(src_offset, ref seg) in &segments {
-        for (j, b) in seg.bytes().enumerate() {
+    for fragment in segments {
+        let src_offset = fragment.span.start() as usize;
+        for (j, b) in fragment.text.bytes().enumerate() {
             concat.push(b);
             concat_to_src.push(src_offset + j);
         }
@@ -2170,10 +2195,11 @@ fn string_alias_candidates(
 /// aliasing pass. (+ `_collect_string_literals`).
 fn alias_string_literals(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
     claimed: &mut HashSet<String>,
 ) -> (String, BTreeMap<String, String>) {
-    let occ = string_alias_candidates(source, dialect);
+    let fragments = collect_string_literals(source, input);
+    let occ = string_alias_candidates(&fragments);
     if occ.is_empty() {
         return (source.to_owned(), BTreeMap::new());
     }
@@ -2192,12 +2218,19 @@ fn alias_string_literals(
     }
     scored.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.len().cmp(&a.1.len())));
 
-    let src_bytes = source.as_bytes();
-    let mut r#gen = NameGenerator::new();
+    let mut names = AuthoredCompactNameSequence::new(input.lexer_config());
     let mut claimed_bytes: HashSet<usize> = HashSet::new();
-    let mut aliases: Vec<(Vec<u8>, String, Vec<usize>)> = Vec::new();
+    let mut aliases: Vec<(String, String, Vec<Edit>)> = Vec::new();
     for (_, sub, offsets) in scored {
-        if !braces_balanced(&sub) {
+        let Ok(sub_string) = std::str::from_utf8(&sub) else {
+            continue;
+        };
+        let preamble_word = format!("{{{sub_string}}}");
+        if standalone_alias_word(&preamble_word, input.lexer_config())
+            .and_then(|word| tcl_syntax::word_rules::original_static_word_unicode_value(&word))
+            .as_deref()
+            != Some(sub.as_slice())
+        {
             continue;
         }
         let free: Vec<usize> = offsets
@@ -2208,22 +2241,29 @@ fn alias_string_literals(
         if free.len() < 2 {
             continue;
         }
-        let mut alias = r#gen.next_name();
-        while claimed.contains(&alias) {
-            alias = r#gen.next_name();
-        }
+        let Some(alias) = names.next_avoiding_observed(|name| claimed.contains(name), None) else {
+            continue;
+        };
+        let alias = alias.into_name();
         let count = free.len();
         let original_cost = count * sub.len();
         let preamble_cost = 4 + alias.len() + 1 + 1 + sub.len() + 1 + 1;
-        let mut aliased_cost = preamble_cost;
-        for &off in &free {
-            let end = off + sub.len();
-            if extends_dollar_ref(src_bytes.get(end).copied()) {
-                aliased_cost += alias.len() + 3;
-            } else {
-                aliased_cost += alias.len() + 1;
-            }
-        }
+        let proposals = free
+            .iter()
+            .map(|&off| {
+                let end = off.checked_add(sub.len())?;
+                let fragment = fragments.iter().find(|fragment| {
+                    fragment.span.start() as usize <= off && end <= fragment.span.end() as usize
+                })?;
+                let replacement =
+                    alias_string_reference(source, fragment, off, end, &alias, sub_string)?;
+                Some((off, sub.len(), replacement))
+            })
+            .collect::<Option<Vec<_>>>();
+        let Some(proposals) = proposals else {
+            continue;
+        };
+        let aliased_cost = preamble_cost + proposals.iter().map(|edit| edit.2.len()).sum::<usize>();
         if aliased_cost >= original_cost {
             continue;
         }
@@ -2233,7 +2273,7 @@ fn alias_string_literals(
                 claimed_bytes.insert(p);
             }
         }
-        aliases.push((sub, alias, free));
+        aliases.push((sub_string.to_owned(), alias, proposals));
     }
     if aliases.is_empty() {
         return (source.to_owned(), BTreeMap::new());
@@ -2243,128 +2283,141 @@ fn alias_string_literals(
     let mut preamble = String::new();
     let mut edits: Vec<Edit> = Vec::new();
     let mut map = BTreeMap::new();
-    for (sub, alias, offsets) in &aliases {
-        let sub_str = String::from_utf8_lossy(sub).into_owned();
-        let _ = writeln!(preamble, "set {alias} {{{sub_str}}}");
-        for &off in offsets {
-            let end = off + sub.len();
-            let replacement = if extends_dollar_ref(src_bytes.get(end).copied()) {
-                format!("${{{alias}}}")
-            } else {
-                format!("${alias}")
-            };
-            edits.push((off, sub.len(), replacement));
-        }
-        map.insert(sub_str, alias.clone());
+    for (sub, alias, proposals) in aliases {
+        let _ = writeln!(preamble, "set {alias} {{{sub}}}");
+        edits.extend(proposals);
+        map.insert(sub, alias);
     }
     let body = apply_edits(source, edits);
     (format!("{preamble}{body}"), map)
 }
 
-/// Collect `(abs_offset, text)` of `ESC` segments inside
-/// double-quoted strings, descending into braced / command-subst
-/// tokens.
+struct StringLiteralFragment {
+    span: Span,
+    text: String,
+    config: LexerConfig,
+    following_end: usize,
+}
+
+/// Original quoted text components from the selected source-role inventory.
 fn collect_string_literals(
-    top_source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> Vec<(usize, String)> {
-    let mut segments: Vec<(usize, String)> = Vec::new();
-    let mut stack: Vec<(String, u32)> = vec![(top_source.to_owned(), 0)];
-    while let Some((text, base)) = stack.pop() {
-        let sm = SourceMap::new(&text);
-        let Ok(tokens) =
-            Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
-        else {
-            continue;
-        };
-        let mut is_command_word = true;
-        let mut in_quoted = false;
-        for tok in &tokens {
-            match tok.kind {
-                TokenType::Eof => break,
-                TokenType::Eol => {
-                    is_command_word = true;
-                    in_quoted = false;
-                    continue;
-                }
-                TokenType::Sep => {
-                    is_command_word = false;
-                    in_quoted = false;
-                    continue;
-                }
-                TokenType::Str => {
-                    let inner = sm.token_text(*tok);
-                    if inner.len() >= 2 {
-                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
-                    }
-                    is_command_word = false;
-                    in_quoted = false;
-                    continue;
-                }
-                TokenType::Cmd => {
-                    let inner = sm.token_text(*tok);
-                    if inner.len() >= 2 {
-                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
-                    }
-                    is_command_word = false;
-                    continue;
-                }
-                _ => {}
-            }
-            let mut abs_off = (base + tok.span.start()) as usize;
-            if is_command_word {
-                is_command_word = false;
-                in_quoted = false;
+    source: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> Vec<StringLiteralFragment> {
+    let analysis = original::analysis_with_input(source, input);
+    let Some(identities) = analysis.retained_command_realm() else {
+        return Vec::new();
+    };
+    let context = input.context_registry();
+    let env = MinifyEnv {
+        original_source: source,
+        analysis: &analysis,
+        input,
+        dialect: input.unit_profile(),
+        config: input.lexer_config(),
+        registry: context.commands(),
+        context: &context,
+        identities,
+    };
+    let Some(census) = lexical_metadata::command_census(source, env) else {
+        return Vec::new();
+    };
+    let mut fragments = Vec::new();
+    for command in census.observed_commands() {
+        for word in command.words.iter().skip(1) {
+            if word.group().kind != tcl_lexer::WordKind::Quoted {
                 continue;
             }
-            if !in_quoted && top_source.as_bytes().get(abs_off) == Some(&b'"') {
-                in_quoted = true;
-                abs_off += 1;
-            }
-            if in_quoted && tok.kind == TokenType::Esc {
-                let inner = sm.token_text(*tok);
-                if inner.len() >= 2 {
-                    segments.push((abs_off, inner.to_owned()));
+            let Ok(word_span) = word.content_span() else {
+                continue;
+            };
+            let arena = word.executable_parts();
+            for component in arena.list(arena.root()) {
+                let span = component.span;
+                if matches!(component.part, tcl_lexer::ExecutablePart::Text(_))
+                    && let Some(text) = source.get(span.as_range())
+                    && text.len() >= 2
+                {
+                    fragments.push(StringLiteralFragment {
+                        span,
+                        text: text.to_owned(),
+                        config: word.config(),
+                        following_end: word_span.end() as usize,
+                    });
                 }
             }
-            if !matches!(tok.kind, TokenType::Esc | TokenType::Var | TokenType::Cmd) {
-                in_quoted = false;
-            }
         }
     }
-    segments
+    fragments.sort_by_key(|fragment| fragment.span.start());
+    fragments.dedup_by_key(|fragment| fragment.span);
+    fragments
 }
 
-/// Whether `s` has equal numbers of `{` and `}` bytes.
-fn braces_balanced(s: &[u8]) -> bool {
-    let mut balance: i64 = 0;
-    for &c in s {
-        match c {
-            b'{' => balance += 1,
-            b'}' => balance -= 1,
-            _ => {}
-        }
+fn standalone_alias_word(source: &str, config: LexerConfig) -> Option<tcl_lexer::NativeWord> {
+    let image = tcl_lexer::SourceImage::document(source);
+    let plan = tcl_lexer::native_script_words_in(
+        image,
+        Span::new(0, u32::try_from(source.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
+        return None;
     }
-    balance == 0
+    let mut words = plan.commands.into_iter().next()?.words;
+    if words.len() != 1 || words[0].word_span().as_range() != (0..source.len()) {
+        return None;
+    }
+    words.pop()
 }
 
-/// Whether braces in `s` are properly nested (depth never negative,
-/// ends at zero).
-fn braces_nested(s: &str) -> bool {
-    let mut depth: i64 = 0;
-    for c in s.bytes() {
-        match c {
-            b'{' => depth += 1,
-            b'}' => {
-                depth -= 1;
-                if depth < 0 {
-                    return false;
-                }
-            }
-            _ => {}
-        }
+/// Hypothetical value comparison supplies syntax only; alias movement keeps its
+/// separate aggressive-authoring admission.
+fn alias_string_reference(
+    source: &str,
+    fragment: &StringLiteralFragment,
+    start: usize,
+    end: usize,
+    alias: &str,
+    value: &str,
+) -> Option<String> {
+    let prefix = source.get(fragment.span.start() as usize..start)?;
+    let suffix = source.get(end..fragment.span.end() as usize)?;
+    if source.get(start..end)? != value {
+        return None;
     }
-    depth == 0
+    let config = fragment.config;
+    let replacement = [false, true].into_iter().find_map(|braced| {
+        let candidate = tcl_syntax::naming::scalar_source_reference(alias, config, braced)?;
+        let following = source.get(end..fragment.following_end)?;
+        let joined = format!("{candidate}{following}");
+        let reference = tcl_lexer::scan_var_ref(joined.as_bytes(), 0, config).ok()??;
+        (reference.next == candidate.len()
+            && reference.name == alias.as_bytes()
+            && reference.index.is_none())
+        .then_some(candidate)
+    })?;
+    let original = standalone_alias_word(&format!("\"{}\"", fragment.text), config)?;
+    let original_value = tcl_syntax::word_rules::original_static_word_unicode_value(&original)?;
+    let proposed = standalone_alias_word(&format!("\"{prefix}{replacement}{suffix}\""), config)?;
+    let mut selected = false;
+    let proposed_value = tcl_syntax::word_rules::original_word_unicode_value_with_variables(
+        &proposed,
+        |arena, part| {
+            let tcl_lexer::ExecutablePart::Variable { name, index: None } = part.part else {
+                return None;
+            };
+            if selected
+                || arena.bytes(name)? != alias.as_bytes()
+                || part.span.as_range() != (1 + prefix.len()..1 + prefix.len() + replacement.len())
+            {
+                return None;
+            }
+            selected = true;
+            Some(value.as_bytes().to_vec())
+        },
+    )?;
+    (selected && original_value == proposed_value).then_some(replacement)
 }
 
 /// First index ≥ `from` where `needle` occurs in `haystack`.
@@ -2388,6 +2441,143 @@ fn safe_taint_colours() -> TaintColour {
         | TaintColour::REGEX_LITERAL
 }
 
+/// Fold only original quoted words whose exact reads have independent erasure proof.
+fn fold_original_static_substrings(
+    source: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> (String, usize, BTreeMap<String, String>) {
+    let analysis = original::analysis_with_input(source, input);
+    let context = input.context_registry();
+    let registry = context.commands();
+    let Some(unit) =
+        crate::original_invocation::source_compilation_unit(source, &analysis, registry)
+    else {
+        return (source.to_owned(), 0, BTreeMap::new());
+    };
+    if unit.ir_module.source_metadata_input.as_ref() != Some(input) {
+        return (source.to_owned(), 0, BTreeMap::new());
+    }
+    let mut edits = BTreeMap::new();
+    let mut folds = BTreeMap::new();
+    for function in unit.all_body_function_units() {
+        if function
+            .invocation_metadata_context_for_module(registry, &unit.ir_module)
+            .is_none()
+        {
+            continue;
+        }
+        for (&block, body) in &function.ssa.blocks {
+            if !function.sccp.executable_blocks.contains(&block) {
+                continue;
+            }
+            for index in 0..body.statements.len() {
+                let view =
+                    tcl_compiler::ssa::SsaSourceView::at_statement(&function.ssa, block, index);
+                let Some(tokens) = view.source_tokens() else {
+                    continue;
+                };
+                let Some(original) = tcl_compiler::ssa::original_analysis_words_for_statement(
+                    &unit, function, block, index, registry,
+                ) else {
+                    continue;
+                };
+                let config = original.config();
+                for word in tokens.words().iter().skip(1) {
+                    let tcl_compiler::ir::WordExpr::Template {
+                        parts,
+                        rejected: None,
+                        ..
+                    } = word
+                    else {
+                        continue;
+                    };
+                    let span = function.abs_span(word.source().span);
+                    if !original
+                        .words()
+                        .iter()
+                        .any(|source_word| source_word.span() == span)
+                    {
+                        continue;
+                    }
+                    let Some(inner_text) = source
+                        .get(span.as_range())
+                        .and_then(|source_text| source_text.strip_prefix('"'))
+                        .and_then(|source_text| source_text.strip_suffix('"'))
+                    else {
+                        continue;
+                    };
+                    let Some(value) =
+                        fold_original_word_parts(&unit, function, view, parts, registry, config)
+                    else {
+                        continue;
+                    };
+                    let Some(replacement) =
+                        tcl_syntax::word_rules::lexical_unicode_source_word(&value, config)
+                    else {
+                        continue;
+                    };
+                    edits.insert((span.start(), span.end()), replacement);
+                    folds.insert(inner_text.to_owned(), value);
+                }
+            }
+        }
+    }
+    let count = edits.len();
+    let edits = edits
+        .into_iter()
+        .map(|((start, end), replacement)| (start as usize, (end - start) as usize, replacement))
+        .collect();
+    (apply_edits(source, edits), count, folds)
+}
+
+fn fold_original_word_parts(
+    unit: &CompilationUnit,
+    function: &FunctionUnit,
+    view: tcl_compiler::ssa::SsaSourceView<'_>,
+    parts: &[tcl_compiler::ir::WordPart],
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Option<String> {
+    let mut value = String::new();
+    let mut substituted = false;
+    for part in parts {
+        match part {
+            tcl_compiler::ir::WordPart::Text { text, .. } => {
+                value.push_str(&tcl_lexer::backslash_subst_in(text, config.escapes));
+            }
+            tcl_compiler::ir::WordPart::Variable { spelling, source } => {
+                let physical = view.replaceable_read_at(source, spelling, registry)?;
+                let version = physical.version?;
+                let original = tcl_compiler::ssa::original_source_read_at_unit(
+                    unit,
+                    function.abs_span(source.span),
+                    registry,
+                )?;
+                if !std::ptr::eq(original.function(), function)
+                    || original.symbol() != physical.symbol
+                    || original.version() != Some(version)
+                {
+                    return None;
+                }
+                let key = (physical.symbol, version);
+                if function.taints.get(&key).is_some_and(|taint| {
+                    taint.is_tainted() && !taint.colours.intersects(safe_taint_colours())
+                }) {
+                    return None;
+                }
+                let LatticeValue::Const(constant) = function.sccp.values.get(&key)? else {
+                    return None;
+                };
+                value.push_str(&const_to_string(constant)?);
+                substituted = true;
+            }
+            tcl_compiler::ir::WordPart::CommandSubstitution { .. }
+            | tcl_compiler::ir::WordPart::Opaque { .. } => return None,
+        }
+    }
+    substituted.then_some(value)
+}
+
 /// Replace dynamic quoted strings with their static values where the
 /// compiler's SCCP pass proves every `$var` substitution is a
 /// compile-time constant and no unsanitised tainted value is
@@ -2395,6 +2585,7 @@ fn safe_taint_colours() -> TaintColour {
 /// string constants; bails on command substitutions (`[…]`) and on
 /// boolean / float constants.  Returns `(folded_source, fold_count,
 /// fold_map)`.
+#[cfg(test)]
 fn fold_static_substrings(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -2407,9 +2598,12 @@ fn fold_static_substrings(
     let mut scopes: Vec<&FunctionUnit> = vec![&cu.top_level];
     scopes.extend(cu.procedures.values());
     for fu in scopes {
+        let config = LexerConfig::for_profile(Some(dialect));
         let cx = FoldContext {
             fu,
-            style: dialect.grammar.braced_var,
+            style: config.braced_var,
+            config,
+            view: None,
         };
         collect_folds_for_scope(source, cx, &mut edits, &mut fold_map);
     }
@@ -2432,13 +2626,17 @@ fn fold_static_substrings(
 /// The read-only context a constant-fold decision needs: the scope's
 /// analysed unit and the document's `${…}` close rule (which decides where
 /// a `${…}` reference's name ends).
+#[cfg(test)]
 #[derive(Clone, Copy)]
 struct FoldContext<'a> {
     fu: &'a FunctionUnit,
     style: tcl_dialect::BracedVarStyle,
+    config: LexerConfig,
+    view: Option<tcl_compiler::ssa::SsaSourceView<'a>>,
 }
 
 /// Collect static-fold edits for one function scope.
+#[cfg(test)]
 fn collect_folds_for_scope(
     source: &str,
     cx: FoldContext<'_>,
@@ -2453,19 +2651,23 @@ fn collect_folds_for_scope(
         if !fu.sccp.executable_blocks.contains(block_id) {
             continue;
         }
-        let mut block_vars: HashMap<String, Version> = ssa_block
-            .entry_versions
-            .iter()
-            .map(|(sym, ver)| (fu.ssa.var_name(*sym).to_owned(), *ver))
-            .collect();
+        let mut block_vars = ssa_block.entry_versions.clone();
         for (stmt_idx, stmt) in block.statements.iter().enumerate() {
             let Some(ssa_stmt) = ssa_block.statements.get(stmt_idx) else {
                 continue;
             };
             let mut uses = block_vars.clone();
-            for (name, ver) in &ssa_stmt.uses {
-                uses.insert(fu.ssa.var_name(*name).to_owned(), *ver);
-            }
+            uses.extend(
+                ssa_stmt
+                    .uses
+                    .iter()
+                    .map(|(&symbol, &version)| (symbol, version)),
+            );
+            let view = tcl_compiler::ssa::SsaSourceView::at_statement(&fu.ssa, *block_id, stmt_idx);
+            let cx = FoldContext {
+                view: Some(view),
+                ..cx
+            };
             match stmt {
                 Statement::AssignValue {
                     span,
@@ -2488,18 +2690,18 @@ fn collect_folds_for_scope(
                             continue;
                         }
                         if let Some(folded) =
-                            fold_string_via_sccp(content, &uses, &fu.sccp.values, &fu.ssa, style)
+                            fold_string_via_sccp(content, &uses, &fu.sccp.values, view, style)
                         {
-                            if has_unsafe_tainted_inputs(content, &uses, &fu.taints, &fu.ssa, style)
-                            {
+                            if has_unsafe_tainted_inputs(content, &uses, &fu.taints, view, style) {
                                 continue;
                             }
-                            if let Some(close) = close_quote_offset(source, arg_off) {
-                                edits.push((
-                                    arg_off,
-                                    close - arg_off + 1,
-                                    build_replacement(&folded),
-                                ));
+                            if let Some(close) = close_quote_offset(source, arg_off)
+                                && let Some(replacement) =
+                                    tcl_syntax::word_rules::lexical_unicode_source_word(
+                                        &folded, cx.config,
+                                    )
+                            {
+                                edits.push((arg_off, close - arg_off + 1, replacement));
                                 fold_map.insert(content.clone(), folded);
                             }
                         }
@@ -2508,7 +2710,7 @@ fn collect_folds_for_scope(
                 _ => {}
             }
             for (name, ver) in &ssa_stmt.defs {
-                block_vars.insert(fu.ssa.var_name(*name).to_owned(), *ver);
+                block_vars.insert(*name, *ver);
             }
         }
     }
@@ -2516,20 +2718,24 @@ fn collect_folds_for_scope(
 
 /// Fold the quoted string inside the `span` region of an
 /// `AssignValue` (`set x "…"`).
+#[cfg(test)]
 fn try_fold_region(
     source: &str,
     span: Span,
     value: &str,
-    uses: &HashMap<String, Version>,
+    uses: &HashMap<tcl_compiler::ssa::Symbol, Version>,
     cx: FoldContext<'_>,
     edits: &mut Vec<Edit>,
     fold_map: &mut BTreeMap<String, String>,
 ) {
     let (fu, style) = (cx.fu, cx.style);
-    let Some(folded) = fold_string_via_sccp(value, uses, &fu.sccp.values, &fu.ssa, style) else {
+    let Some(view) = cx.view else {
         return;
     };
-    if has_unsafe_tainted_inputs(value, uses, &fu.taints, &fu.ssa, style) {
+    let Some(folded) = fold_string_via_sccp(value, uses, &fu.sccp.values, view, style) else {
+        return;
+    };
+    if has_unsafe_tainted_inputs(value, uses, &fu.taints, view, style) {
         return;
     }
     let (start, end) = (span.start() as usize, span.end() as usize);
@@ -2545,18 +2751,23 @@ fn try_fold_region(
     if !(inner.contains('$') || inner.contains('[')) {
         return;
     }
-    edits.push((abs_start, close - abs_start + 1, build_replacement(&folded)));
+    let Some(replacement) = tcl_syntax::word_rules::lexical_unicode_source_word(&folded, cx.config)
+    else {
+        return;
+    };
+    edits.push((abs_start, close - abs_start + 1, replacement));
     fold_map.insert(inner.to_owned(), folded);
 }
 
 /// Resolve a quoted-string body to a static value via SCCP, or
 /// `None` when any substitution is non-constant.  `$var` only;
 /// command substitutions (`[…]`) bail out.
+#[cfg(test)]
 fn fold_string_via_sccp(
     content: &str,
-    uses: &HashMap<String, Version>,
+    uses: &HashMap<tcl_compiler::ssa::Symbol, Version>,
     values: &HashMap<(tcl_compiler::ssa::Symbol, Version), LatticeValue>,
-    ssa: &tcl_compiler::ssa::SsaFunction,
+    view: tcl_compiler::ssa::SsaSourceView<'_>,
     style: tcl_dialect::BracedVarStyle,
 ) -> Option<String> {
     let bytes = content.as_bytes();
@@ -2569,11 +2780,12 @@ fn fold_string_via_sccp(
             b'$' => {
                 let (end, name) = parse_var_ref(content, pos, style);
                 let name = name?;
-                let ver = uses.get(name).copied().unwrap_or(0);
+                let symbol = view.symbol(name)?;
+                let ver = uses.get(&symbol).copied().unwrap_or(0);
                 if ver == 0 {
                     return None;
                 }
-                let lv = values.get(&(ssa.var_symbol(name)?, ver))?;
+                let lv = values.get(&(symbol, ver))?;
                 let LatticeValue::Const(cv) = lv else {
                     return None;
                 };
@@ -2613,11 +2825,12 @@ fn const_to_string(cv: &ConstValue) -> Option<String> {
 
 /// Whether any `$var` in `content` is tainted without a
 /// fixed-form mitigation colour.
+#[cfg(test)]
 fn has_unsafe_tainted_inputs(
     content: &str,
-    uses: &HashMap<String, Version>,
+    uses: &HashMap<tcl_compiler::ssa::Symbol, Version>,
     taints: &HashMap<(tcl_compiler::ssa::Symbol, Version), TaintLattice>,
-    ssa: &tcl_compiler::ssa::SsaFunction,
+    view: tcl_compiler::ssa::SsaSourceView<'_>,
     style: tcl_dialect::BracedVarStyle,
 ) -> bool {
     let safe = safe_taint_colours();
@@ -2627,10 +2840,12 @@ fn has_unsafe_tainted_inputs(
         if bytes[pos] == b'$' {
             let (end, name) = parse_var_ref(content, pos, style);
             if let Some(name) = name {
-                let ver = uses.get(name).copied().unwrap_or(0);
+                let Some(symbol) = view.symbol(name) else {
+                    return true;
+                };
+                let ver = uses.get(&symbol).copied().unwrap_or(0);
                 if ver > 0
-                    && let Some(sym) = ssa.var_symbol(name)
-                    && let Some(t) = taints.get(&(sym, ver))
+                    && let Some(t) = taints.get(&(symbol, ver))
                     && t.is_tainted()
                     && !t.colours.intersects(safe)
                 {
@@ -2647,292 +2862,306 @@ fn has_unsafe_tainted_inputs(
     false
 }
 
-/// Parse a `$var` / `${var}` reference at `pos`, returning
-/// `(end, name)`.  Rejects array (`$a(i)`) and namespaced
-/// (`$a::b`) forms.
-///
-/// The braced form is delimited by [`tcl_lexer::braced_var_name_end`] under
-/// the document's own `${…}` close rule: on a Tcl 9 document `${a{b}c}` is
-/// one variable named `a{b}c`, where the 8.x first-`}` rule reads `a{b` and
-/// leaves `c}` as word text. Minify rewrites these spans, so reading the
-/// wrong one changes what the output program means.
+/// Fixture scalar eligibility uses the shared reference extent and grammar.
+#[cfg(test)]
+fn scalar_reference_at(text: &str, pos: usize, config: LexerConfig) -> (usize, Option<&str>) {
+    if text.as_bytes().get(pos) != Some(&b'$') {
+        return (pos.saturating_add(1), None);
+    }
+    let Ok(Some(reference)) = tcl_lexer::scan_var_ref(text.as_bytes(), pos, config) else {
+        return (pos.saturating_add(1), None);
+    };
+    if reference.index.is_some() {
+        return (reference.next, None);
+    }
+    (reference.next, std::str::from_utf8(reference.name).ok())
+}
+
+#[cfg(test)]
 fn parse_var_ref(
     text: &str,
     pos: usize,
     style: tcl_dialect::BracedVarStyle,
 ) -> (usize, Option<&str>) {
-    let bytes = text.as_bytes();
-    if pos >= bytes.len() || bytes[pos] != b'$' {
-        return (pos + 1, None);
-    }
-    let start = pos + 1;
-    if start >= bytes.len() {
-        return (start, None);
-    }
-    if bytes[start] == b'{' {
-        return match tcl_lexer::braced_var_name_end(bytes, start + 1, style) {
-            tcl_lexer::BracedVarEnd::Closed(close) => (close + 1, Some(&text[start + 1..close])),
-            tcl_lexer::BracedVarEnd::Unterminated => (start, None),
-        };
-    }
-    let mut end = start;
-    while end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
-        end += 1;
-    }
-    if end == start {
-        return (start, None);
-    }
-    if end < bytes.len() {
-        if bytes[end] == b'(' {
-            return (start, None);
-        }
-        if bytes[end] == b':' && end + 1 < bytes.len() && bytes[end + 1] == b':' {
-            return (start, None);
-        }
-    }
-    (end, Some(&text[start..end]))
+    scalar_reference_at(
+        text,
+        pos,
+        LexerConfig {
+            braced_var: style,
+            ..LexerConfig::default()
+        },
+    )
 }
 
-/// Build a replacement token for a folded static string: bare when
-/// no quoting is needed, braced when safe, else escaped double
-/// quotes.
-fn build_replacement(folded: &str) -> String {
-    let needs_quoting = folded.is_empty()
-        || folded.contains([' ', '\t', '\n', '"', '{', '}', '[', ']', '$', '\\', ';']);
-    if !needs_quoting {
-        return folded.to_owned();
-    }
-    if !folded.contains('\\') && braces_nested(folded) {
-        return format!("{{{folded}}}");
-    }
-    let escaped = folded
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('$', "\\$")
-        .replace('[', "\\[");
-    format!("\"{escaped}\"")
-}
+/// Project shared complete groups into the renderer's argument container.
+/// Group kinds/ranges and expansion ownership come from the same lexer owner.
+fn parse_commands(source: &str, tokens: &[Token], config: LexerConfig) -> Vec<Vec<Arg>> {
+    // naming.minifier.complete-lexical-head
 
-/// Return the abbreviated subcommand text when safe for `dialect`.
-fn abbreviated_subcommand(
-    command_name: &str,
-    subcommand_name: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    registry: &CommandRegistry,
-) -> String {
-    if !tcl_dialect::DialectProfile::name_has_fixed_ensembles(Some(dialect.name)) {
-        return subcommand_name.to_owned();
-    }
-    subcommand_abbreviation(command_name, subcommand_name, registry)
-        .unwrap_or(subcommand_name)
-        .to_owned()
-}
-
-/// Shortest unambiguous abbreviation for `sub` of ensemble `command`, read
-/// off the registry's own subcommand table (the same one
-/// [`keyword_tables`]/[`abbreviate_keywords`] use for the aggressive tier),
-/// rather than a hand-kept copy of a handful of ensembles' subcommands —
-/// every ensemble the registry knows gets the same treatment here.
-/// `KeywordTable::minimal_unique_prefix` already requires `sub` to be an
-/// exact canonical spelling, so (as before) a subcommand not written out in
-/// full is left alone.
-fn subcommand_abbreviation(
-    command: &str,
-    sub: &str,
-    registry: &CommandRegistry,
-) -> Option<&'static str> {
-    let table = registry.get(command)?.subcommand_table(None, None, None);
-    let short = table.minimal_unique_prefix(sub)?;
-    (short.len() < sub.len()).then_some(short)
-}
-
-/// Group a token stream into commands (lists of arguments),
-/// dropping comments and whitespace.
-fn parse_commands(source: &str, tokens: &[Token]) -> Vec<Vec<Arg>> {
-    let mut commands: Vec<Vec<Arg>> = Vec::new();
-    let mut current: Vec<Arg> = Vec::new();
-    let mut prev_type = TokenType::Eol;
-
-    for &tok in tokens {
-        match tok.kind {
-            TokenType::Eof => break,
-            TokenType::Comment => continue,
-            TokenType::Sep => {
-                prev_type = TokenType::Sep;
-                continue;
-            }
-            TokenType::Eol => {
-                if !current.is_empty() {
-                    commands.push(std::mem::take(&mut current));
-                }
-                prev_type = TokenType::Eol;
-                continue;
-            }
-            _ => {}
-        }
-
-        // segmentation-drift-ok: the minifier's own `parse_commands` is a
-        // word grouper, distinct from the formatter's segmenter.
-        let is_start = matches!(prev_type, TokenType::Sep | TokenType::Eol);
-        let detected_quoted =
-            is_start && source.as_bytes().get(tok.span.start() as usize) == Some(&b'"');
-
-        if is_start || current.is_empty() {
-            current.push(Arg {
-                tokens: vec![tok],
-                is_braced: tok.kind == TokenType::Str,
-                is_quoted: detected_quoted,
-            });
-        } else {
-            current.last_mut().expect("non-empty").tokens.push(tok);
-        }
-        prev_type = tok.kind;
-    }
-    if !current.is_empty() {
-        commands.push(current);
-    }
-    commands
-}
-
-/// Render one command's arguments to their minified string forms.
-fn render_command(sm: &SourceMap, cmd_args: &[Arg], env: MinifyEnv<'_>, depth: u32) -> Vec<String> {
-    let registry = env.registry;
-    let cmd_name = cmd_args
-        .first()
-        .map(|a| token_text(sm, a))
-        .unwrap_or_default();
-    // The head's *effective command identity*: which registry command the
-    // spelling really names once the document's `namespace import` / `interp
-    // alias` / `rename` / built-in-shadowing `proc` statements are folded in
-    // Without it a rebound command's body / lambda / expression /
-    // clause-list arguments are re-minified as the grammar of the command it
-    // no longer is.
-    let head = env.resolve(&cmd_name);
-    let post: Vec<String> = cmd_args.iter().skip(1).map(|a| token_text(sm, a)).collect();
-    let post_refs: Vec<&str> = post.iter().map(String::as_str).collect();
-
-    let body_indices = role_indices(registry, head, &post_refs, ArgRole::Body);
-    let lambda_indices = role_indices(registry, head, &post_refs, ArgRole::LambdaLiteral);
-    let expr_indices = role_indices(registry, head, &post_refs, ArgRole::Expr);
-    // The braced clause-list form of a registry `case_list` command
-    // (`switch … { pat body … }`, Expect's `expect { … }`).  Registry
-    // data, never a spelled command name.
-    let case_list_spec = registry.get(head).and_then(|s| s.case_list);
-    let dialect = Some(crate::document_context_for_profile(env.dialect).authoring_query());
-    let case_invocation = registry.case_invocation(head, &post_refs, dialect);
-    let clause_list_index = case_invocation
-        .as_ref()
-        .and_then(|(_, invocation)| invocation.clause_list_index)
-        .map(|index| index + 1);
-    let inline_body_indices: Vec<usize> = case_invocation
-        .as_ref()
-        .and_then(|(spec, invocation)| {
-            invocation
-                .inline_clause_start
-                .and_then(|start| spec.inline_clauses(&post_refs, start))
-        })
-        .map(|clauses| {
-            clauses
+    tcl_lexer::group_commands(tokens, source, config)
+        .into_iter()
+        .map(|command| {
+            command
+                .words
                 .into_iter()
-                .filter_map(|clause| clause.body_index.map(|index| index + 1))
+                .map(|word| {
+                    let mut fragments = command
+                        .expand_markers
+                        .iter()
+                        .copied()
+                        .filter(|index| {
+                            word.expand
+                                && *index < word.tokens.start
+                                && tokens[*index].span.end() <= word.span.start()
+                                && !tokens[*index + 1..word.tokens.start]
+                                    .iter()
+                                    .any(|token| token.kind != TokenType::Expand)
+                        })
+                        .map(|index| tokens[index])
+                        .collect::<Vec<_>>();
+                    fragments.extend_from_slice(&tokens[word.tokens]);
+                    Arg {
+                        tokens: fragments,
+                        is_braced: word.kind == tcl_lexer::WordKind::Braced,
+                        is_quoted: word.kind == tcl_lexer::WordKind::Quoted,
+                    }
+                })
                 .collect()
         })
-        .unwrap_or_default();
-
-    let mut out: Vec<String> = Vec::with_capacity(cmd_args.len());
-    for (i, arg) in cmd_args.iter().enumerate() {
-        let single_braced = arg.is_braced && arg.tokens.len() == 1;
-        if clause_list_index == Some(i) && single_braced {
-            let inner = sm.token_text(arg.tokens[0]);
-            let minified = case_list_spec.map_or_else(
-                || minify_body(inner, env, depth + 1),
-                |cl| minify_case_list(inner, cl, env, depth + 1),
-            );
-            out.push(format!("{{{minified}}}"));
-        } else if (inline_body_indices.contains(&i) || body_indices.contains(&i)) && single_braced {
-            let inner = sm.token_text(arg.tokens[0]);
-            out.push(format!("{{{}}}", minify_body(inner, env, depth + 1)));
-        } else if lambda_indices.contains(&i) && single_braced {
-            out.push(minify_lambda_literal(sm, arg.tokens[0], env, depth + 1));
-        } else if expr_indices.contains(&i) && single_braced {
-            let inner = sm.token_text(arg.tokens[0]);
-            out.push(format!("{{{}}}", compress_expr(inner, env, depth + 1)));
-        } else {
-            out.push(reconstruct_arg(sm, arg, env, depth));
-        }
-    }
-    out
-}
-
-/// Minify an `ArgRole::LambdaLiteral` argument (`apply`'s `{argList body
-/// ?ns?}` shape): only the body element is recursively minified as a
-/// script; the parameter list and optional namespace elements are copied
-/// through untouched (`ArgRole::ParamList` isn't itself minified anywhere in
-/// this file). Re-segmenting the whole literal as a script would misread the
-/// parameter word as a command name and never reach the real body at all.
-///
-/// Each element is decoded (backslash escapes collapsed for a bare/quoted
-/// element — [`split_lambda_literal_decoded`]) before use and re-quoted with
-/// [`tcl_syntax::list::list_element`] on reassembly, rather than pasted back
-/// as raw source spelling wrapped in a bare `{}`: a non-literal body's
-/// backslash escapes would otherwise survive into the "minified" text and
-/// change what it runs (`apply {{} puts\ hi}`'s real body is `puts hi`, not
-/// `puts\ hi`), and a multi-word
-/// parameter list (`apply {{x y} …}`) would otherwise lose the braces that
-/// group it into one list element.
-fn minify_lambda_literal(sm: &SourceMap, tok: Token, env: MinifyEnv<'_>, depth: u32) -> String {
-    let source = sm.source();
-    let fallback = || format!("{{{}}}", sm.token_text(tok));
-    let Some(elems) = split_lambda_literal_decoded(source, tok) else {
-        return fallback();
-    };
-    let Some(body) = elems.body.as_deref() else {
-        return fallback();
-    };
-    let minified_body = minify_body(body, env, depth);
-    let mut parts = vec![
-        tcl_syntax::list::list_element(&elems.params),
-        tcl_syntax::list::list_element(&minified_body),
-    ];
-    if let Some(ns) = elems.namespace.as_deref() {
-        parts.push(tcl_syntax::list::list_element(ns));
-    }
-    format!("{{{}}}", parts.join(" "))
-}
-
-/// Registry role indices, offset by 1 for the command-name slot.
-fn role_indices(
-    registry: &CommandRegistry,
-    name: &str,
-    post_args: &[&str],
-    role: ArgRole,
-) -> Vec<usize> {
-    if name.is_empty() {
-        return Vec::new();
-    }
-    registry
-        .arg_indices_for_role(name, post_args, role)
-        .into_iter()
-        .map(|i| i + 1)
         .collect()
 }
 
-/// Text of an argument's first token.
-fn token_text(sm: &SourceMap, arg: &Arg) -> String {
-    arg.tokens
-        .first()
-        .map(|&t| sm.token_text(t).to_owned())
-        .unwrap_or_default()
+fn render_command(
+    sm: &SourceMap,
+    cmd_args: &[Arg],
+    original: Option<&tcl_lexer::NativeScriptCommandWords>,
+    env: MinifyEnv<'_>,
+    depth: u32,
+) -> Option<Vec<String>> {
+    let words = original.and_then(|command| {
+        tcl_compiler::registry_invocation::source_structure::original_logical_registry_words_for_command(
+            env.identities, env.input, command,
+        )
+    });
+    // Effective aliases and expansions retain their original producers. Only
+    // a genuine complete written operand can receive a whole-word rewrite.
+    let written_role = |index: usize, role: ArgRole| {
+        let words = words.as_ref()?;
+        let argument = words.roles()?.iter().find_map(|&(argument, selected)| {
+            (selected == role
+                && words.origins().get(argument + 1)
+                    == Some(
+                        &tcl_compiler::registry_invocation::InvocationWordOrigin::Written(index),
+                    ))
+            .then_some(argument)
+        })?;
+        let operand = words.operands().get(argument)?.as_ref()?.word()?;
+        (original?.words.get(index)? == operand).then_some(())
+    };
+    let bodies = words
+        .as_ref()
+        .map(|words| words.source_script_bodies(env.context));
+    let case = words.as_ref().and_then(|words| {
+        words.with_source_schema(env.context, |schema| {
+            schema.authored_source_case_invocation()
+        })?
+    });
+    let list_index = case.as_ref().and_then(|(_, layout)| {
+        let ordinal = layout.clause_list_index?.checked_add(1)?;
+        match words.as_ref()?.origins().get(ordinal)? {
+            tcl_compiler::registry_invocation::InvocationWordOrigin::Written(index) => Some(*index),
+            _ => None,
+        }
+    });
+    let mut out: Vec<String> = Vec::with_capacity(cmd_args.len());
+    for (i, arg) in cmd_args.iter().enumerate() {
+        let single_braced = arg.is_braced && arg.tokens.len() == 1;
+        let original_word = original.and_then(|command| command.words.get(i));
+        let selected_body = original_word.and_then(|word| {
+            let content = word.content_span().ok()?;
+            bodies
+                .as_ref()?
+                .iter()
+                .find(|body| body.original_container() == word && body.content_span() == content)
+        });
+        if list_index == Some(i) && single_braced {
+            let inner = sm.token_text(arg.tokens[0]);
+            let minified =
+                minify_case_list(inner, &case.as_ref()?.0, env, depth + 1, bodies.as_deref()?);
+            out.push(format!("{{{minified}}}"));
+        } else if selected_body.is_some() && single_braced {
+            let inner = sm.token_text(arg.tokens[0]);
+            out.push(format!(
+                "{{{}}}",
+                minify_body(
+                    inner,
+                    env,
+                    depth + 1,
+                    tcl_lexer::SourceSegmentationPurpose::NestedScript
+                )
+            ));
+        } else if written_role(i, ArgRole::LambdaLiteral).is_some() && single_braced {
+            out.push(minify_lambda_literal(
+                sm,
+                arg.tokens[0],
+                original_word?,
+                env,
+                depth + 1,
+            ));
+        } else if written_role(i, ArgRole::Expr).is_some() && single_braced {
+            let inner = sm.token_text(arg.tokens[0]);
+            out.push(format!("{{{}}}", compress_expr(inner, env, depth + 1)));
+        } else {
+            out.push(reconstruct_arg(sm, arg, original_word, env, depth)?);
+        }
+    }
+    Some(out)
 }
 
-/// First character a token will render as.
-fn first_rendered_char(sm: &SourceMap, tok: Token) -> Option<char> {
-    match tok.kind {
-        TokenType::Str | TokenType::Expand => Some('{'),
-        TokenType::Cmd => Some('['),
-        TokenType::Var => Some('$'),
-        _ => sm.token_text(tok).chars().next(),
+/// Original whole-command words under the actual complete body configuration.
+#[cfg(test)]
+fn lexical_script_words(
+    source: &str,
+    config: LexerConfig,
+) -> Option<tcl_lexer::NativeScriptWordsPlan> {
+    // naming.minifier.complete-lexical-head
+
+    let image = tcl_lexer::SourceImage::document(source);
+    let region = tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?);
+    tcl_lexer::native_script_words_in(image, region, config).ok()
+}
+
+/// Static ASCII metadata value of the exact complete original head word.
+#[cfg(test)]
+fn lexical_head_value(
+    sm: &SourceMap,
+    arg: &Arg,
+    word: &tcl_lexer::NativeWord,
+    config: LexerConfig,
+) -> Option<String> {
+    // naming.minifier.complete-lexical-head
+
+    if word.image().channel() != tcl_lexer::SourceChannel::Document
+        || word.image().bytes() != sm.source().as_bytes()
+        || word.config() != config
+        || word.tokens() != arg.tokens.as_slice()
+    {
+        return None;
     }
+    let value = tcl_syntax::word_rules::original_static_word_ascii_presentation(word)?;
+    String::from_utf8(value).ok()
+}
+
+/// Minify the selected lambda's body, retaining complete configured original
+/// field values. A cooked field has no original region or nested role receipt.
+fn minify_lambda_literal(
+    sm: &SourceMap,
+    tok: Token,
+    word: &tcl_lexer::NativeWord,
+    env: MinifyEnv<'_>,
+    depth: u32,
+) -> String {
+    let fallback = || format!("{{{}}}", sm.token_text(tok));
+    let Some(elems) =
+        tcl_compiler::lambda_literal::split_original_lambda_literal_lexical_decoded(word)
+    else {
+        return fallback();
+    };
+    let Some(decoded_body) = elems.body.as_deref() else {
+        return fallback();
+    };
+    let body = tcl_compiler::lambda_literal::split_original_lambda_literal(word)
+        .and_then(|lambda| lambda.braced_body())
+        .and_then(|span| env.original_source.get(span.as_range()))
+        .filter(|body| *body == decoded_body)
+        .unwrap_or(decoded_body);
+    let minified_body = minify_body(
+        body,
+        env,
+        depth,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    );
+    let mut fields = vec![elems.params.as_ref(), minified_body.as_str()];
+    if let Some(namespace) = elems.namespace.as_deref() {
+        fields.push(namespace);
+    }
+    let value = fields
+        .iter()
+        .map(|field| tcl_syntax::list::list_element(field))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let rules = tcl_syntax::word_rules::WordValueRules::from_config(&env.config);
+    let Ok(reparsed) = rules.split_list(&value) else {
+        return fallback();
+    };
+    if reparsed.len() != fields.len()
+        || reparsed
+            .iter()
+            .zip(&fields)
+            .any(|(parsed, field)| parsed.as_ref() != *field)
+    {
+        return fallback();
+    }
+    tcl_syntax::word_rules::lexical_unicode_source_word(&value, env.config).unwrap_or_else(fallback)
+}
+
+/// Readonly source roles and case shape from the actual retained generation.
+#[cfg(test)]
+fn lexical_source_schema<'r: 'w, 'w, T>(
+    env: MinifyEnv<'r>,
+    name: &'w str,
+    arguments: &'w [tcl_registry::InvocationWord<'w>],
+    project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, 'w>) -> T,
+) -> Option<T> {
+    // naming.minifier.retained-lexical-context
+
+    if name.is_empty()
+        || env.context.commands().snapshot().semantic_key()
+            != env.registry.snapshot().semantic_key()
+    {
+        return None;
+    }
+    let mut dialect = tcl_registry::InvocationDialect::of_profile(env.dialect);
+    dialect.lexer_grammar = env.config.grammar_over(dialect.lexer_grammar);
+    let words = tcl_registry::InvocationWords::structured(
+        tcl_registry::InvocationWord::Literal(name),
+        arguments,
+    )
+    .with_dialect(dialect);
+    tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+        env.registry,
+        Some(env.context.context()),
+        words,
+        tcl_dialect::model::InvocationRealm::RuleLoader,
+    )
+    .resolved()
+    .as_ref()
+    .map(project)
+}
+
+/// One original reference, preserving arrays and checking scalar proposals against
+/// the next rendered component under the complete selected source grammar.
+fn reconstruct_variable_reference(
+    sm: &SourceMap,
+    tok: Token,
+    following: &str,
+    config: LexerConfig,
+) -> Option<String> {
+    let source = sm.source_bytes();
+    let at = tok.span.as_range().start;
+    let original = tcl_lexer::word_parts::scan_var_ref(source, at, config).ok()??;
+    if original.source_span(source, at, 0)? != tok.span
+        || original.name_range_in(source)?.start
+            != at.checked_add(usize::from(tok.content_offset))?
+    {
+        return None;
+    }
+    let spelling = std::str::from_utf8(source.get(at..original.next)?).ok()?;
+    let Some(name) = tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
+    else {
+        return Some(spelling.to_owned());
+    };
+    tcl_syntax::naming::scalar_source_reference_followed_by(name, following, config)
 }
 
 /// Rebuild source text from a single token, re-adding delimiters
@@ -2940,68 +3169,44 @@ fn first_rendered_char(sm: &SourceMap, tok: Token) -> Option<char> {
 fn reconstruct_raw(
     sm: &SourceMap,
     tok: Token,
-    next_tok: Option<Token>,
+    following: &str,
     env: MinifyEnv<'_>,
     in_quotes: bool,
     depth: u32,
-) -> String {
-    match tok.kind {
+) -> Option<String> {
+    Some(match tok.kind {
         // Inside a double-quoted word the caller re-wraps the arg in `"…"`, so a
         // `Str` token (e.g. a lone `$` classified as literal) is string data —
         // emit it verbatim, not brace-wrapped as `{$}`.
         TokenType::Str if in_quotes => sm.text(tok.span).to_owned(),
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
-        TokenType::Cmd => format!("[{}]", minify_body(sm.token_text(tok), env, depth + 1)),
+        TokenType::Cmd => format!(
+            "[{}]",
+            minify_body(
+                sm.token_text(tok),
+                env,
+                depth + 1,
+                tcl_lexer::SourceSegmentationPurpose::NestedScript
+            )
+        ),
         TokenType::Var => {
-            let name = sm.token_text(tok);
-            // A name that is not a bare `$name` word can only ever be written
-            // braced: `${a{b}c}` names the variable `a{b}c`, but `$a{b}c` is
-            // the variable `a` followed by the literal `{b}c`. The predicate
-            // is the shared one quick fixes use for exactly this `${x}` ↔
-            // `$x` equivalence.
-            if !tcl_syntax::naming::is_bare_var_name(name) {
-                return format!("${{{name}}}");
-            }
-            // Keep `${var}` when the next token would otherwise extend the
-            // variable name.  Beyond name characters, `(` (array index) and `:`
-            // (namespace separator) also extend a `$` reference, so dropping
-            // the braces before them changes the read (`${x}(k)` scalar-plus-
-            // literal vs `$x(k)` array element).
-            if let Some(next) = next_tok
-                && let Some(c) = first_rendered_char(sm, next)
-                && (c.is_alphanumeric() || c == '_' || c == '(' || c == ':')
-            {
-                return format!("${{{name}}}");
-            }
-            format!("${name}")
+            return reconstruct_variable_reference(sm, tok, following, env.config);
         }
         TokenType::Expand => "{*}".to_owned(),
         TokenType::ExprSugar => format!("$({})", sm.token_text(tok)),
         _ => sm.token_text(tok).to_owned(),
-    }
+    })
 }
 
-/// Characters that would change semantics if they appear unquoted.
-const NEEDS_QUOTING: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}', ';', '"', '\0'];
-
-/// Whether a quoted argument can safely drop its double quotes.
+#[cfg(test)]
 fn can_strip_quotes(raw: &str, style: tcl_dialect::BracedVarStyle) -> bool {
-    if raw.is_empty() {
-        return false;
-    }
-    let first = raw.chars().next().unwrap();
-    if matches!(first, '"' | '{' | '#') {
-        return false;
-    }
-    if raw == "{*}" {
-        return false;
-    }
-    if raw.chars().any(|c| NEEDS_QUOTING.contains(&c)) {
-        return false;
-    }
-    // Any `{` / `}` outside `${var}` references blocks stripping.
-    let stripped = strip_braced_var_refs(raw, style);
-    !(stripped.contains('{') || stripped.contains('}'))
+    let config = LexerConfig {
+        braced_var: style,
+        ..LexerConfig::default()
+    };
+    standalone_alias_word(&format!("\"{raw}\""), config).is_some_and(|word| {
+        tcl_syntax::word_rules::lexical_source_word_preserves_components(&word, raw)
+    })
 }
 
 /// Remove `${…}` references from `raw` so the residual brace check
@@ -3012,6 +3217,7 @@ fn can_strip_quotes(raw: &str, style: tcl_dialect::BracedVarStyle) -> bool {
 /// must stay; under 9.x the whole thing is one reference and they may go.
 /// Scanning by the wrong rule strips quotes that were load-bearing, or
 /// keeps ones that were not.
+#[cfg(test)]
 fn strip_braced_var_refs(raw: &str, style: tcl_dialect::BracedVarStyle) -> String {
     let bytes = raw.as_bytes();
     let n = bytes.len();
@@ -3048,20 +3254,27 @@ fn utf8_len(b: u8) -> usize {
 }
 
 /// Rebuild the source text of an argument from its tokens.
-fn reconstruct_arg(sm: &SourceMap, arg: &Arg, env: MinifyEnv<'_>, depth: u32) -> String {
+fn reconstruct_arg(
+    sm: &SourceMap,
+    arg: &Arg,
+    original: Option<&tcl_lexer::NativeWord>,
+    env: MinifyEnv<'_>,
+    depth: u32,
+) -> Option<String> {
     let mut raw = String::new();
-    for (idx, &tok) in arg.tokens.iter().enumerate() {
-        // The next token within the *same* word can extend a preceding
-        // `${var}` reference whether the word is quoted or bare
-        // (`"${a}jumps"` and bare `${a}jumps` both read `ajumps` if the braces
-        // are dropped), so the name-extension guard must see it in both cases.
-        let next = arg.tokens.get(idx + 1).copied();
-        raw.push_str(&reconstruct_raw(sm, tok, next, env, arg.is_quoted, depth));
+    // Every scalar proposal sees all subsequently emitted bytes in its word.
+    for &tok in arg.tokens.iter().rev() {
+        let component = reconstruct_raw(sm, tok, &raw, env, arg.is_quoted, depth)?;
+        raw.insert_str(0, &component);
     }
-    if arg.is_quoted && !can_strip_quotes(&raw, env.dialect.grammar.braced_var) {
-        format!("\"{raw}\"")
+    if arg.is_quoted
+        && !original.is_some_and(|word| {
+            tcl_syntax::word_rules::lexical_source_word_preserves_components(word, &raw)
+        })
+    {
+        Some(format!("\"{raw}\""))
     } else {
-        raw
+        Some(raw)
     }
 }
 
@@ -3143,6 +3356,7 @@ fn minify_case_list(
     cl: &tcl_registry::CaseListSpec,
     env: MinifyEnv<'_>,
     depth: u32,
+    bodies: &[tcl_compiler::registry_invocation::OriginalSourceScriptBody],
 ) -> String {
     let Some(elements) = case_list_elements(inner) else {
         return inner.to_owned();
@@ -3206,9 +3420,18 @@ fn minify_case_list(
         }
         let (pattern, body) = (&elements[i], &elements[i + 1]);
         parts.push(case_element_text(inner, pattern).to_owned());
-        if body.braced {
-            let body_src = &inner[body.value.clone()];
-            let minified = minify_body(body_src, env, depth);
+        let body_src = &inner[body.value.clone()];
+        if body.braced
+            && env
+                .original_region(body_src)
+                .is_some_and(|span| bodies.iter().any(|body| body.content_span() == span))
+        {
+            let minified = minify_body(
+                body_src,
+                env,
+                depth,
+                tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            );
             parts.push(format!("{{{minified}}}"));
         } else {
             parts.push(case_element_text(inner, body).to_owned());
@@ -3230,31 +3453,109 @@ enum ExprTok {
     Space,
 }
 
-/// Remove unnecessary whitespace inside an `expr` body, keeping
-/// spaces only around word-operators and between adjacent word
-/// tokens. (no AST shrinking).
+/// Remove expression gaps only when the complete configured token sequence
+/// remains unchanged. Required word boundaries and literal contents survive;
+/// this step performs no AST shrinking.
 fn strip_expr_whitespace(text: &str, env: MinifyEnv<'_>, depth: u32) -> String {
-    let toks = tokenise_expr(text, env, depth);
-    let rendered: Vec<String> = toks
-        .iter()
-        .filter_map(|t| match t {
-            ExprTok::Space => None,
-            ExprTok::Cmd(s) | ExprTok::Other(s) => Some(s.clone()),
-        })
-        .collect();
-    if rendered.is_empty() {
+    strip_expr_whitespace_with_script_compaction(text, env, depth, true)
+}
+
+fn strip_expr_whitespace_with_script_compaction(
+    text: &str,
+    env: MinifyEnv<'_>,
+    depth: u32,
+    compact_scripts: bool,
+) -> String {
+    let mut syntax = tcl_syntax::expr::parser::ExprParseContext::for_profile(env.dialect);
+    syntax.lexer_grammar = env.config.grammar_over(syntax.lexer_grammar);
+    if matches!(
+        tcl_syntax::expr::parser::parse_expr_with_syntax_context(text, &syntax),
+        ExprNode::Raw { .. }
+    ) {
         return text.to_owned();
     }
-    let mut out = String::new();
-    out.push_str(&rendered[0]);
-    for w in rendered.windows(2) {
-        let (prev, cur) = (&w[0], &w[1]);
-        if is_word_op(prev) || is_word_op(cur) || (is_word_token(prev) && is_word_token(cur)) {
-            out.push(' ');
-        }
-        out.push_str(cur);
+    let tokens = if compact_scripts {
+        tokenise_expr(text, env, depth)
+    } else {
+        tokenise_expr_with_script_compaction(text, env, depth, false)
+    };
+    let rendered = tokens
+        .iter()
+        .filter_map(|token| match token {
+            ExprTok::Space => None,
+            ExprTok::Cmd(value) | ExprTok::Other(value) => Some(value.as_str()),
+        })
+        .collect::<Vec<_>>();
+    let Some(first) = rendered.first() else {
+        return text.to_owned();
+    };
+    let baseline = rendered.join(" ");
+    let Some(expected) = expression_token_signature(&baseline, env, false) else {
+        return text.to_owned();
+    };
+    if expression_token_signature(text, env, true)
+        != expression_token_signature(&baseline, env, true)
+    {
+        return text.to_owned();
     }
-    out
+    let mut output = (*first).to_owned();
+    for pair in rendered.windows(2) {
+        let (previous, current) = (pair[0], pair[1]);
+        let joined = format!("{previous}{current}");
+        let spaced = format!("{previous} {current}");
+        let preserves = expression_token_signature(&joined, env, false)
+            .zip(expression_token_signature(&spaced, env, false))
+            .is_some_and(|(joined, spaced)| joined == spaced);
+        if !preserves {
+            output.push(' ');
+        }
+        output.push_str(current);
+    }
+    if expression_token_signature(&output, env, false) == Some(expected) {
+        output
+    } else {
+        baseline
+    }
+}
+
+fn configured_expression_tokens(
+    text: &str,
+    env: MinifyEnv<'_>,
+) -> Option<Vec<tcl_lexer::ExprToken<Vec<u8>>>> {
+    let (tokens, unknown) = tcl_lexer::tokenise_expr_bytes_checked_with_expression_grammar(
+        text.as_bytes(),
+        &env.config.grammar_over(env.dialect.grammar),
+        env.dialect.expr_grammar_base,
+        env.dialect.f5_core_expr_grammar(),
+    );
+    if unknown {
+        return None;
+    }
+    tcl_lexer::expression_terms(text.as_bytes(), &tokens, env.config)?;
+    Some(tokens)
+}
+
+/// Ordered lexical tokens only; rewritten child scripts retain their own
+/// source purpose and AST transformations keep their independent contract.
+fn expression_token_signature(
+    text: &str,
+    env: MinifyEnv<'_>,
+    omit_command_text: bool,
+) -> Option<Vec<(tcl_lexer::ExprTokenType, Vec<u8>)>> {
+    Some(
+        configured_expression_tokens(text, env)?
+            .into_iter()
+            .filter(|token| !token.kind.is_skipped() && token.kind != tcl_lexer::ExprTokenType::Eof)
+            .map(|token| {
+                let text = if omit_command_text && token.kind == tcl_lexer::ExprTokenType::Command {
+                    Vec::new()
+                } else {
+                    token.text
+                };
+                (token.kind, text)
+            })
+            .collect(),
+    )
 }
 
 /// Compress and shrink an `expr` body: strip whitespace, then try
@@ -3464,158 +3765,101 @@ fn shrink_not(node: &ExprNode, operand: &ExprNode) -> ExprNode {
     negate(shrink_node(operand))
 }
 
-/// Tokenise an `expr` body, with a catch-all so no character is
-/// dropped.
+/// Project the selected shared expression tokens and original command terms.
+/// Unknown syntax keeps the entire original expression, including its gaps.
 fn tokenise_expr(text: &str, env: MinifyEnv<'_>, nest_depth: u32) -> Vec<ExprTok> {
-    let bytes = text.as_bytes();
-    let n = bytes.len();
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < n {
-        let c = bytes[i];
-        if c.is_ascii_whitespace() {
-            let start = i;
-            while i < n && bytes[i].is_ascii_whitespace() {
-                i += 1;
+    tokenise_expr_with_script_compaction(text, env, nest_depth, true)
+}
+
+fn tokenise_expr_with_script_compaction(
+    text: &str,
+    env: MinifyEnv<'_>,
+    nest_depth: u32,
+    compact_scripts: bool,
+) -> Vec<ExprTok> {
+    let project = || -> Option<Vec<ExprTok>> {
+        let tokens = configured_expression_tokens(text, env)?;
+        let terms = tcl_lexer::expression_terms(text.as_bytes(), &tokens, env.config)?;
+        let mut output = Vec::new();
+        for token in tokens {
+            if token.kind == tcl_lexer::ExprTokenType::Eof {
+                continue;
             }
-            let _ = start;
-            out.push(ExprTok::Space);
-        } else if c == b'"' {
-            let start = i;
-            i += 1;
-            while i < n {
-                if bytes[i] == b'\\' && i + 1 < n {
-                    i += 2;
-                    continue;
-                }
-                if bytes[i] == b'"' {
-                    i += 1;
-                    break;
-                }
-                i += 1;
+            if token.kind.is_skipped() {
+                output.push(ExprTok::Space);
+                continue;
             }
-            out.push(ExprTok::Other(text[start..i].to_owned()));
-        } else if c == b'[' {
-            let start = i;
-            i += 1;
-            let mut depth = 1;
-            while i < n && depth > 0 {
-                match bytes[i] {
-                    b'[' => depth += 1,
-                    b']' => depth -= 1,
-                    _ => {}
-                }
-                i += 1;
+            let end = token.end.checked_add(1)?;
+            let original = text.get(token.start as usize..end as usize)?;
+            if original.as_bytes() != token.text {
+                return None;
             }
-            // Clamp the inner slice to a char boundary: on an unbalanced
-            // `[` the scan runs to EOF and `i - 1` can land mid-codepoint
-            // (`expr {[é}`), which would panic the slice in debug *and*
-            // release (a char-boundary violation, not an overflow) (F2a).
-            let mut end = i.saturating_sub(1).max(start + 1);
-            while end > start + 1 && !text.is_char_boundary(end) {
-                end -= 1;
+            if compact_scripts && token.kind == tcl_lexer::ExprTokenType::Command {
+                let term = terms.iter().find(|term| {
+                    term.kind == tcl_lexer::ExprTermKind::Command
+                        && term.source == (token.start..end)
+                })?;
+                let body = text.get(term.value.start as usize..term.value.end as usize)?;
+                output.push(ExprTok::Cmd(format!(
+                    "[{}]",
+                    minify_body(
+                        body,
+                        env,
+                        nest_depth + 1,
+                        tcl_lexer::SourceSegmentationPurpose::NestedScript
+                    )
+                )));
+            } else {
+                output.push(ExprTok::Other(original.to_owned()));
             }
-            let inner = &text[start + 1..end];
-            out.push(ExprTok::Cmd(format!(
-                "[{}]",
-                minify_body(inner, env, nest_depth + 1)
-            )));
-        } else if c == b'$' {
-            let start = i;
-            i += 1;
-            while i < n
-                && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_' || bytes[i] == b':')
-            {
-                i += 1;
-            }
-            out.push(ExprTok::Other(text[start..i].to_owned()));
-        } else if c.is_ascii_alphanumeric() || c == b'.' || c == b'_' {
-            let start = i;
-            while i < n
-                && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'.' || bytes[i] == b'_')
-            {
-                i += 1;
-            }
-            out.push(ExprTok::Other(text[start..i].to_owned()));
-        } else if is_expr_op_byte(c) {
-            let start = i;
-            while i < n && is_expr_op_byte(bytes[i]) {
-                i += 1;
-            }
-            out.push(ExprTok::Other(text[start..i].to_owned()));
-        } else {
-            // Catch-all single char (`(`, `)`, `,`, etc.).
-            let ch_len = utf8_len(c);
-            out.push(ExprTok::Other(text[i..i + ch_len].to_owned()));
-            i += ch_len;
         }
-    }
-    out
-}
-
-/// Whether `b` is a byte that forms a symbolic `expr` operator.
-fn is_expr_op_byte(b: u8) -> bool {
-    matches!(
-        b,
-        b'+' | b'-'
-            | b'*'
-            | b'/'
-            | b'%'
-            | b'<'
-            | b'>'
-            | b'='
-            | b'!'
-            | b'&'
-            | b'|'
-            | b'^'
-            | b'?'
-            | b':'
-            | b'~'
-    )
-}
-
-/// Whether `tok` is a Tcl expr word-operator needing surrounding
-/// whitespace (`eq`, `ne`, `in`, `ni`, the TIP 461 `lt`/`le`/`gt`/`ge`, the
-/// iRules word operators, …).
-///
-/// Derived from `tcl_syntax::expr::operators`
-/// rather than a hand-typed list, which would miss the word-form operators —
-/// `lt`/`le`/`gt`/`ge` in particular. Not a confirmed corruption bug today
-/// (the `is_word_token(prev) && is_word_token(cur)` branch at this
-/// function's call site already independently forces the needed space for
-/// every operand-adjacent case), but this function's own contract — "is
-/// this a word operator" — was simply wrong for those spellings, and
-/// relying on a second, unstated heuristic to paper over it is fragile.
-fn is_word_op(tok: &str) -> bool {
-    static OPS: std::sync::OnceLock<std::collections::HashSet<&'static str>> =
-        std::sync::OnceLock::new();
-    OPS.get_or_init(|| {
-        tcl_syntax::expr::operators::ALL_BIN_OPS
-            .iter()
-            .map(|op| op.spec().spelling)
-            .chain(
-                tcl_syntax::expr::operators::ALL_UNARY_OPS
-                    .iter()
-                    .map(|op| op.spec().spelling),
-            )
-            .filter(|s| s.as_bytes().first().is_some_and(u8::is_ascii_alphabetic))
-            .collect()
-    })
-    .contains(tok)
-}
-
-/// Whether `tok` is a "word" (identifier / number / variable /
-/// string / command-substitution).
-fn is_word_token(tok: &str) -> bool {
-    let Some(c) = tok.chars().next() else {
-        return false;
+        Some(output)
     };
-    c == '$' || c == '"' || c == '[' || c.is_alphanumeric() || c == '_'
+    project().unwrap_or_else(|| vec![ExprTok::Other(text.to_owned())])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config() {
+        // naming.source.original-configured-script-completeness
+
+        // Original source geometry only; this does not grant body execution.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input =
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+        for source in [
+            "proc p {} {\u{feff}puts    1}",
+            "set x [\u{feff}puts    1]",
+            "apply {{} {\u{feff}puts    1}}",
+            "switch x {x {\u{feff}puts    1}}",
+        ] {
+            let analysis = original::analysis_with_input(source, &input);
+            let result = lexical_default(source, &analysis).unwrap();
+            assert_eq!(
+                result.matches('\u{feff}').count(),
+                1,
+                "{source:?}: {result:?}"
+            );
+            assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+            assert!(
+                analysis.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config
+                )
+            );
+        }
+        let source = "\u{feff}puts    1";
+        let analysis = original::analysis_with_input(source, &input);
+        assert_eq!(lexical_default(source, &analysis).unwrap(), "puts 1");
+    }
 
     fn min(src: &str) -> String {
         let registry = CommandRegistry::build_default();
@@ -3655,6 +3899,70 @@ mod tests {
         );
         assert!(out.contains("$plain"), "{out}");
         assert!(!out.contains("${plain}"), "{out}");
+    }
+
+    #[test]
+    fn expression_commands_keep_configured_literal_closers_and_unavailable_extents() {
+        for label in ["tcl8.6", "tcl9.1"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(label).analyser_profile();
+            for expression in [
+                "[list {literal ] value}] + 1",
+                "[list \"literal ] value\"] + 1",
+                "[list [list {literal ] value}]] + 1",
+                "[\n# literal ]\nlist {literal [ value}\n] + 1",
+            ] {
+                let source = format!("expr {{{expression}}}");
+                let output = min_dialect(&source, profile);
+                let data = if expression.contains("literal [ value") {
+                    "literal [ value"
+                } else {
+                    "literal ] value"
+                };
+                assert!(output.contains(data), "{label}: {output}");
+                let opener = output.find('[').unwrap();
+                let end = tcl_lexer::command_subst_close(
+                    output.as_bytes(),
+                    opener,
+                    tcl_lexer::SubstFlags::default(),
+                    LexerConfig::for_file_grammar(profile.grammar),
+                )
+                .unwrap();
+                assert_eq!(&output[end..], "+1}", "{label}: {output}");
+            }
+            let source = "expr {[é + 1}";
+            let registry = CommandRegistry::build_default();
+            let analysis = original::analysis_for_profile(source, profile, &registry);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let context = input.context_registry();
+            let env = MinifyEnv {
+                original_source: source,
+                analysis: &analysis,
+                input,
+                dialect: input.unit_profile(),
+                config: input.lexer_config(),
+                registry: context.commands(),
+                context: &context,
+                identities: analysis.retained_command_realm().unwrap(),
+            };
+            let expression = "[é + 1";
+            let tokens = tokenise_expr(expression, env, 0);
+            assert!(matches!(tokens.as_slice(), [ExprTok::Other(value)] if value == expression));
+            assert_eq!(strip_expr_whitespace(expression, env, 0), expression);
+        }
+    }
+
+    #[test]
+    fn expression_minification_preserves_original_array_index_name_data() {
+        for label in ["tcl8.6", "tcl9.1"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(label).analyser_profile();
+            for reference in ["$arr(a + b)", "$arr($key + 1)", "${$literal}", "${}"] {
+                let source = format!("expr {{{reference} + 1}}");
+                let output = min_dialect(&source, profile);
+                assert!(output.contains(reference), "{label}: {output}");
+            }
+        }
     }
 
     /// The **plumb**: minify must take the `${…}` rule from the document's
@@ -3711,6 +4019,37 @@ mod tests {
         // …which is exactly what decides whether the quotes may go.
         assert!(can_strip_quotes("${a{b}c}", BracedVarStyle::Tcl9Nesting));
         assert!(!can_strip_quotes("${a{b}c}", BracedVarStyle::FirstClose));
+    }
+
+    #[test]
+    fn quote_stripping_uses_complete_configured_components() {
+        let registry = CommandRegistry::build_default();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        for source in [
+            "puts \"[list {a b}]\"",
+            "puts \"[list \"a b\"]\"",
+            "puts \"${x}tail\"",
+            "puts \"${x}(key)\"",
+            "puts \"$array($index)\"",
+            "puts \"a\\ b\"",
+        ] {
+            let analysis = original::analysis_for_profile(source, profile, &registry);
+            let config = analysis.body_lexer_config.unwrap();
+            let output = lexical_default(source, &analysis).unwrap();
+            let original = lexical_script_words(source, config).unwrap();
+            let proposed = output.strip_prefix("puts ").unwrap();
+            if source == "puts \"[list {a b}]\"" {
+                assert_eq!(output, "puts [list {a b}]");
+            }
+            assert!(
+                tcl_syntax::word_rules::lexical_source_word_preserves_components(
+                    &original.commands[0].words[1],
+                    proposed,
+                ),
+                "{source} -> {output}"
+            );
+        }
     }
 
     /// The `$var` reader behind constant folding and the live-name sweep
@@ -3971,6 +4310,44 @@ mod tests {
     }
 
     #[test]
+    fn compact_variable_reads_keep_original_braced_names_and_current_source() {
+        let source =
+            "proc helper {} {set longVariable VALUE; puts ${longVariable}; puts $longVariable}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let compact = min_compact(source);
+        assert!(compact.contains("set a VALUE"), "{compact}");
+        assert!(!compact.contains("longVariable"), "{compact}");
+        let scope = analysis
+            .global_scope
+            .children
+            .iter()
+            .find(|scope| scope.kind == ScopeKind::Proc)
+            .unwrap();
+        let variable = &scope.variables["longVariable"];
+        let geometry =
+            crate::source_structure::OriginalVariableReferences::capture(source, &analysis)
+                .expect("current source geometry");
+        let spans =
+            variable_reference_name_spans(source, &geometry, "longVariable", &variable.references)
+                .expect("actual configured original reference names");
+        assert_eq!(spans.len(), 2);
+        assert!(
+            spans
+                .iter()
+                .all(|span| source.get(span.as_range()) == Some("longVariable"))
+        );
+        assert!(
+            variable_reference_name_spans(source, &geometry, "donated", &variable.references)
+                .is_none()
+        );
+        let mut stale = analysis.clone();
+        stale.resolved_input = None;
+        assert!(
+            crate::source_structure::OriginalVariableReferences::capture(source, &stale).is_none()
+        );
+    }
+
+    #[test]
     fn compact_renames_refs_inside_expr_and_command_subst() {
         // The `$value` ref lives inside `[expr {...}]`; it must be
         // renamed in lock-step with the param declaration (relies on
@@ -4091,6 +4468,108 @@ mod tests {
     }
 
     #[test]
+    fn original_static_folds_do_not_borrow_erasure_from_logical_source_values() {
+        let source = "set value 42\nputs \"n=$value\"\n";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let registry = CommandRegistry::build_default();
+        let analysis = original::analysis_for_profile(source, profile, &registry);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        let (out, count, map) = fold_original_static_substrings(source, input);
+        assert_eq!(out, source);
+        assert_eq!(count, 0);
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn live_name_inventory_uses_the_actual_complete_reference_grammar() {
+        let source = "# ${a{b}c} $a::value $a(index) $Ω\n";
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = CommandRegistry::build_default();
+        let analysis = original::analysis_for_profile(source, profile, &registry);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let names = collect_live_names(source, input);
+        for name in ["a{b}c", "a::value", "a", "Ω"] {
+            assert!(names.names.contains(name), "{name}: {names:?}");
+        }
+    }
+
+    #[test]
+    fn guarded_body_keeps_collision_candidates_but_not_absence_authority() {
+        let body = format!(
+            "# $retained_candidate {}\nmystery {{set a 1}}\n",
+            "x".repeat(270_000)
+        );
+        let command = "repeatedlyLongCommandName";
+        let source = format!("proc p {{}} {{{body}}}\n{command} x;{command} x;{command} x\n");
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = CommandRegistry::build_default();
+        let analysis = original::analysis_for_profile(&source, profile, &registry);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let names = collect_live_names(&source, input);
+        assert!(names.names.contains("retained_candidate"));
+        assert!(
+            names
+                .gaps
+                .contains(&LiveNameInventoryGap::ComplexityGuardedBody)
+        );
+        assert!(
+            names
+                .gaps
+                .contains(&LiveNameInventoryGap::SourceSyntaxCoverage)
+        );
+        // These debts remain explicit, while this patch leaves the existing
+        // aggressive authoring policy and its alias output unchanged.
+        let result = lexical_aggressive(&source, input, false, false).unwrap();
+        assert!(result.source.contains(command));
+    }
+
+    #[test]
+    fn conservative_collision_candidates_keep_configured_reads_and_insertion_separate() {
+        let source = "# $Ω $café ${braced name}\nfoo --long-argument;foo --long-argument\n";
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = CommandRegistry::build_default();
+        let analysis = original::analysis_for_profile(source, profile, &registry);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let names = collect_live_names(source, input);
+        for name in ["Ω", "caf", "café", "braced name"] {
+            assert!(names.names.contains(name), "{name}: {names:?}");
+        }
+        // Native Tcl keeps the non-ASCII suffix outside its bare reference.
+        let unicode = source.find("$Ω").unwrap();
+        assert!(
+            tcl_lexer::scan_var_ref(source.as_bytes(), unicode, input.lexer_config())
+                .unwrap()
+                .is_none()
+        );
+        let mixed = source.find("$café").unwrap();
+        assert_eq!(
+            tcl_lexer::scan_var_ref(source.as_bytes(), mixed, input.lexer_config())
+                .unwrap()
+                .unwrap()
+                .name,
+            b"caf"
+        );
+        let result = minify_with_analysis(
+            source,
+            &analysis,
+            MinifyOptions {
+                tier: MinifyTier::Aggressive,
+                isolated: true,
+                abbreviations: true,
+            },
+        );
+        assert!(
+            result
+                .refusals
+                .contains(&MinifyRefusal::MissingAliasInsertionContract)
+        );
+        assert!(result.symbol_map.command_aliases.is_empty());
+        assert!(result.symbol_map.argument_aliases.is_empty());
+        assert_eq!(result.source, "foo --long-argument;foo --long-argument");
+    }
+
+    #[test]
     fn static_fold_folds_sccp_constant_interpolation() {
         let registry = CommandRegistry::build_default();
         // `$x` is a proven integer constant; fold `"n=$x"` -> `n=5`.
@@ -4102,6 +4581,30 @@ mod tests {
         assert_eq!(out, "set x 5\nputs n=5\n");
         assert_eq!(count, 1);
         assert!(map.values().any(|v| v == "n=5"), "{map:?}");
+    }
+
+    #[test]
+    fn static_fold_quotes_carriage_return_value() {
+        let registry = CommandRegistry::build_default();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let (out, count, _) =
+            fold_static_substrings("set x \"a\\rb\"\nputs \"v=$x\"\n", profile, &registry);
+        assert_eq!(count, 1, "{out}");
+        let word = out
+            .split_once("\nputs ")
+            .unwrap()
+            .1
+            .strip_suffix('\n')
+            .unwrap();
+        assert!(
+            tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+                word,
+                "v=a\rb",
+                LexerConfig::for_profile(Some(profile)),
+            ),
+            "{out}"
+        );
     }
 
     /// The quoted word embeds a command substitution whose own
@@ -4176,6 +4679,77 @@ mod tests {
             agg("puts \"the quick brown fox jumps\"\nputs \"the quick brown fox runs\"\n"),
             "set a {the quick brown fox };puts ${a}jumps;puts ${a}runs",
         );
+    }
+
+    #[test]
+    fn string_alias_reference_preserves_original_six_provider_suffix_values() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
+            let config = LexerConfig::for_profile(Some(profile));
+            for (suffix, braced) in [
+                ("::tail", true),
+                (":tail", false),
+                ("x", true),
+                ("(k)", true),
+                ("é", dialect == "jim"),
+            ] {
+                let source = format!("ALIAS{suffix}");
+                let fragment = StringLiteralFragment {
+                    span: Span::new(0, u32::try_from(source.len()).unwrap()),
+                    text: source.clone(),
+                    config,
+                    following_end: source.len(),
+                };
+                let expected = if braced { "${a}" } else { "$a" };
+                assert_eq!(
+                    alias_string_reference(&source, &fragment, 0, 5, "a", "ALIAS").as_deref(),
+                    Some(expected),
+                    "{dialect}: {suffix}",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn string_alias_reference_rejects_escaped_insertion_and_split_unicode() {
+        let config = LexerConfig::for_profile(Some(tcl_dialect::DialectProfile::plain_tcl()));
+        for (source, start, end, value) in [(r"\ALIAS!", 1, 6, "ALIAS"), ("éALIAS!", 1, 7, "ALIAS")]
+        {
+            let fragment = StringLiteralFragment {
+                span: Span::new(0, u32::try_from(source.len()).unwrap()),
+                text: source.to_owned(),
+                config,
+                following_end: source.len(),
+            };
+            assert!(alias_string_reference(source, &fragment, start, end, "a", value).is_none());
+        }
+    }
+
+    #[test]
+    fn string_alias_inventory_keeps_data_braces_inert_and_real_body_geometry() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let registry = CommandRegistry::build_default();
+        let source =
+            "set data {puts \"inert repeated text\"}\nproc p {} {puts \"live repeated text\"}\n";
+        let analysis = original::analysis_for_profile(source, profile, &registry);
+        let fragments = collect_string_literals(source, analysis.resolved_input.as_ref().unwrap());
+        assert!(!fragments.is_empty());
+        assert!(
+            fragments
+                .iter()
+                .all(|fragment| !fragment.text.contains("inert"))
+        );
+        assert!(
+            fragments
+                .iter()
+                .any(|fragment| fragment.text == "live repeated text")
+        );
+        for fragment in fragments {
+            assert_eq!(
+                source.get(fragment.span.as_range()),
+                Some(fragment.text.as_str())
+            );
+        }
     }
 
     #[test]
@@ -4357,16 +4931,12 @@ mod tests {
     /// rule reaches them and their inversions remain available.
     #[test]
     fn expr_string_and_membership_inversion_still_applies() {
-        check(
-            "if {!($a eq \"x\")} {puts x}\n",
-            "if {$a ne \"x\"} {puts x}",
-        );
-        check(
-            "if {!($a ne \"x\")} {puts x}\n",
-            "if {$a eq \"x\"} {puts x}",
-        );
-        check("if {!($a in $b)} {puts x}\n", "if {$a ni $b} {puts x}");
-        check("if {!($a ni $b)} {puts x}\n", "if {$a in $b} {puts x}");
+        // 13:17 whitespace decision; pinned C/Jim wordop controls. The
+        // inversion expectations remain independent and unchanged.
+        check("if {!($a eq \"x\")} {puts x}\n", "if {$a ne\"x\"} {puts x}");
+        check("if {!($a ne \"x\")} {puts x}\n", "if {$a eq\"x\"} {puts x}");
+        check("if {!($a in $b)} {puts x}\n", "if {$a ni$b} {puts x}");
+        check("if {!($a ni $b)} {puts x}\n", "if {$a in$b} {puts x}");
     }
 
     #[test]
@@ -4440,16 +5010,16 @@ mod tests {
 
     #[test]
     fn keeps_word_operator_spacing() {
+        // User decision 2026-10-22T13:17Z: remove every safe gap. Pinned
+        // C8.4-9.1/Jim controls (wordop-manual-oracle-20261022.json) prove
+        // the space before eq is required here while eq->$b is removable.
         check(
             "if {$a eq $b} {\n    puts hi\n}\n",
-            "if {$a eq $b} {puts hi}",
+            "if {$a eq$b} {puts hi}",
         );
     }
 
-    /// `is_word_op` recognises the TIP 461 comparisons as well as
-    /// `eq`/`ne`/`in`/`ni`, so a `lt` does not depend on the separate
-    /// `is_word_token(prev) && is_word_token(cur)` heuristic to keep its
-    /// surrounding whitespace.  This pins that spacing.
+    /// Shared TIP 461 word-operator spellings retain canonical spacing.
     #[test]
     fn keeps_tip461_word_operator_spacing() {
         check(
@@ -4811,6 +5381,136 @@ mod tests {
     /// The witness is whether `set local 1` survives: barred, the local keeps
     /// its name; unbarred, it compacts to a single letter.
     #[test]
+    fn rename_barriers_retain_distinct_actual_scopes_with_identical_labels() {
+        let source = "proc repeated {} {set firstlong 1; puts $firstlong}\nproc repeated {} {set secondlong 2; puts $secondlong}\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let scopes = analysis
+            .global_scope
+            .children
+            .iter()
+            .filter(|scope| scope.kind == ScopeKind::Proc)
+            .collect::<Vec<_>>();
+        assert_eq!(scopes.len(), 2);
+        assert_eq!(scopes[0].name, scopes[1].name);
+        assert!(!std::ptr::eq(scopes[0], scopes[1]));
+        let first = source_scope_at_offset(
+            &analysis.global_scope,
+            scopes[0].body_span.unwrap().start(),
+            "::",
+            false,
+        )
+        .unwrap();
+        let second = source_scope_at_offset(
+            &analysis.global_scope,
+            scopes[1].body_span.unwrap().start(),
+            "::",
+            false,
+        )
+        .unwrap();
+        assert_eq!(first.1, second.1);
+        assert!(std::ptr::eq(first.0, scopes[0]));
+        assert!(std::ptr::eq(second.0, scopes[1]));
+        let mut barriers = RenameBarriers::default();
+        apply_rename_traits(
+            &mut barriers,
+            Traits::CREATES_DYNAMIC_BARRIER,
+            Some(first.0),
+        );
+        apply_rename_traits(
+            &mut barriers,
+            Traits::CREATES_DYNAMIC_BARRIER,
+            Some(first.0),
+        );
+        assert_eq!(barriers.scopes.len(), 1);
+        assert!(!barriers.allows_scope(first.0));
+        assert!(barriers.allows_scope(second.0));
+        barriers.global_variables = true;
+        assert!(!barriers.allows_scope(&analysis.global_scope));
+        assert!(barriers.allows_scope(second.0));
+    }
+
+    #[test]
+    fn report_scope_collisions_preserve_every_selected_mapping() {
+        let mut map = SymbolMap::default();
+        let first = BTreeMap::from([("longfirst".to_owned(), "a".to_owned())]);
+        let second = BTreeMap::from([("longsecond".to_owned(), "b".to_owned())]);
+        record_variable_report(&mut map, "::same", first.clone());
+        record_variable_report(&mut map, "::same [source 2]", second.clone());
+        record_variable_report(&mut map, "::same", second.clone());
+        assert_eq!(map.variables.len(), 3);
+        assert_eq!(map.variables["::same"], first);
+        assert_eq!(map.variables["::same [source 2]"], second);
+        assert_eq!(map.variables["::same [source 3]"], second);
+    }
+
+    #[test]
+    fn logical_formal_edit_deduplication_uses_actual_scope_not_report_keys() {
+        let source = "proc first {longname} {return $longname}";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let analysis = original::analysis_with_input(source, &input);
+        let body = analysis
+            .global_scope
+            .children
+            .iter()
+            .find(|scope| scope.kind == ScopeKind::Proc)
+            .unwrap();
+        let (_, label) = source_scope_at_offset(
+            &analysis.global_scope,
+            body.body_span.unwrap().start(),
+            "::",
+            false,
+        )
+        .unwrap();
+        let unrelated_report = BTreeMap::from([("unrelated".to_owned(), "x".to_owned())]);
+        let mut report = SymbolMap::default();
+        report
+            .variables
+            .insert(label.clone(), unrelated_report.clone());
+        let mut edits = Vec::new();
+        compact_logical_formals(
+            source,
+            &input,
+            &analysis,
+            true,
+            &[],
+            &mut report,
+            &mut edits,
+        );
+        assert_eq!(edits.len(), 2);
+        assert_eq!(report.variables[&label], unrelated_report);
+        assert_eq!(report.variables.len(), 2);
+        let mut report = SymbolMap::default();
+        let mut edits = Vec::new();
+        compact_logical_formals(
+            source,
+            &input,
+            &analysis,
+            true,
+            &[body],
+            &mut report,
+            &mut edits,
+        );
+        assert!(edits.is_empty());
+        assert!(report.variables.is_empty());
+        compact_logical_formals(
+            source,
+            &input,
+            &analysis,
+            false,
+            &[],
+            &mut report,
+            &mut edits,
+        );
+        assert!(edits.is_empty());
+    }
+
+    #[test]
     fn rename_barriers_follow_the_resolved_head() {
         const UPVAR_BODY: &str =
             "proc p {v} {\n    set local 1\n    upvar 1 $v alias\n    return $local\n}\n";
@@ -4855,5 +5555,500 @@ mod tests {
             barred(&format!("rename $old peek\n{UPVAR_BODY}")),
             "a dynamic rename must not take `upvar`'s barrier away either"
         );
+    }
+}
+
+#[cfg(test)]
+mod constructed_compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn shared_minifier_call_sites_keep_same_names_in_their_actual_namespace() {
+        let source = "namespace eval A {proc longName {} {}; longName}\nnamespace eval B {proc longName {} {}; longName}\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let selected = analysis
+            .all_procs
+            .get("::A::longName")
+            .expect("actual A declaration");
+        let called = source.find("; longName").unwrap() + 2;
+        assert_eq!(
+            current_proc_call_sites(source, selected, &analysis),
+            vec![Span::new(
+                u32::try_from(called).unwrap(),
+                u32::try_from(called + "longName".len()).unwrap(),
+            )]
+        );
+        let detached = selected.clone();
+        assert!(current_proc_call_sites(source, &detached, &analysis).is_empty());
+        assert!(current_proc_call_sites(&format!("{source} "), selected, &analysis).is_empty());
+    }
+
+    #[test]
+    fn constructed_minifier_call_sites_keep_original_indirect_and_naming_guards() {
+        // naming.analysis.constructed-key-consumer-projections
+
+        // naming.minifier.original-naming-permission
+
+        // Descriptive compatibility rows do not authorise public source rewriting.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::signature_scan::types::SignatureCommandInvocation;
+        let source = ":箱::méthode\n箱::méthode\nother\n:箱::méthode\n$cmd\n";
+        let written = |name: &str, start: usize| {
+            SignatureCommandInvocation::written(
+                name.to_owned(),
+                Span::new(
+                    u32::try_from(start).unwrap(),
+                    u32::try_from(start + name.len()).unwrap(),
+                ),
+                Some(0),
+            )
+        };
+        let selected = written(":箱::méthode", 0);
+        let wrong = written("箱::méthode", source.find("\n箱").unwrap() + 1);
+        let mut resolved = written("other", source.find("other").unwrap());
+        resolved.resolved_qualified_name = Some(":::箱::méthode".to_owned());
+        let mut foreign = written(":箱::méthode", source.rfind(":箱::méthode").unwrap());
+        foreign.resolved_qualified_name = Some("::箱::méthode".to_owned());
+        let mut indirect = written("$cmd", source.find("$cmd").unwrap());
+        indirect.resolved_qualified_name = Some(":::箱::méthode".to_owned());
+        indirect.indirect = true;
+        let expected = vec![selected.range, resolved.range];
+        let other = vec![wrong.range, foreign.range];
+        let indirect_span = indirect.range;
+        let mut analysis = Analyser::new().analyse("", "tcl");
+        analysis.command_invocations = vec![
+            selected.clone(),
+            selected,
+            wrong,
+            resolved,
+            foreign,
+            indirect,
+        ];
+        assert_eq!(
+            find_proc_call_sites("méthode", ":::箱::méthode", &analysis),
+            expected
+        );
+        assert_eq!(
+            find_proc_call_sites("méthode", "::箱::méthode", &analysis),
+            other
+        );
+        assert!(
+            !find_proc_call_sites("méthode", ":::箱::méthode", &analysis).contains(&indirect_span)
+        );
+
+        let source = "proc publicName {} {return VALUE}\npublicName\n";
+        let original = Analyser::new().analyse(source, "tcl8.6");
+        assert!(!original.allows_lexical_declaration_advice());
+        let result = minify_with_analysis(
+            source,
+            &original,
+            MinifyOptions {
+                tier: MinifyTier::Compact,
+                isolated: true,
+                abbreviations: false,
+            },
+        );
+        assert!(
+            result
+                .refusals
+                .contains(&MinifyRefusal::MissingAlphaRenameContract)
+        );
+        assert_eq!(result.symbol_map, SymbolMap::default());
+        assert!(result.source.contains("proc publicName"));
+        assert!(result.source.contains("publicName"));
+    }
+}
+
+#[cfg(test)]
+mod selected_scalar_reference_emission_tests {
+    use super::*;
+
+    #[test]
+    fn logical_scalar_emission_uses_selected_proposals_and_original_component_boundaries() {
+        for (dialect, source, expected) in [
+            ("tcl8.4", "${a{b}c}", "${a{b}"),
+            ("tcl9.0", "${a{b}c}", "${a{b}c}"),
+            ("tcl9.0", "${a{b}}", "${a{b}}"),
+            ("tcl8.6", "${$n}", "${$n}"),
+            ("tcl8.6", "${}", "${}"),
+            ("tcl8.6", "${x}tail", "${x}"),
+            ("tcl8.6", "${x}::tail", "${x}"),
+            ("tcl9.0", "${x}::tail", "${x}"),
+            ("tcl8.6", "${x}(k)", "${x}"),
+            ("tcl8.6", "$array($index)", "$array($index)"),
+            ("tcl8.6", "${array(key)}", "${array(key)}"),
+        ] {
+            let config = LexerConfig::for_dialect(dialect);
+            let tokens = Lexer::with_config(source, config).tokenise_all().unwrap();
+            let token = tokens
+                .iter()
+                .find(|token| token.kind == TokenType::Var)
+                .copied()
+                .unwrap();
+            let end = tcl_lexer::word_parts::scan_var_ref(
+                source.as_bytes(),
+                token.span.start() as usize,
+                config,
+            )
+            .unwrap()
+            .unwrap()
+            .next;
+            let result = reconstruct_variable_reference(
+                &SourceMap::new(source),
+                token,
+                &source[end..],
+                config,
+            )
+            .unwrap();
+            assert_eq!(result, expected, "{dialect}: {source}");
+        }
+        let source = "${a{b}c}";
+        let token = Lexer::with_config(source, LexerConfig::for_dialect("tcl8.4"))
+            .tokenise_all()
+            .unwrap()[0];
+        assert!(
+            reconstruct_variable_reference(
+                &SourceMap::new(source),
+                token,
+                "",
+                LexerConfig::for_dialect("tcl9.0")
+            )
+            .is_none()
+        );
+
+        let source = "puts ${x}tail; puts ${x}(k); puts $array($index); puts ${x}::tail; puts \"${x}::tail\"";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let config = analysis.body_lexer_config.unwrap();
+        let result = lexical_default(source, &analysis).unwrap();
+        assert_eq!(
+            tcl_compiler::var_refs::scan_var_ref_forms_braced_with_config(&result, config),
+            tcl_compiler::var_refs::scan_var_ref_forms_braced_with_config(source, config)
+        );
+    }
+}
+
+#[cfg(test)]
+mod symbol_report_tests {
+    use super::*;
+
+    #[test]
+    fn symbol_report_round_trip_retains_all_literal_labels_and_sections() {
+        let mut symbols = SymbolMap::default();
+        let original = " \n# Variables in injected\n  z <- forged\r\0 ";
+        symbols.procs.insert(original.to_owned(), "a".to_owned());
+        symbols
+            .variables
+            .entry(" scope\n# Procs\r ".to_owned())
+            .or_default()
+            .insert(original.to_owned(), "b".to_owned());
+        for values in [
+            &mut symbols.command_aliases,
+            &mut symbols.argument_aliases,
+            &mut symbols.string_aliases,
+            &mut symbols.static_folds,
+        ] {
+            values.insert(original.to_owned(), " value\n\r\0 ".to_owned());
+        }
+        let report = symbols.format();
+        assert!(report.contains("# Procs"));
+        assert_eq!(SymbolMap::parse_structured(&report), Ok(symbols.clone()));
+        assert_eq!(SymbolMap::parse(&report), symbols);
+        assert_eq!(SymbolMap::parse(&format!("{report}\n\n")), symbols);
+        let unsupported = format!(
+            "{SYMBOL_MAP_RECORD}{}",
+            serde_json::json!({"version": 99, "symbols": symbols})
+        );
+        assert_eq!(
+            SymbolMap::parse_structured(&unsupported),
+            Err(SymbolMapReportError::UnsupportedVersion(99))
+        );
+        let corrupted = format!("{report}\n{SYMBOL_MAP_RECORD}broken");
+        assert_eq!(
+            SymbolMap::parse_structured(&corrupted),
+            Err(SymbolMapReportError::InvalidRecord)
+        );
+        assert_eq!(SymbolMap::parse(&corrupted), SymbolMap::default());
+    }
+
+    #[test]
+    fn symbol_report_scope_labels_stay_separate_and_ambiguous_display_declines() {
+        let mut symbols = SymbolMap::default();
+        symbols
+            .variables
+            .entry("a:b".to_owned())
+            .or_default()
+            .insert("left".to_owned(), "c".to_owned());
+        symbols
+            .variables
+            .entry("a".to_owned())
+            .or_default()
+            .insert("right".to_owned(), "b:c".to_owned());
+        let reversed = symbols.scoped_reverse();
+        assert_eq!(
+            reversed.get(&ScopedSymbolMapLabel {
+                scope_label: "a:b".to_owned(),
+                compacted: "c".to_owned()
+            }),
+            Some(&vec!["left".to_owned()])
+        );
+        assert_eq!(
+            reversed.get(&ScopedSymbolMapLabel {
+                scope_label: "a".to_owned(),
+                compacted: "b:c".to_owned()
+            }),
+            Some(&vec!["right".to_owned()])
+        );
+        assert!(!symbols.reverse().contains_key("a:b:c"));
+        assert_eq!(SymbolMap::parse(&symbols.format()), symbols);
+    }
+}
+
+#[cfg(test)]
+mod original_formal_name_geometry_tests {
+    use super::*;
+
+    fn logical_input() -> tcl_compiler::analyser::ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            LexerConfig::for_profile(Some(profile)),
+        )
+    }
+
+    #[test]
+    fn compact_original_formal_fields_preserve_wrappers_and_unicode_defaults() {
+        let input = logical_input();
+        let source = r#"proc p {{{longName} {default α}} {"otherName" longName} args} {return [list $longName $otherName $args]}"#;
+        let analysis = original::analysis_with_input(source, &input);
+        let procedure = analysis.all_procs.values().next().unwrap();
+        let fields = lexical_metadata::parameter_name_sources(source, &analysis, procedure)
+            .expect("actual Logical header, ordered formal fields and body card");
+        assert_eq!(
+            fields
+                .iter()
+                .map(
+                    tcl_compiler::signature_scan::formal_parameters::OriginalSourceFormalName::name
+                )
+                .collect::<Vec<_>>(),
+            [
+                b"longName".as_slice(),
+                b"otherName".as_slice(),
+                b"args".as_slice()
+            ]
+        );
+        let mut edits = Vec::new();
+        rename_params_in_list(
+            &fields,
+            &BTreeMap::from([
+                ("longName".to_owned(), "a".to_owned()),
+                ("otherName".to_owned(), "b".to_owned()),
+            ]),
+            &mut edits,
+        );
+        assert_eq!(
+            apply_edits(source, edits),
+            r#"proc p {{{a} {default α}} {"b" longName} args} {return [list $longName $otherName $args]}"#
+        );
+    }
+
+    #[test]
+    fn compact_original_formal_fields_reach_the_existing_editing_pass() {
+        let input = logical_input();
+        let source = "proc p {{longName default} {otherName longName} args} {return VALUE}";
+        let (output, mapping) = compact_names(source, &input, false);
+        assert_eq!(
+            output,
+            "proc p {{a default} {b longName} args} {return VALUE}"
+        );
+        assert_eq!(mapping.variables["::p"]["longName"], "a");
+        assert_eq!(mapping.variables["::p"]["otherName"], "b");
+        assert!(!mapping.variables["::p"].contains_key("args"));
+    }
+
+    #[test]
+    fn compact_original_formal_fields_refuse_cooked_dynamic_and_foreign_geometry() {
+        let input = logical_input();
+        for source in [
+            r#"proc p "first\x20second" {return $first}"#,
+            "proc p $parameters {return VALUE}",
+        ] {
+            let analysis = original::analysis_with_input(source, &input);
+            for procedure in analysis.all_procs.values() {
+                assert!(
+                    lexical_metadata::parameter_name_sources(source, &analysis, procedure)
+                        .is_none(),
+                    "{source}"
+                );
+            }
+            let (output, _) = compact_names(source, &input, false);
+            assert_eq!(output, source);
+        }
+        let source = "proc p {longName} {return $longName}";
+        let mut analysis = original::analysis_with_input(source, &input);
+        let actual = analysis.all_procs.values().next().unwrap();
+        assert!(lexical_metadata::parameter_name_sources(source, &analysis, actual).is_some());
+        let procedure = actual.clone();
+        let mut wrong_procedure = procedure.clone();
+        wrong_procedure.params[0].name = "otherName".to_owned();
+        assert!(
+            lexical_metadata::parameter_name_sources(source, &analysis, &wrong_procedure).is_none()
+        );
+        assert!(
+            lexical_metadata::parameter_name_sources(
+                "proc p {otherName} {return $longName}",
+                &analysis,
+                analysis.all_procs.values().next().unwrap()
+            )
+            .is_none()
+        );
+        analysis.body_lexer_config = Some(LexerConfig {
+            leading_bom: match input.lexer_config().leading_bom {
+                tcl_lexer::LeadingBom::Content => tcl_lexer::LeadingBom::Skip,
+                tcl_lexer::LeadingBom::Skip => tcl_lexer::LeadingBom::Content,
+            },
+            ..input.lexer_config()
+        });
+        assert!(
+            lexical_metadata::parameter_name_sources(
+                source,
+                &analysis,
+                analysis.all_procs.values().next().unwrap()
+            )
+            .is_none()
+        );
+        let native = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let native_analysis =
+            tcl_compiler::analyser::Analyser::new().analyse(source, native.analyser_profile().name);
+        for procedure in native_analysis.all_procs.values() {
+            assert!(
+                lexical_metadata::parameter_name_sources(source, &native_analysis, procedure)
+                    .is_none()
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod authored_compact_candidate_tests {
+    use super::*;
+
+    #[test]
+    fn aggressive_alias_candidates_reject_only_observed_spellings_under_whole_config() {
+        let word = "retained_long_argument";
+        let source = [word; 3].join(" ");
+        let order = vec![word.to_owned()];
+        let uses = HashMap::from([(
+            word.to_owned(),
+            vec![0, word.len() + 1, 2 * (word.len() + 1)],
+        )]);
+        let mut claimed = HashSet::from([
+            "a".to_owned(),
+            "b".to_owned(),
+            "$c".to_owned(),
+            "c(index)".to_owned(),
+            "::c".to_owned(),
+            "é".to_owned(),
+        ]);
+        let config = LexerConfig {
+            strict_quoting: true,
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::default()
+        };
+        let (rewritten, aliases) = alias_by_uses(&source, &order, &uses, &mut claimed, config);
+        assert_eq!(aliases.get(word).map(String::as_str), Some("c"));
+        assert_eq!(rewritten, format!("set c {word}\n$c $c $c"));
+        assert!(claimed.contains("c"));
+        assert_eq!(
+            tcl_syntax::naming::scalar_source_reference("c", config, false).as_deref(),
+            Some("$c")
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_alias_phase_tests {
+    use super::*;
+
+    #[test]
+    fn alias_inventory_keeps_inert_data_out_of_selected_nested_phases() {
+        let source = "set data {foo --verylongflag --verylongflag}\nproc p {} {foo --verylongflag;foo --verylongflag}\nputs [foo --verylongflag]\n";
+        let registry = CommandRegistry::build_default();
+        let analysis = original::analysis_for_profile(
+            source,
+            tcl_dialect::DialectProfile::plain_tcl(),
+            &registry,
+        );
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let (_, uses) = source_alias_uses(source, input, AliasWordPurpose::Argument);
+        assert_eq!(uses["--verylongflag"].len(), 3);
+        assert!(
+            uses["--verylongflag"]
+                .iter()
+                .all(|off| *off > source.find("proc p").unwrap())
+        );
+        let (rewritten, aliases) = alias_repeated_arguments(source, input, &mut HashSet::new());
+        assert!(aliases.contains_key("--verylongflag"));
+        assert!(rewritten.contains("{foo --verylongflag --verylongflag}"));
+    }
+
+    #[test]
+    fn alias_heads_retain_whole_bare_geometry_and_native_refusal() {
+        let source =
+            "mylongcommand x\n{mylongcommand} x\n\"mylongcommand\" x\nset x 1\nset y 2\nset z 3\n";
+        let registry = CommandRegistry::build_default();
+        let analysis = original::analysis_for_profile(
+            source,
+            tcl_dialect::DialectProfile::plain_tcl(),
+            &registry,
+        );
+        let (_, uses) = source_alias_uses(
+            source,
+            analysis.resolved_input.as_ref().unwrap(),
+            AliasWordPurpose::CommandHead,
+        );
+        assert_eq!(uses["mylongcommand"], vec![0]);
+        assert!(!uses.contains_key("set"));
+        let native = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            source_alias_uses(
+                source,
+                native.resolved_input.as_ref().unwrap(),
+                AliasWordPurpose::CommandHead
+            )
+            .1
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn alias_source_constructor_preserves_literal_data_and_scalar_read() {
+        let config = LexerConfig::for_profile(Some(tcl_dialect::DialectProfile::plain_tcl()));
+        let value = "literal;set victim [danger] $read\\tail";
+        let spelling = authored_alias_spelling("a", value, config).unwrap();
+        let image = tcl_lexer::SourceImage::document(&spelling.assignment);
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            Span::new(0, spelling.assignment.len() as u32),
+            config,
+        )
+        .unwrap();
+        assert!(plan.fatal_tail.is_none());
+        assert_eq!(plan.commands.len(), 1);
+        assert_eq!(plan.commands[0].words.len(), 3);
+        assert_eq!(
+            tcl_syntax::word_rules::original_static_word_unicode_value(&plan.commands[0].words[2])
+                .as_deref(),
+            Some(value.as_bytes())
+        );
+        let reference = tcl_lexer::scan_var_ref(spelling.reference.as_bytes(), 0, config)
+            .unwrap()
+            .unwrap();
+        assert_eq!(reference.next, spelling.reference.len());
+        assert_eq!(reference.name, b"a");
+        assert!(reference.index.is_none());
+        assert!(authored_alias_spelling("bad(name)", value, config).is_none());
     }
 }

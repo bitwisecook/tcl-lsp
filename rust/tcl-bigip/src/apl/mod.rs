@@ -28,7 +28,10 @@ pub mod tokens;
 
 pub use canonical::model_to_canonical;
 pub use iapp_diagnostics::{validate_iapp_implementation, validate_iapp_presentation};
-pub use iapp_vars::{IappVarRef, extract_iapp_var_refs};
+pub use iapp_vars::{
+    IappSourceReferences, IappVarRef, extract_iapp_var_refs, extract_iapp_var_refs_with_context,
+};
+mod variable_names;
 pub use model::{
     AplField, AplInclude, AplModel, AplSection, AplTable, apl_name_to_tcl_var, tcl_var_to_apl_name,
 };

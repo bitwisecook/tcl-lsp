@@ -31,16 +31,17 @@
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
-use regex::Regex;
 use serde_json::{Value, json};
+use tcl_lexer::LexerConfig;
+use tcl_registry::ArgRole;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::value_transfer::{EvalRoute, NativeEvalId};
-use tcl_registry::{ArgRole, CommandRegistry, InvocationWord, InvocationWords};
+use tcl_syntax::expr::parser::ExprParseContext;
 use tcl_syntax::list::list_element;
 
 /// The prose emitted for `multi_tmm_hint` when multi-TMM patterns are detected.
-const MULTI_TMM_HINT: &str = "This iRule uses patterns that behave differently across TMMs \
-     (static:: writes in hot events, counters, or shared table state). \
+const MULTI_TMM_HINT: &str = "Source patterns suggest checking behavior across TMMs \
+     (possible static:: writes, counters, or shared table state). \
      The generated test includes a multi-TMM scenario using fakeCMP \
      distribution.  Use ::orch::fakecmp_suggest_sources to plan which \
      client addresses hit which TMMs.";
@@ -100,38 +101,62 @@ struct Variables {
     static_vars: Vec<String>,
 }
 
+/// One captured source context and its presentation projection.
+#[derive(Debug)]
+struct SourceInventory {
+    context: Option<tcl_irules::OriginalIrulesSourceContext>,
+    commands: Vec<tcl_irules::IrulesExecutableCommand>,
+}
+
+impl SourceInventory {
+    fn capture(source: &str, registry: &tcl_registry::CommandRegistry) -> Self {
+        let context = tcl_irules::OriginalIrulesSourceContext::capture(source, registry);
+        let commands = context
+            .as_ref()
+            .map_or_else(Vec::new, |context| context.presentation_commands(source));
+        Self { context, commands }
+    }
+}
+
+impl std::ops::Deref for SourceInventory {
+    type Target = [tcl_irules::IrulesExecutableCommand];
+
+    fn deref(&self) -> &Self::Target {
+        &self.commands
+    }
+}
+
 /// MCP tool entry point: analyse the `source` argument and return the
 /// `generate_irule_test` wire shape (the `test_script` is a
-/// functionally-equivalent runnable Tcl scaffold).
+/// conditional source scaffold with independently supplied outcome obligations).
 #[must_use]
 pub fn generate_irule_test(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
 
-    // Discover handlers once at the request boundary. Lower-level registry
-    // code only orders these owner-derived names and never re-scans source.
-    let when_blocks = tcl_irules::when_blocks(source);
+    let registry = crate::environment::store_for_dialect("f5-irules");
+    let inventory = SourceInventory::capture(source, registry);
+    let source_context = inventory.context.as_ref();
     let event_registry = EventRegistry::build();
     let mut seen_events = BTreeSet::new();
-    let event_names: Vec<String> = when_blocks
-        .iter()
-        .map(|block| block.event.clone())
-        .filter(|event| event_registry.is_known(event))
-        .filter(|event| seen_events.insert(event.clone()))
-        .collect();
+    let event_names = source_context.map_or_else(Vec::new, |context| {
+        context
+            .events()
+            .iter()
+            .map(|event| event.event().to_owned())
+            .filter(|event| seen_events.insert(event.clone()))
+            .collect::<Vec<_>>()
+    });
     let ordered_events = event_registry.order_events(&event_names);
     let profiles = infer_profiles(&ordered_events);
-    let registry = crate::environment::store_for_dialect("f5-irules");
-    // Build the event-rooted executable closure once for this request.  Every
-    // execution-sensitive output below consumes this exact proof of liveness;
-    // re-building it for object references could make setup disagree with the
-    // command/static/multi-TMM inventory after either walker evolves.
-    let closure = tcl_irules::irules_executable_commands(source, registry);
-    let commands_used = extract_irule_commands(&closure);
-    let objects = extract_object_refs(source, registry, &closure);
-    let variables = extract_variables(registry, &closure);
+    let closure = &inventory.commands;
+    let commands_used = extract_irule_commands(closure);
+    let objects = source_context.map_or_else(ObjectRefs::default, |context| {
+        extract_object_refs(source, context)
+    });
+    let variables = extract_variables(&inventory);
 
     let cfg_paths = crate::irule_test::cfg_paths_json(source);
-    let multi_tmm = needs_multi_tmm(registry, &closure, &variables);
+    let multi_tmm = needs_multi_tmm(source_context, closure, &variables);
 
     let ctx = ScriptContext {
         basename: "irule.tcl",
@@ -142,12 +167,17 @@ pub fn generate_irule_test(args: &Value) -> Value {
         objects: &objects,
         variables: &variables,
         cfg_paths: &cfg_paths,
+        request_syntax: source_context
+            .map(tcl_irules::OriginalIrulesSourceContext::expression_syntax),
         multi_tmm,
     };
     let test_script = build_test_script(&ctx);
 
     json!({
         "test_script": test_script,
+        "analysis_kind": "conditional-source",
+        "outcome_assertions_verified": false,
+        "obligations": ["handler-applicability", "event-reachability", "observed-terminal-outcome"],
         "events": ordered_events,
         "profiles": profiles,
         "commands_used": commands_used,
@@ -160,9 +190,9 @@ pub fn generate_irule_test(args: &Value) -> Value {
             Value::Null
         } else {
             json!(format!(
-                "CFG analysis found {} unique paths to terminal actions. \
-                 The generated test includes a test case per path. Use \
-                 irule_cfg_paths to inspect paths individually for deeper analysis.",
+                "Source analysis found {} candidate paths to terminal actions. \
+                 Generated scenarios require independently observed expectations. Use \
+                 irule_cfg_paths to inspect their source and outcome obligations.",
                 cfg_paths.len()
             ))
         },
@@ -171,7 +201,7 @@ pub fn generate_irule_test(args: &Value) -> Value {
 
 // ── Extractors ────────────────────────────────────────────────────────
 
-/// Extract executable iRule command identities, sorted and deduplicated.
+/// Sort and deduplicate actual source-schema labels for presentation.
 fn extract_irule_commands(commands: &[tcl_irules::IrulesExecutableCommand]) -> Vec<String> {
     commands
         .iter()
@@ -181,21 +211,15 @@ fn extract_irule_commands(commands: &[tcl_irules::IrulesExecutableCommand]) -> V
         .collect()
 }
 
-/// Extract pool / data-group references from this request's executable closure.
+/// Retain literal configuration-reference candidates from the same source owner.
 fn extract_object_refs(
     source: &str,
-    registry: &tcl_registry::CommandRegistry,
-    closure: &[tcl_irules::IrulesExecutableCommand],
+    context: &tcl_irules::OriginalIrulesSourceContext,
 ) -> ObjectRefs {
     let mut pools: BTreeSet<String> = BTreeSet::new();
     let mut datagroups: BTreeSet<String> = BTreeSet::new();
-    // The shared reference owner consumes the event-rooted executable closure
-    // itself, so invalid top-level/nested declarations and dormant procedures
-    // cannot seed test setup.  Do not reclassify reachability by checking
-    // whether a reference happens to sit inside a handler's physical body:
-    // reached helper procedures live outside that body.
     for reference in
-        tcl_irules::extract_irules_object_references_in_closure(source, None, registry, closure)
+        tcl_irules::extract_original_irules_source_object_references(source, context, None)
     {
         if reference.category == tcl_irules::IrulesObjectReferenceCategory::Pool {
             pools.insert(reference.name);
@@ -210,46 +234,45 @@ fn extract_object_refs(
     }
 }
 
-/// The cell a command writes, as the registry resolves its words: the
-/// direct route it runs and the variable its `VarWrite` operand names.
-fn cell_written<'f>(
-    registry: &CommandRegistry,
-    fact: &'f tcl_irules::IrulesExecutableCommand,
-) -> Option<(NativeEvalId, &'f str)> {
-    let words: Vec<&str> = fact.args.iter().map(String::as_str).collect();
-    let literal: Vec<InvocationWord<'_>> =
-        words.iter().copied().map(InvocationWord::Literal).collect();
-    let resolved = registry
-        .resolve_structured_invocation(
-            InvocationWords::structured(InvocationWord::Literal(&fact.command), &literal),
-            registry.own_surface_query(),
-        )
-        .resolved()?;
-    let EvalRoute::Direct { id } = resolved.semantics.value.semantics()?.route() else {
-        return None;
-    };
-    let target = *registry
-        .arg_indices_for_role(&fact.command, &words, ArgRole::VarWrite)
-        .first()?;
-    Some((id, fact.args.get(target)?.as_str()))
-}
-
-/// Extract `static::` variable names (`_extract_variables`), sorted + deduped.
-fn extract_variables(
-    registry: &CommandRegistry,
-    commands: &[tcl_irules::IrulesExecutableCommand],
-) -> Variables {
+/// Collect conditional static-name hints from source tokens and authored roles.
+fn extract_variables(commands: &SourceInventory) -> Variables {
     let mut static_vars: BTreeSet<String> = BTreeSet::new();
-    for fact in commands {
-        if let Some((NativeEvalId::CellWrite, name)) = cell_written(registry, fact)
-            && name.starts_with("static::")
-        {
-            static_vars.insert(name.trim_start_matches("static::").to_owned());
-        }
+    for fact in commands.iter() {
         for name in &fact.variable_names {
-            if name.starts_with("static::") {
-                static_vars.insert(name.trim_start_matches("static::").to_owned());
+            if let Some(tail) = tcl_syntax::naming::authored_namespace_hint_tail(name, "static") {
+                static_vars.insert(tail.to_owned());
             }
+        }
+    }
+    if let Some(context) = &commands.context {
+        for command in context.commands() {
+            let words = command.words();
+            let _ = words.with_source_schema(context.context_registry(), |selected| {
+                if !selected
+                    .argument_count_for_arity()
+                    .is_some_and(|count| selected.semantics.arity.accepts(count))
+                {
+                    return;
+                }
+                for (argument, _) in selected.authored_source_variable_name_arguments() {
+                    if words.original_argument_word(argument).is_none() {
+                        continue;
+                    }
+                    let Some(name) = words
+                        .arguments()
+                        .get(argument)
+                        .and_then(|word| word.literal_bytes())
+                        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                    else {
+                        continue;
+                    };
+                    if let Some(tail) =
+                        tcl_syntax::naming::authored_namespace_hint_tail(name, "static")
+                    {
+                        static_vars.insert(tail.to_owned());
+                    }
+                }
+            });
         }
     }
     Variables {
@@ -278,31 +301,57 @@ fn infer_profiles(events: &[String]) -> Vec<String> {
     profiles
 }
 
-/// Detect whether an iRule should be tested in multi-TMM mode
-/// (`_needs_multi_tmm`).
+/// Suggest a multi-TMM scenario from conditional source patterns.
+/// Missing advice does not prove the absence of writes or shared state.
 fn needs_multi_tmm(
-    registry: &CommandRegistry,
+    context: Option<&tcl_irules::OriginalIrulesSourceContext>,
     commands: &[tcl_irules::IrulesExecutableCommand],
     variables: &Variables,
 ) -> bool {
     let has_static_vars = !variables.static_vars.is_empty();
-    let static_in_hot = commands.iter().any(|fact| {
-        fact.event
-            .as_deref()
-            .is_some_and(|event| HOT_EVENTS.contains(&event))
-            && matches!(
-                cell_written(registry, fact),
-                Some((NativeEvalId::CellWrite | NativeEvalId::CellIncrement, name))
-                    if name.starts_with("static::")
-            )
-    });
-    let has_counter = commands.iter().any(|fact| {
-        matches!(
-            cell_written(registry, fact),
-            Some((NativeEvalId::CellIncrement, name))
-                if name.starts_with("static::") || name.to_ascii_lowercase().contains("count")
-        )
-    });
+    let mut static_in_hot = false;
+    let mut has_counter = false;
+    if let Some(context) = context {
+        for command in context.commands() {
+            let _ = command
+                .words()
+                .with_source_schema(context.context_registry(), |selected| {
+                    let Some(EvalRoute::Direct {
+                        id: id @ (NativeEvalId::CellWrite | NativeEvalId::CellIncrement),
+                    }) = selected.semantics.value.route()
+                    else {
+                        return;
+                    };
+                    if !selected
+                        .argument_count_for_arity()
+                        .is_some_and(|count| selected.semantics.arity.accepts(count))
+                    {
+                        return;
+                    }
+                    for (argument, role) in selected.authored_source_variable_name_arguments() {
+                        if role != ArgRole::VarWrite {
+                            continue;
+                        }
+                        let Some(name) = command
+                            .words()
+                            .arguments()
+                            .get(argument)
+                            .and_then(|word| word.literal_bytes())
+                            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                        else {
+                            continue;
+                        };
+                        let static_hint =
+                            tcl_syntax::naming::authored_namespace_hint_tail(name, "static")
+                                .is_some();
+                        static_in_hot |=
+                            HOT_EVENTS.contains(&command.event_source().event()) && static_hint;
+                        has_counter |= id == NativeEvalId::CellIncrement
+                            && (static_hint || name.to_ascii_lowercase().contains("count"));
+                    }
+                });
+        }
+    }
     let uses_shared_table = commands.iter().any(|fact| {
         fact.command == "table"
             && fact
@@ -327,6 +376,7 @@ struct ScriptContext<'a> {
     objects: &'a ObjectRefs,
     variables: &'a Variables,
     cfg_paths: &'a [Value],
+    request_syntax: Option<(LexerConfig, ExprParseContext)>,
     multi_tmm: bool,
 }
 
@@ -372,9 +422,7 @@ fn build_test_script(ctx: &ScriptContext) -> String {
     out.push_str("# \u{2500}\u{2500} Configure test defaults \u{2500}\u{2500}\n\n");
     out.push_str("::orch::configure_tests \\\n");
     let _ = writeln!(out, "    -profiles {{{}}} \\", ctx.profiles.join(" "));
-    out.push_str("    -irule {\n");
-    push_indented(&mut out, ctx.source.trim(), 8);
-    out.push_str("    }\n");
+    let _ = writeln!(out, "    -irule {}", list_element(ctx.source));
 
     let setup_lines = build_setup_lines(ctx.objects, ctx.variables);
     if !setup_lines.is_empty() {
@@ -388,7 +436,7 @@ fn build_test_script(ctx: &ScriptContext) -> String {
 
     out.push('\n');
     for block in build_all_test_blocks(test_name, ctx) {
-        out.push_str(&block);
+        out.push_str(&unverified_generated_assertions(&block));
         out.push_str("\n\n");
     }
 
@@ -402,18 +450,23 @@ fn build_test_script(ctx: &ScriptContext) -> String {
     out
 }
 
-/// Append `text`, prefixing every line with `n` spaces (empty lines stay empty).
-fn push_indented(out: &mut String, text: &str, n: usize) {
-    let pad = " ".repeat(n);
-    for line in text.split('\n') {
-        if line.is_empty() {
-            out.push('\n');
+// Generated guesses remain comments. Original user source is never processed.
+fn unverified_generated_assertions(block: &str) -> String {
+    let mut output = String::new();
+    for line in block.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("::orch::assert_that ") || trimmed.starts_with("::orch::assert ") {
+            let indent = &line[..line.len() - trimmed.len()];
+            let _ = writeln!(
+                output,
+                "{indent}# Outcome obligation: supply an independently observed expectation."
+            );
+            let _ = writeln!(output, "{indent}# {trimmed}");
         } else {
-            out.push_str(&pad);
-            out.push_str(line);
-            out.push('\n');
+            let _ = writeln!(output, "{line}");
         }
     }
+    output
 }
 
 /// Build the shared `-setup` body lines (`_build_setup_lines`).
@@ -421,16 +474,23 @@ fn build_setup_lines(objects: &ObjectRefs, variables: &Variables) -> Vec<String>
     let mut lines = Vec::new();
     for pool in &objects.pools {
         lines.push(format!(
-            "    ::orch::add_pool {pool} {{{{10.0.0.1:80}} {{10.0.0.2:80}}}}"
+            "    ::orch::add_pool {} {{{{10.0.0.1:80}} {{10.0.0.2:80}}}}",
+            list_element(pool)
         ));
     }
     for dg in &objects.datagroups {
-        lines.push(format!("    ::orch::add_datagroup {dg} string {{"));
+        lines.push(format!(
+            "    ::orch::add_datagroup {} string {{",
+            list_element(dg)
+        ));
         lines.push("        \"example_key\" \"example_value\"".to_owned());
         lines.push("    }".to_owned());
     }
     for var in &variables.static_vars {
-        lines.push(format!("    ::orch::configure_static {var} \"\""));
+        lines.push(format!(
+            "    ::orch::configure_static {} \"\"",
+            list_element(var)
+        ));
     }
     lines
 }
@@ -450,6 +510,7 @@ fn build_all_test_blocks(test_name: &str, ctx: &ScriptContext) -> Vec<String> {
                 ctx.ordered_events,
                 ctx.commands_used,
                 ctx.objects,
+                ctx.request_syntax.map(|syntax| syntax.0),
             ));
         } else if has_dns {
             blocks.push(build_dns_test_block(test_name));
@@ -472,6 +533,9 @@ fn build_all_test_blocks(test_name: &str, ctx: &ScriptContext) -> Vec<String> {
     let mut by_event: std::collections::HashMap<String, Vec<&Value>> =
         std::collections::HashMap::new();
     for p in ctx.cfg_paths {
+        if p.get("source_kind").and_then(Value::as_str) != Some("event") {
+            continue;
+        }
         let event = p
             .get("event")
             .and_then(Value::as_str)
@@ -485,13 +549,10 @@ fn build_all_test_blocks(test_name: &str, ctx: &ScriptContext) -> Vec<String> {
 
     let mut test_idx = 0;
     for event_name in &order {
-        if event_name.starts_with("proc:") {
-            continue;
-        }
         for path in &by_event[event_name] {
             test_idx += 1;
             let desc = build_test_description(path);
-            let body = build_test_body(event_name, path);
+            let body = build_test_body(event_name, path, ctx.request_syntax);
             blocks.push(render_test_case(
                 &format!("{test_name}-cfg-{test_idx}.0"),
                 &desc,
@@ -563,7 +624,11 @@ fn cond_field<'a>(c: &'a Value, field: &str) -> &'a str {
 }
 
 /// Build the inner body lines for a CFG test case (`_build_test_body`).
-fn build_test_body(event_name: &str, path: &Value) -> Vec<String> {
+fn build_test_body(
+    event_name: &str,
+    path: &Value,
+    syntax: Option<(LexerConfig, ExprParseContext)>,
+) -> Vec<String> {
     let action = path.get("action");
     let cmd = action
         .and_then(|a| a.get("command"))
@@ -606,136 +671,110 @@ fn build_test_body(event_name: &str, path: &Value) -> Vec<String> {
         body.push(String::new());
     }
 
-    body.extend(build_request_setup(event_name, &conditions));
+    body.extend(build_request_setup(event_name, &conditions, syntax));
     body.push(String::new());
     body.extend(build_assertion(cmd, &args));
     body
 }
 
-/// Build assertion lines for a terminal action (`_build_assertion`).
+/// Source action labels are questions, never predicted observed outcomes.
 fn build_assertion(cmd: &str, args: &[String]) -> Vec<String> {
-    match cmd {
-        "pool" if !args.is_empty() => {
-            vec![format!(
-                "::orch::assert_that pool_selected equals \"{}\"",
-                args[0]
-            )]
-        }
-        "reject" => vec!["::orch::assert_that decision connection reject was_called".to_owned()],
-        "drop" | "discard" => {
-            vec![format!(
-                "::orch::assert_that decision connection {cmd} was_called"
-            )]
-        }
-        "HTTP::redirect" => {
-            vec!["::orch::assert_that decision http redirect was_called".to_owned()]
-        }
-        "HTTP::respond" => vec![
-            "# Verify HTTP::respond was called".to_owned(),
-            "::orch::assert_that decision http respond was_called".to_owned(),
-        ],
-        "node" if !args.is_empty() => vec![
-            format!("# Verify node selection: {}", args.join(" ")),
-            format!("::orch::assert_that node_selected equals \"{}\"", args[0]),
-        ],
-        _ => vec![format!("# Verify: {cmd} {}", args.join(" "))],
-    }
+    let label = format!("{cmd} {}", args.join(" "))
+        .replace('\r', "\\r")
+        .replace('\n', "\\n");
+    vec![
+        "# Outcome obligation: observe this scenario before adding an assertion.".to_owned(),
+        format!("# Source candidate: {label}"),
+    ]
 }
 
-/// Build request-setup lines based on path conditions (`_build_request_setup`).
-fn build_request_setup(event_name: &str, conditions: &[&Value]) -> Vec<String> {
-    // The *pattern-bearing* word operators are `matches_glob` /
-    // `matches_regex` (`tcl_syntax::expr::ast::BinOp`'s
-    // `MatchesGlob`/`MatchesRegex`), so a condition like `HTTP::uri
-    // matches_glob "/api/*"` must yield "/api/*" rather than falling
-    // through to the bare-value fallback below. The F5 trunk does also
-    // carry a bare `matches` (`BinOp::Matches`, measured present in
-    // `docs/design/f5/bigip-irule-parser-measurements.md` §4a), but it is
-    // deliberately **not** in this alternation: it carries no pattern to
-    // synthesise an example from, and a bare `matches` branch would also
-    // shadow the two longer spellings in the regex alternation below.
-    // Derived from `BinOp` rather than hand-typed so the spelling cannot
-    // drift.
-    let uri_ops = [
-        tcl_syntax::expr::ast::BinOp::StrEq.as_str(),
-        tcl_syntax::expr::ast::BinOp::StartsWith.as_str(),
-        tcl_syntax::expr::ast::BinOp::MatchesGlob.as_str(),
-        tcl_syntax::expr::ast::BinOp::MatchesRegex.as_str(),
-    ]
-    .join("|");
-    let host_re = Regex::new(r#"eq\s+"([^"]+)""#).expect("valid regex");
-    let host_bare_re = Regex::new(r"eq\s+(\S+)").expect("valid regex");
-    // Captures the operator too (group 1), not just the pattern (group 2):
-    // `matches_glob`/`matches_regex` need the pattern *synthesised* into a
-    // concrete example (see `synthesize_uri_example`), not reused verbatim.
-    let uri_re = Regex::new(&format!(r#"({uri_ops})\s+"([^"]+)""#)).expect("valid regex");
-    let uri_bare_re = Regex::new(&format!(r"({uri_ops})\s+(\S+)")).expect("valid regex");
-    let header_re = Regex::new(r#"HTTP::header\s+"?([^"\s]+)"?"#).expect("valid regex");
-
+/// Build conditional request examples under the actual captured source grammar.
+fn build_request_setup(
+    event_name: &str,
+    conditions: &[&Value],
+    syntax: Option<(LexerConfig, ExprParseContext)>,
+) -> Vec<String> {
+    use tcl_syntax::expr::{BinOp, ExprNode};
+    let Some((config, context)) = syntax else {
+        return Vec::new();
+    };
     let mut host_hint: Option<String> = None;
     let mut uri_hint: Option<String> = None;
     let mut header_hints: Vec<String> = Vec::new();
 
-    for c in conditions {
-        let kind = c.get("kind").and_then(Value::as_str);
-        if kind == Some("switch") {
-            let subject = cond_field(c, "subject");
-            let pattern = cond_field(c, "pattern");
-            let subj_lower = subject.to_lowercase();
+    for condition in conditions {
+        if condition.get("kind").and_then(Value::as_str) == Some("switch") {
+            let subject = cond_field(condition, "subject");
+            let pattern = cond_field(condition, "pattern");
+            let lower = subject.to_lowercase();
             let value = cfg_pattern_to_value(pattern);
-            if subj_lower.contains("host") {
+            if lower.contains("host") {
                 host_hint = value;
-            } else if subj_lower.contains("uri") || subject.contains("HTTP::path") {
+            } else if lower.contains("uri") || subject.contains("HTTP::path") {
                 uri_hint = value;
             }
             continue;
         }
-
-        let cond_text = cond_field(c, "condition");
-        let lower = cond_text.to_lowercase();
-        let host_related = cond_text.contains("HTTP::host") || lower.contains("host");
-        let uri_related = cond_text.contains("HTTP::uri")
-            || cond_text.contains("HTTP::path")
+        let source = cond_field(condition, "condition");
+        let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(source, &context);
+        let ExprNode::Binary { op, left, right } = &parsed else {
+            continue;
+        };
+        if let Some(header) = source_header_hint(left, config) {
+            header_hints.push(header);
+        }
+        let ExprNode::String { text, .. } = right.as_ref() else {
+            continue;
+        };
+        let Some(value) = sole_source_word(text, config.nested())
+            .and_then(|word| tcl_syntax::word_rules::original_static_word_unicode_value(&word))
+            .and_then(|value| String::from_utf8(value).ok())
+        else {
+            continue;
+        };
+        // Source labels select heuristic example categories, not command identity
+        // or a claim that this input reaches or satisfies the path.
+        let (ExprNode::Command { text: subject, .. }
+        | ExprNode::Var { text: subject, .. }
+        | ExprNode::String { text: subject, .. }) = left.as_ref()
+        else {
+            continue;
+        };
+        let lower = subject.to_lowercase();
+        let host_related = subject.contains("HTTP::host") || lower.contains("host");
+        let uri_related = subject.contains("HTTP::uri")
+            || subject.contains("HTTP::path")
             || lower.contains("uri")
             || lower.contains("path");
-
-        if host_related && !uri_related && host_hint.is_none() {
-            if let Some(m) = host_re.captures(cond_text) {
-                host_hint = Some(m[1].to_owned());
-            } else if let Some(m) = host_bare_re.captures(cond_text) {
-                let v = &m[1];
-                if !v.starts_with('$') {
-                    host_hint = Some(trim_quotes_braces(v).to_owned());
-                }
-            }
+        if host_related && !uri_related && host_hint.is_none() && *op == BinOp::StrEq {
+            host_hint = Some(value.clone());
         }
-        if uri_related && uri_hint.is_none() {
-            if let Some(m) = uri_re.captures(cond_text) {
-                uri_hint = Some(synthesize_uri_example(&m[1], &m[2]));
-            } else if let Some(m) = uri_bare_re.captures(cond_text) {
-                let v = &m[2];
-                if !v.starts_with('$') {
-                    uri_hint = Some(synthesize_uri_example(&m[1], trim_quotes_braces(v)));
-                }
-            }
-        }
-        // The regex itself requires "HTTP::header ...", so no separate
-        // `contains("HTTP::header")` guard is needed.
-        if let Some(m) = header_re.captures(cond_text) {
-            header_hints.push(m[1].to_owned());
+        if uri_related
+            && uri_hint.is_none()
+            && matches!(
+                op,
+                BinOp::StrEq | BinOp::StartsWith | BinOp::MatchesGlob | BinOp::MatchesRegex
+            )
+        {
+            uri_hint = Some(synthesize_uri_example(op.as_str(), &value));
         }
     }
 
-    let mut result: Vec<String> = Vec::new();
+    let mut result = Vec::new();
     if event_name == "HTTP_REQUEST" || event_name == "HTTP_RESPONSE" || event_name.contains("HTTP")
     {
         let host = host_hint.as_deref().unwrap_or("example.com");
         let uri = uri_hint.as_deref().unwrap_or("/");
-        result.push(format!(
-            "::orch::run_http_request -host \"{host}\" -uri \"{uri}\""
-        ));
-        for hname in &header_hints {
-            result.push(format!("# Ensure header: {hname} = test-value"));
+        if let (Some(host), Some(uri)) = (
+            request_literal_word(host, config),
+            request_literal_word(uri, config),
+        ) {
+            result.push(format!("::orch::run_http_request -host {host} -uri {uri}"));
+        }
+        for header in header_hints {
+            if let Some(header) = request_literal_word(&header, config) {
+                result.push(format!("# Ensure header: {header} = test-value"));
+            }
         }
     } else if event_name == "DNS_REQUEST" || event_name == "DNS_RESPONSE" {
         result.push("set ::state::dns::qname \"example.com\"".to_owned());
@@ -750,8 +789,88 @@ fn build_request_setup(event_name: &str, conditions: &[&Value]) -> Vec<String> {
     result
 }
 
-fn trim_quotes_braces(s: &str) -> &str {
-    s.trim_matches(|c| matches!(c, '"' | '{' | '}'))
+fn sole_source_word(source: &str, config: LexerConfig) -> Option<tcl_lexer::NativeWord> {
+    let parsed = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(source),
+        tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    let [command] = parsed.commands.as_slice() else {
+        return None;
+    };
+    let [word] = command.words.as_slice() else {
+        return None;
+    };
+    (parsed.fatal_tail.is_none()
+        && !word.group().expand
+        && word.written_bytes() == source.as_bytes())
+    .then(|| word.clone())
+}
+
+/// Keep a proposed word literal both alone and inside the generated braced script.
+fn request_literal_word(value: &str, config: LexerConfig) -> Option<String> {
+    let quoted = tcl_syntax::backslash::literal_quoted_source_fragment(value, config.escapes)
+        .map(|content| format!("\"{content}\""));
+    for proposal in quoted
+        .into_iter()
+        .chain(std::iter::once(list_element(value)))
+    {
+        let Some(word) = sole_source_word(&proposal, config.nested()) else {
+            continue;
+        };
+        if tcl_syntax::word_rules::original_static_word_unicode_value(&word).as_deref()
+            != Some(value.as_bytes())
+        {
+            continue;
+        }
+        let container = format!("{{{proposal}}}");
+        let Some(container_word) = sole_source_word(&container, config.nested()) else {
+            continue;
+        };
+        if tcl_syntax::word_rules::original_static_word_unicode_value(&container_word).as_deref()
+            == Some(proposal.as_bytes())
+        {
+            return Some(proposal);
+        }
+    }
+    None
+}
+
+/// Read a literal header-name operand from the actual command-substitution syntax.
+/// The named source vocabulary is a scaffold hint, never a resolved command.
+fn source_header_hint(parsed: &tcl_syntax::expr::ExprNode, config: LexerConfig) -> Option<String> {
+    let tcl_syntax::expr::ExprNode::Command { text, .. } = parsed else {
+        return None;
+    };
+    let word = sole_source_word(text, config.nested())?;
+    let arena = word.executable_parts();
+    let [part] = arena.list(arena.root()) else {
+        return None;
+    };
+    let tcl_lexer::ExecutablePart::Command { body } = &part.part else {
+        return None;
+    };
+    let parsed =
+        tcl_lexer::native_script_words_in(word.image().clone(), *body, config.nested()).ok()?;
+    let [command] = parsed.commands.as_slice() else {
+        return None;
+    };
+    let [head, name] = command.words.as_slice() else {
+        return None;
+    };
+    if parsed.fatal_tail.is_some()
+        || head.group().expand
+        || name.group().expand
+        || tcl_syntax::word_rules::original_static_word_unicode_value(head)?.as_slice()
+            != b"HTTP::header"
+    {
+        return None;
+    }
+    String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+        name,
+    )?)
+    .ok()
 }
 
 /// Build a concrete example URI that actually satisfies a condition using
@@ -801,7 +920,6 @@ fn synthesize_uri_example(op: &str, pattern: &str) -> String {
 /// Convert a switch glob/regex pattern to a concrete test value
 /// (`_cfg_pattern_to_value`). Returns `None` for the `default` pattern.
 fn cfg_pattern_to_value(pattern: &str) -> Option<String> {
-    let pattern = trim_quotes_braces(pattern);
     if pattern == "default" {
         return None;
     }
@@ -820,17 +938,25 @@ fn build_http_test_blocks(
     events: &[String],
     commands: &[String],
     objects: &ObjectRefs,
+    config: Option<LexerConfig>,
 ) -> Vec<String> {
     let has = |c: &str| commands.iter().any(|x| x == c);
     let mut blocks = Vec::new();
+    // This remains a heuristic expected outcome. Encoding only preserves the
+    // original literal object name and the generated braced script container.
+    let pool = if has("pool") {
+        objects
+            .pools
+            .first()
+            .and_then(|value| request_literal_word(value, config?))
+    } else {
+        None
+    };
 
     // Test 1: happy path.
     let mut body = vec!["::orch::run_http_request -host \"example.com\" -uri \"/\"".to_owned()];
-    if has("pool") && !objects.pools.is_empty() {
-        body.push(format!(
-            "::orch::assert_that pool_selected equals \"{}\"",
-            objects.pools[0]
-        ));
+    if let Some(pool) = &pool {
+        body.push(format!("::orch::assert_that pool_selected equals {pool}"));
     } else {
         body.push("# ::orch::assert_that pool_selected equals \"your_pool\"".to_owned());
     }
@@ -897,14 +1023,13 @@ fn build_http_test_blocks(
     if events.iter().any(|e| e == "HTTP_RESPONSE") {
         let mut body =
             vec!["::orch::run_http_request -host \"example.com\" -uri \"/first\"".to_owned()];
-        let pool = (has("pool") && !objects.pools.is_empty()).then(|| objects.pools[0].clone());
         if let Some(p) = &pool {
-            body.push(format!("::orch::assert_that pool_selected equals \"{p}\""));
+            body.push(format!("::orch::assert_that pool_selected equals {p}"));
         }
         body.push(String::new());
         body.push("::orch::run_next_request -host \"example.com\" -uri \"/second\"".to_owned());
         if let Some(p) = &pool {
-            body.push(format!("::orch::assert_that pool_selected equals \"{p}\""));
+            body.push(format!("::orch::assert_that pool_selected equals {p}"));
         }
         body.push(String::new());
         body.push("::orch::close_connection".to_owned());
@@ -958,24 +1083,23 @@ fn build_multi_tmm_block(test_name: &str, ctx: &ScriptContext) -> String {
     let mut out = String::new();
     out.push_str("# \u{2500}\u{2500} Multi-TMM tests (fakeCMP distribution) \u{2500}\u{2500}\n");
     out.push_str("#\n");
-    out.push_str("# The iRule uses patterns that behave differently across TMMs.\n");
-    out.push_str("# These tests verify correctness with 4 simulated TMMs.\n");
+    out.push_str("# Source patterns suggest a multi-TMM scenario; worker effects are unproved.\n");
+    out.push_str("# Independently observe expected outcomes in 4 simulated TMMs.\n");
     out.push_str("# fakeCMP hashes (src_ip, src_port, dst_ip, dst_port) to pick TMM.\n\n");
 
     out.push_str("::orch::configure_tests \\\n");
     out.push_str("    -tmm_count 4 \\\n");
     out.push_str("    -tmm_select auto \\\n");
     let _ = writeln!(out, "    -profiles {{{}}} \\", ctx.profiles.join(" "));
-    out.push_str("    -irule {\n");
-    push_indented(&mut out, ctx.source.trim(), 8);
-    out.push_str("    }\n");
+    let _ = writeln!(out, "    -irule {}", list_element(ctx.source));
 
     if !ctx.objects.pools.is_empty() {
         out.push_str("\n::orch::configure_tests -setup {\n");
         for pool in &ctx.objects.pools {
             let _ = writeln!(
                 out,
-                "    ::orch::add_pool {pool} {{{{10.0.0.1:80}} {{10.0.0.2:80}}}}"
+                "    ::orch::add_pool {} {{{{10.0.0.1:80}} {{10.0.0.2:80}}}}",
+                list_element(pool)
             );
         }
         out.push_str("}\n");
@@ -995,13 +1119,14 @@ fn build_multi_tmm_block(test_name: &str, ctx: &ScriptContext) -> String {
     out.push_str("            ::orch::run_http_request -host app.example.com\n");
     out.push_str("        }\n");
     out.push_str("    }\n\n");
-    out.push_str("    # Verify all TMMs received traffic\n");
+    out.push_str("    # Observe mock per-worker state; source metadata does not predict it.\n");
     out.push_str("    set active 0\n");
     out.push_str("    foreach tmm_id [::orch::tmm_ids] {\n");
     if let Some(var) = check_var {
         let _ = writeln!(
             out,
-            "        set val [::orch::tmm_get_static $tmm_id {var}]"
+            "        set val [::orch::tmm_get_static $tmm_id {}]",
+            list_element(var)
         );
         out.push_str("        if {$val ne \"\"} { incr active }\n");
     } else {
@@ -1009,10 +1134,12 @@ fn build_multi_tmm_block(test_name: &str, ctx: &ScriptContext) -> String {
         out.push_str("        incr active\n");
     }
     out.push_str("    }\n");
-    out.push_str("    ::orch::assert {$active >= 2} \\\n");
+    out.push_str(
+        "    # Outcome obligation: independently observe per-worker state before asserting it.\n",
+    );
     let _ = writeln!(
         out,
-        "        \"{test_name}-multi-1.0: only $active TMMs got traffic\""
+        "        # Observation candidate: {test_name}-multi-1.0; $active mock TMMs have visible state"
     );
     out.push('}');
     out
@@ -1020,6 +1147,8 @@ fn build_multi_tmm_block(test_name: &str, ctx: &ScriptContext) -> String {
 
 #[cfg(test)]
 mod tests {
+    use regex::Regex;
+
     use super::*;
 
     fn reset_request_closure_builds() {
@@ -1034,13 +1163,20 @@ mod tests {
         crate::environment::store_for_dialect("f5-irules")
     }
 
-    fn executable(src: &str) -> Vec<tcl_irules::IrulesExecutableCommand> {
-        tcl_irules::irules_executable_commands(src, registry())
+    fn executable(src: &str) -> SourceInventory {
+        SourceInventory::capture(src, registry())
+    }
+
+    fn request_syntax() -> (LexerConfig, ExprParseContext) {
+        executable("when HTTP_REQUEST {pool p}")
+            .context
+            .expect("original source context")
+            .expression_syntax()
     }
 
     fn object_refs(src: &str) -> ObjectRefs {
-        let closure = executable(src);
-        extract_object_refs(src, registry(), &closure)
+        let context = tcl_irules::OriginalIrulesSourceContext::capture(src, registry()).unwrap();
+        extract_object_refs(src, &context)
     }
 
     fn if_cond(condition: &str) -> Value {
@@ -1074,14 +1210,14 @@ mod tests {
     #[test]
     fn uri_hint_extracts_matches_glob_and_matches_regex() {
         let cond = if_cond(r#"[HTTP::uri] matches_glob "/api/*""#);
-        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond], Some(request_syntax()));
         assert!(
             lines.iter().any(|l| l.contains(r#"-uri "/api/x""#)),
             "{lines:?}"
         );
 
         let cond = if_cond(r#"[HTTP::uri] matches_regex "^/api/.*$""#);
-        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond], Some(request_syntax()));
         assert!(
             lines.iter().any(|l| l.contains(r#"-uri "/api/x""#)),
             "{lines:?}"
@@ -1144,14 +1280,14 @@ mod tests {
     #[test]
     fn uri_hint_still_extracts_eq_and_starts_with() {
         let cond = if_cond(r#"[HTTP::uri] eq "/login""#);
-        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond], Some(request_syntax()));
         assert!(
             lines.iter().any(|l| l.contains(r#"-uri "/login""#)),
             "{lines:?}"
         );
 
         let cond = if_cond(r#"[HTTP::uri] starts_with "/admin""#);
-        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond], Some(request_syntax()));
         assert!(
             lines.iter().any(|l| l.contains(r#"-uri "/admin""#)),
             "{lines:?}"
@@ -1192,6 +1328,42 @@ mod tests {
         let refs = object_refs(src);
         assert_eq!(refs.pools, ["selected_pool"]);
         assert_eq!(refs.datagroups, ["expr_dg"]);
+    }
+
+    #[test]
+    fn original_generated_static_setup_preserves_literal_repeated_prefixes() {
+        // naming.consumer.original-irules-source-context
+
+        // A source scaffold preserves labels; it proves no loaded variable,
+        // event execution, storage identity or observed outcome.
+        let generated = generate_irule_test(&json!({
+            "source": concat!(
+                "when HTTP_REQUEST {\n",
+                " if {$static::static::hits} { pool live }\n",
+                " if {$static::hits} {}\n",
+                " set data {${static::static::inert}}\n",
+                "}\n",
+            ),
+        }));
+        let script = generated["test_script"].as_str().unwrap();
+        assert!(
+            script.contains("::orch::configure_static static::hits \"\""),
+            "{script}"
+        );
+        assert!(
+            script.contains("::orch::configure_static hits \"\""),
+            "{script}"
+        );
+        assert!(
+            !script.contains("::orch::configure_static inert "),
+            "{script}"
+        );
+        assert!(
+            !script.contains("::orch::configure_static static::inert "),
+            "{script}"
+        );
+        assert_eq!(generated["analysis_kind"], "conditional-source");
+        assert_eq!(generated["outcome_assertions_verified"], false);
     }
 
     #[test]
@@ -1269,20 +1441,22 @@ mod tests {
         assert!(names.contains(&"pool".to_owned()), "{names:?}");
         assert!(!names.contains(&"HTTP::respond".to_owned()), "{names:?}");
         assert!(!names.contains(&"table".to_owned()), "{names:?}");
-        let variables = extract_variables(registry(), &commands);
+        let variables = extract_variables(&commands);
         assert!(
             variables.static_vars.is_empty(),
             "{:?}",
             variables.static_vars
         );
-        assert!(!needs_multi_tmm(registry(), &commands, &variables));
+        let context = tcl_irules::OriginalIrulesSourceContext::capture(inert, registry());
+        assert!(!needs_multi_tmm(context.as_ref(), &commands, &variables));
         assert_eq!(object_refs(inert).pools, ["live"]);
 
         let live = "when HTTP_REQUEST { set static::hits 0; incr static::hits; table incr key; HTTP::respond 200 }";
         let commands = executable(live);
-        let variables = extract_variables(registry(), &commands);
+        let variables = extract_variables(&commands);
         assert_eq!(variables.static_vars, ["hits"]);
-        assert!(needs_multi_tmm(registry(), &commands, &variables));
+        let context = tcl_irules::OriginalIrulesSourceContext::capture(live, registry());
+        assert!(needs_multi_tmm(context.as_ref(), &commands, &variables));
     }
 
     #[test]
@@ -1339,8 +1513,8 @@ mod tests {
     #[test]
     fn generator_builds_one_request_closure_for_every_execution_sensitive_output() {
         let src = concat!(
-            "proc ::rooted_helper {} { pool helper_pool; call chain_helper }\n",
-            "proc chain_helper {} { set selected [class match [HTTP::uri] equals helper_dg]; call ::rooted_helper }\n",
+            "proc rooted_helper {} { pool helper_pool; call chain_helper }\n",
+            "proc chain_helper {} { set selected [class match [HTTP::uri] equals helper_dg]; call rooted_helper }\n",
             "proc dormant {} { pool dormant_pool; set static::dormant 1; table incr dormant }\n",
             "when HTTP_REQUEST { pool first_pool; set static::hits 0; call rooted_helper; dormant; apply {{} { pool lambda_pool; set static::lambda 1 }}; when CLIENT_DATA { pool nested_other_event_pool; set static::nested 1 } }\n",
             "when http_request { pool second_pool; incr static::hits }\n",
@@ -1455,5 +1629,418 @@ mod tests {
             !script.contains("::orch::add_pool /Common/logging "),
             "{script}"
         );
+    }
+    #[test]
+    fn original_irule_scaffolds_keep_source_candidates_without_predicted_outcomes() {
+        // Implementation contract: naming.mcp.original-irule-test-source-obligations
+
+        // Implementation contract: naming.consumer.original-irules-source-context
+
+        let source = "when HTTP_REQUEST {pool /Common/candidate; HTTP::respond 503}";
+        let generated = generate_irule_test(&json!({"source": source}));
+        assert_eq!(generated["analysis_kind"], "conditional-source");
+        assert_eq!(generated["outcome_assertions_verified"], false);
+        let script = generated["test_script"].as_str().unwrap();
+        assert!(script.contains("Outcome obligation"));
+        assert!(
+            !script
+                .lines()
+                .any(|line| line.trim_start().starts_with("::orch::assert_that "))
+        );
+        assert!(
+            generated["pools"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value == "/Common/candidate")
+        );
+        let custom = generate_irule_test(
+            &json!({"source":"proc when args {}; when HTTP_REQUEST {pool fake}"}),
+        );
+        assert!(custom["events"].as_array().unwrap().is_empty());
+        assert!(custom["pools"].as_array().unwrap().is_empty());
+        assert_eq!(
+            build_assertion("pool", &["target\nset forged 1".to_owned()])[1],
+            "# Source candidate: pool target\\nset forged 1"
+        );
+    }
+    #[test]
+    fn cfg_test_generation_uses_retained_source_kind_instead_of_event_labels() {
+        let objects = ObjectRefs {
+            pools: Vec::new(),
+            datagroups: Vec::new(),
+        };
+        let variables = Variables {
+            static_vars: Vec::new(),
+        };
+        let paths = [
+            json!({"source_kind":"event", "event":"proc:report-data", "conditions":[], "action":{"command":"pool", "args":["p"]}}),
+            json!({"source_kind":"procedure", "event":"HTTP_REQUEST", "conditions":[], "action":{"command":"pool", "args":["q"]}}),
+            json!({"event":"HTTP_RESPONSE", "conditions":[], "action":{"command":"pool", "args":["r"]}}),
+        ];
+        let context = ScriptContext {
+            basename: "owned-kind",
+            source: "",
+            ordered_events: &[],
+            profiles: &[],
+            commands_used: &[],
+            objects: &objects,
+            variables: &variables,
+            cfg_paths: &paths,
+            request_syntax: None,
+            multi_tmm: false,
+        };
+        let blocks = build_all_test_blocks("owned-kind", &context);
+        assert_eq!(
+            blocks
+                .iter()
+                .filter(|block| block.starts_with("::orch::test "))
+                .count(),
+            1
+        );
+        assert!(
+            blocks
+                .iter()
+                .any(|block| block.contains("proc:report-data"))
+        );
+        assert!(
+            blocks
+                .iter()
+                .all(|block| !block.contains("HTTP_REQUEST") && !block.contains("HTTP_RESPONSE"))
+        );
+    }
+
+    #[test]
+    fn static_namespace_hints_preserve_actual_literal_variable_roles() {
+        for (name, expected) in [
+            ("static::flag", Some("flag")),
+            ("static::::flag", Some("::flag")),
+            ("static::", Some("")),
+            ("::static::rooted", None),
+            ("static_other::flag", None),
+        ] {
+            let source = format!("when HTTP_REQUEST {{set {name} 1}}");
+            let inventory = executable(&source);
+            assert!(inventory.context.is_some(), "{source}");
+            let variables = extract_variables(&inventory);
+            assert_eq!(
+                variables.static_vars,
+                expected.into_iter().map(str::to_owned).collect::<Vec<_>>(),
+                "{source}"
+            );
+            assert_eq!(
+                needs_multi_tmm(inventory.context.as_ref(), &inventory.commands, &variables),
+                expected.is_some(),
+                "{source}"
+            );
+        }
+        let inventory = executable("when HTTP_REQUEST {set data {static::inert}}");
+        assert!(extract_variables(&inventory).static_vars.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod original_request_source_tests {
+    use super::*;
+
+    #[test]
+    fn original_request_context_keeps_retained_unit_profile_and_current_source() {
+        let source = "when HTTP_REQUEST {pool p}";
+        let analysis = crate::tools::analyse(source, "f5-irules");
+        let current =
+            tcl_irules::OriginalIrulesSourceContext::from_source_analysis(source, &analysis)
+                .expect("actual current source analysis owns the source grammar");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let config = analysis.body_lexer_config.unwrap();
+        let mut expression = ExprParseContext::for_profile(input.unit_profile());
+        expression.lexer_grammar = config.grammar_over(expression.lexer_grammar);
+        assert_eq!(current.expression_syntax(), (config, expression));
+        let mut changed_unit = input.unit_profile().clone();
+        changed_unit.expr_grammar_base =
+            if changed_unit.expr_grammar_base == Some(tcl_dialect::TclVersion::V9_1) {
+                None
+            } else {
+                Some(tcl_dialect::TclVersion::V9_1)
+            };
+        let changed_unit = changed_unit.intern();
+        let mut changed_analyser = input.analyser_profile().clone();
+        changed_analyser.expr_grammar_base =
+            if changed_analyser.expr_grammar_base == Some(tcl_dialect::TclVersion::V9_1) {
+                None
+            } else {
+                Some(tcl_dialect::TclVersion::V9_1)
+            };
+        let changed_analyser = changed_analyser.intern();
+        assert!(current.matches_current(source, &analysis, &input.context_registry()));
+        for (analyser, unit) in [
+            (input.analyser_profile(), changed_unit),
+            (changed_analyser, input.unit_profile()),
+        ] {
+            let changed_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                analyser,
+                unit,
+                input.context_registry(),
+                config,
+            );
+            let changed = tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(changed_input)
+                .analyse(source, analyser.name);
+            assert!(tcl_compiler::source_graph::current_analysis(source, &changed).is_some());
+            assert!(!current.matches_current(source, &changed, &input.context_registry()));
+        }
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            tcl_irules::OriginalIrulesSourceContext::from_source_analysis(source, &missing)
+                .is_none()
+        );
+        assert!(
+            tcl_irules::OriginalIrulesSourceContext::from_source_analysis("# changed", &analysis)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn request_hints_keep_literal_word_and_container_values() {
+        let source = "when HTTP_REQUEST {pool p}";
+        let registry = crate::environment::store_for_dialect("f5-irules");
+        let captured = SourceInventory::capture(source, registry);
+        let syntax = captured.context.as_ref().unwrap().expression_syntax();
+        let config = syntax.0;
+        for (condition, expected) in [
+            (r#"[HTTP::uri] eq {"/literal"}"#, "\"/literal\""),
+            (r"[HTTP::uri] eq {host[set ::hint 1]}", "host[set ::hint 1]"),
+            (r"[HTTP::uri] eq {$literal}", "$literal"),
+            (r#"[HTTP::uri] eq "one||two""#, "one||two"),
+        ] {
+            let condition = json!({"kind":"if", "condition":condition});
+            let lines = build_request_setup("HTTP_REQUEST", &[&condition], Some(syntax));
+            let line = lines.first().expect("literal request example");
+            let parsed = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(line),
+                tcl_lexer::Span::new(0, u32::try_from(line.len()).unwrap()),
+                config.nested(),
+            )
+            .unwrap();
+            assert!(parsed.fatal_tail.is_none());
+            assert_eq!(parsed.commands.len(), 1);
+            assert_eq!(parsed.commands[0].words.len(), 5);
+            let uri = &parsed.commands[0].words[4];
+            assert_eq!(
+                tcl_syntax::word_rules::original_static_word_unicode_value(uri).as_deref(),
+                Some(expected.as_bytes())
+            );
+            assert!(
+                uri.executable_parts()
+                    .all_parts()
+                    .all(|part| matches!(part.part, tcl_lexer::ExecutablePart::Text(_)))
+            );
+        }
+        for value in [
+            "}",
+            "\"host\"",
+            "$literal",
+            "host[set ::hint 1]",
+            "a\\b",
+            "a\nb",
+        ] {
+            let proposal = request_literal_word(value, config).unwrap();
+            let word = sole_source_word(&proposal, config.nested()).unwrap();
+            assert_eq!(
+                tcl_syntax::word_rules::original_static_word_unicode_value(&word).as_deref(),
+                Some(value.as_bytes())
+            );
+            let container = format!("{{{proposal}}}");
+            let container = sole_source_word(&container, config.nested()).unwrap();
+            assert_eq!(
+                tcl_syntax::word_rules::original_static_word_unicode_value(&container).as_deref(),
+                Some(proposal.as_bytes())
+            );
+        }
+        let condition = json!({"kind":"if", "condition":r#"[HTTP::uri] eq "$dynamic""#});
+        let lines = build_request_setup("HTTP_REQUEST", &[&condition], Some(syntax));
+        assert_eq!(
+            lines,
+            ["::orch::run_http_request -host \"example.com\" -uri \"/\""]
+        );
+        assert!(build_request_setup("HTTP_REQUEST", &[&condition], None).is_empty());
+        assert_eq!(
+            cfg_pattern_to_value("\"quoted\"").as_deref(),
+            Some("\"quoted\"")
+        );
+        assert_eq!(
+            cfg_pattern_to_value("{literal}").as_deref(),
+            Some("{literal}")
+        );
+        let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(
+            r#"[HTTP::header {X Literal}] eq "yes""#,
+            &syntax.1,
+        );
+        let tcl_syntax::expr::ExprNode::Binary { left, .. } = parsed else {
+            panic!("original expression topology");
+        };
+        assert_eq!(
+            source_header_hint(&left, config).as_deref(),
+            Some("X Literal")
+        );
+        let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(
+            r#"[HTTP::header $dynamic] eq "yes""#,
+            &syntax.1,
+        );
+        let tcl_syntax::expr::ExprNode::Binary { left, .. } = parsed else {
+            panic!("original expression topology");
+        };
+        assert!(source_header_hint(&left, config).is_none());
+    }
+}
+
+#[cfg(test)]
+mod fallback_pool_source_tests {
+    use super::*;
+
+    #[test]
+    fn fallback_http_pool_values_remain_literal_words_and_preserve_the_test_body() {
+        let initial = SourceInventory::capture(
+            "when HTTP_REQUEST {pool p}",
+            crate::environment::store_for_dialect("f5-irules"),
+        );
+        let config = initial.context.as_ref().unwrap().expression_syntax().0;
+        for value in [
+            "",
+            "plain",
+            "a\"b",
+            "$literal",
+            "p[set ::hint 1]",
+            "}",
+            "a\\b",
+            "a\nb",
+        ] {
+            let source_word = request_literal_word(value, config).unwrap();
+            let source =
+                format!("when HTTP_REQUEST {{pool {source_word}}}\nwhen HTTP_RESPONSE {{}}\n");
+            let inventory = SourceInventory::capture(
+                &source,
+                crate::environment::store_for_dialect("f5-irules"),
+            );
+            let context = inventory.context.as_ref().unwrap();
+            let config = context.expression_syntax().0;
+            let objects = extract_object_refs(&source, context);
+            assert_eq!(objects.pools, [value]);
+            let blocks = build_http_test_blocks(
+                "literal-pool",
+                &["HTTP_REQUEST".to_owned(), "HTTP_RESPONSE".to_owned()],
+                &["pool".to_owned()],
+                &objects,
+                Some(config),
+            );
+            let mut observed = Vec::new();
+            for block in &blocks {
+                let outer = tcl_lexer::native_script_words_in(
+                    tcl_lexer::SourceImage::document(block),
+                    tcl_lexer::Span::new(0, u32::try_from(block.len()).unwrap()),
+                    config,
+                )
+                .unwrap();
+                assert!(outer.fatal_tail.is_none());
+                assert_eq!(outer.commands.len(), 1);
+                let body_word = outer.commands[0].words.last().unwrap();
+                let body =
+                    tcl_syntax::word_rules::original_static_word_unicode_value(body_word).unwrap();
+                let body = String::from_utf8(body).unwrap();
+                let inner = tcl_lexer::native_script_words_in(
+                    tcl_lexer::SourceImage::document(&body),
+                    tcl_lexer::Span::new(0, u32::try_from(body.len()).unwrap()),
+                    config.nested(),
+                )
+                .unwrap();
+                assert!(inner.fatal_tail.is_none());
+                for command in &inner.commands {
+                    if command.words.len() == 4
+                        && tcl_syntax::word_rules::original_static_word_unicode_value(
+                            &command.words[1],
+                        )
+                        .as_deref()
+                            == Some(b"pool_selected")
+                    {
+                        let word = &command.words[3];
+                        assert!(
+                            word.executable_parts().all_parts().all(|part| matches!(
+                                part.part,
+                                tcl_lexer::ExecutablePart::Text(_)
+                            ))
+                        );
+                        observed.push(
+                            tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                                .unwrap(),
+                        );
+                    }
+                }
+            }
+            assert_eq!(observed, vec![value.as_bytes().to_vec(); 3]);
+            let unavailable = build_http_test_blocks(
+                "literal-pool",
+                &["HTTP_RESPONSE".to_owned()],
+                &["pool".to_owned()],
+                &objects,
+                None,
+            );
+            assert!(unavailable.iter().all(|block| !block.lines().any(|line| {
+                line.trim_start()
+                    .starts_with("::orch::assert_that pool_selected equals")
+            })));
+        }
+    }
+}
+
+#[cfg(test)]
+mod configured_request_literal_value_tests {
+    use super::*;
+
+    #[test]
+    fn request_string_hints_decode_selected_literal_components_without_activating_them() {
+        let inventory = SourceInventory::capture(
+            "when HTTP_REQUEST {pool p}",
+            crate::environment::store_for_dialect("f5-irules"),
+        );
+        let syntax = inventory.context.as_ref().unwrap().expression_syntax();
+        for (operand, expected) in [
+            (r#""^/api/.*$""#, "^/api/.*$"),
+            (r#""prefix\$suffix""#, "prefix$suffix"),
+            (r#""\x24literal""#, "$literal"),
+            (r#""\"literal\"""#, "\"literal\""),
+            (r"{host[set ::hint 1]}", "host[set ::hint 1]"),
+            (r"{a\ b}", r"a\ b"),
+        ] {
+            let condition = json!({"kind":"if", "condition":format!("[HTTP::uri] eq {operand}")});
+            let lines = build_request_setup("HTTP_REQUEST", &[&condition], Some(syntax));
+            let line = lines.first().expect("literal request hint");
+            let parsed = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(line),
+                tcl_lexer::Span::new(0, u32::try_from(line.len()).unwrap()),
+                syntax.0.nested(),
+            )
+            .unwrap();
+            assert!(parsed.fatal_tail.is_none());
+            assert_eq!(parsed.commands.len(), 1);
+            assert_eq!(parsed.commands[0].words.len(), 5);
+            let uri = &parsed.commands[0].words[4];
+            assert_eq!(
+                tcl_syntax::word_rules::original_static_word_unicode_value(uri).as_deref(),
+                Some(expected.as_bytes()),
+                "{operand}"
+            );
+            assert!(
+                uri.executable_parts()
+                    .all_parts()
+                    .all(|part| matches!(part.part, tcl_lexer::ExecutablePart::Text(_)))
+            );
+        }
+        for operand in [r#""prefix$dynamic""#, r#""[set ::hint 1]""#] {
+            let condition = json!({"kind":"if", "condition":format!("[HTTP::uri] eq {operand}")});
+            assert_eq!(
+                build_request_setup("HTTP_REQUEST", &[&condition], Some(syntax)),
+                ["::orch::run_http_request -host \"example.com\" -uri \"/\""]
+            );
+        }
     }
 }

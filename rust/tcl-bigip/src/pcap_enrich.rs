@@ -346,44 +346,28 @@ fn find_object<'a>(
     table: &'static str,
     full_path: &str,
 ) -> Option<&'a ModelObject> {
-    cfg.objects
-        .iter()
-        .find(|p| p.table_name == table && p.full_path == full_path)
-        .map(|p| &p.object)
+    crate::object_names::object_name_candidates(
+        full_path,
+        cfg.objects
+            .iter()
+            .filter(|placed| placed.table_name == table)
+            .map(|placed| (placed.full_path.as_str(), &placed.object)),
+        crate::object_names::ObjectNamePolicy::Exact,
+    )
+    .first_in_order()
 }
 
 /// `BigipConfig.resolve_name`: exact, partition-qualified, then suffix match.
 fn resolve_name(cfg: &BigipConfig, name: &str, table: &'static str) -> Option<String> {
-    if find_object(cfg, table, name).is_some() {
-        return Some(name.to_owned());
-    }
-    if !name.starts_with('/') {
-        let partition = {
-            let p = if cfg.default_partition.is_empty() {
-                "Common"
-            } else {
-                cfg.default_partition.as_str()
-            };
-            p.trim_matches('/').to_owned()
-        };
-        if !partition.is_empty() {
-            let candidate = format!("/{partition}/{name}");
-            if find_object(cfg, table, &candidate).is_some() {
-                return Some(candidate);
-            }
-        }
-        if partition != "Common" {
-            let candidate = format!("/Common/{name}");
-            if find_object(cfg, table, &candidate).is_some() {
-                return Some(candidate);
-            }
-        }
-    }
-    let suffix = format!("/{name}");
-    typed_objects(cfg, table)
-        .map(|(p, _)| p)
-        .find(|key| key.ends_with(&suffix))
-        .map(ToOwned::to_owned)
+    crate::object_names::object_name_candidates(
+        name,
+        typed_objects(cfg, table).map(|(path, _)| (path, path)),
+        crate::object_names::ObjectNamePolicy::Configuration {
+            default_partition: &cfg.default_partition,
+        },
+    )
+    .first_in_order()
+    .map(ToOwned::to_owned)
 }
 
 /// `BigipConfig.resolve_rule`.
@@ -634,35 +618,21 @@ fn extract_gtm_wideips(source: &str) -> Vec<(String, Vec<String>)> {
 
 /// Resolve a GTM reference: exact, `/Common/<name>`, then suffix match.
 fn resolve_gtm_path<'a, T>(name: &str, pool: &'a [(String, T)]) -> Option<&'a str> {
-    if pool.iter().any(|(k, _)| k == name) {
-        return Some(pool.iter().find(|(k, _)| k == name).unwrap().0.as_str());
-    }
-    let candidate = format!("/Common/{name}");
-    if let Some((k, _)) = pool.iter().find(|(k, _)| *k == candidate) {
-        return Some(k.as_str());
-    }
-    let suffix = format!("/{name}");
-    pool.iter()
-        .find(|(k, _)| k.ends_with(&suffix))
-        .map(|(k, _)| k.as_str())
+    crate::object_names::object_name_candidates(
+        name,
+        pool.iter().map(|(path, _)| (path.as_str(), path.as_str())),
+        crate::object_names::ObjectNamePolicy::CommonThenSuffix,
+    )
+    .first_in_order()
 }
 
 fn resolve_gtm_server<'a>(name: &str, servers: &'a BTreeMap<String, GtmServer>) -> Option<&'a str> {
-    if servers.contains_key(name) {
-        return servers
-            .keys()
-            .find(|k| k.as_str() == name)
-            .map(String::as_str);
-    }
-    let candidate = format!("/Common/{name}");
-    if let Some(k) = servers.keys().find(|k| **k == candidate) {
-        return Some(k.as_str());
-    }
-    let suffix = format!("/{name}");
-    servers
-        .keys()
-        .find(|k| k.ends_with(&suffix))
-        .map(String::as_str)
+    crate::object_names::object_name_candidates(
+        name,
+        servers.keys().map(|path| (path.as_str(), path.as_str())),
+        crate::object_names::ObjectNamePolicy::CommonThenSuffix,
+    )
+    .first_in_order()
 }
 
 /// For each wide-IP, the set of IPs its pool chain resolves to (insertion

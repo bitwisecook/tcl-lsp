@@ -27,9 +27,28 @@
 //! IR's [`ProgType`] — adding an event is a registry edit, not a new match
 //! arm here.
 
+pub use tcl_registry::bpf_op::BpfEventId;
 use tcl_registry::bpf_op::{BpfEventProgType, BpfEventSpec, lookup_bpf_event};
 
 use crate::ir::ProgType;
+
+/// Select the actual declared event, retaining aliases as presentation only.
+#[must_use]
+pub fn event_id(event: &str) -> Option<BpfEventId> {
+    tcl_registry::bpf_op::lookup_bpf_event_id(event)
+}
+
+/// Select the sole declared event for an implicit typed program.
+#[must_use]
+pub fn event_id_for_prog_type(prog_type: ProgType) -> Option<BpfEventId> {
+    tcl_registry::bpf_op::bpf_event_for_prog_type(registry_prog_type(prog_type))
+}
+
+/// Registry-owned section metadata for all events of this typed program.
+#[must_use]
+pub fn elf_section_for_prog_type(prog_type: ProgType) -> Option<&'static str> {
+    tcl_registry::bpf_op::bpf_elf_section(registry_prog_type(prog_type))
+}
 
 /// Resolve an event name (as written in `when <EVENT> …`) to its registry
 /// spec. Case-insensitive, aliases included. `None` for unknown events.

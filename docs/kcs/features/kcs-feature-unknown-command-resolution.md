@@ -36,17 +36,32 @@ W123 behaviour accordingly:
 | **exec** | `exec $cmd {*}$args` | Conservative: W123 suppressed entirely |
 | **Case-insensitive** | `switch [string tolower $cmd] {...}` | All known commands match; W123 suppressed |
 
-### Other suppression mechanisms
+### Positioned command presence and remaining abstentions
 
-- **Dynamic providers**: If `load`, `set auto_path`, `lappend auto_path`, `rename`, or `namespace import` is detected, W123 is suppressed for the entire file.
-- **Package require**: If any `package require` is present, W123 is suppressed (external packages may define commands).
-- **Dialect stubs**: Commands declared via `# tcl-lsp: stub` are treated as known. See [Dialect Stubs](../../../docs/design/contracts/dialect-stubs.md).
-- **User-defined procs**: Any `proc` defined in the file (or sourced via packages) is a known command.
-- **Command aliases**: Commands defined via `interp alias` are treated as known. See [Command Alias Resolution](../../../docs/design/contracts/command-alias-resolution.md).
-- **Namespace-qualified names**: Commands containing `::` are skipped (may come from `namespace import`).
-- **Library and package commands**: A command an installed library auto-loads
-  (through a `tclIndex` on the configured library paths), or that a package the
-  document requires defines, is treated as known — see below.
+W123 asks whether the selected command slot is absent at this invocation's
+lookup point. The shared `SourceCommandBindings` owner tracks supported
+source command transitions at their positions and the diagnostic-purpose
+presence query returns `Present`, `Absent`, `MayPresent`, or `Unknown`. W123
+is emitted only for `Absent`; it reports an unresolved selected slot, not
+that execution must fail. A present alias/import wrapper counts as a slot
+even when its target is missing, and an absent slot may still be served by
+autoload or another fallback.
+
+Dynamic or unsupported providers do not suppress W123 for the whole file.
+They make the affected lookup world unknown when the owner cannot retain a
+complete applicable binding. Qualified names are not skipped categorically;
+the selected namespace policy, retained qualifier, and fallback state must
+support an `Absent` result or W123 abstains.
+
+- **Stubs and explicit assistance declarations** can suppress this diagnostic
+  at covered sites, but they do not establish a runtime callable or registry
+  implementation. See [Dialect Stubs](../../../docs/design/contracts/dialect-stubs.md).
+- **Source declarations and aliases** count only when the positioned owner
+  proves that they occupy the selected slot at that call. A declaration
+  elsewhere in the file is not blanket proof. See [Command Alias Resolution](../../../docs/design/contracts/command-alias-resolution.md).
+- **Package and library providers** contribute only where retained workspace
+  and source evidence supports the lookup; a `package require` statement alone
+  does not suppress W123 across the file.
 
 ### Guarded packages and the Tcl version you target
 

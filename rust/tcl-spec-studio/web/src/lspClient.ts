@@ -118,6 +118,7 @@ interface OpenDocument {
   uri: string;
   languageId: string;
   version: number;
+  text: string;
 }
 
 /**
@@ -134,6 +135,8 @@ export class LspClient {
 
   private readonly open = new Map<string, OpenDocument>();
 
+  private stopped = false;
+
   private readonly diagnosticHandlers = new Set<(uri: string, items: Diagnostic[]) => void>();
 
   /** The server's semantic-token legend, straight from `initialize`. */
@@ -147,6 +150,12 @@ export class LspClient {
     this.connection = connection;
     this.worker = worker;
     this.legend = legend;
+    const retire = (): void => {
+      this.stopped = true;
+      this.open.clear();
+    };
+    connection.onClose(retire);
+    connection.onDispose(retire);
     connection.onNotification(PublishDiagnosticsNotification.type, (params) => {
       for (const handler of this.diagnosticHandlers) {
         handler(params.uri, params.diagnostics);
@@ -211,6 +220,7 @@ export class LspClient {
 
   /** Open `uri` (or re-open it under a different language id). */
   openDocument(uri: string, languageId: string, text: string): void {
+    if (this.stopped) return;
     const existing = this.open.get(uri);
     if (existing) {
       if (existing.languageId === languageId) {
@@ -222,7 +232,7 @@ export class LspClient {
       // how a document's dialect is decided instead of two that can disagree.
       this.closeDocument(uri);
     }
-    this.open.set(uri, { uri, languageId, version: 1 });
+    this.open.set(uri, { uri, languageId, version: 1, text });
     this.connection.sendNotification(DidOpenTextDocumentNotification.type, {
       textDocument: { uri, languageId, version: 1, text },
     });
@@ -230,9 +240,11 @@ export class LspClient {
 
   /** Push the whole document. Full replacement is legal under either sync kind. */
   changeDocument(uri: string, text: string): void {
+    if (this.stopped) return;
     const doc = this.open.get(uri);
     if (!doc) return;
     doc.version += 1;
+    doc.text = text;
     this.connection.sendNotification(DidChangeTextDocumentNotification.type, {
       textDocument: { uri, version: doc.version },
       contentChanges: [{ text }],
@@ -244,6 +256,21 @@ export class LspClient {
     this.connection.sendNotification(DidCloseTextDocumentNotification.type, {
       textDocument: { uri },
     });
+  }
+
+  /** Retain the actual issuing open-document allocation, full text and version.
+   * A dialect close/reopen cannot reuse this source request's authority. */
+  captureDocumentSource(uri: string, text: string): { isCurrent(): boolean } | null {
+    const document = this.open.get(uri);
+    if (this.stopped || !document || document.text !== text) return null;
+    const version = document.version;
+    return {
+      isCurrent: () =>
+        !this.stopped &&
+        this.open.get(uri) === document &&
+        document.version === version &&
+        document.text === text,
+    };
   }
 
   async hover(uri: string, line: number, character: number): Promise<Hover | null> {
@@ -288,6 +315,10 @@ export class LspClient {
 
   /** Stop the server and the worker holding it. */
   async stop(): Promise<void> {
+    // Retire actual document issuers before awaiting shutdown.
+    if (this.stopped) return;
+    this.stopped = true;
+    this.open.clear();
     try {
       await this.connection.sendRequest(ShutdownRequest.type, undefined);
       this.connection.sendNotification(ExitNotification.type);

@@ -69,6 +69,24 @@ pub struct ScopedCommand {
 }
 
 impl ScopedCommand {
+    /// Inert source descriptor for this independently selected scoped command.
+    /// The body issuer, original word and context remain the caller's proof;
+    /// this projection introduces no global command or native implementation.
+    #[must_use]
+    pub fn source_descriptor(&self, parent: &crate::CommandSpec) -> crate::CommandSpec {
+        crate::CommandSpec {
+            name: self.name,
+            surface: parent.surface,
+            required_package: parent.required_package,
+            tcllib_package: parent.tcllib_package,
+            arity: self.arity,
+            subcommands: self.subcommands,
+            allow_unknown_subcommands: self.allow_unknown_subcommands,
+            hover: self.hover,
+            ..crate::CommandSpec::DEFAULT
+        }
+    }
+
     /// Resolve an ensemble operation word to its [`SubCommand`], accepting a
     /// unique non-empty prefix the way Tcl's ensemble dispatch does.  An exact
     /// match wins; an ambiguous prefix resolves to `None`.

@@ -44,6 +44,76 @@ the deep push and the pull assemble their findings with the same
 `published_findings`, so the two cannot disagree about tags, severity
 overrides, or encoding abstention.
 
+### Current completed source reports
+
+`tcl-lsp.currentDiagnostics` is a read-only workspace command over the push
+publisher's completion ledger. It accepts one `{uri, version, source}` object
+for an open, client-versioned document. It neither schedules a pass nor changes
+the diagnostic delivery model.
+
+A `complete` response retains the exact URI, client version and whole source,
+the effective dialect retained by the completed pass, server revision, input epoch,
+actual final report ID and raw published findings.
+The cache/mailbox producer transports its own freshly issued report ID together
+with that exact publication acknowledgement; later mutable cache reads cannot
+issue publication identity. The query independently requires the cached report
+to retain that issued ID.
+The publisher issues it only after the final analyser, compiler and applicable
+project pass succeeded and the existing notification delivery was acknowledged.
+The Compiler pass's checked producer preserves unavailable unit preparation or
+solve ownership as `None`; its compatibility empty fallback cannot issue a
+completed report.
+The query rechecks the current document, full resolved analysis input, resource
+configuration epoch, diagnostic scheduling generation, class-factory generation
+and report ID. The captured provider Registry snapshot must additionally have
+the same complete structural semantic key as the completed analysis's actual
+Registry; a foreign metadata store cannot borrow source/input currency. It uses
+the configured report before editor display suppression.
+The legacy `textDocument/diagnostic` and `workspace/diagnostic` cache has two
+explicit producer purposes. A publisher entry retains its original pass and
+requires its actual delivered ledger and issued report ID. A direct response
+retains the actual checked provider result and its original source/input owner;
+it never acquires a push acknowledgement or changes publisher completion. Both
+consume one shared analyser/compiler/project/refinement/lift computation, with
+unavailable, cancelled or degraded results distinct from successful empty
+findings. A direct disabled/excluded outcome records selected policy only,
+independently from a delivered suppression receipt.
+
+Each cache entry retains its original source, optional version, server revision,
+editing input, actual immutable diagnostic configuration, SourceFile/provider
+admission, epoch and generations. The configuration snapshot retains all actual
+`AnalyserConfig` fields: options such as declared target ranges are not part of
+editing input identity. Final source/input/report validation and cache commit
+use one guarded batch and current provider lease. Workspace versions belong to
+the reports, never to a later unrelated document snapshot. Closed, missing,
+unsupported or unavailable ownership refuses rather than issuing a current
+empty report. Unsupported model-provider completion remains separate work.
+Neither this compatibility handler nor direct-cache provenance advertises a
+standard diagnostic provider; diagnostics remain push-only. The public
+source-expectation command still requires a client version and accepts only the
+publisher purpose, so direct findings or policy cannot issue its completion.
+
+A completed empty report is different from an unavailable report. The pass
+retains its original SourceFile publication admission. The query joins the
+actual current SourceFile with that retained receipt and checks the selected
+provider after its final await. A newly published equal-path binding cannot
+make an earlier pass current.
+
+`suppressed` is a separate receipt for a disabled or excluded provider, issued
+only after its actual clearing report was delivered. It retains source, version,
+selected resource-policy epoch and report currency, independently of unavailable
+analysis preparation. A dedicated configuration-clear consumer may
+accept that policy outcome; it cannot satisfy a clean-analysis query.
+
+`unavailable` reports a pending or stale generation, missing context, cancellation,
+provider failure, unsupported provider or closed document. Fast-tier output, old cache entries, cleared Problems collections,
+log timing and elapsed waits cannot issue completion. Encoding abstention also
+cannot issue a complete source report. Clients must preserve this distinction;
+a timeout cannot become an empty result. Completion concerns the configured
+analysis report and grants no runtime execution, Native identity, semantic
+equivalence or absence of unknown effects. Diagnostic policy and applicability
+remain independently authoritative.
+
 ### Diagnostic tags (issue #1333)
 
 A diagnostic carries a *presentation tag* — the LSP `DiagnosticTag`
@@ -181,3 +251,97 @@ resembles lossy decoding.
 - [Design doc index](../README.md)
 - [compiler diagnostics integration](../compiler/diagnostics-integration.md)
 - [async tiering contracts](../compiler/async-diagnostics-tiering.md)
+
+## Editor source actions
+
+Read-only explain and diff commands retain the source document, URI, version,
+whole text, selected range and selected text while preparing a model request.
+They recheck the captured document bytes after asynchronous model selection and
+before sending. A document-backed source uses a dialect-neutral prompt; it does
+not borrow the active editor's prompt or treat a configured hint as resolved
+analysis context. Inline source has no document identity.
+
+
+AI source actions retain the actual `TextDocument`, URI components, full source,
+version, language, resource-scoped dialect hint, selected extent and source
+channel. Source-only discussion can project text; replacing an existing document
+requires the original whole-document snapshot. The Node and browser Apply fixes
+commands consume a bounded, one-use receipt referring to that retained snapshot.
+They check document and analysis currency across editor awaits, require the edit
+API's success result and exact replacement/version correspondence, and return a
+boolean that immediate callers must check before reporting an applied change.
+Creating a new authoring document is a separate operation.
+
+The active client transport issues analysis-context snapshots for its actual
+session generation. A stable opaque session token survives provider-wrapper
+allocation and changes on lifecycle transitions. Temporary dialect overrides are
+serialised, block context capture while pending and retain their acknowledged
+owner until cleared or superseded. Operation ownership is independent of analysis
+configuration currency, so invalidation can require cleanup without granting a
+write context. A superseded or stale lease cannot clear a newer override; a
+cancelled acquisition retains responsibility for an acknowledged predecessor.
+Only a successful current restore can return the context used to publish a later
+source action. These client receipts do not establish the server's independent
+source/result applicability or optimiser transformation authority.
+
+
+### Negative editor diagnostic evidence
+
+The issue969, issue976 and issue977 I230-negative callers wait through the active
+extension's existing `waitForCurrentDiagnostics` export before evaluating their
+unchanged absence assertions. They retain the actual document returned by
+activation and supply its whole source as the independent expected source. The
+cross-file issue977 caller also completes its original caller document through
+the same owner before opening the library, retaining the original ordering. The
+production owner captures actual open-document identity/version/session and
+requires an exact complete server response under its existing resource/input,
+provider, report and publication checks. No current URI collection sample,
+expected count, successive equal diagnostic codes or delivered notification
+alone proves diagnostic absence. Complete empty findings remain distinct from
+suppressed, unavailable, malformed, stale or provider-error results, which fail
+the test rather than becoming an empty array.
+
+
+
+The native e2e imported-constant negative W120 control uses the same current
+publisher owner through `Lsp::current_complete_diagnostics`, retaining the exact
+reader text and client version sent by its original `open_ready` call. Pending
+or stale results may retry only within its original single load-scaled 20-second
+deadline. Exact URI/version/full-source echo, report identity, revision/input epoch
+and a well-formed actual findings array are required before absence is asserted.
+Suppressed, provider-error, unsupported, malformed or missing results fail rather
+than becoming empty findings. The existing JSON-RPC response waiter supplies one
+shared absolute deadline across all queries; repeated pending replies do not
+restart or double-scale the budget. This read-only validation route creates no
+new endpoint, schedules no analysis and treats notification delivery as distinct
+from complete configured diagnostic evidence. Legacy pull helpers remain separate
+and supply no completion through a missing-items empty fallback on this route.
+
+
+### Retained reports in editor requests
+
+`waitForDiagnosticsReport` captures one original open document, whole source,
+version and client analysis session. It retains the completed publisher response,
+including its actual dialect, revision, input epoch and report ID, separately
+from converted display diagnostics. The same complete per-resource `tclLsp`
+configuration fingerprint is used by retained diagnostic reports and document
+transforms. Unsupported settings cannot establish equality. A source, resource
+configuration or session change refuses the original request rather than
+recapturing a later context.
+
+Shared contextual model requests, current-report iteration and generic Tcl
+validation retain this report through their asynchronous work. Before consuming
+it after an await, `currentDiagnosticsReportIsStillPublished` queries the existing
+read-only publisher ledger using the original transport and exact original
+URI/version/source. Only the same completed dialect, revision, input epoch and
+report ID is accepted, with local source/session/settings checked again after
+the reply. A newer report does not replace the retained result. Pending, stale,
+suppressed, unavailable, malformed and timed-out replies refuse its use.
+
+The report's dialect selects analysis-specific prompt vocabulary. Display-only
+diff suppression continues to affect presentation independently; its empty
+collection is never used as completed analysis evidence. The array compatibility
+adapter preserves its existing retry behavior, while proposal diagnostics keep
+their separate hypothetical-source owner. A completed report and its rejoin
+supply no permission to edit; source actions still require their existing
+checked write or transform owner.

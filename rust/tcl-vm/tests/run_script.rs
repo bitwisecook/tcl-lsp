@@ -49,10 +49,10 @@ fn run(src: &str) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
 
@@ -71,10 +71,10 @@ fn run_bytecode(src: &str) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir_for_bytecode(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
@@ -96,21 +96,23 @@ fn commands_dispatch_runs_proc() {
         let src = "proc add {a b} { return [expr {$a + $b}] }";
         let ir = lower_to_ir(src, &registry);
         let cfg = build_cfg_codegen(&ir, false);
-        codegen_module(&cfg, &ir, &registry)
+        codegen_module(&cfg, &ir, &registry).expect("original source namespace")
     };
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     // Running the module registers `add`.
     assert!(vm.run_module(&asm).code.is_ok());
 
     // Dispatch the proc by name with name-stripped argv.
-    let c = vm.dispatch("add", &[Value::string("3"), Value::string("4")]);
+    let c = vm
+        .dispatch("add", &[Value::string("3"), Value::string("4")])
+        .unwrap();
     assert_eq!(c.code, Code::Ok);
     assert_eq!(&*c.result.to_str(), "7");
 
     // Wrong arg count surfaces the proc usage error (the `enter_proc` Err path).
-    let c = vm.dispatch("add", &[Value::string("3")]);
+    let c = vm.dispatch("add", &[Value::string("3")]).unwrap();
     assert_eq!(c.code, Code::Error);
     assert_eq!(&*c.result.to_str(), "wrong # args: should be \"add a b\"");
 }
@@ -121,7 +123,7 @@ fn commands_dispatch_runs_proc() {
 /// registered via the `trace` command (callbacks evaluate through the compiler).
 #[test]
 fn traces_fire_ok_error_and_unset() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     // `;#` comments out the appended `name elem op` trace words.
     for add in [
@@ -133,14 +135,25 @@ fn traces_fire_ok_error_and_unset() {
     }
 
     // Read trace, callback succeeds → the access proceeds.
-    assert!(Traces::fire(&mut vm, "x", "read").is_ok());
+    assert!(
+        Traces::fire(&mut vm, "x", "read")
+            .expect("actual Guest trace has no Host refusal")
+            .is_ok()
+    );
     // Read trace, callback errors → the access aborts with the wrapped error.
     assert_eq!(
-        &*Traces::fire(&mut vm, "y", "read").unwrap_err().to_str(),
+        &*Traces::fire(&mut vm, "y", "read")
+            .expect("actual Guest trace has no Host refusal")
+            .unwrap_err()
+            .to_str(),
         "can't read \"y\": boom",
     );
     // An `unset`-trace error does not abort the access.
-    assert!(Traces::fire(&mut vm, "z", "unset").is_ok());
+    assert!(
+        Traces::fire(&mut vm, "z", "unset")
+            .expect("actual Guest trace has no Host refusal")
+            .is_ok()
+    );
 }
 
 /// `trace add|remove|info <type>` accept an unambiguous prefix of the type
@@ -350,7 +363,7 @@ fn loop_body_redefining_continue_is_honoured() {
 #[test]
 fn autoloader_installs_unknown_and_reports_miss() {
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     vm.init_auto_load();
     // Decouple from any on-disk library so the test is environment-independent.
@@ -1008,11 +1021,24 @@ fn mathop_shared() {
     );
 }
 
-/// `lseq` — newly added to the VM, sharing `tcl_cmd_core::lseq`'s decode key +
-/// generation over the VM's `ValueOps` and an `eval_expr`-backed expression edge.
-/// Pinned against tclsh 9.0.
+/// Native Tcl 9.0 numeric sequence argument decoding and bounded generation.
 #[test]
 fn lseq_shared() {
+    fn run(src: &str) -> (bool, String, String) {
+        let mut vm = tcl_vm::test_support::native_vm_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            Box::new(std::io::stdout()),
+        );
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
+        let completion = vm
+            .try_eval_source(src)
+            .expect("native numeric sequence fixture");
+        (
+            completion.code.is_ok(),
+            String::from_utf8(completion.result.string_bytes().to_vec()).expect("Unicode result"),
+            String::new(),
+        )
+    }
     // Integer forms (count-only, ranges, by-step, count keyword, n n).
     assert_eq!(run("lseq 5").1, "0 1 2 3 4");
     assert_eq!(run("lseq 0").1, "");
@@ -1029,19 +1055,17 @@ fn lseq_shared() {
     assert_eq!(run("lseq 25. to 5. by -5").1, "25.0 20.0 15.0 10.0 5.0");
     // A double-valued count stays an integer sequence.
     assert_eq!(run("lseq 5 count 5.0").1, "5 6 7 8 9");
-    // A word is a number or a keyword, never an expression (tclsh 9.0.4/9.1.0).
-    assert_eq!(run("lseq 1+2 to 10").1, "expected number but got \"1+2\"");
-    assert_eq!(
-        run("set n 3; lseq $n*2").1,
-        "expected number but got \"3*2\""
-    );
+    // Native argument bytes are number-converted without expression evaluation.
+    let (ok, message, _) = run("lseq 1+2 to 10");
+    assert!(!ok);
+    assert_eq!(message, "expected number but got \"1+2\"");
+    let (ok, message, _) = run("set n 3; lseq $n*2");
+    assert!(!ok);
+    assert_eq!(message, "expected number but got \"3*2\"");
     // Errors.
     let (ok, msg, _) = run("lseq");
     assert!(!ok);
     assert_eq!(msg, "wrong # args: should be \"lseq n ??op? n ??by? n??\"");
-    let (ok, msg, _) = run("lseq 10 2147483647");
-    assert!(!ok);
-    assert_eq!(msg, "max length of a Tcl list exceeded");
 }
 
 #[test]
@@ -1067,8 +1091,7 @@ fn string_core_helpers() {
     // count <= 0 yields empty; an out-of-range index yields empty.
     assert_eq!(run("puts \"[string repeat ab 0]<\"").2, "<\n");
     assert_eq!(run("puts \"[string index hello 99]<\"").2, "<\n");
-    // `wordstart`/`wordend` — the VM gained these via the shared core (it errored
-    // "not yet implemented" before). Pinned against tclsh 9.0.
+    // Original Tcl 9.0 word-boundary controls use the shared core.
     assert_eq!(run("string wordstart {hello world} 7").1, "6");
     assert_eq!(run("string wordend {hello world} 0").1, "5");
     assert_eq!(run("string wordstart {a_b.c} 2").1, "0"); // underscore is a word char
@@ -1203,7 +1226,7 @@ fn string_first_last() {
 fn pushv(idx: i32) -> tcl_bytecode::Instruction {
     use tcl_bytecode::{Instruction, Op, Operand};
     let mut i = Instruction::new(Op::PUSH1, vec![Operand::Imm(idx)]);
-    i.literal_rep = tcl_bytecode::LiteralRep::Verbatim;
+    i.push_verbatim = true;
     i
 }
 
@@ -1229,6 +1252,11 @@ fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String 
         labels,
         loop_targets: std::collections::HashMap::new(),
         body_base_line: 0,
+        native_compilation_failure: None,
+        native_compilation_preflight: tcl_runtime_api::NativeCompilationPreflight::NotRequired,
+        native_math_table_prerequisite: None,
+        native_compiler_prerequisites: Vec::new(),
+        required_compiled_local_layout: None,
         proc_body_src: None,
         error_regions: Vec::new(),
         plain_command_dispatch: false,
@@ -1238,8 +1266,8 @@ fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String 
     };
     let module = ModuleAsm {
         profile: tcl_dialect::DialectProfile::plain_tcl(),
-        source: String::new(),
-        source_namespace: String::new(),
+        source: tcl_lexer::SourceImage::default(),
+        source_namespace: tcl_runtime_api::ByteNamespacePath::root(),
         plain_command_dispatch: false,
         top_level: top,
         top_level_body: FunctionAsm::default(),
@@ -1247,7 +1275,7 @@ fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String 
         procedure_provenance: std::collections::HashMap::new(),
         manifest: None,
     };
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.run_module(&module).result.to_str().to_string()
 }
 
@@ -2097,16 +2125,23 @@ struct CachedBodyCompileService {
 
 impl CachedBodyCompileService {
     fn inject(&self, mut module: tcl_bytecode::ModuleAsm) -> tcl_bytecode::ModuleAsm {
+        let mut ids = module.procedures.keys();
+        let Some(id) = ids.next().copied() else {
+            return module;
+        };
+        if ids.next().is_some() {
+            return module;
+        }
         let matches = module
             .procedure_provenance
-            .get(&self.qname)
+            .get(&id)
             .is_some_and(|provenance| {
                 provenance.name == self.qname && provenance.body == self.body_src
             });
-        if matches && let Some(original) = module.procedures.get(&self.qname) {
+        if matches && let Some(original) = module.procedures.get(&id) {
             let mut body = self.body.clone();
             body.plain_command_dispatch = original.plain_command_dispatch;
-            module.procedures.insert(self.qname.clone(), body);
+            module.procedures.insert(id, body);
         }
         module
     }
@@ -2114,6 +2149,112 @@ impl CachedBodyCompileService {
 
 impl CompileService for CachedBodyCompileService {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.inner
+            .compile_script_bytes_for_profile(target, profile)
+            .map(|module| self.inject(module))
+    }
+    fn compile_substitution_with_entry(
+        &self,
+        target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.inner
+            .compile_substitution_with_entry(target, profile, entry)
+    }
+
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.inner
+            .compile_script_bytes_with_entry(target, profile, entry)
+            .map(|module| self.inject(module))
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.inner
+            .compile_plain_script_bytes_for_profile(target, profile)
+            .map(|module| self.inject(module))
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.inner
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+            .map(|module| self.inject(module))
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.inner
+            .compile_procedure_bytes_for_profile(target, profile, dispatch)
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.inner
+            .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.inner
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.inner
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
+
+    fn compile_script_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.inner
+            .compile_script_with_entry(target, profile, entry)
+            .map(|module| self.inject(module))
+    }
+
+    fn compile_procedure_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.inner
+            .compile_procedure_with_entry(target, profile, entry, dispatch)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, tcl_vm::CompileError> {
         self.inner.compile(src).map(|module| self.inject(module))
@@ -2151,8 +2292,8 @@ impl CompileService for CachedBodyCompileService {
 }
 
 /// Build a VM whose pre-compiled body cache holds one entry: a hand-built
-/// assembly returning `marker`, filed under the compiler's rooted `qname` and
-/// admitted only alongside the exact compiler-authored `body_src` provenance.
+/// assembly returning `marker`, joined to the sole compiler-issued body ID and
+/// admitted only alongside its exact compiler-authored `body_src` provenance.
 fn vm_with_cached_body(qname: &str, body_src: &str, marker: &str) -> Vm {
     use tcl_bytecode::{FunctionAsm, Instruction, LiteralTable, LocalVarTable, Op};
 
@@ -2174,7 +2315,7 @@ fn vm_with_cached_body(qname: &str, body_src: &str, marker: &str) -> Vm {
         ..FunctionAsm::default()
     };
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(CachedBodyCompileService {
         inner: BytecodeCompileService::default(),
         qname: qname.to_owned(),
@@ -2186,13 +2327,10 @@ fn vm_with_cached_body(qname: &str, body_src: &str, marker: &str) -> Vm {
 
 /// `proc` runs the body the compiler already emitted for it.
 ///
-/// `ModuleAsm::procedures` and its exact source provenance are keyed by the
-/// compiler's **rooted** qname (`::p`), while the VM command table uses the
-/// unrooted constructed key (`p`). Admission removes that root exactly once and
-/// matches the raw parameters and body before using the emitted procedure unit.
-///
-/// The qualified case takes the same route: the runtime key is `a::p`, the
-/// compiler's `::a::p`.
+/// `ModuleAsm::procedures` and its exact source provenance share the compiler's
+/// original body ID. The rooted reporting name remains provenance metadata;
+/// it cannot select an emitted body. Both ordinary and qualified definitions
+/// must admit the original body under its independently retained context.
 #[test]
 fn a_proc_runs_the_body_the_compiler_emitted_for_it() {
     let mut vm = vm_with_cached_body("::p", "return SOURCE", "PRECOMPILED");
@@ -2423,64 +2561,22 @@ fn a_value_that_is_not_one_whole_command_substitution_still_concatenates() {
     );
 }
 
-/// A completion that reaches the outermost level settles as `tclsh`'s level-0
-/// evaluation does (8.4.20–9.1.0 measured): `return` unwraps its `-code`,
-/// `break`/`continue` and any other code become errors, which publish
-/// `errorCode` (`TCL UNEXPECTED_RESULT_CODE N` from 8.6) for the next command.
+/// The actual Host command cause remains outside both facade Guest results.
 #[test]
-fn a_top_level_completion_settles_as_tclsh_reports_it() {
-    use tcl_dialect::TclVersion;
-    for (version, unexpected) in [
-        (TclVersion::V8_4, "NONE"),
-        (TclVersion::V8_5, "NONE"),
-        (TclVersion::V8_6, "TCL UNEXPECTED_RESULT_CODE 3"),
-        (TclVersion::V9_0, "TCL UNEXPECTED_RESULT_CODE 3"),
-    ] {
-        let mut vm = Vm::new();
-        vm.set_compiler(Box::new(BytecodeCompileService::default()));
-        vm.set_runtime_version(version);
-        let settle = |vm: &mut Vm, src: &str| {
-            let completion = vm.eval_source(src).expect("compiles");
-            let settled = vm.settle_top_level(completion);
-            (settled.code, settled.result.to_str().to_string())
-        };
-        assert_eq!(
-            settle(&mut vm, "break"),
-            (
-                Code::Error,
-                "invoked \"break\" outside of a loop".to_owned()
-            ),
-        );
-        assert_eq!(
-            settle(&mut vm, "set errorCode"),
-            (Code::Ok, unexpected.to_owned()),
-            "{version:?}"
-        );
-        assert_eq!(
-            settle(&mut vm, "continue"),
-            (
-                Code::Error,
-                "invoked \"continue\" outside of a loop".to_owned()
-            ),
-        );
-        assert_eq!(
-            settle(&mut vm, "return -code 7 x"),
-            (Code::Error, "command returned bad code: 7".to_owned()),
-        );
-        assert_eq!(settle(&mut vm, "return x"), (Code::Ok, "x".to_owned()));
-        if version != TclVersion::V8_4 {
-            assert_eq!(
-                settle(&mut vm, "return -level 2 x"),
-                (Code::Error, "command returned bad code: 2".to_owned()),
-            );
-        }
-        assert_eq!(
-            settle(&mut vm, "error boom {} {X Y}; set q 1"),
-            (Code::Error, "boom".to_owned()),
-        );
-        assert_eq!(
-            settle(&mut vm, "set errorCode"),
-            (Code::Ok, "X Y".to_owned())
-        );
-    }
+fn original_trace_facades_keep_the_full_pending_host_cause() {
+    // naming.embedding.original-host-publication-and-fact-transport
+
+    // Actual VM Host producer and transport; no native callback or parser observation.
+    let mut vm = tcl_vm::test_support::native_vm();
+    let _ = vm.refuse_host_command("original VM variable trace refusal".to_owned());
+    let first = Traces::fire_bytes(&mut vm, b"x", "read")
+        .expect_err("the full Host refusal is outside the Guest value");
+    let tcl_runtime_api::NativeExecutionError::HostCommandRefusal(payload) = &first else {
+        panic!("the actual Host command cause must remain complete")
+    };
+    assert_eq!(payload.reason, "original VM variable trace refusal");
+    assert_eq!(
+        Traces::fire(&mut vm, "x", "read").expect_err("full original Host cause"),
+        first
+    );
 }

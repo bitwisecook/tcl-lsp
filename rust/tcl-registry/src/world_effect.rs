@@ -67,6 +67,10 @@ pub enum WorldStateDomain {
     OoDispatch,
     /// Interpreter visibility, safety, hidden-command, and limit policy.
     InterpreterPolicy,
+    /// The invocation result object, independently of command/variable policy.
+    InterpreterResult,
+    /// Pending return options and control completion, settled by frame boundaries.
+    CompletionState,
     /// Loaded packages and package-name/version resolution state.
     PackageState,
     /// Host services and capabilities exposed to an interpreter.
@@ -895,6 +899,32 @@ fn mode_from_side_effect(effect: SideEffect) -> Option<EffectAccessMode> {
 /// different branch.
 pub type WorldEffectResolver = for<'w> fn(InvocationArguments<'w>) -> EffectFootprint;
 
+/// A Registry-selected source purpose, independent of Native effect resolution.
+#[derive(Debug, Clone, Copy)]
+pub enum SourceWorldEffectResolver {
+    /// Ordinary conditional source effects, without continuation coverage.
+    Effects(WorldEffectResolver),
+    /// Audited effects whose writes are conditional result transitions only.
+    /// Existing observers and the original handler remain separate premises.
+    ResultTransitions {
+        /// Complete original primitive footprint before the result hand-off.
+        effects: WorldEffectResolver,
+        /// Exact source grammar and declaration-qualified result coverage.
+        coverage: for<'w> fn(
+            InvocationArguments<'w>,
+        )
+            -> Option<crate::source_operation::SourceResultTransitionCoverage>,
+    },
+}
+
+impl SourceWorldEffectResolver {
+    pub(crate) const fn effects(self) -> WorldEffectResolver {
+        match self {
+            Self::Effects(effects) | Self::ResultTransitions { effects, .. } => effects,
+        }
+    }
+}
+
 /// The conservative effect added when an argument-sensitive resolver receives
 /// a non-literal argument.
 ///
@@ -925,9 +955,38 @@ pub struct WorldEffectDescriptor {
     pub static_footprint: StaticEffectFootprint,
     /// Optional argument-dependent effect resolver.
     pub resolver: Option<WorldEffectResolver>,
+    /// Conditional source resolver, independent of Native handler admission.
+    /// Missing registration keeps the ordinary conservative descriptor.
+    pub source_resolver: Option<SourceWorldEffectResolver>,
     /// Conservative policy for non-literal arguments supplied to `resolver`.
     pub dynamic_fallback: WorldEffectDynamicFallback,
 }
+
+const CELL_READ_ACCESSES: &[StaticEffectAccess] = &[StaticEffectAccess::new(
+    WorldStateDomain::VariableStore,
+    EffectAccessMode::Read,
+    StaticInterpreterScope::Current,
+    StaticNamespaceScope::Current,
+    StaticSubjectScope::Wildcard,
+)];
+const CELL_WRITE_ACCESSES: &[StaticEffectAccess] = &[StaticEffectAccess::new(
+    WorldStateDomain::VariableStore,
+    EffectAccessMode::Write,
+    StaticInterpreterScope::Current,
+    StaticNamespaceScope::Current,
+    StaticSubjectScope::Wildcard,
+)];
+const CELL_UPDATE_ACCESSES: &[StaticEffectAccess] = &[StaticEffectAccess::new(
+    WorldStateDomain::VariableStore,
+    EffectAccessMode::ReadWrite,
+    StaticInterpreterScope::Current,
+    StaticNamespaceScope::Current,
+    StaticSubjectScope::Wildcard,
+)];
+const CELL_CALLBACK: CallbackEffect = CallbackEffect {
+    kinds: CallbackKinds::TRACE,
+    reentrancy: Reentrancy::CurrentInterpreter,
+};
 
 impl WorldEffectDescriptor {
     /// An explicitly effect-free, closed-world descriptor with no resolver.
@@ -939,7 +998,34 @@ impl WorldEffectDescriptor {
         composition: WorldEffectComposition::Extend,
         static_footprint: StaticEffectFootprint::EMPTY,
         resolver: None,
+        source_resolver: None,
         dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
+    };
+
+    /// A variable primitive whose only re-entry is an applicable variable trace.
+    /// Argument roles select its cells; the shared place owner selects observers.
+    pub const VARIABLE_READ: Self = Self {
+        static_footprint: StaticEffectFootprint {
+            accesses: CELL_READ_ACCESSES,
+            callback: CELL_CALLBACK,
+        },
+        ..Self::EMPTY
+    };
+    /// A variable store with an applicable write observer.
+    pub const VARIABLE_WRITE: Self = Self {
+        static_footprint: StaticEffectFootprint {
+            accesses: CELL_WRITE_ACCESSES,
+            callback: CELL_CALLBACK,
+        },
+        ..Self::EMPTY
+    };
+    /// An in-place cell update with applicable read and write observers.
+    pub const VARIABLE_READ_MODIFY_WRITE: Self = Self {
+        static_footprint: StaticEffectFootprint {
+            accesses: CELL_UPDATE_ACCESSES,
+            callback: CELL_CALLBACK,
+        },
+        ..Self::EMPTY
     };
 
     /// Resolve the descriptor for one structured post-command argument view.
@@ -1021,11 +1107,75 @@ impl ResolvedWorldEffects {
         self.command.is_some() || self.subcommand.is_some() || self.form.is_some()
     }
 
+    /// Whether writes declared beyond the variable-primitive role contract remain.
+    /// Standard variable read/write descriptors delegate their baseline cells to
+    /// argument roles. Extra static or resolver writes retain an opaque residual
+    /// before equal scopes are coalesced; this supplies no store or frame proof.
+    #[must_use]
+    pub fn has_uncovered_variable_role_writes(
+        self,
+        args: InvocationArguments<'_>,
+        has_selected_write_roles: bool,
+    ) -> bool {
+        let mut uncovered = false;
+        for descriptor in [self.command, self.subcommand, self.form]
+            .into_iter()
+            .flatten()
+        {
+            if descriptor.composition == WorldEffectComposition::Replace {
+                uncovered = false;
+            }
+            let footprint = descriptor.static_footprint;
+            let role_baseline = [
+                WorldEffectDescriptor::VARIABLE_READ,
+                WorldEffectDescriptor::VARIABLE_WRITE,
+                WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE,
+            ]
+            .iter()
+            .any(|baseline| {
+                footprint.accesses == baseline.static_footprint.accesses
+                    && footprint.callback == baseline.static_footprint.callback
+            });
+            uncovered |= (!role_baseline || !has_selected_write_roles)
+                && footprint.accesses.iter().any(|access| {
+                    access.domain == WorldStateDomain::VariableStore
+                        && access.mode != EffectAccessMode::Read
+                });
+            if descriptor.resolver.is_some() {
+                let resolver_only = WorldEffectDescriptor {
+                    static_footprint: StaticEffectFootprint::EMPTY,
+                    ..descriptor
+                };
+                uncovered |= resolver_only.resolve(args).accesses().iter().any(|access| {
+                    access.domain == WorldStateDomain::VariableStore
+                        && access.mode != EffectAccessMode::Read
+                });
+            }
+        }
+        uncovered
+    }
+
     /// Resolve this descriptor chain for one structured post-command argument
     /// view.
     #[must_use]
     pub fn resolve(self, args: InvocationArguments<'_>) -> EffectFootprint {
         self.resolve_with_transition_coverage(args, &TransitionEffectCoverages::default())
+    }
+
+    pub(crate) fn resolve_authored_source(self, args: InvocationArguments<'_>) -> EffectFootprint {
+        let source = |descriptor: WorldEffectDescriptor| WorldEffectDescriptor {
+            resolver: descriptor
+                .source_resolver
+                .map(SourceWorldEffectResolver::effects)
+                .or(descriptor.resolver),
+            ..descriptor
+        };
+        Self {
+            command: self.command.map(source),
+            subcommand: self.subcommand.map(source),
+            form: self.form.map(source),
+        }
+        .resolve(args)
     }
 
     /// Resolve the descriptor chain while applying registry-declared
@@ -1055,6 +1205,37 @@ impl ResolvedWorldEffects {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn variable_role_baselines_do_not_cover_additional_store_declarations() {
+        let arguments = InvocationArguments::literals(&["counter", "0"]);
+        let baseline = ResolvedWorldEffects {
+            command: Some(WorldEffectDescriptor::VARIABLE_WRITE),
+            ..ResolvedWorldEffects::default()
+        };
+        assert!(!baseline.has_uncovered_variable_role_writes(arguments, true));
+        assert!(baseline.has_uncovered_variable_role_writes(arguments, false));
+        let extra = WorldEffectDescriptor {
+            static_footprint: StaticEffectFootprint {
+                accesses: &[StaticEffectAccess::VARIABLE_STORE_WILDCARD],
+                callback: CallbackEffect::NONE,
+            },
+            ..WorldEffectDescriptor::EMPTY
+        };
+        let declared = ResolvedWorldEffects {
+            form: Some(extra),
+            ..baseline
+        };
+        assert!(declared.has_uncovered_variable_role_writes(arguments, true));
+        let replaced = ResolvedWorldEffects {
+            form: Some(WorldEffectDescriptor {
+                composition: WorldEffectComposition::Replace,
+                ..WorldEffectDescriptor::EMPTY
+            }),
+            ..declared
+        };
+        assert!(!replaced.has_uncovered_variable_role_writes(arguments, false));
+    }
 
     #[test]
     fn access_modes_coalesce_without_losing_a_write() {
@@ -1147,12 +1328,13 @@ mod tests {
             }],
             &coverage,
         );
-        assert!(legacy.accesses().is_empty());
+        assert_eq!(legacy.accesses().len(), 0);
 
         let declared = WorldEffectDescriptor {
             composition: WorldEffectComposition::Extend,
             static_footprint: DECLARED_VARIABLE_WRITE,
             resolver: None,
+            source_resolver: None,
             dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
         }
         .resolve_with_transition_coverage(InvocationArguments::literals(&[]), &coverage);

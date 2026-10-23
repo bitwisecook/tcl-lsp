@@ -42,7 +42,7 @@
 //! - memory-op types + `MemorySsaFunction` + detection helpers.
 //! - `compute_aliases` + `build_memory_ssa` driver.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{
     CallerFrameSelection, CommandRegistry, FrameLevel, StateTransition, StateTransitionKnowledge,
@@ -51,7 +51,10 @@ use tcl_registry::{
 
 use crate::cfg::BlockId;
 use crate::ir::Statement;
-use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
+use crate::registry_invocation::{
+    InvocationMetadataContext, RegistryInvocationResolution,
+    resolve_command_tokens_with_metadata_context,
+};
 use crate::ssa::{SsaFunction, Version};
 
 /// Classification of a memory location.
@@ -79,12 +82,15 @@ pub enum MemoryLocationKind {
 /// namespace (for [`MemoryLocationKind::NamespaceVar`]), caller-side
 /// variable name (for [`MemoryLocationKind::Upvar`]), or array index
 /// text (for [`MemoryLocationKind::ArrayElement`]).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MemoryLocation {
     /// Classification of the location.
     pub kind: MemoryLocationKind,
     /// Variable name.
     pub name: String,
+    /// Exact canonical storage identity when supplied by a proved cell.
+    /// Presentation names cannot reconstruct this key.
+    pub storage_key: Option<crate::var_resolve::VariableCellKey>,
     /// Location-specific context.
     pub qualifier: String,
 }
@@ -96,6 +102,7 @@ impl MemoryLocation {
         Self {
             kind,
             name: name.into(),
+            storage_key: None,
             qualifier: String::new(),
         }
     }
@@ -110,6 +117,7 @@ impl MemoryLocation {
         Self {
             kind,
             name: name.into(),
+            storage_key: None,
             qualifier: qualifier.into(),
         }
     }
@@ -144,8 +152,8 @@ impl MemoryLocation {
 /// `caller_x` and `local_x` form an alias set.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AliasSet {
-    /// Locations merged into this set. Ordered for stable output.
-    pub locations: BTreeSet<MemoryLocation>,
+    /// Exact locations merged into this set; use `ordered_locations` for presentation.
+    pub locations: HashSet<MemoryLocation>,
     /// Reason describing why the set was formed — e.g. `"global-cell"`,
     /// `"caller-frame-cell"`, `"namespace-cell"`, or a combination
     /// (comma-separated, sorted) when several detection paths merged into
@@ -156,11 +164,25 @@ pub struct AliasSet {
 impl AliasSet {
     /// Construct an alias set from an owned location set + reason.
     #[must_use]
-    pub fn new(locations: BTreeSet<MemoryLocation>, reason: impl Into<String>) -> Self {
+    pub fn new(locations: HashSet<MemoryLocation>, reason: impl Into<String>) -> Self {
         Self {
             locations,
             reason: reason.into(),
         }
+    }
+
+    /// Diagnostic presentation order, independent of canonical storage equality.
+    #[must_use]
+    pub fn ordered_locations(&self) -> Vec<&MemoryLocation> {
+        let mut locations: Vec<_> = self.locations.iter().collect();
+        locations.sort_by(|left, right| {
+            (left.kind, &left.name, &left.qualifier).cmp(&(
+                right.kind,
+                &right.name,
+                &right.qualifier,
+            ))
+        });
+        locations
     }
 
     /// True when `loc` is in this alias set.
@@ -178,7 +200,13 @@ impl AliasSet {
     /// True when `name` appears as any location's variable name.
     #[must_use]
     pub fn contains_name(&self, name: &str) -> bool {
-        self.locations.iter().any(|l| l.name == name)
+        self.locations.iter().any(|location| {
+            location.name == name
+                && location
+                    .storage_key
+                    .as_ref()
+                    .is_none_or(|key| key.authored_spelling().is_some())
+        })
     }
 }
 
@@ -294,6 +322,8 @@ impl MemoryOp {
 ///   requires every memory consumer to retain a wildcard clobber obligation.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MemorySsaFunction {
+    /// Reaching cell-content graph. Whole-function alias sets are only a may-exposure projection.
+    pub cell_state: Option<crate::state_ssa::StateSsa<crate::place::Place>>,
     /// Alias sets covering this function's aliased variables.
     pub alias_sets: Vec<AliasSet>,
     /// Memory operations in emission order.
@@ -312,6 +342,62 @@ pub struct MemorySsaFunction {
 }
 
 impl MemorySsaFunction {
+    /// Relocate physical cells while preserving memory definitions, edges and versions.
+    /// Legacy location qualifiers are regenerated from typed cells, never parsed as display text.
+    ///
+    /// # Errors
+    /// Returns an error if a retained state graph fails its structural validation.
+    pub fn relocate_variable_proofs(
+        &mut self,
+        relocation: &crate::var_resolve::VariableProofRelocation,
+    ) -> Result<(), crate::state_ssa::StateSsaError> {
+        let mut locations = HashMap::new();
+        if let Some(state) = &self.cell_state {
+            let operations = state
+                .operations()
+                .iter()
+                .map(|operation| {
+                    let old = memory_location_of_place(operation.location());
+                    let place = relocation.place(operation.location());
+                    locations.insert(old, memory_location_of_place(&place));
+                    let mut operation = operation.clone();
+                    match &mut operation {
+                        crate::state_ssa::StateOp::Use(value) => value.location = place,
+                        crate::state_ssa::StateOp::Def(value) => value.location = place,
+                        crate::state_ssa::StateOp::Phi(value) => value.location = place,
+                        crate::state_ssa::StateOp::Clobber(value) => value.location = place,
+                    }
+                    operation
+                })
+                .collect();
+            self.cell_state = Some(crate::state_ssa::StateSsa::new(operations)?);
+        }
+        let relocate = |location: &MemoryLocation| {
+            locations.get(location).cloned().unwrap_or_else(|| {
+                let mut location = location.clone();
+                if let Some(key) = &location.storage_key {
+                    let key = relocation.cell_key(key);
+                    location.name = key.compatibility_name();
+                    location.storage_key = Some(key);
+                } else {
+                    location.name = relocation.storage_key(&location.name).compatibility_name();
+                }
+                location
+            })
+        };
+        for alias in &mut self.alias_sets {
+            alias.locations = alias.locations.iter().map(&relocate).collect();
+        }
+        for operation in self
+            .memory_ops
+            .iter_mut()
+            .chain(self.memory_phis.values_mut().flatten())
+        {
+            operation.location = relocate(&operation.location);
+        }
+        Ok(())
+    }
+
     /// All variable names involved in aliasing.
     #[must_use]
     pub fn aliased_names(&self) -> BTreeSet<String> {
@@ -345,27 +431,77 @@ fn command_tokens(stmt: &Statement) -> Option<&crate::ir::CommandTokens> {
     }
 }
 
-fn registry_resolution(
+fn registry_resolution_with_metadata_context(
     stmt: &Statement,
     registry: &CommandRegistry,
-    context: Option<SemanticContext>,
+    context: Option<InvocationMetadataContext<'_>>,
 ) -> Option<RegistryInvocationResolution> {
+    let context = context?;
+    if !context.matches_registry(registry) {
+        return None;
+    }
     let tokens = command_tokens(stmt)?;
-    resolve_command_tokens(registry, context, tokens).ok()
+    resolve_command_tokens_with_metadata_context(registry, Some(context), tokens).ok()
 }
 
 fn literal_subject(subject: &tcl_registry::TransitionSubject) -> Option<&str> {
     subject.literal()
 }
 
+#[cfg(test)]
 fn transition_alias_pairs(
     stmt: &Statement,
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
 ) -> Vec<RegistryAliasPair> {
-    let Some(RegistryInvocationResolution::Resolved(facts)) =
-        registry_resolution(stmt, registry, context)
-    else {
+    transition_alias_pairs_with_metadata_context(
+        stmt,
+        registry,
+        context
+            .or_else(|| registry.profile().map(SemanticContext::for_profile))
+            .map(Into::into),
+    )
+}
+
+fn original_alias_frame(
+    word: &str,
+    statement: &Statement,
+    context: Option<InvocationMetadataContext<'_>>,
+) -> Option<FrameLevel> {
+    let dialect = command_tokens(statement)
+        .and_then(|tokens| tokens.source_binding.as_ref())
+        .and_then(|binding| binding.variable_context.invocation_dialect)
+        .or_else(|| {
+            context?
+                .context()
+                .environment
+                .point()
+                .map(tcl_registry::InvocationDialect::of_point)
+        })?;
+    FrameLevel::parse_for_dialect(word, dialect)
+}
+
+fn transition_alias_pairs_with_metadata_context(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+) -> Vec<RegistryAliasPair> {
+    // Logical source recipes add MAY exposure only. They cannot remove the
+    // separate wildcard/clobber residual or establish a completed physical link.
+    let facts = registry_resolution_with_metadata_context(stmt, registry, context)
+        .and_then(|resolution| match resolution {
+            RegistryInvocationResolution::Resolved(facts) => Some(facts),
+            RegistryInvocationResolution::Unresolved(_) => None,
+        })
+        .or_else(|| {
+            crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                registry,
+                context?,
+                command_tokens(stmt)?,
+            )
+            .map(|selected| selected.facts)
+        });
+    let Some(facts) = facts else {
         return Vec::new();
     };
     let StateTransitionKnowledge::Declared(transitions) = &facts.state_transitions else {
@@ -428,10 +564,20 @@ fn transition_alias_pairs(
                     frame,
                     CallerFrameSelection::Explicit(level)
                         if literal_subject(level)
-                            .and_then(|w| FrameLevel::parse_in(w, registry))
+                            .and_then(|word| {
+                                original_alias_frame(word, stmt, context)
+                            })
                             .is_some_and(FrameLevel::is_global_frame)
                 );
-                if is_global {
+                let is_current = matches!(frame, CallerFrameSelection::Explicit(level)
+                    if literal_subject(level).and_then(|word| original_alias_frame(word, stmt, context)).is_some_and(FrameLevel::is_current_frame));
+                if is_current {
+                    pairs.push(RegistryAliasPair {
+                        target: MemoryLocation::new(MemoryLocationKind::Local, variable),
+                        local: MemoryLocation::new(MemoryLocationKind::Local, local),
+                        reason: "current-frame-cell",
+                    });
+                } else if is_global {
                     pairs.push(RegistryAliasPair {
                         target: MemoryLocation::new(MemoryLocationKind::Global, variable),
                         local: MemoryLocation::new(MemoryLocationKind::Local, local),
@@ -454,17 +600,112 @@ fn transition_alias_pairs(
     pairs
 }
 
+fn has_projected_boundary_effects(
+    statement: &Statement,
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    argument_input: crate::place_bridge::ArgumentReadInput<'_>,
+) -> bool {
+    let Some(tokens) = statement.tokens() else {
+        return false;
+    };
+    match tokens.synthetic {
+        Some(crate::ir::SyntheticMarker::IterationBindings(_)) => true,
+        Some(crate::ir::SyntheticMarker::CapturedCatchOutputs) => {
+            let Some(context) = context else {
+                return false;
+            };
+            crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                registry,
+                Some(context),
+                tokens,
+            )
+            .is_some()
+        }
+        Some(crate::ir::SyntheticMarker::EvaluatedArguments) => {
+            let Some(substitutions) =
+                crate::place_bridge::argument_calls(tokens, registry, argument_input)
+            else {
+                return false;
+            };
+            substitutions.is_empty()
+                && tokens.word_exprs.iter().all(|word| {
+                    matches!(
+                        crate::registry_invocation::invocation_word(word),
+                        tcl_registry::InvocationWord::Literal(_)
+                    ) || word
+                        .sole_variable_substitution()
+                        .and_then(|(_, source)| tokens.variable_access_for_site(source))
+                        .is_some_and(|access| {
+                            let place = crate::var_resolve::resolve_substitution_access(
+                                &access.original_spelling,
+                                &access.variable_context,
+                                registry,
+                                tcl_registry::TraceOperation::Read,
+                            );
+                            !place.observed && place.kind != crate::place::PlaceKind::Unknown
+                        })
+                })
+                && !tokens.variable_accesses.iter().any(|access| {
+                    crate::var_resolve::resolve_substitution_access(
+                        &access.original_spelling,
+                        &access.variable_context,
+                        registry,
+                        tcl_registry::TraceOperation::Read,
+                    )
+                    .observed
+                })
+        }
+        _ => false,
+    }
+}
+
+#[cfg(test)]
 fn transition_requires_wildcard(
     stmt: &Statement,
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
 ) -> bool {
-    if !stmt.is_executable_invocation() {
+    transition_requires_wildcard_with_read_input(
+        stmt,
+        registry,
+        context
+            .or_else(|| registry.profile().map(SemanticContext::for_profile))
+            .map(Into::into),
+        crate::place_bridge::ArgumentReadInput::Standalone,
+    )
+}
+
+fn transition_requires_wildcard_with_metadata_context(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+) -> bool {
+    transition_requires_wildcard_with_read_input(
+        stmt,
+        registry,
+        context,
+        crate::place_bridge::ArgumentReadInput::Supplied(context),
+    )
+}
+
+fn transition_requires_wildcard_with_read_input(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    argument_input: crate::place_bridge::ArgumentReadInput<'_>,
+) -> bool {
+    if !stmt.is_executable_invocation()
+        || has_projected_boundary_effects(stmt, registry, context, argument_input)
+    {
         return false;
     }
-    match registry_resolution(stmt, registry, context) {
+    match registry_resolution_with_metadata_context(stmt, registry, context) {
         Some(RegistryInvocationResolution::Unresolved(_)) | None => {
-            matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. })
+            matches!(
+                stmt,
+                Statement::Call { .. } | Statement::Barrier { .. } | Statement::NativeCall { .. }
+            )
         }
         Some(RegistryInvocationResolution::Resolved(facts)) => match &facts.state_transitions {
             StateTransitionKnowledge::UnknownInvocation => true,
@@ -487,7 +728,22 @@ pub fn statement_has_wildcard_aliasing(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
 ) -> bool {
-    transition_requires_wildcard(stmt, registry, context)
+    transition_requires_wildcard_with_read_input(
+        stmt,
+        registry,
+        context
+            .or_else(|| registry.profile().map(SemanticContext::for_profile))
+            .map(Into::into),
+        crate::place_bridge::ArgumentReadInput::Standalone,
+    )
+}
+
+pub(crate) fn statement_has_wildcard_aliasing_with_metadata_context(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+) -> bool {
+    transition_requires_wildcard_with_metadata_context(stmt, registry, context)
 }
 
 /// The spec-declared trait set that classifies a call as a memory clobber.
@@ -507,23 +763,58 @@ pub fn is_clobber(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
 ) -> bool {
-    if !stmt.is_executable_invocation() {
+    is_clobber_with_read_input(
+        stmt,
+        registry,
+        context
+            .or_else(|| registry.profile().map(SemanticContext::for_profile))
+            .map(Into::into),
+        crate::place_bridge::ArgumentReadInput::Standalone,
+    )
+}
+
+pub(crate) fn is_clobber_with_metadata_context(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+) -> bool {
+    is_clobber_with_read_input(
+        stmt,
+        registry,
+        context,
+        crate::place_bridge::ArgumentReadInput::Supplied(context),
+    )
+}
+
+fn is_clobber_with_read_input(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    argument_input: crate::place_bridge::ArgumentReadInput<'_>,
+) -> bool {
+    if !stmt.is_executable_invocation()
+        || has_projected_boundary_effects(stmt, registry, context, argument_input)
+    {
         return false;
     }
     match stmt {
-        Statement::Barrier { .. } | Statement::UpFrame { .. } => true,
-        Statement::Call { .. } => match registry_resolution(stmt, registry, context) {
-            Some(RegistryInvocationResolution::Resolved(facts)) => {
-                let subcommand_is_determinate = matches!(
-                    &facts.subcommand,
-                    tcl_registry::OwnedSubcommandResolution::NotApplicable
-                        | tcl_registry::OwnedSubcommandResolution::Exact { .. }
-                        | tcl_registry::OwnedSubcommandResolution::UniquePrefix { .. }
-                );
-                !subcommand_is_determinate || facts.traits.intersects(CLOBBER_TRAITS)
+        Statement::Barrier { .. } | Statement::NativeCall { .. } | Statement::UpFrame { .. } => {
+            true
+        }
+        Statement::Call { .. } => {
+            match registry_resolution_with_metadata_context(stmt, registry, context) {
+                Some(RegistryInvocationResolution::Resolved(facts)) => {
+                    let subcommand_is_determinate = matches!(
+                        &facts.subcommand,
+                        tcl_registry::OwnedSubcommandResolution::NotApplicable
+                            | tcl_registry::OwnedSubcommandResolution::Exact { .. }
+                            | tcl_registry::OwnedSubcommandResolution::UniquePrefix { .. }
+                    );
+                    !subcommand_is_determinate || facts.traits.intersects(CLOBBER_TRAITS)
+                }
+                Some(RegistryInvocationResolution::Unresolved(_)) | None => true,
             }
-            Some(RegistryInvocationResolution::Unresolved(_)) | None => true,
-        },
+        }
         _ => false,
     }
 }
@@ -602,6 +893,20 @@ pub fn compute_aliases(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
 ) -> Vec<AliasSet> {
+    compute_aliases_with_metadata_context(
+        ssa,
+        registry,
+        context
+            .or_else(|| registry.profile().map(SemanticContext::for_profile))
+            .map(Into::into),
+    )
+}
+
+pub(crate) fn compute_aliases_with_metadata_context(
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+) -> Vec<AliasSet> {
     let mut uf = AliasUnionFind::default();
 
     // Walk blocks in deterministic id order so alias sets are
@@ -613,14 +918,14 @@ pub fn compute_aliases(
         for stmt_ssa in &block.statements {
             let stmt = &stmt_ssa.statement;
 
-            for pair in transition_alias_pairs(stmt, registry, context) {
+            for pair in transition_alias_pairs_with_metadata_context(stmt, registry, context) {
                 uf.union(&pair.target, &pair.local, pair.reason);
             }
         }
     }
 
     // Build connected components.
-    let mut components: HashMap<MemoryLocation, BTreeSet<MemoryLocation>> = HashMap::new();
+    let mut components: HashMap<MemoryLocation, HashSet<MemoryLocation>> = HashMap::new();
     let all_locs: Vec<MemoryLocation> = uf.parent.keys().cloned().collect();
     for loc in all_locs {
         let root = uf.find(&loc);
@@ -655,10 +960,34 @@ pub fn has_wildcard_aliasing(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
 ) -> bool {
-    ssa.blocks
-        .values()
-        .flat_map(|block| &block.statements)
-        .any(|statement| statement_has_wildcard_aliasing(&statement.statement, registry, context))
+    has_wildcard_aliasing_with_metadata_context(
+        ssa,
+        registry,
+        context
+            .or_else(|| registry.profile().map(SemanticContext::for_profile))
+            .map(Into::into),
+    )
+}
+
+pub(crate) fn has_wildcard_aliasing_with_metadata_context(
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+) -> bool {
+    ssa.point_contexts
+        .as_ref()
+        .is_some_and(|points| points.has_unknown_source_arguments())
+        || ssa
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .any(|statement| {
+                statement_has_wildcard_aliasing_with_metadata_context(
+                    &statement.statement,
+                    registry,
+                    context,
+                )
+            })
 }
 
 /// Build memory-SSA annotations for an SSA function.
@@ -676,8 +1005,22 @@ pub fn build_memory_ssa(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
 ) -> MemorySsaFunction {
-    let alias_sets = compute_aliases(ssa, registry, context);
-    let has_wildcard_aliasing = has_wildcard_aliasing(ssa, registry, context);
+    build_memory_ssa_with_metadata_context(
+        ssa,
+        registry,
+        context
+            .or_else(|| registry.profile().map(SemanticContext::for_profile))
+            .map(Into::into),
+    )
+}
+
+pub(crate) fn build_memory_ssa_with_metadata_context(
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+) -> MemorySsaFunction {
+    let alias_sets = compute_aliases_with_metadata_context(ssa, registry, context);
+    let has_wildcard_aliasing = has_wildcard_aliasing_with_metadata_context(ssa, registry, context);
     let aliased_names: BTreeSet<String> = alias_sets.iter().flat_map(AliasSet::names).collect();
 
     let mut memory_ops: Vec<MemoryOp> = Vec::new();
@@ -721,8 +1064,12 @@ pub fn build_memory_ssa(
             let stmt = &stmt_ssa.statement;
             let idx_i32 = i32::try_from(idx).unwrap_or(i32::MAX);
 
-            if is_clobber(stmt, registry, context)
-                || transition_requires_wildcard(stmt, registry, context)
+            if ssa
+                .point_contexts
+                .as_ref()
+                .is_some_and(|points| points.source_arguments_unknown_at(bid, idx, registry))
+                || is_clobber_with_metadata_context(stmt, registry, context)
+                || transition_requires_wildcard_with_metadata_context(stmt, registry, context)
             {
                 version_counter += 1;
                 memory_ops.push(MemoryOp::new_clobber(version_counter, bn, idx_i32));
@@ -788,6 +1135,7 @@ pub fn build_memory_ssa(
         .count();
 
     MemorySsaFunction {
+        cell_state: None,
         alias_sets,
         memory_ops,
         memory_phis,
@@ -798,9 +1146,257 @@ pub fn build_memory_ssa(
     }
 }
 
+/// Build memory facts from the executable CFG and shared bound-access owner.
+/// Legacy alias sets remain conservative exposure summaries; reaching versions
+/// are projections of cell-state SSA and do not use whole-function unions.
+#[must_use]
+pub fn build_memory_ssa_with_cfg(
+    cfg: &crate::cfg::Function,
+    ssa: &SsaFunction,
+    points: &crate::variable_bindings::PointResolveContexts,
+    registry: &CommandRegistry,
+    context: Option<SemanticContext>,
+) -> MemorySsaFunction {
+    build_memory_ssa_with_cfg_with_metadata_context(
+        cfg,
+        ssa,
+        points,
+        registry,
+        context
+            .or_else(|| registry.profile().map(SemanticContext::for_profile))
+            .map(Into::into),
+    )
+}
+
+pub(crate) fn build_memory_ssa_with_cfg_with_metadata_context(
+    cfg: &crate::cfg::Function,
+    ssa: &SsaFunction,
+    points: &crate::variable_bindings::PointResolveContexts,
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+) -> MemorySsaFunction {
+    let mut memory = build_memory_ssa_with_metadata_context(ssa, registry, context);
+    let Ok(cells) = crate::cell_state_ssa::build_cell_state_ssa(cfg, points, registry) else {
+        memory.has_wildcard_aliasing = true;
+        return memory;
+    };
+    memory.memory_ops.clear();
+    memory.memory_phis.clear();
+    for operation in cells.operations() {
+        use crate::state_ssa::{CfgStatePosition, StateOp, StateSite};
+        let (block, index) = match operation.site() {
+            StateSite::Cfg(site) => (
+                site.block,
+                match site.position {
+                    CfgStatePosition::Statement { index, .. } => {
+                        i32::try_from(index).unwrap_or(i32::MAX)
+                    }
+                    CfgStatePosition::Phi { .. } => -1,
+                    CfgStatePosition::Terminator { .. } => -2,
+                },
+            ),
+            StateSite::Edge(site) => (site.predecessor, -2),
+            StateSite::Node { .. } => continue,
+        };
+        let location = memory_location_of_place(operation.location());
+        let block_name = cfg.block_name(block).to_owned();
+        let projected = match operation {
+            StateOp::Use(operation) => MemoryOp::new_use(
+                location,
+                operation.reaching_version.raw(),
+                block_name,
+                index,
+            ),
+            StateOp::Def(operation) => {
+                MemoryOp::new_def(location, operation.version.raw(), block_name, index)
+            }
+            StateOp::Phi(operation) => {
+                MemoryOp::new_phi(location, operation.version.raw(), block_name)
+            }
+            StateOp::Clobber(operation) => {
+                let mut projected =
+                    MemoryOp::new_clobber(operation.version.raw(), block_name, index);
+                projected.location = location;
+                projected
+            }
+        };
+        if projected.kind == MemoryOpKind::Phi {
+            memory
+                .memory_phis
+                .entry(projected.block.clone())
+                .or_default()
+                .push(projected.clone());
+        }
+        memory.memory_ops.push(projected);
+    }
+    memory.count_defs = memory
+        .memory_ops
+        .iter()
+        .filter(|operation| operation.kind == MemoryOpKind::Def)
+        .count();
+    memory.count_uses = memory
+        .memory_ops
+        .iter()
+        .filter(|operation| operation.kind == MemoryOpKind::Use)
+        .count();
+    memory.count_clobbers = memory
+        .memory_ops
+        .iter()
+        .filter(|operation| operation.kind == MemoryOpKind::Clobber)
+        .count();
+    memory.cell_state = Some(cells);
+    memory
+}
+
+fn memory_location_of_place(place: &crate::place::Place) -> MemoryLocation {
+    use crate::place::PlaceKind;
+    let kind = match place.kind {
+        PlaceKind::Unknown => MemoryLocationKind::Unknown,
+        PlaceKind::UpvarAlias => MemoryLocationKind::Upvar,
+        PlaceKind::InstanceVar => MemoryLocationKind::InstanceVar,
+        PlaceKind::ArrayElem | PlaceKind::ArrayWhole => MemoryLocationKind::ArrayElement,
+        PlaceKind::Scalar | PlaceKind::DictPath if place.ns == crate::place::LOCAL_NS => {
+            MemoryLocationKind::Local
+        }
+        PlaceKind::Scalar | PlaceKind::DictPath if place.ns == "::" => MemoryLocationKind::Global,
+        PlaceKind::Scalar | PlaceKind::DictPath => MemoryLocationKind::NamespaceVar,
+    };
+    let qualifier = if let Some(cell) = &place.cell {
+        format!(
+            "{:?}:{:?}:{:?}",
+            cell.owner,
+            cell.generation,
+            place.index.as_ref().map(|index| &index.value)
+        )
+    } else {
+        place.ns.clone()
+    };
+    let key = crate::var_resolve::cell_key(place);
+    let mut location = MemoryLocation::with_qualifier(kind, key.compatibility_name(), qualifier);
+    location.storage_key = crate::var_resolve::canonical_place_key(place);
+    location
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opaque_native_call_retains_unknown_accesses_without_invented_named_definitions() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let native = crate::ir::native_call_for_test(b"opaque \xff");
+        assert!(native.has_opaque_native_accesses());
+        assert!(is_clobber(&native, registry, Some(test_context())));
+        assert!(statement_has_wildcard_aliasing(
+            &native,
+            registry,
+            Some(test_context())
+        ));
+        assert!(crate::ssa::defs_of_with_registry(&native, Some(registry)).is_empty());
+        let mut scanner =
+            crate::var_refs::VarReferenceScanner::new(crate::var_refs::VarScanOptions::default());
+        assert!(crate::ssa::uses_of(&native, &mut scanner, registry).is_empty());
+        assert!(native.source_edit_span().is_none());
+        assert!(crate::gvn::statement_writes_state(
+            registry,
+            &native,
+            registry.profile()
+        ));
+
+        let mut context = crate::var_resolve::ResolveContext::for_function("::f");
+        assert_eq!(
+            crate::place_bridge::read_places(&native, &context, registry),
+            [crate::place::unknown_top()]
+        );
+        assert_eq!(
+            crate::place_bridge::statement_mutation_places(&native, &context, registry),
+            [crate::place::unknown_top()]
+        );
+        assert!(!context.dynamic_bindings);
+        crate::variable_bindings::transfer_statement(&mut context, &native, registry);
+        assert!(context.dynamic_bindings);
+        let ssa = make_ssa_with_entry_stmts(vec![native.clone()]);
+        let memory = build_memory_ssa(&ssa, registry, Some(test_context()));
+        assert!(memory.has_wildcard_aliasing);
+        assert_eq!(memory.count_clobbers, 1);
+        assert_eq!(memory.count_defs, 0);
+        let script = crate::ir::Script {
+            statements: vec![native],
+            ..crate::ir::Script::default()
+        };
+        assert!(matches!(
+            crate::executable_ir::build_linear_executable_ir(
+                registry,
+                Some(test_context()),
+                crate::executable_ir::ExecutableFunctionId::new(0),
+                &script,
+            ),
+            Err(
+                crate::executable_ir::SourceCompatibilityDecline::MissingCommandTokens {
+                    statement_index: 0
+                }
+            )
+        ));
+    }
+
+    #[test]
+    fn actual_memory_metadata_keeps_availability_foreign_and_missing_owner_refusal() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = current.commands();
+        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "dict create key value",
+            registry,
+            false,
+            "tcl8.6",
+        );
+        let statement = cu
+            .ir_module
+            .top_level
+            .statements
+            .iter()
+            .find(|statement| {
+                statement.tokens().is_some_and(|tokens| {
+                    tokens.synthetic.is_none()
+                        && tokens.argv_texts.first().is_some_and(|head| head == "dict")
+                })
+            })
+            .unwrap();
+        assert!(!is_clobber_with_metadata_context(
+            statement,
+            registry,
+            Some(current.into())
+        ));
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(registry));
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        for context in [Some((&older).into()), Some(foreign.into()), None] {
+            assert!(is_clobber_with_metadata_context(
+                statement, registry, context
+            ));
+            assert!(statement_has_wildcard_aliasing_with_metadata_context(
+                statement, registry, context
+            ));
+        }
+        let ssa = make_ssa_with_entry_stmts(vec![statement.clone()]);
+        assert!(
+            !build_memory_ssa_with_metadata_context(&ssa, registry, Some(current.into()))
+                .has_wildcard_aliasing
+        );
+        assert!(build_memory_ssa_with_metadata_context(&ssa, registry, None).has_wildcard_aliasing);
+        let mut missing = cu;
+        missing.ir_module.source_metadata_input = None;
+        let annotated = missing.with_memory_ssa(registry, Some(test_context()));
+        assert!(
+            annotated
+                .top_level
+                .memory_ssa
+                .as_ref()
+                .unwrap()
+                .has_wildcard_aliasing
+        );
+    }
 
     fn test_context() -> SemanticContext {
         SemanticContext::for_environment("tcl8.6")
@@ -826,6 +1422,12 @@ mod tests {
             all_tokens: vec![span; args.len().saturating_add(1)],
             expand_word: None,
             synthetic: None,
+            evaluated_body: None,
+            source_binding: None,
+            nested_bindings: Vec::new(),
+            variable_accesses: Vec::new(),
+            hosted_taint_context: None,
+            source_bpf_command: None,
         }
     }
 
@@ -857,7 +1459,7 @@ mod tests {
 
     #[test]
     fn alias_set_may_alias_and_names() {
-        let mut locs = BTreeSet::new();
+        let mut locs = HashSet::new();
         locs.insert(MemoryLocation::new(MemoryLocationKind::Local, "a"));
         locs.insert(MemoryLocation::new(MemoryLocationKind::Local, "b"));
         let set = AliasSet::new(locs, "upvar");
@@ -885,6 +1487,44 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             foreach_groups: None,
+        }
+    }
+
+    #[test]
+    fn argument_boundary_omits_outer_dispatch_but_retains_nested_and_missing_read_effects() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        for (source, clobbers) in [
+            ("unknown-wrapper {[opaque]}", false),
+            ("unknown-wrapper [opaque]", true),
+            ("unknown-wrapper $x", true),
+        ] {
+            let segment =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .pop()
+                    .unwrap();
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                config,
+                &segment,
+            );
+            tokens.synthetic = Some(crate::ir::SyntheticMarker::EvaluatedArguments);
+            let mut statement = call(segment.name(), &[]);
+            if let Statement::Call {
+                tokens: retained,
+                args,
+                ..
+            } = &mut statement
+            {
+                *retained = Some(tokens);
+                *args = segment.args().to_vec();
+            }
+            assert_eq!(is_clobber(&statement, registry, None), clobbers, "{source}");
+            assert_eq!(
+                transition_requires_wildcard(&statement, registry, None),
+                clobbers,
+                "{source}"
+            );
         }
     }
 
@@ -979,7 +1619,10 @@ mod tests {
             spelling: "$name".to_owned(),
             source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 0)),
         };
-        assert!(transition_alias_pairs(&dynamic, &registry, Some(test_context())).is_empty());
+        assert_eq!(
+            transition_alias_pairs(&dynamic, &registry, Some(test_context())),
+            [] as [crate::memory_ssa::RegistryAliasPair; 0]
+        );
         assert!(transition_requires_wildcard(
             &dynamic,
             &registry,
@@ -1001,7 +1644,10 @@ mod tests {
                 source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 0)),
             }),
         };
-        assert!(transition_alias_pairs(&expanded, &registry, Some(test_context())).is_empty());
+        assert_eq!(
+            transition_alias_pairs(&expanded, &registry, Some(test_context())),
+            [] as [crate::memory_ssa::RegistryAliasPair; 0]
+        );
         assert!(transition_requires_wildcard(
             &expanded,
             &registry,
@@ -1056,7 +1702,16 @@ mod tests {
             &reg,
             Some(test_context())
         ));
+        let native_registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let native = crate::lowering::lower_to_ir("namespace current", native_registry);
         assert!(!is_clobber(
+            &native.top_level.statements[0],
+            native_registry,
+            Some(test_context())
+        ));
+        // The ensemble worker is an independent dependency, absent from a
+        // manually constructed public-head-only invocation.
+        assert!(is_clobber(
             &call("namespace", &["current"]),
             &reg,
             Some(test_context())
@@ -1092,6 +1747,7 @@ mod tests {
                 uses: HashMap::new(),
                 defs: HashMap::new(),
                 may_defs: std::collections::HashSet::new(),
+                destruction_defs: std::collections::HashSet::new(),
                 quoted_uses: std::collections::HashSet::new(),
                 name_only_uses: std::collections::HashSet::new(),
             });
@@ -1176,13 +1832,14 @@ mod tests {
     #[test]
     fn compute_aliases_empty_when_no_aliasing_commands() {
         let ssa = make_ssa_with_entry_stmts(vec![call("set", &["x", "1"])]);
-        assert!(
+        assert_eq!(
             compute_aliases(
                 &ssa,
                 &CommandRegistry::build_default(),
                 Some(test_context())
             )
-            .is_empty()
+            .len(),
+            0
         );
         let memory = build_memory_ssa(
             &ssa,
@@ -1201,8 +1858,8 @@ mod tests {
             &CommandRegistry::build_default(),
             Some(test_context()),
         );
-        assert!(m.alias_sets.is_empty());
-        assert!(m.memory_ops.is_empty());
+        assert_eq!(m.alias_sets, [] as [crate::memory_ssa::AliasSet; 0]);
+        assert_eq!(m.memory_ops, [] as [crate::memory_ssa::MemoryOp; 0]);
         assert_eq!(m.count_defs, 0);
         assert_eq!(m.count_uses, 0);
         assert_eq!(m.count_clobbers, 0);
@@ -1260,6 +1917,7 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         });
@@ -1270,6 +1928,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         });
@@ -1280,6 +1939,7 @@ mod tests {
             uses,
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         });
@@ -1337,6 +1997,7 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         });
@@ -1347,6 +2008,7 @@ mod tests {
             uses: HashMap::new(),
             defs: defs1,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         });
@@ -1359,6 +2021,7 @@ mod tests {
             uses,
             defs: defs2,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         });
@@ -1398,17 +2061,108 @@ mod tests {
     }
 
     #[test]
+    fn canonical_memory_keys_preserve_native_incarnation_and_member_lifetime() {
+        use crate::command_binding::SourceNamespaceKey;
+        use crate::place::{CellGeneration, CellOwner};
+        use tcl_runtime_api::native_compilation::{
+            NativeInterpreterIdentity, NativeNamespaceContext,
+        };
+        let interpreter = NativeInterpreterIdentity {
+            owner: NativeInterpreterIdentity::fresh_owner(),
+            interpreter: 0,
+        };
+        let mut first = crate::place::scalar("x", "::same", false);
+        first.cell = Some(crate::place::CellIdentity {
+            owner: CellOwner::NamespaceIdentity(Box::new(SourceNamespaceKey::Native(
+                NativeNamespaceContext {
+                    interpreter,
+                    token: 1,
+                    path: tcl_core_types::ByteNamespacePath::from_segments(["same"]),
+                },
+            ))),
+            name: "x".into(),
+            generation: CellGeneration::Incoming,
+            interpreter: None,
+            storage_domain: None,
+            execution: None,
+        });
+        let mut recreated = first.clone();
+        let CellOwner::NamespaceIdentity(namespace) = &mut recreated.cell.as_mut().unwrap().owner
+        else {
+            unreachable!();
+        };
+        let SourceNamespaceKey::Native(context) = namespace.as_mut() else {
+            unreachable!();
+        };
+        context.token = 2;
+        let mut later_lifetime = first.clone();
+        later_lifetime.cell.as_mut().unwrap().generation = CellGeneration::After(9);
+        let locations: HashSet<_> = [&first, &recreated, &later_lifetime]
+            .into_iter()
+            .map(memory_location_of_place)
+            .collect();
+        assert_eq!(locations.len(), 3);
+        assert_ne!(
+            memory_location_of_place(&first).storage_key,
+            memory_location_of_place(&recreated).storage_key
+        );
+        assert_ne!(
+            memory_location_of_place(&first).storage_key,
+            memory_location_of_place(&later_lifetime).storage_key
+        );
+        let name = memory_location_of_place(&first).name;
+        let aliases = AliasSet::new(locations, "native");
+        assert!(
+            !aliases.contains_name(&name),
+            "presentation cannot query native alias facts"
+        );
+    }
+
+    #[test]
     fn memory_location_ordering_stable() {
-        // BTreeSet ordering should be deterministic so AliasSet's
-        // rendered output is reproducible across runs.
-        let mut set = BTreeSet::new();
+        // Presentation remains ordered independently of the exact key inventory.
+        let mut set = HashSet::new();
         set.insert(MemoryLocation::new(MemoryLocationKind::Local, "z"));
         set.insert(MemoryLocation::new(MemoryLocationKind::Local, "a"));
         set.insert(MemoryLocation::new(MemoryLocationKind::Global, "m"));
-        let names: Vec<_> = set.iter().map(|l| l.name.clone()).collect();
+        let aliases = AliasSet::new(set, "presentation");
+        let names: Vec<_> = aliases
+            .ordered_locations()
+            .iter()
+            .map(|l| l.name.clone())
+            .collect();
         assert_eq!(
             names,
             vec!["a".to_string(), "z".to_string(), "m".to_string()]
         );
+    }
+}
+
+#[cfg(test)]
+mod original_byte_location_tests {
+    use super::*;
+    use crate::place::{CellGeneration, CellIdentity, CellOwner, Index};
+
+    #[test]
+    fn identical_display_does_not_merge_opaque_root_or_index_storage() {
+        let place = |name: &[u8], index: &[u8]| {
+            let mut place = crate::place::scalar("display", crate::place::LOCAL_NS, false);
+            place.cell = Some(CellIdentity {
+                owner: CellOwner::Activation("same".to_owned()),
+                name: name.into(),
+                generation: CellGeneration::Incoming,
+                interpreter: None,
+                storage_domain: None,
+                execution: None,
+            });
+            place.index = Some(Index::literal(tcl_core_types::NameBytes::from(index)));
+            place
+        };
+        let first = memory_location_of_place(&place(b"\xed\xa0\x80", b"\0"));
+        let other_root = memory_location_of_place(&place(b"\xed\xa0\x81", b"\0"));
+        let other_index = memory_location_of_place(&place(b"\xed\xa0\x80", b"\xc0\x80"));
+        assert!(first.storage_key.is_some());
+        assert_ne!(first.storage_key, other_root.storage_key);
+        assert_ne!(first.storage_key, other_index.storage_key);
     }
 }

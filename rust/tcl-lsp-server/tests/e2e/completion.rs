@@ -781,7 +781,7 @@ fn fuzzy_method_fallback_does_not_hijack_prefix_match() {
 #[test]
 fn iapps_completion_gates_the_85_core_end_to_end() {
     // iApps ride the `f5-tcl` trunk — a fork of Tcl at 8.4.6 (measured,
-    // bigip-irule-parser-measurements.md §4a: `dict` fails in
+    // embedded-tcl-contract.md §4a: `dict` fails in
     // `IAppImplementation`) — so 8.5 core must NOT complete, while the
     // 8.4 core does.
     let mut lsp = Lsp::tcl();

@@ -269,7 +269,10 @@ only form the `tcl` CLI reads. See
 
 iRulesLX only. They tell the server which directory holds a plugin's
 sources, so `ILX::call`/`ILX::notify` can navigate to the
-`ILXServer.addMethod` that implements the method.
+`ILXServer.addMethod` source registration. Navigation is a readonly source
+candidate, not proof of an evaluated RPC handle. A variable handle needs its
+document analysis's original constructor/setter/read association; an earlier
+opaque call withdraws that association before later reads.
 
 Every key is a **plugin name** — the `PLUGIN` word of
 `ILX::init PLUGIN EXTENSION` — so there is no fixed key list:

@@ -1,11 +1,12 @@
 //! Compile-time coverage witness for durable compiler artefacts.
 //!
-//! The no-`..` destructures intentionally fail compilation when a durable
-//! field is added to `CompilationUnit` or `FunctionUnit` before its Explorer
-//! mapping is reviewed. The witness is not a second serialiser: it only pins
-//! the inventory boundary and the owners that must be accounted for.
+//! The compiler owns the exhaustive no-`..` field witnesses, including private
+//! retained inputs. Explorer reviews every published inventory name as a view
+//! or an explicit exclusion. The inventory exposes names, not mutable inputs.
 
-use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
+pub use tcl_compiler::durable_inventory::{
+    COMPILATION_UNIT_FIELDS, FUNCTION_UNIT_FIELDS, assert_durable_field_inventory,
+};
 
 /// A reviewed durable artefact and its Explorer destination.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,6 +21,53 @@ pub struct ArtifactCoverage {
 
 /// Field-to-view map reviewed with the compiler pipeline inventory.
 pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
+    ArtifactCoverage {
+        artifact: "CompilationUnit::optimiser_source_owner",
+        view: None,
+        exclusion: Some(
+            "private exact source-build and prepared-pass issuer; consumed by current optimiser collection and edit guards, never a serialisable analysis or editable permission",
+        ),
+    },
+    ArtifactCoverage {
+        artifact: "FunctionUnit::original_lattice_worker",
+        view: None,
+        exclusion: Some(
+            "private original lattice request/result correspondence; public function analyses keep their existing views, and this issuer cannot be serialised or reconstructed from them",
+        ),
+    },
+    ArtifactCoverage {
+        artifact: "FunctionUnit::original_lattice_callback_admission",
+        view: None,
+        exclusion: Some(
+            "private source-loop admission disposition for actual cached worker results; not an execution, completeness, runtime entry or user-editable analysis fact",
+        ),
+    },
+    ArtifactCoverage {
+        artifact: "CompilationUnit::source_class_facts",
+        view: None,
+        exclusion: Some(
+            "retained descriptive class roster with exact source, configuration, input and Module ownership; consumed by checked class-name analysis, not a serialisable Native class identity",
+        ),
+    },
+    ArtifactCoverage {
+        artifact: "CompilationUnit::source_body_cfgs",
+        view: None,
+        exclusion: Some(
+            "private genuine prepared child CFG cache used by checked body joins; the owning function analyses have their existing views, while this cache is not a separate public analysis",
+        ),
+    },
+    ArtifactCoverage {
+        artifact: "FunctionUnit::body_id",
+        view: Some("semantic"),
+        exclusion: None,
+    },
+    ArtifactCoverage {
+        artifact: "FunctionUnit::original_hosted_procedure_body",
+        view: None,
+        exclusion: Some(
+            "retained original hosted procedure-body evidence for compiler analysis joins; not a serialisable runtime entry, Native body identity or user-editable permission",
+        ),
+    },
     ArtifactCoverage {
         artifact: "CompilationUnit::source",
         view: Some("sourceMap"),
@@ -52,6 +100,11 @@ pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
     },
     ArtifactCoverage {
         artifact: "CompilationUnit::body_units",
+        view: Some("semantic"),
+        exclusion: None,
+    },
+    ArtifactCoverage {
+        artifact: "CompilationUnit::carried_installed_lowerings",
         view: Some("semantic"),
         exclusion: None,
     },
@@ -94,6 +147,20 @@ pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
         artifact: "FunctionUnit::sccp",
         view: Some("sccp"),
         exclusion: None,
+    },
+    ArtifactCoverage {
+        artifact: "FunctionUnit::semantic_value_projection",
+        view: Some("semantic"),
+        exclusion: None,
+    },
+    ArtifactCoverage {
+        artifact: "FunctionUnit::retained_semantic_value_owner",
+        view: None,
+        exclusion: Some(
+            "the private construction identity that refuses foreign diagnostic-value caches; \
+             semantic_values and central invalidation validate it without serialising \
+             or replacing the retained provenance",
+        ),
     },
     ArtifactCoverage {
         artifact: "FunctionUnit::types",
@@ -146,6 +213,11 @@ pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
         exclusion: None,
     },
     ArtifactCoverage {
+        artifact: "FunctionUnit::irules_event_body",
+        view: Some("semantic"),
+        exclusion: None,
+    },
+    ArtifactCoverage {
         artifact: "FunctionUnit::semantic_facts",
         view: Some("semantic"),
         exclusion: None,
@@ -183,6 +255,24 @@ pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
         ),
     },
     ArtifactCoverage {
+        artifact: "FunctionUnit::source_metadata_input",
+        view: None,
+        exclusion: Some(
+            "the immutable source/profile/availability input retained by the compiler's \
+             metadata context; consumers use the read-only source_metadata_input accessor \
+             rather than serialising or replacing this execution-independent input",
+        ),
+    },
+    ArtifactCoverage {
+        artifact: "FunctionUnit::source_config",
+        view: None,
+        exclusion: Some(
+            "the exact lexer configuration retained for source-context validation; \
+             consumers use the read-only source_lexer_config accessor, and sourceMap \
+             reports positions produced under that configuration rather than an editable copy",
+        ),
+    },
+    ArtifactCoverage {
         artifact: "FunctionUnit::name",
         view: None,
         exclusion: Some(
@@ -192,96 +282,43 @@ pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
     },
 ];
 
-/// Declare a durable compiler type's field inventory once: a witness that
-/// destructures it exhaustively, and the names that destructure bound.
-///
-/// Binding a field to `_name` and leaving it out of [`ARTIFACT_COVERAGE`]
-/// satisfied the compile-time tripwire while the field stayed silently
-/// uncovered — the one escape hatch the design had, and it had been used
-/// three times (`CompilationUnit::command_mutations`,
-/// `CompilationUnit::declared_commands`, `FunctionUnit::name` — #2081).
-/// Naming each field once closes it: the destructure still fails to compile
-/// when a field is added, and the name it forces the author to write is the
-/// same one `every_durable_field_is_reviewed_in_the_coverage_table` then
-/// demands a row for.
-macro_rules! durable_inventory {
-    ($witness:ident, $fields:ident, $ty:ident, $($field:ident),+ $(,)?) => {
-        /// Every durable field of the type, as `Type::field`.
-        pub const $fields: &[&str] =
-            &[$(concat!(stringify!($ty), "::", stringify!($field))),+];
-
-        fn $witness(value: &$ty) {
-            let $ty { $($field: _),+ } = value;
-        }
-    };
-}
-
-durable_inventory!(
-    witness_function_unit,
-    FUNCTION_UNIT_FIELDS,
-    FunctionUnit,
-    name,
-    cfg,
-    ssa,
-    def_use,
-    sccp,
-    types,
-    return_type,
-    taints,
-    rendered_props,
-    memory_ssa,
-    dynamic_names,
-    complexity_guarded,
-    tier,
-    base_offset,
-    method_facts,
-    semantic_facts,
-);
-
-durable_inventory!(
-    witness_compilation_unit,
-    COMPILATION_UNIT_FIELDS,
-    CompilationUnit,
-    source,
-    ir_module,
-    cfg_module,
-    command_mutations,
-    top_level,
-    procedures,
-    methods,
-    body_units,
-    interproc,
-    connection_scope,
-    caller_scope,
-    declared_commands,
-    transfers,
-);
-
-/// Exhaustive field witness. Adding a field to either durable compiler type
-/// requires updating this mapping before the workspace compiles again.
-pub fn assert_durable_field_inventory(unit: &CompilationUnit) {
-    witness_function_unit(&unit.top_level);
-    witness_compilation_unit(unit);
-}
-
 #[cfg(test)]
 mod tests {
     use super::{ARTIFACT_COVERAGE, COMPILATION_UNIT_FIELDS, FUNCTION_UNIT_FIELDS};
     use crate::views::VIEW_META;
 
-    /// The inventory boundary is only a boundary if crossing it is noticed.
-    /// Every field the witness destructures must have a row — a view, or an
-    /// exclusion that says why (#2081).
+    /// Every compiler-owned durable field has exactly one reviewed destination
+    /// or explicit exclusion, including private retained source inputs.
     #[test]
     fn every_durable_field_is_reviewed_in_the_coverage_table() {
         for field in COMPILATION_UNIT_FIELDS.iter().chain(FUNCTION_UNIT_FIELDS) {
-            assert!(
+            assert_eq!(
                 ARTIFACT_COVERAGE
                     .iter()
-                    .any(|artifact| artifact.artifact == *field),
-                "{field} is destructured by the witness but has no ARTIFACT_COVERAGE row: \
-                 give it a view, or an exclusion saying why it has none"
+                    .filter(|artifact| artifact.artifact == *field)
+                    .count(),
+                1,
+                "{field} must have exactly one ARTIFACT_COVERAGE destination or exclusion"
             );
+        }
+    }
+
+    #[test]
+    fn reviewed_durable_fields_belong_to_the_compiler_inventory() {
+        for artifact in ARTIFACT_COVERAGE {
+            if matches!(
+                artifact.artifact.split_once("::"),
+                Some(("CompilationUnit" | "FunctionUnit", _))
+            ) {
+                assert!(
+                    COMPILATION_UNIT_FIELDS
+                        .iter()
+                        .chain(FUNCTION_UNIT_FIELDS)
+                        .any(|field| *field == artifact.artifact),
+                    "{} is not a current compiler-owned durable field",
+                    artifact.artifact
+                );
+            }
         }
     }
 
@@ -290,6 +327,13 @@ mod tests {
         assert!(!ARTIFACT_COVERAGE.is_empty());
         for artifact in ARTIFACT_COVERAGE {
             assert!(artifact.view.is_some() ^ artifact.exclusion.is_some());
+            if let Some(reason) = artifact.exclusion {
+                assert!(
+                    !reason.trim().is_empty(),
+                    "{} needs an exclusion purpose",
+                    artifact.artifact
+                );
+            }
             if let Some(view) = artifact.view {
                 assert!(
                     VIEW_META.iter().any(|descriptor| descriptor.id == view),

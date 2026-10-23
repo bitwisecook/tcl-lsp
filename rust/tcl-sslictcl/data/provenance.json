@@ -74,12 +74,12 @@
     {
       "path": "rust/tcl-sslictcl/data/generated/trust-material-exceptions.json",
       "kind": "generated",
-      "sha256": "115e7039f2c863cdeb9f9339affdf3bc13d4800cd14b15b1da8a4d0ca92f66f2"
+      "sha256": "cb9090540694f1da3c27578210c7a31f837fb27d0300a31f76a3fa082a432d13"
     },
     {
       "path": "rust/tcl-sslictcl/data/generated/trust-seed.json",
       "kind": "generated",
-      "sha256": "0d6e9e8527e3d1fd54243d92117b70853e24413c8c388d82d70ba2d8c3d67b4a"
+      "sha256": "8745a2df09817d436e55a99713848ed665821e07abb583976d4acc8187d08338"
     },
     {
       "path": "rust/tcl-sslictcl/data/raw/chrome_root_store/revision.txt",
@@ -89,7 +89,7 @@
     {
       "path": "rust/tcl-sslictcl/data/raw/chrome_root_store/root_store.certs",
       "kind": "raw",
-      "sha256": "3e97988887277a93e34ec48ac0a59e5b2a2a770dd859db0c19a9843255d2154a"
+      "sha256": "df44de7b9b9c4a78be6ae5b2c8868d9847b60cd7fc5095113f5ff861cacb6b97"
     },
     {
       "path": "rust/tcl-sslictcl/data/raw/chrome_root_store/root_store.textproto",
@@ -114,37 +114,37 @@
     {
       "path": "rust/tcl-sslictcl/data/raw/pem/apple.pem",
       "kind": "raw",
-      "sha256": "36bd756d1bce5a732a8bc3943c8026a9f42660ddeee7f980b52a5d9a3fdb149a"
+      "sha256": "66921adef0c5634998c048d6a8f53c8fa0362f2d002f0344e6daf1d1d0fe2284"
     },
     {
       "path": "rust/tcl-sslictcl/data/raw/pem/chrome.pem",
       "kind": "raw",
-      "sha256": "3e97988887277a93e34ec48ac0a59e5b2a2a770dd859db0c19a9843255d2154a"
+      "sha256": "66921adef0c5634998c048d6a8f53c8fa0362f2d002f0344e6daf1d1d0fe2284"
     },
     {
       "path": "rust/tcl-sslictcl/data/raw/pem/google_aosp.pem",
       "kind": "raw",
-      "sha256": "b9fdffe5bfa400cc4eeff1c0da4b6460c8db67965880b787e9c24a7d87b4ec60"
+      "sha256": "66921adef0c5634998c048d6a8f53c8fa0362f2d002f0344e6daf1d1d0fe2284"
     },
     {
       "path": "rust/tcl-sslictcl/data/raw/pem/microsoft_windows.pem",
       "kind": "raw",
-      "sha256": "f374d022898783c2356713ad05d76a0894413c91d16de38f8f80cb464f78d1ef"
+      "sha256": "66921adef0c5634998c048d6a8f53c8fa0362f2d002f0344e6daf1d1d0fe2284"
     },
     {
       "path": "rust/tcl-sslictcl/data/raw/pem/mozilla_nss.pem",
       "kind": "raw",
-      "sha256": "380b0df9d446015fe584f380005fb36fb89e0e9d086181fc48b30c96dc43493e"
+      "sha256": "66921adef0c5634998c048d6a8f53c8fa0362f2d002f0344e6daf1d1d0fe2284"
     },
     {
       "path": "rust/tcl-sslictcl/data/raw/pem/openjdk.pem",
       "kind": "raw",
-      "sha256": "f84740da38e3597c63b8f37a79615b05c3d2412e0122b1bda82e736efe0706af"
+      "sha256": "66921adef0c5634998c048d6a8f53c8fa0362f2d002f0344e6daf1d1d0fe2284"
     },
     {
       "path": "rust/tcl-sslictcl/data/raw/pem/oracle_java.pem",
       "kind": "raw",
-      "sha256": "4fa27189d15ebebaafe694357bfbdb5b8bd8c94c3b0f3b28449e61cfc079673a"
+      "sha256": "66921adef0c5634998c048d6a8f53c8fa0362f2d002f0344e6daf1d1d0fe2284"
     },
     {
       "path": "rust/tcl-sslictcl/data/raw/trust_stores/apple.yaml",
@@ -179,7 +179,8 @@
     {
       "path": "rust/tcl-sslictcl/data/raw/trust_stores_as_pem.tar.gz",
       "kind": "raw",
-      "sha256": "7026c6994e3b27ad21294261d6227b20209dd18d7267682b6498db5ecef4f7b2"
+      "sha256": "220feb3a62c0dd24366155e9911d841bd72754ab7c16950cd821271dad3dcf99"
     }
-  ]
+  ],
+  "certificate_material": "omitted; see data/README.md for local retrieval and verification"
 }

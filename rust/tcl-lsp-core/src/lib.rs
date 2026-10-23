@@ -26,8 +26,19 @@
 //! the `tcl-lsp-server` binary links against this crate
 //! directly over the LSP protocol.
 
+// Match the compiler crate for retained receipt auto-traits in test consumers.
+#![cfg_attr(test, recursion_limit = "256")]
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
+// Long linear fail-closed guard chains and scenario tests; splitting them is
+// tracked as follow-up debt (Luna-41 notes) rather than done mid-merge.
+#![allow(clippy::too_many_lines)]
+
+#[cfg(test)]
+const _: fn() = || {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<tcl_compiler::analyser::AnalysisResult>();
+};
 
 /// Cap on [`tcl_compiler::analyser::Scope`]-tree walking depth shared by
 /// every LSP feature provider that recurses over `scope.children`
@@ -55,12 +66,14 @@ pub mod declaration_outline;
 pub mod definition;
 pub mod diagnostic_policy;
 pub mod diagnostic_report;
+pub mod diagnostic_subject;
 pub mod document_floor;
 pub mod document_links;
 pub mod document_symbols;
 mod executable_regions;
 pub mod expr_context;
 pub mod file_ops;
+pub mod file_uri;
 pub mod folding;
 pub mod formatting;
 pub mod graphs;
@@ -72,13 +85,26 @@ pub mod inlay_hints;
 pub mod irules_context;
 pub mod irules_object_refs;
 pub mod linked_editing_range;
+pub mod math_function_symbol;
+pub mod method_symbol;
 pub mod minify;
 pub mod namespace_import;
 pub mod namespace_rename;
 pub mod namespace_symbol;
 pub mod oo_body;
 mod oo_dispatch;
+pub mod original_call_hierarchy;
+pub mod original_command_rename;
+mod original_context;
+pub mod original_declaration;
+pub mod original_indexed_location;
+mod original_invocation;
+pub mod original_member_rename;
+pub mod original_name_edit;
+mod original_oo;
 pub mod package_resolver;
+pub mod procedure_symbol;
+mod receiver_identity;
 pub mod refactor;
 pub mod references;
 pub mod rename;
@@ -89,13 +115,21 @@ pub mod signature_help;
 pub mod snippets;
 pub mod source_decode;
 pub mod source_graph;
+mod source_structure;
+pub use source_structure::{
+    SourceSyntaxCoverage, SourceSyntaxCoverageApplicability, SourceSyntaxRegion,
+    SourceSyntaxStructure,
+};
 pub mod source_style;
 pub mod sslictcl_diagnostics;
 pub mod tcl_install;
 pub mod tk_preview;
 pub mod type_definition;
 pub mod type_hierarchy;
+pub mod variable_symbol;
+pub mod vendor_declaration;
 pub mod vfs;
+pub mod wire_session;
 pub mod workspace_index;
 pub mod workspace_symbols;
 
@@ -138,6 +172,28 @@ pub fn environment_for_dialect(name: &str) -> tcl_registry::model::DocumentEnvir
 #[must_use]
 pub fn profile_for_dialect(name: &str) -> &'static tcl_dialect::DialectProfile {
     environment_for_dialect(name).unit_profile()
+}
+
+/// Retained analysis profile, with name assistance for legacy records that
+/// carry no editing input. A display label cannot replace an actual profile.
+#[must_use]
+pub fn profile_for_analysis(
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> &'static tcl_dialect::DialectProfile {
+    analysis
+        .resolved_profile()
+        .unwrap_or_else(|| profile_for_dialect(&analysis.dialect))
+}
+
+/// Retained editing store, with legacy name assistance only when absent.
+/// Native handler and execution proofs remain separate queries.
+#[must_use]
+pub fn registry_for_analysis(
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> &tcl_registry::CommandRegistry {
+    analysis
+        .resolved_registry()
+        .unwrap_or_else(|| registry_for_dialect(&analysis.dialect))
 }
 
 /// [`profile_for_dialect`] for the inputs where an *empty* name means "this
@@ -322,3 +378,6 @@ mod dialect_ingress_tests {
         ));
     }
 }
+
+/// Exact retained source interpretation adapters for conditional readonly advice.
+pub mod original_source_views;

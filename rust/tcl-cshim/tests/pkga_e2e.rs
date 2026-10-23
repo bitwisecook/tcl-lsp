@@ -113,13 +113,13 @@ fn the_loaded_report_bridges_to_the_default_fact() {
     // SAFETY: `Pkga_Init` is the test extension built against the shim header.
     let loaded = unsafe { interp.load_static(pkga_init) }.expect("pkga loads");
     let declared = loaded.declared_surface();
-    let names: Vec<&str> = declared.iter().map(|c| c.name.as_str()).collect();
+    let names: Vec<&[u8]> = declared.iter().map(|c| c.name.as_bytes()).collect();
     assert_eq!(
         names,
         loaded
             .commands
             .iter()
-            .map(String::as_str)
+            .map(tcl_core_types::NameBytes::as_bytes)
             .collect::<Vec<_>>()
     );
     assert!(!declared.is_empty(), "pkga registers commands");
@@ -230,7 +230,7 @@ fn load_through_the_host_bridge_defines_the_commands() {
     );
     assert_eq!(
         interp.provided_packages(),
-        [("pkga".to_owned(), "1.0".to_owned())]
+        [(tcl_core_types::NameBytes::from("pkga"), b"1.0".to_vec())]
     );
 
     // The negatives: a name the table does not hold, by file and by prefix.
@@ -474,7 +474,7 @@ fn client_data_and_delete_procs_work_across_calls() {
     );
     assert_eq!(
         interp.commands(),
-        ["pkga_calc", "pkga_eq", "pkga_forget", "pkga_quote"]
+        ["pkga_calc", "pkga_eq", "pkga_forget", "pkga_quote"].map(tcl_core_types::NameBytes::from)
     );
 }
 
@@ -483,6 +483,6 @@ fn provided_packages_are_recorded_shim_side() {
     let interp = loaded();
     assert_eq!(
         interp.provided_packages(),
-        [("pkga".to_owned(), "1.0".to_owned())]
+        [(tcl_core_types::NameBytes::from("pkga"), b"1.0".to_vec())]
     );
 }

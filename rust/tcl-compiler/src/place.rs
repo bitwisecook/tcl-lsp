@@ -41,6 +41,8 @@
 //! dynamic *alias/name*.  The resolution layer ([`crate::var_resolve`]) maps a
 //! syntactic reference + scope context to a canonical place.
 
+use tcl_core_types::NameBytes;
+
 /// Sentinel namespace marking a procedure-*local* scalar (frame-relative), as
 /// opposed to a global / namespace variable which carries its real `::`-FQ
 /// namespace.  Keeps the deliberate local-vs-global distinction the dataflow
@@ -82,8 +84,8 @@ pub enum IndexKind {
 pub struct Index {
     /// How the index/key is known (literal text, computed, or unconstrained).
     pub kind: IndexKind,
-    /// The literal text when [`IndexKind::Literal`]; empty otherwise.
-    pub value: String,
+    /// Exact selected index bytes when [`IndexKind::Literal`]; empty otherwise.
+    pub value: NameBytes,
     /// Vars read to form a [`IndexKind::Dynamic`] index/key.
     pub read_places: Vec<Place>,
 }
@@ -91,7 +93,7 @@ pub struct Index {
 impl Index {
     /// A statically-known index/key.
     #[must_use]
-    pub fn literal(value: impl Into<String>) -> Self {
+    pub fn literal(value: impl Into<NameBytes>) -> Self {
         Self {
             kind: IndexKind::Literal,
             value: value.into(),
@@ -104,7 +106,7 @@ impl Index {
     pub fn dynamic(read_places: Vec<Place>) -> Self {
         Self {
             kind: IndexKind::Dynamic,
-            value: String::new(),
+            value: NameBytes::default(),
             read_places,
         }
     }
@@ -114,10 +116,61 @@ impl Index {
     pub fn any() -> Self {
         Self {
             kind: IndexKind::Any,
-            value: String::new(),
+            value: NameBytes::default(),
             read_places: Vec::new(),
         }
     }
+}
+
+/// The owner of a variable cell, independent of its source spelling.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum CellOwner {
+    /// The current procedure activation.
+    CurrentFrame,
+    /// A source-proved activation, distinct from caller and sibling frames.
+    Activation(String),
+    /// A namespace variable table.
+    Namespace(String),
+    /// Exact retained namespace incarnation and component geometry.
+    NamespaceIdentity(Box<crate::command_binding::SourceNamespaceKey>),
+    /// A selected stack frame whose activation is not available locally.
+    SelectedFrame(tcl_registry::FrameLevel),
+    /// A retained raw wrapper or callable-owned static value.
+    RetainedSlot(Box<crate::raw_binding::RawBindingSlotId>),
+    /// Object instance storage without an allocation proof.
+    Instance(String),
+    /// Storage of one actual bounded object allocation, independent of its name.
+    AllocatedInstance(Box<crate::command_binding::SourceObjectAllocation>),
+}
+
+/// The lifetime of an array or namespace cell.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum CellGeneration {
+    /// Storage reaching the function entry.
+    #[default]
+    Incoming,
+    /// Storage recreated after a particular source operation.
+    After(u32),
+    /// A control-flow join or callback lost its exact lifetime.
+    Unknown,
+}
+
+/// Immutable root-cell identity. Observation and source-name computations are
+/// properties of an access, not part of this identity.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CellIdentity {
+    /// Table containing the cell.
+    pub owner: CellOwner,
+    /// Exact selected root variable bytes; display spelling is separate.
+    pub name: NameBytes,
+    /// Root lifetime retained by this access.
+    pub generation: CellGeneration,
+    /// Known interpreter identity; absence retains a symbolic current interpreter.
+    pub interpreter: Option<String>,
+    /// Host policy applied after Tcl namespace resolution.
+    pub storage_domain: Option<tcl_registry::f5::VariableStorageDomain>,
+    /// Worker, epoch and activation identity supplied by the execution adapter.
+    pub execution: Option<tcl_registry::f5::WorkerExecution>,
 }
 
 /// A storage location a read/write touches.
@@ -127,7 +180,7 @@ pub struct Place {
     pub kind: PlaceKind,
     /// FQ namespace; [`LOCAL_NS`] for proc-local scalars.
     pub ns: String,
-    /// Base variable name (bare local or ns-tail).
+    /// Checked display of the base variable name. Resolved identity lives in `cell`.
     pub name: String,
     /// `ARRAY_ELEM` index.
     pub index: Option<Index>,
@@ -141,6 +194,8 @@ pub struct Place {
     pub dynamic: bool,
     /// Vars read to form a dynamic name (`X` in `set $X`).
     pub name_reads: Vec<Place>,
+    /// Resolved root identity when a point-sensitive context is available.
+    pub cell: Option<CellIdentity>,
 }
 
 impl Place {
@@ -155,6 +210,7 @@ impl Place {
             observed: false,
             dynamic: false,
             name_reads: Vec::new(),
+            cell: None,
         }
     }
 
@@ -173,12 +229,14 @@ impl Place {
     /// scalar is its own base.  This is the join point of [`overlap`].
     #[must_use]
     pub fn base(&self) -> Self {
-        match self.kind {
+        let mut base = match self.kind {
             PlaceKind::ArrayElem | PlaceKind::DictPath => {
                 array_whole(&self.name, &self.ns, self.observed)
             }
             _ => self.clone(),
-        }
+        };
+        base.cell.clone_from(&self.cell);
+        base
     }
 }
 
@@ -267,6 +325,14 @@ pub fn unknown(name_reads: Vec<Place>) -> Place {
     }
 }
 
+/// Unknown contents restricted to one namespace subtree.
+#[must_use]
+pub fn unknown_namespace(namespace: impl Into<String>) -> Place {
+    let mut place = unknown_top();
+    place.ns = namespace.into();
+    place
+}
+
 /// The canonical top place with no name reads.
 #[must_use]
 pub fn unknown_top() -> Place {
@@ -296,6 +362,44 @@ fn keys_overlap(a: &[Index], b: &[Index]) -> bool {
     a.iter().zip(b.iter()).all(|(ia, ib)| index_overlap(ia, ib))
 }
 
+fn retained_cell_overlap(p: &Place, q: &Place) -> Option<bool> {
+    if let (Some(p_cell), Some(q_cell)) = (&p.cell, &q.cell) {
+        if matches!((&p_cell.interpreter, &q_cell.interpreter), (Some(left), Some(right)) if left != right)
+        {
+            return Some(false);
+        }
+        if let (Some(left), Some(right)) = (p_cell.execution, q_cell.execution)
+            && (left.initialisation_epoch != right.initialisation_epoch
+                || matches!((left.worker, right.worker), (Some(left), Some(right)) if left != right)
+                || matches!((left.connection, right.connection), (Some(left), Some(right)) if left != right))
+        {
+            return Some(false);
+        }
+        if (p.kind == PlaceKind::Unknown || q.kind == PlaceKind::Unknown)
+            && let (CellOwner::NamespaceIdentity(left), CellOwner::NamespaceIdentity(right)) =
+                (&p_cell.owner, &q_cell.owner)
+        {
+            return Some(if p.kind == PlaceKind::Unknown {
+                crate::var_resolve::namespace_contains(left, right)
+            } else {
+                crate::var_resolve::namespace_contains(right, left)
+            });
+        }
+        let selected = matches!(p_cell.owner, CellOwner::SelectedFrame(_))
+            || matches!(q_cell.owner, CellOwner::SelectedFrame(_));
+        if !selected && (p_cell.owner != q_cell.owner || p_cell.name != q_cell.name) {
+            return Some(false);
+        }
+        if p_cell.generation != CellGeneration::Unknown
+            && q_cell.generation != CellGeneration::Unknown
+            && p_cell.generation != q_cell.generation
+        {
+            return Some(false);
+        }
+    }
+    None
+}
+
 /// Does a read of *q* observe a write of *p* (and vice-versa)?
 ///
 /// Over-approximating and symmetric: [`PlaceKind::Unknown`],
@@ -304,15 +408,33 @@ fn keys_overlap(a: &[Index], b: &[Index]) -> bool {
 /// conservatively.
 #[must_use]
 pub fn overlap(p: &Place, q: &Place) -> bool {
+    if let Some(answer) = retained_cell_overlap(p, q) {
+        return answer;
+    }
     // Top / unresolved alias edges may touch anything observable.
     if p.kind == PlaceKind::Unknown || q.kind == PlaceKind::Unknown {
-        return true;
+        let (unknown, other) = if p.kind == PlaceKind::Unknown {
+            (p, q)
+        } else {
+            (q, p)
+        };
+        return unknown.ns == LOCAL_NS
+            || matches!(other.kind, PlaceKind::Unknown | PlaceKind::UpvarAlias)
+            || other.ns == unknown.ns
+            || other.ns.starts_with(&format!("{}::", unknown.ns));
     }
     if p.kind == PlaceKind::UpvarAlias || q.kind == PlaceKind::UpvarAlias {
         // Two non-dynamic upvar aliases name a *resolved* caller var via their
         // `owner`; they are the same storage iff the owners match — regardless
         // of the local alias name.  Otherwise conservatively yes.
         if p.kind == q.kind && !p.dynamic && !q.dynamic {
+            if [&p.cell, &q.cell]
+                .into_iter()
+                .flatten()
+                .any(|cell| matches!(cell.owner, CellOwner::SelectedFrame(_)))
+            {
+                return true;
+            }
             return p.owner == q.owner;
         }
         return true;
@@ -339,7 +461,13 @@ pub fn overlap(p: &Place, q: &Place) -> bool {
 
     if p.kind == PlaceKind::DictPath || q.kind == PlaceKind::DictPath {
         if p.kind == q.kind {
-            return p.ns == q.ns && p.name == q.name && keys_overlap(&p.keys, &q.keys);
+            return p.ns == q.ns
+                && p.name == q.name
+                && match (&p.index, &q.index) {
+                    (Some(left), Some(right)) => index_overlap(left, right),
+                    _ => true,
+                }
+                && keys_overlap(&p.keys, &q.keys);
         }
         // A dict and its whole-array base overlap; a dict and a scalar/elem of
         // a different name do not.
@@ -348,10 +476,12 @@ pub fn overlap(p: &Place, q: &Place) -> bool {
         } else {
             (q, p)
         };
-        if other.kind == PlaceKind::ArrayWhole {
-            return other.ns == dpath.ns && other.name == dpath.name;
-        }
-        return false;
+        return other.ns == dpath.ns
+            && other.name == dpath.name
+            && match (&other.index, &dpath.index) {
+                (Some(left), Some(right)) => index_overlap(left, right),
+                _ => true,
+            };
     }
 
     // Scalar / array family — same namespace + base name required.
@@ -373,9 +503,9 @@ pub fn overlap(p: &Place, q: &Place) -> bool {
             _ => true,
         };
     }
-    // SCALAR vs ARRAY_ELEM of the same name: distinct kinds, disjoint (a scalar
-    // and an array are different variables in Tcl).
-    false
+    // Scalar and array-element operations share the root's shape state.
+    // A shape-changing write may invalidate any element of that root.
+    true
 }
 
 /// Scalars read to *compute* this place's identity — dynamic array/dict
@@ -463,10 +593,10 @@ mod tests {
     }
 
     #[test]
-    fn scalar_and_array_element_of_same_name_are_disjoint() {
+    fn scalar_and_array_element_share_shape_state() {
         let s = local_scalar("a");
         let ak = array_elem("a", Index::literal("k"), LOCAL_NS, false);
-        assert!(!overlap(&s, &ak));
+        assert!(overlap(&s, &ak));
     }
 
     // Dynamic *index* versus dynamic *alias*.
@@ -610,6 +740,31 @@ mod tests {
     }
 
     #[test]
+    fn worker_overlap_preserves_unknown_selection_and_initialisation_epochs() {
+        use crate::var_resolve::{ResolveContext, resolve_literal_place};
+        use tcl_registry::f5::WorkerExecution;
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let resolve = |worker, initialisation_epoch, connection| {
+            let mut context = ResolveContext::for_function("::event");
+            context.known_namespaces.insert("::static".to_owned());
+            context.execution = Some(WorkerExecution {
+                worker,
+                initialisation_epoch,
+                connection,
+            });
+            resolve_literal_place("::static::counter", &context, false, registry)
+        };
+        let first = resolve(Some(0), 1, Some(10));
+        assert!(overlap(&first, &resolve(Some(0), 1, Some(20))));
+        assert!(!overlap(&first, &resolve(Some(1), 1, Some(10))));
+        assert!(!overlap(&first, &resolve(Some(0), 2, Some(10))));
+        let unknown = resolve(None, 1, None);
+        assert!(overlap(&first, &unknown));
+        assert!(overlap(&unknown, &resolve(Some(1), 1, None)));
+        assert_ne!(first.cell, unknown.cell);
+    }
+
+    #[test]
     fn places_read_to_form_collects_index_and_name_reads() {
         // a($i) reads `i`.
         let elem = array_elem(
@@ -636,6 +791,6 @@ mod tests {
         assert_eq!(places_read_to_form(&dp), vec![local_scalar("i")]);
         // a literal-index element reads nothing.
         let lit = array_elem("a", Index::literal("k"), LOCAL_NS, false);
-        assert!(places_read_to_form(&lit).is_empty());
+        assert_eq!(places_read_to_form(&lit), [] as [crate::place::Place; 0]);
     }
 }

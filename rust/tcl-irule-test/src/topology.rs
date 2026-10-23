@@ -30,6 +30,8 @@ use tcl_bigip::parser::{BigipConfig, parse_bigip_conf};
 use tcl_bigip::value::ListItemValue;
 use tcl_syntax::list::{join_list, list_element};
 
+use crate::session::{RuleIdentity, RuleSource};
+
 /// Errors raised when generating a topology setup.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TopologyError {
@@ -200,11 +202,33 @@ impl Topology {
             out.push('\n');
         }
 
-        // Attached iRules.
-        for rule_ref in vs_rule_refs(vs) {
-            if let Some(source) = self.rule_source(&rule_ref) {
-                let _ = writeln!(out, "::orch::load_irule {}", list_element(source));
+        // Explicit configuration objects retain their identities. Unattached
+        // rules supply procedure libraries without registering their events.
+        let attached: Vec<_> = vs_rule_refs(vs)
+            .iter()
+            .filter_map(|reference| self.rule_source(reference))
+            .collect();
+        for placed in &self.config.objects {
+            let ModelObject::Rule(rule) = &placed.object else {
+                continue;
+            };
+            let Ok(identity) = RuleIdentity::new(placed.full_path.clone()) else {
+                continue;
+            };
+            if attached
+                .iter()
+                .any(|source| source.identity.as_ref() == Some(&identity))
+            {
+                continue;
             }
+            let _ = writeln!(
+                out,
+                "{}",
+                RuleSource::library(identity, rule.source.clone()).load_command()
+            );
+        }
+        for rule in attached {
+            let _ = writeln!(out, "{}", rule.load_command());
         }
         out.push('\n');
 
@@ -241,29 +265,20 @@ impl Topology {
         Ok(out)
     }
 
-    /// Resolve a virtual server by full path, short name, or `/Common/`-prefixed
-    /// name, in the same spirit as `_resolve_name` in `scf_loader.tcl` over the
-    /// `virtual_servers` table: an exact full-path match wins outright, else
-    /// the first object matching by short name or `/Common/` prefix.
+    /// Resolve an exact virtual-server path, then the first short-name candidate.
     fn resolve_virtual(&self, name: &str) -> Option<&tcl_bigip::model::BigipVirtualServer> {
-        let mut by_short: Option<&tcl_bigip::model::BigipVirtualServer> = None;
-        for placed in &self.config.objects {
-            if placed.table_name != "virtual_servers" {
-                continue;
-            }
-            let ModelObject::VirtualServer(vs) = &placed.object else {
-                continue;
-            };
-            if placed.full_path == name {
-                return Some(vs);
-            }
-            if short_name(&placed.full_path) == name
-                || placed.full_path == format!("/Common/{name}")
-            {
-                by_short.get_or_insert(vs);
-            }
-        }
-        by_short
+        tcl_bigip::object_names::object_name_candidates(
+            name,
+            self.config.objects.iter().filter_map(|placed| {
+                let ModelObject::VirtualServer(server) = &placed.object else {
+                    return None;
+                };
+                (placed.table_name == "virtual_servers")
+                    .then_some((placed.full_path.as_str(), server))
+            }),
+            tcl_bigip::object_names::ObjectNamePolicy::ExactThenShortNameOrCommon,
+        )
+        .first_in_order()
     }
 
     /// Resolve the TMM profile-type tags for a VS by name inference.
@@ -285,26 +300,30 @@ impl Topology {
         types
     }
 
-    /// The source of an attached iRule, resolved by full path or short name.
-    fn rule_source(&self, rule_ref: &str) -> Option<&str> {
-        let mut by_short: Option<&str> = None;
-        for placed in &self.config.objects {
-            if placed.table_name != "rules" {
-                continue;
-            }
-            let ModelObject::Rule(rule) = &placed.object else {
-                continue;
-            };
-            if placed.full_path == rule_ref {
-                return Some(rule.source.as_str());
-            }
-            if short_name(&placed.full_path) == rule_ref
-                || placed.full_path == format!("/Common/{rule_ref}")
-            {
-                by_short.get_or_insert(rule.source.as_str());
-            }
-        }
-        by_short
+    /// Resolve an explicit object identity, refusing ambiguous short names.
+    fn rule_source(&self, rule_ref: &str) -> Option<RuleSource> {
+        let rules: Vec<_> = self
+            .config
+            .objects
+            .iter()
+            .filter_map(|placed| {
+                let ModelObject::Rule(rule) = &placed.object else {
+                    return None;
+                };
+                (placed.table_name == "rules")
+                    .then_some((placed.full_path.as_str(), rule.source.as_str()))
+            })
+            .collect();
+        let selected = tcl_bigip::object_names::object_name_candidates(
+            rule_ref,
+            rules.iter().map(|(path, source)| (*path, (*path, *source))),
+            tcl_bigip::object_names::ObjectNamePolicy::ExactThenShortName,
+        )
+        .first_exact_in_order_or_unique()?;
+        Some(RuleSource::named(
+            RuleIdentity::new(selected.0).ok()?,
+            selected.1,
+        ))
     }
 }
 
@@ -429,8 +448,55 @@ ltm virtual www_vs {
             "{setup}"
         );
         // Attached iRule body loaded.
-        assert!(setup.contains("::orch::load_irule {"), "{setup}");
+        assert!(
+            setup.contains("::orch::load_rule /Common/redirect_rule {"),
+            "{setup}"
+        );
         assert!(setup.contains("HTTP::host"), "{setup}");
+    }
+
+    #[test]
+    fn topology_loads_unattached_rules_as_named_libraries_and_refuses_ambiguous_names() {
+        let source = format!(
+            "{CONF}\nltm rule /Other/library {{proc helper {{}} {{return ok}}}}\nltm rule /Other/redirect_rule {{proc helper {{}} {{return other}}}}"
+        );
+        let topology = Topology::from_source(&source);
+        let setup = topology.generate_tcl_setup("www_vs").unwrap();
+        assert!(
+            setup.contains("::orch::load_rule /Other/library {proc helper {} {return ok}} 0"),
+            "{setup}"
+        );
+        assert!(topology.rule_source("redirect_rule").is_none());
+        assert_eq!(
+            topology
+                .rule_source("/Common/redirect_rule")
+                .unwrap()
+                .identity
+                .unwrap()
+                .as_path(),
+            "/Common/redirect_rule"
+        );
+    }
+
+    #[test]
+    fn duplicate_exact_rule_rows_keep_first_source_and_refuse_short_name() {
+        let mut topology = Topology::from_source(CONF);
+        let mut duplicate = topology
+            .config
+            .objects
+            .iter()
+            .find(|placed| placed.table_name == "rules")
+            .unwrap()
+            .clone();
+        let path = duplicate.full_path.clone();
+        let original = topology.rule_source(&path).unwrap().source;
+        let ModelObject::Rule(rule) = &mut duplicate.object else {
+            panic!("rule fixture");
+        };
+        rule.source = "return SECOND".to_owned();
+        topology.config.objects.push(duplicate);
+        assert_eq!(topology.rule_source(&path).unwrap().source, original);
+        assert!(topology.rule_source("redirect_rule").is_none());
     }
 
     #[test]

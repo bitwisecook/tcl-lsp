@@ -38,6 +38,17 @@ use tcl_registry::value_transfer::{DeclaredEvaluation, ExtensionArtefact, Semant
 use crate::loader::PackCommand;
 use crate::pack::{PackNotice, Severity};
 
+pub(crate) fn has_external_inputs(commands: &[PackCommand]) -> bool {
+    commands.iter().any(|command| {
+        declared_artefact(command.spec.semantics).is_some()
+            || command
+                .spec
+                .subcommands
+                .iter()
+                .any(|subcommand| declared_artefact(subcommand.semantics).is_some())
+    })
+}
+
 /// Read the artefact of every `-host wasm_extension` implementation the
 /// commands of pack `pack` declare, at command or subcommand scope.
 ///
@@ -95,6 +106,7 @@ pub(crate) fn provision(
         }
         for message in failures {
             notices.push(PackNotice {
+                subject: None,
                 path: command.file.clone(),
                 line: command.line,
                 context: format!("command {}", spec.name),
@@ -119,6 +131,10 @@ pub(crate) fn provision(
 /// The extension a declaration's implementation runs, while its artefact is
 /// still to be read.
 fn artefact_of(declaration: SemanticsDeclaration) -> Option<ExtensionArtefact> {
+    declared_artefact(declaration).filter(|artefact| artefact.bytes.is_none())
+}
+
+fn declared_artefact(declaration: SemanticsDeclaration) -> Option<ExtensionArtefact> {
     let SemanticsDeclaration::Declared(semantics) = declaration else {
         return None;
     };
@@ -126,9 +142,7 @@ fn artefact_of(declaration: SemanticsDeclaration) -> Option<ExtensionArtefact> {
     else {
         return None;
     };
-    implementation
-        .extension
-        .filter(|artefact| artefact.bytes.is_none())
+    implementation.extension
 }
 
 /// `declaration` with its extension's artefact read: the bytes on the

@@ -121,9 +121,9 @@ mod tests {
         assert!(events_for_profile("FASTHTTP").contains(&"HTTP_RESPONSE"));
         // Category grouping works.
         let ssl_events = events_in_category("SSL");
-        assert!(!ssl_events.is_empty());
+        assert_ne!(ssl_events.len(), 0);
         // Unknown profile/category → empty.
-        assert!(events_for_profile("__nope__").is_empty());
-        assert!(events_in_category("__nope__").is_empty());
+        assert_eq!(events_for_profile("__nope__").len(), 0);
+        assert_eq!(events_in_category("__nope__").len(), 0);
     }
 }

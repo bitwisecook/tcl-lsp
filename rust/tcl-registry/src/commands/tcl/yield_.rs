@@ -57,6 +57,13 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "yield",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::CoroutineYield,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::Yield),
         runtime_backing: RuntimeBacking::shipped("yield"),
         // `TCL86_PLUS` alone already resolves availability correctly
         // everywhere, via the mask-intersection rule

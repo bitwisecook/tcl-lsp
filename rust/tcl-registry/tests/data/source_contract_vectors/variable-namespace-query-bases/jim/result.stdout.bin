@@ -1,0 +1,9 @@
+PATCHLEVEL 0.84-9-g5bac7c9
+bare-global ::N::g
+relative-root ::N::RootChild::v
+relative-local ::N::Child::v
+absolute-root ::RootChild::v
+absent ::N::missing
+declaration-shell ::N::g
+procedure-local ::N::local
+procedure-global-link ::N::g

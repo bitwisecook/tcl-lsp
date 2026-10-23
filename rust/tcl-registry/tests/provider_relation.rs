@@ -80,5 +80,5 @@ fn a_package_is_hosted_by_the_families_of_the_environments_that_ship_it() {
     use tcl_dialect::model::Family;
     assert_eq!(package_hosting_families("expect"), [Family::Tcl]);
     assert!(package_hosting_families("Tk").contains(&Family::Tcl));
-    assert!(package_hosting_families("no-such-package").is_empty());
+    assert_eq!(package_hosting_families("no-such-package").len(), 0);
 }

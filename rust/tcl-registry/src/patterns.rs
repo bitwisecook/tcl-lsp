@@ -68,22 +68,22 @@ pub struct PatternArg {
 
 /// Registry context supplied to a call-specific pattern resolver.
 ///
-/// The caller filters [`options`](Self::options) for the document's resolved
-/// profile before invoking the resolver.  Keeping the option grammar and the
+/// The caller filters [`options`](Self::options) for the invocation's retained
+/// availability context before invoking the resolver.  Keeping the option grammar and the
 /// reserved positional suffix together means an option-selected pattern
 /// layout cannot accidentally recognise a switch that this Tcl release does
 /// not have, nor scan a mandatory operand merely because it looks like one.
 #[derive(Debug, Clone, Copy)]
 pub struct PatternArgResolverContext<'a> {
-    /// Available option descriptors in declaration order.
-    pub options: &'a [&'static OptionSpec],
+    /// Available option descriptors from the selected invocation, in declaration order.
+    pub options: &'a [&'a OptionSpec],
     /// Mandatory trailing operands excluded from the leading option scan.
     pub reserved_trailing_words: usize,
 }
 
 /// Resolve a command's call-specific pattern arguments.
 ///
-/// Resolver callbacks receive the profile-filtered option metadata and the
+/// Resolver callbacks receive the selected available option metadata and the
 /// command's reserved trailing operand boundary.  The callback must use both
 /// rather than carrying a private option table or inferring the positional
 /// boundary itself.
@@ -127,31 +127,7 @@ pub(crate) fn resolve_available_option_prefix_with<'a>(
     word: &str,
     prefix_matching: PrefixMatching,
 ) -> Option<&'a crate::hover::OptionSpec> {
-    if let Some(option) = options.iter().copied().find(|option| option.matches(word)) {
-        return Some(option);
-    }
-    if !prefix_matching.accepts_prefixes() || !word.starts_with('-') || word.len() < 2 {
-        return None;
-    }
-    let mut found = None;
-    for option in options.iter().copied() {
-        if std::iter::once(option.name)
-            .chain(option.aliases.iter().copied())
-            .any(|spelling| {
-                spelling.starts_with(word)
-                    && option
-                        .min_abbrev
-                        .is_none_or(|minimum| word.len() >= usize::from(minimum))
-            })
-        {
-            match found {
-                None => found = Some(option),
-                Some(previous) if std::ptr::eq(previous, option) => {}
-                Some(_) => return None,
-            }
-        }
-    }
-    found
+    crate::spec::resolve_available_option_prefix_with(options, word, prefix_matching)
 }
 
 impl PatternType {

@@ -203,7 +203,9 @@ fn handshake(child: &mut Child, root: &Path) -> (ChildStdin, BufReader<std::proc
     let mut stdin = child.stdin.take().expect("child stdin");
     let mut reader = BufReader::new(child.stdout.take().expect("child stdout"));
 
-    let root_uri = format!("file://{}", root.to_string_lossy());
+    let root_uri = tcl_lsp_server::canonical_file_uri(root)
+        .expect("workspace fixture has a representable file URI")
+        .to_string();
     write_message(
         &mut stdin,
         &json!({

@@ -1,0 +1,8 @@
+kind=0 state=0 case=0 code=0 type=int bits=7fffffffffffffff
+kind=0 state=0 case=1 code=0 type=int bits=8000000000000000
+kind=0 state=1 case=0 code=1 type=string bits=0000000000000000
+kind=0 state=1 case=1 code=1 type=string bits=0000000000000000
+kind=1 state=0 case=0 code=0 type=int bits=7fffffffffffffff
+kind=1 state=0 case=1 code=0 type=int bits=8000000000000000
+kind=1 state=1 case=0 code=0 type=int bits=7fffffffffffffff
+kind=1 state=1 case=1 code=0 type=int bits=8000000000000000

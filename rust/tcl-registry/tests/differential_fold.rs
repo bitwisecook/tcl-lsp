@@ -2948,14 +2948,30 @@ impl tcl_syntax::expr::ExprOps for OrderedProbe<'_> {
     ) -> Option<tcl_syntax::expr::NumericCompare> {
         Some(tcl_syntax::expr::NumericCompare::Ordered(left.cmp(right)))
     }
-    fn compare_string(&mut self, left: &i64, right: &i64) -> std::cmp::Ordering {
-        left.to_string().cmp(&right.to_string())
+    fn compare_string(&mut self, left: &i64, right: &i64) -> Result<std::cmp::Ordering, Stop> {
+        Ok(left.to_string().cmp(&right.to_string()))
     }
     fn in_list(&mut self, _needle: &i64, _list: &i64) -> Result<bool, Stop> {
         Err(Stop::Declined("in".to_owned()))
     }
     fn to_bool(&mut self, value: &i64) -> Result<bool, Stop> {
         Ok(*value != 0)
+    }
+    // Explicit mathematical adapter: no original native object/effect claim.
+    fn to_bool_for_purpose(
+        &mut self,
+        value: &i64,
+        _purpose: tcl_syntax::native_boolean_truth::NativeBooleanTruthPurpose,
+    ) -> Result<bool, Stop> {
+        self.to_bool(value)
+    }
+    fn logical_right_truth(
+        &mut self,
+        _left: &i64,
+        right: &i64,
+        _conjunction: bool,
+    ) -> Result<bool, Stop> {
+        self.to_bool(right)
     }
     fn bool_value(&mut self, b: bool) -> i64 {
         i64::from(b)

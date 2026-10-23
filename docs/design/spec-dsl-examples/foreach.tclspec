@@ -24,6 +24,9 @@ command foreach {
     # command's name (issue #1185).
     repeat LoopVarList -from 0 -stride 2 -exclude-trailing 1
 
+    # Evaluated cardinality is independent of literal list-value availability.
+    arg_role_count_resolver -native foreach::arg_role_count_resolver
+
     # The binder groups are the layout above — the group row cites it rather
     # than restating the stride — and the body, the last word, runs once per
     # iteration.  At least one whole group is needed, so the body is the last
@@ -45,6 +48,8 @@ command foreach {
 
     return_type      String
     var_write_typing {ElementsOf 0}
+    # Each list operand of a varList/list pair is coerced to an ordinary list.
+    representation_effect {CoerceOrdinaryListPairs 0}
 
     lowering_hook -native Foreach
     analyser_hook -native Foreach

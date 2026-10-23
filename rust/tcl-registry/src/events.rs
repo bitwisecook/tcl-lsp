@@ -25,10 +25,82 @@
 use std::borrow::Cow;
 
 use rustc_hash::{FxHashMap, FxHashSet};
-use tcl_lexer::{LexerConfig, Token, TokenType};
+use tcl_lexer::{LexerConfig, SourceSegmentationPurpose, Token, TokenType};
 
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::side_effects::ConnectionSide;
+
+/// Source flow grammar carried by a selected iRules command descriptor.
+/// No variant establishes that a handler ran or an effect completed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrulesSourceFlowSpec {
+    /// The source operation can drop or reject the current connection.
+    DropsConnection,
+    /// The source operation can send the DNS packet after script execution.
+    ReturnsDnsPacket,
+    /// Effective operands choose which later event handlers are disabled.
+    EventControl,
+}
+
+/// Conditional source action under a selected descriptor and actual argv.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrulesSourceFlowAction {
+    /// A possible connection drop requires a following source guard.
+    DropsConnection,
+    /// A possible DNS return requires a following script return.
+    ReturnsDnsPacket,
+    /// The exact source form disables all later event handlers.
+    DisablesAllEvents,
+}
+
+impl crate::ResolvedInvocation<'_, '_> {
+    /// Project the original source flow grammar over the effective operands.
+    /// Availability, dispatch, successful effects and body entry stay separate.
+    #[must_use]
+    pub fn authored_source_irules_flow_action(&self) -> Option<IrulesSourceFlowAction> {
+        match self
+            .authored_source_descriptors()
+            .command
+            .irules_source_flow?
+        {
+            IrulesSourceFlowSpec::DropsConnection => Some(IrulesSourceFlowAction::DropsConnection),
+            IrulesSourceFlowSpec::ReturnsDnsPacket => {
+                Some(IrulesSourceFlowAction::ReturnsDnsPacket)
+            }
+            IrulesSourceFlowSpec::EventControl => {
+                let arguments = self
+                    .words
+                    .arguments()
+                    .slice_from(self.semantics.argument_offset);
+                let matches = |index, expected: &[u8]| {
+                    arguments.get(index).and_then(|word| {
+                        word.literal()
+                            .map(str::as_bytes)
+                            .or_else(|| word.native_bytes())
+                    }) == Some(expected)
+                };
+                (arguments.exact_argv_len() == Some(2)
+                    && matches(0, b"disable")
+                    && matches(1, b"all"))
+                .then_some(IrulesSourceFlowAction::DisablesAllEvents)
+            }
+        }
+    }
+
+    /// Possible response commitment from this selected source descriptor's
+    /// actual surface and package floor. This supplies no reached effect.
+    #[must_use]
+    pub fn authored_source_may_commit_response(&self) -> bool {
+        self.semantics.side_effects.iter().any(|effect| {
+            effect.target == crate::side_effects::SideEffectTarget::ResponseCommit
+                && effect.writes
+                && effect.surface.is_none_or(|surface| {
+                    tcl_dialect::model::surface_admits(surface, self.dialect.as_ref())
+                })
+                && effect.available_for_version(self.semantics.options.availability.package_version)
+        })
+    }
+}
 
 /// How a command participates in an iRules data-collection lifecycle.
 ///
@@ -194,7 +266,7 @@ impl EventHandlerPriority {
 }
 
 /// BIG-IP's `when` priority policy, live-measured
-/// (`docs/design/f5/bigip-irule-parser-measurements.md` §6/§8): priority is
+/// (`docs/design/f5/embedded-tcl-contract.md` §6/§8): priority is
 /// **0–1000 inclusive** (`1001` and `-1` are rejected at rule load, albeit
 /// with the misleading `unexpected extra argument` wording), the default
 /// is **500** — the midpoint — and **lower numbers run first** (attached
@@ -346,6 +418,42 @@ pub fn closed_braced_argument_words(
             })
             .collect()
     })
+}
+
+/// The optional clauses of an iRules event declaration
+/// (`when EVENT ?priority N? ?timing V? { body }`), in the only order the
+/// layout accepts. Each clause is its keyword plus one value word.
+pub const IRULES_EVENT_CLAUSES: [&str; 2] = [IRULES_PRIORITY_CLAUSE, IRULES_TIMING_CLAUSE];
+
+/// The `priority N` clause keyword of an event declaration.
+pub const IRULES_PRIORITY_CLAUSE: &str = "priority";
+
+/// The `timing V` clause keyword of an event declaration.
+pub const IRULES_TIMING_CLAUSE: &str = "timing";
+
+/// Every spelling a `timing` value accepts, in an event declaration's clause
+/// and in the file-level `timing` command alike.
+pub const IRULES_TIMING_SPELLINGS: [&str; 4] = ["on", "off", "enable", "disable"];
+
+/// What an incomplete iRules event declaration takes at one argument
+/// position, read off the same layout
+/// [`CommandRegistry::irules_event_declaration_shape`](crate::CommandRegistry::irules_event_declaration_shape)
+/// validates. Advice for completion only: it grants no body entry, frame or
+/// handler identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IrulesDeclarationSlot {
+    /// The event name.
+    Event,
+    /// A clause keyword not yet written (the spec's clause-keyword values,
+    /// narrowed to the clauses that may still follow), or the body.
+    Clause(Vec<&'static crate::ArgValue>),
+    /// The value of `priority`: a number under
+    /// [`BIGIP_EVENT_HANDLER_PRIORITY`]; there is no word list to offer.
+    Priority,
+    /// The value of `timing`: the spec's timing values.
+    Timing(Vec<&'static crate::ArgValue>),
+    /// Only the handler body may follow.
+    Body,
 }
 
 /// Stateful effect of an iRules-only top-level declaration.
@@ -970,7 +1078,62 @@ pub struct EventRegistry {
     descriptions: FxHashMap<&'static str, &'static str>,
 }
 
+/// The variable frame an event supplies to its executable body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EventVariableFrame {
+    /// Rule initialisation has an interpreter namespace frame, no connection.
+    InitialisationNamespace,
+    /// A traffic event executes in the current flow's persistent frame.
+    Connection,
+    /// The registry does not establish the variable frame.
+    Unknown,
+}
+
+/// Invocation multiplicity selected by the host event contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EventExecutionMultiplicity {
+    /// Successful initialisation executes once in each worker's reload epoch.
+    OncePerWorkerEpoch,
+    /// Each connection may enter the handler once; other connections can repeat it.
+    OncePerConnection,
+    /// Reactive invocations may repeat, including within a connection.
+    MayRepeat,
+    /// No supported event contract establishes the invocation envelope.
+    Unknown,
+}
+
+/// Lifecycle knowledge between two handlers, without assuming event dominance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EventLifecycleRelation {
+    /// Successful initialisation precedes traffic on the same worker/epoch.
+    /// This establishes no value equality across workers or transfer across reloads.
+    InitialisationBeforeTraffic,
+    /// Multiple handlers of one event require priority and source ordering.
+    SameEvent,
+    /// A permitted lifecycle path exists; execution is not guaranteed.
+    MayPrecede,
+    /// The canonical lifecycle places the reader earlier than the writer.
+    ReaderPrecedesWriter,
+    /// No registry proof relates these events.
+    Unknown,
+}
+
 impl EventRegistry {
+    /// Host invocation envelope for executable source-body entry analysis.
+    /// Interpreter namespace and command effects persist across connections,
+    /// including handlers which execute only once for each connection.
+    #[must_use]
+    pub fn execution_multiplicity(&self, event: &str) -> EventExecutionMultiplicity {
+        if self.get_props(event).is_none() {
+            EventExecutionMultiplicity::Unknown
+        } else if self.variable_frame(event) == EventVariableFrame::InitialisationNamespace {
+            EventExecutionMultiplicity::OncePerWorkerEpoch
+        } else if self.is_once_per_connection(event) {
+            EventExecutionMultiplicity::OncePerConnection
+        } else {
+            EventExecutionMultiplicity::MayRepeat
+        }
+    }
     /// The lifecycle of `event` on the BIG-IP release axis, with an absent
     /// introducing release inheriting the axis baseline (declared present
     /// since BIG-IP 15.0). `None` for an unknown event.
@@ -1175,6 +1338,43 @@ impl EventRegistry {
         self.order_events(&scan_when_events(source))
     }
 
+    /// Variable-frame declaration shared by analysis and runtime adapters.
+    #[must_use]
+    pub fn variable_frame(&self, event: &str) -> EventVariableFrame {
+        if event == "RULE_INIT" {
+            EventVariableFrame::InitialisationNamespace
+        } else if self.get_props(event).is_some_and(|props| props.flow) {
+            EventVariableFrame::Connection
+        } else {
+            EventVariableFrame::Unknown
+        }
+    }
+
+    /// A lifecycle relation is possibility knowledge, never a reaching-def proof.
+    #[must_use]
+    pub fn lifecycle_relation(&self, writer: &str, reader: &str) -> EventLifecycleRelation {
+        if self.get_props(writer).is_none() || self.get_props(reader).is_none() {
+            return EventLifecycleRelation::Unknown;
+        }
+        if writer == reader {
+            return EventLifecycleRelation::SameEvent;
+        }
+        if writer == "RULE_INIT" && self.variable_frame(reader) == EventVariableFrame::Connection {
+            return EventLifecycleRelation::InitialisationBeforeTraffic;
+        }
+        let (Some(writer_index), Some(reader_index)) = (
+            self.master_order_index(writer),
+            self.master_order_index(reader),
+        ) else {
+            return EventLifecycleRelation::Unknown;
+        };
+        if reader_index < writer_index {
+            EventLifecycleRelation::ReaderPrecedesWriter
+        } else {
+            EventLifecycleRelation::MayPrecede
+        }
+    }
+
     /// Return a note when a variable set in `set_event` has
     /// scoping concerns when read in `read_event`.
     ///
@@ -1188,11 +1388,15 @@ impl EventRegistry {
         if set_event == "RULE_INIT" {
             return None;
         }
-        let set_idx = self.master_order_index(set_event)?;
-        let read_idx = self.master_order_index(read_event)?;
+        let (Some(set_idx), Some(read_idx)) = (
+            self.master_order_index(set_event),
+            self.master_order_index(read_event),
+        ) else {
+            return Some("event lifecycle is not established by the registry".to_owned());
+        };
         if read_idx < set_idx {
             return Some(format!(
-                "variable set in {set_event} is not yet available in {read_event} (fires earlier)"
+                "variable set in {set_event} may not yet be available in {read_event} (fires earlier)"
             ));
         }
         if self.per_request.contains(set_event) && self.once_per_connection.contains(read_event) {
@@ -1243,7 +1447,7 @@ pub trait CommandHeadResolver {
 }
 
 /// The lexical fallback for consumers without document identity facts.
-struct WrittenHeadResolver;
+pub(crate) struct WrittenHeadResolver;
 
 impl CommandHeadResolver for WrittenHeadResolver {
     fn resolve<'a>(&'a self, written: &str, _offset: u32) -> Cow<'a, str> {
@@ -1276,6 +1480,28 @@ pub fn top_level_when_handlers_with_registry_and_head_resolver(
         || LexerConfig::for_file_dialect("f5-irules"),
         |profile| LexerConfig::from_grammar(profile.grammar),
     );
+    top_level_when_handlers_with_source_config_and_head_resolver(
+        source,
+        registry,
+        config,
+        SourceSegmentationPurpose::WholeInput,
+        resolver,
+    )
+}
+
+/// Parse handlers under the producer's complete source configuration and
+/// explicitly selected local script purpose. The retained parent configuration
+/// remains independent of this parser selection. Command identity comes only
+/// from the supplied resolver; this boundary parser grants no event execution.
+#[must_use]
+pub fn top_level_when_handlers_with_source_config_and_head_resolver(
+    source: &str,
+    registry: &crate::CommandRegistry,
+    parent_config: LexerConfig,
+    purpose: SourceSegmentationPurpose,
+    resolver: &dyn CommandHeadResolver,
+) -> Vec<tcl_syntax::event_handler::EventHandler> {
+    let config = purpose.config(parent_config);
     let events = EventRegistry::build();
     let mut handlers = tcl_syntax::event_handler::event_handlers_with_head_predicate(
         source,
@@ -2218,6 +2444,7 @@ fn event_props_table_8() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["FASTHTTP", "HTTP"],
+                lifecycle: Lifecycle::introduced_in("9.0.0"),
                 hot: true,
                 common: true,
                 ..EventProps::DEFAULT
@@ -4445,6 +4672,57 @@ mod tests {
     use super::*;
 
     #[test]
+    fn source_flow_actions_keep_exact_original_event_control_operands() {
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        let context = crate::model::ingress::static_context_for("f5-irules");
+        let registry = context.commands();
+        let descriptor = registry.get("event").unwrap();
+        for (arguments, expected) in [
+            (
+                vec![Literal("disable"), Literal("all")],
+                Some(IrulesSourceFlowAction::DisablesAllEvents),
+            ),
+            (vec![Literal("enable"), Literal("all")], None),
+            (vec![Literal("disable"), Literal("HTTP_REQUEST")], None),
+            (vec![Literal("disable"), Dynamic], None),
+            (vec![Dynamic, Literal("all")], None),
+            (vec![Expanded, Literal("all")], None),
+            (
+                vec![Literal("disable"), Literal("all"), Literal("extra")],
+                None,
+            ),
+        ] {
+            let words = crate::InvocationWords::structured(Literal("event"), &arguments);
+            let selected = crate::registry::resolve_source_descriptor_invocation(
+                descriptor,
+                words,
+                registry.source_descriptor_availability(
+                    descriptor,
+                    Some(tcl_dialect::model::SurfaceQuery::any_release(
+                        tcl_dialect::model::Family::F5Irules,
+                    )),
+                ),
+                None,
+            );
+            assert_eq!(selected.authored_source_irules_flow_action(), expected);
+            assert_eq!(selected.facts().irules_source_flow_action, expected);
+        }
+        let mut renamed = registry.get("drop").unwrap().clone();
+        renamed.name = "probe::renamed_drop";
+        let words = crate::InvocationWords::structured(Literal("probe::renamed_drop"), &[]);
+        let selected = crate::registry::resolve_source_descriptor_invocation(
+            &renamed,
+            words,
+            registry.source_descriptor_availability(&renamed, None),
+            None,
+        );
+        assert_eq!(
+            selected.authored_source_irules_flow_action(),
+            Some(IrulesSourceFlowAction::DropsConnection)
+        );
+    }
+
+    #[test]
     fn build_event_registry() {
         let reg = EventRegistry::build();
         assert!(reg.len() > 10);
@@ -4528,7 +4806,7 @@ mod tests {
     #[test]
     fn flow_chains_exist() {
         let reg = EventRegistry::build();
-        assert!(!reg.flow_chains().is_empty());
+        assert_ne!(reg.flow_chains().len(), 0);
         assert_eq!(reg.flow_chains()[0].chain_id, "plain_tcp");
     }
 
@@ -4567,7 +4845,7 @@ mod tests {
         .into_iter()
         .map(|handler| handler.event)
         .collect();
-        assert!(events.is_empty());
+        assert_eq!(events.len(), 0);
     }
 
     #[test]
@@ -4625,7 +4903,7 @@ mod tests {
         .into_iter()
         .map(|handler| handler.event)
         .collect();
-        assert!(events.is_empty());
+        assert_eq!(events.len(), 0);
     }
 
     #[test]
@@ -4651,5 +4929,160 @@ mod tests {
                 .expect("parallel argument facts");
             assert_eq!(facts.last().copied(), Some(expected), "{source:?}");
         }
+    }
+    #[test]
+    fn http_request_availability_keeps_its_documented_prebaseline_introduction() {
+        // experiments/irules/event-availability/http-request-20261015/README.md
+        let registry = EventRegistry::build();
+        assert!(!registry.event_available_at("HTTP_REQUEST", "8.4.0"));
+        for version in ["9.0.0", "9.4.0", "16.1.0"] {
+            assert!(
+                registry.event_available_at("HTTP_REQUEST", version),
+                "{version}"
+            );
+        }
+        assert!(registry.event_available_at("XML_BEGIN_DOCUMENT", "9.4.0"));
+        for version in ["10.0.0", "16.1.0"] {
+            assert!(
+                !registry.event_available_at("XML_BEGIN_DOCUMENT", version),
+                "{version}"
+            );
+        }
+        assert!(!registry.event_available_at("BOGUS_EVENT", "16.1.0"));
+    }
+
+    #[test]
+    fn variable_frames_and_lifecycle_relations_do_not_invent_event_dominance() {
+        let registry = EventRegistry::build();
+        assert_eq!(
+            registry.variable_frame("RULE_INIT"),
+            EventVariableFrame::InitialisationNamespace
+        );
+        assert_eq!(
+            registry.variable_frame("HTTP_REQUEST"),
+            EventVariableFrame::Connection
+        );
+        assert_eq!(
+            registry.variable_frame("NOT_AN_EVENT"),
+            EventVariableFrame::Unknown
+        );
+        assert_eq!(
+            registry.lifecycle_relation("RULE_INIT", "HTTP_REQUEST"),
+            EventLifecycleRelation::InitialisationBeforeTraffic
+        );
+        assert_eq!(
+            registry.lifecycle_relation("CLIENT_ACCEPTED", "HTTP_REQUEST"),
+            EventLifecycleRelation::MayPrecede
+        );
+        assert_eq!(
+            registry.lifecycle_relation("HTTP_REQUEST", "CLIENT_ACCEPTED"),
+            EventLifecycleRelation::ReaderPrecedesWriter
+        );
+        assert_eq!(
+            registry.lifecycle_relation("NOT_AN_EVENT", "HTTP_REQUEST"),
+            EventLifecycleRelation::Unknown
+        );
+    }
+    #[test]
+    fn event_invocation_envelopes_keep_worker_and_connection_lifetimes_distinct() {
+        let registry = EventRegistry::build();
+        assert_eq!(
+            registry.execution_multiplicity("RULE_INIT"),
+            EventExecutionMultiplicity::OncePerWorkerEpoch,
+        );
+        assert_eq!(
+            registry.execution_multiplicity("CLIENT_ACCEPTED"),
+            EventExecutionMultiplicity::OncePerConnection,
+        );
+        assert_eq!(
+            registry.execution_multiplicity("HTTP_REQUEST"),
+            EventExecutionMultiplicity::MayRepeat,
+        );
+        assert_eq!(
+            registry.execution_multiplicity("NOT_AN_EVENT"),
+            EventExecutionMultiplicity::Unknown,
+        );
+        assert_eq!(
+            registry.lifecycle_relation("RULE_INIT", "RULE_INIT"),
+            EventLifecycleRelation::SameEvent,
+        );
+        assert_eq!(
+            registry.lifecycle_relation("RULE_INIT", "NOT_AN_EVENT"),
+            EventLifecycleRelation::Unknown,
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_event_source_config_tests {
+    use super::*;
+
+    #[test]
+    fn event_boundary_keeps_full_input_and_nested_bom_purposes_distinct() {
+        // naming.source.retained-explorer-consumers
+
+        // Parser/registry boundary control; no executed BIG-IP handler claim.
+        let registry = crate::model::ingress::static_context_for("f5-irules").commands();
+        let parent = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::from_grammar(tcl_dialect::DialectProfile::irules().grammar)
+        };
+        let source = "\u{feff}when HTTP_REQUEST {}";
+        let whole = top_level_when_handlers_with_source_config_and_head_resolver(
+            source,
+            registry,
+            parent,
+            SourceSegmentationPurpose::WholeInput,
+            &WrittenHeadResolver,
+        );
+        assert_eq!(whole.len(), 1);
+        assert_eq!(whole[0].event, "HTTP_REQUEST");
+        assert_eq!(
+            whole[0].event_span.start(),
+            u32::try_from("\u{feff}when ".len()).unwrap()
+        );
+        assert_eq!(
+            top_level_when_handlers_with_source_config_and_head_resolver(
+                source,
+                registry,
+                parent,
+                SourceSegmentationPurpose::NestedScript,
+                &WrittenHeadResolver,
+            )
+            .len(),
+            0
+        );
+        assert_eq!(
+            top_level_when_handlers_with_source_config_and_head_resolver(
+                source,
+                registry,
+                parent.nested(),
+                SourceSegmentationPurpose::WholeInput,
+                &WrittenHeadResolver,
+            )
+            .len(),
+            0
+        );
+        assert_eq!(parent.leading_bom, tcl_lexer::LeadingBom::Skip);
+
+        let source = "\u{feff}priority 730\nwhen HTTP_REQUEST {}";
+        let whole = top_level_when_handlers_with_source_config_and_head_resolver(
+            source,
+            registry,
+            parent,
+            SourceSegmentationPurpose::WholeInput,
+            &WrittenHeadResolver,
+        );
+        let nested = top_level_when_handlers_with_source_config_and_head_resolver(
+            source,
+            registry,
+            parent,
+            SourceSegmentationPurpose::NestedScript,
+            &WrittenHeadResolver,
+        );
+        assert_eq!(whole.len(), 1);
+        assert_eq!(nested.len(), 1);
+        assert_eq!(whole[0].effective_priority, 730);
+        assert_eq!(nested[0].effective_priority, 500);
     }
 }

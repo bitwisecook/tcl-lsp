@@ -55,16 +55,8 @@ fn a_workspace_roster_cannot_narrow_a_compiled_family() {
     assert_eq!(restored.rosters, 1);
 }
 
-/// #2139: the tier a pack was discovered from does not decide its trust
-/// class — the provenance it maps to does, and one predicate answers.
-///
-/// `EvalOptions::tier`'s doc comment used to call `Tier::Workspace` and
-/// `Tier::StudioOverride` "the untrusted provenance classes". It was wrong
-/// about the first: the discovery location never decided a workspace pack's
-/// class — the editor's Workspace Trust state does, and
-/// `PackEnvironmentTier::provenance` maps `Workspace` to `WorkspaceTrusted`
-/// or `WorkspaceUntrusted` by it. This pins the chain the comment
-/// misdescribed, for both states.
+/// Workspace Trust determines provenance independently of discovery location.
+/// Both trusted and untrusted states use the same registration-tier predicate.
 #[test]
 fn a_tier_decides_trust_only_through_its_provenance_issue_2139() {
     use tcl_dialect::model::{Provenance, WorkspaceTrust};

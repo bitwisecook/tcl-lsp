@@ -143,7 +143,7 @@ namespace eval ::tmm::expr_ops {
     # rust/tcl-dialect/src/model/expr_grammar.rs (`lookup("not") == None`),
     # and the UNARY_BP that rust/tcl-syntax/src/expr/parser.rs gives it is the
     # parser's shared default for every prefix operator, not an F5
-    # measurement: docs/design/f5/bigip-irule-parser-measurements.md pins only
+    # measurement: docs/design/f5/embedded-tcl-contract.md pins only
     # `if {not 0}` (the §4a expr_and_or_not probe), which exercises no binding
     # power at all.
     #
@@ -170,7 +170,7 @@ namespace eval ::tmm::expr_ops {
 word-form unary `$word` is applied directly to `$operand`, the left operand of\
 the custom comparison `$op`, and F5's grouping for that pair is not measured --\
 `$word ($operand $op ...)` and `($word $operand) $op ...` are both consistent\
-with every transcript in docs/design/f5/bigip-irule-parser-measurements.md, so\
+with every transcript in docs/design/f5/embedded-tcl-contract.md, so\
 this harness refuses to guess one. Parenthesise the intended grouping."
     }
 
@@ -349,7 +349,7 @@ this harness refuses to guess one. Parenthesise the intended grouping."
                 return [uplevel 1 ::tmm::expr_ops::_orig_expr $args]
             }
             set _in_rewrite 1
-            set code [catch {
+            set code [::tmm::_host_catch {
                 if {[llength $args] == 1} {
                     set rewritten [::tmm::expr_ops::rewrite_expr [lindex $args 0]]
                     set _result [uplevel 1 [list ::tmm::expr_ops::_orig_expr $rewritten]]
@@ -384,14 +384,10 @@ this harness refuses to guess one. Parenthesise the intended grouping."
     # propagation (see `install`).
     #
     # The scan is command-aware: the source is split into commands and words
-    # the way Tcl itself splits it, and only a word that a *recognised command
-    # in command position* uses as an expression is rewritten.  A regexp over
-    # the raw text cannot tell a command word from a quoted string, a braced
-    # data literal or a comment, so it rewrote Tcl data -- `set message
-    # "if {1 and 0}"` became `set message "if {1 && 0}"`.  That shape has no
-    # workaround for the author, and the word-form booleans made it common
-    # (`and` / `or` / `not` are ordinary English words, so ordinary iRule text
-    # now reaches the rewriter).
+    # the way Tcl itself splits it, and only a word that a recognised command
+    # in command position uses as an expression is rewritten. A raw-text
+    # regexp cannot distinguish commands from quoted data, braced data or
+    # comments; these must retain their original bytes.
     #
     # `for` is not special-cased anywhere else: there is no ::for override --
     # `install` explains why there must not be one -- so its test expression
@@ -512,7 +508,7 @@ this harness refuses to guess one. Parenthesise the intended grouping."
         if {$name eq "if" || $name eq "elseif"} {
             # A bare `elseif` / `else` command is the iRules lookahead that
             # picks the clause up across a newline (N5 in
-            # docs/design/f5/bigip-irule-parser-measurements.md); the same
+            # docs/design/f5/embedded-tcl-contract.md); the same
             # walker handles it and the single-command form.
             return [_if_chain_roles $str $cmd $roles expr]
         }
@@ -782,7 +778,7 @@ this harness refuses to guess one. Parenthesise the intended grouping."
                     # iRules' brace-line continuation: a newline does not end
                     # the command when the next line's first non-blank
                     # character is an open brace, at any nesting depth (N1 and
-                    # N3 in docs/design/f5/bigip-irule-parser-measurements.md).
+                    # N3 in docs/design/f5/embedded-tcl-contract.md).
                     set peek $pos
                     incr peek
                     set peek [_skip_blanks $str $peek $end]

@@ -22,7 +22,7 @@
 //! the core; this parses the options and writes the `-failindex` variable.
 
 use tcl_cmd_core::prefix::OptionTable;
-use tcl_cmd_core::string_is::{class_check, resolve_class};
+use tcl_cmd_core::string_is::{CLASSES, class_check};
 use tcl_runtime_api::Completion;
 
 use crate::interp::{Vm, err, ok};
@@ -42,9 +42,17 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     if let Some(error) = tcl_cmd_core::string_is::arity_error(rest.len()) {
         return vm.cmd_error(error);
     }
-    let class = match resolve_class(&rest[0].to_str(), release) {
-        Ok(c) => c,
-        Err(e) => return vm.cmd_error(e),
+    let classes = tcl_cmd_core::string_is::classes(release);
+    let class = match vm.native_static_option_index_checked(&rest[0], CLASSES, false, "class") {
+        Ok(index) if classes.contains(&CLASSES[index]) => CLASSES[index],
+        Err(e) if classes.len() == CLASSES.len() => return vm.cmd_error(e),
+        // A release without every class (`list` and `wideinteger` arrive in
+        // 8.5, `entier` in 8.6, `dict` in 9.0) reads the word among its own
+        // classes, as its `StringIsCmd` does: `string is l` is `lower` in 8.4.
+        _ => match tcl_cmd_core::string_is::resolve_class(&rest[0].to_str(), release) {
+            Ok(class) => class,
+            Err(e) => return vm.cmd_error(e),
+        },
     };
     let mut strict = false;
     let mut fail_var: Option<Value> = None;
@@ -53,22 +61,25 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         // The loop only visits non-final arguments (the last is the string),
         // so an unrecognised token here is in option position: a bad option,
         // not a wrong count (`string is alpha a b` → `bad option "a"`).
-        match OPTIONS.index_of_in(rest[i].to_str().as_bytes(), release) {
+        match vm.native_static_option_index_checked(&rest[i], OPTIONS.names(), false, "option") {
             Ok(0) => {
                 strict = true;
                 i += 1;
             }
             Ok(1) => {
                 let Some(v) = rest.get(i + 1) else {
-                    return err(format!(
-                        "wrong # args: should be \"string is {class} ?-strict? ?-failindex var? str\""
-                    ));
+                    return crate::command::native_wrong_arguments_message(
+                        vm,
+                        format!(
+                            "wrong # args: should be \"string is {class} ?-strict? ?-failindex var? str\""
+                        ),
+                    );
                 };
                 fail_var = Some(v.clone());
                 i += 2;
             }
             Ok(_) => unreachable!("the option table is closed"),
-            Err(e) => return vm.cmd_error(e),
+            Err(error) => return vm.cmd_error(error),
         }
     }
     if rest.len() - i > 1 {
@@ -76,9 +87,10 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         return err(WRONG);
     }
     if rest.len() - i < 1 {
-        return err(format!(
-            "wrong # args: should be \"string is {class} ?-strict? ?-failindex var? str\""
-        ));
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            format!("wrong # args: should be \"string is {class} ?-strict? ?-failindex var? str\""),
+        );
     }
     let s = rest[i].to_str();
     // The emulated release's numeral grammar: the numeric classes inherit

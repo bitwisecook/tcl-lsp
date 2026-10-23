@@ -153,11 +153,11 @@ on_both_engines! {
         ));
         let resolver = pack_hooks::script_timing_resolver_fn(slot).expect("a timing thunk");
         assert_eq!(
-            resolver(&["other", "work"]),
+            resolver(InvocationArguments::literals(&["other", "work"])),
             vec![(1, ScriptTiming::SameInvocation)]
         );
         assert_eq!(
-            resolver(&["-async", "other", "work"]),
+            resolver(InvocationArguments::literals(&["-async", "other", "work"])),
             vec![(2, ScriptTiming::Deferred)]
         );
         pack_hooks::clear_host();
@@ -173,7 +173,7 @@ on_both_engines! {
         ));
         let resolver = pack_hooks::script_timing_resolver_fn(slot).expect("a timing thunk");
         assert_eq!(
-            resolver(&["remove", "variable", "name", "callback"]),
+            resolver(InvocationArguments::literals(&["remove", "variable", "name", "callback"])),
             vec![(3, ScriptTiming::ReferenceOnly)]
         );
         pack_hooks::clear_host();
@@ -271,9 +271,9 @@ on_both_engines! {
              reject {only the bare form is allowed in an event body}\n}\n",
         ));
         let gate = pack_hooks::context_gate_fn(slot).expect("a gate thunk");
-        assert_eq!(gate(&["value"], false), None, "silence allows the call");
+        assert_eq!(gate(InvocationArguments::Literals(&["value"]), false), None, "silence allows the call");
         assert_eq!(
-            gate(&["value"], true),
+            gate(InvocationArguments::Literals(&["value"]), true),
             Some("only the bare form is allowed in an event body")
         );
         pack_hooks::clear_host();
@@ -326,6 +326,8 @@ on_both_engines! {
 
 on_both_engines! {
     fn a_clause_shape_check_reports_the_first_structural_defect(host) {
+        // naming.diagnostic.original-control-advice
+
         let slot = one_hook(host, HookProgram::new(
             "mylib::if",
             HookFamily::ClauseShapeCheck,
@@ -333,14 +335,19 @@ on_both_engines! {
              if {[llength $words] == 1} { missing-body 0 }\n",
         ));
         let check = pack_hooks::clause_shape_check_fn(slot).expect("a shape thunk");
-        assert_eq!(check(&["1", "{body}"]), None, "silence accepts the shape");
+        assert_eq!(check(InvocationArguments::literals(&["1", "{body}"])), None, "silence accepts the shape");
         assert_eq!(
-            check(&[]),
+            check(InvocationArguments::literals(&[])).map(tcl_registry::ClauseShapeIssue::error),
             Some(ClauseShapeError::MissingExpr { after: None })
         );
         assert_eq!(
-            check(&["1"]),
+            check(InvocationArguments::literals(&["1"])).map(tcl_registry::ClauseShapeIssue::error),
             Some(ClauseShapeError::MissingBody { after: 0 })
+        );
+        assert_eq!(
+            check(InvocationArguments::literals(&["1"])).unwrap().repair(),
+            None,
+            "pack defect reports do not borrow stock clause proposals"
         );
         pack_hooks::clear_host();
     }
@@ -693,7 +700,7 @@ on_both_engines! {
     fn a_state_transition_body_emits_alias_facts_only(host) {
         use tcl_registry::state_transition::{
             AliasWords, CallerFrameSelection, StateTransition, TransitionSubject, VariableAliasTarget,
-            VariableCellAliasTransition,
+            VariableAliasDestination, VariableCellAliasTransition,
         };
         let literal = |word: &str| TransitionSubject::Literal(word.to_owned());
         let slot = one_hook(host, HookProgram::new(
@@ -719,6 +726,7 @@ on_both_engines! {
         assert_eq!(
             facts[0],
             &StateTransition::VariableCellAlias(VariableCellAliasTransition {
+                destination: VariableAliasDestination::CurrentNamespaceOrLocal,
                 local: literal("sum"),
                 target: VariableAliasTarget::CallerSelectedFrame {
                     frame: CallerFrameSelection::Explicit(literal("#0")),
@@ -734,6 +742,7 @@ on_both_engines! {
         assert_eq!(
             facts[1],
             &StateTransition::VariableCellAlias(VariableCellAliasTransition {
+                destination: VariableAliasDestination::CurrentNamespaceOrLocal,
                 local: literal("count"),
                 target: VariableAliasTarget::CurrentNamespace {
                     variable: literal("::app::count"),
@@ -775,4 +784,31 @@ on_both_engines! {
         );
         pack_hooks::clear_host();
     }
+}
+
+#[test]
+fn script_timing_resolver_retains_structured_payload_kinds() {
+    // naming.source.original-structured-script-timing
+
+    let slot = one_hook(tcl_spec_hooks::tclvm_host, HookProgram::new(
+        "mylib::timed", HookFamily::ScriptTimingResolver,
+        "if {[dict get $ctx nwords] == 2 && [lindex [dict get $ctx kinds] 1] eq \"dynamic\"} { timing 1 Deferred }",
+    ).with_inputs(HookInputs::parse(&["nwords", "kinds"])));
+    let resolver = pack_hooks::script_timing_resolver_fn(slot).unwrap();
+    assert_eq!(
+        resolver(InvocationArguments::structured(&[
+            InvocationWord::Literal("known"),
+            InvocationWord::Dynamic,
+        ])),
+        vec![(1, ScriptTiming::Deferred)]
+    );
+    assert!(
+        resolver(InvocationArguments::structured(&[
+            InvocationWord::Literal("known"),
+            InvocationWord::Expanded,
+        ]))
+        .is_empty()
+    );
+    assert!(resolver(InvocationArguments::literals(&["known", ""])).is_empty());
+    pack_hooks::clear_host();
 }

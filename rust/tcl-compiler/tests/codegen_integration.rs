@@ -21,7 +21,11 @@
 //! Builds small CFG fixtures and runs them through `codegen_function`
 //! / `codegen_module` to verify the resulting `FunctionAsm` shape.
 
-use std::collections::{HashMap, HashSet};
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::fixture_id;
+
+use std::collections::HashMap;
 
 use tcl_compiler::cfg::{Block, BlockId, CfgModule, Function as CfgFunction, Terminator};
 use tcl_compiler::codegen::{Op, codegen_function, codegen_module};
@@ -41,6 +45,8 @@ fn toplevel_with(statements: Vec<Statement>) -> CfgFunction {
         let blk = cfg.blocks.get_mut(&entry).unwrap();
         blk.statements = statements;
         blk.terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -58,6 +64,8 @@ fn proc_with(name: &str, params: &[&str], statements: Vec<Statement>) -> CfgFunc
         let blk = cfg.blocks.get_mut(&entry).unwrap();
         blk.statements = statements;
         blk.terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -166,6 +174,8 @@ fn proc_return_param_loads_and_dones() {
         value_word: None,
         span: None,
         expr: None,
+        expr_base: None,
+        tokens: None,
         braced: false,
     });
     let registry = CommandRegistry::build_default();
@@ -233,6 +243,8 @@ fn if_else_diamond_emits_conditional_jump() {
         span: None,
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
+        expr_base: None,
+        tokens: None,
         value: None,
         value_word: None,
         span: None,
@@ -282,6 +294,8 @@ fn if_const_true_dead_branch_eliminated() {
         span: None,
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
+        expr_base: None,
+        tokens: None,
         value: None,
         value_word: None,
         span: None,
@@ -363,6 +377,8 @@ fn unseen_call_marker_after_if_arm_call_keeps_the_arm_value() {
         value_word: None,
         span: None,
         expr: None,
+        expr_base: None,
+        tokens: None,
         braced: false,
     });
 
@@ -461,6 +477,8 @@ fn switch_dispatch_emits_jump_table() {
         span: None,
     });
     cfg.blocks.get_mut(&switch_end).unwrap().terminator = Some(Terminator::Return {
+        expr_base: None,
+        tokens: None,
         value: None,
         value_word: None,
         span: None,
@@ -489,8 +507,11 @@ fn switch_glob_as_proc_tail_keeps_result_on_stack() {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir("proc f {x} { switch -glob -- $x a* {set r 1} }", &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
-    let f = asm.procedures.get("::f").expect("proc ::f");
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
+    let f = asm
+        .procedures
+        .get(&fixture_id(&asm.procedures, "::f"))
+        .expect("proc ::f");
     let ops: Vec<Op> = f.instructions.iter().map(|i| i.op).collect();
     // The arm bodies are subsumed by the runtime invoke, so the only
     // command is the `switch` invoke. Its result flows straight to the
@@ -518,7 +539,7 @@ fn foreach_synthetic_ops_carry_no_source_span() {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir("foreach x {1 2 3} { set y $x }", &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let foreach_ops: Vec<_> = asm
         .top_level
@@ -551,10 +572,14 @@ fn simple_foreach_command_completion_targets_the_paired_opcodes() {
     use tcl_compiler::lowering::lower_to_ir_for_bytecode;
 
     let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir_for_bytecode("foreach x {1 2} { $completion }", &registry);
+    // Native foreach compilation requires the procedure's local table.
+    let ir = lower_to_ir_for_bytecode("proc p {} {foreach x {1 2} { $completion }}", &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
-    let function = &asm.top_level;
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
+    let function = asm
+        .procedures
+        .get(&fixture_id(&asm.procedures, "::p"))
+        .expect("authored fixture body");
 
     let step_offset = function
         .instructions
@@ -708,6 +733,8 @@ fn foreach_emits_native_opcodes() {
         span: None,
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
+        expr_base: None,
+        tokens: None,
         value: None,
         value_word: None,
         span: None,
@@ -833,6 +860,8 @@ fn complex_foreach_body_emits_step_at_end() {
     });
 
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
+        expr_base: None,
+        tokens: None,
         value: None,
         value_word: None,
         span: None,
@@ -925,6 +954,8 @@ fn while_in_proc_emits_start_cmd() {
         span: None,
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
+        expr_base: None,
+        tokens: None,
         value: None,
         value_word: None,
         span: None,
@@ -950,35 +981,309 @@ fn codegen_module_with_no_procs() {
         top_level: toplevel_with(vec![]),
         procedures: HashMap::new(),
     };
-    let ir_mod = IrModule {
-        top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
-        plain_command_dispatch: false,
-        top_level_evaluation: tcl_compiler::ir::CommandEvaluation::Compiled,
-        source: String::new(),
-        top_level_namespace: "::".to_owned(),
-        dialect: None,
-        top_level: Script::new(),
-        procedures: HashMap::new(),
-        methods: HashMap::new(),
-        body_units: HashMap::new(),
-        lambda_body_units: std::collections::BTreeSet::new(),
-        redefined_procedures: HashSet::new(),
-        redefined_methods: HashMap::new(),
-        oo_unanalysed_classes: HashSet::new(),
-        oo_evidence: tcl_compiler::ir::OoDefinitionEvidence::default(),
-        class_relations: Vec::new(),
-        namespace_imports: Vec::new(),
-        namespace_exports: Vec::new(),
-        traced_commands: std::collections::BTreeSet::new(),
-        has_dynamic_trace: false,
-        traced_variables: std::collections::BTreeSet::new(),
-        has_dynamic_variable_trace: false,
-        deferred_writes: tcl_compiler::ir::DeferredWrites::default(),
-        reference_bodies: tcl_compiler::ir::ReferenceBodies::default(),
-        declared_frame_effects: std::collections::BTreeMap::new(),
-    };
     let registry = CommandRegistry::build_default();
-    let asm = codegen_module(&cfg_mod, &ir_mod, &registry);
+    let ir_mod = tcl_compiler::lowering::lower_to_ir_for_bytecode("", &registry);
+    let asm = codegen_module(&cfg_mod, &ir_mod, &registry).expect("original source namespace");
     assert_eq!(asm.top_level.name, "::top");
     assert!(asm.procedures.is_empty());
+}
+
+fn native_c86_entry() -> tcl_runtime_api::NativeCompilationEntry {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    struct Capture(Rc<RefCell<Option<tcl_runtime_api::NativeCompilationEntry>>>);
+    impl tcl_runtime_api::CompileService for Capture {
+        type Module = tcl_bytecode::ModuleAsm;
+
+        fn compile_script_bytes_with_entry(
+            &self,
+            _: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+            _: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            *self.0.borrow_mut() = Some(entry.clone());
+            self.compile("")
+        }
+
+        fn compile_script_with_entry(
+            &self,
+            _: tcl_runtime_api::ScriptCompileTarget<'_>,
+            _: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            *self.0.borrow_mut() = Some(entry.clone());
+            self.compile("")
+        }
+
+        fn script_command_plan_bytes_with_entry(
+            &self,
+            source: &tcl_runtime_api::SourceImage,
+            _: &'static tcl_dialect::DialectProfile,
+            _: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+            Ok(tcl_runtime_api::ScriptCommandPlan::complete(source.len()))
+        }
+
+        fn compile(&self, _: &str) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            Err(tcl_runtime_api::CompileError::Unsupported(
+                "entry capture only".into(),
+            ))
+        }
+    }
+    let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+    let captured = Rc::new(RefCell::new(None));
+    let mut vm = tcl_vm::Vm::with_native_core(
+        Box::new(std::io::sink()),
+        Rc::new(tcl_vm::host_native::NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs {
+            package_path: Vec::new(),
+            default_library: None,
+        },
+    )
+    .expect("actual C8.6 core registration");
+    vm.set_compiler(Box::new(Capture(Rc::clone(&captured))));
+    assert!(vm.try_eval_source("set entry_probe 1").is_err());
+    captured
+        .borrow_mut()
+        .take()
+        .expect("actual original C8.6 entry")
+}
+
+fn native_c86_ir(source: &str) -> IrModule {
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    let profile = registry.profile().unwrap();
+    let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+    let entry = native_c86_entry();
+    tcl_compiler::lowering::lower_script_module_for_bytecode_with_options(
+        source,
+        "::",
+        registry,
+        config,
+        Some(profile),
+        false,
+        Some(tcl_compiler::command_binding::SourceAnalysisOptions {
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_entry: Some(&entry),
+            ..Default::default()
+        }),
+    )
+}
+
+fn native_c86_assembly(source: &str) -> tcl_bytecode::ModuleAsm {
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+    let ir = native_c86_ir(source);
+    let cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
+        &ir, false, registry, config,
+    );
+    codegen_module(&cfg, &ir, registry).expect("original source namespace")
+}
+
+#[test]
+fn reached_stock_math_integer_fold_retains_implicit_lookup_guard() {
+    let module = native_c86_assembly("set x [expr {abs(-3) + 1}]");
+    assert!(
+        module
+            .top_level
+            .literals
+            .entries()
+            .iter()
+            .any(|value| value == "4")
+    );
+    assert!(
+        module.top_level.command_bindings.iter().any(|binding| {
+            binding.name == "tcl::mathfunc::abs" && binding.identity == "tcl::mathfunc::abs"
+        }),
+        "successful folding must retain its implicit dispatch: {:?}",
+        module.top_level.command_bindings
+    );
+}
+
+#[test]
+fn skipped_lazy_math_call_does_not_install_a_guard() {
+    let module = native_c86_assembly("set x [expr {0 && missing(1)}]");
+    assert!(
+        module
+            .top_level
+            .command_bindings
+            .iter()
+            .all(|binding| { !binding.name.ends_with("mathfunc::missing") })
+    );
+    assert!(
+        module
+            .top_level
+            .literals
+            .entries()
+            .iter()
+            .any(|value| value == "0")
+    );
+}
+
+#[test]
+fn custom_math_handler_does_not_acquire_stock_integer_fold() {
+    let module = native_c86_assembly(
+        "rename ::tcl::mathfunc::abs saved; interp alias {} ::tcl::mathfunc::abs {} list BOX; set x [expr {abs(-3) + 1}]",
+    );
+    assert!(
+        module
+            .top_level
+            .command_bindings
+            .iter()
+            .all(|binding| { binding.name != "tcl::mathfunc::abs" }),
+        "custom handler must not donate a stock fold guard"
+    );
+    assert!(module.top_level.instructions.iter().any(|instruction| {
+        matches!(
+            instruction.op,
+            Op::INVOKE_STK1 | Op::INVOKE_STK4 | Op::EXPR_STK
+        )
+    }));
+}
+
+#[test]
+fn removed_expression_retains_its_consumed_implicit_lookup_dependency() {
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+    let ir = native_c86_ir("expr {abs(-3) + 1}");
+    let mut cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
+        &ir, false, registry, config,
+    );
+    let proof = cfg
+        .top_level
+        .implicit_math_invocations
+        .iter()
+        .find(|proof| proof.function == "abs")
+        .expect("actual reached function proof")
+        .clone();
+    assert!(tcl_compiler::math_function_binding::native_fold_dependency(&proof).is_some());
+    cfg.top_level.required_math_invocations.push(proof);
+    for block in cfg.top_level.blocks.values_mut() {
+        block.statements.clear();
+    }
+    let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
+    assert!(
+        module.top_level.command_bindings.iter().any(|binding| {
+            binding.name == "tcl::mathfunc::abs" && binding.identity == "tcl::mathfunc::abs"
+        }),
+        "a transform cannot discard the guard when it removes the original expression"
+    );
+}
+
+#[test]
+fn unrepresentable_consumed_math_dependency_refuses_the_artifact() {
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+    let ir = native_c86_ir(
+        "proc observe args {}; trace add execution ::tcl::mathfunc::abs enter observe; expr {abs(-3)}",
+    );
+    let mut cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
+        &ir, false, registry, config,
+    );
+    let proof = cfg
+        .top_level
+        .implicit_math_invocations
+        .iter()
+        .find(|proof| proof.function == "abs")
+        .expect("actual reached function proof")
+        .clone();
+    assert!(
+        !proof
+            .reached()
+            .expect("actual observed dispatch")
+            .unobserved
+    );
+    assert!(tcl_compiler::math_function_binding::native_fold_dependency(&proof).is_none());
+    cfg.top_level.required_math_invocations.push(proof);
+    let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
+    assert_eq!(
+        module.top_level.native_compilation_preflight,
+        tcl_runtime_api::NativeCompilationPreflight::ProviderRequired
+    );
+}
+
+#[test]
+fn missing_expression_preparation_cannot_license_an_execution_fold() {
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+    let ir = native_c86_ir("expr {2 + 3}");
+    let mut cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
+        &ir, false, registry, config,
+    );
+    assert!(!cfg.top_level.expression_preparations.is_empty());
+    cfg.top_level.expression_preparations.clear();
+    let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
+    assert_eq!(
+        module.top_level.native_compilation_preflight,
+        tcl_runtime_api::NativeCompilationPreflight::ProviderRequired
+    );
+    assert!(
+        !module
+            .top_level
+            .literals
+            .entries()
+            .iter()
+            .any(|literal| literal == "5")
+    );
+}
+
+#[test]
+fn analysis_store_keeps_the_original_native_dispatch_selection() {
+    for (dialect, inline) in [("tcl8.4", false), ("tcl8.5", false), ("tcl8.6", true)] {
+        let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let ir = tcl_compiler::lowering::lower_to_ir_with_dialect(
+            r"se\x74 value 7",
+            registry,
+            config,
+            registry.profile(),
+        );
+        assert!(matches!(
+            ir.top_level.statements[0],
+            Statement::AssignConst { .. }
+        ));
+        let cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
+            &ir, false, registry, config,
+        );
+        let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
+        assert_eq!(
+            module
+                .top_level
+                .command_bindings
+                .iter()
+                .any(|binding| binding.identity == "set"),
+            inline,
+            "{dialect}: a handler proof cannot replace the native compiler selection",
+        );
+        assert_eq!(
+            module
+                .top_level
+                .instructions
+                .iter()
+                .any(|instruction| { matches!(instruction.op, Op::INVOKE_STK1 | Op::INVOKE_STK4) }),
+            !inline,
+            "{dialect}: generic dispatch retains the escaped original head",
+        );
+    }
+}
+
+#[test]
+fn codegen_retains_a_custom_profile_with_a_catalogue_name() {
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    let mut custom = registry.profile().unwrap().clone();
+    custom.display_name = "Retained custom Tcl interpreter";
+    let custom = custom.intern();
+    let config = tcl_lexer::LexerConfig::for_profile(Some(custom));
+    let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
+        "set value 3",
+        registry,
+        config,
+        Some(custom),
+    );
+    assert!(std::ptr::eq(ir.dialect_profile.unwrap(), custom));
+    let cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
+        &ir, false, registry, config,
+    );
+    let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
+    assert!(std::ptr::eq(module.profile, custom));
 }

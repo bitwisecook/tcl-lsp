@@ -33,7 +33,8 @@ use tcl_syntax::number::NumberSyntax;
 
 use crate::diag::{BpfDiag, BpfError};
 use crate::lower::parse_int;
-use crate::source::lower_bpf_source;
+pub use crate::source::OriginalBpfSource;
+use crate::source::{selected_argument, selected_command, synthetic_operation_call};
 
 /// Maximum iterations a single `loop` may unroll to.
 const MAX_UNROLL: i64 = 64;
@@ -43,19 +44,23 @@ const MAX_UNROLL: i64 = 64;
 /// # Errors
 /// Returns a [`BpfError`] for a malformed `loop` (bad arity, non-literal count,
 /// or a count exceeding the unroll cap).
-pub fn unroll_loops(script: &Script, registry: &CommandRegistry) -> Result<Script, BpfError> {
+pub fn unroll_loops(
+    script: &Script,
+    registry: &CommandRegistry,
+    source: &OriginalBpfSource,
+) -> Result<Script, BpfError> {
     let mut out = Vec::with_capacity(script.statements.len());
     for stmt in &script.statements {
-        if let Statement::Call {
-            command,
-            canonical_command,
-            args,
-            span,
-            ..
-        } = stmt
-            && canonical_command.as_deref().unwrap_or(command.as_str()) == "loop"
+        let kind = match stmt {
+            Statement::Call { .. } | Statement::Barrier { .. } => selected_command(stmt, registry)?
+                .and_then(|spec| spec.bpf_op)
+                .map(|op| op.kind),
+            _ => None,
+        };
+        if let Statement::Call { span, .. } = stmt
+            && kind == Some(tcl_registry::bpf_op::BpfOpKind::LoopMacro)
         {
-            expand_loop(args, *span, registry, &mut out)?;
+            expand_loop(stmt, *span, registry, source, &mut out)?;
         } else {
             out.push(stmt.clone());
         }
@@ -64,11 +69,15 @@ pub fn unroll_loops(script: &Script, registry: &CommandRegistry) -> Result<Scrip
 }
 
 fn expand_loop(
-    args: &[String],
+    statement: &Statement,
     span: Span,
     registry: &CommandRegistry,
+    source: &OriginalBpfSource,
     out: &mut Vec<Statement>,
 ) -> Result<(), BpfError> {
+    let Statement::Call { args, .. } = statement else {
+        unreachable!("selected loop call")
+    };
     // loop N VAR { body }
     if args.len() != 3 {
         return Err(BpfError::new(
@@ -77,13 +86,15 @@ fn expand_loop(
             "`loop` expects: loop N VAR { body }",
         ));
     }
-    let count = parse_count(&args[0], registry.numbers()).ok_or_else(|| {
-        BpfError::new(
-            BpfDiag::BadInt,
-            span,
-            "`loop` count must be a non-negative integer literal",
-        )
-    })?;
+    let count = selected_argument(statement, 0, registry)?
+        .and_then(|value| parse_count(&value, registry.numbers()))
+        .ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::BadInt,
+                span,
+                "`loop` count must be a non-negative integer literal",
+            )
+        })?;
     if count > MAX_UNROLL {
         return Err(BpfError::new(
             BpfDiag::UnboundedLoop,
@@ -91,34 +102,49 @@ fn expand_loop(
             format!("`loop` count {count} exceeds the v1 unroll cap of {MAX_UNROLL}"),
         ));
     }
-    let var = &args[1];
-    let body_text = &args[2];
-
-    // Lower the loop body, then recursively unroll any loops inside it.
-    let body_module = lower_bpf_source(body_text, registry);
-    let body = unroll_loops(&body_module.top_level, registry)?;
+    let var = selected_argument(statement, 1, registry)?.ok_or_else(|| {
+        BpfError::new(
+            BpfDiag::BadArity,
+            span,
+            "loop variable requires an original static name",
+        )
+    })?;
+    let body_source = source
+        .selected_body(statement, 2, registry)
+        .ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::BadArity,
+                span,
+                "loop body requires unchanged original literal source",
+            )
+        })?;
+    let body_base = body_source
+        .base()
+        .checked_sub(source.base())
+        .ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::Internal,
+                span,
+                "loop body is outside its original source owner",
+            )
+        })?;
+    let body = body_source
+        .prepared_body(registry)
+        .map_err(|error| error.offset(body_base))?;
+    let mut body =
+        unroll_loops(&body, registry, &body_source).map_err(|error| error.offset(body_base))?;
+    tcl_compiler::rebase_script(&mut body, i64::from(body_base));
 
     for k in 0..count {
-        out.push(synth_setint(var, k, span));
+        out.push(synthetic_operation_call(
+            tcl_registry::bpf_op::BpfOpKind::ScalarSet(tcl_registry::bpf_op::BpfScalarWidth::I64),
+            vec![var.clone(), (k).to_string()],
+            span,
+            registry,
+        )?);
         out.extend(body.statements.iter().cloned());
     }
     Ok(())
-}
-
-/// Build a synthetic `setint VAR <k>` IR call (the loop-variable binding).
-fn synth_setint(var: &str, k: i64, span: Span) -> Statement {
-    Statement::Call {
-        span,
-        command: "setint".to_owned(),
-        canonical_command: None,
-        args: vec![var.to_owned(), k.to_string()],
-        defs: Vec::new(),
-        reads: Vec::new(),
-        reads_own_defs: false,
-        safe_on_uninit: false,
-        tokens: None,
-        foreach_groups: None,
-    }
 }
 
 fn parse_count(s: &str, numbers: NumberSyntax) -> Option<i64> {

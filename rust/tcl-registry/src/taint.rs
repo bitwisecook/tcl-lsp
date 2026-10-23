@@ -18,12 +18,8 @@
 
 //! Registry-side taint metadata queries.
 //!
-//! Owns the small subcommand-shaped facts (`chan gets`, `chan read`,
-//! `encoding convertfrom`) and the iRules namespace-prefix table that
-//! used to live as hardcoded lists inside the compiler's taint
-//! analyser. The compiler's `tcl_compiler::taint` module now asks
-//! the registry "is this call a source / sink / sanitiser?" rather
-//! than maintaining its own command-name set.
+//! Registry-owned source, sink and sanitiser descriptors serve compiler
+//! taint analysis through selected invocation facts.
 
 use crate::documentation::{DocumentationAnnotation, DocumentationExample};
 use crate::registry::CommandRegistry;
@@ -465,7 +461,7 @@ pub fn taints_var_write(
                         || (option.value_variable_scope()
                             == Some(crate::hover::VariableScope::Global)
                             && !candidate.starts_with("::")
-                            && variable.strip_prefix("::") == Some(*candidate))
+                            && tcl_syntax::naming::unroot_rooted_key(variable) == Some(*candidate))
                 })
         {
             return true;
@@ -654,7 +650,82 @@ pub enum TaintTransformCondition {
     MappingDeletesCrlf,
 }
 
+/// Selected authored transform and its optional frozen-operand proof.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SelectedTaintTransform {
+    /// Colour guaranteed by the successful selected handler.
+    pub colour: TaintColour,
+    /// Additional argument-value proof required for that colour.
+    pub condition: Option<TaintTransformCondition>,
+}
+
+impl SelectedTaintTransform {
+    pub(crate) fn for_descriptors(
+        command: &crate::CommandSpec,
+        subcommand: Option<&crate::SubCommand>,
+        inherit_command: bool,
+    ) -> Option<Self> {
+        if let Some(subcommand) = subcommand
+            && let Some(colour) = subcommand.taint_transform
+        {
+            return Some(Self {
+                colour,
+                condition: subcommand.taint_transform_when,
+            });
+        }
+        if !inherit_command {
+            return None;
+        }
+        Some(Self {
+            colour: command.taint_transform?,
+            condition: command.taint_transform_when,
+        })
+    }
+
+    /// Assess evaluated operands without parsing source spellings as values.
+    #[must_use]
+    pub fn resolve(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+        offset: usize,
+        options: crate::InvocationOptions<'_, '_>,
+    ) -> Option<TaintColour> {
+        self.condition
+            .is_none_or(|condition| condition.holds_arguments(arguments, offset, options))
+            .then_some(self.colour)
+    }
+}
+
 impl TaintTransformCondition {
+    /// Validate the selected condition against frozen typed values and native
+    /// list rules. Unknown mapping bytes never receive a sanitising property.
+    #[must_use]
+    pub fn holds_arguments(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+        offset: usize,
+        options: crate::InvocationOptions<'_, '_>,
+    ) -> bool {
+        match self {
+            Self::MappingDeletesCrlf => {
+                let operands = arguments.slice_from(offset);
+                let Some(boundary) = options.leading_word_count(operands) else {
+                    return false;
+                };
+                if operands.exact_argv_len() != boundary.checked_add(2) {
+                    return false;
+                }
+                let Some(mapping) = operands.literal_at(boundary) else {
+                    return false;
+                };
+                let Some(dialect) = arguments.dialect() else {
+                    return false;
+                };
+                mapping_value_deletes_crlf(mapping, dialect.word_values)
+            }
+        }
+    }
+
     /// Every condition, in declaration order — the closed vocabulary a pack
     /// may name (by variant spelling, as every catalogued enum is named) and
     /// the studio may offer.
@@ -717,7 +788,16 @@ pub fn mapping_deletes_crlf(args: &[&str]) -> bool {
     else {
         return false;
     };
-    let Ok(elements) = tcl_syntax::list::split_list(inner) else {
+    mapping_value_deletes_crlf(inner, tcl_syntax::word_rules::WordValueRules::TCL)
+}
+
+/// Prove CR/LF removal from the actual evaluated mapping list value.
+#[must_use]
+pub fn mapping_value_deletes_crlf(
+    mapping: &str,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> bool {
+    let Ok(elements) = rules.split_list(mapping) else {
         return false;
     };
     if elements.len() < 2 || elements.len() % 2 != 0 {
@@ -1119,18 +1199,18 @@ y"}"#,
         assert!(c.taint_double_encode_colour.is_none());
         assert!(c.taint_sink_safe_colour.is_none());
         assert!(c.taint_sink_gate.is_none());
-        assert!(c.credential_options.is_empty());
-        assert!(c.sensitive_headers.is_empty());
-        assert!(c.setter_constraints.is_empty());
-        assert!(c.taint_interp_eval_subcommands.is_empty());
-        assert!(c.taint_output_sink_subcommands.is_empty());
+        assert_eq!(c.credential_options.len(), 0);
+        assert_eq!(c.sensitive_headers.len(), 0);
+        assert_eq!(c.setter_constraints.len(), 0);
+        assert_eq!(c.taint_interp_eval_subcommands.len(), 0);
+        assert_eq!(c.taint_output_sink_subcommands.len(), 0);
 
         let s = SubCommand::DEFAULT;
         assert!(s.taint_transform.is_none());
         assert!(s.taint_double_encode_colour.is_none());
         assert!(s.taint_output_sink.is_none());
         assert!(s.credential_arg.is_none());
-        assert!(s.sensitive_headers.is_empty());
+        assert_eq!(s.sensitive_headers.len(), 0);
     }
 
     /// `classify_taint_sinks` returns the all-clear default for an
@@ -1293,20 +1373,21 @@ y"}"#,
     fn switch_without_a_live_integer_option_coerces_nothing() {
         let v91 = Some("tcl9.1");
         // String modes compare text.
-        assert!(switch_coerced(v91, &["-glob", "$x", "1 a"]).is_empty());
-        assert!(switch_coerced(v91, &["$x", "1 a"]).is_empty());
+        assert_eq!(switch_coerced(v91, &["-glob", "$x", "1 a"]).len(), 0);
+        assert_eq!(switch_coerced(v91, &["$x", "1 a"]).len(), 0);
         // `-i` is ambiguous between `-indexvar` and `-integer` on 9.1.
-        assert!(switch_coerced(v91, &["-i", "$x", "1 a"]).is_empty());
+        assert_eq!(switch_coerced(v91, &["-i", "$x", "1 a"]).len(), 0);
         // C reserves the last two words: `-integer` here is the subject.
-        assert!(switch_coerced(v91, &["-integer", "1 a"]).is_empty());
-        assert!(switch_coerced(v91, &["--", "-integer", "1 a"]).is_empty());
+        assert_eq!(switch_coerced(v91, &["-integer", "1 a"]).len(), 0);
+        assert_eq!(switch_coerced(v91, &["--", "-integer", "1 a"]).len(), 0);
         // An option's value is not an option: this is a regexp switch.
-        assert!(
+        assert_eq!(
             switch_coerced(
                 v91,
                 &["-matchvar", "-integer", "-regexp", "--", "$x", "1 a"]
             )
-            .is_empty()
+            .len(),
+            0
         );
         // C rejects these before reading any operand.
         for args in [

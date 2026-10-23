@@ -20,8 +20,8 @@
 //!
 //! This module is a *prototype*.  It is **not** wired into any shipping
 //! diagnostic; nothing under `analyser/diagnostics/` calls into it.  It
-//! exists to measure a hypothesis (see `experiments/mro_eval/RESULTS.md`
-//! and `docs/design/analysis/name-resolution.md` §5.6):
+//! exposes the advisory model described in
+//! `docs/design/analysis/name-resolution.md` §5.6:
 //!
 //! > Splitting TclOO tracking into two composable parts —
 //! > (1) a precomputed **MRO graph** per class, and
@@ -367,6 +367,8 @@ enum AssignKind {
 /// *not* to an arbitrary same-tailed class in an unrelated namespace.
 #[derive(Debug, Clone, Default)]
 pub struct NsContext {
+    /// Original source scopes; displayed namespaces and imports are advice only.
+    pub source_scope: Option<crate::analyser::types::Scope>,
     /// `(body_start, body_end, namespace_name)` for each `namespace eval`
     /// body.  Innermost (smallest span) wins for a given offset.
     pub namespaces: Vec<(u32, u32, String)>,
@@ -376,15 +378,6 @@ pub struct NsContext {
 }
 
 impl NsContext {
-    /// The innermost `namespace eval` name containing `offset`, or `::`.
-    fn enclosing(&self, offset: u32) -> &str {
-        self.namespaces
-            .iter()
-            .filter(|(s, e, _)| *s <= offset && offset <= *e)
-            .min_by_key(|(s, e, _)| e.saturating_sub(*s))
-            .map_or("::", |(_, _, name)| name.as_str())
-    }
-
     /// Build the context for a file from its [`AnalysisResult`]: the
     /// `namespace eval` body ranges (from the scope tree) and the imported
     /// namespace prefixes (from `namespace import`).
@@ -399,12 +392,13 @@ impl NsContext {
         let mut imports: Vec<String> = result
             .namespace_imports
             .iter()
-            .map(|imp| import_prefix(&imp.pattern))
+            .filter_map(|imp| imp.source.as_ref().map(|source| source.namespace.clone()))
             .filter(|p| !p.is_empty())
             .collect();
         imports.sort();
         imports.dedup();
         Self {
+            source_scope: Some(result.global_scope.clone()),
             namespaces,
             imports,
         }
@@ -428,90 +422,22 @@ fn collect_namespace_ranges(
     }
 }
 
-/// The namespace a `namespace import` pattern draws from: everything before
-/// the final `::` component (`::Ns::*` → `::Ns`, `::Ns::Foo` → `::Ns`).
-fn import_prefix(pattern: &str) -> String {
-    match pattern.rsplit_once("::") {
-        Some((head, _)) if !head.is_empty() => head.to_string(),
-        _ => String::new(),
-    }
-}
-
-/// Join a namespace prefix and a (possibly-relative) name into a fully
-/// qualified `::`-name — the canonical [`crate::naming`] join.  Notably an
-/// *absolute* `name` keeps its own namespace instead of being re-prefixed
-/// under the current one (`::other::C` stays `::other::C`).
-fn qualify(prefix: &str, name: &str) -> String {
-    crate::naming::qualify(prefix, name)
-}
-
-/// Resolve a possibly-bare / namespace-relative class name to a qualified
-/// name keyed in `index`.  Returns `(qualified_name, in_index)`.
-///
-/// **Sound-by-abstention**: a bare `Foo new` at `offset` is tried against, in
-/// Tcl's own resolution order,
-/// 1. the exact name / `::name` (already qualified or global);
-/// 2. `<enclosing namespace>::Foo` — the `namespace eval` the call sits in;
-/// 3. `<imported namespace>::Foo` for each `namespace import`ed prefix;
-/// 4. the global `::Foo`.
-///
-/// If none is in the index the name is an honest miss (→ `cross-file-miss`).
-/// It is **not** matched to a same-tailed class in an unrelated namespace,
-/// so the A3 cross-file run cannot manufacture a confident false resolution
-/// from a namespace collision.  `offset = None` skips tier 2 (used when the
-/// call site has no known offset, e.g. canonicalising a superclass name).
+/// Shared original-source query; displayed imports cannot establish a link.
+#[cfg(test)]
 fn resolve_class_name<S: std::hash::BuildHasher + Clone>(
     name: &str,
     offset: Option<u32>,
     index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
 ) -> (String, bool) {
-    // 1. Exact / global.
-    if index.contains_key(name) {
-        return (name.to_string(), true);
-    }
-    let global = qualify("", name);
-    if !name.starts_with("::") && index.contains_key(&global) {
-        // fall through to try enclosing/imports first only if this is a
-        // bare name; a `::`-qualified miss is final below.
-    }
-    // 2. Enclosing namespace (walking outward to global).
-    if let Some(off) = offset {
-        let mut nsname = ns.enclosing(off).to_string();
-        loop {
-            let cand = qualify(&nsname, name);
-            if index.contains_key(&cand) {
-                return (cand, true);
-            }
-            if nsname == "::" || nsname.is_empty() {
-                break;
-            }
-            // Strip one namespace component and retry (Tcl resolves in the
-            // current namespace then falls back toward global).
-            nsname = match nsname.rsplit_once("::") {
-                Some((head, _)) if !head.is_empty() => head.to_string(),
-                _ => "::".to_string(),
-            };
-        }
-    }
-    // 3. Imported namespaces.
-    for prefix in &ns.imports {
-        let cand = qualify(prefix, name);
-        if index.contains_key(&cand) {
-            return (cand, true);
-        }
-    }
-    // 4. Global.
-    if index.contains_key(&global) {
-        return (global, true);
-    }
-    // Honest miss — best-effort qualified form.
-    let canon = if name.starts_with("::") {
-        name.to_string()
-    } else {
-        global
+    let resolved = match (offset, ns.source_scope.as_ref()) {
+        (Some(offset), Some(scope)) => super::class_hierarchy::source_namespace_at(scope, offset)
+            .and_then(|namespace| {
+                super::class_hierarchy::resolve_written_class_name_in_scope(name, namespace, index)
+            }),
+        _ => super::class_hierarchy::resolve_written_class_name(name, index),
     };
-    (canon, false)
+    resolved.map_or_else(|| (name.to_owned(), false), |key| (key, true))
 }
 
 /// Walk every unit's IR and collect, per variable name, the kinds of RHS
@@ -521,11 +447,16 @@ fn resolve_class_name<S: std::hash::BuildHasher + Clone>(
 fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
     cu: &CompilationUnit,
     index: &HashMap<String, ClassDef, S>,
-    ns: &NsContext,
+    _ns: &NsContext,
     config: tcl_lexer::LexerConfig,
 ) -> HashMap<String, Vec<AssignKind>> {
-    use crate::ir::Statement;
     let mut out: HashMap<String, Vec<AssignKind>> = HashMap::new();
+    let registry = cu.ir_module.resolved_registry();
+    let Some(context) =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module)
+    else {
+        return out;
+    };
     let units = std::iter::once(&cu.top_level)
         .chain(cu.procedures.values())
         .chain(cu.methods.values());
@@ -533,32 +464,134 @@ fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
                 // `oo::objdefine $var …` — per-object mutation of the receiver.
-                if let Statement::Call { command, args, .. }
-                | Statement::Barrier { command, args, .. } = stmt
+                if let Some(invocation) = stmt.tokens().and_then(|tokens| {
+                    crate::registry_invocation::source_structure::original_registry_words_for_module(
+                        &cu.ir_module, registry, tokens,
+                    )
+                })
+                    && invocation.with_source_schema(&context, |schema| {
+                        schema.facts().analyser_hook
+                            == Some(tcl_registry::hooks::AnalyserHookId::OoObjdefine)
+                    }) == Some(true)
+                    && let Some(v) = original_objdefine_receiver(stmt, &invocation)
                 {
-                    let canon = stmt.canonical_command_or_source();
-                    if (command == "oo::objdefine" || canon == "::oo::objdefine")
-                        && let Some(recv) = args.first()
-                        && let Some(v) = strip_dollar(recv)
-                    {
-                        out.entry(v).or_default().push(AssignKind::PerObject);
-                    }
+                    out.entry(v).or_default().push(AssignKind::PerObject);
                 }
-                let Statement::AssignValue {
-                    name, value, span, ..
-                } = stmt
-                else {
-                    continue;
-                };
-                let kind = classify_rhs(value.trim(), span.start(), index, ns, config);
-                out.entry(name.clone()).or_default().push(kind);
+                let assignments = stmt
+                    .tokens()
+                    .map(|tokens| {
+                        crate::registry_invocation::advisory_value_assignments_in_context(
+                            &context, tokens,
+                        )
+                    })
+                    .unwrap_or_default();
+                for assignment in assignments {
+                    let kind = classify_bound_rhs(
+                        &assignment.value,
+                        stmt.tokens(),
+                        registry,
+                        index,
+                        config,
+                        context.as_ref().into(),
+                    );
+                    out.entry(assignment.name).or_default().push(kind);
+                }
             }
         }
     }
     out
 }
 
-/// Bare `$name` → `Some(name)`.
+/// Source lookup determines constructor identity; names from the signature
+/// index alone cannot promote an unknown invocation into a known class.
+fn classify_bound_rhs<S: std::hash::BuildHasher + Clone>(
+    word: &crate::ir::WordExpr,
+    parent: Option<&crate::ir::CommandTokens>,
+    registry: &tcl_registry::CommandRegistry,
+    index: &HashMap<String, ClassDef, S>,
+    config: tcl_lexer::LexerConfig,
+    context: crate::registry_invocation::InvocationMetadataContext<'_>,
+) -> AssignKind {
+    use crate::ir::{WordExpr, WordPart};
+    if let Some(commands) = crate::value_shapes::command_substitution_tokens(word, parent, config) {
+        if let Some(binding) = commands
+            .last()
+            .and_then(|tokens| tokens.source_binding.as_ref())
+            && let Some(class) = binding.proved_construction_result(registry).or_else(|| {
+                let candidates = binding.class_factory_candidates(registry);
+                let first = candidates.first()?;
+                candidates
+                    .iter()
+                    .all(|candidate| candidate.command == first.command)
+                    .then(|| first.command.clone())
+            })
+        {
+            return AssignKind::Constructor {
+                in_index: index.contains_key(&class),
+                class,
+            };
+        }
+        if let Some(tokens) = commands.last()
+            && let Some(assistance) =
+                crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
+                    registry,
+                    Some(context),
+                    tokens,
+                )
+            && assistance.candidates.iter().any(|candidate| {
+                candidate
+                    .possible_traits
+                    .contains(tcl_registry::Traits::TCLOO_INTROSPECTION)
+            })
+        {
+            return AssignKind::Introspection;
+        }
+        return AssignKind::Factory;
+    }
+    match word {
+        WordExpr::Variable { .. } => AssignKind::VarCopy,
+        WordExpr::Template { parts, .. }
+            if matches!(parts.as_slice(), [WordPart::Variable { .. }]) =>
+        {
+            AssignKind::VarCopy
+        }
+        WordExpr::Opaque { .. } | WordExpr::Expand { .. } => AssignKind::Factory,
+        _ => AssignKind::Literal,
+    }
+}
+
+/// Original written receiver syntax, independent of entered object identity.
+fn original_objdefine_receiver(
+    statement: &crate::ir::Statement,
+    invocation: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+) -> Option<String> {
+    let tokens = statement.tokens()?;
+    let crate::registry_invocation::InvocationWordOrigin::Written(written) =
+        invocation.origins().get(1)?
+    else {
+        return None;
+    };
+    let written_argument = written.checked_sub(1)?;
+    let word = tokens.words().get(*written)?;
+    let (crate::ir::Statement::Call { args, .. } | crate::ir::Statement::Barrier { args, .. }) =
+        statement
+    else {
+        return None;
+    };
+    if args.get(written_argument)? != &word.legacy_text() {
+        return None;
+    }
+    let config = tokens
+        .source_binding
+        .as_ref()?
+        .original_lexer_config_for_tokens(tokens)?;
+    let (reference, source) = word.sole_variable_substitution()?;
+    (source.provenance == crate::ir::Provenance::Source).then_some(())?;
+    tcl_syntax::naming::whole_scalar_variable_reference_name(reference, config).map(str::to_owned)
+}
+
+/// Authored-fixture reference selector.
+#[cfg(test)]
 fn strip_dollar(text: &str) -> Option<String> {
     let t = text.trim();
     let rest = t.strip_prefix('$')?;
@@ -579,6 +612,7 @@ fn strip_dollar(text: &str) -> Option<String> {
 
 /// Classify a single RHS value string.  `offset` is the source offset of
 /// the assignment, used to resolve a bare class name in its namespace.
+#[cfg(test)]
 fn classify_rhs<S: std::hash::BuildHasher + Clone>(
     value: &str,
     offset: u32,
@@ -638,8 +672,8 @@ fn classify_rhs<S: std::hash::BuildHasher + Clone>(
 /// class into the variable's [`ClassValue`].
 fn seed_from_type_lattice<S: std::hash::BuildHasher + Clone>(
     fu: &FunctionUnit,
-    index: &HashMap<String, ClassDef, S>,
-    ns: &NsContext,
+    _index: &HashMap<String, ClassDef, S>,
+    _ns: &NsContext,
     cfg: AblationConfig,
     out: &mut HashMap<String, ClassValue>,
 ) {
@@ -656,14 +690,14 @@ fn seed_from_type_lattice<S: std::hash::BuildHasher + Clone>(
         };
         // The type lattice's class name is already namespace-resolved by the
         // analyser, so no call-site offset is needed here.
-        let (class, _in_index) = resolve_class_name(class_name, None, index, ns);
+        let class = class_name.to_owned();
         let var = fu.ssa.var_name(*sym).to_owned();
         let entry = out.entry(var).or_insert(ClassValue::Bottom);
         if cfg.join {
-            *entry = std::mem::replace(entry, ClassValue::Bottom).with_class(class);
+            *entry = std::mem::replace(entry, ClassValue::Bottom).with_class(class.to_owned());
         } else if matches!(entry, ClassValue::Bottom) {
             // Single-class baseline: keep only the first concrete class.
-            *entry = ClassValue::Concrete(class);
+            *entry = ClassValue::Concrete(class.to_owned());
         }
     }
 }
@@ -770,7 +804,7 @@ fn build_class_values<S: std::hash::BuildHasher + Clone>(
 fn definer_grammar_for_class<S: std::hash::BuildHasher + Clone>(
     class: &str,
     index: &HashMap<String, ClassDef, S>,
-    ns: &NsContext,
+    _ns: &NsContext,
 ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
     let registry = tcl_registry::default_registry();
     let cd = index.get(class)?;
@@ -780,10 +814,8 @@ fn definer_grammar_for_class<S: std::hash::BuildHasher + Clone>(
     {
         return Some(grammar);
     }
-    let (meta_name, in_index) = resolve_class_name(&cd.metaclass, None, index, ns);
-    if !in_index {
-        return None;
-    }
+    let meta_name =
+        super::class_hierarchy::resolve_class_lookup(cd.metaclass_lookup.as_ref()?, index)?;
     let root = index
         .get(&meta_name)?
         .factory
@@ -841,8 +873,9 @@ fn resolve<S: std::hash::BuildHasher + Clone>(
                     // and only a *genuinely* unresolvable super counts as
                     // external.
                     || cd.superclasses.iter().any(|s| {
-                        let (_q, in_index) = resolve_class_name(s, None, index, ns);
-                        !in_index && s != "oo::object" && s != "oo::class"
+                        let resolved = cd.relation_lookups.get(s).and_then(Option::as_ref)
+                            .and_then(|lookup| super::class_hierarchy::resolve_class_lookup(lookup, index));
+                        resolved.is_none() && s != "oo::object" && s != "oo::class"
                     })
             })
             // Class not indexed at all (external) — can't disprove.
@@ -964,7 +997,19 @@ pub fn next_provider(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
+
+    fn source_name(written: &str) -> Option<crate::signature_scan::scope::SignatureSourceCommand> {
+        let policy =
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        crate::signature_scan::scope::SignatureSourceCommand::object_in_context(
+            policy,
+            &crate::signature_scan::scope::SignatureNamespaceScope::root(Some(policy)),
+            written,
+        )
+    }
 
     #[test]
     fn join_bottom_identity() {
@@ -1016,11 +1061,32 @@ mod tests {
         NsContext {
             namespaces: Vec::new(),
             imports: vec![prefix.to_string()],
+            ..NsContext::default()
         }
     }
     /// A context whose whole file is one `namespace eval <name> { … }`.
     fn ns_enclosing(name: &str) -> NsContext {
+        let policy =
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        let mut root = crate::analyser::types::Scope::new(
+            crate::analyser::types::ScopeKind::Global,
+            "::".to_owned(),
+        );
+        root.naming_scope = Some(crate::signature_scan::scope::SignatureNamespaceScope::root(
+            Some(policy),
+        ));
+        let mut child = crate::analyser::types::Scope::new(
+            crate::analyser::types::ScopeKind::Namespace,
+            name.to_owned(),
+        );
+        child.naming_scope = root
+            .naming_scope
+            .as_ref()
+            .and_then(|scope| scope.child(name, Some(policy)));
+        child.body_span = Some(tcl_lexer::Span::new(0, u32::MAX));
+        root.children.push(child);
         NsContext {
+            source_scope: Some(root),
             namespaces: vec![(0, u32::MAX, name.to_string())],
             imports: Vec::new(),
         }
@@ -1032,6 +1098,7 @@ mod tests {
         index.insert(
             "::Foo".to_string(),
             ClassDef {
+                source_name: source_name("::Foo"),
                 qualified_name: "::Foo".into(),
                 name: "Foo".into(),
                 ..Default::default()
@@ -1062,6 +1129,7 @@ mod tests {
         index.insert(
             "::SpiceGenTcl::Circuit".to_string(),
             ClassDef {
+                source_name: source_name("::SpiceGenTcl::Circuit"),
                 qualified_name: "::SpiceGenTcl::Circuit".into(),
                 name: "Circuit".into(),
                 ..Default::default()
@@ -1087,11 +1155,12 @@ mod tests {
     #[test]
     fn classify_constructor_resolves_via_namespace_import() {
         // Bare `Circuit` at global scope, but the file did
-        // `namespace import ::SpiceGenTcl::*` — resolves via the import.
+        // Display-only import prefixes cannot establish an installed alias.
         let mut index = HashMap::new();
         index.insert(
             "::SpiceGenTcl::Circuit".to_string(),
             ClassDef {
+                source_name: source_name("::SpiceGenTcl::Circuit"),
                 qualified_name: "::SpiceGenTcl::Circuit".into(),
                 name: "Circuit".into(),
                 ..Default::default()
@@ -1108,8 +1177,8 @@ mod tests {
         assert_eq!(
             k,
             AssignKind::Constructor {
-                class: "::SpiceGenTcl::Circuit".into(),
-                in_index: true
+                class: "Circuit".into(),
+                in_index: false
             }
         );
     }
@@ -1124,6 +1193,7 @@ mod tests {
         index.insert(
             "::SpiceGenTcl::Circuit".to_string(),
             ClassDef {
+                source_name: source_name("::SpiceGenTcl::Circuit"),
                 qualified_name: "::SpiceGenTcl::Circuit".into(),
                 name: "Circuit".into(),
                 ..Default::default()
@@ -1139,7 +1209,7 @@ mod tests {
         assert_eq!(
             k,
             AssignKind::Constructor {
-                class: "::Circuit".into(),
+                class: "Circuit".into(),
                 in_index: false
             }
         );
@@ -1152,6 +1222,7 @@ mod tests {
         index.insert(
             "::A::Circuit".to_string(),
             ClassDef {
+                source_name: source_name("::A::Circuit"),
                 qualified_name: "::A::Circuit".into(),
                 name: "Circuit".into(),
                 ..Default::default()
@@ -1168,7 +1239,7 @@ mod tests {
         assert_eq!(
             k,
             AssignKind::Constructor {
-                class: "::Circuit".into(),
+                class: "Circuit".into(),
                 in_index: false
             }
         );
@@ -1187,7 +1258,7 @@ mod tests {
         assert_eq!(
             k,
             AssignKind::Constructor {
-                class: "::Bar".into(),
+                class: "Bar".into(),
                 in_index: false
             }
         );
@@ -1263,6 +1334,9 @@ mod tests {
                     name: (*m).to_string(),
                     params: Vec::new(),
                     params_computed: false,
+                    formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                        tcl_dialect::ParameterGrammar::Tcl,
+                    ),
                     name_span: Span::new(0, 0),
                     body_span: Span::new(0, 0),
                     kind: "method".into(),
@@ -1400,5 +1474,168 @@ mod tests {
         assert_eq!(s.total_sites, 2);
         assert!((s.top_rate() - 0.5).abs() < 1e-9);
         assert_eq!(s.top_by_reason["unknown"], 1);
+    }
+    #[test]
+    fn per_object_receiver_uses_original_written_scalar_word() {
+        for (source, expected) in [
+            (
+                "oo::objdefine ${$receiver} method inspect {} {}",
+                Some("$receiver"),
+            ),
+            (
+                "oo::objdefine \"${ with space }\" method inspect {} {}",
+                Some(" with space "),
+            ),
+            (
+                "interp alias {} defineCaptured {} oo::objdefine {$receiver}; defineCaptured method inspect {} {}",
+                None,
+            ),
+        ] {
+            let fixture = crate::provider_fixtures::original_native_module(source, "tcl8.6");
+            let (context, module) = &*fixture;
+            let statement = module.top_level.statements.last().unwrap();
+            let invocation =
+                crate::registry_invocation::source_structure::original_registry_words_for_module(
+                    module,
+                    context.commands(),
+                    statement.tokens().unwrap(),
+                )
+                .expect("actual conditional original objdefine source schema");
+            let mut missing = module.clone();
+            missing.source_metadata_input = None;
+            assert!(
+                crate::registry_invocation::source_structure::original_registry_words_for_module(
+                    &missing,
+                    context.commands(),
+                    statement.tokens().unwrap(),
+                )
+                .is_none()
+            );
+            let foreign = tcl_registry::CommandRegistry::build_default();
+            assert!(
+                crate::registry_invocation::source_structure::original_registry_words_for_module(
+                    module,
+                    &foreign,
+                    statement.tokens().unwrap(),
+                )
+                .is_none()
+            );
+            let mut detached = statement.tokens().unwrap().clone();
+            detached.source_binding = None;
+            assert!(
+                crate::registry_invocation::source_structure::original_registry_words_for_module(
+                    module,
+                    context.commands(),
+                    &detached,
+                )
+                .is_none()
+            );
+            assert_eq!(
+                invocation.with_source_schema(context, |schema| schema.facts().analyser_hook),
+                Some(Some(tcl_registry::hooks::AnalyserHookId::OoObjdefine))
+            );
+            assert_eq!(
+                original_objdefine_receiver(statement, &invocation).as_deref(),
+                expected,
+                "{source}"
+            );
+            if expected.is_none() {
+                assert!(!matches!(
+                    invocation.origins().get(1),
+                    Some(crate::registry_invocation::InvocationWordOrigin::Written(_))
+                ));
+            } else {
+                let mut changed = statement.clone();
+                let (crate::ir::Statement::Call { args, .. }
+                | crate::ir::Statement::Barrier { args, .. }) = &mut changed
+                else {
+                    panic!("actual original invocation")
+                };
+                args[0] = "${different}".to_owned();
+                assert!(original_objdefine_receiver(&changed, &invocation).is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn assignment_kind_metadata_keeps_effective_alias_words_and_supplied_availability() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Source candidate classification only; no receiver allocation or current class.
+        let baseline = crate::environment_ingress::context_for_profile(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+        );
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut descriptor = registry.get("info").unwrap().clone();
+        descriptor.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(descriptor);
+        let context =
+            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(registry)));
+        let registry = context.commands();
+        let source = "interp alias {} store {} set target; proc owner {} {store [info object class $receiver]}";
+        let mut unit = CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
+                dialect: registry.profile(),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            std::sync::Arc::clone(&context),
+        );
+        let input = unit.ir_module.source_metadata_input.clone().unwrap();
+        let index = HashMap::<String, ClassDef>::new();
+        let namespace = NsContext::default();
+        let query = |unit: &CompilationUnit| {
+            collect_assign_kinds(unit, &index, &namespace, input.lexer_config())
+        };
+        assert_eq!(query(&unit)["target"], vec![AssignKind::Introspection]);
+        let original = unit
+            .ir_module
+            .procedures
+            .get(&fixture_id(&unit.ir_module.procedures, "::owner"))
+            .expect("authored fixture body")
+            .body
+            .clone();
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(registry)),
+        );
+        assert!(std::sync::Arc::ptr_eq(older.commands(), registry));
+        unit.ir_module.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            older,
+            input.lexer_config(),
+        ));
+        assert_eq!(query(&unit)["target"], vec![AssignKind::Factory]);
+        let foreign = crate::environment_ingress::context_for_profile(
+            tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
+        );
+        for withheld in [
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                foreign,
+                input.lexer_config(),
+            )),
+            None,
+        ] {
+            unit.ir_module.source_metadata_input = withheld;
+            assert!(query(&unit).is_empty());
+            assert_eq!(
+                unit.ir_module
+                    .procedures
+                    .get(&fixture_id(&unit.ir_module.procedures, "::owner"))
+                    .expect("authored fixture body")
+                    .body,
+                original
+            );
+        }
     }
 }

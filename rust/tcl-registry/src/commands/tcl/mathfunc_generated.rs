@@ -82,11 +82,37 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: &mathfunc::MathFuncSpec) {
             "The {} math function ({}). Available via ::tcl::mathfunc::{} or inside expr as {}(...).",
             spec.name, spec.summary, spec.name, spec.name
         ));
+        let scalar_operation = match spec.name {
+            "sqrt" => Some(crate::mathfunc::NativeScalarMathOperation::Sqrt),
+            "double" => Some(crate::mathfunc::NativeScalarMathOperation::Double),
+            _ => None,
+        };
         out.push(CommandSpec {
             name,
             runtime_backing: RuntimeBacking::shipped(name),
             surface,
+            // Selected native scalar conversion contracts; other functions
+            // require their own result and completion descriptors.
+            native_result: scalar_operation
+                .map(crate::native_result::NativeResultContract::ScalarMath),
+            successful_handler: scalar_operation
+                .map(|_| crate::native_compilation::SuccessfulHandlerSpec::Leaf),
+            completion: scalar_operation.map(|_| {
+                crate::completion::CompletionDescriptor::exact(&[
+                    crate::completion::CompletionCode::Ok,
+                    crate::completion::CompletionCode::Error,
+                ])
+            }),
             traits: Traits::PURE,
+            // Native operand updateStringProc/freeIntRepProc can change the
+            // interpreter. The handler body effect and original object-hook
+            // obligation are deliberately separate authored descriptors.
+            representation_effect: Some(
+                crate::representation::RepresentationEffect::CoerceNumericValues {
+                    arguments_from: 0,
+                },
+            ),
+            world_effects: Some(crate::WorldEffectDescriptor::EMPTY),
             arity,
             return_type: Some(TclType::Numeric),
             hover: Some(HoverSnippet {
@@ -104,7 +130,7 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: &mathfunc::MathFuncSpec) {
             // A function's value is its arguments' — no route assembles the
             // command's words yet — but `rand` and `srand` read and seed the
             // interpreter's generator.
-            semantics: SemanticsDeclaration::Declared(if matches!(spec.name, "rand" | "srand") {
+            semantics: SemanticsDeclaration::Declared(if spec.uses_random_state() {
                 &crate::value_transfer::builtins::STATE_DECIDED
             } else {
                 &crate::value_transfer::builtins::ROUTE_UNAUTHORED
@@ -249,5 +275,19 @@ mod tests {
                 "{bare:?} (bare, unqualified) must not be a tcl::mathfunc registry entry"
             );
         }
+    }
+
+    #[test]
+    fn native_math_handlers_close_tracked_world_effects_without_erasing_operand_coercions() {
+        let registry = crate::CommandRegistry::build_default();
+        let resolved = registry
+            .resolve_invocation("::tcl::mathfunc::abs", &["-3"], None)
+            .unwrap();
+        let facts = resolved.facts();
+        assert_eq!(facts.effects.accesses().len(), 0);
+        assert_eq!(facts.effects.callback(), crate::CallbackEffect::NONE);
+        // This descriptor closes only tracked callback/storage worlds. Numeric
+        // representation conversion is independently proved by native consumers.
+        assert!(resolved.semantics.world_effects.command.is_some());
     }
 }

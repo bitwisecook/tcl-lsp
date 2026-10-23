@@ -127,7 +127,7 @@ does: `DialectProfile::evaluation_point()` answers `runtime_base` where it is
 the differential suites run) or `MeasuredFork` (a vendor fork measured on the real
 environment, with a note naming the record: iRules, iApps and tmsh, each reporting
 patchlevel 8.4.6 and failing every 8.5 discriminator probed,
-`docs/design/f5/bigip-irule-parser-measurements.md` §4 and §4a), and `None` where
+`docs/design/f5/embedded-tcl-contract.md` §4 and §4a), and `None` where
 it is `Unmeasured` (the EDA shells, `expect`, `bpf`, the SpecTcl hosts, the
 permissive fallback and `tk`). The versioned folds (`const_fold_versioned`, and
 the `tcl-version` key a pack's hook is given) read it through
@@ -275,6 +275,9 @@ pub struct LexerGrammar {
     pub quote_termination: QuoteTermination,  // "abc"def — Strict vs Concatenating
     pub var_syntax: VarSyntax,             // $(...), nested index parens, high bytes
     pub list_parse: ListParse,             // malformed list text — Strict vs Lenient
+
+    // ---- the script-file reader (Jim differs here too) ----
+    pub source_line_endings: SourceLineEndings, // `source` reads lone CR as LF? TranslateAuto vs Preserve
 }
 
 /// Three-valued so f5-bigip (runtime_base=None, "not Tcl") is INERT, not
@@ -303,6 +306,15 @@ built from the upstream tags 0.76–0.84 against tclsh 8.6 / 9.0:
 * `list_parse` — malformed list text never errors: an unterminated `{`/`"`
   runs to the end of the string, and junk after a closing delimiter begins
   the next element. `tcl_syntax::list::split_list_jim` implements it.
+
+A sixth Jim difference describes the file reader rather than the parser.
+`source_line_endings`: C Tcl's `source` opens the file with
+`-translation auto`, so a lone CR in a Document ends a command or comment.
+This was measured on tclsh 8.4.20–9.1.0, and `eval` of the same bytes keeps
+the CR as a word separator. Jim's `Jim_EvalFile` translates nothing: on
+jimsh 0.84, `#\r{\nputs reached\n` prints `reached`. The lexer applies the
+axis through `SourceChannel::script_byte`, and only to Document input. The
+F5 trunk inherits `TranslateAuto` from its 8.4 base; no oracle decides it.
 
 `brace_backslash_newline` moves real bindings: `proc p {a b\<newline>c}`
 binds three parameters under Tcl and **two** under Jim (the second element
@@ -479,20 +491,18 @@ reaches the `set` and `return` hooks, which lower `set x $($a*2)` to the
 same `AssignExpr` as `set x [expr {$a*2}]`. In any other word position the
 sugar is an opaque dynamic word.
 
-**The backends are Tcl 9, by decision.** The resolved point reaches the
-front half of every backend — the VM's and CLI's ingress adapters resolve
-through `resolve_environment` — but what codegen emits and what `tcl-vm`
-and `runtime/rust` execute is Tcl 9 semantics: a profile projected for a
-non-Tcl point has `runtime_base = None` and so `vm_runtime_version = V9_0`,
-and the VM's own pin (`Vm::set_runtime_version`) is a `TclVersion`, a
-closed set of Tcl releases with no Jim rung. Dialect-aware emission and
-execution — lowering `$(…)`, Jim's list/dict/`expr` semantics, a VM pin that
-is a `DialectPoint` — is an **eventual**, recorded here and in
-`compiler/codegen-internals.md`. Every backend consumes the point-derived
-grammar and profile and never a name, so that change is a new rung on the
-same ladder, not a second resolution. The VM's list conversions
-(`Value::as_list`, `cmd_prefix`, `interp`, `expr`) split strictly for the
-same reason.
+**Runtime selection is pinned per interpreter context and operation.**
+`Interp::pin_context` resolves a `RuntimeContext` through the shared ingress
+seam and retains the selected environment, release point, build/package
+constraints, and registry overlay generation. The interpreter's selected
+invocation dialect is then used with operation-specific grammar and host
+policies; a dialect profile alone is not proof that every command or feature
+has backend support. C and Jim paths remain bounded by their actual supported
+operations, original object/ABI availability, provider, and currentness
+checks. The existence of a selected point therefore describes context
+selection, not complete cross-backend semantic parity. Conformance beyond
+the exercised runtime paths remains unproven; consult the runtime support
+and test records before relying on a particular feature.
 
 ---
 
@@ -751,7 +761,7 @@ machinery**.
 | `tcl9.0` | V9_0 | V9_0 | **✗** | ✓ | ✗ | ✓ | tcl 9.0 | V9_0 | Tk `TracksBase`, Itcl `Pinned(4.2)` — both hosted |
 | `tcl9.1` | V9_1 | V9_1 | ✗ | ✓ | ✗ | ✓ | tcl 9.1 (inherits 9.0) | V9_1 | as 9.0 |
 | **`f5-irules`** | **V8_4** | **V8_4** | ✓ | ✗ | **✓** | **✗** | **f5-irules, no release** | V8_4 | `f5-irules-cmds` `Keyed(BigipVersion)` |
-| **`f5-iapps`** | **V8_4** | **V8_4** | ✓ | ✗ | ✓ | **✗** | tcl 8.4 + `iapps` | V8_4 | `f5-iapps-cmds` `Keyed(BigipVersion)`. Rides the `f5-tcl` trunk (a fork of Tcl 8.4.6, measured — `bigip-irule-parser-measurements.md` §4a) |
+| **`f5-iapps`** | **V8_4** | **V8_4** | ✓ | ✗ | ✓ | **✗** | tcl 8.4 + `iapps` | V8_4 | `f5-iapps-cmds` `Keyed(BigipVersion)`. Rides the `f5-tcl` trunk (a fork of Tcl 8.4.6, measured — `embedded-tcl-contract.md` §4a) |
 | `f5-tmsh` | **V8_4** | **V8_4** | ✓ | ✗ | **✗** | **✗** | tcl 8.4 + `tmsh` | V8_4 | `f5-tmsh-cmds` `Keyed(BigipVersion)`. Same trunk |
 | `f5-bigip` | **None** | **None** | **Inert** | ✗ | ✓ | **✗** | `bigip` only (config surface, no Tcl command surface) | None | `f5-bigip-schema` `Keyed(BigipVersion)` |
 | `expect` | V8_6 | V8_6 | ✓ | **✓** | ✗ | ✓ | tcl 8.6 + `expect` | V8_6 | Expect `Pinned(5.45.4)` |

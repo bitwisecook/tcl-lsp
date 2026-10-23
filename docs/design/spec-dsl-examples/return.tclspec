@@ -46,6 +46,9 @@ command return {
             NEEDS_START_CMD}
 
     arity ..
+    # Native return scans option/value pairs while keeping the last word as a
+    # possible result, including an unknown singleton value.
+    reserved_trailing_words 1
     return_type String
 
     # return_arg_roles(): the bare `return VALUE` form's single word is the
@@ -75,7 +78,8 @@ command return {
     lowering_hook       -native Return
     inline_codegen_hook -native Return
 
-    side_effect InterpState  -writes
+    # The interpreter-result write is the shipped spec's typed world effect,
+    # which a pack cannot author; the legacy row left is the iRules one.
     side_effect EventControl -writes -dialects f5-irules
 
     # -level is Tcl 8.5+, so this form's own dialects must say so rather than

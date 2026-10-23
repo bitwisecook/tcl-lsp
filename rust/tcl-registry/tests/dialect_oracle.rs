@@ -25,48 +25,42 @@
 //! [`CommandRegistry::get_for_surface`] to ground truth — a registry that
 //! mis-gates a 9.0-only command (or forgets to add one) fails here.
 //!
-//! Skips cleanly unless **both** an 8.6 and a 9.0 interpreter are on `PATH`
-//! (the differential needs the boundary), so CI without a dual Tcl install is
-//! unaffected.
+//! Shared oracle discovery validates exact pinned patchlevels. The strict
+//! reference suite requires every C release; this differential selects its
+//! 8.6/9.0 boundary from that validated inventory. The probes load the named
+//! distribution packages and attest vocabulary, not installed handler identity.
 
 use std::collections::HashMap;
-use std::io::Write;
-use std::process::{Command, Stdio};
+use tcl_dialect::TclVersion;
 use tcl_dialect::model::Family;
 use tcl_dialect::model::{SurfaceQuery, surface_admits};
 use tcl_registry::CommandRegistry;
+use tcl_test_support::{Tclsh, available_tclshs, run_script};
 
-/// Run `script` on `tclsh` via stdin, returning stdout (or `None` on spawn
-/// failure).
-fn run_tcl(tclsh: &str, script: &str) -> Option<String> {
-    let mut child = Command::new(tclsh)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .ok()?;
-    child.stdin.take()?.write_all(script.as_bytes()).ok()?;
-    let out = child.wait_with_output().ok()?;
-    Some(String::from_utf8_lossy(&out.stdout).into_owned())
+fn boundary_interpreters() -> Option<(Tclsh, Tclsh)> {
+    let interpreters = available_tclshs();
+    let t86 = interpreters
+        .iter()
+        .find(|t| t.version == TclVersion::V8_6)?
+        .clone();
+    let t90 = interpreters
+        .iter()
+        .find(|t| t.version == TclVersion::V9_0)?
+        .clone();
+    Some((t86, t90))
 }
 
-/// Find a `tclsh` on `PATH` whose `info patchlevel` starts with `prefix`
-/// (e.g. `"8.6"` / `"9.0"`), trying the versioned name first.
-fn find_tclsh(prefix: &str, versioned: &str) -> Option<String> {
-    for cand in [versioned, "tclsh"] {
-        if let Some(out) = run_tcl(cand, "puts -nonewline [info patchlevel]")
-            && out.starts_with(prefix)
-        {
-            return Some(cand.to_string());
-        }
-    }
-    None
+fn run_tcl(tclsh: &Tclsh, script: &str) -> String {
+    run_script(&tclsh.path, script.as_bytes())
+        .expect("run validated dialect oracle")
+        .strict_text()
+        .expect("dialect oracle exits successfully with UTF-8 output")
 }
 
 /// Probe an interpreter for whether each name in `names` resolves to a command.
 /// `TclOO` and `http` are loaded first so their commands are visible; a name
 /// resolves iff `namespace which -command` reports it.
-fn probe_existence(tclsh: &str, names: &[&str]) -> HashMap<String, bool> {
+fn probe_existence(tclsh: &Tclsh, names: &[&str]) -> HashMap<String, bool> {
     let list = names.join(" ");
     let script = format!(
         "catch {{package require TclOO}}\n\
@@ -75,7 +69,7 @@ fn probe_existence(tclsh: &str, names: &[&str]) -> HashMap<String, bool> {
          \x20 puts \"$n [expr {{[namespace which -command $n] ne \"\" ? 1 : 0}}]\"\n\
          }}\n"
     );
-    let out = run_tcl(tclsh, &script).unwrap_or_default();
+    let out = run_tcl(tclsh, &script);
     out.lines()
         .filter_map(|l| {
             let (n, v) = l.rsplit_once(' ')?;
@@ -122,7 +116,10 @@ const PROBES: &[&str] = &[
 /// Enumerate each ensemble's canonical subcommand set by triggering its
 /// "unknown subcommand … must be …" error and parsing the alternatives list.
 /// Returns `ensemble → set of subcommand names` for `tclsh`.
-fn enumerate_ensemble_subcommands(tclsh: &str, ensembles: &[&str]) -> HashMap<String, Vec<String>> {
+fn enumerate_ensemble_subcommands(
+    tclsh: &Tclsh,
+    ensembles: &[&str],
+) -> HashMap<String, Vec<String>> {
     let list = ensembles.join(" ");
     // `regsub` normalises the ", " / ", or " separators to spaces so `lsort`
     // yields a clean word list, which we print as `ens sub1 sub2 …`.
@@ -136,7 +133,7 @@ fn enumerate_ensemble_subcommands(tclsh: &str, ensembles: &[&str]) -> HashMap<St
          \x20 }}\n\
          }}\n"
     );
-    let out = run_tcl(tclsh, &script).unwrap_or_default();
+    let out = run_tcl(tclsh, &script);
     out.lines()
         .filter_map(|l| {
             let mut it = l.split_whitespace();
@@ -154,7 +151,7 @@ fn enumerate_ensemble_subcommands(tclsh: &str, ensembles: &[&str]) -> HashMap<St
 /// A wrong-arity (or other non-dispatch) error therefore proves that the
 /// subcommand resolved; only the ensemble's own unknown-option shapes mean it
 /// is absent.
-fn ensemble_accepts_subcommand(tclsh: &str, ensemble: &str, subcommand: &str) -> bool {
+fn ensemble_accepts_subcommand(tclsh: &Tclsh, ensemble: &str, subcommand: &str) -> bool {
     let script = format!(
         "if {{[catch {{{ensemble} {subcommand}}} e]}} {{\n\
          \x20 set unknown [expr {{[string match {{unknown *subcommand*}} $e] ||\n\
@@ -164,7 +161,7 @@ fn ensemble_accepts_subcommand(tclsh: &str, ensemble: &str, subcommand: &str) ->
          \x20 puts -nonewline 1\n\
          }}\n"
     );
-    run_tcl(tclsh, &script).is_some_and(|out| out.trim() == "1")
+    run_tcl(tclsh, &script).trim() == "1"
 }
 
 /// Ensembles whose subcommand tables span the 8.6/9.0 boundary. Their C-level
@@ -187,9 +184,10 @@ const AUDITED_ENSEMBLES: &[&str] = &[
 
 #[test]
 fn registry_subcommand_dialect_gating_matches_tclsh_8_6_and_9_0() {
-    let (Some(t86), Some(t90)) = (find_tclsh("8.6", "tclsh8.6"), find_tclsh("9.0", "tclsh9.0"))
-    else {
-        eprintln!("skipping subcommand dialect oracle: need both tclsh8.6 and tclsh9.0 on PATH");
+    let Some((t86, t90)) = boundary_interpreters() else {
+        eprintln!(
+            "skipping subcommand dialect oracle: need both pinned Tcl 8.6 and Tcl 9.0 interpreters"
+        );
         return;
     };
     let set86 = enumerate_ensemble_subcommands(&t86, AUDITED_ENSEMBLES);
@@ -210,10 +208,12 @@ fn registry_subcommand_dialect_gating_matches_tclsh_8_6_and_9_0() {
     let mut mismatches: Vec<String> = Vec::new();
     let mut audited = 0usize;
     for &ens in AUDITED_ENSEMBLES {
-        let (Some(s86), Some(s90)) = (set86.get(ens), set90.get(ens)) else {
-            eprintln!("note: could not enumerate `{ens}` subcommands from tclsh (skipped)");
-            continue;
-        };
+        let s86 = set86
+            .get(ens)
+            .unwrap_or_else(|| panic!("Tcl 8.6 did not enumerate {ens}"));
+        let s90 = set90
+            .get(ens)
+            .unwrap_or_else(|| panic!("Tcl 9.0 did not enumerate {ens}"));
         // Union of the canonical names seen in either interpreter. Registry-only
         // names (prefix aliases like `dict getd`) are intentionally not in this
         // set, so they are not treated as spurious mismatches.
@@ -263,7 +263,7 @@ fn registry_subcommand_dialect_gating_matches_tclsh_8_6_and_9_0() {
 /// must be …" listing with a bogus flag. `triggers` maps command → a full
 /// invocation whose first argument is an unknown flag. Returns command → set
 /// of option names (each with its leading `-`).
-fn enumerate_options(tclsh: &str, triggers: &[(&str, &str)]) -> HashMap<String, Vec<String>> {
+fn enumerate_options(tclsh: &Tclsh, triggers: &[(&str, &str)]) -> HashMap<String, Vec<String>> {
     let body: String = triggers
         .iter()
         .map(|(cmd, trig)| format!("{cmd} {{{trig}}}"))
@@ -281,7 +281,7 @@ fn enumerate_options(tclsh: &str, triggers: &[(&str, &str)]) -> HashMap<String, 
          \x20 }}\n\
          }}\n"
     );
-    let out = run_tcl(tclsh, &script).unwrap_or_default();
+    let out = run_tcl(tclsh, &script);
     out.lines()
         .filter_map(|l| {
             let mut it = l.split_whitespace();
@@ -311,9 +311,10 @@ const OPT_TRIGGERS: &[(&str, &str)] = &[
 
 #[test]
 fn registry_option_dialect_gating_matches_tclsh_8_6_and_9_0() {
-    let (Some(t86), Some(t90)) = (find_tclsh("8.6", "tclsh8.6"), find_tclsh("9.0", "tclsh9.0"))
-    else {
-        eprintln!("skipping option dialect oracle: need both tclsh8.6 and tclsh9.0 on PATH");
+    let Some((t86, t90)) = boundary_interpreters() else {
+        eprintln!(
+            "skipping option dialect oracle: need both pinned Tcl 8.6 and Tcl 9.0 interpreters"
+        );
         return;
     };
     let opt86 = enumerate_options(&t86, OPT_TRIGGERS);
@@ -323,10 +324,12 @@ fn registry_option_dialect_gating_matches_tclsh_8_6_and_9_0() {
     let mut mismatches: Vec<String> = Vec::new();
     let mut audited = 0usize;
     for &(cmd, _) in OPT_TRIGGERS {
-        let (Some(o86), Some(o90)) = (opt86.get(cmd), opt90.get(cmd)) else {
-            eprintln!("note: could not enumerate `{cmd}` options from tclsh (skipped)");
-            continue;
-        };
+        let o86 = opt86
+            .get(cmd)
+            .unwrap_or_else(|| panic!("Tcl 8.6 did not enumerate {cmd} options"));
+        let o90 = opt90
+            .get(cmd)
+            .unwrap_or_else(|| panic!("Tcl 9.0 did not enumerate {cmd} options"));
         let Some(spec) = reg.get(cmd) else { continue };
         // The registry's declared options (no dialect filter). Only these are
         // audited; an option tclsh has that the registry does not declare is a
@@ -372,14 +375,23 @@ fn registry_option_dialect_gating_matches_tclsh_8_6_and_9_0() {
 
 #[test]
 fn registry_dialect_gating_matches_tclsh_8_6_and_9_0() {
-    let (Some(t86), Some(t90)) = (find_tclsh("8.6", "tclsh8.6"), find_tclsh("9.0", "tclsh9.0"))
-    else {
-        eprintln!("skipping dialect oracle: need both tclsh8.6 and tclsh9.0 on PATH");
+    let Some((t86, t90)) = boundary_interpreters() else {
+        eprintln!("skipping dialect oracle: need both pinned Tcl 8.6 and Tcl 9.0 interpreters");
         return;
     };
 
     let have86 = probe_existence(&t86, PROBES);
     let have90 = probe_existence(&t90, PROBES);
+    assert_eq!(
+        have86.len(),
+        PROBES.len(),
+        "complete Tcl 8.6 command inventory"
+    );
+    assert_eq!(
+        have90.len(),
+        PROBES.len(),
+        "complete Tcl 9.0 command inventory"
+    );
     let reg = CommandRegistry::build_default();
 
     let mut mismatches: Vec<String> = Vec::new();

@@ -1,12 +1,13 @@
 # IRULE4005 — racy `static::` cross-event flow
 
 What IRULE4005 flags, and why the race it names is worth a warning of its own.
-`static::` variables persist across all connections on the same virtual
-server, so writing to them in per-request events (e.g. `HTTP_REQUEST`,
-`HTTP_RESPONSE`) is inherently racy — multiple connections execute
-concurrently on separate TMM threads. Without this contract, a `static::`
-variable written outside `RULE_INIT` in one event and read in another passes
-unremarked.
+A resolved root `::static::` cell persists across connections on the executing
+TMM worker and is visible to other rules there. Event and traffic writes are
+not propagated to other CMP workers. The simulator's explicit authored
+`RuleInitPublication` contract applies only to reached initialisation writes
+to enrolled static cells; it is not appliance evidence for event propagation. Cross-event mutation can therefore expose
+cross-connection state and inconsistent values between workers; it does not
+establish that separate TMMs race on one shared physical Tcl cell.
 
 IRULE4001 already warns at the write site ("write to `static::` outside
 RULE_INIT").  IRULE4005 adds a cross-event dimension: when the variable
@@ -18,9 +19,10 @@ beyond the write itself.
 1. `static::` variables participate in cross-event W211/W210 suppression
    regardless of which event defines them — the variable *is* used, so
    "unused variable" is incorrect.
-2. When a `static::` def comes from a non-RULE_INIT event and a
-   use-before-def exists in a different event, the variable is added to
-   `ConnectionScope.racy_static_defs`.
+2. When a resolved worker-static cell is possibly defined by a non-RULE_INIT
+   handler and observed by another related event, its source spelling enters
+   `ConnectionScope.racy_static_defs`. Absolute names and aliases share the
+   common cell identity; prefix text does not classify storage.
 3. The analyser emits IRULE4005 (WARNING) at the definition site in each
    non-RULE_INIT event that writes a racy `static::` variable.
 4. `unset` of a `static::` variable is not treated as a definition for

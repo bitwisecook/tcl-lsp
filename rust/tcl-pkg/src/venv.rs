@@ -25,14 +25,87 @@
 //! `$PATH` and sets `$TCLLIBPATH`; the wrapper always sets `TCLLIBPATH` so
 //! non-interactive use works without activation.
 
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 use chrono::Utc;
 
 use crate::errors::TclPkgError;
 
+mod config;
+mod posix_source;
+
 fn venv_error(message: impl Into<String>, hint: Option<&str>) -> TclPkgError {
     TclPkgError::venv(message, hint.map(ToString::to_string))
+}
+
+/// Prepend one actual Unicode path to a Tcl environment-list value, preserving
+/// the inherited source verbatim. Each supported list grammar must retain its
+/// own original suffix interpretation. This constructs environment text only;
+/// it supplies no external system-encoding or filesystem lookup guarantee.
+pub fn prepare_tcllibpath(
+    directory: &Path,
+    inherited: Option<&OsStr>,
+) -> Result<OsString, TclPkgError> {
+    let directory = directory.to_str().ok_or_else(|| {
+        venv_error(
+            "TCLLIBPATH directory has no Unicode list-source representation",
+            None,
+        )
+    })?;
+    let inherited = match inherited {
+        Some(value) => value.to_str().ok_or_else(|| {
+            venv_error(
+                "inherited TCLLIBPATH has no Unicode list-source representation",
+                None,
+            )
+        })?,
+        None => "",
+    };
+    if directory.as_bytes().contains(&0) || inherited.as_bytes().contains(&0) {
+        return Err(venv_error("TCLLIBPATH cannot contain NUL", None));
+    }
+    let mut output = tcl_syntax::list::list_element(directory);
+    if !inherited.is_empty() {
+        output.push(' ');
+        output.push_str(inherited);
+    }
+    for &escapes in tcl_dialect::EscapeSyntax::ALL {
+        for syntax in [
+            tcl_dialect::ListParse::Strict,
+            tcl_dialect::ListParse::Lenient,
+        ] {
+            let original =
+                tcl_syntax::list::split_list_bytes_in(inherited.as_bytes(), syntax, escapes)
+                    .map_err(|_| {
+                        venv_error(
+                            "inherited TCLLIBPATH is not a complete supported Tcl list",
+                            None,
+                        )
+                    })?;
+            let combined = tcl_syntax::list::split_list_bytes_in(
+                output.as_bytes(),
+                syntax,
+                escapes,
+            )
+            .map_err(|_| {
+                venv_error(
+                    "TCLLIBPATH directory cannot be represented in the supported Tcl list grammars",
+                    None,
+                )
+            })?;
+            if combined.len() != original.len() + 1
+                || combined.first().map(std::convert::AsRef::as_ref) != Some(directory.as_bytes())
+                || combined.iter().skip(1).ne(original.iter())
+            {
+                return Err(venv_error(
+                    "TCLLIBPATH construction changed a supported Tcl list interpretation",
+                    None,
+                ));
+            }
+        }
+    }
+    Ok(OsString::from(output))
 }
 
 /// Find a suitable `tclsh` on PATH (preferring newer versions), or `None`.
@@ -72,17 +145,20 @@ fn is_executable(path: &Path) -> bool {
 
 fn resolve_tclsh(requested: Option<&str>) -> Result<PathBuf, TclPkgError> {
     let Some(req) = requested else {
-        return find_tclsh().ok_or_else(|| {
-            venv_error(
-                "no tclsh found on PATH",
-                Some("install Tcl or specify --tcl <version>"),
-            )
-        });
+        return find_tclsh()
+            .ok_or_else(|| {
+                venv_error(
+                    "no tclsh found on PATH",
+                    Some("install Tcl or specify --tcl <version>"),
+                )
+            })
+            .and_then(|path| posix_source::selected_executable(&path));
     };
     if let Some(path) = which(&format!("tclsh{req}")) {
-        return Ok(path);
+        return posix_source::selected_executable(&path);
     }
     if let Some(path) = which("tclsh") {
+        let path = posix_source::selected_executable(&path)?;
         let actual = tclsh_version_string(&path);
         if !actual.is_empty() && !actual.starts_with(req) {
             return Err(venv_error(
@@ -184,52 +260,47 @@ pub fn create_venv(venv_path: &Path, opts: &CreateOptions) -> Result<PathBuf, Tc
             v
         }
     };
-    let prompt_label = opts.prompt.map_or_else(
-        || {
-            venv_path
-                .file_name()
-                .map_or_else(String::new, |n| n.to_string_lossy().into_owned())
-        },
-        ToString::to_string,
-    );
+    let prompt_label = match opts.prompt {
+        Some(prompt) => prompt.to_owned(),
+        None => venv_path.file_name().map_or(Ok(String::new()), |name| {
+            name.to_str()
+                .map(ToString::to_string)
+                .ok_or_else(|| venv_error("venv name has no Unicode prompt representation", None))
+        })?,
+    };
+    let wrapper = posix_source::wrapper(&tclsh)?;
+    let activation = posix_source::activation(&venv_path, &prompt_label)?;
+    let fish = activate_fish(&venv_path, &prompt_label);
 
+    let mut cfg = vec![
+        ("tcl_version".to_owned(), version_str),
+        ("tcl_executable".to_owned(), config::path_value(&tclsh)?),
+        ("venv_tool".to_owned(), "tcl-lsp".to_owned()),
+        (
+            "created".to_owned(),
+            Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        ),
+        ("prompt".to_owned(), prompt_label),
+        (
+            "include-system-site-packages".to_owned(),
+            opts.system_site_packages.to_string(),
+        ),
+    ];
+    if let Some(root) = opts.project_root {
+        cfg.push(("project_root".to_owned(), config::path_value(root)?));
+    }
+    let cfg_source = config::encode(&cfg)?;
     let bin_dir = venv_path.join("bin");
     let lib_dir = venv_path.join("lib");
     std::fs::create_dir_all(&bin_dir)
         .map_err(|e| venv_error(format!("cannot create venv: {e}"), None))?;
     std::fs::create_dir_all(&lib_dir)
         .map_err(|e| venv_error(format!("cannot create venv: {e}"), None))?;
+    write_file(&venv_path.join("tclvenv.cfg"), &cfg_source)?;
 
-    let tclsh_display = tclsh.to_string_lossy();
-    let mut cfg = vec![
-        format!("tcl_version = {version_str}"),
-        format!("tcl_executable = {tclsh_display}"),
-        "venv_tool = tcl-lsp".to_string(),
-        format!("created = {}", Utc::now().format("%Y-%m-%dT%H:%M:%SZ")),
-        format!("prompt = {prompt_label}"),
-        format!(
-            "include-system-site-packages = {}",
-            if opts.system_site_packages {
-                "true"
-            } else {
-                "false"
-            }
-        ),
-    ];
-    if let Some(root) = opts.project_root {
-        cfg.push(format!("project_root = {}", root.display()));
-    }
-    write_file(&venv_path.join("tclvenv.cfg"), &(cfg.join("\n") + "\n"))?;
-
-    write_tclsh_wrapper(&bin_dir.join("tclsh"), &tclsh_display, &venv_path)?;
-    write_file(
-        &bin_dir.join("activate"),
-        &activate_bash(&venv_path, &prompt_label),
-    )?;
-    write_file(
-        &bin_dir.join("activate.fish"),
-        &activate_fish(&venv_path, &prompt_label),
-    )?;
+    write_executable(&bin_dir.join("tclsh"), &wrapper)?;
+    write_file(&bin_dir.join("activate"), &activation)?;
+    write_file(&bin_dir.join("activate.fish"), &fish)?;
     write_file(
         &lib_dir.join("pkgIndex.tcl"),
         "# Auto-generated by tclpkg — do not edit.\n# This file is regenerated by `tcl pkg install`.\n",
@@ -252,13 +323,7 @@ pub fn read_venv_config(venv_path: &Path) -> Result<Vec<(String, String)>, TclPk
     }
     let text = std::fs::read_to_string(&cfg_file)
         .map_err(|e| venv_error(format!("cannot read venv config: {e}"), None))?;
-    let mut result = Vec::new();
-    for line in text.lines() {
-        if let Some((key, value)) = line.split_once('=') {
-            result.push((key.trim().to_string(), value.trim().to_string()));
-        }
-    }
-    Ok(result)
+    config::decode(&text)
 }
 
 /// Remove a virtual environment directory.
@@ -282,7 +347,19 @@ pub fn delete_venv(venv_path: &Path, force: bool) -> Result<(), TclPkgError> {
     }
     if !force && let Some(active) = std::env::var_os("TCL_VENV") {
         let active = PathBuf::from(active);
-        if active.canonicalize().ok() == venv_path.canonicalize().ok() {
+        let active = active.canonicalize().map_err(|error| {
+            venv_error(
+                format!("cannot establish active venv path identity: {error}"),
+                Some("resolve TCL_VENV or use --force to override the active-venv guard"),
+            )
+        })?;
+        let selected = venv_path.canonicalize().map_err(|error| {
+            venv_error(
+                format!("cannot establish selected venv path identity: {error}"),
+                None,
+            )
+        })?;
+        if active == selected {
             return Err(venv_error(
                 "cannot delete the currently active venv",
                 Some("run 'deactivate' first or use --force"),
@@ -297,35 +374,18 @@ pub fn delete_venv(venv_path: &Path, force: bool) -> Result<(), TclPkgError> {
 /// `bin/tclsh` wrapper. Returns the resolved tclsh path.
 pub fn update_venv(venv_path: &Path, new_tcl: &str) -> Result<PathBuf, TclPkgError> {
     let venv_path = absolutise(venv_path);
-    read_venv_config(&venv_path)?; // validate the venv exists
+    let mut cfg = read_venv_config(&venv_path)?;
 
     let tclsh = which(&format!("tclsh{new_tcl}"))
         .or_else(|| which("tclsh"))
         .ok_or_else(|| venv_error(format!("tclsh{new_tcl} not found on PATH"), None))?;
-    let tclsh_display = tclsh.to_string_lossy();
+    let tclsh = posix_source::selected_executable(&tclsh)?;
+    let wrapper = posix_source::wrapper(&tclsh)?;
+    config::replace_selected(&mut cfg, new_tcl, &tclsh)?;
+    let source = config::encode(&cfg)?;
+    write_file(&venv_path.join("tclvenv.cfg"), &source)?;
 
-    let cfg_file = venv_path.join("tclvenv.cfg");
-    let text = std::fs::read_to_string(&cfg_file)
-        .map_err(|e| venv_error(format!("cannot read venv config: {e}"), None))?;
-    let new_lines: Vec<String> = text
-        .lines()
-        .map(|line| {
-            if line.starts_with("tcl_version") {
-                format!("tcl_version = {new_tcl}")
-            } else if line.starts_with("tcl_executable") {
-                format!("tcl_executable = {tclsh_display}")
-            } else {
-                line.to_string()
-            }
-        })
-        .collect();
-    write_file(&cfg_file, &(new_lines.join("\n") + "\n"))?;
-
-    write_tclsh_wrapper(
-        &venv_path.join("bin").join("tclsh"),
-        &tclsh_display,
-        &venv_path,
-    )?;
+    write_executable(&venv_path.join("bin").join("tclsh"), &wrapper)?;
     Ok(tclsh)
 }
 
@@ -342,11 +402,8 @@ fn write_file(path: &Path, content: &str) -> Result<(), TclPkgError> {
         .map_err(|e| venv_error(format!("cannot write {}: {e}", path.display()), None))
 }
 
-fn write_tclsh_wrapper(path: &Path, tclsh: &str, _venv: &Path) -> Result<(), TclPkgError> {
-    let script = format!(
-        "#!/bin/sh\n# Auto-generated by tclpkg — do not edit.\nVENV=\"$(cd \"$(dirname \"$0\")/..\" && pwd)\"\n: \"${{TCLLIBPATH:=}}\"\nexport TCLLIBPATH=\"$VENV/lib${{TCLLIBPATH:+ $TCLLIBPATH}}\"\nexport TCL_VENV=\"$VENV\"\nexec \"{tclsh}\" \"$@\"\n"
-    );
-    write_file(path, &script)?;
+fn write_executable(path: &Path, source: &str) -> Result<(), TclPkgError> {
+    write_file(path, source)?;
     make_executable(path);
     Ok(())
 }
@@ -363,14 +420,6 @@ fn make_executable(path: &Path) {
 
 #[cfg(not(unix))]
 fn make_executable(_path: &Path) {}
-
-fn activate_bash(venv: &Path, prompt: &str) -> String {
-    let venv = venv.display();
-    let activate_path = format!("{venv}/bin/activate");
-    format!(
-        "# Auto-generated by tclpkg — source this file, do not execute.\n# Usage: source {activate_path}\n\ndeactivate () {{\n    if [ -n \"${{_OLD_TCL_VENV_PATH:-}}\" ]; then\n        PATH=\"${{_OLD_TCL_VENV_PATH}}\"\n        export PATH\n        unset _OLD_TCL_VENV_PATH\n    fi\n    if [ -n \"${{_OLD_TCL_VENV_TCLLIBPATH:-}}\" ]; then\n        TCLLIBPATH=\"${{_OLD_TCL_VENV_TCLLIBPATH}}\"\n        export TCLLIBPATH\n    else\n        unset TCLLIBPATH\n    fi\n    unset _OLD_TCL_VENV_TCLLIBPATH\n    if [ -n \"${{_OLD_TCL_VENV_PS1:-}}\" ]; then\n        PS1=\"${{_OLD_TCL_VENV_PS1}}\"\n        export PS1\n        unset _OLD_TCL_VENV_PS1\n    fi\n    unset TCL_VENV\n}}\n\n_OLD_TCL_VENV_PATH=\"$PATH\"\n_OLD_TCL_VENV_TCLLIBPATH=\"${{TCLLIBPATH:-}}\"\n_OLD_TCL_VENV_PS1=\"${{PS1:-}}\"\n\nexport TCL_VENV=\"{venv}\"\nexport TCLLIBPATH=\"{venv}/lib${{TCLLIBPATH:+ $TCLLIBPATH}}\"\nexport PATH=\"{venv}/bin:$PATH\"\nPS1=\"({prompt}) ${{PS1:-}}\"\nexport PS1\n"
-    )
-}
 
 fn activate_fish(venv: &Path, prompt: &str) -> String {
     let venv = venv.display();
@@ -393,6 +442,70 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ))
+    }
+
+    #[test]
+    fn tcllibpath_source_preserves_each_original_suffix_interpretation() {
+        for directory in [
+            "/plain/lib",
+            "/space and {braces}/lib",
+            "/quote\"[literal];$value\\tail/lib",
+            "/café/lib",
+            "/trailing\\",
+            "/line\nbreak",
+        ] {
+            for inherited in [
+                None,
+                Some(""),
+                Some("  {old path} \t\n"),
+                Some(r"old\x4142 other\400"),
+                Some(r#"{old\n} \"literal\" "#),
+            ] {
+                let output =
+                    prepare_tcllibpath(Path::new(directory), inherited.map(OsStr::new)).unwrap();
+                let text = output.to_str().unwrap();
+                if let Some(original) = inherited {
+                    assert!(text.ends_with(original));
+                }
+                for &escapes in tcl_dialect::EscapeSyntax::ALL {
+                    let actual = tcl_syntax::list::split_list_bytes_in(
+                        text.as_bytes(),
+                        tcl_dialect::ListParse::Strict,
+                        escapes,
+                    )
+                    .unwrap();
+                    let original = tcl_syntax::list::split_list_bytes_in(
+                        inherited.unwrap_or("").as_bytes(),
+                        tcl_dialect::ListParse::Strict,
+                        escapes,
+                    )
+                    .unwrap();
+                    assert_eq!(actual[0].as_ref(), directory.as_bytes());
+                    assert_eq!(&actual[1..], original.as_slice());
+                }
+            }
+        }
+        assert_eq!(
+            prepare_tcllibpath(Path::new("/plain/lib"), None).unwrap(),
+            OsString::from("/plain/lib")
+        );
+        for original in ["{unclosed", "\"unclosed", "{closed}junk", "valid\0invalid"] {
+            assert!(
+                prepare_tcllibpath(Path::new("/plain/lib"), Some(OsStr::new(original))).is_err()
+            );
+        }
+        assert!(prepare_tcllibpath(Path::new("bad\0path"), None).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn tcllibpath_source_refuses_opaque_os_values_without_treating_them_as_absent() {
+        use std::os::unix::ffi::OsStringExt;
+        let opaque = OsString::from_vec(b"original-\xff".to_vec());
+        assert!(prepare_tcllibpath(Path::new("/plain/lib"), Some(&opaque)).is_err());
+        assert!(prepare_tcllibpath(Path::new(&opaque), None).is_err());
+        assert!(prepare_tcllibpath(Path::new("/plain/lib"), None).is_ok());
+        assert!(prepare_tcllibpath(Path::new("/plain/lib"), Some(OsStr::new(""))).is_ok());
     }
 
     #[test]

@@ -25,7 +25,7 @@ import {
   getServerLogSize,
   pollUntil,
   waitForDeepDiagnostics,
-  waitForDiagnostics,
+  waitForDiagnosticsSnapshot,
   waitForEffectiveConfig,
   waitForFeatureToggle,
   waitForMasterOffDiagnostics,
@@ -263,7 +263,10 @@ suite("Configuration Settings", () => {
       const after = await pollUntil(
         () => foldingRangeViaLsp(docUri),
         (r) => Array.isArray(r) && r.length > 0,
-        { timeout: 10_000, label: "folding after editor.folding=false (issue #1122)" },
+        {
+          timeout: 10_000,
+          label: "folding after editor.folding=false (issue #1122)",
+        },
       );
       assert.ok(
         Array.isArray(after) && after.length > 0,
@@ -378,7 +381,10 @@ suite("Configuration Settings", () => {
         const t = r as vscode.SemanticTokens | undefined;
         return !!t && t.data.length > 0;
       },
-      { timeout: 10_000, label: "semantic tokens before disable (editor global)" },
+      {
+        timeout: 10_000,
+        label: "semantic tokens before disable (editor global)",
+      },
     )) as vscode.SemanticTokens | undefined;
     assert.ok(
       before && before.data.length > 0,
@@ -396,7 +402,10 @@ suite("Configuration Settings", () => {
           const t = r as vscode.SemanticTokens | undefined;
           return !t || t.data.length === 0;
         },
-        { timeout: 10_000, label: "semantic tokens suppressed (editor global)" },
+        {
+          timeout: 10_000,
+          label: "semantic tokens suppressed (editor global)",
+        },
       )) as vscode.SemanticTokens | undefined;
       assert.ok(
         !after || after.data.length === 0,
@@ -1249,9 +1258,13 @@ suite("Configuration Settings", () => {
     // W100 fails the wait directly rather than racing the assertion
     // below.
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
-    const before = await waitForDiagnostics(docUri, {
+    const beforeSnapshot = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (diags) => diags.some((d) => codeOf(d) === "W100"),
     });
+    if (!beforeSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const before = [...beforeSnapshot.report.diagnostics];
     const hasW100Before = before.some((d) => codeOf(d) === "W100");
     assert.ok(hasW100Before, `W100 should be present by default, got [${before.map(codeOf)}]`);
 
@@ -1284,8 +1297,11 @@ suite("Configuration Settings", () => {
       const editor = vscode.window.activeTextEditor!;
       const sinceEdit = getServerLogSize();
       await setTestContent(editor, editor.document.getText() + " ");
-      await waitForDeepDiagnostics(docUri, { since: sinceEdit });
-      const after = vscode.languages.getDiagnostics(docUri);
+      const deep = await waitForDeepDiagnostics(docUri, { since: sinceEdit });
+      if (!deep?.isCurrent()) {
+        throw new Error("The W100 deep-diagnostics report became stale");
+      }
+      const after = [...deep.report.diagnostics];
       assert.ok(
         !after.some((d) => codeOf(d) === "W100"),
         `W100 should be suppressed when disabled, got [${after.map(codeOf)}]`,
@@ -1326,8 +1342,13 @@ suite("Configuration Settings", () => {
       // window, which is exactly the race that made this test flaky.
       const sinceBaseline = getServerLogSize();
       await setTestContent(vscode.window.activeTextEditor!, originalText + " ");
-      await waitForDeepDiagnostics(docUri, { since: sinceBaseline });
-      const o1xxBefore = vscode.languages.getDiagnostics(docUri).filter((d) => isO1xx(codeOf(d)));
+      const baseline = await waitForDeepDiagnostics(docUri, {
+        since: sinceBaseline,
+      });
+      if (!baseline?.isCurrent()) {
+        throw new Error("The optimiser baseline report became stale");
+      }
+      const o1xxBefore = [...baseline.report.diagnostics].filter((d) => isO1xx(codeOf(d)));
 
       await config.update("enabled", false, undefined);
       // 20s, matching waitForDeepDiagnostics's default: under the full
@@ -1344,8 +1365,13 @@ suite("Configuration Settings", () => {
       // optimiser toggle.
       const sinceEdit = getServerLogSize();
       await setTestContent(vscode.window.activeTextEditor!, originalText + "  ");
-      await waitForDeepDiagnostics(docUri, { since: sinceEdit });
-      const o1xxAfter = vscode.languages.getDiagnostics(docUri).filter((d) => isO1xx(codeOf(d)));
+      const changed = await waitForDeepDiagnostics(docUri, {
+        since: sinceEdit,
+      });
+      if (!changed?.isCurrent()) {
+        throw new Error("The optimiser update report became stale");
+      }
+      const o1xxAfter = [...changed.report.diagnostics].filter((d) => isO1xx(codeOf(d)));
 
       if (o1xxBefore.length > 0) {
         assert.strictEqual(
@@ -1423,8 +1449,11 @@ suite("Configuration Settings", () => {
       try {
         const sinceEdit = getServerLogSize();
         await setTestContent(editor, originalText + " ");
-        await waitForDeepDiagnostics(docUri, { since: sinceEdit });
-        const onDiags = vscode.languages.getDiagnostics(docUri);
+        const deep = await waitForDeepDiagnostics(docUri, { since: sinceEdit });
+        if (!deep?.isCurrent()) {
+          throw new Error("The diagnostics-enabled report became stale");
+        }
+        const onDiags = [...deep.report.diagnostics];
         assert.ok(
           onDiags.length > 0,
           `the fixture must be diagnostic-rich with the master switch on, got: ${onDiags.map(codeOf)}`,

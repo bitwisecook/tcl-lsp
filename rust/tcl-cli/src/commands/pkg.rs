@@ -34,7 +34,10 @@ use serde_json::{Map, Value, json};
 use tcl_pkg::cas::ContentAddressableStore;
 use tcl_pkg::installer;
 use tcl_pkg::lockfile::{LockFile, LockedPackage, SourceSpec, read_lockfile, write_lockfile};
-use tcl_pkg::manifest::load_manifest;
+use tcl_pkg::manifest::{
+    RequirementKind, append_manifest_requirement, load_manifest, original_manifest_requirements,
+    render_manifest_header, render_manifest_requirement,
+};
 use tcl_pkg::registry::RegistryClient;
 use tcl_pkg::resolver::{ExcludeSpec, PackageRef, ReplaceSpec, ResolveInput, resolve};
 use tcl_pkg::ui;
@@ -298,18 +301,30 @@ fn run_init(
         );
         return Ok(1);
     }
-    let dir_name = path
-        .parent()
-        .and_then(|p| p.file_name())
-        .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-    let name = name.map_or(dir_name, ToString::to_string);
+    let name = if let Some(name) = name {
+        name.to_owned()
+    } else {
+        let Some(name) = path
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|name| name.to_str())
+        else {
+            eprintln!("error: project directory has no Unicode package name; supply --name");
+            return Ok(1);
+        };
+        name.to_owned()
+    };
     let version = init_version.unwrap_or("0.1.0");
     let license = init_license.unwrap_or("MIT");
     let tcl = tcl.unwrap_or(">=8.6");
 
-    let body = format!(
-        "package     {name}\nversion     {version}\nlicense     {license}\ntcl         {tcl}\n"
-    );
+    let body = match render_manifest_header(&name, version, license, tcl, path.to_str()) {
+        Ok(body) => body,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return Ok(1);
+        }
+    };
     if let Err(e) = std::fs::write(&path, body) {
         eprintln!("error: {e}");
         return Ok(1);
@@ -350,8 +365,8 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
         eprintln!("{}", ui::warn(w, colour));
     }
     let install_ctx = tcl_pkg::hooks::HookContext::new(&project_dir)
-        .var("MANIFEST", mpath.to_string_lossy())
-        .var("PROJECT", project_dir.to_string_lossy());
+        .var("MANIFEST", mpath.as_os_str())
+        .var("PROJECT", project_dir.as_os_str());
     if let Err(e) = tcl_pkg::hooks::run_stage(
         tcl_pkg::hooks::Stage::PreInstall,
         &loaded.config,
@@ -590,7 +605,7 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
                         // not at the non-existent `lib/<name>`.
                         .var(
                             "PKG_DIR",
-                            lib_dir.join(format!("{name}-{version}")).to_string_lossy(),
+                            lib_dir.join(format!("{name}-{version}")).into_os_string(),
                         );
                     if let Err(e) = tcl_pkg::hooks::run_stage(
                         tcl_pkg::hooks::Stage::PostFetch,
@@ -850,7 +865,7 @@ fn run_verify(common: &PkgCommon) -> anyhow::Result<u8> {
             continue;
         };
 
-        if tcl_pkg::cas::verify_integrity(&root, &pkg.integrity) {
+        if tcl_pkg::cas::verify_integrity(&root, &pkg.integrity)? {
             let trunc: String = pkg.integrity.chars().take(30).collect();
             println!(
                 "{}",
@@ -937,17 +952,7 @@ fn run_add(
 ) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
     let colour = ui::use_colour_for_json(common.json);
-    if let Err(e) = load_manifest(&mpath) {
-        eprintln!("error: {e}");
-        return Ok(1);
-    }
     let min_ver = min_version.unwrap_or("0.0.1");
-    let directive = if dev { "dev-require" } else { "require" };
-    let mut new_line = format!("{directive} {package} {min_ver}");
-    if let Some(url) = source {
-        new_line.push_str(" -source ");
-        new_line.push_str(url);
-    }
     let text = match std::fs::read_to_string(&mpath) {
         Ok(t) => t,
         Err(e) => {
@@ -955,7 +960,19 @@ fn run_add(
             return Ok(1);
         }
     };
-    let new_text = format!("{}\n{new_line}\n", text.trim_end_matches('\n'));
+    let kind = if dev {
+        RequirementKind::Development
+    } else {
+        RequirementKind::Runtime
+    };
+    let new_text =
+        match append_manifest_requirement(&text, mpath.to_str(), package, min_ver, source, kind) {
+            Ok(edited) => edited,
+            Err(error) => {
+                eprintln!("error: {error}");
+                return Ok(1);
+            }
+        };
     if let Err(e) = std::fs::write(&mpath, new_text) {
         eprintln!("error: {e}");
         return Ok(1);
@@ -995,20 +1012,18 @@ fn run_remove(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
             return Ok(1);
         }
     };
-    let mut count = 0;
-    let mut kept: Vec<String> = Vec::new();
-    for line in text.split_inclusive('\n') {
-        if line_is_requirement_for(line, package) {
-            count += 1;
-        } else {
-            kept.push(line.to_string());
+    let declarations = match original_manifest_requirements(&text, mpath.to_str()) {
+        Ok(declarations) => declarations,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return Ok(1);
         }
-    }
-    if count == 0 {
+    };
+    let Some((new_text, count)) = declarations.remove(package) else {
         eprintln!("error: package '{package}' not found in manifest");
         return Ok(1);
-    }
-    if let Err(e) = std::fs::write(&mpath, kept.concat()) {
+    };
+    if let Err(e) = std::fs::write(&mpath, new_text) {
         eprintln!("error: {e}");
         return Ok(1);
     }
@@ -1031,33 +1046,6 @@ fn run_remove(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
         );
     }
     Ok(0)
-}
-
-/// Whether `line` is a `require`/`dev-require` directive for `package`
-/// (matches `^\s*(?:require|dev-require)\s+<pkg>\b.*$`).
-fn line_is_requirement_for(line: &str, package: &str) -> bool {
-    let trimmed = line.trim_start();
-    for prefix in ["require", "dev-require"] {
-        if let Some(rest) = trimmed.strip_prefix(prefix) {
-            let mut chars = rest.chars();
-            if let Some(c) = chars.next()
-                && c.is_whitespace()
-            {
-                let after = rest.trim_start();
-                if let Some(tail) = after.strip_prefix(package) {
-                    // Require a word boundary after the package name.
-                    if tail.chars().next().is_none_or(|c| !is_word_char(c)) {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-    false
-}
-
-fn is_word_char(c: char) -> bool {
-    c.is_alphanumeric() || c == '_'
 }
 
 fn run_update(packages: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
@@ -1396,8 +1384,8 @@ fn run_run(extra: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
     // own entry point ("anything tcl pkg runs is sandboxed").
     let loaded = tcl_pkg::policy::load(Some(parent));
     let ctx = tcl_pkg::hooks::HookContext::new(parent)
-        .var("ENTRY", entry_path.to_string_lossy())
-        .var("MANIFEST", mpath.to_string_lossy());
+        .var("ENTRY", entry_path.as_os_str())
+        .var("MANIFEST", mpath.as_os_str());
     if let Err(e) = tcl_pkg::hooks::run_stage(tcl_pkg::hooks::Stage::PreRun, &loaded.config, &ctx) {
         eprintln!("error: {e}");
         return Ok(1);
@@ -1405,15 +1393,17 @@ fn run_run(extra: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
 
     let mut profile = tcl_sandbox::Profile::new("pkg-run", &tclsh, parent)
         .user_code()
-        .arg(entry_path.to_string_lossy())
+        .arg(entry_path.as_os_str())
         .args(extra.iter().cloned());
     let lib_dir = parent.join("lib");
     if lib_dir.is_dir() {
-        let existing = std::env::var("TCLLIBPATH").unwrap_or_default();
-        let value = if existing.is_empty() {
-            lib_dir.to_string_lossy().into_owned()
-        } else {
-            format!("{} {existing}", lib_dir.display())
+        let existing = std::env::var_os("TCLLIBPATH");
+        let value = match tcl_pkg::venv::prepare_tcllibpath(&lib_dir, existing.as_deref()) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("error: {error}");
+                return Ok(1);
+            }
         };
         profile = profile.set_env("TCLLIBPATH", value);
     }
@@ -1448,14 +1438,31 @@ fn run_freeze(common: &PkgCommon) -> anyhow::Result<u8> {
         }
         println!("{}", ui::json_output(&Value::Object(map)));
     } else {
-        for pkg in &pkgs {
-            let source_suffix = if pkg.source.url.is_empty() {
-                String::new()
-            } else {
-                format!(" -source {}", pkg.source.url)
-            };
-            let directive = if pkg.dev { "dev-require" } else { "require" };
-            println!("{directive} {} {}{source_suffix}", pkg.name, pkg.version);
+        let lines = pkgs
+            .iter()
+            .map(|pkg| {
+                render_manifest_requirement(
+                    &pkg.name,
+                    &pkg.version,
+                    (!pkg.source.url.is_empty()).then_some(pkg.source.url.as_str()),
+                    if pkg.dev {
+                        RequirementKind::Development
+                    } else {
+                        RequirementKind::Runtime
+                    },
+                    None,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>();
+        let lines = match lines {
+            Ok(lines) => lines,
+            Err(error) => {
+                eprintln!("error: {error}");
+                return Ok(1);
+            }
+        };
+        for line in lines {
+            println!("{line}");
         }
     }
     Ok(0)
@@ -1504,11 +1511,11 @@ fn build_profile(
     let _ = std::fs::create_dir_all(&build_home);
     let _ = std::fs::create_dir_all(&build_tmp);
     let mut profile = tcl_sandbox::Profile::new("pkg-build", tclsh, project_dir)
-        .arg(script.to_string_lossy())
+        .arg(script.as_os_str())
         .network(network)
         .capture(false)
-        .set_env("HOME", build_home.to_string_lossy())
-        .set_env("TMPDIR", build_tmp.to_string_lossy())
+        .set_env("HOME", build_home.as_os_str())
+        .set_env("TMPDIR", build_tmp.as_os_str())
         .set_env("TCLPKG_BUILD", "1");
     for name in ["PATH", "TCL_LIBRARY", "TCLLIBPATH"] {
         profile = profile.pass_env(name);
@@ -1576,7 +1583,7 @@ fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
 
     let ctx = tcl_pkg::hooks::HookContext::new(&project_dir)
         .var("NAME", manifest.name.clone())
-        .var("BUILD_SCRIPT", script.to_string_lossy());
+        .var("BUILD_SCRIPT", script.as_os_str());
     if let Err(e) = tcl_pkg::hooks::run_stage(tcl_pkg::hooks::Stage::PreBuild, &loaded.config, &ctx)
     {
         eprintln!("error: {e}");

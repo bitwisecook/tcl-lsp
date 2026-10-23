@@ -220,7 +220,9 @@ fn workspace_scan_clears_w123_for_a_cross_file_mathfunc() {
     std::fs::write(&vector_path, VECTOR).expect("write vector.tcl");
 
     let mut lsp = Lsp::at_workspace_root(&root);
-    let vector = format!("file://{}", vector_path.to_string_lossy());
+    let vector = tcl_lsp_server::canonical_file_uri(&vector_path)
+        .expect("vector fixture has a representable file URI")
+        .to_string();
     lsp.open_ready(&vector, VECTOR);
     // The genuine unknown is present both before and after the startup scan,
     // so it is not a scan-completion barrier by itself. Wait for that control

@@ -16,54 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! "Read as a script, does this word bind this name?" — [`script_binds_name`].
+//! Bounded lexical name ownership for diagnostic suppression.
 //!
-//! Two passes ask the same question about a word the pipeline could not
-//! lower: [`crate::ssa`]'s `braced_word_class`, deciding whether a `$name`
-//! inside a brace-quoted word of an **undescribed** command is a read of the
-//! enclosing frame, and the read-before-set emitter's
-//! `barrier_body_locally_sets`, deciding the same for an opaque
-//! `Statement::Barrier` body. In both, a word that binds the name itself
-//! reads *its own* local whichever frame it runs in, so the enclosing frame's
-//! binding is not what the `$name` refers to and W210 must stay silent.
-//!
-//! Both used to answer it by looking for a **top-level `set NAME`** and
-//! nothing else, which is one spelling of binding out of many. A body whose
-//! writes sit one block deeper, or that binds through any other command, read
-//! as "never binds it":
-//!
-//! ```tcl
-//! test one {a test} -body {
-//!     foreach it $items { set last $it }   ;# binds `it` and `last`
-//!     catch {risky} err                    ;# binds `err`
-//!     list $last $err $it
-//! } -result {…}
-//! ```
-//!
-//! Every one of `it`, `last` and `err` drew `W210 read before it is set`
-//! against the outer frame, on a body that plainly sets all three — reported
-//! as issue #2117, where `tcltest`'s bare `test` spelling is undescribed
-//! while the `tcltest::test` spelling lowers to a barrier and stays silent.
-//!
-//! The registry already knows every binding spelling — `ArgRole::VarWrite`
-//! for an output operand, `ArgRole::LoopVarList` for a loop's own variables —
-//! so this walks the word as a script, asks the registry per invocation, and
-//! recurses into the nested bodies. No command is named here.
-//!
-//! Two things the walk has to get right, or it silences findings rather than
-//! false ones:
-//!
-//! * **Only a same-frame body counts.** `proc p {} {set x 1}` binds `x` in
-//!   `p`'s frame, so a `$x` beside it in the outer script still reads the
-//!   enclosing frame's variable. `plain_body_arg_indices` is the registry's
-//!   generic answer for that — every `BodyKind::Plain` body, and none of the
-//!   `Structural` ones (`proc`, `uplevel`, `namespace eval`, the `oo::`
-//!   definers). `ArgRole::OpaqueScript` is excluded too: by contract it is
-//!   not executed here at all.
-//! * **A variable list is a Tcl list.** `foreach {{first last}} …` binds one
-//!   variable named `first last`; splitting the word on whitespace yields
-//!   `{first` and `last}` and matches neither, leaving the false W210 this
-//!   module exists to remove.
+//! A conditional or opaque body can mention names that it binds internally.
+//! This owner follows registry-described variable operands and same-frame
+//! script arguments; it excludes declaration bodies, foreign frames and opaque
+//! scripts. It supplies no executed store, current value or command identity.
+//! Variable lists use the retained lexical policy's Tcl list grammar.
+//! A depth limit returns no ownership advice; it never invents a binding.
 
 use tcl_registry::{ArgRole, CommandRegistry};
 
@@ -84,18 +44,50 @@ pub(crate) enum Ownership {
     /// whichever frame the script runs in, which for an undescribed
     /// command's word may be this one.
     Bindings,
+    /// Binding operands evaluated as decoded names. A literal leading `$`
+    /// remains part of the name; dynamic name values supply no ownership.
+    #[cfg(test)]
+    DecodedBindings,
     /// A binding, or a bare-name read (`set y`, `info exists y`).  The
     /// barrier twin wants this: its body runs in a context this frame cannot
     /// see (`interp eval PATH {…}`), so a name the body names at all is that
     /// context's, and reporting it here would blame the wrong interpreter.
     BindingsOrNameReads,
+    /// Names mentioned by registry-described scope-alias declarations.
+    /// This supplies lexical exclusion advice, not an installed alias.
+    ScopeAliases,
+    /// Source lexical veto for alias locals and trace registration subjects.
+    /// Complete negatives require the retained metadata footprint owner; the
+    /// legacy positive-only syntax helper cannot supply trace absence.
+    ScopeAliasesAndTraceRegistrations,
+}
+
+/// Conditional name ownership of one authentic original literal body.
+/// Full supplied availability, grammar and installer lookup remain independent
+/// of entered scripts, variable frames, successful stores or read exclusion.
+pub(crate) fn original_literal_body_ownership(
+    registry: &CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    parent_tokens: &crate::ir::CommandTokens,
+    written_argument: usize,
+    purpose: Ownership,
+) -> Option<crate::ir_helpers::VariableWriteEffects> {
+    // naming.compiler.original-analysis-metadata-context
+
+    let metadata = metadata.filter(|metadata| metadata.matches_registry(registry))?;
+    let binding = parent_tokens.source_binding.as_ref()?;
+    let site = binding.invocation_site()?;
+    let source = site.source.source_image().try_text().ok()?;
+    let footprint =
+        binding.original_materialized_footprint(parent_tokens, source, registry, Some(metadata))?;
+    footprint.literal_body_name_ownership(parent_tokens, written_argument, purpose)
 }
 
 /// True when `word`, read as a script, owns `name` under `ownership` — by any
 /// command the registry says takes a variable operand, at any nesting depth
 /// up to [`MAX_DEPTH`].
 ///
-/// `name` is already normalised (`crate::naming::normalise_var_name`).
+/// `name` is a literal variable root, with reference sigils kept separate.
 pub(crate) fn script_binds_name(
     word: &str,
     name: &str,
@@ -103,17 +95,37 @@ pub(crate) fn script_binds_name(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> bool {
-    // A script that never spells the name cannot bind it, and segmenting is
-    // the expensive half. The callers reach here having found the name in the
-    // word, so this rejects only the nested levels.
-    if !word.contains(name) {
+    script_image_binds_name(
+        &tcl_lexer::SourceImage::document(word),
+        name,
+        ownership,
+        registry,
+        config,
+    )
+}
+
+/// Lexical ownership in an unchanged original image. Opaque bytes, incomplete
+/// scripts and unavailable segmentation supply no ownership advice. Nested
+/// literal body values use native-value channel semantics after their original
+/// enclosing word has been evaluated by the shared word owner.
+pub(crate) fn script_image_binds_name(
+    image: &tcl_lexer::SourceImage,
+    name: &str,
+    ownership: Ownership,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
+    let Ok(text) = image.try_text() else {
+        return false;
+    };
+    if !text.contains(name) {
         return false;
     }
-    binds(word, name, ownership, registry, config, MAX_DEPTH)
+    binds(image, name, ownership, registry, config, MAX_DEPTH)
 }
 
 fn binds(
-    script: &str,
+    script: &tcl_lexer::SourceImage,
     name: &str,
     ownership: Ownership,
     registry: &CommandRegistry,
@@ -123,29 +135,63 @@ fn binds(
     if depth == 0 {
         return false;
     }
-    let list_rules = tcl_syntax::word_rules::WordValueRules::of_profile(registry.profile());
-    for segment in crate::segmenter::segment_commands_with_offset_and_config(script, 0, config) {
+    let list_rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
+    let Some(segments) =
+        crate::segmenter::segment_commands_image_with_offset_and_config(script, 0, config)
+    else {
+        return false;
+    };
+    for segment in segments {
+        if segment.is_partial {
+            return false;
+        }
         let Some((command, args)) = segment.texts.split_first() else {
             continue;
         };
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
-        let at = |role: ArgRole| registry.arg_indices_for_role(command, &args, role);
+        let resolution = registry.resolve_structured_invocation(
+            tcl_registry::InvocationWords::literals(command, &args),
+            registry.profile().and_then(|profile| {
+                tcl_registry::InvocationDialect::of_profile(profile).authoring_query()
+            }),
+        );
+        let Some(resolved) = resolution.resolved() else {
+            continue;
+        };
+        let facts = resolved.facts();
+        let at = |role: ArgRole| {
+            facts
+                .arg_roles
+                .iter()
+                .filter_map(|(index, found)| {
+                    (*found == role).then_some(facts.argument_offset + usize::from(*index))
+                })
+                .collect::<Vec<_>>()
+        };
 
         // An output operand: `catch … err`, `scan … out`, `binary scan … v`,
         // `lassign`'s tail, `incr`, `append`, `lappend`, `upvar`'s locals.
         // `VarRead` joins it for a barrier body — a bare-name read such as
         // the one-argument `set y` names that context's variable too.
+        let scope_alias = facts.traits.intersects(
+            tcl_registry::Traits::CREATES_SCOPE_ALIAS | tcl_registry::Traits::ALIASES_GLOBAL,
+        );
         let name_roles: &[ArgRole] = match ownership {
             Ownership::Bindings => &[ArgRole::VarWrite],
+            #[cfg(test)]
+            Ownership::DecodedBindings => &[ArgRole::VarWrite],
             Ownership::BindingsOrNameReads => &[ArgRole::VarWrite, ArgRole::VarRead],
+            Ownership::ScopeAliases | Ownership::ScopeAliasesAndTraceRegistrations
+                if scope_alias =>
+            {
+                &[ArgRole::VarWrite]
+            }
+            Ownership::ScopeAliases | Ownership::ScopeAliasesAndTraceRegistrations => &[],
         };
-        if name_roles
-            .iter()
-            .copied()
-            .flat_map(&at)
-            .filter_map(|index| args.get(index))
-            .any(|word| crate::naming::normalise_var_name(word) == name)
-        {
+        if name_roles.iter().copied().flat_map(&at).any(|index| {
+            decoded_binding_root(script, &segment, index + 1, config)
+                .is_some_and(|root| root == name)
+        }) {
             return true;
         }
         // A loop's own variables: `foreach {k v} $pairs …` binds `k` and `v`.
@@ -155,12 +201,18 @@ fn binds(
         // `foreach {{first last}} …` binds one variable whose name contains a
         // space, and a whitespace split reads it as the two fragments
         // `{first` and `last}` and finds neither.
-        if at(ArgRole::LoopVarList)
+        if !matches!(
+            ownership,
+            Ownership::ScopeAliases | Ownership::ScopeAliasesAndTraceRegistrations
+        ) && at(ArgRole::LoopVarList)
             .into_iter()
             .filter_map(|index| args.get(index))
             .filter_map(|list| list_rules.split_list(list).ok())
             .flatten()
-            .any(|word| crate::naming::normalise_var_name(&word) == name)
+            .any(|word| {
+                let word = word.as_ref();
+                tcl_syntax::naming::split_element_ref(word).map_or(word, |(root, _)| root) == name
+            })
         {
             return true;
         }
@@ -181,8 +233,8 @@ fn binds(
         if registry
             .plain_body_arg_indices(command, &args)
             .into_iter()
-            .filter_map(|index| args.get(index))
-            .any(|body| binds(body, name, ownership, registry, config, depth - 1))
+            .filter_map(|index| literal_body_image(script, &segment, index + 1, config))
+            .any(|body| binds(&body, name, ownership, registry, config, depth - 1))
         {
             return true;
         }
@@ -190,8 +242,205 @@ fn binds(
     false
 }
 
+fn decoded_binding_root(
+    image: &tcl_lexer::SourceImage,
+    segment: &crate::segmenter::SegmentedCommand,
+    word: usize,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let tokens = crate::ir::CommandTokens::from_segmented(&image.source_map(), config, segment);
+    match crate::registry_invocation::effective_invocation_word(
+        tokens.words().get(word)?,
+        config.escapes,
+        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+    ) {
+        crate::registry_invocation::EffectiveInvocationWord::Literal(value) => Some(
+            tcl_syntax::naming::normalise_var_name_braced_for_style(
+                &value,
+                true,
+                config.braced_var,
+            )
+            .to_owned(),
+        ),
+        crate::registry_invocation::EffectiveInvocationWord::ArrayElementName { root } => {
+            Some(root)
+        }
+        _ => None,
+    }
+}
+
+/// Original straight-line declaration layout available to missing-read advice.
+/// It excludes unknown heads, nested script evaluation and unavailable operand
+/// roles. This is a syntax-domain receipt, not a completion or effect proof.
+#[cfg(test)]
+pub(crate) struct LinearDeclarationReadLayout;
+
+#[cfg(test)]
+pub(crate) fn linear_declaration_read_layout(
+    image: &tcl_lexer::SourceImage,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: tcl_registry::InvocationDialect,
+) -> Option<LinearDeclarationReadLayout> {
+    let segments =
+        crate::segmenter::segment_commands_image_with_offset_and_config(image, 0, config)?;
+    for segment in segments {
+        if segment.is_partial {
+            return None;
+        }
+        let tokens =
+            crate::ir::CommandTokens::from_segmented(&image.source_map(), config, &segment);
+        if !tokens
+            .words()
+            .iter()
+            .all(|word| linear_operand(word, config))
+        {
+            return None;
+        }
+        let values: Vec<_> = tokens
+            .words()
+            .iter()
+            .map(|word| {
+                crate::registry_invocation::effective_invocation_word(
+                    word,
+                    config.escapes,
+                    dialect.word_values,
+                )
+            })
+            .collect();
+        let words: Vec<_> = values
+            .iter()
+            .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+            .collect();
+        let (head, arguments) = words.split_first()?;
+        let resolved = registry.resolve_structured_invocation(
+            tcl_registry::InvocationWords::structured(*head, arguments).with_dialect(dialect),
+            dialect.authoring_query(),
+        );
+        let facts = resolved.resolved()?.facts();
+        if !facts.arg_roles_complete
+            || facts.arity_accepts_frozen_arguments() != Some(true)
+            || !matches!(
+                tcl_registry::case_bodies::script_body_flow_in_registry(
+                    registry,
+                    &facts,
+                    tcl_registry::InvocationWords::structured(*head, arguments)
+                        .with_dialect(dialect)
+                        .arguments()
+                ),
+                tcl_registry::script_body_flow::ScriptBodyFlow::None
+            )
+            || facts
+                .arg_roles
+                .iter()
+                .any(|(_, role)| role.carries_script() || *role == ArgRole::OpaqueScript)
+        {
+            return None;
+        }
+    }
+    Some(LinearDeclarationReadLayout)
+}
+
+#[cfg(test)]
+fn linear_operand(word: &crate::ir::WordExpr, config: tcl_lexer::LexerConfig) -> bool {
+    use crate::ir::{WordExpr, WordPart};
+    let variable = |spelling: &str| {
+        tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config)
+            .ok()
+            .flatten()
+            .is_some_and(|reference| reference.index.is_none())
+    };
+    match word {
+        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => true,
+        WordExpr::Variable { spelling, .. } => variable(spelling),
+        WordExpr::Template { parts, .. } => parts.iter().all(|part| match part {
+            WordPart::Text { .. } => true,
+            WordPart::Variable { spelling, .. } => variable(spelling),
+            WordPart::CommandSubstitution { .. } | WordPart::Opaque { .. } => false,
+        }),
+        WordExpr::CommandSubstitution { .. }
+        | WordExpr::Expand { .. }
+        | WordExpr::Opaque { .. } => false,
+    }
+}
+
+fn literal_body_image(
+    image: &tcl_lexer::SourceImage,
+    segment: &crate::segmenter::SegmentedCommand,
+    word: usize,
+    config: tcl_lexer::LexerConfig,
+) -> Option<tcl_lexer::SourceImage> {
+    let tokens = crate::ir::CommandTokens::from_segmented(&image.source_map(), config, segment);
+    let value = crate::registry_invocation::effective_invocation_word(
+        tokens.words().get(word)?,
+        config.escapes,
+        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+    );
+    let crate::registry_invocation::EffectiveInvocationWord::Literal(value) = value else {
+        return None;
+    };
+    Some(tcl_lexer::SourceImage::native(value.into_bytes()))
+}
+
+/// An unchanged authored procedure's potential local-read domain. This is
+/// existential diagnostic advice, including a declaration whose runtime
+/// publication fails; it supplies no activation, physical absence or dispatch.
+pub(crate) struct AuthoredProcedureReadAdvice {
+    declaration: crate::command_binding::OriginalProcedureReadDeclaration,
+}
+
+impl AuthoredProcedureReadAdvice {
+    /// Original diagnostic read span, without a physical contents verdict.
+    pub(crate) fn owns(&self, span: tcl_lexer::Span) -> bool {
+        self.declaration.owns_original_read(span)
+    }
+}
+
+/// Validate the original declaration and selected body/formal correspondence.
+/// Only mapped original occurrences contribute diagnostic advice.
+pub(crate) fn authored_procedure_read_advice(
+    image: &tcl_lexer::SourceImage,
+    procedure: &crate::ir::Procedure,
+    analysis: &crate::analyser::AnalysisResult,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Option<AuthoredProcedureReadAdvice> {
+    let config = analysis.body_lexer_config?;
+    let input = analysis.resolved_input.as_ref()?;
+    let realm = analysis.retained_command_realm()?;
+    if !realm.matches_resolved_analysis_input(input)
+        || !realm.matches_original_source_image(image, config)
+        || input.lexer_config() != config
+    {
+        return None;
+    }
+    let binding = realm.invocation_at_source("", procedure.span.start());
+    let (_, mut tokens) = binding.original_recorded_command()?;
+    tokens.source_binding = Some(binding);
+    let recipe = realm
+        .source_bindings_ref()
+        .original_procedure_read_declaration(&tokens, context.commands(), input)?;
+    let body_span = recipe.original_body_span()?;
+    let body = procedure.body_source.as_ref()?;
+    if recipe.original_image() != image
+        || body_span.start() != procedure.body_offset
+        || recipe.original_body_text()? != body
+        || recipe.parameters_text()? != procedure.params_raw
+        || recipe.parameter_names() != procedure.params
+    {
+        return None;
+    }
+    if image.bytes().get(body_span.as_range()) != Some(body.as_bytes()) {
+        return None;
+    }
+    Some(AuthoredProcedureReadAdvice {
+        declaration: recipe,
+    })
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::{Ownership, script_binds_name};
 
     fn binds(script: &str, name: &str) -> bool {
@@ -212,6 +461,64 @@ mod tests {
             tcl_registry::default_registry(),
             tcl_lexer::LexerConfig::default(),
         )
+    }
+
+    #[test]
+    fn decoded_binding_names_do_not_strip_reference_sigils() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Software literal-name classification only; no current read or erasure proof.
+        let registry = tcl_registry::default_registry();
+        let config = tcl_lexer::LexerConfig::default();
+        for (script, name, expected) in [
+            ("set {$n} 1; return ${$n}", "$n", true),
+            ("set {$n} 1; return $n", "n", false),
+            ("set $n 1", "n", false),
+            ("set map($key) 1", "map", true),
+            ("foreach {{$n}} $items {}", "$n", true),
+        ] {
+            assert_eq!(
+                super::script_image_binds_name(
+                    &tcl_lexer::SourceImage::native(script.as_bytes()),
+                    name,
+                    Ownership::DecodedBindings,
+                    registry,
+                    config,
+                ),
+                expected,
+                "{script}: {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn linear_read_layout_declines_unmodelled_completion_and_nested_effects() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let dialect = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap());
+        let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+        for (script, expected) in [
+            ("namespace upvar ::ns a alias; return $missing", true),
+            ("set {$n} 1; return ${$n}", true),
+            ("if {[catch {operation} err]} {puts $other}", false),
+            (
+                "switch $x {a {return} default {error stop}}; puts $missing",
+                false,
+            ),
+            ("operation; puts $missing", false),
+            ("puts $a([operation])", false),
+        ] {
+            assert_eq!(
+                super::linear_declaration_read_layout(
+                    &tcl_lexer::SourceImage::native(script.as_bytes()),
+                    registry,
+                    config,
+                    dialect,
+                )
+                .is_some(),
+                expected,
+                "{script}"
+            );
+        }
     }
 
     /// The shape the old top-level-`set` reading already answered, kept so a
@@ -283,5 +590,378 @@ mod tests {
     fn a_bare_name_read_is_ownership_only_for_a_barrier_body() {
         assert!(!binds("set y", "y"));
         assert!(owns("set y", "y"));
+    }
+    #[test]
+    fn original_source_channel_is_retained_before_body_value_evaluation() {
+        let raw = b"set \\\r\n x 1";
+        let registry = tcl_registry::default_registry();
+        let config = tcl_lexer::LexerConfig::default();
+        assert!(super::script_image_binds_name(
+            &tcl_lexer::SourceImage::from_bytes(raw.as_slice(), tcl_lexer::SourceChannel::Document),
+            "x",
+            Ownership::Bindings,
+            registry,
+            config,
+        ));
+        assert!(!super::script_image_binds_name(
+            &tcl_lexer::SourceImage::native(raw.as_slice()),
+            "x",
+            Ownership::Bindings,
+            registry,
+            config,
+        ));
+        assert!(!super::script_image_binds_name(
+            &tcl_lexer::SourceImage::native(b"set \xff 1".as_slice()),
+            "x",
+            Ownership::Bindings,
+            registry,
+            config,
+        ));
+    }
+    #[test]
+    fn declaration_read_advice_requires_original_unchanged_body_and_formals() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Authored read applicability, no installed procedure or entered frame.
+        let source = "proc p {arg} {puts $missing}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(input.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            input,
+        );
+        let procedure = unit
+            .ir_module
+            .procedures
+            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
+            .expect("authored fixture body");
+        let image = tcl_lexer::SourceImage::document(source);
+        let realm = analysis.retained_command_realm().unwrap();
+        let binding = realm.invocation_at_source("", procedure.span.start());
+        let (_, mut tokens) = binding.original_recorded_command().unwrap();
+        assert!(tokens.source_binding.is_none());
+        assert!(
+            realm
+                .source_bindings_ref()
+                .original_procedure_read_declaration(&tokens, context.commands(), input)
+                .is_none()
+        );
+        tokens.source_binding = Some(binding);
+        assert!(
+            realm
+                .source_bindings_ref()
+                .original_procedure_read_declaration(&tokens, context.commands(), input)
+                .is_some()
+        );
+        let mut changed_tokens = tokens.clone();
+        let crate::ir::WordExpr::Literal { text, .. } = &mut changed_tokens.word_exprs[1] else {
+            panic!("literal procedure name");
+        };
+        *text = "q".into();
+        changed_tokens.argv_texts[1] = "q".into();
+        assert!(
+            realm
+                .source_bindings_ref()
+                .original_procedure_read_declaration(&changed_tokens, context.commands(), input)
+                .is_none()
+        );
+        let advice =
+            super::authored_procedure_read_advice(&image, procedure, &analysis, &context).unwrap();
+        assert!(advice.owns(tcl_lexer::Span::new(
+            procedure.body_offset,
+            procedure.body_offset + 4
+        )));
+        assert!(!advice.owns(procedure.span));
+        let mut changed = procedure.clone();
+        changed.params.push("invented".into());
+        assert!(
+            super::authored_procedure_read_advice(&image, &changed, &analysis, &context).is_none()
+        );
+        assert!(
+            super::authored_procedure_read_advice(
+                &tcl_lexer::SourceImage::document("proc p {arg} {puts $changed}"),
+                procedure,
+                &analysis,
+                &context,
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            super::authored_procedure_read_advice(&image, procedure, &missing, &context).is_none()
+        );
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        assert!(
+            super::authored_procedure_read_advice(&image, procedure, &analysis, &foreign).is_none()
+        );
+    }
+
+    fn native_read_fixture(
+        source: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> (tcl_vm::Vm, crate::analyser::AnalysisResult) {
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let (owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    &input,
+                )),
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            ..Default::default()
+        };
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .with_source_analysis_entry(std::sync::Arc::new(entry))
+            .analyse(source, profile.name);
+        (owner, analysis)
+    }
+
+    #[test]
+    fn native_read_scope_requires_matching_complete_metadata() {
+        use crate::registry_invocation::OwnedInvocationMetadataContext as Metadata;
+        let source = "proc p {arg} {puts $missing}";
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let foreign_profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
+        let foreign = crate::analyser::ResolvedAnalysisInput::new(
+            foreign_profile,
+            foreign_profile,
+            tcl_registry::model::ingress::context_for_profile(foreign_profile),
+            tcl_lexer::LexerConfig::for_file_grammar(foreign_profile.grammar),
+        );
+        for metadata in [
+            Metadata::Standalone,
+            Metadata::Unavailable,
+            Metadata::Supplied(input.context_registry()),
+            Metadata::for_source_input(Some(&input.for_nested_source())),
+            Metadata::for_source_input(Some(&foreign)),
+        ] {
+            let (_owner, captured) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
+            let entry = crate::command_binding::SourceAnalysisEntry {
+                metadata_context: metadata,
+                native_entry: Some(std::sync::Arc::new(captured)),
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                ..Default::default()
+            };
+            let analysis = crate::analyser::Analyser::new()
+                .with_resolved_input(input.clone())
+                .with_source_analysis_entry(std::sync::Arc::new(entry))
+                .analyse(source, profile.name);
+            let realm = analysis.retained_command_realm().unwrap();
+            let binding = realm.invocation_at_source("", 0);
+            let Some((_, mut tokens)) = binding.original_recorded_command() else {
+                continue;
+            };
+            tokens.source_binding = Some(binding);
+            assert!(
+                realm
+                    .source_bindings_ref()
+                    .original_procedure_read_declaration(
+                        &tokens,
+                        input.context_registry().commands(),
+                        &input
+                    )
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Original header topology only; no Native body entry or call outcome.
+        for (dialect, formals) in [
+            ("tcl8.4", "arg"),
+            ("tcl8.5", "arg"),
+            ("tcl8.6", "arg"),
+            ("tcl9.0", "arg"),
+            ("tcl9.1", "arg"),
+            ("jim", "&link"),
+        ] {
+            let source = format!("proc ::missing::p {{{formals}}} {{puts $missing}}");
+            let profile = crate::environment_ingress::resolve_environment(dialect).unit_profile();
+            let (_owner, analysis) = native_read_fixture(&source, profile);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let context = input.context_registry();
+            let realm = analysis.retained_command_realm().unwrap();
+            let binding = realm.invocation_at_source("", 0);
+            let (_, mut tokens) = binding.original_recorded_command().unwrap();
+            tokens.source_binding = Some(binding);
+            let recipe = realm
+                .source_bindings_ref()
+                .original_procedure_read_declaration(&tokens, context.commands(), input)
+                .unwrap_or_else(|| panic!("selected {dialect} formal source recipe"));
+            assert_eq!(recipe.parameters_text(), Some(formals));
+            assert_eq!(recipe.original_body_text(), Some("puts $missing"));
+            assert_eq!(
+                recipe.parameter_names(),
+                if dialect == "jim" {
+                    vec!["&link"]
+                } else {
+                    vec!["arg"]
+                }
+            );
+            let missing = crate::analyser::Analyser::new().analyse(&source, dialect);
+            let absent = missing
+                .retained_command_realm()
+                .unwrap()
+                .invocation_at_source("", 0);
+            if let Some((_, tokens)) = absent.original_recorded_command() {
+                assert!(
+                    missing
+                        .retained_command_realm()
+                        .unwrap()
+                        .source_bindings_ref()
+                        .original_procedure_read_declaration(&tokens, context.commands(), input)
+                        .is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_procedure_read_scope_preserves_continuation_occurrences() {
+        let source = "proc p {arg} {puts $arg; \\\n puts $absent; puts ${cross\\\n boundary}}";
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let analysis = crate::provider_fixtures::analyse(
+                source,
+                profile,
+                &[crate::provider_fixtures::Provider::Tcltest],
+            );
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let context = input.context_registry();
+            let realm = analysis.retained_command_realm().unwrap();
+            let binding = realm.invocation_at_source("", 0);
+            let (_, mut tokens) = binding.original_recorded_command().unwrap();
+            tokens.source_binding = Some(binding);
+            let recipe = realm
+                .source_bindings_ref()
+                .original_procedure_read_declaration(&tokens, context.commands(), input)
+                .unwrap_or_else(|| panic!("original {profile} continuation source"));
+            assert_eq!(recipe.parameter_names(), vec!["arg"]);
+            assert_eq!(
+                recipe.original_image(),
+                &tcl_lexer::SourceImage::document(source)
+            );
+            let start = u32::try_from(source.find("$absent").unwrap()).unwrap();
+            assert!(recipe.owns_original_read(tcl_lexer::Span::new(start, start + 7)));
+            let start = u32::try_from(source.find("${cross").unwrap()).unwrap();
+            let end = u32::try_from(source.rfind('}').unwrap()).unwrap();
+            assert!(!recipe.owns_original_read(tcl_lexer::Span::new(start, end)));
+            assert!(!recipe.owns_original_read(tcl_lexer::Span::new(0, 4)));
+            let mut changed_tokens = tokens.clone();
+            let crate::ir::WordExpr::BracedLiteral { text, .. } = &mut changed_tokens.word_exprs[3]
+            else {
+                panic!("original braced procedure body");
+            };
+            *text = "puts $changed".into();
+            changed_tokens.argv_texts[3] = "puts $changed".into();
+            assert!(
+                realm
+                    .source_bindings_ref()
+                    .original_procedure_read_declaration(
+                        &changed_tokens,
+                        context.commands(),
+                        input,
+                    )
+                    .is_none()
+            );
+            let foreign =
+                tcl_registry::model::ingress::resolve_environment(if profile == "tcl9.0" {
+                    "tcl8.4"
+                } else {
+                    "tcl9.0"
+                })
+                .default_context_registry();
+            assert!(
+                realm
+                    .source_bindings_ref()
+                    .original_procedure_read_declaration(&tokens, foreign.commands(), input)
+                    .is_none()
+            );
+        }
+    }
+
+    fn native_read_scope(source: &str, declaration: &str) -> bool {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let (_owner, analysis) = native_read_fixture(source, profile);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let realm = analysis.retained_command_realm().unwrap();
+        let binding = realm.invocation_at_source(
+            "",
+            u32::try_from(source.rfind(declaration).unwrap()).unwrap(),
+        );
+        let Some((_, mut tokens)) = binding.original_recorded_command() else {
+            return false;
+        };
+        tokens.source_binding = Some(binding);
+        realm
+            .source_bindings_ref()
+            .original_procedure_read_declaration(&tokens, context.commands(), input)
+            .is_some()
+    }
+
+    #[test]
+    fn selected_formal_read_scope_follows_original_factory_aliases_and_replacements() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Read applicability from original declaration operands, no installation.
+        for (source, declaration, expected) in [
+            (
+                "rename proc stock; stock p {arg} {puts $missing}",
+                "stock p",
+                true,
+            ),
+            (
+                "interp alias {} define {} proc p; define {arg} {puts $missing}",
+                "define {arg}",
+                true,
+            ),
+            (
+                "interp alias {} define {} proc p {arg}; define {puts $missing}",
+                "define {puts",
+                true,
+            ),
+            (
+                "proc proc {name params body} {}; proc p {arg} {puts $missing}",
+                "proc p",
+                false,
+            ),
+            (
+                "rename proc {}; proc p {arg} {puts $missing}",
+                "proc p",
+                false,
+            ),
+        ] {
+            assert_eq!(native_read_scope(source, declaration), expected, "{source}");
+        }
     }
 }

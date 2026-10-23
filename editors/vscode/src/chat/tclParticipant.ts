@@ -18,15 +18,34 @@
 
 import * as vscode from "vscode";
 import { getActiveDialect, getClient, isAiEnabled, isTclLanguage } from "../extension";
-import { runAgenticLoop } from "./agenticLoop";
-import { ensureDocumentOpen, extractCodeBlock, resolveIruleCode } from "./codeUtils";
+import { proposalReportEvidence, runAgenticLoop } from "./agenticLoop";
+import {
+  documentWriteReceipt,
+  ensureDocumentOpen,
+  extractCodeBlock,
+  resolveIruleCode,
+  snapshotDocumentSource,
+  isDocumentSourceSnapshotCurrent,
+} from "./codeUtils";
 import { sendContextualRequest } from "./contextPack";
 import {
   categoriseDiagnostics,
+  currentDiagnosticsReportMatches,
+  currentDiagnosticsReportIsStillPublished,
   renderDiagnosticSection,
-  waitForDiagnostics,
+  waitForDiagnosticsReport,
+  waitForProposalDiagnostics,
+  proposalDiagnosticsReportMatches,
+  isAnalysisContextCurrent,
+  CurrentDiagnosticsUnavailableError,
+  ProposalDiagnosticsReport,
 } from "./diagnosticAccess";
 import { CommandContext } from "./types";
+import {
+  applyDocumentTransform,
+  captureDocumentTransform,
+  requestDocumentTransform,
+} from "../documentTransform";
 import { buildPrompt } from "./promptLoader";
 import { handleHelp } from "./commands/help";
 
@@ -194,13 +213,48 @@ async function handleValidate(ctx: CommandContext): Promise<vscode.ChatResult> {
   }
 
   ctx.response.progress("Running Tcl LSP analysis...");
-  const diagnostics = await waitForDiagnostics(resolved.doc.uri, { timeout: 5000 });
+  const report = await waitForDiagnosticsReport(resolved.doc.uri, {
+    timeout: 5000,
+    expectedSource: resolved.code,
+  });
+  if (
+    !currentDiagnosticsReportMatches(report, {
+      document: resolved.doc,
+      uri: resolved.doc.uri,
+      version: report.response.version,
+      source: resolved.code,
+    })
+  ) {
+    throw new Error("The completed Tcl validation report no longer matches its source");
+  }
+  if (
+    !(await currentDiagnosticsReportIsStillPublished(report, {
+      document: resolved.doc,
+      uri: resolved.doc.uri,
+      version: report.response.version,
+      source: resolved.code,
+    }))
+  ) {
+    throw new Error("The completed Tcl validation report is no longer the current publication");
+  }
+  const diagnostics = [...report.diagnostics];
   const categorised = categoriseDiagnostics(diagnostics);
 
-  ctx.response.markdown("## Tcl Validation Report\n");
+  ctx.response.markdown(
+    `## Tcl Validation Report (${report.response.dialectId}, source version ${report.response.version})\n`,
+  );
   if (categorised.all.length === 0) {
-    ctx.response.markdown("\nNo issues found.\n");
-    return { metadata: { command: "validate", count: 0 } };
+    ctx.response.markdown("\nNo issues found in the completed resource analysis.\n");
+    return {
+      metadata: {
+        command: "validate",
+        count: 0,
+        dialectId: report.response.dialectId,
+        inputsEpoch: report.response.inputsEpoch,
+        sourceVersion: report.response.version,
+        resultId: report.response.resultId,
+      },
+    };
   }
 
   renderDiagnosticSection(ctx.response, "Errors", categorised.errors, resolved.code);
@@ -211,7 +265,16 @@ async function handleValidate(ctx: CommandContext): Promise<vscode.ChatResult> {
   renderDiagnosticSection(ctx.response, "Optimiser", categorised.optimiser, resolved.code);
 
   ctx.response.markdown(`\n**Summary**: ${categorised.all.length} issue(s).\n`);
-  return { metadata: { command: "validate", count: categorised.all.length } };
+  return {
+    metadata: {
+      command: "validate",
+      count: categorised.all.length,
+      dialectId: report.response.dialectId,
+      inputsEpoch: report.response.inputsEpoch,
+      sourceVersion: report.response.version,
+      resultId: report.response.resultId,
+    },
+  };
 }
 
 async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult> {
@@ -221,20 +284,67 @@ async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult> {
     return {};
   }
 
-  const code = editor.document.getText();
-  const diagnostics = await waitForDiagnostics(editor.document.uri, { timeout: 5000 });
-  const actionable = diagnostics.filter((d) => d.severity <= vscode.DiagnosticSeverity.Warning);
+  const sourceSnapshot = snapshotDocumentSource(editor.document);
+  const code = sourceSnapshot.fullSource;
+  let initialProposalReport: ProposalDiagnosticsReport;
+  try {
+    initialProposalReport = await waitForProposalDiagnostics(editor.document.uri, code, {
+      timeout: 5000,
+      expectedSource: code,
+    });
+  } catch (error) {
+    if (!(error instanceof CurrentDiagnosticsUnavailableError)) throw error;
+    ctx.response.markdown(
+      `Current Tcl analysis is unavailable (${error.reason}); no clean result is available. Retry when analysis is ready.`,
+    );
+    return {
+      metadata: { command: "fix", clean: false, unavailable: error.reason, iterations: 0 },
+    };
+  }
+
+  const reportMatchesSource = () =>
+    isDocumentSourceSnapshotCurrent(sourceSnapshot) &&
+    isAnalysisContextCurrent(sourceSnapshot.analysisContext) &&
+    proposalDiagnosticsReportMatches(initialProposalReport, {
+      document: editor.document,
+      uri: sourceSnapshot.uri,
+      version: sourceSnapshot.version,
+      source: sourceSnapshot.fullSource,
+      proposal: code,
+    });
+  if (!reportMatchesSource()) {
+    ctx.response.markdown(
+      "The document or its analysis context changed while diagnostics were running. Run `/fix` again.",
+    );
+    return {
+      metadata: { command: "fix", clean: false, unavailable: "stale", iterations: 0 },
+    };
+  }
+
+  const actionable = initialProposalReport.diagnostics.filter(
+    (d) => d.severity <= vscode.DiagnosticSeverity.Warning,
+  );
 
   if (actionable.length === 0) {
-    ctx.response.markdown("No errors or warnings found.");
+    const { version, dialectId } = initialProposalReport.response;
+    ctx.response.markdown(
+      `No errors or warnings found for source version ${version} analysed as \`${dialectId}\`.`,
+    );
     return { metadata: { command: "fix", clean: true, iterations: 0 } };
   }
 
   const result = await runAgenticLoop(ctx, code, editor.document, {
-    targetDialect: getActiveDialect(),
+    sourceSnapshot,
+    initialProposalReport,
   });
 
   ctx.response.markdown(`## Fixed Tcl\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`);
+  if (result.proposalReport) {
+    const report = result.proposalReport.response;
+    ctx.response.markdown(
+      `\nDiagnostics were captured for the proposal at ${report.uri}, source version ${report.version}.`,
+    );
+  }
   if (!result.clean) {
     renderDiagnosticSection(
       ctx.response,
@@ -244,10 +354,16 @@ async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult> {
     );
   }
 
+  if (!result.documentSnapshot) throw new Error("Fix result has no current document snapshot");
+  const writeReceipt = documentWriteReceipt(result.documentSnapshot);
   ctx.response.button({
     command: "tclLsp.applyFix",
     title: "Apply fixes",
-    arguments: [result.finalCode, editor.document.uri.toString()],
+    arguments: [
+      result.finalCode,
+      writeReceipt,
+      proposalReportEvidence(result.proposalReport, writeReceipt),
+    ],
   });
 
   return { metadata: { command: "fix", clean: result.clean, iterations: result.iterations } };
@@ -260,22 +376,39 @@ async function handleOptimise(ctx: CommandContext): Promise<vscode.ChatResult> {
     return {};
   }
 
-  const uri = editor.document.uri.toString();
-
-  ctx.response.progress("Running optimiser...");
-
-  const result = (await ctx.client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.optimiseDocument",
-    arguments: [uri],
-  })) as { optimisations: Array<Record<string, unknown>>; source: string } | null;
-
-  if (!result || !result.optimisations || result.optimisations.length === 0) {
-    ctx.response.markdown("No optimisations found.");
-    return { metadata: { command: "optimise", count: 0 } };
+  const snapshot = captureDocumentTransform(editor.document);
+  if (!snapshot) {
+    ctx.response.markdown(
+      "A current document analysis context is unavailable. Run it again when the server is ready.",
+    );
+    return { metadata: { command: "optimise", unavailable: true } };
   }
 
-  // Apply immediately.
-  await vscode.commands.executeCommand("tclLsp.applyFix", result.source, uri);
+  ctx.response.progress("Running optimiser...");
+  const result = await requestDocumentTransform<{
+    optimisations: Array<Record<string, unknown>>;
+    source: string;
+  }>(snapshot, "tcl-lsp.optimiseDocument");
+  if (!result || !Array.isArray(result.optimisations)) {
+    ctx.response.markdown("A current optimiser result is unavailable. Run it again.");
+    return { metadata: { command: "optimise", unavailable: true } };
+  }
+
+  if (result.optimisations.length === 0 && result.source !== snapshot.source.fullSource) {
+    ctx.response.markdown("The current optimiser result is inconsistent. Run it again.");
+    return { metadata: { command: "optimise", unavailable: true } };
+  }
+
+  // Even a no-change result must carry a current server-issued handle before
+  // the chat reports that no action is available.
+  if (!(await applyDocumentTransform(snapshot, result))) {
+    ctx.response.markdown("The document or analysis context changed. Run it again.");
+    return { metadata: { command: "optimise", count: 0, applied: false } };
+  }
+  if (result.optimisations.length === 0) {
+    ctx.response.markdown("No optimisations were reported for the current document.");
+    return { metadata: { command: "optimise", count: 0 } };
+  }
 
   ctx.response.markdown(
     `Applied **${result.optimisations.length}** optimisation(s):\n\n` +

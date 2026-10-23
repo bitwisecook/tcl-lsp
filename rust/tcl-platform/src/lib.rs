@@ -39,6 +39,20 @@
 //! the impls are `#[cfg]`-selected per target, so a browser build need carry no
 //! process-spawn code at all.
 
+pub mod integer_formatter;
+pub mod native_list_sort;
+pub mod numeric_environment;
+pub use integer_formatter::{
+    NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
+    NativeIntegerKind,
+};
+pub use native_list_sort::{NativeListSortFailure, NativeListSortingEnvironment};
+pub use numeric_environment::{
+    CheckedNumericEnvironment, DoubleNumericConversion, NativeCIntegerAbi, NumericEnvironment,
+    NumericEnvironmentUnavailable, NumericErrorState, SignedNumericConversion,
+    UnsignedNumericConversion,
+};
+
 /// What a host environment can do. A uniform query over the [`Host`] regardless
 /// of build; the conditional accessors ([`Host::filesystem`] etc.) still gate
 /// actual use.
@@ -186,6 +200,8 @@ pub enum SystemEncoding {
     /// ISO-8859-1 (`iso8859-1`), Tcl's byte-for-byte Tcl 9 binary-channel
     /// encoding and the Unix `C`/`POSIX` locale default.
     Iso88591,
+    /// Identity conversion: native String bytes are left unchanged.
+    Identity,
     /// Seven-bit ASCII.
     Ascii,
     /// Native-endian UTF-16 (`unicode` in Tcl's encoding catalogue).
@@ -199,9 +215,43 @@ impl SystemEncoding {
         match self {
             Self::Utf8 => "utf-8",
             Self::Iso88591 => "iso8859-1",
+            Self::Identity => "identity",
             Self::Ascii => "ascii",
             Self::Unicode => "unicode",
         }
+    }
+}
+
+/// Independently supplied encoding catalogue for names beyond implemented codecs.
+/// The exact C-string extent is supplied without Unicode or case rewriting.
+pub trait EncodingCatalogue {
+    /// Resolve an original name. `None` means an actual catalogue miss;
+    /// `Err` means this host cannot establish that lookup result.
+    ///
+    /// # Errors
+    /// Returns unavailable when the actual catalogue cannot decide the key.
+    fn lookup(&self, name: &[u8]) -> Result<Option<SystemEncoding>, EncodingCatalogueUnavailable>;
+}
+
+/// The actual host catalogue cannot establish a requested lookup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EncodingCatalogueUnavailable;
+
+/// An actually opened source file, independent of its encoding-name lookup.
+/// The owned handle remains attached to the same file through read and close.
+pub trait SourceFile {
+    /// Read remaining bytes after the caller selects its encoding configuration.
+    ///
+    /// # Errors
+    /// Returns the actual selected handle's read failure.
+    fn read_all(&mut self) -> Result<Vec<u8>, HostError>;
+
+    /// Consume and retire the reached handle on both success and failure paths.
+    ///
+    /// # Errors
+    /// Returns an actual close failure when the supplied backend reports one.
+    fn close(self: Box<Self>) -> Result<(), HostError> {
+        Ok(())
     }
 }
 
@@ -223,6 +273,36 @@ pub trait Filesystem {
     }
     /// Read an entire file.
     fn read(&self, path: &str) -> Result<Vec<u8>, HostError>;
+    /// Read exact native path bytes. Hosts without a native byte-path door
+    /// accept a checked Unicode path or report `Unsupported` without repair.
+    fn read_bytes(&self, path: &[u8]) -> Result<Vec<u8>, HostError> {
+        let path = core::str::from_utf8(path).map_err(|_| HostError::Unsupported)?;
+        self.read(path)
+    }
+    /// Open an original byte path without reading its file contents.
+    /// Source can select encoding after successful open and before the first read.
+    /// A whole-file-only backend cannot donate these separate stages.
+    ///
+    /// # Errors
+    /// Returns actual open failure, or `Unsupported` when no owned staged handle exists.
+    fn open_source_bytes(&self, _path: &[u8]) -> Result<Box<dyn SourceFile>, HostError> {
+        Err(HostError::Unsupported)
+    }
+    /// Convert selected native filename units into this backend's external bytes.
+    /// The caller decodes its counted extent with the shared selected native-unit
+    /// worker and supplies the actual system encoding reached at conversion.
+    /// UTF-8, ISO-8859-1 and identity use the core worker; other codecs require
+    /// this independent capability, without borrowing the script's encoding.
+    ///
+    /// # Errors
+    /// Returns `Unsupported` when no actual filename converter is available.
+    fn source_filename_bytes(
+        &self,
+        _units: &[u32],
+        _encoding: SystemEncoding,
+    ) -> Result<Vec<u8>, HostError> {
+        Err(HostError::Unsupported)
+    }
     /// Write (creating/truncating) an entire file.
     fn write(&self, path: &str, data: &[u8]) -> Result<(), HostError>;
     /// The entry names (not full paths) directly under `path`.
@@ -307,9 +387,21 @@ pub trait StdIo {
     fn flush_stderr(&self) {}
 }
 
+/// Current native environment bytes, independently supplied by the host.
+pub trait NativeEnvironmentBytes {
+    /// Look up an exact key in the current host view. Native C string callers
+    /// select their input extent before lookup; None means an absent entry.
+    fn get_bytes(&self, key: &[u8]) -> Option<Vec<u8>>;
+}
+
 /// Environment variables and the working directory (`env`, `pwd`, `cd`).
 /// Mandatory — virtualised on the browser.
 pub trait Env {
+    /// An actual byte environment view. Absence grants no empty-value fallback.
+    fn native_environment_bytes(&self) -> Option<&dyn NativeEnvironmentBytes> {
+        None
+    }
+
     /// The value of environment variable `key`.
     fn get(&self, key: &str) -> Option<String>;
     /// Set environment variable `key` to `val`.
@@ -365,10 +457,33 @@ pub trait Host {
     /// Environment + working directory (always present).
     fn env(&self) -> &dyn Env;
 
+    /// Independently supplied C thread numeric state and conversion effects.
+    /// Restricted hosts can omit it; absence is not a range-free baseline.
+    fn numeric_environment(&self) -> Option<&dyn NumericEnvironment> {
+        None
+    }
+
+    /// Independently supplied local C list sorting producer.
+    /// Absence supplies no replacement algorithm or comparator chronology.
+    fn native_list_sorting_environment(&self) -> Option<&dyn NativeListSortingEnvironment> {
+        None
+    }
+
+    /// Explicitly installed, independently verified native integer updater.
+    fn native_integer_formatter(&self) -> Option<&dyn NativeIntegerFormatter> {
+        None
+    }
+
     /// Locale/platform encoding used for standard and newly-opened channels.
     /// Restricted hosts have no process locale and therefore keep UTF-8.
     fn system_encoding(&self) -> SystemEncoding {
         SystemEncoding::Utf8
+    }
+
+    /// Actual encoding catalogue beyond the runtime's implemented codecs.
+    /// Absence cannot establish a guest unknown-encoding result.
+    fn encoding_catalogue(&self) -> Option<&dyn EncodingCatalogue> {
+        None
     }
 
     /// The filesystem, or `None` on a host without one (e.g. a no-VFS browser).
@@ -393,6 +508,37 @@ pub trait Host {
 /// prevents a runtime from silently acquiring a different platform surface.
 pub mod bootstrap {
     use super::{Host, backend};
+
+    /// Compose Tcl's library search path from already-parsed path lists.
+    /// Existing entries retain their order and multiplicity; additions are unique.
+    #[must_use]
+    pub fn auto_path(
+        existing: Option<Vec<Vec<u8>>>,
+        environment_paths: &[Vec<u8>],
+        installation_paths: &[Vec<u8>],
+        package_paths: &[Vec<u8>],
+        safe: bool,
+    ) -> Vec<Vec<u8>> {
+        if safe {
+            return existing.unwrap_or_default();
+        }
+        let mut paths = existing.unwrap_or_else(|| {
+            let mut paths = Vec::new();
+            append_unique_paths(&mut paths, environment_paths);
+            paths
+        });
+        append_unique_paths(&mut paths, installation_paths);
+        append_unique_paths(&mut paths, package_paths);
+        paths
+    }
+
+    fn append_unique_paths(paths: &mut Vec<Vec<u8>>, additions: &[Vec<u8>]) {
+        for path in additions {
+            if !paths.contains(path) {
+                paths.push(path.clone());
+            }
+        }
+    }
 
     /// Arrays whose complete contents come from the selected host bootstrap.
     pub const HOST_ARRAYS: &[&str] = &["tcl_platform", "env"];
@@ -560,23 +706,50 @@ pub mod bootstrap {
     /// Capture every host-derived bootstrap value for one interpreter engine.
     #[must_use]
     pub fn snapshot(host: &dyn Host, runtime: &str, runtime_version: &str) -> Snapshot {
+        match snapshot_checked(host, runtime, runtime_version, || {
+            Ok::<_, std::convert::Infallible>(())
+        }) {
+            Ok(snapshot) => snapshot,
+            Err(never) => match never {},
+        }
+    }
+
+    /// Capture bootstrap values while checking the caller's original context
+    /// before and after each reached Host callback. A check grants no Host
+    /// capability or variable publication authority.
+    pub fn snapshot_checked<E>(
+        host: &dyn Host,
+        runtime: &str,
+        runtime_version: &str,
+        mut check: impl FnMut() -> Result<(), E>,
+    ) -> Result<Snapshot, E> {
         use backend::key;
 
-        let detected = |name: &str, compiled: &str| -> String {
-            backend::override_env_var(name)
-                .and_then(|variable| host.env().get(variable))
-                .filter(|value| !value.is_empty())
-                .unwrap_or_else(|| compiled.to_string())
+        let get = |name: &str, check: &mut dyn FnMut() -> Result<(), E>| {
+            check()?;
+            let environment = host.env();
+            check()?;
+            let value = environment.get(name);
+            check()?;
+            Ok(value)
         };
-        let webassembly_level = detected(key::WASM, backend::compiled_wasm_spec());
-        let interface_level = detected(key::WASI, backend::compiled_wasi_spec());
-        let interface_host = detected(key::WASI_VERSION, backend::compiled_wasi_host());
-        let bpf_level = detected(key::EBPF, backend::compiled_ebpf_spec());
-        let user = host
-            .env()
-            .get("USER")
-            .or_else(|| host.env().get("USERNAME"))
-            .unwrap_or_default();
+        let mut detected = |name: &str, compiled: &str| -> Result<String, E> {
+            let value = match backend::override_env_var(name) {
+                Some(variable) => get(variable, &mut check)?,
+                None => None,
+            };
+            Ok(value
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| compiled.to_string()))
+        };
+        let webassembly_level = detected(key::WASM, backend::compiled_wasm_spec())?;
+        let interface_level = detected(key::WASI, backend::compiled_wasi_spec())?;
+        let interface_host = detected(key::WASI_VERSION, backend::compiled_wasi_host())?;
+        let bpf_level = detected(key::EBPF, backend::compiled_ebpf_spec())?;
+        let user = match get("USER", &mut check)? {
+            Some(user) => user,
+            None => get("USERNAME", &mut check)?.unwrap_or_default(),
+        };
         let values = Values {
             os_version: "",
             machine: std::env::consts::ARCH,
@@ -593,14 +766,18 @@ pub mod bootstrap {
             .copied()
             .map(|entry| (entry.name(), entry.value(&values).to_string()))
             .collect();
-        let mut environment = host.env().vars();
+        check()?;
+        let host_environment = host.env();
+        check()?;
+        let mut environment = host_environment.vars();
+        check()?;
         environment.sort_unstable();
-        let tcl_library = host.env().get("TCL_LIBRARY").unwrap_or_default();
-        Snapshot {
+        let tcl_library = get("TCL_LIBRARY", &mut check)?.unwrap_or_default();
+        Ok(Snapshot {
             platform,
             environment,
             tcl_library,
-        }
+        })
     }
 
     /// Keys removed when an interpreter becomes safe, derived from [`entries`].

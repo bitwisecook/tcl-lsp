@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { activate, getDocUri, pollUntil, waitForDiagnostics } from "./helper";
+import { activate, getDocUri, pollUntil, waitForDiagnosticsSnapshot } from "./helper";
 
 // TP/FP/TN/FN matrix for the "preview version:" regressions, exercised
 // through the real VS Code client → language-server round trip:
@@ -119,10 +119,14 @@ suite("Name resolution matrix (issues #954-#958)", () => {
     // pre-suppression W210 that later clears), then assert the suppressed
     // `$dir` read left no W210 behind. Same content as `pkgIndexControl.tcl` —
     // only the filename differs, which is exactly what flips the suppression.
-    const diags = await waitForDiagnostics(uri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(uri, {
       predicate: (ds) =>
         ds.some((d) => codeOf(d) === "W300") && !ds.some((d) => codeOf(d) === "W210"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       !diags.map(codeOf).includes("W210"),
       `#955: unexpected W210 on pkgIndex.tcl in [${diags.map(codeOf)}]`,
@@ -132,9 +136,13 @@ suite("Name resolution matrix (issues #954-#958)", () => {
   test("#955 FP: the same `$dir` read in an ordinary file still draws W210", async () => {
     const uri = getDocUri("pkgIndexControl.tcl");
     await activate(uri);
-    const diags = await waitForDiagnostics(uri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(uri, {
       predicate: (ds) => ds.some((d) => codeOf(d) === "W210"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       diags.map(codeOf).includes("W210"),
       `#955: expected W210 outside pkgIndex.tcl, got [${diags.map(codeOf)}]`,

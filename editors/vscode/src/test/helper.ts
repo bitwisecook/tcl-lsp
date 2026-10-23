@@ -19,6 +19,16 @@
 import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
+import {
+  CurrentDiagnosticsUnavailableError,
+  captureAnalysisContext,
+  currentDiagnosticsReportIsStillPublished,
+  currentDiagnosticsReportMatches,
+  isAnalysisContextCurrent,
+  resourceConfiguration,
+  waitForDiagnosticsReport,
+  type CurrentDiagnosticsReport,
+} from "../chat/diagnosticAccess";
 
 import {
   awaitSignal,
@@ -94,37 +104,26 @@ async function _ensureServerLogSubscribed(): Promise<void> {
 }
 
 /**
- * Resolve on the next ``onDidChangeDiagnostics`` event for *docUri*,
- * returning the diagnostics that publish left in place.
+ * Wait for the next ``onDidChangeDiagnostics`` event naming *docUri*.
+ * This is a wakeup only: the event has no source, version, configuration,
+ * session, or completion receipt, so callers must use the current-report owner
+ * before interpreting diagnostics or an empty set.
  *
- * Use this when a test needs to observe a single server publish for a
- * URI — typically to assert that an empty publish arrived (no signal
- * shows up via ``[timing]`` logs when the server skips analysis), or
- * to read a *fresh* set of diagnostics after a config change rather
- * than the stale pre-change set.
- *
- * Register the listener **before** the action that triggers the
- * publish (e.g. ``activate(docUri)`` or an edit) so the event is not
- * missed.
- *
- * **Rejects** on timeout.  The whole point of this helper is the barrier —
- * "a publish happened, so what you read next is not the previous test's
- * set".  Resolving with the current diagnostics when the publish never
- * arrived hands the caller exactly the stale set it exists to exclude, and
- * every caller then asserts against it as if the barrier had held.
+ * Register the listener before the action that triggers the event. Rejects on
+ * timeout; resolving never returns sampled diagnostics.
  */
 export function nextDiagnosticsPublish(
   docUri: vscode.Uri,
   opts?: { timeout?: number },
-): Promise<vscode.Diagnostic[]> {
+): Promise<void> {
   const base = opts?.timeout ?? 5_000;
   const timeout = scaledTimeout(base);
-  return new Promise<vscode.Diagnostic[]>((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const disposable = vscode.languages.onDidChangeDiagnostics((e) => {
       if (e.uris.some((u) => u.toString() === docUri.toString())) {
         disposable.dispose();
         clearTimeout(timer);
-        resolve(vscode.languages.getDiagnostics(docUri));
+        resolve();
       }
     });
     const timer = setTimeout(() => {
@@ -225,9 +224,10 @@ export async function waitForServerLog(
  * Wait for the LSP server to emit its deep-diagnostics-complete log
  * line for *docUri*.  The server logs ``[timing] deep diagnostics
  * <Nms> (uri=<docUri>, diags=<N>)`` at INFO level after every deep
- * pass, so this is a direct signal that codes like O1xx, IRULE1005,
- * and the shimmer / taint diagnostics have been computed and
- * published.
+ * pass, so this is a signal that deep processing ran for the URI. An open
+ * document also returns its completed current report, joined to the exact
+ * document, source, version, configuration, and session captured before the
+ * wait. A closed document remains a log-only wakeup and returns ``undefined``.
  *
  * Pass ``opts.since = getServerLogSize()`` captured **before** the
  * triggering action (didOpen, edit, restart) so the wait only matches
@@ -240,19 +240,61 @@ export async function waitForServerLog(
  * like the ``optimiser.enabled`` toggle test flake.  Callers may still
  * pass an explicit ``timeout`` to override.
  */
+export interface DeepDiagnosticsSnapshot {
+  report: CurrentDiagnosticsReport;
+  isCurrent(): boolean;
+}
+
 export async function waitForDeepDiagnostics(
   docUri: vscode.Uri,
   opts?: { timeout?: number; since?: number },
-): Promise<void> {
+): Promise<DeepDiagnosticsSnapshot | undefined> {
   const uri = docUri.toString();
+  const base = opts?.timeout ?? 20_000;
+  const deadline = Date.now() + scaledTimeout(base);
+  const document = vscode.workspace.textDocuments.find(
+    (candidate) => candidate.uri.toString() === uri,
+  );
+  const source = document?.getText();
+  const version = document?.version;
+  const initialContext = document ? captureAnalysisContext() : undefined;
+  const initialConfiguration = document ? resourceConfiguration(document) : undefined;
+  if (document && (!initialContext || initialConfiguration === undefined)) {
+    throw new CurrentDiagnosticsUnavailableError("context");
+  }
+
   await waitForServerLog(
     (line) => line.includes("[timing] deep diagnostics") && line.includes(`uri=${uri}`),
     {
       since: opts?.since,
-      timeout: opts?.timeout ?? 20_000,
+      timeout: base,
       label: `the server's deep-diagnostics marker for ${uri}`,
     },
   );
+  if (!document || source === undefined || version === undefined) return undefined;
+  if (!initialContext || initialConfiguration === undefined) {
+    throw new CurrentDiagnosticsUnavailableError("context");
+  }
+
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) throw new CurrentDiagnosticsUnavailableError("timeout");
+  const report = await waitForDiagnosticsReport(docUri, {
+    timeout: remaining,
+    expectedSource: source,
+  });
+  const isCurrent = () =>
+    report.analysisContext.transport === initialContext.transport &&
+    report.analysisContext.overrideGeneration === initialContext.overrideGeneration &&
+    isAnalysisContextCurrent(initialContext) &&
+    report.resourceConfiguration === initialConfiguration &&
+    currentDiagnosticsReportMatches(report, {
+      document,
+      uri: docUri,
+      version,
+      source,
+    });
+  if (!isCurrent()) throw new CurrentDiagnosticsUnavailableError("stale");
+  return Object.freeze({ report, isCurrent });
 }
 
 /**
@@ -596,6 +638,145 @@ export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument>
   }
 
   return doc;
+}
+
+/** Read the active extension's source-current diagnostics owner. */
+export interface CurrentDiagnosticsSnapshot {
+  report: CurrentDiagnosticsReport;
+  isCurrent(): boolean;
+  isStillPublished(): Promise<boolean>;
+}
+
+export async function waitForCurrentDiagnosticsSnapshot(
+  uri: vscode.Uri,
+  opts?: {
+    timeout?: number;
+    minCount?: number;
+    expectedSource?: string;
+    predicate?: (diagnostics: vscode.Diagnostic[]) => boolean;
+  },
+): Promise<CurrentDiagnosticsSnapshot> {
+  if (opts?.predicate && opts.timeout === undefined) {
+    throw new Error("Predicate-based current diagnostics require a bounded timeout");
+  }
+  const document = vscode.workspace.textDocuments.find(
+    (candidate) => candidate.uri.toString() === uri.toString(),
+  );
+  if (!document) throw new CurrentDiagnosticsUnavailableError("notOpen");
+  const source = opts?.expectedSource ?? document.getText();
+  const version = document.version;
+  if (document.getText() !== source) {
+    throw new CurrentDiagnosticsUnavailableError("stale");
+  }
+  const initialContext = captureAnalysisContext();
+  const initialConfiguration = resourceConfiguration(document);
+  if (!initialContext || initialConfiguration === undefined) {
+    throw new CurrentDiagnosticsUnavailableError("context");
+  }
+  const deadline = Date.now() + (opts?.timeout ?? 5_000);
+
+  for (;;) {
+    const nextPublish = opts?.predicate ? diagnosticsPublishWaiter(uri, deadline) : undefined;
+    try {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        throw new CurrentDiagnosticsUnavailableError("timeout");
+      }
+      const report = await waitForDiagnosticsReport(uri, {
+        timeout: remaining,
+        minCount: opts?.minCount,
+        expectedSource: source,
+      });
+      const isCurrent = () =>
+        report.analysisContext.transport === initialContext.transport &&
+        report.analysisContext.overrideGeneration === initialContext.overrideGeneration &&
+        isAnalysisContextCurrent(initialContext) &&
+        report.resourceConfiguration === initialConfiguration &&
+        currentDiagnosticsReportMatches(report, {
+          document,
+          uri,
+          version,
+          source,
+        });
+      const isStillPublished = async () => {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) return false;
+        return currentDiagnosticsReportIsStillPublished(
+          report,
+          { document, uri, version, source },
+          remaining,
+        );
+      };
+      const snapshot = Object.freeze({ report, isCurrent, isStillPublished });
+      if (!snapshot.isCurrent()) {
+        throw new CurrentDiagnosticsUnavailableError("stale");
+      }
+      if (!opts?.predicate || opts.predicate([...report.diagnostics])) {
+        nextPublish?.cancel();
+        return snapshot;
+      }
+      if (!nextPublish || !(await nextPublish.promise)) {
+        throw new CurrentDiagnosticsUnavailableError("timeout");
+      }
+    } catch (error) {
+      nextPublish?.cancel();
+      throw error;
+    }
+  }
+}
+
+export async function waitForCurrentDiagnostics(
+  uri: vscode.Uri,
+  opts?: {
+    timeout?: number;
+    minCount?: number;
+    expectedSource?: string;
+    predicate?: (diagnostics: vscode.Diagnostic[]) => boolean;
+  },
+): Promise<vscode.Diagnostic[]> {
+  const snapshot = await waitForCurrentDiagnosticsSnapshot(uri, opts);
+  if (!snapshot.isCurrent()) {
+    throw new CurrentDiagnosticsUnavailableError("stale");
+  }
+  return [...snapshot.report.diagnostics];
+}
+
+function diagnosticsPublishWaiter(
+  uri: vscode.Uri,
+  deadline: number | undefined,
+): { promise: Promise<boolean>; cancel: () => void } {
+  let settled = false;
+  let resolvePromise: (published: boolean) => void = () => undefined;
+  const promise = new Promise<boolean>((resolve) => {
+    resolvePromise = resolve;
+  });
+  const dispose = vscode.languages.onDidChangeDiagnostics((event) => {
+    if (event.uris.some((changed) => changed.toString() === uri.toString())) {
+      finish();
+      resolvePromise(true);
+    }
+  });
+  const remaining = deadline === undefined ? undefined : Math.max(0, deadline - Date.now());
+  const timer =
+    remaining === undefined
+      ? undefined
+      : setTimeout(() => {
+          finish();
+          resolvePromise(false);
+        }, remaining);
+  function finish(): void {
+    if (settled) return;
+    settled = true;
+    dispose.dispose();
+    if (timer !== undefined) clearTimeout(timer);
+  }
+  return {
+    promise,
+    cancel: () => {
+      finish();
+      resolvePromise(false);
+    },
+  };
 }
 
 /** Fixture the liveness probe asks about — a document no test drives, so a
@@ -1218,32 +1399,28 @@ export function documentClosed(docUri: vscode.Uri, opts?: { timeout?: number }):
 }
 
 /**
- * Wait for diagnostics on the given URI to satisfy ``predicate`` (or to reach
- * ``minCount`` entries), driven by ``onDidChangeDiagnostics`` — the server's
- * own publish is the signal — with a 500ms re-read purely as a missed-event
- * backstop.  **Rejects** on a load-scaled timeout.
- *
- * The deep-diagnostic pass (IRULE1005 and friends) is async and fires
- * *after* the initial batch of basic diagnostics, so a test that wants
- * a specific deep code should pass a ``predicate`` rather than a fixed
- * ``minCount`` — ``minCount`` alone returns as soon as enough basic
- * diagnostics arrive, before the deep pass has run.
- *
- * # Why the timeout rejects
- *
- * Resolving with ``getDiagnostics(uri)`` on timeout — whatever happened to be
- * published when the clock ran out — would let a timed-out test carry on and
- * assert against a set the server had never finished producing.  For a
- * positive assertion that surfaces as a confusing content failure; for a
- * *negative* one ("no diagnostic of kind X on line N") an unanalysed, empty
- * set would satisfy it trivially and the test would pass vacuously — the
- * suite's strongest tests are precisely the negative ones.
- *
- * Callers that genuinely want "settle, then look" and cannot name what they
- * are waiting for are asking a different question; those are the ones that
- * should pass ``minCount: 0`` explicitly, which is satisfied immediately and
- * so never reaches this timeout at all.
+ * Wait for a source-current completed report on the given URI to satisfy
+ * ``predicate`` or reach ``minCount``. The shared publisher owner binds the
+ * result to an open document's exact version/source, analysis session, and
+ * resource configuration; missing, stale, suppressed, or timed-out reports
+ * reject instead of becoming a sampled empty set. The timeout is scaled once.
  */
+export async function waitForDiagnosticsSnapshot(
+  uri: vscode.Uri,
+  opts?: {
+    timeout?: number;
+    minCount?: number;
+    predicate?: (diags: vscode.Diagnostic[]) => boolean;
+  },
+): Promise<CurrentDiagnosticsSnapshot> {
+  const base = opts?.timeout ?? 20_000;
+  return waitForCurrentDiagnosticsSnapshot(uri, {
+    timeout: scaledTimeout(base),
+    minCount: opts?.minCount ?? 1,
+    predicate: opts?.predicate,
+  });
+}
+
 export async function waitForDiagnostics(
   uri: vscode.Uri,
   opts?: {
@@ -1252,32 +1429,9 @@ export async function waitForDiagnostics(
     predicate?: (diags: vscode.Diagnostic[]) => boolean;
   },
 ): Promise<vscode.Diagnostic[]> {
-  const minCount = opts?.minCount ?? 1;
-  const predicate = opts?.predicate;
-  const target = uri.toString();
-
-  return awaitSignal<vscode.Diagnostic[]>({
-    label: predicate
-      ? `diagnostics on ${target} to satisfy the test's predicate`
-      : `at least ${minCount} diagnostic(s) on ${target}`,
-    subscribe: (notify) =>
-      vscode.languages.onDidChangeDiagnostics((e) => {
-        if (e.uris.some((u) => u.toString() === target)) notify();
-      }),
-    probe: () => vscode.languages.getDiagnostics(uri),
-    predicate: (diags) => (predicate ? predicate(diags) : diags.length >= minCount),
-    timeout: opts?.timeout ?? 20_000,
-    describe: (diags) =>
-      diags === undefined || diags.length === 0
-        ? "no diagnostics published"
-        : diags
-            .map(
-              (d) =>
-                `${typeof d.code === "object" && d.code !== null ? d.code.value : d.code}@` +
-                `${d.range.start.line}:${d.range.start.character}`,
-            )
-            .join(", "),
-  });
+  const snapshot = await waitForDiagnosticsSnapshot(uri, opts);
+  if (!snapshot.isCurrent()) throw new CurrentDiagnosticsUnavailableError("stale");
+  return [...snapshot.report.diagnostics];
 }
 
 /**

@@ -16,31 +16,45 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Allow-list of `info` subcommands for the var-escape analysis.
-//!
-//! Audited against Tcl 9.0's `info` dispatch table (`tclCmdIL.c`).
-//! Most `info` subcommands reflect on the interpreter's global
-//! state (command table, version info, script path). A small set
-//! reads the current frame by name — those force the whole proc
-//! to the pessimistic fallback. `info exists <literal>` is treated
-//! specially: safe if the target is a bare name (escapes only that
-//! name), pessimistic if dynamic.
+//! Fixed Tcl 9.0 original-source fixtures for introspection tests.
 
-/// Subcommands that read frame-local state by name and thus force
-/// the containing proc to the pessimistic fallback.
+#[cfg(test)]
+pub(crate) fn original_info_invocation(
+    source: &str,
+) -> Option<crate::registry_invocation::ResolvedStatementInvocation> {
+    let context = tcl_registry::model::ingress::static_context_for("tcl9.0");
+    let registry = context.commands();
+    let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+        source,
+        registry,
+        false,
+        context
+            .commands()
+            .profile()
+            .expect("fixture context retains its selected Tcl profile"),
+    );
+    let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+        registry,
+        &unit.ir_module,
+    )?;
+    crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+        registry,
+        Some(metadata),
+        unit.ir_module.top_level.statements.first()?,
+    )
+}
+
+#[cfg(test)]
 pub const FRAME_INSPECTING_SUBCOMMANDS: &[&str] = &[
-    "level",      // Returns caller frame args or a depth int.
-    "frame",      // Returns a frame descriptor dict (file, line, cmd).
-    "vars",       // Enumerates vars visible in the current frame.
-    "locals",     // Enumerates locals of the current frame.
-    "coroutine",  // Exposes the current coroutine frame.
-    "errorstack", // Exposes the error callstack — caller-frame data.
+    "level",
+    "frame",
+    "vars",
+    "locals",
+    "coroutine",
+    "errorstack",
 ];
-
-/// Subcommands that are purely interpreter-global — safe.
+#[cfg(test)]
 pub const INTERPRETER_GLOBAL_SUBCOMMANDS: &[&str] = &[
-    // Proc / method introspection (reads the global proc table,
-    // not the current frame).
     "body",
     "args",
     "default",
@@ -49,7 +63,6 @@ pub const INTERPRETER_GLOBAL_SUBCOMMANDS: &[&str] = &[
     "class",
     "functions",
     "cmdtype",
-    // Version / build / environment.
     "patchlevel",
     "tclversion",
     "nameofexecutable",
@@ -57,32 +70,42 @@ pub const INTERPRETER_GLOBAL_SUBCOMMANDS: &[&str] = &[
     "library",
     "hostname",
     "script",
-    // Runtime bookkeeping — no frame access.
     "cmdcount",
     "complete",
     "cancel",
     "loaded",
-    // TclOO object introspection — reads object metadata.
     "object",
-    // Tcl 9 additions: constants and globals expose data by name
-    // but not via the current proc frame.
     "constant",
     "constants",
+    "consts",
     "globals",
-    // Handled separately at call sites — listed for completeness.
     "exists",
 ];
-
-/// Return true if this `info <subcmd>` never needs frame access.
 #[must_use]
+#[cfg(test)]
 pub fn is_safe_info_subcommand(subcmd: &str) -> bool {
-    INTERPRETER_GLOBAL_SUBCOMMANDS.contains(&subcmd)
+    original_info_invocation(&format!("info {subcmd}")).is_some_and(|invocation| {
+        matches!(
+            invocation.facts.subcommand,
+            tcl_registry::OwnedSubcommandResolution::Exact { .. }
+                | tcl_registry::OwnedSubcommandResolution::UniquePrefix { .. }
+        ) && !invocation
+            .facts
+            .traits
+            .contains(tcl_registry::prelude::Traits::CURRENT_FRAME_INTROSPECTION)
+    })
 }
 
 /// Return true if `info <subcmd>` enumerates or reads frame state.
 #[must_use]
+#[cfg(test)]
 pub fn is_frame_inspecting_info_subcommand(subcmd: &str) -> bool {
-    FRAME_INSPECTING_SUBCOMMANDS.contains(&subcmd)
+    original_info_invocation(&format!("info {subcmd}")).is_some_and(|invocation| {
+        invocation
+            .facts
+            .traits
+            .contains(tcl_registry::prelude::Traits::CURRENT_FRAME_INTROSPECTION)
+    })
 }
 
 #[cfg(test)]
@@ -113,13 +136,20 @@ mod tests {
             "globals",
             "constants",
         ] {
-            assert!(is_safe_info_subcommand(sub), "{sub} should be safe");
+            assert_eq!(
+                is_safe_info_subcommand(sub),
+                sub != "constants",
+                "{sub} classification"
+            );
         }
     }
 
     #[test]
     fn unknown_subcommand_neither_safe_nor_frame_inspecting() {
         assert!(!is_safe_info_subcommand("totally_made_up"));
+        assert!(!is_safe_info_subcommand("cancel"));
+        assert!(!is_safe_info_subcommand("constants"));
+        assert!(is_safe_info_subcommand("consts"));
         assert!(!is_frame_inspecting_info_subcommand("totally_made_up"));
     }
 

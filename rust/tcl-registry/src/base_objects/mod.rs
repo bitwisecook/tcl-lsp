@@ -145,8 +145,8 @@ mod tests {
             "expected a broad base set, got {}",
             base_object_count()
         );
-        assert!(!BASE_OBJECTS.is_empty());
-        assert!(!BASE_OBJECT_NAMES.is_empty());
+        assert_ne!(BASE_OBJECTS.len(), 0);
+        assert_ne!(BASE_OBJECT_NAMES.len(), 0);
     }
 
     #[test]

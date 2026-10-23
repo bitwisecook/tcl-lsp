@@ -71,7 +71,9 @@ use tcl_compiler::optimiser::optimise_unit;
 use tcl_core_types::DiagCode;
 use tcl_lexer::LineIndex;
 use tcl_lsp_core::source_decode::{DecodeReport, decode_source};
-use tcl_lsp_core::source_style::{DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, style_diagnostics};
+use tcl_lsp_core::source_style::{
+    DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, style_facts_from_analysis,
+};
 use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
 
 /// Directory names skipped by the corpus walk. Keep this aligned with the
@@ -303,12 +305,16 @@ fn walk_corpus(
             .with_context(|| format!("reading corpus directory {}", directory.display()))?
             .path();
         if path.is_dir() {
-            let keep = path
+            let name = path
                 .file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| {
-                    !name.starts_with('.') && !SKIP_DIRECTORY_NAMES.contains(&name)
-                });
+                .context("corpus directory entry has no basename")?;
+            let name = name.to_str().with_context(|| {
+                format!(
+                    "corpus directory basename is not representable as Unicode: {}",
+                    path.display()
+                )
+            })?;
+            let keep = !name.starts_with('.') && !SKIP_DIRECTORY_NAMES.contains(&name);
             if keep {
                 walk_corpus(&path, native, embedded)?;
             }
@@ -457,22 +463,12 @@ fn shape_key(message: &str) -> String {
     out
 }
 
-/// Collect every firing of a code in `wanted` across `doc`, running every
-/// diagnostic source the editor publishes for one document:
+/// Collect requested firings from the analyser, compiler checks, optimiser,
+/// and source-text checks without applying diagnostic policy.
 ///
-/// 1. [`Analyser::analyse`] — the W/E/H-series syntactic/semantic checks,
-///    built over a default-config unit, mirroring `tcl diag`'s
-///    `collect_rows`.
-/// 2. [`run_all_checks`] + [`optimise_unit`] — the O/S/T-series
-///    compiler-checks and optimiser passes, over one dialect-configured,
-///    interprocedural-summarised unit — mirroring
-///    `tcl_lsp_db::compiler_check_diagnostics_uncached`, the documented
-///    "no salsa input" fallback that is byte-identical to the live server's
-///    build. `tcl diag` only runs (1); an FP sweep needs the O-series
-///    firings it deliberately drops, so this reproduces the fuller build
-///    rather than diag.rs's simplified (non-interprocedural) one.
-/// 3. [`style_diagnostics`] — the pure-text W111/W112/W115/W118 checks,
-///    which read raw source and are not part of either compiler pass.
+/// Both compilation units use the document's resolved dialect grammar and
+/// stub declarations. The checks and optimiser share an interprocedural summary.
+#[allow(clippy::too_many_lines)]
 fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing>) {
     // The override is a dialect *name*, so it resolves through the one
     // ingress seam, in the `find`-shaped validator form: an override that
@@ -502,21 +498,30 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         });
     };
 
-    // (1) Analyser tail. The document's own environment grammar — the same
-    // config every other `cu_override` host builds under, and the same one the
-    // checks pass below uses (redesign §11.4 row E1: all four hosts used to
-    // agree on `LexerConfig::default()`, which was wrong for every non-9.x
-    // dialect).
-    //
-    // The document's own stub declarations, ingested exactly as the analyser
-    // does, so both units below declare what the analyser's own unit would.
+    // Both units use the analyser's document stub declarations.
     let doc_path = doc.input.path.as_ref().map(|p| p.display().to_string());
     let declared = tcl_compiler::analyser::utils::document_declared_surface(
         &doc.input.source,
         doc_path.as_deref(),
         dialect,
     );
-    let analysis_cu = Arc::new(CompilationUnit::build_with_options(
+    let context = tcl_lsp_core::context_for_dialect_profile(profile)
+        .with_command_store(registry.snapshot().shared_registry());
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        Arc::new(context),
+        tcl_lexer::LexerConfig::for_file_grammar(
+            tcl_registry::model::resolve_environment(dialect).grammar(),
+        ),
+    );
+    let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(
+        registry,
+        &input,
+        input.lexer_config(),
+        Some(profile),
+    );
+    let analysis_cu = Arc::new(CompilationUnit::build_with_analysis_input(
         &doc.input.source,
         UnitBuildOptions {
             registry,
@@ -528,8 +533,12 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
             external_call_sites: None,
             declared_commands: Some(&declared),
         },
+        Some(&entry),
+        &input,
     ));
-    let mut analyser = Analyser::new().with_file_path(doc_path.clone());
+    let mut analyser = Analyser::new()
+        .with_file_path(doc_path.clone())
+        .with_resolved_input(input.clone());
     analyser.set_cu_override(Arc::clone(&analysis_cu));
     let result = analyser.analyse(&doc.input.source, dialect);
     for d in &result.diagnostics {
@@ -538,7 +547,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
 
     // (2) Compiler-checks + optimiser, over one interprocedural-summarised,
     // dialect-configured unit.
-    let checks_cu = CompilationUnit::build_with_options(
+    let checks_cu = CompilationUnit::build_with_analysis_input(
         &doc.input.source,
         UnitBuildOptions {
             registry,
@@ -550,6 +559,8 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
             external_call_sites: None,
             declared_commands: Some(&declared),
         },
+        Some(&entry),
+        &input,
     )
     .with_interprocedural(registry, dialect_opt);
     for d in run_all_checks(&checks_cu, registry, dialect_opt) {
@@ -567,12 +578,12 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
     // report and therefore produce encoding findings at full precision.
     // Extracted RST blocks use a faithful empty report because their offsets no
     // longer refer to the containing file's byte stream.
-    for d in style_diagnostics(
+    for d in style_facts_from_analysis(
         &doc.input.source,
         DEFAULT_LINE_LENGTH,
         DEFAULT_LINE_ENDING,
         Some(&doc.input.decode),
-        tcl_lsp_core::profile_for_dialect(dialect),
+        &result,
     ) {
         let code = d.code;
         if !wanted.contains(&code) {
@@ -685,6 +696,24 @@ pub fn run(codes: &[String], corpus: &[PathBuf], examples: usize) -> Result<Exit
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
+    #[test]
+    fn corpus_walk_refuses_an_opaque_directory_basename() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt as _;
+
+        let root = std::env::temp_dir().join(format!("xtask-fp-opaque-dir-{}", std::process::id()));
+        std::fs::create_dir(&root).expect("create corpus fixture");
+        let child = root.join(OsString::from_vec(b"dir-\xff".to_vec()));
+        std::fs::create_dir(&child).expect("create opaque directory entry");
+        let result = walk_corpus(&root, &mut BTreeSet::new(), &mut BTreeSet::new());
+        assert!(
+            result.is_err(),
+            "an opaque directory cannot be silently skipped"
+        );
+        std::fs::remove_dir_all(&root).expect("remove corpus fixture");
+    }
+
     #[test]
     fn irules_event_signal_accepts_clauses_but_rejects_prose_and_lowercase() {
         assert!(has_irules_event("when HTTP_REQUEST {\n  pool web\n}\n"));
@@ -746,7 +775,7 @@ Prose.
    when HTTP_RESPONSE {
    }
 ";
-        assert!(extract_rst_irules(rst).is_empty());
+        assert_eq!(extract_rst_irules(rst).len(), 0);
     }
 
     #[test]

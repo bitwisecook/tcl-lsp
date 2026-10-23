@@ -33,6 +33,7 @@ use serde_json::{Value, json};
 use tcl_core_types::{DiagCode, DocRow, OptCategory};
 use tcl_dialect::model::{DEFAULT_ENVIRONMENT_ID, EnvironmentRegistry};
 
+use crate::gen_editor_settings::ts_string;
 use crate::util::{repo_root, write_if_changed};
 
 const DIAGNOSTICS_JSON: &str = "ai/shared/diagnostics.json";
@@ -191,7 +192,6 @@ fn diagnostics_json() -> String {
         ],
         "default_category": "style",
         "review_categories": ["security", "taint", "thread_safety"],
-        "irules_event_pattern": r"^\s*when\s+([A-Z][A-Z0-9_]{2,})\b",
         "irules_event_boundary_owner": "tcl-syntax::event_handler::{event_handlers,event_handlers_with_head_predicate,script_commands} parses supplied script regions; tcl-registry::events::top_level_when_handlers_with_registry_and_head_resolver resolves each top-level head at its document offset before handler acceptance; F5 iRules permits `when` only at top level, and disabled interp/rename/namespace commands never create identity facts; never scan handler text locally",
     });
     serde_json::to_string_pretty(&root).expect("serialise diagnostics.json") + "\n"
@@ -398,11 +398,6 @@ fn render_template(template: &str, ctx: &AiContext) -> String {
 /// The print width the extension's Prettier configuration formats to.
 const TS_PRINT_WIDTH: usize = 100;
 
-/// `text` as a double-quoted TypeScript string literal.
-fn ts_string(text: &str) -> String {
-    format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
-}
-
 /// The VS Code dialect table: canonical name, display label, compact label,
 /// kind, one-line description, and the file extensions the environment owns —
 /// one row per selectable environment, in selectable order.
@@ -598,6 +593,11 @@ mod tests {
                 .expect("Claude prompt-copy artifact");
             assert_eq!(copy, canonical, "{copy_path} must match {canonical_path}");
         }
+    }
+
+    #[test]
+    fn typescript_literal_owner_escapes_control_characters() {
+        assert_eq!(ts_string("line\nbreak"), "\"line\\nbreak\"");
     }
 
     #[test]

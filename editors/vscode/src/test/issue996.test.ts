@@ -32,7 +32,13 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import { LanguageClient } from "vscode-languageclient/node";
-import { getDocUri, activate, waitForDiagnostics, scaledTimeout } from "./helper";
+import {
+  getDocUri,
+  activate,
+  waitForDiagnostics,
+  scaledTimeout,
+  waitForDiagnosticsSnapshot,
+} from "./helper";
 
 interface TclLspApi {
   getClient(): LanguageClient;
@@ -55,7 +61,14 @@ suite("Issue #996 deep nesting survival", () => {
 
   test("the server answers diagnostics instead of crashing", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1, timeout: 30_000 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+      timeout: 30_000,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     assert.ok(diagnostics.length > 0, "expected at least one diagnostic (E207), got none");
     const codes = diagnostics.map((d) => (typeof d.code === "object" ? d.code.value : d.code));
     assert.ok(

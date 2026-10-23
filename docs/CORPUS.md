@@ -3,10 +3,12 @@
 This is the source catalogue for the external corpus work tracked by
 [#1181](https://github.com/bitwisecook/tcl-lsp/issues/1181).  It describes
 where to obtain material and why it is useful; it does **not** vendor or cache
-third-party source.  Downloaded checkouts, generated indexes, and experimental
-reductions must stay outside the repository (for example in a temporary
+third-party source.  Downloaded checkouts, generated indexes, and unreviewed
+extracts must stay outside the repository (for example in a temporary
 directory, or `scripts/perf/corpus/`, `fetch_corpus.py`'s default
 destination, which `scripts/perf/.gitignore` keeps out of the tree).
+Authored minimal regressions and reproducible oracle experiments follow the
+repository's fixture/experiment conventions, retaining source provenance.
 
 `scripts/perf/MANIFEST.toml` is the sole machine-readable benchmark contract:
 it contains the canonical clone URLs and exact commit IDs.  This document must

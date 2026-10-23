@@ -48,12 +48,14 @@ use std::rc::Rc;
 
 use tcl_cmd_core::error::CmdError;
 use tcl_dialect::{
-    ByteStringEncoding, DialectProfile, NumberSpelling, NumberSyntax, StringCharacterModel,
-    TclVersion,
+    ByteStringEncoding, DialectProfile, LexerGrammar, NumberSpelling, NumberSyntax,
+    StringCharacterModel, TclVersion,
 };
+use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::number::{
     Number, ParseFlags, format_double, parse_whole_with, spell_double, spell_wide,
 };
+use tcl_syntax::raw_string::{NativeValueAccessRefusal, UnicodeAccessError};
 use tcl_syntax::value::{DictPairs, ValueError, ValueOps, canonical_dict_slots};
 
 use crate::types::TclType;
@@ -334,6 +336,8 @@ pub struct TargetSemantics {
     pub precision_written: bool,
     /// The profile, when the request names one.
     pub profile: Option<&'static DialectProfile>,
+    /// Actual source grammar retained by the analysis request.
+    pub grammar: LexerGrammar,
 }
 
 impl TargetSemantics {
@@ -367,7 +371,27 @@ impl TargetSemantics {
             spelling: release.map(|_| NumberSpelling::of_profile(profile)),
             precision_written: false,
             profile,
+            grammar: profile.map_or_else(LexerGrammar::default, |profile| profile.grammar),
         }
+    }
+
+    /// The authored value model with this request's actual source grammar.
+    /// A release's numeral model applies only when it agrees with that
+    /// grammar. This selection grants neither executable fold eligibility
+    /// nor an original Native value, representation or observer proof.
+    #[must_use]
+    pub fn for_context(context: &AnalysisContext) -> Self {
+        let mut target = Self::of(context.profile);
+        target.grammar = context.grammar;
+        target.numerals = target
+            .numerals
+            .filter(|numbers| *numbers == context.grammar.numbers);
+        // A spelling read back under another grammar proves nothing: fall
+        // back to the spelling every grammar agrees on.
+        target.spelling = target
+            .spelling
+            .filter(|spelling| spelling.numbers() == context.grammar.numbers);
+        target
     }
 
     /// The text a computed double is written as under this target
@@ -571,7 +595,7 @@ impl<'ctx> ConstOps<'ctx> {
         Ok(Self {
             target: TargetSemantics {
                 precision_written: ctx.precision_written,
-                ..TargetSemantics::of(ctx.profile)
+                ..TargetSemantics::for_context(ctx)
             },
             admitted: needs,
             budget,
@@ -761,28 +785,79 @@ impl<'ctx> ConstOps<'ctx> {
     /// every other route keeps a decline, an error being no value.
     #[must_use]
     pub fn decline(&mut self, error: &CmdError) -> DeclineReason {
-        let raised = Raised::parse_failure(&self.target, error.message());
-        self.decline_raising(raised)
+        match error.message() {
+            Ok(message) => self.decline_raising(Raised::parse_failure(&self.target, message)),
+            Err(refusal) => self.decline_execution(&refusal),
+        }
     }
 
     /// [`Self::decline`] for a seam error.
     #[must_use]
     pub fn decline_value(&mut self, error: &ValueError) -> DeclineReason {
-        match error {
-            ValueError::BadList(message) => {
-                let raised = Raised::parse_failure(&self.target, message);
-                self.decline_raising(raised)
-            }
-            ValueError::NotInteger(_)
-            | ValueError::DoubleNotInteger(_)
-            | ValueError::NotDouble(_)
-            | ValueError::NotBoolean(_) => self.decline_raising(Raised::unproven()),
-            // The fixed-width tower's overflow is a value the target
-            // computes — 8.4 wraps where 8.5 widens — and no error the
-            // program raises: the model does not compute it, and the run
-            // declines.
-            ValueError::IntegerOverflow => self.fault.unwrap_or(DeclineReason::WrongRepresentation),
+        if let Some(refusal) = error.native_access_refusal() {
+            return self.decline_access(refusal);
         }
+        // Overflow belongs to the target's integer tower, not a guest error
+        // inferred from this fixed-width analysis model.
+        if *error == ValueError::IntegerOverflow {
+            return self.fault.unwrap_or(DeclineReason::WrongRepresentation);
+        }
+        let bytes = error.message_bytes();
+        let raised = std::str::from_utf8(&bytes).map_or_else(
+            |_| Raised::unproven(),
+            |message| Raised::parse_failure(&self.target, message),
+        );
+        self.decline_raising(raised)
+    }
+
+    /// Classify an operational decline by its typed owner, without inspecting
+    /// its diagnostic. The caller retains the borrowed command's full cause;
+    /// an analysis decline never manufactures a guest completion.
+    fn decline_execution(&mut self, refusal: &NativeExecutionError) -> DeclineReason {
+        match refusal {
+            NativeExecutionError::ValueAccessRefusal(refusal) => self.decline_access(*refusal),
+            NativeExecutionError::CompilationAdmission(_)
+            | NativeExecutionError::CompileServiceRefusal(_)
+            | NativeExecutionError::ExpressionRefusal(_)
+            | NativeExecutionError::HostCommandRefusal(_) => {
+                self.poison(DeclineReason::Unsupported);
+                self.fault.expect("recorded operational refusal")
+            }
+        }
+    }
+
+    /// Operational refusal poisons the model and cannot become a guest error.
+    fn decline_access(&mut self, refusal: NativeValueAccessRefusal) -> DeclineReason {
+        let reason = match refusal {
+            NativeValueAccessRefusal::Unicode(_) => DeclineReason::NotText,
+            NativeValueAccessRefusal::CharacterModelUnavailable => {
+                DeclineReason::ReleaseAmbiguous(Axis::CharacterModel)
+            }
+            _ => DeclineReason::Unsupported,
+        };
+        self.poison(reason);
+        self.fault.expect("recorded operational refusal")
+    }
+
+    /// Compute logical string contents through the shared portable owner.
+    /// Binary octets outside ASCII need their independent string-value conversion;
+    /// their physical encoding is not an authored Unicode string.
+    pub(super) fn logical_append(
+        &mut self,
+        current: Option<ConstValue>,
+        values: &[ConstValue],
+    ) -> Result<ConstValue, DeclineReason> {
+        if !values.is_empty()
+            && current
+                .iter()
+                .chain(values)
+                .any(|value| value.repr == Representation::ByteArray && !value.bytes.is_ascii())
+        {
+            self.poison(DeclineReason::Unsupported);
+            return Err(self.fault.expect("recorded binary string-value refusal"));
+        }
+        tcl_cmd_core::var::logical_append_value(self, current, values)
+            .map_err(|error| self.decline(&error))
     }
 
     /// The decline for a failure that is the program's error, `raised`
@@ -809,7 +884,7 @@ impl<'ctx> ConstOps<'ctx> {
 
     /// Close the evaluation: the value, or the first recorded fault. A
     /// poisoned run declines whatever value the core returned, so a
-    /// `char_len` that could not decide cannot leak a zero.
+    /// `native_char_len` that could not decide cannot leak a zero.
     ///
     /// # Errors
     ///
@@ -894,6 +969,71 @@ impl<'ctx> ConstOps<'ctx> {
     }
 }
 
+impl tcl_cmd_core::index::NativeIndexOps for ConstOps<'_> {
+    type IndexOperation = ();
+    type IndexBinaryReceipt = ();
+    type IndexKeyOwner = Self::Value;
+    fn index_borrowed_key(
+        &mut self,
+        value: &Self::Value,
+    ) -> Result<Self::Value, tcl_cmd_core::CmdError> {
+        Ok(value.clone())
+    }
+    fn index_created_key(
+        &mut self,
+        value: Self::Value,
+    ) -> Result<Self::Value, tcl_cmd_core::CmdError> {
+        Ok(value)
+    }
+    fn index_key_value(owner: &Self::Value) -> &Self::Value {
+        owner
+    }
+    fn index_hold_key_result(
+        &mut self,
+        owner: &Self::Value,
+    ) -> Result<Self::Value, tcl_cmd_core::CmdError> {
+        Ok(owner.clone())
+    }
+    fn index_finish_held_key_result(
+        &mut self,
+        held: Self::Value,
+    ) -> Result<tcl_cmd_core::index::IndexResult<Self::Value>, tcl_cmd_core::CmdError> {
+        Ok(tcl_cmd_core::index::IndexResult::Detached(held))
+    }
+    fn index_key_argument(
+        &mut self,
+        owner: &Self::Value,
+    ) -> Result<Self::Value, tcl_cmd_core::CmdError> {
+        Ok(owner.clone())
+    }
+    fn index_key_result(
+        &mut self,
+        owner: &Self::Value,
+        created: bool,
+        ancestor: bool,
+    ) -> Result<tcl_cmd_core::index::IndexResult<Self::Value>, tcl_cmd_core::CmdError> {
+        Ok(if created {
+            tcl_cmd_core::index::IndexResult::Created(owner.clone())
+        } else if ancestor {
+            tcl_cmd_core::index::IndexResult::Detached(owner.clone())
+        } else {
+            tcl_cmd_core::index::IndexResult::Borrowed(owner.clone())
+        })
+    }
+    fn enter_index_operation(&mut self) -> Result<(), tcl_cmd_core::CmdError> {
+        Ok(())
+    }
+    fn check_index_operation(&mut self, (): &()) -> Result<(), tcl_cmd_core::CmdError> {
+        Ok(())
+    }
+    fn retain_index_failure(&mut self, _error: &tcl_cmd_core::CmdError) {
+        // Pure neutral adapter has no interpreter first-cause owner.
+    }
+    fn discard_owned_index_result(&mut self, created: Self::Value) {
+        drop(created);
+    }
+}
+
 impl ValueOps for ConstOps<'_> {
     type Value = ConstValue;
 
@@ -951,28 +1091,31 @@ impl ValueOps for ConstOps<'_> {
         ConstValue::bytes(&rendered, Representation::List)
     }
 
-    fn as_str(&mut self, v: &ConstValue) -> Rc<str> {
-        if let Some(s) = v.as_utf8() {
-            Rc::from(s)
-        } else {
-            self.poison(DeclineReason::NotText);
-            Rc::from(String::from_utf8_lossy(&v.bytes).as_ref())
-        }
+    fn try_as_str(&mut self, v: &ConstValue) -> Result<Rc<str>, UnicodeAccessError> {
+        std::str::from_utf8(&v.bytes)
+            .map(Rc::from)
+            .map_err(|error| {
+                self.poison(DeclineReason::NotText);
+                UnicodeAccessError {
+                    valid_up_to: error.valid_up_to(),
+                    error_len: error.error_len(),
+                }
+            })
     }
 
-    fn char_len(&mut self, v: &ConstValue) -> usize {
+    fn native_char_len(&mut self, v: &ConstValue) -> Result<usize, ValueError> {
         self.require(Needs::CHAR_MODEL);
-        let text = self.as_str(v);
+        let text = self.try_as_str(v)?;
         if let Some(count) = StringCharacterModel::count_for(self.target.character_model, &text) {
-            count
+            Ok(count)
         } else {
             self.poison(DeclineReason::ReleaseAmbiguous(Axis::CharacterModel));
-            text.chars().count()
+            Err(ValueError::CharacterModelUnavailable)
         }
     }
 
     fn as_int(&mut self, v: &ConstValue) -> Result<i64, ValueError> {
-        let text = self.as_str(v);
+        let text = self.try_as_str(v)?;
         match self.parse_number(&text, true) {
             Some(Number::Int(i)) => Ok(i),
             Some(Number::Big { .. }) => Err(ValueError::IntegerOverflow),
@@ -984,7 +1127,7 @@ impl ValueOps for ConstOps<'_> {
     /// parsed as a double is correctly rounded, the value a precision-losing
     /// cast gives.
     fn as_double(&mut self, v: &ConstValue) -> Result<f64, ValueError> {
-        let text = self.as_str(v);
+        let text = self.try_as_str(v)?;
         match self.parse_number(&text, false) {
             Some(Number::Double(f)) => Ok(f),
             Some(Number::Int(i)) => i
@@ -1000,7 +1143,7 @@ impl ValueOps for ConstOps<'_> {
     /// a text boolean declines rather than answering under a partial
     /// table.
     fn as_bool(&mut self, v: &ConstValue) -> Result<bool, ValueError> {
-        let text = self.as_str(v);
+        let text = self.try_as_str(v)?;
         match self.parse_number(&text, false) {
             Some(Number::Int(i)) => Ok(i != 0),
             Some(Number::Double(f)) => Ok(f != 0.0),
@@ -1044,7 +1187,7 @@ impl ValueOps for ConstOps<'_> {
     /// The element count: the list parse alone, which renders nothing, so
     /// it reads no release axis; charged per element.
     fn list_len(&mut self, v: &ConstValue) -> Result<usize, ValueError> {
-        let text = self.as_str(v);
+        let text = self.try_as_str(v)?;
         let elements = tcl_syntax::list::split_list(&text)
             .map_err(|e| ValueError::BadList(e.message().to_owned()))?;
         let _ = self.charge(u64::try_from(elements.len()).unwrap_or(u64::MAX));
@@ -1053,16 +1196,9 @@ impl ValueOps for ConstOps<'_> {
 
     fn list_elements(&mut self, v: &ConstValue) -> Result<Vec<ConstValue>, ValueError> {
         self.require(Needs::LIST_RENDERING);
-        let text = self.as_str(v);
-        // A bare or quoted element's backslashes collapse under the target
-        // release's escape grammar, as the lexer reads the same bytes in a word.
-        let escapes = self
-            .target
-            .profile
-            .map_or_else(tcl_dialect::EscapeSyntax::default, |profile| {
-                profile.grammar.escapes
-            });
-        let elements = tcl_syntax::list::split_list_in(&text, escapes)
+        let text = self.try_as_str(v)?;
+        // Bare and quoted elements retain the request's actual escape grammar.
+        let elements = tcl_syntax::list::split_list_in(&text, self.target.grammar.escapes)
             .map_err(|e| ValueError::BadList(e.message().to_owned()))?;
         let _ = self.charge(u64::try_from(elements.len()).unwrap_or(u64::MAX));
         Ok(elements
@@ -1083,11 +1219,11 @@ impl ValueOps for ConstOps<'_> {
                 "missing value to go with key".to_owned(),
             ));
         }
-        let keys: Vec<Rc<str>> = elements
+        let keys: Vec<Rc<[u8]>> = elements
             .as_chunks::<2>()
             .0
             .iter()
-            .map(|pair| self.as_str(&pair[0]))
+            .map(|pair| self.as_bytes(&pair[0]))
             .collect();
         let slots = canonical_dict_slots(keys.iter().map(AsRef::as_ref));
         let _ = self.charge(u64::try_from(slots.len()).unwrap_or(u64::MAX));
@@ -1446,6 +1582,50 @@ mod tests {
         assert_eq!(ops.raised(), None, "the run's fault wins");
     }
 
+    #[test]
+    fn typed_host_decline_preserves_original_cause_and_first_fault_without_guest_raise() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Software constant-analysis adapter; no original-provider observation.
+        let profile = DialectProfile::find("tcl8.6").unwrap();
+        let cause = NativeExecutionError::HostCommandRefusal(Box::new(
+            tcl_runtime_api::NativeHostCommandRefusal {
+                reason: "unmatched open quote in list".to_owned(),
+                source_profile: profile.cache_key(),
+                native_profile: profile.cache_key(),
+                interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity {
+                    owner:
+                        tcl_runtime_api::native_compilation::NativeInterpreterIdentity::fresh_owner(
+                        ),
+                    interpreter: 11,
+                },
+                frame: 3,
+                namespace: "::original".into(),
+                namespace_token: Some(17),
+            },
+        ));
+        let original = CmdError::from_execution_refusal(cause.clone());
+        let mut budget = Budget::evaluation();
+        let mut ops = admit(Some("tcl8.6"), &mut budget, Needs::NONE);
+        assert_eq!(ops.decline(&original), DeclineReason::Unsupported);
+        assert_eq!(ops.raised(), None);
+        assert_eq!(original.native_execution_refusal(), Some(&cause));
+
+        let later = CmdError::from(NativeValueAccessRefusal::Unicode(UnicodeAccessError {
+            valid_up_to: 0,
+            error_len: Some(1),
+        }));
+        assert_eq!(ops.decline(&later), DeclineReason::Unsupported);
+        assert_eq!(ops.fault(), Some(DeclineReason::Unsupported));
+        assert_eq!(ops.raised(), None);
+        assert_eq!(original.native_execution_refusal(), Some(&cause));
+
+        let mut budget = Budget::evaluation();
+        let mut fresh = admit(Some("tcl8.6"), &mut budget, Needs::NONE);
+        assert_eq!(fresh.decline(&later), DeclineReason::NotText);
+        assert_eq!(fresh.raised(), None);
+    }
+
     /// The error every release the target names agrees on, field by field:
     /// the named release's own, or the ladder's shared answer, and a field
     /// the releases disagree on is unproven.
@@ -1480,9 +1660,12 @@ mod tests {
         let astral = ConstValue::text("\u{1F600}");
         let mut budget = Budget::evaluation();
         let mut ops = admit(None, &mut budget, Needs::CHAR_MODEL);
-        assert_eq!(ops.char_len(&plain), 5);
+        assert_eq!(
+            ops.native_char_len(&plain).expect("known character count"),
+            5
+        );
         assert!(ops.fault().is_none());
-        let _ = ops.char_len(&astral);
+        let _ = ops.native_char_len(&astral);
         assert_eq!(
             ops.take(ConstValue::int(1)),
             Err(DeclineReason::ReleaseAmbiguous(Axis::CharacterModel))
@@ -1490,7 +1673,12 @@ mod tests {
         for (dialect, want) in [("tcl8.6", 2), ("tcl9.0", 1), ("expect", 2)] {
             let mut budget = Budget::evaluation();
             let mut ops = admit(Some(dialect), &mut budget, Needs::CHAR_MODEL);
-            assert_eq!(ops.char_len(&astral), want, "{dialect}");
+            assert_eq!(
+                ops.native_char_len(&astral)
+                    .expect("selected character count"),
+                want,
+                "{dialect}"
+            );
             assert!(ops.take(ConstValue::int(1)).is_ok());
         }
         // The F5 dialects declare a character model of their own
@@ -1501,8 +1689,12 @@ mod tests {
         for dialect in ["f5-irules", "f5-iapps"] {
             let mut budget = Budget::evaluation();
             let mut ops = admit(Some(dialect), &mut budget, Needs::CHAR_MODEL);
-            assert_eq!(ops.char_len(&plain), 5, "{dialect}");
-            let _ = ops.char_len(&astral);
+            assert_eq!(
+                ops.native_char_len(&plain).expect("known character count"),
+                5,
+                "{dialect}"
+            );
+            let _ = ops.native_char_len(&astral);
             assert_eq!(
                 ops.take(ConstValue::int(1)),
                 Err(DeclineReason::ReleaseAmbiguous(Axis::CharacterModel)),
@@ -1552,6 +1744,34 @@ mod tests {
             expect.character_model,
             Some(StringCharacterModel::Utf16CodeUnits)
         );
+    }
+
+    #[test]
+    fn actual_context_grammar_withdraws_mismatched_numerals_and_keeps_escapes() {
+        let mut actual = context(Some("tcl9.0"));
+        actual.grammar.numbers = NumberSyntax::Tcl85;
+        actual.grammar.escapes = tcl_dialect::EscapeSyntax::Tcl84;
+        let target = TargetSemantics::for_context(&actual);
+        assert_eq!(target.release, Some(TclVersion::V9_0));
+        assert_eq!(target.numerals, None);
+        assert_eq!(target.grammar, actual.grammar);
+
+        let mut budget = Budget::evaluation();
+        let mut ops = ConstOps::admit(&actual, &mut budget, Needs::NUMERAL_GRAMMAR).unwrap();
+        assert!(ops.as_int(&ConstValue::text("010")).is_err());
+        assert_eq!(
+            ops.fault(),
+            Some(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar))
+        );
+
+        let mut budget = Budget::evaluation();
+        let mut ops = ConstOps::admit(&actual, &mut budget, Needs::LIST_RENDERING).unwrap();
+        let elements = ops.list_elements(&ConstValue::text(r"a\x41b c")).unwrap();
+        assert_eq!(
+            elements,
+            vec![ConstValue::text("a\u{1b}"), ConstValue::text("c")]
+        );
+        assert!(ops.fault().is_none());
     }
 
     #[test]
@@ -1607,8 +1827,43 @@ mod tests {
         let mut ops = admit(None, &mut budget, Needs::NONE);
         let raw = ConstValue::bytes(&[0xff, 0xfe], Representation::ByteArray);
         assert_eq!(&*ops.as_bytes(&raw), &[0xff, 0xfe]);
-        let _ = ops.as_str(&raw);
+        assert!(ops.try_as_str(&raw).is_err());
         assert_eq!(ops.take(raw), Err(DeclineReason::NotText));
+    }
+
+    #[test]
+    fn logical_append_retains_counted_contents_and_refuses_unprojected_binary() {
+        let mut budget = Budget::evaluation();
+        let mut ops = admit(Some("tcl9.0"), &mut budget, Needs::NONE);
+        let value = ops
+            .logical_append(Some(ConstValue::text("a\0")), &[ConstValue::text("é")])
+            .expect("decoded logical contents");
+        assert_eq!(&*value.bytes, "a\0é".as_bytes());
+        assert_eq!(value.repr, Representation::String);
+        assert!(ops.take(value).is_ok());
+
+        let mut budget = Budget::evaluation();
+        let mut ops = admit(Some("tcl9.0"), &mut budget, Needs::NONE);
+        let octets = ConstValue::bytes("é".as_bytes(), Representation::ByteArray);
+        assert_eq!(
+            ops.logical_append(Some(octets), &[ConstValue::text("x")]),
+            Err(DeclineReason::Unsupported),
+            "UTF-8-looking binary storage is not a logical string-value receipt",
+        );
+        assert_eq!(ops.raised(), None);
+    }
+
+    #[test]
+    fn unavailable_physical_protocol_is_a_decline_without_guest_completion() {
+        let mut budget = Budget::evaluation();
+        let mut ops = admit(Some("tcl9.0"), &mut budget, Needs::NONE);
+        let unavailable = ValueError::CommandProtocolUnavailable("physical fixture owner");
+        assert_eq!(ops.decline_value(&unavailable), DeclineReason::Unsupported);
+        assert_eq!(ops.raised(), None);
+        assert_eq!(
+            ops.take(ConstValue::text("surrogate")),
+            Err(DeclineReason::Unsupported)
+        );
     }
 
     #[test]

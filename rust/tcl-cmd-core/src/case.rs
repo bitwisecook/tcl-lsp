@@ -66,14 +66,14 @@ pub fn select<O, V>(ops: &mut O, value: &V, clauses: &[V]) -> Result<Option<usiz
 where
     O: ValueOps<Value = V>,
 {
-    let subject = ops.as_str(value);
+    let subject = ops.try_as_str(value)?;
     let mut fallback = None;
     for (index, pattern) in clauses.iter().enumerate().step_by(2) {
         if index + 1 == clauses.len() {
             return Err(CmdError::new("extra case pattern with no body"));
         }
         let arm = index / 2;
-        let text = ops.as_str(pattern);
+        let text = ops.try_as_str(pattern)?;
         if !splits_as_list(&text) {
             if &*text == DEFAULT {
                 fallback = Some(arm);
@@ -84,7 +84,7 @@ where
             continue;
         }
         for element in ops.list_elements(pattern)? {
-            let element = ops.as_str(&element);
+            let element = ops.try_as_str(&element)?;
             if string_case_match(&element, &subject, false) {
                 return Ok(Some(arm));
             }
@@ -120,8 +120,11 @@ mod tests {
         fn new_list(&mut self, items: Vec<String>) -> String {
             items.join(" ")
         }
-        fn as_str(&mut self, v: &String) -> std::rc::Rc<str> {
-            std::rc::Rc::from(v.as_str())
+        fn as_bytes(&mut self, v: &String) -> std::rc::Rc<[u8]> {
+            std::rc::Rc::from(v.as_bytes())
+        }
+        fn new_bytes(&mut self, bytes: &[u8]) -> Self::Value {
+            self.new_str(std::str::from_utf8(bytes).expect("Unicode-only fixture input"))
         }
         fn as_int(&mut self, v: &String) -> Result<i64, tcl_syntax::value::ValueError> {
             v.parse()
@@ -159,7 +162,12 @@ mod tests {
 
     fn chosen(value: &str, clauses: &[&str]) -> Result<Option<usize>, String> {
         let clauses: Vec<String> = clauses.iter().map(|&word| word.to_owned()).collect();
-        select(&mut StrOps, &value.to_owned(), &clauses).map_err(|error| error.message().to_owned())
+        select(&mut StrOps, &value.to_owned(), &clauses).map_err(|error| {
+            error
+                .message()
+                .expect("Unicode-only fixture error")
+                .to_owned()
+        })
     }
 
     /// Each rule against what tclsh 8.4.20, 8.5.19 and 8.6.18 run: glob

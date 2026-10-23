@@ -69,6 +69,8 @@
 //! every compiled spec under every catalogue profile.
 
 pub mod assembly;
+mod namespace_ownership;
+pub use namespace_ownership::NamespacePackageOwnership;
 pub mod binding;
 pub mod capability;
 pub mod context;
@@ -77,13 +79,15 @@ pub mod ingress;
 pub mod registration;
 pub mod runtime_context;
 pub mod semantic;
+mod source_unavailability;
+pub use source_unavailability::{CommandSourceUnavailability, CommandSourceUnavailabilityKind};
 pub mod surface;
 pub mod tcllib;
 
 pub use assembly::{
-    ContextRegistry, OverlayMiss, registry_for_environment, registry_for_environment_if_built,
-    resolve_call_in_context, resolve_invocation_in_context, resolve_invocation_words_in_context,
-    side_effect_hints_in_context, store_profiles,
+    ContextRegistry, OverlayMiss, profile_store_with_overlay, registry_for_environment,
+    registry_for_environment_if_built, resolve_call_in_context, resolve_invocation_in_context,
+    resolve_invocation_words_in_context, side_effect_hints_in_context, store_profiles,
 };
 pub use binding::{
     BindingKnowledge, BindingTarget, PackageState, PackageStateMap, PackageTransition, SpecKey,

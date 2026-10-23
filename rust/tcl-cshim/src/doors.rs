@@ -86,8 +86,10 @@ impl Verb {
 
 fn failure(message: impl Into<String>) -> TclError {
     TclError {
-        message: message.into(),
+        message: message.into().into_bytes(),
         code: None,
+        getter: None,
+        host: None,
     }
 }
 
@@ -102,38 +104,46 @@ fn check_flags(function: &str, flags: c_int, honoured: c_int) -> Result<(), TclE
     )))
 }
 
-/// Whether Tcl reads `name` as an array element: it ends in `)` and has a `(`.
-fn is_element(name: &str) -> bool {
-    name.ends_with(')') && name.contains('(')
-}
-
-/// The name `part1` and `part2` are together, spelt as `set` spells it.
-fn compose(part1: &str, part2: Option<&str>, verb: Verb) -> Result<String, TclError> {
-    match part2 {
-        None => Ok(part1.to_owned()),
-        Some(index) if is_element(part1) => Err(TclError::with_code(
-            format!(
-                "can't {} \"{part1}({index})\": variable isn't array",
-                verb.word()
+/// Preserve the Tcl9 shim's selected operands through the engine's combined
+/// Unicode-name door. Unrepresentable counted inputs are host refusals.
+fn bridge_name(
+    part1: &str,
+    part2: Option<&str>,
+    verb: Verb,
+    global_only: bool,
+) -> Result<String, TclError> {
+    use tcl_syntax::naming::{
+        NativeNameProtocol, NativeVariableBridgeUnavailable, NativeVariableInputForm,
+    };
+    let input = match part2 {
+        None => NativeVariableInputForm::Combined(part1.as_bytes()),
+        Some(index) => NativeVariableInputForm::Separate {
+            root: part1.as_bytes(),
+            element: Some(index.as_bytes()),
+        },
+    };
+    let bytes = NativeNameProtocol::C(tcl_dialect::TclVersion::V9_0)
+        .variable_combined_bridge_input(input, global_only)
+        .map_err(|error| match error {
+            NativeVariableBridgeUnavailable::Part1IsElement => TclError::with_code(
+                format!(
+                    "can't {} \"{part1}({})\": variable isn't array",
+                    verb.word(),
+                    part2.expect("selected second operand"),
+                ),
+                "TCL VALUE VARNAME",
             ),
-            "TCL VALUE VARNAME",
-        )),
-        Some(_) if part1.contains('(') => Err(failure(format!(
-            "the shim cannot name the array \"{part1}\": a parenthesis in an array's name \
-             reads as the start of an element"
-        ))),
-        Some(index) => Ok(format!("{part1}({index})")),
-    }
-}
-
-/// The name the engine's door takes: `name` rooted in the global namespace when
-/// the call asked for it (`TCL_GLOBAL_ONLY`).
-fn root(name: &str, flags: c_int) -> String {
-    if flags & TCL_GLOBAL_ONLY != 0 && !name.starts_with("::") {
-        format!("::{name}")
-    } else {
-        name.to_owned()
-    }
+            NativeVariableBridgeUnavailable::Unrepresentable => TclError::host(
+                EngineError::ExecutionRefusal(
+                    "the engine's combined-name door cannot preserve the selected variable operands".into(),
+                ),
+            ),
+        })?;
+    String::from_utf8(bytes).map_err(|_| {
+        TclError::host(EngineError::ExecutionRefusal(
+            "the engine's variable door requires Unicode".into(),
+        ))
+    })
 }
 
 /// An error's message with the name the shim rooted given back as the C code
@@ -141,7 +151,13 @@ fn root(name: &str, flags: c_int) -> String {
 fn unrooted(mut error: TclError, rooted: &str, asked: &str) -> TclError {
     if rooted != asked {
         let (rooted, asked) = (format!("\"{rooted}\""), format!("\"{asked}\""));
-        error.message = error.message.replacen(&rooted, &asked, 1);
+        if let Some(at) = error
+            .message
+            .windows(rooted.len())
+            .position(|window| window == rooted.as_bytes())
+        {
+            error.message.splice(at..at + rooted.len(), asked.bytes());
+        }
     }
     error
 }
@@ -164,7 +180,21 @@ fn refuse_after_fatal(state: &InterpState) -> Result<(), TclError> {
 /// What an engine's error is to C, keeping the ones C cannot swallow.
 fn engine_failure(state: &InterpState, error: EngineError) -> TclError {
     match error {
-        EngineError::Script { message, code } => TclError { message, code },
+        EngineError::Script { message, code } => TclError {
+            message: message.into_bytes(),
+            code: code.map(String::into_bytes),
+            getter: None,
+            host: None,
+        },
+        EngineError::ScriptBytes { message, code, .. } => TclError {
+            message,
+            code,
+            getter: None,
+            host: None,
+        },
+        EngineError::ExecutionRefusal(_) | EngineError::ExecutionFailure(_) => {
+            TclError::host(error)
+        }
         EngineError::Compile(message) => failure(message),
         EngineError::Unsupported(_) => failure(error.to_string()),
         EngineError::BudgetExceeded(_) | EngineError::Crashed(_) => {
@@ -187,9 +217,9 @@ fn variable_call<T>(
 ) -> Option<T> {
     let outcome = check_flags(function, flags, VARIABLE_FLAGS)
         .and_then(|()| refuse_after_fatal(state))
-        .and_then(|()| compose(part1, part2, verb))
+        .and_then(|()| bridge_name(part1, part2, verb, false))
         .and_then(|asked| {
-            let name = root(&asked, flags);
+            let name = bridge_name(part1, part2, verb, flags & TCL_GLOBAL_ONLY != 0)?;
             match state.with_door(|door| call(door, &name)) {
                 Some(Ok(answer)) => Ok(answer),
                 Some(Err(error)) => Err(unrooted(engine_failure(state, error), &name, &asked)),
@@ -199,6 +229,9 @@ fn variable_call<T>(
     match outcome {
         Ok(answer) => Some(answer),
         Err(error) => {
+            if let Some(refusal) = &error.host {
+                state.refuse_host((**refusal).clone());
+            }
             if flags & TCL_LEAVE_ERR_MSG != 0 {
                 state.set_error(&error);
             }
@@ -223,9 +256,14 @@ pub(crate) fn get_variable(
         flags,
         |door, name| door.variable(name),
     )
-    .map_or(std::ptr::null_mut(), |value| {
-        state.retain(ObjRef::new(Obj::from_value(&value)))
+    .and_then(|value| match Obj::from_value(&value) {
+        Ok(object) => Some(state.retain(ObjRef::new(object))),
+        Err(error) => {
+            state.set_error(&TclError::host(error));
+            None
+        }
     })
+    .unwrap_or(std::ptr::null_mut())
 }
 
 /// `Tcl_ObjSetVar2`: the object given, now the variable's value, or NULL.
@@ -273,10 +311,34 @@ pub(crate) fn unset_variable(
 /// door open, leaves the package to the shim's own record, which is what
 /// [`crate::Interp::provided_packages`] lists. The error is always left in the
 /// interpreter's result, as `Tcl_PkgProvideEx` leaves it.
+#[cfg(test)]
 pub(crate) fn provide_package(state: &InterpState, name: &str, version: &str) -> c_int {
     let attempt = refuse_after_fatal(state)
         .and_then(|()| tell_the_engine(state, name, version))
-        .and_then(|()| state.provide(name, version));
+        .and_then(|()| state.provide(name.as_bytes(), version.as_bytes()));
+    match attempt {
+        Ok(()) => TCL_OK,
+        Err(error) => {
+            state.set_error(&error);
+            TCL_ERROR
+        }
+    }
+}
+
+pub(crate) fn provide_package_bytes(state: &InterpState, name: &[u8], version: &[u8]) -> c_int {
+    let attempt = refuse_after_fatal(state).and_then(|()| {
+        match state.with_door(|door| {
+            let name = std::str::from_utf8(name)
+                .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+            let version = std::str::from_utf8(version)
+                .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+            door.provide_package(name, version)
+        }) {
+            None | Some(Ok(()) | Err(EngineError::Unsupported(_))) => {}
+            Some(Err(error)) => return Err(engine_failure(state, error)),
+        }
+        state.provide(name, version)
+    });
     match attempt {
         Ok(()) => TCL_OK,
         Err(error) => {
@@ -288,6 +350,7 @@ pub(crate) fn provide_package(state: &InterpState, name: &str, version: &str) ->
 
 /// Say a package to the engine's package database, when a door is open and the
 /// engine has one.
+#[cfg(test)]
 fn tell_the_engine(state: &InterpState, name: &str, version: &str) -> Result<(), TclError> {
     match state.with_door(|door| door.provide_package(name, version)) {
         None | Some(Ok(()) | Err(EngineError::Unsupported(_))) => Ok(()),
@@ -301,7 +364,9 @@ pub(crate) fn evaluate(state: &InterpState, script: &Obj, flags: c_int) -> c_int
     let attempt = check_flags("Tcl_EvalObjEx", flags, EVAL_FLAGS)
         .and_then(|()| refuse_after_fatal(state))
         .and_then(|()| {
-            let text = script.text();
+            let text = script.text().map_err(|error| {
+                TclError::host(EngineError::ExecutionRefusal(error.to_string()))
+            })?;
             state
                 .with_door(|door| {
                     if let Some(shared) = state.shared() {
@@ -314,7 +379,14 @@ pub(crate) fn evaluate(state: &InterpState, script: &Obj, flags: c_int) -> c_int
         });
     match attempt {
         Ok(outcome) => {
-            state.set_result(ObjRef::new(Obj::from_value(&outcome.value)));
+            let object = match Obj::from_value(&outcome.value) {
+                Ok(object) => object,
+                Err(error) => {
+                    state.set_error(&TclError::host(error));
+                    return TCL_ERROR;
+                }
+            };
+            state.set_result(ObjRef::new(object));
             state.set_return_options(
                 (outcome.code == CompletionCode::Return).then_some(outcome.options),
             );
@@ -338,8 +410,8 @@ mod tests {
     };
 
     use super::{
-        TCL_ERROR, TCL_EVAL_DIRECT, TCL_GLOBAL_ONLY, TCL_LEAVE_ERR_MSG, TCL_OK, Verb, compose,
-        evaluate, get_variable, provide_package, root, set_variable, unset_variable,
+        TCL_ERROR, TCL_EVAL_DIRECT, TCL_GLOBAL_ONLY, TCL_LEAVE_ERR_MSG, TCL_OK, Verb, bridge_name,
+        evaluate, get_variable, provide_package, set_variable, unset_variable,
     };
     use crate::obj::{Obj, ObjRef, TclError};
     use crate::state::{DoorRef, InterpState};
@@ -416,7 +488,7 @@ mod tests {
     fn text(object: *mut Obj) -> String {
         // SAFETY: the tests pass the pointers the calls under test answered, while
         // the scope that keeps them is open.
-        unsafe { &*object }.text()
+        unsafe { &*object }.text().expect("Unicode test object")
     }
 
     #[test]
@@ -436,11 +508,28 @@ mod tests {
         ];
         for (part1, part2, flags, expected) in cases {
             assert_eq!(
-                compose(part1, part2, Verb::Read).map(|name| root(&name, flags)),
+                bridge_name(part1, part2, Verb::Read, flags & TCL_GLOBAL_ONLY != 0),
                 Ok(expected.to_owned()),
                 "{part1} {part2:?} {flags}"
             );
         }
+    }
+
+    #[test]
+    fn an_unrepresentable_counted_global_name_retains_host_refusal_without_guest_reporting() {
+        let state = InterpState::new_shared();
+        state.set_result_text("BEFORE");
+        let mut fake = Fake::new();
+        let mut door = DoorRef::new(&mut fake);
+        let scope = state.open_door(&mut door);
+        assert!(get_variable(&state, "x\0tail", None, TCL_GLOBAL_ONLY).is_null());
+        assert!(matches!(
+            state.take_host_refusal(),
+            Some(EngineError::ExecutionRefusal(_))
+        ));
+        assert_eq!(state.result().get().bytes(), b"BEFORE");
+        drop(scope);
+        assert!(fake.log.is_empty());
     }
 
     #[test]
@@ -451,7 +540,7 @@ mod tests {
             (Verb::Unset, "unset"),
         ] {
             assert_eq!(
-                compose("a(k)", Some("j"), verb),
+                bridge_name("a(k)", Some("j"), verb, false),
                 Err(TclError::with_code(
                     format!("can't {word} \"a(k)(j)\": variable isn't array"),
                     "TCL VALUE VARNAME"
@@ -459,11 +548,11 @@ mod tests {
             );
         }
         assert!(
-            compose("a(", Some("j"), Verb::Read).is_err(),
+            bridge_name("a(", Some("j"), Verb::Read, false).is_err(),
             "a parenthesis that opens no element is no array name"
         );
         assert_eq!(
-            compose("a)", Some("j"), Verb::Read),
+            bridge_name("a)", Some("j"), Verb::Read, false),
             Ok("a)(j)".to_owned()),
             "and a closing one with no opening is part of the name"
         );
@@ -471,8 +560,16 @@ mod tests {
 
     #[test]
     fn an_array_name_with_a_parenthesis_is_refused() {
-        let error = compose("a(b", Some("k"), Verb::Read).expect_err("refused");
-        assert!(error.message.contains("cannot name the array"), "{error:?}");
+        let error = bridge_name("a(b", Some("k"), Verb::Read, false).expect_err("refused");
+        assert!(
+            matches!(error.host.as_deref(), Some(EngineError::ExecutionRefusal(reason))
+            if reason == "the engine's combined-name door cannot preserve the selected variable operands"),
+            "{error:?}"
+        );
+        assert!(
+            error.message.is_empty(),
+            "host refusal has no guest message"
+        );
         assert_eq!(error.code, None);
     }
 
@@ -485,7 +582,7 @@ mod tests {
         let flags = TCL_LEAVE_ERR_MSG | 0x4;
         assert!(get_variable(&state, "x", None, flags).is_null());
         assert_eq!(
-            state.result().get().text(),
+            state.result().get().text().expect("Unicode test object"),
             "Tcl_GetVar2Ex: the flags 0x4 are not implemented by the shim"
         );
         assert_eq!(unset_variable(&state, "x", None, flags), TCL_ERROR);
@@ -494,7 +591,7 @@ mod tests {
         let script = Obj::from_text("set x 1");
         assert_eq!(evaluate(&state, &script, 0x2_0000), TCL_ERROR);
         assert_eq!(
-            state.result().get().text(),
+            state.result().get().text().expect("Unicode test object"),
             "Tcl_EvalObjEx: the flags 0x20000 are not implemented by the shim",
             "TCL_EVAL_GLOBAL is not one the shim does"
         );
@@ -512,12 +609,15 @@ mod tests {
 
         state.set_result_text("untouched");
         assert!(get_variable(&state, "x", None, 0).is_null());
-        assert_eq!(state.result().get().text(), "untouched");
+        assert_eq!(
+            state.result().get().text().expect("Unicode test object"),
+            "untouched"
+        );
         assert_eq!(state.error_code_text(), None);
 
         assert!(get_variable(&state, "x", None, TCL_LEAVE_ERR_MSG).is_null());
         assert_eq!(
-            state.result().get().text(),
+            state.result().get().text().expect("Unicode test object"),
             "can't read \"x\": no such variable"
         );
         assert_eq!(
@@ -540,13 +640,13 @@ mod tests {
         let flags = TCL_GLOBAL_ONLY | TCL_LEAVE_ERR_MSG;
         assert!(get_variable(&state, "ns::a", Some("k"), flags).is_null());
         assert_eq!(
-            state.result().get().text(),
+            state.result().get().text().expect("Unicode test object"),
             "can't read \"ns::a(k)\": no such variable"
         );
 
         assert!(get_variable(&state, "::ns::a(k)", None, flags).is_null());
         assert_eq!(
-            state.result().get().text(),
+            state.result().get().text().expect("Unicode test object"),
             "can't read \"::ns::a(k)\": no such variable",
             "a name given rooted was not rooted by the call, so the engine's message stands"
         );
@@ -564,7 +664,7 @@ mod tests {
         assert_eq!(fake.log, ["provide pkga 1.0"]);
         assert_eq!(
             state.provided_packages(),
-            [("pkga".to_owned(), "1.0".to_owned())]
+            [(tcl_core_types::NameBytes::from("pkga"), b"1.0".to_vec())]
         );
     }
 
@@ -582,7 +682,7 @@ mod tests {
             assert_eq!(provide_package(&state, "pkga", "1.0"), TCL_ERROR);
         }
         assert_eq!(
-            state.result().get().text(),
+            state.result().get().text().expect("Unicode test object"),
             "conflicting versions provided for package \"pkga\": 2.0, then 1.0",
             "left in the result without being asked for, as Tcl_PkgProvideEx leaves it"
         );
@@ -613,7 +713,7 @@ mod tests {
             }
             assert_eq!(
                 state.provided_packages(),
-                [("pkga".to_owned(), "1.0".to_owned())]
+                [(tcl_core_types::NameBytes::from("pkga"), b"1.0".to_vec())]
             );
         }
     }
@@ -629,7 +729,7 @@ mod tests {
         );
         assert_eq!(provide_package(&state, "pkga", "2.0"), TCL_ERROR);
         assert_eq!(
-            state.result().get().text(),
+            state.result().get().text().expect("Unicode test object"),
             "conflicting versions provided for package \"pkga\": 1.0, then 2.0"
         );
     }
@@ -753,6 +853,7 @@ mod tests {
                 .result()
                 .get()
                 .text()
+                .expect("Unicode test object")
                 .starts_with("no engine door is open")
         );
         state.reset_result();
@@ -765,6 +866,7 @@ mod tests {
                 .result()
                 .get()
                 .text()
+                .expect("Unicode test object")
                 .starts_with("no engine door is open")
         );
         state.reset_result();
@@ -775,6 +877,7 @@ mod tests {
                 .result()
                 .get()
                 .text()
+                .expect("Unicode test object")
                 .starts_with("no engine door is open")
         );
     }
@@ -795,7 +898,10 @@ mod tests {
                 assert_eq!(evaluate(&state, &script, 0), TCL_ERROR);
                 assert_eq!(state.fatal(), Some(fatal.clone()));
                 assert_eq!(evaluate(&state, &script, 0), TCL_ERROR);
-                assert_eq!(state.result().get().text(), fatal.to_string());
+                assert_eq!(
+                    state.result().get().text().expect("Unicode test object"),
+                    fatal.to_string()
+                );
                 assert!(get_variable(&state, "x", None, 0).is_null());
                 assert_eq!(unset_variable(&state, "x", None, 0), TCL_ERROR);
             }
@@ -840,7 +946,10 @@ mod tests {
             let mut door = DoorRef::new(&mut fake);
             let _open = state.open_door(&mut door);
             assert!(get_variable(&state, "x", None, TCL_LEAVE_ERR_MSG).is_null());
-            assert_eq!(state.result().get().text(), message);
+            assert_eq!(
+                state.result().get().text().expect("Unicode test object"),
+                message
+            );
             assert_eq!(state.fatal(), None);
         }
     }
@@ -878,7 +987,10 @@ mod tests {
             let mut door = DoorRef::new(&mut fake);
             let _open = state.open_door(&mut door);
             assert_eq!(evaluate(&state, &script, TCL_EVAL_DIRECT), code);
-            assert_eq!(state.result().get().text(), result);
+            assert_eq!(
+                state.result().get().text().expect("Unicode test object"),
+                result
+            );
         }
         fake.eval = Err(EngineError::Script {
             message: "boom".to_owned(),
@@ -887,7 +999,10 @@ mod tests {
         let mut door = DoorRef::new(&mut fake);
         let _open = state.open_door(&mut door);
         assert_eq!(evaluate(&state, &script, 0), TCL_ERROR);
-        assert_eq!(state.result().get().text(), "boom");
+        assert_eq!(
+            state.result().get().text().expect("Unicode test object"),
+            "boom"
+        );
         assert_eq!(state.error_code_text().as_deref(), Some("A B"));
     }
 
@@ -970,7 +1085,7 @@ mod tests {
     #[test]
     fn a_command_the_c_code_created_is_published_before_the_script_that_calls_it() {
         let state = InterpState::new_shared();
-        state.create_command("late", nothing, std::ptr::null_mut(), None);
+        let _ = state.create_command("late", nothing, std::ptr::null_mut(), None);
         let mut fake = Fake::new();
         {
             let mut door = DoorRef::new(&mut fake);
@@ -1027,5 +1142,33 @@ mod tests {
             state.with_door(|_| ()).is_some(),
             "and it is open again after"
         );
+    }
+
+    #[test]
+    fn original_typed_engine_failure_survives_the_actual_c_door() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        let first = EngineError::execution_failure(
+            tcl_engine_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original C door typed cause",
+                ),
+            ),
+        );
+        let state = InterpState::new();
+        let mut fake = Fake::new();
+        fake.eval = Err(first.clone());
+        {
+            let mut door = DoorRef::new(&mut fake);
+            let _open = state.open_door(&mut door);
+            let script = Obj::from_text("originalTypedFailure");
+            assert_eq!(evaluate(&state, &script, 0), TCL_ERROR);
+            state.refuse_host(EngineError::ExecutionRefusal("later C door refusal".into()));
+            assert_eq!(state.take_host_refusal(), Some(first.clone()));
+            assert_eq!(state.fatal(), None);
+            assert!(state.take_return_options().is_none());
+        }
+        assert_eq!(fake.log, ["eval originalTypedFailure"]);
+        assert!(first.native_execution_failure().is_some());
     }
 }

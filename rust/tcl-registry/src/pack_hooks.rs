@@ -60,7 +60,7 @@ use std::sync::{LazyLock, Mutex, OnceLock};
 use tcl_dialect::TclVersion;
 
 use crate::arg_role::{AppendedArity, ArgRole};
-use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
+use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError, ClauseShapeIssue};
 use crate::hooks::{ConstFoldFn, VersionedConstFoldFn};
 use crate::hover::{OptionValueHook, OptionValueOutcome, ScriptTiming};
 use crate::invocation_words::{
@@ -72,7 +72,8 @@ use crate::spec::{
 };
 use crate::state_transition::{
     AliasWords, CallerFrameSelection, StateTransition, StateTransitionResolver, StateTransitions,
-    TransitionSubject, VARIABLE_ALIAS_DOMAINS, VariableAliasTarget, VariableCellAliasTransition,
+    TransitionSubject, VARIABLE_ALIAS_DOMAINS, VariableAliasDestination, VariableAliasNamePurpose,
+    VariableAliasTarget, VariableCellAliasTransition,
 };
 use crate::value_transfer::{
     ContextDependency, DeclaredStructure, EvalRoute, EvaluatorGeneration, ImplementationBudget,
@@ -311,7 +312,9 @@ pub const CONST_FOLD_NATIVE: &[(&str, ConstFoldFn)] = &[
     ("scan::const_fold", crate::commands::tcl::fold_scan),
     ("list::const_fold", crate::const_fold::fold_list),
     ("lindex::const_fold", crate::const_fold::fold_lindex),
-    ("concat::const_fold", crate::const_fold::fold_concat),
+    ("concat::const_fold", |args| {
+        Some(crate::const_fold::fold_concat(args))
+    }),
     ("llength::const_fold", crate::const_fold::fold_llength),
     ("lreverse::const_fold", crate::const_fold::fold_lreverse),
     ("join::const_fold", crate::const_fold::fold_join),
@@ -716,6 +719,7 @@ impl CacheMode {
 pub fn kind_word(kind: InvocationWordKind) -> &'static str {
     match kind {
         InvocationWordKind::Literal => "literal",
+        InvocationWordKind::KnownBytes => "known-bytes",
         InvocationWordKind::Dynamic => "dynamic",
         InvocationWordKind::Expanded => "expanded",
         InvocationWordKind::Opaque => "opaque",
@@ -972,6 +976,39 @@ pub fn allocate(family: HookFamily, inputs: &HookInputs) -> Option<HookSlot> {
     })
 }
 
+/// Authored source field a hook occupies, preserving its complete layout.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum HookSourceOwner {
+    /// A command-level hook field.
+    Command,
+    /// A selected subcommand field.
+    Subcommand(String),
+    /// A selected option field, independently of its enclosing subcommand.
+    Option {
+        /// Actual enclosing subcommand, if present.
+        subcommand: Option<String>,
+        /// Actual option component, never omitted from slot identity.
+        option: String,
+    },
+}
+
+/// Stable authored hook source tuple, not a rendered compound name or receipt.
+/// Re-editing its body preserves its slot; selected declaration membership is
+/// retained separately by the actual loader plan.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct HookSourceIdentity {
+    /// Original declaring pack component.
+    pub pack: String,
+    /// Actual provider trust/provenance channel.
+    pub provenance: tcl_dialect::model::Provenance,
+    /// Actual declaring source path, retaining opaque OS units.
+    pub file: std::path::PathBuf,
+    /// Original declaring command component.
+    pub command: String,
+    /// Complete actual source field owner.
+    pub owner: HookSourceOwner,
+}
+
 /// The slot for the hook `identity` names, minting one only the first time
 /// that identity is seen and **rebinding** it on every later load.
 ///
@@ -994,13 +1031,13 @@ pub fn allocate(family: HookFamily, inputs: &HookInputs) -> Option<HookSlot> {
 /// the stale ones were stale regardless.
 pub fn allocate_stable(
     family: HookFamily,
-    identity: &str,
+    identity: &HookSourceIdentity,
     inputs: &HookInputs,
 ) -> Option<HookSlot> {
-    static BY_IDENTITY: LazyLock<Mutex<HashMap<(HookFamily, String), HookSlot>>> =
+    static BY_IDENTITY: LazyLock<Mutex<HashMap<(HookFamily, HookSourceIdentity), HookSlot>>> =
         LazyLock::new(|| Mutex::new(HashMap::new()));
 
-    let key = (family, identity.to_owned());
+    let key = (family, identity.clone());
     let mut table = match BY_IDENTITY.lock() {
         Ok(table) => table,
         Err(poisoned) => poisoned.into_inner(),
@@ -1281,7 +1318,7 @@ pub fn has_host() -> bool {
 /// inputs, so an answer that rests on it must not be kept as a verdict.
 #[must_use]
 pub fn slot_available(slot: HookSlot) -> bool {
-    if !ANY_HOST.load(Ordering::Relaxed) {
+    if !ANY_HOST.load(Ordering::Relaxed) && INSTALLER.get().is_none() {
         return false;
     }
     ensure_host().is_some_and(|host| host.is_available(slot))
@@ -1486,6 +1523,9 @@ fn shape_key(slot: HookSlot, call: &HookCall<'_>, mode: CacheMode) -> Option<Sha
     let mut kinds: u128 = 0;
     for (position, word) in call.words.iter().enumerate() {
         let bits: u128 = match word.kind {
+            // The legacy two-bit cache vocabulary has no native byte value.
+            // Decline caching instead of colliding with a logical literal.
+            InvocationWordKind::KnownBytes => return None,
             InvocationWordKind::Literal => 0,
             InvocationWordKind::Dynamic => 1,
             InvocationWordKind::Expanded => 2,
@@ -1515,13 +1555,19 @@ fn shape_key(slot: HookSlot, call: &HookCall<'_>, mode: CacheMode) -> Option<Sha
 /// pure memo, so losing it costs a re-run and never an answer.
 const MAX_CACHE_ENTRIES: usize = 8192;
 
-/// Invoke a pack hook: the cache first when the slot's declared inputs allow
-/// it, then this thread's host, then the family's silence.
+/// Invoke a pack hook after synchronizing its actual published plan receiver.
+/// The current receiver's cache is used only when declared inputs permit it;
+/// unavailable hosts retain the family's silence.
 #[must_use]
 pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
-    if !ANY_HOST.load(Ordering::Relaxed) {
+    if !ANY_HOST.load(Ordering::Relaxed) && INSTALLER.get().is_none() {
         return HookAnswer::Abstain;
     }
+    // Synchronize the actual installed receiver/plan before deriving cache
+    // mode or admitting a prior answer. Installation clears stale TLS entries.
+    let Some(host) = ensure_host() else {
+        return HookAnswer::Abstain;
+    };
     let mode = cache_mode(slot);
     let key = (mode != CacheMode::None)
         .then(|| shape_key(slot, call, mode))
@@ -1542,9 +1588,6 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
     {
         return hit;
     }
-    let Some(host) = ensure_host() else {
-        return HookAnswer::Abstain;
-    };
     let answer = host.invoke(slot, call);
     if let Some(key) = key {
         SHAPE_CACHE.with(|cache| {
@@ -1592,8 +1635,8 @@ fn intern(message: &str) -> &'static str {
 /// means.
 ///
 /// **Fidelity, stated plainly.** Only the families whose shipped Rust
-/// signature carries [`InvocationArguments`] — the literal-argument validator
-/// and the command-prefix resolver — can report a word as `dynamic`,
+/// signature carries [`InvocationArguments`] — the literal-argument validator,
+/// command-prefix resolver and script-timing resolver — can report a word as `dynamic`,
 /// `expanded`, or `opaque`; the families whose signature is a bare `&[&str]`
 /// have no such information to pass on, so their `kinds` reads `literal`
 /// throughout. That is exactly as sound as the shipped Rust hooks are, since
@@ -1665,8 +1708,8 @@ fn command_prefix_thunk<const N: u16>(
     }
 }
 
-fn script_timing_thunk<const N: u16>(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    let words = literal_words(args);
+fn script_timing_thunk<const N: u16>(args: InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let words = structured_words(args);
     match dispatch(
         HookSlot {
             family: HookFamily::ScriptTimingResolver,
@@ -1726,8 +1769,12 @@ fn taint_sink_thunk<const N: u16>(args: &[&str]) -> bool {
     )
 }
 
-fn context_gate_thunk<const N: u16>(args: &[&str], in_event_body: bool) -> Option<&'static str> {
-    let words = literal_words(args);
+fn context_gate_thunk<const N: u16>(
+    args: InvocationArguments<'_>,
+    in_event_body: bool,
+) -> Option<&'static str> {
+    args.exact_argv_len()?;
+    let words = structured_words(args);
     let call = HookCall {
         words: &words,
         version: None,
@@ -1767,8 +1814,9 @@ fn literal_validator_thunk<const N: u16>(
     }
 }
 
-fn clause_shape_thunk<const N: u16>(args: &[&str]) -> Option<ClauseShapeError> {
-    let words = literal_words(args);
+fn clause_shape_thunk<const N: u16>(args: InvocationArguments<'_>) -> Option<ClauseShapeIssue> {
+    args.exact_argv_len()?;
+    let words = structured_words(args);
     match dispatch(
         HookSlot {
             family: HookFamily::ClauseShapeCheck,
@@ -1776,7 +1824,7 @@ fn clause_shape_thunk<const N: u16>(args: &[&str]) -> Option<ClauseShapeError> {
         },
         &call_of(&words, None),
     ) {
-        HookAnswer::ClauseShape(error) => Some(error),
+        HookAnswer::ClauseShape(error) => Some(ClauseShapeIssue::diagnostic(error)),
         _ => None,
     }
 }
@@ -1924,7 +1972,9 @@ fn stated_alias(
     fact: PackTransition,
 ) -> Result<VariableCellAliasTransition, Option<TransitionSubject>> {
     let literal = |index: usize| match TransitionSubject::from_argument(arguments, index) {
-        Some(subject @ TransitionSubject::Literal(_)) => Ok(subject),
+        Some(subject) if subject.literal().is_some() || subject.native_bytes().is_some() => {
+            Ok(subject)
+        }
         other => Err(other),
     };
     Ok(match fact {
@@ -1933,6 +1983,7 @@ fn stated_alias(
             target,
             level,
         } => VariableCellAliasTransition {
+            destination: VariableAliasDestination::CurrentNamespaceOrLocal,
             local: literal(local)?,
             target: VariableAliasTarget::CallerSelectedFrame {
                 frame: match level {
@@ -1947,7 +1998,14 @@ fn stated_alias(
         PackTransition::NamespaceVariable { name } => {
             let variable = literal(name)?;
             VariableCellAliasTransition {
-                local: crate::state_transition::local_alias_name(&variable),
+                destination: VariableAliasDestination::CurrentNamespaceOrLocal,
+                local: crate::state_transition::local_alias_name(
+                    &variable,
+                    name,
+                    VariableAliasNamePurpose::NamespaceVariable,
+                    arguments.dialect(),
+                )
+                .ok_or(None)?,
                 target: VariableAliasTarget::CurrentNamespace { variable },
                 writes_value: false,
                 words: AliasWords::same(name),
@@ -2191,12 +2249,20 @@ mod tests {
             facts,
             [
                 &StateTransition::VariableCellAlias(VariableCellAliasTransition {
-                    local: TransitionSubject::Literal("mine".to_owned()),
+                    destination: VariableAliasDestination::CurrentNamespaceOrLocal,
+                    local: TransitionSubject::LocatedLiteral {
+                        value: "mine".to_owned(),
+                        argument_index: 2,
+                    },
                     target: VariableAliasTarget::CallerSelectedFrame {
-                        frame: CallerFrameSelection::Explicit(TransitionSubject::Literal(
-                            "#0".to_owned()
-                        )),
-                        variable: TransitionSubject::Literal("other".to_owned()),
+                        frame: CallerFrameSelection::Explicit(TransitionSubject::LocatedLiteral {
+                            value: "#0".to_owned(),
+                            argument_index: 0,
+                        }),
+                        variable: TransitionSubject::LocatedLiteral {
+                            value: "other".to_owned(),
+                            argument_index: 1,
+                        },
                     },
                     writes_value: false,
                     words: AliasWords {
@@ -2221,6 +2287,152 @@ mod tests {
             "silence is no transitions"
         );
         clear_host();
+    }
+
+    #[test]
+    fn pack_aliases_preserve_original_known_bytes_and_selected_name_policy() {
+        // Implementation contract: naming.invocation.known-native-byte-values
+
+        // Descriptor facts retain operands; they prove neither a physical
+        // variable link nor an entered native frame.
+        let name = b"::ns::v\xff\0tail";
+        let words = [InvocationWord::KnownBytes(name)];
+        let fact = [PackTransition::NamespaceVariable { name: 0 }];
+        let arguments = InvocationArguments::structured(&words);
+        for dialect in [
+            crate::InvocationDialect::for_version(TclVersion::V8_6),
+            crate::InvocationDialect::of_profile(
+                crate::model::ingress::resolve_environment("jim").unit_profile(),
+            ),
+        ] {
+            let transitions = pack_transitions(arguments.with_dialect(dialect), &fact);
+            assert_eq!(
+                transitions.facts()[0].transition,
+                StateTransition::VariableCellAlias(VariableCellAliasTransition {
+                    destination: VariableAliasDestination::CurrentNamespaceOrLocal,
+                    local: TransitionSubject::LocatedNativeBytes {
+                        value: b"v\xff".to_vec(),
+                        argument_index: 0,
+                    },
+                    target: VariableAliasTarget::CurrentNamespace {
+                        variable: TransitionSubject::LocatedNativeBytes {
+                            value: name.to_vec(),
+                            argument_index: 0,
+                        },
+                    },
+                    writes_value: false,
+                    words: AliasWords::same(0),
+                }),
+            );
+        }
+        let unknown = pack_transitions(arguments, &fact);
+        assert_eq!(
+            unknown.facts()[0].transition,
+            StateTransition::VariableCellAlias(VariableCellAliasTransition {
+                destination: VariableAliasDestination::CurrentNamespaceOrLocal,
+                local: TransitionSubject::Unknown {
+                    argument_index: 0,
+                    word_kind: InvocationWordKind::KnownBytes,
+                },
+                target: VariableAliasTarget::CurrentNamespace {
+                    variable: TransitionSubject::LocatedNativeBytes {
+                        value: name.to_vec(),
+                        argument_index: 0,
+                    },
+                },
+                writes_value: false,
+                words: AliasWords::same(0),
+            }),
+            "a missing dialect cannot select a C or Jim local-name projection",
+        );
+    }
+
+    #[test]
+    fn pack_caller_alias_keeps_counted_operands_and_effective_ordinals() {
+        // Implementation contract: naming.invocation.known-native-byte-values
+
+        let words = [
+            InvocationWord::KnownBytes(b"#0"),
+            InvocationWord::KnownBytes(b"target\0bytes\xff"),
+            InvocationWord::KnownBytes(b"local\0bytes\xfe"),
+        ];
+        let transitions = pack_transitions(
+            InvocationArguments::structured(&words),
+            &[PackTransition::Alias {
+                local: 2,
+                target: 1,
+                level: Some(0),
+            }],
+        );
+        assert_eq!(
+            transitions.facts()[0].transition,
+            StateTransition::VariableCellAlias(VariableCellAliasTransition {
+                destination: VariableAliasDestination::CurrentNamespaceOrLocal,
+                local: TransitionSubject::LocatedNativeBytes {
+                    value: b"local\0bytes\xfe".to_vec(),
+                    argument_index: 2,
+                },
+                target: VariableAliasTarget::CallerSelectedFrame {
+                    frame: CallerFrameSelection::Explicit(TransitionSubject::LocatedNativeBytes {
+                        value: b"#0".to_vec(),
+                        argument_index: 0,
+                    }),
+                    variable: TransitionSubject::LocatedNativeBytes {
+                        value: b"target\0bytes\xff".to_vec(),
+                        argument_index: 1,
+                    },
+                },
+                writes_value: false,
+                words: AliasWords {
+                    local: 2,
+                    target: 1
+                },
+            }),
+        );
+    }
+
+    #[test]
+    fn native_byte_hook_kind_cannot_reuse_a_logical_literal_cache_entry() {
+        // Implementation contract: naming.invocation.known-native-byte-values
+
+        let words = [HookWord {
+            value: "",
+            kind: InvocationWordKind::KnownBytes,
+        }];
+        let call = HookCall {
+            words: &words,
+            version: None,
+            in_event_body: false,
+            option: None,
+            constraints: None,
+            dialect: None,
+            targets: &[],
+            budget: ImplementationBudget::default(),
+            depends: &[],
+        };
+        assert_eq!(kind_word(words[0].kind), "known-bytes");
+        assert!(!call.all_literal());
+        let slot = HookSlot {
+            family: HookFamily::ArgRoleResolver,
+            index: 0,
+        };
+        assert!(shape_key(slot, &call, CacheMode::Shape).is_none());
+        assert!(shape_key(slot, &call, CacheMode::Content).is_none());
+        let literal = [HookWord {
+            value: "",
+            kind: InvocationWordKind::Literal,
+        }];
+        assert!(
+            shape_key(
+                slot,
+                &HookCall {
+                    words: &literal,
+                    ..call
+                },
+                CacheMode::Shape
+            )
+            .is_some()
+        );
     }
 
     #[test]

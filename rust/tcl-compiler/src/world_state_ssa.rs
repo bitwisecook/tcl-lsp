@@ -60,6 +60,13 @@ pub struct TransitionStateIntent {
     pub commit: StateTransitionCommit,
 }
 
+struct InstructionPlanInputs {
+    block: ExecutableBlockId,
+    completion: crate::executable_ir::CompletionId,
+    ordinary: Vec<(WorldStateIntentKind, WorldRegion)>,
+    transition: Vec<TransitionStateIntent>,
+}
+
 type InvocationIntents = (
     Vec<(WorldStateIntentKind, WorldRegion)>,
     Vec<TransitionStateIntent>,
@@ -133,7 +140,52 @@ fn append_transition(intents: &mut Vec<TransitionStateIntent>, fact: &StateTrans
         StateTransition::ObjectDispatch(transition) => {
             append_object_dispatch(intents, fact.commit, transition);
         }
+        StateTransition::Package(transition) => {
+            append_package(intents, fact.commit, transition);
+        }
         StateTransition::Widen(widening) => append_widening(intents, fact.commit, widening),
+    }
+}
+
+fn append_package(
+    intents: &mut Vec<TransitionStateIntent>,
+    commit: StateTransitionCommit,
+    transition: &tcl_registry::model::binding::PackageTransition,
+) {
+    use tcl_registry::model::binding::PackageTransition;
+    let region = |subject: Option<&TransitionSubject>| {
+        subject.and_then(TransitionSubject::literal).map_or_else(
+            || unknown_current_region(WorldRegionKind::PackageState),
+            |name| {
+                WorldRegion::exact(
+                    WorldRegionKind::PackageState,
+                    WorldInterpreterScope::Current,
+                    WorldNamespaceScope::Any,
+                    name,
+                )
+            },
+        )
+    };
+    let (subjects, writes): (Vec<Option<&TransitionSubject>>, bool) = match transition {
+        PackageTransition::Provide { package, version } => (vec![Some(package)], version.is_some()),
+        PackageTransition::Require { package, .. } => (vec![Some(package)], true),
+        PackageTransition::Ifneeded {
+            package,
+            script_provided,
+            ..
+        } => (vec![Some(package)], *script_provided),
+        PackageTransition::Forget { packages } => (packages.iter().map(Some).collect(), true),
+        PackageTransition::UnknownHandler { handler } => (vec![None], handler.is_some()),
+        PackageTransition::Prefer { mode } => (vec![None], mode.is_some()),
+        PackageTransition::SourceLoad { .. }
+        | PackageTransition::DiscoveryDependencyChanged { .. } => (vec![None], true),
+    };
+    for subject in subjects {
+        let location = region(subject);
+        push_intent(intents, commit, WorldStateIntentKind::Use, location.clone());
+        if writes {
+            push_intent(intents, commit, WorldStateIntentKind::Clobber, location);
+        }
     }
 }
 
@@ -338,7 +390,7 @@ fn append_command_binding(
             target,
             // Baked leading arguments change what the alias *runs*, never
             // which command regions it reads or writes.
-            arguments: _,
+            ..
         } => {
             let source = subject_interpreter(source_interpreter);
             let target_interpreter = subject_interpreter(target_interpreter);
@@ -606,15 +658,12 @@ fn append_namespace(
             WorldStateIntentKind::Def,
             namespace_region(WorldRegionKind::NamespaceLookup, namespace),
         ),
-        NamespaceTransition::Import {
-            namespace,
-            patterns: _,
-        }
+        NamespaceTransition::Import { namespace, .. }
         | NamespaceTransition::Forget {
             namespace,
             patterns: _,
         }
-        | NamespaceTransition::Ensemble { namespace } => {
+        | NamespaceTransition::Ensemble { namespace, .. } => {
             let namespace = namespace_target(namespace);
             append_namespace_bindings(intents, commit, &namespace);
         }
@@ -776,10 +825,12 @@ fn namespace_target(target: &NamespaceTransitionTarget) -> WorldNamespaceScope {
         // namespace.  Retaining its spelling as a globally stable name would
         // prove unrelated trees disjoint, so only fully-qualified literals
         // become exact scopes here.
-        NamespaceTransitionTarget::Named(TransitionSubject::Literal(namespace))
-            if namespace.starts_with("::") =>
+        NamespaceTransitionTarget::Named(subject)
+            if subject
+                .literal()
+                .is_some_and(|namespace| namespace.starts_with("::")) =>
         {
-            WorldNamespaceScope::named(namespace)
+            WorldNamespaceScope::named(subject.literal().expect("qualified namespace value"))
         }
         NamespaceTransitionTarget::Named(_) => WorldNamespaceScope::Any,
     }
@@ -866,15 +917,23 @@ fn object_private_variable_region(namespace: &ObjectPrivateNamespace) -> WorldRe
 
 fn subject_scope(subject: &TransitionSubject) -> WorldSubjectScope {
     match subject {
-        TransitionSubject::Literal(value) => WorldSubjectScope::named(value),
-        TransitionSubject::Unknown { .. } => WorldSubjectScope::Wildcard,
+        TransitionSubject::Literal(value) | TransitionSubject::LocatedLiteral { value, .. } => {
+            WorldSubjectScope::named(value)
+        }
+        TransitionSubject::LocatedNativeBytes { .. } | TransitionSubject::Unknown { .. } => {
+            WorldSubjectScope::Wildcard
+        }
     }
 }
 
 fn subject_interpreter(subject: &TransitionSubject) -> WorldInterpreterScope {
     match subject {
-        TransitionSubject::Literal(value) => WorldInterpreterScope::named(value),
-        TransitionSubject::Unknown { .. } => WorldInterpreterScope::Any,
+        TransitionSubject::Literal(value) | TransitionSubject::LocatedLiteral { value, .. } => {
+            WorldInterpreterScope::named(value)
+        }
+        TransitionSubject::LocatedNativeBytes { .. } | TransitionSubject::Unknown { .. } => {
+            WorldInterpreterScope::Any
+        }
     }
 }
 
@@ -884,8 +943,12 @@ fn optional_subject_interpreter(subject: Option<&TransitionSubject>) -> WorldInt
 
 fn subject_namespace(subject: &TransitionSubject) -> WorldNamespaceScope {
     match subject {
-        TransitionSubject::Literal(value) => WorldNamespaceScope::named(value),
-        TransitionSubject::Unknown { .. } => WorldNamespaceScope::Any,
+        TransitionSubject::Literal(value) | TransitionSubject::LocatedLiteral { value, .. } => {
+            WorldNamespaceScope::named(value)
+        }
+        TransitionSubject::LocatedNativeBytes { .. } | TransitionSubject::Unknown { .. } => {
+            WorldNamespaceScope::Any
+        }
     }
 }
 
@@ -921,6 +984,7 @@ fn domain_wildcards(domain: StateTransitionDomain) -> Vec<WorldRegion> {
         StateTransitionDomain::ExecutionTraces => vec![region(WorldRegionKind::ExecutionTraces)],
         StateTransitionDomain::VariableTraces => vec![region(WorldRegionKind::VariableTraces)],
         StateTransitionDomain::ObjectDispatch => vec![region(WorldRegionKind::ObjectDispatch)],
+        StateTransitionDomain::Packages => vec![region(WorldRegionKind::PackageState)],
     }
 }
 
@@ -1094,85 +1158,15 @@ impl<'a> Planner<'a> {
             }
             let mut ordinal = 0_u32;
             for instruction_index in 0..self.function.blocks[block_index].instructions.len() {
-                let plan_inputs = {
-                    let block = &self.function.blocks[block_index];
-                    match &block.instructions[instruction_index] {
-                        ExecutableInstruction::Invoke(invoke) => {
-                            let state_site =
-                                Self::state_site(block.id, instruction_index, ordinal)?;
-                            project_invocation_intents(
-                                &invoke.resolution,
-                                &state_site,
-                                block.id,
-                                instruction_index,
-                            )
-                            .map(|(ordinary, transition)| {
-                                Some((block.id, invoke.completion, ordinary, transition))
-                            })
-                        }
-                        ExecutableInstruction::ExecuteLowered(operation) => Ok(Some((
-                            block.id,
-                            operation.completion,
-                            lowered_footprint_intents(&operation.footprint),
-                            Vec::new(),
-                        ))),
-                        ExecutableInstruction::ExecuteOpaqueRegion(region) => Ok(Some((
-                            block.id,
-                            region.completion,
-                            conservative_region_intents(),
-                            Vec::new(),
-                        ))),
-                        ExecutableInstruction::EvaluateWord {
-                            word, completion, ..
-                        } if word_evaluation_runs_commands(word) => {
-                            // A word containing a command substitution (or an
-                            // opaque fragment that may hide one) runs arbitrary
-                            // commands during argv evaluation.  Without this
-                            // barrier a closed outer invocation such as a pure
-                            // list query would hide a nested `rename` from the
-                            // world graph.
-                            Ok(Some((
-                                block.id,
-                                *completion,
-                                conservative_region_intents(),
-                                Vec::new(),
-                            )))
-                        }
-                        // Structured control's own operations touch variable
-                        // cells and nothing else.  An operand that can run
-                        // commands is the one exception, and it takes the same
-                        // conservative barrier a command-substituting word does.
-                        ExecutableInstruction::EvaluateExpr {
-                            expr, completion, ..
-                        } => Ok(Some((
-                            block.id,
-                            *completion,
-                            executable_expr_intents(expr),
-                            Vec::new(),
-                        ))),
-                        ExecutableInstruction::IterateLists {
-                            groups, completion, ..
-                        } => Ok(Some((
-                            block.id,
-                            *completion,
-                            cell_intents(
-                                groups.iter().flat_map(|group| group.variables.iter()),
-                                WorldStateIntentKind::Clobber,
-                            ),
-                            Vec::new(),
-                        ))),
-                        ExecutableInstruction::WriteCompletionCell {
-                            cell, completion, ..
-                        } => Ok(Some((
-                            block.id,
-                            *completion,
-                            cell_intents(std::iter::once(cell), WorldStateIntentKind::Clobber),
-                            Vec::new(),
-                        ))),
-                        _ => Ok(None),
-                    }
-                }?;
-                let Some((block, completion, ordinary, transition)) = plan_inputs else {
+                let plan_inputs =
+                    self.instruction_plan_inputs(block_index, instruction_index, ordinal)?;
+                let Some(InstructionPlanInputs {
+                    block,
+                    completion,
+                    ordinary,
+                    transition,
+                }) = plan_inputs
+                else {
                     continue;
                 };
                 for (kind, location) in ordinary {
@@ -1195,6 +1189,121 @@ impl<'a> Planner<'a> {
             }
         }
         Ok(())
+    }
+
+    fn instruction_plan_inputs(
+        &self,
+        block_index: usize,
+        instruction_index: usize,
+        ordinal: u32,
+    ) -> Result<Option<InstructionPlanInputs>, WorldStateSsaDecline> {
+        let block = &self.function.blocks[block_index];
+        let inputs = match &block.instructions[instruction_index] {
+            ExecutableInstruction::Invoke(invoke) => {
+                let state_site = Self::state_site(block.id, instruction_index, ordinal)?;
+                project_invocation_intents(
+                    &invoke.resolution,
+                    &state_site,
+                    block.id,
+                    instruction_index,
+                )
+                .map(|(ordinary, transition)| {
+                    Some((block.id, invoke.completion, ordinary, transition))
+                })
+            }
+            ExecutableInstruction::ExecuteLowered(operation) => Ok(Some((
+                block.id,
+                operation.completion,
+                lowered_footprint_intents(&operation.footprint),
+                Vec::new(),
+            ))),
+            ExecutableInstruction::ExecuteOpaqueRegion(region) => Ok(Some((
+                block.id,
+                region.completion,
+                conservative_region_intents(),
+                Vec::new(),
+            ))),
+            ExecutableInstruction::CompleteEvaluatedRegion(completed) => {
+                let state_site = Self::state_site(block.id, instruction_index, ordinal)?;
+                let residual = completed.region.residual_effects.resolve();
+                let intents = project_effect_footprint(&residual, &state_site, None)
+                    .map_err(|_| WorldStateSsaDecline::StateSiteOverflow {
+                        block: block.id,
+                        instruction: instruction_index,
+                    })?
+                    .into_iter()
+                    .map(|intent| (intent.kind, intent.location))
+                    .collect();
+                Ok(Some((
+                    block.id,
+                    completed.invocation.completion,
+                    intents,
+                    Vec::new(),
+                )))
+            }
+            ExecutableInstruction::EvaluateWord {
+                value,
+                word,
+                completion,
+                ..
+            } if original_word_evaluation_runs_commands(self.function, *value, word) => {
+                // A word containing a command substitution (or an
+                // opaque fragment that may hide one) runs arbitrary
+                // commands during argv evaluation.  Without this
+                // barrier a closed outer invocation such as a pure
+                // list query would hide a nested `rename` from the
+                // world graph.
+                Ok(Some((
+                    block.id,
+                    *completion,
+                    conservative_region_intents(),
+                    Vec::new(),
+                )))
+            }
+            // Structured control's own operations touch variable
+            // cells and nothing else.  An operand that can run
+            // commands is the one exception, and it takes the same
+            // conservative barrier a command-substituting word does.
+            ExecutableInstruction::EvaluateExpr {
+                value,
+                expr,
+                completion,
+                ..
+            } => {
+                let ordinary = executable_expr_intents_with_source(self.function, *value, expr);
+                Ok(Some((block.id, *completion, ordinary, Vec::new())))
+            }
+            ExecutableInstruction::IterateLists {
+                groups, completion, ..
+            } => Ok(Some((
+                block.id,
+                *completion,
+                cell_intents(
+                    groups.iter().flat_map(|group| group.variables.iter()),
+                    WorldStateIntentKind::Clobber,
+                ),
+                Vec::new(),
+            ))),
+            ExecutableInstruction::WriteCompletionCell {
+                cell, completion, ..
+            } => Ok(Some((
+                block.id,
+                *completion,
+                cell_intents(std::iter::once(cell), WorldStateIntentKind::Clobber),
+                Vec::new(),
+            ))),
+            _ => Ok(None),
+        };
+        inputs.map(|inputs| {
+            inputs.map(
+                |(block, completion, ordinary, transition)| InstructionPlanInputs {
+                    block,
+                    completion,
+                    ordinary,
+                    transition,
+                },
+            )
+        })
     }
 
     fn plan_transition_intents(
@@ -1652,8 +1761,34 @@ fn lowered_footprint_intents(
     intents
 }
 
-/// Project one structured-control operand evaluation into world-state intents.
+/// Compatibility projection for an explicitly carrierless hand-built function.
+/// Source-built functions use `executable_expr_intents_with_source` and never
+/// use these flattened text heuristics to establish substitution absence.
 fn executable_expr_intents(expr: &ExecutableExpr) -> Vec<(WorldStateIntentKind, WorldRegion)> {
+    if let ExecutableExpr::TrapPrefix { .. } = expr {
+        return Vec::new();
+    }
+    if let ExecutableExpr::Operand { braced: true, .. } = expr {
+        return Vec::new();
+    }
+    if let ExecutableExpr::Condition {
+        expr: condition, ..
+    } = expr
+    {
+        if condition.command_texts().is_empty() {
+            return known_noncommand_expr_intents(expr);
+        }
+    } else if let ExecutableExpr::Operand { text, .. } = expr {
+        if !text.contains('[') {
+            return known_noncommand_expr_intents(expr);
+        }
+    }
+    conservative_region_intents()
+}
+
+fn known_noncommand_expr_intents(
+    expr: &ExecutableExpr,
+) -> Vec<(WorldStateIntentKind, WorldRegion)> {
     let variable_store = WorldRegion::domain_wildcard(
         WorldRegionKind::VariableStore,
         WorldInterpreterScope::Current,
@@ -1661,17 +1796,12 @@ fn executable_expr_intents(expr: &ExecutableExpr) -> Vec<(WorldStateIntentKind, 
     );
     match expr {
         ExecutableExpr::Condition { expr, .. } => {
-            if expr.command_texts().is_empty() {
-                vec![(WorldStateIntentKind::Use, variable_store)]
-            } else {
-                conservative_region_intents()
-            }
+            let _ = expr;
+            vec![(WorldStateIntentKind::Use, variable_store)]
         }
-        ExecutableExpr::Operand { text, braced } => {
+        ExecutableExpr::Operand { braced, .. } => {
             if *braced {
                 Vec::new()
-            } else if text.contains('[') {
-                conservative_region_intents()
             } else {
                 vec![(WorldStateIntentKind::Use, variable_store)]
             }
@@ -1681,11 +1811,38 @@ fn executable_expr_intents(expr: &ExecutableExpr) -> Vec<(WorldStateIntentKind, 
     }
 }
 
+fn executable_expr_intents_with_source(
+    function: &ExecutableFunction,
+    value: crate::executable_ir::ExecutableValueId,
+    expression: &ExecutableExpr,
+) -> Vec<(WorldStateIntentKind, WorldRegion)> {
+    match function.original_expression_command_effects(value, expression) {
+        None => executable_expr_intents(expression),
+        Some(Some(true)) | Some(None) => conservative_region_intents(),
+        Some(Some(false)) => known_noncommand_expr_intents(expression),
+    }
+}
+
 fn conservative_region_intents() -> Vec<(WorldStateIntentKind, WorldRegion)> {
     vec![
         (WorldStateIntentKind::Use, WorldRegion::Any),
         (WorldStateIntentKind::Clobber, WorldRegion::Any),
     ]
+}
+
+// Actual executable-value membership selects retained source geometry. Only
+// explicit carrierless standalone models use the compatibility word shape.
+fn original_word_evaluation_runs_commands(
+    function: &ExecutableFunction,
+    value: crate::executable_ir::ExecutableValueId,
+    word: &crate::ir::WordExpr,
+) -> bool {
+    function
+        .original_word_command_effects(value, word)
+        .map_or_else(
+            || word_evaluation_runs_commands(word),
+            |source| source.unwrap_or(true),
+        )
 }
 
 /// Whether evaluating one source word may execute nested commands.
@@ -1765,6 +1922,7 @@ pub(crate) fn successors_of(terminator: &ExecutableTerminator) -> Vec<usize> {
         } => {
             vec![then_target.index(), else_target.index()]
         }
+        ExecutableTerminator::RegionChoice { enter, skip } => vec![enter.index(), skip.index()],
         ExecutableTerminator::CompletionSwitch { cases, default, .. } => cases
             .iter()
             .map(|case| case.target.index())
@@ -1851,6 +2009,7 @@ mod tests {
     use crate::executable_ir::{
         CompletionCase, CompletionId, ExecutableArgvId, ExecutableBlock, ExecutableFunctionId,
         GenericInvoke, build_linear_executable_ir,
+        build_linear_executable_ir_with_metadata_context,
     };
     use crate::ir::{NodeId, SourceSite, WordExpr};
     use crate::lowering::lower_to_ir;
@@ -1885,6 +2044,8 @@ mod tests {
             argv: ExecutableArgvId::new(id, completion.index()),
             resolution,
             original_words: words,
+            source_binding: None,
+            effective_words: None,
             node: NodeId::from_path(vec![
                 u32::try_from(completion.index()).expect("test completion index fits u32"),
             ]),
@@ -1938,6 +2099,138 @@ mod tests {
             &module.top_level,
         )
         .expect("fixture source builds valid executable IR")
+    }
+
+    fn compiled_native_source(source: &str, id: usize) -> ExecutableFunction {
+        let fixture = crate::provider_fixtures::original_native_module(source, "tcl8.6");
+        let (context, module) = &*fixture;
+        build_linear_executable_ir_with_metadata_context(
+            context.commands(),
+            crate::registry_invocation::InvocationMetadataContext::for_module(
+                context.commands(),
+                module,
+            ),
+            ExecutableFunctionId::new(id),
+            &module.top_level,
+        )
+        .expect("actual source-backed module builds executable IR")
+    }
+
+    #[test]
+    fn structured_expression_effects_retain_exact_source_substitution_shape() {
+        for (source, expected) in [
+            ("if {1 + 1} {}", false),
+            ("if {[rename old new]} {}", true),
+            ("switch {[rename old new]} {}", false),
+            ("switch [rename old new] {}", true),
+            ("foreach name {one two} {}", false),
+            ("foreach name [list one two] {}", true),
+        ] {
+            let function = compiled_native_source(source, 403);
+            let expression = function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .find_map(|instruction| {
+                    if let ExecutableInstruction::EvaluateExpr { value, expr, .. } = instruction {
+                        Some((*value, expr))
+                    } else {
+                        None
+                    }
+                })
+                .expect("structured source lowering emits an expression value");
+            assert_eq!(
+                function.original_expression_command_effects(expression.0, expression.1),
+                Some(Some(expected)),
+                "{source}"
+            );
+            let intents =
+                executable_expr_intents_with_source(&function, expression.0, expression.1);
+            assert_eq!(
+                intents
+                    .iter()
+                    .any(|(_, region)| *region == WorldRegion::Any),
+                expected,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_word_effects_include_variable_index_commands_but_not_scalar_or_data() {
+        for (source, expected) in [
+            ("list $array([rename old new])", true),
+            ("list prefix$array([rename old new])", true),
+            ("list $array($index)", false),
+            ("list $scalar", false),
+            ("list {$array([rename old new])}", false),
+        ] {
+            let function = compiled_function(source, 401);
+            let (block_index, instruction_index, value, word) =
+                function
+                    .blocks
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(block_index, block)| {
+                        block.instructions.iter().enumerate().filter_map(
+                            move |(index, instruction)| {
+                                if let ExecutableInstruction::EvaluateWord { value, word, .. } =
+                                    instruction
+                                {
+                                    (word.source().span.start() > 0).then_some((
+                                        block_index,
+                                        index,
+                                        *value,
+                                        word,
+                                    ))
+                                } else {
+                                    None
+                                }
+                            },
+                        )
+                    })
+                    .next()
+                    .expect("actual original operand evaluation");
+            assert_eq!(
+                function.original_word_command_effects(value, word),
+                Some(Some(expected)),
+                "{source}"
+            );
+            let planner = Planner::new(&function).unwrap();
+            let input = planner
+                .instruction_plan_inputs(block_index, instruction_index, 0)
+                .unwrap();
+            assert_eq!(input.is_some(), expected, "{source}");
+        }
+    }
+
+    #[test]
+    fn changed_evaluated_word_cannot_reuse_original_source_effect_absence() {
+        let function = compiled_function("list $scalar", 402);
+        let (value, original) = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .find_map(|instruction| {
+                if let ExecutableInstruction::EvaluateWord { value, word, .. } = instruction {
+                    (word.source().span.start() > 0).then_some((*value, word))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        assert_eq!(
+            function.original_word_command_effects(value, original),
+            Some(Some(false))
+        );
+        let changed = crate::ir::WordExpr::Variable {
+            spelling: "$different".to_owned(),
+            source: original.source().clone(),
+        };
+        assert_eq!(
+            function.original_word_command_effects(value, &changed),
+            Some(None)
+        );
     }
 
     fn invoke_block_indices(function: &ExecutableFunction) -> Vec<usize> {
@@ -2437,5 +2730,41 @@ mod tests {
                 .iter()
                 .all(|intent| intent.commit == StateTransitionCommit::OnOkOnly)
         );
+    }
+
+    #[test]
+    fn production_missing_word_value_never_borrows_carrierless_compatibility() {
+        let function = compiled_function("list $array([rename old new])", 403);
+        let (actual, word) = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .find_map(|instruction| {
+                if let ExecutableInstruction::EvaluateWord { value, word, .. } = instruction {
+                    (word.source().span.start() > 0).then_some((*value, word))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        assert_eq!(
+            function.original_word_command_effects(actual, word),
+            Some(Some(true))
+        );
+        let missing = crate::executable_ir::ExecutableValueId::new(function.id, usize::MAX);
+        assert_eq!(
+            function.original_word_command_effects(missing, word),
+            Some(None)
+        );
+        assert!(original_word_evaluation_runs_commands(
+            &function, missing, word
+        ));
+        // The explicit existing constructor is the only carrierless domain.
+        let manual = ExecutableFunction::new(function.id, function.entry, function.blocks.clone());
+        assert_eq!(manual.original_word_command_effects(actual, word), None);
+        assert!(!word_evaluation_runs_commands(word));
+        assert!(!original_word_evaluation_runs_commands(
+            &manual, actual, word
+        ));
     }
 }

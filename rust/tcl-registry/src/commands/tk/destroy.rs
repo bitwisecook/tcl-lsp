@@ -35,6 +35,9 @@ pub fn spec() -> CommandSpec {
         name: "destroy",
         surface: Some(SpecSurface::TK_AND_TCL),
         traits: Traits::FIRE_AND_FORGET_TEARDOWN,
+        teardown_argument_layout: Some(
+            crate::spec::TeardownArgumentLayout::AllEffectivePostHeadArguments,
+        ),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Destroy one or more windows and all their descendants.",

@@ -28,14 +28,9 @@
 //! * prints deterministic output via `puts`, so the differential has something
 //!   to compare.
 //!
-//! Two productions exist because the generator was *structurally* unable to
-//! reach a bug class, rather than reaching it rarely — a distinction worth
-//! keeping in mind before reading anything into a clean campaign. A
-//! deliberately [`Malformed`] expression, because every generated expression
-//! was well-formed by construction; and a [`WordShape`], because every
-//! generated word came from [`WORDS`], where the spelling *is* the value. The
-//! second was added after a 1500-script campaign returned 0 findings against a
-//! build that answered `string index "{}" 0` as the empty string.
+//! [`Malformed`] exercises parser failures; [`WordShape`] distinguishes source
+//! spelling, word boundaries and decoded values. Both extend coverage beyond
+//! the complete expressions and literal words in [`WORDS`].
 //!
 //! The generator is parameterised by a [`GenConfig`] and a seed, so any finding
 //! replays exactly.
@@ -60,10 +55,8 @@ pub struct GenConfig {
     /// expression, in parts per thousand (so `20` = 2% of top-level
     /// statements). `0` disables the production entirely.
     ///
-    /// Until this existed, `Gen::expr` and `Gen::expr_leaf` could only ever
-    /// build a *well-formed* expression, so the fuzzer was structurally
-    /// incapable of generating an `expr` syntax error and that whole bug class
-    /// was invisible to every campaign — see the `Malformed` shape list.
+    /// Normal expression productions are well-formed; [`Malformed`] supplies
+    /// deliberate syntax errors.
     ///
     /// The default is deliberately low. A malformed expression is emitted
     /// uncaught, so it aborts the script and the statements after it never
@@ -73,22 +66,14 @@ pub struct GenConfig {
     /// majority of the budget on well-formed semantics. Turn it up for a
     /// campaign aimed at this class, or to `0` to opt out — at `0` no random
     /// draw is consumed either, so a rate-`0` campaign reproduces the
-    /// pre-existing generator stream exactly and historical findings still
-    /// replay from their recorded seeds.
+    /// generator stream with this production disabled, so recorded seeds replay.
     pub malformed_expr_permille: u32,
     /// How often a generated word is given a **delimiter-shaped value** — a
     /// value that looks like a braced word without being one (`"{}"`, `"{$x}"`,
     /// `\{\}`) — in parts per thousand.
     ///
-    /// Until this existed the generator drew its words from [`WORDS`], none of
-    /// which contains a brace, bracket, quote or backslash. It was therefore
-    /// structurally incapable of producing a word whose *value* is delimiter
-    /// shaped, and the whole word-value class was invisible: a 1500-script
-    /// campaign found 0 findings against a build that provably answered
-    /// `string index "{}" 0` as the empty string and `set v "{}"` as 0
-    /// characters. Same failure mode as `malformed_expr_permille`, same
-    /// remedy — see [`WordShape`] for what the shapes are and what each one
-    /// caught.
+    /// These shapes exercise braces, brackets, quotes and escapes absent from
+    /// [`WORDS`], separating a word's source spelling from its decoded value.
     ///
     /// This class is much cheaper than a malformed expression: every shape is
     /// well-formed, so it does not abort the script and the statements after
@@ -98,8 +83,8 @@ pub struct GenConfig {
     /// which is more of the budget than one class should own.
     ///
     /// `0` opts out entirely, and consumes no random draw, so a rate-`0`
-    /// campaign reproduces the pre-existing generator stream exactly and
-    /// historical findings still replay from their recorded seeds.
+    /// campaign reproduces the generator stream with this production disabled,
+    /// so recorded seeds replay.
     pub word_shape_permille: u32,
 }
 
@@ -293,8 +278,8 @@ const MALFORMED_BINARY_OPS: &[&str] = &[
 ///   its byte count, and a value carrying a space, a `#`, or nothing at all is
 ///   the case list quoting exists for.
 ///
-/// Each group's variants say what they caught. Where a shape is a control
-/// rather than a catch, it says that too.
+/// Variants retain distinct word-boundary, substitution and value obligations.
+/// Controls exercise the same grammar without the corresponding substitution.
 ///
 /// **Every shape is a single well-formed Tcl word**, so it drops into any word
 /// position without changing the shape of the surrounding script — the same
@@ -303,38 +288,27 @@ const MALFORMED_BINARY_OPS: &[&str] = &[
 /// that wrap the word in braces; see [`Self::brace_balanced`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum WordShape {
-    /// `"{}"` — the value `{}`. `string index "{}" 0` answered the empty
-    /// string where both oracles say `{`, and `set v "{}"` stored 0 characters
-    /// where both say 2.
+    /// `"{}"` retains two literal brace characters.
     QuotedEmptyBraces,
-    /// `"{abc}"` — the value `{abc}`. `string length` answered 3 for 5.
+    /// `"{abc}"` retains all five characters, including its braces.
     QuotedBracedWord,
-    /// `"{$x}"` — braced-shaped *and* still carrying a live variable. Pushed
-    /// raw, the VM stripped the braces and handed back the inside
-    /// unsubstituted: `puts "{$x}"` printed `${x}`.
+    /// `"{$x}"` retains literal braces around a live variable substitution.
     QuotedBracedVar,
     /// `"{[…]}"` — the command-substitution half of the same shape.
     QuotedBracedCmd,
-    /// `"{}$x"` — a composite word whose *literal fragment* is brace-shaped.
-    /// The fragment is already decoded, so re-substituting it stripped the
-    /// braces off it: `string length "{}$x"` answered 1 for 3.
+    /// `"{}$x"` retains its already decoded brace-shaped literal fragment.
     QuotedFragmentBraces,
-    /// `"{} {}"` — brace-shaped but *not* a whole braced word, so the VM would
-    /// never have stripped it. The negative control for every shape above.
+    /// `"{} {}"` contains multiple literal groups, not one braced word.
     QuotedBraceRun,
     /// `"{"` — an unbalanced single brace as a value.
     QuotedOpenBrace,
     /// `"}"` — the same, closing.
     QuotedCloseBrace,
-    /// `\{\}` — braces reached by escape rather than by quoting: the same word
-    /// one step later, finished once its escapes are decoded. `[format %s \{\}]`
-    /// froze the 4-byte source spelling where both oracles give 2.
+    /// `\{\}` decodes escapes once; finished bytes must not reenter source parsing.
     EscapedBraces,
     /// `"\{\}"` — both routes at once.
     QuotedEscapedBraces,
-    /// `{{}}` — a *genuinely* braced word, which must still lose exactly one
-    /// layer. The positive control: the fix for every shape above must not
-    /// disturb this one.
+    /// `{{}}` removes exactly one genuine braced-word layer.
     BracedDoubleGroup,
     /// `{a[…]}` — a braced word whose brackets are data. A engine that treats
     /// the de-braced value as source *runs* the command, so the shape names a
@@ -343,17 +317,11 @@ enum WordShape {
     /// `{a${…}}` — the variable half of the same control, naming a variable
     /// that does not exist.
     BracedVarIsData,
-    /// `"{a}b{c}"` — two brace groups in one value, so the first `{` does not
-    /// match the last `}`. Distinguishes a real balance walk from a two-byte
-    /// `starts_with('{') && ends_with('}')` test, which is the bug that made
-    /// `switch -- "{}$x" …` refuse a script both oracles run.
+    /// `"{a}b{c}"` has two literal groups rather than one outer braced group.
     QuotedTwoGroups,
 
     // -- escape-bearing --
-    /// `a\ b` — one word whose value carries a space, because the backslash
-    /// escapes the separator. The word *boundary* is the thing under test:
-    /// `string length a\ b` answers `wrong # args` where both oracles say 3,
-    /// so the escaped space is being read as a word break.
+    /// `a\ b` is one word with a three-character value; its escaped separator is data.
     EscapedSpace,
     /// `\x41` — a hex escape; the value is one character, the spelling four.
     /// Hex escape width is a release axis.
@@ -369,15 +337,12 @@ enum WordShape {
     EscapedTab,
 
     // -- non-ASCII and whitespace-bearing --
-    /// `"café"` — a value whose character count (4) is not its byte count (5).
-    /// `[format %s "café"]` answered 5 characters and printed mojibake, having
-    /// walked the quoted word a byte at a time.
+    /// `"café"` has four characters and five bytes; character and byte counts differ.
     NonAscii,
     /// `"{café}"` — non-ASCII crossed with the brace shape, so a byte-wise
     /// walk and a brace walk have to be right at the same time.
     NonAsciiBraced,
-    /// `"a b"` — a value carrying a space, which is what list quoting exists
-    /// for: `[list "a b"]` is `{a b}`, and that fold has been wrong before.
+    /// `"a b"` retains a space that list construction must quote.
     QuotedSpace,
     /// `" "` — nothing but a separator.
     QuotedSpaceOnly,
@@ -581,9 +546,7 @@ impl Gen {
         // expose. At depth 0 it is neither deferred nor caught.
         //
         // Both guards are checked before `chance`, so a rate of 0 consumes no
-        // random draw and leaves the generated stream byte-identical to what
-        // it was before this production existed (see
-        // `GenConfig::malformed_expr_permille`).
+        // random draw, preserving the other productions' deterministic stream.
         if depth == 0
             && self.config.malformed_expr_permille > 0
             && self.rng.chance(self.config.malformed_expr_permille, 1000)
@@ -598,8 +561,7 @@ impl Gen {
         // by erroring on an engine that substitutes what should be data.
         //
         // Checked before `chance`, so a rate of 0 consumes no random draw and
-        // leaves the generated stream byte-identical to what it was before
-        // this production existed (see `GenConfig::word_shape_permille`).
+        // preserves the other productions' deterministic stream.
         if depth == 0
             && self.config.word_shape_permille > 0
             && self.rng.chance(self.config.word_shape_permille, 1000)
@@ -1782,16 +1744,27 @@ mod tests {
     /// fixing the engine must not break this test.
     const MALFORMED_MODES_WITH_OPEN_DIVERGENCE: &[Malformed] = &[Malformed::BadNumber];
 
-    /// Run `src` on `tcl-vm` in-process; `true` if it reported an error.
-    /// Mirrors `wasm_diff`'s direct arm. Output is discarded — only the
-    /// completion status matters here.
+    /// Compile `src` through the live native entry, then execute its bytecode.
+    /// Output is discarded; only a returned guest error satisfies the oracle.
     fn errors_on_our_engine(src: &str) -> bool {
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let ir = tcl_compiler::lowering::lower_to_ir(src, &registry);
-        let cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry(&ir, false, &registry);
-        let asm = tcl_compiler::codegen::codegen_module(&cfg, &ir, &registry);
-        let mut vm = tcl_vm::Vm::with_output(Box::new(std::io::sink()));
-        vm.run_module(&asm).code == tcl_vm::Code::Error
+        let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
+        let mut vm = tcl_vm::Vm::with_native_core(
+            Box::new(std::io::sink()),
+            tcl_vm::standard_host(),
+            profile,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .expect("the Tcl 9.0 native core");
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        let handle = vm
+            .try_compile_function(src)
+            .expect("the actual Tcl 9.0 entry compiles the original script to bytecode");
+        vm.try_invoke_function(&handle)
+            .expect("compiled execution must not substitute a host refusal for a guest error")
+            .code
+            == tcl_vm::Code::Error
     }
 
     /// Whether `out` is one of the three statement forms

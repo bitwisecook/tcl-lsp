@@ -39,7 +39,7 @@ use tcl_cmd_core::ensemble::resolve_subcommand;
 
 /// Register the `zlib` ensemble.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"zlib", zlib_cmd);
+    interp.register_stock_builtin(b"zlib", zlib_cmd);
 }
 
 // checksums
@@ -266,8 +266,7 @@ fn compress(interp: &mut Interp, argv: &[*mut TclObj], format: Format) -> Code {
         Format::Zlib => compress_zlib(&data, level),
         Format::Raw => compress_raw(&data, level),
     };
-    interp.set_result_byte_array(&out);
-    Code::Ok
+    interp.set_result_byte_array(&out)
 }
 
 /// `zlib decompress|inflate data ?bufferSize?` (the buffer-size hint is accepted
@@ -289,10 +288,7 @@ fn decompress(interp: &mut Interp, argv: &[*mut TclObj], format: Format) -> Code
         Format::Raw => decompress_raw(&data),
     };
     match out {
-        Some(bytes) => {
-            interp.set_result_byte_array(&bytes);
-            Code::Ok
-        }
+        Some(bytes) => interp.set_result_byte_array(&bytes),
         None => interp.set_error(DATA_ERROR),
     }
 }
@@ -310,8 +306,7 @@ fn gzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut level = Compression::default();
     let mut i = 3;
     while i < argv.len() {
-        let opt = obj_bytes(argv[i]);
-        match GZIP_OPTIONS.index_of(&opt) {
+        match interp.native_static_option_index(argv[i], GZIP_OPTIONS.names(), false, "option") {
             Ok(1) => {
                 let Some(&val) = argv.get(i + 1) else {
                     return interp.wrong_args(b"zlib gzip data ?-level level? ?-header header?");
@@ -327,12 +322,11 @@ fn gzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     b"the -header option to zlib gzip is not supported under the WASM runtime",
                 );
             }
-            Err(m) => return interp.set_error(&m),
+            Err(m) => return interp.report_cmd_error(m),
         }
     }
     let out = compress_gzip(&data, level);
-    interp.set_result_byte_array(&out);
-    Code::Ok
+    interp.set_result_byte_array(&out)
 }
 
 /// `zlib gzip`'s option words, in C table order (`tclZlib.c`), resolved with
@@ -354,8 +348,7 @@ fn gunzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"zlib gunzip data ?-headerVar varName?");
     }
     if argv.len() > 3 {
-        let opt = obj_bytes(argv[3]);
-        match GUNZIP_OPTIONS.index_of(&opt) {
+        match interp.native_static_option_index(argv[3], GUNZIP_OPTIONS.names(), false, "option") {
             Ok(0) => {
                 return interp.set_error(
                     b"the -buffersize option to zlib gunzip is not supported under the WASM runtime",
@@ -366,7 +359,7 @@ fn gunzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     b"the -headerVar option to zlib gunzip is not supported under the WASM runtime",
                 );
             }
-            Err(m) => return interp.set_error(&m),
+            Err(m) => return interp.report_cmd_error(m),
         }
     }
     let data = match interp.binary_bytes(argv[2]) {
@@ -374,10 +367,7 @@ fn gunzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(code) => return code,
     };
     match decompress_gzip(&data) {
-        Some(bytes) => {
-            interp.set_result_byte_array(&bytes);
-            Code::Ok
-        }
+        Some(bytes) => interp.set_result_byte_array(&bytes),
         None => interp.set_error(DATA_ERROR),
     }
 }

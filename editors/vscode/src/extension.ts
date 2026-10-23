@@ -16,6 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { registerSourceActionCommands } from "./codeActionSource";
+import { insertPackageRequirement } from "./packageRequire";
 import {
   closeSync,
   existsSync,
@@ -45,25 +47,51 @@ import {
   window,
   workspace,
 } from "vscode";
-import { LanguageClient, ServerOptions } from "vscode-languageclient/node";
+import { LanguageClient, ServerOptions, State } from "vscode-languageclient/node";
 import {
   buildClientOptions,
   DEFAULT_DIALECT,
   EDITOR_SETTINGS_AFFECTING_FEATURES,
-  LspWorkspaceEdit,
   registerWorkspaceTrustGrant,
   resolveAllFeatureToggles,
-  workspaceEditFromLsp,
 } from "./clientCore";
+import {
+  describeXcSource,
+  extractRuleAtCursor as requestRuleAtCursor,
+  isRuleInfo,
+  RuleInfo,
+  RuleScratchRegistry,
+  requestLinkedObjects,
+  partitionRenameVersion,
+  requestPartitionRename,
+  ServerCommandSender,
+  translateXcDocument,
+  unavailableReason,
+  xcDocumentSnapshot,
+} from "./bigipSourceActions";
 import { bundlePlatformDir, resolveRustServer } from "./serverResolution";
 import { escapeTclText, transformSelection, unescapeTclText } from "./selectionTransforms";
 import { registerIruleParticipant } from "./chat/iruleParticipant";
 import { registerTclParticipant } from "./chat/tclParticipant";
 import { registerTkParticipant } from "./chat/tkParticipant";
 import {
+  captureAnalysisContext,
+  currentDiagnosticsReportMatches,
+  invalidateAnalysisContext,
+  isAnalysisContextCurrent,
+  setCurrentDiagnosticsTransportProvider,
+  setUnleasedSessionDialectOverride,
+  waitForDiagnostics as waitForCurrentDiagnostics,
+  waitForDiagnosticsReport,
+  AnalysisContextSnapshot,
+  CurrentDiagnosticsReport,
+} from "./chat/diagnosticAccess";
+import {
   buildRuntimeValidationChecker,
   resolveRuntimeValidationAdapter,
+  runtimeValidationAdapterFromReport,
   runtimeValidationAdapterLabel,
+  RuntimeValidationAdapter,
   RuntimeValidationAdapterMode,
 } from "./runtimeValidation";
 import { convertShowReferencesArgs, JsonLocation, JsonPosition } from "./showReferences";
@@ -74,7 +102,12 @@ import {
   validatePackageName,
   validateVersion,
 } from "./scaffold";
-import { buildIruleEventSkeleton, COMMON_IRULE_EVENTS } from "./iruleSkeleton";
+import {
+  buildIruleEventSkeletonFor,
+  COMMON_IRULE_EVENTS,
+  describeSkeletonRejections,
+  IruleSkeletonTarget,
+} from "./iruleSkeleton";
 import { loadTemplateSnippets, renderTemplateSnippet, TemplateSnippet } from "./templateSnippets";
 import {
   explorerDocChanged,
@@ -88,10 +121,16 @@ import { registerHighlightingHealthChecks } from "./highlightingHealth";
 import { ensureStickyScrollDefaultModel } from "./stickyScrollHealth";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
 import {
+  captureDocumentTransform,
+  requestDocumentTransform,
+  applyDocumentTransform,
+} from "./documentTransform";
+import { applyDocumentWrite } from "./chat/codeUtils";
+import {
   LANGUAGE_ID_DIALECTS,
   TCL_LANGUAGE_IDS,
   isTclLanguage,
-  tclLanguageIdForPath,
+  tclLanguageIdForBasename,
 } from "./languageIds";
 import {
   DialectChoice,
@@ -102,7 +141,12 @@ import {
 } from "./dialectChoices";
 import { pickDialect } from "./dialectPicker";
 import { registerIlxReferenceProvider } from "./ilxReferences";
-import { PackFileExtension, syncPackFileAssociations } from "./packAssociations";
+import {
+  PackFileExtension,
+  beginPackFileAssociationSync,
+  isPackFileAssociationSyncCurrent,
+  syncPackFileAssociations,
+} from "./packAssociations";
 
 const execFileAsync = promisify(execFile);
 
@@ -114,7 +158,23 @@ let versionStatusBarItem: StatusBarItem;
 let activeDialect: DialectChoice = describeDialect(DEFAULT_DIALECT);
 // The dialects the quick pick offers: the generated catalogue until the server
 // has listed its own.
-let dialectChoices: readonly DialectChoice[] = catalogueChoices();
+let liveDialectChoices:
+  | {
+      choices: readonly DialectChoice[];
+      client: LanguageClient;
+      analysisContext: AnalysisContextSnapshot;
+    }
+  | undefined;
+
+/** A retained live list belongs to its issuer; otherwise use generated UI advice. */
+function currentDialectChoices(): readonly DialectChoice[] {
+  return liveDialectChoices &&
+    client === liveDialectChoices.client &&
+    liveDialectChoices.client.isRunning() &&
+    isAnalysisContextCurrent(liveDialectChoices.analysisContext)
+    ? liveDialectChoices.choices
+    : catalogueChoices();
+}
 
 export function getClient(): LanguageClient {
   return client;
@@ -132,16 +192,24 @@ export function isAiEnabled(): boolean {
 // importers that pull these from ./extension keep working.
 export { TCL_LANGUAGE_IDS, isTclLanguage };
 
-// LSP wire types (used by rename partitioning) live in ./clientCore, shared
-// with the browser entry.
+// The BIG-IP source actions (rule scratch editors, linked objects, partition
+// rename, XC translation) live in ./bigipSourceActions, shared with the
+// browser entry.
 
-interface RenamePartitionResult {
-  success: boolean;
-  edit?: LspWorkspaceEdit;
-  error?: string;
+/** The running client as a command sender, or `undefined` when none runs. */
+function serverCommandSender(): ServerCommandSender | undefined {
+  const running = client;
+  if (!running) return undefined;
+  return (command, args) =>
+    running.sendRequest("workspace/executeCommand", { command, arguments: args });
 }
 
+const ruleScratchEditors = new RuleScratchRegistry(serverCommandSender);
+
 let outputChannel: vscode.OutputChannel;
+let currentDiagnosticsTransportDisposable: vscode.Disposable | undefined;
+let currentDiagnosticsClientGeneration:
+  { client: LanguageClient; value: number; identity: object } | undefined;
 
 function getOutputChannel(): vscode.OutputChannel {
   if (!outputChannel) {
@@ -245,6 +313,66 @@ export async function activate(context: ExtensionContext) {
   }
 
   client = new LanguageClient("tcl-lsp", "Tcl Language Server", serverOptions, clientOptions);
+  const diagnosticsGeneration = { client, value: 0, identity: {} };
+  currentDiagnosticsClientGeneration = diagnosticsGeneration;
+  context.subscriptions.push(
+    client.onDidChangeState(() => {
+      diagnosticsGeneration.value += 1;
+      diagnosticsGeneration.identity = {};
+    }),
+  );
+  currentDiagnosticsTransportDisposable?.dispose();
+  currentDiagnosticsTransportDisposable = setCurrentDiagnosticsTransportProvider(() => {
+    const activeClient = client;
+    const generation = currentDiagnosticsClientGeneration;
+    if (!activeClient || generation?.client !== activeClient) return undefined;
+    const generationAtCapture = generation.value;
+    const transport: import("./chat/diagnosticAccess").CurrentDiagnosticsTransport = {
+      sessionIdentity: generation.identity,
+      request: (params) =>
+        activeClient.sendRequest("workspace/executeCommand", {
+          command: "tcl-lsp.currentDiagnostics",
+          arguments: [params],
+        }),
+      validatePublication: (publication) =>
+        activeClient.sendRequest("workspace/executeCommand", {
+          command: "tcl-lsp.validateDiagnosticPublication",
+          arguments: [publication],
+        }),
+      requestProposal: (params) =>
+        activeClient.sendRequest("workspace/executeCommand", {
+          command: "tcl-lsp.proposalDiagnostics",
+          arguments: [params],
+        }),
+      requestTransform: (command, source, options) =>
+        activeClient.sendRequest("workspace/executeCommand", {
+          command,
+          arguments: [source, ...options],
+        }),
+      validateTransform: (receipt) =>
+        activeClient.sendRequest("workspace/executeCommand", {
+          command: "tcl-lsp.validateDocumentTransform",
+          arguments: [receipt],
+        }),
+      convert: (diagnostics) => activeClient.protocol2CodeConverter.asDiagnostics(diagnostics),
+      setSessionDialectOverride: async (dialect) => {
+        await activeClient.sendRequest("workspace/executeCommand", {
+          command: "tcl-lsp.setSessionDialectOverride",
+          arguments: dialect === null ? [] : [dialect],
+        });
+        if (!transport.isCurrent()) throw new Error("Language server session changed");
+        updateSessionOverrideLabel(dialect);
+      },
+      isCurrent: () =>
+        currentDiagnosticsTransportDisposable !== undefined &&
+        client === activeClient &&
+        currentDiagnosticsClientGeneration === generation &&
+        generation.value === generationAtCapture &&
+        activeClient.isRunning(),
+    };
+    return transport;
+  });
+  context.subscriptions.push(currentDiagnosticsTransportDisposable);
   // The server starts with the trust state in its `initializationOptions`; a
   // grant after that is pushed, so a workspace pack's hook bodies start
   // running without a restart.
@@ -291,6 +419,7 @@ export async function activate(context: ExtensionContext) {
   // the browser entry.
   context.subscriptions.push(
     workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("tclLsp")) invalidateAnalysisContext();
       if (e.affectsConfiguration("tclLsp.dialect")) {
         // The setting changed (``tclLsp.selectDialect``, or the user editing
         // settings.json).  The server picks it up from its own
@@ -428,17 +557,20 @@ export async function activate(context: ExtensionContext) {
     ),
   );
 
+  ruleScratchEditors.register(context);
   context.subscriptions.push(
     commands.registerCommand("tclLsp.insertIrule", async (code: string) => {
       const doc = await vscode.workspace.openTextDocument({ language: "tcl", content: code });
       await vscode.window.showTextDocument(doc);
     }),
-    commands.registerCommand("tclLsp.applyFix", async (code: string, uriString: string) => {
-      const uri = vscode.Uri.parse(uriString);
-      const doc = await vscode.workspace.openTextDocument(uri);
-      const editor = await vscode.window.showTextDocument(doc);
-      const fullRange = new Range(0, 0, doc.lineCount, 0);
-      await editor.edit((edit) => edit.replace(fullRange, code));
+    commands.registerCommand("tclLsp.applyFix", async (code: string, receipt: unknown) => {
+      const applied = await applyDocumentWrite(code, receipt);
+      if (!applied) {
+        await vscode.window.showWarningMessage(
+          "The document changed after this result was generated. Run it again before applying.",
+        );
+      }
+      return applied;
     }),
     commands.registerCommand("tclLsp.extractRule", extractRuleAtCursor),
     commands.registerCommand("tclLsp.extractRulePick", extractRulePick),
@@ -446,18 +578,7 @@ export async function activate(context: ExtensionContext) {
     commands.registerCommand("tclLsp.extractLinkedObjects", extractLinkedObjectsAtCursor),
     commands.registerCommand("tclLsp.bigipCleanup", generateBigipCleanupScript),
     commands.registerCommand("tclLsp.renamePartition", renamePartition),
-    commands.registerCommand(
-      "tclLsp.renameSymbolAtPosition",
-      async (line: number, startChar: number, endChar: number) => {
-        const editor = window.activeTextEditor;
-        if (!editor) return;
-        const pos = new vscode.Position(line, startChar);
-        const endPos = new vscode.Position(line, endChar);
-        editor.selection = new vscode.Selection(pos, endPos);
-        editor.revealRange(new Range(pos, endPos));
-        await commands.executeCommand("editor.action.rename");
-      },
-    ),
+    registerSourceActionCommands(),
     commands.registerCommand("tclLsp.generateDocstring", async () => {
       const editor = window.activeTextEditor;
       if (!editor) return;
@@ -469,8 +590,11 @@ export async function activate(context: ExtensionContext) {
         range,
       );
       const docAction = actions?.find((a) => a.title.startsWith("Generate docstring"));
-      if (docAction?.edit) {
-        await vscode.workspace.applyEdit(docAction.edit);
+      if (docAction?.command?.command === "tclLsp.applySourceCodeAction") {
+        await commands.executeCommand(
+          docAction.command.command,
+          ...(docAction.command.arguments ?? []),
+        );
       } else {
         window.showInformationMessage("No proc found at cursor, or it already has a docstring.");
       }
@@ -501,10 +625,12 @@ export async function activate(context: ExtensionContext) {
   }
 
   ch.appendLine(`[timing] extension activation: ${Date.now() - activateStart}ms`);
-  return { getClient, applyDialectForDocument };
+  return { getClient, applyDialectForDocument, waitForCurrentDiagnostics };
 }
 
 export async function deactivate(): Promise<void> {
+  currentDiagnosticsTransportDisposable?.dispose();
+  currentDiagnosticsTransportDisposable = undefined;
   if (dialectRefreshTimer) {
     clearTimeout(dialectRefreshTimer);
     dialectRefreshTimer = undefined;
@@ -534,12 +660,28 @@ export async function deactivate(): Promise<void> {
  */
 function registerPackAssociationSync(context: ExtensionContext, ch: vscode.OutputChannel): void {
   if (client) {
+    const registeredClient = client;
     context.subscriptions.push(
-      client.onNotification(
+      registeredClient.onDidChangeState(() => {
+        beginPackFileAssociationSync(context);
+      }),
+      registeredClient.onNotification(
         "tcl-lsp/specPacksReloaded",
         (params: { pack_file_extensions?: PackFileExtension[] }) => {
-          void syncPackFileAssociations(context, params?.pack_file_extensions ?? [], (message) =>
-            ch.appendLine(message),
+          if (client !== registeredClient || registeredClient.state !== State.Running) {
+            return;
+          }
+          const generation = beginPackFileAssociationSync(context);
+          const advertised = params?.pack_file_extensions;
+          if (!Array.isArray(advertised)) {
+            ch.appendLine("[packs] incomplete reload notification; leaving associations unchanged");
+            return;
+          }
+          void syncPackFileAssociations(
+            context,
+            advertised,
+            (message) => ch.appendLine(message),
+            generation,
           );
         },
       ),
@@ -564,22 +706,38 @@ async function syncPackAssociationsNow(
   if (!client) {
     return;
   }
+  const requestClient = client;
+  const generation = beginPackFileAssociationSync(context);
   try {
     // The pack set is process-global on the server — one reload covers the
     // bundled tier and every workspace folder — so this asks with no URI
     // rather than implying a per-folder answer.
-    const result = (await client.sendRequest("workspace/executeCommand", {
+    const result = (await requestClient.sendRequest("workspace/executeCommand", {
       command: "tcl-lsp.getEffectiveConfig",
       arguments: [""],
     })) as {
       pack_file_extensions?: PackFileExtension[];
       spec_packs_loaded?: unknown[];
     } | null;
+    if (
+      !isPackFileAssociationSyncCurrent(context, generation) ||
+      client !== requestClient ||
+      requestClient.state !== State.Running
+    ) {
+      return;
+    }
     if (!result?.spec_packs_loaded?.length) {
       return;
     }
-    await syncPackFileAssociations(context, result.pack_file_extensions ?? [], (message) =>
-      ch.appendLine(message),
+    if (!Array.isArray(result.pack_file_extensions)) {
+      ch.appendLine("[packs] incomplete startup response; leaving associations unchanged");
+      return;
+    }
+    await syncPackFileAssociations(
+      context,
+      result.pack_file_extensions,
+      (message) => ch.appendLine(message),
+      generation,
     );
   } catch (err) {
     // A server still starting (or already stopped) has nothing to say about
@@ -632,20 +790,47 @@ async function exportConfig(): Promise<void> {
 
 async function selectDialect(): Promise<void> {
   await refreshDialectChoices();
-  const picked = await pickDialect(dialectChoices, activeDialect.name);
-  if (picked) {
-    const target = workspace.workspaceFolders?.length
-      ? undefined
-      : vscode.ConfigurationTarget.Global;
-    await workspace.getConfiguration("tclLsp").update("dialect", picked, target);
-    await setServerDialect(picked);
+  const issuingClient = client;
+  const analysisContext = captureAnalysisContext();
+  const liveChoices = liveDialectChoices;
+  const choices = currentDialectChoices();
+  const usedLiveChoices = liveChoices !== undefined && choices === liveChoices.choices;
+  const request = dialectChoicesRefreshGeneration;
+  const picked = await pickDialect(choices, activeDialect.name);
+  if (
+    !picked ||
+    client !== issuingClient ||
+    request !== dialectChoicesRefreshGeneration ||
+    (issuingClient !== undefined &&
+      (!issuingClient.isRunning() || analysisContext === undefined)) ||
+    (analysisContext !== undefined && !isAnalysisContextCurrent(analysisContext)) ||
+    (usedLiveChoices &&
+      (liveDialectChoices !== liveChoices ||
+        client !== liveChoices.client ||
+        !isAnalysisContextCurrent(liveChoices.analysisContext)))
+  ) {
+    return;
   }
+  const target = workspace.workspaceFolders?.length ? undefined : vscode.ConfigurationTarget.Global;
+  await workspace.getConfiguration("tclLsp").update("dialect", picked, target);
+  // The deliberate setting write may invalidate context; it cannot adopt a new client.
+  if (client !== issuingClient || !issuingClient?.isRunning()) return;
+  await setServerDialect(picked);
 }
+
+type TclInstallationSelection =
+  | { status: "available"; tclLibrary: string; autoPath: string[] }
+  | {
+      status: "unavailable";
+      reason: "nonUnicodeLibraryPath" | "nonUnicodeAutoPath" | "missingCheckedSelection";
+    };
 
 interface TclInstallation {
   version: string;
+  /** Presentation-only strings; selection uses the checked payload below. */
   tclLibrary: string;
   autoPath: string[];
+  selection?: TclInstallationSelection;
 }
 
 interface TclInstallationsResult {
@@ -673,12 +858,21 @@ async function selectTclInstallation(): Promise<void> {
   })) as TclInstallationsResult | null;
 
   const installs = result?.installations ?? [];
-  type Item = vscode.QuickPickItem & { paths?: string[]; custom?: boolean; clear?: boolean };
+  type Item = vscode.QuickPickItem & {
+    paths?: string[];
+    custom?: boolean;
+    clear?: boolean;
+    unselectable?: boolean;
+  };
   const items: Item[] = installs.map((inst) => ({
     label: inst.version ? `Tcl ${inst.version}` : "Tcl",
     description: inst.tclLibrary,
-    detail: inst.autoPath.join("  ·  "),
-    paths: inst.autoPath,
+    detail:
+      inst.selection?.status === "available"
+        ? inst.selection.autoPath.join("  ·  ")
+        : `Unavailable: ${inst.selection?.status === "unavailable" ? inst.selection.reason : "missingCheckedSelection"}; checked native path cannot be written to libraryPaths`,
+    paths: inst.selection?.status === "available" ? inst.selection.autoPath : undefined,
+    unselectable: inst.selection?.status !== "available",
   }));
   items.push({ label: "$(folder) Enter a custom path…", custom: true });
   if ((result?.editorLibraryPaths?.length ?? 0) > 0) {
@@ -697,7 +891,12 @@ async function selectTclInstallation(): Promise<void> {
   }
 
   let paths: string[] | undefined;
-  if (picked.clear) {
+  if (picked.unselectable) {
+    window.showWarningMessage(
+      "This Tcl installation has no checked native path that can be written to tclLsp.libraryPaths.",
+    );
+    return;
+  } else if (picked.clear) {
     paths = [];
   } else if (picked.custom) {
     const entered = await window.showInputBox({
@@ -739,27 +938,48 @@ const DIALECT_REFRESH_DELAY_MS = 150;
  */
 function fallbackDialectForDocument(document: TextDocument): DialectChoice {
   const languageId = LANGUAGE_ID_DIALECTS[document.languageId];
-  const pathLanguage = languageId ? undefined : tclLanguageIdForPath(document.fileName);
+  const pathLanguage = languageId
+    ? undefined
+    : tclLanguageIdForBasename(path.basename(document.fileName));
   const implied = languageId ?? (pathLanguage ? LANGUAGE_ID_DIALECTS[pathLanguage] : undefined);
   const configured = workspace.getConfiguration("tclLsp").get<string>("dialect", "");
-  return describeDialect(implied ?? (configured || DEFAULT_DIALECT), dialectChoices);
+  return describeDialect(implied ?? (configured || DEFAULT_DIALECT), currentDialectChoices());
 }
 
-/** Whether a running server can be asked. */
-function serverIsRunning(): boolean {
-  return client !== undefined && client.isRunning();
+interface CurrentEffectiveConfig {
+  readonly value: unknown;
+  readonly report: CurrentDiagnosticsReport;
+  isCurrent(): boolean;
 }
 
-/** The server's ``tcl-lsp.getEffectiveConfig`` answer for *document*, or ``undefined`` if it cannot say. */
-async function effectiveConfigFor(document: TextDocument): Promise<unknown> {
-  if (!serverIsRunning()) {
+/** The server's config answer, joined to current published source and session owners. */
+async function effectiveConfigFor(
+  document: TextDocument,
+): Promise<CurrentEffectiveConfig | undefined> {
+  const requestClient = client;
+  if (!requestClient?.isRunning()) return undefined;
+  const uri = document.uri;
+  const version = document.version;
+  const source = document.getText();
+  let report: CurrentDiagnosticsReport;
+  try {
+    report = await waitForDiagnosticsReport(uri, { expectedSource: source });
+  } catch {
     return undefined;
   }
+  const expected = { document, uri, version, source };
+  const isCurrent = () =>
+    client === requestClient &&
+    requestClient.isRunning() &&
+    isAnalysisContextCurrent(report.analysisContext) &&
+    currentDiagnosticsReportMatches(report, expected);
+  if (!isCurrent()) return undefined;
   try {
-    return await client.sendRequest("workspace/executeCommand", {
+    const value = await requestClient.sendRequest("workspace/executeCommand", {
       command: "tcl-lsp.getEffectiveConfig",
-      arguments: [document.uri.toString()],
+      arguments: [uri.toString()],
     });
+    return isCurrent() ? { value, report, isCurrent } : undefined;
   } catch {
     // A server still starting (or already stopped) has nothing to say yet; the
     // fallback label stays until an event asks again.
@@ -767,54 +987,65 @@ async function effectiveConfigFor(document: TextDocument): Promise<unknown> {
   }
 }
 
-/**
- * The dialect *document* is analysed under: the server's answer, else the
- * fallback.  The server runs the whole detection ladder (directive, shebang,
- * ``package require``, content, extension) per document; nothing here repeats it.
- */
-async function effectiveDialectFor(document: TextDocument): Promise<DialectChoice> {
-  const answered = dialectFromEffectiveConfig(await effectiveConfigFor(document), dialectChoices);
-  return answered ?? fallbackDialectForDocument(document);
-}
-
 /** Read the server's dialect list, keeping the catalogue when it cannot be read. */
+let dialectChoicesRefreshGeneration = 0;
 async function refreshDialectChoices(): Promise<void> {
-  if (!serverIsRunning()) {
-    return;
-  }
+  const requestClient = client;
+  const context = captureAnalysisContext();
+  if (!requestClient?.isRunning() || !context) return;
+  const requestGeneration = ++dialectChoicesRefreshGeneration;
   try {
-    const listed = await client.sendRequest("workspace/executeCommand", {
+    const listed = await requestClient.sendRequest("workspace/executeCommand", {
       command: "tcl-lsp.listDialects",
       arguments: [],
     });
-    dialectChoices = parseListedDialects(listed) ?? dialectChoices;
+    if (
+      requestGeneration === dialectChoicesRefreshGeneration &&
+      client === requestClient &&
+      requestClient.isRunning() &&
+      isAnalysisContextCurrent(context)
+    ) {
+      const choices = parseListedDialects(listed);
+      if (choices) {
+        liveDialectChoices = { choices, client: requestClient, analysisContext: context };
+      }
+    }
   } catch {
     // The catalogue stays.
   }
 }
 
 let dialectRefreshTimer: NodeJS.Timeout | undefined;
+let dialectRefreshGeneration = 0;
 
 /**
  * Ask the server which dialect the focused document is analysed under and show
  * it, after a short delay that lets the client's own ``didOpen`` / ``didChange``
- * for the document go first.  A later request supersedes an earlier one.
+ * for the document go first. A later request supersedes an earlier one.
  */
 function scheduleDialectRefresh(document: TextDocument): void {
+  const requestGeneration = ++dialectRefreshGeneration;
   if (dialectRefreshTimer) {
     clearTimeout(dialectRefreshTimer);
   }
   dialectRefreshTimer = setTimeout(() => {
     dialectRefreshTimer = undefined;
-    if (window.activeTextEditor?.document !== document) {
+    if (
+      requestGeneration !== dialectRefreshGeneration ||
+      window.activeTextEditor?.document !== document
+    ) {
       return;
     }
     void (async () => {
-      const answered = dialectFromEffectiveConfig(
-        await effectiveConfigFor(document),
-        dialectChoices,
-      );
-      if (answered && window.activeTextEditor?.document === document) {
+      const config = await effectiveConfigFor(document);
+      if (!config) return;
+      const answered = dialectFromEffectiveConfig(config.value, currentDialectChoices());
+      if (
+        answered &&
+        requestGeneration === dialectRefreshGeneration &&
+        window.activeTextEditor?.document === document &&
+        config.isCurrent()
+      ) {
         setActiveDialect(answered);
       }
     })();
@@ -845,7 +1076,7 @@ function setActiveDialect(dialect: DialectChoice): void {
 
 /** Show the dialect called *name*, with the labels the server or the catalogue gives it. */
 function setActiveDialectLabel(name: string): void {
-  setActiveDialect(describeDialect(name, dialectChoices));
+  setActiveDialect(describeDialect(name, currentDialectChoices()));
 }
 
 /**
@@ -877,6 +1108,7 @@ export async function setServerDialect(dialect: string): Promise<void> {
   await client.sendNotification("workspace/didChangeConfiguration", {
     settings: { tclLsp: { dialect } },
   });
+  invalidateAnalysisContext();
 }
 
 /**
@@ -895,18 +1127,7 @@ export async function setServerDialect(dialect: string): Promise<void> {
  * Clearing restores whatever the configuration currently resolves to, so there
  * is nothing to save and restore by hand.
  */
-export async function setSessionDialectOverride(dialect: string | null): Promise<void> {
-  if (!client) {
-    return;
-  }
-  await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.setSessionDialectOverride",
-    arguments: dialect === null ? [] : [dialect],
-  });
-  // Keep the status bar honest about what the server is actually using. On a
-  // clear, fall back to the focused editor's own detected dialect — the same
-  // answer `applyDialectForDocument` gives — rather than leaving the override's
-  // label behind.
+function updateSessionOverrideLabel(dialect: string | null): void {
   const editor = vscode.window.activeTextEditor;
   if (dialect === null && editor && isTclLanguage(editor.document.languageId)) {
     applyDialectForDocument(editor.document);
@@ -915,6 +1136,11 @@ export async function setSessionDialectOverride(dialect: string | null): Promise
   setActiveDialectLabel(
     dialect ?? workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT),
   );
+}
+
+export async function setSessionDialectOverride(dialect: string | null): Promise<void> {
+  if (!client) return;
+  await setUnleasedSessionDialectOverride(dialect);
 }
 
 /**
@@ -941,7 +1167,11 @@ function applyDialectForEditor(editor: TextEditor | undefined): void {
   applyDialectForDocument(editor.document);
 }
 
-async function renamePartition(uriString?: string, oldPartition?: string): Promise<void> {
+async function renamePartition(
+  uriString?: string,
+  oldPartition?: string,
+  offeredVersion?: unknown,
+): Promise<void> {
   if (!client) {
     window.showWarningMessage("The Tcl language server is not running.");
     return;
@@ -953,6 +1183,11 @@ async function renamePartition(uriString?: string, oldPartition?: string): Promi
     window.showWarningMessage("Place the cursor on a BIG-IP partition stanza first.");
     return;
   }
+  // The version the stanza was read from: the rename applies to it or not at all.
+  const version = partitionRenameVersion(
+    offeredVersion,
+    workspace.textDocuments.find((document) => document.uri.toString() === targetUri)?.version,
+  );
 
   const newNameInput = await window.showInputBox({
     title: "Rename BIG-IP Partition",
@@ -978,17 +1213,18 @@ async function renamePartition(uriString?: string, oldPartition?: string): Promi
   }
 
   const newName = newNameInput.trim().replace(/^\/+/, "");
-  const result = (await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.renamePartition",
-    arguments: [targetUri, currentName, newName],
-  })) as RenamePartitionResult | null;
-
-  if (!result?.success || !result.edit) {
-    window.showErrorMessage(result?.error ?? "Partition rename did not produce any edits.");
+  const send = serverCommandSender();
+  if (!send) {
+    window.showWarningMessage("The Tcl language server is not running.");
+    return;
+  }
+  const edit = await requestPartitionRename(send, targetUri, currentName, newName, version);
+  if (typeof edit === "string") {
+    window.showErrorMessage(edit);
     return;
   }
 
-  const applied = await workspace.applyEdit(workspaceEditFromLsp(result.edit));
+  const applied = await workspace.applyEdit(edit);
   if (!applied) {
     window.showErrorMessage("VS Code rejected the partition rename workspace edit.");
     return;
@@ -1002,14 +1238,26 @@ async function optimiseDocument(): Promise<void> {
     window.showWarningMessage("Open a Tcl file to run optimisations.");
     return;
   }
+  const snapshot = captureDocumentTransform(editor.document);
+  if (!snapshot) {
+    window.showWarningMessage(
+      "The document analysis context is unavailable. Try again when the server is ready.",
+    );
+    return;
+  }
 
-  const uri = editor.document.uri.toString();
-  const result = (await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.optimiseDocument",
-    arguments: [uri],
-  })) as { optimisations: Array<Record<string, unknown>>; source: string } | null;
+  const result = await requestDocumentTransform<{
+    optimisations: Array<Record<string, unknown>>;
+    source: string;
+  }>(snapshot, "tcl-lsp.optimiseDocument");
 
-  if (!result || !result.optimisations || result.optimisations.length === 0) {
+  if (!result) {
+    window.showWarningMessage(
+      "A current document transform is unavailable. Run the command again.",
+    );
+    return;
+  }
+  if (!result.optimisations || result.optimisations.length === 0) {
     window.showInformationMessage("No optimisations found.");
     return;
   }
@@ -1022,10 +1270,10 @@ async function optimiseDocument(): Promise<void> {
   );
 
   if (proceed === "Apply") {
-    const fullRange = editor.document.validateRange(new Range(0, 0, Infinity, Infinity));
-    await editor.edit((editBuilder) => {
-      editBuilder.replace(fullRange, result.source);
-    });
+    if (!(await applyDocumentTransform(snapshot, result))) {
+      window.showWarningMessage("The document or analysis context changed. Run the command again.");
+      return;
+    }
     window.showInformationMessage(`Applied ${count} optimisation${count === 1 ? "" : "s"}.`);
   }
 }
@@ -1079,6 +1327,13 @@ async function minifyDocument(): Promise<void> {
     window.showWarningMessage("Open a Tcl file to minify.");
     return;
   }
+  const snapshot = captureDocumentTransform(editor.document);
+  if (!snapshot) {
+    window.showWarningMessage(
+      "The document analysis context is unavailable. Try again when the server is ready.",
+    );
+    return;
+  }
 
   const mode = await window.showQuickPick(
     [
@@ -1124,19 +1379,21 @@ async function minifyDocument(): Promise<void> {
     return;
   }
 
-  const uri = editor.document.uri.toString();
-  const result = (await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.minifyDocument",
-    arguments: [uri, mode.compact, mode.aggressive, mode.isolated],
-  })) as {
+  const result = await requestDocumentTransform<{
     source: string;
     originalLength: number;
     minifiedLength: number;
     symbolMap?: string;
     optimisationsApplied?: number;
-  } | null;
+  }>(snapshot, "tcl-lsp.minifyDocument", [mode.compact, mode.aggressive, mode.isolated]);
 
-  if (!result || !result.source) {
+  if (!result) {
+    window.showWarningMessage(
+      "A current document transform is unavailable. Run the command again.",
+    );
+    return;
+  }
+  if (!result.source) {
     window.showInformationMessage("Nothing to minify.");
     return;
   }
@@ -1150,10 +1407,10 @@ async function minifyDocument(): Promise<void> {
   );
 
   if (proceed === "Apply") {
-    const fullRange = editor.document.validateRange(new Range(0, 0, Infinity, Infinity));
-    await editor.edit((editBuilder) => {
-      editBuilder.replace(fullRange, result.source);
-    });
+    if (!(await applyDocumentTransform(snapshot, result))) {
+      window.showWarningMessage("The document or analysis context changed. Run the command again.");
+      return;
+    }
     const optSuffix =
       result.optimisationsApplied != null && result.optimisationsApplied > 0
         ? ` (${result.optimisationsApplied} optimisations applied)`
@@ -1264,24 +1521,15 @@ async function translateXc(): Promise<void> {
     return;
   }
 
-  const source = editor.document.getText();
-  if (!source.trim()) {
+  const snapshot = xcDocumentSnapshot(editor.document);
+  if (!snapshot.source.trim()) {
     window.showWarningMessage("The current file is empty.");
     return;
   }
 
   try {
-    const result = (await client.sendRequest("workspace/executeCommand", {
-      command: "tcl-lsp.xcTranslate",
-      arguments: [source, "both"],
-    })) as Record<string, unknown> | null;
-
-    if (!result || result.error) {
-      window.showErrorMessage(
-        `XC translation failed: ${(result?.error as string) ?? "unknown error"}`,
-      );
-      return;
-    }
+    const result = await translateXcForCommand(snapshot, "both");
+    if (!result) return;
 
     const coverage = (result.coverage_pct as number) ?? 0;
     const translatable = (result.translatable_count as number) ?? 0;
@@ -1317,11 +1565,36 @@ async function translateXc(): Promise<void> {
     }
 
     window.showInformationMessage(
-      `XC Translation: ${coverage.toFixed(1)}% coverage — ${translatable} translatable, ${untranslatable} untranslatable`,
+      `XC Translation: ${coverage.toFixed(1)}% coverage — ${translatable} translatable, ${untranslatable} untranslatable. ${result.description}`,
     );
   } catch (err) {
     window.showErrorMessage(`XC translation failed: ${err}`);
   }
+}
+
+/**
+ * Translate the captured document through the shared document ingress,
+ * reporting a refusal; `undefined` when there is nothing to show.
+ */
+async function translateXcForCommand(
+  snapshot: ReturnType<typeof xcDocumentSnapshot>,
+  format: string,
+): Promise<(Record<string, unknown> & { description: string }) | undefined> {
+  const send = serverCommandSender();
+  if (!send) {
+    window.showWarningMessage("The Tcl language server is not running.");
+    return undefined;
+  }
+  const outcome = await translateXcDocument(send, snapshot, format);
+  if (outcome.kind === "stale") {
+    window.showWarningMessage("The document changed while it was being translated. Try again.");
+    return undefined;
+  }
+  if (outcome.kind === "failed") {
+    window.showErrorMessage(`XC translation failed: ${outcome.error}`);
+    return undefined;
+  }
+  return { ...outcome.payload, description: describeXcSource(outcome.source) };
 }
 
 interface XcConsoleObject {
@@ -1342,24 +1615,15 @@ async function translateXcConsole(): Promise<void> {
     return;
   }
 
-  const source = editor.document.getText();
-  if (!source.trim()) {
+  const snapshot = xcDocumentSnapshot(editor.document);
+  if (!snapshot.source.trim()) {
     window.showWarningMessage("The current file is empty.");
     return;
   }
 
   try {
-    const result = (await client.sendRequest("workspace/executeCommand", {
-      command: "tcl-lsp.xcTranslate",
-      arguments: [source, "console"],
-    })) as Record<string, unknown> | null;
-
-    if (!result || result.error) {
-      window.showErrorMessage(
-        `XC translation failed: ${(result?.error as string) ?? "unknown error"}`,
-      );
-      return;
-    }
+    const result = await translateXcForCommand(snapshot, "console");
+    if (!result) return;
 
     const objects = (result.console_objects as XcConsoleObject[]) ?? [];
     if (objects.length === 0) {
@@ -1381,7 +1645,7 @@ async function translateXcConsole(): Promise<void> {
 
     const kinds = objects.map((o) => o.object_type).join(", ");
     window.showInformationMessage(
-      `Opened ${objects.length} XC Console document(s): ${kinds}. Paste each into that object's JSON editor.`,
+      `Opened ${objects.length} XC Console document(s): ${kinds}. Paste each into that object's JSON editor. ${result.description}`,
     );
   } catch (err) {
     window.showErrorMessage(`XC translation failed: ${err}`);
@@ -1427,21 +1691,30 @@ async function fixAllSafeIssues(): Promise<void> {
     window.showWarningMessage("Open a Tcl file to apply safe fixes.");
     return;
   }
+  const snapshot = captureDocumentTransform(editor.document);
+  if (!snapshot) {
+    window.showWarningMessage(
+      "The document analysis context is unavailable. Try again when the server is ready.",
+    );
+    return;
+  }
 
-  const uri = editor.document.uri.toString();
-  const result = (await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.fixAllSafeIssues",
-    arguments: [uri],
-  })) as {
+  const result = await requestDocumentTransform<{
     // `safety` is the fix's classification. Only
     // `semantics-equivalent` fixes reach this list — the server applies
     // nothing else in bulk — so it is reported for traceability rather than
     // filtered on here.
     source: string;
     applied: Array<{ code: string; description: string; safety: string }>;
-  } | null;
+  }>(snapshot, "tcl-lsp.fixAllSafeIssues");
 
-  if (!result || !result.applied || result.applied.length === 0) {
+  if (!result) {
+    window.showWarningMessage(
+      "A current document transform is unavailable. Run the command again.",
+    );
+    return;
+  }
+  if (!result.applied || result.applied.length === 0) {
     window.showInformationMessage("No safe auto-fixes available.");
     return;
   }
@@ -1455,33 +1728,13 @@ async function fixAllSafeIssues(): Promise<void> {
     return;
   }
 
-  const fullRange = editor.document.validateRange(new Range(0, 0, Infinity, Infinity));
-  await editor.edit((editBuilder) => {
-    editBuilder.replace(fullRange, result.source);
-  });
+  if (!(await applyDocumentTransform(snapshot, result))) {
+    window.showWarningMessage("The document or analysis context changed. Run the command again.");
+    return;
+  }
   window.showInformationMessage(
     `Applied ${result.applied.length} safe fix${result.applied.length === 1 ? "" : "es"}.`,
   );
-}
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function packageInsertLine(document: TextDocument): number {
-  let line = 0;
-  if (document.lineCount > 0 && document.lineAt(0).text.startsWith("#!")) {
-    line = 1;
-  }
-  while (line < document.lineCount) {
-    const text = document.lineAt(line).text;
-    if (/^\s*package\s+require\b/.test(text)) {
-      line += 1;
-      continue;
-    }
-    break;
-  }
-  return line;
 }
 
 async function insertPackageRequire(): Promise<void> {
@@ -1490,62 +1743,14 @@ async function insertPackageRequire(): Promise<void> {
     window.showWarningMessage("Open a Tcl file to insert a package requirement.");
     return;
   }
-
-  const wordRange = editor.document.getWordRangeAtPosition(editor.selection.active, /[\w:]+/);
-  const symbol = wordRange ? editor.document.getText(wordRange) : "";
-
-  let suggestions: string[] = [];
-  const suggestResult = (await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.suggestPackagesForSymbol",
-    arguments: [symbol],
-  })) as { suggestions?: string[] } | null;
-  suggestions = suggestResult?.suggestions ?? [];
-
-  if (suggestions.length === 0) {
-    const listResult = (await client.sendRequest("workspace/executeCommand", {
+  const requestClient = client;
+  if (!requestClient?.isRunning()) return;
+  await insertPackageRequirement(editor, () =>
+    requestClient.sendRequest("workspace/executeCommand", {
       command: "tcl-lsp.listKnownPackages",
       arguments: [],
-    })) as { packages?: string[] } | null;
-    suggestions = listResult?.packages ?? [];
-  }
-
-  if (suggestions.length === 0) {
-    window.showInformationMessage(
-      "No known packages found. Configure tclLsp.libraryPaths to enable package discovery.",
-    );
-    return;
-  }
-
-  const picked = await window.showQuickPick(suggestions, {
-    placeHolder: symbol ? `Select package to require for '${symbol}'` : "Select package to require",
-    title: "Insert package require",
-  });
-  if (!picked) {
-    return;
-  }
-
-  const existing = new RegExp(`^\\s*package\\s+require\\s+${escapeRegExp(picked)}(?:\\s|$)`, "m");
-  if (existing.test(editor.document.getText())) {
-    window.showInformationMessage(`'package require ${picked}' already exists.`);
-    return;
-  }
-
-  const insertAt = packageInsertLine(editor.document);
-  const prefix =
-    insertAt > 0 && editor.document.lineAt(insertAt - 1).text.trim() !== "" ? "\n" : "";
-  const text = `${prefix}package require ${picked}\n`;
-  const insertPos =
-    insertAt < editor.document.lineCount
-      ? new vscode.Position(insertAt, 0)
-      : editor.document.lineAt(editor.document.lineCount - 1).range.end;
-  const applied = await editor.edit((editBuilder) => {
-    editBuilder.insert(insertPos, text);
-  });
-  if (applied) {
-    window.showInformationMessage(`Inserted 'package require ${picked}'.`);
-  } else {
-    window.showWarningMessage("Failed to insert package require.");
-  }
+    }),
+  );
 }
 
 function defaultPackageName(): string {
@@ -1638,20 +1843,46 @@ async function scaffoldPackageStarter(): Promise<void> {
 
 let lastIruleSkeletonSelection: string[] = [];
 
-function inferIruleEventsFromActiveEditor(): string[] {
+/**
+ * Preselect the common events the active document already handles, read from
+ * the server's own outline of that document (its `when` declarations as the
+ * analysis resolved them), never from a text match that a comment, a string
+ * or an aliased `when` would fool. No outline, no preselection.
+ */
+async function inferIruleEventsFromActiveEditor(): Promise<string[]> {
   const editor = window.activeTextEditor;
-  if (!editor) {
+  if (!editor || !isTclLanguage(editor.document.languageId)) {
     return [];
   }
-  const source = editor.document.getText();
-  const selected: string[] = [];
-  for (const eventInfo of COMMON_IRULE_EVENTS) {
-    const pattern = new RegExp(`\\bwhen\\s+${escapeRegExp(eventInfo.name)}\\b`);
-    if (pattern.test(source)) {
-      selected.push(eventInfo.name);
-    }
+  const document = editor.document;
+  const version = document.version;
+  let symbols: Array<vscode.DocumentSymbol | vscode.SymbolInformation> | undefined;
+  try {
+    symbols = await commands.executeCommand<
+      Array<vscode.DocumentSymbol | vscode.SymbolInformation> | undefined
+    >("vscode.executeDocumentSymbolProvider", document.uri);
+  } catch {
+    return [];
   }
-  return selected;
+  if (!symbols || document.version !== version) {
+    return [];
+  }
+  const declared = new Set(
+    symbols
+      .filter((symbol) => symbol.kind === vscode.SymbolKind.Event)
+      .map((symbol) => symbol.name),
+  );
+  return COMMON_IRULE_EVENTS.map((eventInfo) => eventInfo.name).filter((name) =>
+    declared.has(name),
+  );
+}
+
+/** The release new iRule source is written for, when one is configured. */
+function iruleSkeletonTarget(): IruleSkeletonTarget {
+  const scope = window.activeTextEditor?.document.uri;
+  return {
+    bigipVersion: workspace.getConfiguration("tclLsp", scope).get<string>("bigipVersion", ""),
+  };
 }
 
 async function insertIruleEventSkeleton(): Promise<void> {
@@ -1662,7 +1893,7 @@ async function insertIruleEventSkeleton(): Promise<void> {
   const initialSelection =
     lastIruleSkeletonSelection.length > 0
       ? lastIruleSkeletonSelection
-      : inferIruleEventsFromActiveEditor();
+      : await inferIruleEventsFromActiveEditor();
 
   const picked = await new Promise<typeof items | undefined>((resolve) => {
     const quickPick = window.createQuickPick<(typeof items)[number]>();
@@ -1703,7 +1934,14 @@ async function insertIruleEventSkeleton(): Promise<void> {
 
   lastIruleSkeletonSelection = picked.map((entry) => entry.label);
 
-  const skeleton = buildIruleEventSkeleton(picked.map((entry) => entry.label));
+  const target = iruleSkeletonTarget();
+  const { source: skeleton, rejected } = buildIruleEventSkeletonFor(
+    picked.map((entry) => entry.label),
+    target,
+  );
+  if (rejected.length > 0) {
+    window.showWarningMessage(describeSkeletonRejections(rejected));
+  }
   if (!skeleton) {
     window.showWarningMessage("Unable to build iRule skeleton from the selected events.");
     return;
@@ -1772,57 +2010,164 @@ async function runRuntimeValidation(): Promise<void> {
   await runRuntimeValidationForDocument(editor.document, { quiet: false });
 }
 
+interface RuntimeValidationRequestSnapshot {
+  document: TextDocument;
+  uri: string;
+  version: number;
+  source: string;
+  languageId: string;
+  tclshPath: string;
+  timeoutMs: number;
+  adapterMode: RuntimeValidationAdapterMode;
+  analysisContext: AnalysisContextSnapshot | undefined;
+  diagnosticsReport?: CurrentDiagnosticsReport;
+}
+
+function runtimeValidationSnapshotIsCurrent(snapshot: RuntimeValidationRequestSnapshot): boolean {
+  const runtimeCfg = workspace.getConfiguration("tclLsp.runtimeValidation");
+  return (
+    workspace.textDocuments.includes(snapshot.document) &&
+    snapshot.document.uri.toString() === snapshot.uri &&
+    snapshot.document.version === snapshot.version &&
+    snapshot.document.languageId === snapshot.languageId &&
+    snapshot.document.getText() === snapshot.source &&
+    runtimeCfg.get<string>("tclshPath", "tclsh") === snapshot.tclshPath &&
+    runtimeCfg.get<number>("timeoutMs", 5000) === snapshot.timeoutMs &&
+    runtimeCfg.get<RuntimeValidationAdapterMode>("adapter", "auto") === snapshot.adapterMode &&
+    (snapshot.analysisContext === undefined ||
+      isAnalysisContextCurrent(snapshot.analysisContext)) &&
+    (snapshot.diagnosticsReport === undefined ||
+      currentDiagnosticsReportMatches(snapshot.diagnosticsReport, {
+        document: snapshot.document,
+        uri: snapshot.document.uri,
+        version: snapshot.version,
+        source: snapshot.source,
+      }))
+  );
+}
+
+async function runtimeValidationAdapterForSnapshot(
+  snapshot: RuntimeValidationRequestSnapshot,
+): Promise<RuntimeValidationAdapter> {
+  const analysisContext = snapshot.analysisContext;
+  if (!analysisContext || !isAnalysisContextCurrent(analysisContext)) {
+    throw new Error("The current analysis session is unavailable.");
+  }
+  const report = await waitForDiagnosticsReport(snapshot.document.uri, {
+    expectedSource: snapshot.source,
+  });
+  if (
+    !currentDiagnosticsReportMatches(report, {
+      document: snapshot.document,
+      uri: snapshot.document.uri,
+      version: snapshot.version,
+      source: snapshot.source,
+    }) ||
+    !isAnalysisContextCurrent(analysisContext) ||
+    report.analysisContext.transport.sessionIdentity !==
+      analysisContext.transport.sessionIdentity ||
+    report.analysisContext.overrideGeneration !== analysisContext.overrideGeneration
+  ) {
+    throw new Error(
+      "The completed analysis report no longer matches the requested document snapshot.",
+    );
+  }
+  const adapter = runtimeValidationAdapterFromReport(report.response, {
+    uri: snapshot.uri,
+    version: snapshot.version,
+    source: snapshot.source,
+  });
+  if (!adapter) {
+    throw new Error(
+      "The completed analysis report has no dialect for the requested source snapshot.",
+    );
+  }
+  snapshot.diagnosticsReport = report;
+  return adapter;
+}
+
 async function runRuntimeValidationForDocument(
   document: TextDocument,
   opts: { quiet: boolean },
 ): Promise<void> {
   const runtimeCfg = workspace.getConfiguration("tclLsp.runtimeValidation");
-  const tclshPath = runtimeCfg.get<string>("tclshPath", "tclsh");
-  const timeoutMs = runtimeCfg.get<number>("timeoutMs", 5000);
   const adapterMode = runtimeCfg.get<RuntimeValidationAdapterMode>("adapter", "auto");
-  const dialect = (await effectiveDialectFor(document)).name;
-  const adapter = resolveRuntimeValidationAdapter(adapterMode, dialect);
-  const adapterLabel = runtimeValidationAdapterLabel(adapter);
-
-  // Per-invocation temp dir — replaces the previous shape where two
-  // sibling files lived directly in the shared OS temp dir under a
-  // ``Date.now() + Math.random()`` suffix.  ``mkdtempSync`` guarantees
-  // a fresh, attacker-unwriteable directory and lets us tear the whole
-  // thing down with a single ``rmSync`` (CodeQL
-  // ``js/insecure-temporary-file``).
-  const tmpDir = mkdtempSync(path.join(tmpdir(), "tcl-lsp-runtime-validate-"));
-  const checkerPath = path.join(tmpDir, "checker.tcl");
-  const checkerScript = buildRuntimeValidationChecker(adapter);
-  const targetPath = path.join(tmpDir, "target.tcl");
+  const snapshot: RuntimeValidationRequestSnapshot = {
+    document,
+    uri: document.uri.toString(),
+    version: document.version,
+    source: document.getText(),
+    languageId: document.languageId,
+    tclshPath: runtimeCfg.get<string>("tclshPath", "tclsh"),
+    timeoutMs: runtimeCfg.get<number>("timeoutMs", 5000),
+    adapterMode,
+    analysisContext: adapterMode === "auto" ? captureAnalysisContext() : undefined,
+  };
+  let adapterLabel =
+    adapterMode === "auto"
+      ? "automatic adapter"
+      : runtimeValidationAdapterLabel(resolveRuntimeValidationAdapter(adapterMode, ""));
+  let effectiveDialect: string | undefined;
+  let tmpDir: string | undefined;
 
   try {
-    writeFileSync(checkerPath, checkerScript, "utf8");
-    writeFileSync(targetPath, document.getText(), "utf8");
+    const adapter =
+      adapterMode === "auto"
+        ? await runtimeValidationAdapterForSnapshot(snapshot)
+        : resolveRuntimeValidationAdapter(adapterMode, "");
+    effectiveDialect = snapshot.diagnosticsReport?.response.dialectId;
+    adapterLabel = runtimeValidationAdapterLabel(adapter);
+    if (!runtimeValidationSnapshotIsCurrent(snapshot)) {
+      return;
+    }
 
-    await execFileAsync(tclshPath, [checkerPath, targetPath], {
-      timeout: timeoutMs,
+    // Per-invocation temp dir — replaces the previous shape where two
+    // sibling files lived directly in the shared OS temp dir under a
+    // ``Date.now() + Math.random()`` suffix.  ``mkdtempSync`` guarantees
+    // a fresh, attacker-unwriteable directory and lets us tear the whole
+    // thing down with a single ``rmSync`` (CodeQL
+    // ``js/insecure-temporary-file``).
+    tmpDir = mkdtempSync(path.join(tmpdir(), "tcl-lsp-runtime-validate-"));
+    const checkerPath = path.join(tmpDir, "checker.tcl");
+    const checkerScript = buildRuntimeValidationChecker(adapter);
+    const targetPath = path.join(tmpDir, "target.tcl");
+
+    writeFileSync(checkerPath, checkerScript, "utf8");
+    writeFileSync(targetPath, snapshot.source, "utf8");
+
+    await execFileAsync(snapshot.tclshPath, [checkerPath, targetPath], {
+      timeout: snapshot.timeoutMs,
       maxBuffer: 256 * 1024,
     });
 
+    if (!runtimeValidationSnapshotIsCurrent(snapshot)) {
+      return;
+    }
+    const dialectLabel = effectiveDialect ? `, ${effectiveDialect}` : "";
+    const subject = `${adapterLabel}${dialectLabel} for ${snapshot.uri} at document version ${snapshot.version}`;
     if (!opts.quiet) {
-      window.showInformationMessage(`Runtime validation passed (${adapterLabel}).`);
+      window.showInformationMessage(`Runtime validation passed (${subject}).`);
     }
   } catch (error) {
+    if (!runtimeValidationSnapshotIsCurrent(snapshot)) {
+      return;
+    }
     const err = error as { stderr?: string; stdout?: string; message?: string };
     const details = (err.stderr || err.stdout || err.message || "Validation failed").trim();
+    const dialectLabel = effectiveDialect ? `, ${effectiveDialect}` : "";
+    const subject = `${adapterLabel}${dialectLabel}, ${snapshot.uri}, document version ${snapshot.version}`;
     if (opts.quiet) {
-      window.setStatusBarMessage(
-        `Tcl runtime validation failed (${adapterLabel}): ${details}`,
-        6000,
-      );
+      window.setStatusBarMessage(`Tcl runtime validation failed (${subject}): ${details}`, 6000);
     } else {
-      window.showWarningMessage(`Runtime validation failed (${adapterLabel}): ${details}`);
+      window.showWarningMessage(`Runtime validation failed (${subject}): ${details}`);
     }
   } finally {
-    try {
-      rmSync(tmpDir, { recursive: true, force: true });
-    } catch {
-      // ignore cleanup errors
+    if (tmpDir !== undefined) {
+      try {
+        rmSync(tmpDir, { recursive: true, force: true });
+      } catch {
+        // ignore cleanup errors
+      }
     }
   }
 }
@@ -1940,16 +2285,6 @@ async function copyFileAsGzipBase64(uri: vscode.Uri): Promise<void> {
 
 // BIG-IP rule extraction
 
-interface RuleInfo {
-  name: string;
-  fullPath: string;
-  body: string;
-  bodyStartOffset: number;
-  bodyEndOffset: number;
-  uri: string;
-  blockStartLine?: number;
-}
-
 interface BigipLinkedObjectResult {
   root: string;
   rootUri: string;
@@ -1982,34 +2317,8 @@ interface BigipLinkedObjectResult {
     viaProperty: string;
     viaKind: string;
   }>;
-}
-
-/**
- * Track scratch editors opened from config rules so we can write changes
- * back when the scratch document is saved.
- */
-const scratchRuleMap = new Map<
-  string,
-  { sourceUri: string; bodyStartOffset: number; bodyEndOffset: number; originalBody: string }
->();
-
-async function openRuleInScratchEditor(rule: RuleInfo): Promise<void> {
-  const body = rule.body;
-  const doc = await vscode.workspace.openTextDocument({
-    language: "tcl-irule",
-    content: body,
-  });
-  await vscode.window.showTextDocument(doc, { preview: false });
-
-  // Track this scratch document for write-back on save.
-  scratchRuleMap.set(doc.uri.toString(), {
-    sourceUri: rule.uri,
-    bodyStartOffset: rule.bodyStartOffset,
-    bodyEndOffset: rule.bodyEndOffset,
-    originalBody: body,
-  });
-
-  window.showInformationMessage(`Editing iRule '${rule.name}' — save to write back to config.`);
+  /** Each document the graph was read from, at the version it was read. */
+  sources?: Array<{ uri: string; version: number | null }>;
 }
 
 /**
@@ -2018,25 +2327,19 @@ async function openRuleInScratchEditor(rule: RuleInfo): Promise<void> {
  */
 async function extractRuleAtCursor(): Promise<void> {
   const editor = window.activeTextEditor;
-  if (!editor || !client) {
+  const send = serverCommandSender();
+  if (!editor || !send) {
     window.showWarningMessage("Open a BIG-IP configuration file first.");
     return;
   }
 
-  const uri = editor.document.uri.toString();
-  const offset = editor.document.offsetAt(editor.selection.active);
-
-  const result: RuleInfo | null = await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.extractRule",
-    arguments: [uri, offset],
-  });
-
-  if (!result) {
-    window.showWarningMessage("Cursor is not inside an ltm rule or gtm rule block.");
+  const result = await requestRuleAtCursor(send, editor);
+  if (typeof result === "string") {
+    window.showWarningMessage(result);
     return;
   }
 
-  await openRuleInScratchEditor(result);
+  await ruleScratchEditors.open(result);
 }
 
 /**
@@ -2051,12 +2354,13 @@ async function extractRulePick(): Promise<void> {
   }
 
   const uri = editor.document.uri.toString();
-  const rules: RuleInfo[] | null = await client.sendRequest("workspace/executeCommand", {
+  const listed: unknown = await client.sendRequest("workspace/executeCommand", {
     command: "tcl-lsp.listRules",
     arguments: [uri],
   });
+  const rules = Array.isArray(listed) ? listed.filter(isRuleInfo) : [];
 
-  if (!rules || rules.length === 0) {
+  if (rules.length === 0) {
     window.showInformationMessage("No ltm rule or gtm rule blocks found in this file.");
     return;
   }
@@ -2072,7 +2376,7 @@ async function extractRulePick(): Promise<void> {
   });
 
   if (picked) {
-    await openRuleInScratchEditor(picked.rule);
+    await ruleScratchEditors.open(picked.rule);
   }
 }
 
@@ -2130,31 +2434,20 @@ async function extractAllRules(): Promise<void> {
  */
 async function extractLinkedObjectsAtCursor(): Promise<void> {
   const editor = window.activeTextEditor;
-  if (!editor || !client) {
+  const send = serverCommandSender();
+  if (!editor || !send) {
     window.showWarningMessage("Open a BIG-IP configuration file first.");
     return;
   }
 
-  // Collect all cursor/selection positions across the editor.
-  const selections = editor.selections;
-  const primaryUri = editor.document.uri.toString();
-  const primaryOffset = editor.document.offsetAt(selections[0].active);
-
-  // Additional cursors beyond the first are sent as extra_offsets.
-  const extraOffsets: Array<[string, number]> = [];
-  for (let i = 1; i < selections.length; i++) {
-    extraOffsets.push([primaryUri, editor.document.offsetAt(selections[i].active)]);
+  // Every cursor, as a position in the document version it was read from.
+  const answer = await requestLinkedObjects(send, editor);
+  if (unavailableReason(answer) === "stale") {
+    window.showWarningMessage("The configuration file changed while it was being read. Try again.");
+    return;
   }
-
-  const result: BigipLinkedObjectResult | null = await client.sendRequest(
-    "workspace/executeCommand",
-    {
-      command: "tcl-lsp.extractLinkedObjects",
-      arguments: [primaryUri, primaryOffset, 5, 400, extraOffsets.length > 0 ? extraOffsets : null],
-    },
-  );
-
-  if (!result) {
+  const result = answer as BigipLinkedObjectResult | null;
+  if (!result || unavailableReason(answer) !== undefined) {
     window.showWarningMessage("No BIG-IP object found at cursor.");
     return;
   }
@@ -2221,37 +2514,3 @@ async function generateBigipCleanupScript(): Promise<void> {
     viewColumn: vscode.ViewColumn.Beside,
   });
 }
-
-// Listen for saves on scratch documents and write changes back to the
-// original configuration file.
-vscode.workspace.onDidSaveTextDocument(async (doc) => {
-  const entry = scratchRuleMap.get(doc.uri.toString());
-  if (!entry || !client) {
-    return;
-  }
-
-  const newBody = doc.getText();
-  if (newBody === entry.originalBody) {
-    return; // No changes
-  }
-
-  const ok: boolean = await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.writeRuleBack",
-    arguments: [entry.sourceUri, entry.bodyStartOffset, entry.bodyEndOffset, newBody],
-  });
-
-  if (ok) {
-    // Update offsets for the next save (body length may have changed).
-    const delta = newBody.length - (entry.bodyEndOffset - entry.bodyStartOffset);
-    entry.bodyEndOffset += delta;
-    entry.originalBody = newBody;
-    window.showInformationMessage("iRule written back to configuration file.");
-  } else {
-    window.showWarningMessage("Failed to write iRule back to configuration file.");
-  }
-});
-
-// Clean up tracking when scratch documents are closed.
-vscode.workspace.onDidCloseTextDocument((doc) => {
-  scratchRuleMap.delete(doc.uri.toString());
-});

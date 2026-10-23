@@ -40,7 +40,15 @@ interpreter-fallback path, or an explicit not-required classification.
   the numeric tower (and therefore `expr` and the math commands) compiles only
   when a libtommath C source tree is found (`$TCL_TOMMATH_DIR`, else
   `tmp/tcl9.0.4/libtommath`). `make runtime-rust-test-no-tommath` covers the
-  build without it.
+  build without it. Set `TCL_RUNTIME_EXPECT_NO_TOMMATH=1` only when source
+  absence is intentional. This asserts the result of normal source discovery;
+  it does not disable a backend that is present. A found source tree or any
+  value other than `1` makes the asserted build fail. Leave the variable unset
+  for normal builds; unexpected absence retains its build warning.
+  Intentional absence emits Cargo capability metadata and
+  `OUT_DIR/tommath-capability.json` with `detected: false` and
+  `intentional_absence: true`. The build withdraws that file before every
+  rerun, so a changed expectation or backend cannot retain stale status.
 - On `wasm32-unknown-unknown` the native-only paths — coroutines (native stack
   swap plus threads) and the libtommath tower — are cfg-disabled.
 

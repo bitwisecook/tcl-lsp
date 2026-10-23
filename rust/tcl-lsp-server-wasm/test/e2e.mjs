@@ -29,6 +29,7 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
+import { runNamingHostProof } from "../../../scripts/dev/lsp-naming-host-proof.mjs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { runInThisContext } from "node:vm";
@@ -184,6 +185,8 @@ class Session {
         this.nextId = 1;
         this.pending = new Map();
         this.diagnostics = new Map();
+        this.documentVersions = new Map();
+        this.diagnosticPublications = new Map();
         this.logs = [];
         this.worker = new LspWorker((text) => this.receive(text));
     }
@@ -204,6 +207,12 @@ class Session {
     handleServerMessage(message) {
         if (message.method === "textDocument/publishDiagnostics") {
             this.diagnostics.set(message.params.uri, message.params.diagnostics);
+            const document = this.documentVersions.get(message.params.uri)?.get(message.params.version);
+            this.diagnosticPublications.set(message.params.uri, {
+                version: message.params.version,
+                source: document?.source,
+                diagnostics: message.params.diagnostics,
+            });
         } else if (message.method === "window/logMessage") {
             this.logs.push(message.params.message);
         }
@@ -223,6 +232,21 @@ class Session {
     }
 
     notify(method, params) {
+        if (method === "textDocument/didOpen" || method === "textDocument/didChange") {
+            const uri = params.textDocument.uri;
+            const version = params.textDocument.version;
+            const source = method === "textDocument/didOpen"
+                ? params.textDocument.text
+                : params.contentChanges.at(-1)?.text;
+            if (source !== undefined) {
+                let versions = this.documentVersions.get(uri);
+                if (!versions) {
+                    versions = new Map();
+                    this.documentVersions.set(uri, versions);
+                }
+                versions.set(version, { source });
+            }
+        }
         this.post({ jsonrpc: "2.0", method, params });
     }
 
@@ -321,6 +345,12 @@ async function workspaceSession(wasmBindgen) {
         "vfs_upsert_spec_pack refuses a name that escapes the mount",
         escapes.every((name) => session.worker.vfs_upsert_spec_pack(name, "speclib bad 1 {}\n") === false),
     );
+    check(
+        "vfs_is_safe_spec_pack_name agrees with pack upsert path admission",
+        [HOST_PACK_NAME, "nested/資料.tclspec"].every((name) =>
+            session.worker.vfs_is_safe_spec_pack_name(name) === true,
+        ) && escapes.every((name) => session.worker.vfs_is_safe_spec_pack_name(name) === false),
+    );
     check("the store holds the workspace before initialize", session.worker.vfs_len() === 5);
 
     await session.request("initialize", {
@@ -400,6 +430,8 @@ async function workspaceSession(wasmBindgen) {
         autoUris.some((u) => u.endsWith("/tmp/mypkg/impl.tcl")),
         JSON.stringify(autoUris),
     );
+
+    await runNamingHostProof(session, "file:///ws/host-naming.tcl", check, (uri, source) => session.worker.vfs_upsert(uri, source));
 
     const shutdown = await session.request("shutdown", null);
     check("the workspace session shuts down", shutdown.error === undefined);
@@ -571,13 +603,15 @@ async function main() {
 
     // Break it, and expect the analyser to say so.
     session.diagnostics.delete(SPEC_URI);
+    session.diagnosticPublications.delete(SPEC_URI);
     session.notify("textDocument/didChange", {
         textDocument: { uri: SPEC_URI, version: 2 },
         contentChanges: [{ text: SPEC_SOURCE_BROKEN }],
     });
     const broken = await until(() => {
-        const diags = session.diagnostics.get(SPEC_URI);
-        return diags && diags.length > 0 ? diags : null;
+        const publication = session.diagnosticPublications.get(SPEC_URI);
+        return publication?.version === 2 && publication.source === SPEC_SOURCE_BROKEN &&
+            publication.diagnostics.length > 0 ? publication.diagnostics : null;
     });
     check(
         "a broken document produces at least one diagnostic",

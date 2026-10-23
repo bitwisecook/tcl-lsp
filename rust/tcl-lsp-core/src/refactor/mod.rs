@@ -52,99 +52,105 @@
 
 mod brace_expr;
 mod datagroup;
+pub mod equality_source;
 mod extract_proc;
 mod extract_variable;
 mod if_to_switch;
 mod inline_proc;
 mod inline_variable;
+mod source_command;
+mod source_rewrite;
 mod switch_to_dict;
 
 pub use brace_expr::brace_expr;
 pub use datagroup::{
-    DataGroupDefinition, data_group_tcl, extract_to_datagroup, extract_to_datagroup_from_if,
-    extract_to_datagroup_from_switch,
+    DataGroupDefinition, OriginalExactCaseSource, OriginalExactSwitchSource,
+    OriginalScalarVariableSubject, ScalarVariableSourceSyntax, data_group_tcl,
+    extract_to_datagroup, extract_to_datagroup_from_if, extract_to_datagroup_from_switch,
+    extract_to_datagroup_with_analysis, original_exact_case_source_at_analysis,
+    original_exact_switch_source_at_analysis, scalar_variable_source_syntax,
 };
-pub use extract_proc::{extract_proc, extract_proc_rename_command};
+pub use extract_proc::{
+    extract_proc, extract_proc_rename_command, extract_proc_rename_command_for_analysis,
+};
 pub use extract_variable::extract_variable;
 pub use if_to_switch::if_to_switch;
 pub use inline_proc::{inline_proc, inline_proc_in_program};
 pub use inline_variable::inline_variable;
+pub use source_command::find_original_command_at;
 pub use switch_to_dict::switch_to_dict;
 
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
-use tcl_dialect::BracedVarStyle;
-use tcl_lexer::{LexerConfig, LineIndex, Token, TokenType};
+use tcl_lexer::{LexerConfig, LineIndex};
+#[cfg(test)]
+use tcl_lexer::{Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
-use tcl_syntax::switch_body::parse_braced_pairs;
 
 use crate::definition::LspRange;
 
-/// The `${…}` close rule the document's dialect uses.
-///
-/// A refactor rewrites *text*, so reading a variable name by one release's
-/// rule while the document is another's changes what the edit means: on a
-/// Tcl 9 document `${a{b}c}` is one variable named `a{b}c`, but the 8.x
-/// first-`}` rule reads `a{b` and leaves `c}` looking like ordinary word
-/// text.
-pub(crate) fn braced_var_style(
-    analysis: &tcl_compiler::analyser::AnalysisResult,
-) -> BracedVarStyle {
-    crate::profile_for_dialect(&analysis.dialect)
-        .grammar
-        .braced_var
+/// An original variable component's name data and complete written extent.
+/// Array shape supplies no scalar capture or replacement permission.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct VariableReference {
+    name: String,
+    span: tcl_lexer::Span,
+    array: bool,
 }
 
-/// Every `$name` / `${name}` reference in `text`, as
-/// `(name, start, end)` byte offsets covering the whole reference
-/// (`$` through the closing `}`).
-///
-/// The braced form is delimited by [`tcl_lexer::braced_var_name_end`] — the
-/// one release-aware `Tcl_ParseVarName` port — rather than a `find('}')`,
-/// so a brace-bearing name is read the way the document's own release reads
-/// it. An unterminated `${` is not a reference: it is a parse error in the
-/// document, and inventing a name for it would put that name into a
-/// generated parameter list.
-///
-/// Array elements are **not** reduced here; a caller that wants the array's
-/// own name (extract-proc's captured set) trims at the `(`.
-pub(crate) fn variable_reference_spans(
-    text: &str,
-    style: BracedVarStyle,
-) -> Vec<(String, usize, usize)> {
-    let bytes = text.as_bytes();
-    let mut out = Vec::new();
-    let mut index = 0usize;
-    while index < bytes.len() {
-        if bytes[index] != b'$' {
-            index += 1;
-            continue;
+fn component_variable_references(
+    source: &str,
+    arenas: &[tcl_lexer::ExecutablePartArena],
+    config: LexerConfig,
+) -> Option<Vec<VariableReference>> {
+    let mut references = std::collections::BTreeMap::new();
+    for arena in arenas {
+        if arena.image().bytes() != source.as_bytes() {
+            return None;
         }
-        if bytes.get(index + 1) == Some(&b'{') {
-            let name_start = index + 2;
-            if let tcl_lexer::BracedVarEnd::Closed(close) =
-                tcl_lexer::braced_var_name_end(bytes, name_start, style)
-            {
-                out.push((text[name_start..close].to_string(), index, close + 1));
-                index = close + 1;
-                continue;
+        for part in arena.all_parts() {
+            match part.part {
+                tcl_lexer::ExecutablePart::Variable { .. } => {
+                    let text = arena.bytes(part.span)?;
+                    let reference = tcl_lexer::word_parts::whole_var_ref(text, config).ok()??;
+                    let root =
+                        tcl_syntax::naming::variable_reference_root_bytes(text, config).ok()??;
+                    let name = std::str::from_utf8(root).ok()?;
+                    if name.contains('\0') {
+                        return None;
+                    }
+                    let selected = VariableReference {
+                        name: name.to_owned(),
+                        span: part.span,
+                        array: reference.index.is_some()
+                            || tcl_syntax::naming::split_element_ref_bytes(reference.name)
+                                .is_some(),
+                    };
+                    if let Some(previous) =
+                        references.insert((part.span.start(), part.span.end()), selected.clone())
+                        && previous != selected
+                    {
+                        return None;
+                    }
+                }
+                tcl_lexer::ExecutablePart::ParseError(_)
+                | tcl_lexer::ExecutablePart::Expression { .. } => return None,
+                tcl_lexer::ExecutablePart::Command { .. } | tcl_lexer::ExecutablePart::Text(_) => {}
             }
-            index += 1;
-            continue;
-        }
-        let mut end = index + 1;
-        while end < bytes.len()
-            && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_' || bytes[end] == b':')
-        {
-            end += 1;
-        }
-        if end > index + 1 {
-            out.push((text[index + 1..end].to_string(), index, end));
-            index = end;
-        } else {
-            index += 1;
         }
     }
-    out
+    Some(references.into_values().collect())
+}
+
+#[cfg(test)]
+fn syntax_variable_references(text: &str, config: LexerConfig) -> Option<Vec<VariableReference>> {
+    let arena = tcl_lexer::ExecutablePartArena::decompose(
+        tcl_lexer::SourceImage::document(text),
+        tcl_lexer::Span::new(0, u32::try_from(text.len()).ok()?),
+        tcl_lexer::SubstFlags::default(),
+        config,
+    )
+    .ok()?;
+    component_variable_references(text, &[arena], config)
 }
 
 /// A single text replacement, in byte-offset space.
@@ -184,6 +190,13 @@ impl RefactorEdit {
 /// The outcome of a refactoring transform — a titled set of edits plus
 /// the LSP code-action kind.
 ///
+/// Explicit Logical source-authoring recipes are conditional authored source
+/// proposals. Their enabled edits retain current source intent, original
+/// correspondence and purpose-specific guards, not an unconditional runtime
+/// equivalence, completed store/value, observer or reached-frame certificate.
+/// These unresolved obligations remain with the source-authoring purpose; the
+/// separate Native and execution-preserving rewrite admission APIs are unchanged.
+///
 /// `data_group` carries the rendered tmsh definition for the
 /// extract-to-datagroup transform and is `None` for every other
 /// transform.
@@ -201,11 +214,15 @@ pub struct Refactoring {
     pub data_group: Option<DataGroupDefinition>,
     /// Why this refactoring cannot be applied here, when it cannot.
     ///
-    /// A transform that finds its subject but *cannot preserve behaviour* says
-    /// so rather than vanishing: the reason is surfaced as the code action's
-    /// LSP `disabled.reason`, so the editor greys the entry out and explains
-    /// itself.  Silently offering nothing leaves a user unable to tell "this
-    /// refactoring does not apply here" from "this refactoring is broken".
+    /// An execution-preserving transform that finds its subject but *cannot
+    /// preserve behaviour* says so rather than vanishing: the reason is surfaced
+    /// as the code action's LSP `disabled.reason`, so the editor greys the entry
+    /// out and explains itself. Explicit Logical source-authoring recipes instead
+    /// retain conditional source intent and its unresolved runtime obligations,
+    /// as described on [`Refactoring`]; they do not turn that intent into an
+    /// execution-equivalence certificate. A failed source recipe emits no edits.
+    /// Silently offering nothing leaves a user unable to tell "this refactoring
+    /// does not apply here" from "this refactoring is broken".
     pub disabled: Option<String>,
 }
 
@@ -244,6 +261,7 @@ impl Refactoring {
 /// closer, so widening would overshoot; the discriminator is whether the
 /// token text is empty (the closer is already covered), exactly as the
 /// segmenter's `widen_word_end`.
+#[cfg(test)]
 #[must_use]
 pub fn token_end_offset(source: &str, tok: Token) -> u32 {
     let bytes = source.as_bytes();
@@ -278,38 +296,379 @@ pub fn token_end_offset(source: &str, tok: Token) -> u32 {
     }
 }
 
-/// The document facts a same-frame statement walk needs, built once per
-/// refactoring.
-///
-/// `nesting` is deliberately the **document's own** registry rather than the
-/// caller's: which nested words are same-frame scripts is a question
-/// [`crate::references::nested_dispatch_regions`] answers from the dialect
-/// profile's registry (a `switch` clause list reaches its arm bodies only
-/// through that registry's `CaseListSpec`), whereas the argument roles a
-/// refactoring classifies stay its own to decide.
-///
-/// `source` is whatever text the walk will address — a whole document for a
-/// transform that works in document coordinates, a proc body for one that has
-/// re-segmented that body on its own.
-pub(crate) struct FrameWalk {
-    dialect: &'static tcl_dialect::DialectProfile,
-    nesting: &'static CommandRegistry,
-    identities: tcl_compiler::realm::CommandBindingRealm,
-    config: LexerConfig,
-    expr_surface: tcl_registry::expr_surface::RuntimeExprSurface,
+/// The selected template facet remains distinct from a non-template command;
+/// unavailable source/options stay in the independent outer Option.
+pub(crate) enum TemplateSubstitution {
+    /// The selected command performs no template substitution.
+    NotSubstitution,
+    /// The selected descriptor owns these template-kind metadata flags.
+    Selected(tcl_registry::substitution::SubstitutionKinds),
 }
 
-impl FrameWalk {
-    pub(crate) fn new(source: &str, analysis: &tcl_compiler::analyser::AnalysisResult) -> Self {
-        let dialect = crate::profile_for_dialect(&analysis.dialect);
-        let nesting = crate::registry_for_dialect_profile(dialect);
-        Self {
+/// Refactoring traversal over the actual retained document configuration and
+/// positioned command owner. Conditional structure cannot certify execution.
+pub(crate) struct FrameWalk<'a> {
+    analysis: &'a tcl_compiler::analyser::AnalysisResult,
+    dialect: &'static tcl_dialect::DialectProfile,
+    nesting: &'a CommandRegistry,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
+    lexical: bool,
+    complete: std::cell::Cell<bool>,
+    config: LexerConfig,
+}
+
+impl<'a> FrameWalk<'a> {
+    pub(crate) fn new(
+        source: &str,
+        analysis: &'a tcl_compiler::analyser::AnalysisResult,
+    ) -> Option<Self> {
+        let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        let config = current.config();
+        let dialect = current.profile();
+        Some(Self {
+            analysis,
             dialect,
-            nesting,
-            identities: tcl_compiler::realm::document_realm_bindings(source, dialect, nesting),
-            config: LexerConfig::from_grammar(dialect.grammar),
-            expr_surface: tcl_registry::expr_surface::RuntimeExprSurface::for_profile(dialect),
+            nesting: current.registry(),
+            identities: analysis.retained_command_realm()?,
+            lexical: analysis.allows_lexical_declaration_advice(),
+            complete: std::cell::Cell::new(true),
+            config,
+        })
+    }
+
+    pub(crate) fn complete(&self) -> bool {
+        self.complete.get()
+    }
+
+    pub(crate) fn tokens(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> tcl_compiler::ir::CommandTokens {
+        let mut tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            self.config,
+            command,
+        );
+        self.identities.stamp_original_tokens(&mut tokens);
+        tokens
+    }
+
+    pub(crate) fn structure(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<tcl_compiler::registry_invocation::ResolvedStatementInvocation> {
+        tcl_compiler::registry_invocation::original_structured_invocation_with_metadata_context(
+            self.nesting,
+            self.metadata_context()?,
+            &self.tokens(source, command),
+        )
+    }
+
+    /// Borrow complete metadata from this actual document owner. Missing,
+    /// foreign or changed source policy cannot reopen standalone assistance.
+    pub(crate) fn metadata_context(
+        &self,
+    ) -> Option<tcl_compiler::registry_invocation::InvocationMetadataContext<'a>> {
+        tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+            self.nesting,
+            self.analysis.resolved_input.as_ref()?,
+            self.config,
+            Some(self.dialect),
+        )
+    }
+
+    /// Selected conditional source roles and captured values at this actual
+    /// command point. No Native dispatch or editing permission follows.
+    pub(crate) fn source_words(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords> {
+        tcl_compiler::registry_invocation::source_structure::source_registry_words(
+            source,
+            self.analysis,
+            command,
+        )
+    }
+
+    pub(crate) fn source_context(&self) -> std::sync::Arc<tcl_registry::model::ContextRegistry> {
+        self.analysis
+            .resolved_input
+            .as_ref()
+            .expect("captured actual input")
+            .context_registry()
+    }
+
+    pub(crate) fn source_traits(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<tcl_registry::Traits> {
+        self.source_words(source, command)?.with_source_schema(
+            &self.analysis.resolved_input.as_ref()?.context_registry(),
+            |schema| schema.semantics.traits,
+        )
+    }
+
+    /// Unknown selected options withdraw the template query; a command that
+    /// performs no template substitution retains that separate answer.
+    pub(crate) fn substitution_kinds(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<TemplateSubstitution> {
+        self.source_words(source, command)?.with_source_schema(
+            &self.analysis.resolved_input.as_ref()?.context_registry(),
+            |schema| {
+                if schema
+                    .semantics
+                    .traits
+                    .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
+                {
+                    schema
+                        .authored_source_substitution_proposal(schema.words.arguments())
+                        .map(TemplateSubstitution::Selected)
+                } else {
+                    Some(TemplateSubstitution::NotSubstitution)
+                }
+            },
+        )?
+    }
+
+    pub(crate) fn native_words(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<Vec<tcl_lexer::NativeWord>> {
+        tcl_compiler::registry_invocation::original_native_compiler_words(
+            &tcl_lexer::SourceImage::document(source),
+            self.tokens(source, command).words(),
+            command.argv.first()?.span.start(),
+            self.config,
+        )
+    }
+
+    /// Complete original command geometry from its unchanged whole words.
+    /// Reporting token spans can omit a variable closer; these source extents
+    /// supply no command relocation, frame or capture permission.
+    pub(crate) fn command_span_offsets(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<(u32, u32)> {
+        self.analysis
+            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), self.config)
+            .then_some(())?;
+        let words = self.native_words(source, command)?;
+        Some((words.first()?.span().start(), words.last()?.span().end()))
+    }
+
+    /// Exact word and expression components under the selected conditional
+    /// grammar. Braced data is never scanned as a variable or script.
+    pub(crate) fn components(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<Vec<tcl_lexer::ExecutablePartArena>> {
+        let words = self.native_words(source, command)?;
+        let selected = self.source_words(source, command)?;
+        selected.roles()?;
+        let mut arenas = words
+            .iter()
+            .map(|word| word.executable_parts().clone())
+            .collect::<Vec<_>>();
+        for (written, role) in selected.written_argument_roles() {
+            if role != ArgRole::Expr {
+                continue;
+            }
+            let word = words.get(written.checked_add(1)?)?;
+            if word.group().kind != tcl_lexer::WordKind::Braced {
+                continue;
+            }
+            let span = word.content_span().ok()?;
+            selected.source_expression_script_bodies_at(
+                self.analysis.resolved_input.as_ref()?,
+                span.start(),
+            )?;
+            let expression = word.image().bytes().get(span.as_range())?;
+            let (tokens, unknown) = tcl_lexer::tokenise_expr_bytes_checked_with_expression_grammar(
+                expression,
+                &self.config.grammar_over(self.dialect.grammar),
+                self.dialect.expr_grammar_base,
+                self.dialect.f5_core_expr_grammar(),
+            );
+            if unknown {
+                return None;
+            }
+            for term in tcl_lexer::expression_terms(expression, &tokens, self.config)? {
+                let relative = match term.kind {
+                    tcl_lexer::ExprTermKind::Variable
+                    | tcl_lexer::ExprTermKind::IndexedVariable
+                    | tcl_lexer::ExprTermKind::Command => term.source,
+                    tcl_lexer::ExprTermKind::EscapedString => term.value,
+                    tcl_lexer::ExprTermKind::Number
+                    | tcl_lexer::ExprTermKind::Boolean
+                    | tcl_lexer::ExprTermKind::String => continue,
+                };
+                let part = tcl_lexer::Span::new(
+                    span.start().checked_add(relative.start)?,
+                    span.start().checked_add(relative.end)?,
+                );
+                arenas.push(
+                    tcl_lexer::ExecutablePartArena::decompose(
+                        word.image().clone(),
+                        part,
+                        tcl_lexer::word_parts::SubstFlags::default(),
+                        self.config,
+                    )
+                    .ok()?,
+                );
+            }
         }
+        if let TemplateSubstitution::Selected(kinds) = self.substitution_kinds(source, command)? {
+            let variables = match selected.dialect()?.family()? {
+                tcl_dialect::model::Family::Tcl => {
+                    tcl_lexer::word_parts::TemplateVariableSyntax::CTcl
+                }
+                tcl_dialect::model::Family::Jim => {
+                    tcl_lexer::word_parts::TemplateVariableSyntax::Jim084
+                }
+                _ => return None,
+            };
+            for word in words
+                .iter()
+                .skip(1)
+                .filter(|word| word.group().kind == tcl_lexer::WordKind::Braced)
+            {
+                arenas.push(
+                    tcl_lexer::ExecutablePartArena::decompose_template(
+                        word.image().clone(),
+                        word.content_span().ok()?,
+                        tcl_lexer::word_parts::SubstFlags {
+                            vars: kinds.variables,
+                            cmds: kinds.commands,
+                            backslashes: kinds.backslashes,
+                            ..Default::default()
+                        },
+                        self.config,
+                        variables,
+                    )
+                    .ok()?,
+                );
+            }
+        }
+        Some(arenas)
+    }
+
+    /// References only from this actual command's selected original components.
+    /// The same-frame walker owns command/body descent separately.
+    pub(crate) fn variable_references(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<Vec<VariableReference>> {
+        component_variable_references(source, &self.components(source, command)?, self.config)
+    }
+
+    fn original_regions(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+        structural: bool,
+    ) -> Option<Vec<(usize, usize)>> {
+        let selected = self.structure(source, command)?;
+        let tokens = self.tokens(source, command);
+        let words = self.native_words(source, command)?;
+        let mut regions = Vec::new();
+        if !structural {
+            for arena in self.components(source, command)? {
+                for part in arena.all_parts() {
+                    match part.part {
+                        tcl_lexer::ExecutablePart::Command { body } => {
+                            regions.push((body.start() as usize, body.end() as usize));
+                        }
+                        tcl_lexer::ExecutablePart::ParseError(_)
+                        | tcl_lexer::ExecutablePart::Expression { .. } => return None,
+                        _ => {}
+                    }
+                }
+            }
+        }
+        let body_kind_matches = if structural {
+            selected.facts.body_kind == tcl_registry::BodyKind::Structural
+        } else {
+            selected.facts.body_kind == tcl_registry::BodyKind::Plain
+        };
+        let body_span = |argument: usize, element: Option<usize>| -> Option<tcl_lexer::Span> {
+            let origin = selected.effective.origins.get(argument.checked_add(1)?)?;
+            let tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written) = origin
+            else {
+                return None;
+            };
+            let word = words.get(*written)?;
+            if let Some(element) = element {
+                let parent = tokens
+                    .source_binding
+                    .as_ref()?
+                    .original_written_name_input(&tokens, *written)?;
+                let children = parent.original_list_elements_with_source_spans()?;
+                let (child, span) = children.get(element)?;
+                let span = (*span)?;
+                let raw = word.image().bytes().get(span.as_range())?;
+                (tcl_syntax::backslash::native_source_literal_bytes(
+                    raw,
+                    word.image().channel(),
+                    child.policy().string_protocol(),
+                )
+                .ok()?
+                .as_ref()
+                    == child.bytes())
+                .then_some(span)
+            } else {
+                (word.group().kind == tcl_lexer::WordKind::Braced && !word.group().expand)
+                    .then_some(())?;
+                word.content_span().ok()
+            }
+        };
+        if body_kind_matches {
+            use tcl_compiler::registry_invocation::AuthoredSourceCaseBodySelection;
+            match selected.authored_case_body_selection.as_ref()? {
+                AuthoredSourceCaseBodySelection::Selected(cases) => {
+                    if cases.selection_unknown {
+                        return None;
+                    }
+                    for body in &cases.bodies {
+                        let span = body_span(body.argument, body.list_element)?;
+                        regions.push((span.start() as usize, span.end() as usize));
+                    }
+                }
+                AuthoredSourceCaseBodySelection::Unavailable => return None,
+                AuthoredSourceCaseBodySelection::NotCase => {
+                    for &(index, role) in &selected.facts.arg_roles {
+                        if role != ArgRole::Body {
+                            continue;
+                        }
+                        let span =
+                            body_span(selected.facts.argument_offset + usize::from(index), None)?;
+                        regions.push((span.start() as usize, span.end() as usize));
+                    }
+                }
+            }
+        }
+        if structural {
+            for &(index, role) in &selected.facts.arg_roles {
+                if role != ArgRole::LambdaLiteral {
+                    continue;
+                }
+                let span = body_span(selected.facts.argument_offset + usize::from(index), Some(1))?;
+                regions.push((span.start() as usize, span.end() as usize));
+            }
+        }
+        regions.sort_unstable();
+        regions.dedup();
+        Some(regions)
     }
 
     /// Every command nested inside `command` that still runs in `command`'s
@@ -343,6 +702,7 @@ impl FrameWalk {
         out: &mut Vec<SegmentedCommand>,
     ) {
         if crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
+            self.complete.set(false);
             return;
         }
         for (start, end) in self.same_frame_regions(source, command) {
@@ -352,7 +712,7 @@ impl FrameWalk {
             for nested in segment_commands_with_offset_and_config(
                 text,
                 u32::try_from(start).unwrap_or(0),
-                self.config,
+                self.config.nested(),
             ) {
                 if nested.name().is_empty() {
                     continue;
@@ -363,179 +723,108 @@ impl FrameWalk {
         }
     }
 
-    /// `text`, segmented at its real offset in the walked source.
-    pub(crate) fn segment(&self, text: &str, offset: u32) -> Vec<SegmentedCommand> {
-        segment_commands_with_offset_and_config(text, offset, self.config)
+    /// Segment the actual complete document under its retained file policy.
+    /// Only the initial document traversal calls this method. Currency checks
+    /// validate the supplied source; they never select a parsing purpose.
+    pub(crate) fn segment_document(&self, source: &str) -> Vec<SegmentedCommand> {
+        if !self
+            .analysis
+            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), self.config)
+        {
+            self.complete.set(false);
+            return Vec::new();
+        }
+        segment_commands_with_offset_and_config(source, 0, self.config)
+    }
+
+    /// Segment an extracted body, substitution or selection at its real offset.
+    /// Even an equal copy or a region at offset zero has nested parsing purpose.
+    /// Parent tokens, input and current source receipts retain their full policy.
+    pub(crate) fn segment_nested(&self, text: &str, offset: u32) -> Vec<SegmentedCommand> {
+        segment_commands_with_offset_and_config(text, offset, self.config.nested())
     }
 
     /// The regions of `command` that run in `command`'s own variable frame.
     ///
-    /// [`crate::references::nested_dispatch_regions`] owns the script ones. It
-    /// cannot see inside a *braced* expression argument, which the script
-    /// lexer treats as one opaque word and `expr` substitutes itself, so
-    /// `if {[set x 1]} …` would hide a write to the caller's `x`.  Those spans
-    /// come from [`tcl_syntax::expr::substitution::command_substitution_spans`],
-    /// the expression owner's own script bridge, gated on the dialect's
-    /// runtime expression surface: an expression the release would reject at
-    /// run time substitutes nothing.
+    /// Genuine selected source bodies and original word/expression/template
+    /// components own these regions under the complete current input. Unknown
+    /// schema, grammar or template switches mark the traversal incomplete.
     pub(crate) fn same_frame_regions(
         &self,
         source: &str,
         command: &SegmentedCommand,
     ) -> Vec<(usize, usize)> {
-        let mut regions = crate::references::nested_dispatch_regions_with_identities(
-            source,
-            self.dialect,
-            self.nesting,
-            &self.identities,
-            command,
-        );
-        self.push_expression_substitutions(source, command, &mut regions);
-        self.push_substituted_commands(source, command, &mut regions);
-        regions
+        if !self.lexical {
+            return self
+                .original_regions(source, command, false)
+                .unwrap_or_else(|| {
+                    self.complete.set(false);
+                    Vec::new()
+                });
+        }
+        self.source_regions(source, command, false)
+            .unwrap_or_else(|| {
+                self.complete.set(false);
+                Vec::new()
+            })
     }
 
-    /// The `[…]` a substituting command runs out of its own argument text.
-    ///
-    /// `subst {a[set x 1]b}` evaluates that bracket in the caller's frame, but
-    /// the argument is one braced word to the script lexer, so the dispatch
-    /// walker cannot see inside it. The regions are the call's template-word
-    /// plan's (`subst -nocommands` leaves its brackets as text, and an array
-    /// index runs its own whatever the switches say), so nothing here
-    /// re-derives which brackets run; a substituting command with no plan of
-    /// its own keeps the registry's per-call answer and the closer
-    /// [`tcl_lexer::command_substitution_end`] finds.
-    fn push_substituted_commands(
+    fn source_regions(
         &self,
         source: &str,
         command: &SegmentedCommand,
-        out: &mut Vec<(usize, usize)>,
-    ) {
-        let head = command.name();
-        let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-        if let Some(plan) = tcl_compiler::value_transfer::literal_template_plan(
-            self.nesting,
-            head,
-            &args,
-            |index| source_word(source, command, &args, index),
-        ) {
-            // Only a braced template hides its brackets from the script
-            // lexer; an unbraced one's are dispatch regions already.
-            let Some(token) = command.argv.get(plan.operand.0 + 1) else {
-                return;
-            };
-            if !plan.braced {
-                return;
-            }
-            let word = token.span.start() as usize;
-            for region in &plan.script_regions {
-                // The script inside the brackets is what runs.
-                let from = word + region.span.start() as usize + 1;
-                let to = (word + region.span.end() as usize).saturating_sub(1);
-                if from < to {
-                    out.push((from, to));
+        structural: bool,
+    ) -> Option<Vec<(usize, usize)>> {
+        let words = self.source_words(source, command)?;
+        words.roles()?;
+        let context = self.analysis.resolved_input.as_ref()?.context_registry();
+        let kind = words.with_source_schema(&context, |schema| schema.semantics.body_kind)?;
+        let mut regions = Vec::new();
+        if !structural {
+            for arena in self.components(source, command)? {
+                for part in arena.all_parts() {
+                    match part.part {
+                        tcl_lexer::ExecutablePart::Command { body } => {
+                            regions.push((body.start() as usize, body.end() as usize));
+                        }
+                        tcl_lexer::ExecutablePart::ParseError(_)
+                        | tcl_lexer::ExecutablePart::Expression { .. } => return None,
+                        _ => {}
+                    }
                 }
             }
-            return;
         }
-        if !self
-            .nesting
-            .substitutions_performed(head, &args)
-            .is_some_and(|kinds| kinds.commands)
+        if kind
+            == if structural {
+                tcl_registry::BodyKind::Structural
+            } else {
+                tcl_registry::BodyKind::Plain
+            }
         {
-            return;
-        }
-        for token in command.argv.iter().skip(1) {
-            // Only a braced literal hides its brackets from the script lexer;
-            // an unbraced or quoted word has already been substituted, so its
-            // brackets are dispatch regions already.
-            if token.kind != TokenType::Str
-                || token.content_offset != 1
-                || source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
+            let bodies = words.source_script_bodies_for_mutation_coverage(&context)?;
+            if !structural
+                && bodies
+                    .iter()
+                    .any(|body| !body.inherits_immediate_caller_source_context(&context))
             {
-                continue;
+                return None;
             }
-            let start = token.span.start() as usize + token.content_offset as usize;
-            let end = token.span.end() as usize;
-            let Some(text) = source.get(start..end) else {
-                continue;
-            };
-            let mut at = 0;
-            // An unterminated `[` closes at end-of-text, so the cursor is
-            // clamped rather than stepped past the closer.
-            while let Some(offset) = text.get(at..).and_then(|rest| rest.find('[')) {
-                let open = at + offset;
-                // The closer reports one byte past the `]`; the script inside
-                // the brackets is what runs.
-                let Some(after) = tcl_lexer::command_substitution_end(text, open) else {
-                    break;
-                };
-                let inner_end = if text.as_bytes().get(after - 1) == Some(&b']') {
-                    after - 1
-                } else {
-                    after
-                };
-                if open + 1 < inner_end {
-                    out.push((start + open + 1, start + inner_end));
-                }
-                at = after.min(text.len());
-                if at >= text.len() {
-                    break;
-                }
-            }
+            regions.extend(bodies.into_iter().map(|body| {
+                let span = body.content_span();
+                (span.start() as usize, span.end() as usize)
+            }));
         }
-    }
-
-    fn push_expression_substitutions(
-        &self,
-        source: &str,
-        command: &SegmentedCommand,
-        out: &mut Vec<(usize, usize)>,
-    ) {
-        let head = command.name();
-        let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-        for index in self
-            .nesting
-            .arg_indices_for_role(head, &args, ArgRole::Expr)
-        {
-            let Some(token) = command.argv.get(index + 1) else {
-                continue;
-            };
-            // An unbraced or quoted expression word is substituted by the
-            // script lexer before `expr` ever parses it, so its `[…]` are
-            // already among the dispatch regions; only a braced one needs the
-            // expression parser to find them.
-            if source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
-                || token.content_offset != 1
-            {
-                continue;
-            }
-            let start = token.span.start() as usize + token.content_offset as usize;
-            let end = token.span.end() as usize;
-            let Some(expression) = source.get(start..end) else {
-                continue;
-            };
-            for span in tcl_syntax::expr::substitution::command_substitution_spans(
-                expression,
+        if structural {
+            regions.extend(crate::references::frame_shifted_dispatch_regions(
+                source,
+                self.analysis,
                 self.dialect,
-                self.config,
-                |parsed| self.expr_surface.validate(parsed).is_ok(),
-            ) {
-                // The span carries the `[` and `]`; the script inside them is
-                // what runs.
-                let (Some(inner_start), Some(inner_end)) = (
-                    start.checked_add(span.start() as usize + 1),
-                    start
-                        .checked_add(span.end() as usize)
-                        .and_then(|end| end.checked_sub(1)),
-                ) else {
-                    continue;
-                };
-                if inner_start < inner_end {
-                    out.push((inner_start, inner_end));
-                }
-            }
+                command,
+            ));
         }
+        regions.sort_unstable();
+        regions.dedup();
+        Some(regions)
     }
 
     /// The regions of `command` that open a variable frame of their own — the
@@ -545,39 +834,73 @@ impl FrameWalk {
         source: &str,
         command: &SegmentedCommand,
     ) -> Vec<(usize, usize)> {
-        crate::references::frame_shifted_dispatch_regions(source, self.dialect, command)
-    }
-
-    /// Every region inside `command`, at any same-frame depth, that runs in a
-    /// variable frame of its own, appended to `out`.
-    ///
-    /// A `proc` nested in an `if` branch is found as readily as one at
-    /// `command`'s own top level.
-    pub(crate) fn frame_shifted_regions_within(
-        &self,
-        source: &str,
-        command: &SegmentedCommand,
-        out: &mut Vec<(u32, u32)>,
-    ) {
-        let mut push = |regions: Vec<(usize, usize)>| {
-            for (start, end) in regions {
-                let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(end)) else {
-                    continue;
-                };
-                out.push((start, end));
-            }
-        };
-        push(self.frame_shifted_regions(source, command));
-        let mut nested = Vec::new();
-        self.nested_same_frame_commands(source, command, &mut nested);
-        for inner in &nested {
-            push(self.frame_shifted_regions(source, inner));
+        if !self.lexical {
+            return self
+                .original_regions(source, command, true)
+                .unwrap_or_else(|| {
+                    self.complete.set(false);
+                    Vec::new()
+                });
         }
+        self.source_regions(source, command, true)
+            .unwrap_or_else(|| {
+                self.complete.set(false);
+                Vec::new()
+            })
     }
 }
 
+#[cfg(test)]
 fn byte_len(source: &str) -> u32 {
     u32::try_from(source.len()).unwrap_or(u32::MAX)
+}
+
+/// Complete syntax extent of an unchanged standalone segmented command.
+/// The shared original-word projection checks the actual source and full lexer
+/// configuration; it supplies no analysis, lookup, Native or edit permission.
+#[must_use]
+pub(crate) fn configured_command_span_offsets(
+    source: &str,
+    command: &SegmentedCommand,
+    config: LexerConfig,
+) -> Option<(u32, u32)> {
+    let words = configured_command_words(source, command, config)?;
+    Some((words.first()?.span().start(), words.last()?.span().end()))
+}
+
+/// Whole words of an unchanged standalone lexical command under its actual
+/// configuration. This is syntax geometry, without analysis or edit authority.
+pub(crate) fn configured_command_words(
+    source: &str,
+    command: &SegmentedCommand,
+    config: LexerConfig,
+) -> Option<Vec<tcl_lexer::NativeWord>> {
+    // The snapshot constructor assumes lexer-owned spans. Reject incompatible
+    // standalone geometry before borrowing any original token content.
+    source.get(command.span.as_range())?;
+    for token in command.argv.iter().chain(&command.all_tokens).chain(
+        command
+            .word_fragments
+            .iter()
+            .flatten()
+            .map(|part| &part.token),
+    ) {
+        source
+            .get(token.span.as_range())?
+            .get(usize::from(token.content_offset)..)?;
+    }
+    let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::new(source),
+        config,
+        command,
+    );
+    tokens.original_words_match_argv_text().then_some(())?;
+    tcl_compiler::registry_invocation::original_native_compiler_words(
+        &tcl_lexer::SourceImage::document(source),
+        tokens.words(),
+        command.argv.first()?.span.start(),
+        config,
+    )
 }
 
 /// `(start, end)` byte offsets covering the full command text.
@@ -587,6 +910,7 @@ fn byte_len(source: &str) -> u32 {
 /// quote (the segmenter keeps the inner-end for `"…"` words), so widen
 /// the end here to the final argv word's [`token_end_offset`] — this
 /// covers the closing `"` of a command like `set name "hello"`.
+#[cfg(test)]
 #[must_use]
 pub fn command_span_offsets(source: &str, cmd: &SegmentedCommand) -> (u32, u32) {
     let len = byte_len(source);
@@ -621,7 +945,20 @@ pub fn find_command_at(
     registry: &CommandRegistry,
     config: LexerConfig,
 ) -> Option<SegmentedCommand> {
-    find_command_at_inner(source, cursor, predicate, registry, config, 0)
+    let source_owner = standalone_source_registry_context(source, registry, config);
+    find_command_at_inner(
+        &FindCtx {
+            full: source,
+            cursor,
+            predicate,
+            registry,
+            config,
+            source_owner: source_owner.as_ref(),
+        },
+        source,
+        0,
+        0,
+    )
 }
 
 /// Recursively walk every command in `source`, including those nested inside
@@ -631,7 +968,8 @@ pub fn find_command_at(
 /// (UTF-16-counted) position of its start.
 ///
 /// `config` is the document's [`LexerConfig`], threaded into every
-/// re-segmentation the walk performs.
+/// re-segmentation the walk performs. The initial document keeps its file
+/// policy; every genuine body descent selects [`LexerConfig::nested`].
 #[must_use]
 pub fn walk_commands(
     source: &str,
@@ -639,12 +977,14 @@ pub fn walk_commands(
     config: LexerConfig,
 ) -> Vec<(Vec<String>, u32, u32)> {
     let line_index = LineIndex::new(source);
+    let source_owner = standalone_source_registry_context(source, registry, config);
     let mut out = Vec::new();
     walk_commands_inner(
         &WalkCtx {
             full: source,
             registry,
             config,
+            source_owner: source_owner.as_ref(),
             line_index: &line_index,
         },
         source,
@@ -662,6 +1002,9 @@ struct WalkCtx<'a> {
     full: &'a str,
     registry: &'a CommandRegistry,
     config: LexerConfig,
+    source_owner: Option<
+        &'a tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext,
+    >,
     line_index: &'a LineIndex,
 }
 
@@ -675,12 +1018,16 @@ fn walk_commands_inner(
     if MAX_COMMAND_SEARCH_DEPTH.exceeded(depth) {
         return;
     }
-    for cmd in segment_commands_with_offset_and_config(slice, offset, ctx.config) {
+    for cmd in segment_commands_with_offset_and_config(slice, offset, ctx.config.at_depth(depth)) {
         let pos = ctx.line_index.position_at_utf16(cmd.span.start(), ctx.full);
         out.push((cmd.texts.clone(), pos.line, pos.character.get()));
         // Spans here are absolute into `full` (the segmenter was given
         // `offset`), so the lambda splitter reads from `full` too.
-        for body in body_words(ctx.full, &cmd, ctx.registry) {
+        let bodies = ctx.source_owner.map_or_else(
+            || body_words(ctx.full, &cmd, ctx.registry, ctx.config.at_depth(depth)),
+            |owner| body_words_with_owner(ctx.full, &cmd, owner),
+        );
+        for body in bodies {
             let Some(body_slice) = ctx
                 .full
                 .get(body.inner_start as usize..body.inner_end as usize)
@@ -699,37 +1046,55 @@ fn walk_commands_inner(
 pub(super) const MAX_COMMAND_SEARCH_DEPTH: tcl_core_types::RecursionLimit =
     tcl_core_types::RecursionLimit(256);
 
-fn find_command_at_inner(
-    source: &str,
+/// Unchanged source and selection state of a standalone lexical cursor walk.
+struct FindCtx<'a> {
+    full: &'a str,
     cursor: u32,
-    predicate: Option<&str>,
-    registry: &CommandRegistry,
+    predicate: Option<&'a str>,
+    registry: &'a CommandRegistry,
     config: LexerConfig,
+    source_owner: Option<
+        &'a tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext,
+    >,
+}
+
+fn find_command_at_inner(
+    ctx: &FindCtx<'_>,
+    region: &str,
+    offset: u32,
     depth: u32,
 ) -> Option<SegmentedCommand> {
     if MAX_COMMAND_SEARCH_DEPTH.exceeded(depth) {
         return None;
     }
-    for cmd in segment_commands_with_offset_and_config(source, 0, config) {
-        let (cmd_start, cmd_end) = command_span_offsets(source, &cmd);
-        if cursor < cmd_start || cursor > cmd_end {
+    for cmd in segment_commands_with_offset_and_config(region, offset, ctx.config.at_depth(depth)) {
+        if ctx.cursor < cmd.span.start() {
             continue;
         }
-        // Recurse into body arguments first — the innermost match wins.
-        for body in body_words(source, &cmd, registry) {
-            if let Some(inner) = find_command_at_inner(
-                &source[body.inner_start as usize..body.inner_end as usize],
-                cursor.saturating_sub(body.inner_start),
-                predicate,
-                registry,
-                config,
-                depth + 1,
-            ) {
-                // Relocate the inner command's spans back into `source`.
-                return Some(inner.shifted_by(body.inner_start));
+        let (cmd_start, cmd_end) =
+            configured_command_span_offsets(ctx.full, &cmd, ctx.config.at_depth(depth))?;
+        if ctx.cursor < cmd_start || ctx.cursor > cmd_end {
+            continue;
+        }
+        let selected = ctx.source_owner.and_then(|owner| owner.words(&cmd));
+        let bodies = ctx.source_owner.map_or_else(
+            || body_words(ctx.full, &cmd, ctx.registry, ctx.config.at_depth(depth)),
+            |owner| body_words_with_owner(ctx.full, &cmd, owner),
+        );
+        for body in bodies {
+            let body_slice = ctx
+                .full
+                .get(body.inner_start as usize..body.inner_end as usize)?;
+            if let Some(inner) = find_command_at_inner(ctx, body_slice, body.inner_start, depth + 1)
+            {
+                return Some(inner);
             }
         }
-        if predicate.is_none_or(|name| cmd.name() == name) {
+        if ctx.predicate.is_none_or(|name| {
+            selected
+                .as_ref()
+                .map_or_else(|| cmd.name() == name, |words| words.command() == name)
+        }) {
             return Some(cmd);
         }
     }
@@ -743,66 +1108,142 @@ struct BodyWord {
     inner_end: u32,
 }
 
-/// Yield the script-bearing words of `cmd` that [`find_command_at_inner`]
-/// may descend into, as interior byte ranges (delimiters excluded) in the
-/// outer source buffer.
-///
-/// Two registry roles qualify, both resolved from the spec — never from a
-/// command name:
-///
-/// * [`ArgRole::Body`] — a plain braced script; the whole interior is code.
-/// * [`ArgRole::LambdaLiteral`] — `apply`'s `{argList body ?ns?}` two- or
-///   three-element list, where only element 1 is code.  It is split with
-///   [`tcl_compiler::lambda_literal::split_lambda_literal`], the same
-///   splitter every other consumer uses.  Treating
-///   the whole literal as one body instead reads `argList` as a command
-///   name and swallows the real body, which is why no refactor code action
-///   fired inside an `apply` lambda.  Only a `{braced}` body element is
-///   descended
-///   ([`LambdaLiteralElements::braced_body`](tcl_compiler::lambda_literal::LambdaLiteralElements::braced_body)):
-///   a bare / double-quoted one is backslash-decoded before `apply`
-///   evaluates it, so its source slice is not the script that runs and the
-///   spans a code action derived from it would edit the wrong bytes.
-fn body_words(source: &str, cmd: &SegmentedCommand, registry: &CommandRegistry) -> Vec<BodyWord> {
-    let name = cmd.name();
-    if name.is_empty() {
+/// Retain the actual Registry profile and caller's full configuration once.
+/// This is a standalone source interpretation, not an analysed runtime world.
+fn standalone_source_registry_context(
+    source: &str,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Option<tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext> {
+    let profile = registry.profile()?;
+    let context = crate::context_for_dialect_profile(profile)
+        .with_command_store(registry.snapshot().shared_registry());
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        std::sync::Arc::new(context),
+        config,
+    );
+    Some(
+        tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(
+            source, input,
+        ),
+    )
+}
+
+/// Standalone lexical helper; a profileless Registry supplies conditional roles.
+fn body_words(
+    source: &str,
+    cmd: &SegmentedCommand,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Vec<BodyWord> {
+    standalone_source_registry_context(source, registry, config).map_or_else(
+        || body_words_with_registry_schema(source, cmd, registry, config),
+        |owner| body_words_with_owner(source, cmd, &owner),
+    )
+}
+
+fn body_words_with_owner(
+    source: &str,
+    cmd: &SegmentedCommand,
+    owner: &tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext,
+) -> Vec<BodyWord> {
+    let Some(words) = owner.words(cmd) else {
         return Vec::new();
-    }
-    let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
+    };
+    let context = owner.editing_input().context_registry();
+    // The closure is required: the method path is not general enough
+    // over the schema borrow's higher-ranked lifetime.
+    #[allow(clippy::redundant_closure_for_method_calls)]
+    let Some(Some(roles)) = words.with_source_schema(&context, |schema| schema.arg_roles()) else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
-    for idx in registry.arg_indices_for_role(name, &args, ArgRole::Body) {
-        // `arg_indices_for_role` is 0-based over the post-name args; the
-        // representative argv token sits at `idx + 1`.
-        let Some(&tok) = cmd.argv.get(idx + 1) else {
-            continue;
-        };
-        if tok.kind != TokenType::Str {
-            continue;
-        }
-        // The STR token's span starts on the opening `{` and ends before
-        // the closing `}` (inner-end convention).  The descended interior
-        // is one byte past the `{` up to the span end.
-        let inner_start = tok.span.start() + u32::from(tok.content_offset);
-        let inner_end = tok.span.end();
-        push_body_word(&mut out, inner_start, inner_end);
-    }
-    for idx in registry.arg_indices_for_role(name, &args, ArgRole::LambdaLiteral) {
-        let Some(&tok) = cmd.argv.get(idx + 1) else {
-            continue;
-        };
-        // A `$var` / `[cmd]`-computed lambda can't be split statically —
-        // the guard every `LambdaLiteral` consumer applies.
-        if tok.kind != TokenType::Str {
-            continue;
-        }
-        let Some(body) = tcl_compiler::lambda_literal::split_lambda_literal(source, tok)
-            .and_then(|elems| elems.braced_body())
+    for (argument, role) in roles {
+        let Some(word) = words
+            .operands()
+            .get(argument)
+            .and_then(Option::as_ref)
+            .and_then(|operand| operand.word())
         else {
             continue;
         };
-        push_body_word(&mut out, body.start(), body.end());
+        if word.image().bytes() != source.as_bytes() {
+            continue;
+        }
+        push_role_body_word(&mut out, word, role);
     }
     out
+}
+
+fn body_words_with_registry_schema(
+    source: &str,
+    cmd: &SegmentedCommand,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Vec<BodyWord> {
+    let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::new(source),
+        config,
+        cmd,
+    );
+    if !tokens.original_words_match_argv_text() {
+        return Vec::new();
+    }
+    let Some(words) = configured_command_words(source, cmd, config) else {
+        return Vec::new();
+    };
+    let Some(head) = words
+        .first()
+        .and_then(tcl_syntax::word_rules::original_static_word_unicode_value)
+        .and_then(|value| String::from_utf8(value).ok())
+    else {
+        return Vec::new();
+    };
+    let arguments = tokens
+        .words()
+        .iter()
+        .skip(1)
+        .map(tcl_compiler::registry_invocation::invocation_word)
+        .collect::<Vec<_>>();
+    let Some(roles) = registry.arg_role_assignments_words(
+        &head,
+        tcl_registry::InvocationArguments::structured(&arguments),
+        &[ArgRole::Body, ArgRole::LambdaLiteral],
+    ) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for (argument, role) in roles {
+        let Some(word) = words.get(argument + 1) else {
+            continue;
+        };
+        push_role_body_word(&mut out, word, role);
+    }
+    out
+}
+
+fn push_role_body_word(out: &mut Vec<BodyWord>, word: &tcl_lexer::NativeWord, role: ArgRole) {
+    if word.group().expand {
+        return;
+    }
+    if role == ArgRole::Body {
+        if word.group().kind != tcl_lexer::WordKind::Braced {
+            return;
+        }
+        let Ok(content) = word.content_span() else {
+            return;
+        };
+        push_body_word(out, content.start(), content.end());
+    } else if role == ArgRole::LambdaLiteral {
+        let Some(body) = tcl_compiler::lambda_literal::split_original_lambda_literal(word)
+            .and_then(|elements| elements.braced_body())
+        else {
+            return;
+        };
+        push_body_word(out, body.start(), body.end());
+    }
 }
 
 /// Record a descendable interior range, skipping an empty one (nothing to
@@ -816,70 +1257,19 @@ fn push_body_word(out: &mut Vec<BodyWord>, inner_start: u32, inner_end: u32) {
     }
 }
 
-/// Parse a `switch` command's flags + subject + pattern/body pairs.
-///
-/// Shared by [`switch_to_dict`] and the data-group switch transform.
-/// Returns `(subject, pairs)` only for an `-exact` switch (the only mode
-/// either transform handles); any other mode — `-glob` / `-regexp` —
-/// yields `None`.  The remaining args are the pattern-body pairs, given
-/// either as a single braced list (`{pat1 {body1} …}`) or as separate
-/// words.  Parses the flag / subject / pairs prologue shared by both
-/// transforms.
-#[must_use]
-pub fn parse_exact_switch(texts: &[String]) -> Option<(String, Vec<(String, String)>)> {
-    let mut i = 1;
-    let mut mode = "exact";
-    while i < texts.len() && texts[i].starts_with('-') {
-        match texts[i].as_str() {
-            "-exact" => mode = "exact",
-            "-glob" => mode = "glob",
-            "-regexp" => mode = "regexp",
-            "--" => {
-                i += 1;
-                break;
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    if mode != "exact" || i >= texts.len() {
-        return None;
-    }
-    let subject = texts[i].clone();
-    i += 1;
-
-    let pairs: Vec<(String, String)> = if i + 1 == texts.len() {
-        parse_braced_pairs(&texts[i])
-    } else {
-        let mut p = Vec::new();
-        while i + 1 < texts.len() {
-            p.push((texts[i].clone(), texts[i + 1].clone()));
-            i += 2;
-        }
-        p
-    };
-    Some((subject, pairs))
-}
-
 /// Leading-whitespace indent of `line`.
 #[must_use]
 pub fn line_indent(line: &str) -> &str {
     &line[..line.len() - line.trim_start().len()]
 }
 
-/// Re-indent a (possibly braced) body to `target_indent`.
-///
-/// Used by `if_to_switch` and `extract_datagroup`: strips one layer
-/// of surrounding braces, computes
-/// the body's minimum indent, and re-emits each non-blank line at
-/// `target_indent` (preserving interior blank lines).  An empty body
-/// becomes `"{target_indent}# empty"`.
+/// Re-indent an already-decoded script value to `target_indent`.
+/// Literal command-name braces belong to the value and remain present.
+/// Empty script values become `"{target_indent}# empty"`; indentation and
+/// interior blank-line handling are independent of source-word decoding.
 #[must_use]
 pub fn reindent_body(body: &str, target_indent: &str) -> String {
-    let mut text = body.trim();
-    if text.starts_with('{') && text.ends_with('}') && text.len() >= 2 {
-        text = text[1..text.len() - 1].trim();
-    }
+    let text = body.trim();
     let lines: Vec<&str> = text.split('\n').collect();
     let min_indent = lines
         .iter()
@@ -902,38 +1292,9 @@ pub fn reindent_body(body: &str, target_indent: &str) -> String {
     result.join("\n")
 }
 
-/// Strip one layer of surrounding double quotes, if present.
-#[must_use]
-pub fn strip_quotes(s: &str) -> &str {
-    let s = s.trim();
-    let bytes = s.as_bytes();
-    if bytes.len() >= 2 && bytes[0] == b'"' && bytes[bytes.len() - 1] == b'"' {
-        &s[1..s.len() - 1]
-    } else {
-        s
-    }
-}
-
 #[cfg(test)]
 pub(crate) fn test_registry() -> CommandRegistry {
     CommandRegistry::build_default()
-}
-
-/// How the argument at `index` of `command` reads in `source`, for a
-/// template-word plan asked over the call's source words: a brace-quoted
-/// word, one the parser substitutes, or literal text.
-pub(crate) fn source_word(
-    source: &str,
-    command: &SegmentedCommand,
-    args: &[&str],
-    index: usize,
-) -> tcl_compiler::value_transfer::SourceWord {
-    let braced = command.argv.get(index + 1).is_some_and(|token| {
-        token.kind == TokenType::Str
-            && token.content_offset == 1
-            && source.as_bytes().get(token.span.start() as usize) == Some(&b'{')
-    });
-    tcl_compiler::value_transfer::SourceWord::of(args.get(index).copied(), braced)
 }
 
 #[cfg(test)]
@@ -1019,8 +1380,499 @@ mod tests {
     }
 
     #[test]
-    fn reindent_strips_braces_and_normalises() {
-        let out = reindent_body("{\n        puts hi\n    }", "    ");
+    fn reindent_uses_original_braced_word_content_and_normalises() {
+        let source = "{\n        puts hi\n    }";
+        let config = LexerConfig::default();
+        let words = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(source),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let content = words.commands[0].words[0].content_span().unwrap();
+        let out = reindent_body(&source[content.as_range()], "    ");
         assert_eq!(out, "    puts hi");
+    }
+}
+
+#[cfg(test)]
+mod original_frame_walk_tests {
+    use super::*;
+    #[test]
+    fn native_frame_walk_case_bodies_follow_selected_option_availability() {
+        let source = "switch -regexp -matchvar captures -- subject {a {set x 1} default {set y 2}}";
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(source, "tcl8.6")
+            .clone();
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment_document(source);
+        let [command] = commands.as_slice() else {
+            panic!("one original switch command")
+        };
+        let regions = walk.original_regions(source, command, false).unwrap();
+        for body in ["{set x 1}", "{set y 2}"] {
+            let start = source.find(body).unwrap();
+            assert!(regions.iter().any(|&(region_start, region_end)| {
+                region_start == start && &source[region_start..region_end] == body
+            }));
+        }
+
+        let unavailable = "switch -matchvar subject {a {set x 1} default {set y 2}}";
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(unavailable, "tcl8.4")
+            .clone();
+        let walk = FrameWalk::new(unavailable, &analysis).unwrap();
+        let commands = walk.segment_document(unavailable);
+        let [command] = commands.as_slice() else {
+            panic!("one original switch command")
+        };
+        // This is an unavailable option in the retained Tcl 8.4 catalogue.
+        // The case owner cannot select a valid option/body layout, so the
+        // walker must refuse instead of treating newer option metadata as a
+        // Native body-entry fact.
+        assert!(walk.original_regions(unavailable, command, false).is_none());
+    }
+
+    #[test]
+    fn original_variable_components_keep_index_children_and_current_document_owner() {
+        let source = "puts \"literal=\\$ignored ${$literal} $array($key)\"";
+        let mut analyser = tcl_compiler::analyser::Analyser::new();
+        let analysis = analyser.analyse(source, "tcl8.6").clone();
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment_document(source);
+        let [command] = commands.as_slice() else {
+            panic!("one original command")
+        };
+        let references = walk.variable_references(source, command).unwrap();
+        assert_eq!(
+            references
+                .iter()
+                .map(|reference| reference.name.as_str())
+                .collect::<Vec<_>>(),
+            ["$literal", "array", "key"]
+        );
+        assert!(!references[0].array);
+        assert!(references[1].array);
+        assert!(!references[2].array);
+        assert_eq!(&source[references[0].span.as_range()], "${$literal}");
+        assert_eq!(&source[references[1].span.as_range()], "$array($key)");
+        assert_eq!(&source[references[2].span.as_range()], "$key");
+        assert!(walk.variable_references("puts $changed", command).is_none());
+        assert!(FrameWalk::new(&format!("{source} # changed"), &analysis).is_none());
+        let malformed = "puts ${unfinished";
+        let mut analyser = tcl_compiler::analyser::Analyser::new();
+        let analysis = analyser.analyse(malformed, "tcl8.6").clone();
+        let walk = FrameWalk::new(malformed, &analysis).unwrap();
+        let commands = walk.segment_document(malformed);
+        let [command] = commands.as_slice() else {
+            panic!("one original partial command")
+        };
+        assert!(walk.variable_references(malformed, command).is_none());
+    }
+
+    #[test]
+    fn original_command_extents_include_variable_closers_without_taking_body_delimiters() {
+        for (source, expected) in [
+            ("puts ${$literal}\nputs done", "puts ${$literal}"),
+            ("puts ${}\nputs done", "puts ${}"),
+            ("puts ${value}suffix\nputs done", "puts ${value}suffix"),
+            ("puts \"${value}\"\nputs done", "puts \"${value}\""),
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new()
+                .analyse(source, "tcl")
+                .clone();
+            let walk = FrameWalk::new(source, &analysis).unwrap();
+            let commands = walk.segment_document(source);
+            let (start, end) = walk.command_span_offsets(source, &commands[0]).unwrap();
+            assert_eq!(&source[start as usize..end as usize], expected);
+            assert!(
+                walk.command_span_offsets(&format!("#{source}"), &commands[0])
+                    .is_none()
+            );
+        }
+        let source = "if {1} {puts ${value}}\nputs done";
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(source, "tcl")
+            .clone();
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment_nested("puts ${value}", 8);
+        let (start, end) = walk.command_span_offsets(source, &commands[0]).unwrap();
+        assert_eq!(&source[start as usize..end as usize], "puts ${value}");
+        assert_eq!(source.as_bytes()[end as usize], b'}');
+    }
+
+    #[test]
+    fn original_expression_components_keep_braced_literals_inert_and_quoted_reads_active() {
+        let source = "expr {{${inert} [missing $also_inert]} eq \"${active}\" && $array($index) ne [set value $nested]}";
+        let mut analyser = tcl_compiler::analyser::Analyser::new();
+        let analysis = analyser.analyse(source, "tcl8.6").clone();
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment_document(source);
+        let [command] = commands.as_slice() else {
+            panic!("one original expression command")
+        };
+        let mut references = walk.variable_references(source, command).unwrap();
+        let mut nested = Vec::new();
+        walk.nested_same_frame_commands(source, command, &mut nested);
+        for child in &nested {
+            references.extend(walk.variable_references(source, child).unwrap());
+        }
+        references.sort_by_key(|reference| reference.span.start());
+        assert_eq!(
+            references
+                .iter()
+                .map(|reference| reference.name.as_str())
+                .collect::<Vec<_>>(),
+            ["active", "array", "index", "nested"]
+        );
+        assert!(walk.complete());
+        assert!(nested.iter().any(|command| command.name() == "set"));
+        assert!(nested.iter().all(|command| command.name() != "missing"));
+    }
+
+    #[test]
+    fn original_frame_walk_keeps_full_document_context_and_absolute_components() {
+        // Implementation contract: naming.refactor.original-frame-traversal
+
+        let source = "proc p {x} {expr {$x + [string length VALUE]}}\np 2\n";
+        let mut analyser = tcl_compiler::analyser::Analyser::new();
+        let mut analysis = analyser.analyse(source, "tcl8.6").clone();
+        let selected_registry =
+            std::ptr::from_ref::<CommandRegistry>(analysis.resolved_registry().unwrap());
+        analysis.dialect = "f5-irules".to_owned();
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        assert_eq!(
+            std::ptr::from_ref::<CommandRegistry>(walk.nesting),
+            selected_registry
+        );
+        assert_eq!(walk.config, analysis.body_lexer_config.unwrap());
+        assert!(std::ptr::eq(
+            walk.identities,
+            analysis.retained_command_realm().unwrap()
+        ));
+        let start = u32::try_from(source.find("expr").unwrap()).unwrap();
+        let end = source.find("}\np").unwrap();
+        let command = walk
+            .segment_nested(&source[start as usize..end], start)
+            .remove(0);
+        let words = walk.native_words(source, &command).unwrap();
+        assert_eq!(words[0].span().start(), start);
+        assert!(
+            words
+                .iter()
+                .all(|word| word.image() == &tcl_lexer::SourceImage::document(source))
+        );
+        assert!(FrameWalk::new(&format!("{source}# stale"), &analysis).is_none());
+        assert!(FrameWalk::new("expr {$x + [string length VALUE]}", &analysis).is_none());
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn test_logical_analysis(
+    source: &str,
+    environment: &str,
+    registry: std::sync::Arc<CommandRegistry>,
+) -> tcl_compiler::analyser::AnalysisResult {
+    let profile = tcl_dialect::DialectProfile::plain_tcl();
+    let config = LexerConfig::from_grammar(profile.grammar);
+    let context = std::sync::Arc::new(
+        tcl_registry::model::ingress::static_context_for(environment).with_command_store(registry),
+    );
+    tcl_compiler::analyser::Analyser::new()
+        .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile, profile, context, config,
+        ))
+        .analyse(source, profile.name)
+}
+
+#[cfg(test)]
+mod selected_frame_context_tests {
+    use super::*;
+
+    #[test]
+    fn original_frame_roles_keep_actual_availability_captures_and_source_currency() {
+        // naming.refactor.original-frame-traversal
+
+        let mut registry = CommandRegistry::build_default();
+        let mut setter = registry.get("set").unwrap().clone();
+        setter.name = "selected_write";
+        setter.surface = Some(tcl_dialect::model::SpecSurface::TCL90_PLUS);
+        registry.insert(setter);
+        let registry = std::sync::Arc::new(registry);
+        let source = "interp alias {} write {} selected_write held
+write 2";
+        let analysis = test_logical_analysis(source, "tcl9.0", registry.clone());
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        let command = walk.segment_document(source).pop().unwrap();
+        let words = walk.source_words(source, &command).unwrap();
+        assert!(words.roles().unwrap().contains(&(0, ArgRole::VarWrite)));
+        assert_eq!(
+            words.arguments()[0].literal_bytes(),
+            Some(b"held".as_slice())
+        );
+        assert!(matches!(
+            words.origins()[1],
+            tcl_compiler::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
+        ));
+        let old = test_logical_analysis(source, "tcl8.6", registry);
+        assert!(
+            FrameWalk::new(source, &old)
+                .unwrap()
+                .source_words(source, &command)
+                .is_none()
+        );
+        assert!(FrameWalk::new(&format!("#{source}"), &analysis).is_none());
+        let mut changed = analysis.clone();
+        changed.body_lexer_config.as_mut().unwrap().strict_quoting = !walk.config.strict_quoting;
+        assert!(FrameWalk::new(source, &changed).is_none());
+        changed.resolved_input = None;
+        assert!(FrameWalk::new(source, &changed).is_none());
+    }
+
+    #[test]
+    fn original_frame_regions_keep_selected_expression_template_and_replacement_horizon() {
+        // naming.refactor.original-frame-traversal
+
+        let source = "rename expr evaluate
+evaluate {$x + [string length VALUE]}
+subst -novariables {[puts $x]}
+proc evaluate args {}
+evaluate {[set hidden 1]}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment_document(source);
+        let expression = walk.same_frame_regions(source, &commands[1]);
+        assert_eq!(expression.len(), 1);
+        assert_eq!(
+            &source[expression[0].0..expression[0].1],
+            "string length VALUE"
+        );
+        let template = walk.same_frame_regions(source, &commands[2]);
+        assert_eq!(template.len(), 1);
+        assert_eq!(&source[template[0].0..template[0].1], "puts $x");
+        assert!(walk.complete());
+        assert!(walk.source_words(source, &commands[4]).is_none());
+        walk.same_frame_regions(source, &commands[4]);
+        assert!(!walk.complete());
+        let dynamic = "eval $script";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(dynamic, "tcl");
+        let walk = FrameWalk::new(dynamic, &analysis).unwrap();
+        assert!(
+            walk.same_frame_regions(dynamic, &walk.segment_document(dynamic)[0])
+                .is_empty()
+        );
+        assert!(
+            !walk.complete(),
+            "a partial body inventory cannot prove coverage"
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_parse_purpose_tests {
+    use super::*;
+    #[test]
+    fn original_frame_segmentation_labels_document_and_nested_sources_explicitly() {
+        // naming.refactor.original-frame-traversal
+
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::for_profile(Some(profile))
+        };
+        let source = "\u{feff}set top ROOT\nproc p {} {\u{feff}set nested VALUE; set final DONE}";
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            config,
+        );
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        let walk = FrameWalk::new(source, &analysis).expect("actual complete document owner");
+        assert_eq!(walk.segment_document(source)[0].name(), "set");
+        // Equality and offset zero cannot change the expressly nested purpose.
+        let copied = source.to_owned();
+        assert_eq!(walk.segment_nested(&copied, 0)[0].name(), "\u{feff}set");
+        let registry = test_registry();
+        let commands = walk_commands(source, &registry, config);
+        assert_eq!(
+            commands
+                .iter()
+                .map(|row| row.0[0].as_str())
+                .collect::<Vec<_>>(),
+            ["set", "proc", "\u{feff}set", "set"]
+        );
+        assert_eq!((commands[0].1, commands[0].2), (0, 1));
+        let cursor = u32::try_from(source.find("set nested").unwrap()).unwrap();
+        assert!(find_command_at(source, cursor, Some("set"), &registry, config).is_none());
+        let cursor = u32::try_from(source.find("set final").unwrap()).unwrap();
+        let command = find_command_at(source, cursor, Some("set"), &registry, config)
+            .expect("unmarked selected body command");
+        assert_eq!(command.span.start(), cursor);
+        assert_eq!(
+            &source[command.span.start() as usize..command.span.end() as usize],
+            "set final DONE"
+        );
+        assert!(walk.complete());
+        assert!(
+            walk.segment_document("\u{feff}set changed VALUE")
+                .is_empty()
+        );
+        assert!(!walk.complete());
+    }
+}
+
+#[cfg(test)]
+mod standalone_original_command_extent_tests {
+    use super::*;
+
+    #[test]
+    fn standalone_command_extents_keep_complete_original_words_and_selected_config() {
+        for (source, expected) in [
+            ("puts ${held}; puts later", "puts ${held}"),
+            ("puts pre-${held}-post; puts later", "puts pre-${held}-post"),
+            ("puts \"${held}\"; puts later", "puts \"${held}\""),
+            ("puts {}; puts later", "puts {}"),
+            ("puts ${held}; puts {", "puts ${held}"),
+        ] {
+            let config = LexerConfig::default();
+            let command = segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            let (start, end) = configured_command_span_offsets(source, &command, config).unwrap();
+            assert_eq!(&source[start as usize..end as usize], expected);
+        }
+        let source = "puts ${a{b}c}";
+        for style in [
+            tcl_dialect::BracedVarStyle::FirstClose,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting,
+        ] {
+            let config = LexerConfig {
+                braced_var: style,
+                ..LexerConfig::default()
+            };
+            let command = segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            assert_eq!(
+                configured_command_span_offsets(source, &command, config),
+                Some((0, u32::try_from(source.len()).unwrap()))
+            );
+            assert!(configured_command_span_offsets("puts ${changed}", &command, config).is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod configured_original_body_word_tests {
+    use super::*;
+
+    #[test]
+    fn standalone_walks_reborrow_original_body_and_lambda_contents_under_the_selected_grammar() {
+        let registry = test_registry();
+        for config in [
+            LexerConfig::for_dialect("tcl8.6"),
+            LexerConfig::for_dialect("tcl9.0"),
+            LexerConfig::for_dialect("jim"),
+        ] {
+            for source in [
+                "if {1} {return ${value}}",
+                "apply {{} {return ${value}}}",
+                "if {1} {apply {{} {return ${value}}}}",
+            ] {
+                let cursor = u32::try_from(source.find("return").unwrap()).unwrap();
+                let command = find_command_at(source, cursor, Some("return"), &registry, config)
+                    .expect("actual braced body retains its nested original command");
+                assert_eq!(command.argv[0].span.start(), cursor);
+                let calls = walk_commands(source, &registry, config);
+                assert!(
+                    calls
+                        .iter()
+                        .any(|(words, _, _)| words.first().is_some_and(|head| head == "return"))
+                );
+            }
+            for source in [
+                "apply {{} return\\ value}",
+                "if {1} {}",
+                "if {1} \"return value\"",
+            ] {
+                let commands = segment_commands_with_offset_and_config(source, 0, config);
+                assert!(body_words(source, &commands[0], &registry, config).is_empty());
+            }
+            let source = "apply {{} {{global x}}}";
+            let commands = segment_commands_with_offset_and_config(source, 0, config);
+            let bodies = body_words(source, &commands[0], &registry, config);
+            assert_eq!(bodies.len(), 1);
+            assert_eq!(
+                &source[bodies[0].inner_start as usize..bodies[0].inner_end as usize],
+                "{global x}"
+            );
+            let original = &commands[0];
+            assert!(body_words("apply {}", original, &registry, config).is_empty());
+        }
+    }
+}
+
+#[cfg(test)]
+mod standalone_original_presentation_tests {
+    use super::*;
+
+    #[test]
+    fn standalone_body_roles_require_current_original_word_presentations() {
+        let registry = test_registry();
+        for dialect in ["tcl8.6", "tcl9.0", "jim"] {
+            let config = LexerConfig::for_dialect(dialect);
+            let source = "apply {{} {return ${value}}}";
+            let command = segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            assert_eq!(body_words(source, &command, &registry, config).len(), 1);
+            let changed = source.replacen("apply", "dummy", 1);
+            assert_eq!(changed.len(), source.len());
+            assert!(configured_command_words(&changed, &command, config).is_none());
+            assert!(body_words(&changed, &command, &registry, config).is_empty());
+            let mut changed_values = command.clone();
+            changed_values.texts[0] = "dummy".into();
+            assert!(configured_command_words(source, &changed_values, config).is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod standalone_original_body_role_tests {
+    use super::*;
+
+    #[test]
+    fn braced_heads_retain_absolute_original_body_geometry() {
+        let registry = test_registry();
+        let source = "{proc} p {} {{if} 1 {set x 1}}";
+        let cursor = u32::try_from(source.find("set x").unwrap()).unwrap();
+        let command = find_command_at(
+            source,
+            cursor,
+            Some("set"),
+            &registry,
+            LexerConfig::default(),
+        )
+        .expect("nested command through actual braced heads");
+        assert_eq!(command.name(), "set");
+        assert_eq!(command.span.start(), cursor);
+    }
+
+    #[test]
+    fn profileless_alias_and_disagreeing_numeric_roles_stay_unavailable() {
+        let registry = test_registry();
+        for source in [
+            "interp alias {} alias_if {} if; alias_if 1 {set x 1}",
+            "after 0d5 {set x 1}",
+        ] {
+            let cursor = u32::try_from(source.find("set x").unwrap()).unwrap();
+            assert!(
+                find_command_at(
+                    source,
+                    cursor,
+                    Some("set"),
+                    &registry,
+                    LexerConfig::default()
+                )
+                .is_none()
+            );
+        }
     }
 }

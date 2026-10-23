@@ -19,9 +19,8 @@
 //! The embedder surface: what a Rust host needs to run small Tcl bodies at
 //! rate, register commands of its own, and bound what a body may do.
 //!
-//! This module closes gaps `SpecTcl` hook benchmarking found in
-//! the VM's boundary, in the VM rather than shimmed around in the
-//! embedder.
+//! Hosts can register stateful commands, enumerate exact native name bytes,
+//! select a command whitelist and limit script execution.
 //!
 //! - **Call a function without a driver script.** [`Vm::invoke_command`] is
 //!   public, and [`Vm::compile_function`] / [`Vm::invoke_function`] pre-compile
@@ -40,9 +39,9 @@
 //! - **Take an error as the host's own.** [`Vm::publish_caught_error`] leaves
 //!   `$errorInfo` and `$errorCode` as a `catch` would, for a host command that
 //!   evaluated a script and swallowed what it raised.
-//! - **Restrict the command table.** [`Vm::retain_commands`] reduces a fresh VM
-//!   to a closed whitelist, which is how a sandbox is built out of a normal
-//!   interpreter rather than a second one.
+//! - **Restrict the command table.** [`Vm::retain_commands_bytes`] selects
+//!   commands by exact native display bytes. [`Vm::retain_commands`] provides
+//!   a Unicode whitelist and removes names that cannot be represented in it.
 //! - **Bound the work.** [`Vm::set_command_limit`] arms the `commands` limit
 //!   the VM now enforces, and [`Vm::commands_run`] reports the fuel spent.
 //! - **Confine the stores.** [`Vm::set_stores_confined`] keeps every write in
@@ -52,12 +51,62 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_runtime_api::{Code, Completion, ScriptCompileTarget};
-
-use crate::command::{Command, NativeCommand, opt_get, resolved_error_code};
+use crate::command::{BuiltinFn, Command, NativeCommand, opt_get_checked};
 use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
+use tcl_core_types::NameBytes;
+use tcl_runtime_api::{Code, Completion};
+
+/// A host compilation boundary preserves native Tcl diagnostics and provider
+/// refusals as separate cases. Host failures cannot become guest completions.
+#[derive(Debug, Clone)]
+pub enum VmCompilationError {
+    /// A native Tcl definition or source-validation diagnostic.
+    Tcl(TclError),
+    /// The execution engine requires an unavailable native provider/capability.
+    Host(tcl_runtime_api::NativeExecutionError),
+}
+
+impl std::fmt::Display for VmCompilationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Tcl(error) => match error.message_unicode() {
+                Ok(message) => formatter.write_str(&message),
+                Err(refusal) if error.is_host() => std::fmt::Display::fmt(&refusal, formatter),
+                Err(_) => write!(
+                    formatter,
+                    "native Tcl error bytes: {:?}",
+                    error.message_bytes()
+                ),
+            },
+            Self::Host(error) => std::fmt::Display::fmt(error, formatter),
+        }
+    }
+}
+
+impl std::error::Error for VmCompilationError {}
+
+/// The host procedure-definition error uses the shared compilation boundary.
+pub type ProcedureDefinitionError = VmCompilationError;
+
+/// A native implementation and grammar explicitly granted by an embedding host.
+/// Command spelling and source namespace never confer this capability.
+#[derive(Clone)]
+pub(crate) struct FrameworkBuiltinCapability {
+    alias: String,
+    implementation: BuiltinFn,
+    profile: &'static tcl_dialect::DialectProfile,
+}
+
+impl NativeCommand for FrameworkBuiltinCapability {
+    fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+        let saved = vm.active_native_profile.replace(self.profile);
+        let result = (self.implementation)(vm, args);
+        vm.active_native_profile = saved;
+        result
+    }
+}
 
 /// A pre-compiled Tcl body, ready to run any number of times.
 ///
@@ -70,7 +119,7 @@ use crate::value::Value;
 /// assumed.
 #[derive(Clone)]
 pub struct FunctionHandle {
-    source: String,
+    source: tcl_lexer::SourceImage,
     state: Rc<RefCell<FunctionHandleState>>,
 }
 
@@ -105,14 +154,405 @@ impl std::fmt::Debug for FunctionHandle {
     }
 }
 
+/// Original context for a host's value projections. This opaque observation
+/// inherits an existing entry when present and never issues Native permission.
+pub struct OriginalOperandProjection {
+    original: crate::interp::original_authored_operands::OriginalAuthoredOperandScope,
+}
+
+fn original_operand_error(vm: &mut Vm, error: tcl_cmd_core::CmdError) -> TclError {
+    if let Some(first) = error.native_execution_refusal() {
+        let first =
+            vm.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+        TclError::from_execution_failure(first)
+    } else {
+        TclError::from_completion(crate::command::completion_from_cmd_error(vm, error))
+    }
+}
+
+impl crate::command::OriginalCompletionOptions for OriginalOperandProjection {
+    fn current(&self, vm: &mut Vm, value: &Value) -> Result<(), TclError> {
+        vm.check_original_projected_value(self, value)
+    }
+    fn list(&self, vm: &mut Vm, value: &Value) -> Result<Vec<Value>, TclError> {
+        vm.original_operand_list(self, value)
+    }
+    fn string(&self, vm: &mut Vm, value: &Value) -> Result<Rc<[u8]>, TclError> {
+        vm.original_operand_string_bytes(self, value)
+    }
+}
+
 impl Vm {
+    /// Observe the actual caller before any value getter. Captured operation/context,
+    /// frame, namespace and per-operand header checks grant no entry or provider.
+    ///
+    /// # Errors
+    /// Returns the actual first Host failure or unchanged Guest error carrier.
+    pub fn capture_original_operand_projection(
+        &mut self,
+    ) -> Result<OriginalOperandProjection, TclError> {
+        crate::interp::original_authored_operands::OriginalAuthoredOperandScope::capture(self)
+            .map(|original| OriginalOperandProjection { original })
+            .map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Check the same original caller before semantic continuation.
+    ///
+    /// # Errors
+    /// Retains the original full failure rather than resolving another owner.
+    pub fn check_original_operand_projection(
+        &mut self,
+        original: &OriginalOperandProjection,
+    ) -> Result<(), TclError> {
+        original
+            .original
+            .check(self)
+            .map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Check this actual operand and the original caller before projection.
+    ///
+    /// # Errors
+    /// Refuses retired headers and changed original contexts with full cause.
+    pub fn check_original_projected_value(
+        &mut self,
+        original: &OriginalOperandProjection,
+        value: &Value,
+    ) -> Result<(), TclError> {
+        original
+            .original
+            .current_for_value(self, value)
+            .map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Reach the existing formatter-None raw String worker under the original
+    /// context, including checks inside each reached recursive child.
+    ///
+    /// # Errors
+    /// Returns the first failure retained before unused backing cleanup.
+    pub fn original_operand_raw_bytes(
+        &mut self,
+        original: &OriginalOperandProjection,
+        value: &Value,
+    ) -> Result<Rc<[u8]>, TclError> {
+        original
+            .original
+            .raw_bytes(self, value)
+            .map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Read the same actual native String recipe with formatter None, retaining
+    /// the original caller and header inside its canonical worker.
+    ///
+    /// # Errors
+    /// Refuses unavailable native recipes and preserves the first reached cause.
+    pub fn original_operand_native_raw_string(
+        &mut self,
+        original: &OriginalOperandProjection,
+        value: &Value,
+    ) -> Result<Rc<[u8]>, TclError> {
+        use tcl_cmd_core::CmdError;
+        original
+            .original
+            .current_for_value(self, value)
+            .map_err(|error| original_operand_error(self, error))?;
+        let protocol = self
+            .native_scalar_carrier_dialect()
+            .native_string_protocol()
+            .ok_or_else(|| {
+                original_operand_error(
+                    self,
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original native raw String recipe",
+                    )
+                    .into(),
+                )
+            })?;
+        let vm = RefCell::new(&mut *self);
+        let reached = value.native_string_bytes_checked_for_value_retaining::<CmdError>(
+            protocol,
+            None,
+            &mut |actual| {
+                original
+                    .original
+                    .current_for_value(&mut vm.borrow_mut(), actual)
+            },
+            &|error| {
+                original
+                    .original
+                    .retain(&mut vm.borrow_mut(), &error.clone().into());
+            },
+        );
+        if let Err(error) = &reached {
+            original.original.retain(&mut vm.borrow_mut(), error);
+        }
+        original
+            .original
+            .current_for_value(&mut vm.borrow_mut(), value)
+            .map_err(|error| original_operand_error(&mut vm.borrow_mut(), error))?;
+        reached.map_err(|error| original_operand_error(&mut vm.borrow_mut(), error))
+    }
+
+    /// Reach the existing selected String worker without granting its provider.
+    ///
+    /// # Errors
+    /// Retains unavailable providers, original header and context failures.
+    pub fn original_operand_string_bytes(
+        &mut self,
+        original: &OriginalOperandProjection,
+        value: &Value,
+    ) -> Result<Rc<[u8]>, TclError> {
+        original
+            .original
+            .string(self, value)
+            .map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Reach the existing selected List worker under that same original context.
+    ///
+    /// # Errors
+    /// Keeps Guest parse errors separate from full operational Host failures.
+    pub fn original_operand_list(
+        &mut self,
+        original: &OriginalOperandProjection,
+        value: &Value,
+    ) -> Result<Vec<Value>, TclError> {
+        original
+            .original
+            .list(self, value)
+            .map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Project strict Rust UTF-8 through the original legacy raw byte worker.
+    ///
+    /// # Errors
+    /// Retains non-UTF-8 bytes as a typed value refusal before continuation.
+    pub fn original_operand_unicode(
+        &mut self,
+        original: &OriginalOperandProjection,
+        value: &Value,
+    ) -> Result<String, TclError> {
+        original
+            .original
+            .unicode(self, value)
+            .map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Read the selected String recipe and immediately require strict Rust UTF-8.
+    /// This is distinct from Tcl/Jim counted Unicode projection.
+    ///
+    /// # Errors
+    /// Retains a failed recipe or UTF-8 conversion before the next operand.
+    pub fn original_operand_strict_string(
+        &mut self,
+        original: &OriginalOperandProjection,
+        value: &Value,
+    ) -> Result<String, TclError> {
+        let bytes = original
+            .original
+            .string(self, value)
+            .map_err(|error| original_operand_error(self, error))?;
+        let reached = std::str::from_utf8(&bytes)
+            .map(str::to_owned)
+            .map_err(tcl_syntax::raw_string::UnicodeAccessError::from)
+            .map_err(tcl_syntax::value::ValueError::from)
+            .map_err(tcl_cmd_core::CmdError::from);
+        if let Err(error) = &reached {
+            original.original.retain(self, error);
+        }
+        original
+            .original
+            .current_for_value(self, value)
+            .map_err(|error| original_operand_error(self, error))?;
+        reached.map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Keep the same original observation through a host operation and its
+    /// mandatory local cleanup. This supplies no Native entry or provider.
+    ///
+    /// # Errors
+    /// Returns the first full failure after original observation retirement.
+    pub fn with_original_operand_projection<T>(
+        &mut self,
+        work: impl FnOnce(&mut Self, &OriginalOperandProjection) -> Result<T, TclError>,
+    ) -> Result<T, TclError> {
+        let original = self.capture_original_operand_projection()?;
+        let reached = work(self, &original);
+        if let Err(TclError::Host(failure)) = &reached {
+            self.retain_tcl_host_failure(failure.clone());
+        }
+        if let Err(first) = self.check_original_operand_projection(&original) {
+            drop(reached);
+            let _ = self.finish_original_operand_projection(original);
+            return Err(first);
+        }
+        if let Err(first) = self.finish_original_operand_projection(original) {
+            drop(reached);
+            return Err(first);
+        }
+        reached
+    }
+
+    /// Execute an explicitly measured event through its original authorised
+    /// input-transition owner. Policy selection supplies no physical Native role.
+    ///
+    /// # Errors
+    /// Callback invalidation remains terminal after mandatory saved restoration.
+    pub fn with_original_observed_event_inputs(
+        &mut self,
+        original: &OriginalOperandProjection,
+        build: tcl_registry::f5::evidence::BigIpBuild,
+        context: tcl_registry::f5::BigIpExecutionContext,
+        event: tcl_registry::f5::naming::BigIpNameEvent,
+        storage: tcl_runtime_api::authored_tmm::AuthoredObservedFrameStorageContext,
+        body: impl FnOnce(&mut Self) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError>,
+    ) -> Result<Completion<Value>, TclError> {
+        self.with_original_observed_event_inputs_using(
+            &original.original,
+            build,
+            context,
+            event,
+            storage,
+            body,
+        )
+        .map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Retain a reached actual failure before mandatory caller-owned cleanup.
+    /// This diagnostic operation grants no getter, provider or entry authority.
+    #[must_use]
+    pub fn retain_original_operand_failure(
+        &mut self,
+        original: &OriginalOperandProjection,
+        failure: crate::TclHostFailure,
+    ) -> TclError {
+        let first = self.retain_tcl_host_failure(failure);
+        let error = tcl_cmd_core::CmdError::from_execution_refusal(first.clone());
+        original.original.retain(self, &error);
+        TclError::from_execution_failure(first)
+    }
+
+    /// Retire the actual observation's allocation-only leases, then settle the
+    /// same original caller. Call only after mandatory caller-owned cleanup.
+    ///
+    /// # Errors
+    /// Returns the first full failure after reached observation retirement.
+    pub fn finish_original_operand_projection(
+        &mut self,
+        original: OriginalOperandProjection,
+    ) -> Result<(), TclError> {
+        let reached = original
+            .original
+            .finish(self)
+            .map_err(|error| original_operand_error(self, error));
+        if let Some(first) = self.take_host_boundary_refusal() {
+            return Err(TclError::from_execution_failure(first));
+        }
+        reached
+    }
+}
+
+impl Vm {
+    /// Convert host callback arguments under their already entered operation.
+    ///
+    /// Each original String getter is followed immediately by a counted native
+    /// Unicode projection, before the next argument is read. The original
+    /// frame, namespace, headers and full first cause remain checked throughout.
+    /// This Unicode-required boundary refuses unpaired native units with the
+    /// supplied host diagnostic; absent entered/native providers stay unavailable.
+    ///
+    /// # Errors
+    /// Returns the original typed unwind carrier for missing entered/String
+    /// capability, changed owners or non-text native units.
+    pub fn original_callback_unicode_words(
+        &mut self,
+        values: &[Value],
+        unicode_refusal: &str,
+    ) -> Result<Vec<String>, Completion<Value>> {
+        use crate::interp::{
+            native_name_consumers::OriginalNameConsumerScope,
+            native_numeric_ops::OriginalNumericOps,
+            native_operation_currency::NativeOperationScope,
+        };
+        use tcl_cmd_core::CmdError;
+        use tcl_syntax::value::ValueError;
+
+        let operation = NativeOperationScope::current_entered(self)
+            .map_err(CmdError::from_execution_refusal)
+            .and_then(|entered| {
+                entered.ok_or_else(|| {
+                    ValueError::CommandProtocolUnavailable("entered host callback String batch")
+                        .into()
+                })
+            })
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let original = OriginalNameConsumerScope::in_original_scope(self, &operation)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| -> Result<Vec<String>, CmdError> {
+            let ops = OriginalNumericOps::in_original_scope(self, &operation)?;
+            let protocol = ops.dialect().native_string_protocol().ok_or(
+                ValueError::CommandProtocolUnavailable("host callback native String provider"),
+            )?;
+            let mut words = Vec::with_capacity(values.len());
+            for value in values {
+                let bytes =
+                    ops.string_with_original_check(value, protocol, |vm| original.check(vm))?;
+                let Some(text) = protocol.counted_unicode_text(&bytes) else {
+                    return ops.with_vm_for_value(value, |vm| {
+                        let unwind = vm.refuse_host_command(unicode_refusal.to_owned());
+                        drop(unwind);
+                        Err(CmdError::from_execution_refusal(
+                            vm.execution_refusal.clone().expect("host refusal retained"),
+                        ))
+                    });
+                };
+                words.push(text);
+            }
+            Ok(words)
+        })();
+        // Latch a reached failure before retiring the original namespace lease.
+        let reached =
+            reached.map_err(|error| crate::command::completion_from_cmd_error(self, error));
+        let settled = original.finish(self);
+        settled.map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
+    }
+
     /// Compile `src` to a reusable [`FunctionHandle`], registering any procs it
     /// defines. Needs an injected
     /// [`CompileService`](tcl_runtime_api::CompileService), like every other
     /// runtime-compilation path.
+    ///
+    /// # Panics
+    /// Panics when the host must provide an unsupported compilation capability.
+    /// Use [`Self::try_compile_function`] to handle that refusal explicitly.
     pub fn compile_function(&mut self, src: &str) -> Result<FunctionHandle, TclError> {
+        match self.try_compile_function(src) {
+            Ok(handle) => Ok(handle),
+            Err(VmCompilationError::Tcl(error)) => Err(error),
+            Err(VmCompilationError::Host(error)) => {
+                panic!("native compiler provider required: {error}")
+            }
+        }
+    }
+
+    /// Compile reusable source with provider refusals outside Tcl diagnostics.
+    ///
+    /// # Errors
+    /// Returns a native source diagnostic or a typed host refusal.
+    pub fn try_compile_function(
+        &mut self,
+        src: &str,
+    ) -> Result<FunctionHandle, VmCompilationError> {
+        self.host_execution_depth += 1;
+        let result = self.compile_function_internal(src);
+        self.host_execution_depth -= 1;
+        self.finish_host_compilation(result)
+    }
+
+    fn compile_function_internal(&mut self, src: &str) -> Result<FunctionHandle, TclError> {
         Ok(FunctionHandle {
-            source: src.to_owned(),
+            source: tcl_lexer::SourceImage::document(src),
             state: Rc::new(RefCell::new(FunctionHandleState {
                 unit: self.compile_script_cached(src)?,
                 owner_nonce: self.owner_nonce,
@@ -120,10 +560,35 @@ impl Vm {
         })
     }
 
+    /// Compile an original byte image into a reusable function handle.
+    /// The source channel, native namespace segments and actual compiler entry
+    /// remain part of cache identity. No Unicode source view is required.
+    ///
+    /// # Errors
+    /// Returns guest parse errors or an explicit native compiler/provider refusal.
+    pub fn try_compile_function_bytes(
+        &mut self,
+        source: &tcl_lexer::SourceImage,
+    ) -> Result<FunctionHandle, VmCompilationError> {
+        self.host_execution_depth += 1;
+        let result = self
+            .compile_script_cached_bytes(source)
+            .map(|unit| FunctionHandle {
+                source: source.clone(),
+                state: Rc::new(RefCell::new(FunctionHandleState {
+                    unit,
+                    owner_nonce: self.owner_nonce,
+                })),
+            });
+        self.host_execution_depth -= 1;
+        self.finish_host_compilation(result)
+    }
+
     /// Define a Tcl procedure from the host, without going through the `proc`
     /// command.
     ///
-    /// The body compiles once, here, and every later call runs that bytecode.
+    /// The original body is retained here and prepared on activation through
+    /// the same native body owner as a Tcl-defined procedure.
     /// Host-defined rather than `proc`-defined because an embedder building a
     /// sandbox removes `proc` from the command table
     /// ([`Self::retain_commands`]) — the procedure it wants to *call* must not
@@ -132,40 +597,132 @@ impl Vm {
     ///
     /// Proc semantics are what make each invocation independent: its own
     /// locals, and `return` as an ordinary early exit rather than an error.
+    ///
+    /// # Panics
+    /// Panics when the native definition provider refuses the requested capability.
+    /// Use [`Self::try_define_procedure`] to retain the typed host error.
     pub fn define_procedure(
         &mut self,
         name: &str,
         parameters: &[&str],
         body: &str,
     ) -> Result<(), TclError> {
-        let registered = self.qualify_name(name);
-        let namespace = crate::interp::key_holder_and_tail_unrooted(&registered).0;
-        let (parameters, has_args) =
-            crate::command::parse_params(&parameters.join(" ")).map_err(TclError::new)?;
-        let compiled = self
-            .prepare_procedure_body(None, &parameters, &namespace, body)
-            .map_err(|mut error| {
-                error.message = format!("procedure \"{name}\": {}", error.message);
-                error
+        match self.try_define_procedure(name, parameters, body) {
+            Ok(()) => Ok(()),
+            Err(VmCompilationError::Tcl(error)) => Err(error),
+            Err(VmCompilationError::Host(error)) => {
+                panic!("native compiler provider required: {error}")
+            }
+        }
+    }
+
+    /// Define a host procedure while retaining native definition refusal as a
+    /// neutral host error. Body preparation belongs to invocation.
+    ///
+    /// # Errors
+    /// Returns the native definition error or neutral host refusal separately.
+    pub fn try_define_procedure(
+        &mut self,
+        name: &str,
+        parameters: &[&str],
+        body: &str,
+    ) -> Result<(), ProcedureDefinitionError> {
+        self.host_execution_depth += 1;
+        let result = self.define_procedure_internal(name, parameters, body);
+        self.host_execution_depth -= 1;
+        self.finish_host_compilation(result)
+    }
+
+    fn finish_host_compilation<T>(
+        &mut self,
+        result: Result<T, TclError>,
+    ) -> Result<T, VmCompilationError> {
+        if let Some(error) = self.take_host_boundary_refusal() {
+            return Err(VmCompilationError::Host(error));
+        }
+        result.map_err(VmCompilationError::Tcl)
+    }
+
+    fn define_procedure_internal(
+        &mut self,
+        name: &str,
+        parameters: &[&str],
+        body: &str,
+    ) -> Result<(), TclError> {
+        let namespace = self.current_ns().to_owned();
+        let parameter_grammar = self
+            .native_invocation_dialect()
+            .parameter_grammar()
+            .ok_or_else(|| {
+                self.compile_service_error(
+                    tcl_runtime_api::CompileError::Unsupported(
+                        "native parameter grammar is not selected".into(),
+                    ),
+                    body,
+                    &namespace,
+                    tcl_runtime_api::NativeCompilationAdmissionScope::ProcedureBody,
+                )
             })?;
-        let ns_id = self.definition_namespace_token(&namespace);
-        self.define_proc(crate::command::ProcDef {
-            name: registered,
-            command_ns_id: ns_id,
-            simple_name: String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(
+        let parameter_source = parameters.join(" ");
+        let parameter_value = Value::from_native_string_bytes(parameter_source.as_bytes());
+        let (parameters, has_args) =
+            crate::command::parse_params_value(self, &parameter_value, name.as_bytes())
+                .map_err(TclError::from_completion)?;
+        let (registered, slot, ns_id) = self
+            .native_procedure_publication(name.as_bytes())
+            .map_err(|error| {
+                let _ = self.refuse_host_command(error.to_string());
+                TclError::from_execution_failure(
+                    self.execution_refusal
+                        .clone()
+                        .expect("publication refusal retained"),
+                )
+            })?;
+        let table_key = self
+            .jim_command_table_key_for_original(
                 name.as_bytes(),
-            ))
-            .into_owned(),
-            namespace,
-            ns_id,
-            params: parameters,
-            has_args,
-            body: compiled,
-            body_src: Value::string(body),
-            usage_name: None,
-            call_identity: None,
-            lambda_term: None,
-        });
+                tcl_syntax::naming::NativeNamePurpose::CommandPublication,
+            )
+            .map_err(|error| {
+                let _ = self.refuse_host_command(error.to_string());
+                TclError::from_execution_failure(
+                    self.execution_refusal
+                        .clone()
+                        .expect("publication refusal retained"),
+                )
+            })?;
+        self.define_proc_binding_with_jim_key(
+            crate::command::ProcDef {
+                native_resources: std::rc::Rc::default(),
+                name: registered,
+                command_ns_id: slot.namespace,
+                simple_name: slot.simple,
+                execution_namespace: crate::interp::ProcedureNamespace::Resolved {
+                    path: self.namespace_path_for_token(ns_id),
+                    token: ns_id,
+                },
+                params: parameters,
+                parameter_grammar,
+                has_args,
+                native_jim_namespace: None,
+                native_parameters: (parameter_grammar == tcl_dialect::ParameterGrammar::Jim)
+                    .then_some(parameter_value),
+
+                native_header: tcl_registry::native_procedure::procedure_header_compilation(
+                    self.native_invocation_dialect(),
+                    Some(&parameter_source),
+                    Some(body),
+                    Some(false),
+                ),
+                statics: None,
+                body: None,
+                body_src: Value::new_native_string_bytes(body.as_bytes()),
+                usage_name: None,
+                call_identity: None,
+                lambda_term: None,
+            },
+            table_key,
+        );
         Ok(())
     }
 
@@ -191,8 +748,32 @@ impl Vm {
     /// The invoke-by-handle path: no compilation, no `FunctionAsm` clone, and
     /// no driver script — the three costs an embedder would otherwise pay
     /// per call.
+    ///
+    /// # Panics
+    /// Panics when refreshing or executing the handle needs a native provider.
+    /// Use [`Self::try_invoke_function`] to preserve the typed host refusal.
     #[must_use]
     pub fn invoke_function(&mut self, handle: &FunctionHandle) -> Completion<Value> {
+        self.try_invoke_function(handle)
+            .expect("function handle requires a genuine native execution provider")
+    }
+
+    /// Refresh and invoke a reusable handle without exposing internal host
+    /// refusal unwinds as guest completions.
+    ///
+    /// # Errors
+    /// Returns the typed compiler or reached-expression provider obligation.
+    pub fn try_invoke_function(
+        &mut self,
+        handle: &FunctionHandle,
+    ) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError> {
+        self.host_execution_depth += 1;
+        let result = self.invoke_function_internal(handle);
+        self.host_execution_depth -= 1;
+        self.finish_host_execution(result)
+    }
+
+    fn invoke_function_internal(&mut self, handle: &FunctionHandle) -> Completion<Value> {
         if handle.state.borrow().owner_nonce != self.owner_nonce {
             return crate::interp::err("FunctionHandle belongs to a different Vm");
         }
@@ -204,66 +785,71 @@ impl Vm {
             .unit
             .compiler
             .is_current_service(self.compiler_generation());
-        let epoch_changed = handle.state.borrow().unit.command_epoch != self.trace_deopt_epoch();
-        let namespace = self.current_ns().to_owned();
-        let namespace_changed = handle.state.borrow().unit.source_namespace != namespace;
+        let epoch_changed = handle.state.borrow().unit.native_cache
+            != self.native_cache_stamp_for_source_namespace(&self.source_namespace_path());
+        let namespace = self.source_namespace_path();
+        let namespace_changed =
+            handle.state.borrow().unit.source_namespace.compiled_path() != Some(&namespace);
+        let interpreter_changed =
+            handle.state.borrow().unit.interpreter != self.native_interpreter_identity();
         let bindings_match = {
             let state = handle.state.borrow();
-            self.function_command_bindings_match(&state.unit.asm, state.unit.manifest.as_deref())
+            self.function_command_bindings_match_with_manifest(
+                &state.unit.asm,
+                state.unit.manifest.as_deref(),
+            )
         };
         if profile_changed
             || compiler_changed
             || epoch_changed
             || namespace_changed
+            || interpreter_changed
             || !bindings_match
         {
-            let current_is_plain = handle.state.borrow().unit.asm.plain_command_dispatch;
-            let plain_target = || ScriptCompileTarget {
-                source: &handle.source,
-                namespace: &namespace,
-                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
-            };
-            let (asm, manifest) = match if self.step_trace_active() {
-                self.compile_plain_function_cached(plain_target())
-                    .map(|asm| Some((asm, None)))
-            } else if profile_changed || compiler_changed || namespace_changed {
-                self.compile_fast_function_for_namespace(&handle.source, &namespace)
-            } else if !current_is_plain && !bindings_match {
-                self.compile_plain_function_cached(plain_target())
-                    .map(|asm| Some((asm, None)))
-            } else if epoch_changed && current_is_plain {
-                self.compile_fast_function_for_namespace(&handle.source, &namespace)
-            } else {
-                let state = handle.state.borrow();
-                Ok(Some((
-                    Rc::clone(&state.unit.asm),
-                    state.unit.manifest.clone(),
-                )))
-            } {
-                Ok(Some(compiled)) => compiled,
-                Ok(None) => match self.compile_plain_function_cached(plain_target()) {
-                    Ok(asm) => (asm, None),
-                    Err(error) => return crate::command::completion_from_tcl_error(error),
-                },
-                Err(error) => return crate::command::completion_from_tcl_error(error),
+            let unit = match self.compile_script_cached_bytes(&handle.source) {
+                Ok(unit) => unit,
+                Err(error) => return crate::command::completion_from_tcl_error(self, error),
             };
             *handle.state.borrow_mut() = FunctionHandleState {
-                unit: self.compiled_unit(asm, namespace).with_manifest(manifest),
+                unit,
                 owner_nonce: self.owner_nonce,
             };
         }
         self.run_compiled_unit(handle.state.borrow().unit.clone())
     }
 
-    /// Register an embedder command carrying its own state.
+    /// Register an embedder command using the selected script declaration policy.
     ///
-    /// The name is a plain command name (`fold`, `role`) or a qualified one;
-    /// it replaces any existing command of that name, exactly as a `proc`
-    /// redefinition does.
+    /// Plain and qualified names publish as procedure declarations in the actual
+    /// current namespace. Original byte extents and qualifier routing belong to
+    /// the shared naming owner. Existing commands in the selected slot are replaced.
+    /// An unavailable policy retains a host execution refusal; use
+    /// [`Self::try_register_native_command`] to receive it directly.
     pub fn register_native_command(&mut self, name: &str, command: Rc<dyn NativeCommand>) {
-        self.register_written_command(name, Command::Native(command));
+        if let Err(error) = self.try_register_native_command(name, command) {
+            let _ = self.refuse_host_command(error.to_string());
+        }
     }
 
+    /// Register a host command through the same checked script-publication owner.
+    ///
+    /// # Errors
+    /// Refuses an unavailable naming policy, actual namespace context or retired
+    /// interpreter before publishing a command. A compatible source profile
+    /// supplies no missing native naming authority.
+    pub fn try_register_native_command(
+        &mut self,
+        name: &str,
+        command: Rc<dyn NativeCommand>,
+    ) -> Result<(), crate::NativeCommandLookupUnavailable> {
+        self.register_written_command(name, Command::Native(command))
+            .map(|_| ())
+    }
+
+    /// Grant a private alias a concrete native host grammar. The original must
+    /// still be a native builtin; a user replacement cannot acquire its identity.
+    /// Child interpreters inherit this explicit host contract, then install their
+    /// own alias token. Deferred bodies retain the user's compilation dialect.
     /// Provide a package from the host, as `package provide name version` does.
     ///
     /// The version is validated for the release the VM emulates, a package
@@ -272,15 +858,18 @@ impl Vm {
     /// 2.0`, `TCL PACKAGE VERSIONCONFLICT`), and the same version again is a
     /// no-op. A later `package require` is satisfied from what was provided here.
     pub fn package_provide(&mut self, name: &str, version: &str) -> Result<(), TclError> {
-        let completion =
-            crate::cmd_package::pkg_provide(self, &[Value::string(name), Value::string(version)]);
-        if completion.code.is_ok() {
-            return Ok(());
-        }
-        let mut error = TclError::new(completion.result.to_str().to_string());
-        error.error_code = crate::command::opt_get(&completion.options, "-errorcode")
-            .map(|code| code.to_str().to_string());
-        Err(error)
+        self.begin_embedding_call()?;
+        let completion = crate::cmd_package::pkg_provide(
+            self,
+            &[Value::string(name), Value::string(version)],
+            self.runtime_version(),
+        );
+        let result = if completion.code.is_ok() {
+            Ok(())
+        } else {
+            Err(completion)
+        };
+        self.finish_embedding_result(result)
     }
 
     /// Record that the library `prefix` has been loaded into the interpreter,
@@ -294,27 +883,116 @@ impl Vm {
     /// scalar, or an array element spelt `a(k)`, with its read traces fired. A
     /// variable that is not there is the error `set` raises
     /// (`can't read "x": no such variable`).
-    pub fn read_variable(&mut self, name: &str) -> Result<Value, Completion<Value>> {
-        match self.read_var_traced(name)? {
-            Some(value) => Ok(value),
-            None => Err(crate::interp::err(self.read_miss_msg(name))),
-        }
+    ///
+    /// # Errors
+    /// Retains the original guest completion or reached typed host refusal.
+    pub fn read_variable(&mut self, name: &str) -> Result<Value, TclError> {
+        self.begin_embedding_call()?;
+        let result = self.read_variable_result_bytes(name.as_bytes(), None);
+        self.finish_embedding_result(result)
     }
 
     /// Set the variable `name` as `set name value` does in the current frame: a
     /// scalar, or an array element spelt `a(k)`, with its write traces fired. A
     /// store `set` refuses (an array, a constant, a confined store) is the error
     /// `set` raises.
-    pub fn write_variable(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
-        self.store_var_result(name, value).map(|_| ())
+    ///
+    /// # Errors
+    /// Retains original guest options and any trace's typed host refusal.
+    pub fn write_variable(&mut self, name: &str, value: Value) -> Result<(), TclError> {
+        self.begin_embedding_call()?;
+        let result = self.store_var_result(name, value).map(|_| ());
+        self.finish_embedding_result(result)
     }
 
     /// Unset the variable `name` as `unset name` does in the current frame: a
     /// scalar, an array element spelt `a(k)` or a whole array, with its unset
     /// traces fired. One that is not there is the error `unset` raises
     /// (`can't unset "x": no such variable`).
-    pub fn unset_variable(&mut self, name: &str) -> Result<(), Completion<Value>> {
-        self.unset_one(name, true)
+    ///
+    /// # Errors
+    /// A reached host trace refusal remains independent of the guest unset result.
+    pub fn unset_variable(&mut self, name: &str) -> Result<(), TclError> {
+        self.begin_embedding_call()?;
+        let result = self.unset_one(name, true);
+        self.finish_embedding_result(result)
+    }
+
+    fn begin_embedding_call(&mut self) -> Result<(), TclError> {
+        if let Some(refusal) = self.take_host_boundary_refusal() {
+            return Err(TclError::from_execution_failure(refusal));
+        }
+        self.host_execution_depth += 1;
+        Ok(())
+    }
+
+    fn finish_embedding_result<T>(
+        &mut self,
+        result: Result<T, Completion<Value>>,
+    ) -> Result<T, TclError> {
+        self.host_execution_depth -= 1;
+        if let Some(refusal) = self.take_host_boundary_refusal() {
+            return Err(TclError::from_execution_failure(refusal));
+        }
+        result.map_err(TclError::from_completion)
+    }
+
+    /// Read an exact completion option through this interpreter's shared
+    /// Dictionary/List owner and checked original byte getter. Absence is `None`;
+    /// an explicitly empty value is `Some(Vec::new())`. Original key/value
+    /// headers are retained, and no diagnostic supplies option identity.
+    /// This lookup remains in the current entry and does not reset a refusal.
+    ///
+    /// # Errors
+    /// Returns the first retained Host cause before or after a reached getter,
+    /// or the checked option owner's genuine guest conversion failure.
+    pub fn completion_option_bytes_checked(
+        &mut self,
+        completion: &Completion<Value>,
+        key: &[u8],
+    ) -> Result<Option<Vec<u8>>, TclError> {
+        let value = opt_get_checked(self, &completion.options, key)?;
+        if let Some(cause) = self.execution_refusal.clone() {
+            return Err(TclError::from_execution_failure(cause));
+        }
+        let bytes = value
+            .map(|value| {
+                tcl_syntax::value::ValueOps::native_string_bytes(self, &value)
+                    .map(|bytes| bytes.to_vec())
+                    .map_err(|error| crate::command::completion_option_failure(self, error))
+            })
+            .transpose()?;
+        if let Some(cause) = self.execution_refusal.clone() {
+            return Err(TclError::from_execution_failure(cause));
+        }
+        Ok(bytes)
+    }
+
+    /// Project a returned completion option under the same original host owner.
+    /// Dictionary/List/key and selected value String workers remain shared.
+    ///
+    /// # Errors
+    /// Keeps option parse errors separate from the first full Host cause.
+    pub fn original_completion_option_bytes(
+        &mut self,
+        original: &OriginalOperandProjection,
+        completion: &Completion<Value>,
+        key: &[u8],
+    ) -> Result<Option<Vec<u8>>, TclError> {
+        let reached =
+            crate::command::opt_get_checked_using(self, &completion.options, key, Some(original));
+        self.check_original_operand_projection(original)?;
+        let value = reached?;
+        let reached = value
+            .as_ref()
+            .map(|value| {
+                self.original_operand_string_bytes(original, value)
+                    .map(|bytes| bytes.to_vec())
+            })
+            .transpose();
+        drop(value);
+        self.check_original_operand_projection(original)?;
+        reached
     }
 
     /// Publish `$errorInfo` and `$errorCode` for `completion`, an error a host
@@ -323,37 +1001,104 @@ impl Vm {
     /// script raised is what the next command reads. A completion that is not an
     /// error publishes nothing, and nothing is published while stores are
     /// confined to the activation.
-    pub fn publish_caught_error(&mut self, completion: &Completion<Value>) {
-        if completion.code != Code::Error {
-            return;
-        }
-        let options = self.completion_options_snapshot(completion);
-        let info = opt_get(&options, "-errorinfo").map_or_else(
-            || completion.result.to_str().to_string(),
-            |value| value.to_str().to_string(),
-        );
-        let _ = self.take_error_info();
-        let code = resolved_error_code(completion, self.runtime_version());
-        self.publish_error(&info, &code);
+    /// Options retain their original objects and use this interpreter's checked
+    /// completion planner, byte getters and first retained host-failure owner.
+    ///
+    /// # Errors
+    /// Returns the first retained host failure before reading or publishing guest
+    /// values. Reached option/key/result access remains byte-preserving and fallible.
+    pub fn publish_caught_error(&mut self, completion: &Completion<Value>) -> Result<(), TclError> {
+        self.begin_embedding_call()?;
+        let result = (|| {
+            if completion.code != Code::Error {
+                return Ok(());
+            }
+            let options = self
+                .completion_options_snapshot(completion)
+                .map_err(|error| crate::command::completion_from_tcl_error(self, error))?;
+            let original = opt_get_checked(self, &options, b"-errorinfo")
+                .map_err(|error| crate::command::completion_from_tcl_error(self, error))?
+                .unwrap_or_else(|| completion.result.clone());
+            let info = tcl_syntax::value::ValueOps::native_string_bytes(self, &original)
+                .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?;
+            let code = opt_get_checked(self, &options, b"-errorcode")
+                .map_err(|error| crate::command::completion_from_tcl_error(self, error))?
+                .unwrap_or_else(|| Value::from_string_bytes(b"NONE".as_slice()));
+            let _ = self.take_error_info();
+            self.publish_error(&info, &code);
+            Ok(())
+        })();
+        self.finish_embedding_result(result)
     }
 
     /// The return options of `completion`, as C's `Tcl_GetReturnOptions`
-    /// reports them: an error's carry `-errorinfo` and `-errorcode`.
+    /// reports them: an error's carry `-errorinfo` and `-errorcode`. A host
+    /// refusal leaves the completion's own options.
     #[must_use]
-    pub fn return_options(&self, completion: &Completion<Value>) -> Value {
+    pub fn return_options(&mut self, completion: &Completion<Value>) -> Value {
         self.completion_options_snapshot(completion)
+            .unwrap_or_else(|_| completion.options.clone())
     }
 
     /// Every command name currently registered, sorted.
     #[must_use]
-    pub fn command_names(&self) -> Vec<String> {
-        let mut names: Vec<String> = self
+    pub fn register_framework_builtin(
+        &mut self,
+        alias: &str,
+        original: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> bool {
+        let Some(Command::Builtin(implementation)) = self.lookup_command(original) else {
+            return false;
+        };
+        let capability = FrameworkBuiltinCapability {
+            alias: alias.to_owned(),
+            implementation,
+            profile,
+        };
+        if !self.install_framework_builtin(capability.clone()) {
+            return false;
+        }
+        self.framework_builtins.push(capability);
+        true
+    }
+
+    pub(crate) fn install_framework_builtin(
+        &mut self,
+        capability: FrameworkBuiltinCapability,
+    ) -> bool {
+        let alias = capability.alias.clone();
+        match self.register_written_command(&alias, Command::Native(Rc::new(capability))) {
+            Ok(_) => true,
+            Err(error) => {
+                let _ = self.refuse_host_command(error.to_string());
+                false
+            }
+        }
+    }
+
+    /// Every registered command's exact native display bytes, sorted.
+    #[must_use]
+    pub fn command_names_bytes(&self) -> Vec<NameBytes> {
+        let mut names: Vec<_> = self
             .registered_command_entries()
             .into_iter()
             .map(|(_, display)| display)
             .collect();
         names.sort_unstable();
         names
+    }
+
+    /// Checked Unicode view of every registered command, sorted.
+    ///
+    /// # Errors
+    /// Returns a decoding error if any native name is not valid UTF-8. Use
+    /// [`Self::command_names_bytes`] to enumerate every native name.
+    pub fn command_names(&self) -> Result<Vec<String>, std::str::Utf8Error> {
+        self.command_names_bytes()
+            .into_iter()
+            .map(|name| name.try_utf8().map(str::to_owned))
+            .collect()
     }
 
     /// Delete `name` from the command table, reporting whether it was there.
@@ -364,24 +1109,30 @@ impl Vm {
         self.take_command_unchecked(name).is_some()
     }
 
-    /// Reduce the command table to the commands `keep` accepts, returning how
-    /// many were removed.
+    /// Keep exactly the native command displays accepted by `keep`.
     ///
-    /// This is the sandbox constructor: a fresh [`Vm`] with the whole builtin
-    /// surface is narrowed to a closed whitelist, so a body cannot reach a
-    /// command the embedder did not choose — including one the VM gains in a
-    /// later release, which is why a whitelist and not a blacklist.
-    pub fn retain_commands(&mut self, keep: &dyn Fn(&str) -> bool) -> usize {
+    /// The callback sees complete retained display bytes, never private storage
+    /// keys. All metadata borrows end before `keep` or command deletion callbacks
+    /// run. Returns the number of entries selected for removal.
+    pub fn retain_commands_bytes(&mut self, keep: &dyn Fn(&[u8]) -> bool) -> usize {
         let doomed: Vec<String> = self
             .registered_command_entries()
             .into_iter()
-            .filter_map(|(key, display)| (!keep(&display)).then_some(key))
+            .filter_map(|(key, display)| (!keep(display.as_bytes())).then_some(key))
             .collect();
         let removed = doomed.len();
-        for name in doomed {
-            self.remove_registered_command(&name);
+        for key in doomed {
+            self.remove_registered_command(&key);
         }
         removed
+    }
+
+    /// Keep commands whose exact Unicode display is accepted by `keep`.
+    ///
+    /// Native names that cannot be represented as UTF-8 are removed. Use
+    /// [`Self::retain_commands_bytes`] when the whitelist includes opaque names.
+    pub fn retain_commands(&mut self, keep: &dyn Fn(&str) -> bool) -> usize {
+        self.retain_commands_bytes(&|name| core::str::from_utf8(name).is_ok_and(keep))
     }
 
     /// Arm the `commands` limit: the body may dispatch at most `limit`
@@ -487,3 +1238,299 @@ impl Vm {
         self.exceed_limit_inner(kind)
     }
 }
+
+#[cfg(test)]
+mod embedding_settlement_tests {
+    use super::*;
+
+    #[test]
+    fn public_completion_option_bytes_retains_opaque_empty_and_absent_members() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Software API control: these constructed carriers do not establish an
+        // original C Tcl/Jim physical-object or completion observation.
+        let mut vm = crate::native_fixture::interpreter(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+        );
+        let key = Value::new_native_string_bytes(b"-opaque\0\xff".as_slice());
+        let value = Value::new_native_string_bytes(b"VALUE\0\xfe".as_slice());
+        let empty = Value::new_native_string_bytes(b"".as_slice());
+        let pairs = vec![
+            (key.clone(), value.clone()),
+            (Value::new_native_string_bytes(b"-empty".as_slice()), empty),
+        ];
+        let list = Value::list(
+            pairs
+                .iter()
+                .flat_map(|(key, value)| [key.clone(), value.clone()])
+                .collect(),
+        );
+        let dictionary = tcl_syntax::value::ValueOps::new_dict_checked(&mut vm, pairs).unwrap();
+        for options in [list, dictionary] {
+            let identity = options.native_object_identity();
+            let was_dictionary = options.cached_dictionary_bucket_count();
+            let completion = Completion::new(Code::Error, Value::int(17), options);
+            assert_eq!(
+                vm.completion_option_bytes_checked(&completion, b"-opaque\0\xff")
+                    .unwrap(),
+                Some(b"VALUE\0\xfe".to_vec())
+            );
+            assert_eq!(
+                vm.completion_option_bytes_checked(&completion, b"-opaque")
+                    .unwrap(),
+                None
+            );
+            assert_eq!(
+                vm.completion_option_bytes_checked(&completion, b"-empty")
+                    .unwrap(),
+                Some(Vec::new())
+            );
+            assert_eq!(
+                vm.completion_option_bytes_checked(&completion, b"-absent")
+                    .unwrap(),
+                None
+            );
+            assert_eq!(completion.options.native_object_identity(), identity);
+            assert_eq!(
+                completion.options.cached_dictionary_bucket_count(),
+                was_dictionary
+            );
+            assert!(completion.options.resident_string_bytes().is_none());
+            assert!(completion.result.resident_string_bytes().is_none());
+            if was_dictionary.is_some() {
+                completion
+                    .options
+                    .with_cached_dictionary_representation(|pairs, _| {
+                        assert!(pairs.iter().any(|(original_key, original_value)| {
+                            original_key.is_same_object(&key)
+                                && original_value.is_same_object(&value)
+                        }));
+                    })
+                    .unwrap();
+                assert!(completion.options.cached_list_representation().is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn public_completion_option_bytes_preserves_first_host_before_any_getter() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // The retained refusal is a software owner control, not a measured
+        // original-provider failure or a claim that a getter was reached.
+        let mut vm = crate::native_fixture::interpreter(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+        );
+        vm.set_var("before", Value::string("RETAINED")).unwrap();
+        let key = Value::int(41);
+        let value = Value::int(42);
+        let completion = Completion::new(
+            Code::Error,
+            Value::int(17),
+            Value::list(vec![key.clone(), value.clone()]),
+        );
+        let cause = tcl_syntax::raw_string::NativeValueAccessRefusal::ExpressionEngineUnavailable;
+        vm.refuse_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(cause));
+        for wanted in [b"41".as_slice(), b"ABSENT".as_slice()] {
+            let error = vm
+                .completion_option_bytes_checked(&completion, wanted)
+                .unwrap_err();
+            assert!(matches!(error,
+                TclError::Host(crate::error::TclHostFailure::Execution(
+                    tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(original)
+                )) if original == cause
+            ));
+            assert!(key.resident_string_bytes().is_none());
+            assert!(value.resident_string_bytes().is_none());
+            assert!(completion.options.resident_string_bytes().is_none());
+            assert!(completion.result.resident_string_bytes().is_none());
+            assert_eq!(
+                vm.execution_refusal,
+                Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    cause
+                ))
+            );
+        }
+        assert_eq!(
+            vm.get_var("before")
+                .unwrap()
+                .resident_string_bytes()
+                .unwrap()
+                .as_ref(),
+            b"RETAINED"
+        );
+    }
+
+    #[test]
+    fn embedding_settlement_retains_complete_original_guest_result_and_options() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        for code in [
+            Code::Error,
+            Code::Return,
+            Code::Break,
+            Code::Continue,
+            Code::Other(7),
+        ] {
+            let mut vm = Vm::new();
+            let result = Value::from_string_bytes(b"RESULT\0\xff".as_slice());
+            let options = Value::list(vec![
+                Value::string("-tag"),
+                Value::from_string_bytes(b"OPTION\0\xfe".as_slice()),
+            ]);
+            vm.begin_embedding_call().unwrap();
+            let error = vm
+                .finish_embedding_result::<()>(Err(Completion::new(
+                    code,
+                    result.clone(),
+                    options.clone(),
+                )))
+                .unwrap_err();
+            let completion = error.into_completion().expect("actual guest producer");
+            assert_eq!(completion.code, code);
+            assert!(completion.result.is_same_object(&result));
+            assert!(completion.options.is_same_object(&options));
+            assert_eq!(completion.result.string_bytes().as_ref(), b"RESULT\0\xff");
+            assert!(vm.take_host_boundary_refusal().is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod procedure_definition_tests {
+    use super::*;
+
+    #[test]
+    fn embedded_definition_retains_unprepared_source_without_a_compiler() {
+        let mut vm = Vm::new();
+        vm.try_define_procedure("unentered", &["x"], "set value \"")
+            .unwrap();
+        let crate::command::Command::Proc(definition) = vm.lookup_command("unentered").unwrap()
+        else {
+            panic!("retained original procedure")
+        };
+        assert!(definition.body.is_none());
+        assert_eq!(definition.body_src.string_bytes().as_ref(), b"set value \"");
+    }
+
+    fn vm() -> Vm {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::default(),
+        ));
+        vm
+    }
+
+    #[test]
+    fn embedded_procedure_captures_its_allocated_namespace_before_compilation() {
+        for name in ["root_body", "::spectcl::unit::body"] {
+            let mut vm = vm();
+            vm.try_define_procedure(name, &["words"], "return [llength $words]")
+                .expect("actual definition namespace owns compilation");
+            let result = vm
+                .try_invoke_command(
+                    name,
+                    &[Value::list(vec![Value::string("a"), Value::string("b")])],
+                )
+                .expect("original body executes");
+            assert_eq!(result.code, tcl_runtime_api::Code::Ok);
+            assert_eq!(result.result.string_bytes().as_ref(), b"2");
+            let crate::command::Command::Proc(definition) = vm.lookup_command(name).unwrap() else {
+                panic!("original procedure")
+            };
+            let original = Value::new_native_string_bytes(name.as_bytes());
+            let selected = vm
+                .resolve_original_command_key_at(vm.current_ns_id(), &original)
+                .unwrap()
+                .unwrap();
+            let (namespace, _) = vm.command_slot_parts(&selected).unwrap();
+            assert_eq!(namespace, definition.actual_namespace_id());
+        }
+    }
+
+    #[test]
+    fn embedded_procedure_recreated_namespace_gets_its_current_token() {
+        let mut vm = vm();
+        vm.try_define_procedure("::N::body", &[], "return OLD")
+            .unwrap();
+        let crate::command::Command::Proc(old) = vm.lookup_command("::N::body").unwrap() else {
+            panic!("old procedure")
+        };
+        assert_eq!(
+            vm.try_eval_source("namespace delete ::N").unwrap().code,
+            tcl_runtime_api::Code::Ok
+        );
+        vm.try_define_procedure("::N::body", &[], "return NEW")
+            .unwrap();
+        let crate::command::Command::Proc(new) = vm.lookup_command("::N::body").unwrap() else {
+            panic!("new procedure")
+        };
+        assert_ne!(old.actual_namespace_id(), new.actual_namespace_id());
+        assert_eq!(
+            vm.namespace_token_for_written("N"),
+            Some(new.actual_namespace_id())
+        );
+        let result = vm.try_invoke_command("::N::body", &[]).unwrap();
+        assert_eq!(result.code, tcl_runtime_api::Code::Ok);
+        assert_eq!(result.result.string_bytes().as_ref(), b"NEW");
+    }
+
+    #[test]
+    fn folded_eval_uses_final_caller_locals_and_propagates_child_control() {
+        for (body, expected) in [
+            (
+                "eval {set later CHILD}; set later PARENT; return $later",
+                "PARENT",
+            ),
+            (
+                "set count 0; while {1} {incr count; eval {break}; incr count}; return $count",
+                "1",
+            ),
+            ("eval {set literal [list CHILD]}; return $literal", "CHILD"),
+        ] {
+            let mut vm = vm();
+            vm.try_define_procedure("::eval_boundary::p", &[], body)
+                .unwrap();
+            let completion = vm.try_invoke_command("::eval_boundary::p", &[]).unwrap();
+            assert_eq!(completion.code, tcl_runtime_api::Code::Ok, "{body}");
+            assert_eq!(
+                completion.result.string_bytes().as_ref(),
+                expected.as_bytes(),
+                "{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn invalid_embedded_formals_do_not_create_the_definition_namespace() {
+        let mut vm = vm();
+        assert!(
+            vm.try_define_procedure("::invalid_header::body", &["{x y z}"], "return OK")
+                .is_err()
+        );
+        assert!(vm.namespace_token_for_written("invalid_header").is_none());
+        assert!(vm.lookup_command("::invalid_header::body").is_none());
+    }
+
+    #[test]
+    fn guest_proc_keeps_its_missing_namespace_header_failure() {
+        let mut vm = vm();
+        let result = vm
+            .try_invoke_command(
+                "proc",
+                &[
+                    Value::string("::missing_header::body"),
+                    Value::empty(),
+                    Value::string("return OK"),
+                ],
+            )
+            .unwrap();
+        assert_eq!(result.code, tcl_runtime_api::Code::Error);
+        assert!(vm.namespace_token_for_written("missing_header").is_none());
+        assert!(vm.lookup_command("::missing_header::body").is_none());
+    }
+}
+
+#[cfg(test)]
+#[path = "embed/original_operand_projection_tests.rs"]
+mod original_operand_projection_tests;

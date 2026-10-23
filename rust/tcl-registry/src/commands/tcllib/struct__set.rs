@@ -23,6 +23,7 @@ use crate::prelude::*;
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "contains",
+        traits: Traits::PURE,
         arity: Arity::exact(2),
         detail: "Test if set contains an element.",
         synopsis: "struct::set contains set element",
@@ -33,6 +34,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "difference",
+        traits: Traits::PURE,
         arity: Arity::exact(2),
         detail: "Return elements in A but not in B.",
         synopsis: "struct::set difference setA setB",
@@ -43,6 +45,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "empty",
+        traits: Traits::PURE,
         arity: Arity::exact(1),
         detail: "Test if a set is empty.",
         synopsis: "struct::set empty set",
@@ -53,6 +56,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "equal",
+        traits: Traits::PURE,
         arity: Arity::exact(2),
         detail: "Test if two sets are equal.",
         synopsis: "struct::set equal setA setB",
@@ -63,26 +67,31 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "exclude",
+        traits: Traits::READS_BEFORE_WRITE,
+        arg_roles: &[(0, ArgRole::VarWrite)],
         arity: Arity::exact(2),
         detail: "Remove elements from a set variable.",
         synopsis: "struct::set exclude setVar element",
         semantics: SemanticsDeclaration::Declared(
-            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
         ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "include",
+        traits: Traits::READS_BEFORE_WRITE,
+        arg_roles: &[(0, ArgRole::VarWrite)],
         arity: Arity::exact(2),
         detail: "Add an element to a set variable.",
         synopsis: "struct::set include setVar element",
         semantics: SemanticsDeclaration::Declared(
-            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
         ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "intersect",
+        traits: Traits::PURE,
         arity: Arity::at_least(0),
         detail: "Return the intersection of two or more sets.",
         synopsis: "struct::set intersect ?set ...?",
@@ -93,6 +102,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "subsetof",
+        traits: Traits::PURE,
         arity: Arity::exact(2),
         detail: "Test if A is a subset of B.",
         synopsis: "struct::set subsetof setA setB",
@@ -103,6 +113,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "symdiff",
+        traits: Traits::PURE,
         arity: Arity::exact(2),
         detail: "Return the symmetric difference of two sets.",
         synopsis: "struct::set symdiff setA setB",
@@ -113,6 +124,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "union",
+        traits: Traits::PURE,
         arity: Arity::at_least(0),
         detail: "Return the union of two or more sets.",
         synopsis: "struct::set union ?set ...?",
@@ -126,6 +138,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Return the number of elements in a set.",
         synopsis: "struct::set size set",
+        traits: Traits::PURE,
         pure: true,
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -137,6 +150,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Return a three-element list: elements only in A, elements in both, elements only in B.",
         synopsis: "struct::set intersect3 setA setB",
+        traits: Traits::PURE,
         pure: true,
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -145,21 +159,25 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "add",
+        traits: Traits::READS_BEFORE_WRITE,
+        arg_roles: &[(0, ArgRole::VarWrite)],
         arity: Arity::exact(2),
         detail: "Add elements of set B to set variable A.",
         synopsis: "struct::set add setVar setB",
         semantics: SemanticsDeclaration::Declared(
-            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
         ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "subtract",
+        traits: Traits::READS_BEFORE_WRITE,
+        arg_roles: &[(0, ArgRole::VarWrite)],
         arity: Arity::exact(2),
         detail: "Remove elements of set B from set variable A.",
         synopsis: "struct::set subtract setVar setB",
         semantics: SemanticsDeclaration::Declared(
-            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
         ),
         ..SubCommand::DEFAULT
     },
@@ -178,7 +196,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "struct::set",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {

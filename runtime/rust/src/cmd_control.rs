@@ -28,26 +28,27 @@
 //!
 //! Semantics verified against tclsh 9.0.
 
+use crate::interp::native_arguments::OriginalArguments;
 use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 
 /// Register the control-flow commands.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"break", break_cmd);
-    interp.register_builtin(b"continue", continue_cmd);
-    interp.register_builtin(b"foreach", foreach);
-    interp.register_builtin(b"lmap", lmap);
+    interp.register_stock_builtin(b"break", break_cmd);
+    interp.register_stock_builtin(b"continue", continue_cmd);
+    interp.register_stock_builtin(b"foreach", foreach);
+    interp.register_stock_builtin(b"lmap", lmap);
     // `time` only evaluates a body `count` times — no numeric tower needed (the
     // count parses through the shared radix grammar, not `expr`).
-    interp.register_builtin(b"time", time_cmd);
-    interp.register_builtin(b"timerate", timerate_cmd);
-    interp.register_builtin(b"tailcall", tailcall_cmd);
+    interp.register_stock_builtin(b"time", time_cmd);
+    interp.register_stock_builtin(b"timerate", timerate_cmd);
+    interp.register_stock_builtin(b"tailcall", tailcall_cmd);
     // `if`/`while`/`for` test Tcl expressions → need the numeric tower.
     #[cfg(have_tommath)]
     {
-        interp.register_builtin(b"if", if_cmd);
-        interp.register_builtin(b"while", while_cmd);
-        interp.register_builtin(b"for", for_cmd);
+        interp.register_stock_builtin(b"if", if_cmd);
+        interp.register_stock_builtin(b"while", while_cmd);
+        interp.register_stock_builtin(b"for", for_cmd);
     }
 }
 
@@ -92,11 +93,10 @@ fn time_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     } else {
         1
     };
-    let script = obj_bytes(argv[1]);
     let start = interp.host().clock().now_micros();
     let mut i = count;
     while i > 0 {
-        let code = interp.eval_body(&script);
+        let code = interp.eval_generic_control_body(argv[1]);
         if code != Code::Ok {
             return code;
         }
@@ -170,7 +170,7 @@ fn timerate_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                         let mut m = b"expected floating-point number but got \"".to_vec();
                         m.extend_from_slice(&b);
                         m.push(b'"');
-                        return interp.set_error(&m);
+                        return interp.wrong_arguments_message(&m);
                     }
                 }
             }
@@ -405,25 +405,11 @@ fn timerate_calibrate_cycle(interp: &mut Interp, script: &[u8]) -> Code {
 
 /// `tailcall command ?arg ...?` — arrange for `command args` to run and its
 /// result to become the enclosing proc's result. Must be called from a proc /
-/// lambda / method. This mirrors the bytecode VM's pragmatic form: `command
-/// args` is dispatched now and a `TCL_RETURN` carries its result out of the
-/// proc (rather than being deferred to run in the caller's frame after unwind —
-/// the observable proc result is the same for the common case).
+/// lambda / method. The actual selected native pending code retains the
+/// replacement on that frame. Dispatch occurs in the caller's variable frame
+/// after issuer teardown and execution-leave callbacks.
 fn tailcall_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if !interp.in_proc() {
-        return interp.set_error(b"tailcall can only be called from a proc, lambda or method");
-    }
-    if argv.len() < 2 {
-        // `tailcall` with no command is a plain return of "".
-        interp.set_result_bytes(b"");
-        return Code::Return;
-    }
-    let code = interp.dispatch(&argv[1..]);
-    if code == Code::Ok {
-        Code::Return
-    } else {
-        code
-    }
+    interp.schedule_tailcall(&argv[1..])
 }
 
 // if
@@ -446,7 +432,7 @@ fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let mut m = b"wrong # args: no expression after \"".to_vec();
             m.extend_from_slice(clause);
             m.extend_from_slice(b"\" argument");
-            return interp.set_error(&m);
+            return interp.wrong_arguments_message(&m);
         }
         let cond_obj = argv[i];
         i += 1;
@@ -485,8 +471,9 @@ fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
     if i < objc.saturating_sub(1) {
-        return interp
-            .set_error(b"wrong # args: extra words after \"else\" clause in \"if\" command");
+        return interp.wrong_arguments_message(
+            b"wrong # args: extra words after \"else\" clause in \"if\" command",
+        );
     }
 
     let compiled = interp.release_compiles_control(argv);
@@ -513,7 +500,7 @@ fn no_script_following(interp: &mut Interp, token: &[u8]) -> Code {
     let mut m = b"wrong # args: no script following \"".to_vec();
     m.extend_from_slice(token);
     m.extend_from_slice(b"\" argument");
-    interp.set_error(&m)
+    interp.wrong_arguments_message(&m)
 }
 
 // while
@@ -527,16 +514,39 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let compiled = interp.release_compiles_control(argv);
     let cond = argv[1];
     let body = argv[2];
+    let import = match interp.original_import_while(argv) {
+        Ok(scope) => scope,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
     loop {
         if let Some(code) = interp.limit_check_tick() {
             return code;
         }
+        if let Some(import) = &import {
+            if let Err(error) = import.condition_start(interp) {
+                return interp.report_cmd_error(error.into());
+            }
+        }
         match crate::builtins::eval_bool_expr(interp, cond) {
-            Ok(true) => {}
-            Ok(false) => break,
+            Ok(value) => {
+                if let Some(import) = &import {
+                    if let Err(error) = import.condition_completed(interp, value) {
+                        return interp.report_cmd_error(error.into());
+                    }
+                }
+                if !value {
+                    break;
+                }
+            }
             Err(code) => return code,
         }
-        match interp.eval_compiled_control_body(body, compiled) {
+        let code = interp.eval_compiled_control_body(body, compiled);
+        if let Some(import) = &import {
+            if let Err(error) = import.body_completed(interp, code) {
+                return interp.report_cmd_error(error.into());
+            }
+        }
+        match code {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
             Code::Error => {
@@ -643,115 +653,596 @@ fn lmap(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     each_loop(interp, argv, true)
 }
 
-/// Shared `foreach`/`lmap` engine. With `collect`, each successful body result
-/// is appended to a result list (the `lmap` return value); without, the result
-/// is the empty string (`foreach`). The two differ only in result collection
-/// and the body-frame command name — exactly as C factors them through one
-/// `EachloopCmd`.
-fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
-    use tcl_runtime_api::completion_options::ControlOptionPolicy;
+struct EachLoopGroup {
+    variables: *mut TclObj,
+    values: *mut TclObj,
+    _variable_owner: Option<crate::obj::Owned>,
+    _value_owner: Option<crate::obj::Owned>,
+    _variable_lifetime: crate::obj::NativeObjectLifetime,
+    _value_lifetime: crate::obj::NativeObjectLifetime,
+    variable_items: Option<crate::list::NativeListBacking>,
+    value_items: Option<crate::list::NativeListBacking>,
+    abstract_values: Option<crate::native_arithseries::NativeEachLoopAbstractValues>,
+    source_return: Option<crate::interp::OriginalSourceCommandReturn>,
+}
 
-    let name: &[u8] = if collect { b"lmap" } else { b"foreach" };
+fn native_each_loop_members(
+    interp: &Interp,
+    arguments: &OriginalArguments,
+    root: *mut TclObj,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
+) -> Result<crate::list::NativeListBacking, tcl_cmd_core::CmdError> {
+    arguments.check_for(interp)?;
+    let selected = OriginalArguments::enter(interp, &[root])?;
+    drop(crate::list::list_elements_native_using(
+        root,
+        strings,
+        &|| {
+            arguments.check_for(interp)?;
+            selected.check_original_for(interp, 0, root)
+        },
+        &|error| arguments.retain_refusal(error.into()),
+    )?);
+    let backing = crate::list::native_list_backing(root).ok_or_else(|| {
+        arguments.retain_refusal(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native each-loop concrete List backing",
+            )
+            .into(),
+        )
+    });
+    selected.check_original_for(interp, 0, root)?;
+    arguments.check_for(interp)?;
+    backing
+}
+
+/// Prepare one original pair outside the recursively entered body frame.
+#[inline(never)]
+fn prepare_each_loop_group(
+    interp: &mut Interp,
+    pair: &[*mut TclObj],
+    protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
+    arguments: &OriginalArguments,
+    pair_index: usize,
+) -> Result<(EachLoopGroup, (usize, usize)), Code> {
+    let recipe = protocol.recipe();
+    let kind = protocol.kind();
+    let actual = interp.clone();
+    let variable_owner = if recipe.copies_headers() {
+        match crate::list::native_list_copy_using(
+            pair[0],
+            strings,
+            &|| arguments.check_original_for(&actual, pair_index, pair[0]),
+            &|error| arguments.retain_refusal(error.into()),
+        ) {
+            Ok(owner) => Some(owner),
+            Err(error) => return Err(interp.report_cmd_error(error)),
+        }
+    } else {
+        None
+    };
+    let variables = variable_owner
+        .as_ref()
+        .map_or(pair[0], crate::obj::Owned::as_ptr);
+    let variable_items = match native_each_loop_members(interp, arguments, variables, strings) {
+        Ok(items) => items,
+        Err(error) => return Err(interp.report_cmd_error(error)),
+    };
+    let variable_count = variable_items.len();
+    if variable_count == 0 && !recipe.live_iterators() {
+        return Err(
+            interp.report_cmd_error(tcl_cmd_core::native_each_loop::empty_variables(
+                recipe, kind,
+            )),
+        );
+    }
+    let abstract_values =
+        match crate::native_arithseries::capture_native_each_loop_abstract(pair[1], strings) {
+            Ok(values) => values,
+            Err(error) => return Err(interp.report_cmd_error(error.into())),
+        };
+    if let Err(error) = arguments.check_original_for(interp, pair_index + 1, pair[1]) {
+        return Err(interp.report_cmd_error(error));
+    }
+    let value_owner = if abstract_values.is_some() {
+        None
+    } else if recipe.copies_headers() {
+        match crate::list::native_list_copy_using(
+            pair[1],
+            strings,
+            &|| arguments.check_original_for(&actual, pair_index + 1, pair[1]),
+            &|error| arguments.retain_refusal(error.into()),
+        ) {
+            Ok(owner) => Some(owner),
+            Err(error) => return Err(interp.report_cmd_error(error)),
+        }
+    } else {
+        None
+    };
+    let values = value_owner
+        .as_ref()
+        .map_or(pair[1], crate::obj::Owned::as_ptr);
+    let source_return = interp
+        .original_source_command_return(pair_index + 1, pair[1])
+        .map_err(|error| interp.report_cmd_error(error.into()))?;
+    let value_items = if abstract_values.is_some() || recipe.live_iterators() {
+        None
+    } else {
+        match native_each_loop_members(interp, arguments, values, strings) {
+            Ok(items) => Some(items),
+            Err(error) => return Err(interp.report_cmd_error(error)),
+        }
+    };
+    let lengths = (
+        variable_count,
+        abstract_values.as_ref().map_or_else(
+            || value_items.as_ref().map_or(0, |items| items.len()),
+            crate::native_arithseries::NativeEachLoopAbstractValues::length,
+        ),
+    );
+    let group = EachLoopGroup {
+        variables,
+        values,
+        _variable_owner: variable_owner,
+        _value_owner: value_owner,
+        _variable_lifetime: crate::obj::NativeObjectLifetime::retain(variables),
+        _value_lifetime: crate::obj::NativeObjectLifetime::retain(values),
+        variable_items: Some(variable_items),
+        value_items,
+        abstract_values,
+        source_return,
+    };
+    Ok((group, lengths))
+}
+
+#[inline(never)]
+fn prepare_each_loop_groups(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
+    arguments: &OriginalArguments,
+) -> Result<(Vec<EachLoopGroup>, Vec<(usize, usize)>), Code> {
+    interp
+        .associate_native_jim_arguments(argv)
+        .map_err(|error| interp.report_cmd_error(error.into()))?;
+    let mut groups = Vec::new();
+    let mut lengths = Vec::new();
+    let mut empty = false;
+    arguments
+        .check_for(interp)
+        .map_err(|error| interp.report_cmd_error(error))?;
+    for (index, pair) in argv[1..argv.len() - 1].chunks_exact(2).enumerate() {
+        let (group, length) =
+            prepare_each_loop_group(interp, pair, protocol, strings, arguments, 1 + 2 * index)?;
+        empty |= length.0 == 0;
+        lengths.push(length);
+        groups.push(group);
+    }
+    if empty {
+        return Err(
+            interp.report_cmd_error(tcl_cmd_core::native_each_loop::empty_variables(
+                protocol.recipe(),
+                protocol.kind(),
+            )),
+        );
+    }
+    Ok((groups, lengths))
+}
+
+/// Refetch only the group selected by the shared native schedule.
+#[inline(never)]
+fn refresh_each_loop_group(
+    interp: &mut Interp,
+    groups: &mut [EachLoopGroup],
+    cursor: &mut tcl_cmd_core::native_each_loop::EachLoopState,
+    action: tcl_cmd_core::native_each_loop::EachLoopAction,
+    recipe: tcl_runtime_api::native_each_loop::NativeEachLoopRecipe,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
+    arguments: &OriginalArguments,
+    import: Option<&crate::interp::OriginalJimImportEachLoop>,
+    info: Option<&crate::interp::OriginalNamespaceInfoEachLoop>,
+) -> Result<(), Code> {
+    use tcl_cmd_core::native_each_loop::EachLoopAction;
+    match action {
+        EachLoopAction::Check(index) => {
+            let group = &mut groups[index];
+            group.value_items = None;
+            let items = match native_each_loop_members(interp, arguments, group.values, strings) {
+                Ok(items) => items,
+                Err(error) => return Err(interp.report_cmd_error(error)),
+            };
+            if let Some(source) = &group.source_return {
+                source
+                    .check_inventory(interp, group.values)
+                    .map_err(|error| interp.report_cmd_error(error.into()))?;
+            }
+            if let Some(import) = import {
+                import
+                    .check_values(interp, group.values)
+                    .map_err(|error| interp.report_cmd_error(error.into()))?;
+            }
+            if let Some(info) = info {
+                info.check_values(interp, group.values)
+                    .map_err(|error| interp.report_cmd_error(error.into()))?;
+            }
+            cursor.set_value_length(index, items.len());
+            group.value_items = Some(items);
+        }
+        EachLoopAction::Refresh(index) => {
+            let group = &mut groups[index];
+            group.variable_items = None;
+            let variables =
+                match native_each_loop_members(interp, arguments, group.variables, strings) {
+                    Ok(items) => items,
+                    Err(error)
+                        if recipe.refetches_groups()
+                            && error.native_execution_refusal().is_none() =>
+                    {
+                        return Err(interp.report_cmd_error(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "native Tcl 8.4 each-loop variable-list refetch fatal boundary",
+                            )
+                            .into(),
+                        ));
+                    }
+                    Err(error) => return Err(interp.report_cmd_error(error)),
+                };
+            let count = variables.len();
+            group.variable_items = Some(variables);
+            if !recipe.live_iterators() || cursor.variable_cursor() < count {
+                group.value_items = None;
+                let values =
+                    match native_each_loop_members(interp, arguments, group.values, strings) {
+                        Ok(items) => items,
+                        Err(error)
+                            if recipe.refetches_groups()
+                                && error.native_execution_refusal().is_none() =>
+                        {
+                            return Err(interp.report_cmd_error(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "native Tcl 8.4 each-loop value-list refetch fatal boundary",
+                                )
+                                .into(),
+                            ));
+                        }
+                        Err(error) => return Err(interp.report_cmd_error(error)),
+                    };
+                cursor.set_lengths(index, count, values.len());
+                group.value_items = Some(values);
+            } else {
+                cursor.set_lengths(
+                    index,
+                    count,
+                    group.value_items.as_ref().map_or(0, |items| items.len()),
+                );
+            }
+        }
+        _ => unreachable!("original group refresh action"),
+    }
+    Ok(())
+}
+
+/// Keep assignment conversion and trace temporaries out of the body callback.
+#[inline(never)]
+fn assign_each_loop_variable(
+    interp: &mut Interp,
+    group: &EachLoopGroup,
+    variable: usize,
+    value: Option<usize>,
+    protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
+    padding: Option<*mut TclObj>,
+    arguments: &OriginalArguments,
+    import: Option<&crate::interp::OriginalJimImportEachLoop>,
+    group_index: usize,
+    info: Option<&crate::interp::OriginalNamespaceInfoEachLoop>,
+) -> Result<(), Code> {
+    let recipe = protocol.recipe();
+    let kind = protocol.kind();
+    let name = match group
+        .variable_items
+        .as_ref()
+        .expect("native variable header")
+        .elements()
+    {
+        Ok(elements) => elements[variable],
+        Err(error) => return Err(interp.report_cmd_error(error.into())),
+    };
+    let fresh_value = (value.is_none() && padding.is_none())
+        || (value.is_some() && group.abstract_values.is_some());
+    let assigned = match value {
+        Some(index) if group.abstract_values.is_some() => {
+            match group.abstract_values.as_ref().unwrap().element(index) {
+                Ok(value) => value,
+                Err(error) => return Err(interp.report_cmd_error(error.into())),
+            }
+        }
+        Some(index) => match group
+            .value_items
+            .as_ref()
+            .expect("native value header")
+            .elements()
+        {
+            Ok(elements) => elements[index],
+            Err(error) => return Err(interp.report_cmd_error(error.into())),
+        },
+        None => padding.unwrap_or_else(|| new_string(b"")),
+    };
+    let fresh_lifetime = fresh_value.then(|| crate::obj::NativeObjectLifetime::retain(assigned));
+    let transient = recipe
+        .pins_assignment_value()
+        .then(|| crate::obj::Owned::retain(assigned));
+    let stored = interp.assign_original_named_variable(name, assigned);
+    drop(transient);
+    if fresh_value && crate::obj::allocation_is_live(assigned) {
+        // SAFETY: the allocation-only lease keeps the header valid.
+        // A trace can withdraw the native reference while the
+        // original setter is running; such a retired header must
+        // never be promoted again during caller cleanup.
+        if unsafe { (*assigned).ref_count == 0 } {
+            drop_fresh(assigned);
+        }
+    }
+    drop(fresh_lifetime);
+    arguments
+        .check_for(interp)
+        .map_err(|error| interp.report_cmd_error(error))?;
+    if let Err(code) = stored {
+        let selected = OriginalArguments::enter(interp, &[name])
+            .map_err(|error| interp.report_cmd_error(error))?;
+        let original = selected.bytes(0);
+        arguments
+            .check_for(interp)
+            .map_err(|error| interp.report_cmd_error(error))?;
+        let original = original.map_err(|error| interp.report_cmd_error(error))?;
+        match tcl_cmd_core::native_each_loop::setter_failure(recipe, kind, &original) {
+            tcl_cmd_core::native_each_loop::SetterFailure::Preserve => return Err(code),
+            tcl_cmd_core::native_each_loop::SetterFailure::Replace(error) => {
+                return Err(interp.report_cmd_error(error));
+            }
+            tcl_cmd_core::native_each_loop::SetterFailure::Context(context) => {
+                interp.append_error_info_context(&context);
+                return Err(code);
+            }
+        }
+    }
+    if let Some(import) = import {
+        import
+            .assigned(interp, group_index, variable, value.map(|_| assigned))
+            .map_err(|error| interp.report_cmd_error(error.into()))?;
+    }
+    if let Some(info) = info {
+        info.assigned(
+            interp,
+            group_index,
+            variable,
+            value.map(|index| (index, assigned)),
+        )
+        .map_err(|error| interp.report_cmd_error(error.into()))?;
+    }
+    Ok(())
+}
+
+/// Execute the authenticated original-object generic loop schedule.
+/// Preparation/refetch/assignment frames unwind before a nested body callback;
+/// the original group headers and padding/result owners remain live here.
+fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = each_loop_with_original(interp, argv, collect, &arguments);
+    arguments.finish(code)
+}
+
+fn each_loop_with_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    collect: bool,
+    arguments: &OriginalArguments,
+) -> Code {
+    use tcl_cmd_core::native_each_loop::{BodyDecision, EachLoopAction};
+    use tcl_runtime_api::completion_options::ControlOptionPolicy;
+    use tcl_runtime_api::native_each_loop::NativeEachLoopKind;
+    let kind = if collect {
+        NativeEachLoopKind::Lmap
+    } else {
+        NativeEachLoopKind::Foreach
+    };
     let compiled = interp.release_compiles_control(argv);
-    // [cmd] + N×(varlist, list) pairs + body ⇒ an even arg count ≥ 4.
     if argv.len() < 4 || argv.len() % 2 != 0 {
-        let usage: &[u8] = if collect {
+        return interp.wrong_args(if collect {
             b"lmap varList list ?varList list ...? command"
         } else {
             b"foreach varList list ?varList list ...? command"
-        };
-        return interp.wrong_args(usage);
+        });
     }
-    let body = argv[argv.len() - 1];
-
-    // Parse each group's variable names + values; track the iteration count.
-    // A group is `(variable names, values)`.
-    type Group = (Vec<Vec<u8>>, Vec<Vec<u8>>);
-    let mut groups: Vec<Group> = Vec::new();
-    let mut iterations = 0usize;
-    let pairs = &argv[1..argv.len() - 1];
-    for pair in pairs.chunks_exact(2) {
-        let vars = match crate::parse::split_list(&obj_bytes(pair[0])) {
-            Ok(v) => v,
-            Err(e) => return interp.set_error(e.message()),
+    let dialect = interp.native_invocation_dialect();
+    let Some(protocol) = dialect.native_each_loop_protocol(kind) else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("native generic each-loop")
+                .into(),
+        );
+    };
+    let Some(strings) = dialect.native_string_protocol() else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native each-loop List storage",
+            )
+            .into(),
+        );
+    };
+    let recipe = protocol.recipe();
+    let (mut groups, lengths) =
+        match prepare_each_loop_groups(interp, argv, protocol, strings, arguments) {
+            Ok(prepared) => prepared,
+            Err(code) => return code,
         };
-        if vars.is_empty() {
-            let mut m = name.to_vec();
-            m.extend_from_slice(b" varlist is empty");
-            return interp.set_error(&m);
+    let import = match interp.original_import_each_loop(
+        argv,
+        collect,
+        &lengths.iter().map(|length| length.0).collect::<Vec<_>>(),
+    ) {
+        Ok(scope) => scope,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    let info = match interp.original_namespace_info_each_loop(
+        argv,
+        collect,
+        &lengths.iter().map(|length| length.0).collect::<Vec<_>>(),
+    ) {
+        Ok(scope) => scope,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    let jim_empty = if recipe.live_iterators() {
+        match interp.native_jim_object_context() {
+            Ok(context) => {
+                // Jim retains resultObj, which is emptyObj only for foreach.
+                // lmap borrows emptyObj for padding and owns a separate List.
+                let result_owner =
+                    (!collect).then(|| crate::obj::Owned::retain(context.empty_object().as_ptr()));
+                Some((context, result_owner))
+            }
+            Err(error) => return interp.report_cmd_error(error.into()),
         }
-        let vals = match crate::parse::split_list(&obj_bytes(pair[1])) {
-            Ok(v) => v,
-            Err(e) => return interp.set_error(e.message()),
-        };
-        iterations = iterations.max(vals.len().div_ceil(vars.len()));
-        groups.push((vars, vals));
-    }
-
-    // Collected body results (bytes; rematerialised into the result list at the
-    // end). Only populated for `lmap`.
+    } else {
+        None
+    };
+    let padding = jim_empty
+        .as_ref()
+        .map(|(context, _)| context.empty_object().as_ptr());
     let policy = if collect {
         ControlOptionPolicy::FRESH_FORWARDED
     } else {
         ControlOptionPolicy::FRESH_SETTLED
     };
-    // Even a zero-iteration each-loop is a fresh command completion. Every
-    // iteration body is a fresh activation too; `lmap` forwards the final
-    // body's options, while `foreach` settles its own empty result/options.
-    interp.begin_control_options(policy);
-    let mut collected: Vec<Vec<u8>> = Vec::new();
-    for it in 0..iterations {
-        interp.begin_control_options(policy);
-        for (vars, vals) in &groups {
-            for (k, var) in vars.iter().enumerate() {
-                let val = vals.get(it * vars.len() + k).cloned().unwrap_or_default();
-                let o = new_string(&val);
-                // `arr(a)` writes the array *element*, not a literal scalar
-                // named `arr(a)` — the same `split_array_ref` +
-                // `var_set`/`var_set_elem` routing `set` uses (shared by
-                // `foreach` and `lmap`, this loop's two callers), so this
-                // doesn't hand-roll a second name parser.
-                let (base, elem) = crate::frame::split_array_ref(var);
-                let stored = match &elem {
-                    Some(key) => interp.var_set_elem(&base, key, o),
-                    None => interp.var_set(&base, o),
+    if let Err(first) = interp.begin_control_options_checked(policy) {
+        return interp.refuse_native_execution(first);
+    }
+    let mut cursor = tcl_cmd_core::native_each_loop::EachLoopState::new(recipe, kind, lengths);
+    let mut collected = Vec::<crate::obj::Owned>::new();
+    loop {
+        if let Err(error) = arguments.check_for(interp) {
+            return interp.report_cmd_error(error);
+        }
+        match cursor.advance() {
+            action @ (EachLoopAction::Check(_) | EachLoopAction::Refresh(_)) => {
+                if let Err(code) = refresh_each_loop_group(
+                    interp,
+                    &mut groups,
+                    &mut cursor,
+                    action,
+                    recipe,
+                    strings,
+                    arguments,
+                    import.as_ref(),
+                    info.as_ref(),
+                ) {
+                    return code;
+                }
+            }
+            EachLoopAction::Assign {
+                group,
+                variable,
+                value,
+            } => {
+                if let Err(code) = assign_each_loop_variable(
+                    interp,
+                    &groups[group],
+                    variable,
+                    value,
+                    protocol,
+                    padding,
+                    arguments,
+                    import.as_ref(),
+                    group,
+                    info.as_ref(),
+                ) {
+                    return code;
+                }
+            }
+            EachLoopAction::Body => {
+                if let Err(first) = interp.begin_control_options_checked(policy) {
+                    return interp.refuse_native_execution(first);
+                }
+                // A loop the release compiles runs its body as code of the
+                // script holding it (upstream `eval_compiled_control_body`);
+                // one it runs keeps the original-object body protocol.
+                let code = if compiled {
+                    interp.eval_compiled_control_body(argv[argv.len() - 1], true)
+                } else {
+                    interp.eval_generic_control_body(argv[argv.len() - 1])
                 };
-                if let Err(e) = stored {
-                    drop_fresh(o);
-                    return crate::builtins::var_error(interp, var, e);
+                if let Err(error) = arguments.check_for(interp) {
+                    return interp.report_cmd_error(error);
                 }
+                if let Some(import) = &import {
+                    if let Err(error) = import.body_completed(interp, code) {
+                        return interp.report_cmd_error(error.into());
+                    }
+                }
+                if let Some(info) = &info {
+                    if let Err(error) = info.body_completed(interp, code) {
+                        return interp.report_cmd_error(error.into());
+                    }
+                }
+                match cursor.body_completion(tcl_core_types::Code::from_int(
+                    i32::try_from(code.as_int()).expect("runtime completion code is a C int"),
+                )) {
+                    BodyDecision::Collect => {
+                        collected.push(crate::obj::Owned::retain(interp.get_obj_result()))
+                    }
+                    BodyDecision::Continue | BodyDecision::Finish => {}
+                    BodyDecision::Propagate => {
+                        // `("<cmd>" body line N)`, the frame of the loop the
+                        // release runs rather than compiles.
+                        if code == Code::Error && !compiled {
+                            interp.append_body_frame(kind.name().as_bytes());
+                        }
+                        return code;
+                    }
+                }
+            }
+            EachLoopAction::Finish => {
+                if let Some(import) = &import {
+                    if let Err(error) = import.finish(interp) {
+                        return interp.report_cmd_error(error.into());
+                    }
+                }
+                if !collect {
+                    if let Some(info) = &info {
+                        if let Err(error) = info.finish_without_result(interp) {
+                            return interp.report_cmd_error(error.into());
+                        }
+                    }
+                }
+                if collect && (cursor.entered_body() || recipe.empty_lmap_publishes_list()) {
+                    let values = collected
+                        .iter()
+                        .map(crate::obj::Owned::as_ptr)
+                        .collect::<Vec<_>>();
+                    let list = interp.new_list_object(&values);
+                    if let Some(info) = &info {
+                        if let Err(error) = info.finish(interp, list) {
+                            drop_fresh(list);
+                            return interp.report_cmd_error(error.into());
+                        }
+                    }
+                    drop(collected);
+                    interp.set_result(list);
+                } else if let Some((context, _result_owner)) = jim_empty {
+                    interp.set_result(context.empty_object().as_ptr());
+                } else {
+                    interp.set_result_bytes(b"");
+                }
+                if let Err(first) = interp.settle_control_options_checked(policy, Code::Ok) {
+                    return interp.refuse_native_execution(first);
+                }
+                return Code::Ok;
             }
         }
-        match interp.eval_compiled_control_body(body, compiled) {
-            Code::Ok => {
-                if collect {
-                    collected.push(obj_bytes(interp.get_obj_result()));
-                }
-            }
-            Code::Continue => {} // skip collection, keep looping
-            Code::Break => break,
-            Code::Error => {
-                // `("<cmd>" body line N)`, the frame of the loop the release
-                // runs rather than compiles (it compiles one in a procedure
-                // body only).
-                if !compiled {
-                    interp.append_body_frame(name);
-                }
-                return Code::Error;
-            }
-            other => return other,
-        }
     }
-    if collect {
-        // Rematerialise into a list; `new_list_obj` takes a +1 on each fresh
-        // (rc-0) element, so the list owns them — no `drop_fresh` here.
-        let objs: Vec<*mut TclObj> = collected.iter().map(|b| new_string(b)).collect();
-        interp.set_result(crate::list::new_list_obj(&objs));
-    } else {
-        interp.set_result_bytes(b"");
-    }
-    interp.settle_control_options(policy, Code::Ok);
-    Code::Ok
 }
 
 #[cfg(test)]
@@ -784,6 +1275,35 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn time_retains_original_list_body_and_result_objects() {
+        // Source proof: naming.time.original-script-object-evaluation
+
+        for engine in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let command = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"return"));
+            let result = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"VALUE\xff\0TAIL"));
+            let script = crate::obj::Owned::fresh(crate::list::new_list_obj(&[
+                command.as_ptr(),
+                result.as_ptr(),
+            ]));
+            let name = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"time"));
+            assert_eq!(
+                super::time_cmd(&mut interp, &[name.as_ptr(), script.as_ptr()]),
+                Code::Return,
+                "{engine}"
+            );
+            assert_eq!(interp.result_obj(), result.as_ptr(), "{engine}");
+            assert!(!crate::obj::has_string_rep(script.as_ptr()), "{engine}");
+            assert_eq!(interp.result_bytes(), b"VALUE\xff\0TAIL", "{engine}");
+        }
     }
 
     #[test]
@@ -869,6 +1389,40 @@ mod tests {
             assert_eq!(i.eval_str(b"timerate"), Code::Error);
             assert!(i.result_bytes().starts_with(b"wrong # args"));
         });
+    }
+
+    #[test]
+    fn tailcall_resolves_after_issuer_leave_in_the_callers_variable_frame() {
+        let cases = [
+            "proc target {} {return OLD}; proc leave {cmd code result op} {set ::leave [list $code $result]; rename target old; proc target {} {return NEW}}; proc P {} {tailcall target}; trace add execution P leave leave; list [P] $::leave",
+            "proc target {} {set x NEW}; proc issuer {} {set x WRONG; tailcall target}; proc caller {} {set x OLD; issuer; set x}; caller",
+        ];
+        for reference in tcl_test_support::available_tclshs()
+            .into_iter()
+            .filter(|reference| reference.version >= tcl_dialect::TclVersion::V8_6)
+        {
+            let profile = tcl_registry::model::ingress::resolve_environment(
+                reference.version.dialect_profile_name(),
+            )
+            .unit_profile();
+            for script in cases {
+                let source = format!("puts [eval {{{script}}}]\n");
+                let expected = tcl_test_support::run_script(&reference.path, source.as_bytes())
+                    .expect("native tailcall observation")
+                    .strict_text()
+                    .expect("native result");
+                leak_free(|interp| {
+                    interp.set_dialect_profile(profile);
+                    assert_eq!(interp.eval_str(script.as_bytes()), Code::Ok);
+                    assert_eq!(
+                        interp.result_bytes(),
+                        expected.as_bytes(),
+                        "{:?}: {script}",
+                        reference.version
+                    );
+                });
+            }
+        }
     }
 
     #[test]
@@ -997,3 +1551,10 @@ mod tests {
         });
     }
 }
+
+#[cfg(test)]
+mod native_each_loop_tests;
+
+#[cfg(test)]
+#[path = "cmd_control/original_list_conversion_tests.rs"]
+pub(crate) mod original_list_conversion_tests;

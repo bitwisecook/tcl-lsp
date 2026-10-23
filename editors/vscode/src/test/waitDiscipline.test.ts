@@ -34,8 +34,8 @@ import {
   scaledTimeout,
   serverStateEvidence,
   serverTransportWedged,
-  waitForDiagnostics,
   waitForProviderResult,
+  waitForDiagnosticsSnapshot,
 } from "./helper";
 
 // Properties of the wait discipline itself.
@@ -97,6 +97,39 @@ suite("Wait discipline (issue #1274)", () => {
     assert.ok(elapsed < 5_000, `signal-driven wait took ${elapsed}ms; a poll would take 10000ms`);
   });
 
+  test("awaitSignal rejects at its bound when an async probe never settles", async () => {
+    const base = 500;
+    const started = Date.now();
+    let error: Error | undefined;
+    try {
+      await awaitSignal<number>({
+        label: "an async provider probe that never settles",
+        subscribe: () => ({ dispose: () => {} }),
+        probe: () => new Promise<number>(() => {}),
+        predicate: () => false,
+        timeout: base,
+        backstopInterval: 20,
+      });
+      assert.fail("awaitSignal resolved while its async probe was still pending");
+    } catch (err) {
+      error = err as Error;
+    }
+    const elapsed = Date.now() - started;
+    assert.ok(error, "expected a rejection");
+    assert.ok(
+      error.message.includes("VSCODE-WAIT-TIMEOUT"),
+      `failure must carry the greppable marker: ${error.message}`,
+    );
+    assert.ok(
+      error.message.includes("an async provider probe that never settles"),
+      `failure must name what was awaited: ${error.message}`,
+    );
+    assert.ok(
+      elapsed < boundCeiling(base),
+      `stall must fail at its bound; took ${elapsed}ms for a ${base}ms base`,
+    );
+  });
+
   test("awaitSignal rejects at its bound when the predicate can never hold", async () => {
     const base = 1_000;
     const started = Date.now();
@@ -150,10 +183,14 @@ suite("Wait discipline (issue #1274)", () => {
     const started = Date.now();
     let error: Error | undefined;
     try {
-      const diags = await waitForDiagnostics(docUri, {
+      const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
         timeout: base,
         predicate: (ds) => ds.some((d) => String(d.code) === "ZZZ999-never-emitted"),
       });
+      if (!currentSnapshotFor_diags.isCurrent()) {
+        throw new Error("The retained diagnostics report became stale before its assertions");
+      }
+      const diags = [...currentSnapshotFor_diags.report.diagnostics];
       assert.fail(
         `waitForDiagnostics resolved instead of rejecting, with ${diags.length} diagnostic(s) ` +
           `the predicate never accepted`,
@@ -601,7 +638,14 @@ suite("Wait discipline (issue #1274)", () => {
     // must return on the immediate probe rather than on any interval.
     await activate(docUri);
     const started = Date.now();
-    const diags = await waitForDiagnostics(docUri, { minCount: 1, timeout: 20_000 });
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+      timeout: 20_000,
+    });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(diags.length >= 1, "the fixture publishes diagnostics");
     assert.ok(
       Date.now() - started < scaledTimeout(2_000),

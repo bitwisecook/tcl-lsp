@@ -43,6 +43,9 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         deprecated_replacement: Some("class"),
+        source_deprecation_advice: Some(
+            crate::deprecation::SourceDeprecationAdvice::IruleMatchclass,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

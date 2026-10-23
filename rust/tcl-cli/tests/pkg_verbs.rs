@@ -18,9 +18,8 @@
 
 //! Integration tests for the `pkg` / `venv` / `docker` verb groups.
 //!
-//! These drive the built `tcl` binary and assert deterministic output that was
-//! diffed byte-for-byte against the captured golden output. They
-//! avoid any network or `tclsh` dependency so they are stable in CI.
+//! These drive the built `tcl` binary without network access. Environment-list
+//! controls pair original C Tcl binaries with their matching script libraries.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -57,6 +56,183 @@ fn temp_dir(tag: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("tcl-pkg-it-{tag}-{nanos}"));
     std::fs::create_dir_all(&dir).unwrap();
     dir
+}
+
+#[test]
+fn pkg_remove_uses_exact_manifest_declarations_and_preserves_neighbouring_commands() {
+    let dir = temp_dir("pkg-remove-declarations");
+    let manifest = dir.join("tclpkg.tcl");
+    let source = "package demo; version 1.0\n\
+require foo-bar 1.0; require foo::bar 1.0; require foo.bar 1.0\n\
+require \"f\\x6fo\" \\\n    1.0; provides foo\n\
+dev-require {test name} 1.0\n";
+    std::fs::write(&manifest, source).unwrap();
+    let (stdout, stderr, code) = run_in(&dir, &["pkg", "remove", "foo", "--json"]);
+    assert_eq!(code, 0, "{stderr}");
+    let output: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(output["directives_removed"], 1);
+    let edited = std::fs::read_to_string(&manifest).unwrap();
+    assert_eq!(
+        edited,
+        source.replace("require \"f\\x6fo\" \\\n    1.0", "")
+    );
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "remove", "test name"]);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(
+        !std::fs::read_to_string(&manifest)
+            .unwrap()
+            .contains("dev-require")
+    );
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn pkg_remove_refuses_unmatched_names_and_invalid_manifests_without_writing() {
+    let dir = temp_dir("pkg-remove-refusal");
+    let manifest = dir.join("tclpkg.tcl");
+    for source in [
+        "package demo\nversion 1.0\nrequire foo-bar 1.0\n",
+        "package demo\nrequire foo 1.0\n",
+        "package demo\nversion 1.0\nrequire foo {unclosed\n",
+    ] {
+        std::fs::write(&manifest, source).unwrap();
+        let (_stdout, stderr, code) = run_in(&dir, &["pkg", "remove", "foo"]);
+        assert_eq!(code, 1, "{stderr}");
+        assert_eq!(std::fs::read_to_string(&manifest).unwrap(), source);
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn pkg_add_preserves_literal_name_and_source_argv_and_remove_selects_the_same_name() {
+    let dir = temp_dir("pkg-add-literal-words");
+    let manifest = dir.join("tclpkg.tcl");
+    let original = "package demo\nversion 1.0\n";
+    std::fs::write(&manifest, original).unwrap();
+    let package = "foo; require injected 9.0 [literal]$value";
+    let url = "https://example.test/a b;[literal]$value\\tail";
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "add", package, "1.2", "--source", url]);
+    assert_eq!(code, 0, "{stderr}");
+    let source = std::fs::read_to_string(&manifest).unwrap();
+    let parsed = tcl_pkg::manifest::load_manifest_text(&source, None).unwrap();
+    assert_eq!(parsed.requires.len(), 1);
+    assert_eq!(parsed.requires[0].name, package);
+    assert_eq!(parsed.requires[0].source_url.as_deref(), Some(url));
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "remove", package]);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(
+        tcl_pkg::manifest::load_manifest(&manifest)
+            .unwrap()
+            .requires
+            .is_empty()
+    );
+    std::fs::write(&manifest, original).unwrap();
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "add", "foo", "1.0; require injected 9.0"]);
+    assert_eq!(code, 1, "{stderr}");
+    assert_eq!(std::fs::read_to_string(&manifest).unwrap(), original);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn pkg_init_preserves_literal_package_names_and_refuses_invalid_headers_before_writing() {
+    let dir = temp_dir("pkg-init-literal-name");
+    let path = dir.join("tclpkg.tcl");
+    let name = "demo; require injected 9.0 [literal]$value";
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "init", "--name", name]);
+    assert_eq!(code, 0, "{stderr}");
+    let original = std::fs::read_to_string(&path).unwrap();
+    let ast = tcl_pkg::manifest::load_manifest(&path).unwrap();
+    assert_eq!(ast.name, name);
+    assert!(ast.requires.is_empty());
+    let (stdout, stderr, code) = run_in(
+        &dir,
+        &[
+            "pkg",
+            "init",
+            "--force",
+            "--name",
+            "replacement",
+            "--version",
+            "1.0; require injected 9.0",
+        ],
+    );
+    assert_eq!(code, 1, "{stderr}");
+    assert!(stdout.is_empty());
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn pkg_init_refuses_a_lossy_directory_package_name_and_accepts_an_explicit_name() {
+    use std::os::unix::ffi::OsStringExt as _;
+    let base = temp_dir("pkg-init-original-directory-name");
+    let dir = base.join(std::ffi::OsString::from_vec(b"project-\xff".to_vec()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "init"]);
+    assert_eq!(code, 1, "{stderr}");
+    assert!(stderr.contains("supply --name"), "{stderr}");
+    assert!(!dir.join("tclpkg.tcl").exists());
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "init", "--name", "explicit"]);
+    assert_eq!(code, 0, "{stderr}");
+    assert_eq!(
+        tcl_pkg::manifest::load_manifest(dir.join("tclpkg.tcl"))
+            .unwrap()
+            .name,
+        "explicit"
+    );
+    std::fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
+fn pkg_freeze_preserves_literal_dependencies_and_stages_all_source_before_emission() {
+    use tcl_pkg::lockfile::{LockFile, LockedPackage, SourceSpec, write_lockfile};
+    let dir = temp_dir("pkg-freeze-literal-requirements");
+    let header = "package demo\nversion 1.0\n";
+    std::fs::write(dir.join("tclpkg.tcl"), header).unwrap();
+    let package = |name: &str, version: &str, url: &str, dev| LockedPackage {
+        name: name.to_owned(),
+        version: version.to_owned(),
+        source: SourceSpec::new("path", url),
+        integrity: String::new(),
+        size: 0,
+        requires: Vec::new(),
+        provides: Vec::new(),
+        license: "MIT".to_owned(),
+        dev,
+        spec_integrity: None,
+    };
+    let name = "test name; [literal]$value";
+    let url = "https://example.test/a b;[literal]$value\\tail";
+    let mut locked = LockFile {
+        name: "demo".to_owned(),
+        packages: vec![
+            package("plain", "1.0", "", false),
+            package(name, "2.0", url, true),
+        ],
+        ..LockFile::default()
+    };
+    write_lockfile(&locked, dir.join("tclpkg.lock")).unwrap();
+    let (stdout, stderr, code) = run_in(&dir, &["pkg", "freeze"]);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(stdout.contains("require plain 1.0\n"));
+    let ast = tcl_pkg::manifest::load_manifest_text(&format!("{header}{stdout}"), None).unwrap();
+    assert_eq!(ast.requires[0].name, "plain");
+    assert_eq!(ast.dev_requires[0].name, name);
+    assert_eq!(ast.dev_requires[0].source_url.as_deref(), Some(url));
+    locked
+        .packages
+        .push(package("zzz", "1.0; require injected 9.0", "", false));
+    write_lockfile(&locked, dir.join("tclpkg.lock")).unwrap();
+    let (stdout, stderr, code) = run_in(&dir, &["pkg", "freeze"]);
+    assert_eq!(code, 1, "{stderr}");
+    assert!(stdout.is_empty());
+    let (stdout, stderr, code) = run_in(&dir, &["pkg", "freeze", "--json"]);
+    assert_eq!(code, 0, "{stderr}");
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(json[name], "2.0");
+    assert_eq!(json["zzz"], "1.0; require injected 9.0");
+    std::fs::remove_dir_all(dir).unwrap();
 }
 
 /// `pkg discover --dialect` is validated by the one resolver: a language id
@@ -141,7 +317,7 @@ fn pkg_discover_uses_analysis_and_optimisation() {
         requirement["name"] == "tls"
             && requirement["minimum"] == "1.7"
             && requirement["version_expression"] == "${minimum}"
-            && requirement["resolution"] == "optimiser"
+            && requirement["resolution"] == "original-value"
             && requirement["status"] == "candidate"
     }));
     assert!(requirements.iter().any(|requirement| {
@@ -154,7 +330,7 @@ fn pkg_discover_uses_analysis_and_optimisation() {
             && requirement["requirements"] == serde_json::json!(["1.0", "2.0-2.5"])
             && requirement["requirement_expressions"]
                 == serde_json::json!(["1.0", "${alternative}"])
-            && requirement["resolution"] == "optimiser"
+            && requirement["resolution"] == "original-value"
             && requirement["status"] == "review"
     }));
     assert!(requirements.iter().any(|requirement| {
@@ -177,6 +353,21 @@ fn pkg_discover_uses_analysis_and_optimisation() {
     }));
     assert!(output["added"].as_array().unwrap().is_empty());
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn pkg_discover_add_retains_manifest_when_source_decoding_loses_a_name() {
+    let dir = temp_dir("pkg-discover-lossy-name");
+    let manifest = "package demo\nversion 1.0.0\nlicense MIT\n";
+    let manifest_path = dir.join("tclpkg.tcl");
+    std::fs::write(&manifest_path, manifest).unwrap();
+    std::fs::write(dir.join("main.tcl"), b"package require \xff 1.2\n").unwrap();
+    let (stdout, stderr, code) = run_in(&dir, &["pkg", "discover", "--add", "--json"]);
+    assert_ne!(code, 0);
+    assert!(stderr.contains("decoding errors"), "{stderr}");
+    assert!(stdout.is_empty());
+    assert_eq!(std::fs::read_to_string(manifest_path).unwrap(), manifest);
+    std::fs::remove_dir_all(dir).unwrap();
 }
 
 #[test]
@@ -805,4 +996,582 @@ fn pkg_search_offline_without_cache_errors() {
     assert!(stderr.contains("offline"), "stderr was: {stderr}");
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&empty_cache);
+}
+
+#[cfg(unix)]
+#[test]
+#[allow(clippy::too_many_lines)]
+fn direct_tcllibpath_producers_preserve_selected_original_c_tcl_lists_and_paths() {
+    use std::os::unix::fs::symlink;
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let base = temp_dir("tcllibpath-native");
+    let project = base.join("café space {braces} [literal];$value\\tail");
+    let venv = project.join("selected venv {literal}");
+    std::fs::create_dir_all(project.join("lib")).unwrap();
+    std::fs::create_dir_all(venv.join("lib")).unwrap();
+    std::fs::create_dir_all(venv.join("bin")).unwrap();
+    std::fs::write(project.join("lib/sentinel"), "project").unwrap();
+    std::fs::write(venv.join("lib/sentinel"), "venv").unwrap();
+    std::fs::write(venv.join("tclvenv.cfg"), "venv_tool = tcl-lsp\n").unwrap();
+    std::fs::write(
+        project.join("tclpkg.tcl"),
+        "package demo\nversion 1.0\nentry entry.tcl\n",
+    )
+    .unwrap();
+    let script = r#"if {![string equal [info patchlevel] $env(EXPECTED_PATCHLEVEL)]} {error "wrong actual provider"}
+if {![string equal [info library] $env(EXPECTED_LIBRARY)]} {error "wrong original library"}
+set source $env(TCLLIBPATH)
+set old $env(EXPECTED_SUFFIX)
+if {![string equal $env(EXPECTED_ESCAPE) ""] && ![string equal [lindex $old 0] $env(EXPECTED_ESCAPE)]} {error "original release escape observation changed"}
+if {![string equal [lindex $source 0] $env(EXPECTED_PATH)]} {error "directory identity changed"}
+if {![file isfile [file join [lindex $source 0] sentinel]]} {error "actual directory unavailable"}
+if {[llength $source] != [expr {[llength $old] + 1}]} {error "list cardinality changed"}
+for {set i 0} {$i < [llength $old]} {incr i} {
+    if {![string equal [lindex $source [expr {$i + 1}]] [lindex $old $i]]} {error "original suffix meaning changed"}
+}
+if {[string length $old] && ![string equal [string range $source end-[expr {[string length $old] - 1}] end] $old]} {error "original suffix source changed"}
+set receipt [open $env(RESULT_PATH) w]
+puts $receipt [list PASS [info patchlevel] [encoding system]]
+close $receipt
+"#;
+    std::fs::write(project.join("entry.tcl"), script).unwrap();
+    for version in tcl_dialect::TclVersion::ALL {
+        let tree = tcl_test_support::locate_source_tree(&repo, version, None)
+            .unwrap()
+            .expect("required original pinned Tcl source tree");
+        let interpreter = tcl_test_support::tclsh_from_source_tree(&tree, version)
+            .expect("required matching original Tcl binary");
+        let selected = venv.join("bin/tclsh");
+        if selected.exists() {
+            std::fs::remove_file(&selected).unwrap();
+        }
+        symlink(&interpreter.path, &selected).unwrap();
+        for suffix in [
+            None,
+            Some(""),
+            Some("  {old path} \t\n"),
+            Some(r"old\x4142 {literal\n} trailing\ "),
+        ] {
+            for surface in ["pkg", "venv"] {
+                let result = base.join("native-result");
+                if result.exists() {
+                    std::fs::remove_file(&result).unwrap();
+                }
+                let mut command = Command::new(env!("CARGO_BIN_EXE_tcl"));
+                if surface == "pkg" {
+                    command
+                        .args(["pkg", "run", "--manifest"])
+                        .arg(project.join("tclpkg.tcl"));
+                } else {
+                    command
+                        .args(["venv", "run"])
+                        .arg(&venv)
+                        .arg("--")
+                        .arg(&interpreter.path)
+                        .arg(project.join("entry.tcl"));
+                }
+                command
+                    .current_dir(&project)
+                    .env("TCL_VENV", &venv)
+                    .env("TCL_LIBRARY", tree.library_dir())
+                    .env("LD_LIBRARY_PATH", tree.root.join("unix"))
+                    .env("EXPECTED_PATCHLEVEL", &interpreter.patchlevel)
+                    .env("EXPECTED_LIBRARY", tree.library_dir())
+                    .env(
+                        "EXPECTED_PATH",
+                        if surface == "pkg" {
+                            project.join("lib")
+                        } else {
+                            venv.join("lib")
+                        },
+                    )
+                    .env("EXPECTED_SUFFIX", suffix.unwrap_or(""))
+                    .env(
+                        "EXPECTED_ESCAPE",
+                        if suffix == Some(r"old\x4142 {literal\n} trailing\ ") {
+                            if version <= tcl_dialect::TclVersion::V8_5 {
+                                "oldB"
+                            } else {
+                                "oldA42"
+                            }
+                        } else {
+                            ""
+                        },
+                    )
+                    .env("RESULT_PATH", &result)
+                    .env("XDG_CACHE_HOME", base.join("cache"));
+                match suffix {
+                    Some(value) => {
+                        command.env("TCLLIBPATH", value);
+                    }
+                    None => {
+                        command.env_remove("TCLLIBPATH");
+                    }
+                }
+                let output = command.output().unwrap();
+                assert!(
+                    output.status.success(),
+                    "{version:?}/{surface}/{suffix:?}: {output:?}"
+                );
+                assert!(
+                    output.stderr.is_empty(),
+                    "{version:?}/{surface}: {:?}",
+                    output.stderr
+                );
+                let receipt = std::fs::read_to_string(&result).unwrap();
+                assert!(
+                    receipt.starts_with(&format!("PASS {} ", interpreter.patchlevel)),
+                    "{receipt}"
+                );
+            }
+        }
+    }
+    std::fs::remove_dir_all(base).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn direct_tcllibpath_producers_refuse_invalid_or_opaque_source_before_entry() {
+    use std::os::unix::ffi::OsStringExt;
+    use std::os::unix::fs::PermissionsExt;
+    let base = temp_dir("tcllibpath-refusal");
+    let project = base.join("project");
+    let venv = base.join("venv");
+    std::fs::create_dir_all(project.join("lib")).unwrap();
+    std::fs::create_dir_all(venv.join("lib")).unwrap();
+    std::fs::create_dir_all(venv.join("bin")).unwrap();
+    std::fs::write(
+        project.join("tclpkg.tcl"),
+        "package demo\nversion 1.0\nentry entry.tcl\n",
+    )
+    .unwrap();
+    std::fs::write(project.join("entry.tcl"), "exit 0\n").unwrap();
+    std::fs::write(venv.join("tclvenv.cfg"), "venv_tool = tcl-lsp\n").unwrap();
+    let executable = venv.join("bin/tclsh");
+    std::fs::write(
+        &executable,
+        "#!/bin/sh\nprintf reached > \"$ENTRY_MARKER\"\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+    for inherited in [
+        std::ffi::OsString::from("{unclosed"),
+        std::ffi::OsString::from("{closed}junk"),
+        std::ffi::OsString::from_vec(b"original-\xff".to_vec()),
+    ] {
+        for surface in ["pkg", "venv"] {
+            let marker = base.join("entry-marker");
+            let mut command = Command::new(env!("CARGO_BIN_EXE_tcl"));
+            if surface == "pkg" {
+                command
+                    .args(["pkg", "run", "--manifest"])
+                    .arg(project.join("tclpkg.tcl"));
+            } else {
+                command
+                    .args(["venv", "run"])
+                    .arg(&venv)
+                    .arg("--")
+                    .arg(&executable);
+            }
+            let output = command
+                .current_dir(&project)
+                .env("TCL_VENV", &venv)
+                .env("TCLLIBPATH", &inherited)
+                .env("ENTRY_MARKER", &marker)
+                .env("XDG_CACHE_HOME", base.join("cache"))
+                .output()
+                .unwrap();
+            assert_eq!(output.status.code(), Some(1), "{surface}: {output:?}");
+            assert!(
+                String::from_utf8(output.stderr)
+                    .unwrap()
+                    .contains("TCLLIBPATH")
+            );
+            assert!(
+                !marker.exists(),
+                "{surface}: unrepresentable list source entered user code"
+            );
+        }
+    }
+    std::fs::remove_dir_all(base).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+#[allow(clippy::too_many_lines)]
+fn generated_posix_venv_source_preserves_executable_arguments_and_activation_values() {
+    use std::os::unix::fs::PermissionsExt;
+    let base = temp_dir("venv-posix-source");
+    let selected_dir = base.join("selected '$literal`quote` directory");
+    std::fs::create_dir_all(&selected_dir).unwrap();
+    let selected = selected_dir.join("tclsh9.0");
+    let target = r#"#!/bin/sh
+if [ "$1" = - ]; then printf '9.0.4\n'; exit 0; fi
+printf '%s\000' "$0" "$@" "$TCL_VENV" "$TCLLIBPATH" > "$RECEIPT"
+"#;
+    std::fs::write(&selected, target).unwrap();
+    std::fs::set_permissions(&selected, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let venv = base.join("venv '$literal`quote` {path}");
+    let prompt = "prompt '$literal`quote`\";\nsecond line";
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "create"])
+        .arg(&venv)
+        .args(["--prompt", prompt])
+        .env("PATH", selected_dir.file_name().unwrap())
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let receipt = base.join("wrapper-receipt");
+    let arguments = ["one argument", "'$literal`quote`\";", "line\nend", ""];
+    let output = Command::new("/bin/sh")
+        .arg(venv.join("bin/tclsh"))
+        .args(arguments)
+        .env("RECEIPT", &receipt)
+        .env("PATH", "/bin:/usr/bin")
+        .env("TCLLIBPATH", "{original suffix}")
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert!(output.stderr.is_empty(), "{output:?}");
+    let raw = std::fs::read(&receipt).unwrap();
+    let values = raw
+        .strip_suffix(&[0])
+        .unwrap()
+        .split(|byte| *byte == 0)
+        .collect::<Vec<_>>();
+    assert_eq!(values[0], selected.to_str().unwrap().as_bytes());
+    for (actual, expected) in values[1..5].iter().zip(arguments) {
+        assert_eq!(*actual, expected.as_bytes());
+    }
+    assert_eq!(values[5], venv.to_str().unwrap().as_bytes());
+    let activation_receipt = base.join("activation-receipt");
+    let driver = base.join("activation-driver.sh");
+    std::fs::write(
+        &driver,
+        r#". "$ACTIVATION"
+printf '%s\000' "$TCL_VENV" "$PATH" "$PS1" "$TCLLIBPATH" > "$RECEIPT"
+deactivate
+printf '%s\000' "$PATH" "$PS1" "$TCLLIBPATH" "${TCL_VENV+x}" >> "$RECEIPT"
+"#,
+    )
+    .unwrap();
+    let original_path = "before path:original tail";
+    let original_prompt = "original '$prompt`value` ";
+    let original_suffix = r"{original path} tail\ ";
+    let output = Command::new("/bin/sh")
+        .arg(&driver)
+        .env("ACTIVATION", venv.join("bin/activate"))
+        .env("RECEIPT", &activation_receipt)
+        .env("PATH", original_path)
+        .env("PS1", original_prompt)
+        .env("TCLLIBPATH", original_suffix)
+        .env_remove("TCL_VENV")
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert!(output.stderr.is_empty(), "{output:?}");
+    let raw = std::fs::read(activation_receipt).unwrap();
+    let values = raw
+        .strip_suffix(&[0])
+        .unwrap()
+        .split(|byte| *byte == 0)
+        .collect::<Vec<_>>();
+    let expected_list = tcl_pkg::venv::prepare_tcllibpath(
+        &venv.join("lib"),
+        Some(std::ffi::OsStr::new(original_suffix)),
+    )
+    .unwrap();
+    let expected_path = format!("{}:{original_path}", venv.join("bin").to_str().unwrap());
+    let expected_prompt = format!("({prompt}) {original_prompt}");
+    assert_eq!(
+        values,
+        [
+            venv.to_str().unwrap().as_bytes(),
+            expected_path.as_bytes(),
+            expected_prompt.as_bytes(),
+            expected_list.to_str().unwrap().as_bytes(),
+            original_path.as_bytes(),
+            original_prompt.as_bytes(),
+            original_suffix.as_bytes(),
+            b""
+        ]
+    );
+    std::fs::remove_dir_all(base).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn generated_posix_venv_source_refuses_opaque_paths_before_writing() {
+    use std::os::unix::ffi::OsStringExt;
+    use std::os::unix::fs::PermissionsExt;
+    let base = temp_dir("venv-posix-opaque");
+    let selected_dir = base.join("selected");
+    std::fs::create_dir_all(&selected_dir).unwrap();
+    let selected = selected_dir.join("tclsh9.0");
+    std::fs::write(&selected, "#!/bin/sh\nprintf '9.0.4\\n'\n").unwrap();
+    std::fs::set_permissions(&selected, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let colon = base.join("venv:component");
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "create"])
+        .arg(&colon)
+        .env("PATH", &selected_dir)
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(!colon.exists());
+    let opaque = base.join(std::ffi::OsString::from_vec(b"venv-\xff".to_vec()));
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "create"])
+        .arg(&opaque)
+        .args(["--prompt", "explicit"])
+        .env("PATH", &selected_dir)
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(!opaque.exists());
+    let opaque_selected = base.join(std::ffi::OsString::from_vec(b"selected-\xff".to_vec()));
+    std::fs::create_dir_all(&opaque_selected).unwrap();
+    std::fs::copy(&selected, opaque_selected.join("tclsh9.0")).unwrap();
+    let venv = base.join("new-venv");
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "create"])
+        .arg(&venv)
+        .env("PATH", &opaque_selected)
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(!venv.exists());
+    std::fs::create_dir_all(venv.join("bin")).unwrap();
+    std::fs::write(
+        venv.join("tclvenv.cfg"),
+        "venv_tool = tcl-lsp\ntcl_executable = original\n",
+    )
+    .unwrap();
+    std::fs::write(venv.join("bin/tclsh"), "original wrapper\n").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "update"])
+        .arg(&venv)
+        .args(["--tcl", "9.0"])
+        .env("PATH", &opaque_selected)
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert_eq!(
+        std::fs::read_to_string(venv.join("tclvenv.cfg")).unwrap(),
+        "venv_tool = tcl-lsp\ntcl_executable = original\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(venv.join("bin/tclsh")).unwrap(),
+        "original wrapper\n"
+    );
+    std::fs::remove_dir_all(base).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn venv_config_publication_preserves_original_paths_values_and_legacy_rows() {
+    use std::os::unix::fs::PermissionsExt;
+    let base = temp_dir("venv-config-source");
+    let selected_dir = base.join("selected \"quote\"\nnext=path");
+    std::fs::create_dir_all(&selected_dir).unwrap();
+    let executable = selected_dir.join("tclsh9.0");
+    std::fs::write(&executable, "#!/bin/sh\nprintf '9.0.4\\n'\n").unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let venv = base.join("venv");
+    let prompt = "literal \"quotes\"\\path\nnext = not-a-key";
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "create"])
+        .arg(&venv)
+        .args(["--prompt", prompt])
+        .env("PATH", &selected_dir)
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let pairs = tcl_pkg::venv::read_venv_config(&venv).unwrap();
+    assert!(pairs.contains(&("prompt".into(), prompt.into())));
+    assert!(pairs.contains(&("tcl_executable".into(), executable.to_str().unwrap().into())));
+    assert!(!pairs.iter().any(|(key, _)| key == "next"));
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "info"])
+        .arg(&venv)
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["prompt"], prompt);
+    let legacy = "tcl_version = 8.6\ntcl_executable = original\ntcl_version_extra = retain-version\ntcl_executable_backup = retain-path\nunknown = first\nunknown = second\nprompt = \"literal\"\n";
+    std::fs::write(venv.join("tclvenv.cfg"), legacy).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "update"])
+        .arg(&venv)
+        .args(["--tcl", "9.0"])
+        .env("PATH", &selected_dir)
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(
+        tcl_pkg::venv::read_venv_config(&venv).unwrap(),
+        vec![
+            ("tcl_version".into(), "9.0".into()),
+            ("tcl_executable".into(), executable.to_str().unwrap().into()),
+            ("tcl_version_extra".into(), "retain-version".into()),
+            ("tcl_executable_backup".into(), "retain-path".into()),
+            ("unknown".into(), "first".into()),
+            ("unknown".into(), "second".into()),
+            ("prompt".into(), "\"literal\"".into()),
+        ]
+    );
+    let wrapper = std::fs::read(venv.join("bin/tclsh")).unwrap();
+    for invalid in [
+        "# tclpkg venv config TOML 1\nbroken source\n",
+        "# tclpkg venv config TOML 2\ntcl_version = legacy-fallback-must-not-run\n",
+        "tcl_version = one\ntcl_version = two\n",
+        "prompt = one\nprompt = two\n",
+    ] {
+        std::fs::write(venv.join("tclvenv.cfg"), invalid).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+            .args(["venv", "update"])
+            .arg(&venv)
+            .args(["--tcl", "9.0"])
+            .env("PATH", &selected_dir)
+            .env("XDG_CACHE_HOME", base.join("cache"))
+            .current_dir(&base)
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(1), "{output:?}");
+        assert_eq!(
+            std::fs::read_to_string(venv.join("tclvenv.cfg")).unwrap(),
+            invalid
+        );
+        assert_eq!(std::fs::read(venv.join("bin/tclsh")).unwrap(), wrapper);
+    }
+    std::fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
+fn venv_deletion_requires_successful_actual_active_path_identity() {
+    let base = temp_dir("venv-delete-identity");
+    let target = base.join("selected");
+    let distinct = base.join("distinct");
+    std::fs::create_dir_all(&target).unwrap();
+    std::fs::create_dir_all(&distinct).unwrap();
+    let marker = b"venv_tool = tcl-lsp\n";
+    std::fs::write(target.join("tclvenv.cfg"), marker).unwrap();
+    let delete = |active: &std::path::Path, force: bool| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_tcl"));
+        command
+            .current_dir(&base)
+            .args(["venv", "delete"])
+            .arg(&target)
+            .env("TCL_VENV", active);
+        if force {
+            command.arg("--force");
+        }
+        command.output().unwrap()
+    };
+
+    let output = delete(&base.join("missing-active"), false);
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("cannot establish active venv path identity")
+    );
+    assert_eq!(std::fs::read(target.join("tclvenv.cfg")).unwrap(), marker);
+
+    let output = delete(&target, false);
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("cannot delete the currently active venv")
+    );
+    assert_eq!(std::fs::read(target.join("tclvenv.cfg")).unwrap(), marker);
+
+    #[cfg(unix)]
+    {
+        let alias = base.join("active-alias");
+        std::os::unix::fs::symlink(&target, &alias).unwrap();
+        let output = delete(&alias, false);
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stderr)
+                .contains("cannot delete the currently active venv")
+        );
+        assert_eq!(std::fs::read(target.join("tclvenv.cfg")).unwrap(), marker);
+    }
+
+    let output = delete(&distinct, false);
+    assert!(output.status.success(), "{:?}", output.stderr);
+    assert!(!target.exists());
+    assert!(distinct.is_dir());
+
+    std::fs::create_dir(&target).unwrap();
+    std::fs::write(target.join("tclvenv.cfg"), marker).unwrap();
+    let output = delete(&base.join("missing-active"), true);
+    assert!(output.status.success(), "{:?}", output.stderr);
+    assert!(!target.exists());
+    std::fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
+fn docker_cmd_source_preserves_complete_original_exec_argv() {
+    let dir = temp_dir("docker-cmd-argv");
+    for entry in [
+        "main.tcl",
+        "literal\"], \"other\"]\nRUN injected\n#",
+        "space [literal] $VALUE \\ café\r\nscript.tcl",
+        "",
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+            .current_dir(&dir)
+            .args([
+                "docker",
+                "create",
+                "--no-packages",
+                "--force",
+                "--entrypoint",
+                entry,
+            ])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{:?}", output.stderr);
+        let source = std::fs::read_to_string(dir.join("Dockerfile")).unwrap();
+        let instructions = source
+            .lines()
+            .filter_map(|line| line.strip_prefix("CMD "))
+            .collect::<Vec<_>>();
+        assert_eq!(instructions.len(), 1);
+        let argv: Vec<String> = serde_json::from_str(instructions[0]).unwrap();
+        assert_eq!(argv, ["tclsh", entry]);
+        assert!(!source.lines().any(|line| line == "RUN injected"));
+        if entry == "main.tcl" {
+            assert!(source.trim_end().ends_with("CMD [\"tclsh\", \"main.tcl\"]"));
+        }
+    }
+
+    let path = dir.join("Dockerfile");
+    let before = std::fs::read(&path).unwrap();
+    let invalid = tcl_pkg::docker::DockerfileSpec {
+        install_packages: false,
+        entrypoint: Some("bad\0argv".into()),
+        ..Default::default()
+    };
+    assert!(tcl_pkg::docker::write_dockerfile(&path, &invalid, true).is_err());
+    assert_eq!(std::fs::read(&path).unwrap(), before);
+    std::fs::remove_dir_all(dir).unwrap();
 }

@@ -782,7 +782,7 @@ fn write_mypkg_fixture() -> std::path::PathBuf {
 fn package_required_library_command_recovers_the_tail() {
     let libdir = write_mypkg_fixture();
     let mut lsp = Lsp::with_config(json!({
-        "libraryPaths": [ libdir.to_string_lossy() ],
+        "libraryPaths": [ libdir.to_str().expect("temporary package path is Unicode") ],
     }));
     let uri = unique_uri("tcl");
     lsp.open_document(
@@ -821,7 +821,7 @@ fn undefined_name_with_package_required_falls_back_honestly() {
     // a name `mypkg` does not provide.
     let libdir = write_mypkg_fixture();
     let mut lsp = Lsp::with_config(json!({
-        "libraryPaths": [ libdir.to_string_lossy() ],
+        "libraryPaths": [ libdir.to_str().expect("temporary package path is Unicode") ],
     }));
 
     // The package database is (re)built asynchronously; a fixed sleep raced it,

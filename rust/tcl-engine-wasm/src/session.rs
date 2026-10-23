@@ -28,9 +28,12 @@
 //! relocations, and runs its entry point with the interpreter, as `load` does.
 
 use std::any::Any;
-use std::rc::Rc;
+use std::collections::BTreeMap;
+use std::rc::{Rc, Weak};
+use tcl_engine_api::engine_interpreter_identity::EngineInterpreterIdentity;
 
-use tcl_engine_api::{BudgetKind, EngineError, HostCommand};
+use crate::command_receipts::{self, CommandReceipt};
+use tcl_engine_api::{BudgetKind, EngineError, HostCommand, Value};
 use wasmtime::{
     Extern, Global, GlobalType, Instance, Linker, Memory, Mutability, Ref, ResourceLimiter, Store,
     Table, Trap, TypedFunc, Val, ValType, WasmParams, WasmResults,
@@ -48,6 +51,8 @@ const SIDE_STACK: i32 = 64 * 1024;
 pub(crate) struct HostState {
     /// The runtime's exports, once it is instantiated.
     pub(crate) exports: Option<Rc<Exports>>,
+    /// Actual installed root pointer and diagnostic identity, never a guessed ID.
+    pub(crate) root_interpreter: Option<(i32, EngineInterpreterIdentity)>,
     /// The cap on the memory's growth for the running evaluation.
     cap: MemoryCap,
     /// The host commands, by the client data each was registered with.
@@ -60,6 +65,17 @@ pub(crate) struct HostState {
     /// What running host commands set up through their doors, for the engine
     /// to keep.
     pub(crate) defined: Vec<crate::host_call::Defined>,
+    pub(crate) host_receipts: Vec<CommandReceipt>,
+    unit_receipts: BTreeMap<u32, CommandReceipt>,
+    /// Host-origin typed causes for the same actual runtime interpreter.
+    pub(crate) execution_causes: BTreeMap<EngineInterpreterIdentity, TypedExecutionCause>,
+    /// The same real public begin episode, never an entered-operation issuer.
+    pub(crate) entry_episode: Option<Rc<()>>,
+}
+
+pub(crate) struct TypedExecutionCause {
+    pub(crate) episode: Weak<()>,
+    pub(crate) cause: tcl_engine_api::NativeExecutionError,
 }
 
 impl SharedMemory for HostState {
@@ -120,24 +136,42 @@ pub(crate) struct Exports {
     pub(crate) release: TypedFunc<i32, ()>,
     pub(crate) string_of: TypedFunc<(i32, i32), i32>,
     invoke_argv: TypedFunc<(i32, i32, i32), i32>,
-    completion_release: TypedFunc<i32, ()>,
-    pub(crate) create_command: TypedFunc<(i32, i32, i32, i32, i32), i32>,
-    pub(crate) delete_command: TypedFunc<(i32, i32), i32>,
-    pub(crate) set_result: TypedFunc<(i32, i32), ()>,
-    pub(crate) get_result: TypedFunc<i32, i32>,
+    pub(crate) completion_release: TypedFunc<i32, ()>,
+    pub(crate) capture: TypedFunc<(i32, i32, i32), i32>,
+    pub(crate) create_command: TypedFunc<(i32, i32, i32, i32, i32, i32), i32>,
+    pub(crate) delete_command: TypedFunc<(i32, i32, i32, i32), i32>,
+    pub(crate) replay_context: TypedFunc<(i32, i32), i32>,
+    #[allow(clippy::type_complexity)] // the export's own eight-argument signature
+    pub(crate) replay_create_command: TypedFunc<(i32, i32, i32, i32, i32, i32, i32, i32), i32>,
+    pub(crate) replay_delete_command: TypedFunc<(i32, i32, i32, i32, i32, i32), i32>,
     set_limits: TypedFunc<(i32, i64, i64), ()>,
     begin: TypedFunc<i32, ()>,
     exceeded: TypedFunc<i32, i32>,
     pub(crate) exceed: TypedFunc<(i32, i32), i32>,
     spent: TypedFunc<i32, i64>,
     confine: TypedFunc<i32, ()>,
-    restrict: TypedFunc<(i32, i32, i32), ()>,
+    restrict: TypedFunc<(i32, i32, i32, i32), i32>,
     set_release: TypedFunc<(i32, i32, i32), i32>,
-    define_unit: TypedFunc<(i32, i32, i32, i32), i32>,
+    pub(crate) define_unit: TypedFunc<(i32, i32, i32, i32, i32), i32>,
     pub(crate) provide: TypedFunc<(i32, i32, i32), i32>,
     pub(crate) error_code: TypedFunc<i32, i32>,
     pub(crate) fail: TypedFunc<(i32, i32, i32), i32>,
-    pub(crate) returning: TypedFunc<(i32, i32, i32), i32>,
+    pub(crate) complete: TypedFunc<(i32, i32, i32, i32), i32>,
+    pub(crate) host_refusal_pending: TypedFunc<i32, i32>,
+    pub(crate) interpreter_identity: TypedFunc<(i32, i32), i32>,
+    destroy_interpreter: TypedFunc<i32, ()>,
+    pub(crate) host_refusal_text: TypedFunc<i32, i32>,
+    pub(crate) refuse_host: TypedFunc<(i32, i32, i32), i32>,
+    pub(crate) string_snapshot: TypedFunc<(i32, i32), i32>,
+    visible_command_inventory: Option<TypedFunc<i32, i32>>,
+    pub(crate) receipt_current: TypedFunc<(i32, i64, i64, i64, i32, i32), i32>,
+    pub(crate) new_scalar: TypedFunc<(i32, i32, i32), i32>,
+    pub(crate) new_byte_array: TypedFunc<(i32, i32, i32), i32>,
+    pub(crate) adopt_resident: TypedFunc<(i32, i32, i32, i32, i32), i32>,
+    pub(crate) new_sequence: TypedFunc<(i32, i32, i32, i32), i32>,
+    pub(crate) new_int: TypedFunc<i64, i32>,
+    pub(crate) new_double: TypedFunc<f64, i32>,
+    pub(crate) retain: TypedFunc<i32, i32>,
 }
 
 impl Exports {
@@ -159,23 +193,57 @@ impl Exports {
             string_of: instance.get_typed_func(&mut *store, "Tcl_GetStringFromObj")?,
             invoke_argv: instance.get_typed_func(&mut *store, "tcl_invoke_argv")?,
             completion_release: instance.get_typed_func(&mut *store, "tcl_completion_release")?,
-            create_command: instance.get_typed_func(&mut *store, "Tcl_CreateObjCommand")?,
-            delete_command: instance.get_typed_func(&mut *store, "Tcl_DeleteCommand")?,
-            set_result: instance.get_typed_func(&mut *store, "Tcl_SetObjResult")?,
-            get_result: instance.get_typed_func(&mut *store, "Tcl_GetObjResult")?,
+            capture: instance.get_typed_func(&mut *store, "tcl_engine_capture_original")?,
+            create_command: instance
+                .get_typed_func(&mut *store, "tcl_engine_create_command_counted")?,
+            delete_command: instance
+                .get_typed_func(&mut *store, "tcl_engine_delete_command_counted")?,
+            replay_context: instance
+                .get_typed_func(&mut *store, "tcl_engine_command_replay_context")?,
+            replay_create_command: instance
+                .get_typed_func(&mut *store, "tcl_engine_replay_create_command_counted")?,
+            replay_delete_command: instance
+                .get_typed_func(&mut *store, "tcl_engine_replay_delete_command_counted")?,
             set_limits: instance.get_typed_func(&mut *store, "tcl_engine_set_limits")?,
             begin: instance.get_typed_func(&mut *store, "tcl_engine_begin")?,
             exceeded: instance.get_typed_func(&mut *store, "tcl_engine_exceeded")?,
             exceed: instance.get_typed_func(&mut *store, "tcl_engine_exceed")?,
             spent: instance.get_typed_func(&mut *store, "tcl_engine_commands_spent")?,
             confine: instance.get_typed_func(&mut *store, "tcl_engine_confine_stores")?,
-            restrict: instance.get_typed_func(&mut *store, "tcl_engine_restrict")?,
+            restrict: instance
+                .get_typed_func(&mut *store, "tcl_engine_restrict_original_receipts")?,
             set_release: instance.get_typed_func(&mut *store, "tcl_engine_set_release")?,
-            define_unit: instance.get_typed_func(&mut *store, "tcl_engine_define_unit")?,
+            define_unit: instance.get_typed_func(&mut *store, "tcl_engine_define_unit_receipt")?,
             provide: instance.get_typed_func(&mut *store, "tcl_engine_provide_package")?,
             error_code: instance.get_typed_func(&mut *store, "tcl_engine_error_code")?,
             fail: instance.get_typed_func(&mut *store, "tcl_engine_fail")?,
-            returning: instance.get_typed_func(&mut *store, "tcl_engine_return")?,
+            complete: instance.get_typed_func(&mut *store, "tcl_engine_complete_original")?,
+            interpreter_identity: instance
+                .get_typed_func(&mut *store, EngineInterpreterIdentity::EXPORT)?,
+            destroy_interpreter: instance
+                .get_typed_func(&mut *store, "tcl_runtime_delete_interp")?,
+            host_refusal_pending: instance
+                .get_typed_func(&mut *store, "tcl_engine_host_refusal_pending")?,
+            host_refusal_text: instance
+                .get_typed_func(&mut *store, "tcl_engine_host_refusal_text")?,
+            refuse_host: instance.get_typed_func(&mut *store, "tcl_engine_refuse_host_counted")?,
+            string_snapshot: instance
+                .get_typed_func(&mut *store, "tcl_engine_original_string_snapshot")?,
+            visible_command_inventory: instance
+                .get_typed_func(&mut *store, "tcl_engine_visible_command_inventory")
+                .ok(),
+            receipt_current: instance
+                .get_typed_func(&mut *store, "tcl_engine_command_receipt_current")?,
+            new_scalar: instance.get_typed_func(&mut *store, "tcl_engine_new_scalar_carrier")?,
+            new_byte_array: instance
+                .get_typed_func(&mut *store, "tcl_engine_new_byte_array_carrier")?,
+            adopt_resident: instance
+                .get_typed_func(&mut *store, "tcl_engine_adopt_resident_carrier")?,
+            new_sequence: instance
+                .get_typed_func(&mut *store, "tcl_engine_new_sequence_carrier")?,
+            new_int: instance.get_typed_func(&mut *store, "Tcl_NewWideIntObj")?,
+            new_double: instance.get_typed_func(&mut *store, "Tcl_NewDoubleObj")?,
+            retain: instance.get_typed_func(&mut *store, "tcl_obj_retain")?,
         })
     }
 }
@@ -186,6 +254,7 @@ pub(crate) struct Completion {
     pub(crate) code: i32,
     pub(crate) result: Vec<u8>,
     pub(crate) options: Vec<u8>,
+    pub(crate) error_code: Option<Vec<u8>>,
 }
 
 /// The limits one evaluation runs under, as the store and the runtime take
@@ -253,13 +322,20 @@ impl Session {
             instance.get_typed_func::<i32, ()>(&mut store, "tcl_runtime_set_current_interp")?;
         let interp = create.call(&mut store, ())?;
         current.call(&mut store, interp)?;
+        let identity = command_receipts::interpreter_identity(&mut store, &exports, interp)
+            .map_err(|failure| wasmtime::Error::msg(failure.into_engine_error().to_string()))?;
+        store.data_mut().root_interpreter = Some((interp, identity));
         let scratch = exports.alloc.call(&mut store, (16, 8))?;
-        Ok(Self {
+        let mut session = Self {
             store,
             exports,
             interp,
             scratch,
-        })
+        };
+        session
+            .begin_entry()
+            .map_err(|failure| wasmtime::Error::msg(failure.into_engine_error().to_string()))?;
+        Ok(session)
     }
 
     /// Link `extension` into the instance and run its entry point.
@@ -415,27 +491,20 @@ impl Session {
         Ok(buffer)
     }
 
-    /// The bytes of `object`'s string.
-    fn string_of(&mut self, object: i32) -> Result<Vec<u8>, Failure> {
-        let chars = call(
-            &mut self.store,
-            &self.exports.string_of,
-            (object, self.scratch),
-        )?;
-        read_string(&self.store, self.exports.memory, chars, self.scratch).map_err(Failure::Trap)
-    }
-
-    /// The error the interpreter holds: its result and its error code.
     fn script_error(&mut self) -> Result<Failure, Failure> {
-        let result = call(&mut self.store, &self.exports.get_result, self.interp)?;
-        let message = String::from_utf8_lossy(&self.string_of(result)?).into_owned();
-        let code = call(&mut self.store, &self.exports.error_code, self.interp)?;
-        let text = String::from_utf8_lossy(&self.string_of(code)?).into_owned();
-        self.release(&[code])?;
-        Ok(Failure::Script {
-            message,
-            code: Some(text),
-        })
+        let error = command_receipts::guest_error(&mut self.store, &self.exports, self.interp, 1)?;
+        match error {
+            EngineError::ScriptBytes {
+                message,
+                code,
+                options,
+            } => Ok(Failure::Guest {
+                message,
+                code,
+                options,
+            }),
+            _ => unreachable!("guest_error retains the genuine guest channel"),
+        }
     }
 
     /// Lift an evaluation's limits once it has ended, so what is set up on the
@@ -446,6 +515,14 @@ impl Session {
         let _ = self.store.set_fuel(u64::MAX);
         self.store.set_epoch_deadline(u64::MAX / 2);
         self.store.data_mut().cap.limit = None;
+    }
+
+    /// Admit a new independent public engine operation, never a nested callback.
+    pub(crate) fn begin_entry(&mut self) -> Result<(), Failure> {
+        call(&mut self.store, &self.exports.begin, self.interp)?;
+        self.store.data_mut().execution_causes.clear();
+        self.store.data_mut().entry_episode = Some(Rc::new(()));
+        Ok(())
     }
 
     /// Arm the limits of one evaluation.
@@ -470,7 +547,7 @@ impl Session {
             &self.exports.set_limits,
             (self.interp, commands, value_bytes),
         )?;
-        call(&mut self.store, &self.exports.begin, self.interp)
+        self.begin_entry()
     }
 
     /// The limit the interpreter says the evaluation outran.
@@ -492,15 +569,79 @@ impl Session {
             .and_then(|spent| u64::try_from(spent).ok())
     }
 
+    /// Capture current table data through the runtime's callback-free inventory.
+    /// Coordinates/numbers supply no callable, cache or installed-command receipt.
+    pub(crate) fn command_inventory(
+        &mut self,
+    ) -> Result<
+        (
+            EngineInterpreterIdentity,
+            tcl_runtime_api::command_inventory::EngineCommandInventory,
+        ),
+        EngineError,
+    > {
+        let export = self
+            .exports
+            .visible_command_inventory
+            .clone()
+            .ok_or_else(|| {
+                EngineError::ExecutionRefusal(
+                    "runtime has no visible command inventory export".into(),
+                )
+            })?;
+        let before =
+            command_receipts::interpreter_identity(&mut self.store, &self.exports, self.interp)
+                .map_err(Failure::into_engine_error)?;
+        let object =
+            call(&mut self.store, &export, self.interp).map_err(Failure::into_engine_error)?;
+        if object == 0 {
+            command_receipts::settle(&mut self.store, &self.exports, self.interp)
+                .map_err(Failure::into_engine_error)?;
+            if let Some(kind) = self.exceeded().map_err(Failure::into_engine_error)? {
+                return Err(EngineError::BudgetExceeded(kind));
+            }
+            return Err(EngineError::ExecutionRefusal(
+                "visible command inventory unavailable".into(),
+            ));
+        }
+        let bytes = command_receipts::owned_string(&mut self.store, &self.exports, object);
+        let settled = command_receipts::settle(&mut self.store, &self.exports, self.interp);
+        let bytes = bytes.map_err(Failure::into_engine_error)?;
+        settled.map_err(Failure::into_engine_error)?;
+        let after =
+            command_receipts::interpreter_identity(&mut self.store, &self.exports, self.interp)
+                .map_err(Failure::into_engine_error)?;
+        if before != after {
+            return Err(EngineError::ExecutionRefusal(
+                "command inventory interpreter changed".into(),
+            ));
+        }
+        let inventory = tcl_runtime_api::command_inventory::EngineCommandInventory::decode(&bytes)
+            .ok_or_else(|| {
+                EngineError::ExecutionRefusal("malformed command inventory transport".into())
+            })?;
+        Ok((after, inventory))
+    }
+
     /// Evaluate the command `words` at the interpreter's top level.
     pub(crate) fn evaluate(&mut self, words: &[&[u8]]) -> Result<Completion, Failure> {
-        let count = i32::try_from(words.len())
-            .map_err(|_| Failure::Refused("too many words".to_owned()))?;
-        let argv = call(&mut self.store, &self.exports.alloc, (count.max(1) * 4, 4))?;
-        let mut objects = Vec::with_capacity(words.len());
-        for (index, word) in words.iter().enumerate() {
-            let object = self.object(word)?;
-            objects.push(object);
+        let mut originals = Vec::new();
+        for word in words {
+            originals.push(self.object(word)?);
+        }
+        self.evaluate_originals(&originals)
+    }
+
+    /// Owns and releases every argument reference even after a host refusal.
+    fn evaluate_originals(&mut self, objects: &[i32]) -> Result<Completion, Failure> {
+        let count =
+            i32::try_from(objects.len()).map_err(|_| Failure::Refused("too many words".into()))?;
+        let size = count
+            .max(1)
+            .checked_mul(4)
+            .ok_or_else(|| Failure::Refused("argument vector is too large".into()))?;
+        let argv = call(&mut self.store, &self.exports.alloc, (size, 4))?;
+        for (index, object) in objects.iter().enumerate() {
             self.exports
                 .memory
                 .write(
@@ -516,31 +657,43 @@ impl Session {
             &self.exports.invoke_argv,
             (argv, count, out),
         )?;
-        let mut raw = [0; 12];
-        self.exports
-            .memory
-            .read(&self.store, address(out), &mut raw)
-            .map_err(|error| Failure::Trap(wasmtime::Error::new(error)))?;
-        let field =
-            |at: usize| i32::from_le_bytes([raw[at], raw[at + 1], raw[at + 2], raw[at + 3]]);
-        let (code, result, options) = (field(0), field(4), field(8));
-        let completion = Completion {
-            code,
-            result: self.string_of(result)?,
-            options: self.string_of(options)?,
-        };
-        call(&mut self.store, &self.exports.completion_release, out)?;
-        self.release(&objects)?;
+        if let Err(error) = command_receipts::settle(&mut self.store, &self.exports, self.interp) {
+            self.release(objects)?;
+            call(&mut self.store, &self.exports.free, argv)?;
+            return Err(error);
+        }
+        let completion =
+            command_receipts::completion(&mut self.store, &self.exports, self.interp, out);
+        self.release(objects)?;
         call(&mut self.store, &self.exports.free, argv)?;
-        Ok(completion)
+        completion
     }
 
     /// Register `command` as the host command `name`.
+    #[cfg(test)]
     pub(crate) fn define_command(
         &mut self,
-        name: &str,
+        name: &[u8],
         command: Rc<dyn HostCommand>,
-    ) -> Result<(), Failure> {
+    ) -> Result<CommandReceipt, Failure> {
+        self.define_command_with_context(name, command, None)
+    }
+
+    pub(crate) fn replay_command(
+        &mut self,
+        input: &command_receipts::CommandReplay,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<CommandReceipt, Failure> {
+        admit_replay_interpreter(input)?;
+        self.define_command_with_context(&input.original, command, input.context.as_ref())
+    }
+
+    fn define_command_with_context(
+        &mut self,
+        name: &[u8],
+        command: Rc<dyn HostCommand>,
+        context: Option<&tcl_engine_api::engine_command_replay::EngineCommandReplayContext>,
+    ) -> Result<CommandReceipt, Failure> {
         let procedure = if let Some(procedure) = self.store.data().host_procedure {
             procedure
         } else {
@@ -557,27 +710,55 @@ impl Session {
         };
         let client = i32::try_from(self.store.data().commands.len())
             .map_err(|_| Failure::Refused("too many host commands".to_owned()))?;
-        self.store.data_mut().commands.push(command);
-        let text = self.c_string(name)?;
-        call(
+        let receipt = command_receipts::create_with_context(
             &mut self.store,
-            &self.exports.create_command,
-            (self.interp, text, procedure, client, 0),
+            &self.exports,
+            self.interp,
+            name,
+            procedure,
+            client,
+            context,
         )?;
-        call(&mut self.store, &self.exports.free, text)?;
-        Ok(())
+        self.store.data_mut().commands.push(command);
+        self.store.data_mut().host_receipts.push(receipt.clone());
+        Ok(receipt)
     }
 
-    /// Delete the command `name`, answering whether there was one.
-    pub(crate) fn delete_command(&mut self, name: &str) -> Result<bool, Failure> {
-        let text = self.c_string(name)?;
-        let code = call(
+    /// Retire the selected actual command, retaining its original replay address.
+    pub(crate) fn delete_command(
+        &mut self,
+        name: &[u8],
+    ) -> Result<Option<CommandReceipt>, Failure> {
+        self.delete_command_with_context(name, None)
+    }
+
+    pub(crate) fn replay_remove(
+        &mut self,
+        input: &command_receipts::CommandReplay,
+    ) -> Result<Option<CommandReceipt>, Failure> {
+        admit_replay_interpreter(input)?;
+        self.delete_command_with_context(&input.original, input.context.as_ref())
+    }
+
+    fn delete_command_with_context(
+        &mut self,
+        name: &[u8],
+        context: Option<&tcl_engine_api::engine_command_replay::EngineCommandReplayContext>,
+    ) -> Result<Option<CommandReceipt>, Failure> {
+        let receipt = command_receipts::remove_with_context(
             &mut self.store,
-            &self.exports.delete_command,
-            (self.interp, text),
+            &self.exports,
+            self.interp,
+            name,
+            context,
         )?;
-        call(&mut self.store, &self.exports.free, text)?;
-        Ok(code == 0)
+        if let Some(receipt) = &receipt {
+            self.store
+                .data_mut()
+                .host_receipts
+                .retain(|known| known.generation != receipt.generation);
+        }
+        Ok(receipt)
     }
 
     /// Record that the package `name` is provided at `version`.
@@ -590,6 +771,7 @@ impl Session {
             (self.interp, name, version),
         )?;
         self.release(&[name, version])?;
+        command_receipts::settle(&mut self.store, &self.exports, self.interp)?;
         if code == 0 {
             Ok(())
         } else {
@@ -600,43 +782,91 @@ impl Session {
     /// Define the procedure `name` over `parameters` and `body`.
     pub(crate) fn define_unit(
         &mut self,
-        name: &str,
+        key: u32,
+        name: &[u8],
         parameters: &[String],
         body: &str,
     ) -> Result<(), Failure> {
         let list = tcl_syntax::list::join_list(parameters.iter().map(String::as_str));
         let objects = [
-            self.object(name.as_bytes())?,
+            self.object(name)?,
             self.object(list.as_bytes())?,
             self.object(body.as_bytes())?,
         ];
-        let code = call(
-            &mut self.store,
-            &self.exports.define_unit,
-            (self.interp, objects[0], objects[1], objects[2]),
-        )?;
+        let receipt =
+            command_receipts::defined(&mut self.store, &self.exports, self.interp, objects);
         self.release(&objects)?;
-        if code == 0 {
+        let Some(receipt) = receipt? else {
+            return Err(self.script_error()?);
+        };
+        self.store.data_mut().unit_receipts.insert(key, receipt);
+        Ok(())
+    }
+
+    /// Keep actual installed host/unit generations and explicitly allowed names.
+    pub(crate) fn restrict(&mut self, allowed: &[String]) -> Result<(), Failure> {
+        let allowed = self
+            .object(tcl_syntax::list::join_list(allowed.iter().map(String::as_str)).as_bytes())?;
+        let identities = self
+            .store
+            .data()
+            .host_receipts
+            .iter()
+            .chain(self.store.data().unit_receipts.values())
+            .map(CommandReceipt::identity_bytes)
+            .collect::<Vec<_>>();
+        let bytes = identities.iter().flatten().copied().collect::<Vec<_>>();
+        let count = i32::try_from(identities.len())
+            .map_err(|_| Failure::Refused("too many command receipts".into()))?;
+        let length = i32::try_from(bytes.len())
+            .map_err(|_| Failure::Refused("too many command identity bytes".into()))?;
+        let input = call(&mut self.store, &self.exports.alloc, (length.max(1), 8))?;
+        self.exports
+            .memory
+            .write(&mut self.store, address(input), &bytes)
+            .map_err(|error| Failure::Trap(wasmtime::Error::new(error)))?;
+        let status = call(
+            &mut self.store,
+            &self.exports.restrict,
+            (self.interp, allowed, input, count),
+        )?;
+        call(&mut self.store, &self.exports.free, input)?;
+        self.release(&[allowed])?;
+        command_receipts::settle(&mut self.store, &self.exports, self.interp)?;
+        if status == 0 {
             Ok(())
         } else {
-            Err(Failure::Refused(format!("the parameters `{list}`")))
+            Err(Failure::ExecutionRefusal(
+                "command restriction failed".into(),
+            ))
         }
     }
 
-    /// Keep only the `allowed` commands and the `kept` ones.
-    pub(crate) fn restrict(&mut self, allowed: &[String], kept: &[String]) -> Result<(), Failure> {
-        let objects = [
-            self.object(
-                tcl_syntax::list::join_list(allowed.iter().map(String::as_str)).as_bytes(),
-            )?,
-            self.object(tcl_syntax::list::join_list(kept.iter().map(String::as_str)).as_bytes())?,
-        ];
-        call(
-            &mut self.store,
-            &self.exports.restrict,
-            (self.interp, objects[0], objects[1]),
-        )?;
-        self.release(&objects)
+    pub(crate) fn unit_receipt(&self, key: u32) -> Result<CommandReceipt, Failure> {
+        self.store
+            .data()
+            .unit_receipts
+            .get(&key)
+            .cloned()
+            .ok_or_else(|| Failure::ExecutionRefusal("compiled unit receipt is unavailable".into()))
+    }
+
+    pub(crate) fn guard_unit(&mut self, receipt: &CommandReceipt) -> Result<(), Failure> {
+        command_receipts::current(&mut self.store, &self.exports, self.interp, receipt)
+    }
+
+    pub(crate) fn evaluate_values(&mut self, words: &[Value]) -> Result<Completion, Failure> {
+        let mut originals = Vec::new();
+        for word in words {
+            match command_receipts::value(&mut self.store, &self.exports, self.interp, word) {
+                Ok(original) => originals.push(original),
+                Err(error) => {
+                    self.release(&originals)?;
+                    return Err(error);
+                }
+            }
+        }
+        self.evaluate_originals(&originals)
     }
 
     /// Confine stores to the activation.
@@ -673,6 +903,19 @@ fn in_c_api(name: &str) -> bool {
     name.starts_with("Tcl_") || name.starts_with("TclHost_") || name == "TclFreeObj"
 }
 
+impl Drop for Session {
+    fn drop(&mut self) {
+        // Complete the already-reached actual interpreter destruction before
+        // retiring diagnostic records. Store destruction retires a trapped instance.
+        let _ = self
+            .exports
+            .destroy_interpreter
+            .call(&mut self.store, self.interp);
+        self.store.data_mut().execution_causes.clear();
+        self.store.data_mut().entry_episode = None;
+    }
+}
+
 /// Why a session call did not answer.
 #[derive(Debug)]
 pub(crate) enum Failure {
@@ -682,10 +925,14 @@ pub(crate) enum Failure {
     /// What was asked is not something this host does.
     Refused(String),
     /// A script error the interpreter reported, with its error code.
-    Script {
-        message: String,
-        code: Option<String>,
+    Guest {
+        message: Vec<u8>,
+        code: Option<Vec<u8>>,
+        options: Option<Vec<u8>>,
     },
+    ExecutionRefusal(String),
+    #[allow(clippy::enum_variant_names)] // mirrors `EngineError::ExecutionFailure`
+    ExecutionFailure(tcl_engine_api::NativeExecutionError),
 }
 
 impl Failure {
@@ -694,7 +941,17 @@ impl Failure {
         match self {
             Self::Trap(error) => trap_error(&error),
             Self::Refused(message) => EngineError::Crashed(message),
-            Self::Script { message, code } => EngineError::Script { message, code },
+            Self::Guest {
+                message,
+                code,
+                options,
+            } => EngineError::ScriptBytes {
+                message,
+                code,
+                options,
+            },
+            Self::ExecutionRefusal(reason) => EngineError::ExecutionRefusal(reason),
+            Self::ExecutionFailure(cause) => EngineError::execution_failure(cause),
         }
     }
 }
@@ -713,6 +970,15 @@ pub(crate) fn trap_error(error: &wasmtime::Error) -> EngineError {
         return EngineError::Crashed(exit.to_string());
     }
     EngineError::Crashed(format!("{error:#}"))
+}
+
+fn admit_replay_interpreter(input: &command_receipts::CommandReplay) -> Result<(), Failure> {
+    match input.interpreter {
+        command_receipts::ReplayInterpreter::Root => Ok(()),
+        command_receipts::ReplayInterpreter::Unsupported => Err(Failure::ExecutionRefusal(
+            "fresh command replay from a child or foreign interpreter requires authentic interpreter ownership transport".into(),
+        )),
+    }
 }
 
 /// A linear-memory address as an offset.
@@ -734,4 +1000,144 @@ pub(crate) fn read_string(
     let mut bytes = vec![0; length];
     memory.read(&store, address(chars), &mut bytes)?;
     Ok(bytes)
+}
+
+#[cfg(test)]
+#[path = "../../tcl-compiler/tests/common/wasm_link.rs"]
+mod typed_transport_wasm_link;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+    use tcl_engine_api::HostOutcome;
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn original_typed_wasm_host_failure_preserves_prior_runtime_pending_cause() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Linked Rust/WASM software control: invoke the genuine published host
+        // procedure after the real Runtime pending owner is reached. No new
+        // registrar evaluation capability or physical CTcl chronology is claimed.
+        struct Refusing;
+        impl HostCommand for Refusing {
+            fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+                Err(EngineError::ExecutionRefusal(
+                    "actual host contract refusal".into(),
+                ))
+            }
+        }
+        struct Later {
+            cause: tcl_engine_api::NativeExecutionError,
+            reached: Rc<Cell<usize>>,
+        }
+        impl HostCommand for Later {
+            fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+                self.reached.set(self.reached.get() + 1);
+                Err(EngineError::execution_failure(self.cause.clone()))
+            }
+        }
+        let runtime = typed_transport_wasm_link::real_link_runtime()
+            .expect("earlier-pending transport requires the actual linked WASM runtime");
+        let bytes = std::fs::read(runtime).expect("read the actual linked runtime");
+        let runtime = WasmRuntime::new(&bytes).expect("compile the actual linked runtime");
+        let mut session = Session::new(&runtime).expect("an actual runtime instance");
+        session
+            .define_command(b"refuse", Rc::new(Refusing))
+            .unwrap();
+        let reached = Rc::new(Cell::new(0));
+        let cause = tcl_engine_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "later typed cause",
+            ),
+        );
+        session
+            .define_command(
+                b"laterTyped",
+                Rc::new(Later {
+                    cause,
+                    reached: Rc::clone(&reached),
+                }),
+            )
+            .unwrap();
+        // Capture the actual registered Func and prepare its ordinary caller
+        // argv before reaching either callback. This fixture never deletes or
+        // rebinds that command. Each actual argv object is held exactly once.
+        let slot = session
+            .store
+            .data()
+            .host_procedure
+            .expect("published host procedure");
+        let Some(Ref::Func(Some(function))) = session
+            .exports
+            .table
+            .get(&mut session.store, u64::try_from(slot).unwrap())
+        else {
+            panic!("the actual published host procedure is unavailable");
+        };
+        let callback = function
+            .typed::<(i32, i32, i32, i32), i32>(&session.store)
+            .unwrap();
+        let word = session.object(b"laterTyped").unwrap();
+        let argv = session
+            .exports
+            .alloc
+            .call(&mut session.store, (4, 4))
+            .unwrap();
+        session
+            .exports
+            .memory
+            .write(&mut session.store, address(argv), &word.to_le_bytes())
+            .unwrap();
+        let prior = session
+            .evaluate(&[b"refuse"])
+            .map_err(Failure::into_engine_error)
+            .unwrap_err();
+        assert_eq!(
+            prior,
+            EngineError::ExecutionRefusal("actual host contract refusal".into())
+        );
+        assert_eq!(reached.get(), 0);
+        assert_eq!(
+            session
+                .exports
+                .host_refusal_pending
+                .call(&mut session.store, session.interp)
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            callback
+                .call(&mut session.store, (1, session.interp, 1, argv))
+                .unwrap(),
+            1
+        );
+        assert_eq!(reached.get(), 1);
+        assert!(session.store.data().execution_causes.is_empty());
+        // Complete the genuine caller-owned argv cleanup before settlement.
+        session.release(&[word]).unwrap();
+        session.exports.free.call(&mut session.store, argv).unwrap();
+        let settled =
+            command_receipts::settle(&mut session.store, &session.exports, session.interp)
+                .map_err(Failure::into_engine_error)
+                .unwrap_err();
+        assert_eq!(settled, prior);
+        session.begin_entry().unwrap();
+        assert_eq!(
+            session
+                .exports
+                .host_refusal_pending
+                .call(&mut session.store, session.interp)
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            session
+                .evaluate(&[b"set", b"::next", b"NEXT"])
+                .unwrap()
+                .result,
+            b"NEXT"
+        );
+    }
 }

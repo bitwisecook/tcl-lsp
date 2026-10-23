@@ -25,6 +25,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::DIAGRAM_ACTION,
         surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
+        irules_source_flow: Some(crate::events::IrulesSourceFlowSpec::DropsConnection),
         hover: Some(HoverSnippet {
             summary: "Causes the connection to be rejected.",
             synopsis: &["reject"],
@@ -37,6 +38,8 @@ pub const fn spec() -> CommandSpec {
             synopsis: "reject",
             ..FormSpec::DEFAULT
         }],
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
+        world_effects: Some(crate::WorldEffectDescriptor::EMPTY),
         side_effects: &[SideEffect {
             target: SideEffectTarget::ConnectionControl,
             writes: true,

@@ -65,7 +65,7 @@ use std::sync::OnceLock;
 use tcl_dialect::model::{SpecSurface, SurfaceQuery, surface_admits};
 
 use crate::arg_role::ArgRole;
-use crate::clause_shape::ClauseShapeError;
+use crate::clause_shape::{ClauseShapeError, ClauseShapeIssue, ClauseShapeRepair};
 use crate::registry::CommandRegistry;
 use crate::repeated::RepeatedArgLayout;
 use crate::value_transfer::HandlerMatch;
@@ -369,6 +369,25 @@ impl ClausePlan {
         })
     }
 
+    /// The structural defect and a repair addressing selected original word
+    /// ordinals. No runtime execution or edit permission follows from this
+    /// source grammar; the consumer still validates complete physical spans.
+    #[must_use]
+    pub fn shape_issue(&self) -> Option<ClauseShapeIssue> {
+        let error = self.defect?;
+        let last = self.clauses.last();
+        let repair = match error {
+            ClauseShapeError::MissingExpr { .. } | ClauseShapeError::MissingBody { .. } => last
+                .and_then(|clause| clause.keyword_index)
+                .map(|keyword| ClauseShapeRepair::RemoveTrailingClause { keyword }),
+            ClauseShapeError::ExtraWords { first_extra } => last
+                .and_then(|clause| clause.operand(ArgRole::Body))
+                .filter(|&body| body + 1 == first_extra)
+                .map(|body| ClauseShapeRepair::MergeTrailingWords { body }),
+        };
+        Some(ClauseShapeIssue::with_repair(error, repair))
+    }
+
     /// This plan with every word index moved `offset` words right — a
     /// subcommand grammar walks the words after the subcommand word, and its
     /// plan is reported in the invocation's own post-head coordinates, the
@@ -593,6 +612,22 @@ impl ClauseRow {
 }
 
 impl ClauseGrammarSpec {
+    /// Whether each condition is evaluated at most once and before any clause
+    /// body: first-match selection whose every row runs only when selected
+    /// (`if` / `elseif` / `else`). Loops, fixtures and protected bodies do not.
+    #[must_use]
+    pub fn evaluates_conditions_once_before_bodies(&self) -> bool {
+        self.selection == ClauseSelection::FirstMatch
+            && self.head.timing == ClauseTiming::Selected
+            && self
+                .rows
+                .iter()
+                .all(|row| row.timing == ClauseTiming::Selected)
+            && self
+                .tail
+                .is_none_or(|row| row.timing == ClauseTiming::Selected)
+    }
+
     /// Whether the whole grammar is available at `dialect` (`None`: every
     /// release).
     #[must_use]
@@ -661,6 +696,41 @@ impl ClauseGrammarSpec {
             (plan, None) => Ok(plan),
             (inert, Some(word)) => Err(ClauseAbstention { word, inert }),
         }
+    }
+
+    /// Walk authentic argument knowledge without interpreting an unknown
+    /// payload as a value. Known non-NUL bytes compare directly with descriptor
+    /// keywords; positional operands require only exact cardinality. Expansion
+    /// makes the count unavailable, and an unknown compared word abstains.
+    #[must_use]
+    pub fn walk_arguments(
+        &self,
+        arguments: crate::InvocationArguments<'_>,
+        layouts: &[RepeatedArgLayout],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<Result<ClausePlan, ClauseAbstention>> {
+        if !self.available(dialect) {
+            return None;
+        }
+        let count = arguments.exact_argv_len()?;
+        let bytes = (0..count)
+            .map(|index| match arguments.get(index) {
+                Some(crate::InvocationWord::Literal(value)) => Some(value.as_bytes()),
+                Some(crate::InvocationWord::KnownBytes(value)) if !value.contains(&0) => {
+                    Some(value)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let values = vec![""; count];
+        let dynamic = bytes.iter().map(Option::is_none).collect::<Vec<_>>();
+        let mut walk = Walk::new(self, &values, &dynamic, layouts, dialect);
+        walk.values = true;
+        walk.known_bytes = Some(&bytes);
+        Some(match walk.run() {
+            (plan, None) => Ok(plan),
+            (inert, Some(word)) => Err(ClauseAbstention { word, inert }),
+        })
     }
 
     /// Whether `word` is this grammar's fall-through body marker. Tcl compares
@@ -741,6 +811,7 @@ struct Walk<'a> {
     grammar: &'a ClauseGrammarSpec,
     args: &'a [&'a str],
     dynamic: &'a [bool],
+    known_bytes: Option<&'a [Option<&'a [u8]>]>,
     /// Whether `args` hold the words' values rather than their source
     /// spellings — see [`ClauseGrammarSpec::walk_words`].
     values: bool,
@@ -768,6 +839,7 @@ impl<'a> Walk<'a> {
             grammar,
             args,
             dynamic,
+            known_bytes: None,
             values: false,
             layouts,
             dialect,
@@ -1081,6 +1153,9 @@ impl<'a> Walk<'a> {
             self.abstained.get_or_insert(index);
             return false;
         }
+        if let Some(words) = self.known_bytes {
+            return words.get(index).copied().flatten() == Some(literal.as_bytes());
+        }
         self.args.get(index).is_some_and(|word| *word == literal)
     }
 
@@ -1088,6 +1163,11 @@ impl<'a> Walk<'a> {
         if self.is_dynamic(index) {
             self.abstained.get_or_insert(index);
             return false;
+        }
+        if let Some(words) = self.known_bytes {
+            return self.grammar.fallthrough_body.is_some_and(|marker| {
+                words.get(index).copied().flatten() == Some(marker.as_bytes())
+            });
         }
         self.args.get(index).is_some_and(|word| {
             if self.values {
@@ -1404,6 +1484,68 @@ mod tests {
             None,
         ),
     ];
+
+    #[test]
+    fn counted_clause_walk_uses_values_only_at_comparisons() {
+        use crate::{InvocationArguments, InvocationWord};
+
+        // Source grammar projection only: unknown positional payloads retain
+        // their ordinals; a compared unknown never acquires a keyword value.
+        let grammar = shipped("if");
+        let words = [
+            InvocationWord::Dynamic,
+            InvocationWord::KnownBytes(b"then"),
+            InvocationWord::Dynamic,
+            InvocationWord::KnownBytes(b"elseif"),
+            InvocationWord::KnownBytes(b"elseif"),
+            InvocationWord::KnownBytes(b"then"),
+            InvocationWord::KnownBytes(b"puts \xff"),
+        ];
+        let plan = grammar
+            .walk_arguments(InvocationArguments::structured(&words), &[], None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            plan.roles,
+            [
+                (0, Expr),
+                (1, Keyword),
+                (2, Body),
+                (3, Keyword),
+                (4, Expr),
+                (5, Keyword),
+                (6, Body)
+            ]
+        );
+        assert_eq!(plan.defect, None);
+        for word in [
+            InvocationWord::Dynamic,
+            InvocationWord::KnownBytes(b"then\0tail"),
+        ] {
+            let words = [InvocationWord::Literal("1"), word];
+            let result = grammar
+                .walk_arguments(InvocationArguments::structured(&words), &[], None)
+                .unwrap();
+            assert_eq!(result.unwrap_err().word, 1);
+        }
+        let words = [InvocationWord::Literal("1"), InvocationWord::Expanded];
+        assert!(
+            grammar
+                .walk_arguments(InvocationArguments::structured(&words), &[], None)
+                .is_none()
+        );
+        let words = ["1", "body", "elseif", "elseif"];
+        let plan = grammar
+            .walk_arguments(InvocationArguments::literals(&words), &[], None)
+            .unwrap()
+            .unwrap();
+        let issue = plan.shape_issue().unwrap();
+        assert_eq!(issue.error(), MissingBody { after: 3 });
+        assert_eq!(
+            issue.repair(),
+            Some(ClauseShapeRepair::RemoveTrailingClause { keyword: 2 })
+        );
+    }
 
     #[test]
     fn if_grammar_agrees_with_the_retired_walk_on_its_corpus() {
@@ -1859,5 +2001,30 @@ mod tests {
             .map(|keyword| keyword.word)
             .collect();
         assert_eq!(noise, ["then"]);
+    }
+
+    #[test]
+    fn only_selected_first_match_grammars_evaluate_conditions_once_before_bodies() {
+        const AGAIN_SLOTS: &[ClauseSlot] = &[ClauseSlot::of(Expr), ClauseSlot::of(Body)];
+        const AGAIN: &[ClauseRow] = &[ClauseRow::repeated(
+            "again",
+            AGAIN_SLOTS,
+            ClauseTiming::PerIteration,
+        )];
+        assert!(shipped("if").evaluates_conditions_once_before_bodies());
+        for name in ["while", "for", "foreach", "try", "catch"] {
+            assert!(
+                !shipped(name).evaluates_conditions_once_before_bodies(),
+                "`{name}`"
+            );
+        }
+        // A first-match grammar is not enough: a loop-timed row re-evaluates
+        // its condition after a body has run.
+        let looping = ClauseGrammarSpec {
+            rows: AGAIN,
+            ..*shipped("if")
+        };
+        assert_eq!(looping.selection, ClauseSelection::FirstMatch);
+        assert!(!looping.evaluates_conditions_once_before_bodies());
     }
 }

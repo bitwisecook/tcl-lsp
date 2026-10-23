@@ -282,8 +282,8 @@ non-dispatching statement, `SyntheticMarker::UnseenCall`, beside the call (or
 ahead of a host statement whose command substitution makes it), so codegen
 does not invoke the handler twice.
 
-The historical may-binding state remains a module-wide union for reachability;
-it therefore retains a registry fallback alongside a source-defined procedure.
+The module-wide may-binding inventory unions possible reachable targets;
+it can retain a registry fallback alongside a source-defined procedure.
 Consumers that need execution-point facts use the separate source binding
 timeline: it records each statement before substitutions and before its direct
 call, in Tcl's substitution-before-direct order, and joins conditional and

@@ -44,18 +44,18 @@
 //! `tcl-lsp-server::Backend::hover`; this module is the pure-CPU
 //! computation, no I/O, no async.
 
-use std::collections::HashMap;
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::surface_admits;
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, VarDef};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
-use tcl_compiler::registry_invocation::segmented_command_arguments;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
-use tcl_compiler::types::{TclType, TypeKind, TypeLattice};
-use tcl_lexer::{LexerConfig, Token, TokenType};
-use tcl_registry::{CommandRegistry, InvocationArguments};
+use tcl_compiler::types::{TclType, TypeKind};
+use tcl_lexer::TokenType;
+use tcl_registry::CommandRegistry;
+
+mod original_registry;
 
 use crate::definition::utf16_col_to_char_col;
 use tcl_dialect::model::SpecSurface;
@@ -96,32 +96,6 @@ impl Hover {
 /// Word-delimiter set used by `find_word_span_at_position`.
 const WORD_DELIMS: &[char] = &[' ', '\t', '\n', ';', '{', '}', '[', ']', '"', '$'];
 
-/// Scan a bare `$name` variable name in `chars` starting at `start`, returning
-/// the end index (exclusive).
-///
-/// A name char is an alphanumeric or `_`.  A `:` is part of the name **only**
-/// as a namespace qualifier `::` — matching C Tcl's `Tcl_ParseVarName`, which
-/// consumes the whole colon run once a `::` starts it (`$a:::b` → `a:::b`) but
-/// stops at a *lone* `:`.  So `$host:$port` resolves `host`, not `host:`
-/// (issue 183).
-fn scan_var_name_end(chars: &[char], start: usize) -> usize {
-    let mut end = start;
-    while end < chars.len() {
-        let c = chars[end];
-        if c.is_alphanumeric() || c == '_' {
-            end += 1;
-        } else if c == ':' && chars.get(end + 1) == Some(&':') {
-            end += 2;
-            while chars.get(end) == Some(&':') {
-                end += 1;
-            }
-        } else {
-            break;
-        }
-    }
-    end
-}
-
 /// Compute hover text for a position in `source`.
 ///
 /// `analysis` is the pre-computed analyser result; the caller is
@@ -131,11 +105,9 @@ fn scan_var_name_end(chars: &[char], start: usize) -> usize {
 /// * the cursor isn't on any recognisable identifier or `$var`,
 /// * no proc / class / var matches the resolved word.
 ///
-/// The character index is interpreted as UTF-16 code units per
-/// the LSP spec, but this provider treats it as a char-count
-/// index.  Multi-byte BMP code points round-trip correctly;
-/// supplementary-plane characters can drift by one position
-/// (rare in Tcl source).
+/// Positions use LSP UTF-16 code units. Shared position conversion selects
+/// the corresponding character or byte offset before source lookup, including
+/// supplementary-plane characters.
 #[must_use]
 pub fn hover(
     source: &str,
@@ -144,19 +116,15 @@ pub fn hover(
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
 ) -> Option<Hover> {
-    // Dialect-agnostic entry point (every subcommand is a resolution
-    // candidate).  Production callers that know the document's Tcl version
-    // should prefer [`hover_with_dialect`] so a prefix's uniqueness matches the
-    // version (see [`tcl_registry::CommandSpec::resolve_subcommand_for_dialect`]).
+    // Source-backed queries select the retained document owner; caller metadata
+    // remains a compatibility parameter and does not replace it.
     hover_with_profile(
         source,
         line,
         character,
         analysis,
         registry,
-        // The "no dialect stated" ingress: the lenient environment, which
-        // resolves to the permissive fallback profile.
-        crate::profile_for_dialect(""),
+        crate::profile_for_analysis(analysis),
     )
 }
 
@@ -174,16 +142,35 @@ pub fn hover_in_program(
     character: u32,
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
-    profile: &'static tcl_dialect::DialectProfile,
+    _profile: &'static tcl_dialect::DialectProfile,
     program: Option<crate::definition::ProgramExports<'_>>,
 ) -> Option<Hover> {
+    // naming.core.original-registry-source-hover
+
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let offset = crate::definition::byte_offset_at(
+        &tcl_lexer::LineIndex::new(source),
+        source,
+        line,
+        character,
+    );
+    if crate::definition::program_forced_import_abstains(analysis, program, offset) {
+        return None;
+    }
+    // The caller's registry never replaces the retained one, but supplying it
+    // is how a caller opts into the compiler-pipeline intrep/taint lines.
+    let annotate = registry.is_some();
     hover_impl(
         source,
         line,
         character,
         analysis,
-        crate::definition::CallResolution { registry, program },
-        profile,
+        crate::definition::CallResolution {
+            registry: Some(current.registry()),
+            program,
+        },
+        current.profile(),
+        annotate,
     )
 }
 
@@ -205,6 +192,9 @@ pub fn qualified_symbol_hover(
     defining_analysis: &AnalysisResult,
     qualified: &str,
 ) -> Option<Hover> {
+    if !defining_analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
     if let Some(proc_def) = defining_analysis.all_procs.get(qualified) {
         return Some(Hover::markdown(proc_hover_text(proc_def)));
     }
@@ -228,11 +218,13 @@ pub fn qualified_variable_hover(
     defining_analysis: &AnalysisResult,
     qualified: &str,
 ) -> Option<Hover> {
-    let target = qualified.trim_start_matches("::");
+    if !defining_analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
     let (qualified, var_def) =
         tcl_compiler::analyser::namespace_variables(&defining_analysis.global_scope)
             .into_iter()
-            .find(|(q, _)| q.trim_start_matches("::") == target)?;
+            .find(|(q, _)| q == qualified)?;
     // The qualified name, not the tail: the cursor is in a *different*
     // document, so `palette` alone would not say which cell was found.  The
     // reference count is the declaring document's own, and says so — the
@@ -275,12 +267,13 @@ fn ensemble_subcommand_hover(
     analysis: &AnalysisResult,
     ctx: crate::definition::CallResolution<'_>,
 ) -> Option<Hover> {
-    let (head, sub, is_dollar) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        crate::definition::dialect_config(analysis),
-    )?;
+    // Logical source inventories do not select static ensemble map entries.
+    // The report-map target is unavailable as a substitute for that binding.
+    if analysis.allows_retained_logical_declaration_advice() {
+        return None;
+    }
+    let (head, sub, is_dollar) =
+        crate::definition::original_instance_method_at_cursor(source, analysis, line, character)?;
     if is_dollar {
         return None;
     }
@@ -301,47 +294,84 @@ fn ensemble_subcommand_hover(
     Some(Hover::markdown(text))
 }
 
-/// `expr` math-function hover — the **bare** in-expression spelling
-/// `sin(1.0)` / `max($a, $b)`, which renders from the same registry spec the
-/// qualified `::tcl::mathfunc::sin` spelling reads.  Both spellings must be
-/// registered: with only the qualified ones, a bare call draws nothing at any
-/// column.
-///
-/// Definitive: once the cursor is on a recorded math-function call, this is
-/// what the call reaches — a user override, the built-in, or (when the
-/// function does not exist in this dialect) nothing at all. The caller must
-/// not fall through to ordinary command resolution, which would let a
-/// coincidentally same-named proc in an unrelated namespace hijack the hover.
-///
-/// See [`crate::expr_context`] for the resolution rule and its C Tcl oracle.
+/// Conditional Logical function documentation from the genuine checked
+/// expression, original source scope and independently retained header cards.
+/// Native function/table selection remains a separate terminal path.
 fn math_function_hover(
+    source: &str,
     analysis: &AnalysisResult,
-    registry: Option<&CommandRegistry>,
-    profile: &'static tcl_dialect::DialectProfile,
     cursor_offset: u32,
 ) -> Option<Hover> {
-    use crate::expr_context::MathFuncTarget;
-    match crate::expr_context::math_function_target_at(analysis, registry, profile, cursor_offset)?
-    {
-        MathFuncTarget::UserProc(proc_def) => Some(Hover::markdown(proc_hover_text(proc_def))),
-        MathFuncTarget::Builtin {
-            bare,
-            qualified,
-            spec,
-        } => {
-            use std::fmt::Write;
-            let hover = spec.hover.as_ref()?;
-            let mut out = format!("**`{bare}`** — `expr` math function\n");
-            if !hover.summary.is_empty() {
-                let _ = write!(out, "\n{}\n", hover.summary);
-            }
-            if let Some(synopsis) = hover.synopsis.first() {
-                let _ = write!(out, "\n```tcl\n{synopsis}\n```\n");
-            }
-            let _ = write!(out, "\nDispatches to `{qualified}`.\n");
-            Some(Hover::markdown(out))
+    use std::fmt::Write;
+    let selected = crate::expr_context::math_function_target_at(source, analysis, cursor_offset)?;
+    let mut text = format!(
+        "**`{}`** — `expr` math function\n",
+        selected.occurrence.function()
+    );
+    let mut rendered = false;
+    if let Some(declarations) = &selected.declarations {
+        for declaration in declarations {
+            text.push_str("\n**Conditional source declaration**\n\n");
+            text.push_str(&proc_hover_text(declaration.metadata()));
+            text.push('\n');
+            rendered = true;
         }
     }
+    if let Some(metadata) = selected.builtin.and_then(|spec| spec.hover.as_ref()) {
+        text.push_str("\n**Built-in expression metadata**\n");
+        if !metadata.summary.is_empty() {
+            let _ = writeln!(text, "\n{}", metadata.summary);
+        }
+        if let Some(synopsis) = metadata.synopsis.first() {
+            let _ = write!(text, "\n```tcl\n{synopsis}\n```\n");
+        }
+        rendered = true;
+    }
+    if !rendered {
+        return None;
+    }
+    text.push_str("\nSource candidates are conditional; function lookup, operand evaluation and observers remain unresolved.\n");
+    if selected.occurrence.has_earlier_unknown_mutations() {
+        text.push_str("Earlier source effects may change these candidates.\n");
+    }
+    if selected.declarations.is_none() {
+        text.push_str("The source declaration inventory or lookup path is unavailable.\n");
+    }
+    Some(Hover::markdown(text))
+}
+
+/// Render only metadata independently selected by the original expression
+/// function owner. Fixed tables never claim an existing command wrapper.
+fn original_math_function_hover(
+    selected: &crate::math_function_symbol::OriginalMathFunctionSelection<'_>,
+) -> Option<Hover> {
+    use std::fmt::Write;
+    if let Some(declaration) = selected.procedure_metadata() {
+        return Some(Hover::markdown(proc_hover_text(declaration.metadata())));
+    }
+    let spec = selected.builtin_spec()?;
+    let hover = spec.hover.as_ref()?;
+    let occurrence = selected.occurrence();
+    let mut text = format!("**`{}`** — `expr` math function\n", occurrence.function());
+    if !hover.summary.is_empty() {
+        let _ = write!(text, "\n{}\n", hover.summary);
+    }
+    match occurrence.dispatch() {
+        tcl_registry::mathfunc::NativeMathFunctionDispatch::FixedTable => {
+            text.push_str("\nSelected interpreter function table entry.\n");
+        }
+        tcl_registry::mathfunc::NativeMathFunctionDispatch::CommandTable => {
+            if let Some(synopsis) = hover.synopsis.first() {
+                let _ = write!(text, "\n```tcl\n{synopsis}\n```\n");
+            }
+            let _ = write!(
+                text,
+                "\nCommand-table lookup: `{}`.\n",
+                occurrence.registry_identity()?
+            );
+        }
+    }
+    Some(Hover::markdown(text))
 }
 
 /// Proc hover at `cursor_offset`: namespace-aware, following C Tcl's
@@ -365,11 +395,52 @@ fn proc_hover_at(
     word: &str,
     ctx: crate::definition::CallResolution<'_>,
 ) -> Option<Hover> {
+    if analysis.allows_retained_logical_declaration_advice() {
+        let config = analysis.body_lexer_config?;
+        let image = tcl_lexer::SourceImage::document(source);
+        if !analysis.matches_original_source_image(&image, config) {
+            return None;
+        }
+        if let Some(declarations) =
+            analysis.checked_logical_source_procedure_declarations(&image, config)
+        {
+            let mut selected = declarations.into_iter().filter(|declaration| {
+                let span = declaration.metadata().name_span;
+                span.start() <= cursor_offset && cursor_offset < span.end()
+            });
+            if let Some(declaration) = selected.next() {
+                return selected
+                    .next()
+                    .is_none()
+                    .then(|| Hover::markdown(proc_hover_text(declaration.metadata())));
+            }
+        }
+        let call = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_for_cursor(
+            source,
+            analysis,
+            cursor_offset,
+        )?;
+        let declaration = call.declaration(analysis)?;
+        return Some(Hover::markdown(format!(
+            "**Possible procedure**\n\n{}",
+            proc_hover_text(declaration.metadata())
+        )));
+    }
     // A proc's own declaration name (`proc greet …`) is an argument of
     // `proc`, so the head gate below would refuse it; it is answered here,
     // mirroring how `definition()` consults `proc_declaration_sites` before
     // its own call resolution.
     if let Some(proc_def) = crate::definition::proc_declaration_at(analysis, cursor_offset) {
+        return Some(Hover::markdown(proc_hover_text(proc_def)));
+    }
+    if let Some(invocation) = crate::definition::invocation_reference_at(analysis, cursor_offset)
+        && !invocation.lookup.is_execution_site()
+    {
+        let reference = invocation.resolved_command_reference.as_ref()?;
+        let definition = reference
+            .linked_definition()
+            .or_else(|| reference.definition())?;
+        let proc_def = analysis.proc_for_definition(definition, source)?;
         return Some(Hover::markdown(proc_hover_text(proc_def)));
     }
     if let Some(proc_def) = crate::definition::resolved_indirect_head_proc(analysis, cursor_offset)
@@ -409,6 +480,9 @@ fn proc_hover_at(
 /// [`CompilationUnit`], and building that with the default (plain-Tcl) lexer
 /// config mis-tokenises a dialect-specific construct — an iRules word
 /// operator, `{*}` under 8.4 — which skews or drops the inferred type.
+// The cursor triple, the shared line index and the two request contexts
+// are the hover entry's own inputs; bundling them would only rename them.
+#[allow(clippy::too_many_arguments)]
 fn variable_hover(
     source: &str,
     line: u32,
@@ -417,9 +491,13 @@ fn variable_hover(
     analysis: &AnalysisResult,
     ctx: crate::definition::CallResolution<'_>,
     profile: &'static tcl_dialect::DialectProfile,
+    annotate: bool,
 ) -> Option<Hover> {
-    let registry = ctx.registry;
-    let dialect = Some(crate::document_context_for_profile(profile).authoring_query());
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let context = current.context();
+    let registry = Some(current.registry());
+    let annotations = registry.filter(|_| annotate);
+    let dialect = Some(context.context().authoring_query());
     // `$var` resolution sits at a position where `find_word_span_at_position`
     // would also match the unqualified name, but a `$`-led ref should
     // surface the `VarDef` not the (typically absent) proc of the same name.
@@ -430,7 +508,7 @@ fn variable_hover(
     // so it hovers the *literal* cell.
     if let Some(var_name) = crate::definition::substituting_var_at_position(
         source,
-        profile,
+        analysis,
         line,
         character,
         var_byte_offset,
@@ -438,29 +516,17 @@ fn variable_hover(
         // Use the byte-offset scope-chain lookup (the local line-based helper
         // mis-resolves namespace/proc-scoped vars), gated on the occurrence
         // actually being one Tcl substitutes — see `lookup_var_read_at`.
-        if let Some(var_def) = crate::definition::lookup_var_read_at(
-            &analysis.global_scope,
-            source,
-            profile,
-            var_byte_offset,
-            &var_name,
-            analysis.ns_var_global_fallback(),
-        ) {
+        if let Some(var_def) =
+            crate::definition::lookup_var_read_at(analysis, source, var_byte_offset, &var_name)
+        {
             // Inferred-intrep / taint annotations need the compiler
             // pipeline (`CompilationUnit`), which requires a
             // registry; without one we surface just the reference
             // count.
             let (type_info, taint_info) =
-                var_type_annotations(source, line, character, &var_name, registry, profile);
-            // This read's own occurrence may be a registry pattern
-            // or format-string argument the lattice proves — the same table
-            // a literal spelling already renders, appended rather than
-            // replacing the variable card, since the `$`-led read is still
-            // definitively a variable reference (see this function's doc).
+                var_type_annotations(source, analysis, var_byte_offset, annotations);
             let format_info = registry.and_then(|registry| {
-                registry_pattern_format_hover(
-                    source, line, character, analysis, ctx, registry, profile,
-                )
+                registry_pattern_format_hover(source, line, character, analysis, registry)
             });
             return Some(Hover::markdown(var_hover_text(
                 var_def,
@@ -473,9 +539,11 @@ fn variable_hover(
         // (`auto_path`, `env`, `tcl_platform`, the iRules `static::` namespace)
         // still has documentation, sourced from the dialect-aware
         // special-variable registry.  The `(idx)` array index is already
-        // stripped by `find_var_at_position`, so `$tcl_platform(os)` resolves
+        // supplied by the selected source-reference root, so `$tcl_platform(os)` resolves
         // to the `tcl_platform` spec.
-        if let Some(spec) = tcl_registry::special_var(&var_name).filter(|s| s.available_in(dialect))
+        if let Some(spec) = current
+            .registry()
+            .special_var_in_dialect(&var_name, dialect)
         {
             return Some(Hover::markdown(special_var_hover_text(spec, dialect)));
         }
@@ -504,7 +572,7 @@ fn variable_hover(
     let var_def =
         crate::definition::var_def_at_declaration_offset(&analysis.global_scope, decl_byte_offset)?;
     let (type_info, taint_info) =
-        var_type_annotations(source, line, character, &var_def.name, registry, profile);
+        var_type_annotations(source, analysis, decl_byte_offset, annotations);
     Some(Hover::markdown(var_hover_text(
         var_def,
         type_info.as_deref(),
@@ -524,6 +592,9 @@ fn variable_hover(
 /// with the card of an unrelated same-named `TclOO` accessor method — a
 /// wrong-kind answer, worse than none.  `definition` forces the same
 /// abstention in `position_definition`.
+// The cursor triple, the shared line index and the two request contexts
+// are the hover entry's own inputs; bundling them would only rename them.
+#[allow(clippy::too_many_arguments)]
 fn variable_position_hover(
     source: &str,
     line: u32,
@@ -532,14 +603,25 @@ fn variable_position_hover(
     analysis: &AnalysisResult,
     ctx: crate::definition::CallResolution<'_>,
     profile: &'static tcl_dialect::DialectProfile,
+    annotate: bool,
 ) -> PositionHover {
-    if let Some(hover) = variable_hover(source, line, character, line_index, analysis, ctx, profile)
-    {
+    if !analysis.allows_lexical_declaration_advice() {
+        return PositionHover::FallThrough;
+    }
+    if let Some(hover) = variable_hover(
+        source, line, character, line_index, analysis, ctx, profile, annotate,
+    ) {
         return PositionHover::Answer(hover);
     }
     let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
-    if crate::caller_frame::substituted_var_read_at(source, profile, line, character, cursor_offset)
-        .is_some()
+    if crate::caller_frame::substituted_var_read_at(
+        source,
+        analysis,
+        line,
+        character,
+        cursor_offset,
+    )
+    .is_some()
     {
         return PositionHover::Abstain;
     }
@@ -556,161 +638,62 @@ enum PositionHover {
     FallThrough,
 }
 
-/// Resolve pattern and format-string hovers from the same segmented command
-/// and registry role walk used by semantic tokens.  In particular, do not
-/// inspect whichever literal happens to contain the cursor: the registry's
-/// `ArgRole` indices identify the one argument that actually carries the
-/// embedded language.
+/// Embedded pattern and format advice from the retained source inventory.
+/// All source domains keep their exact source, configuration and context seal;
+/// missing original operands do not enable a nominal compatibility walker.
 fn registry_pattern_format_hover(
     source: &str,
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
-    resolution: crate::definition::CallResolution<'_>,
     registry: &CommandRegistry,
-    profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Hover> {
+    // naming.core.original-pattern-retained-context
+
     let line_index = tcl_lexer::LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
-    let config = LexerConfig::for_file_grammar(profile.grammar);
-    let identities =
-        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
-    let context = PatternFormatContext {
-        analysis,
-        source,
-        resolution,
-        registry,
-        profile,
-        cursor,
-    };
-
-    let mut answer = None;
-    crate::executable_regions::visit_executable_commands(
-        source,
-        config,
-        registry,
-        Some(crate::document_context_for_profile(profile).authoring_query()),
-        &identities,
-        &mut |command, identity, _context| {
-            answer = pattern_format_hover_for_command(&context, command, identity);
-            answer.is_some()
-        },
-    );
-    answer
+    original_pattern_format_hover(source, analysis, registry, cursor)
 }
 
-struct PatternFormatContext<'a> {
-    analysis: &'a AnalysisResult,
-    source: &'a str,
-    resolution: crate::definition::CallResolution<'a>,
-    registry: &'a CommandRegistry,
-    profile: &'static tcl_dialect::DialectProfile,
+/// Readonly embedded-language advice from the same original effective argv.
+fn original_pattern_format_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
     cursor: u32,
-}
-
-/// The text a computed token's word proves, tried only once a literal read
-/// at `token` has already failed: the enclosing function's exact
-/// value at the statement [`FunctionUnit::word_at`] resolves the token's
-/// span to, so `set fmt "%-20s %d"; format $fmt a 1` hovers `$fmt` the way
-/// the literal `format "%-20s %d" a 1` already did. `unit` is built at most
-/// once per command — the same [`CompilationUnit`] construction
-/// [`infer_var_type_and_taint`] uses for a `$var` hover — and reused across
-/// every pattern and format candidate the call carries.
-fn proven_text_at_token(
-    unit: &mut Option<CompilationUnit>,
-    context: &PatternFormatContext<'_>,
-    token: Token,
-) -> Option<String> {
-    if context.cursor < token.span.start() || context.cursor > token.span.end() {
-        return None;
-    }
-    let config = LexerConfig::for_file_grammar(context.profile.grammar);
-    let unit = unit.get_or_insert_with(|| {
-        let declared = tcl_compiler::analyser::utils::document_declared_surface(
-            context.source,
-            None,
-            context.profile.name,
-        );
-        CompilationUnit::build_with_options(
-            context.source,
-            tcl_compiler::compilation_unit::UnitBuildOptions {
-                registry: context.registry,
-                defer_top_level: false,
-                config,
-                dialect: Some(context.profile),
-                external_call_sites: None,
-                declared_commands: Some(&declared),
-            },
-        )
-    });
-    function_units_in_order(unit).into_iter().find_map(|fu| {
-        let (statement, word) = fu.word_at(token.span)?;
-        let (value, _folded) =
-            tcl_compiler::value_transfer::proven_word_value(fu, statement, word, config)?;
-        value.as_str().ok().map(str::to_owned)
-    })
-}
-
-/// Resolve one command's registry-declared pattern and format arguments.
-fn pattern_format_hover_for_command(
-    context: &PatternFormatContext<'_>,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
-    identity: crate::oo_body::HeadWords<'_>,
 ) -> Option<Hover> {
-    if context.cursor < command.span.start() || context.cursor > command.span.end() {
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    if registry.snapshot().semantic_key() != context.commands().snapshot().semantic_key() {
         return None;
     }
-    let written_head = command.texts.first()?;
-    // The registry is only authoritative after the analyser has confirmed
-    // that this call still names a builtin. A live proc (including a
-    // namespace-local shadow or command mutation) owns the call.
-    let call_offset = command
-        .argv
-        .first()
-        .map_or(command.span.start(), |token| token.span.start());
-    let namespace = crate::definition::namespace_context_at(
-        &context.analysis.global_scope,
-        call_offset,
-        &context.analysis.namespace_overrides,
-    );
-    if crate::definition::resolve_called_proc(
-        context.analysis,
-        context.source,
-        &namespace,
-        written_head,
-        call_offset,
-        context.resolution,
-    )
-    .is_some()
-    {
-        return None;
-    }
-    let head = (!identity.resolved.is_empty()).then_some(identity.resolved)?;
-    let args: Vec<&str> = command.texts.iter().skip(1).map(String::as_str).collect();
-    context.registry.resolve_call(
-        head,
-        &args,
-        Some(crate::document_context_for_profile(context.profile).authoring_query()),
-    )?;
+    let commands = crate::original_invocation::registry_commands_in_source(source, analysis)?;
+    let (_, words) = commands
+        .into_iter()
+        .filter(|(command, _)| command.span.start() <= cursor && cursor <= command.span.end())
+        .min_by_key(|(command, _)| command.span.end() - command.span.start())?;
+    // naming.core.original-pattern-retained-context
 
-    let source_args = segmented_command_arguments(command);
-    // Built at most once, only if a literal read below fails.
-    let mut proven_unit: Option<CompilationUnit> = None;
-    for pattern in context.registry.pattern_args_words_for_dialect(
-        head,
-        InvocationArguments::structured(&source_args),
-        Some(crate::document_context_for_profile(context.profile).authoring_query()),
-    ) {
-        let Some(&token) = command.argv.get(usize::from(pattern.index) + 1) else {
-            continue;
-        };
-        let Some(text) = literal_at_token(
-            context.source,
-            LexerConfig::for_file_grammar(context.profile.grammar),
-            token,
-            context.cursor,
-        )
-        .or_else(|| proven_text_at_token(&mut proven_unit, context, token)) else {
+    let mut proven_unit = None;
+    let patterns = words
+        .with_source_schema(&context, |schema| {
+            schema.authored_source_pattern_arguments()
+        })
+        .flatten()?;
+    for pattern in patterns {
+        let Some(text) = original_embedded_operand(&words, usize::from(pattern.index), cursor)
+            .map(str::to_owned)
+            .or_else(|| {
+                proven_embedded_operand(
+                    source,
+                    analysis,
+                    registry,
+                    &words,
+                    usize::from(pattern.index),
+                    cursor,
+                    &mut proven_unit,
+                )
+            })
+        else {
             continue;
         };
         let text = match pattern.kind {
@@ -719,42 +702,27 @@ fn pattern_format_hover_for_command(
         };
         return Some(Hover::markdown(text));
     }
-    format_hover_for_command(
-        context,
-        command,
-        head,
-        &args,
-        &source_args,
-        &mut proven_unit,
-    )
-}
-
-/// The format-string hover among `command`'s registry-declared format
-/// arguments, extracted from [`pattern_format_hover_for_command`] to stay
-/// within the line budget.
-fn format_hover_for_command(
-    context: &PatternFormatContext<'_>,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
-    head: &str,
-    args: &[&str],
-    source_args: &[tcl_registry::InvocationWord<'_>],
-    proven_unit: &mut Option<CompilationUnit>,
-) -> Option<Hover> {
-    for format in context.registry.format_string_args_words_for_dialect(
-        head,
-        InvocationArguments::structured(source_args),
-        Some(crate::document_context_for_profile(context.profile).authoring_query()),
-    ) {
-        let Some(&token) = command.argv.get(format.index + 1) else {
-            continue;
-        };
-        let Some(text) = literal_at_token(
-            context.source,
-            LexerConfig::for_file_grammar(context.profile.grammar),
-            token,
-            context.cursor,
-        )
-        .or_else(|| proven_text_at_token(proven_unit, context, token)) else {
+    // The closure is required: the method path is not general enough
+    // over the schema borrow's higher-ranked lifetime.
+    #[allow(clippy::redundant_closure_for_method_calls)]
+    let formats = words
+        .with_source_schema(&context, |schema| schema.authored_source_format_arguments())
+        .flatten()?;
+    for format in formats {
+        let Some(text) = original_embedded_operand(&words, format.index, cursor)
+            .map(str::to_owned)
+            .or_else(|| {
+                proven_embedded_operand(
+                    source,
+                    analysis,
+                    registry,
+                    &words,
+                    format.index,
+                    cursor,
+                    &mut proven_unit,
+                )
+            })
+        else {
             continue;
         };
         let text = match format.kind {
@@ -765,14 +733,22 @@ fn format_hover_for_command(
                 clock_format_hover_text(&text)
             }
             tcl_registry::patterns::FormatType::Binary => {
+                let arguments = words
+                    .arguments
+                    .iter()
+                    .map(|argument| {
+                        argument
+                            .literal_bytes()
+                            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                    })
+                    .collect::<Vec<_>>();
                 binary_format_hover_text(&BinaryContext {
-                    text,
-                    subcmd: args.first().copied().unwrap_or_default().to_owned(),
-                    args: args
-                        .get(format.index + 1..)
-                        .unwrap_or_default()
+                    text: text.clone(),
+                    subcmd: arguments.first().copied().flatten()?.to_owned(),
+                    args: arguments
+                        .get(format.index.checked_add(1)?..)?
                         .iter()
-                        .map(|arg| (*arg).to_owned())
+                        .map(|argument| argument.unwrap_or_default().to_owned())
                         .collect(),
                 })
             }
@@ -788,44 +764,49 @@ fn format_hover_for_command(
     None
 }
 
-/// Return a literal token's Tcl word text under the cursor. Token spans are
-/// absolute source byte ranges, so this remains correct across lines and
-/// continuation commands (unlike the former line splitter). Bare words are
-/// valid format and pattern arguments too (`binary format c2s value`), and
-/// are deliberately preserved rather than requiring quote/braces delimiters.
-fn literal_at_token(
+/// Known contents at a genuine original operand, retaining its source owner.
+/// The computed value supplies a mini-language card, never source coordinates.
+fn proven_embedded_operand(
     source: &str,
-    config: LexerConfig,
-    token: Token,
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    words: &crate::original_invocation::OriginalRegistryWords,
+    argument: usize,
     cursor: u32,
+    unit: &mut Option<CompilationUnit>,
 ) -> Option<String> {
-    if !matches!(token.kind, TokenType::Str | TokenType::Esc)
-        || cursor < token.span.start()
-        || cursor > token.span.end()
-        || crate::executable_regions::cursor_in_command_substitution(source, config, token, cursor)
-    {
-        return None;
+    let word = words.operands.get(argument)?.as_ref()?.word.as_ref()?;
+    let span = word.span();
+    (span.start() <= cursor && cursor <= span.end()).then_some(())?;
+    if unit.is_none() {
+        *unit = crate::original_invocation::source_compilation_unit(source, analysis, registry);
     }
-    let text = source.get(token.span.start() as usize..token.span.end() as usize)?;
-    let bytes = text.as_bytes();
-    if bytes.is_empty() {
-        return None;
-    }
-    if !matches!(bytes[0], b'{' | b'"') {
-        return Some(text.to_owned());
-    }
-    let close = if bytes[0] == b'{' { b'}' } else { b'"' };
-    let content_start = token.span.start() as usize + 1;
-    let content_end = if bytes.last() == Some(&close) {
-        token.span.end() as usize - 1
+    crate::original_invocation::known_word_contents(unit.as_ref()?, registry, span)
+}
+
+fn original_embedded_operand(
+    words: &crate::original_invocation::OriginalRegistryWords,
+    argument: usize,
+    cursor: u32,
+) -> Option<&str> {
+    let operand = words.operands.get(argument)?.as_ref()?;
+    let span = if let Some(word) = &operand.word {
+        // A computed value cannot claim the source code that produced it.
+        if word
+            .tokens()
+            .iter()
+            .any(|token| !matches!(token.kind, TokenType::Str | TokenType::Esc))
+        {
+            return None;
+        }
+        word.content_span().ok()?
     } else {
-        let rest = source.get(token.span.end() as usize..)?;
-        token.span.end() as usize + rest.find(char::from(close))?
+        // Only a retained readonly expansion child owns this independent span.
+        operand.input.as_ref()?.original_static_list_container()?;
+        operand.span
     };
-    if cursor as usize > content_end {
-        return None;
-    }
-    source.get(content_start..content_end).map(str::to_owned)
+    (span.start() <= cursor && cursor <= span.end()).then_some(())?;
+    std::str::from_utf8(words.arguments.get(argument)?.literal_bytes()?).ok()
 }
 
 /// The format-string hovers: when the cursor sits on the format-string
@@ -872,27 +853,111 @@ fn hover_impl(
     analysis: &AnalysisResult,
     ctx: crate::definition::CallResolution<'_>,
     profile: &'static tcl_dialect::DialectProfile,
+    annotate: bool,
 ) -> Option<Hover> {
     let registry = ctx.registry;
-    let dialect = Some(crate::document_context_for_profile(profile).authoring_query());
     // One index shared by the position conversions below.
-    let line_index = tcl_lexer::LineIndex::new(source);
-
-    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let line_index = tcl_lexer::LineIndex::new_lsp(source);
+    let cursor_offset =
+        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)?
+            .offset();
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::vendor_declaration::select_at_offset(source, analysis, cursor_offset)
+    {
+        return selected.and_then(|selected| {
+            let label =
+                crate::vendor_declaration::source_label(selected.input(), selected.purpose())?;
+            let category = if selected.procedure_metadata().is_some() {
+                "Procedure"
+            } else if selected.class_metadata().is_some() {
+                "Class"
+            } else {
+                selected.symbol_metadata()?.kind.label()
+            };
+            let mut text = format!("**{category} source declaration** `{label}`");
+            if let Some(procedure) = selected.procedure_metadata()
+                && !procedure.doc.is_empty()
+            {
+                text.push_str("\n\n");
+                text.push_str(&format_docstring(&procedure.doc));
+            }
+            if selected.input().literal_units(selected.purpose()).is_none() {
+                text.push_str(
+                    "\n\nRuntime name materialisation is unavailable for this source spelling.",
+                );
+            }
+            Some(Hover::markdown(text))
+        });
+    }
     // Everything the cursor's *position* decides, before any word-based
     // resolver runs. `Some` is definitive, including `Some(None)`.
-    match variable_position_hover(source, line, character, &line_index, analysis, ctx, profile) {
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::namespace_symbol::select_at_offset(source, analysis, cursor_offset)
+    {
+        return selected.and_then(|symbol| {
+            crate::namespace_symbol::original_namespace_hover_text(analysis, &symbol)
+                .map(Hover::markdown)
+        });
+    }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::variable_symbol::select_navigation(source, analysis, line, character, ctx)
+    {
+        return selected.and_then(|selection| {
+            let mut text = selection.hover_text(analysis)?;
+            if matches!(
+                selection,
+                crate::variable_symbol::NavigationVariable::Original(_)
+            ) {
+                let (type_info, taint_info) = var_type_annotations(
+                    source,
+                    analysis,
+                    cursor_offset,
+                    registry.filter(|_| annotate),
+                );
+                append_var_annotations(&mut text, type_info.as_deref(), taint_info.as_deref());
+            }
+            Some(Hover::markdown(text))
+        });
+    }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::method_symbol::local_candidate(source, analysis, line, character)
+    {
+        return selected.and_then(|candidate| candidate.hover());
+    }
+    match variable_position_hover(
+        source,
+        line,
+        character,
+        &line_index,
+        analysis,
+        ctx,
+        profile,
+        annotate,
+    ) {
         PositionHover::Answer(hover) => return Some(hover),
         PositionHover::Abstain => return None,
         PositionHover::FallThrough => {}
+    }
+
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::math_function_symbol::select_at_offset(source, analysis, cursor_offset)
+    {
+        return selected.and_then(|selected| original_math_function_hover(&selected));
     }
 
     // `expr` math-function hover — asked before every
     // remaining path: inside an expression a `NAME(` word is a function-call
     // production, not a command lookup, so nothing else may claim it.  See
     // `math_function_hover`.
-    if let Some(hover) = math_function_hover(analysis, registry, profile, cursor_offset) {
-        return Some(hover);
+    if analysis
+        .logical_math_function_at(source, cursor_offset)
+        .is_some()
+        || (analysis.allows_lexical_declaration_advice()
+            && crate::expr_context::mathfunc_call_at(analysis, cursor_offset).is_some())
+    {
+        // An unavailable Logical receipt cannot borrow an ordinary head or the
+        // analyser's resolved display. Native selection above remains terminal.
+        return math_function_hover(source, analysis, cursor_offset);
     }
 
     // A word inside an enclosing proc/method's own *literal* parameter list is
@@ -924,32 +989,37 @@ fn hover_impl(
     }
 
     let hover_registry = registry.unwrap_or_else(|| crate::registry_for_dialect_profile(profile));
-    if let Some(hover) = registry_pattern_format_hover(
-        source,
-        line,
-        character,
-        analysis,
-        ctx,
-        hover_registry,
-        profile,
-    ) {
+    if let Some(hover) =
+        registry_pattern_format_hover(source, line, character, analysis, hover_registry)
+    {
         return Some(hover);
     }
 
-    let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
+    let word =
+        crate::source_structure::original_complete_cursor_word(source, analysis, cursor_offset)
+            .and_then(|word| word.static_unicode_value());
+    if let Some(word) = word.as_deref()
+        && let Some(text) = original_linked_member_hover_text(source, analysis, word, cursor_offset)
+    {
+        return Some(Hover::markdown(text));
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        // Registry operands may have their own genuine expansion/list-child
+        // geometry. A standalone static-word label is not their prerequisite.
+        return original_registry::hover(source, analysis, cursor_offset).or_else(|| {
+            word.as_deref()
+                .and_then(ip_address_hover_text)
+                .map(Hover::markdown)
+        });
+    }
+    let word = word?;
 
     // `$obj m` / `my m` method-dispatch hover, including the per-object
     // visibility mask — `Break(None)` is a definitive
     // no-hover.
-    if let std::ops::ControlFlow::Break(answer) = method_dispatch_hover(
-        source,
-        line,
-        character,
-        cursor_offset,
-        analysis,
-        registry,
-        profile,
-    ) {
+    if let std::ops::ControlFlow::Break(answer) =
+        method_dispatch_hover(source, line, character, cursor_offset, analysis)
+    {
         return answer;
     }
 
@@ -962,9 +1032,12 @@ fn hover_impl(
         return Some(hover);
     }
 
-    // Command alias (`interp alias {} = {} expr`) — show the resolved target.
-    if let Some(text) = alias_hover_text(analysis, &word) {
-        return Some(Hover::markdown(text));
+    // The alias recipe belongs to the actual post-argument lookup snapshot.
+    // Missing bytes cannot borrow a reporting-map target from another phase.
+    if let std::ops::ControlFlow::Break(answer) =
+        alias_hover_at(source, analysis, cursor_offset, &word)
+    {
+        return answer.map(Hover::markdown);
     }
 
     // Proc hover — namespace-aware, following C Tcl's command resolution
@@ -979,10 +1052,46 @@ fn hover_impl(
         return Some(hover);
     }
 
-    if let Some((_, class_def)) =
-        crate::definition::resolve_class_target_at(analysis, ctx, cursor_offset, &word)
-    {
-        return Some(Hover::markdown(class_hover_text(analysis, class_def)));
+    if analysis.allows_retained_logical_declaration_advice() {
+        let config = analysis.body_lexer_config?;
+        let image = tcl_lexer::SourceImage::document(source);
+        if analysis.matches_original_source_image(&image, config)
+            && let Some(class) = analysis.logical_source_class_at(&image, config, cursor_offset)
+            && analysis.logical_source_class_declaration(class).is_some()
+        {
+            let declaration = analysis.logical_source_class_declaration(class)?;
+            let metadata = declaration.metadata();
+            let mut text = format!(
+                "```tcl\n{} create {}\n```",
+                metadata.metaclass, metadata.qualified_name
+            );
+            if !metadata.doc.is_empty() {
+                text.push_str("\n\n");
+                text.push_str(&metadata.doc);
+            }
+            return Some(Hover::markdown(text));
+        }
+    } else {
+        match crate::original_oo::class_at_cursor(analysis, source, cursor_offset) {
+            std::ops::ControlFlow::Break(Some(record)) => {
+                return Some(Hover::markdown(class_hover_text(
+                    analysis,
+                    record.metadata(),
+                )));
+            }
+            std::ops::ControlFlow::Break(None) => {}
+            std::ops::ControlFlow::Continue(()) => {
+                if let Some((_, class_def)) = crate::definition::resolve_class_target_at(
+                    analysis,
+                    source,
+                    ctx,
+                    cursor_offset,
+                    &word,
+                ) {
+                    return Some(Hover::markdown(class_hover_text(analysis, class_def)));
+                }
+            }
+        }
     }
 
     // Class-member hover — same dispatch as
@@ -990,37 +1099,11 @@ fn hover_impl(
     // a one-line method / property summary.  Fires when the
     // cursor sits inside a class body and `word` matches one
     // of that class's members.
-    if let Some(text) = class_member_hover_text(analysis, &word, cursor_offset) {
+    if let Some(text) = class_member_hover_text(source, analysis, &word, cursor_offset) {
         return Some(Hover::markdown(text));
     }
-    // Scoped command environments (a `report::defstyle` style script) win over
-    // a same-named global command inside their body — resolved from the
-    // analyser's recorded body regions, not the registry.
-    if let Some(text) =
-        scoped_command_hover_text(source, line, character, analysis, &word, cursor_offset)
-    {
-        return Some(Hover::markdown(text));
-    }
-
-    // Registry-driven hovers — built-in command name, plus
-    // `cmd subcommand` lookups when the cursor sits on the
-    // subcommand word.
-    if let Some(registry) = registry {
-        if let Some(text) = option_hover_text(source, line, character, registry, &word, profile) {
-            return Some(Hover::markdown(text));
-        }
-        if let Some(text) =
-            sub_subcommand_hover_text(source, line, character, registry, &word, dialect)
-        {
-            return Some(Hover::markdown(text));
-        }
-        if let Some(text) = subcommand_hover_text(source, line, character, registry, &word, dialect)
-        {
-            return Some(Hover::markdown(text));
-        }
-        if let Some(text) = builtin_command_hover_text(registry, &word, analysis, cursor_offset) {
-            return Some(Hover::markdown(text));
-        }
+    if let Some(answer) = original_registry::hover(source, analysis, cursor_offset) {
+        return Some(answer);
     }
 
     if let Some(text) = ip_address_hover_text(&word) {
@@ -1030,23 +1113,16 @@ fn hover_impl(
     None
 }
 
-/// Resolve an unqualified command `name` at byte offset `cursor_offset` to its
-/// qualified registry spec via the document's `namespace import`s
-/// (`namespace import ::tcltest::*` → `test` resolves to `tcltest::test`).
-/// Mirrors the analyser's imported-command body resolution, respecting the
-/// import's **scope** and **source order**: only an import made at global scope
-/// (`ns == "::"`, in effect everywhere via Tcl's unqualified-name fallback) and
-/// positioned *before* the hovered word applies — a nested-namespace import
-/// (e.g. inside `namespace eval ns { … }`) or one appearing after the cursor
-/// must not retroactively resolve a bare name here.  Returns the qualified name
-/// and its spec, or `None`.  Only unqualified names are resolved.
+/// Standalone fixture lookup through global imports before the cursor.
+/// Newest eligible import wins; qualified source names decline.
+#[cfg(test)]
 fn resolve_imported_command<'r>(
     registry: &'r CommandRegistry,
     name: &str,
     analysis: &AnalysisResult,
     cursor_offset: u32,
 ) -> Option<(String, &'r tcl_registry::CommandSpec)> {
-    if name.contains("::") {
+    if tcl_syntax::naming::is_qualified(name.as_bytes()) {
         return None;
     }
     // Iterate imports newest-first (`namespace_imports` is in source order): when
@@ -1057,8 +1133,10 @@ fn resolve_imported_command<'r>(
         if imp.ns != "::" || imp.range.end() > cursor_offset {
             continue;
         }
-        let Some(candidate) =
-            tcl_cmd_core::namespace::imported_command_candidate(&imp.pattern, name)
+        let Some(candidate) = imp
+            .source
+            .as_ref()
+            .and_then(|source| source.candidate(name))
         else {
             continue;
         };
@@ -1072,6 +1150,7 @@ fn resolve_imported_command<'r>(
 /// Render a hover snippet for a built-in command name.
 /// Looks up `name` in the registry, uses the matched spec's
 /// `hover.summary` / `synopsis` to produce a markdown block.
+#[cfg(test)]
 fn builtin_command_hover_text(
     registry: &CommandRegistry,
     name: &str,
@@ -1134,45 +1213,76 @@ fn builtin_command_hover_text(
             let _ = write!(out, "\n**Requires**: `package require {pkg}`");
         }
     }
-    // iRules: append the **Valid events** list + event **Requires**.
-    // Only iRules commands carry `event_requires`, so its presence is the
-    // dialect gate.
+    let release = analysis
+        .resolved_input
+        .as_ref()
+        .map_or(EventRelease::Unconfigured, |input| {
+            EventRelease::of(input.availability_context())
+        });
+    append_command_event_metadata(&mut out, spec, release);
+    Some(out)
+}
+
+/// The BIG-IP release a command's **Valid events** guidance is filtered to:
+/// the document's configured iRules placement floor, when it has one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EventRelease<'a> {
+    /// Events are listed only where the declared lifecycle has them at this
+    /// release.
+    Configured(&'a str),
+    /// No release is configured; the list is the requirement match alone and
+    /// says so.
+    Unconfigured,
+}
+
+impl<'a> EventRelease<'a> {
+    /// The release `context` places the iRules command surface at.
+    fn of(context: &'a tcl_registry::model::ResolvedContext) -> Self {
+        context
+            .placement_floor("f5-irules-cmds")
+            .map_or(Self::Unconfigured, |floor| Self::Configured(floor.as_str()))
+    }
+}
+
+fn append_command_event_metadata(
+    out: &mut String,
+    spec: &tcl_registry::CommandSpec,
+    release: EventRelease<'_>,
+) {
+    use std::fmt::Write;
     if let Some(requires) = spec.event_requires.as_ref() {
-        let effective = effective_event_requires(name, requires);
-        append_valid_events(&mut out, &effective);
-    } else if let Some((prefix, _)) = name.split_once("::") {
-        // Namespace-only command (no `event_requires`): if its protocol
-        // namespace declares profiles (e.g. `ACCESS::log` → ACCESS), surface
-        // a `**Requires**` profile line.
-        let profile_reg = tcl_registry::profiles::ProfileRegistry::build();
-        if let Some(ns) = profile_reg.get_namespace(prefix)
-            && !ns.profiles.is_empty()
+        append_valid_events(out, &effective_event_requires(spec, requires), release);
+    } else {
+        let profiles = tcl_registry::profiles::ProfileRegistry::build();
+        if let Some(namespace) = profiles.namespace_for_command_spec(spec)
+            && !namespace.profiles.is_empty()
         {
-            let _ = write!(out, "\n\n**Requires**: {} profile", ns.profiles.join(", "));
+            let _ = write!(
+                out,
+                "\n\n**Requires**: {} profile",
+                namespace.profiles.join(", ")
+            );
         }
     }
-    Some(out)
 }
 
 /// Augment a command's `EventRequires` with namespace-backed profile
 /// metadata.  For an iRules `NS::cmd` whose own `profiles` are empty, the
 /// profiles declared by the `NS` protocol namespace are substituted, so
 /// the **Valid events** list narrows and a profile **Requires** line is
-/// shown (e.g. `DIAMETER::*`, `MQTT::*`, `LDAP::*`, `IMAP::*`).  The
-/// f5-irules gate is implicit — only iRules specs carry `event_requires`.
+/// shown (e.g. `DIAMETER::*`, `MQTT::*`, `LDAP::*`, `IMAP::*`).
+/// The selected command row retains its declared F5 surface; context and source
+/// applicability stay with the caller.
 fn effective_event_requires(
-    command_name: &str,
+    spec: &tcl_registry::CommandSpec,
     requires: &tcl_registry::events::EventRequires,
 ) -> tcl_registry::events::EventRequires {
     // A command with its own profiles, or no `NS::` qualifier, is unchanged.
     if !requires.profiles.is_empty() {
         return requires.clone();
     }
-    let Some((prefix, _)) = command_name.split_once("::") else {
-        return requires.clone();
-    };
     let profile_reg = tcl_registry::profiles::ProfileRegistry::build();
-    match profile_reg.get_namespace(prefix) {
+    match profile_reg.namespace_for_command_spec(spec) {
         Some(ns) if !ns.profiles.is_empty() => tcl_registry::events::EventRequires {
             profiles: ns.profiles,
             ..*requires
@@ -1183,10 +1293,15 @@ fn effective_event_requires(
 
 /// Append the iRules "**Valid events**" list (first 8 + total) and the
 /// event "**Requires**" line (sides / transport / profiles) for a
-/// command's `EventRequires`.
-fn append_valid_events(out: &mut String, requires: &tcl_registry::events::EventRequires) {
+/// command's `EventRequires`. The list names the release it was filtered to,
+/// or that none was configured.
+fn append_valid_events(
+    out: &mut String,
+    requires: &tcl_registry::events::EventRequires,
+    release: EventRelease<'_>,
+) {
     use std::fmt::Write;
-    let matching = valid_events(requires);
+    let matching = valid_events(requires, release);
     if !matching.is_empty() {
         let mut list = matching
             .iter()
@@ -1197,7 +1312,17 @@ fn append_valid_events(out: &mut String, requires: &tcl_registry::events::EventR
         if matching.len() > 8 {
             let _ = write!(list, ", ... ({} total)", matching.len());
         }
-        let _ = write!(out, "\n\n**Valid events**: {list}");
+        match release {
+            EventRelease::Configured(version) => {
+                let _ = write!(out, "\n\n**Valid events** (BIG-IP {version}): {list}");
+            }
+            EventRelease::Unconfigured => {
+                let _ = write!(
+                    out,
+                    "\n\n**Valid events** (event requirements only; no BIG-IP release configured): {list}"
+                );
+            }
+        }
     }
     let mut reqs: Vec<String> = Vec::new();
     if requires.client_side {
@@ -1219,13 +1344,21 @@ fn append_valid_events(out: &mut String, requires: &tcl_registry::events::EventR
     }
 }
 
-/// Sorted event names whose properties satisfy `requires`.
-fn valid_events(requires: &tcl_registry::events::EventRequires) -> Vec<String> {
+/// Sorted event names whose properties satisfy `requires` and, at a
+/// configured release, whose declared lifecycle has them at that release.
+fn valid_events(
+    requires: &tcl_registry::events::EventRequires,
+    release: EventRelease<'_>,
+) -> Vec<String> {
     let event_reg = tcl_registry::events::EventRegistry::build();
     let profile_reg = tcl_registry::profiles::ProfileRegistry::build();
     let mut out: Vec<String> = event_reg
         .all_event_names()
         .into_iter()
+        .filter(|name| match release {
+            EventRelease::Configured(version) => event_reg.event_available_at(name, version),
+            EventRelease::Unconfigured => true,
+        })
         .filter(|name| {
             event_reg.get_props(name).is_some_and(|p| {
                 tcl_registry::events::event_satisfies(p, requires, name, &profile_reg)
@@ -1235,254 +1368,6 @@ fn valid_events(requires: &tcl_registry::events::EventRequires) -> Vec<String> {
         .collect();
     out.sort_unstable();
     out
-}
-
-/// Render a hover snippet for a `cmd subcommand` pair when
-/// the cursor sits on the subcommand word.  Detects the
-/// surrounding command segment via single-line tokenisation
-/// (mirrors the `command_context_on_line` helper used by
-/// completion / signature-help).
-fn subcommand_hover_text(
-    source: &str,
-    line: u32,
-    character: u32,
-    registry: &CommandRegistry,
-    cursor_word: &str,
-    dialect: Option<SurfaceQuery<'_>>,
-) -> Option<String> {
-    use std::fmt::Write;
-    let line_text = source.split('\n').nth(line as usize)?;
-    let chars: Vec<char> = line_text.chars().collect();
-    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-    let prefix: String = chars[..col].iter().collect();
-    let tokens: Vec<&str> = prefix.split_whitespace().collect();
-    if tokens.is_empty() {
-        return None;
-    }
-    let cmd_name = tokens[0];
-    // The cursor word IS the subcommand — use it directly as
-    // the lookup key.  The prefix-tokenised second token might
-    // be a partial (if cursor is mid-word).
-    let sub_name = cursor_word;
-    if cmd_name == sub_name {
-        // Cursor sits on the command word itself, not on a
-        // subcommand.  Fall through to the built-in-command
-        // hover instead.
-        return None;
-    }
-    let spec = registry.get(cmd_name)?;
-    // Resolve unique-prefix abbreviations (`string le` ⇒ `length`) like Tcl,
-    // honouring the active dialect for the prefix's uniqueness.
-    let sub = spec.resolve_subcommand_for_dialect(sub_name, dialect)?;
-    let mut out = format!("**`{cmd_name} {}`** — subcommand\n", sub.name);
-    if let Some(hover) = sub.hover.as_ref() {
-        if !hover.summary.is_empty() {
-            let _ = write!(out, "\n{}\n", hover.summary);
-        }
-        if let Some(synopsis) = hover.synopsis.first() {
-            let _ = write!(out, "\n```tcl\n{synopsis}\n```\n");
-        }
-    } else {
-        let _ = write!(out, "\nSubcommand of `{cmd_name}`.\n");
-    }
-    Some(out)
-}
-
-/// Render a hover for a command inside a scoped command environment — a
-/// `report::defstyle` style script exposing the report configuration methods
-/// (`top`, `data`, `columns`, …) and their operations (`top set`, `top
-/// enable`).  Resolves against the analyser-recorded
-/// [`ScopedBodyRegion`](tcl_compiler::analyser::ScopedBodyRegion)s active at the
-/// cursor; the scoped command set is registry data, so no command name is
-/// matched here.
-fn scoped_command_hover_text(
-    source: &str,
-    line: u32,
-    character: u32,
-    analysis: &AnalysisResult,
-    cursor_word: &str,
-    cursor_offset: u32,
-) -> Option<String> {
-    use std::fmt::Write;
-    let env = analysis
-        .scoped_command_regions
-        .iter()
-        .find(|r| r.contains(cursor_offset))
-        .map(|r| r.env)?;
-    // Head-command hover — the cursor sits on a scoped command head.
-    if let Some(cmd) = env.command(cursor_word) {
-        let mut out = format!("**`{cursor_word}`** — {} command\n", env.name);
-        if let Some(hover) = cmd.hover.as_ref() {
-            if !hover.summary.is_empty() {
-                let _ = write!(out, "\n{}\n", hover.summary);
-            }
-            if !hover.snippet.is_empty() {
-                let _ = write!(out, "\n```tcl\n{}\n```\n", hover.snippet);
-            }
-        } else if !cmd.detail.is_empty() {
-            let _ = write!(out, "\n{}\n", cmd.detail);
-        }
-        if !cmd.subcommands.is_empty() {
-            let names: Vec<&str> = cmd.subcommands.iter().map(|s| s.name).collect();
-            let _ = write!(out, "\nOperations: {}\n", names.join(", "));
-        }
-        return Some(out);
-    }
-    // Ensemble-operation hover — the cursor sits on the operation word
-    // (`set` / `enable`), whose head is the line's first token.
-    let line_text = source.split('\n').nth(line as usize)?;
-    let chars: Vec<char> = line_text.chars().collect();
-    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-    let prefix: String = chars[..col].iter().collect();
-    let head = prefix.split_whitespace().next()?;
-    if head == cursor_word {
-        return None;
-    }
-    let cmd = env.command(head)?;
-    let sub = cmd.subcommand(cursor_word)?;
-    let mut out = format!("**`{head} {}`** — {} operation\n", sub.name, env.name);
-    if !sub.detail.is_empty() {
-        let _ = write!(out, "\n{}\n", sub.detail);
-    }
-    if !sub.synopsis.is_empty() {
-        let _ = write!(out, "\n```tcl\n{}\n```\n", sub.synopsis);
-    }
-    Some(out)
-}
-
-/// Render a hover for the third word of a two-level ensemble — the
-/// second-level subcommand of `info object <op>` / `info class <op>` — when
-/// the cursor sits on it.  Accepts a unique prefix (`info object
-/// cl` ⇒ `class`), matching Tcl's ensemble dispatch.
-fn sub_subcommand_hover_text(
-    source: &str,
-    line: u32,
-    character: u32,
-    registry: &CommandRegistry,
-    cursor_word: &str,
-    dialect: Option<SurfaceQuery<'_>>,
-) -> Option<String> {
-    use std::fmt::Write;
-    let line_text = source.split('\n').nth(line as usize)?;
-    let chars: Vec<char> = line_text.chars().collect();
-    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-    let prefix: String = chars[..col].iter().collect();
-    let tokens: Vec<&str> = prefix.split_whitespace().collect();
-    // Need at least the command and its first-level subcommand before the
-    // cursor word (`info object …`).
-    if tokens.len() < 2 {
-        return None;
-    }
-    let cmd_name = tokens[0];
-    let sub_name = tokens[1];
-    // The cursor must be on the *third* word, not the command or the
-    // first-level subcommand.
-    if cursor_word == cmd_name || cursor_word == sub_name {
-        return None;
-    }
-    let spec = registry.get(cmd_name)?;
-    let sub = spec.resolve_subcommand_for_dialect(sub_name, dialect)?;
-    let ss = sub.resolve_sub_subcommand_for_dialect(cursor_word, dialect)?;
-    let mut out = format!("**`{cmd_name} {} {}`** — subcommand\n", sub.name, ss.name);
-    if !ss.detail.is_empty() {
-        let _ = write!(out, "\n{}\n", ss.detail);
-    }
-    if !ss.synopsis.is_empty() {
-        let _ = write!(out, "\n```tcl\n{}\n```\n", ss.synopsis);
-    }
-    Some(out)
-}
-
-/// Render a hover snippet for a `-option` when the cursor sits on an option
-/// word of the surrounding command.  `cursor_word` is the identifier under
-/// the cursor (no leading `-`); the dash is detected on the line.
-fn option_hover_text(
-    source: &str,
-    line: u32,
-    character: u32,
-    registry: &CommandRegistry,
-    _cursor_word: &str,
-    profile: &'static tcl_dialect::DialectProfile,
-) -> Option<String> {
-    use std::fmt::Write;
-    let dialect = Some(crate::document_context_for_profile(profile).authoring_query());
-    let line_text = source.split('\n').nth(line as usize)?;
-    let chars: Vec<char> = line_text.chars().collect();
-    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-    // The option word run (dash-led identifier) containing the cursor.
-    let is_opt_char = |c: char| c.is_alphanumeric() || c == '_' || c == '-';
-    let mut start = col.min(chars.len());
-    while start > 0 && is_opt_char(chars[start - 1]) {
-        start -= 1;
-    }
-    let mut end = col;
-    while end < chars.len() && is_opt_char(chars[end]) {
-        end += 1;
-    }
-    // The run must begin with a `-` to be an option.
-    if start >= end || chars[start] != '-' {
-        return None;
-    }
-    let option: String = chars[start..end].iter().collect();
-    // The surrounding command (and, if present, its subcommand) are the
-    // whitespace-delimited tokens before the option run.
-    let prefix: String = chars[..start].iter().collect();
-    let mut words = prefix.split_whitespace();
-    let cmd_name = words.next()?;
-    let spec = registry.get(cmd_name)?;
-    // Resolve the subcommand-scoped option table (`chan configure
-    // -inputmode`) before falling back to the command's own top-level
-    // table — an ensemble's real options live on the subcommand, and only
-    // that table is dialect-correct for a subcommand-specific option.
-    //
-    // A two-level ensemble narrows once more, on the word after the
-    // subcommand: `namespace ensemble configure -namespace` is a readable
-    // option and `namespace ensemble create -namespace` is a bad one, so
-    // only the operation's own table can answer either. The
-    // owner line names whichever level supplied the table.
-    let (options, parent_surface, owner) = match words
-        .next()
-        .and_then(|sub_name| spec.resolve_subcommand_for_dialect(sub_name, dialect))
-    {
-        Some(sub) => {
-            let scope = sub.option_scope(words.next(), dialect, None, spec.surface);
-            let owner = match scope.sub_subcommand {
-                Some(op) => format!("{cmd_name} {} {op}", sub.name),
-                None => format!("{cmd_name} {}", sub.name),
-            };
-            (scope.options, scope.surface, owner)
-        }
-        None => (spec.options, spec.surface, cmd_name.to_owned()),
-    };
-    let opt = options.iter().find(|o| o.matches(option.as_str()))?;
-    let mut out = format!("**`{}`** — option of `{owner}`\n", opt.name);
-    if !opt.detail.is_empty() {
-        let _ = write!(out, "\n{}\n", opt.detail);
-    }
-    if opt.takes_value() && !opt.value_hint().is_empty() {
-        let _ = write!(out, "\nTakes a `{}` value.\n", opt.value_hint());
-    }
-    // A boolean-valued option accepts the whole boolean vocabulary, prefixes
-    // included — a fact the registry declares (`ArgRole::Boolean`) rather
-    // than something a reader has to know.
-    if opt.value_is_boolean() {
-        let _ = write!(
-            out,
-            "\nAccepts any boolean spelling: {}.\n",
-            tcl_registry::abbrev::BOOLEAN_KEYWORDS
-                .iter()
-                .map(|k| format!("`{k}`"))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-    }
-    // §5.2 profile gating: intersects membership + the version ceiling —
-    // an inherited option on a vendor command counts as available under
-    // that vendor's composed profile.
-    if !crate::document_context_for_profile(profile).option_available(opt, parent_surface) {
-        let _ = write!(out, "\n_Not available in the active dialect._\n");
-    }
-    Some(out)
 }
 
 /// Strftime specifier descriptions for clock-format hover.
@@ -2668,13 +2553,82 @@ fn scan_regex_single_meta(c: char) -> Option<RegexComp> {
     Some((1, key.clone(), key, desc))
 }
 
-/// Render a hover for a command alias (`interp alias {} ALIAS {} TARGET …`)
-/// when `word` names a recorded alias.
-fn alias_hover_text(analysis: &AnalysisResult, word: &str) -> Option<String> {
-    for alias in analysis.command_aliases.values() {
-        let simple = alias.qualified_name.trim_start_matches("::");
+/// Alias hover at a genuine command head. Original aliases require their
+/// post-argv publication and implementation receipt; lexical-only profiles
+/// retain a separate declaration-advice presentation path.
+fn alias_hover_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+    word: &str,
+) -> std::ops::ControlFlow<Option<String>> {
+    use std::ops::ControlFlow::{Break, Continue};
+    use tcl_compiler::command_binding::{BindingKind, SourceCommandReferenceBinding};
+    let Some(invocation) = crate::definition::invocation_head_at(analysis, cursor) else {
+        return Continue(());
+    };
+    let allow_legacy_alias_labels = analysis.allows_lexical_declaration_advice()
+        && !analysis.allows_retained_logical_declaration_advice();
+    let Some(reference) = invocation.resolved_command_reference.as_ref() else {
+        if allow_legacy_alias_labels {
+            return lexical_alias_hover_text(analysis, word)
+                .map_or(Continue(()), |text| Break(Some(text)));
+        }
+        return Continue(());
+    };
+    if !matches!(
+        reference.binding(),
+        SourceCommandReferenceBinding::Direct {
+            kind: BindingKind::Alias,
+            ..
+        } | SourceCommandReferenceBinding::Imported {
+            kind: BindingKind::Alias,
+            ..
+        }
+    ) {
+        return Continue(());
+    }
+    let original = || {
+        let lookup = invocation.original_lookup.as_ref()?;
+        if lookup.site().source.source_image() != &tcl_lexer::SourceImage::document(source) {
+            return None;
+        }
+        let realm = analysis.retained_command_realm()?;
+        let binding = realm.invocation_at_source(&invocation.name, lookup.site().offset);
+        let target = binding.original_alias_target_for_reference(reference)?;
+        let mut rendered = Vec::with_capacity(target.arguments().len() + 1);
+        for input in std::iter::once(target.name_input()).chain(target.arguments()) {
+            if input.policy() != lookup.policy() {
+                return None;
+            }
+            rendered.push(tcl_syntax::native_string::resident_name_label(
+                input.bytes(),
+            ));
+        }
+        Some(format!("**Alias** \u{2192} `{}`", rendered.join(" ")))
+    };
+    let answer = original();
+    if answer.is_none() && allow_legacy_alias_labels {
+        return Break(lexical_alias_hover_text(analysis, word));
+    }
+    Break(answer)
+}
+
+/// Explicitly bounded legacy declaration advice, without a native source name
+/// policy. It never supplies a target for an original/native alias receipt.
+fn lexical_alias_hover_text(analysis: &AnalysisResult, word: &str) -> Option<String> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
+    for alias in analysis
+        .command_aliases
+        .values()
+        .filter(|alias| alias.source_name.is_none())
+    {
+        let simple = tcl_syntax::naming::unroot_rooted_key(&alias.qualified_name)
+            .unwrap_or(&alias.qualified_name);
         if simple == word || alias.qualified_name == word {
-            let mut target = alias.target.clone();
+            let mut target = alias.target.as_str().to_owned();
             if !alias.extras.is_empty() {
                 target.push(' ');
                 target.push_str(&alias.extras.join(" "));
@@ -2840,10 +2794,9 @@ fn clock_format_string_at_position(source: &str, line: u32, character: u32) -> O
 /// The `[start, end)` char-index bounds of the bare Tcl word around `col`
 /// in `chars` (one source line), using [`WORD_DELIMS`].
 ///
-/// This is the single word-bounding rule shared by every cursor-word
-/// consumer, so hover, definition, references, and rename all agree on
-/// where a word starts and ends.  It deliberately follows the *lexer's*
-/// notion of a bare word — bounded by whitespace and the structural
+/// Test-only method-name bounds using the standalone cursor presentation
+/// rule. This supplies no original source, command identity or editable span.
+/// Bare words are bounded by whitespace and the structural
 /// characters `;{}[]"$` — rather than a programming-language identifier
 /// rule.  Tcl puts no character restriction on a command or method name, so
 /// `with-dash`, `a.b`, and TIP 558's generated property accessors
@@ -2859,18 +2812,19 @@ fn clock_format_string_at_position(source: &str, line: u32, character: u32) -> O
 /// `namespace eval ns { proc c:d {} … }` all work).  What *is* handled is the
 /// residual-`::` case: when the left scan stops on a substitution closer
 /// (`}` / `]`), a leading `::` in the word is the tail of a **computed** name
-/// (`${ns}::setdef`), not an absolute one — see [`word_char_bounds`]'s return
+/// (`${ns}::setdef`), not an absolute one — see [`word_char_bounds_kinded`]'s return
 /// value.
 ///
 /// Deliberately *not* handled: a word split across lines by a
 /// backslash-newline continuation, and the interior structure of a word
 /// that mixes literal text with substitutions (`pre[cmd]post`) — the
 /// caller sees the literal slice only.
+#[cfg(test)]
 pub(crate) fn word_char_bounds(chars: &[char], col: usize) -> Option<(usize, usize)> {
     word_char_bounds_kinded(chars, col).map(|(start, end, _)| (start, end))
 }
 
-/// [`word_char_bounds`] also reporting whether the word is the **residual
+/// Standalone lexical bounds, also reporting whether the word is the **residual
 /// tail of a computed name** — the literal fragment that follows a `${var}` /
 /// `[cmd]` substitution inside the same word (`${ns}::setdef` → `::setdef`).
 ///
@@ -2879,9 +2833,8 @@ pub(crate) fn word_char_bounds(chars: &[char], col: usize) -> Option<(usize, usi
 /// genuinely absolute `::setdef` and resolution looks for a global proc of
 /// that literal name — finding nothing, and reporting no definition for a
 /// call that statically resolves fine (`${ns}::setdef` with `ns ==
-/// "::ticklecharts"`).  Reporting the fact here, in the one shared
-/// word-bounding rule, keeps every consumer (hover, definition, references,
-/// rename) on the same answer.
+/// "::ticklecharts"`). The flag separates standalone absolute spellings from
+/// computed tails; it supplies no lookup identity.
 pub(crate) fn word_char_bounds_kinded(chars: &[char], col: usize) -> Option<(usize, usize, bool)> {
     let mut start = col.min(chars.len());
     while start > 0 && !WORD_DELIMS.contains(&chars[start - 1]) {
@@ -2909,14 +2862,10 @@ pub(crate) fn word_char_bounds_kinded(chars: &[char], col: usize) -> Option<(usi
 /// `line` / `character` is out of bounds or the cursor sits on a
 /// delimiter run.
 ///
-/// A word that is the residual tail of a computed name — the literal
-/// fragment after a `${var}` / `[cmd]` substitution in the same word, as in
-/// `${ns}::setdef` — is reported as the *name* it spells (`setdef`), with the
-/// span narrowed past the `::` accordingly.  Keeping the
-/// leading `::` made it indistinguishable from an absolute name, so
-/// resolution looked for a global proc literally called `::setdef` and every
-/// consumer reported nothing; narrowing the span as well is what keeps rename
-/// from eating the namespace separator it must preserve.
+/// A residual literal tail after a `${var}` / `[cmd]` substitution, such as
+/// `setdef` in `${ns}::setdef`, excludes the preceding `::` from its reported
+/// name and span. Rename can then preserve the computed namespace prefix.
+/// This lexical tail alone supplies no command identity.
 #[must_use]
 pub fn find_word_span_at_position(
     source: &str,
@@ -2943,150 +2892,50 @@ pub fn find_word_span_at_position(
     Some((word, start_u32, end_u32))
 }
 
-/// Check whether the cursor sits on a `$var` reference and
-/// return the variable name (without the leading `$`).
+/// Standalone substitution syntax lookup with the compatibility grammar.
+/// It supplies a source label only. Editor consumers with an analysis use the
+/// retained-input cursor facade rather than selecting this nominal grammar.
 #[must_use]
 pub fn find_var_at_position(source: &str, line: u32, character: u32) -> Option<String> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    let chars: Vec<char> = line_text.chars().collect();
-
-    let cursor = utf16_col_to_char_col(line_text, character).min(chars.len());
-
-    // `${name}` braced form first: scan left looking for the
-    // most recent `${` whose matching `}` lies at or to the
-    // right of the cursor.  This handles cursors anywhere
-    // inside the braces, including on the closing `}`.
-    if let Some(name) = braced_var_around(&chars, cursor) {
-        return Some(name);
-    }
-
-    let mut pos = cursor;
-    // `$` is a delimiter: in a `$a$b` concatenation the left-scan must stop at
-    // the inner `$` so a cursor on `b` resolves `b`, not `a`. Omitting it walked
-    // left across the whole concatenation to the first `$` and always returned
-    // the first variable. Mirrors `WORD_DELIMS`.
-    let stop_chars: &[char] = &[' ', '\t', '\n', ';', '{', '}', '[', ']', '"', '$'];
-    while pos > 0 && !stop_chars.contains(&chars[pos - 1]) {
-        pos -= 1;
-    }
-    if pos > 0 && chars[pos - 1] == '$' {
-        pos -= 1;
-    }
-
-    if pos < chars.len() && chars[pos] == '$' {
-        let start = pos + 1;
-        let end = scan_var_name_end(&chars, start);
-        if end > start {
-            let name: String = chars[start..end].iter().collect();
-            return Some(name);
-        }
-    }
-    None
+    // dialect-drift-ok: explicit compatibility utility without AnalysisResult.
+    find_var_at_position_with_config(source, line, character, tcl_lexer::LexerConfig::default())
 }
 
-/// The hover type/taint annotations for the variable at the cursor. Type
-/// inference is keyed by element-qualified SSA names (`arr(idx)` is its own
-/// variable), so the lookup name comes from
-/// [`find_var_element_at_position`]; scope-chain resolution stays on the
-/// base form the caller already has.
-fn var_type_annotations(
+/// Standalone substitution syntax lookup under explicitly selected grammar.
+/// No source label proves variable resolution, a read or an editable reference.
+#[must_use]
+pub fn find_var_at_position_with_config(
     source: &str,
     line: u32,
     character: u32,
-    var_name: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let index = tcl_lexer::LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&index, source, line, character);
+    crate::source_structure::template_variable_reference_at(source, config, cursor)
+        .map(|reference| reference.root.to_owned())
+}
+
+/// Annotation queries retain the selected source occurrence and current input.
+fn var_type_annotations(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
     registry: Option<&CommandRegistry>,
-    profile: &'static tcl_dialect::DialectProfile,
 ) -> (Option<String>, Option<String>) {
-    let type_var = find_var_element_at_position(source, line, character)
-        .unwrap_or_else(|| var_name.to_owned());
-    match registry {
-        Some(reg) => infer_var_type_and_taint(source, reg, &type_var, profile),
-        None => (None, None),
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return (None, None);
+    };
+    // The annotations come from the compiler pipeline, which a caller opts
+    // into by supplying its registry; it must be the analysis's own.
+    let Some(registry) = registry else {
+        return (None, None);
+    };
+    if registry.snapshot().semantic_key() != current.registry().snapshot().semantic_key() {
+        return (None, None);
     }
-}
-
-/// [`find_var_at_position`] keeping a constant array key: `$arr(idx)` under
-/// the cursor resolves to the per-element SSA variable `arr(idx)` (a dynamic
-/// key falls back to the base). Used for the type-inference lookup, which is
-/// keyed by element-qualified SSA names; scope-chain / references lookups
-/// stay on the base form.
-fn find_var_element_at_position(source: &str, line: u32, character: u32) -> Option<String> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    let chars: Vec<char> = line_text.chars().collect();
-    let cursor = utf16_col_to_char_col(line_text, character).min(chars.len());
-
-    let base = find_var_at_position(source, line, character)?;
-    // Locate the ref's `(` — scan right from the cursor's var name for a
-    // literal key suffix. Walk left to the nearest `$`, then forward over
-    // the name; a following `(key)` with a literal key element-qualifies.
-    let mut pos = cursor.min(chars.len());
-    let stop_chars: &[char] = &[' ', '\t', '\n', ';', '{', '}', '[', ']', '"', '$'];
-    while pos > 0 && !stop_chars.contains(&chars[pos - 1]) {
-        pos -= 1;
-    }
-    if pos > 0 && chars[pos - 1] == '$' {
-        pos -= 1;
-    }
-    if pos < chars.len() && chars[pos] == '$' {
-        let start = pos + 1;
-        let end = scan_var_name_end(&chars, start);
-        if end > start && chars.get(end) == Some(&'(') {
-            let mut close = end + 1;
-            while close < chars.len() && chars[close] != ')' {
-                close += 1;
-            }
-            if close < chars.len() {
-                let full: String = chars[start..=close].iter().collect();
-                let qualified = tcl_syntax::naming::element_var_name(&full);
-                if qualified == full {
-                    return Some(full);
-                }
-            }
-        }
-    }
-    Some(base)
-}
-
-/// Find a `${name}` braced variable reference containing `cursor`.
-/// Walks left from `cursor` to find a `${`, then matches it with
-/// the next `}` to its right.  Returns the inner name when the
-/// cursor sits inside the braces.
-fn braced_var_around(chars: &[char], cursor: usize) -> Option<String> {
-    let mut i = cursor.min(chars.len());
-    while i > 0 {
-        let c = chars[i - 1];
-        if c == '{' {
-            if i >= 2 && chars[i - 2] == '$' {
-                let inner_start = i;
-                let mut end = inner_start;
-                while end < chars.len() && chars[end] != '}' {
-                    end += 1;
-                }
-                if end < chars.len() && cursor <= end {
-                    let name: String = chars[inner_start..end].iter().collect();
-                    // `${arr(idx)}` resolves to the base array variable
-                    // `arr` (matching the analyser's `normalise_var_name`,
-                    // which strips the index for the braced form too), so
-                    // a cursor anywhere inside the braces — including on
-                    // the index — finds the same symbol the unbraced
-                    // `$arr(idx)` path does.
-                    let base = match name.find('(') {
-                        Some(i) => &name[..i],
-                        None => name.as_str(),
-                    };
-                    if !base.is_empty() {
-                        return Some(base.to_owned());
-                    }
-                }
-            }
-            return None;
-        }
-        if c == '}' || c == '"' || c == '[' || c == ']' || c == ';' || c == '\n' {
-            return None;
-        }
-        i -= 1;
-    }
-    None
+    infer_var_type_and_taint(source, current.registry(), cursor, analysis)
 }
 
 fn proc_hover_text(proc_def: &ProcDef) -> String {
@@ -3226,9 +3075,27 @@ fn format_docstring(text: &str) -> String {
 }
 
 fn class_hover_text(analysis: &AnalysisResult, class_def: &ClassDef) -> String {
+    let original_word = class_def.source_name.as_ref().and_then(|name| {
+        let mut records = analysis.original_class_declarations().filter(|record| {
+            record.name() == name && record.metadata().name_span == class_def.name_span
+        });
+        let record = records.next()?;
+        if records.next().is_some() || record.name_input().display().is_some() {
+            return None;
+        }
+        tcl_syntax::naming::native_command_source_word(
+            name.policy().recipe(),
+            name.slot(),
+            record.name_input().source_image().channel(),
+            record.name_input().lexer_config(),
+        )
+    });
     let mut sig = format!(
         "{} create {}",
-        class_def.metaclass, class_def.qualified_name
+        class_def.metaclass,
+        original_word
+            .as_deref()
+            .unwrap_or(&class_def.qualified_name)
     );
     if !class_def.superclasses.is_empty() {
         use std::fmt::Write as _;
@@ -3240,15 +3107,32 @@ fn class_hover_text(analysis: &AnalysisResult, class_def: &ClassDef) -> String {
     }
     let mut parts = vec![format!("```tcl\n{sig}\n```")];
     let mut details: Vec<String> = Vec::new();
-    if !class_def.methods.is_empty() {
-        let mut names: Vec<&str> = class_def.methods.keys().map(String::as_str).collect();
-        names.sort_unstable();
-        details.push(format!("**Methods**: {}", names.join(", ")));
-    }
-    if !class_def.class_methods.is_empty() {
-        let mut names: Vec<&str> = class_def.class_methods.keys().map(String::as_str).collect();
-        names.sort_unstable();
-        details.push(format!("**Class methods**: {}", names.join(", ")));
+    for (side, title) in [
+        (
+            tcl_compiler::analyser::types::MemberSide::Instance,
+            "Methods",
+        ),
+        (
+            tcl_compiler::analyser::types::MemberSide::ClassObject,
+            "Class methods",
+        ),
+    ] {
+        let names = if class_def.source_name.is_some() {
+            crate::original_oo::own_method_labels(class_def, side)
+        } else if analysis.allows_lexical_declaration_advice() {
+            let table = match side {
+                tcl_compiler::analyser::types::MemberSide::Instance => &class_def.methods,
+                tcl_compiler::analyser::types::MemberSide::ClassObject => &class_def.class_methods,
+            };
+            let mut names = table.keys().cloned().collect::<Vec<_>>();
+            names.sort();
+            Some(names)
+        } else {
+            None
+        };
+        if let Some(names) = names.filter(|names| !names.is_empty()) {
+            details.push(format!("**{title}**: {}", names.join(", ")));
+        }
     }
     if !class_def.variables.is_empty() {
         details.push(format!(
@@ -3258,19 +3142,71 @@ fn class_hover_text(analysis: &AnalysisResult, class_def: &ClassDef) -> String {
     }
     // MRO chain + direct subclasses from the class hierarchy — surfaces
     // the inheritance shape inline. Only shown when non-trivial.
-    let hierarchy = analysis.class_hierarchy();
-    let qname = &class_def.qualified_name;
-    if let Some(mro) = hierarchy.mro_map.get(qname)
-        && mro.len() > 1
-    {
-        details.push(format!("**MRO**: {}", mro.join(" → ")));
-    }
-    if let Some(subs) = hierarchy.subclasses.get(qname)
-        && !subs.is_empty()
-    {
-        let mut names: Vec<&str> = subs.iter().map(String::as_str).collect();
-        names.sort_unstable();
-        details.push(format!("**Subclasses**: {}", names.join(", ")));
+    if let Some(source_name) = &class_def.source_name {
+        let mut records = analysis.original_class_declarations().filter(|record| {
+            record.name() == source_name && record.metadata().name_span == class_def.name_span
+        });
+        if let Some(record) = records.next().filter(|_| records.next().is_none()) {
+            use tcl_compiler::analyser::class_hierarchy::original_metadata::original_instance_metadata_order;
+            if let Some(order) =
+                original_instance_metadata_order(analysis, record).filter(|order| order.len() > 1)
+            {
+                details.push(format!(
+                    "**MRO**: {}",
+                    order
+                        .iter()
+                        .map(|provider| provider.metadata().qualified_name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" → ")
+                ));
+            }
+            let mut subclasses = analysis
+                .original_class_declarations()
+                .filter_map(|candidate| {
+                    use tcl_compiler::analyser::types::{
+                        MemberSide, OriginalSourceClassRelationKind,
+                    };
+                    let parents = candidate.metadata().original_relations.resolve(
+                        MemberSide::Instance,
+                        OriginalSourceClassRelationKind::Superclass,
+                        |relation| {
+                            let selected = relation.lookup().first_matching_publications(
+                                analysis
+                                    .original_class_declarations()
+                                    .map(|record| (record.name(), record)),
+                            );
+                            match selected.as_slice() {
+                                [record] => Some(*record),
+                                _ => None,
+                            }
+                        },
+                    )?;
+                    parents
+                        .iter()
+                        .any(|parent| parent.declaration_site() == record.declaration_site())
+                        .then_some(candidate.metadata().qualified_name.as_str())
+                })
+                .collect::<Vec<_>>();
+            subclasses.sort_unstable();
+            if !subclasses.is_empty() {
+                details.push(format!("**Subclasses**: {}", subclasses.join(", ")));
+            }
+        }
+    } else if analysis.allows_lexical_declaration_advice() {
+        let hierarchy = analysis.class_hierarchy();
+        let qname = &class_def.qualified_name;
+        if let Some(mro) = hierarchy.mro_map.get(qname).filter(|mro| mro.len() > 1) {
+            details.push(format!("**MRO**: {}", mro.join(" → ")));
+        }
+        if let Some(subs) = hierarchy
+            .subclasses
+            .get(qname)
+            .filter(|subs| !subs.is_empty())
+        {
+            let mut names = subs.iter().map(String::as_str).collect::<Vec<_>>();
+            names.sort_unstable();
+            details.push(format!("**Subclasses**: {}", names.join(", ")));
+        }
     }
     if !details.is_empty() {
         parts.push(details.join("  \n"));
@@ -3293,29 +3229,7 @@ fn caller_frame_hover_text(
     name: &str,
     binding: &crate::caller_frame::CallerFrameBinding,
 ) -> String {
-    let verb = if binding.read_only {
-        "read by"
-    } else {
-        "created in this frame by"
-    };
-    match &binding.param {
-        Some(param) => format!(
-            "**Caller-frame variable** `{name}`\n\n\
-             {verb} `{}`, through its `{param}` parameter's `upvar`.\n\n\
-             The name is passed at the call site, so this frame never assigns it directly.",
-            binding.callee
-        ),
-        // A literal target (`upvar 1 name name`): the callee
-        // spells the name in its own body, so nothing at the call site
-        // carries it.
-        None => format!(
-            "**Caller-frame variable** `{name}`\n\n\
-             {verb} `{}`, whose own `upvar` names it literally.\n\n\
-             The name is spelled in the callee's body, so neither this frame \
-             nor the call site ever writes it directly.",
-            binding.callee
-        ),
-    }
+    crate::caller_frame::caller_frame_hover_text(name, binding)
 }
 
 /// `format_info` is the same embedded-language table
@@ -3336,16 +3250,21 @@ fn var_hover_text(
         "**Variable** `{}`\n\n{} reference(s)",
         var_def.name, ref_count
     );
-    if let Some(t) = type_info {
-        let _ = write!(text, "\n\n**Inferred intrep**: {t}");
-    }
-    if let Some(t) = taint_info {
-        let _ = write!(text, "\n\n**Taint**: {t}");
-    }
+    append_var_annotations(&mut text, type_info, taint_info);
     if let Some(f) = format_info {
         let _ = write!(text, "\n\n{f}");
     }
     text
+}
+
+fn append_var_annotations(text: &mut String, type_info: Option<&str>, taint_info: Option<&str>) {
+    use std::fmt::Write as _;
+    if let Some(value) = type_info {
+        let _ = write!(text, "\n\n**Inferred intrep**: {value}");
+    }
+    if let Some(value) = taint_info {
+        let _ = write!(text, "\n\n**Taint**: {value}");
+    }
 }
 
 /// Render hover markdown for an interpreter-provided special variable
@@ -3408,142 +3327,84 @@ fn tcl_type_label(t: TclType) -> String {
     format!("{t:?}").to_lowercase()
 }
 
-/// Build the compiler [`CompilationUnit`] and extract the
-/// inferred-intrep and taint annotations for `var_name`.  Returns
-/// `(type_label, taint_label)`; either may be `None`.
-///
-/// Built **for the document's dialect**: the unit is lowered
-/// with `LexerConfig::for_dialect` and the dialect is recorded on the build
-/// options, so word tokenisation, the expression grammar the lowering parses
-/// conditions with, and the lattice pipeline's fold policy all agree with the
-/// rest of the analysis.  Building with the plain-Tcl default instead
-/// mis-tokenises dialect-specific words (an iRules `contains` / `starts_with`
-/// word operator, `{*}` under 8.4) and the inferred intrep the hover shows
-/// silently skews or disappears.  Same pattern as
-/// [`crate::inlay_hints`]'s own dialect-aware segmentation.
+/// Type/taint inference under the same actual source, grammar and complete
+/// context as cursor selection. Registry mismatch or unavailable retained
+/// input declines; this conditional source build has no Native entry.
 fn infer_var_type_and_taint(
     source: &str,
     registry: &CommandRegistry,
-    var_name: &str,
-    profile: &'static tcl_dialect::DialectProfile,
+    cursor: u32,
+    analysis: &AnalysisResult,
 ) -> (Option<String>, Option<String>) {
-    // Inline `# tcl-lsp: stub` declarations only — hover holds the buffer's
-    // text, not its path, so the sidecar half of the surface is out of reach
-    // here, and a command only a sidecar declares answers as the catalogue
-    // has it.
-    let declared =
-        tcl_compiler::analyser::utils::document_declared_surface(source, None, profile.name);
-    let unit = CompilationUnit::build_with_options(
-        source,
-        tcl_compiler::compilation_unit::UnitBuildOptions {
-            registry,
-            defer_top_level: false,
-            config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
-            dialect: Some(profile),
-            external_call_sites: None,
-            declared_commands: Some(&declared),
-        },
-    );
-    let first_use = tcl_compiler::shimmer::first_use_commitments_for_cu(&unit, registry);
+    let Some(unit) =
+        crate::original_invocation::source_compilation_unit(source, analysis, registry)
+    else {
+        return (None, None);
+    };
+    let selected = if let Some(reference) =
+        crate::source_structure::original_variable_reference_at(source, analysis, cursor)
+    {
+        tcl_compiler::ssa::original_source_read_at_unit(&unit, reference.whole_span, registry)
+            .and_then(|read| Some((read.function(), (read.symbol(), read.version()?))))
+    } else {
+        let declaration = analysis
+            .original_variable_symbol_at_offset(cursor)
+            .filter(|occurrence| occurrence.is_declaration())
+            .map(tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence::span)
+            .or_else(|| {
+                crate::definition::var_def_at_declaration_offset(&analysis.global_scope, cursor)
+                    .map(|definition| definition.definition_span)
+            });
+        declaration
+            .and_then(|span| {
+                tcl_compiler::ssa::original_source_definition_at_unit(&unit, span, registry)
+            })
+            .map(|definition| {
+                (
+                    definition.function(),
+                    (definition.symbol(), definition.version()),
+                )
+            })
+    };
+    let Some((function, value)) = selected else {
+        return (None, None);
+    };
+    let first_use =
+        tcl_compiler::shimmer::first_use_value_commitments_for_function(function, registry);
     (
-        infer_var_type(&unit, var_name, &first_use),
-        infer_var_taint(&unit, var_name),
+        infer_var_type(function, value, first_use.get(&value).copied()),
+        infer_var_taint(function, value),
     )
 }
 
-/// The top-level function unit followed by every procedure unit
-/// in deterministic (name-sorted) order, so the per-variable
-/// inference picks a stable first match regardless of the
-/// procedure map's hashing order.
-fn function_units_in_order(unit: &CompilationUnit) -> Vec<&FunctionUnit> {
-    let mut out: Vec<&FunctionUnit> = Vec::with_capacity(unit.procedures.len() + 1);
-    out.push(&unit.top_level);
-    let mut procs: Vec<&FunctionUnit> = unit.procedures.values().collect();
-    procs.sort_by(|a, b| a.name.cmp(&b.name));
-    out.extend(procs);
-    out
-}
-
-/// Infer a dominant intrep type for `var_name`, mirroring
-/// `_infer_var_type`: returns the first function (top-level, then
-/// procs in name order) that has type entries for the variable
-/// and resolves them to a single label.
-///
-/// A **pure** variable — a literal / interpolation / string-command result
-/// whose intrep is not committed at the def — additionally reports the intrep
-/// its first use commits when every executable typed read agrees ("first used
-/// as"), the def-site pushback of the committed-intrep dataflow
-/// (`tcl_compiler::shimmer::first_use_commitments_for_cu`).
+/// Type display from the selected represented SSA contents version.
 fn infer_var_type(
-    unit: &CompilationUnit,
-    var_name: &str,
-    first_use: &HashMap<String, HashMap<String, TclType>>,
+    function: &FunctionUnit,
+    value: tcl_compiler::ssa::ValueKey,
+    first_use: Option<TclType>,
 ) -> Option<String> {
-    for func in function_units_in_order(unit) {
-        let entries: Vec<&TypeLattice> = func
-            .types
-            .iter()
-            .filter(|((name, _ver), _)| func.ssa.var_name(*name) == var_name)
-            .map(|(_, t)| t)
-            .collect();
-        if entries.is_empty() {
-            continue;
-        }
-        // Every version agrees on the same KNOWN type.
-        let known: Vec<&TypeLattice> = entries
-            .iter()
-            .copied()
-            .filter(|t| t.kind() == TypeKind::Known && t.tcl_type().is_some())
-            .collect();
-        if !known.is_empty()
-            && known.iter().all(|t| t.tcl_type() == known[0].tcl_type())
-            && known.len() == entries.len()
-        {
-            let label = tcl_type_label(known[0].tcl_type().unwrap());
-            // A pure def whose every typed read commits one intrep reports it
-            // at the creation site: `set l {1 2 3}` first used by `llength`
-            // hovers as "string (first used as: list)".
-            if let Some(committed) = first_use
-                .get(&func.name)
-                .and_then(|vars| vars.get(var_name))
-            {
-                let committed_label = tcl_type_label(*committed);
-                if committed_label != label {
-                    return Some(format!("{label} (first used as: {committed_label})"));
+    let lattice = function.types.get(&value)?;
+    match lattice.kind() {
+        TypeKind::Known => {
+            let label = tcl_type_label(lattice.tcl_type()?);
+            if let Some(committed) = first_use {
+                let committed = tcl_type_label(committed);
+                if committed != label {
+                    return Some(format!("{label} (first used as: {committed})"));
                 }
             }
-            return Some(label);
+            Some(label)
         }
-        // Every version agrees on the same shimmer union — render every
-        // member (`shimmered (int / list / string)` for a 3-way merge).
-        let shimmered: Vec<&TypeLattice> = entries
-            .iter()
-            .copied()
-            .filter(|t| t.kind() == TypeKind::Shimmered)
-            .collect();
-        if !shimmered.is_empty() && shimmered.len() == entries.len() {
-            let s = shimmered[0];
-            if shimmered.iter().all(|t| *t == s) {
-                let members: Vec<String> = s
-                    .shapes()
-                    .iter()
-                    .map(|shape| tcl_type_label(shape.coarse()))
-                    .collect();
-                return Some(format!("shimmered ({})", members.join(" / ")));
-            }
+        TypeKind::Shimmered => {
+            let members = lattice
+                .shapes()
+                .iter()
+                .map(|shape| tcl_type_label(shape.coarse()))
+                .collect::<Vec<_>>();
+            Some(format!("shimmered ({})", members.join(" / ")))
         }
-        // Mixed, but a dominant KNOWN type exists.  Pick the
-        // smallest by `Ord` so the choice is deterministic.
-        if let Some(t) = known
-            .iter()
-            .filter_map(|t| t.tcl_type())
-            .min()
-            .map(tcl_type_label)
-        {
-            return Some(t);
-        }
+        _ => None,
     }
-    None
 }
 
 /// Human-readable mitigation-colour labels present in `taint`,
@@ -3571,49 +3432,87 @@ fn taint_colour_labels(taint: TaintLattice) -> Vec<&'static str> {
         .collect()
 }
 
-/// Infer taint for `var_name`, mirroring `_infer_var_taint`:
-/// returns the first function with taint entries for the
-/// variable, joining the tainted versions to the most
-/// conservative colour set.
-fn infer_var_taint(unit: &CompilationUnit, var_name: &str) -> Option<String> {
-    for func in function_units_in_order(unit) {
-        let entries: Vec<&TaintLattice> = func
-            .taints
-            .iter()
-            .filter(|((name, _ver), _)| func.ssa.var_name(*name) == var_name)
-            .map(|(_, t)| t)
-            .collect();
-        if entries.is_empty() {
-            continue;
-        }
-        let tainted: Vec<&TaintLattice> =
-            entries.iter().copied().filter(|t| t.is_tainted()).collect();
-        if let Some((first, rest)) = tainted.split_first() {
-            let combined = rest.iter().fold(**first, |acc, t| acc.join(**t));
-            let labels = taint_colour_labels(combined);
-            if labels.is_empty() {
-                return Some("tainted (from I/O)".to_owned());
-            }
-            return Some(format!("tainted (from I/O); {}", labels.join(", ")));
-        }
+/// Taint display from the same represented version as the source read.
+fn infer_var_taint(function: &FunctionUnit, value: tcl_compiler::ssa::ValueKey) -> Option<String> {
+    let taint = *function.taints.get(&value)?;
+    if !taint.is_tainted() {
+        return None;
     }
-    None
+    let labels = taint_colour_labels(taint);
+    if labels.is_empty() {
+        Some("tainted (from I/O)".to_owned())
+    } else {
+        Some(format!("tainted (from I/O); {}", labels.join(", ")))
+    }
 }
 
-/// Hover text for a class member at the cursor's byte
-/// offset.  Walks every class whose body span contains the
-/// cursor and looks `word` up against `methods` /
-/// `class_methods` / `properties` — but ONLY when `word` is
-/// genuinely bareword-callable from a method body of this class
-/// (`ClassDef::linked_members`; see
-/// `lookup_class_member`'s doc for the full rationale) — plus the
-/// `constructor` / `destructor` keywords, unconditionally.
-/// Returns a one-line markdown summary on hit, `None` otherwise.
-fn class_member_hover_text(
+/// Original linked command heads retain their conditional member owner.
+fn original_linked_member_hover_text(
+    source: &str,
     analysis: &AnalysisResult,
     word: &str,
     cursor_offset: u32,
 ) -> Option<String> {
+    if let Some(linked) = tcl_compiler::analyser::types::original_source_linked_member_at(
+        analysis,
+        source,
+        cursor_offset,
+    ) {
+        let class = linked.class_declaration().metadata();
+        let method = linked.target().metadata();
+        let qname = &class.qualified_name;
+        let kind = if linked.target().side() == tcl_compiler::analyser::MemberSide::ClassObject {
+            "classmethod"
+        } else {
+            "method"
+        };
+        let linked_note = if linked.alias_input().bytes() == linked.target_input().bytes() {
+            String::new()
+        } else {
+            format!("  \nlinked from `{word}`")
+        };
+        let note = oo_method_resolution_note(analysis, qname, &method.name)
+            .map_or(String::new(), |note| format!("  \n{note}"));
+        return Some(format!(
+            "**{kind}** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}",
+            name = method.name,
+            nparam = method.params.len()
+        ));
+    }
+    None
+}
+
+/// Original linked heads hover as their retained target member; declaration
+/// names and constructor/destructor keywords keep their own source paths.
+fn class_member_hover_text(
+    source: &str,
+    analysis: &AnalysisResult,
+    word: &str,
+    cursor_offset: u32,
+) -> Option<String> {
+    if analysis.allows_retained_logical_declaration_advice() {
+        let config = analysis.body_lexer_config?;
+        let image = tcl_lexer::SourceImage::document(source);
+        if !analysis.matches_original_source_image(&image, config) {
+            return None;
+        }
+        let selected = analysis.logical_source_member_at(&image, config, cursor_offset)?;
+        let class = analysis.logical_source_member_class(&selected)?;
+        let method = selected.metadata();
+        let side = match selected.side() {
+            tcl_compiler::analyser::MemberSide::Instance => "method",
+            tcl_compiler::analyser::MemberSide::ClassObject => "classmethod",
+        };
+        let mut text = format!("**{side}** `{}::{}`", class.qualified_name, method.name);
+        if !method.doc.is_empty() {
+            text.push_str("\n\n");
+            text.push_str(&method.doc);
+        }
+        return Some(text);
+    }
+    if let Some(text) = original_linked_member_hover_text(source, analysis, word, cursor_offset) {
+        return Some(text);
+    }
     let class_def = analysis
         .all_classes
         .get(crate::definition::enclosing_class_at(
@@ -3640,37 +3539,6 @@ fn class_member_hover_text(
     // the body (those keep falling through to the tiers below).
     if let Some(text) = member_declaration_hover_text(analysis, class_def, word, cursor_offset) {
         return Some(text);
-    }
-    if let Some(target) = class_def.linked_members.get(word) {
-        let linked_note = if target == word {
-            String::new()
-        } else {
-            format!("  \nlinked from `{word}`")
-        };
-        if let Some(m) = class_def.methods.get(target) {
-            let note = oo_method_resolution_note(analysis, qname, target)
-                .map_or(String::new(), |n| format!("  \n{n}"));
-            return Some(format!(
-                "**method** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}",
-                name = m.name,
-                nparam = m.params.len(),
-            ));
-        }
-        if let Some(m) = class_def.class_methods.get(target) {
-            let note = oo_method_resolution_note(analysis, qname, target)
-                .map_or(String::new(), |n| format!("  \n{n}"));
-            return Some(format!(
-                "**classmethod** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}",
-                name = m.name,
-                nparam = m.params.len(),
-            ));
-        }
-        if let Some(p) = class_def.properties.get(target) {
-            return Some(format!(
-                "**property** `{qname}::{name}`{linked_note}",
-                name = p.name
-            ));
-        }
     }
     // A constructor or destructor keyword: the member it declared says what
     // it is.
@@ -3746,34 +3614,6 @@ fn member_declaration_hover_text(
     }
 }
 
-/// Hover text for a `$obj method` / `my method` call — `method` resolved
-/// against the class identified by `class_q`, rendering a one-line summary
-/// that names the *providing* class plus an MRO note (inherited-from /
-/// overrides).
-///
-/// Resolution is the shared `TclOO` linearisation walk
-/// ([`crate::oo_dispatch::method_dispatch_provider`]), the same one
-/// go-to-definition and find-references use. A direct-only
-/// `class_def.methods.get(method)` on the receiver's own class is not enough:
-/// a method reached purely through a `mixin` or a `superclass` — with no
-/// local override — would hover as nothing at all even though
-/// go-to-definition resolves it one line of code away in the same request
-/// path. The MRO-aware provider is
-/// already computed in this file, but only to *annotate* a hit the direct
-/// lookup had already found.
-///
-/// `class_q` may name either a *user*-defined class (`analysis.all_classes`
-/// — `oo::class`/`oo::define`/snit/itcl bodies the analyser parsed) or a
-/// *registry*-modelled one (a `tcl-registry` `ObjectClassSpec` — tcllib
-/// factories, or a Tk/ttk widget's self-referential class).
-/// User classes are tried first (richer: params, MRO note); the registry is
-/// the fallback so e.g. `.t instate` still hovers even though `ttk::treeview`
-/// is never a user-defined class.
-///
-/// `external` distinguishes the two dispatch spellings the way
-/// `definition.rs` already does: a `$obj m` / `CLASS m` call sees exported
-/// implementations only, while an internal `my m` also reaches unexported
-/// ones.
 /// The `$obj method` / `my method` dispatch arms of the hover walk, plus
 /// the per-object visibility mask that precedes them.
 ///
@@ -3791,53 +3631,30 @@ fn method_dispatch_hover(
     character: u32,
     cursor_offset: u32,
     analysis: &AnalysisResult,
-    registry: Option<&CommandRegistry>,
-    profile: &'static tcl_dialect::DialectProfile,
 ) -> std::ops::ControlFlow<Option<Hover>> {
     use std::ops::ControlFlow;
-    if crate::definition::object_masks_external_dispatch(analysis, source, line, character) {
+    if let Some(selected) =
+        crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)
+    {
+        let label = match selected.receiver {
+            tcl_compiler::command_binding::SourceMethodReceiver::Instance => "method",
+            tcl_compiler::command_binding::SourceMethodReceiver::Class => "classmethod",
+        };
+        return ControlFlow::Break(Some(Hover::markdown(format!(
+            "**{label}** `{}::{}` ({} param(s))",
+            selected.class.qualified_name,
+            selected.method.name,
+            selected.method.params.len(),
+        ))));
+    }
+    if crate::receiver_identity::definition_reference_at_cursor(analysis, source, cursor_offset)
+        .is_some()
+        || crate::definition::object_dispatch_mask(analysis, source, line, character)
+            .withholds_workspace_fallback()
+    {
         return ControlFlow::Break(None);
     }
 
-    // `$obj method` dispatch — when the cursor sits on the
-    // method-name token of an instance-method call and the
-    // instance's class is known, render the method summary.
-    // Checked before the proc lookup so a method call wins over
-    // a same-named proc.
-    if let Some((inst, method, is_dollar)) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        tcl_lexer::LexerConfig::for_profile(Some(profile)),
-    ) && let Some(class_q) =
-        crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
-        && let Some(text) =
-            obj_method_hover_text(analysis, class_q, &method, true, registry, profile)
-    {
-        return ControlFlow::Break(Some(Hover::markdown(text)));
-    }
-
-    // `my method` internal dispatch — mirrors
-    // `crate::definition::instance_method_definition`'s own `inst == "my"`
-    // branch: unlike `$obj method`, `my`'s receiver isn't an instance
-    // *variable* (`receiver_instance_class` above only resolves those), it
-    // means "the class whose body lexically encloses this call", found via
-    // `enclosing_class_at`. Without this, a definite, single-target `my
-    // methodName` call has no hover at all, even though go-to-definition and
-    // find-references resolve it.  The shape reproduces identically whether
-    // or not the class is split across a separate `oo::define` block.
-    if let Some((inst, method, _)) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        tcl_lexer::LexerConfig::for_profile(Some(profile)),
-    ) && crate::definition::is_self_dispatch_keyword(&inst)
-        && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor_offset)
-        && let Some(text) =
-            obj_method_hover_text(analysis, class_q, &method, false, registry, profile)
-    {
-        return ControlFlow::Break(Some(Hover::markdown(text)));
-    }
     ControlFlow::Continue(())
 }
 
@@ -3884,51 +3701,6 @@ pub fn cross_document_method_hover(
     ))
 }
 
-fn obj_method_hover_text(
-    analysis: &AnalysisResult,
-    class_q: &str,
-    method: &str,
-    external: bool,
-    registry: Option<&CommandRegistry>,
-    profile: &'static tcl_dialect::DialectProfile,
-) -> Option<String> {
-    if analysis.all_classes.contains_key(class_q) {
-        for (bucket, label) in [
-            (crate::definition::MethodBucket::Instance, "method"),
-            (crate::definition::MethodBucket::Class, "classmethod"),
-        ] {
-            let Some((provider_q, m)) = crate::oo_dispatch::method_dispatch_provider(
-                analysis, class_q, method, external, bucket,
-            ) else {
-                continue;
-            };
-            let suffix = oo_resolution_note_for_provider(analysis, class_q, provider_q, method)
-                .map_or(String::new(), |n| format!("  \n{n}"));
-            return Some(format!(
-                "**{label}** `{provider_q}::{name}` ({nparam} param(s)){suffix}",
-                name = m.name,
-                nparam = m.params.len(),
-            ));
-        }
-        return None;
-    }
-    let registry = registry?;
-    let package_version = registry.get(class_q).and_then(|spec| {
-        crate::document_floor::DocumentFloor::new(analysis, profile).for_spec(spec)
-    });
-    let sub = registry.instance_method_at(
-        class_q,
-        method,
-        package_version,
-        Some(crate::document_context_for_profile(profile).authoring_query()),
-    )?;
-    Some(format!(
-        "**method** `{class_q} {method}`  \n{detail}\n\n`{synopsis}`",
-        detail = sub.detail,
-        synopsis = sub.synopsis,
-    ))
-}
-
 /// MRO note for `method` on `class_q`: `inherited from ::Provider` when the
 /// method resolves to an ancestor, or `overrides ::Super::method` when it
 /// is defined on `class_q` but a superclass also provides it.  `None` for a
@@ -3942,15 +3714,8 @@ fn oo_method_resolution_note(
     oo_resolution_note_for_provider(analysis, class_q, provider, method)
 }
 
-/// [`oo_method_resolution_note`] for a provider the caller has **already**
-/// resolved — the shared dispatch walk's own answer
-/// ([`crate::oo_dispatch::method_dispatch_provider`]).
-///
-/// Split out so the `$obj m` / `my m` hover renders its note from the very
-/// provider it names in the heading rather than re-deriving one through a
-/// second, differently-filtered lookup (`method_target` applies neither the
-/// visibility rule nor the instance/class-side bucket split). The two can
-/// then never disagree about whether a method is inherited.
+/// Render the inheritance or override note for the provider selected by the
+/// caller. The note uses that exact provider rather than resolving it again.
 fn oo_resolution_note_for_provider(
     analysis: &AnalysisResult,
     class_q: &str,
@@ -3971,19 +3736,77 @@ fn oo_resolution_note_for_provider(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::SurfaceQuery;
     use tcl_dialect::model::{Family, SurfaceLayer};
 
     use super::*;
     use tcl_compiler::analyser::Analyser;
 
-    /// Dialect-agnostic default for the subcommand-hover helper tests.
-    /// The point these hover probes ask at: any Tcl release.
-    const ALL: Option<SurfaceQuery<'static>> = Some(SurfaceQuery::any_release(Family::Tcl));
-
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    fn analyse_for(source: &str, environment: &str) -> AnalysisResult {
+        let mut analyser = Analyser::new();
+        let input = analyser
+            .prepare_analysis_input(environment)
+            .expect("test environment has a complete analysis input");
+        analyser = analyser.with_resolved_input(input);
+        analyser.analyse(source, environment).clone()
+    }
+
+    #[test]
+    fn standalone_reference_cursor_uses_explicit_selected_grammar_and_utf16_geometry() {
+        // Implementation contract: naming.core.selected-variable-cursor-syntax
+
+        let source = "puts café🙂 ${a{b}c} ${cash$name} ${scalar(open)tail}";
+        let prefix = "puts café🙂 ";
+        let character = u32::try_from(prefix.encode_utf16().count() + 2).unwrap();
+        for style in [
+            tcl_dialect::BracedVarStyle::FirstClose,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting,
+        ] {
+            let config = tcl_lexer::LexerConfig {
+                braced_var: style,
+                ..Default::default()
+            };
+            assert_eq!(
+                find_var_at_position_with_config(source, 0, character, config).as_deref(),
+                Some(if style.nests() { "a{b}c" } else { "a{b" }),
+            );
+            let dollar = u32::try_from(
+                source[..source.find("$name").unwrap()]
+                    .encode_utf16()
+                    .count(),
+            )
+            .unwrap();
+            assert_eq!(
+                find_var_at_position_with_config(source, 0, dollar, config).as_deref(),
+                Some("cash$name")
+            );
+            let tail = u32::try_from(
+                source[..source.find("scalar(open)").unwrap()]
+                    .encode_utf16()
+                    .count(),
+            )
+            .unwrap();
+            assert_eq!(
+                find_var_at_position_with_config(source, 0, tail, config).as_deref(),
+                Some("scalar(open)tail")
+            );
+        }
+    }
+
+    #[test]
+    fn qualified_colon_variable_hover_keeps_the_empty_cell_separate() {
+        let source = "set {} EMPTY; set : COLON; puts ${}; puts $:";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(source, dialect);
+            let hover = qualified_variable_hover(&analysis, ":::").unwrap();
+            assert!(hover.value.contains("`:::`"), "{dialect}: {}", hover.value);
+            assert!(!hover.value.contains("`::`"), "{dialect}: {}", hover.value);
+        }
     }
 
     fn position_of(source: &str, needle: &str) -> (u32, u32) {
@@ -4186,9 +4009,8 @@ mod tests {
         let h = hover(src, 0, 28, &analysis, None);
         // Either matches via simple name or qualified name; the
         // contract is that hover surfaces the proc when present.
-        if let Some(h) = h {
-            assert!(h.value.contains("helper"), "{}", h.value);
-        }
+        let h = h.expect("qualified proc declaration should have hover");
+        assert!(h.value.contains("helper"), "{}", h.value);
     }
 
     // namespace-aware proc resolution (C Tcl `Tcl_FindCommand` order)
@@ -4251,14 +4073,13 @@ mod tests {
         let src = "oo::class create Greeter {}\n";
         let analysis = analyse(src);
         let h = hover(src, 0, 18, &analysis, None);
-        if let Some(h) = h {
-            assert!(h.value.contains("Greeter"), "{}", h.value);
-            assert!(
-                h.value.contains("oo::class create"),
-                "expected metaclass declaration, got {}",
-                h.value,
-            );
-        }
+        let h = h.expect("class name should have a metaclass hover");
+        assert!(h.value.contains("Greeter"), "{}", h.value);
+        assert!(
+            h.value.contains("oo::class create"),
+            "expected metaclass declaration, got {}",
+            h.value,
+        );
     }
 
     #[test]
@@ -4267,10 +4088,9 @@ mod tests {
         let src = "set x 1\nset y $x\n";
         let analysis = analyse(src);
         let h = hover(src, 1, 7, &analysis, None);
-        if let Some(h) = h {
-            assert!(h.value.contains("Variable"), "{}", h.value);
-            assert!(h.value.contains("`x`"), "{}", h.value);
-        }
+        let h = h.expect("referenced variable should have hover");
+        assert!(h.value.contains("Variable"), "{}", h.value);
+        assert!(h.value.contains("`x`"), "{}", h.value);
     }
 
     #[test]
@@ -4308,6 +4128,66 @@ mod tests {
         let h = hover(src, 1, 7, &analysis, Some(&registry)).expect("hover");
         assert!(h.value.contains("**Variable** `x`"), "{}", h.value);
         assert!(h.value.contains("**Inferred intrep**: int"), "{}", h.value);
+    }
+
+    #[test]
+    fn hover_inference_keeps_same_named_variables_in_the_selected_source_body() {
+        for source in [
+            "set same 1\nproc local {} {set same TEXT; puts $same}\n",
+            "set same [gets stdin]\nproc local {} {set same TEXT; puts $same}\n",
+            "proc first {} {set same 1; puts $same}\nproc second {} {set same TEXT; puts $same}\n",
+        ] {
+            let analysis = analyse(source);
+            let cursor = u32::try_from(source.rfind("$same").unwrap() + 1).unwrap();
+            let position = tcl_lexer::LineIndex::new(source).position_at_utf16(cursor, source);
+            let registry = tcl_registry::CommandRegistry::build_default();
+            let selected = hover(
+                source,
+                position.line,
+                position.character.get(),
+                &analysis,
+                Some(&registry),
+            )
+            .expect("actual selected local variable hover");
+            assert!(
+                selected.value.contains("**Inferred intrep**: string"),
+                "{}",
+                selected.value
+            );
+            assert!(
+                !selected.value.contains("**Inferred intrep**: int"),
+                "{}",
+                selected.value
+            );
+            assert!(!selected.value.contains("**Taint**"), "{}", selected.value);
+        }
+    }
+
+    #[test]
+    fn hover_inference_uses_the_represented_read_version_after_reassignment() {
+        let source = "proc local {} {set same 123; puts $same; set same TEXT; puts $same}\n";
+        let analysis = analyse(source);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let cursor = u32::try_from(source.rfind("$same").unwrap() + 1).unwrap();
+        let position = tcl_lexer::LineIndex::new(source).position_at_utf16(cursor, source);
+        let selected = hover(
+            source,
+            position.line,
+            position.character.get(),
+            &analysis,
+            Some(&registry),
+        )
+        .expect("actual current version has its own source read");
+        assert!(
+            selected.value.contains("**Inferred intrep**: string"),
+            "{}",
+            selected.value
+        );
+        assert!(
+            !selected.value.contains("**Inferred intrep**: int"),
+            "{}",
+            selected.value
+        );
     }
 
     #[test]
@@ -4441,7 +4321,7 @@ mod tests {
             also_in: &[],
             flow: false,
         };
-        let events = valid_events(&requires);
+        let events = valid_events(&requires, EventRelease::Unconfigured);
         assert_eq!(
             events,
             vec![
@@ -4470,12 +4350,74 @@ mod tests {
             also_in: &[],
             flow: false,
         };
-        let events = valid_events(&requires);
+        let events = valid_events(&requires, EventRelease::Unconfigured);
         assert!(events.iter().any(|e| e == "HTTP_REQUEST"), "{events:?}");
         assert!(
             events.iter().any(|e| e == "ADAPT_REQUEST_HEADERS"),
             "transitive-profile event missing (expansion broken): {events:?}"
         );
+    }
+
+    #[test]
+    fn valid_events_apply_the_configured_release_lifecycle() {
+        use tcl_registry::events::EventRequires;
+        let requires = EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["XML"],
+            also_in: &[],
+            flow: false,
+        };
+        let unconfigured = valid_events(&requires, EventRelease::Unconfigured);
+        assert!(unconfigured.iter().any(|e| e == "XML_BEGIN_DOCUMENT"));
+        let old = valid_events(&requires, EventRelease::Configured("9.4.0"));
+        assert!(old.iter().any(|e| e == "XML_BEGIN_DOCUMENT"), "{old:?}");
+        let current = valid_events(&requires, EventRelease::Configured("16.1.0"));
+        assert!(
+            !current.iter().any(|e| e == "XML_BEGIN_DOCUMENT"),
+            "retired at 10.0.0: {current:?}"
+        );
+
+        let mut text = String::new();
+        append_valid_events(&mut text, &requires, EventRelease::Configured("9.4.0"));
+        assert!(text.contains("**Valid events** (BIG-IP 9.4.0)"), "{text}");
+        let mut text = String::new();
+        append_valid_events(&mut text, &requires, EventRelease::Unconfigured);
+        assert!(text.contains("no BIG-IP release configured"), "{text}");
+    }
+
+    #[test]
+    fn hover_valid_events_follow_the_documents_configured_release() {
+        use tcl_compiler::analyser::Analyser;
+        for (version, retired_listed) in [("9.4.0", true), ("16.1.0", false)] {
+            let analysis = Analyser::new()
+                .with_bigip_version(Some(version.to_owned()))
+                .analyse("", "f5-irules");
+            let context = analysis
+                .resolved_input
+                .as_ref()
+                .expect("an iRules analysis retains its input")
+                .availability_context();
+            let release = EventRelease::of(context);
+            assert_eq!(release, EventRelease::Configured(version));
+            let events = valid_events(
+                &tcl_registry::events::EventRequires {
+                    client_side: false,
+                    server_side: false,
+                    transport: None,
+                    profiles: &["XML"],
+                    also_in: &[],
+                    flow: false,
+                },
+                release,
+            );
+            assert_eq!(
+                events.iter().any(|e| e == "XML_BEGIN_DOCUMENT"),
+                retired_listed,
+                "{version}: {events:?}"
+            );
+        }
     }
 
     #[test]
@@ -4490,13 +4432,12 @@ mod tests {
     fn irules_command_hover_lists_valid_events() {
         let mut registry = CommandRegistry::build_default();
         registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
-        if let Some(text) =
+        let text =
             builtin_command_hover_text(&registry, "ASM::is_authenticated", &analyse(""), u32::MAX)
-        {
-            assert!(text.contains("**Valid events**"), "{text}");
-            assert!(text.contains("ASM_REQUEST_BLOCKING"), "{text}");
-            assert!(text.contains("**Requires**: profile ASM"), "{text}");
-        }
+                .expect("registered iRules command should have hover");
+        assert!(text.contains("**Valid events**"), "{text}");
+        assert!(text.contains("ASM_REQUEST_BLOCKING"), "{text}");
+        assert!(text.contains("**Requires**: profile ASM"), "{text}");
     }
 
     #[test]
@@ -4532,14 +4473,19 @@ mod tests {
             also_in: &[],
             flow: false,
         };
-        let eff = super::effective_event_requires("DIAMETER::foo", &base);
+        let descriptor = |name| tcl_registry::CommandSpec {
+            name,
+            surface: Some(tcl_dialect::model::SpecSurface::IRULES),
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let eff = super::effective_event_requires(&descriptor("DIAMETER::foo"), &base);
         assert_eq!(
             eff.profiles,
             &["DIAMETER", "DIAMETERSESSION", "DIAMETER_ENDPOINT"]
         );
         // No `::` qualifier → unchanged (still empty).
         assert!(
-            super::effective_event_requires("puts", &base)
+            super::effective_event_requires(&descriptor("puts"), &base)
                 .profiles
                 .is_empty()
         );
@@ -4549,7 +4495,7 @@ mod tests {
             ..base
         };
         assert_eq!(
-            super::effective_event_requires("HTTP::uri", &with).profiles,
+            super::effective_event_requires(&descriptor("HTTP::uri"), &with).profiles,
             &["HTTP"]
         );
     }
@@ -4623,9 +4569,9 @@ mod tests {
         // Methods listed in sorted order.
         let alpha_pos = text.find("alpha");
         let beta_pos = text.find("beta");
-        if let (Some(a), Some(b)) = (alpha_pos, beta_pos) {
-            assert!(a < b, "expected alpha before beta in: {text}");
-        }
+        let a = alpha_pos.expect("hover should list the alpha method");
+        let b = beta_pos.expect("hover should list the beta method");
+        assert!(a < b, "expected alpha before beta in: {text}");
     }
 
     #[test]
@@ -4765,7 +4711,7 @@ mod tests {
 
     #[test]
     fn special_var_hover_is_dialect_aware() {
-        let analysis = analyse("puts $auto_path\n");
+        let analysis = analyse_for("puts $auto_path\n", "f5-irules");
         let mut registry = CommandRegistry::build_default();
         registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         // iRules provides no `auto_path`, so no special-var hover fires there.
@@ -4784,7 +4730,7 @@ mod tests {
         // `tcl_platform` exists under iRules and is CMP-unsafe as a plain
         // global — the hover surfaces the `static::` guidance.
         let src = "set x $tcl_platform(os)\n";
-        let analysis = analyse(src);
+        let analysis = analyse_for(src, "f5-irules");
         let h = hover_with_profile(
             src,
             0,
@@ -5628,133 +5574,83 @@ mod tests {
         );
     }
 
+    fn retained_registry_text(source: &str, cursor: u32, environment: &str) -> Option<String> {
+        let mut profile = crate::profile_for_dialect("f5-irules").clone();
+        profile.name = "explicit-logical-registry-cards";
+        let profile = profile.intern();
+        let context = tcl_registry::model::ingress::resolve_environment(environment)
+            .default_context_registry();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "presentation-only");
+        original_registry::hover(source, &analysis, cursor).map(|hover| hover.value)
+    }
+
     #[test]
     fn subcommand_hover_surfaces_for_string_length() {
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let src = "string length $name\n";
-        let t =
-            subcommand_hover_text(src, 0, 10, &registry, "length", ALL).expect("subcommand hover");
-        assert!(t.contains("`string length`"), "{t}");
-        assert!(t.contains("subcommand"), "{t}");
+        // naming.core.original-registry-source-hover
+
+        let text = retained_registry_text("string length $name\n", 10, "tcl8.6")
+            .expect("subcommand hover");
+        assert!(text.contains("`string length`"), "{text}");
+        assert!(text.contains("subcommand"), "{text}");
     }
 
     #[test]
     fn subcommand_hover_resolves_unique_prefix_abbreviation() {
-        // `string le` abbreviates `string length`; hover resolves it and shows
-        // the canonical name.
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let src = "string le $name\n";
-        let t = subcommand_hover_text(src, 0, 8, &registry, "le", ALL).expect("prefix hover");
-        assert!(t.contains("`string length`"), "{t}");
+        // naming.core.original-registry-source-hover
+
+        let text = retained_registry_text("string le $name\n", 8, "tcl8.6").expect("prefix hover");
+        assert!(text.contains("`string length`"), "{text}");
     }
 
     #[test]
     fn subcommand_hover_prefix_is_dialect_aware() {
-        let registry = tcl_registry::CommandRegistry::build_default();
-        // `info class def` is `definition` in 8.6 (unique) but ambiguous with
-        // `definitionnamespace` in 9.0 (verified against tclsh).
-        let src = "info class def ::C\n";
-        let t86 = sub_subcommand_hover_text(
-            src,
-            0,
-            11,
-            &registry,
-            "def",
-            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
-        );
+        // naming.core.original-registry-source-hover
+
+        let source = "info class def ::C\n";
         assert!(
-            t86.is_some_and(|t| t.contains("`info class definition`")),
-            "8.6 should resolve `def` to definition",
+            retained_registry_text(source, 13, "tcl8.6")
+                .is_some_and(|text| text.contains("`info class definition`"))
         );
-        assert!(
-            sub_subcommand_hover_text(
-                src,
-                0,
-                11,
-                &registry,
-                "def",
-                Some(SurfaceQuery::core(Family::Tcl, "9.0"))
-            )
-            .is_none(),
-            "9.0 `def` is ambiguous — no hover",
-        );
-        // `string rev` (reverse, 8.5+) hovers in 8.6 but not in 8.4.
-        let src = "string rev abc\n";
-        assert!(
-            subcommand_hover_text(
-                src,
-                0,
-                8,
-                &registry,
-                "rev",
-                Some(SurfaceQuery::core(Family::Tcl, "8.6"))
-            )
-            .is_some(),
-        );
-        assert!(
-            subcommand_hover_text(
-                src,
-                0,
-                8,
-                &registry,
-                "rev",
-                Some(SurfaceQuery::core(Family::Tcl, "8.4"))
-            )
-            .is_none(),
-            "`string rev` is unknown in 8.4",
-        );
+        assert!(retained_registry_text(source, 13, "tcl9.0").is_none());
+        let source = "string rev abc\n";
+        assert!(retained_registry_text(source, 8, "tcl8.6").is_some());
+        assert!(retained_registry_text(source, 8, "tcl8.4").is_none());
     }
 
     #[test]
     fn subcommand_hover_skips_unknown_subcommand() {
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let src = "string bogusSubcommand\n";
-        assert!(subcommand_hover_text(src, 0, 12, &registry, "bogusSubcommand", ALL).is_none());
+        // naming.core.original-registry-source-hover
+
+        assert!(retained_registry_text("string bogusSubcommand\n", 12, "tcl8.6").is_none());
     }
 
     #[test]
     fn option_hover_resolves_subcommand_scoped_option() {
-        // `-inputmode` lives only on `chan`'s `configure` SubCommand table —
-        // absent from `chan`'s own top-level option table entirely — so
-        // hover must resolve the typed subcommand to find it at all.
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let src = "chan configure $chan -inputmode raw\n";
-        let t = option_hover_text(
-            src,
-            0,
-            30,
-            &registry,
-            "inputmode",
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-        )
-        .expect("hover should resolve the configure-scoped option");
-        assert!(t.contains("`-inputmode`"), "{t}");
-        assert!(t.contains("chan configure"), "{t}");
+        // naming.core.original-registry-source-hover
+
+        let text = retained_registry_text("chan configure $chan -inputmode raw\n", 26, "tcl9.0")
+            .expect("configure-scoped option");
+        assert!(text.contains("`-inputmode`"), "{text}");
+        assert!(text.contains("chan configure"), "{text}");
     }
 
     #[test]
     fn option_hover_notes_dialect_unavailability() {
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let src = "chan configure $chan -inputmode raw\n";
-        let old = option_hover_text(
-            src,
-            0,
-            30,
-            &registry,
-            "inputmode",
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-        )
-        .expect("hover should still resolve the option under an older dialect");
+        // naming.core.original-registry-source-hover
+
+        let source = "chan configure $chan -inputmode raw\n";
+        let old =
+            retained_registry_text(source, 26, "tcl8.6").expect("excluded exact option metadata");
         assert!(old.contains("Not available in the active dialect"), "{old}");
-        let new = option_hover_text(
-            src,
-            0,
-            30,
-            &registry,
-            "inputmode",
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-        )
-        .expect("hover should resolve under tcl9.0");
+        let new = retained_registry_text(source, 26, "tcl9.0").expect("admitted option");
         assert!(
             !new.contains("Not available in the active dialect"),
             "{new}"
@@ -5763,43 +5659,118 @@ mod tests {
 
     #[test]
     fn option_hover_falls_back_to_top_level_options_for_simple_command() {
-        // `lsearch` has no subcommands at all — hover must still resolve its
-        // own top-level option table (the pre-existing, non-ensemble path).
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let src = "lsearch -exact {a b} x\n";
-        let t = option_hover_text(
-            src,
-            0,
-            14,
-            &registry,
-            "exact",
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-        )
-        .expect("hover should resolve a simple command's own option");
-        assert!(t.contains("`-exact`"), "{t}");
-        assert!(t.contains("of `lsearch`"), "{t}");
+        // naming.core.original-registry-source-hover
+
+        let text = retained_registry_text("lsearch -exact {a b} x\n", 11, "tcl8.6")
+            .expect("root option metadata");
+        assert!(text.contains("`-exact`"), "{text}");
+        assert!(text.contains("of `lsearch`"), "{text}");
     }
 
     #[test]
     fn sub_subcommand_hover_surfaces_for_info_object_class() {
-        // Hovering the third word of `info object class`
-        // returns the second-level subcommand's doc.
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let src = "info object class $obj\n";
-        let t =
-            sub_subcommand_hover_text(src, 0, 12, &registry, "class", ALL).expect("sub-sub hover");
-        assert!(t.contains("`info object class`"), "{t}");
-        assert!(t.contains("subcommand"), "{t}");
-        // Unique-prefix abbreviation resolves to the canonical op.
-        let src = "info class super $cls\n";
-        let t =
-            sub_subcommand_hover_text(src, 0, 11, &registry, "super", ALL).expect("prefix hover");
-        assert!(t.contains("`info class superclasses`"), "{t}");
-        // The first-level subcommand word itself is not a sub-subcommand.
-        assert!(
-            sub_subcommand_hover_text("info object class\n", 0, 5, &registry, "object", ALL)
-                .is_none()
-        );
+        // naming.core.original-registry-source-hover
+
+        let text = retained_registry_text("info object class $obj\n", 14, "tcl8.6")
+            .expect("nested subcommand");
+        assert!(text.contains("`info object class`"), "{text}");
+        assert!(text.contains("subcommand"), "{text}");
+        let text =
+            retained_registry_text("info class super $cls\n", 13, "tcl8.6").expect("nested prefix");
+        assert!(text.contains("`info class superclasses`"), "{text}");
+        // The first selector is described by its own retained subcommand row.
+        let parent =
+            retained_registry_text("info object class\n", 6, "tcl8.6").expect("parent selector");
+        assert!(parent.contains("`info object`"), "{parent}");
+        assert!(!parent.contains("`info object class`"), "{parent}");
+    }
+
+    #[test]
+    fn logical_registry_hover_keeps_actual_context_and_source_currency() {
+        // naming.core.original-registry-source-hover
+
+        let source = "string cat A B";
+        let mut profile = crate::profile_for_dialect("f5-irules").clone();
+        profile.name = "explicit-logical-hover-context";
+        let profile = profile.intern();
+        let driver =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        for (environment, expected) in [("tcl9.1", true), ("tcl8.4", false)] {
+            let actual = tcl_registry::model::ingress::resolve_environment(environment)
+                .default_context_registry();
+            let context = std::sync::Arc::new(
+                actual.with_command_store(driver.commands().snapshot().shared_registry()),
+            );
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context.clone(),
+                tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            );
+            let mut analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "presentation-only");
+            analysis.command_invocations.clear();
+            let answer = hover(source, 0, 8, &analysis, None);
+            assert_eq!(answer.is_some(), expected, "{environment}: {answer:?}");
+            assert!(hover("string cat C D", 0, 8, &analysis, None).is_none());
+            analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::new(
+                    context.with_command_store(context.commands().snapshot().shared_registry()),
+                ),
+                input.lexer_config(),
+            ));
+            assert!(hover(source, 0, 8, &analysis, None).is_none());
+        }
+    }
+
+    #[test]
+    fn logical_registry_hover_preserves_whole_alias_operands_and_declines_data() {
+        // naming.core.original-registry-source-hover
+
+        for (source, needle, expected) in [
+            (
+                "interp alias {} length {} string; length length value",
+                "length value",
+                "`string length`",
+            ),
+            (
+                "interp alias {} rx {} regexp; rx -nocase pattern text",
+                "-nocase",
+                "option of `regexp`",
+            ),
+            (
+                "proc p {} {string length value}",
+                "length",
+                "`string length`",
+            ),
+            (
+                r"string \u006cength value",
+                r"\u006cength",
+                "`string length`",
+            ),
+        ] {
+            let offset = u32::try_from(source.rfind(needle).unwrap() + 1).unwrap();
+            let text = retained_registry_text(source, offset, "tcl8.6").expect(source);
+            assert!(text.contains(expected), "{source}: {text}");
+        }
+        for (source, needle) in [
+            (
+                "interp alias {} rx {} regexp -nocase; rx pattern -nocase",
+                "-nocase",
+            ),
+            ("puts {string length value}", "length"),
+            ("proc string args {}; string length value", "length value"),
+            ("string $selector value", "$selector"),
+        ] {
+            let offset = u32::try_from(source.rfind(needle).unwrap() + 1).unwrap();
+            assert!(
+                retained_registry_text(source, offset, "tcl8.6").is_none(),
+                "{source}"
+            );
+        }
     }
 
     #[test]
@@ -5897,12 +5868,9 @@ mod tests {
 
     #[test]
     fn class_member_hover_linked_sibling_method_resolves() {
-        // TP — `link greet` (called from the
-        // constructor) makes `greet` genuinely bareword-callable, so
-        // hover now resolves. alias == target here, so no "linked from"
-        // note (see the two-element-alias test below for that).
+        // C9's selected link schema couples the alias and target name.
         let src = "oo::class create C {\n    constructor {} { link greet }\n    method greet {who} {}\n    method twice {} { greet ; greet }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 3: `    method twice {} { greet ; greet }` — same text/col
         // as the un-linked test above, one line further down.
         let h = hover(src, 3, 22, &analysis, None).expect("hover");
@@ -5923,7 +5891,7 @@ mod tests {
         // `enclosing_class_at` containment check must recognise as part of
         // `Gadget`'s body too, not just the original creation block.
         let src = "oo::class create Gadget {\n    variable _x\n}\noo::define Gadget {\n    constructor {} { link Helper }\n    method Helper {} { return hi }\n    method Caller {} { Helper }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 6: `    method Caller {} { Helper }` — cursor on the bareword
         // `Helper` call (col 23).
         let h = hover(src, 6, 23, &analysis, None).expect("hover");
@@ -5933,13 +5901,9 @@ mod tests {
 
     #[test]
     fn class_member_hover_two_element_link_alias_notes_the_real_target() {
-        // TP — `link {shortcut realMethod}` aliases
-        // a DIFFERENT bareword to the real method; hover on the alias
-        // must resolve to `realMethod`'s own declaration and note it was
-        // reached via the alias (a currently-live false negative this
-        // closes: today's LSP returns no hover at all for `shortcut`).
+        // C9's two-field link keeps the alias distinct from its target member.
         let src = "oo::class create C {\n    constructor {} { link {shortcut realMethod} }\n    method realMethod {x} { return $x }\n    method bar {} { return [shortcut 42] }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 3: `    method bar {} { return [shortcut 42] }` — col 28
         // lands on the `s` of `shortcut`.
         let h = hover(src, 3, 28, &analysis, None).expect("hover");
@@ -5952,15 +5916,7 @@ mod tests {
 
     #[test]
     fn my_dispatch_hover_resolves_a_plain_call_in_a_single_block_class() {
-        // TP — a definite, single-target `my methodName` call must hover,
-        // like a `link`-exposed bareword sibling call or `$obj method` —
-        // go-to-definition and find-references resolve this exact shape (they
-        // use
-        // `enclosing_class_at`/`method_dispatch_definition` directly,
-        // cursor-shape-driven; hover had no equivalent path, only the
-        // word-match-driven `class_member_hover_text`, gated on
-        // `linked_members`, which a plain un-linked `my` call never
-        // populates).
+        // Explicit self-dispatch selects its member without a bareword link.
         let src = "oo::class create geo::Plane {\n    method GetType {} { return Plane }\n    method WhichAmI {} { return [my GetType] }\n}\n";
         let analysis = analyse(src);
         // Line 2: `    method WhichAmI {} { return [my GetType] }` — cursor
@@ -6091,10 +6047,9 @@ mod tests {
 
     #[test]
     fn class_member_hover_linked_sibling_classmethod_resolves() {
-        // TP — `link factory` makes the classmethod
-        // hover resolve.
+        // C9's link retains the selected classmethod's member side.
         let src = "oo::class create C {\n    constructor {} { link factory }\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 3: `    method use {} { factory }` — same text/col as the
         // un-linked test above, one line further down.
         let h = hover(src, 3, 20, &analysis, None).expect("hover");
@@ -6182,8 +6137,8 @@ mod tests {
         // The registry lookup is the only method-specific input here, so this
         // proves an older profile cannot render an impossible method hover.
         let src = "ttk::treeview .tree\n.tree current\n";
-        let analysis = analyse(src);
         for (dialect, expected) in [("tcl9.0", false), ("tcl9.1", true)] {
+            let analysis = analyse_for(src, dialect);
             let profile =
                 tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
             let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
@@ -6200,7 +6155,7 @@ mod tests {
         // floor to the same registry lookup instead of baking Tk knowledge
         // into the provider.
         let raised = "package require Tk 9.1\nttk::treeview .tree\n.tree current\n";
-        let raised_analysis = analyse(raised);
+        let raised_analysis = analyse_for(raised, "tcl9.0");
         let tcl90 = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let raised_hover = hover_with_profile(
             raised,
@@ -6285,6 +6240,32 @@ mod tests {
     }
 
     #[test]
+    fn consumed_procedure_name_hover_uses_its_lookup_receipt() {
+        let source = "proc target {} {return OK}\ninfo args target\nrename target moved\nmoved\n";
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(source, "tcl8.6")
+            .clone();
+        for (written, prefix) in [
+            ("info args target", "info args "),
+            ("rename target", "rename "),
+        ] {
+            let offset = u32::try_from(source.find(written).unwrap() + prefix.len()).unwrap();
+            assert!(!crate::definition::offset_is_command_head(
+                &analysis, offset
+            ));
+            let result = proc_hover_at(
+                &analysis,
+                source,
+                offset,
+                "target",
+                crate::definition::CallResolution::document_only(),
+            )
+            .expect("hover on the consumed source procedure");
+            assert!(result.value.contains("proc ::target"), "{}", result.value);
+        }
+    }
+
+    #[test]
     fn tp_resolved_indirect_head_hovers_the_command_it_reaches() {
         // TP — hover's half: the `${ns}::setdef` head carries
         // no written command name, so only the analyser's own resolution
@@ -6296,6 +6277,824 @@ mod tests {
             h.value.contains("::tc::setdef"),
             "must describe ::tc::setdef, not the ::other decoy: {}",
             h.value
+        );
+    }
+
+    #[test]
+    fn command_profile_metadata_keeps_foreign_surface_and_own_requirements() {
+        // naming.analysis.constructed-key-consumer-projections
+
+        let descriptor = |surface| tcl_registry::CommandSpec {
+            name: "ACCESS::log",
+            surface,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let mut text = String::new();
+        super::append_command_event_metadata(
+            &mut text,
+            &descriptor(Some(tcl_dialect::model::SpecSurface::IRULES)),
+            super::EventRelease::Unconfigured,
+        );
+        assert_eq!(text, "\n\n**Requires**: ACCESS profile");
+        for surface in [None, Some(tcl_dialect::model::SpecSurface::TCL86)] {
+            let mut text = String::new();
+            super::append_command_event_metadata(
+                &mut text,
+                &descriptor(surface),
+                super::EventRelease::Unconfigured,
+            );
+            assert!(text.is_empty());
+        }
+        let own = tcl_registry::CommandSpec {
+            name: "DIAMETER::fixture",
+            surface: Some(tcl_dialect::model::SpecSurface::IRULES),
+            event_requires: Some(tcl_registry::events::EventRequires {
+                client_side: false,
+                server_side: false,
+                transport: None,
+                profiles: &["HTTP"],
+                also_in: &[],
+                flow: false,
+            }),
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let mut text = String::new();
+        super::append_command_event_metadata(&mut text, &own, super::EventRelease::Unconfigured);
+        assert!(text.contains("**Requires**: profile HTTP"), "{text}");
+        assert!(!text.contains("profile DIAMETER"), "{text}");
+    }
+}
+
+#[cfg(test)]
+mod original_alias_hover_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn alias_advice_cannot_claim_a_same_named_data_argument() {
+        let source = "interp alias {} shortcut {} missing; list shortcut";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.rfind("shortcut").unwrap()).unwrap();
+        assert!(matches!(
+            alias_hover_at(source, &analysis, offset, "shortcut"),
+            std::ops::ControlFlow::Continue(())
+        ));
+    }
+
+    #[test]
+    fn reporting_alias_target_does_not_replace_missing_original_recipe() {
+        let source = "interp alias {} shortcut {} missing; shortcut";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.rfind("shortcut").unwrap()).unwrap();
+        assert!(!analysis.allows_lexical_declaration_advice());
+        analysis
+            .command_aliases
+            .get_mut("::shortcut")
+            .unwrap()
+            .extras
+            .push("forged-display".to_owned());
+        let answer = alias_hover_at(source, &analysis, offset, "shortcut");
+        assert!(
+            !matches!(answer, std::ops::ControlFlow::Break(Some(ref text)) if text.contains("forged-display"))
+        );
+        for invocation in &mut analysis.command_invocations {
+            invocation.original_lookup = None;
+        }
+        assert!(!matches!(
+            alias_hover_at(source, &analysis, offset, "shortcut"),
+            std::ops::ControlFlow::Break(Some(_))
+        ));
+    }
+}
+
+#[cfg(test)]
+mod original_math_hover_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_math_hover_keeps_fixed_registration_without_a_fake_wrapper() {
+        // Implementation contract: naming.core.original-math-function-hover
+
+        let source = "expr {abs(-2)}\n";
+        for dialect in ["tcl8.4", "jim"] {
+            let mut analysis = Analyser::new().analyse(source, dialect);
+            analysis.command_invocations.clear();
+            let offset = u32::try_from(source.find("abs").unwrap()).unwrap();
+            let std::ops::ControlFlow::Break(Some(selected)) =
+                crate::math_function_symbol::select_at_offset(source, &analysis, offset)
+            else {
+                panic!("{dialect}: missing fixed function");
+            };
+            let hover = original_math_function_hover(&selected).unwrap();
+            assert!(
+                hover.value.contains("function table entry"),
+                "{}",
+                hover.value
+            );
+            assert!(!hover.value.contains("Dispatches to"));
+            assert!(!hover.value.contains("Command-table lookup"));
+            assert!(!hover.value.contains("tcl::mathfunc"));
+        }
+    }
+
+    #[test]
+    fn original_math_hover_uses_the_actual_current_source_and_override() {
+        // Implementation contract: naming.core.original-math-function-hover
+
+        let source = "# Actual override\nproc ::tcl::mathfunc::abs {argument} {return OVERRIDE}\nexpr {abs(-2)}\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_procs.clear();
+        analysis.command_invocations.clear();
+        let offset = u32::try_from(source.rfind("abs(").unwrap()).unwrap();
+        let std::ops::ControlFlow::Break(Some(selected)) =
+            crate::math_function_symbol::select_at_offset(source, &analysis, offset)
+        else {
+            panic!("missing actual override");
+        };
+        let hover = original_math_function_hover(&selected).unwrap();
+        assert!(hover.value.contains("argument"));
+        assert!(hover.value.contains("Actual override"));
+        assert!(!hover.value.contains("Command-table lookup"));
+        assert!(matches!(
+            crate::math_function_symbol::select_at_offset(
+                &format!("# changed\n{source}"),
+                &analysis,
+                offset
+            ),
+            std::ops::ControlFlow::Break(None)
+        ));
+    }
+}
+
+#[cfg(test)]
+mod original_vendor_hover_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_vendor_header_hover_keeps_source_only_opaque_cards_after_ui_clear() {
+        // Implementation contract: naming.vendor.original-source-declaration-consumers
+
+        let source = "proc {p\\uD800} {argument} {return $argument}\n";
+        let mut analysis = Analyser::new().analyse(source, "f5-iapps");
+        assert_eq!(analysis.original_vendor_procedure_declarations().count(), 1);
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        let card = hover(source, 0, 8, &analysis, None).unwrap();
+        assert!(card.value.contains("p\\uD800"));
+        assert!(card.value.contains("source declaration"));
+        assert!(card.value.contains("materialisation is unavailable"));
+        assert!(hover("# displaced\n", 0, 8, &analysis, None).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_pattern_hover_tests {
+    use super::*;
+
+    #[test]
+    fn original_pattern_hover_keeps_actual_schema_operands_and_current_source() {
+        // naming.core.original-command-source-schema
+
+        let source = "format {%04d} 7";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        analysis.command_invocations.clear();
+        analysis.all_procs.clear();
+        let cursor = u32::try_from(source.find("%04d").unwrap()).unwrap();
+        let selected = original_pattern_format_hover(
+            source,
+            &analysis,
+            analysis.resolved_registry().unwrap(),
+            cursor,
+        )
+        .expect("original source format role");
+        assert!(selected.value.contains("**Format string**"));
+        assert!(
+            original_pattern_format_hover(
+                &source.replace("%04d", "%08d"),
+                &analysis,
+                analysis.resolved_registry().unwrap(),
+                cursor
+            )
+            .is_none()
+        );
+        for source in [
+            "set data {%04d}",
+            "proc format args {}; format {%04d} 7",
+            "rename format {}; format {%04d} 7",
+            "interp alias {} custom {} format {%04d}; custom 7",
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+            let cursor = u32::try_from(source.find("%04d").unwrap()).unwrap();
+            assert!(
+                original_pattern_format_hover(
+                    source,
+                    &analysis,
+                    analysis.resolved_registry().unwrap(),
+                    cursor
+                )
+                .is_none(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_format_hover_keeps_selected_availability_and_generation() {
+        // naming.core.original-inlay-retained-context
+
+        let source = "clock scan 2020 -format {%Y}";
+        let profile = crate::profile_for_dialect("tcl9.1");
+        let driver =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let cursor = u32::try_from(source.find("%Y").unwrap()).unwrap();
+        for (environment, expected) in [("tcl9.1", true), ("tcl8.4", false)] {
+            let actual = tcl_registry::model::ingress::resolve_environment(environment)
+                .default_context_registry();
+            let context = std::sync::Arc::new(
+                actual.with_command_store(driver.commands().snapshot().shared_registry()),
+            );
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context.clone(),
+                tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            );
+            let mut analysis = tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, profile.name);
+            analysis.command_invocations.clear();
+            analysis.all_procs.clear();
+            let hover =
+                original_pattern_format_hover(source, &analysis, context.commands(), cursor);
+            assert_eq!(hover.is_some(), expected, "{environment}");
+            if let Some(hover) = hover {
+                assert!(hover.value.contains("4-digit year"), "{}", hover.value);
+            }
+            assert!(
+                original_pattern_format_hover(
+                    "clock scan 2020 -format {%m}",
+                    &analysis,
+                    context.commands(),
+                    cursor,
+                )
+                .is_none()
+            );
+            analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::new(
+                    context.with_command_store(context.commands().snapshot().shared_registry()),
+                ),
+                input.lexer_config(),
+            ));
+            assert!(
+                original_pattern_format_hover(source, &analysis, context.commands(), cursor)
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn original_pattern_hover_keeps_selected_availability_and_generation() {
+        // naming.core.original-pattern-retained-context
+
+        let source = "lsearch -regexp -stride 2 {a b} {a+}";
+        let profile = crate::profile_for_dialect("tcl9.1");
+        let driver =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let cursor = u32::try_from(source.find("a+").unwrap()).unwrap();
+        for (environment, expected) in [("tcl9.1", true), ("tcl8.4", false)] {
+            let actual = tcl_registry::model::ingress::resolve_environment(environment)
+                .default_context_registry();
+            let context = std::sync::Arc::new(
+                actual.with_command_store(driver.commands().snapshot().shared_registry()),
+            );
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context.clone(),
+                tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            );
+            let mut analysis = tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "reporting-only");
+            analysis.command_invocations.clear();
+            analysis.all_procs.clear();
+            let hover =
+                original_pattern_format_hover(source, &analysis, context.commands(), cursor);
+            assert_eq!(hover.is_some(), expected, "{environment}");
+            if let Some(hover) = hover {
+                assert!(hover.value.contains("Regex pattern"));
+            }
+            assert!(
+                original_pattern_format_hover(
+                    &source.replace("a+", "b+"),
+                    &analysis,
+                    context.commands(),
+                    cursor
+                )
+                .is_none()
+            );
+            analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::new(
+                    context.with_command_store(context.commands().snapshot().shared_registry()),
+                ),
+                input.lexer_config(),
+            ));
+            assert!(
+                original_pattern_format_hover(source, &analysis, context.commands(), cursor)
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn original_pattern_hover_keeps_alias_written_operands_and_captured_refusal() {
+        // naming.core.original-pattern-retained-context
+
+        for (source, expected) in [
+            (
+                "interp alias {} search {} lsearch -regexp; search {a b} {a+}",
+                true,
+            ),
+            (
+                "interp alias {} search {} lsearch -regexp {a b} {a+}; search",
+                false,
+            ),
+            ("lsearch $mode {a b} {a+}", false),
+            ("lsearch {*}$arguments {a+}", false),
+            ("proc lsearch args {}; lsearch -regexp {a b} {a+}", false),
+        ] {
+            let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl9.1");
+            analysis.command_invocations.clear();
+            analysis.all_procs.clear();
+            let cursor = u32::try_from(source.find("a+").unwrap()).unwrap();
+            let hover = original_pattern_format_hover(
+                source,
+                &analysis,
+                analysis.resolved_registry().unwrap(),
+                cursor,
+            );
+            assert_eq!(hover.is_some(), expected, "{source}");
+            if let Some(hover) = hover {
+                assert!(hover.value.contains("Regex pattern"));
+            }
+        }
+    }
+
+    #[test]
+    fn pattern_hover_entry_keeps_explicit_logical_source_context_and_nested_words() {
+        // naming.core.original-pattern-retained-context
+
+        let mut profile = crate::profile_for_dialect("f5-irules").clone();
+        profile.name = "explicit-logical-pattern-source";
+        let profile = profile.intern();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context.clone(),
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        for (source, text, heading) in [
+            ("string match -nocase {a*} $value", "a*", "Glob pattern"),
+            ("proc p {} {regexp {a+} $value}", "a+", "Regex pattern"),
+            ("if {1} {format {%04d} 7}", "%04d", "Format string"),
+            (
+                "interp alias {} search {} lsearch -regexp; search {a b} {a+}",
+                "a+",
+                "Regex pattern",
+            ),
+        ] {
+            let mut analysis = tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "reporting-only");
+            assert!(analysis.allows_lexical_declaration_advice());
+            assert!(!analysis.has_original_vendor_source_names());
+            analysis.command_invocations.clear();
+            analysis.all_procs.clear();
+            let cursor = u32::try_from(source.find(text).unwrap()).unwrap();
+            let position = tcl_lexer::LineIndex::new(source).position_at_utf16(cursor, source);
+            let selected = hover(
+                source,
+                position.line,
+                position.character.get(),
+                &analysis,
+                Some(&CommandRegistry::build_default()),
+            )
+            .expect("retained Logical embedded language");
+            assert!(
+                selected.value.contains(heading),
+                "{source}: {}",
+                selected.value
+            );
+            assert!(
+                registry_pattern_format_hover(
+                    &source.replace(text, "different"),
+                    position.line,
+                    position.character.get(),
+                    &analysis,
+                    context.commands()
+                )
+                .is_none()
+            );
+            analysis.resolved_input = None;
+            assert!(
+                registry_pattern_format_hover(
+                    source,
+                    position.line,
+                    position.character.get(),
+                    &analysis,
+                    context.commands()
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn pattern_hover_entry_keeps_logical_shadow_and_captured_anchor_refusals() {
+        // naming.core.original-pattern-retained-context
+
+        let mut profile = crate::profile_for_dialect("f5-irules").clone();
+        profile.name = "explicit-logical-pattern-refusals";
+        let profile = profile.intern();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context.clone(),
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        for source in [
+            "proc lsearch args {}; lsearch -regexp {a b} {a+}",
+            "interp alias {} search {} lsearch -regexp {a b} {a+}; search",
+            "lsearch $mode {a b} {a+}",
+            "lsearch {*}$arguments {a+}",
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "reporting-only");
+            let cursor = u32::try_from(source.find("a+").unwrap()).unwrap();
+            let position = tcl_lexer::LineIndex::new(source).position_at_utf16(cursor, source);
+            assert!(
+                registry_pattern_format_hover(
+                    source,
+                    position.line,
+                    position.character.get(),
+                    &analysis,
+                    context.commands()
+                )
+                .is_none(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_pattern_hover_preserves_full_lexer_configuration() {
+        // naming.core.original-command-source-schema
+
+        let source = "\u{feff}format {%04d} 7";
+        let context = tcl_registry::model::ingress::context_for_profile(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+        );
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let cursor = u32::try_from(source.find("%04d").unwrap()).unwrap();
+        for (leading_bom, expected) in [
+            (tcl_lexer::LeadingBom::Skip, true),
+            (tcl_lexer::LeadingBom::Content, false),
+        ] {
+            let config = tcl_lexer::LexerConfig {
+                leading_bom,
+                ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+            };
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::clone(&context),
+                config,
+            );
+            let analysis = tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, "display-only");
+            assert_eq!(
+                original_pattern_format_hover(source, &analysis, context.commands(), cursor)
+                    .is_some(),
+                expected
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_special_variable_context_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn analyse_with(
+        source: &str,
+        context: Arc<tcl_registry::model::ContextRegistry>,
+    ) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "reporting label")
+    }
+
+    #[test]
+    fn original_special_hover_uses_actual_availability_and_withdraws_changed_owners() {
+        // naming.core.original-registry-source-hover
+
+        let source = "puts $tcl_precision";
+        let driver = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+            .unwrap()
+            .default_context_registry();
+        let registry = driver.commands();
+        for (provider, expected) in [("tcl8.6", true), ("tcl9.1", false)] {
+            let selected = tcl_registry::model::ingress::resolve_known_environment(provider)
+                .unwrap()
+                .default_context_registry();
+            let context =
+                Arc::new(selected.with_command_store(registry.snapshot().shared_registry()));
+            let analysis = analyse_with(source, context.clone());
+            assert!(analysis.allows_lexical_declaration_advice());
+            let answer = hover(source, 0, 8, &analysis, None);
+            assert_eq!(answer.is_some(), expected, "{provider}: {answer:?}");
+            if let Some(answer) = answer {
+                assert!(
+                    answer.value.contains("significant digits"),
+                    "{}",
+                    answer.value
+                );
+                assert!(
+                    answer.value.contains("special variable"),
+                    "{}",
+                    answer.value
+                );
+            }
+            assert!(hover("puts $tcl_precisioN", 0, 8, &analysis, None).is_none());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(hover(source, 0, 8, &missing, None).is_none());
+            let mut grammar = analysis.clone();
+            grammar.body_lexer_config.as_mut().unwrap().strict_quoting = true;
+            assert!(hover(source, 0, 8, &grammar, None).is_none());
+            let foreign = tcl_registry::model::ingress::resolve_known_environment("tcl8.4")
+                .unwrap()
+                .default_context_registry();
+            let other_provider = if provider == "tcl8.6" {
+                "tcl9.1"
+            } else {
+                "tcl8.6"
+            };
+            let other = tcl_registry::model::ingress::resolve_known_environment(other_provider)
+                .unwrap()
+                .default_context_registry();
+            let changed_availability =
+                Arc::new(other.with_command_store(registry.snapshot().shared_registry()));
+            for changed_context in [foreign, changed_availability] {
+                let mut changed = analysis.clone();
+                let input = analysis.resolved_input.as_ref().unwrap();
+                changed.resolved_input = Some(ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    changed_context,
+                    input.lexer_config(),
+                ));
+                assert!(hover(source, 0, 8, &changed, None).is_none());
+            }
+            let mut unavailable = analysis.clone();
+            unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+                environment: provider.to_owned(),
+                overlay: 0x385,
+            });
+            assert!(hover(source, 0, 8, &unavailable, None).is_none());
+        }
+    }
+
+    #[test]
+    fn original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability() {
+        // naming.core.original-registry-source-hover
+
+        let driver = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+            .unwrap()
+            .default_context_registry();
+        let mut registry = CommandRegistry::build_default();
+        let shipped = *registry.special_var("auto_path").unwrap();
+        let authored = Box::leak(Box::new(tcl_registry::SpecialVarSpec {
+            summary: "Authored source search-path documentation",
+            ..shipped
+        }));
+        // This is the same shared insertion owner used by pack special_var rows.
+        // It declares readonly documentation, not an installed interpreter cell.
+        registry.insert_special_var(authored);
+        let registry = Arc::new(registry);
+        let context = Arc::new(driver.with_command_store(registry.clone()));
+        let source = "puts $auto_path";
+        let analysis = analyse_with(source, context);
+        let answer = hover(source, 0, 8, &analysis, None).expect("authored variable card");
+        assert!(answer.value.contains(authored.summary), "{}", answer.value);
+        assert!(!answer.value.contains(shipped.summary), "{}", answer.value);
+        let mut withdrawn = analysis.clone();
+        let input = analysis.resolved_input.as_ref().unwrap();
+        withdrawn.resolved_input = Some(ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            driver.clone(),
+            input.lexer_config(),
+        ));
+        assert!(hover(source, 0, 8, &withdrawn, Some(&registry)).is_none());
+
+        let source = "puts $tcl_platform(os)";
+        for (provider, has_pointer_size) in [("tcl8.4", false), ("tcl9.1", true)] {
+            let selected = tcl_registry::model::ingress::resolve_known_environment(provider)
+                .unwrap()
+                .default_context_registry();
+            let context = Arc::new(selected.with_command_store(registry.clone()));
+            let analysis = analyse_with(source, context);
+            let answer = hover(source, 0, 8, &analysis, None).expect("platform source card");
+            assert!(answer.value.contains("special array"), "{}", answer.value);
+            assert_eq!(
+                answer.value.contains("`pointerSize`"),
+                has_pointer_size,
+                "{provider}: {}",
+                answer.value
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod logical_math_source_hover_tests {
+    use super::*;
+
+    #[test]
+    fn logical_math_hover_reports_conditional_headers_without_runtime_dispatch() {
+        let source = "namespace eval ::tcl::mathfunc {proc custom {first} {return $first}; proc custom {second} {return $second}}; expr {custom([unknown])}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.rfind("custom(").unwrap()).unwrap();
+        let answer = math_function_hover(source, &analysis, offset)
+            .expect("actual original source function metadata");
+        assert!(answer.value.contains("first"));
+        assert!(answer.value.contains("second"));
+        assert!(answer.value.contains("Conditional source declaration"));
+        assert!(answer.value.contains("observers remain unresolved"));
+        assert!(!answer.value.contains("Dispatches to"));
+        assert!(math_function_hover(&format!("{source} "), &analysis, offset).is_none());
+        let native = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(math_function_hover(source, &native, offset).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_hover_independent_registry_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn actual_expansion_child_registry_hover_does_not_require_a_static_parent_word() {
+        // Exact existing Registry expansion-child positive; its genuine child
+        // owner is independent of the expanded containing word's label.
+        let source = "string {*}{length value}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_procs.clear();
+        analysis.all_classes.clear();
+        analysis.command_invocations.clear();
+        let cursor = u32::try_from(source.find("length").unwrap() + 1).unwrap();
+        assert!(!analysis.allows_lexical_declaration_advice());
+        assert!(
+            crate::source_structure::original_complete_cursor_word(source, &analysis, cursor)
+                .and_then(|word| word.static_unicode_value())
+                .is_none()
+        );
+        let original = original_registry::hover(source, &analysis, cursor)
+            .expect("actual original expansion-child Registry owner");
+        assert!(original.value.contains("`string length`"));
+        let position = tcl_lexer::LineIndex::new_lsp(source).position_at_utf16(cursor, source);
+        let selected = hover(
+            source,
+            position.line,
+            position.character.get(),
+            &analysis,
+            None,
+        )
+        .expect("independent Registry branch remains reachable");
+        assert_eq!(selected.value, original.value);
+    }
+}
+
+#[cfg(test)]
+mod local_logical_hover_source_owner_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn logical_analysis(source: &str) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn local_logical_hover_uses_current_procedure_class_and_member_owners() {
+        let source = "proc p {arg} {return $arg}; p 1";
+        let analysis = logical_analysis(source);
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        let call_cursor = u32::try_from(source.rfind("p 1").unwrap()).unwrap();
+        let call = proc_hover_at(
+            &analysis,
+            source,
+            call_cursor,
+            "p",
+            crate::definition::CallResolution::document_only(),
+        )
+        .expect("current original Logical call candidate");
+        assert!(call.value.contains("Possible procedure"));
+        assert!(call.value.contains("proc ::p {arg} {...}"));
+        assert!(
+            proc_hover_at(
+                &analysis,
+                &format!("{source} "),
+                call_cursor,
+                "p",
+                crate::definition::CallResolution::document_only(),
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            proc_hover_at(
+                &missing,
+                source,
+                call_cursor,
+                "p",
+                crate::definition::CallResolution::document_only(),
+            )
+            .is_none()
+        );
+
+        let class_source = "oo::class create C {method m {} {}}";
+        let class_analysis = logical_analysis(class_source);
+        let class_cursor = u32::try_from(class_source.find("C {").unwrap()).unwrap();
+        let class = class_analysis
+            .logical_source_class_at(
+                &tcl_lexer::SourceImage::document(class_source),
+                class_analysis.body_lexer_config.unwrap(),
+                class_cursor,
+            )
+            .expect("current original Logical class candidate");
+        assert!(
+            class_analysis
+                .logical_source_class_declaration(class)
+                .is_some()
+        );
+        let class_hover = hover_impl(
+            class_source,
+            0,
+            class_cursor,
+            &class_analysis,
+            crate::definition::CallResolution::document_only(),
+            crate::profile_for_analysis(&class_analysis),
+            false,
+        )
+        .expect("source-owned class hover");
+        assert!(class_hover.value.contains("oo::class create ::C"));
+        assert!(!class_hover.value.contains("provider and dispatch"));
+
+        let member_cursor = u32::try_from(class_source.find("m {} {").unwrap()).unwrap();
+        let member = class_member_hover_text(class_source, &class_analysis, "m", member_cursor)
+            .expect("current original Logical member candidate");
+        assert!(member.contains("**method** `::C::m`"), "{member}");
+        assert!(!member.contains("provider and dispatch"), "{member}");
+        assert!(
+            class_member_hover_text(
+                &format!("{class_source} "),
+                &class_analysis,
+                "m",
+                member_cursor,
+            )
+            .is_none()
         );
     }
 }

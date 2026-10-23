@@ -27,7 +27,7 @@ use std::io::Write;
 use std::rc::Rc;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
-use tcl_vm::{CompileService, Vm};
+use tcl_vm::CompileService;
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
 #[derive(Clone, Default)]
@@ -48,15 +48,13 @@ impl Write for Capture {
 /// rejection.
 fn run_at(src: &str, release: &str) -> String {
     let profile = tcl_registry::model::ingress::resolve_environment(release).analyser_profile();
-    let svc = BytecodeCompileService::for_profile(profile);
-    let asm = match svc.compile(src) {
-        Ok(asm) => asm,
-        Err(e) => return e.0,
-    };
-    let mut vm = Vm::with_output(Box::new(Capture::default()));
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(Capture::default()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
-    vm.run_module(&asm).result.to_str().to_string()
+    vm.try_eval_source(src)
+        .expect("the VM's own compile entry")
+        .result
+        .to_str()
+        .to_string()
 }
 
 /// [`run_at`] at the VM's default release (9.0), for the vectors tclsh 8.6.16
@@ -70,16 +68,18 @@ fn run(src: &str) -> String {
 /// release mid-session, so this exists only for invariants about what the
 /// emulated surface must do when an embedder re-pins it.
 fn run_flipping(steps: &[(&str, &str)]) -> String {
-    let mut vm = Vm::with_output(Box::new(Capture::default()));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture::default()));
     let mut last = String::new();
     for (release, src) in steps {
         let profile = tcl_registry::model::ingress::resolve_environment(release).analyser_profile();
         vm.set_dialect_profile(profile);
         vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
-        match BytecodeCompileService::for_profile(profile).compile(src) {
-            Ok(asm) => last = vm.run_module(&asm).result.to_str().to_string(),
-            Err(e) => return e.0,
-        }
+        last = vm
+            .try_eval_source(src)
+            .expect("the VM's own compile entry")
+            .result
+            .to_str()
+            .to_string();
     }
     last
 }
@@ -208,8 +208,7 @@ fn command_origin_reports_none_for_a_command_that_was_not_imported() {
              namespace eval dst {namespace import ::src::p}",
         )
         .expect("setup compiles");
-    let mut vm = Vm::with_output(Box::new(Capture::default()));
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(Capture::default()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     assert!(vm.run_module(&asm).code.is_ok());
 
@@ -1616,26 +1615,7 @@ fn interp_visibility_qualifier_validation_is_shared_by_every_entry_form() {
                  [outcome {interp expose kid N::held q}] \
                  [outcome {interp hide kid N::p held}] \
                  [outcome {interp expose kid held N::q}]"),
-        "{1 {cannot use namespace qualifiers in hidden command token (rename)} \
-             {TCL VALUE HIDDENTOKEN}} \
-         {1 {cannot expose to a namespace (use rename then expose)} \
-             {TCL EXPOSE NON_GLOBAL}} \
-         {1 {cannot use namespace qualifiers in hidden command token (rename)} \
-             {TCL VALUE HIDDENTOKEN}} \
-         {1 {cannot expose to a namespace (use rename then expose)} \
-             {TCL EXPOSE NON_GLOBAL}} \
-         {1 {cannot use namespace qualifiers in hidden command token (rename)} \
-             {TCL VALUE HIDDENTOKEN}} \
-         {1 {cannot expose to a namespace (use rename then expose)} \
-             {TCL EXPOSE NON_GLOBAL}} \
-         {1 {cannot use namespace qualifiers in hidden command token (rename)} \
-             {TCL VALUE HIDDENTOKEN}} \
-         {1 {cannot use namespace qualifiers in hidden command token (rename)} \
-             {TCL VALUE HIDDENTOKEN}} \
-         {1 {can only hide global namespace commands (use rename then hide)} \
-             {TCL HIDE NON_GLOBAL}} \
-         {1 {cannot expose to a namespace (use rename then expose)} \
-             {TCL EXPOSE NON_GLOBAL}}"
+        "{1 {cannot use namespace qualifiers in hidden command token (rename)} {TCL VALUE HIDDENTOKEN}} {1 {cannot expose to a namespace (use expose to toplevel, then rename)} {TCL EXPOSE NON_GLOBAL}} {1 {cannot use namespace qualifiers in hidden command token (rename)} {TCL VALUE HIDDENTOKEN}} {1 {cannot expose to a namespace (use expose to toplevel, then rename)} {TCL EXPOSE NON_GLOBAL}} {1 {cannot use namespace qualifiers in hidden command token (rename)} {TCL VALUE HIDDENTOKEN}} {1 {cannot expose to a namespace (use expose to toplevel, then rename)} {TCL EXPOSE NON_GLOBAL}} {1 {cannot use namespace qualifiers in hidden command token (rename)} {TCL VALUE HIDDENTOKEN}} {1 {unknown hidden command \"N::held\"} {TCL LOOKUP HIDDENTOKEN N::held}} {1 {can only hide global namespace commands (use rename then hide)} {TCL HIDE NON_GLOBAL}} {1 {cannot expose to a namespace (use expose to toplevel, then rename)} {TCL EXPOSE NON_GLOBAL}}"
     );
 }
 

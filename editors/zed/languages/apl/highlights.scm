@@ -1,5 +1,11 @@
 ; APL (F5 iApp presentation) highlights for Zed.
 ;
+; DO NOT EDIT — the field-type, attribute and validator lists below are
+; generated from the APL lexer's vocabulary (`tcl_bigip::apl::tokens`) by
+; `cargo xtask gen-bigip-grammars`; the rest is a static template in that
+; generator. A match is lexical display only: it names no declared field and
+; proves no validator applies.
+;
 ; Backed by `grammars/tree-sitter-apl`. Without it, Zed's APL language would
 ; point at the *Tcl* grammar and ship no query file at all, so an APL file
 ; would get no highlighting and — if queried — a garbage parse tree.

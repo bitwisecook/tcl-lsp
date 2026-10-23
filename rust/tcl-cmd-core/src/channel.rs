@@ -57,6 +57,8 @@ pub enum ChannelEncoding {
     Unicode,
     /// Tcl 8's `binary` pseudo-encoding (low eight bits of each character).
     Tcl8Binary,
+    /// Identity conversion preserves native String bytes.
+    Identity,
 }
 
 impl ChannelEncoding {
@@ -69,11 +71,26 @@ impl ChannelEncoding {
             Self::Ascii => "ascii",
             Self::Unicode => "unicode",
             Self::Tcl8Binary => "binary",
+            Self::Identity => "identity",
         }
     }
 
-    fn from_system(encoding: SystemEncoding) -> Self {
+    /// System catalogue representation; the C8 channel pseudo-encoding is separate.
+    #[must_use]
+    pub const fn system_encoding(self) -> Option<SystemEncoding> {
+        match self {
+            Self::Utf8 => Some(SystemEncoding::Utf8),
+            Self::Iso88591 => Some(SystemEncoding::Iso88591),
+            Self::Identity => Some(SystemEncoding::Identity),
+            Self::Ascii => Some(SystemEncoding::Ascii),
+            Self::Unicode => Some(SystemEncoding::Unicode),
+            Self::Tcl8Binary => None,
+        }
+    }
+
+    pub(crate) fn from_system(encoding: SystemEncoding) -> Self {
         match encoding {
+            SystemEncoding::Identity => Self::Identity,
             SystemEncoding::Utf8 => Self::Utf8,
             SystemEncoding::Iso88591 => Self::Iso88591,
             SystemEncoding::Ascii => Self::Ascii,
@@ -87,16 +104,17 @@ impl ChannelEncoding {
 /// # Errors
 /// An unknown encoding, with Tcl's structured lookup identity.
 pub fn resolve_system_encoding(value: &str) -> Result<SystemEncoding, CmdError> {
-    match value {
-        "utf-8" => Ok(SystemEncoding::Utf8),
-        "" | "iso8859-1" => Ok(SystemEncoding::Iso88591),
-        "ascii" => Ok(SystemEncoding::Ascii),
-        "unicode" => Ok(SystemEncoding::Unicode),
-        _ => Err(CmdError::with_error_code(
-            format!("unknown encoding \"{value}\""),
-            tcl_syntax::list::join_list(["TCL", "LOOKUP", "ENCODING", value]),
-        )),
+    if value.is_empty() {
+        return Ok(SystemEncoding::Iso88591);
     }
+    crate::encoding::implemented_encoding(value.as_bytes())
+        .filter(|encoding| *encoding != SystemEncoding::Identity)
+        .ok_or_else(|| {
+            CmdError::with_error_code(
+                format!("unknown encoding \"{value}\""),
+                tcl_syntax::list::join_list(["TCL", "LOOKUP", "ENCODING", value]),
+            )
+        })
 }
 
 /// The text a script file's bytes are under `encoding`, for `source`.
@@ -109,7 +127,9 @@ pub fn resolve_system_encoding(value: &str) -> Result<SystemEncoding, CmdError> 
 #[must_use]
 pub fn decode_text(bytes: &[u8], encoding: SystemEncoding) -> String {
     match encoding {
-        SystemEncoding::Utf8 => String::from_utf8_lossy(bytes).into_owned(),
+        SystemEncoding::Identity | SystemEncoding::Utf8 => {
+            String::from_utf8_lossy(bytes).into_owned()
+        }
         SystemEncoding::Iso88591 => bytes.iter().copied().map(char::from).collect(),
         SystemEncoding::Ascii => bytes
             .iter()
@@ -370,11 +390,13 @@ impl ChannelConfig {
     /// # Errors
     /// An unknown encoding, including Tcl 9's removed empty/`binary` spellings.
     pub fn set_encoding(&mut self, version: TclVersion, value: &str) -> Result<(), CmdError> {
+        if let Some(encoding) = crate::encoding::implemented_encoding(value.as_bytes())
+            .filter(|encoding| *encoding != SystemEncoding::Identity)
+        {
+            self.encoding = ChannelEncoding::from_system(encoding);
+            return Ok(());
+        }
         self.encoding = match value {
-            "utf-8" => ChannelEncoding::Utf8,
-            "iso8859-1" => ChannelEncoding::Iso88591,
-            "ascii" => ChannelEncoding::Ascii,
-            "unicode" => ChannelEncoding::Unicode,
             "" | "binary" if version < TclVersion::V9_0 => ChannelEncoding::Tcl8Binary,
             "" | "binary" => {
                 return Err(CmdError::new(format!(
@@ -743,7 +765,10 @@ pub fn encode_output(text: &str, newline: bool, config: ChannelConfig) -> Encode
         translated.push_str(ending);
     }
 
-    if config.encoding == ChannelEncoding::Utf8 {
+    if matches!(
+        config.encoding,
+        ChannelEncoding::Utf8 | ChannelEncoding::Identity
+    ) {
         return EncodedOutput {
             bytes: translated.into_bytes(),
             error: None,
@@ -776,7 +801,9 @@ pub fn encode_output(text: &str, newline: bool, config: ChannelConfig) -> Encode
                 };
             }
             ChannelEncoding::Iso88591 | ChannelEncoding::Ascii => bytes.push(b'?'),
-            ChannelEncoding::Utf8 => unreachable!("UTF-8 returned above"),
+            ChannelEncoding::Utf8 | ChannelEncoding::Identity => {
+                unreachable!("direct encoding returned above")
+            }
         }
     }
     EncodedOutput { bytes, error: None }
@@ -793,7 +820,10 @@ pub fn encode_output_bytes(bytes: &[u8], newline: bool, config: ChannelConfig) -
     if let Ok(text) = core::str::from_utf8(bytes) {
         return encode_output(text, newline, config);
     }
-    if config.encoding != ChannelEncoding::Utf8 {
+    if !matches!(
+        config.encoding,
+        ChannelEncoding::Utf8 | ChannelEncoding::Identity
+    ) {
         let text: String = bytes.iter().copied().map(char::from).collect();
         return encode_output(&text, newline, config);
     }
@@ -820,12 +850,14 @@ pub fn encode_output_bytes(bytes: &[u8], newline: bool, config: ChannelConfig) -
 /// prefix has been written, preserving the structured error code.
 #[must_use]
 pub fn channel_output_error(name: &str, error: CmdError) -> CmdError {
-    let (message, code) = error.into_parts();
-    let message = format!("error writing \"{name}\": {message}");
-    match code {
-        Some(code) => CmdError::with_error_code(message, code),
-        None => CmdError::new(message),
+    if error.native_execution_refusal().is_some() {
+        return error;
     }
+    let mut details = error.into_byte_details();
+    let mut message = format!("error writing \"{name}\": ").into_bytes();
+    message.extend_from_slice(&details.message);
+    details.message = message;
+    CmdError::from_byte_details(details)
 }
 
 #[cfg(test)]
@@ -890,8 +922,8 @@ mod tests {
         let output = encode_output("A\u{178}B", true, config);
         assert_eq!(output.bytes, b"A");
         let error = output.error.expect("strict conversion failure");
-        assert_eq!(error.message(), EILSEQ_REASON);
-        assert_eq!(error.error_code(), Some(EILSEQ_ERROR_CODE));
+        assert_eq!(error.message().unwrap(), EILSEQ_REASON);
+        assert_eq!(error.error_code().unwrap(), Some(EILSEQ_ERROR_CODE));
     }
 
     #[test]
@@ -911,8 +943,11 @@ mod tests {
     fn system_and_channel_encoding_errors_retain_tcl_identity() {
         assert_eq!(resolve_system_encoding(""), Ok(SystemEncoding::Iso88591));
         let system = resolve_system_encoding("bogus").expect_err("unknown system encoding");
-        assert_eq!(system.message(), "unknown encoding \"bogus\"");
-        assert_eq!(system.error_code(), Some("TCL LOOKUP ENCODING bogus"));
+        assert_eq!(system.message().unwrap(), "unknown encoding \"bogus\"");
+        assert_eq!(
+            system.error_code().unwrap(),
+            Some("TCL LOOKUP ENCODING bogus")
+        );
 
         let mut config = ChannelConfig::file(
             TclVersion::V9_0,
@@ -920,18 +955,26 @@ mod tests {
             ChannelDirection::Output,
         );
         let profile = config.set_profile("bogus").expect_err("unknown profile");
-        assert_eq!(profile.error_code(), Some("TCL ENCODING PROFILE bogus"));
+        assert_eq!(
+            profile.error_code().unwrap(),
+            Some("TCL ENCODING PROFILE bogus")
+        );
         let binary = config
             .set_encoding(TclVersion::V9_0, "binary")
             .expect_err("Tcl 9 removed binary encoding");
-        assert!(binary.message().contains("-translation binary"));
-        assert_eq!(binary.error_code(), None);
+        assert!(binary.message().unwrap().contains("-translation binary"));
+        assert_eq!(binary.error_code().unwrap(), None);
         let empty = config
             .set_encoding(TclVersion::V9_0, "")
             .expect_err("Tcl 9 removed the empty binary encoding");
-        assert!(empty.message().starts_with("unknown encoding \"\""));
-        assert!(empty.message().contains("-translation binary"));
-        assert_eq!(empty.error_code(), None);
+        assert!(
+            empty
+                .message()
+                .unwrap()
+                .starts_with("unknown encoding \"\"")
+        );
+        assert!(empty.message().unwrap().contains("-translation binary"));
+        assert_eq!(empty.error_code().unwrap(), None);
 
         let mut eight = config;
         eight
@@ -959,20 +1002,22 @@ mod tests {
 
         let illegal =
             resolve_open_access_mode(TclVersion::V9_0, "brw").expect_err("illegal simple mode");
-        assert_eq!(illegal.error_code(), Some("TCL OPENMODE INVALID"));
+        assert_eq!(illegal.error_code().unwrap(), Some("TCL OPENMODE INVALID"));
         let unknown = resolve_open_access_mode(TclVersion::V9_0, "WRONLY BAD")
             .expect_err("unknown list flag");
-        assert_eq!(unknown.error_code(), Some("TCL OPENMODE INVALID"));
+        assert_eq!(unknown.error_code().unwrap(), Some("TCL OPENMODE INVALID"));
         assert!(
             resolve_open_access_mode(TclVersion::V9_0, "RDONLY WRONLY")
                 .expect_err("conflicting list flags")
                 .message()
+                .unwrap()
                 .contains("cannot be combined")
         );
         assert_eq!(
             resolve_open_access_mode(TclVersion::V9_0, "BINARY")
                 .expect_err("missing direction")
-                .message(),
+                .message()
+                .unwrap(),
             "access mode must include either RDONLY, RDWR, or WRONLY"
         );
 
@@ -982,14 +1027,20 @@ mod tests {
         assert!(eight.is_writable());
         let eight_unknown = resolve_open_access_mode(TclVersion::V8_6, "WRONLY BAD")
             .expect_err("unknown Tcl 8 list flag");
-        assert_eq!(eight_unknown.error_code(), None);
+        assert_eq!(eight_unknown.error_code().unwrap(), None);
 
         let malformed_nine = resolve_open_access_mode(TclVersion::V9_0, "{RDONLY")
             .expect_err("malformed Tcl 9 access list");
-        assert_eq!(malformed_nine.error_code(), Some("TCL OPENMODE INVALID"));
+        assert_eq!(
+            malformed_nine.error_code().unwrap(),
+            Some("TCL OPENMODE INVALID")
+        );
         let malformed_eight = resolve_open_access_mode(TclVersion::V8_6, "{RDONLY")
             .expect_err("malformed Tcl 8 access list");
-        assert_eq!(malformed_eight.error_code(), Some("TCL VALUE LIST BRACE"));
+        assert_eq!(
+            malformed_eight.error_code().unwrap(),
+            Some("TCL VALUE LIST BRACE")
+        );
     }
 
     #[test]

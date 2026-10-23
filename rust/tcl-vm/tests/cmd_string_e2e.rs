@@ -32,7 +32,6 @@ use std::io::Write;
 use std::rc::Rc;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
-use tcl_vm::{CompileService, Vm};
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
 #[derive(Clone)]
@@ -52,21 +51,21 @@ impl Write for Capture {
 fn run_for_version(src: &str, version: tcl_dialect::TclVersion) -> (bool, String, String) {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
         .analyser_profile();
-    let service = BytecodeCompileService::for_profile(profile);
-    let asm = service
-        .compile_for_profile(src, profile)
-        .expect("test script compiles for its selected profile");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_runtime_version(version);
-    vm.set_compiler(Box::new(service));
-    let completion = vm.run_module(&asm);
+    let mut vm =
+        tcl_vm::test_support::native_vm_for_profile(profile, Box::new(Capture(Rc::clone(&buf))));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+    let completion = vm.try_eval_source(src).expect("original source provider");
 
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
     (
         completion.code.is_ok(),
-        completion.result.to_str().to_string(),
+        String::from_utf8_lossy(
+            &tcl_syntax::value::ValueOps::native_string_bytes(&mut vm, &completion.result)
+                .expect("result string"),
+        )
+        .into_owned(),
         out,
     )
 }
@@ -289,23 +288,15 @@ fn string_match_command() {
     res_eq("string match {a\\*b} axb", "0");
     // tclsh: abbreviated -nocase (-n)
     res_eq("string match -n {F*O} foo", "1");
-    // tclsh: arity error (the bad-option case is a VM bug — see
-    // `bug_string_match_bad_option`).
+    // Original C arity applies separately from the leading-option error.
     err_eq(
         "string match a",
         "wrong # args: should be \"string match ?-nocase? pattern string\"",
     );
 }
 
-/// `string match <bad-option> pattern string` (three args where the first
-/// is an unrecognised option) reports a generic "wrong # args" instead of the
-/// bad-option error. Both tclsh 8.6 and 9.0 flag the option; the VM routes the
-/// 3-argument form through the shared core's arity check before validating the
-/// leading option word.
-///
-/// Script:        string match -bogus a b
-/// tclsh 8.6/9.0: bad option "-bogus": must be -nocase
-/// VM (wrong):    wrong # args: should be "string match ?-nocase? pattern string"
+/// The original option error precedes the generic three-argument arity route.
+/// Original C8.6/C9.0: `string match -bogus a b` reports bad option "-bogus".
 #[test]
 fn bug_string_match_bad_option() {
     // tclsh 8.6 + 9.0
@@ -781,14 +772,9 @@ fn string_is_errors() {
     );
 }
 
-/// `string is <class> <option> <str>` where `<option>` is an unrecognised
-/// word and a trailing operand follows reports the *wrong* error. Real tclsh
-/// flags the bad option; the VM mis-counts the operands and reports a generic
-/// "wrong # args".
-///
+/// A bad leading option retains its error independently of later operands.
 /// Script:        string is alpha a b
 /// tclsh 8.6/9.0: bad option "a": must be -strict or -failindex
-/// VM (wrong):    wrong # args: should be "string is class ?-strict? ?-failindex var? str"
 #[test]
 fn bug_string_is_bad_option_with_trailing_arg() {
     // tclsh 8.6 + 9.0
@@ -799,8 +785,7 @@ fn bug_string_is_bad_option_with_trailing_arg() {
 }
 
 /// A lone `-` (or the empty word) in option position prefixes *both* options,
-/// so C's `Tcl_GetIndexFromObj` reports it as ambiguous, not bad. (Previously
-/// the VM's hand-rolled `len >= 2` prefix test reported `bad option`.)
+/// so C's `Tcl_GetIndexFromObj` reports it as ambiguous, not bad.
 #[test]
 fn string_is_dash_and_empty_option_words_are_ambiguous() {
     // tclsh 8.6.16: ambiguous option "-": must be -strict or -failindex
@@ -815,15 +800,10 @@ fn string_is_dash_and_empty_option_words_are_ambiguous() {
     );
 }
 
-/// `string is integer -failindex` reports the wrong failure index when the
-/// integer has internal whitespace followed by a non-digit. For `"12 x"` real
+/// Integer failure indexing skips internal whitespace before the invalid character.
 /// tclsh records the failure at the `x` (char index 3); the VM stops at the
-/// interior space (index 2). (`"12 "` with only trailing space is a valid
-/// integer in both, so the divergence is specifically the digit-after-space.)
-///
 /// Script:        string is integer -failindex fi {12 x}; set fi
 /// tclsh 8.6/9.0: 3
-/// VM (wrong):    2
 #[test]
 fn bug_string_is_integer_failindex_internal_space() {
     // tclsh 8.6 + 9.0
@@ -1579,54 +1559,38 @@ fn format_errors() {
     err_eq("format {%5 } 1", "bad field specifier \" \"");
 }
 
-/// `format %#b` omits the `0b` alternate-form prefix. Both tclsh 8.6 and
+/// Binary alternate form retains its selected 0b prefix.
 /// tclsh 9.0 prepend `0b`; the VM's `tcl_cmd_core::format::based_digits` returns
-/// no prefix for the binary verb.
-///
 /// Script:        format %#b 5
 /// tclsh 8.6/9.0: 0b101
-/// VM (wrong):    101
 #[test]
 fn bug_format_hash_binary_prefix() {
     // tclsh 8.6 + 9.0
     res_eq("format %#b 5", "0b101");
 }
 
-/// `format %#o` uses the legacy `0` octal prefix instead of Tcl 9's `0o`.
-/// The VM matches tclsh 8.6, but it otherwise targets Tcl 9.0 (lowercase `0x`
-/// for `%#X`, `entier`/`dict` classes, arbitrary-precision `string is integer`),
-/// where the octal alternate form is `0o`.
-///
+/// Tcl 9 octal alternate form selects 0o independently of the C8.6 form.
 /// Script:     format %#o 8
 /// tclsh 9.0:  0o10
-/// VM (wrong): 010   (tclsh 8.6 behaviour)
 #[test]
 fn bug_format_hash_octal_prefix_tcl9() {
     // tclsh9.0
     res_eq("format %#o 8", "0o10");
 }
 
-/// `format %#d` drops the Tcl 9 `0d` alternate-form prefix. As with `%#o`,
-/// the VM matches tclsh 8.6 (no prefix) but targets Tcl 9.0, where `%#d` renders
-/// a leading `0d`.
-///
+/// Tcl 9 decimal alternate form selects 0d.
 /// Script:     format %#d 42
 /// tclsh 9.0:  0d42
-/// VM (wrong): 42   (tclsh 8.6 behaviour)
 #[test]
 fn bug_format_hash_decimal_prefix_tcl9() {
     // tclsh9.0
     res_eq("format %#d 42", "0d42");
 }
 
-/// The `0` (zero-pad) flag is ignored for floating-point conversions. Both
+/// Floating-point zero padding reaches the declared field width.
 /// tclsh 8.6 and 9.0 zero-pad floats to the field width; the VM pads with spaces
-/// (the `0` flag works for integers — `%08d` is fine — so this is float-specific
-/// in `tcl_cmd_core::format`).
-///
 /// Script:        format %08.2f 3.14
 /// tclsh 8.6/9.0: 00003.14
-/// VM (wrong):    "    3.14"  (space padded)
 #[test]
 fn bug_format_zero_flag_on_float() {
     // tclsh 8.6 + 9.0
@@ -1634,13 +1598,9 @@ fn bug_format_zero_flag_on_float() {
     res_eq("format %+08.2f 3.14", "+0003.14");
 }
 
-/// `%e`/`%E` render the exponent without the C/Tcl minimum-two-digit,
-/// always-signed form. Both tclsh 8.6 and 9.0 print `e+04`; the VM (Rust's
-/// `{:e}` formatter) prints `e4` — no sign, no zero-padding.
-///
+/// Exponential formatting retains a signed exponent with at least two digits.
 /// Script:        format %e 12345.678
 /// tclsh 8.6/9.0: 1.234568e+04
-/// VM (wrong):    1.234568e4
 #[test]
 fn bug_format_exponent_format() {
     // tclsh 8.6 + 9.0
@@ -1650,14 +1610,9 @@ fn bug_format_exponent_format() {
     res_eq("format %e 1.5", "1.500000e+00");
 }
 
-/// `%g` does not switch to exponential notation for out-of-range
-/// magnitudes. C/Tcl `%g` uses `%e` when the exponent is < -4 or >= the
-/// precision (default 6); the VM always renders fixed-point and merely trims
-/// trailing zeros, so large/small values print in full / with leading zeros.
-///
+/// General formatting selects exponential notation outside its precision range.
 /// Script:        format %g 1234567.0   |   format %g 0.00001
 /// tclsh 8.6/9.0: 1.23457e+06           |   1e-05
-/// VM (wrong):    1234567               |   0.00001
 #[test]
 fn bug_format_g_exponential_range() {
     // tclsh 8.6 + 9.0
@@ -1665,13 +1620,9 @@ fn bug_format_g_exponential_range() {
     res_eq("format %g 0.00001", "1e-05");
 }
 
-/// Positional conversion specifiers (`%n$`) are unsupported. C/Tcl's
-/// `format` accepts `%1$s` to index a specific argument and reuse it; the VM's
-/// `tcl_cmd_core::format` parser rejects the `$` as a bad field specifier.
-///
+/// Positional conversion indices retain argument selection and reuse.
 /// Script:        format {%1$s %2$s %1$s} a b
 /// tclsh 8.6/9.0: a b a
-/// VM (wrong):    bad field specifier "$"
 #[test]
 fn bug_format_positional_specifiers() {
     // tclsh 8.6 + 9.0
@@ -1707,14 +1658,9 @@ fn format_positional_mode_star_and_mixing() {
     err_eq("format {%0$s} a b", "\"%n$\" argument index out of range");
 }
 
-/// A format string that ends with an incomplete specifier (a width but no
-/// conversion verb) is silently echoed instead of erroring. tclsh reports
-/// "not enough arguments for all format specifiers"; the VM returns the literal
-/// text.
-///
+/// An incomplete format specifier retains the original argument error.
 /// Script:        format %5
 /// tclsh 8.6/9.0: (error) not enough arguments for all format specifiers
-/// VM (wrong):    %5
 #[test]
 fn bug_format_trailing_incomplete_specifier() {
     // tclsh 8.6 + 9.0

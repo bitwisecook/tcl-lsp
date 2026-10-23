@@ -20,6 +20,7 @@ import * as assert from "assert";
 import {
   buildRuntimeValidationChecker,
   resolveRuntimeValidationAdapter,
+  runtimeValidationAdapterFromReport,
   runtimeValidationAdapterLabel,
 } from "../runtimeValidation";
 
@@ -37,6 +38,39 @@ suite("Runtime Validation", () => {
   test("explicit adapter mode overrides dialect", () => {
     const adapter = resolveRuntimeValidationAdapter("tcl-syntax", "f5-irules");
     assert.strictEqual(adapter, "tcl-syntax");
+  });
+
+  test("auto adapter requires a report for the exact captured source snapshot", () => {
+    const report = {
+      uri: "file:///workspace/handler.tcl",
+      version: 7,
+      source: "when HTTP_REQUEST { pool web }\n",
+      dialectId: "f5-irules",
+    };
+    const expected = {
+      uri: report.uri,
+      version: report.version,
+      source: report.source,
+    };
+    assert.strictEqual(runtimeValidationAdapterFromReport(report, expected), "irules-stub");
+    assert.strictEqual(
+      runtimeValidationAdapterFromReport(report, { ...expected, version: 8 }),
+      undefined,
+    );
+    assert.strictEqual(
+      runtimeValidationAdapterFromReport(report, {
+        ...expected,
+        source: "when HTTP_REQUEST { pool other }\n",
+      }),
+      undefined,
+    );
+    assert.strictEqual(
+      runtimeValidationAdapterFromReport(report, {
+        ...expected,
+        uri: "file:///workspace/other.tcl",
+      }),
+      undefined,
+    );
   });
 
   test("iRules checker script contains when stub validation", () => {

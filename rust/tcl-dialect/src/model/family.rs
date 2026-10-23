@@ -37,7 +37,7 @@
 use crate::LexerGrammar;
 use crate::grammar::{
     BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle,
-    ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
+    ListParse, NumberSyntax, QuoteTermination, SourceLineEndings, VarSyntax, WordSeparators,
 };
 use crate::model::expr_grammar::{self, ExprGrammar};
 use crate::version::StringCharacterModel;
@@ -53,31 +53,13 @@ use crate::version::StringCharacterModel;
 pub enum Family {
     /// Plain Tcl — the 8.4 … 9.1 release ladder.
     Tcl,
-    /// F5's shared Tcl fork — the **trunk** of the two-level F5 tree
-    /// (owner rulings 2026-08-26, measured in
-    /// `docs/design/f5/bigip-irule-parser-measurements.md` §4a/§4b): a fork
-    /// of Tcl at patchlevel 8.4.6 ([`Family::F5_FORK_POINT`]) that
-    /// evolved independently, with a ladder keyed by TMOS release. Every
-    /// BIG-IP-hosted Tcl context — TMM iRules, tmsh cli scripts, iApp
-    /// implementations — carries this one parser: the implicit word
-    /// break (R-rules), the brace-line continuation (N-rules), the inert
-    /// `{*}` (the separator wins; expansion does not exist), 8.4
-    /// numerals, and the nine word-form `expr` operators, all measured
-    /// byte-identical across the three contexts. `f5-tmsh` and
-    /// `f5-iapps` are environments riding this trunk directly, differing
-    /// only in ambient packages and host facts.
+    /// F5's embedded Tcl trunk, anchored at [`Family::F5_FORK_POINT`].
+    /// Grammar ancestry and BIG-IP build evidence remain separate axes.
+    /// TMM, tmsh, iApp implementation and iCall retain independent contexts.
     F5Tcl,
-    /// F5 iRules — a dialect **offshoot of [`Family::F5Tcl`]** (a fork of
-    /// a fork, owner ruling 2026-08-26). It inherits the trunk grammar
-    /// whole — grammar/axis resolution walks the fork edge
-    /// ([`Family::ancestry`]), so an axis the offshoot does not
-    /// override answers from the trunk, and the trunk from Tcl at the
-    /// fork point. What the offshoot adds is not lexical grammar but the
-    /// rule compiler's load-time language rules: the declaration-only top
-    /// level, closed-world command resolution at rule load, the event
-    /// model, and `expr` math-function validation at load (measurements
-    /// §4a/§4b/§6). The K36322151 command bans and the closed-world
-    /// guarantee are environment policy, not part of this identity.
+    /// The iRules offshoot inherits the F5 trunk grammar and adds rule-load
+    /// structure, command availability and event validation. Environment
+    /// policies retain their independent command restrictions.
     F5Irules,
     /// Jim Tcl — the 0.76 … 0.84 release ladder, a **reimplementation**
     /// of Tcl rather than a source fork ([`Lineage::Reimplementation`],
@@ -99,9 +81,7 @@ pub enum Family {
 /// clean-room reimplementation a fork.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Lineage {
-    /// A source fork that then evolved independently — the `f5-tcl`
-    /// trunk (a fork of Tcl 8.4.6) and the `f5-irules` offshoot (a fork
-    /// of the trunk), owner rulings 2026-08-26.
+    /// A source fork with an independently evolving release ladder.
     Fork,
     /// An independent implementation written to be compatible with the
     /// ancestor's language at a stated point — Jim Tcl, which shares no
@@ -138,13 +118,8 @@ impl Family {
     /// Every admitted family, in declaration order.
     pub const ALL: [Self; 4] = [Self::Tcl, Self::F5Tcl, Self::F5Irules, Self::Jim];
 
-    /// The Tcl patchlevel the F5 trunk forked from, after which it
-    /// evolved independently (owner-attested, 2026-08-26; measured — all
-    /// three BIG-IP contexts report `info patchlevel` 8.4.6 and fail
-    /// every 8.4/8.5 discriminator as 8.4, measurements §4/§4a). This is
-    /// fork *provenance*: it seeds the trunk's baseline grammar and
-    /// surface, and nothing later on the Tcl ladder applies to the F5
-    /// tree through it.
+    /// The F5 trunk's grammar ancestry anchor. Later Tcl releases are not
+    /// inherited through this edge; measured appliance facts remain separate.
     pub const F5_FORK_POINT: &'static str = "8.4.6";
 
     /// The point on the Tcl ladder Jim's **command surface** is derived
@@ -515,6 +490,7 @@ const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
     quote_termination: QuoteTermination::Strict,
     var_syntax: VarSyntax::Tcl,
     list_parse: ListParse::Strict,
+    source_line_endings: SourceLineEndings::TranslateAuto,
 };
 
 const GRAMMAR_TCL85: LexerGrammar = LexerGrammar {
@@ -543,17 +519,24 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     quote_termination: QuoteTermination::Strict,
     var_syntax: VarSyntax::Tcl,
     list_parse: ListParse::Strict,
+    source_line_endings: SourceLineEndings::TranslateAuto,
 };
 
 /// The `f5-tcl` **trunk** grammar: everything unoverridden answers from
 /// the fork point (`tcl@8.4.6` — the `..GRAMMAR_TCL84` update *is* the
 /// [`Family::ancestry`] edge, stated as const derivation), plus the two
-/// measured fork axes (`docs/design/f5/bigip-irule-parser-measurements.md`
+/// measured fork axes (`docs/design/f5/embedded-tcl-contract.md`
 /// §1–§3, §4a): the implicit word break (R-rules) and the brace-line
 /// continuation (N-rules). `expand_syntax` stays false from the 8.4 base,
 /// which together with the separator makes `{*}` **inert** — a literal
 /// `*` word plus the following word, never expansion, never an error
 /// (measurements §1, §3 row 6).
+///
+/// `source_line_endings` is inherited from the 8.4 base as
+/// [`SourceLineEndings::TranslateAuto`]. No oracle decides it: the
+/// BIG-IP measurements cover no lone-CR input, and iRules are not read
+/// through `source`. The inheritance agrees with the LSP boundary, which
+/// already normalises a lone CR for every dialect.
 const GRAMMAR_F5_TCL: LexerGrammar = LexerGrammar {
     irules_brace_separator: true,
     brace_line_continuation: BraceLineContinuation::Continues,
@@ -600,8 +583,7 @@ const GRAMMAR_IRULES: LexerGrammar = GRAMMAR_F5_TCL;
 /// - `array_index`: **`Tcl8`**, the unrestricted mask. Jim's `JimParseVar`
 ///   counts parens with its own scanner and has no Tcl 9 index-byte rule,
 ///   and the lexer takes that scanner for `var_syntax: Jim` without
-///   consulting this axis at all — so a future flip here is visibly a
-///   no-op for Jim rather than a silent change.
+///   consulting this axis; it cannot override Jim's selected scanner.
 /// - `brace_line_continuation` / `irules_brace_separator`: **off**. Both
 ///   are F5 fork axes; Jim has neither.
 const GRAMMAR_JIM: LexerGrammar = LexerGrammar {
@@ -635,6 +617,11 @@ const GRAMMAR_JIM: LexerGrammar = LexerGrammar {
     var_syntax: VarSyntax::Jim,
     // `llength "a {b"` is 2: Jim's list parser has no error path.
     list_parse: ListParse::Lenient,
+    // `Jim_EvalFile` reads with `fopen(…, "rt")` and `fread` (jim.c:12130
+    // at 0.84) and translates no line ending, so a lone CR in a sourced
+    // file stays a word separator. Measured on jimsh 0.84. The earlier
+    // rungs use the same reader but were not measured separately.
+    source_line_endings: SourceLineEndings::Preserve,
 };
 
 /// Jim from 0.80: the `0d` decimal radix prefix arrives, alongside the
@@ -746,7 +733,7 @@ pub enum BuildProfileId {
     JimMinimal,
     /// The 32-bit `scriptd` build of the F5 trunk hosting iApp
     /// implementations: measured `tcl_platform(wordSize) == 4` against
-    /// TMM's 8 (`docs/design/f5/bigip-irule-parser-measurements.md` §4/§4a)
+    /// TMM's 8 (`docs/design/f5/embedded-tcl-contract.md` §4/§4a)
     /// — the same fork grammar and surface, a different word size.
     F5Scriptd32,
     /// An unmeasured build: every capability query answers
@@ -782,7 +769,7 @@ pub struct CapabilitySet {
     /// (`tcl_platform(wordSize) == 8`). Measured to vary within one F5
     /// release: TMM reports 8, the iApp `scriptd` host reports **4** — a
     /// 32-bit build of the same trunk
-    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4).
+    /// (`docs/design/f5/embedded-tcl-contract.md` §4).
     pub word_size_64: CapabilityAnswer,
 }
 
@@ -911,24 +898,8 @@ impl CoreProfileId {
         }
     }
 
-    /// The string/character model of this core, or `None` when this
-    /// vocabulary cannot name it — either because the build is
-    /// unmeasured, or because the measured answer is not one of the two
-    /// **Tcl** counting models [`StringCharacterModel`] defines.
-    ///
-    /// Jim is the second case. Built with `JIM_UTF8` it counts Unicode
-    /// scalars (`utf8.h`'s `MAX_UTF8_LEN 4`, code points to 0x1FFFFF), so
-    /// the answer is [`StringCharacterModel::UnicodeScalars`]. Built
-    /// without it, `utf8.h` says "No utf-8 support. 1 byte = 1 char" and
-    /// the model counts **bytes** — a third counting rule the enum has no
-    /// variant for. Answering with either Tcl model would be a wrong
-    /// count rather than a missing one, so the honest answer is `None`
-    /// (every consumer already abstains on it) and the measured fact
-    /// travels on [`CapabilitySet::utf8_character_model`] instead. The
-    /// missing piece is a `StringCharacterModel::Bytes` variant plus its
-    /// `count_for` agreement rule; adding it is a change to constant
-    /// folding for *every* dialect, so it is recorded, not smuggled in
-    /// here.
+    /// The selected character recipe, or `None` for unknown builds and
+    /// unsupported Jim byte-counting. Jim UTF8 retains its numeric-unit model.
     fn character_model(self) -> Option<StringCharacterModel> {
         if matches!(self.build, BuildProfileId::Unknown) {
             return None;
@@ -943,23 +914,10 @@ impl CoreProfileId {
                 2 => StringCharacterModel::Utf16CodeUnits,
                 _ => StringCharacterModel::UnicodeScalars,
             }),
-            // The F5 tree forks from a real Tcl 8.4.6 — both the trunk
-            // and the iRules offshoot keep the 8.x model (measurements
-            // §4: every context reports patchlevel 8.4.6).
-            //
-            // **Open question, deliberately left as it was.** #2128 showed
-            // that a real 8.4 counts a supplementary code point as its four
-            // UTF-8 bytes rather than as a surrogate pair, so the fork point
-            // argues for `BmpCharsElseUtf8Bytes` here. But unlike the
-            // mathfunc and `word_size_64` facts asserted beside it, this
-            // value carries no measurement citation, and the tree holds no
-            // TMOS `string length` measurement — so changing it would swap
-            // one inference for another about a device nobody here can
-            // probe. Left at its existing value until someone runs
-            // `string length` on real TMOS.
+            // F5's compatibility recipe has no independent appliance character-count evidence.
             Family::F5Tcl | Family::F5Irules => Some(StringCharacterModel::Utf16CodeUnits),
             Family::Jim => match self.resolve_capabilities().utf8_character_model {
-                CapabilityAnswer::Yes => Some(StringCharacterModel::UnicodeScalars),
+                CapabilityAnswer::Yes => Some(StringCharacterModel::Jim084Utf8),
                 CapabilityAnswer::No | CapabilityAnswer::Unknown => None,
             },
         }
@@ -1211,16 +1169,10 @@ mod tests {
             CapabilityAnswer::No,
             "Jim never had it"
         );
-        assert_eq!(
-            jim.character_model,
-            Some(StringCharacterModel::UnicodeScalars)
-        );
+        assert_eq!(jim.character_model, Some(StringCharacterModel::Jim084Utf8));
     }
 
-    /// The two-level F5 tree (§0.2/§2, owner rulings 2026-08-26): grammar
-    /// resolution walks the fork edges, so an axis the offshoot does not
-    /// override answers from the trunk, and the trunk from `tcl@8.4.6`
-    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §1–§4a).
+    /// Unoverridden grammar axes follow the F5 offshoot and trunk ancestry.
     #[test]
     fn f5_grammar_resolution_walks_the_fork_edges() {
         assert_eq!(Family::Tcl.ancestry(), None, "Tcl is the only root");
@@ -1455,10 +1407,7 @@ mod tests {
 
         // The character model differs too, and the honest answer for the
         // byte-counting build is "this vocabulary cannot name it".
-        assert_eq!(
-            full.character_model,
-            Some(StringCharacterModel::UnicodeScalars)
-        );
+        assert_eq!(full.character_model, Some(StringCharacterModel::Jim084Utf8));
         assert_eq!(minimal.character_model, None);
         assert_eq!(
             minimal.capabilities.utf8_character_model,

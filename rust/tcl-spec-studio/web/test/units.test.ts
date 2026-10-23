@@ -28,8 +28,14 @@
 // Run with `npm test` (which bundles this file first — it imports the same
 // TypeScript sources the browser bundle does).
 
+import { sourceByteBoundaries } from "../src/sourceCoordinates.js";
+import { LspClient } from "../src/lspClient.js";
+import { artifactIssueSection } from "../src/packExport.js";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { mountEditors } from "../src/nativeEditorHost.js";
+import { GeneratedOutputOrigins } from "../src/generatedOutputOrigins.js";
+import type { EditorHostOptions } from "../src/editorHost.js";
 
 import {
   failureMessage,
@@ -130,10 +136,16 @@ describe("mapSelectionThroughFormat", () => {
     const formatted = "command foo {\n    summary bar\n}";
     const caret = source.indexOf("bar") + "bar".length;
 
-    assert.deepEqual(mapSelectionThroughFormat(source, formatted, { start: caret, end: caret }), {
-      start: formatted.indexOf("bar") + "bar".length,
-      end: formatted.indexOf("bar") + "bar".length,
-    });
+    assert.deepEqual(
+      mapSelectionThroughFormat(source, formatted, {
+        start: caret,
+        end: caret,
+      }),
+      {
+        start: formatted.indexOf("bar") + "bar".length,
+        end: formatted.indexOf("bar") + "bar".length,
+      },
+    );
   });
 
   it("keeps the caret at the end of indentation before the next token", () => {
@@ -141,10 +153,16 @@ describe("mapSelectionThroughFormat", () => {
     const formatted = "command foo {\n    summary bar\n}";
     const caret = source.indexOf("summary");
 
-    assert.deepEqual(mapSelectionThroughFormat(source, formatted, { start: caret, end: caret }), {
-      start: formatted.indexOf("summary"),
-      end: formatted.indexOf("summary"),
-    });
+    assert.deepEqual(
+      mapSelectionThroughFormat(source, formatted, {
+        start: caret,
+        end: caret,
+      }),
+      {
+        start: formatted.indexOf("summary"),
+        end: formatted.indexOf("summary"),
+      },
+    );
   });
 
   it("maps both ends of a selection through whitespace-only edits", () => {
@@ -221,6 +239,300 @@ describe("parseRepoRef", () => {
   });
 });
 
+describe("native editor bridge generated-source protocol", () => {
+  it("keeps bootstrap and selected output tied to the exact acknowledged DSL image", async () => {
+    class TestElement {
+      value = "";
+      textContent: string | null = "";
+      className = "";
+      type = "";
+      children: TestElement[] = [];
+      readonly listeners = new Map<string, (event: unknown) => void>();
+
+      replaceChildren(...children: TestElement[]): void {
+        this.children = [...children];
+      }
+
+      append(...children: TestElement[]): void {
+        this.children.push(...children);
+      }
+
+      addEventListener(name: string, listener: (event: unknown) => void): void {
+        this.listeners.set(name, listener);
+      }
+    }
+
+    const origins = new GeneratedOutputOrigins();
+    origins.set("rust", "pack A");
+    origins.set("stub", "pack A");
+    const messages: Record<string, unknown>[] = [];
+    const droppedOutputs: Record<string, unknown>[] = [];
+    let dropGeneratedOutput = false;
+    let onMessage: ((event: unknown) => void) | undefined;
+    const bridge = {
+      postMessage: (message: unknown) => {
+        const record = message as Record<string, unknown>;
+        if (
+          dropGeneratedOutput &&
+          record.type === "surfaceUpdate" &&
+          (record.surface === "rust" || record.surface === "stub")
+        ) {
+          droppedOutputs.push(record);
+        } else {
+          messages.push(record);
+        }
+      },
+    };
+    const fakeWindow: Record<string, unknown> = {
+      __tclSpecStudioHost: bridge,
+      location: { origin: "https://studio.test" },
+      addEventListener: (_name: string, listener: (event: unknown) => void) => {
+        onMessage = listener;
+      },
+    };
+    fakeWindow.parent = fakeWindow;
+    const global = globalThis as unknown as {
+      window?: unknown;
+      document?: unknown;
+    };
+    const previousWindow = global.window;
+    const previousDocument = global.document;
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: fakeWindow,
+    });
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: { createElement: () => new TestElement() },
+    });
+
+    const dsl = new TestElement();
+    dsl.value = "pack A";
+    const sample = new TestElement();
+    sample.value = "puts sample";
+    const output = (text: string, surface: "rust" | "stub") => {
+      const source = new TestElement();
+      source.textContent = text;
+      return {
+        container: new TestElement(),
+        source,
+        sourceBasis: origins.get(surface),
+      };
+    };
+    const options = {
+      workerUrl: "worker.js",
+      stylesheetUrl: "style.css",
+      grammarUrl: "grammar.json",
+      onigurumaUrl: "onig.wasm",
+      dsl: {
+        container: new TestElement(),
+        textarea: dsl,
+        onChange: () => undefined,
+      },
+      sample: {
+        container: new TestElement(),
+        textarea: sample,
+        onChange: () => undefined,
+      },
+      rust: output("rust from A", "rust"),
+      stub: output("stub from A", "stub"),
+      dialect: "tcl8.6",
+      report: () => undefined,
+    } as unknown as EditorHostOptions;
+
+    const dispatch = (
+      text: string,
+      sourceRevision: number,
+      webGeneration?: number,
+      accepted?: boolean,
+      publicationPending?: boolean,
+      publicationAttempt?: number,
+    ) => {
+      onMessage?.({
+        origin: "",
+        source: null,
+        data: {
+          type: "tclSpecStudioHostUpdate",
+          surface: "dsl",
+          text,
+          sourceRevision,
+          webGeneration,
+          accepted,
+          publicationPending,
+          publicationAttempt,
+        },
+      });
+    };
+    const updates = (surface: string) =>
+      messages.filter((message) => message.type === "surfaceUpdate" && message.surface === surface);
+
+    try {
+      const host = await mountEditors(options);
+      const initialDsl = messages.find(
+        (message) => message.type === "surfaceUpdate" && message.surface === "dsl",
+      )!;
+      const initialGeneration = initialDsl.webGeneration as number;
+      dispatch("pack A", 1, initialGeneration, true);
+      assert.deepEqual(
+        updates("rust").map(({ text, basedOnDslRevision }) => ({
+          text,
+          basedOnDslRevision,
+        })),
+        [{ text: "rust from A", basedOnDslRevision: 1 }],
+      );
+      assert.deepEqual(
+        updates("stub").map(({ text, basedOnDslRevision }) => ({
+          text,
+          basedOnDslRevision,
+        })),
+        [{ text: "stub from A", basedOnDslRevision: 1 }],
+      );
+      assert.equal(
+        messages.find((message) => message.type === "dialectUpdate")?.dialect,
+        "tcl8.6",
+        "the actual native bridge receives the selected sample dialect at mount",
+      );
+      host.setDialect("tcl9.0");
+      assert.equal(messages[messages.length - 1]?.dialect, "tcl9.0");
+
+      messages.length = 0;
+      host.setDslText("pack B");
+      const editB = messages.find(
+        (message) => message.type === "surfaceUpdate" && message.surface === "dsl",
+      )!;
+      host.setRustText("stale Rust from A", "pack A");
+      assert.equal(
+        updates("rust").length,
+        0,
+        "old export cannot publish while the DSL write is pending",
+      );
+      dispatch("pack B", 2, editB.webGeneration as number, true);
+      assert.equal(
+        updates("rust").length,
+        0,
+        "an old export list remains bound to A after B is acknowledged",
+      );
+
+      host.setRustText("Rust from B", "pack B");
+      assert.deepEqual(
+        updates("rust").map(({ text, basedOnDslRevision }) => ({
+          text,
+          basedOnDslRevision,
+        })),
+        [{ text: "Rust from B", basedOnDslRevision: 2 }],
+      );
+
+      messages.length = 0;
+      host.setDslText("pack C");
+      const editC = messages.find(
+        (message) => message.type === "surfaceUpdate" && message.surface === "dsl",
+      )!;
+      host.setStubText("stub from not-yet-accepted C", "pack C");
+      dispatch("pack B", 2, editC.webGeneration as number, false);
+      assert.equal(
+        updates("stub").length,
+        0,
+        "a refused DSL edit cannot authorize its generated output",
+      );
+      host.setStubText("stale stub retained after failed render", "pack A");
+      assert.equal(
+        updates("stub").length,
+        0,
+        "a failed render's retained A output is never retagged",
+      );
+
+      messages.length = 0;
+      dispatch("pack D", 3, undefined, undefined, true, 5);
+      host.setRustText("Rust from D while publication waits", "pack D");
+      assert.equal(
+        updates("rust").length,
+        0,
+        "readable IDE source does not authorize output before saved publication",
+      );
+      dispatch("pack D", 3, undefined, true, false, 4);
+      assert.equal(
+        updates("rust").length,
+        0,
+        "a stale same-source readiness from the previous publication attempt cannot release output",
+      );
+      dispatch("pack D", 3, undefined, true, false, 5);
+      assert.deepEqual(
+        updates("rust").map(({ text, basedOnDslRevision }) => ({
+          text,
+          basedOnDslRevision,
+        })),
+        [
+          {
+            text: "Rust from D while publication waits",
+            basedOnDslRevision: 3,
+          },
+        ],
+        "matching same-revision publication readiness replays the retained output once",
+      );
+
+      messages.length = 0;
+      dropGeneratedOutput = true;
+      host.setRustText("one-shot D export during reconnect", "pack D");
+      assert.equal(
+        droppedOutputs.length,
+        1,
+        "the host can drop output before its pending notice reaches the page",
+      );
+      dropGeneratedOutput = false;
+      dispatch("pack D", 3, undefined, true, true, 6);
+      dispatch("pack D", 3, undefined, true, false, 6);
+      assert.deepEqual(
+        updates("rust").map(({ text, basedOnDslRevision }) => ({
+          text,
+          basedOnDslRevision,
+        })),
+        [{ text: "one-shot D export during reconnect", basedOnDslRevision: 3 }],
+        "same-revision reconnect readiness replays the original output after its first post was dropped",
+      );
+
+      // Model a delayed chunk import after Rust was selected from export B but
+      // the untouched stub pane still contains its unowned placeholder.
+      origins.set("rust", "pack B");
+      origins.set("stub", null);
+      dsl.value = "pack B";
+      messages.length = 0;
+      const delayedMount = await mountEditors({
+        ...options,
+        rust: output("Rust from B", "rust"),
+        stub: output("—", "stub"),
+      } as unknown as EditorHostOptions);
+      const delayedDsl = messages.find(
+        (message) => message.type === "surfaceUpdate" && message.surface === "dsl",
+      )!;
+      dispatch("pack B", 1, delayedDsl.webGeneration as number, true);
+      assert.deepEqual(
+        updates("rust").map(({ text }) => text),
+        ["Rust from B"],
+        "the selected output retains its actual producer basis across lazy mount",
+      );
+      assert.equal(
+        updates("stub").length,
+        0,
+        "an untouched placeholder is not tagged with the other pane's basis",
+      );
+      void delayedMount;
+    } finally {
+      if (previousWindow === undefined) delete global.window;
+      else
+        Object.defineProperty(globalThis, "window", {
+          configurable: true,
+          value: previousWindow,
+        });
+      if (previousDocument === undefined) delete global.document;
+      else
+        Object.defineProperty(globalThis, "document", {
+          configurable: true,
+          value: previousDocument,
+        });
+    }
+  });
+});
+
 describe("versionFromTag", () => {
   it("reads the version out of the usual tag spellings", () => {
     assert.equal(versionFromTag("v1.2.0"), "1.2.0");
@@ -279,7 +591,10 @@ describe("failureMessage", () => {
   it("names the reset time when the rate limit is what failed", () => {
     const reset = Math.floor(Date.UTC(2026, 7, 14, 18, 30, 0) / 1000);
     const message = failureMessage(
-      reply(403, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(reset) }),
+      reply(403, {
+        "x-ratelimit-remaining": "0",
+        "x-ratelimit-reset": String(reset),
+      }),
       "could not list tags",
     );
     assert.match(message, /rate limit is used up/);
@@ -443,9 +758,36 @@ describe("validateReleases", () => {
     const empty: Release = { ...release("1.0"), entries: [] };
     assert.ok(validateReleases([empty, release("1.1")]).some((p) => /no Tcl sources/.test(p)));
   });
+
+  it("refuses release inference from a lossy source preview", () => {
+    const opaque: Release = {
+      ...release("1.0"),
+      entries: [{ name: "opaque.tcl", text: "proc \uFFFD {} {}" }],
+      unsupportedEncodings: ["opaque.tcl"],
+    };
+    assert.ok(validateReleases([opaque, release("1.1")]).some((p) => p.includes("not UTF-8")));
+    assert.deepEqual(
+      validateReleases([{ ...opaque, unsupportedEncodings: [] }, release("1.1")]),
+      [],
+    );
+  });
 });
 
 describe("snapshotsJson", () => {
+  it("retains unrepresentable source metadata through the WASM boundary", () => {
+    const json = snapshotsJson([
+      {
+        id: "opaque",
+        origin: "opaque.zip",
+        version: "1.0",
+        entries: [{ name: "opaque.tcl", text: "proc \uFFFD {} {}" }],
+        skipped: [],
+        unsupportedEncodings: ["opaque.tcl"],
+      },
+    ]);
+    assert.deepEqual(JSON.parse(json)[0].unsupported_encodings, ["opaque.tcl"]);
+    assert.equal(JSON.parse(json)[0].files[0].text, "proc \uFFFD {} {}");
+  });
   it("emits exactly the shape the wasm export parses, with labels trimmed", () => {
     const json = snapshotsJson([
       {
@@ -674,7 +1016,12 @@ function schema(): Schema {
     catalogues: {
       taintColour: [
         { key: "Http", doc: "from the request", example: example("# http") },
-        { key: "Session", doc: "from the session", group: "Sources", example: example("# ssn") },
+        {
+          key: "Session",
+          doc: "from the session",
+          group: "Sources",
+          example: example("# ssn"),
+        },
       ],
     },
     catalogueHelp: {
@@ -742,7 +1089,10 @@ describe("describeSubject", () => {
 
   it("falls back to the subcommand table, then to nested properties", () => {
     assert.equal(describeSubject(sources(), { kind: "field", key: "arity" })?.title, "arity");
-    const nested = describeSubject(sources(), { kind: "field", key: "variable_scope" });
+    const nested = describeSubject(sources(), {
+      kind: "field",
+      key: "variable_scope",
+    });
     assert.equal(nested?.title, "Variable scope");
     // Named by the row it is a property of, not by the Rust type carrying it:
     // the row is the place the author edits it.
@@ -754,11 +1104,17 @@ describe("describeSubject", () => {
   });
 
   it("documents a group, a catalogue, one of its values, and a pack", () => {
-    const group = describeSubject(sources(), { kind: "group", name: "Behaviour" });
+    const group = describeSubject(sources(), {
+      kind: "group",
+      name: "Behaviour",
+    });
     assert.equal(group?.help, "what the command does when it runs");
     assert.equal(group?.doc, "3 settings in this group.");
 
-    const catalogue = describeSubject(sources(), { kind: "catalogue", id: "taintColour" });
+    const catalogue = describeSubject(sources(), {
+      kind: "catalogue",
+      id: "taintColour",
+    });
     assert.equal(catalogue?.title, "Taint colours");
     assert.equal(catalogue?.doc, "2 values to pick from.");
 
@@ -781,7 +1137,11 @@ describe("describeSubject", () => {
     assert.equal(describeSubject(sources(), { kind: "group", name: "Nosuch" }), null);
     assert.equal(describeSubject(sources(), { kind: "catalogue", id: "nosuch" }), null);
     assert.equal(
-      describeSubject(sources(), { kind: "value", catalogue: "taintColour", key: "nosuch" }),
+      describeSubject(sources(), {
+        kind: "value",
+        catalogue: "taintColour",
+        key: "nosuch",
+      }),
       null,
     );
     assert.equal(describeSubject(sources(), { kind: "pack", id: "nosuch" }), null);
@@ -803,7 +1163,13 @@ describe("relatedGroups", () => {
         known: true,
         target: "side_effects",
       },
-      { key: "nosuch_key", label: "nosuch_key", self: false, known: false, target: null },
+      {
+        key: "nosuch_key",
+        label: "nosuch_key",
+        self: false,
+        known: false,
+        target: null,
+      },
     ]);
   });
 
@@ -881,7 +1247,12 @@ describe("parseHash and formatHash", () => {
   it("round-trips a command, a focused setting, and a reference entry", () => {
     const cases: Route[] = [
       { view: "command", dialect: "tcl9.0", command: "lsort", field: null },
-      { view: "command", dialect: "tcl9.0", command: "lsort", field: "arity_windows" },
+      {
+        view: "command",
+        dialect: "tcl9.0",
+        command: "lsort",
+        field: "arity_windows",
+      },
       { view: "reference", catalogue: "taintColour", variant: null },
       { view: "reference", catalogue: "taintColour", variant: "Http" },
     ];
@@ -919,25 +1290,43 @@ describe("parseHash and formatHash", () => {
 
 describe("historyMode", () => {
   it("replaces within one command so Back moves between commands", () => {
-    const lsort: Route = { view: "command", dialect: "tcl9.0", command: "lsort", field: null };
+    const lsort: Route = {
+      view: "command",
+      dialect: "tcl9.0",
+      command: "lsort",
+      field: null,
+    };
     const focused: Route = { ...lsort, field: "arity" };
     assert.equal(historyMode(lsort, focused), "replace");
     assert.equal(historyMode(focused, lsort), "replace");
   });
 
   it("pushes for another command, another dialect, or another kind of view", () => {
-    const lsort: Route = { view: "command", dialect: "tcl9.0", command: "lsort", field: null };
+    const lsort: Route = {
+      view: "command",
+      dialect: "tcl9.0",
+      command: "lsort",
+      field: null,
+    };
     assert.equal(historyMode(lsort, { ...lsort, command: "lindex" }), "push");
     assert.equal(historyMode(lsort, { ...lsort, dialect: "spectcl" }), "push");
     assert.equal(
-      historyMode(lsort, { view: "reference", catalogue: "taintColour", variant: null }),
+      historyMode(lsort, {
+        view: "reference",
+        catalogue: "taintColour",
+        variant: null,
+      }),
       "push",
     );
     assert.equal(historyMode(null, lsort), "push");
   });
 
   it("replaces when a route is re-written over itself, as restoring one does", () => {
-    const entry: Route = { view: "reference", catalogue: "taintColour", variant: "Http" };
+    const entry: Route = {
+      view: "reference",
+      catalogue: "taintColour",
+      variant: "Http",
+    };
     assert.equal(historyMode(entry, { ...entry }), "replace");
     assert.equal(historyMode(entry, { ...entry, variant: "Session" }), "push");
     assert.equal(historyMode({ ...entry, variant: null }, { ...entry, variant: null }), "replace");
@@ -945,18 +1334,34 @@ describe("historyMode", () => {
 });
 
 describe("restoreFor", () => {
-  const lsort: Route = { view: "command", dialect: "tcl9.0", command: "lsort", field: null };
-  const reference: Route = { view: "reference", catalogue: "taintColour", variant: "Http" };
+  const lsort: Route = {
+    view: "command",
+    dialect: "tcl9.0",
+    command: "lsort",
+    field: null,
+  };
+  const reference: Route = {
+    view: "reference",
+    catalogue: "taintColour",
+    variant: "Http",
+  };
 
   it("restores a Reference entry as the Reference view, not as the visit it was opened from", () => {
     // The entry is tagged with whichever visit was open when it was written,
     // so a Reference entry carries the command it was opened from; the
     // fragment is what says which view the entry is *for*.
-    assert.deepEqual(restoreFor(reference, 0, "lsort"), { kind: "route", route: reference });
+    assert.deepEqual(restoreFor(reference, 0, "lsort"), {
+      kind: "route",
+      route: reference,
+    });
   });
 
   it("opens the visit an entry names when the fragment agrees it is that command", () => {
-    assert.deepEqual(restoreFor(lsort, 3, "lsort"), { kind: "visit", visit: 3, field: null });
+    assert.deepEqual(restoreFor(lsort, 3, "lsort"), {
+      kind: "visit",
+      visit: 3,
+      field: null,
+    });
     assert.deepEqual(restoreFor({ ...lsort, field: "arity" }, 3, "lsort"), {
       kind: "visit",
       visit: 3,
@@ -965,13 +1370,26 @@ describe("restoreFor", () => {
   });
 
   it("follows the fragment when the visit stack disagrees or has lost the visit", () => {
-    assert.deepEqual(restoreFor(lsort, 3, "lindex"), { kind: "route", route: lsort });
-    assert.deepEqual(restoreFor(lsort, 3, null), { kind: "route", route: lsort });
-    assert.deepEqual(restoreFor(lsort, null, null), { kind: "route", route: lsort });
+    assert.deepEqual(restoreFor(lsort, 3, "lindex"), {
+      kind: "route",
+      route: lsort,
+    });
+    assert.deepEqual(restoreFor(lsort, 3, null), {
+      kind: "route",
+      route: lsort,
+    });
+    assert.deepEqual(restoreFor(lsort, null, null), {
+      kind: "route",
+      route: lsort,
+    });
   });
 
   it("falls back to the entry's visit only where there is no view to restore", () => {
-    assert.deepEqual(restoreFor(null, 2, "lsort"), { kind: "visit", visit: 2, field: null });
+    assert.deepEqual(restoreFor(null, 2, "lsort"), {
+      kind: "visit",
+      visit: 2,
+      field: null,
+    });
     assert.deepEqual(restoreFor(null, null, null), { kind: "nothing" });
   });
 
@@ -984,18 +1402,32 @@ describe("restoreFor", () => {
       { kind: "route", route: reference },
       { kind: "visit", visit: 0, field: null },
     ]);
-    assert.deepEqual(restoreFor(y, 1, "lindex"), { kind: "visit", visit: 1, field: null });
+    assert.deepEqual(restoreFor(y, 1, "lindex"), {
+      kind: "visit",
+      visit: 1,
+      field: null,
+    });
   });
 });
 
 describe("routeSubject", () => {
   it("documents the setting a command route focuses, and nothing when it names none", () => {
     assert.deepEqual(
-      routeSubject({ view: "command", dialect: "tcl9.0", command: "lsort", field: "pure" }),
+      routeSubject({
+        view: "command",
+        dialect: "tcl9.0",
+        command: "lsort",
+        field: "pure",
+      }),
       { kind: "field", key: "pure" },
     );
     assert.equal(
-      routeSubject({ view: "command", dialect: "tcl9.0", command: "lsort", field: null }),
+      routeSubject({
+        view: "command",
+        dialect: "tcl9.0",
+        command: "lsort",
+        field: null,
+      }),
       null,
     );
   });
@@ -1194,7 +1626,12 @@ describe("readStoredTabs and restoreTabs", () => {
         "not a row",
         null,
         { name: "lindex" },
-        { name: "lset", where: "nonsense", groups: [1, "Behaviour"], scroll: "x" },
+        {
+          name: "lset",
+          where: "nonsense",
+          groups: [1, "Behaviour"],
+          scroll: "x",
+        },
       ]),
       [
         { name: "lsort", where: "registry", groups: ["Identity"], scroll: 40 },
@@ -1315,7 +1752,11 @@ function referenceRow(name: string, summary = ""): PaletteCandidate {
 
 describe("highlight", () => {
   it("finds the query case-insensitively and keeps the source's own casing", () => {
-    assert.deepEqual(highlight("lsort", "SO"), { before: "l", match: "so", after: "rt" });
+    assert.deepEqual(highlight("lsort", "SO"), {
+      before: "l",
+      match: "so",
+      after: "rt",
+    });
     assert.deepEqual(highlight("Taint colours", "taint"), {
       before: "",
       match: "Taint",
@@ -1324,8 +1765,16 @@ describe("highlight", () => {
   });
 
   it("marks nothing rather than everything when there is nothing to mark", () => {
-    assert.deepEqual(highlight("lsort", "zz"), { before: "lsort", match: "", after: "" });
-    assert.deepEqual(highlight("lsort", ""), { before: "lsort", match: "", after: "" });
+    assert.deepEqual(highlight("lsort", "zz"), {
+      before: "lsort",
+      match: "",
+      after: "",
+    });
+    assert.deepEqual(highlight("lsort", ""), {
+      before: "lsort",
+      match: "",
+      after: "",
+    });
     assert.deepEqual(highlight("", "so"), { before: "", match: "", after: "" });
   });
 });
@@ -1378,9 +1827,17 @@ describe("searchPalette", () => {
       "list",
       10,
     ).hits;
-    assert.deepEqual(byName?.summary, { before: "sort a ", match: "list", after: "" });
+    assert.deepEqual(byName?.summary, {
+      before: "sort a ",
+      match: "list",
+      after: "",
+    });
     assert.equal(byName?.name.match, "");
-    assert.deepEqual(bySummary?.summary, { before: "append to a ", match: "list", after: "" });
+    assert.deepEqual(bySummary?.summary, {
+      before: "append to a ",
+      match: "list",
+      after: "",
+    });
   });
 
   it("offers the surfaces in their own order when nothing has been typed", () => {
@@ -1475,7 +1932,11 @@ describe("the pack export", () => {
       source: "// farewell",
       command: "farewell",
     },
-    { kind: "rs-mod", path: "rust/tcl-registry/src/commands/mylib/mod.rs", source: "mod greet;" },
+    {
+      kind: "rs-mod",
+      path: "rust/tcl-registry/src/commands/mylib/mod.rs",
+      source: "mod greet;",
+    },
     { kind: "stub-file", path: "tcl9.0.tcl.stubs", source: "stub greet" },
     { kind: "stub-inline", path: "stubs.tcl", source: "# tcl-lsp: stub" },
   ];
@@ -1593,7 +2054,10 @@ describe("the pack export", () => {
   it("says which commands met at one path, and what it costs", () => {
     assert.equal(collisionNotice([]), "");
     const notice = collisionNotice([
-      { path: "rust/tcl-registry/src/commands/mylib/a_b.rs", commands: ["a-b", "a_b"] },
+      {
+        path: "rust/tcl-registry/src/commands/mylib/a_b.rs",
+        commands: ["a-b", "a_b"],
+      },
     ]);
     assert.match(notice, /1 path carries more than one command/);
     assert.match(
@@ -1607,7 +2071,12 @@ describe("the pack export", () => {
     assert.match(notice, /rename one of the commands/);
     assert.deepEqual(
       collidingCommands(
-        [{ path: "rust/tcl-registry/src/commands/mylib/a_b.rs", commands: ["a-b", "a_b"] }],
+        [
+          {
+            path: "rust/tcl-registry/src/commands/mylib/a_b.rs",
+            commands: ["a-b", "a_b"],
+          },
+        ],
         "rust/tcl-registry/src/commands/mylib/a_b.rs",
       ),
       ["a-b", "a_b"],
@@ -1657,4 +2126,66 @@ describe("the pack export", () => {
     assert.equal(fileBase("mylib.tclspec"), "mylib.tclspec");
     assert.equal(fileDir("mylib.tclspec"), "");
   });
+});
+
+describe("actual Studio source correspondence", () => {
+  it("projects complete Unicode/CR source boundaries and refuses replacement or interior bytes", () => {
+    const source = "aé🙂\r\nx";
+    const boundaries = sourceByteBoundaries(source)!;
+    assert.deepEqual(
+      [...boundaries],
+      [
+        [0, 0],
+        [1, 1],
+        [3, 2],
+        [7, 4],
+        [8, 5],
+        [9, 6],
+        [10, 7],
+      ],
+    );
+    assert.equal(boundaries.get(2), undefined);
+    assert.equal(boundaries.get(5), undefined);
+    assert.equal(boundaries.get(11), undefined);
+    assert.equal(sourceByteBoundaries("x\ud800"), null);
+  });
+
+  it("retires the actual client document receipt on same-text change, dialect reopen and stop", async () => {
+    // Only IO is stubbed; all document issuance/currentness uses the real client.
+    const connection = {
+      onNotification() {},
+      onClose() {},
+      onDispose() {},
+      sendNotification() {},
+      sendRequest: async () => undefined,
+      dispose() {},
+    };
+    const client = Reflect.construct(LspClient, [
+      connection,
+      { terminate() {} },
+      { tokenTypes: [], tokenModifiers: [] },
+    ]) as LspClient;
+    const uri = "file:///original-studio-source.tcl";
+    client.openDocument(uri, "tcl8.6", "puts VALUE");
+    const first = client.captureDocumentSource(uri, "puts VALUE")!;
+    assert.equal(first.isCurrent(), true);
+    assert.equal(client.captureDocumentSource(uri, "puts OTHER"), null);
+    client.changeDocument(uri, "puts VALUE");
+    assert.equal(first.isCurrent(), false);
+    const second = client.captureDocumentSource(uri, "puts VALUE")!;
+    client.openDocument(uri, "tcl9.0", "puts VALUE");
+    assert.equal(second.isCurrent(), false);
+    const third = client.captureDocumentSource(uri, "puts VALUE")!;
+    const stopping = client.stop();
+    assert.equal(third.isCurrent(), false);
+    await stopping;
+  });
+});
+
+it("issue artifact publication preserves original CR bytes and contains embedded fences", () => {
+  const source = "set x {original\rvalue}\r\n```\nputs $x";
+  const section = artifactIssueSection({ path: "command.tcl", source });
+  assert.ok(section.includes(source));
+  assert.ok(section.includes("\n````tcl\n"));
+  assert.ok(section.endsWith("\n````"));
 });

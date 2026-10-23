@@ -24,7 +24,7 @@
 //! and variables deep inside event bodies are highlighted too. On any lex error
 //! it falls back to plain escaped text — the report never fails to render.
 
-use crate::{Lexer, LexerConfig, SourceMap, TokenType};
+use crate::{Lexer, LexerConfig, SourceMap, SourceSegmentationPurpose, TokenType};
 
 const MAX_DEPTH: usize = 64;
 
@@ -41,7 +41,13 @@ pub fn highlight_tcl(src: &str) -> String {
 #[must_use]
 pub fn highlight_tcl_with_config(src: &str, config: LexerConfig) -> String {
     let mut out = String::with_capacity(src.len() + src.len() / 2);
-    highlight_into(src, 0, config, &mut out);
+    highlight_into(
+        src,
+        0,
+        config,
+        SourceSegmentationPurpose::WholeInput,
+        &mut out,
+    );
     out
 }
 
@@ -73,7 +79,14 @@ pub fn highlight_ranges(src: &str) -> Vec<HlRange> {
 #[must_use]
 pub fn highlight_ranges_with_config(src: &str, config: LexerConfig) -> Vec<HlRange> {
     let mut ranges = Vec::new();
-    collect_ranges(src, 0, 0, config, &mut ranges);
+    collect_ranges(
+        src,
+        0,
+        0,
+        config,
+        SourceSegmentationPurpose::WholeInput,
+        &mut ranges,
+    );
     ranges
 }
 
@@ -87,6 +100,7 @@ fn collect_ranges(
     depth: usize,
     base: usize,
     config: LexerConfig,
+    purpose: SourceSegmentationPurpose,
     out: &mut Vec<HlRange>,
 ) {
     if src.is_empty() {
@@ -95,7 +109,7 @@ fn collect_ranges(
     let tokens = if depth >= MAX_DEPTH {
         None
     } else {
-        Lexer::with_source_map(SourceMap::new(src), config)
+        Lexer::with_source_map(SourceMap::new(src), purpose.config(config))
             .tokenise_all()
             .ok()
     };
@@ -119,7 +133,7 @@ fn collect_ranges(
                         out.push(range(
                             base + s,
                             base + e,
-                            if text.contains("::") {
+                            if tcl_core_types::naming::has_namespace_separator(text.as_bytes()) {
                                 "tk-ns"
                             } else {
                                 "tk-cmd"
@@ -162,14 +176,27 @@ fn collect_recurse(
     if inner.len() == close.len_utf8() && inner.starts_with(close) {
         inner = &inner[..inner.len() - close.len_utf8()];
     }
-    collect_ranges(inner, depth + 1, inner_base, config, out);
+    collect_ranges(
+        inner,
+        depth + 1,
+        inner_base,
+        config,
+        SourceSegmentationPurpose::NestedScript,
+        out,
+    );
 }
 
 const fn range(start: usize, end: usize, class: &'static str) -> HlRange {
     HlRange { start, end, class }
 }
 
-fn highlight_into(src: &str, depth: usize, config: LexerConfig, out: &mut String) {
+fn highlight_into(
+    src: &str,
+    depth: usize,
+    config: LexerConfig,
+    purpose: SourceSegmentationPurpose,
+    out: &mut String,
+) {
     if src.is_empty() {
         return;
     }
@@ -177,7 +204,7 @@ fn highlight_into(src: &str, depth: usize, config: LexerConfig, out: &mut String
     let tokens = if depth >= MAX_DEPTH {
         None
     } else {
-        Lexer::with_source_map(SourceMap::new(src), config)
+        Lexer::with_source_map(SourceMap::new(src), purpose.config(config))
             .tokenise_all()
             .ok()
     };
@@ -207,7 +234,7 @@ fn highlight_into(src: &str, depth: usize, config: LexerConfig, out: &mut String
                         // its namespace colour.
                         wrap(
                             out,
-                            if text.contains("::") {
+                            if tcl_core_types::naming::has_namespace_separator(text.as_bytes()) {
                                 "tk-ns"
                             } else {
                                 "tk-cmd"
@@ -268,14 +295,20 @@ fn recurse_wrapped(
         trailer = inner;
         inner = "";
     }
-    highlight_into(inner, depth + 1, config, out);
+    highlight_into(
+        inner,
+        depth + 1,
+        config,
+        SourceSegmentationPurpose::NestedScript,
+        out,
+    );
     out.push_str(trailer);
 }
 
 /// Classify a non-command bare word: an iRule event / TMSH constant
 /// (`HTTP_REQUEST`), a namespaced command/proc (`HTTP::host`), or nothing.
 fn classify_word(text: &str) -> Option<&'static str> {
-    if text.contains("::") {
+    if tcl_core_types::naming::has_namespace_separator(text.as_bytes()) {
         return Some("tk-ns");
     }
     // ALL_CAPS identifiers are iRule events and TCL-level constants.
@@ -411,5 +444,64 @@ mod tests {
             .iter()
             .find(|r| &src[r.start..r.end] == "HTTP_REQUEST");
         assert_eq!(ev.map(|r| r.class), Some("tk-event"));
+    }
+}
+
+#[cfg(test)]
+mod original_highlight_source_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_highlight_keeps_document_and_nested_bom_ranges_separate() {
+        // naming.source.original-configured-script-completeness
+
+        // Document presentation and original nested source geometry only, without selected command authority.
+        let config = LexerConfig {
+            leading_bom: crate::LeadingBom::Skip,
+            braced_var: crate::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..LexerConfig::default()
+        };
+        let source = "\u{feff}puts {\u{feff}#prefix $x} [\u{feff}#prefix ${a{b}]";
+        let image = crate::SourceImage::document(source);
+        let ranges = highlight_ranges_with_config(image.try_text().unwrap(), config);
+        assert_eq!(ranges[0].start, 3);
+        assert_eq!(&source[ranges[0].start..ranges[0].end], "puts");
+        assert!(ranges.iter().all(|range| range.class != "tk-comment"));
+        assert_eq!(
+            ranges
+                .iter()
+                .filter(|range| &source[range.start..range.end] == "\u{feff}#prefix")
+                .count(),
+            2
+        );
+        for spelling in ["$x", "${a{b}"] {
+            let start = source.find(spelling).unwrap();
+            assert!(
+                ranges
+                    .iter()
+                    .any(|range| range.class == "tk-var" && range.start == start)
+            );
+        }
+        let html = highlight_tcl_with_config(source, config);
+        assert_eq!(html.matches("\u{feff}#prefix</span>").count(), 2);
+        assert!(!html.contains("tk-comment"));
+        let whole_comment = "\u{feff}#prefix $x";
+        let whole = highlight_ranges_with_config(whole_comment, config);
+        assert_eq!(whole.len(), 1);
+        assert_eq!(whole[0].class, "tk-comment");
+        assert_eq!(&whole_comment[whole[0].start..whole[0].end], "#prefix $x");
+        let content = LexerConfig {
+            leading_bom: crate::LeadingBom::Content,
+            ..config
+        };
+        let content_ranges = highlight_ranges_with_config(whole_comment, content);
+        assert!(
+            content_ranges
+                .iter()
+                .all(|range| range.class != "tk-comment")
+        );
+        assert_eq!(content_ranges[0].start, 0);
+        assert_eq!(config.leading_bom, crate::LeadingBom::Skip);
     }
 }

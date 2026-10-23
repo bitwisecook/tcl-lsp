@@ -57,6 +57,14 @@ pub const GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "for",
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::PossibleBodies),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::ForLoop,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::For,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("for"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::NOT_PROC_FACTORY

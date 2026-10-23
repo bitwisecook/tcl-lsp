@@ -68,6 +68,7 @@
 # Usage:
 #   bash scripts/dev/ensure-test-deps.sh           # install everything missing
 #   bash scripts/dev/ensure-test-deps.sh --check   # only report what's missing
+#   bash scripts/dev/ensure-test-deps.sh --tcllib-only # required fixed source only
 #
 # Skip individual tools with the matching env var, e.g. ``SKIP_TCLSH=1``,
 # ``SKIP_PYTHON_TK=1``,
@@ -116,9 +117,13 @@ NODE_MIN_MAJOR="26"
 COREPACK_VERSION="0.36.0"
 
 CHECK_ONLY=0
-if [ "${1:-}" = "--check" ]; then
-    CHECK_ONLY=1
-fi
+TCLLIB_ONLY=0
+for argument in "$@"; do
+    case "$argument" in
+        --check) CHECK_ONLY=1 ;;
+        --tcllib-only) TCLLIB_ONLY=1 ;;
+    esac
+done
 
 # ---------------------------------------------------------------- platform
 
@@ -555,12 +560,34 @@ ensure_tclsh() {
 # ---------------------------------------------------------------- tcllib source
 
 ensure_tcllib() {
-    if [ "${SKIP_TCLLIB:-}" = "1" ]; then info "SKIP_TCLLIB=1 — skipping tcllib source"; return 0; fi
-
-    local target_dir="$REPO_ROOT/tmp/tcllib-${TCLLIB_VERSION}"
-    if [ -d "$target_dir/modules" ]; then
-        info "tcllib ${TCLLIB_VERSION} source already present"
+    if [ "${SKIP_TCLLIB:-}" = "1" ]; then
+        if [ "$TCLLIB_ONLY" -eq 1 ]; then
+            echo "ERROR: required fixed Tcllib source cannot use SKIP_TCLLIB=1" >&2
+            return 1
+        fi
+        info "SKIP_TCLLIB=1 — skipping tcllib source"
         return 0
+    fi
+
+    local target_dir="${TCLLIB_2_0_DIR:-$REPO_ROOT/tmp/tcllib-${TCLLIB_VERSION}}"
+    local fixture="$target_dir/modules/virtchannel_base/cat.tcl"
+    local expected_sha
+    expected_sha="$(cat "$REPO_ROOT/rust/tcl-test-support/data/tcllib-2.0-cat.sha256")"
+    if [[ ! "$expected_sha" =~ ^[0-9a-f]{64}$ ]]; then
+        echo "ERROR: invalid fixed Tcllib source digest metadata" >&2
+        return 1
+    fi
+    if [ -d "$target_dir/modules" ]; then
+        if [ ! -f "$fixture" ] || [ "$(sha256_file "$fixture")" != "$expected_sha" ]; then
+            echo "ERROR: existing Tcllib source is partial or differs from fixed tcllib-2-0 cat.tcl: $fixture" >&2
+            return 1
+        fi
+        info "tcllib ${TCLLIB_VERSION} fixed source verified"
+        return 0
+    fi
+    if [ -e "$target_dir" ]; then
+        echo "ERROR: existing Tcllib source root is incomplete; preserve and repair its setup explicitly: $target_dir" >&2
+        return 1
     fi
     if [ "$CHECK_ONLY" -eq 1 ]; then
         note_missing "tcllib ${TCLLIB_VERSION} source (would download GitHub codeload tarball)"
@@ -585,7 +612,11 @@ ensure_tcllib() {
         echo "ERROR: tcllib modules/ missing after extract" >&2
         return 1
     fi
-    info "Extracted tcllib ${TCLLIB_VERSION} to $target_dir"
+    if [ ! -f "$fixture" ] || [ "$(sha256_file "$fixture")" != "$expected_sha" ]; then
+        echo "ERROR: downloaded Tcllib source differs from fixed tcllib-2-0 cat.tcl: $fixture" >&2
+        return 1
+    fi
+    info "Extracted and verified tcllib ${TCLLIB_VERSION} to $target_dir"
 }
 
 ensure_python_tk() {
@@ -1256,6 +1287,9 @@ ensure_uv() {
 
 # ---------------------------------------------------------------- main
 
+if [ "$TCLLIB_ONLY" -eq 1 ]; then
+    ensure_tcllib
+else
 ensure_tclsh
 ensure_tcllib
 ensure_python_tk
@@ -1272,6 +1306,7 @@ ensure_openssl
 ensure_ping
 ensure_rgxg
 ensure_uv
+fi
 
 if [ "$CHECK_ONLY" -eq 1 ] && [ "${#missing[@]}" -gt 0 ]; then
     echo

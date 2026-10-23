@@ -45,6 +45,7 @@ tcl-dialect = { path = "../tcl-dialect" }
 # command and per-command line tracking are `Vm` facilities the neutral
 # interface does not carry, so that one module speaks to the VM directly.
 tcl-vm = { path = "../tcl-vm" }
+tcl-syntax = { path = "../tcl-syntax" }
 
 [dev-dependencies]
 tcl-compiler = { path = "../tcl-compiler" }

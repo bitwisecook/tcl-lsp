@@ -300,16 +300,23 @@ fn build_ir(d: &Value) -> Vec<ViewNode> {
         Some("cyan"),
     )];
     if let Some(procs) = ir["procedures"].as_object() {
-        let mut names: Vec<&String> = procs.keys().collect();
-        names.sort();
-        for name in names {
-            let proc = &procs[name];
+        let mut rows: Vec<_> = procs.values().collect();
+        rows.sort_by(|left, right| {
+            s(left, "name")
+                .cmp(&s(right, "name"))
+                .then(left["bodyId"].as_u64().cmp(&right["bodyId"].as_u64()))
+        });
+        for proc in rows {
+            let display = s(proc, "name");
             let params = arr_to_strings(&proc["params"]).join(" ");
-            let header = format!("{name} {{{params}}}");
+            let header = format!("{display} {{{params}}}");
             nodes.push(
                 ViewNode::branch(
                     header,
-                    vec![det("range", rng(&proc["range"]))],
+                    vec![
+                        det("body ID", proc["bodyId"].to_string()),
+                        det("range", rng(&proc["range"])),
+                    ],
                     ir_nodes(arr(proc, "body")),
                     Some("cyan"),
                 )
@@ -717,6 +724,9 @@ fn build_sccp(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_liveness(d: &Value) -> Vec<ViewNode> {
+    if !d["liveness"].is_array() {
+        return unavailable_source_view();
+    }
     let mut out = Vec::new();
     for f in arr(d, "liveness") {
         let mut children = Vec::new();
@@ -906,6 +916,9 @@ fn build_intervals(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_bounds(d: &Value) -> Vec<ViewNode> {
+    if !d["bounds"].is_array() {
+        return unavailable_source_view();
+    }
     let mut out = Vec::new();
     for f in arr(d, "bounds") {
         let findings = arr(f, "findings");
@@ -1208,7 +1221,17 @@ fn opt_leaf(o: &Value) -> ViewNode {
     .with_range(&o["range"])
 }
 
+fn unavailable_source_view() -> Vec<ViewNode> {
+    vec![ViewNode::note(
+        "This view is unavailable for this analysis",
+        "dim",
+    )]
+}
+
 fn build_opt(d: &Value) -> Vec<ViewNode> {
+    if !d["optimisations"].is_array() {
+        return unavailable_source_view();
+    }
     let out: Vec<ViewNode> = arr(d, "optimisations").iter().map(opt_leaf).collect();
     if out.is_empty() {
         vec![ViewNode::note("(no optimiser rewrites)", "dim")]
@@ -1223,12 +1246,14 @@ fn build_structural_index(d: &Value) -> Vec<ViewNode> {
         return vec![ViewNode::note("(structural index unavailable)", "dim")];
     }
     let mut roots = Vec::new();
-    let complete = si["scriptComplete"].as_bool().unwrap_or(false);
-    roots.push(ViewNode::leaf(
-        format!("script complete: {complete}"),
-        Vec::new(),
-        Some(if complete { "green" } else { "yellow" }),
-    ));
+    match si["scriptComplete"].as_bool() {
+        Some(complete) => roots.push(ViewNode::leaf(
+            format!("script complete: {complete}"),
+            Vec::new(),
+            Some(if complete { "green" } else { "yellow" }),
+        )),
+        None => roots.push(ViewNode::note("script completeness unavailable", "dim")),
+    }
 
     let boundaries = arr(si, "commandBoundaries");
     let cb_children: Vec<ViewNode> = boundaries
@@ -1327,6 +1352,9 @@ fn build_source_map(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_optimiser_passes(d: &Value) -> Vec<ViewNode> {
+    if !d["optimiserPasses"].is_array() {
+        return unavailable_source_view();
+    }
     let out: Vec<ViewNode> = arr(d, "optimiserPasses")
         .iter()
         .map(|p| {
@@ -1352,6 +1380,9 @@ fn build_optimiser_passes(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_gvn(d: &Value) -> Vec<ViewNode> {
+    if !d["gvn"].is_array() {
+        return unavailable_source_view();
+    }
     let out: Vec<ViewNode> = arr(d, "gvn")
         .iter()
         .map(|w| {
@@ -1377,6 +1408,9 @@ fn build_gvn(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_shimmer(d: &Value) -> Vec<ViewNode> {
+    if !d["shimmer"].is_array() {
+        return unavailable_source_view();
+    }
     let out: Vec<ViewNode> = arr(d, "shimmer")
         .iter()
         .map(|w| {
@@ -1408,6 +1442,9 @@ fn build_shimmer(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_taint(d: &Value) -> Vec<ViewNode> {
+    if !d["taintWarnings"].is_array() {
+        return unavailable_source_view();
+    }
     let mut out = Vec::new();
     for w in arr(d, "taintWarnings") {
         let mut detail = vec![
@@ -1514,7 +1551,11 @@ fn build_connection_scope(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_irules(d: &Value) -> Vec<ViewNode> {
-    let mut out = Vec::new();
+    let mut out = if d["eventOrder"].is_array() && d["irulesFlow"].is_array() {
+        Vec::new()
+    } else {
+        unavailable_source_view()
+    };
     for e in arr(d, "eventOrder") {
         let eff =
             e["base_priority"].as_i64().unwrap_or(0) + e["priority_offset"].as_i64().unwrap_or(0);
@@ -1559,6 +1600,9 @@ fn build_irules(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_event_order(d: &Value) -> Vec<ViewNode> {
+    if !d["eventOrder"].is_array() {
+        return unavailable_source_view();
+    }
     let mut events: Vec<&Value> = arr(d, "eventOrder").iter().collect();
     events.sort_by(|a, b| {
         let ea =
@@ -1604,6 +1648,9 @@ fn build_event_order(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_callouts(d: &Value) -> Vec<ViewNode> {
+    if !d["annotations"].is_array() {
+        return unavailable_source_view();
+    }
     let out: Vec<ViewNode> = arr(d, "annotations")
         .iter()
         .map(|a| {
@@ -1984,7 +2031,13 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
     match view {
         "ir" => build_ir(data),
         "cfg" => build_cfg(arr(data, "cfgPreSsa"), false),
-        "ssa" => build_cfg(arr(data, "cfgPostSsa"), true),
+        "ssa" => {
+            if data["cfgPostSsa"].is_array() {
+                build_cfg(arr(data, "cfgPostSsa"), true)
+            } else {
+                unavailable_source_view()
+            }
+        }
         "worldSsa" => build_world_ssa(data),
         "aot" => build_aot(data),
         "dominators" => build_dominators(data),
@@ -2271,5 +2324,142 @@ mod tests {
         let taint = build_view("taint", &d);
         assert_eq!(taint.len(), 1);
         assert_eq!(taint[0].style.as_deref(), Some("dim"));
+    }
+}
+
+#[cfg(test)]
+mod original_configured_completeness_tests {
+    use super::*;
+    #[test]
+    fn original_structural_view_keeps_unknown_completeness_distinct_from_false() {
+        // naming.source.original-configured-script-completeness
+
+        // Display of the actual source query; no parser or execution authority.
+        let mut result = crate::run_pipeline("set x 1", "tcl8.6");
+        let view = build_structural_index(&crate::serialise::serialise_result(&result));
+        assert_eq!(view[0].label, "script complete: true");
+        assert_eq!(view[0].style.as_deref(), Some("green"));
+        let incomplete = crate::run_pipeline("set x {", "tcl8.6");
+        let view = build_structural_index(&crate::serialise::serialise_result(&incomplete));
+        assert_eq!(view[0].label, "script complete: false");
+        assert_eq!(view[0].style.as_deref(), Some("yellow"));
+        result.source.push_str("foreign");
+        let view = build_structural_index(&crate::serialise::serialise_result(&result));
+        assert_eq!(view[0].label, "script completeness unavailable");
+        assert_eq!(view[0].style.as_deref(), Some("dim"));
+    }
+}
+
+#[cfg(test)]
+mod retained_source_view_tests {
+    use super::*;
+    use serde_json::json;
+
+    // naming.source.retained-explorer-consumers. These are wire/render
+    // controls; they do not prove Native execution or provider behaviour.
+    #[test]
+    fn unavailable_source_fields_are_distinct_from_completed_empty_views() {
+        // naming.source.retained-explorer-consumers
+
+        // Wire/render observation only; no Native execution or provider claim.
+        let empty = json!({
+            "optimisations": [], "optimiserPasses": [],
+            "eventOrder": [], "annotations": [], "irulesFlow": [],
+        });
+        for (view, field, expected_empty) in [
+            ("opt", "optimisations", "(no optimiser rewrites)"),
+            (
+                "optimiserPasses",
+                "optimiserPasses",
+                "(optimiser pipeline unavailable)",
+            ),
+            ("eventOrder", "eventOrder", "(no event-order data)"),
+            ("callouts", "annotations", "(no salient annotations)"),
+        ] {
+            assert_eq!(build_view(view, &empty)[0].label, expected_empty);
+            let mut unavailable = empty.clone();
+            unavailable[field] = Value::Null;
+            let rows = build_view(view, &unavailable);
+            assert_eq!(rows, unavailable_source_view(), "{view}");
+            assert!(rows[0].range.is_none());
+            let mut missing = empty.clone();
+            missing.as_object_mut().unwrap().remove(field);
+            assert_eq!(
+                build_view(view, &missing),
+                unavailable_source_view(),
+                "{view}"
+            );
+        }
+    }
+
+    #[test]
+    fn unavailable_event_section_preserves_independent_irules_warnings() {
+        // naming.source.retained-explorer-consumers
+
+        // Wire/render observation only; no Native execution or provider claim.
+        let data = json!({
+            "eventOrder": null,
+            "irulesFlow": [{"code": "W-test", "message": "independent warning", "range": null}],
+        });
+        let rows = build_view("irules", &data);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0], unavailable_source_view()[0]);
+        assert_eq!(rows[1].label, "W-test independent warning");
+        let empty = json!({"eventOrder": [], "irulesFlow": []});
+        assert_eq!(build_view("irules", &empty)[0].label, "(no iRules events)");
+    }
+}
+
+#[cfg(test)]
+mod actual_cu_unavailable_view_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn actual_cu_null_fields_do_not_render_as_empty_analysis() {
+        // naming.source.retained-explorer-consumers
+
+        for (view, field) in [
+            ("ssa", "cfgPostSsa"),
+            ("shimmer", "shimmer"),
+            ("gvn", "gvn"),
+            ("taint", "taintWarnings"),
+            ("liveness", "liveness"),
+            ("bounds", "bounds"),
+        ] {
+            let mut unavailable = json!({});
+            unavailable[field] = Value::Null;
+            assert_eq!(
+                build_view(view, &unavailable),
+                unavailable_source_view(),
+                "{view}"
+            );
+            let missing = json!({});
+            assert_eq!(
+                build_view(view, &missing),
+                unavailable_source_view(),
+                "{view}"
+            );
+            unavailable[field] = json!([]);
+            assert_ne!(
+                build_view(view, &unavailable),
+                unavailable_source_view(),
+                "{view}"
+            );
+        }
+    }
+
+    #[test]
+    fn unavailable_irules_warning_section_preserves_available_event_rows() {
+        let data = json!({
+            "eventOrder": [{"event": "HTTP_REQUEST", "base_priority": 500, "priority_offset": 0}],
+            "irulesFlow": null,
+        });
+        let rows = build_view("irules", &data);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0], unavailable_source_view()[0]);
+        assert_eq!(rows[1].label, "HTTP_REQUEST eff=500");
+        let empty = json!({"eventOrder": [], "irulesFlow": []});
+        assert_eq!(build_view("irules", &empty)[0].label, "(no iRules events)");
     }
 }

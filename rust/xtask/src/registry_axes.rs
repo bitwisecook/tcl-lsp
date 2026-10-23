@@ -1017,6 +1017,10 @@ fn parse_waiver(after_marker: &str) -> Result<Waiver, String> {
             "on axis `{axis}` has no expiry: end it with `; until <change | never>`"
         ));
     };
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err(format!("on axis `{axis}` has no reason"));
+    }
     let until = until.trim();
     if until == "never" && axis != "irreducible" {
         return Err(format!(
@@ -1025,7 +1029,7 @@ fn parse_waiver(after_marker: &str) -> Result<Waiver, String> {
     }
     Ok(Waiver {
         axis: axis.to_owned(),
-        reason: reason.trim().to_owned(),
+        reason: reason.to_owned(),
         until: until.to_owned(),
     })
 }
@@ -1276,11 +1280,11 @@ mod tests {
         assert!(hits.iter().all(|h| h.anchor == Some(1)));
         // A table nothing reads is not compared later.
         let unused = "const MODES: &[&str] = &[\"-exact\", \"-nocase\"];\n";
-        assert!(lines(unused).is_empty());
+        assert_eq!(lines(unused).len(), 0);
         // A table of another type is not a string table.
         let other =
             "const PAIRS: &[(&str, u8)] = &[(\"-exact\", 1)];\nfn f() -> usize { PAIRS.len() }\n";
-        assert!(lines(other).is_empty());
+        assert_eq!(lines(other).len(), 0);
     }
 
     #[test]
@@ -1298,6 +1302,11 @@ mod tests {
             parse_waiver("colour — x; until the option table")
                 .unwrap_err()
                 .contains("unknown axis")
+        );
+        assert!(
+            parse_waiver("options — ; until the option table")
+                .unwrap_err()
+                .contains("no reason")
         );
         assert!(
             parse_waiver("options — x; until never")
@@ -1394,13 +1403,14 @@ mod tests {
                 .any(|v| v.contains("gone.rs` has 0") && v.contains("lower the pin"))
         );
         assert!(verdicts.iter().any(|v| v.contains("held clean")));
-        assert!(
+        assert_eq!(
             ratchet_verdicts(
                 &lint_with(&[("rust/x/a.rs", 2)]),
                 &[("rust/x/a.rs", 2)],
                 &[]
             )
-            .is_empty()
+            .len(),
+            0
         );
     }
 

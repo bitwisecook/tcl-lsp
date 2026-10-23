@@ -40,7 +40,7 @@ use std::rc::Rc;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
-use tcl_vm::{CompileService, Vm};
+use tcl_vm::CompileService;
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -67,9 +67,8 @@ fn vm_output(src: &str, version: TclVersion) -> String {
         .expect("test script compiles for its selected profile");
 
     let cap = Capture::default();
-    let mut vm = Vm::with_output(Box::new(cap.clone()));
+    let mut vm = tcl_vm::test_support::native_vm_for_release(version, Box::new(cap.clone()));
     vm.set_compiler(Box::new(service));
-    vm.set_runtime_version(version);
     let _ = vm.run_module(&asm);
     String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
 }

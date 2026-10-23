@@ -242,14 +242,17 @@ fn classify(
     b
 }
 
-/// Every `expr` operator spelling available under `dialects`, for the
-/// generated `@operator` bucket — derived from `tcl_syntax::expr::operators`
-/// (issue #983's unification) rather than the dialect-blind static list this
-/// replaces, which was missing the TIP 461 string-ordering four (`lt`/`le`/
-/// `gt`/`ge`) and the unary `!`/`~` entirely, and — unlike every other
-/// bucket in this file, each already scoped per-`SpecSurface` via
-/// [`classify`] — never included the iRules word operators (`contains`,
-/// `matches_regex`, …) for the `irules` target at all.
+/// Derive the generated lexical special-variable bucket from the shared
+/// Registry catalogue, restricted to the language's provider union.
+fn variable_spellings(reg: &CommandRegistry, providers: &[SpecProvider]) -> BTreeSet<String> {
+    reg.special_vars()
+        .filter(|spec| surface_provided_by(spec.surface, providers))
+        .map(|spec| spec.name.to_owned())
+        .collect()
+}
+
+/// Derive the generated `@operator` bucket from shared expression operators,
+/// restricted to the supplied providers.
 fn operator_spellings(providers: &'static [SpecProvider]) -> BTreeSet<String> {
     tcl_syntax::expr::operators::ALL_BIN_OPS
         .iter()
@@ -294,6 +297,7 @@ fn render(
     providers: &'static [SpecProvider],
 ) -> String {
     let b = classify(reg, context, providers);
+    let variables = variable_spellings(reg, providers);
     let (literal_ops, word_ops): (BTreeSet<String>, BTreeSet<String>) =
         operator_spellings(providers)
             .into_iter()
@@ -330,13 +334,10 @@ fn render(
 (argument
   name: (_) @variable.parameter)
 
-; Tcl built-in variables
+; Tcl built-in variables from the shared special-variable catalogue
 ((simple_word) @variable.builtin
   (#any-of? @variable.builtin
-    "argc" "argv" "argv0" "auto_path" "env" "errorCode" "errorInfo"
-    "tcl_interactive" "tcl_library" "tcl_nonwordchars" "tcl_patchLevel"
-    "tcl_pkgPath" "tcl_platform" "tcl_precision" "tcl_rcFileName"
-    "tcl_traceCompile" "tcl_traceExec" "tcl_wordchars" "tcl_version"))
+{variables}))
 
 ; Procedure definitions
 "proc" @keyword.function
@@ -399,6 +400,7 @@ fn render(
 "#,
         control = render_any_of(&b.control),
         keyword = render_any_of(&b.keyword),
+        variables = render_any_of(&variables),
         builtin = render_any_of(&b.builtin),
         literal_ops = render_any_of(&literal_ops),
         word_ops = render_any_of(&word_ops),
@@ -511,6 +513,18 @@ mod tests {
     }
 
     #[test]
+    fn special_variable_highlights_follow_shared_dialect_catalogue() {
+        let tcl_providers = [SpecProvider::Core(Family::Tcl), SpecProvider::Package("Tk")];
+        let tcl = variable_spellings(
+            registry_for(crate::environment::profile_for_dialect("tcl")),
+            &tcl_providers,
+        );
+        assert!(tcl.contains("auto_index"));
+        assert!(tcl.contains("tcl_libPath"));
+        assert!(!tcl.contains("static"));
+    }
+
+    #[test]
     fn irules_surface_exceeds_plain_tcl() {
         // Loading the iRules dialect must add the F5 command surface on top of
         // core Tcl — the whole point of dialect scoping.
@@ -538,11 +552,8 @@ mod tests {
         );
     }
 
-    /// Issue #983/#986: the `@operator` bucket used to be a dialect-blind
-    /// static list missing the TIP 461 string-ordering four (`lt`/`le`/
-    /// `gt`/`ge`) and the unary `!`/`~` entirely, and never included the
-    /// iRules word operators for the `irules` target at all — unlike every
-    /// other bucket in this file, each already scoped per-`SpecSurface`.
+    /// Operator buckets include string-ordering and unary operators, with
+    /// iRules word operators restricted to the iRules provider.
     #[test]
     fn operator_spellings_are_dialect_scoped_and_complete() {
         let tcl_ops =
@@ -704,10 +715,7 @@ mod tests {
             !has(&tcl, "HTTP::uri"),
             "tcl query wrongly includes iRules `HTTP::uri`"
         );
-        // Test-harness / internal-namespace noise (shared filter with
-        // `gen_tmlanguage_keywords`, see `util::is_internal_or_test_harness_noise`,
-        // whose own test module covers the substring-vs-prefix distinction in
-        // detail) must not leak into the query the same way it used to.
+        // The shared internal/test-harness filter also applies to queries.
         for c in ["testalarm", "testchannel", "tcl::process"] {
             assert!(!has(&tcl, c), "tcl query wrongly includes noise `{c}`");
         }

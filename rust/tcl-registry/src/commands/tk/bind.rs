@@ -30,31 +30,6 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 /// framework metadata rather than arbitrary user text and remain clean.
 const USER_EVENT_INPUTS: &[CallbackTaintInput] = &[CallbackTaintInput::TK_EVENT_CHAR];
 
-/// Dynamic arg-role resolver for `bind`.
-///
-/// `bind tag` and `bind tag sequence` are *query* forms that return an
-/// existing binding and carry no script.  Only the full
-/// `bind tag sequence script` form binds a script, supplied as the
-/// trailing (third) argument — optionally prefixed with `+` to append
-/// to the current binding.  That script is a deferred body: it runs
-/// later from the Tk event loop in its own dispatch context rather than
-/// the caller's frame, so `body_kind` is `Structural`.
-fn bind_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() == 3 {
-        vec![(2, ArgRole::Body)]
-    } else {
-        Vec::new()
-    }
-}
-
-fn bind_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    if args.len() == 3 {
-        vec![(2, ScriptTiming::Deferred)]
-    } else {
-        Vec::new()
-    }
-}
-
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "bind tag ?sequence? ?+??command?",
     ..FormSpec::DEFAULT
@@ -69,9 +44,9 @@ pub fn spec() -> CommandSpec {
         // deferred event-handler body (runs from the Tk event loop, not
         // the caller's frame), so recurse into it for highlighting and
         // treat it as structural.
-        arg_role_resolver: Some(bind_arg_roles),
-        arg_role_resolver_roles: &[ArgRole::Body],
-        script_timing_resolver: Some(bind_script_timing),
+        // Optional index 2 is present only in the full binding form.
+        // Neither its role nor deferred timing depends on earlier value bytes.
+        arg_roles: &[(2, ArgRole::Body)],
         callback_taint_inputs: &[(2, USER_EVENT_INPUTS)],
         body_kind: BodyKind::Structural,
         // `DEFERS_BODY` — the "deferred event-handler body" above, said where

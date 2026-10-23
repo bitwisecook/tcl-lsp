@@ -123,7 +123,7 @@ fn eval_int(script: &str) -> i32 {
     let ir = lower_to_ir(script, &reg);
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &reg);
-    let mut vm = Vm::with_output(Box::new(std::io::sink()));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(std::io::sink()));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let comp = vm.run_module(&asm);
     comp.result.to_str().trim().parse::<i32>().unwrap_or(-1)

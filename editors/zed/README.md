@@ -1,6 +1,7 @@
 # Tcl LSP for Zed
 
-Language-server support for Tcl, iRules, iApps, APL, TMSH, and Expect,
+Language-server support for Tcl, iRules, iApps, APL, TMSH, BIG-IP configuration,
+and Expect,
 powered by [tcl-lsp](https://github.com/bitwisecook/tcl-lsp).
 
 ## Features
@@ -28,9 +29,14 @@ The `languages/*/config.toml` suffix lists are generated from tcl-lsp's
 environment registry by `cargo xtask gen-editor-extensions`, and the language
 table in `extension.toml` by `cargo xtask gen-editor-configs`; drift gates in
 `make xtask-check` fail when an environment or suffix is added without
-regenerating. The APL and BIG-IP tree-sitter grammars live in this repository
-under `grammars/` and are fetched by commit — bump the `rev` in
-`extension.toml` whenever either changes.
+regenerating. The Tcl-grammar highlight queries (`tcl`, `expect`, `iapps`,
+`irules`, `tmsh`) are generated from the command registry by `cargo xtask
+gen-zed-queries`, and the APL and BIG-IP configuration queries' vocabularies
+from the `tcl-bigip` lexers by `cargo xtask gen-bigip-grammars`. `.tmsh`
+scripts open as the Tcl-grammar `TMSH` language (`tcl-tmsh`); BIG-IP
+configuration (`.scf`) opens as `BIG-IP` (`tcl-bigip`). The APL and BIG-IP
+tree-sitter grammars live in this repository under `grammars/` and are fetched
+by commit — bump the `rev` in `extension.toml` whenever either changes.
 
 The server detects the dialect from the file name and content. Jim Tcl has no
 Zed language of its own: a Jim script opens as Tcl, and the server's shebang

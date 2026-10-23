@@ -22,27 +22,81 @@
 //! This is the shared, consumer-agnostic home for the graph shapes. Every
 //! consumer — the `tcl` CLI (`callgraph` / `symbolgraph` / `dataflow`
 //! verbs), the LSP server, `tcl-mcp` and the WASM hosts — builds the *same*
-//! graphs from this one implementation. Callers supply a resolved
-//! [`CommandRegistry`] and the dialect string; every position is 0-based
+//! graphs from this one implementation. Actual consumers retain their complete
+//! [`ResolvedAnalysisInput`]; explicit standalone profile APIs select their own
+//! requested authoring context. Every position is 0-based
 //! and UTF-16 counted, matching the LSP wire convention.
 
-use serde_json::{Map, Value, json};
-use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef, Scope, ScopeKind, VarDef};
+mod original;
+
+use serde_json::{Value, json};
+use tcl_compiler::analyser::{
+    Analyser, AnalysisResult, ProcDef, ResolvedAnalysisInput, Scope, ScopeKind, VarDef,
+};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::dataflow_graph::{FunctionInputs, extract_dataflow_graph};
-use tcl_compiler::ir::Module as IrModule;
-use tcl_compiler::path_concat::find_path_concat_warnings;
+use tcl_compiler::ir::{Module as IrModule, ProcedureId};
 use tcl_compiler::side_effects::EffectRegion;
 use tcl_compiler::taint::{
-    find_destructive_file_warnings, find_setter_constraint_warnings,
-    find_taint_warnings_for_function, is_irules_dialect,
+    TaintReplayAnalysis, find_destructive_file_warnings_for_module_function,
+    find_path_concat_warnings_for_module_function,
+    find_setter_constraint_warnings_for_module_function, is_irules_dialect,
+    taint_warning_report_for_module_function,
 };
 use tcl_compiler::uri_split::find_uri_split_suggestions;
 use tcl_lexer::{LineIndex, Span};
 use tcl_registry::CommandRegistry;
 
+/// Refusal at a supplied-source graph ingress, independent of execution entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GraphSourceInputDecline {
+    /// The caller has no retained complete source input.
+    MissingSourceInput,
+    /// The retained availability describes a different command generation.
+    ForeignCommandStore,
+}
+
+impl std::fmt::Display for GraphSourceInputDecline {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::MissingSourceInput => "the graph's retained source input is unavailable",
+            Self::ForeignCommandStore => "the graph's retained command store is unavailable",
+        })
+    }
+}
+impl std::error::Error for GraphSourceInputDecline {}
+
+fn supplied_graph_input<'a>(
+    registry: &CommandRegistry,
+    input: Option<&'a ResolvedAnalysisInput>,
+) -> Result<&'a ResolvedAnalysisInput, GraphSourceInputDecline> {
+    let input = input.ok_or(GraphSourceInputDecline::MissingSourceInput)?;
+    tcl_compiler::registry_invocation::InvocationMetadataContext::for_analysis_input(
+        registry, input,
+    )
+    .ok_or(GraphSourceInputDecline::ForeignCommandStore)?;
+    Ok(input)
+}
+
+fn standalone_graph_input(
+    registry: &CommandRegistry,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> ResolvedAnalysisInput {
+    let context = tcl_registry::model::ingress::context_for_profile(profile);
+    ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        std::sync::Arc::new(context.with_command_store(registry.snapshot().shared_registry())),
+        tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+    )
+}
+
 /// The synthetic caller node for calls made outside any proc body.
 const TOP_LEVEL: &str = "<top-level>";
+
+fn body_key(id: ProcedureId) -> String {
+    id.reporting_key()
+}
 
 // Shared position helpers
 
@@ -60,21 +114,46 @@ fn pos_value(line_index: &LineIndex, source: &str, offset: u32) -> Value {
 
 // symbol graph
 
-/// Call sites of a proc, deduplicated by span.
-fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisResult) -> Vec<Span> {
-    let no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
-    let mut seen = std::collections::HashSet::new();
-    let mut out = Vec::new();
-    for inv in &analysis.command_invocations {
-        let matches = match &inv.resolved_qualified_name {
-            Some(resolved) => resolved == qualified_name,
-            None => inv.name == name || inv.name == qualified_name || inv.name == no_prefix,
+/// References use the same called-slot identity as rename and code lenses.
+fn find_proc_reference_sites(proc: &ProcDef, analysis: &AnalysisResult, source: &str) -> Vec<Span> {
+    if !analysis.allows_lexical_declaration_advice() {
+        let mut declarations = analysis
+            .original_procedure_declarations()
+            .filter(|row| row.metadata() == proc);
+        let Some(declaration) = declarations.next() else {
+            return Vec::new();
         };
-        if matches && seen.insert((inv.range.start(), inv.range.end())) {
-            out.push(inv.range);
+        if declarations.next().is_some() {
+            return Vec::new();
         }
+        let mut sites = analysis
+            .command_invocations
+            .iter()
+            .filter(|invocation| {
+                crate::original_declaration::invocation_targets_declaration(
+                    source,
+                    analysis,
+                    invocation,
+                    declaration,
+                    true,
+                )
+            })
+            .map(|invocation| invocation.range)
+            .collect::<Vec<_>>();
+        sites.sort_unstable_by_key(|span| (span.start(), span.end()));
+        sites.dedup();
+        return sites;
     }
-    out
+    let mut sites = crate::references::proc_reference_spans(
+        analysis,
+        crate::definition::CallResolution::document_only(),
+        &proc.qualified_name,
+        proc,
+        source,
+    );
+    sites.sort_unstable_by_key(|span| (span.start(), span.end()));
+    sites.dedup();
+    sites
 }
 
 /// Serialise one scope (global / namespace) to the wire dict.
@@ -99,14 +178,7 @@ fn scope_to_value(
     let proc_values: Vec<Value> = procs
         .iter()
         .map(|proc| {
-            let ref_count = analysis
-                .command_invocations
-                .iter()
-                .filter(|inv| {
-                    inv.resolved_qualified_name.as_deref() == Some(proc.qualified_name.as_str())
-                        || inv.name == proc.name
-                })
-                .count();
+            let ref_count = find_proc_reference_sites(proc, analysis, source).len();
             json!({
                 "name": proc.name,
                 "qualified_name": proc.qualified_name,
@@ -244,7 +316,27 @@ fn count_namespaces(scope: &Scope, depth: u32) -> usize {
 /// references, proc call-site index, package requirements, and a summary.
 #[must_use]
 pub fn symbol_graph(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Value {
-    let result = Analyser::new().analyse(source, dialect.name);
+    let context = tcl_registry::model::ingress::context_for_profile(dialect);
+    symbol_graph_for_input(source, &standalone_graph_input(context.commands(), dialect))
+}
+
+/// Build a symbol graph under the complete supplied source input.
+/// Missing or foreign metadata refuses; no Native entry is inferred.
+pub fn symbol_graph_with_source_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: Option<&ResolvedAnalysisInput>,
+) -> Result<Value, GraphSourceInputDecline> {
+    Ok(symbol_graph_for_input(
+        source,
+        supplied_graph_input(registry, input)?,
+    ))
+}
+
+fn symbol_graph_for_input(source: &str, input: &ResolvedAnalysisInput) -> Value {
+    let result = Analyser::new()
+        .with_resolved_input(input.clone())
+        .analyse(source, input.analyser_profile().name);
     let line_index = LineIndex::new(source);
 
     let scopes = vec![scope_to_value(
@@ -255,12 +347,12 @@ pub fn symbol_graph(source: &str, dialect: &'static tcl_dialect::DialectProfile)
         0,
     )];
 
-    // proc_references: every proc's deduped call sites, source-ordered keys.
-    let mut all_procs: Vec<&ProcDef> = result.all_procs.values().collect();
+    // Every proc's deduplicated references, in declaration order.
+    let mut all_procs = crate::procedure_symbol::declarations(source, &result).unwrap_or_default();
     all_procs.sort_by_key(|p| p.name_span.start());
     let mut proc_references = serde_json::Map::new();
     for proc in all_procs {
-        let sites = find_proc_call_sites(&proc.name, &proc.qualified_name, &result);
+        let sites = find_proc_reference_sites(proc, &result, source);
         if !sites.is_empty() {
             let positions: Vec<Value> = sites
                 .iter()
@@ -287,12 +379,17 @@ pub fn symbol_graph(source: &str, dialect: &'static tcl_dialect::DialectProfile)
         })
         .collect();
 
-    let total_procs = result.all_procs.len();
+    let original = original::procedure_view(source, &result, None);
+    let total_procs = original
+        .as_ref()
+        .and_then(|graph| graph["nodes"].as_array())
+        .map_or_else(|| result.all_procs.len(), Vec::len);
     let total_variables = count_variables(&result.global_scope, 0);
     let total_namespaces = count_namespaces(&result.global_scope, 0);
 
     json!({
         "scopes": scopes,
+        "declarations": original,
         "proc_references": Value::Object(proc_references),
         "package_requires": package_requires,
         "summary": {
@@ -327,100 +424,90 @@ fn effect_region_str(er: EffectRegion) -> String {
         .join("|")
 }
 
-/// 0-based start/end line pair for a proc's definition span.
-fn proc_line_span(ir_module: &IrModule, qname: &str, line_index: &LineIndex) -> Option<(u32, u32)> {
-    ir_module.procedures.get(qname).map(|p| {
-        (
-            line0(line_index, p.span.start()),
-            line0(line_index, p.span.end()),
-        )
-    })
-}
-
 /// Whether a span lies wholly within some proc's definition.
-fn is_inside_proc(range: Span, ir_module: &IrModule, line_index: &LineIndex) -> bool {
-    let start = line0(line_index, range.start());
-    let end = line0(line_index, range.end());
-    ir_module.procedures.values().any(|p| {
-        let ps = line0(line_index, p.span.start());
-        let pe = line0(line_index, p.span.end());
-        start >= ps && end <= pe
-    })
+fn is_inside_proc(range: Span, ir_module: &IrModule) -> bool {
+    ir_module
+        .procedures
+        .values()
+        .any(|proc| range.start() >= proc.span.start() && range.end() <= proc.span.end())
 }
 
-/// Call-site positions of `callee_qname` within `containing_proc`'s body.
+/// Call-site positions joined to the actual callee and containing body.
 fn find_call_sites_in_scope(
     analysis: &AnalysisResult,
-    callee_qname: &str,
-    containing_proc: &str,
+    callee_id: &ProcedureId,
+    containing_proc: &ProcedureId,
     ir_module: &IrModule,
     line_index: &LineIndex,
     source: &str,
 ) -> Vec<Value> {
-    let Some((proc_start, proc_end)) = proc_line_span(ir_module, containing_proc, line_index)
-    else {
+    let Some(containing_body) = ir_module.procedures.get(containing_proc) else {
         return Vec::new();
     };
-    let short = callee_qname.trim_start_matches(':');
-    let mut callee_forms: std::collections::HashSet<&str> =
-        [callee_qname, short].into_iter().collect();
-    if let Some(stripped) = callee_qname.strip_prefix("::") {
-        callee_forms.insert(stripped);
+    let mut declarations = analysis
+        .original_procedure_declarations()
+        .filter(|declaration| {
+            original::compiled_body_id(source, analysis, ir_module, declaration) == Some(*callee_id)
+        });
+    let Some(callee) = declarations.next() else {
+        return Vec::new();
+    };
+    if declarations.next().is_some() {
+        return Vec::new();
     }
-
     let mut sites = Vec::new();
     for inv in &analysis.command_invocations {
-        if line0(line_index, inv.range.start()) < proc_start {
+        if inv.range.start() < containing_body.span.start()
+            || inv.range.end() > containing_body.span.end()
+        {
             continue;
         }
-        if line0(line_index, inv.range.end()) > proc_end {
+        if !crate::original_declaration::invocation_targets_declaration(
+            source, analysis, inv, callee, true,
+        ) {
             continue;
-        }
-        match &inv.resolved_qualified_name {
-            Some(resolved) => {
-                if resolved != callee_qname {
-                    continue;
-                }
-            }
-            None => {
-                if !callee_forms.contains(inv.name.as_str()) {
-                    continue;
-                }
-            }
         }
         sites.push(pos_value(line_index, source, inv.range.start()));
     }
     sites
 }
 
-/// Resolve a top-level invocation to a known proc qname. Proc names are
-/// iterated in sorted order
-/// for a deterministic pick on the (rare) ambiguous short-name fallback.
+/// Resolve a top-level call through the same retained target as call hierarchy.
 fn resolve_invocation_target(
+    analysis: &AnalysisResult,
     inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
-    proc_names_sorted: &[String],
-) -> Option<String> {
-    if let Some(resolved) = &inv.resolved_qualified_name
-        && proc_names_sorted.iter().any(|n| n == resolved)
-    {
-        return Some(resolved.clone());
-    }
-    for qname in proc_names_sorted {
-        let short = qname.strip_prefix("::").unwrap_or(qname);
-        if inv.name == *qname || inv.name == short || inv.name == qname.trim_start_matches(':') {
-            return Some(qname.clone());
-        }
-    }
-    None
+    proc_ids: &[ProcedureId],
+    source: &str,
+    ir_module: &IrModule,
+) -> Option<ProcedureId> {
+    let mut selected = analysis
+        .original_procedure_declarations()
+        .filter(|declaration| {
+            crate::original_declaration::invocation_targets_declaration(
+                source,
+                analysis,
+                inv,
+                declaration,
+                true,
+            )
+        })
+        .filter_map(|declaration| {
+            original::compiled_body_id(source, analysis, ir_module, declaration)
+        })
+        .filter(|id| proc_ids.contains(id));
+    let first = selected.next()?;
+    selected.next().is_none().then_some(first)
 }
 
 /// The `nodes` list — one entry per proc (sorted by qname), carrying
 /// params, 0-based definition line, purity, and the effect-region string.
 fn build_nodes(
-    proc_names: &[String],
+    proc_names: &[ProcedureId],
     interproc: &tcl_compiler::interprocedural::InterproceduralAnalysis,
     ir_module: &IrModule,
     line_index: &LineIndex,
+    analysis: &AnalysisResult,
+    source: &str,
 ) -> Vec<Value> {
     proc_names
         .iter()
@@ -430,13 +517,19 @@ fn build_nodes(
                 .procedures
                 .get(qname)
                 .map(|p| line0(line_index, p.span.start()));
-            let effects = effect_region_str(summary.effect_reads | summary.effect_writes);
+            let matched = analysis.allows_lexical_declaration_advice() || {
+                let mut rows = analysis.original_procedure_declarations().filter(|row|
+                    original::compiled_body_id(source, analysis, ir_module, row) == Some(*qname));
+                rows.next().is_some() && rows.next().is_none()
+            };
             json!({
-                "name": qname,
+                "id": body_key(*qname),
+                "bodyId": qname.ordinal(), "bodyKey": qname.reporting_key(),
+                "name": summary.qualified_name,
                 "params": summary.params,
                 "line": line,
-                "pure": summary.pure,
-                "effects": effects,
+                "pure": matched.then_some(summary.pure),
+                "effects": matched.then(|| effect_region_str(summary.effect_reads | summary.effect_writes)),
             })
         })
         .collect()
@@ -455,21 +548,39 @@ fn build_nodes(
 fn document_unit(
     source: &str,
     registry: &CommandRegistry,
-    profile: &'static tcl_dialect::DialectProfile,
+    input: &ResolvedAnalysisInput,
 ) -> CompilationUnit {
-    let declared =
-        tcl_compiler::analyser::utils::document_declared_surface(source, None, profile.name);
-    CompilationUnit::build_with_options(
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(
+        source,
+        None,
+        input.unit_profile().name,
+    );
+    CompilationUnit::build_with_analysis_input(
         source,
         tcl_compiler::compilation_unit::UnitBuildOptions {
             registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-            dialect: Some(profile),
+            config: input.lexer_config(),
+            dialect: Some(input.unit_profile()),
             external_call_sites: None,
             declared_commands: Some(&declared),
         },
+        None,
+        input,
     )
+}
+
+/// Source declarations missing an authenticated compiled body remain opaque
+/// graph cards. Matching a display name never creates a function or frame.
+fn uncompiled_source_declarations(
+    source: &str,
+    input: &ResolvedAnalysisInput,
+    module: &IrModule,
+) -> Vec<Value> {
+    let analysis = Analyser::new()
+        .with_resolved_input(input.clone())
+        .analyse(source, input.analyser_profile().name);
+    original::uncompiled_procedure_nodes(source, &analysis, module)
 }
 
 /// Build the full call-graph payload.
@@ -479,57 +590,97 @@ pub fn call_graph(
     registry: &CommandRegistry,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Value {
+    call_graph_for_input(source, registry, &standalone_graph_input(registry, dialect))
+}
+
+/// Build the graph under the complete supplied source input.
+/// Source metadata supplies no Native handler, entered frame or completed link.
+pub fn call_graph_with_source_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: Option<&ResolvedAnalysisInput>,
+) -> Result<Value, GraphSourceInputDecline> {
+    Ok(call_graph_for_input(
+        source,
+        registry,
+        supplied_graph_input(registry, input)?,
+    ))
+}
+
+fn call_graph_for_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: &ResolvedAnalysisInput,
+) -> Value {
+    let dialect = input.unit_profile();
     // Build the full compilation unit (via `ensure_compilation_unit`) so the
     // interprocedural pass sees the same lowered IR — raw `lower_to_ir` alone
     // does not surface nested `[cmd …]` call sites to the call scanner.
     let profile = dialect;
-    let cu = document_unit(source, registry, profile).with_interprocedural(registry, Some(profile));
+    let cu = document_unit(source, registry, input).with_interprocedural(registry, Some(profile));
     let ir_module = &cu.ir_module;
     let interproc = cu
         .interproc
         .as_ref()
         .expect("with_interprocedural populates the summary");
-    let analysis = Analyser::new().analyse(source, dialect.name);
+    let analysis = Analyser::new()
+        .with_resolved_input(input.clone())
+        .analyse(source, input.analyser_profile().name);
     let line_index = LineIndex::new(source);
 
-    // Proc qnames in sorted order (iterates the summary dict, which is
-    // keyed and surfaced in sorted qualified-name order).
-    let mut proc_names: Vec<String> = interproc.procedures.keys().cloned().collect();
-    proc_names.sort();
-    let proc_set: std::collections::HashSet<&str> = proc_names.iter().map(String::as_str).collect();
+    let mut proc_names: Vec<ProcedureId> = interproc.procedures.keys().copied().collect();
+    proc_names.sort_by(|left, right| {
+        interproc.procedures[left]
+            .qualified_name
+            .cmp(&interproc.procedures[right].qualified_name)
+            .then(left.cmp(right))
+    });
+    let proc_set: std::collections::HashSet<ProcedureId> = proc_names.iter().copied().collect();
 
-    let nodes = build_nodes(&proc_names, interproc, ir_module, &line_index);
+    let nodes = build_nodes(
+        &proc_names,
+        interproc,
+        ir_module,
+        &line_index,
+        &analysis,
+        source,
+    );
 
     // Edges + bookkeeping.
     let mut edges: Vec<Value> = Vec::new();
-    let mut called_set: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut has_outgoing: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut called_set: std::collections::HashSet<ProcedureId> = std::collections::HashSet::new();
+    let mut has_outgoing: std::collections::HashSet<ProcedureId> = std::collections::HashSet::new();
 
     for qname in &proc_names {
         let summary = &interproc.procedures[qname];
         for callee in &summary.direct_calls {
-            if !proc_set.contains(callee.as_str()) {
+            if !proc_set.contains(callee) {
                 continue;
             }
-            has_outgoing.insert(qname.as_str());
-            called_set.insert(callee.clone());
+            has_outgoing.insert(*qname);
+            called_set.insert(*callee);
             let sites =
                 find_call_sites_in_scope(&analysis, callee, qname, ir_module, &line_index, source);
             edges.push(json!({
-                "caller": qname,
-                "callee": callee,
+                "caller_id": body_key(*qname),
+                "callee_id": body_key(*callee),
+                "caller": summary.qualified_name,
+                "callee": interproc.procedures[callee].qualified_name,
                 "call_sites": sites,
             }));
         }
     }
 
     // Top-level calls (outside any proc body), in first-seen order.
-    let mut top_level: Map<String, Value> = Map::new();
+    let mut top_level: std::collections::BTreeMap<ProcedureId, Value> =
+        std::collections::BTreeMap::new();
     for inv in &analysis.command_invocations {
-        if is_inside_proc(inv.range, ir_module, &line_index) {
+        if is_inside_proc(inv.range, ir_module) {
             continue;
         }
-        if let Some(target) = resolve_invocation_target(inv, &proc_names) {
+        if let Some(target) =
+            resolve_invocation_target(&analysis, inv, &proc_names, source, ir_module)
+        {
             let pos = pos_value(&line_index, source, inv.range.start());
             top_level
                 .entry(target)
@@ -541,44 +692,71 @@ pub fn call_graph(
     }
     let has_top_level_calls = !top_level.is_empty();
     for (callee, sites) in &top_level {
-        called_set.insert(callee.clone());
+        called_set.insert(*callee);
         edges.push(json!({
+            "caller_id": TOP_LEVEL,
+            "callee_id": body_key(*callee),
             "caller": TOP_LEVEL,
-            "callee": callee,
+            "callee": interproc.procedures[callee].qualified_name,
             "call_sites": sites,
         }));
     }
 
     // Roots = uncalled procs, sorted; `<top-level>` prepended when any
     // invocation sits outside a proc body.
+    let mut root_ids: Vec<String> = proc_names
+        .iter()
+        .filter(|id| !called_set.contains(id))
+        .map(|id| body_key(*id))
+        .collect();
     let mut roots: Vec<String> = proc_names
         .iter()
         .filter(|qn| !called_set.contains(*qn))
-        .cloned()
+        .map(|id| interproc.procedures[id].qualified_name.clone())
         .collect();
     roots.sort();
     let any_top_level_inv = analysis
         .command_invocations
         .iter()
-        .any(|inv| !is_inside_proc(inv.range, ir_module, &line_index));
+        .any(|inv| inv.lookup.is_execution_site() && !is_inside_proc(inv.range, ir_module));
     if has_top_level_calls || any_top_level_inv {
         roots.insert(0, TOP_LEVEL.to_owned());
+        root_ids.insert(0, TOP_LEVEL.to_owned());
     }
 
     // Leaves = procs with no outgoing proc calls, sorted.
     let mut leaf_procs: Vec<String> = proc_names
         .iter()
-        .filter(|qn| !has_outgoing.contains(qn.as_str()))
-        .cloned()
+        .filter(|qn| !has_outgoing.contains(*qn))
+        .map(|id| interproc.procedures[id].qualified_name.clone())
         .collect();
     leaf_procs.sort();
 
-    json!({
+    let leaf_ids: Vec<_> = proc_names
+        .iter()
+        .filter(|id| !has_outgoing.contains(id))
+        .map(|id| body_key(*id))
+        .collect();
+    let compiled = json!({
+        "projection": "compiled-ir",
         "nodes": nodes,
         "edges": edges,
         "roots": roots,
+        "root_ids": root_ids,
+        "leaf_ids": leaf_ids,
         "leaf_procs": leaf_procs,
-    })
+    });
+    if let Some(mut original) =
+        original::procedure_view(source, &analysis, Some((ir_module, interproc)))
+    {
+        original
+            .as_object_mut()
+            .expect("graph object")
+            .insert("compiled".to_owned(), compiled);
+        original
+    } else {
+        compiled
+    }
 }
 
 // dataflow graph
@@ -590,10 +768,10 @@ pub fn call_graph(
 struct TaintWarnCtx<'a> {
     /// The analysis dialect's command registry.
     registry: &'a CommandRegistry,
+    /// Actual compilation-unit owner for body and conditional sink metadata.
+    unit: &'a CompilationUnit,
     /// The dialect string (drives iRules-only warning families + octal reads).
     dialect: &'static tcl_dialect::DialectProfile,
-    /// Namespace-scoped proc names that shadow builtins for their namespace.
-    shadow_proc_qnames: &'a std::collections::HashSet<&'a str>,
     /// Whole-module variable-trace facts.
     module_traces: tcl_compiler::compilation_unit::ModuleTraceFacts<'a>,
     /// Byte-offset → line/column index for the source.
@@ -617,18 +795,20 @@ fn collect_taint_warnings(
     >,
     ctx: TaintWarnCtx<'_>,
     out: &mut Vec<Value>,
-) {
+) -> TaintReplayAnalysis {
     let TaintWarnCtx {
         registry,
+        unit,
         dialect,
-        shadow_proc_qnames,
         module_traces,
         line_index,
     } = ctx;
+    let module = &unit.ir_module;
     let profile = dialect;
     let mut push = |code: &str, span: Span, message: &str, variable: &str, sink: &str| {
         out.push(json!({
             "code": code,
+            "source_span": [span.start(), span.end()],
             "line": line0(line_index, span.start()),
             "message": message,
             "variable": variable,
@@ -636,14 +816,6 @@ fn collect_taint_warnings(
         }));
     };
 
-    // A namespace-scoped proc of the same name shadows a builtin for every
-    // call made from that namespace — see `taint::shadowed_builtin_names`.
-    let namespace = tcl_compiler::optimiser::helpers::naming::namespace_from_qualified(&fu.name);
-    let shadowed = tcl_compiler::taint::shadowed_builtin_names(
-        &namespace,
-        shadow_proc_qnames.iter().copied(),
-        registry,
-    );
     // `trace add variable` / `trace variable` lets a runtime callback rewrite
     // a variable in ways static analysis can't see — a traced name is
     // conservatively treated as tainted everywhere in the module — see
@@ -652,38 +824,23 @@ fn collect_taint_warnings(
         tcl_compiler::taint::apply_module_variable_traces(taints.clone(), &fu.ssa, module_traces);
     let taints = &taints;
 
-    // 1. Sink injection (T100 / T101 / T102 families).
-    for w in find_taint_warnings_for_function(
-        fu,
-        taints,
-        &fu.sccp.executable_blocks,
-        registry,
-        Some(profile),
-        &shadowed,
-        module_traces,
-    ) {
-        push(
-            w.code.as_str(),
-            w.span,
-            &w.message,
-            &w.variable,
-            &w.sink_command,
-        );
-    }
-
-    // 2 + 3. Setter-constraint + uri-split are iRules-only. The helpers
-    // gate internally too; skipping the walk under a non-iRules dialect
-    // matches `compiler_checks` and avoids needless work.
-    if is_irules_dialect(Some(profile)) {
-        for w in find_setter_constraint_warnings(
-            registry,
-            &fu.cfg,
-            &fu.ssa,
+    // Sink advice requires the actual retained body and publication scope.
+    let mut replays = TaintReplayAnalysis::unavailable();
+    if let Some(shadowed) =
+        tcl_compiler::taint::shadowed_builtin_names_for_module_function(fu, unit, registry)
+    {
+        // 1. Sink injection (T100 / T101 / T102 families).
+        let report = taint_warning_report_for_module_function(
+            fu,
             taints,
-            Some(&fu.sccp.values),
             &fu.sccp.executable_blocks,
-            Some(profile),
-        ) {
+            registry,
+            module,
+            &shadowed,
+            module_traces,
+        );
+        replays = report.replays;
+        for w in report.warnings {
             push(
                 w.code.as_str(),
                 w.span,
@@ -692,6 +849,19 @@ fn collect_taint_warnings(
                 &w.sink_command,
             );
         }
+    }
+
+    // Conditional setter rows follow the retained Module/FU metadata.
+    for w in find_setter_constraint_warnings_for_module_function(fu, module, registry, taints) {
+        push(
+            w.code.as_str(),
+            w.span,
+            &w.message,
+            &w.variable,
+            &w.sink_command,
+        );
+    }
+    if is_irules_dialect(Some(profile)) {
         for w in find_uri_split_suggestions(
             &fu.cfg,
             &fu.ssa,
@@ -711,26 +881,12 @@ fn collect_taint_warnings(
     }
 
     // 4. Path-concat (`W201`). Reports `sink_command="set"`.
-    for w in find_path_concat_warnings(
-        &fu.cfg,
-        &fu.ssa,
-        &fu.rendered_props,
-        taints,
-        &fu.sccp.executable_blocks,
-        tcl_lexer::LexerConfig::for_profile(Some(profile)),
-    ) {
+    for w in find_path_concat_warnings_for_module_function(fu, module, registry, taints) {
         push(w.code.as_str(), w.span, &w.message, &w.variable, "set");
     }
 
     // 5. Destructive-file (`W313`).
-    for w in find_destructive_file_warnings(
-        &fu.cfg,
-        &fu.ssa,
-        taints,
-        &fu.sccp.executable_blocks,
-        registry,
-        Some(profile),
-    ) {
+    for w in find_destructive_file_warnings_for_module_function(fu, module, registry, taints) {
         push(
             w.code.as_str(),
             w.span,
@@ -739,6 +895,7 @@ fn collect_taint_warnings(
             &w.sink_command,
         );
     }
+    replays
 }
 
 /// Tainted variable names in `fu` (deduplicated, sorted for a
@@ -803,24 +960,48 @@ pub fn dataflow_graph(
     registry: &CommandRegistry,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Value {
+    dataflow_graph_for_input(source, registry, &standalone_graph_input(registry, dialect))
+}
+
+/// Build the graph under the complete supplied source input.
+/// Source metadata supplies no Native handler, entered frame or completed link.
+pub fn dataflow_graph_with_source_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: Option<&ResolvedAnalysisInput>,
+) -> Result<Value, GraphSourceInputDecline> {
+    Ok(dataflow_graph_for_input(
+        source,
+        registry,
+        supplied_graph_input(registry, input)?,
+    ))
+}
+
+fn dataflow_graph_for_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: &ResolvedAnalysisInput,
+) -> Value {
+    let dialect = input.unit_profile();
     let profile = dialect;
-    let cu = document_unit(source, registry, profile).with_interprocedural(registry, Some(profile));
+    let cu = document_unit(source, registry, input).with_interprocedural(registry, Some(profile));
     let line_index = LineIndex::new(source);
 
-    let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
-    proc_names.sort();
+    let mut proc_names: Vec<_> = cu.procedures.keys().collect();
+    proc_names.sort_by(|left, right| {
+        cu.procedures[*left]
+            .name
+            .cmp(&cu.procedures[*right].name)
+            .then(left.cmp(right))
+    });
 
     // Interprocedural taint solve: colour-aware return summaries + parameter
-    // entry taints. Its `top_taints` / `proc_taints` feed the warning
-    // families (cross-proc entry-taint), feeding
-    // `find_taint_warnings`. The `tainted_variables` listing below keeps the
-    // per-unit `fu.taints` lattice.
+    // entry taints feed the shared reports; the variable listing keeps
+    // each unit's own taint lattice.
     let solved =
         tcl_compiler::taint_interproc::solve_interprocedural_taints(&cu, registry, Some(profile));
 
-    // Taint warnings: top level first, then each procedure.
-    let shadow_proc_qnames: std::collections::HashSet<&str> =
-        cu.procedures.keys().map(String::as_str).collect();
+    // Taint warnings: top level first, then each retained procedure.
     let module_traces = tcl_compiler::compilation_unit::ModuleTraceFacts {
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
@@ -828,26 +1009,26 @@ pub fn dataflow_graph(
     };
     let taint_ctx = TaintWarnCtx {
         registry,
+        unit: &cu,
         dialect,
-        shadow_proc_qnames: &shadow_proc_qnames,
         module_traces,
         line_index: &line_index,
     };
     let mut taint_warnings: Vec<Value> = Vec::new();
-    collect_taint_warnings(
+    let mut taint_replays = collect_taint_warnings(
         &cu.top_level,
-        solved.taints_for(&cu.top_level.name, &cu.top_level.taints),
+        &solved.top_taints,
         taint_ctx,
         &mut taint_warnings,
     );
     for qname in &proc_names {
         let fu = &cu.procedures[*qname];
-        collect_taint_warnings(
+        taint_replays.merge(collect_taint_warnings(
             fu,
-            solved.taints_for(&fu.name, &fu.taints),
+            solved.proc_taints.get(*qname).unwrap_or(&fu.taints),
             taint_ctx,
             &mut taint_warnings,
-        );
+        ));
     }
 
     // Tainted variables per scope: top level first, then each procedure.
@@ -857,7 +1038,7 @@ pub fn dataflow_graph(
     }
     for qname in &proc_names {
         for name in tainted_var_names(&cu.procedures[*qname]) {
-            tainted_variables.push(json!({ "scope": qname, "variable": name }));
+            tainted_variables.push(json!({ "bodyId": qname.ordinal(), "bodyKey": qname.reporting_key(), "scope": cu.procedures[*qname].name, "variable": name }));
         }
     }
 
@@ -866,8 +1047,13 @@ pub fn dataflow_graph(
         .interproc
         .as_ref()
         .expect("with_interprocedural populates the summary");
-    let mut effect_names: Vec<&String> = interproc.procedures.keys().collect();
-    effect_names.sort();
+    let mut effect_names: Vec<_> = interproc.procedures.keys().collect();
+    effect_names.sort_by(|left, right| {
+        interproc.procedures[*left]
+            .qualified_name
+            .cmp(&interproc.procedures[*right].qualified_name)
+            .then(left.cmp(right))
+    });
     let mut proc_effects: Vec<Value> = Vec::new();
     let mut pure_count = 0i64;
     let mut impure_count = 0i64;
@@ -879,7 +1065,8 @@ pub fn dataflow_graph(
             impure_count += 1;
         }
         proc_effects.push(json!({
-            "name": qname,
+            "bodyId": qname.ordinal(), "bodyKey": qname.reporting_key(),
+            "name": summary.qualified_name,
             "pure": summary.pure,
             "reads": effect_region_str(summary.effect_reads),
             "writes": effect_region_str(summary.effect_writes),
@@ -887,8 +1074,37 @@ pub fn dataflow_graph(
         }));
     }
 
+    let unavailable_replays = taint_replays
+        .unavailable_replays()
+        .iter()
+        .map(|replay| {
+            let current = replay
+                .source
+                .as_ref()
+                .is_some_and(|snapshot| snapshot.matches_module(&cu.ir_module, registry));
+            json!({
+                "source_span": current.then_some([replay.span.start(), replay.span.end()]),
+                "replay_span": [replay.span.start(), replay.span.end()],
+                "line": current.then(|| line0(&line_index, replay.span.start())),
+                "reason": replay.reason.as_str(),
+                "source_current": current,
+            })
+        })
+        .collect::<Vec<_>>();
+    let replay_status = match &taint_replays {
+        TaintReplayAnalysis::Analysed { .. } => "analysed",
+        TaintReplayAnalysis::Unavailable { .. } => "unavailable",
+    };
+    let source_declarations = uncompiled_source_declarations(source, input, &cu.ir_module);
+    proc_effects.extend(source_declarations.iter().map(source_effect_card));
     json!({
         "taint_warnings": taint_warnings,
+        "taint_replays": {
+            "scope": "command-heads",
+            "status": replay_status,
+            "complete": taint_replays.is_complete(),
+            "unavailable_replays": unavailable_replays,
+        },
         "tainted_variables": tainted_variables,
         "proc_effects": proc_effects,
         "summary": {
@@ -896,20 +1112,34 @@ pub fn dataflow_graph(
             "tainted_variable_count": tainted_variables.len(),
             "pure_proc_count": pure_count,
             "impure_proc_count": impure_count,
+            "source_only_proc_count": source_declarations.len(),
         },
     })
 }
 
 // def-use / SSA data-flow graph
 
+fn source_effect_card(declaration: &Value) -> Value {
+    json!({
+        "name": declaration["name"], "source_declaration": declaration,
+        "projection": "original-source-declaration", "pure": null,
+        "reads": null, "writes": null, "has_barrier": null,
+    })
+}
+
 /// One function unit's SSA def-use view, serialised to the camelCase wire dict.
-fn function_dataflow_json(f: &tcl_compiler::dataflow_graph::FunctionDataFlowGraph) -> Value {
+fn function_dataflow_json(
+    f: &tcl_compiler::dataflow_graph::FunctionDataFlowGraph,
+    module: &IrModule,
+) -> Value {
     let nodes: Vec<Value> = f
         .nodes
         .iter()
         .map(|n| {
             json!({
                 "name": n.name,
+                "symbol": n.symbol.map(|symbol| symbol.0),
+                "cell": n.cell,
                 "version": n.version,
                 "block": n.block,
                 "defKind": n.def_kind,
@@ -927,11 +1157,15 @@ fn function_dataflow_json(f: &tcl_compiler::dataflow_graph::FunctionDataFlowGrap
         .map(|e| {
             json!({
                 "fromName": e.from_name,
+                "fromSymbol": e.from_symbol.map(|symbol| symbol.0),
+                "fromCell": e.from_cell,
                 "fromVersion": e.from_version,
                 "toBlock": e.to_block,
                 "toStatementIndex": e.to_statement_index,
                 "edgeKind": e.edge_kind.as_str(),
                 "toName": e.to_name,
+                "toSymbol": e.to_symbol.map(|symbol| symbol.0),
+                "toCell": e.to_cell,
                 "toVersion": e.to_version,
             })
         })
@@ -951,6 +1185,9 @@ fn function_dataflow_json(f: &tcl_compiler::dataflow_graph::FunctionDataFlowGrap
         .collect();
     json!({
         "name": f.function_name,
+        "bodyId": f.body_id.map(tcl_core_types::ProcedureId::ordinal),
+        "bodyKey": f.body_id.map(tcl_core_types::ProcedureId::reporting_key).or_else(|| f.is_top_level.then(|| format!("{}:root", module.procedure_ids.reporting_scope()))),
+        "isTopLevel": f.is_top_level,
         "nodes": nodes,
         "edges": edges,
         "aliases": aliases,
@@ -972,9 +1209,33 @@ pub fn def_use_graph(
     registry: &CommandRegistry,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Value {
-    fn build_inputs(fu: &FunctionUnit) -> FunctionInputs<'_> {
+    def_use_graph_for_input(source, registry, &standalone_graph_input(registry, dialect))
+}
+
+/// Build the graph under the complete supplied source input.
+/// Source metadata supplies no Native handler, entered frame or completed link.
+pub fn def_use_graph_with_source_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: Option<&ResolvedAnalysisInput>,
+) -> Result<Value, GraphSourceInputDecline> {
+    Ok(def_use_graph_for_input(
+        source,
+        registry,
+        supplied_graph_input(registry, input)?,
+    ))
+}
+
+fn def_use_graph_for_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: &ResolvedAnalysisInput,
+) -> Value {
+    fn build_inputs(fu: &FunctionUnit, is_top_level: bool) -> FunctionInputs<'_> {
         FunctionInputs {
             name: fu.name.as_str(),
+            body_id: fu.body_id,
+            is_top_level,
             ssa: &fu.ssa,
             du: &fu.def_use,
             sccp: Some(&fu.sccp),
@@ -983,17 +1244,38 @@ pub fn def_use_graph(
         }
     }
 
+    let dialect = input.unit_profile();
     let profile = dialect;
-    let cu = document_unit(source, registry, profile).with_interprocedural(registry, Some(profile));
+    let cu = document_unit(source, registry, input).with_interprocedural(registry, Some(profile));
 
-    let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
-    proc_names.sort();
+    let mut proc_names: Vec<_> = cu.procedures.keys().collect();
+    proc_names.sort_by(|left, right| {
+        cu.procedures[*left]
+            .name
+            .cmp(&cu.procedures[*right].name)
+            .then(left.cmp(right))
+    });
 
-    let mut inputs: Vec<FunctionInputs<'_>> = vec![build_inputs(&cu.top_level)];
-    inputs.extend(proc_names.iter().map(|q| build_inputs(&cu.procedures[*q])));
+    let mut inputs: Vec<FunctionInputs<'_>> = vec![build_inputs(&cu.top_level, true)];
+    inputs.extend(
+        proc_names
+            .iter()
+            .map(|q| build_inputs(&cu.procedures[*q], false)),
+    );
 
     let graph = extract_dataflow_graph(&inputs);
-    let functions: Vec<Value> = graph.functions.iter().map(function_dataflow_json).collect();
+    let mut functions: Vec<Value> = graph
+        .functions
+        .iter()
+        .map(|row| function_dataflow_json(row, &cu.ir_module))
+        .collect();
+    for declaration in uncompiled_source_declarations(source, input, &cu.ir_module) {
+        functions.push(json!({
+            "name": declaration["name"], "source_declaration": declaration,
+            "projection": "original-source-declaration", "has_wildcard_aliasing": true,
+            "nodes": [], "edges": [], "aliases": [], "summary": null,
+        }));
+    }
 
     json!({
         "functions": functions,
@@ -1001,7 +1283,7 @@ pub fn def_use_graph(
             "totalDefs": graph.total_defs(),
             "totalUses": graph.total_uses(),
             "totalAliases": graph.total_aliases(),
-            "functionCount": graph.functions.len(),
+            "functionCount": functions.len(),
         },
     })
 }
@@ -1020,11 +1302,22 @@ fn memory_location_str(loc: &tcl_compiler::memory_ssa::MemoryLocation) -> String
 
 /// Serialise one function's memory-SSA to the alias wire dict.
 fn memory_function_json(
-    name: &str,
+    fu: &FunctionUnit,
     mem: Option<&tcl_compiler::memory_ssa::MemorySsaFunction>,
+    is_top_level: bool,
+    module: &IrModule,
 ) -> Value {
+    let name = &fu.name;
+    let body_id = fu.body_id.map(tcl_core_types::ProcedureId::ordinal);
+    let body_key = fu
+        .body_id
+        .map(tcl_core_types::ProcedureId::reporting_key)
+        .or_else(|| {
+            is_top_level.then(|| format!("{}:root", module.procedure_ids.reporting_scope()))
+        });
     let Some(mem) = mem else {
-        return json!({ "name": name, "alias_sets": [], "memory_ops": 0 });
+        return json!({ "name": name, "bodyId": body_id, "bodyKey": body_key, "alias_sets": [], "memory_ops": 0,
+            "has_wildcard_aliasing": true });
     };
     let alias_sets: Vec<Value> = mem
         .alias_sets
@@ -1039,7 +1332,9 @@ fn memory_function_json(
         .collect();
     json!({
         "name": name,
+        "bodyId": body_id, "bodyKey": body_key,
         "alias_sets": alias_sets,
+        "has_wildcard_aliasing": mem.has_wildcard_aliasing,
         "memory_ops": mem.memory_ops.len(),
         "memory_defs": mem.count_defs,
         "memory_uses": mem.count_uses,
@@ -1048,35 +1343,71 @@ fn memory_function_json(
 }
 
 /// Build the memory-SSA **alias** graph — per-function alias sets (variables the
-/// analysis proved may refer to the same storage, via `upvar` / `global` /
-/// `variable`) with the reason and locations, plus memory-op counts.
+/// source analysis reports as MAY exposure through selected alias descriptors).
+/// The wildcard flag preserves unresolved effects; these sets establish no
+/// completed runtime link or physical cell identity.
 #[must_use]
 pub fn memory_alias_graph(
     source: &str,
     registry: &CommandRegistry,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Value {
+    memory_alias_graph_for_input(source, registry, &standalone_graph_input(registry, dialect))
+}
+
+/// Build the graph under the complete supplied source input.
+/// Source metadata supplies no Native handler, entered frame or completed link.
+pub fn memory_alias_graph_with_source_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: Option<&ResolvedAnalysisInput>,
+) -> Result<Value, GraphSourceInputDecline> {
+    Ok(memory_alias_graph_for_input(
+        source,
+        registry,
+        supplied_graph_input(registry, input)?,
+    ))
+}
+
+fn memory_alias_graph_for_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: &ResolvedAnalysisInput,
+) -> Value {
+    let dialect = input.unit_profile();
     let profile = dialect;
-    let cu = document_unit(source, registry, profile)
+    let cu = document_unit(source, registry, input)
         .with_interprocedural(registry, Some(profile))
-        .with_memory_ssa(
-            registry,
-            Some(tcl_registry::model::semantic::SemanticContext::for_profile(
-                profile,
-            )),
-        );
+        .with_retained_memory_ssa(registry);
 
     let mut functions: Vec<Value> = vec![memory_function_json(
-        "::top",
+        &cu.top_level,
         cu.top_level.memory_ssa.as_ref(),
+        true,
+        &cu.ir_module,
     )];
-    let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
-    proc_names.sort();
+    let mut proc_names: Vec<_> = cu.procedures.keys().collect();
+    proc_names.sort_by(|left, right| {
+        cu.procedures[*left]
+            .name
+            .cmp(&cu.procedures[*right].name)
+            .then(left.cmp(right))
+    });
     for qname in &proc_names {
         functions.push(memory_function_json(
-            qname,
+            &cu.procedures[*qname],
             cu.procedures[*qname].memory_ssa.as_ref(),
+            false,
+            &cu.ir_module,
         ));
+    }
+
+    for declaration in uncompiled_source_declarations(source, input, &cu.ir_module) {
+        functions.push(json!({
+            "name": declaration["name"], "source_declaration": declaration,
+            "projection": "original-source-declaration", "has_wildcard_aliasing": true,
+            "alias_sets": [], "memory_ops": 0,
+        }));
     }
 
     let total_alias_sets: usize = functions
@@ -1102,6 +1433,167 @@ pub fn memory_alias_graph(
 mod tests {
     use super::*;
     use std::fmt::Write as _;
+
+    #[test]
+    fn graph_taint_replay_availability_does_not_follow_warning_count() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let mut unit = CompilationUnit::build_for_profile(
+            "set value 1",
+            registry,
+            false,
+            context
+                .commands()
+                .profile()
+                .expect("fixture selects an explicit profile"),
+        );
+        assert!(unit.top_level.cfg.namespace_context.is_some());
+        unit.top_level.cfg.namespace_context = None;
+        let traces = tcl_compiler::compilation_unit::ModuleTraceFacts {
+            traced_variables: &unit.ir_module.traced_variables,
+            has_dynamic_variable_trace: unit.ir_module.has_dynamic_variable_trace,
+            deferred_writes: &unit.ir_module.deferred_writes,
+        };
+        let index = LineIndex::new("set value 1");
+        let context = TaintWarnCtx {
+            registry,
+            unit: &unit,
+            dialect: context
+                .commands()
+                .profile()
+                .expect("fixture selects an explicit profile"),
+            module_traces: traces,
+            line_index: &index,
+        };
+        let mut warnings = Vec::new();
+        let replays = collect_taint_warnings(
+            &unit.top_level,
+            &unit.top_level.taints,
+            context,
+            &mut warnings,
+        );
+        assert!(warnings.is_empty());
+        assert!(matches!(replays, TaintReplayAnalysis::Unavailable { .. }));
+        assert!(!replays.is_complete());
+    }
+
+    #[test]
+    fn original_dataflow_warnings_keep_selected_source_availability_and_path_ordinals() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let mut catalogue = CommandRegistry::build_default();
+        let mut descriptor = catalogue.get("file").unwrap().clone();
+        descriptor.name = "purge";
+        descriptor.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        catalogue.insert(descriptor);
+        let registry = std::sync::Arc::new(catalogue);
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        config.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        let input = |environment| {
+            ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::new(
+                    tcl_registry::model::ingress::resolve_environment(environment)
+                        .default_context_registry()
+                        .with_command_store(std::sync::Arc::clone(&registry)),
+                ),
+                config,
+            )
+        };
+        let current = input("tcl9.1");
+        let older = input("tcl8.4");
+        let source = "interp alias {} remove {} purge delete --; remove ${a{b}c}";
+        let graph = dataflow_graph_with_source_input(source, &registry, Some(&current)).unwrap();
+        let warnings = graph["taint_warnings"].as_array().unwrap();
+        let warning = warnings
+            .iter()
+            .find(|warning| warning["code"] == "W313")
+            .expect("actual graph reports the retained conditional destructive path");
+        assert_eq!(warning["variable"], "a{b");
+        let start = warning["source_span"][0].as_u64().unwrap() as usize;
+        let end = warning["source_span"][1].as_u64().unwrap() as usize;
+        assert_eq!(&source[start..end], "${a{b}c}");
+        let unavailable =
+            dataflow_graph_with_source_input(source, &registry, Some(&older)).unwrap();
+        assert!(
+            unavailable["taint_warnings"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|warning| warning["code"] != "W313")
+        );
+        assert!(matches!(
+            dataflow_graph_with_source_input(source, &registry, None),
+            Err(GraphSourceInputDecline::MissingSourceInput)
+        ));
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("jim").default_context_registry();
+        assert!(matches!(
+            dataflow_graph_with_source_input(source, foreign.commands(), Some(&current)),
+            Err(GraphSourceInputDecline::ForeignCommandStore)
+        ));
+    }
+
+    #[test]
+    fn graph_calls_keep_consumed_names_as_references() {
+        let source = "proc target {} {return ok}; proc caller {} {info body target; target}; info body target; target";
+        let profile = crate::profile_for_dialect("tcl9.0");
+        let registry = crate::registry_for_dialect("tcl9.0");
+        let calls = call_graph(source, registry, profile);
+        let edges = calls["edges"].as_array().unwrap();
+        let incoming: Vec<_> = edges
+            .iter()
+            .filter(|edge| edge["callee"] == "::target")
+            .collect();
+        assert_eq!(incoming.len(), 2, "{calls}");
+        for caller in ["::caller", TOP_LEVEL] {
+            let edge = incoming
+                .iter()
+                .find(|edge| edge["caller"] == caller)
+                .unwrap();
+            assert_eq!(edge["call_sites"].as_array().unwrap().len(), 1, "{calls}");
+        }
+        let symbols = symbol_graph(source, profile);
+        assert_eq!(
+            symbols["proc_references"]["::target"]
+                .as_array()
+                .unwrap()
+                .len(),
+            4,
+            "{symbols}"
+        );
+    }
+
+    #[test]
+    fn graph_calls_use_terminal_alias_identity_without_borrowing_a_displaced_proc() {
+        let source = "proc target {} {return ok}\nproc alias {} {return displaced}\ninterp alias {} alias {} target\nalias\n";
+        let profile = crate::profile_for_dialect("tcl9.0");
+        let registry = crate::registry_for_dialect("tcl9.0");
+        let calls = call_graph(source, registry, profile);
+        let edges = calls["edges"].as_array().unwrap();
+        assert!(
+            edges.iter().any(|edge| {
+                edge["caller"] == TOP_LEVEL
+                    && edge["callee"] == "::target"
+                    && edge["call_sites"]
+                        .as_array()
+                        .is_some_and(|sites| sites.len() == 1)
+            }),
+            "{calls}"
+        );
+        assert!(
+            edges.iter().all(|edge| edge["callee"] != "::alias"),
+            "{calls}"
+        );
+        let symbols = symbol_graph(source, profile);
+        assert!(
+            symbols["proc_references"].get("::alias").is_none(),
+            "{symbols}"
+        );
+    }
 
     /// `scope_to_value`, `count_variables`, and `count_namespaces` recurse
     /// once per nested namespace scope, capped by

@@ -17,7 +17,8 @@ use tcl_lexer::{
     Lexer, LexerConfig, Span, TokenType, backslash_escape_end, command_substitution_end,
 };
 
-use super::{ExprNode, parse_expr};
+use super::ExprNode;
+use super::parser::{CheckedExprParse, ExprParseContext, parse_expr_checked_with_context};
 
 /// The direct substitutions that a valid Tcl expression evaluates.
 ///
@@ -31,6 +32,119 @@ pub struct LiveExpressionSubstitutions {
     pub variables: Vec<Span>,
     /// Complete outermost command substitutions evaluated by the expression.
     pub commands: Vec<Span>,
+}
+
+/// Retain compiler-visible command substitutions in a checked expression.
+///
+/// These are lexical compiler visits, including both lazy branches. They do
+/// not prove runtime execution. Rejected or unsupported syntax returns `None`;
+/// every range includes the brackets and is half-open in the original source.
+#[must_use]
+pub fn command_substitutions_in_checked_expression(
+    source: &str,
+    context: &ExprParseContext,
+) -> Option<Vec<Span>> {
+    checked_expression_substitutions(source, context).map(|substitutions| substitutions.commands)
+}
+
+/// Original lexical substitution visits under the complete retained context.
+///
+/// Lazy branches are both visited. These ranges provide source topology,
+/// never evidence that a variable read, command or conversion completes or
+/// runs. The caller retains runtime/compilation purpose independently.
+/// Rejected or unsupported syntax returns `None` instead of recovery facts.
+#[must_use]
+pub fn checked_expression_substitutions(
+    source: &str,
+    context: &ExprParseContext,
+) -> Option<LiveExpressionSubstitutions> {
+    let CheckedExprParse::Parsed(parsed) = parse_expr_checked_with_context(source, context) else {
+        return None;
+    };
+    substitutions_from_parsed(source, &parsed, context)
+}
+
+/// Complete checked source expression, without a selected Native parser or evaluator.
+/// The source bytes, full grammar and immutable tree remain one lexical receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourceExpression {
+    source: String,
+    context: ExprParseContext,
+    tree: ExprNode,
+    config: LexerConfig,
+}
+impl OriginalSourceExpression {
+    /// Parse complete original bytes with the existing source-only grammar owner.
+    /// Recovery trees and incomplete or unavailable grammar return no receipt.
+    #[must_use]
+    pub fn capture(source: &str, context: &ExprParseContext, config: LexerConfig) -> Option<Self> {
+        let tree =
+            super::parser::parse_source_expression_checked_with_config(source, context, config)?;
+        Some(Self {
+            source: source.to_owned(),
+            context: *context,
+            tree,
+            config,
+        })
+    }
+    /// Compare a retained lowered tree with this complete checked source tree.
+    /// Equality preserves source offsets and topology; it grants no evaluation,
+    /// operand value, successful completion or rewrite equivalence.
+    #[must_use]
+    pub fn matches_tree(&self, tree: &ExprNode) -> bool {
+        &self.tree == tree
+    }
+    /// Complete original expression bytes, without cooking or trimming.
+    #[must_use]
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+    /// All retained parser axes; source recognition grants no Native policy.
+    #[must_use]
+    pub const fn context(&self) -> &ExprParseContext {
+        &self.context
+    }
+    /// Checked function identifiers in immutable tree order, including nested calls.
+    #[must_use]
+    pub fn function_calls(&self) -> Vec<(&str, super::ExprOffset, usize)> {
+        self.tree.function_calls()
+    }
+    /// Complete original script/word configuration, including caller knobs.
+    #[must_use]
+    pub const fn lexer_config(&self) -> LexerConfig {
+        self.config
+    }
+    /// Conservative opaque/string or substitution operands in the original tree.
+    /// A string may contain inert bytes; this supplies no effect closure or read.
+    #[must_use]
+    pub fn has_opaque_or_substitution_operands(&self) -> bool {
+        self.tree.evaluation_nodes().into_iter().any(|node| {
+            matches!(
+                node,
+                ExprNode::Var { .. }
+                    | ExprNode::Command { .. }
+                    | ExprNode::String { .. }
+                    | ExprNode::CompiledWord { .. }
+                    | ExprNode::Raw { .. }
+            )
+        })
+    }
+}
+
+/// Complete original source substitution topology under the retained grammar.
+///
+/// The caller must separately retain its source input, configured original
+/// word/image/extent and selected Expr role. This accepts no recovery tree and
+/// grants no Native syntax error, preparation, result representation, folding
+/// or execution proof. Unknown Native syntax stays unknown; lexical failures,
+/// unavailable operators and incomplete consumption still decline.
+#[must_use]
+pub fn checked_source_expression_substitutions(
+    source: &str,
+    context: &ExprParseContext,
+) -> Option<LiveExpressionSubstitutions> {
+    let parsed = super::parser::parse_source_expression_checked(source, context)?;
+    substitutions_from_parsed(source, &parsed, context)
 }
 
 /// Return every variable and complete command substitution directly evaluated
@@ -56,14 +170,25 @@ pub fn live_expression_substitutions(
     if !lexer_config_matches_profile(lexer_config, profile) {
         return LiveExpressionSubstitutions::default();
     }
-    // `parse_expr` is the canonical expression lexer/parser seam. In
-    // particular, it rejects a Tcl 8.x `#`, dangling operators, unbalanced
-    // delimiters, and incomplete variable forms before we expose any
-    // otherwise well-formed substitution range.
-    let parsed = parse_expr(source, Some(profile.name));
-    if matches!(parsed, ExprNode::Raw { .. }) || !surface_accepts(&parsed) {
+    let context = ExprParseContext::for_profile(profile);
+    let CheckedExprParse::Parsed(parsed) = parse_expr_checked_with_context(source, &context) else {
+        return LiveExpressionSubstitutions::default();
+    };
+    if !surface_accepts(&parsed) {
         return LiveExpressionSubstitutions::default();
     }
+    substitutions_from_parsed(source, &parsed, &context).unwrap_or_default()
+}
+
+fn substitutions_from_parsed(
+    source: &str,
+    parsed: &ExprNode,
+    context: &ExprParseContext,
+) -> Option<LiveExpressionSubstitutions> {
+    // The checked expression owns the complete quote delimiters. Its extracted
+    // interiors deliberately have no closing quote, so quoted-body EOF is not
+    // a new syntax failure. Nested syntax was checked before this projection.
+    let lexer_config = LexerConfig::from_grammar(context.lexer_grammar);
 
     let mut variables: Vec<Span> = parsed
         .variable_spans()
@@ -84,19 +209,19 @@ pub fn live_expression_substitutions(
     // through the shared lexer; scanning decoded string text would lose exact
     // escapes and can turn inert source into a false live variable.
     for (start, end) in parsed.quoted_string_spans() {
-        append_quoted_string_variable_spans(source, start, end, lexer_config, &mut variables);
+        append_quoted_string_variable_spans(source, start, end, lexer_config, &mut variables)?;
     }
     variables.sort_unstable_by_key(|span| (span.start(), span.end()));
     variables.dedup();
 
-    let comments = profile.grammar.expr_comments.comments();
+    let comments = context.lexer_grammar.expr_comments.comments();
     let mut commands = Vec::new();
     scan_expression(source, 0, source.len(), comments, &mut commands);
 
-    LiveExpressionSubstitutions {
+    Some(LiveExpressionSubstitutions {
         variables,
         commands,
-    }
+    })
 }
 
 /// Return the complete, outermost command substitutions directly evaluated by
@@ -134,9 +259,13 @@ pub fn command_substitution_spans(
     live_expression_substitutions(source, profile, lexer_config, surface_accepts).commands
 }
 
-/// Convert an inclusive expression-lexer pair into the public half-open span
-/// contract, only after proving it still slices the original UTF-8 source.
-fn expression_span(source: &str, start: u32, end: u32) -> Option<Span> {
+/// Convert an inclusive expression-lexer pair into a checked half-open span.
+///
+/// The complete extent must remain within `source` and on UTF-8 boundaries.
+/// This is source geometry only: a span supplies no original operand, source
+/// ancestry, grammar, selected command or execution receipt.
+#[must_use]
+pub fn expression_span(source: &str, start: u32, end: u32) -> Option<Span> {
     let start = usize::try_from(start).ok()?;
     let end = usize::try_from(end).ok()?.checked_add(1)?;
     source.get(start..end)?;
@@ -158,7 +287,7 @@ fn append_array_index_variable_spans(
     let Some(raw) = source.get(variable.as_range()) else {
         return;
     };
-    let Some(index_range) = array_index_content_range(raw) else {
+    let Some(index_range) = array_index_content_range(raw, lexer_config) else {
         return;
     };
     let Some(index) = raw.get(index_range.clone()) else {
@@ -198,26 +327,35 @@ fn append_quoted_string_variable_spans(
     end: u32,
     lexer_config: LexerConfig,
     out: &mut Vec<Span>,
-) {
-    let Some(quoted) = expression_span(source, start, end) else {
-        return;
-    };
+) -> Option<()> {
+    let quoted = expression_span(source, start, end)?;
     let quoted_start = quoted.start() as usize;
     let quoted_end = quoted.end() as usize;
-    let Some(interior_start) = quoted_start.checked_add(1) else {
-        return;
-    };
-    let Some(interior_end) = quoted_end.checked_sub(1) else {
-        return;
-    };
-    let Some(interior) = source.get(interior_start..interior_end) else {
-        return;
-    };
+    let interior_start = quoted_start.checked_add(1)?;
+    let interior_end = quoted_end.checked_sub(1)?;
+    let interior = source.get(interior_start..interior_end)?;
+    // The expr parser owns the quotes but treats their interiors as opaque.
+    // Validate nested substitution delimiters through the same script scanner;
+    // quoted-body EOF alone cannot distinguish a missing array closer.
+    let extent = Span::new(0, u32::try_from(interior.len()).ok()?);
+    let arena = tcl_lexer::ExecutablePartArena::decompose(
+        tcl_lexer::SourceImage::document(interior),
+        extent,
+        tcl_lexer::word_parts::SubstFlags::default(),
+        lexer_config,
+    )
+    .ok()?;
+    if arena
+        .all_parts()
+        .any(|part| matches!(part.part, tcl_lexer::ExecutablePart::ParseError(_)))
+    {
+        return None;
+    }
     let Ok(tokens) = Lexer::with_config(interior, lexer_config)
         .as_quoted_body()
         .tokenise_all()
     else {
-        return;
+        return None;
     };
     for token in tokens
         .into_iter()
@@ -232,35 +370,25 @@ fn append_quoted_string_variable_spans(
         out.push(variable);
         append_array_index_variable_spans(source, variable, lexer_config, out);
     }
+    Some(())
 }
 
 /// The content range of a non-braced `$name(index)` variable spelling.
 ///
-/// The byte scan is the same name grammar as the expression lexer: ASCII word
-/// characters plus complete `::` namespace separators. It runs only on a
-/// complete variable token accepted by that lexer; parsing the index itself is
-/// delegated to [`Lexer::as_quoted_body`], never a consumer regex.
-fn array_index_content_range(variable: &str) -> Option<std::ops::Range<usize>> {
+/// The native variable scanner owns both the complete name grammar and index
+/// delimiters. Borrowed index geometry preserves Jim high-byte names and empty
+/// indices without a second name scan or closer calculation.
+fn array_index_content_range(
+    variable: &str,
+    config: LexerConfig,
+) -> Option<std::ops::Range<usize>> {
     let bytes = variable.as_bytes();
-    if bytes.first() != Some(&b'$') || bytes.get(1) == Some(&b'{') || bytes.last() != Some(&b')') {
+    if bytes.first() != Some(&b'$') {
         return None;
     }
-    let mut pos = 1;
-    while let Some(&byte) = bytes.get(pos) {
-        if byte.is_ascii_alphanumeric() || byte == b'_' {
-            pos += 1;
-        } else if byte == b':' && bytes.get(pos + 1) == Some(&b':') {
-            pos += 2;
-        } else {
-            break;
-        }
-    }
-    if bytes.get(pos) != Some(&b'(') {
-        return None;
-    }
-    let start = pos.checked_add(1)?;
-    let end = bytes.len().checked_sub(1)?;
-    (start <= end).then_some(start..end)
+    let reference = tcl_lexer::word_parts::scan_var_ref(bytes, 0, config).ok()??;
+    (reference.next == bytes.len()).then_some(())?;
+    reference.index_range_in(bytes)
 }
 
 /// The caller may change offsets, strictness, or file-vs-nested BOM handling,
@@ -270,12 +398,7 @@ fn array_index_content_range(variable: &str) -> Option<std::ops::Range<usize>> {
 /// config here still prevents a caller from mixing Tcl 8/iRules word grammar
 /// with a Tcl 9 expression parse.
 fn lexer_config_matches_profile(config: LexerConfig, profile: &DialectProfile) -> bool {
-    let expected = LexerConfig::from_grammar(profile.grammar);
-    config.expand_syntax == expected.expand_syntax
-        && config.irules_brace_separator == expected.irules_brace_separator
-        && config.brace_line_continuation == expected.brace_line_continuation
-        && config.braced_var == expected.braced_var
-        && config.escapes == expected.escapes
+    config.grammar_over(profile.grammar) == profile.grammar
 }
 
 fn scan_expression(
@@ -384,7 +507,10 @@ fn span(start: usize, end: usize) -> Span {
 
 #[cfg(test)]
 mod tests {
-    use super::{command_substitution_spans, live_expression_substitutions};
+    use super::{
+        checked_expression_substitutions, command_substitution_spans, live_expression_substitutions,
+    };
+    use crate::expr::parser::ExprParseContext;
     use tcl_dialect::DialectProfile;
     use tcl_lexer::LexerConfig;
 
@@ -570,8 +696,11 @@ mod tests {
             ["[live]"]
         );
         assert_eq!(texts("{[braced]} eq [live]", Some("f5-irules")), ["[live]"]);
-        assert!(texts("[unterminated", Some("f5-irules")).is_empty());
-        assert!(texts("\"[complete_but_unquoted]", Some("f5-irules")).is_empty());
+        assert_eq!(texts("[unterminated", Some("f5-irules")), [] as [String; 0]);
+        assert_eq!(
+            texts("\"[complete_but_unquoted]", Some("f5-irules")),
+            [] as [String; 0]
+        );
     }
 
     #[test]
@@ -648,5 +777,712 @@ mod tests {
             .is_empty(),
             "mixed profile/config inputs must not execute a span"
         );
+    }
+
+    #[test]
+    fn checked_substitutions_retain_overridden_variable_and_comment_grammar() {
+        // Implementation contract: naming.grammar.checked-expression-substitution-context
+
+        let profile = DialectProfile::find("tcl8.6").unwrap();
+        let mut context = ExprParseContext::for_profile(profile);
+        context.lexer_grammar.var_syntax = tcl_dialect::VarSyntax::Jim;
+        context.lexer_grammar.expr_comments = DialectProfile::find("tcl9.0")
+            .unwrap()
+            .grammar
+            .expr_comments;
+        let source = "\"☃$café($clé)\" ne \"\" # [inert]\n || [left] || [right]";
+        let substitutions = checked_expression_substitutions(source, &context).unwrap();
+        assert_eq!(
+            substitutions
+                .variables
+                .iter()
+                .map(|span| &source[span.as_range()])
+                .collect::<Vec<_>>(),
+            ["$café($clé)", "$clé"],
+        );
+        assert_eq!(
+            substitutions
+                .commands
+                .iter()
+                .map(|span| &source[span.as_range()])
+                .collect::<Vec<_>>(),
+            ["[left]", "[right]"],
+            "both lazy branches are lexical visits, not runtime completion proofs",
+        );
+        assert!(
+            checked_expression_substitutions(source, &ExprParseContext::for_profile(profile))
+                .is_none()
+        );
+        assert!(checked_expression_substitutions("$a +", &context).is_none());
+        assert!(checked_expression_substitutions("\"$a(\"", &context).is_none());
+    }
+
+    #[test]
+    fn checked_substitutions_keep_command_script_ownership_separate() {
+        // Implementation contract: naming.grammar.checked-expression-substitution-context
+
+        let context = ExprParseContext::for_profile(DialectProfile::find("tcl8.6").unwrap());
+        let source = "$a($index[set inside $other]) + [set result $value]";
+        let substitutions = checked_expression_substitutions(source, &context).unwrap();
+        assert_eq!(
+            substitutions
+                .variables
+                .iter()
+                .map(|span| &source[span.as_range()])
+                .collect::<Vec<_>>(),
+            ["$a($index[set inside $other])", "$index"],
+        );
+        assert_eq!(
+            substitutions
+                .commands
+                .iter()
+                .map(|span| &source[span.as_range()])
+                .collect::<Vec<_>>(),
+            ["[set inside $other]", "[set result $value]"],
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_expression_span_tests {
+    use super::expression_span;
+    use tcl_lexer::Span;
+
+    #[test]
+    fn inclusive_expression_extent_keeps_complete_multibyte_source_and_checked_boundaries() {
+        // naming.grammar.checked-expression-substitution-context
+
+        // Geometry only; no original operand or command selection is issued.
+        let command = "[regexp λ λ out]";
+        let end = u32::try_from(command.len())
+            .unwrap()
+            .checked_sub(1)
+            .unwrap();
+        let extent = expression_span(command, 0, end).unwrap();
+        assert_eq!(extent, Span::new(0, end + 1));
+        assert_eq!(command.get(extent.as_range()), Some(command));
+
+        let source = format!("λ prefix {command} suffix");
+        let base = u32::try_from(source.find(command).unwrap()).unwrap();
+        let extent = expression_span(&source, base, base.checked_add(end).unwrap()).unwrap();
+        assert_eq!(extent.start(), base);
+        assert_eq!(source.get(extent.as_range()), Some(command));
+        let lambda = u32::try_from(command.find('λ').unwrap()).unwrap();
+        assert!(expression_span(command, lambda + 1, end).is_none());
+        assert!(expression_span(command, 0, lambda).is_none());
+        assert!(expression_span(command, 0, u32::MAX).is_none());
+        assert!(expression_span(command, end + 2, end).is_none());
+        assert!(expression_span(command, 0, end + 1).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_source_topology_tests {
+    use super::super::parser::{CheckedExprParse, ExprParseUnsupported, NativeExprSyntax};
+    use super::*;
+
+    #[test]
+    fn original_source_topology_keeps_complete_unicode_bom_ranges_without_native_syntax() {
+        // naming.grammar.checked-expression-substitution-context
+
+        // Complete source topology only; unknown Native syntax remains unavailable.
+        let context = ExprParseContext::for_profile(DialectProfile::plain_tcl());
+        assert_eq!(context.native_syntax, NativeExprSyntax::Unknown);
+        let source = "![\u{feff}match λ λ out] || [right]";
+        let substitutions = checked_source_expression_substitutions(source, &context).unwrap();
+        assert!(substitutions.variables.is_empty());
+        assert_eq!(
+            substitutions
+                .commands
+                .iter()
+                .map(|span| &source[span.as_range()])
+                .collect::<Vec<_>>(),
+            ["[\u{feff}match λ λ out]", "[right]"]
+        );
+        assert_eq!(substitutions.commands[0].start(), 1);
+        assert_eq!(
+            substitutions.commands.last().unwrap().end(),
+            u32::try_from(source.len()).unwrap()
+        );
+        assert!(checked_expression_substitutions(source, &context).is_none());
+        assert_eq!(
+            parse_expr_checked_with_context(source, &context),
+            CheckedExprParse::Unsupported(ExprParseUnsupported::UnknownNativeSyntax)
+        );
+        assert_eq!(context.native_syntax, NativeExprSyntax::Unknown);
+    }
+
+    #[test]
+    fn original_source_topology_refuses_incomplete_lexing_unsupported_operators_and_unconsumed_suffix()
+     {
+        // naming.grammar.checked-expression-substitution-context
+
+        let mut context = ExprParseContext::for_profile(DialectProfile::plain_tcl());
+        for source in [
+            "[complete] +",
+            "([complete]",
+            "[unterminated",
+            "\"$array(\"",
+            "$array($key",
+            "[complete] @",
+            "[complete] [later]",
+        ] {
+            assert!(
+                checked_source_expression_substitutions(source, &context).is_none(),
+                "{source}"
+            );
+        }
+        context.expr_grammar_base = Some(tcl_dialect::TclVersion::V8_4);
+        assert!(checked_source_expression_substitutions("[complete] ** 2", &context).is_none());
+        assert!(checked_source_expression_substitutions("[complete] + 2", &context).is_some());
+        context.lexer_grammar.expr_comments = DialectProfile::find("tcl8.6")
+            .unwrap()
+            .grammar
+            .expr_comments;
+        assert!(
+            checked_source_expression_substitutions("[complete] # [inert]", &context).is_none()
+        );
+        context.lexer_grammar.expr_comments = DialectProfile::find("tcl9.0")
+            .unwrap()
+            .grammar
+            .expr_comments;
+        assert_eq!(
+            checked_source_expression_substitutions("[complete] # [inert]", &context)
+                .unwrap()
+                .commands
+                .len(),
+            1
+        );
+        context.native_syntax = NativeExprSyntax::Tcl(tcl_dialect::TclVersion::V8_4);
+        assert!(checked_expression_substitutions("[complete] ** 2", &context).is_none());
+        assert!(checked_source_expression_substitutions("[complete] ** 2", &context).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_source_expression_tests {
+    use super::*;
+
+    #[test]
+    fn original_source_expression_retains_complete_configuration_and_untrimmed_offsets() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = ExprParseContext::for_profile(profile);
+        let mut config = LexerConfig::from_grammar(context.lexer_grammar);
+        config.strict_quoting = !config.strict_quoting;
+        let expression =
+            OriginalSourceExpression::capture("  max(abs($x), 2)  ", &context, config).unwrap();
+        assert_eq!(expression.source(), "  max(abs($x), 2)  ");
+        assert_eq!(expression.lexer_config(), config);
+        assert_eq!(expression.function_calls(), [("max", 2, 2), ("abs", 6, 1)]);
+        assert!(expression.has_opaque_or_substitution_operands());
+        let mut foreign = config;
+        foreign.expand_syntax = !foreign.expand_syntax;
+        assert!(OriginalSourceExpression::capture("max(1,2)", &context, foreign).is_none());
+        assert!(OriginalSourceExpression::capture("max(1,2) tail", &context, config).is_none());
+    }
+}
+
+impl OriginalSourceExpression {
+    /// Correspondence for replacing one actual scalar source substitution by
+    /// a numeric literal. Complete parsing and original token topology prevent
+    /// adjacent numeral/operator text from silently changing the container.
+    /// Quoted expression operands retain their existing substitution grammar.
+    /// No evaluation, binding or transformation permission follows.
+    #[must_use]
+    pub fn scalar_numeric_literal_substitution(
+        &self,
+        reference: Span,
+        value: &str,
+    ) -> Option<String> {
+        use tcl_lexer::ExprTokenType;
+        let admits = || -> Option<String> {
+            if !crate::number::is_whole_number(value, self.context.lexer_grammar.numbers) {
+                return None;
+            }
+            let tokens = |text: &str| -> Option<Vec<tcl_lexer::ExprToken<Vec<u8>>>> {
+                let (tokens, failures) = tcl_lexer::tokenise_expr_bytes_with_config_and_failures(
+                    text.as_bytes(),
+                    &self.context.lexer_grammar,
+                    self.context.expr_grammar_base,
+                    self.context.f5_word_grammar,
+                    self.config,
+                );
+                failures.is_empty().then_some(tokens)
+            };
+            let original = tokens(&self.source)?;
+            let mut expected = Vec::new();
+            let mut replaced = false;
+            let mut fragment = value.to_owned();
+            for token in original {
+                let end = token.end.checked_add(1)?;
+                if token.start <= reference.start() && reference.end() <= end {
+                    if replaced {
+                        return None;
+                    }
+                    self.token_word_admits(&token, reference, value)?;
+                    if token.kind == ExprTokenType::Variable {
+                        let literal = tokens(value)?
+                            .into_iter()
+                            .filter(|token| token.kind != ExprTokenType::Eof)
+                            .collect::<Vec<_>>();
+                        if !matches!(literal.as_slice(), [token] if token.kind==ExprTokenType::Number)
+                        {
+                            // A variable is an atom. Preserve that topology for
+                            // signed numbers instead of donating unary precedence.
+                            fragment = format!("({value})");
+                        }
+                    }
+                    match token.kind {
+                        ExprTokenType::Variable
+                            if token.start == reference.start() && end == reference.end() =>
+                        {
+                            for literal in tokens(&fragment)? {
+                                if literal.kind == ExprTokenType::Eof {
+                                    continue;
+                                }
+                                if !matches!(
+                                    literal.kind,
+                                    ExprTokenType::Number
+                                        | ExprTokenType::Operator
+                                        | ExprTokenType::ParenOpen
+                                        | ExprTokenType::ParenClose
+                                ) {
+                                    return None;
+                                }
+                                if literal.kind == ExprTokenType::Operator
+                                    && literal.text != b"+"
+                                    && literal.text != b"-"
+                                {
+                                    return None;
+                                }
+                                expected.push((literal.kind, literal.text));
+                            }
+                        }
+                        ExprTokenType::String if token.text.first() == Some(&b'"') => {
+                            let from = usize::try_from(reference.start().checked_sub(token.start)?)
+                                .ok()?;
+                            let to =
+                                usize::try_from(reference.end().checked_sub(token.start)?).ok()?;
+                            let mut text = token.text;
+                            text.get(from..to)?;
+                            drop(text.splice(from..to, value.bytes()));
+                            expected.push((token.kind, text));
+                        }
+                        _ => return None,
+                    }
+                    replaced = true;
+                } else {
+                    expected.push((token.kind, token.text));
+                }
+            }
+            if !replaced {
+                return None;
+            }
+            let mut proposal = self.source.clone();
+            proposal.get(reference.as_range())?;
+            proposal.replace_range(reference.as_range(), &fragment);
+            Self::capture(&proposal, &self.context, self.config)?;
+            let actual = tokens(&proposal)?
+                .into_iter()
+                .map(|token| (token.kind, token.text))
+                .collect::<Vec<_>>();
+            (expected == actual).then_some(fragment)
+        };
+        admits()
+    }
+
+    /// The original token holding `reference` is exactly one complete lexical
+    /// word whose scalar substitution admits `value` as its literal.
+    fn token_word_admits(
+        &self,
+        token: &tcl_lexer::ExprToken<Vec<u8>>,
+        reference: Span,
+        value: &str,
+    ) -> Option<()> {
+        let token_source = std::str::from_utf8(&token.text).ok()?;
+        let extent = Span::new(0, u32::try_from(token_source.len()).ok()?);
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            tcl_lexer::SourceImage::document(token_source),
+            extent,
+            self.config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        let [word] = command.words.as_slice() else {
+            return None;
+        };
+        let local = Span::new(
+            reference.start().checked_sub(token.start)?,
+            reference.end().checked_sub(token.start)?,
+        );
+        (plan.fatal_tail.is_none()
+            && word.span() == extent
+            && crate::word_rules::lexical_source_scalar_literal_substitution(word, local, value))
+        .then_some(())
+    }
+}
+
+#[cfg(test)]
+mod numeric_source_substitution_tests {
+    use super::*;
+    fn expression(source: &str) -> Option<OriginalSourceExpression> {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        OriginalSourceExpression::capture(
+            source,
+            &ExprParseContext::for_profile(profile),
+            LexerConfig::for_profile(Some(profile)),
+        )
+    }
+    #[test]
+    fn numeric_atom_and_quoted_scalar_keep_the_original_expression_language() {
+        let original = expression("$x + 1").unwrap();
+        assert!(
+            original
+                .scalar_numeric_literal_substitution(Span::new(0, 2), "7")
+                .is_some()
+        );
+        assert_eq!(
+            original
+                .scalar_numeric_literal_substitution(Span::new(0, 2), "-1")
+                .as_deref(),
+            Some("(-1)")
+        );
+        assert!(
+            original
+                .scalar_numeric_literal_substitution(Span::new(0, 2), "abc")
+                .is_none()
+        );
+        assert!(
+            original
+                .scalar_numeric_literal_substitution(Span::new(0, 2), "0xZZZ")
+                .is_none()
+        );
+        let original = expression("{${x}} eq \"$x\"").unwrap();
+        assert!(
+            original
+                .scalar_numeric_literal_substitution(Span::new(1, 5), "7")
+                .is_none()
+        );
+        assert!(
+            original
+                .scalar_numeric_literal_substitution(Span::new(11, 13), "7")
+                .is_some()
+        );
+        assert!(expression("${x}2 + 1").is_none());
+        let original = expression("\"$arr($x)\" eq 0").unwrap();
+        assert!(
+            original
+                .scalar_numeric_literal_substitution(Span::new(6, 8), "7")
+                .is_none()
+        );
+    }
+}
+
+/// Complete original expression command substitution and its script interior.
+/// Coordinates are relative to the retained expression, not a source identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OriginalExpressionCommandRegion {
+    /// Complete source extent, including its original brackets.
+    pub substitution: Span,
+    /// Actual script interior selected by the shared command scanner.
+    pub body: Span,
+}
+
+impl OriginalSourceExpression {
+    /// Direct source command regions under every retained parser/configuration
+    /// axis. Quoted operands and variable indices use the same executable-part
+    /// owner; inert braced strings and commands inside returned scripts are not
+    /// reclassified. Missing geometry or lexical failures withdraw the result.
+    /// The caller separately retains its original word/channel/selected role.
+    #[must_use]
+    pub fn command_regions(&self) -> Option<Vec<OriginalExpressionCommandRegion>> {
+        let source = self.source.as_bytes();
+        let (tokens, failures) = tcl_lexer::tokenise_expr_bytes_with_config_and_failures(
+            source,
+            &self.context.lexer_grammar,
+            self.context.expr_grammar_base,
+            self.context.f5_word_grammar,
+            self.config,
+        );
+        failures.is_empty().then_some(())?;
+        let terms = tcl_lexer::expression_terms(source, &tokens, self.config)?;
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let mut regions = Vec::new();
+        for term in terms {
+            let whole = Span::new(term.source.start, term.source.end);
+            let content = Span::new(term.value.start, term.value.end);
+            let parts = match term.kind {
+                tcl_lexer::ExprTermKind::Command => {
+                    regions.push(OriginalExpressionCommandRegion {
+                        substitution: whole,
+                        body: content,
+                    });
+                    continue;
+                }
+                tcl_lexer::ExprTermKind::EscapedString => content,
+                tcl_lexer::ExprTermKind::Variable | tcl_lexer::ExprTermKind::IndexedVariable => {
+                    whole
+                }
+                _ => continue,
+            };
+            let arena = tcl_lexer::ExecutablePartArena::decompose(
+                image.clone(),
+                parts,
+                tcl_lexer::word_parts::SubstFlags::default(),
+                self.config,
+            )
+            .ok()?;
+            for part in arena.all_parts() {
+                match part.part {
+                    tcl_lexer::ExecutablePart::ParseError(_) => return None,
+                    tcl_lexer::ExecutablePart::Command { body } => {
+                        regions.push(OriginalExpressionCommandRegion {
+                            substitution: part.span,
+                            body,
+                        });
+                    }
+                    _ => {}
+                }
+            }
+        }
+        regions.sort_unstable_by_key(|region| {
+            (region.substitution.start(), region.substitution.end())
+        });
+        regions.dedup();
+        Some(regions)
+    }
+}
+
+#[cfg(test)]
+mod configured_command_region_controls {
+    use super::*;
+
+    #[test]
+    fn complete_expression_regions_keep_quoted_and_index_commands_but_not_literal_data() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let context = ExprParseContext::for_profile(profile);
+        let mut config = LexerConfig::for_file_grammar(profile.grammar);
+        config.strict_quoting = !config.strict_quoting;
+        let text = "\"[quoted]\" eq {[inert]} || $a([get]) + [expr {1}]";
+        let original = OriginalSourceExpression::capture(text, &context, config).unwrap();
+        let regions = original.command_regions().unwrap();
+        assert_eq!(
+            regions
+                .iter()
+                .map(|region| &text[region.substitution.as_range()])
+                .collect::<Vec<_>>(),
+            ["[quoted]", "[get]", "[expr {1}]"]
+        );
+        assert_eq!(
+            regions
+                .iter()
+                .map(|region| &text[region.body.as_range()])
+                .collect::<Vec<_>>(),
+            ["quoted", "get", "expr {1}"]
+        );
+        assert_eq!(original.lexer_config(), config);
+        assert!(OriginalSourceExpression::capture("[unterminated", &context, config).is_none());
+    }
+}
+
+impl OriginalSourceExpression {
+    /// Original operator token of one actual retained binary subtree.
+    /// Complete tree/source/configuration ownership is retained. Only a unique
+    /// positioned subtree in that retained tree supplies this geometry.
+    /// Geometry is separate from operator semantics and rewrite equivalence.
+    #[must_use]
+    pub fn binary_operator_span(&self, node: &ExprNode) -> Option<Span> {
+        let mut selected = self
+            .tree
+            .evaluation_nodes()
+            .into_iter()
+            .filter(|candidate| *candidate == node);
+        let node = selected.next()?;
+        if selected.next().is_some() {
+            return None;
+        }
+        let ExprNode::Binary { op, left, right } = node else {
+            return None;
+        };
+        let (_, left_end) = left.lexical_source_extent()?;
+        let (right_start, _) = right.lexical_source_extent()?;
+        let gap_start = left_end.checked_add(1)?;
+        if gap_start > right_start {
+            return None;
+        }
+        let (tokens, failures) = tcl_lexer::tokenise_expr_bytes_with_config_and_failures(
+            self.source.as_bytes(),
+            &self.context.lexer_grammar,
+            self.context.expr_grammar_base,
+            self.context.f5_word_grammar,
+            self.config,
+        );
+        failures.is_empty().then_some(())?;
+        let mut operators = tokens.iter().filter(|token| {
+            token.kind == tcl_lexer::ExprTokenType::Operator
+                && token.start >= gap_start
+                && token.end < right_start
+                && token.text.as_slice() == op.as_str().as_bytes()
+        });
+        let token = operators.next()?;
+        if operators.next().is_some() {
+            return None;
+        }
+        let span = Span::new(token.start, token.end.checked_add(1)?);
+        (self.source.get(span.as_range())? == op.as_str()).then_some(span)
+    }
+}
+
+#[cfg(test)]
+mod original_binary_operator_geometry_controls {
+    use super::*;
+
+    #[test]
+    fn complete_configured_tree_selects_operator_tokens_not_string_occurrences() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let context = ExprParseContext::for_profile(profile);
+        let mut config = LexerConfig::for_file_grammar(profile.grammar);
+        config.strict_quoting = !config.strict_quoting;
+        let source = "$x == \"literal == bytes\" && ($y != \"bar\")";
+        let original = OriginalSourceExpression::capture(source, &context, config).unwrap();
+        let mut spans = original
+            .tree
+            .evaluation_nodes()
+            .into_iter()
+            .filter_map(|node| {
+                let ExprNode::Binary { op, .. } = node else {
+                    return None;
+                };
+                if matches!(op, super::super::BinOp::Eq | super::super::BinOp::Ne) {
+                    Some(original.binary_operator_span(node).unwrap())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        spans.sort_by_key(|span| span.start());
+        assert_eq!(spans.len(), 2);
+        assert_eq!(source.get(spans[0].as_range()), Some("=="));
+        assert_eq!(source.get(spans[1].as_range()), Some("!="));
+        assert_eq!(spans[0].start(), 3);
+        let foreign =
+            OriginalSourceExpression::capture("$other == \"foreign\"", &context, config).unwrap();
+        assert!(original.binary_operator_span(&foreign.tree).is_none());
+        assert!(OriginalSourceExpression::capture("$x ==", &context, config).is_none());
+    }
+}
+
+impl OriginalSourceExpression {
+    /// Source text for a deliberately proposed Tcl argument corresponding to
+    /// one unique complete original expression leaf. The retained source tree,
+    /// parser context and full configuration remain the geometry owners.
+    /// This checks source shape and substitution phase only: argument values,
+    /// lookup, evaluation order, effects and rewrite equivalence remain unknown.
+    #[must_use]
+    pub fn proposed_tcl_argument_source(&self, node: &ExprNode) -> Option<String> {
+        let mut selected = self
+            .tree
+            .evaluation_nodes()
+            .into_iter()
+            .filter(|candidate| *candidate == node);
+        let node = selected.next()?;
+        if selected.next().is_some() {
+            return None;
+        }
+        let (text, start, end) = match node {
+            ExprNode::Literal { text, start, end }
+            | ExprNode::String { text, start, end }
+            | ExprNode::Var {
+                text, start, end, ..
+            }
+            | ExprNode::Command { text, start, end } => (text, *start, *end),
+            _ => return None,
+        };
+        let span = super::substitution::expression_span(&self.source, start, end)?;
+        let source = self.source.get(span.as_range())?;
+        if source != text {
+            return None;
+        }
+        if matches!(node, ExprNode::Var { .. })
+            && node.variable_source_span(0, self.config) != Some(span)
+        {
+            return None;
+        }
+        let image = tcl_lexer::SourceImage::document(source);
+        let local_end = u32::try_from(source.len()).ok()?;
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            image,
+            Span::new(0, local_end),
+            self.config,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        let [word] = command.words.as_slice() else {
+            return None;
+        };
+        if plan.fatal_tail.is_some()
+            || word.span() != Span::new(0, local_end)
+            || word.group().expand
+        {
+            return None;
+        }
+        if matches!(node, ExprNode::String { .. })
+            && !matches!(
+                word.group().kind,
+                tcl_lexer::WordKind::Braced | tcl_lexer::WordKind::Quoted
+            )
+        {
+            return None;
+        }
+        if matches!(node, ExprNode::Var { .. } | ExprNode::Command { .. }) {
+            let arena = word.executable_parts();
+            let [part] = arena.list(arena.root()) else {
+                return None;
+            };
+            match (node, &part.part) {
+                (ExprNode::Var { .. }, tcl_lexer::ExecutablePart::Variable { .. })
+                | (ExprNode::Command { .. }, tcl_lexer::ExecutablePart::Command { .. }) => {}
+                _ => return None,
+            }
+        }
+        Some(source.to_owned())
+    }
+}
+
+#[cfg(test)]
+mod proposed_expression_argument_source_tests {
+    use super::*;
+
+    #[test]
+    fn leaf_argument_proposals_keep_original_source_delimiters_and_variable_geometry() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = ExprParseContext::for_profile(profile);
+        let config = LexerConfig::from_grammar(context.lexer_grammar);
+        for (text, expected) in [
+            ("${name} lt $other", "${name}"),
+            ("\"two words\" lt $other", "\"two words\""),
+            ("[list value] lt $other", "[list value]"),
+        ] {
+            let original = OriginalSourceExpression::capture(text, &context, config).unwrap();
+            let ExprNode::Binary { left, .. } = &original.tree else {
+                panic!("binary source");
+            };
+            assert_eq!(
+                original.proposed_tcl_argument_source(left),
+                Some(expected.to_owned())
+            );
+            let foreign =
+                OriginalSourceExpression::capture("$foreign lt 3", &context, config).unwrap();
+            let ExprNode::Binary { left, .. } = &foreign.tree else {
+                unreachable!()
+            };
+            assert!(original.proposed_tcl_argument_source(left).is_none());
+        }
     }
 }

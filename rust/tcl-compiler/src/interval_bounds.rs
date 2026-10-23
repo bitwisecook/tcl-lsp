@@ -41,14 +41,21 @@ use tcl_dialect::{NumberSyntax, StringCharacterModel};
 use tcl_lexer::Span;
 use tcl_syntax::expr::ast::ExprNode;
 
+use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
-use crate::intervals::{Interval, compute_intervals_with, refine_interval};
+use crate::intervals::{
+    Interval, build_guard_index, compute_intervals_with, refine_interval_for_value,
+};
 use crate::ir::Statement;
+use crate::registry_invocation::{
+    InvocationMetadataContext, resolved_statement_invocation_with_metadata_context,
+    resolved_tokens_invocation_with_metadata_context,
+};
 use crate::sccp::SccpResult;
-use crate::segmenter::segment_commands_with_offset_and_config;
-use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
+use crate::ssa::{Phi, SsaFunction, SsaSourceView, Symbol, ValueKey, Version};
 use crate::types::TypeLattice;
+use tcl_registry::{CommandRegistry, IntrinsicId, SemanticOperationId};
 
 /// `(name, version) → Phi` index over every block, for length resolution
 /// through loop-header phis.
@@ -57,7 +64,23 @@ type PhiIndex<'a> = HashMap<ValueKey, &'a Phi>;
 /// `(name, version) → defining statement` index, so length resolution can see
 /// what produced a version it can't read directly from the length map (a
 /// length-preserving `lset` vs a length-changing `lappend`/`concat`/…).
-type DefIndex<'a> = HashMap<ValueKey, &'a crate::ssa::SsaStatement>;
+type DefIndex<'a> = HashMap<ValueKey, LengthDefinition<'a>>;
+
+#[derive(Clone, Copy)]
+struct LengthDefinition<'a> {
+    statement: &'a crate::ssa::SsaStatement,
+    source: SsaSourceView<'a>,
+    declaration_input: Option<ValueKey>,
+}
+
+struct LengthProofs<'a, 'b> {
+    phis: &'b PhiIndex<'a>,
+    definitions: &'b DefIndex<'a>,
+    lengths: &'b HashMap<ValueKey, i64>,
+    intervals: &'b HashMap<ValueKey, Interval>,
+    semantics: BoundsSemantics<'a>,
+    conditional_declaration: bool,
+}
 
 /// A resolved list length in the merge lattice.
 ///
@@ -99,87 +122,157 @@ impl Len {
 /// Only the element-indexing form preserves length. `lset name {} value` (empty
 /// index) replaces the whole list, so its length is that of `value` — not
 /// preserving; it returns `None` (→ `Unknown`, sound).
-fn length_preserving_lset_input(stmt: &crate::ssa::SsaStatement, sym: Symbol) -> Option<Version> {
-    let Statement::Call { command, args, .. } = &stmt.statement else {
-        return None;
+fn lset_length_change(
+    definition: LengthDefinition<'_>,
+    sym: Symbol,
+    expected: Option<i64>,
+    proofs: &LengthProofs<'_, '_>,
+) -> Option<i64> {
+    let stmt = definition.statement;
+    let Some(invocation) =
+        crate::registry_invocation::normal_statement_representation_with_metadata_context(
+            proofs.semantics.registry,
+            proofs.semantics.context,
+            &stmt.statement,
+        )
+    else {
+        if !proofs.conditional_declaration
+            || definition
+                .declaration_input
+                .is_none_or(|(selected, _)| selected != sym)
+        {
+            return None;
+        }
+        let access =
+            crate::registry_invocation::conditional_index_access_advice_with_metadata_context(
+                proofs.semantics.registry,
+                proofs.semantics.context,
+                definition.source.source_tokens()?,
+            )?;
+        return (access.kind == crate::registry_invocation::NormalIndexAccessKind::ListWrite
+            && access.list_set_bounds == Some(tcl_dialect::ListSetBounds::ExistingElement)
+            && !access.index.is_empty())
+        .then_some(0);
     };
-    if command != LSET || args.len() != 3 {
+    let access = invocation.index_access()?;
+    if access.kind != crate::registry_invocation::NormalIndexAccessKind::ListWrite {
         return None;
     }
-    let idx = args[1].trim();
-    if idx.is_empty() || idx == "{}" {
-        return None; // whole-list replacement — length changes
+    let index = access.index_literal;
+    if index.as_deref() == Some("") {
+        return None;
     }
-    stmt.uses.get(&sym).copied()
+    if access.list_set_bounds == Some(tcl_dialect::ListSetBounds::ExistingElement) {
+        return stmt.uses.contains_key(&sym).then_some(0);
+    }
+    // A successful modern lset can append. Retain length only when its index
+    // is proved unable to address that slot; error-only paths do not grow it.
+    let length = expected?;
+    let interval = if let Some(index) = index {
+        let length = usize::try_from(length).ok()?;
+        crate::intervals::constant(tcl_cmd_core::index::resolve_opt_in(
+            &index,
+            length,
+            access.index_syntax?,
+        )?)
+    } else {
+        let read = definition.source.read_word(&access.index_word)?;
+        *proofs.intervals.get(&(read.symbol, read.version?))?
+    };
+    if interval.is_bottom() {
+        return None;
+    }
+    if interval.lo == Some(length) && interval.hi == Some(length) {
+        return Some(1);
+    }
+    (interval.hi.is_some_and(|hi| hi < length) || interval.lo.is_some_and(|lo| lo > length))
+        .then_some(0)
 }
 
-/// Resolve the list length of `(name, version)` in the merge lattice.
-///
-/// Reads a literal-assignment length directly, follows loop-header phis, and
-/// sees *through* a length-preserving `lset` to its input list. Critically, an
-/// incoming that is neither a literal, a resolvable phi, nor a length-preserving
-/// `lset` — a `lappend`/`linsert`/`concat`/`split` result, or a caller-supplied
-/// live-in — resolves to [`Len::Unknown`] and poisons the merge. The previous
-/// code ignored such an incoming on the assumption it was always an `lset`
-/// result, so a length-*growing* def in the loop (`lappend l x y; lset l 5 v`)
-/// left the pre-loop length trusted and fired a false W231.
+/// Resolve a length only when every incoming normal continuation preserves it.
+/// An append-capable back edge must exclude the candidate length as an index.
 fn resolve_len(
-    ssa: &SsaFunction,
-    name: &str,
+    sym: Symbol,
     version: Version,
-    phi_index: &PhiIndex<'_>,
-    defs: &DefIndex<'_>,
-    lengths: &HashMap<ValueKey, i64>,
+    proofs: &LengthProofs<'_, '_>,
     visited: &mut std::collections::HashSet<ValueKey>,
+    expected: Option<i64>,
 ) -> Len {
-    let Some(sym) = ssa.var_symbol(name) else {
-        return Len::Unknown;
-    };
     let key = (sym, version);
-    if let Some(&l) = lengths.get(&key) {
-        return Len::Known(l);
+    if let Some(&length) = proofs.lengths.get(&key) {
+        return Len::Known(length);
     }
     if !visited.insert(key) {
-        // Cycle via a loop back-edge. The edge that closed the loop is resolved
-        // on its forward path; revisiting it adds no new constraint.
         return Len::Neutral;
     }
-    if let Some(phi) = phi_index.get(&key) {
+    if let Some(phi) = proofs.phis.get(&key) {
+        // Earlier definitions establish the forward candidate before cyclic
+        // back edges are checked against it. Sorting also makes this stable.
+        let mut incoming: Vec<_> = phi.incoming.values().copied().collect();
+        incoming.sort_unstable();
         let mut acc = Len::Neutral;
-        for &inc in phi.incoming.values() {
+        for version in incoming {
+            let candidate = match acc {
+                Len::Known(length) => Some(length),
+                _ => expected,
+            };
             acc = acc.combine(resolve_len(
-                ssa, name, inc, phi_index, defs, lengths, visited,
+                sym,
+                version,
+                proofs,
+                &mut visited.clone(),
+                candidate,
             ));
             if acc == Len::Unknown {
-                return Len::Unknown; // early poison
+                return Len::Unknown;
             }
         }
         return acc;
     }
-    // Non-phi, non-literal def: only a length-preserving `lset` can be seen
-    // through — resolve to the version it mutated in place. Anything else
-    // (including a version-0 live-in with no def) is an unknown length.
-    if let Some(stmt) = defs.get(&key)
-        && let Some(input) = length_preserving_lset_input(stmt, sym)
-    {
-        return resolve_len(ssa, name, input, phi_index, defs, lengths, visited);
+    if let Some(&definition) = proofs.definitions.get(&key) {
+        let input = definition
+            .statement
+            .uses
+            .get(&sym)
+            .copied()
+            .or_else(|| {
+                proofs
+                    .conditional_declaration
+                    .then_some(definition.declaration_input)
+                    .flatten()
+                    .filter(|(selected, _)| *selected == sym)
+                    .map(|(_, version)| version)
+            })
+            .unwrap_or(0);
+        let input_length = resolve_len(sym, input, proofs, &mut visited.clone(), expected);
+        let candidate = match input_length {
+            Len::Known(length) => Some(length),
+            _ => expected,
+        };
+        if let Some(change) = lset_length_change(definition, sym, candidate, proofs) {
+            return match input_length {
+                Len::Known(length) => length.checked_add(change).map_or(Len::Unknown, Len::Known),
+                Len::Neutral if change == 0 => Len::Neutral,
+                Len::Neutral | Len::Unknown => Len::Unknown,
+            };
+        }
     }
     Len::Unknown
 }
 
-/// The proven list length of `(name, version)`, or `None` when it can't be
-/// positively established (unknown / disagreeing).
 fn resolve_list_length(
-    ssa: &SsaFunction,
-    name: &str,
+    symbol: Symbol,
     version: Version,
-    phi_index: &PhiIndex<'_>,
-    defs: &DefIndex<'_>,
-    lengths: &HashMap<ValueKey, i64>,
-    visited: &mut std::collections::HashSet<ValueKey>,
+    proofs: &LengthProofs<'_, '_>,
 ) -> Option<i64> {
-    match resolve_len(ssa, name, version, phi_index, defs, lengths, visited) {
-        Len::Known(l) => Some(l),
+    match resolve_len(
+        symbol,
+        version,
+        proofs,
+        &mut std::collections::HashSet::new(),
+        None,
+    ) {
+        Len::Known(length) => Some(length),
         Len::Neutral | Len::Unknown => None,
     }
 }
@@ -220,91 +313,109 @@ pub struct BoundsFinding {
     pub reason: String,
 }
 
-/// One index access: `(command, list_arg, index_arg, is_lset)`.
+/// One selected index access and its retained operand words.
 #[derive(Debug, Clone)]
 struct Candidate {
     command: &'static str,
     list_arg: String,
+    list_literal: Option<String>,
+    #[cfg(test)]
     index_arg: String,
+    list_word: Option<crate::ir::WordExpr>,
+    index_word: Option<crate::ir::WordExpr>,
     is_lset: bool,
-}
-
-/// The scalar variable name if `arg` is exactly `$name` / `${name}`.  Returns
-/// `None` for `end`, `end-1`, `$arr(i)`, `[expr …]`, composites.
-pub(crate) fn plain_var_name(arg: &str) -> Option<String> {
-    let s = arg.trim();
-    let mut s = s.strip_prefix('$')?;
-    if let Some(inner) = s.strip_prefix('{').and_then(|r| r.strip_suffix('}')) {
-        s = inner;
-    }
-    if s.is_empty() {
-        return None;
-    }
-    if s.bytes()
-        .any(|b| matches!(b, b'(' | b'[' | b'$' | b' ' | b'\t' | b')' | b']'))
-    {
-        return None;
-    }
-    Some(s.to_owned())
+    set_bounds: Option<tcl_dialect::ListSetBounds>,
+    conditional_handler: bool,
 }
 
 /// Element count of a static Tcl list literal, or `None` if not literal.
 fn literal_list_length(text: &str, rules: tcl_syntax::word_rules::WordValueRules) -> Option<i64> {
-    if text.contains('$') || text.contains('[') {
-        return None;
-    }
-    i64::try_from(crate::tcl_expr_eval::split_tcl_list(text, rules).len()).ok()
+    i64::try_from(rules.split_list(text).ok()?.len()).ok()
 }
 
 /// If a value word is exactly `[list a b c]` with no substitution / expansion,
 /// its element count, else `None`.
-fn list_command_length(value: &str, grammar: tcl_dialect::LexerGrammar) -> Option<i64> {
-    let inner = value.trim().strip_prefix('[')?.strip_suffix(']')?;
-    // `{*}` argument expansion makes the element count unknown at this layer:
-    // the segmenter strips the `{*}` prefix, so `[list {*}{a b}]` looks like a
-    // single arg `"a b"` but expands to N elements (tclsh: `llength` == 2, not
-    // 1). Bail rather than under-count and fire a false out-of-range warning.
-    if inner.contains("{*}") {
+fn list_command_length(stmt: &Statement, semantics: BoundsSemantics<'_>) -> Option<i64> {
+    let Statement::AssignValue {
+        tokens: Some(parent),
+        ..
+    } = stmt
+    else {
+        return None;
+    };
+    let outer = resolved_statement_invocation_with_metadata_context(
+        semantics.registry,
+        semantics.context,
+        stmt,
+    )?;
+    let word = outer.effective.words.get(2)?;
+    let mut nested = crate::word_subst::whole_word_command_tokens(
+        word,
+        tcl_lexer::LexerConfig::from_grammar(semantics.grammar),
+    )?;
+    nested.inherit_nested_bindings(parent);
+    let invocation = resolved_tokens_invocation_with_metadata_context(
+        semantics.registry,
+        semantics.context,
+        &nested,
+    )?;
+    if invocation.facts.operation != SemanticOperationId::Intrinsic(IntrinsicId::ListConstruct)
+        || invocation
+            .effective
+            .words
+            .iter()
+            .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
+    {
         return None;
     }
-    let cmds = segment_commands_with_offset_and_config(
-        inner,
-        0,
-        tcl_lexer::LexerConfig::from_grammar(grammar),
-    );
-    let cmd = cmds.first()?;
-    if cmds.len() != 1 || cmd.name() != "list" {
-        return None;
-    }
-    let args = cmd.args();
-    if args.iter().any(|a| a.contains('$') || a.contains('[')) {
-        return None;
-    }
-    i64::try_from(args.len()).ok()
+    i64::try_from(invocation.arguments.len()).ok()
 }
 
 /// Length of list-valued SSA versions established from literal-list assignments.
-fn list_length_map(
-    ssa: &SsaFunction,
-    grammar: tcl_dialect::LexerGrammar,
-) -> HashMap<ValueKey, i64> {
-    let rules = tcl_syntax::word_rules::WordValueRules::from_grammar(&grammar);
+fn list_length_map(ssa: &SsaFunction, semantics: BoundsSemantics<'_>) -> HashMap<ValueKey, i64> {
+    let rules = tcl_syntax::word_rules::WordValueRules::from_grammar(&semantics.grammar);
     let mut lengths = HashMap::new();
     for sb in ssa.blocks.values() {
         for s in &sb.statements {
             let n = match &s.statement {
                 Statement::AssignConst { value, .. } => literal_list_length(value, rules),
-                Statement::AssignValue { value, .. } => list_command_length(value, grammar),
-                _ => None,
+                Statement::AssignValue { .. } => {
+                    resolved_statement_invocation_with_metadata_context(
+                        semantics.registry,
+                        semantics.context,
+                        &s.statement,
+                    )
+                    .and_then(|invocation| invocation.argument_literal(1))
+                    .and_then(|value| literal_list_length(&value, rules))
+                    .or_else(|| list_command_length(&s.statement, semantics))
+                }
+                _ => normal_stored_literal(&s.statement, semantics)
+                    .and_then(|value| literal_list_length(&value, rules)),
             };
             if let Some(n) = n {
                 for (&sym, &ver) in &s.defs {
-                    lengths.insert((sym, ver), n);
+                    if !s.may_defs.contains(&sym) {
+                        lengths.insert((sym, ver), n);
+                    }
                 }
             }
         }
     }
     lengths
+}
+
+/// Actual normal setter passthrough, independent of whether the original
+/// compiler selected a specialised assignment. Missing current address or
+/// observer closure supplies no literal-length evidence.
+fn normal_stored_literal(statement: &Statement, semantics: BoundsSemantics<'_>) -> Option<String> {
+    let tokens = statement.tokens()?;
+    let binding = tokens.source_binding.as_ref()?;
+    crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        semantics.registry,
+        semantics.context,
+        tokens,
+    )?
+    .stored_value_literal(&binding.variable_context, semantics.registry)
 }
 
 /// Character length of string-valued SSA versions from literal assignments,
@@ -316,32 +427,31 @@ fn list_length_map(
 fn string_length_map(
     ssa: &SsaFunction,
     characters: Option<StringCharacterModel>,
+    semantics: BoundsSemantics<'_>,
 ) -> HashMap<ValueKey, i64> {
     let mut lengths = HashMap::new();
     for sb in ssa.blocks.values() {
         for s in &sb.statements {
-            let (value, needs_backsubst) = match &s.statement {
-                Statement::AssignConst { value, .. } => (value, false),
-                Statement::AssignValue {
-                    value,
-                    value_needs_backsubst,
-                    ..
-                } => (value, *value_needs_backsubst),
-                _ => continue,
+            let value = match &s.statement {
+                Statement::AssignConst { value, .. } => Some(value.clone()),
+                Statement::AssignValue { .. } => {
+                    resolved_statement_invocation_with_metadata_context(
+                        semantics.registry,
+                        semantics.context,
+                        &s.statement,
+                    )
+                    .and_then(|invocation| invocation.argument_literal(1))
+                }
+                _ => normal_stored_literal(&s.statement, semantics),
             };
-            if value.contains('$') || value.contains('[') {
-                continue;
-            }
-            let resolved = if needs_backsubst && value.contains('\\') {
-                tcl_lexer::backslash_subst(value).into_owned()
-            } else {
-                value.clone()
-            };
+            let Some(resolved) = value else { continue };
             if let Some(count) = StringCharacterModel::count_for(characters, &resolved)
                 && let Ok(len) = i64::try_from(count)
             {
                 for (&sym, &ver) in &s.defs {
-                    lengths.insert((sym, ver), len);
+                    if !s.may_defs.contains(&sym) {
+                        lengths.insert((sym, ver), len);
+                    }
                 }
             }
         }
@@ -366,13 +476,15 @@ fn reaching_versions(
 }
 
 /// Reason string if `index` is *wholly* out of range for `length`, else `None`.
-/// `lindex` never reaches `length`; `lset` may, as an append, where
-/// `lset_appends` says every candidate release takes it (`Some(true)`) or the
-/// releases disagree (`None`).
+/// `lindex` never reaches `length`; `lset` may, as an append, unless its
+/// selected invocation addresses existing elements only (`set_bounds`) or
+/// every candidate release refuses the append (`lset_appends` is
+/// `Some(false)`, [`tcl_dialect::TclVersion::lset_appends_at_length_for`]).
 fn classify(
     index: Interval,
     length: i64,
     is_lset: bool,
+    set_bounds: Option<tcl_dialect::ListSetBounds>,
     lset_appends: Option<bool>,
 ) -> Option<&'static str> {
     // Provably negative: the whole interval is below 0.
@@ -382,57 +494,45 @@ fn classify(
         return Some("negative");
     }
     // Provably past the end.
-    let appends = is_lset && lset_appends != Some(false);
-    if let Some(lo) = index.lo
-        && lo >= length + i64::from(appends)
-    {
-        return Some(if appends { "past_append" } else { "past_end" });
+    if let Some(lo) = index.lo {
+        if is_lset {
+            if lo > length
+                || (lo == length
+                    && (set_bounds == Some(tcl_dialect::ListSetBounds::ExistingElement)
+                        || lset_appends == Some(false)))
+            {
+                return Some("past_append");
+            }
+        } else if lo >= length {
+            return Some("past_end");
+        }
     }
     None
 }
 
-/// If `text` is exactly `[lindex …]` / `[string index …]`, its candidate; else
-/// `None`.  `lset` is excluded (its first arg is a var *name*).
-fn parse_index_sub(text: &str, grammar: tcl_dialect::LexerGrammar) -> Option<Candidate> {
-    let s = text.trim();
-    let inner = s.strip_prefix('[')?.strip_suffix(']')?;
-    let cmds = segment_commands_with_offset_and_config(
-        inner,
-        0,
-        tcl_lexer::LexerConfig::from_grammar(grammar),
-    );
-    let cmd = cmds.first()?;
-    let args = cmd.args();
-    match cmd.name() {
-        "lindex" if args.len() == 2 => Some(Candidate {
-            command: LINDEX,
-            list_arg: args[0].clone(),
-            index_arg: args[1].clone(),
-            is_lset: false,
-        }),
-        "string" if args.len() == 3 && args[0] == "index" => Some(Candidate {
-            command: STRING_INDEX,
-            list_arg: args[1].clone(),
-            index_arg: args[2].clone(),
-            is_lset: false,
-        }),
-        _ => None,
-    }
-}
-
-/// Index accesses embedded as `[…]` command substitutions inside an expression,
-/// restricted to *guaranteed-to-evaluate* positions (short-circuit operands and
-/// non-selected ternary arms are skipped).
-fn index_subs_in_expr(expr: &ExprNode, grammar: tcl_dialect::LexerGrammar) -> Vec<Candidate> {
-    let mut out = Vec::new();
-    walk_eager(expr, &mut |e| {
-        if let ExprNode::Command { text, .. } = e
-            && let Some(c) = parse_index_sub(text, grammar)
-        {
-            out.push(c);
-        }
-    });
-    out
+/// Select bounds operands from the live implementation's semantic identity.
+fn invocation_candidate(
+    invocation: &crate::registry_invocation::NormalRepresentationInvocation,
+) -> Option<Candidate> {
+    use crate::registry_invocation::NormalIndexAccessKind as Kind;
+    let access = invocation.index_access()?;
+    let (command, is_lset) = match access.kind {
+        Kind::ListRead => (LINDEX, false),
+        Kind::ListWrite => (LSET, true),
+        Kind::StringRead => (STRING_INDEX, false),
+    };
+    Some(Candidate {
+        command,
+        list_literal: access.container_literal,
+        list_arg: access.container,
+        #[cfg(test)]
+        index_arg: access.index,
+        list_word: Some(access.container_word),
+        index_word: Some(access.index_word),
+        is_lset,
+        set_bounds: access.list_set_bounds,
+        conditional_handler: false,
+    })
 }
 
 /// Constant truthiness of a literal expression node (`Some(true/false)`), else
@@ -528,98 +628,87 @@ fn walk_eager_at(expr: &ExprNode, visit: &mut impl FnMut(&ExprNode), depth: u32)
     }
 }
 
-/// All index accesses a statement performs.
-fn statement_candidates(stmt: &Statement, grammar: tcl_dialect::LexerGrammar) -> Vec<Candidate> {
+/// All index accesses a statement performs, retaining exact nested dispatch proofs.
+fn statement_candidates(
+    stmt: &Statement,
+    source: SsaSourceView<'_>,
+    semantics: BoundsSemantics<'_>,
+) -> Vec<Candidate> {
     let mut out = Vec::new();
-    match stmt {
-        Statement::Call { command, args, .. } => {
-            if command == LINDEX && args.len() == 2 {
-                out.push(Candidate {
-                    command: LINDEX,
-                    list_arg: args[0].clone(),
-                    index_arg: args[1].clone(),
-                    is_lset: false,
-                });
-            } else if command == LSET && args.len() == 3 {
-                out.push(Candidate {
-                    command: LSET,
-                    list_arg: args[0].clone(),
-                    index_arg: args[1].clone(),
-                    is_lset: true,
-                });
-            }
-            for a in args {
-                if let Some(c) = parse_index_sub(a, grammar) {
-                    out.push(c);
-                }
-            }
-        }
-        Statement::AssignValue { value, .. } => {
-            if let Some(c) = parse_index_sub(value, grammar) {
-                out.push(c);
-            }
-        }
-        Statement::Barrier { args, .. } => {
-            for a in args {
-                if let Some(c) = parse_index_sub(a, grammar) {
-                    out.push(c);
-                }
-            }
-        }
-        Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
-            out.extend(index_subs_in_expr(expr, grammar));
-        }
-        _ => {}
-    }
-    if let Statement::Return {
-        expr: Some(expr), ..
-    } = stmt
+    if let Some(invocation) =
+        crate::registry_invocation::normal_statement_representation_with_metadata_context(
+            semantics.registry,
+            semantics.context,
+            stmt,
+        )
+        && let Some(candidate) = invocation_candidate(&invocation)
     {
-        out.extend(index_subs_in_expr(expr, grammar));
+        out.push(candidate);
+    }
+    if out.is_empty()
+        && let Some(access) = stmt.tokens().and_then(|tokens| {
+            crate::registry_invocation::conditional_index_access_advice_with_metadata_context(
+                semantics.registry,
+                semantics.context,
+                tokens,
+            )
+        })
+    {
+        use crate::registry_invocation::NormalIndexAccessKind as Kind;
+        let (command, is_lset) = match access.kind {
+            Kind::ListRead => (LINDEX, false),
+            Kind::ListWrite => (LSET, true),
+            Kind::StringRead => (STRING_INDEX, false),
+        };
+        out.push(Candidate {
+            command,
+            is_lset,
+            list_arg: access.container,
+            list_literal: access.container_literal,
+            #[cfg(test)]
+            index_arg: access.index,
+            list_word: Some(access.container_word),
+            index_word: Some(access.index_word),
+            set_bounds: access.list_set_bounds,
+            conditional_handler: true,
+        });
+    }
+    for nested in crate::word_subst::lifted_calls(
+        source.source_tokens().or_else(|| stmt.tokens()),
+        tcl_lexer::LexerConfig::from_grammar(semantics.grammar),
+    ) {
+        if let Some(tokens) = nested.tokens.as_ref()
+            && let Some(invocation) =
+                crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                    semantics.registry,
+                    semantics.context,
+                    tokens,
+                )
+            && let Some(candidate) = invocation_candidate(&invocation)
+        {
+            out.push(candidate);
+        }
     }
     out
 }
 
-/// Cheap pre-scan: any index access with a plain `$var` index?
-fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction, grammar: tcl_dialect::LexerGrammar) -> bool {
-    for sb in ssa.blocks.values() {
-        for s in &sb.statements {
-            for c in statement_candidates(&s.statement, grammar) {
-                if plain_var_name(&c.index_arg).is_some() {
-                    return true;
-                }
-            }
-        }
-    }
-    for block in cfg.blocks.values() {
-        let mut cands: Vec<Candidate> = Vec::new();
-        match &block.terminator {
-            Some(Terminator::Return { value, expr, .. }) => {
-                if let Some(v) = value
-                    && let Some(c) = parse_index_sub(v, grammar)
-                {
-                    cands.push(c);
-                }
-                if let Some(e) = expr {
-                    cands.extend(index_subs_in_expr(e, grammar));
-                }
-            }
-            Some(Terminator::Branch { condition, .. }) => {
-                cands.extend(index_subs_in_expr(condition, grammar));
-            }
-            _ => {}
-        }
-        if cands.iter().any(|c| plain_var_name(&c.index_arg).is_some()) {
-            return true;
-        }
-    }
-    false
+/// Interpreter and registry evidence used by interval bounds queries.
+#[derive(Clone, Copy)]
+pub struct BoundsSemantics<'a> {
+    /// Actual command registry for this compilation unit.
+    pub registry: &'a CommandRegistry,
+    /// Complete supplied availability generation. Actual contexts retain their
+    /// command-store identity; explicit standalone callers may supply `None`.
+    /// Metadata grants no Native lookup, cell, normal effect or compiler proof.
+    pub context: Option<InvocationMetadataContext<'a>>,
+    /// Document word grammar.
+    pub grammar: tcl_dialect::LexerGrammar,
 }
 
 /// Dynamic out-of-range findings for this function (empty if none), over
 /// the solver's result `sccp` and the type lattice `types`: the lattice seeds
 /// the intervals, and its range refinements narrow an index the types prove
-/// an integer where it is read ([`refine_interval`]). `executable` restricts
+/// an integer where it is read ([`crate::intervals::refine_interval`]). `executable` restricts
 /// to SCCP-reachable blocks.
 ///
 /// `release` carries the dialect-derived facts a proof reads: the numeric-literal
@@ -640,18 +729,110 @@ where
     S: std::hash::BuildHasher,
     T: std::hash::BuildHasher,
 {
-    if !has_candidate(cfg, ssa, grammar) {
-        return Vec::new();
-    }
+    // `lset`'s append boundary is read per access from its selected
+    // invocation (`ListSetBounds`), and from the release summary where every
+    // candidate release refuses the append.
+    find_interval_bounds_in_release(
+        cfg,
+        ssa,
+        (&sccp.values, (sccp, types)),
+        executable,
+        release,
+        BoundsSemantics {
+            registry: tcl_registry::model::ingress::static_context_for("tcl9.0").commands(),
+            context: None,
+            grammar,
+        },
+    )
+}
+
+/// Find dynamic bounds failures through point-resolved invocation facts.
+#[must_use]
+pub fn find_interval_bounds_resolved<S1, S2, S3>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    values: (
+        &HashMap<ValueKey, LatticeValue, S1>,
+        (&SccpResult, &HashMap<ValueKey, TypeLattice, S3>),
+    ),
+    executable: &std::collections::HashSet<BlockId, S2>,
+    characters: Option<StringCharacterModel>,
+    numbers: NumberSyntax,
+    semantics: BoundsSemantics<'_>,
+) -> Vec<BoundsFinding>
+where
+    S1: std::hash::BuildHasher,
+    S2: std::hash::BuildHasher,
+    S3: std::hash::BuildHasher,
+{
+    find_interval_bounds_in_release(
+        cfg,
+        ssa,
+        values,
+        executable,
+        BoundsRelease {
+            characters,
+            numbers,
+            lset_appends_at_length: None,
+        },
+        semantics,
+    )
+}
+
+/// [`find_interval_bounds_resolved`] under every release-dependent fact the
+/// document's dialect gives ([`BoundsRelease`]), the `lset` append boundary
+/// included.
+#[must_use]
+pub fn find_interval_bounds_in_release<S1, S2, S3>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    (values, (sccp, types)): (
+        &HashMap<ValueKey, LatticeValue, S1>,
+        (&SccpResult, &HashMap<ValueKey, TypeLattice, S3>),
+    ),
+    executable: &std::collections::HashSet<BlockId, S2>,
+    release: BoundsRelease,
+    semantics: BoundsSemantics<'_>,
+) -> Vec<BoundsFinding>
+where
+    S1: std::hash::BuildHasher,
+    S2: std::hash::BuildHasher,
+    S3: std::hash::BuildHasher,
+{
+    let BoundsRelease {
+        characters,
+        numbers,
+        lset_appends_at_length,
+    } = release;
+    let grammar = semantics.grammar;
     let ctx = BoundsCtx {
+        cfg,
         ssa,
         sccp,
         types,
-        intervals: compute_intervals_with(cfg, ssa, &sccp.values, release.numbers),
-        lengths: list_length_map(ssa, grammar),
+        numbers,
+        characters,
+        lset_appends_at_length,
+        intervals: compute_intervals_with(cfg, ssa, values, numbers),
+        declaration_intervals: conditional_index_layout_exists(ssa, semantics).then(|| {
+            crate::intervals::compute_declaration_intervals_with(
+                cfg,
+                ssa,
+                values,
+                numbers,
+                semantics.registry,
+            )
+        }),
+        guard_index: build_guard_index(cfg, ssa, grammar),
+        pred_counts: cfg
+            .predecessors()
+            .into_iter()
+            .map(|(bid, preds)| (bid, preds.len()))
+            .collect(),
+        lengths: list_length_map(ssa, semantics),
         grammar,
-        lset_appends_at_length: release.lset_appends_at_length,
-        str_lengths: string_length_map(ssa, release.characters),
+        semantics,
+        str_lengths: string_length_map(ssa, characters, semantics),
         phi_index: ssa
             .blocks
             .values()
@@ -660,9 +841,26 @@ where
             .collect(),
         defs: ssa
             .blocks
-            .values()
-            .flat_map(|sb| sb.statements.iter())
-            .flat_map(|s| s.defs.iter().map(move |(&sym, &ver)| ((sym, ver), s)))
+            .iter()
+            .flat_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .flat_map(move |(index, statement)| {
+                        statement.defs.iter().map(move |(&symbol, &version)| {
+                            (
+                                (symbol, version),
+                                LengthDefinition {
+                                    statement,
+                                    source: SsaSourceView::at_statement(ssa, block, index),
+                                    declaration_input: declaration_lset_input(
+                                        ssa, block, index, semantics,
+                                    ),
+                                },
+                            )
+                        })
+                    })
+            })
             .collect(),
     };
     let mut findings = Vec::new();
@@ -674,12 +872,15 @@ where
         let bn = *bid;
         for (idx, s) in sb.statements.iter().enumerate() {
             let span = statement_span(&s.statement);
-            for cand in statement_candidates(&s.statement, grammar) {
+            for cand in statement_candidates(
+                &s.statement,
+                SsaSourceView::at_statement(ssa, bn, idx),
+                semantics,
+            ) {
                 if let Some(span) = span {
                     let site = CandidateSite {
                         bn,
                         span,
-                        version_map: &s.uses,
                         entry_versions: &sb.entry_versions,
                         block_stmts: &sb.statements,
                         stmt_idx: idx,
@@ -698,27 +899,76 @@ where
     findings
 }
 
+fn conditional_index_layout_exists(ssa: &SsaFunction, semantics: BoundsSemantics<'_>) -> bool {
+    ssa.blocks.iter().any(|(&block, body)| {
+        body.statements.iter().enumerate().any(|(index, _)| {
+            SsaSourceView::at_statement(ssa, block, index)
+                .source_tokens()
+                .is_some_and(|tokens| {
+                    crate::registry_invocation::conditional_index_access_advice_with_metadata_context(
+                        semantics.registry,
+                        semantics.context,
+                        tokens,
+                    )
+                    .is_some()
+                })
+        })
+    })
+}
+
+fn declaration_lset_input(
+    ssa: &SsaFunction,
+    block: BlockId,
+    index: usize,
+    semantics: BoundsSemantics<'_>,
+) -> Option<ValueKey> {
+    let view = SsaSourceView::at_statement(ssa, block, index);
+    let tokens = view.source_tokens()?;
+    let access = crate::registry_invocation::conditional_index_access_advice_with_metadata_context(
+        semantics.registry,
+        semantics.context,
+        tokens,
+    )?;
+    if access.kind != crate::registry_invocation::NormalIndexAccessKind::ListWrite {
+        return None;
+    }
+    tokens
+        .source_binding
+        .as_ref()?
+        .declaration_variable_operand_advice(semantics.registry, tokens, &access.container_word)?
+        .diagnostic_version(ssa, block, index, semantics.registry)
+}
+
 /// Read-only analysis state shared by the per-candidate bounds checks,
-/// borrowed for the duration of [`find_interval_bounds`].
+/// borrowed for the duration of [`find_interval_bounds_with`].
 struct BoundsCtx<'a, T> {
+    cfg: &'a CfgFunction,
     ssa: &'a SsaFunction,
-    /// The solver's result, whose range refinements in force at a block
-    /// narrow an index read there ([`refine_interval`]).
     sccp: &'a SccpResult,
-    /// The type lattice, which proves an index an integer.
     types: &'a HashMap<ValueKey, TypeLattice, T>,
+    /// The target release's numeric-literal grammar — carried here so the
+    /// conditional source-guard tables read a branch's
+    /// constant bounds for the right dialect.
+    numbers: NumberSyntax,
+    characters: Option<StringCharacterModel>,
+    /// Whether `lset` appends at a list's length under the target release
+    /// ([`tcl_dialect::TclVersion::lset_appends_at_length_for`]).
+    lset_appends_at_length: Option<bool>,
     intervals: HashMap<ValueKey, Interval>,
+    declaration_intervals: Option<crate::intervals::DeclarationIntervals>,
+    guard_index: HashMap<ValueKey, Vec<BlockId>>,
+    /// Predecessor count per block — used to require a guarded branch target
+    /// have a single entry edge before its constraint is applied.
+    pred_counts: HashMap<BlockId, usize>,
     lengths: HashMap<ValueKey, i64>,
     str_lengths: HashMap<ValueKey, i64>,
     phi_index: PhiIndex<'a>,
     defs: DefIndex<'a>,
-    /// Whether `lset` appends at a list's length under the target release
-    /// ([`tcl_dialect::TclVersion::lset_appends_at_length_for`]).
-    lset_appends_at_length: Option<bool>,
     /// The document dialect's lexer grammar — how a literal list word divides
     /// and where a `[…]` substitution's word boundaries fall, so a length
     /// proof matches the document's own parser.
     grammar: tcl_dialect::LexerGrammar,
+    semantics: BoundsSemantics<'a>,
 }
 
 /// The single index-access call site `process` evaluates: the versions
@@ -726,97 +976,199 @@ struct BoundsCtx<'a, T> {
 struct CandidateSite<'a> {
     bn: crate::cfg::BlockId,
     span: Span,
-    version_map: &'a HashMap<Symbol, Version>,
     entry_versions: &'a HashMap<Symbol, Version>,
     block_stmts: &'a [crate::ssa::SsaStatement],
     stmt_idx: usize,
 }
 
+impl CandidateSite<'_> {
+    fn source_view<'a>(&self, ssa: &'a SsaFunction) -> SsaSourceView<'a> {
+        if self.stmt_idx == self.block_stmts.len() {
+            SsaSourceView::at_terminator(ssa, self.bn)
+        } else {
+            SsaSourceView::at_statement(ssa, self.bn, self.stmt_idx)
+        }
+    }
+}
+
 impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
+    fn interval_values(&self, conditional: bool) -> &HashMap<ValueKey, Interval> {
+        if conditional && let Some(intervals) = &self.declaration_intervals {
+            intervals.values()
+        } else {
+            &self.intervals
+        }
+    }
+
     /// Resolve the list length backing `cand` at one call site, if known.
     fn length_for_list(&self, cand: &Candidate, site: &CandidateSite) -> Option<i64> {
         let ssa = self.ssa;
-        let mut visited = std::collections::HashSet::new();
+        let proofs = LengthProofs {
+            phis: &self.phi_index,
+            definitions: &self.defs,
+            lengths: &self.lengths,
+            intervals: self.interval_values(cand.conditional_handler),
+            semantics: self.semantics,
+            conditional_declaration: cand.conditional_handler,
+        };
         if cand.is_lset {
             // `lset`'s first arg is a variable *name*, recorded as a def —
             // use the version reaching this statement.
-            let lname = cand.list_arg.trim();
-            if lname.contains('$') || lname.contains('[') {
+            let lname = if cand.conditional_handler {
+                cand.list_arg.as_str()
+            } else {
+                cand.list_arg.trim()
+            };
+            if !cand.conditional_handler && (lname.contains('$') || lname.contains('[')) {
                 return None;
             }
             let reaching = reaching_versions(site.entry_versions, site.block_stmts, site.stmt_idx);
-            let lver = *reaching.get(&ssa.var_symbol(lname)?)?;
-            return resolve_list_length(
-                ssa,
-                lname,
-                lver,
-                &self.phi_index,
-                &self.defs,
-                &self.lengths,
-                &mut visited,
-            );
+            let selected = site
+                .source_view(ssa)
+                .symbol(lname)
+                .and_then(|symbol| {
+                    reaching
+                        .get(&symbol)
+                        .copied()
+                        .map(|version| (symbol, version))
+                })
+                .or_else(|| {
+                    if !cand.conditional_handler {
+                        return None;
+                    }
+                    let view = site.source_view(ssa);
+                    let tokens = view.source_tokens()?;
+                    let operand = tokens
+                        .source_binding
+                        .as_ref()?
+                        .declaration_variable_operand_advice(
+                            self.semantics.registry,
+                            tokens,
+                            cand.list_word.as_ref()?,
+                        )?;
+                    if operand.name() != lname {
+                        return None;
+                    }
+                    operand.diagnostic_version(ssa, site.bn, site.stmt_idx, self.semantics.registry)
+                })?;
+            return resolve_list_length(selected.0, selected.1, &proofs);
         }
         // A *value* arg: literal list, or `$l`.
-        if let Some(lit) = literal_list_length(
-            &cand.list_arg,
-            tcl_syntax::word_rules::WordValueRules::from_grammar(&self.grammar),
-        ) {
-            return Some(lit);
+        if let Some(value) = &cand.list_literal {
+            return literal_list_length(
+                value,
+                tcl_syntax::word_rules::WordValueRules::from_grammar(&self.grammar),
+            );
         }
-        let list_name = plain_var_name(&cand.list_arg)?;
-        let list_version = *site.version_map.get(&ssa.var_symbol(&list_name)?)?;
-        resolve_list_length(
-            ssa,
-            &list_name,
-            list_version,
-            &self.phi_index,
-            &self.defs,
-            &self.lengths,
-            &mut visited,
-        )
+        let view = site.source_view(ssa);
+        let read = view.read_word(cand.list_word.as_ref()?)?;
+        resolve_list_length(read.symbol, read.version?, &proofs)
     }
 
     /// Evaluate one candidate index access; push a finding when the index
     /// interval is provably out of range for the resolved length.
     fn process(&self, cand: &Candidate, site: &CandidateSite, findings: &mut Vec<BoundsFinding>) {
         let ssa = self.ssa;
-        let Some(index_var) = plain_var_name(&cand.index_arg) else {
+        let Some((spelling, _)) = cand
+            .index_word
+            .as_ref()
+            .and_then(crate::ir::WordExpr::sole_variable_substitution)
+        else {
             return;
         };
-        let Some(index_sym) = ssa.var_symbol(&index_var) else {
+        let Some(index_var) = tcl_syntax::naming::whole_scalar_variable_reference_name(
+            spelling,
+            tcl_lexer::LexerConfig::from_grammar(self.grammar),
+        ) else {
             return;
         };
-        let Some(&index_version) = site.version_map.get(&index_sym) else {
+        let read = cand
+            .index_word
+            .as_ref()
+            .and_then(|word| site.source_view(ssa).read_word(word));
+        let selected = read
+            .and_then(|read| read.version.map(|version| (read.symbol, version)))
+            .or_else(|| {
+                if !cand.conditional_handler {
+                    return None;
+                }
+                let (spelling, source) = cand.index_word.as_ref()?.sole_variable_substitution()?;
+                let tokens = site.source_view(ssa).source_tokens()?;
+                let occurrences = tokens
+                    .source_binding
+                    .as_ref()?
+                    .declaration_read_occurrences(self.semantics.registry, tokens)?;
+                let occurrence = occurrences
+                    .iter()
+                    .find(|read| read.source() == source && read.spelling() == spelling)?;
+                occurrence.diagnostic_version(
+                    ssa,
+                    site.bn,
+                    if site.stmt_idx == site.block_stmts.len() {
+                        usize::MAX
+                    } else {
+                        site.stmt_idx
+                    },
+                    self.semantics.registry,
+                )
+            });
+        let Some((index_sym, index_version)) = selected else {
             return;
         };
         if index_version == 0 {
             return;
         }
         let length = if cand.command == STRING_INDEX {
-            let str_var = plain_var_name(&cand.list_arg);
-            str_var.and_then(|sv| {
-                ssa.var_symbol(&sv)
-                    .and_then(|str_sym| site.version_map.get(&str_sym).map(|&v| (str_sym, v)))
-                    .and_then(|(str_sym, v)| self.str_lengths.get(&(str_sym, v)).copied())
-            })
+            cand.list_literal
+                .as_ref()
+                .and_then(|value| StringCharacterModel::count_for(self.characters, value))
+                .and_then(|length| i64::try_from(length).ok())
+                .or_else(|| {
+                    let read = site.source_view(ssa).read_word(cand.list_word.as_ref()?)?;
+                    self.str_lengths.get(&(read.symbol, read.version?)).copied()
+                })
         } else {
             self.length_for_list(cand, site)
         };
         let Some(length) = length else {
             return;
         };
-        let iv = refine_interval(
-            &self.intervals,
-            ssa,
-            (self.sccp, self.types),
-            site.bn,
-            &index_var,
-            index_version,
-        );
+        let iv = if cand.conditional_handler {
+            let Some(intervals) = &self.declaration_intervals else {
+                return;
+            };
+            crate::intervals::refine_declaration_interval_for_value(
+                intervals,
+                self.cfg,
+                ssa,
+                site.bn,
+                index_sym,
+                index_version,
+                crate::intervals::DeclarationGuardTables {
+                    guard_index: &self.guard_index,
+                    pred_counts: &self.pred_counts,
+                    numbers: self.numbers,
+                },
+            )
+        } else {
+            refine_interval_for_value(
+                &self.intervals,
+                (self.sccp, self.types),
+                site.bn,
+                index_sym,
+                index_version,
+            )
+        };
         if iv.is_top() || iv.is_bottom() {
             return;
         }
-        let Some(reason) = classify(iv, length, cand.is_lset, self.lset_appends_at_length) else {
+        let Some(reason) = classify(
+            iv,
+            length,
+            cand.is_lset,
+            cand.set_bounds,
+            self.lset_appends_at_length,
+        ) else {
             return;
         };
         let code = if cand.is_lset {
@@ -830,10 +1182,16 @@ impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
             span: site.span,
             code,
             command: cand.command.to_owned(),
-            index_var,
+            index_var: index_var.to_owned(),
             index_interval: iv,
             length,
-            reason: reason.to_owned(),
+            reason: if cand.conditional_handler {
+                format!(
+                    "{reason} if the original native handlers and declaration-local values are used"
+                )
+            } else {
+                reason.to_owned()
+            },
         });
     }
 
@@ -849,36 +1207,29 @@ impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
         let exit_site = |span: Span| CandidateSite {
             bn,
             span,
-            version_map: &sb.exit_versions,
             entry_versions: &sb.exit_versions,
             block_stmts: &sb.statements,
             stmt_idx: sb.statements.len(),
         };
-        match &block.terminator {
-            Some(Terminator::Return {
-                value, expr, span, ..
-            }) => {
-                let Some(span) = span else { return };
-                if let Some(v) = value
-                    && let Some(cand) = parse_index_sub(v, self.grammar)
+        if let Some(tokens) = SsaSourceView::at_terminator(self.ssa, bn).source_tokens()
+            && let Some(span) = block.terminator.as_ref().and_then(Terminator::span)
+        {
+            for nested in crate::word_subst::lifted_calls(
+                Some(tokens),
+                tcl_lexer::LexerConfig::from_grammar(self.grammar),
+            ) {
+                if let Some(tokens) = nested.tokens.as_ref()
+                    && let Some(invocation) =
+                        crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                            self.semantics.registry,
+                            self.semantics.context,
+                            tokens,
+                        )
+                    && let Some(candidate) = invocation_candidate(&invocation)
                 {
-                    self.process(&cand, &exit_site(*span), findings);
-                }
-                if let Some(e) = expr {
-                    for cand in index_subs_in_expr(e, self.grammar) {
-                        self.process(&cand, &exit_site(*span), findings);
-                    }
+                    self.process(&candidate, &exit_site(span), findings);
                 }
             }
-            Some(Terminator::Branch {
-                condition, span, ..
-            }) => {
-                let Some(span) = span else { return };
-                for cand in index_subs_in_expr(condition, self.grammar) {
-                    self.process(&cand, &exit_site(*span), findings);
-                }
-            }
-            _ => {}
         }
     }
 }
@@ -926,7 +1277,7 @@ fn expr_has_divisor(expr: &ExprNode) -> bool {
 fn collect_divzero(
     expr: &ExprNode,
     span: Span,
-    env: &HashMap<String, Interval>,
+    read: &impl Fn(&ExprNode) -> Interval,
     numbers: NumberSyntax,
     out: &mut Vec<DivZeroFinding>,
 ) {
@@ -938,7 +1289,7 @@ fn collect_divzero(
                 BinOp::Mod => "%",
                 _ => return,
             };
-            let iv = crate::intervals::eval_expr(right, env, numbers);
+            let iv = crate::intervals::eval_expr_with_reads(right, read, numbers);
             if iv.lo == Some(0) && iv.hi == Some(0) {
                 out.push(DivZeroFinding { span, op });
             }
@@ -975,7 +1326,7 @@ fn has_division(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
 /// the type lattice `types` proves an integer) must be
 /// exactly `[0, 0]`, and the block must be SCCP-executable. Shares the same
 /// interval machinery (`compute_intervals_with` / `refine_interval` /
-/// `eval_expr`) as [`find_interval_bounds_with`], including its `numbers`
+/// `eval_expr_with_reads`) as [`find_interval_bounds_with`], including its `numbers`
 /// numeral grammar — a divisor literal is read for the target release, so a
 /// spelling that is not a numeral there (`0o0` under 8.4) proves nothing.
 /// Findings are returned in source-span order for deterministic output.
@@ -986,40 +1337,139 @@ pub fn find_divide_by_zero_with<S, T>(
     (sccp, types): (&SccpResult, &HashMap<ValueKey, TypeLattice, T>),
     executable: &std::collections::HashSet<BlockId, S>,
     numbers: NumberSyntax,
+    grammar: tcl_dialect::LexerGrammar,
 ) -> Vec<DivZeroFinding>
 where
     S: std::hash::BuildHasher,
     T: std::hash::BuildHasher,
 {
-    if !has_division(cfg, ssa) {
-        return Vec::new();
+    find_divide_by_zero_impl(
+        cfg,
+        ssa,
+        (&sccp.values, (sccp, types)),
+        executable,
+        numbers,
+        grammar,
+        None,
+    )
+}
+
+/// Include original entered operand evaluators without granting parent dispatch.
+#[must_use]
+pub fn find_divide_by_zero_with_entered_operands<S1, S2, S3>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    (values, facts): (
+        &HashMap<ValueKey, LatticeValue, S1>,
+        (&SccpResult, &HashMap<ValueKey, TypeLattice, S3>),
+    ),
+    executable: &std::collections::HashSet<BlockId, S2>,
+    numbers: NumberSyntax,
+    semantics: BoundsSemantics<'_>,
+) -> Vec<DivZeroFinding>
+where
+    S1: std::hash::BuildHasher,
+    S2: std::hash::BuildHasher,
+    S3: std::hash::BuildHasher,
+{
+    find_divide_by_zero_impl(
+        cfg,
+        ssa,
+        (values, facts),
+        executable,
+        numbers,
+        semantics.grammar,
+        Some(semantics.registry),
+    )
+}
+
+fn entered_division_operands<S>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    executable: &std::collections::HashSet<BlockId, S>,
+    grammar: tcl_dialect::LexerGrammar,
+    registry: Option<&CommandRegistry>,
+) -> Vec<(
+    BlockId,
+    usize,
+    crate::word_subst::EnteredExpressionEvaluation,
+)>
+where
+    S: std::hash::BuildHasher,
+{
+    let mut entered = Vec::new();
+    if let Some(registry) = registry {
+        for (&block, data) in &ssa.blocks {
+            if !executable.contains(&block) {
+                continue;
+            }
+            for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
+                if index != usize::MAX
+                    && statement_expr(&data.statements[index].statement).is_some()
+                {
+                    continue;
+                }
+                if index == usize::MAX
+                    && cfg.blocks.get(&block).is_some_and(|block| {
+                        matches!(
+                            block.terminator.as_ref(),
+                            Some(Terminator::Return { expr: Some(_), .. })
+                        )
+                    })
+                {
+                    continue;
+                }
+                let view = if index == usize::MAX {
+                    SsaSourceView::at_terminator(ssa, block)
+                } else {
+                    SsaSourceView::at_statement(ssa, block, index)
+                };
+                for evaluation in crate::word_subst::entered_expression_evaluations(
+                    view.source_tokens(),
+                    tcl_lexer::LexerConfig::from_grammar(grammar),
+                    registry,
+                ) {
+                    entered.push((block, index, evaluation));
+                }
+            }
+        }
     }
-    let intervals = compute_intervals_with(cfg, ssa, &sccp.values, numbers);
+    entered
+}
 
-    let env_for =
-        |uses: &HashMap<Symbol, Version>, bn: crate::cfg::BlockId| -> HashMap<String, Interval> {
-            uses.iter()
-                .filter(|&(_, &ver)| ver > 0)
-                .map(|(&sym, &ver)| {
-                    let name = ssa.var_name(sym);
-                    (
-                        name.to_owned(),
-                        refine_interval(&intervals, ssa, (sccp, types), bn, name, ver),
-                    )
-                })
-                .collect()
-        };
-
-    let mut findings: Vec<DivZeroFinding> = Vec::new();
+fn collect_lowered_divzero<S>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    executable: &std::collections::HashSet<BlockId, S>,
+    numbers: NumberSyntax,
+    read: &impl Fn(&ExprNode, BlockId, usize, Option<u32>) -> crate::intervals::Interval,
+    findings: &mut Vec<DivZeroFinding>,
+) where
+    S: std::hash::BuildHasher,
+{
     for (bid, sb) in &ssa.blocks {
         if !executable.contains(bid) {
             continue;
         }
         let bn = *bid;
-        for s in &sb.statements {
+        for (index, s) in sb.statements.iter().enumerate() {
             if let Some(expr) = statement_expr(&s.statement) {
                 let span = statement_span(&s.statement).unwrap_or_else(|| Span::new(0, 0));
-                collect_divzero(expr, span, &env_for(&s.uses, bn), numbers, &mut findings);
+                collect_divzero(
+                    expr,
+                    span,
+                    &|node| {
+                        let base = match &s.statement {
+                            Statement::AssignExpr { expr_base, .. }
+                            | Statement::ExprEval { expr_base, .. }
+                            | Statement::Return { expr_base, .. } => *expr_base,
+                            _ => None,
+                        };
+                        read(node, bn, index, base)
+                    },
+                    numbers,
+                    findings,
+                );
             }
         }
         let Some(block) = cfg.blocks.get(bid) else {
@@ -1029,27 +1479,90 @@ where
             Some(Terminator::Branch {
                 condition,
                 span: Some(span),
+                condition_base,
                 ..
             }) => collect_divzero(
                 condition,
                 *span,
-                &env_for(&sb.exit_versions, bn),
+                &|node| read(node, bn, usize::MAX, *condition_base),
                 numbers,
-                &mut findings,
+                findings,
             ),
             Some(Terminator::Return {
                 expr: Some(e),
                 span: Some(span),
+                expr_base,
                 ..
             }) => collect_divzero(
                 e,
                 *span,
-                &env_for(&sb.exit_versions, bn),
+                &|node| read(node, bn, usize::MAX, *expr_base),
                 numbers,
-                &mut findings,
+                findings,
             ),
             _ => {}
         }
+    }
+}
+
+fn find_divide_by_zero_impl<S1, S2, S3>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    (values, (sccp, types)): (
+        &HashMap<ValueKey, LatticeValue, S1>,
+        (&SccpResult, &HashMap<ValueKey, TypeLattice, S3>),
+    ),
+    executable: &std::collections::HashSet<BlockId, S2>,
+    numbers: NumberSyntax,
+    grammar: tcl_dialect::LexerGrammar,
+    registry: Option<&CommandRegistry>,
+) -> Vec<DivZeroFinding>
+where
+    S1: std::hash::BuildHasher,
+    S2: std::hash::BuildHasher,
+    S3: std::hash::BuildHasher,
+{
+    let entered = entered_division_operands(cfg, ssa, executable, grammar, registry);
+    if !has_division(cfg, ssa)
+        && !entered
+            .iter()
+            .any(|(_, _, evaluation)| expr_has_divisor(evaluation.expression()))
+    {
+        return Vec::new();
+    }
+    let intervals = compute_intervals_with(cfg, ssa, values, numbers);
+
+    let interval_for = |node: &ExprNode, bn: BlockId, index: usize, base: Option<u32>| {
+        let view = if index == usize::MAX {
+            SsaSourceView::at_terminator(ssa, bn)
+        } else {
+            SsaSourceView::at_statement(ssa, bn, index)
+        };
+        let Some(read) = view.read_expression_variable(node, base) else {
+            return crate::intervals::TOP;
+        };
+        let Some(version) = read.version.filter(|version| *version > 0) else {
+            return crate::intervals::TOP;
+        };
+        refine_interval_for_value(&intervals, (sccp, types), bn, read.symbol, version)
+    };
+
+    let mut findings: Vec<DivZeroFinding> = Vec::new();
+    collect_lowered_divzero(cfg, ssa, executable, numbers, &interval_for, &mut findings);
+    for (block, index, evaluation) in entered {
+        collect_divzero(
+            evaluation.expression(),
+            evaluation.span(),
+            &|node| {
+                if evaluation.numbers() == numbers && evaluation.grammar() == grammar {
+                    interval_for(node, block, index, Some(evaluation.expression_base()))
+                } else {
+                    crate::intervals::TOP
+                }
+            },
+            evaluation.numbers(),
+            &mut findings,
+        );
     }
     // Deterministic, source-order output (HashMap block iteration is not).
     findings.sort_by_key(|f| (f.span.start(), f.span.end(), f.op));
@@ -1076,7 +1589,200 @@ fn statement_span(stmt: &Statement) -> Option<Span> {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use crate::analyser::Analyser;
+
+    fn context_test_unit(
+        source: &str,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> crate::compilation_unit::CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            std::sync::Arc::clone(context),
+        )
+    }
+
+    fn context_test_candidates(
+        function: &crate::compilation_unit::FunctionUnit,
+        semantics: super::BoundsSemantics<'_>,
+    ) -> Vec<super::Candidate> {
+        function
+            .ssa
+            .blocks
+            .iter()
+            .flat_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .flat_map(move |(index, row)| {
+                        super::statement_candidates(
+                            &row.statement,
+                            crate::ssa::SsaSourceView::at_statement(&function.ssa, block, index),
+                            semantics,
+                        )
+                    })
+            })
+            .collect()
+    }
+
+    #[test]
+    fn retained_bounds_context_keeps_availability_source_operands_and_store_identity() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // A custom gated source descriptor; no stock release-availability or Native-entry claim.
+        use super::*;
+        use std::sync::Arc;
+        let source = "proc f {i} {lset values $i NEW}";
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let mut registry = CommandRegistry::build_default();
+        let mut gated = registry.get("lset").unwrap().clone();
+        gated.surface = registry.get("dict").unwrap().surface;
+        registry.insert(gated);
+        let context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl9.0")
+                .with_command_store(Arc::new(registry)),
+        );
+        let unit = context_test_unit(source, &context);
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::f"))
+            .expect("authored fixture body");
+        let original = function
+            .ssa
+            .blocks
+            .iter()
+            .find_map(|(&block, body)| {
+                body.statements.iter().enumerate().find_map(|(index, _)| {
+                    SsaSourceView::at_statement(&function.ssa, block, index).source_tokens()
+                })
+            })
+            .unwrap();
+        assert!(
+            original
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .execution_is_unknown()
+        );
+        let selected = BoundsSemantics {
+            registry: context.commands(),
+            context: Some(context.as_ref().into()),
+            grammar: profile.grammar,
+        };
+        let positive = context_test_candidates(function, selected);
+        assert_eq!(positive.len(), 1);
+        assert!(
+            positive[0].conditional_handler,
+            "source layout cannot create a normal native handler"
+        );
+        assert_eq!(positive[0].index_arg, "$i");
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(Arc::clone(context.commands()));
+        assert!(Arc::ptr_eq(older.commands(), context.commands()));
+        let unavailable = BoundsSemantics {
+            context: Some((&older).into()),
+            ..selected
+        };
+        assert!(context_test_candidates(function, unavailable).is_empty());
+        let mut foreign = CommandRegistry::build_default();
+        foreign.insert(tcl_registry::CommandSpec {
+            name: "foreign-marker",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let foreign_context = context.with_command_store(Arc::new(foreign));
+        let mismatched = BoundsSemantics {
+            context: Some((&foreign_context).into()),
+            ..selected
+        };
+        assert!(context_test_candidates(function, mismatched).is_empty());
+        let replaced = context_test_unit(
+            "proc lset {args} {}; proc f {i} {lset values $i NEW}",
+            &context,
+        );
+        assert!(
+            context_test_candidates(
+                replaced
+                    .procedures
+                    .get(&fixture_id(&replaced.procedures, "::f"))
+                    .expect("authored fixture body"),
+                selected
+            )
+            .is_empty()
+        );
+        let mut missing = original.clone();
+        missing.source_binding = None;
+        assert!(
+            crate::registry_invocation::conditional_index_access_advice_with_metadata_context(
+                selected.registry,
+                selected.context,
+                &missing
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn bounds_follow_live_command_identity_and_literal_body_quoting() {
+        assert_eq!(
+            bounds(
+                "proc lindex {args} {return custom}; proc f {} {set l {a b}; set i 9; return [lindex $l $i]}"
+            ),
+            [] as [(String, String); 0]
+        );
+        assert_eq!(
+            bounds("proc f {} {set l {a b}; set i 9; puts {[lindex $l $i]}"),
+            [] as [(String, String); 0]
+        );
+        let renamed =
+            bounds("rename lindex pick; proc f {} {set l {a b}; set i 9; return [pick $l $i]}");
+        assert_eq!(renamed.len(), 1, "{renamed:?}");
+        let prefixed =
+            bounds("interp alias {} pick {} lindex {a b}; proc f {} {set i 9; return [pick $i]}");
+        assert_eq!(prefixed.len(), 1, "{prefixed:?}");
+    }
+
+    #[test]
+    fn lset_append_updates_following_length_without_an_old_length_warning() {
+        assert_eq!(
+            bounds("proc f {} {set l {a}; lset l 1 b; set i 1; return [lindex $l $i]}"),
+            [] as [(String, String); 0]
+        );
+        let past = bounds("proc f {} {set l {a}; lset l 1 b; set i 2; return [lindex $l $i]}");
+        assert_eq!(past.len(), 1, "{past:?}");
+    }
+
+    #[test]
+    fn append_slot_bounds_follow_each_c_runtime_release() {
+        let source = "proc f {} {set l {a}; set i 1; lset l $i b}";
+        for (dialect, expected) in [
+            ("tcl8.4", 1),
+            ("tcl8.5", 1),
+            ("tcl8.6", 0),
+            ("tcl9.0", 0),
+            ("tcl9.1", 0),
+        ] {
+            let diagnostics = Analyser::new().analyse(source, dialect).diagnostics;
+            assert_eq!(
+                diagnostics
+                    .iter()
+                    .filter(|diagnostic| diagnostic.code.as_str() == "W231")
+                    .count(),
+                expected,
+                "{dialect}: {diagnostics:?}"
+            );
+        }
+    }
 
     /// `walk_eager` recurses once per
     /// `ExprNode` level, so it needs a depth cap. A tree built
@@ -1109,20 +1815,62 @@ mod tests {
     /// The `op` of every W233 divide-by-zero finding for `src`'s top level.
     fn divzero(src: &str) -> Vec<&'static str> {
         use crate::compilation_unit::CompilationUnit;
-        use tcl_registry::CommandRegistry;
-        let registry = CommandRegistry::build_default();
-        let cu = CompilationUnit::build_for(src, &registry, false);
+        let context = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        let profile = context.commands().profile().expect("actual C9 profile");
+        let cu = CompilationUnit::build_for_profile(src, context.commands(), false, profile);
         let fu = &cu.top_level;
         super::find_divide_by_zero_with(
             &fu.cfg,
             &fu.ssa,
             (&fu.sccp, &fu.types),
             &fu.sccp.executable_blocks,
-            tcl_dialect::NumberSyntax::default(),
+            tcl_dialect::NumberSyntax::of_profile(Some(profile)),
+            profile.grammar,
         )
         .iter()
         .map(|d| d.op)
         .collect()
+    }
+
+    #[test]
+    fn entered_operand_divisions_survive_parent_failure_and_respect_reachability() {
+        for (source, expected) in [
+            ("return [expr {1 / 0}]", 1),
+            ("set d 0; return [expr {1 / $d}]", 1),
+            ("error STOP; return [expr {1 / 0}]", 0),
+            ("return [error STOP] [expr {1 / 0}]", 0),
+            ("return {[expr {1 / 0}]}", 0),
+            (
+                "rename expr saved; proc expr args {return CUSTOM}; return [expr {1 / 0}]",
+                0,
+            ),
+        ] {
+            let result = Analyser::new().analyse(source, "tcl8.6");
+            assert_eq!(
+                result
+                    .diagnostics
+                    .iter()
+                    .filter(|diagnostic| diagnostic.code.as_str() == "W233")
+                    .count(),
+                expected,
+                "{source}: {:?}",
+                result.diagnostics,
+            );
+        }
+        assert!(
+            !Analyser::new()
+                .analyse("return [expr {1 / 0o0}]", "tcl8.4")
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_str() == "W233")
+        );
+        assert!(
+            Analyser::new()
+                .analyse("return [expr {1 / 0o0}]", "tcl9.1")
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_str() == "W233")
+        );
     }
 
     #[test]
@@ -1134,13 +1882,30 @@ mod tests {
     }
 
     #[test]
+    fn divisor_ranges_keep_literal_sigils_and_array_elements_separate() {
+        assert_eq!(divzero("set {$d} 0; set d 3; expr {1 / ${$d}}"), vec!["/"]);
+        assert_eq!(
+            divzero("set {$d} 3; set d 0; expr {1 / ${$d}}"),
+            [] as [&str; 0]
+        );
+        // A root and another element cannot donate a zero divisor range.
+        assert_eq!(
+            divzero("set a(k) 3; set a(j) 0; expr {1 / $a(k)}"),
+            [] as [&str; 0]
+        );
+    }
+
+    #[test]
     fn nonzero_or_guarded_divisor_is_clean() {
         // A non-zero divisor: no finding.
-        assert!(divzero("set d 3\nset x [expr {1 / $d}]").is_empty());
+        assert_eq!(divzero("set d 3\nset x [expr {1 / $d}]"), [] as [&str; 0]);
         // Guarded by `$d != 0`: SCCP marks the division block unreachable.
-        assert!(divzero("set d 0\nif {$d != 0} { expr {1 / $d} }").is_empty());
+        assert_eq!(
+            divzero("set d 0\nif {$d != 0} { expr {1 / $d} }"),
+            [] as [&str; 0]
+        );
         // No division at all.
-        assert!(divzero("set x 1\nset y 2").is_empty());
+        assert_eq!(divzero("set x 1\nset y 2"), [] as [&str; 0]);
     }
 
     fn bounds(src: &str) -> Vec<(String, String)> {
@@ -1193,11 +1958,11 @@ mod tests {
     #[test]
     fn string_index_const_var_past_end_fires_w232() {
         // `$i` is the SCCP constant 10 against a 5-char string — past end.
+        let source =
+            "proc f {} {\n    set s \"hello\"\n    set i 10\n    return [string index $s $i]\n}\n";
+        let result = bounds(source);
         assert_eq!(
-            bounds("proc f {} {\n    set s \"hello\"\n    set i 10\n    return [string index $s $i]\n}\n")
-                .iter()
-                .map(|(c, _)| c.clone())
-                .collect::<Vec<_>>(),
+            result.iter().map(|(c, _)| c.clone()).collect::<Vec<_>>(),
             vec!["W232"]
         );
         // `$i == length` is also out of range for `string index`.
@@ -1210,14 +1975,20 @@ mod tests {
     #[test]
     fn dynamic_bounds_silent_when_not_provable() {
         // In-range index — no diagnostic.
-        assert!(
-            bounds("proc f {} { set s \"hello\"\n set i 2\n return [string index $s $i] }")
-                .is_empty()
+        assert_eq!(
+            bounds("proc f {} { set s \"hello\"\n set i 2\n return [string index $s $i] }").len(),
+            0
         );
         // Unknown string + unknown index (both params) — not provable.
-        assert!(bounds("proc f {s i} { return [string index $s $i] }").is_empty());
+        assert_eq!(
+            bounds("proc f {s i} { return [string index $s $i] }"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
         // The legal append slot (`index == length`) for `lset` is silent.
-        assert!(bounds("proc f {v} { set l {a b c}\n set j 3\n lset l $j $v }").is_empty());
+        assert_eq!(
+            bounds("proc f {v} { set l {a b c}\n set j 3\n lset l $j $v }"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -1237,19 +2008,17 @@ mod tests {
         // (`lappend`) in the loop body makes the list length unknown at the
         // `lset`, so no bound can be proven. The pre-loop length of 3 must NOT
         // be trusted — `lset l 5` is the legal append slot after two lappends.
-        assert!(
+        assert_eq!(
             bounds(
                 "proc f {v} { set l {a b c}\n foreach i {1} { lappend l x y\n lset l 5 $v }\n}",
-            )
-            .is_empty(),
+            ).len(), 0,
             "a length-growing op in the loop must poison the length, not trust the pre-loop value",
         );
         // `concat`/reassignment in the loop is equally opaque — no false W231.
-        assert!(
+        assert_eq!(
             bounds(
                 "proc f {v} { set l {a b c}\n foreach i {1} { set l [concat $l x y z]\n lset l 5 $v }\n}",
-            )
-            .is_empty(),
+            ).len(), 0,
         );
     }
 }

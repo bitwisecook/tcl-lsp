@@ -24,6 +24,9 @@ use tcl_dialect::model::SpecSurface;
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "match",
+        source_configuration_reference: Some(
+            SourceConfigurationReferenceLayout::DataGroupComparison,
+        ),
         arity: Arity::at_least(0),
         detail: "Match an item against a data group.",
         synopsis: "class match ?options? ?--? <item> <operator> <class>",
@@ -190,6 +193,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "lookup",
+        source_configuration_reference: Some(SourceConfigurationReferenceLayout::DataGroupLookup),
         arity: Arity::exact(2),
         detail: "Return the value paired with a name.",
         synopsis: "class lookup <name> <class>",

@@ -26,17 +26,20 @@
 //!    body contains a `proc $a $b $c` shape using the wrapper's own
 //!    parameters ([`is_factory_body`]);
 //! 2. for each candidate, looks up the factory it binds to using
-//!    Tcl's command-resolution path ([`lookup_factory`]);
+//!    the original authored slot and retained caller scope;
 //! 3. emits a synthetic [`SignatureProc`] under the factory's home
 //!    namespace, idempotently skipping any qualified name already
 //!    present in [`super::ctx::ScanCtx::result`]`.procs`.
 //!
 //! [`SignatureProc`]: super::types::SignatureProc
 
-use std::collections::{HashMap, HashSet};
+#[cfg(test)]
+use std::collections::HashMap;
+use std::collections::HashSet;
 
-use super::ctx::{FactoryCandidate, ScanCtx};
-use super::handlers::qualify;
+#[cfg(test)]
+use super::ctx::FactoryCandidate;
+use super::ctx::{ProcBodyInfo, ScanCtx};
 use super::types::SignatureProc;
 use crate::segmenter::segment_commands_with_offset_and_config;
 
@@ -63,7 +66,7 @@ pub(super) fn is_factory_body(
         param_vars.insert(format!("${p}"));
         param_vars.insert(format!("${{{p}}}"));
     }
-    let commands = segment_commands_with_offset_and_config(body_text, 0, config);
+    let commands = segment_commands_with_offset_and_config(body_text, 0, config.nested());
     for cmd in commands {
         if cmd.is_partial || cmd.texts.is_empty() {
             continue;
@@ -82,32 +85,21 @@ pub(super) fn is_factory_body(
 /// Resolve `cand.head` to a factory's qualified name (the **key**
 /// in `factories`), following Tcl's command-resolution order.
 ///
-/// Absolute heads (those
-/// starting with `::`) match verbatim. Relative heads try the
+/// Absolute written heads use the selected naming recipe. Relative heads try the
 /// call-site qualified name first, then the global namespace —
 /// they never fall through to "any factory with this bare name",
 /// which would bind calls in one namespace to a wrapper in an
 /// unrelated one (Tcl itself refuses to cross those boundaries).
 #[must_use]
+#[cfg(test)]
 pub(super) fn lookup_factory<'a>(
     cand: &FactoryCandidate,
     factories: &'a HashMap<String, String>,
 ) -> Option<&'a str> {
-    let head = &cand.head;
-    if head.starts_with("::") {
-        return factories
-            .get_key_value(head.as_str())
-            .map(|(k, _)| k.as_str());
-    }
-    let qualified = qualify(&cand.ns_prefix, head);
-    if let Some((k, _)) = factories.get_key_value(qualified.as_str()) {
-        return Some(k.as_str());
-    }
-    let global_q = format!("::{head}");
-    if global_q != qualified {
-        return factories
-            .get_key_value(global_q.as_str())
-            .map(|(k, _)| k.as_str());
+    for key in ScanCtx::command_keys(&cand.ns_prefix, &cand.head) {
+        if let Some((key, _)) = factories.get_key_value(&key) {
+            return Some(key.as_str());
+        }
     }
     None
 }
@@ -117,7 +109,7 @@ pub(super) fn lookup_factory<'a>(
 ///
 /// Builds a factory map from
 /// `ctx.proc_bodies` filtered through [`is_factory_body`]; for
-/// each candidate calls [`lookup_factory`], computes the emitted
+/// each candidate selects the retained source slot, computes the emitted
 /// qualified name (honouring an explicit `::` prefix on the
 /// candidate name), and idempotently inserts a synthetic
 /// [`SignatureProc`] with empty params (the wrapper-to-factory
@@ -127,56 +119,290 @@ pub(super) fn resolve_factory_defs(ctx: &mut ScanCtx) {
     if ctx.candidates.is_empty() || ctx.proc_bodies.is_empty() {
         return;
     }
-    let mut factories: HashMap<String, String> = HashMap::new();
-    for info in &ctx.proc_bodies {
-        if !is_factory_body(&info.body_text, &info.params, ctx.config) {
-            continue;
-        }
-        factories.insert(info.qname.clone(), info.ns_prefix.clone());
-    }
-    if factories.is_empty() {
-        return;
-    }
-    // Snapshot candidates so we can mutate ctx.result.procs while
-    // iterating. Candidates is a small Vec; cloning is cheap.
+    let factories = ctx
+        .proc_bodies
+        .iter()
+        .filter(|info| {
+            if ctx.original_bindings.is_some() {
+                is_selected_factory_body(info, ctx)
+            } else {
+                is_factory_body(&info.body_text, &info.params, ctx.config)
+            }
+        })
+        .cloned()
+        .collect::<Vec<_>>();
     let candidates = ctx.candidates.clone();
     for cand in &candidates {
-        let Some(factory_qname) = lookup_factory(cand, &factories) else {
+        let Some(scope) = cand
+            .namespace_scope
+            .clone()
+            .or_else(|| ctx.current_namespace(&cand.ns_prefix))
+        else {
             continue;
         };
-        let factory_ns = &factories[factory_qname];
-        let emitted_q = if cand.name.starts_with("::") {
-            cand.name.clone()
-        } else if !factory_ns.is_empty() {
-            format!("::{factory_ns}::{}", cand.name)
-        } else {
-            format!("::{}", cand.name)
+        let root = super::scope::SignatureNamespaceScope::root(ctx.name_policy());
+        let factory = [&scope, &root].into_iter().find_map(|lookup| {
+            factories.iter().find(|info| match &info.source_name {
+                Some(name) => match &cand.original_head {
+                    Some(key) => name.matches_key(lookup, key),
+                    None if ctx.original_image.is_none() => {
+                        name.matches_written(lookup, &cand.head)
+                    }
+                    None => false,
+                },
+                None => lookup.display().is_some_and(|namespace| {
+                    crate::naming::qualify(&namespace, &cand.head) == info.qname
+                }),
+            })
+        });
+        let Some(factory) = factory else {
+            continue;
         };
-        let simple = emitted_q.rsplit("::").next().unwrap_or("").to_string();
-        if ctx.result.procs.contains_key(&emitted_q) {
+        let Some(factory_scope) = factory
+            .namespace_scope
+            .clone()
+            .or_else(|| ctx.current_namespace(&factory.ns_prefix))
+        else {
+            continue;
+        };
+        let Some((emitted_q, simple, body_namespace, source_name)) =
+            ctx.procedure_name_in_context(&factory_scope, &cand.name, cand.original_name.as_ref())
+        else {
+            continue;
+        };
+        if ctx
+            .result
+            .procs
+            .get(&emitted_q)
+            .is_some_and(|existing| existing.source_name == source_name)
+            || ctx.result.procedure_declarations.iter().any(|existing| {
+                existing.qualified_name == emitted_q && existing.source_name == source_name
+            })
+        {
             continue;
         }
-        ctx.result.procs.insert(
-            emitted_q.clone(),
-            SignatureProc {
-                name: simple,
-                qualified_name: emitted_q,
-                // A factory-emitted proc's formals come from the factory's own
-                // run-time arguments, so they are *unknown*, not *none* — an
-                // arity consumer must abstain rather than demand zero
-                // arguments.
-                params: Vec::new(),
-                params_computed: true,
-                name_range: cand.name_tok.span,
-                body_range: cand.body_tok.span,
-            },
-        );
+        ctx.record_proc(SignatureProc {
+            name: simple,
+            qualified_name: emitted_q,
+            source_name,
+            body_namespace,
+            params: Vec::new(),
+            params_computed: true,
+            formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                tcl_dialect::ParameterGrammar::Tcl,
+            ),
+            name_range: cand.name_tok.span,
+            body_range: cand.body_tok.span,
+        });
     }
+}
+
+/// Recognise a wrapper only through the selected definer and procedure
+/// layouts retained for this complete source. The compatibility recogniser
+/// above remains for callers which intentionally have no source binding.
+fn is_selected_factory_body(info: &ProcBodyInfo, ctx: &ScanCtx<'_>) -> bool {
+    let Some(owner) = info.original_factory_body.as_ref() else {
+        return false;
+    };
+    let Some(image) = ctx.original_image.as_ref() else {
+        return false;
+    };
+    if owner.parameters.image() != image
+        || owner.body.image() != image
+        || owner.parameters.config() != ctx.config
+        || owner.body.config() != ctx.config
+        || owner.words.params == owner.words.body
+        || owner.words.name == owner.words.params
+        || owner.words.name == owner.words.body
+        || owner.words.statics == Some(owner.words.params)
+        || owner.words.statics == Some(owner.words.body)
+        || owner.body.group().kind != tcl_lexer::WordKind::Braced
+        || owner.body.group().expand
+    {
+        return false;
+    }
+    let Some(body_span) = owner.body.content_span().ok() else {
+        return false;
+    };
+    let Ok(document) = image.try_text() else {
+        return false;
+    };
+    let Some(body) = document.get(body_span.as_range()) else {
+        return false;
+    };
+    // `body_text` is the selected definer's decoded display. This equality
+    // admits only an exact source slice; a cooked value has no source map here.
+    if body.as_bytes() != info.body_text.as_bytes() {
+        return false;
+    }
+    let Some(parameter_variables) = selected_factory_parameter_variables(owner, info, ctx.rules)
+    else {
+        return false;
+    };
+    for command in
+        segment_commands_with_offset_and_config(body, body_span.start(), ctx.config.nested())
+    {
+        if command.is_partial || command.argv.len() != 4 {
+            continue;
+        }
+        let Some(original) = ctx.original_command_words(&command) else {
+            continue;
+        };
+        if original.len() != 4
+            || !original
+                .iter()
+                .all(|word| word.image() == image && word.config() == ctx.config)
+        {
+            continue;
+        }
+        let Some(_selection) = ctx
+            .with_selected_schema(&command, |schema| {
+                use tcl_registry::native_procedure::NativeProcedureDefinitionSelection;
+                let descriptor = schema.semantics.procedure_definition?;
+                match descriptor.select(schema.words.arguments()) {
+                    NativeProcedureDefinitionSelection::Valid(definition)
+                        if definition.name_at == 0
+                            && definition.parameters_at == 1
+                            && definition.statics_at.is_none()
+                            && definition.body_at == 2 =>
+                    {
+                        Some(definition)
+                    }
+                    _ => None,
+                }
+            })
+            .flatten()
+        else {
+            continue;
+        };
+        if [1usize, 2, 3].into_iter().all(|index| {
+            selected_factory_parameter_reference(&original[index], &parameter_variables, ctx)
+        }) {
+            return true;
+        }
+    }
+    false
+}
+
+fn selected_factory_parameter_variables(
+    owner: &super::ctx::OriginalFactoryBodySource,
+    info: &ProcBodyInfo,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Option<HashSet<Vec<u8>>> {
+    let parameter_bytes =
+        tcl_syntax::word_rules::original_static_word_unicode_value(&owner.parameters)?;
+    let parameter_text = std::str::from_utf8(&parameter_bytes).ok()?;
+    let parameter_names: Vec<_> =
+        crate::signature_scan::params::parse_param_list(parameter_text, rules)
+            .into_iter()
+            .map(|parameter| parameter.name)
+            .collect();
+    if parameter_names != info.params || parameter_names.len() < 3 {
+        return None;
+    }
+    Some(
+        parameter_names
+            .iter()
+            .map(|name| name.as_bytes().to_vec())
+            .collect(),
+    )
+}
+
+fn selected_factory_parameter_reference(
+    word: &tcl_lexer::NativeWord,
+    parameters: &HashSet<Vec<u8>>,
+    ctx: &ScanCtx<'_>,
+) -> bool {
+    if word.group().kind != tcl_lexer::WordKind::Bare || word.group().expand {
+        return false;
+    }
+    let mut parts = word.executable_parts().all_parts();
+    let Some(part) = parts.next() else {
+        return false;
+    };
+    if parts.next().is_some() {
+        return false;
+    }
+    let tcl_lexer::ExecutablePart::Variable { index: None, .. } = &part.part else {
+        return false;
+    };
+    let Some(policy) = ctx.name_policy() else {
+        return false;
+    };
+    let Some(root) =
+        crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_word(
+            word, part.span, ctx.rules, policy,
+        )
+    else {
+        return false;
+    };
+    parameters.contains(root.bytes())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_source_factory_uses_registry_definer_and_inner_procedure_layouts() {
+        // Source-only selected form and body geometry; no procedure execution.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let registry = input.borrowed_context_registry().commands();
+        let config = input.lexer_config();
+        let source =
+            "# λ\nproc factory {name args body} {proc $name $args $body}\nfactory generated {} {}";
+        let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            registry,
+            crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+        );
+        let scan = super::super::extract_signatures_with_original_bindings(
+            source, config, registry, &bindings,
+        );
+        assert!(scan.procs.contains_key("::generated"));
+    }
+
+    #[test]
+    fn original_factory_scans_keep_body_bom_distinct_from_definer_and_call_heads() {
+        // naming.source.original-configured-script-completeness
+
+        // Conditional wrapper/header shape only; no entered procedure or manufactured command.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let context = input.context_registry();
+        let registry = context.commands();
+        let params = vec!["name".to_owned(), "args".to_owned(), "body".to_owned()];
+        let source = "proc factory {name args body} {proc $name $args $body}\nproc badFactory {name args body} {\u{feff}proc $name $args $body}\nproc init {} {\u{feff}factory hidden {} {}; factory shown {} {}; badFactory falseHit {} {}}";
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let mut config = input.lexer_config();
+            config.leading_bom = bom;
+            config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+            assert!(is_factory_body(
+                "proc ${name} ${args} ${body}",
+                &params,
+                config
+            ));
+            assert!(!is_factory_body(
+                "\u{feff}proc $name $args $body",
+                &params,
+                config
+            ));
+            let result = super::super::extract_signatures_with_config(source, config, registry);
+            assert!(result.procs.contains_key("::factory"));
+            let shown = result.procs.get("::shown").unwrap();
+            assert_eq!(source.get(shown.name_range.as_range()), Some("shown"));
+            assert!(!result.procs.contains_key("::hidden"));
+            assert!(!result.procs.contains_key("::falseHit"));
+        }
+    }
 
     #[test]
     fn canonical_factory_body_matches() {
@@ -239,10 +465,13 @@ mod tests {
 
     fn cand(head: &str, ns: &str) -> FactoryCandidate {
         FactoryCandidate {
+            original_head: None,
+            original_name: None,
             head: head.to_string(),
             name: "X".to_string(),
             name_tok: Token::new(TokenType::Esc, Span::new(0, 0)),
             body_tok: Token::with_content_offset(TokenType::Str, Span::new(0, 0), 1),
+            namespace_scope: None,
             ns_prefix: ns.to_string(),
         }
     }
@@ -291,10 +520,46 @@ mod tests {
     fn proc_body(qname: &str, ns: &str, body: &str) -> ProcBodyInfo {
         ProcBodyInfo {
             qname: qname.to_string(),
+            source_name: None,
             params: vec!["name".to_string(), "args".to_string(), "body".to_string()],
             body_text: body.to_string(),
+            namespace_scope: None,
             ns_prefix: ns.to_string(),
+            original_factory_body: None,
         }
+    }
+
+    #[test]
+    fn selected_factory_requires_exact_scalar_formal_roots() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let registry = context.commands();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let analyse = |source: &str| {
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context.clone(),
+                config,
+            );
+            let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+                source,
+                config,
+                registry,
+                crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+            );
+            super::super::extract_signatures_with_original_bindings(
+                source, config, registry, &bindings,
+            )
+        };
+        let positive = analyse(
+            "proc factory {name args body} {proc $name $args $body}\nfactory generated {} {}",
+        );
+        assert!(positive.procs.contains_key("::generated"));
+        let punctuation = analyse(
+            "proc factory {name-tail args body} {proc $name-tail $args $body}\nfactory generated {} {}",
+        );
+        assert!(!punctuation.procs.contains_key("::generated"));
     }
 
     #[test]
@@ -306,16 +571,22 @@ mod tests {
             "proc $name $args $body",
         ));
         ctx.candidates.push(FactoryCandidate {
+            original_head: None,
+            original_name: None,
             head: "DEFC".to_string(),
             name: "Foo".to_string(),
             name_tok: Token::with_content_offset(TokenType::Esc, Span::new(10, 13), 0),
             body_tok: Token::with_content_offset(TokenType::Str, Span::new(20, 30), 1),
+            namespace_scope: None,
             ns_prefix: "tcllib".to_string(),
         });
         resolve_factory_defs(&mut ctx);
         let proc = ctx.result.procs.get("::tcllib::Foo").expect("emitted");
         assert_eq!(proc.name, "Foo");
-        assert!(proc.params.is_empty());
+        assert_eq!(
+            proc.params,
+            [] as [crate::signature_scan::types::ParamDef; 0]
+        );
         assert_eq!(proc.name_range, Span::new(10, 13));
         assert_eq!(proc.body_range, Span::new(20, 30));
     }
@@ -327,14 +598,17 @@ mod tests {
         ctx.proc_bodies
             .push(proc_body("::ns::regular", "ns", "set x 1"));
         ctx.candidates.push(FactoryCandidate {
+            original_head: None,
+            original_name: None,
             head: "regular".to_string(),
             name: "X".to_string(),
             name_tok: Token::new(TokenType::Esc, Span::new(0, 0)),
             body_tok: Token::with_content_offset(TokenType::Str, Span::new(0, 0), 1),
+            namespace_scope: None,
             ns_prefix: "ns".to_string(),
         });
         resolve_factory_defs(&mut ctx);
-        assert!(ctx.result.procs.is_empty());
+        assert_eq!(ctx.result.procs.len(), 0);
     }
 
     #[test]
@@ -348,6 +622,10 @@ mod tests {
             "::Foo".to_string(),
             SignatureProc {
                 name: "Foo".to_string(),
+                source_name: None,
+                body_namespace: super::super::scope::SignatureNamespaceScope::Symbolic(
+                    "::".to_owned(),
+                ),
                 qualified_name: "::Foo".to_string(),
                 params: vec![super::super::types::ParamDef {
                     name: "real".to_string(),
@@ -355,15 +633,21 @@ mod tests {
                     default_value: None,
                 }],
                 params_computed: false,
+                formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                    tcl_dialect::ParameterGrammar::Tcl,
+                ),
                 name_range: Span::new(99, 102),
                 body_range: Span::new(110, 120),
             },
         );
         ctx.candidates.push(FactoryCandidate {
+            original_head: None,
+            original_name: None,
             head: "DEFC".to_string(),
             name: "Foo".to_string(),
             name_tok: Token::new(TokenType::Esc, Span::new(0, 3)),
             body_tok: Token::with_content_offset(TokenType::Str, Span::new(10, 20), 1),
+            namespace_scope: None,
             ns_prefix: String::new(),
         });
         resolve_factory_defs(&mut ctx);
@@ -382,10 +666,13 @@ mod tests {
             "proc $name $args $body",
         ));
         ctx.candidates.push(FactoryCandidate {
+            original_head: None,
+            original_name: None,
             head: "DEFC".to_string(),
             name: "::Top::Foo".to_string(),
             name_tok: Token::new(TokenType::Esc, Span::new(0, 10)),
             body_tok: Token::with_content_offset(TokenType::Str, Span::new(11, 20), 1),
+            namespace_scope: None,
             ns_prefix: "tcllib".to_string(),
         });
         resolve_factory_defs(&mut ctx);

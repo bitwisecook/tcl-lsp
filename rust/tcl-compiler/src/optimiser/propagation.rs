@@ -62,18 +62,19 @@
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
+use crate::interprocedural::ConstantReturn;
 use crate::ir::{CommandTokens, Script, Statement};
-use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::FoldPolicy;
 use tcl_core_types::DiagCode;
 use tcl_registry::CommandRegistry;
 
-use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
-use super::helpers::literals::{is_safe_word, is_static_var_word};
+use super::helpers::expr_simplify::{NumericCtx, operand_types};
+use super::helpers::literals::is_safe_word;
 use super::helpers::spans::{
-    full_quoted_string_span, full_rewrite_span, line_delete_span, quoted_word_rewrite_span,
+    line_delete_span, original_quoted_word_rewrite_span, original_statement_rewrite_span,
 };
 use super::{Optimisation, PassContext};
+use tcl_syntax::naming::whole_scalar_variable_reference_name;
 
 /// Run the propagation pass across every function.
 ///
@@ -83,6 +84,7 @@ use super::{Optimisation, PassContext};
 /// word; string literals with Tcl metacharacters (`$`, `[`, `\`,
 /// …) are skipped because substituting them as a bare word
 /// would change the command's interpretation.
+
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     run_oo_method_folds(ctx, cu);
     // The top-level body's extra escaping set (names some other procedure
@@ -123,7 +125,14 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         };
         // The call-site namespace for O103 chain resolution is the proc's
         // own namespace (`::ns::foo` resolves a bare `bar` against `::ns`).
-        let namespace = super::helpers::naming::namespace_from_qualified(qname);
+        let Some(namespace) = proc
+            .body
+            .namespace_context
+            .as_deref()
+            .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+        else {
+            continue;
+        };
         run_function(ctx, cu, fu, &proc.body, &namespace, &no_extra_escaping);
     }
     // Load-forwarding runs a separate per-function pass on top
@@ -145,15 +154,29 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     {
         let trace = crate::sccp::TraceInputs {
             registry,
+            source_metadata_input:
+                crate::registry_invocation::InvocationMetadataContext::for_module(
+                    registry,
+                    &cu.ir_module,
+                )
+                .and_then(
+                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                ),
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
             deferred_writes: &cu.ir_module.deferred_writes,
             analysis_context: None,
             existence: None,
         };
-        run_load_forwarding(ctx, &cu.top_level, top_level_extra_escaping, trace);
+        run_load_forwarding(
+            ctx,
+            &cu.ir_module,
+            &cu.top_level,
+            top_level_extra_escaping,
+            trace,
+        );
         for fu in cu.procedures.values() {
-            run_load_forwarding(ctx, fu, &no_extra_escaping, trace);
+            run_load_forwarding(ctx, &cu.ir_module, fu, &no_extra_escaping, trace);
         }
     }
     // O127 store-to-load forwarding for *computed* single-use
@@ -185,27 +208,66 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 fn statement_may_have_untracked_effects(
     stmt: &Statement,
     registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
     traced: &std::collections::BTreeSet<String>,
     has_dynamic_trace: bool,
 ) -> bool {
     use super::helpers::expr_simplify::expr_has_command_subst;
-    use crate::gvn::is_pure_command_with_traces;
+    use crate::gvn::is_pure_tokens_with_metadata_context;
 
     match stmt {
-        Statement::Barrier { .. } | Statement::UpFrame { .. } => true,
+        Statement::Barrier { .. } | Statement::NativeCall { .. } | Statement::UpFrame { .. } => {
+            true
+        }
         Statement::AssignValue { value, .. } => value.contains('['),
         Statement::AssignExpr { expr, .. } => expr_has_command_subst(expr),
-        Statement::Call { command, args, .. } => !is_pure_command_with_traces(
-            registry,
-            command,
-            args,
-            dialect,
-            traced,
-            has_dynamic_trace,
-        ),
+        Statement::Call { tokens, .. } => !tokens.as_ref().is_some_and(|tokens| {
+            is_pure_tokens_with_metadata_context(
+                registry,
+                metadata,
+                tokens,
+                traced,
+                has_dynamic_trace,
+            )
+        }),
         _ => false,
     }
+}
+
+fn synthetic_forwarding_use(
+    fu: &FunctionUnit,
+    use_site: &crate::def_use::UseSite,
+    index: usize,
+    cell_name: &crate::var_resolve::VariableCellKey,
+) -> bool {
+    fu.ssa
+        .blocks
+        .values()
+        .find(|block| block.name == use_site.block)
+        .and_then(|block| block.statements.get(index))
+        .is_some_and(|statement| {
+            fu.ssa
+                .cell_symbol(cell_name)
+                .is_some_and(|symbol| statement.may_defs.contains(&symbol))
+        })
+}
+
+/// Fail closed for legacy SSA without physical point receipts.
+fn compatibility_def_is_external(
+    fu: &FunctionUnit,
+    block: crate::cfg::BlockId,
+    index: usize,
+    symbol: crate::ssa::Symbol,
+    names: &std::collections::HashSet<String>,
+    trace: crate::sccp::TraceInputs<'_>,
+) -> bool {
+    fu.ssa.point_contexts.is_none()
+        && crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).externally_mutable_by(
+            symbol,
+            names,
+            trace.has_dynamic_variable_trace,
+            trace.registry,
+        ) != Some(false)
 }
 
 /// Forward a single reaching literal definition to each of its
@@ -221,6 +283,11 @@ fn statement_may_have_untracked_effects(
 /// use is on a non-Call statement (where we still don't have
 /// per-operand spans).
 ///
+/// Production rewrites require the exact retained reference to name the same
+/// physical binding and represented SSA contents version as the definition.
+/// Unrepresented callee writes, retargeting and observers withdraw that proof.
+/// Whole-function alias and barrier scans remain compatibility gates only for
+/// SSA fixtures without point contexts.
 /// Safety gates layer two independent alias/trace facts plus one
 /// intervening-effect scan, each catching cases the other misses. A plain
 /// proc-local variable that is never `global`/`variable`/`upvar`/`trace`
@@ -249,39 +316,46 @@ fn statement_may_have_untracked_effects(
 ///   (precisely) and cross-block (conservatively).
 fn run_load_forwarding(
     ctx: &mut PassContext<'_>,
+    module: &crate::ir::Module,
     fu: &crate::compilation_unit::FunctionUnit,
     extra_escaping: &std::collections::HashSet<String>,
     trace: crate::sccp::TraceInputs<'_>,
 ) {
     use crate::def_use::{DefKind, UseKind};
-    use crate::ir::Statement;
 
-    // A computed variable name (`set $name …`) in this frame can rewrite
-    // any variable between a "sole" reaching definition and its use, under
-    // a spelling neither the def-use chains nor `has_intervening_barrier`
-    // can see — so the whole function abstains, on the same barrier
-    // O109 / O126 elimination and SCCP consult.
-    if fu.dynamic_barrier_blocks_value_motion() {
+    if fu.cfg.has_opaque_native_accesses() {
         return;
     }
 
-    // Independent of the SCCP lattice (see the doc comment on the call
-    // site in `run`), this pass must apply the same externally-mutable
-    // guard SCCP applies to its own lattice — a `global`/`variable`/
-    // `upvar`/`trace`-aliased name's "sole reaching def" is not actually
-    // sole: some other call frame can reassign it between the def and a
-    // later use.
-    let mut escaping = crate::var_observability::analyse_var_observability(&fu.cfg, trace.registry)
-        .escaping_var_names();
-    escaping.extend(extra_escaping.iter().cloned());
-    trace.extend_module_escaping(&mut escaping);
+    // Compatibility SSA lacks the physical reference proof used below.
+    if fu.ssa.point_contexts.is_none() && fu.dynamic_barrier_blocks_value_motion() {
+        return;
+    }
+
+    let Some((trace, escaping)) = load_forwarding_escaping(module, fu, extra_escaping, trace)
+    else {
+        return;
+    };
 
     for chain in fu.def_use.chains.values() {
         if chain.definition.kind != DefKind::Statement {
             continue;
         }
-        let var_name = chain.key.0.as_str();
-        if crate::sccp::is_externally_mutable(var_name, &escaping, trace.writes_any_variable()) {
+        let cell_name = &chain.key.0;
+        let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
+            continue;
+        };
+        let Some(cell_name) = fu.ssa.cell_key(symbol) else {
+            continue;
+        };
+        let (Some(block_id), Ok(idx)) = (
+            fu.cfg.block_id(&chain.definition.block),
+            usize::try_from(chain.definition.statement_index),
+        ) else {
+            continue;
+        };
+        let var_name = fu.ssa.var_name(symbol);
+        if compatibility_def_is_external(fu, block_id, idx, symbol, &escaping, trace) {
             continue;
         }
         // A synthetic may-def (the element fan of a dynamic-key write, or a
@@ -290,7 +364,7 @@ fn run_load_forwarding(
         if fu.ssa.is_synthetic_def(
             &chain.definition.block,
             chain.definition.statement_index,
-            var_name,
+            cell_name,
         ) {
             continue;
         }
@@ -298,9 +372,6 @@ fn run_load_forwarding(
         // with a literal value to forward. AssignValue without
         // substitutions could also work, but we're conservative
         // and restrict to the same shapes.
-        let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
-            continue;
-        };
         let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
             continue;
         };
@@ -313,34 +384,15 @@ fn run_load_forwarding(
         // a constant SCCP proved. `set a 1; incr a` is the second — the
         // defining statement computes its value — so it is folded, not
         // forwarded.
-        let (code, literal) = match def_stmt {
-            Statement::AssignConst { value, .. } => (DiagCode::O102, value.clone()),
-            Statement::AssignValue { value, .. }
-                if !value.contains(['$', '[', '\\', '"']) && !value.is_empty() =>
-            {
-                (DiagCode::O102, value.clone())
-            }
-            // The name-keyed projection `sccp_constants_for` the other O100
-            // forms read cannot answer here: it drops any variable whose
-            // versions hold different constants, which is every variable that
-            // is ever reassigned — precisely this shape. A def-use consumer
-            // already knows which version it is inlining, so it can index the
-            // lattice by `(symbol, version)` and get an answer where the
-            // name-keyed map has none. Every guard above this point still
-            // applies.
-            _ => match sccp_value_literal(fu, var_name, chain.key.1) {
-                Some(text) => (DiagCode::O100, text),
-                None => continue,
-            },
+        let Some((code, literal)) =
+            forwarding_literal(fu, def_stmt, cell_name, chain.key.1, ctx.fold_policy())
+        else {
+            continue;
         };
         if !is_value_safe_bare_word(&literal) {
             continue;
         }
-        let message = if code == DiagCode::O102 {
-            format!("Forward literal load of '{var_name}' from its single reaching definition")
-        } else {
-            format!("Inline the constant value of '{var_name}' proved at this read")
-        };
+        let message = load_forward_message(code, var_name);
         for use_site in &chain.uses {
             if use_site.kind != UseKind::Operand {
                 continue;
@@ -356,26 +408,107 @@ fn run_load_forwarding(
             };
             // A fanned may-def's prior-version read is a synthetic use —
             // there is no `$var` in that statement to rewrite.
-            if fu
-                .ssa
-                .blocks
-                .values()
-                .find(|b| b.name == use_site.block)
-                .and_then(|b| b.statements.get(use_idx))
-                .is_some_and(|st| {
-                    fu.ssa
-                        .var_symbol(var_name)
-                        .is_some_and(|sym| st.may_defs.contains(&sym))
-                })
+            if synthetic_forwarding_use(fu, use_site, use_idx, cell_name) {
+                continue;
+            }
+            if fu.ssa.point_contexts.is_none()
+                && has_intervening_barrier(
+                    fu,
+                    &chain.definition.block,
+                    idx,
+                    &use_site.block,
+                    use_idx,
+                )
             {
                 continue;
             }
-            if has_intervening_barrier(fu, &chain.definition.block, idx, &use_site.block, use_idx) {
+            let Some(use_block_id) = fu.cfg.block_id(&use_site.block) else {
                 continue;
-            }
-            report_load_forward(ctx, fu, use_stmt, code, var_name, &message, &literal);
+            };
+            report_load_forward(
+                ctx,
+                fu,
+                (use_block_id, use_idx),
+                use_stmt,
+                LoadForwardReport {
+                    code,
+                    symbol,
+                    version: chain.key.1,
+                    message: &message,
+                    literal: &literal,
+                },
+            );
         }
     }
+}
+
+fn load_forward_message(code: DiagCode, var_name: &str) -> String {
+    if code == DiagCode::O102 {
+        format!("Forward literal load of '{var_name}' from its single reaching definition")
+    } else {
+        format!("Inline the constant value of '{var_name}' proved at this read")
+    }
+}
+
+fn load_forwarding_escaping<'a>(
+    module: &'a crate::ir::Module,
+    fu: &'a FunctionUnit,
+    extra_escaping: &std::collections::HashSet<String>,
+    trace: crate::sccp::TraceInputs<'a>,
+) -> Option<(
+    crate::sccp::TraceInputs<'a>,
+    std::collections::HashSet<String>,
+)> {
+    // Independent of the SCCP lattice (see the doc comment on the call
+    // site in `run`), this pass must apply the same externally-mutable
+    // guard SCCP applies to its own lattice — a `global`/`variable`/
+    // `upvar`/`trace`-aliased name's "sole reaching def" is not actually
+    // sole: some other call frame can reassign it between the def and a
+    // later use.
+    let metadata = fu.invocation_metadata_context_for_module(trace.registry, module)?;
+    let trace = crate::sccp::TraceInputs {
+        source_metadata_input: metadata.source_analysis_input(),
+        ..trace
+    };
+    let mut escaping = crate::var_observability::analyse_var_observability_with_metadata_context(
+        &fu.cfg,
+        trace.registry,
+        Some(metadata),
+    )
+    .escaping_var_names();
+    escaping.extend(extra_escaping.iter().cloned());
+    trace.extend_module_escaping(&mut escaping);
+
+    Some((trace, escaping))
+}
+
+fn forwarding_literal(
+    fu: &crate::compilation_unit::FunctionUnit,
+    def_stmt: &Statement,
+    cell_name: &crate::var_resolve::VariableCellKey,
+    version: crate::ssa::Version,
+    policy: FoldPolicy,
+) -> Option<(DiagCode, String)> {
+    Some(match def_stmt {
+        Statement::AssignConst { value, .. } => (DiagCode::O102, value.clone()),
+        Statement::AssignValue { value, .. }
+            if !value.contains(['$', '[', '\\', '"']) && !value.is_empty() =>
+        {
+            (DiagCode::O102, value.clone())
+        }
+        // The name-keyed projection `sccp_constants_for` the other O100
+        // forms read cannot answer here: it drops any variable whose
+        // versions hold different constants, which is every variable that
+        // is ever reassigned — precisely this shape. A def-use consumer
+        // already knows which version it is inlining, so it can index the
+        // lattice by `(symbol, version)` and get an answer where the
+        // name-keyed map has none. Every guard above this point still
+        // applies.
+        _ => (
+            DiagCode::O100,
+            sccp_value_literal(fu, cell_name, version, policy)?,
+        ),
+    })
 }
 
 /// True when an opaque effect — a `Statement::Barrier` or `Statement::UpFrame`
@@ -384,7 +517,7 @@ fn run_load_forwarding(
 /// reaching definition" forward unsound: `uplevel 1 {…}` / `uplevel #0 {…}`
 /// evaluates its body in a *different* frame (the caller's, or the absolute
 /// global one) and can reassign any name visible there, exactly like an
-/// opaque call. Independent of [`crate::sccp::is_externally_mutable`] (which
+/// opaque call. Independent of [`crate::ssa::SsaSourceView::externally_mutable_by`] (which
 /// only catches `global`/`variable`/`upvar`/`trace`-*declared* aliasing): a
 /// plain proc-local variable with no alias/trace at all can still be mutated
 /// by a literal `uplevel #0 {…}` body a few lines later.
@@ -404,7 +537,10 @@ fn has_intervening_barrier(
     use_idx: usize,
 ) -> bool {
     fn is_barrier(stmt: &Statement) -> bool {
-        matches!(stmt, Statement::Barrier { .. } | Statement::UpFrame { .. })
+        matches!(
+            stmt,
+            Statement::Barrier { .. } | Statement::NativeCall { .. } | Statement::UpFrame { .. }
+        )
     }
 
     if def_block == use_block {
@@ -451,15 +587,32 @@ fn has_intervening_barrier(
 /// on a non-`Call` statement, `CommandTokens` weren't captured, or the
 /// read is nested inside a larger construct — e.g. an interpolated
 /// string, which the O100 string-interpolation path handles instead).
+#[derive(Clone, Copy)]
+struct LoadForwardReport<'a> {
+    code: DiagCode,
+    symbol: crate::ssa::Symbol,
+    version: crate::ssa::Version,
+    message: &'a str,
+    literal: &'a str,
+}
+
 fn report_load_forward(
     ctx: &mut PassContext<'_>,
     fu: &crate::compilation_unit::FunctionUnit,
+    site: (crate::cfg::BlockId, usize),
     use_stmt: &Statement,
-    code: DiagCode,
-    var_name: &str,
-    message: &str,
-    literal: &str,
+    report: LoadForwardReport<'_>,
 ) {
+    if fu.cfg.statement_source_edit_span(site.0, site.1).is_none() {
+        return;
+    }
+    let LoadForwardReport {
+        code,
+        symbol,
+        version,
+        message,
+        literal,
+    } = report;
     let mut emitted_applicable = false;
     if let Statement::Call {
         tokens: Some(tokens),
@@ -467,7 +620,8 @@ fn report_load_forward(
     } = use_stmt
     {
         for (i, argv_span) in tokens.argv.iter().enumerate() {
-            let Some(text) = tokens.argv_texts.get(i) else {
+            let Some(word @ crate::ir::WordExpr::Variable { spelling, .. }) = tokens.words().get(i)
+            else {
                 continue;
             };
             // A braced word (`{$x}`) is a literal — Tcl performs no
@@ -477,7 +631,14 @@ fn report_load_forward(
             if tokens.argv_kinds.get(i) == Some(&tcl_lexer::TokenType::Str) {
                 continue;
             }
-            if !simple_var_ref_matches(text, var_name) {
+            let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, site.0, site.1);
+            let Some(read) = view.read_word(word) else {
+                continue;
+            };
+            if whole_scalar_variable_reference_name(spelling, fu.source_lexer_config()).is_none()
+                || read.symbol != symbol
+                || read.version != Some(version)
+            {
                 continue;
             }
             ctx.report(Optimisation::new(
@@ -490,6 +651,15 @@ fn report_load_forward(
         }
     }
     if emitted_applicable {
+        return;
+    }
+    let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, site.0, site.1);
+    if !view.source_tokens().is_some_and(|tokens| {
+        tokens.variable_accesses.iter().any(|access| {
+            view.read_reference(&access.source, &access.original_spelling)
+                .is_some_and(|read| read.symbol == symbol && read.version == Some(version))
+        })
+    }) {
         return;
     }
     // No operand word was found to target, so the span is the whole consuming
@@ -530,7 +700,7 @@ fn report_load_forward(
 /// before `$x` in the use word list unless the inlined expression
 /// reads nothing.
 fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
-    use crate::memory_ssa::compute_aliases;
+    use crate::memory_ssa::compute_aliases_with_metadata_context;
     use std::collections::BTreeSet;
 
     // Like O102, O127 moves a value across statements. A dynamic or opaque
@@ -544,22 +714,16 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     let Some(registry) = ctx.registry else {
         return;
     };
-    // Aliasing facts depend on the selected registry profile. Without an
-    // explicit profile this optimisation cannot prove its alias safety gate,
-    // so it abstains rather than interpreting every dialect at once.
-    let Some(context) = ctx
-        .dialect
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile)
-    else {
+    let Some(context) = fu.invocation_metadata_context(registry) else {
         return;
     };
 
     // Names whose writes may be visible through an alias (upvar /
     // global / variable). Prefer the on-demand memory-SSA annotation;
     // fall back to a direct alias computation.
-    let aliased: BTreeSet<String> = match &fu.memory_ssa {
-        Some(m) => m.aliased_names(),
-        None => compute_aliases(&fu.ssa, registry, Some(context))
+    let aliased: std::collections::HashSet<String> = match &fu.memory_ssa {
+        Some(m) => m.aliased_names().into_iter().collect(),
+        None => compute_aliases_with_metadata_context(&fu.ssa, registry, Some(context))
             .iter()
             .flat_map(crate::memory_ssa::AliasSet::names)
             .collect(),
@@ -630,8 +794,8 @@ struct ForwardEnv<'a> {
     ctx: &'a PassContext<'a>,
     fu: &'a FunctionUnit,
     registry: &'a tcl_registry::CommandRegistry,
-    context: Option<tcl_registry::model::semantic::SemanticContext>,
-    aliased: &'a std::collections::BTreeSet<String>,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    aliased: &'a std::collections::HashSet<String>,
     traced: &'a std::collections::BTreeSet<String>,
     has_dynamic_trace: bool,
     rewritten: &'a [(u32, u32)],
@@ -646,8 +810,6 @@ fn forward_candidate(
     chain: &crate::def_use::DefUseChain,
 ) -> Option<(Optimisation, Optimisation)> {
     use crate::def_use::{DefKind, UseKind};
-    use std::collections::BTreeSet;
-
     let (ctx, fu) = (env.ctx, env.fu);
 
     // Exactly one *non-terminator* use, and it must be a statement operand.
@@ -681,6 +843,8 @@ fn forward_candidate(
     if use_idx <= def_idx {
         return None;
     }
+    fu.cfg.statement_source_edit_span(def_block, def_idx)?;
+    fu.cfg.statement_source_edit_span(def_block, use_idx)?;
     let block = fu.cfg.blocks.get(&def_block)?;
     let ssa_block = fu.ssa.blocks.get(&def_block)?;
     let (def_stmt, use_stmt) = (
@@ -701,7 +865,16 @@ fn forward_candidate(
     else {
         return None;
     };
-    let (var_span, has_earlier_effect) = locate_use_var(tokens, chain.key.0.as_str())?;
+    let symbol = fu.def_use.symbol(&fu.ssa, chain.key.0)?;
+    let use_source = crate::ssa::SsaSourceView::at_statement(&fu.ssa, def_block, use_idx);
+    let (var_span, has_earlier_effect) = locate_use_var(
+        tokens,
+        use_source,
+        symbol,
+        chain.key.1,
+        env.registry,
+        fu.source_lexer_config(),
+    )?;
     if has_earlier_effect {
         return None;
     }
@@ -720,24 +893,63 @@ fn forward_candidate(
         return None;
     }
 
-    let def_key = chain.key.clone();
-    // Skip SCCP constants (O100 owns those) — the ones O100 may write into
-    // source; a byte array a route constructed is forwarded as the command
-    // that builds it. The def-use chain keys on the variable name; resolve
-    // it to the SSA symbol to index the SCCP lattice.
-    if let Some(sym) = fu.ssa.var_symbol(&def_key.0)
+    if forwarding_value_consumed(env, chain, use_site, def_idx, use_idx) {
+        return None;
+    }
+
+    let def_source = crate::ssa::SsaSourceView::at_statement(&fu.ssa, def_block, def_idx);
+    let def_reads = &ssa_block.statements[def_idx].uses;
+    if !forwarded_cells_are_private(env, def_source, symbol, def_reads) {
+        return None;
+    }
+    let (Statement::AssignValue { name: def_name, .. }
+    | Statement::AssignExpr { name: def_name, .. }) = def_stmt
+    else {
+        return None;
+    };
+
+    // Intervening statements must not change the value the inlined
+    // expression would recompute.
+    if !intervening_is_safe(env, block, ssa_block, def_idx, use_idx, def_reads) {
+        return None;
+    }
+
+    build_forward_edits(
+        ctx,
+        def_stmt,
+        def_name,
+        var_span,
+        env.rewritten,
+        fu.base_offset,
+    )
+}
+
+fn forwarding_value_consumed(
+    env: &ForwardEnv<'_>,
+    chain: &crate::def_use::DefUseChain,
+    use_site: &crate::def_use::UseSite,
+    def_idx: usize,
+    use_idx: usize,
+) -> bool {
+    let fu = env.fu;
+    let ctx = env.ctx;
+    let def = &chain.definition;
+    let def_key = chain.key;
+    // SCCP constants belong to O100.
+    if let Some(sym) = fu.def_use.symbol(&fu.ssa, def_key.0)
         && matches!(
             fu.sccp.values.get(&(sym, def_key.1)),
             Some(LatticeValue::Const(_))
         )
         && fu.sccp.materialises((sym, def_key.1))
     {
-        return None;
+        return true;
     }
-    // Skip statements another pass already rewrote / consumed. The
-    // def-use chain keys on the variable name; resolve it to the SSA symbol
-    // to test the `(Symbol, Version)`-keyed branch-use set.
-    let def_key_sym = fu.ssa.var_symbol(&def_key.0).map(|s| (s, def_key.1));
+    // Skip statements another pass already rewrote or consumed.
+    let def_key_sym = fu
+        .def_use
+        .symbol(&fu.ssa, def_key.0)
+        .map(|s| (s, def_key.1));
     if ctx
         .propagated_expr_stmts
         .contains(&(def.block.clone(), def_idx))
@@ -746,37 +958,10 @@ fn forward_candidate(
             .contains(&(use_site.block.clone(), use_idx))
         || def_key_sym.is_some_and(|k| ctx.propagated_branch_uses.contains(&k))
     {
-        return None;
+        return true;
     }
 
-    let def_name = chain.key.0.as_str();
-    if ctx.cross_event_vars.contains(def_name) || env.aliased.contains(def_name) {
-        return None;
-    }
-    // Names the def expression reads — used for alias + version safety.
-    let def_read_names: BTreeSet<String> = ssa_block.statements[def_idx]
-        .uses
-        .keys()
-        .map(|&s| fu.ssa.var_name(s).to_owned())
-        .collect();
-    if def_read_names.iter().any(|n| env.aliased.contains(n)) {
-        return None;
-    }
-
-    // Intervening statements must not change the value the inlined
-    // expression would recompute.
-    if !intervening_is_safe(env, block, ssa_block, def_idx, use_idx, &def_read_names) {
-        return None;
-    }
-
-    build_forward_edits(
-        ctx.source,
-        def_stmt,
-        def_name,
-        var_span,
-        env.rewritten,
-        fu.base_offset,
-    )
+    false
 }
 
 /// Whether any statement other than the endpoint use has a wildcard
@@ -793,7 +978,7 @@ fn has_non_endpoint_wildcard_aliasing(
     env.fu.ssa.blocks.iter().any(|(&block_id, block)| {
         block.statements.iter().enumerate().any(|(idx, statement)| {
             (block_id != use_block || idx != use_idx)
-                && crate::memory_ssa::statement_has_wildcard_aliasing(
+                && crate::memory_ssa::statement_has_wildcard_aliasing_with_metadata_context(
                     &statement.statement,
                     env.registry,
                     env.context,
@@ -806,13 +991,14 @@ fn has_non_endpoint_wildcard_aliasing(
 /// forwarding candidate, or `None` when the def span is degenerate or
 /// would collide with an earlier pass's rewrite.
 fn build_forward_edits(
-    source: &str,
+    ctx: &PassContext<'_>,
     def_stmt: &Statement,
     def_name: &str,
     var_span: tcl_lexer::Span,
     rewritten: &[(u32, u32)],
     base_offset: i64,
 ) -> Option<(Optimisation, Optimisation)> {
+    let source = ctx.source;
     // `def_stmt` / `var_span` come from the unit's `cfg`, so they are relative
     // to `base_offset`; absolutise before slicing `source` / comparing against
     // the (absolute) already-rewritten ranges.
@@ -829,7 +1015,7 @@ fn build_forward_edits(
             u32::try_from(e).unwrap_or(u32::MAX),
         )
     };
-    let def_span = shift(def_stmt.span());
+    let def_span = shift(def_stmt.source_edit_span()?);
     let var_span = shift(var_span);
     let (ds, de) = (def_span.start(), def_span.end());
     if de as usize > source.len() || ds >= de {
@@ -846,7 +1032,7 @@ fn build_forward_edits(
     // replayed text and the deletion extent need the whole written statement,
     // or the closer is copied without its opener and dropped from its own
     // line.
-    let def_span = full_rewrite_span(source, def_span);
+    let def_span = original_statement_rewrite_span(ctx, def_span)?;
     let stmt_text = &source[def_span.start() as usize..def_span.end() as usize];
     let inline = Optimisation::new(
         DiagCode::O127,
@@ -888,7 +1074,7 @@ fn intervening_is_safe(
     ssa_block: &crate::ssa::SsaBlock,
     def_idx: usize,
     use_idx: usize,
-    def_read_names: &std::collections::BTreeSet<String>,
+    def_reads: &std::collections::HashMap<crate::ssa::Symbol, crate::ssa::Version>,
 ) -> bool {
     for idx in (def_idx + 1)..use_idx {
         let Some(stmt) = block.statements.get(idx) else {
@@ -897,20 +1083,15 @@ fn intervening_is_safe(
         if statement_may_have_untracked_effects(
             stmt,
             env.registry,
-            env.ctx.dialect,
+            env.context,
             env.traced,
             env.has_dynamic_trace,
         ) {
             return false;
         }
-        // A redefinition of any read name invalidates the forward.
+        // A redefinition of an actual physical read invalidates the forward.
         if let Some(sb) = ssa_block.statements.get(idx)
-            && def_read_names.iter().any(|n| {
-                env.fu
-                    .ssa
-                    .var_symbol(n)
-                    .is_some_and(|s| sb.defs.contains_key(&s))
-            })
+            && def_reads.keys().any(|symbol| sb.defs.contains_key(symbol))
         {
             return false;
         }
@@ -918,27 +1099,56 @@ fn intervening_is_safe(
     true
 }
 
-/// Find the `$var` word in a use-site command's tokens and report
-/// whether a command substitution appears before it.
-///
-/// Returns `(var_word_span, has_earlier_command_subst)`. The match
-/// requires a single-token `$var` / `${var}` word (a `$var` embedded
-/// in a larger word is not a clean inline target).
-fn locate_use_var(tokens: &CommandTokens, var_name: &str) -> Option<(tcl_lexer::Span, bool)> {
-    use tcl_lexer::TokenType;
+/// Verify observer and alias exclusions against the definition's actual cells.
+fn forwarded_cells_are_private(
+    env: &ForwardEnv<'_>,
+    source: crate::ssa::SsaSourceView<'_>,
+    defined: crate::ssa::Symbol,
+    reads: &std::collections::HashMap<crate::ssa::Symbol, crate::ssa::Version>,
+) -> bool {
+    source.externally_mutable_by(defined, &env.ctx.cross_event_vars, false, env.registry)
+        == Some(false)
+        && std::iter::once(defined)
+            .chain(reads.keys().copied())
+            .all(|symbol| {
+                source.externally_mutable_by(symbol, env.aliased, false, env.registry)
+                    == Some(false)
+            })
+}
+
+/// Locate the original single-variable operand by its captured physical read.
+/// Earlier opaque words or observed reads retain an evaluation-order obligation.
+fn locate_use_var(
+    tokens: &CommandTokens,
+    source: crate::ssa::SsaSourceView<'_>,
+    symbol: crate::ssa::Symbol,
+    version: crate::ssa::Version,
+    registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(tcl_lexer::Span, bool)> {
+    use crate::ir::WordExpr;
     let mut has_earlier_effect = false;
-    for (i, span) in tokens.argv.iter().enumerate() {
-        let text = tokens.argv_texts.get(i)?;
-        let kind = tokens.argv_kinds.get(i).copied();
-        if kind == Some(TokenType::Var) && simple_var_ref_matches(text, var_name) {
-            // Multi-token words (e.g. `$x$y`) aren't a clean target.
-            if tokens.single_token_word.get(i).copied().unwrap_or(true) {
-                return Some((*span, has_earlier_effect));
+    for word in tokens.words() {
+        match word {
+            WordExpr::Variable {
+                spelling,
+                source: site,
+            } => {
+                if whole_scalar_variable_reference_name(spelling, config).is_some()
+                    && source.read_word_produces_value(word, registry)
+                    && source
+                        .read_word(word)
+                        .is_some_and(|read| read.symbol == symbol && read.version == Some(version))
+                {
+                    return Some((site.span, has_earlier_effect));
+                }
+                has_earlier_effect |= !source.read_word_produces_value(word, registry)
+                    || source
+                        .read_word(word)
+                        .is_none_or(|read| read.version.is_none());
             }
-            continue;
-        }
-        if kind == Some(TokenType::Cmd) {
-            has_earlier_effect = true;
+            WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => {}
+            _ => has_earlier_effect = true,
         }
     }
     None
@@ -949,87 +1159,26 @@ fn ranges_overlap(ranges: &[(u32, u32)], start: u32, end: u32) -> bool {
     ranges.iter().any(|&(s, e)| start < e && s < end)
 }
 
-/// True when `text` is the bare word `$name` / `${name}` and the
-/// parsed name equals `var_name` (including namespace-qualified
-/// comparison via [`normalise_var_name`]).
-fn simple_var_ref_matches(text: &str, var_name: &str) -> bool {
-    let Some(name) = simple_var_ref(text) else {
-        return false;
-    };
-    if name == var_name {
-        return true;
-    }
-    // Compare normalised names so `$::ns::x` matches chain key
-    // `::ns::x` (and vice versa), and `$x(0)` is rejected by
-    // simple_var_ref already.
-    normalise_var_name(&format!("${name}")) == normalise_var_name(&format!("${var_name}"))
-}
-
-/// The statically-proven facts about the `TclOO` method frame a body runs in
-///
-/// Built once per method body by [`oo_frame_for`], which is where every
-/// abstention lives; by the time an `OoFrame` exists, each field is a value
-/// real `tclsh` would produce for every reachable invocation of that body.
+/// Original declaring-class report, separate from method display metadata.
 #[derive(Debug, Clone)]
 struct OoFrame {
-    /// The fully-qualified class that defines this implementation — the value
-    /// of [`tcl_registry::OoContextFact::DefiningClass`].
     defining_class: String,
 }
 
-/// `method`'s provable frame facts, or `None` to abstain.
-///
-/// Folding direction is abstain-toward-no-fold: a wrong fold is a correctness
-/// bug, a missed fold only a lost optimisation. Four gates, each pinned to
-/// the oracle transcript on [`tcl_registry::OoContextFact::DefiningClass`]:
-///
-/// * **A frame chosen at run time.** A body naming any command relatively —
-///   bare `my`, bare `puts` — runs where a receiver-local command can shadow
-///   that head, so nothing derived inside it is trustworthy, the frame
-///   constant included. That fact is scoped to such frames
-///   (`ModuleCommandMutations::has_runtime_selected_frames`) rather than
-///   distrusting every name in the module.
-///
-/// * **Class-object implementations.** `self class` *raises* ("method not
-///   defined by a class") inside an `oo::objdefine` instance method and inside
-///   a `self method`, and inside a `classmethod` it answers the internal
-///   `::oo::ObjN:: oo ::delegate` class (tclsh 9.0.4) — either way there is
-///   no statically-knowable value to fold to. `oo::objdefine` never reaches here at all (the
-///   lowering's OO extraction only recognises the `oo::class`-family and
-///   `oo::define` definers), so the live gate is [`MethodKind::ClassMethod`].
-/// * **A class the source doesn't name.** The lowering already declines a
-///   dynamic class word, leaving an empty name; nothing to answer with.
-/// * **A renamed class command.** `rename ::R ::R2` makes `self class` answer
-///   `::R2` from bodies written under `::R` — the same rename-captures-identity
-///   rule `indirection.rs` applies. [`trusts_proc_binding`] is the
-///   whole-module, flow-insensitive query for "this name was never moved onto
-///   or vacated", which is exactly the property needed: a rename buried in a
-///   proc body still fires before some later method call.
-///
-/// [`trusts_proc_binding`]: crate::command_binding::ModuleCommandMutations::trusts_proc_binding
 fn oo_frame_for(
     method: &crate::ir::MethodDef,
     mutations: &crate::command_binding::ModuleCommandMutations,
+    world: &crate::command_binding::OriginalCompletedCommandWorld,
 ) -> Option<OoFrame> {
-    use crate::ir::MethodKind;
-    // A method body that names any command relatively runs where a
-    // receiver-local command can shadow that head, so no fact derived inside
-    // it is trustworthy — including a frame constant that reads no variable.
-    if mutations.has_runtime_selected_frames() {
+    if mutations.has_runtime_selected_frames() || method.kind == crate::ir::MethodKind::ClassMethod
+    {
         return None;
     }
-    if method.kind == MethodKind::ClassMethod {
+    let (defining_class, original_operand) = world.defining_class_name_for_body(method)?;
+    if !mutations.trusts_proc_binding(&original_operand) {
         return None;
     }
-    if method.class_name.is_empty() {
-        return None;
-    }
-    if !mutations.trusts_proc_binding(&method.class_name) {
-        return None;
-    }
-    Some(OoFrame {
-        defining_class: method.class_name.clone(),
-    })
+    Some(OoFrame { defining_class })
 }
 
 /// The method-local constants a method body may propagate, or an empty map
@@ -1062,14 +1211,14 @@ fn oo_frame_for(
 fn oo_method_constants(
     ctx: &PassContext<'_>,
     cu: &CompilationUnit,
-    qname: &str,
+    body_id: &crate::ir::ProcedureId,
     frame: &OoFrame,
     allow_locals: bool,
 ) -> std::collections::HashMap<String, String> {
     if !allow_locals {
         return std::collections::HashMap::new();
     }
-    let (Some(fu), Some(registry)) = (cu.methods.get(qname), ctx.registry) else {
+    let (Some(fu), Some(registry)) = (cu.methods.get(body_id), ctx.registry) else {
         return std::collections::HashMap::new();
     };
     if fu.complexity_guarded {
@@ -1095,22 +1244,32 @@ fn oo_method_constants(
     let Some(facts) = fu.method_facts.as_deref() else {
         return std::collections::HashMap::new();
     };
-    let sccp = crate::sccp::sccp_with_builtin_folds(
-        &fu.cfg,
-        &fu.ssa,
-        None,
-        FoldPolicy::from_registry(registry),
-        &facts.instance_vars,
-        crate::sccp::TraceInputs {
+    let sccp = crate::sccp::sccp_in_module(&crate::sccp::SolveInputs {
+        cfg: &fu.cfg,
+        ssa: &fu.ssa,
+        param_constants: None,
+        policy: FoldPolicy::from_registry(registry),
+        extra_escaping: &facts.instance_vars,
+        trace: crate::sccp::TraceInputs {
             registry,
+            source_metadata_input: fu
+                .invocation_metadata_context_for_module(registry, &cu.ir_module)
+                .and_then(
+                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                ),
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
             deferred_writes: &cu.ir_module.deferred_writes,
             analysis_context: None,
             existence: None,
         },
-        Some(crate::sccp::BuiltinFoldInputs {
+        folds: Some(crate::sccp::BuiltinFoldInputs {
             registry,
+            source_metadata_input: fu
+                .invocation_metadata_context_for_module(registry, &cu.ir_module)
+                .and_then(
+                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                ),
             mutations: &ctx.command_mutations,
             dialect: ctx.dialect,
             defining_class: Some(&frame.defining_class),
@@ -1118,8 +1277,12 @@ fn oo_method_constants(
             trust: crate::sccp::FoldTrust::WholeModule,
             proven_pure_parameters: false,
         }),
-    );
-    sccp_constants_from(&sccp, &fu.ssa)
+        module: crate::sccp::ModuleRun {
+            analysis_body: Some(Some(*body_id)),
+            ..crate::sccp::ModuleRun::NONE
+        },
+    });
+    sccp_constants_from(&sccp, &fu.ssa, ctx.fold_policy())
 }
 
 /// Fold the command substitutions in every `TclOO` method body that the
@@ -1133,9 +1296,23 @@ fn oo_method_constants(
 /// comes from [`oo_method_constants`], which models which names are object
 /// state.
 fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    if ctx.registry.is_none() {
+    let Some(registry) = ctx.registry else {
         return;
-    }
+    };
+    let Some(bindings) = cu
+        .ir_module
+        .retained_source_bindings
+        .as_deref()
+        .filter(|bindings| bindings.matches_module(&cu.ir_module, registry))
+    else {
+        return;
+    };
+    let Some(world) = bindings
+        .positioned_for_module(&cu.ir_module, registry)
+        .and_then(crate::command_binding::SourceCommandBindings::original_completed_command_world)
+    else {
+        return;
+    };
     // The PER-METHOD dispatch barrier: a method is barred
     // only when its dispatches can actually reach a caller-frame-reaching
     // (or unreadable) method — see `super::method_barrier`. The registry is
@@ -1147,18 +1324,18 @@ fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         .map(|registry| super::method_barrier::compute(&cu.ir_module, registry));
     // Sorted so the emitted rewrite order is deterministic across runs
     // (`ir_module.methods` is a `HashMap`).
-    let mut qnames: Vec<&String> = cu.ir_module.methods.keys().collect();
+    let mut qnames: Vec<&crate::ir::ProcedureId> = cu.ir_module.methods.keys().collect();
     qnames.sort();
     for qname in qnames {
         let Some(method) = cu.ir_module.methods.get(qname) else {
             continue;
         };
-        let Some(frame) = oo_frame_for(method, &ctx.command_mutations) else {
+        let Some(frame) = oo_frame_for(method, &ctx.command_mutations, &world) else {
             continue;
         };
-        let allow_locals = barrier.as_ref().is_some_and(|b| b.allows_locals(qname));
+        let allow_locals = barrier.as_ref().is_some_and(|b| b.allows_locals(*qname));
         let constants = oo_method_constants(ctx, cu, qname, &frame, allow_locals);
-        walk_oo_script(ctx, &method.body, &frame, &constants, 0);
+        walk_oo_script(ctx, cu, &method.body, &frame, &constants, 0);
     }
 }
 
@@ -1166,16 +1343,17 @@ fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].
 fn walk_oo_script(
     ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
     script: &Script,
     frame: &OoFrame,
     constants: &std::collections::HashMap<String, String>,
     depth: u32,
 ) {
-    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) || !script.is_authored_source() {
         return;
     }
     for stmt in &script.statements {
-        walk_oo_statement(ctx, stmt, frame, constants, depth);
+        walk_oo_statement(ctx, cu, script, stmt, frame, constants, depth);
     }
 }
 
@@ -1183,6 +1361,8 @@ fn walk_oo_script(
 /// recurse into any nested body it carries.
 fn walk_oo_statement(
     ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
+    script: &Script,
     stmt: &Statement,
     frame: &OoFrame,
     constants: &std::collections::HashMap<String, String>,
@@ -1198,52 +1378,59 @@ fn walk_oo_statement(
             // O100 / O129-in-interpolation over the method-local constants
             // (empty unless the escaping model proved some name
             // method-local), then the frame-constant cmd-sub folds.
-            visit_call_tokens(ctx, t, constants);
-            visit_oo_frame_folds(ctx, t, frame, constants);
+            visit_call_tokens(ctx, cu, t, constants);
+            visit_oo_frame_folds(ctx, cu, t, frame, constants);
         }
         // `return [self class]` is the single most common shape of all, and a
-        // `Return` carries no `CommandTokens` — only the whole statement span
-        // and the raw value text. Rewrite the statement the way the sibling
-        // `return`-terminator folds (O101 / O115) already do.
+        // Retain its actual Script-owned vector and result word when replacing
+        // the value; the original head and unrelated argv stay untouched.
         Statement::Return {
-            span,
             value: Some(raw),
             expr: None,
             ..
-        } => try_oo_frame_return_fold(ctx, *span, raw, frame, constants),
+        } => try_oo_frame_return_fold(
+            ctx,
+            cu,
+            stmt,
+            raw,
+            frame,
+            script.retained_source_tokens_for_statement(stmt),
+        ),
         Statement::If {
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_oo_script(ctx, &c.body, frame, constants, depth + 1);
+                walk_oo_script(ctx, cu, &c.body, frame, constants, depth + 1);
             }
             if let Some(b) = else_body {
-                walk_oo_script(ctx, b, frame, constants, depth + 1);
+                walk_oo_script(ctx, cu, b, frame, constants, depth + 1);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_oo_script(ctx, init, frame, constants, depth + 1);
-            walk_oo_script(ctx, next, frame, constants, depth + 1);
-            walk_oo_script(ctx, body, frame, constants, depth + 1);
+            walk_oo_script(ctx, cu, init, frame, constants, depth + 1);
+            walk_oo_script(ctx, cu, next, frame, constants, depth + 1);
+            walk_oo_script(ctx, cu, body, frame, constants, depth + 1);
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
         | Statement::Foreach { body, .. }
-        | Statement::Block { body, .. } => walk_oo_script(ctx, body, frame, constants, depth + 1),
+        | Statement::Block { body, .. } => {
+            walk_oo_script(ctx, cu, body, frame, constants, depth + 1);
+        }
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_oo_script(ctx, body, frame, constants, depth + 1);
+            walk_oo_script(ctx, cu, body, frame, constants, depth + 1);
             for h in handlers {
-                walk_oo_script(ctx, &h.body, frame, constants, depth + 1);
+                walk_oo_script(ctx, cu, &h.body, frame, constants, depth + 1);
             }
             if let Some(fb) = finally_body {
-                walk_oo_script(ctx, fb, frame, constants, depth + 1);
+                walk_oo_script(ctx, cu, fb, frame, constants, depth + 1);
             }
         }
         Statement::Switch {
@@ -1251,48 +1438,179 @@ fn walk_oo_statement(
         } => {
             for a in arms {
                 if let Some(body) = &a.body {
-                    walk_oo_script(ctx, body, frame, constants, depth + 1);
+                    walk_oo_script(ctx, cu, body, frame, constants, depth + 1);
                 }
             }
             if let Some(b) = default_body {
-                walk_oo_script(ctx, b, frame, constants, depth + 1);
+                walk_oo_script(ctx, cu, b, frame, constants, depth + 1);
             }
         }
         _ => {}
     }
 }
 
+fn retained_substitution_calls(
+    tokens: &CommandTokens,
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+) -> Option<Vec<crate::word_subst::LiftedCall>> {
+    // naming.compiler.original-analysis-metadata-context
+
+    if module.source_metadata_input.is_none()
+        && module.source_entry.metadata_context.is_standalone()
+    {
+        return crate::word_subst::checked_lifted_calls(
+            tokens,
+            tokens.native_lexer_config(module.lexer_config.nested()),
+        );
+    }
+    if !module
+        .retained_source_bindings
+        .as_deref()?
+        .matches_module(module, registry)
+    {
+        return None;
+    }
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+    crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+        tokens,
+        module.lexer_config.nested(),
+        registry,
+        metadata,
+    )
+}
+
+fn retained_call_at(
+    calls: &[crate::word_subst::LiftedCall],
+    start: u32,
+) -> Option<&crate::word_subst::LiftedCall> {
+    let mut matching = calls.iter().filter(|call| call.span.start() == start);
+    let call = matching.next()?;
+    matching.next().is_none().then_some(call)
+}
+
+/// A result whose literal spelling a script evaluation would read apart from
+/// the result itself ([`crate::const_subst::folded_literal_reads_apart`])
+/// abstains: `[list string range $s 0 end-2147483649]` evaluates directly,
+/// its braced literal compiles. `dialect` names the release that reads it.
+fn fold_retained_builtin(
+    registry: &CommandRegistry,
+    call: &crate::word_subst::LiftedCall,
+    calls: &[crate::word_subst::LiftedCall],
+    defining_class: Option<&str>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> Option<String> {
+    let metadata = metadata?;
+    let release = dialect.map_or(tcl_dialect::TclVersion::V9_0, |profile| {
+        profile.vm_runtime_version
+    });
+    crate::const_subst::ConstSubstCtx {
+        registry,
+        resolution_namespace: "::",
+        namespace_context: call
+            .tokens
+            .as_ref()
+            .and_then(crate::registry_invocation::compiled_namespace_context),
+        version: None,
+        defining_class,
+        trusts: &|_| false,
+        lookup_var: &|_| None,
+    }
+    .fold_retained_call_with_metadata_context(call, calls, metadata)
+    .filter(|value| !crate::const_subst::folded_literal_reads_apart(value, release))
+}
+
+fn retained_expr_call(
+    call: &crate::word_subst::LiftedCall,
+    registry: &CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> bool {
+    let Some(metadata) = metadata else {
+        return false;
+    };
+    call.tokens
+        .as_ref()
+        .and_then(|tokens| {
+            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                registry,
+                Some(metadata),
+                tokens,
+            )
+        })
+        .is_some_and(|invocation| {
+            invocation.facts.operation
+                == tcl_registry::SemanticOperationId::StructuredLowering(
+                    tcl_registry::hooks::LoweringHookId::Expr,
+                )
+        })
+}
+
+fn retained_o115(
+    ctx: &PassContext<'_>,
+    module: &crate::ir::Module,
+    _tokens: &CommandTokens,
+    call: &crate::word_subst::LiftedCall,
+    word: &str,
+    registry: &CommandRegistry,
+) -> Option<String> {
+    let actual = crate::registry_invocation::retained_module_metadata_context(registry, module)?;
+    let metadata = Some(actual.as_ref().into());
+    if !retained_expr_call(call, registry, metadata) {
+        return None;
+    }
+    let tokens = call.tokens.as_ref()?;
+    let (_, command) = tokens
+        .source_binding
+        .as_ref()?
+        .nested_expression_normalisation_source(
+            registry,
+            tokens,
+            &ctx.fold_policy().preparation_context()?,
+            None,
+        )?;
+    // The call was selected from the exact original whole substitution. The
+    // inner command source comes from its retained outer expression owner.
+    (ctx.source.get(call.span.as_range()) == Some(word)).then_some(command)
+}
+
 /// Report an `O129` for each single-token `[cmd …]` word of this command that
 /// the method frame folds to a constant.
 fn visit_oo_frame_folds(
     ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
     tokens: &CommandTokens,
     frame: &OoFrame,
-    constants: &std::collections::HashMap<String, String>,
+    _constants: &std::collections::HashMap<String, String>,
 ) {
     let Some(registry) = ctx.registry else {
         return;
     };
+    let actual =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
+    let metadata = actual.as_deref().map(Into::into);
+    let Some(calls) = retained_substitution_calls(tokens, &cu.ir_module, registry) else {
+        return;
+    };
     let mut rewrites: Vec<(tcl_lexer::Span, String)> = Vec::new();
-    for (i, argv_span) in tokens.argv.iter().enumerate() {
-        if !tokens.single_token_word.get(i).copied().unwrap_or(false) {
-            continue;
-        }
-        let Some(text) = tokens.argv_texts.get(i) else {
+    for word in tokens.words() {
+        let crate::ir::WordExpr::CommandSubstitution { source, .. } = word else {
             continue;
         };
-        let Some(inner) = text.strip_prefix('[').and_then(|s| s.strip_suffix(']')) else {
+        let Some(call) = retained_call_at(&calls, source.span.start()) else {
             continue;
         };
-        if let Some(folded) = try_o129_fold(
+        if let Some(value) = fold_retained_builtin(
             registry,
-            &ctx.command_mutations,
-            constants,
-            inner,
+            call,
+            &calls,
+            Some(&frame.defining_class),
+            metadata,
             ctx.dialect,
-            Some(frame),
-        ) {
-            rewrites.push((*argv_span, folded));
+        ) && let Some(word) = render_propagation_word(&value, ctx.lexer_config())
+        {
+            rewrites.push((call.span, word));
         }
     }
     for (span, folded) in rewrites {
@@ -1307,41 +1625,59 @@ fn visit_oo_frame_folds(
 
 /// `return [self class]` → `return ::TheClass`.
 ///
-/// The whole statement is the rewrite target (a `Return` keeps no per-word
-/// tokens), so the replacement re-spells the `return` keyword — the same shape
-/// [`try_fold_return_terminator`]'s O101 / O115 rewrites emit.
+/// The original whole statement is the rewrite target. Its retained result
+/// word selects the replacement site, preserving the actual written head.
 fn try_oo_frame_return_fold(
     ctx: &mut PassContext<'_>,
-    span: tcl_lexer::Span,
+    cu: &CompilationUnit,
+    statement: &Statement,
     raw: &str,
     frame: &OoFrame,
-    constants: &std::collections::HashMap<String, String>,
+    tokens: Option<&CommandTokens>,
 ) {
     let Some(registry) = ctx.registry else {
         return;
     };
-    let Some(inner) = raw
-        .trim()
-        .strip_prefix('[')
-        .and_then(|s| s.strip_suffix(']'))
-    else {
+    let Some(tokens) = tokens else {
         return;
     };
-    let Some(folded) = try_o129_fold(
+    let actual =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
+    let metadata = actual.as_deref().map(Into::into);
+    let Some(calls) = retained_substitution_calls(tokens, &cu.ir_module, registry) else {
+        return;
+    };
+    let mut roots = calls.iter().filter(|call| {
+        ctx.source
+            .get(call.span.start() as usize..call.span.end() as usize)
+            == Some(raw.trim())
+    });
+    let Some(call) = roots.next() else {
+        return;
+    };
+    if roots.next().is_some() {
+        return;
+    }
+    let Some(value) = fold_retained_builtin(
         registry,
-        &ctx.command_mutations,
-        constants,
-        inner,
+        call,
+        &calls,
+        Some(&frame.defining_class),
+        metadata,
         ctx.dialect,
-        Some(frame),
     ) else {
+        return;
+    };
+    let Some((rewrite_span, replacement)) =
+        original_return_value_replacement(ctx, statement, tokens, &value)
+    else {
         return;
     };
     ctx.report(Optimisation::new(
         DiagCode::O129,
         "Fold constant builtin command substitution",
-        span,
-        format!("return {folded}"),
+        rewrite_span,
+        replacement,
     ));
 }
 
@@ -1360,6 +1696,18 @@ fn run_function(
     // dynamic-name guard and could emit (for example) `return 1` after a
     // depth-capped nested substitution may have run `set $name 2`.
     if fu.dynamic_barrier_blocks_value_motion() {
+        // A local value-motion barrier withdraws lattice substitutions. Exact
+        // original invocation receipts still independently authorise closed
+        // constant calls that consume no such local facts.
+        walk_script(
+            ctx,
+            cu,
+            script,
+            &std::collections::HashMap::new(),
+            None,
+            namespace,
+            0,
+        );
         return;
     }
 
@@ -1403,7 +1751,7 @@ fn constants_with_builtin_folds(
     fu: &FunctionUnit,
     extra_escaping: &std::collections::HashSet<String>,
 ) -> std::collections::HashMap<String, String> {
-    let mut constants = sccp_constants_for(fu);
+    let mut constants = sccp_constants_for(fu, ctx.fold_policy());
     let Some(registry) = ctx.registry else {
         return constants;
     };
@@ -1418,6 +1766,11 @@ fn constants_with_builtin_folds(
         extra_escaping,
         crate::sccp::TraceInputs {
             registry,
+            source_metadata_input: fu
+                .invocation_metadata_context_for_module(registry, &cu.ir_module)
+                .and_then(
+                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                ),
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
             deferred_writes: &cu.ir_module.deferred_writes,
@@ -1426,6 +1779,11 @@ fn constants_with_builtin_folds(
         },
         Some(crate::sccp::BuiltinFoldInputs {
             registry,
+            source_metadata_input: fu
+                .invocation_metadata_context_for_module(registry, &cu.ir_module)
+                .and_then(
+                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                ),
             mutations: &ctx.command_mutations,
             dialect: ctx.dialect,
             // No method frame here — `[self class]`-style frame facts fold
@@ -1436,7 +1794,7 @@ fn constants_with_builtin_folds(
             proven_pure_parameters: false,
         }),
     );
-    for (name, text) in sccp_constants_from(&rerun, &fu.ssa) {
+    for (name, text) in sccp_constants_from(&rerun, &fu.ssa, ctx.fold_policy()) {
         constants.entry(name).or_insert(text);
     }
     constants
@@ -1468,24 +1826,41 @@ fn walk_script(
     namespace: &str,
     depth: u32,
 ) {
-    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) || !script.is_authored_source() {
         return;
     }
     for stmt in &script.statements {
-        walk_statement(ctx, cu, stmt, constants, numeric, namespace, depth);
+        walk_statement(
+            ctx,
+            cu,
+            StatementSource {
+                statement: stmt,
+                tokens: script.retained_source_tokens_for_statement(stmt),
+            },
+            constants,
+            numeric,
+            namespace,
+            depth,
+        );
     }
+}
+
+#[derive(Clone, Copy)]
+struct StatementSource<'a> {
+    statement: &'a Statement,
+    tokens: Option<&'a CommandTokens>,
 }
 
 fn walk_statement(
     ctx: &mut PassContext<'_>,
     cu: &CompilationUnit,
-    stmt: &Statement,
+    source: StatementSource<'_>,
     constants: &std::collections::HashMap<String, String>,
     numeric: NumericCtx<'_>,
     namespace: &str,
     depth: u32,
 ) {
-    match stmt {
+    match source.statement {
         Statement::Call {
             span,
             command,
@@ -1493,8 +1868,8 @@ fn walk_statement(
             ..
         } => {
             if let Some(t) = tokens {
-                visit_call_tokens(ctx, t, constants);
-                visit_call_cmd_subst_folds(ctx, cu, t, constants, namespace);
+                visit_call_tokens(ctx, cu, t, constants);
+                visit_call_cmd_subst_folds(ctx, cu, t, constants, namespace, *span);
             }
             try_fold_static_proc_call(ctx, cu, *span, command, tokens.as_ref(), namespace);
         }
@@ -1515,39 +1890,17 @@ fn walk_statement(
         // rarer AssignValue forms that retain a nested-expr cmd-sub word;
         // the O103 pure-proc fold is the common reachable case.
         Statement::AssignValue {
-            tokens: Some(t), ..
-        } => {
-            visit_call_cmd_subst_folds(ctx, cu, t, constants, namespace);
-        }
-        Statement::Return {
             span,
-            value,
-            expr,
-            braced,
+            tokens: Some(t),
             ..
         } => {
-            try_fold_return_terminator(
-                ctx,
-                *span,
-                value.as_deref(),
-                expr.as_ref(),
-                *braced,
-                constants,
-                &cu.ir_module.procedures,
-            );
+            visit_call_cmd_subst_folds(ctx, cu, t, constants, namespace, *span);
         }
-        Statement::AssignExpr {
-            span, name, expr, ..
-        } => {
-            try_substitute_assign_expr(
-                ctx,
-                *span,
-                name,
-                expr,
-                constants,
-                numeric,
-                &cu.ir_module.procedures,
-            );
+        statement @ Statement::Return { .. } => {
+            try_fold_return_terminator(ctx, statement, constants, &cu.ir_module, source.tokens);
+        }
+        Statement::AssignExpr { span, expr, .. } => {
+            try_substitute_assign_expr(ctx, source, *span, expr, constants, numeric);
         }
         Statement::If {
             clauses, else_body, ..
@@ -1616,29 +1969,25 @@ fn walk_statement(
 /// registry + whole-module trace facts the original build did — otherwise
 /// this specific re-run path would be independently trace-blind (the same
 /// silent-miscompile class `run_function`/`run_load_forwarding` guard
-/// against). `ctx.registry` / `ctx.ir_module` are `None` only in a bare
-/// hand-built `PassContext` (some pass-level unit tests); default to an
-/// empty/false fact then, matching `run_function`'s own
-/// `ctx.ir_module`-absent fallback.
+/// against). The callee and unit must retain the same supplied owner;
+/// unavailable callee metadata cannot borrow the caller's grammar or folds.
 fn evaluate_proc_with_constants(
     (ctx, cu): (&PassContext<'_>, &CompilationUnit),
     callee: &FunctionUnit,
-    params: &[String],
+    params: &[tcl_syntax::formal_params::FormalParameter],
     args: &[ConstValue],
+    grammar: tcl_dialect::ParameterGrammar,
     policy: FoldPolicy,
 ) -> Option<tcl_registry::value_transfer::ExactValue> {
-    let seed = seed_params_from_args(params, args, ctx.dialect)?;
-    let registry: &CommandRegistry = ctx
-        .registry
-        .unwrap_or_else(|| tcl_registry::default_registry());
-    let empty_traced = std::collections::BTreeSet::new();
-    let (traced_variables, has_dynamic_variable_trace, deferred_writes) = match ctx.ir_module {
-        Some(m) => (
-            &m.traced_variables,
-            m.has_dynamic_variable_trace,
-            &m.deferred_writes,
-        ),
-        None => (&empty_traced, false, &crate::ir::NO_DEFERRED_WRITES),
+    let seed = seed_params_from_args(params, args, grammar, policy)?;
+    let registry = ctx.registry?;
+    let metadata = callee.invocation_metadata_context_for_module(registry, &cu.ir_module)?;
+    let source_metadata_input = metadata.source_analysis_input()?;
+    let folds = crate::sccp::BuiltinFoldInputs {
+        source_metadata_input: Some(source_metadata_input),
+        dialect: Some(source_metadata_input.unit_profile()),
+        proven_pure_parameters: true,
+        ..ctx.rewrite_folds()
     };
     // A call the callee makes to another procedure of the module is applied
     // as that procedure's transfer summary says, its result too: the
@@ -1653,9 +2002,10 @@ fn evaluate_proc_with_constants(
         extra_escaping: &no_escaping,
         trace: crate::sccp::TraceInputs {
             registry,
-            traced_variables,
-            has_dynamic_variable_trace,
-            deferred_writes,
+            source_metadata_input: Some(source_metadata_input),
+            traced_variables: &cu.ir_module.traced_variables,
+            has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            deferred_writes: &cu.ir_module.deferred_writes,
             analysis_context: None,
             existence: None,
         },
@@ -1664,13 +2014,9 @@ fn evaluate_proc_with_constants(
         // `[llength …]` with builtin semantics even where the module shadows
         // `llength`, handing O103 a value the rest of the pipeline disagrees
         // with (#2164).
-        // The callee is proved pure, so a handler cannot rebind the
-        // parameters its caller bound.
-        folds: Some(crate::sccp::BuiltinFoldInputs {
-            proven_pure_parameters: true,
-            ..ctx.rewrite_folds()
-        }),
+        folds: Some(folds),
         module: crate::sccp::ModuleRun {
+            analysis_body: callee.body_id.map(Some),
             procedures: Some(&module),
             owned: None,
             level: crate::sccp::ModuleLevel::Results,
@@ -1682,59 +2028,58 @@ fn evaluate_proc_with_constants(
         &result,
         crate::interprocedural::ExitReading {
             policy,
-            grammar: ctx
-                .dialect
-                .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
-            folds: ctx.rewrite_folds(),
-            module: Some((&module, callee.name.as_str())),
+            grammar: callee
+                .source_lexer_config()
+                .grammar_over(source_metadata_input.unit_profile().grammar),
+            folds,
+            module: Some((&module, &callee.body_id?)),
         },
     )
 }
 
-/// Bind each of `params` to its constant call argument for the
-/// interprocedural SCCP seed. The seed keys on the parameter *name* (a
-/// stable, cache-safe identity); `sccp` resolves each to the callee
-/// build's interned symbol.
-///
-/// A trailing `args` parameter is variadic: Tcl collects every argument
-/// beyond the fixed ones into a single list value bound to `args`, so this
-/// seeds it as one canonical list-quoted [`ConstValue::String`] rather than
-/// requiring (and silently mis-seeding on) an exact `params.len() ==
-/// args.len()` — the earlier exact-length gate happened to be sound only
-/// because [`parse_static_call_args`] never supplied more than one trailing
-/// literal, an unstated coincidence rather than a modelled invariant.
-/// `None` when the call doesn't supply enough arguments for the fixed
-/// (non-`args`) parameters.
+/// Seed ordinary incoming formal values using the shared native activation
+/// plan. Defaults and rest names retain their selected Tcl/Jim semantics;
+/// caller links cannot supply ordinary constant local slots.
 fn seed_params_from_args(
-    params: &[String],
+    params: &[tcl_syntax::formal_params::FormalParameter],
     args: &[ConstValue],
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    grammar: tcl_dialect::ParameterGrammar,
+    policy: FoldPolicy,
 ) -> Option<std::collections::HashMap<(String, crate::ssa::Version), LatticeValue>> {
-    let is_variadic = params.last().is_some_and(|p| p == "args");
-    let fixed = if is_variadic {
-        params.len() - 1
-    } else {
-        params.len()
-    };
-    if args.len() < fixed || (!is_variadic && args.len() != fixed) {
-        return None;
-    }
-    let mut seed: std::collections::HashMap<(String, crate::ssa::Version), LatticeValue> =
-        std::collections::HashMap::new();
-    for (p, a) in params.iter().take(fixed).zip(args.iter()) {
-        seed.insert((p.clone(), 0), LatticeValue::Const(a.clone()));
-    }
-    if is_variadic {
-        // `args` is the list the target builds: a first element that
-        // starts with `#` is brace-quoted from 8.5 and bare in 8.4, and a
-        // profile naming no release cannot say which.
-        let tail: Vec<String> = args[fixed..].iter().map(const_value_text).collect();
-        let list_text =
-            tcl_registry::value_transfer::TargetSemantics::of(dialect).render_list(&tail)?;
-        seed.insert(
-            (params[fixed].clone(), 0),
-            LatticeValue::Const(ConstValue::String(list_text)),
-        );
+    use tcl_syntax::formal_params::FormalArgumentBinding;
+    let plan =
+        tcl_syntax::formal_params::bind_formal_arguments(params, args.len(), grammar).ok()?;
+    let mut seed = std::collections::HashMap::new();
+    for formal in plan {
+        let (name, value) = match formal {
+            FormalArgumentBinding::Value {
+                parameter,
+                argument,
+            } => (
+                params.get(parameter)?.name.clone(),
+                args.get(argument)?.clone(),
+            ),
+            FormalArgumentBinding::Default { parameter } => {
+                let formal = params.get(parameter)?;
+                (
+                    formal.name.clone(),
+                    crate::sccp::parse_literal_value(formal.default.as_deref()?),
+                )
+            }
+            FormalArgumentBinding::Rest {
+                name, start, len, ..
+            } => {
+                let end = start.checked_add(len)?;
+                let tail = args
+                    .get(start..end)?
+                    .iter()
+                    .map(|value| const_value_text(value, policy))
+                    .collect::<Option<Vec<_>>>()?;
+                (name, ConstValue::String(tcl_syntax::list::join_list(tail)))
+            }
+            FormalArgumentBinding::CallerLink { .. } => return None,
+        };
+        seed.insert((name, 0), LatticeValue::Const(value));
     }
     Some(seed)
 }
@@ -1744,50 +2089,8 @@ fn seed_params_from_args(
 /// argument's already-typed constant into one element of the canonical
 /// list text [`seed_params_from_args`] builds for a variadic `args`
 /// parameter.
-fn const_value_text(cv: &ConstValue) -> String {
-    match cv {
-        ConstValue::Int(i) => i.to_string(),
-        // Tcl's canonical double spelling (`3.0`), never Rust's (`3`).
-        ConstValue::Float(f) => tcl_syntax::number::format_double(*f),
-        ConstValue::Bool(b) => i64::from(*b).to_string(),
-        ConstValue::String(s) => s.clone(),
-    }
-}
-
-/// Parse the static (constant) argument words of a `[proc arg…]` command
-/// substitution body `inner`, given the number of leading head words to skip
-/// (`1` for a direct call, `2` for `call proc …`). Each argument must be a
-/// bare literal, a braced literal, a `$var` resolvable to a whole-function
-/// constant via `constants`, or a nested command substitution that itself
-/// folds to a literal; any other quoted / substituting word makes the whole
-/// call non-static (returns `None`).
-///
-/// Shares [`literal_words`]'s proper Tcl-aware tokeniser rather than a naive
-/// `split_whitespace`, so a braced multi-word argument (one clean literal in
-/// real Tcl) is not rejected here while `literal_words` folds it soundly for
-/// the O129 builtin cmd-sub path.
-fn parse_static_call_args(
-    ctx: &PassContext<'_>,
-    inner: &str,
-    skip_words: usize,
-    constants: &std::collections::HashMap<String, String>,
-) -> Option<Vec<ConstValue>> {
-    let registry = ctx.registry?;
-    let words = literal_words(
-        inner,
-        constants,
-        registry,
-        &ctx.command_mutations,
-        ctx.dialect,
-        None,
-    )?;
-    Some(
-        words
-            .into_iter()
-            .skip(skip_words)
-            .map(|w| crate::sccp::parse_literal_value(&w))
-            .collect(),
-    )
+fn const_value_text(cv: &ConstValue, policy: FoldPolicy) -> Option<String> {
+    super::helpers::literals::format_constant_with_policy(cv, policy)
 }
 
 /// Resolve a call's head word to a procedure qname that has an
@@ -1808,6 +2111,7 @@ fn parse_static_call_args(
 /// namespaces could fold a call to the wrong one's constant return.
 ///
 /// Returns the first candidate that has a summary, else `None`.
+#[cfg(test)]
 fn resolve_proc_qname(
     command: &str,
     namespace: &str,
@@ -1817,7 +2121,11 @@ fn resolve_proc_qname(
         return None;
     }
     crate::naming::resolve_command_with::<&str, _>(namespace, &[], command, |qname| {
-        ia.procedures.contains_key(qname)
+        ia.procedures
+            .values()
+            .filter(|summary| summary.qualified_name == qname)
+            .count()
+            == 1
     })
 }
 
@@ -1830,21 +2138,35 @@ fn try_fold_static_proc_call(
     span: tcl_lexer::Span,
     command: &str,
     tokens: Option<&CommandTokens>,
-    namespace: &str,
+    _namespace: &str,
 ) {
     let Some(ia) = cu.interproc.as_ref() else {
         return;
     };
-    let Some(qname) = resolve_proc_qname(command, namespace, ia) else {
+    let Some(registry) = ctx.registry else {
         return;
     };
-    let Some(summary) = ia.procedures.get(&qname) else {
+    let Some(calls) = tokens.and_then(|tokens| {
+        crate::registry_invocation::original_source_procedure_calls_for_word_for_module(
+            tokens,
+            command,
+            &cu.ir_module,
+            registry,
+        )
+    }) else {
         return;
     };
+    let [call] = calls.as_slice() else {
+        return;
+    };
+    let Some(summary) = ia.procedures.get(&call.id()) else {
+        return;
+    };
+    let qname = &call.procedure().qualified_name;
     // A redefined proc has an ambiguous body — never fold its calls
     // (the flow-sensitive rename gate, mirroring the cmd-subst form and
     // `redefined_procedures` check).
-    if cu.ir_module.redefined_procedures.contains(&qname) {
+    if cu.ir_module.redefined_procedures.contains(qname) {
         return;
     }
     // Nor a proc whose bare name is later `rename`d over or `interp
@@ -1854,34 +2176,51 @@ fn try_fold_static_proc_call(
     // call runs (e.g. `proc a {…} …; proc b {…} …; rename b a` moves `b`'s
     // body onto the name `a`; a later `[a …]` call must not fold to `a`'s
     // original body).
-    if !ctx.command_mutations.trusts_proc_binding(&qname) {
+    if !ctx.command_mutations.trusts_proc_binding(qname) {
         return;
     }
     if !summary.can_fold_static_calls {
         return;
     }
-    let literal_words = tokens.and_then(|tokens| {
-        let words = tokens.words().get(1..)?;
-        words
-            .iter()
-            .all(|word| {
-                matches!(
-                    word,
-                    crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
-                )
-            })
-            .then_some(words.len())
-    });
+    let literal_words = call
+        .effective_arguments()
+        .words
+        .iter()
+        .all(|word| {
+            matches!(
+                word,
+                crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+            )
+        })
+        .then(|| call.argument_count())
+        .flatten();
     if !summary_answers(&summary.params, literal_words) {
         return;
     }
     let Some(cr) = &summary.constant_return else {
         return;
     };
-    let replacement = cr.text();
-    if !is_value_safe_bare_word(&replacement) {
-        return;
-    }
+    let replacement = match cr {
+        ConstantReturn::Int(i) => i.to_string(),
+        ConstantReturn::Float(f) => {
+            let Some(text) = crate::tcl_expr_eval::format_tcl_value_with_policy(
+                &crate::tcl_expr_eval::TclValue::Float(*f),
+                ctx.fold_policy(),
+            ) else {
+                return;
+            };
+            text
+        }
+        ConstantReturn::Bool(true) => "1".to_owned(),
+        ConstantReturn::Bool(false) => "0".to_owned(),
+        ConstantReturn::Str(s) => {
+            if is_value_safe_bare_word(s) {
+                s.clone()
+            } else {
+                return;
+            }
+        }
+    };
     // The span here covers the whole Statement::Call — applying
     // the literal replacement would turn `::answer` into a
     // command named `42`, which is invalid Tcl. Targeting
@@ -1903,25 +2242,113 @@ fn try_fold_static_proc_call(
     ctx.report(opt);
 }
 
-/// O100: rewrite `return $v` to `return K` when the SCCP
-/// environment proves `v` is a constant. Works on the `value`
-/// text since `Statement::Return::expr` is populated only when
-/// the original source was `return [expr …]`.
-///
-/// Uses `O100` (the canonical constant-propagation code) rather
-/// than the `O104` that earlier commits emitted — `O104` is
-/// reserved by `docs/generated/optimisation_codes.md` for the
-/// pattern-recognition string-build chain fold.
+/// Replace only the retained original result word of a simple lowered return.
+/// This constructs source; the caller must independently approve the fold.
+fn original_return_value_replacement(
+    ctx: &PassContext<'_>,
+    statement: &Statement,
+    tokens: &CommandTokens,
+    value: &str,
+) -> Option<(tcl_lexer::Span, String)> {
+    let replacement = render_propagation_word(value, ctx.lexer_config())?;
+    original_return_word_replacement(ctx, statement, tokens, &replacement)
+}
+
+/// Splice one deliberately constructed complete word into the same original
+/// return's retained result ordinal. This supplies source geometry only.
+fn original_return_word_replacement(
+    ctx: &PassContext<'_>,
+    statement: &Statement,
+    tokens: &CommandTokens,
+    replacement: &str,
+) -> Option<(tcl_lexer::Span, String)> {
+    let image = tcl_lexer::SourceImage::document(replacement);
+    let extent = tcl_lexer::Span::new(0, u32::try_from(replacement.len()).ok()?);
+    let plan = tcl_lexer::native_script_words_in(image, extent, ctx.lexer_config()).ok()?;
+    if plan.fatal_tail.is_some() {
+        return None;
+    }
+    let [proposed] = plan.commands.as_slice() else {
+        return None;
+    };
+    let [proposed_word] = proposed.words.as_slice() else {
+        return None;
+    };
+    if proposed_word.span() != extent || proposed_word.group().expand {
+        return None;
+    }
+    let Statement::Return {
+        value_word: Some(value_word),
+        ..
+    } = statement
+    else {
+        return None;
+    };
+    let module = ctx.ir_module?;
+    let registry = ctx.registry?;
+    let config = ctx.lexer_config();
+    let span = original_statement_rewrite_span(ctx, statement.span())?;
+    let binding = tokens.source_binding.as_ref()?;
+    binding.original_invocation_metadata_for_module(tokens, module, registry)?;
+    let site = binding.invocation_site()?;
+    if site.offset != span.start() || site.source.source_image() != &module.source {
+        return None;
+    }
+    let command = site
+        .source
+        .original_lexical_command(tokens.words(), site.offset, config)?;
+    let mut matches = tokens
+        .words()
+        .iter()
+        .enumerate()
+        .filter(|(_, word)| *word == value_word);
+    let (written, _) = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    let word = command.native_words().get(written)?;
+    let start = usize::try_from(word.span().start().checked_sub(span.start())?).ok()?;
+    let end = usize::try_from(word.span().end().checked_sub(span.start())?).ok()?;
+    let mut source = ctx
+        .source
+        .get(span.start() as usize..span.end() as usize)?
+        .to_owned();
+    source.get(start..end)?;
+    source.replace_range(start..end, replacement);
+    // Full proposed statement parsing detects any quote/continuation seam.
+    let image = tcl_lexer::SourceImage::document(&source);
+    let extent = tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?);
+    let after = tcl_lexer::native_script_words_in(image, extent, config).ok()?;
+    if after.fatal_tail.is_some() {
+        return None;
+    }
+    let [after] = after.commands.as_slice() else {
+        return None;
+    };
+    (after.words.len() == command.native_words().len()).then_some((span, source))
+}
+
+/// Fold an original return operand using its retained word kind and constants.
 fn try_fold_return_terminator(
     ctx: &mut PassContext<'_>,
-    span: tcl_lexer::Span,
-    value: Option<&str>,
-    expr: Option<&crate::expr_ast::ExprNode>,
-    _braced: bool,
+    statement: &Statement,
     constants: &std::collections::HashMap<String, String>,
-    procedures: &std::collections::HashMap<String, crate::ir::Procedure>,
+    module: &crate::ir::Module,
+    tokens: Option<&CommandTokens>,
 ) {
-    use crate::naming::normalise_var_name;
+    let Statement::Return {
+        span,
+        value,
+        value_word,
+        expr,
+        ..
+    } = statement
+    else {
+        return;
+    };
+    let span = *span;
+    let value = value.as_deref();
+    let expr = expr.as_ref();
 
     // O115: `return [expr {[expr {E}]}]` → `return [expr {E}]`. Checked
     // before the `expr.is_some()` early-return below because the return
@@ -1931,48 +2358,59 @@ fn try_fold_return_terminator(
     // builtin-fold trust check) — both the outer and inner `[expr {…}]`
     // are genuine command substitutions, and a shadowed `expr` no longer
     // has builtin semantics.
-    if ctx.command_mutations.trusts("expr")
-        && let Some(collapsed) = value.and_then(|raw| o115_redundant_nested_expr(raw.trim()))
+    let collapse = tokens.and_then(|tokens| {
+        let registry = ctx.registry?;
+        let calls = retained_substitution_calls(tokens, module, registry)?;
+        let raw = value?.trim();
+        let mut matching = calls.iter().filter(|call| {
+            ctx.source
+                .get(call.span.start() as usize..call.span.end() as usize)
+                == Some(raw)
+        });
+        let call = matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+        retained_o115(ctx, module, tokens, call, raw, registry)
+    });
+    if let Some(collapsed) = collapse
+        && let Some((span, replacement)) = tokens
+            .and_then(|tokens| original_return_word_replacement(ctx, statement, tokens, &collapsed))
     {
         ctx.report(Optimisation::new(
             DiagCode::O115,
             "Remove redundant nested expr",
             span,
-            format!("return {collapsed}"),
+            replacement,
         ));
         return;
     }
 
-    // O101: a constant `[expr {…}]` return value folds to its value
-    // (`return [expr {1 + 2}]` → `return 3`). Same trust requirement as
-    // the O115 check above — a shadowed `expr` no longer has builtin
-    // semantics and must not be folded as if it did.
-    if let Some(inner) = value
-        .map(str::trim)
-        .and_then(|t| t.strip_prefix('[').and_then(|s| s.strip_suffix(']')))
-        && ctx.command_mutations.trusts("expr")
-    {
-        let mut parts = inner.splitn(2, char::is_whitespace);
-        if parts.next() == Some("expr") {
-            let body = parts.next().unwrap_or("").trim();
-            let body = body
-                .strip_prefix('{')
-                .and_then(|b| b.strip_suffix('}'))
-                .unwrap_or(body);
-            let body_node = crate::expr_parser::parse_expr_for_profile(body, ctx.dialect);
-            if !super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(&body_node, procedures)
-                && let Some(folded) =
-                    super::helpers::expr_simplify::try_fold_expr(body, ctx.rewrite_folds())
-                && !folded.contains(['$', '['])
-            {
-                ctx.report(Optimisation::new(
-                    DiagCode::O101,
-                    "Fold constant expression",
-                    span,
-                    format!("return {}", render_propagation_word(&folded)),
-                ));
-                return;
-            }
+    if let Some(expression) = expr {
+        let env = constants
+            .iter()
+            .map(|(name, value)| {
+                (
+                    name.clone(),
+                    crate::tcl_expr_eval::EnvValue::Str(value.clone()),
+                )
+            })
+            .collect::<crate::tcl_expr_eval::Env>();
+        if let Some(value) = ctx.eval_expression_at(expression, &env, span)
+            && let Some(folded) =
+                crate::tcl_expr_eval::format_tcl_value_with_policy(&value, ctx.fold_policy())
+            && !folded.contains(['$', '['])
+            && let Some((rewrite_span, replacement)) = tokens.and_then(|tokens| {
+                original_return_value_replacement(ctx, statement, tokens, &folded)
+            })
+        {
+            ctx.report(Optimisation::new(
+                DiagCode::O101,
+                "Fold constant expression",
+                rewrite_span,
+                replacement,
+            ));
+            return;
         }
     }
 
@@ -1981,29 +2419,27 @@ fn try_fold_return_terminator(
     if expr.is_some() {
         return;
     }
-    let Some(raw) = value else {
+    let Some(crate::ir::WordExpr::Variable { spelling, .. }) = value_word.as_ref() else {
         return;
     };
-    let v = raw.trim();
-    let name = if let Some(n) = v.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
-        n.to_owned()
-    } else if let Some(n) = v.strip_prefix('$') {
-        n.to_owned()
-    } else {
+    let Some(name) = whole_scalar_variable_reference_name(spelling, module.lexer_config) else {
         return;
     };
-    let normalised = normalise_var_name(&format!("${name}")).to_owned();
-    let Some(resolved) = constants.get(&name).or_else(|| constants.get(&normalised)) else {
+    let Some(resolved) = constants.get(name) else {
         return;
     };
     // Render the constant as a single self-contained word
     // rather than bailing on metacharacters (`return {Hello World}`).
-    let word = render_propagation_word(resolved);
+    let Some((rewrite_span, replacement)) = tokens
+        .and_then(|tokens| original_return_value_replacement(ctx, statement, tokens, resolved))
+    else {
+        return;
+    };
     ctx.report(Optimisation::new(
         DiagCode::O100,
         "Fold return of constant variable",
-        span,
-        format!("return {word}"),
+        rewrite_span,
+        replacement,
     ));
 }
 
@@ -2014,23 +2450,24 @@ fn try_fold_return_terminator(
 /// branch-condition pass uses. Emits an O100 rewrite targeting
 /// the whole ``set`` statement with the substituted expression
 /// re-wrapped in ``[expr { … }]``. The rewrite span is extended
-/// via ``full_rewrite_span`` so nested substitutions don't leave
-/// orphan delimiters.
+/// through the original retained command vector so nested substitutions do not
+/// leave orphan delimiters. The actual written target and head are retained.
 fn try_substitute_assign_expr(
     ctx: &mut PassContext<'_>,
+    source: StatementSource<'_>,
     span: tcl_lexer::Span,
-    name: &str,
     expr: &crate::expr_ast::ExprNode,
     constants: &std::collections::HashMap<String, String>,
     numeric: NumericCtx<'_>,
-    procedures: &std::collections::HashMap<String, crate::ir::Procedure>,
 ) {
     use super::helpers::expr_simplify::{
-        expr_has_command_subst, expr_uses_shadowed_mathfunc, instcombine_expr_typed,
-        substitute_expr_constants,
+        expr_has_command_subst, instcombine_expr_typed, substitute_expr_constants_for_execution,
     };
-    use crate::expr_parser::parse_expr_for_profile;
-    use crate::tcl_expr_eval::leading_zero_is_octal;
+    use crate::tcl_expr_eval::{Env, format_tcl_value_with_policy};
+
+    let Some(rewrite_span) = original_statement_rewrite_span(ctx, span) else {
+        return;
+    };
 
     if matches!(expr, crate::expr_ast::ExprNode::Raw { .. }) {
         return;
@@ -2044,16 +2481,21 @@ fn try_substitute_assign_expr(
     if !ctx.command_mutations.trusts("expr") {
         return;
     }
-    // A math-function call in the expression shadowed by a user-defined
-    // `::tcl::mathfunc::<name>` proc means folding it would use builtin
-    // semantics that no longer apply. Substitution doesn't change which
-    // function names are called, so checking the pre-substitution AST is
-    // sufficient.
-    if expr_uses_shadowed_mathfunc(expr, procedures) {
-        return;
-    }
+    let original = source.tokens.and_then(|tokens| {
+        super::expr_simplify::OriginalExpressionStatementSource::capture_with_tokens(
+            ctx,
+            source.statement,
+            tokens,
+            expr,
+        )
+    });
     let expr_text = crate::expr_ast::render_expr(expr);
-    let result = substitute_expr_constants(&expr_text, constants, ctx.dialect);
+    let result = substitute_expr_constants_for_execution(
+        &expr_text,
+        constants,
+        ctx.dialect,
+        &crate::tcl_expr_eval::NativeOperandProofs::new(),
+    );
     if !result.changed {
         return;
     }
@@ -2062,26 +2504,30 @@ fn try_substitute_assign_expr(
     // the substituted expression is fully constant we can emit
     // the unwrapped ``set name VALUE`` form directly. Otherwise
     // keep the expression wrapper around the substituted text.
-    let parsed = parse_expr_for_profile(&result.text, ctx.dialect);
-    let folds = ctx.rewrite_folds();
-    if let Some(folded) = crate::value_transfer::evaluate_expression_detached(
-        &parsed,
-        &std::collections::HashMap::new(),
-        folds,
-        FoldPolicy::for_profile(ctx.dialect.and_then(leading_zero_is_octal), ctx.dialect),
-    )
-    .and_then(|value| String::from_utf8(value.bytes).ok())
+    let env = constants
+        .iter()
+        .map(|(name, value)| {
+            (
+                name.clone(),
+                crate::tcl_expr_eval::EnvValue::Str(value.clone()),
+            )
+        })
+        .collect::<Env>();
+    if let Some(val) = ctx.eval_expression_at(expr, &env, span)
+        && let Some(folded) = format_tcl_value_with_policy(&val, ctx.fold_policy())
     {
         let needs_quoting = folded.is_empty()
             || folded.contains([
                 ' ', '\t', '\n', '\r', '$', '[', ']', '{', '}', '"', '\\', '\0', ';',
             ]);
-        if !needs_quoting {
+        if !needs_quoting
+            && let Some(replacement) = original.as_ref().and_then(|source| source.folded(&folded))
+        {
             ctx.report(Optimisation::new(
                 DiagCode::O100,
                 "Propagate constant and fold",
-                full_rewrite_span(ctx.source, span),
-                format!("set {name} {folded}"),
+                rewrite_span,
+                replacement,
             ));
             return;
         }
@@ -2095,29 +2541,24 @@ fn try_substitute_assign_expr(
     } else {
         simplified
     };
+    if ctx
+        .expression_rewrite_equivalence_at(expr, &final_text, &env, span)
+        .is_err()
+    {
+        return;
+    }
+    let Some(replacement) = original
+        .as_ref()
+        .and_then(|source| source.simplified(&final_text))
+    else {
+        return;
+    };
     ctx.report(Optimisation::new(
         DiagCode::O100,
         "Propagate constant into expr argument",
-        full_rewrite_span(ctx.source, span),
-        format!("set {name} [expr {{{final_text}}}]"),
+        rewrite_span,
+        replacement,
     ));
-}
-
-/// O115 (value position): collapse a redundant double-`expr` command
-/// substitution `[expr {[expr {E}]}]` to `[expr {E}]`, returning the
-/// inner cmd-sub when *word* has that shape.
-///
-/// Sound because both forms evaluate `E` as an expression. The gate is
-/// the double-unwrap: the outer `[expr {…}]`'s body must itself be an
-/// `[expr {…}]` cmd-sub, so the collapsed form stays a valid value-
-/// position word. A plain `[expr {$x + 1}]` (whose unwrap `$x + 1`
-/// would be invalid as a bare value) — or an `[expr {[other]}]` whose
-/// inner is not itself `expr` (not value-equivalent for non-numeric
-/// results) — yields `None`.
-fn o115_redundant_nested_expr(word: &str) -> Option<String> {
-    let expr_arg = try_unwrap_expr_in_expr(word)?;
-    try_unwrap_expr_in_expr(&expr_arg)?;
-    Some(expr_arg)
 }
 
 /// O103 (CMD-subst form): walk each argv word looking for a
@@ -2138,46 +2579,44 @@ fn o115_redundant_nested_expr(word: &str) -> Option<String> {
 /// constant. Extracted from [`visit_call_cmd_subst_folds`].
 fn try_o101_expr_arg_fold(
     ctx: &PassContext<'_>,
-    inner: &str,
+    cu: &CompilationUnit,
+    tokens: &CommandTokens,
+    call: &crate::word_subst::LiftedCall,
     constants: &std::collections::HashMap<String, String>,
-    procedures: &std::collections::HashMap<String, crate::ir::Procedure>,
 ) -> Option<String> {
-    let mut parts = inner.splitn(2, char::is_whitespace);
-    if parts.next() != Some("expr") {
-        return None;
-    }
-    // `expr` renamed/aliased anywhere in the module — a shadowed `expr` no
-    // longer has builtin semantics, so this text no longer means what it
-    // looks like. Mirrors the O129 builtin-fold gate (`try_o129_fold`).
-    if !ctx.command_mutations.trusts("expr") {
-        return None;
-    }
-    let raw_body = parts.next().unwrap_or("").trim();
-    let body = raw_body
-        .strip_prefix('{')
-        .and_then(|b| b.strip_suffix('}'))
-        .unwrap_or(raw_body);
-    // A math-function call shadowed by a user-defined
-    // `::tcl::mathfunc::<name>` proc anywhere in the module means folding
-    // it would use builtin semantics that no longer apply.
-    if super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(
-        &crate::expr_parser::parse_expr_for_profile(body, ctx.dialect),
-        procedures,
-    ) {
-        return None;
-    }
-    let folded =
-        if let Some(braced_body) = raw_body.strip_prefix('{').and_then(|b| b.strip_suffix('}')) {
-            super::helpers::expr_simplify::try_fold_expr_with_constants(
-                braced_body,
-                constants,
-                true,
-                ctx.rewrite_folds(),
+    let registry = ctx.registry?;
+    let input = cu.ir_module.source_metadata_input.as_ref()?;
+    let context = PassContext {
+        source: ctx.source,
+        dialect: ctx.dialect,
+        registry: Some(registry),
+        ir_module: Some(&cu.ir_module),
+        ..PassContext::default()
+    };
+    let actual = context.retained_metadata_context()?;
+    let mut parser = tcl_syntax::expr::parser::ExprParseContext::for_profile(input.unit_profile());
+    parser.lexer_grammar = input.lexer_config().grammar_over(parser.lexer_grammar);
+    let expression = crate::word_subst::lifted_source_expressions_with_metadata_context(
+        Some(tokens),
+        registry,
+        Some(actual.as_ref().into()),
+        input.lexer_config(),
+        parser,
+    )
+    .into_iter()
+    .find(|expression| expression.span == call.span)?;
+    let env = constants
+        .iter()
+        .map(|(name, value)| {
+            (
+                name.clone(),
+                crate::tcl_expr_eval::EnvValue::Str(value.clone()),
             )
-        } else {
-            super::helpers::expr_simplify::try_fold_expr(raw_body, ctx.rewrite_folds())
-        };
-    folded.filter(|f| !f.contains(['$', '[']))
+        })
+        .collect();
+    let value = context.eval_expression_at(&expression.expression, &env, call.span)?;
+    crate::tcl_expr_eval::format_tcl_value_with_policy(&value, context.fold_policy())
+        .and_then(|value| render_propagation_word(&value, input.lexer_config()))
 }
 
 fn visit_call_cmd_subst_folds(
@@ -2185,87 +2624,97 @@ fn visit_call_cmd_subst_folds(
     cu: &CompilationUnit,
     tokens: &CommandTokens,
     constants: &std::collections::HashMap<String, String>,
-    namespace: &str,
+    _namespace: &str,
+    statement_span: tcl_lexer::Span,
 ) {
-    for (i, argv_span) in tokens.argv.iter().enumerate() {
-        let single = tokens.single_token_word.get(i).copied().unwrap_or(false);
-        if !single {
-            continue;
-        }
-        let Some(text) = tokens.argv_texts.get(i) else {
+    let Some(registry) = ctx.registry else {
+        return;
+    };
+    let actual =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
+    let metadata = actual.as_deref().map(Into::into);
+    let Some(calls) = retained_substitution_calls(tokens, &cu.ir_module, registry) else {
+        return;
+    };
+    for word in tokens.words() {
+        let crate::ir::WordExpr::CommandSubstitution { spelling, source } = word else {
             continue;
         };
-        let Some(inner) = text.strip_prefix('[').and_then(|s| s.strip_suffix(']')) else {
+        let Some(call) = retained_call_at(&calls, source.span.start()) else {
             continue;
         };
-        // O115: collapse a redundant double-`expr` cmd-sub in this
-        // argument value position (needs no interproc summary). Requires
-        // `expr` untouched anywhere in the module — both layers are
-        // genuine command substitutions.
-        if ctx.command_mutations.trusts("expr")
-            && let Some(collapsed) = o115_redundant_nested_expr(text)
+        if let Some(collapsed) = retained_o115(ctx, &cu.ir_module, tokens, call, spelling, registry)
         {
+            let wrapper =
+                crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+                    registry, metadata, tokens,
+                )
+                .filter(|invocation| {
+                    invocation.facts.operation
+                        == tcl_registry::SemanticOperationId::StructuredLowering(
+                            tcl_registry::hooks::LoweringHookId::Return,
+                        )
+                        && tokens.words().len() == 2
+                })
+                .and_then(|_| {
+                    let original = ctx.source.get(statement_span.as_range())?;
+                    let start = call.span.start().checked_sub(statement_span.start())? as usize;
+                    let end = call.span.end().checked_sub(statement_span.start())? as usize;
+                    let mut replacement = original.to_owned();
+                    replacement.replace_range(start..end, &collapsed);
+                    Some((statement_span, replacement))
+                });
+            let (span, replacement) = wrapper.unwrap_or((call.span, collapsed));
             ctx.report(Optimisation::new(
                 DiagCode::O115,
                 "Remove redundant nested expr",
-                tcl_lexer::word_span_at(ctx.source, *argv_span),
-                collapsed,
+                span,
+                replacement,
             ));
             continue;
         }
-        // O101: fold a constant `[expr {…}]` cmd-sub in this argument
-        // position (`return [expr {1 + 2}]` → `return 3`). The general
-        // `AssignExpr` / `ExprEval` expr folds don't reach a cmd-sub
-        // embedded in a `Call` argument, so handle it here.
-        if let Some(folded) =
-            try_o101_expr_arg_fold(ctx, inner, constants, &cu.ir_module.procedures)
-        {
+        let is_expr = retained_expr_call(call, registry, metadata);
+        if is_expr && let Some(folded) = try_o101_expr_arg_fold(ctx, cu, tokens, call, constants) {
             ctx.report(Optimisation::new(
                 DiagCode::O101,
                 "Fold constant expression",
-                tcl_lexer::word_span_at(ctx.source, *argv_span),
+                call.span,
                 folded,
             ));
             continue;
         }
-        // O129: fold a pure-builtin cmd-sub with constant (literal) args
-        // through the registry `const_fold` callback (no interproc
-        // needed). Checked before the O103 interproc bail so it fires
-        // even when no interprocedural summary is available.
-        if let Some(reg) = ctx.registry
-            && let Some(folded) = try_o129_fold(
-                reg,
-                &ctx.command_mutations,
-                constants,
-                inner,
-                ctx.dialect,
-                None,
-            )
+        if let Some(value) =
+            fold_retained_builtin(registry, call, &calls, None, metadata, ctx.dialect)
+            && let Some(word) = render_propagation_word(&value, ctx.lexer_config())
         {
-            // `list` / `lindex` report their own diagnostic codes
-            // (O116 / O118) for editor granularity; everything else reports
-            // the general O129.
-            let (code, message) = match inner.split_whitespace().next() {
-                Some("list") => (DiagCode::O116, "Fold constant list command"),
-                Some("lindex") => (DiagCode::O118, "Fold constant lindex command"),
-                _ => (DiagCode::O129, "Fold constant builtin command substitution"),
-            };
+            let code = call
+                .tokens
+                .as_ref()
+                .and_then(|tokens| {
+                    crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                        registry, metadata, tokens,
+                    )
+                })
+                .map_or(DiagCode::O129, |invocation| {
+                    match invocation.facts.canonical_command.as_str() {
+                        "list" => DiagCode::O116,
+                        "lindex" => DiagCode::O118,
+                        _ => DiagCode::O129,
+                    }
+                });
             ctx.report(Optimisation::new(
                 code,
-                message,
-                tcl_lexer::word_span_at(ctx.source, *argv_span),
-                folded,
+                "Fold constant builtin command substitution",
+                call.span,
+                word,
             ));
             continue;
         }
-        // O103 (below) folds a pure-proc cmd-sub to its constant return.
-        if let Some((qualified_name, replacement)) =
-            try_o103_proc_fold(ctx, cu, inner, namespace, constants)
-        {
+        if let Some((name, replacement)) = try_o103_proc_fold(ctx, cu, call, &calls) {
             ctx.report(Optimisation::new(
                 DiagCode::O103,
-                format!("Fold pure-proc call to '{qualified_name}' to its constant return"),
-                tcl_lexer::word_span_at(ctx.source, *argv_span),
+                format!("Fold pure-proc call to '{name}' to its constant return"),
+                call.span,
                 replacement,
             ));
         }
@@ -2281,57 +2730,123 @@ fn visit_call_cmd_subst_folds(
 fn try_o103_proc_fold(
     ctx: &PassContext<'_>,
     cu: &CompilationUnit,
-    inner: &str,
-    namespace: &str,
-    constants: &std::collections::HashMap<String, String>,
+    call: &crate::word_subst::LiftedCall,
+    calls: &[crate::word_subst::LiftedCall],
 ) -> Option<(String, String)> {
     let ia = cu.interproc.as_ref()?;
-    let head = parse_cmd_subst_head(inner)?;
-    let qname = resolve_proc_qname(head, namespace, ia)?;
-    let summary = ia.procedures.get(&qname)?;
+    let tokens = call.tokens.as_ref()?;
+    let binding = tokens.source_binding.as_ref()?;
+    let scoped = binding.scoped_procedure_evaluation(tokens);
+    let target = binding
+        .proved_execution_target()
+        .or_else(|| scoped.as_ref().map(|receipt| receipt.target))?;
+    if target.kind != crate::command_binding::BindingKind::Proc || target.registry_backed {
+        return None;
+    }
+    let qname = target.command.clone();
+    let (declaration_id, declaration) = cu.ir_module.source_procedure_for_target(target)?;
+    if !target.matches_authored_implementation_image(&cu.ir_module.source, declaration.span.start())
+    {
+        return None;
+    }
+    let summary = ia.procedures.get(&declaration_id)?;
     // A redefined proc has an ambiguous body — never fold its calls.
     if cu.ir_module.redefined_procedures.contains(&qname) {
         return None;
     }
-    // Nor a proc whose bare name is later `rename`d over or `interp
-    // alias`ed elsewhere in the module — see the sibling gate in
-    // `try_fold_static_proc_call` for the miscompile this prevents.
-    if !ctx.command_mutations.trusts_proc_binding(&qname) {
+    let grammar = binding
+        .variable_context
+        .invocation_dialect?
+        .parameter_grammar()?;
+    let parameters =
+        tcl_syntax::formal_params::parse_formal_parameters_in(&declaration.params_raw, grammar)
+            .ok()?;
+    let registry = ctx.registry?;
+    let actual =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module)?;
+    let original = crate::const_subst::ConstSubstCtx {
+        registry,
+        resolution_namespace: "::",
+        namespace_context: binding.lookup_namespace_key.to_compiled_context(),
+        version: None,
+        defining_class: None,
+        trusts: &|_| false,
+        lookup_var: &|_| None,
+    }
+    .retained_arguments_with_metadata_context(call, calls, actual.as_ref().into())?;
+    let plan =
+        tcl_syntax::formal_params::bind_formal_arguments(&parameters, original.len(), grammar)
+            .ok()?;
+    if plan.iter().any(|formal| {
+        matches!(
+            formal,
+            tcl_syntax::formal_params::FormalArgumentBinding::CallerLink { .. }
+        )
+    }) {
         return None;
     }
-    let args = parse_static_call_args(ctx, inner, 1, constants);
+    if summary.pure
+        && let Some(scoped) = scoped
+    {
+        return Some((
+            qname,
+            render_propagation_word(scoped.result.text(), ctx.lexer_config())?,
+        ));
+    }
+    if summary.pure
+        && binding.original_invocation_completes_normally(tokens)
+        && let Some(result) = binding.original_normal_result(tokens)
+    {
+        return Some((
+            qname,
+            render_propagation_word(result.text(), ctx.lexer_config())?,
+        ));
+    }
+    let args: Vec<_> = original
+        .iter()
+        .map(|value| crate::sccp::parse_literal_value(value))
+        .collect();
     let replacement = if summary.can_fold_static_calls
         && let Some(cr) = &summary.constant_return
-        && summary_answers(&summary.params, args.as_ref().map(Vec::len))
+        && tcl_syntax::formal_params::bind_formal_arguments(&parameters, args.len(), grammar)
+            .is_ok()
     {
-        // Argument-independent: the summary's value, spelled as the procedure
-        // returns it and list-quoted where it is not one bare word, the
-        // substitution being one argument word.
-        render_propagation_word(&cr.text())
+        render_proc_constant_return(ctx, cr)?
     } else if summary.pure
-        && let Some(callee) = cu.procedures.get(&qname)
-        && let Some(args) = &args
+        && let Some(callee) = cu.procedures.get(&declaration_id)
         && let Some(value) = evaluate_proc_with_constants(
             (ctx, cu),
             callee,
-            &summary.params,
-            args,
-            crate::tcl_expr_eval::FoldPolicy::for_profile(
-                ctx.dialect
-                    .and_then(crate::tcl_expr_eval::leading_zero_is_octal),
-                ctx.dialect,
-            ),
+            &parameters,
+            &args,
+            grammar,
+            ctx.fold_policy(),
         )
     {
         // Argument-sensitive: re-run SCCP on the pure callee with the call's
         // constant arguments bound and fold the constant return.
-        render_propagation_word(value.as_str().ok()?)
+        render_propagation_word(value.as_str().ok()?, ctx.lexer_config())?
     } else {
         return None;
     };
     Some((summary.qualified_name.clone(), replacement))
 }
 
+fn render_proc_constant_return(
+    ctx: &PassContext<'_>,
+    constant: &crate::interprocedural::ConstantReturn,
+) -> Option<String> {
+    Some(match constant {
+        ConstantReturn::Int(value) => value.to_string(),
+        ConstantReturn::Float(value) => crate::tcl_expr_eval::format_tcl_value_with_policy(
+            &crate::tcl_expr_eval::TclValue::Float(*value),
+            ctx.fold_policy(),
+        )?,
+        ConstantReturn::Bool(true) => "1".to_owned(),
+        ConstantReturn::Bool(false) => "0".to_owned(),
+        ConstantReturn::Str(value) => render_propagation_word(value, ctx.lexer_config())?,
+    })
+}
 /// Whether a procedure's argument-independent constant return answers a
 /// call whose words after the head are `literal_words` many, all literal
 /// (`None` when one substitutes): only a call the argument-sensitive re-run
@@ -2348,6 +2863,7 @@ fn summary_answers(params: &[String], literal_words: Option<usize>) -> bool {
 /// Parse the head word out of a CMD-subst interior. Returns
 /// `None` when the head word is empty or contains metacharacters
 /// that would change the parsed command name under substitution.
+#[cfg(test)]
 fn parse_cmd_subst_head(inner: &str) -> Option<&str> {
     let trimmed = inner.trim_start();
     let end = trimmed
@@ -2363,107 +2879,9 @@ fn parse_cmd_subst_head(inner: &str) -> Option<&str> {
     Some(head)
 }
 
-/// O129: fold a pure-builtin command substitution
-/// `[cmd args…]` (or `[cmd sub args…]`) whose arguments are constant
-/// literals, by consulting the registry `const_fold` callback for the
-/// resolved command (or subcommand). Returns the rendered replacement
-/// word, or `None` when the head isn't a const-foldable builtin, an
-/// argument isn't a clean literal, or the fold itself declines.
-///
-/// The result is rendered through [`render_propagation_word`] so a
-/// multi-word fold result (`string toupper {a b}` → `A B`) is emitted
-/// as a single brace-quoted word.
-///
-/// Gated by `mutations.trusts(head)` — if the command was
-/// renamed / redefined anywhere in the module, it is no longer its
-/// original builtin and must not be folded with the builtin's semantics.
-fn try_o129_fold(
-    registry: &tcl_registry::CommandRegistry,
-    mutations: &crate::command_binding::ModuleCommandMutations,
-    constants: &std::collections::HashMap<String, String>,
-    inner: &str,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
-    oo: Option<&OoFrame>,
-) -> Option<String> {
-    let folded = fold_builtin_cmd_subst_raw(registry, mutations, constants, inner, dialect, oo)?;
-    Some(render_propagation_word(&folded))
-}
-
-/// The shared core of the O129 fold, delegated to the module-wide
-/// engine [`crate::const_subst::ConstSubstCtx`]: the
-/// cmd-sub head resolves to its spec (or subcommand), all args must be
-/// clean literals, and the registry fold runs via
-/// [`tcl_registry::CommandSpec::run_const_fold`], returning the **raw**
-/// result (no single-word quoting).  The `dialect` is forwarded to the
-/// registry, which owns all the Tcl-version interpretation (a versioned fold
-/// like `string is` / `format` / `scan` reads it; an invariant fold ignores
-/// it).  [`try_o129_fold`] wraps this with [`render_propagation_word`] for
-/// free-standing argument positions; the embedded-interpolation path splices
-/// the raw result directly into the surrounding string.
-///
-/// The `constants` map is whole-function (a var is present only if every
-/// tracked version agrees), so substituting an entry is sound without any
-/// same-block reaching-version gating.
-///
-/// A result whose literal spelling a script evaluation would read apart from
-/// the result itself ([`crate::const_subst::folded_literal_reads_apart`])
-/// abstains: `[list string range $s 0 end-2147483649]` evaluates directly,
-/// its braced literal compiles.
-fn fold_builtin_cmd_subst_raw(
-    registry: &tcl_registry::CommandRegistry,
-    mutations: &crate::command_binding::ModuleCommandMutations,
-    constants: &std::collections::HashMap<String, String>,
-    inner: &str,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
-    oo: Option<&OoFrame>,
-) -> Option<String> {
-    let trusts = |name: &str| mutations.trusts(name);
-    let lookup = |name: &str| constants.get(name).cloned();
-    crate::const_subst::ConstSubstCtx {
-        registry,
-        resolution_namespace: "::",
-        version: dialect.and_then(tcl_dialect::DialectProfile::const_fold_version),
-        defining_class: oo.map(|f| f.defining_class.as_str()),
-        trusts: &trusts,
-        lookup_var: &lookup,
-    }
-    .fold_cmd_subst(inner)
-    .filter(|value| {
-        let release = dialect.map_or(tcl_dialect::TclVersion::V9_0, |profile| {
-            profile.vm_runtime_version
-        });
-        !crate::const_subst::folded_literal_reads_apart(value, release)
-    })
-}
-
-/// Re-lex a command-substitution interior into its literal words for the
-/// O129 const-fold — see
-/// [`crate::const_subst::ConstSubstCtx::literal_words`] for the exact
-/// contract (this is the same engine, parameterised with the optimiser's
-/// constants map and whole-module trust table).
-fn literal_words(
-    inner: &str,
-    constants: &std::collections::HashMap<String, String>,
-    registry: &tcl_registry::CommandRegistry,
-    mutations: &crate::command_binding::ModuleCommandMutations,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
-    oo: Option<&OoFrame>,
-) -> Option<Vec<String>> {
-    let trusts = |name: &str| mutations.trusts(name);
-    let lookup = |name: &str| constants.get(name).cloned();
-    crate::const_subst::ConstSubstCtx {
-        registry,
-        resolution_namespace: "::",
-        version: dialect.and_then(tcl_dialect::DialectProfile::const_fold_version),
-        defining_class: oo.map(|f| f.defining_class.as_str()),
-        trusts: &trusts,
-        lookup_var: &lookup,
-    }
-    .literal_words(inner)
-}
-
 fn visit_call_tokens(
     ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
     tokens: &CommandTokens,
     constants: &std::collections::HashMap<String, String>,
 ) {
@@ -2488,16 +2906,18 @@ fn visit_call_tokens(
         if single && tokens.argv_kinds.get(i).copied() == Some(tcl_lexer::TokenType::Cmd) {
             continue;
         }
-        if single {
-            visit_simple_var_word(ctx, *span, text, constants);
+        if single
+            && let Some(crate::ir::WordExpr::Variable { spelling, .. }) = tokens.words().get(i)
+        {
+            visit_simple_var_word(ctx, *span, spelling, constants, cu.ir_module.lexer_config);
         }
         // `"..."` interpolation substitution — works on both
         // single-token (quoted strings) and composite (mixed
         // text + var) words.
-        visit_string_interpolation(ctx, *span, text, constants);
+        visit_string_interpolation(ctx, *span, text, constants, cu.ir_module.lexer_config);
         // Fold a pure-builtin `[cmd …]` substitution
         // embedded *inside* an interpolation string.
-        visit_string_interpolation_cmd_subs(ctx, *span, text, constants);
+        visit_string_interpolation_cmd_subs(ctx, cu, tokens, *span, text, constants);
     }
 }
 
@@ -2533,20 +2953,27 @@ fn is_whole_word_cmd_subst(inside: &str) -> bool {
 /// into the surrounding `"…"` (O129): `puts "v=[string length abc]"` →
 /// `puts "v=5"`.
 ///
-/// Each `[cmd …]` whose head resolves to a const-foldable builtin with
-/// clean literal args is folded via [`fold_builtin_cmd_subst_raw`] and
-/// the raw result spliced in.  Soundness guards: the result must not
+/// Each original substitution with a proved executable registry target and
+/// closed original arguments is folded through the shared retained-call owner.  Soundness guards: the result must not
 /// reintroduce a substitution into the `"…"` context — a result
 /// carrying `$`, `[`, `]`, `\`, or `"` is left unfolded.  `$var`
 /// substitutions and any non-foldable `[cmd]` are kept verbatim; at
 /// least one successful fold is required to emit.
 fn visit_string_interpolation_cmd_subs(
     ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
+    tokens: &CommandTokens,
     span: tcl_lexer::Span,
     text: &str,
-    constants: &std::collections::HashMap<String, String>,
+    _constants: &std::collections::HashMap<String, String>,
 ) {
     let Some(registry) = ctx.registry else {
+        return;
+    };
+    let actual =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
+    let metadata = actual.as_deref().map(Into::into);
+    let Some(calls) = retained_substitution_calls(tokens, &cu.ir_module, registry) else {
         return;
     };
     let inside = text
@@ -2562,78 +2989,69 @@ fn visit_string_interpolation_cmd_subs(
     if is_whole_word_cmd_subst(inside) {
         return;
     }
-    // Byte scan is UTF-8-safe: the structural bytes we match (`[`, `]`,
-    // `\`, `"`) are all < 0x80, so they never occur inside a multi-byte
-    // sequence.  Text runs are flushed as `&str` slices (char-boundary
-    // safe) only when a fold actually happens; unfolded subs stay in the
-    // trailing un-flushed region.
-    let bytes = inside.as_bytes();
-    let n = bytes.len();
-    let mut out = String::with_capacity(n);
-    let mut last = 0; // start of the not-yet-flushed text
-    let mut i = 0;
+    let Some(rewrite_span) = original_quoted_word_rewrite_span(ctx, span, inside) else {
+        return;
+    };
+    let content_base = if ctx.source.as_bytes().get(rewrite_span.start() as usize) == Some(&b'"') {
+        rewrite_span.start().checked_add(1)
+    } else {
+        Some(rewrite_span.start())
+    };
+    let Some(content_base) = content_base else {
+        return;
+    };
+    let Some(content_end) = u32::try_from(inside.len())
+        .ok()
+        .and_then(|length| content_base.checked_add(length))
+    else {
+        return;
+    };
+    if ctx.source.get(content_base as usize..content_end as usize) != Some(inside) {
+        return;
+    }
+    let contained: Vec<_> = calls
+        .iter()
+        .filter(|call| call.span.start() >= content_base && call.span.end() <= content_end)
+        .collect();
+    let mut roots: Vec<_> = contained
+        .iter()
+        .copied()
+        .filter(|call| {
+            !contained.iter().any(|outer| {
+                outer.span.start() < call.span.start() && outer.span.end() >= call.span.end()
+            })
+        })
+        .collect();
+    roots.sort_by_key(|call| call.span.start());
+    let mut out = String::with_capacity(inside.len());
+    let mut last = 0;
     let mut folded_any = false;
-    while i < n {
-        match bytes[i] {
-            b'\\' => i += 2, // skip an escaped pair (so `\[` is not a sub)
-            b'[' => {
-                let start = i;
-                let mut depth = 0u32;
-                let mut j = i;
-                let mut close = None;
-                while j < n {
-                    match bytes[j] {
-                        b'\\' => j += 1,
-                        b'[' => depth += 1,
-                        b']' => {
-                            depth -= 1;
-                            if depth == 0 {
-                                close = Some(j);
-                                break;
-                            }
-                        }
-                        _ => {}
-                    }
-                    j += 1;
-                }
-                let Some(close) = close else {
-                    break; // unbalanced — leave the rest in `[last..]`
-                };
-                let cmd = &inside[start + 1..close];
-                if let Some(result) = fold_builtin_cmd_subst_raw(
-                    registry,
-                    &ctx.command_mutations,
-                    constants,
-                    cmd,
-                    ctx.dialect,
-                    None,
-                ) {
-                    // Reject a result that would re-introduce a
-                    // substitution into the `"…"` context.
-                    if !result
-                        .bytes()
-                        .any(|b| matches!(b, b'$' | b'[' | b']' | b'\\' | b'"'))
-                    {
-                        out.push_str(&inside[last..start]);
-                        out.push_str(&result);
-                        last = close + 1;
-                        folded_any = true;
-                    }
-                }
-                i = close + 1;
-            }
-            _ => i += 1,
+    for call in roots {
+        let Some(result) =
+            fold_retained_builtin(registry, call, &calls, None, metadata, ctx.dialect)
+        else {
+            continue;
+        };
+        if result
+            .bytes()
+            .any(|byte| matches!(byte, b'$' | b'[' | b']' | b'\\' | b'"'))
+        {
+            continue;
         }
+        let start = (call.span.start() - content_base) as usize;
+        let end = (call.span.end() - content_base) as usize;
+        let Some(prefix) = inside.get(last..start) else {
+            return;
+        };
+        out.push_str(prefix);
+        out.push_str(&result);
+        last = end;
+        folded_any = true;
     }
     if !folded_any {
         return;
     }
     out.push_str(&inside[last..]);
-    // The replacement is `inside` with the folds applied, so it may only be
-    // spliced over source the segmenter reported as exactly `inside`.
-    let Some(rewrite_span) = quoted_word_rewrite_span(ctx.source, span, inside) else {
-        return;
-    };
     ctx.report(Optimisation::new(
         DiagCode::O129,
         "Fold constant builtin command substitution in interpolation",
@@ -2647,20 +3065,19 @@ fn visit_simple_var_word(
     span: tcl_lexer::Span,
     text: &str,
     constants: &std::collections::HashMap<String, String>,
+    config: tcl_lexer::LexerConfig,
 ) {
-    let Some(varname) = simple_var_ref(text) else {
+    let Some(name) = whole_scalar_variable_reference_name(text, config) else {
         return;
     };
-    let normalised = normalise_var_name(&format!("${varname}")).to_owned();
-    let Some(value) = constants
-        .get(&normalised)
-        .or_else(|| constants.get(varname))
-    else {
+    let Some(value) = constants.get(name) else {
         return;
     };
     // Re-render a metacharacter-bearing constant as a
     // single self-contained word instead of bailing.
-    let word = render_propagation_word(value);
+    let Some(word) = render_propagation_word(value, config) else {
+        return;
+    };
     ctx.report(Optimisation::new(
         DiagCode::O100,
         "Propagate constant into command argument",
@@ -2685,6 +3102,7 @@ fn visit_string_interpolation(
     span: tcl_lexer::Span,
     text: &str,
     constants: &std::collections::HashMap<String, String>,
+    config: tcl_lexer::LexerConfig,
 ) {
     // The lexer's argv_text strips outer `"…"` delimiters, so
     // we accept either form. Skip strings whose content is a
@@ -2697,7 +3115,7 @@ fn visit_string_interpolation(
     if !inside.contains('$') {
         return;
     }
-    if simple_var_ref(inside).is_some() {
+    if whole_scalar_variable_reference_name(inside, config).is_some() {
         return;
     }
     // A free-standing `[cmd …]` word is a command substitution, not a
@@ -2708,11 +3126,7 @@ fn visit_string_interpolation(
     if is_whole_word_cmd_subst(inside) {
         return;
     }
-    let Some(rewritten) = substitute_dollar_refs(
-        inside,
-        constants,
-        tcl_lexer::LexerConfig::for_profile(ctx.dialect),
-    ) else {
+    let Some(rewritten) = substitute_dollar_refs(inside, constants, config.nested()) else {
         return;
     };
     if rewritten == inside {
@@ -2722,7 +3136,9 @@ fn visit_string_interpolation(
     // the opening-quote token (e.g. `"$` at 5..7). Extend to the
     // matching close quote so the rewrite target covers the full
     // string — otherwise we leave trailing `$b $c"` garbage.
-    let rewrite_span = full_quoted_string_span(ctx.source, span);
+    let Some(rewrite_span) = original_quoted_word_rewrite_span(ctx, span, inside) else {
+        return;
+    };
     ctx.report(Optimisation::new(
         DiagCode::O100,
         "Inline constant into string interpolation",
@@ -2818,8 +3234,7 @@ fn collect_var_refs(
                 // `$a(\x)`) names the element its value selects, not the one
                 // its spelling does, so it is left as written.
                 if tok.content_offset != 2
-                    && name
-                        .split_once('(')
+                    && tcl_syntax::naming::split_element_ref(name)
                         .is_some_and(|(_, index)| index.contains(['$', '[', '\\']))
                 {
                     continue;
@@ -2837,22 +3252,19 @@ fn collect_var_refs(
             }
             TokenType::Cmd => {
                 let inner = start + usize::from(tok.content_offset);
-                collect_var_refs(sm.token_text(tok), config, base + inner, cmd_depth + 1, out)?;
+                collect_var_refs(
+                    sm.token_text(tok),
+                    config.nested(),
+                    base + inner,
+                    cmd_depth + 1,
+                    out,
+                )?;
             }
             TokenType::ExprSugar => return None,
             _ => {}
         }
     }
     Some(())
-}
-
-/// Return the variable name inside a `$var` or `${var}` word, or
-/// `None` if the text is not a simple var reference.
-fn simple_var_ref(text: &str) -> Option<&str> {
-    if let Some(rest) = text.strip_prefix("${") {
-        return rest.strip_suffix('}').filter(|n| is_static_var_word(n));
-    }
-    text.strip_prefix('$').filter(|n| is_static_var_word(n))
 }
 
 /// Allow a literal to be inlined as a bare word if it is
@@ -2869,26 +3281,11 @@ fn is_value_safe_bare_word(value: &str) -> bool {
     is_safe_word(value)
 }
 
-/// Render a constant `value` as a single,
-/// self-contained Tcl word for O100 propagation into a command-argument
-/// or `return` value position.
-///
-/// A safe bare word (integer or `[A-Za-z0-9_./:+-]`-only identifier) is
-/// emitted verbatim. Anything
-/// else (whitespace, `$` / `[` / `;` / quotes, unbalanced braces, a
-/// trailing backslash, …) is re-rendered through the canonical
-/// `TclConvertElement`-style quoter [`crate::codegen::helpers::tcl_list_element`]
-/// (bare / brace-quoted / backslash-escaped, verified against Tcl's
-/// `list`), so `set msg {Hello World}; return $msg` collapses to
-/// `return {Hello World}` instead of bailing. The quoter never fails —
-/// it always yields a word that re-evaluates to the literal `value` —
-/// so this is total.
-fn render_propagation_word(value: &str) -> String {
-    if is_value_safe_bare_word(value) {
-        value.to_owned()
-    } else {
-        crate::codegen::helpers::tcl_list_element(value)
-    }
+/// Construct one literal source word under the caller's complete configuration.
+/// The shared Syntax owner verifies its decoded value and complete word shape;
+/// failure supplies no replacement. Evaluation and erasure proofs stay separate.
+fn render_propagation_word(value: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    tcl_syntax::word_rules::lexical_unicode_source_word(value, config)
 }
 
 /// The SCCP-proved constant for one exact SSA value, rendered as source text.
@@ -2901,23 +3298,27 @@ fn render_propagation_word(value: &str) -> String {
 /// stronger question and get an answer where the map has none.
 fn sccp_value_literal(
     fu: &FunctionUnit,
-    var_name: &str,
+    var_name: &crate::var_resolve::VariableCellKey,
     version: crate::ssa::Version,
+    policy: FoldPolicy,
 ) -> Option<String> {
-    use super::helpers::literals::format_constant;
+    use super::helpers::literals::format_constant_with_policy;
 
-    let sym = fu.ssa.var_symbol(var_name)?;
+    let sym = fu.ssa.cell_symbol(var_name)?;
     if !fu.sccp.materialises((sym, version)) {
         return None;
     }
     match fu.sccp.values.get(&(sym, version))? {
-        LatticeValue::Const(cv) => format_constant(cv),
+        LatticeValue::Const(cv) => format_constant_with_policy(cv, policy),
         _ => None,
     }
 }
 
-pub(super) fn sccp_constants_for(fu: &FunctionUnit) -> std::collections::HashMap<String, String> {
-    sccp_constants_from(&fu.sccp, &fu.ssa)
+pub(super) fn sccp_constants_for(
+    fu: &FunctionUnit,
+    policy: FoldPolicy,
+) -> std::collections::HashMap<String, String> {
+    sccp_constants_from(&fu.sccp, &fu.ssa, policy)
 }
 
 /// [`sccp_constants_for`]'s projection, over an explicitly-supplied lattice.
@@ -2929,8 +3330,9 @@ pub(super) fn sccp_constants_for(fu: &FunctionUnit) -> std::collections::HashMap
 fn sccp_constants_from(
     sccp: &crate::sccp::SccpResult,
     ssa: &crate::ssa::SsaFunction,
+    policy: FoldPolicy,
 ) -> std::collections::HashMap<String, String> {
-    use super::helpers::literals::format_constant;
+    use super::helpers::literals::format_constant_with_policy;
 
     let mut per_var: std::collections::HashMap<crate::ssa::Symbol, Vec<&ConstValue>> =
         std::collections::HashMap::new();
@@ -2954,8 +3356,11 @@ fn sccp_constants_from(
         if !cvs.iter().all(|cv| *cv == first) {
             continue;
         }
-        if let Some(text) = format_constant(first) {
-            out.insert(ssa.var_name(sym).to_owned(), text);
+        let display = ssa.var_name(sym);
+        if ssa.var_symbol(display) == Some(sym)
+            && let Some(text) = format_constant_with_policy(first, policy)
+        {
+            out.insert(display.to_owned(), text);
         }
     }
     out
@@ -2964,12 +3369,164 @@ fn sccp_constants_from(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interprocedural::test_body_identity::{
+        fixture_id, fixture_id_if_present, fixture_proc,
+    };
     use tcl_registry::CommandRegistry;
 
     use crate::interprocedural::InterproceduralAnalysis;
 
+    #[test]
+    fn return_literal_replacement_keeps_original_head_and_result_word_owner() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        for (source, expected) in [
+            ("::return $result", "::return {Hello World}"),
+            ("return [::expr {2 + 3}]", "return {Hello World}"),
+        ] {
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+                .with_resolved_analysis_input(input.clone());
+            lowerer.lower(source);
+            let module = lowerer.finish_module(source);
+            let statement = module.top_level.statements.last().unwrap();
+            assert!(matches!(
+                statement,
+                Statement::Return {
+                    value_word: Some(_),
+                    ..
+                }
+            ));
+            let tokens = module
+                .top_level
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let mut ctx = PassContext::new(source, InterproceduralAnalysis::default());
+            ctx.registry = Some(registry);
+            ctx.ir_module = Some(&module);
+            let (span, replacement) =
+                original_return_value_replacement(&ctx, statement, tokens, "Hello World").unwrap();
+            assert_eq!(
+                span,
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap())
+            );
+            assert_eq!(replacement, expected);
+            ctx.source = "return foreign";
+            assert!(
+                original_return_value_replacement(&ctx, statement, tokens, "Hello World").is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn return_source_word_constructor_keeps_head_and_rejects_multiple_words() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        for (source, expected) in [
+            ("::return $result", "::return [::expr {$x}]"),
+            ("return [::expr {2 + 3}]", "return [::expr {$x}]"),
+        ] {
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+                .with_resolved_analysis_input(input.clone());
+            lowerer.lower(source);
+            let module = lowerer.finish_module(source);
+            let statement = module.top_level.statements.last().unwrap();
+            assert!(matches!(
+                statement,
+                Statement::Return {
+                    value_word: Some(_),
+                    ..
+                }
+            ));
+            let tokens = module
+                .top_level
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let mut ctx = PassContext::new(source, InterproceduralAnalysis::default());
+            ctx.registry = Some(registry);
+            ctx.ir_module = Some(&module);
+            let (span, replacement) =
+                original_return_word_replacement(&ctx, statement, tokens, "[::expr {$x}]").unwrap();
+            assert_eq!(
+                span,
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap())
+            );
+            assert_eq!(replacement, expected);
+            assert!(
+                original_return_word_replacement(
+                    &ctx,
+                    statement,
+                    tokens,
+                    "[::expr {$x}]; unwanted"
+                )
+                .is_none()
+            );
+            assert!(
+                original_return_word_replacement(&ctx, statement, tokens, "{*}[::expr {$x}]")
+                    .is_none()
+            );
+            ctx.source = "return foreign";
+            assert!(
+                original_return_word_replacement(&ctx, statement, tokens, "[::expr {$x}]")
+                    .is_none()
+            );
+        }
+    }
+
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    fn proc_fold_context(cu: &CompilationUnit, name: &str) -> String {
+        let summary = cu.interproc.as_ref().and_then(|ia| fixture_proc(ia, name));
+        let summary = summary.map(|s| {
+            (
+                s.pure,
+                s.can_fold_static_calls,
+                s.has_barrier,
+                s.has_unknown_calls,
+                s.writes_global,
+                &s.constant_return,
+            )
+        });
+        let body = cu.function(name).map(|fu| {
+            let statements: Vec<_> = fu
+                .cfg
+                .blocks
+                .iter()
+                .map(|(id, block)| {
+                    let kinds: Vec<_> = block
+                        .statements
+                        .iter()
+                        .map(std::mem::discriminant)
+                        .collect();
+                    (
+                        id,
+                        kinds,
+                        block.terminator.as_ref().map(std::mem::discriminant),
+                    )
+                })
+                .collect();
+            (statements, &fu.sccp.values, &fu.sccp.executable_blocks)
+        });
+        format!("summary(pure,fold,barrier,unknown,global,return)={summary:?}, body={body:?}")
     }
 
     fn run_pass(source: &str) -> Vec<Optimisation> {
@@ -2989,6 +3546,30 @@ mod tests {
     }
 
     #[test]
+    fn propagation_literal_words_retain_selected_grammar_and_exact_unicode_value() {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let mut config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            config.strict_quoting = !config.strict_quoting;
+            for value in [
+                "",
+                "42",
+                "has space",
+                "$literal [data]",
+                "brace}tail",
+                "λ",
+                "line\nnext",
+                "trailing\\",
+            ] {
+                let word = render_propagation_word(value, config).unwrap();
+                assert!(tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+                    &word, value, config
+                ));
+            }
+        }
+    }
+
+    #[test]
     fn resolve_proc_qname_walks_namespace_chain() {
         // Two procs in `::ns`; a bare `inner` call from `::ns` resolves to
         // `::ns::inner`, not the (absent) root `::inner`.
@@ -3005,7 +3586,7 @@ mod tests {
             None,
         );
         assert!(
-            ia.procedures.contains_key("::ns::inner"),
+            fixture_id_if_present(&ia.procedures, "::ns::inner").is_some(),
             "expected ::ns::inner in IA, got {:?}",
             ia.procedures.keys().collect::<Vec<_>>(),
         );
@@ -3046,7 +3627,7 @@ mod tests {
             None,
         );
         assert!(
-            ia.procedures.contains_key("::a::foo"),
+            fixture_id_if_present(&ia.procedures, "::a::foo").is_some(),
             "expected ::a::foo in IA, got {:?}",
             ia.procedures.keys().collect::<Vec<_>>(),
         );
@@ -3096,8 +3677,8 @@ mod tests {
             crate::realm::CommandBindingRealm::none(),
             None,
         );
-        assert!(ia.procedures.contains_key("::ns2::inner"));
-        assert!(ia.procedures.contains_key("::ns::ns2::inner"));
+        assert!(fixture_id_if_present(&ia.procedures, "::ns2::inner").is_some());
+        assert!(fixture_id_if_present(&ia.procedures, "::ns::ns2::inner").is_some());
         assert_eq!(
             resolve_proc_qname("ns2::inner", "::ns", &ia).as_deref(),
             Some("::ns::ns2::inner"),
@@ -3145,11 +3726,80 @@ mod tests {
     }
 
     #[test]
+    fn o127_operand_selection_follows_the_actual_alias_cell() {
+        use crate::ssa::SsaSourceView;
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for names in [("value", "pointer"), ("pointer", "value")] {
+            let source = format!(
+                "proc p {{input}} {{set {} [llength $input]; set other [llength $input]; upvar 0 {} {}; puts ${{{}}}}}",
+                names.0, names.0, names.1, names.1
+            );
+            let unit = CompilationUnit::build_for(&source, registry, false);
+            let function = unit.function("::p").unwrap();
+            let mut checked = false;
+            for (&block, body) in &function.ssa.blocks {
+                for (index, statement) in body.statements.iter().enumerate() {
+                    let Some(tokens) = statement.statement.tokens() else {
+                        continue;
+                    };
+                    if tokens.argv_texts.first().map(String::as_str) != Some("puts") {
+                        continue;
+                    }
+                    let view = SsaSourceView::at_statement(&function.ssa, block, index);
+                    let operand = &tokens.words()[1];
+                    let read = view.read_word(operand).unwrap();
+                    let version = read.version.unwrap();
+                    let (span, prior_effect) = locate_use_var(
+                        tokens,
+                        view,
+                        read.symbol,
+                        version,
+                        registry,
+                        unit.ir_module.lexer_config,
+                    )
+                    .unwrap();
+                    assert!(!prior_effect);
+                    let span = tcl_lexer::word_span_at(&source, span);
+                    assert_eq!(
+                        &source[span.start() as usize..span.end() as usize],
+                        format!("${{{}}}", names.1)
+                    );
+                    let other = view.reaching_binding("other", registry).unwrap().symbol;
+                    assert_ne!(other, read.symbol);
+                    assert!(
+                        locate_use_var(
+                            tokens,
+                            view,
+                            other,
+                            version,
+                            registry,
+                            unit.ir_module.lexer_config
+                        )
+                        .is_none()
+                    );
+                    checked = true;
+                }
+            }
+            assert!(checked);
+            assert!(
+                o127(&source).is_empty(),
+                "an aliased receiver cannot move its store"
+            );
+        }
+    }
+
+    #[test]
+    fn o127_observed_alias_receiver_keeps_its_original_store() {
+        let source = "proc observe args {}; proc p {input} {set value [llength $input]; upvar 0 value pointer; trace add variable pointer write observe; puts $pointer}";
+        assert_eq!(o127(source), [] as [crate::optimiser::Optimisation; 0]);
+    }
+
+    #[test]
     fn o127_skips_intervening_side_effect() {
         // The intervening `puts` is impure → forwarding past it is
         // unsafe.
         let src = "proc p {y} {\n    set x [llength $y]\n    puts hi\n    puts $x\n}\n";
-        assert!(o127(src).is_empty(), "{:?}", o127(src));
+        assert_eq!(o127(src).len(), 0, "{:?}", o127(src));
     }
 
     #[test]
@@ -3161,7 +3811,7 @@ mod tests {
         // re-evaluated inline could compute a different value.
         let src =
             "proc p {y} {\n    set x [llength $y]\n    uplevel 1 {incr ::n}\n    puts $x\n}\n";
-        assert!(o127(src).is_empty(), "{:?}", o127(src));
+        assert_eq!(o127(src).len(), 0, "{:?}", o127(src));
     }
 
     #[test]
@@ -3169,14 +3819,14 @@ mod tests {
         // Tcl substitutes words left-to-right. Moving the `llength` past the
         // preceding substitution would make it observe the emptied `y`.
         let src = "proc p {y} {\n    set x [llength $y]\n    puts [set y {}] $x\n}\n";
-        assert!(o127(src).is_empty(), "{:?}", o127(src));
+        assert_eq!(o127(src).len(), 0, "{:?}", o127(src));
     }
 
     #[test]
     fn o127_skips_multiple_uses() {
         // Two uses of `$x` → not single-use, no forwarding.
         let src = "proc p {y} {\n    set x [llength $y]\n    puts $x\n    puts $x\n}\n";
-        assert!(o127(src).is_empty(), "{:?}", o127(src));
+        assert_eq!(o127(src).len(), 0, "{:?}", o127(src));
     }
 
     #[test]
@@ -3186,7 +3836,7 @@ mod tests {
         // block the forward — the forward still fires into the operand use
         // while preserving the assignment for the `return`. The inlined
         // `[set x …]` keeps `x` defined for the trailing `return`.
-        let src = "proc p {y} {\n    set x [llength $y]\n    baz $x\n    return $x\n}\n";
+        let src = "proc baz {value} {return $value}\nproc p {y} {\n    set x [llength $y]\n    baz $x\n    return $x\n}\n";
         let opts = o127(src);
         assert_eq!(opts.len(), 2, "{opts:?}");
         assert!(
@@ -3197,10 +3847,16 @@ mod tests {
     }
 
     #[test]
+    fn o127_declines_a_later_unproved_call_after_an_opaque_endpoint() {
+        let source = "proc p {y} {set x [llength $y]; baz $x; return $x}";
+        assert_eq!(o127(source), [] as [crate::optimiser::Optimisation; 0]);
+    }
+
+    #[test]
     fn o127_skips_literal_assignment() {
         // A literal `set x 5` is the O102 path, not O127.
         let src = "proc p {} {\n    set x 5\n    puts $x\n}\n";
-        assert!(o127(src).is_empty(), "{:?}", o127(src));
+        assert_eq!(o127(src).len(), 0, "{:?}", o127(src));
     }
 
     // internal helpers
@@ -3238,11 +3894,192 @@ mod tests {
     }
 
     #[test]
+    fn interpolation_uses_retained_close_policy_over_catalogue_profile() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Lexical rewrite software control, not variable/frame or Native evidence.
+        let source = "\"v=${a{b}c}\"";
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut context =
+            PassContext::with_dialect(source, InterproceduralAnalysis::default(), Some(profile));
+        let original_config = context.lexer_config();
+        context.source_lexer_config = Some(tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::Tcl9Nesting,
+            ..tcl_lexer::LexerConfig::from_grammar(profile.grammar)
+        });
+        let registry_context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = registry_context.commands();
+        let module_for = |config| {
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::clone(&registry_context),
+                config,
+            );
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+                .with_resolved_analysis_input(input);
+            lowerer.lower(source);
+            lowerer.finish_module(source)
+        };
+        let selected_module = module_for(context.lexer_config());
+        context.registry = Some(registry);
+        context.ir_module = Some(&selected_module);
+        let constants = std::collections::HashMap::from([
+            ("a{b}c".into(), "NESTED".into()),
+            ("a{b".into(), "FIRST".into()),
+        ]);
+        let config = context.lexer_config();
+        visit_string_interpolation(
+            &mut context,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            source,
+            &constants,
+            config,
+        );
+        assert_eq!(context.optimisations.len(), 1);
+        assert_eq!(context.optimisations[0].replacement, "\"v=NESTED\"");
+        context.source_lexer_config = None;
+        let original_module = module_for(original_config);
+        context.ir_module = Some(&original_module);
+        context.optimisations.clear();
+        let config = context.lexer_config();
+        visit_string_interpolation(
+            &mut context,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            source,
+            &constants,
+            config,
+        );
+        assert_eq!(context.optimisations.len(), 1);
+        assert_eq!(context.optimisations[0].replacement, "\"v=FIRSTc}\"");
+    }
+
+    #[test]
+    fn interpolation_element_indices_keep_literal_braced_names_and_dynamic_refusal() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let constants = std::collections::HashMap::from([
+            ("a($idx)".into(), "ELEMENT".into()),
+            ("a($idx".into(), "SCALAR".into()),
+        ]);
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        assert_eq!(
+            substitute_dollar_refs("v=$a($idx)", &constants, config).as_deref(),
+            Some("v=$a($idx)")
+        );
+        assert_eq!(
+            substitute_dollar_refs("v=${a($idx)}", &constants, config).as_deref(),
+            Some("v=ELEMENT")
+        );
+        assert_eq!(
+            substitute_dollar_refs("v=${a($idx}", &constants, config).as_deref(),
+            Some("v=SCALAR")
+        );
+    }
+
+    #[test]
+    fn retained_substitution_inventory_keeps_module_input_config_and_availability() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Conditional original child geometry, without handler or erasure permission.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            expand_syntax: false,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::from_grammar(profile.grammar)
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            "expr {[dict size [dict create key value]]}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        let module = &unit.ir_module;
+        let script = &module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        let calls = retained_substitution_calls(tokens, module, context.commands()).unwrap();
+        assert_eq!(calls.len(), 2);
+        assert!(
+            calls
+                .iter()
+                .all(|call| call.tokens.as_ref().is_some_and(|tokens| tokens
+                    .source_binding
+                    .as_ref()
+                    .is_some_and(|binding| binding.invocation_site().is_some())))
+        );
+        for change in 0..5 {
+            let mut changed = module.clone();
+            match change {
+                0 => changed.retained_source_bindings = None,
+                1 => changed.source_entry.unknown_entry = !changed.source_entry.unknown_entry,
+                2 => changed.top_level_namespace = "::other".into(),
+                3 => {
+                    changed.native_namespace =
+                        Some(tcl_core_types::ByteNamespacePath::from_segments(["other"]))
+                }
+                4 => changed.top_level_kind = crate::ir::TopLevelKind::ProcedureBody,
+                _ => unreachable!(),
+            }
+            assert!(
+                crate::registry_invocation::InvocationMetadataContext::for_module(
+                    context.commands(),
+                    &changed
+                )
+                .is_some()
+            );
+            assert!(retained_substitution_calls(tokens, &changed, context.commands()).is_none());
+        }
+        let mut changed = module.clone();
+        changed.lexer_config.expand_syntax = true;
+        assert!(retained_substitution_calls(tokens, &changed, context.commands()).is_none());
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(context.commands())),
+        );
+        assert!(std::sync::Arc::ptr_eq(older.commands(), context.commands()));
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        for supplied in [Some(older), Some(foreign), None] {
+            changed = module.clone();
+            changed.source_metadata_input = supplied.map(|availability| {
+                crate::analyser::ResolvedAnalysisInput::new(profile, profile, availability, config)
+            });
+            assert!(retained_substitution_calls(tokens, &changed, context.commands()).is_none());
+        }
+    }
+
+    #[test]
     fn simple_var_ref_parses_bare_and_braced() {
-        assert_eq!(simple_var_ref("$foo"), Some("foo"));
-        assert_eq!(simple_var_ref("${bar}"), Some("bar"));
-        assert!(simple_var_ref("$foo(idx)").is_none());
-        assert!(simple_var_ref("plain").is_none());
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        assert_eq!(
+            whole_scalar_variable_reference_name("$foo", config),
+            Some("foo")
+        );
+        assert_eq!(
+            whole_scalar_variable_reference_name("${bar}", config),
+            Some("bar")
+        );
+        assert!(whole_scalar_variable_reference_name("$foo(idx)", config).is_none());
+        assert!(whole_scalar_variable_reference_name("plain", config).is_none());
     }
 
     #[test]
@@ -3326,6 +4163,24 @@ mod tests {
                 .any(|o| o.code == DiagCode::O100 && o.replacement == "7"),
             "expected O100 for braced var ref, got {opts:?}",
         );
+    }
+
+    #[test]
+    fn return_literal_and_compound_names_do_not_borrow_scalar_constants() {
+        for source in [
+            "proc f {} {set x 42; return {$x}}",
+            "proc f {} {set a 42; set a:b 99; return $a:b}",
+            "proc f {} {set arr 42; return ${arr(k)}}",
+        ] {
+            let optimisations = run_pass(source);
+            assert!(
+                optimisations.iter().all(|optimisation| {
+                    optimisation.code != DiagCode::O100
+                        || !optimisation.replacement.starts_with("return ")
+                }),
+                "{source}: {optimisations:?}"
+            );
+        }
     }
 
     #[test]
@@ -3426,8 +4281,9 @@ mod tests {
             ctx.optimisations
                 .iter()
                 .any(|o| o.code == DiagCode::O103 && o.replacement == "6"),
-            "expected O103 folding [::add 2 4] to 6, got {:?}",
+            "expected O103 folding [::add 2 4] to 6, got {:?}; {}",
             ctx.optimisations,
+            proc_fold_context(&cu, "::add"),
         );
     }
 
@@ -3512,6 +4368,7 @@ mod tests {
         ctx.registry = Some(&reg);
         ctx.command_mutations =
             crate::command_binding::scan_module_command_mutations(&cu.ir_module, &reg);
+        ctx.ir_module = Some(&cu.ir_module);
         run(&mut ctx, &cu);
         ctx.optimisations
     }
@@ -3798,8 +4655,9 @@ mod tests {
                 .iter()
                 .filter(|o| o.code.as_str().starts_with("O1") && o.replacement == "1")
                 .collect();
-            assert!(
-                forwarded.is_empty(),
+            assert_eq!(
+                forwarded.len(),
+                0,
                 "no O1xx may forward the literal into a variable-name position \
                  of {source:?}, got {forwarded:?}",
             );
@@ -4113,6 +4971,23 @@ mod tests {
     }
 
     #[test]
+    fn o103_scoped_call_withdraws_later_callee_changes_and_unknown_entry() {
+        for source in [
+            "proc answer {} {return 42}; proc f {} {set y [answer]}; rename answer saved; proc answer {} {return 99}",
+            "proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry",
+            "proc answer {} {return 42}; proc f {} {set y [answer]}; trace add execution answer enter callback",
+        ] {
+            let opts = run_pass_with_command_mutations(source);
+            assert!(
+                opts.iter()
+                    .all(|optimisation| optimisation.code != DiagCode::O103
+                        || optimisation.hint_only),
+                "{source}: {opts:?}"
+            );
+        }
+    }
+
+    #[test]
     fn o103_bare_call_stays_hint_only() {
         // Top-level `::answer` — the call result is discarded, so
         // folding it as a statement would leave an invalid `42`
@@ -4288,8 +5163,9 @@ mod tests {
             ctx.optimisations
                 .iter()
                 .any(|o| o.code == DiagCode::O103 && o.replacement == "3" && !o.hint_only),
-            "expected applicable O103 folding [pi] to 3 (implicit `set` return), got {:?}",
+            "expected applicable O103 folding [pi] to 3 (implicit `set` return), got {:?}; {}",
             ctx.optimisations,
+            proc_fold_context(&cu, "::pi"),
         );
     }
 
@@ -4393,19 +5269,15 @@ mod tests {
         ctx.registry = Some(&registry);
         ctx.command_mutations =
             crate::command_binding::scan_module_command_mutations(&cu.ir_module, &registry);
+        ctx.ir_module = Some(&cu.ir_module);
         run(&mut ctx, &cu);
         ctx.optimisations
     }
 
     #[test]
     fn o103_does_not_fold_call_to_proc_renamed_over() {
-        // FP guard / miscompile-guard: `rename triple double` moves the
-        // `triple` proc's body onto the name `double`, so a later `[double
-        // 21]` call actually runs `triple`'s body (21*3 == 63), NOT the
-        // original `double` proc's body (21*2 == 42) that `resolve_proc_qname`
-        // finds in the interprocedural summary. Folding to `42` here would be
-        // a miscompile (tclsh 9.0.4 confirmed: `double 21` after this rename
-        // returns `63`).
+        // The selected moved allocation cannot borrow the replaced body's summary.
+        // Original C9.0.4: double 21 returns 63 after this rename.
         let src = "proc double {n} { expr {$n * 2} }\nproc triple {n} { expr {$n * 3} }\nrename triple double\nputs [double 21]\n";
         let opts = run_pass_with_command_mutations(src);
         assert!(
@@ -4415,16 +5287,17 @@ mod tests {
     }
 
     #[test]
-    fn o103_does_not_fold_call_to_proc_shadowed_by_interp_alias() {
-        // FP guard: `interp alias {} answer {} other` shadows the `answer`
-        // command with an alias to `other` — a later `[answer]` call runs
-        // `other`'s body (99), not the original `answer` proc's body (42).
+    fn o103_folds_the_actual_procedure_selected_by_interp_alias() {
+        // The selected alias target returns 99 on C Tcl 8.4–9.1.
         let src = "proc answer {} { return 42 }\nproc other {} { return 99 }\ninterp alias {} answer {} other\nputs [answer]\n";
         let opts = run_pass_with_command_mutations(src);
         assert!(
-            opts.iter().all(|o| o.code != DiagCode::O103 || o.hint_only),
-            "call to a proc shadowed by interp alias must not fold, got {opts:?}",
+            opts.iter()
+                .any(|o| o.code == DiagCode::O103 && !o.hint_only && o.replacement == "99"),
+            "the exact alias target must fold to its own result, got {opts:?}",
         );
+        let jim = crate::optimiser::optimise_raw(src, &registry(), Some("jim"));
+        assert!(jim.iter().all(|o| o.code != DiagCode::O103 || o.hint_only));
     }
 
     #[test]
@@ -4588,16 +5461,32 @@ mod tests {
         assert_eq!(fold("puts [string map {a b} aaa]"), vec!["bbb".to_string()]);
         assert_eq!(fold("puts [subst hello]"), vec!["hello".to_string()]);
         // `subst` with a substitution must NOT fold (no upstream resolution).
-        assert!(fold("puts [subst {$x}]").is_empty());
+        assert_eq!(fold("puts [subst {$x}]"), [] as [std::string::String; 0]);
         // `string is` Tcl-faithful classes.
         assert_eq!(fold("puts [string is alpha abc]"), vec!["1".to_string()]);
         assert_eq!(fold("puts [string is lower abc1]"), vec!["0".to_string()]);
         assert_eq!(fold("puts [string is boolean yes]"), vec!["1".to_string()]);
-        // `list` is a Tcl 8.5+ class (absent from 8.4's 18-class table) --
-        // like `wideinteger` below, this optimiser run uses `dialect=None`,
-        // so the version-aware folder bails rather than risk folding a call
-        // that would raise "bad class" under an 8.4 profile.
-        assert!(fold("puts [string is list {a b c}]").is_empty());
+        // The convenience driver retains its documented C9 native target.
+        // Actual C8.4 and Jim reject these classes; the selected target matters.
+        assert_eq!(fold("puts [string is list {a b c}]"), vec!["1".to_owned()]);
+        let legacy = tcl_registry::model::ingress::static_context_for("tcl8.4");
+        for source in [
+            "puts [string is list {a b c}]",
+            "puts [string is wideinteger 42]",
+        ] {
+            assert!(
+                crate::optimiser::optimise_raw_for_profile(
+                    source,
+                    legacy.commands(),
+                    Some(
+                        tcl_registry::model::ingress::resolve_environment("tcl8.4")
+                            .analyser_profile()
+                    ),
+                )
+                .iter()
+                .all(|finding| finding.code != DiagCode::O129)
+            );
+        }
         // `format` %s / %d / %% subset.
         assert_eq!(fold("puts [format %d 42]"), vec!["42".to_string()]);
         assert_eq!(fold("puts [format {v=%s} hi]"), vec!["v=hi".to_string()]);
@@ -4606,27 +5495,36 @@ mod tests {
         assert_eq!(fold("puts [format %05d 7]"), vec!["00007".to_string()]);
         assert_eq!(fold("puts [format %.3d 5]"), vec!["005".to_string()]);
         // `%#d` stays unfolded (`0d5` on Tcl 9, `5` on 8.6 — divergent).
-        assert!(fold("puts [format %#d 5]").is_empty());
+        assert_eq!(fold("puts [format %#d 5]"), [] as [std::string::String; 0]);
         // `string is integer` / `double` fold over their
         // dialect-invariant subsets.
         assert_eq!(fold("puts [string is integer 42]"), vec!["1".to_string()]);
         assert_eq!(fold("puts [string is double 1.5]"), vec!["1".to_string()]);
         assert_eq!(fold("puts [string is double abc]"), vec!["0".to_string()]);
-        // This optimiser run uses `dialect=None`, so the version-aware folder
-        // bails on `wideinteger` (it raises on some supported versions, hence is
-        // unsafe to fold without a known dialect).
-        assert!(fold("puts [string is wideinteger 42]").is_empty());
+        assert_eq!(
+            fold("puts [string is wideinteger 42]"),
+            vec!["1".to_owned()]
+        );
         // A braced literal with a space → result rendered as one word.
         assert_eq!(
             fold("puts [string toupper {a b}]"),
             vec!["{A B}".to_string()],
         );
         // A `$var` arg is not a constant literal → no fold.
-        assert!(fold("puts [string toupper $x]").is_empty());
+        assert_eq!(
+            fold("puts [string toupper $x]"),
+            [] as [std::string::String; 0]
+        );
         // The range form (`string toupper s first last`) does not fold.
-        assert!(fold("puts [string toupper foo 0 0]").is_empty());
+        assert_eq!(
+            fold("puts [string toupper foo 0 0]"),
+            [] as [std::string::String; 0]
+        );
         // A non-builtin head (a user proc) is not an O129 candidate.
-        assert!(fold("proc ::p {} { return 1 }\nputs [::p]").is_empty());
+        assert_eq!(
+            fold("proc ::p {} { return 1 }\nputs [::p]"),
+            [] as [std::string::String; 0]
+        );
     }
 
     /// The folded command substitution carries its own quoted argument, so
@@ -4649,6 +5547,31 @@ mod tests {
             &fold.replacement,
         );
         assert_eq!(rewritten, "puts \"aBc\"\n");
+    }
+
+    #[test]
+    fn retained_const_subst_accepts_only_closed_literal_templates() {
+        let literal = "puts [string toupper \"a\\tb\"]";
+        let findings = crate::optimiser::optimise_raw(literal, &registry(), None);
+        let fold = findings
+            .iter()
+            .find(|finding| finding.code == DiagCode::O129 && !finding.hint_only)
+            .expect("the native word owner resolves a quoted literal");
+        assert_eq!(
+            tcl_syntax::list::split_list(&fold.replacement).unwrap(),
+            vec!["A\tB"]
+        );
+        for source in [
+            "proc p {value} {puts [string toupper \"$value\"]}",
+            "puts [string toupper \"[operation]\"]",
+        ] {
+            assert!(
+                crate::optimiser::optimise_raw(source, &registry(), None)
+                    .iter()
+                    .all(|finding| finding.code != DiagCode::O129 || finding.hint_only),
+                "{source}"
+            );
+        }
     }
 
     /// A `"…"` word holding a command-position comment reaches across a
@@ -4681,35 +5604,27 @@ mod tests {
     }
 
     #[test]
-    fn o129_concat_trailing_backslash_space_word_is_not_folded() {
-        // `Tcl_ConcatObj`'s trailing-whitespace trim in the VM, when it lands
-        // on a backslash, re-exposes one byte (`concat a {b\ } c` -> `a b\  c`,
-        // two spaces; the exact util-4.3 shape `concat a {b\\   } c` ->
-        // `a b\\  c`).  The registry `fold_concat` uses a simple
-        // `" ".join(a.strip() …)` model and so does NOT replicate that
-        // re-expose rule — it is unsound *in isolation* for a
-        // trailing-backslash-whitespace word.  Soundness is upheld by the
-        // optimiser's input gate: `literal_words` bails on ANY backslash-bearing
-        // word (it does not decode escapes), so `fold_concat` never receives one.
-        // Drop the `literal_words` backslash bail and this test
-        // fails — the cmd-sub would fold to a wrong literal.
-        let fold = |src: &str| -> Vec<String> {
-            crate::optimiser::optimise_raw(src, &registry(), None)
+    fn o129_concat_preserves_native_trailing_backslash_space_bytes() {
+        // All six native engines re-expose exactly one trailing byte after a
+        // backslash. The shared concat owner now models that operation.
+        for (source, expected) in [
+            ("puts [concat a b c]", "a b c"),
+            ("puts [concat a {b\\ } c]", "a b\\  c"),
+            ("puts [concat {b\\ }]", "b\\ "),
+            ("puts [concat a {b\\\\   } c]", "a b\\\\  c"),
+        ] {
+            let replacements = crate::optimiser::optimise_raw(source, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == DiagCode::O129)
-                .map(|o| o.replacement)
-                .collect()
-        };
-        // Sanity: a backslash-free concat still folds (the path is live).
-        assert_eq!(fold("puts [concat a b c]"), vec!["{a b c}".to_string()]);
-        // A braced word carrying a backslash escape is left unfolded.
-        assert!(
-            fold("puts [concat a {b\\ } c]").is_empty(),
-            "trailing backslash-space word must not fold (re-expose rule unmodelled)",
-        );
-        assert!(fold("puts [concat {b\\ }]").is_empty());
-        // The exact util-4.3 shape (double backslash, trailing spaces).
-        assert!(fold("puts [concat a {b\\\\   } c]").is_empty());
+                .filter(|finding| finding.code == DiagCode::O129 && !finding.hint_only)
+                .map(|finding| finding.replacement)
+                .collect::<Vec<_>>();
+            assert_eq!(replacements.len(), 1, "{source}");
+            assert_eq!(
+                tcl_syntax::list::split_list(&replacements[0]).unwrap(),
+                vec![expected],
+                "{source}"
+            );
+        }
     }
 
     #[test]
@@ -4739,7 +5654,10 @@ mod tests {
             vec!["\"len=3\"".to_string()],
         );
         // A non-constant var does not resolve → no fold.
-        assert!(fold("puts [string length $undefined]").is_empty());
+        assert_eq!(
+            fold("puts [string length $undefined]"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -4762,18 +5680,20 @@ mod tests {
             vec!["\"n=3 items\"".to_string()],
         );
         // A non-foldable embedded sub leaves the string unfolded.
-        assert!(fold("puts \"x=[someproc]\"").is_empty());
+        assert_eq!(
+            fold("puts \"x=[someproc]\""),
+            [] as [std::string::String; 0]
+        );
         // Soundness guard: a result that would re-introduce a `$`
         // substitution into the `\"…\"` is not spliced.
-        assert!(fold("puts \"v=[string cat {$} x]\"").is_empty());
+        assert_eq!(
+            fold("puts \"v=[string cat {$} x]\""),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
-    fn o129_trust_gate_suppresses_fold_for_rebound_builtin() {
-        // The builtin-fold trust gate. When the
-        // module renames/redefines `string` anywhere, the whole-module
-        // mutation scan distrusts it and O129 must not fold a `[string
-        // …]` cmd-sub with the original builtin semantics.
+    fn o129_uses_the_actual_binding_before_and_after_a_rebinder() {
         let fold = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
@@ -4783,29 +5703,21 @@ mod tests {
         };
         // Baseline: untouched `string` folds.
         assert_eq!(fold("puts [string toupper foo]"), vec!["FOO".to_string()]);
-        // Rebound in a proc body → distrusted everywhere → no fold (the
-        // scan over-approximates: any builtin a body may rebind is
-        // untrusted, regardless of whether the proc is ever called).
-        assert!(
-            fold("proc clobber {} { rename string {} }\nputs [string toupper foo]").is_empty(),
-            "rebound-in-proc-body builtin must not fold",
+        // An uncalled declaration leaves the stock command selected.
+        assert_eq!(
+            fold("proc clobber {} { rename string {} }\nputs [string toupper foo]"),
+            vec!["FOO".to_string()],
         );
-        // Top-level rename before the call → also distrusted (the scan is
-        // whole-module / flow-insensitive).
-        assert!(
-            fold("rename string {}\nputs [string toupper foo]").is_empty(),
+        assert_eq!(
+            fold("proc clobber {} { rename string {} }\nclobber\nputs [string toupper foo]"),
+            [] as [String; 0],
+            "a completed rebinder removes the reached builtin",
+        );
+        assert_eq!(
+            fold("rename string {}\nputs [string toupper foo]").len(),
+            0,
             "renamed-away builtin must not fold",
         );
-    }
-
-    #[test]
-    fn simple_var_ref_matches_recognises_forms() {
-        assert!(simple_var_ref_matches("$x", "x"));
-        assert!(simple_var_ref_matches("${x}", "x"));
-        assert!(!simple_var_ref_matches("$y", "x"));
-        assert!(!simple_var_ref_matches("plain", "x"));
-        // Array subscript → not a simple ref.
-        assert!(!simple_var_ref_matches("$x(0)", "x"));
     }
 
     #[test]
@@ -4820,6 +5732,123 @@ mod tests {
             "expected O100 via run_passes, got {:?}",
             ctx.optimisations,
         );
+    }
+    #[test]
+    fn retained_substitution_folds_use_the_selected_namespace_path_procedure() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let source = "proc ::p {} {return GLOBAL}\n\
+                      namespace eval ::lib {proc p {} {return PATH}}\n\
+                      namespace eval ::N {namespace path ::lib; proc caller {} {puts [p]}}\n\
+                      ::N::caller";
+        let cu = CompilationUnit::build_for_dialect(source, registry, false, "tcl9.0")
+            .with_interprocedural(
+                registry,
+                Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+                ),
+            );
+        let mut context = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        context.registry = Some(registry);
+        run(&mut context, &cu);
+        assert!(
+            context.optimisations.iter().all(|optimisation| {
+                optimisation.code != DiagCode::O103
+                    || optimisation.hint_only
+                    || optimisation.replacement != "GLOBAL"
+            }),
+            "{:?}",
+            context.optimisations
+        );
+    }
+
+    #[test]
+    fn retained_substitution_folds_decline_namespaced_builtin_shadows() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        for invocation in ["[expr {1 + 2}]", "[string length abc]", "[list a b]"] {
+            let source = format!(
+                "namespace eval N {{proc expr {{args}} {{return EXPR}}; proc string {{args}} {{return STRING}}; proc list {{args}} {{return LIST}}; proc run {{}} {{puts {invocation}}}}}\nN::run"
+            );
+            let cu = CompilationUnit::build_for_dialect(&source, registry, false, "tcl9.0")
+                .with_interprocedural(
+                    registry,
+                    Some(
+                        tcl_registry::model::ingress::resolve_environment("tcl9.0")
+                            .analyser_profile(),
+                    ),
+                );
+            let mut context =
+                PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+            context.registry = Some(registry);
+            run(&mut context, &cu);
+            assert!(
+                context.optimisations.iter().all(|optimisation| {
+                    !matches!(
+                        optimisation.code,
+                        DiagCode::O101
+                            | DiagCode::O115
+                            | DiagCode::O116
+                            | DiagCode::O118
+                            | DiagCode::O129
+                    ) || optimisation.hint_only
+                        || !source
+                            .get(optimisation.span.as_range())
+                            .is_some_and(|text| text.contains(invocation))
+                }),
+                "{source}: {:?}",
+                context.optimisations
+            );
+        }
+    }
+
+    #[test]
+    fn retained_substitution_missing_child_receipt_withdraws_applicable_folding() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let source = "puts [list a b]";
+        let cu = CompilationUnit::build_for_dialect(source, registry, false, "tcl9.0");
+        let statement = &cu.ir_module.top_level.statements[0];
+        let mut tokens = cu
+            .ir_module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .expect("original carrier")
+            .clone();
+        tokens.source_binding = None;
+        let mut context = PassContext::new(source, InterproceduralAnalysis::default());
+        context.registry = Some(registry);
+        visit_call_cmd_subst_folds(
+            &mut context,
+            &cu,
+            &tokens,
+            &std::collections::HashMap::new(),
+            "::",
+            statement.span(),
+        );
+        assert!(context.optimisations.is_empty());
+    }
+    #[test]
+    fn retained_substitution_procedure_folding_preserves_arity_and_argument_effects() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        for source in [
+            "proc f {required} {return CONSTANT}; puts [f]",
+            "proc f {} {return CONSTANT}; puts [f EXTRA]",
+            "proc f {ignored} {return CONSTANT}; set x 0; puts [f [incr x]]; puts $x",
+        ] {
+            let cu = CompilationUnit::build_for_dialect(source, registry, false, "tcl9.0")
+                .with_interprocedural(registry, registry.profile());
+            let mut context =
+                PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+            context.registry = Some(registry);
+            run(&mut context, &cu);
+            assert!(
+                context
+                    .optimisations
+                    .iter()
+                    .all(|optimisation| optimisation.code != DiagCode::O103
+                        || optimisation.hint_only),
+                "{source}: {:?}",
+                context.optimisations
+            );
+        }
     }
 
     /// A literal a write the statements do not show may have replaced is
@@ -4876,6 +5905,217 @@ mod tests {
         }
     }
 
+    #[test]
+    fn retained_substitution_native_object_callbacks_withdraw_builtin_erasure() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.1").commands();
+        let source = "proc f {input} {puts [llength $input]}";
+        let cu = CompilationUnit::build_for_dialect(source, registry, false, "tcl9.1");
+        let statement = &cu
+            .ir_module
+            .procedures
+            .get(&fixture_id(&cu.ir_module.procedures, "::f"))
+            .expect("authored fixture body")
+            .body
+            .statements[0];
+        let tokens = cu
+            .ir_module
+            .procedures
+            .get(&fixture_id(&cu.ir_module.procedures, "::f"))
+            .expect("authored fixture body")
+            .body
+            .retained_source_tokens_for_statement(statement)
+            .expect("original carrier");
+        let calls = retained_substitution_calls(tokens, &cu.ir_module, registry)
+            .expect("complete children");
+        let call = calls
+            .iter()
+            .find(|call| {
+                call.tokens.as_ref().is_some_and(|tokens| {
+                    tokens
+                        .argv_texts
+                        .first()
+                        .is_some_and(|head| head == "llength")
+                })
+            })
+            .expect("original length invocation");
+        let metadata = Some(cu.top_level.invocation_metadata_context(registry).unwrap());
+        let invocation =
+            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                registry,
+                metadata,
+                call.tokens.as_ref().unwrap(),
+            )
+            .expect("selected builtin independent of native object effects");
+        assert!(invocation.facts.effects.requires_world_barrier());
+        assert!(fold_retained_builtin(registry, call, &calls, None, metadata, None).is_none());
+    }
+
+    #[test]
+    fn retained_substitution_formal_seeds_share_defaults_and_jim_rest_names() {
+        use tcl_dialect::ParameterGrammar::{Jim, Tcl};
+        let policy = crate::tcl_expr_eval::FoldPolicy::default();
+        let parameters =
+            tcl_syntax::formal_params::parse_formal_parameters_in("{value DEFAULT} args", Tcl)
+                .unwrap();
+        let seed = seed_params_from_args(&parameters, &[], Tcl, policy).unwrap();
+        assert_eq!(
+            seed.get(&("value".into(), 0)),
+            Some(&LatticeValue::Const(ConstValue::String("DEFAULT".into())))
+        );
+        assert_eq!(
+            seed.get(&("args".into(), 0)),
+            Some(&LatticeValue::Const(ConstValue::String(String::new())))
+        );
+        let parameters =
+            tcl_syntax::formal_params::parse_formal_parameters_in("{args remaining} tail", Jim)
+                .unwrap();
+        let seed = seed_params_from_args(
+            &parameters,
+            &[ConstValue::Int(1), ConstValue::Int(2), ConstValue::Int(3)],
+            Jim,
+            policy,
+        )
+        .unwrap();
+        assert_eq!(
+            seed.get(&("remaining".into(), 0)),
+            Some(&LatticeValue::Const(ConstValue::String("1 2".into())))
+        );
+        assert_eq!(
+            seed.get(&("tail".into(), 0)),
+            Some(&LatticeValue::Const(ConstValue::Int(3)))
+        );
+        let parameters =
+            tcl_syntax::formal_params::parse_formal_parameters_in("&reference", Jim).unwrap();
+        assert!(
+            seed_params_from_args(&parameters, &[ConstValue::String("x".into())], Jim, policy)
+                .is_none()
+        );
+    }
+    #[test]
+    fn retained_expression_argument_folding_requires_actual_availability() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Actual original registrations are retained independently of metadata
+        // availability. The owner stays alive through every refusal control.
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut catalogue = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut descriptor = catalogue.get("expr").unwrap().clone();
+        descriptor.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        catalogue.insert(descriptor);
+        let current =
+            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(catalogue)));
+        let registry = current.commands();
+        let (_owner, native) = crate::environment_ingress::captured_native_entry_with_owner(
+            registry.profile().unwrap(),
+        );
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            invocation_dialect: registry
+                .profile()
+                .map(tcl_registry::InvocationDialect::of_profile),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            native_entry: Some(std::sync::Arc::new(native)),
+            ..crate::command_binding::SourceAnalysisEntry::default()
+        };
+        let mut unit = CompilationUnit::build_with_context_registry(
+            "puts [expr {1 + 2}]",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+                dialect: registry.profile(),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&current),
+        );
+        let statement = &unit.ir_module.top_level.statements[0];
+        let tokens = unit
+            .ir_module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .unwrap()
+            .clone();
+        let calls = retained_substitution_calls(&tokens, &unit.ir_module, registry).unwrap();
+        let call = calls.iter().find(|call| call.command == "expr").unwrap();
+        let constants = std::collections::HashMap::new();
+        let mut context = PassContext::new(&unit.source, InterproceduralAnalysis::default());
+        context.registry = Some(registry);
+        assert_eq!(
+            try_o101_expr_arg_fold(&context, &unit, &tokens, call, &constants),
+            Some("3".into())
+        );
+        let input = unit.ir_module.source_metadata_input.clone().unwrap();
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(registry)),
+        );
+        assert!(std::sync::Arc::ptr_eq(older.commands(), registry));
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        for withheld in [Some(older), Some(foreign), None] {
+            unit.ir_module.source_metadata_input = withheld.map(|availability| {
+                crate::analyser::ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    availability,
+                    input.lexer_config(),
+                )
+            });
+            let mut context = PassContext::new(&unit.source, InterproceduralAnalysis::default());
+            context.registry = Some(registry);
+            assert!(try_o101_expr_arg_fold(&context, &unit, &tokens, call, &constants).is_none());
+        }
+    }
+
+    #[test]
+    fn retained_recursive_folding_preserves_actual_availability() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = current.commands();
+        let cu = CompilationUnit::build_for_dialect(
+            "puts [list [dict create key value]]",
+            registry,
+            false,
+            "tcl8.6",
+        );
+        let statement = &cu.ir_module.top_level.statements[0];
+        let tokens = cu
+            .ir_module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let calls = retained_substitution_calls(tokens, &cu.ir_module, registry).unwrap();
+        let outer = calls.iter().find(|call| call.command == "list").unwrap();
+        assert_eq!(
+            fold_retained_builtin(registry, outer, &calls, None, Some(current.into()), None),
+            Some("{key value}".into())
+        );
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(registry));
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        for metadata in [Some((&older).into()), Some(foreign.into()), None] {
+            assert!(fold_retained_builtin(registry, outer, &calls, None, metadata, None).is_none());
+        }
+        let tokens = tokens.clone();
+        let span = statement.span();
+        let mut missing = cu;
+        missing.ir_module.source_metadata_input = None;
+        let mut context = PassContext::new(&missing.source, InterproceduralAnalysis::default());
+        context.registry = Some(registry);
+        visit_call_cmd_subst_folds(
+            &mut context,
+            &missing,
+            &tokens,
+            &std::collections::HashMap::new(),
+            "::",
+            span,
+        );
+        assert!(context.optimisations.is_empty());
+    }
     /// The controls: a name the hidden writes never name, a name assigned
     /// after the call the module cannot see, and a read the call follows still
     /// forward.

@@ -68,6 +68,8 @@ export interface PackFileExtension {
   extension: string;
   /** The canonical dialect the row routes to, or null for none. */
   dialect?: string | null;
+  /** Exact `files.associations` glob rendered by the shared server owner. */
+  association_glob: string;
   /** The existing editor language id the extension should associate with. */
   language_id: string;
   /** The declaring pack, for the log line. */
@@ -83,27 +85,21 @@ export interface PackFileExtension {
  * pack that would have told us is exactly the thing that has just gone away.
  */
 const OWNED_KEY = "tclLsp.packFileAssociations.owned";
+const syncGenerations = new WeakMap<vscode.ExtensionContext, number>();
 
-/**
- * The `files.associations` glob for an extension, matching **any** casing.
- *
- * `files.associations` globs are matched case-sensitively on a case-sensitive
- * filesystem, while everything on the server side of this — `is_tcl_source`,
- * `dialect_from_extension`, the watcher registrations — folds case. A plain
- * `*.foo` would therefore leave `SAMPLE.FOO` opening as plaintext with no
- * client attached, which is the same gap the contributed `filenames` had.
- *
- * Per character rather than by listing variants, and deliberately the same
- * shape the manifest's generated `filenamePatterns` and the
- * `workspaceContains` activation glob use (`tcl_registry::dialects`'
- * `fold_case_in_glob`): an extension of n letters has 2^n casings and one
- * character class matches all of them exactly.
- */
-export function globFor(extension: string): string {
-  const folded = [...extension]
-    .map((c) => (/[a-zA-Z]/.test(c) ? `[${c.toLowerCase()}${c.toUpperCase()}]` : c))
-    .join("");
-  return `*.${folded}`;
+/** Begin a new pack-set synchronization at its actual trigger boundary. */
+export function beginPackFileAssociationSync(context: vscode.ExtensionContext): number {
+  const generation = (syncGenerations.get(context) ?? 0) + 1;
+  syncGenerations.set(context, generation);
+  return generation;
+}
+
+/** Whether a trigger's pack-set snapshot still owns publication. */
+export function isPackFileAssociationSyncCurrent(
+  context: vscode.ExtensionContext,
+  generation: number,
+): boolean {
+  return syncGenerations.get(context) === generation;
 }
 
 /**
@@ -141,11 +137,58 @@ function sameOwnership(a: Record<string, string>, b: Record<string, string>): bo
  * no configuration at all, so an ordinary workspace never grows a
  * `.vscode/settings.json` it did not ask for.
  */
-export async function syncPackFileAssociations(
+const reconciliationTails = new WeakMap<vscode.ExtensionContext, Promise<void>>();
+
+export function syncPackFileAssociations(
   context: vscode.ExtensionContext,
   advertised: readonly PackFileExtension[],
   log?: (message: string) => void,
+  generation = beginPackFileAssociationSync(context),
+  sourceIsCurrent: () => boolean = () => true,
 ): Promise<string[]> {
+  // The issuer retains its genuine session/configuration owner across the queue
+  // and each await. The ticket only orders pack-set triggers.
+  const isCurrent = () =>
+    isPackFileAssociationSyncCurrent(context, generation) && sourceIsCurrent();
+  const previous = reconciliationTails.get(context) ?? Promise.resolve();
+  const current = previous.then(() => {
+    if (!isCurrent()) {
+      return [];
+    }
+    return reconcilePackFileAssociations(context, advertised, log, isCurrent);
+  });
+  reconciliationTails.set(
+    context,
+    current.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return current;
+}
+
+async function reconcilePackFileAssociations(
+  context: vscode.ExtensionContext,
+  advertised: readonly PackFileExtension[],
+  log: ((message: string) => void) | undefined,
+  isCurrent: () => boolean,
+): Promise<string[]> {
+  if (
+    !Array.isArray(advertised) ||
+    advertised.some(
+      (row) =>
+        !row ||
+        typeof row.extension !== "string" ||
+        row.extension.length === 0 ||
+        typeof row.language_id !== "string" ||
+        row.language_id.length === 0 ||
+        typeof row.association_glob !== "string" ||
+        row.association_glob.length === 0,
+    )
+  ) {
+    log?.("[packs] incomplete extension metadata; leaving associations and ownership unchanged");
+    return [];
+  }
   if (!vscode.workspace.workspaceFolders?.length) {
     // No workspace to scope the association to; a single loose file gets the
     // server's own detection once it opens as Tcl, and nothing else.
@@ -162,10 +205,7 @@ export async function syncPackFileAssociations(
   // glob, and the written key is case-folded.
   const wanted = new Map<string, { languageId: string; extension: string }>();
   for (const row of advertised) {
-    if (!row?.extension || !row.language_id) {
-      continue;
-    }
-    wanted.set(globFor(row.extension), {
+    wanted.set(row.association_glob, {
       languageId: row.language_id,
       extension: row.extension.toLowerCase(),
     });
@@ -206,6 +246,9 @@ export async function syncPackFileAssociations(
     }
   }
 
+  if (!isCurrent()) {
+    return [];
+  }
   if (changed) {
     await filesConfig.update(
       "associations",
@@ -213,13 +256,28 @@ export async function syncPackFileAssociations(
       vscode.ConfigurationTarget.Workspace,
     );
     log?.(`[packs] file associations now: ${Object.keys(nowOwned).join(", ") || "(none)"}`);
+    if (!isCurrent()) {
+      // The settings write has completed. Journal only entries still equal to
+      // our write so later cleanup has a truthful record; do not retarget from
+      // a stale pack snapshot.
+      const after =
+        filesConfig.inspect<Record<string, string>>("associations")?.workspaceValue ?? {};
+      const stillOurs = Object.fromEntries(
+        Object.entries(nowOwned).filter(([glob, languageId]) => after[glob] === languageId),
+      );
+      await context.workspaceState.update(OWNED_KEY, stillOurs);
+      return [];
+    }
   }
   if (changed || !sameOwnership(previouslyOwned, nowOwned)) {
     await context.workspaceState.update(OWNED_KEY, nowOwned);
+    if (!isCurrent()) {
+      return [];
+    }
   }
 
-  await retargetOpenDocuments(owned);
-  return Object.keys(nowOwned);
+  await retargetOpenDocuments(owned, isCurrent);
+  return isCurrent() ? Object.keys(nowOwned) : [];
 }
 
 /**
@@ -238,11 +296,17 @@ export async function syncPackFileAssociations(
  * extension, since what it matches is a filename rather than the case-folded
  * glob written to configuration.
  */
-async function retargetOpenDocuments(owned: ReadonlyMap<string, string>): Promise<void> {
-  if (owned.size === 0) {
+async function retargetOpenDocuments(
+  owned: ReadonlyMap<string, string>,
+  isCurrent: () => boolean,
+): Promise<void> {
+  if (owned.size === 0 || !isCurrent()) {
     return;
   }
   for (const document of vscode.workspace.textDocuments) {
+    if (!isCurrent()) {
+      return;
+    }
     if (document.uri.scheme !== "file" || isTclLanguage(document.languageId)) {
       continue;
     }
@@ -254,6 +318,9 @@ async function retargetOpenDocuments(owned: ReadonlyMap<string, string>): Promis
     const target = owned.get(basename.slice(dot + 1).toLowerCase());
     if (target && target !== document.languageId) {
       await vscode.languages.setTextDocumentLanguage(document, target);
+      if (!isCurrent()) {
+        return;
+      }
     }
   }
 }

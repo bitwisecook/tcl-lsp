@@ -54,7 +54,9 @@ python3 report.py
 | `report.py` | Turns `results/*.json` into three SVGs plus `summary.md`. Stdlib only, byte-for-byte deterministic. |
 | `sweep.sh` | Benchmarks every version in the manifest, in order, on one machine and one harness revision. Use it rather than looping `bench.py` by hand, and re-run it whole whenever the check set changes. |
 
-`results/`, `graphs/` and `comparisons/` are committed — they are the record.
+`results/` and `graphs/` retain the published version measurements and their
+rendered record. Paired validation writes comparison files to the explicit
+output directory; CI retains those files as workflow artifacts.
 `corpus/`, `servers/`, `.stage/` and `.build/` are generated and ignored.
 
 ## The check set

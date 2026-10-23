@@ -20,6 +20,11 @@ import * as vscode from "vscode";
 import { CommandContext } from "../types";
 import { sendContextualRequest } from "../contextPack";
 import { isTclLanguage } from "../../extension";
+import {
+  applyDocumentTransform,
+  captureDocumentTransform,
+  requestDocumentTransform,
+} from "../../documentTransform";
 
 interface OptEntry {
   code: string;
@@ -36,7 +41,13 @@ export async function handleOptimise(ctx: CommandContext): Promise<vscode.ChatRe
     return {};
   }
 
-  const uri = editor.document.uri.toString();
+  const snapshot = captureDocumentTransform(editor.document);
+  if (!snapshot) {
+    ctx.response.markdown(
+      "A current document analysis context is unavailable. Run it again when the server is ready.",
+    );
+    return { metadata: { command: "optimise", unavailable: true } };
+  }
 
   // Accept an optional profile from the prompt (e.g. "/optimise aggressive").
   const VALID_PROFILES = new Set(["off", "readability", "standard", "full", "aggressive"]);
@@ -46,13 +57,26 @@ export async function handleOptimise(ctx: CommandContext): Promise<vscode.ChatRe
 
   ctx.response.progress(`Running LSP optimiser (profile: ${profile})...`);
 
-  const result = (await ctx.client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.optimiseDocument",
-    arguments: [uri, profile],
-  })) as { optimisations: OptEntry[]; source: string } | null;
+  const result = await requestDocumentTransform<{
+    optimisations: OptEntry[];
+    source: string;
+  }>(snapshot, "tcl-lsp.optimiseDocument", [profile]);
 
-  if (!result || !result.optimisations || result.optimisations.length === 0) {
-    ctx.response.markdown("No optimisations found. The code is already well-optimised.");
+  if (!result || !Array.isArray(result.optimisations)) {
+    ctx.response.markdown("A current optimiser result is unavailable. Run it again.");
+    return { metadata: { command: "optimise", unavailable: true } };
+  }
+
+  if (result.optimisations.length === 0) {
+    if (result.source !== snapshot.source.fullSource) {
+      ctx.response.markdown("The current optimiser result is inconsistent. Run it again.");
+      return { metadata: { command: "optimise", unavailable: true } };
+    }
+    if (!(await applyDocumentTransform(snapshot, result))) {
+      ctx.response.markdown("The document or analysis context changed. Run it again.");
+      return { metadata: { command: "optimise", count: 0, applied: false } };
+    }
+    ctx.response.markdown("No optimisations were reported for the current document and profile.");
     return { metadata: { command: "optimise", count: 0 } };
   }
 
@@ -60,7 +84,13 @@ export async function handleOptimise(ctx: CommandContext): Promise<vscode.ChatRe
 
   // Apply optimisations immediately.
   ctx.response.progress("Applying optimisations...");
-  await vscode.commands.executeCommand("tclLsp.applyFix", result.source, uri);
+  const applied = await applyDocumentTransform(snapshot, result);
+  if (applied !== true) {
+    ctx.response.markdown(
+      "The document changed before optimisations could be applied. Run it again.",
+    );
+    return { metadata: { command: "optimise", count: 0, applied: false } };
+  }
 
   // Group optimisations for display.
   const ELIM_CODES = new Set(["O107", "O108", "O109"]);

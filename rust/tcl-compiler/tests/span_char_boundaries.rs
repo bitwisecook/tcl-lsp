@@ -235,11 +235,11 @@ fn assert_lowered_spans_are_sliceable(src: &str, dialect: &str) {
         });
     };
     check("top level", &module.top_level);
-    for (name, procedure) in &module.procedures {
-        check(name, &procedure.body);
+    for procedure in module.procedures.values() {
+        check(&procedure.qualified_name, &procedure.body);
     }
-    for (name, unit) in &module.body_units {
-        check(name, &unit.body);
+    for unit in module.body_units.values() {
+        check(&unit.qualified_name, &unit.body);
     }
 }
 

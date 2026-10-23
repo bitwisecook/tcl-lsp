@@ -29,7 +29,7 @@ use crate::ssa::{SsaFunction, SsaStatement, Version};
 use crate::var_escape::helpers::is_dynamic_name;
 use crate::var_escape::types::{EscapeFlags, EscapeTag};
 
-/// Tracked literal binding for the alias-inference path.
+/// Optional assignment hint; dynamic-name alternatives remain open.
 #[derive(Debug, Clone)]
 enum LiteralBinding {
     Set(String),
@@ -38,7 +38,9 @@ enum LiteralBinding {
 
 /// Result of the CFG+SSA flow-sensitive analysis.
 ///
-/// `ssa_tags` is the authoritative per-version result;
+/// `ssa_tags` records conservative frame-storage hazards under legacy
+/// name/version keys. It does not prove physical cell equality or a value
+/// dependency; those require the shared point-aware SSA/place owners.
 /// `name_tags` collapses to per-name (a name is `Frame` if any of
 /// its versions was tagged `Frame`).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -223,7 +225,21 @@ impl CfgState {
         defs: &HashMap<String, Version>,
         reason: crate::var_escape::types::EscapeReason,
     ) {
-        if name.is_empty() || is_dynamic_name(name) {
+        if is_dynamic_name(name) {
+            return;
+        }
+        self.escape_resolved_name_with_reason(name, defs, reason);
+    }
+
+    /// Tag a registry-proved literal binding name, including literal dollar signs.
+    /// This accepts evaluated name values, rather than source substitution text.
+    pub fn escape_resolved_name_with_reason(
+        &mut self,
+        name: &str,
+        defs: &HashMap<String, Version>,
+        reason: crate::var_escape::types::EscapeReason,
+    ) {
+        if name.is_empty() {
             return;
         }
         let version = self.version_for(name, defs);
@@ -233,6 +249,24 @@ impl CfgState {
         self.ssa_for_name.entry(name.to_string()).or_insert(version);
         self.tag_reasons
             .entry(name.to_string())
+            .or_default()
+            .push(reason);
+    }
+
+    pub(crate) fn escape_original_name_with_reason(
+        &mut self,
+        name: &crate::registry_invocation::OriginalVariableNameOperand,
+        defs: &HashMap<String, Version>,
+        reason: crate::var_escape::types::EscapeReason,
+    ) {
+        let name = name.as_str();
+        let version = self.version_for(name, defs);
+        self.ssa_tags
+            .insert((name.to_owned(), version), EscapeTag::Frame);
+        self.known_names.insert(name.to_owned());
+        self.ssa_for_name.entry(name.to_owned()).or_insert(version);
+        self.tag_reasons
+            .entry(name.to_owned())
             .or_default()
             .push(reason);
     }
@@ -266,7 +300,7 @@ impl CfgState {
         self.flags.insert(EscapeFlags::HAS_CALL_FALLBACK);
     }
 
-    /// Track *name* = literal *value* under the single-writer rule.
+    /// Track a literal assignment hint; another writer invalidates it.
     pub fn note_literal_assign(&mut self, name: &str, value: &str) {
         if name.is_empty() || is_dynamic_name(name) {
             return;
@@ -283,6 +317,28 @@ impl CfgState {
         }
     }
 
+    pub(crate) fn note_original_literal_assign(
+        &mut self,
+        name: &crate::registry_invocation::OriginalVariableNameOperand,
+        value: &str,
+    ) {
+        let name = name.as_str();
+        let binding = if self.literal_assigns.contains_key(name) {
+            LiteralBinding::Invalidated
+        } else {
+            LiteralBinding::Set(value.to_owned())
+        };
+        self.literal_assigns.insert(name.to_owned(), binding);
+    }
+
+    pub(crate) fn invalidate_original_literal(
+        &mut self,
+        name: &crate::registry_invocation::OriginalVariableNameOperand,
+    ) {
+        self.literal_assigns
+            .insert(name.as_str().to_owned(), LiteralBinding::Invalidated);
+    }
+
     /// Mark *name*'s tracked literal invalid.
     pub fn invalidate_literal(&mut self, name: &str) {
         if !name.is_empty() {
@@ -291,35 +347,19 @@ impl CfgState {
         }
     }
 
-    /// Resolve a `$n` / `${n}` token to the bound literal under
-    /// the single-writer rule.
+    /// Possible alias spelling from standalone syntax and local assignment hints.
+    /// Dynamic-name uncertainty remains independent of this hint.
     #[must_use]
     pub fn resolve_literal(&self, token: &str) -> Option<String> {
-        if token.is_empty() || !token.starts_with('$') {
-            return None;
-        }
-        let inner = if let Some(rest) = token.strip_prefix("${") {
-            rest.strip_suffix('}')?
-        } else {
-            &token[1..]
-        };
-        if inner.is_empty() || inner.contains('[') || inner.contains(']') || inner.contains('$') {
-            return None;
-        }
-        let binding = self.literal_assigns.get(inner)?;
-        let LiteralBinding::Set(literal) = binding else {
-            return None;
-        };
-        if literal.is_empty() {
-            return None;
-        }
-        if !literal
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':')
-        {
-            return None;
-        }
-        Some(literal.clone())
+        tcl_syntax::naming::unattributed_variable_alias_hint(
+            token,
+            tcl_lexer::LexerConfig::default(),
+            |reference| match self.literal_assigns.get(reference)? {
+                LiteralBinding::Set(value) => Some(value.as_str()),
+                LiteralBinding::Invalidated => None,
+            },
+        )
+        .map(str::to_owned)
     }
 
     /// Convert the accumulated state into a [`CfgEscapeResult`].

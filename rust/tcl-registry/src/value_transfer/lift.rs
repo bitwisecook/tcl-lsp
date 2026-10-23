@@ -107,6 +107,24 @@ impl AnalysisInputs for PinnedInputs<'_> {
         self.inner.nested(script, state)
     }
 
+    fn source_lexer_config(&self) -> Option<tcl_lexer::LexerConfig> {
+        self.inner.source_lexer_config()
+    }
+
+    fn prepare_expression_source(&self, expression: &tcl_syntax::expr::ExprNode) {
+        self.inner.prepare_expression_source(expression);
+    }
+
+    fn nested_expression_at(
+        &self,
+        script: &str,
+        start: u32,
+        end: u32,
+        state: &mut EvaluationState,
+    ) -> EvalAnswer {
+        self.inner.nested_expression_at(script, start, end, state)
+    }
+
     fn word_state(&self) -> Option<EvaluationState> {
         self.inner.word_state()
     }

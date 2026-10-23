@@ -29,6 +29,44 @@
 //! cross-event flow (IRULE4005), and the flow-sensitive renamed-command
 //! check (W128).
 
+/// Bounded normal stores with literal values are diagnostic candidates.
+/// This does not establish that their possible compiler failure can be erased.
+fn reportable_dead_assignment(
+    statement: &crate::ir::Statement,
+    registry: &tcl_registry::CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> bool {
+    match statement {
+        crate::ir::Statement::AssignConst { .. } => true,
+        crate::ir::Statement::AssignValue { value, .. } => !value.contains('['),
+        crate::ir::Statement::AssignExpr { expr, .. } => !crate::ir_helpers::expr_has_command(expr),
+        crate::ir::Statement::Call {
+            tokens: Some(tokens),
+            ..
+        } => {
+            let Some(binding) = &tokens.source_binding else {
+                return false;
+            };
+            crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                registry, context, tokens,
+            )
+            .and_then(|normal| {
+                normal
+                    .stored_value_word(&binding.variable_context, registry)
+                    .map(|word| {
+                        matches!(
+                            word,
+                            crate::ir::WordExpr::Literal { .. }
+                                | crate::ir::WordExpr::BracedLiteral { .. }
+                        )
+                    })
+            })
+            .unwrap_or(false)
+        }
+        _ => false,
+    }
+}
+
 use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 use tcl_dialect::model::SurfaceQuery;
@@ -36,17 +74,75 @@ use tcl_registry::value_transfer::{DomainFact, Existence, FactView};
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct OriginalDispatchProtocol {
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    namespace: crate::signature_scan::scope::SignatureNamespaceScope,
+    params: Vec<String>,
+}
+
+struct OriginalDispatchPeer {
+    protocol: OriginalDispatchProtocol,
+    body_span: tcl_lexer::Span,
+    publication: crate::signature_scan::scope::SignatureSourceCommand,
+}
+
+fn original_dispatch_site(
+    module: &crate::ir::Module,
+    site: &super::super::state::VarCommandSite,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
+    let mut retained = false;
+    for (script, _) in module.executable_script_roots() {
+        crate::ir::for_each_statement(script, &mut |statement| {
+            let Some(tokens) = statement.tokens() else {
+                return;
+            };
+            let Some(head) = tokens.words().first() else {
+                return;
+            };
+            if head.source().span != site.cmd_span
+                || head.source().provenance != crate::ir::Provenance::Source
+                || tokens.words().len() != site.argc + 1
+                || !head
+                    .sole_variable_substitution()
+                    .is_some_and(|(spelling, _)| {
+                        tcl_lexer::word_parts::whole_var_ref(
+                            spelling.as_bytes(),
+                            module.lexer_config,
+                        )
+                        .ok()
+                        .flatten()
+                        .is_some_and(|reference| {
+                            reference.index.is_none() && reference.name == site.var_name.as_bytes()
+                        })
+                    })
+                || tokens.synthetic.is_some()
+                || !tokens.original_words_match_argv_text()
+            {
+                return;
+            }
+            retained |= tokens.source_binding.as_ref().is_some_and(|binding| {
+                binding
+                    .original_argument_metadata_for_module(tokens, module, registry)
+                    .is_some()
+            });
+        });
+    }
+    retained
+}
+
 use super::helpers::{
-    PhiUndefMemo, UndefSuppression, build_phi_undef_index, find_dotted_quads, is_ident_continue,
-    is_word_byte, phi_can_undef, source_slice,
+    PhiUndefMemo, UndefSuppression, block_dominated_by, build_phi_undef_index,
+    collect_existence_guards, find_dotted_quads, is_word_byte, phi_can_undef, source_slice,
 };
 use crate::analyser::bounds_checks::HeaderFact;
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
-use crate::analyser::utils::param_name_spans;
 use crate::compilation_unit::ExistencePoint;
+#[cfg(test)]
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
-use crate::expr_ast::ExprNode;
+use crate::expr_ast::{ExprNode, UnaryOp};
 
 /// The solver's decision at the loop header whose condition word spans
 /// `span` in `fu`, from its `Applied` branch fact: `None` where the unit did
@@ -55,10 +151,14 @@ fn header_fact(
     fu: &crate::compilation_unit::FunctionUnit,
     span: tcl_lexer::Span,
 ) -> Option<HeaderFact> {
-    let branch = fu.sccp.constant_branches.iter().find(|branch| {
-        branch.kind == crate::sccp::BranchFactKind::Applied
-            && branch.span.map(|found| fu.abs_span(found)) == Some(span)
-    })?;
+    let branch = fu
+        .diagnostic_value_facts()
+        .constant_branches()
+        .iter()
+        .find(|branch| {
+            branch.kind == crate::sccp::BranchFactKind::Applied
+                && branch.span.map(|found| fu.abs_span(found)) == Some(span)
+        })?;
     if !branch.value {
         return Some(HeaderFact::Never);
     }
@@ -210,6 +310,143 @@ fn loop_exit_is_executable(
     false
 }
 
+/// Scope facts that make a store observable outside its local SSA chain.
+struct DeadStoreVisibility<'a> {
+    scope_aliases: &'a HashSet<String>,
+    cross_event_vars: &'a HashSet<String>,
+    dialect: Option<SurfaceQuery<'a>>,
+}
+
+fn dead_store_has_visible_or_synthetic_effects(
+    fu: &crate::compilation_unit::FunctionUnit,
+    definition: &crate::def_use::DefSite,
+    cell_name: &crate::var_resolve::VariableCellKey,
+    var: &str,
+    registry: &tcl_registry::CommandRegistry,
+    visibility: &DeadStoreVisibility<'_>,
+) -> bool {
+    // Globals (``::``-prefixed) are externally consumed.
+    if cell_name.namespace_membership_for_advice().is_some() {
+        return true;
+    }
+    // Interpreter-provided special variables (``auto_path``, ``env``,
+    // ``tcl_precision``, …) are read by the runtime / auto-loader even
+    // when the script never reads them back, so ``set auto_path …`` is
+    // not a dead store.  Dialect-aware: the iRules set differs.
+    if super::helpers::special_variable_definition(fu, definition, cell_name, registry).is_some_and(
+        |simple| tcl_registry::special_vars::is_externally_read(&simple, visibility.dialect),
+    ) {
+        return true;
+    }
+    // A synthetic may-def (base refresh / element fan) is not a
+    // write the user made — never a reportable dead store.
+    if fu
+        .ssa
+        .is_synthetic_def(&definition.block, definition.statement_index, cell_name)
+    {
+        return true;
+    }
+    // The *direct* base def of a dynamic-key element write
+    // (`set a($k) 9` defs base `a` directly): its liveness is
+    // carried by the fanned element chains, which exact-name
+    // liveness can't see — never report the base.
+    if !var.contains('(') && def_is_element_write(fu, definition) {
+        return true;
+    }
+    // Scope-aliased vars (introduced via ``global`` or
+    // ``upvar``) write through to a different scope — the
+    // local "no use" verdict is unsafe. Policy sets hold *base*
+    // names, so an element symbol (`a(k)`) checks its base too.
+    let var_base = crate::naming::split_array_name_braced(var, true).0;
+    if visibility.scope_aliases.contains(var) || visibility.scope_aliases.contains(var_base) {
+        return true;
+    }
+    // Cross-event vars (iRules ``::when::*`` defs/imports
+    // or ``pkgIndex.tcl`` ``$dir``) may be read in
+    // another event/scope at runtime.
+    if visibility.cross_event_vars.contains(var) || visibility.cross_event_vars.contains(var_base) {
+        return true;
+    }
+    // Suppress dead stores in SCCP-unreachable blocks —
+    // O107 already reports the whole block as dead, and
+    // re-flagging individual stores inside it adds noise.
+    if !fu.cfg.block_id(&definition.block).is_some_and(|id| {
+        fu.diagnostic_value_facts()
+            .executable_blocks()
+            .contains(&id)
+    }) {
+        return true;
+    }
+    false
+}
+
+/// Find the original span of a conditional dead-assignment diagnostic.
+/// Supplied availability metadata grants no executable removal.
+fn reportable_dead_assignment_span(
+    fu: &crate::compilation_unit::FunctionUnit,
+    definition: &crate::def_use::DefSite,
+    original_overwrite: bool,
+    registry: &tcl_registry::CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    place_suppressed: &HashSet<(String, i32)>,
+) -> Option<tcl_lexer::Span> {
+    let block = fu.cfg.block_by_name(&definition.block)?;
+    let idx = usize::try_from(definition.statement_index).ok()?;
+    let stmt = block.statements.get(idx)?;
+    // IR-statement type filter.
+    // Only pure assignments are reportable; side-effecting
+    // writes (``Call``, ``Incr``, command-substitution
+    // values, expressions invoking commands) are skipped
+    // because dropping them would also drop the side effect. An exact
+    // original overwrite receipt identifies its literal native setter
+    // independently of the legacy statement category; its conditional
+    // diagnostic still grants no executable removal.
+    if !original_overwrite && !reportable_dead_assignment(stmt, registry, context) {
+        return None;
+    }
+    // Suppress when this element write is observed by a read the
+    // name-level SSA can't see (place-model overlap).
+    if place_suppressed.contains(&(definition.block.clone(), definition.statement_index)) {
+        return None;
+    }
+    let cmd_span = fu.abs_span(stmt.span());
+    if cmd_span.is_empty() {
+        return None;
+    }
+    Some(cmd_span)
+}
+
+/// Named command outputs and synthetic spans do not identify unused assignments.
+fn unused_variable_definition_span(
+    fu: &crate::compilation_unit::FunctionUnit,
+    definition: &crate::def_use::DefSite,
+) -> Option<tcl_lexer::Span> {
+    let block = fu.cfg.block_by_name(&definition.block)?;
+    let idx = usize::try_from(definition.statement_index).ok()?;
+    let stmt = block.statements.get(idx)?;
+    // Only pure assignments are reportable as "set but never used".
+    // A variable written by a command (`scan` / `binary scan` /
+    // `regexp -> capture`, etc.) or a barrier is a command output the
+    // user may legitimately ignore; `Statement::Call` /
+    // `Statement::Barrier` defs are skipped.  This is deliberate
+    // policy, not a gap: a destructuring writer's surplus output
+    // (`binary scan $d H2H* type rest` with
+    // `rest` unread) is how Tcl spells "ignore the remainder" — there
+    // is no `_` placeholder — so flagging it would punish the idiom.
+    if matches!(
+        stmt,
+        crate::ir::Statement::Call { .. } | crate::ir::Statement::Barrier { .. }
+    ) {
+        return None;
+    }
+    // The CFG span is relative to the unit's `base_offset`.
+    let cmd_span = fu.abs_span(stmt.span());
+    if cmd_span.is_empty() {
+        return None;
+    }
+    Some(cmd_span)
+}
+
 /// The read-only name/guard/suppression context for the `return`-value
 /// phi-from-undef W210 pass ([`Analyser::emit_return_phi_undef_w210`]):
 /// the proc parameters, dominating existence guards, scope aliases, the
@@ -221,7 +458,7 @@ fn loop_exit_is_executable(
 struct PhiUndefIndex<'a> {
     phi_def: &'a super::helpers::PhiDefMap,
     phi_block: &'a super::helpers::PhiBlockMap,
-    killed: &'a FxHashSet<(String, crate::ssa::Version)>,
+    killed: &'a FxHashSet<crate::def_use::StorageValueKey>,
     may_defs: &'a super::helpers::MayDefMap,
 }
 
@@ -234,22 +471,30 @@ pub(super) struct ReadBeforeSetCtx<'a> {
     pub defined_vars: &'a HashSet<String>,
     pub scope_aliases: &'a HashSet<String>,
     pub extra_known_defined: &'a HashSet<String>,
+    pub cell_facts: &'a super::helpers::DiagnosticCellFacts,
     pub supp: &'a UndefSuppression,
 }
 
+/// Existing absence proofs and guards used to classify declared reads.
+#[derive(Clone, Copy)]
+struct DeclaredReadProofs<'a> {
+    exists_guards: &'a [super::helpers::ExistenceGuard],
+    proved: &'a std::collections::HashMap<String, tcl_lexer::Span>,
+}
+
 pub(super) struct ReturnUndefCtx<'a> {
+    pub registry: std::sync::Arc<tcl_registry::CommandRegistry>,
     /// The variables the read pass already reported: W210 is one per
     /// variable, so a `return` read of one of them adds nothing.
     pub already_reported: &'a HashSet<String>,
-    /// The analyser's registry, whose special-variable faces answer the
-    /// startup facts, pack rows included.
-    pub registry: &'a tcl_registry::CommandRegistry,
     pub initial_global: bool,
     pub global_aliases: &'a HashSet<String>,
     pub dialect: Option<SurfaceQuery<'a>>,
     pub params: &'a HashSet<&'a str>,
+    pub exists_guards: &'a [super::helpers::ExistenceGuard],
     pub scope_aliases: &'a HashSet<String>,
     pub extra_known_defined: &'a HashSet<String>,
+    pub cell_facts: &'a super::helpers::DiagnosticCellFacts,
     pub defined_vars: &'a HashSet<String>,
     pub considered: &'a HashSet<crate::cfg::BlockId>,
     pub supp: &'a UndefSuppression,
@@ -264,15 +509,16 @@ struct StartupReadFacts {
 }
 
 fn startup_read_facts(
-    name: &str,
-    (version, killed): (crate::ssa::Version, bool),
-    (initial_global, global_aliases): (bool, &HashSet<String>),
-    registry: &tcl_registry::CommandRegistry,
+    cell: &crate::var_resolve::VariableCellKey,
+    version: crate::ssa::Version,
+    killed: bool,
+    initial_global: bool,
+    global_aliases: &HashSet<String>,
     dialect: Option<SurfaceQuery<'_>>,
+    registry: &tcl_registry::CommandRegistry,
 ) -> StartupReadFacts {
-    let global_binding =
-        super::helpers::has_global_startup_binding(name, initial_global, global_aliases);
-    let startup_name = super::helpers::startup_var_name(name);
+    let (startup_name, global_binding) =
+        super::helpers::startup_cell_binding(cell, initial_global, global_aliases);
     StartupReadFacts {
         readable: global_binding
             && version == 0
@@ -325,9 +571,9 @@ fn place_fact(
     fu: &crate::compilation_unit::FunctionUnit,
     block: &str,
     index: i32,
-    var: &str,
+    cell: &crate::var_resolve::VariableCellKey,
 ) -> FactView {
-    let (Some(block), Some(symbol)) = (fu.cfg.block_id(block), fu.ssa.var_symbol(var)) else {
+    let (Some(block), Some(symbol)) = (fu.cfg.block_id(block), fu.ssa.cell_symbol(cell)) else {
         return FactView::Pending;
     };
     let point = match usize::try_from(index) {
@@ -350,91 +596,67 @@ fn reportable(fact: &FactView) -> Option<Existence> {
     }
 }
 
-/// Whether the command the source spells `command` destroys a variable
-/// (`Traits::DESTROYS_VARIABLE`), looked up under that exact spelling: a
-/// rooted `::unset` or an alias is not canonicalised onto it here.
-fn destroys_variable(registry: Option<&tcl_registry::CommandRegistry>, command: &str) -> bool {
-    registry
-        .unwrap_or_else(|| tcl_registry::default_registry())
-        .get_exact(command)
-        .is_some_and(|spec| {
-            spec.traits
-                .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
-        })
+/// Destruction at an original normal transfer, selected under the actual
+/// function metadata. A spelling or reporting name cannot select this policy.
+fn destroys_variable(
+    fu: &crate::compilation_unit::FunctionUnit,
+    site: &crate::def_use::UseSite,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<crate::registry_invocation::NormalTransferInvocation> {
+    let block = fu.cfg.block_id(&site.block)?;
+    let index = usize::try_from(site.statement_index).ok()?;
+    let metadata = fu.invocation_metadata_context(registry)?;
+    let tokens = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).source_tokens()?;
+    let selected = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        registry,
+        Some(metadata),
+        tokens,
+    )?;
+    selected
+        .variable_traits()
+        .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
+        .then_some(selected)
 }
 
 /// Facts used while recording the read sites of one undef def-use chain.
 struct W210ChainCtx<'a> {
+    cell_facts: &'a super::helpers::DiagnosticCellFacts,
+    exists_guards: &'a [super::helpers::ExistenceGuard],
     supp: &'a UndefSuppression,
     startup: StartupReadFacts,
 }
 
 impl Analyser {
-    /// **W128.** Flag a call to a command that was
-    /// renamed or deleted earlier in the same file — it falls through to
-    /// the `unknown` handler.
-    ///
-    /// Backed by the flow-sensitive command-binding lattice
-    /// ([`crate::command_binding`]).  The lattice is seeded with every
-    /// module procedure (canonically qualified) as `Proc` so a proc
-    /// defined inside a `namespace eval` block — whose top-level CFG never
-    /// sees the full qname — is still known, matching the optimiser's
-    /// gating view.  A call fires W128 only when its resolved binding is
-    /// `Opaque` *and* its name was actually perturbed somewhere in this
-    /// file (`rebound_names`); a merely-undefined external command (always
-    /// opaque, never rebound) does not.  A dynamic mutation collapses the
-    /// lattice to the wildcard ⊤, under which every binding resolves to
-    /// `Unknown` (not `Opaque`), so W128 conservatively goes quiet.
+    /// W128 describes original table absence at a slot this Module mutates.
+    /// Dynamic or ambiguous source ownership suppresses the diagnostic.
     pub(super) fn emit_w128_renamed_command(
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        use crate::command_binding::{Binding, BindingKind, analyse_command_binding};
         use crate::ir::Statement;
-        use crate::naming::normalise_qualified_name as nqn;
 
-        let cfg = &cu.top_level.cfg;
-        let seed: Vec<(String, Binding)> = cu
-            .ir_module
-            .procedures
-            .keys()
-            .map(|q| {
-                (
-                    q.clone(),
-                    Binding {
-                        kind: BindingKind::Proc,
-                        target: Some(q.clone()),
-                    },
-                )
-            })
-            .collect();
-        let binding = analyse_command_binding(cfg, registry, &seed);
-        let rebound = binding.rebound_names();
-        if rebound.is_empty() {
+        let Some(context) = crate::command_binding::OriginalMissingCommandContext::for_module(
+            &cu.ir_module,
+            registry,
+        ) else {
             return;
-        }
+        };
+        let cfg = &cu.top_level.cfg;
         // Reverse-postorder for deterministic diagnostic ordering.
         for block_id in cfg.reverse_postorder() {
             let Some(block) = cfg.blocks.get(&block_id) else {
                 continue;
             };
-            for (idx, stmt) in block.statements.iter().enumerate() {
+            for stmt in &block.statements {
                 let Statement::Call { command, span, .. } = stmt else {
                     continue;
                 };
-                // The mutation commits after this invocation's successful
-                // completion, so the point-wise binding query naturally sees
-                // the command's incoming binding here.  No mutator-name
-                // exclusion is required.
-                if command.is_empty() {
+                let Some(tokens) = stmt.tokens() else {
                     continue;
-                }
-                if binding.binding_at(block_id, idx, command).kind != BindingKind::Opaque {
+                };
+                if !context.missing_rebound_command(tokens) {
                     continue;
-                }
-                if !rebound.contains(&nqn(command)) {
-                    continue; // never bound here → an ordinary external command
                 }
                 self.result
                     .diagnostics
@@ -442,8 +664,8 @@ impl Analyser {
                         DiagCode::W128,
                         *span,
                         format!(
-                            "Command '{command}' was renamed or deleted earlier in this \
-file; this call falls through to the 'unknown' handler."
+                            "Command '{command}' has no binding at this call, and its name \
+is renamed or deleted in this file."
                         ),
                         Severity::Warning,
                     ));
@@ -499,45 +721,9 @@ file; this call falls through to the 'unknown' handler."
         fu: &crate::compilation_unit::FunctionUnit,
         registry: &tcl_registry::CommandRegistry,
     ) -> FxHashSet<String> {
-        use crate::var_refs::{VarReferenceScanner, VarScanOptions};
-        let mut out = FxHashSet::default();
-        // Command-argument + AssignValue substitutions (deep RMW scan minus
-        // shallow), already factored out for the optimiser's elimination pass.
-        out.extend(crate::optimiser::elimination::collect_rmw_hidden_reads(
-            fu, registry,
-        ));
-        // Branch conditions and expr-valued statements carry their `[…]` in an
-        // `ExprNode`, not a word. Walk the AST for `Command` nodes (bracketed
-        // substitution text) and scan each — their inner reads are invisible to
-        // the version-precise `used` set, so they keep every write alive. A
-        // bare `$x` in `if {$x}` is already a version-precise condition use, so
-        // it is not collected here.
-        let mut deep = VarReferenceScanner::for_registry(
-            VarScanOptions {
-                include_var_read_roles: true,
-                recurse_cmd_substitutions: true,
-                include_reads_before_write: true,
-                element_qualified: false,
-            },
-            registry,
-        );
-        let mut cmd_texts: Vec<String> = Vec::new();
-        for block in fu.cfg.blocks.values() {
-            for stmt in &block.statements {
-                if let crate::ir::Statement::AssignExpr { expr, .. }
-                | crate::ir::Statement::ExprEval { expr, .. } = stmt
-                {
-                    collect_expr_command_texts(expr, &mut cmd_texts);
-                }
-            }
-            if let Some(crate::cfg::Terminator::Branch { condition, .. }) = &block.terminator {
-                collect_expr_command_texts(condition, &mut cmd_texts);
-            }
-        }
-        for text in &cmd_texts {
-            out.extend(deep.scan_word(text, registry));
-        }
-        out
+        crate::optimiser::elimination::collect_rmw_hidden_reads(fu, registry)
+            .into_iter()
+            .collect()
     }
 
     /// W220 — dead-store hint.
@@ -579,87 +765,99 @@ file; this call falls through to the 'unknown' handler."
         defined_vars: &HashSet<String>,
         scope_aliases: &HashSet<String>,
         cross_event_vars: &HashSet<String>,
+        cell_facts: &super::helpers::DiagnosticCellFacts,
+        module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
     ) {
         use crate::def_use::DefKind;
-        use crate::ir::Statement;
-        use crate::ir_helpers::expr_has_command;
         use std::fmt::Write as _;
+
         // A dynamic read (`[set $name]`, `subst $tmpl`) can observe *any*
         // store, so "this assignment is never read" is unprovable anywhere in
         // the function.  Abstain toward silence.
-        if fu.dynamic_names.reads {
-            return;
-        }
         let hidden_reads = self.substitution_hidden_reads(fu);
         // Array-element / dict-path writes the
         // name-level SSA mis-folds but that a read actually observes.
         let place_suppressed = self.place_suppressed_dead_stores(fu);
+        let generation = self.analysis_context();
+        let registry = generation.commands();
+        let metadata = match module {
+            Some(module) => module.invocation_metadata_context_for_function(fu, registry),
+            None => fu.invocation_metadata_context(registry),
+        };
+        let Some(metadata) = metadata else {
+            return;
+        };
+        let unread_layout = std::cell::OnceCell::new();
+        let visibility = DeadStoreVisibility {
+            scope_aliases,
+            cross_event_vars,
+            dialect: Some(generation.context().authoring_query()),
+        };
         for chain in fu.def_use.chains.values() {
-            if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
+            if chain.definition.kind != DefKind::Statement {
                 continue;
             }
-            let (var, version) = &chain.key;
+            let (cell_name, version) = &chain.key;
+            let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
+                continue;
+            };
+            let Some(cell_name) = fu.ssa.cell_key(symbol) else {
+                continue;
+            };
+            if super::helpers::definition_has_cell_fact(
+                fu,
+                &chain.definition,
+                cell_name,
+                &cell_facts.externally_read,
+                registry,
+            ) {
+                continue;
+            }
+            let var = fu.ssa.var_name(symbol);
+            if original_unrepresented_use_advice(
+                fu,
+                &chain.definition,
+                var,
+                registry,
+                &unread_layout,
+            ) {
+                continue;
+            }
+            let overwrite = original_overwrite_advice(fu, &chain.definition, var, registry, module);
+            let conditional_unread = fu.dynamic_names.reads
+                && chain.is_dead()
+                && !hidden_reads.contains(var)
+                && original_unread_store_advice(
+                    fu,
+                    &chain.definition,
+                    var,
+                    registry,
+                    &unread_layout,
+                    module,
+                );
+            if !chain.is_dead() && overwrite.is_none() {
+                continue;
+            }
             // A name read inside a command substitution / expr / branch
             // condition the version-precise `used` set can't see keeps every
             // write of it alive (`set i 0` before `[incr i $j]`). Suppress at
             // name level.
-            if hidden_reads.contains(var) {
-                continue;
-            }
-            // Globals (``::``-prefixed) are externally consumed.
-            if var.starts_with("::") {
-                continue;
-            }
-            // Interpreter-provided special variables (``auto_path``, ``env``,
-            // ``tcl_precision``, …) are read by the runtime / auto-loader even
-            // when the script never reads them back, so ``set auto_path …`` is
-            // not a dead store.  Dialect-aware: the iRules set differs.
-            if self.externally_read(var) {
-                continue;
-            }
-            // A synthetic may-def (base refresh / element fan) is not a
-            // write the user made — never a reportable dead store.
-            if fu.ssa.is_synthetic_def(
-                &chain.definition.block,
-                chain.definition.statement_index,
-                var,
-            ) {
-                continue;
-            }
-            // A call to a command the module cannot see may read the name the
-            // store leaves, as it may read a `::`-qualified one.
             if fu.ssa.name_is_observed_by_unseen_call(var, *version) {
                 continue;
             }
-            // The *direct* base def of a dynamic-key element write
-            // (`set a($k) 9` defs base `a` directly): its liveness is
-            // carried by the fanned element chains, which exact-name
-            // liveness can't see — never report the base.
-            if !var.contains('(') && def_is_element_write(fu, &chain.definition) {
-                continue;
-            }
-            // Scope-aliased vars (introduced via ``global`` or
-            // ``upvar``) write through to a different scope — the
-            // local "no use" verdict is unsafe. Policy sets hold *base*
-            // names, so an element symbol (`a(k)`) checks its base too.
-            let var_base = crate::naming::normalise_var_name(var);
-            if scope_aliases.contains(var) || scope_aliases.contains(var_base) {
-                continue;
-            }
-            // Cross-event vars (iRules ``::when::*`` defs/imports
-            // or ``pkgIndex.tcl`` ``$dir``) may be read in
-            // another event/scope at runtime.
-            if cross_event_vars.contains(var) || cross_event_vars.contains(var_base) {
-                continue;
-            }
-            // Suppress dead stores in SCCP-unreachable blocks —
-            // O107 already reports the whole block as dead, and
-            // re-flagging individual stores inside it adds noise.
-            if !fu
-                .cfg
-                .block_id(&chain.definition.block)
-                .is_some_and(|id| fu.sccp.executable_blocks.contains(&id))
+            if (hidden_reads.contains(var) || (fu.dynamic_names.reads && !conditional_unread))
+                && overwrite.is_none()
             {
+                continue;
+            }
+            if dead_store_has_visible_or_synthetic_effects(
+                fu,
+                &chain.definition,
+                cell_name,
+                var,
+                registry,
+                &visibility,
+            ) {
                 continue;
             }
             // A dead assignment is W220 whether or not the variable is also
@@ -668,51 +866,26 @@ file; this call falls through to the 'unknown' handler."
             // unused hint (W211) are distinct diagnostics with distinct
             // fixes (drop this assignment vs. drop the variable).  Fires
             // on any dead store regardless of other live versions.
-            let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
+            let Some(cmd_span) = reportable_dead_assignment_span(
+                fu,
+                &chain.definition,
+                overwrite.is_some(),
+                registry,
+                Some(metadata),
+                &place_suppressed,
+            ) else {
                 continue;
             };
-            let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
-                continue;
-            };
-            let Some(stmt) = block.statements.get(idx) else {
-                continue;
-            };
-            // IR-statement type filter.
-            // Only pure assignments are reportable; side-effecting
-            // writes (``Call``, ``Incr``, command-substitution
-            // values, expressions invoking commands) are skipped
-            // because dropping them would also drop the side
-            // effect.
-            match stmt {
-                Statement::AssignConst { .. } => {}
-                Statement::AssignValue { value, .. } => {
-                    if value.contains('[') {
-                        continue;
-                    }
-                }
-                Statement::AssignExpr { expr, .. } => {
-                    if expr_has_command(expr) {
-                        continue;
-                    }
-                }
-                _ => continue,
-            }
-            // Suppress when this element write is observed by a read the
-            // name-level SSA can't see (place-model overlap).
-            if place_suppressed.contains(&(
-                chain.definition.block.clone(),
-                chain.definition.statement_index,
-            )) {
-                continue;
-            }
-            let cmd_span = fu.abs_span(stmt.span());
-            if cmd_span.is_empty() {
-                continue;
-            }
             // Anchor at the variable name (the assignment target), not the
             // command-start column.
             let span = self.narrow_to_assigned_name(cmd_span).unwrap_or(cmd_span);
-            let mut message = format!("Assignment to '{var}' is never read");
+            let mut message = if conditional_unread {
+                format!("Assignment to '{var}' may be unused in the declared local frame")
+            } else if overwrite == Some(OverwriteDiagnostic::Conditional) {
+                format!("Assignment to '{var}' may be overwritten before it is read")
+            } else {
+                format!("Assignment to '{var}' is never read")
+            };
             if let Some(similar) = find_case_mismatch(var, defined_vars) {
                 let _ = write!(message, "; did you mean '{similar}'?");
             }
@@ -727,6 +900,59 @@ file; this call falls through to the 'unknown' handler."
         }
     }
 
+    /// Authored setter ordering may supply a conditional warning even when an
+    /// earlier native read fails. It supplies no physical definition or edit.
+    pub(super) fn emit_conditional_declared_store_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        procedure: &crate::ir::Procedure,
+        scope_aliases: &HashSet<String>,
+        cross_event_vars: &HashSet<String>,
+    ) {
+        let context = self.analysis_context();
+        let registry = self.registry.as_deref().unwrap_or(context.commands());
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let Some(report) = self
+            .head_identities
+            .source_bindings()
+            .original_procedure_declaration_flow(procedure, &image, registry)
+            .or_else(|| function_declaration_flow(fu, procedure, &image, registry))
+        else {
+            return;
+        };
+        for advice in crate::registry_invocation::conditional_declared_overwrite_advice(&report) {
+            let name = advice.name();
+            let base = crate::naming::split_array_name_braced(name, true).0;
+            let span = advice.target();
+            if !advice.owns_source(&image)
+                || scope_aliases.contains(name)
+                || scope_aliases.contains(base)
+                || cross_event_vars.contains(name)
+                || cross_event_vars.contains(base)
+                || super::helpers::special_variable_definition_at_span(fu, span, registry)
+                    .is_some_and(|simple| {
+                        tcl_registry::special_vars::is_externally_read(
+                            &simple,
+                            Some(context.context().authoring_query()),
+                        )
+                    })
+                || self
+                    .result
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == DiagCode::W220 && diagnostic.span == span)
+            {
+                continue;
+            }
+            self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
+                DiagCode::W220,
+                span,
+                format!("Assignment to '{name}' may be overwritten before a local read if execution reaches these declared native setters"),
+                Severity::Hint,
+            ));
+        }
+    }
+
     /// Narrow a whole-command span to its assignment-target token (the
     /// second word, `argv[1]`), returning that token's absolute span — or
     /// `None` when it can't be located, so callers fall back to the command
@@ -738,7 +964,7 @@ file; this call falls through to the 'unknown' handler."
         let slice = source_slice(&self.source, stmt_span)?;
         let toks = tcl_lexer::Lexer::with_source_map(
             tcl_lexer::SourceMap::new(&slice),
-            self.lexer_config(),
+            self.file_lexer_config().nested(),
         )
         .tokenise_all()
         .ok()?;
@@ -771,15 +997,11 @@ file; this call falls through to the 'unknown' handler."
     /// top-level word walk.  Braced (`Str`) words are literal text — a
     /// `$var` inside one is not a read — so they are never descended.
     fn narrow_to_read_var(&self, stmt_span: tcl_lexer::Span, var: &str) -> Option<tcl_lexer::Span> {
-        // De-sigil + drop any array-index suffix so `$a(k)` / `${a}` / `$a`
-        // all compare equal to the chain's scalar/element base name.
-        fn base(text: &str) -> &str {
-            let inner = text.strip_prefix("${").map_or_else(
-                || text.strip_prefix('$').unwrap_or(text),
-                |i| i.strip_suffix('}').unwrap_or(i),
-            );
-            inner.split('(').next().unwrap_or(inner)
-        }
+        // The SSA name is already resolved: a leading dollar is literal.
+        // Source sigils and the selected release's lexical extent belong to
+        // the shared scanner, separately from the combined-name split owner.
+        // naming.diagnostics.original-variable-name-anchor
+
         /// First `$target` `Var` token within `slice` (whose absolute start
         /// is `abs_base`), descending into command-substitution contents.
         /// `depth` bounds pathological nesting.
@@ -793,17 +1015,29 @@ file; this call falls through to the 'unknown' handler."
             if depth > 4 {
                 return None;
             }
-            let sm = tcl_lexer::SourceMap::new(slice);
+            let config = config.nested();
             let toks = tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(slice), config)
                 .tokenise_all()
                 .ok()?;
             for t in &toks {
                 match t.kind {
-                    tcl_lexer::TokenType::Var if base(sm.token_text(*t)) == target => {
-                        return Some(tcl_lexer::Span::new(
-                            t.span.start() + abs_base,
-                            t.span.end() + abs_base,
-                        ));
+                    tcl_lexer::TokenType::Var => {
+                        let Ok(Some(reference)) = tcl_lexer::scan_var_ref(
+                            slice.as_bytes(),
+                            t.span.start() as usize,
+                            config,
+                        ) else {
+                            continue;
+                        };
+                        let name = std::str::from_utf8(reference.name).ok()?;
+                        let root =
+                            crate::naming::split_element_ref(name).map_or(name, |(root, _)| root);
+                        if root == target {
+                            return Some(tcl_lexer::Span::new(
+                                t.span.start() + abs_base,
+                                u32::try_from(reference.next).ok()? + abs_base,
+                            ));
+                        }
                     }
                     // A `[…]` word: recurse into its inner script (the span
                     // covers `[inner` and excludes the closing `]`; the
@@ -829,22 +1063,9 @@ file; this call falls through to the 'unknown' handler."
             }
             None
         }
-        let target = base(var);
+        let target = crate::naming::split_element_ref(var).map_or(var, |(root, _)| root);
         let slice = source_slice(&self.source, stmt_span)?;
         find_var(&slice, stmt_span.start(), target, self.lexer_config(), 0)
-    }
-
-    /// Whether the runtime reads `var` when the script does not — a special
-    /// variable such as `auto_path`, whose write the host observes — under
-    /// the analyser's registry, pack-declared rows included.
-    fn externally_read(&self, var: &str) -> bool {
-        self.registry
-            .as_deref()
-            .unwrap_or_else(|| tcl_registry::default_registry())
-            .is_externally_read(
-                crate::naming::normalise_var_name(var),
-                Some(self.analysis_context().context().authoring_query()),
-            )
     }
 
     /// W211 — unused-variable hint.
@@ -874,15 +1095,18 @@ file; this call falls through to the 'unknown' handler."
         defined_vars: &HashSet<String>,
         scope_aliases: &HashSet<String>,
         textually_referenced: &HashSet<String>,
+        cell_facts: &super::helpers::DiagnosticCellFacts,
     ) {
         use crate::def_use::DefKind;
-        use std::fmt::Write as _;
         // A dynamic read (`foreach v [info locals] {… [set $v] …}`) reaches
         // every local by a name no literal `$x` token spells, so "set but
         // never used" is unprovable.  Abstain toward silence.
         if fu.dynamic_names.reads {
             return;
         }
+        let generation = self.analysis_context();
+        let registry = self.registry.as_deref().unwrap_or(generation.commands());
+        let declaration_layout = std::cell::OnceCell::new();
         // W211 is a per-variable verdict ("the variable is set but never
         // used"), not per-assignment: a variable set several times and never
         // read fires once, at its earliest definition. Collect the earliest
@@ -895,30 +1119,43 @@ file; this call falls through to the 'unknown' handler."
             if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
                 continue;
             }
-            let (var, version) = &chain.key;
-            // A `::`-qualified write (`set ::ns::cfg 1`) is visible to every
-            // other scope/file — single-unit dataflow cannot see its readers.
-            if var.contains("::") {
+            let (cell_name, version) = &chain.key;
+            let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
+                continue;
+            };
+            let Some(cell_name) = fu.ssa.cell_key(symbol) else {
+                continue;
+            };
+            if super::helpers::definition_has_cell_fact(
+                fu,
+                &chain.definition,
+                cell_name,
+                &cell_facts.externally_read,
+                registry,
+            ) {
+                continue;
+            }
+            let var = fu.ssa.var_name(symbol);
+            // Namespace storage is visible beyond this unit. Local keys with
+            // qualified-looking labels do not acquire namespace membership.
+            if cell_name.namespace_membership_for_advice().is_some() {
                 continue;
             }
             if scope_aliases.contains(var) {
                 continue;
             }
-            // A fully-qualified name (`::cfg`, `::ns::cfg`) explicitly targets
-            // the global / a named namespace scope, whose reader may live in
-            // another proc, another namespace, or another file that single-unit
-            // dataflow can't see. The W220 dead-store and W210 read-before-set
-            // passes already exempt `::`-qualified names as externally
-            // consumable; W211 does the same so `set ::ns::cfg 1` at the top
-            // level isn't flagged unused merely because this unit holds no
-            // reader.
-            if var.contains("::") {
+            if textually_referenced.contains(var)
+                || original_unrepresented_use_advice(
+                    fu,
+                    &chain.definition,
+                    var,
+                    &self.profile_registry(),
+                    &declaration_layout,
+                )
+            {
                 continue;
             }
-            if textually_referenced.contains(var) {
-                continue;
-            }
-            if observed_by_unseen_calls.contains(var.as_str()) {
+            if observed_by_unseen_calls.contains(var) {
                 continue;
             }
             // A synthetic may-def (base refresh / element fan) is not a
@@ -926,7 +1163,7 @@ file; this call falls through to the 'unknown' handler."
             if fu.ssa.is_synthetic_def(
                 &chain.definition.block,
                 chain.definition.statement_index,
-                var,
+                cell_name,
             ) {
                 continue;
             }
@@ -934,7 +1171,18 @@ file; this call falls through to the 'unknown' handler."
             // …) are consumed by the runtime even when the script never reads
             // them, so a bare ``set auto_path …`` is not an unused variable.
             // Dialect-aware via the special-variable registry.
-            if self.externally_read(var) {
+            if super::helpers::special_variable_definition(
+                fu,
+                &chain.definition,
+                cell_name,
+                registry,
+            )
+            .is_some_and(|simple| {
+                tcl_registry::special_vars::is_externally_read(
+                    &simple,
+                    Some(self.analysis_context().context().authoring_query()),
+                )
+            }) {
                 continue;
             }
             // Only emit when no other SSA version of this var is
@@ -943,44 +1191,18 @@ file; this call falls through to the 'unknown' handler."
                 .def_use
                 .chains
                 .iter()
-                .any(|(k, c)| k.0 == *var && k.1 != *version && !c.is_dead());
+                .any(|(k, c)| k.0 == symbol && k.1 != *version && !c.is_dead());
             if any_other_live {
                 continue;
             }
-            let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
+            let Some(cmd_span) = unused_variable_definition_span(fu, &chain.definition) else {
                 continue;
             };
-            let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
-                continue;
-            };
-            let Some(stmt) = block.statements.get(idx) else {
-                continue;
-            };
-            // Only pure assignments are reportable as "set but never used".
-            // A variable written by a command (`scan` / `binary scan` /
-            // `regexp -> capture`, etc.) or a barrier is a command output the
-            // user may legitimately ignore; `Statement::Call` /
-            // `Statement::Barrier` defs are skipped.  This is deliberate
-            // policy, not a gap: a destructuring writer's surplus output
-            // (`binary scan $d H2H* type rest` with
-            // `rest` unread) is how Tcl spells "ignore the remainder" — there
-            // is no `_` placeholder — so flagging it would punish the idiom.
-            if matches!(
-                stmt,
-                crate::ir::Statement::Call { .. } | crate::ir::Statement::Barrier { .. }
-            ) {
-                continue;
-            }
-            // The CFG span is relative to the unit's `base_offset`.
-            let cmd_span = fu.abs_span(stmt.span());
-            if cmd_span.is_empty() {
-                continue;
-            }
             // Anchor at the variable name (the assignment target), not the
             // command-start column.
             let span = self.narrow_to_assigned_name(cmd_span).unwrap_or(cmd_span);
             earliest
-                .entry(var.clone())
+                .entry(var.to_owned())
                 .and_modify(|s| {
                     if span.start() < s.start() {
                         *s = span;
@@ -988,6 +1210,16 @@ file; this call falls through to the 'unknown' handler."
                 })
                 .or_insert(span);
         }
+        self.emit_unused_variable_spans(earliest, defined_vars);
+    }
+
+    fn emit_unused_variable_spans(
+        &mut self,
+        earliest: std::collections::HashMap<String, tcl_lexer::Span>,
+        defined_vars: &HashSet<String>,
+    ) {
+        use std::fmt::Write as _;
+
         let mut entries: Vec<(String, tcl_lexer::Span)> = earliest.into_iter().collect();
         entries.sort_by_key(|(_, span)| span.start());
         // A variable that is set-but-never-used gets a W211 at its assignment's
@@ -1043,7 +1275,10 @@ file; this call falls through to the 'unknown' handler."
         // chain in def_use, bucket by block.
         let mut dead_idx: FxHashMap<&str, FxHashSet<usize>> = FxHashMap::default();
         for chain in fu.def_use.chains.values() {
-            if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
+            if !chain.is_dead()
+                || chain.definition.kind != DefKind::Statement
+                || fu.def_use.symbol(&fu.ssa, chain.key.0).is_none()
+            {
                 continue;
             }
             let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
@@ -1105,57 +1340,98 @@ file; this call falls through to the 'unknown' handler."
         }
     }
 
-    /// Absolute source spans of each formal parameter's *name*, in
-    /// declaration order and index-aligned with `ir_proc.params`.
-    ///
-    /// The parameter-list word is the first word after the proc-name token
-    /// (recovered from the recorded [`crate::analyser::types::ProcDef::name_span`]);
-    /// its name spans are delegated to [`param_name_spans`] — the same helper
-    /// go-to-definition/rename use, so W214's range matches them exactly.
-    /// Returns an empty vec when the proc isn't in `all_procs` or the word
-    /// can't be isolated, so the caller falls back to the whole-def span.
-    fn param_name_spans_for(&self, ir_proc: &crate::ir::Procedure) -> Vec<tcl_lexer::Span> {
-        let Some(pdef) = self.result.all_procs.get(&ir_proc.qualified_name) else {
-            return Vec::new();
+    /// Original parameter name geometry for this body, without a label join.
+    fn param_name_sources_for(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        ir_proc: &crate::ir::Procedure,
+        module: Option<&crate::ir::Module>,
+    ) -> Vec<crate::signature_scan::formal_parameters::OriginalSourceFormalName> {
+        let select = || {
+            crate::source_graph::current_analysis(&self.source, &self.result)?;
+            if fu.source_metadata_input() != self.result.resolved_input.as_ref() {
+                return None;
+            }
+            let site = ir_proc.declaration_site.as_ref()?;
+            let mut declarations = self
+                .result
+                .original_procedure_declarations()
+                .filter(|declaration| declaration.declaration_site() == site);
+            let declaration = declarations.next()?;
+            if declarations.next().is_some() {
+                return None;
+            }
+            let (id, body) = crate::source_graph::procedure_body_for_declaration(
+                &self.source,
+                &self.result,
+                module?,
+                declaration,
+            )?;
+            if fu.body_id != Some(id) || !std::ptr::eq(body, ir_proc) {
+                return None;
+            }
+            let fields = self.result.original_procedure_formal_name_sources(
+                declaration,
+                self.result.resolved_registry()?,
+            )?;
+            fields
+                .iter()
+                .map(|field| field.name())
+                .eq(ir_proc.params.iter().map(String::as_bytes))
+                .then_some(fields)
         };
-        let bytes = self.source.as_bytes();
-        // Skip whitespace between the proc name and the parameter-list word.
-        let mut i = pdef.name_span.end() as usize;
-        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
-            i += 1;
+        select().unwrap_or_default()
+    }
+
+    fn param_reference_candidates_for(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        procedure: &crate::ir::Procedure,
+        module: Option<&crate::ir::Module>,
+    ) -> Option<std::collections::BTreeSet<String>> {
+        crate::source_graph::current_analysis(&self.source, &self.result)?;
+        if fu.source_metadata_input() != self.result.resolved_input.as_ref() {
+            return None;
         }
-        let start = i;
-        let end = if bytes.get(i) == Some(&b'{') {
-            // Braced list — advance to the matching close brace.
-            let mut level = 0u32;
-            let mut j = i;
-            while j < bytes.len() {
-                match bytes[j] {
-                    b'{' => level += 1,
-                    b'}' => {
-                        level -= 1;
-                        if level == 0 {
-                            j += 1;
-                            break;
-                        }
-                    }
-                    _ => {}
-                }
-                j += 1;
-            }
-            j
-        } else {
-            // Bare single-word parameter list — to the next whitespace.
-            let mut j = i;
-            while j < bytes.len() && !bytes[j].is_ascii_whitespace() {
-                j += 1;
-            }
-            j
-        };
-        let Some(raw) = self.source.get(start..end) else {
-            return Vec::new();
-        };
-        param_name_spans(raw, u32::try_from(start).unwrap_or(u32::MAX))
+        let site = procedure.declaration_site.as_ref()?;
+        let mut declarations = self
+            .result
+            .original_procedure_declarations()
+            .filter(|declaration| declaration.declaration_site() == site);
+        let declaration = declarations.next()?;
+        if declarations.next().is_some() {
+            return None;
+        }
+        let (id, original) = crate::source_graph::procedure_body_for_declaration(
+            &self.source,
+            &self.result,
+            module?,
+            declaration,
+        )?;
+        if fu.body_id != Some(id) || !std::ptr::eq(original, procedure) {
+            return None;
+        }
+        let selected = crate::registry_invocation::source_structure::source_registry_words_at(
+            &self.source,
+            &self.result,
+            site.offset,
+        )?;
+        let context = self.result.resolved_input.as_ref()?.context_registry();
+        let mut bodies = selected
+            .source_script_bodies(&context)
+            .into_iter()
+            .filter(|body| {
+                body.original_container().group().span == declaration.metadata().body_span
+            });
+        let body = bodies.next()?;
+        if bodies.next().is_some() {
+            return None;
+        }
+        crate::registry_invocation::original_body_reference_candidates(
+            &self.source,
+            &self.result,
+            &body,
+        )
     }
 
     /// W214 — unused-parameter hint.
@@ -1171,6 +1447,7 @@ file; this call falls through to the 'unknown' handler."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
         ir_proc: &crate::ir::Procedure,
+        module: Option<&crate::ir::Module>,
     ) {
         // Empty-body procs (``proc foo {a b} {}``) are signature
         // placeholders — stubs declaring an API whose implementation
@@ -1182,7 +1459,8 @@ file; this call falls through to the 'unknown' handler."
         // Per-parameter name spans (index-aligned with `ir_proc.params`); an
         // empty result means we couldn't isolate the list and fall back to the
         // whole-definition span below.
-        let param_spans = self.param_name_spans_for(ir_proc);
+        let param_sources = self.param_name_sources_for(fu, ir_proc, module);
+        let reference_candidates = self.param_reference_candidates_for(fu, ir_proc, module);
         let mut unused: Vec<(usize, String)> = Vec::new();
         for (idx, param) in ir_proc.params.iter().enumerate() {
             // Tcl's variadic ``args`` parameter is conventionally
@@ -1191,41 +1469,27 @@ file; this call falls through to the 'unknown' handler."
             if param == "args" {
                 continue;
             }
-            // Positional keyword markers: a param *written* as a quoted
-            // literal (snit-style ``{"as" ""}``) is a syntactic placeholder
-            // consumed by being PRESENT in the call form, not read as a
-            // variable.  Flagging it is noise.  The marker lives in the source
-            // spelling, not the name: Tcl decodes the quotes away (tclsh 9.0
-            // — ``proc p {"as" v} {}`` → ``info args p`` is ``as v``), so the
-            // test is on the declaration text the name span covers.
-            // Conservative: only a spelling that starts AND ends with ``"``.
-            if param_spans
+            // Quoted source keywords are positional protocol markers.
+            if param_sources
                 .get(idx)
-                .and_then(|span| self.source.get(span.as_range()))
-                .is_some_and(|spelling| {
-                    spelling.len() >= 2 && spelling.starts_with('"') && spelling.ends_with('"')
-                })
+                .is_some_and(|source| source.quoted_marker())
             {
                 continue;
             }
-            let any_live = fu
-                .def_use
-                .chains
-                .iter()
-                .any(|(k, c)| k.0 == *param && !c.is_dead());
+            let any_live = fu.def_use.chains.iter().any(|(key, chain)| {
+                fu.ssa
+                    .var_symbol(param)
+                    .is_some_and(|symbol| fu.def_use.symbol(&fu.ssa, key.0) == Some(symbol))
+                    && !chain.is_dead()
+            });
             if any_live {
                 continue;
             }
-            // Fallback: the def-use builder doesn't track variable
-            // references inside ``[expr {...}]`` command
-            // substitutions or arbitrary nested ``[cmd ...]``
-            // bodies that don't lower into a structured IR.
-            // If the body source contains a ``$param`` /
-            // ``${param}`` reference anywhere, treat the parameter
-            // as used and skip W214.  Saves the W214 over-emit on
-            // ``proc f {x} { return [expr {$x + 1}] }``-style bodies.
-            if let Some(body_source) = ir_proc.body_source.as_deref()
-                && body_references_param(body_source, param, self.lexer_config())
+            // Source candidates protect nested reads without claiming a physical
+            // cell. Only independently selected inherited bodies retain this scope.
+            if reference_candidates
+                .as_ref()
+                .is_some_and(|names| names.contains(param))
             {
                 continue;
             }
@@ -1234,27 +1498,21 @@ file; this call falls through to the 'unknown' handler."
         if unused.is_empty() {
             return;
         }
-        // Dispatch-protocol suppression: when ≥3 peer procs in this
-        // namespace share this proc's leading-param signature AND an
-        // arity-compatible variable-command dispatcher exists, the leading
-        // params are an external contract, not genuinely unused.  Computed
-        // only when there is something to report.
-        let ns = namespace_of(&ir_proc.qualified_name);
-        let leading: Vec<String> = ir_proc
-            .params
-            .iter()
-            .take_while(|p| *p != "args")
-            .cloned()
-            .collect();
-        let protocol_params: HashSet<String> = if !leading.is_empty()
-            && self
-                .dispatch_protocol_signatures()
-                .contains(&(ns, leading.clone()))
-        {
-            leading.into_iter().collect()
-        } else {
-            HashSet::new()
-        };
+        let protocol_params = module
+            .and_then(|module| {
+                let id = fu.body_id?;
+                if !module.procedure_ids.owns(id)
+                    || !std::ptr::eq(module.procedures.get(&id)?, ir_proc)
+                {
+                    return None;
+                }
+                let peers = self.original_dispatch_peers(module);
+                let peer = peers.get(&id)?;
+                self.dispatch_protocol_signatures(module, &peers)
+                    .contains(&peer.protocol)
+                    .then(|| peer.protocol.params.iter().cloned().collect::<HashSet<_>>())
+            })
+            .unwrap_or_default();
         for (idx, param) in unused {
             if protocol_params.contains(&param) {
                 continue;
@@ -1267,63 +1525,132 @@ file; this call falls through to the 'unknown' handler."
                 .diagnostics
                 .push(crate::analyser::types::Diagnostic::new(
                     DiagCode::W214,
-                    param_spans.get(idx).copied().unwrap_or(ir_proc.span),
+                    param_sources
+                        .get(idx)
+                        .and_then(|source| source.source_span())
+                        .unwrap_or(ir_proc.span),
                     message,
                     Severity::Hint,
                 ));
         }
     }
 
-    /// Identify `(namespace, leading-param-list)` pairs that look like a
-    /// **dispatch protocol** — ≥3 peer procs in the same namespace sharing a
-    /// leading-param signature dictated by an arity-compatible
-    /// variable-command dispatcher.
-    fn dispatch_protocol_signatures(&self) -> HashSet<(String, Vec<String>)> {
-        // Group user procs by (namespace, leading-param-tuple stopping at `args`).
-        let mut groups: FxHashMap<(String, Vec<String>), usize> = FxHashMap::default();
-        for (qname, pdef) in &self.result.all_procs {
-            let leading: Vec<String> = pdef
-                .params
-                .iter()
-                .take_while(|p| p.name != "args")
-                .map(|p| p.name.clone())
-                .collect();
-            if leading.is_empty() {
+    fn original_dispatch_peers(
+        &self,
+        module: &crate::ir::Module,
+    ) -> FxHashMap<crate::ir::ProcedureId, OriginalDispatchPeer> {
+        let mut peers = FxHashMap::default();
+        if crate::source_graph::current_analysis(&self.source, &self.result).is_none() {
+            return peers;
+        }
+        for declaration in self.result.original_procedure_declarations() {
+            let Some((id, body)) = crate::source_graph::procedure_body_for_declaration(
+                &self.source,
+                &self.result,
+                module,
+                declaration,
+            ) else {
+                continue;
+            };
+            if body.publication.as_ref() != Some(declaration.name()) {
                 continue;
             }
-            *groups.entry((namespace_of(qname), leading)).or_insert(0) += 1;
-        }
-        let peer_protos: HashSet<(String, Vec<String>)> = groups
-            .into_iter()
-            .filter(|(_, n)| *n >= 3)
-            .map(|(k, _)| k)
-            .collect();
-        if peer_protos.is_empty() {
-            return HashSet::new();
-        }
-        // Dispatcher evidence: map each dispatcher namespace → the argument
-        // counts observed at its variable-command sites.
-        let mut dispatcher_ns_argc: FxHashMap<String, FxHashSet<usize>> = FxHashMap::default();
-        for site in &self.var_command_sites {
-            let off = site.cmd_span.start();
-            let dns = self
-                .result
-                .all_procs
+            let Some(namespace) = declaration.name().body_scope() else {
+                continue;
+            };
+            let params = body
+                .params
                 .iter()
-                .find(|(_, p)| p.body_span.start() <= off && off <= p.body_span.end())
-                .map_or_else(|| "::".to_string(), |(q, _)| namespace_of(q));
-            dispatcher_ns_argc.entry(dns).or_default().insert(site.argc);
+                .take_while(|name| *name != "args")
+                .cloned()
+                .collect::<Vec<_>>();
+            if params.is_empty() {
+                continue;
+            }
+            peers.insert(
+                id,
+                OriginalDispatchPeer {
+                    protocol: OriginalDispatchProtocol {
+                        policy: declaration.name().policy(),
+                        namespace,
+                        params,
+                    },
+                    body_span: declaration.metadata().body_span,
+                    publication: declaration.name().clone(),
+                },
+            );
         }
-        peer_protos
+        peers
+    }
+
+    /// Suppress protocol parameters only for distinct original publications
+    /// with an authentic, arity-compatible dispatcher in the same source scope.
+    fn dispatch_protocol_signatures(
+        &self,
+        module: &crate::ir::Module,
+        peers: &FxHashMap<crate::ir::ProcedureId, OriginalDispatchPeer>,
+    ) -> HashSet<OriginalDispatchProtocol> {
+        let Some(registry) = self.result.resolved_registry() else {
+            return HashSet::new();
+        };
+        let mut groups: FxHashMap<OriginalDispatchProtocol, HashSet<_>> = FxHashMap::default();
+        for peer in peers.values() {
+            groups
+                .entry(peer.protocol.clone())
+                .or_default()
+                .insert(&peer.publication);
+        }
+        groups
             .into_iter()
-            .filter(|(ns_key, params)| {
-                let min_argc = params.len();
-                dispatcher_ns_argc.iter().any(|(dns, argcs)| {
-                    (dns == ns_key || dns.starts_with(&format!("{ns_key}::")))
-                        && argcs.iter().any(|&a| a >= min_argc)
+            .filter(|(_, publications)| publications.len() >= 3)
+            .map(|(protocol, _)| protocol)
+            .filter(|protocol| {
+                self.var_command_sites.iter().any(|site| {
+                    if site.in_method
+                        || site.has_expand
+                        || site.argc < protocol.params.len()
+                        || !original_dispatch_site(module, site, registry)
+                    {
+                        return false;
+                    }
+                    let Some(namespace) = self.original_dispatch_namespace(site, peers) else {
+                        return false;
+                    };
+                    namespace == &protocol.namespace
+                        || protocol
+                            .namespace
+                            .is_strict_ancestor_of(namespace, protocol.policy)
+                            == Some(true)
                 })
             })
             .collect()
+    }
+
+    fn original_dispatch_namespace<'a>(
+        &'a self,
+        site: &super::super::state::VarCommandSite,
+        peers: &'a FxHashMap<crate::ir::ProcedureId, OriginalDispatchPeer>,
+    ) -> Option<&'a crate::signature_scan::scope::SignatureNamespaceScope> {
+        let mut containing = peers
+            .values()
+            .filter(|peer| {
+                peer.body_span.start() <= site.cmd_span.start()
+                    && site.cmd_span.end() <= peer.body_span.end()
+            })
+            .collect::<Vec<_>>();
+        containing.sort_by_key(|peer| peer.body_span.as_range().len());
+        if let Some(first) = containing.first() {
+            if containing
+                .iter()
+                .skip(1)
+                .any(|other| other.body_span == first.body_span && other.protocol != first.protocol)
+            {
+                return None;
+            }
+            return Some(&first.protocol.namespace);
+        }
+        self.result
+            .original_namespace_scope_at(site.cmd_span.start())
     }
 
     /// W210 + W213 — read-before-set / unset on possibly-undefined.
@@ -1359,64 +1686,163 @@ file; this call falls through to the 'unknown' handler."
         ir_proc: Option<&crate::ir::Procedure>,
         ctx: &ReadBeforeSetCtx<'_>,
     ) -> HashSet<String> {
-        use crate::def_use::DefKind;
-        use std::fmt::Write as _;
+        let exists_guards = collect_existence_guards(
+            fu,
+            self.analysis_context().commands(),
+            fu.source_lexer_config(),
+        );
+        let mut w210_min = self.definite_missing_read_spans(fu, ctx, &exists_guards);
+        let original_image = tcl_lexer::SourceImage::document(&self.source);
+        let declared_flow = ir_proc.and_then(|procedure| {
+            function_declaration_flow(fu, procedure, &original_image, &self.profile_registry())
+                .or_else(|| {
+                    self.head_identities
+                        .source_bindings()
+                        .original_procedure_read_flow(
+                            procedure,
+                            &original_image,
+                            &self.profile_registry(),
+                            self.result.resolved_input.as_ref()?,
+                        )
+                })
+        });
 
-        // A dynamic write (`set $name value`) defines a variable this pass
-        // cannot name, so *no* local can still be proved unset (tclsh 9.0.4 /
-        // 8.6.14: `proc g {n} {set $n 1; puts $foo}; g foo` prints `1`).
-        // Abstain toward silence for the whole function.
+        // Unknown writers retire physical absence proofs. Declaration advice
+        // must establish a particular original read; ownership of the whole
+        // body does not close an unknown option grammar or caller frame.
         if fu.dynamic_names.writes {
-            return HashSet::new();
+            let potential = ir_proc.and_then(|procedure| {
+                let declaration = crate::script_binds::authored_procedure_read_advice(
+                    &original_image,
+                    procedure,
+                    &self.result,
+                    &self.analysis_context(),
+                )?;
+                self.declaration_potential_read_spans(
+                    fu,
+                    procedure,
+                    &declaration,
+                    declared_flow.as_ref()?,
+                    ctx,
+                    DeclaredReadProofs {
+                        exists_guards: &exists_guards,
+                        proved: &w210_min,
+                    },
+                )
+            });
+            suppress_declared_read_warnings(fu, ctx, declared_flow.as_deref(), &mut w210_min);
+            let reported = w210_min.keys().cloned().collect();
+            self.emit_w210_read_spans(w210_min, ctx);
+            self.emit_declaration_potential_reads(potential);
+            return reported;
         }
 
-        // Top-level RBS uses the ``extra_known_defined`` set
-        // (computed from ``globals_written_by_procs``) to suppress
-        // W210 on globals that helper procs write.  Inside procs the
-        // set is empty.
+        // An authored declaration can delimit a diagnostic read without
+        // overriding unknown writes, accepted operand layouts or SSA origins.
+        let declaration_advice = ir_proc.and_then(|procedure| {
+            crate::script_binds::authored_procedure_read_advice(
+                &procedure.body.executed_source.as_ref().map_or_else(
+                    || tcl_lexer::SourceImage::document(&self.source),
+                    |source| source.origin.source_image().clone(),
+                ),
+                procedure,
+                &self.result,
+                &self.analysis_context(),
+            )
+        });
+
+        // Physical namespace write advice retains exact keys. Authored
+        // host-name advice remains separate in extra_known_defined.
         let params_owned: HashSet<&str> = match ir_proc {
             Some(p) => p.params.iter().map(String::as_str).collect(),
             None => HashSet::new(),
         };
         let params = &params_owned;
 
+        self.collect_chain_read_before_set_spans(
+            fu,
+            ctx,
+            params,
+            &exists_guards,
+            declaration_advice.as_ref(),
+            &mut w210_min,
+        );
+
+        let potential = declaration_advice.as_ref().and_then(|declaration| {
+            self.declaration_potential_read_spans(
+                fu,
+                ir_proc?,
+                declaration,
+                declared_flow.as_ref()?,
+                ctx,
+                DeclaredReadProofs {
+                    exists_guards: &exists_guards,
+                    proved: &w210_min,
+                },
+            )
+        });
+        suppress_declared_read_warnings(fu, ctx, declared_flow.as_deref(), &mut w210_min);
+        let reported = w210_min.keys().cloned().collect();
+        self.emit_w210_read_spans(w210_min, ctx);
+        self.emit_declaration_potential_reads(potential);
+        reported
+    }
+
+    fn collect_chain_read_before_set_spans(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        ctx: &ReadBeforeSetCtx<'_>,
+        params: &HashSet<&str>,
+        exists_guards: &[super::helpers::ExistenceGuard],
+        declaration_advice: Option<&crate::script_binds::AuthoredProcedureReadAdvice>,
+        w210_min: &mut std::collections::HashMap<String, tcl_lexer::Span>,
+    ) {
+        use crate::def_use::DefKind;
+
         // W210 fires **once per variable**, at the earliest read-before-set.
         // The def-use walk below
         // visits *every* version-0 use, so record the earliest passing span
         // per variable here and emit after the walk (W213, a distinct code,
         // stays inline).
-        let mut w210_min: std::collections::HashMap<String, tcl_lexer::Span> =
-            std::collections::HashMap::new();
-
         for chain in fu.def_use.chains.values() {
+            let Some(physical_key) = fu.def_use.physical_value_key(&fu.ssa, chain.key) else {
+                continue;
+            };
             // Version-0 synthetic defs are the undef origin; an
             // `unset`-killed real version, and a phi version that can reach
             // an undef origin (one-branch `set` / try-handler merge), are
             // undef at their reads too — all flow through the same
             // suppression + emission logic below.
             if chain.definition.kind != DefKind::Parameter
-                && !ctx.supp.killed.contains(&chain.key)
-                && !ctx.supp.can_undef.contains(&chain.key)
+                && !ctx.supp.killed.contains(&physical_key)
+                && !ctx.supp.can_undef.contains(&physical_key)
             {
                 continue;
             }
-            let (var, version) = &chain.key;
-            if params.contains(var.as_str()) {
+            let (cell_name, version) = &chain.key;
+            let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
+                continue;
+            };
+            let Some(cell_name) = fu.ssa.cell_key(symbol) else {
+                continue;
+            };
+            let var = fu.ssa.var_name(symbol);
+            if params.contains(var) {
                 continue;
             }
             // Tcl 8.x's registry-declared `tcl_precision` read trace
             // recreates its value after `unset`; an eager startup binding
             // (for example argv) deliberately does not get this exemption.
             let startup = startup_read_facts(
-                var,
-                (*version, ctx.supp.killed.contains(&chain.key)),
-                (ctx.initial_global, ctx.global_aliases),
-                self.registry
-                    .as_deref()
-                    .unwrap_or_else(|| tcl_registry::default_registry()),
+                cell_name,
+                *version,
+                ctx.supp.killed.contains(&physical_key),
+                ctx.initial_global,
+                ctx.global_aliases,
                 Some(self.analysis_context().context().authoring_query()),
+                &self.profile_registry(),
             );
-            if startup.lazy_read && ctx.supp.killed.contains(&chain.key) {
+            if startup.lazy_read && ctx.supp.killed.contains(&physical_key) {
                 continue;
             }
             // `SPECIAL_VARS` distinguishes recognised runtime-sensitive names
@@ -1430,21 +1856,29 @@ file; this call falls through to the 'unknown' handler."
             // command created is not statically knowable, so only a read
             // of a wholly-unwritten, unaliased array reports. Policy sets
             // are base-keyed, so the base is checked for those too.
-            if let Some(open) = var.find('(') {
-                let base = &var[..open];
-                let base_defined = fu.ssa.var_symbol(base).is_some_and(|sym| {
-                    fu.def_use.chains.keys().any(|(n, v)| n == base && *v > 0)
-                        || fu
-                            .ssa
-                            .blocks
-                            .values()
-                            .any(|b| b.statements.iter().any(|st| st.defs.contains_key(&sym)))
+            let (base, element) = crate::naming::split_array_name_braced(var, true);
+            if element.is_some() {
+                let base_defined = fu.def_use.chains.keys().any(|(key, version)| {
+                    *version > 0
+                        && fu
+                            .def_use
+                            .cell_key(&fu.ssa, *key)
+                            .is_some_and(|key| cell_name.is_member_of(key))
+                }) || fu.ssa.blocks.values().any(|block| {
+                    block.statements.iter().any(|statement| {
+                        statement.defs.keys().any(|symbol| {
+                            fu.ssa
+                                .cell_key(*symbol)
+                                .is_none_or(|cell| cell_name.is_member_of(cell))
+                        })
+                    })
                 });
-                if base_defined
-                    || params.contains(base)
-                    || (ctx.scope_aliases.contains(base) && !ctx.supp.killed.contains(&chain.key))
-                    || ctx.extra_known_defined.contains(base)
-                    || ctx.supp.suppresses(base)
+                if !ctx.supp.killed.contains(&physical_key)
+                    && (base_defined
+                        || params.contains(base)
+                        || ctx.scope_aliases.contains(base)
+                        || ctx.extra_known_defined.contains(base)
+                        || ctx.supp.suppresses(base))
                 {
                     continue;
                 }
@@ -1456,7 +1890,9 @@ file; this call falls through to the 'unknown' handler."
             // dataflow cannot see those writers, so an otherwise-unresolved
             // qualified read is conservatively exempt. A same-unit `unset`
             // records a killed chain, however, so it must still be reported.
-            if var.contains("::") && !ctx.supp.killed.contains(&chain.key) {
+            if cell_name.namespace_membership_for_advice().is_some()
+                && !ctx.supp.killed.contains(&physical_key)
+            {
                 continue;
             }
             // A scope-aliased local (`global` / `variable` / `upvar` /
@@ -1470,7 +1906,7 @@ file; this call falls through to the 'unknown' handler."
             // the loop / cross-event passes already take). A known `unset` of
             // the alias wins over that conservative assumption; a genuinely
             // unrelated local is absent from `scope_aliases` and still fires.
-            if ctx.scope_aliases.contains(var) && !ctx.supp.killed.contains(&chain.key) {
+            if ctx.scope_aliases.contains(var) && !ctx.supp.killed.contains(&physical_key) {
                 continue;
             }
             if ctx.extra_known_defined.contains(var) {
@@ -1483,23 +1919,227 @@ file; this call falls through to the 'unknown' handler."
             // CONST("") (keys = ∅, not unknown), so the blanket variant fires
             // on a genuine missing-key read while still suppressing an
             // unknown-shape (mixed-caller / no-caller) dict.
-            if ctx.supp.suppresses_read(&chain.key) {
+            if ctx.supp.suppresses_read(var, &physical_key) {
                 continue;
             }
             self.record_chain_w210_uses(
                 fu,
                 chain,
                 &W210ChainCtx {
+                    cell_facts: ctx.cell_facts,
+                    exists_guards,
                     supp: ctx.supp,
                     startup,
                 },
-                &mut w210_min,
+                declaration_advice,
+                w210_min,
             );
         }
+    }
 
-        let mut entries: Vec<(String, tcl_lexer::Span)> = w210_min.into_iter().collect();
+    fn emit_declaration_potential_reads(
+        &mut self,
+        potential: Option<std::collections::HashMap<String, tcl_lexer::Span>>,
+    ) {
+        if let Some(potential) = potential {
+            let mut potential: Vec<_> = potential.into_iter().collect();
+            potential.sort_by_key(|(_, span)| span.start());
+            for (name, span) in potential {
+                self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W210, span,
+                    format!("Variable '{name}' may be read before it is set in the declared local frame"),
+                    Severity::Warning,
+                ));
+            }
+        }
+    }
+
+    /// Original declared reads absent from physical SSA remain conditional
+    /// diagnostic occurrences. This projection neither defines a variable nor
+    /// withdraws unknown writers, dispatch or callback alternatives.
+    fn declaration_potential_read_spans(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        procedure: &crate::ir::Procedure,
+        declaration: &crate::script_binds::AuthoredProcedureReadAdvice,
+        report: &crate::command_binding::DeclarationFlowReport,
+        ctx: &ReadBeforeSetCtx<'_>,
+        proofs: DeclaredReadProofs<'_>,
+    ) -> Option<std::collections::HashMap<String, tcl_lexer::Span>> {
+        let DeclaredReadProofs {
+            exists_guards,
+            proved,
+        } = proofs;
+        if !report
+            .owns_original_procedure(procedure, &tcl_lexer::SourceImage::document(&self.source))
+        {
+            return None;
+        }
+        let mut reads = std::collections::HashMap::new();
+        for (name, &span) in report.declared_absence_warning_occurrences() {
+            if !declaration.owns(span)
+                || !report.allows_declared_absence_warning(name, span)
+                || proved.contains_key(name)
+                || ctx.scope_aliases.contains(name)
+                || report.has_declared_alias(name)
+                || ctx.supp.suppresses(name)
+                || ctx.extra_known_defined.contains(name)
+                || super::helpers::original_array_scalar_read_at_span(
+                    fu,
+                    span,
+                    &self.profile_registry(),
+                )
+            {
+                continue;
+            }
+            let killed = super::helpers::original_read_occurrence_at_span(fu, span)
+                .is_some_and(|value| ctx.supp.killed.contains(&value));
+            let guarded = !killed
+                && fu.ssa.blocks.iter().any(|(&block, data)| {
+                    data.statements.iter().enumerate().any(|(index, _)| {
+                        let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index);
+                        view.source_tokens().is_some_and(|tokens| {
+                            tokens.variable_accesses.iter().any(|access| {
+                                let original = fu.abs_span(access.source.span);
+                                original.start() <= span.start()
+                                    && span.end() <= original.end()
+                                    && super::helpers::original_read_cell(
+                                        access,
+                                        &self.profile_registry(),
+                                    )
+                                    .is_some_and(|cell| {
+                                        exists_guards.iter().any(|(guard, dominator)| {
+                                            guard == &cell
+                                                && block_dominated_by(&fu.ssa, block, *dominator)
+                                        })
+                                    })
+                            })
+                        })
+                    })
+                });
+            if !guarded {
+                reads.insert(name.clone(), span);
+            }
+        }
+        Some(reads)
+    }
+
+    /// Potential missing contents require closed original read alternatives,
+    /// independently of SSA versions. Unknown worlds and existing array roots
+    /// cannot donate an undef finding.
+    fn definite_missing_read_spans(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        ctx: &ReadBeforeSetCtx<'_>,
+        exists_guards: &[super::helpers::ExistenceGuard],
+    ) -> std::collections::HashMap<String, tcl_lexer::Span> {
+        let mut missing = std::collections::HashMap::new();
+        let registry = self.profile_registry();
+        let grammar = self.lexer_config().braced_var;
+        let condition_writes = super::helpers::collect_condition_writes(fu);
+        for (&block, data) in &fu.ssa.blocks {
+            if !fu
+                .diagnostic_value_facts()
+                .executable_blocks()
+                .contains(&block)
+            {
+                continue;
+            }
+            for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
+                let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index);
+                let Some(tokens) = view.source_tokens() else {
+                    continue;
+                };
+                for access in &tokens.variable_accesses {
+                    let Some(presence) = view
+                        .read_contents_presence_alternatives_at(
+                            &access.source,
+                            &access.original_spelling,
+                            &registry,
+                        )
+                        .filter(|presence| presence.may_be_undefined())
+                    else {
+                        continue;
+                    };
+                    // Reading a live array as a scalar is a wrong-kind error,
+                    // rather than evidence that the root cell is undefined.
+                    if super::helpers::original_read_is_live_array_scalar(access, &registry) {
+                        continue;
+                    }
+                    let read_cell = super::helpers::original_read_cell(access, &registry);
+                    let read_reference =
+                        view.read_reference(&access.source, &access.original_spelling);
+                    let killed = read_reference.is_some_and(|read| {
+                        read.version.is_some_and(|version| {
+                            fu.ssa.cell_key(read.symbol).is_some_and(|cell| {
+                                ctx.supp.killed.contains(&(cell.clone(), version))
+                            })
+                        })
+                    });
+                    let name = tcl_syntax::naming::var_reference_for_style(
+                        &access.original_spelling,
+                        grammar,
+                    )
+                    .to_owned();
+                    if ctx.supp.suppresses(&name)
+                        || !killed
+                            && exists_guards.iter().any(|(guarded, dominator)| {
+                                read_cell.as_ref().is_some_and(|cell| guarded == cell)
+                                    && block_dominated_by(&fu.ssa, block, *dominator)
+                            })
+                        || condition_writes.covers(&name, &fu.ssa, block, presence.may_be_defined())
+                    {
+                        continue;
+                    }
+                    let incoming = access.context_alternatives().iter().all(|context| {
+                        let place = access.place_in_context(context, &registry);
+                        context.contents_origin(&place)
+                            == crate::var_resolve::ContentsOrigin::Incoming
+                    });
+                    let startup_readable = read_cell.as_ref().is_some_and(|cell| {
+                        let version = read_reference.and_then(|read| read.version).unwrap_or(0);
+                        let facts = startup_read_facts(
+                            cell,
+                            version,
+                            killed,
+                            ctx.initial_global,
+                            ctx.global_aliases,
+                            Some(self.analysis_context().context().authoring_query()),
+                            &self.profile_registry(),
+                        );
+                        facts.lazy_read || incoming && facts.readable
+                    });
+                    if startup_readable
+                        || read_cell
+                            .as_ref()
+                            .is_some_and(|cell| ctx.cell_facts.known_defined.contains(cell))
+                        || ctx.extra_known_defined.contains(name.as_str())
+                    {
+                        continue;
+                    }
+                    let span = fu.abs_span(access.source.span);
+                    missing
+                        .entry(name)
+                        .and_modify(|old: &mut tcl_lexer::Span| {
+                            if span.start() < old.start() {
+                                *old = span;
+                            }
+                        })
+                        .or_insert(span);
+                }
+            }
+        }
+        missing
+    }
+
+    fn emit_w210_read_spans(
+        &mut self,
+        spans: std::collections::HashMap<String, tcl_lexer::Span>,
+        ctx: &ReadBeforeSetCtx<'_>,
+    ) {
+        use std::fmt::Write as _;
+        let mut entries: Vec<(String, tcl_lexer::Span)> = spans.into_iter().collect();
         entries.sort_by_key(|(_, s)| s.start());
-        let reported = entries.iter().map(|(var, _)| var.clone()).collect();
         for (var, span) in entries {
             let mut message = format!("Variable '{var}' is read before it is set");
             if let Some(similar) = undefined_var_suggestion(&var, ctx.defined_vars) {
@@ -1514,7 +2154,6 @@ file; this call falls through to the 'unknown' handler."
                     Severity::Warning,
                 ));
         }
-        reported
     }
 
     /// Record the earliest read-before-set span for one undef def-use chain
@@ -1528,12 +2167,23 @@ file; this call falls through to the 'unknown' handler."
         fu: &crate::compilation_unit::FunctionUnit,
         chain: &crate::def_use::DefUseChain,
         ctx: &W210ChainCtx<'_>,
+        declaration_advice: Option<&crate::script_binds::AuthoredProcedureReadAdvice>,
         w210_min: &mut std::collections::HashMap<String, tcl_lexer::Span>,
     ) {
         use crate::def_use::UseKind;
         use crate::ir::Statement;
 
-        let (var, version) = &chain.key;
+        let Some(physical_key) = fu.def_use.physical_value_key(&fu.ssa, chain.key) else {
+            return;
+        };
+        let (cell_name, version) = &chain.key;
+        let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
+            return;
+        };
+        let Some(cell_name) = fu.ssa.cell_key(symbol) else {
+            return;
+        };
+        let var = fu.ssa.var_name(symbol);
         for use_site in &chain.uses {
             if matches!(use_site.kind, UseKind::PhiIncoming) {
                 continue;
@@ -1550,7 +2200,7 @@ file; this call falls through to the 'unknown' handler."
             // version on the paths the solver's outcome runs, and only there:
             // a read in a block that outcome makes unreachable — the match
             // arm of a `regexp` that never matches — reads a written value.
-            if ctx.supp.preserved_undef.contains(&chain.key)
+            if ctx.supp.preserved_undef.contains(&physical_key)
                 && fu
                     .cfg
                     .block_id(&use_site.block)
@@ -1563,7 +2213,7 @@ file; this call falls through to the 'unknown' handler."
             // `UndefSuppression::loop_entry_only_undef`): we assume a may-run
             // loop runs, matching C Tcl. A read *inside* the loop body still
             // fires.
-            if ctx.supp.after_loop_defined(&chain.key, &use_site.block) {
+            if ctx.supp.after_loop_defined(&physical_key, &use_site.block) {
                 continue;
             }
             // A read at or after an `expr` substitution's write of the name.
@@ -1610,8 +2260,59 @@ file; this call falls through to the 'unknown' handler."
                     };
                     (fu.abs_span(stmt.span()), Some(stmt))
                 };
-            if span.is_empty() {
+            if span.is_empty() || declaration_advice.is_some_and(|advice| !advice.owns(span)) {
                 continue;
+            }
+            let Some(use_id) = fu.ssa.block_id(&use_site.block) else {
+                continue;
+            };
+            let use_index = usize::try_from(use_site.statement_index).unwrap_or(usize::MAX);
+            let source_view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, use_id, use_index);
+            if source_view.owns_activation_cell(symbol) == Some(false)
+                && !super::helpers::original_read_cells_at(
+                    &fu.ssa,
+                    (use_id, use_index),
+                    cell_name,
+                    &self.profile_registry(),
+                )
+                .contains(cell_name)
+            {
+                continue;
+            }
+            if super::helpers::read_has_cell_fact(
+                fu,
+                (use_id, use_index),
+                cell_name,
+                &ctx.cell_facts.known_defined,
+                &self.profile_registry(),
+            ) {
+                continue;
+            }
+            if let Ok(index) = usize::try_from(use_site.statement_index) {
+                let tokens =
+                    crate::ssa::SsaSourceView::at_statement(&fu.ssa, use_id, index).source_tokens();
+                let array_read = tokens
+                    .into_iter()
+                    .flat_map(|tokens| &tokens.variable_accesses)
+                    .filter(|access| {
+                        fu.ssa
+                            .read_reference_at(
+                                use_id,
+                                index,
+                                &access.source,
+                                &access.original_spelling,
+                            )
+                            .is_some_and(|read| fu.ssa.cell_key(read.symbol) == Some(cell_name))
+                    })
+                    .any(|access| {
+                        super::helpers::original_read_is_live_array_scalar(
+                            access,
+                            &self.profile_registry(),
+                        )
+                    });
+                if array_read {
+                    continue;
+                }
             }
             // A `$var` read inside an opaque body-role script that also
             // defines `var` earlier in the same script reads that script's
@@ -1627,8 +2328,10 @@ file; this call falls through to the 'unknown' handler."
             if barrier_body_locally_sets(
                 stmt_opt,
                 var,
-                self.registry.as_deref(),
-                self.lexer_config(),
+                &self.source,
+                &self.result,
+                &self.analysis_context(),
+                crate::ssa::SsaSourceView::at_statement(&fu.ssa, use_id, use_index).source_tokens(),
             ) {
                 continue;
             }
@@ -1646,14 +2349,16 @@ file; this call falls through to the 'unknown' handler."
             if stmt_opt.is_some_and(statement_is_synthetic_effect) {
                 continue;
             }
-            // Skip the existence-query word itself and reads in the region
-            // an enclosing `[info exists X]` guard proves `X` bound.
-            if is_existence_query_word(stmt_opt, var, self.registry.as_deref(), self.lexer_config())
-                || fu
-                    .cfg
-                    .block_id(&use_site.block)
-                    .is_some_and(|block| fu.sccp.guarded(&fu.ssa, var, block))
-            {
+            // Skip the existence-query word itself and
+            // reads narrowed by an enclosing `[info exists X]` guard.
+            if is_existence_query_word(
+                stmt_opt,
+                cell_name,
+                ctx.exists_guards,
+                fu,
+                use_site,
+                self.analysis_context().commands(),
+            ) {
                 continue;
             }
             // An unbind of the place — a command the registry declares
@@ -1663,22 +2368,21 @@ file; this call falls through to the 'unknown' handler."
             // one, and nothing on a bound one or where the run computed no
             // fact. The `-nocomplain` form raises nothing, so it reports
             // neither W213 nor, since destroying is no read, W210.
-            if let Some(Statement::Call {
-                command,
-                args,
-                tokens,
-                ..
-            }) = stmt_opt
-                && destroys_variable(self.registry.as_deref(), command)
+            if let Some(Statement::Call { tokens, .. }) = stmt_opt
+                && let Some(selected) = destroys_variable(fu, use_site, &self.profile_registry())
             {
-                if args.iter().any(|a| a == "-nocomplain") {
+                let targets = selected.variable_roles();
+                if (0..selected.argument_count()).any(|ordinal| {
+                    !targets.iter().any(|(index, _)| *index == ordinal)
+                        && selected.argument_literal(ordinal).as_deref() == Some("-nocomplain")
+                }) {
                     continue;
                 }
                 let Some(fact) = reportable(&place_fact(
                     fu,
                     &use_site.block,
                     use_site.statement_index,
-                    var,
+                    cell_name,
                 )) else {
                     continue;
                 };
@@ -1727,10 +2431,14 @@ file; this call falls through to the 'unknown' handler."
             }
             // A use site that itself safely initialises the variable
             // (`safe_on_uninit` calls like `lappend`/`dict set`, or an
-            // `incr` of its own target) is not read-before-set, and neither
-            // is an embedded cell update's read.
-            if use_site_safe_initialises(stmt_opt, var) || embedded_cell_update_read(stmt_opt, var)
-            {
+            // `incr` of its own target) is not read-before-set.
+            if use_site_safe_initialises(
+                stmt_opt,
+                fu,
+                use_site,
+                cell_name,
+                &self.profile_registry(),
+            ) {
                 continue;
             }
             // This is an ordinary initial read, not the destructive `unset`
@@ -1747,7 +2455,7 @@ file; this call falls through to the 'unknown' handler."
                 fu,
                 &use_site.block,
                 use_site.statement_index,
-                var,
+                cell_name,
             ))
             .is_none()
             {
@@ -1757,7 +2465,7 @@ file; this call falls through to the 'unknown' handler."
             // span when the read is nested inside a quoted/compound word.
             let read_span = self.narrow_to_read_var(span, var).unwrap_or(span);
             w210_min
-                .entry(var.clone())
+                .entry(var.to_owned())
                 .and_modify(|s| {
                     if read_span.start() < s.start() {
                         *s = read_span;
@@ -1789,12 +2497,17 @@ file; this call falls through to the 'unknown' handler."
             return;
         };
 
-        let maps = build_phi_undef_index(&fu.ssa, considered, Some(registry), &ctx.supp.call_steps);
+        let super::helpers::UndefIndexMaps {
+            phi_def,
+            phi_block,
+            killed,
+            may_defs,
+        } = build_phi_undef_index(fu, considered, registry, &ctx.supp.call_steps);
         let phi_idx = PhiUndefIndex {
-            phi_def: &maps.phi_def,
-            phi_block: &maps.phi_block,
-            killed: &maps.killed,
-            may_defs: &maps.may_defs,
+            phi_def: &phi_def,
+            phi_block: &phi_block,
+            killed: &killed,
+            may_defs: &may_defs,
         };
         // Every `return_read_fires_w210` call below traces the same phi graph
         // with the same context, so they share one memo (issue #2021).
@@ -1865,7 +2578,7 @@ file; this call falls through to the 'unknown' handler."
                 }
                 let ver = fu
                     .ssa
-                    .var_symbol(&name)
+                    .var_symbol_at_terminator(bn, &name)
                     .and_then(|s| ssa_block.exit_versions.get(&s))
                     .copied()
                     .unwrap_or(0);
@@ -1920,40 +2633,50 @@ file; this call falls through to the 'unknown' handler."
         // set — this pass only covers the phi-from-undef / `unset`-killed
         // (version > 0) cases, which def-use can't express.  Skipping ver 0
         // avoids double-firing.
-        let binding_version = fu
-            .ssa
-            .var_symbol(name)
-            .map_or(ver, |symbol| fu.ssa.binding_version(symbol, ver));
+        let Some(symbol) = fu.ssa.var_symbol_at_terminator(bn, name) else {
+            return false;
+        };
+        let binding_version = fu.ssa.binding_version(symbol, ver);
         if binding_version == 0 {
             return false;
         }
         let undef_ctx = super::helpers::PhiUndefCtx {
-            registry: ctx.registry,
+            registry: &ctx.registry,
             phi_def: phi_idx.phi_def,
             phi_block: phi_idx.phi_block,
             killed: phi_idx.killed,
             may_defs: phi_idx.may_defs,
             considered: ctx.considered,
-            executable_edges: &fu.sccp.executable_edges,
-            sccp: &fu.sccp,
+            executable_edges: fu.diagnostic_value_facts().executable_edges(),
+            exists_guards: ctx.exists_guards,
             initial_global: ctx.initial_global,
             global_aliases: ctx.global_aliases,
             dialect: ctx.dialect,
             ssa: &fu.ssa,
             preserved: &fu.sccp.preserved,
         };
-        if !phi_can_undef(name, ver, &undef_ctx, memo) {
+        let Some(cell_name) = fu.ssa.cell_key(symbol) else {
+            return false;
+        };
+        if !phi_can_undef(cell_name, ver, &undef_ctx, memo) {
             return false;
         }
         // A killed SSA version is concrete same-unit evidence that overrides
         // the conservative external-scope assumptions for `global`/`upvar`
         // aliases and qualified names.
-        let known_killed = phi_idx.killed.contains(&(name.to_owned(), ver));
+        let known_killed = phi_idx.killed.contains(&(cell_name.to_owned(), ver));
         if ctx.params.contains(name)
             || (ctx.scope_aliases.contains(name) && !known_killed)
+            || super::helpers::read_has_cell_fact(
+                fu,
+                (bn, usize::MAX),
+                cell_name,
+                &ctx.cell_facts.known_defined,
+                &ctx.registry,
+            )
             || ctx.extra_known_defined.contains(name)
-            || (name.contains("::") && !known_killed)
-            || ctx.supp.suppresses_read(&(name.to_owned(), ver))
+            || (cell_name.namespace_membership_for_advice().is_some() && !known_killed)
+            || ctx.supp.suppresses_read(name, &(cell_name.clone(), ver))
             || ctx
                 .supp
                 .written_by_substitution_before(name, &fu.ssa, bn, -1)
@@ -1965,13 +2688,257 @@ file; this call falls through to the 'unknown' handler."
         // matching C Tcl); the return block sits outside the loop body.
         if ctx
             .supp
-            .after_loop_defined(&(name.to_string(), ver), fu.cfg.block_name(bn))
+            .after_loop_defined(&(cell_name.to_owned(), ver), fu.cfg.block_name(bn))
         {
             return false;
         }
-        // An existence guard whose region holds the return proves the
-        // variable defined here.
-        !fu.sccp.guarded(&fu.ssa, name, bn)
+        // A dominating existence guard proves the var exists here.
+        let original_cells = super::helpers::original_read_cells_at(
+            &fu.ssa,
+            (bn, usize::MAX),
+            cell_name,
+            &ctx.registry,
+        );
+        if !known_killed
+            && ctx.exists_guards.iter().any(|(guard, block)| {
+                (original_cells.contains(guard)
+                    || fu.ssa.point_contexts.is_none() && guard == cell_name)
+                    && block_dominated_by(&fu.ssa, bn, *block)
+            })
+        {
+            return false;
+        }
+        true
+    }
+
+    /// W210 from a selected original matcher that leaves its targets unchanged.
+    /// Logical source advice follows the same represented SSA value; Native
+    /// emission additionally requires independent closed read-absence proof.
+    pub(super) fn emit_provably_unset_w210(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        considered: &HashSet<crate::cfg::BlockId>,
+        ctx: &ReadBeforeSetCtx<'_>,
+        params: &HashSet<&str>,
+    ) {
+        // naming.diagnostics.original-matcher-output-retention
+
+        let Some(input) = self.result.resolved_input.as_ref() else {
+            return;
+        };
+        let context = input.context_registry();
+        let logical = self.result.allows_retained_logical_declaration_advice();
+        let origins = self.collect_no_match_origins(fu, considered, &context, logical);
+        let mut spans = std::collections::HashMap::new();
+        for &block in considered {
+            let Some(data) = fu.ssa.blocks.get(&block) else {
+                continue;
+            };
+            for (index, statement) in data.statements.iter().enumerate() {
+                let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index);
+                for (&symbol, &version) in &statement.uses {
+                    if statement.quoted_uses.contains(&symbol)
+                        || statement.name_only_uses.contains(&symbol)
+                        || !origins.get(&symbol).is_some_and(|candidates| {
+                            candidates.iter().any(|origin| {
+                                origin.version == version && origin.reaches(fu, block, index)
+                            })
+                        })
+                    {
+                        continue;
+                    }
+                    let name = fu.ssa.var_name(symbol);
+                    let span = if logical {
+                        let Some(cell) = fu.ssa.cell_key(symbol) else {
+                            continue;
+                        };
+                        if params.contains(name)
+                            || ctx.scope_aliases.contains(name)
+                            || ctx.extra_known_defined.contains(name)
+                            || ctx.supp.suppresses(name)
+                            || ctx.cell_facts.known_defined.contains(cell)
+                            || fu.dynamic_names.writes
+                        {
+                            continue;
+                        }
+                        let startup = startup_read_facts(
+                            cell,
+                            0,
+                            false,
+                            ctx.initial_global,
+                            ctx.global_aliases,
+                            Some(context.context().authoring_query()),
+                            context.commands(),
+                        );
+                        if startup.readable {
+                            continue;
+                        }
+                        let Some(statement) = fu
+                            .cfg
+                            .blocks
+                            .get(&block)
+                            .and_then(|data| data.statements.get(index))
+                        else {
+                            continue;
+                        };
+                        let Some(span) =
+                            self.narrow_to_read_var(fu.abs_span(statement.span()), name)
+                        else {
+                            continue;
+                        };
+                        span
+                    } else {
+                        let Some(span) = original_missing_matcher_read_span(
+                            fu,
+                            view,
+                            symbol,
+                            context.commands(),
+                        ) else {
+                            continue;
+                        };
+                        span
+                    };
+                    spans
+                        .entry(name.to_owned())
+                        .and_modify(|earlier: &mut tcl_lexer::Span| {
+                            if span.start() < earlier.start() {
+                                *earlier = span;
+                            }
+                        })
+                        .or_insert(span);
+                }
+            }
+        }
+        self.emit_w210_read_spans(spans, ctx);
+    }
+
+    fn collect_no_match_origins(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        considered: &HashSet<crate::cfg::BlockId>,
+        context: &tcl_registry::model::ContextRegistry,
+        logical: bool,
+    ) -> std::collections::HashMap<crate::ssa::Symbol, Vec<NoMatchOutputOrigin>> {
+        use crate::registry_invocation::source_structure::original_registry_words_for_tokens;
+        let mut origins = std::collections::HashMap::new();
+        for &block in considered {
+            let Some(data) = fu.cfg.blocks.get(&block) else {
+                continue;
+            };
+            for index in 0..data.statements.len() {
+                let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index);
+                let Some(tokens) = view.source_tokens() else {
+                    continue;
+                };
+                let Some(words) =
+                    original_registry_words_for_tokens(&self.source, &self.result, tokens)
+                else {
+                    continue;
+                };
+                record_no_match_outputs(
+                    fu,
+                    NoMatchCallSite {
+                        producer: block,
+                        index,
+                        dominator: block,
+                        branch_entry: false,
+                    },
+                    &selected_matcher_no_match_outputs(&words, context),
+                    logical,
+                    &mut origins,
+                );
+            }
+            if let Some(crate::cfg::Terminator::Branch {
+                condition,
+                condition_base,
+                true_target,
+                false_target,
+                ..
+            }) = &data.terminator
+                && let Some((words, negated)) =
+                    self.original_condition_matcher(condition, *condition_base)
+            {
+                let outputs = selected_matcher_no_match_outputs(&words, context);
+                let head = words
+                    .head_source()
+                    .and_then(|head| head.word())
+                    .map(tcl_lexer::NativeWord::span);
+                let index = (0..data.statements.len())
+                    .find(|&index| {
+                        crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index)
+                            .source_tokens()
+                            .and_then(|tokens| tokens.words().first())
+                            .is_some_and(|word| Some(word.source().span) == head)
+                    })
+                    .unwrap_or(data.statements.len());
+                record_no_match_outputs(
+                    fu,
+                    NoMatchCallSite {
+                        producer: block,
+                        index,
+                        dominator: if negated { *true_target } else { *false_target },
+                        branch_entry: true,
+                    },
+                    &outputs,
+                    logical,
+                    &mut origins,
+                );
+            }
+        }
+        origins
+    }
+
+    /// The condition's retained absolute source base owns expression offsets.
+    /// Detached text, transformed expressions and multiple commands decline.
+    fn original_condition_matcher(
+        &self,
+        condition: &ExprNode,
+        base: Option<u32>,
+    ) -> Option<(
+        crate::registry_invocation::source_structure::OriginalRegistryWords,
+        bool,
+    )> {
+        let (command, negated) = match condition {
+            ExprNode::Command { .. } => (condition, false),
+            ExprNode::Unary {
+                op: UnaryOp::Not | UnaryOp::WordNot,
+                operand,
+            } if matches!(operand.as_ref(), ExprNode::Command { .. }) => (operand.as_ref(), true),
+            _ => return None,
+        };
+        let ExprNode::Command { text, start, end } = command else {
+            return None;
+        };
+        let span = tcl_syntax::expr::expression_span(
+            &self.source,
+            base?.checked_add(*start)?,
+            base?.checked_add(*end)?,
+        )?;
+        let start = span.start();
+        let end = span.end();
+        if self
+            .source
+            .get(usize::try_from(start).ok()?..usize::try_from(end).ok()?)?
+            != text
+        {
+            return None;
+        }
+        let inner = text.strip_prefix('[')?.strip_suffix(']')?;
+        let config = self.result.body_lexer_config?;
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            inner,
+            start.checked_add(1)?,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+        );
+        let [command] = commands.as_slice() else {
+            return None;
+        };
+        crate::registry_invocation::source_structure::source_registry_words(
+            &self.source,
+            &self.result,
+            command,
+        )
+        .map(|words| (words, negated))
     }
 
     /// I230 / I231 — constant branch / switch-arm condition.
@@ -1999,11 +2966,9 @@ file; this call falls through to the 'unknown' handler."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) {
-        // The solver's decided branches — an existence query among them,
-        // decided inside the fixed point.
         for branch in fu
-            .sccp
-            .constant_branches
+            .diagnostic_value_facts()
+            .constant_branches()
             .iter()
             .filter(|branch| branch.kind == crate::sccp::BranchFactKind::Applied)
         {
@@ -2012,11 +2977,11 @@ file; this call falls through to the 'unknown' handler."
             // ``executable_blocks`` (the complement); a block
             // is unreachable iff it's in ``cfg.blocks`` but
             // NOT in ``executable_blocks``.
-            if fu
-                .cfg
-                .block_id(&branch.not_taken_target)
-                .is_some_and(|id| fu.sccp.executable_blocks.contains(&id))
-            {
+            if fu.cfg.block_id(&branch.not_taken_target).is_some_and(|id| {
+                fu.diagnostic_value_facts()
+                    .executable_blocks()
+                    .contains(&id)
+            }) {
                 continue;
             }
             // Locate the branch's terminator span.
@@ -2111,21 +3076,195 @@ file; this call falls through to the 'unknown' handler."
         }
     }
 
-    /// I230, I231 and the loop-termination verdicts from the unit's stored
-    /// branch facts: the decided branches
-    /// ([`Self::emit_constant_branch_diagnostics`]), the arms of an opaque
-    /// `switch` no member of the subject runs
-    /// ([`Self::emit_selected_arm_diagnostics`]), and each loop's header
-    /// ([`Self::resolve_loop_terminations`]).
-    pub(super) fn emit_branch_fact_diagnostics(
-        &mut self,
-        fu: &crate::compilation_unit::FunctionUnit,
-    ) {
-        self.emit_constant_branch_diagnostics(fu);
-        self.emit_selected_arm_diagnostics(fu);
-        self.resolve_loop_terminations(fu);
+    /// W126 — channel-argument validation.
+    ///
+    /// Walks every
+    /// SSA-annotated `Call` statement for commands that declare
+    /// `ArgRole::Channel` arguments; for each channel-position
+    /// argument, checks the SSA type lattice to determine whether
+    /// the value is genuinely a channel.  Two failure modes:
+    ///
+    /// - **`$var` reference** with `TypeKind::Known` and a non-
+    ///   `TclType::Channel` type — emits "passed as channel … has
+    ///   type X, not CHANNEL".
+    /// - **String literal** that isn't `stdin` / `stdout` /
+    ///   `stderr` and contains no substitutions — emits
+    ///   "String literal 'X' used as channel argument".
+    ///
+    /// The standard channels (`stdin`, `stdout`, `stderr`) are
+    /// always accepted.  Unknown / overdefined types skip the
+    /// check (could be anything).
+    pub(super) fn emit_channel_diagnostics(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
+        let context = self.analysis_context();
+        for (&bn, block) in &fu.ssa.blocks {
+            for (statement_index, ssa_stmt) in block.statements.iter().enumerate() {
+                let crate::ir::Statement::Call { command, .. } = &ssa_stmt.statement else {
+                    continue;
+                };
+                let Some(tokens) =
+                    crate::ssa::SsaSourceView::at_statement(&fu.ssa, bn, statement_index)
+                        .source_tokens()
+                else {
+                    continue;
+                };
+                let arguments = super::original_roles::channel_arguments(
+                    &self.source,
+                    &self.result,
+                    tokens,
+                    std::sync::Arc::clone(&context),
+                );
+                for argument in arguments {
+                    let message = if let Some((name, reference_span)) =
+                        super::original_roles::scalar_variable_reference(&argument.word)
+                    {
+                        let mut reads = tokens
+                            .variable_accesses
+                            .iter()
+                            .filter(|access| access.source.span == reference_span)
+                            .filter_map(|access| {
+                                fu.ssa.read_reference_at(
+                                    bn,
+                                    statement_index,
+                                    &access.source,
+                                    &access.original_spelling,
+                                )
+                            });
+                        let Some(read) = reads.next() else {
+                            continue;
+                        };
+                        if reads.any(|other| other != read) {
+                            continue;
+                        }
+                        let sym = read.symbol;
+                        let Some(version) = read.version else {
+                            continue;
+                        };
+                        let Some(var_type) = fu.types.get(&(sym, version)) else {
+                            continue;
+                        };
+                        let Some(type_label) = non_channel_union_label(var_type) else {
+                            continue;
+                        };
+                        format!(
+                            "Variable '${name}' passed as channel to '{command}' has type {type_label}, not CHANNEL."
+                        )
+                    } else {
+                        let Some(literal) = argument.literal else {
+                            continue;
+                        };
+                        if matches!(literal.as_slice(), b"stdin" | b"stdout" | b"stderr") {
+                            continue;
+                        }
+                        let Ok(literal) = std::str::from_utf8(&literal) else {
+                            continue;
+                        };
+                        format!(
+                            "String literal '{literal}' used as channel argument to '{command}' — expected a channel from open/socket/chan create."
+                        )
+                    };
+                    self.result.diagnostics.push(
+                        crate::analyser::types::Diagnostic::new(
+                            DiagCode::W126,
+                            argument.word.span(),
+                            message,
+                            Severity::Warning,
+                        )
+                        .with_subject(argument.subject),
+                    );
+                }
+            }
+        }
     }
 
+    /// W124 — invalid IP address literal.
+    ///
+    /// Walks every
+    /// SSA-tracked constant string in the function's SCCP
+    /// values; regex-searches for IPv4 dotted-quad and IPv6
+    /// candidates and validates each.
+    ///
+    /// **Validation:**
+    /// - **IPv4** — each octet must be 0..255; leading-zero
+    ///   octets emit a Warning (interpreted as octal in some
+    ///   contexts); over-255 octets emit an Error.  Patterns
+    ///   preceded by ``/`` (CIDR / version-number context) are
+    ///   skipped.
+    /// - **IPv6** — parsed via [`std::net::Ipv6Addr`]; failure
+    ///   emits an Error.
+    ///
+    /// Diagnostic anchors at the SSA def site (the assignment
+    /// statement's span); seen-offsets dedup avoids duplicate
+    /// emissions when multiple SSA versions share a def.
+    /// **W233.** Division / modulo by a provably-zero divisor — raises
+    /// "divide by zero" at runtime.  Delegates to the canonical
+    /// interval-bounds analysis [`crate::interval_bounds::find_divide_by_zero`]
+    /// (the single source of truth, shared with the interval-bounds index
+    /// checks): a `/` or `%` whose divisor's interval — guard-narrowed at the
+    /// use site and seeded from the SCCP lattice — is exactly `[0, 0]`, on the
+    /// always-evaluated spine of an executable expression.
+    ///
+    /// (Verified against tclsh 8.4–9.0: integer `1/0` and `5%0` raise "divide
+    /// by zero"; float division such as `1.0/0` yields `Inf` and does not
+    /// error. The interval domain is integer, matching that boundary for the
+    /// common cases.)
+    pub(super) fn emit_w233_divide_by_zero(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
+        // The block set SCCP proved reachable; fall back to every SSA block
+        // when SCCP produced nothing (e.g. a trivial function) so the check
+        // still runs.
+        let executable: HashSet<crate::cfg::BlockId> =
+            if fu.diagnostic_value_facts().executable_blocks().is_empty() {
+                fu.ssa.blocks.keys().copied().collect()
+            } else {
+                fu.diagnostic_value_facts().executable_blocks().clone()
+            };
+        let context = self.analysis_context();
+        let registry = context.commands();
+        for finding in crate::interval_bounds::find_divide_by_zero_with_entered_operands(
+            &fu.cfg,
+            &fu.ssa,
+            (fu.diagnostic_value_facts().values(), (&fu.sccp, &fu.types)),
+            &executable,
+            // The document's own numeral grammar: a divisor literal means what
+            // this dialect says it means (`0755` is 493 up to 8.6, 755 from
+            // 9.0), and this process analyses documents of several dialects.
+            crate::intervals::numbers_for_dialect(Some(self.profile)),
+            crate::interval_bounds::BoundsSemantics {
+                registry,
+                context: Some(context.as_ref().into()),
+                grammar: self.grammar(),
+            },
+        ) {
+            let span = fu.abs_span(finding.span);
+            if span.is_empty() {
+                continue;
+            }
+            let verb = if finding.op == "/" {
+                "Division"
+            } else {
+                "Modulo"
+            };
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W233,
+                    span,
+                    format!(
+                        "{verb} by a provably-zero divisor — raises 'divide by zero' at runtime."
+                    ),
+                    Severity::Warning,
+                ));
+        }
+    }
+
+    /// **W230 / W231 / W232 (dynamic).** Interval-driven out-of-range index
+    /// detection for a `$var` index whose [`crate::intervals`] range — guard-
+    /// narrowed at the use site — proves the access is wholly out of range
+    /// against a statically-established container length.  Complements the
+    /// syntactic bounds checks (literal index + literal container only); the
+    /// two never double-fire because the syntactic checks back off on any
+    /// `$var` index, and the proven-word re-run leaves a site reported here
+    /// to this check ([`Self::interval_index_sites`]).  Restricted to
+    /// SCCP-reachable blocks so a dynamic index in dead code does not warn.
     /// Resolve each loop the walk examined that `fu` decides against the
     /// unit's branch fact at its condition span
     /// ([`crate::analyser::bounds_checks::LoopTerminationCandidate::resolve`]).
@@ -2176,8 +3315,8 @@ file; this call falls through to the 'unknown' handler."
         fu: &crate::compilation_unit::FunctionUnit,
     ) {
         for arm in fu
-            .sccp
-            .constant_branches
+            .diagnostic_value_facts()
+            .constant_branches()
             .iter()
             .filter(|branch| branch.kind == crate::sccp::BranchFactKind::Selected)
         {
@@ -2200,232 +3339,36 @@ file; this call falls through to the 'unknown' handler."
         }
     }
 
-    /// W126 — channel-argument validation.
-    ///
-    /// Walks every
-    /// SSA-annotated `Call` statement for commands that declare
-    /// `ArgRole::Channel` arguments; for each channel-position
-    /// argument, checks the SSA type lattice to determine whether
-    /// the value is genuinely a channel.  Two failure modes:
-    ///
-    /// - **`$var` reference** with `TypeKind::Known` and a non-
-    ///   `TclType::Channel` type — emits "passed as channel … has
-    ///   type X, not CHANNEL".
-    /// - **String literal** that isn't `stdin` / `stdout` /
-    ///   `stderr` and contains no substitutions — emits
-    ///   "String literal 'X' used as channel argument".
-    ///
-    /// The standard channels (`stdin`, `stdout`, `stderr`) are
-    /// always accepted.  Unknown / overdefined types skip the
-    /// check (could be anything).
-    pub(super) fn emit_channel_diagnostics(
-        &mut self,
-        fu: &crate::compilation_unit::FunctionUnit,
-        registry: &tcl_registry::CommandRegistry,
-    ) {
-        use crate::ir::Statement;
-        use tcl_registry::ArgRole;
-
-        const STANDARD_CHANNELS: &[&str] = &["stdout", "stderr", "stdin"];
-
-        for block in fu.ssa.blocks.values() {
-            for ssa_stmt in &block.statements {
-                let Statement::Call {
-                    command,
-                    args,
-                    span,
-                    tokens,
-                    ..
-                } = &ssa_stmt.statement
-                else {
-                    continue;
-                };
-                let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-                let channel_indices =
-                    registry.arg_indices_for_role(command, &arg_refs, ArgRole::Channel);
-                if channel_indices.is_empty() {
-                    continue;
-                }
-                for idx in channel_indices {
-                    if idx >= args.len() {
-                        continue;
-                    }
-                    let arg_text = &args[idx];
-                    // Tight range: the channel argument word (`argv[0]` is the
-                    // command name, so `args[idx]` is `argv[idx + 1]`), not the
-                    // whole command. Falls back to the command span when the
-                    // per-word tokens are unavailable.
-                    let arg_span = tokens
-                        .as_ref()
-                        .and_then(|t| t.argv.get(idx + 1))
-                        .map_or_else(|| fu.abs_span(*span), |&s| fu.abs_span(s));
-                    // Extract bare var name from ``$var`` / ``${var}``.
-                    let var_name: Option<&str> =
-                        if arg_text.starts_with("${") && arg_text.ends_with('}') {
-                            Some(&arg_text[2..arg_text.len() - 1])
-                        } else if let Some(rest) = arg_text.strip_prefix('$') {
-                            Some(rest)
-                        } else {
-                            None
-                        };
-
-                    if let Some(name) = var_name {
-                        let Some(sym) = fu.ssa.var_symbol(name) else {
-                            continue;
-                        };
-                        let Some(&version) = ssa_stmt.uses.get(&sym) else {
-                            continue;
-                        };
-                        let key: crate::ssa::ValueKey = (sym, version);
-                        let Some(var_type) = fu.types.get(&key) else {
-                            continue;
-                        };
-                        let Some(type_label) = non_channel_union_label(var_type) else {
-                            continue;
-                        };
-                        let message = format!(
-                            "Variable '${name}' passed as channel to '{command}' \
-                             has type {type_label}, not CHANNEL.",
-                        );
-                        self.result
-                            .diagnostics
-                            .push(crate::analyser::types::Diagnostic::new(
-                                DiagCode::W126,
-                                arg_span,
-                                message,
-                                Severity::Warning,
-                            ));
-                    } else {
-                        // Literal — strip surrounding braces / quotes.
-                        let literal = arg_text
-                            .trim_matches('"')
-                            .trim_start_matches('{')
-                            .trim_end_matches('}');
-                        if STANDARD_CHANNELS.contains(&literal) {
-                            continue;
-                        }
-                        // Only warn for clearly-not-substituted literals.
-                        if arg_text.contains('$') || arg_text.contains('[') {
-                            continue;
-                        }
-                        let message = format!(
-                            "String literal '{literal}' used as channel argument to \
-                             '{command}' — expected a channel from open/socket/chan create.",
-                        );
-                        self.result
-                            .diagnostics
-                            .push(crate::analyser::types::Diagnostic::new(
-                                DiagCode::W126,
-                                arg_span,
-                                message,
-                                Severity::Warning,
-                            ));
-                    }
-                }
-            }
-        }
-    }
-
-    /// W124 — invalid IP address literal.
-    ///
-    /// Walks every
-    /// SSA-tracked constant string in the function's SCCP
-    /// values; regex-searches for IPv4 dotted-quad and IPv6
-    /// candidates and validates each.
-    ///
-    /// **Validation:**
-    /// - **IPv4** — each octet must be 0..255; leading-zero
-    ///   octets emit a Warning (interpreted as octal in some
-    ///   contexts); over-255 octets emit an Error.  Patterns
-    ///   preceded by ``/`` (CIDR / version-number context) are
-    ///   skipped.
-    /// - **IPv6** — parsed via [`std::net::Ipv6Addr`]; failure
-    ///   emits an Error.
-    ///
-    /// Diagnostic anchors at the SSA def site (the assignment
-    /// statement's span); seen-offsets dedup avoids duplicate
-    /// emissions when multiple SSA versions share a def.
-    /// **W233.** Division / modulo by a provably-zero divisor — raises
-    /// "divide by zero" at runtime.  Delegates to the canonical
-    /// interval-bounds analysis [`crate::interval_bounds::find_divide_by_zero`]
-    /// (the single source of truth, shared with the interval-bounds index
-    /// checks): a `/` or `%` whose divisor's interval — guard-narrowed at the
-    /// use site and seeded from the SCCP lattice — is exactly `[0, 0]`, on the
-    /// always-evaluated spine of an executable expression.
-    ///
-    /// (Verified against tclsh 8.4–9.0: integer `1/0` and `5%0` raise "divide
-    /// by zero"; float division such as `1.0/0` yields `Inf` and does not
-    /// error. The interval domain is integer, matching that boundary for the
-    /// common cases.)
-    pub(super) fn emit_w233_divide_by_zero(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
-        // The block set SCCP proved reachable; fall back to every SSA block
-        // when SCCP produced nothing (e.g. a trivial function) so the check
-        // still runs.
-        let executable: HashSet<crate::cfg::BlockId> = if fu.sccp.executable_blocks.is_empty() {
-            fu.ssa.blocks.keys().copied().collect()
-        } else {
-            fu.sccp.executable_blocks.clone()
-        };
-        for finding in crate::interval_bounds::find_divide_by_zero_with(
-            &fu.cfg,
-            &fu.ssa,
-            (&fu.sccp, &fu.types),
-            &executable,
-            // The document's own numeral grammar: a divisor literal means what
-            // this dialect says it means (`0755` is 493 up to 8.6, 755 from
-            // 9.0), and this process analyses documents of several dialects.
-            crate::intervals::numbers_for_dialect(Some(self.profile)),
-        ) {
-            let span = fu.abs_span(finding.span);
-            if span.is_empty() {
-                continue;
-            }
-            let verb = if finding.op == "/" {
-                "Division"
-            } else {
-                "Modulo"
-            };
-            self.result
-                .diagnostics
-                .push(crate::analyser::types::Diagnostic::new(
-                    DiagCode::W233,
-                    span,
-                    format!(
-                        "{verb} by a provably-zero divisor — raises 'divide by zero' at runtime."
-                    ),
-                    Severity::Warning,
-                ));
-        }
-    }
-
-    /// **W230 / W231 / W232 (dynamic).** Interval-driven out-of-range index
-    /// detection for a `$var` index whose [`crate::intervals`] range — guard-
-    /// narrowed at the use site — proves the access is wholly out of range
-    /// against a statically-established container length.  Complements the
-    /// syntactic bounds checks (literal index + literal container only); the
-    /// two never double-fire because the syntactic checks back off on any
-    /// `$var` index, and the proven-word re-run leaves a site reported here
-    /// to this check ([`Self::interval_index_sites`]).  Restricted to
-    /// SCCP-reachable blocks so a dynamic index in dead code does not warn.
     pub(super) fn emit_interval_bounds_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) {
-        let executable: HashSet<crate::cfg::BlockId> = if fu.sccp.executable_blocks.is_empty() {
-            fu.ssa.blocks.keys().copied().collect()
-        } else {
-            fu.sccp.executable_blocks.iter().copied().collect()
-        };
-        let findings = crate::interval_bounds::find_interval_bounds_with(
+        let executable: HashSet<crate::cfg::BlockId> =
+            if fu.diagnostic_value_facts().executable_blocks().is_empty() {
+                fu.ssa.blocks.keys().copied().collect()
+            } else {
+                fu.diagnostic_value_facts()
+                    .executable_blocks()
+                    .iter()
+                    .copied()
+                    .collect()
+            };
+        let context = self.analysis_context();
+        let registry = context.commands();
+        let findings = crate::interval_bounds::find_interval_bounds_in_release(
             &fu.cfg,
             &fu.ssa,
-            (&fu.sccp, &fu.types),
+            (fu.diagnostic_value_facts().values(), (&fu.sccp, &fu.types)),
             &executable,
             // The document's own character model, numeral grammar and `lset`
             // append boundary — dialect-derived facts, threaded rather than
             // ambient.
             self.bounds_release(),
-            self.grammar(),
+            crate::interval_bounds::BoundsSemantics {
+                registry,
+                context: Some(context.as_ref().into()),
+                grammar: self.grammar(),
+            },
         );
         for f in findings {
             if f.span.is_empty() {
@@ -2481,7 +3424,7 @@ file; this call falls through to the 'unknown' handler."
         use std::str::FromStr;
 
         let mut seen_offsets: FxHashSet<u32> = FxHashSet::default();
-        for (key, lv) in &fu.sccp.values {
+        for (key, lv) in fu.diagnostic_value_facts().values() {
             let Some(text) = (match lv {
                 LatticeValue::Const(ConstValue::String(s)) => Some(s.as_str()),
                 _ => None,
@@ -2579,8 +3522,10 @@ file; this call falls through to the 'unknown' handler."
         seen_offsets: &mut FxHashSet<u32>,
     ) {
         let (sym, version) = key;
-        let var_name = fu.ssa.var_name(sym);
-        let Some(chain) = fu.def_use.chain_for(var_name, version) else {
+        if fu.def_use.symbol(&fu.ssa, sym).is_none() {
+            return;
+        }
+        let Some(chain) = fu.def_use.chain_for(sym, version) else {
             return;
         };
         let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
@@ -2632,71 +3577,477 @@ file; this call falls through to the 'unknown' handler."
             ));
     }
 
-    /// IRULE4005 — racy ``static::`` cross-event flow.
-    ///
-    /// Walks every
-    /// SSA statement in `fu` and emits IRULE4005 for any
-    /// non-``unset`` def of a name in `racy_vars`.
-    /// `racy_vars` comes from
-    /// [`crate::connection_scope::ConnectionScope::racy_static_defs`]
-    /// — built once per `CompilationUnit` and shared by every
-    /// ``::when::*`` proc except `RULE_INIT`.
+    /// Apply F5 storage policy to the shared point-resolved Tcl cells.
+    /// Aliases and absolute namespace spellings retain the same host effects.
+    pub(super) fn emit_irules_cell_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        event: Option<&str>,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        if !self.profile.is_irules() {
+            return;
+        }
+        let Some(points) = fu.ssa.point_contexts.as_ref() else {
+            return;
+        };
+        let context = self.analysis_context();
+        if context.commands().snapshot().semantic_key() != registry.snapshot().semantic_key() {
+            return;
+        }
+        let mut emitted = FxHashSet::default();
+        for (&id, block) in &fu.cfg.blocks {
+            for (index, statement) in block.statements.iter().enumerate() {
+                let before = points.before_statement(id, index);
+                let after = points.after_statement(id, index);
+                for access in irules_cell_accesses(statement, before, after, &context) {
+                    self.emit_irules_cell_access(fu, event, statement, access, &mut emitted);
+                }
+                for name in irules_possible_namespace_writes(statement, before, after, &context) {
+                    let span = fu.abs_span(statement.span());
+                    if span.is_empty()
+                        || !emitted.insert((DiagCode::Irule6001, span.start(), name.clone()))
+                    {
+                        continue;
+                    }
+                    self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::Irule6001,
+                        span,
+                        format!("Writing through namespace variable '{name}' may select shared global state, forcing CMP compatibility mode and pinning the virtual server to a single TMM."),
+                        Severity::Warning,
+                    ));
+                }
+            }
+        }
+    }
+
+    fn emit_irules_cell_access(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        event: Option<&str>,
+        statement: &crate::ir::Statement,
+        access: IrulesCellAccess,
+        emitted: &mut FxHashSet<(DiagCode, u32, String)>,
+    ) {
+        use tcl_registry::f5::{BigIpExecutionContext, VariableStorageDomain};
+        let IrulesCellAccess {
+            place,
+            import,
+            implicit_destruction,
+        } = access;
+        if place.dynamic || !place.is_global() {
+            return;
+        }
+        let domain =
+            tcl_registry::f5::namespace_storage_domain(BigIpExecutionContext::TmmIRule, &place.ns);
+        let code = match domain {
+            VariableStorageDomain::WorkerNamespace
+                if event != Some("RULE_INIT") && import.is_none() =>
+            {
+                DiagCode::Irule4001
+            }
+            VariableStorageDomain::CmpGlobal if !implicit_destruction => DiagCode::Irule6001,
+            _ => return,
+        };
+        let target = crate::naming::qualify(&place.ns, &place.name);
+        let span = fu.abs_span(statement.span());
+        if span.is_empty() || !emitted.insert((code, span.start(), target.clone())) {
+            return;
+        }
+        let message = if code == DiagCode::Irule4001 {
+            format!(
+                "Writing to '{target}' outside RULE_INIT changes persistent state for \
+                     connections on this TMM. The update is not propagated to other TMMs."
+            )
+        } else if let Some(import) = import {
+            format!(
+                "'{import}' imports global namespace variable '{target}', forcing CMP compatibility mode and pinning the virtual server to a single TMM. Use 'static::{}' instead.",
+                place.name
+            )
+        } else {
+            format!(
+                "Global namespace variable '{target}' forces CMP compatibility mode, \
+                     pinning the virtual server to a single TMM. Use 'static::{}' instead.",
+                place.name
+            )
+        };
+        let fixes = if code == DiagCode::Irule6001 {
+            self.irules_global_name_fix(fu, event, statement, &place)
+                .into_iter()
+                .collect()
+        } else {
+            Vec::new()
+        };
+        self.result.diagnostics.push(
+            crate::analyser::types::Diagnostic::new(code, span, message, Severity::Warning)
+                .with_fixes(fixes),
+        );
+    }
+
+    fn irules_global_name_fix(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        event: Option<&str>,
+        statement: &crate::ir::Statement,
+        place: &crate::place::Place,
+    ) -> Option<crate::analyser::types::CodeFix> {
+        let (crate::ir::Statement::AssignConst { name, .. }
+        | crate::ir::Statement::AssignValue { name, .. }
+        | crate::ir::Statement::AssignExpr { name, .. }
+        | crate::ir::Statement::Incr { name, .. }) = statement
+        else {
+            return None;
+        };
+        if !name.starts_with("::") && event != Some("RULE_INIT") {
+            return None;
+        }
+        let (base, index) = crate::naming::split_array_name(name);
+        let qualified = crate::naming::qualify("::", base);
+        let (namespace, tail) = crate::naming::key_holder_and_tail(&qualified);
+        if namespace != "::" || tail != place.name {
+            return None;
+        }
+        let span = self.narrow_to_assigned_name(fu.abs_span(statement.span()))?;
+        let replacement = index.map_or_else(
+            || format!("static::{tail}"),
+            |index| format!("static::{tail}({index})"),
+        );
+        Some(crate::analyser::types::CodeFix {
+            span,
+            new_text: replacement.clone(),
+            description: format!("Replace '{name}' with '{replacement}'"),
+            safety: crate::irules_checks::FixSafety::RequiresReview,
+        })
+    }
+
+    /// IRULE4003: lifecycle concerns for actual shared connection cells.
+    pub(super) fn emit_connection_scope_concerns(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        event: &str,
+        concerns: &std::collections::HashMap<crate::connection_scope::EventCell, HashSet<String>>,
+        registry: &tcl_registry::CommandRegistry,
+        module: &crate::ir::Module,
+    ) {
+        let points = crate::place_bridge::build_point_resolve_contexts_with_entry(
+            &fu.cfg,
+            crate::connection_scope::event_resolve_context(event),
+            registry,
+        );
+        let mut emitted = FxHashSet::default();
+        for (&id, block) in &fu.cfg.blocks {
+            for (index, statement) in block.statements.iter().enumerate() {
+                if crate::connection_scope::statement_destroys(
+                    fu,
+                    id,
+                    index,
+                    registry,
+                    Some(module),
+                )
+                .is_some_and(|destroys| destroys)
+                {
+                    continue;
+                }
+                for place in crate::place_bridge::def_places(
+                    statement,
+                    points.before_statement(id, index),
+                    registry,
+                ) {
+                    if place.dynamic || place.ns != crate::place::LOCAL_NS {
+                        continue;
+                    }
+                    let Some(cell) = crate::connection_scope::cell_from_place(&place) else {
+                        continue;
+                    };
+                    let Some(notes) = concerns.get(&cell) else {
+                        continue;
+                    };
+                    let span = fu.abs_span(statement.span());
+                    if span.is_empty() || !emitted.insert((span.start(), place.name.clone())) {
+                        continue;
+                    }
+                    let mut notes: Vec<_> = notes.iter().map(String::as_str).collect();
+                    notes.sort_unstable();
+                    self.result
+                        .diagnostics
+                        .push(crate::analyser::types::Diagnostic::new(
+                            DiagCode::Irule4003,
+                            span,
+                            format!("Variable '{}': {}", place.name, notes.join("; ")),
+                            Severity::Hint,
+                        ));
+                }
+            }
+        }
+    }
+
+    /// IRULE4005: an actual worker cell write may be observed in another event.
     pub(super) fn emit_racy_static_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
-        racy_vars: &HashSet<String>,
+        event: &str,
+        racy_cells: &HashSet<crate::connection_scope::EventCell>,
+        registry: &tcl_registry::CommandRegistry,
+        module: &crate::ir::Module,
     ) {
         if self.disabled_diagnostics.contains("IRULE4005") {
             return;
         }
-        let mut emitted_spans: FxHashSet<u32> = FxHashSet::default();
-        for block in fu.ssa.blocks.values() {
-            for stmt in &block.statements {
-                // An unbind is no write (`Traits::DESTROYS_VARIABLE`).
-                if let crate::ir::Statement::Call { command, .. } = &stmt.statement
-                    && destroys_variable(self.registry.as_deref(), command)
+        let fallback_points;
+        let points = if let Some(points) = &fu.ssa.point_contexts {
+            points
+        } else {
+            fallback_points = crate::place_bridge::build_point_resolve_contexts_with_entry(
+                &fu.cfg,
+                crate::connection_scope::event_resolve_context(event),
+                registry,
+            );
+            &fallback_points
+        };
+        let mut emitted = FxHashSet::default();
+        for (&id, block) in &fu.cfg.blocks {
+            for (index, statement) in block.statements.iter().enumerate() {
+                if crate::connection_scope::statement_destroys(
+                    fu,
+                    id,
+                    index,
+                    registry,
+                    Some(module),
+                )
+                .is_some_and(|destroys| destroys)
                 {
                     continue;
                 }
-                for &sym in stmt.defs.keys() {
-                    let name = fu.ssa.var_name(sym);
-                    if !racy_vars.contains(name) {
+                for place in crate::place_bridge::def_places(
+                    statement,
+                    points.before_statement(id, index),
+                    registry,
+                ) {
+                    if place.dynamic || !place.is_global() {
                         continue;
                     }
-                    let span = fu.abs_span(stmt.statement.span());
-                    if span.is_empty() || !emitted_spans.insert(span.start()) {
+                    let Some(cell) = crate::connection_scope::cell_from_place(&place) else {
+                        continue;
+                    };
+                    if !racy_cells.contains(&cell) {
                         continue;
                     }
-                    let message = format!(
-                        "Potential race: '{name}' is written outside RULE_INIT and read in \
-                         another event. static:: variables persist across all connections on \
-                         the same virtual server; concurrent writes can produce unpredictable \
-                         results."
-                    );
-                    self.result
-                        .diagnostics
-                        .push(crate::analyser::types::Diagnostic::new(
-                            DiagCode::Irule4005,
-                            span,
-                            message,
-                            Severity::Warning,
-                        ));
+                    // Presentation follows the exact worker-cell match.
+                    let name = crate::naming::qualify(&place.ns, &place.name);
+                    let span = fu.abs_span(statement.span());
+                    if span.is_empty() || !emitted.insert((span.start(), name.clone())) {
+                        continue;
+                    }
+                    self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::Irule4005, span,
+                        format!("Persistent state: '{name}' is written outside RULE_INIT and read in \
+                                 another event. Connections on this TMM share the value; updates \
+                                 are not propagated to other TMMs."),
+                        Severity::Warning,
+                    ));
                 }
             }
         }
     }
 }
 
+/// Domain diagnostics retain physical mutation and how an operand selected its
+/// namespace. An implicit current-frame destruction creates no global value.
+struct IrulesCellAccess {
+    place: crate::place::Place,
+    import: Option<String>,
+    implicit_destruction: bool,
+}
+
+/// Value writes come from the shared place bridge. Binding declarations use
+/// the shared successful-continuation context and registry alias transition.
+fn irules_cell_accesses(
+    statement: &crate::ir::Statement,
+    before: &crate::var_resolve::ResolveContext,
+    after: &crate::var_resolve::ResolveContext,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Vec<IrulesCellAccess> {
+    let registry = context.commands();
+    let mut accesses: Vec<_> = crate::place_bridge::statement_mutation_places_with_continuation(
+        statement, before, after, registry,
+    )
+    .into_iter()
+    .map(|place| IrulesCellAccess {
+        place,
+        import: None,
+        implicit_destruction: false,
+    })
+    .collect();
+    let crate::ir::Statement::Call {
+        command,
+        tokens: Some(tokens),
+        ..
+    } = statement
+    else {
+        return accesses;
+    };
+
+    let Some(normal) =
+        crate::registry_invocation::normal_transfer_invocation_in_context(context, tokens)
+    else {
+        return accesses;
+    };
+    if normal
+        .variable_traits()
+        .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
+    {
+        for (index, role) in normal.variable_roles() {
+            if role != tcl_registry::ArgRole::VarWrite {
+                continue;
+            }
+            let Some(name) = normal.argument_literal(index) else {
+                continue;
+            };
+            if crate::var_resolve::literal_namespace_access_origin(
+                &name,
+                before,
+                registry,
+                tcl_registry::TraceOperation::Unset,
+            ) != crate::var_resolve::NamespaceAccessOrigin::CurrentFrame
+            {
+                continue;
+            }
+            let target = crate::var_resolve::resolve_literal_access(
+                &name,
+                before,
+                false,
+                registry,
+                tcl_registry::TraceOperation::Unset,
+            );
+            for access in &mut accesses {
+                if crate::var_resolve::cell_key(&access.place)
+                    == crate::var_resolve::cell_key(&target)
+                {
+                    access.implicit_destruction = true;
+                }
+            }
+        }
+    }
+    for alias in normal.variable_alias_transitions() {
+        if alias.writes_value {
+            continue;
+        }
+        let Some(local) = alias.local.literal() else {
+            continue;
+        };
+        let place = crate::var_resolve::resolve_place(local, after, false, registry);
+        let import = format!("{command} {local}");
+        accesses.push(IrulesCellAccess {
+            place,
+            import: Some(import),
+            implicit_destruction: false,
+        });
+    }
+    accesses
+}
+
+/// Uncertain contents addresses retain their proved namespace-only domain.
+/// This diagnostic evidence supplies neither a physical cell nor a value definition.
+fn irules_possible_namespace_writes(
+    statement: &crate::ir::Statement,
+    before: &crate::var_resolve::ResolveContext,
+    after: &crate::var_resolve::ResolveContext,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Vec<String> {
+    let registry = context.commands();
+    let Some(tokens) = statement.tokens() else {
+        return Vec::new();
+    };
+
+    let Some(normal) =
+        crate::registry_invocation::normal_transfer_invocation_in_context(context, tokens)
+    else {
+        return irules_possible_handler_namespace_writes(tokens, before, after, context);
+    };
+    let state = match normal.variable_binding_phase() {
+        tcl_registry::native_compilation::VariableOperandBindingPhase::AfterArguments => before,
+        tcl_registry::native_compilation::VariableOperandBindingPhase::NormalContinuation => after,
+        tcl_registry::native_compilation::VariableOperandBindingPhase::BodyProtocol => {
+            return Vec::new();
+        }
+    };
+    normal
+        .definition_names()
+        .into_iter()
+        .filter(|name| {
+            crate::var_resolve::resolve_place(name, state, false, registry).kind
+                == crate::place::PlaceKind::Unknown
+                && crate::var_resolve::possible_access_domain(name, state, registry)
+                    == crate::var_resolve::PossibleVariableAccessDomain::NamespaceOnly
+        })
+        .collect()
+}
+
+/// Candidate output lookup can remain opaque (for example a channel callback)
+/// while a namespace-only destination hazard is still possible. This query
+/// creates neither a normal store nor a physical cell identity.
+fn irules_possible_handler_namespace_writes(
+    tokens: &crate::ir::CommandTokens,
+    before: &crate::var_resolve::ResolveContext,
+    after: &crate::var_resolve::ResolveContext,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Vec<String> {
+    let registry = context.commands();
+    let Some(possible) =
+        crate::registry_invocation::possible_variable_name_operands_in_context(context, tokens)
+    else {
+        return Vec::new();
+    };
+    possible
+        .phased_operands()
+        .filter_map(|(role, word, phase, destroys)| {
+            if role != tcl_registry::ArgRole::VarWrite {
+                return None;
+            }
+            let name = word.as_registry_word().literal()?;
+            let context = match phase {
+                tcl_registry::native_compilation::VariableOperandBindingPhase::AfterArguments => before,
+                tcl_registry::native_compilation::VariableOperandBindingPhase::NormalContinuation => after,
+                tcl_registry::native_compilation::VariableOperandBindingPhase::BodyProtocol => return None,
+            };
+            if destroys
+                && crate::var_resolve::literal_namespace_access_origin(
+                    name,
+                    context,
+                    registry,
+                    tcl_registry::TraceOperation::Unset,
+                ) == crate::var_resolve::NamespaceAccessOrigin::CurrentFrame
+            {
+                return None;
+            }
+            let place = crate::var_resolve::resolve_place(name, context, false, registry);
+            if place.is_global()
+                && tcl_registry::f5::namespace_storage_domain(
+                    tcl_registry::f5::BigIpExecutionContext::TmmIRule,
+                    &place.ns,
+                ) == tcl_registry::f5::VariableStorageDomain::WorkerNamespace
+            {
+                return None;
+            }
+            (crate::var_resolve::possible_access_domain(name, context, registry)
+                == crate::var_resolve::PossibleVariableAccessDomain::NamespaceOnly)
+                .then(|| name.to_owned())
+        })
+        .collect()
+}
+
 /// Collect the bracketed text of every `[…]` command-substitution node in
 /// an `expr` AST (recursing operands but stopping at the substitution
 /// boundary). Used to recover
 /// variable reads hidden inside `if`/`while` conditions and `expr` values.
+#[cfg(test)]
 fn collect_expr_command_texts(node: &ExprNode, out: &mut Vec<String>) {
     // Entry point: the top of an expression tree is nesting depth 0 (the
     // recursion cap lives in [`collect_expr_command_texts_at`]).
     collect_expr_command_texts_at(node, out, 0);
 }
 
+#[cfg(test)]
 fn collect_expr_command_texts_at(node: &ExprNode, out: &mut Vec<String>, depth: u32) {
     // Native-stack safety net: walks the `ExprNode` tree, one native frame
     // per level. Past the cap, stop descending — a collector
@@ -2801,8 +4152,12 @@ fn names_observed_by_unseen_calls(fu: &crate::compilation_unit::FunctionUnit) ->
     fu.def_use
         .chains
         .keys()
-        .filter(|(name, held)| fu.ssa.name_is_observed_by_unseen_call(name, *held))
-        .map(|(name, _)| name.as_str())
+        .filter_map(|(cell, held)| {
+            let symbol = fu.def_use.symbol(&fu.ssa, *cell)?;
+            fu.ssa
+                .is_observed_by_unseen_call(symbol, *held)
+                .then(|| fu.ssa.var_name(symbol))
+        })
         .collect()
 }
 
@@ -2850,126 +4205,378 @@ fn find_case_mismatch<'a>(variable: &str, defined_vars: &'a HashSet<String>) -> 
     matches.into_iter().next()
 }
 
-/// True when `stmt` is a `Statement::Barrier` whose body-role argument (an
-/// opaque script run in a separate context — `interp eval PATH { ... }`)
-/// binds `var`.
-///
-/// Such a body is never flattened into this function's CFG (its target
-/// interpreter is unknowable to static analysis), so its whole script text is
-/// scanned as one statement's value: a `$var` read and the body's own `set
-/// var` collapse onto the same `Statement::Barrier`, and the version-0
-/// def-use chain then shows a read with no visible definition. Recovering the
-/// body's own bindings here is the only place that write is visible, so a
-/// plain write-then-read *inside* the body doesn't false-fire W210.
-/// Deliberately conservative — it suppresses whenever the body binds the
-/// name, a false-negative direction (a genuine read-before-set entirely
-/// within the opaque body is unreported either way, and the outer
-/// interpreter-handle vs. inner-local name clash drops that outer read too),
-/// never a new false positive.
-///
-/// [`crate::script_binds::script_binds_name`] answers what "binds" means, for
-/// Whether a statement is one the lowering synthesised to carry a variable
-/// effect rather than one the user wrote.
-///
-/// It has no argv of its own, so no diagnostic can be anchored to a word in
-/// it, and its span is the whole construct it stands for.
+/// Adjacent CFG statements must also retain the exact original store interval;
+/// a name-level hidden read elsewhere cannot observe an overwritten version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OverwriteDiagnostic {
+    Closed,
+    Conditional,
+}
+
+fn original_overwrite_advice(
+    fu: &crate::compilation_unit::FunctionUnit,
+    definition: &crate::def_use::DefSite,
+    variable: &str,
+    registry: &tcl_registry::CommandRegistry,
+    module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
+) -> Option<OverwriteDiagnostic> {
+    let block = fu.cfg.block_by_name(&definition.block)?;
+    let Ok(index) = usize::try_from(definition.statement_index) else {
+        return None;
+    };
+    let block_id = fu.cfg.block_id(&definition.block)?;
+    block.statements.get(index + 1)?;
+    let first =
+        crate::ssa::SsaSourceView::at_statement(&fu.ssa, block_id, index).source_tokens()?;
+    let next =
+        crate::ssa::SsaSourceView::at_statement(&fu.ssa, block_id, index + 1).source_tokens()?;
+    let first_metadata = original_store_metadata(fu, first, registry, module)?;
+    let next_metadata = original_store_metadata(fu, next, registry, module)?;
+    // Each point must retain its own actual generation. The second query does
+    // not repair the first from an adjacent spelling or a shared frame label.
+    if first_metadata.source_analysis_input() != next_metadata.source_analysis_input() {
+        return None;
+    }
+    if crate::registry_invocation::overwritten_local_store_advice(
+        registry,
+        Some(first_metadata),
+        first,
+        next,
+    )
+    .is_some_and(|advice| advice.name() == variable && advice.owns(first, next))
+    {
+        return Some(OverwriteDiagnostic::Closed);
+    }
+    crate::registry_invocation::conditional_overwritten_local_store_advice(
+        registry,
+        Some(first_metadata),
+        first,
+        next,
+    )
+    .filter(|advice| advice.name() == variable && advice.owns(first, next))
+    .map(|_| OverwriteDiagnostic::Conditional)
+}
+
+fn original_store_metadata<'a>(
+    function: &crate::compilation_unit::FunctionUnit,
+    tokens: &'a crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
+) -> Option<crate::registry_invocation::InvocationMetadataContext<'a>> {
+    if let Some(module) = module {
+        return module.original_invocation_metadata_for_function(function, tokens, registry);
+    }
+    tokens
+        .source_binding
+        .as_ref()?
+        .original_invocation_metadata_for_function(tokens, function, registry)?
+        .context()
+}
+
+fn function_declaration_flow(
+    fu: &crate::compilation_unit::FunctionUnit,
+    procedure: &crate::ir::Procedure,
+    image: &tcl_lexer::SourceImage,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<std::sync::Arc<crate::command_binding::DeclarationFlowReport>> {
+    fu.ssa.blocks.iter().find_map(|(&block, data)| {
+        (0..data.statements.len())
+            .chain(std::iter::once(usize::MAX))
+            .find_map(|index| {
+                let tokens = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index)
+                    .source_tokens()?;
+                let report = tokens
+                    .source_binding
+                    .as_ref()?
+                    .declaration_flow_report(registry)?;
+                report
+                    .owns_original_procedure(procedure, image)
+                    .then_some(report)
+            })
+    })
+}
+
+/// A declared alias or a defined original diagnostic path can suppress a
+/// local-absence warning. Known physical unset versions still report; runtime
+/// zero-trip/callback alternatives and all variable/SSA state remain unchanged.
+fn suppress_declared_read_warnings(
+    fu: &crate::compilation_unit::FunctionUnit,
+    ctx: &ReadBeforeSetCtx<'_>,
+    report: Option<&crate::command_binding::DeclarationFlowReport>,
+    reads: &mut std::collections::HashMap<String, tcl_lexer::Span>,
+) {
+    let Some(report) = report else {
+        return;
+    };
+    reads.retain(|name, span| {
+        !(report.has_declared_alias(name) || report.declared_read_is_defined(name, *span))
+            || super::helpers::original_read_occurrence_at_span(fu, *span)
+                .is_some_and(|value| ctx.supp.killed.contains(&value))
+    });
+}
+
+/// Original uses missing from SSA only suppress store diagnostics. The query
+/// changes neither physical liveness nor store-removal permission.
+fn original_unrepresented_use_advice(
+    fu: &crate::compilation_unit::FunctionUnit,
+    definition: &crate::def_use::DefSite,
+    variable: &str,
+    registry: &tcl_registry::CommandRegistry,
+    layout: &std::cell::OnceCell<
+        Option<std::sync::Arc<crate::command_binding::DeclarationFlowReport>>,
+    >,
+) -> bool {
+    let Some(block) = fu.cfg.block_id(&definition.block) else {
+        return false;
+    };
+    let Ok(index) = usize::try_from(definition.statement_index) else {
+        return false;
+    };
+    let Some(tokens) =
+        crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).source_tokens()
+    else {
+        return false;
+    };
+    let Some(report) = layout.get_or_init(|| {
+        tokens
+            .source_binding
+            .as_ref()?
+            .declaration_flow_report(registry)
+    }) else {
+        return false;
+    };
+    if !tokens
+        .source_binding
+        .as_ref()
+        .and_then(|binding| binding.invocation_site())
+        .is_some_and(|site| report.owns_invocation(site))
+    {
+        return false;
+    }
+    if report.has_declared_alias(variable)
+        || report.has_named_use(variable)
+        || report.has_quoted_use(variable)
+    {
+        return true;
+    }
+    report.authored_use_spans(variable).iter().any(|span| {
+        !fu.def_use
+            .chains
+            .values()
+            .filter(|chain| {
+                fu.def_use
+                    .symbol(&fu.ssa, chain.key.0)
+                    .is_some_and(|symbol| fu.ssa.var_name(symbol) == variable)
+            })
+            .flat_map(|chain| &chain.uses)
+            .any(|usage| {
+                let Some(block) = fu.cfg.block_id(&usage.block) else {
+                    return false;
+                };
+                let index = usize::try_from(usage.statement_index).unwrap_or(usize::MAX);
+                crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index)
+                    .source_tokens()
+                    .is_some_and(|tokens| {
+                        tokens.words().iter().any(|word| {
+                            word.source().span.start() <= span.start()
+                                && span.end() <= word.source().span.end()
+                        })
+                    })
+            })
+    })
+}
+
+fn original_unread_store_advice(
+    fu: &crate::compilation_unit::FunctionUnit,
+    definition: &crate::def_use::DefSite,
+    variable: &str,
+    registry: &tcl_registry::CommandRegistry,
+    layout: &std::cell::OnceCell<
+        Option<std::sync::Arc<crate::command_binding::DeclarationFlowReport>>,
+    >,
+    module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
+) -> bool {
+    let Some(block) = fu.cfg.block_id(&definition.block) else {
+        return false;
+    };
+    let Ok(index) = usize::try_from(definition.statement_index) else {
+        return false;
+    };
+    let Some(tokens) =
+        crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).source_tokens()
+    else {
+        return false;
+    };
+    let report = layout.get_or_init(|| {
+        tokens
+            .source_binding
+            .as_ref()?
+            .declaration_flow_report(registry)
+    });
+    let Some(report) = report else {
+        return false;
+    };
+    let Some(metadata) = original_store_metadata(fu, tokens, registry, module) else {
+        return false;
+    };
+    crate::registry_invocation::conditional_unread_local_store_advice(
+        registry,
+        Some(metadata),
+        tokens,
+        report,
+    )
+    .is_some_and(|advice| advice.name() == variable && advice.owns(tokens))
+}
+
+/// Synthetic effect statements have no original argv for a diagnostic anchor.
 fn statement_is_synthetic_effect(stmt: &crate::ir::Statement) -> bool {
     stmt.synthetic_marker().is_some()
 }
 
-/// this pass and for the `Statement::Call` twin in [`crate::ssa`] alike.
+/// Suppress a lexical body read when unchanged conditional source advice
+/// owns the name in its own frame. This proves no executed store or successor
+/// value. Opaque foreign bodies retain their separate lexical suppression.
 fn barrier_body_locally_sets(
     stmt: Option<&crate::ir::Statement>,
     var: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
-    config: tcl_lexer::LexerConfig,
+    source: &str,
+    analysis: &crate::analyser::AnalysisResult,
+    context: &tcl_registry::model::ContextRegistry,
+    original_tokens: Option<&crate::ir::CommandTokens>,
 ) -> bool {
-    use crate::ir::Statement;
-    let (Some(Statement::Barrier { command, args, .. }), Some(registry)) = (stmt, registry) else {
+    let registry = context.commands();
+    let Some(config) = analysis.body_lexer_config else {
         return false;
     };
-    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    registry
-        .arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Body)
-        .into_iter()
-        .filter_map(|idx| args.get(idx))
-        .any(|body_text| {
-            crate::script_binds::script_binds_name(
-                body_text,
-                var,
-                crate::script_binds::Ownership::BindingsOrNameReads,
-                registry,
-                config,
-            )
+    let Some(tokens) = original_tokens else {
+        return false;
+    };
+    if crate::registry_invocation::source_structure::original_segment_for_tokens(
+        source, analysis, tokens,
+    )
+    .is_none()
+    {
+        return false;
+    }
+    if !matches!(stmt, Some(crate::ir::Statement::Barrier { .. })) {
+        return false;
+    }
+    let Some(words) =
+        crate::registry_invocation::source_structure::original_registry_words_for_tokens(
+            source, analysis, tokens,
+        )
+    else {
+        return false;
+    };
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
+        registry,
+        input,
+        config,
+        Some(input.unit_profile()),
+    );
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return false;
+    };
+    let Some(footprint) =
+        binding.original_materialized_footprint(tokens, source, registry, metadata)
+    else {
+        return false;
+    };
+    // Possible local ownership uses the selected installer's source world.
+    // Ordinary interpolation supplies no binding; an unavailable child table
+    // cannot borrow this installer's command descriptors or aliases.
+    let root = crate::naming::split_element_ref(var).map_or(var, |(root, _)| root);
+    words
+        .source_script_bodies_for(
+            context,
+            crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
+        )
+        .iter()
+        .any(|body| {
+            let names = footprint.body_name_ownership(body);
+            names
+                .names
+                .iter()
+                .chain(&names.read_names)
+                .any(|name| name == root)
         })
 }
 
 /// Variables this statement queries *only for
 /// existence* (`info exists X` / `array exists X`, whether a bare call
-/// or a `[...]` command substitution inside an assignment / argument), and
-/// the targets a destroyer nested in its words unbinds (`puts [unset X]`),
-/// which the lowering records as reads of what they observe. Such a
-/// reference is not a value read, so it must not raise W210.
-fn existence_query_vars(
+/// or a `[...]` command substitution inside an assignment / argument).
+/// Such a reference is not a value read, so it must not raise W210.
+fn existence_query_cells(
     stmt: &crate::ir::Statement,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    registry: &tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
-) -> Vec<String> {
-    use crate::ir::Statement;
-    let mut out = Vec::new();
-    let registry = match registry {
-        Some(registry) => registry,
-        None => tcl_registry::default_registry(),
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Vec<crate::var_resolve::VariableCellKey> {
+    let Some(tokens) = stmt.tokens() else {
+        return Vec::new();
     };
-    // Bare-call form, resolved by the registry's typed operation rather than
-    // command spelling so rooted calls use the same path.
-    if let Statement::Call { command, args, .. } = stmt {
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        if let Some(resolved) =
-            registry.resolve_invocation(command, &arg_refs, registry.own_surface_query())
-            && matches!(
-                resolved.semantics.operation,
-                tcl_registry::SemanticOperationId::Intrinsic(
-                    tcl_registry::IntrinsicId::InfoExists | tcl_registry::IntrinsicId::ArrayExists
+    let mut queries = Vec::new();
+    if let Some(query) = crate::existence_query::in_tokens_for_diagnostics_with_metadata_context(
+        tokens, registry, metadata,
+    ) {
+        queries.push(query);
+    }
+    for call in crate::word_subst::checked_lifted_calls(tokens, config).unwrap_or_default() {
+        if let Some(nested) = call.tokens.as_ref()
+            && let Some(query) =
+                crate::existence_query::in_tokens_for_diagnostics_with_metadata_context(
+                    nested, registry, metadata,
                 )
-            )
-            && let Some(v) = args.get(1)
         {
-            out.push(v.clone());
+            queries.push(query);
         }
     }
-    // Command-substitution form: `set y [info exists X]`,
-    // `puts [array exists X]`, etc.
-    let texts: &[String] = match stmt {
-        Statement::AssignValue { value, .. } => std::slice::from_ref(value),
-        Statement::Call { args, .. } => args,
-        _ => &[],
-    };
-    for t in texts {
-        if let Some((v, _kind)) = crate::existence_query::in_text(t, registry, config) {
-            out.push(v);
-        }
-    }
-    let embedded =
-        crate::ir_helpers::evaluated_command_substitutions_with_heads(stmt, registry, None);
-    for words in embedded.all_commands() {
-        out.extend(crate::ir_helpers::destroyed_variables(words, registry));
-    }
-    out
+    queries
+        .into_iter()
+        .filter_map(|(query, context)| {
+            let place =
+                crate::var_resolve::resolve_literal_place(&query.var, &context, false, registry);
+            crate::var_resolve::canonical_place_key(&place)
+        })
+        .collect()
 }
 
 /// True when a read of `var` is the word of an existence query in the
 /// statement itself (`info exists var`), which W210 never reports.
 fn is_existence_query_word(
     stmt_opt: Option<&crate::ir::Statement>,
-    var: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
-    config: tcl_lexer::LexerConfig,
+    cell: &crate::var_resolve::VariableCellKey,
+    exists_guards: &[super::helpers::ExistenceGuard],
+    fu: &crate::compilation_unit::FunctionUnit,
+    use_site: &crate::def_use::UseSite,
+    registry: &tcl_registry::CommandRegistry,
 ) -> bool {
-    stmt_opt.is_some_and(|stmt| {
-        existence_query_vars(stmt, registry, config)
-            .iter()
-            .any(|q| q == var)
+    let ssa = &fu.ssa;
+    let Some(use_id) = ssa.block_id(&use_site.block) else {
+        return false;
+    };
+    let index = usize::try_from(use_site.statement_index).unwrap_or(usize::MAX);
+    if use_site.kind == crate::def_use::UseKind::VariableName
+        && let Some(stmt) = stmt_opt
+        && existence_query_cells(
+            stmt,
+            registry,
+            fu.source_lexer_config(),
+            fu.invocation_metadata_context(registry),
+        )
+        .iter()
+        .any(|query| query == cell)
+    {
+        return true;
+    }
+    let original_cells =
+        super::helpers::original_read_cells_at(ssa, (use_id, index), cell, registry);
+    exists_guards.iter().any(|(guarded, block)| {
+        (original_cells.contains(guarded) || ssa.point_contexts.is_none() && guarded == cell)
+            && block_dominated_by(ssa, use_id, *block)
     })
 }
 
@@ -2977,54 +4584,40 @@ fn is_existence_query_word(
 /// self-initialisation, not a read-before-set: a `safe_on_uninit` call (e.g.
 /// `lappend`/`dict set`/`append`) that defines `var`, or an `incr` of its own
 /// target (which initialises an unset var to 0 in Tcl 8.5+).
-fn use_site_safe_initialises(stmt: Option<&crate::ir::Statement>, var: &str) -> bool {
-    use crate::ir::Statement;
-    match stmt {
-        Some(Statement::Call {
-            safe_on_uninit,
-            defs,
-            ..
-        }) => *safe_on_uninit && defs.iter().any(|d| d == var),
-        Some(Statement::Incr {
-            name,
-            safe_on_uninit,
-            ..
-        }) => *safe_on_uninit && crate::naming::normalise_var_name(name) == var,
+fn use_site_safe_initialises(
+    stmt: Option<&crate::ir::Statement>,
+    fu: &crate::compilation_unit::FunctionUnit,
+    use_site: &crate::def_use::UseSite,
+    cell: &crate::var_resolve::VariableCellKey,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
+    let safe = match stmt {
+        Some(
+            crate::ir::Statement::Call { safe_on_uninit, .. }
+            | crate::ir::Statement::Incr { safe_on_uninit, .. },
+        ) => *safe_on_uninit,
         _ => false,
+    };
+    if !safe || use_site.kind != crate::def_use::UseKind::VariableName {
+        return false;
     }
+    let Some(block) = fu.cfg.block_id(&use_site.block) else {
+        return false;
+    };
+    let Ok(index) = usize::try_from(use_site.statement_index) else {
+        return false;
+    };
+    super::helpers::original_definition_places(fu, block, index, registry)
+        .iter()
+        .any(|place| crate::var_resolve::canonical_place_key(place).as_ref() == Some(cell))
 }
 
-/// Whether `var`'s use at `stmt` is the read of a cell update embedded in the
-/// words of a host `Call` (`puts [incr n]`, `lappend l [append s y]`): the CFG
-/// builder merges the embedded update's read and write into the host call, so
-/// the store feeding it stays live (#2050). A non-`Call` host carries them on
-/// the definition point of its word effects instead (`<word-effects>`), which
-/// [`statement_is_synthetic_effect`] already exempts; this is the host-`Call`
-/// half of the same exemption. Lowering flags every call whose own named
-/// reads overlap its definitions `reads_own_defs`, so the overlap on an
-/// unflagged call is the embedded scan's. The scan recovers every `[…]` in
-/// the words, braced ones included (a `proc` body, a `catch` script), so the
-/// read may not run here: like a quoted mention it keeps liveness
-/// conservative and is never a read *before set*.
-fn embedded_cell_update_read(stmt: Option<&crate::ir::Statement>, var: &str) -> bool {
-    matches!(
-        stmt,
-        Some(crate::ir::Statement::Call {
-            reads,
-            defs,
-            reads_own_defs: false,
-            ..
-        }) if reads.iter().any(|r| r == var) && defs.iter().any(|d| d == var)
-    )
-}
-
-/// The namespace of a fully-qualified name: everything up to the last `::`,
-/// or `::` for a top-level name.
+#[cfg(test)]
 fn namespace_of(qualified_name: &str) -> String {
-    match qualified_name.rsplit_once("::") {
-        Some((ns, _)) if !ns.is_empty() => ns.to_string(),
-        _ => "::".to_string(),
-    }
+    tcl_syntax::naming::reported_qname_namespace(
+        qualified_name,
+        tcl_syntax::naming::ReportedQNameNamespacePurpose::LiteralPrefix,
+    )
 }
 
 /// Compute W213's diagnostic span and quick fix for an `unset` of a
@@ -3069,96 +4662,355 @@ fn w213_span_and_fix(
     (diag_span, fixes)
 }
 
-/// Return ``true`` when ``body`` contains a ``$param`` /
-/// ``${param}`` substitution.  Used as a fallback by the W214
-/// (unused-parameter) emitter to suppress the warning when the
-/// parameter is read inside a ``[expr {...}]`` / ``[cmd ...]``
-/// substitution that the IR lowerer doesn't track as a use.
-///
-/// Conservative — false negatives are fine (W214 still fires
-/// when the param genuinely isn't referenced), but false
-/// positives would cause the over-emit this guard exists to
-/// prevent.  The bare-name match enforces a non-identifier
-/// boundary on each side so ``$abc`` doesn't match ``$ab``,
-/// and skips the variable when it follows a ``\\`` escape.
-/// True when the proc body textually references the parameter `$param` /
-/// `${param}`, scanning command-by-command so a `namespace eval` body — which
-/// runs in the *namespace* frame, not the caller's — does **not** falsely
-/// recover a read of the caller's parameter.  Other bodies (`eval`, `if`,
-/// loops) run in the caller frame, so their `$param` reads still count.
+/// Tcl ARE metacharacters: a pattern free of these reduces to a literal
+/// substring search.
+const TCL_REGEX_METACHARS: &str = r"\^$.|?*+()[]{}";
+
+/// `regexp` switches that don't change match-vs-no-match for a pure-literal
+/// pattern.
+fn is_regexp_literal_safe_switch(opt: &str) -> bool {
+    matches!(
+        opt,
+        "-indices" | "-inline" | "-all" | "-line" | "-lineanchor" | "-linestop" | "-start" | "--"
+    )
+    // `-expanded` is handled separately (whitespace/comment-gated) by the
+    // caller, so it is intentionally not listed here.
+}
+
+/// True iff `regexp PATTERN INPUT` provably returns 0.  Sound only when
+/// `pat` is a pure-literal pattern (no ARE metacharacters), reducing the
+/// match to substring search.  Unknown / unsafe switches bail (return
+/// `false` = cannot prove no-match).
+fn regexp_literal_no_match(pat: &str, inp: &str, options: &[String]) -> bool {
+    if pat.chars().any(|c| TCL_REGEX_METACHARS.contains(c)) {
+        return false;
+    }
+    let mut nocase = false;
+    let mut expanded = false;
+    for opt in options {
+        if !opt.starts_with('-') {
+            continue; // an option value (e.g. after `-start`)
+        }
+        if opt == "-nocase" {
+            nocase = true;
+            continue;
+        }
+        if opt == "-expanded" {
+            expanded = true;
+            continue;
+        }
+        if is_regexp_literal_safe_switch(opt) {
+            continue;
+        }
+        return false; // unknown / unsafe switch
+    }
+    // `-expanded` makes Tcl ignore unescaped whitespace and `#`-comments in
+    // the pattern, so a pattern containing either is NOT a plain substring
+    // (`regexp -expanded {a b} {ab}` matches).  Bail in that case so the
+    // no-match proof stays sound — a whitespace/comment-free literal is
+    // still safe.
+    if expanded && pat.chars().any(|c| c.is_whitespace() || c == '#') {
+        return false;
+    }
+    if nocase {
+        !inp.to_lowercase().contains(&pat.to_lowercase())
+    } else {
+        !inp.contains(pat)
+    }
+}
+
+/// One unchanged output in the represented source-value projection.
+struct NoMatchOutputOrigin {
+    dominator: crate::cfg::BlockId,
+    index: usize,
+    version: crate::ssa::Version,
+    branch_entry: bool,
+}
+impl NoMatchOutputOrigin {
+    fn reaches(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        block: crate::cfg::BlockId,
+        index: usize,
+    ) -> bool {
+        if block == self.dominator {
+            self.branch_entry || index > self.index
+        } else {
+            block_dominated_by(&fu.ssa, block, self.dominator)
+        }
+    }
+}
+struct NoMatchCallSite {
+    producer: crate::cfg::BlockId,
+    index: usize,
+    dominator: crate::cfg::BlockId,
+    branch_entry: bool,
+}
+
+fn record_no_match_outputs(
+    fu: &crate::compilation_unit::FunctionUnit,
+    site: NoMatchCallSite,
+    outputs: &[String],
+    logical: bool,
+    origins: &mut std::collections::HashMap<crate::ssa::Symbol, Vec<NoMatchOutputOrigin>>,
+) {
+    let Some(data) = fu.ssa.blocks.get(&site.producer) else {
+        return;
+    };
+    let point = if site.index == data.statements.len() {
+        usize::MAX
+    } else {
+        site.index
+    };
+    let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, site.producer, point);
+    for name in outputs {
+        let symbol = view.symbol(name).or_else(|| {
+            logical
+                .then(|| {
+                    fu.ssa
+                        .cell_symbol(&crate::var_resolve::VariableCellKey::Authored(name.clone()))
+                })
+                .flatten()
+        });
+        let Some(symbol) = symbol else {
+            continue;
+        };
+        let before = data.statements[..site.index]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, statement)| {
+                fu.ssa
+                    .value_clobbers
+                    .get(&site.producer)
+                    .and_then(|markers| markers.get(&index))
+                    .and_then(|versions| versions.get(&symbol))
+                    .map(|&(_, fresh)| fresh)
+                    .or_else(|| statement.defs.get(&symbol).copied())
+            })
+            .or_else(|| data.entry_versions.get(&symbol).copied())
+            .unwrap_or(0);
+        // Failure retains a preceding value, and any later version is separate.
+        if before != 0 {
+            continue;
+        }
+        let version = data
+            .statements
+            .get(site.index)
+            .and_then(|statement| statement.defs.get(&symbol))
+            .copied()
+            .unwrap_or(before);
+        origins
+            .entry(symbol)
+            .or_default()
+            .push(NoMatchOutputOrigin {
+                dominator: site.dominator,
+                index: site.index,
+                version,
+                branch_entry: site.branch_entry,
+            });
+    }
+}
+
+fn original_missing_matcher_read_span(
+    fu: &crate::compilation_unit::FunctionUnit,
+    view: crate::ssa::SsaSourceView<'_>,
+    symbol: crate::ssa::Symbol,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<tcl_lexer::Span> {
+    view.source_tokens()?
+        .variable_accesses
+        .iter()
+        .filter_map(|access| {
+            let read = view.read_reference(&access.source, &access.original_spelling)?;
+            if read.symbol != symbol
+                || !view
+                    .read_contents_presence_alternatives_at(
+                        &access.source,
+                        &access.original_spelling,
+                        registry,
+                    )
+                    .is_some_and(crate::ssa::SsaReadPresenceAlternatives::may_be_undefined)
+                || super::helpers::original_read_is_live_array_scalar(access, registry)
+            {
+                return None;
+            }
+            Some(fu.abs_span(access.source.span))
+        })
+        .min_by_key(|span| span.start())
+}
+
+/// Complete selected source matcher layout and decoded effective literal argv.
+/// A handler descriptor identifies the authored protocol; it never proves an
+/// installed handler, physical target, normal completion or current absence.
+fn selected_matcher_no_match_outputs(
+    words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Vec<String> {
+    use tcl_registry::variable_output::NativeVariableOutputSpec;
+    // naming.diagnostics.original-matcher-output-retention
+
+    let Some(layout) = SourceMatcherLayout::from_original(words, context) else {
+        return Vec::new();
+    };
+    let pattern = layout.arguments[layout.pattern];
+    let input = layout.arguments[layout.input];
+    if !pattern.is_ascii()
+        || !input.is_ascii()
+        || pattern.contains('\0')
+        || input.contains('\0')
+        || pattern.len() > 1024
+        || input.len() > 8192
+    {
+        return Vec::new();
+    }
+    let no_match = match layout.protocol {
+        NativeVariableOutputSpec::Regexp => {
+            let options = layout.arguments[..layout.pattern]
+                .iter()
+                .map(|option| (*option).to_owned())
+                .collect::<Vec<_>>();
+            !options.iter().any(|option| option == "-start")
+                && regexp_literal_no_match(pattern, input, &options)
+        }
+        NativeVariableOutputSpec::Scan => {
+            scan_literal_no_match(pattern, input, layout.outputs.len())
+        }
+    };
+    if !no_match {
+        return Vec::new();
+    }
+    layout
+        .outputs
+        .into_iter()
+        .filter_map(|index| {
+            let name = *layout.arguments.get(index)?;
+            (!name.is_empty()).then(|| name.to_owned())
+        })
+        .collect()
+}
+
+struct SourceMatcherLayout<'a> {
+    protocol: tcl_registry::variable_output::NativeVariableOutputSpec,
+    arguments: Vec<&'a str>,
+    outputs: Vec<usize>,
+    pattern: usize,
+    input: usize,
+}
+impl<'a> SourceMatcherLayout<'a> {
+    fn from_original(
+        words: &'a crate::registry_invocation::source_structure::OriginalRegistryWords,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Option<Self> {
+        use tcl_registry::{
+            ArgRole, native_compilation::SuccessfulHandlerSpec,
+            variable_output::NativeVariableOutputSpec,
+        };
+        let facts = words.with_source_schema(context, |schema| schema.facts())?;
+        let SuccessfulHandlerSpec::ConditionalVariableOperands(protocol) =
+            facts.successful_handler?
+        else {
+            return None;
+        };
+        if !facts.arg_roles_complete || facts.arity_accepts_frozen_arguments() != Some(true) {
+            return None;
+        }
+        let arguments = words
+            .arguments()
+            .iter()
+            .map(|word| std::str::from_utf8(word.literal_bytes()?).ok())
+            .collect::<Option<Vec<_>>>()?;
+        if facts.frozen_argument_count != Some(arguments.len()) {
+            return None;
+        }
+        let indices = |role| {
+            facts.arg_roles.iter().filter_map(move |&(index, found)| {
+                (role == found).then_some(facts.argument_offset + usize::from(index))
+            })
+        };
+        let outputs = indices(ArgRole::VarWrite).collect::<Vec<_>>();
+        if outputs.is_empty() {
+            return None;
+        }
+        let (pattern, input) = match protocol {
+            NativeVariableOutputSpec::Regexp => {
+                let pattern = indices(ArgRole::Pattern).next()?;
+                (pattern, pattern.checked_add(1)?)
+            }
+            NativeVariableOutputSpec::Scan => {
+                let pattern = indices(ArgRole::ScanFormat).next()?;
+                (pattern, pattern.checked_sub(1)?)
+            }
+        };
+        arguments.get(pattern)?;
+        arguments.get(input)?;
+        Some(Self {
+            protocol,
+            arguments,
+            outputs,
+            pattern,
+            input,
+        })
+    }
+}
+
+/// The shared parser validates the complete dialect-common plain conversion
+/// subset before the existing first-conversion no-match kernel is consulted.
+fn scan_literal_no_match(format: &str, input: &str, output_count: usize) -> bool {
+    let chars = format.chars().collect::<Vec<_>>();
+    let mut index = 0;
+    let mut conversions = 0;
+    while index < chars.len() {
+        if chars[index] != '%' {
+            index += 1;
+            continue;
+        }
+        index += 1;
+        let Ok(conversion) = tcl_syntax::scan::parse_conversion(&chars, &mut index) else {
+            return false;
+        };
+        if conversion.suppress
+            || conversion.width.is_some()
+            || conversion.size.is_some()
+            || conversion.xpg_index.is_some()
+            || !matches!(conversion.verb, '%' | 'd' | 'o' | 'x' | 'X' | 's' | 'c')
+        {
+            return false;
+        }
+        conversions += usize::from(conversion.verb != '%');
+    }
+    conversions == output_count && crate::scan_predicate::scan_provably_no_match(format, input)
+}
+
+/// Authored fixture adapter; production supplies its actual declaration/body owner.
+#[cfg(test)]
 pub(super) fn body_references_param(
     body: &str,
     param: &str,
     config: tcl_lexer::LexerConfig,
 ) -> bool {
-    if param.is_empty() {
+    let profile = tcl_dialect::DialectProfile::plain_tcl();
+    let context =
+        crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+    let input =
+        crate::analyser::ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+    let parameters = tcl_syntax::list::join_list([param]);
+    let source = tcl_syntax::list::join_list(["proc", "__w214__", &parameters, body]);
+    let analysis = Analyser::new()
+        .with_resolved_input(input)
+        .analyse(&source, "tcl");
+    let Some(selected) = crate::registry_invocation::source_structure::source_registry_words_at(
+        &source, &analysis, 0,
+    ) else {
         return false;
-    }
-    let cmds = crate::segmenter::segment_commands_with_offset_and_config(body, 0, config);
-    for cmd in &cmds {
-        // `namespace eval NS BODY` — the trailing body word evaluates in NS's
-        // frame, so exclude it; the NS-name word (e.g. `namespace eval $x …`)
-        // is still substituted in the caller frame and is scanned.
-        let is_ns_eval = cmd.texts.first().map(String::as_str) == Some("namespace")
-            && cmd.texts.get(1).map(String::as_str) == Some("eval");
-        let skip_last = is_ns_eval && cmd.texts.len() >= 4;
-        let last_idx = cmd.texts.len().saturating_sub(1);
-        for (i, word) in cmd.texts.iter().enumerate() {
-            if skip_last && i == last_idx {
-                continue;
-            }
-            if word_references_param(word, param) {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-/// True when a single word textually references `$param` / `${param}`.  Flat
-/// byte scan with identifier-boundary and `\$` escape handling.
-fn word_references_param(body: &str, param: &str) -> bool {
-    if param.is_empty() {
+    };
+    let mut bodies = selected.source_script_bodies(&context).into_iter();
+    let Some(body) = bodies.next() else {
         return false;
-    }
-    let bytes = body.as_bytes();
-    let plen = param.len();
-    let mut i = 0;
-    while i < bytes.len() {
-        let c = bytes[i];
-        if c != b'$' {
-            i += 1;
-            continue;
-        }
-        // Skip backslash-escaped ``\$``.
-        if i > 0 && bytes[i - 1] == b'\\' {
-            i += 1;
-            continue;
-        }
-        // ``${name}`` form.
-        if i + 1 < bytes.len() && bytes[i + 1] == b'{' {
-            let start = i + 2;
-            if start + plen <= bytes.len()
-                && &bytes[start..start + plen] == param.as_bytes()
-                && start + plen < bytes.len()
-                && bytes[start + plen] == b'}'
-            {
-                return true;
-            }
-        } else {
-            // ``$name`` form — bare identifier match.
-            let start = i + 1;
-            if start + plen <= bytes.len() && &bytes[start..start + plen] == param.as_bytes() {
-                let after = start + plen;
-                let next_ok = after >= bytes.len() || !is_ident_continue(bytes[after]);
-                if next_ok {
-                    return true;
-                }
-            }
-        }
-        i += 1;
-    }
-    false
+    };
+    bodies.next().is_none()
+        && crate::registry_invocation::original_body_reference_candidates(&source, &analysis, &body)
+            .is_some_and(|names| names.contains(param))
 }
 
 /// Must-policy over a channel argument's type union: `Some(label)` when
@@ -3244,32 +5096,851 @@ mod issue996_tests {
     }
 
     #[test]
-    fn opaque_body_local_set_uses_the_analyser_lexer_config() {
-        let registry = tcl_registry::CommandRegistry::build_default();
+    fn opaque_body_local_set_requires_original_body_owner() {
+        // naming.source.original-editor-body-structure
+
+        // Conditional source suppression only; no entered interpreter or store.
+        let source = "interp eval {} {set x 1; puts $x}\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let config = analysis.body_lexer_config.unwrap();
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            &segments[0],
+        );
+        analysis
+            .retained_command_realm()
+            .unwrap()
+            .stamp_original_tokens(&mut tokens);
         let stmt = crate::ir::Statement::Barrier {
-            span: tcl_lexer::Span::new(0, 0),
-            reason: "child interpreter".to_owned(),
+            span: tokens.argv[0],
+            reason: "original current-interpreter body".to_owned(),
             command: "interp".to_owned(),
             canonical_command: Some("::interp".to_owned()),
             args: vec![
                 "eval".to_owned(),
-                "child".to_owned(),
-                "{set}x 1; puts $x".to_owned(),
+                String::new(),
+                "set x 1; puts $x".to_owned(),
             ],
-            tokens: None,
+            tokens: Some(tokens.clone()),
         };
-
         assert!(barrier_body_locally_sets(
             Some(&stmt),
             "x",
-            Some(&registry),
-            tcl_lexer::LexerConfig::for_dialect("f5-irules"),
+            source,
+            &analysis,
+            &context,
+            Some(&tokens)
         ));
         assert!(!barrier_body_locally_sets(
             Some(&stmt),
             "x",
-            Some(&registry),
-            tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+            source,
+            &analysis,
+            &context,
+            None
         ));
+        assert!(!barrier_body_locally_sets(
+            Some(&stmt),
+            "x",
+            "interp eval {} {set y 1; puts $y}\n",
+            &analysis,
+            &context,
+            Some(&tokens)
+        ));
+    }
+
+    #[test]
+    fn original_body_ownership_keeps_installer_horizon_and_child_refusal() {
+        // naming.diagnostic.original-materialized-write-footprint
+
+        // Conditional suppression, never an entered child or completed store.
+        for (source, target, expected) in [
+            ("interp eval {} {puts $missing}", "missing", false),
+            ("interp eval {} {set missing}", "missing", true),
+            (
+                "interp alias {} put {} set {$literal}; interp eval {} {put VALUE}",
+                "$literal",
+                true,
+            ),
+            (
+                "interp alias {} put {} set café; rename set {}; interp eval {} {put VALUE}",
+                "café",
+                false,
+            ),
+            (
+                "interp create child; interp eval child {set x VALUE}",
+                "x",
+                false,
+            ),
+            ("interp eval {} {set {café(open} VALUE}", "café(open", true),
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+            let config = analysis.body_lexer_config.unwrap();
+            let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+            let segments =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                config,
+                segments.last().unwrap(),
+            );
+            analysis
+                .retained_command_realm()
+                .unwrap()
+                .stamp_original_tokens(&mut tokens);
+            let stmt = crate::ir::Statement::Barrier {
+                span: segments.last().unwrap().span,
+                reason: "conditional body".into(),
+                command: segments.last().unwrap().texts[0].clone(),
+                canonical_command: None,
+                args: Vec::new(),
+                tokens: Some(tokens.clone()),
+            };
+            assert_eq!(
+                barrier_body_locally_sets(
+                    Some(&stmt),
+                    target,
+                    source,
+                    &analysis,
+                    &context,
+                    Some(&tokens)
+                ),
+                expected,
+                "{source}"
+            );
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(!barrier_body_locally_sets(
+                Some(&stmt),
+                target,
+                source,
+                &missing,
+                &context,
+                Some(&tokens)
+            ));
+            let foreign = tcl_registry::model::ingress::resolve_environment("tcl9.0")
+                .default_context_registry();
+            assert!(!barrier_body_locally_sets(
+                Some(&stmt),
+                target,
+                source,
+                &analysis,
+                &foreign,
+                Some(&tokens)
+            ));
+        }
+    }
+}
+
+#[cfg(test)]
+mod source_body_purpose_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_registry::{
+        ArgRole, Arity, CommandRegistry, CommandSpec, InvocationArguments, ScriptTiming,
+    };
+
+    fn reference_only(_arguments: InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+        vec![(0, ScriptTiming::ReferenceOnly)]
+    }
+
+    #[test]
+    fn original_reference_only_body_cannot_supply_local_store_suppression() {
+        // naming.source.original-script-region-purpose
+
+        // Diagnostic suppression capability; no executed store or child entry.
+        let source = "reference-script {set x 1; puts $x}\nrun-script {set x 1; puts $x}";
+        let mut registry = CommandRegistry::build_default();
+        for (name, timing) in [
+            (
+                "reference-script",
+                Some(reference_only as tcl_registry::ScriptTimingResolver),
+            ),
+            ("run-script", None),
+        ] {
+            registry.insert(CommandSpec {
+                name,
+                arity: Arity::exact(1),
+                arg_roles: &[(0, ArgRole::Body)],
+                script_timing_resolver: timing,
+                ..CommandSpec::DEFAULT
+            });
+        }
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let context = Arc::new(
+            tcl_registry::model::context_for_profile(profile)
+                .with_command_store(Arc::new(registry)),
+        );
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        assert!(input.has_logical_source_name_context());
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl");
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        for (index, expected) in [(0, false), (1, true)] {
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                config,
+                &segments[index],
+            );
+            analysis
+                .retained_command_realm()
+                .unwrap()
+                .stamp_original_tokens(&mut tokens);
+            let words =
+                crate::registry_invocation::source_structure::original_registry_words_for_tokens(
+                    source, &analysis, &tokens,
+                )
+                .expect("original source producer");
+            assert_eq!(
+                words.source_script_bodies(&context).len(),
+                1,
+                "both bodies remain original syntax"
+            );
+            let stmt = crate::ir::Statement::Barrier {
+                span: tokens.argv[0],
+                reason: "authored foreign body".into(),
+                command: segments[index].texts[0].clone(),
+                canonical_command: None,
+                args: segments[index].texts[1..].to_vec(),
+                tokens: Some(tokens.clone()),
+            };
+            assert_eq!(
+                barrier_body_locally_sets(
+                    Some(&stmt),
+                    "x",
+                    source,
+                    &analysis,
+                    &context,
+                    Some(&tokens)
+                ),
+                expected
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_variable_anchor_tests {
+    fn anchor(source: &str, dialect: &str, target: &str) -> Option<tcl_lexer::Span> {
+        let environment = tcl_registry::model::resolve_environment(dialect);
+        let profile = environment.unit_profile();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            environment.default_context_registry(),
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        let mut analyser = crate::analyser::Analyser::new().with_resolved_input(input);
+        analyser.source = source.to_owned();
+        analyser.narrow_to_read_var(
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            target,
+        )
+    }
+
+    #[test]
+    fn variable_read_anchor_preserves_literal_name_and_complete_reference_geometry() {
+        // naming.diagnostics.original-variable-name-anchor
+
+        // Lexical anchor controls, not variable existence, W210 admission or
+        // successful native reads. A braced scalar may contain an unmatched '('.
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            for (source, target, reference) in [
+                ("puts $a ${a(b}", "a(b", "${a(b}"),
+                ("puts ${literal} ${$literal}", "$literal", "${$literal}"),
+                ("puts ${é}", "é", "${é}"),
+                ("puts $a(k)", "a(k)", "$a(k)"),
+                ("puts ${a(k)}", "a(k)", "${a(k)}"),
+                ("puts ${}", "", "${}"),
+                ("set marker 1; puts [list ${a(b}]", "a(b", "${a(b}"),
+            ] {
+                let start = u32::try_from(source.find(reference).unwrap()).unwrap();
+                let expected =
+                    tcl_lexer::Span::new(start, start + u32::try_from(reference.len()).unwrap());
+                assert_eq!(
+                    anchor(source, dialect, target),
+                    Some(expected),
+                    "{dialect}: {source:?}"
+                );
+            }
+            for (source, target) in [
+                ("puts $a", "a(b"),
+                ("puts ${literal}", "$literal"),
+                ("puts {${a(b}}", "a(b"),
+                ("puts ${unclosed", "unclosed"),
+                ("puts $a(", "a("),
+            ] {
+                assert_eq!(
+                    anchor(source, dialect, target),
+                    None,
+                    "{dialect}: {source:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn variable_read_anchor_uses_retained_braced_and_bare_name_grammar() {
+        // naming.diagnostics.original-variable-name-anchor
+
+        // Exact source/configuration discrimination, not a native cell or
+        // completion observation. Bare Unicode is Jim syntax only.
+        let source = "puts ${a{b}c}";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "jim"] {
+            assert_eq!(anchor(source, dialect, "a{b}c"), None);
+            assert_eq!(
+                anchor(source, dialect, "a{b"),
+                Some(tcl_lexer::Span::new(5, 11))
+            );
+        }
+        for dialect in ["tcl9.0", "tcl9.1"] {
+            assert_eq!(
+                anchor(source, dialect, "a{b}c"),
+                Some(tcl_lexer::Span::new(5, 13))
+            );
+            assert_eq!(anchor(source, dialect, "a{b"), None);
+        }
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            assert_eq!(anchor("puts $é", dialect, "é"), None);
+        }
+        assert_eq!(
+            anchor("puts $é", "jim", "é"),
+            Some(tcl_lexer::Span::new(5, 8))
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_matcher_admission_tests {
+    use super::*;
+
+    fn output_names(source: &str, dialect: &str) -> Vec<String> {
+        let analysis = Analyser::new().analyse(source, dialect);
+        let config = analysis.body_lexer_config.unwrap();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            source,
+            &analysis,
+            commands.last().unwrap(),
+        );
+        words.map_or_else(Vec::new, |words| {
+            selected_matcher_no_match_outputs(
+                &words,
+                &analysis.resolved_input.as_ref().unwrap().context_registry(),
+            )
+        })
+    }
+
+    #[test]
+    fn selected_original_matcher_advice_keeps_alias_arguments_and_known_provider_barriers() {
+        // naming.diagnostics.original-matcher-output-retention
+
+        // Selected conditional source protocol and decoded original argv only;
+        // none of these Native analyses grants current output cells or reads.
+        for dialect in [
+            "tcl", "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim",
+        ] {
+            for source in [
+                "regexp x y v",
+                "scan abc %d v",
+                "regexp x y {$v}",
+                "interp alias {} matcher {} regexp x y; matcher v",
+                "interp alias {} matcher {} regexp -nocase x; matcher Y v",
+                "rename regexp matcher; matcher x y v",
+                "interp alias {} matcher {} regexp x y; rename matcher moved; moved v",
+            ] {
+                let expected = if source.contains("{$v}") { "$v" } else { "v" };
+                assert_eq!(
+                    output_names(source, dialect),
+                    vec![expected],
+                    "{dialect}: {source}"
+                );
+            }
+            for source in [
+                "namespace eval app {proc regexp args {}}; ::app::regexp x y v",
+                "proc regexp args {}; regexp x y v",
+                "proc scan args {}; scan abc %d v",
+                "interp alias {} matcher {} regexp x y; rename regexp gone; proc regexp args {}; matcher v",
+                "interp alias {} matcher {} regexp -inline x y; matcher v",
+                "regexp -bogus x y v",
+                "regexp -about x y v",
+                "regexp -nocase x X v",
+                "regexp -expanded {a b} ab v",
+                "regexp -start end x y v",
+                "regexp {$p} y v",
+                "scan abc %b v",
+                "scan abc {%d %d} v",
+                "scan abc %2d v",
+                "scan abc %n v",
+                "scan abc %bad v",
+                "regexp é y v",
+            ] {
+                assert!(
+                    output_names(source, dialect).is_empty(),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_matcher_query_refuses_missing_foreign_and_stale_source_inputs() {
+        // naming.diagnostics.original-matcher-output-retention
+
+        let source = "regexp x y v";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let config = analysis.body_lexer_config.unwrap();
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            source, &analysis, &command,
+        )
+        .unwrap();
+        assert_eq!(
+            selected_matcher_no_match_outputs(
+                &words,
+                &analysis.resolved_input.as_ref().unwrap().context_registry()
+            ),
+            vec!["v"]
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        assert!(selected_matcher_no_match_outputs(&words, foreign).is_empty());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            crate::registry_invocation::source_structure::source_registry_words(
+                source, &missing, &command
+            )
+            .is_none()
+        );
+        assert!(
+            crate::registry_invocation::source_structure::source_registry_words(
+                "regexp x z v",
+                &analysis,
+                &command
+            )
+            .is_none()
+        );
+        let mut changed = analysis.clone();
+        changed.body_lexer_config = Some(tcl_lexer::LexerConfig::for_profile(Some(
+            tcl_dialect::DialectProfile::find("jim").unwrap(),
+        )));
+        assert!(
+            crate::registry_invocation::source_structure::source_registry_words(
+                source, &changed, &command
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_no_match_diagnostics_keep_prior_and_intervening_values_and_literal_names() {
+        // naming.diagnostics.original-matcher-output-retention
+
+        // Emitted conditional Logical diagnostics, not Native current contents.
+        for (source, expected) in [
+            ("proc f {} {regexp x y v; puts $v}", Some("$v")),
+            ("proc f {} {scan abc %d v; puts $v}", Some("$v")),
+            ("proc f {} {if {![regexp x y v]} {puts $v}}", Some("$v")),
+            ("proc f {} {regexp x y {$v}; puts ${$v}}", Some("${$v}")),
+            ("proc f {} {set v OLD; regexp x y v; puts $v}", None),
+            ("proc f {v} {regexp x y v; puts $v}", None),
+            ("proc f {} {regexp x y v; set v NEW; puts $v}", None),
+            (
+                "proc f {} {if {![regexp x y v]} {set v NEW; puts $v}}",
+                None,
+            ),
+            (
+                "namespace eval app {proc regexp {pattern input name} {upvar 1 $name output; set output CUSTOM; return 0}}; proc f {} {if {![::app::regexp x y v]} {puts $v}}",
+                None,
+            ),
+            (
+                "set marker PRELUDE\nproc f {} {if {![regexp x y v]} {puts $v}}",
+                Some("$v"),
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            assert!(analysis.allows_retained_logical_declaration_advice());
+            let spans = analysis
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == DiagCode::W210)
+                .map(|diagnostic| &source[diagnostic.span.as_range()])
+                .collect::<Vec<_>>();
+            assert_eq!(spans, expected.into_iter().collect::<Vec<_>>(), "{source}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_store_context_tests {
+    use super::original_store_metadata;
+    use crate::analyser::ResolvedAnalysisInput;
+    use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+    use std::sync::Arc;
+
+    fn original_unit() -> (
+        Arc<tcl_registry::model::ContextRegistry>,
+        CompilationUnit,
+        tcl_vm::Vm,
+    ) {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
+        let source = "set {$literal} FIRST; set {$literal} SECOND";
+        let (native_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        (context, unit, native_owner)
+    }
+
+    #[test]
+    fn original_store_points_keep_actual_module_function_and_source_owners() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // This authentic original point validates metadata only. A native cell,
+        // literal contents, adjacency and callbacks remain separate store gates.
+        let (context, unit, _native_owner) = original_unit();
+        let input = unit.top_level.source_metadata_input().unwrap();
+        let profile = input.unit_profile();
+        let config = input.lexer_config();
+        let function = &unit.top_level;
+        let (&block, data) = function
+            .cfg
+            .blocks
+            .iter()
+            .find(|(_, block)| !block.statements.is_empty())
+            .unwrap();
+        let tokens = function
+            .cfg
+            .source_tokens_at(block, 0)
+            .expect("original setter vector survives structural lowering");
+        assert!(!data.statements[0].span().is_empty());
+        assert!(original_store_metadata(function, tokens, context.commands(), None).is_some());
+        let module = crate::interprocedural::ModuleProcedures::of_unit(&unit, context.commands());
+        assert!(
+            original_store_metadata(function, tokens, context.commands(), Some(&module)).is_some()
+        );
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        assert!(Arc::ptr_eq(context.commands(), older.commands()));
+        for facet in 0..4 {
+            let mut changed = function.clone();
+            match facet {
+                0 => changed.source_metadata_input = None,
+                1 => {
+                    changed.source_metadata_input = Some(ResolvedAnalysisInput::new(
+                        profile,
+                        profile,
+                        Arc::clone(&older),
+                        config,
+                    ))
+                }
+                2 => {
+                    changed.source_metadata_input = Some(ResolvedAnalysisInput::new(
+                        profile,
+                        profile,
+                        tcl_registry::model::ingress::resolve_environment("tcl9.1")
+                            .default_context_registry(),
+                        config,
+                    ))
+                }
+                3 => changed.source_config.strict_quoting = !changed.source_config.strict_quoting,
+                _ => unreachable!(),
+            }
+            assert!(
+                original_store_metadata(&changed, tokens, context.commands(), None).is_none(),
+                "changed function facet {facet}"
+            );
+            assert!(
+                original_store_metadata(&changed, tokens, context.commands(), Some(&module))
+                    .is_none(),
+                "changed module/function facet {facet}"
+            );
+        }
+        let mut changed = tokens.clone();
+        changed.word_exprs.pop();
+        assert!(
+            original_store_metadata(function, &changed, context.commands(), Some(&module))
+                .is_none()
+        );
+        let mut stale = unit.clone();
+        stale.ir_module.top_level_namespace = "::stale".into();
+        let stale_module =
+            crate::interprocedural::ModuleProcedures::of_unit(&stale, context.commands());
+        assert!(
+            original_store_metadata(function, tokens, context.commands(), Some(&stale_module))
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_body_parser_config_tests {
+    use super::*;
+
+    #[test]
+    fn original_body_reference_suppression_keeps_bom_in_the_selected_head() {
+        // naming.source.original-configured-script-completeness
+
+        // Unknown literal heads cannot grant a script role to inert argument data.
+        let config = tcl_lexer::LexerConfig::for_file_grammar(
+            crate::environment_ingress::resolve_environment("tcl9.1").grammar(),
+        );
+        assert!(!body_references_param(
+            "namespace eval NS {puts $parameter}",
+            "parameter",
+            config
+        ));
+        assert!(!body_references_param(
+            "\u{feff}namespace eval NS {puts $parameter}",
+            "parameter",
+            config
+        ));
+        assert!(body_references_param(
+            "puts $parameter",
+            "parameter",
+            config
+        ));
+        assert!(!body_references_param("puts $another", "parameter", config));
+    }
+}
+
+#[cfg(test)]
+mod original_condition_child_purpose_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+
+    #[test]
+    fn original_condition_child_keeps_bom_alias_and_actual_expression_base() {
+        // naming.diagnostics.original-matcher-output-retention
+
+        // Selected conditional matcher/output schema only, no executed matcher or output cell contents.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input = ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+        assert!(input.has_logical_source_name_context());
+        let source = "\u{feff}interp alias {} \u{feff}match {} regexp\nif {![\u{feff}match x y v]} {puts $v}";
+        let mut analyser = Analyser::new().with_resolved_input(input.clone());
+        analyser.result = analyser.analyse(source, "presentation");
+        let image = tcl_lexer::SourceImage::document(source);
+        let plan = tcl_lexer::native_script_words_in(
+            image.clone(),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let word = &plan.commands.last().unwrap().words[1];
+        let region = word.content_span().unwrap();
+        let expression = crate::expr_parser::parse_expr_with_grammar(
+            &source[region.as_range()],
+            &config.grammar_over(profile.grammar),
+        );
+        let (selected, negated) = analyser
+            .original_condition_matcher(&expression, Some(region.start()))
+            .unwrap();
+        assert!(negated);
+        assert_eq!(selected.command(), "regexp");
+        assert_eq!(
+            selected_matcher_no_match_outputs(&selected, &context),
+            ["v"]
+        );
+        assert_eq!(word.config(), config);
+        assert_eq!(word.image(), &image);
+        assert_eq!(analyser.result.resolved_input.as_ref(), Some(&input));
+        assert!(
+            analyser
+                .original_condition_matcher(&expression, None)
+                .is_none()
+        );
+        assert!(
+            analyser
+                .original_condition_matcher(&expression, region.start().checked_add(1))
+                .is_none()
+        );
+        let retained = analyser.result.clone();
+        analyser.result.body_lexer_config = Some(config.nested());
+        assert!(
+            analyser
+                .original_condition_matcher(&expression, Some(region.start()))
+                .is_none()
+        );
+        analyser.result = retained.clone();
+        analyser.result.resolved_input = None;
+        assert!(
+            analyser
+                .original_condition_matcher(&expression, Some(region.start()))
+                .is_none()
+        );
+        analyser.result = retained;
+        analyser.source = source.replace(" x y v", " x z v");
+        assert!(
+            analyser
+                .original_condition_matcher(&expression, Some(region.start()))
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_condition_extent_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+
+    #[test]
+    fn original_condition_matcher_retains_multibyte_inclusive_extent_and_refuses_overflow() {
+        // naming.diagnostics.original-matcher-output-retention
+
+        // Original conditional matcher schema, without execution or output values.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input = ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+        let source = "set prefix λ\nif {![regexp λ λ out]} {puts $out}";
+        let mut analyser = Analyser::new().with_resolved_input(input.clone());
+        analyser.result = analyser.analyse(source, "presentation");
+        let plan = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(source),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let region = plan.commands.last().unwrap().words[1]
+            .content_span()
+            .unwrap();
+        assert!(region.start() > 0);
+        let expression = crate::expr_parser::parse_expr_with_grammar(
+            &source[region.as_range()],
+            &config.grammar_over(profile.grammar),
+        );
+        let (selected, negated) = analyser
+            .original_condition_matcher(&expression, Some(region.start()))
+            .unwrap();
+        assert!(negated);
+        assert_eq!(selected.command(), "regexp");
+        assert_eq!(
+            selected_matcher_no_match_outputs(&selected, &context),
+            ["out"]
+        );
+        assert_eq!(analyser.result.resolved_input.as_ref(), Some(&input));
+        let mut overflow = expression.clone();
+        let ExprNode::Unary { operand, .. } = &mut overflow else {
+            panic!("genuine parsed negated command");
+        };
+        let ExprNode::Command { end, .. } = operand.as_mut() else {
+            panic!("genuine original command extent");
+        };
+        *end = u32::MAX;
+        assert!(
+            analyser
+                .original_condition_matcher(&overflow, Some(region.start()))
+                .is_none()
+        );
+        assert!(
+            analyser
+                .original_condition_matcher(&expression, Some(u32::MAX))
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod constructed_projection_tests {
+    use super::*;
+
+    #[test]
+    fn w214_namespace_grouping_keeps_literal_reporting_prefix() {
+        // Implementation contract: naming.analysis.constructed-key-consumer-projections
+
+        // Literal String grouping only; overlapping pairs are not native paths.
+        for (qname, expected) in [
+            ("", "::"),
+            ("p", "::"),
+            ("::p", "::"),
+            ("n::p", "n"),
+            (":::p", ":"),
+            ("::a::::p", "::a::"),
+            ("n::", "n"),
+            ("é::λ", "é"),
+            ("n\0::p", "n\0"),
+        ] {
+            assert_eq!(namespace_of(qname), expected);
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_formal_diagnostic_source_tests {
+    #[test]
+    fn w214_uses_original_tight_name_spans_and_quoted_markers() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        assert!(
+            tcl_registry::InvocationDialect::of_profile(profile)
+                .authored_name_policy()
+                .is_some()
+        );
+        assert!(input.has_logical_source_name_context());
+        let source = r#"proc p {"as" value extra} {return 1}"#;
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        let hints = analysis
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W214)
+            .map(|diagnostic| &source[diagnostic.span.as_range()])
+            .collect::<Vec<_>>();
+        assert_eq!(hints, ["value", "extra"]);
     }
 }

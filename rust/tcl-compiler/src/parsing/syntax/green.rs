@@ -50,7 +50,7 @@
 //!
 //! See `docs/design/compiler/syntax-tree.md`.
 
-use tcl_lexer::TokenType;
+use tcl_lexer::{Span, Token, TokenType};
 
 /// A piece of inter-token text that carries no syntactic value of its own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -81,6 +81,9 @@ pub struct GreenTrivia {
     pub kind: TriviaKind,
     /// The literal source text of the run.
     pub text: String,
+    /// Original lexer recipe in local coordinates. Unlexed prefix text and
+    /// authored trivia have no original token to restore.
+    lexical_token: Option<Token>,
 }
 
 impl GreenTrivia {
@@ -90,7 +93,29 @@ impl GreenTrivia {
         Self {
             kind,
             text: text.into(),
+            lexical_token: None,
         }
+    }
+
+    /// Retain the exact lexer shape independently of the literal tiling width.
+    /// Empty EOL and ghost separator tokens remain empty; no source spelling
+    /// is parsed to manufacture a token.
+    pub(super) fn from_token(kind: TriviaKind, text: &str, token: Token) -> Self {
+        Self {
+            kind,
+            text: text.to_owned(),
+            lexical_token: Some(Token {
+                span: Span::new(0, token.span.end() - token.span.start()),
+                ..token
+            }),
+        }
+    }
+
+    pub(super) fn lexical_token_at(&self, start: u32) -> Option<Token> {
+        self.lexical_token.map(|token| Token {
+            span: Span::new(start, start + token.span.end()),
+            ..token
+        })
     }
 
     /// Byte width of the run.

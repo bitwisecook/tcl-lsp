@@ -139,7 +139,8 @@ fn cmd_check(args: &[String]) -> ExitCode {
                     }
                 }
                 // The resolved event contract (registry-described schema).
-                if let Some(spec) = bpf_tcl_ir::event::event_spec(&d.event) {
+                {
+                    let spec = d.event_id.spec();
                     println!(
                         "    event contract: ctx={} caps=[{}] default={} output={} kernel={}",
                         spec.context.struct_name,
@@ -236,8 +237,7 @@ fn cmd_plan(args: &[String]) -> ExitCode {
             .attach
             .as_ref()
             .map_or_else(|| "none".to_owned(), |a| format!("{} {}", a.kind, a.target));
-        let kernel = bpf_tcl_ir::event::event_spec(&prog.event)
-            .map_or_else(String::new, |s| format!(", kernel {}", s.kernel_summary()));
+        let kernel = format!(", kernel {}", prog.event_id.spec().kernel_summary());
         println!(
             "  #{i} {} (priority {}, {:?}), attach {attach}{kernel}",
             prog.event, prog.priority, prog.prog_type

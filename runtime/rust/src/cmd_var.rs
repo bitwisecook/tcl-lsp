@@ -31,32 +31,29 @@
 //!   caller frame (`#N` absolute / `N` relative) or, when `otherVar` is
 //!   namespace-qualified, to that namespace var.
 //!
-//! At the global / `namespace eval` scope (no proc frame) `global`/`variable`
-//! are no-ops for the link (the var already lives in the right namespace table);
-//! `variable name value` still initialises the value. See `tclVar.c`
+//! In C Tcl, `global` has no effect outside a procedure activation; namespace
+//! evaluation still uses its ordinary dialect-specific variable lookup.
+//! `variable` and `upvar` can install namespace links in those activations.
+//! Jim selects links by name in its activation-local variable table. See `tclVar.c`
 //! (`Tcl_GlobalObjCmd` / `Tcl_VariableObjCmd` / `Tcl_UpvarObjCmd`) and
 //! `namespace-tree.md` §5.3 for the modelled semantics.
 
-use tcl_syntax::naming::is_qualified;
-
-use crate::frame::{split_array_ref, Link, VarHome};
-use crate::interp::{obj_bytes, Code, Interp};
-use crate::namespace::GLOBAL;
+use crate::interp::{Code, Interp};
 use crate::obj::TclObj;
+use tcl_syntax::value::ValueOps;
 
 /// Register `global`, `variable`, and `upvar`; also re-registers `set` (and,
 /// where the numeric tower is linked, `incr`) to fix their return value after
-/// a write trace runs — see [`set_cmd`] and [`incr_cmd`].
+/// a write trace runs — see [`set_cmd`] and [`installed_incr`].
 /// The override pattern mirrors TclOO's own `variable` override in
 /// `builtins::install` (installed later still wins; nothing registered
 /// after this module re-registers `set`/`incr`).
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"global", global);
-    interp.register_builtin(b"variable", variable);
-    interp.register_builtin(b"upvar", upvar);
-    interp.register_builtin(b"set", set_cmd);
-    #[cfg(have_tommath)]
-    interp.register_builtin(b"incr", incr_cmd);
+    interp.register_stock_builtin(b"global", global);
+    interp.register_stock_builtin(b"variable", variable);
+    interp.register_stock_builtin(b"upvar", upvar);
+    interp.register_stock_builtin(b"set", set_cmd);
+    interp.register_stock_builtin(b"incr", installed_incr());
 }
 
 // set / incr: return-after-trace
@@ -85,114 +82,25 @@ pub fn install(interp: &mut Interp) {
 /// read arm is unchanged.
 fn set_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     match argv.len() {
-        2 => {
-            let name = obj_bytes(argv[1]);
-            let (base, elem) = split_array_ref(&name);
-            if let Some(c) = interp.fire_read_trace(&base, elem.as_deref()) {
-                return c;
+        2 => match interp.read_original_named_variable(argv[1]) {
+            Ok(value) => {
+                interp.set_result(value);
+                Code::Ok
             }
-            let val = match &elem {
-                Some(k) => interp.var_get_elem(&base, k),
-                None => interp.var_get(&base),
-            };
-            match val {
-                Some(o) => {
-                    interp.set_result(o);
-                    Code::Ok
-                }
-                None => {
-                    let msg = interp.read_miss_msg(&base, elem.as_deref());
-                    interp.set_error(&msg)
-                }
-            }
-        }
-        3 => {
-            let name = obj_bytes(argv[1]);
-            let (base, elem) = split_array_ref(&name);
-            let value = argv[2];
-            match interp.store_var_result(&base, elem.as_deref(), value) {
-                Ok(()) => Code::Ok,
-                Err(e) => crate::builtins::var_error(interp, &name, e),
-            }
-        }
-        _ => interp.wrong_args(b"set varName ?newValue?"),
+            Err(code) => code,
+        },
+        3 => match interp.store_original_named_variable(argv[1], argv[2]) {
+            Ok(()) => Code::Ok,
+            Err(code) => code,
+        },
+        _ => interp.wrong_args_for_invocation(argv, b"varName ?newValue?"),
     }
 }
 
-/// `can't incr "name": variable is a constant` — duplicated from
-/// `builtins::incr_constant_error` (module-private there); C checks this
-/// before the read-modify-write, so no read trace fires.
-#[cfg(have_tommath)]
-fn incr_constant_error(
-    interp: &mut Interp,
-    base: &[u8],
-    elem: &Option<Vec<u8>>,
-    name: &[u8],
-) -> Option<Code> {
-    if elem.is_none() && interp.is_constant(base) {
-        let mut msg = b"can't incr \"".to_vec();
-        msg.extend_from_slice(name);
-        msg.extend_from_slice(b"\": variable is a constant");
-        return Some(interp.set_error(&msg));
-    }
-    None
-}
-
-/// The `incr` the command table actually holds: the trace-safe one wherever
-/// the numeric tower is linked.
-///
-/// Compiled code must dispatch through this rather than naming
-/// `builtins::incr` directly. `builtins::incr` calls `set_result(sum)` after
-/// the write traces have run, so a trace that rewrites or unsets the cell can
-/// drop the only reference to that fresh sum, a use-after-free that
-/// `installed_incr`/[`incr_cmd`] fix for interpreted `incr`. A compiled
-/// `incr` reaching `builtins::incr` directly would resurface it, and return
-/// the pre-trace value.
+/// The installed integer increment shares the physical receiver protocol with
+/// direct runtime and compiled-ABI calls, including trace-safe result retention.
 pub(crate) fn installed_incr() -> fn(&mut Interp, &[*mut TclObj]) -> Code {
-    #[cfg(have_tommath)]
-    {
-        incr_cmd
-    }
-    #[cfg(not(have_tommath))]
-    {
-        crate::builtins::incr
-    }
-}
-
-/// `incr varName ?increment?` — overrides `builtins::incr`'s store/result tail
-/// only; the numeric-tower add is unchanged.
-#[cfg(have_tommath)]
-fn incr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 || argv.len() > 3 {
-        return interp.wrong_args(b"incr varName ?increment?");
-    }
-    let name = obj_bytes(argv[1]);
-    let (base, elem) = split_array_ref(&name);
-    if let Some(c) = incr_constant_error(interp, &base, &elem, &name) {
-        return c;
-    }
-
-    let cur = interp.read_for_update(&base, elem.as_deref());
-    // `TclIncrObj` checks the current value, then the increment.
-    for operand in cur.iter().chain(argv.get(2)) {
-        if let Err(error) = crate::typed_value::incr_operand(*operand) {
-            return interp.report_typed_error(&error);
-        }
-    }
-    let one = crate::obj::new_wide_int_obj(1);
-    let amount = if argv.len() == 3 { argv[2] } else { one };
-
-    let sum = tcl_syntax::value::ValueOps::int_add(interp, cur.as_ref(), &amount);
-    crate::interp::drop_fresh(one); // the transient `1` (used or not) is no longer needed
-    let sum = match sum {
-        Ok(s) => s, // rc 0
-        Err(e) => return interp.report_cmd_error(e.into()),
-    };
-
-    match interp.store_var_result(&base, elem.as_deref(), sum) {
-        Ok(()) => Code::Ok,
-        Err(e) => crate::builtins::var_error(interp, &name, e),
-    }
+    crate::builtins::incr
 }
 
 /// `can't <verb> "<name>": parent namespace doesn't exist` — the qualified-into-
@@ -223,12 +131,71 @@ fn inverted_upvar(interp: &mut Interp, local: &[u8]) -> Code {
 /// `global varName ?varName ...?` — link each name's tail to the global of that
 /// name (resolved in the global namespace context).
 fn global(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let frame = if interp.frames.borrow().current_level() == 0 {
+        tcl_registry::VariableAliasFrame::Global
+    } else if interp.in_proc() {
+        tcl_registry::VariableAliasFrame::Procedure
+    } else {
+        tcl_registry::VariableAliasFrame::Namespace
+    };
+    if tcl_registry::VariableAliasDestination::ProcedureLocal
+        .is_active_in_frame(frame, interp.native_invocation_dialect())
+        == Some(false)
+    {
+        interp.set_result_bytes(b"");
+        return Code::Ok;
+    }
+    let protocol = match interp.require_variable_name_protocol() {
+        Ok(protocol) => protocol,
+        Err(error) => return crate::builtins::var_error(interp, b"", error),
+    };
+    if protocol.is_jim084() {
+        if interp.current_level() == 0 {
+            return Code::Ok;
+        }
+        let arguments =
+            match crate::interp::native_arguments::OriginalArguments::enter(interp, argv) {
+                Ok(arguments) => arguments,
+                Err(error) => return interp.report_cmd_error(error),
+            };
+        for index in 1..argv.len() {
+            let name = match arguments.bytes(index) {
+                Ok(name) => name,
+                Err(error) => return interp.report_cmd_error(error),
+            };
+            if protocol.variable_root_input(&name).qualification()
+                == tcl_syntax::naming::NativeNameQualification::Absolute
+            {
+                continue;
+            }
+            let code = interp.link_original_jim_upvar_objects(argv[index], 0, argv[index]);
+            if code != Code::Ok {
+                return arguments.finish(code);
+            }
+        }
+        let code = arguments.finish(Code::Ok);
+        if code == Code::Ok {
+            interp.set_result_bytes(b"");
+        }
+        return arguments.finish(code);
+    }
     // `global` with no names is a no-op (TIP 323).
     for &a in &argv[1..] {
-        let name = obj_bytes(a);
-        match interp.resolve_var_target(GLOBAL, &name) {
-            Some((ns, tail)) => interp.make_variable(ns, &tail),
-            None => return no_namespace(interp, b"access", &name),
+        let name = match interp.native_string_bytes(&a) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        let Some(local) = tcl_syntax::naming::global_local_name_bytes(protocol, &name) else {
+            continue;
+        };
+        let qualified = protocol.variable_alias_local_input(&name).qualification()
+            != tcl_syntax::naming::NativeNameQualification::Unqualified;
+        let tail =
+            qualified.then(|| crate::obj::Owned::fresh(crate::obj::new_string_bytes(&local)));
+        let local_original = tail.as_ref().map_or(a, crate::obj::Owned::as_ptr);
+        let code = bind_upvar_at_original(interp, 0, &name, &local, Some(a), Some(local_original));
+        if code != Code::Ok {
+            return code;
         }
     }
     interp.set_result_bytes(b"");
@@ -240,17 +207,186 @@ fn global(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `variable ?name value ...? name ?value?` — declare/link namespace variables,
 /// initialising those given a value. The trailing name may omit its value.
 pub(crate) fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    // `variable` with no names is a no-op (TIP 323).
+    if interp
+        .native_invocation_dialect()
+        .native_jim_lookup_protocol()
+        .is_none()
+    {
+        return variable_entered(interp, argv, None);
+    }
+    let arguments = match crate::interp::native_arguments::OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let reached = variable_entered(interp, argv, Some(&arguments));
+    arguments.finish(reached)
+}
+
+fn variable_entered(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: Option<&crate::interp::native_arguments::OriginalArguments>,
+) -> Code {
+    let Some(grammar) = interp
+        .native_invocation_dialect()
+        .native_variable_declaration_protocol()
+    else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "namespace variable declaration grammar",
+            )
+            .into(),
+        );
+    };
+    if let Err(usage) = grammar.arguments(argv.len().saturating_sub(1)) {
+        return interp.wrong_args_for_invocation(argv, usage);
+    }
+    if interp.native_c_variable_name_protocol().is_some() {
+        for pair in argv[1..].chunks(2) {
+            let code = interp.define_original_c_namespace_variable(pair[0], pair.get(1).copied());
+            if code != Code::Ok {
+                return code;
+            }
+        }
+        interp.set_result_bytes(b"");
+        return Code::Ok;
+    }
+    if let Some(arguments) = arguments {
+        if interp.current_ns() == crate::namespace::GLOBAL {
+            if let Err(error) = interp.native_jim_object_context() {
+                return interp.report_cmd_error(error.into());
+            }
+        }
+        let namespace =
+            match crate::interp::OriginalJimLookupNamespace::capture(interp, interp.current_ns()) {
+                Ok(namespace) => namespace,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            };
+        let reached = (|| {
+            for (pair_index, pair) in argv[1..].chunks(2).enumerate() {
+                let ordinal = 1 + pair_index * 2;
+                let check = |actual: &Interp| {
+                    namespace.check_current_arguments(actual, arguments)?;
+                    arguments.check_original_for(actual, ordinal, pair[0])
+                };
+                let canonical = match interp.jim_canonical_namespace_object_using(
+                    namespace.original_ptr(),
+                    pair[0],
+                    &check,
+                ) {
+                    Ok(canonical) => canonical,
+                    Err(error) => return interp.report_cmd_error(error),
+                };
+                if let Err(error) = check(interp) {
+                    return interp.report_cmd_error(error);
+                }
+                let local = match interp
+                    .original_jim_namespace_text_object(pair[0], true, ordinal, arguments)
+                {
+                    Ok(local) => crate::obj::Owned::retain(local),
+                    Err(error) => return interp.report_cmd_error(error),
+                };
+                if interp.current_level() != 0 || interp.current_ns() != crate::namespace::GLOBAL {
+                    let scope =
+                        match crate::interp::native_operation_currency::NativeOperationScope::enter(
+                            interp,
+                        ) {
+                            Ok(scope) => scope,
+                            Err(first) => return interp.refuse_native_execution(first),
+                        };
+                    if let Err(error) = arguments.check() {
+                        return interp.report_cmd_error(error);
+                    }
+                    let target = match canonical.checked_ptr() {
+                        Ok(target) => target,
+                        Err(error) => return interp.report_cmd_error(error.into()),
+                    };
+                    let local_temporary = crate::obj::Owned::retain(local.as_ptr());
+                    let target = crate::obj::Owned::retain(target);
+                    let code = interp.link_original_jim_upvar_objects(
+                        target.as_ptr(),
+                        0,
+                        local_temporary.as_ptr(),
+                    );
+                    if let Err(error) = check(interp) {
+                        return interp.report_cmd_error(error);
+                    }
+                    let code = if code == Code::Error {
+                        let Some(protocol) = interp
+                            .native_invocation_dialect()
+                            .native_jim_lookup_protocol()
+                        else {
+                            return interp.report_cmd_error(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "Jim namespace variable failure issuer",
+                                )
+                                .into(),
+                            );
+                        };
+                        match interp.publish_original_jim_variable_error(
+                            local_temporary.as_ptr(),
+                            &check,
+                            |bytes| {
+                                tcl_cmd_core::var::native_jim_namespace_variable_error(
+                                    protocol, bytes,
+                                )
+                            },
+                        ) {
+                            Ok(code) => code,
+                            Err(error) => return interp.report_cmd_error(error),
+                        }
+                    } else {
+                        code
+                    };
+                    drop(local_temporary);
+                    drop(target);
+                    if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                        return interp.refuse_native_execution(first);
+                    }
+                    if code != Code::Ok {
+                        return code;
+                    }
+                }
+                if let Some(&value) = pair.get(1) {
+                    if let Err(code) = interp.assign_original_named_variable(local.as_ptr(), value)
+                    {
+                        return code;
+                    }
+                }
+                drop(local);
+                drop(canonical);
+                if let Err(error) = check(interp) {
+                    return interp.report_cmd_error(error);
+                }
+            }
+            Code::Ok
+        })();
+        if let Err(error) = namespace.check_current_arguments(interp, arguments) {
+            return interp.report_cmd_error(error);
+        }
+        if reached != Code::Ok {
+            return reached;
+        }
+        interp.set_result_bytes(b"");
+        return Code::Ok;
+    }
+    let protocol = match interp.require_variable_name_protocol() {
+        Ok(protocol) => protocol,
+        Err(error) => return crate::builtins::var_error(interp, b"", error),
+    };
     let current = interp.current_ns();
     let mut i = 1;
     while i < argv.len() {
-        let name = obj_bytes(argv[i]);
+        let name = match interp.native_string_bytes(&argv[i]) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
         let Some((ns, tail)) = interp.resolve_var_target(current, &name) else {
             return no_namespace(interp, b"define", &name);
         };
         // A `variable` may not name an array element (C's `TclObjLookupVarEx`
         // rejects an `arr(elem)` target).
-        if crate::frame::split_array_ref(&tail).1.is_some() {
+        if protocol.combined_variable_input(&tail).element().is_some() {
             let mut m = b"can't define \"".to_vec();
             m.extend_from_slice(&name);
             m.extend_from_slice(b"\": name refers to an element in an array");
@@ -259,10 +395,14 @@ pub(crate) fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // Install the link first; a following `var_set(tail, …)` then writes
         // *through* it into the target namespace (the link makes the unqualified
         // tail resolve there, in a proc or at namespace scope alike).
-        interp.make_variable(ns, &tail);
+        let local = tcl_syntax::naming::variable_local_name_bytes(protocol, &name);
+        let code = interp.make_variable_mapped(ns, &local, &tail);
+        if code != Code::Ok {
+            return code;
+        }
         if i + 1 < argv.len() {
             let value = argv[i + 1];
-            if let Err(e) = interp.var_set(&tail, value) {
+            if let Err(e) = interp.var_set(&local, value) {
                 return crate::builtins::var_error(interp, &name, e);
             }
             i += 2;
@@ -281,95 +421,64 @@ pub(crate) fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// (absolute) or `N` (relative, default `1`); a namespace-qualified `otherVar`
 /// links to that namespace var regardless of level.
 fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let usage = b"upvar ?level? otherVar localVar ?otherVar localVar ...?";
+    let usage = interp.native_invocation_dialect().native_namespace_upvar_protocol()
+        .and_then(tcl_registry::native_namespace_upvar::NativeNamespaceUpvarProtocol::forwarded_wrong_arguments_usage)
+        .unwrap_or(b"upvar ?level? otherVar localVar ?otherVar localVar ...?");
     if argv.len() < 3 {
         return interp.wrong_args(usage);
     }
-    // A level is present iff the arg count is even (cmd + level + pairs); else
-    // the default relative level 1 applies and the pairs start at argv[1].
-    let has_level = argv.len() % 2 == 0;
-    let pairs_start = if has_level { 2 } else { 1 };
-    if argv.len() - pairs_start < 2 {
-        return interp.wrong_args(usage);
-    }
-    // C resolves the level before any pair, so a bad one fails even when every
-    // other-var is qualified; a word that is not a level at all is a bad level
-    // here, where `uplevel` would take it as the command.
-    let level_word = has_level.then(|| argv[1]);
-    let level = match frame_level(interp, level_word) {
-        Ok(FrameLevel::Named(level)) => level,
-        Ok(FrameLevel::Default(level)) if !has_level => level,
-        Ok(FrameLevel::Default(_)) => return bad_level(interp, &obj_bytes(argv[1])),
+    let (width, target_level) = match crate::cmd_eval::select_frame(
+        interp,
+        &argv[1..],
+        tcl_registry::FrameEffectSpec::UPVAR,
+    ) {
+        Ok(selected) => selected,
         Err(code) => return code,
     };
-    // A *relative* `upvar 0` at namespace-eval scope (no proc frame) resolves an
-    // unqualified other-var against the current namespace, not the global frame
-    // — e.g. `upvar 0 Option(-debug) debug` inside `namespace eval`. (`#0` is
-    // absolute and always means the global level.)
-    let relative_here = level_word.is_some_and(|word| !obj_bytes(word).starts_with(b"#"))
-        && !interp.in_proc()
-        && interp.current_ns() != GLOBAL
-        && level == interp.current_level();
-
+    let pairs_start = 1 + width;
+    if argv.len() - pairs_start < 2 || (argv.len() - pairs_start) % 2 != 0 {
+        return interp.wrong_args(usage);
+    }
     let mut i = pairs_start;
     while i + 1 < argv.len() {
-        let other = obj_bytes(argv[i]);
-        let local = obj_bytes(argv[i + 1]);
-        let (base, elem) = split_array_ref(&other);
-
-        let link = if is_qualified(&base) {
-            // A qualified other-var names a namespace var at any level.
-            match interp.resolve_var_target(interp.current_ns(), &base) {
-                Some((ns, simple)) => Link {
-                    home: VarHome::Namespace(ns),
-                    name: simple,
-                    elem,
-                },
-                None => return no_namespace(interp, b"access", &other),
+        if interp.native_c_variable_name_protocol().is_some() {
+            let code = interp.link_original_c_upvar_objects(argv[i], target_level, argv[i + 1]);
+            if code != Code::Ok {
+                return code;
             }
-        } else {
-            // A frame-local other-var at the resolved level.
-            let home = if relative_here {
-                VarHome::Namespace(interp.current_ns())
-            } else {
-                VarHome::Frame(level)
-            };
-            Link {
-                home,
-                name: base,
-                elem,
+            i += 2;
+            continue;
+        }
+        if interp
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_some()
+        {
+            let code = interp.link_original_jim_upvar_objects(argv[i], target_level, argv[i + 1]);
+            if code != Code::Ok {
+                return code;
             }
+            i += 2;
+            continue;
+        }
+        let other = match interp.native_string_bytes(&argv[i]) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error.into()),
         };
-        // C resolves the other-variable first, then rejects a namespace alias
-        // to a procedure cell before inspecting the alias's element shape or
-        // parent namespace (`TCL UPVAR INVERTED`).
-        if interp.upvar_would_invert(&link, &local) {
-            return inverted_upvar(interp, &local);
-        }
-        if split_array_ref(&local).1.is_some() {
-            let mut m = b"bad variable name \"".to_vec();
-            m.extend_from_slice(&local);
-            m.extend_from_slice(
-                b"\": can't create a scalar variable that looks like an array element",
-            );
-            return interp.error_with_code(&m, b"TCL UPVAR LOCAL_ELEMENT");
-        }
-        // A qualified local name (`ns::lnk`) creates a namespace link variable
-        // rather than a frame local; its namespace must exist.
-        if is_qualified(&local) {
-            match interp.resolve_var_target(interp.current_ns(), &local) {
-                Some((target_ns, tail)) => interp.make_upvar_in(target_ns, &tail, link),
-                None => {
-                    let mut m = b"can't create \"".to_vec();
-                    m.extend_from_slice(&local);
-                    m.extend_from_slice(b"\": parent namespace doesn't exist");
-                    let mut error_code = b"TCL LOOKUP VARNAME ".to_vec();
-                    error_code.extend_from_slice(&local);
-                    return interp.error_with_code(&m, &error_code);
-                }
-            }
-        } else {
-            interp.make_upvar(link, &local);
+        let local = match interp.native_string_bytes(&argv[i + 1]) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        let code = bind_upvar_at_original(
+            interp,
+            target_level,
+            &other,
+            &local,
+            Some(argv[i]),
+            Some(argv[i + 1]),
+        );
+        if code != Code::Ok {
+            return code;
         }
         i += 2;
     }
@@ -377,39 +486,642 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-pub(crate) use tcl_cmd_core::frame::FrameLevel;
-
-/// Resolve a `?level?` word as C's `TclObjGetFrame` does
-/// ([`tcl_cmd_core::frame::frame_level`]), raising `bad level`
-/// (`TCL LOOKUP LEVEL`) when it names no frame.
-pub(crate) fn frame_level(
+/// Install one alias through the same physical resolver used by upvar and
+/// reference-formal activation. No command lookup participates in binding.
+pub(crate) fn bind_upvar_at(
     interp: &mut Interp,
-    word: Option<*mut TclObj>,
-) -> Result<FrameLevel, Code> {
-    let current = interp.current_level();
-    tcl_cmd_core::frame::frame_level(interp, word.as_ref(), current).map_err(|bad| {
-        let spec = match (bad, word) {
-            (tcl_cmd_core::frame::BadLevel::Word, Some(word)) => obj_bytes(word),
-            _ => b"1".to_vec(),
-        };
-        bad_level(interp, &spec)
-    })
+    target_level: usize,
+    other: &[u8],
+    local: &[u8],
+) -> Code {
+    bind_upvar_at_original(interp, target_level, other, local, None, None)
 }
 
-/// `bad level "…"`, with the `TCL LOOKUP LEVEL` code C sets beside it.
-pub(crate) fn bad_level(interp: &mut Interp, spec: &[u8]) -> Code {
-    let mut m = b"bad level \"".to_vec();
-    m.extend_from_slice(spec);
-    m.push(b'"');
-    let word = String::from_utf8_lossy(spec);
-    let code = tcl_syntax::list::join_list(["TCL", "LOOKUP", "LEVEL", &word]);
-    interp.error_with_code(&m, code.as_bytes())
+fn bind_upvar_at_original(
+    interp: &mut Interp,
+    target_level: usize,
+    other: &[u8],
+    local: &[u8],
+    original: Option<*mut TclObj>,
+    local_original: Option<*mut TclObj>,
+) -> Code {
+    if interp
+        .native_invocation_dialect()
+        .native_jim_lookup_protocol()
+        .is_some()
+    {
+        let scope =
+            match crate::interp::native_operation_currency::NativeOperationScope::enter(interp) {
+                Ok(scope) => scope,
+                Err(first) => return interp.refuse_native_execution(first),
+            };
+        let fresh_target = original
+            .is_none()
+            .then(|| crate::obj::Owned::fresh(crate::obj::new_string_bytes(other)));
+        let fresh_local = local_original
+            .is_none()
+            .then(|| crate::obj::Owned::fresh(crate::obj::new_string_bytes(local)));
+        let target = original.unwrap_or_else(|| {
+            fresh_target
+                .as_ref()
+                .expect("fresh compatibility target")
+                .as_ptr()
+        });
+        let local = local_original.unwrap_or_else(|| {
+            fresh_local
+                .as_ref()
+                .expect("fresh compatibility local")
+                .as_ptr()
+        });
+        let reached = interp.link_original_jim_upvar_objects(target, target_level, local);
+        drop(fresh_local);
+        drop(fresh_target);
+        return match scope.currency().ensure_current_or_refuse() {
+            Ok(()) => reached,
+            Err(first) => interp.refuse_native_execution(first),
+        };
+    }
+    let protocol = match interp.require_variable_name_protocol() {
+        Ok(protocol) => protocol,
+        Err(error) => return crate::builtins::var_error(interp, local, error),
+    };
+    let selected_local = protocol.variable_root_input(local);
+    let local_key = selected_local.selected();
+
+    let fresh;
+    let original = if let Some(original) = original {
+        original
+    } else {
+        fresh = crate::obj::Owned::fresh(crate::obj::new_string_bytes(other));
+        fresh.as_ptr()
+    };
+    if interp.native_c_variable_name_protocol().is_some() {
+        let target = match interp.prepare_selected_c_link_target(original, target_level) {
+            Ok(Some(target)) => target,
+            Ok(None) => return no_namespace(interp, b"access", other),
+            Err(code) => return code,
+        };
+        let fresh_local;
+        let local_original = if let Some(original) = local_original {
+            original
+        } else {
+            fresh_local = crate::obj::Owned::fresh(crate::obj::new_string_bytes(local));
+            fresh_local.as_ptr()
+        };
+        return interp.bind_selected_c_alias_local(local_original, target);
+    }
+    let prepared = None;
+    let target = match prepared {
+        Some(target) => Some(target),
+        None => {
+            let (base, elem) = match interp.variable_name_parts(other) {
+                Ok(parts) => parts,
+                Err(error) => return crate::builtins::var_error(interp, other, error),
+            };
+            crate::vars::link_target_at(
+                &interp.frames.borrow(),
+                &interp.namespaces(),
+                &base,
+                elem,
+                target_level,
+            )
+        }
+    };
+    let Some(mut link) = target else {
+        return no_namespace(interp, b"access", other);
+    };
+    if let Err(error) = interp.prepare_upvar_target(&mut link) {
+        let reason = match error {
+            crate::frame::VarError::IsScalar => b"variable isn't array".as_slice(),
+            crate::frame::VarError::DeletedArray => {
+                b"upvar refers to element in deleted array".as_slice()
+            }
+            _ => b"no such variable".as_slice(),
+        };
+        let mut message = b"can't access \"".to_vec();
+        message.extend_from_slice(other);
+        message.extend_from_slice(b"\": ");
+        message.extend_from_slice(reason);
+        return interp.set_error(&message);
+    }
+    // C resolves the other-variable first, then rejects a namespace alias
+    // to a procedure cell before inspecting the alias's element shape or
+    // parent namespace (`TCL UPVAR INVERTED`).
+    if interp.upvar_would_invert(&link, local) {
+        return inverted_upvar(interp, local);
+    }
+    if protocol.combined_variable_input(local).element().is_some() {
+        let mut m = b"bad variable name \"".to_vec();
+        m.extend_from_slice(local);
+        m.extend_from_slice(b"\": can't create a scalar variable that looks like an array element");
+        return interp.error_with_code(&m, b"TCL UPVAR LOCAL_ELEMENT");
+    }
+    // A qualified local name (`ns::lnk`) creates a namespace link variable
+    // rather than a frame local; its namespace must exist.
+    if interp.variable_is_qualified(local) {
+        match interp.resolve_var_target(interp.current_ns(), local) {
+            Some((target_ns, tail)) => {
+                let code = interp.make_upvar_in(target_ns, &tail, link);
+                if code != Code::Ok {
+                    return code;
+                }
+            }
+            None => {
+                let mut m = b"can't create \"".to_vec();
+                m.extend_from_slice(local);
+                m.extend_from_slice(b"\": parent namespace doesn't exist");
+                let mut error_code = b"TCL LOOKUP VARNAME ".to_vec();
+                error_code.extend_from_slice(local);
+                return interp.error_with_code(&m, &error_code);
+            }
+        }
+    } else {
+        let code = interp.make_upvar(link, local_key);
+        if code != Code::Ok {
+            return code;
+        }
+    }
+    Code::Ok
 }
+
+#[cfg(test)]
+mod member_trace_horizon;
 
 #[cfg(test)]
 mod tests {
     use crate::counters;
     use crate::interp::{Code, Interp};
+    use tcl_syntax::value::ValueOps;
+
+    thread_local! {
+        static CANONICAL_RETIRED_NAMESPACE: std::cell::RefCell<Option<std::rc::Rc<crate::obj::Owned>>> = const { std::cell::RefCell::new(None) };
+    }
+
+    extern "C" fn retire_canonical_namespace_from_name(original: *mut crate::obj::TclObj) {
+        // SAFETY: this updater owns the live original's String slot.
+        unsafe { crate::obj::set_string_rep(original, b"child") };
+        CANONICAL_RETIRED_NAMESPACE.with(|slot| drop(slot.borrow_mut().take()));
+    }
+
+    static CANONICAL_RETIRE_NAME: crate::obj::TclObjType = crate::obj::TclObjType {
+        name: c"variable-canonical-retire-namespace".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(retire_canonical_namespace_from_name),
+        set_from_any_proc: None,
+    };
+
+    thread_local! {
+        static FORMAT_NAME: std::cell::Cell<*mut crate::obj::TclObj> = const { std::cell::Cell::new(std::ptr::null_mut()) };
+        static FORMAT_EVENTS: std::cell::RefCell<Vec<(&'static str, isize)>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+    extern "C" fn formatter_name_getter(original: *mut crate::obj::TclObj) {
+        // SAFETY: the updater receives its live original header.
+        let references = unsafe { (*original).ref_count };
+        FORMAT_EVENTS.with(|events| events.borrow_mut().push(("getter", references)));
+        // SAFETY: the updater owns this original String slot.
+        unsafe { crate::obj::set_string_rep(original, b"item(k\0suffix)") };
+    }
+    extern "C" fn formatter_old_result_retirement(_: *mut crate::obj::TclObj) {
+        let original = FORMAT_NAME.with(std::cell::Cell::get);
+        // SAFETY: the real formatter argument reference owns this live header.
+        let references = unsafe { (*original).ref_count };
+        FORMAT_EVENTS.with(|events| events.borrow_mut().push(("publication", references)));
+    }
+    static FORMAT_NAME_TYPE: crate::obj::TclObjType = crate::obj::TclObjType {
+        name: c"variable-format-name".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(formatter_name_getter),
+        set_from_any_proc: None,
+    };
+    static FORMAT_RESULT_TYPE: crate::obj::TclObjType = crate::obj::TclObjType {
+        name: c"variable-format-old-result".as_ptr(),
+        free_int_rep_proc: Some(formatter_old_result_retirement),
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+    thread_local! {
+        static ALIAS_CALLER_CHANGE: std::cell::RefCell<Option<(Interp, usize, bool)>> = const { std::cell::RefCell::new(None) };
+    }
+    extern "C" fn change_alias_caller_from_name(original: *mut crate::obj::TclObj) {
+        // SAFETY: this updater owns the original live String slot.
+        unsafe { crate::obj::set_string_rep(original, b"item(k)") };
+        ALIAS_CALLER_CHANGE.with(|slot| {
+            if let Some((interp, namespace, frame)) = slot.borrow().as_ref() {
+                if *frame {
+                    interp.frames.borrow_mut().push(*namespace);
+                } else {
+                    interp.set_current_ns(*namespace);
+                }
+            }
+        });
+    }
+    static ALIAS_CALLER_NAME: crate::obj::TclObjType = crate::obj::TclObjType {
+        name: c"alias-caller-changing-name".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(change_alias_caller_from_name),
+        set_from_any_proc: None,
+    };
+    #[test]
+    fn original_jim_alias_getter_and_formatter_refuse_caller_changes_before_publication() {
+        use crate::interp::native_arguments::OriginalArguments;
+        use crate::obj::{self, Owned};
+        for formatter in [false, true] {
+            for frame in [false, true] {
+                let mut interp = Interp::with_native_core(
+                    crate::interp::default_host(),
+                    crate::environment::profile_for_dialect("jimtcl"),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                let context = interp.native_jim_object_context().unwrap();
+                let namespace_object = Owned::fresh(obj::new_string_bytes(b"P"));
+                crate::native_source::bind_context(namespace_object.as_ptr(), &context).unwrap();
+                let namespace = interp
+                    .namespaces_mut()
+                    .retain_unmaterialized_jim_namespace(namespace_object);
+                let original = Owned::fresh(obj::alloc_typed(&ALIAS_CALLER_NAME, 0));
+                let target = Owned::fresh(obj::new_string_bytes(b"target"));
+                let previous = Owned::fresh(obj::new_string_bytes(b"sentinel"));
+                for object in [&original, &target, &previous] {
+                    crate::native_source::bind_context(object.as_ptr(), &context).unwrap();
+                }
+                interp.set_result(previous.as_ptr());
+                let actual_namespace = if frame {
+                    crate::namespace::GLOBAL
+                } else {
+                    namespace
+                };
+                ALIAS_CALLER_CHANGE.with(|slot| {
+                    *slot.borrow_mut() = Some((interp.clone(), actual_namespace, frame))
+                });
+                if formatter {
+                    let arguments =
+                        OriginalArguments::enter(&interp, &[original.as_ptr(), target.as_ptr()])
+                            .unwrap();
+                    let caller = crate::interp::OriginalJimLookupNamespace::capture(
+                        &interp,
+                        interp.current_ns(),
+                    )
+                    .unwrap();
+                    let protocol = interp
+                        .native_invocation_dialect()
+                        .native_jim_lookup_protocol()
+                        .unwrap();
+                    assert!(interp
+                        .publish_original_jim_variable_error(
+                            original.as_ptr(),
+                            &|actual| caller.check_current_arguments(actual, &arguments),
+                            |bytes| tcl_cmd_core::var::native_jim_alias_error(
+                                protocol,
+                                tcl_syntax::native_jim_lookup::NativeJimAliasFailure::LocalElement,
+                                bytes
+                            ),
+                        )
+                        .is_err());
+                } else {
+                    assert_eq!(
+                        interp.link_original_jim_upvar_objects(
+                            target.as_ptr(),
+                            0,
+                            original.as_ptr()
+                        ),
+                        Code::Error
+                    );
+                }
+                assert!(interp.native_execution_refusal().is_some());
+                assert_eq!(interp.result_obj(), previous.as_ptr());
+                ALIAS_CALLER_CHANGE.with(|slot| *slot.borrow_mut() = None);
+                if frame {
+                    interp.frames.borrow_mut().pop();
+                } else {
+                    interp.set_current_ns(crate::namespace::GLOBAL);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn original_jim_variable_formatter_getter_precedes_real_argument_reference_and_publication() {
+        use crate::interp::native_arguments::OriginalArguments;
+        use crate::obj::{self, Owned};
+        for namespace in [false, true] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("jimtcl"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let context = interp.native_jim_object_context().unwrap();
+            let original = Owned::fresh(obj::alloc_typed(&FORMAT_NAME_TYPE, 0));
+            let old_result = obj::alloc_typed(&FORMAT_RESULT_TYPE, 0);
+            for pointer in [original.as_ptr(), old_result] {
+                crate::native_source::bind_context(pointer, &context).unwrap();
+            }
+            FORMAT_NAME.with(|slot| slot.set(original.as_ptr()));
+            FORMAT_EVENTS.with(|events| events.borrow_mut().clear());
+            interp.set_result(old_result);
+            let arguments = OriginalArguments::enter(&interp, &[original.as_ptr()]).unwrap();
+            let protocol = interp
+                .native_invocation_dialect()
+                .native_jim_lookup_protocol()
+                .unwrap();
+            let code = interp
+                .publish_original_jim_variable_error(
+                    original.as_ptr(),
+                    &|actual| arguments.check_original_for(actual, 0, original.as_ptr()),
+                    |bytes| {
+                        if namespace {
+                            tcl_cmd_core::var::native_jim_namespace_variable_error(protocol, bytes)
+                        } else {
+                            tcl_cmd_core::var::native_jim_alias_error(
+                                protocol,
+                                tcl_syntax::native_jim_lookup::NativeJimAliasFailure::LocalElement,
+                                bytes,
+                            )
+                        }
+                    },
+                )
+                .unwrap();
+            assert_eq!(code, Code::Error);
+            assert_eq!(
+                FORMAT_EVENTS.with(|events| events.borrow().clone()),
+                vec![("getter", 1), ("publication", 2)]
+            );
+            // SAFETY: the test still owns this original's one caller reference.
+            assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
+            assert!(!interp.result_bytes().contains(&0));
+            FORMAT_NAME.with(|slot| slot.set(std::ptr::null_mut()));
+        }
+    }
+
+    #[test]
+    fn original_jim_variable_and_alias_nul_diagnostics_match_original_formatter() {
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let source = br#"set nulname [format "item(k%csuffix)" 0]
+set alias_status [catch {upvar #0 root $nulname} alias_message]
+set namespace_result [namespace eval P {
+    set nulname [format "item(k%csuffix)" 0]
+    set status [catch {variable $nulname value} message]
+    list $status $message
+}]
+list $alias_status $alias_message $namespace_result
+"#;
+        assert_eq!(interp.eval_str(source), Code::Ok);
+        assert_eq!(interp.result_bytes(), br#"1 {bad variable name "item(k": upvar won't create a scalar variable that looks like an array element} {1 {can't define "item(k": name refers to an element in an array}}"#);
+    }
+
+    #[test]
+    fn original_jim_variable_pipeline_matches_original_root_namespace_and_element_cases() {
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let source = br#"set root before
+variable root after
+set nsresult [namespace eval P {
+    variable marker first
+    variable marker second
+    set status [catch {variable item(k) value} message]
+    list $marker $status $message
+}]
+variable rootdict(k) value
+list $root $nsresult $rootdict(k)
+"#;
+        assert_eq!(interp.eval_str(source), Code::Ok);
+        assert_eq!(interp.result_bytes(), br#"after {second 1 {can't define "item(k)": name refers to an element in an array}} value"#);
+    }
+
+    #[test]
+    fn original_jim_variable_canonical_name_getter_cannot_keep_retired_namespace_alive() {
+        use crate::interp::native_arguments::OriginalArguments;
+        use crate::obj::{self, Owned};
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let context = interp.native_jim_object_context().unwrap();
+        let holder = obj::new_string_bytes(b"P");
+        crate::native_source::bind_context(holder, &context).unwrap();
+        let allocation = obj::NativeObjectLifetime::retain(holder);
+        let token = interp
+            .namespaces_mut()
+            .retain_unmaterialized_jim_namespace(Owned::fresh(holder));
+        let owner = interp
+            .namespaces_mut()
+            .take_jim_namespace_owner(token)
+            .unwrap();
+        CANONICAL_RETIRED_NAMESPACE.with(|slot| *slot.borrow_mut() = Some(owner));
+        interp.set_current_ns(token);
+        let original = Owned::fresh(obj::alloc_typed(&CANONICAL_RETIRE_NAME, 0));
+        crate::native_source::bind_context(original.as_ptr(), &context).unwrap();
+        let arguments = OriginalArguments::enter(&interp, &[original.as_ptr()]).unwrap();
+        let namespace = crate::interp::OriginalJimLookupNamespace::capture(&interp, token).unwrap();
+        let reached = interp.jim_canonical_namespace_object_using(
+            namespace.original_ptr(),
+            original.as_ptr(),
+            &|actual| namespace.check_current_arguments(actual, &arguments),
+        );
+        assert!(reached.is_err());
+        assert!(allocation.checked_ptr().is_err());
+        assert!(interp.native_execution_refusal().is_some());
+    }
+
+    #[test]
+    fn original_jim_canonical_producer_keeps_target_unowned_until_namespace_link() {
+        use crate::interp::native_arguments::OriginalArguments;
+        use crate::obj::{self, Owned};
+        for name in [b"plain".as_slice(), b"::absolute"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("jimtcl"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let context = interp.native_jim_object_context().unwrap();
+            let original = Owned::fresh(obj::new_string_bytes(name));
+            crate::native_source::bind_context(original.as_ptr(), &context).unwrap();
+            let arguments = OriginalArguments::enter(&interp, &[original.as_ptr()]).unwrap();
+            let namespace =
+                crate::interp::OriginalJimLookupNamespace::capture(&interp, interp.current_ns())
+                    .unwrap();
+            // SAFETY: the argument and namespace receipts pin both live headers.
+            let counts = unsafe {
+                (
+                    (*original.as_ptr()).ref_count,
+                    (*namespace.original_ptr()).ref_count,
+                )
+            };
+            let canonical = interp
+                .jim_canonical_namespace_object_using(
+                    namespace.original_ptr(),
+                    original.as_ptr(),
+                    &|actual| namespace.check_current_arguments(actual, &arguments),
+                )
+                .unwrap();
+            let target = canonical.checked_ptr().unwrap();
+            assert_eq!(target == original.as_ptr(), name == b"plain");
+            // SAFETY: all pointers retain checked live allocations.
+            unsafe {
+                assert_eq!((*original.as_ptr()).ref_count, counts.0);
+                assert_eq!((*namespace.original_ptr()).ref_count, counts.1);
+                assert_eq!(
+                    (*target).ref_count,
+                    if target == original.as_ptr() {
+                        counts.0
+                    } else {
+                        0
+                    }
+                );
+            }
+            drop(canonical);
+            namespace
+                .check_current_arguments(&interp, &arguments)
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn original_jim_variable_local_tail_retains_actual_argument_and_ordinal() {
+        use crate::interp::native_arguments::OriginalArguments;
+        use crate::obj::{self, Owned};
+        for name in [b"plain".as_slice(), b"::qualified", b"plain\0::later"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("jimtcl"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let head = Owned::fresh(obj::new_string_bytes(b"variable"));
+            let first = Owned::fresh(obj::new_string_bytes(b"earlier"));
+            let value = Owned::fresh(obj::new_string_bytes(b"value"));
+            let original = Owned::fresh(obj::new_string_bytes(name));
+            let context = interp.native_jim_object_context().unwrap();
+            for object in [&head, &first, &value, &original] {
+                crate::native_source::bind_context(object.as_ptr(), &context).unwrap();
+            }
+            let argv = [
+                head.as_ptr(),
+                first.as_ptr(),
+                value.as_ptr(),
+                original.as_ptr(),
+            ];
+            let arguments = OriginalArguments::enter(&interp, &argv).unwrap();
+            let local = interp
+                .original_jim_namespace_text_object(original.as_ptr(), true, 3, &arguments)
+                .unwrap();
+            let local = Owned::retain(local);
+            assert_eq!(local.as_ptr() == original.as_ptr(), name != b"::qualified");
+            assert_eq!(
+                interp
+                    .native_string_bytes(&local.as_ptr())
+                    .unwrap()
+                    .as_ref(),
+                if name == b"::qualified" {
+                    b"qualified".as_slice()
+                } else {
+                    name
+                }
+            );
+            let impostor = Owned::fresh(obj::new_string_bytes(name));
+            crate::native_source::bind_context(impostor.as_ptr(), &context).unwrap();
+            assert!(interp
+                .original_jim_namespace_text_object(impostor.as_ptr(), true, 3, &arguments)
+                .is_err());
+        }
+    }
+
+    #[test]
+    fn original_upvar_error_publication_matches_all_six_native_sources() {
+        // naming.variable.original-upvar-error-publication
+
+        // Each whole row preserves catch result and errorCode. The C9 trace
+        // row records unavailable legacy API, independently of upvar rejection.
+        let source = include_bytes!(
+            "../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/source.tcl"
+        );
+        for (engine, stdout) in [
+            (
+                "tcl8.4",
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/8.4.20/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "tcl8.5",
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/8.5.19/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "tcl8.6",
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/8.6.18/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "tcl9.0",
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/9.0.4/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "tcl9.1",
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/9.1.0/original-upvar-errors/stdout"
+                ),
+            ),
+            (
+                "jim",
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/jim/original-upvar-errors/stdout"
+                ),
+            ),
+        ] {
+            let original = stdout
+                .lines()
+                .find_map(|line| line.strip_prefix("ORIGINAL|0|"))
+                .unwrap();
+            let expected: Vec<u8> = original
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect();
+            counters::reset();
+            {
+                let mut interp = Interp::with_native_core(
+                    crate::interp::default_host(),
+                    crate::environment::profile_for_dialect(engine),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                assert_eq!(
+                    interp.eval_str(source),
+                    Code::Ok,
+                    "{engine}: result {:?}, admission {:?}, access {:?}",
+                    interp.result_bytes(),
+                    interp.native_compilation_admission_error(),
+                    interp.native_access_refusal()
+                );
+                assert!(!interp.host_refusal_pending(), "{engine}");
+                assert_eq!(interp.result_bytes(), expected, "{engine}");
+            }
+            assert_eq!(counters::finalize(), 0, "{engine}");
+            assert_eq!(counters::double_free_count(), 0, "{engine}");
+        }
+    }
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         counters::reset();
@@ -425,6 +1137,432 @@ mod tests {
             counters::live_bufs()
         );
         assert_eq!(counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn original_array_read_destruction_matches_six_native_source_results() {
+        // naming.variable.original-array-read-destruction
+
+        // Exact completion/value/trace-log observations only. Jim's original
+        // unavailable trace setup is independent of C's entered callbacks.
+        macro_rules! provider {
+            ($engine:literal, $version:literal) => {
+                ($engine, [
+                    include_str!(concat!(
+                        "../../../rust/tcl-registry/tests/data/native_array_read_destruction324/",
+                        $version, "/variable_array_unset_live_member_read_trace_fires/stdout"
+                    )),
+                    include_str!(concat!(
+                        "../../../rust/tcl-registry/tests/data/native_array_read_destruction324/",
+                        $version, "/variable_array_unset_active_member_read_guard_survives/stdout"
+                    )),
+                ])
+            };
+        }
+        let sources = [
+            include_bytes!("../../../rust/tcl-registry/tests/data/native_array_read_destruction324/variable_array_unset_live_member_read_trace_fires.tcl").as_slice(),
+            include_bytes!("../../../rust/tcl-registry/tests/data/native_array_read_destruction324/variable_array_unset_active_member_read_guard_survives.tcl").as_slice(),
+        ];
+        for (engine, outputs) in [
+            provider!("tcl8.4", "8.4.20"),
+            provider!("tcl8.5", "8.5.19"),
+            provider!("tcl8.6", "8.6.18"),
+            provider!("tcl9.0", "9.0.4"),
+            provider!("tcl9.1", "9.1.0"),
+            provider!("jim", "jim"),
+        ] {
+            for (source, stdout) in sources.iter().zip(outputs) {
+                let (expected_code, original) = stdout
+                    .lines()
+                    .find_map(|line| line.strip_prefix("ORIGINAL|"))
+                    .unwrap()
+                    .split_once('|')
+                    .unwrap();
+                let expected: Vec<u8> = original
+                    .as_bytes()
+                    .chunks_exact(2)
+                    .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                    .collect();
+                counters::reset();
+                {
+                    let mut interp = Interp::with_native_core(
+                        crate::interp::default_host(),
+                        crate::environment::profile_for_dialect(engine),
+                        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                    )
+                    .unwrap();
+                    let code = interp.eval_str(source);
+                    assert!(
+                        !interp.host_refusal_pending(),
+                        "{engine}: {:?}",
+                        interp.native_access_refusal()
+                    );
+                    assert_eq!(code.as_int().to_string(), expected_code, "{engine}");
+                    assert_eq!(interp.result_bytes(), expected, "{engine}");
+                }
+                assert_eq!(counters::finalize(), 0, "{engine}");
+                assert_eq!(counters::double_free_count(), 0, "{engine}");
+            }
+        }
+    }
+
+    #[test]
+    fn whole_array_destruction_preserves_staged_native_member_lifetimes() {
+        // naming.variable.original-array-member-trace-retirement-horizon
+
+        // Whole public callback logs, including later-member trace registration.
+        use tcl_syntax::execution_conformance::{vectors, ExecutionDomain};
+        let cases: Vec<_> = vectors(ExecutionDomain::CommandBinding)
+            .into_iter()
+            .filter(|case| case.id.starts_with("variable_array_unset_"))
+            .collect();
+        assert!(cases.len() >= 5);
+        for reference in tcl_test_support::available_tclshs() {
+            for case in &cases {
+                let expected =
+                    tcl_test_support::run_script(&reference.path, case.script().as_bytes())
+                        .expect("native staged destruction")
+                        .strict_text()
+                        .expect("native result");
+                let script = format!("list [catch {{{}}} value] $value", case.source);
+                leak_free(|interp| {
+                    interp.set_runtime_version(reference.version);
+                    assert_eq!(
+                        interp.eval_str(script.as_bytes()),
+                        Code::Ok,
+                        "host refusal: {:?}; case {}",
+                        interp.native_access_refusal(),
+                        case.id
+                    );
+                    assert_eq!(
+                        interp.result_bytes(),
+                        expected.as_bytes(),
+                        "{:?}: {}",
+                        reference.version,
+                        case.id
+                    );
+                });
+            }
+        }
+    }
+
+    #[test]
+    fn captured_increment_receivers_match_actual_native_releases() {
+        use tcl_syntax::execution_conformance::{vectors, ExecutionDomain};
+        let cases: Vec<_> = vectors(ExecutionDomain::CommandBinding)
+            .into_iter()
+            .filter(|case| {
+                case.id.starts_with("variable_rmw_")
+                    || case.id == "variable_unset_recreated_root_survives_old_members"
+            })
+            .collect();
+        assert!(cases.len() >= 8);
+        for reference in tcl_test_support::available_tclshs() {
+            for case in &cases {
+                let expected =
+                    tcl_test_support::run_script(&reference.path, case.script().as_bytes())
+                        .expect("native captured receiver observation")
+                        .strict_text()
+                        .expect("native result");
+                let script = format!("list [catch {{{}}} value] $value", case.source);
+                leak_free(|interp| {
+                    interp.set_runtime_version(reference.version);
+                    assert_eq!(
+                        interp.eval_str(script.as_bytes()),
+                        Code::Ok,
+                        "host refusal: {:?}; case {}",
+                        interp.native_access_refusal(),
+                        case.id
+                    );
+                    assert_eq!(
+                        interp.result_bytes(),
+                        expected.as_bytes(),
+                        "{:?}: {}",
+                        reference.version,
+                        case.id
+                    );
+                });
+            }
+        }
+        if let Some(reference) = tcl_test_support::locate_jimsh().expect("Jim discovery") {
+            let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+            for case in cases
+                .iter()
+                .filter(|case| case.jim_want != tcl_syntax::execution_conformance::UNSUPPORTED)
+            {
+                let expected =
+                    tcl_test_support::run_script(&reference.path, case.script().as_bytes())
+                        .expect("native Jim increment observation")
+                        .strict_text()
+                        .expect("native result");
+                let script = format!("list [catch {{{}}} value] $value", case.source);
+                leak_free(|interp| {
+                    interp.set_dialect_profile(profile);
+                    assert_eq!(
+                        interp.eval_str(script.as_bytes()),
+                        Code::Ok,
+                        "host refusal: {:?}; case {}",
+                        interp.native_access_refusal(),
+                        case.id
+                    );
+                    assert_eq!(
+                        interp.result_bytes(),
+                        expected.as_bytes(),
+                        "Jim: {}",
+                        case.id
+                    );
+                });
+            }
+        }
+    }
+
+    #[test]
+    fn legacy_upvar_level_presence_rejects_numeric_variable_pair() {
+        for (dialect, expected) in [
+            ("tcl8.4", b"1".as_slice()),
+            ("tcl8.5", b"1".as_slice()),
+            ("tcl8.6", b"0".as_slice()),
+            ("tcl9.0", b"0".as_slice()),
+            ("tcl9.1", b"0".as_slice()),
+        ] {
+            leak_free(|i| {
+                i.set_dialect_profile(tcl_dialect::DialectProfile::find(dialect).expect("profile"));
+                assert_eq!(i.eval_str(b"proc probe {} {upvar 1 local}; proc caller {} {set 1 3; catch probe}; caller"), Code::Ok);
+                assert_eq!(i.result_bytes(), expected, "{dialect}");
+            });
+        }
+    }
+
+    #[test]
+    fn upvar_qualified_scalar_and_element_use_selected_frame() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|i| {
+                let expected = if dialect == "jim" {
+                    let profile =
+                        Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+                            "jim",
+                            &[],
+                            "Jim",
+                            tcl_dialect::model::DialectPoint::canonical(
+                                tcl_dialect::model::Release::JIM_0_84,
+                            ),
+                        )));
+                    i.set_dialect_profile(profile);
+                    b"11 12 4 5".as_slice()
+                } else {
+                    i.set_dialect_profile(
+                        tcl_dialect::DialectProfile::find(dialect).expect("profile"),
+                    );
+                    b"11 12 11 12".as_slice()
+                };
+                assert_eq!(i.eval_str(br#"namespace eval N {namespace eval R {variable x 4; variable a; set a(k) 5}; proc outer {} {inner::scalar; inner::array; list $R::x $R::a(k) $::N::R::x $::N::R::a(k)}; namespace eval inner {namespace eval R {variable x 99; variable a; set a(k) 98}; proc scalar {} {upvar 1 R::x alias; set alias 11}; proc array {} {upvar 1 R::a(k) alias; set alias 12}}}; N::outer"#), Code::Ok);
+                assert_eq!(i.result_bytes(), expected, "{dialect}");
+                assert_eq!(i.eval_str(b"proc global_alias {} {upvar #0 ::N::R::a(k) alias; incr alias}; global_alias"), Code::Ok, "{dialect}: host refusal {:?}", i.native_access_refusal());
+                assert_eq!(
+                    i.result_bytes(),
+                    if dialect == "jim" {
+                        b"6".as_slice()
+                    } else {
+                        b"13".as_slice()
+                    }
+                );
+            });
+        }
+    }
+
+    #[test]
+    fn global_namespace_destinations_follow_real_engine_activation_rules() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|i| {
+                i.set_dialect_profile(
+                    tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
+                );
+                assert_eq!(i.eval_str(b"set x ROOT; namespace eval N {global x; set x INSIDE}; list $::x [info exists ::N::x]"), Code::Ok);
+                assert_eq!(
+                    i.result_bytes(),
+                    if dialect.starts_with("tcl9") {
+                        b"ROOT 1".as_slice()
+                    } else {
+                        b"INSIDE 0".as_slice()
+                    },
+                    "{dialect}"
+                );
+                assert_eq!(i.eval_str(b"namespace eval Target {variable y START}; namespace eval N {upvar #0 ::Target::y link; set link CHANGED}; list $::Target::y [info exists ::N::link]"), Code::Ok);
+                assert_eq!(
+                    i.result_bytes(),
+                    if dialect == "jim" {
+                        b"CHANGED 0".as_slice()
+                    } else {
+                        b"CHANGED 1".as_slice()
+                    },
+                    "{dialect}"
+                );
+                assert_eq!(i.eval_str(b"namespace eval R {variable fresh QUALIFIED}; global R::fresh; info exists fresh"), Code::Ok);
+                assert_eq!(i.result_bytes(), b"0", "{dialect}");
+            });
+        }
+    }
+
+    #[test]
+    fn alias_cell_lifetimes_follow_real_c_and_jim_policies() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|i| {
+                let profile = if dialect == "jim" {
+                    Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+                        "jim",
+                        &[],
+                        "Jim",
+                        tcl_dialect::model::DialectPoint::canonical(
+                            tcl_dialect::model::Release::JIM_0_84,
+                        ),
+                    )))
+                } else {
+                    tcl_dialect::DialectProfile::find(dialect).expect("profile")
+                };
+                i.set_dialect_profile(profile);
+                for (script, expected) in [
+                    (b"proc lifetime {} {set x OLD; upvar 0 x y; unset x; set y NEW; list $x $y}; lifetime".as_slice(), b"NEW NEW".as_slice()),
+                    (b"proc lifetime {} {set x OLD; upvar 0 x y; unset x; set x NEW; list $x $y}; lifetime", b"NEW NEW"),
+                    (b"proc lifetime {} {set results {}; upvar 0 x y; foreach n {1 2 3} {set x $n; lappend results $y; unset x}; set results}; lifetime", b"1 2 3"),
+                    (b"proc lifetime {} {set a(k) OLD; upvar 0 a(k) y; unset a; set a(k) NEW; list [catch {set y} error] $error $a(k)}; lifetime", if dialect == "jim" { b"0 NEW NEW".as_slice() } else { b"1 {can't read \"y\": no such variable} NEW".as_slice() }),
+                    (b"proc lifetime {} {set a(k) OLD; upvar 0 a(k) y; unset a(k); set a(k) NEW; list $y $a(k)}; lifetime", b"NEW NEW"),
+                    (b"proc lifetime {} {upvar 0 missing(k) y; list [array exists missing] [info exists y]}; lifetime", if dialect == "jim" { b"0 0".as_slice() } else { b"1 0".as_slice() }),
+                    (b"proc lifetime {} {set a SCALAR; list [catch {upvar 0 a(k) y} msg] $msg [info exists y]}; lifetime", if dialect == "jim" { b"0 {} 0".as_slice() } else { b"1 {can't access \"a(k)\": variable isn't array} 0".as_slice() }),
+                    (b"proc lifetime {} {namespace eval ::life {variable x OLD}; upvar #0 ::life::x y; namespace delete ::life; namespace eval ::life {variable x NEW}; list [catch {set y} error] $error $::life::x}; lifetime", if dialect == "jim" { b"0 NEW NEW".as_slice() } else { b"1 {can't read \"y\": no such variable} NEW".as_slice() }),
+                    (b"proc lifetime {} {namespace eval ::life2 {variable x OLD}; upvar #0 ::life2::x y; unset ::life2::x; set y NEW; list $y $::life2::x}; lifetime", b"NEW NEW"),
+                    (b"proc lifetime {} {namespace eval ::write_life {variable x OLD};upvar #0 ::write_life::x y;namespace delete ::write_life;namespace eval ::write_life {variable x NEW};list [catch {set y NEXT} msg] $msg $::write_life::x}; lifetime", if dialect == "jim" { b"0 NEXT NEXT".as_slice() } else { b"1 {can't set \"y\": upvar refers to variable in deleted namespace} NEW".as_slice() }),
+                    (b"proc lifetime {} {set a(k) OLD;upvar 0 a(k) y;unset a;set a(k) NEW;list [catch {set y NEXT} msg] $msg $a(k)}; lifetime", if dialect == "jim" { b"0 NEXT NEXT".as_slice() } else { b"1 {can't set \"y\": upvar refers to element in deleted array} NEW".as_slice() }),
+                ] {
+                    assert_eq!(i.eval_str(script), Code::Ok, "{dialect}: {}", String::from_utf8_lossy(&i.result_bytes()));
+                    assert_eq!(i.result_bytes(), expected, "{dialect}: {}", String::from_utf8_lossy(script));
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn qualified_variable_fallback_depends_on_cell_and_release() {
+        for (dialect, expected) in [
+            ("tcl8.4", b"11 0".as_slice()),
+            ("tcl8.6", b"11 0".as_slice()),
+            ("tcl9.0", b"9 1".as_slice()),
+        ] {
+            leak_free(|i| {
+                i.set_dialect_profile(tcl_dialect::DialectProfile::find(dialect).expect("profile"));
+                assert_eq!(i.eval_str(b"namespace eval R {variable x 9}; namespace eval N {namespace eval R {}; proc p {} {set R::x 11}}; N::p; list $::R::x [info exists ::N::R::x]"), Code::Ok);
+                assert_eq!(i.result_bytes(), expected, "{dialect}");
+            });
+        }
+    }
+
+    #[test]
+    fn jim_namespace_delete_retires_flat_variable_cells() {
+        leak_free(|i| {
+            let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+                "jim",
+                &[],
+                "Jim",
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+            )));
+            i.set_dialect_profile(profile);
+            assert_eq!(i.eval_str(b"namespace eval N {variable v 4; namespace eval C {variable x 3}}; namespace delete N; list [info exists ::N::v] [info exists ::N::C::x]"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0 0");
+        });
+    }
+
+    #[test]
+    fn jim_activation_variables() {
+        leak_free(|i| {
+            let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+                "jim",
+                &[],
+                "Jim",
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+            )));
+            i.set_dialect_profile(profile);
+            assert_eq!(i.eval_str(br#"namespace eval N {set ephemeral 5; variable v 7; list $ephemeral $v [info locals] [info vars]}; list [info exists ::N::ephemeral] [set ::N::v]"#), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0 7");
+        });
+    }
+
+    #[test]
+    fn jim_relative_qualified_proc_variable() {
+        leak_free(|i| {
+            let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+                "jim",
+                &[],
+                "Jim",
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+            )));
+            i.set_dialect_profile(profile);
+            assert_eq!(i.eval_str(br#"namespace eval N {variable R::x 9; proc p {} {set R::x 10; list $R::x $::N::R::x}}; N::p"#), Code::Ok);
+            assert_eq!(i.result_bytes(), b"10 9");
+        });
+    }
+
+    #[test]
+    fn jim_flat_absolute_variable_names() {
+        leak_free(|i| {
+            let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+                "jim",
+                &[],
+                "Jim",
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+            )));
+            i.set_dialect_profile(profile);
+            assert_eq!(i.eval_str(br#"set ::Missing::x 3; set ::N:::x 4; set ::N::x 5; list $::::Missing::x $::N:::x $::N::x"#), Code::Ok);
+            assert_eq!(i.result_bytes(), b"3 4 5");
+        });
+    }
+
+    #[test]
+    fn jim_namespace_root_is_local_activation() {
+        leak_free(|i| {
+            let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+                "jim",
+                &[],
+                "Jim",
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+            )));
+            i.set_dialect_profile(profile);
+            assert_eq!(
+                i.eval_str(
+                    br#"namespace eval :: {set ephemeralRoot 11}; info exists ::ephemeralRoot"#
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"0");
+        });
+    }
+
+    #[test]
+    fn jim_upvar_targets_selected_activation() {
+        leak_free(|i| {
+            let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+                "jim",
+                &[],
+                "Jim",
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+            )));
+            i.set_dialect_profile(profile);
+            assert_eq!(i.eval_str(br#"proc inner {} {upvar 1 R::x link; set link 12}; proc outer {} {set R::x 3; inner; set R::x}; outer"#), Code::Ok);
+            assert_eq!(i.result_bytes(), b"12");
+        });
+    }
+
+    #[test]
+    fn jim_variable_declaration_preserves_colon_runs() {
+        leak_free(|i| {
+            let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+                "jim",
+                &[],
+                "Jim",
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+            )));
+            i.set_dialect_profile(profile);
+            assert_eq!(i.eval_str(br#"namespace eval N {variable R:::v 6; incr v}; list [set ::N::R:::v] [info exists ::N::R::v]"#), Code::Ok);
+            assert_eq!(i.result_bytes(), b"7 0");
+        });
     }
 
     #[test]
@@ -476,6 +1614,8 @@ mod tests {
     }
 
     #[test]
+    // Native proof: naming.variable.qualified-declaration-frame-target
+
     fn variable_qualified_target() {
         leak_free(|i| {
             i.eval_str(b"namespace eval a {}");
@@ -483,11 +1623,32 @@ mod tests {
             assert_eq!(i.eval_str(b"variable ::a::x 5"), Code::Ok);
             assert_eq!(i.eval_str(b"set ::a::x"), Code::Ok);
             assert_eq!(i.result_bytes(), b"5");
-            // the link named `x` was installed in the global table too.
-            assert_eq!(i.eval_str(b"set x"), Code::Ok);
-            assert_eq!(i.result_bytes(), b"5");
+            // C top-level declarations do not create a procedure-local tail link.
+            // Native rows: tests/data/native_variable_qualified_target.
+            assert_eq!(i.eval_str(b"set x"), Code::Error);
+            assert_eq!(i.result_bytes(), b"can't read \"x\": no such variable");
             i.eval_str(b"unset ::a::x");
         });
+    }
+
+    #[test]
+    fn procedure_qualified_target_links_the_actual_local_tail() {
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            counters::reset();
+            {
+                let mut interp = Interp::with_native_core(
+                    crate::interp::default_host(),
+                    crate::environment::profile_for_dialect(engine),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                assert_eq!(interp.eval_str(b"namespace eval a {}; proc qualified {} {variable ::a::x 5; set x 7; set ::a::x}; qualified"), Code::Ok, "{engine}: {:?}", interp.result_bytes());
+                assert_eq!(interp.result_bytes(), b"7", "{engine}");
+                assert!(!interp.host_refusal_pending(), "{engine}");
+            }
+            assert_eq!(counters::finalize(), 0, "{engine}");
+            assert_eq!(counters::double_free_count(), 0, "{engine}");
+        }
     }
 
     #[test]

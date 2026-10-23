@@ -18,7 +18,7 @@
 
 //! The native lowered IR (NLIR): a small typed vocabulary over SSA values
 //! with explicit framing operations
-//! (`docs/design/compiler/wasm-native-lowering-plan.md` §3.3).
+//! (`docs/design/compiler/wasm-native-lowering.md` §3.3).
 //!
 //! An NLIR function mirrors the executable semantic function block for block:
 //! every executable block becomes one [`NativeBlock`] with the same index and
@@ -37,6 +37,9 @@
 //! and only rung that still evaluates source text.
 
 use tcl_core_types::Code as CompletionCode;
+use tcl_registry::native_boolean_truth::{
+    NativeBooleanExpressionResultProduction, NativeBooleanTruthPurpose,
+};
 use tcl_syntax::expr::{BinOp, UnaryOp};
 
 use super::cells::CellPlace;
@@ -99,6 +102,9 @@ pub struct NativeValue {
 /// A whole lowered function.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NativeFunction {
+    /// Exact admission contract inherited from executable IR.
+    pub native_compilation_admission:
+        Option<std::sync::Arc<crate::native_compilation_admission::NativeCompilationAdmission>>,
     /// Values indexed by [`NativeValueId`].
     pub values: Vec<NativeValue>,
     /// Blocks in executable block order.
@@ -368,10 +374,31 @@ pub enum NativeOp {
         dst: NativeValueId,
         /// A boxed source.
         src: NativeValueId,
-        /// The native type to read.
+        /// Numeric or object type; Boolean operands use `UnboxBool`.
         target: NativeType,
     },
-    /// The truth of a native numeric or boolean value.
+    /// Convert the original boxed operand at its reached Boolean instruction.
+    /// This never normalises an independently evaluated expression result.
+    UnboxBool {
+        /// Destination (`Bool`).
+        dst: NativeValueId,
+        /// Original boxed operand.
+        src: NativeValueId,
+        /// Actual reached instruction purpose.
+        purpose: NativeBooleanTruthPurpose,
+    },
+    /// Normalise the genuinely evaluated expression result and extract truth
+    /// within the same runtime-owned operation.
+    BooleanExpressionResult {
+        /// Destination (`Bool`).
+        dst: NativeValueId,
+        /// Held expression result before the selected result producer.
+        src: NativeValueId,
+        /// The reached inline or public API result producer.
+        production: NativeBooleanExpressionResultProduction,
+    },
+    /// The mathematical truth of an already native numeric or boolean value.
+    /// Native source operand conversions use `UnboxBool` instead.
     Truth {
         /// Destination (`Bool`).
         dst: NativeValueId,
@@ -521,6 +548,14 @@ pub enum NativeOp {
         /// The expression text handed to the runtime as one boxed object.
         text: String,
     },
+    /// Evaluate expression source and perform its public result producer and
+    /// truth conversion once within the runtime-owned completion operation.
+    ExprBoolEval {
+        /// Destination (`Bool`), written only after successful evaluation.
+        dst: NativeValueId,
+        /// Expression text; no pre-normalised object receipt is supplied.
+        text: String,
+    },
     /// A branch inside a statement.
     IfElse {
         /// A `Bool` condition.
@@ -618,12 +653,10 @@ pub enum NativeOp {
     /// invocation, so a redefinition at run time replaces the binding with an
     /// ordinary source-only procedure.
     DefineProc {
-        /// The procedure's fully qualified name.
-        qualified_name: String,
-        /// The formal-parameter list exactly as written.
-        params_raw: String,
-        /// The body's exact source text.
-        body_source: String,
+        /// Internal compiled-body selection key, never a publication operand.
+        entry_key: crate::ir::ProcedureId,
+        /// Already evaluated original arguments, including the command head.
+        argv: Vec<NativeValueId>,
     },
     /// The last rung: evaluate the statement's exact source text through the
     /// runtime, because the lowering declined it for the recorded reason.

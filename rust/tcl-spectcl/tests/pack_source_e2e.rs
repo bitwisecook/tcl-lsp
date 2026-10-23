@@ -276,7 +276,16 @@ fn proved_under(dialect: &str, definition: &str, arity: usize, call: &str) -> Op
     let source = format!("proc ::p {{}} {{\n    set known [{call}]\n    return $known\n}}\n");
     let unit = CompilationUnit::build_for_dialect(&source, &registry, false, dialect);
     pack_hooks::clear_host();
-    let function = unit.procedures.get("::p")?;
+    let mut candidates = unit
+        .ir_module
+        .procedures
+        .iter()
+        .filter(|(_, body)| body.qualified_name == "::p");
+    let (id, _) = candidates.next()?;
+    assert!(candidates.next().is_none(), "ambiguous original fixture p");
+    assert!(unit.ir_module.procedure_ids.owns(*id));
+    let function = unit.procedures.get(id)?;
+    assert_eq!(function.body_id, Some(*id));
     let symbol = function.ssa.var_symbol("known")?;
     match function.sccp.values.get(&(symbol, 1)) {
         Some(LatticeValue::Const(value)) => Some(match value {
@@ -291,7 +300,7 @@ fn proved_under(dialect: &str, definition: &str, arity: usize, call: &str) -> Op
 
 /// What the VM answers when `definition` is the procedure and `call` is run.
 fn executed(definition: &str, call: &str) -> String {
-    let mut vm = tcl_vm::Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     vm.eval_source("namespace eval vendor {}")
         .expect("the namespace the definition lives in");
@@ -545,3 +554,6 @@ fn a_derived_body_runs_under_the_release_the_call_is_analysed_under() {
         }
     }
 }
+
+#[path = "support/native_string_is_ascii.rs"]
+mod native_string_is_ascii;

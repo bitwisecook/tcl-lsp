@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics, pollUntil } from "./helper";
+import { getDocUri, activate, pollUntil, waitForDiagnosticsSnapshot } from "./helper";
 
 // report::defstyle style scripts expose the report configuration
 // methods (top/data/columns/…) as scoped commands.  They must not be flagged as
@@ -35,9 +35,13 @@ suite("Report style scoped commands (#806)", () => {
     // Wait until the `toop` typo (line 7) has been flagged. W123 fires by
     // default (see configSettings.test.ts's "diagnostics.W123 defaults to
     // true" test), so no per-test enable is needed.
-    const diagnostics = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (diags) => diags.some((d) => codeOf(d) === "W123" && d.range.start.line === 7),
     });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     const w123 = diagnostics.filter((d) => codeOf(d) === "W123");
     // The typo on line 7 is flagged.

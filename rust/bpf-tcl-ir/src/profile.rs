@@ -47,7 +47,10 @@ use tcl_registry::registry::CommandRegistry;
 
 use crate::diag::{BpfDiag, BpfError};
 use crate::lower::parse_int;
-use crate::source::lower_bpf_source;
+use crate::source::{
+    OriginalBpfSource, selected_arguments, selected_command, selected_head,
+    selected_original_words, synthetic_operation_call,
+};
 use crate::ty::ByteOrder;
 
 /// A named header field at a fixed packet offset.
@@ -139,17 +142,16 @@ pub fn builtin_names() -> &'static [&'static str] {
 pub fn collect_profile(
     top_level: &Script,
     registry: &CommandRegistry,
+    source: &OriginalBpfSource,
 ) -> Result<Option<BpfProfileSpec>, BpfError> {
+    source.validate_script(top_level, registry, BpfDiag::BadProfile)?;
     let mut found: Option<BpfProfileSpec> = None;
     for stmt in &top_level.statements {
+        let kind = source.declaration_kind(stmt, registry, BpfDiag::BadProfile)?;
         if let Statement::Call {
-            command,
-            canonical_command,
-            args,
-            span,
-            ..
+            args, span, tokens, ..
         } = stmt
-            && canonical_command.as_deref().unwrap_or(command.as_str()) == "profile"
+            && kind == Some(tcl_registry::bpf_op::BpfDeclKind::Profile)
         {
             if found.is_some() {
                 return Err(BpfError::new(
@@ -158,7 +160,13 @@ pub fn collect_profile(
                     "at most one `profile` per file (v1)",
                 ));
             }
-            found = Some(resolve_profile(args, *span, registry)?);
+            found = Some(resolve_profile(
+                args,
+                tokens.as_ref(),
+                *span,
+                registry,
+                source,
+            )?);
         }
     }
     Ok(found)
@@ -166,45 +174,62 @@ pub fn collect_profile(
 
 fn resolve_profile(
     args: &[String],
+    tokens: Option<&tcl_compiler::ir::CommandTokens>,
     span: Span,
     registry: &CommandRegistry,
+    source: &OriginalBpfSource,
 ) -> Result<BpfProfileSpec, BpfError> {
-    match args.len() {
-        // `profile NAME` — a built-in.
-        1 => lookup_builtin(&args[0]).ok_or_else(|| {
+    if !matches!(args.len(), 1 | 2) {
+        return Err(BpfError::new(
+            BpfDiag::BadProfile,
+            span,
+            "`profile` expects: profile NAME  or  profile NAME { field … }",
+        ));
+    }
+    let name = source.scalar(tokens, args, 0).ok_or_else(|| {
+        BpfError::new(
+            BpfDiag::BadProfile,
+            span,
+            "profile name requires an original static scalar",
+        )
+    })?;
+    if args.len() == 1 {
+        lookup_builtin(&name).ok_or_else(|| {
             BpfError::new(
                 BpfDiag::BadProfile,
                 span,
                 format!(
-                    "unknown built-in profile `{}` (known: {})",
-                    args[0],
+                    "unknown built-in profile `{name}` (known: {})",
                     builtin_names().join(", ")
                 ),
             )
-        }),
-        // `profile NAME { field … }` — user-defined.
-        2 => parse_user_profile(&args[0], &args[1], registry),
-        _ => Err(BpfError::new(
-            BpfDiag::BadProfile,
-            span,
-            "`profile` expects: profile NAME  or  profile NAME { field … }",
-        )),
+        })
+    } else {
+        let body = source.body(tokens, args, 1).ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::BadProfile,
+                span,
+                "profile body requires unchanged original literal source",
+            )
+        })?;
+        parse_user_profile(&name, &body, registry).map_err(|error| error.offset(body.base()))
     }
 }
 
 fn parse_user_profile(
     name: &str,
-    body: &str,
+    body: &OriginalBpfSource,
     registry: &CommandRegistry,
 ) -> Result<BpfProfileSpec, BpfError> {
-    let module = lower_bpf_source(body, registry);
+    let module = body.lower(registry);
+    body.validate_script(&module.top_level, registry, BpfDiag::BadProfile)?;
     let mut fields = Vec::new();
     for stmt in &module.top_level.statements {
         let Statement::Call {
             command,
-            canonical_command,
             args,
             span,
+            tokens,
             ..
         } = stmt
         else {
@@ -216,8 +241,12 @@ fn parse_user_profile(
                 "only `field` declarations are allowed inside a `profile` body",
             ));
         };
-        let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
-        if cmd != "field" {
+        let cmd = body
+            .original_head(stmt, registry, BpfDiag::BadProfile)?
+            .unwrap_or_else(|| command.clone());
+        if body.declaration_kind(stmt, registry, BpfDiag::BadProfile)?
+            != Some(tcl_registry::bpf_op::BpfDeclKind::Field)
+        {
             return Err(BpfError::new(
                 BpfDiag::BadProfile,
                 *span,
@@ -235,19 +264,30 @@ fn parse_user_profile(
                 "`field` expects: field NAME OFFSET WIDTHBITS ?be|le|native?",
             ));
         }
-        let offset = parse_int(&args[1], registry.numbers())
+        let values = (0..args.len())
+            .map(|index| {
+                body.scalar(tokens.as_ref(), args, index).ok_or_else(|| {
+                    BpfError::new(
+                        BpfDiag::BadProfile,
+                        *span,
+                        "field declarations require original static scalar words",
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let offset = parse_int(&values[1], registry.numbers())
             .and_then(|value| i32::try_from(value).ok())
             .ok_or_else(|| {
                 BpfError::new(BpfDiag::BadInt, *span, "field offset must be an integer")
             })?;
-        let width_bits = parse_width(&args[2], registry.numbers()).ok_or_else(|| {
+        let width_bits = parse_width(&values[2], registry.numbers()).ok_or_else(|| {
             BpfError::new(
                 BpfDiag::BadProfile,
                 *span,
                 "field width must be 8, 16, or 32",
             )
         })?;
-        let order = match args.get(3) {
+        let order = match values.get(3) {
             // Network order is the default: real headers are big-endian.
             None => ByteOrder::Big,
             Some(word) => ByteOrder::parse(word).ok_or_else(|| {
@@ -258,7 +298,7 @@ fn parse_user_profile(
                 )
             })?,
         };
-        let mut f = field(&args[0], offset, width_bits);
+        let mut f = field(&values[0], offset, width_bits);
         f.order = order;
         fields.push(f);
     }
@@ -278,12 +318,24 @@ fn parse_width(s: &str, numbers: tcl_syntax::number::NumberSyntax) -> Option<u8>
 ///
 /// # Errors
 /// A field command with the wrong arity.
-pub fn expand_fields(script: &Script, profile: &BpfProfileSpec) -> Result<Script, BpfError> {
+pub fn expand_fields(
+    script: &Script,
+    profile: &BpfProfileSpec,
+    registry: &CommandRegistry,
+) -> Result<Script, BpfError> {
     let mut needs_pkt = false;
-    let body = expand_script(script, profile, &mut needs_pkt)?;
+    let body = expand_script(script, profile, registry, &mut needs_pkt)?;
     let mut stmts = body.statements;
     if needs_pkt {
-        stmts.insert(0, synth_call("setbuf", &["__pkt", "ctx"], Span::empty(0)));
+        stmts.insert(
+            0,
+            synthetic_operation_call(
+                tcl_registry::bpf_op::BpfOpKind::BindPacket,
+                vec!["__pkt".into(), "ctx".into()],
+                Span::empty(0),
+                registry,
+            )?,
+        );
     }
     Ok(Script::from_statements(stmts))
 }
@@ -291,20 +343,21 @@ pub fn expand_fields(script: &Script, profile: &BpfProfileSpec) -> Result<Script
 fn expand_script(
     script: &Script,
     profile: &BpfProfileSpec,
+    registry: &CommandRegistry,
     needs_pkt: &mut bool,
 ) -> Result<Script, BpfError> {
     let mut out = Vec::with_capacity(script.statements.len());
     for stmt in &script.statements {
         match stmt {
-            Statement::Call {
-                command,
-                canonical_command,
-                args,
-                span,
-                ..
-            } => {
-                let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
-                if let Some(f) = profile.field(cmd) {
+            Statement::Call { span, .. } => {
+                let _ = selected_command(stmt, registry)?;
+                let cmd = selected_head(stmt, registry)?;
+                // Generated operations keep their selected typed identity even
+                // when a user field has the same display spelling.
+                let field =
+                    selected_original_words(stmt, registry)?.and_then(|_| profile.field(cmd));
+                if let Some(f) = field {
+                    let args = selected_arguments(stmt, registry)?;
                     if args.len() != 1 {
                         return Err(BpfError::new(
                             BpfDiag::BadArity,
@@ -313,21 +366,24 @@ fn expand_script(
                         ));
                     }
                     *needs_pkt = true;
-                    let load = match f.width_bits {
-                        8 => "load8",
-                        16 => "load16",
-                        _ => "load32",
-                    };
                     let order = match f.order {
                         ByteOrder::Big => "be",
                         ByteOrder::Little => "le",
                         ByteOrder::Native => "native",
                     };
-                    out.push(synth_call(
-                        load,
-                        &[&args[0], "__pkt", &f.offset.to_string(), order],
+                    out.push(synthetic_operation_call(
+                        tcl_registry::bpf_op::BpfOpKind::PacketLoad {
+                            width_bits: f.width_bits,
+                        },
+                        vec![
+                            args[0].clone(),
+                            "__pkt".into(),
+                            f.offset.to_string(),
+                            order.into(),
+                        ],
                         *span,
-                    ));
+                        registry,
+                    )?);
                 } else {
                     out.push(stmt.clone());
                 }
@@ -345,14 +401,14 @@ fn expand_script(
                             condition: c.condition.clone(),
                             condition_span: c.condition_span,
                             condition_base: c.condition_base,
-                            body: expand_script(&c.body, profile, needs_pkt)?,
+                            body: expand_script(&c.body, profile, registry, needs_pkt)?,
                             body_span: c.body_span,
                         })
                     })
                     .collect::<Result<Vec<_>, BpfError>>()?;
                 let else_body = else_body
                     .as_ref()
-                    .map(|b| expand_script(b, profile, needs_pkt))
+                    .map(|b| expand_script(b, profile, registry, needs_pkt))
                     .transpose()?;
                 out.push(Statement::If {
                     span: *span,
@@ -361,24 +417,82 @@ fn expand_script(
                     else_span: *else_span,
                 });
             }
+            Statement::Barrier { .. } => {
+                let _ = selected_command(stmt, registry)?;
+                out.push(stmt.clone());
+            }
             other => out.push(other.clone()),
         }
     }
     Ok(Script::from_statements(out))
 }
 
-/// Build a synthetic IR `Call` (used to splice expanded commands).
-fn synth_call(cmd: &str, args: &[&str], span: Span) -> Statement {
-    Statement::Call {
-        span,
-        command: cmd.to_owned(),
-        canonical_command: None,
-        args: args.iter().map(|s| (*s).to_owned()).collect(),
-        defs: Vec::new(),
-        reads: Vec::new(),
-        reads_own_defs: false,
-        safe_on_uninit: false,
-        tokens: None,
-        foreach_groups: None,
+#[cfg(test)]
+mod original_scalar_tests {
+    use super::*;
+
+    #[test]
+    fn builtin_profile_selection_requires_its_actual_original_head_and_name() {
+        use tcl_compiler::ir::WordExpr;
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        for changed_head in [false, true] {
+            let mut module = crate::source::lower_bpf_source(
+                if changed_head {
+                    "ignored eth"
+                } else {
+                    "profile eth"
+                },
+                registry,
+            );
+            let source = OriginalBpfSource::from_module(&module);
+            if !changed_head {
+                assert_eq!(
+                    collect_profile(&module.top_level, registry, &source)
+                        .unwrap()
+                        .unwrap()
+                        .name,
+                    "eth"
+                );
+            }
+            let Statement::Call {
+                command,
+                args,
+                tokens: Some(tokens),
+                ..
+            } = &mut module.top_level.statements[0]
+            else {
+                panic!("actual scalar declaration carrier");
+            };
+            let index = usize::from(!changed_head);
+            let replacement = if changed_head { "profile" } else { "tcp" };
+            let WordExpr::Literal { text, .. } = &mut tokens.word_exprs[index] else {
+                panic!("literal original word");
+            };
+            *text = replacement.into();
+            tokens.argv_texts[index] = replacement.into();
+            if changed_head {
+                *command = replacement.into();
+            } else {
+                args[0] = replacement.into();
+            }
+            assert_eq!(
+                collect_profile(&module.top_level, registry, &source)
+                    .unwrap_err()
+                    .code,
+                BpfDiag::BadProfile
+            );
+        }
+        let mut module = crate::source::lower_bpf_source("profile eth", registry);
+        let source = OriginalBpfSource::from_module(&module);
+        let Statement::Call { tokens, .. } = &mut module.top_level.statements[0] else {
+            panic!("original declaration");
+        };
+        *tokens = None;
+        assert_eq!(
+            collect_profile(&module.top_level, registry, &source)
+                .unwrap_err()
+                .code,
+            BpfDiag::BadProfile
+        );
     }
 }

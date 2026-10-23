@@ -138,18 +138,15 @@ pub fn is_scope_alias_call(
     command: &str,
     args: &[String],
 ) -> bool {
-    let Some(spec) = registry.get(command) else {
-        return false;
-    };
-    if spec
-        .traits
-        .contains(tcl_registry::prelude::Traits::CREATES_SCOPE_ALIAS)
-    {
-        return true;
-    }
-    args.first()
-        .and_then(|sub| spec.resolve_subcommand(sub))
-        .is_some_and(|sub| sub.creates_scope_alias)
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    registry
+        .resolve_invocation(command, &refs, registry.own_surface_query())
+        .is_some_and(|selected| {
+            selected
+                .semantics
+                .traits
+                .contains(tcl_registry::prelude::Traits::CREATES_SCOPE_ALIAS)
+        })
 }
 
 /// Indices (into `args`) of the variable names a scope-alias command binds
@@ -166,7 +163,7 @@ pub fn scope_alias_local_indices(
     if !is_scope_alias_call(registry, command, args) {
         return Vec::new();
     }
-    registry_role_indices(registry, command.trim_start_matches(':'), args)
+    registry_role_indices(registry, command, args)
         .into_iter()
         .filter(|&i| args.get(i).is_some_and(|a| !a.starts_with('$')))
         .collect()
@@ -186,8 +183,7 @@ pub fn global_scope_alias_local_indices(
     command: &str,
     args: &[String],
 ) -> Vec<usize> {
-    let canonical = command.trim_start_matches(':');
-    let Some(spec) = registry.get(canonical) else {
+    let Some(spec) = registry.get(command) else {
         return Vec::new();
     };
     if !spec
@@ -196,7 +192,7 @@ pub fn global_scope_alias_local_indices(
     {
         return Vec::new();
     }
-    registry_role_indices(registry, canonical, args)
+    registry_role_indices(registry, spec.name, args)
         .into_iter()
         .filter(|&i| args.get(i).is_some_and(|a| !a.starts_with('$')))
         .collect()
@@ -223,21 +219,24 @@ pub fn scope_alias_declaration_indices(
     if !is_scope_alias_call(registry, command, args) {
         return Vec::new();
     }
-    let canonical = command.trim_start_matches(':');
-    registry_role_indices(registry, canonical, args)
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let Some(selected) = registry.resolve_invocation(command, &refs, registry.own_surface_query())
+    else {
+        return Vec::new();
+    };
+    let Some(positions) = selected.authored_source_scope_alias_arguments() else {
+        return Vec::new();
+    };
+    positions
         .into_iter()
-        .filter(|&i| {
-            if args.get(i).is_none_or(|a| a.starts_with('$')) {
-                return false;
-            }
-            match canonical {
-                "upvar" => i > 0 && args.get(i - 1).is_some_and(|a| !a.starts_with('$')),
-                "namespace" | "namespace upvar" => {
-                    i > 0 && args.get(i - 1).is_some_and(|a| !a.starts_with('$'))
-                }
-                _ => true,
-            }
+        .filter(|position| {
+            args.get(position.local)
+                .is_some_and(|name| !name.starts_with('$'))
+                && position.preceding_read.is_none_or(|source| {
+                    args.get(source).is_some_and(|name| !name.starts_with('$'))
+                })
         })
+        .map(|position| position.local)
         .collect()
 }
 
@@ -257,7 +256,7 @@ mod tests {
 
     #[test]
     fn global_decls_empty_input() {
-        assert!(global_declaration_indices(&[]).is_empty());
+        assert_eq!(global_declaration_indices(&[]), [] as [usize; 0]);
     }
 
     #[test]
@@ -267,8 +266,9 @@ mod tests {
             global_scope_alias_local_indices(&registry, "global", &v(&["x", "y"])),
             vec![0, 1]
         );
-        assert!(
-            global_scope_alias_local_indices(&registry, "upvar", &v(&["1", "x", "y"])).is_empty()
+        assert_eq!(
+            global_scope_alias_local_indices(&registry, "upvar", &v(&["1", "x", "y"])).len(),
+            0
         );
     }
 
@@ -298,8 +298,11 @@ mod tests {
         let args = v(&["variable", "x", "$dyn", "y"]);
         assert_eq!(my_variable_declaration_indices(&args), vec![1, 3]);
         // A different `my` method (e.g. `my varname x`) is not a declaration.
-        assert!(my_variable_declaration_indices(&v(&["varname", "x"])).is_empty());
-        assert!(my_variable_declaration_indices(&[]).is_empty());
+        assert_eq!(
+            my_variable_declaration_indices(&v(&["varname", "x"])),
+            [] as [usize; 0]
+        );
+        assert_eq!(my_variable_declaration_indices(&[]), [] as [usize; 0]);
     }
 
     #[test]
@@ -317,11 +320,13 @@ mod tests {
     }
 
     #[test]
-    fn upvar_with_negative_integer_level() {
-        // `upvar -1 caller local` — negative levels count from
-        // the top of the stack.
+    fn upvar_rejects_negative_integer_level() {
+        // All measured C releases and Jim reject a negative frame selector.
         let args = v(&["-1", "caller", "local"]);
-        assert_eq!(upvar_local_declaration_indices("upvar", &args), vec![2]);
+        assert_eq!(
+            upvar_local_declaration_indices("upvar", &args),
+            [] as [usize; 0]
+        );
     }
 
     #[test]
@@ -343,7 +348,10 @@ mod tests {
         // `upvar 1 $cached local` — skip because caller looks
         // like a substitution.
         let args = v(&["1", "$cached", "local"]);
-        assert!(upvar_local_declaration_indices("upvar", &args).is_empty());
+        assert_eq!(
+            upvar_local_declaration_indices("upvar", &args),
+            [] as [usize; 0]
+        );
     }
 
     #[test]
@@ -370,15 +378,24 @@ mod tests {
     #[test]
     fn upvar_unrelated_command_empty() {
         let args = v(&["a", "b"]);
-        assert!(upvar_local_declaration_indices("set", &args).is_empty());
+        assert_eq!(
+            upvar_local_declaration_indices("set", &args),
+            [] as [usize; 0]
+        );
     }
 
     #[test]
     fn upvar_insufficient_args_empty() {
-        assert!(upvar_local_declaration_indices("upvar", &[]).is_empty());
+        assert_eq!(
+            upvar_local_declaration_indices("upvar", &[]),
+            [] as [usize; 0]
+        );
         // Only level, no pairs.
         let args = v(&["1"]);
-        assert!(upvar_local_declaration_indices("upvar", &args).is_empty());
+        assert_eq!(
+            upvar_local_declaration_indices("upvar", &args),
+            [] as [usize; 0]
+        );
     }
 
     #[test]
@@ -387,7 +404,10 @@ mod tests {
         // (nothing to navigate to), but `local` is a real alias in this
         // scope, so the observability flavour keeps it.
         let args = v(&["0", "$src", "local"]);
-        assert!(upvar_local_declaration_indices("upvar", &args).is_empty());
+        assert_eq!(
+            upvar_local_declaration_indices("upvar", &args),
+            [] as [usize; 0]
+        );
         assert_eq!(upvar_local_alias_indices("upvar", &args), vec![2]);
     }
 
@@ -396,7 +416,7 @@ mod tests {
         // A `$`-substituted *local* names no static variable — skipped by
         // both flavours.
         let args = v(&["0", "src", "$local"]);
-        assert!(upvar_local_alias_indices("upvar", &args).is_empty());
+        assert_eq!(upvar_local_alias_indices("upvar", &args), [] as [usize; 0]);
     }
 
     #[test]
@@ -464,18 +484,82 @@ mod tests {
             scope_alias_local_indices(&reg, "my", &v(&["variable", "x", "y"])),
             vec![1, 2]
         );
-        assert!(scope_alias_local_indices(&reg, "puts", &v(&["x"])).is_empty());
+        assert_eq!(
+            scope_alias_local_indices(&reg, "puts", &v(&["x"])),
+            [] as [usize; 0]
+        );
     }
 
     #[test]
-    fn upvar_uses_argument_count_not_level_text() {
+    fn unresolved_upvar_policy_abstains_on_release_specific_layout() {
         assert_eq!(
             upvar_local_declaration_indices("upvar", &v(&["$lvl", "a", "b"])),
-            vec![2]
+            [] as [usize; 0]
         );
         assert_eq!(
             upvar_local_declaration_indices("upvar", &v(&["1", "b"])),
-            vec![1]
+            [] as [usize; 0]
         );
+    }
+
+    #[test]
+    fn selected_upvar_roles_follow_actual_frame_presence_policy() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            let expected = if matches!(dialect, "tcl8.4" | "tcl8.5") {
+                vec![]
+            } else {
+                vec![1]
+            };
+            assert_eq!(
+                registry_role_indices(registry, "upvar", &v(&["1", "b"])),
+                expected,
+                "{dialect}"
+            );
+            assert!(
+                registry_role_indices(registry, "upvar", &v(&["-1", "a", "b"])).is_empty(),
+                "{dialect}"
+            );
+        }
+    }
+
+    #[test]
+    fn selected_alias_metadata_keeps_registry_root_fallback_and_source_read_filters() {
+        // naming.analysis.selected-scope-alias-role-metadata
+
+        // Exact authored Registry descriptor query; no native qualified-name test.
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        assert_eq!(
+            global_scope_alias_local_indices(registry, "::global", &v(&["g"])),
+            [0]
+        );
+        assert!(global_scope_alias_local_indices(registry, ":global", &v(&["g"])).is_empty());
+        assert!(global_scope_alias_local_indices(registry, "::::global", &v(&["g"])).is_empty());
+        assert_eq!(
+            scope_alias_declaration_indices(registry, "upvar", &v(&["1", "source", "local"])),
+            [2]
+        );
+        assert!(
+            scope_alias_declaration_indices(registry, "upvar", &v(&["1", "$source", "local"]))
+                .is_empty()
+        );
+        assert_eq!(
+            scope_alias_declaration_indices(
+                registry,
+                "variable",
+                &v(&["first", "$value", "other"])
+            ),
+            [0, 2]
+        );
+        assert!(is_scope_alias_call(
+            registry,
+            "my",
+            &v(&["variable", "local"])
+        ));
+        assert!(!is_scope_alias_call(
+            registry,
+            "my",
+            &v(&["touch", "local"])
+        ));
     }
 }

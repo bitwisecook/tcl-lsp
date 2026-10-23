@@ -197,14 +197,11 @@ pub fn run(_check: bool) -> ExitCode {
     let mut report = String::new();
     let mut hits = 0usize;
     for path in files {
-        let rel = path
-            .strip_prefix(&root)
-            .unwrap_or(&path)
-            .to_string_lossy()
-            .replace('\\', "/");
-        if is_exempt_path(&rel) {
+        let relative = path.strip_prefix(&root).unwrap_or(&path);
+        if is_exempt_path(relative) {
             continue;
         }
+        let rel = relative.to_string_lossy().replace('\\', "/");
         let Ok(text) = std::fs::read_to_string(&path) else {
             continue;
         };
@@ -266,12 +263,14 @@ fn cross_check_problems(root: &Path) -> Vec<String> {
     problems
 }
 
-fn is_exempt_path(rel: &str) -> bool {
-    SANCTIONED_FILES.contains(&rel)
-        || rel.contains("/tests/")
-        || rel.ends_with("/tests.rs")
-        || rel.contains("/examples/")
-        || rel.contains("/benches/")
+fn is_exempt_path(rel: impl AsRef<Path>) -> bool {
+    let rel = rel.as_ref();
+    SANCTIONED_FILES.iter().any(|file| rel == Path::new(file))
+        || rel.components().any(|component| {
+            let name = component.as_os_str();
+            name == "tests" || name == "examples" || name == "benches"
+        })
+        || rel.file_name().is_some_and(|name| name == "tests.rs")
 }
 
 /// Every offending `(line_number, trimmed_line, why)` in `text`.
@@ -571,10 +570,13 @@ mod tests {
     #[test]
     fn a_terminator_that_is_not_a_pair_is_not_flagged() {
         // A newline alone, or a semicolon alone, is not the terminator set.
-        assert!(scan("match c { b'\\n' => {} }\n").is_empty());
-        assert!(scan("match c { b';' => {} }\n").is_empty());
+        assert_eq!(scan("match c { b'\\n' => {} }\n").len(), 0);
+        assert_eq!(scan("match c { b';' => {} }\n").len(), 0);
         // A `\n` and a `;` in different patterns is not an alternation.
-        assert!(scan("match c { b'\\n' => a(), b'x' | b';' => b() }\n").is_empty());
+        assert_eq!(
+            scan("match c { b'\\n' => a(), b'x' | b';' => b() }\n").len(),
+            0
+        );
     }
 
     #[test]
@@ -600,30 +602,33 @@ mod tests {
     #[test]
     fn trivia_skipping_is_not_a_word_start_machine() {
         // No `prev` binding: a filter, not a state machine.
-        assert!(
+        assert_eq!(
             scan(
                 "let words = toks.iter().filter(|t| !matches!(t.kind, TokenType::Sep | \
                   TokenType::Eol));\n"
             )
-            .is_empty()
+            .len(),
+            0
         );
         // A wider trivia set is not the two-variant word rule either.
-        assert!(
+        assert_eq!(
             scan(
                 "fn f() {\n let prev = x;\n if matches!(t.kind, TokenType::Sep | \
                   TokenType::Eol | TokenType::Eof) {}\n}\n"
             )
-            .is_empty()
+            .len(),
+            0
         );
     }
 
     #[test]
     fn a_waiver_is_honoured_on_the_line_and_in_the_block_above() {
-        assert!(
+        assert_eq!(
             scan(
                 "match c { b'\\n' | b';' => {} } // segmentation-drift-ok: BIG-IP config, not Tcl\n"
             )
-            .is_empty()
+            .len(),
+            0
         );
         let src = "// segmentation-drift-ok: trims a terminator inside an already\n\
                    // segmented command span; the boundary came from the segmenter\n\
@@ -640,15 +645,15 @@ mod tests {
 
     #[test]
     fn a_mention_in_a_comment_or_string_is_not_a_hit() {
-        assert!(scan("// the old shape was b'\\n' | b';'\n").is_empty());
-        assert!(scan("let m = \"b'\\\\n' | b';'\";\n").is_empty());
+        assert_eq!(scan("// the old shape was b'\\n' | b';'\n").len(), 0);
+        assert_eq!(scan("let m = \"b'\\\\n' | b';'\";\n").len(), 0);
     }
 
     #[test]
     fn the_test_tail_is_exempt() {
         let src = "fn f() {}\n#[cfg(test)]\nmod tests {\n    fn g(c: u8) { \
                    let _ = matches!(c, b'\\n' | b';'); }\n}\n";
-        assert!(scan(src).is_empty());
+        assert_eq!(scan(src).len(), 0);
     }
 
     /// The exemption follows the module's own extent, not "everything after
@@ -689,7 +694,7 @@ mod tests {
                     \"extra characters after close-quote\",\n];\n";
         assert_eq!(scan(list).len(), 1, "{:?}", scan(list));
         // One message, raised rather than classified.
-        assert!(scan("return Err(\"missing close-bracket\");\n").is_empty());
+        assert_eq!(scan("return Err(\"missing close-bracket\");\n").len(), 0);
         // Two messages that are not collected into a list.
         let prose = "fn a() { raise(\"missing close-bracket\"); }\n\
                      fn b() { raise(\"missing )\"); }\n";
@@ -705,6 +710,10 @@ mod tests {
         assert!(is_exempt_path("rust/tcl-lexer/tests/lexer_depth.rs"));
         assert!(!is_exempt_path("rust/tcl-lsp-core/src/expr_context.rs"));
         assert!(!is_exempt_path("rust/tcl-compiler/src/lowering/mod.rs"));
+        #[cfg(unix)]
+        assert!(!is_exempt_path(
+            "rust/tcl-compiler\\src\\native_lowering\\tests.rs"
+        ));
     }
 
     #[test]

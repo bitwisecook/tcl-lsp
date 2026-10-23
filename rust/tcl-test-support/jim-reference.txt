@@ -1,0 +1,5 @@
+repository=https://github.com/msteveb/jimtcl.git
+revision=5bac7c99ad65864c87da513e22e2f01703fa4e03
+commit_date=2026-10-01T08:54:24+10:00
+version=0.84
+patchlevel=0.84-9-g5bac7c9

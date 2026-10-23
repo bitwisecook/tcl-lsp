@@ -20,7 +20,7 @@
 #   Tests failing: [1]
 #   FAILED: rate-1.0
 #       ...
-#   Total  7  Passed  6  Skipped  0  Failed  1
+#   Total  10  Passed  9  Skipped  0  Failed  1
 
 set script_dir [file dirname [info script]]
 source [file join $script_dir compat84.tcl]
@@ -77,12 +77,8 @@ source [file join $script_dir orchestrator.tcl]
         ::orch::tmm_select $tmm
         for {set i 0} {$i < 30} {incr i} {
             ::orch::run_http_request -host app.example.com
-        }
-        # Count rejects on this TMM
-        set decisions [::itest::get_decisions connection]
-        foreach d $decisions {
-            if {[lindex $d 1] eq "reject"} {
-                incr total_rejects
+            foreach decision [::itest::get_decisions connection] {
+                if {[lindex $decision 1] eq "reject"} { incr total_rejects }
             }
         }
     }
@@ -126,11 +122,8 @@ source [file join $script_dir orchestrator.tcl]
         ::orch::tmm_select $tmm
         for {set i 0} {$i < 30} {incr i} {
             ::orch::run_http_request -host app.example.com
-        }
-        set decisions [::itest::get_decisions connection]
-        foreach d $decisions {
-            if {[lindex $d 1] eq "reject"} {
-                incr total_rejects
+            foreach decision [::itest::get_decisions connection] {
+                if {[lindex $decision 1] eq "reject"} { incr total_rejects }
             }
         }
     }
@@ -150,7 +143,7 @@ source [file join $script_dir orchestrator.tcl]
 
     # Shared counter: 4 TMMs * 10 = 40 total
     ::orch::tmm_select 0
-    set total [table lookup rate_limits 10.0.0.1]
+    set total [table lookup -subtable rate_limits 10.0.0.1]
     ::orch::assert_equal $total 40 "table counter should be 40 across all TMMs"
 }
 

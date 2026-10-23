@@ -67,9 +67,10 @@ export function createTestUserDataDir(): string {
   // The probe is the exact length `mkdtempSync` will produce, so the budget is
   // checked before anything is created.
   const probeSocket = path.join(os.tmpdir(), `${DIR_PREFIX}XXXXXX`, LONGEST_SOCKET_NAME);
-  if (probeSocket.length > SUN_PATH_MAX) {
+  const probeSocketBytes = Buffer.byteLength(probeSocket, "utf8");
+  if (probeSocketBytes > SUN_PATH_MAX) {
     throw new Error(
-      `VS Code's IPC socket path would be ${probeSocket.length} bytes, over the ` +
+      `VS Code's IPC socket path would be ${probeSocketBytes} bytes, over the ` +
         `${SUN_PATH_MAX}-byte sun_path limit: ${probeSocket}\n` +
         `Set TMPDIR to a shorter directory before running the extension tests.`,
     );

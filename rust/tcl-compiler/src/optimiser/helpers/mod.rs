@@ -32,7 +32,8 @@
 
 pub mod expr_simplify;
 pub mod literals;
-pub mod naming;
+#[cfg(test)]
+mod naming;
 pub mod select;
 pub mod spans;
 pub mod tokens;

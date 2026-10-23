@@ -73,11 +73,24 @@ async function waitFor<T>(
 ): Promise<T | undefined> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    const value = await probe();
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      console.error(`tcl-lsp web smoke: timed out waiting for ${what}`);
+      return undefined;
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const value = await Promise.race([
+      probe(),
+      new Promise<undefined>((resolve) => {
+        timer = setTimeout(() => resolve(undefined), remaining);
+      }),
+    ]).finally(() => {
+      if (timer !== undefined) clearTimeout(timer);
+    });
     if (value !== undefined) {
       return value;
     }
-    if (Date.now() > deadline) {
+    if (Date.now() >= deadline) {
       console.error(`tcl-lsp web smoke: timed out waiting for ${what}`);
       return undefined;
     }

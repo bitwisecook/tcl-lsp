@@ -455,7 +455,9 @@ export interface TestReport {
   /** Whether the pack contributed anything to the registry that was used. */
   installed: boolean;
   render: TestChunk[];
-  tokens: TestToken[];
+  /** False only when the retained sample source/input is unavailable. */
+  source_available?: boolean;
+  tokens: TestToken[] | null;
   diagnostics: TestDiagnostic[];
   summary: {
     words: number;
@@ -465,7 +467,7 @@ export interface TestReport {
     diagnostics: number;
     errors: number;
     warnings: number;
-  };
+  } | null;
   error?: string;
 }
 
@@ -542,6 +544,7 @@ export interface StudioWasm {
      browser holds exactly one piece of state and Rust stays a pure function
      of it — which is what makes the DSL pane and the form two projections of
      one thing rather than two stores to reconcile. */
+  sample_call_source(source: string, name: string, dialect: string, sampleSource: string): string;
   pack_new(packName: string): string;
   pack_load(source: string, dialect: string): string;
   pack_command(source: string, name: string, dialect: string): string;

@@ -1,0 +1,1 @@
+if {[exists -command p]} {list [info alias p] [p]} elseif {[exists -command a]} {list [info alias a] [a]} elseif {[exists -command b]} {list [info alias b] [b]} else {list}

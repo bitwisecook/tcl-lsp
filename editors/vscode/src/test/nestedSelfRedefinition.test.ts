@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnosticsSnapshot } from "./helper";
 
 // A nested, cross-namespace proc self-redefinition, end to end in the
 // editor.  The fixture nestedSelfRedefinition.tcl:
@@ -108,9 +108,13 @@ suite("Nested cross-namespace self-redefinition", () => {
     // global `::activate`; the nested `proc` really redefines
     // `::ticklecharts::activate` (proved by `info commands` above).
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W214"),
     });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     const w214 = diagnostics.filter((d) => codeOf(d) === "W214");
     assert.ok(
       w214.every((d) => d.message.includes("::ticklecharts::activate")),

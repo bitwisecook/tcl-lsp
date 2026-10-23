@@ -69,5 +69,9 @@ tokio = { version = "1", features = ["rt", "net", "io-util", "time"] }
 # now in the shared, wasm-friendly `tcl-f5mku` crate.
 tcl-f5mku = { path = "../tcl-f5mku" }
 
+[dev-dependencies]
+flate2 = "1"
+tar = "0.4"
+
 [lints]
 workspace = true

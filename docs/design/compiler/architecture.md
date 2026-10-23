@@ -251,26 +251,33 @@ flowchart LR
 
     subgraph ir::Module
         direction TB
-        SO["source: String"]
+        SO["source: SourceImage"]
         TL["top_level: ir::Script"]
-        PD["procedures: Map&lt;String, Procedure&gt;"]
-        ME["methods: Map&lt;String, MethodDef&gt;"]
-        BU["body_units: Map&lt;String, Procedure&gt;"]
+        PD["procedures: ProcedureInventory"]
+        ME["methods: MethodInventory"]
+        BU["body_units: ProcedureInventory"]
+        CIL["carried_installed_lowerings: CarriedInstalledLowerings"]
     end
 
     MOD --- ir::Module
 ```
 
-`ir::Module` keeps three separate body maps rather than one.  `procedures`
-holds real named `proc`s — the only map codegen emits.  `methods` holds
-`TclOO` method bodies keyed `class::method`.  `body_units` holds *synthetic*
-frames that run a script argument but are not callable procedures (`apply`
-lambdas, `namespace eval` bodies) under synthetic qualified names such as
-`::apply#0`; they exist purely so CFG → SSA → SCCP → taint reaches inside the
-body, and at runtime each still executes through its own
-`Statement::Barrier`, so bytecode is unaffected by whether one was recorded.
-`lambda_body_units` names the subset of `body_units` that are closed lambda
-frames, which is the only subset read-before-set (`W210`) runs over.
+`ir::Module` retains named procedures, method declarations and anonymous or
+selected-namespace source bodies in separate inventories. Each inventory uses
+an actual Module-issued `ProcedureId`, preserving repeated labels. `MethodKind`
+and `ProcedureBodyKind` retain body purpose independently of presentation.
+
+CFGs, compilation units, summaries and bytecode join those IDs while retaining
+their original source and lookup owners. `lambda_body_units` records exact body
+IDs for the supported lambda subset. C Tcl creates one command per evaluated
+`proc`, so when a readonly authored declaration body uniquely covers the
+Installed body of the same allocation, the authored body unit carries that
+Installed lowering in `carried_installed_lowerings`: one analysis unit, two
+lowerings, each under its own `ProcedureId` and Source SSA summary.
+`body_units` counts the units; `body_lowerings()` reaches every lowering.
+Analysis inventories supply no callable installation, entered activation or
+Native compiler admission. See
+[shared body ownership](name-resolution-implementer-guide.md#retain-body-identity-through-consumers).
 
 #### IR node hierarchy
 
@@ -677,9 +684,11 @@ flowchart TD
         IM["ir_module: ir::Module"]
         CM["cfg_module: cfg::CfgModule"]
         TL["top_level: FunctionUnit"]
-        PR["procedures: Map&lt;String, FunctionUnit&gt;"]
-        ME["methods: Map&lt;String, FunctionUnit&gt;"]
-        BU["body_units: Map&lt;String, FunctionUnit&gt;"]
+        PR["procedures: Map&lt;ProcedureId, FunctionUnit&gt;"]
+        ME["methods: Map&lt;ProcedureId, FunctionUnit&gt;"]
+        BU["body_units: Map&lt;ProcedureId, FunctionUnit&gt;"]
+        CIL["carried_installed_lowerings: Map&lt;ProcedureId, FunctionUnit&gt;"]
+        CFGS["prepared source-body CFGs: Map&lt;ProcedureId, CfgFunction&gt;"]
         IP["interproc: Option&lt;InterproceduralAnalysis&gt;"]
         CO["connection_scope: Option&lt;ConnectionScope&gt;"]
         CS2["caller_scope: UnitCallerScope"]
@@ -688,9 +697,14 @@ flowchart TD
     CU --- CompilationUnit
 ```
 
-The three body maps of `ir::Module` are mirrored one-for-one as
-`FunctionUnit` maps, so a `TclOO` method body and an `apply` lambda body each
-get the same CFG → SSA → SCCP → type → taint treatment a `proc` does.
+The `CompilationUnit` procedure, method, and body-unit analysis maps are keyed
+by Module-issued `ProcedureId`s; qualified names are display and lookup data,
+not their body keys. The IR module also retains separate installed-body and
+original-declaration inventories, event-body descriptors, and source
+implementation records. Those source inventories do not by themselves install
+a callable or prove an entered frame. The CU retains prepared child CFGs in a
+separate body-ID map before `FunctionUnit` analysis; do not conflate that
+prepared inventory with authored declarations or runtime installations.
 `interproc` is optional because `build_for` can be asked to defer it, so a
 consumer must handle `None` rather than assume summaries are present.
 `caller_scope` carries what the *workspace* knows about this unit's callers —
@@ -768,6 +782,13 @@ flowchart TD
 
 Takes a pre-SSA `cfg::CfgModule` and emits assembly text matching the format
 produced by `tcl::unsupported::disassemble` in Tcl 9.0.
+
+`codegen_function` and `Backend::lower_function` emit the statements retained in
+one CFG function. Procedure declarations keep their original command words;
+procedure display names and body metadata do not recreate declaration commands.
+Use `codegen_module` or `Backend::lower_module` for a complete source module:
+they carry the original source, namespace context and procedure-body inventory
+into assembly and provenance, keyed by the retained body identities.
 
 ```mermaid
 flowchart LR

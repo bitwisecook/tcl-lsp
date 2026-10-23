@@ -57,11 +57,11 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// either — a single "one legal keyword" argument resolved via
 /// `Tcl_GetIndexFromObj` is a long-stable, version-independent C API
 /// convention.
-/// `CommandSpec::closed_value_args` has no prefix-matching mode (unlike
-/// `SubCommand::arg_values_accept_prefix`), so marking this index there
-/// would misreport a legitimate abbreviation as an invalid value — this is
-/// completion/hover data only, the same reasoning `registry_.rs` applies to
-/// `REGISTRY_OPTION_VALUES`.
+/// This descriptor currently leaves the position out of
+/// `CommandSpec::closed_value_args`, so it remains completion/hover data.
+/// The command-level `arg_values_accept_prefix` facet can describe the
+/// matching policy when a descriptor independently closes its vocabulary;
+/// adding that facet does not change this descriptor's existing open policy.
 const IDLETASKS_VALUES: &[ArgValue] = &[ArgValue {
     value: "idletasks",
     detail: "Service only idle callbacks — no new events or errors are processed — forcing operations that are normally deferred, such as display updates and window layout calculations, to run immediately.",
@@ -72,6 +72,12 @@ const IDLETASKS_VALUES: &[ArgValue] = &[ArgValue {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "update",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("update"),
         // `ALL_TCL` (no iRules row) is deliberate, not an oversight: F5's TMM
         // interpreter does ban `update` — it is one of the K36322151

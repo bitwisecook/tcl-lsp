@@ -41,17 +41,12 @@ use crate::segmenter::SegmentedCommand;
 /// and how it is spelled.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NameRoleWord {
-    /// The word's text as written, delimiters already stripped by the
-    /// segmenter — `m`, `arr(k)`, or, for a brace-quoted word, its content
-    /// verbatim (`[set {$n}]` gives `$n`).  Raw so a consumer that needs the
-    /// array element (`crate::naming::split_array_name_braced`) still has it;
-    /// [`Self::base_name`] is the canonical cell name.
+    /// Literal name value, separate from its original source geometry.
     pub word: String,
     /// The word's own source span, i.e. what a reference / highlight /
     /// rename provider points at.
     pub span: Span,
-    /// The word is a single brace-quoted token, so Tcl substitutes nothing
-    /// inside it and its content is the name verbatim.
+    /// The name text is already literal; preserve substitution sigils in it.
     pub braced_literal: bool,
     /// Which naming role the registry gave the word.
     pub role: ArgRole,
@@ -69,23 +64,10 @@ impl NameRoleWord {
     }
 }
 
-/// Every argument of `cmd` whose registry role names a variable, in argument
-/// order.
-///
-/// **The** answer to "which words of this command are variable names?", so
-/// the analyser's reference recorder, the dead-store suppressor's
-/// substitution scan, and the LSP's cursor resolver cannot disagree about a
-/// command they were never taught by name. Roles come from
-/// [`CommandRegistry::arg_indices_for_role`], so any spec that declares a
-/// `VarRead` / `VarWrite` position contributes — `set` (one-argument read
-/// form), `info exists`, `array get`, `unset`, `incr`, a dialect command, or
-/// one added tomorrow.
-///
-/// A **computed** name (`set $n`, `incr [pick]`) is skipped: its cell is not
-/// statically known, and the `$n` inside it is already an ordinary read the
-/// token scan sees. A brace-quoted word is *not* computed — braces suppress
-/// substitution, so `{$n}` is the literal name `$n`.
+/// Test-only catalogue convenience for detached command layouts.
+/// Production roles require [`original_variable_name_role_words`] ownership.
 #[must_use]
+#[cfg(test)]
 pub fn variable_name_role_words(
     cmd: &SegmentedCommand,
     registry: &CommandRegistry,
@@ -110,9 +92,6 @@ pub fn variable_name_role_words(
             if !braced_literal && crate::naming::is_dynamic_word(text) {
                 continue;
             }
-            if crate::naming::normalise_var_name_braced(text, braced_literal).is_empty() {
-                continue;
-            }
             out.push(NameRoleWord {
                 word: text.clone(),
                 span: tok.span,
@@ -127,12 +106,64 @@ pub fn variable_name_role_words(
     out
 }
 
+/// Readonly name words selected by the retained complete original invocation.
+#[must_use]
+pub fn original_variable_name_role_words(
+    source: &str,
+    analysis: &crate::analyser::AnalysisResult,
+    command: &SegmentedCommand,
+) -> Vec<NameRoleWord> {
+    use crate::registry_invocation::InvocationWordOrigin;
+    let Some(selected) = crate::registry_invocation::source_structure::source_registry_words(
+        source, analysis, command,
+    ) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for &(argument, role) in selected.roles().unwrap_or(&[]) {
+        if !role.names_variable() {
+            continue;
+        }
+        let Some(InvocationWordOrigin::Written(written)) =
+            selected.origins().get(argument + 1).copied()
+        else {
+            continue;
+        };
+        let Some(original) = selected.original_argument_word(argument) else {
+            continue;
+        };
+        let Some(bytes) = selected
+            .arguments()
+            .get(argument)
+            .and_then(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
+        else {
+            continue;
+        };
+        let Ok(value) = std::str::from_utf8(bytes) else {
+            continue;
+        };
+        let Ok(span) = original.content_span() else {
+            continue;
+        };
+        out.push(NameRoleWord {
+            word: value.to_owned(),
+            span,
+            braced_literal: true,
+            role,
+            word_index: written,
+        });
+    }
+    out.sort_by_key(|word| word.span.start());
+    out.dedup_by(|left, right| left.span == right.span);
+    out
+}
+
 /// Options controlling what a [`VarReferenceScanner`] looks for.
 #[allow(clippy::struct_excessive_bools)] // option flags, not a state machine
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VarScanOptions {
-    /// When `true`, also collect variable names passed as
-    /// `ArgRole::VarRead` arguments to known commands.
+    /// Include explicitly standalone catalogue read-role assumptions.
+    /// Source-bound roles come from the retained original invocation.
     pub include_var_read_roles: bool,
     /// When `true`, recurse into `[…]` command substitutions.
     pub recurse_cmd_substitutions: bool,
@@ -187,7 +218,13 @@ pub struct VarReferenceScanner {
 
 /// LRU key: the scanned text, the mode it was scanned in (`quoted_body` — see
 /// [`scan_tokens`]), and the exact local lexical policy.
-type CacheKey = (String, bool, LexerConfig);
+type CacheKey = (
+    String,
+    bool,
+    LexerConfig,
+    bool,
+    Option<tcl_registry::registry::RegistrySemanticKey>,
+);
 
 impl VarReferenceScanner {
     /// Create a new scanner with the given options and default cache size.
@@ -235,6 +272,12 @@ impl VarReferenceScanner {
         }
     }
 
+    /// Whether this caller requested detached catalogue read roles.
+    /// The flag supplies no original source or receiver authority.
+    pub(crate) const fn standalone_roles_requested(&self) -> bool {
+        self.options.include_var_read_roles
+    }
+
     /// Whether this scanner reports element-qualified names
     /// ([`VarScanOptions::element_qualified`]).
     #[must_use]
@@ -278,6 +321,24 @@ impl VarReferenceScanner {
         self.scan_cached(text, registry, true)
     }
 
+    /// Source syntax alone; command heads grant no receiver read roles.
+    pub fn scan_lexical_word(
+        &mut self,
+        text: &str,
+        registry: &CommandRegistry,
+    ) -> BTreeSet<String> {
+        self.scan_cached_roles(text, registry, true, false)
+    }
+
+    /// Detached catalogue assumptions may protect stores but prove no binding.
+    pub fn scan_standalone_word(
+        &mut self,
+        text: &str,
+        registry: &CommandRegistry,
+    ) -> BTreeSet<String> {
+        self.scan_cached_roles(text, registry, true, true)
+    }
+
     /// Scan a Tcl script for variable references (LRU-cached).
     ///
     /// `source` is a genuine script body (an `eval`/`catch`/`uplevel` body,
@@ -288,6 +349,24 @@ impl VarReferenceScanner {
         self.scan_cached(source, registry, false)
     }
 
+    /// Script syntax alone; command heads grant no receiver read roles.
+    pub fn scan_lexical_script(
+        &mut self,
+        source: &str,
+        registry: &CommandRegistry,
+    ) -> BTreeSet<String> {
+        self.scan_cached_roles(source, registry, false, false)
+    }
+
+    /// Detached script catalogue advice may protect stores but proves no binding.
+    pub fn scan_standalone_script(
+        &mut self,
+        source: &str,
+        registry: &CommandRegistry,
+    ) -> BTreeSet<String> {
+        self.scan_cached_roles(source, registry, false, true)
+    }
+
     /// Shared cache lookup/insert for both scan modes.
     fn scan_cached(
         &mut self,
@@ -295,7 +374,28 @@ impl VarReferenceScanner {
         registry: &CommandRegistry,
         quoted_body: bool,
     ) -> BTreeSet<String> {
-        let key: CacheKey = (source.to_owned(), quoted_body, self.config);
+        self.scan_cached_roles(
+            source,
+            registry,
+            quoted_body,
+            self.options.include_var_read_roles,
+        )
+    }
+
+    fn scan_cached_roles(
+        &mut self,
+        source: &str,
+        registry: &CommandRegistry,
+        quoted_body: bool,
+        standalone_roles: bool,
+    ) -> BTreeSet<String> {
+        let key: CacheKey = (
+            source.to_owned(),
+            quoted_body,
+            self.config,
+            standalone_roles,
+            standalone_roles.then(|| registry.snapshot().semantic_key()),
+        );
 
         // Check cache.
         if let Some(cached) = self.cache.get(&key) {
@@ -306,7 +406,11 @@ impl VarReferenceScanner {
             return result;
         }
 
-        let result = scan_tokens(source, registry, self.options, quoted_body, self.config);
+        let options = VarScanOptions {
+            include_var_read_roles: standalone_roles,
+            ..self.options
+        };
+        let result = scan_tokens(source, registry, options, quoted_body, self.config);
 
         // Insert into cache.
         self.cache.insert(key.clone(), result.clone());
@@ -330,8 +434,8 @@ impl VarReferenceScanner {
 }
 
 /// The variable name a `TokenType::Var` token contributes, per
-/// `options.element_qualified`, or `None` for a degenerate/empty name.
-fn var_token_name(source_map: &SourceMap, tok: &Token, options: VarScanOptions) -> Option<String> {
+/// `options.element_qualified`. An empty literal name remains a name.
+fn var_token_name(source_map: &SourceMap, tok: &Token, options: VarScanOptions) -> String {
     let text = source_map.token_text(*tok);
     // The `${…}` brace form substitutes nothing inside, so its content is the
     // variable's literal name — `${$n}` reads the variable *called* `$n`, and
@@ -346,7 +450,82 @@ fn var_token_name(source_map: &SourceMap, tok: &Token, options: VarScanOptions) 
     } else {
         crate::naming::normalise_var_name_braced(text, braced)
     };
-    (!name.is_empty()).then(|| name.to_owned())
+    name.to_owned()
+}
+
+/// Index components borrow the original variable token's source allocation.
+fn scan_original_index_reads(
+    source_map: &SourceMap<'_>,
+    token: &Token,
+    registry: &CommandRegistry,
+    options: VarScanOptions,
+    config: LexerConfig,
+    names: &mut BTreeSet<String>,
+) {
+    use tcl_lexer::word_parts::{SubstFlags, WordBody, decompose, scan_var_ref};
+    let source = source_map.source_bytes();
+    let Ok(Some(reference)) = scan_var_ref(source, token.span.start() as usize, config) else {
+        return;
+    };
+    let Some(index) = reference.index else {
+        return;
+    };
+    if let WordBody::Parts(parts) = decompose(index, SubstFlags::default(), config) {
+        collect_original_index_parts(&parts, index, registry, options, config, names);
+    }
+}
+
+fn collect_original_index_parts(
+    parts: &[tcl_lexer::word_parts::WordPart<'_>],
+    source: &[u8],
+    registry: &CommandRegistry,
+    options: VarScanOptions,
+    config: LexerConfig,
+    names: &mut BTreeSet<String>,
+) {
+    use tcl_lexer::word_parts::WordPart;
+    for part in parts {
+        match part {
+            WordPart::Variable(reference) => {
+                let Some(range) = reference.source_range_in(source, config) else {
+                    continue;
+                };
+                let Ok(spelling) = std::str::from_utf8(&source[range]) else {
+                    continue;
+                };
+                let raw = tcl_syntax::naming::var_reference_for_style(spelling, config.braced_var);
+                let braced = spelling.starts_with("${");
+                let name = if options.element_qualified {
+                    crate::naming::element_var_name_braced(raw, braced)
+                } else {
+                    crate::naming::normalise_var_name_braced(raw, braced)
+                };
+                names.insert(name.to_owned());
+                if let Some(index) = &reference.index {
+                    collect_original_index_parts(index, source, registry, options, config, names);
+                }
+            }
+            WordPart::Command(script) if options.recurse_cmd_substitutions => {
+                if let Ok(script) = std::str::from_utf8(script) {
+                    let lexical = VarScanOptions {
+                        include_var_read_roles: false,
+                        ..options
+                    };
+                    names.extend(scan_tokens(script, registry, lexical, false, config));
+                }
+            }
+            WordPart::Expression(expression) => {
+                if let Ok(expression) = std::str::from_utf8(expression) {
+                    let lexical = VarScanOptions {
+                        include_var_read_roles: false,
+                        ..options
+                    };
+                    names.extend(scan_tokens(expression, registry, lexical, false, config));
+                }
+            }
+            WordPart::Text(_) | WordPart::Command(_) | WordPart::ParseError(_) => {}
+        }
+    }
 }
 
 /// Scan `source` for `Var`/`Cmd` tokens, recursing into every `[…]`
@@ -395,9 +574,15 @@ fn scan_tokens(
     for tok in &tokens {
         match tok.kind {
             TokenType::Var => {
-                if let Some(name) = var_token_name(&source_map, tok, options) {
-                    vars_found.insert(name);
-                }
+                vars_found.insert(var_token_name(&source_map, tok, options));
+                scan_original_index_reads(
+                    &source_map,
+                    tok,
+                    registry,
+                    options,
+                    config,
+                    &mut vars_found,
+                );
             }
             TokenType::Cmd if options.recurse_cmd_substitutions => {
                 let text = source_map.token_text(*tok);
@@ -422,7 +607,7 @@ fn scan_tokens(
     }
 
     if options.include_var_read_roles {
-        let role_vars = scan_var_read_role_names(
+        let role_vars = scan_standalone_var_read_role_names(
             source,
             registry,
             options.include_reads_before_write,
@@ -440,7 +625,7 @@ fn scan_tokens(
 /// This is a standalone function (not cached) that tokenises a script,
 /// segments it into commands, and queries the registry for which argument
 /// positions hold variable-read references.
-fn scan_var_read_role_names(
+fn scan_standalone_var_read_role_names(
     source: &str,
     registry: &CommandRegistry,
     include_rmw: bool,
@@ -487,9 +672,7 @@ fn scan_var_read_role_names(
                 } else {
                     crate::naming::normalise_var_name_braced(args[idx], braced)
                 };
-                if !name.is_empty() {
-                    result.insert(name.to_owned());
-                }
+                result.insert(name.to_owned());
             }
         }
     };
@@ -556,17 +739,32 @@ pub fn vars_in_expr(
     expr.vars_with_grammar(grammar).into_iter().collect()
 }
 
-/// De-sigil a `VAR`-token's source text, keeping any array-index suffix.
-///
-/// `$a(k)` → `a(k)`, `${a(k)}` → `a(k)`, `${a}` → `a`, `$a` → `a`.  Unlike
-/// [`normalise_var_name`], the `(idx)` suffix is preserved so the form can be
-/// classified as a scalar vs an array element by `var_resolve::resolve_place`.
-fn deref_form(text: &str) -> &str {
-    if let Some(inner) = text.strip_prefix("${") {
-        inner.strip_suffix('}').unwrap_or(inner)
-    } else {
-        text.strip_prefix('$').unwrap_or(text)
+/// Exact original variable token and complete configured reference spelling.
+/// The shared scanner owns the closer and original name range. This geometry
+/// supplies no variable cell, lookup, read permission or standalone source owner.
+pub(crate) fn original_variable_reference_form(
+    source: &str,
+    token: Token,
+    config: LexerConfig,
+) -> Option<(&str, bool)> {
+    if token.kind != TokenType::Var {
+        return None;
     }
+    let start = usize::try_from(token.span.start()).ok()?;
+    let reference =
+        tcl_lexer::word_parts::scan_var_ref(source.as_bytes(), start, config).ok()??;
+    if reference.source_span(source.as_bytes(), start, 0)? != token.span
+        || reference.name_range_in(source.as_bytes())?.start
+            != start.checked_add(usize::from(token.content_offset))?
+    {
+        return None;
+    }
+    let spelling = source.get(start..reference.next)?;
+    tcl_syntax::naming::is_whole_variable_reference(spelling, config).then_some(())?;
+    Some((
+        tcl_syntax::naming::var_reference_for_style(spelling, config.braced_var),
+        token.content_offset == 2,
+    ))
 }
 
 fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>, config: LexerConfig) {
@@ -580,17 +778,7 @@ fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>, config: LexerCon
     for tok in &tokens {
         match tok.kind {
             TokenType::Var => {
-                // `token_text` already drops the `$` / `${` decoration, so the
-                // remainder *is* the form.  Re-running `deref_form` over it
-                // would strip a second sigil that belongs to the name itself:
-                // `${$n}` reads the variable literally called `$n`,
-                // whose de-decorated text is `$n`, not `n`.  The
-                // `${…}` form's content is literal, which the flag carries so
-                // consumers do not re-normalise it either.
-                let braced = source_map.text(tok.span).starts_with("${");
-                let form = source_map.token_text(*tok);
-                let form = if braced { form } else { deref_form(form) };
-                if !form.is_empty() {
+                if let Some((form, braced)) = original_variable_reference_form(text, *tok, config) {
                     out.push((form.to_owned(), braced));
                 }
             }
@@ -680,6 +868,113 @@ mod tests {
     }
 
     #[test]
+    fn source_name_roles_preserve_literal_sigils_and_empty_names() {
+        let source = "set {$n} VALUE\nset {$n}\nset {} EMPTY\nset {}\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            analysis.body_lexer_config.unwrap(),
+        );
+        let named = original_variable_name_role_words(source, &analysis, &commands[1]);
+        assert!(named.iter().any(|word| word.role == ArgRole::VarRead
+            && word.word == "$n"
+            && word.base_name() == "$n"));
+        let empty = original_variable_name_role_words(source, &analysis, &commands[3]);
+        assert!(
+            empty
+                .iter()
+                .any(|word| word.role == ArgRole::VarRead && word.word.is_empty())
+        );
+        assert!(
+            original_variable_name_role_words("set changed VALUE\n", &analysis, &commands[1])
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_source_replacement_does_not_inherit_builtin_variable_read_roles() {
+        let source = "proc set {args} {return LITERAL}\nset k\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            analysis.body_lexer_config.unwrap(),
+        )
+        .pop()
+        .unwrap();
+        assert!(original_variable_name_role_words(source, &analysis, &command).is_empty());
+    }
+
+    #[test]
+    fn lexical_and_standalone_role_results_have_distinct_cache_entries() {
+        let registry = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        assert_eq!(
+            scanner.scan_standalone_word("[set {}]", &registry),
+            BTreeSet::from([String::new()])
+        );
+        assert!(scanner.scan_lexical_word("[set {}]", &registry).is_empty());
+        assert_eq!(
+            scanner.scan_standalone_word("[set {}]", &registry),
+            BTreeSet::from([String::new()])
+        );
+    }
+
+    #[test]
+    fn original_array_index_components_include_nested_variable_reads() {
+        let registry = default_registry();
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut scanner = VarReferenceScanner::with_config(
+                VarScanOptions::default(),
+                LexerConfig::for_dialect(dialect),
+            );
+            assert_eq!(
+                scanner.scan_word("$a($b($k))", &registry),
+                BTreeSet::from(["a".to_owned(), "b".to_owned(), "k".to_owned()])
+            );
+            assert_eq!(
+                scanner.scan_word("$a([pick $k])", &registry),
+                BTreeSet::from(["a".to_owned(), "k".to_owned()])
+            );
+        }
+    }
+
+    #[test]
+    fn a_braced_variable_name_does_not_substitute_its_index_text() {
+        let registry = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        assert_eq!(
+            scanner.scan_word("${a($k)}", &registry),
+            BTreeSet::from(["a".to_owned()])
+        );
+    }
+
+    #[test]
+    fn original_empty_variable_names_remain_present_reads() {
+        let registry = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        assert_eq!(
+            scanner.scan_word("${}", &registry),
+            BTreeSet::from([String::new()])
+        );
+        assert!(scanner.scan_word("literal", &registry).is_empty());
+    }
+
+    #[test]
+    fn index_words_do_not_infer_receiver_roles_from_a_written_head() {
+        let registry = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions {
+            include_var_read_roles: true,
+            ..VarScanOptions::default()
+        });
+        assert_eq!(
+            scanner.scan_word("$a([set k])", &registry),
+            BTreeSet::from(["a".to_owned()])
+        );
+    }
+
+    #[test]
     fn scan_simple_var() {
         let reg = default_registry();
         let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
@@ -743,7 +1038,10 @@ mod tests {
             command_subst_texts_cfg("foo [bar $x] baz"),
             vec!["bar $x".to_owned()]
         );
-        assert!(command_subst_texts_cfg("no subst here").is_empty());
+        assert_eq!(
+            command_subst_texts_cfg("no subst here"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -946,6 +1244,8 @@ mod tests {
                 "$a".to_owned(),
                 true,
                 LexerConfig::default().nested().normalized(),
+                false,
+                None,
             )),
             "oldest entry should be evicted"
         );
@@ -956,7 +1256,7 @@ mod tests {
         let reg = default_registry();
         let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
         let vars = scanner.scan_word("", &reg);
-        assert!(vars.is_empty());
+        assert_eq!(vars.len(), 0);
     }
 
     #[test]
@@ -964,7 +1264,7 @@ mod tests {
         let reg = default_registry();
         let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
         let vars = scanner.scan_word("hello world", &reg);
-        assert!(vars.is_empty());
+        assert_eq!(vars.len(), 0);
     }
 
     #[test]
@@ -974,7 +1274,7 @@ mod tests {
         scanner.scan_word("$x", &reg);
         assert_eq!(scanner.cache.len(), 1);
         scanner.clear_cache();
-        assert!(scanner.cache.is_empty());
+        assert_eq!(scanner.cache.len(), 0);
     }
 
     #[test]
@@ -988,5 +1288,49 @@ mod tests {
         };
         let vars = vars_in_expr(&expr, tcl_dialect::LexerGrammar::default());
         assert!(vars.contains("x"));
+    }
+}
+
+#[cfg(test)]
+mod original_reference_form_tests {
+    use super::*;
+
+    #[test]
+    fn original_reference_forms_preserve_selected_closers_arrays_empty_and_literal_names() {
+        for (dialect, spelling, expected) in [
+            ("tcl8.4", "${a{b}c}", "a{b"),
+            ("tcl9.0", "${a{b}c}", "a{b}c"),
+            ("tcl9.0", "${a{b}}", "a{b}"),
+            ("tcl8.6", "${$n}", "$n"),
+            ("tcl8.6", "${}", ""),
+            ("tcl8.6", "$array($index)", "array($index)"),
+        ] {
+            let config = LexerConfig::for_dialect(dialect);
+            let token = Lexer::with_config(spelling, config)
+                .tokenise_all()
+                .unwrap()
+                .into_iter()
+                .find(|token| token.kind == TokenType::Var)
+                .unwrap();
+            let (form, _) = original_variable_reference_form(spelling, token, config).unwrap();
+            assert_eq!(form, expected, "{dialect}: {spelling}");
+            assert_eq!(
+                scan_var_ref_forms_braced_with_config(spelling, config)[0].0,
+                expected
+            );
+            let mut changed = token;
+            changed.content_offset = 0;
+            assert!(original_variable_reference_form(spelling, changed, config).is_none());
+            changed = token;
+            changed.span = Span::new(token.span.start(), token.span.end() - 1);
+            assert!(original_variable_reference_form(spelling, changed, config).is_none());
+        }
+        let source = "${a{b}c}";
+        let old = LexerConfig::for_dialect("tcl8.4");
+        let token = Lexer::with_config(source, old).tokenise_all().unwrap()[0];
+        assert!(
+            original_variable_reference_form(source, token, LexerConfig::for_dialect("tcl9.0"))
+                .is_none()
+        );
     }
 }

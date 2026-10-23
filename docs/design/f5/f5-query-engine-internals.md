@@ -59,9 +59,8 @@ module:
    `Vec<Value>`.  Assignment nodes emit `EditOp` into
    `ctx.edits.ops` rather than mutating in place.
 5. **Apply + render** — `runner::run_query` applies the edit
-   plan to each source's text via `edit_plan::apply`, re-parses
-   the rewritten text, and hands the values + sources to
-   `output::render`.
+   plan to each source's text via `edit_plan::apply` and hands the
+   values + sources to `output::render`.
 
 Multi-statement queries (`a ; b ; c`) loop over statements; each
 statement sees the edits applied by the previous one.
@@ -126,10 +125,9 @@ statement sees the edits applied by the previous one.
                                           stdout / files
 ```
 
-The reparse step inside `edit_plan::apply` (not shown — it round-
-trips `new_source` through `parse_bigip_conf` to validate) is
-what makes mutation safe: the engine never ships output a fresh
-parse couldn't read back in.
+The runner rebuilds the BIG-IP root from the current source before each
+statement, so later statements see preceding edits. `edit_plan::apply`
+returns rewritten bytes without a final output-validation reparse.
 
 ## Module-by-module reference
 
@@ -552,11 +550,14 @@ Two surfaces with different output guarantees:
   the public-key PEM), plus the deterministic projections `x509_eq` and
   `x509_from_config`. The `--enable-probes` gating error is also
   byte-for-byte. **These pure helpers are not gated.**
-- **Faithful but not golden.** The live probes — `dns`, `rev_dns`, `ping`,
-  `portping`, `traceroute`, `socket_get`, `tls_handshake`, and the `url_*`
-  HTTP family. They do real I/O in the reference output shape, but nothing
-  asserts them byte-for-byte against live results, because the test
-  environment has no reliable network.
+- **Live I/O, not golden-tested.** The implemented probes — `dns`,
+  `rev_dns`, `ping`, `portping`, `traceroute`, `socket_get`, and
+  `tls_handshake` — perform I/O, but tests do not assert byte-for-byte live
+  results because the test environment has no reliable network.
+- **Declared, but not implemented.** The `url_*` HTTP family is accepted by
+  the DSL and gated as a probe, but its backend makes no request and returns a
+  fixed unsupported-result shape (null status/peer certificate, empty body,
+  and an explanatory error).
 
 #### Gating
 
@@ -566,9 +567,10 @@ explicitly:
 - `probes_enabled: bool` — the `--enable-probes` gate. Every live probe
   opens with `require_probes(name, ctx.probes_enabled)?`, which raises the
   one fixed gating message before touching the network.
-- `ca_bundle: Option<String>` — an optional CA path overriding the system
-  trust store for `url_*` and `tls_handshake`. `None` falls back to the
-  system roots.
+- `ca_bundle: Option<String>` — an optional CA path used by the implemented
+  `tls_handshake` probe to override the system trust store; `None` falls back
+  to system roots. The `url_*` placeholder currently ignores this value; it is
+  part of the future HTTP request design.
 
 Because both live on the context rather than in process-global state,
 concurrent query runs cannot interfere with each other, and a caller
@@ -587,9 +589,10 @@ so. Only `reason.fatal` means the data is genuinely unavailable.
 
 #### HTTP
 
-`probes/http.rs` performs the `url_*` requests and captures the peer
-certificate off the same connection, so reading the chain never costs a
-second round-trip.
+The intended `url_*` design is to perform an HTTP request and capture the
+peer certificate from that same connection. That is future behaviour: the
+current `probes/http.rs` backend performs no I/O and returns the fixed
+unsupported-result shape described above.
 
 ### `inputs.rs` — External input parsers
 
@@ -635,12 +638,12 @@ builtins in `builtins/inputs_load.rs`, and the
   2. Apply identity-field renames (`name`, `full-path`) through
      `rewrite.rs`, which touches every reference site, not just the
      stanza header.
-  3. Apply the field-level edits sorted by `(start_offset, end_offset)`
-     descending, so a later splice never shifts a span an earlier one
-     still needs.
+  3. Sort field-level edits by `(start_offset, end_offset)` ascending,
+     reject overlapping spans, then construct new text from unchanged
+     source slices and replacement text. Source offsets remain unchanged.
 
-  After splicing it re-parses through `parse_bigip_conf` to validate.
-  Malformed output aborts with the offending edit named in the error.
+  The result is returned as rewritten bytes; `apply` does not reparse
+  the output to validate it.
 
 The `name` / `full-path` pair is what dispatches between the
 identity-rename branch and the field-edit branch.
@@ -661,12 +664,10 @@ of later edits.  Split the work across statements with `;`.
               │  EditOp (name)  │                          ▼
               ├─────────────────┤                 ┌─────────────────┐
               │     ops         ├── 3 ─────────►  │  rewritten      │
-              │  EditOp (field) │  splice in      │  bytes          │
-              │  EditOp (field) │  reverse offset └────────┬────────┘
-              │  EditOp (field) │  order                   │
-              └─────────────────┘                          ▼
-                                                  parse_bigip_conf()
-                                                           │
+              │  EditOp (field) │  reconstruct    │  bytes          │
+              │  EditOp (field) │  in ascending   └────────┬────────┘
+              │  EditOp (field) │  offset order            │
+              └─────────────────┘                          │
                                                            ▼
                                                   ┌─────────────────┐
                                                   │ AppliedSource   │
@@ -676,9 +677,9 @@ of later edits.  Split the work across statements with `;`.
                                                   └─────────────────┘
 ```
 
-Sort key for step 3 is `(start_offset, end_offset)` *descending*
-so each splice writes into bytes downstream of every span the
-later splices still need to find.
+Sort key for step 3 is `(start_offset, end_offset)` ascending. Overlap
+checks precede reconstruction; each unchanged slice comes from the original
+source, so replacement lengths cannot shift a later edit's input span.
 
 ### `output.rs` — Renderers
 
@@ -879,14 +880,13 @@ same connection either way.
    `rewrite.rs`, which touches every reference site, not just the stanza
    header.
 4. Sorts the remaining field-level edits by `(start_offset, end_offset)`
-   *descending*, so a later splice never shifts a byte span an earlier one
-   still needs.
-5. Splices each op into the source bytes.
-6. Re-parses the spliced source through `parse_bigip_conf` — malformed
-   output aborts with the offending edit named in the error.
+   ascending and rejects overlapping spans.
+5. Constructs new text from unchanged source slices and replacement text,
+   preserving input offsets independently of replacement lengths.
 
-The reparse in step 6 is what makes mutating queries safe: the engine never
-ships output that a fresh `parse_bigip_conf` could not read back in.
+`apply` returns the rewritten bytes without reparsing them. The runner
+parses the current source when it builds the root for a subsequent statement;
+this is separate from output validation.
 
 Mixing a `PrefixRewrite` with non-identity field edits in the *same*
 statement is rejected, because the rewrite shifts the byte offsets the

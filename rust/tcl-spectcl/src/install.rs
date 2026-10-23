@@ -60,6 +60,11 @@ use tcl_registry::spec::CommandSpec;
 /// registry, which keeps "no packs configured" exactly as cheap as it was
 /// before packs existed.
 ///
+/// Either way the registry carries the compiled-in surface of the core family
+/// `profile`'s environment runs on (Jim's own commands for a `jim` profile),
+/// with a non-empty set's commands indexed over it
+/// ([`tcl_registry::model::profile_store_with_overlay`]).
+///
 /// Returned as an owning handle. This is the pack-carrying axis, so this is
 /// exactly the registry that must be *retirable*: hold the handle for as long
 /// as you are reading from it and drop it when you are done, and the
@@ -83,7 +88,7 @@ pub fn registry_with_packs(
     // context takes that same lock to reach the un-overlaid store — doing
     // it inside the closure deadlocks.
     let context = tcl_registry::model::ingress::static_document_context_for_profile(profile);
-    tcl_registry::registry_for_profile_with_overlay(profile, packs.key, |registry| {
+    tcl_registry::model::profile_store_with_overlay(profile, packs.key, |registry| {
         install_into(registry, packs, context);
     })
 }
@@ -121,8 +126,7 @@ pub fn registry_for_dialect_with_packs(dialect: &str, packs: &PackSet) -> Arc<Co
 /// is), four of them declare a `report_timing`, and a registry that took the
 /// first one would answer a Vivado document with Cadence's spec — which then
 /// fails its own package gate and resolves to nothing at all. Filtering on the
-/// way in leaves each profile the library set
-/// `CommandRegistry::load_eda_packs` used to give it.
+/// way in selects the supplied profile's own ambient library set.
 ///
 /// Hosted packages (`Tk`, tcllib, a private pack's own `package require`) are
 /// never affected: they are ambient in no profile, so the gate passes them.
@@ -170,9 +174,16 @@ fn install_into(
                     Some(shipped) => {
                         let mut merged = specialised.clone();
                         SecurityFloor::of(shipped).apply(&mut merged);
+                        keep_shipped_compilers(&mut merged, shipped);
                         merged
                     }
-                    None => specialised.clone(),
+                    None => {
+                        let mut added = specialised.clone();
+                        added.native_compilation = added
+                            .native_compilation
+                            .or_else(|| added_command_compiler(&added, registry));
+                        added
+                    }
                 };
                 let installed: &'static CommandSpec = Box::leak(Box::new(installed));
                 registry.insert_static(installed);
@@ -188,6 +199,63 @@ fn install_into(
             }
         }
     }
+}
+
+/// An `-override` describes the shipped command itself: the interpreter's
+/// command, and so the compile procedure C registered for it and each of
+/// its subcommands, is unchanged by a pack's description of it. A pack never
+/// authors a native compiler (the loader refuses that contract); the shipped
+/// one is kept wherever the override has none.
+fn keep_shipped_compilers(merged: &mut CommandSpec, shipped: &CommandSpec) {
+    merged.native_compilation = merged.native_compilation.or(shipped.native_compilation);
+    let shipped_compiler = |name: &str| {
+        shipped
+            .subcommands
+            .iter()
+            .find(|sub| sub.name == name)
+            .and_then(|sub| sub.native_compilation)
+    };
+    if merged
+        .subcommands
+        .iter()
+        .any(|sub| sub.native_compilation.is_none() && shipped_compiler(sub.name).is_some())
+    {
+        let subcommands: Vec<_> = merged
+            .subcommands
+            .iter()
+            .map(|sub| {
+                let mut sub = sub.clone();
+                sub.native_compilation = sub.native_compilation.or(shipped_compiler(sub.name));
+                sub
+            })
+            .collect();
+        merged.subcommands = Box::leak(subcommands.into_boxed_slice());
+    }
+}
+
+/// The compile procedure a fresh interpreter holds for a command a pack adds.
+/// A command an extension or a `proc` creates has none (`Tcl_CreateObjCommand`
+/// registers no `compileProc`), so it compiles as a generic invocation. An
+/// `alias_of` carrying an admitted bundled codegen stamp is specialised as its
+/// target (the VM checks the alias hop), so it takes the target's compiler
+/// from the registry it is installed into; without the stamp it is an alias
+/// command, which no compile procedure compiles either.
+fn added_command_compiler(
+    added: &CommandSpec,
+    registry: &CommandRegistry,
+) -> Option<tcl_registry::native_compilation::NativeCompilationSpec> {
+    if let Some(target) = added.alias_of
+        && crate::stamps::carries_stamp(added)
+    {
+        return registry
+            .get(target)
+            .and_then(|target| target.native_compilation);
+    }
+    Some(tcl_registry::native_compilation::NativeCompilationSpec {
+        grammar: tcl_registry::native_compilation::NativeCompilationGrammar::NoHook,
+        operation: tcl_registry::SemanticOperationId::Invoke,
+        body: tcl_registry::native_compilation::NativeBodyCompilation::Inherit,
+    })
 }
 
 /// Whether `command` left the load as its gates would have it: a codegen-axis
@@ -338,6 +406,75 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// A pack describes commands; it never authors their compilers. What a
+    /// fresh interpreter with the pack loaded compiles each with is derived:
+    /// an override is the shipped command, so it keeps the shipped compile
+    /// procedure; a command the pack adds (a `proc` or an extension's
+    /// `Tcl_CreateObjCommand`) has none, so it is a generic invocation; and an
+    /// alias with no admitted stamp is an alias command, which none compiles.
+    #[test]
+    fn pack_rows_take_the_compilers_a_fresh_interpreter_holds() {
+        use tcl_registry::native_compilation::NativeCompilationGrammar;
+        let _cache = cache_guard();
+        let dir = tmpdir("compilers");
+        let packs = pack_set(
+            &dir,
+            "rows.tclspec",
+            "speclib rows 1 {\n  \
+             command llength -override {\n    arity 1\n    arg 0 -role Value\n  }\n  \
+             command rows::added {\n    arity 1\n    arg 0 -role Value\n  }\n  \
+             command rows::unpack {\n    arity 1..\n    alias_of lassign\n  }\n\
+             }\n",
+        );
+        let shipped = tcl_registry::model::static_context_for("tcl8.6").commands();
+        let registry = registry_for_dialect_with_packs("tcl8.6", &packs);
+        let row = |name: &str| registry.get(name).expect(name).native_compilation;
+        assert_eq!(
+            row("llength"),
+            shipped.get("llength").unwrap().native_compilation,
+            "an override keeps the shipped compiler"
+        );
+        assert!(row("llength").is_some());
+        for added in ["rows::added", "rows::unpack"] {
+            assert_eq!(
+                row(added).map(|spec| spec.grammar),
+                Some(NativeCompilationGrammar::NoHook),
+                "{added}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// An alias whose bundled stamp the tier admits is specialised as its
+    /// target, so its row takes the target's compiler from the registry it
+    /// is installed into.
+    #[test]
+    fn an_admitted_alias_stamp_takes_its_targets_compiler() {
+        let _cache = cache_guard();
+        let specs = tmpdir("alias-compiler").join("specs");
+        std::fs::create_dir_all(&specs).expect("specs dir");
+        std::fs::write(
+            specs.join("vendor.tclspec"),
+            "speclib vendor 2.0 {\n  command vendor::unpack {\n    arity 1..\n    \
+             arg 0 -role Value\n    arg 1 -role VarWrite\n    alias_of lassign\n    \
+             codegen_hook -native Lassign\n  }\n}\n",
+        )
+        .expect("write pack");
+        let set = crate::bundled::load_from(&specs);
+        let registry = crate::bundled::registry_for_dialect_from("tcl9.0", &set);
+        let unpack = registry.get("vendor::unpack").expect("installed");
+        assert!(
+            unpack.codegen_hook.is_some(),
+            "the bundled stamp is admitted"
+        );
+        assert_eq!(
+            unpack.native_compilation,
+            registry.get("lassign").unwrap().native_compilation
+        );
+        assert!(unpack.native_compilation.is_some());
+        let _ = std::fs::remove_dir_all(specs.parent().unwrap());
+    }
+
     #[test]
     fn the_same_pack_set_resolves_to_the_same_registry() {
         let _cache = cache_guard();
@@ -430,14 +567,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// A pack whose entire content is `ambient_package` rows still installs.
-    ///
-    /// `PackSet::is_empty` decides whether `registry_with_packs` short-
-    /// circuits, and it used to ask only whether any pack declared a
-    /// *command*. A metadata-only pack answered "empty", the overlay was
-    /// never built, and the floor it declared vanished with no notice —
-    /// the silent-drop class, arriving by the one route the loader's own
-    /// notices cannot cover because the loader read the row perfectly well.
+    /// Metadata-only ambient-package packs participate in the registry overlay.
     #[test]
     fn a_pack_of_nothing_but_ambient_rows_still_reaches_the_registry() {
         let _cache = cache_guard();

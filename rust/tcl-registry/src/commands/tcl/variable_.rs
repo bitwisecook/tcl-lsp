@@ -20,7 +20,7 @@
 
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
-use crate::state_transition::{AliasWords, local_alias_name};
+use crate::state_transition::{AliasWords, VariableAliasNamePurpose, local_alias_name};
 use tcl_dialect::model::Family;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::surface;
@@ -31,7 +31,9 @@ const VARIABLE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
 ];
 
 const VARIABLE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(variable_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -55,9 +57,19 @@ fn variable_state_transitions(arguments: InvocationArguments<'_>) -> StateTransi
         let Some(variable) = TransitionSubject::from_argument(arguments, argument_index) else {
             continue;
         };
+        let Some(local) = local_alias_name(
+            &variable,
+            argument_index,
+            VariableAliasNamePurpose::NamespaceVariable,
+            arguments.dialect(),
+        ) else {
+            continue;
+        };
         transitions.push(StateTransition::VariableCellAlias(
             VariableCellAliasTransition {
-                local: local_alias_name(&variable),
+                destination:
+                    crate::state_transition::VariableAliasDestination::CurrentNamespaceOrLocal,
+                local,
                 target: VariableAliasTarget::CurrentNamespace { variable },
                 writes_value: argument_index + 1 < arguments.len(),
                 words: AliasWords::same(argument_index),
@@ -136,6 +148,18 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::strided(ArgRole::Va
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "variable",
+        // The actual procedure compiler interleaves namespace links and stores.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceVariableBindings,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        // Namespace link establishment and optional stores use the same
+        // literal operand targets on a successful generic or compiled entry.
+        // This contract does not resolve the release-specific compiler hook.
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::VariableOperands,
+        ),
         runtime_backing: RuntimeBacking::shipped("variable"),
         // Present and unrestricted: iRules enables `variable`, so it carries
         // an iRules row explicitly (`ALL_TCL.union(IRULES)`) and resolves

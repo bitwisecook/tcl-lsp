@@ -22,7 +22,21 @@ fn procedure(environment: &str, source: &str, name: &str) -> FunctionAsm {
     let module = BytecodeCompileService::for_profile(profile)
         .compile_for_profile(source, profile)
         .expect("compiles");
-    module.procedures[name].clone()
+    named_procedure(&module.procedures, name).clone()
+}
+
+/// The one procedure assembly emitted under `name`; the module keys them by
+/// body identity, not by name.
+fn named_procedure<'a>(
+    procedures: &'a std::collections::HashMap<tcl_runtime_api::ProcedureId, FunctionAsm>,
+    name: &str,
+) -> &'a FunctionAsm {
+    let mut matching = procedures.values().filter(|asm| asm.name == name);
+    let asm = matching
+        .next()
+        .unwrap_or_else(|| panic!("a procedure named {name:?}"));
+    assert!(matching.next().is_none(), "ambiguous procedure {name:?}");
+    asm
 }
 
 fn invoke_of<'a>(asm: &'a FunctionAsm, text: &str, comment: &str) -> &'a Instruction {
@@ -167,14 +181,19 @@ fn a_directly_evaluated_script_marks_its_own_commands() {
         .instructions
         .iter()
         .filter(|instruction| instruction.script_command)
-        .map(|instruction| instruction.source_cmd_text.as_str())
+        .map(|instruction| {
+            instruction
+                .source_cmd_text
+                .try_text()
+                .expect("utf-8 command")
+        })
         .collect();
     assert_eq!(
         marked,
         ["set x 1", "if {$x} {puts a}", "proc p {} {puts b}"]
     );
     assert!(
-        direct.procedures["::p"]
+        named_procedure(&direct.procedures, "::p")
             .instructions
             .iter()
             .all(|instruction| !instruction.script_command),

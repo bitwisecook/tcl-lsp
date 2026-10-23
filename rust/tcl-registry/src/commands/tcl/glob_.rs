@@ -135,18 +135,25 @@ const OPTION_RELATIONS: &[OptionRelation] = &[OptionRelation::conflict(&[
 
 /// Locate every pattern in glob's tail after its declared option prefix.
 ///
-/// [`leading_option_word_count`] resolves abbreviations and reads each
-/// descriptor's value arity, so `-dir tmp`, `-di tmp`, and future
-/// value-taking options shift the tail identically for every consumer.
-fn glob_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let start = leading_option_word_count(spec().options, args);
-    (start..args.len())
-        .filter_map(|index| {
-            u8::try_from(index)
-                .ok()
-                .map(|index| (index, ArgRole::Pattern))
-        })
-        .collect()
+/// The selected option grammar resolves abbreviations and value widths.
+/// Unknown ordinary option values retain their slots; unavailable or unknown
+/// option selectors and expanded cardinality leave the layout unavailable.
+fn glob_arg_roles(
+    args: crate::InvocationArguments<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_, '_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    // naming.core.original-pattern-retained-context
+
+    let count = args.exact_argv_len()?;
+    if count > usize::from(u8::MAX) + 1 {
+        return None;
+    }
+    let start = options.leading_word_count(args)?;
+    Some(
+        (start..count)
+            .map(|index| (u8::try_from(index).expect("bounded argv"), ArgRole::Pattern))
+            .collect(),
+    )
 }
 
 /// Command spec for `glob`.
@@ -154,6 +161,12 @@ fn glob_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "glob",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("glob"),
         // `Some(SpecSurface::ALL_TCL)`, deliberately: `glob` is banned in F5
         // iRules (the TMM sandbox has no real filesystem), and that exclusion
@@ -179,7 +192,7 @@ pub fn spec() -> CommandSpec {
         // per-era requirement is documented precisely on `FORMS` above.
         arity: Arity::any(),
         pattern_type: Some(PatternType::Glob),
-        arg_role_resolver: Some(glob_arg_roles),
+        arg_role_layout_resolver: Some(glob_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Pattern],
         return_type: Some(TclType::List),
         side_effects: &[SideEffect {

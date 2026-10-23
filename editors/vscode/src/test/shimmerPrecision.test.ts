@@ -18,7 +18,12 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import {
+  getDocUri,
+  activate,
+  waitForDiagnosticsSnapshot,
+  type CurrentDiagnosticsSnapshot,
+} from "./helper";
 
 // Normalise the `code` field (string | { value } ) to a plain string.
 function codeOf(d: vscode.Diagnostic): string {
@@ -50,7 +55,7 @@ function linesWithCode(diags: vscode.Diagnostic[], code: string): number[] {
 suite("Shimmer precision (S100)", () => {
   const docUri = getDocUri("shimmerPrecision.tcl");
 
-  async function s100Diagnostics(): Promise<vscode.Diagnostic[]> {
+  async function s100Diagnostics(): Promise<CurrentDiagnosticsSnapshot> {
     await activate(docUri);
     // The settle signal for this file: once *some* S100 has landed, the deep
     // shimmer pass has run, so the absence of another S100 on the same publish
@@ -63,13 +68,17 @@ suite("Shimmer precision (S100)", () => {
     // here with the helper's diagnostic (what was awaited, how long, what was
     // last published) rather than returning a partial set for those negative
     // assertions to pass vacuously against.
-    return waitForDiagnostics(docUri, {
+    return waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "S100"),
     });
   }
 
   test("committed dict shimmered by lindex fires S100 with a tight span (true case)", async () => {
-    const diags = await s100Diagnostics();
+    const currentSnapshotFor_diags = await s100Diagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const x = diags.find((d) => codeOf(d) === "S100" && d.range.start.line === 7);
     assert.ok(x, `expected S100 on line 7 (lindex $x 0); got [${linesWithCode(diags, "S100")}]`);
     assert.strictEqual(
@@ -83,7 +92,11 @@ suite("Shimmer precision (S100)", () => {
   });
 
   test("a value already carrying a list intrep stays silent (false case)", async () => {
-    const diags = await s100Diagnostics();
+    const currentSnapshotFor_diags = await s100Diagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       !linesWithCode(diags, "S100").includes(13),
       "a clean list passed to lindex must not fire S100",
@@ -91,7 +104,11 @@ suite("Shimmer precision (S100)", () => {
   });
 
   test("shimmer is detected through an interp alias to a shimmering builtin (true case)", async () => {
-    const diags = await s100Diagnostics();
+    const currentSnapshotFor_diags = await s100Diagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       linesWithCode(diags, "S100").includes(20),
       `expected S100 through 'interp alias {} myindex {} ::lindex'; got [${linesWithCode(diags, "S100")}]`,
@@ -99,7 +116,11 @@ suite("Shimmer precision (S100)", () => {
   });
 
   test("shimmer fires inside a TclOO method body (true case)", async () => {
-    const diags = await s100Diagnostics();
+    const currentSnapshotFor_diags = await s100Diagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       linesWithCode(diags, "S100").includes(27),
       `expected S100 inside an oo::class method body; got [${linesWithCode(diags, "S100")}]`,
@@ -107,7 +128,11 @@ suite("Shimmer precision (S100)", () => {
   });
 
   test("shimmer fires inside a namespace eval body (true case)", async () => {
-    const diags = await s100Diagnostics();
+    const currentSnapshotFor_diags = await s100Diagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       linesWithCode(diags, "S100").includes(34),
       `expected S100 inside a namespace eval body; got [${linesWithCode(diags, "S100")}]`,
@@ -115,7 +140,11 @@ suite("Shimmer precision (S100)", () => {
   });
 
   test("a write-traced variable never fires shimmer (false-negative guard)", async () => {
-    const diags = await s100Diagnostics();
+    const currentSnapshotFor_diags = await s100Diagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       !linesWithCode(diags, "S100").includes(42),
       "a write-traced variable must widen to overdefined and stay silent",
@@ -123,7 +152,11 @@ suite("Shimmer precision (S100)", () => {
   });
 
   test("a matching noqa directive suppresses S100 (true suppression)", async () => {
-    const diags = await s100Diagnostics();
+    const currentSnapshotFor_diags = await s100Diagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       !linesWithCode(diags, "S100").includes(49),
       "'# noqa: S100' on the preceding line must suppress the diagnostic",
@@ -131,7 +164,11 @@ suite("Shimmer precision (S100)", () => {
   });
 
   test("a mismatched noqa directive does not suppress S100 (false-suppression guard)", async () => {
-    const diags = await s100Diagnostics();
+    const currentSnapshotFor_diags = await s100Diagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       linesWithCode(diags, "S100").includes(56),
       "'# noqa: W100' must not suppress an unrelated S100",
@@ -149,19 +186,23 @@ suite("Shimmer precision (S100)", () => {
 suite("Shimmer pure-literal suppression (issue #940)", () => {
   const docUri = getDocUri("issue940Shimmer.tcl");
 
-  async function shimmerDiagnostics(): Promise<vscode.Diagnostic[]> {
+  async function shimmerDiagnostics(): Promise<CurrentDiagnosticsSnapshot> {
     await activate(docUri);
     // The committed-dict case on line 12 is the "analysis ran" settle signal:
     // once its S100 lands, the absence of S100/S101 on the pure-literal lines
     // is meaningful rather than a not-yet-analysed empty set.  The wait rejects
     // if it never lands.
-    return waitForDiagnostics(docUri, {
+    return waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "S100" && x.range.start.line === 12),
     });
   }
 
   test("braced list, empty {}, scalar, and dict literals do not shimmer", async () => {
-    const diags = await shimmerDiagnostics();
+    const currentSnapshotFor_diags = await shimmerDiagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     for (const line of [4, 6, 8, 10]) {
       assert.ok(
         !linesWithCode(diags, "S100").includes(line) &&
@@ -175,7 +216,11 @@ suite("Shimmer pure-literal suppression (issue #940)", () => {
   });
 
   test("a committed container still shimmers (true-positive control)", async () => {
-    const diags = await shimmerDiagnostics();
+    const currentSnapshotFor_diags = await shimmerDiagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       linesWithCode(diags, "S100").includes(12),
       "a committed dict read as a list must still fire S100",

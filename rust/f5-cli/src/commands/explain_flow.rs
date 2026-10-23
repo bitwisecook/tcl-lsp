@@ -714,17 +714,45 @@ fn last_segment(path: &str) -> &str {
 /// config-agnostic [`tcl_irule_test::simulate_irule`] (best-effort: any failure
 /// lands in [`SimOutcome::error`] so the static report still renders).
 fn simulate_session(cfg: &BigipConfig, vs: &BigipVirtualServer, session: &Session) -> SimOutcome {
-    // Collect every attached iRule's source, resolving short refs.
-    let sources: Vec<String> = vs
+    // Configuration identity is part of procedure ownership. Load unattached
+    // rules as libraries, retaining their command tables but not their events.
+    let attached: Vec<_> = vs
         .rules
         .paths()
         .iter()
-        .filter_map(|rref| {
-            let resolved = resolve_name(cfg, rref, "rules").unwrap_or_else(|| rref.clone());
-            find_rule(cfg, &resolved).map(|rule| rule.source.clone())
+        .filter_map(|reference| {
+            let resolved = resolve_name(cfg, reference, "rules")?;
+            let rule = find_rule(cfg, &resolved)?;
+            let identity = tcl_irule_test::RuleIdentity::new(rule.full_path.clone()).ok()?;
+            Some(tcl_irule_test::RuleSource::named(
+                identity,
+                rule.source.clone(),
+            ))
         })
         .collect();
-    if sources.is_empty() {
+    let mut sources: Vec<_> = cfg
+        .objects
+        .iter()
+        .filter_map(|placed| {
+            let ModelObject::Rule(rule) = &placed.object else {
+                return None;
+            };
+            let identity = tcl_irule_test::RuleIdentity::new(rule.full_path.clone()).ok()?;
+            if attached
+                .iter()
+                .any(|source| source.identity.as_ref() == Some(&identity))
+            {
+                return None;
+            }
+            Some(tcl_irule_test::RuleSource::library(
+                identity,
+                rule.source.clone(),
+            ))
+        })
+        .collect();
+    let has_attached = !attached.is_empty();
+    sources.extend(attached);
+    if !has_attached {
         return SimOutcome {
             error: String::from("no iRules attached to VS — nothing to simulate"),
             ..SimOutcome::default()
@@ -762,7 +790,7 @@ fn simulate_session(cfg: &BigipConfig, vs: &BigipVirtualServer, session: &Sessio
         headers: front.http_request_headers.clone(),
     };
 
-    tcl_irule_test::simulate_irule(&sources, &profiles, &pools, Some(&request))
+    tcl_irule_test::simulate_rules(&sources, &profiles, &pools, Some(&request))
 }
 
 #[allow(

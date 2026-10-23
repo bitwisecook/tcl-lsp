@@ -33,7 +33,6 @@ import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.LightVirtualFile
 
 /**
@@ -69,23 +68,24 @@ internal data class ExplorerProjection(
                 JsonParser.parseString(Gson().toJson(result)).asJsonObject
             }.getOrNull() ?: return null
             if (json.has("error") && !json.get("error").isJsonNull) return null
-            val text = json.get("text")?.takeIf { it.isJsonPrimitive }?.asString ?: return null
+            val text = json.get("text")
+                ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString ?: return null
             val lines = json.getAsJsonArray("lines")?.map { element ->
                 if (!element.isJsonObject) return@map null
                 val o = element.asJsonObject
-                runCatching {
-                    ExplorerRange(
-                        startLine = o.int("startLine"),
-                        startColUtf16 = o.int("startColUtf16"),
-                        endLine = o.int("endLine"),
-                        endColUtf16 = o.int("endColUtf16"),
-                    )
-                }.getOrNull()
+                ExplorerRange(
+                    startLine = o.int("startLine") ?: return@map null,
+                    startColUtf16 = o.int("startColUtf16") ?: return@map null,
+                    endLine = o.int("endLine") ?: return@map null,
+                    endColUtf16 = o.int("endColUtf16") ?: return@map null,
+                )
             } ?: emptyList()
             return ExplorerProjection(text, lines)
         }
 
-        private fun JsonObject.int(key: String): Int = get(key).asInt
+        private fun JsonObject.int(key: String): Int? = get(key)
+            ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
+            ?.asJsonPrimitive?.asString?.toIntOrNull()
     }
 }
 
@@ -103,11 +103,35 @@ internal class ExplorerProjections(private val project: Project) {
 
     /** Live panes, keyed by view id, so re-opening replaces rather than stacks. */
     private val open = mutableMapOf<String, Pane>()
+    private data class RequestLease(val owner: Any, val generation: Long)
+    private val latestRequest = mutableMapOf<String, RequestLease>()
+    private val requestLock = Any()
+    private var nextRequestGeneration = 0L
+
+    /** Begin a monotonically versioned render request for one view. Called on EDT. */
+    fun beginRequest(view: String, owner: Any): Long = synchronized(requestLock) {
+        val generation = ++nextRequestGeneration
+        latestRequest[view] = RequestLease(owner, generation)
+        generation
+    }
+
+    /** Whether this exact panel request still owns publication for [view]. */
+    fun isCurrentRequest(view: String, owner: Any, generation: Long): Boolean =
+        synchronized(requestLock) { latestRequest[view] == RequestLease(owner, generation) }
+
+    /** Revoke only outstanding requests owned by a disposed panel. */
+    fun cancelRequests(owner: Any) {
+        synchronized(requestLock) {
+            latestRequest.entries.removeIf { it.value.owner === owner }
+        }
+    }
 
     private class Pane(
         val file: LightVirtualFile,
         var projection: ExplorerProjection,
-        var origin: VirtualFile?,
+        var sourceSnapshot: CompilerExplorerSourceSnapshot?,
+        var requestOwner: Any,
+        var requestGeneration: Long,
     ) {
         /** The caret hook currently attached, so re-opening replaces it rather than stacking. */
         var caretHook: Pair<Editor, CaretListener>? = null
@@ -122,18 +146,23 @@ internal class ExplorerProjections(private val project: Project) {
         label: String,
         view: String,
         projection: ExplorerProjection,
-        origin: VirtualFile?,
+        sourceSnapshot: CompilerExplorerSourceSnapshot?,
+        owner: Any,
+        requestGeneration: Long,
     ) {
+        if (!isCurrentRequest(view, owner, requestGeneration)) return
         val pane = open.getOrPut(view) {
             // `.txt` rather than a Tcl extension: a projection is a rendered
             // tree, not Tcl, and typing it as Tcl would attach the language
             // server to a buffer that is not a program.
             val file = LightVirtualFile("$label.txt", projection.text)
             file.isWritable = false
-            Pane(file, projection, origin)
+            Pane(file, projection, sourceSnapshot, owner, requestGeneration)
         }
         pane.projection = projection
-        pane.origin = origin
+        pane.sourceSnapshot = sourceSnapshot
+        pane.requestOwner = owner
+        pane.requestGeneration = requestGeneration
         refreshText(pane, projection.text)
 
         val editor = FileEditorManager.getInstance(project)
@@ -146,9 +175,10 @@ internal class ExplorerProjections(private val project: Project) {
         pane.caretHook?.let { (previous, hook) ->
             if (!previous.isDisposed) previous.caretModel.removeCaretListener(hook)
         }
+        val attachedGeneration = pane.requestGeneration
         val hook = object : CaretListener {
             override fun caretPositionChanged(event: CaretEvent) {
-                navigate(view, event.newPosition.line)
+                navigate(view, attachedGeneration, event.newPosition.line)
             }
         }
         editor.caretModel.addCaretListener(hook)
@@ -181,27 +211,37 @@ internal class ExplorerProjections(private val project: Project) {
     }
 
     /** Reveal the source span the pane's [line] points at. */
-    private fun navigate(view: String, line: Int) {
+    private fun navigate(view: String, requestGeneration: Long, line: Int) {
         val pane = open[view] ?: return
+        if (pane.requestGeneration != requestGeneration ||
+            !isCurrentRequest(view, pane.requestOwner, requestGeneration)) return
         val range = pane.projection.lines.getOrNull(line) ?: return
-        val origin = pane.origin ?: return
-        val document = FileDocumentManager.getInstance().getDocument(origin) ?: return
+        val snapshot = pane.sourceSnapshot ?: return
+        if (!snapshot.isCurrent()) return
+        val document = snapshot.document
         val editors = EditorFactory.getInstance().getEditors(document, project)
         // Reveal without stealing focus: arrowing down a projection should walk
         // the source alongside it, not tear the caret away on every keypress.
         val target = editors.firstOrNull()
             ?: FileEditorManager.getInstance(project)
-                .openTextEditor(OpenFileDescriptor(project, origin), false)
+                .openTextEditor(OpenFileDescriptor(project, snapshot.file), false)
             ?: return
-        val start = target.logicalPositionToOffset(
-            com.intellij.openapi.editor.LogicalPosition(range.startLine, range.startColUtf16),
-        )
-        val end = target.logicalPositionToOffset(
-            com.intellij.openapi.editor.LogicalPosition(range.endLine, range.endColUtf16),
-        )
-        if (start < 0 || end > target.document.textLength || start > end) return
-        target.selectionModel.setSelection(start, end)
-        target.scrollingModel.scrollTo(target.offsetToLogicalPosition(start), ScrollType.CENTER_UP)
+        if (
+            pane.requestGeneration != requestGeneration ||
+            !isCurrentRequest(view, pane.requestOwner, requestGeneration) ||
+            pane.sourceSnapshot !== snapshot ||
+            target.document !== snapshot.document ||
+            !snapshot.isCurrent()
+        ) return
+        val offsets = strictExplorerSourceOffsets(document, range) ?: return
+        val (start, end) = offsets
+        synchronized(requestLock) {
+            if (latestRequest[view] != RequestLease(pane.requestOwner, requestGeneration)) return@synchronized
+            if (pane.requestGeneration != requestGeneration || pane.sourceSnapshot !== snapshot ||
+                target.document !== snapshot.document || !snapshot.isCurrent()) return@synchronized
+            target.selectionModel.setSelection(start, end)
+            target.scrollingModel.scrollTo(target.offsetToLogicalPosition(start), ScrollType.CENTER_UP)
+        }
     }
 
     companion object {

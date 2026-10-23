@@ -46,7 +46,9 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 use tcl_core_types::DiagCode;
-use tcl_irules::extract_irules_event_handlers;
+use tcl_irules::{
+    IrulesEventHandler, OriginalIrulesSourceContext, extract_original_irules_event_handlers,
+};
 use tcl_lexer::LineIndex;
 use tcl_registry::base_objects::base_object_identities;
 use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults};
@@ -448,9 +450,12 @@ fn check_virtual_rules(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
 }
 
 /// BIGIP6012: two or more iRules attached to a virtual server handle the same
-/// event at the same effective priority.
-fn check_virtual_rule_priority_conflicts(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
-    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+/// authored event and priority under the selected Registry policy.
+fn check_virtual_rule_priority_conflicts(
+    view: &ModelView<'_>,
+    event_handlers: &BTreeMap<String, Vec<IrulesEventHandler>>,
+    out: &mut Vec<ConfigDiagnostic>,
+) {
     for (_path, vs) in view.virtual_servers.iter() {
         let mut handlers: BTreeMap<(String, u16), BTreeSet<String>> = BTreeMap::new();
         for rule_ref in vs.rules.paths() {
@@ -461,9 +466,9 @@ fn check_virtual_rule_priority_conflicts(view: &ModelView<'_>, out: &mut Vec<Con
             let Some(rule) = view.rules.get(&resolved) else {
                 continue;
             };
-            for handler in extract_irules_event_handlers(&rule.source, registry) {
+            for handler in event_handlers.get(&resolved).into_iter().flatten() {
                 handlers
-                    .entry((handler.event, handler.priority))
+                    .entry((handler.event.clone(), handler.priority))
                     .or_default()
                     .insert(rule.full_path.clone());
             }
@@ -481,8 +486,8 @@ fn check_virtual_rule_priority_conflicts(view: &ModelView<'_>, out: &mut Vec<Con
             out.push(ConfigDiagnostic {
                 code: DiagCode::Bigip6012.as_str().to_owned(),
                 message: format!(
-                    "Virtual server '{}' attaches iRules {names} which all handle event \
-                     '{event}' at priority {priority}; execution order between them is ambiguous.",
+                    "Virtual server '{}' attaches iRules {names} which declare event \
+                     '{event}' at the same authored priority {priority}; use distinct priorities to specify ordering.",
                     vs.name
                 ),
                 severity: DiagSeverity::Warning,
@@ -577,13 +582,14 @@ fn registry_profile_name(profile: ProfileType) -> &'static str {
     }
 }
 
-/// BIGIP6038: every attached iRule handler must be reachable through the
-/// registry's full event-to-profile graph. This subsumes the old HTTP/SSL-only
-/// namespace heuristic without hardcoding an event or command family.
-fn check_virtual_event_profile_graph(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
+/// BIGIP6038: compare authored handlers with Registry event-profile requirements.
+fn check_virtual_event_profile_graph(
+    view: &ModelView<'_>,
+    event_handlers: &BTreeMap<String, Vec<IrulesEventHandler>>,
+    out: &mut Vec<ConfigDiagnostic>,
+) {
     let event_registry = tcl_registry::events::EventRegistry::build();
     let profiles = tcl_registry::profiles::ProfileRegistry::build();
-    let command_registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     for (_path, vs) in view.virtual_servers.iter() {
         let profile_types = profile_types_for_virtual(view, vs);
         let mut active: Vec<&str> = profile_types
@@ -650,7 +656,7 @@ fn check_virtual_event_profile_graph(view: &ModelView<'_>, out: &mut Vec<ConfigD
             let Some(rule) = view.rules.get(&resolved) else {
                 continue;
             };
-            for handler in extract_irules_event_handlers(&rule.source, command_registry) {
+            for handler in event_handlers.get(&resolved).into_iter().flatten() {
                 let Some(props) = event_registry.get_props(&handler.event) else {
                     // Unknown/dynamic event names are evidence limitations,
                     // not a profile false positive.
@@ -661,7 +667,7 @@ fn check_virtual_event_profile_graph(view: &ModelView<'_>, out: &mut Vec<ConfigD
                     out.push(ConfigDiagnostic {
                         code: DiagCode::Bigip6038.as_str().to_owned(),
                         message: format!(
-                            "Virtual server '{}' cannot reach iRule '{}' handler '{}' at effective priority {}: the event requires profile {requirements}, but active profiles are {}.",
+                            "Virtual server '{}' attaches iRule '{}' handler '{}' at authored priority {}: registry event metadata requires profile {requirements}, but configured profiles are {}.",
                             vs.name,
                             rule.name,
                             handler.event,
@@ -866,34 +872,11 @@ fn property_reference_values(property: &str, raw: &str) -> Vec<String> {
 }
 
 fn reference_candidates(reference: &str, owner: &str, default_partition: &str) -> Vec<String> {
-    let mut reference = clean_name(reference).trim().to_owned();
-    // Node and virtual-address references often include `:port`, while their
-    // declaration keys do not. Keeping this here makes the generic registry
-    // path agree with the graph resolver.
-    let path_length = if reference.matches(':').count() == 1 {
-        reference
-            .rsplit_once(':')
-            .filter(|(_, port)| port.bytes().all(|byte| byte.is_ascii_digit()))
-            .map(|(path, _)| path.len())
-    } else {
-        None
-    };
-    if let Some(path_length) = path_length {
-        reference.truncate(path_length);
-    }
-    if reference.starts_with('/') {
-        return vec![reference];
-    }
-    let partition = owner
-        .strip_prefix('/')
-        .and_then(|path| path.split('/').next())
-        .filter(|partition| !partition.is_empty())
-        .unwrap_or(default_partition.trim_matches('/'));
-    let mut candidates = vec![format!("/{partition}/{reference}")];
-    if partition != "Common" {
-        candidates.push(format!("/Common/{reference}"));
-    }
-    candidates
+    let reference = crate::object_names::reference_without_numeric_service(
+        clean_name(reference).trim(),
+        crate::object_names::EmptyServiceSuffix::Strip,
+    );
+    crate::object_names::owner_partition_reference_paths(reference, owner, default_partition)
 }
 
 /// BIGIP6013: validate every static registry-declared outbound edge that is
@@ -1124,6 +1107,18 @@ pub fn collect_profile_default_evidence(
 pub fn validate_bigip_config(config: &BigipConfig) -> Vec<ConfigDiagnostic> {
     let view = ModelView::build(config);
     let mut out: Vec<ConfigDiagnostic> = Vec::new();
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+    let event_handlers = view
+        .rules
+        .iter()
+        .map(|(path, rule)| {
+            let handlers = OriginalIrulesSourceContext::capture(&rule.source, registry)
+                .map_or_else(Vec::new, |context| {
+                    extract_original_irules_event_handlers(&rule.source, &context)
+                });
+            (path.to_owned(), handlers)
+        })
+        .collect::<BTreeMap<_, _>>();
 
     // Per-iRule checks.
     for (_path, rule) in view.rules.iter() {
@@ -1134,10 +1129,10 @@ pub fn validate_bigip_config(config: &BigipConfig) -> Vec<ConfigDiagnostic> {
 
     // Virtual-server reference checks.
     check_virtual_rules(&view, &mut out);
-    check_virtual_rule_priority_conflicts(&view, &mut out);
+    check_virtual_rule_priority_conflicts(&view, &event_handlers, &mut out);
     check_virtual_pools(&view, &mut out);
     check_virtual_profile_requirements(&view, &mut out);
-    check_virtual_event_profile_graph(&view, &mut out);
+    check_virtual_event_profile_graph(&view, &event_handlers, &mut out);
     check_virtual_persistence(&view, &mut out);
 
     // Config-wide checks.
@@ -1368,7 +1363,7 @@ mod tests {
         let finding = validate_bigip_source(source, "Common")
             .into_iter()
             .find(|diagnostic| diagnostic.code == "BIGIP6038")
-            .expect("HTTP_REQUEST is unreachable without HTTP");
+            .expect("the registry requires HTTP for this authored handler");
         assert!(finding.message.contains("HTTP_REQUEST"));
         assert!(finding.message.contains("priority 500"));
 

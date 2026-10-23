@@ -20,7 +20,7 @@
 //!
 //! The BIG-IP sibling of the Tcl `source` / `package require` document links:
 //! every object reference inside an `ltm` / `gtm` rule body, and every
-//! migrated TMSH property value that resolves to another object
+//! supported TMSH property value that resolves to another object
 //! (`pool /Common/p`, `monitor /Common/m`,
 //! `profiles { /Common/clientssl { } }`), becomes a clickable link pointing
 //! at the target object's stanza in the same file.
@@ -31,7 +31,7 @@
 //!   link; the target is `None` when the reference doesn't resolve so the
 //!   user still sees the range the scanner recognised (tooltip
 //!   "… (no definition found)").
-//! - **migrated properties** (the registry pilot value-spec dispatch,
+//! - **value-spec properties** (the registry value-spec dispatch,
 //!   [`crate::graph::pilot_references`]) — emit a link **only** when the
 //!   reference resolves, pointing at the exact reference token.
 //!
@@ -145,8 +145,7 @@ fn irule_links(
     out
 }
 
-/// Engine 2 — references on migrated TMSH properties, via the registry pilot
-/// value-spec dispatch. A link is emitted only when the reference resolves.
+/// Value-spec property links require a resolved target in the document.
 fn property_links(
     source: &str,
     nodes: &[ObjectNode],
@@ -233,7 +232,7 @@ mod tests {
     fn irule_body_unresolved_ref_emits_link_without_target() {
         let source = "ltm rule /Common/r {\nwhen HTTP_REQUEST { pool /Common/missing }\n}\n";
         let links = document_links(source);
-        assert!(!links.is_empty());
+        assert_ne!(links, [] as [crate::links::BigipLink; 0]);
         let link = links
             .iter()
             .find(|l| l.tooltip.contains("/Common/missing"))
@@ -310,12 +309,18 @@ mod tests {
     #[test]
     fn no_irule_no_property_refs_yields_no_links() {
         // A lone pool with no references contributes nothing.
-        assert!(document_links("ltm pool /Common/p { }\n").is_empty());
+        assert_eq!(
+            document_links("ltm pool /Common/p { }\n"),
+            [] as [crate::links::BigipLink; 0]
+        );
     }
 
     #[test]
     fn empty_source_is_safe() {
-        assert!(document_links("").is_empty());
-        assert!(document_links("   \n  ").is_empty());
+        assert_eq!(document_links(""), [] as [crate::links::BigipLink; 0]);
+        assert_eq!(
+            document_links("   \n  "),
+            [] as [crate::links::BigipLink; 0]
+        );
     }
 }

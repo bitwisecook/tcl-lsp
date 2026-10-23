@@ -45,6 +45,96 @@ use tcl_syntax::value::{ValueError, ValueOps};
 use crate::error::CmdError;
 use crate::prefix::OptionTable;
 
+/// Retained private `ClockClientData` objects supplied by the runtime adapter.
+pub struct FormatArgumentLiterals<V> {
+    pub format: V,
+    pub locale: V,
+    pub timezone: V,
+    pub gmt: V,
+}
+
+/// The conflict result uses the worker's retained original literal.
+pub enum FormatArgumentError {
+    Command(CmdError),
+    GmtWithTimezone,
+}
+
+impl From<CmdError> for FormatArgumentError {
+    fn from(error: CmdError) -> Self {
+        Self::Command(error)
+    }
+}
+
+impl From<tcl_syntax::value::ValueError> for FormatArgumentError {
+    fn from(error: tcl_syntax::value::ValueError) -> Self {
+        Self::Command(error.into())
+    }
+}
+
+/// C8.6's private argument worker; supplied option values remain original objects.
+///
+/// # Errors
+/// Arity, option, boolean and wide-integer conversions, then GMT/timezone conflict.
+pub fn parse_format_args<O: ValueOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    literals: &FormatArgumentLiterals<O::Value>,
+) -> Result<O::Value, FormatArgumentError> {
+    if args.is_empty() || args.len().is_multiple_of(2) {
+        return Err(CmdError::with_error_code(
+            "wrong # args: should be \"clock format clockval ?-format string? ?-gmt boolean? ?-locale LOCALE? ?-timezone ZONE?\"",
+            "CLOCK wrongNumArgs",
+        ).into());
+    }
+    let mut format = literals.format.clone();
+    let mut locale = literals.locale.clone();
+    let mut timezone = literals.timezone.clone();
+    let mut gmt = false;
+    let mut saw_gmt = false;
+    let mut saw_timezone = false;
+    let table = crate::prefix::OptionTable::abbreviating(
+        "option",
+        &["-format", "-gmt", "-locale", "-timezone"],
+    );
+    for pair in args[1..].as_chunks::<2>().0 {
+        let index = match table.index_of_original(ops, &pair[0]) {
+            Ok(index) => index,
+            Err(error) => {
+                if error.native_execution_refusal().is_some() {
+                    return Err(error.into());
+                }
+                let option = ops.native_string_bytes(&pair[0])?;
+                let option = option.split(|byte| *byte == 0).next().unwrap_or_default();
+                let mut code = b"CLOCK badOption ".to_vec();
+                tcl_syntax::list::append_list_element(&mut code, option, false);
+                let mut details = error.into_byte_details();
+                details.error_code = crate::error::CmdErrorCodeUpdate::Set(code);
+                return Err(CmdError::from_byte_details(details).into());
+            }
+        };
+        match index {
+            0 => format = pair[1].clone(),
+            1 => {
+                gmt = ops.as_bool(&pair[1])?;
+                saw_gmt = true;
+            }
+            2 => locale = pair[1].clone(),
+            _ => {
+                timezone = pair[1].clone();
+                saw_timezone = true;
+            }
+        }
+    }
+    ops.as_int(&args[0])?;
+    if saw_gmt && saw_timezone {
+        return Err(FormatArgumentError::GmtWithTimezone);
+    }
+    if gmt {
+        timezone = literals.gmt.clone();
+    }
+    Ok(ops.new_list(vec![format, locale, timezone]))
+}
+
 /// The clean integer-overflow error tclsh raises when a `clock` computation
 /// leaves the wide range (e.g. `clock add 0 9223372036854775807 weeks`). Every
 /// timestamp here is user-controlled, so the arithmetic below funnels through
@@ -84,7 +174,7 @@ where
     let Some((sub, rest)) = args.split_first() else {
         return Err(CmdError::wrong_args("clock subcommand ?arg ...?"));
     };
-    let word = ops.as_str(sub).to_string();
+    let word = ops.try_as_str(sub)?.to_string();
     // `clock` is an ensemble, so an exact name wins and a unique prefix
     // resolves (`clock se` → `seconds`); the whole miss sentence — including
     // the ensemble's comma before `or` — belongs to `crate::ensemble`.
@@ -145,7 +235,7 @@ where
         OptionTable::abbreviating("option", &["-milliseconds", "-microseconds"]);
     let val = match rest {
         [] => now.micros,
-        [opt] => match SWITCHES.index_of_cmd(ops.as_str(opt).as_bytes())? {
+        [opt] => match SWITCHES.index_of_cmd(ops.try_as_str(opt)?.as_bytes())? {
             0 => now.millis,
             _ => now.micros,
         },
@@ -262,7 +352,7 @@ where
         if op == ClockOp::Add && ops.as_int(&rest[i]).is_ok() {
             continue;
         }
-        let word = ops.as_str(&rest[i]).to_string();
+        let word = ops.try_as_str(&rest[i])?.to_string();
         let bad_msg = || {
             bad_option(
                 format!("bad option \"{word}\": must be {}", op.choices()),
@@ -284,7 +374,7 @@ where
         let value = &rest[i + 1];
         match index {
             OPT_FORMAT if op == ClockOp::Add => return Err(bad_msg()),
-            OPT_FORMAT => args.format = Some(ops.as_str(value).to_string()),
+            OPT_FORMAT => args.format = Some(ops.try_as_str(value)?.to_string()),
             OPT_GMT => args.gmt = ops.as_bool(value)?,
             OPT_BASE => base = Some(i + 1),
             OPT_VALIDATE if op != ClockOp::Scan => return Err(bad_msg()),
@@ -312,7 +402,7 @@ fn read_seconds<O, V>(ops: &mut O, value: &V, now: i64) -> Result<i64, CmdError>
 where
     O: ValueOps<Value = V>,
 {
-    let word = ops.as_str(value).to_string();
+    let word = ops.try_as_str(value)?.to_string();
     match ops.as_int(value) {
         Ok(secs) if (-MAX_SECONDS..=MAX_SECONDS).contains(&secs) => Ok(secs),
         Ok(_) | Err(ValueError::IntegerOverflow) => {
@@ -439,7 +529,7 @@ where
         let Ok(count) = ops.as_int(&rest[i]) else {
             continue;
         };
-        let unit = unit_under(&ops.as_str(&rest[i + 1]), release)?;
+        let unit = unit_under(&ops.try_as_str(&rest[i + 1])?, release)?;
         if !(-unit.max_count()..=unit.max_count()).contains(&count) {
             return Err(overflow());
         }
@@ -557,7 +647,7 @@ where
     O: ValueOps<Value = V>,
 {
     let args = parse_args(ops, rest, ClockOp::Scan, now.secs)?;
-    let input = ops.as_str(&rest[0]).to_string();
+    let input = ops.try_as_str(&rest[0])?.to_string();
     // Free-form (natural-language) scanning is not implemented; `-format` only.
     let Some(fmt) = args.format else {
         return Err(CmdError::new("free-form clock scan is not yet supported"));
@@ -1119,8 +1209,11 @@ mod tests {
         );
         for (input, fmt) in [("xyz", "%Y"), ("Foo", "%b")] {
             let err = parse_with_format(input, fmt).unwrap_err();
-            assert_eq!(err.message(), "input string does not match supplied format");
-            assert_eq!(err.error_code(), Some("CLOCK badInputString"));
+            assert_eq!(
+                err.message().unwrap(),
+                "input string does not match supplied format"
+            );
+            assert_eq!(err.error_code().unwrap(), Some("CLOCK badInputString"));
         }
     }
 
@@ -1167,26 +1260,30 @@ mod tests {
         assert_eq!(
             add_units(0, i64::MAX, Unit::Weeks, true, &off)
                 .unwrap_err()
-                .message(),
+                .message()
+                .unwrap(),
             msg
         );
         assert_eq!(
             add_units(i64::MAX, 1, Unit::Seconds, true, &off)
                 .unwrap_err()
-                .message(),
+                .message()
+                .unwrap(),
             msg
         );
         // Calendar months/years go through the i128 month tally + civil clamp.
         assert_eq!(
             add_units(0, i64::MAX, Unit::Months, true, &off)
                 .unwrap_err()
-                .message(),
+                .message()
+                .unwrap(),
             msg
         );
         assert_eq!(
             add_units(0, i64::MAX, Unit::Years, true, &off)
                 .unwrap_err()
-                .message(),
+                .message()
+                .unwrap(),
             msg
         );
         // A non-overflowing add still works on the i128 path.
@@ -1204,7 +1301,10 @@ mod tests {
             assert!(unit_under(word, TclVersion::V9_0).is_ok(), "{word}");
         }
         let ambiguous = unit_under("w", TclVersion::V9_1).expect_err("w is ambiguous");
-        assert_eq!(ambiguous.error_code(), Some("TCL LOOKUP INDEX unit w"));
+        assert_eq!(
+            ambiguous.error_code().unwrap(),
+            Some("TCL LOOKUP INDEX unit w")
+        );
         for release in [TclVersion::V8_5, TclVersion::V8_6] {
             for word in ["day", "days", "month", "weeks", "second"] {
                 assert!(unit_under(word, release).is_ok(), "{word} {release:?}");
@@ -1212,13 +1312,13 @@ mod tests {
             for word in ["d", "mo", "weekdays", "w"] {
                 let error = unit_under(word, release).expect_err(word);
                 assert_eq!(
-                    error.message(),
+                    error.message().unwrap(),
                     format!(
                         "unknown unit \"{word}\", must be  years, months, weeks, days, hours, minutes or seconds"
                     )
                 );
                 assert_eq!(
-                    error.error_code(),
+                    error.error_code().unwrap(),
                     Some(format!("CLOCK badUnit {word}").as_str())
                 );
             }
@@ -1241,10 +1341,542 @@ mod tests {
         // accumulator — `read_uint` returns the clean overflow error.
         let mut ip = 0;
         let err = read_uint(b"9999999999999999999", &mut ip, 19).unwrap_err();
-        assert_eq!(err.message(), "integer value too large to represent");
-        assert_eq!(err.error_code(), Some("CLOCK dateTooLarge"));
+        assert_eq!(
+            err.message().unwrap(),
+            "integer value too large to represent"
+        );
+        assert_eq!(err.error_code().unwrap(), Some("CLOCK dateTooLarge"));
         // In-range values still parse.
         let mut ip = 0;
         assert_eq!(read_uint(b"2023", &mut ip, 4).unwrap(), 2023);
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct C86CalendarFields {
+    pub seconds: i64,
+    pub local_seconds: i64,
+    pub tz_offset: i32,
+    pub julian_day: i32,
+    pub gregorian: i32,
+    pub bce: bool,
+    pub year: i32,
+    pub day_of_year: i32,
+    pub month: i32,
+    pub day_of_month: i32,
+    pub iso8601_year: i32,
+    pub iso8601_week: i32,
+    pub day_of_week: i32,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct C86Date {
+    jday: i32,
+    bce: bool,
+    gregorian: bool,
+    year: i32,
+    day: i32,
+    month: i32,
+    month_day: i32,
+    iso_year: i32,
+    iso_week: i32,
+    weekday: i32,
+}
+
+type C86CalendarResult<T> = Result<T, tcl_syntax::value::ValueError>;
+
+fn c86_calendar_unavailable() -> tcl_syntax::value::ValueError {
+    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+        "unproved C86 GetDateFields arithmetic extent",
+    )
+}
+fn c86_add(a: i32, b: i32) -> C86CalendarResult<i32> {
+    a.checked_add(b).ok_or_else(c86_calendar_unavailable)
+}
+fn c86_sub(a: i32, b: i32) -> C86CalendarResult<i32> {
+    a.checked_sub(b).ok_or_else(c86_calendar_unavailable)
+}
+fn c86_mul(a: i32, b: i32) -> C86CalendarResult<i32> {
+    a.checked_mul(b).ok_or_else(c86_calendar_unavailable)
+}
+
+fn c86_era_year_day(fields: &mut C86Date, changeover: i32) -> C86CalendarResult<()> {
+    let mut year = 1;
+    let mut day;
+    if fields.jday >= changeover {
+        fields.gregorian = true;
+        day = c86_sub(fields.jday, 1_721_426)?;
+        let mut n = day / 146_097;
+        day %= 146_097;
+        if day < 0 {
+            day = c86_add(day, 146_097)?;
+            n = c86_sub(n, 1)?;
+        }
+        year = c86_add(year, c86_mul(400, n)?)?;
+        n = day / 36_524;
+        day %= 36_524;
+        if n > 3 {
+            n = 3;
+            day = c86_add(day, 36_524)?;
+        }
+        year = c86_add(year, c86_mul(100, n)?)?;
+    } else {
+        fields.gregorian = false;
+        day = c86_sub(fields.jday, 1_721_424)?;
+    }
+    let mut n = day / 1_461;
+    day %= 1_461;
+    if day < 0 {
+        day = c86_add(day, 1_461)?;
+        n = c86_sub(n, 1)?;
+    }
+    year = c86_add(year, c86_mul(4, n)?)?;
+    n = day / 365;
+    day %= 365;
+    if n > 3 {
+        n = 3;
+        day = c86_add(day, 365)?;
+    }
+    year = c86_add(year, n)?;
+    fields.bce = year <= 0;
+    fields.year = if fields.bce { c86_sub(1, year)? } else { year };
+    fields.day = c86_add(day, 1)?;
+    Ok(())
+}
+
+fn c86_leap(fields: &C86Date) -> C86CalendarResult<bool> {
+    let year = if fields.bce {
+        c86_sub(1, fields.year)?
+    } else {
+        fields.year
+    };
+    Ok(year % 4 == 0 && (!fields.gregorian || year % 400 == 0 || year % 100 != 0))
+}
+
+fn c86_month_day(fields: &mut C86Date) -> C86CalendarResult<()> {
+    const LENGTHS: [[i32; 12]; 2] = [
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
+        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
+    ];
+    let lengths = &LENGTHS[usize::from(c86_leap(fields)?)];
+    let mut day = fields.day;
+    let mut month = 0;
+    while month < 12 && day > lengths[month] {
+        day = c86_sub(day, lengths[month])?;
+        month += 1;
+    }
+    if month >= 12 || day < 1 {
+        return Err(c86_calendar_unavailable());
+    }
+    fields.month = i32::try_from(month + 1).map_err(|_| c86_calendar_unavailable())?;
+    fields.month_day = day;
+    Ok(())
+}
+
+fn c86_month_day_to_jday(fields: &mut C86Date, changeover: i32) -> C86CalendarResult<()> {
+    const PRIOR: [[i32; 13]; 2] = [
+        [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365],
+        [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366],
+    ];
+    let mut year = if fields.bce {
+        c86_sub(1, fields.year)?
+    } else {
+        fields.year
+    };
+    let mm1 = c86_sub(fields.month, 1)?;
+    let mut q = mm1 / 12;
+    let mut r = mm1 % 12;
+    if r < 0 {
+        r = c86_add(r, 12)?;
+        q = c86_sub(q, 1)?;
+    }
+    year = c86_add(year, q)?;
+    let month = c86_add(r, 1)?;
+    let ym1 = c86_sub(year, 1)?;
+    fields.gregorian = true;
+    fields.bce = year < 1;
+    fields.year = if fields.bce { c86_sub(1, year)? } else { year };
+    // C's negative-quarter workaround evaluates -ym1 as a signed int first.
+    let mut q4 = if ym1 >= 0 {
+        ym1 / 4
+    } else {
+        let positive = ym1.checked_neg().ok_or_else(c86_calendar_unavailable)?;
+        -(positive / 4)
+    };
+    if ym1 % 4 < 0 {
+        q4 = c86_sub(q4, 1)?;
+    }
+    let mut q100 = ym1 / 100;
+    if ym1 % 100 < 0 {
+        q100 = c86_sub(q100, 1)?;
+    }
+    let mut q400 = ym1 / 400;
+    if ym1 % 400 < 0 {
+        q400 = c86_sub(q400, 1)?;
+    }
+    let index = usize::try_from(c86_sub(month, 1)?).map_err(|_| c86_calendar_unavailable())?;
+    let gregorian_prior = PRIOR[usize::from(c86_leap(fields)?)][index];
+    let mut jday = c86_sub(1_721_426, 1)?;
+    jday = c86_add(jday, fields.month_day)?;
+    jday = c86_add(jday, gregorian_prior)?;
+    jday = c86_add(jday, c86_mul(365, ym1)?)?;
+    jday = c86_add(jday, q4)?;
+    jday = c86_sub(jday, q100)?;
+    jday = c86_add(jday, q400)?;
+    if jday < changeover {
+        fields.gregorian = false;
+        jday = c86_sub(1_721_424, 1)?;
+        jday = c86_add(jday, fields.month_day)?;
+        jday = c86_add(jday, PRIOR[usize::from(year % 4 == 0)][index])?;
+        jday = c86_add(jday, c86_mul(365, ym1)?)?;
+        jday = c86_add(jday, q4)?;
+    }
+    fields.jday = jday;
+    Ok(())
+}
+
+fn c86_weekday_on_or_before(weekday: i32, jday: i32) -> C86CalendarResult<i32> {
+    let mut k = c86_add(weekday, 6)? % 7;
+    if k < 0 {
+        k = c86_add(k, 7)?;
+    }
+    c86_sub(jday, c86_sub(jday, k)? % 7)
+}
+
+fn c86_iso_to_jday(fields: &mut C86Date, changeover: i32) -> C86CalendarResult<()> {
+    let mut first_week = C86Date {
+        bce: fields.bce,
+        year: fields.iso_year,
+        month: 1,
+        month_day: 4,
+        ..Default::default()
+    };
+    c86_month_day_to_jday(&mut first_week, changeover)?;
+    let monday = c86_weekday_on_or_before(1, first_week.jday)?;
+    let jday = c86_add(monday, c86_mul(7, c86_sub(fields.iso_week, 1)?)?)?;
+    fields.jday = c86_sub(c86_add(jday, fields.weekday)?, 1)?;
+    Ok(())
+}
+
+fn c86_year_week_day(fields: &mut C86Date, changeover: i32) -> C86CalendarResult<()> {
+    let mut temp = C86Date {
+        jday: c86_sub(fields.jday, 3)?,
+        ..Default::default()
+    };
+    c86_era_year_day(&mut temp, changeover)?;
+    temp.iso_year = if temp.bce {
+        c86_sub(temp.year, 1)?
+    } else {
+        c86_add(temp.year, 1)?
+    };
+    temp.iso_week = 1;
+    temp.weekday = 1;
+    c86_iso_to_jday(&mut temp, changeover)?;
+    if fields.jday < temp.jday {
+        temp.iso_year = if temp.bce {
+            c86_add(temp.iso_year, 1)?
+        } else {
+            c86_sub(temp.iso_year, 1)?
+        };
+        c86_iso_to_jday(&mut temp, changeover)?;
+    }
+    fields.iso_year = temp.iso_year;
+    let fiscal_day = c86_sub(fields.jday, temp.jday)?;
+    fields.iso_week = c86_add(fiscal_day / 7, 1)?;
+    fields.weekday = c86_add(fiscal_day, 1)? % 7;
+    if fields.weekday < 1 {
+        fields.weekday = c86_add(fields.weekday, 7)?;
+    }
+    Ok(())
+}
+
+/// Numeric calendar fields only; supplies no getters, objects, host timezone or admission.
+pub fn c86_calendar_fields(
+    seconds: i64,
+    offset: i32,
+    changeover: i32,
+) -> C86CalendarResult<C86CalendarFields> {
+    let local_seconds = seconds
+        .checked_add(i64::from(offset))
+        .ok_or_else(c86_calendar_unavailable)?;
+    let quotient = local_seconds / 86_400;
+    let floored = quotient
+        .checked_sub(i64::from(local_seconds % 86_400 < 0))
+        .ok_or_else(c86_calendar_unavailable)?;
+    let jday = floored
+        .checked_add(2_440_588)
+        .ok_or_else(c86_calendar_unavailable)?;
+    let mut date = C86Date {
+        jday: i32::try_from(jday).map_err(|_| c86_calendar_unavailable())?,
+        ..Default::default()
+    };
+    c86_era_year_day(&mut date, changeover)?;
+    c86_month_day(&mut date)?;
+    c86_year_week_day(&mut date, changeover)?;
+    Ok(C86CalendarFields {
+        seconds,
+        local_seconds,
+        tz_offset: offset,
+        julian_day: date.jday,
+        gregorian: i32::from(date.gregorian),
+        bce: date.bce,
+        year: date.year,
+        day_of_year: date.day,
+        month: date.month,
+        day_of_month: date.month_day,
+        iso8601_year: date.iso_year,
+        iso8601_week: date.iso_week,
+        day_of_week: date.weekday,
+    })
+}
+
+/// Original C86 Dict keys, in the worker's insertion order.
+pub const C86_DATE_FIELD_KEYS: [&[u8]; 14] = [
+    b"localSeconds",
+    b"seconds",
+    b"tzName",
+    b"tzOffset",
+    b"julianDay",
+    b"gregorian",
+    b"era",
+    b"year",
+    b"dayOfYear",
+    b"month",
+    b"dayOfMonth",
+    b"iso8601Year",
+    b"iso8601Week",
+    b"dayOfWeek",
+];
+
+pub struct DateFieldLiterals<V> {
+    pub keys: [V; 14],
+    pub ce: V,
+    pub bce: V,
+}
+
+pub enum C86DateValue<V> {
+    Wide(i64),
+    Int(i32),
+    Original(V),
+}
+
+/// Numeric constructors and original children retain distinct native roles.
+pub fn c86_date_values<V: Clone>(
+    fields: &C86CalendarFields,
+    name: &V,
+    literals: &DateFieldLiterals<V>,
+) -> [C86DateValue<V>; 14] {
+    use C86DateValue::{Int, Original, Wide};
+    [
+        Wide(fields.local_seconds),
+        Wide(fields.seconds),
+        Original(name.clone()),
+        Int(fields.tz_offset),
+        Int(fields.julian_day),
+        Int(fields.gregorian),
+        Original(if fields.bce {
+            literals.bce.clone()
+        } else {
+            literals.ce.clone()
+        }),
+        Int(fields.year),
+        Int(fields.day_of_year),
+        Int(fields.month),
+        Int(fields.day_of_month),
+        Int(fields.iso8601_year),
+        Int(fields.iso8601_week),
+        Int(fields.day_of_week),
+    ]
+}
+
+/// A reached original-object purpose; neutral List/Dict operations do not supply it.
+pub trait NativeClockDateOps {
+    type Value: Clone;
+    type List;
+    fn date_check(&self) -> Result<(), tcl_syntax::value::ValueError>;
+    fn date_wide(&mut self, value: &Self::Value) -> Result<i64, tcl_syntax::value::ValueError>;
+    fn date_int(&mut self, value: &Self::Value) -> Result<i32, tcl_syntax::value::ValueError>;
+    fn date_is_bignum(
+        &mut self,
+        value: &Self::Value,
+    ) -> Result<bool, tcl_syntax::value::ValueError>;
+    fn date_elements(
+        &mut self,
+        value: &Self::Value,
+    ) -> Result<Self::List, tcl_syntax::value::ValueError>;
+    fn date_len(&self, list: &Self::List) -> Result<usize, tcl_syntax::value::ValueError>;
+    fn date_child(
+        &mut self,
+        list: &Self::List,
+        index: usize,
+    ) -> Result<Self::Value, tcl_syntax::value::ValueError>;
+    fn date_index_zero(
+        &mut self,
+        value: &Self::Value,
+    ) -> Result<Self::Value, tcl_syntax::value::ValueError>;
+    fn date_result(
+        &mut self,
+        fields: &C86CalendarFields,
+        name: &Self::Value,
+    ) -> Result<Self::Value, CmdError>;
+}
+
+pub enum DateFieldError {
+    Command(CmdError),
+    BignumSeconds,
+}
+impl From<CmdError> for DateFieldError {
+    fn from(error: CmdError) -> Self {
+        Self::Command(error)
+    }
+}
+impl From<tcl_syntax::value::ValueError> for DateFieldError {
+    fn from(error: tcl_syntax::value::ValueError) -> Self {
+        Self::Command(error.into())
+    }
+}
+
+fn reached_date<O: NativeClockDateOps, T>(
+    ops: &O,
+    result: Result<T, tcl_syntax::value::ValueError>,
+) -> Result<T, DateFieldError> {
+    ops.date_check()?;
+    Ok(result?)
+}
+
+fn date_transition<O: NativeClockDateOps>(
+    ops: &mut O,
+    table: &O::List,
+    index: usize,
+) -> Result<i64, DateFieldError> {
+    let result = ops.date_child(table, index);
+    let row = reached_date(ops, result)?;
+    let result = ops.date_index_zero(&row);
+    let cell = reached_date(ops, result)?;
+    let result = ops.date_wide(&cell);
+    reached_date(ops, result)
+}
+
+/// Parse original seconds/changeover/table in the actual C86 worker order.
+/// Empty-table C localtime and unsafe native arithmetic/storage extents refuse.
+pub fn get_date_fields<O: NativeClockDateOps>(
+    ops: &mut O,
+    args: &[O::Value],
+) -> Result<O::Value, DateFieldError> {
+    use tcl_syntax::value::ValueError;
+    ops.date_check()?;
+    if args.len() != 3 {
+        return Err(
+            CmdError::wrong_args("::tcl::clock::GetDateFields seconds tzdata changeover").into(),
+        );
+    }
+    let result = ops.date_wide(&args[0]);
+    let seconds = reached_date(ops, result)?;
+    let result = ops.date_int(&args[2]);
+    let changeover = reached_date(ops, result)?;
+    let result = ops.date_is_bignum(&args[0]);
+    if reached_date(ops, result)? {
+        return Err(DateFieldError::BignumSeconds);
+    }
+    let result = ops.date_elements(&args[1]);
+    let table = reached_date(ops, result)?;
+    let result = ops.date_len(&table);
+    let rows = reached_date(ops, result)?;
+    if rows == 0 {
+        return Err(
+            ValueError::CommandProtocolUnavailable("native C86 localtime conversion").into(),
+        );
+    }
+    let rows = i32::try_from(rows)
+        .map_err(|_| ValueError::CommandProtocolUnavailable("C86 timezone row-count extent"))?;
+    let first = date_transition(ops, &table, 0)?;
+    let mut lower = 0_i32;
+    if seconds >= first {
+        let mut upper = rows - 1;
+        while lower < upper {
+            let middle = lower
+                .checked_add(upper)
+                .and_then(|sum| sum.checked_add(1))
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "C86 transition-search arithmetic extent",
+                ))?
+                / 2;
+            let tick = date_transition(ops, &table, middle as usize)?;
+            if seconds >= tick {
+                lower = middle;
+            } else {
+                upper = middle - 1;
+            }
+        }
+    }
+    let result = ops.date_child(&table, lower as usize);
+    let selected = reached_date(ops, result)?;
+    let result = ops.date_elements(&selected);
+    let row = reached_date(ops, result)?;
+    let result = ops.date_child(&row, 1);
+    let offset_value = reached_date(ops, result)?;
+    let result = ops.date_int(&offset_value);
+    let offset = reached_date(ops, result)?;
+    let result = ops.date_child(&row, 3);
+    let name = reached_date(ops, result)?;
+    let fields = c86_calendar_fields(seconds, offset, changeover)?;
+    ops.date_check()?;
+    let result = ops.date_result(&fields, &name);
+    ops.date_check()?;
+    result.map_err(Into::into)
+}
+
+#[cfg(test)]
+mod c86_calendar_tests {
+    use super::*;
+
+    #[test]
+    fn retained_c86_numeric_calendar_rows() {
+        let protocol =
+            tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
+        let literals = DateFieldLiterals {
+            keys: C86_DATE_FIELD_KEYS.map(Vec::from),
+            ce: b"CE".to_vec(),
+            bce: b"BCE".to_vec(),
+        };
+        let mut compared = 0;
+        for row in include_str!("../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/get-date-fields-question/capture-01/8.6.18/values/stdout.txt").lines() {
+            if !row.starts_with("ROW ") { continue; }
+            let words = tcl_syntax::list::split_native_list_bytes(row.as_bytes(), protocol).unwrap();
+            if words[3].as_ref() != b"0" || words[1].as_ref() == b"empty-tzdata" { continue; }
+            let expected = tcl_syntax::list::split_native_list_bytes(&words[5], protocol).unwrap().into_iter().map(|word| word.into_owned()).collect::<Vec<_>>();
+            let value = |key: &[u8]| expected.chunks_exact(2).find(|pair| pair[0] == key).unwrap()[1].clone();
+            let integer = |key: &[u8]| std::str::from_utf8(&value(key)).unwrap().parse::<i64>().unwrap();
+            let changeover = match words[1].as_ref() {
+                b"julian-calendar" => i32::MAX,
+                b"gregorian-forced" => 0,
+                b"changeover-before" | b"changeover-at" => 2299161,
+                b"changeover-unsigned" => -1,
+                _ => 2361222,
+            };
+            let fields = c86_calendar_fields(integer(b"seconds"), i32::try_from(integer(b"tzOffset")).unwrap(), changeover).unwrap();
+            let actual = C86_DATE_FIELD_KEYS.into_iter().zip(c86_date_values(&fields,&value(b"tzName"),&literals))
+                .flat_map(|(key, role)| {
+                    let bytes = match role {
+                        C86DateValue::Wide(number) => number.to_string().into_bytes(),
+                        C86DateValue::Int(number) => number.to_string().into_bytes(),
+                        C86DateValue::Original(bytes) => bytes,
+                    };
+                    [key.to_vec(), bytes]
+                }).collect::<Vec<_>>();
+            assert_eq!(actual, expected, "{}", row);
+            compared += 1;
+        }
+        assert_eq!(compared, 16);
+    }
+
+    #[test]
+    fn unmeasured_native_calendar_overflow_refuses() {
+        for (seconds, offset) in [(i64::MAX, 1), (i64::MAX, 0)] {
+            assert!(matches!(
+                c86_calendar_fields(seconds, offset, 2361222),
+                Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(_))
+            ));
+        }
     }
 }

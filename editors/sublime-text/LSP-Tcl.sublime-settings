@@ -46,7 +46,7 @@
         "monitor": "entity.name.tag.monitor.lsp",
         "profile": "entity.name.tag.profile.lsp",
         "vlan": "entity.name.tag.vlan.lsp",
-        "interface": "entity.name.tag.interface.lsp",
+        "bigipInterface": "entity.name.tag.interface.lsp",
         // Regex sub-token types
         "regexpGroup": "punctuation.section.group.regexp.lsp",
         "regexpCharClass": "constant.other.character-class.regexp.lsp",

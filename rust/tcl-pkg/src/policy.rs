@@ -596,7 +596,7 @@ mod tests {
             "[sandbox]\nfail-closed = true\n",
         );
         assert!(cfg.sandbox.fail_closed);
-        assert!(warns.is_empty());
+        assert_eq!(warns.len(), 0);
     }
 
     #[test]

@@ -70,12 +70,14 @@ ensemble commands the registry declares subcommands for, or bare
 subcommand word was itself substituted. Every row carries total call sites,
 the value-vs-statement split, repository breadth (out of 21), the modal arity
 (ties broken towards the smaller arity), whether the call sites' *arguments*
-were literal or substituted, and `in_registry` — whether the literal name
-resolves in `tcl-registry` at all. A `false` row names a proc the corpus
-itself defines (ticklecharts' `setdef`, Vivado's `get_property`, tcltest's
-`test`, TclOO body-context keywords such as `method`) — out of scope for
-direct emission, since the compiler routes those through ordinary proc-call
-or TclOO member dispatch.
+were literal or substituted, and `in_registry` — whether the literal spelling
+is a command in `tcl-registry`. A `false` row only reports non-membership in
+that registry at the census input; it does not prove the spelling resolved to
+a source procedure, that the shown occurrence selected that definition, or
+that its body was entered. Some lexical occurrences are source-procedure calls
+(including the examples shown in the census), while others may be unresolved
+or context-dependent. The roster is a prioritisation inventory, not call
+binding evidence or an execution profile.
 
 The committed run covers 3,015 files (~43 MiB): 500,818 literal-head call
 sites, 401,209 at 1,966 registry-command forms and 99,609 at 10,544
@@ -190,15 +192,19 @@ breakdown in the CSV):
 | `info` | 2,482 | 29 | `script` 1,754/21, `level` 251/9, `commands` 103/7, `exists` 90/6, `hostname` 43/3, `body` 35/6, `nameofexecutable` 34/5, `coroutine` 33/3, `class` 31/3 |
 | `clock` | 730 | 9 | `format` 251/9, `seconds` 210/9, `scan` 157/6, `milliseconds` 59/7 |
 
-`file`'s breakdown is the sharpest illustration of why this matters for
-codegen: `join`/`dirname`/`tail`/`normalize`/`rootname`/`extension`/
-`split`/`root` (10,288 of 11,086 calls, ~93%) are **pure string
-manipulation of a path** — no filesystem touched — while the other ~7%
-(`delete` 292, `mkdir` 133, `copy` 101, `size` 37, `attributes` 35,
-`mtime` 26, `exists` 24, and two dozen smaller subcommands, 798 calls in
-total) genuinely need `Host::filesystem()`. One `file` row in a naive
-"top commands" table would hide that the large majority of real `file`
-calls are as cheap to compile directly as `string range`.
+`file`'s breakdown is a useful reminder to distinguish path-text operations
+from host-dependent behaviour, but not every path operation is independent of
+host state. For example, the VM's `file normalize` implementation obtains
+`vm.host().env().cwd()` and uses it to anchor a relative path
+(`rust/tcl-vm/src/cmd_file.rs`). That path is lexical normalisation rather
+than filesystem canonicalisation, but its relative result still depends on the
+selected host's working directory. The compiler's static evaluator deliberately
+returns no answer for a relative `file normalize` input; it folds already
+anchored paths without consulting the analysis process cwd
+(`rust/tcl-compiler/src/auto_path_eval.rs`). Operations that inspect or mutate
+the filesystem additionally require the selected `Host::filesystem()`
+provider. The census counts spellings and arguments only; it does not establish
+which implementation or host effects apply at a call site.
 
 ## 4. What the WASM backend emits directly
 
@@ -212,7 +218,7 @@ lowering receives no analysis facts: `try_emit_typed_statement` returns
 `false` and every resolved call goes through `emit_command`. The direct
 forms below need the `LegacyAnalysisSpecialisation` pass enabled
 (`--codegen-passes`), the opt-in analysis tier that
-[wasm-native-lowering-plan.md](wasm-native-lowering-plan.md) describes. With
+[wasm-native-lowering.md](wasm-native-lowering.md) describes. With
 it on, `try_emit_typed_statement` handles:
 
 - **`set NAME LITERAL`** (`Statement::AssignConst` whose span is in the
@@ -247,12 +253,12 @@ bounded by the host, not by compiler work (the WASI-versus-browser matrix is
 in [wasm-target-surfaces.md](wasm-target-surfaces.md); the registry↔runtime
 dispatch backing is [`docs/generated/wasm-command-backing.md`](../../generated/wasm-command-backing.md)):
 
-| Reason | Forms | Fixable by more compiler work? |
+| Current backend limitation | Forms | Required host capability |
 |---|---|---|
-| Needs a real channel or filesystem (WASI-only; `BrowserHost` has none today) | `puts` (non-default channel), `open`/`close`/`read`/`gets`/`eof`/`flush`/`fconfigure`/`seek`, `file exists`/`delete`/`mkdir`/`copy`/`rename`, `glob`, `cd`, `pwd` | Yes when targeting WASI; requires channel or filesystem support from a browser host |
-| Needs the package/library system and the `MemFs` stdlib seed | `source`, `package require`/`provide`/`ifneeded` | Partially — `WasiHost` already seeds `MemFs`; `BrowserHost` does not yet (wasm-target-surfaces.md §3) |
-| Explicit "not supported under the WASM runtime" stub on both hosts | `exec`, `socket`, `load`/`unload`, `fileevent`, `fcopy` | No for `exec`, `socket`, `fileevent`, and `fcopy` — no sandboxed meaning, not a missing feature. `load` is host work rather than compiler work: a C extension is recompiled against the authored `tcl.h` and hosted through a host opt-in `load` bridge, never binary-loaded ([../runtime/c-extension-abi.md](../runtime/c-extension-abi.md), [registry-consumer-contracts.md](registry-consumer-contracts.md) § *C Tcl extensions*) |
-| Compiles but is not functionally correct on the browser target | `after`/`vwait`/event loop (no real sleep primitive), `clock` (epoch-0 stub on both hosts) | No — needs a JS-side host import (clock, and an async/shared-memory sleep primitive), not compiler work |
+| Needs a real channel or filesystem (WASI-only; `BrowserHost` has none) | `puts` (non-default channel), `open`/`close`/`read`/`gets`/`eof`/`flush`/`fconfigure`/`seek`, `file exists`/`delete`/`mkdir`/`copy`/`rename`, `glob`, `cd`, `pwd` | WASI channel/filesystem capability; a bare BrowserHost supplies neither |
+| Needs the package/library system and the `MemFs` stdlib seed | `source`, `package require`/`provide`/`ifneeded` | `WasiHost` seeds `MemFs`; `BrowserHost` does not (wasm-target-surfaces.md §3) |
+| Explicit "not supported under the WASM runtime" stub on both hosts | `exec`, `socket`, `load`/`unload`, `fileevent`, `fcopy` | No sandboxed implementation is supplied |
+| Compiles but is not functionally correct on the browser target | `after`/`vwait`/event loop (no real sleep primitive), `clock` (epoch-0 stub on both hosts) | JS-side clock and async/shared-memory sleep imports |
 
 ## Related
 

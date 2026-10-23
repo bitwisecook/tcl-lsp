@@ -16,35 +16,71 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `lseq` — the arithmetic-sequence generator, over the
-//! shared [`tcl_cmd_core::lseq`] core. Supports
-//! every form (`lseq 5`, `lseq 1 to 10 by 2`, `lseq 0 0.5 by 0.1`) over its
-//! `i64`+`double` number model — the same core the WASM runtime drives over
-//! its bignum tower. The adapter only constructs the element list over the
-//! VM's `ValueOps`.
+//! Native numeric sequence arguments and result generation over the shared core.
 
-use tcl_runtime_api::Completion;
-
-use tcl_cmd_core::lseq;
-
+use crate::command::{completion_from_cmd_error, native_wrong_args};
 use crate::interp::{Vm, ok};
 use crate::value::Value;
+use tcl_cmd_core::lseq::{self, LseqError};
+use tcl_runtime_api::Completion;
 
-/// Register `lseq`.
+/// Register the native numeric sequence command.
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("lseq", cmd_lseq);
+    vm.register_stock_builtin("lseq", cmd_lseq);
 }
 
 fn cmd_lseq(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    // Snapshot each arg's string rep so the byte slices the core sees don't
-    // borrow through the values.
-    let bytes: Vec<Vec<u8>> = args
+    let bytes = args.iter().map(Value::string_bytes).collect::<Vec<_>>();
+    let refs = bytes
         .iter()
-        .map(|v| v.to_str().as_bytes().to_vec())
-        .collect();
-    let refs: Vec<&[u8]> = bytes.iter().map(Vec::as_slice).collect();
-    match lseq::decode(&refs).and_then(|plan| lseq::generate(vm, &plan)) {
-        Ok(v) => ok(v),
-        Err(e) => vm.cmd_error(e),
+        .map(std::convert::AsRef::as_ref)
+        .collect::<Vec<_>>();
+    let plan = match lseq::decode(&refs) {
+        Ok(plan) => plan,
+        Err(LseqError::WrongArguments) => {
+            return native_wrong_args(vm, "lseq n ??op? n ??by? n??");
+        }
+        Err(LseqError::Command(error)) => return completion_from_cmd_error(vm, error),
+    };
+    match lseq::generate(vm, &plan) {
+        Ok(value) => ok(value),
+        Err(error) => completion_from_cmd_error(vm, error),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sequence_backend_capacity_bypasses_guest_capture_and_finally() {
+        for script in [
+            "set prior BEFORE; catch {lseq 100000001} captured options; set after YES",
+            "set prior BEFORE; try {lseq 100000001} finally {set final YES}; set after YES",
+        ] {
+            let mut vm = Vm::new();
+            vm.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            );
+            vm.set_compiler(Box::new(
+                tcl_compiler::compile_service::BytecodeCompileService::default(),
+            ));
+            let error = vm.try_eval_source(script).unwrap_err();
+            let tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::Materialization(refusal),
+            ) = error
+            else {
+                panic!("expected reached materialisation refusal: {error:?}");
+            };
+            assert_eq!(refusal.requested(), 100_000_001);
+            assert_eq!(refusal.limit(), 100_000_000);
+            assert_eq!(
+                vm.get_var("prior").unwrap().string_bytes().as_ref(),
+                b"BEFORE"
+            );
+            for name in ["captured", "options", "final", "after"] {
+                assert!(vm.get_var(name).is_none());
+            }
+        }
     }
 }

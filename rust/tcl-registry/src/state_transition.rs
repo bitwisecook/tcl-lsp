@@ -26,6 +26,7 @@
 //! widen the affected state domains conservatively.
 
 use crate::invocation_words::{InvocationArguments, InvocationWordKind};
+use crate::model::binding::PackageTransition;
 use crate::side_effects::SideEffectTarget;
 use crate::world_effect::{
     TransitionEffectCoverage, TransitionEffectCoverages, WorldEffectWriteSource, WorldStateDomain,
@@ -63,13 +64,15 @@ pub enum StateTransitionDomain {
     ExecutionTraces,
     /// Variable read/write/unset traces.
     VariableTraces,
+    /// Interpreter-local package provisions, loaders and selection policy.
+    Packages,
     /// `TclOO` class, object, method, filter, and mixin dispatch state.
     ObjectDispatch,
 }
 
 impl StateTransitionDomain {
-    /// Every domain, in declaration order — the vocabulary a pack's `widen`
-    /// row names domains from.
+    /// Every tracked identity domain, for an unlocated invocation whose
+    /// callbacks or options have no narrower closed transition description.
     pub const ALL: &'static [Self] = &[
         Self::CommandBindings,
         Self::VariableCells,
@@ -81,6 +84,7 @@ impl StateTransitionDomain {
         Self::CommandTraces,
         Self::ExecutionTraces,
         Self::VariableTraces,
+        Self::Packages,
         Self::ObjectDispatch,
     ];
 }
@@ -92,8 +96,23 @@ impl StateTransitionDomain {
 /// post-head argument list, including a subcommand word where present.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TransitionSubject {
-    /// A known literal Tcl value.
+    /// An explicitly authored value without invocation-operand provenance.
     Literal(String),
+    /// A known value at an exact effective post-head argument ordinal.
+    LocatedLiteral {
+        /// The literal Tcl value facet, independently of source geometry.
+        value: String,
+        /// Effective post-head ordinal, including a selected subcommand.
+        argument_index: usize,
+    },
+    /// An independently known native byte value at its effective operand.
+    /// Bytes remain values, not source geometry or installed name identity.
+    LocatedNativeBytes {
+        /// Exact native units; no Unicode projection is required.
+        value: Vec<u8>,
+        /// Effective post-head ordinal, including a selected subcommand.
+        argument_index: usize,
+    },
     /// A runtime-computed, expanded, or opaque argument.
     Unknown {
         /// Post-head source-word index.
@@ -104,7 +123,7 @@ pub enum TransitionSubject {
 }
 
 impl TransitionSubject {
-    /// Return the subject at `argument_index`, retaining dynamic provenance.
+    /// Return the subject at `argument_index`, retaining known or dynamic provenance.
     #[must_use]
     pub fn from_argument(
         arguments: InvocationArguments<'_>,
@@ -112,10 +131,19 @@ impl TransitionSubject {
     ) -> Option<Self> {
         let word = arguments.get(argument_index)?;
         Some(match word.literal() {
-            Some(value) => Self::Literal(value.to_owned()),
-            None => Self::Unknown {
+            Some(value) => Self::LocatedLiteral {
+                value: value.to_owned(),
                 argument_index,
-                word_kind: word.kind(),
+            },
+            None => match word.native_bytes() {
+                Some(value) => Self::LocatedNativeBytes {
+                    value: value.to_vec(),
+                    argument_index,
+                },
+                None => Self::Unknown {
+                    argument_index,
+                    word_kind: word.kind(),
+                },
             },
         })
     }
@@ -124,8 +152,55 @@ impl TransitionSubject {
     #[must_use]
     pub fn literal(&self) -> Option<&str> {
         match self {
-            Self::Literal(value) => Some(value),
-            Self::Unknown { .. } => None,
+            Self::Literal(value) | Self::LocatedLiteral { value, .. } => Some(value),
+            Self::LocatedNativeBytes { .. } | Self::Unknown { .. } => None,
+        }
+    }
+
+    /// Borrow the independently retained native byte facet. An authored
+    /// logical string is not encoded by this accessor.
+    #[must_use]
+    pub fn native_bytes(&self) -> Option<&[u8]> {
+        match self {
+            Self::LocatedNativeBytes { value, .. } => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Exact effective operand ordinal. Authored values have no such receipt.
+    #[must_use]
+    pub const fn argument_index(&self) -> Option<usize> {
+        match self {
+            Self::Literal(_) => None,
+            Self::LocatedLiteral { argument_index, .. }
+            | Self::LocatedNativeBytes { argument_index, .. }
+            | Self::Unknown { argument_index, .. } => Some(*argument_index),
+        }
+    }
+
+    /// Retain an independently selected byte value at the same operand.
+    /// Authored text and unknown arguments do not acquire native byte facts.
+    #[must_use]
+    pub fn with_native_bytes_value(&self, value: Vec<u8>) -> Option<Self> {
+        match self {
+            Self::LocatedNativeBytes { argument_index, .. } => Some(Self::LocatedNativeBytes {
+                value,
+                argument_index: *argument_index,
+            }),
+            _ => None,
+        }
+    }
+
+    /// Replace a known value facet without changing its operand provenance.
+    #[must_use]
+    pub fn with_literal_value(&self, value: String) -> Option<Self> {
+        match self {
+            Self::Literal(_) => Some(Self::Literal(value)),
+            Self::LocatedLiteral { argument_index, .. } => Some(Self::LocatedLiteral {
+                value,
+                argument_index: *argument_index,
+            }),
+            Self::LocatedNativeBytes { .. } | Self::Unknown { .. } => None,
         }
     }
 }
@@ -139,23 +214,24 @@ impl TransitionSubject {
 /// namespace for a qualified target.
 #[must_use]
 pub fn namespace_qualifiers(name: &str) -> &str {
-    let bytes = name.as_bytes();
-    let mut position = bytes.len();
-    while position > 0 {
-        position -= 1;
-        if bytes[position] == b':' && position > 0 && bytes[position - 1] == b':' {
-            let mut qualifier_end = position - 1;
-            while qualifier_end > 0 && bytes[qualifier_end - 1] == b':' {
-                qualifier_end -= 1;
-            }
-            return if qualifier_end == 0 {
-                ""
-            } else {
-                &name[..qualifier_end]
-            };
-        }
-    }
-    ""
+    &name[..namespace_qualifiers_bytes(name.as_bytes()).len()]
+}
+
+/// Borrow the namespace qualifier from counted name units. This is spelling
+/// geometry only; callers select their own operation's input extent first.
+#[must_use]
+pub fn namespace_qualifiers_bytes(name: &[u8]) -> &[u8] {
+    tcl_syntax::naming::written_separator_extent(name)
+        .map_or(&name[..0], |separator| &name[..separator.start])
+}
+
+/// Namespace used when a command-prefix alias resolves its target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AliasTargetLookup {
+    /// Tcl interpreter aliases select the target interpreter's root namespace.
+    Global,
+    /// Jim command-prefix aliases preserve the caller's active namespace.
+    CallerNamespace,
 }
 
 /// A transition that changes a Tcl command binding.
@@ -185,6 +261,8 @@ pub enum CommandBindingTransition {
     },
     /// Establish a command alias, potentially across interpreters.
     Alias {
+        /// Namespace used for target lookup at invocation.
+        target_lookup: AliasTargetLookup,
         /// Source interpreter path.
         source_interpreter: TransitionSubject,
         /// Name the alias receives in the source interpreter.
@@ -283,6 +361,52 @@ pub enum InterpreterTransition {
     },
 }
 
+impl InterpreterTransition {
+    /// The one original script operand of the canonical created-child command
+    /// `HANDLE eval SCRIPT`. A selected Create and successful parent-command
+    /// installation remain independent obligations. Abbreviations, expansion,
+    /// concatenated scripts and other child operations are not inferred here.
+    #[must_use]
+    pub fn created_handle_eval_body(
+        &self,
+        dialect: crate::InvocationDialect,
+        arguments: InvocationArguments<'_>,
+    ) -> Option<TransitionSubject> {
+        self.created_parent_command(dialect)?;
+        if arguments.exact_argv_len() != Some(2) || arguments.literal_at(0) != Some("eval") {
+            return None;
+        }
+        TransitionSubject::from_argument(arguments, 1)
+    }
+
+    /// Parent-interpreter command installed on a normal native creation edge.
+    /// Tcl child paths are lists: a nested path installs no command in the
+    /// current parent. The selected handler and successful edge remain caller
+    /// obligations; this supplies no child dispatch or compiler-hook proof.
+    #[must_use]
+    pub fn created_parent_command(&self, dialect: crate::InvocationDialect) -> Option<String> {
+        if dialect.family() != Some(tcl_dialect::model::Family::Tcl)
+            || dialect.tcl_version.is_none()
+        {
+            return None;
+        }
+        let Self::Create {
+            interpreter: Some(interpreter),
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let elements = tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar)
+            .split_list(interpreter.literal()?)
+            .ok()?;
+        let [name] = elements.as_slice() else {
+            return None;
+        };
+        (!name.is_empty()).then(|| name.to_string())
+    }
+}
+
 /// The safety policy selected while creating a child interpreter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChildInterpreterSafety {
@@ -332,9 +456,68 @@ pub enum VariableAliasTarget {
     },
 }
 
+/// Storage selected for a variable-alias destination name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VariableAliasDestination {
+    /// A procedure local-table link. In C Tcl global and namespace evaluation
+    /// frames this declaration has no effect.
+    ProcedureLocal,
+    /// An unqualified name binds locally in a procedure activation; namespace
+    /// activations and qualified names create a namespace slot without the
+    /// ordinary read lookup's global fallback.
+    CurrentNamespaceOrLocal,
+}
+
+/// Actual activation class consumed by variable-alias declarations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VariableAliasFrame {
+    /// Interpreter root activation with no local variable table.
+    Global,
+    /// A namespace-evaluation activation.
+    Namespace,
+    /// A procedure or method activation owning a local table.
+    Procedure,
+    /// A caller-selected activation whose class is not proved.
+    Unknown,
+}
+
+impl VariableAliasDestination {
+    /// Whether this destination grammar acts in the selected activation.
+    /// Unknown frame or dialect policy never silently selects C Tcl rules.
+    #[must_use]
+    pub fn is_active_in_frame(
+        self,
+        frame: VariableAliasFrame,
+        dialect: crate::InvocationDialect,
+    ) -> Option<bool> {
+        self.is_active_in_frame_with_policy(frame, Some(dialect))
+    }
+
+    /// The same activation query before an execution dialect is selected.
+    /// Frame-independent facts remain usable; namespace policy abstains.
+    #[must_use]
+    pub fn is_active_in_frame_with_policy(
+        self,
+        frame: VariableAliasFrame,
+        dialect: Option<crate::InvocationDialect>,
+    ) -> Option<bool> {
+        match (self, frame) {
+            (_, VariableAliasFrame::Unknown) => None,
+            (Self::CurrentNamespaceOrLocal, _)
+            | (Self::ProcedureLocal, VariableAliasFrame::Procedure) => Some(true),
+            (Self::ProcedureLocal, VariableAliasFrame::Global) => Some(false),
+            (Self::ProcedureLocal, VariableAliasFrame::Namespace) => dialect
+                .and_then(|dialect| dialect.variable_lookup_policy)
+                .map(|policy| policy == tcl_dialect::VariableLookupPolicy::Jim),
+        }
+    }
+}
+
 /// A local variable cell bound to another Tcl cell.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariableCellAliasTransition {
+    /// The destination storage selected by this declaration grammar.
+    pub destination: VariableAliasDestination,
     /// The current-frame local variable name.
     pub local: TransitionSubject,
     /// The cell reached through `local`.
@@ -392,6 +575,21 @@ pub enum NamespaceTransitionTarget {
     Named(TransitionSubject),
 }
 
+/// Exact namespace ensemble management operation selected by the Registry.
+/// Prefix spellings and other literal words remain `Other` until the selected
+/// sub-subcommand resolver supplies a unique operation receipt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EnsembleManagementOperation {
+    /// Create a command linked to the current namespace.
+    Create,
+    /// Query or update an existing ensemble command.
+    Configure,
+    /// Test whether a command is an ensemble (read-only; normally no transition).
+    Exists,
+    /// Literal but unsupported or abbreviated operation spelling.
+    Other,
+}
+
 /// A mutation of namespace-owned state.
 ///
 /// These are deliberately semantic operations, rather than command names or
@@ -423,6 +621,9 @@ pub enum NamespaceTransition {
     Import {
         /// Namespace receiving imported command bindings.
         namespace: NamespaceTransitionTarget,
+        /// Whether existing commands may be replaced. An unresolved leading
+        /// option leaves this unknown rather than assuming a non-forcing import.
+        force: Option<bool>,
         /// Import patterns, retained as whole Tcl values.
         patterns: Vec<TransitionSubject>,
     },
@@ -451,10 +652,73 @@ pub enum NamespaceTransition {
     Ensemble {
         /// Namespace owning the ensemble dispatch state.
         namespace: NamespaceTransitionTarget,
+        /// Exact selected operation; dynamic dispatch remains unknown.
+        operation: Option<EnsembleManagementOperation>,
+        /// Complete post-head argv, retaining each original operand ordinal.
+        /// Consumers must use the selected Registry option schema before
+        /// assigning map or subcommand meaning to these values.
+        arguments: Vec<TransitionSubject>,
     },
 }
 
 impl NamespaceTransition {
+    /// Split the sole exact export control word from the retained pattern
+    /// operands. Other dash-prefixed values, including `--`, are patterns.
+    /// An unknown leading value leaves both clearing and pattern layout unknown.
+    #[must_use]
+    pub fn export_pattern_operands(
+        patterns: &[TransitionSubject],
+    ) -> Option<(bool, &[TransitionSubject])> {
+        let clear = patterns.first().map_or(Some(false), |first| {
+            first.literal().map(|word| word == "-clear")
+        })?;
+        Some((clear, &patterns[usize::from(clear)..]))
+    }
+
+    /// Registry-authored global helper invoked before C namespace import.
+    /// Absence or actual body effects require an independent current-table proof.
+    #[must_use]
+    pub const fn import_preload_command(
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Option<&'static str> {
+        match policy.recipe() {
+            tcl_syntax::naming::NativeNameProtocol::C(_) => Some("auto_import"),
+            tcl_syntax::naming::NativeNameProtocol::Jim084 => None,
+        }
+    }
+
+    /// Select the exact leading export control using the independently
+    /// selected native pattern extent. Remaining operands retain whole values.
+    #[must_use]
+    pub fn export_pattern_byte_operands<'a>(
+        patterns: &'a [&'a [u8]],
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Option<(bool, &'a [&'a [u8]])> {
+        if !matches!(
+            policy.recipe(),
+            tcl_syntax::naming::NativeNameProtocol::C(_)
+        ) {
+            return None;
+        }
+        let clear = patterns.first().map_or(Some(false), |first| {
+            policy.recipe().namespace_export_clears(first).ok()
+        })?;
+        Some((clear, &patterns[usize::from(clear)..]))
+    }
+
+    /// Select the leading import option using the same independently selected
+    /// pattern extent as actual import lookup; every remaining value is intact.
+    #[must_use]
+    pub fn import_pattern_byte_operands<'a>(
+        patterns: &'a [&'a [u8]],
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Option<(bool, &'a [&'a [u8]])> {
+        let forced = patterns.first().map_or(Some(false), |first| {
+            policy.recipe().namespace_import_forces(first).ok()
+        })?;
+        Some((forced, &patterns[usize::from(forced)..]))
+    }
+
     /// Whether this transition can change command lookup in the current
     /// interpreter.
     ///
@@ -674,6 +938,8 @@ pub enum StateTransition {
     Trace(TraceTransition),
     /// `TclOO` object lifecycle or dispatch configuration changes.
     ObjectDispatch(ObjectDispatchTransition),
+    /// Interpreter-local package bookkeeping or loader execution.
+    Package(crate::model::binding::PackageTransition),
     /// A dynamic transition operand widens named state domains.
     Widen(StateTransitionWidening),
 }
@@ -743,6 +1009,49 @@ pub enum CommandResolutionImpact {
 }
 
 impl StateTransitions {
+    /// Project every effective operand ordinal through one argv mapping.
+    ///
+    /// Nested alias/frame/namespace/trace/package subjects use the same map.
+    /// Values, kinds, execution order and completion commits remain exact.
+    /// An unmappable operand withdraws the whole projection; no partial fact
+    /// list or authored value is substituted for its missing provenance.
+    #[must_use]
+    pub fn project_argument_indices(
+        &self,
+        mut project: impl FnMut(usize) -> Option<usize>,
+    ) -> Option<Self> {
+        let mut projected = self.clone();
+        let mut complete = true;
+        for fact in &mut projected.facts {
+            fact.transition.for_each_subject_mut(&mut |subject| {
+                let index = match subject {
+                    TransitionSubject::Literal(_) => return,
+                    TransitionSubject::LocatedLiteral { argument_index, .. }
+                    | TransitionSubject::LocatedNativeBytes { argument_index, .. }
+                    | TransitionSubject::Unknown { argument_index, .. } => argument_index,
+                };
+                if let Some(mapped) = project(*index) {
+                    *index = mapped;
+                } else {
+                    complete = false;
+                }
+            });
+        }
+        complete.then_some(projected)
+    }
+
+    /// Retain an unresolved whole-invocation identity effect. The authored
+    /// wildcard subject has no operand ordinal or original name authority.
+    #[must_use]
+    pub fn unknown_invocation() -> Self {
+        let mut transitions = Self::default();
+        transitions.push(StateTransition::Widen(StateTransitionWidening {
+            domains: StateTransitionDomain::ALL.to_vec(),
+            subject: TransitionSubject::Literal(String::new()),
+        }));
+        transitions
+    }
+
     /// Return transition facts in Tcl execution order.
     #[must_use]
     pub fn facts(&self) -> &[StateTransitionFact] {
@@ -802,7 +1111,11 @@ impl StateTransitions {
         let mut explicit = false;
         for fact in &self.facts {
             match &fact.transition {
-                StateTransition::CommandBinding(CommandBindingTransition::Unknown { .. }) => {
+                StateTransition::CommandBinding(CommandBindingTransition::Unknown { .. })
+                | StateTransition::Package(
+                    crate::model::binding::PackageTransition::Require { .. }
+                    | crate::model::binding::PackageTransition::SourceLoad { .. },
+                ) => {
                     return CommandResolutionImpact::Unbounded;
                 }
                 StateTransition::CommandBinding(_) => explicit = true,
@@ -822,7 +1135,8 @@ impl StateTransitions {
                 {
                     return CommandResolutionImpact::Unbounded;
                 }
-                StateTransition::Interpreter(_)
+                StateTransition::Package(_)
+                | StateTransition::Interpreter(_)
                 | StateTransition::VariableCellAlias(_)
                 | StateTransition::Namespace(_)
                 | StateTransition::Trace(_)
@@ -884,7 +1198,13 @@ impl StateTransitions {
             let Some(word) = arguments.get(argument_index) else {
                 continue;
             };
-            if word.literal().is_some() {
+            if word.literal().is_some()
+                || (word.native_bytes().is_some()
+                    && self
+                        .facts
+                        .iter()
+                        .any(|fact| fact.transition.represents_native_identity_subject(&subject)))
+            {
                 continue;
             }
             let mut domains: Vec<StateTransitionDomain> = rules
@@ -897,6 +1217,456 @@ impl StateTransitions {
             }
             self.widen(subject, &domains);
         }
+    }
+}
+
+impl StateTransition {
+    // Known native units replace a dynamic identity obligation only where a
+    // selected direct operation represents that same positioned identity.
+    // Flags, frame levels, versions and unresolved operation operands do not.
+    fn represents_native_identity_subject(&self, subject: &TransitionSubject) -> bool {
+        match self {
+            Self::CommandBinding(transition) => {
+                transition_commandbinding_identity(transition, subject)
+            }
+            Self::Interpreter(transition) => transition_interpreter_identity(transition, subject),
+            Self::VariableCellAlias(alias) => {
+                alias.local == *subject
+                    || match &alias.target {
+                        VariableAliasTarget::Global { variable }
+                        | VariableAliasTarget::CurrentNamespace { variable }
+                        | VariableAliasTarget::CallerSelectedFrame { variable, .. } => {
+                            variable == subject
+                        }
+                        VariableAliasTarget::Namespace {
+                            namespace,
+                            variable,
+                        } => namespace == subject || variable == subject,
+                    }
+            }
+            Self::Namespace(transition) => transition_namespace_identity(transition, subject),
+            Self::Trace(
+                TraceTransition::Add { target, prefix, .. }
+                | TraceTransition::Remove { target, prefix, .. },
+            ) => {
+                prefix == subject
+                    || match target {
+                        TraceTarget::Variable(name)
+                        | TraceTarget::Command(name)
+                        | TraceTarget::Execution(name) => name == subject,
+                    }
+            }
+            Self::ObjectDispatch(transition) => {
+                transition_objectdispatch_identity(transition, subject)
+            }
+            Self::Package(transition) => transition_package_identity(transition, subject),
+            Self::Widen(_) => false,
+        }
+    }
+
+    fn for_each_subject_mut(&mut self, visit: &mut impl FnMut(&mut TransitionSubject)) {
+        match self {
+            Self::CommandBinding(transition) => transition_commandbinding_visit(transition, visit),
+            Self::Interpreter(transition) => transition_interpreter_visit(transition, visit),
+            Self::VariableCellAlias(alias) => {
+                visit(&mut alias.local);
+                match &mut alias.target {
+                    VariableAliasTarget::Global { variable }
+                    | VariableAliasTarget::CurrentNamespace { variable } => visit(variable),
+                    VariableAliasTarget::CallerSelectedFrame { frame, variable } => {
+                        if let CallerFrameSelection::Explicit(subject) = frame {
+                            visit(subject);
+                        }
+                        visit(variable);
+                    }
+                    VariableAliasTarget::Namespace {
+                        namespace,
+                        variable,
+                    } => {
+                        visit(namespace);
+                        visit(variable);
+                    }
+                }
+            }
+            Self::Namespace(transition) => transition_namespace_visit(transition, visit),
+            Self::Trace(
+                TraceTransition::Add {
+                    target,
+                    operations,
+                    prefix,
+                }
+                | TraceTransition::Remove {
+                    target,
+                    operations,
+                    prefix,
+                },
+            ) => {
+                match target {
+                    TraceTarget::Variable(subject)
+                    | TraceTarget::Command(subject)
+                    | TraceTarget::Execution(subject) => visit(subject),
+                }
+                if let TraceOperationSet::Unknown(subject) = operations {
+                    visit(subject);
+                }
+                visit(prefix);
+            }
+            Self::ObjectDispatch(transition) => transition_objectdispatch_visit(transition, visit),
+            Self::Package(transition) => transition_package_visit(transition, visit),
+            Self::Widen(widening) => visit(&mut widening.subject),
+        }
+    }
+}
+
+fn visit_namespace_subject(
+    target: &mut NamespaceTransitionTarget,
+    visit: &mut impl FnMut(&mut TransitionSubject),
+) {
+    if let NamespaceTransitionTarget::Named(subject) = target {
+        visit(subject);
+    }
+}
+fn visit_object_subject(
+    target: &mut ObjectDispatchTarget,
+    visit: &mut impl FnMut(&mut TransitionSubject),
+) {
+    if let ObjectDispatchTarget::Named(subject) = target {
+        visit(subject);
+    }
+}
+fn visit_private_subject(
+    target: &mut ObjectPrivateNamespace,
+    visit: &mut impl FnMut(&mut TransitionSubject),
+) {
+    if let ObjectPrivateNamespace::Named(subject) = target {
+        visit(subject);
+    }
+}
+
+fn transition_commandbinding_identity(
+    transition: &CommandBindingTransition,
+    subject: &TransitionSubject,
+) -> bool {
+    match transition {
+        CommandBindingTransition::Define { name, .. } => name == subject,
+        CommandBindingTransition::Move { from, to } => from == subject || to == subject,
+        CommandBindingTransition::Delete { interpreter, name } => {
+            name == subject || interpreter.as_ref() == Some(subject)
+        }
+        CommandBindingTransition::Alias {
+            source_interpreter,
+            alias,
+            target_interpreter,
+            target,
+            ..
+        } => [source_interpreter, alias, target_interpreter, target].contains(&subject),
+        CommandBindingTransition::Unknown { .. } => false,
+    }
+}
+
+fn transition_interpreter_identity(
+    transition: &InterpreterTransition,
+    subject: &TransitionSubject,
+) -> bool {
+    match transition {
+        InterpreterTransition::Create { interpreter, .. } => interpreter.as_ref() == Some(subject),
+        InterpreterTransition::Delete { interpreter }
+        | InterpreterTransition::MarkTrusted { interpreter }
+        | InterpreterTransition::SetRecursionLimit { interpreter, .. }
+        | InterpreterTransition::SetBackgroundError { interpreter, .. } => interpreter == subject,
+        InterpreterTransition::Hide {
+            interpreter,
+            visible,
+            hidden,
+        }
+        | InterpreterTransition::Expose {
+            interpreter,
+            hidden,
+            visible,
+        } => [interpreter, visible, hidden].contains(&subject),
+    }
+}
+
+fn transition_namespace_identity(
+    transition: &NamespaceTransition,
+    subject: &TransitionSubject,
+) -> bool {
+    let namespace = |target: &NamespaceTransitionTarget| matches!(target, NamespaceTransitionTarget::Named(name) if name == subject);
+    match transition {
+        NamespaceTransition::Ensure { namespace: target }
+        | NamespaceTransition::Delete { namespace: target }
+        | NamespaceTransition::Ensemble {
+            namespace: target, ..
+        }
+        | NamespaceTransition::SetPath {
+            namespace: target, ..
+        }
+        | NamespaceTransition::SetUnknown {
+            namespace: target, ..
+        } => namespace(target),
+        NamespaceTransition::Export {
+            namespace: target,
+            patterns,
+        }
+        | NamespaceTransition::Import {
+            namespace: target,
+            patterns,
+            ..
+        }
+        | NamespaceTransition::Forget {
+            namespace: target,
+            patterns,
+        } => namespace(target) || patterns.contains(subject),
+    }
+}
+
+fn transition_objectdispatch_identity(
+    transition: &ObjectDispatchTransition,
+    subject: &TransitionSubject,
+) -> bool {
+    let object = |target: &ObjectDispatchTarget| matches!(target, ObjectDispatchTarget::Named(name) if name == subject);
+    let private = |target: &ObjectPrivateNamespace| matches!(target, ObjectPrivateNamespace::Named(name) if name == subject);
+    match transition {
+        ObjectDispatchTransition::Configure { target, .. }
+        | ObjectDispatchTransition::Destroy { target } => target == subject,
+        ObjectDispatchTransition::Create {
+            target,
+            private_namespace,
+            ..
+        } => object(target) || private(private_namespace),
+        ObjectDispatchTransition::Copy {
+            source,
+            target,
+            private_namespace,
+        } => source == subject || object(target) || private(private_namespace),
+    }
+}
+
+fn transition_package_identity(
+    transition: &crate::model::binding::PackageTransition,
+    subject: &TransitionSubject,
+) -> bool {
+    match transition {
+        PackageTransition::Provide { package, .. }
+        | PackageTransition::Require { package, .. }
+        | PackageTransition::Ifneeded { package, .. } => package == subject,
+        PackageTransition::Forget { packages } => packages.contains(subject),
+        PackageTransition::DiscoveryDependencyChanged { .. }
+        | PackageTransition::UnknownHandler { .. }
+        | PackageTransition::Prefer { .. }
+        | PackageTransition::SourceLoad { .. } => false,
+    }
+}
+
+fn transition_commandbinding_visit(
+    transition: &mut CommandBindingTransition,
+    visit: &mut impl FnMut(&mut TransitionSubject),
+) {
+    match transition {
+        CommandBindingTransition::Define { name, .. } => visit(name),
+        CommandBindingTransition::Move { from, to } => {
+            visit(from);
+            visit(to);
+        }
+        CommandBindingTransition::Delete { interpreter, name } => {
+            if let Some(interpreter) = interpreter {
+                visit(interpreter);
+            }
+            visit(name);
+        }
+        CommandBindingTransition::Alias {
+            source_interpreter,
+            alias,
+            target_interpreter,
+            target,
+            arguments,
+            ..
+        } => {
+            visit(source_interpreter);
+            visit(alias);
+            visit(target_interpreter);
+            visit(target);
+            for argument in arguments {
+                visit(argument);
+            }
+        }
+        CommandBindingTransition::Unknown { operands } => {
+            for operand in operands {
+                visit(operand);
+            }
+        }
+    }
+}
+
+fn transition_interpreter_visit(
+    transition: &mut InterpreterTransition,
+    visit: &mut impl FnMut(&mut TransitionSubject),
+) {
+    match transition {
+        InterpreterTransition::Create { interpreter, .. } => {
+            if let Some(interpreter) = interpreter {
+                visit(interpreter);
+            }
+        }
+        InterpreterTransition::Delete { interpreter }
+        | InterpreterTransition::MarkTrusted { interpreter } => visit(interpreter),
+        InterpreterTransition::SetRecursionLimit { interpreter, limit } => {
+            visit(interpreter);
+            visit(limit);
+        }
+        InterpreterTransition::SetBackgroundError {
+            interpreter,
+            handler,
+        } => {
+            visit(interpreter);
+            visit(handler);
+        }
+        InterpreterTransition::Hide {
+            interpreter,
+            visible,
+            hidden,
+        }
+        | InterpreterTransition::Expose {
+            interpreter,
+            hidden,
+            visible,
+        } => {
+            visit(interpreter);
+            visit(visible);
+            visit(hidden);
+        }
+    }
+}
+
+fn transition_namespace_visit(
+    transition: &mut NamespaceTransition,
+    visit: &mut impl FnMut(&mut TransitionSubject),
+) {
+    match transition {
+        NamespaceTransition::Ensure { namespace: target }
+        | NamespaceTransition::Delete { namespace: target } => {
+            visit_namespace_subject(target, visit);
+        }
+        NamespaceTransition::Ensemble {
+            namespace: target,
+            arguments,
+            ..
+        } => {
+            visit_namespace_subject(target, visit);
+            arguments.iter_mut().for_each(visit);
+        }
+        NamespaceTransition::Export {
+            namespace: target,
+            patterns,
+        }
+        | NamespaceTransition::Import {
+            namespace: target,
+            patterns,
+            ..
+        }
+        | NamespaceTransition::Forget {
+            namespace: target,
+            patterns,
+        } => {
+            visit_namespace_subject(target, visit);
+            for pattern in patterns {
+                visit(pattern);
+            }
+        }
+        NamespaceTransition::SetPath {
+            namespace: target,
+            path,
+        } => {
+            visit_namespace_subject(target, visit);
+            visit(path);
+        }
+        NamespaceTransition::SetUnknown {
+            namespace: target,
+            handler,
+        } => {
+            visit_namespace_subject(target, visit);
+            visit(handler);
+        }
+    }
+}
+
+fn transition_objectdispatch_visit(
+    transition: &mut ObjectDispatchTransition,
+    visit: &mut impl FnMut(&mut TransitionSubject),
+) {
+    match transition {
+        ObjectDispatchTransition::Configure { target, .. }
+        | ObjectDispatchTransition::Destroy { target } => visit(target),
+        ObjectDispatchTransition::Create {
+            target,
+            private_namespace,
+            ..
+        } => {
+            visit_object_subject(target, visit);
+            visit_private_subject(private_namespace, visit);
+        }
+        ObjectDispatchTransition::Copy {
+            source,
+            target,
+            private_namespace,
+        } => {
+            visit(source);
+            visit_object_subject(target, visit);
+            visit_private_subject(private_namespace, visit);
+        }
+    }
+}
+
+fn transition_package_visit(
+    transition: &mut crate::model::binding::PackageTransition,
+    visit: &mut impl FnMut(&mut TransitionSubject),
+) {
+    match transition {
+        PackageTransition::DiscoveryDependencyChanged { .. } => {}
+        PackageTransition::Provide { package, version } => {
+            visit(package);
+            if let Some(version) = version {
+                visit(version);
+            }
+        }
+        PackageTransition::Require {
+            package,
+            requirements,
+            ..
+        } => {
+            visit(package);
+            for requirement in requirements {
+                visit(requirement);
+            }
+        }
+        PackageTransition::Ifneeded {
+            package,
+            version,
+            script,
+            ..
+        } => {
+            visit(package);
+            visit(version);
+            if let Some(script) = script {
+                visit(script);
+            }
+        }
+        PackageTransition::Forget { packages } => {
+            for package in packages {
+                visit(package);
+            }
+        }
+        PackageTransition::UnknownHandler { handler } => {
+            if let Some(handler) = handler {
+                visit(handler);
+            }
+        }
+        PackageTransition::Prefer { mode } => {
+            if let Some(mode) = mode {
+                visit(mode);
+            }
+        }
+        PackageTransition::SourceLoad { path } => visit(path),
     }
 }
 
@@ -932,6 +1702,25 @@ impl StateTransitionKnowledge {
             Self::Declared(transitions) => Some(transitions),
         }
     }
+}
+
+/// Explicit source-purpose dispatch registered by the descriptor producer.
+/// The resolver's address never classifies its semantics or Native identity.
+#[derive(Debug, Clone, Copy)]
+pub enum LogicalSourceStateTransitionResolver {
+    /// Conditional frame-alias grammar under positively retained Logical input.
+    FrameAliases(StateTransitionResolver),
+    /// Actual derived alias-pair producer, retaining the selected layout policy.
+    /// Only this typed registration may supply conditional no-level roles.
+    FrameAliasPairs {
+        /// Actual producer-selected optional level grammar.
+        level_word: crate::frame_effect::FrameLevelWord,
+        /// Existing source-role resolver from that same producer.
+        resolver: StateTransitionResolver,
+    },
+    /// Conditional completion storage through the retained source argv grammar.
+    /// This supplies no Native completion, entered frame or successful edge.
+    CompletionState(StateTransitionResolver),
 }
 
 /// Argument-sensitive resolver for a state transition descriptor.
@@ -1027,6 +1816,12 @@ pub struct StateTransitionDescriptor {
     pub composition: StateTransitionComposition,
     /// Optional resolver for precise transition operands.
     pub resolver: Option<StateTransitionResolver>,
+    /// Optional transition projection valid only on successful completion.
+    /// Ordinary/error facts retain `resolver`; consumers must select the edge.
+    pub success_resolver: Option<StateTransitionResolver>,
+    /// Explicit readonly Logical alias grammar, separate from ordinary and
+    /// successful Native transition resolvers.
+    pub logical_source_resolver: Option<LogicalSourceStateTransitionResolver>,
     /// Whether expansion changes the resolver's positional grammar.
     pub argument_shape: StateTransitionArgumentShape,
     /// Domains widened for dynamic identity-bearing operands.
@@ -1047,6 +1842,8 @@ impl StateTransitionDescriptor {
     pub const EMPTY: Self = Self {
         composition: StateTransitionComposition::Extend,
         resolver: None,
+        logical_source_resolver: None,
+        success_resolver: None,
         argument_shape: StateTransitionArgumentShape::Independent,
         dynamic_widening: &[],
         effect_coverage: TransitionEffectCoverage::NONE,
@@ -1056,12 +1853,31 @@ impl StateTransitionDescriptor {
     /// Resolve one descriptor against structured invocation arguments.
     #[must_use]
     pub fn resolve(self, arguments: InvocationArguments<'_>) -> StateTransitions {
+        self.resolve_on_edge(arguments, false)
+    }
+
+    /// Resolve facts on the normal completion edge, preserving ordinary/error
+    /// facts in [`Self::resolve`].
+    #[must_use]
+    pub fn resolve_after_success(self, arguments: InvocationArguments<'_>) -> StateTransitions {
+        self.resolve_on_edge(arguments, true)
+    }
+
+    fn resolve_on_edge(
+        self,
+        arguments: InvocationArguments<'_>,
+        successful: bool,
+    ) -> StateTransitions {
         let positional_shape = self.argument_shape == StateTransitionArgumentShape::Positional;
         let mut transitions = if positional_shape && !arguments.has_exact_argv_len() {
             StateTransitions::default()
         } else {
-            self.resolver
-                .map_or_else(StateTransitions::default, |resolver| resolver(arguments))
+            let resolver = if successful {
+                self.success_resolver.or(self.resolver)
+            } else {
+                self.resolver
+            };
+            resolver.map_or_else(StateTransitions::default, |resolver| resolver(arguments))
         };
         transitions.widen_dynamic_arguments(arguments, self.dynamic_widening, positional_shape);
         transitions.set_commit(self.commit);
@@ -1105,13 +1921,100 @@ impl ResolvedStateTransitions {
         self,
         arguments: InvocationArguments<'_>,
     ) -> (StateTransitions, TransitionEffectCoverages) {
+        self.resolve_coverage_on_edge(arguments, false)
+    }
+
+    /// Readonly facts through explicitly registered source frame-alias
+    /// resolvers. Custom resolvers, descriptor
+    /// replacement, operands and commit annotations retain their own metadata.
+    pub(crate) fn resolve_logical_source_frame_aliases(
+        self,
+        arguments: InvocationArguments<'_>,
+    ) -> StateTransitions {
+        let mut transitions = StateTransitions::default();
+        for descriptor in [self.command, self.subcommand, self.form]
+            .into_iter()
+            .flatten()
+        {
+            let mut resolved = match descriptor.logical_source_resolver {
+                Some(
+                    LogicalSourceStateTransitionResolver::FrameAliases(resolver)
+                    | LogicalSourceStateTransitionResolver::FrameAliasPairs { resolver, .. },
+                ) => resolver(arguments),
+                Some(LogicalSourceStateTransitionResolver::CompletionState(_)) | None => {
+                    descriptor.resolve(arguments)
+                }
+            };
+            resolved.widen_dynamic_arguments(
+                arguments,
+                descriptor.dynamic_widening,
+                descriptor.argument_shape == StateTransitionArgumentShape::Positional,
+            );
+            resolved.set_commit(descriptor.commit);
+            if descriptor.composition == StateTransitionComposition::Replace {
+                transitions = resolved;
+            } else {
+                transitions.extend(resolved);
+            }
+        }
+        transitions
+    }
+
+    pub(crate) fn resolve_authored_source_completion(
+        self,
+        arguments: InvocationArguments<'_>,
+    ) -> StateTransitions {
+        let mut transitions = StateTransitions::default();
+        for descriptor in [self.command, self.subcommand, self.form]
+            .into_iter()
+            .flatten()
+        {
+            let mut resolved = match descriptor.logical_source_resolver {
+                Some(LogicalSourceStateTransitionResolver::CompletionState(resolver)) => {
+                    resolver(arguments)
+                }
+                Some(
+                    LogicalSourceStateTransitionResolver::FrameAliases(_)
+                    | LogicalSourceStateTransitionResolver::FrameAliasPairs { .. },
+                )
+                | None => descriptor.resolve(arguments),
+            };
+            resolved.widen_dynamic_arguments(
+                arguments,
+                descriptor.dynamic_widening,
+                descriptor.argument_shape == StateTransitionArgumentShape::Positional,
+            );
+            resolved.set_commit(descriptor.commit);
+            if descriptor.composition == StateTransitionComposition::Replace {
+                transitions = resolved;
+            } else {
+                transitions.extend(resolved);
+            }
+        }
+        transitions
+    }
+
+    /// Resolve normal-edge transitions and their matching write coverage.
+    #[must_use]
+    pub fn resolve_after_success_with_effect_coverage(
+        self,
+        arguments: InvocationArguments<'_>,
+    ) -> (StateTransitions, TransitionEffectCoverages) {
+        self.resolve_coverage_on_edge(arguments, true)
+    }
+
+    fn resolve_coverage_on_edge(
+        self,
+        arguments: InvocationArguments<'_>,
+        successful: bool,
+    ) -> (StateTransitions, TransitionEffectCoverages) {
         let mut transitions = StateTransitions::default();
         let mut coverage = TransitionEffectCoverages::default();
         for descriptor in [self.command, self.subcommand, self.form]
             .into_iter()
             .flatten()
         {
-            let resolved = descriptor.resolve(arguments);
+            let resolved = descriptor.resolve_on_edge(arguments, successful);
             let produced_transition = !resolved.facts().is_empty();
             if descriptor.composition == StateTransitionComposition::Replace {
                 transitions = resolved;
@@ -1143,12 +2046,12 @@ impl ResolvedStateTransitions {
 /// resolver, one fact vocabulary for every consumer.
 pub mod command_binding {
     use super::{
-        CommandBindingDefinitionKind, CommandBindingTransition, InvocationArguments,
-        NamespaceTransition, NamespaceTransitionTarget, SideEffectTarget, StateTransition,
-        StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
-        StateTransitionDescriptor, StateTransitionDomain, StateTransitionOperandLayout,
-        StateTransitionWideningRule, StateTransitions, TransitionEffectCoverage, TransitionSubject,
-        WorldEffectWriteSource, WorldStateDomain,
+        AliasTargetLookup, CommandBindingDefinitionKind, CommandBindingTransition,
+        InvocationArguments, NamespaceTransition, NamespaceTransitionTarget, SideEffectTarget,
+        StateTransition, StateTransitionArgumentShape, StateTransitionCommit,
+        StateTransitionComposition, StateTransitionDescriptor, StateTransitionDomain,
+        StateTransitionOperandLayout, StateTransitionWideningRule, StateTransitions,
+        TransitionEffectCoverage, TransitionSubject, WorldEffectWriteSource, WorldStateDomain,
     };
 
     /// The identity domains a command-table mutation can invalidate. A
@@ -1191,7 +2094,9 @@ pub mod command_binding {
 
     /// `proc name params body` — bind argument 0 as a procedure.
     pub const DEFINES_PROCEDURE: StateTransitionDescriptor = StateTransitionDescriptor {
+        logical_source_resolver: None,
         composition: StateTransitionComposition::Extend,
+        success_resolver: None,
         resolver: Some(defines_procedure),
         argument_shape: StateTransitionArgumentShape::Positional,
         dynamic_widening: &[StateTransitionWideningRule {
@@ -1205,7 +2110,9 @@ pub mod command_binding {
     /// `rename oldName newName` — move argument 0 to argument 1, or delete
     /// it when the target is empty.
     pub const RENAMES_COMMANDS: StateTransitionDescriptor = StateTransitionDescriptor {
+        logical_source_resolver: None,
         composition: StateTransitionComposition::Extend,
+        success_resolver: None,
         resolver: Some(renames_commands),
         argument_shape: StateTransitionArgumentShape::Positional,
         dynamic_widening: &[StateTransitionWideningRule {
@@ -1223,7 +2130,9 @@ pub mod command_binding {
     /// `interp alias srcPath srcCmd ?targetPath targetCmd ?args…??` —
     /// create, delete, or query a command alias.
     pub const CREATES_ALIASES: StateTransitionDescriptor = StateTransitionDescriptor {
+        logical_source_resolver: None,
         composition: StateTransitionComposition::Extend,
+        success_resolver: None,
         resolver: Some(creates_aliases),
         argument_shape: StateTransitionArgumentShape::Positional,
         dynamic_widening: &[StateTransitionWideningRule {
@@ -1239,6 +2148,47 @@ pub mod command_binding {
         // lifecycle hooks before reporting an error.
         commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
     };
+
+    /// Jim's `alias newname command ?args?` preserves the caller namespace.
+    pub const CREATES_CALLER_ALIASES: StateTransitionDescriptor = StateTransitionDescriptor {
+        logical_source_resolver: None,
+        composition: StateTransitionComposition::Extend,
+        success_resolver: None,
+        resolver: Some(creates_caller_aliases),
+        argument_shape: StateTransitionArgumentShape::Positional,
+        dynamic_widening: &[StateTransitionWideningRule {
+            operands: StateTransitionOperandLayout::Indices(&[0, 1]),
+            domains: ALIAS_DOMAINS,
+        }],
+        effect_coverage: ALIAS_COVERAGE,
+        commit: StateTransitionCommit::OnOkOnly,
+    };
+
+    fn creates_caller_aliases(arguments: InvocationArguments<'_>) -> StateTransitions {
+        let mut transitions = StateTransitions::default();
+        if arguments.len() < 2 {
+            return transitions;
+        }
+        let (Some(alias), Some(target)) = (
+            TransitionSubject::from_argument(arguments, 0),
+            TransitionSubject::from_argument(arguments, 1),
+        ) else {
+            return transitions;
+        };
+        transitions.push(StateTransition::CommandBinding(
+            CommandBindingTransition::Alias {
+                target_lookup: AliasTargetLookup::CallerNamespace,
+                source_interpreter: TransitionSubject::Literal(String::new()),
+                alias,
+                target_interpreter: TransitionSubject::Literal(String::new()),
+                target,
+                arguments: (2..arguments.len())
+                    .filter_map(|index| TransitionSubject::from_argument(arguments, index))
+                    .collect(),
+            },
+        ));
+        transitions
+    }
 
     fn defines_procedure(arguments: InvocationArguments<'_>) -> StateTransitions {
         let mut transitions = StateTransitions::default();
@@ -1268,23 +2218,55 @@ pub mod command_binding {
         ) else {
             return transitions;
         };
-        match to.literal() {
-            Some("") => transitions.push(StateTransition::CommandBinding(
+        let destination = if let Some(target) = to.literal() {
+            let namespace = super::namespace_qualifiers(target);
+            Some((
+                target.is_empty(),
+                (!namespace.is_empty()).then(|| {
+                    to.with_literal_value(namespace.to_owned())
+                        .expect("known rename destination")
+                }),
+            ))
+        } else {
+            to.native_bytes()
+                .zip(
+                    arguments
+                        .dialect()
+                        .and_then(crate::InvocationDialect::native_name_protocol)
+                        .filter(|protocol| {
+                            matches!(protocol, tcl_syntax::naming::NativeNameProtocol::C(_))
+                        }),
+                )
+                .and_then(|(target, protocol)| {
+                    let selected = protocol
+                        .rename_destination_input(
+                            tcl_syntax::naming::NativeNameContext::root(),
+                            target,
+                        )
+                        .ok()?;
+                    let namespace = super::namespace_qualifiers_bytes(selected.selected());
+                    Some((
+                        selected.selected().is_empty(),
+                        (!namespace.is_empty()).then(|| {
+                            to.with_native_bytes_value(namespace.to_vec())
+                                .expect("known native rename destination")
+                        }),
+                    ))
+                })
+        };
+        match destination {
+            Some((true, _)) => transitions.push(StateTransition::CommandBinding(
                 CommandBindingTransition::Delete {
                     interpreter: None,
                     name: from,
                 },
             )),
-            Some(target) => {
-                // Tcl creates the target's namespace lineage when it is
-                // absent; record that separately from the command binding so
-                // generic world-state consumers retain both facts.
-                let namespace = super::namespace_qualifiers(target);
-                if !namespace.is_empty() {
+            Some((false, namespace)) => {
+                // Namespace geometry is independent of whether this operation
+                // can create that lineage or complete normally.
+                if let Some(namespace) = namespace {
                     transitions.push(StateTransition::Namespace(NamespaceTransition::Ensure {
-                        namespace: NamespaceTransitionTarget::Named(TransitionSubject::Literal(
-                            namespace.to_owned(),
-                        )),
+                        namespace: NamespaceTransitionTarget::Named(namespace),
                     }));
                 }
                 transitions.push(StateTransition::CommandBinding(
@@ -1373,6 +2355,7 @@ pub mod command_binding {
                     .collect();
                 transitions.push(StateTransition::CommandBinding(
                     CommandBindingTransition::Alias {
+                        target_lookup: AliasTargetLookup::Global,
                         source_interpreter,
                         alias,
                         target_interpreter,
@@ -1418,7 +2401,63 @@ pub fn alias_pairs_resolver(
         FrameLevelWord::None => alias_pairs_without_level,
         FrameLevelWord::ArityParity => alias_pairs_by_arity_parity,
         FrameLevelWord::LeadingProbe => alias_pairs_by_leading_probe,
+        FrameLevelWord::Upvar => alias_pairs_by_upvar,
     }
+}
+
+/// Source resolver for the same authored derived alias layout. Native call
+/// context is deliberately absent only inside this positively selected purpose.
+#[must_use]
+pub fn logical_source_alias_pairs_resolver(
+    level_word: crate::frame_effect::FrameLevelWord,
+) -> StateTransitionResolver {
+    use crate::frame_effect::FrameLevelWord;
+    match level_word {
+        FrameLevelWord::None => logical_alias_pairs_without_level,
+        FrameLevelWord::ArityParity => logical_alias_pairs_by_arity_parity,
+        FrameLevelWord::LeadingProbe => logical_alias_pairs_by_leading_probe,
+        FrameLevelWord::Upvar => logical_alias_pairs_by_upvar,
+    }
+}
+
+fn source_arguments(arguments: InvocationArguments<'_>) -> InvocationArguments<'_> {
+    match arguments {
+        InvocationArguments::Literals(words)
+        | InvocationArguments::ContextualLiterals(words, _) => InvocationArguments::Literals(words),
+        InvocationArguments::Structured(words)
+        | InvocationArguments::ContextualStructured(words, _) => {
+            InvocationArguments::Structured(words)
+        }
+    }
+}
+
+fn logical_alias_pairs_without_level(arguments: InvocationArguments<'_>) -> StateTransitions {
+    alias_pairs_with_source_target(
+        source_arguments(arguments),
+        crate::frame_effect::FrameLevelWord::None,
+        true,
+    )
+}
+fn logical_alias_pairs_by_arity_parity(arguments: InvocationArguments<'_>) -> StateTransitions {
+    alias_pairs_with_source_target(
+        source_arguments(arguments),
+        crate::frame_effect::FrameLevelWord::ArityParity,
+        true,
+    )
+}
+fn logical_alias_pairs_by_leading_probe(arguments: InvocationArguments<'_>) -> StateTransitions {
+    alias_pairs_with_source_target(
+        source_arguments(arguments),
+        crate::frame_effect::FrameLevelWord::LeadingProbe,
+        true,
+    )
+}
+fn logical_alias_pairs_by_upvar(arguments: InvocationArguments<'_>) -> StateTransitions {
+    alias_pairs_with_source_target(
+        source_arguments(arguments),
+        crate::frame_effect::FrameLevelWord::Upvar,
+        true,
+    )
 }
 
 fn alias_pairs_without_level(arguments: InvocationArguments<'_>) -> StateTransitions {
@@ -1433,9 +2472,24 @@ fn alias_pairs_by_leading_probe(arguments: InvocationArguments<'_>) -> StateTran
     alias_pairs(arguments, crate::frame_effect::FrameLevelWord::LeadingProbe)
 }
 
+fn alias_pairs_by_upvar(arguments: InvocationArguments<'_>) -> StateTransitions {
+    alias_pairs(arguments, crate::frame_effect::FrameLevelWord::Upvar)
+}
+
 fn alias_pairs(
     arguments: InvocationArguments<'_>,
     level_word: crate::frame_effect::FrameLevelWord,
+) -> StateTransitions {
+    alias_pairs_with_source_target(arguments, level_word, false)
+}
+
+// Only the positively selected Logical source resolver can retain an unknown
+// target as conditional source geometry. Its original widening remains intact;
+// an unknown local or frame never supplies a declaration or selected link.
+fn alias_pairs_with_source_target(
+    arguments: InvocationArguments<'_>,
+    level_word: crate::frame_effect::FrameLevelWord,
+    retain_source_target: bool,
 ) -> StateTransitions {
     use crate::frame_effect::{FrameArgLayout, FrameEffectSpec};
     let mut transitions = StateTransitions::default();
@@ -1446,18 +2500,28 @@ fn alias_pairs(
         level_word,
         layout: FrameArgLayout::AliasPairs,
     };
-    // A leading probe decides presence by the first word's text; a computed
-    // first word is the level only when a further word follows it.
-    let taken = frame
-        .level_word_len_for_argument_count(len)
-        .unwrap_or_else(|| match arguments.literal_at(0) {
-            Some(word) => frame.level_word_len(&[word, ""][..len.min(2)]),
-            None => usize::from(len >= 2),
-        });
+    let taken = if let Some(taken) = frame.level_word_len_for_arguments(arguments) {
+        taken
+    } else {
+        if let Some(subject) = TransitionSubject::from_argument(arguments, 0) {
+            transitions.widen(subject, VARIABLE_ALIAS_DOMAINS);
+        }
+        // A conditional source role is not a pre-dispatch layout or frame.
+        if !retain_source_target
+            || frame
+                .conditional_no_level_source_layout(arguments)
+                .is_none()
+        {
+            return transitions;
+        }
+        0
+    };
     let level = match taken {
         0 => CallerFrameSelection::DefaultCaller,
         _ => match TransitionSubject::from_argument(arguments, 0) {
-            Some(level @ TransitionSubject::Literal(_)) => CallerFrameSelection::Explicit(level),
+            Some(level) if level.literal().is_some() || level.native_bytes().is_some() => {
+                CallerFrameSelection::Explicit(level)
+            }
             Some(dynamic) => {
                 transitions.widen(dynamic, VARIABLE_ALIAS_DOMAINS);
                 return transitions;
@@ -1474,13 +2538,18 @@ fn alias_pairs(
         };
         if let Some(dynamic) = [&variable, &local]
             .into_iter()
-            .find(|subject| subject.literal().is_none())
+            .find(|subject| subject.literal().is_none() && subject.native_bytes().is_none())
         {
             transitions.widen(dynamic.clone(), VARIABLE_ALIAS_DOMAINS);
-            continue;
+            if !retain_source_target
+                || (local.literal().is_none() && local.native_bytes().is_none())
+            {
+                continue;
+            }
         }
         transitions.push(StateTransition::VariableCellAlias(
             VariableCellAliasTransition {
+                destination: VariableAliasDestination::CurrentNamespaceOrLocal,
                 local,
                 target: VariableAliasTarget::CallerSelectedFrame {
                     frame: level.clone(),
@@ -1497,30 +2566,636 @@ fn alias_pairs(
     transitions
 }
 
-/// Return the local name Tcl gives a namespace-qualified variable reference.
-///
-/// `global ::pkg::counter` and `variable ::pkg::counter` bind a current-frame
-/// local named `counter`, while dynamic source words remain typed unknown.
+/// The operation selecting a local variable alias name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VariableAliasNamePurpose {
+    /// A global-variable link; Jim leaves rooted names without a local link.
+    Global,
+    /// A namespace-variable link, with the engine's namespace-tail rules.
+    NamespaceVariable,
+}
+
+/// Project an original alias operand through the selected native naming owner.
+/// Missing policies and non-Unicode projections remain opaque; no native
+/// lookup, successful link, physical cell or compiler permission follows.
+/// `None` means the selected operation creates no local alias.
 #[must_use]
-pub fn local_alias_name(subject: &TransitionSubject) -> TransitionSubject {
-    match subject {
-        TransitionSubject::Literal(name) => {
-            TransitionSubject::Literal(name.rsplit("::").next().unwrap_or(name).to_owned())
-        }
-        TransitionSubject::Unknown {
+pub fn local_alias_name(
+    subject: &TransitionSubject,
+    argument_index: usize,
+    purpose: VariableAliasNamePurpose,
+    dialect: Option<crate::InvocationDialect>,
+) -> Option<TransitionSubject> {
+    if let TransitionSubject::LocatedNativeBytes {
+        value: name,
+        argument_index,
+    } = subject
+    {
+        let argument_index = *argument_index;
+        let selected = match dialect.and_then(crate::InvocationDialect::native_name_protocol) {
+            Some(protocol) => match purpose {
+                VariableAliasNamePurpose::Global => {
+                    tcl_syntax::naming::global_local_name_bytes(protocol, name)?
+                }
+                VariableAliasNamePurpose::NamespaceVariable => {
+                    tcl_syntax::naming::variable_local_name_bytes(protocol, name)
+                }
+            },
+            None if dialect.is_some_and(|dialect| {
+                dialect.family() == Some(tcl_dialect::model::Family::Tcl)
+            }) =>
+            {
+                tcl_syntax::naming::c_family_local_alias_name_bytes(name)?
+            }
+            None => {
+                return Some(TransitionSubject::Unknown {
+                    argument_index,
+                    word_kind: InvocationWordKind::KnownBytes,
+                });
+            }
+        };
+        return Some(TransitionSubject::LocatedNativeBytes {
+            value: selected,
             argument_index,
-            word_kind,
-        } => TransitionSubject::Unknown {
-            argument_index: *argument_index,
-            word_kind: *word_kind,
-        },
+        });
     }
+    let Some(name) = subject.literal() else {
+        return Some(subject.clone());
+    };
+    let opaque = || TransitionSubject::Unknown {
+        argument_index,
+        word_kind: InvocationWordKind::Opaque,
+    };
+    let Some(protocol) = dialect.and_then(crate::InvocationDialect::native_name_protocol) else {
+        if dialect.is_some_and(|dialect| dialect.family() == Some(tcl_dialect::model::Family::Tcl))
+        {
+            return Some(
+                tcl_syntax::naming::c_family_local_alias_name_bytes(name.as_bytes())
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+                    .map_or_else(opaque, |value| {
+                        subject
+                            .with_literal_value(value)
+                            .expect("known alias value")
+                    }),
+            );
+        }
+        return Some(opaque());
+    };
+    let selected = match purpose {
+        VariableAliasNamePurpose::Global => {
+            tcl_syntax::naming::global_local_name_bytes(protocol, name.as_bytes())?
+        }
+        VariableAliasNamePurpose::NamespaceVariable => {
+            tcl_syntax::naming::variable_local_name_bytes(protocol, name.as_bytes())
+        }
+    };
+    Some(String::from_utf8(selected).map_or_else(
+        |_| opaque(),
+        |value| {
+            subject
+                .with_literal_value(value)
+                .expect("known alias value")
+        },
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_namespace_export_control_uses_the_selected_cstring_extent() {
+        // Implementation contract: naming.namespace.original-byte-pattern-transfers
+
+        for version in tcl_dialect::TclVersion::ALL {
+            let policy = tcl_syntax::naming::NamePolicyProtocol::authored_tcl(version);
+            let patterns = [b"-clear\0suffix".as_slice(), b"p\xed\xa0\x80"];
+            let (clear, retained) =
+                NamespaceTransition::export_pattern_byte_operands(&patterns, policy).unwrap();
+            assert!(clear);
+            assert_eq!(retained, &patterns[1..]);
+            let modified = [b"-clear\xc0\x80suffix".as_slice()];
+            assert_eq!(
+                NamespaceTransition::export_pattern_byte_operands(&modified, policy),
+                Some((false, modified.as_slice()))
+            );
+            assert_eq!(
+                NamespaceTransition::import_preload_command(policy),
+                Some("auto_import")
+            );
+        }
+        let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some("jimtcl")).unwrap();
+        let policy = tcl_syntax::naming::NamePolicyProtocol::for_native_point(point).unwrap();
+        assert!(NamespaceTransition::export_pattern_byte_operands(&[], policy).is_none());
+        assert_eq!(NamespaceTransition::import_preload_command(policy), None);
+    }
+
+    #[test]
+    fn original_namespace_patterns_close_only_their_represented_byte_ordinals() {
+        // Implementation contract: naming.namespace.original-byte-pattern-transfers
+
+        for version in tcl_dialect::TclVersion::ALL {
+            let registry =
+                crate::model::ingress::static_context_for(version.dialect_name()).commands();
+            let namespace = registry.get("namespace").unwrap();
+            let dialect = crate::InvocationDialect::for_version(version);
+            for operation in ["export", "import", "forget"] {
+                let descriptor = namespace
+                    .subcommands
+                    .iter()
+                    .find(|entry| entry.name == operation)
+                    .and_then(|entry| entry.state_transitions)
+                    .unwrap();
+                let words = [
+                    crate::InvocationWord::Literal(operation),
+                    crate::InvocationWord::KnownBytes(b"p\xed\xa0\x80"),
+                ];
+                let transitions = descriptor
+                    .resolve(InvocationArguments::structured(&words).with_dialect(dialect));
+                assert!(
+                    transitions
+                        .facts()
+                        .iter()
+                        .all(|fact| !matches!(fact.transition, StateTransition::Widen(_))),
+                    "{version:?}: {operation}"
+                );
+                let pattern = match &transitions.facts()[0].transition {
+                    StateTransition::Namespace(
+                        NamespaceTransition::Export { patterns, .. }
+                        | NamespaceTransition::Forget { patterns, .. },
+                    ) => &patterns[0],
+                    StateTransition::Namespace(NamespaceTransition::Import {
+                        patterns,
+                        force,
+                        ..
+                    }) => {
+                        assert_eq!(*force, Some(false));
+                        &patterns[0]
+                    }
+                    _ => panic!("selected namespace pattern operation"),
+                };
+                assert_eq!(pattern.native_bytes(), Some(b"p\xed\xa0\x80".as_slice()));
+                assert_eq!(pattern.argument_index(), Some(1));
+                let words = [
+                    crate::InvocationWord::Literal(operation),
+                    crate::InvocationWord::Dynamic,
+                ];
+                let unknown = descriptor
+                    .resolve(InvocationArguments::structured(&words).with_dialect(dialect));
+                assert!(
+                    unknown
+                        .facts()
+                        .iter()
+                        .any(|fact| matches!(fact.transition, StateTransition::Widen(_)))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn native_byte_subjects_preserve_values_and_project_each_ordinal() {
+        // Implementation contract: naming.invocation.known-native-byte-values
+
+        let payload = [b'n', 0, 0xff];
+        let words = [
+            crate::InvocationWord::KnownBytes(&payload),
+            crate::InvocationWord::KnownBytes(&payload),
+        ];
+        let arguments = InvocationArguments::structured(&words);
+        let first = TransitionSubject::from_argument(arguments, 0).unwrap();
+        let second = TransitionSubject::from_argument(arguments, 1).unwrap();
+        assert_eq!(first.native_bytes(), Some(payload.as_slice()));
+        assert_eq!(first.literal(), None);
+        assert_eq!(first.argument_index(), Some(0));
+        assert_ne!(first, second);
+        assert!(first.with_literal_value("replacement".to_owned()).is_none());
+        let mut transitions = StateTransitions::default();
+        transitions.push(StateTransition::CommandBinding(
+            CommandBindingTransition::Move {
+                from: first.clone(),
+                to: second.clone(),
+            },
+        ));
+        let projected = transitions
+            .project_argument_indices(|index| index.checked_add(2))
+            .unwrap();
+        let StateTransition::CommandBinding(CommandBindingTransition::Move { from, to }) =
+            &projected.facts()[0].transition
+        else {
+            panic!("move");
+        };
+        assert_eq!(from.native_bytes(), first.native_bytes());
+        assert_eq!(to.native_bytes(), second.native_bytes());
+        assert_eq!(from.argument_index(), Some(2));
+        assert_eq!(to.argument_index(), Some(3));
+        assert!(
+            transitions
+                .project_argument_indices(|index| index.checked_sub(1))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_byte_rename_transitions_select_destination_extent_and_keep_ordinals() {
+        // Implementation contract: naming.command.original-byte-rename-transition
+
+        use crate::InvocationWord;
+        let from = b"P\xed\xa0\x80";
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            for destination in [b"Q\xed\xa0\x81".as_slice(), b"Q\xc0\x80tail"] {
+                let words = [
+                    InvocationWord::KnownBytes(from),
+                    InvocationWord::KnownBytes(destination),
+                ];
+                let transitions = command_binding::RENAMES_COMMANDS
+                    .resolve(InvocationArguments::structured(&words).with_dialect(dialect));
+                let [fact] = transitions.facts() else {
+                    panic!("one rename transition")
+                };
+                let StateTransition::CommandBinding(CommandBindingTransition::Move {
+                    from: original,
+                    to,
+                }) = &fact.transition
+                else {
+                    panic!("byte move")
+                };
+                assert_eq!(original.native_bytes(), Some(from.as_slice()));
+                assert_eq!(original.argument_index(), Some(0));
+                assert_eq!(to.native_bytes(), Some(destination));
+                assert_eq!(to.argument_index(), Some(1));
+                assert_eq!(
+                    fact.commit,
+                    StateTransitionCommit::MayCommitBeforeAbruptCompletion
+                );
+                assert!(!transitions.widens(StateTransitionDomain::CommandBindings));
+            }
+            let destination = b"N\xed\xa0\x81::::Q\0ignored::later";
+            let words = [
+                InvocationWord::KnownBytes(from),
+                InvocationWord::KnownBytes(destination),
+            ];
+            let transitions = command_binding::RENAMES_COMMANDS
+                .resolve(InvocationArguments::structured(&words).with_dialect(dialect));
+            let StateTransition::Namespace(NamespaceTransition::Ensure {
+                namespace: NamespaceTransitionTarget::Named(namespace),
+            }) = &transitions.facts()[0].transition
+            else {
+                panic!("selected qualifier")
+            };
+            assert_eq!(namespace.native_bytes(), Some(b"N\xed\xa0\x81".as_slice()));
+            assert_eq!(namespace.argument_index(), Some(1));
+            let StateTransition::CommandBinding(CommandBindingTransition::Move { to, .. }) =
+                &transitions.facts()[1].transition
+            else {
+                panic!("move retains full input")
+            };
+            assert_eq!(to.native_bytes(), Some(destination.as_slice()));
+            let words = [
+                InvocationWord::KnownBytes(from),
+                InvocationWord::KnownBytes(b"\0tail"),
+            ];
+            let transitions = command_binding::RENAMES_COMMANDS
+                .resolve(InvocationArguments::structured(&words).with_dialect(dialect));
+            let StateTransition::CommandBinding(CommandBindingTransition::Delete { name, .. }) =
+                &transitions.facts()[0].transition
+            else {
+                panic!("empty selected CString deletes")
+            };
+            assert_eq!(name.native_bytes(), Some(from.as_slice()));
+        }
+        let words = [
+            InvocationWord::KnownBytes(from),
+            InvocationWord::KnownBytes(b"Q"),
+        ];
+        for dialect in [
+            None,
+            Some(crate::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
+            )),
+        ] {
+            let arguments = InvocationArguments::structured(&words);
+            let arguments = dialect.map_or(arguments, |dialect| arguments.with_dialect(dialect));
+            let transitions = command_binding::RENAMES_COMMANDS.resolve(arguments);
+            assert!(transitions.facts().iter().any(|fact| matches!(
+                fact.transition,
+                StateTransition::CommandBinding(CommandBindingTransition::Unknown { .. })
+            )));
+            assert!(transitions.widens(StateTransitionDomain::CommandBindings));
+        }
+        assert!(
+            TransitionSubject::Literal("Q".to_owned())
+                .with_native_bytes_value(vec![b'Q'])
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn native_identity_values_do_not_close_unknown_control_operands() {
+        // Implementation contract: naming.invocation.known-native-byte-values
+
+        let subject = TransitionSubject::LocatedNativeBytes {
+            value: vec![0xff],
+            argument_index: 0,
+        };
+        let different_ordinal = TransitionSubject::LocatedNativeBytes {
+            value: vec![0xff],
+            argument_index: 1,
+        };
+        let defined = StateTransition::CommandBinding(CommandBindingTransition::Define {
+            name: subject.clone(),
+            kind: CommandBindingDefinitionKind::Command,
+        });
+        assert!(defined.represents_native_identity_subject(&subject));
+        assert!(!defined.represents_native_identity_subject(&different_ordinal));
+        let unresolved = StateTransition::CommandBinding(CommandBindingTransition::Unknown {
+            operands: vec![subject.clone()],
+        });
+        assert!(!unresolved.represents_native_identity_subject(&subject));
+        let interpreter = TransitionSubject::Literal(String::new());
+        let limit = StateTransition::Interpreter(InterpreterTransition::SetRecursionLimit {
+            interpreter,
+            limit: subject.clone(),
+        });
+        assert!(!limit.represents_native_identity_subject(&subject));
+        let package = StateTransition::Package(crate::model::binding::PackageTransition::Provide {
+            package: TransitionSubject::Literal("P".to_owned()),
+            version: Some(subject.clone()),
+        });
+        assert!(!package.represents_native_identity_subject(&subject));
+        let words = [crate::InvocationWord::KnownBytes(&[0xff])];
+        let arguments = InvocationArguments::structured(&words);
+        let rules = [StateTransitionWideningRule {
+            operands: StateTransitionOperandLayout::Indices(&[0]),
+            domains: &[StateTransitionDomain::CommandBindings],
+        }];
+        let mut unknown = StateTransitions::default();
+        unknown.push(unresolved);
+        unknown.widen_dynamic_arguments(arguments, &rules, true);
+        assert!(unknown.widens(StateTransitionDomain::CommandBindings));
+        let mut represented = StateTransitions::default();
+        represented.push(defined);
+        represented.widen_dynamic_arguments(arguments, &rules, true);
+        assert!(!represented.widens(StateTransitionDomain::CommandBindings));
+    }
+
+    #[test]
+    fn native_byte_alias_names_use_the_selected_name_purpose() {
+        // Implementation contract: naming.invocation.known-native-byte-values
+
+        let input = TransitionSubject::LocatedNativeBytes {
+            value: b"::scope::n\xed\xa0\x80".to_vec(),
+            argument_index: 3,
+        };
+        for version in tcl_dialect::TclVersion::ALL {
+            let local = local_alias_name(
+                &input,
+                3,
+                VariableAliasNamePurpose::Global,
+                Some(crate::InvocationDialect::for_version(version)),
+            )
+            .unwrap();
+            assert_eq!(local.native_bytes(), Some(b"n\xed\xa0\x80".as_slice()));
+            assert_eq!(local.literal(), None);
+            assert_eq!(local.argument_index(), Some(3));
+        }
+        let jim = crate::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
+        );
+        assert!(local_alias_name(&input, 3, VariableAliasNamePurpose::Global, Some(jim)).is_none());
+        let local = local_alias_name(
+            &input,
+            3,
+            VariableAliasNamePurpose::NamespaceVariable,
+            Some(jim),
+        )
+        .unwrap();
+        assert_eq!(local.native_bytes(), Some(b"n\xed\xa0\x80".as_slice()));
+        assert_eq!(local.argument_index(), Some(3));
+        assert!(matches!(
+            local_alias_name(&input, 3, VariableAliasNamePurpose::Global, None),
+            Some(TransitionSubject::Unknown {
+                argument_index: 3,
+                word_kind: InvocationWordKind::KnownBytes
+            })
+        ));
+    }
+
+    #[test]
+    fn known_equal_operands_retain_distinct_effective_ordinals() {
+        // Implementation contract: naming.invocation.effective-transition-operands
+
+        let arguments = InvocationArguments::literals(&["same", "same"]);
+        let first = TransitionSubject::from_argument(arguments, 0).unwrap();
+        let second = TransitionSubject::from_argument(arguments, 1).unwrap();
+        assert_eq!(first.literal(), second.literal());
+        assert_ne!(first, second);
+        assert_eq!(first.argument_index(), Some(0));
+        assert_eq!(second.argument_index(), Some(1));
+        assert_eq!(
+            TransitionSubject::Literal("same".to_owned()).argument_index(),
+            None
+        );
+        assert_eq!(
+            second
+                .with_literal_value("selected".to_owned())
+                .unwrap()
+                .argument_index(),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn argv_projection_retains_nested_operands_order_and_completion_commits() {
+        // Implementation contract: naming.invocation.effective-transition-operands
+
+        let subject = |index| TransitionSubject::LocatedLiteral {
+            value: "same".to_owned(),
+            argument_index: index,
+        };
+        let mut transitions = StateTransitions::default();
+        transitions.push(StateTransition::CommandBinding(
+            CommandBindingTransition::Alias {
+                target_lookup: AliasTargetLookup::Global,
+                source_interpreter: TransitionSubject::Literal(String::new()),
+                alias: subject(1),
+                target_interpreter: subject(2),
+                target: subject(3),
+                arguments: vec![
+                    subject(4),
+                    TransitionSubject::Unknown {
+                        argument_index: 5,
+                        word_kind: InvocationWordKind::Dynamic,
+                    },
+                ],
+            },
+        ));
+        transitions.push(StateTransition::VariableCellAlias(
+            VariableCellAliasTransition {
+                destination: VariableAliasDestination::CurrentNamespaceOrLocal,
+                local: subject(4),
+                target: VariableAliasTarget::CallerSelectedFrame {
+                    frame: CallerFrameSelection::Explicit(subject(1)),
+                    variable: subject(2),
+                },
+                writes_value: false,
+                words: AliasWords {
+                    local: 4,
+                    target: 2,
+                },
+            },
+        ));
+        transitions.set_commit(StateTransitionCommit::MayCommitBeforeAbruptCompletion);
+        let projected = transitions
+            .project_argument_indices(|index| index.checked_sub(1))
+            .unwrap();
+        assert!(
+            projected
+                .facts()
+                .iter()
+                .all(|fact| fact.commit == StateTransitionCommit::MayCommitBeforeAbruptCompletion)
+        );
+        let mut indices = Vec::new();
+        let mut values = Vec::new();
+        for mut fact in projected.facts().iter().cloned() {
+            fact.transition.for_each_subject_mut(&mut |subject| {
+                indices.push(subject.argument_index());
+                values.push(subject.literal().map(str::to_owned));
+            });
+        }
+        assert_eq!(
+            indices,
+            [
+                None,
+                Some(0),
+                Some(1),
+                Some(2),
+                Some(3),
+                Some(4),
+                Some(3),
+                Some(0),
+                Some(1)
+            ]
+        );
+        assert_eq!(values[0].as_deref(), Some(""));
+        assert_eq!(values[5], None);
+        assert!(
+            transitions
+                .project_argument_indices(|index| index.checked_sub(2))
+                .is_none()
+        );
+        assert_eq!(
+            transitions.facts()[0].commit,
+            StateTransitionCommit::MayCommitBeforeAbruptCompletion
+        );
+    }
     use crate::{InvocationWord, InvocationWords};
+
+    #[test]
+    fn logical_alias_dynamic_target_keeps_source_relation_and_original_widening() {
+        use crate::frame_effect::FrameLevelWord;
+        let words = [InvocationWord::Dynamic, InvocationWord::Literal("local")];
+        let args = InvocationArguments::structured(&words);
+        let ordinary = alias_pairs_resolver(FrameLevelWord::Upvar)(args);
+        assert!(
+            ordinary
+                .facts()
+                .iter()
+                .all(|fact| !matches!(fact.transition, StateTransition::VariableCellAlias(_)))
+        );
+        let source = logical_source_alias_pairs_resolver(FrameLevelWord::Upvar)(args);
+        assert!(
+            ordinary
+                .facts()
+                .iter()
+                .all(|fact| source.facts().contains(fact))
+        );
+        assert!(source.facts().iter().any(|fact| matches!(&fact.transition,
+            StateTransition::VariableCellAlias(alias)
+                if alias.local.literal() == Some("local")
+                && matches!(&alias.target, VariableAliasTarget::CallerSelectedFrame {
+                    variable: TransitionSubject::Unknown { argument_index: 0, .. }, .. }))));
+        for words in [
+            [InvocationWord::Literal("target"), InvocationWord::Dynamic],
+            [InvocationWord::Dynamic, InvocationWord::Dynamic],
+        ] {
+            let facts = logical_source_alias_pairs_resolver(FrameLevelWord::Upvar)(
+                InvocationArguments::structured(&words),
+            );
+            assert!(
+                facts
+                    .facts()
+                    .iter()
+                    .all(|fact| !matches!(fact.transition, StateTransition::VariableCellAlias(_)))
+            );
+        }
+        let words = [
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("target"),
+            InvocationWord::Literal("local"),
+        ];
+        let facts = logical_source_alias_pairs_resolver(FrameLevelWord::Upvar)(
+            InvocationArguments::structured(&words),
+        );
+        assert!(
+            facts
+                .facts()
+                .iter()
+                .all(|fact| !matches!(fact.transition, StateTransition::VariableCellAlias(_)))
+        );
+    }
+
+    #[test]
+    fn logical_frame_alias_projection_preserves_custom_replacement_and_commit_metadata() {
+        let frame = crate::FrameEffectSpec {
+            level_word: crate::frame_effect::FrameLevelWord::Upvar,
+            layout: crate::FrameArgLayout::AliasPairs,
+        };
+        let descriptor = StateTransitionDescriptor {
+            resolver: Some(alias_pairs_resolver(frame.level_word)),
+            logical_source_resolver: Some(LogicalSourceStateTransitionResolver::FrameAliases(
+                logical_source_alias_pairs_resolver(frame.level_word),
+            )),
+            commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+            ..StateTransitionDescriptor::EMPTY
+        };
+        let words = [
+            InvocationWord::Literal("#0"),
+            InvocationWord::Literal("source"),
+            InvocationWord::Literal("local"),
+        ];
+        let arguments = InvocationArguments::structured(&words)
+            .with_profile(Some(tcl_dialect::DialectProfile::plain_tcl()));
+        let owner = ResolvedStateTransitions {
+            command: Some(descriptor),
+            ..Default::default()
+        };
+        let facts = owner.resolve_logical_source_frame_aliases(arguments);
+        assert!(
+            matches!(&facts.facts()[0].transition, StateTransition::VariableCellAlias(alias)
+            if alias.local.literal() == Some("local") && alias.words.local == 2)
+        );
+        assert_eq!(
+            facts.facts()[0].commit,
+            StateTransitionCommit::MayCommitBeforeAbruptCompletion
+        );
+        let replaced = ResolvedStateTransitions {
+            command: Some(descriptor),
+            form: Some(StateTransitionDescriptor {
+                logical_source_resolver: None,
+                composition: StateTransitionComposition::Replace,
+                ..StateTransitionDescriptor::EMPTY
+            }),
+            ..Default::default()
+        };
+        assert_eq!(
+            replaced
+                .resolve_logical_source_frame_aliases(arguments)
+                .facts()
+                .len(),
+            0
+        );
+    }
 
     /// The alias facts a `from-frame-effect` resolver derives, and its two
     /// abstentions (`docs/design/spec-dsl-examples/README.md`, "Derivations,
@@ -1529,6 +3204,7 @@ mod tests {
     /// each widening the variable-cell domains for the word it could not
     /// read.
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn derived_alias_pairs_abstain_on_computed_words_and_widen() {
         use crate::frame_effect::FrameLevelWord;
         let resolve = |level_word, words: &[InvocationWord<'_>]| {
@@ -1537,10 +3213,17 @@ mod tests {
         // Each pair's `otherVar` word at `target`, its local one word later.
         let alias = |local: &str, frame: CallerFrameSelection, variable: &str, target: usize| {
             StateTransition::VariableCellAlias(VariableCellAliasTransition {
-                local: TransitionSubject::Literal(local.to_owned()),
+                destination: VariableAliasDestination::CurrentNamespaceOrLocal,
+                local: TransitionSubject::LocatedLiteral {
+                    value: local.to_owned(),
+                    argument_index: target + 1,
+                },
                 target: VariableAliasTarget::CallerSelectedFrame {
                     frame,
-                    variable: TransitionSubject::Literal(variable.to_owned()),
+                    variable: TransitionSubject::LocatedLiteral {
+                        value: variable.to_owned(),
+                        argument_index: target,
+                    },
                 },
                 writes_value: false,
                 words: AliasWords {
@@ -1566,7 +3249,10 @@ mod tests {
                 .collect()
         };
         let level = |word: &str| {
-            CallerFrameSelection::Explicit(TransitionSubject::Literal(word.to_owned()))
+            CallerFrameSelection::Explicit(TransitionSubject::LocatedLiteral {
+                value: word.to_owned(),
+                argument_index: 0,
+            })
         };
 
         // `upvar`'s layout: an odd word count carries the level word.
@@ -1621,13 +3307,49 @@ mod tests {
             [alias("b", level("#0"), "a", 1)]
         );
         // An expansion hides the pairs: nothing is stated.
-        assert!(
+        assert_eq!(
             resolve(
                 FrameLevelWord::None,
                 &[InvocationWord::Expanded, InvocationWord::Literal("b")]
             )
             .facts()
-            .is_empty()
+            .len(),
+            0
+        );
+    }
+
+    /// Counted operands remain byte values in the shared alias projection.
+    /// `corner-upvar-counted-nul-target.md` records the engine-specific name
+    /// lookup question; this test establishes no successful lookup or cell.
+    #[test]
+    fn derived_alias_pairs_preserve_counted_values_without_text_projection() {
+        use crate::{InvocationWord, frame_effect::FrameLevelWord};
+        let words = [
+            InvocationWord::KnownBytes(b"source\0tail"),
+            InvocationWord::KnownBytes(b"local\0tail"),
+        ];
+        let transitions = alias_pairs_resolver(FrameLevelWord::ArityParity)(
+            InvocationArguments::structured(&words),
+        );
+        let [fact] = transitions.facts() else {
+            panic!("one exact ordinary alias pair");
+        };
+        let StateTransition::VariableCellAlias(alias) = &fact.transition else {
+            panic!("exact operands retain the alias projection");
+        };
+        assert_eq!(alias.local.native_bytes(), Some(b"local\0tail".as_slice()));
+        assert_eq!(alias.local.literal(), None);
+        let VariableAliasTarget::CallerSelectedFrame { variable, .. } = &alias.target else {
+            panic!("the descriptor retains caller selection");
+        };
+        assert_eq!(variable.native_bytes(), Some(b"source\0tail".as_slice()));
+        assert_eq!(variable.literal(), None);
+        assert_eq!(
+            alias.words,
+            AliasWords {
+                local: 1,
+                target: 0
+            }
         );
     }
 
@@ -1664,6 +3386,7 @@ mod tests {
                     target_interpreter,
                     target,
                     arguments,
+                    target_lookup: _,
                 } => [source_interpreter, alias, target_interpreter, target]
                     .into_iter()
                     .chain(arguments)
@@ -1674,40 +3397,69 @@ mod tests {
         }
     }
 
+    fn assert_alias_subject_correspondence(
+        subject: &TransitionSubject,
+        command: &str,
+        words: &[InvocationWord<'_>],
+        computed: usize,
+    ) {
+        match subject {
+            TransitionSubject::Unknown { argument_index, .. } => assert_eq!(
+                *argument_index, computed,
+                "`{command}` {words:?}: an unknown subject stands at the computed word"
+            ),
+            TransitionSubject::Literal(name) => assert!(
+                words
+                    .iter()
+                    .any(|word| word.literal() == Some(name.as_str())),
+                "`{command}` {words:?} states `{name}`, which no literal word spells"
+            ),
+            TransitionSubject::LocatedLiteral {
+                value,
+                argument_index,
+            } => {
+                assert_eq!(
+                    words.get(*argument_index).and_then(|word| word.literal()),
+                    Some(value.as_str()),
+                    "`{command}` {words:?}: known value retains its own operand"
+                );
+            }
+            TransitionSubject::LocatedNativeBytes {
+                value,
+                argument_index,
+            } => {
+                assert_eq!(
+                    words
+                        .get(*argument_index)
+                        .and_then(|word| word.native_bytes()),
+                    Some(value.as_slice()),
+                    "`{command}` {words:?}: native value retains its own operand"
+                );
+            }
+        }
+    }
+
     /// The witness the analyser's isolated per-item pass needs before it
     /// consumes transitions (`registry-consumer-contracts.md` § *The
     /// analyser*): no shipped alias or command-binding resolver states a name
     /// the source does not spell. A computed word reaches a fact only as a
     /// typed unknown subject at its own index — the shipped `upvar` states
-    /// its alias with an unknown local, a derived resolver states none — and
-    /// the call widens the domain that word's identity lives in, so a
-    /// consumer binds nothing it cannot name.
+    /// its alias with unknown frame/name operands, a derived resolver states
+    /// none. Unknown identities remain in positioned alias operands or widen
+    /// their declared domain; a consumer never binds a name it cannot read.
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn alias_and_binding_resolvers_abstain_on_a_dynamic_word() {
+        // Implementation contract: naming.invocation.effective-transition-operands
+
         use crate::InvocationWord::{Dynamic, Literal};
         use StateTransitionDomain::{CommandBindings, VariableCells};
-        let registry = crate::default_registry();
+        let context = crate::model::ingress::static_context_for("tcl9.0");
+        let registry = context.commands();
+        let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
         let cases: &[(&str, &[InvocationWord<'_>], usize, StateTransitionDomain)] = &[
             ("global", &[Dynamic, Literal("g")], 0, VariableCells),
             ("variable", &[Dynamic, Literal("1")], 0, VariableCells),
-            (
-                "upvar",
-                &[Literal("1"), Dynamic, Literal("l")],
-                1,
-                VariableCells,
-            ),
-            (
-                "upvar",
-                &[Literal("1"), Literal("o"), Dynamic],
-                2,
-                VariableCells,
-            ),
-            (
-                "upvar",
-                &[Dynamic, Literal("o"), Literal("l")],
-                0,
-                VariableCells,
-            ),
             (
                 "namespace",
                 &[Literal("upvar"), Dynamic, Literal("o"), Literal("l")],
@@ -1744,8 +3496,8 @@ mod tests {
         for &(command, words, computed, domain) in cases {
             let invocation = registry
                 .resolve_structured_invocation(
-                    InvocationWords::structured(Literal(command), words),
-                    None,
+                    InvocationWords::structured(Literal(command), words).with_dialect(dialect),
+                    Some(context.context().authoring_query()),
                 )
                 .resolved()
                 .unwrap_or_else(|| panic!("`{command}` resolves"));
@@ -1756,19 +3508,71 @@ mod tests {
             );
             for fact in transitions.facts() {
                 for subject in alias_and_binding_subjects(&fact.transition) {
-                    match subject {
-                        TransitionSubject::Unknown { argument_index, .. } => assert_eq!(
-                            *argument_index, computed,
-                            "`{command}` {words:?}: an unknown subject stands at the computed word"
-                        ),
-                        TransitionSubject::Literal(name) => assert!(
-                            words
-                                .iter()
-                                .any(|word| word.literal() == Some(name.as_str())),
-                            "`{command}` {words:?} states `{name}`, which no literal word spells"
-                        ),
-                    }
+                    assert_alias_subject_correspondence(subject, command, words, computed);
                 }
+            }
+        }
+
+        // Shipped upvar retains the unknown identity in its exact alias
+        // operands. Establishing a link does not erase unrelated cells or
+        // traces, unlike the widening used by derived alias resolvers.
+        for (words, computed) in [
+            ([Literal("1"), Dynamic, Literal("l")], 1),
+            ([Literal("1"), Literal("o"), Dynamic], 2),
+            ([Dynamic, Literal("o"), Literal("l")], 0),
+        ] {
+            let invocation = registry
+                .resolve_structured_invocation(
+                    InvocationWords::structured(Literal("upvar"), &words).with_dialect(dialect),
+                    Some(context.context().authoring_query()),
+                )
+                .resolved()
+                .expect("selected upvar metadata");
+            let transitions = invocation.state_transitions();
+            assert!(!transitions.widens(VariableCells));
+            assert!(!transitions.widens(StateTransitionDomain::VariableTraces));
+            let [fact] = transitions.facts() else {
+                panic!("one positioned alias: {transitions:#?}");
+            };
+            let StateTransition::VariableCellAlias(alias) = &fact.transition else {
+                panic!("unknown identity stays in the alias: {fact:#?}");
+            };
+            assert_eq!(
+                alias.destination,
+                VariableAliasDestination::CurrentNamespaceOrLocal
+            );
+            assert_eq!(
+                alias.words,
+                AliasWords {
+                    local: 2,
+                    target: 1
+                }
+            );
+            assert!(!alias.writes_value);
+            assert_eq!(
+                fact.commit,
+                StateTransitionCommit::MayCommitBeforeAbruptCompletion
+            );
+            assert!(matches!(
+                alias.target,
+                VariableAliasTarget::CallerSelectedFrame {
+                    frame: CallerFrameSelection::Explicit(_),
+                    ..
+                }
+            ));
+            let subjects = alias_and_binding_subjects(&fact.transition);
+            assert!(
+                subjects.iter().any(|subject| matches!(
+                    subject,
+                    TransitionSubject::Unknown {
+                        argument_index,
+                        word_kind: InvocationWordKind::Dynamic,
+                    } if *argument_index == computed
+                )),
+                "{words:?}: computed operand remains unknown"
+            );
+            for subject in subjects {
+                assert_alias_subject_correspondence(subject, "upvar", &words, computed);
             }
         }
     }
@@ -1781,7 +3585,9 @@ mod tests {
     #[test]
     fn dynamic_operands_become_typed_widenings() {
         const DESCRIPTOR: StateTransitionDescriptor = StateTransitionDescriptor {
+            logical_source_resolver: None,
             composition: StateTransitionComposition::Extend,
+            success_resolver: None,
             resolver: None,
             argument_shape: StateTransitionArgumentShape::Independent,
             dynamic_widening: &[StateTransitionWideningRule {
@@ -1869,7 +3675,9 @@ mod tests {
         // A `proc`-like definition becomes precise only on the OK edge. An
         // exact CFG must not treat this as an unconditional binding fact.
         let descriptor = StateTransitionDescriptor {
+            logical_source_resolver: None,
             composition: StateTransitionComposition::Extend,
+            success_resolver: None,
             resolver: Some(command_definition),
             argument_shape: StateTransitionArgumentShape::Independent,
             dynamic_widening: &[],
@@ -1891,7 +3699,9 @@ mod tests {
     #[test]
     fn descriptors_resolve_command_subcommand_then_form() {
         let command = StateTransitionDescriptor {
+            logical_source_resolver: None,
             composition: StateTransitionComposition::Extend,
+            success_resolver: None,
             resolver: Some(command_definition),
             argument_shape: StateTransitionArgumentShape::Independent,
             dynamic_widening: &[],
@@ -1899,7 +3709,9 @@ mod tests {
             commit: StateTransitionCommit::OnOkOnly,
         };
         let subcommand = StateTransitionDescriptor {
+            logical_source_resolver: None,
             composition: StateTransitionComposition::Extend,
+            success_resolver: None,
             resolver: Some(subcommand_definition),
             argument_shape: StateTransitionArgumentShape::Independent,
             dynamic_widening: &[],
@@ -1907,7 +3719,9 @@ mod tests {
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
         };
         let form = StateTransitionDescriptor {
+            logical_source_resolver: None,
             composition: StateTransitionComposition::Replace,
+            success_resolver: None,
             resolver: Some(form_definition),
             argument_shape: StateTransitionArgumentShape::Independent,
             dynamic_widening: &[],
@@ -1934,8 +3748,186 @@ mod tests {
     #[test]
     fn qualified_aliases_use_the_current_frame_tail_name() {
         assert_eq!(
-            local_alias_name(&TransitionSubject::Literal("::pkg::counter".to_owned())),
-            TransitionSubject::Literal("counter".to_owned())
+            local_alias_name(
+                &TransitionSubject::Literal("::pkg::counter".to_owned()),
+                0,
+                VariableAliasNamePurpose::Global,
+                Some(crate::InvocationDialect::for_version(
+                    tcl_dialect::TclVersion::V8_6
+                )),
+            ),
+            Some(TransitionSubject::Literal("counter".to_owned()))
+        );
+    }
+
+    #[test]
+    fn unversioned_c_alias_assistance_keeps_native_release_unknown() {
+        let dialect =
+            crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
+        assert!(dialect.native_name_protocol().is_none());
+        let subject = TransitionSubject::Literal("ns:::v".to_owned());
+        assert_eq!(
+            local_alias_name(&subject, 0, VariableAliasNamePurpose::Global, Some(dialect)),
+            Some(TransitionSubject::Literal("v".to_owned())),
+        );
+        assert!(matches!(
+            local_alias_name(
+                &TransitionSubject::Literal("v\0tail".to_owned()),
+                0,
+                VariableAliasNamePurpose::Global,
+                Some(dialect),
+            ),
+            Some(TransitionSubject::Unknown {
+                argument_index: 0,
+                ..
+            }),
+        ));
+        assert!(dialect.native_name_protocol().is_none());
+    }
+
+    #[test]
+    fn alias_name_projection_keeps_operation_and_engine_separate() {
+        let rooted = TransitionSubject::Literal("::pkg:::counter".to_owned());
+        let jim = crate::InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment("jim").unit_profile(),
+        );
+        assert_eq!(
+            local_alias_name(&rooted, 2, VariableAliasNamePurpose::Global, Some(jim)),
+            None
+        );
+        assert_eq!(
+            local_alias_name(
+                &rooted,
+                2,
+                VariableAliasNamePurpose::NamespaceVariable,
+                Some(jim)
+            ),
+            Some(TransitionSubject::Literal("counter".to_owned()))
+        );
+        for version in tcl_dialect::TclVersion::ALL {
+            for purpose in [
+                VariableAliasNamePurpose::Global,
+                VariableAliasNamePurpose::NamespaceVariable,
+            ] {
+                assert_eq!(
+                    local_alias_name(
+                        &rooted,
+                        2,
+                        purpose,
+                        Some(crate::InvocationDialect::for_version(version))
+                    ),
+                    Some(TransitionSubject::Literal("counter".to_owned()))
+                );
+            }
+        }
+        for dialect in [
+            None,
+            Some(crate::InvocationDialect::of_profile(
+                tcl_dialect::DialectProfile::irules(),
+            )),
+        ] {
+            assert_eq!(
+                local_alias_name(&rooted, 2, VariableAliasNamePurpose::Global, dialect),
+                Some(TransitionSubject::Unknown {
+                    argument_index: 2,
+                    word_kind: InvocationWordKind::Opaque
+                })
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_namespace_option_advice_tests {
+    use super::NamespaceTransition;
+    use tcl_syntax::naming::NamePolicyProtocol;
+
+    #[test]
+    fn original_namespace_option_advice_selects_only_first_native_control_extent() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+
+        for version in tcl_dialect::TclVersion::ALL {
+            let policy = NamePolicyProtocol::authored_tcl(version);
+            let options = [b"-force\0suffix".as_slice(), b"-force".as_slice()];
+            let (forced, patterns) =
+                NamespaceTransition::import_pattern_byte_operands(&options, policy).unwrap();
+            assert!(forced);
+            assert_eq!(patterns, &options[1..]);
+            let escaped_zero = [b"-force\xc0\x80suffix".as_slice()];
+            assert!(
+                !NamespaceTransition::import_pattern_byte_operands(&escaped_zero, policy)
+                    .unwrap()
+                    .0
+            );
+            let clear = [b"-clear".as_slice(), b"-clear".as_slice()];
+            let (clears, patterns) =
+                NamespaceTransition::export_pattern_byte_operands(&clear, policy).unwrap();
+            assert!(clears);
+            assert_eq!(patterns, &clear[1..]);
+        }
+    }
+}
+
+#[cfg(test)]
+mod created_handle_source_tests {
+    use super::*;
+    use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+
+    #[test]
+    fn created_handle_eval_body_owns_only_the_canonical_single_script_ordinal() {
+        // naming.interpreter.original-created-handle-source-body
+
+        let create = InterpreterTransition::Create {
+            interpreter: Some(TransitionSubject::LocatedLiteral {
+                value: "s".to_owned(),
+                argument_index: 1,
+            }),
+            safety: ChildInterpreterSafety::Safe,
+        };
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = InvocationDialect::for_version(version);
+            let argv = [InvocationWord::Literal("eval"), InvocationWord::Dynamic];
+            let body = create
+                .created_handle_eval_body(
+                    dialect,
+                    InvocationArguments::Structured(&argv).with_dialect(dialect),
+                )
+                .unwrap();
+            assert_eq!(body.argument_index(), Some(1));
+            assert!(body.literal().is_none());
+            for argv in [
+                vec![
+                    InvocationWord::Literal("e"),
+                    InvocationWord::Literal("script"),
+                ],
+                vec![InvocationWord::Dynamic, InvocationWord::Literal("script")],
+                vec![InvocationWord::Literal("eval"), InvocationWord::Expanded],
+                vec![
+                    InvocationWord::Literal("eval"),
+                    InvocationWord::Literal("script"),
+                    InvocationWord::Literal("more"),
+                ],
+            ] {
+                assert!(
+                    create
+                        .created_handle_eval_body(
+                            dialect,
+                            InvocationArguments::Structured(&argv).with_dialect(dialect)
+                        )
+                        .is_none()
+                );
+            }
+        }
+        let jim = InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        assert!(
+            create
+                .created_handle_eval_body(
+                    jim,
+                    InvocationArguments::Literals(&["eval", "script"]).with_dialect(jim)
+                )
+                .is_none()
         );
     }
 }

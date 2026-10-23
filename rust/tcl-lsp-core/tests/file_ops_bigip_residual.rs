@@ -37,10 +37,11 @@
 //! documented contract, not against C-Tcl. No `tclsh-proof` comment is
 //! therefore warranted.
 
+use std::path::{Path, PathBuf};
 use tcl_compiler::analyser::Analyser;
 use tcl_lsp_core::bigip::{document_symbols, is_bigip_conf_name};
 use tcl_lsp_core::document_symbols::{DocumentSymbol, SymbolKind};
-use tcl_lsp_core::file_ops::compute_rename_edits;
+use tcl_lsp_core::file_ops::{FileRenameSourceAction, RenameEdit};
 use tcl_lsp_core::workspace_index::WorkspaceIndex;
 
 // file_ops.rs — `source`-literal rename edits + URI / path helpers.
@@ -50,6 +51,47 @@ use tcl_lsp_core::workspace_index::WorkspaceIndex;
 // `compute_new_literal`, `normpath`, `relpath`, `content_span`) are driven
 // through it. Each test below targets a specific branch / edge by choosing
 // fixtures that route execution through it.
+
+// URI ingress is test-only; host production callers supply checked Paths.
+fn uri_to_path(uri: &str) -> Option<String> {
+    let uri: tower_lsp_server::ls_types::Uri = uri.parse().ok()?;
+    (uri.scheme().as_str() == "file" && uri.query().is_none() && uri.fragment().is_none())
+        .then_some(())?;
+    let authority = uri
+        .authority()
+        .map(|authority| authority.as_str())
+        .unwrap_or_default();
+    if !(authority.is_empty() || cfg!(unix) && authority.eq_ignore_ascii_case("localhost")) {
+        return None;
+    }
+    let decoded = uri.path().decode().to_string().ok()?;
+    (!decoded.contains('\0')).then_some(())?;
+    uri.to_file_path()?.to_str().map(str::to_owned)
+}
+
+fn compute_rename_edits(
+    old_uri: &str,
+    new_uri: &str,
+    index: &WorkspaceIndex,
+    roots: &[String],
+) -> Vec<RenameEdit> {
+    let (Some(old), Some(new)) = (uri_to_path(old_uri), uri_to_path(new_uri)) else {
+        return Vec::new();
+    };
+    let Some(roots) = roots
+        .iter()
+        .map(|root| uri_to_path(root).map(PathBuf::from))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Vec::new();
+    };
+    let Some(action) = FileRenameSourceAction::new(Path::new(&old), Path::new(&new), &roots) else {
+        return Vec::new();
+    };
+    tcl_lsp_core::file_ops::compute_rename_edits(&action, index, &|uri| {
+        uri_to_path(uri).map(PathBuf::from)
+    })
+}
 
 /// Build a one-document workspace index from `(uri, src)`.
 fn index_of(uri: &str, src: &str) -> WorkspaceIndex {

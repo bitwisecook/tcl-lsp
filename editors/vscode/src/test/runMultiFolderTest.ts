@@ -124,8 +124,9 @@ async function main() {
         );
       }
     }
-  } catch {
-    /* best-effort */
+  } catch (error) {
+    console.error("Failed to materialise multi-folder test fixtures:", error);
+    throw error;
   }
 
   await runWatchedSuite({

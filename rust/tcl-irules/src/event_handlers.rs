@@ -4,79 +4,89 @@
 
 //! Registry-driven extraction of iRules event handlers and effective priorities.
 
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_lexer::TokenType;
+use tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords;
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
-/// A statically-resolved iRules event handler.
+use crate::OriginalIrulesSourceContext;
+
+/// Conditional authored iRules handler and literal priority report.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IrulesEventHandler {
-    /// Event handled by the `when` command.
+    /// Literal event written in the handler declaration.
     pub event: String,
-    /// Effective priority after top-level and per-handler overrides.
+    /// Literal inherited or per-handler priority.
     pub priority: u16,
 }
 
-/// Extract handlers whose event and effective priority are statically known.
-///
-/// BIG-IP begins at the handler command's registry-declared default. A
-/// top-level command carrying [`Traits::SETS_EVENT_PRIORITY`] changes the
-/// inherited value for subsequent handlers; an inline priority clause wins
-/// for that handler only. Dynamic and malformed priorities make the inherited
-/// value unknown until a later literal setter, avoiding speculative conflicts.
+/// Capture original hosted source before projecting handler priority advice.
 #[must_use]
 pub fn extract_irules_event_handlers(
     source: &str,
     registry: &CommandRegistry,
 ) -> Vec<IrulesEventHandler> {
-    let config = crate::irules_lexer_config();
-    let mut inherited_priority = registry
-        .event_handler_spec()
-        .and_then(|spec| spec.event_handler_priority)
-        .map(|policy| policy.default_priority);
+    OriginalIrulesSourceContext::capture(source, registry).map_or_else(Vec::new, |context| {
+        extract_original_irules_event_handlers(source, &context)
+    })
+}
+
+/// Project top-level handler reports from the same complete original source.
+/// Dynamic setters and unavailable source selection withhold inherited priority;
+/// a later literal setter restores it. Inline priority affects only its handler.
+#[must_use]
+pub fn extract_original_irules_event_handlers(
+    source: &str,
+    context: &OriginalIrulesSourceContext,
+) -> Vec<IrulesEventHandler> {
+    let mut inherited_priority = None;
+    let mut inherited_unknown = false;
     let mut handlers = Vec::new();
-
-    for cmd in segment_commands_with_offset_and_config(source, 0, config) {
-        let Some(spec) = registry.get(cmd.name()) else {
+    for (_, words) in context.top_level_source_vectors(source) {
+        let Some(words) = words else {
+            inherited_unknown = true;
             continue;
         };
-        let args = cmd.args();
-
-        if spec.traits.contains(Traits::SETS_EVENT_PRIORITY) {
-            inherited_priority = literal_u16_arg(&cmd, 0);
+        let Some((setter, policy, roles)) =
+            words.with_source_schema(context.context_registry(), |schema| {
+                (
+                    schema
+                        .semantics
+                        .traits
+                        .contains(Traits::SETS_EVENT_PRIORITY),
+                    schema.authored_event_handler_priority(),
+                    schema.arg_roles(),
+                )
+            })
+        else {
+            inherited_unknown = true;
+            continue;
+        };
+        if setter {
+            inherited_priority = literal_u16_arg(words, 0);
+            inherited_unknown = inherited_priority.is_none();
             continue;
         }
-
-        let Some(policy) = spec.event_handler_priority else {
+        let Some(policy) = policy else {
             continue;
         };
-        let Some(event) = args.first() else {
+        let Some(event) = literal_arg(words, 0) else {
             continue;
         };
-        if !literal_arg(&cmd, 0) {
+        let Some(roles) = roles else {
             continue;
-        }
-
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let body_index = registry
-            .arg_indices_for_role(cmd.name(), &arg_refs, ArgRole::Body)
-            .into_iter()
-            .next()
-            .unwrap_or(args.len());
-        let explicit = args
-            .get(1..body_index)
-            .unwrap_or(&[])
+        };
+        let body_index = roles
             .iter()
-            .position(|arg| arg == policy.keyword)
-            .map(|relative_index| relative_index + 1)
-            .map(|keyword_index| literal_u16_arg(&cmd, keyword_index + 1));
-        let priority = match explicit {
-            Some(priority) => priority,
-            None => inherited_priority,
-        };
+            .find_map(|&(index, role)| (role == ArgRole::Body).then_some(index))
+            .unwrap_or(words.arguments().len());
+        let explicit = (1..body_index)
+            .find(|&index| literal_arg(words, index) == Some(policy.keyword))
+            .map(|index| literal_u16_arg(words, index + 1));
+        let priority = explicit.unwrap_or_else(|| {
+            (!inherited_unknown).then(|| inherited_priority.unwrap_or(policy.default_priority))
+        });
         if let Some(priority) = priority {
             handlers.push(IrulesEventHandler {
-                event: event.clone(),
+                event: event.to_owned(),
                 priority,
             });
         }
@@ -84,19 +94,13 @@ pub fn extract_irules_event_handlers(
     handlers
 }
 
-fn literal_u16_arg(cmd: &tcl_compiler::segmenter::SegmentedCommand, index: usize) -> Option<u16> {
-    if !literal_arg(cmd, index) {
-        return None;
-    }
-    cmd.args().get(index)?.parse().ok()
+fn literal_u16_arg(words: &OriginalRegistryWords, index: usize) -> Option<u16> {
+    literal_arg(words, index)?.parse().ok()
 }
 
-fn literal_arg(cmd: &tcl_compiler::segmenter::SegmentedCommand, index: usize) -> bool {
-    cmd.arg_single_token().get(index).copied() == Some(true)
-        && cmd
-            .arg_tokens()
-            .get(index)
-            .is_some_and(|token| !matches!(token.kind, TokenType::Var | TokenType::Cmd))
+fn literal_arg(words: &OriginalRegistryWords, index: usize) -> Option<&str> {
+    words.original_argument_word(index)?;
+    std::str::from_utf8(words.arguments().get(index)?.literal_bytes()?).ok()
 }
 
 #[cfg(test)]
@@ -182,5 +186,101 @@ mod tests {
                 priority: 200,
             }]
         );
+    }
+    #[test]
+    fn original_source_priorities_decline_replaced_and_computed_commands() {
+        for source in [
+            "proc when args {}; when HTTP_REQUEST {}",
+            "proc ::when args {}; ::when HTTP_REQUEST {}",
+            "interp alias {} event {} when; event HTTP_REQUEST {}",
+            "set command when; $command HTTP_REQUEST {}",
+            "set tail en; \"wh${tail}\" HTTP_REQUEST {}",
+        ] {
+            assert!(extract(source).is_empty(), "{source}");
+        }
+        assert_eq!(
+            extract("proc priority args {}; priority 100; when HTTP_REQUEST {}"),
+            [] as [crate::event_handlers::IrulesEventHandler; 0]
+        );
+        assert_eq!(
+            extract("proc priority args {}; priority 100; when HTTP_REQUEST priority 300 {}"),
+            vec![IrulesEventHandler {
+                event: "HTTP_REQUEST".into(),
+                priority: 300
+            }]
+        );
+    }
+
+    #[test]
+    fn original_source_priorities_keep_top_level_geometry_and_unknown_expansion() {
+        assert_eq!(
+            extract("set stored {priority 10; when HTTP_RESPONSE {}}; when HTTP_REQUEST {}"),
+            vec![IrulesEventHandler {
+                event: "HTTP_REQUEST".into(),
+                priority: 500
+            }]
+        );
+        assert_eq!(
+            extract("proc helper {} {proc priority args {}; priority 10}; when HTTP_REQUEST {}"),
+            vec![IrulesEventHandler {
+                event: "HTTP_REQUEST".into(),
+                priority: 500
+            }]
+        );
+        assert_eq!(
+            extract(
+                "priority {*}$values; when HTTP_REQUEST {}; priority 200; when HTTP_RESPONSE {}"
+            ),
+            vec![IrulesEventHandler {
+                event: "HTTP_RESPONSE".into(),
+                priority: 200
+            }]
+        );
+    }
+
+    #[test]
+    fn original_source_priorities_reject_changed_image_and_registry() {
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let source = "when HTTP_REQUEST {}";
+        let context = OriginalIrulesSourceContext::capture(source, registry).unwrap();
+        assert_eq!(
+            extract_original_irules_event_handlers("when HTTP_RESPONSE {}", &context),
+            [] as [crate::event_handlers::IrulesEventHandler; 0]
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("f5-iapps");
+        assert!(
+            context
+                .source_vectors()
+                .iter()
+                .all(|(_, words)| { words.with_source_schema(foreign, |_| ()).is_none() })
+        );
+    }
+    #[test]
+    fn original_source_inline_unknown_does_not_change_inherited_priority() {
+        assert_eq!(
+            extract("priority 100; when HTTP_REQUEST priority $value {}; when HTTP_RESPONSE {}"),
+            vec![IrulesEventHandler {
+                event: "HTTP_RESPONSE".into(),
+                priority: 100
+            }]
+        );
+        assert_eq!(
+            extract(
+                "priority 100; when HTTP_REQUEST priority {*}$values {}; when HTTP_RESPONSE {}"
+            ),
+            vec![IrulesEventHandler {
+                event: "HTTP_RESPONSE".into(),
+                priority: 100
+            }]
+        );
+    }
+
+    #[test]
+    fn original_source_priority_context_declines_changed_lexer_configuration() {
+        let source = "when HTTP_REQUEST {}";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "f5-irules");
+        assert!(OriginalIrulesSourceContext::from_source_analysis(source, &analysis).is_some());
+        analysis.body_lexer_config.as_mut().unwrap().expand_syntax ^= true;
+        assert!(OriginalIrulesSourceContext::from_source_analysis(source, &analysis).is_none());
     }
 }

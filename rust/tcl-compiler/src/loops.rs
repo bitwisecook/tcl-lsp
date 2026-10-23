@@ -182,6 +182,8 @@ pub fn build_loop_forest<S: std::hash::BuildHasher>(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use super::*;
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::model::ingress::static_context_for;
@@ -195,7 +197,9 @@ mod tests {
         let fu = if qname == "::top" {
             &cu.top_level
         } else {
-            cu.procedures.get(qname).expect("proc must exist")
+            cu.procedures
+                .get(&fixture_id(&cu.ir_module.procedures, qname))
+                .expect("proc must exist")
         };
         build_loop_forest(&fu.cfg, &fu.ssa, &fu.sccp.executable_blocks)
     }
@@ -209,7 +213,7 @@ mod tests {
         assert_eq!(f.loops.len(), 1, "a single for-loop is one natural loop");
         let l = &f.loops[0];
         // Header, ≥1 latch, and the header is part of the loop body set.
-        assert!(!l.header.is_empty());
+        assert_ne!(l.header, "");
         assert!(!l.latches.is_empty(), "back edge implies a latch");
         assert!(l.blocks.contains(&l.header), "header is in its own loop");
         // blocks/latches are sorted (the deterministic contract).
@@ -233,8 +237,8 @@ mod tests {
     #[test]
     fn straight_line_code_has_no_loops() {
         let f = forest_for("proc f {} { set i 1; return $i }", "::f");
-        assert!(f.loops.is_empty(), "no back edge → empty forest");
-        assert!(f.headers().is_empty());
+        assert_eq!(f.loops.len(), 0, "no back edge → empty forest");
+        assert_eq!(f.headers(), [] as [&str; 0]);
     }
 
     #[test]
@@ -272,7 +276,9 @@ mod tests {
             registry,
             false,
         );
-        let fu = cu.procedures.get("::f").unwrap();
+        let fu = fixture_id_if_present(&cu.procedures, "::f")
+            .and_then(|id| cu.procedures.get(&id))
+            .unwrap();
         let entry = fu.ssa.entry;
         // Entry dominates itself (base case).
         assert!(dominates(&fu.ssa, entry, entry));

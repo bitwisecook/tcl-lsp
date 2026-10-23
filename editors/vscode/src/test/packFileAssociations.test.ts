@@ -42,7 +42,11 @@ import * as path from "path";
 import * as vscode from "vscode";
 
 import { activate, getDocUri, pollUntil } from "./helper";
-import { globFor } from "../packAssociations";
+import {
+  beginPackFileAssociationSync,
+  PackFileExtension,
+  syncPackFileAssociations,
+} from "../packAssociations";
 
 /** The scratch directory the suite owns; git-ignored. */
 const SCRATCH = path.resolve(__dirname, "../../testFixture/packExtensionScratch");
@@ -54,7 +58,7 @@ const PACK_NAME = "extpack";
 const PACK_EXTENSION = "irulex";
 /** The glob the client writes: case-folded per character, so it matches the
  *  extension in any casing on a case-sensitive filesystem (finding P2-2). */
-const PACK_GLOB = globFor(PACK_EXTENSION);
+const PACK_GLOB = "*.[iI][rR][uU][lL][eE][xX]";
 /** The dialect the row routes to, and hence the language id the client must
  *  choose: `f5-irules` has a dedicated editor language, so the file must land
  *  on `tcl-irule` rather than the plain `tcl` fallback. */
@@ -79,6 +83,7 @@ const docUri = getDocUri("specPackTorture.tcl");
 interface EffectiveConfigWithPacks {
   pack_file_extensions?: Array<{
     extension: string;
+    association_glob: string;
     dialect?: string | null;
     language_id: string;
     pack?: string;
@@ -153,6 +158,80 @@ suite("Pack-declared file extensions through the extension host", () => {
     fs.rmSync(SCRATCH, { recursive: true, force: true });
   });
 
+  test("an incomplete advertised row leaves owned settings untouched", async function () {
+    const previousOwned = { "*.kept": "tcl" };
+    const values = new Map<string, unknown>([["tclLsp.packFileAssociations.owned", previousOwned]]);
+    const writes: string[] = [];
+    const fakeContext = {
+      workspaceState: {
+        get<T>(key: string): T | undefined {
+          return values.get(key) as T | undefined;
+        },
+        async update(key: string, value: unknown): Promise<void> {
+          writes.push(key);
+          values.set(key, value);
+        },
+      },
+    } as unknown as vscode.ExtensionContext;
+    const before = workspaceAssociations();
+    const incomplete = {
+      extension: "newpackext",
+      language_id: "tcl",
+    } as PackFileExtension;
+
+    await syncPackFileAssociations(fakeContext, [incomplete]);
+
+    assert.deepStrictEqual(workspaceAssociations(), before);
+    assert.deepStrictEqual(values.get("tclLsp.packFileAssociations.owned"), previousOwned);
+    assert.deepStrictEqual(writes, []);
+  });
+
+  test("a delayed pull ticket cannot retire a newer pack set", async function () {
+    const previousOwned = { "*.kept": "tcl" };
+    const values = new Map<string, unknown>([["tclLsp.packFileAssociations.owned", previousOwned]]);
+    const writes: string[] = [];
+    const fakeContext = {
+      workspaceState: {
+        get<T>(key: string): T | undefined {
+          return values.get(key) as T | undefined;
+        },
+        async update(key: string, value: unknown): Promise<void> {
+          writes.push(key);
+          values.set(key, value);
+        },
+      },
+    } as unknown as vscode.ExtensionContext;
+    const before = workspaceAssociations();
+    const delayedPull = beginPackFileAssociationSync(fakeContext);
+    beginPackFileAssociationSync(fakeContext);
+
+    await syncPackFileAssociations(fakeContext, [], undefined, delayedPull);
+
+    assert.deepStrictEqual(workspaceAssociations(), before);
+    assert.deepStrictEqual(values.get("tclLsp.packFileAssociations.owned"), previousOwned);
+    assert.deepStrictEqual(writes, []);
+  });
+
+  test("a retired issuer cannot publish a queued pack snapshot", async function () {
+    const writes: string[] = [];
+    const context = {
+      workspaceState: {
+        get: () => ({}),
+        update: async (key: string) => {
+          writes.push(key);
+        },
+      },
+    } as unknown as vscode.ExtensionContext;
+    const before = workspaceAssociations();
+    const generation = beginPackFileAssociationSync(context);
+    let current = true;
+    const pending = syncPackFileAssociations(context, [], undefined, generation, () => current);
+    current = false;
+    await pending;
+    assert.deepStrictEqual(workspaceAssociations(), before);
+    assert.deepStrictEqual(writes, []);
+  });
+
   test("the server advertises the extension its discovered pack claims", async function () {
     this.timeout(120_000);
     const rows = await pollUntil(
@@ -168,6 +247,7 @@ suite("Pack-declared file extensions through the extension host", () => {
     // would be the answer for a dialect with no dedicated language.
     assert.strictEqual(row.language_id, EXPECTED_LANGUAGE);
     assert.strictEqual(row.pack, PACK_NAME);
+    assert.strictEqual(row.association_glob, PACK_GLOB);
 
     // NEGATIVE control: an extension the shipped catalogue already owns is
     // registered statically by every editor and must not be re-advertised —

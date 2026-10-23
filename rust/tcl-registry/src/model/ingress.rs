@@ -16,68 +16,21 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **The** dialect-name ingress seam (centralisation contract R-a, ledger
-//! rows C2/F2/F3/F9).
+//! Shared dialect-name ingress for compiler, LSP, editor and persisted inputs.
 //!
-//! Every place the toolchain accepts a dialect *name* — a compiler
-//! `analyse` call, an LSP document's recorded dialect, an editor language
-//! id, a persisted session, a settings string — resolves it here,
-//! **once**, to an [`EnvironmentDefinition`] through the one
-//! [`EnvironmentRegistry`] resolver, and derives everything downstream
-//! from the resolved environment: the per-context registry generation
-//! ([`ContextRegistry`], carrying the [`ResolvedContext`] availability
-//! view and the generation's command store), the Tk-environment fact, and
-//! — as the
-//! documented wave-1 interop — the old interned [`DialectProfile`] the
-//! rest of the pipeline still threads for grammar, versions, and
-//! diagnostic labels. The interop mapping goes through the **resolved
-//! canonical id**, never back through the raw string, so the retired name
-//! validators (`by_name` at ingress, `resolve_known`,
-//! `availability_for_name`, raw `DialectProfile::find`) have no remaining
-//! caller outside the projections documented at their sites.
+//! One live [`EnvironmentRegistry`] resolves canonical IDs, aliases and editor
+//! identities. The resolved environment supplies its [`ContextRegistry`],
+//! availability, grammar and interned [`DialectProfile`]; raw input spelling
+//! cannot independently reconstruct those facts. Unknown and empty inputs use
+//! the lenient Tcl sink. Checked callers use [`resolve_known_environment`].
 //!
-//! # Why this lives in `tcl-registry`
+//! This owner lives in `tcl-registry` because the environment definition and
+//! command-store generation must travel together. `tcl-dialect` supplies the
+//! definition without depending on the Registry.
 //!
-//! The seam has to hand back both halves of a resolved document
-//! environment: the definition ([`tcl_dialect`]) *and* its registry
-//! generation ([`ContextRegistry`], this crate). `tcl-dialect` cannot host
-//! it — it does not, and must not, depend on `tcl-registry` — so
-//! `tcl-registry::model` is the only home that can express the whole
-//! answer, and it is where wave 1 already put the generation door
-//! ([`registry_for_environment_if_built`]). `tcl-compiler`'s
-//! `environment_ingress` module now delegates here rather than owning a
-//! second copy; the LSP crates (`tcl-lsp-core`, `tcl-lsp-db`,
-//! `tcl-lsp-server`) call it directly.
-//!
-//! # The accepted micro-unifications (wave 1, unchanged here)
-//!
-//! Three inputs resolve *slightly* differently than they did before the
-//! port. Each was measured to be unexercised by any shipped call site, and
-//! each replaces a divergence between the old validators with the single
-//! resolver's answer:
-//!
-//! 1. **Editor language ids resolve everywhere.** `EnvironmentRegistry`
-//!    accepts canonical ids, aliases *and* contributed editor identities
-//!    (`tcl84`, `tcl91`, `tcl-irule`, `tclspec`, `wish`), where
-//!    `DialectProfile::find` accepted only the first two. A name the old
-//!    ingress sank to the permissive fallback can now resolve to its real
-//!    environment. Every shipped caller already mapped editor ids to
-//!    canonical names before the ingress (the LSP's
-//!    `dialect_from_language_id`), so no shipped path changes answer.
-//! 2. **`tk` resolves as an environment, not a synthesised profile.** The
-//!    old ingress recognised `tk` by `DialectProfile::find` and built
-//!    `TK_PROFILE`; here it is the `tk` environment, which places the `Tk`
-//!    package **ambient**, so every Tk fact — availability, the
-//!    authoring point, the Tk-checks activation, W120's silence — is one
-//!    placement query on the resolved context, and
-//!    [`DocumentEnvironment::unit_profile`] still hands back the same
-//!    typed additive profile for the identity interop.
-//! 3. **A malformed library-version override drops to the axis default**
-//!    rather than being carried verbatim ([`KeyedVersions::from_overrides`]
-//!    is `Result`, and this seam takes the default on error). The old
-//!    string-floor path carried the spelling through; a non-version
-//!    spelling never named a real floor, so the comparison it fed always
-//!    answered permissively anyway.
+//! Tk availability comes from its package placement. The Tk environment retains
+//! its additive unit profile and permissive analyser-profile interop. Malformed
+//! library-version overrides use the axis defaults.
 //!
 //! [`DialectProfile`]: tcl_dialect::DialectProfile
 
@@ -90,9 +43,11 @@ use tcl_dialect::model::{
     DialectPoint, EnvironmentDefinition, EnvironmentIdentity, EnvironmentRegistry,
     LENIENT_ENVIRONMENT_ID,
 };
-use tcl_dialect::{DialectProfile, LexerGrammar, LibraryVersionOverrides};
+use tcl_dialect::{DialectProfile, DialectProfileKey, LexerGrammar, LibraryVersionOverrides};
 
-use crate::model::assembly::{ContextRegistry, OverlayMiss, registry_for_environment_if_built};
+use crate::model::assembly::{
+    ContextRegistry, OverlayMiss, registry_for_environment_with_surfaces,
+};
 use crate::model::context::{KeyedVersions, ResolvedContext};
 
 /// The **live** environment registry: the compiled seed set at
@@ -127,12 +82,12 @@ pub struct DocumentEnvironment {
     pub definition: Arc<EnvironmentDefinition>,
     /// The `(id, generation, overlay)` identity for generation caching.
     pub identity: EnvironmentIdentity,
+    inherited_surfaces: tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot,
 }
 
 /// Resolve a user-written dialect name — canonical id, alias, or editor
-/// language id — to its environment. Unknown names (and the empty string)
-/// resolve to the lenient `tcl` environment, exactly as every unknown name
-/// resolved to the permissive fallback profile before.
+/// language id — to its environment. Unknown names and the empty string
+/// resolve to the lenient `tcl` environment.
 #[must_use]
 pub fn resolve_environment(name: &str) -> DocumentEnvironment {
     let registry = environments();
@@ -145,6 +100,8 @@ pub fn resolve_environment(name: &str) -> DocumentEnvironment {
     DocumentEnvironment {
         definition,
         identity,
+        inherited_surfaces:
+            tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot::capture(),
     }
 }
 
@@ -162,7 +119,22 @@ pub fn is_known_environment_name(name: &str) -> bool {
 /// "plain Tcl" (an empty dialect string, an absent setting).
 #[must_use]
 pub fn resolve_known_environment(name: &str) -> Option<DocumentEnvironment> {
-    is_known_environment_name(name).then(|| resolve_environment(name))
+    let registry = environments();
+    resolve_known_environment_in(&registry, name)
+}
+
+fn resolve_known_environment_in(
+    registry: &EnvironmentRegistry,
+    name: &str,
+) -> Option<DocumentEnvironment> {
+    let definition = registry.resolve(name)?;
+    let identity = registry.identity_of(&definition);
+    Some(DocumentEnvironment {
+        definition,
+        identity,
+        inherited_surfaces:
+            tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot::capture(),
+    })
 }
 
 /// Resolve a client's `languageId` to the environment it names: a canonical
@@ -182,6 +154,20 @@ pub fn resolve_language_id(language_id: &str) -> Option<DocumentEnvironment> {
 }
 
 impl DocumentEnvironment {
+    // Reborrow the actual environment/identity and already held roster input.
+    // Sibling assembly paths must not sample a different global observation.
+    pub(crate) fn from_resolved_with_inherited_surfaces(
+        definition: Arc<EnvironmentDefinition>,
+        identity: EnvironmentIdentity,
+        inherited_surfaces: tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot,
+    ) -> Self {
+        Self {
+            definition,
+            identity,
+            inherited_surfaces,
+        }
+    }
+
     /// Whether this is the `tk` environment — an **identity** question
     /// (the `wish` ingress), never an availability one.
     ///
@@ -208,25 +194,11 @@ impl DocumentEnvironment {
         self.definition.id.as_str()
     }
 
-    /// The interned profile the analyser threads for this environment —
-    /// interop (retired with ledger C1's re-type, in place of the name
-    /// validators it replaced): the catalogue environments map to
-    /// their same-named profile; the model-only ids (`tcl`, `tk`) map to
-    /// the permissive fallback, exactly as the old name ingress resolved
-    /// them.
-    ///
-    /// **The `tk` asymmetry against [`Self::unit_profile`] is permanent.**
-    /// It is not an availability split any more — the
-    /// context derives the point, so both faces answer the same
-    /// availability question — but a *catalogue* one, and the
-    /// classification rule (§2) is what fixes it: `tk` is a package plus
-    /// an environment, never a dialect, so `DialectProfile::find("tk")`
-    /// must keep answering `None` and this face must keep sinking to the
-    /// permissive fallback. Two consumers depend on exactly that — the
-    /// CLI's KCS help filter and the pack-carrying registry cache key
-    /// (centralisation §2.4, wave 3) — and promoting here would silently
-    /// widen both. The asymmetry disappears when the interned
-    /// `DialectProfile` does, under ledger C1/F1.
+    /// The analyser's interned profile for the resolved environment.
+    /// Catalogue environments retain their named profile; model-only Tcl/Tk
+    /// IDs retain the permissive fallback. Tk's additive unit profile stays
+    /// separate because its availability is a package-placement query.
+    /// CLI help filtering and pack-carrying cache keys retain this distinction.
     #[must_use]
     pub fn analyser_profile(&self) -> &'static DialectProfile {
         let id = self.definition.id.as_str();
@@ -262,6 +234,13 @@ impl DocumentEnvironment {
     /// the BIG-IP config surface).
     #[must_use]
     pub fn point(&self) -> Option<DialectPoint> {
+        self.definition.point()
+    }
+
+    /// The owning environment's default execution release and build. This is
+    /// independent of its authoring target set, which can cover the full ladder.
+    #[must_use]
+    pub fn default_execution_point(&self) -> Option<DialectPoint> {
         self.definition.point()
     }
 
@@ -388,8 +367,7 @@ impl DocumentEnvironment {
     }
 
     /// The keyed-axis pins for this session's library-version overrides.
-    /// A malformed override spelling drops to the axis default rather than
-    /// aborting resolution (micro-unification 3 in the module docs).
+    /// Malformed overrides use the axis defaults.
     #[must_use]
     pub fn keyed_versions(overrides: &LibraryVersionOverrides) -> KeyedVersions {
         KeyedVersions::from_overrides(overrides).unwrap_or_default()
@@ -412,15 +390,27 @@ impl DocumentEnvironment {
         keyed: &KeyedVersions,
         overlay: u64,
     ) -> Result<Arc<ContextRegistry>, OverlayMiss> {
-        registry_for_environment_if_built(&self.definition, &self.identity, keyed, overlay)
+        registry_for_environment_with_surfaces(
+            &self.definition,
+            &self.identity,
+            keyed,
+            overlay,
+            self.inherited_surfaces.clone(),
+        )
     }
 
     /// The generation with no pack overlay, at `keyed` — always built, so
     /// there is no miss to answer.
     #[must_use]
     pub fn plain_context_registry(&self, keyed: &KeyedVersions) -> Arc<ContextRegistry> {
-        registry_for_environment_if_built(&self.definition, &self.identity, keyed, 0)
-            .expect("the un-overlaid generation always builds")
+        registry_for_environment_with_surfaces(
+            &self.definition,
+            &self.identity,
+            keyed,
+            0,
+            self.inherited_surfaces.clone(),
+        )
+        .expect("the un-overlaid generation always builds")
     }
 
     /// The un-overlaid generation at default keyed axes — the plain
@@ -435,12 +425,54 @@ impl DocumentEnvironment {
 /// no pack overlay) — transitional plumbing for passes that still receive
 /// a resolved [`DialectProfile`] instead of a dialect name (side-effect
 /// classification, the fixed iRules handles, the LSP providers that take a
-/// `&DialectProfile` argument). The profile's canonical name is a
-/// canonical environment id, so this is an id-keyed lookup, not a
-/// re-parse.
+/// `&DialectProfile` argument). Resolve environment placement by name while
+/// retaining the supplied execution point and every profile policy in the
+/// cache key; projected releases must not collapse onto the default release.
 #[must_use]
 pub fn context_for_profile(profile: &DialectProfile) -> Arc<ContextRegistry> {
-    resolve_environment(profile.name).default_context_registry()
+    let environment = resolve_environment(profile.name);
+    let key = promotion_key(&environment);
+    context_for_profile_in(profile, &environment, key)
+}
+
+// Both Arc and static promotion consume this same held environment and exact
+// generation observation. Re-resolving a display name here could pair a retired
+// key with a replacement definition under that name.
+fn context_for_profile_in(
+    profile: &DialectProfile,
+    environment: &DocumentEnvironment,
+    generation: PromotionKey,
+) -> Arc<ContextRegistry> {
+    type ProfileContextKey = (PromotionKey, DialectProfileKey);
+    static CONTEXTS: OnceLock<Mutex<FxHashMap<ProfileContextKey, Arc<ContextRegistry>>>> =
+        OnceLock::new();
+    let key = (generation, profile.cache_key());
+    let cache = CONTEXTS.get_or_init(Default::default);
+    if let Some(context) = cache.lock().expect("profile context mutex").get(&key) {
+        return Arc::clone(context);
+    }
+    let base = environment.default_context_registry();
+    let context = if base.commands().profile().is_some_and(|selected| {
+        selected.cache_key() == profile.cache_key()
+            && environment.point() == profile.core_point.or(environment.point())
+    }) {
+        base
+    } else {
+        Arc::new(base.project_for_profile(profile.intern()))
+    };
+    let mut contexts = cache.lock().expect("profile context mutex");
+    Arc::clone(contexts.entry(key).or_insert(context))
+}
+
+/// A default native target only for an exact profile owned by a known
+/// environment. Custom profiles and unknown names cannot inherit the lenient
+/// environment's execution contract through name fallback.
+#[must_use]
+pub fn default_execution_point_for_profile(profile: &DialectProfile) -> Option<DialectPoint> {
+    let environment = resolve_known_environment(profile.name)?;
+    (profile.cache_key() == environment.unit_profile().cache_key())
+        .then(|| environment.default_execution_point())
+        .flatten()
 }
 
 /// The promotion key: the environment's canonical id and the three
@@ -466,10 +498,19 @@ fn roster_axis_of(environment: &DocumentEnvironment) -> u64 {
         })
     });
     if reimplements {
-        tcl_dialect::model::inherited_surface_generation()
+        environment.inherited_surfaces.generation()
     } else {
         0
     }
+}
+
+fn promotion_key(environment: &DocumentEnvironment) -> PromotionKey {
+    (
+        environment.id().to_owned(),
+        environment.identity.generation,
+        roster_axis_of(environment),
+        crate::cache::core_surface_generation(),
+    )
 }
 
 /// Every [`PromotionKey`] whose un-overlaid generation has been promoted
@@ -503,12 +544,7 @@ static LEAKED_GENERATIONS: OnceLock<Mutex<FxHashMap<PromotionKey, &'static Conte
 #[must_use]
 pub fn static_context_for(name: &str) -> &'static ContextRegistry {
     let environment = resolve_environment(name);
-    let key: PromotionKey = (
-        environment.id().to_owned(),
-        environment.identity.generation,
-        roster_axis_of(&environment),
-        crate::cache::core_surface_generation(),
-    );
+    let key = promotion_key(&environment);
     let leaked = LEAKED_GENERATIONS.get_or_init(|| Mutex::new(FxHashMap::default()));
     if let Some(view) = leaked
         .lock()
@@ -534,7 +570,25 @@ pub fn static_context_for(name: &str) -> &'static ContextRegistry {
 /// `&'static` twin of [`context_for_profile`].
 #[must_use]
 pub fn static_context_for_profile(profile: &DialectProfile) -> &'static ContextRegistry {
-    static_context_for(profile.name)
+    type ProfilePromotionKey = (PromotionKey, DialectProfileKey);
+    static PROFILES: OnceLock<Mutex<FxHashMap<ProfilePromotionKey, &'static ContextRegistry>>> =
+        OnceLock::new();
+    let environment = resolve_environment(profile.name);
+    let generation = promotion_key(&environment);
+    let key = (generation.clone(), profile.cache_key());
+    let cache = PROFILES.get_or_init(Default::default);
+    if let Some(context) = cache
+        .lock()
+        .expect("static profile context mutex")
+        .get(&key)
+    {
+        return context;
+    }
+    let handle = context_for_profile_in(profile, &environment, generation);
+    let mut profiles = cache.lock().expect("static profile context mutex");
+    profiles
+        .entry(key)
+        .or_insert_with(|| Box::leak(Box::new(handle)))
 }
 
 /// The context a **document** of `name` is assisted under: the un-overlaid
@@ -555,7 +609,7 @@ pub fn static_document_context_for(name: &str) -> &'static ResolvedContext {
 /// [`static_document_context_for`] keyed by an already-resolved profile.
 #[must_use]
 pub fn static_document_context_for_profile(profile: &DialectProfile) -> &'static ResolvedContext {
-    static_document_context_for(profile.name)
+    static_context_for_profile(profile).context()
 }
 
 /// The fixed iRules generation — the environment-model face of the old
@@ -720,15 +774,11 @@ mod tests {
         }
     }
 
-    /// The seam reproduces the LSP's old `profile_for_dialect`
-    /// (`resolve_known` first, `by_name` as the sink) for every catalogue
-    /// name and alias, the `tk` ingress, and the unknown-name sink.
+    /// Unit profiles preserve catalogue aliases, additive Tk and the unknown sink.
     #[test]
     fn unit_profile_reproduces_the_old_lsp_ingress() {
         fn old(name: &str) -> &'static DialectProfile {
-            // The retired LSP ingress, spelled inline now the validators
-            // are deleted: `resolve_known` was the catalogue lookup plus
-            // the `tk` promotion, and `by_name` the plain-Tcl sink.
+            // This fixture states the catalogue/Tk/fallback projection explicitly.
             DialectProfile::find(name)
                 .or_else(|| (name == "tk").then(DialectProfile::tk))
                 .unwrap_or_else(DialectProfile::plain_tcl)
@@ -816,10 +866,7 @@ mod tests {
         }
     }
 
-    /// Every name the retired validators accepted still resolves — the union
-    /// of `DialectProfile::find` (catalogue names and aliases) and
-    /// `DialectProfile::find`'s ingress spellings, which the LSP's
-    /// `is_known_dialect_name` took as its acceptance set.
+    /// Declared catalogue names, aliases and editor ingress spellings resolve.
     #[test]
     fn the_validator_accepts_every_retired_validators_name() {
         for profile in DialectProfile::all() {
@@ -891,29 +938,31 @@ mod tests {
 }
 
 /// Profiles projected from a point, interned once per environment identity
-/// so the `&'static` interop every consumer expects holds. Bounded by the
+/// and exact execution point so the `&'static` interop holds without collapsing
+/// releases or builds that share a name. Bounded by the
 /// number of distinct environments a process resolves.
 static PROJECTED_PROFILES: OnceLock<
-    Mutex<FxHashMap<EnvironmentIdentity, &'static DialectProfile>>,
+    Mutex<FxHashMap<(EnvironmentIdentity, DialectPoint), &'static DialectProfile>>,
 > = OnceLock::new();
 
 fn projected_profile(env: &DocumentEnvironment, point: DialectPoint) -> &'static DialectProfile {
     let cell = PROJECTED_PROFILES.get_or_init(|| Mutex::new(FxHashMap::default()));
     let mut map = cell.lock().expect("projected-profile mutex poisoned");
-    if let Some(profile) = map.get(&env.identity) {
+    let key = (env.identity.clone(), point);
+    if let Some(profile) = map.get(&key) {
         return profile;
     }
     let leak = |s: &str| -> &'static str { Box::leak(s.to_owned().into_boxed_str()) };
     let definition = &env.definition;
     let aliases: Vec<&'static str> = definition.aliases.iter().map(|a| leak(a)).collect();
-    let profile: &'static DialectProfile =
-        Box::leak(Box::new(DialectProfile::projected_from_point(
-            leak(definition.id.as_str()),
-            Box::leak(aliases.into_boxed_slice()),
-            leak(&definition.display_name),
-            point,
-        )));
-    map.insert(env.identity.clone(), profile);
+    let profile = DialectProfile::projected_from_point(
+        leak(definition.id.as_str()),
+        Box::leak(aliases.into_boxed_slice()),
+        leak(&definition.display_name),
+        point,
+    )
+    .intern();
+    map.insert(key, profile);
     profile
 }
 
@@ -992,5 +1041,101 @@ mod point_agreement_tests {
                 "{spelling}: one interned profile per identity"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod explicit_profile_snapshot_tests {
+    use super::*;
+    use tcl_dialect::model::{BuildProfileId, Release};
+
+    #[test]
+    fn explicit_same_name_profiles_keep_their_point_and_registry_policies() {
+        for point in [
+            DialectPoint::canonical(Release::JIM_0_80),
+            DialectPoint::canonical(Release::JIM_0_84),
+            DialectPoint::new(Release::JIM_0_84, BuildProfileId::Unknown),
+        ] {
+            let registered_generation = crate::cache::core_surface_generation();
+            let profile = DialectProfile::projected_from_point("jim", &[], "Jim", point);
+            let arc = context_for_profile(&profile);
+            let static_view = static_context_for_profile(&profile);
+            assert_eq!(arc.context().environment.point(), Some(point));
+            assert_eq!(
+                static_document_context_for_profile(&profile)
+                    .environment
+                    .point(),
+                Some(point)
+            );
+            assert_eq!(
+                arc.commands().profile().unwrap().cache_key(),
+                profile.cache_key()
+            );
+            // Another test may publish a new registered core surface between
+            // these two promotions. Distinct generations correctly have distinct
+            // handles; pointer sharing is required only within the same key.
+            if registered_generation == crate::cache::core_surface_generation() {
+                assert!(std::ptr::eq(arc.as_ref(), static_view));
+            }
+        }
+        let mut profile = resolve_environment("jim").unit_profile().clone();
+        profile.grammar.numbers = tcl_dialect::NumberSyntax::Tcl90;
+        let changed = context_for_profile(&profile);
+        assert_eq!(
+            changed.commands().profile().unwrap().grammar,
+            profile.grammar
+        );
+        assert!(!Arc::ptr_eq(
+            &changed,
+            &resolve_environment("jim").default_context_registry()
+        ));
+    }
+
+    #[test]
+    fn canonical_profile_contexts_retain_the_shared_allocation() {
+        let profile = DialectProfile::find("tcl8.6").unwrap();
+        assert!(Arc::ptr_eq(
+            &context_for_profile(profile),
+            &resolve_environment(profile.name).default_context_registry()
+        ));
+    }
+}
+
+#[cfg(test)]
+mod held_environment_observation_tests {
+    use super::*;
+
+    #[test]
+    fn checked_resolution_retains_one_actual_registry_definition_and_identity() {
+        let compiled = EnvironmentRegistry::compiled();
+        let tcl = compiled.resolve("tcl").unwrap();
+        let tk = compiled.resolve("tk").unwrap();
+        let before = EnvironmentRegistry::new(vec![(*tcl).clone(), (*tk).clone()], 41).unwrap();
+        let after = EnvironmentRegistry::new(vec![(*tcl).clone()], 42).unwrap();
+        let held = resolve_known_environment_in(&before, "wish").unwrap();
+        assert!(Arc::ptr_eq(
+            &held.definition,
+            &before.resolve("tk").unwrap()
+        ));
+        assert_eq!(held.identity.generation, 41);
+        assert!(resolve_known_environment_in(&after, "wish").is_none());
+        assert_eq!(held.id(), "tk");
+        assert_eq!(held.identity.generation, 41);
+        assert!(resolve_known_environment_in(&before, "unknown").is_none());
+    }
+
+    #[test]
+    fn profile_arc_and_static_paths_share_one_held_generation_recipe() {
+        let environment = resolve_environment("jim");
+        let profile = environment.unit_profile();
+        let generation = promotion_key(&environment);
+        let first = context_for_profile_in(profile, &environment, generation.clone());
+        let second = context_for_profile_in(profile, &environment, generation);
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(
+            first.commands().profile().unwrap().cache_key(),
+            profile.cache_key()
+        );
+        assert_eq!(first.context().environment.point(), environment.point());
     }
 }

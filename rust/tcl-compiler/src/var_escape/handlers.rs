@@ -22,12 +22,10 @@
 //! mutates the supplied `EscapeState`.
 
 use crate::ir::CommandTokens;
-use crate::var_escape::helpers::{
-    default_registry, is_dynamic_token, is_dynamic_upvar_level, is_name_first_command,
-};
-use crate::var_escape::info_subcommands::{
-    is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
-};
+#[cfg(test)]
+use crate::var_escape::helpers::is_name_first_command;
+#[cfg(test)]
+use crate::var_escape::helpers::{is_dynamic_token, is_dynamic_upvar_level};
 use crate::var_escape::state::EscapeState;
 use crate::var_escape::types::{Barrier, BarrierKind, EscapeReason, EscapeReasonKind};
 use crate::var_scoping::{
@@ -53,14 +51,39 @@ pub fn handle_variable_aliases(
     state: &mut EscapeState,
     registry: &tcl_registry::CommandRegistry,
 ) -> bool {
-    let Some(transitions) = facts.state_transitions.declared() else {
-        return false;
-    };
+    let aliases = facts
+        .state_transitions
+        .declared()
+        .into_iter()
+        .flat_map(tcl_registry::StateTransitions::facts)
+        .filter_map(|fact| match &fact.transition {
+            StateTransition::VariableCellAlias(alias) => Some(alias),
+            _ => None,
+        });
+    apply_variable_aliases(aliases, state, |level| {
+        tcl_registry::FrameLevel::parse_in(level, registry)
+    })
+}
+
+/// Apply the purpose-limited normal alias projection without requiring a compiler hook.
+pub fn handle_normal_variable_aliases(
+    normal: &crate::registry_invocation::NormalTransferInvocation,
+    state: &mut EscapeState,
+) -> bool {
+    apply_variable_aliases(normal.variable_alias_transitions(), state, |level| {
+        normal.variable_alias_frame_level(&CallerFrameSelection::Explicit(
+            tcl_registry::TransitionSubject::Literal(level.to_owned()),
+        ))
+    })
+}
+
+fn apply_variable_aliases<'a>(
+    aliases: impl Iterator<Item = &'a tcl_registry::VariableCellAliasTransition>,
+    state: &mut EscapeState,
+    parse_level: impl Fn(&str) -> Option<tcl_registry::FrameLevel>,
+) -> bool {
     let mut handled = false;
-    for fact in transitions.facts() {
-        let StateTransition::VariableCellAlias(alias) = &fact.transition else {
-            continue;
-        };
+    for alias in aliases {
         handled = true;
         let Some(local) = alias.local.literal() else {
             state.escape_all_known();
@@ -70,7 +93,7 @@ pub fn handle_variable_aliases(
             local,
             EscapeReason::with_detail(
                 EscapeReasonKind::UpvarSource,
-                format!("{} aliases {local}", facts.canonical_command),
+                format!("variable alias binds {local}"),
             ),
         );
         let VariableAliasTarget::CallerSelectedFrame { frame, variable } = &alias.target else {
@@ -82,12 +105,12 @@ pub fn handle_variable_aliases(
                 let Some(level) = level.literal() else {
                     state.record_barrier(Barrier::with_detail(
                         BarrierKind::Upvar,
-                        format!("{} has dynamic frame selection", facts.canonical_command),
+                        "variable alias has dynamic frame selection",
                     ));
                     state.record_unbounded_upvar();
                     continue;
                 };
-                tcl_registry::frame_effect::FrameLevel::parse_in(level, registry)
+                parse_level(level)
                     .is_none_or(|level| !level.is_current_frame() && !level.is_global_frame())
             }
         };
@@ -103,13 +126,57 @@ pub fn handle_variable_aliases(
 }
 
 /// Apply registry-declared variable-name and current-frame introspection.
-pub fn handle_introspection(facts: &InvocationFacts, args: &[String], state: &mut EscapeState) {
-    if facts
+pub fn handle_introspection(
+    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
+    state: &mut EscapeState,
+) {
+    let roles = invocation
+        .facts
+        .arg_roles
+        .iter()
+        .map(|&(index, role)| (invocation.facts.argument_offset + usize::from(index), role))
+        .collect::<Vec<_>>();
+    transfer_introspection(
+        &invocation.facts,
+        &roles,
+        |argument| invocation.original_variable_name_operand(argument),
+        state,
+    );
+}
+
+pub(crate) fn handle_source_introspection(
+    invocation: &crate::registry_invocation::SourceNameRoleInventory,
+    state: &mut EscapeState,
+) {
+    transfer_introspection(
+        invocation.facts(),
+        invocation.roles(),
+        |argument| invocation.original_variable_name_operand(argument),
+        state,
+    );
+    if invocation.has_unknown_residual() {
+        state.mark_pessimistic();
+    }
+}
+
+fn transfer_introspection(
+    facts: &InvocationFacts,
+    roles: &[(usize, ArgRole)],
+    argument_literal: impl Fn(usize) -> Option<crate::registry_invocation::OriginalVariableNameOperand>,
+    state: &mut EscapeState,
+) {
+    if (facts
         .traits
-        .contains(tcl_registry::prelude::Traits::CURRENT_FRAME_INTROSPECTION)
+        .contains(tcl_registry::prelude::Traits::INTROSPECTS_BY_NAME)
+        && facts.arity_accepts_frozen_arguments() != Some(true))
+        || facts
+            .traits
+            .contains(tcl_registry::prelude::Traits::CURRENT_FRAME_INTROSPECTION)
         || matches!(
             &facts.subcommand,
             OwnedSubcommandResolution::Indeterminate { .. }
+                | OwnedSubcommandResolution::Unknown { .. }
+                | OwnedSubcommandResolution::Ambiguous { .. }
         )
     {
         let detail = facts.subcommand.canonical_name().map_or_else(
@@ -130,31 +197,53 @@ pub fn handle_introspection(facts: &InvocationFacts, args: &[String], state: &mu
     {
         return;
     }
-    for (index, role) in &facts.arg_roles {
+    for (argument, role) in roles {
         if !matches!(role, ArgRole::VarRead | ArgRole::VarWrite) {
             continue;
         }
-        let Some(target) = args.get(facts.argument_offset + usize::from(*index)) else {
+        let target = argument_literal(*argument);
+        let Some(target) = target else {
+            state.record_barrier(Barrier::with_detail(
+                BarrierKind::Info,
+                format!(
+                    "{} has an unavailable variable operand",
+                    facts.canonical_command
+                ),
+            ));
+            state.escape_all_known();
             continue;
         };
-        if is_dynamic_token(target) {
-            state.escape_all_known();
-        } else if facts.operation
+        let name = target.as_str();
+        if facts.operation
             == tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::InfoExists)
         {
-            state.escape_with_reason(
-                target,
+            state.escape_original_name_with_reason(
+                &target,
                 EscapeReason::with_detail(
                     EscapeReasonKind::InfoExists,
                     format!(
-                        "{} {} {target}",
+                        "{} {} {name}",
                         facts.canonical_command,
                         facts.subcommand.canonical_name().unwrap_or("<subcommand>")
                     ),
                 ),
             );
+        } else if *role == ArgRole::VarWrite {
+            state.escape_original_name_with_reason(
+                &target,
+                EscapeReason::with_detail(
+                    EscapeReasonKind::InfoVarWrite,
+                    format!("{} writes {name}", facts.canonical_command),
+                ),
+            );
         } else {
-            state.escape(target);
+            state.escape_original_name_with_reason(
+                &target,
+                EscapeReason::with_detail(
+                    EscapeReasonKind::InfoVarRead,
+                    format!("{} reads {name}", facts.canonical_command),
+                ),
+            );
         }
     }
 }
@@ -163,6 +252,7 @@ pub fn handle_introspection(facts: &InvocationFacts, args: &[String], state: &mu
 /// rules: escape every local-side var, record caller-frame
 /// source names when the level targets a caller, mark
 /// pessimistic on a dynamic level.
+#[cfg(test)]
 pub fn handle_upvar(args: &[String], state: &mut EscapeState) {
     if args.is_empty() {
         return;
@@ -255,93 +345,45 @@ pub fn handle_namespace_call(args: &[String], state: &mut EscapeState) {
     }
 }
 
-/// Classify `info <subcmd> ...` against the allow-list.
-pub fn handle_info(args: &[String], state: &mut EscapeState) {
-    let Some(sub) = args.first() else {
-        // ``info`` with no subcommand: usage error at runtime —
-        // be safe.
-        state.record_barrier(Barrier::with_detail(
-            BarrierKind::Info,
-            "info (no subcommand)",
-        ));
-        return;
-    };
-    if is_dynamic_token(sub) {
-        state.record_barrier(Barrier::with_detail(
-            BarrierKind::Info,
-            format!("info {sub} (dynamic subcommand)"),
-        ));
-        return;
-    }
-    if is_frame_inspecting_info_subcommand(sub) {
-        state.record_barrier(Barrier::with_detail(
-            BarrierKind::Info,
-            format!("info {sub}"),
-        ));
-        return;
-    }
-    if sub == "exists" {
-        let Some(target) = args.get(1) else {
-            return;
-        };
-        if is_dynamic_token(target) {
-            state.record_barrier(Barrier::with_detail(
-                BarrierKind::Info,
-                format!("info exists {target}"),
-            ));
+#[cfg(test)]
+fn handle_info(args: &[String], state: &mut EscapeState) {
+    if !args.is_empty() {
+        let source = format!("info {}", args.join(" "));
+        if let Some(invocation) =
+            crate::var_escape::info_subcommands::original_info_invocation(&source)
+        {
+            handle_introspection(&invocation, state);
             return;
         }
-        // ``info exists name`` reads the name by string lookup —
-        // escape it.
-        state.escape_with_reason(
-            target,
-            EscapeReason::with_detail(
-                EscapeReasonKind::InfoExists,
-                format!("info exists {target}"),
-            ),
-        );
-        return;
     }
-    // Escape any argument the registry declares as a variable *write* for this
-    // `info` subcommand.  `info default procname arg varname` stores the
-    // argument's default into `varname` in the current frame, so it must escape
-    // even though `default` otherwise only reads interpreter-global state — the
-    // safe-subcommand short-circuit below would drop it.  Fully registry-driven
-    // via the subcommand's `arg_roles`: no subcommand name or argument index is
-    // hardcoded here.
-    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    for idx in
-        default_registry().arg_indices_for_role("info", &arg_refs, tcl_registry::ArgRole::VarWrite)
-    {
-        let Some(target) = args.get(idx) else {
-            continue;
-        };
-        if is_dynamic_token(target) {
-            // A dynamic write target can't be pinned to a name — spill.
-            state.record_barrier(Barrier::with_detail(
-                BarrierKind::Info,
-                format!("info {sub} (dynamic var-write target)"),
-            ));
-            state.escape_all_known();
-        } else {
-            state.escape_with_reason(
-                target,
-                EscapeReason::with_detail(
-                    EscapeReasonKind::InfoVarWrite,
-                    format!("info {sub} writes {target}"),
-                ),
-            );
-        }
-    }
-
-    if is_safe_info_subcommand(sub) {
-        return;
-    }
-    // Unknown subcommand — be conservative.
     state.record_barrier(Barrier::with_detail(
         BarrierKind::Info,
-        format!("info {sub} (unknown)"),
+        "info invocation unavailable",
     ));
+}
+
+/// Escape unresolved first-name operands using the actual source-role owner.
+pub(crate) fn handle_source_name_first(
+    command: &str,
+    source: Option<&crate::registry_invocation::SourceNameRoleInventory>,
+    state: &mut EscapeState,
+) {
+    if let Some(source) = source {
+        if source
+            .original_variable_name_operand(source.facts().argument_offset)
+            .is_some()
+        {
+            if source.has_unknown_residual() {
+                state.mark_pessimistic();
+            }
+            return;
+        }
+    }
+    state.record_barrier(Barrier::with_detail(
+        BarrierKind::DynName,
+        format!("{command} name value unavailable"),
+    ));
+    state.escape_all_known();
 }
 
 /// Handle `set` / `incr` / `append` / `lappend` / `unset` whose
@@ -349,6 +391,7 @@ pub fn handle_info(args: &[String], state: &mut EscapeState) {
 /// and `n` was assigned exactly one literal identifier earlier,
 /// treat the call as targeting that literal (escape just that
 /// name). Otherwise fall back to spilling every known proc-local.
+#[cfg(test)]
 pub fn handle_dynamic_name_first(cmd: &str, args: &[String], state: &mut EscapeState) {
     debug_assert!(is_name_first_command(cmd));
     let Some(name) = args.first() else {
@@ -569,6 +612,57 @@ mod tests {
     }
 
     #[test]
+    fn source_first_names_keep_actual_values_and_terminal_unknown_targets() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        for source in [
+            "append {$literal} value",
+            "append {} value",
+            "append $selector value",
+        ] {
+            let module = crate::lowering::lower_to_ir(source, &registry);
+            let statement = &module.top_level.statements[0];
+            let tokens = module
+                .top_level
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let roles = crate::registry_invocation::original_source_name_roles(&registry, tokens)
+                .expect("actual original FIRST_ARG source owner");
+            assert!(
+                roles
+                    .facts()
+                    .traits
+                    .contains(tcl_registry::Traits::FIRST_ARG_VARNAME)
+            );
+            let known = roles
+                .original_variable_name_operand(roles.facts().argument_offset)
+                .is_some();
+            let mut state = EscapeState::new(["protected".to_owned()]);
+            state.note_literal_assign("selector", "guessed_target");
+            handle_source_name_first(&roles.facts().canonical_command, Some(&roles), &mut state);
+            assert_eq!(
+                state.dynamic_barrier(),
+                !known || roles.has_unknown_residual()
+            );
+            if !known {
+                assert!(state.tags.contains_key("protected"));
+                assert!(!state.tags.contains_key("guessed_target"));
+            }
+            let mut changed = tokens.clone();
+            changed.argv_texts[1].push_str(" changed");
+            assert!(
+                crate::registry_invocation::original_source_name_roles(&registry, &changed)
+                    .is_none()
+            );
+            let mut refused = EscapeState::new(["protected".to_owned()]);
+            refused.note_literal_assign("selector", "guessed_target");
+            handle_source_name_first(&roles.facts().canonical_command, None, &mut refused);
+            assert!(refused.dynamic_barrier());
+            assert!(refused.tags.contains_key("protected"));
+            assert!(!refused.tags.contains_key("guessed_target"));
+        }
+    }
+
+    #[test]
     fn dynamic_name_first_resolves_to_literal_when_tracked() {
         let mut s = EscapeState::default();
         s.note_literal_assign("n", "real_target");
@@ -597,5 +691,99 @@ mod tests {
         fn is_frame_helper(&self, name: &str) -> bool {
             self.tags.get(name) == Some(&EscapeTag::Frame)
         }
+    }
+    #[test]
+    fn original_empty_and_sigil_name_operands_keep_escape_reasons() {
+        for (source, expected) in [
+            ("info exists {}", ""),
+            ("info exists {$literal}", "$literal"),
+        ] {
+            let invocation = crate::var_escape::info_subcommands::original_info_invocation(source)
+                .expect("actual original invocation owner");
+            assert!(invocation.original_variable_name_operand(0).is_none());
+            let mut state = EscapeState::default();
+            handle_introspection(&invocation, &mut state);
+            assert_eq!(
+                state.tags.get(expected),
+                Some(&crate::var_escape::types::EscapeTag::Frame)
+            );
+            assert!(!state.dynamic_barrier());
+            assert!(state.tag_reasons.get(expected).is_some_and(|reasons| {
+                reasons
+                    .iter()
+                    .any(|reason| reason.kind == EscapeReasonKind::InfoExists)
+            }));
+        }
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir(
+            "proc p {} {info exists {}; info exists {$literal}}",
+            &registry,
+        );
+        let (_, procedure) = module.original_source_procedure_bodies().next().unwrap();
+        for (statement, expected) in procedure.body.statements.iter().zip(["", "$literal"]) {
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let names = crate::registry_invocation::original_source_name_roles(&registry, tokens)
+                .expect("actual readonly source body owner");
+            assert!(names.original_variable_name_operand(0).is_none());
+            let mut state = EscapeState::default();
+            handle_source_introspection(&names, &mut state);
+            assert_eq!(
+                state.tags.get(expected),
+                Some(&crate::var_escape::types::EscapeTag::Frame)
+            );
+            assert!(state.tag_reasons.get(expected).is_some_and(|reasons| {
+                reasons
+                    .iter()
+                    .any(|reason| reason.kind == EscapeReasonKind::InfoExists)
+            }));
+            let mut changed = tokens.clone();
+            changed.argv_texts[2].push_str(" changed");
+            assert!(
+                crate::registry_invocation::original_source_name_roles(&registry, &changed)
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn owned_info_operands_preserve_original_literal_names() {
+        for (source, expected) in [
+            (r"info exists {$literal}", "$literal"),
+            (r"info exists \$literal", "$literal"),
+            (r"info exists {[literal]}", "[literal]"),
+            (r"info exists \[literal\]", "[literal]"),
+        ] {
+            let invocation =
+                crate::var_escape::info_subcommands::original_info_invocation(source).unwrap();
+            let mut state = EscapeState::default();
+            handle_introspection(&invocation, &mut state);
+            assert!(!state.dynamic_barrier(), "{source}");
+            assert!(state.is_frame_helper(expected), "{source}: {expected}");
+        }
+    }
+
+    #[test]
+    fn owned_info_unknown_ambiguous_and_missing_operands_are_pessimistic() {
+        for source in [
+            "info cancel",
+            "info constants",
+            "info c",
+            "info exists",
+            "info exists $dynamic",
+        ] {
+            let invocation =
+                crate::var_escape::info_subcommands::original_info_invocation(source).unwrap();
+            let mut state = EscapeState::default();
+            handle_introspection(&invocation, &mut state);
+            assert!(state.dynamic_barrier(), "{source}");
+        }
+        let invocation =
+            crate::var_escape::info_subcommands::original_info_invocation("info consts").unwrap();
+        let mut state = EscapeState::default();
+        handle_introspection(&invocation, &mut state);
+        assert!(!state.dynamic_barrier());
     }
 }

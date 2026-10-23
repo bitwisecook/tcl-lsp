@@ -1,0 +1,1041 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Ordered compiler visits from authenticated original instruction recipes.
+
+use super::{
+    Arc, CommandAllocationSite, CompilerTraversal, SourceCompiledChild, SourceExecutionContext,
+    SourceNativeCompilationFailure, WordExpr,
+};
+use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand;
+use tcl_registry::native_control_compilation::{
+    NativeControlOutcome, NativeControlPreparationStep,
+};
+use tcl_registry::native_instruction_plan::NativeInstructionPlan;
+
+#[derive(Clone, Copy)]
+struct OriginalControlPreparations<'a> {
+    steps: &'a [NativeControlPreparationStep],
+    generic: bool,
+    rejection: Option<&'a tcl_registry::native_compilation::NativeCompilationFailure>,
+}
+
+impl CompilerTraversal<'_> {
+    pub(super) fn structured_compilation(
+        &mut self,
+        words: &[WordExpr],
+        offset: u32,
+        recipe: &NativeInstructionPlan,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        let (steps, generic, rejection) = match recipe {
+            NativeInstructionPlan::DictionaryScope(recipe) => (
+                recipe.preparations.as_slice(),
+                matches!(recipe.outcome, NativeControlOutcome::Generic),
+                None,
+            ),
+            NativeInstructionPlan::GenericPreparation(steps) => (steps.as_slice(), true, None),
+            NativeInstructionPlan::Control(recipe) => (
+                recipe.preparations.as_slice(),
+                matches!(recipe.outcome, NativeControlOutcome::Generic),
+                if let NativeControlOutcome::Rejected(failure) = &recipe.outcome {
+                    Some(failure)
+                } else {
+                    None
+                },
+            ),
+            NativeInstructionPlan::Each(recipe) => (
+                recipe.preparations.as_slice(),
+                matches!(recipe.outcome, NativeControlOutcome::Generic),
+                if let NativeControlOutcome::Rejected(failure) = &recipe.outcome {
+                    Some(failure)
+                } else {
+                    None
+                },
+            ),
+            NativeInstructionPlan::Try(recipe) => (
+                recipe.preparations.as_slice(),
+                matches!(recipe.outcome, NativeControlOutcome::Generic),
+                if let NativeControlOutcome::Rejected(failure) = &recipe.outcome {
+                    Some(failure)
+                } else {
+                    None
+                },
+            ),
+            _ => return self.original_non_control_compilation(words, offset, recipe, context),
+        };
+        self.control_preparations(
+            words,
+            offset,
+            recipe,
+            context,
+            OriginalControlPreparations {
+                steps,
+                generic,
+                rejection,
+            },
+        )
+    }
+
+    fn original_non_control_compilation(
+        &mut self,
+        words: &[WordExpr],
+        offset: u32,
+        recipe: &NativeInstructionPlan,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        match recipe {
+            NativeInstructionPlan::ReturnOptions(recipe) => self.original_operands(
+                words,
+                recipe
+                    .compiler_word_visits()
+                    .map(NativeCompilerWordOperand::Original),
+                context,
+            ),
+            NativeInstructionPlan::Concat(
+                tcl_registry::native_instruction_plan::NativeConcatInstruction::Operands(operands),
+            ) => self.original_operands(words, operands.iter().cloned(), context),
+            NativeInstructionPlan::Concat(_) => None,
+            NativeInstructionPlan::NamespaceBindings(recipe) => {
+                self.original_namespace_preparations(words, recipe, context)
+            }
+            NativeInstructionPlan::Upvar(recipe) => {
+                if let Some(level) = &recipe.level
+                    && let Some(failure) = self.original_operand(words, level, context)
+                { return Some(failure); }
+                for binding in &recipe.bindings {
+                    if let Some(failure) = self.original_operand(words, &binding.other, context) {
+                        return Some(failure);
+                    }
+                    self.declare_source_local(Some(&binding.local));
+                }
+                None
+            },
+            NativeInstructionPlan::InfoExists(recipe) => {
+                match (&recipe.receiver, &recipe.operand) {
+                    (tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver::Original(target), NativeCompilerWordOperand::Original(word)) => {
+                        self.original_variable_operand(words, target, *word, context)
+                    }
+                    (tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver::ExpandedLiteral { name, .. }, NativeCompilerWordOperand::LiteralExpansion { .. }) => { self.source_local_command(name); None },
+                    _ => { self.require_provider(); None }
+                }
+            }
+            NativeInstructionPlan::Uplevel(recipe) => self.original_operands(
+                words,
+                recipe
+                    .level_word
+                    .into_iter()
+                    .chain(recipe.script_words.clone())
+                    .map(NativeCompilerWordOperand::Original),
+                context,
+            ),
+            NativeInstructionPlan::Load { target_word, target } => {
+                self.original_variable_operand(words, target, *target_word, context)
+            }
+            NativeInstructionPlan::Store { target_word, target, value_word } => {
+                self.original_store_preparations(words, target, *target_word, *value_word, context)
+            }
+            NativeInstructionPlan::Increment { target_word, target, amount_word, .. } => {
+                if let Some(failure) = self.original_variable_operand(words, target, *target_word, context) {
+                    return Some(failure);
+                }
+                self.original_operands(words, amount_word.iter().copied().map(NativeCompilerWordOperand::Original), context)
+            }
+            NativeInstructionPlan::Append { target_word, target, recipe } => {
+                if let Some(failure) = self.original_variable_operand(words, target, *target_word, context) {
+                    return Some(failure);
+                }
+                self.original_operands(words, recipe.values.clone().map(NativeCompilerWordOperand::Original), context)
+            }
+            NativeInstructionPlan::Error(error) => self.original_operands(
+                words,
+                error.steps.iter().filter_map(|step| {
+                    if let tcl_registry::native_error_compilation::NativeErrorStep::Word(operand) =
+                        step
+                    {
+                        Some(operand.clone())
+                    } else {
+                        None
+                    }
+                }),
+                context,
+            ),
+            NativeInstructionPlan::Coroutine(coroutine) => self.original_operands(
+                words, coroutine.steps.iter().filter_map(|step| match step {
+                    tcl_registry::native_coroutine_compilation::NativeCoroutineStep::Word(operand) |
+                    tcl_registry::native_coroutine_compilation::NativeCoroutineStep::CommandWord { operand, .. } => Some(operand.clone()),
+                    _ => None,
+                }), context,
+            ),
+            NativeInstructionPlan::NamedInvocation(named) => {
+                self.control_preparations(words, offset, recipe, context, OriginalControlPreparations {steps: &named.preparations, generic: true, rejection: None})
+            }
+            other => self.original_value_compilation(words, offset, other, context),
+        }
+    }
+    fn original_value_compilation(
+        &mut self,
+        words: &[WordExpr],
+        offset: u32,
+        recipe: &NativeInstructionPlan,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        match recipe {
+            NativeInstructionPlan::DictionaryMutation(dictionary) => {
+                self.declare_source_local(Some(&dictionary.receiver));
+                self.original_operands(words, dictionary.operands.iter().cloned(), context)
+            }
+            NativeInstructionPlan::DictionaryLookup(dictionary) => {
+                self.original_operands(words, dictionary.operands.iter().cloned(), context)
+            }
+            NativeInstructionPlan::ListOperations(recipe) => {
+                self.original_list_operation(words, recipe, context)
+            }
+            NativeInstructionPlan::ListIndex(recipe) => {
+                self.original_operands(words, recipe.operands.iter().cloned(), context)
+            }
+            NativeInstructionPlan::Array(recipe) => {
+                let Some(recipe) = &recipe.instruction else {
+                    return None;
+                };
+                if let (tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver::Original(target),NativeCompilerWordOperand::Original(index))=(&recipe.receiver,&recipe.operand)
+                    && let Some(failure)=self.original_variable_operand(words,target,*index,context)
+                { return Some(failure); }
+                if let tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver::ExpandedLiteral { name, .. } = &recipe.receiver { self.source_local_command(name); }
+                self.original_operands(words, recipe.values.iter().cloned(), context)
+            }
+            NativeInstructionPlan::NamespaceString(recipe) => {
+                self.original_operands(words, std::iter::once(recipe.operand.clone()), context)
+            }
+            NativeInstructionPlan::Introspection(recipe) => {
+                self.original_operands(words, recipe.operands.iter().cloned(), context)
+            }
+            NativeInstructionPlan::MathOperator(mathop) => self.original_operands(
+                words,
+                mathop.steps.iter().filter_map(|step| match step {
+                    tcl_registry::native_mathop_compilation::NativeMathopStep::Word(operand) => {
+                        Some(operand.clone())
+                    }
+                    _ => None,
+                }),
+                context,
+            ),
+            NativeInstructionPlan::Scalar(recipe) => {
+                self.original_operands(words, recipe.operands.iter().cloned(), context)
+            }
+            NativeInstructionPlan::StringOperand(recipe) => {
+                self.original_operands(words, recipe.operands.iter().cloned(), context)
+            }
+            NativeInstructionPlan::Expression(expression) => {
+                if let Some(program) = &expression.program {
+                    self.original_expression(
+                        program,
+                        offset,
+                        context,
+                        recipe.expression_error_context(&program.operand),
+                    )
+                } else {
+                    self.original_operands(words, expression.operands.iter().cloned(), context)
+                }
+            }
+            NativeInstructionPlan::TclOoHelper(helper) => {
+                self.original_tcloo_preparations(words, helper, context)
+            }
+            NativeInstructionPlan::Unset(recipe) => {
+                self.original_unset_preparations(words, recipe, context)
+            }
+            NativeInstructionPlan::StringTrim(recipe) => self.original_operands(
+                words,
+                std::iter::once(recipe.subject.clone()).chain(recipe.characters.iter().cloned()),
+                context,
+            ),
+            NativeInstructionPlan::StringMatch(recipe) => self.original_operands(
+                words,
+                [recipe.pattern.clone(), recipe.subject.clone()],
+                context,
+            ),
+            _ => {
+                self.require_provider();
+                None
+            }
+        }
+    }
+
+    fn original_tcloo_preparations(
+        &mut self,
+        words: &[WordExpr],
+        helper: &tcl_registry::native_tcloo_compilation::NativeTclOoInstruction,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        use tcl_registry::native_tcloo_compilation::NativeTclOoInstruction;
+        match helper {
+            NativeTclOoInstruction::ObjectInfo { operand, .. } => {
+                self.original_operand(words, operand, context)
+            }
+            NativeTclOoInstruction::SelfObject | NativeTclOoInstruction::SelfNamespace => None,
+            NativeTclOoInstruction::Next {
+                words: operands, ..
+            } => self.original_operands(words, operands.iter().cloned(), context),
+        }
+    }
+
+    fn original_unset_preparations(
+        &mut self,
+        words: &[WordExpr],
+        recipe: &tcl_registry::native_unset_compilation::NativeUnsetInstruction,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        use tcl_registry::native_unset_compilation::NativeUnsetReceiver;
+        for variable in &recipe.variables {
+            if let NativeUnsetReceiver::ExpandedLiteral { name, .. } = &variable.receiver {
+                self.source_local_command(name);
+            }
+            if let NativeUnsetReceiver::Original(target) = &variable.receiver {
+                let NativeCompilerWordOperand::Original(index) = variable.operand else {
+                    self.require_provider();
+                    return None;
+                };
+                if let Some(failure) = self.original_variable_operand(words, target, index, context)
+                {
+                    return Some(failure);
+                }
+            }
+        }
+        None
+    }
+
+    fn original_store_preparations(
+        &mut self,
+        words: &[WordExpr],
+        target: &tcl_syntax::native_variable_words::NativeVariableWordOperand,
+        target_word: usize,
+        value_word: usize,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        if let Some(failure) = self.original_variable_operand(words, target, target_word, context) {
+            return Some(failure);
+        }
+        self.original_operand(
+            words,
+            &NativeCompilerWordOperand::Original(value_word),
+            context,
+        )
+    }
+
+    fn original_operands(
+        &mut self,
+        words: &[WordExpr],
+        operands: impl IntoIterator<Item = NativeCompilerWordOperand>,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        for operand in operands {
+            if let Some(failure) = self.original_operand(words, &operand, context) {
+                return Some(failure);
+            }
+        }
+        None
+    }
+
+    fn original_namespace_preparations(
+        &mut self,
+        words: &[WordExpr],
+        recipe: &tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingCompilation,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        for visit in &recipe.visits {
+            match visit {
+                tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingVisit::Word(operand) => {
+                    if let Some(failure) = self.original_operand(words, operand, context) { return Some(failure); }
+                }
+                tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingVisit::DeclareLocal(name) => self.declare_source_local(Some(name)),
+                tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingVisit::Literal(_) => {}
+            }
+        }
+        if recipe.outcome == tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingOutcome::Generic {
+            self.substitutions(words, context)
+        } else { None }
+    }
+
+    fn control_preparations(
+        &mut self,
+        words: &[WordExpr],
+        offset: u32,
+        recipe: &NativeInstructionPlan,
+        context: SourceExecutionContext<'_>,
+        preparations: OriginalControlPreparations<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        let OriginalControlPreparations {
+            steps,
+            generic,
+            rejection,
+        } = preparations;
+        for step in steps {
+            let failure = match step {
+                NativeControlPreparationStep::BooleanProbe(probe) => {
+                    if !self.original_boolean_probe_geometry(words, offset, probe, context) {
+                        self.require_provider();
+                    }
+                    None
+                }
+                NativeControlPreparationStep::Word(operand) => {
+                    self.original_operand(words, operand, context)
+                }
+                NativeControlPreparationStep::Script {
+                    operand,
+                    span,
+                    context: body_context,
+                } => {
+                    let compilation = entered_context(*body_context, context.compilation);
+                    let Some(compilation) = compilation else {
+                        self.require_provider();
+                        return None;
+                    };
+                    self.original_script(
+                        words,
+                        offset,
+                        *span,
+                        context,
+                        compilation,
+                        !generic && rejection.is_none(),
+                    )
+                    .map(|mut failure| {
+                        self.append_body_error_context(&mut failure, recipe, operand, *span);
+                        failure
+                    })
+                }
+                NativeControlPreparationStep::SpeculativeScript {
+                    span,
+                    context: body_context,
+                    ..
+                } => self.original_speculative_script(
+                    words,
+                    offset,
+                    *span,
+                    *body_context,
+                    context,
+                    !generic && rejection.is_none(),
+                ),
+                NativeControlPreparationStep::Expression(operand) => {
+                    let Some(program) = recipe.expression_program(operand) else {
+                        self.require_provider();
+                        return None;
+                    };
+                    self.original_expression(
+                        program,
+                        offset,
+                        context,
+                        recipe.expression_error_context(&program.operand),
+                    )
+                }
+                NativeControlPreparationStep::DeclareLocal(name) => {
+                    self.declare_source_local(Some(name));
+                    None
+                }
+                NativeControlPreparationStep::DeclareAnonymousLocal => {
+                    self.declare_source_local(None);
+                    None
+                }
+                NativeControlPreparationStep::Literal(_)
+                | NativeControlPreparationStep::Integer(_)
+                | NativeControlPreparationStep::List(_) => None,
+            };
+            if failure.is_some() {
+                return failure;
+            }
+        }
+        if let Some(rejection) = rejection {
+            return Some(self.failure_at(offset, rejection.clone(), Vec::new()));
+        }
+        if !self.original_boolean_probes_evaluable(words, offset, steps, context) {
+            self.require_provider();
+        }
+        if generic {
+            self.substitutions(words, context)
+        } else {
+            None
+        }
+    }
+
+    fn original_speculative_script(
+        &mut self,
+        words: &[WordExpr],
+        offset: u32,
+        span: tcl_lexer::Span,
+        body_context: tcl_registry::native_compilation::NativeCompiledBodyContext,
+        context: SourceExecutionContext<'_>,
+        publish: bool,
+    ) -> Option<SourceNativeCompilationFailure> {
+        let Some(compilation) = entered_context(body_context, context.compilation) else {
+            self.require_provider();
+            return None;
+        };
+        let children = self.compiled_children.clone();
+        let fallbacks = self.snapshot.generic_fallbacks.clone();
+        let before_context = self.before_next_context.clone();
+        if self
+            .original_script(words, offset, span, context, compilation, publish)
+            .is_some()
+        {
+            self.compiled_children = children;
+            self.snapshot.generic_fallbacks = fallbacks;
+            self.before_next_context = before_context;
+            self.snapshot
+                .generic_fallbacks
+                .insert(CommandAllocationSite {
+                    source: Arc::clone(&self.chunk.source),
+                    offset,
+                });
+            return self.substitutions(words, context);
+        }
+        None
+    }
+
+    fn original_boolean_probe_geometry(
+        &self,
+        words: &[WordExpr],
+        offset: u32,
+        probe: &tcl_registry::native_control_compilation::NativeControlBooleanProbe,
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        let Some(entry) = self.state.baseline.native_entry.as_deref() else {
+            return false;
+        };
+        let Some(version) = entry
+            .execution_point
+            .and_then(tcl_dialect::model::DialectPoint::tcl_version)
+        else {
+            return false;
+        };
+        let Some(protocol) = entry.source_string_protocol else {
+            return false;
+        };
+        let Some(original) = crate::registry_invocation::original_native_compiler_words(
+            self.chunk.source.source_image(),
+            words,
+            offset,
+            context.config,
+        ) else {
+            return false;
+        };
+        tcl_registry::native_compiler_words::NativeCompilerWords::capture(&original, protocol)
+            .is_ok_and(|captured| probe.matches_original(&captured, version))
+    }
+
+    fn original_boolean_probes_evaluable(
+        &self,
+        words: &[WordExpr],
+        offset: u32,
+        steps: &[NativeControlPreparationStep],
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        if !steps
+            .iter()
+            .any(|step| matches!(step, NativeControlPreparationStep::BooleanProbe(_)))
+        {
+            return true;
+        }
+        let Some(entry) = self.state.baseline.native_entry.as_deref() else {
+            return false;
+        };
+        let Some(point) = entry.execution_point else {
+            return false;
+        };
+        let Some(protocol) = entry.source_string_protocol else {
+            return false;
+        };
+        let Some(original) = crate::registry_invocation::original_native_compiler_words(
+            self.chunk.source.source_image(),
+            words,
+            offset,
+            context.config,
+        ) else {
+            return false;
+        };
+        let Ok(captured) =
+            tcl_registry::native_compiler_words::NativeCompilerWords::capture(&original, protocol)
+        else {
+            return false;
+        };
+        let policy = entry
+            .expression_policy
+            .as_ref()
+            .filter(|policy| entry.invocation_policy == Some(policy.profile));
+        tcl_registry::native_expression_program::control_boolean_probes_match(
+            steps,
+            &captured,
+            policy,
+            tcl_registry::InvocationDialect::of_point(point),
+        )
+    }
+
+    fn append_body_error_context(
+        &self,
+        failure: &mut SourceNativeCompilationFailure,
+        recipe: &NativeInstructionPlan,
+        operand: &NativeCompilerWordOperand,
+        span: tcl_lexer::Span,
+    ) {
+        if let Some(error_context) = recipe.body_error_context(operand)
+            && let Some(inner) = failure.contexts.last_mut()
+        {
+            let line = inner
+                .invocation
+                .offset
+                .checked_sub(span.start())
+                .map(|offset| {
+                    tcl_lexer::LineIndex::from_bytes(
+                        &self.chunk.source.source_image().bytes()[span.as_range()],
+                    )
+                    .line_at(offset)
+                })
+                .and_then(|line| line.checked_add(1));
+            if let Some(note) = error_context.note(line).filter(|note| !note.is_empty()) {
+                inner.after_context.push(note);
+            }
+        }
+    }
+
+    fn original_expression_steps(
+        &self,
+        program: &tcl_registry::native_expression_program::NativeExpressionProgram,
+    ) -> (
+        Vec<tcl_registry::native_compilation::NativeExpressionCompilerStep>,
+        Option<tcl_runtime_api::native_compilation::NativeMathFunctionPrerequisite>,
+    ) {
+        use tcl_registry::native_compilation::NativeMathFunctionResolution as Resolution;
+        let table = self
+            .state
+            .baseline
+            .native_entry
+            .as_ref()
+            .and_then(|entry| entry.math_functions.as_ref());
+        let mut used_math_table = false;
+        let steps = program.compiler_steps(|name| {
+            used_math_table = true;
+            let Some(table) = table else {
+                return Resolution::Unknown;
+            };
+            match table.lookup(name) {
+                tcl_runtime_api::native_compilation::NativeMathFunctionResolution::Present(row) => {
+                    row.arity
+                        .map_or(Resolution::Unknown, |arity| Resolution::Known { arity })
+                }
+                tcl_runtime_api::native_compilation::NativeMathFunctionResolution::Absent => {
+                    Resolution::Absent
+                }
+                tcl_runtime_api::native_compilation::NativeMathFunctionResolution::Unknown => {
+                    Resolution::Unknown
+                }
+            }
+        });
+        let prerequisite = used_math_table
+            .then(|| {
+                let entry = self.state.baseline.native_entry.as_ref()?;
+                Some(
+                    tcl_runtime_api::native_compilation::NativeMathFunctionPrerequisite {
+                        interpreter: entry.interpreter,
+                        table: entry.math_functions.as_ref()?.clone(),
+                    },
+                )
+            })
+            .flatten();
+        (steps, prerequisite)
+    }
+
+    fn original_expression(
+        &mut self,
+        program: &tcl_registry::native_expression_program::NativeExpressionProgram,
+        offset: u32,
+        context: SourceExecutionContext<'_>,
+        error_context: Option<
+            tcl_registry::native_compilation::NativeCompiledExpressionErrorContext,
+        >,
+    ) -> Option<SourceNativeCompilationFailure> {
+        use tcl_registry::native_compilation::NativeExpressionCompilerStep as Step;
+        use tcl_registry::native_expression_program::ExpressionProgramEmission;
+        let image = self.chunk.source.source_image().clone();
+        if image.bytes().get(program.span.as_range()) != Some(program.source.as_slice()) {
+            self.require_provider();
+            return None;
+        }
+        if expression_has_unretained_local_visits(&program.tree) {
+            self.locals = None;
+        }
+        let (steps, prerequisite) = self.original_expression_steps(program);
+        self.retain_prefix_math_table(prerequisite.clone());
+        for step in steps {
+            let relative = match step {
+                Step::Unknown => {
+                    self.require_provider();
+                    return None;
+                }
+                Step::Failure(failure) => {
+                    if let Some(context) = error_context
+                        && !context.note().is_empty()
+                    {
+                        self.before_next_context.push(context.note().to_owned());
+                    }
+                    let mut failure = self.failure_at(offset, failure, Vec::new());
+                    failure.math_table_prerequisite.clone_from(&prerequisite);
+                    return Some(failure);
+                }
+                Step::Script(span) => span,
+            };
+            let Some(spelling) = program.source.get(relative.as_range()).filter(|spelling| {
+                spelling.first() == Some(&b'[')
+                    && spelling.last() == Some(&b']')
+                    && spelling.len() >= 2
+            }) else {
+                self.require_provider();
+                return None;
+            };
+            let base = program
+                .span
+                .start()
+                .checked_add(relative.start())?
+                .checked_add(1)?;
+            let source = tcl_lexer::SourceImage::from_bytes(
+                &spelling[1..spelling.len() - 1],
+                image.channel(),
+            );
+            if let Some(mut failure) = self.script(
+                &source,
+                base,
+                SourceExecutionContext {
+                    depth: context.depth + 1,
+                    ..context
+                },
+            ) {
+                if let Some(prerequisite) = &prerequisite {
+                    if failure
+                        .math_table_prerequisite
+                        .as_ref()
+                        .is_some_and(|old| old != prerequisite)
+                    {
+                        self.require_provider();
+                        failure.failure.message = None;
+                        failure.failure.error_code = None;
+                        failure.failure.error_info = None;
+                    } else {
+                        failure.math_table_prerequisite = Some(prerequisite.clone());
+                    }
+                }
+                if let Some(context) = error_context
+                    && !context.note().is_empty()
+                    && let Some(inner) = failure.contexts.last_mut()
+                {
+                    inner.after_context.push(context.note().to_owned());
+                }
+                return Some(failure);
+            }
+        }
+        let emission = self.original_expression_emission(program, context.registry);
+        let evaluation_known = emission != ExpressionProgramEmission::Unavailable;
+        if !evaluation_known {
+            self.require_provider();
+        }
+        None
+    }
+
+    fn original_expression_emission(
+        &self,
+        program: &tcl_registry::native_expression_program::NativeExpressionProgram,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> tcl_registry::native_expression_program::ExpressionProgramEmission {
+        use tcl_registry::native_expression_program::{
+            ExpressionProgramEmission, expression_program_emission,
+            expression_program_emission_for_policy, native_expression_evaluation_policy,
+        };
+        let baseline = &self.state.baseline;
+        match baseline.native_entry.as_ref() {
+            Some(entry) => expression_program_emission(program, entry),
+            // An entry-less compile is a fresh interpreter of its profile,
+            // whose expression policy is that release's own.
+            None if !baseline.unknown_entry => baseline
+                .dialect
+                .and_then(tcl_registry::InvocationDialect::execution_point)
+                .and_then(|point| {
+                    let profile = registry.profile()?;
+                    let policy = native_expression_evaluation_policy(profile, point)?;
+                    Some(expression_program_emission_for_policy(
+                        program,
+                        Some(&policy),
+                        tcl_registry::InvocationDialect::of_point(point),
+                    ))
+                })
+                .unwrap_or(ExpressionProgramEmission::Unavailable),
+            None => ExpressionProgramEmission::Unavailable,
+        }
+    }
+
+    fn original_operand(
+        &mut self,
+        words: &[WordExpr],
+        operand: &NativeCompilerWordOperand,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        match operand {
+            NativeCompilerWordOperand::Original(index) => {
+                let Some(word) = words.get(*index) else {
+                    self.require_provider();
+                    return None;
+                };
+                self.substitutions(std::slice::from_ref(word), context)
+            }
+            NativeCompilerWordOperand::LiteralExpansion { .. } => None,
+        }
+    }
+
+    fn original_list_operation(
+        &mut self,
+        words: &[WordExpr],
+        recipe: &tcl_registry::native_list_operations_compilation::NativeListOperationInstruction,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        use tcl_registry::native_list_operations_compilation::{
+            NativeListOperationInstruction as Plan, NativeListVariableOperand as Target,
+        };
+        match recipe {
+            Plan::Range { list, .. } => {
+                self.original_operands(words, std::iter::once(list.clone()), context)
+            }
+            Plan::Assign { list, targets } => {
+                if let Some(failure) = self.original_operand(words, list, context) {
+                    return Some(failure);
+                }
+                for target in targets {
+                    if let Target::Original {
+                        operand: NativeCompilerWordOperand::Original(index),
+                        variable,
+                    } = target
+                    {
+                        if let Some(failure) =
+                            self.original_variable_operand(words, variable, *index, context)
+                        {
+                            return Some(failure);
+                        }
+                    } else if let Target::ExpandedLiteral { name, .. } = target {
+                        self.source_local_command(name);
+                    } else {
+                        self.locals = None;
+                    }
+                }
+                None
+            }
+            Plan::Insert { .. } | Plan::Set { .. } => {
+                self.require_provider();
+                None
+            }
+        }
+    }
+
+    fn original_variable_operand(
+        &mut self,
+        words: &[WordExpr],
+        target: &tcl_syntax::native_variable_words::NativeVariableWordOperand,
+        target_word: usize,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        use tcl_syntax::native_variable_words::NativeVariableWordOperand;
+        match target {
+            NativeVariableWordOperand::Literal { name, .. } => {
+                self.source_local_command(name);
+                None
+            }
+            NativeVariableWordOperand::DynamicWord => self.original_operand(
+                words,
+                &NativeCompilerWordOperand::Original(target_word),
+                context,
+            ),
+            NativeVariableWordOperand::CompoundArray { name, index, .. } => {
+                self.source_local_command(name);
+                self.original_variable_index(index, context)
+            }
+        }
+    }
+
+    fn original_variable_index(
+        &mut self,
+        arena: &tcl_lexer::ExecutablePartArena,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        if arena.image() != self.chunk.source.source_image() {
+            self.require_provider();
+            return None;
+        }
+        let mut pending = vec![(arena.root(), 0, context.depth)];
+        while let Some((list, next, depth)) = pending.pop() {
+            if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth) {
+                self.require_provider();
+                continue;
+            }
+            let Some(component) = arena.list(list).get(next) else {
+                continue;
+            };
+            pending.push((list, next + 1, depth));
+            match component.part {
+                tcl_lexer::ExecutablePart::Command { body } => {
+                    let Some(script) = arena.bytes(body) else {
+                        self.require_provider();
+                        continue;
+                    };
+                    if let Some(failure) = self.script(
+                        &tcl_lexer::SourceImage::from_bytes(script, arena.image().channel()),
+                        body.start(),
+                        SourceExecutionContext {
+                            depth: depth + 1,
+                            ..context
+                        },
+                    ) {
+                        return Some(failure);
+                    }
+                }
+                tcl_lexer::ExecutablePart::Variable { index, .. } => {
+                    // The source-local name producer must retain this exact arena,
+                    // not reparsed index text or the whole materialised word.
+                    let root = self.state.source_variables.execution_name_policy
+                        .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+                        .and_then(|policy| crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_executable(
+                            arena, arena.image(), context.config, component.span,
+                            tcl_syntax::word_rules::WordValueRules::from_config(&context.config), policy,
+                        ));
+                    if let Some(root) = root {
+                        if self.locals.as_mut().is_some_and(|locals| {
+                            !locals.substitution_name(root.bytes(), root.is_separate_array_root())
+                        }) {
+                            self.locals = None;
+                        }
+                    } else {
+                        self.locals = None;
+                    }
+                    if let Some(index) = index {
+                        pending.push((index, 0, depth + 1));
+                    }
+                }
+                tcl_lexer::ExecutablePart::Expression { .. }
+                | tcl_lexer::ExecutablePart::ParseError(_) => {
+                    self.possible_error = true;
+                }
+                tcl_lexer::ExecutablePart::Text(_) => {}
+            }
+        }
+        None
+    }
+
+    fn original_script(
+        &mut self,
+        words: &[WordExpr],
+        offset: u32,
+        span: tcl_lexer::Span,
+        context: SourceExecutionContext<'_>,
+        compilation: tcl_registry::native_compilation::NativeCompilationContext,
+        publish: bool,
+    ) -> Option<SourceNativeCompilationFailure> {
+        let image = self.chunk.source.source_image().clone();
+        let Some(bytes) = image.bytes().get(span.as_range()) else {
+            self.require_provider();
+            return None;
+        };
+        let source = tcl_lexer::SourceImage::from_bytes(bytes, image.channel());
+        if let Some(failure) = self.script(
+            &source,
+            span.start(),
+            SourceExecutionContext {
+                compilation,
+                depth: context.depth + 1,
+                ..context
+            },
+        ) {
+            return Some(failure);
+        }
+        if publish && !self.possible_error {
+            let selected = super::super::compiled_invocation::select_invocation_boxed(
+                words,
+                self.state,
+                &SourceExecutionContext {
+                    compilation_snapshot: Some(self.snapshot),
+                    ..context
+                },
+                offset,
+            );
+            let Some(parent) = selected.admitted.as_ref().filter(|parent| {
+                matches!(
+                    parent.as_ref(),
+                    super::super::compiled_invocation::SourceNativeCompilerAdmission::Inline(_)
+                )
+            }) else {
+                self.require_provider();
+                return None;
+            };
+            self.compiled_children
+                .entry(CommandAllocationSite {
+                    source: Arc::clone(&self.chunk.source),
+                    offset: span.start(),
+                })
+                .or_default()
+                .push(SourceCompiledChild {
+                    enclosing: self.chunk.clone(),
+                    table: Arc::clone(&self.snapshot.table),
+                    parent: Arc::clone(parent),
+                    script: super::super::ExecutedScriptSource {
+                        text: source,
+                        origin: Arc::clone(&self.chunk.source),
+                        mapping: super::super::ExecutedScriptMapping::Contiguous {
+                            base: span.start(),
+                        },
+                    },
+                    compilation,
+                    parent_namespace_key: context.namespace_identity(),
+                    namespace_key: context.namespace_identity(),
+                    compiler_visits: Arc::default(),
+                });
+        }
+        None
+    }
+}
+
+fn entered_context(
+    body: tcl_registry::native_compilation::NativeCompiledBodyContext,
+    enclosing: tcl_registry::native_compilation::NativeCompilationContext,
+) -> Option<tcl_registry::native_compilation::NativeCompilationContext> {
+    use tcl_registry::native_compilation::NativeCompiledBodyContext;
+    Some(match body {
+        NativeCompiledBodyContext::Inherit => enclosing,
+        NativeCompiledBodyContext::ExceptionRange => enclosing.with_inline_exception_range(),
+        NativeCompiledBodyContext::Loop => {
+            tcl_registry::native_compilation::NativeCompilationContext {
+                loop_depth: enclosing.loop_depth.checked_add(1)?,
+                ..enclosing
+            }
+        }
+    })
+}
+
+fn expression_has_unretained_local_visits(
+    tree: &tcl_registry::native_expression_program::NativeExpressionTree,
+) -> bool {
+    use tcl_registry::native_expression_program::NativeExpressionTree;
+    use tcl_syntax::expr::ExprNode;
+    let NativeExpressionTree::Parsed(root) = tree else {
+        return true;
+    };
+    let mut pending = vec![root];
+    while let Some(node) = pending.pop() {
+        match node {
+            ExprNode::Literal { .. } => {}
+            ExprNode::Unary { operand, .. } => pending.push(operand),
+            ExprNode::Binary { left, right, .. } => pending.extend([right.as_ref(), left.as_ref()]),
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+                ..
+            } => pending.extend([
+                false_branch.as_ref(),
+                true_branch.as_ref(),
+                condition.as_ref(),
+            ]),
+            ExprNode::Call { args, .. } => pending.extend(args.iter().rev()),
+            _ => return true,
+        }
+    }
+    false
+}

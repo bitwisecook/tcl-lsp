@@ -101,7 +101,15 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
+        // Reached native value handler has no callbacks or variable-name writes.
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
         name: "lreverse",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("lreverse"),
         const_fold: Some(crate::const_fold::fold_lreverse),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,

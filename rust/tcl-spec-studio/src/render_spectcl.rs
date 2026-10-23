@@ -178,6 +178,67 @@ pub struct Gap {
 /// from its source **only** on these keys, and reports any other difference as
 /// a failure.
 pub const GAPS: &[Gap] = &[
+    Gap {
+        key: "pack_source_sandbox_helper",
+        spelling: "stock host provisioning capability (not source-authored)",
+        kind: GapKind::Excluded,
+    },
+    // The builtin survey relates exact selected query operands to an explicit
+    // hypothetical target. A custom declaration cannot assert that relation.
+    Gap {
+        key: "source_package_query",
+        spelling: "source_package_query ProvidedVersion|RequiredVersion|VersionSatisfies (subcommand/refine; excluded)",
+        kind: GapKind::Excluded,
+    },
+    Gap {
+        // Shipped names preserve the entire original grammar, including its
+        // native object-method operation. Inline authoring cannot assert that
+        // operation, so a custom grammar that retains one is withheld whole.
+        key: "definition_body",
+        spelling: "definition_body NAME|{ … }",
+        kind: GapKind::Excluded,
+    },
+    Gap {
+        key: "nested_native_compilation",
+        spelling: "sub_subcommand NAME -native_compilation CONTRACT",
+        kind: GapKind::Excluded,
+    },
+    Gap {
+        key: "form_value_effects",
+        spelling: "refine NAME {return_type|arg_types|byte_array_effect|var_elements_effect|safe_on_uninit OVERRIDE}",
+        kind: GapKind::Excluded,
+    },
+    // A loadable declaration cannot certify an actual native handler's
+    // storage and observer equivalence across an unknown compiler protocol.
+    Gap {
+        key: "successful_handler",
+        spelling: "successful_handler -native Leaf|ExpressionArguments|DictionaryConstructor|EnsembleLeaf|EnsemblePathLeaf -direct-provider F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition",
+        kind: GapKind::Excluded,
+    },
+    // Native result contracts require runtime identity, observer boundaries and
+    // representation proofs; the loadable authoring surface cannot assert those.
+    Gap {
+        key: "native_result",
+        spelling: "native_result -native CONTRACT",
+        kind: GapKind::DraftOpaque,
+    },
+    Gap {
+        key: "procedure_definition",
+        spelling: "procedure_definition -native CONTRACT",
+        kind: GapKind::DraftOpaque,
+    },
+    Gap {
+        key: "native_compilation",
+        spelling: "native_compilation -native CONTRACT",
+        kind: GapKind::DraftOpaque,
+    },
+    // A phase descriptor alone cannot author the live implementation/hook
+    // prerequisites required by semantic expansion. Keep the loss explicit.
+    Gap {
+        key: "body_execution",
+        spelling: "body_execution -native CONTRACT",
+        kind: GapKind::DraftOpaque,
+    },
     // The value is not in the draft.
     //
     // `object_class` left this bucket. It looked like the others — an
@@ -198,6 +259,8 @@ pub const GAPS: &[Gap] = &[
         kind: GapKind::DraftOpaque,
     },
     Gap {
+        // Unsupported typed world accesses withdraw strong semantics; they cannot
+        // become an empty footprint or derive native write proof from a spelling.
         key: "world_effects",
         spelling: "world_effects none|NAME|{ … }",
         kind: GapKind::DraftOpaque,
@@ -317,6 +380,13 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
+    // Registry source operand geometry is built-in metadata for the static Tk
+    // lifecycle consumer; SpecTcl packs cannot declare or prove this layout.
+    Gap {
+        key: "teardown_argument_layout",
+        spelling: "",
+        kind: GapKind::Excluded,
+    },
     // `substitution_resolver` and `pattern_arg_resolver` left this bucket with
     // the option-effect descriptor: `subst`'s switch families and `lsearch`'s
     // match styles are option rows declaring their effects, the first field is
@@ -376,92 +446,33 @@ pub fn gap(key: &str) -> Option<&'static Gap> {
 
 // Tcl words
 
-/// Whether `text` can be written as a bare word.
-fn bare_safe(text: &str) -> bool {
-    !text.is_empty()
-        && !text.starts_with('#')
-        && text.chars().all(|c| {
-            c.is_ascii_alphanumeric() || "-_.:/+@=,<>*?!%^~|'`".contains(c) && c.is_ascii()
-        })
-}
-
-/// Whether `{text}` is a well-formed braced word whose value is `text` byte
-/// for byte.
-///
-/// The scan is Tcl's own: a backslash escapes the next character (so `\{` and
-/// `\}` do not nest), the depth may never go negative, and a trailing
-/// backslash would escape the closing brace. Anything else has to take the
-/// quoted form.
-fn brace_safe(text: &str) -> bool {
-    let mut depth = 0i32;
-    let mut chars = text.chars();
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' => {
-                // Backslash-newline is the one substitution Tcl still performs
-                // inside braces, so a word carrying one does not come back out
-                // byte for byte.
-                match chars.next() {
-                    None | Some('\n') => return false,
-                    Some(_) => {}
-                }
-            }
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth < 0 {
-                    return false;
-                }
-            }
-            _ => {}
-        }
-    }
-    depth == 0
-}
-
-/// One word carrying `text` verbatim, or `None` when no spelling does.
-///
-/// **There is no quoted fallback, because a quoted word is not verbatim.** The
-/// loader reads its words off the CST, where a quoted word keeps its
-/// backslashes (`\[` stays `\[`) and has its variable references normalised
-/// (`$c` becomes `${c}`), while a braced word really is every byte between the
-/// braces. So a bare or braced word is faithful and a quoted one is not, and
-/// text that can be neither is reported as a loss rather than written down
-/// wrong. In practice that is a handful of registry strings carrying a lone
-/// `{` from a man-page extractor.
+/// A descriptor word must retain both raw loader text and its Unicode value.
 fn word(text: &str) -> Option<String> {
-    if bare_safe(text) {
-        Some(text.to_owned())
-    } else if brace_safe(text) {
-        Some(format!("{{{text}}}"))
-    } else {
-        None
-    }
+    use tcl_compiler::parsing::spectcl_source::{
+        PackWordSourcePurpose, PackWordSourceStyle, pack_verbatim_source_word,
+    };
+    pack_verbatim_source_word(
+        text,
+        PackWordSourcePurpose::StaticDescriptor,
+        PackWordSourceStyle::Compact,
+    )
 }
 
-/// A braced word carrying `text` verbatim — the prose and block spelling.
-///
-/// Unlike [`word`] this never degrades to a bare word, because a `detail` or
-/// `description` is braced in every port whether or not it needs to be.
+/// Prose and blocks preserve the explicit braced presentation.
 fn braced(text: &str) -> Option<String> {
-    brace_safe(text).then(|| format!("{{{text}}}"))
+    use tcl_compiler::parsing::spectcl_source::{
+        PackWordSourcePurpose, PackWordSourceStyle, pack_verbatim_source_word,
+    };
+    pack_verbatim_source_word(
+        text,
+        PackWordSourcePurpose::StaticDescriptor,
+        PackWordSourceStyle::Braced,
+    )
 }
 
-/// A Tcl list word holding `items`, each element carrying its text verbatim.
-///
-/// A one-element list is written as the bare element — `dialects all-tcl`,
-/// `-dialects tcl8.6+` — which is how every port writes one, and which
-/// `split_list_lenient` reads back as the same single-element list. The braces
-/// stay whenever the element needs them, since a braced element inside a bare
-/// word would split into several.
+/// Each element and the enclosing word are checked by the same actual owner.
 fn list_word<S: AsRef<str>>(items: &[S]) -> Option<String> {
-    if let [only] = items
-        && bare_safe(only.as_ref())
-    {
-        return Some(only.as_ref().to_owned());
-    }
-    let words: Option<Vec<String>> = items.iter().map(|item| word(item.as_ref())).collect();
-    braced(&words?.join(" "))
+    tcl_compiler::parsing::spectcl_source::pack_descriptor_list_source_word(items)
 }
 
 /// The elements of a JSON string array as a list word.
@@ -1198,13 +1209,41 @@ fn var_elements_effect_word(expr: &str) -> Option<String> {
     })
 }
 
-/// `None` / `{CopyOnWriteContainerMutation VAR MIN}` from a rendered
-/// `Option<RepresentationEffect>`.
+/// Representation effect variant and payload from a rendered optional descriptor.
 fn representation_effect_word(expr: &str) -> Option<String> {
     let inner = unwrap_some(expr)?;
     let variant = variant_of(inner.split(['(', '{']).next()?);
     Some(match variant {
         "None" => "None".to_owned(),
+        "CoerceExpressionValues" | "CoerceNumericValues" => {
+            let fields = struct_fields(inner)?;
+            format!("{{{variant} {}}}", fields.get("arguments_from")?)
+        }
+        "CoerceOrdinaryList" | "CoerceOrdinaryDictionary" => {
+            let fields = struct_fields(inner)?;
+            format!("{{{variant} {}}}", fields.get("operand")?)
+        }
+        "CoerceOrdinaryListPairs" => {
+            let fields = struct_fields(inner)?;
+            format!("{{{variant} {}}}", fields.get("variables_from")?)
+        }
+        "CoerceOrdinaryListIndices" => {
+            let fields = struct_fields(inner)?;
+            format!(
+                "{{{variant} {} {}}}",
+                fields.get("operand")?,
+                fields.get("indices_from")?
+            )
+        }
+        "CoerceOrdinaryListRange" => {
+            let fields = struct_fields(inner)?;
+            format!(
+                "{{{variant} {} {} {}}}",
+                fields.get("operand")?,
+                fields.get("first")?,
+                fields.get("last")?
+            )
+        }
         "CopyOnWriteContainerMutation" => {
             let fields = struct_fields(inner)?;
             format!(
@@ -1379,10 +1418,7 @@ fn repeat_rows(expr: &str) -> Option<Vec<Vec<String>>> {
     Some(rows)
 }
 
-/// One `OptionTerm::…(…)` expression as an author spells the term.
-///
-/// The inverse of the loader's `relation_term`, so a relation round-trips
-/// through the exporter byte-identically to how it was authored.
+/// Construct a relation's inner Tcl list value from its Rust expression.
 fn relation_term_word(expr: &str) -> Option<String> {
     let expr = expr.trim();
     let open = expr.find('(')?;
@@ -1398,10 +1434,8 @@ fn relation_term_word(expr: &str) -> Option<String> {
         }
         _ => return None,
     };
-    // The term's *content*, unquoted: the caller brace-quotes it once, either
-    // as a standalone subject word or as one element of the term list.
-    // Quoting here as well would double-brace `{arg 0}` inside the list.
-    Some(words.join(" "))
+    // The loader parses the term as a list after reading the outer source word.
+    Some(tcl_syntax::list::join_list(&words))
 }
 
 /// The `.tclspec` axis and value words from a rendered [`EffectAxis`]
@@ -1948,6 +1982,33 @@ fn index_list(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     out.line(&format!("{key} {{{}}}", indices.join(" ")));
 }
 
+/// Authored receiver grammar retains its form alongside the argv position.
+fn variable_receiver_words(items: &[Value]) -> String {
+    use tcl_registry::resolved_invocation::VariableReceiverOperandForm;
+    let Some(selected) = draft::selected_variable_receivers(items) else {
+        return "{invalid-index invalid-receiver-form}".to_owned();
+    };
+    selected
+        .iter()
+        .map(|(index, form)| match form {
+            VariableReceiverOperandForm::Combined => index.to_string(),
+            VariableReceiverOperandForm::TraceSubject => format!("{{{index} trace-subject}}"),
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn variable_receiver_list(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    if ctx.set(draft, "variable_receivers")
+        && let Some(items) = draft["variable_receivers"].as_array()
+    {
+        out.line(&format!(
+            "variable_receivers {{{}}}",
+            variable_receiver_words(items)
+        ));
+    }
+}
+
 /// Emit a count property.
 fn count(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     if ctx.set(draft, key)
@@ -2131,7 +2192,7 @@ fn semantics_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     }
 }
 
-/// `arity N`, `N..M`, `N..`, `..M`, `..`, plus `-step` / `-also`.
+/// `arity N`, `N..M`, `N..`, `..M`, `..`, plus `-step` / `-also` / `-positionals`.
 fn arity_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     if !ctx.set(draft, "arity") {
         return;
@@ -2139,26 +2200,9 @@ fn arity_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     out.line(&format!("arity {}", arity_word(&draft["arity"])));
 }
 
-/// An arity draft value as the DSL's `RANGE ?-step N? ?-also N?` words.
+/// An arity draft value as the DSL's `RANGE ?-step N? ?-also N? ?-positionals?` words.
 fn arity_word(value: &Value) -> String {
-    let min = value["min"].as_u64().unwrap_or(0);
-    let max = value["max"].as_u64();
-    let step = value["step"].as_u64().unwrap_or(0);
-    let also = value["also_exact"].as_u64();
-    let mut row = match (min, max) {
-        (m, Some(x)) if m == x && step == 0 => m.to_string(),
-        (0, None) => "..".to_owned(),
-        (m, None) => format!("{m}.."),
-        (0, Some(x)) => format!("..{x}"),
-        (m, Some(x)) => format!("{m}..{x}"),
-    };
-    if step != 0 {
-        let _ = write!(row, " -step {step}");
-    }
-    if let Some(also) = also {
-        let _ = write!(row, " -also {also}");
-    }
-    row
+    arity_shape(value)
 }
 
 /// The shape words of one arity value, shared by the plain row and every
@@ -2181,6 +2225,9 @@ fn arity_shape(value: &Value) -> String {
     }
     if let Some(also) = also {
         let _ = write!(row, " -also {also}");
+    }
+    if value["count"] == "positionals" {
+        row.push_str(" -positionals");
     }
     row
 }
@@ -2623,6 +2670,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     flag(out, ctx, draft, "warn_missing_import");
     flag(out, ctx, draft, "is_namespace_exported");
     flag(out, ctx, draft, "unsafe_command");
+    flag(out, ctx, draft, "arg_values_accept_prefix");
     text_list(out, ctx, draft, "excluded_events");
     set_word(out, ctx, draft, "safe_on_uninit");
     expr_row(out, ctx, draft, "deprecation_fix", deprecation_fix_row);
@@ -2656,7 +2704,16 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     );
     enum_word(out, ctx, draft, "inferred_storage_type");
     enum_word(out, ctx, draft, "body_kind");
+    enum_word(out, ctx, draft, "script_lookup_scope");
+    enum_word(out, ctx, draft, "irules_source_flow");
     gap_todo(out, ctx, draft, "body_interpreter");
+    gap_todo(out, ctx, draft, "body_execution");
+    gap_todo(out, ctx, draft, "procedure_definition");
+    gap_todo(out, ctx, draft, "native_compilation");
+    gap_todo(out, ctx, draft, "successful_handler");
+    variable_receiver_list(out, ctx, draft);
+    gap_todo(out, ctx, draft, "native_result");
+    gap_todo(out, ctx, draft, "form_value_effects");
     expr_word(out, ctx, draft, "byte_array_effect", byte_array_effect_word);
     enum_word(out, ctx, draft, "pattern_type");
     gap_todo(out, ctx, draft, "pattern_arg_resolver");
@@ -2684,6 +2741,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
         }
     }
     count(out, ctx, draft, "reserved_trailing_words");
+    count(out, ctx, draft, "option_prefix_words");
     count(out, ctx, draft, "body_arg_implicit_args");
     if ctx.set(draft, "assigns_variable_at") {
         scalar(
@@ -2724,6 +2782,8 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     clause_grammar_block(out, ctx, draft);
     out.gap();
     native_hook(out, ctx, draft, "arg_role_resolver");
+    native_hook(out, ctx, draft, "arg_role_count_resolver");
+    native_hook(out, ctx, draft, "arg_role_layout_resolver");
     if ctx.resolver_capabilities {
         set_word(out, ctx, draft, "arg_role_resolver_roles");
     } else {
@@ -2735,6 +2795,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     native_hook(out, ctx, draft, "const_fold");
     native_hook(out, ctx, draft, "const_fold_versioned");
     semantics_block(out, ctx, draft);
+    enum_word(out, ctx, draft, "source_index_bounds");
     native_hook(out, ctx, draft, "literal_argument_validator");
     native_hook(out, ctx, draft, "context_gate");
     catalogue_hook(out, ctx, draft, "lowering_hook");
@@ -2774,6 +2835,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     set_word(out, ctx, draft, "taint_double_encode_colour");
     set_word(out, ctx, draft, "taint_sink_safe_colour");
     native_hook(out, ctx, draft, "taint_sink_gate");
+    enum_word(out, ctx, draft, "channel_configuration");
     text_list(out, ctx, draft, "credential_options");
     text_list(out, ctx, draft, "sensitive_headers");
     if ctx.set(draft, "setter_constraints") {
@@ -2810,6 +2872,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     }
     text(out, ctx, draft, "deprecated_replacement");
     flag(out, ctx, draft, "deprecated_replacement_drop_in");
+    enum_word(out, ctx, draft, "source_deprecation_advice");
     text(out, ctx, draft, "alias_of");
     runtime_backing_row(out, ctx, draft);
 
@@ -3015,6 +3078,12 @@ fn refine_blocks(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft, key: &str) {
                     str_of(&role["role"])
                 ));
             }
+            if let Some(receivers) = form["variable_receivers"].as_array() {
+                out.line(&format!(
+                    "variable_receivers {{{}}}",
+                    variable_receiver_words(receivers)
+                ));
+            }
             for option in as_array(&form["options"]).to_vec() {
                 option_row(out, ctx, &option);
             }
@@ -3218,6 +3287,7 @@ fn semantic_operation_window_rows(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
 /// one `member` row per member — each with its `-effect`, and a wrapper's
 /// `-shift` — one `member_option` row per accepted optional word, and the
 /// object-model rows a class family declares.
+#[allow(clippy::too_many_lines)]
 fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     let Some(value) = draft
         .get("definition_body")
@@ -3230,6 +3300,20 @@ fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     }
     if let Some(name) = value.as_str() {
         out.line(&format!("definition_body {}", name_word(name)));
+        return;
+    }
+    if as_array(&value["builtin_object_methods"])
+        .iter()
+        .any(|method| !method["operation"].is_null())
+    {
+        out.comment(
+            "TODO(spectcl): `definition_body` contains native object-method operations. \
+             Only an exact shipped grammar name preserves them; this custom block is omitted.",
+        );
+        out.losses.push(Loss {
+            key: "definition_body".to_owned(),
+            reason: "custom native object-method operations cannot be authored inline".to_owned(),
+        });
         return;
     }
     let mut body = Out::at(out.indent + 1);
@@ -3247,6 +3331,7 @@ fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     }
     for key in [
         "implicit_vars",
+        "implicit_receiver_vars",
         "member_body_namespace_path",
         "builtin_type_methods",
     ] {
@@ -3293,7 +3378,27 @@ fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
         body.row(&row, "-binds-handle");
     }
     if value["bare_word_construction"].as_bool() == Some(true) {
-        body.line("bare_word_construction");
+        let mut row = vec!["bare_word_construction".to_owned()];
+        if let Some(hint) = value
+            .get("bare_word_construction_source_hint")
+            .filter(|hint| !hint.is_null())
+        {
+            for (key, flag) in [("values", "-hint-values"), ("prefixes", "-hint-prefixes")] {
+                row.push(flag.to_owned());
+                let values = as_array(&hint[key]);
+                let rendered: Option<Vec<_>> = values
+                    .iter()
+                    .map(|value| value.as_str().and_then(word))
+                    .collect();
+                if let Some(values) = rendered {
+                    row.push(format!("{{{}}}", values.join(" ")));
+                } else {
+                    lost = true;
+                    row.push("{}".to_owned());
+                }
+            }
+        }
+        body.row(&row, "");
     }
     if value["dynamic_method_dispatch"].as_bool() == Some(true) {
         body.line("dynamic_method_dispatch");
@@ -3754,7 +3859,13 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     );
     enum_word(out_body, ctx, sub, "inferred_storage_type");
     enum_word(out_body, ctx, sub, "body_kind");
+    enum_word(out_body, ctx, sub, "script_lookup_scope");
     gap_todo(out_body, ctx, sub, "body_interpreter");
+    gap_todo(out_body, ctx, sub, "body_execution");
+    gap_todo(out_body, ctx, sub, "native_compilation");
+    gap_todo(out_body, ctx, sub, "successful_handler");
+    variable_receiver_list(out_body, ctx, sub);
+    gap_todo(out_body, ctx, sub, "native_result");
     expr_word(
         out_body,
         ctx,
@@ -3769,6 +3880,9 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     flag(out_body, ctx, sub, "mutator");
     flag(out_body, ctx, sub, "destructive");
     flag(out_body, ctx, sub, "returns_path");
+    enum_word(out_body, ctx, sub, "source_index_bounds");
+    enum_word(out_body, ctx, sub, "source_path_operation");
+    enum_word(out_body, ctx, sub, "source_configuration_reference");
     flag(out_body, ctx, sub, "is_unescape");
     flag(out_body, ctx, sub, "loop_list_header");
     flag(out_body, ctx, sub, "creates_scope_alias");
@@ -3787,6 +3901,8 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
         out_body.line(&format!("min_abbrev {}", sub["min_abbrev"]));
     }
     enum_word(out_body, ctx, sub, "prefix_matching");
+    count(out_body, ctx, sub, "option_prefix_words");
+    count(out_body, ctx, sub, "reserved_trailing_words");
     text(out_body, ctx, sub, "cfg_rewrite_name");
 
     arg_row_statements(out_body, ctx, sub);
@@ -3806,6 +3922,8 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
 
     clause_grammar_block(out_body, ctx, sub);
     native_hook(out_body, ctx, sub, "arg_role_resolver");
+    native_hook(out_body, ctx, sub, "arg_role_count_resolver");
+    native_hook(out_body, ctx, sub, "arg_role_layout_resolver");
     if ctx.resolver_capabilities {
         set_word(out_body, ctx, sub, "arg_role_resolver_roles");
     } else {
@@ -3839,6 +3957,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     set_word(out_body, ctx, sub, "taint_transform");
     enum_word(out_body, ctx, sub, "taint_transform_when");
     set_word(out_body, ctx, sub, "taint_double_encode_colour");
+    enum_word(out_body, ctx, sub, "channel_configuration");
     if ctx.set(sub, "credential_arg") {
         out_body.line(&format!("credential_arg {}", sub["credential_arg"]));
     }
@@ -3847,6 +3966,12 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     option_block(out_body, ctx, sub);
     versioned_arg_value_rows_for(out_body, ctx, sub);
     for row in as_array(sub.get("sub_subcommands").unwrap_or(&Value::Null)) {
+        if row
+            .get("native_compilation")
+            .is_some_and(|value| !value.is_null())
+        {
+            todo(out_body, "nested_native_compilation");
+        }
         let mut words = vec!["sub_subcommand".to_owned(), name_word(str_of(&row["name"]))];
         let mut lost = false;
         let detail = str_of(&row["detail"]);
@@ -3863,6 +3988,17 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
                 &mut lost,
                 &Value::Array(dialects.clone()),
                 ctx.availability,
+            );
+        }
+        if let Some(prefix) = row["option_prefix_words"]
+            .as_u64()
+            .filter(|prefix| *prefix > 0)
+        {
+            push_flag(
+                &mut words,
+                &mut lost,
+                "-option_prefix_words",
+                Some(prefix.to_string()),
             );
         }
         push_lifecycle_flags(&mut words, &mut lost, row);
@@ -4076,6 +4212,396 @@ mod tests {
         let mut d = draft::default_command_draft();
         d.insert("name".into(), json!(name));
         d
+    }
+
+    #[test]
+    fn original_abstract_grammar_roundtrip_keeps_created_class_and_factory_visibilities() {
+        // naming.tcloo.original-abstract-manufacturer-public-visibility
+
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let selected = registry.get("oo::abstract").unwrap();
+        // Roundtrip the selected semantic data without exporting Native hooks.
+        let spec = tcl_registry::CommandSpec {
+            name: "AbstractFactory",
+            definition_body: selected.definition_body,
+            manufacturer_methods: selected.manufacturer_methods,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let seeded = draft::from_command_spec(&spec);
+        assert_eq!(seeded["definition_body"], json!("tcloo-abstract"));
+        let (text, losses) = render_pack_reporting(&[seeded], "probe");
+        assert!(losses.is_empty(), "{losses:?}");
+        let loaded = crate::spectcl::evaluate_pack(&text);
+        let imported = &loaded.command("AbstractFactory").unwrap().spec;
+        let grammar = imported.definition_body.unwrap();
+        for selector in ["create", "new", "createWithNamespace"] {
+            assert_eq!(
+                grammar.manufacturer(selector).unwrap().visibility,
+                tcl_registry::definer::MemberVisibility::Unexported
+            );
+        }
+        assert_eq!(imported.manufacturer_methods, spec.manufacturer_methods);
+    }
+
+    #[test]
+    fn native_object_method_operations_keep_grammar_identity_and_explicit_inline_loss() {
+        use tcl_registry::definer::{DefinitionBodyGrammar, TCLOO_GRAMMAR};
+
+        assert_eq!(
+            draft::from_command_spec(&tcl_registry::CommandSpec {
+                name: "shipped",
+                definition_body: Some(&TCLOO_GRAMMAR),
+                ..tcl_registry::CommandSpec::DEFAULT
+            })["definition_body"],
+            json!("tcloo")
+        );
+        let mut methods = TCLOO_GRAMMAR.builtin_object_methods.to_vec();
+        let original = methods
+            .iter_mut()
+            .find(|method| method.operation.is_some())
+            .expect("a shipped native object-method operation");
+        original.detail = "custom object method";
+        let grammar = Box::leak(Box::new(DefinitionBodyGrammar {
+            builtin_object_methods: Box::leak(methods.clone().into_boxed_slice()),
+            ..TCLOO_GRAMMAR
+        }));
+        let seeded = draft::from_command_spec(&tcl_registry::CommandSpec {
+            name: "custom",
+            definition_body: Some(grammar),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        assert!(seeded["definition_body"].is_object());
+        assert!(
+            seeded["definition_body"]["builtin_object_methods"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|method| !method["operation"].is_null())
+        );
+        let (text, losses) = render_pack_reporting(&[seeded], "probe");
+        assert!(losses.iter().any(|loss| loss.key == "definition_body"));
+        assert!(text.contains("Only an exact shipped grammar name preserves them"));
+        let loaded = crate::spectcl::evaluate_pack(&text);
+        assert!(
+            loaded
+                .command("custom")
+                .unwrap()
+                .spec
+                .definition_body
+                .is_none()
+        );
+
+        let mut methods = TCLOO_GRAMMAR.builtin_object_methods.to_vec();
+        for method in &mut methods {
+            method.operation = None;
+        }
+        let without_operation = Box::leak(Box::new(DefinitionBodyGrammar {
+            builtin_object_methods: Box::leak(methods.into_boxed_slice()),
+            ..TCLOO_GRAMMAR
+        }));
+        let seeded = draft::from_command_spec(&tcl_registry::CommandSpec {
+            name: "metadata",
+            definition_body: Some(without_operation),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        assert!(
+            seeded["definition_body"].is_object(),
+            "a missing native operation cannot be identified as the shipped grammar"
+        );
+    }
+
+    #[test]
+    fn nested_native_compiler_proof_has_an_explicit_authoring_exclusion() {
+        const WORKERS: &[tcl_registry::spec::SubSubCommand] =
+            &[tcl_registry::spec::SubSubCommand {
+                name: "worker",
+                native_compilation: Some(tcl_registry::native_compilation::NativeCompilationSpec {
+                    grammar: tcl_registry::native_compilation::NativeCompilationGrammar::NoHook,
+                    operation: tcl_registry::SemanticOperationId::Invoke,
+                    body: tcl_registry::native_compilation::NativeBodyCompilation::Inherit,
+                }),
+                ..tcl_registry::spec::SubSubCommand::DEFAULT
+            }];
+        const MEMBERS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: "codec",
+            sub_subcommands: WORKERS,
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::nested",
+            subcommands: MEMBERS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let seeded = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&seeded), "probe");
+        assert!(
+            text.contains("TODO(spectcl): `nested_native_compilation`"),
+            "{text}"
+        );
+        assert!(
+            GAPS.iter()
+                .any(|gap| gap.key == "nested_native_compilation" && gap.kind == GapKind::Excluded)
+        );
+        let loaded = crate::spectcl::evaluate_pack(&text);
+        let command = &loaded.command("probe::nested").unwrap().spec;
+        assert!(
+            command.subcommands[0].sub_subcommands[0]
+                .native_compilation
+                .is_none()
+        );
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.registry-receiver-authoring-parity
+
+    fn combined_variable_receiver_metadata_round_trips_commands_members_and_forms() {
+        use tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined;
+        use tcl_registry::{CommandSpec, SubCommand, forms::CommandForm};
+        const FORMS: &[CommandForm] = &[
+            CommandForm {
+                name: "withdraw",
+                variable_receivers: Some(&[]),
+                ..CommandForm::DEFAULT
+            },
+            CommandForm {
+                name: "inherit",
+                ..CommandForm::DEFAULT
+            },
+        ];
+        const SUBS: &[SubCommand] = &[SubCommand {
+            name: "nested",
+            variable_receivers: Some(&[(0, Combined)]),
+            subcommand_forms: FORMS,
+            ..SubCommand::DEFAULT
+        }];
+        let spec = CommandSpec {
+            name: "probe::names",
+            variable_receivers: Some(&[(0, Combined), (2, Combined)]),
+            command_forms: FORMS,
+            subcommands: SUBS,
+            ..CommandSpec::DEFAULT
+        };
+        let seeded = draft::from_command_spec(&spec);
+        assert_eq!(seeded["variable_receivers"], serde_json::json!([0, 2]));
+        let rust = crate::render_rs::render(&seeded);
+        assert!(rust.contains("variable_receivers: Some(&[(0, tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined), (2, tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined)]),"), "{rust}");
+        assert!(rust.contains("variable_receivers: Some(&[]),"));
+        let text = render_pack(std::slice::from_ref(&seeded), "probe");
+        assert!(text.contains("variable_receivers {0 2}"), "{text}");
+        assert!(text.contains("variable_receivers {}"), "{text}");
+        let loaded = crate::spectcl::evaluate_pack(&text);
+        let parsed = &loaded
+            .command("probe::names")
+            .expect("naming round trip")
+            .spec;
+        assert_eq!(parsed.variable_receivers, spec.variable_receivers);
+        assert_eq!(parsed.command_forms[0].variable_receivers, Some(&[][..]));
+        assert_eq!(parsed.command_forms[1].variable_receivers, None);
+        assert_eq!(
+            parsed.subcommands[0].variable_receivers,
+            spec.subcommands[0].variable_receivers
+        );
+        assert_eq!(
+            parsed.subcommands[0].subcommand_forms[0].variable_receivers,
+            Some(&[][..])
+        );
+        assert!(parsed.successful_handler.is_none());
+        assert!(parsed.native_compilation.is_none());
+    }
+
+    #[test]
+    fn successful_handler_native_contract_has_an_explicit_authoring_gap() {
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::native",
+            successful_handler: Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::Leaf),
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let seeded = draft::from_command_spec(&spec);
+        assert!(
+            seeded["successful_handler"]
+                .as_str()
+                .is_some_and(|value| value.contains("::Leaf"))
+        );
+        let text = render_pack(std::slice::from_ref(&seeded), "probe");
+        assert!(
+            text.contains("TODO(spectcl): `successful_handler`"),
+            "{text}"
+        );
+        assert!(
+            GAPS.iter()
+                .any(|gap| gap.key == "successful_handler" && gap.kind == GapKind::Excluded)
+        );
+        let loaded = crate::spectcl::evaluate_pack(&text);
+        assert!(
+            loaded
+                .command("probe::native")
+                .unwrap()
+                .spec
+                .successful_handler
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn source_deprecation_advice_survives_both_renderers_and_pack_reload() {
+        // naming.diagnostic.registry-source-ownership
+
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::legacy",
+            source_deprecation_advice: Some(tcl_registry::SourceDeprecationAdvice::IruleMatchclass),
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        assert_eq!(before["source_deprecation_advice"], "IruleMatchclass");
+        let rust = crate::render_rs::render(&before);
+        assert!(
+            rust.contains(
+                "source_deprecation_advice: Some(SourceDeprecationAdvice::IruleMatchclass)"
+            ),
+            "{rust}"
+        );
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(
+            text.contains("source_deprecation_advice IruleMatchclass"),
+            "{text}"
+        );
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let loaded = pack.command("probe::legacy").unwrap().spec;
+        assert_eq!(
+            loaded.source_deprecation_advice,
+            spec.source_deprecation_advice
+        );
+        assert_eq!(
+            draft::from_command_spec(loaded)["source_deprecation_advice"],
+            before["source_deprecation_advice"]
+        );
+    }
+
+    #[test]
+    fn positional_option_prefix_survives_both_renderers_and_pack_reload() {
+        // naming.diagnostic.registry-source-ownership
+
+        const NESTED: &[tcl_registry::SubSubCommand] = &[tcl_registry::SubSubCommand {
+            name: "configure",
+            option_prefix_words: 3,
+            options: Some(&[]),
+            ..tcl_registry::SubSubCommand::DEFAULT
+        }];
+        const SUBS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: "format",
+            sub_subcommands: NESTED,
+            option_prefix_words: 1,
+            reserved_trailing_words: 2,
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe",
+            option_prefix_words: 2,
+            subcommands: SUBS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        let rust = crate::render_rs::render(&before);
+        assert!(rust.contains("option_prefix_words: 3,"), "{rust}");
+        assert!(rust.contains("option_prefix_words: 2,"), "{rust}");
+        assert!(rust.contains("option_prefix_words: 1,"), "{rust}");
+        assert!(rust.contains("reserved_trailing_words: 2,"), "{rust}");
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let loaded = pack.command("probe").unwrap().spec;
+        assert_eq!(
+            loaded.subcommands[0].sub_subcommands[0].option_prefix_words,
+            3
+        );
+        assert_eq!(loaded.option_prefix_words, 2);
+        assert_eq!(loaded.subcommands[0].option_prefix_words, 1);
+        assert_eq!(loaded.subcommands[0].reserved_trailing_words, 2);
+    }
+
+    #[test]
+    fn positional_arity_survives_both_renderers_and_pack_reload() {
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::create",
+            arity: tcl_registry::arity::Arity::new(0, 1).with_positionals(),
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        assert_eq!(before["arity"]["count"], "positionals");
+        let rust = crate::render_rs::render(&before);
+        assert!(
+            rust.contains("Arity::new(0, 1).with_positionals()"),
+            "{rust}"
+        );
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(text.contains("arity ..1 -positionals"), "{text}");
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let reloaded = pack.command("probe::create").unwrap().spec;
+        assert_eq!(reloaded.arity, spec.arity);
+        assert_eq!(draft::from_command_spec(reloaded)["arity"], before["arity"]);
+    }
+
+    #[test]
+    fn expression_coercion_survives_render_load_and_draft() {
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::evaluate",
+            representation_effect: Some(
+                tcl_registry::representation::RepresentationEffect::CoerceExpressionValues {
+                    arguments_from: 0,
+                },
+            ),
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(
+            text.contains("representation_effect {CoerceExpressionValues 0}"),
+            "{text}"
+        );
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let after = draft::from_command_spec(pack.command("probe::evaluate").unwrap().spec);
+        assert_eq!(
+            after.get("representation_effect"),
+            before.get("representation_effect")
+        );
+    }
+
+    #[test]
+    fn ordinary_container_coercion_survives_render_load_and_draft() {
+        use tcl_registry::representation::RepresentationEffect;
+        for effect in [
+            RepresentationEffect::CoerceOrdinaryList { operand: 0 },
+            RepresentationEffect::CoerceOrdinaryDictionary { operand: 1 },
+            RepresentationEffect::CoerceOrdinaryListPairs { variables_from: 0 },
+            RepresentationEffect::CoerceOrdinaryListIndices {
+                operand: 0,
+                indices_from: 1,
+            },
+            RepresentationEffect::CoerceOrdinaryListRange {
+                operand: 0,
+                first: 1,
+                last: 2,
+            },
+        ] {
+            let spec = tcl_registry::CommandSpec {
+                name: "probe::container",
+                representation_effect: Some(effect),
+                ..tcl_registry::CommandSpec::DEFAULT
+            };
+            let before = draft::from_command_spec(&spec);
+            let text = render_pack(std::slice::from_ref(&before), "probe");
+            let pack = crate::spectcl::evaluate_pack(&text);
+            assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+            let reloaded = pack.command("probe::container").unwrap().spec;
+            assert_eq!(reloaded.representation_effect, Some(effect));
+            assert_eq!(
+                draft::from_command_spec(reloaded)["representation_effect"],
+                before["representation_effect"]
+            );
+        }
     }
 
     #[test]
@@ -4638,6 +5164,42 @@ mod tests {
     }
 
     #[test]
+    fn relation_term_values_survive_nested_list_render_and_load() {
+        use tcl_registry::{OptionRelation, OptionTerm, relation::RelationKind};
+        const RELATIONS: &[OptionRelation] = &[OptionRelation {
+            kind: RelationKind::Forbids,
+            subject: Some(OptionTerm::OptionValue("-subject", "two words")),
+            terms: &[
+                OptionTerm::OptionValue("-space", "two words"),
+                OptionTerm::OptionValue("-slash", r"one\two"),
+                OptionTerm::ArgumentValue(0, ""),
+                OptionTerm::ArgumentValue(1, "{nested}"),
+                OptionTerm::ArgumentValue(2, "$name [command];"),
+                OptionTerm::ArgumentValue(3, "é"),
+                OptionTerm::ArgumentValue(4, "line\nnext"),
+                OptionTerm::ArgumentValue(5, "tail\\"),
+            ],
+            ..OptionRelation::DEFAULT
+        }];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::relations",
+            option_relations: RELATIONS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let reloaded = pack.command("probe::relations").unwrap().spec;
+        assert_eq!(reloaded.option_relations, RELATIONS, "{text}");
+        assert_eq!(
+            draft::from_command_spec(reloaded).get("option_relations"),
+            before.get("option_relations"),
+            "{text}",
+        );
+    }
+
+    #[test]
     fn a_simple_subcommand_is_written_on_one_line() {
         let mut d = drafted("probe");
         let mut sub = draft::default_subcommand_draft();
@@ -4761,6 +5323,103 @@ mod tests {
         assert!(
             gap("object_class").is_none(),
             "`object_class` is no longer a renderer gap"
+        );
+    }
+
+    #[test]
+    fn source_flow_grammar_survives_rust_dsl_loader_and_snapshot_round_trip() {
+        use tcl_registry::events::IrulesSourceFlowSpec;
+        for flow in [
+            IrulesSourceFlowSpec::DropsConnection,
+            IrulesSourceFlowSpec::ReturnsDnsPacket,
+            IrulesSourceFlowSpec::EventControl,
+        ] {
+            let spec = tcl_registry::CommandSpec {
+                name: "probe::flow",
+                irules_source_flow: Some(flow),
+                ..tcl_registry::CommandSpec::DEFAULT
+            };
+            let before = draft::from_command_spec(&spec);
+            let variant = format!("{flow:?}");
+            assert_eq!(
+                before.get("irules_source_flow").and_then(Value::as_str),
+                Some(variant.as_str())
+            );
+            let rust = crate::render_rs::render(&before);
+            assert!(rust.contains(&format!("irules_source_flow: Some(tcl_registry::events::IrulesSourceFlowSpec::{variant})")), "{rust}");
+            let text = render_pack(std::slice::from_ref(&before), "probe");
+            assert!(
+                text.contains(&format!("irules_source_flow {variant}")),
+                "{text}"
+            );
+            let pack = crate::spectcl::evaluate_pack(&text);
+            assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+            let loaded = pack.command("probe::flow").unwrap().spec;
+            assert_eq!(loaded.irules_source_flow, Some(flow));
+            let after = draft::from_command_spec(loaded);
+            assert_eq!(
+                after.get("irules_source_flow"),
+                before.get("irules_source_flow")
+            );
+            let invalid = text.replace(
+                &format!("irules_source_flow {variant}"),
+                "irules_source_flow ImaginedFlow",
+            );
+            let pack = crate::spectcl::evaluate_pack(&invalid);
+            assert!(!pack.notices.is_empty());
+            assert_eq!(
+                pack.command("probe::flow").unwrap().spec.irules_source_flow,
+                None
+            );
+        }
+    }
+
+    #[test]
+    fn executable_lookup_scope_survives_rust_and_dsl_round_trip() {
+        static MEMBERS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: "trigger",
+            script_lookup_scope: Some(tcl_registry::ScriptLookupScope::TriggerFrame),
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::callback",
+            script_lookup_scope: Some(tcl_registry::ScriptLookupScope::GlobalFrame),
+            subcommands: MEMBERS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        let rust = crate::render_rs::render(&before);
+        assert!(
+            rust.contains("script_lookup_scope: Some(ScriptLookupScope::GlobalFrame)"),
+            "{rust}"
+        );
+        assert!(
+            rust.contains("script_lookup_scope: Some(ScriptLookupScope::TriggerFrame)"),
+            "{rust}"
+        );
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(text.contains("script_lookup_scope GlobalFrame"), "{text}");
+        assert!(text.contains("script_lookup_scope TriggerFrame"), "{text}");
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let after = draft::from_command_spec(pack.command("probe::callback").unwrap().spec);
+        assert_eq!(
+            after.get("script_lookup_scope"),
+            before.get("script_lookup_scope")
+        );
+        assert_eq!(after.get("subcommands"), before.get("subcommands"));
+        let invalid = text.replace(
+            "script_lookup_scope GlobalFrame",
+            "script_lookup_scope ImaginedFrame",
+        );
+        let pack = crate::spectcl::evaluate_pack(&invalid);
+        assert!(!pack.notices.is_empty());
+        assert_eq!(
+            pack.command("probe::callback")
+                .unwrap()
+                .spec
+                .script_lookup_scope,
+            None
         );
     }
 
@@ -4913,5 +5572,401 @@ mod tests {
         assert!(!geometry.direct_form);
         assert_eq!(geometry.placement_subcommand, Some("arrange"));
         assert_eq!(geometry.release_subcommands, ["release", "unmanage"]);
+    }
+
+    #[test]
+    fn trace_subject_receiver_drafts_reject_invalid_forms_and_positions_without_defaulting() {
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::trace",
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        for rows in [
+            serde_json::json!([{"index":1,"form":"Unknown"}]),
+            serde_json::json!([{"form":"TraceSubject"}]),
+            serde_json::json!([{"index":256,"form":"TraceSubject"}]),
+            serde_json::json!([{"index":1,"form":"TraceSubject","extra":true}]),
+            serde_json::json!([0,{"index":0,"form":"TraceSubject"}]),
+            serde_json::json!(["1"]),
+        ] {
+            let mut invalid = draft::from_command_spec(&spec);
+            invalid.insert("variable_receivers".into(), rows);
+            let rust = crate::render_rs::render(&invalid);
+            assert!(rust.contains("VARIABLE_RECEIVERS_REQUIRE_UNIQUE_U8_INDICES_AND_VALID_FORMS"));
+            let text = render_pack(std::slice::from_ref(&invalid), "probe");
+            assert!(text.contains("invalid-receiver-form"));
+            let loaded = crate::spectcl::evaluate_pack(&text);
+            assert!(!loaded.notices.is_empty());
+        }
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.trace-source-receiver-purpose
+
+    fn trace_subject_receiver_metadata_round_trips_commands_members_and_forms() {
+        use tcl_registry::resolved_invocation::VariableReceiverOperandForm::{
+            Combined, TraceSubject,
+        };
+        const FORMS: &[tcl_registry::forms::CommandForm] = &[tcl_registry::forms::CommandForm {
+            name: "trace-query",
+            variable_receivers: Some(&[(1, TraceSubject)]),
+            ..tcl_registry::forms::CommandForm::DEFAULT
+        }];
+        const SUBS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: "query",
+            variable_receivers: Some(&[(0, TraceSubject)]),
+            subcommand_forms: FORMS,
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::trace",
+            variable_receivers: Some(&[(0, Combined), (1, TraceSubject)]),
+            command_forms: FORMS,
+            subcommands: SUBS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let seeded = draft::from_command_spec(&spec);
+        assert_eq!(
+            seeded["variable_receivers"],
+            serde_json::json!([0, {"index":1,"form":"TraceSubject"}])
+        );
+        let rust = crate::render_rs::render(&seeded);
+        assert!(
+            rust.contains("VariableReceiverOperandForm::TraceSubject"),
+            "{rust}"
+        );
+        let text = render_pack(std::slice::from_ref(&seeded), "probe");
+        assert!(
+            text.contains("variable_receivers {0 {1 trace-subject}}"),
+            "{text}"
+        );
+        let loaded = crate::spectcl::evaluate_pack(&text);
+        let parsed = &loaded.command("probe::trace").unwrap().spec;
+        assert_eq!(parsed.variable_receivers, spec.variable_receivers);
+        assert_eq!(
+            parsed.command_forms[0].variable_receivers,
+            spec.command_forms[0].variable_receivers
+        );
+        assert_eq!(
+            parsed.subcommands[0].variable_receivers,
+            spec.subcommands[0].variable_receivers
+        );
+        assert_eq!(
+            parsed.subcommands[0].subcommand_forms[0].variable_receivers,
+            spec.subcommands[0].subcommand_forms[0].variable_receivers
+        );
+        assert!(parsed.successful_handler.is_none());
+    }
+    #[test]
+    fn authored_source_path_operations_survive_render_load_and_draft() {
+        // naming.navigation.retained-path-source-inventory
+
+        static MEMBERS: &[tcl_registry::SubCommand] = &[
+            tcl_registry::SubCommand {
+                name: "combine",
+                source_path_operation: Some(tcl_registry::SourcePathOperation::Join),
+                ..tcl_registry::SubCommand::DEFAULT
+            },
+            tcl_registry::SubCommand {
+                name: "filename",
+                source_path_operation: Some(tcl_registry::SourcePathOperation::ScriptPath),
+                ..tcl_registry::SubCommand::DEFAULT
+            },
+        ];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::paths",
+            subcommands: MEMBERS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(text.contains("source_path_operation Join"), "{text}");
+        assert!(text.contains("source_path_operation ScriptPath"), "{text}");
+        let rust = crate::render_rs::render(&before);
+        assert!(rust.contains("SourcePathOperation::Join"), "{rust}");
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let after = draft::from_command_spec(pack.command("probe::paths").unwrap().spec);
+        assert_eq!(
+            after.get("subcommands"),
+            before.get("subcommands"),
+            "{text}"
+        );
+        let invalid = text.replace(
+            "source_path_operation Join",
+            "source_path_operation Unknown",
+        );
+        let invalid_pack = crate::spectcl::evaluate_pack(&invalid);
+        assert!(!invalid_pack.notices.is_empty());
+        assert_eq!(
+            invalid_pack
+                .command("probe::paths")
+                .unwrap()
+                .spec
+                .subcommand("combine")
+                .unwrap()
+                .source_path_operation,
+            None,
+        );
+    }
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn authored_source_configuration_reference_survives_render_load_and_draft() {
+        use tcl_registry::InvocationWord::{Dynamic, Literal};
+        use tcl_registry::{
+            AuthoredSourceConfigurationReference, CommandRegistry, CommandSpec,
+            ConfigurationObjectFamily, InvocationWord, InvocationWords,
+            SourceConfigurationReferenceLayout, SubCommand,
+        };
+        static OPTIONS: &[tcl_registry::hover::OptionSpec] = &[tcl_registry::hover::OptionSpec {
+            name: "--",
+            ..tcl_registry::hover::OptionSpec::DEFAULT
+        }];
+        static MEMBERS: &[SubCommand] = &[
+            SubCommand {
+                name: "compare",
+                options: OPTIONS,
+                source_configuration_reference: Some(
+                    SourceConfigurationReferenceLayout::DataGroupComparison,
+                ),
+                ..SubCommand::DEFAULT
+            },
+            SubCommand {
+                name: "plain",
+                ..SubCommand::DEFAULT
+            },
+        ];
+        let spec = CommandSpec {
+            name: "probe::references",
+            subcommands: MEMBERS,
+            ..CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        assert!(crate::schema::command_field("source_configuration_reference").is_none());
+        assert!(before["subcommands"][1]["source_configuration_reference"].is_null());
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(
+            text.contains("source_configuration_reference DataGroupComparison"),
+            "{text}"
+        );
+        let rust = crate::render_rs::render(&before);
+        assert!(
+            rust.contains("Some(SourceConfigurationReferenceLayout::DataGroupComparison)"),
+            "{rust}"
+        );
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let reloaded = pack.command("probe::references").unwrap().spec;
+        assert_eq!(draft::from_command_spec(reloaded), before, "{text}");
+
+        let mut original_registry = CommandRegistry::build_default();
+        original_registry.insert(spec);
+        let mut reloaded_registry = CommandRegistry::build_default();
+        reloaded_registry.insert(reloaded.clone());
+        let project = |registry: &CommandRegistry, args: &[InvocationWord<'_>]| {
+            registry
+                .resolve_structured_invocation(
+                    InvocationWords::structured(Literal("probe::references"), args),
+                    None,
+                )
+                .resolved()
+                .unwrap()
+                .authored_source_configuration_reference_operand()
+        };
+        for (args, argument, selection_unknown) in [
+            (
+                vec![
+                    Literal("compare"),
+                    Dynamic,
+                    Literal("equals"),
+                    Literal("dg"),
+                ],
+                3,
+                true,
+            ),
+            (
+                vec![
+                    Literal("compare"),
+                    Literal("--"),
+                    Dynamic,
+                    Literal("equals"),
+                    Literal("dg"),
+                ],
+                4,
+                false,
+            ),
+        ] {
+            let expected = Some(AuthoredSourceConfigurationReference {
+                argument,
+                family: ConfigurationObjectFamily::DataGroup,
+                selection_unknown,
+            });
+            assert_eq!(project(&original_registry, &args), expected);
+            assert_eq!(project(&reloaded_registry, &args), expected);
+        }
+        for args in [
+            [Literal("plain"), Dynamic, Literal("equals"), Literal("dg")],
+            [
+                Literal("compare"),
+                Dynamic,
+                Literal("unknown"),
+                Literal("dg"),
+            ],
+        ] {
+            assert_eq!(project(&original_registry, &args), None);
+            assert_eq!(project(&reloaded_registry, &args), None);
+        }
+        let invalid = text.replace(
+            "source_configuration_reference DataGroupComparison",
+            "source_configuration_reference Unknown",
+        );
+        let invalid_pack = crate::spectcl::evaluate_pack(&invalid);
+        assert!(!invalid_pack.notices.is_empty());
+        assert!(
+            invalid_pack
+                .command("probe::references")
+                .unwrap()
+                .spec
+                .subcommands[0]
+                .source_configuration_reference
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn authored_channel_configuration_survives_render_load_and_draft() {
+        // naming.diagnostic.registry-source-ownership
+
+        static MEMBERS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: "configure",
+            channel_configuration: Some(
+                tcl_registry::ChannelConfigurationSpec::EncodingTranslation,
+            ),
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::configure",
+            channel_configuration: Some(
+                tcl_registry::ChannelConfigurationSpec::EncodingTranslation,
+            ),
+            subcommands: MEMBERS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert_eq!(
+            text.matches("channel_configuration EncodingTranslation")
+                .count(),
+            2,
+            "{text}"
+        );
+        let rust = crate::render_rs::render(&before);
+        assert_eq!(
+            rust.matches("ChannelConfigurationSpec::EncodingTranslation")
+                .count(),
+            2,
+            "{rust}"
+        );
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let parsed = pack.command("probe::configure").unwrap().spec;
+        let after = draft::from_command_spec(parsed);
+        assert_eq!(
+            after.get("channel_configuration"),
+            before.get("channel_configuration")
+        );
+        assert_eq!(after.get("subcommands"), before.get("subcommands"));
+        assert!(parsed.successful_handler.is_none());
+        assert!(parsed.subcommands[0].successful_handler.is_none());
+        let invalid = crate::spectcl::evaluate_pack(&text.replace(
+            "channel_configuration EncodingTranslation",
+            "channel_configuration Unknown",
+        ));
+        assert!(!invalid.notices.is_empty());
+        let rejected = invalid.command("probe::configure").unwrap().spec;
+        assert!(rejected.channel_configuration.is_none());
+        assert!(rejected.subcommands[0].channel_configuration.is_none());
+    }
+
+    #[test]
+    fn authored_source_index_bounds_survive_render_load_and_draft() {
+        // naming.diagnostic.registry-source-ownership
+
+        static MEMBERS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: "insert",
+            source_index_bounds: Some(tcl_registry::SourceIndexBounds::StringInsert),
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::indices",
+            source_index_bounds: Some(tcl_registry::SourceIndexBounds::ListIndex),
+            subcommands: MEMBERS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(text.contains("source_index_bounds ListIndex"), "{text}");
+        assert!(text.contains("source_index_bounds StringInsert"), "{text}");
+        let rust = crate::render_rs::render(&before);
+        assert!(rust.contains("SourceIndexBounds::ListIndex"), "{rust}");
+        assert!(rust.contains("SourceIndexBounds::StringInsert"), "{rust}");
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let parsed = pack.command("probe::indices").unwrap().spec;
+        let after = draft::from_command_spec(parsed);
+        assert_eq!(
+            after.get("source_index_bounds"),
+            before.get("source_index_bounds")
+        );
+        assert_eq!(after.get("subcommands"), before.get("subcommands"));
+        assert!(parsed.successful_handler.is_none());
+        assert!(parsed.subcommands[0].successful_handler.is_none());
+        let invalid = crate::spectcl::evaluate_pack(&text.replace(
+            "source_index_bounds StringInsert",
+            "source_index_bounds Unknown",
+        ));
+        assert!(!invalid.notices.is_empty());
+        assert_eq!(
+            invalid.command("probe::indices").unwrap().spec.subcommands[0].source_index_bounds,
+            None
+        );
+    }
+
+    #[test]
+    fn command_closed_value_prefix_policy_round_trips_both_studio_renderers() {
+        use tcl_registry::hover::ArgValue;
+        static VALUES: &[(u8, &[ArgValue])] = &[(
+            0,
+            &[ArgValue {
+                value: "script",
+                ..ArgValue::DEFAULT
+            }],
+        )];
+        for accepts_prefix in [false, true] {
+            let spec = tcl_registry::CommandSpec {
+                name: "prefix_probe",
+                arg_values: VALUES,
+                closed_value_args: &[0],
+                arg_values_accept_prefix: accepts_prefix,
+                ..tcl_registry::CommandSpec::DEFAULT
+            };
+            let before = draft::from_command_spec(&spec);
+            assert_eq!(
+                before["arg_values_accept_prefix"],
+                serde_json::json!(accepts_prefix)
+            );
+            let rust_source = crate::render_rs::render(&before);
+            if accepts_prefix {
+                assert!(rust_source.contains("arg_values_accept_prefix: true"));
+            }
+            let text = render_pack(std::slice::from_ref(&before), "prefix_probe_pack");
+            let loaded = crate::spectcl::evaluate_pack(&text);
+            assert!(loaded.notices.is_empty(), "{:?}\n{text}", loaded.notices);
+            let command = loaded.command("prefix_probe").unwrap();
+            assert_eq!(command.spec.arg_values_accept_prefix, accepts_prefix);
+            assert_eq!(
+                draft::from_command_spec(command.spec)["arg_values_accept_prefix"],
+                before["arg_values_accept_prefix"]
+            );
+        }
     }
 }

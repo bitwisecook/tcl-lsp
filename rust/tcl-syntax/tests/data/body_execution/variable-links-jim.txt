@@ -1,0 +1,5 @@
+retarget 0 {NEW NEW}
+materialise 0 {0 0 0}
+rootWrite 0 {NEW NEW}
+self 1 {can't upvar from variable to itself}
+cycle 1 {can't upvar from variable to itself}

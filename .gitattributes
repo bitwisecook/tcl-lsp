@@ -1,2 +1,10 @@
-rust/tcl-sslictcl/data/raw/** -whitespace
-rust/tcl-sslictcl/tests/fixtures/*.tsv -whitespace
+# Preserve raw source data and byte-exact conformance fixtures.
+rust/tcl-sslictcl/data/raw/** -text -whitespace
+rust/tcl-sslictcl/tests/fixtures/*.tsv -text -whitespace
+runtime/rust/testdata/native_arithseries/*.tsv -text -whitespace
+runtime/rust/tests/data/** -text -whitespace
+rust/tcl-cmd-core/testdata/native_float_errors/*.tsv -text -whitespace
+rust/tcl-cmd-core/tests/data/** -text -whitespace
+rust/tcl-registry/tests/data/** -text -whitespace
+rust/tcl-syntax/tests/data/** -text -whitespace
+rust/tcl-vm/tests/data/** -text -whitespace

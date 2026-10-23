@@ -38,6 +38,7 @@ description = "Std-backed NativeHost (full-capability Host impl) shared across T
 
 [dependencies]
 tcl-platform = { path = "../tcl-platform" }
+tcl-host-c-abi = { path = "../tcl-host-c-abi" }
 
 # `getpwnam_r` for `~user` homes, safely wrapped: the system user database,
 # so NSS, LDAP and macOS Open Directory users resolve as tclsh resolves them.

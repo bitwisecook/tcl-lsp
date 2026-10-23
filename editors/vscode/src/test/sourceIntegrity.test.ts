@@ -11,7 +11,7 @@
 import * as assert from "assert";
 import * as fs from "fs";
 import * as vscode from "vscode";
-import { activate, getDocUri, waitForDiagnostics } from "./helper";
+import { activate, getDocUri, waitForDiagnostics, waitForDiagnosticsSnapshot } from "./helper";
 
 function codeOf(diagnostic: vscode.Diagnostic): string {
   const code = diagnostic.code;
@@ -51,9 +51,13 @@ suite("Source-integrity diagnostics", () => {
 
   test("W107 selects the decoder insertion after an authored replacement character", async () => {
     await activate(malformedUri);
-    const diagnostics = await waitForDiagnostics(malformedUri, {
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(malformedUri, {
       predicate: (items) => items.some((item) => codeOf(item) === "W107"),
     });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     const w107 = diagnostics.filter((item) => codeOf(item) === "W107");
     assert.strictEqual(w107.length, 1, `expected one W107; got [${diagnostics.map(codeOf)}]`);
     assert.deepStrictEqual(w107[0].range, new vscode.Range(1, 5, 1, 6));

@@ -42,9 +42,16 @@ use std::borrow::Cow;
 /// file before its parser ever sees it: `Tcl_OpenFileChannel` reads scripts
 /// with `-translation auto`, whose `TranslateInputEOL` turns every `\r` into
 /// `\n` (swallowing a following `\n`). A lone `\r` in a file on disk is
-/// therefore a genuine **command terminator** in Tcl, not the horizontal
-/// whitespace the lexer would otherwise make of it — treating it as whitespace
-/// invents `E003`/`W210` diagnostics and hides real ones.
+/// therefore a genuine **command terminator** in Tcl, not horizontal
+/// whitespace — treating it as whitespace invents `E003`/`W210` diagnostics
+/// and hides real ones. The lexer reads a translated Document's lone CR
+/// that way itself ([`crate::SourceChannel::script_byte`]). This text
+/// rewrite is still needed for two things. It makes the `\n`-only line model
+/// below agree with the client's. It also feeds the raw-byte scanners that
+/// have no channel and are correct only on normalised text: the structural
+/// index, command-substitution close scans, `group_commands_bytes`'s
+/// blank-line count, segmenter recovery, E201 heuristics, `comment_line_starts`
+/// and line-keyed suppressions.
 ///
 /// Two properties make this safe to apply to *document* text on the way into
 /// analysis, and they are what let the `\n`-only [`LineIndex::new`] the lexer
@@ -112,8 +119,13 @@ impl LineIndex {
     ///
     /// A line break is `\n` **only**: the byte immediately after each
     /// `\n` begins the next line. A CRLF therefore breaks on its LF,
-    /// and a *lone* CR is **not** a line break — in Tcl a bare `\r` is
-    /// horizontal whitespace (a `Sep`), not an end-of-line.
+    /// and a *lone* CR is **not** a line break here, for every source
+    /// channel. A native value's bare `\r` is horizontal whitespace (a
+    /// `Sep`). A Document's lone `\r` ends a command when the dialect's
+    /// `source` translates line endings
+    /// ([`crate::SourceChannel::script_byte`]), but it never starts a line in
+    /// this index. Client lines come from [`Self::new_lsp`], or from this
+    /// index over [`normalise_lone_cr`] text.
     ///
     /// This `\n`-only rule matches the red CST overlay's own
     /// `build_line_starts`. Keeping the rule identical across the
@@ -129,11 +141,20 @@ impl LineIndex {
     /// checked conversion between `usize` and `u32`.
     #[must_use]
     pub fn new(source: &str) -> Self {
+        Self::from_bytes(source.as_bytes())
+    }
+
+    /// Index LF positions in original script bytes without decoding names.
+    ///
+    /// # Panics
+    /// Panics when the buffer is larger than the shared u32 source limit.
+    #[must_use]
+    pub fn from_bytes(source: &[u8]) -> Self {
         assert!(
             u32::try_from(source.len()).is_ok(),
             "source longer than 4 GiB cannot be indexed",
         );
-        let bytes = source.as_bytes();
+        let bytes = source;
         let mut starts = Vec::with_capacity(bytes.len() / 32 + 1);
         starts.push(0_u32);
         for (i, &b) in bytes.iter().enumerate() {

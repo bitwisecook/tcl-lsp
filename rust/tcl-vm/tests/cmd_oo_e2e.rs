@@ -32,7 +32,7 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileService, Vm};
+use tcl_vm::CompileService;
 
 #[derive(Clone)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -52,10 +52,10 @@ fn run(src: &str) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
 
@@ -74,7 +74,7 @@ fn run_without_compiler(src: &str) -> (bool, String) {
     let module = BytecodeCompileService::default()
         .compile(src)
         .expect("self-contained module compiles");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let completion = vm.run_module(&module);
     (
         completion.code.is_ok(),
@@ -1476,6 +1476,84 @@ fn deeply_recursive_method_errors_instead_of_crashing() {
         res.contains("too many nested evaluations"),
         "unexpected error: {res:?}"
     );
+}
+
+/// Method recursion right at `OO_DISPATCH_DEPTH_LIMIT` (20) on an explicit
+/// 2 MiB thread, so `RUST_MIN_STACK` cannot hide a regression. One level used
+/// to cost about 196 KB of native stack in a debug build (the whole opcode
+/// match's frame and the method-preparation locals stayed live across the
+/// nested call), so depth 10 overflowed before the limit could fire. Exactly
+/// 20 nested method calls complete; the 21st is the catchable error.
+#[test]
+fn recursion_at_the_oo_dispatch_limit_fits_a_two_mib_thread() {
+    let outcome = std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            result(
+                "oo::class create C { \
+                   method go {n} { if {$n <= 1} { return done }; return [my go [expr {$n-1}]] } \
+                 }; \
+                 C create obj; \
+                 list [catch {obj go 20} a] $a [catch {obj go 21} b] $b",
+            )
+        })
+        .expect("spawn a 2 MiB thread")
+        .join()
+        .expect("recursion to the limit must not overflow a 2 MiB stack");
+    assert_eq!(
+        outcome,
+        "0 done 1 {too many nested evaluations (infinite loop?)}"
+    );
+}
+
+/// Recursion that re-enters the interpreter from inside a non-invoking
+/// instruction, on an explicit 2 MiB thread: a variable write trace fired by
+/// a compiled `set` (`STORE_*`), and a user math function called from a
+/// compiled `expr`. Both run guest code natively while the instruction is
+/// still executing, so the frame of the instruction's arm stays on the
+/// stack for every level. tclsh 9.0.4 and 8.6.16 print `0 done 19`, `20`
+/// and `19` for the three runs; a method nested past
+/// `OO_DISPATCH_DEPTH_LIMIT` (20) is this VM's catchable refusal.
+#[test]
+fn recursion_through_a_trace_or_math_function_fits_a_two_mib_thread() {
+    let outcome = std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            result(
+                "oo::class create C { \
+                   method go {n args} { \
+                     if {$n <= 1} { return done }; \
+                     incr ::depth; \
+                     trace add variable ::v$n write [list [self] go [expr {$n-1}]]; \
+                     set ::v$n 1; \
+                     return done \
+                   }; \
+                   method walk {n} { expr {down($n-1) + 1} } \
+                 }; \
+                 C create obj; \
+                 proc ::tcl::mathfunc::down {n} { \
+                   if {$n <= 1} { return 1 }; \
+                   return [obj walk $n] \
+                 }; \
+                 proc bump {n} { \
+                   if {$n > 1} { \
+                     incr ::d; \
+                     trace add variable ::w$n write [list fire $n]; \
+                     set ::w$n 1 \
+                   } \
+                 }; \
+                 proc fire {n args} { bump [expr {$n-1}] }; \
+                 set depth 0; set d 0; \
+                 set traced [list [catch {obj go 20} a] $a $depth]; \
+                 set refused [catch {obj go 21} b]; \
+                 bump 20; \
+                 list $traced [obj walk 20] $d $refused [string match {*too many nested evaluations*} $b]",
+            )
+        })
+        .expect("spawn a 2 MiB thread")
+        .join()
+        .expect("recursion through a trace or math function must not overflow a 2 MiB stack");
+    assert_eq!(outcome, "{0 done 19} 20 19 1 1");
 }
 
 /// A moderately recursive method (well under `OO_DISPATCH_DEPTH_LIMIT`)

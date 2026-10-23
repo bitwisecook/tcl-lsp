@@ -1,0 +1,1 @@
+set a(x) X; upvar 0 a(x) xx; set log {}; proc er args {lappend ::log ELEMENTREAD}; proc ru args {lappend ::log ROOTUNSET; set ::seen [set ::xx]}; trace add variable a(x) read er; trace add variable a unset ru; unset a; list $seen $log

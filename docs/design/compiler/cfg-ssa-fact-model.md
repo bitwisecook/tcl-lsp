@@ -20,7 +20,7 @@ CFG/SSA/core analyses already compute high-value facts (reachability, definition
 
 - control-flow: unreachable blocks (the complement of `SccpResult::executable_blocks`) and constant branch outcomes (`SccpResult::constant_branches`), both on `FunctionUnit::sccp`,
 - data-flow: per-statement `defs` / `uses` on each `SsaStatement`, and read-before-set signals (a use at SSA version 0),
-- def-use chains: precise per-SSA-value definition-to-use mapping (`FunctionUnit::def_use`, an `Arc<DefUseResult>`),
+- def-use chains: precise per-SSA-value definition-to-use mapping (`FunctionUnit::def_use`, a `DefUseFacts` wrapper around an immutable shared symbol/version graph and checked current cell inventory),
 - memory-SSA: versioned memory operations and alias sets for upvar/global/variable/namespace-upvar (`FunctionUnit::memory_ssa`) — `None` until a caller asks for it with `with_memory_ssa`,
 - type-flow: `FunctionUnit::types` (unknown / known / shimmered / overdefined, with concrete Tcl type hints) and the joined `FunctionUnit::return_type`,
 - rendered-value properties: `FunctionUnit::rendered_props`,

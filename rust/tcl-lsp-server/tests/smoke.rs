@@ -37,6 +37,8 @@
 //! and a smoke test that inherited a shared harness would no longer be testing
 //! the thing it claims to.
 
+#![recursion_limit = "256"]
+
 #[path = "smoke/completion_smoke.rs"]
 mod completion_smoke;
 #[path = "smoke/definition_smoke.rs"]

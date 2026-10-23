@@ -40,7 +40,7 @@ separate top-level binary from the `tcl` binary.  It is a pure-Rust,
    [`f5-query-dsl.md`](../../references/f5_query/dsl.md) for grammar, value
    model, edit pipeline, and jq-compatibility notes, and
    [`f5-query-dsl-builtins.md`](../../references/f5_query/builtins.md) for the
-   auto-generated per-function reference).  The verb handlers in
+   hand-maintained per-function reference).  The verb handlers in
    `rust/f5-cli/src/commands/` are thin shells over these two crates —
    they do file I/O and argument shaping, then hand the parsed
    `BigipConfig` to the engine (`diff`, `explain`, and the rest all build
@@ -122,14 +122,17 @@ Internal layering:
 - `edit_plan.rs` — routes identity writes through
   `rewrite.rs`'s `rename_object` with kind-scoping, materialises or
   extends compound list blocks (`rules`, `profiles`, `persist`,
-  `policies`, `members`) on `+=` / `=`, applies field-edit
-  splices bottom-up, and detects overlapping edits.
+  `policies`, `members`) on `+=` / `=`, reconstructs field edits
+  from source spans in ascending order, and
+  rejects overlapping edits.
 - `builtins/` — the function library (`ip`, `partition`,
   `rename`, `rename_partition`, …), split into per-category modules
-  (`net.rs`, `string.rs`, `rename.rs`, `graph.rs`, …); a registry binds
-  each function's signature and metadata so the same source feeds runtime
-  dispatch, `f5 query --help-builtins NAME`, and the generated reference
-  doc at `docs/references/f5_query/builtins.md`.
+  (`net.rs`, `string.rs`, `rename.rs`, `graph.rs`, …). The registry's
+  `BuiltinSpec` metadata feeds runtime dispatch and `f5 query
+  --help-builtins [NAME]`, which renders category, arity, dispatch flags, and
+  any registered note; it does not render the per-function prose. The prose
+  in `docs/references/f5_query/builtins.md` is authored by hand. An xtask
+  checks only that its builtin heading names match the registry.
 - `grammar.rs`, `examples.rs`, `manual.rs` — terminal-friendly grammar
   reference and the worked-example cookbook surfaced by
   `--help-dsl` / `--help-examples` / `--help-manual`.
@@ -165,8 +168,8 @@ the same graph.  Lint rules in `rust/tcl-bigip/src/lint.rs` see a
   produces the same map.
 - Within each CIDR, host bits map either **direct** (identity, default)
   or **shuffle** (a deterministic Fisher-Yates permutation seeded by a
-  per-CIDR key derived from `--seed`).  Shuffle is capped at /20-worth
-  of host bits (1M permutation entries); wider widths fall back to
+  per-CIDR key derived from `--seed`).  Shuffle is capped at 20 host bits
+  (1,048,576 permutation entries); wider host widths fall back to
   direct silently.
 - The full assignment + IP cache lives in a TOML sidecar
   (`<output>.redact.toml` by default).  `f5 redact --map-file PATH`

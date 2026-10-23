@@ -23,7 +23,9 @@ use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_core_types::DiagCode;
-use tcl_lexer::{LexerConfig, LineIndex, SourceMap, Span, TokenType, script_is_complete};
+use tcl_lexer::{
+    LexerConfig, LineIndex, SourceImage, SourceMap, Span, TokenType, script_image_is_complete,
+};
 use tcl_syntax::list::split_list;
 
 use crate::estimate::{EstimateSeverity, Grade};
@@ -261,13 +263,20 @@ impl Document {
     /// byte-order-mark rule differs by position: see [`file_config`].
     fn segment(slice: &str, base: u32, config: LexerConfig, sink: &mut Sink) -> Option<Vec<Stmt>> {
         let whole = Span::new(base, base + u32_len(slice));
-        if !script_is_complete(slice) {
-            sink.error(
-                DiagCode::Sslic1001,
-                whole,
-                "incomplete SslicTcl declaration or unclosed delimiter",
-            );
-            return None;
+        match script_image_is_complete(&SourceImage::document(slice), config) {
+            Ok(true) => {}
+            Ok(false) => {
+                sink.error(
+                    DiagCode::Sslic1001,
+                    whole,
+                    "incomplete SslicTcl declaration or unclosed delimiter",
+                );
+                return None;
+            }
+            Err(error) => {
+                sink.error(DiagCode::Sslic1001, whole, error.to_string());
+                return None;
+            }
         }
         let source_map = SourceMap::new(slice);
         let (document, warnings) = build_document(slice, config);
@@ -1951,5 +1960,40 @@ future-top value
             source.get(start..end).is_some(),
             "a reported range must slice the original source"
         );
+    }
+}
+
+#[cfg(test)]
+mod original_configured_document_tests {
+    use super::*;
+    #[test]
+    fn original_sslictcl_document_segment_keeps_body_config_and_crlf_channel() {
+        // naming.source.original-configured-script-completeness
+
+        // Readonly DSL source parsing; no native String or execution receipt.
+        let source = "set x ${a{}";
+        let config = LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..file_config().nested()
+        };
+        let mut sink = Sink::default();
+        assert!(Document::segment(source, 19, config, &mut sink).is_some());
+        assert!(sink.items.is_empty());
+        let mut sink = Sink::default();
+        assert!(Document::segment(source, 19, file_config().nested(), &mut sink).is_none());
+        assert_eq!(sink.items[0].range.start(), 19);
+        assert_eq!(sink.items[0].code, DiagCode::Sslic1001);
+        let mut sink = Sink::default();
+        assert!(Document::segment("# c\\\r\n", 0, file_config(), &mut sink).is_none());
+        assert_eq!(
+            sink.items[0].message,
+            "incomplete SslicTcl declaration or unclosed delimiter"
+        );
+        let mut sink = Sink::default();
+        let file = Document::segment("\u{feff}sslictcl 1", 0, file_config(), &mut sink).unwrap();
+        assert_eq!(file[0].name(), "sslictcl");
+        let body =
+            Document::segment("\u{feff}sslictcl 1", 11, file_config().nested(), &mut sink).unwrap();
+        assert_eq!(body[0].name(), "\u{feff}sslictcl");
     }
 }

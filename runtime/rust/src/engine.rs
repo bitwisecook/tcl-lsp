@@ -26,6 +26,16 @@
 //! is the interface's bookkeeping over it: the host commands, each an
 //! extension command whose procedure is a Rust trampoline; the compiled units,
 //! each a procedure; the whitelist; and the pinned release.
+//!
+//! Host and unit retention follows actual command generations through rename.
+//! Native publication receipts retain a weak interpreter and the original
+//! namespace incarnation. They support immediate commits and explicitly refuse
+//! deferred native overlays, guest retirement execution and unclassified delete
+//! callbacks. Original-object host callbacks require a bridge this adapter does
+//! not provide; exact strings and supported cache/storage snapshots are distinct
+//! supported views. Host refusals remain outside Tcl completion and `catch`.
+//! Public invocation returns exact result bytes; invocation evaluation additionally
+//! retains the original completion code and complete options dictionary.
 
 use std::any::Any;
 use std::cell::RefCell;
@@ -34,30 +44,31 @@ use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::rc::Rc;
 
 use tcl_engine_api::{
-    Budget, BudgetKind, CommandRegistrar, CompileUnit, CompletionCode, Engine, EngineError,
-    HostCommand, HostOutcome, Value,
+    Budget, BudgetKind, CommandPublicationPurpose, CommandPublicationService, CommandRegistrar,
+    CompileUnit, CompletionCode, Engine, EngineError, HostArgumentView, HostCommand, HostOutcome,
+    PreparedCommandPublication, Value,
 };
 use tcl_syntax::number::{runtime_syntax, set_runtime_syntax, NumberSyntax};
 
 use crate::budget::LimitKind;
-use crate::interp::{new_string, obj_bytes, Code, Interp, ObjCommand, Param};
+use crate::interp::native_host_publication::{
+    self, HostCommands, HostRegistration, PublicationService,
+};
+use crate::interp::{new_string, Code, Command, Interp, ObjCommand, Param};
 use crate::obj::{self, TclObj};
-
-/// The names of the host commands an engine registered, in the unrooted
-/// spelling [`Interp::retain_commands`] compares, kept so a later whitelist
-/// keeps them.
-type HostCommandNames = Rc<RefCell<Vec<String>>>;
 
 /// A panic a host command raised, held until the evaluation that called the
 /// command has unwound, then resumed on the embedder's side of the interface.
 type PanicSlot = Rc<RefCell<Option<Box<dyn Any + Send>>>>;
 
-/// A compiled unit: the procedure it was defined as, and how many arguments it
-/// takes.
+/// A compiled unit retains its original interpreter and installed command
+/// generation. Its reported procedure spelling does not grant binding authority.
 #[derive(Debug, Clone)]
 pub struct RuntimeHandle {
     procedure: String,
     parameters: usize,
+    generation: u64,
+    interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
 }
 
 impl RuntimeHandle {
@@ -75,9 +86,9 @@ pub struct RuntimeEngine {
     release: Option<&'static str>,
     /// Mints the procedure name each compiled unit is defined as.
     units: u32,
-    host_commands: HostCommandNames,
+    host_commands: HostCommands,
     /// The procedures compiled units were defined as, kept by a whitelist.
-    unit_commands: Vec<String>,
+    unit_commands: Vec<u64>,
     panic: PanicSlot,
 }
 
@@ -92,7 +103,7 @@ impl RuntimeEngine {
             interp: Interp::new(),
             release: None,
             units: 0,
-            host_commands: Rc::new(RefCell::new(Vec::new())),
+            host_commands: Rc::new(RefCell::new(std::collections::HashMap::new())),
             unit_commands: Vec::new(),
             panic: Rc::new(RefCell::new(None)),
         }
@@ -130,15 +141,72 @@ impl Default for RuntimeEngine {
 }
 
 impl Engine for RuntimeEngine {
+    fn host_metadata_list_reader(&self) -> Option<tcl_engine_api::HostMetadataListReader> {
+        let profile = self.interp.dialect_profile();
+        if profile.is_fallback() {
+            return None;
+        }
+        let syntax = profile.grammar.list_parse;
+        let escapes = self.interp.lexer_config().escapes;
+        Some(Rc::new(move |source| {
+            tcl_syntax::list::split_list_with_syntax(source, syntax, escapes)
+                .map(|items| {
+                    items
+                        .into_iter()
+                        .map(std::borrow::Cow::into_owned)
+                        .collect()
+                })
+                .map_err(|error| EngineError::Script {
+                    message: format!("invalid host metadata list: {}", error.full_message(source)),
+                    code: None,
+                })
+        }))
+    }
+
     type Handle = RuntimeHandle;
 
     fn name(&self) -> &'static str {
         "runtime"
     }
 
-    fn define_command(
+    fn command_publication_service(
         &mut self,
-        name: &str,
+    ) -> Result<Rc<dyn CommandPublicationService>, EngineError> {
+        Ok(PublicationService::open(
+            &self.interp,
+            Rc::clone(&self.host_commands),
+        )?)
+    }
+
+    fn define_prepared_command(
+        &mut self,
+        publication: PreparedCommandPublication,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        define_prepared_host_command(
+            &mut self.interp,
+            &self.host_commands,
+            &self.panic,
+            &publication,
+            command,
+        )
+    }
+
+    fn remove_prepared_command(
+        &mut self,
+        publication: PreparedCommandPublication,
+    ) -> Result<bool, EngineError> {
+        remove_prepared_host_command(
+            &mut self.interp,
+            &self.host_commands,
+            &self.panic,
+            &publication,
+        )
+    }
+
+    fn define_command_bytes(
+        &mut self,
+        name: &[u8],
         command: Rc<dyn HostCommand>,
     ) -> Result<(), EngineError> {
         define_host_command(
@@ -147,16 +215,32 @@ impl Engine for RuntimeEngine {
             &self.panic,
             name,
             command,
-        );
-        Ok(())
+        )
+    }
+
+    fn remove_command_bytes(&mut self, name: &[u8]) -> Result<bool, EngineError> {
+        remove_host_command(&mut self.interp, &self.host_commands, &self.panic, name)
+    }
+
+    fn define_command(
+        &mut self,
+        name: &str,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        self.define_command_bytes(name.as_bytes(), command)
     }
 
     fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
-        Ok(remove_host_command(
-            &mut self.interp,
-            &self.host_commands,
-            name,
-        ))
+        self.remove_command_bytes(name.as_bytes())
+    }
+
+    fn eval_in_invocation(&mut self, script: &str) -> Result<HostOutcome, EngineError> {
+        let _grammar = self.claim_grammar();
+        let answer = evaluate(&mut self.interp, |interp| {
+            interp.eval_str(script.as_bytes())
+        });
+        self.resume_panic();
+        answer
     }
 
     fn provide_package(&mut self, name: &str, version: &str) -> Result<(), EngineError> {
@@ -166,10 +250,11 @@ impl Engine for RuntimeEngine {
     /// Keep only the `allowed` commands, the host's and the compiled units',
     /// by the bytecode VM's engine's rule ([`Interp::restrict_to`]).
     fn restrict_commands(&mut self, allowed: &[&str]) -> Result<(), EngineError> {
-        let mut kept = self.host_commands.borrow().clone();
-        kept.extend(self.unit_commands.iter().cloned());
-        self.interp.restrict_to(allowed, &kept);
-        Ok(())
+        let mut kept: Vec<_> = self.host_commands.borrow().keys().copied().collect();
+        kept.extend(self.unit_commands.iter().copied());
+        self.interp
+            .restrict_to_tokens(allowed, &kept)
+            .map_err(EngineError::execution_failure)
     }
 
     /// Define the unit as a procedure, `::spectcl::unit::N`. The runtime parses
@@ -178,7 +263,7 @@ impl Engine for RuntimeEngine {
     fn compile(&mut self, unit: CompileUnit<'_>) -> Result<Self::Handle, EngineError> {
         let _grammar = self.claim_grammar();
         self.units += 1;
-        let procedure = format!("::spectcl::unit::{}", self.units);
+        let procedure = tcl_syntax::naming::compiled_unit_procedure_name(self.units);
         let parameters = unit
             .parameters
             .iter()
@@ -187,22 +272,39 @@ impl Engine for RuntimeEngine {
                 default: None,
             })
             .collect();
-        let body = new_string(unit.body.as_bytes());
-        // SAFETY: a fresh object, held across the definition, which copies it.
-        unsafe { obj::incr_ref_count(body) };
-        self.interp
-            .define_proc(procedure.as_bytes(), parameters, body);
-        // SAFETY: balances the hold above.
-        unsafe { obj::decr_ref_count(body) };
-        self.unit_commands
-            .push(procedure.trim_start_matches("::").to_owned());
+        let body = obj::Owned::fresh(new_string(unit.body.as_bytes()));
+        let generation = self.interp.install_proc_original_storage(
+            procedure.as_bytes(),
+            parameters,
+            None,
+            body.as_ptr(),
+            None,
+            None,
+        );
+        if let Some(error) = host_error(&self.interp) {
+            return Err(error);
+        }
+        let generation = generation.ok_or_else(|| {
+            EngineError::ExecutionRefusal("compiled unit publication failed".into())
+        })?;
+        self.unit_commands.push(generation);
         Ok(RuntimeHandle {
             procedure,
             parameters: unit.parameters.len(),
+            generation,
+            interpreter: self.interp.native_callable_interpreter(),
         })
     }
 
     fn invoke(&mut self, handle: &Self::Handle, arguments: &[Value]) -> Result<Value, EngineError> {
+        if handle.interpreter != self.interp.native_callable_interpreter()
+            || self.interp.resolve_cmd_token(handle.procedure.as_bytes()) != Some(handle.generation)
+        {
+            return Err(EngineError::ExecutionRefusal(
+                "compiled procedure binding was retired, replaced or belongs to another interpreter"
+                    .into(),
+            ));
+        }
         if arguments.len() != handle.parameters {
             return Err(EngineError::Script {
                 message: format!(
@@ -214,26 +316,22 @@ impl Engine for RuntimeEngine {
             });
         }
         let _grammar = self.claim_grammar();
-        let mut words = Vec::with_capacity(arguments.len() + 1);
-        words.push(new_string(handle.procedure.as_bytes()));
-        words.extend(arguments.iter().map(to_obj));
-        for &word in &words {
-            // SAFETY: each word is fresh; the call holds it for the dispatch.
-            unsafe { obj::incr_ref_count(word) };
+        let mut owned = Vec::with_capacity(arguments.len() + 1);
+        owned.push(obj::Owned::fresh(new_string(handle.procedure.as_bytes())));
+        for argument in arguments {
+            owned.push(to_obj(&mut self.interp, argument)?);
         }
+        let words: Vec<_> = owned.iter().map(obj::Owned::as_ptr).collect();
         let answer = evaluate(&mut self.interp, |interp| interp.dispatch(&words));
-        for &word in &words {
-            // SAFETY: balances the hold above.
-            unsafe { obj::decr_ref_count(word) };
-        }
         self.resume_panic();
-        match answer {
-            Answer::Completed(Code::Ok | Code::Return, value) => Ok(Value::string(value)),
-            Answer::Completed(_, message) => Err(EngineError::Script {
-                message,
+        let outcome = answer?;
+        match outcome.code {
+            CompletionCode::Ok | CompletionCode::Return => Ok(outcome.value),
+            _ => Err(EngineError::ScriptBytes {
+                message: value_bytes(&mut self.interp, &outcome.value)?,
                 code: None,
+                options: Some(value_bytes(&mut self.interp, &outcome.options)?),
             }),
-            Answer::Failed(error) => Err(error),
         }
     }
 
@@ -276,38 +374,94 @@ impl Engine for RuntimeEngine {
     }
 }
 
-/// How an evaluation ended.
-enum Answer {
-    /// It completed with a code and a value (an error's message).
-    Completed(Code, String),
-    /// It failed as the interface reports a failure: a script error with its
-    /// `-errorcode`, or a limit outrun.
-    Failed(EngineError),
+/// Read the existing host-only channel before reaching result or option updaters.
+fn host_error(interp: &Interp) -> Option<EngineError> {
+    interp
+        .native_execution_refusal()
+        .map(EngineError::execution_failure)
 }
 
-/// Run `body` as one evaluation under the interpreter's limits: an activation
-/// of its own (so a `catch` inside behaves as at any script's top level, and an
-/// uncaught error is published as at the end of one), its limits begun, and
-/// its answer read before the activation's end resets the error state.
-fn evaluate(interp: &mut Interp, body: impl FnOnce(&mut Interp) -> Code) -> Answer {
+/// Project the same original completion used by the Family-B embedding boundary.
+fn capture_answer(interp: &mut Interp, code: Code) -> Result<HostOutcome, EngineError> {
+    if let Some(error) = host_error(interp) {
+        return Err(error);
+    }
+    if let Some(kind) = interp.limit_exceeded() {
+        return Err(EngineError::BudgetExceeded(budget_kind(kind)));
+    }
+    let completion = crate::completion::capture_bytes(interp, code).map_err(value_error)?;
+    let result = completion.result;
+    let options = completion.options;
+    if code == Code::Error {
+        return Err(EngineError::ScriptBytes {
+            message: result.to_vec(),
+            code: Some(
+                interp
+                    .error_code_bytes_checked()
+                    .map_err(EngineError::execution_failure)?,
+            ),
+            options: Some(options.to_vec()),
+        });
+    }
+    // Shared Code::as_int widens its original Other(i32) without changing it.
+    let code = i32::try_from(completion.code.as_int())
+        .expect("shared completion codes retain their original i32");
+    Ok(HostOutcome {
+        code: CompletionCode::from_int(code).expect("non-error completion"),
+        value: Value::string_bytes(result),
+        options: Value::string_bytes(options),
+    })
+}
+
+/// Run one public engine evaluation under its limits and original activation.
+fn evaluate(
+    interp: &mut Interp,
+    body: impl FnOnce(&mut Interp) -> Code,
+) -> Result<HostOutcome, EngineError> {
+    let scope =
+        crate::interp::native_operation_currency::NativeOperationScope::enter_engine_evaluation(
+            interp,
+        )
+        .map_err(EngineError::execution_failure)?;
     interp.begin_evaluation();
     let entered = interp.codegen_activation_enter();
     let code = if entered { body(interp) } else { Code::Error };
-    let text = String::from_utf8_lossy(&interp.result_bytes()).into_owned();
-    let error_code =
-        (code == Code::Error).then(|| String::from_utf8_lossy(&interp.error_code()).into_owned());
+    let answer = scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(EngineError::execution_failure)
+        .and_then(|()| capture_answer(interp, code));
     if entered {
         interp.codegen_activation_leave(code);
     }
-    if let Some(kind) = interp.limit_exceeded() {
-        return Answer::Failed(EngineError::BudgetExceeded(budget_kind(kind)));
+    // Cleanup may reach a callback too; keep the original entered cause.
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(EngineError::execution_failure)?;
+    if let Some(error) = host_error(interp) {
+        return Err(error);
     }
-    match error_code {
-        Some(code) => Answer::Failed(EngineError::Script {
-            message: text,
-            code: Some(code),
-        }),
-        None => Answer::Completed(code, text),
+    answer
+}
+
+fn value_error(error: impl std::fmt::Display) -> EngineError {
+    EngineError::ExecutionRefusal(error.to_string())
+}
+
+/// Preserve the typed scalar cause until the engine's host-only error boundary.
+fn scalar_access_error(
+    interp: &Interp,
+    error: crate::capi::NativeScalarObjectAccessError,
+) -> EngineError {
+    if let Some(first) = host_error(interp) {
+        return first;
+    }
+    match error {
+        crate::capi::NativeScalarObjectAccessError::Execution(error) => {
+            EngineError::execution_failure(error)
+        }
+        crate::capi::NativeScalarObjectAccessError::Value(error) => value_error(error),
     }
 }
 
@@ -333,50 +487,253 @@ fn limit_kind(kind: BudgetKind) -> LimitKind {
 /// engine's list of host command names, and where its panics go.
 struct HostEntry {
     command: Rc<dyn HostCommand>,
-    host_commands: HostCommandNames,
+    host_commands: HostCommands,
     panic: PanicSlot,
 }
 
 fn define_host_command(
     interp: &mut Interp,
-    host_commands: &HostCommandNames,
+    hosts: &HostCommands,
     panic: &PanicSlot,
-    name: &str,
+    name: &[u8],
     command: Rc<dyn HostCommand>,
-) {
+) -> Result<(), EngineError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+        .map_err(EngineError::execution_failure)?;
+    if interp
+        .name_policy_protocol()
+        .is_some_and(|policy| policy.authority() == tcl_syntax::naming::NamePolicyAuthority::Native)
+    {
+        let service = PublicationService::open(interp, Rc::clone(hosts))?;
+        let publication = service.prepare(name, CommandPublicationPurpose::CreateCCommand)?;
+        return define_prepared_host_command(interp, hosts, panic, &publication, command);
+    }
+    // Explicit compatibility registration uses the interpreter's selected
+    // authored recipe. It cannot issue an authenticated native receipt.
+    let (namespace, simple) = interp
+        .namespaces_mut()
+        .command_c_api_publication_at(interp.current_ns(), name)
+        .ok_or_else(|| {
+            EngineError::ExecutionRefusal(
+                "logical command publication policy is unavailable".into(),
+            )
+        })?;
+    let old = interp.namespaces().command_generation(namespace, &simple);
+    let retirement = retire_host(interp, hosts, panic, old);
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(EngineError::execution_failure)?;
+    retirement?;
+    let installed = install_host(interp, hosts, panic, namespace, &simple, command);
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(EngineError::execution_failure)?;
+    installed
+}
+
+fn define_prepared_host_command(
+    interp: &mut Interp,
+    hosts: &HostCommands,
+    panic: &PanicSlot,
+    publication: &PreparedCommandPublication,
+    command: Rc<dyn HostCommand>,
+) -> Result<(), EngineError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+        .map_err(EngineError::execution_failure)?;
+    let selected = native_host_publication::consume(
+        interp,
+        Rc::clone(hosts),
+        publication,
+        CommandPublicationPurpose::CreateCCommand,
+    )?;
+    let (namespace, simple, old) = selected
+        .ok_or_else(|| EngineError::ExecutionRefusal("creation receipt has no slot".into()))?;
+    let retirement = retire_host(interp, hosts, panic, old);
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(EngineError::execution_failure)?;
+    retirement?;
+    if !interp.namespaces().namespace_is_live(namespace) {
+        return Err(EngineError::ExecutionRefusal(
+            "native publication namespace retired during callback".into(),
+        ));
+    }
+    let installed = install_host(interp, hosts, panic, namespace, &simple, command);
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(EngineError::execution_failure)?;
+    installed
+}
+
+fn retire_host(
+    interp: &mut Interp,
+    hosts: &HostCommands,
+    panic: &PanicSlot,
+    generation: Option<u64>,
+) -> Result<(), EngineError> {
+    let command = generation.and_then(|generation| hosts.borrow().get(&generation).cloned());
+    if let Some(registration) = command {
+        if registration.retiring.replace(true) {
+            return Ok(());
+        }
+        struct RetirementGuard(Rc<std::cell::Cell<bool>>);
+        impl Drop for RetirementGuard {
+            fn drop(&mut self) {
+                self.0.set(false);
+            }
+        }
+        let _retirement = RetirementGuard(Rc::clone(&registration.retiring));
+        let mut registrar = RuntimeRegistrar {
+            interp,
+            host_commands: Rc::clone(hosts),
+            panic: Rc::clone(panic),
+        };
+        registration.command.retire_with_registrar(&mut registrar)?;
+        if let Some(error) = host_error(registrar.interp) {
+            return Err(error);
+        }
+    }
+    Ok(())
+}
+
+fn install_host(
+    interp: &mut Interp,
+    hosts: &HostCommands,
+    panic: &PanicSlot,
+    namespace: crate::namespace::NsId,
+    simple: &[u8],
+    command: Rc<dyn HostCommand>,
+) -> Result<(), EngineError> {
+    native_host_publication::ensure_retirement(
+        interp,
+        Rc::clone(hosts),
+        interp.namespaces().command_generation(namespace, simple),
+    )?;
     let entry = Box::new(HostEntry {
-        command,
-        host_commands: Rc::clone(host_commands),
+        command: Rc::clone(&command),
+        host_commands: Rc::clone(hosts),
         panic: Rc::clone(panic),
     });
     let client_data = Box::into_raw(entry).cast::<c_void>();
-    interp.create_obj_command(
-        name.as_bytes(),
-        ObjCommand::new(host_command_proc, client_data, Some(host_command_delete)),
+    interp.bind_command_replacement(
+        namespace,
+        simple,
+        Command::ObjCmd(Rc::new(ObjCommand::new_owned_runtime_shim(
+            host_command_proc,
+            client_data,
+            Some(host_command_delete),
+        ))),
     );
-    let unrooted = name.trim_start_matches("::").to_owned();
-    let mut names = host_commands.borrow_mut();
-    if !names.contains(&unrooted) {
-        names.push(unrooted);
+    if let Some(error) = host_error(interp) {
+        return Err(error);
     }
+    let generation = interp
+        .namespaces()
+        .command_generation(namespace, simple)
+        .ok_or_else(|| {
+            EngineError::ExecutionRefusal("host command publication did not create a token".into())
+        })?;
+    hosts.borrow_mut().insert(
+        generation,
+        HostRegistration {
+            command,
+            retiring: Rc::new(std::cell::Cell::new(false)),
+        },
+    );
+    Ok(())
 }
 
-fn remove_host_command(interp: &mut Interp, host_commands: &HostCommandNames, name: &str) -> bool {
-    let unrooted = name.trim_start_matches("::");
-    host_commands
-        .borrow_mut()
-        .retain(|command| command != unrooted);
-    interp.delete_command(name.as_bytes())
+fn remove_host_command(
+    interp: &mut Interp,
+    hosts: &HostCommands,
+    panic: &PanicSlot,
+    name: &[u8],
+) -> Result<bool, EngineError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+        .map_err(EngineError::execution_failure)?;
+    if interp
+        .name_policy_protocol()
+        .is_some_and(|policy| policy.authority() == tcl_syntax::naming::NamePolicyAuthority::Native)
+    {
+        let service = PublicationService::open(interp, Rc::clone(hosts))?;
+        let publication = service.prepare(name, CommandPublicationPurpose::DeleteCCommand)?;
+        return remove_prepared_host_command(interp, hosts, panic, &publication);
+    }
+    let generation = interp.resolve_cmd_token(name);
+    native_host_publication::ensure_retirement(interp, Rc::clone(hosts), generation)?;
+    let retirement = retire_host(interp, hosts, panic, generation);
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(EngineError::execution_failure)?;
+    retirement?;
+    let removed = generation.is_some_and(|generation| {
+        hosts.borrow_mut().remove(&generation);
+        interp.delete_command_generation(generation)
+    });
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(EngineError::execution_failure)?;
+    Ok(removed)
+}
+
+fn remove_prepared_host_command(
+    interp: &mut Interp,
+    hosts: &HostCommands,
+    panic: &PanicSlot,
+    publication: &PreparedCommandPublication,
+) -> Result<bool, EngineError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+        .map_err(EngineError::execution_failure)?;
+    let selected = native_host_publication::consume(
+        interp,
+        Rc::clone(hosts),
+        publication,
+        CommandPublicationPurpose::DeleteCCommand,
+    )?;
+    let Some((namespace, simple, generation)) = selected else {
+        return Ok(false);
+    };
+    let retirement = retire_host(interp, hosts, panic, generation);
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(EngineError::execution_failure)?;
+    retirement?;
+    // A callback-created replacement has another generation and survives.
+    if interp.namespaces().command_generation(namespace, &simple) != generation {
+        return Ok(false);
+    }
+    let removed = generation.is_some_and(|generation| {
+        hosts.borrow_mut().remove(&generation);
+        interp.delete_command_generation(generation)
+    });
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(EngineError::execution_failure)?;
+    Ok(removed)
 }
 
 fn provide_package(interp: &mut Interp, name: &str, version: &str) -> Result<(), EngineError> {
-    match crate::cmd_package::provide_package(interp, name.as_bytes(), version.as_bytes()) {
-        Code::Ok => Ok(()),
-        _ => Err(EngineError::Script {
-            message: String::from_utf8_lossy(&interp.result_bytes()).into_owned(),
-            code: Some(String::from_utf8_lossy(&interp.error_code()).into_owned()),
-        }),
-    }
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+        .map_err(EngineError::execution_failure)?;
+    let code = crate::cmd_package::provide_package(interp, name.as_bytes(), version.as_bytes());
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(EngineError::execution_failure)?;
+    let answer = capture_answer(interp, code).map(|_| ());
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(EngineError::execution_failure)?;
+    answer
 }
 
 /// The procedure every host command is registered with: the words become the
@@ -393,36 +750,62 @@ unsafe extern "C" fn host_command_proc(
     objc: c_int,
     objv: *const *mut TclObj,
 ) -> c_int {
-    // SAFETY: the client data is the `HostEntry` this command was registered
-    // with, alive until its delete procedure runs, which waits for the call.
-    let entry = unsafe { &*client_data.cast::<HostEntry>() };
+    // SAFETY: the actual registered box is live at dispatch entry. Preserve
+    // the invocation's existing Rust roles before any getter or callback; a
+    // selected C self-delete may retire the registration box during this call.
+    let (command, host_commands, panic) = {
+        let entry = unsafe { &*client_data.cast::<HostEntry>() };
+        (
+            Rc::clone(&entry.command),
+            Rc::clone(&entry.host_commands),
+            Rc::clone(&entry.panic),
+        )
+    };
     // SAFETY: dispatch passes its own live interpreter for the call.
     let interp = unsafe { &mut *interp };
     let count = usize::try_from(objc).unwrap_or(0);
     // SAFETY: dispatch passes `objc` live words.
     let words = unsafe { std::slice::from_raw_parts(objv, count) };
-    let arguments: Vec<Value> = words
+    if command.argument_view() == HostArgumentView::OriginalObjects {
+        return c_int::try_from(
+            interp
+                .refuse_host_command("runtime original-object callback bridge is unavailable")
+                .as_int(),
+        )
+        .unwrap_or(1);
+    }
+    let arguments = words
         .iter()
         .skip(1)
-        .map(|&word| Value::string(String::from_utf8_lossy(&obj_bytes(word))))
-        .collect();
+        .map(|&word| match command.argument_view() {
+            HostArgumentView::MaterializedStrings => interp
+                .native_object_string_bytes(word)
+                .map(Value::string_bytes)
+                .map_err(value_error),
+            HostArgumentView::NativeObjectSnapshots => snapshot_value(interp, word),
+            HostArgumentView::OriginalObjects => unreachable!("refused before reading arguments"),
+        })
+        .collect::<Result<Vec<_>, EngineError>>();
+    let arguments = match arguments {
+        Ok(arguments) => arguments,
+        Err(error) => {
+            return c_int::try_from(fail(interp, error).as_int()).unwrap_or(1);
+        }
+    };
     let outcome = catch_unwind(AssertUnwindSafe(|| {
         let mut registrar = RuntimeRegistrar {
             interp: &mut *interp,
-            host_commands: Rc::clone(&entry.host_commands),
-            panic: Rc::clone(&entry.panic),
+            host_commands: Rc::clone(&host_commands),
+            panic: Rc::clone(&panic),
         };
-        entry
-            .command
-            .invoke_with_registrar(&mut registrar, &arguments)
+        command.invoke_with_registrar(&mut registrar, &arguments)
     }));
     let code = match outcome {
         Ok(Ok(outcome)) => answer(interp, &outcome),
         Ok(Err(error)) => fail(interp, error),
         Err(payload) => {
-            *entry.panic.borrow_mut() = Some(payload);
-            interp.c_api_error(b"a host command panicked", None);
-            Code::Error
+            *panic.borrow_mut() = Some(payload);
+            interp.refuse_host_command("a host command panicked")
         }
     };
     c_int::try_from(code.as_int()).unwrap_or(1)
@@ -438,68 +821,129 @@ unsafe extern "C" fn host_command_delete(client_data: *mut c_void) {
 /// Leave a host command's outcome as the interpreter's result and answer its
 /// code. A `Return` with options takes effect as `return -options` would.
 fn answer(interp: &mut Interp, outcome: &HostOutcome) -> Code {
-    match outcome.code {
-        CompletionCode::Return => {
-            let words = [
-                new_string(b"return"),
-                new_string(b"-options"),
-                to_obj(&outcome.options),
-                to_obj(&outcome.value),
-            ];
-            for &word in &words {
-                // SAFETY: each word is fresh; the call holds it.
-                unsafe { obj::incr_ref_count(word) };
-            }
-            let code = crate::builtins::ret(interp, &words);
-            for &word in &words {
-                // SAFETY: balances the hold above.
-                unsafe { obj::decr_ref_count(word) };
-            }
-            code
-        }
-        code => {
-            let value = to_obj(&outcome.value);
-            interp.set_result(value);
-            Code::from_int(code.as_int())
-        }
-    }
+    answer_values(
+        interp,
+        &outcome.value,
+        &outcome.options,
+        Code::from_int(outcome.code.as_int()),
+    )
 }
 
-/// Leave a host command's failure as the interpreter's error and answer
-/// `TCL_ERROR`. A limit the command's own evaluation outran stays that limit.
+fn answer_values(interp: &mut Interp, value: &Value, options: &Value, code: Code) -> Code {
+    let value = match to_obj(interp, value) {
+        Ok(value) => value,
+        Err(error) => return fail(interp, error),
+    };
+    let options = if code == Code::Return || !matches!(options, Value::Empty) {
+        match to_obj(interp, options) {
+            Ok(options) => Some(options),
+            Err(error) => return fail(interp, error),
+        }
+    } else {
+        None
+    };
+    crate::engine_abi::value_carriers::complete(
+        interp,
+        value.as_ptr(),
+        options.as_ref().map(obj::Owned::as_ptr),
+        code,
+    )
+}
+
 fn fail(interp: &mut Interp, error: EngineError) -> Code {
     match error {
         EngineError::Script { message, code } => {
             interp.c_api_error(message.as_bytes(), code.as_deref().map(str::as_bytes));
             Code::Error
         }
-        EngineError::BudgetExceeded(kind) => interp.exceed_limit(limit_kind(kind)),
-        other => {
-            interp.c_api_error(other.to_string().as_bytes(), None);
+        EngineError::ScriptBytes {
+            message,
+            code,
+            options,
+        } => {
+            if let Some(options) = options {
+                return answer_values(
+                    interp,
+                    &Value::string_bytes(message),
+                    &Value::string_bytes(options),
+                    Code::Error,
+                );
+            }
+            interp.c_api_error(&message, code.as_deref());
             Code::Error
         }
+        EngineError::BudgetExceeded(kind) => interp.exceed_limit(limit_kind(kind)),
+        EngineError::ExecutionRefusal(reason) => interp.refuse_host_command(reason),
+        EngineError::ExecutionFailure(cause) => interp.refuse_native_execution(*cause),
+        other => interp.refuse_host_command(other.to_string()),
     }
 }
 
 /// The door a running host command holds on this engine.
 struct RuntimeRegistrar<'a> {
     interp: &'a mut Interp,
-    host_commands: HostCommandNames,
+    host_commands: HostCommands,
     panic: PanicSlot,
 }
 
 impl CommandRegistrar for RuntimeRegistrar<'_> {
+    fn command_publication_service(
+        &mut self,
+    ) -> Result<Rc<dyn CommandPublicationService>, EngineError> {
+        Ok(PublicationService::open(
+            self.interp,
+            Rc::clone(&self.host_commands),
+        )?)
+    }
+
+    fn define_prepared_command(
+        &mut self,
+        publication: PreparedCommandPublication,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        define_prepared_host_command(
+            self.interp,
+            &self.host_commands,
+            &self.panic,
+            &publication,
+            command,
+        )
+    }
+
+    fn remove_prepared_command(
+        &mut self,
+        publication: PreparedCommandPublication,
+    ) -> Result<bool, EngineError> {
+        remove_prepared_host_command(self.interp, &self.host_commands, &self.panic, &publication)
+    }
+
+    fn define_command_bytes(
+        &mut self,
+        name: &[u8],
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        define_host_command(self.interp, &self.host_commands, &self.panic, name, command)
+    }
+
+    fn remove_command_bytes(&mut self, name: &[u8]) -> Result<bool, EngineError> {
+        remove_host_command(self.interp, &self.host_commands, &self.panic, name)
+    }
+
     fn define_command(
         &mut self,
         name: &str,
         command: Rc<dyn HostCommand>,
     ) -> Result<(), EngineError> {
-        define_host_command(self.interp, &self.host_commands, &self.panic, name, command);
-        Ok(())
+        self.define_command_bytes(name.as_bytes(), command)
     }
 
     fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
-        Ok(remove_host_command(self.interp, &self.host_commands, name))
+        self.remove_command_bytes(name.as_bytes())
+    }
+
+    fn eval_in_invocation(&mut self, script: &str) -> Result<HostOutcome, EngineError> {
+        let code = self.interp.eval_str(script.as_bytes());
+        capture_answer(self.interp, code)
     }
 
     fn provide_package(&mut self, name: &str, version: &str) -> Result<(), EngineError> {
@@ -507,31 +951,157 @@ impl CommandRegistrar for RuntimeRegistrar<'_> {
     }
 }
 
-/// An interface value as a fresh object: a dict is the flat key/value list
-/// that is a Tcl dict, and a list keeps its elements' representations.
-fn to_obj(value: &Value) -> *mut TclObj {
-    match value {
-        Value::Empty => new_string(b""),
-        Value::Str(text) => new_string(text.as_bytes()),
-        Value::Int(number) => obj::new_wide_int_obj(*number),
-        Value::Double(number) => obj::new_double_obj(*number),
+/// Import structured storage through its selected producer without text round trips.
+fn to_obj(interp: &mut Interp, value: &Value) -> Result<obj::Owned, EngineError> {
+    Ok(match value {
+        Value::Empty => obj::Owned::fresh(new_string(b"")),
+        Value::Str(text) => obj::Owned::fresh(new_string(text.as_bytes())),
+        Value::StringBytes(bytes) => obj::Owned::fresh(new_string(bytes)),
+        Value::ByteArray(bytes) => crate::engine_abi::value_carriers::byte_array(interp, bytes)
+            .map_err(|error| host_error(interp).unwrap_or_else(|| value_error(error)))?,
+        Value::NativeScalar(cache) => crate::engine_abi::value_carriers::scalar(interp, cache)
+            .map_err(|error| scalar_access_error(interp, error))?,
+        Value::Resident {
+            value,
+            string,
+            storage,
+        } => {
+            tcl_syntax::scalar_getter::carrier::checked_storage(*storage, string.len())
+                .map_err(value_error)?;
+            let original = to_obj(interp, value)?;
+            crate::engine_abi::value_carriers::resident(&original, string, *storage)
+                .map_err(value_error)?;
+            original
+        }
+        Value::Int(number) => obj::Owned::fresh(obj::new_wide_int_obj(*number)),
+        Value::Double(number) => obj::Owned::fresh(obj::new_double_obj(*number)),
         Value::List(items) => {
-            let elements: Vec<*mut TclObj> = items.iter().map(to_obj).collect();
-            list_of(&elements)
+            let items = items
+                .iter()
+                .map(|value| to_obj(interp, value))
+                .collect::<Result<Vec<_>, _>>()?;
+            let pointers: Vec<_> = items.iter().map(obj::Owned::as_ptr).collect();
+            obj::Owned::fresh(interp.new_list_object(&pointers))
         }
         Value::Dict(entries) => {
-            let elements: Vec<*mut TclObj> = entries
+            let items = entries
                 .iter()
-                .flat_map(|(key, item)| [to_obj(key), to_obj(item)])
+                .map(|(key, value)| Ok((to_obj(interp, key)?, to_obj(interp, value)?)))
+                .collect::<Result<Vec<_>, EngineError>>()?;
+            let pairs: Vec<_> = items
+                .iter()
+                .map(|(key, value)| (key.as_ptr(), value.as_ptr()))
                 .collect();
-            list_of(&elements)
+            let recipe = interp.native_invocation_dialect().native_string_materialization(Some(
+                tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation))
+                .ok_or_else(|| EngineError::ExecutionRefusal("dictionary import updater issuer unavailable".into()))?;
+            obj::Owned::fresh(
+                crate::dict::new_dict_obj_native(&pairs, None, recipe.protocol())
+                    .map_err(value_error)?,
+            )
         }
-    }
+    })
 }
 
-/// A list of fresh `elements`: the list's hold on each is the only one.
-fn list_of(elements: &[*mut TclObj]) -> *mut TclObj {
-    crate::list::new_list_obj(elements)
+fn value_bytes(interp: &mut Interp, value: &Value) -> Result<Vec<u8>, EngineError> {
+    let value = to_obj(interp, value)?;
+    interp
+        .native_object_string_bytes(value.as_ptr())
+        .map(|bytes| bytes.to_vec())
+        .map_err(value_error)
+}
+
+/// Inspect original cache/storage without materialising a convenient replacement.
+fn snapshot_value(interp: &Interp, original: *mut TclObj) -> Result<Value, EngineError> {
+    use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
+    use tcl_syntax::scalar_getter::carrier;
+    let snapshot = obj::native_object_snapshot(original).map_err(value_error)?;
+    let payload = match snapshot.cache {
+        Cache::None => Value::Empty,
+        Cache::ByteArray {
+            bytes,
+            proper: true,
+        } => Value::byte_array(bytes),
+        Cache::Numeric(cache) => Value::NativeScalar(
+            carrier::export_scalar(cache, obj::native_scalar_descriptor_origin(original))
+                .map_err(value_error)?,
+        ),
+        Cache::WordBoolean { value, version } => Value::NativeScalar(
+            carrier::export_scalar(
+                tcl_syntax::scalar_getter::NativeScalarCache::WordBoolean(value),
+                Some(version),
+            )
+            .map_err(value_error)?,
+        ),
+        Cache::List {
+            canonical: true, ..
+        } => {
+            let protocol = interp
+                .native_invocation_dialect()
+                .native_string_protocol()
+                .ok_or_else(|| {
+                    EngineError::ExecutionRefusal("native List snapshot issuer unavailable".into())
+                })?;
+            if crate::list::native_string_protocol(original) != Some(protocol) {
+                return Err(EngineError::ExecutionRefusal(
+                    "foreign native List snapshot issuer".into(),
+                ));
+            }
+            let items = crate::list::list_elements_native_checked(original, protocol)
+                .map_err(value_error)?;
+            Value::list(
+                items
+                    .iter()
+                    .map(|&item| snapshot_value(interp, item))
+                    .collect::<Result<Vec<_>, _>>()?,
+            )
+        }
+        Cache::Dictionary { .. } => {
+            let protocol = interp
+                .native_invocation_dialect()
+                .native_string_protocol()
+                .ok_or_else(|| {
+                    EngineError::ExecutionRefusal(
+                        "native Dictionary snapshot issuer unavailable".into(),
+                    )
+                })?;
+            if crate::dict::native_string_protocol(original) != Some(protocol) {
+                return Err(EngineError::ExecutionRefusal(
+                    "foreign native Dictionary snapshot issuer".into(),
+                ));
+            }
+            let pairs = crate::dict::native_dict_pairs(original, protocol).map_err(value_error)?;
+            Value::dict(
+                pairs
+                    .iter()
+                    .map(|&(key, value)| {
+                        Ok((snapshot_value(interp, key)?, snapshot_value(interp, value)?))
+                    })
+                    .collect::<Result<Vec<_>, EngineError>>()?,
+            )
+        }
+        _ => {
+            return Err(EngineError::ExecutionRefusal(
+                "native primary cache has no supported snapshot carrier".into(),
+            ));
+        }
+    };
+    Ok(match snapshot.resident {
+        Some(bytes) => payload.with_resident_string_storage(
+            bytes,
+            carrier::export_storage(snapshot.storage.ok_or_else(|| {
+                EngineError::ExecutionRefusal(
+                    "native resident snapshot storage is unavailable".into(),
+                )
+            })?),
+        ),
+        None if matches!(payload, Value::Empty) => {
+            return Err(EngineError::ExecutionRefusal(
+                "stringless untyped object snapshot is unavailable".into(),
+            ));
+        }
+        None => payload,
+    })
 }
 
 /// Hands the thread back the numeral grammar it had when dropped: the
@@ -558,5 +1128,958 @@ impl GrammarGuard {
 impl Drop for GrammarGuard {
     fn drop(&mut self) {
         set_runtime_syntax(self.0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tcl_engine_api::{NativeCVersion, NativeScalarCache, NativeStringStorageIdentity};
+
+    struct Constant;
+    impl HostCommand for Constant {
+        fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+            Ok(Value::string("host").into())
+        }
+    }
+
+    fn engine(profile: &str) -> RuntimeEngine {
+        let mut engine = RuntimeEngine::new();
+        engine.set_release(profile).unwrap();
+        engine
+    }
+
+    #[test]
+    fn scalar_importer_preserves_first_host_cause_and_guest_state() {
+        // Software owner: naming.numeric.original-capi-scalar-publication-width
+
+        let mut engine = engine("tcl8.6");
+        engine.interp.set_result_bytes(b"SEEDED RESULT");
+        engine.interp.set_c_error_code(b"SEEDED CODE");
+        let first = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "original scalar import refusal",
+            ),
+        );
+        engine.interp.refuse_native_execution(first.clone());
+        let error = to_obj(
+            &mut engine.interp,
+            &Value::NativeScalar(NativeScalarCache::Integer(17)),
+        )
+        .err()
+        .expect("first actual scalar import refusal");
+        assert!(matches!(error, EngineError::ExecutionFailure(cause) if *cause == first));
+        assert_eq!(engine.interp.native_execution_refusal(), Some(first));
+        assert_eq!(engine.interp.result_bytes(), b"SEEDED RESULT");
+        assert_eq!(engine.interp.snapshot_error().code_bytes(), b"SEEDED CODE");
+    }
+
+    #[test]
+    fn completion_metadata_getter_failure_is_host_refusal_at_engine_boundary() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        let mut engine = engine("tcl9.0");
+        let error = engine.eval_in_invocation("set ::prior BEFORE; catch {return -level 0 -code error -errorcode [lseq 100000001] BODY} captured options; set ::after YES").unwrap_err();
+        assert!(matches!(error, EngineError::ExecutionFailure(_)));
+        assert_eq!(
+            engine.interp.native_execution_refusal(),
+            Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::Materialization(
+                    tcl_syntax::raw_string::NativeMaterializationLimitError::new(
+                        100_000_001,
+                        100_000_000
+                    ),
+                ),
+            ),)
+        );
+        assert_eq!(
+            crate::interp::obj_bytes(
+                crate::test_storage::global_scalar(&engine.interp, b"prior").unwrap()
+            ),
+            b"BEFORE"
+        );
+        for name in [b"captured".as_slice(), b"options", b"::after"] {
+            assert!(crate::test_storage::global_scalar(&engine.interp, name).is_none());
+        }
+    }
+
+    // Software embedding controls: the audited name recipes live in the shared
+    // naming owner. These assertions exercise this adapter's actual tables,
+    // receipt authority and callbacks, rather than claiming a fresh C run.
+    #[test]
+    fn publication_receipts_keep_actual_slots_and_refuse_forged_stale_or_foreign_authority() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut engine = engine(profile);
+            let service = engine.command_publication_service().unwrap();
+            let publication = service
+                .prepare(
+                    b"::scope::command",
+                    CommandPublicationPurpose::CreateCCommand,
+                )
+                .unwrap();
+            assert!(!service.observed_presence(&publication).unwrap());
+            let mut forged = publication.clone();
+            forged.key.simple = Rc::from(&b"other"[..]);
+            assert!(matches!(
+                engine.define_prepared_command(forged, Rc::new(Constant)),
+                Err(EngineError::ExecutionRefusal(_))
+            ));
+            engine
+                .define_prepared_command(publication.clone(), Rc::new(Constant))
+                .unwrap();
+            assert!(matches!(
+                engine.define_prepared_command(publication, Rc::new(Constant)),
+                Err(EngineError::ExecutionRefusal(_))
+            ));
+            let deletion = service
+                .prepare(
+                    b"::scope::command",
+                    CommandPublicationPurpose::DeleteCCommand,
+                )
+                .unwrap();
+            assert!(service.observed_presence(&deletion).unwrap());
+            engine
+                .eval_in_invocation("rename ::scope::command ::scope::moved")
+                .unwrap();
+            assert!(matches!(
+                engine.remove_prepared_command(deletion),
+                Err(EngineError::ExecutionRefusal(_))
+            ));
+            assert_eq!(
+                engine
+                    .eval_in_invocation("::scope::moved")
+                    .unwrap()
+                    .value
+                    .as_str(),
+                Some("host")
+            );
+            let publication = service
+                .prepare(
+                    b"::scope::another",
+                    CommandPublicationPurpose::CreateCCommand,
+                )
+                .unwrap();
+            let mut foreign = self::engine(profile);
+            assert!(matches!(
+                foreign.define_prepared_command(publication, Rc::new(Constant)),
+                Err(EngineError::ExecutionRefusal(_))
+            ));
+            let publication = service
+                .prepare(
+                    b"::scope::replacement",
+                    CommandPublicationPurpose::CreateCCommand,
+                )
+                .unwrap();
+            engine
+                .eval_in_invocation("namespace delete ::scope; namespace eval ::scope {}")
+                .unwrap();
+            assert!(matches!(
+                engine.define_prepared_command(publication, Rc::new(Constant)),
+                Err(EngineError::ExecutionRefusal(_))
+            ));
+            let missing = service
+                .prepare(b"absent", CommandPublicationPurpose::DeleteCCommand)
+                .unwrap();
+            assert!(!engine.remove_prepared_command(missing).unwrap());
+            drop(engine);
+            assert!(matches!(
+                service.prepare(b"expired", CommandPublicationPurpose::CreateCCommand),
+                Err(EngineError::ExecutionRefusal(_))
+            ));
+        }
+    }
+
+    struct CaptureScope(Rc<RefCell<Option<Rc<dyn CommandPublicationService>>>>);
+    impl HostCommand for CaptureScope {
+        fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+            Ok(Value::Empty.into())
+        }
+        fn invoke_with_registrar(
+            &self,
+            registrar: &mut dyn CommandRegistrar,
+            _: &[Value],
+        ) -> Result<HostOutcome, EngineError> {
+            *self.0.borrow_mut() = Some(registrar.command_publication_service()?);
+            Ok(Value::Empty.into())
+        }
+    }
+
+    #[test]
+    fn callback_scope_is_owned_and_c_creation_keeps_unqualified_global_rule() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        let mut engine = engine("tcl8.6");
+        let captured = Rc::new(RefCell::new(None));
+        engine
+            .define_command("capture", Rc::new(CaptureScope(Rc::clone(&captured))))
+            .unwrap();
+        engine
+            .eval_in_invocation("namespace eval scope {capture}")
+            .unwrap();
+        let service = captured.borrow_mut().take().unwrap();
+        let global = service
+            .prepare(b"global_host", CommandPublicationPurpose::CreateCCommand)
+            .unwrap();
+        let nested = service
+            .prepare(b"child::nested", CommandPublicationPurpose::CreateCCommand)
+            .unwrap();
+        assert_eq!(global.key.namespace, 0);
+        assert_ne!(nested.key.namespace, 0);
+        engine
+            .define_prepared_command(global, Rc::new(Constant))
+            .unwrap();
+        engine
+            .define_prepared_command(nested, Rc::new(Constant))
+            .unwrap();
+        assert_eq!(
+            engine
+                .eval_in_invocation("list [global_host] [::scope::child::nested]")
+                .unwrap()
+                .value
+                .as_str(),
+            Some("host host")
+        );
+        assert!(matches!(
+            service.note_publication(
+                &service
+                    .prepare(b"pending", CommandPublicationPurpose::CreateCCommand)
+                    .unwrap(),
+                true
+            ),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+    }
+
+    #[test]
+    fn whitelist_keeps_renamed_opaque_host_token_and_exact_unit_tokens() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        let mut engine = engine("tcl8.6");
+        engine
+            .define_command_bytes(b"opaque\xff", Rc::new(Constant))
+            .unwrap();
+        engine.define_command("host", Rc::new(Constant)).unwrap();
+        let handle = engine
+            .compile(CompileUnit {
+                name: "whitelist renamed host",
+                parameters: &[],
+                body: "moved",
+            })
+            .unwrap();
+        engine.eval_in_invocation("rename host moved").unwrap();
+        engine.restrict_commands(&["list"]).unwrap();
+        assert_eq!(engine.invoke(&handle, &[]).unwrap().as_str(), Some("host"));
+        let opaque = obj::Owned::fresh(new_string(b"opaque\xff"));
+        assert_eq!(engine.interp.dispatch(&[opaque.as_ptr()]), Code::Ok);
+        assert_eq!(engine.interp.result_bytes(), b"host");
+        assert!(engine.interp.resolve_cmd_token(b"host").is_none());
+    }
+
+    struct Observe {
+        view: HostArgumentView,
+        arguments: Rc<RefCell<Vec<Value>>>,
+    }
+    impl HostCommand for Observe {
+        fn argument_view(&self) -> HostArgumentView {
+            self.view
+        }
+        fn invoke(&self, arguments: &[Value]) -> Result<HostOutcome, EngineError> {
+            *self.arguments.borrow_mut() = arguments.to_vec();
+            Ok(arguments.first().cloned().unwrap_or(Value::Empty).into())
+        }
+    }
+
+    #[test]
+    fn callbacks_and_results_keep_exact_counted_bytes_and_scalar_storage() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        let mut engine = engine("tcl8.6");
+        let observed = Rc::new(RefCell::new(Vec::new()));
+        engine
+            .define_command(
+                "observe",
+                Rc::new(Observe {
+                    view: HostArgumentView::MaterializedStrings,
+                    arguments: Rc::clone(&observed),
+                }),
+            )
+            .unwrap();
+        let handle = engine
+            .compile(CompileUnit {
+                name: "counted callback argument",
+                parameters: &["argument"],
+                body: "observe $argument",
+            })
+            .unwrap();
+        let bytes = &b"A\0\xffB"[..];
+        let returned = engine
+            .invoke(&handle, &[Value::string_bytes(bytes)])
+            .unwrap();
+        assert!(matches!(returned, Value::StringBytes(ref actual) if actual.as_ref() == bytes));
+        assert!(
+            matches!(&observed.borrow()[0], Value::StringBytes(actual) if actual.as_ref() == bytes)
+        );
+        engine
+            .define_command(
+                "observe",
+                Rc::new(Observe {
+                    view: HostArgumentView::NativeObjectSnapshots,
+                    arguments: Rc::clone(&observed),
+                }),
+            )
+            .unwrap();
+        let input = Value::NativeScalar(NativeScalarCache::Integer(16))
+            .with_resident_string_storage(
+                Rc::<[u8]>::from(&b"0x10"[..]),
+                NativeStringStorageIdentity::Allocated,
+            );
+        engine.invoke(&handle, &[input]).unwrap();
+        assert!(
+            matches!(&observed.borrow()[0], Value::Resident { value, string, storage: NativeStringStorageIdentity::Allocated }
+            if matches!(value.as_ref(), Value::NativeScalar(NativeScalarCache::Integer(16))) && string.as_ref() == b"0x10")
+        );
+        let byte_array = Value::byte_array(Rc::<[u8]>::from(&b"\0\xff"[..]));
+        engine.invoke(&handle, &[byte_array]).unwrap();
+        assert!(
+            matches!(&observed.borrow()[0], Value::ByteArray(bytes) if bytes.as_ref() == b"\0\xff")
+        );
+        let foreign = Value::NativeScalar(NativeScalarCache::WordBoolean {
+            value: true,
+            origin: NativeCVersion::V9_1,
+        });
+        assert!(matches!(
+            engine.invoke(&handle, &[foreign]),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+        let unknown = Value::Int(16).with_resident_string(Rc::<[u8]>::from(&b"0x10"[..]));
+        assert!(matches!(
+            engine.invoke(&handle, &[unknown]),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+    }
+
+    struct Refuse;
+    impl HostCommand for Refuse {
+        fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+            Err(EngineError::ExecutionRefusal(
+                "callback capability unavailable".into(),
+            ))
+        }
+    }
+
+    #[test]
+    fn host_refusal_is_uncatchable_and_retains_prior_effects_and_completion_state() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        // Existing child host-failure source/API contract:
+        // naming.interpreter.original-child-host-refusal-transport
+
+        // This callback control adds a host reason without claiming C supplied it.
+        let mut engine = engine("tcl8.6");
+        engine.define_command("refuse", Rc::new(Refuse)).unwrap();
+        assert!(matches!(
+            engine.eval_in_invocation("set before 1; catch {refuse}; set after 1"),
+            Err(EngineError::ExecutionFailure(_))
+        ));
+        assert!(crate::test_storage::global_scalar(&engine.interp, b"before").is_some());
+        assert!(crate::test_storage::global_scalar(&engine.interp, b"after").is_none());
+        assert_eq!(
+            engine
+                .eval_in_invocation("set before")
+                .unwrap()
+                .value
+                .as_str(),
+            Some("1")
+        );
+        let mut origin = Interp::new();
+        origin.set_result_bytes(b"retained\0\xff");
+        origin.set_return_state(3, Code::Other(7));
+        origin.set_return_options(vec![(b"-custom".to_vec(), b"owned".to_vec())]);
+        assert_eq!(
+            fail(
+                &mut origin,
+                EngineError::ExecutionRefusal("first cause".into())
+            ),
+            Code::Error
+        );
+        assert_eq!(origin.result_bytes(), b"retained\0\xff");
+        assert_eq!(origin.pending_return_level(), 3);
+        assert_eq!(origin.pending_return_code(), Code::Other(7));
+        assert_eq!(origin.pending_return_option_objects().len(), 1);
+        let mut parent = Interp::new();
+        parent.set_result_bytes(b"parent");
+        parent.transport_host_refusal_from(&origin);
+        assert_eq!(
+            parent.host_command_refusal().as_deref(),
+            Some("first cause")
+        );
+        assert_eq!(parent.result_bytes(), b"parent");
+    }
+
+    struct GuestError;
+    impl HostCommand for GuestError {
+        fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+            Err(EngineError::ScriptBytes {
+                message: b"message".to_vec(),
+                code: None,
+                options: Some(
+                    b"-code 1 -level 0 -errorcode {CUSTOM DETAIL} -tag retained".to_vec(),
+                ),
+            })
+        }
+    }
+    #[test]
+    fn guest_failure_options_and_nonstandard_completions_use_shared_original_owner() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        let mut engine = engine("tcl8.6");
+        engine.define_command("guest", Rc::new(GuestError)).unwrap();
+        let result = engine.eval_in_invocation("catch {guest} message options; list $message [dict get $options -tag] [dict get $options -errorcode]").unwrap();
+        assert_eq!(
+            result.value.as_str(),
+            Some("message retained {CUSTOM DETAIL}")
+        );
+        let completion = engine
+            .eval_in_invocation("return -level 0 -code 7 -tag retained value")
+            .unwrap();
+        assert_eq!(completion.code, CompletionCode::Other(7));
+        assert_eq!(completion.value.as_str(), Some("value"));
+        assert!(value_bytes(&mut engine.interp, &completion.options)
+            .unwrap()
+            .windows(b"-tag retained".len())
+            .any(|bytes| bytes == b"-tag retained"));
+        let error = engine.eval_in_invocation("guest").unwrap_err();
+        assert_eq!(error.script_message_bytes(), Some(&b"message"[..]));
+        assert!(error
+            .script_options_bytes()
+            .unwrap()
+            .windows(b"-tag retained".len())
+            .any(|bytes| bytes == b"-tag retained"));
+    }
+
+    #[test]
+    fn compiled_handles_retain_installed_generation_and_original_interpreter() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut original = engine(profile);
+            let unit = CompileUnit {
+                name: "handle control",
+                parameters: &[],
+                body: "set ::entered ORIGINAL; return ORIGINAL",
+            };
+            let handle = original.compile(unit).unwrap();
+            assert_eq!(
+                original.invoke(&handle, &[]).unwrap().as_str(),
+                Some("ORIGINAL")
+            );
+            let mut foreign = engine(profile);
+            let foreign_handle = foreign.compile(unit).unwrap();
+            assert_eq!(foreign_handle.procedure(), handle.procedure());
+            assert!(matches!(
+                foreign.invoke(&handle, &[]),
+                Err(EngineError::ExecutionRefusal(_))
+            ));
+            assert!(foreign.interp.var_get(b"entered").is_none());
+            original.eval_in_invocation("unset ::entered").unwrap();
+            original
+                .eval_in_invocation(&format!(
+                "rename {} {{}}; proc {} {{}} {{set ::entered REPLACEMENT; return REPLACEMENT}}",
+                handle.procedure(), handle.procedure(),
+            ))
+                .unwrap();
+            assert!(matches!(
+                original.invoke(&handle, &[]),
+                Err(EngineError::ExecutionRefusal(_))
+            ));
+            assert!(original.interp.var_get(b"entered").is_none());
+            assert_eq!(
+                original
+                    .eval_in_invocation(handle.procedure())
+                    .unwrap()
+                    .value
+                    .as_str(),
+                Some("REPLACEMENT")
+            );
+        }
+    }
+
+    struct RetireChangingContext {
+        interpreter: crate::interp::WeakInterp,
+        calls: Rc<std::cell::Cell<usize>>,
+    }
+    impl HostCommand for RetireChangingContext {
+        fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+            Ok(Value::Empty.into())
+        }
+        fn retire_with_registrar(&self, _: &mut dyn CommandRegistrar) -> Result<(), EngineError> {
+            self.calls.set(self.calls.get() + 1);
+            let mut interpreter = self.interpreter.upgrade().unwrap();
+            let original = interpreter.runtime_context();
+            let mut changed = original.clone();
+            changed.packages = vec![("engine-retirement".into(), "1.0".into())];
+            interpreter.pin_context(&changed).unwrap();
+            interpreter.pin_context(&original).unwrap();
+            Err(EngineError::Script {
+                message: "later guest error".into(),
+                code: None,
+            })
+        }
+    }
+
+    #[test]
+    fn host_retirement_context_change_stops_later_definition_and_preserves_original_generation() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        let mut engine = engine("tcl8.6");
+        let calls = Rc::new(std::cell::Cell::new(0));
+        let interpreter = engine.interp.downgrade();
+        engine
+            .define_command(
+                "retiring",
+                Rc::new(RetireChangingContext {
+                    interpreter,
+                    calls: calls.clone(),
+                }),
+            )
+            .unwrap();
+        let original = engine.interp.resolve_cmd_token(b"retiring");
+        engine.interp.set_result_bytes(b"SEEDED RESULT");
+        let result = engine.interp.get_obj_result();
+        assert!(matches!(
+            engine.define_command("retiring", Rc::new(Constant)),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+        assert_eq!(calls.get(), 1);
+        assert_eq!(engine.interp.resolve_cmd_token(b"retiring"), original);
+        assert_eq!(engine.interp.get_obj_result(), result);
+        assert_eq!(
+            engine.interp.native_execution_refusal(),
+            Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "stale entered native operation"
+                )
+            ))
+        );
+    }
+
+    #[test]
+    fn package_and_host_publication_keep_pending_first_cause_without_mutation() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        let mut engine = engine("tcl8.6");
+        engine.define_command("kept", Rc::new(Constant)).unwrap();
+        let original = engine.interp.resolve_cmd_token(b"kept");
+        engine.interp.set_result_bytes(b"SEEDED RESULT");
+        let result = engine.interp.get_obj_result();
+        engine
+            .interp
+            .refuse_host_command("original Engine publication refusal");
+        let first = engine.interp.native_execution_refusal();
+        assert!(matches!(
+            engine.provide_package("blocked", "1.0"),
+            Err(EngineError::ExecutionFailure(_))
+        ));
+        assert!(matches!(
+            engine.define_command("untouched::command", Rc::new(Constant)),
+            Err(EngineError::ExecutionFailure(_))
+        ));
+        assert!(matches!(
+            engine.remove_command("kept"),
+            Err(EngineError::ExecutionFailure(_))
+        ));
+        assert_eq!(engine.interp.resolve_cmd_token(b"kept"), original);
+        assert!(engine
+            .interp
+            .resolve_cmd_token(b"untouched::command")
+            .is_none());
+        assert_eq!(engine.interp.get_obj_result(), result);
+        assert_eq!(engine.interp.native_execution_refusal(), first);
+        // An explicit new evaluation clears the refused operation; version2
+        // succeeds only if the refused publication did not install version1.
+        engine.interp.reset_native_compilation_admission();
+        assert!(engine.provide_package("blocked", "2.0").is_ok());
+        assert!(matches!(
+            engine.provide_package("blocked", "1.0"),
+            Err(EngineError::ScriptBytes { .. })
+        ));
+    }
+
+    struct RetireReplacing(Rc<RefCell<usize>>);
+    impl HostCommand for RetireReplacing {
+        fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+            Ok(Value::Empty.into())
+        }
+        fn retire_with_registrar(
+            &self,
+            registrar: &mut dyn CommandRegistrar,
+        ) -> Result<(), EngineError> {
+            *self.0.borrow_mut() += 1;
+            registrar.define_command("retiring", Rc::new(Constant))
+        }
+    }
+    #[test]
+    fn retirement_callback_reentry_protects_new_generation_and_guest_traces_refuse_before_effects()
+    {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        let mut engine = engine("tcl8.6");
+        let calls = Rc::new(RefCell::new(0));
+        engine
+            .define_command("retiring", Rc::new(RetireReplacing(Rc::clone(&calls))))
+            .unwrap();
+        assert!(!engine.remove_command("retiring").unwrap());
+        assert_eq!(*calls.borrow(), 1);
+        assert_eq!(
+            engine
+                .eval_in_invocation("retiring")
+                .unwrap()
+                .value
+                .as_str(),
+            Some("host")
+        );
+        engine.eval_in_invocation("proc traced {} {}; proc observer args {set ::fired 1}; trace add command traced delete observer").unwrap();
+        let service = engine.command_publication_service().unwrap();
+        assert!(matches!(
+            service.prepare(b"traced", CommandPublicationPurpose::DeleteCCommand),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+        assert!(engine.interp.var_get(b"::fired").is_none());
+        assert!(engine.interp.resolve_cmd_token(b"traced").is_some());
+    }
+
+    #[test]
+    fn original_object_view_and_logical_native_receipts_refuse_explicitly() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        let mut logical = engine("irules");
+        assert!(logical.interp.set_logical_name_provider(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4)
+        ));
+        assert!(matches!(
+            logical.command_publication_service(),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+        logical
+            .define_command("compatibility", Rc::new(Constant))
+            .unwrap();
+        let mut engine = engine("tcl8.6");
+        engine
+            .define_command(
+                "original",
+                Rc::new(Observe {
+                    view: HostArgumentView::OriginalObjects,
+                    arguments: Rc::new(RefCell::new(Vec::new())),
+                }),
+            )
+            .unwrap();
+        assert!(matches!(
+            engine.eval_in_invocation("catch {original anything}; set after 1"),
+            Err(EngineError::ExecutionFailure(_))
+        ));
+        assert!(crate::test_storage::global_scalar(&engine.interp, b"after").is_none());
+    }
+    #[test]
+    fn original_engine_completion_entry_distinguishes_independent_retry_and_nested_first_cause() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        let mut engine = engine("tcl8.6");
+        let calls = std::cell::Cell::new(0);
+        let scope =
+            crate::interp::native_operation_currency::NativeOperationScope::enter(&engine.interp)
+                .unwrap();
+        engine.interp.set_result_bytes(b"PRIOR\0\xff");
+        let prior = engine.interp.result_obj();
+        engine
+            .interp
+            .refuse_host_command("original nested Engine completion cause");
+        let first = engine.interp.native_execution_refusal().unwrap();
+        let error = evaluate(&mut engine.interp, |interpreter| {
+            calls.set(calls.get() + 1);
+            interpreter.set_result_bytes(b"UNREACHED");
+            Code::Ok
+        })
+        .unwrap_err();
+        assert!(matches!(error, EngineError::ExecutionFailure(cause) if *cause == first));
+        assert_eq!(calls.get(), 0);
+        assert_eq!(engine.interp.result_obj(), prior);
+        assert_eq!(engine.interp.native_execution_refusal(), Some(first));
+        drop(scope);
+        let completion = evaluate(&mut engine.interp, |interpreter| {
+            calls.set(calls.get() + 1);
+            interpreter.set_result_bytes(b"GUEST\0\xff");
+            Code::Other(7)
+        })
+        .unwrap();
+        assert_eq!(calls.get(), 1);
+        assert_eq!(completion.code, CompletionCode::Other(7));
+        assert_eq!(
+            value_bytes(&mut engine.interp, &completion.value).unwrap(),
+            b"GUEST\0\xff"
+        );
+        assert!(value_bytes(&mut engine.interp, &completion.options)
+            .unwrap()
+            .windows(b"-code 7".len())
+            .any(|bytes| bytes == b"-code 7"));
+        assert!(engine.interp.native_execution_refusal().is_none());
+        assert_eq!(engine.interp.entered_native_operation_count(), 0);
+    }
+}
+
+#[cfg(test)]
+mod original_active_host_deletion_tests {
+    use super::*;
+    use std::cell::{Cell, RefCell};
+    use std::rc::Weak;
+
+    struct Invocation {
+        events: Rc<RefCell<Vec<&'static str>>>,
+        record: Rc<RefCell<Weak<ObjCommand>>>,
+        drops: Rc<Cell<usize>>,
+        recreate: bool,
+    }
+    impl Drop for Invocation {
+        fn drop(&mut self) {
+            self.drops.set(self.drops.get() + 1);
+        }
+    }
+    struct Replacement;
+    impl HostCommand for Replacement {
+        fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+            Ok(Value::string("REPLACEMENT").into())
+        }
+    }
+    impl HostCommand for Invocation {
+        fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+            unreachable!("actual HostEntry uses the registrar")
+        }
+        fn invoke_with_registrar(
+            &self,
+            registrar: &mut dyn CommandRegistrar,
+            _: &[Value],
+        ) -> Result<HostOutcome, EngineError> {
+            self.events.borrow_mut().push("entered");
+            assert!(registrar.remove_command("activeHost")?);
+            let record = self
+                .record
+                .borrow()
+                .upgrade()
+                .expect("actual dispatch Rust record remains live");
+            assert!(
+                record.original_delete_role_is_withdrawn(),
+                "registration box's once-only delete callback already ran"
+            );
+            assert_eq!(
+                self.drops.get(),
+                0,
+                "genuine invocation Rust role survives registration deletion"
+            );
+            self.events.borrow_mut().push("registration-deleted");
+            if self.recreate {
+                registrar.define_command("activeHost", Rc::new(Replacement))?;
+            }
+            self.events.borrow_mut().push("returning");
+            Ok(Value::string("ACTIVE").into())
+        }
+    }
+    #[test]
+    fn original_host_entry_self_deletion_releases_box_before_return_without_borrowing_it() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Actual Runtime HostEntry/registrar bridge; no Native client-data free parity claim.
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for recreate in [false, true] {
+                let mut engine = RuntimeEngine::new();
+                engine.set_release(profile).unwrap();
+                let events = Rc::new(RefCell::new(Vec::new()));
+                let record = Rc::new(RefCell::new(Weak::new()));
+                let drops = Rc::new(Cell::new(0));
+                engine
+                    .define_command(
+                        "activeHost",
+                        Rc::new(Invocation {
+                            events: Rc::clone(&events),
+                            record: Rc::clone(&record),
+                            drops: Rc::clone(&drops),
+                            recreate,
+                        }),
+                    )
+                    .unwrap();
+                let generation = engine.interp.resolve_cmd_token(b"activeHost").unwrap();
+                match engine
+                    .interp
+                    .namespaces()
+                    .command_in(crate::namespace::GLOBAL, b"activeHost")
+                    .unwrap()
+                {
+                    Command::ObjCmd(actual) => *record.borrow_mut() = Rc::downgrade(&actual),
+                    _ => unreachable!(),
+                }
+                assert_eq!(
+                    engine
+                        .eval_in_invocation("activeHost argument")
+                        .unwrap()
+                        .value
+                        .as_str(),
+                    Some("ACTIVE")
+                );
+                assert_eq!(
+                    events.borrow().as_slice(),
+                    &["entered", "registration-deleted", "returning"]
+                );
+                assert_eq!(drops.get(), 1);
+                assert!(record.borrow().upgrade().is_none());
+                assert!(!engine.host_commands.borrow().contains_key(&generation));
+                if recreate {
+                    assert_eq!(
+                        engine
+                            .eval_in_invocation("activeHost")
+                            .unwrap()
+                            .value
+                            .as_str(),
+                        Some("REPLACEMENT")
+                    );
+                } else {
+                    assert!(engine.interp.resolve_cmd_token(b"activeHost").is_none());
+                }
+            }
+        }
+    }
+    struct CountHost(Rc<Cell<usize>>);
+    impl HostCommand for CountHost {
+        fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+            self.0.set(self.0.get() + 1);
+            Ok(Value::string("HOST").into())
+        }
+    }
+    struct ImportTrace {
+        record: Weak<ObjCommand>,
+        generation: u64,
+        callbacks: Cell<usize>,
+        host_calls: Rc<Cell<usize>>,
+    }
+    unsafe extern "C" fn invoke_import_trace(
+        data: *mut c_void,
+        actual: *mut Interp,
+        _: c_int,
+        _: *const *mut TclObj,
+    ) -> c_int {
+        let trace = unsafe { &*data.cast::<ImportTrace>() };
+        let actual = unsafe { &mut *actual };
+        trace.callbacks.set(trace.callbacks.get() + 1);
+        assert_eq!(
+            actual.resolve_cmd_token(b"retiringHost"),
+            Some(trace.generation)
+        );
+        let record = trace
+            .record
+            .upgrade()
+            .expect("actual deletion driver record");
+        assert!(record.original_host_backing_is_retired());
+        assert_eq!(actual.eval_str(b"retiringHost"), Code::Error);
+        assert_eq!(trace.host_calls.get(), 0);
+        0
+    }
+    #[test]
+    fn original_import_trace_refuses_fresh_host_entry_after_actual_backing_retirement() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Actual private Runtime Box role, not Native client-data-free/token-null parity.
+        for profile in ["tcl8.4", "tcl8.5"] {
+            let mut engine = RuntimeEngine::new();
+            engine.set_release(profile).unwrap();
+            let calls = Rc::new(Cell::new(0));
+            engine
+                .define_command("retiringHost", Rc::new(CountHost(Rc::clone(&calls))))
+                .unwrap();
+            let generation = engine.interp.resolve_cmd_token(b"retiringHost").unwrap();
+            let Command::ObjCmd(record) = engine
+                .interp
+                .namespaces()
+                .command_in(crate::namespace::GLOBAL, b"retiringHost")
+                .unwrap()
+            else {
+                unreachable!()
+            };
+            let mut trace = Box::new(ImportTrace {
+                record: Rc::downgrade(&record),
+                generation,
+                callbacks: Cell::new(0),
+                host_calls: Rc::clone(&calls),
+            });
+            drop(record);
+            engine
+                .interp
+                .create_obj_command(
+                    b"importObserver",
+                    ObjCommand::new(
+                        invoke_import_trace,
+                        std::ptr::from_mut(trace.as_mut()).cast(),
+                        None,
+                    ),
+                )
+                .unwrap();
+            assert_eq!(engine.interp.eval_str(b"namespace export retiringHost; namespace eval imported {namespace import ::retiringHost}; trace add command ::imported::retiringHost delete importObserver"),Code::Ok);
+            assert!(!engine.interp.delete_command_generation(generation));
+            assert_eq!(trace.callbacks.get(), 1);
+            assert_eq!(calls.get(), 0);
+            assert!(trace.record.upgrade().is_none());
+            assert!(engine.interp.resolve_cmd_token(b"retiringHost").is_none());
+            assert!(engine
+                .interp
+                .resolve_cmd_token(b"::imported::retiringHost")
+                .is_none());
+            assert_eq!(
+                engine.interp.native_execution_refusal(),
+                Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original Runtime host backing retired"
+                    )
+                ))
+            );
+            drop(engine);
+            drop(trace);
+        }
+    }
+
+    #[test]
+    fn original_typed_host_failure_crosses_the_actual_runtime_engine_boundary() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        struct Typed(tcl_runtime_api::NativeExecutionError);
+        impl HostCommand for Typed {
+            fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+                Err(EngineError::execution_failure(self.0.clone()))
+            }
+        }
+        let mut engine = RuntimeEngine::new();
+        engine.set_release("tcl8.6").unwrap();
+        let cause = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "actual Runtime Engine typed callback cause",
+            ),
+        );
+        engine
+            .define_command("originalTypedFailure", Rc::new(Typed(cause.clone())))
+            .unwrap();
+        let error = engine
+            .eval_in_invocation(
+                "set ::prior BEFORE; catch {originalTypedFailure}; set ::after LATER",
+            )
+            .unwrap_err();
+        assert_eq!(error, EngineError::execution_failure(cause.clone()));
+        assert_eq!(engine.interp.native_execution_refusal(), Some(cause));
+        assert!(crate::test_storage::global_scalar(&engine.interp, b"prior").is_some());
+        assert!(crate::test_storage::global_scalar(&engine.interp, b"after").is_none());
+        assert_eq!(
+            engine
+                .eval_in_invocation("return NEXT")
+                .unwrap()
+                .value
+                .as_str(),
+            Some("NEXT")
+        );
     }
 }

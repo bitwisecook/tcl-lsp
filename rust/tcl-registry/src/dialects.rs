@@ -135,11 +135,12 @@ fn scan_tokens_for_tcl_version(script: &str, depth: u8) -> Option<String> {
 /// recursed into regardless of the command; this gate applies only to braced /
 /// quoted words, so inert data such as `set msg {package require Tcl 8.4}` is
 /// never mis-tokenised as a script and used to select a bogus dialect. The name
-/// is matched with any leading `::` stripped so fully-qualified builtins
-/// (`::if`, `::namespace`) are recognised too.
+/// uses written-name geometry so fully qualified builtins are recognised.
 fn is_script_body_command(name: &str) -> bool {
     matches!(
-        name.trim_start_matches("::"),
+        tcl_syntax::naming::unroot_rooted_key(
+            &tcl_syntax::naming::canonical_written_command(name),
+        ).unwrap_or(name),
         "if" | "while"
             | "for"
             | "foreach"
@@ -270,11 +271,7 @@ pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
             continue;
         };
         let rest = rest.trim_start();
-        // `rest.get(..KEY.len())` (unlike `rest[..KEY.len()]`) returns `None`
-        // rather than panicking when `KEY.len()` falls inside a multi-byte
-        // char instead of on a boundary — a real case: a leading comment
-        // with a non-ASCII byte (an em dash, a curly quote, …) before byte
-        // offset 12 used to crash the server on `textDocument/didOpen`.
+        // The prefix length may cross a Unicode boundary in an unrelated comment.
         let Some(prefix) = rest.get(..KEY.len()) else {
             continue;
         };
@@ -388,34 +385,106 @@ pub fn tcl_source_glob_any_case() -> String {
 /// being the case that motivated splitting it out.
 #[must_use]
 pub fn fold_case_in_glob(literal: &str) -> String {
-    literal
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphabetic() {
-                format!("[{}{}]", c.to_ascii_lowercase(), c.to_ascii_uppercase())
-            } else {
-                c.to_string()
+    literal_basename_glob_any_case(literal)
+        .expect("static basename must be representable by the editor glob grammar")
+}
+
+/// Why an exact editor filename glob cannot represent the supplied literal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LiteralEditorGlobError {
+    /// A path separator or NUL cannot belong to one filename component.
+    InvalidFilenameCharacter,
+    /// A leading negation/comment directive differs between editor glob consumers.
+    LeadingPatternDirective,
+    /// An empty extension is not an extension claim.
+    EmptyExtension,
+}
+
+fn editor_glob_literal_fragment(literal: &str) -> Result<String, LiteralEditorGlobError> {
+    let mut out = String::new();
+    for c in literal.chars() {
+        match c {
+            '/' | '\\' | '\0' => return Err(LiteralEditorGlobError::InvalidFilenameCharacter),
+            '[' => out.push_str("[[]"),
+            ']' => out.push_str("[]]"),
+            '*' => out.push_str("[*]"),
+            '?' => out.push_str("[?]"),
+            '{' => out.push_str("[{]"),
+            '}' => out.push_str("[}]"),
+            ',' => out.push_str("[,]"),
+            c if c.is_ascii_alphabetic() => {
+                out.push('[');
+                out.push(c.to_ascii_lowercase());
+                out.push(c.to_ascii_uppercase());
+                out.push(']');
             }
-        })
-        .collect()
+            c => out.push(c),
+        }
+    }
+    Ok(out)
+}
+
+/// Exact literal basename in the shared VSCode/LSP glob grammar, folding only
+/// ASCII case. This is target encoding, not Tcl glob or source quoting.
+/// Leading `!`/`#` is refused because the language-client matcher treats it as
+/// negation/comment syntax; separators and NUL are not filename components.
+pub fn literal_basename_glob_any_case(literal: &str) -> Result<String, LiteralEditorGlobError> {
+    if literal.starts_with(['!', '#']) {
+        return Err(LiteralEditorGlobError::LeadingPatternDirective);
+    }
+    editor_glob_literal_fragment(literal)
+}
+
+/// Exact case-folded filename-extension patterns. Empty input is `Ok([])`;
+/// unsupported filename components are `Err`, never an empty successful set.
+///
+/// `VSCode`'s brace parser cannot nest literal brace/comma classes inside an outer
+/// alternative group. Emit one precise pattern per extension in that case;
+/// otherwise preserve the existing compact alternative representation for two or more entries.
+pub fn extension_globs_any_case<'a>(
+    extensions: impl IntoIterator<Item = &'a str>,
+) -> Result<Vec<String>, LiteralEditorGlobError> {
+    let mut alternatives = Vec::new();
+    let mut needs_separate_patterns = false;
+    for extension in extensions {
+        if extension.is_empty() {
+            return Err(LiteralEditorGlobError::EmptyExtension);
+        }
+        needs_separate_patterns |= extension.contains(['{', '}', ',']);
+        alternatives.push(editor_glob_literal_fragment(extension)?);
+    }
+    if alternatives.is_empty() {
+        return Ok(Vec::new());
+    }
+    if needs_separate_patterns || alternatives.len() == 1 {
+        Ok(alternatives
+            .into_iter()
+            .map(|literal| format!("**/*.{literal}"))
+            .collect())
+    } else {
+        Ok(vec![format!("**/*.{{{}}}", alternatives.join(","))])
+    }
 }
 
 /// The `**/*.{…}` any-casing glob over an arbitrary extension set.
 ///
 /// [`tcl_source_glob_any_case`] is this over the static set; the LSP server's
-/// pack-extension watcher registration is this over
-/// [`pack_source_extensions`], which is why it takes an iterator rather than
-/// reading the constant. Returns `None` for an empty set, since `**/*.{}`
+/// compatibility single-pattern projection is this over
+/// [`pack_source_extensions`]. Arbitrary loaded claims must use the checked
+/// plural [`extension_globs_any_case`] API. This compatibility wrapper panics
+/// for unsupported or plural representations. Returns `None` for an empty set, since `**/*.{}`
 /// matches nothing and registering it would be a silent no-op.
 #[must_use]
 pub fn extension_glob_any_case_opt<'a>(
     extensions: impl IntoIterator<Item = &'a str>,
 ) -> Option<String> {
-    let alternatives: Vec<String> = extensions.into_iter().map(fold_case_in_glob).collect();
-    if alternatives.is_empty() {
-        return None;
-    }
-    Some(format!("**/*.{{{}}}", alternatives.join(",")))
+    let mut patterns = extension_globs_any_case(extensions)
+        .expect("single-pattern compatibility caller must supply representable extensions");
+    assert!(
+        patterns.len() <= 1,
+        "literal delimiters require the plural glob API"
+    );
+    patterns.pop()
 }
 
 /// [`extension_glob_any_case_opt`] for a set known to be non-empty.
@@ -1084,6 +1153,18 @@ mod detect_tests {
     const DEF: &str = "tcl9.0";
 
     #[test]
+    fn version_scan_recognises_written_root_separator_runs() {
+        for head in ["if", "::if", ":::if", "::::if"] {
+            let source = format!("{head} 1 {{package require Tcl 8.5}}");
+            assert_eq!(detect_dialect(&source, None, DEF), "tcl8.5");
+        }
+        for head in [":if", "::::if:", "vendor::if"] {
+            let source = format!("{head} 1 {{package require Tcl 8.5}}");
+            assert_eq!(detect_dialect(&source, None, DEF), DEF);
+        }
+    }
+
+    #[test]
     fn directive_wins() {
         assert_eq!(
             detect_dialect("# tcl-dialect: tcl8.5\nputs hi\n", None, DEF),
@@ -1093,9 +1174,7 @@ mod detect_tests {
 
     #[test]
     fn multibyte_comment_before_directive_key_does_not_panic() {
-        // A leading comment with a non-ASCII byte (an em dash here) landing
-        // inside the `tcl-dialect:` key's byte length used to panic on the
-        // `rest[..KEY.len()]` slice instead of just not matching.
+        // An unrelated Unicode comment cannot supply a directive prefix.
         assert_eq!(
             detect_dialect_directive("# Issue #806 — report::defstyle\nputs hi\n"),
             None
@@ -1481,6 +1560,50 @@ mod detect_tests {
                 DEF
             ),
             DEF
+        );
+    }
+}
+
+#[cfg(test)]
+mod literal_editor_glob_tests {
+    use super::*;
+
+    #[test]
+    fn literal_metacharacters_are_not_glob_operators() {
+        assert_eq!(
+            literal_basename_glob_any_case("A[,]*?{}é").unwrap(),
+            "[aA][[][,][]][*][?][{][}]é"
+        );
+        assert_eq!(
+            extension_globs_any_case(["a,b", "x*y?"]).unwrap(),
+            vec!["**/*.[aA][,][bB]", "**/*.[xX][*][yY][?]"]
+        );
+        assert_eq!(
+            extension_globs_any_case(["{x}", "tcl"]).unwrap(),
+            vec!["**/*.[{][xX][}]", "**/*.[tT][cC][lL]"]
+        );
+    }
+
+    #[test]
+    fn empty_and_unrepresentable_extension_sets_are_distinct() {
+        assert_eq!(extension_globs_any_case([]), Ok(Vec::new()));
+        for extension in ["/", "a\\b", "a\0b"] {
+            assert_eq!(
+                extension_globs_any_case([extension]),
+                Err(LiteralEditorGlobError::InvalidFilenameCharacter)
+            );
+        }
+        assert_eq!(
+            extension_globs_any_case([""]),
+            Err(LiteralEditorGlobError::EmptyExtension)
+        );
+        assert_eq!(
+            literal_basename_glob_any_case("!x"),
+            Err(LiteralEditorGlobError::LeadingPatternDirective)
+        );
+        assert_eq!(
+            extension_globs_any_case(["!x"]).unwrap(),
+            vec!["**/*.![xX]"]
         );
     }
 }

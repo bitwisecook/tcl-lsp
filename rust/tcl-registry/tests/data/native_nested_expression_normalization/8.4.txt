@@ -1,0 +1,40 @@
+ROW original 2 0 3 {}
+ROW rewritten 2 0 3 {}
+ROW original abc 1 {can't use non-numeric string as operand of "+"} {errorCode NONE errorInfo {can't use non-numeric string as operand of "+"
+    while executing
+"expr {$x+1}"
+    (procedure "original" line 1)
+    invoked from within
+"original abc"}}
+ROW rewritten abc 1 {can't use non-numeric string as operand of "+"} {errorCode NONE errorInfo {can't use non-numeric string as operand of "+"
+    while executing
+"expr {$x+1}"
+    (procedure "rewritten" line 1)
+    invoked from within
+"rewritten abc"}}
+ROW original 1.0 0 2.0 {}
+ROW rewritten 1.0 0 2.0 {}
+ROW original Inf 1 {floating-point value too large to represent} {errorCode {ARITH OVERFLOW {floating-point value too large to represent}} errorInfo {floating-point value too large to represent
+    while executing
+"expr {$x+1}"
+    (procedure "original" line 1)
+    invoked from within
+"original Inf"}}
+ROW rewritten Inf 1 {floating-point value too large to represent} {errorCode {ARITH OVERFLOW {floating-point value too large to represent}} errorInfo {floating-point value too large to represent
+    while executing
+"expr {$x+1}"
+    (procedure "rewritten" line 1)
+    invoked from within
+"rewritten Inf"}}
+ROW original NaN 1 {domain error: argument not in valid range} {errorCode {ARITH DOMAIN {domain error: argument not in valid range}} errorInfo {domain error: argument not in valid range
+    while executing
+"expr {$x+1}"
+    (procedure "original" line 1)
+    invoked from within
+"original NaN"}}
+ROW rewritten NaN 1 {domain error: argument not in valid range} {errorCode {ARITH DOMAIN {domain error: argument not in valid range}} errorInfo {domain error: argument not in valid range
+    while executing
+"expr {$x+1}"
+    (procedure "rewritten" line 1)
+    invoked from within
+"rewritten NaN"}}

@@ -34,6 +34,7 @@
 //! on the richer cross-event analysis in `connection_scope.rs`.
 
 use std::collections::{HashMap, HashSet};
+#[cfg(test)]
 use std::sync::OnceLock;
 use tcl_core_types::DiagCode;
 use tcl_dialect::model::Family;
@@ -42,7 +43,9 @@ use tcl_lexer::Span;
 use tcl_registry::events::{
     CollectionReleaseRequirement, DataCollectionAction, EventRegistry, PayloadCollectionRequirement,
 };
-use tcl_registry::side_effects::{ConnectionSide, SideEffectTarget};
+use tcl_registry::side_effects::ConnectionSide;
+#[cfg(test)]
+use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::{CommandRegistry, Traits};
 
 use crate::cfg_builder::build_cfg_with_registry_and_config;
@@ -50,24 +53,22 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Script, Statement};
 use crate::lowering::lower_to_ir_with_config;
 use crate::sccp::cfg_order;
+#[cfg(test)]
 use crate::value_shapes::parse_command_substitution_with_config;
 use tcl_dialect::model::SurfaceQuery;
 
 /// Process-wide iRules command registry, used to derive the HTTP-flow command
 /// sets below.  Built once (the data is static).
+#[cfg(test)]
 fn irules_registry() -> &'static CommandRegistry {
-    static REG: OnceLock<CommandRegistry> = OnceLock::new();
-    REG.get_or_init(|| {
-        let mut r = CommandRegistry::build_default();
-        r.load_irules();
-        r
-    })
+    tcl_registry::model::ingress::static_context_for("f5-irules").commands()
 }
 
 /// Commands that commit an HTTP response — derived from the registry's
 /// `ResponseCommit` side-effect, so the bare iRules `redirect` is
 /// included alongside `HTTP::respond` / `HTTP::redirect` without a
 /// hardcoded list.
+#[cfg(test)]
 fn commits_response_commands() -> &'static HashSet<String> {
     static SET: OnceLock<HashSet<String>> = OnceLock::new();
     SET.get_or_init(|| {
@@ -85,23 +86,6 @@ fn commits_response_commands() -> &'static HashSet<String> {
     })
 }
 
-/// Registered commands that require a live HTTP transaction context.
-fn requires_http_context_commands() -> &'static HashSet<String> {
-    static SET: OnceLock<HashSet<String>> = OnceLock::new();
-    SET.get_or_init(|| {
-        let registry = irules_registry();
-        registry
-            .command_names()
-            .filter(|name| {
-                registry
-                    .get(name)
-                    .is_some_and(|spec| spec.traits.contains(Traits::REQUIRES_HTTP_CONTEXT))
-            })
-            .map(String::from)
-            .collect()
-    })
-}
-
 /// Whether `cmd` is a registered iRules getter that carries the
 /// `-normalized` option in its [`tcl_registry::CommandSpec`].
 ///
@@ -109,6 +93,7 @@ fn requires_http_context_commands() -> &'static HashSet<String> {
 /// the registry's own option list is the single source of truth, so
 /// adding `-normalized` to a new command's spec automatically
 /// extends the IRULE3102 surface.
+#[cfg(test)]
 fn supports_normalized_flag(registry: &CommandRegistry, cmd: &str) -> bool {
     registry
         .get(cmd)
@@ -301,20 +286,18 @@ pub(crate) fn format_message(cmd: &str) -> String {
     )
 }
 
-/// Return `true` when `cmd` is one of the commands that carry the
-/// `-normalized` option and `args` misses it in a getter form.
+/// A selected option vocabulary declares normalization but its exact original
+/// flag-form operands do not select that option.
 pub(crate) fn is_unnormalised_getter(
-    registry: &CommandRegistry,
-    cmd: &str,
+    options: &tcl_registry::abbrev::KeywordTable<'_>,
     args: &[String],
 ) -> bool {
-    if !supports_normalized_flag(registry, cmd) {
+    if !options.names().any(|name| name == "-normalized") || !is_getter_form(args) {
         return false;
     }
-    if args.iter().any(|a| a == "-normalized") {
-        return false;
-    }
-    is_getter_form(args)
+    !args.iter().any(|argument| {
+        options.resolve(argument) == tcl_registry::abbrev::KeywordMatch::Unique("-normalized")
+    })
 }
 
 /// Whether this point stands on the iRules surface.
@@ -335,134 +318,629 @@ fn is_irules(dialect: Option<SurfaceQuery<'_>>) -> bool {
 /// Gated: returns an empty vector unless the point stands on the iRules
 /// surface.
 ///
-/// Scan targets:
-///
-/// * `Statement::Call` whose `command` is a normalised-flag command —
-///   direct call site, typically as part of a larger expression: e.g.
-///   `if {[HTTP::uri] eq "/foo"}` after lowering becomes a call on
-///   `HTTP::uri`.
-/// * `Statement::AssignValue` whose RHS is a pure command substitution
-///   `[HTTP::uri …]` — covers `set u [HTTP::uri]`.
+/// Each invocation retains its original source binding. Nested commands use
+/// the complete argument substitution owner; braced data supplies no calls.
 #[must_use]
 pub fn find_unnormalised_getter_warnings(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<IrulesCheckWarning> {
-    let mut out: Vec<IrulesCheckWarning> = Vec::new();
     if !is_irules(dialect) {
-        return out;
+        return Vec::new();
     }
-    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
-
-    for fu in cu.analysable_functions() {
-        for bn in cfg_order(&fu.cfg) {
-            if !fu.sccp.executable_blocks.contains(&bn) {
+    let Some(source) = IrulesSourceQuery::capture(cu, registry) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for function in cu.analysable_functions() {
+        let Some(config) = source.function_config(function) else {
+            continue;
+        };
+        for block in cfg_order(&function.cfg) {
+            if !function.sccp.executable_blocks.contains(&block) {
                 continue;
             }
-            let Some(block) = fu.cfg.blocks.get(&bn) else {
+            let Some(block) = function.cfg.blocks.get(&block) else {
                 continue;
             };
-            for stmt in &block.statements {
-                match stmt {
-                    Statement::Call {
-                        command,
-                        args,
-                        span,
-                        tokens,
-                        ..
-                    } => {
-                        // Direct getter call — e.g. `if {[HTTP::uri] eq …}`
-                        // lowers to a `Call` whose command *is* the getter.
-                        if is_unnormalised_getter(registry, command, args) {
-                            out.push(IrulesCheckWarning {
-                                span: fu.abs_span(*span),
-                                code: DiagCode::Irule3102,
-                                message: format_message(command),
-                                replacement: None,
-                                fixes: Vec::new(),
-                            });
-                        }
-                        // Getter nested as a command-substitution argument —
-                        // e.g. the `[HTTP::uri]` fed into an HTTP sink in
-                        // `HTTP::respond 200 content [HTTP::uri]`.  The
-                        // substitution stays a literal `Cmd` arg on the outer
-                        // call rather than a separate statement, so flag it
-                        // here.  Prefer the argument token's own span so the
-                        // squiggle lands on the getter, not the whole call.
-                        for (i, arg) in args.iter().enumerate() {
-                            let trimmed = arg.trim();
-                            if !trimmed.starts_with('[') {
-                                continue;
-                            }
-                            let Some((cmd, sub_args)) =
-                                parse_command_substitution_with_config(trimmed, config)
-                            else {
-                                continue;
-                            };
-                            if is_unnormalised_getter(registry, &cmd, &sub_args) {
-                                let arg_span = tokens
-                                    .as_ref()
-                                    .and_then(|t| t.argv.get(i + 1).copied())
-                                    .unwrap_or(*span);
-                                out.push(IrulesCheckWarning {
-                                    span: fu.abs_span(arg_span),
-                                    code: DiagCode::Irule3102,
-                                    message: format_message(&cmd),
-                                    replacement: None,
-                                    fixes: Vec::new(),
-                                });
-                            }
-                        }
-                    }
-                    Statement::AssignValue { value, span, .. } => {
-                        let Some((cmd, sub_args)) =
-                            parse_command_substitution_with_config(value.trim(), config)
-                        else {
-                            continue;
-                        };
-                        if is_unnormalised_getter(registry, &cmd, &sub_args) {
-                            out.push(IrulesCheckWarning {
-                                span: fu.abs_span(*span),
-                                code: DiagCode::Irule3102,
-                                message: format_message(&cmd),
-                                replacement: None,
-                                fixes: Vec::new(),
-                            });
-                        }
-                    }
-                    _ => {}
-                }
+            for statement in &block.statements {
+                let Some(tokens) =
+                    crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+                        function.cfg.command_binding_sites.iter(),
+                        statement,
+                    )
+                    .filter(|tokens| tokens.synthetic.is_none())
+                else {
+                    continue;
+                };
+                let Some(warnings) = original_getter_source_warnings(tokens, &source, config)
+                else {
+                    continue;
+                };
+                out.extend(warnings.into_iter().map(|mut warning| {
+                    warning.span = function.abs_span(warning.span);
+                    warning
+                }));
             }
         }
     }
-
+    out.sort_by(|a, b| {
+        (a.span.start(), a.span.end(), &a.message).cmp(&(b.span.start(), b.span.end(), &b.message))
+    });
+    out.dedup();
     out
+}
+
+fn original_getter_source_warnings(
+    parent: &crate::ir::CommandTokens,
+    source: &IrulesSourceQuery<'_>,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<IrulesCheckWarning>> {
+    parent
+        .source_binding
+        .as_ref()?
+        .original_lexer_config_for_tokens(parent)?;
+    let children = source.argument_calls(parent, config)?;
+    let mut warnings = Vec::new();
+    for tokens in std::iter::once(parent).chain(
+        children
+            .iter()
+            .map(|child| child.tokens.as_ref())
+            .collect::<Option<Vec<_>>>()?,
+    ) {
+        let assistance =
+            crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
+                source.registry,
+                source.metadata(),
+                tokens,
+            )?;
+        for candidate in &assistance.candidates {
+            let arguments = candidate
+                .source_argument_words(source.registry, source.metadata(), tokens)?
+                .iter()
+                .map(|argument| {
+                    Some(
+                        std::str::from_utf8(argument.literal_bytes()?)
+                            .ok()?
+                            .to_owned(),
+                    )
+                })
+                .collect::<Option<Vec<_>>>();
+            let Some(arguments) = arguments else {
+                continue;
+            };
+            if is_unnormalised_getter(&candidate.option_keywords, &arguments) {
+                warnings.push(IrulesCheckWarning {
+                    span: Span::new(tokens.argv.first()?.start(), tokens.argv.last()?.end()),
+                    code: DiagCode::Irule3102,
+                    message: format_message(&candidate.command),
+                    replacement: None,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+    Some(warnings)
+}
+
+/// One source-owner query shared by secondary iRules syntax consumers.
+/// Supplied input and positively tagged standalone analysis are distinct routes.
+struct IrulesSourceQuery<'a> {
+    unit: &'a CompilationUnit,
+    registry: &'a CommandRegistry,
+    standalone: bool,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+}
+
+impl<'a> IrulesSourceQuery<'a> {
+    fn capture(unit: &'a CompilationUnit, registry: &'a CommandRegistry) -> Option<Self> {
+        let module = &unit.ir_module;
+        if module.source != tcl_lexer::SourceImage::document(&unit.source) {
+            return None;
+        }
+        let standalone = module.source_entry.metadata_context.is_standalone()
+            && module.source_metadata_input.is_none();
+        let metadata = if !standalone {
+            let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+                registry, module,
+            )?;
+            let input = module.source_metadata_input.as_ref()?;
+            if input.lexer_config() != module.lexer_config {
+                return None;
+            }
+            crate::realm::document_realm_bindings_for_module(module, registry)?;
+            Some(metadata)
+        } else {
+            None
+        };
+        Some(Self {
+            unit,
+            registry,
+            standalone,
+            metadata,
+        })
+    }
+
+    fn function_config(&self, function: &FunctionUnit) -> Option<tcl_lexer::LexerConfig> {
+        irules_function_source_config(
+            &self.unit.ir_module,
+            function,
+            self.registry,
+            self.standalone,
+        )
+    }
+
+    /// Distinguish ordinary functions from an unavailable original event.
+    /// The actual map entry and lowering descriptor own identity; report names
+    /// select neither source bodies nor conditional event frame policy.
+    fn event(&self, function: &FunctionUnit) -> Option<Option<OriginalEvent<'_>>> {
+        let module = &self.unit.ir_module;
+        let Some((key, owned)) = self
+            .unit
+            .procedures
+            .iter()
+            .find(|(_, owned)| std::ptr::eq(*owned, function))
+        else {
+            return std::ptr::eq(function, std::ptr::from_ref(&self.unit.top_level))
+                .then_some(None);
+        };
+        let Some(expected) = module.irules_event_bodies.get(key) else {
+            return owned.irules_event_body.is_none().then_some(None);
+        };
+        self.function_config(owned)?;
+        let body = owned.irules_event_body.as_ref()?;
+        let procedure = module.procedures.get(key)?;
+        if !std::sync::Arc::ptr_eq(body, expected)
+            || !body.owns_procedure(
+                procedure,
+                &module.source,
+                module.lexer_config,
+                self.registry,
+            )
+        {
+            return None;
+        }
+        Some(Some(OriginalEvent { body, procedure }))
+    }
+
+    fn argument_calls(
+        &self,
+        parent: &crate::ir::CommandTokens,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<Vec<crate::word_subst::LiftedCall>> {
+        if let Some(metadata) = self.metadata {
+            crate::word_subst::checked_original_argument_lifted_calls(
+                parent,
+                self.registry,
+                metadata,
+            )
+        } else if self.standalone {
+            crate::word_subst::checked_argument_lifted_calls(
+                parent,
+                parent.native_lexer_config(config),
+            )
+        } else {
+            None
+        }
+    }
+
+    fn original_argv(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<Vec<tcl_lexer::NativeWord>> {
+        let metadata = self.metadata?;
+        let binding = tokens.source_binding.as_ref()?;
+        binding.original_argument_metadata_for_input(
+            tokens,
+            metadata.source_analysis_input()?,
+            self.registry,
+        )?;
+        let config = binding.original_argument_lexer_config(tokens)?;
+        let image = binding.original_argument_source_image(tokens)?;
+        crate::registry_invocation::original_native_compiler_words(
+            image,
+            tokens.words(),
+            tokens.words().first()?.source().span.start(),
+            config,
+        )
+    }
+
+    fn conditional_pairing_advice<'query>(
+        &'query self,
+        state: &'query CollectFlowState,
+    ) -> Option<ConditionalSourcePairingAdvice<'query, 'a>> {
+        let metadata = self.metadata?;
+        let input = metadata.source_analysis_input()?;
+        input.has_hosted_source_name_context().then_some(())?;
+        let context = input.borrowed_context_registry();
+        let module = &self.unit.ir_module;
+        let root = tcl_lexer::native_script_words_in(
+            module.source.clone(),
+            Span::new(0, u32::try_from(module.source.len()).ok()?),
+            module.lexer_config,
+        )
+        .ok()?;
+        if root.fatal_tail.is_some() || root.commands.len() != module.irules_event_bodies.len() {
+            return None;
+        }
+        let mut declarations_seen = Vec::new();
+        let mut handlers = Vec::new();
+        let mut schemas = Vec::new();
+        let mut completions = Vec::new();
+        let mut flow_commands = Vec::new();
+        for id in module.irules_event_bodies.keys() {
+            let function = self.unit.procedures.get(id)?;
+            let event = self.event(function)??;
+            let mut declarations = module
+                .top_level
+                .statements
+                .iter()
+                .filter(|statement| statement.span() == event.procedure.span);
+            let declaration = declarations.next()?;
+            if declarations.next().is_some() {
+                return None;
+            }
+            let declaration = module
+                .top_level
+                .retained_source_tokens_for_statement(declaration)?;
+            let declaration_vector = self.original_argv(declaration)?;
+            if !root
+                .commands
+                .iter()
+                .any(|command| command.words == declaration_vector)
+                || declarations_seen.contains(&declaration_vector)
+            {
+                return None;
+            }
+            declarations_seen.push(declaration_vector.clone());
+            let declaration_metadata =
+                crate::registry_invocation::original_hosted_source_registry_metadata(
+                    self.registry,
+                    metadata,
+                    declaration,
+                )?;
+            let event_word =
+                event
+                    .body
+                    .event_word(&module.source, module.lexer_config, self.registry)?;
+            if !declaration_metadata
+                .shape()
+                .possible_traits()
+                .contains(Traits::IS_EVENT_HANDLER)
+                || !declaration_metadata
+                    .shape()
+                    .original_words()
+                    .contains(event_word)
+                || declaration_metadata
+                    .authored_barriers()
+                    .has_nominal_command_name_hazard()
+            {
+                return None;
+            }
+            let words =
+                crate::registry_invocation::source_structure::original_vendor_registry_words(
+                    context,
+                    declaration,
+                    declaration_metadata,
+                )?;
+            let mut bodies = words.source_script_bodies_for_mutation_coverage(context)?;
+            if bodies.len() != 1 {
+                return None;
+            }
+            let body = bodies.pop()?;
+            for word in &declaration_vector {
+                if word != body.original_container() {
+                    tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+                }
+            }
+            let commands = body.original_commands(context)?;
+            let mut original = Vec::new();
+            let mut handler_flow_commands = Vec::new();
+            for statement in &event.procedure.body.statements {
+                if matches!(
+                    statement.original_argv_inventory_disposition(),
+                    crate::ir::OriginalArgvInventoryDisposition::EffectOnly(_)
+                ) {
+                    continue;
+                }
+                if !statement.child_scripts().is_empty() {
+                    return None;
+                }
+                let tokens = event
+                    .procedure
+                    .body
+                    .retained_source_tokens_for_statement(statement)?;
+                let vector = self.original_argv(tokens)?;
+                if !commands.iter().any(|command| command.words == vector)
+                    || !state
+                        .source_argv
+                        .iter()
+                        .any(|(owner, words)| owner == id && words == &vector)
+                {
+                    return None;
+                }
+                original.push(vector);
+                let children = self.argument_calls(tokens, self.function_config(function)?)?;
+                for token in children
+                    .iter()
+                    .map(|child| child.tokens.as_ref())
+                    .collect::<Option<Vec<_>>>()?
+                    .into_iter()
+                    .chain(std::iter::once(tokens))
+                {
+                    let vector = self.original_argv(token)?;
+                    if !state
+                        .source_argv
+                        .iter()
+                        .any(|(owner, words)| owner == id && words == &vector)
+                    {
+                        return None;
+                    }
+                    let possible = crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(self.registry, Some(metadata), token)?;
+                    if possible.candidates.is_empty() {
+                        return None;
+                    }
+                    if let Some(command) = possible_irule_flow_command(token, &possible)? {
+                        handler_flow_commands.push(command);
+                    }
+                    for candidate in &possible.candidates {
+                        let completion = candidate.with_source_schema(
+                            self.registry,
+                            metadata,
+                            token,
+                            leaf_handler_source_completion,
+                        )?;
+                        schemas.push(candidate.clone());
+                        completions.push(completion);
+                    }
+                }
+            }
+            if commands.len() != original.len()
+                || commands
+                    .iter()
+                    .any(|command| !original.contains(&command.words))
+            {
+                return None;
+            }
+            handlers.push((*id, body));
+            flow_commands.push((*id, handler_flow_commands));
+        }
+        if root
+            .commands
+            .iter()
+            .any(|command| !declarations_seen.contains(&command.words))
+        {
+            return None;
+        }
+        (!handlers.is_empty()).then_some(ConditionalSourcePairingAdvice {
+            _source: self,
+            _handlers: handlers,
+            _schemas: schemas,
+            completions,
+            flow_commands,
+            _obligations: &state.obligations,
+        })
+    }
+
+    fn metadata(&self) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
+        self.metadata
+    }
+}
+
+fn leaf_handler_source_completion(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<tcl_registry::registry::InvocationCompletion> {
+    let (roles, complete) = schema.authored_source_argument_roles();
+    if !complete
+        || roles
+            .iter()
+            .any(|(_, role)| *role == tcl_registry::ArgRole::LambdaLiteral)
+    {
+        return None;
+    }
+    let scripts = schema.authored_source_script_arguments()?;
+    let prefixes = schema.authored_source_command_prefix_arguments()?;
+    let expressions = schema.authored_source_expression_arguments()?;
+    (scripts.is_empty() && prefixes.is_empty() && expressions.arguments.is_empty())
+        .then(|| schema.authored_source_invocation_completion())
+}
+
+/// Closed leaf-source census under its original handler and schema premises.
+/// Runtime lookup, observers, activation and completion remain obligations.
+struct ConditionalSourcePairingAdvice<'query, 'unit> {
+    _source: &'query IrulesSourceQuery<'unit>,
+    _handlers: Vec<(
+        crate::ir::ProcedureId,
+        crate::registry_invocation::OriginalSourceScriptBody,
+    )>,
+    _schemas: Vec<crate::registry_invocation::RegistryInvocationShape>,
+    completions: Vec<tcl_registry::registry::InvocationCompletion>,
+    flow_commands: Vec<(crate::ir::ProcedureId, Vec<OriginalIrulesFlowCommand>)>,
+    _obligations: &'query HashSet<CollectionSourceObligationKind>,
+}
+
+impl ConditionalSourcePairingAdvice<'_, '_> {
+    fn message(&self, source_pairing: String) -> String {
+        format!("Conditional source pairing (runtime applicability unproved): {source_pairing}")
+    }
+}
+
+/// Conditional pairing under a closed retained handler-source census.
+/// Its immutable owners and unresolved runtime premises remain separate from
+/// actual collection, absence, handler completion and edit authority.
+pub struct ConditionalCollectionSourcePairingAdvice<'unit> {
+    owner: ConditionalIruleSourceOwner<'unit>,
+    pairings: Vec<ConditionalCollectionSourcePairing>,
+}
+
+#[derive(Clone)]
+struct ConditionalIruleSourceOwner<'unit> {
+    _unit: &'unit CompilationUnit,
+    _registry: &'unit CommandRegistry,
+    _handlers: Vec<(
+        crate::ir::ProcedureId,
+        crate::registry_invocation::OriginalSourceScriptBody,
+    )>,
+    _schemas: Vec<crate::registry_invocation::RegistryInvocationShape>,
+    obligations: HashSet<CollectionSourceObligationKind>,
+    completions: Vec<tcl_registry::registry::InvocationCompletion>,
+    flow_commands: Vec<(crate::ir::ProcedureId, Vec<OriginalIrulesFlowCommand>)>,
+}
+
+impl<'unit> ConditionalCollectionSourcePairingAdvice<'unit> {
+    /// Source-only pairing candidates; these supply no runtime outcome or fix.
+    #[must_use]
+    pub fn pairings(&self) -> &[ConditionalCollectionSourcePairing] {
+        &self.pairings
+    }
+
+    pub(crate) fn diagnostic_source_owner_for(
+        &self,
+        pairing: &ConditionalCollectionSourcePairing,
+    ) -> Option<(&CompilationUnit, &CommandRegistry)> {
+        self.pairings
+            .iter()
+            .any(|current| std::ptr::eq(current, pairing))
+            .then_some((self.owner._unit, self.owner._registry))
+    }
+
+    /// Independent premises that every conditional source pairing retains.
+    pub fn obligations(&self) -> impl Iterator<Item = &CollectionSourceObligationKind> {
+        self.owner.obligations.iter()
+    }
+
+    /// Project source flow from this same complete census and schema receipts.
+    /// No second source inventory or command resolution is performed.
+    #[must_use]
+    pub fn conditional_source_flow(&self) -> Option<ConditionalIruleSourceFlowAdvice<'unit>> {
+        conditional_irule_source_flow_advice(&self.owner)
+    }
+}
+
+/// Conditional flow among complete original leaf-handler source commands.
+/// Source order and descriptor shapes establish no executed continuation.
+pub struct ConditionalIruleSourceFlowAdvice<'unit> {
+    owner: ConditionalIruleSourceOwner<'unit>,
+    findings: Vec<ConditionalIruleSourceFlowFinding>,
+}
+
+impl ConditionalIruleSourceFlowAdvice<'_> {
+    /// Source-order hazards with runtime applicability explicitly unresolved.
+    #[must_use]
+    pub fn findings(&self) -> &[ConditionalIruleSourceFlowFinding] {
+        &self.findings
+    }
+
+    /// Independent premises, including normal continuation, remain unproved.
+    pub fn obligations(&self) -> impl Iterator<Item = &CollectionSourceObligationKind> {
+        self.owner.obligations.iter()
+    }
+
+    pub(crate) fn diagnostic_source_owner_for(
+        &self,
+        finding: &ConditionalIruleSourceFlowFinding,
+    ) -> Option<(&CompilationUnit, &CommandRegistry)> {
+        self.findings
+            .iter()
+            .any(|current| std::ptr::eq(current, finding))
+            .then_some((self.owner._unit, self.owner._registry))
+    }
+}
+
+/// A possible source-order hazard, without a reached runtime path or fix.
+pub struct ConditionalIruleSourceFlowFinding {
+    warning: IrulesCheckWarning,
+}
+
+impl ConditionalIruleSourceFlowFinding {
+    /// Original source advice anchor.
+    #[must_use]
+    pub fn span(&self) -> Span {
+        self.warning.span
+    }
+
+    /// Diagnostic family; it supplies no action subject.
+    #[must_use]
+    pub fn code(&self) -> DiagCode {
+        self.warning.code
+    }
+
+    /// Conditional source scope and unresolved runtime continuation.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.warning.message
+    }
+}
+
+/// One possible source-pairing hazard, without an observed runtime outcome.
+pub struct ConditionalCollectionSourcePairing {
+    warning: IrulesCheckWarning,
+}
+
+impl ConditionalCollectionSourcePairing {
+    /// Original source advice anchor, not an evaluated operation.
+    #[must_use]
+    pub fn span(&self) -> Span {
+        self.warning.span
+    }
+
+    /// Diagnostic family for this conditional source advice.
+    #[must_use]
+    pub fn code(&self) -> DiagCode {
+        self.warning.code
+    }
+
+    /// The explicit source scope and unresolved runtime applicability.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.warning.message
+    }
+}
+
+/// Original conditional source event, without an executing event or worker.
+struct OriginalEvent<'a> {
+    body: &'a crate::ir::SourceIrulesEventBody,
+    procedure: &'a crate::ir::Procedure,
+}
+
+/// Select the actual function's complete config before choosing parser purpose.
+/// Standalone assistance requires explicit standalone Module and CFG owners.
+fn irules_function_source_config(
+    module: &crate::ir::Module,
+    function: &FunctionUnit,
+    registry: &CommandRegistry,
+    standalone_module: bool,
+) -> Option<tcl_lexer::LexerConfig> {
+    if standalone_module {
+        if !module.source_entry.metadata_context.is_standalone()
+            || module.source_metadata_input.is_some()
+            || !function.cfg.metadata_context.is_standalone()
+            || function.source_metadata_input().is_some()
+        {
+            return None;
+        }
+    } else {
+        function.invocation_metadata_context_for_module(registry, module)?;
+    }
+    Some(function.source_lexer_config())
+}
+
+#[cfg(test)]
+fn unnormalised_getter_source_config(
+    module: &crate::ir::Module,
+    function: &FunctionUnit,
+    registry: &CommandRegistry,
+    standalone_module: bool,
+) -> Option<tcl_lexer::LexerConfig> {
+    irules_function_source_config(module, function, registry, standalone_module)
 }
 
 // IRULE5002 + IRULE5004 — unguarded drop / DNS::return
 //
-// Path-sensitive: each `::when::*` proc body is walked with each branch
+// Path-sensitive: each original event body is walked with each branch
 // of every `if` / `switch` / `try` tracked separately, emitting at
 // branch joins where the drop survived unguarded.
-
-fn is_drop_command(cmd: &str) -> bool {
-    matches!(cmd, "drop" | "reject" | "discard")
-}
-
-fn is_dns_return(cmd: &str, _args: &[String]) -> bool {
-    // Any `DNS::return` (with or without options) requires a
-    // following `return`; option-bearing forms (`DNS::return -...`)
-    // are valid Tcl and equally affected by the missing-`return`
-    // hazard (no option-prefix gate).
-    cmd == "DNS::return"
-}
-
-/// `event disable all` is a drop guard: the subsequent statements
-/// run but no other iRule does.
-fn is_event_disable_all(cmd: &str, args: &[String]) -> bool {
-    cmd == "event" && args.len() >= 2 && args[0] == "disable" && args[1] == "all"
-}
 
 /// One drop / DNS-return flow fact along a path.  Dedup keys on the
 /// `(dropped, dns_returned)` pair only, so the first unguarded occurrence
@@ -488,50 +966,154 @@ fn dedupe_drop_states(states: Vec<DropFlowState>) -> Vec<DropFlowState> {
     out
 }
 
-/// Leaf transfer for the drop-flow walk: `drop`/`reject`/`discard` set the
-/// dropped fact, `DNS::return` sets the DNS fact, and `event disable all`
-/// clears the dropped fact (it guards the drop).
-fn drop_flow_leaf(st: &DropFlowState, stmt: &Statement) -> DropFlowState {
-    let Statement::Call {
+#[derive(Clone)]
+struct OriginalIrulesFlowCommand {
+    command: String,
+    span: Span,
+    drops_connection: bool,
+    returns_dns_packet: bool,
+    disables_all_events: bool,
+    may_commit_response: bool,
+    requires_http_context: bool,
+}
+
+struct OriginalIruleFlowInventory {
+    commands: Vec<OriginalIrulesFlowCommand>,
+    obligations: HashSet<CollectionSourceObligationKind>,
+}
+
+/// Actual source owners retain typed-lowering carriers and all argv children.
+/// Missing source is distinct from an admitted command with no flow metadata.
+fn original_irules_flow_commands(
+    script: &Script,
+    statement: &Statement,
+    source: &IrulesSourceQuery<'_>,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<OriginalIrulesFlowCommand>> {
+    let inventory = original_irules_flow_inventory(script, statement, source, config)?;
+    inventory
+        .obligations
+        .is_empty()
+        .then_some(inventory.commands)
+}
+
+fn original_irules_flow_inventory(
+    script: &Script,
+    statement: &Statement,
+    source: &IrulesSourceQuery<'_>,
+    config: tcl_lexer::LexerConfig,
+) -> Option<OriginalIruleFlowInventory> {
+    let mut obligations = HashSet::new();
+    if let crate::ir::OriginalArgvInventoryDisposition::EffectOnly(marker) =
+        statement.original_argv_inventory_disposition()
+    {
+        obligations.insert(CollectionSourceObligationKind::EffectOnly(marker));
+        return Some(OriginalIruleFlowInventory {
+            commands: Vec::new(),
+            obligations,
+        });
+    }
+    let parent = script.retained_source_tokens_for_statement(statement)?;
+    parent
+        .source_binding
+        .as_ref()?
+        .original_lexer_config_for_tokens(parent)?;
+    let children = source.argument_calls(parent, config)?;
+    let children = children
+        .iter()
+        .map(|child| child.tokens.as_ref())
+        .collect::<Option<Vec<_>>>()?;
+    let mut calls = Vec::new();
+    for tokens in children.into_iter().chain(std::iter::once(parent)) {
+        let possible =
+            crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
+                source.registry,
+                source.metadata(),
+                tokens,
+            )?;
+        if possible.unknown_residual {
+            obligations.insert(CollectionSourceObligationKind::UnknownTarget);
+        }
+        if possible.may_be_absent {
+            obligations.insert(CollectionSourceObligationKind::MayBeAbsent);
+        }
+        if let Some(command) = possible_irule_flow_command(tokens, &possible)? {
+            calls.push(command);
+        }
+    }
+    Some(OriginalIruleFlowInventory {
+        commands: calls,
+        obligations,
+    })
+}
+
+fn possible_irule_flow_command(
+    tokens: &crate::ir::CommandTokens,
+    possible: &crate::registry_invocation::RegistryInvocationAssistance,
+) -> Option<Option<OriginalIrulesFlowCommand>> {
+    use tcl_registry::events::IrulesSourceFlowAction;
+    let mut drops_connection = false;
+    let mut returns_dns_packet = false;
+    let mut may_commit_response = false;
+    let mut requires_http_context = false;
+    for candidate in &possible.candidates {
+        drops_connection |=
+            candidate.irules_source_flow_action == Some(IrulesSourceFlowAction::DropsConnection);
+        returns_dns_packet |=
+            candidate.irules_source_flow_action == Some(IrulesSourceFlowAction::ReturnsDnsPacket);
+        may_commit_response |= candidate.source_may_commit_response;
+        requires_http_context |= candidate
+            .possible_traits
+            .contains(Traits::REQUIRES_HTTP_CONTEXT);
+    }
+    let disables_all_events = !possible.unknown_residual
+        && !possible.may_be_absent
+        && !possible.candidates.is_empty()
+        && possible.candidates.iter().all(|candidate| {
+            candidate.irules_source_flow_action == Some(IrulesSourceFlowAction::DisablesAllEvents)
+        });
+    if !(drops_connection
+        || returns_dns_packet
+        || may_commit_response
+        || requires_http_context
+        || disables_all_events)
+    {
+        return Some(None);
+    }
+    let command = tokens.argv_texts.first()?.clone();
+    Some(Some(OriginalIrulesFlowCommand {
         command,
-        args,
-        span,
-        ..
-    } = stmt
-    else {
-        return st.clone();
-    };
-    if is_event_disable_all(command, args) {
-        return DropFlowState {
-            dropped: false,
-            drop_cmd: String::new(),
-            drop_at: None,
-            dns_returned: st.dns_returned,
-            dns_at: st.dns_at,
-        };
+        span: Span::new(tokens.argv.first()?.start(), tokens.argv.last()?.end()),
+        drops_connection,
+        returns_dns_packet,
+        disables_all_events,
+        may_commit_response,
+        requires_http_context,
+    }))
+}
+
+fn drop_flow_command(state: &DropFlowState, command: &OriginalIrulesFlowCommand) -> DropFlowState {
+    let mut next = state.clone();
+    if command.disables_all_events {
+        next.dropped = false;
+        next.drop_cmd.clear();
+        next.drop_at = None;
     }
-    if is_drop_command(command) {
-        return DropFlowState {
-            dropped: true,
-            drop_cmd: command.clone(),
-            drop_at: Some(*span),
-            dns_returned: st.dns_returned,
-            dns_at: st.dns_at,
-        };
+    if command.drops_connection {
+        next.dropped = true;
+        next.drop_cmd.clone_from(&command.command);
+        next.drop_at = Some(command.span);
     }
-    if is_dns_return(command, args) {
-        return DropFlowState {
-            dns_returned: true,
-            dns_at: Some(*span),
-            ..st.clone()
-        };
+    if command.returns_dns_packet {
+        next.dns_returned = true;
+        next.dns_at = Some(command.span);
     }
-    st.clone()
+    next
 }
 
 /// Path-sensitive IRULE5002 / IRULE5004 — an unguarded `drop`/`reject`/
 /// `discard` (no following `event disable all` / `return`) or a `DNS::return`
-/// without a following `return`, on at least one path through a `::when::*`
+/// without a following `return`, on at least one path through an original event
 /// body.
 #[must_use]
 pub fn find_unguarded_drop_warnings(
@@ -542,23 +1124,42 @@ pub fn find_unguarded_drop_warnings(
     if !is_irules(dialect) {
         return out;
     }
-    let leaf = |st: &DropFlowState, stmt: &Statement, _out: &mut Vec<IrulesCheckWarning>| {
-        drop_flow_leaf(st, stmt)
+    let Some(source) = IrulesSourceQuery::capture(cu, cu.ir_module.resolved_registry()) else {
+        return out;
     };
     // Honour the complexity guard but walk the structured
-    // IR body of each analysable `::when::*` event handler.
+    // IR body of each analysable original event handler.
     for fu in cu.analysable_functions() {
-        if !fu.name.starts_with("::when::") {
+        let Some(event) = source.event(fu) else {
+            return Vec::new();
+        };
+        let Some(event) = event else {
             continue;
-        }
-        let Some(proc) = cu.ir_module.procedures.get(&fu.name) else {
-            continue;
+        };
+        let proc = event.procedure;
+        let Some(config) = source.function_config(fu) else {
+            return Vec::new();
+        };
+        let missing_source = std::cell::Cell::new(false);
+        let leaf = |state: &DropFlowState,
+                    script: &Script,
+                    statement: &Statement,
+                    _out: &mut Vec<IrulesCheckWarning>| {
+            let Some(commands) = original_irules_flow_commands(script, statement, &source, config)
+            else {
+                missing_source.set(true);
+                return state.clone();
+            };
+            commands.iter().fold(state.clone(), |current, command| {
+                drop_flow_command(&current, command)
+            })
         };
         let unreached = unreached_statements(fu);
         let finals = walk_flow(
             &proc.body,
             &[DropFlowState::default()],
             &mut FlowDispatch {
+                registry: cu.ir_module.resolved_registry(),
                 out: &mut out,
                 leaf: &leaf,
                 dedupe: &dedupe_drop_states,
@@ -566,6 +1167,9 @@ pub fn find_unguarded_drop_warnings(
             },
             None,
         );
+        if missing_source.get() {
+            return Vec::new();
+        }
         for st in finals {
             if st.dropped
                 && let Some(span) = st.drop_at
@@ -619,7 +1223,7 @@ pub fn find_unguarded_drop_warnings(
 // IRULE1005 / IRULE1006 / IRULE1007 / IRULE1008 — collect/release/payload
 //
 // Cross-event analysis: classifies registry-declared collection operations
-// across every `::when::*` proc body, then emits:
+// across every original event body, then emits:
 //
 //   * IRULE1005 — `*_DATA` event handler exists but no matching
 //     `*::collect` for the corresponding protocol.
@@ -637,6 +1241,9 @@ pub fn find_unguarded_drop_warnings(
 
 #[derive(Default)]
 struct CollectFlowState {
+    /// Runtime lookup and widening remain independent of positive source calls.
+    obligations: HashSet<CollectionSourceObligationKind>,
+    source_argv: Vec<(crate::ir::ProcedureId, Vec<tcl_lexer::NativeWord>)>,
     /// `protocol -> {side, ...}` for each protocol with a collect call.
     collected: std::collections::HashMap<String, std::collections::HashSet<String>>,
     /// Same shape for release calls.
@@ -647,6 +1254,23 @@ struct CollectFlowState {
     release_calls: Vec<CollectionCall>,
     /// Each payload call, including whether its spec requires a collect.
     payload_calls: Vec<PayloadCall>,
+}
+
+/// Unresolved runtime premises retained independently of source pairings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CollectionSourceObligationKind {
+    /// A genuine no-own-argv widening phase retains unknown effects.
+    EffectOnly(crate::ir::SyntheticMarker),
+    /// Runtime command selection retains an unknown alternative.
+    UnknownTarget,
+    /// Runtime lookup may select no command.
+    MayBeAbsent,
+    /// A retained event declaration does not establish activation.
+    EventActivation,
+    /// Authored source descriptors do not establish their actual handlers.
+    SourceSchemaApplicability,
+    /// Source ordering does not establish child or parent normal completion.
+    NormalContinuation,
 }
 
 /// One collect or release operation observed in a `when` body.
@@ -673,18 +1297,14 @@ struct PayloadCall {
 /// HTTP, and SSL payloads require collection.  New protocol commands join the
 /// analysis by declaring [`tcl_registry::DataCollectionOperation`] in their
 /// command specs.
-fn classify_collect_command(
-    command: &str,
+fn classify_collect_operation(
+    operation: tcl_registry::events::DataCollectionOperation,
     args: &[String],
     event: &str,
     side: &str,
     span: Span,
     state: &mut CollectFlowState,
-    registry: &CommandRegistry,
 ) {
-    let Some(operation) = registry.data_collection_operation(command) else {
-        return;
-    };
     let arg_words: Vec<&str> = args.iter().map(String::as_str).collect();
     let protocol = operation.protocol.name.to_string();
     match operation.action {
@@ -734,12 +1354,13 @@ fn classify_collect_command(
 }
 
 fn scan_when_body_for_collect_flow(
-    fu: &crate::compilation_unit::FunctionUnit,
+    fu: &FunctionUnit,
     event: &str,
     side: &str,
     state: &mut CollectFlowState,
-    registry: &CommandRegistry,
-) {
+    source: &IrulesSourceQuery<'_>,
+) -> Option<()> {
+    let config = source.function_config(fu)?;
     for bn in cfg_order(&fu.cfg) {
         if !fu.sccp.executable_blocks.contains(&bn) {
             continue;
@@ -748,38 +1369,79 @@ fn scan_when_body_for_collect_flow(
             continue;
         };
         for stmt in &block.statements {
-            classify_stmt_for_collect_flow(stmt, event, side, state, registry, fu.base_offset);
+            classify_stmt_for_collect_flow(
+                stmt,
+                event,
+                side,
+                state,
+                source,
+                fu,
+                config,
+                fu.base_offset,
+            )?;
         }
+    }
+    Some(())
+}
+
+fn retain_collection_source_obligations(
+    possible: &crate::registry_invocation::RegistryInvocationAssistance,
+    state: &mut CollectFlowState,
+) {
+    if possible.unknown_residual {
+        state
+            .obligations
+            .insert(CollectionSourceObligationKind::UnknownTarget);
+    }
+    if possible.may_be_absent {
+        state
+            .obligations
+            .insert(CollectionSourceObligationKind::MayBeAbsent);
     }
 }
 
-/// Classify one IR statement for collect/release/payload flow,
-/// descending into iRules side-switch bodies (`clientside` /
-/// `serverside` / `peer`) with the switched side.  `clientside` /
-/// `serverside` carry a fixed side; `peer` evaluates under the
-/// *opposite* of the current side (so `peer { TCP::collect }` in a
-/// client-side event issues a server-side collect, and vice-versa).
-/// These commands carry an `ArgRole::Body` arg so they lower to a
-/// `Statement::Barrier` (or a `Statement::Call` with the body in
-/// `args[0]`); both shapes keep the body text in `args[0]`.
+/// Follow registry-declared side transitions with each original child owner.
+/// Missing supplied child source withdraws the whole pairing query: it is not
+/// evidence that a collect or release is absent.
 fn classify_stmt_for_collect_flow(
     stmt: &Statement,
     event: &str,
     side: &str,
     state: &mut CollectFlowState,
-    registry: &CommandRegistry,
+    source: &IrulesSourceQuery<'_>,
+    original_function: &FunctionUnit,
+    config: tcl_lexer::LexerConfig,
     base_offset: i64,
-) {
-    // The flow-state spans land in cross-event warnings emitted where the
-    // producing `fu` is out of scope, so absolutise them here (no-op when
-    // `base_offset == 0`).
+) -> Option<()> {
+    let registry = source.registry;
+    if let crate::ir::OriginalArgvInventoryDisposition::EffectOnly(marker) =
+        stmt.original_argv_inventory_disposition()
+    {
+        state
+            .obligations
+            .insert(CollectionSourceObligationKind::EffectOnly(marker));
+        return Some(());
+    }
+    if let Some(tokens) = stmt.tokens() {
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_lexer_config_for_tokens(tokens)?;
+        scan_nested_collection_words(
+            tokens,
+            event,
+            side,
+            state,
+            source,
+            original_function.body_id,
+            config,
+            base_offset,
+        )?;
+    }
     let abs = |sp: Span| -> Span {
         if base_offset == 0 {
             return sp;
         }
-        // Spans are `u32`; the absolutised offset is clamped to `0`, and a
-        // source larger than 4 GiB is not representable, so saturate to
-        // `u32::MAX` on the (impossible-in-practice) overflow.
         let s = (i64::from(sp.start()) + base_offset).max(0);
         let e = (i64::from(sp.end()) + base_offset).max(0);
         Span::new(
@@ -787,90 +1449,212 @@ fn classify_stmt_for_collect_flow(
             u32::try_from(e).unwrap_or(u32::MAX),
         )
     };
-    match stmt {
-        Statement::Call {
-            command,
-            canonical_command,
-            span,
-            args,
-            tokens,
-            ..
+    let (span, parent) = match stmt {
+        Statement::Call { span, tokens, .. } | Statement::Barrier { span, tokens, .. } => {
+            (*span, tokens.as_ref()?)
         }
-        | Statement::Barrier {
-            command,
-            canonical_command,
-            span,
-            args,
-            tokens,
-            ..
-        } => {
-            // Normalise to the resolved/canonical head and strip a leading
-            // `::`: IR can legally carry a global spelling or an alias. The
-            // registry owns both the side-switch membership and the exact
-            // client/server/peer transition, so this walker has no command
-            // spelling knowledge.
-            let head = canonical_command
-                .as_deref()
-                .unwrap_or(command)
-                .trim_start_matches(':');
-            if let Some(target) = registry.side_switch_target(head) {
-                let inner_side = target.execution_side(side);
-                if let Some(body) = args.first()
-                    && tokens
-                        .as_ref()
-                        .is_some_and(|tokens| tokens.arg_is_braced_literal(0))
-                    && let Some(body_span) = tokens
-                        .as_ref()
-                        .and_then(|tokens| tokens.argv.get(1).copied())
-                {
-                    let body_base = base_offset + i64::from(body_span.start()) + 1;
-                    scan_side_switch_body(body, event, inner_side, state, registry, body_base);
-                }
+        Statement::AssignValue { tokens: None, .. } => return None,
+        _ => return Some(()),
+    };
+    let possible =
+        crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
+            registry,
+            source.metadata(),
+            parent,
+        )?;
+    retain_collection_source_obligations(&possible, state);
+    for (ordinal, shape) in possible.candidates.iter().enumerate() {
+        if possible.candidates[..ordinal].contains(shape) {
+            continue;
+        }
+        if let Some(target) = shape.side_switch_target {
+            if !shape.roles_complete {
+                return None;
+            }
+            let mut bodies = shape.roles.iter().filter_map(|&(argument, role)| {
+                (role == tcl_registry::ArgRole::Body)
+                    .then_some(shape.argument_offset + usize::from(argument))
+            });
+            let effective = bodies.next()?;
+            if bodies.next().is_some() {
+                return None;
+            }
+            let written = shape.effective.written_argument(effective)?;
+            if !parent.arg_is_braced_literal(written) {
+                return None;
+            }
+            let inner_side = target.execution_side(side);
+            if source.standalone {
+                let binding = parent.source_binding.as_ref()?;
+                let image = binding.invocation_site()?.source.source_image();
+                let parent_config = binding.original_lexer_config_for_tokens(parent)?;
+                let words = crate::registry_invocation::original_native_compiler_words(
+                    image,
+                    parent.words(),
+                    parent.argv.first()?.start(),
+                    parent_config,
+                )?;
+                let word = words.get(written.checked_add(1)?)?;
+                let content = word.content_span().ok()?;
+                let body = std::str::from_utf8(image.bytes().get(content.as_range())?).ok()?;
+                scan_standalone_side_switch_body(
+                    body,
+                    event,
+                    inner_side,
+                    state,
+                    source,
+                    original_function,
+                    word.config(),
+                    base_offset + i64::from(content.start()),
+                )?;
             } else {
-                classify_collect_command(head, args, event, side, abs(*span), state, registry);
+                let body_unit = source.unit.conditional_original_body_unit(
+                    registry,
+                    original_function,
+                    parent,
+                    written,
+                )?;
+                scan_secondary_collection_body(
+                    &body_unit,
+                    event,
+                    inner_side,
+                    state,
+                    source,
+                    original_function,
+                    body_unit.source_lexer_config(),
+                    0,
+                )?;
             }
+        } else if let Some(operation) = shape.data_collection {
+            let Some(arguments) = collection_source_arguments(parent, shape, operation, source)
+            else {
+                continue;
+            };
+            classify_collect_operation(operation, &arguments, event, side, abs(span), state);
         }
-        Statement::AssignValue { value, span, .. } => {
-            if let Some((cmd, sub_args)) = parse_command_substitution_with_config(
-                value.trim(),
-                tcl_lexer::LexerConfig::for_profile(registry.profile()),
-            ) {
-                classify_collect_command(&cmd, &sub_args, event, side, abs(*span), state, registry);
-            }
-        }
-        _ => {}
     }
+    Some(())
 }
 
-/// Lower a side-switch body (the brace-script text in `args[0]`) and
-/// classify its commands under `side`, recursing through any nested
-/// side-switches.  The body is re-lowered to its own CFG so nested
-/// control flow is flattened the same way the enclosing `when` body is.
-fn scan_side_switch_body(
+/// Nested argv retains the function's full policy while the original binding
+/// may select its execution grammar. Metadata and dispatch/effect admissions
+/// remain independent of this syntax purpose.
+fn scan_nested_collection_words(
+    parent: &crate::ir::CommandTokens,
+    event: &str,
+    side: &str,
+    state: &mut CollectFlowState,
+    source: &IrulesSourceQuery<'_>,
+    body: Option<crate::ir::ProcedureId>,
+    parent_config: tcl_lexer::LexerConfig,
+    base_offset: i64,
+) -> Option<()> {
+    let children = source.argument_calls(parent, parent_config)?;
+    if !source.standalone {
+        state
+            .source_argv
+            .push((body?, source.original_argv(parent)?));
+    }
+    for call in children {
+        let tokens = call.tokens.as_ref()?;
+        if !source.standalone {
+            state
+                .source_argv
+                .push((body?, source.original_argv(tokens)?));
+        }
+        let possible =
+            crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
+                source.registry,
+                source.metadata(),
+                tokens,
+            )?;
+        retain_collection_source_obligations(&possible, state);
+        for (ordinal, shape) in possible.candidates.iter().enumerate() {
+            if possible.candidates[..ordinal].contains(shape) {
+                continue;
+            }
+            let Some(operation) = shape.data_collection else {
+                continue;
+            };
+            let Some(arguments) = collection_source_arguments(tokens, shape, operation, source)
+            else {
+                continue;
+            };
+            let span = Span::new(
+                u32::try_from((base_offset + i64::from(tokens.argv.first()?.start())).max(0))
+                    .unwrap_or(u32::MAX),
+                u32::try_from((base_offset + i64::from(tokens.argv.last()?.end())).max(0))
+                    .unwrap_or(u32::MAX),
+            );
+            classify_collect_operation(operation, &arguments, event, side, span, state);
+        }
+    }
+    Some(())
+}
+
+fn collection_source_arguments(
+    tokens: &crate::ir::CommandTokens,
+    shape: &crate::registry_invocation::RegistryInvocationShape,
+    operation: tcl_registry::events::DataCollectionOperation,
+    source: &IrulesSourceQuery<'_>,
+) -> Option<Vec<String>> {
+    if operation.action != DataCollectionAction::Payload {
+        return Some(Vec::new());
+    }
+    shape
+        .source_argument_words(source.registry, source.metadata(), tokens)?
+        .iter()
+        .map(|word| Some(std::str::from_utf8(word.literal_bytes()?).ok()?.to_owned()))
+        .collect()
+}
+
+/// Explicit standalone assistance is a separate fresh body ingress. It retains
+/// the caller's complete config and never substitutes a profile's grammar.
+fn scan_standalone_side_switch_body(
     body_text: &str,
     event: &str,
     side: &str,
     state: &mut CollectFlowState,
-    registry: &CommandRegistry,
+    source: &IrulesSourceQuery<'_>,
+    original_function: &FunctionUnit,
+    parent_config: tcl_lexer::LexerConfig,
     base_offset: i64,
-) {
-    // iRules side-switch flow — lower under the iRules dialect so `{*}` is
-    // literal and `}{` splits words.  The grammar comes from the iRules
-    // profile itself (this whole module only runs on an iRules document),
-    // never re-resolved from the name.
-    let irules_config =
-        tcl_lexer::LexerConfig::from_grammar(tcl_dialect::DialectProfile::irules().grammar);
-    let module = lower_to_ir_with_config(body_text, registry, irules_config);
-    let cfg_module = build_cfg_with_registry_and_config(&module, false, registry, irules_config);
-    // The body is a script of its own: solve it, so a block it proves
-    // unreachable counts for nothing, as in the enclosing event.
+) -> Option<()> {
+    if !source.standalone {
+        return None;
+    }
+    let config = tcl_lexer::SourceSegmentationPurpose::NestedScript.config(parent_config);
+    let module = lower_to_ir_with_config(body_text, source.registry, config);
+    let cfg_module = build_cfg_with_registry_and_config(&module, false, source.registry, config);
     let unit = FunctionUnit::build(
         "::side_switch",
         cfg_module.top_level,
         &[],
-        registry,
-        irules_config,
+        source.registry,
+        config,
     );
+    scan_secondary_collection_body(
+        &unit,
+        event,
+        side,
+        state,
+        source,
+        original_function,
+        config,
+        base_offset,
+    )
+}
+
+fn scan_secondary_collection_body(
+    unit: &FunctionUnit,
+    event: &str,
+    side: &str,
+    state: &mut CollectFlowState,
+    source: &IrulesSourceQuery<'_>,
+    original_function: &FunctionUnit,
+    config: tcl_lexer::LexerConfig,
+    base_offset: i64,
+) -> Option<()> {
     for bn in cfg_order(&unit.cfg) {
         if !unit.sccp.executable_blocks.contains(&bn) {
             continue;
@@ -879,12 +1663,23 @@ fn scan_side_switch_body(
             continue;
         };
         for stmt in &block.statements {
-            classify_stmt_for_collect_flow(stmt, event, side, state, registry, base_offset);
+            classify_stmt_for_collect_flow(
+                stmt,
+                event,
+                side,
+                state,
+                source,
+                original_function,
+                config,
+                base_offset,
+            )?;
         }
     }
+    Some(())
 }
 
-/// Collect/release/payload pairing across all `when` events.
+/// Definite collect/release diagnostics require an independent runtime lifecycle owner.
+/// Retained source inventories alone cannot supply that absence proof.
 #[must_use]
 pub fn find_collect_flow_warnings(
     cu: &CompilationUnit,
@@ -894,60 +1689,207 @@ pub fn find_collect_flow_warnings(
     if !is_irules(dialect) {
         return Vec::new();
     }
-    let (state, events_seen) = collect_flow_state(cu, registry);
+    let Some(source) = IrulesSourceQuery::capture(cu, registry) else {
+        return Vec::new();
+    };
+    let Some((state, _)) = collect_flow_state(&source) else {
+        return Vec::new();
+    };
+    if !state.obligations.is_empty() {
+        return Vec::new();
+    }
+    // This source-only interface has no complete runtime collection owner.
+    Vec::new()
+}
+
+/// Conditional source pairing under genuine full input and handler-body owners.
+/// Missing lexical phases or unsupported Body/Expr/callback inventories decline.
+#[must_use]
+pub fn find_conditional_collection_source_pairing_advice<'unit>(
+    cu: &'unit CompilationUnit,
+    registry: &'unit CommandRegistry,
+    dialect: Option<SurfaceQuery<'_>>,
+) -> Option<ConditionalCollectionSourcePairingAdvice<'unit>> {
+    if !is_irules(dialect) {
+        return None;
+    }
+    let source = IrulesSourceQuery::capture(cu, registry)?;
+    let (state, events_seen) = collect_flow_state(&source)?;
+    let advice = source.conditional_pairing_advice(&state)?;
     let events = EventRegistry::build();
     let mut out = Vec::new();
-    emit_missing_data_collect_warnings(cu, registry, &events, &events_seen, &state, &mut out);
-    emit_payload_without_collect_warnings(&state, &mut out);
-    emit_collect_without_release_warnings(&events, &events_seen, &state, &mut out);
-    emit_release_without_collect_warnings(&state, &mut out);
-    out
+    emit_missing_data_collect_warnings(
+        cu,
+        registry,
+        &events,
+        &events_seen,
+        &state,
+        &advice,
+        &mut out,
+    );
+    emit_payload_without_collect_warnings(&state, &advice, &mut out);
+    emit_collect_without_release_warnings(&events, &events_seen, &state, &advice, &mut out);
+    emit_release_without_collect_warnings(&state, &advice, &mut out);
+    let mut obligations = state.obligations.clone();
+    obligations.insert(CollectionSourceObligationKind::EventActivation);
+    obligations.insert(CollectionSourceObligationKind::SourceSchemaApplicability);
+    Some(ConditionalCollectionSourcePairingAdvice {
+        owner: ConditionalIruleSourceOwner {
+            _unit: cu,
+            _registry: registry,
+            _handlers: advice._handlers,
+            _schemas: advice._schemas,
+            obligations,
+            completions: advice.completions,
+            flow_commands: advice.flow_commands,
+        },
+        pairings: out
+            .into_iter()
+            .map(|warning| ConditionalCollectionSourcePairing { warning })
+            .collect(),
+    })
 }
 
-/// Classify each iRules event handler and retain its bare event name.
-fn collect_flow_state(
-    cu: &CompilationUnit,
-    registry: &CommandRegistry,
-) -> (CollectFlowState, Vec<String>) {
-    let mut state = CollectFlowState::default();
-    let mut events_seen: Vec<String> = Vec::new();
+/// Source-order flow advice under the same complete leaf-handler census.
+/// Descriptor fallthrough is only a source premise: actual lookup, effects,
+/// activation and normal continuation remain unresolved in the returned owner.
+#[must_use]
+pub fn find_conditional_irule_source_flow_advice<'unit>(
+    cu: &'unit CompilationUnit,
+    registry: &'unit CommandRegistry,
+    dialect: Option<SurfaceQuery<'_>>,
+) -> Option<ConditionalIruleSourceFlowAdvice<'unit>> {
+    find_conditional_collection_source_pairing_advice(cu, registry, dialect)?
+        .conditional_source_flow()
+}
+
+fn conditional_irule_source_flow_advice<'unit>(
+    owner: &ConditionalIruleSourceOwner<'unit>,
+) -> Option<ConditionalIruleSourceFlowAdvice<'unit>> {
+    if owner
+        .completions
+        .iter()
+        .any(|completion| *completion != tcl_registry::registry::InvocationCompletion::FallsThrough)
+    {
+        return None;
+    }
+    let source = IrulesSourceQuery::capture(owner._unit, owner._registry)?;
     let events = EventRegistry::build();
-    for fu in cu.analysable_functions() {
-        if let Some(event) = fu.name.strip_prefix("::when::") {
-            let bare = event.split('#').next().unwrap_or(event).to_string();
-            events_seen.push(bare.clone());
-            let Some(side) = events
-                .get_props(&bare)
-                .and_then(tcl_registry::events::EventProps::command_side)
-                .and_then(|side| match side {
-                    ConnectionSide::Client => Some("client"),
-                    ConnectionSide::Server => Some("server"),
-                    _ => None,
-                })
-            else {
-                // Unknown or genuinely both-sided event context is not proof
-                // of either lifecycle direction. Abstain instead of deriving
-                // a side from the event's spelling.
-                continue;
-            };
-            scan_when_body_for_collect_flow(fu, &bare, side, &mut state, registry);
+    let mut owner = owner.clone();
+    owner
+        .obligations
+        .insert(CollectionSourceObligationKind::NormalContinuation);
+    let mut findings = Vec::new();
+    for (id, commands) in &owner.flow_commands {
+        let function = owner._unit.procedures.get(id)?;
+        let event = source.event(function)??;
+        let http = events
+            .get_props(event.body.event())
+            .is_some_and(|props| props.implied_profiles.contains(&"HTTP"));
+        let mut pending = DropFlowState::default();
+        let mut responded = false;
+        for command in commands {
+            pending = drop_flow_command(&pending, command);
+            if http && command.may_commit_response {
+                if responded {
+                    findings.push(conditional_source_flow_finding(
+                        command.span, DiagCode::Irule1202,
+                        format!("Possible response operation '{}' follows another response candidate in {}.",
+                            command.command, event.body.event()),
+                    ));
+                }
+                responded = true;
+            } else if http && responded && command.requires_http_context {
+                findings.push(conditional_source_flow_finding(
+                    command.span,
+                    DiagCode::Irule1201,
+                    format!(
+                        "Possible HTTP-context operation '{}' follows a response candidate in {}.",
+                        command.command,
+                        event.body.event()
+                    ),
+                ));
+            }
+        }
+        if pending.dropped
+            && let Some(span) = pending.drop_at
+        {
+            findings.push(conditional_source_flow_finding(
+                span, DiagCode::Irule5002,
+                format!("Possible '{}' has no independently established guard against later processing.",
+                    pending.drop_cmd),
+            ));
+        }
+        if pending.dns_returned
+            && let Some(span) = pending.dns_at
+        {
+            findings.push(conditional_source_flow_finding(
+                span, DiagCode::Irule5004,
+                "Possible DNS packet return has no independently established guard against later processing."
+                    .to_owned(),
+            ));
         }
     }
-    (state, events_seen)
+    Some(ConditionalIruleSourceFlowAdvice { owner, findings })
 }
 
-/// Emit IRULE1005 for data-event protocols that are certainly not collected.
+fn conditional_source_flow_finding(
+    span: Span,
+    code: DiagCode,
+    source_hazard: String,
+) -> ConditionalIruleSourceFlowFinding {
+    ConditionalIruleSourceFlowFinding {
+        warning: IrulesCheckWarning {
+            span,
+            code,
+            message: format!(
+                "Conditional source flow (runtime reachability and completion unproved): {source_hazard}"
+            ),
+            replacement: None,
+            fixes: Vec::new(),
+        },
+    }
+}
+
+/// Existing event-table side selection remains independent of body admission.
+fn collect_flow_state(source: &IrulesSourceQuery<'_>) -> Option<(CollectFlowState, Vec<String>)> {
+    let mut state = CollectFlowState::default();
+    let mut events_seen = Vec::new();
+    let events = EventRegistry::build();
+    for fu in source.unit.analysable_functions() {
+        let Some(event) = source.event(fu)? else {
+            continue;
+        };
+        let event = event.body.event();
+        events_seen.push(event.to_owned());
+        let Some(side) = events
+            .get_props(event)
+            .and_then(tcl_registry::events::EventProps::command_side)
+            .and_then(|side| match side {
+                ConnectionSide::Client => Some("client"),
+                ConnectionSide::Server => Some("server"),
+                _ => None,
+            })
+        else {
+            continue;
+        };
+        scan_when_body_for_collect_flow(fu, event, side, &mut state, source)?;
+    }
+    Some((state, events_seen))
+}
+
+/// Project missing source collection candidates within the certified handler census.
 fn emit_missing_data_collect_warnings(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
     events: &EventRegistry,
     events_seen: &[String],
     state: &CollectFlowState,
+    advice: &ConditionalSourcePairingAdvice<'_, '_>,
     out: &mut Vec<IrulesCheckWarning>,
 ) {
-    // The event table owns protocol and side requirements. The first event
-    // statement is a fallback anchor until the analyser exposes event-token
-    // spans directly to this flow pass.
+    // The event table owns protocol/side requirements; the retained declaration
+    // owns its original event operand. Body statements supply no header geometry.
     let mut emitted_events: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for event in events_seen {
         let Some((protocols, required_side)) = events.data_collect_requirement(event) else {
@@ -982,38 +1924,47 @@ fn emit_missing_data_collect_warnings(
             // miss one. This is intentionally an abstention, not a warning.
             continue;
         }
+        let Some(span) = event_anchor_span(cu, registry, event) else {
+            continue;
+        };
         out.push(IrulesCheckWarning {
-            span: event_anchor_span(cu, event),
+            span,
             code: DiagCode::Irule1005,
-            message: format!(
-                "'{event}' will never fire without a {required_side} {} call in another event.",
+            message: advice.message(format!(
+                "'{event}' has no matching source {required_side} {} candidate in the retained handlers.",
                 proto_hint.join(" or "),
-            ),
+            )),
             replacement: None,
             fixes: Vec::new(),
         });
     }
 }
 
-/// Return the first statement span in `event`, or a stable zero-width fallback.
-fn event_anchor_span(cu: &CompilationUnit, event: &str) -> Span {
-    let qname = format!("::when::{event}");
-    cu.functions()
-        .find(|fu| fu.name == qname || fu.name.starts_with(&format!("{qname}#")))
-        .and_then(|fu| {
-            let span = fu
-                .cfg
-                .blocks
-                .get(&fu.cfg.entry)
-                .and_then(|b| b.statements.first().map(crate::ir::Statement::span))?;
-            Some(fu.abs_span(span))
+/// Original event operand from the authentic selected declaration generation.
+fn event_anchor_span(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    event: &str,
+) -> Option<Span> {
+    let source = IrulesSourceQuery::capture(cu, registry)?;
+    source
+        .unit
+        .functions()
+        .filter_map(|fu| source.event(fu).flatten())
+        .filter(|owned| owned.body.event() == event)
+        .filter_map(|owned| {
+            owned
+                .body
+                .event_word(&cu.ir_module.source, cu.ir_module.lexer_config, registry)
         })
-        .unwrap_or(Span::new(0, 0))
+        .map(tcl_lexer::NativeWord::span)
+        .min_by_key(|span| span.start())
 }
 
 /// Emit IRULE1006 for payload commands that explicitly require collection.
 fn emit_payload_without_collect_warnings(
     state: &CollectFlowState,
+    advice: &ConditionalSourcePairingAdvice<'_, '_>,
     out: &mut Vec<IrulesCheckWarning>,
 ) {
     for payload in &state.payload_calls {
@@ -1027,10 +1978,10 @@ fn emit_payload_without_collect_warnings(
             out.push(IrulesCheckWarning {
                 span: payload.span,
                 code: DiagCode::Irule1006,
-                message: format!(
-                    "'{}::payload' without a {} {}::collect call. The payload buffer will be empty.",
+                message: advice.message(format!(
+                    "Possible '{}::payload' without a matching source {} {}::collect candidate.",
                     payload.protocol, payload.side, payload.protocol,
-                ),
+                )),
                 replacement: None,
                 fixes: Vec::new(),
             });
@@ -1043,6 +1994,7 @@ fn emit_collect_without_release_warnings(
     events: &EventRegistry,
     events_seen: &[String],
     state: &CollectFlowState,
+    advice: &ConditionalSourcePairingAdvice<'_, '_>,
     out: &mut Vec<IrulesCheckWarning>,
 ) {
     for collect in &state.collect_calls {
@@ -1071,10 +2023,10 @@ fn emit_collect_without_release_warnings(
             out.push(IrulesCheckWarning {
                 span: collect.span,
                 code: DiagCode::Irule1007,
-                message: format!(
-                    "{}::collect without matching {}::release on the {} side; collected data is never released",
+                message: advice.message(format!(
+                    "Possible {}::collect without a matching source {}::release candidate on the {} side.",
                     collect.protocol, collect.protocol, collect.side,
-                ),
+                )),
                 replacement: None,
                 fixes: Vec::new(),
             });
@@ -1082,9 +2034,10 @@ fn emit_collect_without_release_warnings(
     }
 }
 
-/// Emit IRULE1008 for a release whose registered protocol was never collected.
+/// Project source release candidates without a matching source collection.
 fn emit_release_without_collect_warnings(
     state: &CollectFlowState,
+    advice: &ConditionalSourcePairingAdvice<'_, '_>,
     out: &mut Vec<IrulesCheckWarning>,
 ) {
     for release in &state.release_calls {
@@ -1096,10 +2049,10 @@ fn emit_release_without_collect_warnings(
             out.push(IrulesCheckWarning {
                 span: release.span,
                 code: DiagCode::Irule1008,
-                message: format!(
-                    "{}::release without matching {}::collect on the {} side; no data was collected",
+                message: advice.message(format!(
+                    "Possible {}::release without a matching source {}::collect candidate on the {} side.",
                     release.protocol, release.protocol, release.side,
-                ),
+                )),
                 replacement: None,
                 fixes: Vec::new(),
             });
@@ -1110,7 +2063,7 @@ fn emit_release_without_collect_warnings(
 // IRULE1201 / IRULE1202 — HTTP-after-respond / multi-respond
 //
 // Path-sensitive analysis of the *structured* IR body of each
-// `::when::HTTP*` procedure, tracking a set of per-path response states
+// original HTTP-profile event body, tracking a set of per-path response states
 // so that:
 //
 //   * IRULE1202 — a second `HTTP::respond` / `HTTP::redirect` / `redirect`
@@ -1142,30 +2095,44 @@ pub fn find_http_flow_warnings(
     if !is_irules(dialect) {
         return out;
     }
+    let Some(source) = IrulesSourceQuery::capture(cu, cu.ir_module.resolved_registry()) else {
+        return out;
+    };
     let events = EventRegistry::build();
     // Iterate the *analysable* functions (honouring the complexity
     // guard) but walk their structured IR body.
     for fu in cu.analysable_functions() {
-        let Some(event) = fu.name.strip_prefix("::when::") else {
+        let Some(event) = source.event(fu) else {
+            return Vec::new();
+        };
+        let Some(event) = event else {
             continue;
         };
-        // Strip priority index (`HTTP_REQUEST#1` → `HTTP_REQUEST`).
-        let bare_event = event.split('#').next().unwrap_or(event);
+        let bare_event = event.body.event();
         if !events
             .get_props(bare_event)
             .is_some_and(|props| props.implied_profiles.contains(&"HTTP"))
         {
             continue;
         }
-        let Some(proc) = cu.ir_module.procedures.get(&fu.name) else {
-            continue;
-        };
+        let proc = event.procedure;
         let unreached = unreached_statements(fu);
-        let leaf = |st: &HttpFlowState, stmt: &Statement, out: &mut Vec<IrulesCheckWarning>| {
-            match http_flow_stmt_command(stmt) {
-                Some((cmd, span)) => apply_http_flow_command(*st, cmd, span, bare_event, out),
-                None => *st,
-            }
+        let Some(config) = source.function_config(fu) else {
+            return Vec::new();
+        };
+        let missing_source = std::cell::Cell::new(false);
+        let leaf = |state: &HttpFlowState,
+                    script: &Script,
+                    statement: &Statement,
+                    out: &mut Vec<IrulesCheckWarning>| {
+            let Some(commands) = original_irules_flow_commands(script, statement, &source, config)
+            else {
+                missing_source.set(true);
+                return *state;
+            };
+            commands.iter().fold(*state, |current, command| {
+                apply_http_flow_command(current, command, bare_event, out)
+            })
         };
         walk_flow(
             &proc.body,
@@ -1174,6 +2141,7 @@ pub fn find_http_flow_warnings(
                 respond_at: None,
             }],
             &mut FlowDispatch {
+                registry: cu.ir_module.resolved_registry(),
                 out: &mut out,
                 leaf: &leaf,
                 dedupe: &dedupe_flow_states,
@@ -1181,6 +2149,9 @@ pub fn find_http_flow_warnings(
             },
             None,
         );
+        if missing_source.get() {
+            return Vec::new();
+        }
     }
     // Distinct predecessor states can prove the same source command unsafe.
     // The proof multiplicity is internal; the editor should receive one
@@ -1210,31 +2181,16 @@ fn dedupe_flow_states(states: Vec<HttpFlowState>) -> Vec<HttpFlowState> {
     out
 }
 
-/// The command word + span a statement applies to the response flow, or `None`.
-/// Direct `Call`/`Barrier` heads, plus a whole-value `[cmd …]` command
-/// substitution assigned by `set`.
-fn http_flow_stmt_command(stmt: &Statement) -> Option<(&str, Span)> {
-    match stmt {
-        Statement::Call { command, span, .. } | Statement::Barrier { command, span, .. } => {
-            Some((command.as_str(), *span))
-        }
-        Statement::AssignValue { value, span, .. } => {
-            let inner = value.trim().strip_prefix('[')?.strip_suffix(']')?.trim();
-            inner.split_whitespace().next().map(|cmd| (cmd, *span))
-        }
-        _ => None,
-    }
-}
-
 /// Apply one command to a flow state, emitting IRULE1201/1202 as warranted.
 fn apply_http_flow_command(
     state: HttpFlowState,
-    cmd: &str,
-    span: Span,
+    command: &OriginalIrulesFlowCommand,
     event: &str,
     out: &mut Vec<IrulesCheckWarning>,
 ) -> HttpFlowState {
-    if commits_response_commands().contains(cmd) {
+    let cmd = &command.command;
+    let span = command.span;
+    if command.may_commit_response {
         if state.responded {
             out.push(IrulesCheckWarning {
                 span,
@@ -1252,7 +2208,7 @@ fn apply_http_flow_command(
             respond_at: Some(span.start()),
         };
     }
-    if state.responded && requires_http_context_commands().contains(cmd) {
+    if state.responded && command.requires_http_context {
         out.push(IrulesCheckWarning {
             span,
             code: DiagCode::Irule1201,
@@ -1289,6 +2245,7 @@ fn apply_http_flow_command(
 /// `out`, the per-leaf transfer `leaf`, and the state-set `dedupe`.  Bundled so
 /// the mutually-recursive walk helpers stay under the argument limit.
 struct FlowDispatch<'a, L, D> {
+    registry: &'a CommandRegistry,
     out: &'a mut Vec<IrulesCheckWarning>,
     leaf: &'a L,
     dedupe: &'a D,
@@ -1325,11 +2282,25 @@ fn walk_flow<S, L, D>(
 ) -> Vec<S>
 where
     S: Clone,
-    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    L: Fn(&S, &Script, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
     D: Fn(Vec<S>) -> Vec<S>,
 {
     let mut states = in_states.to_vec();
     for stmt in &script.statements {
+        if states.is_empty() {
+            break;
+        }
+        if fd.unreached.contains(&stmt.span()) {
+            continue;
+        }
+        // Written argv evaluates before dispatch, including return values and
+        // structured headers. Braced bodies keep their own script phases.
+        states = (fd.dedupe)(
+            states
+                .iter()
+                .map(|state| (fd.leaf)(state, script, stmt, fd.out))
+                .collect(),
+        );
         // `None` ⇒ the statement terminates every current path (`return`).
         match flow_step(stmt, &states, fd, return_sink.as_deref_mut()) {
             None => {
@@ -1348,7 +2319,7 @@ where
 
 /// Transfer one structured statement over the flow-state set, or `None` when
 /// it (`return`) terminates the current paths.  Control-flow arms recurse
-/// through [`walk_flow`]; leaf statements go through `leaf`.
+/// through [`walk_flow`] after their written argv has been evaluated.
 fn flow_step<S, L, D>(
     stmt: &Statement,
     states: &[S],
@@ -1357,13 +2328,22 @@ fn flow_step<S, L, D>(
 ) -> Option<Vec<S>>
 where
     S: Clone,
-    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    L: Fn(&S, &Script, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
     D: Fn(Vec<S>) -> Vec<S>,
 {
-    if fd.unreached.contains(&stmt.span()) {
-        return Some(states.to_vec());
-    }
     let one = std::slice::from_ref;
+    if let Some(region) = stmt
+        .tokens()
+        .and_then(crate::ir::CommandTokens::evaluated_body)
+    {
+        return Some(flow_step_region(region, states, fd, return_sink));
+    }
+    if let Some(tokens) = stmt.tokens()
+        && !crate::registry_invocation::normal_handler_completion_route(fd.registry, None, tokens)
+            .normal_possible()
+    {
+        return None;
+    }
     Some(match stmt {
         Statement::Return { .. } => return None,
         Statement::If {
@@ -1433,14 +2413,111 @@ where
         ),
         // A grouping block (namespace/uplevel body) runs in sequence.
         Statement::Block { body, .. } => walk_flow(body, states, fd, return_sink),
-        _ => {
-            let mut next = Vec::with_capacity(states.len());
-            for st in states {
-                next.push((fd.leaf)(st, stmt, fd.out));
-            }
-            (fd.dedupe)(next)
-        }
+        _ => states.to_vec(),
     })
+}
+
+/// Diagnostic projection of the same source-positioned region used by CFG
+/// construction. Possible entry retains the unchanged incoming alternative.
+fn flow_step_region<S, L, D>(
+    region: &crate::execution_region::EvaluatedBodyRegion,
+    states: &[S],
+    fd: &mut FlowDispatch<'_, L, D>,
+    mut return_sink: Option<&mut Vec<S>>,
+) -> Vec<S>
+where
+    S: Clone,
+    L: Fn(&S, &Script, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    D: Fn(Vec<S>) -> Vec<S>,
+{
+    use tcl_registry::native_compilation::PossibleBodyTopology;
+    if region.selection == crate::execution_region::RegionSelection::Never {
+        return states.to_vec();
+    }
+    let mut next = if region.selection == crate::execution_region::RegionSelection::MaySkip
+        || region.possible_bodies.is_some()
+    {
+        states.to_vec()
+    } else {
+        Vec::new()
+    };
+    let phases: Vec<_> = region.phases.iter().collect();
+    let Some(possible) = &region.possible_bodies else {
+        next.extend(flow_region_phases(&phases, states, fd, return_sink));
+        return (fd.dedupe)(next);
+    };
+    match &possible.topology {
+        PossibleBodyTopology::Sequence(_) | PossibleBodyTopology::Captured(_) => {
+            next.extend(flow_region_phases(&phases, states, fd, return_sink));
+        }
+        PossibleBodyTopology::Loop {
+            initial, repeated, ..
+        } => {
+            let initial_phases = selected_region_phases(region, &possible.arguments, initial);
+            let entry = flow_region_phases(&initial_phases, states, fd, return_sink.as_deref_mut());
+            next.extend(entry.clone());
+            let repeated_phases = selected_region_phases(region, &possible.arguments, repeated);
+            next.extend(flow_region_phases(
+                &repeated_phases,
+                &entry,
+                fd,
+                return_sink,
+            ));
+        }
+        PossibleBodyTopology::Alternatives(_)
+        | PossibleBodyTopology::Conditional(_)
+        | PossibleBodyTopology::CaseAlternatives(_) => {
+            for phase in &region.phases {
+                next.extend(flow_region_phases(
+                    &[phase],
+                    states,
+                    fd,
+                    return_sink.as_deref_mut(),
+                ));
+            }
+        }
+    }
+    (fd.dedupe)(next)
+}
+
+fn selected_region_phases<'a>(
+    region: &'a crate::execution_region::EvaluatedBodyRegion,
+    arguments: &[usize],
+    selected: &[usize],
+) -> Vec<&'a crate::execution_region::ExecutionPhase> {
+    selected
+        .iter()
+        .filter_map(|argument| {
+            arguments
+                .iter()
+                .position(|candidate| candidate == argument)
+                .and_then(|index| region.phases.get(index))
+        })
+        .collect()
+}
+
+fn flow_region_phases<S, L, D>(
+    phases: &[&crate::execution_region::ExecutionPhase],
+    states: &[S],
+    fd: &mut FlowDispatch<'_, L, D>,
+    mut return_sink: Option<&mut Vec<S>>,
+) -> Vec<S>
+where
+    S: Clone,
+    L: Fn(&S, &Script, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    D: Fn(Vec<S>) -> Vec<S>,
+{
+    let mut continuing = states.to_vec();
+    for phase in phases {
+        let mut captured = Vec::new();
+        continuing = if phase.abrupt == crate::execution_region::RegionTarget::Exit {
+            walk_flow(&phase.script, &continuing, fd, Some(&mut captured))
+        } else {
+            walk_flow(&phase.script, &continuing, fd, return_sink.as_deref_mut())
+        };
+        continuing.extend(captured);
+    }
+    continuing
 }
 
 /// The `switch` arm of [`flow_step`]: every arm body (and the default body) is
@@ -1455,7 +2532,7 @@ fn flow_step_switch<S, L, D>(
 ) -> Vec<S>
 where
     S: Clone,
-    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    L: Fn(&S, &Script, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
     D: Fn(Vec<S>) -> Vec<S>,
 {
     let one = std::slice::from_ref;
@@ -1488,7 +2565,7 @@ fn flow_step_try<S, L, D>(
 ) -> Vec<S>
 where
     S: Clone,
-    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    L: Fn(&S, &Script, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
     D: Fn(Vec<S>) -> Vec<S>,
 {
     let one = std::slice::from_ref;
@@ -1531,40 +2608,6 @@ where
 // semantics after the first request. Array elements and namespace/static
 // variables likewise need a different destination and are excluded.
 
-/// Add to `counts` one write for each name `stmt` writes.
-///
-/// The arms of a `switch` the flow graph keeps as one statement stay inside
-/// it, so what they write counts here.
-fn count_statement_writes(stmt: &Statement, counts: &mut HashMap<String, usize>) {
-    match stmt {
-        Statement::AssignConst { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::AssignValue { name, .. }
-        | Statement::Incr { name, .. } => {
-            *counts.entry(name.clone()).or_default() += 1;
-        }
-        Statement::Call { defs, .. } => {
-            for name in defs {
-                *counts.entry(name.clone()).or_default() += 1;
-            }
-        }
-        Statement::Switch {
-            arms, default_body, ..
-        } => {
-            let bodies = arms
-                .iter()
-                .filter_map(|arm| arm.body.as_ref())
-                .chain(default_body.as_ref());
-            for body in bodies {
-                for name in crate::ir_helpers::defs_from_ir_script(body) {
-                    *counts.entry(name).or_default() += 1;
-                }
-            }
-        }
-        _ => {}
-    }
-}
-
 /// Hoistable-set warnings for IRULE4004.
 #[must_use]
 pub fn find_hoistable_set_warnings(
@@ -1576,74 +2619,59 @@ pub fn find_hoistable_set_warnings(
         return out;
     }
     let events = EventRegistry::build();
-    let mut write_counts = HashMap::<String, usize>::new();
-    // Count every lowered event, including one whose deeper analyses hit the
-    // complexity guard. A skipped handler is not evidence that no second write
-    // exists there; only a block the solver proved unreachable, which a
-    // guarded event has no solver run to prove, counts for nothing.
-    for fu in cu.functions() {
-        if !fu.name.starts_with("::when::") {
-            continue;
-        }
-        for (id, block) in &fu.cfg.blocks {
-            if !fu.complexity_guarded && !fu.sccp.executable_blocks.contains(id) {
-                continue;
-            }
-            for stmt in &block.statements {
-                count_statement_writes(stmt, &mut write_counts);
-            }
-        }
-    }
+    let registry = cu.ir_module.resolved_registry();
+    let Some(source) = IrulesSourceQuery::capture(cu, registry) else {
+        return out;
+    };
+    let Some(write_counts) = event_mutation_counts(&source) else {
+        return out;
+    };
     for fu in cu.analysable_functions() {
-        let Some(event) = fu.name.strip_prefix("::when::") else {
+        let Some(event) = source.event(fu) else {
+            return Vec::new();
+        };
+        let Some(event) = event else {
             continue;
         };
-        let event = event.split('#').next().unwrap_or(event);
-        if !events.is_per_request(event) {
+        if !events.is_per_request(event.body.event()) {
             continue;
         }
         let Some(block) = fu.cfg.blocks.get(&fu.cfg.entry) else {
             continue;
         };
-        let ssa_block = fu.ssa.blocks.get(&fu.cfg.entry);
+        let contexts = crate::place_bridge::build_point_resolve_contexts_with_entry(
+            &fu.cfg,
+            event.body.conditional_entry(),
+            registry,
+        );
         for (index, stmt) in block.statements.iter().enumerate() {
-            let (name, value, span) = match stmt {
-                Statement::AssignConst {
-                    name, value, span, ..
-                }
-                | Statement::AssignValue {
-                    name, value, span, ..
-                } => (name, value, *span),
-                _ => continue,
+            let Some((name, value)) = hoistable_literal_assignment(stmt, registry) else {
+                continue;
             };
+            let places = crate::place_bridge::def_places_with_continuation(
+                stmt,
+                contexts.before_statement(fu.cfg.entry, index),
+                contexts.after_statement(fu.cfg.entry, index),
+                registry,
+            );
+            let [place] = places.as_slice() else {
+                continue;
+            };
+            let Some(cell) = crate::connection_scope::cell_from_place(place) else {
+                continue;
+            };
+            if !cell.is_connection() {
+                continue;
+            }
             if name.is_empty()
                 || value.is_empty()
-                || name.contains('(')
-                || name.contains("::")
-                || write_counts.get(name) != Some(&1)
+                || place.observed
+                || place.kind != crate::place::PlaceKind::Scalar
+                || write_counts.get(&cell) != Some(&1)
             {
                 continue;
             }
-            // Skip dynamic values — `$x` / `[cmd]` interpolation — unless
-            // the value reads no variable and the lattice proves what its
-            // commands compute (`set x [string range CONST 0 3]`): the same
-            // on every request, so hoistable like a literal.
-            if value.contains('$')
-                || (value.contains('[')
-                    && !ssa_block
-                        .and_then(|ssa_block| ssa_block.statements.get(index))
-                        .is_some_and(|ssa_stmt| {
-                            ssa_stmt.defs.iter().any(|(&symbol, &version)| {
-                                fu.ssa.var_name(symbol) == name.as_str()
-                                    && matches!(
-                                        fu.sccp.values.get(&(symbol, version)),
-                                        Some(crate::analyses::LatticeValue::Const(_))
-                                    )
-                            })
-                        }))
-            {
-                continue;
-            }
+            let span = stmt.span();
             out.push(IrulesCheckWarning {
                 span: fu.abs_span(span),
                 code: DiagCode::Irule4004,
@@ -1658,9 +2686,73 @@ pub fn find_hoistable_set_warnings(
     out
 }
 
+/// Count physical mutations rather than displayed operands. An unbounded
+/// mutation cannot prove that another event leaves a proposed destination alone.
+fn event_mutation_counts(
+    source: &IrulesSourceQuery<'_>,
+) -> Option<HashMap<crate::connection_scope::EventCell, usize>> {
+    let mut counts = HashMap::new();
+    let registry = source.registry;
+    for fu in source.unit.functions() {
+        let Some(event) = source.event(fu)? else {
+            continue;
+        };
+        let contexts = crate::place_bridge::build_point_resolve_contexts_with_entry(
+            &fu.cfg,
+            event.body.conditional_entry(),
+            registry,
+        );
+        for (&id, block) in &fu.cfg.blocks {
+            for (index, stmt) in block.statements.iter().enumerate() {
+                for place in crate::place_bridge::statement_mutation_places_with_continuation(
+                    stmt,
+                    contexts.before_statement(id, index),
+                    contexts.after_statement(id, index),
+                    registry,
+                ) {
+                    let cell = crate::connection_scope::cell_from_place(&place)?;
+                    *counts.entry(cell).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+    Some(counts)
+}
+
+fn hoistable_literal_assignment(
+    statement: &Statement,
+    registry: &CommandRegistry,
+) -> Option<(String, String)> {
+    if let Some(tokens) = statement.tokens() {
+        let normal =
+            crate::registry_invocation::normal_representation_invocation(registry, None, tokens)?;
+        let assignment = normal.value_assignment()?;
+        let dialect = tokens
+            .source_binding
+            .as_ref()?
+            .variable_context
+            .invocation_dialect?;
+        let value = crate::registry_invocation::effective_invocation_word(
+            &assignment.value,
+            dialect.lexer_grammar.escapes,
+            dialect.word_values,
+        );
+        return match value {
+            crate::registry_invocation::EffectiveInvocationWord::Literal(value) => {
+                Some((assignment.name, value))
+            }
+            _ => None,
+        };
+    }
+    match statement {
+        Statement::AssignConst { name, value, .. } => Some((name.clone(), value.clone())),
+        _ => None,
+    }
+}
+
 // IRULE4002 — generic `static::` variable name that will collide
 //
-// Walks every `::when::` CFG body for statements that define a
+// Walks every original event CFG body for statements that define a
 // `static::` variable and flags bare names matching a set of generic
 // regex patterns. Deduplicated across events — the first occurrence's
 // span wins. The pattern set is configurable (`tclLsp.diagnostics.
@@ -1713,14 +2805,18 @@ fn compile_generic_patterns(patterns: Option<&[String]>) -> Vec<regex::Regex> {
     }
 }
 
-/// `is_generic_static_name` — `var_name` (with the `static::` prefix) is
-/// generic when its lowercased bare name matches any `compiled` pattern.
+/// Configured lexical patterns apply only after the namespace root is selected.
+fn matches_generic_variable_pattern(simple_name: &str, compiled: &[regex::Regex]) -> bool {
+    let lower = simple_name.to_ascii_lowercase();
+    compiled.iter().any(|re| re.is_match(&lower))
+}
+
+#[cfg(test)]
 fn is_generic_static_name(var_name: &str, compiled: &[regex::Regex]) -> bool {
-    let bare = var_name
-        .strip_prefix("static::")
-        .unwrap_or(var_name)
-        .to_ascii_lowercase();
-    compiled.iter().any(|re| re.is_match(&bare))
+    matches_generic_variable_pattern(
+        var_name.strip_prefix("static::").unwrap_or(var_name),
+        compiled,
+    )
 }
 
 /// Generic-static-name warnings for IRULE4002. `generic_patterns` follows the
@@ -1740,11 +2836,23 @@ pub fn find_generic_static_name_warnings(
     if compiled.is_empty() {
         return out;
     }
-    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let registry = cu.ir_module.resolved_registry();
+    let Some(source) = IrulesSourceQuery::capture(cu, registry) else {
+        return out;
+    };
+    let mut seen = HashSet::new();
     for fu in cu.analysable_functions() {
-        if !fu.name.starts_with("::when::") {
+        let Some(event) = source.event(fu) else {
+            return Vec::new();
+        };
+        let Some(event) = event else {
             continue;
-        }
+        };
+        let contexts = crate::place_bridge::build_point_resolve_contexts_with_entry(
+            &fu.cfg,
+            event.body.conditional_entry(),
+            registry,
+        );
         for bn in cfg_order(&fu.cfg) {
             if !fu.sccp.executable_blocks.contains(&bn) {
                 continue;
@@ -1752,20 +2860,54 @@ pub fn find_generic_static_name_warnings(
             let Some(block) = fu.cfg.blocks.get(&bn) else {
                 continue;
             };
-            for stmt in &block.statements {
-                let span = stmt.span();
-                match stmt {
+            for (index, stmt) in block.statements.iter().enumerate() {
+                let labels: Vec<&str> = match stmt {
                     Statement::AssignConst { name, .. }
                     | Statement::AssignValue { name, .. }
-                    | Statement::Incr { name, .. } => {
-                        check_generic_static(name, span, &compiled, &mut seen, &mut out);
+                    | Statement::Incr { name, .. } => vec![name],
+                    Statement::Call { defs, .. } => defs.iter().map(String::as_str).collect(),
+                    _ => continue,
+                };
+                let places =
+                    crate::place_bridge::def_places_at(stmt, bn, index, &contexts, registry);
+                for place in places {
+                    if crate::side_effects::namespace_storage_scope_for_place(
+                        &place,
+                        registry.profile(),
+                    ) != crate::side_effects::StorageScope::Static
+                    {
+                        continue;
                     }
-                    Statement::Call { defs, .. } => {
-                        for name in defs {
-                            check_generic_static(name, span, &compiled, &mut seen, &mut out);
-                        }
-                    }
-                    _ => {}
+                    let Some(key) = crate::var_resolve::canonical_place_key(&place) else {
+                        continue;
+                    };
+                    // A single assignment's label reports that same operation. Multi-output
+                    // calls join their authored labels through the actual SSA cell map.
+                    let label = if !matches!(stmt, Statement::Call { .. }) {
+                        labels.first().copied()
+                    } else {
+                        fu.ssa.source_symbols_at(bn, index).and_then(|symbols| {
+                            labels.iter().copied().find(|label| {
+                                symbols.get(*label).is_some_and(|symbol| {
+                                    fu.ssa
+                                        .cell_key(*symbol)
+                                        .is_some_and(|cell| cell.root() == key.root())
+                                })
+                            })
+                        })
+                    };
+                    let Some(label) = label else {
+                        continue;
+                    };
+                    check_generic_static(
+                        &place,
+                        key,
+                        label,
+                        fu.abs_span(stmt.span()),
+                        &compiled,
+                        &mut seen,
+                        &mut out,
+                    );
                 }
             }
         }
@@ -1774,30 +2916,43 @@ pub fn find_generic_static_name_warnings(
 }
 
 fn check_generic_static(
-    var_name: &str,
+    place: &crate::place::Place,
+    key: crate::var_resolve::VariableCellKey,
+    source_name: &str,
     span: Span,
     compiled: &[regex::Regex],
-    seen: &mut std::collections::HashSet<String>,
+    seen: &mut HashSet<crate::var_resolve::VariableCellKey>,
     out: &mut Vec<IrulesCheckWarning>,
 ) {
-    if !var_name.starts_with("static::") {
+    let root = key.root().clone();
+    if seen.contains(&root) {
         return;
     }
-    if seen.contains(var_name) {
+    let Some(bare) = crate::var_resolve::namespace_variable_simple_name(place) else {
+        return;
+    };
+    let pattern_name = if let Some(index) = &place.index {
+        if index.kind != crate::place::IndexKind::Literal {
+            return;
+        }
+        let Ok(element) = index.value.try_utf8() else {
+            return;
+        };
+        std::borrow::Cow::Owned(format!("{bare}({element})"))
+    } else {
+        std::borrow::Cow::Borrowed(bare)
+    };
+    if !matches_generic_variable_pattern(&pattern_name, compiled) {
         return;
     }
-    if !is_generic_static_name(var_name, compiled) {
-        return;
-    }
-    seen.insert(var_name.to_owned());
-    let bare = var_name.strip_prefix("static::").unwrap_or(var_name);
+    seen.insert(root);
     out.push(IrulesCheckWarning {
         span,
         code: DiagCode::Irule4002,
         message: format!(
-            "'{var_name}' is a generic name that will collide with other iRules. \
-             static:: variables are shared across every iRule on the BIG-IP system — \
-             prefix with the application or rule name (e.g. 'static::<app>_{bare}')."
+            "'{source_name}' is a generic name that can collide with other iRules. \
+             static:: names share storage across rule owners on each executing TMM — \
+             prefix with the application or rule name (e.g. 'static::<app>_{pattern_name}')."
         ),
         replacement: None,
         fixes: Vec::new(),
@@ -1808,14 +2963,13 @@ fn check_generic_static(
 
 #[cfg(test)]
 mod tests {
+
     use tcl_dialect::model::{Family, SurfaceQuery};
 
     use super::*;
 
     fn registry() -> CommandRegistry {
-        let mut r = CommandRegistry::build_default();
-        r.load_irules();
-        r
+        CommandRegistry::build_default().project_for_profile(tcl_dialect::DialectProfile::irules())
     }
 
     fn warnings_for_irules(source: &str) -> Vec<IrulesCheckWarning> {
@@ -1838,14 +2992,14 @@ mod tests {
     #[test]
     fn irule3102_clean_when_normalized_flag_present() {
         let w = warnings_for_irules("set u [HTTP::uri -normalized]");
-        assert!(w.is_empty(), "expected no IRULE3102, got {w:?}");
+        assert_eq!(w.len(), 0, "expected no IRULE3102, got {w:?}");
     }
 
     #[test]
     fn irule3102_setter_form_not_flagged() {
         // `HTTP::path /x` — first arg `/x` is non-flag → setter form → no warning.
         let w = warnings_for_irules("HTTP::path /x");
-        assert!(w.is_empty(), "expected no IRULE3102 on setter, got {w:?}");
+        assert_eq!(w.len(), 0, "expected no IRULE3102 on setter, got {w:?}");
     }
 
     #[test]
@@ -1867,7 +3021,7 @@ mod tests {
         let w = warnings_for_irules(
             "when HTTP_REQUEST {\n    HTTP::respond 200 content \"static body\"\n}\n",
         );
-        assert!(w.is_empty(), "expected no IRULE3102, got {w:?}");
+        assert_eq!(w.len(), 0, "expected no IRULE3102, got {w:?}");
     }
 
     #[test]
@@ -1876,20 +3030,24 @@ mod tests {
         let w = warnings_for_irules(
             "when HTTP_REQUEST {\n    HTTP::respond 200 content [HTTP::uri -normalized]\n}\n",
         );
-        assert!(w.is_empty(), "expected no IRULE3102, got {w:?}");
+        assert_eq!(w.len(), 0, "expected no IRULE3102, got {w:?}");
     }
 
     #[test]
     fn irule3102_non_irules_dialect_returns_empty() {
         let cu = CompilationUnit::build_for("set u [HTTP::uri]", &registry(), false);
-        assert!(find_unnormalised_getter_warnings(&cu, &registry(), None).is_empty());
-        assert!(
+        assert_eq!(
+            find_unnormalised_getter_warnings(&cu, &registry(), None),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
+        );
+        assert_eq!(
             find_unnormalised_getter_warnings(
                 &cu,
                 &registry(),
                 Some(SurfaceQuery::any_release(Family::Tcl))
             )
-            .is_empty()
+            .len(),
+            0
         );
     }
 
@@ -1951,8 +3109,9 @@ mod tests {
             "expected IRULE3102 on HTTP::uri, got {with_uri:?}",
         );
         let with_header = warnings_for_irules("set u [HTTP::header Content-Type]");
-        assert!(
-            with_header.is_empty(),
+        assert_eq!(
+            with_header.len(),
+            0,
             "no IRULE3102 expected on HTTP::header (no -normalized), got {with_header:?}",
         );
     }
@@ -1960,8 +3119,10 @@ mod tests {
     // IRULE5002 / IRULE5004
 
     fn drop_warnings(source: &str) -> Vec<IrulesCheckWarning> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_unguarded_drop_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)))
+        source_flow_warnings(source)
+            .into_iter()
+            .filter(|warning| matches!(warning.code, DiagCode::Irule5002 | DiagCode::Irule5004))
+            .collect()
     }
 
     #[test]
@@ -2004,10 +3165,10 @@ mod tests {
     fn irule5002_only_in_irules_dialect() {
         let cu = CompilationUnit::build_for("when CLIENT_ACCEPTED { drop }", &registry(), false);
         let none_dialect = find_unguarded_drop_warnings(&cu, None);
-        assert!(none_dialect.is_empty(), "got {none_dialect:?}");
+        assert_eq!(none_dialect.len(), 0, "got {none_dialect:?}");
         let tcl_dialect =
             find_unguarded_drop_warnings(&cu, Some(SurfaceQuery::any_release(Family::Tcl)));
-        assert!(tcl_dialect.is_empty(), "got {tcl_dialect:?}");
+        assert_eq!(tcl_dialect.len(), 0, "got {tcl_dialect:?}");
     }
 
     #[test]
@@ -2031,7 +3192,7 @@ mod tests {
     #[test]
     fn no_drop_warnings_for_clean_when_body() {
         let ws = drop_warnings("when CLIENT_ACCEPTED { log local0. \"connection open\" }");
-        assert!(ws.is_empty(), "got {ws:?}");
+        assert_eq!(ws.len(), 0, "got {ws:?}");
     }
 
     fn drop_codes(source: &str) -> Vec<String> {
@@ -2058,9 +3219,10 @@ mod tests {
     fn irule5002_quiet_when_every_branch_guarded() {
         // Both branches guard their drop with `return`, so no surviving path
         // is left unguarded.
-        assert!(
+        assert_eq!(
             drop_codes("when CLIENT_ACCEPTED { if {$x} { drop; return } else { reject; return } }")
-                .is_empty()
+                .len(),
+            0
         );
     }
 
@@ -2214,10 +3376,67 @@ mod tests {
 
     // IRULE1005 / 1006 / 1007 / 1008
 
+    fn source_unit(
+        source: &str,
+    ) -> (
+        CompilationUnit,
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = environment.default_context_registry();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            context.clone(),
+            config,
+        );
+        let cu = CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        (cu, context)
+    }
+
+    fn source_flow_warnings(source: &str) -> Vec<IrulesCheckWarning> {
+        let (cu, context) = source_unit(source);
+        find_conditional_irule_source_flow_advice(
+            &cu,
+            context.commands(),
+            Some(SurfaceQuery::any_release(Family::F5Irules)),
+        )
+        .map_or_else(Vec::new, |advice| {
+            advice
+                .findings
+                .iter()
+                .map(|finding| finding.warning.clone())
+                .collect()
+        })
+    }
+
     fn flow_warnings(source: &str) -> Vec<IrulesCheckWarning> {
-        let reg = registry();
-        let cu = CompilationUnit::build_for(source, &reg, false);
-        find_collect_flow_warnings(&cu, &reg, Some(SurfaceQuery::any_release(Family::F5Irules)))
+        let (cu, context) = source_unit(source);
+        find_conditional_collection_source_pairing_advice(
+            &cu,
+            context.commands(),
+            Some(SurfaceQuery::any_release(Family::F5Irules)),
+        )
+        .map_or_else(Vec::new, |advice| {
+            advice
+                .pairings
+                .iter()
+                .map(|pairing| pairing.warning.clone())
+                .collect()
+        })
     }
 
     #[test]
@@ -2229,6 +3448,53 @@ mod tests {
             ws.iter().any(|w| w.code == DiagCode::Irule1005),
             "expected IRULE1005, got {ws:?}",
         );
+    }
+
+    #[test]
+    fn irule1005_retains_the_original_event_operand_instead_of_a_body_anchor() {
+        // naming.consumer.original-diagnostic-source-actions
+
+        // Source geometry, with no Native event/TMM activation claim.
+        for source in [
+            "set marker 😀\nwhen {HTTP_REQUEST_DATA} {set body value}\n",
+            "when HTTP_REQUEST_DATA priority 123 { }\n",
+        ] {
+            let reg = registry();
+            let cu = CompilationUnit::build_for(source, &reg, false);
+            let diagnostics = find_collect_flow_warnings(
+                &cu,
+                &reg,
+                Some(SurfaceQuery::any_release(Family::F5Irules)),
+            );
+            let diagnostic = diagnostics
+                .iter()
+                .find(|row| row.code == DiagCode::Irule1005)
+                .expect("source event requiring collection");
+            let body = cu.ir_module.irules_event_bodies.values().next().unwrap();
+            let word = body
+                .event_word(&cu.ir_module.source, cu.ir_module.lexer_config, &reg)
+                .expect("genuine complete original event operand");
+            assert_eq!(diagnostic.span, word.span());
+            let written = &source[word.span().as_range()];
+            assert!(matches!(
+                written,
+                "{HTTP_REQUEST_DATA}" | "HTTP_REQUEST_DATA"
+            ));
+            assert!(
+                body.event_word(
+                    &tcl_lexer::SourceImage::document(&format!("#{source}")),
+                    cu.ir_module.lexer_config,
+                    &reg
+                )
+                .is_none()
+            );
+            let mut stale_config = cu.ir_module.lexer_config;
+            stale_config.strict_quoting ^= true;
+            assert!(
+                body.event_word(&cu.ir_module.source, stale_config, &reg)
+                    .is_none()
+            );
+        }
     }
 
     #[test]
@@ -2569,14 +3835,16 @@ mod tests {
         let reg = registry();
         let cu = CompilationUnit::build_for("when CLIENT_ACCEPTED { TCP::collect }", &reg, false);
         let none = find_collect_flow_warnings(&cu, &reg, None);
-        assert!(none.is_empty(), "got {none:?}");
+        assert_eq!(none.len(), 0, "got {none:?}");
     }
 
     // IRULE1201 / 1202
 
     fn http_warnings(source: &str) -> Vec<IrulesCheckWarning> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_http_flow_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)))
+        source_flow_warnings(source)
+            .into_iter()
+            .filter(|warning| matches!(warning.code, DiagCode::Irule1201 | DiagCode::Irule1202))
+            .collect()
     }
 
     #[test]
@@ -2722,20 +3990,22 @@ mod tests {
         // A respond in each arm of an if/else is NOT a double-respond — only
         // one executes per path.  The path-sensitive walk keeps the branch
         // states separate (the linear scan wrongly fired IRULE1202 here).
-        assert!(
+        assert_eq!(
             http_codes(
                 "when HTTP_REQUEST { if {$x} { HTTP::respond 200 content a } \
              else { HTTP::respond 404 content b } }"
             )
-            .is_empty()
+            .len(),
+            0
         );
         // Same for mutually-exclusive switch arms.
-        assert!(
+        assert_eq!(
             http_codes(
                 "when HTTP_REQUEST { switch $x { a { HTTP::respond 200 content a } \
              b { HTTP::respond 404 content b } } }"
             )
-            .is_empty()
+            .len(),
+            0
         );
     }
 
@@ -2766,12 +4036,13 @@ mod tests {
     fn irule1201_quiet_when_respond_and_use_are_exclusive() {
         // respond in one branch, an HTTP command in the *other* — no path
         // both responds and then uses HTTP, so nothing fires.
-        assert!(
+        assert_eq!(
             http_codes(
                 "when HTTP_REQUEST { if {$x} { HTTP::respond 200 content a } \
              else { HTTP::header insert Foo bar } }"
             )
-            .is_empty()
+            .len(),
+            0
         );
     }
 
@@ -3086,7 +4357,7 @@ mod tests {
             false,
         );
         let none = find_hoistable_set_warnings(&cu, None);
-        assert!(none.is_empty(), "got {none:?}");
+        assert_eq!(none.len(), 0, "got {none:?}");
     }
 
     // IRULE4002
@@ -3107,6 +4378,92 @@ mod tests {
             Some(SurfaceQuery::any_release(Family::F5Irules)),
             Some(patterns),
         )
+    }
+
+    #[test]
+    fn generic_static_warning_uses_resolved_root_keys_aliases_and_original_source_locations() {
+        // naming.analysis.resolved-static-variable-patterns
+
+        // Fixed source-analysis controls; no iRule event or physical TMM executes here.
+        for operation in [
+            "set static::debug 1",
+            "set ::static::debug 1",
+            "set ::::static::::debug 1",
+            "upvar #0 ::static::debug shared; set shared 1",
+        ] {
+            let source = format!("when RULE_INIT {{{operation}}}");
+            let warnings = generic_warnings(&source);
+            let selected: Vec<_> = warnings
+                .iter()
+                .filter(|warning| warning.code == DiagCode::Irule4002)
+                .collect();
+            assert_eq!(selected.len(), 1, "{source}: {warnings:?}");
+            let text = &source[selected[0].span.start() as usize..selected[0].span.end() as usize];
+            assert_eq!(
+                text,
+                operation
+                    .rsplit_once("; ")
+                    .map_or(operation, |(_, write)| write)
+            );
+        }
+        let source = "when RULE_INIT {set static::debug 1; set ::static::debug 2}";
+        assert_eq!(
+            generic_warnings(source)
+                .iter()
+                .filter(|warning| warning.code == DiagCode::Irule4002)
+                .count(),
+            1
+        );
+        for source in [
+            "when RULE_INIT {set other::static::debug 1}",
+            "when RULE_INIT {set ::static::inner::debug 1}",
+            "when HTTP_REQUEST {set debug 1}",
+            "when RULE_INIT {if {0} {set ::static::debug 1}}",
+        ] {
+            assert!(
+                generic_warnings(source)
+                    .iter()
+                    .all(|warning| warning.code != DiagCode::Irule4002),
+                "{source}"
+            );
+        }
+        let patterns = vec![r"^debug\(key\)$".to_owned()];
+        assert_eq!(
+            generic_warnings_with("when RULE_INIT {set ::static::debug(key) 1}", &patterns)
+                .iter()
+                .filter(|warning| warning.code == DiagCode::Irule4002)
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn generic_static_warning_declines_foreign_module_source_without_spelling_fallback() {
+        // naming.analysis.resolved-static-variable-patterns
+
+        // A real built source Module loses its actual document correspondence.
+        let source = "when RULE_INIT {set static::debug 1}";
+        let mut unit = CompilationUnit::build_for(source, &registry(), false);
+        assert_eq!(
+            find_generic_static_name_warnings(
+                &unit,
+                Some(SurfaceQuery::any_release(Family::F5Irules)),
+                None
+            )
+            .iter()
+            .filter(|warning| warning.code == DiagCode::Irule4002)
+            .count(),
+            1
+        );
+        unit.ir_module.source = tcl_lexer::SourceImage::document("foreign source");
+        assert!(
+            find_generic_static_name_warnings(
+                &unit,
+                Some(SurfaceQuery::any_release(Family::F5Irules)),
+                None
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -3168,7 +4525,10 @@ mod tests {
             &registry(),
             false,
         );
-        assert!(find_generic_static_name_warnings(&cu, None, None).is_empty());
+        assert_eq!(
+            find_generic_static_name_warnings(&cu, None, None),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
+        );
     }
 
     #[test]
@@ -3275,6 +4635,1103 @@ mod tests {
         assert!(
             ws.iter().any(|w| w.code == DiagCode::Irule4004),
             "expected IRULE4004 when no arm writes svc, got {ws:?}",
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_getter_source_config_tests {
+
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+    use crate::compilation_unit::UnitBuildOptions;
+    use std::sync::Arc;
+
+    fn supplied(
+        config: tcl_lexer::LexerConfig,
+    ) -> (CompilationUnit, Arc<tcl_registry::model::ContextRegistry>) {
+        supplied_source("when HTTP_REQUEST {set u [HTTP::uri]}", config)
+    }
+
+    fn supplied_source(
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+    ) -> (CompilationUnit, Arc<tcl_registry::model::ContextRegistry>) {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = environment.default_context_registry();
+        let input = ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            Arc::clone(&context),
+            config,
+        );
+        let cu = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        (cu, context)
+    }
+
+    #[test]
+    fn getter_source_keeps_function_config_and_selects_nested_parser_purpose() {
+        // naming.source.retained-explorer-consumers
+
+        // Actual source metadata and parser-purpose control, no BIG-IP execution.
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            base_line: 17,
+            ..tcl_lexer::LexerConfig::from_grammar(environment.grammar())
+        };
+        let (cu, context) = supplied(config);
+        let function = cu
+            .functions()
+            .find(|f| f.name.starts_with("::when::"))
+            .expect("event function");
+        let selected =
+            unnormalised_getter_source_config(&cu.ir_module, function, context.commands(), false)
+                .unwrap();
+        assert_eq!(selected, function.source_lexer_config());
+        assert_ne!(
+            selected,
+            tcl_lexer::LexerConfig::for_profile(context.commands().profile())
+        );
+        let local = tcl_lexer::SourceSegmentationPurpose::NestedScript.config(selected);
+        assert_eq!(local, selected.nested());
+        assert_eq!(local.leading_bom, tcl_lexer::LeadingBom::Content);
+        assert_eq!(selected.leading_bom, tcl_lexer::LeadingBom::Skip);
+        let warnings = find_unnormalised_getter_warnings(
+            &cu,
+            context.commands(),
+            Some(environment.unit_profile().surface_query()),
+        );
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].code, DiagCode::Irule3102);
+    }
+
+    #[test]
+    fn getter_source_keeps_original_children_and_ignores_report_values() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let query = Some(environment.unit_profile().surface_query());
+        for body in [
+            r#"set value "prefix[HTTP::uri]""#,
+            "set value $a([HTTP::uri])",
+            "set value 0; incr value [HTTP::uri]",
+            "[HTTP::uri]",
+        ] {
+            let (unit, context) = supplied_source(&format!("when HTTP_REQUEST {{{body}}}"), config);
+            let warnings = find_unnormalised_getter_warnings(&unit, context.commands(), query);
+            assert_eq!(warnings.len(), 1, "{body}");
+            assert!(warnings[0].message.contains("HTTP::uri -normalized"));
+        }
+        for source in [
+            "when HTTP_REQUEST {set value {prefix[HTTP::uri]}; :HTTP::uri}",
+            "proc HTTP::uri {} {return value}; when HTTP_REQUEST {HTTP::uri}",
+        ] {
+            let (unit, context) = supplied_source(source, config);
+            assert!(
+                find_unnormalised_getter_warnings(&unit, context.commands(), query).is_empty(),
+                "{source}"
+            );
+        }
+        let (mut unit, context) = supplied_source("when HTTP_REQUEST {HTTP::uri}", config);
+        assert_eq!(
+            find_unnormalised_getter_warnings(&unit, context.commands(), query).len(),
+            1
+        );
+        let mut changed = false;
+        for function in unit.procedures.values_mut() {
+            for block in function.cfg.blocks.values_mut() {
+                for statement in &mut block.statements {
+                    if let Statement::Call {
+                        command,
+                        canonical_command,
+                        args,
+                        ..
+                    }
+                    | Statement::Barrier {
+                        command,
+                        canonical_command,
+                        args,
+                        ..
+                    } = statement
+                    {
+                        *command = "HTTP::header".to_owned();
+                        *canonical_command = Some("::HTTP::header".to_owned());
+                        *args = vec!["-normalized".to_owned()];
+                        changed = true;
+                    }
+                }
+            }
+        }
+        assert!(changed);
+        let warnings = find_unnormalised_getter_warnings(&unit, context.commands(), query);
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].message.contains("HTTP::uri -normalized"));
+    }
+
+    #[test]
+    fn getter_source_refuses_missing_foreign_and_changed_actual_owners() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let (original, context) = supplied(config);
+        let query = Some(environment.unit_profile().surface_query());
+        assert_eq!(
+            find_unnormalised_getter_warnings(&original, context.commands(), query).len(),
+            1
+        );
+        for change in 0..4 {
+            let mut cu = original.clone();
+            match change {
+                0 => cu.ir_module.source_metadata_input = None,
+                1 => cu.ir_module.retained_source_bindings = None,
+                2 => cu.ir_module.source = tcl_lexer::SourceImage::document("foreign source"),
+                _ => cu.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Skip,
+            }
+            assert!(
+                find_unnormalised_getter_warnings(&cu, context.commands(), query).is_empty(),
+                "Module axis {change}"
+            );
+        }
+        let mut cu = original.clone();
+        for function in cu.procedures.values_mut() {
+            function.source_metadata_input = None;
+        }
+        assert!(find_unnormalised_getter_warnings(&cu, context.commands(), query).is_empty());
+        let foreign = tcl_registry::model::resolve_known_environment("tcl9.1")
+            .unwrap()
+            .default_context_registry();
+        assert!(find_unnormalised_getter_warnings(&original, foreign.commands(), query).is_empty());
+        assert_eq!(
+            find_unnormalised_getter_warnings(&original, context.commands(), query).len(),
+            1
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_collection_source_tests {
+
+    use super::*;
+    use crate::compilation_unit::UnitBuildOptions;
+    use std::sync::Arc;
+
+    #[test]
+    fn conditional_leaf_census_does_not_treat_selected_lambda_roles_as_empty_scripts() {
+        let environment = tcl_registry::model::resolve_known_environment("tcl8.6").unwrap();
+        let context = environment.default_context_registry();
+        let dialect = tcl_registry::InvocationDialect::of_profile(environment.analyser_profile());
+        let arguments = [
+            tcl_registry::InvocationWord::Literal("value"),
+            tcl_registry::InvocationWord::Literal("literal"),
+        ];
+        let selected = context.commands().resolve_structured_invocation(
+            tcl_registry::InvocationWords::structured(
+                tcl_registry::InvocationWord::Literal("set"),
+                &arguments,
+            )
+            .with_dialect(dialect),
+            Some(context.context().authoring_query()),
+        );
+        assert_eq!(
+            leaf_handler_source_completion(&selected.resolved().unwrap()),
+            Some(tcl_registry::registry::InvocationCompletion::FallsThrough)
+        );
+        for argument in [
+            tcl_registry::InvocationWord::Literal("{} {drop}"),
+            tcl_registry::InvocationWord::Dynamic,
+        ] {
+            let arguments = [argument];
+            let selected = context.commands().resolve_structured_invocation(
+                tcl_registry::InvocationWords::structured(
+                    tcl_registry::InvocationWord::Literal("apply"),
+                    &arguments,
+                )
+                .with_dialect(dialect),
+                Some(context.context().authoring_query()),
+            );
+            let schema = selected
+                .resolved()
+                .expect("actual available Tcl8.6 Apply schema");
+            assert!(schema.authored_source_lambda_call().is_some());
+            assert_eq!(schema.authored_source_script_arguments(), Some(vec![0]));
+            assert!(leaf_handler_source_completion(&schema).is_none());
+        }
+    }
+
+    #[test]
+    fn conditional_source_flow_retains_phase_and_normal_continuation_obligations() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let source = "when HTTP_REQUEST {set value \"prefix[drop]\"; HTTP::respond 200; HTTP::header insert X yes}";
+        let (unit, context) = supplied(source, config);
+        let surface = Some(environment.unit_profile().surface_query());
+        let advice = find_conditional_irule_source_flow_advice(&unit, context.commands(), surface)
+            .expect("complete leaf source retains possible actions without executing them");
+        for code in [DiagCode::Irule5002, DiagCode::Irule1201] {
+            assert!(
+                advice
+                    .findings()
+                    .iter()
+                    .any(|finding| finding.code() == code)
+            );
+        }
+        assert!(advice.findings().iter().all(|finding| {
+            finding
+                .message()
+                .contains("runtime reachability and completion unproved")
+                && finding.warning.replacement.is_none()
+                && finding.warning.fixes.is_empty()
+        }));
+        for obligation in [
+            CollectionSourceObligationKind::UnknownTarget,
+            CollectionSourceObligationKind::NormalContinuation,
+        ] {
+            assert!(advice.obligations().any(|current| *current == obligation));
+        }
+        assert!(
+            advice
+                .obligations()
+                .any(|current| matches!(current, CollectionSourceObligationKind::EffectOnly(_)))
+        );
+        assert!(find_unguarded_drop_warnings(&unit, surface).is_empty());
+        assert!(find_http_flow_warnings(&unit, surface).is_empty());
+        for source in [
+            "when HTTP_REQUEST {set value [return]suffix[drop]}",
+            "when HTTP_REQUEST {if {$condition} {drop}}",
+            "when HTTP_REQUEST {for {} {$condition} {drop} {HTTP::respond 200}}",
+            "when HTTP_REQUEST {eval {drop}}",
+            "when HTTP_REQUEST {HTTP::respond 200; return; HTTP::header insert X yes}",
+        ] {
+            let (unit, context) = supplied(source, config);
+            assert!(
+                find_conditional_irule_source_flow_advice(&unit, context.commands(), surface)
+                    .is_none(),
+                "{source}"
+            );
+        }
+        let mut missing = unit.clone();
+        for function in missing.procedures.values_mut() {
+            for block in function.cfg.blocks.values_mut() {
+                for statement in &mut block.statements {
+                    if let Some(tokens) = statement.tokens_mut()
+                        && tokens.synthetic.is_none()
+                    {
+                        tokens.source_binding = None;
+                    }
+                }
+            }
+        }
+        assert!(
+            find_conditional_irule_source_flow_advice(&missing, context.commands(), surface)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn conditional_collection_pairings_require_a_closed_source_census() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let source = "when HTTP_REQUEST {HTTP::release}";
+        let (unit, context) = supplied(source, config);
+        {
+            let advice = find_conditional_collection_source_pairing_advice(
+                &unit,
+                context.commands(),
+                Some(environment.unit_profile().surface_query()),
+            )
+            .expect("the complete original leaf handler has conditional source advice");
+            assert!(
+                advice
+                    .pairings()
+                    .iter()
+                    .any(|pairing| pairing.code() == DiagCode::Irule1008)
+            );
+            assert!(
+                advice
+                    .pairings()
+                    .iter()
+                    .all(|pairing| pairing.message().contains("Conditional source pairing"))
+            );
+            assert!(
+                advice
+                    .obligations()
+                    .any(|obligation| *obligation == CollectionSourceObligationKind::UnknownTarget)
+            );
+            assert!(
+                advice.obligations().any(
+                    |obligation| *obligation == CollectionSourceObligationKind::EventActivation
+                )
+            );
+            assert!(advice.obligations().any(|obligation| *obligation
+                == CollectionSourceObligationKind::SourceSchemaApplicability));
+        }
+        for source in [
+            "when HTTP_REQUEST {HTTP::release}\nwhen $event {HTTP::collect}",
+            "when HTTP_REQUEST priority [unknown_header] {HTTP::release}",
+            "when HTTP_REQUEST priority [eval {when HTTP_RESPONSE {HTTP::collect}}] {HTTP::release}",
+            "when HTTP_REQUEST {eval {HTTP::collect}; HTTP::release}",
+            "when HTTP_REQUEST {expr {[HTTP::collect]}; HTTP::release}",
+            "when HTTP_REQUEST {after 0 {HTTP::collect}; HTTP::release}",
+            "unknown_constructor\nwhen HTTP_REQUEST {HTTP::release}",
+            "when HTTP_REQUEST {HTTP::release}\nwhen HTTP_RESPONSE {",
+            "when HTTP_REQUEST {HTTP::release; return; HTTP::collect}",
+        ] {
+            let (unit, context) = supplied(source, config);
+            assert!(
+                find_conditional_collection_source_pairing_advice(
+                    &unit,
+                    context.commands(),
+                    Some(environment.unit_profile().surface_query()),
+                )
+                .is_none(),
+                "{source}"
+            );
+        }
+        for axis in 0..3 {
+            let mut stale = unit.clone();
+            match axis {
+                0 => stale.ir_module.source = tcl_lexer::SourceImage::document("foreign source"),
+                1 => stale.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Skip,
+                _ => {
+                    for function in stale.procedures.values_mut() {
+                        for block in function.cfg.blocks.values_mut() {
+                            for statement in &mut block.statements {
+                                if let Some(tokens) = statement.tokens_mut() {
+                                    if tokens.synthetic.is_none() {
+                                        tokens.source_binding = None;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            assert!(
+                find_conditional_collection_source_pairing_advice(
+                    &stale,
+                    context.commands(),
+                    Some(environment.unit_profile().surface_query()),
+                )
+                .is_none(),
+                "axis {axis}"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_collection_effects_keep_source_calls_without_certifying_absence() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        // Unknown effects need unknown prior history, which a supplied
+        // document no longer implies: a fresh rule load resolves
+        // `HTTP::release` (user decision 2026-10-21T00:10Z). The explicit
+        // unknown-history entry keeps this contract's premise.
+        let (mut unit, context) =
+            supplied_with_history("when HTTP_REQUEST {HTTP::release}", config, true);
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        let state = collect_flow_state(&query).unwrap().0;
+        assert_eq!(state.release_calls.len(), 1);
+        assert!(
+            state
+                .obligations
+                .contains(&CollectionSourceObligationKind::UnknownTarget)
+        );
+        assert!(
+            find_collect_flow_warnings(
+                &unit,
+                context.commands(),
+                Some(environment.unit_profile().surface_query())
+            )
+            .is_empty()
+        );
+        let mut changed = false;
+        for function in unit.procedures.values_mut() {
+            for block in function.cfg.blocks.values_mut() {
+                for statement in &mut block.statements {
+                    if matches!(
+                        statement.original_argv_inventory_disposition(),
+                        crate::ir::OriginalArgvInventoryDisposition::EffectOnly(
+                            crate::ir::SyntheticMarker::GlobalFrameScript
+                                | crate::ir::SyntheticMarker::CallerFrameOpaque
+                        )
+                    ) {
+                        statement
+                            .tokens_mut()
+                            .unwrap()
+                            .argv_texts
+                            .push("unowned argv".to_owned());
+                        changed = true;
+                        break;
+                    }
+                }
+                if changed {
+                    break;
+                }
+            }
+            if changed {
+                break;
+            }
+        }
+        assert!(changed);
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        assert!(collect_flow_state(&query).is_none());
+    }
+
+    fn supplied(
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+    ) -> (CompilationUnit, Arc<tcl_registry::model::ContextRegistry>) {
+        supplied_with_history(source, config, false)
+    }
+
+    /// `unknown_history` supplies the explicit unknown-history entry; without
+    /// it a supplied document is a fresh rule load (user decision
+    /// 2026-10-21T00:10Z).
+    fn supplied_with_history(
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+        unknown_history: bool,
+    ) -> (CompilationUnit, Arc<tcl_registry::model::ContextRegistry>) {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = environment.default_context_registry();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            Arc::clone(&context),
+            config,
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            unknown_history
+                .then(|| {
+                    crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input)
+                })
+                .as_ref(),
+            &input,
+        );
+        (unit, context)
+    }
+
+    #[test]
+    fn collection_query_uses_actual_function_config_and_separates_standalone() {
+        // naming.source.original-collection-body-owner
+
+        // Actual source/config + extracted syntax purpose, not BIG-IP execution.
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            base_line: 17,
+            ..tcl_lexer::LexerConfig::from_grammar(environment.grammar())
+        };
+        let (unit, context) = supplied("when HTTP_REQUEST {HTTP::collect; HTTP::release}", config);
+        let source = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        assert!(!source.standalone);
+        assert!(source.metadata().is_some());
+        let function = unit
+            .procedures
+            .values()
+            .find(|fu| fu.name.starts_with("::when::"))
+            .unwrap();
+        let actual = source.function_config(function).unwrap();
+        assert_eq!(actual, function.source_lexer_config());
+        let local = tcl_lexer::SourceSegmentationPurpose::NestedScript.config(actual);
+        assert_eq!(local.leading_bom, tcl_lexer::LeadingBom::Content);
+        let (head, _) =
+            parse_command_substitution_with_config("[\u{feff}HTTP::payload]", local).unwrap();
+        assert_eq!(head, "\u{feff}HTTP::payload");
+        let (head, _) = parse_command_substitution_with_config("[HTTP::payload]", local).unwrap();
+        assert_eq!(head, "HTTP::payload");
+        let standalone = CompilationUnit::build_for_with_config(
+            "when HTTP_REQUEST {HTTP::collect; HTTP::release}",
+            context.commands(),
+            false,
+            config,
+        );
+        let separate = IrulesSourceQuery::capture(&standalone, context.commands()).unwrap();
+        assert!(separate.standalone);
+        assert!(separate.metadata().is_none());
+        assert!(collect_flow_state(&separate).is_some());
+    }
+
+    #[test]
+    fn collection_source_metadata_keeps_original_names_and_ignores_report_labels() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let (mut unit, context) = supplied(
+            "when HTTP_REQUEST {HTTP::release; :HTTP::collect; set value {[HTTP::collect]}}",
+            config,
+        );
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        let original = collect_flow_state(&query).unwrap().0;
+        assert!(original.collect_calls.is_empty());
+        assert_eq!(original.release_calls.len(), 1);
+        let mut changed = false;
+        for function in unit.procedures.values_mut() {
+            for block in function.cfg.blocks.values_mut() {
+                for statement in &mut block.statements {
+                    if let Statement::Call {
+                        command,
+                        canonical_command,
+                        tokens: Some(tokens),
+                        ..
+                    }
+                    | Statement::Barrier {
+                        command,
+                        canonical_command,
+                        tokens: Some(tokens),
+                        ..
+                    } = statement
+                        && tokens
+                            .argv_texts
+                            .first()
+                            .is_some_and(|word| word == "HTTP::release")
+                    {
+                        *command = "HTTP::collect".to_owned();
+                        *canonical_command = Some("::HTTP::collect".to_owned());
+                        changed = true;
+                    }
+                }
+            }
+        }
+        assert!(changed);
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        let actual = collect_flow_state(&query).unwrap().0;
+        assert!(actual.collect_calls.is_empty());
+        assert_eq!(actual.release_calls.len(), 1);
+    }
+
+    #[test]
+    fn collection_source_keeps_original_template_index_and_head_substitutions() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        for body in [
+            r#"set value "prefix[HTTP::collect]""#,
+            "set value $a([HTTP::collect])",
+            "[HTTP::collect]",
+        ] {
+            let (unit, context) = supplied(
+                &format!("when HTTP_REQUEST {{{body}; HTTP::release}}"),
+                config,
+            );
+            let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+            let state = collect_flow_state(&query).unwrap().0;
+            assert_eq!(state.collect_calls.len(), 1, "{body}");
+            assert_eq!(state.release_calls.len(), 1, "{body}");
+        }
+        let (unit, context) = supplied(
+            "when HTTP_REQUEST {set value {prefix[HTTP::collect]}; HTTP::release}",
+            config,
+        );
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        let state = collect_flow_state(&query).unwrap().0;
+        assert!(state.collect_calls.is_empty());
+        assert_eq!(state.release_calls.len(), 1);
+    }
+
+    #[test]
+    fn collection_source_retains_admitted_nonregistry_commands() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let (unit, context) = supplied(
+            "proc ordinary {} {return value}; when HTTP_REQUEST {ordinary; HTTP::release}",
+            config,
+        );
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        let state = collect_flow_state(&query).unwrap().0;
+        assert!(state.collect_calls.is_empty());
+        assert_eq!(state.release_calls.len(), 1);
+    }
+
+    #[test]
+    fn assigned_collection_substitution_uses_its_original_child_once() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let (mut unit, context) = supplied(
+            "when HTTP_REQUEST {set value [HTTP::collect]; HTTP::release}",
+            config,
+        );
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        let state = collect_flow_state(&query).unwrap().0;
+        assert_eq!(state.collect_calls.len(), 1);
+        assert_eq!(state.release_calls.len(), 1);
+        let mut removed = false;
+        for function in unit.procedures.values_mut() {
+            for block in function.cfg.blocks.values_mut() {
+                for statement in &mut block.statements {
+                    if statement.tokens().is_some_and(|tokens| {
+                        tokens.argv_texts.first().is_some_and(|head| head == "set")
+                    }) {
+                        match statement {
+                            Statement::AssignValue { tokens, .. }
+                            | Statement::Call { tokens, .. }
+                            | Statement::Barrier { tokens, .. } => {
+                                *tokens = None;
+                                removed = true;
+                            }
+                            _ => panic!("unexpected original set carrier"),
+                        }
+                    }
+                }
+            }
+        }
+        assert!(removed);
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        assert!(collect_flow_state(&query).is_none());
+    }
+
+    #[test]
+    fn collection_withdrawal_is_unavailable_instead_of_an_empty_pairing_inventory() {
+        // naming.source.original-collection-body-owner
+
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let (unit, context) = supplied(
+            "when HTTP_REQUEST {clientside {HTTP::collect}; HTTP::release}",
+            config,
+        );
+        let source = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        assert!(collect_flow_state(&source).is_some());
+        for axis in 0..6 {
+            let mut changed = unit.clone();
+            match axis {
+                0 => changed.source.push_str("foreign"),
+                1 => changed.ir_module.source_metadata_input = None,
+                2 => changed.ir_module.retained_source_bindings = None,
+                3 => changed.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Skip,
+                4 => changed.source_class_facts = None,
+                _ => {
+                    for function in changed.procedures.values_mut() {
+                        function.source_metadata_input = None;
+                    }
+                }
+            }
+            let query = IrulesSourceQuery::capture(&changed, context.commands());
+            assert!(
+                query
+                    .as_ref()
+                    .is_none_or(|query| collect_flow_state(query).is_none()),
+                "axis {axis}"
+            );
+            assert!(
+                find_collect_flow_warnings(
+                    &changed,
+                    context.commands(),
+                    Some(environment.unit_profile().surface_query())
+                )
+                .is_empty(),
+                "axis {axis}"
+            );
+        }
+        let mut wrong = unit.clone();
+        for function in wrong.procedures.values_mut() {
+            for block in function.cfg.blocks.values_mut() {
+                for statement in &mut block.statements {
+                    if let Some(tokens) = statement.tokens_mut()
+                        && tokens
+                            .argv_texts
+                            .first()
+                            .is_some_and(|head| head == "clientside")
+                    {
+                        tokens.argv_texts[1].push_str("foreign");
+                    }
+                }
+            }
+        }
+        let source = IrulesSourceQuery::capture(&wrong, context.commands()).unwrap();
+        assert!(collect_flow_state(&source).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_event_owner_tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
+    use super::*;
+    use crate::compilation_unit::UnitBuildOptions;
+    use std::sync::Arc;
+
+    fn supplied(
+        text: &str,
+        custom_definer: bool,
+    ) -> (CompilationUnit, Arc<tcl_registry::model::ContextRegistry>) {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = if custom_definer {
+            let mut store = CommandRegistry::build_default()
+                .project_for_profile(environment.analyser_profile());
+            let selected = store.get("when").unwrap().clone();
+            store.insert(tcl_registry::CommandSpec {
+                name: "on",
+                ..selected
+            });
+            Arc::new(
+                environment
+                    .default_context_registry()
+                    .with_command_store(Arc::new(store)),
+            )
+        } else {
+            environment.default_context_registry()
+        };
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            base_line: 23,
+            ..tcl_lexer::LexerConfig::from_grammar(environment.grammar())
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            Arc::clone(&context),
+            config,
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            text,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        (unit, context)
+    }
+
+    fn events(source: &IrulesSourceQuery<'_>) -> Option<Vec<String>> {
+        let mut names = Vec::new();
+        for function in source.unit.functions() {
+            if let Some(event) = source.event(function)? {
+                names.push(event.body.event().to_owned());
+            }
+        }
+        names.sort();
+        Some(names)
+    }
+
+    fn event_warnings(
+        unit: &CompilationUnit,
+        registry: &CommandRegistry,
+    ) -> Vec<IrulesCheckWarning> {
+        let surface = Some(SurfaceQuery::any_release(Family::F5Irules));
+        let mut warnings = Vec::new();
+        if let Some(advice) =
+            find_conditional_collection_source_pairing_advice(unit, registry, surface)
+        {
+            if let Some(flow) = advice.conditional_source_flow() {
+                warnings.extend(flow.findings.iter().map(|finding| finding.warning.clone()));
+            }
+            warnings.extend(
+                advice
+                    .pairings
+                    .iter()
+                    .map(|pairing| pairing.warning.clone()),
+            );
+        }
+        warnings.extend(find_hoistable_set_warnings(unit, surface));
+        warnings.extend(find_generic_static_name_warnings(unit, surface, None));
+        warnings
+    }
+
+    #[test]
+    fn source_flow_requires_actual_selected_commands_and_original_children() {
+        let surface = Some(SurfaceQuery::any_release(Family::F5Irules));
+        for text in [
+            "proc drop args {}; when HTTP_REQUEST {drop}",
+            "proc HTTP::respond args {}; when HTTP_REQUEST {HTTP::respond 200; HTTP::header insert X yes}",
+            "when HTTP_REQUEST {set value {prefix[drop]}; set response {[HTTP::respond 200]}; HTTP::header insert X yes}",
+        ] {
+            let (unit, _) = supplied(text, false);
+            assert!(
+                find_unguarded_drop_warnings(&unit, surface).is_empty(),
+                "{text}"
+            );
+            assert!(find_http_flow_warnings(&unit, surface).is_empty(), "{text}");
+        }
+        for text in [
+            "when HTTP_REQUEST {::drop}",
+            r#"when HTTP_REQUEST {set value "prefix[drop]"}"#,
+            "when HTTP_REQUEST {drop; event disable $target}",
+            "when HTTP_REQUEST {drop; event disable all extra}",
+        ] {
+            let (unit, _) = supplied(text, false);
+            assert!(
+                find_unguarded_drop_warnings(&unit, surface)
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::Irule5002),
+                "{text}"
+            );
+        }
+        for text in [
+            r#"when HTTP_REQUEST {set value "prefix[HTTP::respond 200]"; HTTP::header insert X yes}"#,
+            "when HTTP_REQUEST {set value $a([HTTP::respond 200]); HTTP::header insert X yes}",
+        ] {
+            let (unit, _) = supplied(text, false);
+            assert!(
+                find_http_flow_warnings(&unit, surface)
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::Irule1201),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn source_flow_evaluates_original_header_and_return_arguments_before_dispatch() {
+        let surface = Some(SurfaceQuery::any_release(Family::F5Irules));
+        for tail in [
+            "return [HTTP::header value X]",
+            "if [HTTP::header exists X] {}",
+            "while [HTTP::header exists X] {break}",
+            "foreach name [HTTP::header names] {}",
+            "switch [HTTP::header value X] {yes {}}",
+        ] {
+            let text = format!("when HTTP_REQUEST {{HTTP::respond 200; {tail}}}");
+            let (unit, _) = supplied(&text, false);
+            let warnings = find_http_flow_warnings(&unit, surface);
+            assert_eq!(
+                warnings
+                    .iter()
+                    .filter(|warning| warning.code == DiagCode::Irule1201)
+                    .count(),
+                1,
+                "{text}: {warnings:?}"
+            );
+        }
+
+        let (unit, _) = supplied(
+            "when HTTP_REQUEST {catch {return [HTTP::respond 200]}; HTTP::header value X}",
+            false,
+        );
+        assert!(
+            find_http_flow_warnings(&unit, surface)
+                .iter()
+                .any(|warning| warning.code == DiagCode::Irule1201)
+        );
+
+        for tail in [
+            "return {[HTTP::header value X]}",
+            "if 0 {HTTP::header value X}",
+            "return; HTTP::header value X",
+        ] {
+            let text = format!("when HTTP_REQUEST {{HTTP::respond 200; {tail}}}");
+            let (unit, _) = supplied(&text, false);
+            assert!(find_http_flow_warnings(&unit, surface).is_empty(), "{text}");
+        }
+    }
+
+    #[test]
+    fn ordinary_procedure_with_an_event_shaped_name_has_no_event_semantics() {
+        // naming.variable.registry-event-frame-identity
+
+        // Source classification only; this does not execute an iRule or Tcl proc.
+        let text = "namespace eval ::when {}; proc ::when::HTTP_REQUEST {} {\n\
+            HTTP::respond 200; HTTP::header insert X-Test yes; drop;\n\
+            set static::debug 1; set svc foo; HTTP::payload\n}";
+        let (unit, context) = supplied(text, false);
+        assert!(fixture_id_if_present(&unit.procedures, "::when::HTTP_REQUEST").is_some());
+        let source = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        assert_eq!(events(&source), Some(Vec::new()));
+        assert_eq!(event_mutation_counts(&source), Some(HashMap::new()));
+        assert!(collect_flow_state(&source).unwrap().1.is_empty());
+        assert!(event_warnings(&unit, context.commands()).is_empty());
+        assert!(event_anchor_span(&unit, context.commands(), "HTTP_REQUEST").is_none());
+    }
+
+    #[test]
+    fn selected_custom_event_definer_and_report_names_use_the_original_descriptor() {
+        // naming.variable.registry-event-frame-identity
+
+        // Event-table policy and source descriptor only, without entered event/TMM facts.
+        let text = "on ASM_RESPONSE_VIOLATION {HTTP::respond 200; HTTP::header insert X-Test yes}\n\
+            on HTTP_REQUEST {}\nwhen HTTP_REQUEST {}";
+        let (unit, context) = supplied(text, true);
+        let source = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        let expected = vec![
+            "ASM_RESPONSE_VIOLATION".to_owned(),
+            "HTTP_REQUEST".to_owned(),
+            "HTTP_REQUEST".to_owned(),
+        ];
+        assert_eq!(events(&source), Some(expected.clone()));
+        let baseline = event_warnings(&unit, context.commands());
+        assert!(
+            baseline
+                .iter()
+                .any(|warning| warning.code == DiagCode::Irule1201)
+        );
+        let anchor = event_anchor_span(&unit, context.commands(), "HTTP_REQUEST").unwrap();
+        assert_eq!(
+            &text[anchor.start() as usize..anchor.end() as usize],
+            "HTTP_REQUEST"
+        );
+        let mut labelled = unit.clone();
+        for (index, function) in labelled.procedures.values_mut().enumerate() {
+            function.name = format!("::ordinary::report{index}");
+        }
+        let source = IrulesSourceQuery::capture(&labelled, context.commands()).unwrap();
+        assert_eq!(events(&source), Some(expected));
+        assert_eq!(event_warnings(&labelled, context.commands()), baseline);
+        assert_eq!(
+            event_anchor_span(&labelled, context.commands(), "HTTP_REQUEST"),
+            Some(anchor)
+        );
+        for text in [
+            "rename on moved; moved HTTP_REQUEST {}",
+            "interp alias {} fire {} on; fire HTTP_REQUEST {}",
+        ] {
+            let (selected, context) = supplied(text, true);
+            let source = IrulesSourceQuery::capture(&selected, context.commands()).unwrap();
+            assert_eq!(events(&source), Some(vec!["HTTP_REQUEST".to_owned()]));
+        }
+        let function = source.unit.procedures.values().next().unwrap().clone();
+        assert!(
+            source.event(&function).is_none(),
+            "a copied FU is not the actual CU-owned function"
+        );
+    }
+
+    #[test]
+    fn event_projection_withdraws_changed_or_missing_complete_owners() {
+        // naming.variable.registry-event-frame-identity
+
+        let (unit, context) = supplied(
+            "when HTTP_REQUEST {drop; HTTP::payload; set static::debug 1}",
+            false,
+        );
+        let original = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        assert_eq!(events(&original), Some(vec!["HTTP_REQUEST".to_owned()]));
+        assert!(!event_warnings(&unit, context.commands()).is_empty());
+        for axis in 0..10 {
+            let mut changed = unit.clone();
+            match axis {
+                0 => changed.source.push_str("foreign"),
+                1 => changed.ir_module.source_metadata_input = None,
+                2 => changed.ir_module.retained_source_bindings = None,
+                3 => changed.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Content,
+                4 => {
+                    changed.ir_module.lexer_config.strict_quoting =
+                        !changed.ir_module.lexer_config.strict_quoting
+                }
+                5 => changed
+                    .procedures
+                    .values_mut()
+                    .for_each(|function| function.source_metadata_input = None),
+                6 => changed.procedures.values_mut().for_each(|function| {
+                    function.source_config.strict_quoting = !function.source_config.strict_quoting
+                }),
+                7 => changed
+                    .procedures
+                    .values_mut()
+                    .for_each(|function| function.irules_event_body = None),
+                8 => changed.ir_module.irules_event_bodies.clear(),
+                _ => changed
+                    .ir_module
+                    .procedures
+                    .values_mut()
+                    .for_each(|procedure| procedure.body.statements.clear()),
+            }
+            let source = IrulesSourceQuery::capture(&changed, context.commands());
+            assert!(
+                source
+                    .as_ref()
+                    .is_none_or(|source| events(source).is_none()),
+                "axis {axis}"
+            );
+            assert!(
+                source
+                    .as_ref()
+                    .is_none_or(|source| collect_flow_state(source).is_none()),
+                "pairing axis {axis}"
+            );
+            assert!(
+                source
+                    .as_ref()
+                    .is_none_or(|source| event_mutation_counts(source).is_none()),
+                "mutations axis {axis}"
+            );
+            assert!(
+                event_warnings(&changed, context.commands()).is_empty(),
+                "warnings axis {axis}"
+            );
+            assert!(
+                event_anchor_span(&changed, context.commands(), "HTTP_REQUEST").is_none(),
+                "anchor axis {axis}"
+            );
+        }
+        let foreign = tcl_registry::model::resolve_known_environment("tcl9.1")
+            .unwrap()
+            .default_context_registry();
+        assert!(IrulesSourceQuery::capture(&unit, foreign.commands()).is_none());
+        let (other, _) = supplied("when CLIENT_ACCEPTED {drop}", false);
+        let mut donated = unit.clone();
+        donated
+            .procedures
+            .values_mut()
+            .next()
+            .unwrap()
+            .irules_event_body = other
+            .procedures
+            .values()
+            .next()
+            .unwrap()
+            .irules_event_body
+            .clone();
+        let source = IrulesSourceQuery::capture(&donated, context.commands()).unwrap();
+        assert!(events(&source).is_none());
+        assert!(event_warnings(&donated, context.commands()).is_empty());
+    }
+
+    #[test]
+    fn explicitly_standalone_source_retains_events_without_report_name_assistance() {
+        // naming.variable.registry-event-frame-identity
+
+        let (original, context) = supplied("when HTTP_REQUEST {drop}", false);
+        let mut unit = CompilationUnit::build_for_with_config(
+            &original.source,
+            context.commands(),
+            false,
+            original.ir_module.lexer_config,
+        );
+        for function in unit.procedures.values_mut() {
+            function.name = "::plain::report".to_owned();
+        }
+        let source = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        assert!(source.standalone);
+        assert_eq!(events(&source), Some(vec!["HTTP_REQUEST".to_owned()]));
+        assert!(
+            find_unguarded_drop_warnings(&unit, Some(SurfaceQuery::any_release(Family::F5Irules)))
+                .iter()
+                .any(|warning| warning.code == DiagCode::Irule5002)
+        );
+        unit.procedures
+            .values_mut()
+            .next()
+            .unwrap()
+            .irules_event_body = None;
+        let source = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        assert!(events(&source).is_none());
+        assert!(
+            find_unguarded_drop_warnings(&unit, Some(SurfaceQuery::any_release(Family::F5Irules)))
+                .is_empty()
         );
     }
 }

@@ -496,12 +496,17 @@ const BIBTEX_PARSE_OPTIONS: &[OptionSpec] = &[
 /// hence always deferred. The SAX-style callbacks run inline for an in-memory
 /// text argument, but `-channel` makes the parser install a `fileevent` and
 /// return a token before any of them run.
-fn bibtex_parse_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+fn bibtex_parse_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
     let mut channel_mode = false;
     let mut callbacks = Vec::new();
     let mut index = 0usize;
-    while index + 1 < args.len() {
-        let option = args[index];
+    while index + 1 < count {
+        let Some(option) = args.literal_at(index) else {
+            return Vec::new();
+        };
         if option == "-channel" {
             channel_mode = true;
         } else if matches!(

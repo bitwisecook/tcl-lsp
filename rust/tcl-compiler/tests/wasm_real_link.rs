@@ -128,7 +128,46 @@ fn write_linked(runtime: &Path, path: &Path, module: &[u8], what: &str) {
 /// `fd_write` iovec/result at `0x190008`/`0x190010` — all above the emitted
 /// module's data at `0x100000` and below the runtime's data at `0x200000`.
 /// `query` must be WAT-literal-safe (no `"` or `\`).
-fn bootstrap_wat(query: &str) -> String {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TopAbi {
+    Void,
+    Completion,
+}
+
+fn top_abi(output: &tcl_compiler::codegen::wasm::WasmCompilation) -> TopAbi {
+    let expected = match &output.plan {
+        WasmCodegenPlan::General { .. } => TopAbi::Void,
+        WasmCodegenPlan::GenericInvoke { .. } => TopAbi::Completion,
+        other => panic!("unexpected hosted entry plan: {other:?}"),
+    };
+    let tops = output
+        .module
+        .functions
+        .iter()
+        .filter(|function| function.name == "::top")
+        .collect::<Vec<_>>();
+    assert_eq!(tops.len(), 1, "hosted plan must define exactly one ::top");
+    let top = tops[0];
+    assert!(top.exported, "hosted ::top must be exported");
+    assert!(top.params.is_empty(), "::top takes no arguments");
+    match expected {
+        TopAbi::Void => assert!(top.results.is_empty(), "general ::top must return void"),
+        TopAbi::Completion => assert!(
+            top.results.len() == 3 && top.results.iter().all(|result| result.wat_name() == "i32"),
+            "semantic ::top must return code, result and options"
+        ),
+    }
+    expected
+}
+
+fn bootstrap_wat(query: &str, top_abi: TopAbi) -> String {
+    let (top_results, run_top) = match top_abi {
+        TopAbi::Void => ("", "    (call $top)"),
+        TopAbi::Completion => (
+            " (result i32 i32 i32)",
+            "    (call $top)\n    (local.set $top_options)\n    (local.set $top_result)\n    (local.set $top_code)\n    (call $rel (local.get $top_result))\n    (call $rel (local.get $top_options))\n    (if (i32.ne (local.get $top_code) (i32.const 0)) (then unreachable))",
+        ),
+    };
     let create = CodegenAbiImportId::RuntimeCreateInterp.descriptor().name;
     let set_current = CodegenAbiImportId::RuntimeSetCurrentInterp
         .descriptor()
@@ -144,14 +183,15 @@ fn bootstrap_wat(query: &str) -> String {
   (import "tcl" "tcl_eval" (func $eval (param i32) (result i32)))
   (import "tcl" "{object_release}" (func $rel (param i32)))
   (import "tcl" "Tcl_GetStringFromObj" (func $getstr (param i32 i32) (result i32)))
-  (import "user" "::top" (func $top))
+  (import "user" "::top" (func $top{top_results}))
   (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
   (export "memory" (memory 0))
   (func (export "_start")
     (local $interp i32) (local $result i32) (local $strptr i32) (local $len i32)
+    (local $top_code i32) (local $top_result i32) (local $top_options i32)
     (local.set $interp (call $create))
     (call $setcur (local.get $interp))
-    (call $top)                                                                       ;; run the emitted program
+{run_top}
     (local.set $result (call $eval (call $box (i32.const 0x180000) (i32.const {qlen})))) ;; eval the query
     (local.set $strptr (call $getstr (local.get $result) (i32.const 0x190000)))
     (local.set $len (i32.load (i32.const 0x190000)))
@@ -436,10 +476,21 @@ fn run_link_bytes(
     program: &str,
     query: &str,
 ) -> String {
+    run_link_bytes_with_top_abi(runtime, tag, user_bytes, program, query, TopAbi::Void)
+}
+
+fn run_link_bytes_with_top_abi(
+    runtime: &Path,
+    tag: &str,
+    user_bytes: &[u8],
+    program: &str,
+    query: &str,
+    top_abi: TopAbi,
+) -> String {
     let user = scratch(&format!("tcl_real_link_user_{tag}.wasm"));
     let boot = scratch(&format!("tcl_real_link_boot_{tag}.wat"));
     write_linked(runtime, &user, user_bytes, program);
-    std::fs::write(&boot, bootstrap_wat(query)).expect("write bootstrap");
+    std::fs::write(&boot, bootstrap_wat(query, top_abi)).expect("write bootstrap");
 
     let out = Command::new("wasmtime")
         .arg("run")
@@ -501,6 +552,7 @@ fn run_real_native_i64_add(runtime: &Path, program: &str) -> String {
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
     let mut output = compile_wasm(&unit, &registry, native_i64_add_options());
+    report_actual_native_admission(program, &unit, &output);
     assert!(
         matches!(output.plan, WasmCodegenPlan::NativeI64Add { .. }),
         "native proof did not select: {:?}",
@@ -644,9 +696,12 @@ fn emitted_modules_run_against_the_real_runtime() {
     };
 
     // (program run by `::top`, the query the bootstrap then evaluates, expected).
+    // The single literal command uses the completion-returning generic plan.
+    assert_eq!(
+        run_real_link_literal(&runtime, "mixed0", "set x 42\n", "set x"),
+        "42"
+    );
     let cases = [
-        // A bare variable set, read back.
-        ("set x 42\n", "set x", "42"),
         // A proc defined and called: frame push + parameter binding + `return` +
         // string interpolation + command substitution — all pure, so it runs on
         // the wasm build (no `expr`/numeric tower, no host capabilities).
@@ -663,11 +718,27 @@ fn emitted_modules_run_against_the_real_runtime() {
     ];
     for (index, (program, query, expected)) in cases.into_iter().enumerate() {
         assert_eq!(
-            run_real_link(&runtime, &format!("mixed{index}"), program, query),
+            run_real_link(&runtime, &format!("mixed{}", index + 1), program, query),
             expected,
             "program {program:?}, query {query:?}"
         );
     }
+}
+
+/// Run one literal command through the completion-returning generic plan,
+/// then query the same interpreter through the matching hosted entry ABI.
+fn run_real_link_literal(runtime: &Path, tag: &str, program: &str, query: &str) -> String {
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
+    let mut output = compile_wasm(&unit, &registry, WasmCompileOptions::runtime_linked());
+    assert!(
+        matches!(output.plan, WasmCodegenPlan::GenericInvoke { .. }),
+        "literal command must select the whole-function generic argv: {:?}",
+        output.plan
+    );
+    let abi = top_abi(&output);
+    assert_eq!(abi, TopAbi::Completion);
+    run_link_bytes_with_top_abi(runtime, tag, &output.to_bytes(), program, query, abi)
 }
 
 /// A module states the ABI and the intrinsic table it was emitted against in
@@ -687,18 +758,19 @@ fn a_module_with_a_foreign_intrinsic_table_is_refused() {
         let registry = CommandRegistry::build_default();
         let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
         let mut output = compile_wasm(&unit, &registry, WasmCompileOptions::runtime_linked());
+        let abi = top_abi(&output);
         edit(
             output
                 .manifest
                 .as_mut()
                 .expect("the emitter states a manifest"),
         );
-        output.to_bytes()
+        (output.to_bytes(), abi)
     };
 
     // The runtime's own statement is the table this checkout's compiler keyed
     // against: the honest module agrees with it and links.
-    let honest = compile(|_| {});
+    let (honest, honest_abi) = compile(|_| {});
     assert_eq!(check_manifest(&runtime, &honest), Ok(()));
     let identity = common::wasm_link::runtime_identity(&runtime);
     assert_eq!(
@@ -706,12 +778,20 @@ fn a_module_with_a_foreign_intrinsic_table_is_refused() {
         tcl_registry::intrinsic_table_hash()
     );
     assert_eq!(
-        run_link_bytes(&runtime, "manifest_control", &honest, program, "set x"),
+        run_link_bytes_with_top_abi(
+            &runtime,
+            "manifest_control",
+            &honest,
+            program,
+            "set x",
+            honest_abi,
+        ),
         "42"
     );
 
     // A module keyed against another intrinsic table is refused, naming both.
-    let foreign = compile(|manifest| manifest.intrinsic_table_hash[0] ^= 1);
+    let (foreign, foreign_abi) = compile(|manifest| manifest.intrinsic_table_hash[0] ^= 1);
+    assert_eq!(foreign_abi, honest_abi);
     match check_manifest(&runtime, &foreign) {
         Err(LinkRefusal::Disagrees {
             field: ManifestField::IntrinsicTableHash,
@@ -725,7 +805,8 @@ fn a_module_with_a_foreign_intrinsic_table_is_refused() {
     }
 
     // So is one emitted for another ABI, and one that states nothing.
-    let other_abi = compile(|manifest| manifest.abi_version ^= 1);
+    let (other_abi, other_top_abi) = compile(|manifest| manifest.abi_version ^= 1);
+    assert_eq!(other_top_abi, honest_abi);
     assert!(matches!(
         check_manifest(&runtime, &other_abi),
         Err(LinkRefusal::Disagrees {
@@ -1135,6 +1216,57 @@ fn native_dispatch_bootstrap_wat(query: &str, minimum: i32) -> String {
     )
 }
 
+/// Observational admission report before the unchanged compiled-path assertions.
+fn report_actual_native_admission(
+    program: &str,
+    unit: &CompilationUnit,
+    output: &tcl_compiler::codegen::wasm::WasmCompilation,
+) {
+    use tcl_compiler::native_compilation_admission::{
+        NativeCompilationAdmissionScope, script_admission_plan,
+    };
+    eprintln!(
+        "CCG_WASM_SUMMARY program={program:?} ir_procedures={} unit_procedures={} top_executable={} native_functions={} native_enabled={} native_entry={} compiled_variable_provider={:?} compilation={:?} native_body_owners={} retained_source={} source_metadata={}",
+        unit.ir_module.procedures.len(),
+        unit.procedures.len(),
+        unit.top_level
+            .semantic_facts
+            .executable()
+            .function()
+            .is_some(),
+        output.native.functions.len(),
+        output.native.enabled,
+        unit.ir_module.source_entry.native_entry.is_some(),
+        unit.ir_module.source_entry.compiled_variable_provider,
+        unit.ir_module.source_entry.native_compilation,
+        unit.ir_module.original_native_declaration_body_units.len(),
+        unit.ir_module.retained_source_bindings.is_some(),
+        unit.ir_module.source_metadata_input.is_some(),
+    );
+    eprintln!("CCG_WASM_PLAN {:?}", output.plan);
+    eprintln!(
+        "CCG_WASM_TOP_ADMISSION {:?}",
+        script_admission_plan(
+            &unit.ir_module.top_level,
+            NativeCompilationAdmissionScope::Script
+        )
+    );
+    for (id, procedure) in &unit.ir_module.procedures {
+        eprintln!(
+            "CCG_WASM_PROCEDURE id={id:?} name={:?} declaration={:?} body_admission={:?}",
+            procedure.qualified_name,
+            procedure.declaration_site,
+            script_admission_plan(
+                &procedure.body,
+                NativeCompilationAdmissionScope::ProcedureBody
+            ),
+        );
+    }
+    for (id, report) in &output.native.functions {
+        eprintln!("CCG_WASM_NATIVE id={id:?} report={report:?}");
+    }
+}
+
 /// Compile under the native tier and prove, before anything runs, that the
 /// module really binds `entries` compiled bodies: it imports the runtime's
 /// shared table, declares exactly that many functions for `ref.func`, and
@@ -1147,6 +1279,7 @@ fn compile_native_bound(program: &str, entries: usize) -> Vec<u8> {
         &registry,
         WasmCompileOptions::runtime_linked().native_tier(),
     );
+    report_actual_native_admission(program, &unit, &output);
     assert!(
         output.module.import_table,
         "{program:?} must import the runtime's shared function table"
@@ -1161,7 +1294,7 @@ fn compile_native_bound(program: &str, entries: usize) -> Vec<u8> {
         1,
         "{program:?} must keep exactly one table-base global"
     );
-    let define = CodegenAbiImportId::ProcDefineNative.descriptor().name;
+    let define = CodegenAbiImportId::ProcDefineOriginalArgv.descriptor().name;
     let index = output
         .module
         .imports
@@ -1222,7 +1355,7 @@ fn run_real_native_proc(
 /// function table, and answers what tclsh answers.
 ///
 /// The `::top` prologue grows the runtime's table, keeps the base in its own
-/// global and writes one `ref.func` per bound body; `tcl_codegen_proc_define_native`
+/// global and writes one `ref.func` per bound body; `tcl_codegen_proc_define_original_argv`
 /// hands each index to the definition. Everything after that is the runtime's
 /// (`run_proc` -> `run_native_body` -> `call_indirect`), and the counter in the
 /// bootstrap is what proves the compiled body — not the source body sitting
@@ -1513,4 +1646,237 @@ fn a_compiled_script_calls_an_extension_registered_command() {
             "program {program:?}"
         );
     }
+}
+
+#[test]
+fn root_colon_publication_runs_its_own_compiled_table_entry() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let source = "proc :audit {a b} {return [expr {$a + $b}]}\n\
+                  proc ordinary {a b} {return [expr {$a - $b}]}\n\
+                  set colon_result [:audit 40 2]\n\
+                  set ordinary_result [ordinary 10 3]\n";
+    // compile_native_bound requires two actual table entries and a call to the
+    // additive definition import. The bootstrap requires two runtime native
+    // procedure dispatches before evaluating this query. Different body results
+    // make binding the colon declaration to the wrong table slot observable.
+    assert_eq!(
+        run_real_native_proc(
+            &runtime,
+            "original_argv_colon_table",
+            source,
+            2,
+            "list $colon_result $ordinary_result [info commands audit] [info args :audit]",
+            2,
+        ),
+        "42 7 {} {a b}",
+    );
+}
+
+#[test]
+fn original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint() {
+    use tcl_runtime_api::ManifestField;
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    // This is the source-derived fingerprint of the inspected pre-additive
+    // descriptor/layout table, retained with its source hash in abi-layout.json.
+    // It is not a claim of executing an old Runtime binary or old module.
+    const PRIOR_TABLE_FINGERPRINT: u32 = 0x034b_ab19;
+    assert_ne!(
+        tcl_runtime_api::codegen_abi::CODEGEN_ABI_VERSION,
+        PRIOR_TABLE_FINGERPRINT,
+    );
+    let source = "proc :audit {} {return ORIGINAL}\nset answer [:audit]\n";
+    let honest = compile_native_bound(source, 1);
+    assert_eq!(check_manifest(&runtime, &honest), Ok(()));
+    // A genuine newly compiled module with a foreign prior-table manifest is
+    // passed to the actual pre-link identity comparator. Only that manifest
+    // field changes; no fake Runtime identity or widened gate is supplied.
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+    let mut foreign = compile_wasm(
+        &unit,
+        &registry,
+        WasmCompileOptions::runtime_linked().native_tier(),
+    );
+    foreign
+        .manifest
+        .as_mut()
+        .expect("actual emitter manifest")
+        .abi_version = PRIOR_TABLE_FINGERPRINT;
+    assert!(matches!(
+        check_manifest(&runtime, &foreign.to_bytes()),
+        Err(LinkRefusal::Disagrees {
+            field: ManifestField::AbiVersion,
+            ..
+        }),
+    ));
+    // Actual linking and call_indirect execution also validate the new four-i32
+    // import signature; descriptor arithmetic alone cannot establish it.
+    assert_eq!(
+        run_real_native_proc(
+            &runtime,
+            "original_argv_current_manifest",
+            source,
+            1,
+            "list $answer [info commands audit]",
+            1,
+        ),
+        "ORIGINAL {}",
+    );
+}
+
+#[test]
+fn general_original_definition_materialises_its_body_once() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let source = "set reads 0\n\
+                  proc body_value {} {incr ::reads; return {return MATERIALISED}}\n\
+                  proc p {} [body_value]\n\
+                  set answer [p]\n";
+    assert_eq!(
+        run_real_link_argv(
+            &runtime,
+            "original_argv_materialised_body",
+            source,
+            "list $answer $reads [string equal [info body p] {return MATERIALISED}]",
+        ),
+        "MATERIALISED 1 1",
+    );
+}
+
+#[test]
+fn general_original_definition_keeps_braced_body_text_inert() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let source = "set reads 0\n\
+                  proc body_value {} {incr ::reads; return UNEXPECTED}\n\
+                  proc p {} {return {[body_value]}}\n\
+                  set answer [p]\n";
+    assert_eq!(
+        run_real_link_argv(
+            &runtime,
+            "original_argv_inert_body",
+            source,
+            "list [string equal $answer {[body_value]}] $reads [string equal [info body p] {return {[body_value]}}]",
+        ),
+        "1 0 1",
+    );
+}
+
+#[test]
+fn general_original_definition_evaluates_its_name_once() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let source = "set calls 0\nproc next_name {} {incr ::calls; return :audit}\n\
+                  proc [next_name] {} {return COUNTED}\nset answer [:audit]\n";
+    assert_eq!(
+        run_real_link_argv(
+            &runtime,
+            "original_argv_counted_name",
+            source,
+            "list $answer $calls [info commands audit]",
+        ),
+        "COUNTED 1 {}",
+    );
+}
+
+#[test]
+fn general_original_definition_preserves_unknown_name_error() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let source = "proc $unknown_name {} {return NEVER}\nset after SHOULD_NOT_RUN\n";
+    assert_eq!(
+        run_real_link_argv(
+            &runtime,
+            "original_argv_unknown_name",
+            source,
+            "list [info exists after] [info exists unknown_name] [info commands :audit]",
+        ),
+        "0 0 {}",
+    );
+}
+
+#[test]
+fn general_original_definition_resolves_a_replaced_definer() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let source = "rename proc stock_proc\nstock_proc proc args {return SHADOW}\n\
+                  set answer [proc :audit {} {return ORIGINAL}]\n";
+    assert_eq!(
+        run_real_link_argv(
+            &runtime,
+            "original_argv_replaced_definer",
+            source,
+            "list $answer [info commands :audit]",
+        ),
+        "SHADOW {}",
+    );
+}
+#[test]
+fn native_original_definition_preserves_a_replaced_definer() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let source = "rename proc stock_proc\nstock_proc proc args {return SHADOW}\n\
+                  set answer [proc :audit {} {return ORIGINAL}]\n";
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+    let mut emitted = compile_wasm(
+        &unit,
+        &registry,
+        WasmCompileOptions::runtime_linked().native_tier(),
+    );
+    assert_eq!(
+        run_link_bytes(
+            &runtime,
+            "native_original_argv_replaced_definer",
+            &emitted.to_bytes(),
+            source,
+            "list $answer [info commands :audit]",
+        ),
+        "SHADOW {}",
+    );
+}
+
+#[test]
+fn general_original_definition_preserves_a_renamed_stock_definer() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let source =
+        "rename proc stock_proc\nstock_proc :audit {} {return ORIGINAL}\nset answer [:audit]\n";
+    assert_eq!(
+        run_real_link_argv(
+            &runtime,
+            "original_argv_renamed_stock_definer",
+            source,
+            "list $answer [info commands audit]",
+        ),
+        "ORIGINAL {}",
+    );
+}
+
+#[test]
+fn general_original_definition_preserves_a_materialised_name_word() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let source = "set name :audit\nproc $name {} {return ORIGINAL}\nset answer [:audit]\n";
+    assert_eq!(
+        run_real_link_argv(
+            &runtime,
+            "original_argv_materialised_name",
+            source,
+            "list $answer [info commands audit]",
+        ),
+        "ORIGINAL {}",
+    );
 }

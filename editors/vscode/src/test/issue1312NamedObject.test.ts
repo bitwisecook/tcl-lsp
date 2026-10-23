@@ -37,7 +37,13 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics, pollUntil, scaledTimeout } from "./helper";
+import {
+  getDocUri,
+  activate,
+  pollUntil,
+  scaledTimeout,
+  waitForDiagnosticsSnapshot,
+} from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string {
   return typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
@@ -75,9 +81,13 @@ suite("Issue #1312 named-object dispatch", () => {
 
   test("`Class create name; name nosuchmethod` draws W308 like the handle form", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W308"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w308 = diags.filter((d) => codeOf(d) === "W308");
     assert.strictEqual(w308.length, 1, `expected one W308: ${JSON.stringify(diags)}`);
     assert.strictEqual(w308[0].range.start.line, 9, "anchored on `obj nosuchmethod`");

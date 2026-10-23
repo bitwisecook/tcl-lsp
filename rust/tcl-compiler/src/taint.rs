@@ -44,7 +44,8 @@
 //!   via `taint_network_sink_args` (`socket`) and
 //!   `taint_interp_eval_subcommands` (`interp eval` / `invokehidden`);
 //!   see [`classify_network_interp_sinks`].  Suppressed by a validated
-//!   address colour (T104) / `LIST_CANONICAL` (T105).
+//!   address colour (T104) or a proved literal command word in the constructed
+//!   script list (T105).
 //! - **T106 double-encoding** — [`transform_colour`] stamps a command's
 //!   `taint_transform` colour onto its tainted result during
 //!   propagation, and [`emit_double_encode_warnings`] flags a value that
@@ -65,15 +66,14 @@
 //!   in the sibling [`crate::irules_checks`] module.
 //! - **URI-split / IRULE3103** (`*::uri` getter + manual
 //!   decomposition) — see [`crate::uri_split`].
-//! - **`rename` command-name aliasing** — sink/source classification keys
-//!   off [`Statement::canonical_command_or_source`], and the lowerer feeds a
-//!   static `rename old new` into the same alias table `interp alias`
-//!   already populates, so a call through a renamed name resolves to
-//!   whatever it now denotes (see `crate::alias::detect_rename`).
+//! - **Positioned command identity** — retained source bindings and the shared
+//!   registry invocation adapters choose source/sink/sanitiser semantics,
+//!   including alias prefixes and renames. Explicit uncertainty cannot recover
+//!   implementation guarantees from a matching written name.
 //! - **Namespace-scoped proc shadowing a builtin** — a call whose bare or
 //!   canonical name is shadowed, from its own namespace, by a user `proc` of
 //!   the same name is not misclassified as the builtin sink/source; see
-//!   [`shadowed_builtin_names`].
+//!   [`shadowed_builtin_names_for_module_function`].
 //! - **Variable-trace-altered taint** — `trace add variable` / `trace
 //!   variable` conservatively forces a traced name to fully tainted
 //!   everywhere in the module, since a runtime handler can rewrite the
@@ -106,7 +106,7 @@ use tcl_core_types::{DiagCode, DiagFamily};
 use bitflags::bitflags;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use tcl_lexer::{Lexer, SourceMap, Span, TokenType, backslash_subst};
+use tcl_lexer::{Lexer, SourceMap, Span, TokenType, backslash_subst_in};
 use tcl_registry::{ArgRole, CommandRegistry, TaintColourAtom, Traits};
 
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
@@ -115,14 +115,11 @@ use crate::expr_ast::ExprNode;
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::{CommandTokens, Statement, WordExpr, WordPart};
 use crate::irules_checks::CodeFix;
-use crate::naming::{normalise_qualified_name, normalise_var_name};
-use crate::regex_source::regexp_pattern_index;
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::value_shapes::{
-    is_pure_var_ref, parse_command_substitution_with_config,
-    parse_command_substitution_with_spans_and_config,
+    parse_command_substitution_with_config, parse_command_substitution_with_spans_and_config,
 };
 use tcl_dialect::model::SurfaceQuery;
 
@@ -232,17 +229,31 @@ impl TaintColour {
         Self::from_bits_truncate(Self::PATH_PREFIXED.bits() | Self::PATH_NORMALISED.bits());
 }
 
-/// Per-SSA-value taint lattice element: a bag of colours plus a
-/// flag tracking whether any incoming path definitely set
-/// `TAINTED`.
+/// Provenance carried separately from Registry-owned mitigation colours.
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TaintProvenance {
+    /// No tainted contributor.
+    None,
+    /// Taint exists only because of a conservative global-writer seed.
+    ConservativeGlobalSeedOnly,
+    /// At least one tainted contributor has an independent source.
+    OtherTaint,
+}
+
+/// Per-SSA-value taint lattice element: Registry-owned colours plus taint
+/// provenance tracking whether any incoming path may be tainted.
 ///
 /// `colours` is the "must-have" intersection at joins — a colour
 /// survives only when every incoming edge has it. Taint is a
 /// "may-have" — once any path sets it, it sticks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TaintLattice {
-    /// Bag of colours. `TAINTED` membership means "may be tainted".
+    /// Bag of Registry-owned colours. `TAINTED` means "may be tainted".
     pub colours: TaintColour,
+    /// Internal seed provenance, separate from the Registry colour domain.
+    #[doc(hidden)]
+    pub provenance: TaintProvenance,
 }
 
 impl TaintLattice {
@@ -251,6 +262,20 @@ impl TaintLattice {
     pub const fn clean() -> Self {
         Self {
             colours: TaintColour::empty(),
+            provenance: TaintProvenance::None,
+        }
+    }
+
+    /// Construct from Registry-owned colours with ordinary taint provenance.
+    #[must_use]
+    pub const fn from_colours(colours: TaintColour) -> Self {
+        Self {
+            colours,
+            provenance: if colours.contains(TaintColour::TAINTED) {
+                TaintProvenance::OtherTaint
+            } else {
+                TaintProvenance::None
+            },
         }
     }
 
@@ -259,7 +284,23 @@ impl TaintLattice {
     pub const fn tainted() -> Self {
         Self {
             colours: TaintColour::TAINTED,
+            provenance: TaintProvenance::OtherTaint,
         }
+    }
+
+    /// Taint used only for the conservative cross-procedure global-write seed.
+    #[must_use]
+    pub const fn conservative_global_seed() -> Self {
+        Self {
+            colours: TaintColour::TAINTED,
+            provenance: TaintProvenance::ConservativeGlobalSeedOnly,
+        }
+    }
+
+    /// Whether every tainted contributor is still only a conservative global seed.
+    #[must_use]
+    pub const fn is_conservative_global_seed_only(self) -> bool {
+        self.is_tainted() && matches!(self.provenance, TaintProvenance::ConservativeGlobalSeedOnly)
     }
 
     /// True when the value is known tainted.
@@ -288,8 +329,16 @@ impl TaintLattice {
         }
         let taint = (self.colours | other.colours) & TaintColour::TAINTED;
         let mitigations = (self.colours & other.colours) & !TaintColour::TAINTED;
+        let provenance = if self.is_conservative_global_seed_only()
+            && other.is_conservative_global_seed_only()
+        {
+            TaintProvenance::ConservativeGlobalSeedOnly
+        } else {
+            TaintProvenance::OtherTaint
+        };
         Self {
             colours: taint | mitigations,
+            provenance,
         }
     }
 
@@ -298,6 +347,11 @@ impl TaintLattice {
     pub fn with(self, c: TaintColour) -> Self {
         Self {
             colours: self.colours | c,
+            provenance: if c.contains(TaintColour::TAINTED) && !self.is_tainted() {
+                TaintProvenance::OtherTaint
+            } else {
+                self.provenance
+            },
         }
     }
 
@@ -306,6 +360,7 @@ impl TaintLattice {
     pub fn sanitised(self) -> Self {
         Self {
             colours: self.colours & !TaintColour::TAINTED,
+            provenance: TaintProvenance::None,
         }
     }
 
@@ -324,6 +379,7 @@ impl TaintLattice {
     pub fn shape_unproven(self) -> Self {
         Self {
             colours: self.colours & TaintColour::TAINTED,
+            provenance: self.provenance,
         }
     }
 }
@@ -339,6 +395,8 @@ pub struct TaintWarning {
     pub variable: String,
     /// Command that acted as the sink.
     pub sink_command: String,
+    /// Original source invocation selected by this warning, when independently retained.
+    pub source_sink: Option<TaintSinkSource>,
     /// Diagnostic code (`"T100"` family).
     pub code: DiagCode,
     /// Formatted message.
@@ -351,6 +409,159 @@ pub struct TaintWarning {
     /// out-of-span replacements) — see `irules_checks::CodeFix`. Empty
     /// when the diagnostic has no such fix.
     pub fixes: Vec<CodeFix>,
+}
+
+/// Why a required source-only nested replay could not be analysed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnavailableTaintReplayReason {
+    /// The original source owner is missing or no longer applicable.
+    SourceMetadata,
+    /// The selected procedure constructor cannot support source replay.
+    ProcedureConstructor,
+    /// The selected alias constructor cannot support source replay.
+    AliasConstructor,
+}
+
+impl UnavailableTaintReplayReason {
+    #[must_use]
+    /// Stable reason label for reports.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SourceMetadata => "source-metadata",
+            Self::ProcedureConstructor => "procedure-constructor",
+            Self::AliasConstructor => "alias-constructor",
+        }
+    }
+}
+
+/// Original source correspondence, independently of execution permission.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TaintReplaySourceSnapshot {
+    image: tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    input: Option<crate::analyser::ResolvedAnalysisInput>,
+    entry: crate::command_binding::SourceAnalysisEntry,
+    owner: Option<std::sync::Arc<crate::command_binding::RetainedSourceModuleBindings>>,
+    registry: Option<tcl_registry::RegistrySnapshot>,
+}
+
+impl TaintReplaySourceSnapshot {
+    fn for_module(module: &crate::ir::Module) -> Self {
+        Self {
+            image: module.source.clone(),
+            config: module.lexer_config,
+            input: module.source_metadata_input.clone(),
+            entry: module.source_entry.clone(),
+            owner: module.retained_source_bindings.clone(),
+            registry: module.registry_snapshot.clone(),
+        }
+    }
+
+    #[must_use]
+    /// Check the complete current source entry and retained Registry owner.
+    pub fn matches_module(&self, module: &crate::ir::Module, registry: &CommandRegistry) -> bool {
+        self == &Self::for_module(module)
+            && self
+                .owner
+                .as_ref()
+                .is_some_and(|owner| owner.matches_module(module, registry))
+            && self.registry.as_ref().is_some_and(|captured| {
+                captured.semantic_key() == registry.snapshot().semantic_key()
+            })
+    }
+}
+
+/// A required replay whose original source site remains unavailable.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnavailableTaintReplay {
+    /// Replay span; original coordinates require a matching source snapshot.
+    pub span: Span,
+    /// Missing prerequisite for this replay.
+    pub reason: UnavailableTaintReplayReason,
+    /// Original source correspondence when it was retained.
+    pub source: Option<TaintReplaySourceSnapshot>,
+}
+
+/// Availability of replays in the requested scope, separate from warning count.
+/// Per-function reports cover command heads; whole-unit reports also cover stored callbacks.
+#[derive(Debug, Clone, PartialEq)]
+pub enum TaintReplayAnalysis {
+    /// The requested scope could not be analysed.
+    Unavailable {
+        /// Known replay sites missing their prerequisites.
+        unavailable: Vec<UnavailableTaintReplay>,
+    },
+    /// The requested scope was analysed, possibly with unavailable nested sites.
+    Analysed {
+        /// Nested replay sites missing their prerequisites.
+        unavailable: Vec<UnavailableTaintReplay>,
+    },
+}
+
+impl TaintReplayAnalysis {
+    #[must_use]
+    /// Whether the requested scope and every required nested replay were analysed.
+    pub fn is_complete(&self) -> bool {
+        matches!(self, Self::Analysed { unavailable } if unavailable.is_empty())
+    }
+    #[must_use]
+    /// Represent an unavailable scope with no known source sites.
+    pub const fn unavailable() -> Self {
+        Self::Unavailable {
+            unavailable: Vec::new(),
+        }
+    }
+
+    #[must_use]
+    /// Retained sites whose replay prerequisites are unavailable.
+    pub fn unavailable_replays(&self) -> &[UnavailableTaintReplay] {
+        match self {
+            Self::Unavailable { unavailable } | Self::Analysed { unavailable } => unavailable,
+        }
+    }
+
+    /// Combine scopes while retaining every unavailable site.
+    pub fn merge(&mut self, other: Self) {
+        let was_available =
+            matches!(self, Self::Analysed { .. }) && matches!(other, Self::Analysed { .. });
+        let mut retained = self.unavailable_replays().to_vec();
+        for replay in other.unavailable_replays() {
+            if !retained.contains(replay) {
+                retained.push(replay.clone());
+            }
+        }
+        *self = if was_available {
+            Self::Analysed {
+                unavailable: retained,
+            }
+        } else {
+            Self::Unavailable {
+                unavailable: retained,
+            }
+        };
+    }
+}
+
+/// Proven warnings plus the availability of every required nested replay.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TaintWarningReport {
+    /// Warnings established by the completed analyses.
+    pub warnings: Vec<TaintWarning>,
+    /// Availability of replays in this report's scope.
+    pub replays: TaintReplayAnalysis,
+}
+
+impl TaintWarningReport {
+    fn analysed(warnings: Vec<TaintWarning>, unavailable: Vec<UnavailableTaintReplay>) -> Self {
+        Self {
+            warnings,
+            replays: TaintReplayAnalysis::Analysed { unavailable },
+        }
+    }
+    fn merge(&mut self, other: Self) {
+        self.warnings.extend(other.warnings);
+        self.replays.merge(other.replays);
+    }
 }
 
 // Source-command classification
@@ -377,6 +588,7 @@ fn source_colour(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     instance_classes: Option<&LocalInstanceClasses>,
     source_position: Option<u32>,
+    receiver: Option<(&WordExpr, tcl_lexer::LexerConfig)>,
 ) -> Option<TaintLattice> {
     let dialect = dialect_to_point(dialect);
     let direct = tcl_registry::taint::taint_source_colour(registry, command, args, dialect);
@@ -388,11 +600,10 @@ fn source_colour(
             dialect,
             instance_classes,
             source_position,
+            receiver,
         )
     })?;
-    Some(TaintLattice {
-        colours: reg_colour(colour),
-    })
+    Some(TaintLattice::from_colours(reg_colour(colour)))
 }
 
 /// Resolve a registry-declared source on a statically-known object instance.
@@ -415,8 +626,9 @@ fn instance_taint_source_colour(
     dialect: Option<SurfaceQuery<'_>>,
     instance_classes: Option<&LocalInstanceClasses>,
     source_position: Option<u32>,
+    receiver: Option<(&WordExpr, tcl_lexer::LexerConfig)>,
 ) -> Option<tcl_registry::TaintColour> {
-    let class = unique_instance_class(command, instance_classes, source_position)?;
+    let class = unique_instance_class(receiver, instance_classes, source_position)?;
     registry
         .resolve_instance_invocation(class, command, args, dialect)
         .filter(|invocation| {
@@ -435,13 +647,25 @@ fn instance_taint_source_colour(
 /// Shared by source-return and linked-variable instance semantics so both
 /// abstain identically on an untyped or widened receiver.
 pub(crate) fn unique_instance_class<'a>(
-    command: &str,
+    receiver: Option<(&WordExpr, tcl_lexer::LexerConfig)>,
     instance_classes: Option<&'a LocalInstanceClasses>,
     source_position: Option<u32>,
 ) -> Option<&'a str> {
-    let key = normalise_var_name(command);
+    let (word, config) = receiver?;
+    if matches!(word, WordExpr::Expand { .. }) {
+        return None;
+    }
+    let key = static_word_expr_value(
+        word,
+        config.escapes,
+        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+    )
+    .or_else(|| original_scalar_reference_name(word, config).map(str::to_owned))?;
+    if key.contains('\0') {
+        return None;
+    }
     let position = source_position?;
-    let classes = instance_classes?.at.get(&position)?.get(key)?;
+    let classes = instance_classes?.at.get(&position)?.get(&key)?;
     if classes.len() != 1 {
         return None;
     }
@@ -451,22 +675,26 @@ pub(crate) fn unique_instance_class<'a>(
 /// Whether a registry-typed instance call exposes `variable` to external
 /// input through one of its class/factory options.
 fn instance_taints_var_write(
-    registry: &CommandRegistry,
+    ctx: TaintCtx<'_>,
     command: &str,
     args: &[&str],
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
-    instance_classes: Option<&LocalInstanceClasses>,
-    source_position: Option<u32>,
     variable: &str,
 ) -> bool {
     if args.is_empty() {
         return false;
     }
-    let Some(class) = unique_instance_class(command, instance_classes, source_position) else {
+    let receiver = ctx
+        .source_tokens
+        .and_then(|tokens| tokens.words().first())
+        .map(|word| (word, ctx.source.config));
+    let Some(class) = unique_instance_class(receiver, ctx.instance_classes, ctx.source_position)
+    else {
         return false;
     };
-    let dialect = dialect_to_point(dialect);
-    let Some(invocation) = registry.resolve_instance_invocation(class, command, args, dialect)
+    let dialect = dialect_to_point(ctx.dialect);
+    let Some(invocation) = ctx
+        .registry
+        .resolve_instance_invocation(class, command, args, dialect)
     else {
         return false;
     };
@@ -474,7 +702,7 @@ fn instance_taints_var_write(
         .semantics
         .traits
         .contains(Traits::CONFIGURES_INSTANCE_OPTIONS)
-        && tcl_registry::taint::taints_var_write(registry, class, &args[1..], dialect, variable)
+        && tcl_registry::taint::taints_var_write(ctx.registry, class, &args[1..], dialect, variable)
 }
 
 /// Build the local receiver → class facts needed by object-method taint
@@ -504,169 +732,17 @@ pub(crate) fn local_instance_classes(
     cfg: &CfgFunction,
     registry: &CommandRegistry,
 ) -> LocalInstanceClasses {
-    local_instance_classes_with_initial(cfg, registry, &InstanceClassState::new())
+    local_instance_classes_with_source(
+        cfg,
+        registry,
+        &InstanceClassState::new(),
+        TaintSourceContext::standalone(registry, registry.profile()),
+    )
 }
 
-fn factory_class<'a>(
-    registry: &'a CommandRegistry,
-    head: &str,
-    args: &[String],
-) -> Option<&'a str> {
-    if let Some(method) = args.first()
-        && registry
-            .exported_manufacturer_method(head, method)
-            .is_some()
-    {
-        return registry.object_class(head).map(|class| class.class_name);
-    }
-    registry
-        .get(head)
-        .filter(|spec| spec.creates_instance_at.is_some())
-        .and_then(|spec| spec.object_class)
-        .map(|class| class.class_name)
-}
-
-fn literal_receiver(name: &str) -> Option<&str> {
-    (!name.is_empty() && !name.starts_with(['$', '[', '{'])).then_some(name)
-}
-
-fn transfer_instance_statement(
-    state: &mut InstanceClassState,
-    statement: &Statement,
-    registry: &CommandRegistry,
-) {
-    match statement {
-        Statement::Call {
-            command,
-            args,
-            defs,
-            ..
-        } => {
-            transfer_instance_lifecycle(state, command, args, registry);
-            // A registry-known write to a handle variable invalidates the old
-            // type unless this very statement installs a fresh factory fact.
-            for name in defs {
-                state.remove(normalise_var_name(name));
-            }
-            if let Some(spec) = registry.get(command)
-                && let Some(index) = spec.creates_instance_at
-                && let Some(name) = args.get(usize::from(index))
-                && let Some(name) = literal_receiver(name)
-            {
-                // Every naming factory replaces the command at this literal
-                // receiver, even when its registry row does not expose an
-                // object class. In that case the sound reaching fact is
-                // "untyped", not the previous constructor's stale class.
-                state.remove(name);
-                if let Some(class) = spec.object_class {
-                    state.insert(
-                        name.to_owned(),
-                        HashSet::from([class.class_name.to_owned()]),
-                    );
-                }
-            }
-        }
-        Statement::AssignValue { name, value, .. } => {
-            let name = normalise_var_name(name);
-            state.remove(name);
-            if let Some((head, args)) = parse_command_substitution_with_config(
-                value.trim(),
-                tcl_lexer::LexerConfig::for_profile(registry.profile()),
-            ) && let Some(class) = factory_class(registry, &head, &args)
-                && let Some(name) = literal_receiver(name)
-            {
-                state.insert(name.to_owned(), HashSet::from([class.to_owned()]));
-            }
-        }
-        Statement::AssignConst { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::Incr { name, .. } => {
-            state.remove(normalise_var_name(name));
-        }
-        _ => {}
-    }
-}
-
-/// Apply registry-declared command/object lifecycle changes to the local
-/// receiver-class map.  This is deliberately driven by the registry's
-/// command-table and teardown descriptors rather than by command-name
-/// switches: a rename moves the class fact, an alias/dynamic mutation clears
-/// it, and a Tk teardown removes the target window and its descendants.
-pub(crate) fn transfer_instance_lifecycle(
-    state: &mut InstanceClassState,
-    command: &str,
-    args: &[String],
-    registry: &CommandRegistry,
-) {
-    let transitions = crate::alias::command_table_transitions(registry, command, args);
-    if transitions.touches_command_bindings() {
-        for transition in transitions.command_bindings() {
-            match transition {
-                tcl_registry::CommandBindingTransition::Move { from, to } => {
-                    let (Some(old), Some(new)) = (from.literal(), to.literal()) else {
-                        state.clear();
-                        return;
-                    };
-                    let Some(old) = literal_receiver(old) else {
-                        state.clear();
-                        return;
-                    };
-                    if new.starts_with(['$', '[', '{']) {
-                        state.clear();
-                        return;
-                    }
-                    let class = state.remove(old);
-                    if !new.is_empty()
-                        && let Some(class) = class
-                    {
-                        state.insert(new.to_owned(), class);
-                    }
-                }
-                tcl_registry::CommandBindingTransition::Delete { name, .. } => {
-                    // The moved-away half of `rename OLD {}`: the receiver
-                    // identity at that name is gone.
-                    let Some(old) = name.literal().and_then(literal_receiver) else {
-                        state.clear();
-                        return;
-                    };
-                    state.remove(old);
-                }
-                tcl_registry::CommandBindingTransition::Alias { .. }
-                | tcl_registry::CommandBindingTransition::Unknown { .. } => {
-                    // An alias may target or replace any command, including a
-                    // registry-modelled instance command.  Without a precise
-                    // target proof all receiver identities become unknown, and
-                    // an unknown mutation proves nothing at all.
-                    state.clear();
-                    return;
-                }
-                // A definition binds a new name without disturbing an
-                // existing receiver identity.
-                tcl_registry::CommandBindingTransition::Define { .. } => {}
-            }
-        }
-        return;
-    }
-
-    // Tk's `destroy` is a registry-declared fire-and-forget teardown.  Use the
-    // package declaration to distinguish it from unrelated teardown commands
-    // such as `unset` and `after cancel`, while keeping the consumer generic.
-    let Some(spec) = registry.get(command) else {
-        return;
-    };
-    if !spec.traits.contains(Traits::FIRE_AND_FORGET_TEARDOWN)
-        || spec.required_package != Some("Tk")
-    {
-        return;
-    }
-    for target in args {
-        let Some(target) = literal_receiver(target) else {
-            state.clear();
-            return;
-        };
-        state.retain(|name, _| !tcl_registry::tk_geometry::widget_path_is_within(name, target));
-    }
-}
+mod instance_classes;
+pub(crate) use instance_classes::transfer_instance_command;
+use instance_classes::transfer_instance_statement;
 
 fn join_instance_predecessors<'a>(
     states: impl Iterator<Item = &'a InstanceClassState>,
@@ -688,11 +764,15 @@ fn join_instance_predecessors<'a>(
     Some(joined)
 }
 
-pub(crate) fn local_instance_classes_with_initial(
+fn local_instance_classes_with_source(
     cfg: &CfgFunction,
     registry: &CommandRegistry,
     initial: &InstanceClassState,
+    source: TaintSourceContext<'_>,
 ) -> LocalInstanceClasses {
+    if !source.allows_nominal_metadata() && source.metadata_context().is_none() {
+        return LocalInstanceClasses::default();
+    }
     let predecessors = cfg.predecessors();
     let mut outputs: HashMap<crate::cfg::BlockId, InstanceClassState> = HashMap::new();
     let mut changed = true;
@@ -714,7 +794,11 @@ pub(crate) fn local_instance_classes_with_initial(
                 joined
             };
             for statement in &block.statements {
-                transfer_instance_statement(&mut state, statement, registry);
+                let tokens = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+                    &cfg.command_binding_sites,
+                    statement,
+                );
+                transfer_instance_statement(&mut state, statement, registry, source, tokens);
             }
             if outputs.get(&block_id) != Some(&state) {
                 outputs.insert(block_id, state);
@@ -739,7 +823,11 @@ pub(crate) fn local_instance_classes_with_initial(
         };
         for statement in &block.statements {
             classes.at.insert(statement.span().start(), state.clone());
-            transfer_instance_statement(&mut state, statement, registry);
+            let tokens = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+                &cfg.command_binding_sites,
+                statement,
+            );
+            transfer_instance_statement(&mut state, statement, registry, source, tokens);
         }
         if let Some(span) = block
             .terminator
@@ -771,27 +859,62 @@ pub(crate) fn instance_class_solve_count() -> usize {
     INSTANCE_CLASS_SOLVES.with(std::cell::Cell::get)
 }
 
-/// Function-local receiver facts plus interpreter-global instance commands
-/// proven to exist at this procedure's earliest execution phase. The top-level
-/// function keeps only its local, source-ordered facts to avoid retroactively
-/// typing an earlier call.
+/// Local conditional receiver candidates plus source setup advice from the
+/// same complete Module interpretation. The top-level function keeps only
+/// source-ordered local candidates; none proves an existing Native object.
 pub(crate) fn instance_classes_for_function(
     cfg: &CfgFunction,
     registry: &CommandRegistry,
     interproc: Option<&InterproceduralAnalysis>,
     include_globals: bool,
+    source: TaintSourceContext<'_>,
 ) -> LocalInstanceClasses {
     #[cfg(test)]
     INSTANCE_CLASS_SOLVES.with(|count| count.set(count.get() + 1));
     let initial = if include_globals {
         interproc
-            .and_then(|analysis| analysis.global_instance_classes.get(&cfg.name))
+            .filter(|analysis| {
+                let Some(owner) = source.module_owner() else {
+                    return false;
+                };
+                let Some(producer) = analysis.global_instance_class_owner.as_deref() else {
+                    return false;
+                };
+                let input = source.metadata_context().and_then(
+                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                );
+                if producer != owner
+                    || input.is_none()
+                    || input != analysis.global_instance_class_input.as_ref()
+                {
+                    return false;
+                }
+                let mut observed = false;
+                for statement in cfg.blocks.values().flat_map(|block| &block.statements) {
+                    if let Some(tokens) =
+                        crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+                            &cfg.command_binding_sites,
+                            statement,
+                        )
+                    {
+                        if tokens.synthetic.is_some() {
+                            continue;
+                        }
+                        if !owner.owns_original_tokens(tokens) {
+                            return false;
+                        }
+                        observed = true;
+                    }
+                }
+                observed
+            })
+            .and_then(|analysis| analysis.global_instance_classes.get(&source.body_id()?))
             .cloned()
             .unwrap_or_default()
     } else {
         InstanceClassState::new()
     };
-    local_instance_classes_with_initial(cfg, registry, &initial)
+    local_instance_classes_with_source(cfg, registry, &initial, source)
 }
 
 /// Bridge a registry colour to the compiler's mirror enum.
@@ -909,6 +1032,16 @@ fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> boo
     tcl_registry::taint::is_sanitiser(registry, command, args)
 }
 
+mod source_context;
+mod source_warnings;
+pub use source_context::TaintSinkSource;
+pub(crate) use source_context::{TaintPropagationInputs, TaintSourceContext};
+pub use source_warnings::{
+    find_destructive_file_warnings_for_module_function,
+    find_path_concat_warnings_for_module_function,
+    find_setter_constraint_warnings_for_module_function,
+};
+
 // Taint propagation
 
 /// Shared inputs for the per-statement taint helpers.
@@ -928,44 +1061,34 @@ pub(crate) struct TaintCtx<'a> {
     /// [`Symbol`]-keyed `uses` / `taints` maps.
     pub(crate) ssa: &'a SsaFunction,
     pub(crate) interproc: Option<&'a InterproceduralAnalysis>,
-    pub(crate) known_procs: Option<&'a HashSet<String>>,
-    pub(crate) caller_qname: Option<&'a str>,
+    pub(crate) known_procs: Option<&'a HashSet<crate::ir::ProcedureId>>,
     pub(crate) dialect: Option<&'static tcl_dialect::DialectProfile>,
+    pub(crate) source: TaintSourceContext<'a>,
     /// Colour-aware return summaries from the interprocedural taint
     /// solve (`taint_interproc::solve_interprocedural_taints`). When
     /// present, calls to a known proc apply the full
     /// [`crate::taint_interproc::apply_proc_return_summary`] transfer
     /// instead of the conservative single-passthrough rule.
     pub(crate) taint_summaries:
-        Option<&'a HashMap<String, crate::taint_interproc::ProcTaintSummary>>,
+        Option<&'a HashMap<crate::ir::ProcedureId, crate::taint_interproc::ProcTaintSummary>>,
     /// Local, registry-derived object receiver classes used to resolve a
     /// `TAINT_SOURCE` instance method (`.entry get`, `$widget get`).
     pub(crate) instance_classes: Option<&'a LocalInstanceClasses>,
     /// Start offset of the statement currently being evaluated. Registry
     /// instance bindings created later in the function are not visible.
     pub(crate) source_position: Option<u32>,
+    /// Retained source invocation carrying exact nested dispatch bindings.
+    pub(crate) source_tokens: Option<&'a CommandTokens>,
+    /// Absolute start of the word currently classified; never a text search.
+    pub(crate) word_offset: Option<u32>,
+    /// The exact source word; quoted whole substitutions retain their own span.
+    pub(crate) source_word: Option<&'a WordExpr>,
 }
 
 impl TaintCtx<'_> {
-    /// This document's `${…}` close rule, for the shared owner
-    /// [`tcl_lexer::braced_var_name_end`].
-    ///
-    /// Taint is keyed by variable *name*, so a scan that recovers the wrong
-    /// name tracks the wrong cell: the tainted value's colour is dropped and
-    /// the security diagnostics that depend on it (T1xx, W201) go quiet on a
-    /// sink they should flag. With no explicit dialect the document was lexed
-    /// under [`tcl_dialect::BracedVarStyle::default`].
-    pub(crate) fn braced_var(self) -> tcl_dialect::BracedVarStyle {
-        tcl_dialect::BracedVarStyle::of_profile(self.dialect)
-    }
-
-    /// The document's lexer configuration, for the helpers that re-lex a
-    /// word's own text (`interpolation_carve_out`'s literal-fragment scans).
-    /// Same reason as [`Self::braced_var`]: a re-lex under the default
-    /// grammar reads the document's bytes under rules it was not written
-    /// in, and the colour that falls out is about a different word.
+    /// Grammar retained by this word's actual source context.
     pub(crate) fn lexer_config(self) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::for_profile(self.dialect)
+        self.source.config
     }
 
     pub(crate) const fn at(self, source_position: u32) -> Self {
@@ -1010,131 +1133,296 @@ fn word_taint_at<S: std::hash::BuildHasher>(
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
         return TaintLattice::tainted();
     }
+    if ctx.source_word.is_some_and(|source_word| {
+        static_word_expr_value(
+            source_word,
+            ctx.lexer_config().escapes,
+            tcl_syntax::word_rules::WordValueRules::from_config(&ctx.lexer_config()),
+        )
+        .is_some()
+    }) {
+        return TaintLattice::clean();
+    }
     let stripped = word.trim();
 
-    // Pure variable reference — inherit taint directly.
-    if is_pure_var_ref(stripped) {
-        let name = normalise_var_name(stripped);
-        return var_taint(name, uses, taints, ctx.ssa);
-    }
-
-    // Bracketed command substitution.
-    if let Some((cmd, args)) = parse_command_substitution_with_config(stripped, ctx.lexer_config())
-    {
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        if is_sanitiser(ctx.registry, &cmd, &arg_refs) {
-            return TaintLattice::clean();
-        }
-        if let Some(t) = source_colour(
-            ctx.registry,
-            &cmd,
-            &arg_refs,
-            ctx.dialect,
-            ctx.instance_classes,
-            ctx.source_position,
-        ) {
-            return t;
-        }
-        // Interprocedural: if `cmd` resolves to a known proc with a
-        // passthrough parameter, propagate the taint of the matching
-        // actual.
-        if let Some(t) = interproc_call_taint(&cmd, &args, uses, taints, ctx) {
-            return t;
-        }
-        // Propagate from the arguments inside the command sub. `cmd` has
-        // no registry classification (source / sanitiser / passthrough all
-        // missed above), so its effect on argument shape is unknown —
-        // strip shape-dependent mitigations (`shape_unproven`) rather than
-        // optimistically assuming e.g. `PATH_PREFIXED` survives an
-        // arbitrary `string range` / `lindex [split ...]` transform.
-        let mut t = TaintLattice::clean();
-        for arg in &args {
-            t = t.join(word_taint_at(arg, uses, taints, ctx, depth + 1));
-        }
-        t = t.shape_unproven();
-        // Stamp the encoder/transform colour the command adds to its result
-        // (e.g. `uri::encode` → `URL_ENCODED`, `file normalize` →
-        // `PATH_NORMALISED`), so a later pass through the same encoder is
-        // detectable as a double-encode (T106) and a consumer asking "has
-        // this value been through a normalising sanitiser" gets a yes.
-        //
-        // Stamped regardless of taint.  The colour describes what the
-        // *command* guarantees about its result, not what its input was, so
-        // gating it on `is_tainted()` would make the fact unobservable for
-        // exactly the values a hygiene check like W201 asks about — a path
-        // built from clean local variables and then normalised.  Nothing
-        // widens as a result: every consumer that acts on a colour
-        // ([`emit_double_encode_warnings`], the sink mitigation checks)
-        // requires `is_tainted()` first, and a clean lattice is `join`'s
-        // identity, so a clean colour never dilutes a tainted operand's
-        // must-have mitigations.
-        if let Some(colour) = transform_colour(ctx.registry, &cmd, &arg_refs) {
-            t = t.with(colour);
-        }
-        return t;
-    }
-
-    // Interpolated string: scan for $var references and [cmd] substitutions.
-    if stripped.contains('$') || stripped.contains('[') {
-        let mut t = TaintLattice::clean();
-
-        // Scan for [cmd ...] command substitutions (non-nested).
-        let mut rest = stripped;
-        while let Some(open) = rest.find('[') {
-            rest = &rest[open..];
-            if let Some(close) = rest.find(']') {
-                let sub = &rest[..=close];
-                // Only recurse when the bracketed slice is strictly
-                // smaller than the word being analysed — i.e. it's a
-                // substitution *embedded* in surrounding text. When the
-                // whole word is itself the bracketed region it was
-                // already handled by the command-substitution branch
-                // above; recursing on it again (e.g. the empty `[]`
-                // inside `{[]}`) makes no progress and would recurse
-                // until the stack overflows.
-                if sub.len() < stripped.len() {
-                    t = t.join(word_taint_at(sub, uses, taints, ctx, depth + 1));
-                }
-                rest = &rest[close + 1..];
-            } else {
-                break;
-            }
-        }
-
-        // Scan for $var references.
-        let mut rest = stripped;
-        while let Some(pos) = rest.find('$') {
-            rest = &rest[pos + 1..];
-            // ${name} form.
-            let raw_name = if rest.starts_with('{') {
-                // The name starts just past the `${`; an unterminated
-                // reference names nothing, so stop scanning this word.
-                match tcl_lexer::braced_var_name_end(rest.as_bytes(), 1, ctx.braced_var()) {
-                    tcl_lexer::BracedVarEnd::Closed(end) => {
-                        let n = &rest[1..end];
-                        rest = &rest[end + 1..];
-                        n
-                    }
-                    tcl_lexer::BracedVarEnd::Unterminated => break,
-                }
-            } else {
-                // $name — grab identifier chars (including :: for namespaces).
-                let end = rest
-                    .find(|c: char| !c.is_alphanumeric() && c != '_' && c != ':')
-                    .unwrap_or(rest.len());
-                let n = &rest[..end];
-                rest = &rest[end..];
-                n
+    // A source word's structured form selects the actual command component;
+    // its compatibility text cannot invent a whole-word substitution.
+    if let Some(source_word) = ctx.source_word {
+        if let Some(nested) =
+            crate::word_subst::whole_word_command_tokens(source_word, ctx.lexer_config())
+        {
+            let Some(command) = nested.argv_texts.first() else {
+                return TaintLattice::tainted();
             };
-            if !raw_name.is_empty() {
-                let name = normalise_var_name(raw_name);
-                t = t.join(var_taint(name, uses, taints, ctx.ssa));
-            }
+            let args = nested
+                .argv_texts
+                .iter()
+                .skip(1)
+                .cloned()
+                .collect::<Vec<_>>();
+            return substitution_word_taint(word, (command, &args), uses, taints, ctx, depth);
         }
-        return interpolation_carve_out(word, t, ctx.lexer_config());
+    } else if ctx.source.allows_nominal_metadata()
+        && let Some((cmd, args)) =
+            parse_command_substitution_with_config(stripped, ctx.lexer_config())
+    {
+        return substitution_word_taint(word, (&cmd, &args), uses, taints, ctx, depth);
+    }
+
+    if !ctx.source.allows_nominal_metadata() {
+        return source_interpolation_taint(word, uses, taints, ctx, depth)
+            .unwrap_or_else(TaintLattice::tainted);
+    }
+    if stripped.contains('$') || stripped.contains('[') {
+        return standalone_interpolation_taint(word, stripped, uses, taints, ctx, depth);
     }
 
     TaintLattice::clean()
+}
+
+/// Interpolation taint from one retained original image and source word.
+fn source_interpolation_taint<S: std::hash::BuildHasher>(
+    word: &str,
+    uses: &HashMap<Symbol, u32>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    ctx: TaintCtx<'_>,
+    depth: u32,
+) -> Option<TaintLattice> {
+    let (image, span) = retained_word_source(word, ctx)?;
+    let Some(source_text) = image
+        .bytes()
+        .get(span.as_range())
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .map(str::to_owned)
+    else {
+        return Some(TaintLattice::tainted());
+    };
+    let Ok(arena) = tcl_lexer::ExecutablePartArena::decompose(
+        image,
+        span,
+        tcl_lexer::SubstFlags::default(),
+        ctx.lexer_config(),
+    ) else {
+        return Some(TaintLattice::tainted());
+    };
+    let mut taint = TaintLattice::clean();
+    for part in arena.all_parts() {
+        match part.part {
+            tcl_lexer::ExecutablePart::Variable { .. } => {
+                let Some(spelling) = arena
+                    .bytes(part.span)
+                    .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                else {
+                    return Some(TaintLattice::tainted());
+                };
+                let valid = tcl_syntax::naming::variable_reference_root_bytes(
+                    spelling.as_bytes(),
+                    ctx.lexer_config(),
+                )
+                .ok()
+                .flatten()
+                .and_then(|name| std::str::from_utf8(name).ok())
+                .is_some_and(|name| !name.contains('\0'));
+                if !valid {
+                    return Some(TaintLattice::tainted());
+                }
+                taint = taint.join(original_component_read_taint(
+                    ctx, part.span, spelling, taints,
+                ));
+            }
+            tcl_lexer::ExecutablePart::Command { .. } => {
+                let Some(sub) = arena
+                    .bytes(part.span)
+                    .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                else {
+                    return Some(TaintLattice::tainted());
+                };
+                let sub_ctx = TaintCtx {
+                    source_word: None,
+                    word_offset: Some(part.span.start()),
+                    ..ctx
+                };
+                taint = taint.join(retained_command_part_taint(
+                    sub,
+                    uses,
+                    taints,
+                    sub_ctx,
+                    depth + 1,
+                ));
+            }
+            tcl_lexer::ExecutablePart::Expression { .. }
+            | tcl_lexer::ExecutablePart::ParseError(_) => {
+                return Some(TaintLattice::tainted());
+            }
+            tcl_lexer::ExecutablePart::Text(_) => {}
+        }
+    }
+    Some(interpolation_carve_out(
+        &source_text,
+        taint,
+        ctx.lexer_config(),
+    ))
+}
+
+/// Select and classify one nested command from its original source component.
+fn retained_command_part_taint<S: std::hash::BuildHasher>(
+    spelling: &str,
+    uses: &HashMap<Symbol, u32>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    ctx: TaintCtx<'_>,
+    depth: u32,
+) -> TaintLattice {
+    let Some(nested) = retained_taint_substitution(spelling, ctx) else {
+        return TaintLattice::tainted();
+    };
+    let Some(command) = nested.argv_texts.first() else {
+        return TaintLattice::tainted();
+    };
+    let args = nested
+        .argv_texts
+        .iter()
+        .skip(1)
+        .cloned()
+        .collect::<Vec<_>>();
+    substitution_word_taint(spelling, (command, &args), uses, taints, ctx, depth)
+}
+
+/// Explicit detached compatibility path; it creates Document text only.
+fn standalone_interpolation_taint<S: std::hash::BuildHasher>(
+    word: &str,
+    stripped: &str,
+    uses: &HashMap<Symbol, u32>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    ctx: TaintCtx<'_>,
+    depth: u32,
+) -> TaintLattice {
+    let Ok(length) = u32::try_from(stripped.len()) else {
+        return TaintLattice::tainted();
+    };
+    let Ok(arena) = tcl_lexer::ExecutablePartArena::decompose(
+        tcl_lexer::SourceImage::document(stripped),
+        Span::new(0, length),
+        tcl_lexer::SubstFlags::default(),
+        ctx.lexer_config(),
+    ) else {
+        return TaintLattice::tainted();
+    };
+    let mut taint = TaintLattice::clean();
+    for part in arena.all_parts() {
+        match part.part {
+            tcl_lexer::ExecutablePart::Variable { .. } => {
+                let Some(name) = arena.bytes(part.span).and_then(|bytes| {
+                    tcl_syntax::naming::variable_reference_root_bytes(bytes, ctx.lexer_config())
+                        .ok()
+                        .flatten()
+                        .and_then(|name| std::str::from_utf8(name).ok())
+                        .filter(|name| !name.contains('\0'))
+                }) else {
+                    return TaintLattice::tainted();
+                };
+                taint = taint.join(var_taint(name, uses, taints, ctx.ssa));
+            }
+            tcl_lexer::ExecutablePart::Command { .. } => {
+                let Some(sub) = arena
+                    .bytes(part.span)
+                    .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                else {
+                    return TaintLattice::tainted();
+                };
+                let relative = usize::try_from(part.span.start())
+                    .ok()
+                    .and_then(|start| (word.len() - word.trim_start().len()).checked_add(start));
+                let sub_ctx = TaintCtx {
+                    source_word: None,
+                    word_offset: relative
+                        .and_then(|relative| u32::try_from(relative).ok())
+                        .and_then(|relative| ctx.word_offset?.checked_add(relative)),
+                    ..ctx
+                };
+                taint = taint.join(word_taint_at(sub, uses, taints, sub_ctx, depth + 1));
+            }
+            tcl_lexer::ExecutablePart::Expression { .. }
+            | tcl_lexer::ExecutablePart::ParseError(_) => return TaintLattice::tainted(),
+            tcl_lexer::ExecutablePart::Text(_) => {}
+        }
+    }
+    interpolation_carve_out(word, taint, ctx.lexer_config())
+}
+
+/// Original word bytes selected by the real module or invocation owner.
+/// A compatibility string and an offset alone cannot manufacture a source.
+fn retained_word_source(word: &str, ctx: TaintCtx<'_>) -> Option<(tcl_lexer::SourceImage, Span)> {
+    let image = if let Some(module) = ctx.source.module() {
+        module.source.clone()
+    } else {
+        let tokens = ctx.source_tokens?;
+        let binding = tokens.source_binding.as_ref()?;
+        binding.original_argument_source_image(tokens)?.clone()
+    };
+    let span = if let Some(source_word) = ctx.source_word {
+        let tokens = ctx.source_tokens?;
+        if !tokens.words().contains(source_word)
+            || !matches!(
+                source_word.source().provenance,
+                crate::ir::Provenance::Source
+            )
+        {
+            return None;
+        }
+        source_word.source().span
+    } else {
+        let start = ctx.word_offset?;
+        let end = start.checked_add(u32::try_from(word.len()).ok()?)?;
+        let span = Span::new(start, end);
+        (image.bytes().get(span.as_range())? == word.as_bytes()).then_some(())?;
+        span
+    };
+    image.bytes().get(span.as_range())?;
+    Some((image, span))
+}
+
+/// Resolve a variable component only through its exact source read receipt and
+/// SSA read owner. A missing read or represented version remains tainted.
+fn original_component_read_taint<S: std::hash::BuildHasher>(
+    ctx: TaintCtx<'_>,
+    span: Span,
+    spelling: &str,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+) -> TaintLattice {
+    let Some(tokens) = ctx.source_tokens else {
+        return TaintLattice::tainted();
+    };
+    if !tokens
+        .variable_accesses
+        .iter()
+        .any(|access| access.source.span == span && access.original_spelling == spelling)
+    {
+        return TaintLattice::tainted();
+    }
+    let site = crate::ir::SourceSite::source(span);
+    let mut selected = None;
+    for (block, data) in &ctx.ssa.blocks {
+        for (index, statement) in data.statements.iter().enumerate() {
+            if Some(statement.statement.span().start()) != ctx.source_position {
+                continue;
+            }
+            let point = crate::ssa::SsaSourceView::at_statement(ctx.ssa, *block, index);
+            if let Some(read) = point.read_reference(&site, spelling) {
+                let current = (read.symbol, read.version);
+                if selected.is_some_and(|previous| previous != current) {
+                    return TaintLattice::tainted();
+                }
+                selected = Some(current);
+            }
+        }
+    }
+    let Some((symbol, Some(version))) = selected else {
+        return TaintLattice::tainted();
+    };
+    taints
+        .get(&(symbol, version))
+        .copied()
+        .unwrap_or_else(TaintLattice::tainted)
 }
 
 /// Re-derive the structural / option-prefix colours of an interpolated
@@ -1177,6 +1465,11 @@ fn interpolation_carve_out(
     }
     TaintLattice {
         colours: colour | TaintColour::TAINTED,
+        provenance: if joined.is_conservative_global_seed_only() {
+            TaintProvenance::ConservativeGlobalSeedOnly
+        } else {
+            TaintProvenance::OtherTaint
+        },
     }
 }
 
@@ -1189,7 +1482,12 @@ fn interpolation_carve_out(
 /// dynamic.
 fn leading_literal_prefix_char(value: &str, config: tcl_lexer::LexerConfig) -> Option<char> {
     let source_map = SourceMap::new(value);
-    let tokens = Lexer::with_config(value, config).tokenise_all().ok()?;
+    let tokens = Lexer::with_config(
+        value,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    )
+    .tokenise_all()
+    .ok()?;
     for tok in tokens {
         match tok.kind {
             // End of input, or a dynamic (variable/command) prefix — no
@@ -1198,7 +1496,7 @@ fn leading_literal_prefix_char(value: &str, config: tcl_lexer::LexerConfig) -> O
             TokenType::Esc => {
                 let text = source_map.text(tok.span);
                 let rendered = if text.contains('\\') {
-                    backslash_subst(text).into_owned()
+                    backslash_subst_in(text, config.escapes).into_owned()
                 } else {
                     text.to_owned()
                 };
@@ -1223,7 +1521,11 @@ fn leading_literal_prefix_char(value: &str, config: tcl_lexer::LexerConfig) -> O
 /// the scan.
 fn literal_contains_crlf(value: &str, config: tcl_lexer::LexerConfig) -> bool {
     let source_map = SourceMap::new(value);
-    let Ok(tokens) = Lexer::with_config(value, config).tokenise_all() else {
+    let Ok(tokens) = Lexer::with_config(
+        value,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    )
+    .tokenise_all() else {
         return false;
     };
     for tok in tokens {
@@ -1232,7 +1534,7 @@ fn literal_contains_crlf(value: &str, config: tcl_lexer::LexerConfig) -> bool {
             TokenType::Esc => {
                 let text = source_map.text(tok.span);
                 let rendered = if text.contains('\\') {
-                    backslash_subst(text).into_owned()
+                    backslash_subst_in(text, config.escapes).into_owned()
                 } else {
                     text.to_owned()
                 };
@@ -1252,6 +1554,41 @@ fn literal_contains_crlf(value: &str, config: tcl_lexer::LexerConfig) -> bool {
     false
 }
 
+/// Classify one runtime argument without re-substituting alias prefix values.
+fn positional_argument_taint<S: std::hash::BuildHasher>(
+    index: usize,
+    args: &[String],
+    effective: Option<&crate::registry_invocation::EffectiveCommandWords>,
+    uses: &HashMap<Symbol, u32>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    ctx: TaintCtx<'_>,
+    depth: u32,
+) -> TaintLattice {
+    let written = match effective {
+        Some(words) => {
+            let Some(written) = words.written_argument(index) else {
+                return TaintLattice::clean();
+            };
+            written
+        }
+        None => index,
+    };
+    let Some(argument) = args.get(index) else {
+        return TaintLattice::tainted();
+    };
+    let arg_ctx = TaintCtx {
+        word_offset: ctx
+            .source_tokens
+            .and_then(|tokens| tokens.argv.get(written + 1))
+            .map(|span| span.start()),
+        source_word: ctx
+            .source_tokens
+            .and_then(|tokens| tokens.word_exprs.get(written + 1)),
+        ..ctx
+    };
+    word_taint_at(argument, uses, taints, arg_ctx, depth)
+}
+
 /// When `command` resolves to an internal proc with a known
 /// `return_passthrough_param`, return the taint of the corresponding
 /// actual argument. Returns `None` when interprocedural summaries are
@@ -1259,12 +1596,22 @@ fn literal_contains_crlf(value: &str, config: tcl_lexer::LexerConfig) -> bool {
 fn interproc_call_taint<S: std::hash::BuildHasher>(
     command: &str,
     args: &[String],
+    effective: Option<&crate::registry_invocation::EffectiveCommandWords>,
     uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     ctx: TaintCtx<'_>,
+    depth: u32,
 ) -> Option<TaintLattice> {
     let known = ctx.known_procs?;
-    let caller = ctx.caller_qname.unwrap_or("::top");
+    let ids = ctx
+        .source
+        .procedure_ids(ctx.source_tokens?, command, ctx.registry)?;
+    let [target] = ids.as_slice() else {
+        return None;
+    };
+    if !known.contains(target) {
+        return None;
+    }
 
     // Colour-aware return-summary path: when the interprocedural taint
     // solve has computed per-proc summaries, apply the full transfer.
@@ -1272,11 +1619,11 @@ fn interproc_call_taint<S: std::hash::BuildHasher>(
     // always yields a result (untainted when the arity rejects the call),
     // so the bare argument join below is bypassed for internal calls.
     if let Some(summaries) = ctx.taint_summaries {
-        let target = crate::interprocedural::resolve_call_target(command, args, caller, known)?;
-        let summary = summaries.get(&target)?;
-        let arg_taints: Vec<TaintLattice> = args
-            .iter()
-            .map(|a| word_taint(a, uses, taints, ctx))
+        let summary = summaries.get(target)?;
+        let arg_taints: Vec<TaintLattice> = (0..args.len())
+            .map(|index| {
+                positional_argument_taint(index, args, effective, uses, taints, ctx, depth)
+            })
             .collect();
         return Some(crate::taint_interproc::apply_proc_return_summary(
             summary,
@@ -1286,12 +1633,13 @@ fn interproc_call_taint<S: std::hash::BuildHasher>(
 
     // Conservative single-passthrough rule (no solve summaries available).
     let interproc = ctx.interproc?;
-    let target = crate::interprocedural::resolve_internal_call(command, caller, known)?;
-    let summary = interproc.procedures.get(&target)?;
+    let summary = interproc.procedures.get(target)?;
     let passthrough = summary.return_passthrough_param.as_ref()?;
     let idx = summary.params.iter().position(|p| p == passthrough)?;
-    let actual = args.get(idx)?;
-    Some(word_taint(actual, uses, taints, ctx))
+    args.get(idx)?;
+    Some(positional_argument_taint(
+        idx, args, effective, uses, taints, ctx, 0,
+    ))
 }
 
 /// Whether this call's callee exposes `defined_name` to external input via a
@@ -1300,14 +1648,21 @@ fn interproc_call_taints_global(command: &str, defined_name: &str, ctx: TaintCtx
     let (Some(known), Some(interproc)) = (ctx.known_procs, ctx.interproc) else {
         return false;
     };
-    let caller = ctx.caller_qname.unwrap_or("::top");
-    crate::interprocedural::resolve_internal_call(command, caller, known)
-        .and_then(|target| interproc.tainted_global_writes.get(&target))
-        .is_some_and(|writes| writes.contains(defined_name))
+    ctx.source_tokens
+        .and_then(|tokens| ctx.source.procedure_ids(tokens, command, ctx.registry))
+        .is_some_and(|ids| {
+            ids.iter().filter(|id| known.contains(id)).any(|id| {
+                interproc
+                    .tainted_global_writes
+                    .get(id)
+                    .is_some_and(|writes| writes.contains(defined_name))
+            })
+        })
 }
 
-/// Look up taint for a named variable at its current SSA version. A name not
-/// interned in `ssa` is not a tracked SSA variable, so it is clean.
+/// Look up taint for a named variable at its current SSA version. A name
+/// outside the represented SSA arena has unknown contents and no mitigation.
+/// This residual does not establish a read, a store or variable presence.
 fn var_taint<S: std::hash::BuildHasher>(
     name: &str,
     uses: &HashMap<Symbol, u32>,
@@ -1315,10 +1670,13 @@ fn var_taint<S: std::hash::BuildHasher>(
     ssa: &SsaFunction,
 ) -> TaintLattice {
     let Some(sym) = ssa.var_symbol(name) else {
-        return TaintLattice::clean();
+        return TaintLattice::tainted();
     };
-    // Version 0 means the variable may be read from enclosing scope.
-    let ver = uses.get(&sym).copied().unwrap_or(0);
+    // Only a retained use can select its contents version. An interned
+    // spelling elsewhere in the function supplies no value at this read.
+    let Some(ver) = uses.get(&sym).copied() else {
+        return TaintLattice::tainted();
+    };
     taints
         .get(&(sym, ver))
         .copied()
@@ -1416,7 +1774,230 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
     }
 }
 
+fn retained_taint_substitution(word: &str, ctx: TaintCtx<'_>) -> Option<CommandTokens> {
+    let parent = ctx.source_tokens?;
+    let mut nested = if let Some(source_word) = ctx.source_word {
+        crate::word_subst::whole_word_command_tokens(source_word, ctx.lexer_config())?
+    } else {
+        let offset = ctx.word_offset?;
+        let span = Span::new(offset, offset.checked_add(u32::try_from(word.len()).ok()?)?);
+        crate::word_subst::nested_command_words(
+            word,
+            &crate::ir::SourceSite::source(span),
+            ctx.lexer_config(),
+        )
+        .ok()?
+    };
+    nested.inherit_nested_bindings(parent);
+    Some(nested)
+}
+
+fn retained_normal_taint(
+    tokens: &CommandTokens,
+    ctx: TaintCtx<'_>,
+) -> Option<crate::registry_invocation::NormalTaintInvocation> {
+    if ctx.source.allows_nominal_metadata() && ctx.source.metadata.is_none() {
+        return crate::registry_invocation::normal_taint_invocation(ctx.registry, None, tokens);
+    }
+    crate::registry_invocation::normal_taint_invocation_with_metadata_context(
+        ctx.registry,
+        ctx.source.metadata,
+        tokens,
+    )
+}
+
+fn normal_result_taint(
+    normal: &crate::registry_invocation::NormalTaintInvocation,
+) -> Option<TaintLattice> {
+    if let Some(colour) = normal.source_colour() {
+        return Some(TaintLattice::from_colours(reg_colour(colour)));
+    }
+    normal.is_sanitiser().then(TaintLattice::clean)
+}
+
+fn hosted_substitution_is_taint_source(
+    metadata: &crate::registry_invocation::OriginalConditionalVendorRegistryMetadata,
+    effective: &crate::registry_invocation::EffectiveCommandWords,
+    args: &[String],
+    registry: &CommandRegistry,
+) -> bool {
+    // Conditional source getters cannot issue sanitiser or shape safety.
+    // May-taint remains independent of Native dispatch and effects.
+    let args: Vec<_> = effective.argument_presentations(args).unwrap_or_default();
+    let known: Option<Vec<_>> = args.iter().map(|value| value.as_deref()).collect();
+    metadata.shape().possible_traits().intersects(
+        tcl_registry::Traits::TAINT_SOURCE
+            | tcl_registry::Traits::UNNORMALISED_HTTP_GETTER
+            | tcl_registry::Traits::TAINT_SOURCE_ZERO_ARGS,
+    ) || known.as_deref().is_some_and(|args| {
+        tcl_registry::taint::is_taint_source(registry, metadata.shape().command(), args, None)
+    })
+}
+
+fn substitution_transform_colour(
+    normal: Option<&crate::registry_invocation::NormalTaintInvocation>,
+    ctx: TaintCtx<'_>,
+    cmd: &str,
+    arg_refs: &[&str],
+) -> Option<TaintColour> {
+    normal
+        .and_then(crate::registry_invocation::NormalTaintInvocation::transform_colour)
+        .map(reg_colour)
+        .or_else(|| {
+            (ctx.source.allows_nominal_metadata() && ctx.source_tokens.is_none())
+                .then(|| transform_colour(ctx.registry, cmd, arg_refs))
+                .flatten()
+        })
+}
+
+fn substitution_word_taint<S: std::hash::BuildHasher>(
+    word: &str,
+    invocation: (&str, &[String]),
+    uses: &HashMap<Symbol, u32>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    ctx: TaintCtx<'_>,
+    depth: u32,
+) -> TaintLattice {
+    let (cmd, args) = invocation;
+    if !ctx.source.allows_nominal_metadata() && ctx.source.metadata.is_none() {
+        return TaintLattice::tainted();
+    }
+    let nested = retained_taint_substitution(word, ctx);
+    let normal = nested
+        .as_ref()
+        .and_then(|tokens| retained_normal_taint(tokens, ctx));
+    if let Some(taint) = normal.as_ref().and_then(normal_result_taint) {
+        return taint;
+    }
+    let resolved = nested.as_ref().and_then(|nested| {
+        crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+            ctx.registry,
+            ctx.source.metadata,
+            nested,
+        )
+    });
+    let hosted = nested
+        .as_ref()
+        .filter(|_| ctx.source.metadata.is_some())
+        .and_then(|tokens| {
+            crate::registry_invocation::hosted_source_taint_invocation(ctx.registry, tokens)
+        });
+    let effective = nested
+        .as_ref()
+        .and_then(crate::registry_invocation::effective_command_words);
+    let effective_args = effective
+        .as_ref()
+        .and_then(|effective| effective.argument_spellings(args));
+    let point_target = nested
+        .as_ref()
+        .and_then(|nested| nested.source_binding.as_ref())
+        .and_then(crate::command_binding::SourceInvocationBinding::proved_target);
+    let registry_allowed =
+        (ctx.source.allows_nominal_metadata() && ctx.source_tokens.is_none()) || resolved.is_some();
+    if hosted.as_ref().is_some_and(|hosted| {
+        hosted_substitution_is_taint_source(&hosted.metadata, &hosted.effective, args, ctx.registry)
+    }) {
+        return TaintLattice::tainted();
+    }
+    if ctx.source_tokens.is_some() && point_target.is_none() && normal.is_none() {
+        // Missing word provenance or an explicit unknown target cannot
+        // inherit a sanitiser/source/transform from the written name.
+        return TaintLattice::tainted();
+    }
+    let cmd = resolved
+        .as_ref()
+        .map(|resolved| resolved.facts.canonical_command.as_str())
+        .or_else(|| point_target.map(|target| target.command.as_str()))
+        .unwrap_or(cmd);
+    let args = effective_args.as_deref().unwrap_or(args);
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    if ctx.source.allows_nominal_metadata()
+        && ctx.source_tokens.is_none()
+        && is_sanitiser(ctx.registry, cmd, &arg_refs)
+    {
+        return TaintLattice::clean();
+    }
+    if registry_allowed
+        && let Some(t) = source_colour(
+            ctx.registry,
+            cmd,
+            &arg_refs,
+            ctx.dialect,
+            ctx.instance_classes,
+            ctx.source_position,
+            nested
+                .as_ref()
+                .and_then(|tokens| tokens.words().first())
+                .map(|word| (word, ctx.source.config)),
+        )
+    {
+        return t;
+    }
+    // Interprocedural: if `cmd` resolves to a known proc with a
+    // passthrough parameter, propagate the taint of the matching
+    // actual.
+    if let Some(t) = interproc_call_taint(
+        cmd,
+        args,
+        effective.as_ref(),
+        uses,
+        taints,
+        TaintCtx {
+            source_tokens: nested.as_ref().or(ctx.source_tokens),
+            ..ctx
+        },
+        depth + 1,
+    ) {
+        return t;
+    }
+    // Propagate from the arguments inside the command sub. `cmd` has
+    // no registry classification (source / sanitiser / passthrough all
+    // missed above), so its effect on argument shape is unknown —
+    // strip shape-dependent mitigations (`shape_unproven`) rather than
+    // optimistically assuming e.g. `PATH_PREFIXED` survives an
+    // arbitrary `string range` / `lindex [split ...]` transform.
+    let mut t = TaintLattice::clean();
+    for index in 0..args.len() {
+        let arg_ctx = TaintCtx {
+            source_tokens: nested.as_ref().or(ctx.source_tokens),
+            ..ctx
+        };
+        t = t.join(positional_argument_taint(
+            index,
+            args,
+            effective.as_ref(),
+            uses,
+            taints,
+            arg_ctx,
+            depth + 1,
+        ));
+    }
+    t = t.shape_unproven();
+    // Stamp the encoder/transform colour the command adds to its result
+    // (e.g. `uri::encode` → `URL_ENCODED`, `file normalize` →
+    // `PATH_NORMALISED`), so a later pass through the same encoder is
+    // detectable as a double-encode (T106) and a consumer asking "has
+    // this value been through a normalising sanitiser" gets a yes.
+    //
+    // Stamped regardless of taint.  The colour describes what the
+    // *command* guarantees about its result, not what its input was, so
+    // gating it on `is_tainted()` would make the fact unobservable for
+    // exactly the values a hygiene check like W201 asks about — a path
+    // built from clean local variables and then normalised.  Nothing
+    // widens as a result: every consumer that acts on a colour
+    // ([`emit_double_encode_warnings`], the sink mitigation checks)
+    // requires `is_tainted()` first, and a clean lattice is `join`'s
+    // identity, so a clean colour never dilutes a tainted operand's
+    // must-have mitigations.
+    let transform = substitution_transform_colour(normal.as_ref(), ctx, cmd, &arg_refs);
+    if let Some(colour) = transform {
+        t = t.with(colour);
+    }
+    t
+}
+
 /// Determine the taint produced by a statement's definition(s).
+#[cfg(test)]
 fn evaluate_taint_def<S: std::hash::BuildHasher>(
     stmt: &Statement,
     defined_var: Symbol,
@@ -1425,77 +2006,55 @@ fn evaluate_taint_def<S: std::hash::BuildHasher>(
     ctx: TaintCtx<'_>,
     ssa: &SsaFunction,
 ) -> TaintLattice {
-    let ctx = ctx.at(stmt.span().start());
+    evaluate_taint_def_at(stmt, defined_var, uses, taints, ctx, ssa, None)
+}
+
+fn evaluate_taint_def_at<S: std::hash::BuildHasher>(
+    stmt: &Statement,
+    defined_var: Symbol,
+    uses: &HashMap<Symbol, u32>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    ctx: TaintCtx<'_>,
+    ssa: &SsaFunction,
+    point: Option<(BlockId, usize)>,
+) -> TaintLattice {
+    let ctx = TaintCtx {
+        source_tokens: stmt.tokens(),
+        word_offset: None,
+        source_word: None,
+        ..ctx.at(stmt.span().start())
+    };
     match stmt {
+        Statement::NativeCall { .. } => TaintLattice::tainted(),
         // Expression: join taint from all used variables AND from any command
         // substitution embedded in the expression AST. `join_uses` only sees
         // `$var` SSA uses, so a taint source nested in an `[expr {…}]` command
         // substitution (`set x [expr {[gets stdin] + 1}]`) would otherwise
         // launder the taint — a false-negative security diagnostic.
         Statement::AssignExpr { expr, .. } => {
-            join_uses(uses, taints, ssa).join(expr_command_taint(expr, uses, taints, ctx, 0))
+            join_uses(uses, taints).join(expr_command_taint(expr, uses, taints, ctx, 0))
         }
 
         // Value assignment: evaluate the RHS word.
-        Statement::AssignValue { value, .. } => word_taint(value, uses, taints, ctx),
-
-        // incr propagates taint from the variable being incremented.
-        Statement::Incr { name, .. } => {
-            let base = normalise_var_name(name);
-            var_taint(base, uses, taints, ssa)
+        Statement::AssignValue { value, tokens, .. } => {
+            let ctx = TaintCtx {
+                word_offset: tokens
+                    .as_ref()
+                    .and_then(|tokens| tokens.argv.last())
+                    .map(|span| span.start()),
+                source_word: tokens.as_ref().and_then(|tokens| tokens.word_exprs.last()),
+                ..ctx
+            };
+            word_taint(value, uses, taints, ctx)
         }
 
-        // Generic call that defines variables.
-        Statement::Call {
-            command,
-            args,
-            defs,
-            ..
-        } if !defs.is_empty() => {
-            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            let defined_name = ssa.var_name(defined_var);
-            if tcl_registry::taint::taints_var_write(
-                ctx.registry,
-                command,
-                &arg_refs,
-                dialect_to_point(ctx.dialect),
-                defined_name,
-            ) || instance_taints_var_write(
-                ctx.registry,
-                command,
-                &arg_refs,
-                ctx.dialect,
-                ctx.instance_classes,
-                ctx.source_position,
-                defined_name,
-            ) {
-                return TaintLattice::tainted();
-            }
-            if interproc_call_taints_global(command, defined_name, ctx) {
-                return TaintLattice::tainted();
-            }
-            if is_sanitiser(ctx.registry, command, &arg_refs) {
-                return TaintLattice::clean();
-            }
-            if let Some(t) = source_colour(
-                ctx.registry,
-                command,
-                &arg_refs,
-                ctx.dialect,
-                ctx.instance_classes,
-                ctx.source_position,
-            ) {
-                return t;
-            }
-            if let Some(t) = interproc_call_taint(command, args, uses, taints, ctx) {
-                return t;
-            }
-            // Propagate from arguments.
-            let mut t = TaintLattice::clean();
-            for arg in args {
-                t = t.join(word_taint(arg, uses, taints, ctx));
-            }
-            t
+        // incr propagates taint from the variable being incremented.
+        Statement::Incr { .. } => var_taint(ssa.var_name(defined_var), uses, taints, ssa),
+
+        // This query is made for actual SSA definitions. Successful-handler
+        // projections can supply them without adding raw IR `Call::defs`.
+        Statement::Call { .. } => {
+            call_definition_taint(stmt, defined_var, uses, taints, ctx, ssa, point)
         }
 
         // Barrier has unknown semantics — propagate taint conservatively
@@ -1518,6 +2077,190 @@ fn evaluate_taint_def<S: std::hash::BuildHasher>(
     }
 }
 
+fn written_arguments_taint<S: std::hash::BuildHasher>(
+    args: &[String],
+    tokens: Option<&CommandTokens>,
+    uses: &HashMap<Symbol, u32>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    ctx: TaintCtx<'_>,
+) -> TaintLattice {
+    args.iter()
+        .enumerate()
+        .fold(TaintLattice::clean(), |taint, (index, arg)| {
+            let arg_ctx = TaintCtx {
+                word_offset: tokens
+                    .and_then(|tokens| tokens.argv.get(index + 1))
+                    .map(|span| span.start()),
+                source_word: tokens.and_then(|tokens| tokens.word_exprs.get(index + 1)),
+                ..ctx
+            };
+            taint.join(word_taint(arg, uses, taints, arg_ctx))
+        })
+}
+
+fn selected_source_write_targets_definition(
+    tokens: &CommandTokens,
+    defined_var: Symbol,
+    ssa: &SsaFunction,
+    ctx: TaintCtx<'_>,
+    point: Option<(BlockId, usize)>,
+) -> Option<bool> {
+    let metadata = ctx.source.metadata_context()?;
+    let (block, index) = point?;
+    let receiver = tokens.words().first().map(|word| (word, ctx.source.config));
+    let instance_class = unique_instance_class(receiver, ctx.instance_classes, ctx.source_position);
+    // Select exactly one genuine source owner. A registered instance receiver
+    // uses its class schema; otherwise the selected registry command schema is
+    // required. An unavailable selected owner cannot borrow an empty result
+    // from the other dispatch path to claim that this definition is unwritten.
+    let writes = if instance_class.is_some() {
+        crate::ssa::original_instance_option_writes(tokens, metadata, ctx.registry)?
+    } else {
+        crate::ssa::original_command_taint_option_writes(tokens, metadata, ctx.registry)?
+    };
+    if writes.is_empty() {
+        return Some(false);
+    }
+    let target_span = crate::ssa::SsaSourceView::at_statement(ssa, block, index)
+        .original_definition_name_with_metadata_context(defined_var, ctx.registry, Some(metadata))?
+        .span();
+    let selects_target = |write: &crate::ssa::OriginalLinkedOptionWrite| {
+        write
+            .written_argument
+            .checked_add(1)
+            .and_then(|index| tokens.words().get(index))
+            .is_some_and(|word| word.source().span == target_span)
+    };
+    Some(writes.iter().any(selects_target))
+}
+
+fn call_definition_taint<S: std::hash::BuildHasher>(
+    stmt: &Statement,
+    defined_var: Symbol,
+    uses: &HashMap<Symbol, u32>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    ctx: TaintCtx<'_>,
+    ssa: &SsaFunction,
+    point: Option<(BlockId, usize)>,
+) -> TaintLattice {
+    let Statement::Call {
+        command,
+        args,
+        tokens,
+        ..
+    } = stmt
+    else {
+        return TaintLattice::clean();
+    };
+    let tokens = tokens.as_ref();
+    if !ctx.source.allows_nominal_metadata() && ctx.source.metadata.is_none() {
+        return TaintLattice::tainted();
+    }
+
+    if tokens.is_some_and(CommandTokens::has_unproved_source_binding) {
+        // A same-spelled sanitizer/source is not implementation proof.
+        // Preserve ordinary argument taint without granting mitigation.
+        return written_arguments_taint(args, tokens, uses, taints, ctx);
+    }
+    let resolved = crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+        ctx.registry,
+        ctx.source.metadata,
+        stmt,
+    );
+    if (tokens.is_some_and(|tokens| tokens.source_binding.is_some())
+        || !ctx.source.allows_nominal_metadata())
+        && resolved.is_none()
+    {
+        return written_arguments_taint(args, tokens, uses, taints, ctx);
+    }
+    let command = resolved.as_ref().map_or(command.as_str(), |resolved| {
+        resolved.facts.canonical_command.as_str()
+    });
+    let presented;
+    let args = if let Some(resolved) = &resolved {
+        let Some(arguments) = resolved
+            .arguments
+            .iter()
+            .cloned()
+            .collect::<Option<Vec<_>>>()
+        else {
+            // An unmaterialised captured value has no source spelling or
+            // established taint provenance. It cannot license mitigation.
+            return TaintLattice::tainted();
+        };
+        presented = arguments;
+        presented.as_slice()
+    } else {
+        args.as_slice()
+    };
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let defined_name = ssa.var_name(defined_var);
+    let writes_tainted_target = if ctx.source.allows_nominal_metadata() {
+        tcl_registry::taint::taints_var_write(
+            ctx.registry,
+            command,
+            &arg_refs,
+            dialect_to_point(ctx.dialect),
+            defined_name,
+        ) || instance_taints_var_write(ctx, command, &arg_refs, defined_name)
+    } else {
+        let Some(tokens) = tokens else {
+            return TaintLattice::tainted();
+        };
+        match selected_source_write_targets_definition(tokens, defined_var, ssa, ctx, point) {
+            Some(selected) => selected,
+            None => return TaintLattice::tainted(),
+        }
+    };
+    if writes_tainted_target {
+        return TaintLattice::tainted();
+    }
+    if interproc_call_taints_global(command, defined_name, ctx) {
+        return TaintLattice::tainted();
+    }
+    if is_sanitiser(ctx.registry, command, &arg_refs) {
+        return TaintLattice::clean();
+    }
+    if let Some(t) = source_colour(
+        ctx.registry,
+        command,
+        &arg_refs,
+        ctx.dialect,
+        ctx.instance_classes,
+        ctx.source_position,
+        ctx.source_tokens
+            .and_then(|tokens| tokens.words().first())
+            .map(|word| (word, ctx.source.config)),
+    ) {
+        return t;
+    }
+    if let Some(t) = interproc_call_taint(
+        command,
+        args,
+        resolved.as_ref().map(|resolved| &resolved.effective),
+        uses,
+        taints,
+        ctx,
+        0,
+    ) {
+        return t;
+    }
+    // Binding prefixes are literal values, never a fresh source eval.
+    let mut t = TaintLattice::clean();
+    for index in 0..args.len() {
+        t = t.join(positional_argument_taint(
+            index,
+            args,
+            resolved.as_ref().map(|resolved| &resolved.effective),
+            uses,
+            taints,
+            ctx,
+            0,
+        ));
+    }
+    t
+}
+
 /// Apply rendered-property-derived colours to a taint lattice.
 ///
 /// Only adds mitigating colours when the rendered-properties lattice
@@ -1537,33 +2280,13 @@ fn colour_from_rendered(lat: TaintLattice, props: RenderedValueProps) -> TaintLa
     out
 }
 
-/// True when a version-0 SSA use should be skipped by the *reporting*
-/// passes as the conservative global-write taint seeding rather
-/// than a genuine taint.
-///
-/// Version-0 (`(name, 0)`) taints arise from two sources: the
-/// interprocedural solve's parameter entry-taint (a genuine cross-proc
-/// flow) and the conservative cross-procedure global-write seeding
-/// ([`collect_global_reads`], which only ever seeds `::`-prefixed global
-/// / namespace names). The latter is not a genuine taint, so a version-0
-/// use is suppressed only when its name is global/namespace-scoped; a
-/// non-`::` version-0 use is a real parameter entry-taint and is
-/// reported.
-fn is_seeded_global_v0(name: &str, ver: u32) -> bool {
-    ver == 0 && name.starts_with("::")
-}
-
 /// Join taint from all SSA uses in a statement.
 ///
-/// Version-0 uses contribute when they carry a genuine parameter
-/// entry-taint (non-`::` name): the join takes `(name, 0)` when
-/// present in the taint map. The conservative
-/// global-write seeding (`::` names at version 0) is excluded so it does
-/// not over-propagate into expression results.
+/// Version-zero uses contribute according to their typed seed provenance.
+/// Conservative global-write seeds do not flow as genuine inputs.
 fn join_uses<S: std::hash::BuildHasher>(
     uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice, S>,
-    ssa: &SsaFunction,
 ) -> TaintLattice {
     let mut t = TaintLattice::clean();
     for (&sym, &ver) in uses {
@@ -1574,8 +2297,8 @@ fn join_uses<S: std::hash::BuildHasher>(
                     .copied()
                     .unwrap_or(TaintLattice::clean()),
             );
-        } else if !ssa.var_name(sym).starts_with("::")
-            && let Some(&v0) = taints.get(&(sym, 0))
+        } else if let Some(&v0) = taints.get(&(sym, 0))
+            && !v0.is_conservative_global_seed_only()
         {
             t = t.join(v0);
         }
@@ -1591,79 +2314,81 @@ fn join_uses<S: std::hash::BuildHasher>(
 /// function's IR via `Statement::Call` commands that resolve to an
 /// internal proc, then unions their transitive closures.
 fn reachable_writes_global(
-    ssa: &SsaFunction,
+    _ssa: &SsaFunction,
     cfg: &CfgFunction,
     ia: &InterproceduralAnalysis,
+    source: TaintSourceContext<'_>,
+    registry: &CommandRegistry,
 ) -> bool {
-    // If the function itself is in the summary, use its transitive
-    // closure directly.
-    if let Some(self_summary) = ia.procedures.get(ssa.name.as_str()) {
-        if self_summary.writes_global {
-            return true;
-        }
-        return self_summary
-            .calls
-            .iter()
-            .any(|c| ia.procedures.get(c).is_some_and(|s| s.writes_global));
+    if cfg.has_opaque_native_accesses() {
+        return true;
     }
-
-    // Unknown / top-level caller: walk the CFG for direct Call
-    // targets, resolve them, and union the transitive closures.
-    let known: HashSet<String> = ia.procedures.keys().cloned().collect();
-    let mut visited: FxHashSet<String> = FxHashSet::default();
-    for block in cfg.blocks.values() {
-        for stmt in &block.statements {
-            if let Statement::Call { command, .. } = stmt
-                && let Some(target) = crate::interprocedural::resolve_internal_call(
-                    command,
-                    ssa.name.as_str(),
-                    &known,
-                )
-                && let Some(summary) = ia.procedures.get(&target)
-            {
-                if summary.writes_global {
-                    return true;
-                }
-                if visited.insert(target) {
-                    for c in &summary.calls {
-                        if ia.procedures.get(c).is_some_and(|s| s.writes_global) {
-                            return true;
-                        }
-                    }
-                }
+    if let Some(summary) = source.body_id().and_then(|id| ia.procedures.get(&id)) {
+        return summary.writes_global
+            || summary
+                .calls
+                .iter()
+                .any(|id| ia.procedures.get(id).is_some_and(|row| row.writes_global));
+    }
+    for statement in cfg.blocks.values().flat_map(|block| &block.statements) {
+        let Statement::Call {
+            command, tokens, ..
+        } = statement
+        else {
+            continue;
+        };
+        let Some(ids) = tokens
+            .as_ref()
+            .and_then(|tokens| source.procedure_ids(tokens, command, registry))
+        else {
+            if ia.procedures.values().any(|row| row.writes_global) {
+                return true;
             }
+            continue;
+        };
+        if ids.iter().any(|id| {
+            ia.procedures.get(id).is_some_and(|row| {
+                row.writes_global
+                    || row.calls.iter().any(|callee| {
+                        ia.procedures
+                            .get(callee)
+                            .is_some_and(|row| row.writes_global)
+                    })
+            })
+        }) {
+            return true;
         }
     }
     false
 }
 
-/// Collect the set of `::`-prefixed (global / namespace-scoped)
-/// variable names that the function reads at SSA version 0.
-///
-/// Scans every block's `entry_versions`, every statement's `uses`
-/// map, and every phi's incoming edges so we catch globals reached
-/// from any predecessor — the entry block alone typically has no
-/// seeded versions for globals.
-fn collect_global_reads(ssa: &SsaFunction) -> FxHashSet<String> {
-    let mut out: FxHashSet<String> = FxHashSet::default();
-    let mut consider = |name: &str| {
-        if name.starts_with("::") {
-            out.insert(name.to_owned());
+/// Collect version-zero reads whose SSA cells have an actual namespace owner.
+/// The display name is not a storage-domain discriminator.
+fn collect_global_reads(ssa: &SsaFunction) -> FxHashSet<Symbol> {
+    let mut out: FxHashSet<Symbol> = FxHashSet::default();
+    let mut consider = |symbol: Symbol| {
+        if ssa.cell_key(symbol).is_some_and(|key| {
+            matches!(
+                key.root(),
+                crate::var_resolve::VariableCellKey::Namespace { .. }
+            )
+        }) {
+            out.insert(symbol);
         }
     };
     for block in ssa.blocks.values() {
-        for &sym in block.entry_versions.keys() {
-            consider(ssa.var_name(sym));
+        for &symbol in block.entry_versions.keys() {
+            consider(symbol);
         }
         for phi in &block.phis {
-            if phi.incoming.values().any(|&v| v == 0) {
-                consider(ssa.var_name(phi.name));
+            if phi.incoming.values().any(|&version| version == 0) {
+                consider(phi.name);
             }
         }
-        for stmt in &block.statements {
-            for (&sym, &ver) in &stmt.uses {
-                if ver == 0 {
-                    consider(ssa.var_name(sym));
+        for statement in &block.statements {
+            for (&symbol, &version) in &statement.uses {
+                if version == 0 {
+                    consider(symbol);
                 }
             }
         }
@@ -1740,19 +2465,20 @@ impl<'a> TaintGraph<'a> {
 ///   summary solver reuses this across its clean run and every parameter ×
 ///   colour scenario instead of repeating the same receiver CFG fixpoint.
 #[must_use]
-// These inputs are the independently reusable analysis products; wrapping
-// them in an options bag would hide, rather than reduce, the dependency set.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn propagate_taints(
     graph: &TaintGraph<'_>,
-    registry: &CommandRegistry,
-    rendered_props: Option<&HashMap<ValueKey, RenderedValueProps>>,
-    interproc: Option<&InterproceduralAnalysis>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
-    param_taints: Option<&HashMap<String, TaintLattice>>,
-    taint_summaries: Option<&HashMap<String, crate::taint_interproc::ProcTaintSummary>>,
-    instance_classes: &LocalInstanceClasses,
+    inputs: TaintPropagationInputs<'_>,
 ) -> HashMap<ValueKey, TaintLattice> {
+    let TaintPropagationInputs {
+        registry,
+        rendered_props,
+        interproc,
+        source,
+        param_taints,
+        taint_summaries,
+        instance_classes,
+    } = inputs;
+    let dialect = source.dialect;
     let TaintGraph {
         cfg,
         ssa,
@@ -1765,9 +2491,9 @@ pub(crate) fn propagate_taints(
     // resolution in `interproc_call_taint` is O(1) rather than
     // O(procedures) per call site. The solve's summaries take
     // precedence (their key set).
-    let known_procs: Option<HashSet<String>> = match (taint_summaries, interproc) {
-        (Some(s), _) => Some(s.keys().cloned().collect()),
-        (None, Some(ia)) => Some(ia.procedures.keys().cloned().collect()),
+    let known_procs: Option<HashSet<crate::ir::ProcedureId>> = match (taint_summaries, interproc) {
+        (Some(s), _) => Some(s.keys().copied().collect()),
+        (None, Some(ia)) => Some(ia.procedures.keys().copied().collect()),
         (None, None) => None,
     };
     let ctx = TaintCtx {
@@ -1775,11 +2501,14 @@ pub(crate) fn propagate_taints(
         ssa,
         interproc,
         known_procs: known_procs.as_ref(),
-        caller_qname: Some(ssa.name.as_str()),
         dialect,
+        source,
         taint_summaries,
         instance_classes: Some(instance_classes),
         source_position: None,
+        source_tokens: None,
+        word_offset: None,
+        source_word: None,
     };
 
     let mut taints: HashMap<ValueKey, TaintLattice> = HashMap::new();
@@ -1790,6 +2519,7 @@ pub(crate) fn propagate_taints(
         interproc,
         param_taints,
         (registry, dialect),
+        source,
     );
 
     let mut changed = true;
@@ -1803,7 +2533,8 @@ pub(crate) fn propagate_taints(
                 continue;
             };
             changed |= propagate_phi_taints(&mut taints, ssa_block, *bn, preds, sccp);
-            changed |= propagate_statement_taints(&mut taints, ssa_block, ctx, ssa, rendered_props);
+            changed |=
+                propagate_statement_taints(&mut taints, *bn, ssa_block, ctx, ssa, rendered_props);
             for versions in ssa
                 .value_clobbers
                 .get(bn)
@@ -1824,11 +2555,64 @@ pub(crate) fn propagate_taints(
         }
     }
 
+    if cfg.has_opaque_native_accesses() {
+        widen_opaque_native_taints(&mut taints, ssa);
+    }
     taints
+}
+
+/// Compatibility taint maps cannot name the stores made by an opaque invocation.
+/// Only already represented SSA keys are widened; no variable names are created.
+fn widen_opaque_native_taints(taints: &mut HashMap<ValueKey, TaintLattice>, ssa: &SsaFunction) {
+    // Named SSA versions cannot describe stores made by this invocation.
+    // Retain the opaque residual even when no explicit definition exists.
+    for block in ssa.blocks.values() {
+        for (&symbol, &version) in block.entry_versions.iter().chain(&block.exit_versions) {
+            taints.insert((symbol, version), TaintLattice::tainted());
+        }
+        for phi in &block.phis {
+            taints.insert((phi.name, phi.version), TaintLattice::tainted());
+            for &version in phi.incoming.values() {
+                taints.insert((phi.name, version), TaintLattice::tainted());
+            }
+        }
+        for statement in &block.statements {
+            for (&symbol, &version) in statement.uses.iter().chain(&statement.defs) {
+                taints.insert((symbol, version), TaintLattice::tainted());
+            }
+        }
+    }
 }
 
 /// Seed the initial taint map: tainted interprocedural parameters, plus
 /// version-0 global reads when a reachable callee writes globals.
+fn is_actual_formal_entry(
+    ssa: &SsaFunction,
+    symbol: Symbol,
+    name: &str,
+    source: TaintSourceContext<'_>,
+) -> bool {
+    let Some(key) = ssa.cell_key(symbol) else {
+        return false;
+    };
+    if !matches!(
+        key.root(),
+        crate::var_resolve::VariableCellKey::Activation { .. }
+    ) {
+        return false;
+    }
+    if source.allows_nominal_metadata() {
+        return true;
+    }
+    let (Some(module), Some(body)) = (source.module(), source.body_id()) else {
+        return false;
+    };
+    module
+        .procedures
+        .get(&body)
+        .is_some_and(|procedure| procedure.params.iter().any(|formal| formal == name))
+}
+
 fn seed_entry_taints(
     taints: &mut HashMap<ValueKey, TaintLattice>,
     ssa: &SsaFunction,
@@ -1839,6 +2623,7 @@ fn seed_entry_taints(
         &CommandRegistry,
         Option<&'static tcl_dialect::DialectProfile>,
     ),
+    source: TaintSourceContext<'_>,
 ) {
     // Seed entry taints for tainted parameters (interprocedural solve).
     // Only tainted params seed a slot; clean params leave the version-0
@@ -1850,6 +2635,7 @@ fn seed_entry_taints(
             // consulted, so skipping an un-interned name is behaviour-neutral.
             if t.is_tainted()
                 && let Some(sym) = ssa.var_symbol(name)
+                && is_actual_formal_entry(ssa, sym, name, source)
             {
                 taints.insert((sym, 0), *t);
             }
@@ -1865,15 +2651,12 @@ fn seed_entry_taints(
     // incomings) ensures we discover globals even when the entry
     // block has no seeded versions.
     if let Some(ia) = interproc
-        && reachable_writes_global(ssa, cfg, ia)
+        && reachable_writes_global(ssa, cfg, ia, source, registry)
     {
-        let globals = collect_global_reads(ssa);
-        for name in globals {
-            // `collect_global_reads` only returns names that appear in the SSA
-            // (entry versions / phi names / statement uses), so each is interned.
-            if let Some(sym) = ssa.var_symbol(&name) {
-                taints.entry((sym, 0)).or_insert(TaintLattice::tainted());
-            }
+        for symbol in collect_global_reads(ssa) {
+            taints
+                .entry((symbol, 0))
+                .or_insert_with(TaintLattice::conservative_global_seed);
         }
     }
 
@@ -1891,9 +2674,9 @@ fn seed_entry_taints(
             continue;
         };
         if let Some(sym) = ssa.var_symbol(spec.name) {
-            taints.entry((sym, 0)).or_insert(TaintLattice {
-                colours: reg_colour(colour),
-            });
+            taints
+                .entry((sym, 0))
+                .or_insert_with(|| TaintLattice::from_colours(reg_colour(colour)));
         }
         // Per-element SSA: `$env(PATH)` reads its own `env(PATH)` symbol —
         // every constant-keyed element of a tainted special array carries
@@ -1904,9 +2687,9 @@ fn seed_entry_taints(
                 && name.as_bytes()[spec.name.len()] == b'('
                 && let Some(sym) = ssa.var_symbol(name)
             {
-                taints.entry((sym, 0)).or_insert(TaintLattice {
-                    colours: reg_colour(colour),
-                });
+                taints
+                    .entry((sym, 0))
+                    .or_insert_with(|| TaintLattice::from_colours(reg_colour(colour)));
             }
         }
     }
@@ -1979,16 +2762,38 @@ fn propagate_phi_taints(
 /// merging results into `taints`. Returns `true` if any value changed.
 fn propagate_statement_taints(
     taints: &mut HashMap<ValueKey, TaintLattice>,
+    block_id: BlockId,
     ssa_block: &crate::ssa::SsaBlock,
     ctx: TaintCtx<'_>,
     ssa: &SsaFunction,
     rendered_props: Option<&HashMap<ValueKey, RenderedValueProps>>,
 ) -> bool {
     let mut changed = false;
-    for ssa_stmt in &ssa_block.statements {
+    for (statement_index, ssa_stmt) in ssa_block.statements.iter().enumerate() {
         let stmt = &ssa_stmt.statement;
         for (&var, &ver) in &ssa_stmt.defs {
-            let mut inferred = evaluate_taint_def(stmt, var, &ssa_stmt.uses, &*taints, ctx, ssa);
+            let destruction = ssa_stmt.destruction_defs.contains(&var);
+            // Deletion supplies no value or sanitizer result. Retain the
+            // predecessor's possible taint even for an unconditional tombstone;
+            // completed reads and callback stores have their own receipts.
+            let mut inferred = if destruction {
+                ssa_stmt
+                    .uses
+                    .get(&var)
+                    .and_then(|version| taints.get(&(var, *version)))
+                    .copied()
+                    .unwrap_or_else(TaintLattice::clean)
+            } else {
+                evaluate_taint_def_at(
+                    stmt,
+                    var,
+                    &ssa_stmt.uses,
+                    &*taints,
+                    ctx,
+                    ssa,
+                    Some((block_id, statement_index)),
+                )
+            };
             // A name an opaque `switch`'s arms may write keeps the taint it had
             // when no arm runs.
             if crate::ssa::has_arm_may_defs(stmt)
@@ -2002,7 +2807,8 @@ fn propagate_statement_taints(
             }
             // Enrich the inferred taint with rendered-property
             // colours when available.
-            if let Some(rp) = rendered_props
+            if !destruction
+                && let Some(rp) = rendered_props
                 && let Some(p) = rp.get(&(var, ver))
             {
                 inferred = colour_from_rendered(inferred, *p);
@@ -2107,6 +2913,56 @@ fn classify_sink(
     None
 }
 
+/// Actual selected Registry descriptor and effective argument presentation
+/// for a source call. Detached legacy callers retain their explicit scalar
+/// path; source callers with missing selection are unavailable.
+fn selected_sink_schema<'a>(
+    call: &SinkCall<'a>,
+) -> Option<(&'a tcl_registry::CommandSpec, String, Vec<String>)> {
+    if call.source.allows_nominal_metadata() && call.source.metadata.is_none() {
+        let spec = call.registry.get(call.command)?;
+        return Some((spec, spec.name.to_owned(), call.args.to_vec()));
+    }
+    let context = call.source.metadata?;
+    if !context.matches_registry(call.registry) {
+        return None;
+    }
+    let tokens = call.tokens?;
+    let selected = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+        call.registry,
+        Some(context),
+        tokens,
+    )?;
+    if call
+        .effective
+        .is_some_and(|effective| effective != &selected.effective)
+    {
+        return None;
+    }
+    let args = selected
+        .effective
+        .argument_spellings(tokens.argv_texts.get(1..)?)?;
+    let projected =
+        args.get(call.argument_offset..call.argument_offset.checked_add(call.args.len())?)?;
+    if projected != call.args {
+        return None;
+    }
+    let command = selected.facts.canonical_command;
+    let spec = call.registry.get(&command)?;
+    Some((spec, command, args))
+}
+
+/// Classify a source call only through the actual selected invocation and
+/// its effective argument vector. The standalone scalar helper remains for
+/// explicitly detached callers and tests.
+fn classify_source_sink(
+    call: &SinkCall<'_>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> Option<(DiagCode, String)> {
+    let (_, command, args) = selected_sink_schema(call)?;
+    classify_sink(call.registry, &command, &args, dialect)
+}
+
 /// Registry-driven SSRF / cross-interpreter sinks (T104 / T105),
 /// returned in addition to the primary [`classify_sink`] match so a
 /// single statement can trip multiple categories:
@@ -2142,6 +2998,9 @@ fn classify_network_interp_sinks(
     out
 }
 
+/// Explicit standalone warning utility. Actual Module/FU callers use
+/// [`find_destructive_file_warnings_for_module_function`].
+///
 /// **W313.** Flag destructive `file` operations (`file delete` /
 /// `rename` / `mkdir` — the registry's `destructive` subcommands) whose
 /// path argument is a variable, since the path may carry user-controlled
@@ -2164,10 +3023,9 @@ pub fn find_destructive_file_warnings<S: std::hash::BuildHasher, E: std::hash::B
     if destructive.is_empty() {
         return Vec::new();
     }
-    // The document's `${…}` close rule, threaded into the path-variable scan
-    // so the name W313 anchors on is the one the lexer spanned.
-    let braced_var = tcl_dialect::BracedVarStyle::of_profile(dialect);
-    let guard_map = compute_branch_guard_map(cfg, registry);
+    // This standalone entry selects the complete grammar from its supplied dialect.
+    let config = tcl_lexer::LexerConfig::for_profile(dialect);
+    let guard_map = compute_branch_guard_map(cfg, registry, config);
 
     let mut warnings: Vec<TaintWarning> = Vec::new();
     for bn in cfg_order(cfg) {
@@ -2215,7 +3073,7 @@ pub fn find_destructive_file_warnings<S: std::hash::BuildHasher, E: std::hash::B
             let mut seen: FxHashSet<String> = FxHashSet::default();
             let mut ordered: Vec<(usize, String)> = Vec::new();
             for (idx, a) in args.iter().enumerate().skip(path_start) {
-                for name in arg_var_names_ordered(a, braced_var) {
+                for name in ordered_argument_candidates(a, config, ssa, &ssa_stmt.uses) {
                     if seen.insert(name.clone()) {
                         ordered.push((idx, name));
                     }
@@ -2254,6 +3112,7 @@ pub fn find_destructive_file_warnings<S: std::hash::BuildHasher, E: std::hash::B
                     )
                 };
                 warnings.push(TaintWarning {
+                    source_sink: None,
                     // Anchor at the offending path argument's own token span
                     // (mirroring T102's per-argument targeting); the whole
                     // statement span is the tokens-unavailable fallback.
@@ -2289,76 +3148,61 @@ fn destructive_file_subs(registry: &CommandRegistry) -> HashSet<&'static str> {
     })
 }
 
-/// Variable names referenced (via `$name` / `${name}`) anywhere in `arg`.
-/// A lightweight VAR-token scan covering the path-argument shapes W313
-/// cares about (`$p`, `${p}`, `"$d/$f"`).
-///
-/// Deliberately **not** `crate::var_refs::vars_in_word` — the two disagree on
-/// a variable nested inside another's array index (`$arr($cmd)`): the real
-/// lexer treats the whole thing as one opaque `Var` token, so `vars_in_word`
-/// only ever surfaces `arr`, while this byte-scan (blind to token structure)
-/// finds `cmd` too. Centralising on `vars_in_word` would drop that name from
-/// W313's variable set — a false-negative regression — so this stays a
-/// bespoke scanner; see the `arg_var_names_vs_vars_in_word` test module for
-/// the full comparison.
-fn arg_var_names(arg: &str, braced_var: tcl_dialect::BracedVarStyle) -> HashSet<String> {
-    arg_var_names_ordered(arg, braced_var).into_iter().collect()
+/// Conditional names in argument text; syntax gaps cannot prove absence.
+fn arg_var_names_with_config(
+    arg: &str,
+    config: tcl_lexer::LexerConfig,
+) -> tcl_syntax::naming::SubstitutionVariableCandidates {
+    tcl_syntax::naming::substitution_variable_candidates(arg.as_bytes(), config)
 }
 
-/// Variable names referenced in `arg`, in left-to-right source order with
-/// duplicates preserved.  Callers that need a deterministic *first* variable
-/// (e.g. W313's "first offending path variable") iterate this rather than the
-/// `HashSet` from [`arg_var_names`], whose order is nondeterministic.
-fn arg_var_names_ordered(arg: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec<String> {
-    let mut names = Vec::new();
-    let bytes = arg.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'\\' {
-            // A backslash escapes the next character (`\$notavar` is the
-            // literal text `$notavar`, not a variable reference) — mirrors
-            // the lexer's `\X` handling for un-braced words. Skipping the
-            // pair keeps an escaped `\$` from being misread as the start of
-            // a substitution.
-            let esc_len = arg[i + 1..].chars().next().map_or(0, char::len_utf8);
-            i += 1 + esc_len;
-            continue;
-        }
-        if bytes[i] != b'$' {
-            i += 1;
-            continue;
-        }
-        // The `${…}` name starts just past the `${`; its closer comes from the
-        // shared owner under this document's release rule. Taint is keyed by
-        // name, so recovering `a{b` where the lexer spanned `a{b}c` tracks a
-        // cell nothing writes — the tainted value's colour is lost and the
-        // sink goes unflagged.
-        if bytes.get(i + 1) == Some(&b'{')
-            && let tcl_lexer::BracedVarEnd::Closed(end) =
-                tcl_lexer::braced_var_name_end(bytes, i + 2, braced_var)
-        {
-            names.push(
-                tcl_syntax::naming::normalise_var_name_for_style(&arg[i + 2..end], braced_var)
-                    .to_owned(),
-            );
-            i = end + 1;
-            continue;
-        }
-        let start = i + 1;
-        let mut j = start;
-        while j < bytes.len()
-            && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':')
-        {
-            j += 1;
-        }
-        if j > start {
-            names.push(normalise_var_name(&arg[start..j]).to_owned());
-            i = j;
-        } else {
-            i += 1;
-        }
+fn ordered_argument_candidates(
+    arg: &str,
+    config: tcl_lexer::LexerConfig,
+    ssa: &SsaFunction,
+    uses: &HashMap<Symbol, Version>,
+) -> Vec<String> {
+    let candidates = arg_var_names_with_config(arg, config);
+    let mut names = candidates.names().to_vec();
+    if candidates.has_unknown_residual() {
+        let mut possible = uses
+            .keys()
+            .map(|&symbol| ssa.var_name(symbol).to_owned())
+            .collect::<Vec<_>>();
+        possible.sort_unstable();
+        names.extend(possible);
     }
     names
+}
+
+fn scan_argument_names<S>(env: &TaintScan<'_, S>, arg: &str) -> Vec<String> {
+    ordered_argument_candidates(arg, env.source.config, env.ssa, env.uses)
+}
+
+fn all_argument_candidates(
+    arg: &str,
+    config: tcl_lexer::LexerConfig,
+    ssa: &SsaFunction,
+) -> Vec<String> {
+    let candidates = arg_var_names_with_config(arg, config);
+    let mut names = candidates.names().to_vec();
+    if candidates.has_unknown_residual() {
+        names.extend_from_slice(ssa.var_names());
+    }
+    names
+}
+
+#[cfg(test)]
+fn arg_var_names(arg: &str, braced_var: tcl_dialect::BracedVarStyle) -> HashSet<String> {
+    let config = tcl_lexer::LexerConfig {
+        braced_var,
+        ..tcl_lexer::LexerConfig::default()
+    };
+    arg_var_names_with_config(arg, config)
+        .names()
+        .iter()
+        .cloned()
+        .collect()
 }
 
 /// True when the SSA def of `name`@`ver` is a `[file normalize …]`
@@ -2386,8 +3230,8 @@ fn is_normalised_def(name: &str, ver: u32, ssa: &SsaFunction) -> bool {
 fn compute_branch_guard_map(
     cfg: &CfgFunction,
     registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
 ) -> HashMap<BlockId, HashSet<String>> {
-    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
     let mut guarded: HashMap<BlockId, HashSet<String>> = HashMap::new();
     for block in cfg.blocks.values() {
         let Some(Terminator::Branch {
@@ -2453,28 +3297,30 @@ fn extract_guard_var(
 /// Parse `[string match|first|equal … $var]` and return the path
 /// variable it bounds-checks.
 fn guard_var_from_string_command(text: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
-    let (command, args) = parse_command_substitution_with_config(text.trim(), config)?;
+    let (command, args) = parse_command_substitution_with_spans_and_config(text, config)?;
     if command != "string" || args.is_empty() {
         return None;
     }
-    match args[0].as_str() {
-        "match" if args.len() >= 3 => extract_var_name(args.last().unwrap()),
-        "first" if args.len() >= 3 => extract_var_name(&args[2]),
+    let name =
+        |argument: &(String, Span)| extract_var_name(text.get(argument.1.as_range())?, config);
+    match args[0].0.as_str() {
+        "match" if args.len() >= 3 => name(args.last()?),
+        "first" if args.len() >= 3 => name(&args[2]),
         "equal" => {
             let mut skip_next = false;
-            for arg in &args[1..] {
+            for argument in &args[1..] {
                 if skip_next {
                     skip_next = false;
                     continue;
                 }
-                if arg == "-length" {
+                if argument.0 == "-length" {
                     skip_next = true;
                     continue;
                 }
-                if arg.starts_with('-') {
+                if argument.0.starts_with('-') {
                     continue;
                 }
-                if let Some(name) = extract_var_name(arg) {
+                if let Some(name) = name(argument) {
                     return Some(name);
                 }
             }
@@ -2484,20 +3330,9 @@ fn guard_var_from_string_command(text: &str, config: tcl_lexer::LexerConfig) -> 
     }
 }
 
-/// Extract a variable name from a `$name` / `${name}` word (identifier
-/// chars only — no `::` qualification).
-fn extract_var_name(arg: &str) -> Option<String> {
-    let text = arg.trim();
-    if let Some(inner) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
-        return Some(inner.to_owned());
-    }
-    if let Some(name) = text.strip_prefix('$')
-        && !name.is_empty()
-        && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
-    {
-        return Some(name.to_owned());
-    }
-    None
+fn extract_var_name(arg: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    let original = crate::value_shapes::value_word_with_config(arg, config)?;
+    original_scalar_reference_name(&original, config).map(str::to_owned)
 }
 
 /// True when block `id` executes a block-terminating command
@@ -2589,7 +3424,12 @@ fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
     // Named-variable double-encode: `set e [enc $x]; enc $e`.
     for (&sym, &ver) in uses {
         let name = ctx.ssa.var_name(sym);
-        if is_seeded_global_v0(name, ver) || emitted.contains(&sym) || quoted_uses.contains(&sym) {
+        if taints
+            .get(&(sym, ver))
+            .is_some_and(|value| value.is_conservative_global_seed_only())
+            || emitted.contains(&sym)
+            || quoted_uses.contains(&sym)
+        {
             continue;
         }
         let t = taints
@@ -2598,6 +3438,7 @@ fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
             .unwrap_or(TaintLattice::clean());
         if t.is_tainted() && t.colours.intersects(dup_colour) {
             warnings.push(TaintWarning {
+                source_sink: None,
                 span,
                 variable: name.to_owned(),
                 sink_command: command.to_owned(),
@@ -2619,12 +3460,13 @@ fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
     // `$var` words (already covered by the named-variable loop above).
     if emitted.is_empty() {
         for arg in call_args {
-            if is_pure_var_ref(arg.trim()) {
+            if reference_root_with_config(arg.trim(), ctx.source.config).is_some() {
                 continue;
             }
             let t = word_taint(arg, uses, taints, ctx);
             if t.is_tainted() && t.colours.intersects(dup_colour) {
                 warnings.push(TaintWarning {
+                    source_sink: None,
                     span,
                     variable: String::new(),
                     sink_command: command.to_owned(),
@@ -2679,6 +3521,8 @@ fn irule3002_name_position_safe(
     args: &[String],
     var_name: &str,
     lat: TaintLattice,
+    original: Option<&WordExpr>,
+    config: tcl_lexer::LexerConfig,
 ) -> bool {
     if !lat.colours.contains(TaintColour::HEADER_TOKEN_SAFE) {
         return false;
@@ -2701,8 +3545,14 @@ fn irule3002_name_position_safe(
         return false;
     }
     let Some(arg) = args.get(1) else { return false };
-    let stripped = arg.trim();
-    is_pure_var_ref(stripped) && normalise_var_name(stripped) == var_name
+    let Some(original) = original else {
+        return false;
+    };
+    let Some((reference, _)) = original.sole_variable_substitution() else {
+        return false;
+    };
+    // The current operand must still correspond to the call's argument data.
+    reference == arg.trim() && reference_root_with_config(reference, config) == Some(var_name)
 }
 
 /// Conservatively force every taint value touching a module-traced variable
@@ -2740,7 +3590,7 @@ fn irule3002_name_position_safe(
 ///    forced to [`TaintLattice::tainted()`] — this is every non-zero SSA
 ///    version, since [`propagate_statement_taints`] always inserts an entry
 ///    for a def, tainted or not.
-/// 2. A traced global/namespace name read at version 0 with **no** local
+/// 2. A traced namespace-owned SSA cell read at version 0 with **no** local
 ///    def in this function at all (a pure cross-proc read reusing
 ///    [`collect_global_reads`]) is seeded tainted too, so a function that
 ///    only reads a traced global still sees it as tainted even without the
@@ -2759,12 +3609,10 @@ pub fn apply_module_variable_traces(
             *lattice = TaintLattice::tainted();
         }
     }
-    for name in collect_global_reads(ssa) {
-        if is_traced(&name)
-            && let Some(sym) = ssa.var_symbol(&name)
-        {
+    for symbol in collect_global_reads(ssa) {
+        if is_traced(ssa.var_name(symbol)) {
             taints
-                .entry((sym, 0))
+                .entry((symbol, 0))
                 .and_modify(|t| *t = TaintLattice::tainted())
                 .or_insert_with(TaintLattice::tainted);
         }
@@ -2787,9 +3635,21 @@ pub fn find_taint_warnings_for_cu(
     registry: &CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<TaintWarning> {
-    let mut out = find_taint_warnings_for_cu_base(cu, registry, dialect);
-    let callback_warnings = find_callback_substitution_warnings(cu, registry, dialect, &out);
-    out.extend(callback_warnings);
+    taint_warning_report_for_cu(cu, registry, dialect).warnings
+}
+
+/// Analyse proven warnings while retaining every required replay refusal.
+#[must_use]
+pub fn taint_warning_report_for_cu(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> TaintWarningReport {
+    let mut out =
+        taint_warning_report_for_cu_base_with_external_variable_seeds(cu, registry, dialect, None);
+    let callback_warnings =
+        taint_callback_substitution_report(cu, registry, dialect, &out.warnings);
+    out.merge(callback_warnings);
     out
 }
 
@@ -2797,6 +3657,7 @@ pub fn find_taint_warnings_for_cu(
 /// callback text. Kept separate so callback replay can analyse a synthetic
 /// invocation without recursively replaying every registration in its source
 /// module.
+#[cfg(test)]
 fn find_taint_warnings_for_cu_base(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
@@ -2810,13 +3671,38 @@ fn find_taint_warnings_for_cu_base(
 /// Synthetic callback replays use this rather than spelling a source command
 /// such as `[gets stdin]`: a registration's user input is independent of
 /// source-level command shadowing and aliases.
+#[cfg(test)]
 fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
 ) -> Vec<TaintWarning> {
-    let mut out = Vec::new();
+    taint_warning_report_for_cu_base_with_external_variable_seeds(
+        cu,
+        registry,
+        dialect,
+        external_variable_seeds,
+    )
+    .warnings
+}
+
+fn taint_warning_report_for_cu_base_with_external_variable_seeds(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
+) -> TaintWarningReport {
+    let mut out = TaintWarningReport::analysed(Vec::new(), Vec::new());
+    // naming.source.retained-positioned-command-realm
+
+    // Missing original ownership is terminal for this whole-unit query.
+    let Some(identities) =
+        crate::realm::document_realm_bindings_for_module(&cu.ir_module, registry)
+    else {
+        out.replays = TaintReplayAnalysis::unavailable();
+        return out;
+    };
     let solved = external_variable_seeds.map_or_else(
         || crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect),
         |seeds| {
@@ -2825,61 +3711,85 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
             )
         },
     );
-    let proc_qnames: HashSet<&str> = cu.procedures.keys().map(String::as_str).collect();
     let module_traces = crate::compilation_unit::ModuleTraceFacts {
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
         deferred_writes: &cu.ir_module.deferred_writes,
     };
-    let identities = crate::realm::document_realm_bindings_with_config(
-        &cu.source,
-        dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-            tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-        }),
-        registry,
-    );
     // `analysable_body_function_units` (not `analysable_functions`) so a
     // sink inside a TclOO method body — or an `apply` lambda / `namespace
     // eval` body — is still checked; see its doc comment.
     for fu in cu.analysable_body_function_units() {
         let exec = &fu.sccp.executable_blocks;
         let taints = apply_module_variable_traces(
-            solved.taints_for(&fu.name, &fu.taints).clone(),
+            solved.taints_for_function(cu, fu).clone(),
             &fu.ssa,
             module_traces,
         );
-        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&fu.name);
-        let shadowed = shadowed_builtin_names(&namespace, proc_qnames.iter().copied(), registry);
-        out.extend(find_taint_warnings_for_function_with_identities(
+        let Some(shadowed) = shadowed_builtin_names_for_module_function(fu, cu, registry) else {
+            out.replays.merge(TaintReplayAnalysis::unavailable());
+            continue;
+        };
+        out.merge(taint_warning_report_for_function_with_identities(
             fu,
             &taints,
             exec,
             registry,
-            dialect,
+            TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
             &shadowed,
             module_traces,
             &identities,
+            Some(&cu.ir_module),
         ));
-        out.extend(find_setter_constraint_warnings(
-            registry,
-            &fu.cfg,
-            &fu.ssa,
-            &taints,
-            Some(&fu.sccp.values),
-            exec,
-            dialect,
-        ));
-        out.extend(crate::uri_split::find_uri_split_suggestions(
-            &fu.cfg,
-            &fu.ssa,
-            Some(&fu.sccp.values),
-            exec,
-            registry,
-            dialect,
-        ));
-        out.extend(find_destructive_file_warnings(
-            &fu.cfg, &fu.ssa, &taints, exec, registry, dialect,
-        ));
+        // Only an explicitly standalone Module and CFG may use the legacy
+        // source-warning utilities. Missing or withdrawn supplied input keeps
+        // its retained tag and cannot reopen catalogue compatibility. These
+        // warnings do not supply Native handler, read or filesystem authority.
+        let standalone_warnings = cu.ir_module.source_entry.metadata_context.is_standalone()
+            && fu.cfg.metadata_context.is_standalone()
+            && cu.ir_module.source_metadata_input.is_none()
+            && fu.source_metadata_input().is_none();
+        if standalone_warnings {
+            out.warnings.extend(find_setter_constraint_warnings(
+                registry,
+                &fu.cfg,
+                &fu.ssa,
+                &taints,
+                Some(&fu.sccp.values),
+                exec,
+                dialect,
+            ));
+        } else {
+            out.warnings
+                .extend(find_setter_constraint_warnings_for_module_function(
+                    fu,
+                    &cu.ir_module,
+                    registry,
+                    &taints,
+                ));
+        }
+        out.warnings
+            .extend(crate::uri_split::find_uri_split_suggestions(
+                &fu.cfg,
+                &fu.ssa,
+                Some(&fu.sccp.values),
+                exec,
+                registry,
+                dialect,
+            ));
+        if standalone_warnings {
+            out.warnings.extend(find_destructive_file_warnings(
+                &fu.cfg, &fu.ssa, &taints, exec, registry, dialect,
+            ));
+        } else {
+            out.warnings
+                .extend(find_destructive_file_warnings_for_module_function(
+                    fu,
+                    &cu.ir_module,
+                    registry,
+                    &taints,
+                ));
+        }
     }
     out
 }
@@ -2982,6 +3892,88 @@ struct CallbackReplayCandidate {
     source_is_command_substitution: bool,
     callback_span: Span,
     callback_input_label: String,
+    selected_builder: Option<CallbackListBuilder>,
+}
+
+/// The actual selected registry owner for one whole source callback builder.
+/// This authorizes only list-result materialization, not callback execution.
+#[derive(Clone)]
+struct CallbackListBuilder {
+    source: String,
+    invocation: crate::registry_invocation::ResolvedStatementInvocation,
+}
+
+fn retained_callback_list_builder(
+    registry: &CommandRegistry,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    parent: &CommandTokens,
+    span: Span,
+) -> Option<CallbackListBuilder> {
+    let input = metadata.source_analysis_input()?;
+    metadata.matches_registry(registry).then_some(())?;
+    let parent_binding = parent.source_binding.as_ref()?;
+    parent_binding.original_argument_metadata_for_input(parent, input, registry)?;
+    let parent_site = parent_binding.invocation_site()?;
+    let mut candidates =
+        crate::word_subst::checked_original_argument_lifted_calls(parent, registry, metadata)?
+            .into_iter()
+            .filter(|candidate| candidate.span == span);
+    let child = candidates.next()?;
+    if candidates.next().is_some() {
+        return None;
+    }
+    let tokens = child.tokens?;
+    if !tokens.original_words_match_argv_text() {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    binding.original_argument_metadata_for_input(&tokens, input, registry)?;
+    let site = binding.invocation_site()?;
+    if !std::sync::Arc::ptr_eq(&parent_site.source, &site.source)
+        || site.offset < span.start()
+        || site.offset >= span.end()
+        || binding.invocation_realm()
+            != Some(tcl_dialect::model::InvocationRealm::InterpreterRuntime)
+    {
+        return None;
+    }
+    let image = binding.original_argument_source_image(&tokens)?;
+    let bytes = image
+        .bytes()
+        .get(span.start() as usize..span.end() as usize)?;
+    let source = std::str::from_utf8(bytes).ok()?.to_owned();
+    if source.len() != span.end().checked_sub(span.start())? as usize
+        || !source.starts_with('[')
+        || !source.ends_with(']')
+    {
+        return None;
+    }
+    let invocation = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+        registry,
+        Some(metadata),
+        &tokens,
+    )?;
+    // The retained effective vectors below start after the command head.
+    // Until they carry the selected operand slice, only offset-zero result
+    // contracts have an exact correspondence to that full vector.
+    if !invocation
+        .facts
+        .traits
+        .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
+        || invocation.facts.argument_offset != 0
+        || invocation.facts.native_result
+            != Some(tcl_registry::native_result::NativeResultContract::ListArguments { from: 0 })
+    {
+        return None;
+    }
+    Some(CallbackListBuilder { source, invocation })
+}
+
+/// Each callback is an independently retained future procedure body.
+/// Its formal input is seeded by the taint solver, without sequencing
+/// hypothetical callback executions through the document world.
+struct CallbackReplaySource {
+    definition: String,
 }
 
 /// Query a callback argument through either a direct command or a resolved
@@ -2995,13 +3987,17 @@ fn callback_taint_inputs_at_call(
     index: usize,
     dialect: Option<SurfaceQuery<'_>>,
     instance_classes: &LocalInstanceClasses,
-    source_position: u32,
+    receiver: Option<(&WordExpr, tcl_lexer::LexerConfig, u32)>,
 ) -> &'static [tcl_registry::CallbackTaintInput] {
     let direct = registry.callback_taint_inputs(command, args, index, dialect);
     if !direct.is_empty() {
         return direct;
     }
-    let Some(class) = unique_instance_class(command, Some(instance_classes), Some(source_position))
+    let Some((word, config, position)) = receiver else {
+        return &[];
+    };
+    let Some(class) =
+        unique_instance_class(Some((word, config)), Some(instance_classes), Some(position))
     else {
         return &[];
     };
@@ -3019,27 +4015,34 @@ fn callback_taint_inputs_at_call(
 // Candidate discovery, bounded materialisation, and source-span remapping are
 // one safety transaction; keeping them adjacent makes the replay cap auditable.
 #[allow(clippy::too_many_lines)]
+#[cfg(test)]
 fn find_callback_substitution_warnings(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     baseline: &[TaintWarning],
 ) -> Vec<TaintWarning> {
+    taint_callback_substitution_report(cu, registry, dialect, baseline).warnings
+}
+
+fn taint_callback_substitution_report(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    baseline: &[TaintWarning],
+) -> TaintWarningReport {
     let mut candidates = Vec::new();
     // Most files have no statically replayable command-substitution callback.
-    // Build the source-position command table only when one actually needs its
-    // builder head resolved, while still sharing the one map across candidates.
-    let callback_head_identities = std::cell::OnceCell::new();
-    let lexer_config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-        tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-    });
+    let lexer_config = cu.ir_module.lexer_config;
 
     for fu in cu.all_body_function_units() {
+        let source = TaintSourceContext::for_module_function(registry, &cu.ir_module, fu);
         let instance_classes = instance_classes_for_function(
             &fu.cfg,
             registry,
             cu.interproc.as_ref(),
-            fu.name != "::top",
+            !std::ptr::eq(fu, std::ptr::from_ref(&cu.top_level)),
+            source,
         );
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
@@ -3052,25 +4055,82 @@ fn find_callback_substitution_warnings(
                     ),
                     _ => continue,
                 };
-                let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-                for (index, callback) in args.iter().enumerate() {
-                    let inputs = callback_taint_inputs_at_call(
+                let resolved =
+                    crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
                         registry,
-                        command,
-                        &arg_refs,
-                        index,
-                        dialect_to_point(dialect),
-                        &instance_classes,
-                        stmt.span().start(),
+                        source.metadata,
+                        stmt,
                     );
+                if resolved.is_none() {
+                    continue;
+                }
+                let effective = resolved.as_ref().map(|resolved| &resolved.effective);
+                let command = resolved.as_ref().map_or(command, |resolved| {
+                    resolved.facts.canonical_command.as_str()
+                });
+                let presentations: Vec<Option<&str>> = resolved.as_ref().map_or_else(
+                    || {
+                        args.iter()
+                            .map(|argument| Some(argument.as_str()))
+                            .collect()
+                    },
+                    |resolved| {
+                        resolved
+                            .arguments
+                            .iter()
+                            .map(|argument| argument.as_deref())
+                            .collect()
+                    },
+                );
+                let arg_refs = presentations.iter().copied().collect::<Option<Vec<_>>>();
+                for (index, callback) in presentations.iter().copied().enumerate() {
+                    let Some(callback) = callback else {
+                        continue;
+                    };
+                    let written_index = match &effective {
+                        Some(effective) => {
+                            let Some(index) = effective.written_argument(index) else {
+                                continue;
+                            };
+                            index
+                        }
+                        None => index,
+                    };
+                    let direct = resolved.as_ref().map_or(&[] as &[_], |resolved| {
+                        resolved.with_argument_words(|words| {
+                            registry.callback_taint_inputs_words(
+                                words,
+                                index,
+                                dialect_to_point(dialect),
+                            )
+                        })
+                    });
+                    let inputs = if direct.is_empty() {
+                        arg_refs.as_ref().map_or(&[] as &[_], |arguments| {
+                            callback_taint_inputs_at_call(
+                                registry,
+                                command,
+                                arguments,
+                                index,
+                                dialect_to_point(dialect),
+                                &instance_classes,
+                                tokens
+                                    .and_then(|tokens| tokens.words().first())
+                                    .map(|word| (word, source.config, stmt.span().start())),
+                            )
+                        })
+                    } else {
+                        direct
+                    };
                     if inputs.is_empty() {
                         continue;
                     }
-                    let callback_word = tokens.and_then(|tokens| tokens.word_exprs.get(index + 1));
+                    let callback_word =
+                        tokens.and_then(|tokens| tokens.word_exprs.get(written_index + 1));
                     let command_substitution = callback_word.and_then(whole_command_substitution);
                     let source_is_command_substitution = command_substitution.is_some()
                         || tokens
-                            .and_then(|tokens| tokens.argv_kinds.get(index + 1))
+                            .and_then(|tokens| tokens.argv_kinds.get(written_index + 1))
                             .is_some_and(|kind| *kind == tcl_lexer::TokenType::Cmd);
                     // The callback argument is evaluated once when registered.
                     // Reduce static brace/quote/bare/backslash forms to that
@@ -3089,7 +4149,7 @@ fn find_callback_substitution_warnings(
                         };
                         value
                     } else {
-                        callback.clone()
+                        callback.to_owned()
                     };
                     let Some(callback_input_label) =
                         callback_input_label(&materialised_callback, inputs)
@@ -3097,17 +4157,27 @@ fn find_callback_substitution_warnings(
                         continue;
                     };
                     let callback_span = tokens
-                        .and_then(|tokens| tokens.argv.get(index + 1).copied())
+                        .and_then(|tokens| tokens.argv.get(written_index + 1).copied())
                         .unwrap_or_else(|| stmt.span());
-                    let head_identities = source_is_command_substitution.then(|| {
-                        callback_head_identities.get_or_init(|| {
-                            crate::realm::document_realm_bindings_with_config(
-                                &cu.source,
-                                lexer_config,
-                                registry,
-                            )
-                        })
-                    });
+                    let selected_builder = if source_is_command_substitution {
+                        let Some(metadata) = source.metadata_context() else {
+                            continue;
+                        };
+                        let Some(tokens) = tokens else {
+                            continue;
+                        };
+                        let Some(builder) = retained_callback_list_builder(
+                            registry,
+                            metadata,
+                            tokens,
+                            callback_span,
+                        ) else {
+                            continue;
+                        };
+                        Some(builder)
+                    } else {
+                        None
+                    };
                     // Prove the callback can be materialised before choosing
                     // synthetic names. The probe is never compiled or
                     // evaluated, so it need not be collision-free; it only
@@ -3120,8 +4190,8 @@ fn find_callback_substitution_warnings(
                         source_is_command_substitution,
                         "__tcl_lsp_callback_probe",
                         "::__tcl_lsp_callback_probe",
-                        dialect,
-                        head_identities.map(|identities| (identities, callback_span.start())),
+                        lexer_config,
+                        selected_builder.as_ref(),
                     )
                     .is_none()
                     {
@@ -3133,6 +4203,7 @@ fn find_callback_substitution_warnings(
                         source_is_command_substitution,
                         callback_span,
                         callback_input_label,
+                        selected_builder,
                     });
                 }
             }
@@ -3140,17 +4211,18 @@ fn find_callback_substitution_warnings(
     }
 
     if candidates.is_empty() {
-        return Vec::new();
+        return TaintWarningReport::analysed(Vec::new(), Vec::new());
     }
 
     let (input_var, proc_prefix) = fresh_callback_replay_names(&cu.source);
-    let mut out = Vec::new();
+    let mut out = TaintWarningReport::analysed(Vec::new(), Vec::new());
     // All recoverable callbacks are replayed in bounded batches. The per-batch
     // ranges retain source mapping while bounding the amount of synthetic
     // callback code in each interprocedural solve. Every statically recoverable
     // callback is processed; batching is a work-unit bound, not a soundness cap.
     for candidates in candidates.chunks(MAX_CALLBACK_TAINT_REPLAYS) {
-        let mut replays: Vec<(String, Span, String)> = Vec::with_capacity(candidates.len());
+        let mut replays: Vec<(CallbackReplaySource, Span, String)> =
+            Vec::with_capacity(candidates.len());
         for (index, candidate) in candidates.iter().enumerate() {
             let proc_name = format!("{proc_prefix}_{index}");
             let replay = callback_replay_source(
@@ -3159,10 +4231,8 @@ fn find_callback_substitution_warnings(
                 candidate.source_is_command_substitution,
                 &input_var,
                 &proc_name,
-                dialect,
-                callback_head_identities
-                    .get()
-                    .map(|identities| (identities, candidate.callback_span.start())),
+                lexer_config,
+                candidate.selected_builder.as_ref(),
             )
             .expect("callback replay preflight proved this script is static");
             replays.push((
@@ -3176,36 +4246,96 @@ fn find_callback_substitution_warnings(
             cu.source.len()
                 + replays
                     .iter()
-                    .map(|(source, _, _)| source.len() + 1)
+                    .map(|(source, _, _)| source.definition.len() + 1)
                     .sum::<usize>(),
         );
         injected.push_str(&cu.source);
         let mut replay_spans: Vec<(Span, Span, String)> = Vec::with_capacity(replays.len());
-        for (replay, callback_span, callback_input_label) in replays {
+        // Retained procedure entries share the registration world. Their
+        // arbitrary effects belong to their own future executions, so one
+        // replay never mutates another replay's incoming command table.
+        for (replay, callback_span, callback_input_label) in &replays {
             injected.push('\n');
             let start = u32::try_from(injected.len()).unwrap_or(u32::MAX);
-            injected.push_str(&replay);
+            injected.push_str(&replay.definition);
             let end = u32::try_from(injected.len()).unwrap_or(u32::MAX);
-            replay_spans.push((Span::new(start, end), callback_span, callback_input_label));
+            replay_spans.push((
+                Span::new(start, end),
+                *callback_span,
+                callback_input_label.clone(),
+            ));
         }
 
         #[cfg(test)]
         CALLBACK_REPLAY_BUILDS.with(|count| count.set(count.get() + 1));
-        let replay_cu =
-            crate::compilation_unit::CompilationUnit::build_for(&injected, registry, false)
-                .with_interprocedural(registry, dialect);
+        let Some(input) = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &cu.ir_module,
+        )
+        .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input) else {
+            let residuals = replay_spans
+                .iter()
+                .map(|(_, registration, _)| UnavailableTaintReplay {
+                    span: *registration,
+                    reason: UnavailableTaintReplayReason::SourceMetadata,
+                    source: Some(TaintReplaySourceSnapshot::for_module(&cu.ir_module)),
+                })
+                .collect();
+            out.replays.merge(TaintReplayAnalysis::Unavailable {
+                unavailable: residuals,
+            });
+            continue;
+        };
+        let replay_cu = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            &injected,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: cu.ir_module.lexer_config,
+                dialect,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            input,
+        )
+        .with_interprocedural(registry, dialect);
         // `input_var` was chosen absent from the complete user source, so
         // seeding both scopes cannot influence the original program.
         let replay_seed = HashMap::from([
             (format!("::{input_var}"), TaintLattice::tainted()),
             (input_var.clone(), TaintLattice::tainted()),
         ]);
-        for mut warning in find_taint_warnings_for_cu_base_with_external_variable_seeds(
+        let replay_report = taint_warning_report_for_cu_base_with_external_variable_seeds(
             &replay_cu,
             registry,
             dialect,
             Some(&replay_seed),
-        ) {
+        );
+        let was_analysed = matches!(&replay_report.replays, TaintReplayAnalysis::Analysed { .. });
+        let mut unavailable = Vec::new();
+        for residual in replay_report.replays.unavailable_replays() {
+            unavailable.extend(original_callback_replay_residuals(
+                residual,
+                cu,
+                &replay_spans,
+            ));
+        }
+        if !was_analysed && unavailable.is_empty() {
+            unavailable.extend(replay_spans.iter().map(|(_, registration, _)| {
+                UnavailableTaintReplay {
+                    span: *registration,
+                    reason: UnavailableTaintReplayReason::SourceMetadata,
+                    source: Some(TaintReplaySourceSnapshot::for_module(&cu.ir_module)),
+                }
+            }));
+        }
+        out.replays.merge(if was_analysed {
+            TaintReplayAnalysis::Analysed { unavailable }
+        } else {
+            TaintReplayAnalysis::Unavailable { unavailable }
+        });
+        for mut warning in replay_report.warnings {
             // A prefix can call a local procedure. Its sink then lies in the
             // original procedure body even though the synthetic invocation
             // taints its parameter. Keep that new source span intact. Only a
@@ -3237,10 +4367,43 @@ fn find_callback_substitution_warnings(
                 warning.replacement = None;
                 warning.fixes.clear();
             }
-            out.push(warning);
+            out.warnings.push(warning);
         }
     }
     out
+}
+
+fn original_callback_replay_residuals(
+    residual: &UnavailableTaintReplay,
+    cu: &crate::compilation_unit::CompilationUnit,
+    replay_spans: &[(Span, Span, String)],
+) -> Vec<UnavailableTaintReplay> {
+    let original_end = u32::try_from(cu.source.len()).unwrap_or(u32::MAX);
+    let retained = |span| UnavailableTaintReplay {
+        span,
+        reason: residual.reason,
+        source: Some(TaintReplaySourceSnapshot::for_module(&cu.ir_module)),
+    };
+    if residual.span.start() <= residual.span.end() && residual.span.end() <= original_end {
+        return vec![retained(residual.span)];
+    }
+    if let Some((_, registration, _)) = replay_spans.iter().find(|(synthetic, _, _)| {
+        synthetic.start() <= residual.span.start()
+            && residual.span.start() <= residual.span.end()
+            && residual.span.end() <= synthetic.end()
+    }) {
+        return vec![retained(*registration)];
+    }
+    if !replay_spans.is_empty() {
+        return replay_spans
+            .iter()
+            .map(|(_, registration, _)| retained(*registration))
+            .collect();
+    }
+    vec![UnavailableTaintReplay {
+        source: None,
+        ..residual.clone()
+    }]
 }
 
 /// A word whose runtime value is exactly one command substitution. Quotes
@@ -3280,9 +4443,9 @@ fn callback_replay_source(
     source_is_command_substitution: bool,
     input_var: &str,
     proc_name: &str,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
-    builder_context: Option<(&crate::realm::CommandBindingRealm, u32)>,
-) -> Option<String> {
+    config: tcl_lexer::LexerConfig,
+    selected_builder: Option<&CallbackListBuilder>,
+) -> Option<CallbackReplaySource> {
     let callback = callback.trim().strip_prefix('+').unwrap_or(callback.trim());
     // Current lowering normally preserves the brackets in `args`; older
     // compatibility IR can retain only the command content.  The token kind
@@ -3296,12 +4459,12 @@ fn callback_replay_source(
             callback_command,
             inputs,
             input_var,
-            dialect,
-            builder_context,
+            config,
+            selected_builder,
         )?;
         return Some(callback_replay_with_input(&script, proc_name, input_var));
     }
-    let script = callback_replay_script(callback, inputs, input_var, dialect)?;
+    let script = callback_replay_script(callback, inputs, input_var, config)?;
     Some(callback_replay_with_input(&script, proc_name, input_var))
 }
 
@@ -3314,57 +4477,46 @@ fn callback_replay_list_prefix(
     callback: &str,
     inputs: &[tcl_registry::CallbackTaintInput],
     input_var: &str,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
-    builder_context: Option<(&crate::realm::CommandBindingRealm, u32)>,
+    _config: tcl_lexer::LexerConfig,
+    selected_builder: Option<&CallbackListBuilder>,
 ) -> Option<String> {
-    let inner = callback.strip_prefix('[')?.strip_suffix(']')?;
-    let config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-        tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-    });
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
-    let [command] = commands.as_slice() else {
-        return None;
-    };
-    if command.is_partial || !command.word_views_aligned() {
+    let selected_builder = selected_builder?;
+    if selected_builder.source != callback
+        || !selected_builder
+            .invocation
+            .facts
+            .traits
+            .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
+        || selected_builder.invocation.facts.argument_offset != 0
+        || selected_builder.invocation.facts.native_result
+            != Some(tcl_registry::native_result::NativeResultContract::ListArguments { from: 0 })
+    {
         return None;
     }
-    let expand = command.expand_word.as_deref().unwrap_or_default();
-    let mut values = Vec::new();
-    for (index, (word, fragments)) in command
-        .texts
+    let invocation = &selected_builder.invocation;
+    if invocation.evaluated_arguments.len() != invocation.evaluated_words.len() {
+        return None;
+    }
+    let mut elements = Vec::new();
+    for (word, presentation) in invocation
+        .evaluated_words
         .iter()
-        .zip(&command.word_fragments)
-        .enumerate()
+        .zip(&invocation.evaluated_arguments)
     {
-        let value = callback_static_word_value(
-            word,
-            fragments,
-            config.escapes,
-            tcl_syntax::word_rules::WordValueRules::from_config(&config),
-        )?;
-        if expand.get(index).copied().unwrap_or(false) {
-            values.extend(
-                tcl_syntax::word_rules::WordValueRules::from_config(&config)
-                    .split_list(&value)
-                    .ok()?
-                    .into_iter()
-                    .map(std::borrow::Cow::into_owned),
-            );
-        } else {
-            values.push(value);
+        match word {
+            crate::registry_invocation::EffectiveInvocationWord::Literal(value)
+                if presentation.as_deref() == Some(value.as_str()) =>
+            {
+                elements.push(value.clone());
+            }
+            crate::registry_invocation::EffectiveInvocationWord::KnownExpansion(values)
+                if presentation.is_none() =>
+            {
+                elements.extend(values.iter().cloned());
+            }
+            _ => return None,
         }
     }
-    let written_builder = values.first()?;
-    let resolved_builder =
-        builder_context.map_or(written_builder.as_str(), |(identities, source_position)| {
-            identities
-                .resolve(written_builder, source_position)
-                .spec_name()
-        });
-    if resolved_builder != "list" && resolved_builder != "::list" {
-        return None;
-    }
-    let elements = &values[1..];
     if elements.is_empty() {
         return None;
     }
@@ -3391,11 +4543,9 @@ fn callback_replay_script(
     callback: &str,
     inputs: &[tcl_registry::CallbackTaintInput],
     input_var: &str,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
-    let config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-        tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-    });
+    let config = config.nested();
     let commands = crate::segmenter::segment_commands_with_offset_and_config(callback, 0, config);
     if commands.is_empty() {
         return None;
@@ -3463,15 +4613,20 @@ fn callback_replay_list_word(
 /// directly in the taint solver, so user definitions of `gets`, `set`, or
 /// aliases cannot influence the callback-source model. Every callback runs in
 /// its own synthetic procedure: event handlers are independent invocations,
-/// not a registration-ordered shared local scope. A direct invocation keeps
-/// user rebindings of `catch` out of the scaffold; abnormal completion remains
-/// inside the callback procedure's own CFG.
-fn callback_replay_with_input(script: &str, proc_name: &str, input_var: &str) -> String {
-    let invocation = format!("{proc_name} ${{::{input_var}}}");
-    format!(
-        "::proc {proc_name} {{{input_var}}} {}\n{invocation}",
-        tcl_syntax::list::list_element(script),
-    )
+/// not a registration-ordered shared local scope. The solver analyses each
+/// retained procedure entry with its explicit taint input; abnormal completion
+/// remains inside that callback's own CFG.
+fn callback_replay_with_input(
+    script: &str,
+    proc_name: &str,
+    input_var: &str,
+) -> CallbackReplaySource {
+    CallbackReplaySource {
+        definition: format!(
+            "::proc {proc_name} {{{input_var}}} {}",
+            tcl_syntax::list::list_element(script),
+        ),
+    }
 }
 
 /// Whether a logical callback word contains an authorised, unescaped `%`
@@ -3525,7 +4680,7 @@ fn callback_replay_script_word(
         match fragment.token.kind {
             TokenType::Var | TokenType::Cmd => out.push_str(&fragment.text),
             TokenType::Esc => {
-                let decoded = tcl_lexer::backslash_subst_in(&fragment.text, escapes);
+                let decoded = decoded_text_fragment(&fragment.text, escapes)?;
                 for ch in decoded.chars() {
                     if matches!(ch, '\\' | '"' | '$' | '[') {
                         out.push('\\');
@@ -3540,6 +4695,13 @@ fn callback_replay_script_word(
     }
     out.push('"');
     Some(out)
+}
+
+/// Text-only analysis must decline native byte escapes that are not UTF-8.
+/// The shared decoder retains bytes before this checked projection.
+fn decoded_text_fragment(text: &str, escapes: tcl_dialect::EscapeSyntax) -> Option<String> {
+    let bytes = tcl_lexer::backslash_subst_bytes_in(text.as_bytes(), escapes);
+    std::str::from_utf8(&bytes).ok().map(str::to_owned)
 }
 
 /// Exact runtime value of one word containing no variable/command
@@ -3561,7 +4723,7 @@ fn callback_static_word_value(
                 .iter()
                 .all(|fragment| fragment.token.kind == TokenType::Esc) =>
         {
-            Some(tcl_lexer::backslash_subst_in(word, escapes).into_owned())
+            decoded_text_fragment(word, escapes)
         }
         _ => None,
     }
@@ -3611,31 +4773,10 @@ fn callback_replay_tainted_word(
     out
 }
 
-/// Bare registry command names shadowed, for a call inside `namespace`, by a
-/// user proc of the same name.
-///
-/// Tcl resolves an unqualified command name in the *current* namespace,
-/// falling back to the global namespace when not found there — a lookup
-/// that always terminates at global, so a plain top-level `proc puts {args}
-/// {…}` shadows every bare `puts` call in the *whole* module, while `proc
-/// ::myns::puts {args} {…}` shadows it only for calls made from `::myns`
-/// itself. Either way the call dispatches to the user's own proc, not the
-/// output-sink builtin, even though the registry still has a `puts` entry.
-///
-/// Matches the same simplified, current-namespace-or-global qualification
-/// the rest of the compiler already uses for `rename` / `interp alias`
-/// resolution (`crate::alias::resolve_alias`) rather than walking the full
-/// namespace ancestor chain — a proc sitting in an *intermediate* ancestor
-/// namespace (neither the caller's own namespace nor global) is not
-/// recognised as shadowing, matching that existing precedent's own gap.
-///
-/// `proc_qnames` is every procedure's fully-qualified name in the module
-/// (`CompilationUnit::procedures` keys); a name only counts as shadowing
-/// when it sits *directly* in `namespace` or in the global namespace
-/// (`{namespace}::{bare}` / `::{bare}`) — a proc in a nested child namespace
-/// does not shadow its parent's calls, and vice versa.
+/// Constructed publication labels used by the isolated lookup fixtures.
+#[cfg(test)]
 #[must_use]
-pub fn shadowed_builtin_names<'a>(
+fn shadowed_builtin_names<'a>(
     namespace: &str,
     proc_qnames: impl Iterator<Item = &'a str>,
     registry: &CommandRegistry,
@@ -3648,7 +4789,7 @@ pub fn shadowed_builtin_names<'a>(
         (!bare.is_empty() && !bare.contains("::")).then_some(bare)
     }
 
-    let ns_norm = normalise_qualified_name(namespace);
+    let ns_norm = crate::naming::normalise_qualified_name(namespace);
     let own_prefix = if ns_norm == "::" {
         "::".to_owned()
     } else {
@@ -3672,6 +4813,76 @@ pub fn shadowed_builtin_names<'a>(
     out
 }
 
+/// Source shadowing from a body retained by this actual compilation unit.
+/// Unknown namespace, publication or issuer ownership refuses the projection.
+#[must_use]
+pub fn shadowed_builtin_names_for_module_function(
+    function: &crate::compilation_unit::FunctionUnit,
+    unit: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+) -> Option<HashSet<String>> {
+    if !unit
+        .all_body_function_units()
+        .any(|owned| std::ptr::eq(owned, function))
+    {
+        return None;
+    }
+    let module = &unit.ir_module;
+    use crate::command_binding::SourceNamespaceKey;
+    fn path(context: &SourceNamespaceKey) -> Option<tcl_core_types::ByteNamespacePath> {
+        context.exact_native_path().cloned().or_else(|| {
+            let authored = context.advisory_key()?;
+            Some(tcl_core_types::ByteNamespacePath::from_segments(
+                tcl_syntax::naming::key_segments(&authored),
+            ))
+        })
+    }
+    let namespace = if let Some(id) = function.body_id {
+        module.procedure_ids.owns(id).then_some(())?;
+        if let Some(procedure) = module
+            .procedures
+            .get(&id)
+            .or_else(|| module.body_lowering(&id))
+        {
+            path(procedure.body.namespace_context.as_deref()?)?
+        } else if let Some(method) = module.methods.get(&id) {
+            match &method.execution_namespace {
+                crate::ir::ExecutionNamespace::SourceContext(context) => path(context)?,
+                crate::ir::ExecutionNamespace::Exact(context) => {
+                    path(&SourceNamespaceKey::authored(context))?
+                }
+                crate::ir::ExecutionNamespace::RuntimeSelected => return None,
+            }
+        } else {
+            return None;
+        }
+    } else {
+        std::ptr::eq(function, std::ptr::from_ref(&unit.top_level)).then_some(())?;
+        if let Some(context) = module.top_level_namespace_context.as_ref() {
+            path(context)?
+        } else if module.source_entry.metadata_context.is_standalone() {
+            tcl_core_types::ByteNamespacePath::root()
+        } else {
+            return None;
+        }
+    };
+    let mut shadowed = HashSet::new();
+    for (id, procedure) in &module.procedures {
+        module.procedure_ids.owns(*id).then_some(())?;
+        let slot = procedure.publication.as_ref()?.slot();
+        if slot.namespace == namespace || slot.namespace.is_root() {
+            let tail = slot.simple.try_utf8().ok()?;
+            if registry
+                .get_for_surface(tail, registry.own_surface_query())
+                .is_some()
+            {
+                shadowed.insert(tail.to_owned());
+            }
+        }
+    }
+    Some(shadowed)
+}
+
 /// Emit taint sink warnings (`T100` family) for one function.
 ///
 /// For each SSA use of a tainted variable in a sink statement, emits
@@ -3683,7 +4894,7 @@ pub fn shadowed_builtin_names<'a>(
 /// other warning kinds (setter-constraint / uri-split / path-concat /
 /// destructive-file) are not emitted here yet.
 ///
-/// `shadowed_builtins` (see [`shadowed_builtin_names`]) lists the bare
+/// `shadowed_builtins` (see [`shadowed_builtin_names_for_module_function`]) lists the bare
 /// command names that resolve to a user proc rather than the registry
 /// builtin from this function's namespace — those are skipped by the
 /// registry-driven sink/source/pattern checks below.
@@ -3701,7 +4912,7 @@ pub fn find_taint_warnings<
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     shadowed_builtins: &HashSet<String, H>,
 ) -> Vec<TaintWarning> {
-    find_taint_warnings_impl(
+    taint_warning_report_impl(
         cfg,
         ssa,
         taints,
@@ -3709,17 +4920,22 @@ pub fn find_taint_warnings<
         &SinkWarningContext {
             registry,
             dialect,
+            source: TaintSourceContext::standalone(registry, dialect),
             shadowed_builtins,
+            original_module: None,
+            unavailable_replays: None,
         },
         None,
     )
+    .warnings
 }
 
 /// Emit taint sink warnings for one complete compiler function unit.
 ///
 /// Unlike [`find_taint_warnings`], this form can settle a whole-word variable
 /// command head (`$command`) from its phase-correct reaching constant
-/// definitions. The value-provenance walk is shared with constant-dispatch
+/// definitions. Metadata uses the function's retained input; the scalar dialect
+/// parameter does not restore missing availability. The value-provenance walk is shared with constant-dispatch
 /// navigation and remains conservative across traces, frame aliases, dynamic
 /// writes, and unprovable joins.
 #[must_use]
@@ -3732,7 +4948,7 @@ pub fn find_taint_warnings_for_function<
     taints: &HashMap<ValueKey, TaintLattice, S>,
     executable_blocks: &HashSet<BlockId, E>,
     registry: &CommandRegistry,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    _dialect: Option<&'static tcl_dialect::DialectProfile>,
     shadowed_builtins: &HashSet<String, H>,
     module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
 ) -> Vec<TaintWarning> {
@@ -3741,10 +4957,68 @@ pub fn find_taint_warnings_for_function<
         taints,
         executable_blocks,
         registry,
-        dialect,
+        TaintSourceContext::for_function(registry, fu),
         shadowed_builtins,
         module_traces,
         crate::realm::CommandBindingRealm::none(),
+    )
+}
+
+/// Emit conditional sink warnings from a function in its original module.
+/// The shared module/function owner validates availability, source profiles
+/// and each retained lexer configuration. Missing agreement stays unavailable.
+#[must_use]
+pub fn find_taint_warnings_for_module_function<
+    S: std::hash::BuildHasher,
+    E: std::hash::BuildHasher,
+    H: std::hash::BuildHasher,
+>(
+    fu: &crate::compilation_unit::FunctionUnit,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    executable_blocks: &HashSet<BlockId, E>,
+    registry: &CommandRegistry,
+    module: &crate::ir::Module,
+    shadowed_builtins: &HashSet<String, H>,
+    module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
+) -> Vec<TaintWarning> {
+    find_taint_warnings_for_function_with_identities(
+        fu,
+        taints,
+        executable_blocks,
+        registry,
+        TaintSourceContext::for_module_function(registry, module, fu),
+        shadowed_builtins,
+        module_traces,
+        crate::realm::CommandBindingRealm::none(),
+    )
+}
+
+/// Retain original Module correspondence and command-head replay availability.
+/// Stored callbacks are included by the whole-unit report.
+#[must_use]
+pub fn taint_warning_report_for_module_function<
+    S: std::hash::BuildHasher,
+    E: std::hash::BuildHasher,
+    H: std::hash::BuildHasher,
+>(
+    fu: &crate::compilation_unit::FunctionUnit,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    executable_blocks: &HashSet<BlockId, E>,
+    registry: &CommandRegistry,
+    module: &crate::ir::Module,
+    shadowed_builtins: &HashSet<String, H>,
+    module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
+) -> TaintWarningReport {
+    taint_warning_report_for_function_with_identities(
+        fu,
+        taints,
+        executable_blocks,
+        registry,
+        TaintSourceContext::for_module_function(registry, module, fu),
+        shadowed_builtins,
+        module_traces,
+        crate::realm::CommandBindingRealm::none(),
+        Some(module),
     )
 }
 
@@ -3758,20 +5032,52 @@ fn find_taint_warnings_for_function_with_identities<
     taints: &HashMap<ValueKey, TaintLattice, S>,
     executable_blocks: &HashSet<BlockId, E>,
     registry: &CommandRegistry,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    source: TaintSourceContext<'_>,
     shadowed_builtins: &HashSet<String, H>,
     module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
     identities: &crate::realm::CommandBindingRealm,
 ) -> Vec<TaintWarning> {
-    find_taint_warnings_impl(
+    taint_warning_report_for_function_with_identities(
+        fu,
+        taints,
+        executable_blocks,
+        registry,
+        source,
+        shadowed_builtins,
+        module_traces,
+        identities,
+        None,
+    )
+    .warnings
+}
+
+fn taint_warning_report_for_function_with_identities<
+    S: std::hash::BuildHasher,
+    E: std::hash::BuildHasher,
+    H: std::hash::BuildHasher,
+>(
+    fu: &crate::compilation_unit::FunctionUnit,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    executable_blocks: &HashSet<BlockId, E>,
+    registry: &CommandRegistry,
+    source: TaintSourceContext<'_>,
+    shadowed_builtins: &HashSet<String, H>,
+    module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
+    identities: &crate::realm::CommandBindingRealm,
+    original_module: Option<&crate::ir::Module>,
+) -> TaintWarningReport {
+    taint_warning_report_impl(
         &fu.cfg,
         &fu.ssa,
         taints,
         executable_blocks,
         &SinkWarningContext {
             registry,
-            dialect,
+            dialect: source.dialect,
+            source,
             shadowed_builtins,
+            original_module,
+            unavailable_replays: None,
         },
         Some(CommandHeadContext {
             fu,
@@ -3791,20 +5097,49 @@ struct CommandHeadContext<'a> {
 #[derive(Clone, Copy)]
 struct SinkWarningContext<'a, H> {
     registry: &'a CommandRegistry,
+    source: TaintSourceContext<'a>,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     shadowed_builtins: &'a HashSet<String, H>,
+    original_module: Option<&'a crate::ir::Module>,
+    unavailable_replays: Option<&'a std::cell::RefCell<Vec<UnavailableTaintReplay>>>,
 }
 
 impl<H> SinkWarningContext<'_, H> {
     /// The document's lexer grammar, read off the resolved profile — the
     /// expression AST's `Raw` fallback text is re-lexed under it.
     fn grammar(&self) -> tcl_dialect::LexerGrammar {
-        self.dialect
-            .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar)
+        self.source.config.grammar_over(
+            self.dialect
+                .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
+                    profile.grammar
+                }),
+        )
+    }
+    fn unavailable_replay(
+        &self,
+        span: Span,
+        reason: UnavailableTaintReplayReason,
+        command_head: Option<CommandHeadContext<'_>>,
+    ) {
+        let Some(out) = self.unavailable_replays else {
+            return;
+        };
+        let span = command_head.map_or(span, |owner| owner.fu.abs_span(span));
+        let residual = UnavailableTaintReplay {
+            span,
+            reason,
+            source: self
+                .original_module
+                .map(TaintReplaySourceSnapshot::for_module),
+        };
+        let mut out = out.borrow_mut();
+        if !out.contains(&residual) {
+            out.push(residual);
+        }
     }
 }
 
-fn find_taint_warnings_impl<
+fn taint_warning_report_impl<
     S: std::hash::BuildHasher,
     E: std::hash::BuildHasher,
     H: std::hash::BuildHasher,
@@ -3815,7 +5150,16 @@ fn find_taint_warnings_impl<
     executable_blocks: &HashSet<BlockId, E>,
     context: &SinkWarningContext<'_, H>,
     command_head_ctx: Option<CommandHeadContext<'_>>,
-) -> Vec<TaintWarning> {
+) -> TaintWarningReport {
+    let unavailable_replays = std::cell::RefCell::new(Vec::new());
+    let context = &SinkWarningContext {
+        registry: context.registry,
+        source: context.source,
+        dialect: context.dialect,
+        shadowed_builtins: context.shadowed_builtins,
+        original_module: context.original_module,
+        unavailable_replays: Some(&unavailable_replays),
+    };
     let mut warnings: Vec<TaintWarning> = Vec::new();
 
     for bn in cfg_order(cfg) {
@@ -3826,12 +5170,12 @@ fn find_taint_warnings_impl<
             continue;
         };
 
-        for ssa_stmt in &ssa_block.statements {
+        for (index, ssa_stmt) in ssa_block.statements.iter().enumerate() {
             emit_statement_warnings(
                 ssa_stmt,
                 taints,
                 &mut warnings,
-                ssa,
+                crate::ssa::SsaSourceView::at_statement(ssa, bn, index),
                 context,
                 command_head_ctx,
             );
@@ -3842,11 +5186,20 @@ fn find_taint_warnings_impl<
             taints,
             registry: context.registry,
             dialect: context.dialect,
+            source: context.source,
         };
         emit_branch_condition_warnings(cfg, bn, &branch_ctx, &mut warnings);
     }
 
-    warnings
+    let metadata_available =
+        context.source.allows_nominal_metadata() || context.source.metadata.is_some();
+    let unavailable = unavailable_replays.into_inner();
+    let replays = if metadata_available {
+        TaintReplayAnalysis::Analysed { unavailable }
+    } else {
+        TaintReplayAnalysis::Unavailable { unavailable }
+    };
+    TaintWarningReport { warnings, replays }
 }
 
 /// Emit taint warnings for a single SSA statement.
@@ -3860,18 +5213,51 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     ssa_stmt: &SsaStatement,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     warnings: &mut Vec<TaintWarning>,
-    ssa: &SsaFunction,
+    source: crate::ssa::SsaSourceView<'_>,
     context: &SinkWarningContext<'_, H>,
     command_head_ctx: Option<CommandHeadContext<'_>>,
 ) {
-    if emit_expr_statement_warnings(ssa_stmt, taints, warnings, ssa, context.grammar()) {
+    let ssa = source.function();
+    if emit_expr_statement_warnings(
+        ssa_stmt,
+        taints,
+        warnings,
+        source,
+        context.registry,
+        (context.source.config, context.grammar()),
+    ) {
         return;
     }
 
-    let registry = context.registry;
     let dialect = context.dialect;
-    let shadowed_builtins = context.shadowed_builtins;
     let stmt = &ssa_stmt.statement;
+
+    if !context.source.allows_nominal_metadata() && matches!(stmt, Statement::AssignValue { .. }) {
+        let Some(parent) = source
+            .source_tokens()
+            .filter(|parent| stmt.tokens() == Some(*parent))
+        else {
+            return;
+        };
+        let Some(metadata) = context.source.metadata else {
+            return;
+        };
+        let Some(children) = crate::word_subst::checked_original_argument_lifted_calls(
+            parent,
+            context.registry,
+            metadata,
+        ) else {
+            return;
+        };
+        for child in children {
+            if let Some(tokens) = child.tokens {
+                emit_retained_invocation_warnings(
+                    &tokens, ssa_stmt, taints, warnings, source, context,
+                );
+            }
+        }
+        return;
+    }
 
     // Owned fallback for `AssignValue` — `parse_command_substitution`
     // returns an owned (String, Vec<String>) so we stash it in this
@@ -3881,7 +5267,7 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     // IRULE3002 subcommand gate.
     let assign_parsed: Option<(String, Vec<String>)> = match stmt {
         Statement::AssignValue { value, .. } => {
-            parse_taint_command_substitution(value.trim(), dialect)
+            parse_taint_command_substitution(value.trim(), context.source.config)
         }
         _ => None,
     };
@@ -3949,23 +5335,80 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
         command_head_ctx,
     );
 
-    let resolved_heads =
-        resolve_taint_command_heads(written_command, stmt, tokens, dialect, command_head_ctx);
-    if resolved_heads.is_empty() {
-        emit_dynamic_command_head_warning(written_command, tokens, ssa_stmt, taints, warnings, ssa);
+    if let Some(tokens) = tokens
+        && tokens.source_binding.is_some()
+    {
+        emit_retained_invocation_warnings(tokens, ssa_stmt, taints, warnings, source, context);
         return;
     }
+
+    let resolved_heads =
+        resolve_taint_command_heads(written_command, stmt, tokens, command_head_ctx);
+    if resolved_heads.is_empty() {
+        emit_dynamic_command_head_warning(
+            tokens
+                .and_then(|tokens| tokens.word_exprs.first())
+                .map(|head| (head, context.source.config)),
+            ssa_stmt,
+            taints,
+            warnings,
+            ssa,
+        );
+        return;
+    }
+    emit_sink_candidates(
+        SinkCandidates {
+            heads: &resolved_heads,
+            args: call_args,
+            tokens: sink_tokens,
+        },
+        ssa_stmt,
+        taints,
+        warnings,
+        ssa,
+        context,
+    );
+}
+
+#[derive(Clone, Copy)]
+struct SinkCandidates<'a> {
+    heads: &'a [StaticCommandHead],
+    args: &'a [String],
+    tokens: Option<&'a CommandTokens>,
+}
+
+fn emit_sink_candidates<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
+    candidates: SinkCandidates<'_>,
+    ssa_stmt: &SsaStatement,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    warnings: &mut Vec<TaintWarning>,
+    ssa: &SsaFunction,
+    context: &SinkWarningContext<'_, H>,
+) {
+    if !context.source.allows_nominal_metadata() && context.source.metadata.is_none() {
+        return;
+    }
+    let (resolved_heads, call_args, sink_tokens) =
+        (candidates.heads, candidates.args, candidates.tokens);
+    let (registry, dialect, shadowed_builtins) =
+        (context.registry, context.dialect, context.shadowed_builtins);
     if resolved_heads.len() <= 1 {
         if let Some(head) = resolved_heads.first() {
             let resolved_args = head.effective_args(call_args);
             emit_resolved_statement_warnings(
-                &head.command,
-                resolved_args.as_deref().unwrap_or(call_args),
-                (!head.affects_args()).then_some(sink_tokens).flatten(),
+                SinkCall {
+                    source: context.source,
+                    command: &head.command,
+                    args: resolved_args.as_deref().unwrap_or(call_args),
+                    tokens: (!head.affects_args()).then_some(sink_tokens).flatten(),
+                    registry,
+                    effective: None,
+                    source_read: None,
+                    argument_offset: 0,
+                },
                 ssa_stmt,
                 &ssa_stmt.uses,
                 taints,
-                registry,
                 dialect,
                 shadowed_builtins,
                 warnings,
@@ -3981,16 +5424,22 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     // shadowing cannot hide an explicitly-global sink arm.
     let start = warnings.len();
     let mut candidates = Vec::new();
-    for head in &resolved_heads {
+    for head in resolved_heads {
         let resolved_args = head.effective_args(call_args);
         emit_resolved_statement_warnings(
-            &head.command,
-            resolved_args.as_deref().unwrap_or(call_args),
-            (!head.affects_args()).then_some(sink_tokens).flatten(),
+            SinkCall {
+                source: context.source,
+                command: &head.command,
+                args: resolved_args.as_deref().unwrap_or(call_args),
+                tokens: (!head.affects_args()).then_some(sink_tokens).flatten(),
+                registry,
+                effective: None,
+                source_read: None,
+                argument_offset: 0,
+            },
             ssa_stmt,
             &ssa_stmt.uses,
             taints,
-            registry,
             dialect,
             shadowed_builtins,
             &mut candidates,
@@ -4000,6 +5449,155 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     for warning in candidates {
         if !warnings[start..].contains(&warning) {
             warnings.push(warning);
+        }
+    }
+}
+
+/// Diagnostics may inspect a known possible sink without upgrading its shape
+/// into an implementation or store proof. Exact runtime/native facts take
+/// precedence; explicit unknown or absent lookup never falls back to spelling.
+fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
+    tokens: &CommandTokens,
+    statement: &SsaStatement,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    warnings: &mut Vec<TaintWarning>,
+    source: crate::ssa::SsaSourceView<'_>,
+    context: &SinkWarningContext<'_, H>,
+) {
+    if !context.source.allows_nominal_metadata() && context.source.metadata.is_none() {
+        return;
+    }
+    let ssa = source.function();
+    let Some(args) = tokens.argv_texts.get(1..) else {
+        return;
+    };
+    let mut candidates = Vec::new();
+    if let Some(invocation) =
+        crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+            context.registry,
+            context.source.metadata,
+            tokens,
+        )
+    {
+        candidates.push((
+            invocation.facts.canonical_command,
+            invocation.effective,
+            None,
+        ));
+    } else if let Some(assistance) =
+        crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
+            context.registry,
+            context.source.metadata,
+            tokens,
+        )
+    {
+        candidates.extend(
+            assistance
+                .candidates
+                .into_iter()
+                .map(|shape| (shape.command, shape.effective, None)),
+        );
+    }
+    let native_source = tokens
+        .source_binding
+        .as_ref()
+        .is_some_and(|binding| binding.has_original_native_source_command());
+    // Present Native source ownership is terminal, independently of reached argv.
+    if candidates.is_empty() && native_source {
+        if let (Some(module), Some(body), Some(metadata)) = (
+            context.source.module(),
+            context.source.body_id(),
+            context.source.metadata,
+        ) && let Some(selected) = crate::registry_invocation::native_source_taint_invocation(
+            context.registry, metadata, module, body, tokens,
+        ) {
+            candidates.push((
+                selected.words.command().to_owned(),
+                selected.effective.clone(),
+                Some(SourceWarningMetadata::Native(Box::new(selected))),
+            ));
+        }
+    } else if candidates.is_empty()
+        && context.source.module().is_some()
+        && let Some(assistance) =
+            crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
+                context.registry,
+                context.source.metadata,
+                tokens,
+            )
+    {
+        candidates.extend(
+            assistance
+                .candidates
+                .into_iter()
+                .map(|shape| (shape.command, shape.effective, None)),
+        );
+    }
+    if let Some(hosted) =
+        crate::registry_invocation::hosted_source_taint_invocation(context.registry, tokens)
+            .filter(|_| context.source.metadata.is_some() && !native_source)
+    {
+        candidates.push((
+            hosted.metadata.shape().command().to_owned(),
+            hosted.effective,
+            Some(SourceWarningMetadata::Hosted(Box::new(hosted.metadata))),
+        ));
+    }
+    for (command, effective, source_metadata) in candidates {
+        let original_reads = (!context.source.allows_nominal_metadata())
+            .then(|| {
+                crate::registry_invocation::original_source_taint_read_operands(
+                    context.registry,
+                    context.source.metadata?,
+                    source,
+                    tokens,
+                )
+            })
+            .flatten();
+        // The selected Native/hosted candidate remains the invocation owner.
+        // Original read geometry supplements it instead of being skipped when
+        // that stronger selected candidate was already present.
+        let source_metadata = match (source_metadata, original_reads) {
+            (Some(invocation), Some(reads)) => Some(SourceWarningMetadata::WithOriginalReads {
+                invocation: Box::new(invocation),
+                reads: Box::new(reads),
+            }),
+            (None, Some(reads)) => Some(SourceWarningMetadata::Original(Box::new(reads))),
+            (invocation, None) => invocation,
+        };
+        if !context.source.allows_nominal_metadata() && source_metadata.is_none() {
+            continue;
+        }
+        let Some(args) = effective.argument_spellings(args) else {
+            continue;
+        };
+        let mut candidate_warnings = Vec::new();
+        emit_resolved_statement_warnings(
+            SinkCall {
+                source: context.source,
+                command: &command,
+                args: &args,
+                tokens: Some(tokens),
+                registry: context.registry,
+                effective: Some(&effective),
+                source_read: source_metadata.as_ref().map(|metadata| SourceWarningRead {
+                    metadata,
+                    point: source,
+                }),
+                argument_offset: 0,
+            },
+            statement,
+            &statement.uses,
+            taints,
+            context.dialect,
+            context.shadowed_builtins,
+            &mut candidate_warnings,
+            ssa,
+        );
+        for warning in candidate_warnings {
+            if !warnings.contains(&warning) {
+                warnings.push(warning);
+            }
         }
     }
 }
@@ -4124,12 +5722,12 @@ fn static_word_expr_value(
                 let WordPart::Text { text, .. } = part else {
                     return None;
                 };
-                value.push_str(&tcl_lexer::backslash_subst_in(text, escapes));
+                value.push_str(&decoded_text_fragment(text, escapes)?);
             }
             Some(value)
         }
         WordExpr::Opaque { text, .. } if !text.contains(['$', '[']) => {
-            Some(tcl_lexer::backslash_subst_in(text, escapes).into_owned())
+            decoded_text_fragment(text, escapes)
         }
         _ => None,
     }
@@ -4139,17 +5737,21 @@ fn static_word_expr_value(
 /// even when no finite constant target can be proven. This also covers the
 /// canonical IR produced when a static `eval` body reduces to a dynamic head.
 fn emit_dynamic_command_head_warning<S: std::hash::BuildHasher>(
-    written_command: &str,
-    tokens: Option<&CommandTokens>,
+    original: Option<(&WordExpr, tcl_lexer::LexerConfig)>,
     statement: &SsaStatement,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     warnings: &mut Vec<TaintWarning>,
     ssa: &SsaFunction,
 ) {
-    if !is_pure_var_ref(written_command) {
+    let Some((word, config)) = original else {
         return;
-    }
-    let name = normalise_var_name(written_command);
+    };
+    let Some((reference, _)) = word.sole_variable_substitution() else {
+        return;
+    };
+    let Some(name) = reference_root_with_config(reference, config) else {
+        return;
+    };
     let Some(symbol) = ssa.var_symbol(name) else {
         return;
     };
@@ -4163,11 +5765,9 @@ fn emit_dynamic_command_head_warning<S: std::hash::BuildHasher>(
     {
         return;
     }
-    let span = tokens
-        .and_then(|tokens| tokens.argv.first())
-        .copied()
-        .unwrap_or_else(|| statement.statement.span());
+    let span = word.source().span;
     warnings.push(TaintWarning {
+        source_sink: None,
         span,
         variable: name.to_owned(),
         sink_command: "dynamic command dispatch".to_owned(),
@@ -4226,57 +5826,81 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
     context: &SinkWarningContext<'_, H>,
     command_head_ctx: Option<CommandHeadContext<'_>>,
 ) {
-    let names: FxHashSet<String> = arg_var_names(
-        script,
-        tcl_dialect::BracedVarStyle::of_profile(context.dialect),
-    )
-    .into_iter()
-    .collect();
+    let names: FxHashSet<String> = all_argument_candidates(script, context.source.config, ssa)
+        .into_iter()
+        .collect();
     let mut outer_uses = uses_for_names_at_statement(&names, ssa_stmt, ssa);
     if let Some(head_context) = command_head_ctx {
-        expand_constant_outer_uses(
-            &mut outer_uses,
-            ssa_stmt,
-            ssa,
-            head_context,
-            context.dialect,
-        );
+        expand_constant_outer_uses(&mut outer_uses, ssa_stmt, ssa, head_context);
     }
     let build_nested = |source: &str| {
-        context.dialect.map_or_else(
-            || crate::compilation_unit::CompilationUnit::build_for(source, context.registry, true),
-            |profile| {
-                // Re-intern the borrowed profile through its canonical
-                // name (centralisation R-a): for every catalogue
-                // profile, the permissive fallback, and the additive
-                // `tk` ingress profile alike, this is the identity the
-                // old `resolve_known(name)`/`by_name(name)` round-trip
-                // computed.
-                crate::compilation_unit::CompilationUnit::build_for_profile(
-                    source,
-                    context.registry,
-                    true,
-                    crate::environment_ingress::resolve_environment(profile.name).unit_profile(),
-                )
-            },
+        if context.source.allows_nominal_metadata() {
+            return Some(context.dialect.map_or_else(
+                || {
+                    crate::compilation_unit::CompilationUnit::build_for(
+                        source,
+                        context.registry,
+                        true,
+                    )
+                },
+                |profile| {
+                    crate::compilation_unit::CompilationUnit::build_for_profile(
+                        source,
+                        context.registry,
+                        true,
+                        profile,
+                    )
+                },
+            ));
+        }
+        let input = context.source.metadata?.source_analysis_input()?;
+        Some(
+            crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry: context.registry,
+                    defer_top_level: true,
+                    config: context.source.config,
+                    dialect: Some(input.unit_profile()),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                input,
+            ),
         )
     };
-    let preliminary_cu = build_nested(script);
-    let command_setup = command_head_ctx.map_or_else(String::new, |head_context| {
-        ambient_command_setup(
-            &preliminary_cu,
-            head_context.identities,
-            source_span.start(),
-            context.shadowed_builtins,
-        )
-    });
+    let Some(preliminary_cu) = build_nested(script) else {
+        context.unavailable_replay(
+            source_span,
+            UnavailableTaintReplayReason::SourceMetadata,
+            command_head_ctx,
+        );
+        return;
+    };
+    let command_setup = command_head_ctx.map_or_else(
+        || Ok(String::new()),
+        |head_context| {
+            ambient_command_setup(
+                &preliminary_cu,
+                head_context.identities,
+                source_span.start(),
+                context.shadowed_builtins,
+                context.registry,
+                context.source.metadata,
+                context.source.allows_nominal_metadata(),
+            )
+        },
+    );
+    let command_setup = match command_setup {
+        Ok(setup) => setup,
+        Err(reason) => {
+            context.unavailable_replay(source_span, reason, command_head_ctx);
+            return;
+        }
+    };
     let constant_setup = command_head_ctx.map_or_else(String::new, |head_context| {
-        ambient_constant_setup(
-            &outer_uses,
-            head_context,
-            ssa,
-            tcl_lexer::LexerConfig::for_profile(context.dialect),
-        )
+        ambient_constant_setup(&outer_uses, head_context, ssa, context.source.config)
     });
     let (replay, seeds) = nested_script_replay(
         script,
@@ -4286,13 +5910,35 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
         taints,
         ssa,
     );
-    let nested_cu = build_nested(&replay);
-    for mut warning in find_taint_warnings_for_cu_base_with_external_variable_seeds(
+    let Some(nested_cu) = build_nested(&replay) else {
+        context.unavailable_replay(
+            source_span,
+            UnavailableTaintReplayReason::SourceMetadata,
+            command_head_ctx,
+        );
+        return;
+    };
+    let nested_report = taint_warning_report_for_cu_base_with_external_variable_seeds(
         &nested_cu,
         context.registry,
         context.dialect,
         Some(&seeds),
-    ) {
+    );
+    if matches!(
+        &nested_report.replays,
+        TaintReplayAnalysis::Unavailable { .. }
+    ) && nested_report.replays.unavailable_replays().is_empty()
+    {
+        context.unavailable_replay(
+            source_span,
+            UnavailableTaintReplayReason::SourceMetadata,
+            command_head_ctx,
+        );
+    }
+    for residual in nested_report.replays.unavailable_replays() {
+        context.unavailable_replay(source_span, residual.reason, command_head_ctx);
+    }
+    for mut warning in nested_report.warnings {
         warning.span = source_span;
         warning.replacement = None;
         warning.fixes.clear();
@@ -4311,7 +5957,6 @@ fn expand_constant_outer_uses(
     statement: &SsaStatement,
     ssa: &SsaFunction,
     context: CommandHeadContext<'_>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) {
     const MAX_NAMES: usize = 128;
     for _ in 0..16 {
@@ -4327,14 +5972,15 @@ fn expand_constant_outer_uses(
                 context.fu,
                 name,
                 version,
-                tcl_lexer::LexerConfig::for_profile(dialect),
+                context.fu.source_lexer_config(),
             ) else {
                 continue;
             };
             for contributor in contributors {
-                discovered.extend(arg_var_names(
+                discovered.extend(all_argument_candidates(
                     &contributor.value,
-                    tcl_dialect::BracedVarStyle::of_profile(dialect),
+                    context.fu.source_lexer_config(),
+                    ssa,
                 ));
             }
         }
@@ -4474,9 +6120,12 @@ fn ambient_command_setup<H: std::hash::BuildHasher>(
     identities: &crate::realm::CommandBindingRealm,
     at: u32,
     shadowed_builtins: &HashSet<String, H>,
-) -> String {
+    registry: &CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    standalone: bool,
+) -> Result<String, UnavailableTaintReplayReason> {
     if identities.is_empty() && shadowed_builtins.is_empty() {
-        return String::new();
+        return Ok(String::new());
     }
     let mut heads = FxHashSet::default();
     for function in cu.analysable_body_function_units() {
@@ -4517,13 +6166,133 @@ fn ambient_command_setup<H: std::hash::BuildHasher>(
             }
         }
     }
-    // Establish every alias while `::interp` is still the scaffold builtin;
-    // establish a requested `interp`/`proc` rebinding only afterwards.
-    rebindings.sort_by_key(|(head, _)| matches!(head.as_str(), "interp" | "proc"));
+    let constructors = ScaffoldConstructors::required(
+        registry,
+        metadata,
+        standalone,
+        !rebindings.is_empty(),
+        !aliases.is_empty(),
+    )?;
+    // Keep the constructor that emits each rebinding available until its last use.
+    rebindings.sort_by_key(|(head, _)| constructors.rebinding_priority(registry, metadata, head));
     for (_, rebinding) in rebindings {
         aliases.push_str(&rebinding);
     }
-    aliases
+    Ok(aliases)
+}
+
+struct ScaffoldConstructors<'r> {
+    procedure: Option<&'r tcl_registry::CommandSpec>,
+    alias: Option<&'r tcl_registry::CommandSpec>,
+}
+
+impl<'r> ScaffoldConstructors<'r> {
+    fn required(
+        registry: &'r CommandRegistry,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        standalone: bool,
+        needs_procedure: bool,
+        needs_alias: bool,
+    ) -> Result<Self, UnavailableTaintReplayReason> {
+        if !needs_procedure && !needs_alias {
+            return Ok(Self {
+                procedure: None,
+                alias: None,
+            });
+        }
+        if metadata.is_some_and(|actual| !actual.matches_registry(registry))
+            || (metadata.is_none() && !standalone)
+        {
+            return Err(UnavailableTaintReplayReason::SourceMetadata);
+        }
+        let query = metadata.map(|actual| actual.context().authoring_query());
+        let procedure = if needs_procedure {
+            let selected = registry
+                .resolve_invocation("::proc", &["__scaffold_declaration", "args", ""], query)
+                .ok_or(UnavailableTaintReplayReason::ProcedureConstructor)?;
+            selected
+                .state_transitions()
+                .facts()
+                .iter()
+                .any(|fact| {
+                    matches!(
+                        fact.transition,
+                        tcl_registry::StateTransition::CommandBinding(
+                            tcl_registry::CommandBindingTransition::Define {
+                                kind: tcl_registry::CommandBindingDefinitionKind::Procedure,
+                                ..
+                            }
+                        )
+                    )
+                })
+                .then_some(())
+                .ok_or(UnavailableTaintReplayReason::ProcedureConstructor)?;
+            Some(selected.authored_source_descriptors().command)
+        } else {
+            None
+        };
+        let alias = if needs_alias {
+            let selected = registry
+                .resolve_invocation(
+                    "::interp",
+                    &["alias", "", "__scaffold_alias", "", "__scaffold_target"],
+                    query,
+                )
+                .ok_or(UnavailableTaintReplayReason::AliasConstructor)?;
+            selected
+                .state_transitions()
+                .facts()
+                .iter()
+                .any(|fact| {
+                    matches!(
+                        fact.transition,
+                        tcl_registry::StateTransition::CommandBinding(
+                            tcl_registry::CommandBindingTransition::Alias { .. }
+                        )
+                    )
+                })
+                .then_some(())
+                .ok_or(UnavailableTaintReplayReason::AliasConstructor)?;
+            Some(selected.authored_source_descriptors().command)
+        } else {
+            None
+        };
+        Ok(Self { procedure, alias })
+    }
+
+    fn rebinding_priority(
+        &self,
+        registry: &CommandRegistry,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        head: &str,
+    ) -> u8 {
+        let query = metadata.map(|actual| actual.context().authoring_query());
+        if let Some(selected) =
+            registry.resolve_invocation(head, &["__scaffold_declaration", "args", ""], query)
+        {
+            let descriptor = selected.authored_source_descriptors().command;
+            if self
+                .procedure
+                .is_some_and(|actual| std::ptr::eq(actual, descriptor))
+            {
+                return 2;
+            }
+        }
+        if let Some(selected) = registry.resolve_invocation(
+            head,
+            &["alias", "", "__scaffold_alias", "", "__scaffold_target"],
+            query,
+        ) {
+            let descriptor = selected.authored_source_descriptors().command;
+            if self
+                .alias
+                .is_some_and(|actual| std::ptr::eq(actual, descriptor))
+            {
+                return 1;
+            }
+        }
+        0
+    }
 }
 
 /// Emit the direct expression-injection case and report whether this statement
@@ -4533,19 +6302,42 @@ fn emit_expr_statement_warnings<S: std::hash::BuildHasher>(
     ssa_stmt: &SsaStatement,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     warnings: &mut Vec<TaintWarning>,
-    ssa: &SsaFunction,
-    grammar: tcl_dialect::LexerGrammar,
+    source: crate::ssa::SsaSourceView<'_>,
+    registry: &CommandRegistry,
+    (config, grammar): (tcl_lexer::LexerConfig, tcl_dialect::LexerGrammar),
 ) -> bool {
     let stmt = &ssa_stmt.statement;
-    let (Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. }) = stmt else {
+    let (Statement::AssignExpr {
+        expr, expr_base, ..
+    }
+    | Statement::ExprEval {
+        expr, expr_base, ..
+    }) = stmt
+    else {
         return false;
     };
-    let resolve = |name: &str| {
-        let sym = ssa.var_symbol(name)?;
-        let ver = *ssa_stmt.uses.get(&sym)?;
-        Some((sym, ver))
+    let resolve = |hit: &CoercionOperand| {
+        if source.function().point_contexts.is_some() {
+            return expression_read_taint(
+                source,
+                hit.variable.as_ref()?,
+                *expr_base,
+                registry,
+                taints,
+            );
+        }
+        let sym = source.symbol(&hit.name)?;
+        let version = *ssa_stmt.uses.get(&sym)?;
+        Some(CoercionTaint::represented(sym, version, taints))
     };
-    emit_expr_coercion_warnings(expr, None, stmt.span(), resolve, taints, warnings, grammar);
+    emit_expr_coercion_warnings(
+        expr,
+        *expr_base,
+        stmt.span(),
+        resolve,
+        warnings,
+        (config, grammar),
+    );
     true
 }
 
@@ -4557,11 +6349,9 @@ fn emit_expr_statement_warnings<S: std::hash::BuildHasher>(
 /// handled conservatively by command-head provenance.
 fn parse_taint_command_substitution(
     text: &str,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<(String, Vec<String>)> {
-    let config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-        tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-    });
+    let config = config.nested();
     let (written_head, args) = parse_command_substitution_with_config(text, config)?;
     let inner = text.trim().strip_prefix('[')?.strip_suffix(']')?;
     let commands = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
@@ -4651,6 +6441,32 @@ fn command_substitutions_in_word<'a>(word: &'a WordExpr, out: &mut Vec<(&'a str,
     }
 }
 
+/// A string-only taint projection requires actual captured prefix bytes.
+/// Unknown prefix values retain the conservative unresolved-call path.
+fn retained_static_taint_head(
+    binding: &crate::command_binding::SourceInvocationBinding,
+) -> Option<StaticCommandHead> {
+    let target = binding
+        .proved_execution_target()
+        .filter(|target| target.registry_backed)?;
+    let prepended_args = target
+        .prepended
+        .iter()
+        .map(|word| match word {
+            crate::registry_invocation::EffectiveInvocationWord::Literal(value) => {
+                Some(value.clone())
+            }
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(StaticCommandHead {
+        command: target.command.clone(),
+        prepended_args,
+        consumed_source_args: 0,
+        expanded: false,
+    })
+}
+
 /// Resolve a whole-word `$var` command head from the definitions reaching this
 /// exact call site. Literal heads take the allocation-free path. A traced or
 /// otherwise unprovable variable head yields no candidate rather than guessing.
@@ -4658,16 +6474,12 @@ fn resolve_taint_command_heads(
     written_command: &str,
     stmt: &Statement,
     tokens: Option<&CommandTokens>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
     ctx: Option<CommandHeadContext<'_>>,
 ) -> Vec<StaticCommandHead> {
-    if !is_pure_var_ref(written_command) {
-        return vec![StaticCommandHead {
-            command: written_command.to_owned(),
-            prepended_args: Vec::new(),
-            consumed_source_args: 0,
-            expanded: false,
-        }];
+    // The lowered invocation owns the point-specific binding. A matching
+    // source spelling cannot restore semantics explicitly declined by it.
+    if let Some(binding) = tokens.and_then(|tokens| tokens.source_binding.as_ref()) {
+        return retained_static_taint_head(binding).into_iter().collect();
     }
     let Some(ctx) = ctx else {
         return vec![StaticCommandHead {
@@ -4677,7 +6489,24 @@ fn resolve_taint_command_heads(
             expanded: false,
         }];
     };
-    let var_name = normalise_var_name(written_command);
+    let Some(actual_tokens) = tokens.or_else(|| stmt.tokens()) else {
+        return Vec::new();
+    };
+    let config = ctx.fu.source_lexer_config();
+    if let Some(head) = static_command_head(
+        actual_tokens,
+        config.escapes,
+        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+    ) {
+        return vec![head];
+    }
+    let Some(var_name) = actual_tokens
+        .word_exprs
+        .first()
+        .and_then(|word| original_scalar_reference_name(word, config))
+    else {
+        return Vec::new();
+    };
     if ctx.module_traces.has_dynamic_variable_trace
         || ctx.module_traces.traced_variables.contains(var_name)
     {
@@ -4688,7 +6517,7 @@ fn resolve_taint_command_heads(
         ctx.fu,
         absolute_offset,
         var_name,
-        tcl_lexer::LexerConfig::for_profile(dialect),
+        ctx.fu.source_lexer_config(),
     );
     if contributors.is_empty() {
         return Vec::new();
@@ -4696,8 +6525,8 @@ fn resolve_taint_command_heads(
     let expanded = tokens
         .and_then(|tokens| tokens.word_exprs.first())
         .is_some_and(|word| matches!(word, WordExpr::Expand { .. }));
-    let escapes = tcl_dialect::EscapeSyntax::of_profile(dialect);
-    let rules = tcl_syntax::word_rules::WordValueRules::of_profile(dialect);
+    let escapes = ctx.fu.source_lexer_config().escapes;
+    let rules = tcl_syntax::word_rules::WordValueRules::from_config(&ctx.fu.source_lexer_config());
     let mut heads = Vec::with_capacity(contributors.len());
     for contributor in contributors {
         let head = if expanded {
@@ -4745,18 +6574,22 @@ fn resolve_taint_command_heads(
 
 #[allow(clippy::too_many_arguments)]
 fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
-    command: &str,
-    call_args: &[String],
-    tokens: Option<&CommandTokens>,
+    sink_call: SinkCall<'_>,
     ssa_stmt: &SsaStatement,
     uses: &HashMap<Symbol, Version>,
     taints: &HashMap<ValueKey, TaintLattice, S>,
-    registry: &CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     shadowed_builtins: &HashSet<String, H>,
     warnings: &mut Vec<TaintWarning>,
     ssa: &SsaFunction,
 ) {
+    let (command, call_args, tokens, registry) = (
+        sink_call.command,
+        sink_call.args,
+        sink_call.tokens,
+        sink_call.registry,
+    );
+    let first_warning = warnings.len();
     let stmt = &ssa_stmt.statement;
     let span = stmt.span();
 
@@ -4766,7 +6599,11 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
     // otherwise misclassify a call to the user's own (possibly entirely
     // safe) proc as the builtin sink/source. Whatever the shadowing proc
     // itself does is covered separately by interprocedural taint analysis.
-    if shadowed_builtins.contains(command) {
+    if shadowed_builtins.contains(command)
+        && tokens
+            .and_then(|tokens| tokens.source_binding.as_ref())
+            .is_none()
+    {
         return;
     }
 
@@ -4774,19 +6611,17 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
     // T103 (regexp pattern) → T106 (double-encode) → the sink loop
     // (T100/output/log, then T102, then T104/T105).
 
-    // The document's `${…}` close rule, carried into every name scan below so
-    // they read the same closer the lexer did.
-    let braced_var = tcl_dialect::BracedVarStyle::of_profile(dialect);
     let env = TaintScan {
         uses,
         taints,
         ssa,
-        braced_var,
         quoted_uses: Some(&ssa_stmt.quoted_uses),
+        source_read: sink_call.source_read,
+        source: sink_call.source,
     };
 
     // T103: tainted data in a regexp/regsub pattern position.
-    emit_regexp_pattern_warnings(command, call_args, &env, span, registry, warnings);
+    emit_regexp_pattern_warnings(&env, span, registry, warnings, tokens, sink_call.source);
 
     // T106: re-encoding an already-encoded tainted value. A minimal ctx (no
     // interprocedural summaries) is enough — the double-encode colour is added
@@ -4797,11 +6632,14 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
         ssa,
         interproc: None,
         known_procs: None,
-        caller_qname: Some(ssa.name.as_str()),
         dialect,
+        source: sink_call.source,
         taint_summaries: None,
         instance_classes: None,
         source_position: None,
+        source_tokens: None,
+        word_offset: None,
+        source_word: None,
     };
     emit_double_encode_warnings(
         command,
@@ -4814,15 +6652,15 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
         &ssa_stmt.quoted_uses,
     );
 
-    let sink_call = SinkCall {
-        command,
-        args: call_args,
-        registry,
-        tokens,
-        braced_var,
-    };
     // Primary sink classification (T100 code-exec / T101 + iRules output / log).
-    if let Some((code, sink_label)) = classify_sink(registry, command, call_args, dialect) {
+    let classified = if sink_call.tokens.is_some() {
+        classify_source_sink(&sink_call, dialect)
+    } else if sink_call.source.allows_nominal_metadata() {
+        classify_sink(registry, command, call_args, dialect)
+    } else {
+        None
+    };
+    if let Some((code, sink_label)) = classified {
         emit_sink_warnings(&env, span, code, &sink_label, &sink_call, warnings);
     }
 
@@ -4843,6 +6681,245 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
     for (code, sink_label) in classify_network_interp_sinks(registry, command, call_args) {
         emit_sink_warnings(&env, span, code, &sink_label, &sink_call, warnings);
     }
+    // These warnings were emitted for this exact selected source invocation;
+    // retain its issuer before any display projection or whole-document lift.
+    let sink = tokens
+        .and_then(|tokens| TaintSinkSource::for_original_invocation(tokens, sink_call.source));
+    for warning in &mut warnings[first_warning..] {
+        warning.source_sink = sink.clone();
+    }
+}
+
+fn original_scalar_reference_name(word: &WordExpr, config: tcl_lexer::LexerConfig) -> Option<&str> {
+    let (reference, _) = word.sole_variable_substitution()?;
+    let variable = tcl_lexer::word_parts::whole_var_ref(reference.as_bytes(), config).ok()??;
+    if variable.index.is_some()
+        || tcl_syntax::naming::split_element_ref_bytes(variable.name).is_some()
+    {
+        return None;
+    }
+    std::str::from_utf8(variable.name)
+        .ok()
+        .filter(|name| !name.contains('\0'))
+}
+
+fn reference_root_with_config(reference: &str, config: tcl_lexer::LexerConfig) -> Option<&str> {
+    let root =
+        tcl_syntax::naming::variable_reference_root_bytes(reference.as_bytes(), config).ok()??;
+    std::str::from_utf8(root)
+        .ok()
+        .filter(|name| !name.contains('\0'))
+}
+
+/// Taint of an original operand read. A missing SSA use remains an unknown
+/// value only when the retained word identifies that exact variable read.
+/// This projection creates no SSA symbol or variable-presence proof.
+fn operand_read_taint<S: std::hash::BuildHasher>(
+    env: &TaintScan<'_, S>,
+    name: &str,
+    original: Option<&WordExpr>,
+) -> Option<TaintLattice> {
+    if let Some(hosted) = env.source_read {
+        return hosted.taint(name, original?, env.taints);
+    }
+    if let Some(symbol) = env.ssa.var_symbol(name)
+        && let Some(&_version) = env.uses.get(&symbol)
+    {
+        let value = var_taint(name, env.uses, env.taints, env.ssa);
+        if value.is_conservative_global_seed_only() {
+            return None;
+        }
+        return Some(value);
+    }
+    let (reference, _) = original?.sole_variable_substitution()?;
+    (reference_root_with_config(reference, env.source.config) == Some(name))
+        .then_some(TaintLattice::tainted())
+}
+
+fn original_sink_argument<'a>(call: &SinkCall<'a>, index: usize) -> Option<&'a WordExpr> {
+    if let Some(effective) = call.effective {
+        let effective_index = call.argument_offset.checked_add(index)?.checked_add(1)?;
+        match effective.origins.get(effective_index)? {
+            crate::registry_invocation::InvocationWordOrigin::Written(_) => {
+                effective.words.get(effective_index)
+            }
+            _ => None,
+        }
+    } else {
+        call.tokens?.words().get(index.checked_add(1)?)
+    }
+}
+
+enum SourceWarningMetadata {
+    Hosted(Box<crate::registry_invocation::OriginalConditionalVendorRegistryMetadata>),
+    Native(Box<crate::registry_invocation::NativeSourceTaintInvocation>),
+    Original(Box<crate::registry_invocation::OriginalSourceTaintReadOperands>),
+    WithOriginalReads {
+        invocation: Box<SourceWarningMetadata>,
+        reads: Box<crate::registry_invocation::OriginalSourceTaintReadOperands>,
+    },
+}
+
+impl SourceWarningMetadata {
+    fn original_reads(
+        &self,
+    ) -> Option<&crate::registry_invocation::OriginalSourceTaintReadOperands> {
+        match self {
+            Self::Original(reads) | Self::WithOriginalReads { reads, .. } => Some(reads),
+            Self::Hosted(_) | Self::Native(_) => None,
+        }
+    }
+
+    fn invocation_metadata(&self) -> &Self {
+        match self {
+            Self::WithOriginalReads { invocation, .. } => invocation.invocation_metadata(),
+            other => other,
+        }
+    }
+}
+
+/// Supplemental source geometry is independent of the selected invocation.
+/// Only Unowned may use that invocation's existing authenticated read domain.
+enum OriginalReadTaintProjection {
+    Unowned,
+    Refused,
+    NoRead,
+    Value(TaintLattice),
+}
+
+/// Conditional original source reads retain exact positioned value authority.
+#[derive(Clone, Copy)]
+struct SourceWarningRead<'a> {
+    metadata: &'a SourceWarningMetadata,
+    point: crate::ssa::SsaSourceView<'a>,
+}
+impl<'a> SourceWarningRead<'a> {
+    fn project_original_read<S: std::hash::BuildHasher>(
+        self,
+        name: &str,
+        original: &WordExpr,
+        taints: &HashMap<ValueKey, TaintLattice, S>,
+    ) -> OriginalReadTaintProjection {
+        let Some(operands) = self.metadata.original_reads() else {
+            return OriginalReadTaintProjection::Unowned;
+        };
+        if !operands.matches_source_point(self.point) {
+            return OriginalReadTaintProjection::Refused;
+        }
+        let reads = match operands.read_sites(original, name) {
+            crate::registry_invocation::OriginalSourceReadSites::Unowned => {
+                return OriginalReadTaintProjection::Unowned;
+            }
+            crate::registry_invocation::OriginalSourceReadSites::Unknown => {
+                return OriginalReadTaintProjection::Value(TaintLattice::tainted());
+            }
+            crate::registry_invocation::OriginalSourceReadSites::Known(reads) => reads,
+        };
+        if reads.is_empty() {
+            return OriginalReadTaintProjection::NoRead;
+        }
+        OriginalReadTaintProjection::Value(reads.into_iter().fold(
+            TaintLattice::clean(),
+            |taint, (reference, site)| {
+                let value = self
+                    .point
+                    .read_reference(site, reference)
+                    .and_then(|read| read.version.map(|version| (read.symbol, version)))
+                    .and_then(|key| taints.get(&key).copied())
+                    .unwrap_or_else(TaintLattice::tainted);
+                taint.join(value)
+            },
+        ))
+    }
+
+    fn script_arguments(self, call: &SinkCall<'_>) -> Option<&'a [usize]> {
+        let operands = self.metadata.original_reads()?;
+        operands.matches_source_point(self.point).then_some(())?;
+        operands.script_arguments(call.command, call.effective?)
+    }
+
+    fn references(self, name: &str, original: &WordExpr, config: tcl_lexer::LexerConfig) -> bool {
+        if let Some(operands) = self.metadata.original_reads() {
+            if !operands.matches_source_point(self.point) {
+                return false;
+            }
+            match operands.read_sites(original, name) {
+                crate::registry_invocation::OriginalSourceReadSites::Unowned => {}
+                crate::registry_invocation::OriginalSourceReadSites::Unknown => return true,
+                crate::registry_invocation::OriginalSourceReadSites::Known(reads) => {
+                    return !reads.is_empty();
+                }
+            }
+        }
+        if !matches!(
+            self.metadata.invocation_metadata(),
+            SourceWarningMetadata::Native(_) | SourceWarningMetadata::Hosted(_)
+        ) {
+            return false;
+        }
+        original
+            .sole_variable_substitution()
+            .is_some_and(|(reference, _)| {
+                reference_root_with_config(reference, config) == Some(name)
+            })
+    }
+
+    fn taint<S: std::hash::BuildHasher>(
+        self,
+        name: &str,
+        original: &WordExpr,
+        taints: &HashMap<ValueKey, TaintLattice, S>,
+    ) -> Option<TaintLattice> {
+        match self.project_original_read(name, original, taints) {
+            OriginalReadTaintProjection::Value(value) => return Some(value),
+            OriginalReadTaintProjection::Refused | OriginalReadTaintProjection::NoRead => {
+                return None;
+            }
+            OriginalReadTaintProjection::Unowned => {}
+        }
+        let (reference, site) = original.sole_variable_substitution()?;
+        let (config, owns_word) = match self.metadata.invocation_metadata() {
+            SourceWarningMetadata::Hosted(metadata) => (
+                metadata.shape().original_words().first()?.config(),
+                metadata
+                    .shape()
+                    .original_words()
+                    .iter()
+                    .any(|word| word.span() == original.source().span),
+            ),
+            SourceWarningMetadata::Native(selected) => (
+                selected.words.original_argument_word(0)?.config(),
+                (0..selected.words.arguments().len()).any(|argument| {
+                    selected
+                        .words
+                        .original_argument_word(argument)
+                        .is_some_and(|word| word.span() == original.source().span)
+                }),
+            ),
+            // An absent supplemental domain can fall through only to the
+            // unchanged authenticated Native/hosted invocation owner.
+            SourceWarningMetadata::Original(_)
+            | SourceWarningMetadata::WithOriginalReads { .. } => return None,
+        };
+        if reference_root_with_config(reference, config) != Some(name) || !owns_word {
+            return None;
+        }
+        // Only the exact positioned read receipt can select represented
+        // contents. Missing cells or versions retain an unknown MAY value;
+        // no SSA symbol, presence, effect or Normal receipt is created here.
+        let read = self.point.read_reference(site, reference);
+        let key = match self.metadata.invocation_metadata() {
+            SourceWarningMetadata::Hosted(_) | SourceWarningMetadata::Original(_) => {
+                read.and_then(|read| read.version.map(|version| (read.symbol, version)))
+            }
+            SourceWarningMetadata::Native(_) => {
+                self.point.read_occurrence_reference(site, reference)
+            }
+            SourceWarningMetadata::WithOriginalReads { .. } => return None,
+        };
+        let value = key.and_then(|key| taints.get(&key).copied());
+        Some(value.unwrap_or_else(TaintLattice::tainted))
+    }
 }
 
 /// Per-statement read context for the taint-warning emitters: the SSA
@@ -4853,12 +6930,12 @@ struct TaintScan<'a, S> {
     uses: &'a HashMap<Symbol, u32>,
     taints: &'a HashMap<ValueKey, TaintLattice, S>,
     ssa: &'a SsaFunction,
-    /// The document's `${…}` close rule, for the shared owner
-    /// [`tcl_lexer::braced_var_name_end`] — carried here so every name scan
-    /// below reads the same closer the lexer did.
-    braced_var: tcl_dialect::BracedVarStyle,
     /// Uses mentioned only in brace-quoted words at this statement.
     quoted_uses: Option<&'a HashSet<Symbol>>,
+    /// Current source metadata cannot turn an unrepresented read into clean SSA.
+    source_read: Option<SourceWarningRead<'a>>,
+    /// Retained grammar and metadata for wrapper mitigation candidates.
+    source: TaintSourceContext<'a>,
 }
 
 /// Emit `T103` (regex injection / `ReDoS`) for a tainted variable sitting in
@@ -4866,43 +6943,82 @@ struct TaintScan<'a, S> {
 /// gated on `pattern_type == Regex`). Suppressed when the
 /// value carries the `REGEX_LITERAL` colour.
 fn emit_regexp_pattern_warnings<S: std::hash::BuildHasher>(
-    command: &str,
-    args: &[String],
     env: &TaintScan<'_, S>,
     span: Span,
     registry: &CommandRegistry,
     warnings: &mut Vec<TaintWarning>,
+    tokens: Option<&CommandTokens>,
+    source: TaintSourceContext<'_>,
 ) {
-    let (uses, taints, ssa) = (env.uses, env.taints, env.ssa);
-    let is_regex = registry
-        .get(command)
-        .is_some_and(|s| s.pattern_type == Some(tcl_registry::patterns::PatternType::Regex));
-    if !is_regex {
-        return;
-    }
-    let Some(pattern_idx) = regexp_pattern_index(args) else {
+    let Some(source_tokens) = tokens else { return };
+    let metadata = match source.metadata {
+        Some(context) => Some(context),
+        None if source.allows_nominal_metadata() => None,
+        None => return,
+    };
+    let Some(normal) =
+        crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+            registry,
+            metadata,
+            source_tokens,
+        )
+    else {
         return;
     };
+    let Some(pattern_indices) = normal.possible_pattern_source_argument_indices(registry) else {
+        return;
+    };
+    let display_command = normal.diagnostic_command();
+    let mut possible_names = HashSet::new();
+    for pattern_idx in pattern_indices {
+        let first_warning = warnings.len();
+        emit_pattern_operand_warnings(
+            env,
+            span,
+            registry,
+            warnings,
+            source_tokens,
+            display_command,
+            pattern_idx,
+        );
+        let mut index = first_warning;
+        while index < warnings.len() {
+            if possible_names.insert(warnings[index].variable.clone()) {
+                index += 1;
+            } else {
+                warnings.remove(index);
+            }
+        }
+    }
+}
+
+fn emit_pattern_operand_warnings<S: std::hash::BuildHasher>(
+    env: &TaintScan<'_, S>,
+    span: Span,
+    registry: &CommandRegistry,
+    warnings: &mut Vec<TaintWarning>,
+    source_tokens: &CommandTokens,
+    display_command: &str,
+    pattern_idx: usize,
+) {
+    let args = source_tokens.argv_texts.get(1..).unwrap_or(&[]);
     let Some(arg) = args.get(pattern_idx) else {
         return;
     };
-    let mut names: Vec<String> = arg_var_names(arg, env.braced_var).into_iter().collect();
+    let mut names: Vec<String> = scan_argument_names(env, arg);
     names.sort_unstable();
+    names.dedup();
     for var in names {
-        let Some(sym) = ssa.var_symbol(&var) else {
+        if env.ssa.var_symbol(&var).is_some_and(|symbol| {
+            env.quoted_uses
+                .is_some_and(|quoted| quoted.contains(&symbol))
+        }) {
+            continue;
+        }
+        let Some(t) = operand_read_taint(env, &var, source_tokens.words().get(pattern_idx + 1))
+        else {
             continue;
         };
-        if env.quoted_uses.is_some_and(|quoted| quoted.contains(&sym)) {
-            continue;
-        }
-        let Some(&ver) = uses.get(&sym) else { continue };
-        if is_seeded_global_v0(&var, ver) {
-            continue;
-        }
-        let t = taints
-            .get(&(sym, ver))
-            .copied()
-            .unwrap_or(TaintLattice::clean());
         if !t.is_tainted() {
             continue;
         }
@@ -4912,21 +7028,24 @@ fn emit_regexp_pattern_warnings<S: std::hash::BuildHasher>(
         // not in a pattern position and has no bearing on this hazard.
         let t = var_wrapper_colours(
             registry,
-            env.braced_var,
+            env.source,
             &args[pattern_idx..=pattern_idx],
             &var,
+            Some(source_tokens),
+            pattern_idx,
         )
         .map_or(t, |colours| t.shape_unproven().with(colours));
         if t.colours.intersects(TaintColour::REGEX_LITERAL) {
             continue;
         }
         warnings.push(TaintWarning {
+            source_sink: None,
             span,
             variable: var.clone(),
-            sink_command: command.to_owned(),
+            sink_command: display_command.to_owned(),
             code: DiagCode::T103,
             message: format!(
-                "Tainted variable ${var} in regexp pattern position ({command}); \
+                "Tainted variable ${var} in regexp pattern position ({display_command}); \
                  risk of regex injection or ReDoS"
             ),
             replacement: None,
@@ -4940,6 +7059,8 @@ fn emit_regexp_pattern_warnings<S: std::hash::BuildHasher>(
 /// hazard (see [`collect_coercion_operands`]).
 struct CoercionOperand {
     name: String,
+    /// Original parser node retains exact spelling and offsets for native read queries.
+    variable: Option<ExprNode>,
     /// Offset of this occurrence relative to the expr's own source text,
     /// when known. `None` for a var recovered from an unparsed
     /// [`ExprNode::Raw`] fallback, which carries no per-occurrence
@@ -4977,42 +7098,23 @@ const fn binop_coerces(op: crate::expr_ast::BinOp) -> bool {
     )
 }
 
-/// Whether `text` is one whole variable reference and nothing else — the one
-/// [`ExprNode::Raw`] shape whose operator structure is fully known.
-///
-/// Decided by reconstruction rather than by re-parsing: `names` is what the
-/// grammar-aware scan already found in `text`, so if the single name it found
-/// spells the whole of `text` back, there is nothing else in there. Anything
-/// the scan and the source disagree about — a release-dependent `${…}` close,
-/// trailing text, a second reference, an operator — fails to reconstruct and
-/// keeps the conservative reading.
-///
-/// An array element (`$a(k)`, `${a(k)}`) reconstructs too. The scan reports
-/// the array's name without the index, so the index is matched as a trailing
-/// `(…)` group; it is still one reference to one element, and an index that
-/// substitutes anything of its own contributes a second name and fails the
-/// single-name test.
-fn holds_one_whole_var_ref(text: &str, names: &HashSet<String>) -> bool {
-    if names.len() != 1 {
-        return false;
-    }
-    let Some(name) = names.iter().next() else {
+/// A complete reference under the current lexer configuration whose name
+/// agrees with the expression's variable inventory.
+fn holds_one_whole_var_ref(
+    text: &str,
+    names: &HashSet<String>,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
+    let Ok(Some(root)) = tcl_syntax::naming::variable_reference_root_bytes(text.as_bytes(), config)
+    else {
         return false;
     };
-    let whole_or_element =
-        |tail: &str| tail.is_empty() || (tail.starts_with('(') && tail.ends_with(')'));
-    let Some(rest) = text.strip_prefix('$') else {
-        return false;
-    };
-    let bare = rest
-        .strip_prefix(name.as_str())
-        .is_some_and(whole_or_element);
-    let braced = rest
-        .strip_prefix('{')
-        .and_then(|inner| inner.strip_suffix('}'))
-        .and_then(|inner| inner.strip_prefix(name.as_str()))
-        .is_some_and(whole_or_element);
-    bare || braced
+    !root.contains(&0)
+        && names.len() == 1
+        && names
+            .iter()
+            .next()
+            .is_some_and(|name| name.as_bytes() == root)
 }
 
 /// Collect every `Var` occurrence of `expr` that sits in a position where
@@ -5059,7 +7161,7 @@ fn collect_coercion_operands(
     in_context: bool,
     out: &mut Vec<CoercionOperand>,
     depth: u32,
-    grammar: tcl_dialect::LexerGrammar,
+    (config, grammar): (tcl_lexer::LexerConfig, tcl_dialect::LexerGrammar),
 ) {
     // Native-stack safety net: this walks the `ExprNode` tree,
     // one native frame per level. Past the cap, stop descending — a collector
@@ -5073,10 +7175,11 @@ fn collect_coercion_operands(
         ExprNode::Var {
             name, start, end, ..
         } => {
-            if in_context && !name.is_empty() {
+            if in_context {
                 out.push(CoercionOperand {
                     name: name.clone(),
-                    rel_span: Some((*start, *end)),
+                    variable: Some(expr.clone()),
+                    rel_span: Some((*start, end.saturating_add(1))),
                 });
             }
         }
@@ -5086,34 +7189,35 @@ fn collect_coercion_operands(
         | ExprNode::Command { .. } => {}
         ExprNode::Binary { op, left, right } => {
             let child_ctx = binop_coerces(*op);
-            collect_coercion_operands(left, child_ctx, out, depth + 1, grammar);
-            collect_coercion_operands(right, child_ctx, out, depth + 1, grammar);
+            collect_coercion_operands(left, child_ctx, out, depth + 1, (config, grammar));
+            collect_coercion_operands(right, child_ctx, out, depth + 1, (config, grammar));
         }
         ExprNode::Unary { operand, .. } => {
-            collect_coercion_operands(operand, true, out, depth + 1, grammar);
+            collect_coercion_operands(operand, true, out, depth + 1, (config, grammar));
         }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            collect_coercion_operands(condition, true, out, depth + 1, grammar);
-            collect_coercion_operands(true_branch, in_context, out, depth + 1, grammar);
-            collect_coercion_operands(false_branch, in_context, out, depth + 1, grammar);
+            collect_coercion_operands(condition, true, out, depth + 1, (config, grammar));
+            collect_coercion_operands(true_branch, in_context, out, depth + 1, (config, grammar));
+            collect_coercion_operands(false_branch, in_context, out, depth + 1, (config, grammar));
         }
         ExprNode::Call { args, .. } => {
             for arg in args {
-                collect_coercion_operands(arg, true, out, depth + 1, grammar);
+                collect_coercion_operands(arg, true, out, depth + 1, (config, grammar));
             }
         }
         ExprNode::Raw { text } => {
             let names = (ExprNode::Raw { text: text.clone() }).vars_with_grammar(grammar);
-            if !in_context && holds_one_whole_var_ref(text, &names) {
+            if !in_context && holds_one_whole_var_ref(text, &names, config) {
                 return;
             }
             for name in names {
                 out.push(CoercionOperand {
                     name,
+                    variable: None,
                     rel_span: None,
                 });
             }
@@ -5121,41 +7225,103 @@ fn collect_coercion_operands(
     }
 }
 
+struct CoercionTaint {
+    symbol: Symbol,
+    value: TaintLattice,
+}
+
+impl CoercionTaint {
+    fn represented<S: std::hash::BuildHasher>(
+        symbol: Symbol,
+        version: Version,
+        taints: &HashMap<ValueKey, TaintLattice, S>,
+    ) -> Self {
+        Self {
+            symbol,
+            value: taints
+                .get(&(symbol, version))
+                .copied()
+                .unwrap_or(TaintLattice::clean()),
+        }
+    }
+}
+
+fn expression_read_taint<S: std::hash::BuildHasher>(
+    source: crate::ssa::SsaSourceView<'_>,
+    node: &ExprNode,
+    base: Option<u32>,
+    registry: &CommandRegistry,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+) -> Option<CoercionTaint> {
+    let reference = source.read_expression_variable(node, base)?;
+    if let Some(version) = reference.version {
+        return Some(CoercionTaint::represented(
+            reference.symbol,
+            version,
+            taints,
+        ));
+    }
+    let contents = source.read_expression_variable_contents(node, base, registry)?;
+    let mut value = if contents.unknown_residual {
+        TaintLattice::tainted()
+    } else {
+        TaintLattice::clean()
+    };
+    if contents.includes_incoming {
+        value = value.join(CoercionTaint::represented(reference.symbol, 0, taints).value);
+    }
+    for (block, index) in contents.writes {
+        let statement = source
+            .function()
+            .blocks
+            .get(&block)?
+            .statements
+            .get(index)?;
+        value = value.join(
+            statement
+                .defs
+                .get(&reference.symbol)
+                .map_or_else(TaintLattice::tainted, |version| {
+                    CoercionTaint::represented(reference.symbol, *version, taints).value
+                }),
+        );
+    }
+    Some(CoercionTaint {
+        symbol: reference.symbol,
+        value,
+    })
+}
+
 /// Emit T100 warnings for numeric-coercion-risk operands of a braced
 /// `expr` — an `AssignExpr`/`ExprEval` statement, or an `if`/`while`/`for`
 /// branch condition (see [`emit_branch_condition_warnings`]).
 ///
-/// `resolve` maps a variable name occurring in `expr` to the `(Symbol,
-/// SSA version)` reaching this point; a `None` result skips that
+/// `resolve` projects taint from the exact physical read and its represented
+/// contents alternatives; a `None` result skips that
 /// occurrence (no binding here). `base_offset`, when `Some`, is the
 /// absolute source offset of `expr`'s own text — `ExprNode::Var` offsets
 /// are relative to it, so a hit's absolute span is computable; `None`
 /// (or a `Raw`-derived hit with no `rel_span`) falls back to
 /// `fallback_span`, the caller's coarser span for the whole expr.
-fn emit_expr_coercion_warnings<S: std::hash::BuildHasher>(
+fn emit_expr_coercion_warnings(
     expr: &ExprNode,
     base_offset: Option<u32>,
     fallback_span: Span,
-    resolve: impl Fn(&str) -> Option<(Symbol, u32)>,
-    taints: &HashMap<ValueKey, TaintLattice, S>,
+    resolve: impl Fn(&CoercionOperand) -> Option<CoercionTaint>,
     warnings: &mut Vec<TaintWarning>,
-    grammar: tcl_dialect::LexerGrammar,
+    (config, grammar): (tcl_lexer::LexerConfig, tcl_dialect::LexerGrammar),
 ) {
     let mut hits = Vec::new();
-    collect_coercion_operands(expr, true, &mut hits, 0, grammar);
+    collect_coercion_operands(expr, true, &mut hits, 0, (config, grammar));
     let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
     for hit in hits {
-        let Some((sym, ver)) = resolve(&hit.name) else {
+        let Some(read) = resolve(&hit) else {
             continue;
         };
-        if is_seeded_global_v0(&hit.name, ver) || !emitted.insert(sym) {
-            continue;
-        }
-        let t = taints
-            .get(&(sym, ver))
-            .copied()
-            .unwrap_or(TaintLattice::clean());
-        if !t.is_tainted() {
+        if read.value.is_conservative_global_seed_only()
+            || !read.value.is_tainted()
+            || !emitted.insert(read.symbol)
+        {
             continue;
         }
         let span = match (hit.rel_span, base_offset) {
@@ -5163,6 +7329,7 @@ fn emit_expr_coercion_warnings<S: std::hash::BuildHasher>(
             _ => fallback_span,
         };
         warnings.push(TaintWarning {
+            source_sink: None,
             span,
             variable: hit.name.clone(),
             sink_command: "expr".to_owned(),
@@ -5192,7 +7359,7 @@ fn emit_numeric_coercion_warnings<S: std::hash::BuildHasher>(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     warnings: &mut Vec<TaintWarning>,
 ) {
-    let Some(spec) = call.registry.get(call.command) else {
+    let Some((spec, _command, _selected_args)) = selected_sink_schema(call) else {
         return;
     };
     let Some(shape) = spec.taint_numeric_coercion else {
@@ -5209,11 +7376,30 @@ fn emit_numeric_coercion_warnings<S: std::hash::BuildHasher>(
         let Some(arg) = call.args.get(slot) else {
             continue;
         };
+        // Decoded argv text may contain a dollar sign that Tcl never read.
+        // Keep the original word's substitution contract after decoding.
+        let effective = call
+            .tokens
+            .and_then(crate::registry_invocation::effective_command_words);
+        if call
+            .effective
+            .or(effective.as_ref())
+            .and_then(|words| words.words.get(call.argument_offset + slot + 1))
+            .is_some_and(|word| {
+                matches!(
+                    word,
+                    WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
+                )
+            })
+        {
+            continue;
+        }
         let slot_call = SinkCall {
             args: &call.args[slot..=slot],
+            argument_offset: call.argument_offset + slot,
             ..*call
         };
-        for name in arg_var_names_ordered(arg, env.braced_var) {
+        for name in scan_argument_names(env, arg) {
             let Some(sym) = env.ssa.var_symbol(&name) else {
                 continue;
             };
@@ -5223,14 +7409,15 @@ fn emit_numeric_coercion_warnings<S: std::hash::BuildHasher>(
             let Some(&ver) = env.uses.get(&sym) else {
                 continue;
             };
-            if is_seeded_global_v0(&name, ver) {
-                continue;
-            }
-            let tainted = env
+            let value = env
                 .taints
                 .get(&(sym, ver))
                 .copied()
-                .is_some_and(TaintLattice::is_tainted);
+                .unwrap_or_else(TaintLattice::clean);
+            if value.is_conservative_global_seed_only() {
+                continue;
+            }
+            let tainted = value.is_tainted();
             if !tainted || var_consumed_by_sanitiser(&slot_call, &name) {
                 continue;
             }
@@ -5239,6 +7426,7 @@ fn emit_numeric_coercion_warnings<S: std::hash::BuildHasher>(
                 .and_then(|tokens| tokens.argv.get(slot + 1).copied())
                 .unwrap_or(span);
             warnings.push(TaintWarning {
+                source_sink: None,
                 span,
                 message: format!(
                     "Tainted variable ${name} flows into {sink_label}; \
@@ -5261,6 +7449,7 @@ fn emit_numeric_coercion_warnings<S: std::hash::BuildHasher>(
 /// stay under the 7-argument clippy limit — mirrors [`TaintScan`] /
 /// [`SinkCall`] elsewhere in this module.
 struct BranchTaintCtx<'a, S> {
+    source: TaintSourceContext<'a>,
     /// The condition's own block — `exit_versions` gives the SSA version of
     /// each condition variable reaching the terminator.
     ssa_block: &'a crate::ssa::SsaBlock,
@@ -5280,15 +7469,10 @@ struct BranchTaintCtx<'a, S> {
 /// `ssa_block.statements` — `find_taint_warnings`'s per-statement scan
 /// never reaches them, so without this dedicated pass a condition like
 /// `if {$tainted + 1 > 5} { … }` raised no T100 at all, even though it is
-/// evaluated exactly like any other braced `expr`. Resolves each
-/// condition variable's SSA version via the block's `exit_versions` (the
-/// version reaching the terminator), mirroring how
-/// [`crate::sccp::branch_decision`]'s constant-folding reads the same
-/// condition. Uses the condition's own span (tight — just the `{…}` text,
-/// not the enclosing `if`/`while`/`for` statement) for every hit: unlike
-/// `AssignExpr`/`ExprEval`, no absolute per-variable offset is threaded
-/// through the CFG-flattened `Terminator::Branch`, so this falls back to
-/// the whole-condition span rather than a per-operand one.
+/// evaluated exactly like any other braced `expr`. Native conditions retain
+/// their parser base and per-reference read carriers; each occurrence resolves
+/// independently at the terminator. Only carrierless compatibility SSA uses
+/// represented exit versions. Missing native evidence never invents version0.
 fn emit_branch_condition_warnings<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     bn: BlockId,
@@ -5299,7 +7483,10 @@ fn emit_branch_condition_warnings<S: std::hash::BuildHasher>(
         return;
     };
     let Some(Terminator::Branch {
-        condition, span, ..
+        condition,
+        condition_base,
+        span,
+        ..
     }) = &block.terminator
     else {
         return;
@@ -5307,52 +7494,391 @@ fn emit_branch_condition_warnings<S: std::hash::BuildHasher>(
     let Some(fallback_span) = span else {
         return;
     };
-    let resolve = |name: &str| {
-        let sym = ctx.ssa.var_symbol(name)?;
-        let ver = ctx.ssa_block.exit_versions.get(&sym).copied().unwrap_or(0);
-        Some((sym, ver))
+    let source = crate::ssa::SsaSourceView::at_terminator(ctx.ssa, bn);
+    let resolve = |hit: &CoercionOperand| {
+        if ctx.ssa.point_contexts.is_some() {
+            return expression_read_taint(
+                source,
+                hit.variable.as_ref()?,
+                *condition_base,
+                ctx.registry,
+                ctx.taints,
+            );
+        }
+        let sym = source.symbol(&hit.name)?;
+        ctx.ssa_block
+            .exit_versions
+            .get(&sym)
+            .copied()
+            .map(|version| CoercionTaint::represented(sym, version, ctx.taints))
     };
     emit_expr_coercion_warnings(
         condition,
-        None,
+        *condition_base,
         *fallback_span,
         resolve,
-        ctx.taints,
         warnings,
-        ctx.dialect
-            .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
+        (
+            ctx.source.config,
+            ctx.source.config.grammar_over(
+                ctx.dialect
+                    .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
+                        profile.grammar
+                    }),
+            ),
+        ),
     );
-    emit_branch_condition_nested_command_warnings(condition, ctx, *fallback_span, warnings);
+    let Some(source_tokens) = cfg.source_input_tokens_at(bn, usize::MAX) else {
+        if ctx.source.allows_nominal_metadata() {
+            emit_branch_condition_nested_command_warnings_standalone(
+                condition,
+                ctx,
+                *fallback_span,
+                warnings,
+            );
+        }
+        return;
+    };
+    emit_branch_condition_nested_command_warnings(
+        bn,
+        condition,
+        *condition_base,
+        source_tokens,
+        ctx,
+        *fallback_span,
+        warnings,
+    );
 }
 
-/// Emit sink warnings for `[cmd …]` command substitutions nested inside a
-/// branch condition (e.g. `if {[exec $x] eq "ok"} { … }`).
-///
-/// A nested command substitution executes exactly like any other
-/// statement's, but the CFG builder's synthetic `<cond>` placeholder
-/// statement (`cfg_lower::lower_if`/`lower_for`/`lower_while`) records
-/// only `catch`/`regexp`-style output vars for W210 — not the real
-/// command name or arguments — so `find_taint_warnings`'s per-statement
-/// scan has nothing to dispatch `classify_sink` against for it. Uses
-/// [`ExprNode::command_texts`] to recover each nested `[cmd …]` verbatim
-/// (already the shape `classify_sink`/`emit_sink_warnings` expect, the
-/// same one the `AssignValue` "owned fallback" path re-parses), resolves
-/// its argument variables' SSA versions the same way as the coercion
-/// scan above, and reuses the very same sink classification and warning
-/// emission every other call site in this module goes through — no new
-/// per-command knowledge, just a new place a command's arguments can
-/// come from.
+/// Emit sink warnings for command substitutions nested inside a branch
+/// condition. Source-backed analysis joins original expression spans to the
+/// retained branch invocation, exact dispatch, selected Registry descriptor,
+/// and point-specific SSA reads. Missing evidence is unavailable; detached
+/// standalone callers keep their explicit compatibility path.
+struct BranchExpressionSource<'a> {
+    base: u32,
+    tokens: &'a crate::ir::CommandTokens,
+    config: tcl_lexer::LexerConfig,
+    evaluation: &'a crate::command_binding::SourceConditionalExpressionEvaluation,
+}
+
 fn emit_branch_condition_nested_command_warnings<S: std::hash::BuildHasher>(
+    bn: BlockId,
+    condition: &ExprNode,
+    condition_base: Option<u32>,
+    source_tokens: &crate::ir::CommandTokens,
+    ctx: &BranchTaintCtx<'_, S>,
+    fallback_span: Span,
+    warnings: &mut Vec<TaintWarning>,
+) {
+    if ctx.source.allows_nominal_metadata() {
+        emit_branch_condition_nested_command_warnings_standalone(
+            condition,
+            ctx,
+            fallback_span,
+            warnings,
+        );
+        return;
+    }
+    let Some(base) = condition_base else {
+        return;
+    };
+    let Some(actual_config) = source_tokens
+        .source_binding
+        .as_ref()
+        .and_then(|binding| binding.original_lexer_config_for_tokens(source_tokens))
+        .filter(|config| *config == ctx.source.config)
+    else {
+        return;
+    };
+    let Some(binding) = source_tokens.source_binding.as_ref() else {
+        return;
+    };
+    let Some(invocation_site) = binding.invocation_site() else {
+        return;
+    };
+    let Some(evaluation) = binding.conditional_expression_evaluation(ctx.registry, source_tokens)
+    else {
+        return;
+    };
+    let expression_source = evaluation.source();
+    let Some(expression_start) = usize::try_from(base).ok() else {
+        return;
+    };
+    let Some(expression_end) = expression_start.checked_add(expression_source.text.bytes().len())
+    else {
+        return;
+    };
+    if !evaluation.semantic_lookup_closed()
+        || evaluation.tree() != condition
+        || expression_source.base() != base
+        || !std::sync::Arc::ptr_eq(&expression_source.origin, &invocation_site.source)
+        || expression_source
+            .origin
+            .source_image()
+            .bytes()
+            .get(expression_start..expression_end)
+            != Some(expression_source.text.bytes())
+    {
+        return;
+    }
+    let source = BranchExpressionSource {
+        base,
+        tokens: source_tokens,
+        config: actual_config,
+        evaluation: &evaluation,
+    };
+    let mut commands = Vec::new();
+    collect_branch_expression_commands(evaluation.tree(), &mut commands, 0);
+    for command in commands {
+        emit_one_branch_condition_command(command, &source, bn, ctx, warnings);
+    }
+}
+
+fn emit_one_branch_condition_command<S: std::hash::BuildHasher>(
+    command_node: (String, u32, u32),
+    source_owner: &BranchExpressionSource<'_>,
+    bn: BlockId,
+    ctx: &BranchTaintCtx<'_, S>,
+    warnings: &mut Vec<TaintWarning>,
+) {
+    let (text, relative_start, relative_end) = command_node;
+    let Some(start) = source_owner.base.checked_add(relative_start) else {
+        return;
+    };
+    let Some(end) = source_owner.base.checked_add(relative_end) else {
+        return;
+    };
+    let Some(nested) = retained_branch_command_tokens(&text, start, end, source_owner) else {
+        return;
+    };
+    let Some(metadata) = ctx.source.metadata_context() else {
+        return;
+    };
+    let Some(selected) =
+        crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+            ctx.registry,
+            Some(metadata),
+            &nested,
+        )
+    else {
+        return;
+    };
+    let command = selected.facts.canonical_command.clone();
+    let Some(written_args) = nested.argv_texts.get(1..) else {
+        return;
+    };
+    let Some(args) = selected.effective.argument_spellings(written_args) else {
+        return;
+    };
+    let source = crate::ssa::SsaSourceView::at_terminator(ctx.ssa, bn);
+    let Some(uses) =
+        branch_source_read_versions(&nested, source_owner.tokens, Span::new(start, end), source)
+    else {
+        return;
+    };
+    let Some(metadata_context) = ctx.source.metadata_context() else {
+        return;
+    };
+    let Some(source_operands) = crate::registry_invocation::original_expression_taint_read_operands(
+        ctx.registry,
+        metadata_context,
+        source_owner.tokens,
+        &nested,
+        source_owner.evaluation,
+        &text,
+        Span::new(start, end),
+    ) else {
+        return;
+    };
+    let source_metadata = SourceWarningMetadata::Original(Box::new(source_operands));
+    let source_read = SourceWarningRead {
+        metadata: &source_metadata,
+        point: source,
+    };
+    let call = SinkCall {
+        source: ctx.source,
+        command: &command,
+        args: &args,
+        registry: ctx.registry,
+        tokens: Some(&nested),
+        effective: Some(&selected.effective),
+        source_read: Some(source_read),
+        argument_offset: 0,
+    };
+    let Some((code, sink_label)) = classify_source_sink(&call, ctx.dialect) else {
+        return;
+    };
+    let env = TaintScan {
+        uses: &uses,
+        taints: ctx.taints,
+        ssa: ctx.ssa,
+        quoted_uses: None,
+        source_read: Some(source_read),
+        source: ctx.source,
+    };
+    emit_sink_warnings(
+        &env,
+        Span::new(start, end),
+        code,
+        &sink_label,
+        &call,
+        warnings,
+    );
+}
+
+fn retained_branch_command_tokens(
+    text: &str,
+    start: u32,
+    end: u32,
+    owner: &BranchExpressionSource<'_>,
+) -> Option<crate::ir::CommandTokens> {
+    if text.len() != end.saturating_sub(start) as usize
+        || owner
+            .evaluation
+            .source()
+            .origin
+            .source_image()
+            .bytes()
+            .get(start as usize..end as usize)
+            != Some(text.as_bytes())
+        || owner.tokens.source_binding.as_ref().is_none_or(|binding| {
+            binding.invocation_site().is_none_or(|site| {
+                site.source
+                    .source_image()
+                    .bytes()
+                    .get(start as usize..end as usize)
+                    != Some(text.as_bytes())
+            })
+        })
+    {
+        return None;
+    }
+    let source_site = crate::ir::SourceSite::source(Span::new(start, end));
+    let mut nested =
+        crate::word_subst::nested_command_words(text, &source_site, owner.config).ok()?;
+    nested.inherit_nested_bindings(owner.tokens);
+    let binding = nested.source_binding.as_ref()?;
+    let site = binding.invocation_site()?;
+    (std::sync::Arc::ptr_eq(&site.source, &owner.evaluation.source().origin)
+        && site.offset >= start
+        && site.offset < end
+        && binding.invocation_realm()
+            == Some(tcl_dialect::model::InvocationRealm::InterpreterRuntime))
+    .then_some(nested)
+}
+
+fn branch_source_read_versions(
+    nested: &crate::ir::CommandTokens,
+    parent_tokens: &crate::ir::CommandTokens,
+    span: Span,
+    source: crate::ssa::SsaSourceView<'_>,
+) -> Option<HashMap<Symbol, u32>> {
+    let binding = nested.source_binding.as_ref()?;
+    let site = binding.invocation_site()?;
+    let parent_binding = parent_tokens.source_binding.as_ref()?;
+    let parent_site = parent_binding.invocation_site()?;
+    if !std::sync::Arc::ptr_eq(&site.source, &parent_site.source) {
+        return None;
+    }
+    let actual_reads = parent_tokens
+        .variable_accesses
+        .iter()
+        .filter(|access| {
+            access.owner.is_expression_evaluation_of(parent_site)
+                && access.source.span.start() >= span.start()
+                && access.source.span.end() <= span.end()
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let projected_reads = nested
+        .variable_accesses
+        .iter()
+        .filter(|access| {
+            access.source.span.start() >= span.start() && access.source.span.end() <= span.end()
+        })
+        .collect::<Vec<_>>();
+    if actual_reads.len() != projected_reads.len()
+        || actual_reads.iter().any(|actual| {
+            !projected_reads.iter().any(|projected| {
+                projected.source == actual.source
+                    && projected.original_spelling == actual.original_spelling
+                    && projected.owner == actual.owner
+            })
+        })
+    {
+        return None;
+    }
+    let mut uses = HashMap::new();
+    for access in actual_reads {
+        if access.source.span.start() < span.start() || access.source.span.end() > span.end() {
+            return None;
+        }
+        let read = source.read_reference(&access.source, &access.original_spelling)?;
+        let version = read.version?;
+        if uses
+            .get(&read.symbol)
+            .is_some_and(|previous| *previous != version)
+        {
+            return None;
+        }
+        uses.insert(read.symbol, version);
+    }
+    Some(uses)
+}
+
+fn collect_branch_expression_commands(
+    node: &ExprNode,
+    out: &mut Vec<(String, u32, u32)>,
+    depth: u32,
+) {
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return;
+    }
+    match node {
+        ExprNode::Command { text, start, end } => out.push((text.clone(), *start, *end)),
+        ExprNode::Binary { left, right, .. } => {
+            collect_branch_expression_commands(left, out, depth + 1);
+            collect_branch_expression_commands(right, out, depth + 1);
+        }
+        ExprNode::Unary { operand, .. } => {
+            collect_branch_expression_commands(operand, out, depth + 1);
+        }
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            collect_branch_expression_commands(condition, out, depth + 1);
+            collect_branch_expression_commands(true_branch, out, depth + 1);
+            collect_branch_expression_commands(false_branch, out, depth + 1);
+        }
+        ExprNode::Call { args, .. } => {
+            for arg in args {
+                collect_branch_expression_commands(arg, out, depth + 1);
+            }
+        }
+        ExprNode::Literal { .. }
+        | ExprNode::String { .. }
+        | ExprNode::CompiledWord { .. }
+        | ExprNode::Var { .. }
+        | ExprNode::Raw { .. } => {}
+    }
+}
+
+/// Explicitly detached compatibility callers retain the historical scalar
+/// behavior. This branch is unreachable for source-backed functions, whose
+/// missing carrier never falls through to nominal metadata or exit version 0.
+fn emit_branch_condition_nested_command_warnings_standalone<S: std::hash::BuildHasher>(
     condition: &ExprNode,
     ctx: &BranchTaintCtx<'_, S>,
     fallback_span: Span,
     warnings: &mut Vec<TaintWarning>,
 ) {
     for text in condition.command_texts() {
-        let Some((command, call_args)) = parse_command_substitution_with_config(
-            &text,
-            tcl_lexer::LexerConfig::for_profile(ctx.dialect),
-        ) else {
+        let Some((command, call_args)) =
+            parse_command_substitution_with_config(&text, ctx.source.config)
+        else {
             continue;
         };
         let Some((code, sink_label)) =
@@ -5360,27 +7886,31 @@ fn emit_branch_condition_nested_command_warnings<S: std::hash::BuildHasher>(
         else {
             continue;
         };
-        let braced_var = tcl_dialect::BracedVarStyle::of_profile(ctx.dialect);
-        let mut uses: HashMap<Symbol, u32> = HashMap::new();
-        for name in arg_var_names(&text, braced_var) {
+        let config = ctx.source.config;
+        let mut uses = HashMap::new();
+        for name in all_argument_candidates(&text, config, ctx.ssa) {
             if let Some(sym) = ctx.ssa.var_symbol(&name) {
-                let ver = ctx.ssa_block.exit_versions.get(&sym).copied().unwrap_or(0);
-                uses.insert(sym, ver);
+                let version = ctx.ssa_block.exit_versions.get(&sym).copied().unwrap_or(0);
+                uses.insert(sym, version);
             }
         }
         let env = TaintScan {
             uses: &uses,
             taints: ctx.taints,
             ssa: ctx.ssa,
-            braced_var,
             quoted_uses: None,
+            source_read: None,
+            source: ctx.source,
         };
         let sink_call = SinkCall {
+            source: ctx.source,
             command: &command,
             args: &call_args,
             registry: ctx.registry,
             tokens: None,
-            braced_var,
+            effective: None,
+            source_read: None,
+            argument_offset: 0,
         };
         emit_sink_warnings(&env, fallback_span, code, &sink_label, &sink_call, warnings);
     }
@@ -5397,7 +7927,9 @@ fn emit_branch_condition_nested_command_warnings<S: std::hash::BuildHasher>(
 /// [`emit_sink_warnings`] stays under the 7-argument clippy limit
 /// while still carrying the command name + arg slice needed for the
 /// IRULE3002 name-position mitigation.
+#[derive(Clone, Copy)]
 struct SinkCall<'a> {
+    source: TaintSourceContext<'a>,
     /// Raw command name (e.g. `"HTTP::header"`).
     command: &'a str,
     /// Argument vector as seen by the sink.
@@ -5413,10 +7945,12 @@ struct SinkCall<'a> {
     /// [`sink_arg_span`]'s per-argument highlighting; `None` falls every hit
     /// back to the whole-statement span.
     tokens: Option<&'a CommandTokens>,
-    /// The document's `${…}` close rule, for the shared owner
-    /// [`tcl_lexer::braced_var_name_end`] — the position-aware sink filters
-    /// below all key on variable *names* scanned out of `args`.
-    braced_var: tcl_dialect::BracedVarStyle,
+    /// Candidate-specific lexical origins, including aliases; no effect/result proof.
+    effective: Option<&'a crate::registry_invocation::EffectiveCommandWords>,
+    /// Sealed conditional source read advice, independently of SSA cell authority.
+    source_read: Option<SourceWarningRead<'a>>,
+    /// First argument in the retained effective invocation for a sliced sink region.
+    argument_offset: usize,
 }
 
 /// The tight span of the argument word that carries `name`, using the
@@ -5433,9 +7967,13 @@ fn sink_arg_span(call: &SinkCall<'_>, name: &str, fallback: Span) -> Span {
     let Some(tokens) = call.tokens else {
         return fallback;
     };
+    let effective = crate::registry_invocation::effective_command_words(tokens);
     for (i, arg) in call.args.iter().enumerate() {
-        if arg_var_names(arg, call.braced_var).contains(name)
-            && let Some(&arg_span) = tokens.argv.get(i + 1)
+        if arg_var_names_with_config(arg, call.source.config).may_contain(name)
+            && let Some(written) = effective
+                .as_ref()
+                .and_then(|words| words.written_argument(i))
+            && let Some(&arg_span) = tokens.argv.get(written + 1)
         {
             return arg_span;
         }
@@ -5476,8 +8014,37 @@ fn positional_arg_strings(spec: &tcl_registry::CommandSpec, args: &[String]) -> 
 /// occupies a *non-dangerous* argument slot for `code` and so must not trip
 /// the sink.
 fn sink_var_position_safe(call: &SinkCall<'_>, code: DiagCode, name: &str) -> bool {
-    let (registry, command, args, braced_var) =
-        (call.registry, call.command, call.args, call.braced_var);
+    let config = call.source.config;
+    if call
+        .args
+        .iter()
+        .any(|arg| arg_var_names_with_config(arg, config).has_unknown_residual())
+    {
+        return false;
+    }
+    if code == DiagCode::T105
+        && let Some(scripts) = call
+            .source_read
+            .and_then(|read| read.script_arguments(call))
+    {
+        // A path/selector operand does not become script text. This projects
+        // only the same current compiler or Direct source sink candidate's roles;
+        // unknown selection and missing source ownership retain the warning.
+        return !call.args.iter().enumerate().any(|(index, arg)| {
+            scripts.contains(&(call.argument_offset + index))
+                && arg_var_names_with_config(arg, config).may_contain(name)
+        });
+    }
+    let Some((spec, command, selected_args)) = selected_sink_schema(call) else {
+        return false;
+    };
+    let (registry, args, config) = (call.registry, selected_args.as_slice(), call.source.config);
+    if args
+        .iter()
+        .any(|arg| arg_var_names_with_config(arg, config).has_unknown_residual())
+    {
+        return false;
+    }
     // A value that only reaches an `ArgRole::Channel` argument slot (e.g.
     // `puts`'s optional leading `channelId`) is a handle, not sink content
     // — regardless of which sink code classified the call. The position
@@ -5486,23 +8053,21 @@ fn sink_var_position_safe(call: &SinkCall<'_>, code: DiagCode, name: &str) -> bo
     // the optional leading `-nonewline`), so a future output sink with its
     // own channel argument is covered for free with no name check here.
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let channel_positions = registry.arg_indices_for_role(command, &arg_refs, ArgRole::Channel);
+    let channel_positions = registry.arg_indices_for_role(&command, &arg_refs, ArgRole::Channel);
     if !channel_positions.is_empty()
         && args.iter().enumerate().all(|(i, a)| {
-            channel_positions.contains(&i) || !arg_var_names(a, braced_var).contains(name)
+            channel_positions.contains(&i)
+                || !arg_var_names_with_config(a, config).may_contain(name)
         })
     {
         return true;
     }
-    let Some(spec) = registry.get(command) else {
-        return false;
-    };
     match code {
         // T104 SSRF — only the network-address positional slots named by
         // `taint_network_sink_args`. `None`/`Some(&[])` (positions
         // unspecified) imposes no filter.
         DiagCode::T104 => {
-            var_only_in_safe_positions(spec, spec.taint_network_sink_args, args, name, braced_var)
+            var_only_in_safe_positions(spec, spec.taint_network_sink_args, args, name, config)
         }
         // T100 code injection — only the code-execution slot named by
         // `taint_code_sink_args` (`apply`'s lambda `func`, `open`'s
@@ -5513,7 +8078,7 @@ fn sink_var_position_safe(call: &SinkCall<'_>, code: DiagCode, name: &str) -> bo
         // one script) or `Some(&[])` imposes no filter, so every tainted
         // argument stays dangerous as before.
         DiagCode::T100 => {
-            var_only_in_safe_positions(spec, spec.taint_code_sink_args, args, name, braced_var)
+            var_only_in_safe_positions(spec, spec.taint_code_sink_args, args, name, config)
         }
         _ => false,
     }
@@ -5531,7 +8096,7 @@ fn var_only_in_safe_positions(
     positions: Option<&'static [u8]>,
     args: &[String],
     name: &str,
-    braced_var: tcl_dialect::BracedVarStyle,
+    config: tcl_lexer::LexerConfig,
 ) -> bool {
     let Some(positions) = positions else {
         return false;
@@ -5543,9 +8108,85 @@ fn var_only_in_safe_positions(
     let in_dangerous_slot = positions.iter().any(|&p| {
         positionals
             .get(p as usize)
-            .is_some_and(|s| arg_var_names(s, braced_var).contains(name))
+            .is_some_and(|s| arg_var_names_with_config(s, config).may_contain(name))
     });
     !in_dangerous_slot
+}
+
+fn standalone_list_wrapper_head(
+    argument: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> Option<String> {
+    let original = argument.trim();
+    if original.as_bytes().first() != Some(&b'[') {
+        return None;
+    }
+    let end = tcl_lexer::command_subst_close(
+        original.as_bytes(),
+        0,
+        tcl_lexer::SubstFlags::default(),
+        config,
+    )
+    .ok()?;
+    if end != original.len() {
+        return None;
+    }
+    let image = tcl_lexer::SourceImage::document(original);
+    let plan = tcl_lexer::native_script_words_in_with_purpose(
+        image,
+        tcl_lexer::Span::new(1, u32::try_from(end.checked_sub(1)?).ok()?),
+        config.nested(),
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    )
+    .ok()?;
+    let [command] = plan.commands.as_slice() else {
+        return None;
+    };
+    if plan.fatal_tail.is_some() {
+        return None;
+    }
+    let invocation = crate::registry_invocation::standalone_written_source_name_roles(
+        registry,
+        &command.words,
+        dialect,
+    )?;
+    if invocation.has_unknown_residual()
+        || !matches!(
+            invocation.facts().native_result,
+            Some(tcl_registry::native_result::NativeResultContract::ListArguments { from: 0 })
+        )
+    {
+        return None;
+    }
+    let head = invocation.argument_literal(0)?;
+    (!head.contains('\0') && registry.get(&head).is_some()).then_some(head)
+}
+
+fn single_script_operand(call: &SinkCall<'_>, argument: usize) -> bool {
+    let Some(expected) = call.argument_offset.checked_add(argument) else {
+        return false;
+    };
+    if let Some(scripts) = call
+        .source_read
+        .and_then(|read| read.script_arguments(call))
+    {
+        return scripts == [expected];
+    }
+    let (Some(metadata), Some(tokens), Some(effective)) =
+        (call.source.metadata, call.tokens, call.effective)
+    else {
+        return false;
+    };
+    crate::registry_invocation::actual_taint_script_arguments(
+        call.registry,
+        metadata,
+        tokens,
+        call.command,
+        effective,
+    )
+    .is_some_and(|scripts| scripts == [expected])
 }
 
 /// `true` when one of `args` is a `[list <head> …]` command substitution
@@ -5556,30 +8197,97 @@ fn var_only_in_safe_positions(
 /// command. `[list $x …]` (variable head) and `[list]`-free args return
 /// `false`.
 fn list_wrapped_arg_command_is_literal(call: &SinkCall<'_>, name: &str) -> bool {
-    let (registry, args, braced_var) = (call.registry, call.args, call.braced_var);
-    for arg in args {
+    let (registry, args, config) = (call.registry, call.args, call.source.config);
+    if args
+        .iter()
+        .any(|arg| arg_var_names_with_config(arg, config).has_unknown_residual())
+    {
+        return false;
+    }
+    for (index, arg) in args.iter().enumerate() {
         let trimmed = arg.trim();
-        let Some(inner) = trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']')) else {
-            continue;
-        };
-        let mut words = inner.split_whitespace();
-        if words.next() != Some("list") {
+        if let Some(tokens) = call.tokens
+            && tokens.source_binding.is_some()
+        {
+            if !arg_var_names_with_config(arg, config).may_contain(name) {
+                continue;
+            }
+            // Tcl concatenation can expose quoted list text to another
+            // script operand's syntax. Both old reached-wrapper and new CPP
+            // proofs therefore require this one complete script operand.
+            if !single_script_operand(call, index) {
+                continue;
+            }
+            let quoted_list = call.source.metadata.is_some_and(|metadata| {
+                retained_wrapper_tokens(
+                    tokens,
+                    call.argument_offset + index,
+                    trimmed,
+                    call.effective,
+                    call.source,
+                )
+                .is_some_and(|nested| {
+                    !nested.is_empty()
+                        && nested.iter().all(|nested| {
+                            crate::registry_invocation::original_compiled_list_head(
+                                registry, metadata, tokens, nested,
+                            )
+                            .or_else(|| {
+                                crate::registry_invocation::original_conditional_list_result_head(
+                                    registry, metadata, tokens, nested,
+                                )
+                            })
+                            .is_some()
+                        })
+                })
+            });
+            if quoted_list {
+                return true;
+            }
+            let Some(invocations) = proved_wrapper_invocations(
+                registry,
+                tokens,
+                call.argument_offset + index,
+                trimmed,
+                call.effective,
+                call.source,
+            ) else {
+                continue;
+            };
+            if invocations.iter().all(|invocation| {
+                matches!(
+                    invocation.facts.native_result,
+                    Some(
+                        tcl_registry::native_result::NativeResultContract::ListArguments {
+                            from: 0
+                        }
+                    )
+                ) && invocation
+                    .argument_literal(0)
+                    .is_some_and(|head| registry.get(&head).is_some())
+            }) {
+                return true;
+            }
             continue;
         }
-        // First element of the constructed list = the command word.
-        let Some(head) = words.next() else {
-            continue;
-        };
-        // The head must be a literal known command, not a substitution.
-        if head.starts_with('$') || head.contains(['[', '$', '{']) {
+        if !call.source.allows_nominal_metadata() {
             continue;
         }
-        if registry.get(head).is_none() {
+        if standalone_list_wrapper_head(
+            trimmed,
+            registry,
+            config,
+            call.source
+                .dialect()
+                .map(tcl_registry::InvocationDialect::of_profile),
+        )
+        .is_none()
+        {
             continue;
         }
         // `name` must actually flow through this list arg (and, since the
         // head is a literal, only at an argument position ≥ 1).
-        if arg_var_names(arg, braced_var).contains(name) {
+        if arg_var_names_with_config(arg, config).may_contain(name) {
             return true;
         }
     }
@@ -5602,17 +8310,145 @@ fn list_wrapped_arg_command_is_literal(call: &SinkCall<'_>, name: &str) -> bool 
 /// or literal run is residual: only a real `Command` is a wrapper.
 fn split_top_level_cmd_subs(arg: &str, config: tcl_lexer::LexerConfig) -> (String, Vec<&str>) {
     let flags = tcl_lexer::word_parts::SubstFlags::default();
+    let Ok(length) = u32::try_from(arg.len()) else {
+        return (arg.to_owned(), Vec::new());
+    };
+    let Ok(arena) = tcl_lexer::word_parts::ExecutablePartArena::decompose(
+        tcl_lexer::SourceImage::native(arg.as_bytes()),
+        tcl_lexer::Span::new(0, length),
+        flags,
+        config,
+    ) else {
+        return (arg.to_owned(), Vec::new());
+    };
+    if arena.all_parts().any(|part| {
+        matches!(
+            part.part,
+            tcl_lexer::word_parts::ExecutablePart::ParseError(_)
+        )
+    }) {
+        return (arg.to_owned(), Vec::new());
+    }
     let mut residual = String::new();
     let mut subs = Vec::new();
-    for part in tcl_lexer::word_parts::decompose_spanned(arg.as_bytes(), flags, config) {
-        let slice = &arg[part.start..part.end];
-        if matches!(part.part, tcl_lexer::word_parts::WordPart::Command(_)) {
+    for part in arena.list(arena.root()) {
+        let Some(slice) = arg.get(part.span.as_range()) else {
+            return (arg.to_owned(), Vec::new());
+        };
+        if matches!(
+            part.part,
+            tcl_lexer::word_parts::ExecutablePart::Command { .. }
+        ) {
             subs.push(slice);
         } else {
             residual.push_str(slice);
         }
     }
     (residual, subs)
+}
+
+/// Resolve every exact source occurrence of a wrapper in this effective word.
+/// Identical spellings can have different implementations after an earlier
+/// substitution; all occurrences must independently establish their facts.
+fn retained_wrapper_tokens(
+    tokens: &CommandTokens,
+    argument: usize,
+    spelling: &str,
+    projection: Option<&crate::registry_invocation::EffectiveCommandWords>,
+    context: TaintSourceContext<'_>,
+) -> Option<Vec<CommandTokens>> {
+    let recovered = crate::registry_invocation::effective_command_words(tokens);
+    let effective = projection.or(recovered.as_ref())?;
+    let word = effective.words.get(argument.checked_add(1)?)?;
+    let mut sources = Vec::new();
+    match word {
+        WordExpr::CommandSubstitution {
+            spelling: text,
+            source,
+        } if text == spelling => {
+            sources.push(source);
+        }
+        WordExpr::Template { parts, .. } => {
+            for part in parts {
+                if let WordPart::CommandSubstitution {
+                    spelling: text,
+                    source,
+                } = part
+                    && text == spelling
+                {
+                    sources.push(source);
+                }
+            }
+        }
+        _ => return None,
+    }
+    if sources.is_empty() {
+        return None;
+    }
+    let config = if context.allows_nominal_metadata() {
+        let dialect = tokens
+            .source_binding
+            .as_ref()?
+            .variable_context
+            .invocation_dialect?;
+        tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar)
+    } else {
+        context.metadata?;
+        context.config
+    };
+    sources
+        .into_iter()
+        .map(|source| {
+            let mut nested =
+                crate::word_subst::nested_command_words(spelling, source, config).ok()?;
+            nested.inherit_nested_bindings(tokens);
+            Some(nested)
+        })
+        .collect()
+}
+
+fn proved_wrapper_invocations(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    argument: usize,
+    spelling: &str,
+    projection: Option<&crate::registry_invocation::EffectiveCommandWords>,
+    context: TaintSourceContext<'_>,
+) -> Option<Vec<crate::registry_invocation::ResolvedStatementInvocation>> {
+    retained_wrapper_tokens(tokens, argument, spelling, projection, context)?
+        .iter()
+        .map(|nested| {
+            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                registry,
+                context.metadata,
+                nested,
+            )
+        })
+        .collect()
+}
+
+fn normal_wrapper_taint_invocations(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    argument: usize,
+    spelling: &str,
+    projection: Option<&crate::registry_invocation::EffectiveCommandWords>,
+    context: TaintSourceContext<'_>,
+) -> Option<Vec<crate::registry_invocation::NormalTaintInvocation>> {
+    retained_wrapper_tokens(tokens, argument, spelling, projection, context)?
+        .iter()
+        .map(|nested| {
+            if context.allows_nominal_metadata() && context.metadata.is_none() {
+                crate::registry_invocation::normal_taint_invocation(registry, None, nested)
+            } else {
+                crate::registry_invocation::normal_taint_invocation_with_metadata_context(
+                    registry,
+                    context.metadata,
+                    nested,
+                )
+            }
+        })
+        .collect()
 }
 
 /// True when every appearance of `name` in the sink arguments is consumed by an
@@ -5623,30 +8459,56 @@ fn split_top_level_cmd_subs(arg: &str, config: tcl_lexer::LexerConfig) -> (Strin
 /// taint reaches the sink). Mirrors the carve-out the `expr`/`word_taint` path
 /// already applies, which `emit_sink_warnings` (iterating raw SSA uses) lacked.
 fn var_consumed_by_sanitiser(call: &SinkCall<'_>, name: &str) -> bool {
-    let (registry, args, braced_var) = (call.registry, call.args, call.braced_var);
-    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+    let (registry, args, config) = (call.registry, call.args, call.source.config);
+    if args
+        .iter()
+        .any(|arg| arg_var_names_with_config(arg, config).has_unknown_residual())
+    {
+        return false;
+    }
     let mut seen = false;
-    for arg in args {
-        if !arg_var_names(arg, braced_var).contains(name) {
+    for (index, arg) in args.iter().enumerate() {
+        if !arg_var_names_with_config(arg, config).may_contain(name) {
             continue;
         }
         seen = true;
         let (residual, subs) = split_top_level_cmd_subs(arg, config);
         // A bare reference outside any command substitution reaches the sink.
-        if arg_var_names(&residual, braced_var).contains(name) {
+        if arg_var_names_with_config(&residual, config).may_contain(name) {
             return false;
         }
         // Each top-level substitution that references `name` must be a sanitiser
         // (a sanitiser's result is a clean bounded value regardless of nesting).
         for sub in subs {
-            if !arg_var_names(sub, braced_var).contains(name) {
+            if !arg_var_names_with_config(sub, config).may_contain(name) {
                 continue;
             }
             let Some((cmd, sub_args)) = parse_command_substitution_with_config(sub, config) else {
                 return false;
             };
+            if let Some(tokens) = call.tokens
+                && tokens.source_binding.is_some()
+            {
+                let Some(invocations) = normal_wrapper_taint_invocations(
+                    registry,
+                    tokens,
+                    call.argument_offset + index,
+                    sub,
+                    call.effective,
+                    call.source,
+                ) else {
+                    return false;
+                };
+                if !invocations
+                    .iter()
+                    .all(crate::registry_invocation::NormalTaintInvocation::is_sanitiser)
+                {
+                    return false;
+                }
+                continue;
+            }
             let refs: Vec<&str> = sub_args.iter().map(String::as_str).collect();
-            if !is_sanitiser(registry, &cmd, &refs) {
+            if !call.source.allows_nominal_metadata() || !is_sanitiser(registry, &cmd, &refs) {
                 return false;
             }
         }
@@ -5687,28 +8549,63 @@ fn var_consumed_by_sanitiser(call: &SinkCall<'_>, name: &str) -> bool {
 /// CR/LF-free value) reach its sink.
 fn var_wrapper_colours(
     registry: &CommandRegistry,
-    braced_var: tcl_dialect::BracedVarStyle,
+    source: TaintSourceContext<'_>,
     args: &[String],
     name: &str,
+    tokens: Option<&CommandTokens>,
+    argument_offset: usize,
 ) -> Option<TaintColour> {
-    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+    let config = source.config;
+    if args
+        .iter()
+        .any(|arg| arg_var_names_with_config(arg, config).has_unknown_residual())
+    {
+        return None;
+    }
     let mut colours = TaintColour::all();
     let mut wrapped = false;
-    for arg in args {
-        if !arg_var_names(arg, braced_var).contains(name) {
+    for (index, arg) in args.iter().enumerate() {
+        if !arg_var_names_with_config(arg, config).may_contain(name) {
             continue;
         }
         let (residual, subs) = split_top_level_cmd_subs(arg, config);
         // A bare reference outside any substitution reaches the sink as-is.
-        if arg_var_names(&residual, braced_var).contains(name) {
+        if arg_var_names_with_config(&residual, config).may_contain(name) {
             return None;
         }
         for sub in subs {
-            if !arg_var_names(sub, braced_var).contains(name) {
+            if !arg_var_names_with_config(sub, config).may_contain(name) {
                 continue;
             }
             wrapped = true;
-            let colour = parse_command_substitution_with_config(sub, config)
+            if let Some(tokens) = tokens
+                && tokens.source_binding.is_some()
+            {
+                let colour = normal_wrapper_taint_invocations(
+                    registry,
+                    tokens,
+                    argument_offset + index,
+                    sub,
+                    None,
+                    source,
+                )
+                .map_or_else(TaintColour::empty, |invocations| {
+                    invocations
+                        .iter()
+                        .fold(TaintColour::all(), |colours, invocation| {
+                            colours
+                                & invocation
+                                    .transform_colour()
+                                    .map_or_else(TaintColour::empty, reg_colour)
+                        })
+                });
+                colours &= colour;
+                continue;
+            }
+            let colour = source
+                .allows_nominal_metadata()
+                .then(|| ())
+                .and_then(|()| parse_command_substitution_with_config(sub, config))
                 .and_then(|(cmd, sub_args)| {
                     let refs: Vec<&str> = sub_args.iter().map(String::as_str).collect();
                     transform_colour(registry, &cmd, &refs)
@@ -5770,22 +8667,45 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
     call: &SinkCall<'_>,
     warnings: &mut Vec<TaintWarning>,
 ) {
-    let (uses, taints, ssa) = (env.uses, env.taints, env.ssa);
-    let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
-    for (&sym, &ver) in uses {
-        let name = ssa.var_name(sym);
-        if is_seeded_global_v0(name, ver) || emitted.contains(&sym) {
-            continue;
+    let mut names: std::collections::BTreeSet<&str> = env
+        .uses
+        .keys()
+        .map(|&symbol| env.ssa.var_name(symbol))
+        .collect();
+    for index in 0..call.args.len() {
+        if let Some((reference, _)) =
+            original_sink_argument(call, index).and_then(WordExpr::sole_variable_substitution)
+        {
+            if let Some(name) = reference_root_with_config(reference, call.source.config) {
+                names.insert(name);
+            }
         }
-        let t = taints
-            .get(&(sym, ver))
-            .copied()
-            .unwrap_or(TaintLattice::clean());
+    }
+    for name in names {
+        let original = (0..call.args.len())
+            .filter_map(|index| original_sink_argument(call, index))
+            .find(|word| {
+                env.source_read.map_or_else(
+                    || {
+                        word.sole_variable_substitution()
+                            .is_some_and(|(reference, _)| {
+                                reference_root_with_config(reference, call.source.config)
+                                    == Some(name)
+                            })
+                    },
+                    |source| source.references(name, word, call.source.config),
+                )
+            });
+        let Some(t) = operand_read_taint(env, name, original) else {
+            continue;
+        };
         if !t.is_tainted() {
             continue;
         }
-        if env.quoted_uses.is_some_and(|quoted| quoted.contains(&sym))
-            && !quoted_sink_use_is_evaluated(call, name)
+        if env.ssa.var_symbol(name).is_some_and(|symbol| {
+            env.quoted_uses
+                .is_some_and(|quoted| quoted.contains(&symbol))
+        }) && !quoted_sink_use_is_evaluated(call, name)
         {
             continue;
         }
@@ -5801,7 +8721,7 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         // the mitigations below judge the wrapper's proofs rather than the
         // variable's — the same lattice the via-variable spelling would have
         // handed them.
-        let t = var_wrapper_colours(call.registry, call.braced_var, call.args, name)
+        let t = var_wrapper_colours(call.registry, call.source, call.args, name, call.tokens, 0)
             .map_or(t, |colours| t.shape_unproven().with(colours));
         // Per-code mitigation suppression (T101, IRULE3001–3004).
         if sink_colour_mitigated(code, t) {
@@ -5815,7 +8735,8 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         // a literal known command), handled by `list_wrapped_arg_command_is_literal`
         // below — a blanket check would wrongly clear `eval [list $raw]`, where
         // the tainted value is the command word.
-        if let Some(safe) = tcl_registry::taint::taint_sink_safe_colour(call.registry, call.command)
+        if let Some((_, command, _)) = selected_sink_schema(call)
+            && let Some(safe) = tcl_registry::taint::taint_sink_safe_colour(call.registry, &command)
         {
             let safe = reg_colour(safe);
             if safe != TaintColour::LIST_CANONICAL && t.colours.contains(safe) {
@@ -5823,7 +8744,15 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
             }
         }
         if code == DiagCode::Irule3002
-            && irule3002_name_position_safe(call.registry, call.command, call.args, name, t)
+            && irule3002_name_position_safe(
+                call.registry,
+                call.command,
+                call.args,
+                name,
+                t,
+                original_sink_argument(call, 1),
+                call.source.config,
+            )
         {
             continue;
         }
@@ -5843,20 +8772,17 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         {
             continue;
         }
-        // T104 / T105 mitigations: a
-        // validated network address (IP / port / FQDN colour) clears
-        // T104; a canonical list (`LIST_CANONICAL`) clears T105.
+        // T104 admits a validated network-address colour. T105's List
+        // quoting needs the separate literal-command-word proof above.
         if code == DiagCode::T104
             && t.colours
                 .intersects(TaintColour::IP_ADDRESS | TaintColour::PORT | TaintColour::FQDN)
         {
             continue;
         }
-        if code == DiagCode::T105 && t.colours.intersects(TaintColour::LIST_CANONICAL) {
-            continue;
-        }
         let message = sink_message(code, name, sink_label);
         warnings.push(TaintWarning {
+            source_sink: None,
             span: sink_arg_span(call, name, span),
             variable: name.to_owned(),
             sink_command: sink_label.to_owned(),
@@ -5865,7 +8791,6 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
             replacement: None,
             fixes: Vec::new(),
         });
-        emitted.insert(sym);
     }
 }
 
@@ -5902,7 +8827,7 @@ fn quoted_sink_use_is_evaluated(call: &SinkCall<'_>, name: &str) -> bool {
     indices.into_iter().any(|index| {
         call.args
             .get(index)
-            .is_some_and(|arg| arg_var_names(arg, call.braced_var).contains(name))
+            .is_some_and(|arg| arg_var_names_with_config(arg, call.source.config).may_contain(name))
     })
 }
 
@@ -6003,7 +8928,15 @@ fn arg_index_span(
         }
         | Statement::Barrier {
             tokens: Some(t), ..
-        } => t.argv.get(arg_index + 1).copied(),
+        } => {
+            let written = if t.source_binding.is_some() {
+                crate::registry_invocation::effective_command_words(t)?
+                    .written_argument(arg_index)?
+            } else {
+                arg_index
+            };
+            t.argv.get(written + 1).copied()
+        }
         Statement::AssignValue {
             value,
             tokens: Some(t),
@@ -6021,19 +8954,107 @@ fn arg_index_span(
     }
 }
 
+/// Select option positions before any warning is emitted. Actual source
+/// callers require the same retained effective vector as the sink candidate;
+/// missing metadata does not reopen the explicit standalone compatibility API.
+fn option_injection_arguments(
+    call: &SinkCall<'_>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> Option<(String, Vec<usize>)> {
+    if let Some(selected) =
+        call.source_read
+            .and_then(|source| match source.metadata.invocation_metadata() {
+                SourceWarningMetadata::Native(selected) => Some(selected),
+                _ => None,
+            })
+    {
+        let context = call.source.metadata?;
+        let input = context.source_analysis_input()?;
+        let tokens = call.tokens?;
+        if !context.matches_registry(call.registry)
+            || call.argument_offset != 0
+            || call.command != selected.words.command()
+            || call.effective != Some(&selected.effective)
+            || selected
+                .effective
+                .argument_spellings(tokens.argv_texts.get(1..)?)?
+                .as_slice()
+                != call.args
+        {
+            return None;
+        }
+        let options = selected
+            .words
+            .with_source_schema(input.borrowed_context_registry(), |schema| {
+                schema.authored_source_possible_option_arguments()
+            })??;
+        let mut label = selected.words.command().to_owned();
+        for selector in options.subcommands {
+            label.push(' ');
+            label.push_str(selector);
+        }
+        return Some((label, options.arguments));
+    }
+    if let Some(context) = call.source.metadata {
+        let tokens = call.tokens?;
+        let (selected, options) =
+            crate::registry_invocation::conditional_option_arguments_with_metadata_context(
+                call.registry,
+                context,
+                tokens,
+            )?;
+        if call.argument_offset != 0
+            || call.effective != Some(&selected.effective)
+            || selected
+                .effective
+                .argument_spellings(tokens.argv_texts.get(1..)?)?
+                .as_slice()
+                != call.args
+        {
+            return None;
+        }
+        let mut label = selected.facts.canonical_command;
+        for selector in options.subcommands {
+            label.push(' ');
+            label.push_str(selector);
+        }
+        return Some((label, options.arguments));
+    }
+    if !call.source.allows_nominal_metadata() {
+        return None;
+    }
+    let arguments = call.args.iter().map(String::as_str).collect::<Vec<_>>();
+    let profile = call.registry.resolve_option_terminator(
+        call.command,
+        &arguments,
+        dialect_to_point(dialect),
+    )?;
+    let command = call
+        .registry
+        .get(call.command)
+        .map_or(call.command, |spec| spec.name);
+    let label = profile
+        .subcommand
+        .map_or_else(|| command.to_owned(), |sub| format!("{command} {sub}"));
+    let mut region = option_scan_region(
+        call.args,
+        profile.scan_start,
+        profile.options,
+        profile.reserved_trailing_words,
+    )
+    .into_iter()
+    .collect::<Vec<_>>();
+    region.sort_unstable();
+    Some((label, region))
+}
+
 /// Emit `T102` (option injection) for tainted variables that sit in an
 /// option-scanning position of a command declaring a `--` terminator.
 ///
-/// The option-terminator profile
-/// (`resolve_option_terminator`) supplies the subcommand-aware command
-/// label and the scan start, `option_scan_region` filters positions, and
-/// the `T102_SAFE` colour set mitigates. Each warning is anchored at the
-/// offending argument's own span (falling back to the whole statement's
-/// span when the tight span can't be resolved) and carries a `--`
-/// insertion fix alongside it. Takes `sink_call` (rather than separate
-/// `command`/`args`/`registry` parameters) since that's already built at
-/// the one call site for the primary sink classification — reusing it
-/// keeps this under clippy's argument-count lint without an `#[allow]`.
+/// Actual source advice consumes selected Registry option topology and the
+/// same retained effective argument vector. Explicit standalone callers use
+/// their scalar compatibility contract. Warnings need independent source-read
+/// taint and mitigation facts and grant no execution or Normal completion.
 fn emit_option_injection<S: std::hash::BuildHasher>(
     sink_call: &SinkCall<'_>,
     env: &TaintScan<'_, S>,
@@ -6042,73 +9063,30 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
     warnings: &mut Vec<TaintWarning>,
     stmt: &Statement,
 ) {
-    // `tokens` is unused here: T102's own `arg_index_span(stmt, arg_index)`
-    // re-derives the tight per-argument span directly from `stmt` (it
-    // already knows the exact `arg_index` from `option_scan_region`'s
-    // iteration, so an index-based lookup is more precise than
-    // `sink_arg_span`'s name-based scan, which could mismatch when the
-    // same variable name occurs in more than one scanned position).
-    let &SinkCall {
-        command,
-        args,
-        registry,
-        tokens: _,
-        braced_var: _,
-    } = sink_call;
-    let (uses, taints, ssa) = (env.uses, env.taints, env.ssa);
-    let args_str: Vec<&str> = args.iter().map(String::as_str).collect();
-    let Some(profile) =
-        registry.resolve_option_terminator(command, &args_str, dialect_to_point(dialect))
-    else {
-        // No `--` terminator declared → no option-injection sink.
+    let Some((cmd_label, ordered)) = option_injection_arguments(sink_call, dialect) else {
         return;
     };
-
-    // Ensemble subcommands report a compound label ("file delete"),
-    // mirroring `cmd_label`.
-    let cmd_label = match profile.subcommand {
-        Some(sub) => format!("{command} {sub}"),
-        None => command.to_owned(),
-    };
-
-    let region = option_scan_region(
-        args,
-        profile.scan_start,
-        profile.options,
-        profile.reserved_trailing_words,
-    );
-    if region.is_empty() {
-        return;
-    }
-
-    // One warning per tainted variable in an in-region position. Iterate
-    // arg indexes in order (then names within an arg sorted) for a
-    // deterministic, source-ordered emission.
-    let mut ordered: Vec<usize> = region.into_iter().collect();
-    ordered.sort_unstable();
-    let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
+    let args = sink_call.args;
+    let mut emitted: FxHashSet<String> = FxHashSet::default();
     for i in ordered {
         let Some(arg) = args.get(i) else { continue };
-        let mut names: Vec<String> = arg_var_names(arg, env.braced_var).into_iter().collect();
+        let mut names: Vec<String> = scan_argument_names(env, arg);
         names.sort_unstable();
+        names.dedup();
         for var in names {
-            let Some(sym) = ssa.var_symbol(&var) else {
+            if emitted.contains(&var) {
+                continue;
+            }
+            if env.ssa.var_symbol(&var).is_some_and(|symbol| {
+                env.quoted_uses
+                    .is_some_and(|quoted| quoted.contains(&symbol))
+            }) {
+                continue;
+            }
+            let Some(t) = operand_read_taint(env, &var, original_sink_argument(sink_call, i))
+            else {
                 continue;
             };
-            if env.quoted_uses.is_some_and(|quoted| quoted.contains(&sym)) {
-                continue;
-            }
-            if emitted.contains(&sym) {
-                continue;
-            }
-            let Some(&ver) = uses.get(&sym) else { continue };
-            if is_seeded_global_v0(&var, ver) {
-                continue;
-            }
-            let t = taints
-                .get(&(sym, ver))
-                .copied()
-                .unwrap_or(TaintLattice::clean());
             if !t.is_tainted() {
                 continue;
             }
@@ -6124,22 +9102,22 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
             // fix in that case — a fabricated span could misplace the
             // insertion, e.g. before the command name rather than the
             // argument).
-            let (warn_span, fixes) =
-                match arg_index_span(stmt, i, tcl_lexer::LexerConfig::for_profile(dialect)) {
-                    Some(tight) => (
-                        tight,
-                        vec![CodeFix {
-                            span: Span::new(tight.start(), tight.start()),
-                            new_text: "-- ".to_owned(),
-                            description: "Insert '--' option terminator".to_owned(),
-                            // T102: `--` stops a tainted value being read as an option — the
-                            // fix, and a change for a call that meant it as one.
-                            safety: crate::irules_checks::FixSafety::BehaviourHardening,
-                        }],
-                    ),
-                    None => (span, Vec::new()),
-                };
+            let (warn_span, fixes) = match arg_index_span(stmt, i, sink_call.source.config) {
+                Some(tight) => (
+                    tight,
+                    vec![CodeFix {
+                        span: Span::new(tight.start(), tight.start()),
+                        new_text: "-- ".to_owned(),
+                        description: "Insert '--' option terminator".to_owned(),
+                        // T102: `--` stops a tainted value being read as an option — the
+                        // fix, and a change for a call that meant it as one.
+                        safety: crate::irules_checks::FixSafety::BehaviourHardening,
+                    }],
+                ),
+                None => (span, Vec::new()),
+            };
             warnings.push(TaintWarning {
+                source_sink: None,
                 span: warn_span,
                 variable: var.clone(),
                 sink_command: cmd_label.clone(),
@@ -6151,7 +9129,7 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
                 replacement: None,
                 fixes,
             });
-            emitted.insert(sym);
+            emitted.insert(var);
         }
     }
 }
@@ -6167,14 +9145,11 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
 /// can't accidentally emit IRULE3101 errors against user-defined
 /// commands that happen to be named `HTTP::uri` / `HTTP::path`.
 ///
-/// Three cases per constraint:
-///
-/// 1. **Literal** (not `$`-prefixed, no `[`) — check the prefix directly.
-/// 2. **Pure var-ref** — a value the lattice proves at the call (`values`)
-///    is checked as a literal is (#2055: `set p /a; HTTP::path $p` is
-///    clean); otherwise look up the SSA-resolved taint colour and suppress
-///    when `PATH_PREFIXED | PATH_NORMALISED | PATH_BOUNDED` is set.
-/// 3. **Dynamic expression** (interpolation, command sub) — always warn.
+/// Original literal operands are checked under their word configuration.
+/// A whole scalar read can use only the value or colour represented at that
+/// statement; missing geometry or contents cannot mitigate a dynamic operand.
+/// Explicit standalone utility; retained Module/FU callers use
+/// [`find_setter_constraint_warnings_for_module_function`].
 #[must_use]
 pub fn find_setter_constraint_warnings<
     S: std::hash::BuildHasher,
@@ -6193,6 +9168,7 @@ pub fn find_setter_constraint_warnings<
     if !is_irules_dialect(dialect) {
         return out;
     }
+    let standalone_config = TaintSourceContext::standalone(registry, dialect).config;
     let safe_path_colours =
         TaintColour::PATH_PREFIXED | TaintColour::PATH_NORMALISED | TaintColour::PATH_BOUNDED;
 
@@ -6217,8 +9193,21 @@ pub fn find_setter_constraint_warnings<
                 let Some(arg_val) = args.get(constraint.arg_index as usize) else {
                     continue;
                 };
-                let stripped = arg_val.trim();
+                let original = ssa_stmt
+                    .statement
+                    .tokens()
+                    .and_then(|tokens| tokens.word_exprs.get(constraint.arg_index as usize + 1));
+                let config = match ssa_stmt.statement.tokens().and_then(|tokens| {
+                    tokens
+                        .source_binding
+                        .as_ref()
+                        .map(|binding| (tokens, binding))
+                }) {
+                    Some((tokens, binding)) => binding.original_lexer_config_for_tokens(tokens),
+                    None => Some(standalone_config),
+                };
                 let warn = |variable: String| TaintWarning {
+                    source_sink: None,
                     span,
                     variable,
                     sink_command: command.clone(),
@@ -6228,41 +9217,53 @@ pub fn find_setter_constraint_warnings<
                     fixes: Vec::new(),
                 };
 
-                // Literal: neither `$` nor `[`.
-                if !stripped.starts_with('$') && !stripped.contains('[') {
-                    if !stripped.starts_with(constraint.required_prefix) {
+                let Some(config) = config else {
+                    out.push(warn(String::new()));
+                    continue;
+                };
+                let Some(original) = original.filter(|word| word.legacy_text() == *arg_val) else {
+                    // Independent IR without original word geometry cannot
+                    // turn source-looking bytes into a represented read.
+                    if arg_val.contains(['$', '['])
+                        || !arg_val.starts_with(constraint.required_prefix)
+                    {
+                        out.push(warn(String::new()));
+                    }
+                    continue;
+                };
+                if let Some(literal) = static_word_expr_value(
+                    original,
+                    config.escapes,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                ) {
+                    if !literal.starts_with(constraint.required_prefix) {
                         out.push(warn(String::new()));
                     }
                     continue;
                 }
 
-                // Pure variable reference: check SSA-resolved taint colour.
-                if is_pure_var_ref(stripped) {
-                    let var_name = normalise_var_name(stripped);
-                    let sym = ssa.var_symbol(var_name);
-                    let ver = sym
-                        .and_then(|s| ssa_stmt.uses.get(&s))
-                        .copied()
-                        .unwrap_or(0);
-                    let proven =
-                        sym.and_then(|s| values?.get(&(s, ver)))
-                            .and_then(|value| match value {
-                                crate::analyses::LatticeValue::Const(c) => {
-                                    crate::value_transfer::const_text(c)
-                                }
-                                _ => None,
-                            });
+                if let Some(var_name) = original_scalar_reference_name(original, config) {
+                    let represented = ssa.var_symbol(var_name).and_then(|symbol| {
+                        ssa_stmt.uses.get(&symbol).map(|version| (symbol, *version))
+                    });
+                    let proven = represented
+                        .and_then(|key| values?.get(&key))
+                        .and_then(|value| match value {
+                            crate::analyses::LatticeValue::Const(c) => {
+                                crate::value_transfer::const_text(c)
+                            }
+                            _ => None,
+                        });
                     if let Some(proven) = proven {
                         if !proven.starts_with(constraint.required_prefix) {
                             out.push(warn(var_name.to_owned()));
                         }
                         continue;
                     }
-                    let t = sym
-                        .and_then(|s| taints.get(&(s, ver)))
-                        .copied()
-                        .unwrap_or(TaintLattice::clean());
-                    if t.is_tainted() && t.colours.intersects(safe_path_colours) {
+                    let taint = represented.and_then(|key| taints.get(&key)).copied();
+                    if taint.is_some_and(|value| {
+                        value.is_tainted() && value.colours.intersects(safe_path_colours)
+                    }) {
                         continue;
                     }
                     out.push(warn(var_name.to_owned()));
@@ -6282,12 +9283,1496 @@ pub fn find_setter_constraint_warnings<
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn original_module_sink_candidates_keep_conditional_source_and_refuse_foreign_owners() {
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = environment.unit_profile();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let build = |source| {
+            crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            )
+            .with_interprocedural(registry, Some(profile))
+        };
+        let source = "proc pass {x} {return $x}; proc danger {} {set u [gets stdin]; set p [pass $u]; exec $p}";
+        let unit = build(source);
+        let (body, procedure) = unit
+            .ir_module
+            .original_source_procedure_bodies()
+            .find(|(_, procedure)| {
+                procedure
+                    .body_source
+                    .as_deref()
+                    .is_some_and(|source| source.contains("exec $p"))
+            })
+            .unwrap();
+        assert_eq!(
+            procedure.body_kind,
+            crate::ir::ProcedureBodyKind::OriginalDeclaration
+        );
+        assert!(!unit.ir_module.procedures.contains_key(body));
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        let warnings = |unit: &crate::compilation_unit::CompilationUnit,
+                        registry: &CommandRegistry| {
+            let solved =
+                crate::taint_interproc::solve_interprocedural_taints(unit, registry, Some(profile));
+            let mut warnings = Vec::new();
+            let _ = crate::compiler_checks::push_taint_and_module_checks(
+                unit,
+                registry,
+                Some(profile),
+                &solved,
+                None,
+                &mut warnings,
+            );
+            warnings
+        };
+        assert!(
+            warnings(&unit, registry)
+                .iter()
+                .any(|warning| warning.code == DiagCode::T100)
+        );
+        let mut missing = unit.clone();
+        missing.ir_module.retained_source_bindings = None;
+        assert!(
+            !warnings(&missing, registry)
+                .iter()
+                .any(|warning| warning.code == DiagCode::T100)
+        );
+        let mut changed = unit.clone();
+        changed.ir_module.source = tcl_lexer::SourceImage::document("proc danger {} {return SAFE}");
+        assert!(
+            !warnings(&changed, registry)
+                .iter()
+                .any(|warning| warning.code == DiagCode::T100)
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        assert!(
+            !warnings(&unit, foreign)
+                .iter()
+                .any(|warning| warning.code == DiagCode::T100)
+        );
+        let shadowed =
+            build("proc exec args {return SAFE}; proc danger {} {set u [gets stdin]; exec $u}");
+        assert!(
+            !warnings(&shadowed, registry)
+                .iter()
+                .any(|warning| warning.code == DiagCode::T100)
+        );
+    }
+
     use super::*;
     use crate::sccp::SccpResult;
     use tcl_dialect::model::{Family, SurfaceLayer};
 
+    #[test]
+    fn original_instance_receiver_names_preserve_head_kind_and_actual_grammar() {
+        let classes = LocalInstanceClasses {
+            at: HashMap::from([(
+                42,
+                HashMap::from([
+                    ("$literal".into(), HashSet::from(["LiteralClass".into()])),
+                    ("${literal}".into(), HashSet::from(["BraceClass".into()])),
+                    ("literal".into(), HashSet::from(["ReferenceClass".into()])),
+                    ("".into(), HashSet::from(["EmptyClass".into()])),
+                    ("arr".into(), HashSet::from(["ScalarClass".into()])),
+                    ("arr(key)".into(), HashSet::from(["CommandClass".into()])),
+                    ("a{b}c".into(), HashSet::from(["NestedClass".into()])),
+                ]),
+            )]),
+        };
+        for label in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(label).commands();
+            let config = TaintSourceContext::standalone(registry, registry.profile()).config;
+            for (source, expected) in [
+                ("{$literal}", "LiteralClass"),
+                ("{${literal}}", "BraceClass"),
+                ("$literal", "ReferenceClass"),
+                ("${$literal}", "LiteralClass"),
+                ("{}", "EmptyClass"),
+                ("${}", "EmptyClass"),
+                ("arr(key)", "CommandClass"),
+            ] {
+                let word = crate::value_shapes::value_word_with_config(source, config).unwrap();
+                assert_eq!(
+                    unique_instance_class(Some((&word, config)), Some(&classes), Some(42)),
+                    Some(expected),
+                    "{label}: {source}"
+                );
+                assert!(
+                    unique_instance_class(Some((&word, config)), Some(&classes), Some(43))
+                        .is_none()
+                );
+            }
+            for source in [
+                "$arr(key)",
+                "${arr(key)}",
+                "prefix$literal",
+                "[pick]",
+                "{*}{literal}",
+                "${nul\0name}",
+            ] {
+                let word = crate::value_shapes::value_word_with_config(source, config).unwrap();
+                assert!(
+                    unique_instance_class(Some((&word, config)), Some(&classes), Some(42))
+                        .is_none(),
+                    "{label}: {source}"
+                );
+            }
+            let nested = crate::value_shapes::value_word_with_config("${a{b}c}", config).unwrap();
+            assert_eq!(
+                unique_instance_class(Some((&nested, config)), Some(&classes), Some(42)),
+                if label == "tcl9.1" {
+                    Some("NestedClass")
+                } else {
+                    None
+                }
+            );
+        }
+        assert!(unique_instance_class(None, Some(&classes), Some(42)).is_none());
+    }
+
+    #[test]
+    fn configured_word_taint_keeps_literal_reference_names_and_index_reads() {
+        for label in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(label).commands();
+            let cfg = crate::cfg::Function::new("model", "entry");
+            let mut ssa = SsaFunction::trivial("model", cfg.entry, cfg.block_names().to_vec());
+            let mut uses = HashMap::new();
+            let mut taints = HashMap::new();
+            for (name, tainted) in [
+                ("literal", false),
+                ("$literal", true),
+                ("", true),
+                ("arr", false),
+                ("index", true),
+                ("a{b", false),
+                ("a{b}c", true),
+            ] {
+                let symbol = ssa.intern_var(name);
+                uses.insert(symbol, 1);
+                taints.insert(
+                    (symbol, 1),
+                    if tainted {
+                        TaintLattice::tainted()
+                    } else {
+                        TaintLattice::clean()
+                    },
+                );
+            }
+            let ctx = TaintCtx {
+                registry,
+                ssa: &ssa,
+                interproc: None,
+                known_procs: None,
+                dialect: registry.profile(),
+                source: TaintSourceContext::standalone(registry, registry.profile()),
+                taint_summaries: None,
+                instance_classes: None,
+                source_position: None,
+                source_tokens: None,
+                word_offset: None,
+                source_word: None,
+            };
+            for (word, tainted) in [
+                ("$literal", false),
+                ("${$literal}", true),
+                ("${}", true),
+                ("prefix${$literal}", true),
+                (r"prefix\$literal", false),
+                ("$arr($index)", true),
+                ("[missing $literal", true),
+            ] {
+                assert_eq!(
+                    word_taint(word, &uses, &taints, ctx).is_tainted(),
+                    tainted,
+                    "{label}: {word}"
+                );
+            }
+            assert_eq!(
+                word_taint("${a{b}c}", &uses, &taints, ctx).is_tainted(),
+                label == "tcl9.1"
+            );
+            assert!(!word_taint(r"prefix\[gets stdin\]", &uses, &taints, ctx).is_tainted());
+        }
+    }
+
+    #[test]
+    fn taint_escape_fragments_use_the_selected_release_escape_grammar() {
+        let before = backslash_subst_in(r"\x4142", tcl_dialect::EscapeSyntax::Tcl84);
+        let after = backslash_subst_in(r"\x4142", tcl_dialect::EscapeSyntax::Tcl86);
+        assert_ne!(before, after);
+        assert_eq!(after, "A42");
+    }
+
+    #[test]
+    fn mixed_source_word_reuses_the_retained_nested_command_invocation() {
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let (_, unit) =
+            retained_warning_unit("set payload \"prefix[string length $input]\"", &context);
+        let module = &unit.ir_module;
+        let tokens = module
+            .top_level
+            .statements
+            .last()
+            .and_then(Statement::tokens)
+            .expect("source-backed assignment tokens");
+        let word = tokens.words().get(2).expect("mixed source value word");
+        let source = TaintSourceContext::for_module_function(registry, module, &unit.top_level);
+        let ctx = TaintCtx {
+            registry,
+            ssa: &unit.top_level.ssa,
+            interproc: None,
+            known_procs: None,
+            dialect: registry.profile(),
+            source,
+            taint_summaries: None,
+            instance_classes: None,
+            source_position: Some(tokens.argv[0].start()),
+            source_tokens: Some(tokens),
+            word_offset: Some(word.source().span.start()),
+            source_word: Some(word),
+        };
+        assert!(
+            !word_taint(&word.legacy_text(), &HashMap::new(), &HashMap::new(), ctx).is_tainted(),
+            "the actual selected string-length sanitizer remains clean in a mixed word"
+        );
+        let unavailable = TaintCtx {
+            source_tokens: None,
+            ..ctx
+        };
+        assert!(
+            word_taint(
+                &word.legacy_text(),
+                &HashMap::new(),
+                &HashMap::new(),
+                unavailable
+            )
+            .is_tainted(),
+            "a source span without its retained parent token carrier is unavailable"
+        );
+    }
+
+    #[test]
+    fn taint_source_word_requires_its_actual_retained_owner_and_span() {
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let (_, unit) = retained_warning_unit("set input SAFE; set payload $input", &context);
+        let module = &unit.ir_module;
+        let tokens = unit
+            .top_level
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter_map(Statement::tokens)
+            .find(|tokens| {
+                tokens
+                    .words()
+                    .iter()
+                    .any(|word| word.legacy_text() == "$input")
+            })
+            .expect("actual source statement tokens");
+        let word = tokens.words().get(2).expect("original value word");
+        let ctx = TaintCtx {
+            registry,
+            ssa: &unit.top_level.ssa,
+            interproc: None,
+            known_procs: None,
+            dialect: registry.profile(),
+            source: TaintSourceContext::for_module(registry, module),
+            taint_summaries: None,
+            instance_classes: None,
+            source_position: None,
+            source_tokens: Some(tokens),
+            word_offset: Some(word.source().span.start()),
+            source_word: Some(word),
+        };
+        let (image, span) = retained_word_source(word.legacy_text().as_str(), ctx)
+            .expect("same retained source owner");
+        assert_eq!(
+            image.bytes().get(span.as_range()),
+            Some(b"$input".as_slice())
+        );
+        let read_site = word.source();
+        let mut read_owner = None;
+        for (block, data) in &unit.top_level.ssa.blocks {
+            for index in 0..data.statements.len() {
+                let point =
+                    crate::ssa::SsaSourceView::at_statement(&unit.top_level.ssa, *block, index);
+                if let Some(read) = point.read_reference(read_site, "$input")
+                    && let Some(version) = read.version
+                {
+                    read_owner = Some((read.symbol, version));
+                }
+            }
+        }
+        let (symbol, version) = read_owner.expect("the exact original variable read");
+        let clean = HashMap::from([((symbol, version), TaintLattice::clean())]);
+        let read_ctx = TaintCtx {
+            source_position: Some(tokens.argv[0].start()),
+            ..ctx
+        };
+        assert!(
+            !original_component_read_taint(read_ctx, read_site.span, "$input", &clean,)
+                .is_tainted()
+        );
+        let tainted = HashMap::from([((symbol, version), TaintLattice::tainted())]);
+        assert!(
+            word_taint("plain_projection", &HashMap::new(), &tainted, read_ctx).is_tainted(),
+            "the source read span, not a compatibility spelling, selects the SSA value"
+        );
+        let mut detached_tokens = tokens.clone();
+        detached_tokens.variable_accesses.clear();
+        let detached_ctx = TaintCtx {
+            source_tokens: Some(&detached_tokens),
+            ..read_ctx
+        };
+        assert!(
+            original_component_read_taint(detached_ctx, read_site.span, "$input", &clean,)
+                .is_tainted()
+        );
+        let detached = TaintCtx {
+            source_tokens: None,
+            ..ctx
+        };
+        assert!(retained_word_source(word.legacy_text().as_str(), detached).is_none());
+    }
+
+    #[test]
+    fn incr_taint_uses_the_selected_definition_name_without_reparsing_data() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let cfg = crate::cfg::Function::new("model", "entry");
+        let mut ssa = SsaFunction::trivial("model", cfg.entry, cfg.block_names().to_vec());
+        let literal = ssa.intern_var("$literal");
+        let stripped = ssa.intern_var("literal");
+        let uses = HashMap::from([(literal, 1), (stripped, 1)]);
+        let taints = HashMap::from([
+            ((literal, 1), TaintLattice::tainted()),
+            ((stripped, 1), TaintLattice::clean()),
+        ]);
+        let ctx = TaintCtx {
+            registry,
+            ssa: &ssa,
+            interproc: None,
+            known_procs: None,
+            dialect: registry.profile(),
+            source: TaintSourceContext::standalone(registry, registry.profile()),
+            taint_summaries: None,
+            instance_classes: None,
+            source_position: None,
+            source_tokens: None,
+            word_offset: None,
+            source_word: None,
+        };
+        let statement = Statement::Incr {
+            span: Span::new(0, 0),
+            name: "$literal".into(),
+            name_braced: true,
+            amount: None,
+            amount_braced: false,
+            safe_on_uninit: false,
+        };
+        assert!(evaluate_taint_def(&statement, literal, &uses, &taints, ctx, &ssa).is_tainted());
+        assert!(
+            evaluate_taint_def(&statement, literal, &HashMap::new(), &taints, ctx, &ssa)
+                .is_tainted()
+        );
+    }
+
+    #[test]
+    fn unrepresented_variable_contents_have_no_clean_taint_proof() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(
+            "set represented SAFE",
+            registry,
+            false,
+        );
+        let symbol = unit.top_level.ssa.var_symbol("represented").unwrap();
+        let uses = HashMap::from([(symbol, 0)]);
+        let taints = HashMap::<ValueKey, TaintLattice>::new();
+        assert!(var_taint("unrepresented", &uses, &taints, &unit.top_level.ssa).is_tainted());
+        assert!(!var_taint("represented", &uses, &taints, &unit.top_level.ssa).is_tainted());
+        assert!(
+            var_taint("represented", &HashMap::new(), &taints, &unit.top_level.ssa).is_tainted()
+        );
+        assert!(unit.top_level.ssa.var_symbol("unrepresented").is_none());
+    }
+
+    #[test]
+    fn original_operand_reference_names_keep_data_and_current_grammar_without_ssa_grants() {
+        for label in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(label).commands();
+            let source = TaintSourceContext::standalone(registry, registry.profile());
+            let cfg = crate::cfg::Function::new("model", "entry");
+            let ssa = SsaFunction::trivial("model", cfg.entry, cfg.block_names().to_vec());
+            let uses = HashMap::new();
+            let taints = HashMap::<ValueKey, TaintLattice>::new();
+            let env = TaintScan {
+                uses: &uses,
+                taints: &taints,
+                ssa: &ssa,
+                quoted_uses: None,
+                source_read: None,
+                source,
+            };
+            for (reference, name) in [
+                ("${$literal}", "$literal"),
+                ("${}", ""),
+                ("${arr($literal)}", "arr"),
+            ] {
+                let word =
+                    crate::value_shapes::value_word_with_config(reference, source.config).unwrap();
+                assert!(
+                    operand_read_taint(&env, name, Some(&word))
+                        .is_some_and(TaintLattice::is_tainted)
+                );
+                assert!(operand_read_taint(&env, "donated", Some(&word)).is_none());
+                assert!(ssa.var_symbol(name).is_none());
+            }
+            assert_eq!(
+                reference_root_with_config("${a{b}c}", source.config),
+                if label == "tcl9.1" {
+                    Some("a{b}c")
+                } else {
+                    None
+                }
+            );
+            for unavailable in [
+                "prefix${literal}",
+                r"\$literal",
+                "${literal",
+                "${literal\0tail}",
+            ] {
+                assert!(reference_root_with_config(unavailable, source.config).is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn original_sink_read_keeps_missing_ssa_contents_unknown() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (source, expected) in [
+            ("regexp $missing test", true),
+            ("regexp {$missing} test", false),
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_for(source, registry, false);
+            let tokens = unit
+                .top_level
+                .cfg
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .find_map(Statement::tokens)
+                .unwrap();
+            let uses = HashMap::new();
+            let taints = HashMap::<ValueKey, TaintLattice>::new();
+            let env = TaintScan {
+                uses: &uses,
+                taints: &taints,
+                ssa: &unit.top_level.ssa,
+                quoted_uses: None,
+                source_read: None,
+                source: TaintSourceContext::for_function(registry, &unit.top_level),
+            };
+            assert_eq!(
+                operand_read_taint(&env, "missing", tokens.words().get(1))
+                    .is_some_and(TaintLattice::is_tainted),
+                expected,
+                "{source}"
+            );
+            assert!(uses.is_empty());
+        }
+    }
+
+    #[test]
+    fn native_byte_escapes_cannot_become_unicode_text_provenance() {
+        use tcl_dialect::EscapeSyntax;
+        assert_eq!(decoded_text_fragment(r"\xff", EscapeSyntax::Jim), None);
+        assert_eq!(
+            decoded_text_fragment(r"\x41", EscapeSyntax::Jim).as_deref(),
+            Some("A")
+        );
+        assert_eq!(
+            decoded_text_fragment(r"\xff", EscapeSyntax::Tcl90).as_deref(),
+            Some("ÿ")
+        );
+    }
+
+    #[test]
+    fn opaque_native_accesses_withdraw_receiver_and_clean_taint_proofs() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let mut unit =
+            crate::compilation_unit::CompilationUnit::build_for("set value KNOWN", registry, false);
+        let native = crate::ir::native_call_for_test(b"opaque \xff");
+        unit.top_level
+            .cfg
+            .blocks
+            .get_mut(&unit.top_level.cfg.entry)
+            .unwrap()
+            .statements
+            .push(native.clone());
+        let graph = TaintGraph::new(
+            &unit.top_level.cfg,
+            &unit.top_level.ssa,
+            &unit.top_level.sccp,
+        );
+        let taints = propagate_taints(
+            &graph,
+            TaintPropagationInputs {
+                registry,
+                rendered_props: None,
+                interproc: None,
+                source: TaintSourceContext::standalone(registry, registry.profile()),
+                param_taints: None,
+                taint_summaries: None,
+                instance_classes: &LocalInstanceClasses::default(),
+            },
+        );
+        let keys: Vec<_> = unit
+            .top_level
+            .ssa
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .flat_map(|statement| {
+                statement
+                    .defs
+                    .iter()
+                    .map(|(&symbol, &version)| (symbol, version))
+            })
+            .collect();
+        assert!(!keys.is_empty());
+        assert!(
+            keys.iter()
+                .all(|key| taints.get(key) == Some(&TaintLattice::tainted()))
+        );
+        let mut classes = HashMap::from([("widget".into(), HashSet::from(["Entry".into()]))]);
+        transfer_instance_statement(
+            &mut classes,
+            &native,
+            registry,
+            TaintSourceContext::for_input(registry, None, tcl_lexer::LexerConfig::default()),
+            None,
+        );
+        assert!(classes.is_empty());
+    }
+
+    #[test]
+    fn alias_prefix_values_and_braced_literals_do_not_resubstitute_variables() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for source in [
+            "interp alias {} collect {} list {$attacker}\nset value [collect]",
+            "set value [list {$attacker}]",
+        ] {
+            let module = crate::lowering::lower_to_ir(source, registry);
+            let (value, tokens) = module
+                .top_level
+                .statements
+                .iter()
+                .rev()
+                .find_map(|statement| {
+                    if let Statement::AssignValue {
+                        value,
+                        tokens: Some(tokens),
+                        ..
+                    } = statement
+                    {
+                        Some((value, tokens))
+                    } else {
+                        None
+                    }
+                })
+                .expect("assignment carrier");
+            let cfg = crate::cfg::Function::new("::top", "entry");
+            let mut ssa =
+                crate::ssa::SsaFunction::trivial("::top", cfg.entry, cfg.block_names().to_vec());
+            let attacker = ssa.intern_var("attacker");
+            let ctx = TaintCtx {
+                registry,
+                ssa: &ssa,
+                interproc: None,
+                known_procs: None,
+                dialect: registry.profile(),
+                source: TaintSourceContext::standalone(registry, registry.profile()),
+                taint_summaries: None,
+                instance_classes: None,
+                source_position: Some(tokens.argv[0].start()),
+                source_tokens: Some(tokens),
+                word_offset: tokens.argv.last().map(|span| span.start()),
+                source_word: tokens.word_exprs.last(),
+            };
+            let uses = HashMap::from([(attacker, 1)]);
+            let taints = HashMap::from([((attacker, 1), TaintLattice::tainted())]);
+            assert!(
+                !word_taint(value, &uses, &taints, ctx).is_tainted(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn nested_sanitiser_requires_the_actual_point_binding() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (source, tainted) in [
+            ("set value [string length [gets stdin]]", false),
+            (
+                "interp alias {} measure {} string length\nset value [measure [gets stdin]]",
+                false,
+            ),
+            (
+                "rename string core_string\nproc string args {return [lindex $args end]}\nset value [string length [gets stdin]]",
+                true,
+            ),
+            (
+                "interp alias {} measure {} string length\nrename string core_string\nproc string args {return [lindex $args end]}\nset value [measure [gets stdin]]",
+                true,
+            ),
+            (
+                "rename string core_string\nproc string args {return [lindex $args end]}\nset value \"[string length [gets stdin]]\"",
+                true,
+            ),
+        ] {
+            let module = crate::lowering::lower_to_ir(source, registry);
+            let (value, tokens) = module
+                .top_level
+                .statements
+                .iter()
+                .rev()
+                .find_map(|statement| {
+                    let tokens = statement.tokens()?;
+                    Some((tokens.argv_texts.last()?, tokens))
+                })
+                .expect("retained source value carrier");
+            let cfg = crate::cfg::Function::new("::top", "entry");
+            let ssa =
+                crate::ssa::SsaFunction::trivial("::top", cfg.entry, cfg.block_names().to_vec());
+            let ctx = TaintCtx {
+                registry,
+                ssa: &ssa,
+                interproc: None,
+                known_procs: None,
+                dialect: registry.profile(),
+                source: TaintSourceContext::standalone(registry, registry.profile()),
+                taint_summaries: None,
+                instance_classes: None,
+                source_position: Some(tokens.argv[0].start()),
+                source_tokens: Some(tokens),
+                word_offset: tokens.argv.last().map(|span| span.start()),
+                source_word: tokens.word_exprs.last(),
+            };
+            assert_eq!(
+                word_taint(value, &HashMap::new(), &HashMap::new(), ctx).is_tainted(),
+                tainted,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_cross_interp_script_reads_keep_the_tainted_command_word() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        for (source, expected) in [
+            (
+                "set raw [gets stdin]\ninterp eval $child [list $raw]\n",
+                true,
+            ),
+            (
+                "set raw [gets stdin]\ninterp eval $child [list puts $raw]\n",
+                false,
+            ),
+            (
+                "set raw [gets stdin]\nset child [interp create]\ninterp eval $child [list $raw]\n",
+                true,
+            ),
+            (
+                "set child [interp create]\nset raw [gets stdin]\ninterp eval $child [list $raw]\n",
+                true,
+            ),
+            (
+                "set child [interp create]\nset raw [gets stdin]\ninterp eval $child [list puts $raw]\n",
+                false,
+            ),
+            (
+                "set child [gets stdin]\ninterp eval $child {puts SAFE}\n",
+                false,
+            ),
+            (
+                "set child [interp create]\nset raw [gets stdin]\ninterp eval $child [list puts $raw] $raw\n",
+                true,
+            ),
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                source, registry, false, profile,
+            );
+            let warnings = find_taint_warnings_for_cu(&unit, registry, Some(profile));
+            let cross_interp: Vec<_> = warnings
+                .iter()
+                .filter(|warning| warning.code == DiagCode::T105)
+                .collect();
+            assert_eq!(
+                !cross_interp.is_empty(),
+                expected,
+                "{source:?}: {warnings:?}"
+            );
+            assert!(
+                cross_interp.iter().all(|warning| warning.variable == "raw"),
+                "the interpreter path must not impersonate script data: {warnings:?}"
+            );
+        }
+    }
+
+    fn measured_source_taint(
+        unit: &crate::compilation_unit::CompilationUnit,
+        registry: &CommandRegistry,
+    ) -> TaintLattice {
+        let script = &unit.ir_module.top_level;
+        let statement = script.statements.last().expect("source statement");
+        let tokens = script
+            .retained_source_tokens_for_statement(statement)
+            .expect("genuine original source vector");
+        let value = tokens.argv_texts.last().expect("original value operand");
+        let source =
+            TaintSourceContext::for_module_function(registry, &unit.ir_module, &unit.top_level);
+        let ctx = TaintCtx {
+            registry,
+            ssa: &unit.top_level.ssa,
+            interproc: None,
+            known_procs: None,
+            dialect: source.dialect,
+            source,
+            taint_summaries: None,
+            instance_classes: None,
+            source_position: tokens.argv.first().map(|span| span.start()),
+            source_tokens: Some(tokens),
+            word_offset: tokens.argv.last().map(|span| span.start()),
+            source_word: tokens.word_exprs.last(),
+        };
+        word_taint(value, &HashMap::new(), &HashMap::new(), ctx)
+    }
+
+    fn retained_warning_unit(
+        source: &str,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> (tcl_vm::Vm, crate::compilation_unit::CompilationUnit) {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(native)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(context),
+        );
+        (owner, unit)
+    }
+
+    #[test]
+    fn branch_nested_sink_uses_retained_expression_and_read_owners() {
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let source = "proc f {} { set x [gets stdin]; if {[exec $x] eq \"ok\"} { return 1 } }";
+        let (_, unit) = retained_warning_unit(source, &context);
+        let unit = unit.with_interprocedural(registry, Some(profile));
+        let warnings = find_taint_warnings_for_cu(&unit, registry, Some(profile));
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.code == DiagCode::T100),
+            "the retained branch expression and exact read occurrence select exec's tainted argument: {warnings:?}"
+        );
+
+        let mut detached = unit.clone();
+        detached.ir_module.retained_source_bindings = None;
+        let warnings = find_taint_warnings_for_cu(&detached, registry, Some(profile));
+        assert!(
+            warnings
+                .iter()
+                .all(|warning| warning.code != DiagCode::T100),
+            "the same spelling without the retained evaluation/read owner cannot select the sink value: {warnings:?}"
+        );
+
+        let clean_source =
+            "proc f {} { set x [gets stdin]; if {[string length $x] > 0} { return 1 } }";
+        let (_, clean_unit) = retained_warning_unit(clean_source, &context);
+        let clean_unit = clean_unit.with_interprocedural(registry, Some(profile));
+        let warnings = find_taint_warnings_for_cu(&clean_unit, registry, Some(profile));
+        assert!(
+            warnings
+                .iter()
+                .all(|warning| warning.code != DiagCode::T100),
+            "the actual selected sanitizer remains clean in a branch expression: {warnings:?}"
+        );
+    }
+
+    fn source_option_context() -> std::sync::Arc<tcl_registry::model::ContextRegistry> {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut catalogue = baseline.commands().project_for_profile(profile);
+        let mut descriptor = catalogue.get("regexp").unwrap().clone();
+        let options = descriptor
+            .options
+            .iter()
+            .cloned()
+            .map(|mut option| {
+                if option.name == "--" {
+                    option.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+                }
+                option
+            })
+            .collect::<Vec<_>>();
+        descriptor.options = Box::leak(options.into_boxed_slice());
+        catalogue.insert(descriptor);
+        std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(catalogue)))
+    }
+
+    #[test]
+    fn actual_option_advice_keeps_selected_terminator_availability_and_source_vector() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Conditional descriptor/operand admission, independently of the kept
+        // Native entry. No regexp handler or option value is executed here.
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let current = source_option_context();
+        let registry = current.commands();
+        let (_owner, unit) = retained_warning_unit("regexp $payload haystack", &current);
+        let tokens = unit
+            .ir_module
+            .top_level
+            .statements
+            .last()
+            .unwrap()
+            .tokens()
+            .unwrap();
+        let source =
+            TaintSourceContext::for_module_function(registry, &unit.ir_module, &unit.top_level);
+        let (selected, _) =
+            crate::registry_invocation::conditional_option_arguments_with_metadata_context(
+                registry,
+                source.metadata.unwrap(),
+                tokens,
+            )
+            .expect("genuine selected source option layout");
+        let args = selected
+            .effective
+            .argument_spellings(tokens.argv_texts.get(1..).unwrap())
+            .unwrap();
+        let call = SinkCall {
+            source,
+            command: &selected.facts.canonical_command,
+            args: &args,
+            registry,
+            tokens: Some(tokens),
+            effective: Some(&selected.effective),
+            source_read: None,
+            argument_offset: 0,
+        };
+        let (sink_spec, sink_command, sink_args) =
+            selected_sink_schema(&call).expect("selected source sink schema");
+        assert_eq!(sink_spec.name, "regexp");
+        assert_eq!(sink_command, "regexp");
+        assert_eq!(sink_args, args);
+        assert_eq!(
+            option_injection_arguments(&call, Some(profile)).unwrap().1,
+            [0]
+        );
+        let input = unit.top_level.source_metadata_input().unwrap();
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(registry)),
+        );
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        for context in [Some(older), Some(foreign), None] {
+            let changed = context.map(|context| {
+                crate::analyser::ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    context,
+                    input.lexer_config(),
+                )
+            });
+            let unavailable = SinkCall {
+                source: TaintSourceContext::for_input(registry, changed.as_ref(), source.config),
+                ..call
+            };
+            assert!(option_injection_arguments(&unavailable, Some(profile)).is_none());
+        }
+        let mut stale = source.config;
+        stale.strict_quoting = !stale.strict_quoting;
+        let stale = SinkCall {
+            source: TaintSourceContext::for_input(registry, Some(input), stale),
+            ..call
+        };
+        assert!(option_injection_arguments(&stale, Some(profile)).is_none());
+        let detached = SinkCall {
+            effective: None,
+            ..call
+        };
+        assert!(option_injection_arguments(&detached, Some(profile)).is_none());
+        assert!(selected_sink_schema(&detached).is_none());
+        let mismatched = SinkCall { args: &[], ..call };
+        assert!(selected_sink_schema(&mismatched).is_none());
+    }
+
+    #[test]
+    fn actual_option_terminator_withdraws_possible_source_positions() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let current = source_option_context();
+        let registry = current.commands();
+        let (_terminated_owner, terminated) =
+            retained_warning_unit("regexp -- $payload haystack", &current);
+        let tokens = terminated
+            .ir_module
+            .top_level
+            .statements
+            .last()
+            .unwrap()
+            .tokens()
+            .unwrap();
+        let source = TaintSourceContext::for_module_function(
+            registry,
+            &terminated.ir_module,
+            &terminated.top_level,
+        );
+        let (_, topology) =
+            crate::registry_invocation::conditional_option_arguments_with_metadata_context(
+                registry,
+                source.metadata.unwrap(),
+                tokens,
+            )
+            .unwrap();
+        assert!(topology.arguments.is_empty());
+    }
+
+    fn source_regexp_warnings(
+        unit: &crate::compilation_unit::CompilationUnit,
+        registry: &CommandRegistry,
+        source: TaintSourceContext<'_>,
+    ) -> Vec<TaintWarning> {
+        let statement = unit.ir_module.top_level.statements.last().unwrap();
+        let tokens = statement.tokens().unwrap();
+        let uses = HashMap::new();
+        let taints: HashMap<ValueKey, TaintLattice> = HashMap::new();
+        let scan = TaintScan {
+            uses: &uses,
+            taints: &taints,
+            ssa: &unit.top_level.ssa,
+            quoted_uses: None,
+            source_read: None,
+            source,
+        };
+        let mut warnings = Vec::new();
+        emit_regexp_pattern_warnings(
+            &scan,
+            statement.span(),
+            registry,
+            &mut warnings,
+            Some(tokens),
+            source,
+        );
+        warnings
+    }
+
+    #[test]
+    fn whole_unit_warning_query_requires_its_retained_positioned_source_owner() {
+        // naming.source.retained-positioned-command-realm
+
+        // Explicit source ingress supplies the tainted value; no external evaluation is performed.
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        let (_owner, unit) = retained_warning_unit(
+            "set payload [gets stdin]\nregexp -- $payload haystack",
+            &current,
+        );
+        let positive = find_taint_warnings_for_cu_base(&unit, registry, None);
+        assert!(
+            positive
+                .iter()
+                .any(|warning| { warning.code == DiagCode::T103 && warning.variable == "payload" }),
+            "the actual original source keeps its warning: {positive:?}"
+        );
+        let mut missing = unit.clone();
+        missing.ir_module.retained_source_bindings = None;
+        let mut changed = unit.clone();
+        changed.ir_module.source = tcl_lexer::SourceImage::document("regexp -- fixed haystack");
+        let mut missing_snapshot = unit.clone();
+        missing_snapshot.ir_module.registry_snapshot = None;
+        for refused in [missing, changed, missing_snapshot] {
+            assert!(find_taint_warnings_for_cu_base(&refused, registry, None).is_empty());
+        }
+        assert_eq!(
+            find_taint_warnings_for_cu_base(&unit, registry, None),
+            positive
+        );
+    }
+
+    #[test]
+    fn actual_regexp_warning_refuses_missing_and_foreign_source_metadata() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // A retained literal terminator establishes source pattern topology;
+        // the original variable read remains unknown, with no observed value.
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        let (_owner, unit) = retained_warning_unit("regexp -- $payload haystack", &current);
+        let source =
+            TaintSourceContext::for_module_function(registry, &unit.ir_module, &unit.top_level);
+        assert!(
+            source_regexp_warnings(&unit, registry, source)
+                .iter()
+                .any(|warning| warning.code == DiagCode::T103 && warning.variable == "payload")
+        );
+        let missing = TaintSourceContext::for_input(registry, None, source.config);
+        assert!(source_regexp_warnings(&unit, registry, missing).is_empty());
+        let input = unit.top_level.source_metadata_input().unwrap();
+        let foreign = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        );
+        let foreign = TaintSourceContext::for_input(registry, Some(&foreign), source.config);
+        assert!(source_regexp_warnings(&unit, registry, foreign).is_empty());
+        let mut stale = source.config;
+        stale.strict_quoting = !stale.strict_quoting;
+        let stale = TaintSourceContext::for_input(registry, Some(input), stale);
+        assert!(source_regexp_warnings(&unit, registry, stale).is_empty());
+        let standalone = TaintSourceContext::standalone(registry, registry.profile());
+        assert!(!source_regexp_warnings(&unit, registry, standalone).is_empty());
+    }
+
+    #[test]
+    fn constant_command_head_candidates_use_retained_escape_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // SSA source-value candidates only; no command lookup, target identity
+        // or actual invocation follows from the decoded presentation value.
+        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        for (escapes, expected) in [
+            (tcl_dialect::EscapeSyntax::Tcl84, "U0001f600"),
+            (tcl_dialect::EscapeSyntax::Tcl90, "😀"),
+        ] {
+            let config = tcl_lexer::LexerConfig {
+                escapes,
+                ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+            };
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::clone(&context),
+                config,
+            );
+            let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                "set command \\U0001f600\n$command argument",
+                crate::compilation_unit::UnitBuildOptions {
+                    registry: context.commands(),
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            );
+            let statement = unit.ir_module.top_level.statements.last().unwrap();
+            let heads = resolve_taint_command_heads(
+                "$command",
+                statement,
+                None,
+                Some(CommandHeadContext {
+                    fu: &unit.top_level,
+                    module_traces: crate::compilation_unit::ModuleTraceFacts {
+                        traced_variables: &unit.ir_module.traced_variables,
+                        has_dynamic_variable_trace: unit.ir_module.has_dynamic_variable_trace,
+                        deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
+                    },
+                    identities: crate::realm::CommandBindingRealm::none(),
+                }),
+            );
+            assert_eq!(
+                heads
+                    .iter()
+                    .map(|head| head.command.as_str())
+                    .collect::<Vec<_>>(),
+                [expected]
+            );
+        }
+    }
+
+    #[test]
+    fn actual_taint_lattice_keeps_availability_and_refuses_missing_source_owners() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Source-lattice result and owner refusals, with an independently kept
+        // Native entry. This test does not execute gets or observe its result.
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut catalogue = baseline.commands().project_for_profile(profile);
+        let mut descriptor = catalogue.get("string").unwrap().clone();
+        descriptor.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        catalogue.insert(descriptor);
+        let current =
+            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(catalogue)));
+        let registry = current.commands();
+        let (_owner, native) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(native)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let mut unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            "set measured [string length [gets stdin]]",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&current),
+        );
+        assert!(!measured_source_taint(&unit, registry).is_tainted());
+        let input = unit.ir_module.source_metadata_input.clone().unwrap();
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(registry)),
+        );
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        for context in [Some(older), Some(foreign), None] {
+            let changed = context.map(|context| {
+                crate::analyser::ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    context,
+                    input.lexer_config(),
+                )
+            });
+            unit.ir_module.source_metadata_input = changed.clone();
+            unit.top_level.source_metadata_input = changed;
+            assert!(measured_source_taint(&unit, registry).is_tainted());
+        }
+        unit.top_level.source_metadata_input = Some(input.clone());
+        assert!(
+            measured_source_taint(&unit, registry).is_tainted(),
+            "missing Module owner"
+        );
+        unit.ir_module.source_metadata_input = Some(input.clone());
+        unit.ir_module.lexer_config.strict_quoting = !input.lexer_config().strict_quoting;
+        assert!(
+            measured_source_taint(&unit, registry).is_tainted(),
+            "stale Module grammar"
+        );
+        unit.ir_module.lexer_config = input.lexer_config();
+        unit.ir_module.dialect_profile = Some(tcl_dialect::DialectProfile::find("tcl9.1").unwrap());
+        assert!(
+            measured_source_taint(&unit, registry).is_tainted(),
+            "stale Module profile"
+        );
+        unit.ir_module.dialect_profile = Some(input.unit_profile());
+        assert!(!measured_source_taint(&unit, registry).is_tainted());
+    }
+
+    #[test]
+    fn actual_warning_wrapper_uses_the_retained_context_and_lexer() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // The sink's nested wrapper uses the same source-lattice owner as an
+        // assigned value. No source-channel execution or mitigation is observed.
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        let (_owner, native) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(native)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            "set payload [gets stdin]; puts [string length $payload]",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&current),
+        );
+        let tokens = unit
+            .ir_module
+            .top_level
+            .retained_source_tokens_for_statement(
+                unit.ir_module.top_level.statements.last().unwrap(),
+            )
+            .unwrap();
+        let args = vec![tokens.argv_texts.last().unwrap().clone()];
+        let source =
+            TaintSourceContext::for_module_function(registry, &unit.ir_module, &unit.top_level);
+        let call = SinkCall {
+            command: "puts",
+            args: &args,
+            registry,
+            source,
+            tokens: Some(tokens),
+            effective: None,
+            source_read: None,
+            argument_offset: 0,
+        };
+        assert!(var_consumed_by_sanitiser(&call, "payload"));
+        let missing = SinkCall {
+            source: TaintSourceContext::for_input(registry, None, source.config),
+            ..call
+        };
+        assert!(!var_consumed_by_sanitiser(&missing, "payload"));
+        let mut stale = source.config;
+        stale.strict_quoting = !stale.strict_quoting;
+        let stale = SinkCall {
+            source: TaintSourceContext::for_input(
+                registry,
+                unit.top_level.source_metadata_input(),
+                stale,
+            ),
+            ..call
+        };
+        assert!(!var_consumed_by_sanitiser(&stale, "payload"));
+    }
+
+    #[test]
+    fn public_module_warning_projection_requires_matching_source_owners() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // These conditional source warnings retain metadata; no channel read
+        // or output handler is executed by the source analysis.
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let (_owner, native) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(native)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let mut unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            "set payload [gets stdin]; puts $payload",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let input = unit.ir_module.source_metadata_input.clone().unwrap();
+        let has_sink = |unit: &crate::compilation_unit::CompilationUnit| {
+            let traces = crate::compilation_unit::ModuleTraceFacts {
+                traced_variables: &unit.ir_module.traced_variables,
+                has_dynamic_variable_trace: unit.ir_module.has_dynamic_variable_trace,
+                deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
+            };
+            find_taint_warnings_for_module_function(
+                &unit.top_level,
+                &unit.top_level.taints,
+                &unit.top_level.sccp.executable_blocks,
+                registry,
+                &unit.ir_module,
+                &HashSet::<String>::new(),
+                traces,
+            )
+            .iter()
+            .any(|warning| warning.code == DiagCode::T101)
+        };
+        assert!(has_sink(&unit));
+        unit.ir_module.source_metadata_input = None;
+        assert!(!has_sink(&unit), "missing module owner");
+        unit.ir_module.source_metadata_input = Some(input.clone());
+        unit.ir_module.lexer_config.strict_quoting = !input.lexer_config().strict_quoting;
+        assert!(!has_sink(&unit), "stale module lexer");
+        unit.ir_module.lexer_config = input.lexer_config();
+        unit.ir_module.dialect_profile = Some(tcl_dialect::DialectProfile::find("tcl9.1").unwrap());
+        assert!(!has_sink(&unit), "stale module profile");
+        unit.ir_module.dialect_profile = Some(profile);
+        assert!(has_sink(&unit));
+    }
+
+    #[test]
+    fn inline_sanitiser_mitigation_requires_its_retained_implementation() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        for (body, warn) in [
+            ("puts [string length $x]", false),
+            (
+                "rename string saved; proc string args {return [lindex $args end]}; puts [string length $x]",
+                true,
+            ),
+            (
+                "interp alias {} measure {} string length; puts [measure $x]",
+                false,
+            ),
+            (
+                "interp alias {} measure {} string length; rename string saved; proc string args {return [lindex $args end]}; puts [measure $x]",
+                true,
+            ),
+        ] {
+            let source = format!("set x [gets stdin]; {body}");
+            let (_owner, native) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
+            let entry = crate::command_binding::SourceAnalysisEntry {
+                native_entry: Some(std::sync::Arc::new(native)),
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..Default::default()
+            };
+            let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+                &source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                Some(&entry),
+                std::sync::Arc::clone(&current),
+            )
+            .with_interprocedural(registry, Some(profile));
+            let warnings = find_taint_warnings_for_cu(&unit, registry, Some(profile));
+            assert_eq!(
+                warnings
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::T101),
+                warn,
+                "{source}: {warnings:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn explicit_unknown_binding_cannot_recover_a_same_spelled_sink() {
+        let source = "eval $x";
+        let command = crate::segmenter::segment_commands(source).remove(0);
+        let tokens = CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            tcl_lexer::LexerConfig::default(),
+            &command,
+        )
+        .with_source_binding(crate::command_binding::SourceInvocationBinding::unknown());
+        let mut statement = call_stmt("eval", &["$x"]);
+        match &mut statement {
+            Statement::Call { tokens: target, .. } => *target = Some(tokens),
+            _ => panic!("call fixture"),
+        }
+        let warnings = warnings_for_tainted_sink(statement, &[("x", 1)]);
+        assert!(
+            warnings
+                .iter()
+                .all(|warning| warning.sink_command != "eval"),
+            "{warnings:?}"
+        );
+    }
+
+    #[test]
+    fn point_binding_supplies_sink_alias_prefix_once() {
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir(
+            "interp alias {} invoke {} exec safe-program\ninvoke $x",
+            &registry,
+        );
+        let tokens = module
+            .top_level
+            .statements
+            .last()
+            .unwrap()
+            .tokens()
+            .unwrap();
+        let statement = call_stmt("invoke", &["$x"]);
+        let heads = resolve_taint_command_heads("invoke", &statement, Some(tokens), None);
+        assert_eq!(heads.len(), 1);
+        assert_eq!(heads[0].command, "::exec");
+        assert_eq!(
+            heads[0].effective_args(&["$x".into()]),
+            Some(vec!["safe-program".into(), "$x".into()])
+        );
+        let arguments = vec!["safe-program".into(), "$x".into()];
+        let call = SinkCall {
+            source: TaintSourceContext::standalone(&registry, registry.profile()),
+            command: &heads[0].command,
+            args: &arguments,
+            registry: &registry,
+            tokens: Some(tokens),
+            effective: None,
+            source_read: None,
+            argument_offset: 0,
+        };
+        assert_eq!(sink_arg_span(&call, "x", statement.span()), tokens.argv[1]);
+    }
+
     fn simple_sccp(blocks: &[BlockId]) -> SccpResult {
         SccpResult {
+            required_math_invocations: Vec::new(),
+            required_expression_preparations: Vec::new(),
             explanations: Vec::new(),
             route_tally: crate::value_transfer::RouteTally::default(),
             folded_types: HashMap::new(),
@@ -6324,13 +10809,15 @@ mod tests {
         let instance_classes = local_instance_classes(cfg, registry);
         propagate_taints(
             &TaintGraph::new(cfg, ssa, sccp),
-            registry,
-            None,
-            None,
-            None,
-            None,
-            None,
-            &instance_classes,
+            TaintPropagationInputs {
+                registry,
+                rendered_props: None,
+                interproc: None,
+                source: TaintSourceContext::standalone(registry, None),
+                param_taints: None,
+                taint_summaries: None,
+                instance_classes: &instance_classes,
+            },
         )
     }
 
@@ -6343,15 +10830,85 @@ mod tests {
     }
 
     #[test]
+    fn version_zero_seed_provenance_does_not_use_display_name() {
+        let cfg = crate::cfg::Function::new("::top", "entry");
+        let mut ssa = SsaFunction::trivial("::top", cfg.entry, cfg.block_names().to_vec());
+        let symbol = ssa.intern_var("::formal");
+        let uses = HashMap::from([(symbol, 0)]);
+        let global_seed = HashMap::from([((symbol, 0), TaintLattice::conservative_global_seed())]);
+        let formal_entry = HashMap::from([((symbol, 0), TaintLattice::tainted())]);
+        assert!(!join_uses(&uses, &global_seed).is_tainted());
+        assert!(join_uses(&uses, &formal_entry).is_tainted());
+        assert!(global_seed[&(symbol, 0)].is_conservative_global_seed_only());
+        assert!(
+            !global_seed[&(symbol, 0)]
+                .join(TaintLattice::tainted())
+                .is_conservative_global_seed_only()
+        );
+    }
+
+    #[test]
+    fn source_formal_seed_requires_the_matching_retained_body() {
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            "proc run {formal} {set local $formal}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let function = unit.procedures.values().next().unwrap();
+        let source = TaintSourceContext::for_module_function(registry, &unit.ir_module, function);
+        let formal = function.ssa.var_symbol("formal").unwrap();
+        let local = function.ssa.var_symbol("local").unwrap();
+        assert!(is_actual_formal_entry(
+            &function.ssa,
+            formal,
+            "formal",
+            source
+        ));
+        assert!(!is_actual_formal_entry(
+            &function.ssa,
+            local,
+            "local",
+            source
+        ));
+        let foreign_body =
+            TaintSourceContext::for_module_function(registry, &unit.ir_module, &unit.top_level);
+        assert!(!is_actual_formal_entry(
+            &function.ssa,
+            formal,
+            "formal",
+            foreign_body
+        ));
+    }
+
+    #[test]
     fn join_propagates_taint_intersects_mitigations() {
         // Two TAINTED operands: taint unions, mitigations are must-have so only
         // the colour present on both survives the intersection.
-        let a = TaintLattice {
-            colours: TaintColour::TAINTED | TaintColour::CRLF_FREE | TaintColour::PATH_PREFIXED,
-        };
-        let b = TaintLattice {
-            colours: TaintColour::TAINTED | TaintColour::CRLF_FREE | TaintColour::NON_DASH_PREFIXED,
-        };
+        let a = TaintLattice::from_colours(
+            TaintColour::TAINTED | TaintColour::CRLF_FREE | TaintColour::PATH_PREFIXED,
+        );
+        let b = TaintLattice::from_colours(
+            TaintColour::TAINTED | TaintColour::CRLF_FREE | TaintColour::NON_DASH_PREFIXED,
+        );
         let j = a.join(b);
         assert!(j.colours.contains(TaintColour::TAINTED));
         assert!(j.colours.contains(TaintColour::CRLF_FREE));
@@ -6365,17 +10922,13 @@ mod tests {
         // taint, so it must not dilute the tainted operand's mitigation
         // colours: joining with the annihilating empty set would strip
         // PATH_PREFIXED.
-        let tainted = TaintLattice {
-            colours: TaintColour::TAINTED | TaintColour::PATH_PREFIXED,
-        };
+        let tainted = TaintLattice::from_colours(TaintColour::TAINTED | TaintColour::PATH_PREFIXED);
         assert_eq!(tainted.join(TaintLattice::clean()).colours, tainted.colours);
         assert_eq!(TaintLattice::clean().join(tainted).colours, tainted.colours);
         // An untainted operand that happens to carry colours is still the
         // identity — its taint contribution is nil, so it cannot remove a
         // mitigation from the tainted side.
-        let untainted_coloured = TaintLattice {
-            colours: TaintColour::CRLF_FREE,
-        };
+        let untainted_coloured = TaintLattice::from_colours(TaintColour::CRLF_FREE);
         assert_eq!(tainted.join(untainted_coloured).colours, tainted.colours);
     }
 
@@ -6443,11 +10996,14 @@ mod tests {
             ssa: &ssa,
             interproc: None,
             known_procs: None,
-            caller_qname: None,
             dialect: None,
+            source: TaintSourceContext::standalone(&registry, None),
             taint_summaries: None,
             instance_classes: None,
             source_position: None,
+            source_tokens: None,
+            word_offset: None,
+            source_word: None,
         };
 
         // Tier 1B: nested `[a [a [a … x]]]` command-substitution text.
@@ -6466,6 +11022,70 @@ mod tests {
             };
         }
         let _ = expr_command_taint(&node, &uses, &taints, ctx, 0);
+    }
+
+    #[test]
+    fn raw_coercion_references_use_current_grammar_and_keep_empty_name_data() {
+        for label in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(label).commands();
+            let source = TaintSourceContext::standalone(registry, registry.profile());
+            let grammar = source
+                .config
+                .grammar_over(registry.profile().unwrap().grammar);
+            for (text, name) in [
+                ("${$literal}", "$literal"),
+                ("${}", ""),
+                ("$arr(key)", "arr"),
+            ] {
+                let names = HashSet::from([name.to_owned()]);
+                assert!(holds_one_whole_var_ref(text, &names, source.config));
+                assert!(!holds_one_whole_var_ref(
+                    text,
+                    &HashSet::from(["donated".to_owned()]),
+                    source.config
+                ));
+                let mut hits = Vec::new();
+                collect_coercion_operands(
+                    &ExprNode::Raw {
+                        text: text.to_owned(),
+                    },
+                    false,
+                    &mut hits,
+                    0,
+                    (source.config, grammar),
+                );
+                assert!(hits.is_empty(), "{label}: {text}");
+            }
+            let names = HashSet::from(["a{b}c".to_owned()]);
+            assert_eq!(
+                holds_one_whole_var_ref("${a{b}c}", &names, source.config),
+                label == "tcl9.1"
+            );
+            for text in ["prefix$x", "$x + 1", "${x", r"\$x", "${x\0tail}"] {
+                assert!(!holds_one_whole_var_ref(
+                    text,
+                    &HashSet::from(["x".to_owned()]),
+                    source.config
+                ));
+            }
+            let mut hits = Vec::new();
+            collect_coercion_operands(
+                &ExprNode::Var {
+                    text: "${}".into(),
+                    name: String::new(),
+                    start: 0,
+                    end: 2,
+                },
+                true,
+                &mut hits,
+                0,
+                (source.config, grammar),
+            );
+            assert_eq!(hits.len(), 1);
+            assert!(hits[0].name.is_empty());
+            assert!(hits[0].variable.is_some());
+            assert_eq!(hits[0].rel_span, Some((0, 3)));
+        }
     }
 
     /// `extract_guard_var` and `collect_coercion_operands` each recurse once
@@ -6494,7 +11114,10 @@ mod tests {
             true,
             &mut out,
             0,
-            tcl_dialect::LexerGrammar::default(),
+            (
+                tcl_lexer::LexerConfig::default(),
+                tcl_dialect::LexerGrammar::default(),
+            ),
         );
     }
 
@@ -6523,6 +11146,8 @@ mod tests {
             .statements
             .push(stmt.clone());
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -6595,6 +11220,8 @@ mod tests {
             .statements
             .push(eval_call.clone());
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -6662,6 +11289,8 @@ mod tests {
             b.statements.push(assign.clone());
             b.statements.push(sink.clone());
             b.terminator = Some(Terminator::Return {
+                expr_base: None,
+                tokens: None,
                 value: None,
                 value_word: None,
                 span: None,
@@ -6790,8 +11419,70 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
+        }
+    }
+
+    #[test]
+    fn destruction_versions_preserve_predecessor_taint_without_sanitising() {
+        use crate::cfg::Function;
+        use crate::ssa::{SsaBlock, SsaFunction};
+        let registry = CommandRegistry::build_default();
+        let cfg = Function::new("::top", "entry");
+        let mut ssa = SsaFunction::trivial("::top", cfg.entry, cfg.block_names().to_vec());
+        let symbol = ssa.intern_var("payload");
+        let ctx = TaintCtx {
+            registry: &registry,
+            ssa: &ssa,
+            interproc: None,
+            known_procs: None,
+            dialect: None,
+            source: TaintSourceContext::standalone(&registry, None),
+            taint_summaries: None,
+            instance_classes: None,
+            source_position: None,
+            source_tokens: None,
+            word_offset: None,
+            source_word: None,
+        };
+        for conditional in [false, true] {
+            for predecessor in [
+                TaintLattice::clean(),
+                TaintLattice::tainted(),
+                TaintLattice::tainted().with(TaintColour::CRLF_FREE),
+            ] {
+                let mut statement = ssa_stmt(
+                    call_stmt("unset", &["payload"]),
+                    HashMap::from([(symbol, 1)]),
+                    HashMap::from([(symbol, 2)]),
+                );
+                statement.destruction_defs.insert(symbol);
+                if conditional {
+                    statement.may_defs.insert(symbol);
+                }
+                let block = SsaBlock {
+                    name: "entry".into(),
+                    phis: Vec::new(),
+                    statements: vec![statement],
+                    entry_versions: HashMap::new(),
+                    exit_versions: HashMap::new(),
+                };
+                let mut taints = HashMap::from([((symbol, 1), predecessor)]);
+                propagate_statement_taints(&mut taints, cfg.entry, &block, ctx, &ssa, None);
+                assert_eq!(
+                    taints[&(symbol, 2)],
+                    predecessor,
+                    "conditional={conditional}: unset supplies neither cleaning nor new mitigation"
+                );
+                let uses = HashMap::from([(symbol, 2)]);
+                assert_eq!(
+                    word_taint("$payload", &uses, &taints, ctx),
+                    predecessor,
+                    "the downstream script operand keeps its possible predecessor influence"
+                );
+            }
         }
     }
 
@@ -6835,6 +11526,8 @@ mod tests {
             b.statements.push(s1.clone());
             b.statements.push(s2.clone());
             b.terminator = Some(Terminator::Return {
+                expr_base: None,
+                tokens: None,
                 value: None,
                 value_word: None,
                 span: None,
@@ -6914,6 +11607,8 @@ mod tests {
                 b.statements.push(s.statement.clone());
             }
             b.terminator = Some(Terminator::Return {
+                expr_base: None,
+                tokens: None,
                 value: None,
                 value_word: None,
                 span: None,
@@ -6967,6 +11662,7 @@ mod tests {
                 uses: [(ssa.intern_var("p"), 1u32)].into_iter().collect(),
                 defs: HashMap::new(),
                 may_defs: std::collections::HashSet::new(),
+                destruction_defs: std::collections::HashSet::new(),
                 quoted_uses: std::collections::HashSet::new(),
                 name_only_uses: std::collections::HashSet::new(),
             }]
@@ -7007,6 +11703,7 @@ mod tests {
                 uses: [(p, 1u32)].into_iter().collect(),
                 defs: HashMap::new(),
                 may_defs: std::collections::HashSet::new(),
+                destruction_defs: std::collections::HashSet::new(),
                 quoted_uses: std::collections::HashSet::new(),
                 name_only_uses: std::collections::HashSet::new(),
             };
@@ -7032,19 +11729,57 @@ mod tests {
     fn w313_silent_for_literal_path() {
         use crate::ssa::SsaStatement;
         // `file delete /tmp/foo` has no variable path argument.
-        assert!(
+        assert_eq!(
             w313_warnings(|_ssa| {
                 vec![SsaStatement {
                     statement: file_call(&["delete", "/tmp/foo"]),
                     uses: HashMap::new(),
                     defs: HashMap::new(),
                     may_defs: std::collections::HashSet::new(),
+                    destruction_defs: std::collections::HashSet::new(),
                     quoted_uses: std::collections::HashSet::new(),
                     name_only_uses: std::collections::HashSet::new(),
                 }]
             })
-            .is_empty()
+            .len(),
+            0
         );
+    }
+
+    #[test]
+    fn standalone_guard_names_follow_original_operand_kind_and_supplied_config() {
+        for label in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(label).commands();
+            let config = TaintSourceContext::standalone(registry, registry.profile()).config;
+            for (source, expected) in [
+                ("[string match SAFE ${$literal}]", Some("$literal")),
+                ("[string match SAFE ${}]", Some("")),
+                ("[string match SAFE {$literal}]", None),
+                ("[string match SAFE {${literal}}]", None),
+                (
+                    "[string first SAFE ${qualified::literal}]",
+                    Some("qualified::literal"),
+                ),
+                ("[string first SAFE $arr(key)]", None),
+                ("[string equal SAFE ${arr(key)}]", None),
+                ("[string equal SAFE prefix$x]", None),
+                ("[string match SAFE {*}$x]", None),
+            ] {
+                assert_eq!(
+                    guard_var_from_string_command(source, config).as_deref(),
+                    expected,
+                    "{label}: {source}"
+                );
+            }
+            assert_eq!(
+                guard_var_from_string_command("[string match SAFE ${a{b}c}]", config).as_deref(),
+                if label == "tcl9.1" {
+                    Some("a{b}c")
+                } else {
+                    None
+                }
+            );
+        }
     }
 
     #[test]
@@ -7056,8 +11791,14 @@ mod tests {
         assert!(
             arg_var_names("${dir}/$file", tcl_dialect::BracedVarStyle::default()).contains("file")
         );
-        assert_eq!(extract_var_name("$p").as_deref(), Some("p"));
-        assert_eq!(extract_var_name("${p}").as_deref(), Some("p"));
+        assert_eq!(
+            extract_var_name("$p", tcl_lexer::LexerConfig::default()).as_deref(),
+            Some("p")
+        );
+        assert_eq!(
+            extract_var_name("${p}", tcl_lexer::LexerConfig::default()).as_deref(),
+            Some("p")
+        );
         assert_eq!(
             guard_var_from_string_command(
                 "[string match \"$base/*\" $p]",
@@ -7088,8 +11829,14 @@ mod tests {
             vec![(DiagCode::T105, "interp eval".to_owned())]
         );
         // A non-eval interp subcommand and a plain command map to nothing.
-        assert!(classify_network_interp_sinks(&reg, "interp", &["share".into()]).is_empty());
-        assert!(classify_network_interp_sinks(&reg, "puts", &["hi".into()]).is_empty());
+        assert_eq!(
+            classify_network_interp_sinks(&reg, "interp", &["share".into()]).len(),
+            0
+        );
+        assert_eq!(
+            classify_network_interp_sinks(&reg, "puts", &["hi".into()]).len(),
+            0
+        );
     }
 
     #[test]
@@ -7115,6 +11862,8 @@ mod tests {
             .statements
             .push(stmt.clone());
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -7188,6 +11937,8 @@ mod tests {
             .statements
             .push(regexp_call.clone());
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -7283,6 +12034,8 @@ mod tests {
             .statements
             .push(regexp_call.clone());
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -7330,8 +12083,9 @@ mod tests {
             .iter()
             .filter(|w| w.code == DiagCode::T102)
             .collect();
-        assert!(
-            t102.is_empty(),
+        assert_eq!(
+            t102.len(),
+            0,
             "expected no T102 when '--' terminator present, got {t102:?}"
         );
     }
@@ -7360,23 +12114,20 @@ mod tests {
         );
     }
 
-    /// iRules-dialect: `HTTP::uri` is a taint source when dialect is
-    /// enabled, and clean when it is not.
+    /// Actual F5 getter properties survive an optional diagnostic dialect
+    /// filter; an unloaded catalogue spelling supplies no security properties.
     #[test]
     fn irules_http_uri_is_a_dialect_agnostic_source() {
         use crate::compilation_unit::CompilationUnit;
 
-        let registry = CommandRegistry::build_default();
-
-        // `TAINT_HINTS` is an import-time global, so `HTTP::uri`
-        // is a taint source in *every* dialect — including a `tcl8.6`
-        // document whose registry never loaded the iRules commands. (The
-        // analyser taints `u` here; only the separate W002
-        // "disabled command" check is dialect-gated.) The getter form
-        // carries the path-prefixed, option-injection-safe colours.
-        for dialect in [None, Some(tcl_dialect::DialectProfile::irules())] {
-            let cu = CompilationUnit::build_for("set u [HTTP::uri]", &registry, false)
-                .with_interprocedural(&registry, dialect);
+        let profile = tcl_dialect::DialectProfile::irules();
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        let registry = registry.project_for_profile(profile);
+        for dialect in [None, Some(profile)] {
+            let cu =
+                CompilationUnit::build_for_profile("set u [HTTP::uri]", &registry, false, profile)
+                    .with_interprocedural(&registry, dialect);
             let fu = cu.function("::top").unwrap();
             let u = fu
                 .taints
@@ -7392,6 +12143,15 @@ mod tests {
                 "HTTP::uri getter should carry PATH_PREFIXED (dialect={dialect:?})",
             );
         }
+        let plain = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for("set u [HTTP::uri]", &plain, false);
+        assert!(
+            unit.top_level
+                .taints
+                .values()
+                .all(|taint| { !taint.colours.contains(TaintColour::PATH_PREFIXED) }),
+            "an unloaded F5 name must not donate getter safety properties"
+        );
     }
 
     /// Inter-procedural: `proc id {x} { return $x }` + tainted actual
@@ -7480,8 +12240,10 @@ mod tests {
         // prefix-aware sink classification.
         let mut registry = CommandRegistry::build_default();
         registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
-        let cu = CompilationUnit::build_for(source, &registry, false)
-            .with_interprocedural(&registry, Some(tcl_dialect::DialectProfile::irules()));
+        let profile = tcl_dialect::DialectProfile::irules();
+        let registry = registry.project_for_profile(profile);
+        let cu = CompilationUnit::build_for_profile(source, &registry, false, profile)
+            .with_interprocedural(&registry, Some(profile));
         let mut out: Vec<TaintWarning> = Vec::new();
         for fu in cu.analysable_functions() {
             out.extend(find_taint_warnings(
@@ -8145,9 +12907,115 @@ mod tests {
     }
 
     #[test]
+    fn original_scalar_reference_consumers_keep_literal_words_and_current_closers() {
+        for label in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(label).commands();
+            let config = TaintSourceContext::standalone(registry, registry.profile()).config;
+            for (spelling, expected) in [
+                ("${$literal}", Some("$literal")),
+                ("${}", Some("")),
+                ("{$literal}", None),
+                ("{${literal}}", None),
+                ("$arr(key)", None),
+                ("${arr(key)}", None),
+                ("prefix$x", None),
+                (r"\$x", None),
+            ] {
+                let word = crate::value_shapes::value_word_with_config(spelling, config).unwrap();
+                assert_eq!(
+                    original_scalar_reference_name(&word, config),
+                    expected,
+                    "{label}: {spelling}"
+                );
+            }
+            let cfg = crate::cfg::Function::new("model", "entry");
+            let mut ssa = SsaFunction::trivial("model", cfg.entry, cfg.block_names().to_vec());
+            let symbol = ssa.intern_var("$literal");
+            let statement = ssa_stmt(
+                Statement::Incr {
+                    span: Span::new(0, 0),
+                    name: "$literal".into(),
+                    name_braced: true,
+                    amount: None,
+                    amount_braced: false,
+                    safe_on_uninit: false,
+                },
+                HashMap::from([(symbol, 1)]),
+                HashMap::new(),
+            );
+            let taints = HashMap::from([((symbol, 1), TaintLattice::tainted())]);
+            for (spelling, expected) in [("${$literal}", 1), ("{$literal}", 0)] {
+                let word = crate::value_shapes::value_word_with_config(spelling, config).unwrap();
+                let mut warnings = Vec::new();
+                emit_dynamic_command_head_warning(
+                    Some((&word, config)),
+                    &statement,
+                    &taints,
+                    &mut warnings,
+                    &ssa,
+                );
+                assert_eq!(warnings.len(), expected, "{label}: {spelling}");
+                if let Some(warning) = warnings.first() {
+                    assert_eq!(warning.variable, "$literal");
+                }
+            }
+            let mut warnings = Vec::new();
+            emit_dynamic_command_head_warning(None, &statement, &taints, &mut warnings, &ssa);
+            assert!(warnings.is_empty());
+            let word = crate::value_shapes::value_word_with_config("${a{b}c}", config).unwrap();
+            assert_eq!(
+                original_scalar_reference_name(&word, config),
+                if label == "tcl9.1" {
+                    Some("a{b}c")
+                } else {
+                    None
+                }
+            );
+        }
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let config = TaintSourceContext::standalone(registry, registry.profile()).config;
+        let lat = TaintLattice::tainted().with(TaintColour::HEADER_TOKEN_SAFE);
+        for (spelling, name, expected) in [
+            ("${$literal}", "$literal", true),
+            ("${}", "", true),
+            ("{$literal}", "literal", false),
+        ] {
+            let args = vec![
+                "insert".to_owned(),
+                spelling.to_owned(),
+                "$value".to_owned(),
+            ];
+            let word = crate::value_shapes::value_word_with_config(spelling, config).unwrap();
+            assert_eq!(
+                irule3002_name_position_safe(
+                    registry,
+                    "HTTP::header",
+                    &args,
+                    name,
+                    lat,
+                    Some(&word),
+                    config
+                ),
+                expected
+            );
+            assert!(!irule3002_name_position_safe(
+                registry,
+                "HTTP::header",
+                &args,
+                name,
+                lat,
+                None,
+                config
+            ));
+        }
+    }
+
+    #[test]
     fn irule3002_header_token_safe_name_position_suppresses() {
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let args = vec!["insert".to_owned(), "$name".to_owned(), "$value".to_owned()];
+        let config = TaintSourceContext::standalone(registry, registry.profile()).config;
+        let name_word = crate::value_shapes::value_word_with_config(&args[1], config).unwrap();
         let lat = TaintLattice::tainted().with(TaintColour::HEADER_TOKEN_SAFE);
         // Var `name` occupies arg-index 1 (name position) → suppressed.
         assert!(irule3002_name_position_safe(
@@ -8155,7 +13023,9 @@ mod tests {
             "HTTP::header",
             &args,
             "name",
-            lat
+            lat,
+            Some(&name_word),
+            config,
         ));
         // Var `value` occupies arg-index 2 (value position) → not suppressed.
         assert!(!irule3002_name_position_safe(
@@ -8163,7 +13033,9 @@ mod tests {
             "HTTP::header",
             &args,
             "value",
-            lat
+            lat,
+            Some(&name_word),
+            config,
         ));
         // Without HEADER_TOKEN_SAFE colour: never suppressed, even at name position.
         let plain = TaintLattice::tainted();
@@ -8172,7 +13044,9 @@ mod tests {
             "HTTP::header",
             &args,
             "name",
-            plain
+            plain,
+            Some(&name_word),
+            config,
         ));
         // Wrong subcommand: not suppressed.
         let rm_args = vec!["remove".to_owned(), "$name".to_owned()];
@@ -8181,7 +13055,9 @@ mod tests {
             "HTTP::header",
             &rm_args,
             "name",
-            lat
+            lat,
+            Some(&name_word),
+            config,
         ));
     }
 
@@ -8233,7 +13109,7 @@ mod tests {
     #[test]
     fn irule3101_literal_with_slash_clean() {
         let w = setter_warnings_for("HTTP::uri /foo");
-        assert!(w.is_empty(), "literal /foo must be clean, got {w:?}");
+        assert_eq!(w.len(), 0, "literal /foo must be clean, got {w:?}");
     }
 
     #[test]
@@ -8242,7 +13118,7 @@ mod tests {
         assert_eq!(bad.len(), 1);
         assert_eq!(bad[0].code, DiagCode::Irule3101);
         let good = setter_warnings_for("HTTP::path /bar");
-        assert!(good.is_empty());
+        assert_eq!(good.len(), 0);
     }
 
     #[test]
@@ -8305,8 +13181,9 @@ mod tests {
         assert_eq!(under_irules[0].code, DiagCode::Irule3101);
 
         let under_none = setter_warnings_for_dialect("HTTP::uri foo", None);
-        assert!(
-            under_none.is_empty(),
+        assert_eq!(
+            under_none.len(),
+            0,
             "no IRULE3101 under None dialect, got {under_none:?}"
         );
 
@@ -8314,8 +13191,9 @@ mod tests {
             "HTTP::uri foo",
             Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
         );
-        assert!(
-            under_tcl.is_empty(),
+        assert_eq!(
+            under_tcl.len(),
+            0,
             "no IRULE3101 under tcl dialect, got {under_tcl:?}"
         );
     }
@@ -8438,16 +13316,121 @@ mod tests {
         );
     }
 
+    /// The fixture driver supplies Tk 8.6.13 before analysing registrations.
+    /// Its `tkWindow.c` entry/bind rows use `Tcl_CreateObjCommand`; neither
+    /// installs a compiler hook. This is actual loader provenance, separately
+    /// from the callback metadata queried by taint analysis.
+    fn loaded_tk_callback_unit(
+        source: &str,
+    ) -> (crate::compilation_unit::CompilationUnit, CommandRegistry) {
+        let registry = CommandRegistry::build_default().project_for_profile(
+            tcl_dialect::DialectProfile::find("tcl8.6").expect("selected native profile"),
+        );
+        let mut entry =
+            crate::provider_fixtures::entry(&registry, &[crate::provider_fixtures::Provider::Tk])
+                .as_ref()
+                .clone();
+        let loader = entry
+            .trusted_package_loaders
+            .first_mut()
+            .expect("Tk provider");
+        for command in ["entry", "bind"] {
+            loader.compiler_hooks.insert(
+                command.to_owned(),
+                tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent,
+            );
+        }
+        let source = format!("package require Tk\n{source}");
+        let unit = crate::compilation_unit::CompilationUnit::build_with_source_entry(
+            &source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: &registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
+                dialect: registry.profile(),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &entry,
+        )
+        .with_interprocedural(&registry, None);
+        (unit, registry)
+    }
+
+    #[test]
+    fn command_substitution_callbacks_stop_before_replay_when_original_owner_is_refused() {
+        // naming.source.retained-positioned-command-realm
+
+        // The loaded fixture supplies Tk provenance. These are compiler replay
+        // controls, not claims about executing an external Tk event.
+        let (unit, registry) = loaded_tk_callback_unit(
+            "proc helper {value} {eval $value}\nentry .entry -validatecommand [list helper %P]",
+        );
+        reset_callback_replay_build_count();
+        reset_callback_replay_name_search_count();
+        let positive = find_callback_substitution_warnings(&unit, &registry, None, &[]);
+        assert!(
+            positive
+                .iter()
+                .any(|warning| warning.code == DiagCode::T100),
+            "the owned list-prefix callback remains replayable: {positive:?}"
+        );
+        assert_eq!(callback_replay_build_count(), 1);
+        assert_eq!(callback_replay_name_search_count(), 1);
+        let mut missing = unit.clone();
+        missing.ir_module.retained_source_bindings = None;
+        let mut changed = unit.clone();
+        changed.ir_module.source =
+            tcl_lexer::SourceImage::document("entry .entry -validatecommand {};");
+        for refused in [missing, changed] {
+            reset_callback_replay_build_count();
+            reset_callback_replay_name_search_count();
+            assert!(find_callback_substitution_warnings(&refused, &registry, None, &[]).is_empty());
+            assert_eq!(callback_replay_build_count(), 0);
+            assert_eq!(callback_replay_name_search_count(), 0);
+        }
+    }
+
+    #[test]
+    fn callback_list_replay_uses_the_selected_captured_builder_prefix() {
+        let source = "interp alias {} mylist {} list helper\n\
+                      proc helper {value} {eval $value}\n\
+                      entry .entry -validatecommand [mylist %P]";
+        let (unit, registry) = loaded_tk_callback_unit(source);
+        let warnings = find_callback_substitution_warnings(&unit, &registry, None, &[]);
+        assert!(
+            warnings.iter().any(|warning| {
+                warning.code == DiagCode::T100
+                    && warning.sink_command == "eval"
+                    && warning.variable == "%P"
+            }),
+            "the selected effective list result retains its captured `helper` prefix: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn callback_list_replay_uses_the_selected_static_expansion_owner() {
+        let source = "interp alias {} mylist {} list helper\n\
+                      proc helper {value} {eval $value}\n\
+                      entry .entry -validatecommand [mylist {*}{%P}]";
+        let (unit, registry) = loaded_tk_callback_unit(source);
+        let warnings = find_callback_substitution_warnings(&unit, &registry, None, &[]);
+        assert!(
+            warnings.iter().any(|warning| {
+                warning.code == DiagCode::T100
+                    && warning.sink_command == "eval"
+                    && warning.variable == "%P"
+            }),
+            "the retained KnownExpansion operand preserves the selected list result: {warnings:?}"
+        );
+    }
+
     #[test]
     fn callback_replays_batch_into_one_extra_interprocedural_build() {
-        use crate::compilation_unit::CompilationUnit;
-
-        let registry = CommandRegistry::build_default();
         let source = "entry .one -validatecommand {eval %P}\n\
                       entry .two -validatecommand {eval %S}\n\
                       bind .two <Key> {eval %A}";
-        let cu = CompilationUnit::build_for(source, &registry, false)
-            .with_interprocedural(&registry, None);
+        let (cu, registry) = loaded_tk_callback_unit(source);
         reset_callback_replay_build_count();
         let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
         assert_eq!(
@@ -8464,7 +13447,6 @@ mod tests {
 
     #[test]
     fn callback_replay_batches_past_the_first_batch_without_truncating_later_sinks() {
-        use crate::compilation_unit::CompilationUnit;
         use std::fmt::Write as _;
 
         let mut source = String::new();
@@ -8476,16 +13458,14 @@ mod tests {
             .expect("write to String");
         }
         source.push_str("entry .malicious -validatecommand {eval %P}");
+        let (cu, registry) = loaded_tk_callback_unit(&source);
         let malicious_start = u32::try_from(
-            source
+            cu.source
                 .rfind("{eval %P}")
                 .expect("malicious callback is present"),
         )
         .expect("test source fits in u32");
 
-        let registry = CommandRegistry::build_default();
-        let cu = CompilationUnit::build_for(&source, &registry, false)
-            .with_interprocedural(&registry, None);
         reset_callback_replay_build_count();
         let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
 
@@ -8500,6 +13480,19 @@ mod tests {
             }),
             "the callback after 32 benign registrations must still warn: {warnings:?}"
         );
+    }
+
+    #[test]
+    fn unprovided_tk_callbacks_do_not_gain_replay_authority_from_catalogue() {
+        let registry = CommandRegistry::build_default().project_for_profile(
+            tcl_dialect::DialectProfile::find("tcl8.6").expect("selected native profile"),
+        );
+        let source = "package require Tk; entry .one -validatecommand {eval %P}";
+        let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        reset_callback_replay_build_count();
+        let _ = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert_eq!(callback_replay_build_count(), 0);
     }
 
     #[test]
@@ -8555,9 +13548,7 @@ mod tests {
         }
         source.push_str("entry .entry -validatecommand {eval %P}");
 
-        let registry = CommandRegistry::build_default();
-        let cu = crate::compilation_unit::CompilationUnit::build_for(&source, &registry, false)
-            .with_interprocedural(&registry, None);
+        let (cu, registry) = loaded_tk_callback_unit(&source);
         reset_callback_replay_build_count();
         reset_callback_replay_name_search_count();
         let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
@@ -8825,8 +13816,8 @@ mod tests {
         // `if {...} { puts big }` statement (which also spans the body).
         let text = &source[hit.span.start() as usize..hit.span.end() as usize];
         assert!(
-            text.contains("$x + 1 > 5") && !text.contains("puts"),
-            "expected a condition-only span, got {text:?}",
+            text == "$x",
+            "expected the exact coercing variable reference, got {text:?}",
         );
     }
 
@@ -8910,12 +13901,12 @@ mod tests {
 
     fn switch_integer_t100s(release: &str, body: &str) -> Vec<TaintWarning> {
         use crate::compilation_unit::CompilationUnit;
-        let registry = CommandRegistry::build_default();
+        let registry = tcl_registry::model::ingress::static_context_for(release).commands();
         let profile = tcl_dialect::DialectProfile::find(release).expect("catalogue profile");
         let source = format!("proc f {{}} {{\n  set cmd [gets stdin]\n  set ok 5\n  {body}\n}}\n");
-        let cu = CompilationUnit::build_for(&source, &registry, false)
-            .with_interprocedural(&registry, Some(profile));
-        find_taint_warnings_for_cu(&cu, &registry, Some(profile))
+        let cu = CompilationUnit::build_for_profile(&source, registry, false, profile)
+            .with_interprocedural(registry, Some(profile));
+        find_taint_warnings_for_cu(&cu, registry, Some(profile))
             .into_iter()
             .filter(|w| w.code == DiagCode::T100)
             .collect()
@@ -8986,7 +13977,7 @@ mod tests {
             ),
         ] {
             let hits = switch_integer_t100s(release, call);
-            assert!(hits.is_empty(), "{release} `{call}`: {hits:?}");
+            assert_eq!(hits.len(), 0, "{release} `{call}`: {hits:?}");
         }
     }
 
@@ -9233,6 +14224,72 @@ mod tests {
         );
     }
 
+    #[test]
+    fn native_source_option_warnings_keep_original_schema_and_terminator() {
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        for (command, expected) in [
+            ("exec $value", true),
+            ("exec -- $value", false),
+            ("exec {$value}", false),
+            ("exec {*}$value", false),
+        ] {
+            let source = format!("proc run {{value}} {{{command}}}");
+            let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                &source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            )
+            .with_interprocedural(registry, Some(profile));
+            assert!(unit.ir_module.source_entry.native_entry.is_none());
+            assert_eq!(
+                unit.ir_module.original_native_declaration_body_units.len(),
+                1
+            );
+            let warnings = find_taint_warnings_for_cu(&unit, registry, Some(profile));
+            assert_eq!(
+                warnings.iter().any(|warning| warning.code == DiagCode::T102
+                    && warning.variable == "value"
+                    && warning.sink_command == "exec"),
+                expected,
+                "{command}: {warnings:?}"
+            );
+            if expected {
+                let mut missing = unit.clone();
+                missing.ir_module.retained_source_bindings = None;
+                assert!(
+                    find_taint_warnings_for_cu(&missing, registry, Some(profile))
+                        .iter()
+                        .all(|warning| warning.code != DiagCode::T102)
+                );
+                let foreign = crate::environment_ingress::resolve_environment("tcl9.0")
+                    .default_context_registry();
+                assert!(
+                    find_taint_warnings_for_cu(&unit, foreign.commands(), Some(profile))
+                        .iter()
+                        .all(|warning| warning.code != DiagCode::T102)
+                );
+            }
+        }
+    }
+
     /// The `${…}` closer comes from the shared owner, so the name taint is
     /// keyed on is the one the lexer spanned.
     ///
@@ -9242,6 +14299,116 @@ mod tests {
     /// it (T1xx, W313) go quiet on a flow they should flag:
     /// `set {a{b}c} 7; subst {${a{b}c}}` is `7` on tclsh 9.0.4 and
     /// `can't read "a{b"` on 8.6.16.
+    #[test]
+    fn original_argument_candidates_use_full_source_config_and_nested_index_inventory() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        let registry = context.commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(
+            "puts [list exec $arr($index) ${a{b}c} $tail $tail]",
+            registry,
+            false,
+        );
+        let tokens = unit.ir_module.top_level.statements[0].tokens().unwrap();
+        let source =
+            TaintSourceContext::for_module_function(registry, &unit.ir_module, &unit.top_level);
+        assert_eq!(source.config, unit.ir_module.lexer_config);
+        let names = arg_var_names_with_config(&tokens.argv_texts[1], source.config);
+        assert!(!names.has_unknown_residual());
+        assert_eq!(names.names(), ["arr", "index", "a{b}c", "tail", "tail"]);
+    }
+
+    #[test]
+    fn standalone_list_wrapper_uses_original_grouped_head_values_and_exact_extent() {
+        let registry = CommandRegistry::build_default();
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let dialect = registry
+            .profile()
+            .map(tcl_registry::InvocationDialect::of_profile);
+        for original in [
+            "[list puts $value]",
+            "[list {puts} $value]",
+            "[::list \"puts\" $value]",
+        ] {
+            assert_eq!(
+                standalone_list_wrapper_head(original, &registry, config, dialect).as_deref(),
+                Some("puts")
+            );
+        }
+        for original in [
+            "[list $command $value]",
+            "[list {$command} $value]",
+            "[list {} $value]",
+            "[list {*}{puts value}]",
+            "[list puts $value; list puts $value]",
+            "[list puts $value]suffix",
+            "[list puts $value]; missing",
+            "[list puts $value",
+            "[string cat puts $value]",
+        ] {
+            assert!(
+                standalone_list_wrapper_head(original, &registry, config, dialect).is_none(),
+                "{original}"
+            );
+        }
+        let args = vec!["[list {puts} $value]".to_owned()];
+        let call = SinkCall {
+            source: TaintSourceContext::standalone(&registry, registry.profile()),
+            command: "eval",
+            args: &args,
+            registry: &registry,
+            tokens: None,
+            effective: None,
+            source_read: None,
+            argument_offset: 0,
+        };
+        assert!(list_wrapped_arg_command_is_literal(&call, "value"));
+        let mut unavailable = call;
+        unavailable.source = TaintSourceContext::for_input(&registry, None, config);
+        assert!(!list_wrapped_arg_command_is_literal(&unavailable, "value"));
+    }
+
+    #[test]
+    fn unavailable_argument_inventory_keeps_known_reads_and_refuses_mitigations() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(
+            "set value SAFE; puts {[missing $value}",
+            registry,
+            false,
+        );
+        let source =
+            TaintSourceContext::for_module_function(registry, &unit.ir_module, &unit.top_level);
+        let tokens = unit
+            .ir_module
+            .top_level
+            .statements
+            .last()
+            .unwrap()
+            .tokens()
+            .unwrap();
+        let args = tokens.argv_texts[1..].to_vec();
+        let call = SinkCall {
+            source,
+            command: "puts",
+            args: &args,
+            registry,
+            tokens: Some(tokens),
+            effective: None,
+            source_read: None,
+            argument_offset: 0,
+        };
+        assert!(arg_var_names_with_config(&args[0], source.config).has_unknown_residual());
+        assert!(
+            all_argument_candidates(&args[0], source.config, &unit.top_level.ssa)
+                .iter()
+                .any(|name| name == "value")
+        );
+        assert!(!var_consumed_by_sanitiser(&call, "value"));
+        assert!(!list_wrapped_arg_command_is_literal(&call, "value"));
+        assert!(!sink_var_position_safe(&call, DiagCode::T100, "value"));
+        assert!(var_wrapper_colours(registry, source, &args, "value", Some(tokens), 0).is_none());
+    }
+
     #[test]
     fn arg_var_names_follows_the_release_close_rule() {
         use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
@@ -9261,13 +14428,7 @@ mod tests {
         );
     }
 
-    /// `arg_var_names` vs. `crate::var_refs::vars_in_word` on the tricky
-    /// shapes the centralisation question
-    /// turns on. The two are **not** interchangeable — each is right where
-    /// the other is wrong — so `arg_var_names` stays a bespoke scanner
-    /// rather than a call to the shared lexer-based helper. Locks in the
-    /// current (now bug-fixed) behaviour of both so a future refactor
-    /// attempt trips these before merging.
+    /// Shared substitution inventories preserve name and lexical boundaries.
     mod arg_var_names_vs_vars_in_word {
         use super::*;
 
@@ -9322,20 +14483,9 @@ mod tests {
             );
         }
 
-        /// DISAGREEMENT (documented, not a bug to fix here): a variable
-        /// reference *nested inside another variable's array index*
-        /// (`$arr($cmd)`, the `cmdAH-1.4`/`1.5`-style idiom the segmenter's
-        /// `word_piece` doc also calls out) is a single opaque `Var` token
-        /// to the real lexer — `vars_in_word` only reads the outer array
-        /// name (`arr`) and never recurses into the index the way it
-        /// recurses into `[…]` substitutions. `arg_var_names`'s naive
-        /// byte-scan is blind to token structure, so it happens to find
-        /// *both* names. Replacing `arg_var_names` with `vars_in_word`
-        /// would silently drop `cmd` from a W313 warning's variable set —
-        /// a false-negative regression — so this asymmetry is exactly why
-        /// the hand-rolled scanner is being kept, not centralised.
+        /// The array root and its substituted index are separate dependencies.
         #[test]
-        fn disagree_on_var_nested_in_array_index() {
+        fn agree_on_var_nested_in_array_index() {
             let registry = CommandRegistry::build_default();
             assert_eq!(
                 arg_var_names("$arr($cmd)", tcl_dialect::BracedVarStyle::default()),
@@ -9346,8 +14496,8 @@ mod tests {
                 crate::var_refs::vars_in_word("$arr($cmd)", &registry)
                     .into_iter()
                     .collect::<HashSet<_>>(),
-                HashSet::from(["arr".to_owned()]),
-                "vars_in_word does not recurse into the array index — documented gap"
+                HashSet::from(["arr".to_owned(), "cmd".to_owned()]),
+                "the shared inventory includes the substituted index dependency"
             );
         }
 
@@ -9360,11 +14510,15 @@ mod tests {
         #[test]
         fn escaped_dollar_is_not_a_reference() {
             let registry = CommandRegistry::build_default();
-            assert!(
-                arg_var_names("\\$notavar", tcl_dialect::BracedVarStyle::default()).is_empty(),
+            assert_eq!(
+                arg_var_names("\\$notavar", tcl_dialect::BracedVarStyle::default()).len(),
+                0,
                 "an escaped \\$ must not be read as a variable reference"
             );
-            assert!(crate::var_refs::vars_in_word("\\$notavar", &registry).is_empty());
+            assert_eq!(
+                crate::var_refs::vars_in_word("\\$notavar", &registry).len(),
+                0
+            );
         }
 
         /// FP fixed, doubled escape: `\\$foo` is an escaped backslash
@@ -9381,8 +14535,9 @@ mod tests {
         /// TN: plain literal text with no `$` sigil at all.
         #[test]
         fn no_dollar_sigil_is_empty() {
-            assert!(
-                arg_var_names("hello world", tcl_dialect::BracedVarStyle::default()).is_empty()
+            assert_eq!(
+                arg_var_names("hello world", tcl_dialect::BracedVarStyle::default()).len(),
+                0
             );
         }
     }
@@ -9448,18 +14603,16 @@ mod tests {
             );
         }
 
-        /// TN: a *dynamic* rename (`rename $old puts`) must not be
-        /// approximated — the static `new` name (`puts`) keeps its normal
-        /// registry classification rather than silently losing sink
-        /// coverage to an unresolvable placeholder target.
+        /// A substituted word whose value is known names the missing command;
+        /// its failed rename stops this script before the later sink.
         #[test]
-        fn dynamic_rename_does_not_suppress_the_builtin_sink() {
+        fn known_missing_rename_stops_before_the_builtin_sink() {
             let w = taint_warnings_for(
                 "set old somecmd\nset u [gets stdin]\nrename $old puts\nputs $u",
             );
             assert!(
-                w.iter().any(|d| d.code == DiagCode::T101),
-                "a dynamic rename must not suppress the real puts sink, got {w:?}"
+                w.iter().all(|d| d.code != DiagCode::T101),
+                "a failed rename must not invent a reached puts sink, got {w:?}"
             );
         }
 
@@ -9480,12 +14633,10 @@ mod tests {
         #[test]
         fn rename_deletion_form_creates_no_alias() {
             let w = taint_warnings_for("set u [gets stdin]\nrename puts {}\nputs $u");
-            // `puts` itself was deleted, not aliased — this codebase does not
-            // model command deletion, so the bare name keeps resolving to its
-            // registry default (still flagged) rather than silently going
-            // opaque. What matters here is that the deletion form did not
-            // crash `detect_rename` or install a bogus alias entry.
-            assert!(w.iter().any(|d| d.code == DiagCode::T101), "got {w:?}");
+            assert!(
+                w.iter().all(|d| d.code != DiagCode::T101),
+                "a deleted command cannot regain stock puts metadata: {w:?}"
+            );
         }
     }
 
@@ -9496,13 +14647,73 @@ mod tests {
         use super::*;
 
         #[test]
+        fn retained_body_scope_ignores_display_and_refuses_detached_units() {
+            // naming.compiler.original-analysis-metadata-context
+
+            let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let mut unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                "namespace eval ns {proc puts {args} {}; proc run {value} {puts $value}}",
+                &registry,
+                false,
+                profile,
+            );
+            let id = crate::interprocedural::test_body_identity::fixture_id(
+                &unit.procedures,
+                "::ns::run",
+            );
+            let function = unit.procedures.get_mut(&id).unwrap();
+            function.name = "::counterfactual::run".to_owned();
+            assert_eq!(
+                shadowed_builtin_names_for_module_function(
+                    unit.procedures.get(&id).unwrap(),
+                    &unit,
+                    &registry
+                ),
+                Some(HashSet::from(["puts".to_owned()]))
+            );
+            let detached_top = unit.top_level.clone();
+            assert!(
+                shadowed_builtin_names_for_module_function(&detached_top, &unit, &registry)
+                    .is_none()
+            );
+            let detached_body = unit.procedures.get(&id).unwrap().clone();
+            assert!(
+                shadowed_builtin_names_for_module_function(&detached_body, &unit, &registry)
+                    .is_none()
+            );
+            let foreign_unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                "proc foreign {} {}",
+                &registry,
+                false,
+                profile,
+            );
+            let foreign = crate::interprocedural::test_body_identity::fixture_id(
+                &foreign_unit.procedures,
+                "::foreign",
+            );
+            unit.procedures.get_mut(&id).unwrap().body_id = Some(foreign);
+            assert!(
+                shadowed_builtin_names_for_module_function(
+                    unit.procedures.get(&id).unwrap(),
+                    &unit,
+                    &registry
+                )
+                .is_none()
+            );
+        }
+
+        #[test]
         fn namespace_scoped_proc_shadows_only_its_own_namespace() {
             let registry = CommandRegistry::build_default();
             let procs = ["::myns::puts", "::myns::helper"];
             let shadowed = shadowed_builtin_names("::myns", procs.iter().copied(), &registry);
             assert_eq!(shadowed, HashSet::from(["puts".to_owned()]));
             // A different namespace sees no shadow at all.
-            assert!(shadowed_builtin_names("::other", procs.iter().copied(), &registry).is_empty());
+            assert_eq!(
+                shadowed_builtin_names("::other", procs.iter().copied(), &registry).len(),
+                0
+            );
         }
 
         #[test]
@@ -9522,7 +14733,10 @@ mod tests {
         fn nested_child_proc_does_not_shadow_its_parent() {
             let registry = CommandRegistry::build_default();
             let procs = ["::a::b::puts"];
-            assert!(shadowed_builtin_names("::a", procs.iter().copied(), &registry).is_empty());
+            assert_eq!(
+                shadowed_builtin_names("::a", procs.iter().copied(), &registry).len(),
+                0
+            );
         }
 
         #[test]
@@ -9531,7 +14745,10 @@ mod tests {
             // "shadow" in this sense — there's no builtin sink to suppress.
             let registry = CommandRegistry::build_default();
             let procs = ["::myns::totallyMadeUpName"];
-            assert!(shadowed_builtin_names("::myns", procs.iter().copied(), &registry).is_empty());
+            assert_eq!(
+                shadowed_builtin_names("::myns", procs.iter().copied(), &registry).len(),
+                0
+            );
         }
     }
 
@@ -9544,10 +14761,32 @@ mod tests {
         use crate::compilation_unit::CompilationUnit;
 
         fn taint_warnings_for(source: &str) -> Vec<TaintWarning> {
-            let registry = CommandRegistry::build_default();
-            let cu = CompilationUnit::build_for(source, &registry, false)
-                .with_interprocedural(&registry, None);
-            find_taint_warnings_for_cu(&cu, &registry, None)
+            let context = tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                .default_context_registry();
+            let profile = tcl_dialect::DialectProfile::plain_tcl();
+            let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::clone(&context),
+                config,
+            );
+            let registry = context.commands();
+            let cu = CompilationUnit::build_with_analysis_input(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            )
+            .with_interprocedural(registry, Some(profile));
+            find_taint_warnings_for_cu(&cu, registry, Some(profile))
         }
 
         /// FP fixed: a namespace-scoped proc of the same name as a builtin
@@ -9746,10 +14985,7 @@ mod tests {
         #[test]
         fn untraced_literal_value_stays_clean() {
             let w = taint_warnings_for("set x hello\nputs $x");
-            assert!(
-                w.is_empty(),
-                "no trace in scope, expected no warnings: {w:?}"
-            );
+            assert_eq!(w.len(), 0, "no trace in scope, expected no warnings: {w:?}");
         }
 
         /// TN control: an untraced tainted variable is unaffected by this
@@ -9787,10 +15023,19 @@ mod tests {
 
             let fu = cu.function("::p").unwrap();
             let patched = apply_module_variable_traces((*fu.taints).clone(), &fu.ssa, traces);
-            let sym = fu.ssa.var_symbol("t").expect("t interned");
+            let first_definitions: Vec<_> = patched
+                .iter()
+                .filter(|((symbol, version), _)| *version == 1 && fu.ssa.var_name(*symbol) == "t")
+                .collect();
             assert!(
-                patched.get(&(sym, 1)).is_some_and(|t| t.is_tainted()),
-                "t#1 must be forced tainted: {patched:?}"
+                !first_definitions.is_empty(),
+                "the traced variable must have a represented first definition: {patched:?}"
+            );
+            assert!(
+                first_definitions
+                    .iter()
+                    .all(|(_, taint)| taint.is_tainted()),
+                "every canonical t#1 definition must be forced tainted: {patched:?}"
             );
         }
 
@@ -9817,6 +15062,91 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn hosted_taint_diagnostics_use_current_source_metadata_without_native_handler_claims() {
+        // Implementation contract: naming.consumer.hosted-source-taint-descriptor
+
+        let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
+            .default_context_registry();
+        let registry = context.commands();
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let source = "when HTTP_REQUEST {set x [HTTP::query]; HTTP::respond 200 content $x}";
+        let options = crate::compilation_unit::UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config,
+            dialect: Some(tcl_dialect::DialectProfile::irules()),
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let cu = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            options,
+            None,
+            std::sync::Arc::clone(&context),
+        )
+        .with_interprocedural(registry, Some(tcl_dialect::DialectProfile::irules()));
+        let diagnostics = crate::compiler_checks::run_all_checks(
+            &cu,
+            registry,
+            Some(tcl_dialect::DialectProfile::irules()),
+        );
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == DiagCode::Irule3001)
+            .expect("genuine conditional hosted sink");
+        assert_eq!(
+            diagnostic.taint_subject.as_ref().unwrap().sink_command(),
+            "HTTP::respond"
+        );
+        assert_eq!(
+            diagnostic.source_context.as_ref().unwrap().image().bytes(),
+            source.as_bytes()
+        );
+        for negative in [
+            "when HTTP_REQUEST {HTTP::respond 200 content literal}",
+            "when HTTP_REQUEST {HTTP::respond 200 content {$x}}",
+            "when HTTP_REQUEST {HTTP::respond 200 content \"$x$tail\"}",
+            "proc HTTP::respond {args} {}; when HTTP_REQUEST {HTTP::respond 200 content $x}",
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+                negative,
+                options,
+                None,
+                std::sync::Arc::clone(&context),
+            );
+            let warnings = find_taint_warnings_for_cu(
+                &unit,
+                registry,
+                Some(tcl_dialect::DialectProfile::irules()),
+            );
+            assert!(
+                warnings
+                    .iter()
+                    .all(|warning| warning.code != DiagCode::Irule3001),
+                "{negative}: {warnings:?}"
+            );
+        }
+        // An unavailable TMM transition does not prove that a later event's
+        // command is deleted. Its conditional hosted descriptor remains advice.
+        let uncertain = "rename HTTP::respond {}; when HTTP_REQUEST {HTTP::respond 200 content $x}";
+        let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            uncertain,
+            options,
+            None,
+            std::sync::Arc::clone(&context),
+        );
+        let warnings = find_taint_warnings_for_cu(
+            &unit,
+            registry,
+            Some(tcl_dialect::DialectProfile::irules()),
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.code == DiagCode::Irule3001)
+        );
+    }
 
     /// A name an opaque `switch`'s arm may overwrite keeps the taint it held
     /// when no arm runs: the arm need not run, so `puts $u` still sees data
@@ -9832,5 +15162,357 @@ mod tests {
             found.iter().any(|w| w.code == DiagCode::T101),
             "expected T101 for the sink after the switch, got {found:?}"
         );
+    }
+    #[test]
+    fn required_replay_empty_success_differs_from_withdrawn_source_owner() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let (_owner, unit) = retained_warning_unit("set value 1", &context);
+        let current = taint_warning_report_for_cu(&unit, registry, None);
+        assert!(current.warnings.is_empty());
+        assert!(current.replays.is_complete());
+        let mut withdrawn = unit.clone();
+        withdrawn.ir_module.retained_source_bindings = None;
+        let missing = taint_warning_report_for_cu(&withdrawn, registry, None);
+        assert!(missing.warnings.is_empty());
+        assert!(!missing.replays.is_complete());
+        assert!(matches!(
+            missing.replays,
+            TaintReplayAnalysis::Unavailable { .. }
+        ));
+    }
+
+    #[test]
+    fn unavailable_nested_replay_retains_original_site_and_independent_warnings() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let source = "set payload [gets stdin]\nregexp $payload haystack\n[eval $payload]";
+        let (_owner, unit) = retained_warning_unit(source, &context);
+        let proven = taint_warning_report_for_cu(&unit, registry, None).warnings;
+        assert!(proven.iter().any(|warning| warning.code == DiagCode::T103));
+        let statement = unit
+            .top_level
+            .ssa
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .find(|statement| {
+                statement
+                    .statement
+                    .tokens()
+                    .and_then(|tokens| tokens.word_exprs.first())
+                    .is_some_and(|word| {
+                        let mut children = Vec::new();
+                        command_substitutions_in_word(word, &mut children);
+                        !children.is_empty()
+                    })
+            })
+            .expect("genuine original command-head substitution");
+        let word = statement
+            .statement
+            .tokens()
+            .unwrap()
+            .word_exprs
+            .first()
+            .unwrap();
+        let mut children = Vec::new();
+        command_substitutions_in_word(word, &mut children);
+        let (spelling, span) = children.first().unwrap();
+        let script = spelling
+            .strip_prefix('[')
+            .unwrap()
+            .strip_suffix(']')
+            .unwrap();
+        let unavailable = std::cell::RefCell::new(Vec::new());
+        let shadowed = HashSet::new();
+        let sink = SinkWarningContext {
+            registry,
+            source: TaintSourceContext::for_input(registry, None, unit.ir_module.lexer_config),
+            dialect: unit.ir_module.dialect_profile,
+            shadowed_builtins: &shadowed,
+            original_module: Some(&unit.ir_module),
+            unavailable_replays: Some(&unavailable),
+        };
+        let mut warnings = proven.clone();
+        emit_isolated_script_warnings(
+            script,
+            *span,
+            statement,
+            &unit.top_level.taints,
+            &mut warnings,
+            &unit.top_level.ssa,
+            &sink,
+            None,
+        );
+        assert_eq!(warnings, proven);
+        let unavailable = unavailable.into_inner();
+        assert_eq!(unavailable.len(), 1);
+        assert_eq!(unavailable[0].span, *span);
+        assert_eq!(
+            unavailable[0].reason,
+            UnavailableTaintReplayReason::SourceMetadata
+        );
+        let captured = unavailable[0].source.as_ref().unwrap();
+        assert!(captured.matches_module(&unit.ir_module, registry));
+        let mut changed = unit.ir_module.clone();
+        changed.source = tcl_lexer::SourceImage::document("set payload fixed");
+        assert!(!captured.matches_module(&changed, registry));
+        let mut changed_entry = unit.ir_module.clone();
+        changed_entry.source_entry.unknown_entry = !changed_entry.source_entry.unknown_entry;
+        assert!(!captured.matches_module(&changed_entry, registry));
+        let mut changed_namespace = unit.ir_module.clone();
+        changed_namespace.top_level_namespace = "::different_replay_source".to_owned();
+        assert!(!captured.matches_module(&changed_namespace, registry));
+        let mut foreign = tcl_registry::CommandRegistry::build_default();
+        foreign.insert(tcl_registry::CommandSpec {
+            name: "__foreign_replay_store",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        assert!(!captured.matches_module(&unit.ir_module, &foreign));
+    }
+
+    #[test]
+    fn scaffold_constructors_require_actual_selected_descriptor_identity() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let actual = ScaffoldConstructors::required(registry, None, true, true, true).unwrap();
+        assert_eq!(actual.rebinding_priority(registry, None, "proc"), 2);
+        assert_eq!(actual.rebinding_priority(registry, None, "::proc"), 2);
+        assert_eq!(actual.rebinding_priority(registry, None, "interp"), 1);
+        assert_eq!(actual.rebinding_priority(registry, None, "ordinary"), 0);
+        let mut replacement = tcl_registry::CommandRegistry::build_default();
+        replacement.insert(registry.get("proc").unwrap().clone());
+        assert_eq!(actual.rebinding_priority(&replacement, None, "proc"), 0);
+        assert!(matches!(
+            ScaffoldConstructors::required(registry, None, false, true, false),
+            Err(UnavailableTaintReplayReason::SourceMetadata)
+        ));
+        assert!(ScaffoldConstructors::required(registry, None, false, false, false).is_ok());
+        let mut unavailable = tcl_registry::CommandRegistry::build_default();
+        unavailable.insert(tcl_registry::CommandSpec {
+            state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
+            ..registry.get("proc").unwrap().clone()
+        });
+        assert!(matches!(
+            ScaffoldConstructors::required(&unavailable, None, true, true, false),
+            Err(UnavailableTaintReplayReason::ProcedureConstructor)
+        ));
+    }
+    #[test]
+    fn callback_unavailable_spans_require_bounded_original_correspondence() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let (_owner, unit) = retained_warning_unit("set value 1", &context);
+        let end = u32::try_from(unit.source.len()).unwrap();
+        let registration = unit.ir_module.top_level.statements.first().unwrap().span();
+        let replay = Span::new(end + 1, end + 21);
+        let spans = [(replay, registration, "input".to_owned())];
+        let residual = |span| UnavailableTaintReplay {
+            span,
+            reason: UnavailableTaintReplayReason::SourceMetadata,
+            source: None,
+        };
+        let original = residual(Span::new(0, end));
+        assert_eq!(
+            original_callback_replay_residuals(&original, &unit, &spans)[0].span,
+            original.span
+        );
+        for span in [
+            Span::new(end + 2, end + 3),
+            Span::new(end - 1, end + 2),
+            Span::new(end + 30, end + 31),
+        ] {
+            let mapped = original_callback_replay_residuals(&residual(span), &unit, &spans);
+            assert_eq!(mapped.len(), 1);
+            assert_eq!(mapped[0].span, registration);
+            assert!(
+                mapped[0]
+                    .source
+                    .as_ref()
+                    .unwrap()
+                    .matches_module(&unit.ir_module, context.commands())
+            );
+        }
+        let out_of_bounds = residual(Span::new(end + 30, end + 31));
+        let unmapped = original_callback_replay_residuals(&out_of_bounds, &unit, &[]);
+        assert_eq!(unmapped[0].span, out_of_bounds.span);
+        assert!(unmapped[0].source.is_none());
+    }
+    #[test]
+    fn public_report_keeps_constructor_refusal_beside_an_independent_warning() {
+        let baseline =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let mut supplied = tcl_registry::CommandRegistry::build_default();
+        supplied.insert(tcl_registry::CommandSpec {
+            state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
+            ..baseline.commands().get("proc").unwrap().clone()
+        });
+        let context =
+            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(supplied)));
+        let registry = context.commands();
+        let source = "set payload [gets stdin]\nregexp $payload haystack\nrename puts replacement\n[puts $payload]";
+        let (_owner, unit) = retained_warning_unit(source, &context);
+        let report = taint_warning_report_for_cu(&unit, registry, None);
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.code == DiagCode::T103)
+        );
+        assert!(!report.replays.is_complete());
+        let refusal = report
+            .replays
+            .unavailable_replays()
+            .iter()
+            .find(|residual| residual.reason == UnavailableTaintReplayReason::ProcedureConstructor)
+            .expect("actual required scaffold constructor is unavailable");
+        assert!(
+            refusal
+                .source
+                .as_ref()
+                .unwrap()
+                .matches_module(&unit.ir_module, registry)
+        );
+        assert_eq!(
+            unit.ir_module
+                .source
+                .bytes()
+                .get(refusal.span.as_range())
+                .unwrap(),
+            b"[puts $payload]"
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_taint_local_parser_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_taint_callback_and_bracket_shapes_keep_actual_full_config() {
+        // naming.source.retained-positioned-command-realm
+
+        // These local source/synthetic replay projections grant no callback execution.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.0").unwrap();
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let config = tcl_lexer::LexerConfig {
+                leading_bom: bom,
+                strict_quoting: true,
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                ..input.lexer_config()
+            };
+            let actual_input = crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                config,
+            );
+            let registry = actual_input.borrowed_context_registry().commands();
+            let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                "set value VALUE",
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(actual_input.unit_profile()),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &actual_input,
+            );
+            let source =
+                TaintSourceContext::for_module_function(registry, &unit.ir_module, &unit.top_level);
+            assert_eq!(source.config, config);
+            assert!(source.metadata.is_some());
+            let callback =
+                callback_replay_script("\u{feff}eval literal", &[], "input", source.config)
+                    .unwrap();
+            assert!(
+                callback.starts_with('\u{feff}'),
+                "body mark is not the file prologue: {callback:?}"
+            );
+            let (head, args) =
+                parse_taint_command_substitution("[\u{feff}eval literal]", source.config).unwrap();
+            assert_eq!(head, "\u{feff}eval");
+            assert_eq!(args, ["literal"]);
+            let first_close = "eval ${a{b}; eval literal";
+            assert!(callback_replay_script(first_close, &[], "input", source.config).is_some());
+            let nesting = tcl_lexer::LexerConfig {
+                braced_var: tcl_lexer::BracedVarStyle::Tcl9Nesting,
+                ..source.config
+            };
+            assert!(callback_replay_script(first_close, &[], "input", nesting).is_none());
+            let mut changed = unit.clone();
+            changed.ir_module.lexer_config.strict_quoting = !config.strict_quoting;
+            assert!(
+                TaintSourceContext::for_module_function(
+                    registry,
+                    &changed.ir_module,
+                    &changed.top_level
+                )
+                .metadata
+                .is_none()
+            );
+            changed.ir_module.source_metadata_input = None;
+            assert!(
+                TaintSourceContext::for_module_function(
+                    registry,
+                    &changed.ir_module,
+                    &changed.top_level
+                )
+                .metadata
+                .is_none()
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_taint_word_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_interpolation_literals_keep_bom_prefix_and_rendered_line_breaks() {
+        // naming.source.original-configured-script-completeness
+
+        // Authored interpolation syntax; no value/effect or Native observer receipt.
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let text = "\u{feff}#prefix\\n$x";
+        assert_eq!(leading_literal_prefix_char(text, config), Some('\u{feff}'));
+        assert!(literal_contains_crlf(text, config));
+        assert_eq!(
+            leading_literal_prefix_char("\u{feff}/$x", config),
+            Some('\u{feff}')
+        );
+        assert!(!literal_contains_crlf("{\u{feff}#prefix\\n$x}", config));
+        let joined =
+            TaintLattice::tainted().with(TaintColour::CRLF_FREE | TaintColour::PATH_PREFIXED);
+        let colour = interpolation_carve_out(text, joined, config);
+        assert!(
+            colour
+                .colours
+                .contains(TaintColour::TAINTED | TaintColour::NON_DASH_PREFIXED)
+        );
+        assert!(
+            !colour
+                .colours
+                .intersects(TaintColour::CRLF_FREE | TaintColour::PATH_PREFIXED)
+        );
+        assert_eq!(
+            colour,
+            interpolation_carve_out(text, joined, config.nested())
+        );
+        assert_eq!(leading_literal_prefix_char("${a{b}", config), None);
+        assert_eq!(config.leading_bom, tcl_lexer::LeadingBom::Skip);
     }
 }

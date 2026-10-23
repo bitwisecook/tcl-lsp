@@ -36,12 +36,7 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
-use tcl_compiler::lowering::lower_to_ir;
-use tcl_registry::CommandRegistry;
-use tcl_vm::Vm;
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
 #[derive(Clone)]
@@ -59,15 +54,10 @@ impl Write for Capture {
 
 /// Compile and run `src`; return `(ok, result-string, captured-stdout)`.
 fn run(src: &str) -> (bool, String, String) {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
-
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    let completion = vm.run_module(&asm);
+    let completion = vm.try_eval_source(src).expect("the VM's own compile entry");
 
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
     (

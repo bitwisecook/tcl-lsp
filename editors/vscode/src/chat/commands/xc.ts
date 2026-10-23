@@ -18,13 +18,41 @@
 
 import * as vscode from "vscode";
 import { CommandContext } from "../types";
-import { resolveIruleCode } from "../codeUtils";
+import { isDocumentSourceSnapshotCurrent, resolveIruleSource } from "../codeUtils";
 import { sendContextualRequest } from "../contextPack";
+import {
+  describeXcSource,
+  ServerCommandSender,
+  translateXcDocument,
+  translateXcStandalone,
+  XcTranslationOutcome,
+} from "../../bigipSourceActions";
+
+/**
+ * Translate the resolved source: a whole open document through its own
+ * analysis, a selection or inline text as standalone source.
+ */
+async function translateResolved(
+  send: ServerCommandSender,
+  resolved: NonNullable<Awaited<ReturnType<typeof resolveIruleSource>>>,
+): Promise<XcTranslationOutcome> {
+  const snapshot = resolved.snapshot;
+  if (snapshot && !snapshot.selection && snapshot.source === snapshot.fullSource) {
+    if (!isDocumentSourceSnapshotCurrent(snapshot)) return { kind: "stale" };
+    return translateXcDocument(
+      send,
+      { uri: snapshot.uri.toString(), version: snapshot.version, source: snapshot.fullSource },
+      "both",
+    );
+  }
+  return translateXcStandalone(send, resolved.source, "both", "sourceOnly");
+}
 
 export async function handleXc(ctx: CommandContext): Promise<vscode.ChatResult> {
-  const source = await resolveIruleCode(ctx);
+  const resolved = await resolveIruleSource(ctx);
+  const source = resolved?.source;
 
-  if (!source) {
+  if (!resolved || !source) {
     ctx.response.markdown(
       "Provide an iRule to translate to F5 XC configuration. You can:\n\n" +
         "- Have the iRule open in the editor\n" +
@@ -39,12 +67,22 @@ export async function handleXc(ctx: CommandContext): Promise<vscode.ChatResult> 
   // Try the static translator via LSP custom command first
   const client = ctx.client;
   let staticResult: Record<string, unknown> | null = null;
+  let sourceLine = "";
   if (client) {
+    const send: ServerCommandSender = (command, args) =>
+      client.sendRequest("workspace/executeCommand", { command, arguments: args });
     try {
-      staticResult = await client.sendRequest("workspace/executeCommand", {
-        command: "tcl-lsp.xcTranslate",
-        arguments: [source, "both"],
-      });
+      const outcome = await translateResolved(send, resolved);
+      if (outcome.kind === "stale") {
+        ctx.response.markdown(
+          "The document changed while it was being translated. Run `/xc` again.\n",
+        );
+        return { metadata: { command: "xc" } };
+      }
+      if (outcome.kind === "translated") {
+        staticResult = outcome.payload;
+        sourceLine = describeXcSource(outcome.source);
+      }
     } catch {
       // LSP command not available — fall through to LLM
     }
@@ -59,7 +97,7 @@ export async function handleXc(ctx: CommandContext): Promise<vscode.ChatResult> 
     const translatable = (staticResult.translatable_count as number) ?? 0;
     const untranslatable = (staticResult.untranslatable_count as number) ?? 0;
     ctx.response.markdown(
-      `**Coverage: ${coverage.toFixed(1)}%** — ${translatable} translatable, ${untranslatable} untranslatable\n`,
+      `**Coverage: ${coverage.toFixed(1)}%** — ${translatable} translatable, ${untranslatable} untranslatable\n\n_${sourceLine}_\n`,
     );
 
     // Show untranslatable items
@@ -177,7 +215,9 @@ async function _askLlmForGaps(
 
   const prompt =
     `The static iRule→XC translator produced ${coverage.toFixed(1)}% coverage. ` +
-    `Below is the original iRule and the items that could not be fully translated.\n\n` +
+    `Below is the original iRule and the items that could not be fully translated. ` +
+    `The translator's mappings are declared recommendations, not outcomes observed on a ` +
+    `BIG-IP or F5 XC deployment.\n\n` +
     `## Original iRule\n\`\`\`tcl\n${source}\n\`\`\`\n\n` +
     `## Items needing attention\n${gapList}\n\n` +
     `For each untranslatable or partial item, provide:\n` +
@@ -214,7 +254,8 @@ function _buildFullLlmPrompt(source: string): string {
     `1. Terraform HCL for the F5 XC Terraform provider, whose resource types are named volterra_http_loadbalancer, volterra_origin_pool and volterra_service_policy\n` +
     `2. A coverage summary listing which constructs are translatable and which are not\n\n` +
     `For each untranslatable construct, explain why and suggest an XC alternative (e.g., App Stack, XC WAF, XC bot defence).\n\n` +
-    `Map these iRule patterns:\n` +
+    `These are declared mapping recommendations, not outcomes observed on a BIG-IP or ` +
+    `F5 XC deployment; say so when you rely on them. Map these iRule patterns:\n` +
     `- pool → volterra_origin_pool\n` +
     `- switch on HTTP::path/uri → L7 routes with path matching (prefix, suffix, exact, regex)\n` +
     `- switch on HTTP::host → L7 routes with domain matching\n` +

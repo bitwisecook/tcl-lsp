@@ -61,6 +61,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         options: OPTIONS,
+        option_prefix_words: 1,
         tcllib_package: Some("mime"),
         required_package: Some("mime"),
         ..CommandSpec::DEFAULT

@@ -659,10 +659,7 @@ mod tests {
             "the edit did not become a patch"
         );
 
-        // The source is not the state, and this is the proof: the document
-        // is byte-for-byte what it was, so the entry point that re-parses it
-        // renders the declaration the program computed. That is the entry
-        // point the wasm facade used to call.
+        // Re-exporting source cannot include an independently retained form patch.
         let rendered_from_source = pack_export(store.source(), "demo", "tcl9.0");
         assert!(
             !rendered_from_source

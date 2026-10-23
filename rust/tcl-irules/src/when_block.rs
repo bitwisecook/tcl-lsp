@@ -30,6 +30,18 @@ pub fn when_blocks(source: &str) -> Vec<WhenBlock> {
     )
 }
 
+/// Readonly original source event declarations under the actual iRules store.
+/// Unknown lookup, namespace, observer and source mutation premises stay on the
+/// retained cards. Unavailable or partial source coverage is never empty advice.
+#[must_use]
+pub fn when_source_inventory(source: &str) -> crate::IrulesWhenSourceInventory {
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+    crate::OriginalIrulesSourceContext::capture(source, registry)
+        .map_or(crate::IrulesWhenSourceInventory::Unavailable, |context| {
+            context.when_source_inventory(source)
+        })
+}
+
 /// Return syntactically valid top-level handler candidates, including unknown
 /// event names, for the unknown-event diagnostic only.
 #[must_use]
@@ -60,11 +72,107 @@ mod tests {
     use super::*;
 
     #[test]
+    // naming.consumer.original-irules-source-context
+
+    fn original_when_inventory_keeps_event_words_bodies_and_conditional_cards() {
+        let source =
+            "when HTTP_REQUEST { pool /Common/a }\nwhen CLIENT_ACCEPTED { log local0. ok }";
+        let crate::IrulesWhenSourceInventory::Available(inventory) = when_source_inventory(source)
+        else {
+            panic!("actual complete source inventory");
+        };
+        assert!(inventory.is_complete());
+        assert_eq!(
+            inventory
+                .declarations()
+                .iter()
+                .map(super::super::source_context::OriginalIrulesWhenDeclaration::event)
+                .collect::<Vec<_>>(),
+            ["HTTP_REQUEST", "CLIENT_ACCEPTED"]
+        );
+        for declaration in inventory.declarations() {
+            let tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::Vendor(
+                metadata,
+            ) = declaration.words().source()
+            else {
+                panic!("original hosted source card")
+            };
+            assert!(metadata.obligations().contains(
+                &tcl_compiler::command_binding::VendorCatalogueSourceObligation::AuthoredSourceCoordinates));
+            assert_eq!(
+                metadata.shape().original_words().get(1),
+                declaration.words().original_argument_word(0)
+            );
+            assert!(metadata.matches_source(
+                &tcl_lexer::SourceImage::document(source),
+                inventory.source_context().expression_syntax().0
+            ));
+        }
+        assert!(matches!(
+            inventory.source_context().when_source_inventory(
+                "when HTTP_RESPONSE { pool /Common/a }\nwhen CLIENT_ACCEPTED { log local0. ok }"
+            ),
+            crate::IrulesWhenSourceInventory::Unavailable
+        ));
+    }
+
+    #[test]
+    // naming.consumer.original-irules-source-context
+
+    fn original_when_inventory_distinguishes_empty_and_unavailable_source_sites() {
+        for source in ["", "# no source commands\n", "set value 1"] {
+            let crate::IrulesWhenSourceInventory::Available(inventory) =
+                when_source_inventory(source)
+            else {
+                panic!("owned source inventory: {source:?}");
+            };
+            assert!(inventory.is_complete(), "{source:?}");
+            assert!(inventory.declarations().is_empty());
+        }
+        for source in [
+            "when HTTP_REQUEST {",
+            "proc when args {}; when HTTP_REQUEST {}",
+        ] {
+            if let crate::IrulesWhenSourceInventory::Available(inventory) =
+                when_source_inventory(source)
+            {
+                assert!(!inventory.is_complete(), "{source:?}");
+                assert!(inventory.declarations().is_empty(), "{source:?}");
+            }
+        }
+    }
+
+    #[test]
+    // naming.consumer.original-irules-source-context
+
+    fn original_when_inventory_preserves_preceding_unknown_source_debt() {
+        let source = "unmodelled_source_effect; when HTTP_REQUEST {}";
+        let crate::IrulesWhenSourceInventory::Available(inventory) = when_source_inventory(source)
+        else {
+            panic!("conditional source inventory");
+        };
+        assert!(!inventory.is_complete());
+        assert_ne!(inventory.unavailable_sites(), []);
+        let declaration = inventory
+            .declarations()
+            .first()
+            .expect("conditional source declaration");
+        let tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::Vendor(
+            metadata,
+        ) = declaration.words().source()
+        else {
+            panic!("original hosted card")
+        };
+        assert!(metadata.authored_barriers().has_unknown_transitions());
+        assert_ne!(metadata.obligations(), []);
+    }
+
+    #[test]
     fn ignores_commented_when_and_rejects_trailing_text_after_brace_close() {
         let source =
             "# when HTTP_REQUEST { ignored }\nwhen RULE_INIT { log local0. \"legacy } path\"\n}\n";
         let blocks = when_blocks(source);
-        assert!(blocks.is_empty());
+        assert_eq!(blocks, [] as [tcl_syntax::event_handler::EventHandler; 0]);
     }
 
     #[test]

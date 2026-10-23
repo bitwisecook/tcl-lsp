@@ -37,6 +37,7 @@
 //!     to the created map's file descriptor at load time.
 
 use bpf_tcl_ir::ir::ProgType;
+use tcl_core_types::{ArtifactStringError, ArtifactStringTable};
 
 use crate::ebpf::btf::{MAP_STRUCT_SIZE, build_btf};
 use crate::ebpf::emit::EbpfObject;
@@ -90,11 +91,19 @@ pub enum ElfError {
     /// ABI, which has no kernel map file descriptors. Emit maps with a kernel
     /// target (`--target kernel-xdp` / `kernel-socket`) instead.
     MapsNeedKernelTarget,
+    /// An exact artifact name or string table cannot be represented.
+    ArtifactString(ArtifactStringError),
+    /// The actual registry rows do not supply one unambiguous section.
+    EventSectionUnavailable(ProgType),
 }
 
 impl std::fmt::Display for ElfError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            ElfError::ArtifactString(error) => error.fmt(f),
+            ElfError::EventSectionUnavailable(prog_type) => {
+                write!(f, "no unambiguous registry ELF section for {prog_type:?}")
+            }
             ElfError::MapsNeedKernelTarget => write!(
                 f,
                 "maps in an ELF object need a kernel target (use --target kernel-xdp or kernel-socket)"
@@ -105,22 +114,9 @@ impl std::fmt::Display for ElfError {
 
 impl std::error::Error for ElfError {}
 
-/// A growable string table (NUL-led, NUL-terminated entries).
-struct StrTab {
-    buf: Vec<u8>,
-}
-
-impl StrTab {
-    fn new() -> Self {
-        // Index 0 is the empty string by convention.
-        Self { buf: vec![0] }
-    }
-
-    fn add(&mut self, s: &str) -> u32 {
-        let off = u32::try_from(self.buf.len()).expect("string table < 4 GiB");
-        self.buf.extend_from_slice(s.as_bytes());
-        self.buf.push(0);
-        off
+impl From<ArtifactStringError> for ElfError {
+    fn from(error: ArtifactStringError) -> Self {
+        Self::ArtifactString(error)
     }
 }
 
@@ -144,33 +140,25 @@ impl Sym {
     }
 }
 
-/// The conventional `SEC(...)` name for a program type — mirrors each
-/// event's registry `elf_section` field
-/// ([`tcl_registry::bpf_op::BpfEventSpec::elf_section`]).
-fn section_name(prog_type: ProgType) -> &'static str {
-    match prog_type {
-        ProgType::Xdp => "xdp",
-        ProgType::SocketFilter => "socket",
-        ProgType::TcIngress | ProgType::TcEgress => "tc",
-        ProgType::CgroupInet4Connect => "cgroup/connect4",
-        ProgType::CgroupInet4Bind => "cgroup/bind4",
-    }
-}
-
 /// Write `obj` as an `EM_BPF` `ET_REL` ELF64 object, with the program entry
 /// exported as `prog_name`.
 ///
 /// # Errors
 /// [`ElfError::MapsNeedKernelTarget`] if a program declaring maps was emitted
 /// for the userspace `rbpf` simulator ABI (no kernel map fds exist there).
+/// Refuses unavailable or conflicting registry section metadata and names that
+/// cannot be represented exactly in the artifact string tables.
 pub fn write_object(obj: &EbpfObject, prog_name: &str) -> Result<Vec<u8>, ElfError> {
-    if obj.maps.is_empty() {
-        return Ok(write_map_free(obj, prog_name));
-    }
-    if !obj.target_abi.is_kernel() {
+    if !obj.maps.is_empty() && !obj.target_abi.is_kernel() {
         return Err(ElfError::MapsNeedKernelTarget);
     }
-    Ok(write_with_maps(obj, prog_name))
+    let section = bpf_tcl_ir::event::elf_section_for_prog_type(obj.prog_type)
+        .ok_or(ElfError::EventSectionUnavailable(obj.prog_type))?;
+    if obj.maps.is_empty() {
+        write_map_free(obj, prog_name, section)
+    } else {
+        write_with_maps(obj, prog_name, section)
+    }
 }
 
 /// The computed offset/size of one laid-out section (file offset, byte size).
@@ -187,18 +175,18 @@ struct Layout {
     shstrtab: SecLoc,
 }
 
-fn write_map_free(obj: &EbpfObject, prog_name: &str) -> Vec<u8> {
-    let mut shstr = StrTab::new();
+fn write_map_free(obj: &EbpfObject, prog_name: &str, section: &str) -> Result<Vec<u8>, ElfError> {
+    let mut shstr = ArtifactStringTable::new();
     let names = [
-        shstr.add(section_name(obj.prog_type)),
-        shstr.add("license"),
-        shstr.add(".symtab"),
-        shstr.add(".strtab"),
-        shstr.add(".shstrtab"),
+        shstr.add(section)?,
+        shstr.add("license")?,
+        shstr.add(".symtab")?,
+        shstr.add(".strtab")?,
+        shstr.add(".shstrtab")?,
     ];
-    let mut strtab = StrTab::new();
+    let mut strtab = ArtifactStringTable::new();
     let prog_size = obj.raw.len() as u64;
-    let symtab = build_map_free_symtab(strtab.add(prog_name), prog_size);
+    let symtab = build_map_free_symtab(strtab.add(prog_name)?, prog_size);
 
     let mut data = Vec::new();
     let prog_off = EHDR_SIZE + data.len() as u64;
@@ -209,9 +197,9 @@ fn write_map_free(obj: &EbpfObject, prog_name: &str) -> Vec<u8> {
     let symtab_off = EHDR_SIZE + data.len() as u64;
     data.extend_from_slice(&symtab);
     let strtab_off = EHDR_SIZE + data.len() as u64;
-    data.extend_from_slice(&strtab.buf);
+    data.extend_from_slice(strtab.as_bytes());
     let shstrtab_off = EHDR_SIZE + data.len() as u64;
-    data.extend_from_slice(&shstr.buf);
+    data.extend_from_slice(shstr.as_bytes());
     align(&mut data, 8);
     let shoff = EHDR_SIZE + data.len() as u64;
 
@@ -220,8 +208,8 @@ fn write_map_free(obj: &EbpfObject, prog_name: &str) -> Vec<u8> {
         prog: (prog_off, prog_size),
         license: (license_off, 4),
         symtab: (symtab_off, symtab.len() as u64),
-        strtab: (strtab_off, strtab.buf.len() as u64),
-        shstrtab: (shstrtab_off, shstr.buf.len() as u64),
+        strtab: (strtab_off, strtab.as_bytes().len() as u64),
+        shstrtab: (shstrtab_off, shstr.as_bytes().len() as u64),
     });
 
     let cap = usize::try_from(shoff).unwrap_or(0) + usize::from(SEC_COUNT) * SHDR_SIZE;
@@ -231,7 +219,7 @@ fn write_map_free(obj: &EbpfObject, prog_name: &str) -> Vec<u8> {
     for s in &secs {
         s.encode(&mut out);
     }
-    out
+    Ok(out)
 }
 
 /// Build the map-free symbol table: NULL, the program section symbol (local),
@@ -348,33 +336,33 @@ struct MapNames {
     shstrtab: u32,
 }
 
-fn write_with_maps(obj: &EbpfObject, prog_name: &str) -> Vec<u8> {
+fn write_with_maps(obj: &EbpfObject, prog_name: &str, section: &str) -> Result<Vec<u8>, ElfError> {
     let n_maps = obj.maps.len();
     let maps_size = u32::try_from(n_maps).unwrap_or(0) * MAP_STRUCT_SIZE;
-    let btf = build_btf(&obj.maps);
+    let btf = build_btf(&obj.maps)?;
 
-    let mut shstr = StrTab::new();
-    let rel_name = format!(".rel{}", section_name(obj.prog_type));
+    let mut shstr = ArtifactStringTable::new();
+    let rel_name = format!(".rel{section}");
     let names = MapNames {
-        prog: shstr.add(section_name(obj.prog_type)),
-        maps: shstr.add(".maps"),
-        btf: shstr.add(".BTF"),
-        rel: shstr.add(&rel_name),
-        license: shstr.add("license"),
-        symtab: shstr.add(".symtab"),
-        strtab: shstr.add(".strtab"),
-        shstrtab: shstr.add(".shstrtab"),
+        prog: shstr.add(section)?,
+        maps: shstr.add(".maps")?,
+        btf: shstr.add(".BTF")?,
+        rel: shstr.add(&rel_name)?,
+        license: shstr.add("license")?,
+        symtab: shstr.add(".symtab")?,
+        strtab: shstr.add(".strtab")?,
+        shstrtab: shstr.add(".shstrtab")?,
     };
 
     // Symbol table: NULL, prog section sym, .maps section sym (locals), then a
     // global object symbol per map, then the global program FUNC.
-    let mut strtab = StrTab::new();
+    let mut strtab = ArtifactStringTable::new();
     let map_sym_base = 3u32; // first global symbol index
     let mut symtab = Vec::new();
     encode_local_syms(&mut symtab);
     let mut map_names: Vec<u32> = Vec::with_capacity(n_maps);
     for def in &obj.maps {
-        map_names.push(strtab.add(&def.name));
+        map_names.push(strtab.add(&def.name)?);
     }
     for (i, name) in map_names.iter().enumerate() {
         Sym {
@@ -388,7 +376,7 @@ fn write_with_maps(obj: &EbpfObject, prog_name: &str) -> Vec<u8> {
     }
     let prog_size = obj.raw.len() as u64;
     Sym {
-        name: strtab.add(prog_name),
+        name: strtab.add(prog_name)?,
         info: (STB_GLOBAL << 4) | STT_FUNC,
         shndx: M_PROG,
         value: 0,
@@ -417,9 +405,9 @@ fn write_with_maps(obj: &EbpfObject, prog_name: &str) -> Vec<u8> {
     let symtab_off = EHDR_SIZE + data.len() as u64;
     data.extend_from_slice(&symtab);
     let strtab_off = EHDR_SIZE + data.len() as u64;
-    data.extend_from_slice(&strtab.buf);
+    data.extend_from_slice(strtab.as_bytes());
     let shstrtab_off = EHDR_SIZE + data.len() as u64;
-    data.extend_from_slice(&shstr.buf);
+    data.extend_from_slice(shstr.as_bytes());
     align(&mut data, 8);
     let shoff = EHDR_SIZE + data.len() as u64;
 
@@ -433,8 +421,8 @@ fn write_with_maps(obj: &EbpfObject, prog_name: &str) -> Vec<u8> {
             (rel_off, relocs.len() as u64),
             (license_off, 4),
             (symtab_off, symtab.len() as u64),
-            (strtab_off, strtab.buf.len() as u64),
-            (shstrtab_off, shstr.buf.len() as u64),
+            (strtab_off, strtab.as_bytes().len() as u64),
+            (shstrtab_off, shstr.as_bytes().len() as u64),
         ],
         first_global,
     );
@@ -446,7 +434,7 @@ fn write_with_maps(obj: &EbpfObject, prog_name: &str) -> Vec<u8> {
     for s in &secs {
         s.encode(&mut out);
     }
-    out
+    Ok(out)
 }
 
 /// NULL + the two local section symbols (prog, .maps).
@@ -684,6 +672,46 @@ mod tests {
     }
     fn contains(hay: &[u8], needle: &[u8]) -> bool {
         hay.windows(needle.len()).any(|w| w == needle)
+    }
+
+    #[test]
+    fn direct_program_name_ingress_refuses_nul_in_both_layouts() {
+        let objects = [
+            obj_for("when XDP { drop }\n"),
+            kernel_obj(
+                "when XDP { map m hash 8 8 16\n pass }\n",
+                TargetAbi::KernelXdp,
+            ),
+        ];
+        for obj in objects {
+            assert!(write_object(&obj, "entry").is_ok());
+            assert_eq!(
+                write_object(&obj, "entry\0suffix"),
+                Err(ElfError::ArtifactString(ArtifactStringError::InteriorNul {
+                    position: 5
+                }))
+            );
+        }
+    }
+
+    #[test]
+    fn direct_map_name_ingress_refuses_nul_and_keeps_target_error_precedence() {
+        let src = "when XDP { map m hash 8 8 16\n pass }\n";
+        let mut obj = kernel_obj(src, TargetAbi::KernelXdp);
+        assert!(write_object(&obj, "entry").is_ok());
+        obj.maps[0].name = "m\0suffix".into();
+        assert_eq!(
+            write_object(&obj, "entry"),
+            Err(ElfError::ArtifactString(ArtifactStringError::InteriorNul {
+                position: 1
+            }))
+        );
+        let mut rbpf = obj_for(src);
+        rbpf.maps[0].name = "m\0suffix".into();
+        assert_eq!(
+            write_object(&rbpf, "entry\0suffix"),
+            Err(ElfError::MapsNeedKernelTarget)
+        );
     }
 
     #[test]

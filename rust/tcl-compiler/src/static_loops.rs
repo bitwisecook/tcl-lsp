@@ -38,10 +38,24 @@ use tcl_registry::value_transfer::{
 
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
+#[cfg(test)]
 use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::FoldPolicy;
-use crate::value_shapes::is_static_var_word;
 use crate::value_transfer::{LatticeDriver, StateStep};
+#[cfg(test)]
+use tcl_syntax::naming::is_static_variable_source_word;
+
+mod original_simulation;
+pub use original_simulation::{
+    StaticExpressionObligation, StaticIncrementObligation, StaticLoopAnalysis, StaticLoopSummary,
+    analyse_for_statement_with_dependencies, evaluate_expr_with_constants,
+    evaluate_expr_with_constants_and_math_bindings, parse_literal_value,
+    summarise_for_statement_with_dependencies, summarise_for_statement_with_math_bindings,
+};
+pub(crate) use original_simulation::{
+    StaticLoopSource, analyse_for_statement_with_source_dependencies,
+    summarise_for_statement_with_source_dependencies,
+};
 
 /// Default cap on iteration count — beyond this we give up and
 /// return `None` rather than simulate any further.
@@ -75,23 +89,21 @@ pub struct LoopSemantics<'a> {
     pub registry: &'a CommandRegistry,
 }
 
-/// Extract a simple variable reference. `$name` / `${name}` with
-/// no surrounding text → `Some(normalised_name)`; anything else
-/// → `None`.
-#[must_use]
-pub fn simple_var_ref(text: &str) -> Option<String> {
+/// Static authored-fixture selector; source consumers use the configured scanner.
+#[cfg(test)]
+fn simple_var_ref(text: &str) -> Option<String> {
     let stripped = text.trim();
     let name = if let Some(inner) = stripped
         .strip_prefix("${")
         .and_then(|s| s.strip_suffix('}'))
     {
-        if !is_static_var_word(inner) {
+        if !is_static_variable_source_word(inner) {
             return None;
         }
         inner
     } else {
         let rest = stripped.strip_prefix('$')?;
-        if !is_static_var_word(rest) {
+        if !is_static_variable_source_word(rest) {
             return None;
         }
         rest
@@ -171,7 +183,9 @@ pub fn summarise_for_statement(
     }
     let mut written = BTreeSet::new();
     for script in [init, next, body] {
-        crate::ssa::nested_writes(script, semantics.registry, &mut written);
+        if crate::ssa::nested_writes(script, semantics.registry, &mut written) {
+            return None;
+        }
     }
     let mut state = LoopState::default();
     for name in written {

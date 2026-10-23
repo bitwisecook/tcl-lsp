@@ -35,18 +35,22 @@ The split that makes this tractable:
   command invocations, local diagnostics, and scope subtree are a pure function
   of *(body text, params, enclosing namespace, registry, dialect, stub
   overlay)* — nothing from sibling bodies.
-- The **cross-item facts are signatures**: name resolution and the W123
-  unresolved-command / arity passes read the file's *set* of
-  `all_procs ∪ all_classes ∪ command_aliases ∪ ensemble_namespaces` plus the
-  namespace tree — item **headers**, not bodies.
+- Cross-item **suggestion** facts include the file's `all_procs`,
+  `all_classes`, `command_aliases`, `ensemble_namespaces`, and namespace tree.
+  W123 semantic resolution also has a positioned source owner:
+  `SourceCommandBindings::diagnostic_slot_presence_at` and
+  `diagnostic_command_slot_presence_at` query the selected command slot at the
+  actual source offset/name. The file-wide maps supply suggestions; they do
+  not replace this source-positioned presence result or establish execution.
 - The **lattices** are already per-`FunctionUnit` (SSA → def-use → SCCP → type →
   rendered → taint, plus GVN); the only genuine cross-item cascade is the
   interprocedural `pure`/effect fixpoint and the taint re-run that consumes it.
 
 So the query graph keys **bodies** (expensive, item-local) separately from
-**signatures** (cheap, cross-item). A whitespace or in-body edit changes one
-body and leaves every signature — and therefore every other item's analysis, the
-resolution table, and the interprocedural summary — untouched.
+**signatures** (cheap, cross-item). This separation describes the query inputs;
+it does not imply that positioned W123 presence is computed from headers alone.
+The dependency and invalidation behaviour for memoised positioned resolution is
+separate from the diagnostic consumer contract described above.
 
 ## Query graph
 

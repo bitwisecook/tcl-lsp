@@ -302,6 +302,10 @@ impl WasmExecutableAvailabilityDecline {
 /// Why semantic prebuilt-argv selection declined to general lowering.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WasmSemanticDecline {
+    /// A genuine native provider must admit the complete source chunk first.
+    NativeCompilationAdmissionRequired,
+    /// Admission cannot execute because the original chunk is unavailable.
+    NativeCompilationSourceUnavailable,
     /// The caller's isolated host implements only the general evaluation ABI.
     SemanticPlansDisabled,
     /// The requested package shape is not expressed by executable IR.
@@ -321,6 +325,8 @@ impl WasmSemanticDecline {
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
+            Self::NativeCompilationAdmissionRequired => "native-compilation-admission-required",
+            Self::NativeCompilationSourceUnavailable => "native-compilation-source-unavailable",
             Self::SemanticPlansDisabled => "semantic-plans-disabled",
             Self::Packaging(_) => "packaging-constraint",
             Self::ExecutableUnavailable(_) => "executable-ir-unavailable",
@@ -334,6 +340,8 @@ impl WasmSemanticDecline {
     #[must_use]
     pub const fn detail_kind(&self) -> &'static str {
         match self {
+            Self::NativeCompilationAdmissionRequired => "whole-source-host-entry",
+            Self::NativeCompilationSourceUnavailable => "missing-original-chunk",
             Self::SemanticPlansDisabled => "eval-only-test-host",
             Self::Packaging(constraint) => constraint.as_str(),
             Self::ExecutableUnavailable(decline) => decline.detail_kind(),
@@ -542,6 +550,20 @@ pub fn compile_wasm(
         .top_level
         .semantic_facts
         .mixed_plan_with_optimisations(options.semantic_optimisations());
+    if let Some(semantic_decline) = native_admission_decline(&unit.ir_module.top_level) {
+        let (module, native) =
+            backend::emit_wasm(unit, registry, options, WasmEmissionMode::General);
+        return WasmCompilation {
+            module,
+            plan: WasmCodegenPlan::General {
+                semantic_decline,
+                region_plan,
+                // Body admission prevented the native selector from running.
+                native_declines: Vec::new(),
+            },
+            native,
+        };
+    }
     let native_declines = match native_add::select(unit, registry, options) {
         Ok(native) => {
             let (module, report) = backend::emit_wasm(
@@ -606,6 +628,30 @@ pub fn compile_wasm(
         plan: evidence,
         native,
     }
+}
+
+fn native_admission_decline(script: &crate::ir::Script) -> Option<WasmSemanticDecline> {
+    use crate::native_compilation_admission::{
+        NativeCompilationAdmissionPlan, NativeCompilationAdmissionScope, script_admission_plan,
+    };
+    match script_admission_plan(script, NativeCompilationAdmissionScope::Script) {
+        NativeCompilationAdmissionPlan::NoRetainedObligation => None,
+        NativeCompilationAdmissionPlan::HostScript(_) => {
+            Some(WasmSemanticDecline::NativeCompilationAdmissionRequired)
+        }
+        NativeCompilationAdmissionPlan::RefuseMissingSource => {
+            Some(WasmSemanticDecline::NativeCompilationSourceUnavailable)
+        }
+        NativeCompilationAdmissionPlan::HostProcedure(_) => unreachable!("selected script scope"),
+    }
+}
+
+fn selected_native_operand_argument(
+    common: &crate::common_aot_plan::CommonAotProofPlan,
+    direct: &crate::common_aot_plan::DirectProcEvidence,
+    operand: &crate::native_integer_proof::NativeOperandIdentity,
+) -> bool {
+    super::native_add::selected_native_operand_argument(common, direct, operand)
 }
 
 /// Return common guarded-intrinsic evidence only when it describes the same
@@ -710,7 +756,8 @@ fn selection_operation(function: &ExecutableFunction) -> SemanticOperationId {
             | ExecutableInstruction::IterateLists { .. }
             | ExecutableInstruction::JoinCompletion { .. }
             | ExecutableInstruction::WriteCompletionCell { .. }
-            | ExecutableInstruction::CompleteStructuredRegion(_) => None,
+            | ExecutableInstruction::CompleteStructuredRegion(_)
+            | ExecutableInstruction::CompleteEvaluatedRegion(_) => None,
         })
         .unwrap_or(SemanticOperationId::Invoke)
 }
@@ -737,15 +784,24 @@ fn selection_facts(function: &ExecutableFunction) -> SelectionFacts<'_> {
             | ExecutableInstruction::IterateLists { .. }
             | ExecutableInstruction::JoinCompletion { .. }
             | ExecutableInstruction::WriteCompletionCell { .. }
-            | ExecutableInstruction::CompleteStructuredRegion(_) => None,
+            | ExecutableInstruction::CompleteStructuredRegion(_)
+            | ExecutableInstruction::CompleteEvaluatedRegion(_) => None,
         })
         .unwrap_or_else(SelectionFacts::unavailable)
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::super::{ValType, WasmOp};
     use super::*;
+    use crate::common_aot_plan::{
+        CommonAotProofPlan, DirectProcDecision, MaterialisableSlotDecision,
+    };
+    use crate::native_integer_proof::{
+        NativeAddDecision, NativeIntegerPolicy, NativeIntegerProof, prove_native_integer_adds,
+    };
     use tcl_runtime_api::codegen_abi::CodegenAbiImportId;
 
     fn unit(source: &str, registry: &CommandRegistry) -> CompilationUnit {
@@ -773,6 +829,143 @@ mod tests {
             .count()
     }
 
+    #[test]
+    fn compiler_admission_evaluates_one_original_chunk_before_any_stores_or_exports() {
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.4").unwrap());
+        let source = "set flag 0; set before 1; if {$flag} {set}; proc uncalled {} {set}";
+        let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+                frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+                loop_depth: 0,
+                catch_depth: Some(0),
+            },
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_source_entry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: &registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &entry,
+        );
+        let output = compile_wasm(&unit, &registry, WasmCompileOptions::hosted().native_tier());
+        assert!(matches!(
+            output.plan.semantic_decline(),
+            Some(WasmSemanticDecline::NativeCompilationAdmissionRequired)
+        ));
+        assert!(output.native.enabled);
+        assert_eq!(calls_to(&output.module, CodegenAbiImportId::EvalCode), 1);
+        assert_eq!(calls_to(&output.module, CodegenAbiImportId::VarSet), 0);
+        assert_eq!(
+            calls_to(&output.module, CodegenAbiImportId::ProcDefineNative),
+            0
+        );
+        assert_eq!(
+            calls_to(&output.module, CodegenAbiImportId::ProcDefineOriginalArgv),
+            0
+        );
+        assert_eq!(output.module.functions.len(), 1);
+        assert_eq!(output.module.functions[0].kind, "host-compilation-entry");
+        assert!(
+            output
+                .module
+                .data_segments
+                .iter()
+                .any(|segment| segment.data.as_slice() == source.as_bytes())
+        );
+        assert!(
+            !output.module.functions[0]
+                .body
+                .iter()
+                .any(|instruction| instruction.op == WasmOp::TableSet)
+        );
+    }
+
+    #[test]
+    fn missing_original_compilation_source_is_a_typed_host_refusal() {
+        use crate::native_compilation_admission::NativeCompilationAdmission;
+        use std::sync::Arc;
+        let registry = CommandRegistry::build_default();
+        let mut unit = unit("set before 1", &registry);
+        unit.ir_module.top_level.native_compilation_admission =
+            Some(Arc::new(NativeCompilationAdmission {
+                source: None,
+                failure: None,
+                provider_required: true,
+            }));
+        let output = compile_wasm(&unit, &registry, WasmCompileOptions::hosted().native_tier());
+        assert!(matches!(
+            output.plan.semantic_decline(),
+            Some(WasmSemanticDecline::NativeCompilationSourceUnavailable)
+        ));
+        assert_eq!(calls_to(&output.module, CodegenAbiImportId::EvalCode), 0);
+        assert_eq!(calls_to(&output.module, CodegenAbiImportId::VarSet), 0);
+        assert_eq!(
+            calls_to(&output.module, CodegenAbiImportId::ProcDefineOriginalArgv),
+            0
+        );
+        assert!(
+            output.module.functions[0]
+                .body
+                .iter()
+                .any(|instruction| instruction.op == WasmOp::Unreachable)
+        );
+    }
+
+    #[test]
+    fn a_bad_uncalled_procedure_remains_lazy_source_instead_of_a_native_export() {
+        let registry = CommandRegistry::build_default();
+        let source = "proc bad {required} {set before 1; set}; set result OK";
+        let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl8.4");
+        assert!(
+            !crate::native_compilation_admission::script_requires_admission(
+                &unit.ir_module.top_level
+            )
+        );
+        assert!(
+            crate::native_compilation_admission::script_requires_admission(
+                &unit
+                    .ir_module
+                    .procedures
+                    .get(&fixture_id(&unit.ir_module.procedures, "::bad"))
+                    .expect("authored fixture body")
+                    .body
+            )
+        );
+        let output = compile_wasm(&unit, &registry, WasmCompileOptions::hosted().native_tier());
+        assert!(
+            !output
+                .module
+                .functions
+                .iter()
+                .any(|function| function.name == "::bad")
+        );
+        // A definition without a compiled table entry keeps the original source
+        // body. Its host entry retains independent pre-formal admission.
+        assert!(
+            calls_to(&output.module, CodegenAbiImportId::EvalCode)
+                + calls_to(&output.module, CodegenAbiImportId::ProcRegister)
+                + calls_to(&output.module, CodegenAbiImportId::ProcDefineNative)
+                + calls_to(&output.module, CodegenAbiImportId::ProcDefineOriginalArgv)
+                > 0
+        );
+        assert!(
+            output
+                .module
+                .data_segments
+                .iter()
+                .any(|segment| segment.data.as_slice() == b"set before 1; set")
+        );
+    }
     #[test]
     fn the_native_tier_emits_the_t0_program_without_source_or_expression_rungs() {
         use crate::native_lowering::FunctionStatus;
@@ -940,6 +1133,94 @@ mod tests {
         "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n";
 
     #[test]
+    fn incoming_native_operands_use_declared_arguments_without_inventing_ssa() {
+        // naming.variable.aot-original-slot-purpose
+
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let (_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            "proc add {b c} {return [expr {$b + $c}]}; add 2 4; add 3 5",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_profile(Some(profile)),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let config = native_i64_options().semantic_optimisations();
+        let common = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            config,
+            CommonAotEnvironment::Hosted,
+        );
+        let direct = common
+            .direct_calls()
+            .find_map(|(_, decision)| {
+                if let DirectProcDecision::Selected(evidence) = decision {
+                    Some(evidence)
+                } else {
+                    None
+                }
+            })
+            .expect("actual calling site retains its original declaration");
+        let NativeIntegerProof::Analysed(decisions) = prove_native_integer_adds(
+            &unit,
+            "::add",
+            context.commands(),
+            config,
+            NativeIntegerPolicy::default(),
+            &common,
+        ) else {
+            panic!("actual original body has arithmetic proof context");
+        };
+        let [NativeAddDecision::Proven(evidence)] = decisions.as_slice() else {
+            panic!("{decisions:#?}");
+        };
+        for operand in [&evidence.left.identity, &evidence.right.identity] {
+            let crate::native_integer_proof::NativeOperandIdentity::IncomingSlot(read) = operand
+            else {
+                panic!("separate activations cannot become one SSA value: {operand:?}");
+            };
+            assert!(read.cells.len() >= 2);
+            assert!(selected_native_operand_argument(&common, direct, operand));
+            let mut invalid = read.clone();
+            invalid.cells.clear();
+            assert!(!selected_native_operand_argument(
+                &common,
+                direct,
+                &crate::native_integer_proof::NativeOperandIdentity::IncomingSlot(invalid)
+            ));
+            let mut other_declaration = direct.clone();
+            other_declaration.callee.definition_start += 1;
+            assert!(!selected_native_operand_argument(
+                &common,
+                &other_declaration,
+                operand
+            ));
+        }
+        assert!(
+            common
+                .materialisable_slots()
+                .all(|(identity, decision)| identity.function != "::add"
+                    || !matches!(decision, MaterialisableSlotDecision::Selected(_)))
+        );
+    }
+
+    #[test]
     fn sealed_common_proofs_emit_native_i64_add_at_a_boxed_boundary() {
         let registry = CommandRegistry::build_default();
         let unit =
@@ -970,9 +1251,17 @@ mod tests {
             .find(|function| function.name == "::top")
             .expect("native top-level function");
         assert_eq!(top.locals, vec![ValType::I32]);
-        assert!(top.body.windows(6).any(|window| {
+        assert_eq!(
+            calls_to(&output.module, CodegenAbiImportId::HostRefusalPending),
+            1
+        );
+        assert!(top.body.windows(10).any(|window| {
             window.iter().map(|instruction| instruction.op).eq([
                 WasmOp::LocalSet,
+                WasmOp::Call,
+                WasmOp::If,
+                WasmOp::Return,
+                WasmOp::End,
                 WasmOp::LocalGet,
                 WasmOp::If,
                 WasmOp::Return,
@@ -1120,7 +1409,7 @@ mod tests {
         else {
             panic!("expected typed backend decline, got {:?}", output.plan);
         };
-        assert!(!attempts.is_empty());
+        assert_ne!(attempts.as_slice(), []);
         assert!(output.to_wat().contains("tcl_eval_code"));
     }
 

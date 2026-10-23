@@ -35,7 +35,7 @@
 //!
 //! # The command surface is the engine's, not this file's
 //!
-//! The interpreter is built with [`Interp::new`], which runs
+//! The interpreter is built with [`Interp::with_native_core`], which runs
 //! `builtins::install` and therefore registers **every** command module the
 //! engine has — `if`/`while`/`for`/`foreach`/`switch` from `cmd_control`,
 //! `catch`/`error`/`try` from `cmd_error`, and the rest. A differential sheet
@@ -56,8 +56,10 @@
 //! every expression to fail.
 
 use std::io::{self, Read, Write};
+use std::rc::Rc;
 
-use tcl_runtime::interp::{Code, Interp};
+use tcl_host_native::NativeHost;
+use tcl_runtime::interp::Interp;
 use tcl_runtime::{CompletionCode, ScriptCompletion};
 
 /// The recursive tree-walking interpreter uses native stack per Tcl call level,
@@ -182,25 +184,39 @@ fn run() -> i32 {
         buf
     };
 
-    let mut interp = Interp::new();
-    // Before `init_library`, so the release the stdlib sees matches the one
-    // the script will run under.
-    if let Some(v) = version {
-        interp.set_runtime_version(v);
-    }
-    if init && interp.init_library() == Code::Error {
-        return write_result_line(
-            &mut std::io::stderr().lock(),
-            b"init error: ",
-            &interp.result_bytes(),
-        )
-        .map_or_else(
-            |error| {
-                eprintln!("run_script: cannot write completion: {error}");
-                2
-            },
-            |()| 1,
-        );
+    let version = version.unwrap_or(tcl_dialect::TclVersion::V9_0);
+    let profile =
+        tcl_registry::model::resolve_environment(version.dialect_profile_name()).unit_profile();
+    let Some(mut interp) = Interp::with_native_core(
+        Rc::new(NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    ) else {
+        eprintln!("run_script: native core bootstrap unavailable for {version:?}");
+        return 2;
+    };
+    if init {
+        let completion = match interp.init_library_completion() {
+            Ok(completion) => completion,
+            Err(error) => {
+                eprintln!("run_script: library initialisation refused: {error}");
+                return 2;
+            }
+        };
+        if completion.code == CompletionCode::Error {
+            return write_result_line(
+                &mut std::io::stderr().lock(),
+                b"init error: ",
+                &completion.result,
+            )
+            .map_or_else(
+                |error| {
+                    eprintln!("run_script: cannot write completion: {error}");
+                    2
+                },
+                |()| 1,
+            );
+        }
     }
     // Optionally pre-load tcltest and source the backend-constraint overlay so
     // tests the running backend cannot support are skipped. Loading tcltest
@@ -210,7 +226,13 @@ fn run() -> i32 {
         let pre = format!(
             "package require tcltest\nnamespace import -force ::tcltest::*\nsource {overlay}\n"
         );
-        let completion = interp.eval_completion(pre.as_bytes());
+        let completion = match interp.eval_completion(pre.as_bytes()) {
+            Ok(completion) => completion,
+            Err(error) => {
+                eprintln!("run_script: execution refused: {error}");
+                return 2;
+            }
+        };
         if completion.code == CompletionCode::Error {
             return write_result_line(
                 &mut std::io::stderr().lock(),
@@ -235,10 +257,21 @@ fn run() -> i32 {
                 let _ = io::stdout().flush();
                 let _ = write_result_line(&mut io::stderr().lock(), b"", message);
             });
-            if !completion.is_ok() {
+            // A failed last chunk has already been reported.
+            if completion
+                .as_ref()
+                .is_ok_and(|completion| !completion.is_ok())
+            {
                 return 0;
             }
             completion
+        }
+    };
+    let completion = match completion {
+        Ok(completion) => completion,
+        Err(error) => {
+            eprintln!("run_script: execution refused: {error}");
+            return 2;
         }
     };
     // Print the script's final result (if any), like an interactive evaluation

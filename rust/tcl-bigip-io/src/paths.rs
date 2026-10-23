@@ -30,7 +30,8 @@ use std::path::Path;
 use tcl_bigip::parser::{BigipConfig, parse_bigip_conf};
 
 use crate::ucs::{
-    DEFAULT_PASSPHRASE_ENV, UcsError, is_pgp_bytes, is_ucs_bytes, ucs_archive_to_scf,
+    DEFAULT_PASSPHRASE_ENV, UcsError, UcsScfSource, is_pgp_bytes, is_ucs_bytes,
+    ucs_archive_to_scf_source,
 };
 
 /// An error resolving a path input. Rendered as `error: {msg}` (exit 2) by the
@@ -41,6 +42,9 @@ pub enum PathError {
     /// Missing file: matches `FileNotFoundError(f"not a file: {path}")`.
     #[error("not a file: {0}")]
     NotAFile(String),
+    /// The selected native path cannot be represented by this loader's URI contract.
+    #[error("input path is not representable as Unicode: {0:?}")]
+    NonUnicodePath(std::path::PathBuf),
     /// An I/O failure reading the file or stdin.
     #[error("{0}")]
     Io(String),
@@ -139,58 +143,132 @@ fn looks_like_ucs(raw: &[u8], is_ucs_ext: bool, is_stdin: bool) -> bool {
     false
 }
 
-/// Return `(uri, source)` for `path_str`. `-` reads stdin.
+/// Original input bytes and their config preview, before any source edit.
+#[derive(Debug, Clone)]
+pub struct ConfigInput {
+    uri: String,
+    source: ConfigSource,
+}
+
+#[derive(Debug, Clone)]
+enum ConfigSource {
+    Text { bytes: Vec<u8>, preview: String },
+    Archive(UcsScfSource),
+}
+
+impl ConfigInput {
+    #[must_use]
+    pub fn uri(&self) -> &str {
+        &self.uri
+    }
+
+    #[must_use]
+    pub fn source(&self) -> &str {
+        match &self.source {
+            ConfigSource::Text { preview, .. } => preview,
+            ConfigSource::Archive(source) => source.text(),
+        }
+    }
+
+    /// Admit source transformations only from the retained original bytes.
+    ///
+    /// # Errors
+    /// Returns undecodable plain input or selected archive member bytes.
+    pub fn require_faithful(&self) -> Result<(), PathError> {
+        match &self.source {
+            ConfigSource::Text { bytes, .. } => std::str::from_utf8(bytes)
+                .map(|_| ())
+                .map_err(|error| PathError::Io(format!("invalid UTF-8 in input: {error}"))),
+            ConfigSource::Archive(source) => source.require_faithful().map_err(Into::into),
+        }
+    }
+}
+
+/// Return `(uri, source)` for a native path. `-` reads stdin.
 ///
 /// `.ucs` archives (plain or OpenPGP-encrypted) — and gzip / `OpenPGP` streams
 /// from stdin — are transparently extracted to SCF via [`ucs_archive_to_scf`].
 /// Other inputs are decoded UTF-8 with lossy replacement (invalid bytes →
 /// U+FFFD); `strict` makes an undecodable byte an error instead.
 pub fn read_path(
-    path_str: &str,
+    path: impl AsRef<Path>,
     strict: bool,
     opts: &PassphraseOptions,
 ) -> Result<(String, String), PathError> {
+    let input = read_path_source(path, opts)?;
+    if strict {
+        input.require_faithful()?;
+    }
+    Ok((input.uri().to_owned(), input.source().to_owned()))
+}
+
+/// Read a config while retaining its original source for later edit admission.
+///
+/// # Errors
+/// Returns input, decryption or archive failure. Preview decoding is separate.
+pub fn read_path_source(
+    path: impl AsRef<Path>,
+    opts: &PassphraseOptions,
+) -> Result<ConfigInput, PathError> {
+    let path = path.as_ref();
     let provider = move || resolve_passphrase(opts);
 
-    if path_str == "-" {
+    if path.as_os_str() == "-" {
         let mut raw = Vec::new();
         std::io::stdin()
             .read_to_end(&mut raw)
             .map_err(|e| PathError::Io(format!("failed to read stdin: {e}")))?;
         if looks_like_ucs(&raw, false, true) {
-            let scf = ucs_archive_to_scf(&raw, &provider, false, "stdin")?;
-            return Ok(("stdin://input".to_owned(), scf));
+            let source = ucs_archive_to_scf_source(&raw, &provider, false, "stdin")?;
+            return Ok(ConfigInput {
+                uri: "stdin://input".to_owned(),
+                source: ConfigSource::Archive(source),
+            });
         }
-        return Ok(("stdin://input".to_owned(), decode(&raw, strict)?));
+        let preview = String::from_utf8_lossy(&raw).into_owned();
+        return Ok(ConfigInput {
+            uri: "stdin://input".to_owned(),
+            source: ConfigSource::Text {
+                bytes: raw,
+                preview,
+            },
+        });
     }
 
-    let path = Path::new(path_str);
+    // This loader's `file://` URI contract is Unicode-based. Reject before
+    // opening rather than interpreting a lossy display spelling as a path.
+    let path_str = path
+        .to_str()
+        .ok_or_else(|| PathError::NonUnicodePath(path.to_path_buf()))?;
     let abs = std::fs::canonicalize(path).map_err(|_| PathError::NotAFile(path_str.to_owned()))?;
     if !abs.is_file() {
         return Err(PathError::NotAFile(path_str.to_owned()));
     }
+    let abs_str = abs
+        .to_str()
+        .ok_or_else(|| PathError::NonUnicodePath(abs.clone()))?;
     let raw = std::fs::read(&abs)
         .map_err(|e| PathError::Io(format!("failed to read {path_str}: {e}")))?;
     if looks_like_ucs(&raw, is_ucs_suffix(path), false) {
-        let scf = ucs_archive_to_scf(&raw, &provider, false, path_str)?;
-        return Ok((file_uri(&abs), scf));
+        let source = ucs_archive_to_scf_source(&raw, &provider, false, path_str)?;
+        return Ok(ConfigInput {
+            uri: file_uri(abs_str),
+            source: ConfigSource::Archive(source),
+        });
     }
     if is_ucs_suffix(path) {
         return Err(PathError::Ucs(format!(
             "{path_str}: not a valid UCS archive"
         )));
     }
-    Ok((file_uri(&abs), decode(&raw, strict)?))
-}
-
-/// Decode bytes to text: lossy replacement, or strict (error on invalid UTF-8).
-fn decode(raw: &[u8], strict: bool) -> Result<String, PathError> {
-    if strict {
-        String::from_utf8(raw.to_vec())
-            .map_err(|e| PathError::Io(format!("invalid UTF-8 in input: {e}")))
-    } else {
-        Ok(String::from_utf8_lossy(raw).into_owned())
-    }
+    let preview = String::from_utf8_lossy(&raw).into_owned();
+    Ok(ConfigInput {
+        uri: file_uri(abs_str),
+        source: ConfigSource::Text {
+            bytes: raw,
+            preview,
+        },
+    })
 }
 
 /// A resolved config input: its URI key, the post-decode source text (the
@@ -208,13 +286,13 @@ pub struct LoadedConfig {
 /// Resolve a list of path inputs into ordered [`LoadedConfig`]s. Each path is
 /// read via [`read_path`] and parsed with the
 /// `Common` default partition.
-pub fn load_paths(
-    paths: &[String],
+pub fn load_paths<P: AsRef<Path>>(
+    paths: &[P],
     opts: &PassphraseOptions,
 ) -> Result<Vec<LoadedConfig>, PathError> {
     let mut out = Vec::with_capacity(paths.len());
-    for p in paths {
-        let (uri, source) = read_path(p, false, opts)?;
+    for path in paths {
+        let (uri, source) = read_path(path, false, opts)?;
         let config = parse_bigip_conf(&source, "Common");
         out.push(LoadedConfig {
             uri,
@@ -225,11 +303,11 @@ pub fn load_paths(
     Ok(out)
 }
 
-/// Build a `file://` URI from an absolute path, percent-encoding the path bytes
-/// and leaving `/` plus ASCII alphanumerics and `_.-~` unescaped.
-fn file_uri(abs: &Path) -> String {
+/// Build a `file://` URI from an admitted Unicode absolute path, percent-encoding
+/// its UTF-8 bytes and leaving `/` plus ASCII alphanumerics and `_.-~` unescaped.
+fn file_uri(abs: &str) -> String {
     use std::fmt::Write as _;
-    let s = abs.to_string_lossy();
+    let s = abs;
     let mut uri = String::from("file://");
     for &b in s.as_bytes() {
         let safe = b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'-' | b'~' | b'/');
@@ -240,4 +318,51 @@ fn file_uri(abs: &Path) -> String {
         }
     }
     uri
+}
+
+#[cfg(all(test, unix))]
+mod native_path_tests {
+    use super::*;
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt as _;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+
+    #[test]
+    fn native_path_loader_refuses_opaque_name_instead_of_selecting_replacement_sibling() {
+        let dir = std::env::temp_dir().join(format!(
+            "tcl-bigip-io-opaque-path-{}-{}",
+            std::process::id(),
+            NEXT_ID.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&dir).expect("create isolated fixture directory");
+        let opaque = dir.join(OsString::from_vec(b"report-\xff.conf".to_vec()));
+        let replacement = dir.join("report-\u{fffd}.conf");
+        let symlink = dir.join("unicode-link.conf");
+        std::fs::write(&opaque, "opaque source\n").expect("write opaque path fixture");
+        std::fs::write(&replacement, "replacement sibling\n").expect("write Unicode sibling");
+        std::os::unix::fs::symlink(&opaque, &symlink).expect("link Unicode name to opaque target");
+
+        let opts = PassphraseOptions {
+            explicit: None,
+            env_var: "UNUSED_TEST_PASSPHRASE".to_owned(),
+            allow_prompt: false,
+            prompt: None,
+        };
+        assert!(matches!(
+            read_path(&opaque, false, &opts),
+            Err(PathError::NonUnicodePath(_))
+        ));
+        assert_eq!(
+            read_path(&replacement, false, &opts).unwrap().1,
+            "replacement sibling\n"
+        );
+        assert!(matches!(
+            read_path(&symlink, false, &opts),
+            Err(PathError::NonUnicodePath(_))
+        ));
+
+        std::fs::remove_dir_all(&dir).expect("remove isolated fixture directory");
+    }
 }

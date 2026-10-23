@@ -1,0 +1,14 @@
+# id | counted namespace bytes (hex) | original name bytes (hex)
+variable-0||61
+variable-1||61286b29
+variable-2||612829
+variable-3||61286b28782929
+variable-4||61286b007461696c29
+variable-5||61007461696c286b29
+variable-6||61007461696c
+variable-7||6e3a3a61286b29
+variable-8||61283a3a6b29
+variable-9||61286b297461696c
+variable-10||6128ff29
+variable-11||6128c3a929
+variable-12||612865cc8129

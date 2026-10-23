@@ -20,149 +20,81 @@
 
 use tcl_lexer::{Lexer, Span, TokenType};
 
-/// Scan one Tcl variable reference starting at `text[at]`, returning the
-/// byte index just past its end, or `None` when `text[at..]` does not
-/// start with a valid reference.
-///
-/// Handles the three forms from the Tcl 9.0 `Tcl_ParseVar` spec:
-///
-/// - `$name` — bare name in `[A-Za-z0-9_:]`; `::` runs stay part of the
-///   name (namespace-qualified).
-/// - `${name}` — braced; any character except `}` (escapes inside the
-///   braces are taken literally).
-/// - `$name(index)` — array element. The index runs to the matching `)`,
-///   with backslash-escaped close parens taken literally (so `$a(x\)y)`
-///   is one reference whose index text is `x\)y`).
-fn scan_pure_var_ref(text: &str, at: usize) -> Option<usize> {
-    let bytes = text.as_bytes();
-    if bytes.get(at) != Some(&b'$') {
+/// Parse one authored Tcl word through the canonical word model. Multiple
+/// words or commands do not supply a value shape. The authored word is an
+/// extracted operand; its local parser keeps a leading BOM as content while
+/// the word model retains the complete parent configuration.
+#[must_use]
+pub fn value_word_with_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<crate::ir::WordExpr> {
+    let mut commands = crate::segmenter::segment_commands_with_offset_and_config(
+        text,
+        0,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    );
+    if commands.len() != 1 {
         return None;
     }
-    let mut i = at + 1;
-    // Braced form `${...}`.
-    if bytes.get(i) == Some(&b'{') {
-        let mut j = i + 1;
-        while j < bytes.len() && bytes[j] != b'}' {
-            j += 1;
-        }
-        if j >= bytes.len() {
-            return None;
-        }
-        return Some(j + 1);
-    }
-    // Bare name: alphanumeric + `_` + `:`.
-    let name_start = i;
-    while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || matches!(bytes[i], b'_' | b':')) {
-        i += 1;
-    }
-    if i == name_start {
-        return None;
-    }
-    // Optional array index `(index)` — backslash-escape aware.
-    if bytes.get(i) == Some(&b'(') {
-        let mut j = i + 1;
-        while j < bytes.len() {
-            match bytes[j] {
-                b'\\' if j + 1 < bytes.len() => j += 2, // skip escaped char
-                b')' => return Some(j + 1),
-                _ => j += 1,
-            }
-        }
-        return None; // unterminated index
-    }
-    Some(i)
+    let command = commands.pop()?;
+    let tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::new(text),
+        config,
+        &command,
+    );
+    (tokens.words().len() == 1).then(|| tokens.words()[0].clone())
 }
 
-/// Return `true` when `text` is exactly one variable reference (`$x` /
-/// `${x}` / `$ns::x` / `$arr(idx)`) with no surrounding or concatenated
-/// syntax.
-///
-/// The check gates the uplevel/safe-eval idioms: `uplevel 1 $body` is
-/// single-substitution-safe only when `$body` is one pure reference;
-/// anything else double-substitutes the composed value.
+/// Retain the exact lookup evidence of commands inside a sole substitution.
+/// An unrecorded nested site inherits explicit uncertainty from its parent.
 #[must_use]
-pub fn is_pure_var_ref(text: &str) -> bool {
-    scan_pure_var_ref(text, 0) == Some(text.len())
+pub fn command_substitution_tokens(
+    word: &crate::ir::WordExpr,
+    parent: Option<&crate::ir::CommandTokens>,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<crate::ir::CommandTokens>> {
+    let (spelling, site) = word.sole_command_substitution()?;
+    let inner = spelling.strip_prefix('[')?.strip_suffix(']')?;
+    let base = site.span.start().checked_add(1)?;
+    let map = tcl_lexer::SourceMap::new(inner).with_base(base, 0, 0);
+    Some(
+        crate::segmenter::segment_commands_with_offset_and_config(inner, base, config.nested())
+            .iter()
+            .map(|command| {
+                let mut tokens =
+                    crate::ir::CommandTokens::from_segmented(&map, config.nested(), command);
+                if let Some(parent) = parent {
+                    tokens.inherit_nested_bindings(parent);
+                }
+                tokens
+            })
+            .collect(),
+    )
 }
 
-/// Grammar of a static variable-name word (identifier-only, plus the
-/// namespace separator): `[A-Za-z_][A-Za-z0-9_:]*`.
-///
-/// The one definition of that grammar. It is the *conservative* spelling a
-/// consumer needs when it is about to write a name back into source (the
-/// optimiser's propagation and pattern-recognition passes) or to index a
-/// name-keyed table, and is deliberately stricter than the `Tcl_ParseVar`
-/// grammar [`scan_pure_var_ref`] models — Tcl itself accepts `$1abc`,
-/// which this rejects.
-///
-/// ```
-/// use tcl_compiler::value_shapes::is_static_var_word;
-/// assert!(is_static_var_word("ns::var"));
-/// assert!(!is_static_var_word("1abc"));
-/// assert!(!is_static_var_word("has space"));
-/// ```
+/// Whether the complete fragment is one variable reference under its source grammar.
 #[must_use]
-pub fn is_static_var_word(text: &str) -> bool {
-    let mut iter = text.bytes();
-    let Some(first) = iter.next() else {
-        return false;
-    };
-    if !(first.is_ascii_alphabetic() || first == b'_') {
-        return false;
-    }
-    iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b':'))
+pub fn is_pure_var_ref(text: &str, config: tcl_lexer::LexerConfig) -> bool {
+    tcl_syntax::naming::is_whole_variable_reference(text, config)
 }
 
-/// The **scalar** variable name a word denotes when the whole word is one
-/// plain reference — `$name` or `${name}` — and nothing else.
-///
-/// Stricter than [`is_pure_var_ref`] in exactly one way: an array element
-/// (`$a(k)` / `${a(k)}`) is rejected, because its value depends on an index
-/// this shape check cannot resolve, so a consumer tracking "which values can
-/// this word take" has no single variable to attribute the word to.
-/// Everything else `is_pure_var_ref` accepts — including a namespace-qualified
-/// name (`$::ns::v`), which the caller must still decide how to scope — is
-/// returned verbatim.
-///
-/// The one place that answers "is this whole word just a variable, and which
-/// one" for value-set style analyses; a consumer re-deriving it would drift on
-/// the array/brace/concatenation edges [`scan_pure_var_ref`] already models
-/// against the Tcl 9.0 `Tcl_ParseVar` spec.
+/// The literal scalar name of one whole reference under its source grammar.
 ///
 /// ```
 /// use tcl_compiler::value_shapes::whole_word_scalar_var_name;
-/// assert_eq!(whole_word_scalar_var_name("$cmd"), Some("cmd"));
-/// assert_eq!(whole_word_scalar_var_name("${cmd}"), Some("cmd"));
-/// assert_eq!(whole_word_scalar_var_name("$ns::cmd"), Some("ns::cmd"));
-/// assert_eq!(whole_word_scalar_var_name("$a(k)"), None);
-/// assert_eq!(whole_word_scalar_var_name("pre$cmd"), None);
-/// assert_eq!(whole_word_scalar_var_name("cmd"), None);
+/// let config = tcl_lexer::LexerConfig::default();
+/// assert_eq!(whole_word_scalar_var_name("$cmd", config), Some("cmd"));
+/// assert_eq!(whole_word_scalar_var_name("${cmd}", config), Some("cmd"));
+/// assert_eq!(whole_word_scalar_var_name("$ns::cmd", config), Some("ns::cmd"));
+/// assert_eq!(whole_word_scalar_var_name("$a(k)", config), None);
+/// assert_eq!(whole_word_scalar_var_name("pre$cmd", config), None);
+/// assert_eq!(whole_word_scalar_var_name("cmd", config), None);
 /// ```
+/// This projection supplies no cell, read value or source applicability.
 #[must_use]
-pub fn whole_word_scalar_var_name(text: &str) -> Option<&str> {
-    if !is_pure_var_ref(text) {
-        return None;
-    }
-    let inner = match text.strip_prefix("${") {
-        Some(rest) => rest.strip_suffix('}')?,
-        None => text.strip_prefix('$')?,
-    };
-    (!inner.is_empty() && !inner.contains('(')).then_some(inner)
-}
-
-/// Return `true` when `text` is a braced array-shaped var ref `${a(1)}`.
-///
-/// tclsh 9 loads such a reference by its whole literal name (`a(1)`
-/// resolved at runtime as array element `a(1)`), so the value is a
-/// *variable reference*, never a constant — analyses must treat it as
-/// conservatively unknown (overdefined), the same as `${ns::y}`. A plain
-/// braced scalar `${foo}` (no parens) is *not* matched.
-#[must_use]
-pub fn is_braced_whole_name_array_ref(text: &str) -> bool {
-    let Some(inner) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) else {
-        return false;
-    };
-    inner.contains('(') && inner.ends_with(')') && !inner.contains('}')
+pub fn whole_word_scalar_var_name(text: &str, config: tcl_lexer::LexerConfig) -> Option<&str> {
+    tcl_syntax::naming::whole_scalar_variable_reference_name(text, config)
 }
 
 /// Extract command name and args from `[cmd arg1 arg2 …]`.
@@ -207,7 +139,9 @@ pub fn parse_command_substitution_with_spans_and_config(
     // Offset of `inner`'s first byte within `text`: leading whitespace + `[`.
     let base = leading_ws + 1;
 
-    let tokens = Lexer::with_config(inner, config).tokenise_all().ok()?;
+    let tokens = Lexer::with_config(inner, config.nested())
+        .tokenise_all()
+        .ok()?;
     // One `SourceMap` for the whole scan — `widened_token_text` needs the
     // lexer's content geometry to widen a word over its closing delimiter,
     // and building a map per token would re-index `inner`'s lines each time.
@@ -346,63 +280,173 @@ mod tests {
     use super::*;
 
     #[test]
+    fn original_bracket_projection_keeps_body_bom_and_original_child_coordinates() {
+        // naming.source.original-configured-script-completeness
+
+        // Genuine original parent/child word geometry; no evaluated child result/admission.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let source = "puts [\u{feff}unknown argument]";
+        let identities =
+            crate::realm::document_realm_bindings_with_resolved_input(source, &input, None);
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        let mut parent = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            input.lexer_config(),
+            &command,
+        );
+        identities
+            .source_bindings_ref()
+            .stamp_original_tokens(&mut parent);
+        let child =
+            command_substitution_tokens(&parent.words()[1], Some(&parent), input.lexer_config())
+                .unwrap();
+        assert_eq!(child.len(), 1);
+        assert_eq!(child[0].argv_texts, ["\u{feff}unknown", "argument"]);
+        assert_eq!(child[0].argv[0].start(), 6);
+        assert_eq!(
+            source.get(child[0].argv[0].as_range()),
+            Some("\u{feff}unknown")
+        );
+        assert_eq!(child[0].nested_bindings, parent.nested_bindings);
+        let site = child[0]
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .invocation_site()
+            .unwrap();
+        assert_eq!(site.offset, 6);
+        assert_eq!(site.source.source_image().bytes(), source.as_bytes());
+        let (head, arguments) = parse_command_substitution_with_spans_and_config(
+            "[\u{feff}unknown argument]",
+            input.lexer_config(),
+        )
+        .unwrap();
+        assert_eq!(head, "\u{feff}unknown");
+        assert_eq!(arguments[0].0, "argument");
+        assert_eq!(arguments[0].1.start(), 12);
+    }
+
+    #[test]
     fn pure_var_bare_and_braced() {
-        assert!(is_pure_var_ref("$x"));
-        assert!(is_pure_var_ref("${x}"));
-        assert!(is_pure_var_ref("$foo::bar"));
+        assert!(is_pure_var_ref("$x", tcl_lexer::LexerConfig::default()));
+        assert!(is_pure_var_ref("${x}", tcl_lexer::LexerConfig::default()));
+        assert!(is_pure_var_ref(
+            "$foo::bar",
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
     fn pure_var_rejects_extras() {
-        assert!(!is_pure_var_ref("$x extra"));
-        assert!(!is_pure_var_ref("hello$x"));
-        assert!(!is_pure_var_ref("$x[nested]"));
-        assert!(!is_pure_var_ref("\"$x\""));
-        assert!(!is_pure_var_ref("x"));
+        assert!(!is_pure_var_ref(
+            "$x extra",
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(!is_pure_var_ref(
+            "hello$x",
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(!is_pure_var_ref(
+            "$x[nested]",
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(!is_pure_var_ref(
+            "\"$x\"",
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(!is_pure_var_ref("x", tcl_lexer::LexerConfig::default()));
     }
 
     #[test]
     fn pure_var_rejects_unbalanced_braces() {
-        assert!(!is_pure_var_ref("${x}y"));
+        assert!(!is_pure_var_ref("${x}y", tcl_lexer::LexerConfig::default()));
     }
 
     #[test]
     fn pure_var_accepts_array_index() {
-        assert!(is_pure_var_ref("$arr(idx)"));
-        assert!(is_pure_var_ref("$arr(key)"));
-        assert!(is_pure_var_ref("${a(1)}"));
+        assert!(is_pure_var_ref(
+            "$arr(idx)",
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(is_pure_var_ref(
+            "$arr(key)",
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(is_pure_var_ref(
+            "${a(1)}",
+            tcl_lexer::LexerConfig::default()
+        ));
         // Backslash-escaped close paren stays inside the one index.
-        assert!(is_pure_var_ref("$a(x\\)y)"));
+        assert!(is_pure_var_ref(
+            "$a(x\\)y)",
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
     fn fp_nab_12_escaped_paren_array_index_companions() {
-        // FP-NAB-12: the hand-rolled parser consumes a backslash-escaped close
-        // paren inside an
-        // array index so the reference does not terminate at the first `)`.
-        assert!(is_pure_var_ref(r"$a(x\)y)"));
+        // Escaped close parentheses remain inside the original index.
+        assert!(is_pure_var_ref(
+            r"$a(x\)y)",
+            tcl_lexer::LexerConfig::default()
+        ));
         // Companion controls locking in overall parser correctness.
-        assert!(is_pure_var_ref("$x"));
-        assert!(is_pure_var_ref("${some name}"));
-        assert!(is_pure_var_ref("$ns::x"));
-        assert!(is_pure_var_ref("$arr(plain)"));
+        assert!(is_pure_var_ref("$x", tcl_lexer::LexerConfig::default()));
+        assert!(is_pure_var_ref(
+            "${some name}",
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(is_pure_var_ref("$ns::x", tcl_lexer::LexerConfig::default()));
+        assert!(is_pure_var_ref(
+            "$arr(plain)",
+            tcl_lexer::LexerConfig::default()
+        ));
         // Inverse: an *unescaped* `)` terminates the index, leaving trailing
         // `y` as concatenated literal — NOT one pure var ref.
-        assert!(!is_pure_var_ref("$a(x)y"));
+        assert!(!is_pure_var_ref(
+            "$a(x)y",
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
     fn pure_var_rejects_concatenation_and_trailing_text() {
         // Over-permissive cases a byte-set heuristic would accept.
-        assert!(!is_pure_var_ref("$x$y"));
-        assert!(!is_pure_var_ref("$x.foo"));
-        assert!(!is_pure_var_ref("$x_$y"));
+        assert!(!is_pure_var_ref("$x$y", tcl_lexer::LexerConfig::default()));
+        assert!(!is_pure_var_ref(
+            "$x.foo",
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(!is_pure_var_ref("$x_$y", tcl_lexer::LexerConfig::default()));
         // Unterminated array index is not a pure reference.
-        assert!(!is_pure_var_ref("$arr(idx"));
+        assert!(!is_pure_var_ref(
+            "$arr(idx",
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
     fn braced_whole_name_array_ref_detection() {
+        let is_braced_whole_name_array_ref = |text: &str| {
+            text.starts_with("${")
+                && tcl_lexer::word_parts::whole_var_ref(
+                    text.as_bytes(),
+                    tcl_lexer::LexerConfig::default(),
+                )
+                .ok()
+                .flatten()
+                .is_some_and(|reference| {
+                    reference.index.is_none()
+                        && tcl_syntax::naming::split_element_ref_bytes(reference.name).is_some()
+                })
+        };
         assert!(is_braced_whole_name_array_ref("${a(1)}"));
         assert!(is_braced_whole_name_array_ref("${arr(key)}"));
         // Plain braced scalar is not an array-shaped ref.
@@ -455,7 +499,7 @@ mod tests {
             parse_command_substitution_with_config("[pwd]", tcl_lexer::LexerConfig::default())
                 .unwrap();
         assert_eq!(cmd, "pwd");
-        assert!(args.is_empty());
+        assert_eq!(args, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -747,5 +791,52 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod original_value_word_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_authored_value_word_keeps_bom_and_parent_variable_grammar() {
+        // naming.source.original-configured-script-completeness
+
+        // Authored operand syntax, without a source entry or evaluated value receipt.
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let text = "\u{feff}VALUE";
+        let word = value_word_with_config(text, config).unwrap();
+        let crate::ir::WordExpr::Literal {
+            text: value,
+            source,
+        } = word
+        else {
+            panic!("one genuine literal operand");
+        };
+        assert_eq!(value, text);
+        assert_eq!(
+            source.span,
+            Span::new(0, u32::try_from(text.len()).unwrap())
+        );
+        let whole = crate::segmenter::segment_commands_with_offset_and_config(text, 0, config);
+        assert_eq!(whole[0].name(), "VALUE");
+        assert_eq!(whole[0].argv[0].span.start(), 3);
+        let variable = value_word_with_config("${a{b}", config).unwrap();
+        assert_eq!(variable.sole_variable_substitution().unwrap().0, "${a{b}");
+        assert!(value_word_with_config("VALUE other", config).is_none());
+        assert!(value_word_with_config("VALUE; other", config).is_none());
+        let content = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Content,
+            ..config
+        };
+        assert_eq!(
+            value_word_with_config(text, content).unwrap().legacy_text(),
+            text
+        );
     }
 }

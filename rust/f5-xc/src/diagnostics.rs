@@ -26,8 +26,11 @@ use tcl_core_types::{DiagCode, Severity};
 use tcl_lexer::{LineIndex, Span};
 use tcl_lsp_core::diagnostic_policy::{Finding, Producer};
 
-use crate::model::TranslationItem;
-use crate::translator::translate_irule;
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::compilation_unit::CompilationUnit;
+
+use crate::model::{TranslationItem, XCTranslationResult};
+use crate::translator::{translate_irule, translate_irule_for_document};
 
 /// Severity of an XC diagnostic. The XC-series codes only ever emit
 /// `Hint` (`XC1xx` — translatable) or `Info` (`XC2xx` / `XC3xx` — partial /
@@ -148,7 +151,25 @@ fn item_to_diagnostic(
 /// the LSP diagnostics pipeline.
 #[must_use]
 pub fn get_xc_diagnostics(source: &str) -> Vec<XcDiagnostic> {
-    let result = translate_irule(source);
+    result_diagnostics(source, &translate_irule(source))
+}
+
+/// The XC translatability diagnostics of an open document, under its own
+/// retained analysis and compilation unit
+/// ([`translate_irule_for_document`]). `None` when that analysis cannot
+/// describe `source` as an iRules document; the caller then has no XC
+/// findings to state, rather than findings under the standalone defaults.
+#[must_use]
+pub fn get_xc_diagnostics_for_document(
+    source: &str,
+    unit: &CompilationUnit,
+    analysis: &AnalysisResult,
+) -> Option<Vec<XcDiagnostic>> {
+    let result = translate_irule_for_document(source, unit, analysis)?;
+    Some(result_diagnostics(source, &result))
+}
+
+fn result_diagnostics(source: &str, result: &XCTranslationResult) -> Vec<XcDiagnostic> {
     let line_index = LineIndex::new(source);
     result
         .items

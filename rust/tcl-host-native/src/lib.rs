@@ -55,6 +55,7 @@ pub struct NativeHost {
     process: NativeProcess,
     allow_filesystem: bool,
     allow_process: bool,
+    integer_formatter: Option<std::rc::Rc<dyn tcl_platform::NativeIntegerFormatter>>,
 }
 
 impl NativeHost {
@@ -70,6 +71,7 @@ impl NativeHost {
             process: NativeProcess { env },
             allow_filesystem: true,
             allow_process: true,
+            integer_formatter: None,
         }
     }
 
@@ -81,6 +83,17 @@ impl NativeHost {
             allow_process: false,
             ..Self::new()
         }
+    }
+
+    /// Install an explicitly selected, verified native Tcl integer updater.
+    /// Ordinary hosts do not load a Tcl library or infer formatter authority.
+    #[must_use]
+    pub fn with_integer_formatter(
+        mut self,
+        formatter: tcl_host_c_abi::LoadedNativeIntegerFormatter,
+    ) -> Self {
+        self.integer_formatter = Some(std::rc::Rc::new(formatter));
+        self
     }
 }
 
@@ -112,6 +125,26 @@ impl Host for NativeHost {
 
     fn env(&self) -> &dyn Env {
         &self.env
+    }
+
+    fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+        static ENVIRONMENT: tcl_host_c_abi::NativeNumericEnvironment =
+            tcl_host_c_abi::NativeNumericEnvironment;
+        tcl_host_c_abi::NativeNumericEnvironment::supported()
+            .then_some(&ENVIRONMENT as &dyn tcl_platform::NumericEnvironment)
+    }
+
+    fn native_list_sorting_environment(
+        &self,
+    ) -> Option<&dyn tcl_platform::NativeListSortingEnvironment> {
+        static SORTING: tcl_host_c_abi::NativeListSortingEnvironment =
+            tcl_host_c_abi::NativeListSortingEnvironment;
+        tcl_host_c_abi::NativeListSortingEnvironment::supported()
+            .then_some(&SORTING as &dyn tcl_platform::NativeListSortingEnvironment)
+    }
+
+    fn native_integer_formatter(&self) -> Option<&dyn tcl_platform::NativeIntegerFormatter> {
+        self.integer_formatter.as_deref()
     }
 
     fn system_encoding(&self) -> SystemEncoding {
@@ -225,6 +258,11 @@ struct NativeEnv {
 }
 
 impl Env for NativeEnv {
+    #[cfg(unix)]
+    fn native_environment_bytes(&self) -> Option<&dyn tcl_platform::NativeEnvironmentBytes> {
+        Some(self)
+    }
+
     fn get(&self, key: &str) -> Option<String> {
         if let Some(v) = self.overrides.borrow().get(key) {
             return v.clone();
@@ -295,7 +333,64 @@ fn user_home(_user: &str) -> Option<String> {
     None
 }
 
+#[cfg(unix)]
+impl tcl_platform::NativeEnvironmentBytes for NativeEnv {
+    fn get_bytes(&self, key: &[u8]) -> Option<Vec<u8>> {
+        use std::os::unix::ffi::OsStrExt as _;
+        if let Ok(text) = std::str::from_utf8(key)
+            && let Some(value) = self.overrides.borrow().get(text)
+        {
+            return value.as_ref().map(|value| value.as_bytes().to_vec());
+        }
+        std::env::var_os(std::ffi::OsStr::from_bytes(key))
+            .map(|value| value.as_os_str().as_bytes().to_vec())
+    }
+}
+
+struct NativeSourceFile(std::fs::File);
+impl tcl_platform::SourceFile for NativeSourceFile {
+    fn read_all(&mut self) -> Result<Vec<u8>, HostError> {
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut self.0, &mut bytes).map_err(|error| map_io(&error))?;
+        Ok(bytes)
+    }
+}
+
 struct NativeFs;
+
+impl NativeFs {
+    fn copy_path(
+        src: &std::path::Path,
+        dst: &std::path::Path,
+        recursive: bool,
+        force: bool,
+    ) -> Result<(), HostError> {
+        let meta = std::fs::symlink_metadata(src).map_err(|e| map_io(&e))?;
+        if meta.file_type().is_symlink() {
+            let link = std::fs::read_link(src).map_err(|e| map_io(&e))?;
+            if force {
+                let _ = std::fs::remove_file(dst);
+            }
+            create_link(dst, &link, false)
+        } else if meta.is_dir() {
+            if !recursive {
+                return Err(HostError::Io("is a directory".to_string()));
+            }
+            std::fs::create_dir_all(dst).map_err(|e| map_io(&e))?;
+            for entry in std::fs::read_dir(src).map_err(|e| map_io(&e))? {
+                let entry = entry.map_err(|e| map_io(&e))?;
+                let child = dst.join(entry.file_name());
+                Self::copy_path(&entry.path(), &child, true, force)?;
+            }
+            Ok(())
+        } else {
+            if !force && dst.exists() {
+                return Err(HostError::AlreadyExists);
+            }
+            std::fs::copy(src, dst).map(|_| ()).map_err(|e| map_io(&e))
+        }
+    }
+}
 
 impl Filesystem for NativeFs {
     fn exists(&self, path: &str) -> bool {
@@ -314,6 +409,35 @@ impl Filesystem for NativeFs {
 
     fn read(&self, path: &str) -> Result<Vec<u8>, HostError> {
         std::fs::read(path).map_err(|e| map_io(&e))
+    }
+
+    fn read_bytes(&self, path: &[u8]) -> Result<Vec<u8>, HostError> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStrExt as _;
+            std::fs::read(std::ffi::OsStr::from_bytes(path)).map_err(|e| map_io(&e))
+        }
+        #[cfg(not(unix))]
+        {
+            let path = std::str::from_utf8(path).map_err(|_| HostError::Unsupported)?;
+            self.read(path)
+        }
+    }
+
+    fn open_source_bytes(
+        &self,
+        path: &[u8],
+    ) -> Result<Box<dyn tcl_platform::SourceFile>, HostError> {
+        #[cfg(unix)]
+        let file = {
+            use std::os::unix::ffi::OsStrExt as _;
+            std::fs::File::open(std::ffi::OsStr::from_bytes(path))
+        };
+        #[cfg(not(unix))]
+        let file =
+            std::fs::File::open(std::str::from_utf8(path).map_err(|_| HostError::Unsupported)?);
+        file.map(|file| Box::new(NativeSourceFile(file)) as Box<dyn tcl_platform::SourceFile>)
+            .map_err(|error| map_io(&error))
     }
 
     fn write(&self, path: &str, data: &[u8]) -> Result<(), HostError> {
@@ -366,37 +490,12 @@ impl Filesystem for NativeFs {
         recursive: bool,
         force: bool,
     ) -> Result<(), HostError> {
-        let src = std::path::Path::new(source);
-        let dst = std::path::Path::new(target);
-        let meta = std::fs::symlink_metadata(src).map_err(|e| map_io(&e))?;
-        if meta.file_type().is_symlink() {
-            let link = std::fs::read_link(src).map_err(|e| map_io(&e))?;
-            if force {
-                let _ = std::fs::remove_file(dst);
-            }
-            create_link(dst, &link, false)
-        } else if meta.is_dir() {
-            if !recursive {
-                return Err(HostError::Io("is a directory".to_string()));
-            }
-            std::fs::create_dir_all(dst).map_err(|e| map_io(&e))?;
-            for entry in std::fs::read_dir(src).map_err(|e| map_io(&e))? {
-                let entry = entry.map_err(|e| map_io(&e))?;
-                let child = dst.join(entry.file_name());
-                self.copy(
-                    &entry.path().to_string_lossy(),
-                    &child.to_string_lossy(),
-                    true,
-                    force,
-                )?;
-            }
-            Ok(())
-        } else {
-            if !force && dst.exists() {
-                return Err(HostError::AlreadyExists);
-            }
-            std::fs::copy(src, dst).map(|_| ()).map_err(|e| map_io(&e))
-        }
+        Self::copy_path(
+            std::path::Path::new(source),
+            std::path::Path::new(target),
+            recursive,
+            force,
+        )
     }
 
     fn readlink(&self, path: &str) -> Result<String, HostError> {
@@ -568,6 +667,140 @@ impl Process for NativeProcess {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn native_environment_bytes_preserve_actual_unix_input_and_current_host_view() {
+        use std::os::unix::ffi::OsStringExt as _;
+
+        const MARKER: &str = "NH_NATIVE_ENV_BYTES_CHILD";
+        const KEY: &str = "NH_NATIVE_ENV_BYTES_VALUE";
+        const EMPTY: &str = "NH_NATIVE_ENV_BYTES_EMPTY";
+        const MISSING: &str = "NH_NATIVE_ENV_BYTES_MISSING";
+        const RAW_VALUE: &str = "NH_NATIVE_ENV_BYTES_RAW_VALUE";
+        let raw_key = b"NH_NATIVE_ENV_BYTES_\xff";
+        if std::env::var_os(MARKER).is_some() {
+            let host = NativeHost::new();
+            let environment = host.env().native_environment_bytes().unwrap();
+            assert_eq!(
+                environment.get_bytes(KEY.as_bytes()),
+                Some(b"actual".to_vec())
+            );
+            assert_eq!(environment.get_bytes(EMPTY.as_bytes()), Some(Vec::new()));
+            assert_eq!(environment.get_bytes(MISSING.as_bytes()), None);
+            assert_eq!(environment.get_bytes(raw_key), Some(b"raw-name".to_vec()));
+            assert_eq!(
+                environment.get_bytes(RAW_VALUE.as_bytes()),
+                Some(vec![0xff])
+            );
+            host.env().set(KEY, "updated");
+            assert_eq!(
+                environment.get_bytes(KEY.as_bytes()),
+                Some(b"updated".to_vec())
+            );
+            assert_eq!(
+                NativeHost::new()
+                    .env()
+                    .native_environment_bytes()
+                    .unwrap()
+                    .get_bytes(KEY.as_bytes()),
+                Some(b"actual".to_vec())
+            );
+            assert_eq!(
+                std::env::var_os(KEY),
+                Some(std::ffi::OsString::from("actual"))
+            );
+            return;
+        }
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .arg("--exact")
+            .arg("tests::native_environment_bytes_preserve_actual_unix_input_and_current_host_view")
+            .arg("--nocapture")
+            .env(MARKER, "1")
+            .env(KEY, "actual")
+            .env(EMPTY, "")
+            .env_remove(MISSING)
+            .env(std::ffi::OsString::from_vec(raw_key.to_vec()), "raw-name")
+            .env(RAW_VALUE, std::ffi::OsString::from_vec(vec![0xff]))
+            .status()
+            .unwrap();
+        assert!(
+            status.success(),
+            "actual Unix environment child failed: {status}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn native_file_reads_preserve_distinct_non_unicode_paths() {
+        use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
+
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory =
+            std::env::temp_dir().join(format!("tcl-native-path-{}-{stamp}", std::process::id()));
+        std::fs::create_dir(&directory).unwrap();
+        let raw = directory.join(std::ffi::OsString::from_vec(b"package-\xff.tcl".to_vec()));
+        let unicode = directory.join("package-\u{fffd}.tcl");
+        std::fs::write(&raw, b"RAW").unwrap();
+        std::fs::write(&unicode, b"UNICODE").unwrap();
+        let host = NativeHost::new();
+        let fs = host.filesystem().unwrap();
+        assert_eq!(fs.read_bytes(raw.as_os_str().as_bytes()).unwrap(), b"RAW");
+        assert_eq!(
+            fs.read_bytes(unicode.as_os_str().as_bytes()).unwrap(),
+            b"UNICODE"
+        );
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn recursive_copy_keeps_native_child_paths_and_symlink_targets() {
+        use std::os::unix::ffi::OsStringExt as _;
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory =
+            std::env::temp_dir().join(format!("tcl-native-copy-{}-{stamp}", std::process::id()));
+        let source = directory.join("source");
+        let target = directory.join("target");
+        let raw_name = std::ffi::OsString::from_vec(b"entry-\xff".to_vec());
+        let unicode_name = "entry-\u{fffd}";
+        std::fs::create_dir_all(source.join(&raw_name)).unwrap();
+        std::fs::create_dir_all(source.join(unicode_name)).unwrap();
+        std::fs::write(source.join(&raw_name).join("value"), b"RAW").unwrap();
+        std::fs::write(source.join(unicode_name).join("value"), b"UNICODE").unwrap();
+        let link_name = std::ffi::OsString::from_vec(b"link-\xfe".to_vec());
+        let link_target = std::path::PathBuf::from(&raw_name).join("value");
+        std::os::unix::fs::symlink(&link_target, source.join(&link_name)).unwrap();
+        let host = NativeHost::new();
+        host.filesystem()
+            .unwrap()
+            .copy(
+                source.to_str().unwrap(),
+                target.to_str().unwrap(),
+                true,
+                true,
+            )
+            .unwrap();
+        assert_eq!(
+            std::fs::read(target.join(&raw_name).join("value")).unwrap(),
+            b"RAW"
+        );
+        assert_eq!(
+            std::fs::read(target.join(unicode_name).join("value")).unwrap(),
+            b"UNICODE"
+        );
+        assert_eq!(
+            std::fs::read_link(target.join(&link_name)).unwrap(),
+            link_target
+        );
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn an_unset_hides_the_process_variable_and_a_set_restores_it() {

@@ -99,16 +99,9 @@ impl SpecSurface {
 
 /// Ladder and vendor shorthands.
 ///
-/// Each names exactly the rows the retired `DialectSet` bit or union lowered
-/// to, so a migrated spec gets the same answer it always did. They exist
-/// because ~1,800 compiled specs spell one of a dozen windows, and naming
-/// each once keeps the data readable.
-///
-/// The upper bounds are the ladder's, not infinity: `TCL85_PLUS` is
-/// `8.5-9.2`, because the bitmask it replaces was a union of the five
-/// *known* line bits and could not mean "and every line added later". A
-/// spec that genuinely wants open-ended availability writes
-/// [`SpecSurface::core_in`] with a `None` upper bound.
+/// Shared windows cover the known release ladder. `TCL85_PLUS` is bounded
+/// by `8.5-9.2`; open-ended availability uses [`SpecSurface::core_in`] with
+/// a `None` upper bound.
 impl SpecSurface {
     /// Every Tcl release the ladder has — 8.4 through 9.1.
     pub const ALL_TCL: &'static [Self] = &[Self::core_in(Family::Tcl, &W_ALL_TCL)];
@@ -182,9 +175,7 @@ const W_TCL90_PLUS: [SpecWindow; 1] = [("9.0", Some("9.2"))];
 /// Build a `&'static [SpecSurface]` from rows, for a spec whose surface is
 /// not one of the [`SpecSurface`] shorthands.
 ///
-/// The replacement for the retired mask's `.union(…)`: rows compose by
-/// listing, so `surface![SpecSurface::core(Family::Tcl), SpecSurface::package("iapps")]`
-/// is what `ALL_TCL.union(IAPPS)` used to say.
+/// Rows compose explicitly, preserving each core or package version axis.
 #[macro_export]
 macro_rules! surface {
     ($($row:expr),* $(,)?) => {{
@@ -202,7 +193,7 @@ macro_rules! surface {
 /// about a target release: `introduced <= floor < retired`. `None` is a
 /// package the context carries and names no release of, which admits every
 /// window rather than none — a floor nobody stated cannot rule a row out.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PackageFloor<'a> {
     /// The package, spelled as a [`SpecProvider::Package`] row spells it.
     pub name: &'a str,
@@ -309,6 +300,109 @@ impl<'a> CorePoints<'a> {
     }
 }
 
+/// The host phase whose command availability is being queried.
+/// This does not establish an engine/compiler identity or an entered body.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum InvocationRealm {
+    /// Authored source is subject to the host's rule-loader command policy.
+    #[default]
+    RuleLoader,
+    /// An audited evaluated-script entry selects the interpreter command table.
+    InterpreterRuntime,
+}
+
+/// Owned package source facts retained by a resolved authoring context.
+/// Presence and floor describe its declaration/requirement, not installation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnedPackageFloor {
+    name: std::sync::Arc<str>,
+    version: Option<std::sync::Arc<str>>,
+}
+impl OwnedPackageFloor {
+    /// Retain the actual source package and optional guaranteed floor.
+    #[must_use]
+    pub fn new(name: &str, version: Option<&str>) -> Self {
+        Self {
+            name: std::sync::Arc::from(name),
+            version: version.map(std::sync::Arc::from),
+        }
+    }
+}
+
+/// Borrow legacy static floors or a context's genuinely retained owned facts.
+/// No string interning, leaks or self-referential data are required.
+#[derive(Debug, Clone, Copy)]
+pub enum PackageFloors<'a> {
+    /// Existing literal/static package metadata.
+    Borrowed(&'a [PackageFloor<'a>]),
+    /// Same named floor facts owned by the actual resolved context.
+    Owned(&'a [OwnedPackageFloor]),
+}
+impl<'a> PackageFloors<'a> {
+    /// Number of represented package facts.
+    #[must_use]
+    pub const fn len(self) -> usize {
+        match self {
+            Self::Borrowed(rows) => rows.len(),
+            Self::Owned(rows) => rows.len(),
+        }
+    }
+    /// Whether the actual represented inventory is empty.
+    #[must_use]
+    pub const fn is_empty(self) -> bool {
+        self.len() == 0
+    }
+    /// Borrow each actual name/floor without allocating or decoding identity.
+    #[must_use]
+    pub fn iter(self) -> PackageFloorIter<'a> {
+        match self {
+            Self::Borrowed(rows) => PackageFloorIter::Borrowed(rows.iter()),
+            Self::Owned(rows) => PackageFloorIter::Owned(rows.iter()),
+        }
+    }
+}
+impl PartialEq for PackageFloors<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len() && self.iter().eq(other.iter())
+    }
+}
+impl Eq for PackageFloors<'_> {}
+
+/// Borrowed projection of either existing package floor representation.
+#[derive(Debug, Clone)]
+pub enum PackageFloorIter<'a> {
+    /// Existing literal floor slice.
+    Borrowed(std::slice::Iter<'a, PackageFloor<'a>>),
+    /// Context-retained source floor slice.
+    Owned(std::slice::Iter<'a, OwnedPackageFloor>),
+}
+impl<'a> Iterator for PackageFloorIter<'a> {
+    type Item = PackageFloor<'a>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Borrowed(rows) => rows.next().copied(),
+            Self::Owned(rows) => rows.next().map(|row| PackageFloor {
+                name: row.name.as_ref(),
+                version: row.version.as_deref(),
+            }),
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self {
+            Self::Borrowed(rows) => rows.size_hint(),
+            Self::Owned(rows) => rows.size_hint(),
+        }
+    }
+}
+impl ExactSizeIterator for PackageFloorIter<'_> {}
+impl<'a> IntoIterator for PackageFloors<'a> {
+    type Item = PackageFloor<'a>;
+    type IntoIter = PackageFloorIter<'a>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 /// The point a surface question is asked at — the replacement for the retired
 /// availability point (Q13).
 ///
@@ -318,6 +412,8 @@ impl<'a> CorePoints<'a> {
 /// no bit for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SurfaceQuery<'a> {
+    /// Explicit availability phase, independent of source-origin kind.
+    pub realm: InvocationRealm,
     /// The core points the context resolves to, nearest first, each a
     /// family and the release on its ladder. Empty is a context with no
     /// core runtime of its own — the BIG-IP config surface, the permissive
@@ -327,7 +423,7 @@ pub struct SurfaceQuery<'a> {
     pub core: CorePoints<'a>,
     /// The packages active in the context, each with the floor the context
     /// guarantees of it.
-    pub packages: &'a [PackageFloor<'a>],
+    pub packages: PackageFloors<'a>,
 }
 
 impl<'a> SurfaceQuery<'a> {
@@ -335,8 +431,9 @@ impl<'a> SurfaceQuery<'a> {
     #[must_use]
     pub const fn core(family: Family, release: &'a str) -> Self {
         Self {
+            realm: InvocationRealm::RuleLoader,
             core: CorePoints::one(family, Some(release)),
-            packages: &[],
+            packages: PackageFloors::Borrowed(&[]),
         }
     }
 
@@ -344,20 +441,42 @@ impl<'a> SurfaceQuery<'a> {
     #[must_use]
     pub const fn any_release(family: Family) -> Self {
         Self {
+            realm: InvocationRealm::RuleLoader,
             core: CorePoints::one(family, None),
-            packages: &[],
+            packages: PackageFloors::Borrowed(&[]),
         }
+    }
+
+    /// Select a host availability phase. iRules' runtime command table is
+    /// anchored in the shared fork point; its closed roster is applied by the
+    /// registry, independently of the native compiler protocol.
+    #[must_use]
+    pub fn with_realm(mut self, realm: InvocationRealm) -> Self {
+        self.realm = realm;
+        if let Some((Family::F5Irules, release)) = self.core.nearest() {
+            self.core = match realm {
+                InvocationRealm::RuleLoader => CorePoints::one(Family::F5Irules, release),
+                InvocationRealm::InterpreterRuntime => CorePoints::two(
+                    (Family::F5Irules, release),
+                    (Family::Tcl, Some(Family::F5_FORK_POINT)),
+                ),
+            };
+        }
+        self
     }
 
     /// A query carrying `packages` as well as this one's core.
     #[must_use]
     pub const fn with_packages(self, packages: &'a [PackageFloor<'a>]) -> Self {
-        Self { packages, ..self }
+        Self {
+            packages: PackageFloors::Borrowed(packages),
+            ..self
+        }
     }
 
     /// The floor this query carries for `name`, if the package is active.
     #[must_use]
-    pub fn package(&self, name: &str) -> Option<&PackageFloor<'a>> {
+    pub fn package(&self, name: &str) -> Option<PackageFloor<'a>> {
         self.packages.iter().find(|carried| carried.name == name)
     }
 
@@ -579,6 +698,25 @@ pub fn surfaces_overlap(left: &[SpecSurface], right: &[SpecSurface]) -> bool {
     })
 }
 
+/// Canonical environment surfaces offered by source descriptor authoring.
+/// EDA package libraries are carried as packages rather than independent surfaces.
+pub const SOURCE_AUTHORING_ENVIRONMENT_SURFACES: &[(&str, &[SpecSurface])] = &[
+    ("tcl8.4", SpecSurface::TCL84),
+    ("tcl8.5", SpecSurface::TCL85),
+    ("tcl8.6", SpecSurface::TCL86),
+    ("tcl9.0", SpecSurface::TCL90),
+    ("tcl9.1", SpecSurface::TCL91),
+    ("f5-irules", SpecSurface::IRULES),
+    ("f5-iapps", SpecSurface::IAPPS),
+    ("tk", SpecSurface::TK),
+    ("expect", SpecSurface::EXPECT),
+    ("bpf", SpecSurface::BPF),
+    ("f5-tmsh", SpecSurface::TMSH),
+    ("f5-bigip", SpecSurface::BIGIP),
+    ("spectcl", SpecSurface::SPECTCL),
+    ("sslictcl", SpecSurface::SSLICTCL),
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -728,8 +866,9 @@ mod tests {
 
     fn jim_then_tcl() -> SurfaceQuery<'static> {
         SurfaceQuery {
+            realm: crate::model::InvocationRealm::RuleLoader,
             core: CorePoints::two((Family::Jim, None), (Family::Tcl, Some("8.6"))),
-            packages: &[],
+            packages: crate::model::PackageFloors::Borrowed(&[]),
         }
     }
 
@@ -756,8 +895,9 @@ mod tests {
     #[test]
     fn a_window_on_the_own_family_is_met_only_within_it() {
         let pinned = |release| SurfaceQuery {
+            realm: crate::model::InvocationRealm::RuleLoader,
             core: CorePoints::two((Family::Jim, Some(release)), (Family::Tcl, Some("8.6"))),
-            packages: &[],
+            packages: crate::model::PackageFloors::Borrowed(&[]),
         };
         assert!(surface_admits(JIM_FROM_080, Some(&pinned("0.82"))));
         assert!(!surface_admits(JIM_FROM_080, Some(&pinned("0.76"))));

@@ -25,6 +25,19 @@ Three tools cover semantic graph extraction, each returning structured JSON:
 | `symbol_graph` | Scope hierarchy with nested namespaces, proc definitions, variable references, and `package require` dependencies. |
 | `dataflow_graph` | Taint warnings, tainted variables, and per-proc effect annotations (pure, reads, writes, has barrier). |
 
+For documents with retained original naming inputs, call-graph nodes carry
+separate declaration IDs. Repeated declarations and names that require Tcl
+escapes remain separate nodes. Edges match the retained call allocation, including
+alias targets. A purity or effect value is `null` when the graph cannot match the
+original declaration to its independently retained compiled body. The `compiled`
+field preserves the compiler's IR projection separately.
+
+The symbol graph's `declarations` field contains these original procedure nodes
+and reference sites grouped by declaration ID. The `scopes` field remains a
+reporting hierarchy for scope and variable cards. CLI text output uses the
+original procedure inventory when available. Profiles without original naming
+inputs retain their bounded lexical and compiled views.
+
 ### tcl-lsp CLI
 
 ```

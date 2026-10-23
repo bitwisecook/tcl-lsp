@@ -22,22 +22,7 @@
 //! and the compiler's bridge from **source words** to the registry's one
 //! command-table transition vocabulary.
 //!
-//! ## The one vocabulary (centralisation ledger C8)
-//!
-//! What a call did to the command table is registry data, stated once as
-//! [`tcl_registry::CommandBindingTransition`] facts and read through
-//! [`command_table_transitions`]. This module deliberately carries no second
-//! vocabulary of its own: `detect_interp_alias`, `detect_rename` and
-//! `detect_interp_alias_delete` re-destructured `interp alias`'s and
-//! `rename`'s argument layouts here, after each consumer had dispatched on
-//! the coarse `CommandTableEffect` word — a layout the registry's own
-//! resolvers already knew, and a dynamic-operand rule
-//! ([`is_dynamic_word`]) each consumer re-applied for itself. The layout
-//! now lives with the resolver
-//! (`tcl_registry::state_transition::command_binding`), and a dynamic
-//! operand arrives as a typed [`TransitionSubject::Unknown`] instead.
-//!
-//! [`TransitionSubject::Unknown`]: tcl_registry::TransitionSubject::Unknown
+//! Command-table transitions come from registry invocation facts.
 
 use std::collections::HashMap;
 
@@ -45,7 +30,7 @@ use tcl_registry::{
     CommandRegistry, InvocationWord, InvocationWords, StateTransitions, TransitionSubject,
 };
 
-use crate::naming::{is_dynamic_word, normalise_qualified_name};
+use crate::naming::{is_dynamic_word, resolve_command_with};
 
 /// Classify one reconstructed source word for the registry's structured
 /// invocation view.
@@ -53,9 +38,7 @@ use crate::naming::{is_dynamic_word, normalise_qualified_name};
 /// A word carrying a `$` substitution or a `[…]` command substitution has
 /// no statically known Tcl value, so it becomes
 /// [`InvocationWord::Dynamic`] and every subject the registry derives from
-/// it is a typed unknown. This is the compiler's **one** dynamic-word rule
-/// reaching the registry; before ledger C8 each command-table consumer
-/// applied its own copy of it after the fact.
+/// it is a typed unknown.
 #[must_use]
 pub fn source_word(text: &str) -> InvocationWord<'_> {
     if is_dynamic_word(text) {
@@ -80,10 +63,21 @@ pub fn command_table_transitions(
     args: &[String],
 ) -> StateTransitions {
     let words: Vec<InvocationWord<'_>> = args.iter().map(|arg| source_word(arg)).collect();
-    registry.command_binding_transitions(InvocationWords::structured(
-        InvocationWord::Literal(head),
-        &words,
-    ))
+    command_table_transitions_for_words(
+        registry,
+        InvocationWords::structured(InvocationWord::Literal(head), &words),
+    )
+}
+
+/// Preserve a source caller's already selected Literal/Dynamic/Expanded word
+/// facets through the same transition bridge. This supplies Registry transition
+/// vocabulary only; original naming, lookup and execution purposes stay separate.
+#[must_use]
+pub(crate) fn command_table_transitions_for_words(
+    registry: &CommandRegistry,
+    words: InvocationWords<'_>,
+) -> StateTransitions {
+    registry.command_binding_transitions(words)
 }
 
 /// Whether a transition's interpreter-path subject names the **current**
@@ -107,42 +101,26 @@ pub fn is_current_interpreter(subject: &TransitionSubject) -> bool {
 /// than re-deriving the argument layout for itself.
 #[must_use]
 pub fn subject_word<'a>(subject: &'a TransitionSubject, args: &'a [String]) -> Option<&'a str> {
-    match subject {
-        TransitionSubject::Literal(value) => Some(value.as_str()),
-        TransitionSubject::Unknown { argument_index, .. } => {
-            args.get(*argument_index).map(String::as_str)
-        }
-    }
+    subject
+        .literal()
+        .or_else(|| args.get(subject.argument_index()?).map(String::as_str))
 }
 
 /// Alias store: qualified name → (target command, prepended args).
 pub type CommandAliasMap = HashMap<String, (String, Vec<String>)>;
 
-/// Look up a command alias, namespace-aware.
-///
-/// Returns `(target_cmd, prepended_args)` or `None`.
-/// If `cmd_name` starts with `::`, looks up directly.
-/// Otherwise tries the current `namespace` first, then global.
+/// Compatibility lookup in an authored C alias table, without path or
+/// competing-command facts. Native callers use the retained source binding.
 #[must_use]
 pub fn resolve_alias(
     cmd_name: &str,
     aliases: &CommandAliasMap,
     namespace: &str,
 ) -> Option<(String, Vec<String>)> {
-    if cmd_name.starts_with("::") {
-        return aliases.get(&normalise_qualified_name(cmd_name)).cloned();
-    }
-
-    if namespace != "::" {
-        let candidate = normalise_qualified_name(&format!("{namespace}::{cmd_name}"));
-        if let Some(entry) = aliases.get(&candidate) {
-            return Some(entry.clone());
-        }
-    }
-
-    aliases
-        .get(&normalise_qualified_name(&format!("::{cmd_name}")))
-        .cloned()
+    let selected = resolve_command_with::<&str, _>(namespace, &[], cmd_name, |candidate| {
+        aliases.contains_key(candidate)
+    })?;
+    aliases.get(&selected).cloned()
 }
 
 #[cfg(test)]
@@ -177,6 +155,7 @@ mod tests {
                 target_interpreter,
                 target,
                 arguments,
+                ..
             },
         ] = facts.as_slice()
         else {
@@ -264,9 +243,18 @@ mod tests {
     #[test]
     fn a_wrong_arity_rename_states_nothing() {
         // Any arity but two is `wrong # args`, which moves nothing.
-        assert!(transitions("rename", &["eval"]).is_empty());
-        assert!(transitions("rename", &[]).is_empty());
-        assert!(transitions("rename", &["a", "b", "c"]).is_empty());
+        assert_eq!(
+            transitions("rename", &["eval"]),
+            [] as [tcl_registry::CommandBindingTransition; 0]
+        );
+        assert_eq!(
+            transitions("rename", &[]),
+            [] as [tcl_registry::CommandBindingTransition; 0]
+        );
+        assert_eq!(
+            transitions("rename", &["a", "b", "c"]),
+            [] as [tcl_registry::CommandBindingTransition; 0]
+        );
     }
 
     #[test]
@@ -308,7 +296,10 @@ mod tests {
         assert_eq!(literal(name), Some("bar"));
 
         // Only two words after `alias` — a query, which deletes nothing.
-        assert!(transitions("interp", &["alias", "", "bar"]).is_empty());
+        assert_eq!(
+            transitions("interp", &["alias", "", "bar"]),
+            [] as [tcl_registry::CommandBindingTransition; 0]
+        );
         // Five words — a creation, not a deletion.
         assert!(matches!(
             transitions("interp", &["alias", "", "bar", "", "foo"]).as_slice(),

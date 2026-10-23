@@ -22,18 +22,290 @@
 //! consumed by the expression parser and lowering — not by the lexer
 //! itself.
 //!
-//! The `::`-qualifier split ([`qualifier_segments`] / [`is_qualified`]) is the
-//! **one** canonical source for namespace-name parsing, shared by the compiler
-//! (`normalise_qualified_name`) and the WASM runtime's command **and** variable
-//! resolvers (`runtime/rust/src/namespace.rs`, the var coordinator) — mirroring
-//! C Tcl's `TclGetNamespaceForQualName` segmentation (`tmp/tcl9.0.4`). Byte-based
-//! so the runtime (which works in UTF-8 bytes) and the compiler (`&str`) share it
-//! without one re-deriving the other.
+//! The `::`-qualifier split ([`qualifier_segments`] / [`is_qualified`]) owns
+//! C-style written namespace segmentation. [`NativeNameProtocol`] selects the
+//! purpose-specific native input extent before that segmentation. Jim command
+//! and namespace objects have separate flat composition rules. Constructed
+//! namespace segments are retained directly, without reparsing display text.
+
+mod compacted_source;
+pub use compacted_source::{AuthoredCompactName, AuthoredCompactNameSequence};
+
+mod scaffold;
+pub use scaffold::{
+    GeneratedScaffoldNamespace, PACKAGE_SCAFFOLD_NAMESPACE_CASES,
+    PACKAGE_SCAFFOLD_NAMESPACE_POLICY, ScaffoldNamespacePolicy, compiled_unit_procedure_name,
+    scaffold_namespace_from_package_name, suggested_data_group_name,
+};
+mod authored_source;
+pub use authored_source::{
+    authored_source_command_candidates, authored_source_command_slot,
+    authored_source_command_spelling, authored_source_namespace_path,
+};
+mod substitution_candidates;
+pub use substitution_candidates::{
+    SubstitutionVariableCandidates, substitution_variable_candidates,
+};
+mod aliases;
+mod execution_policy;
+mod vendor_source;
+pub use aliases::{
+    c_family_local_alias_name_bytes, global_local_name_bytes, variable_local_name_bytes,
+};
+pub use execution_policy::{
+    ExecutionNamePolicy, ExecutionVariableNameProjection, MeasuredBigIpNameScope,
+    ObservedBigIpNamePolicy, ObservedVariableNamePurpose,
+};
+pub use vendor_source::{
+    VendorSourceFormalExtent, VendorSourceNameAuthority, VendorSourceNamePolicy,
+    VendorSourceNamePurpose, vendor_scalar_source_reference, vendor_source_formal_extents,
+    vendor_source_literal_units,
+};
+mod alias_chain;
+pub use alias_chain::alias_chain_loops;
+mod import_wrapper_hint;
+pub use import_wrapper_hint::{
+    AuthoredImportAliasSpelling, AuthoredImportWrapperHint, authored_import_wrapper_hint,
+};
+/// Literal namespace-prefix tail for conditional authoring hints.
+/// Preserves the written remainder; supplies no qualification or cell identity.
+#[must_use]
+pub fn authored_namespace_hint_tail<'a>(name: &'a str, namespace: &str) -> Option<&'a str> {
+    if namespace.is_empty() {
+        return None;
+    }
+    name.strip_prefix(namespace)?.strip_prefix("::")
+}
+
+mod autoload;
+pub use autoload::{autoload_command_candidates, native_autoload_command_candidates};
+mod authored_namespace_component;
+mod command_geometry;
+pub use authored_namespace_component::{
+    AuthoredNamespaceComponent, AuthoredNamespaceOccurrencePurpose,
+    authored_namespace_component_extent,
+};
+mod reporting;
+mod root_source;
+pub use root_source::native_command_root_source_spelling;
+mod script_name_query;
+pub use script_name_query::original_script_name_query_support;
+mod script_command_inventory;
+pub use script_command_inventory::original_script_command_inventory_support;
+mod script_command_presence;
+pub use script_command_presence::{
+    ScriptRootCommandPresencePlan, original_command_presence_support,
+};
+mod script_namespace_snapshot;
+pub use reporting::{
+    ReportedQNameNamespacePurpose, reported_namespace_contains,
+    reported_namespace_strictly_contains, reported_qname_namespace,
+};
+pub use script_namespace_snapshot::original_namespace_variable_snapshot_support;
+mod compiled_variables;
+mod variable_geometry;
+pub use variable_geometry::{
+    NativeVariableBridgeUnavailable, NativeVariableNamespaceProjection, NativeVariableRootGeometry,
+    VariableLookupBase, variable_namespace_lookup_bases,
+};
+mod variable_spelling;
+pub use variable_spelling::{
+    NativeScalarSourceSpelling, array_source_reference, native_scalar_source_spelling,
+    scalar_source_reference, scalar_source_reference_followed_by,
+    variable_source_reference_with_tail,
+};
+mod jim_enumeration;
+mod jim_table_key;
+pub use jim_table_key::NativeJimCommandTableKey;
+mod tcloo_link;
+pub use tcloo_link::{
+    NativeOoLinkAliasGeometry, native_oo_link_alias_geometry, native_oo_link_call_geometry,
+};
+mod oo_variables;
+pub use compiled_variables::{
+    NativeCompiledScalarName, NativeCompiledVariableAuthority, NativeCompiledVariableEnvironment,
+    NativeCompiledVariableLookup, NativeCompiledVariableProtocol, NativeCompiledVariableRecipe,
+};
+pub use oo_variables::{
+    NativeOoPrivateVariablePurpose, NativeOoVariableError, NativeOoVariableResolverPurpose,
+    NativeOoVariableSlotOperation, NativeOoVariableSlotSelection, NativeOoVarnameLookup,
+    apply_native_oo_slot_records, apply_native_oo_variable_slot,
+    native_oo_explicit_variable_local_name, native_oo_private_variable_matches,
+    native_oo_variable_key_report, native_oo_variable_resolver_matches, native_oo_variable_slot,
+    native_oo_varname_lookup, native_oo_varname_lookup_bytes, validate_native_oo_variable,
+};
+mod namespace_spans;
+pub use namespace_spans::{
+    NativeNamespaceOperandRename, NativeNamespaceRenameTarget,
+    native_command_lookup_context_for_slot, native_command_slot_is_under_namespace,
+    native_namespace_literal_prefix_may_select, native_namespace_operand_rename,
+    native_namespace_rename_target, native_namespace_source_word,
+    native_variable_root_is_under_namespace, native_written_namespace_member_extent,
+    native_written_namespace_prefix_extent,
+};
+mod hidden_invocation;
+pub use hidden_invocation::{NativeHiddenInvocationGrammar, NativeHiddenInvocationOption};
+mod native;
+pub use native::{
+    AuthoredNamespaceImportControl, NamePolicyAuthority, NamePolicyProtocol,
+    NameProjectionUnavailable, NativeCommandNamespaceRoute, NativeCommandSlotProjection,
+    NativeCommandVisibilityDiagnostic, NativeCommandVisibilityFailure,
+    NativeDictionaryMissingKeyError, NativeDictionaryMissingKeyOperation,
+    NativeJimNamespaceCommandQueryCandidate, NativeJimNamespaceConstruction,
+    NativeJimNamespaceParentResult, NativeNameContext, NativeNameProjection, NativeNameProtocol,
+    NativeNamePurpose, NativeNameQualification, NativeNameReportPurpose,
+    NativeNamespaceLookupError, NativeNamespaceLookupOperation, NativeNamespaceOperationError,
+    NativeNamespacePatternParts, NativeNamespacePatternSource, NativeNamespaceReportParts,
+    NativeNamespaceTextResult, NativeRenameDiagnostic, NativeRenameFailure,
+    NativeVariableDiagnosticOperation, NativeVariableDiagnosticProjection,
+    NativeVariableDiagnosticReason, NativeVariableFailureSite, NativeVariableInputForm,
+    NativeVariableProjection, NativeVariableTraceNames, NativeVariableTraceReportingInput,
+    checked_command_slot_utf8, checked_namespace_path_utf8, constructed_command_address_bytes,
+    native_command_full_name_bytes, native_command_source_spelling, native_command_source_word,
+    native_constant_failure_verb, native_jim_namespace_source_spelling,
+    native_namespace_full_name_bytes, native_namespace_source_spelling,
+    native_procedure_compilation_name_input, native_qualified_inventory_report_bytes,
+    report_native_c_variable_value_name, report_native_dictionary_missing_key,
+    report_native_name_bytes, report_native_namespace_creation_conflict,
+    report_native_namespace_creation_error, report_native_namespace_lookup_error,
+    report_native_namespace_operation_error, report_native_variable_access_trace_names,
+    report_native_variable_diagnostic, report_native_variable_diagnostic_at,
+};
+
+/// Rooted slot for an authored support-command registration label.
+/// Empty tails select the last nonempty written component. Counted opaque bytes
+/// remain data; this supplies no native publication, lookup or existence proof.
+#[must_use]
+pub fn support_command_registration_slot(
+    written: &[u8],
+) -> Option<tcl_core_types::ByteCommandSlot> {
+    let mut parts = written_command_parts(written);
+    let simple = if parts.simple.is_empty() {
+        parts.qualifiers.pop()?
+    } else {
+        parts.simple
+    };
+    Some(tcl_core_types::ByteCommandSlot::new(
+        tcl_core_types::ByteNamespacePath::from_segments(parts.qualifiers),
+        tcl_core_types::NameBytes::from(simple),
+    ))
+}
+
+/// Checked compatibility key for the exact native namespace components.
+/// Opaque UTF-8 or an ambiguous constructed-key round trip declines; the
+/// original byte path remains authoritative. This grants no native lookup.
+#[must_use]
+pub fn checked_namespace_path_key(path: &tcl_core_types::ByteNamespacePath) -> Option<String> {
+    let segments = checked_namespace_path_utf8(path).ok()?;
+    let key = root_unrooted_key(&segments.join("::"));
+    (key_segments(&key) == segments).then_some(key)
+}
+
+/// Jim's flat global-variable key from a rooted constructed namespace.
+///
+/// Absolute written names beginning with `::` discard every leading colon.
+/// Relative names prepend the namespace after removing its one root marker;
+/// literal colon segments inside that constructed namespace stay intact.
+/// Names and namespace segments retain their exact bytes, including NUL.
+#[must_use]
+pub fn jim_global_variable_key_bytes(rooted_namespace: &[u8], name: &[u8]) -> Vec<u8> {
+    if name.starts_with(b"::") {
+        let start = name
+            .iter()
+            .position(|byte| *byte != b':')
+            .unwrap_or(name.len());
+        return name[start..].to_vec();
+    }
+    let prefix = rooted_namespace
+        .strip_prefix(b"::")
+        .unwrap_or(rooted_namespace);
+    let mut key = Vec::with_capacity(prefix.len() + name.len() + 2);
+    key.extend_from_slice(prefix);
+    if !prefix.is_empty() {
+        key.extend_from_slice(b"::");
+    }
+    key.extend_from_slice(name);
+    key
+}
+
+/// Unicode projection of [`jim_global_variable_key_bytes`].
+/// The namespace is a rooted constructed key, not a written name to parse.
+#[must_use]
+pub fn jim_global_variable_key(rooted_namespace: &str, name: &str) -> String {
+    String::from_utf8(jim_global_variable_key_bytes(
+        rooted_namespace.as_bytes(),
+        name.as_bytes(),
+    ))
+    .expect("joining Unicode namespace and name bytes preserves Unicode")
+}
+
+/// Conservative dynamic-target hazard over an unattributed name presentation.
+/// The caller supplies the brace marker. This does not establish a decoded
+/// value, original word, static definition, variable lookup or cell identity.
+#[must_use]
+pub fn unattributed_dynamic_written_variable_target(name: &str, braced_literal: bool) -> bool {
+    if braced_literal {
+        return false;
+    }
+    if name.starts_with('$') {
+        return true;
+    }
+    let base = match name.find('(') {
+        Some(index) => &name[..index],
+        None => name,
+    };
+    base.is_empty() || base.contains('$') || base.contains('[')
+}
+
+/// A bounded alias hint from unattributed reference and value presentations.
+/// This does not prove a read value, selected frame, cell or absence of other
+/// targets. Consumers must retain unresolved dynamic-name alternatives.
+#[must_use]
+pub fn unattributed_variable_alias_hint<'a>(
+    token: &str,
+    config: tcl_lexer::LexerConfig,
+    lookup: impl FnOnce(&str) -> Option<&'a str>,
+) -> Option<&'a str> {
+    let reference = tcl_lexer::word_parts::whole_var_ref(token.as_bytes(), config).ok()??;
+    if reference.index.is_some() || split_element_ref_bytes(reference.name).is_some() {
+        return None;
+    }
+    let reference = core::str::from_utf8(reference.name).ok()?;
+    let value = lookup(reference)?;
+    (!value.is_empty()
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':'))
+    .then_some(value)
+}
 
 /// Does `name` contain a `::` namespace separator (i.e. is it qualified)?
 #[must_use]
 pub fn is_qualified(name: &[u8]) -> bool {
-    name.windows(2).any(|w| w == b"::")
+    tcl_core_types::naming::has_namespace_separator(name)
+}
+
+/// Whether a source variable name belongs to an ordinary activation's table.
+/// C qualifiers select namespace cells; Jim only roots a name with initial `::`.
+/// The empty name remains local. The caller owns the policy and input extent;
+/// this supplies no Native frame, cell, lookup or variable-presence receipt.
+#[must_use]
+pub fn source_variable_name_is_frame_local(
+    name: &[u8],
+    policy: tcl_dialect::VariableLookupPolicy,
+) -> bool {
+    match policy {
+        tcl_dialect::VariableLookupPolicy::Tcl => !is_qualified(name),
+        tcl_dialect::VariableLookupPolicy::Jim => !name.starts_with(b"::"),
+    }
+}
+
+/// Source-local geometry shared by every supported variable lookup policy.
+/// This does not select a runtime policy, activation, cell or presence fact.
+#[must_use]
+pub fn source_variable_name_is_frame_local_for_all_policies(name: &[u8]) -> bool {
+    source_variable_name_is_frame_local(name, tcl_dialect::VariableLookupPolicy::Tcl)
+        && source_variable_name_is_frame_local(name, tcl_dialect::VariableLookupPolicy::Jim)
 }
 
 /// The TextMate-compatible variable-name body used by the generated editor
@@ -50,6 +322,23 @@ pub fn textmate_variable_name_body() -> &'static str {
     r"(?:[:]{2,})?(?:[A-Za-z_][A-Za-z0-9_]*[:]{2,})*[A-Za-z_][A-Za-z0-9_]*"
 }
 
+/// Static display token for an unquoted source definition name. Excluding
+/// delimiters prevents a keyword used as data from consuming a quote/body.
+/// This is a conservative display subset, not Tcl name acceptance or lookup.
+#[must_use]
+pub fn textmate_unquoted_entity_name() -> &'static str {
+    r#"[^\s"{}\[\];$]+"#
+}
+
+/// Static `TextMate` braced-variable display fragment, including the empty name.
+/// This preserves the historical first-close projection. It is exact for
+/// [`tcl_dialect::BracedVarStyle::FirstClose`]; nested Tcl 9 names and escaped
+/// closers need semantic tokens for exact extents. No lookup or cell follows.
+#[must_use]
+pub fn textmate_braced_variable_reference() -> &'static str {
+    r"\$\{[^}]*\}"
+}
+
 /// Split a (possibly qualified) name on `::`, dropping empty segments — so
 /// `::a::b::cmd` → `[a, b, cmd]`, `::cmd` → `[cmd]`, `cmd` → `[cmd]`, `::` → `[]`.
 /// A run of **two or more** colons is one separator (all consecutive colons are
@@ -60,29 +349,80 @@ pub fn textmate_variable_name_body() -> &'static str {
 /// `TclGetNamespaceForQualName`'s component walk (`tclNamesp.c`).
 #[must_use]
 pub fn qualifier_segments(name: &[u8]) -> Vec<&[u8]> {
-    let mut out = Vec::new();
-    let mut seg_start = 0;
-    let mut i = 0;
-    while i < name.len() {
-        if name[i] == b':' && i + 1 < name.len() && name[i + 1] == b':' {
-            if i > seg_start {
-                out.push(&name[seg_start..i]);
+    qualifier_component_extents(name)
+        .map(|extent| &name[extent])
+        .collect()
+}
+
+/// Exact original byte extents of the nonempty components of a written name.
+/// The same owner supplies [`qualifier_segments`]: a complete run of at least
+/// two colons is one separator; a lone colon remains a component character.
+/// Leading and trailing separators produce no empty component. Consumers that
+/// distinguish a namespace operand from an empty terminal command or variable
+/// must retain that independently selected purpose.
+///
+/// Extents retain original Unicode/NUL bytes and all separator widths. This
+/// iterator does not select a native input prefix, invert a constructed key,
+/// establish a namespace or grant an editable source container.
+///
+/// ```
+/// use tcl_syntax::naming::qualifier_component_extents;
+/// assert_eq!(qualifier_component_extents(b"::::a:::b::").collect::<Vec<_>>(),
+///            vec![4..5, 8..9]);
+/// assert_eq!(qualifier_component_extents(b"a:b").collect::<Vec<_>>(),
+///            vec![0..3]);
+/// ```
+pub fn qualifier_component_extents(
+    name: &[u8],
+) -> impl Iterator<Item = std::ops::Range<usize>> + '_ {
+    let mut next = 0;
+    std::iter::from_fn(move || {
+        while next < name.len() {
+            let start = next;
+            let mut at = start;
+            while at < name.len() {
+                if name[at] == b':' && name.get(at + 1) == Some(&b':') {
+                    let end = at;
+                    at += 2;
+                    while name.get(at) == Some(&b':') {
+                        at += 1;
+                    }
+                    next = at;
+                    if start < end {
+                        return Some(start..end);
+                    }
+                    break;
+                }
+                at += 1;
             }
-            // C skips the `::` then every subsequent `:`, so a colon run of any
-            // length is a single separator.
-            i += 2;
-            while i < name.len() && name[i] == b':' {
-                i += 1;
+            if at == name.len() && next == start {
+                next = at;
+                return Some(start..at);
             }
-            seg_start = i;
-        } else {
-            i += 1;
         }
+        None
+    })
+}
+
+/// The exact byte extent of the final written namespace separator run.
+/// Each complete run of two or more colons separates components; a lone colon
+/// remains component data. The counted input is not truncated or normalised.
+/// This pure span query supplies no dialect, native input extent, namespace,
+/// source edit, command lookup or publication authority.
+#[must_use]
+pub fn written_separator_extent(name: &[u8]) -> Option<std::ops::Range<usize>> {
+    let mut previous_end = 0;
+    let mut separator = None;
+    for component in qualifier_component_extents(name) {
+        if component.start > previous_end {
+            separator = Some(previous_end..component.start);
+        }
+        previous_end = component.end;
     }
-    if seg_start < name.len() {
-        out.push(&name[seg_start..]);
+    if previous_end < name.len() {
+        separator = Some(previous_end..name.len());
     }
-    out
+    separator
 }
 
 /// Does `name` end with a namespace separator (a run of ≥2 colons)? In a
@@ -102,14 +442,36 @@ pub fn ends_with_separator(name: &[u8]) -> bool {
 /// — all tclsh 8.6/9.0-pinned) — otherwise the last colon-run
 /// segment, or the whole name when unqualified.  The resolution-direction
 /// counterparts apply the same rule (`Namespaces::home_of` in the runtime,
-/// `canonical_cmd_key` in the VM), so definition and dispatch can never
+/// native command-name protocols), so definition and dispatch can never
 /// disagree about which command a trailing-separator spelling names.
 #[must_use]
 pub fn written_command_tail(name: &[u8]) -> &[u8] {
-    if name.is_empty() || ends_with_separator(name) {
-        b""
-    } else {
-        qualifier_segments(name).last().copied().unwrap_or(name)
+    written_separator_extent(name).map_or(name, |separator| &name[separator.end..])
+}
+
+/// Borrowed components of a written command name, including an empty tail.
+/// These bytes select no native purpose, namespace token or command identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WrittenCommandParts<'a> {
+    /// Whether the written name starts with a root marker.
+    pub absolute: bool,
+    /// Nonempty namespace components before the simple name.
+    pub qualifiers: Vec<&'a [u8]>,
+    /// Exact simple name, empty after a trailing separator run.
+    pub simple: &'a [u8],
+}
+
+/// Decompose counted written bytes without selecting a native input extent.
+#[must_use]
+pub fn written_command_parts(name: &[u8]) -> WrittenCommandParts<'_> {
+    let mut qualifiers = qualifier_segments(name);
+    if !ends_with_separator(name) {
+        qualifiers.pop();
+    }
+    WrittenCommandParts {
+        absolute: name.starts_with(b"::"),
+        qualifiers,
+        simple: written_command_tail(name),
     }
 }
 
@@ -190,18 +552,18 @@ pub fn canonical_written_command(name: &str) -> String {
     format!("{}{trailing}", segs.join("::"))
 }
 
-/// The simple (tail) name of a **constructed** qualified key — the inverse of
-/// the `"{ns_key}::{simple}"` / `"::{simple}"` construction the analyser, the
-/// workspace index, and the VM use as canonical identity, where `simple` never
-/// contains a `::` run but may itself contain (or be) a lone `:`
-/// (`proc : args {…}`).
+/// The simple tail selected by the authored constructed-key convention.
+/// The input is an analytical presentation, independent of a written native
+/// name or an actual namespace object's retained component path.
 ///
-/// This is **not** C's `namespace tail` of a *written* word — C consumes a
-/// whole colon run as one separator, so the written `:::` has an empty tail.
-/// A constructed key `":::"` (`"::" + ":"`), by contrast, unambiguously
-/// carries the simple name `:`: the suffix after the rightmost `::` that
-/// leaves a non-empty suffix.  A trailing-separator key (`"::x::"`, the
-/// empty-named command in `::x`) correctly yields `""`.
+/// C's `namespace tail` consumes a whole colon run as one written separator.
+/// This authored convention preserves a lone-colon simple name in examples
+/// such as `":::"` and an empty simple name after `"::x::"`.
+///
+/// Joining arbitrary native components is not injective: `["a:", "b"]` and
+/// `["a", ":b"]` both render as `"::a:::b"`. This helper cannot recover their
+/// original holders or grant a native lookup identity. Native consumers retain
+/// the exact component path and namespace incarnation independently.
 ///
 /// ```
 /// use tcl_syntax::naming::key_tail;
@@ -296,9 +658,10 @@ fn constructed_namespace_path_is_valid(path: &[u8]) -> bool {
     false
 }
 
-/// Split a **constructed** qualified key into its holder-namespace key and
-/// simple tail — the exact inverse of the `"{holder}::{simple}"` construction
-/// ([`key_tail`] for the tail rule).  The holder of a root-level key is `"::"`
+/// Select an analytical holder and tail from a constructed display key.
+/// This projection is not an inverse of native path construction: `["a:", "b"]`
+/// and `["a", ":b"]` both render as `"::a:::b"`. Native lookup retains its
+/// original component path and namespace incarnation instead. The holder of a root-level key is `"::"`
 /// (`key_holder_and_tail("::x")` → `("::", "x")`), and the holder chain of a
 /// colon-named nesting is preserved (`"::::::"` — proc `:` in the namespace
 /// named `:` — → `(":::", ":")`).
@@ -329,9 +692,10 @@ pub fn key_holder_and_tail(key: &str) -> (&str, &str) {
     }
 }
 
-/// Split a **constructed** namespace key into its segments — the inverse of
-/// the `"::"`-join construction, one [`key_holder_and_tail`] step per level,
-/// so a legitimately colon-named segment survives (`":::"` → `[":"]`,
+/// Select analytical segments from a constructed namespace display key, one
+/// [`key_holder_and_tail`] step per level. The selected split cannot recover
+/// every native component path because `"::"`-joining is not injective.
+/// A legitimately colon-named segment survives (`":::"` → `[":"]`,
 /// `"::a::b"` → `["a", "b"]`, `"::"` → `[]`).  Accepts rooted or unrooted
 /// keys.  Contrast [`qualifier_segments`], the *written-name* split, which
 /// collapses colon runs.
@@ -363,6 +727,26 @@ pub fn key_segments(key: &str) -> Vec<String> {
     }
     out.reverse();
     out
+}
+
+/// Possible suffix labels of a constructed analytical key, retaining the
+/// complete input first. Each suffix follows the existing [`key_segments`]
+/// projection; lone colon segments and a trailing empty segment survive.
+/// Empty suffixes are omitted and repeated labels appear once.
+///
+/// These labels are a conservative metadata index, not written Tcl spellings,
+/// namespace paths, command lookup candidates or proof of a selected binding.
+#[must_use]
+pub fn key_suffixes(key: &str) -> Vec<String> {
+    let mut suffixes = vec![key.to_owned()];
+    let segments = key_segments(key);
+    for start in 0..segments.len() {
+        let suffix = segments[start..].join("::");
+        if !suffix.is_empty() && !suffixes.contains(&suffix) {
+            suffixes.push(suffix);
+        }
+    }
+    suffixes
 }
 
 /// Whether a definition written as `simple_name` inside the namespace whose
@@ -532,23 +916,92 @@ pub fn normalise_var_name(name: &str) -> &str {
 /// ```
 #[must_use]
 pub fn normalise_var_name_for_style(name: &str, style: tcl_dialect::BracedVarStyle) -> &str {
-    // A remainder after the closer is *not* a reason to decline: under 8.x
-    // `${a{b}c}` **is** the reference `${a{b}` followed by the literal `c}`,
-    // and the variable it names is `a{b`. The historical `strip_suffix('}')`
-    // could only see a whole-word reference, so it read that same word as the
-    // name `a{b}c` — the 9.x answer, at every release. It also
-    // mis-read `${arr}(foo)` as `{arr}`, where [`split_array_name`] has always
-    // documented the scalar `arr`.
-    let base = match braced_var_name(name, style) {
-        Some(inner) => inner,
-        None => name.strip_prefix('$').unwrap_or(name),
-    };
+    // The selected braced-name owner determines where the reference ends;
+    // the shared closed-element partition decides whether parentheses denote
+    // an array. Unmatched opens and suffix text remain scalar name bytes.
+    split_array_name_for_style(name, style).0
+}
 
-    // Strip array index: keep everything before the first `(`.
-    match base.find('(') {
-        Some(idx) => &base[..idx],
-        None => base,
+/// Fixed identifier subset for emitting a variable-name word without quoting:
+/// `[A-Za-z_][A-Za-z0-9_:]*`. This construction policy is deliberately narrower
+/// than Tcl's accepted names and supplies no reference parsing or lookup proof.
+///
+/// ```
+/// use tcl_syntax::naming::is_static_variable_source_word;
+/// assert!(is_static_variable_source_word("ns::var"));
+/// assert!(!is_static_variable_source_word("1abc"));
+/// assert!(!is_static_variable_source_word("has space"));
+/// ```
+#[must_use]
+pub fn is_static_variable_source_word(text: &str) -> bool {
+    let mut iter = text.bytes();
+    let Some(first) = iter.next() else {
+        return false;
+    };
+    if !(first.is_ascii_alphabetic() || first == b'_') {
+        return false;
     }
+    iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b':'))
+}
+
+/// Whether the complete source fragment is one variable reference under its grammar.
+/// This shape supplies no selected cell, completed read or invocation authority.
+#[must_use]
+pub fn is_whole_variable_reference(source: &str, config: tcl_lexer::LexerConfig) -> bool {
+    matches!(
+        tcl_lexer::word_parts::whole_var_ref(source.as_bytes(), config),
+        Ok(Some(_))
+    )
+}
+
+/// One complete reference's literal name, without a separately substituted index.
+/// Combined names such as `${a(k)}` remain exact name data; the selected lookup
+/// must independently decide scalar/element semantics and authenticate the read.
+#[must_use]
+pub fn whole_variable_reference_literal_name(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<&str> {
+    let reference = tcl_lexer::word_parts::whole_var_ref(source.as_bytes(), config).ok()??;
+    reference.index.is_none().then_some(())?;
+    core::str::from_utf8(reference.name).ok()
+}
+
+/// A whole scalar reference's literal name under the selected source grammar.
+/// Separate and combined array references decline; empty and literal sigil names
+/// remain data. The caller must independently authenticate the source and read.
+#[must_use]
+pub fn whole_scalar_variable_reference_name(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<&str> {
+    let name = whole_variable_reference_literal_name(source, config)?;
+    split_element_ref_bytes(name.as_bytes())
+        .is_none()
+        .then_some(name)
+}
+
+/// A whole original substitution's analytical variable root under its grammar.
+///
+/// The selected lexer owns sigils, brace closers and separate array indexes.
+/// A braced combined name is partitioned by [`split_element_ref_bytes`]; an
+/// unmatched parenthesis remains part of its scalar name. UTF-8 and opaque
+/// byte references use the same path, retaining NUL and literal dollar bytes.
+/// Compound text declines; malformed references retain the scanner's error.
+/// This source projection supplies no native cell, input extent or read proof.
+pub fn variable_reference_root_bytes(
+    source: &[u8],
+    config: tcl_lexer::LexerConfig,
+) -> Result<Option<&[u8]>, &'static str> {
+    let Some(reference) = tcl_lexer::word_parts::whole_var_ref(source, config)? else {
+        return Ok(None);
+    };
+    let root = if reference.index.is_some() {
+        reference.name
+    } else {
+        split_element_ref_bytes(reference.name).map_or(reference.name, |(root, _)| root)
+    };
+    Ok(Some(root))
 }
 
 /// Whether an array-element key is a compile-time literal — no `$` variable
@@ -1012,6 +1465,54 @@ pub fn qualify(prefix: &str, name: &str) -> String {
     format!("::{p}::{canonical}")
 }
 
+/// Qualify a written C namespace name under a constructed namespace key.
+/// Trailing separators select the namespace itself; empty relative input
+/// retains the current namespace. This is an authored naming abstraction,
+/// without native namespace existence or execution authority.
+#[must_use]
+pub fn qualify_namespace(prefix: &str, written: &str) -> String {
+    if written.starts_with("::") {
+        return normalise_qualified_name(written);
+    }
+    let parts = qualifier_segments_owned(written);
+    if parts.is_empty() {
+        let relative = unroot_rooted_key(prefix).unwrap_or(prefix);
+        return if relative.is_empty() {
+            "::".to_owned()
+        } else {
+            format!("::{relative}")
+        };
+    }
+    qualify(prefix, &parts.join("::"))
+}
+
+/// Byte-preserving qualification for command glob patterns and names.
+/// The prefix is constructed; only the written name's colon runs collapse.
+#[must_use]
+pub fn qualify_bytes(prefix: &[u8], name: &[u8]) -> Vec<u8> {
+    let mut result = if name.starts_with(b"::") {
+        b"::".to_vec()
+    } else {
+        let prefix = prefix.strip_prefix(b"::").unwrap_or(prefix);
+        let mut rooted = b"::".to_vec();
+        rooted.extend_from_slice(prefix);
+        if !prefix.is_empty() {
+            rooted.extend_from_slice(b"::");
+        }
+        rooted
+    };
+    for (index, segment) in qualifier_segments(name).into_iter().enumerate() {
+        if index != 0 {
+            result.extend_from_slice(b"::");
+        }
+        result.extend_from_slice(segment);
+    }
+    if ends_with_separator(name) && !name.iter().all(|byte| *byte == b':') {
+        result.extend_from_slice(b"::");
+    }
+    result
+}
+
 /// Add the global root marker to an **unrooted constructed key**.
 ///
 /// This is not written-name canonicalisation: the input has already been
@@ -1031,6 +1532,55 @@ pub fn qualify(prefix: &str, name: &str) -> String {
 #[must_use]
 pub fn root_unrooted_key(key: &str) -> String {
     format!("::{key}")
+}
+
+/// Remove exactly the root marker from a **rooted constructed key**.
+/// This is the inverse of [`root_unrooted_key`], preserving colon-named
+/// segments rather than canonicalising the spelling as a written name.
+///
+/// ```
+/// use tcl_syntax::naming::{root_unrooted_key, unroot_rooted_key};
+/// for key in ["", "N", ":", ":::p"] {
+///     assert_eq!(unroot_rooted_key(&root_unrooted_key(key)), Some(key));
+/// }
+/// assert_eq!(unroot_rooted_key("relative"), None);
+/// ```
+#[must_use]
+pub fn unroot_rooted_key(key: &str) -> Option<&str> {
+    key.strip_prefix("::")
+}
+
+/// Remove one root marker from a counted constructed key, retaining all other bytes.
+#[must_use]
+pub fn unroot_rooted_key_bytes(key: &[u8]) -> Option<&[u8]> {
+    key.strip_prefix(b"::")
+}
+
+/// A command lookup base supplied by a consumer's context owner.
+/// Coordinates carry no namespace liveness or binding evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandLookupBase<T> {
+    /// The current namespace or an ordered namespace-path entry.
+    Context(T),
+    /// The interpreter's actual global namespace, resolved when reached.
+    Root,
+}
+
+/// Visit current/path/root bases for a relative command, or root alone for
+/// an absolute command. Consumers project their own coordinate representation.
+pub fn command_lookup_bases<T>(
+    absolute: bool,
+    current: T,
+    path: impl IntoIterator<Item = T>,
+) -> impl Iterator<Item = CommandLookupBase<T>> {
+    let mut contexts = std::iter::once(current).chain(path).fuse();
+    let mut root_pending = true;
+    std::iter::from_fn(move || {
+        if !absolute && let Some(context) = contexts.next() {
+            return Some(CommandLookupBase::Context(context));
+        }
+        std::mem::take(&mut root_pending).then_some(CommandLookupBase::Root)
+    })
 }
 
 /// Candidate qualified names for Tcl's real bareword command/procedure
@@ -1116,55 +1666,74 @@ pub fn command_resolution_candidates<S: AsRef<str>>(
     path: &[S],
     cmd_name: &str,
 ) -> Vec<String> {
-    // Canonicalise the *written* command word once (colon-run rule):
-    // `a:::b` names `a::b`, a lone `:` is an ordinary character, and a
-    // trailing separator names the `{}` command in the qualified namespace.
-    // An absolute word is complete after canonicalisation (`:::` → `::`, the
-    // global `{}` command).
-    if cmd_name.starts_with("::") {
-        return vec![canonical_written_command(cmd_name)];
-    }
+    let absolute = cmd_name.starts_with("::");
     let canonical_cmd = canonical_written_command(cmd_name);
-    let mut out: Vec<String> = Vec::with_capacity(path.len() + 2);
-    // `base` is a *constructed* namespace key: root it with one exact `::`,
-    // never re-parse it — a `::`-run inside the key is a legitimately
-    // colon-named segment (`namespace eval :`), not a collapsible separator.
-    let push_base = |base: &str, out: &mut Vec<String>| {
-        let candidate = if base.is_empty() || base == "::" {
-            format!("::{canonical_cmd}")
-        } else if base.starts_with("::") {
-            format!("{base}::{canonical_cmd}")
-        } else {
-            format!("::{base}::{canonical_cmd}")
-        };
-        if !out.contains(&candidate) {
-            out.push(candidate);
-        }
-    };
-    push_base(namespace, &mut out);
-    for entry in path {
-        // A path entry is a *written* namespace name: canonicalise it (runs
-        // collapse; a trailing separator run drops — `namespace path c:::`
-        // names `::c`, never a namespace named `c::`).
+    let selected_path = path.iter().map(|entry| {
         let entry = entry.as_ref();
         if entry.starts_with("::") {
-            push_base(&normalise_qualified_name(entry), &mut out);
+            normalise_qualified_name(entry)
         } else {
-            // Relative entry: current-namespace-relative only (see above).
-            let segs = qualifier_segments_owned(entry);
-            let canonical_entry = segs.join("::");
-            let based = if namespace.is_empty() || namespace == "::" {
+            let canonical_entry = qualifier_segments_owned(entry).join("::");
+            if namespace.is_empty() || namespace == "::" {
                 format!("::{canonical_entry}")
             } else if namespace.starts_with("::") {
                 format!("{namespace}::{canonical_entry}")
             } else {
                 format!("::{namespace}::{canonical_entry}")
-            };
-            push_base(&based, &mut out);
+            }
+        }
+    });
+    let mut out = Vec::with_capacity(path.len() + 2);
+    for base in command_lookup_bases(absolute, namespace.to_owned(), selected_path) {
+        let candidate = match base {
+            CommandLookupBase::Root if absolute => canonical_cmd.clone(),
+            CommandLookupBase::Root => format!("::{canonical_cmd}"),
+            CommandLookupBase::Context(base) if base.is_empty() || base == "::" => {
+                format!("::{canonical_cmd}")
+            }
+            CommandLookupBase::Context(base) if base.starts_with("::") => {
+                format!("{base}::{canonical_cmd}")
+            }
+            CommandLookupBase::Context(base) => format!("::{base}::{canonical_cmd}"),
+        };
+        if !out.contains(&candidate) {
+            out.push(candidate);
         }
     }
-    push_base("::", &mut out);
     out
+}
+
+/// Ordered command candidates using retained constructed namespace keys.
+///
+/// The command operand is written syntax; current and path namespaces are
+/// already selected contexts. Literal-colon components in those keys remain
+/// data. A candidate key does not certify a globally callable source spelling.
+#[must_use]
+pub fn command_resolution_candidates_from_namespace_keys<S: AsRef<str>>(
+    namespace: &str,
+    path: &[S],
+    cmd_name: &str,
+) -> Vec<String> {
+    let absolute = cmd_name.starts_with("::");
+    let command = canonical_written_command(cmd_name);
+    let mut candidates = Vec::with_capacity(path.len() + 2);
+    for base in command_lookup_bases(absolute, namespace, path.iter().map(AsRef::as_ref)) {
+        let key = match base {
+            CommandLookupBase::Root if absolute => command.clone(),
+            CommandLookupBase::Root => format!("::{command}"),
+            CommandLookupBase::Context(context) if context.is_empty() || context == "::" => {
+                format!("::{command}")
+            }
+            CommandLookupBase::Context(context) if context.starts_with("::") => {
+                format!("{context}::{command}")
+            }
+            CommandLookupBase::Context(context) => format!("::{context}::{command}"),
+        };
+        if !candidates.contains(&key) {
+            candidates.push(key);
+        }
+    }
+    candidates
 }
 
 /// Resolve a command name the way C Tcl's `Tcl_FindCommand` does: walk
@@ -1310,6 +1879,14 @@ pub fn split_array_name_for_style(
         Some((array, elem)) => (array, Some(elem)),
         None => (base, None),
     }
+}
+
+/// Split an editor's incomplete array-name fragment into source prefixes.
+/// Neither prefix is an evaluated name, complete reference or variable lookup.
+#[must_use]
+pub fn array_variable_completion_prefix(partial: &str) -> Option<(&str, &str)> {
+    let (name, index) = partial.split_once('(')?;
+    (!name.is_empty()).then_some((name, index))
 }
 
 /// True when `word` carries a variable / command substitution anywhere —
@@ -1634,8 +2211,316 @@ pub mod conformance {
     }
 }
 
+/// Possible rooted names in unattributed text, for conservative edit refusal.
+/// Delimiter and sigil scanning is deliberately broader than executable Tcl;
+/// these fragments grant no name lookup, variable access or editable span.
+pub fn unattributed_rooted_name_candidates(text: &str) -> impl Iterator<Item = &str> {
+    text.split(|character: char| character.is_whitespace() || "{}[];\"".contains(character))
+        .map(|token| token.trim_start_matches(['$', '{']).trim_end_matches('}'))
+        .filter(|token| token.starts_with("::"))
+        .map(|token| token.split_once('(').map_or(token, |(root, _)| root))
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unattributed_alias_hints_preserve_unavailable_value_boundaries() {
+        let config = tcl_lexer::LexerConfig::default();
+        for reference in ["$selector", "${selector}"] {
+            assert_eq!(
+                unattributed_variable_alias_hint(reference, config, |name| (name == "selector")
+                    .then_some("target")),
+                Some("target")
+            );
+            for value in ["", "$literal", "[literal]", "has space"] {
+                assert_eq!(
+                    unattributed_variable_alias_hint(reference, config, |_| Some(value)),
+                    None
+                );
+            }
+        }
+        for reference in [
+            "plain",
+            "$",
+            "$array(key)",
+            "${array(key)}",
+            "${selector}suffix",
+        ] {
+            assert_eq!(
+                unattributed_variable_alias_hint(reference, config, |_| Some("target")),
+                None
+            );
+        }
+        for (reference, name) in [
+            ("${}", ""),
+            ("${$literal}", "$literal"),
+            ("${[literal]}", "[literal]"),
+        ] {
+            assert_eq!(
+                unattributed_variable_alias_hint(reference, config, |read| (read == name)
+                    .then_some("target")),
+                Some("target")
+            );
+            assert_eq!(
+                unattributed_variable_alias_hint(reference, config, |_| None),
+                None
+            );
+        }
+    }
+
+    #[test]
+    fn unattributed_rooted_candidates_preserve_data_and_refuse_lookup_authority() {
+        let text = "literal {::old::member} [::other] $::array(index)\u{2003}\":::lone\" ; :relative ::empty::";
+        assert_eq!(
+            unattributed_rooted_name_candidates(text).collect::<Vec<_>>(),
+            [
+                "::old::member",
+                "::other",
+                "::array",
+                ":::lone",
+                "::empty::"
+            ]
+        );
+        assert_eq!(
+            unattributed_rooted_name_candidates("$${::old(index)}").collect::<Vec<_>>(),
+            ["::old"]
+        );
+        assert_eq!(
+            unattributed_rooted_name_candidates(":: :relative plain").collect::<Vec<_>>(),
+            ["::"]
+        );
+    }
+
+    #[test]
+    fn command_lookup_bases_visit_path_only_after_current() {
+        use super::{CommandLookupBase, command_lookup_bases};
+        let reached = std::cell::Cell::new(0);
+        let path = [20, 30]
+            .into_iter()
+            .inspect(|_| reached.set(reached.get() + 1));
+        let mut bases = command_lookup_bases(false, 10, path);
+        assert_eq!(bases.next(), Some(CommandLookupBase::Context(10)));
+        assert_eq!(reached.get(), 0);
+        assert_eq!(bases.next(), Some(CommandLookupBase::Context(20)));
+        assert_eq!(reached.get(), 1);
+        assert_eq!(bases.next(), Some(CommandLookupBase::Context(30)));
+        assert_eq!(bases.next(), Some(CommandLookupBase::Root));
+        assert_eq!(bases.next(), None);
+        assert_eq!(bases.next(), None);
+    }
+
+    #[test]
+    fn absolute_command_lookup_never_visits_context_or_path() {
+        use super::{CommandLookupBase, command_lookup_bases};
+        let path = std::iter::once(20).inspect(|_| panic!("absolute lookup reached path"));
+        let mut bases = command_lookup_bases(true, 10, path);
+        assert_eq!(bases.next(), Some(CommandLookupBase::Root));
+        assert_eq!(bases.next(), None);
+        assert_eq!(bases.next(), None);
+    }
+
+    #[test]
+    fn scalar_parentheses_share_the_closed_element_partition() {
+        // Implementation contract: naming.expression.selected-reference-root
+
+        // Native341 public values establish the distinct scalar/element cases;
+        // these assertions bind only the source-name projection, not a cell.
+        for style in [
+            tcl_dialect::BracedVarStyle::FirstClose,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting,
+        ] {
+            for (source, root) in [
+                ("scalar(open", "scalar(open"),
+                ("scalar(open)tail", "scalar(open)tail"),
+                ("${scalar(open}", "scalar(open"),
+                ("${scalar(open)tail}", "scalar(open)tail"),
+                ("${arr(first(second)}", "arr"),
+                ("${cash$name}", "cash$name"),
+            ] {
+                assert_eq!(normalise_var_name_for_style(source, style), root);
+                assert_eq!(split_array_name_for_style(source, style).0, root);
+            }
+        }
+    }
+
+    #[test]
+    fn literal_reference_names_keep_combined_lookup_data_separate_from_indexes() {
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = tcl_lexer::LexerConfig::for_dialect(profile);
+            for (source, name) in [
+                ("${arr(key)}", "arr(key)"),
+                ("${}", ""),
+                ("${scalar(open}", "scalar(open"),
+            ] {
+                assert_eq!(
+                    whole_variable_reference_literal_name(source, config),
+                    Some(name),
+                    "{profile}: {source}"
+                );
+            }
+            for source in ["$arr(key)", "$arr($key)", "$a:b", "$a$b", "${missing"] {
+                assert_eq!(
+                    whole_variable_reference_literal_name(source, config),
+                    None,
+                    "{profile}: {source}"
+                );
+            }
+            assert_eq!(
+                whole_scalar_variable_reference_name("${arr(key)}", config),
+                None
+            );
+        }
+    }
+
+    #[test]
+    fn whole_reference_shapes_follow_original_provider_grammar() {
+        let first = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let nested = tcl_lexer::LexerConfig::default();
+        let jim = tcl_lexer::LexerConfig::for_dialect("jim");
+        for config in [first, nested, jim] {
+            for (source, name) in [("$a", "a"), ("${}", ""), ("${scalar(open}", "scalar(open")] {
+                assert!(is_whole_variable_reference(source, config));
+                assert_eq!(
+                    whole_scalar_variable_reference_name(source, config),
+                    Some(name)
+                );
+            }
+            for source in ["$arr(key)", "${arr(key)}"] {
+                assert!(is_whole_variable_reference(source, config));
+                assert_eq!(whole_scalar_variable_reference_name(source, config), None);
+            }
+            for source in ["$a:b", "$arr(key)tail", "$a$b", "plain", "${missing"] {
+                assert!(!is_whole_variable_reference(source, config));
+                assert_eq!(whole_scalar_variable_reference_name(source, config), None);
+            }
+        }
+        assert_eq!(whole_scalar_variable_reference_name("$café", first), None);
+        assert_eq!(
+            whole_scalar_variable_reference_name("$café", jim),
+            Some("café")
+        );
+        assert_eq!(
+            whole_scalar_variable_reference_name("${a{b}c}", first),
+            None
+        );
+        assert_eq!(
+            whole_scalar_variable_reference_name("${a{b}c}", nested),
+            Some("a{b}c")
+        );
+        assert_eq!(whole_scalar_variable_reference_name("$(1+2)", jim), None);
+    }
+
+    #[test]
+    fn selected_reference_roots_keep_whole_scalar_and_combined_element_bytes() {
+        // Implementation contract: naming.expression.selected-reference-root
+
+        for style in [
+            tcl_dialect::BracedVarStyle::FirstClose,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting,
+        ] {
+            let config = tcl_lexer::LexerConfig {
+                braced_var: style,
+                ..tcl_lexer::LexerConfig::default()
+            };
+            for (source, root) in [
+                (b"${scalar(open}".as_slice(), b"scalar(open".as_slice()),
+                (b"${scalar(open)tail}", b"scalar(open)tail"),
+                (b"${arr(key)}", b"arr"),
+                (b"$arr(key)", b"arr"),
+                (b"${arr(inner)(key)}", b"arr"),
+                (b"${cash$name}", b"cash$name"),
+                (b"${\xff(key)}", b"\xff"),
+                (b"${\xff(open}", b"\xff(open"),
+                (b"${nul\0tail(key)}", b"nul\0tail"),
+                (b"${}", b""),
+            ] {
+                assert_eq!(
+                    variable_reference_root_bytes(source, config),
+                    Ok(Some(root))
+                );
+            }
+            for source in [b"plain".as_slice(), b"$", b"${arr}(key)", b"$arr(key)tail"] {
+                assert_eq!(variable_reference_root_bytes(source, config), Ok(None));
+            }
+            assert!(variable_reference_root_bytes(b"${missing", config).is_err());
+        }
+        let first = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let nested = tcl_lexer::LexerConfig::default();
+        assert_eq!(
+            variable_reference_root_bytes(b"${a{b}", first),
+            Ok(Some(b"a{b".as_slice()))
+        );
+        assert!(variable_reference_root_bytes(b"${a{b}", nested).is_err());
+        assert_eq!(variable_reference_root_bytes(b"${a{b}c}", first), Ok(None));
+        assert_eq!(
+            variable_reference_root_bytes(b"${a{b}c}", nested),
+            Ok(Some(b"a{b}c".as_slice()))
+        );
+    }
+
+    #[test]
+    fn retained_namespace_candidates_preserve_unaddressable_contexts() {
+        use super::command_resolution_candidates_from_namespace_keys;
+        assert_eq!(
+            command_resolution_candidates_from_namespace_keys(":::", &["::n", ":::"], "p"),
+            [":::::p", "::n::p", "::p"]
+        );
+        assert_eq!(
+            command_resolution_candidates_from_namespace_keys("::n", &[":::"], "p"),
+            ["::n::p", ":::::p", "::p"]
+        );
+        assert_eq!(
+            command_resolution_candidates_from_namespace_keys(":::", &[":::"], ":::::p"),
+            ["::p"]
+        );
+    }
+
+    #[test]
+    fn jim_global_keys_preserve_native_written_name_distinctions() {
+        use super::{jim_global_variable_key, jim_global_variable_key_bytes, qualify_bytes};
+
+        // Pinned Jim 0.84 resolves :::x as x, while :x is a different key.
+        // Its flat keys also distinguish foo:::bar from foo::bar.
+        for (namespace, name, expected) in [
+            ("::", ":::x", "x"),
+            ("::n", "::::x", "x"),
+            ("::", ":x", ":x"),
+            ("::n", ":x", "n:::x"),
+            ("::", "foo:::bar", "foo:::bar"),
+            ("::n", "foo:::bar", "n::foo:::bar"),
+            ("::n", "::foo:::bar", "foo:::bar"),
+            ("::n", ":::", ""),
+        ] {
+            assert_eq!(jim_global_variable_key(namespace, name), expected);
+            assert_eq!(
+                jim_global_variable_key_bytes(namespace.as_bytes(), name.as_bytes()),
+                expected.as_bytes()
+            );
+        }
+        assert_eq!(qualify_bytes(b"::", b"foo:::bar"), b"::foo::bar");
+    }
+
+    #[test]
+    fn jim_global_keys_keep_constructed_namespace_segments_and_raw_bytes() {
+        use super::jim_global_variable_key_bytes;
+
+        // Strip one root marker from an already constructed namespace key.
+        // These segments are not absolute written names to canonicalise.
+        assert_eq!(jim_global_variable_key_bytes(b":::::n", b"x"), b":::n::x");
+        assert_eq!(jim_global_variable_key_bytes(b"::", b"A\0B"), b"A\0B");
+        assert_eq!(jim_global_variable_key_bytes(b"::n", b":::\xff"), b"\xff");
+        assert_eq!(
+            jim_global_variable_key_bytes(b"::\xff", b"A\0B"),
+            b"\xff::A\0B"
+        );
+    }
+
     /// Every `${…}` reader in this module resolves the closer
     /// through the one owner, so they agree with each other *and* move
     /// together with the release.
@@ -2081,7 +2966,7 @@ mod tests {
         assert_eq!(qualifier_segments(b"::cmd"), vec![&b"cmd"[..]]);
         assert_eq!(qualifier_segments(b"cmd"), vec![&b"cmd"[..]]);
         assert_eq!(qualifier_segments(b"a::b"), vec![&b"a"[..], b"b"]);
-        assert!(qualifier_segments(b"::").is_empty());
+        assert_eq!(qualifier_segments(b"::"), [] as [&[u8]; 0]);
         // a trailing separator drops the empty tail; a lone interior colon stays.
         assert_eq!(qualifier_segments(b"a::b::"), vec![&b"a"[..], b"b"]);
         // a run of >=2 colons is one separator (all consecutive colons consumed).
@@ -2116,5 +3001,146 @@ mod tests {
         assert!(!is_qualified(b"plain"));
         assert!(!is_qualified(b"a:b"));
         assert!(!is_qualified(b""));
+    }
+
+    #[test]
+    #[allow(clippy::single_range_in_vec_init)] // vectors of component ranges
+    fn written_component_extents_share_segmentation_and_preserve_original_byte_geometry() {
+        // naming.editor.logical-written-component-geometry
+
+        // Written segmentation only; no native input/namespace or edit admission.
+        for (written, wanted) in [
+            (&b"::a::b"[..], vec![2..3, 5..6]),
+            (&b":::a:::b"[..], vec![3..4, 7..8]),
+            (&b"::::a::::b"[..], vec![4..5, 9..10]),
+            (&b":::::a:::::b:::::"[..], vec![5..6, 11..12]),
+            (&b"a:b"[..], vec![0..3]),
+            (&b"::"[..], vec![]),
+            (&b":::::"[..], vec![]),
+            (&b""[..], vec![]),
+            (&b"a\0x:::b"[..], vec![0..3, 6..7]),
+            ("::::é:::旧::".as_bytes(), vec![4..6, 9..12]),
+        ] {
+            let extents = qualifier_component_extents(written).collect::<Vec<_>>();
+            assert_eq!(extents, wanted, "{written:?}");
+            assert_eq!(
+                qualifier_segments(written),
+                extents
+                    .iter()
+                    .map(|extent| &written[extent.clone()])
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod shared_boundary_tests {
+    use super::*;
+
+    #[test]
+    fn written_command_parts_keep_empty_tail_and_counted_components() {
+        for (written, absolute, qualifiers, simple) in [
+            (b"".as_slice(), false, vec![], b"".as_slice()),
+            (b":".as_slice(), false, vec![], b":".as_slice()),
+            (b"::::".as_slice(), true, vec![], b"".as_slice()),
+            (
+                b"::a:::b::".as_slice(),
+                true,
+                vec![b"a".as_slice(), b"b"],
+                b"".as_slice(),
+            ),
+            (b"a:b".as_slice(), false, vec![], b"a:b".as_slice()),
+            (
+                b"q:::p".as_slice(),
+                false,
+                vec![b"q".as_slice()],
+                b"p".as_slice(),
+            ),
+            (
+                b"q:\0::\xff".as_slice(),
+                false,
+                vec![b"q:\0".as_slice()],
+                b"\xff".as_slice(),
+            ),
+        ] {
+            assert_eq!(
+                written_command_parts(written),
+                WrittenCommandParts {
+                    absolute,
+                    qualifiers,
+                    simple
+                },
+                "{written:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn written_separator_spans_retain_complete_runs_and_counted_units() {
+        // Implementation contract: naming.grammar.shared-written-name-boundaries
+
+        // Counted source geometry only; no native extent or name identity.
+        for (written, separator, tail) in [
+            (b"".as_slice(), None, b"".as_slice()),
+            (b":".as_slice(), None, b":".as_slice()),
+            (b"a:b".as_slice(), None, b"a:b".as_slice()),
+            (b":::".as_slice(), Some(0..3), b"".as_slice()),
+            (b"::a:::b".as_slice(), Some(3..6), b"b".as_slice()),
+            (b"a:::".as_slice(), Some(1..4), b"".as_slice()),
+            (b"a\0x:::b".as_slice(), Some(3..6), b"b".as_slice()),
+            (b"a::b\0c".as_slice(), Some(1..3), b"b\0c".as_slice()),
+            ("é:::λ".as_bytes(), Some(2..5), "λ".as_bytes()),
+        ] {
+            assert_eq!(written_separator_extent(written), separator);
+            assert_eq!(written_command_tail(written), tail);
+        }
+    }
+
+    #[test]
+    fn key_suffixes_preserve_constructed_colon_segments_without_lookup_authority() {
+        // naming.analysis.procedure-summary-candidate-keys
+
+        // Pure constructed labels only, never Native namespace interpretation.
+        assert_eq!(
+            key_suffixes("::a::b::p"),
+            ["::a::b::p", "a::b::p", "b::p", "p"]
+        );
+        assert_eq!(key_suffixes(":::::p"), [":::::p", ":::p", "p"]);
+        assert_eq!(
+            key_suffixes("::a:::::p"),
+            ["::a:::::p", "a:::::p", ":::p", "p"]
+        );
+        assert_eq!(key_suffixes("::::::"), ["::::::", "::::", ":"]);
+        assert_eq!(key_suffixes("::a::"), ["::a::", "a::"]);
+        assert_eq!(key_suffixes("::"), ["::"]);
+        assert_eq!(key_suffixes(""), [""]);
+        assert_eq!(
+            key_suffixes("::é::雪\0p"),
+            ["::é::雪\0p", "é::雪\0p", "雪\0p"]
+        );
+    }
+}
+
+#[cfg(test)]
+mod support_registration_tests {
+    use super::*;
+
+    #[test]
+    fn support_registration_retains_counted_labels_and_last_nonempty_component() {
+        for name in [b"".as_slice(), b"::", b"::::"] {
+            assert!(support_command_registration_slot(name).is_none());
+        }
+        for (name, holder, tail) in [
+            (b"::A:::b::".as_slice(), b"A".as_slice(), b"b".as_slice()),
+            (b"\xff::k\0tail::", b"\xff", b"k\0tail"),
+            (b"A:::b", b"A", b"b"),
+            (b"$literal::member", b"$literal", b"member"),
+        ] {
+            let slot = support_command_registration_slot(name).unwrap();
+            assert_eq!(slot.namespace.as_segments().len(), 1);
+            assert_eq!(slot.namespace.as_segments()[0].as_bytes(), holder);
+            assert_eq!(slot.simple.as_bytes(), tail);
+        }
     }
 }

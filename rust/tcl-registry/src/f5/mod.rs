@@ -22,15 +22,14 @@
 //!
 //! The model this implements is the F5 evidence layer and probe contract in
 //! `docs/design/registry/dialect-and-package-registry-redesign.md`, its resolution
-//! rulings in `dialect-and-package-registry-centralisation.md`, and the live
-//! transcript in `docs/design/f5/bigip-irule-parser-measurements.md`. Section
-//! references in this module (`§4a`, `§4b`, `§8`, …) are that measurements
-//! document unless said otherwise.
+//! rulings in `dialect-and-package-registry-centralisation.md`, and the current
+//! grammar/context contract in `docs/design/f5/embedded-tcl-contract.md`.
+//! Historical section tags in observation metadata remain evidence identifiers.
 //!
 //! Four layers, and the direction of dependence matters:
 //!
-//! - [`execution_context`] — [`BigIpExecutionContext`], the F1 key. Six
-//!   contexts, four measured, two honestly [`ContextMeasurement::Unmeasured`].
+//! - [`execution_context`] — [`BigIpExecutionContext`]: seven independent
+//!   contexts, including iCall; APL and its Tcl callbacks are unmeasured.
 //! - [`evidence`] — [`EmbeddedRuntimeEvidence`], the F2 truth records:
 //!   `(context, BIG-IP build, fact, provenance)`. An unmeasured build
 //!   resolves to [`EvidenceResolution::Unknown`] or to an explicitly
@@ -46,20 +45,19 @@
 //!   action-local overlays (`requires-bigip-version-min`/`-max`,
 //!   `role-acl`, `run-as`).
 //!
-//! **What this layer is not.** It does not migrate any F5 registry row:
-//! the §0.2 migration hold stands until the review's acceptance matrix has
-//! its coverage (one 17.x build, one older build, the restricted-role tmsh
-//! column, and the two APL contexts). What it does is make the hold
-//! *checkable*: every claim now carries the build and context it was
-//! measured on, and every place the shipping model disagrees with the
-//! appliance is a recorded, asserted corpus row instead of tribal
-//! knowledge.
+//! Semantic facts require their exact measured build and execution context.
+//! Unmeasured releases, restricted-role surfaces and APL contexts remain
+//! unknown; nearest-build assistance cannot supply those facts.
 
 pub mod corpus;
 pub mod evidence;
 pub mod execution_context;
 pub mod iapp_metadata;
+pub mod naming;
+pub mod rule_identity;
+pub mod storage;
 pub mod tmsh_syntax;
+pub use rule_identity::{RuleIdentity, RuleIdentityError, RuleProcedureTarget};
 
 pub use corpus::{
     COMMAND_CLASS_VECTORS, CONTEXT_ENVIRONMENT_VECTORS, CaseOutcome, CommandClassVector,
@@ -81,4 +79,9 @@ pub use iapp_metadata::{
 pub use tmsh_syntax::{
     TMSH_SYNTAX_VERSIONED_SINCE, TmshSyntaxSelection, TmshSyntaxState, TmshSyntaxTransition,
     tmsh_syntax_transition_for,
+};
+
+pub use storage::{
+    VariableStorageDomain, WorkerExecution, namespace_storage_domain,
+    namespace_storage_domain_in_path, runtime_namespaces,
 };

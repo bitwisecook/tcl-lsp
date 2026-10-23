@@ -57,35 +57,24 @@ The executable C Tcl oracle for the literal string `A😀B` is:
 | `string range` 1 2 | the complete emoji | the emoji followed by `B` |
 | `string first B` | `3` | `2` |
 
-Until the shared Tcl value layer can retain unpaired UTF-16 surrogates (for
-example through an exact UTF-16, WTF-8, or equivalent lossless internal
-representation) and defines conversion and shimmering at every boundary, Tcl
-8 string index/range/search specialisation must decline to generic runtime
-dispatch. The representation belongs below both TclVM and WASM code generation;
-an emitter or command-specific compiler branch must not approximate it with
-Unicode scalar iteration or replacement characters.
+Character-index specialisation requires the selected original byte/unit purpose
+and physical storage, conversion and result protocols. Unicode scalar iteration
+or replacement characters cannot substitute for those owners.
 
-#### Current support status: unsupported, not approximated
+#### Selected runtime support and AOT limits
 
-Only `string length`, and `regsub -all {}`'s walk of the same units (below),
-is versioned today. Every character-*indexed* string
-operation — `index`, `range`, `first`, `last`, `replace`, `insert`, `reverse`,
-`wordstart`/`wordend`, and the ranged case converters — addresses Unicode
-scalars in both runtimes and in the compile-time folds, whichever dialect is
-selected.
+The shared `string index` / `string range` workers select original C operations
+through `NativeIndexOps::index_c_version`. They retain native byte/unit storage
+and result construction, including surrogate units, rather than projecting
+through Rust `String`. Runtime and VM physical adapters supply those selected
+protocols; independently authored checked-Unicode text routes remain separate.
+`regsub -all {}` walks the same per-release units as `string length` (below).
 
-The consequence is deliberate and stated rather than hidden: on a Tcl 8
-dialect, a string holding a supplementary character has a `string length` that
-does not agree with the indices those operations use. That case is **not
-supported**. It is also not approximated — addressing UTF-16 code units and
-decoding a split surrogate pair to U+FFFD was implemented and then reverted,
-because a replacement character is a wrong answer that looks like a right one,
-and the oracle above is what it would have to meet.
-
-Strings outside the supplementary planes are unaffected: both models agree on
-every index, so ordinary Tcl 8 scripts see exact behaviour. Closing the gap
-means the lossless value representation described above, below both runtimes,
-as its own change.
+The guarded AOT intrinsic is still limited to `StringLength`; other intrinsic
+candidates decline. A length count does not prove a character index, getter,
+conversion or physical result purpose. Native command workers do not by
+themselves authorise an AOT specialisation or every compile-time fold. A transform
+without its own exact representation and effect premises retains generic dispatch.
 
 #### 8.4 and 8.5 are not 8.6
 
@@ -152,7 +141,7 @@ The current control surface is `SemanticOptimisationPassId`:
 |---|---|
 | `LegacyAnalysisSpecialisation` | retain the pre-common-proof structured-WASM compatibility tier behind an explicit opt-in |
 | `GuardedIntrinsic` | select the bounded boxed intrinsic plus its live guard and exact argv fallback |
-| `CachedBoxedSlot` | reserve authorisation for a future cached boxed Tcl-object slot; no emitter consumes it today |
+| `CachedBoxedSlot` | explicit cached boxed Tcl-object slot control; no cached-slot emitter consumes it |
 | `MaterialisableSlot` | authorise common materialisable-slot evidence; currently consumed only as one premise of the sealed native add |
 | `DirectProc` | authorise common direct-procedure evidence; currently consumed only by the sealed native add |
 | `NativeInteger` | authorise native-integer proof; currently consumed only by the exact i64 addition |
@@ -161,7 +150,7 @@ The current control surface is `SemanticOptimisationPassId`:
 | `NativeLowering` | lower a function through the native lowered IR (`native_lowering`) and let a backend emit it; a function the lowering declines stays on the general path with a typed reason |
 | `RepresentationInference` | keep values in the representation lattice (`NativeInt`/`NativeDouble`/`NativeBool`) between operations; disabled, every value is boxed and every operation dynamic with a runtime slow edge |
 | `TraceBarrierElision` | let a value stay in a native shadow across cell accesses the module's variable-trace ledger proves unobserved; disabled, every cell access keeps its barrier and every read goes to the runtime |
-| `CellDemotion` | demote a proven-local procedure variable from a named cell to an indexed slot (decision recorded; slot emission not yet implemented) |
+| `CellDemotion` | record whether a procedure variable qualifies for local-slot storage; emission keeps named cells and does not consume these slot decisions |
 
 `WasmCompileOptions::native_tier()` is the aggregate profile that enables the
 four native-tier controls together; it is shorthand for the explicit set and

@@ -46,8 +46,7 @@
 //! mod.rs`): every deadline here is a *hang backstop*, not an assertion. A
 //! fixed wall-clock backstop is wrong in exactly one direction — on a machine
 //! the OS is giving a fraction of a core, a correct server misses it and a
-//! *content* test fails as a *timeout*. That is a real failure mode: the VS
-//! Code suite has stalled while ~9 agent build trees shared the container.
+//! *content* test fails as a *timeout*.
 //!
 //! So deadlines are multiplied by [`loadFactor`], a measured probe of how much
 //! capacity this process is actually getting. On an idle machine the factor is
@@ -457,9 +456,19 @@ export async function awaitSignal<T>(opts: AwaitSignalOptions<T>): Promise<T> {
       const signalsAtProbe = signals;
       probes++;
       let satisfied = false;
+      let probeTimedOut = false;
       try {
-        last = await opts.probe();
-        satisfied = opts.predicate(last);
+        const probeRemaining = Math.max(0, started + budget - Date.now());
+        const outcome = await Promise.race([
+          Promise.resolve(opts.probe()).then((value) => ({ kind: "value" as const, value })),
+          sleepDetached(probeRemaining).then(() => ({ kind: "timeout" as const })),
+        ]);
+        if (outcome.kind === "timeout") {
+          probeTimedOut = true;
+        } else {
+          last = outcome.value;
+          satisfied = opts.predicate(last);
+        }
       } catch (err) {
         if (!opts.retryProbeErrors?.(err)) throw err;
         retriedProbes++;
@@ -470,7 +479,7 @@ export async function awaitSignal<T>(opts: AwaitSignalOptions<T>): Promise<T> {
       // A signal that arrived *while* the probe was in flight refers to state
       // the probe may not have seen — re-read at once rather than sleeping on
       // an answer that is already stale.
-      if (signals !== signalsAtProbe) continue;
+      if (!probeTimedOut && signals !== signalsAtProbe) continue;
 
       const remaining = started + budget - Date.now();
       if (remaining <= 0) {

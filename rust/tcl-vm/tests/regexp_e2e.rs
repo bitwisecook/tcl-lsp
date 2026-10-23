@@ -37,7 +37,6 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileService, Vm};
 
 #[derive(Clone)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -56,9 +55,9 @@ fn run(src: &str) -> (bool, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let c = vm.run_module(&asm);
     (c.code.is_ok(), c.result.to_str().to_string())
@@ -138,16 +137,19 @@ fn regexp_command_corpus() {
 fn run_for_version(src: &str, version: tcl_dialect::TclVersion) -> (bool, String) {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
         .analyser_profile();
-    let service = BytecodeCompileService::for_profile(profile);
-    let asm = service
-        .compile_for_profile(src, profile)
-        .expect("test script compiles for its selected profile");
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_runtime_version(version);
-    vm.set_compiler(Box::new(service));
-    let c = vm.run_module(&asm);
-    (c.code.is_ok(), c.result.to_str().to_string())
+    let mut vm =
+        tcl_vm::test_support::native_vm_for_profile(profile, Box::new(Capture(Rc::clone(&buf))));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+    let c = vm.try_eval_source(src).expect("original source provider");
+    (
+        c.code.is_ok(),
+        String::from_utf8_lossy(
+            &tcl_syntax::value::ValueOps::native_string_bytes(&mut vm, &c.result)
+                .expect("result string"),
+        )
+        .into_owned(),
+    )
 }
 
 /// `regsub -command` evaluates the prefix once per substitution with the whole

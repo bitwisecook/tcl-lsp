@@ -51,14 +51,14 @@
 //! client's bug to fix (VS Code is not; `uriConverters` exists for those that
 //! are).
 //!
-//! Server-constructed file paths have one additional boundary repair:
-//! [`repair_file_uri_from_path`] makes `ls_types::Uri::from_file_path` agree
-//! with VS Code's `URI.file`. A leading `//` becomes a URI authority on every
-//! host; on Windows only, the extended-length `//?/` marker is removed first.
-//! The repair is deliberately called only by the path-to-URI constructor, not
-//! by this module's generic incoming-URI normaliser: a first path segment named
-//! `?` and a path beginning `//` must retain their meaning when already
-//! expressed as URIs, including on POSIX and macOS.
+//! Server-constructed file paths use the Core actual-Path forward owner with an
+//! explicit VS Code document-key projection. A leading POSIX `//` becomes the
+//! authority spelling used by VS Code's `URI.file`. The shared path owner also
+//! handles Windows extended-length paths. Product spelling supplies no inverse
+//! Path conversion: actual scan Paths are retained separately through admission.
+//! The old rendered-URI repair remains only as a test oracle for legacy provider
+//! shapes. The generic incoming-URI normaliser does not apply this projection:
+//! a first path segment named `?` and a path beginning `//` retain their structure.
 //!
 //! # Tolerant parse
 //!
@@ -144,8 +144,8 @@ pub fn canonical_uri_string(raw: &str) -> Cow<'_, str> {
     Cow::Owned(String::from_utf8(out).unwrap_or_else(|_| raw.to_owned()))
 }
 
-/// Repair the file-URI shape `ls_types::Uri::from_file_path` produces for a
-/// filesystem path beginning with `//`.
+/// Apply the product's VS Code authority spelling to a constructed file URI.
+/// Also accepts legacy `ls_types::Uri::from_file_path` Windows shapes.
 ///
 /// VS Code's `URI.file` represents a leading `//host/` as the authority on
 /// every host, preserving POSIX/macOS double-slash paths as `file://host/…`
@@ -155,8 +155,11 @@ pub fn canonical_uri_string(raw: &str) -> Cow<'_, str> {
 /// forms. `windows` is explicit rather than hidden behind `#[cfg]` so every
 /// branch is type-checked and unit-tested on every CI host.
 ///
-/// This function must only receive the output of `Uri::from_file_path`; it is
-/// not a generic URI canonicalisation. Returns `None` for an ordinary path.
+/// This function only receives a URI constructed from an actual path, using
+/// the shared host-path owner or the legacy provider. It is not a generic
+/// incoming-URI canonicalisation or an authority-preserving path inverse.
+/// Returns `None` when no compatibility repair is needed.
+#[cfg(test)]
 pub(crate) fn repair_file_uri_from_path(raw: &str, windows: bool) -> Option<String> {
     // `from_file_path` prepends `file://` on Unix and `file:///` on Windows.
     // Removing exactly that platform prefix recovers its encoded path without
@@ -260,59 +263,56 @@ pub fn repair_uri_string(raw: &str) -> Option<String> {
     out.parse::<Uri>().ok().map(|_| out)
 }
 
-/// The `file:` URI for an absolute path, for the one target
-/// `ls_types::Uri::from_file_path` cannot serve.
-///
-/// That function gates on `Path::is_absolute`, and `std` answers `false` for
-/// **every** path on `wasm32-unknown-unknown`: the target is neither `unix` nor
-/// `windows`, and outside those `is_absolute` additionally demands a path
-/// *prefix*, which only Windows paths have. `from_file_path` therefore takes
-/// its relative-path branch and tries to canonicalise against a filesystem a
-/// browser worker does not have, so it returns `None` for `/ws/main.tcl` — and
-/// with it every URI the server derives from a path it found itself. The
-/// workspace scan indexed nothing at all as a result: each scanned file was
-/// dropped before it could be read, on a target where the store had the bytes
-/// all along.
-///
-/// The output is the same spelling `from_file_path`'s non-Windows branch
-/// produces — `file://` plus the path percent-encoded by
-/// [`encode_path_segment_bytes`] — so a scanned path meets the canonical form
-/// the rest of the server (and the client) uses. Returns `None` for a path with
-/// no root, or one that is not valid UTF-8: neither can be spelled as a `file:`
-/// URI here.
-///
-/// The encoding is **unconditional**, not a fallback for a path that fails to
-/// parse. `#`, `?`, and a literal `%XX` all parse perfectly well in a URI — as
-/// a fragment, a query, and a decoded escape — so `/ws/a#1.tcl` would have
-/// become `file:///ws/a` with a fragment, aliasing a different file, and
-/// [`repair_uri_string`] could never have caught it: [`is_uri_legal`] admits
-/// `?` and the gen-delims by design, because its job is repairing a URI a
-/// client sent, not spelling one from a path.
+/// Render the actual rooted host path through the shared file-path URI owner.
+/// Native and browser constructors use the same unreserved escaping policy.
+/// This neither canonicalises a relative path nor applies the product's
+/// VS Code authority compatibility step. Incoming URI repair remains separate.
+#[cfg(test)]
 #[must_use]
 pub fn rooted_file_uri(path: &std::path::Path) -> Option<Uri> {
-    if !path.has_root() {
-        return None;
-    }
-    let mut raw = String::from("file://");
-    encode_path_segment_bytes(path.to_str()?, &mut raw);
-    raw.parse().ok()
+    tcl_lsp_core::file_uri::from_path(path, tcl_lsp_core::file_uri::FileUriEscaping::Unreserved)?
+        .parse()
+        .ok()
 }
 
-/// Percent-encode `path` into `out` with `ls_types`' own file-path rule: keep
-/// `unreserved` (alphanumeric plus `-._~`) and the `/` separator, escape every
-/// other byte — which is what makes `#`, `?`, `%`, `:` and non-ASCII safe.
-///
-/// Hand-rolled rather than pulling in `percent-encoding` for one `AsciiSet`
-/// that crate does not export anyway (`ls-types-0.0.6/src/uri.rs`'s private
-/// `ASCII_SET`). The equivalence test is what pins the two together.
-fn encode_path_segment_bytes(path: &str, out: &mut String) {
-    for &byte in path.as_bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/') {
-            out.push(char::from(byte));
-        } else {
-            let _ = write!(out, "%{byte:02X}");
-        }
+/// A document/workspace URI was unavailable under the selected native policy.
+/// The result supplies no file/provider absence, source freshness or edit grant.
+pub use tcl_lsp_core::file_uri::FileUriPathUnavailable as DocumentFilePathUnavailable;
+
+/// Decode the original parsed LSP URI using the shared native document owner.
+/// VS Code authority interoperability is explicit and distinct from host file
+/// actions; this does not widen [`file_action_path`]'s nonlocal refusal.
+pub fn document_file_path(uri: &Uri) -> Result<std::path::PathBuf, DocumentFilePathUnavailable> {
+    tcl_lsp_core::file_uri::to_path(
+        uri.as_str(),
+        tcl_lsp_core::file_uri::FileUriPathPurpose::VsCodeDocument,
+    )
+}
+
+/// Strict incoming file-URI boundary for host file actions. URI repair and
+/// display normalization cannot establish a path. Decode with the protocol
+/// provider, rejecting its lossy Unicode fallback and unsupported authorities.
+#[must_use]
+pub fn file_action_path(uri: &Uri) -> Option<std::path::PathBuf> {
+    if !uri.scheme().as_str().eq_ignore_ascii_case("file")
+        || uri.query().is_some()
+        || uri.fragment().is_some()
+    {
+        return None;
     }
+    let authority = uri
+        .authority()
+        .map(|authority| authority.as_str())
+        .unwrap_or_default();
+    if !(authority.is_empty() || cfg!(unix) && authority.eq_ignore_ascii_case("localhost")) {
+        return None;
+    }
+    let decoded = uri.path().decode().to_string().ok()?;
+    if decoded.contains('\0') {
+        return None;
+    }
+    let path = uri.to_file_path()?.into_owned();
+    (path.is_absolute() && path.to_str().is_some()).then_some(path)
 }
 
 /// JSON object keys whose string value is a document / folder URI.
@@ -588,6 +588,25 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn rooted_host_paths_keep_literal_backslashes_and_percent_signs() {
+        for path in [
+            r"/ws/literal\name.tcl",
+            "/ws/literal%5Cname#é.tcl",
+            "//server/share/file.tcl",
+            "//?/file.tcl",
+        ] {
+            let path = std::path::Path::new(path);
+            let uri = rooted_file_uri(path).unwrap();
+            assert_eq!(uri.to_file_path().as_deref(), Some(path));
+            assert_eq!(
+                Some(uri),
+                tower_lsp_server::ls_types::Uri::from_file_path(path)
+            );
+        }
+    }
+
     #[test]
     fn a_rooted_path_with_a_space_is_percent_encoded() {
         assert_eq!(
@@ -641,8 +660,7 @@ mod tests {
         assert_eq!(repair_uri_string("file:///c%3A/Users/me"), None);
     }
 
-    /// Issue #1214 §B: a folder URI with the space left raw used to fail
-    /// deserialisation and take `initialize` down with it.
+    /// Raw spaces in a folder URI are repaired before deserialisation.
     #[test]
     fn an_unencoded_space_is_repaired() {
         assert_eq!(
@@ -727,5 +745,57 @@ mod tests {
         let mut params = json!({ "rootUri": "file:///C:/Users/me/my project" });
         normalise_uris_in_params(&mut params);
         assert_eq!(params["rootUri"], json!("file:///c:/Users/me/my%20project"),);
+    }
+}
+
+#[cfg(test)]
+mod file_action_path_tests {
+    use super::*;
+
+    #[test]
+    fn incoming_file_action_paths_reject_lossy_or_unrepresented_uri_data() {
+        for raw in [
+            "file:///tmp/%FF.tcl",
+            "file:///tmp/%00.tcl",
+            "file:///tmp/x.tcl?query",
+            "file:///tmp/x.tcl#fragment",
+            "file://remote/tmp/x.tcl",
+            "untitled:buffer",
+        ] {
+            let uri: Uri = raw.parse().unwrap();
+            assert!(file_action_path(&uri).is_none(), "{raw}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn incoming_file_action_paths_preserve_actual_posix_path_data() {
+        for (raw, expected) in [
+            ("file:///tmp/a%20%CE%BB.tcl", "/tmp/a λ.tcl"),
+            ("file:////server/share.tcl", "//server/share.tcl"),
+            ("file:///tmp/a%5Cb.tcl", "/tmp/a\\b.tcl"),
+        ] {
+            let uri: Uri = raw.parse().unwrap();
+            assert_eq!(
+                file_action_path(&uri).as_deref(),
+                Some(std::path::Path::new(expected))
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod document_file_path_tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn document_authority_support_does_not_widen_file_action_authority() {
+        let uri: Uri = "file://srv/share/a.tcl".parse().unwrap();
+        assert_eq!(
+            document_file_path(&uri).unwrap().to_str(),
+            Some("//srv/share/a.tcl")
+        );
+        assert!(file_action_path(&uri).is_none());
     }
 }

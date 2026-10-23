@@ -682,13 +682,13 @@ pub enum Command {
         /// tshark display filter applied via -Y. Implies --tshark.
         #[arg(long = "tshark-filter", value_name = "FILTER")]
         tshark_filter: Option<String>,
-        /// Run each matched session's iRule under the C-tcl orchestrator.
+        /// Simulate each matched session's iRule with the embedded tcl-vm orchestrator.
         #[arg(long)]
         simulate: bool,
-        /// Suppress the verbatim `when EVENT { ... }` body for each fired event.
+        /// Omit `when EVENT { ... }` source bodies selected by the static event-sequence heuristic.
         #[arg(long = "no-event-bodies")]
         no_event_bodies: bool,
-        /// Truncate each event body after N lines (default 40).
+        /// Truncate each listed static event body after N lines (default 40).
         #[arg(long = "max-event-lines", value_name = "N", default_value_t = 40)]
         max_event_lines: usize,
         /// Emit JSON instead of text.

@@ -15,17 +15,17 @@ use std::collections::{BTreeMap, BTreeSet};
 use tcl_dialect::model::SurfaceQuery;
 
 use serde::{Deserialize, Serialize};
-use tcl_compiler::realm::document_realm_bindings;
+use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
 use tcl_compiler::registry_invocation::segmented_command_arguments;
 use tcl_compiler::segmenter::SegmentedCommand;
-use tcl_lexer::{LexerConfig, Span, TokenType};
+use tcl_lexer::{LexerConfig, NativeWord, Span};
 use tcl_registry::hooks::AnalyserHookId;
 use tcl_registry::hover::OptionSpec;
 use tcl_registry::spec::resolve_option_prefix;
 use tcl_registry::tk_geometry::TkGeometryContainerPolicy;
 use tcl_registry::{CommandRegistry, CommandSpec, InvocationWord, InvocationWords, Traits};
 
-use crate::executable_regions::{ExecutableContext, visit_executable_commands};
+use crate::executable_regions::{ExecutableContext, visit_analysis_executable_commands};
 use tcl_dialect::model::SpecSurface;
 
 /// The current JSON-compatible Tk UI model schema version.
@@ -88,6 +88,10 @@ pub struct TkWidgetSource {
 pub struct TkWidget {
     /// Canonical Tcl widget path, such as `.toolbar.save`.
     pub path: String,
+    /// Validated source pathname parent; `None` for the root or an older
+    /// deserialized model that predates this optional field.
+    #[serde(default)]
+    pub source_parent_path: Option<String>,
     /// Registry-resolved constructor identity, such as `ttk::button`.
     pub constructor: String,
     /// Literal constructor options, keyed in deterministic lexical order.
@@ -104,11 +108,11 @@ pub struct TkWidget {
     pub certainty: TkFactCertainty,
 }
 
-/// Static execution certainty attached to model facts.
+/// Source-model certainty; this supplies no actual runtime construction proof.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TkFactCertainty {
-    /// The command is in the document's direct execution region.
+    /// A literal model fact in the document's direct source region.
     Certain,
     /// The command is in a body whose execution depends on runtime flow.
     Potential,
@@ -138,6 +142,8 @@ pub struct TkGeometryPlacement {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TkUncertaintyKind {
+    /// The complete current source input is missing, unavailable or stale.
+    SourceContextUnavailable,
     /// A constructor's declared path argument was dynamic or invalid.
     DynamicWidgetPath,
     /// A geometry manager's first argument was dynamic or not a widget path.
@@ -277,6 +283,7 @@ struct PendingWidgetCall {
 #[derive(Debug, Clone)]
 enum PendingInvocationWord {
     Literal(String),
+    KnownBytes(Vec<u8>),
     Dynamic,
     DynamicNonOption,
     Expanded,
@@ -287,7 +294,8 @@ impl PendingInvocationWord {
     fn from_registry(word: InvocationWord<'_>) -> Self {
         match word {
             InvocationWord::Literal(value) => Self::Literal(value.to_owned()),
-            InvocationWord::Dynamic => Self::Dynamic,
+            InvocationWord::KnownBytes(value) => Self::KnownBytes(value.to_vec()),
+            InvocationWord::Dynamic | InvocationWord::ArrayElementName { .. } => Self::Dynamic,
             InvocationWord::DynamicNonOption => Self::DynamicNonOption,
             InvocationWord::Expanded => Self::Expanded,
             InvocationWord::Opaque => Self::Opaque,
@@ -297,6 +305,7 @@ impl PendingInvocationWord {
     fn as_registry(&self) -> InvocationWord<'_> {
         match self {
             Self::Literal(value) => InvocationWord::Literal(value),
+            Self::KnownBytes(value) => InvocationWord::KnownBytes(value),
             Self::Dynamic => InvocationWord::Dynamic,
             Self::DynamicNonOption => InvocationWord::DynamicNonOption,
             Self::Expanded => InvocationWord::Expanded,
@@ -316,66 +325,152 @@ struct TkAnalysis {
     uncertainties: Vec<TkUiUncertainty>,
 }
 
+/// One visited command and its whole original source words. Lexical values
+/// stay independent of the Registry's conditional command selection.
+struct TkSourceCommand<'a> {
+    command: &'a SegmentedCommand,
+    original_words: Option<Vec<NativeWord>>,
+    registry_words:
+        Option<tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords>,
+}
+
+impl<'a> TkSourceCommand<'a> {
+    fn capture(source: &str, analysis: &AnalysisResult, command: &'a SegmentedCommand) -> Self {
+        let original_words = crate::original_context::CurrentSourceContext::capture(
+            source, analysis,
+        )
+        .and_then(|current| {
+            if command.is_partial || !command.word_views_aligned() {
+                return None;
+            }
+            let image = analysis.retained_command_realm()?.original_source_image()?;
+            let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::from_image(image),
+                current.config(),
+                command,
+            );
+            tcl_compiler::registry_invocation::original_native_compiler_words(
+                image,
+                tokens.words(),
+                command.argv.first()?.span.start(),
+                tokens.native_lexer_config(current.config()),
+            )
+        });
+        let registry_words = original_words.as_ref().and_then(|_| {
+            tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                source, analysis, command,
+            )
+        });
+        Self {
+            command,
+            original_words,
+            registry_words,
+        }
+    }
+}
+
+impl std::ops::Deref for TkSourceCommand<'_> {
+    type Target = SegmentedCommand;
+    fn deref(&self) -> &Self::Target {
+        self.command
+    }
+}
+
 /// Analyse `source` into a conservative, static Tk UI model.
 ///
 /// The caller supplies the resolved document `dialect` and its `registry` so
 /// this function never guesses a command surface.  The returned root is
 /// implicit; the model includes only constructor facts whose registry spec has
-/// both `creates_instance_at` and `required_package == "Tk"`.
+/// both `creates_instance_at` and `required_package == "Tk"`. One retained
+/// source analysis uses the exact supplied profile, frozen command store and
+/// its document grammar. These UI facts grant no runtime names, cells or edits.
 #[must_use]
 pub fn analyse_tk_ui(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
 ) -> TkUiModel {
-    let identities = document_realm_bindings(source, dialect, registry);
-    let config = LexerConfig::for_file_grammar(dialect.grammar);
-    let tk_active = crate::document_context_for_profile(dialect)
-        .authoring_query()
-        .carries("Tk")
-        || source_requires_tk(source, config, dialect, registry, &identities);
+    // naming.core.original-tk-source-context
+
+    let retained = tk_source_analysis(source, dialect, registry);
+    analyse_tk_ui_with_analysis(source, &retained)
+}
+
+/// Build a static Tk model from an actual document analysis. The complete
+/// source image, lexer configuration and availability generation remain
+/// attached; unavailable or stale analyses report uncertainty before walking.
+/// This supplies no Native command, widget instance or execution entry.
+#[must_use]
+pub fn analyse_tk_ui_with_analysis(source: &str, retained: &AnalysisResult) -> TkUiModel {
+    // naming.core.original-tk-source-context
+
+    let Some(input) = retained.resolved_input.as_ref() else {
+        return unavailable_tk_context();
+    };
+    if tcl_compiler::source_graph::current_analysis(source, retained).is_none() {
+        return unavailable_tk_context();
+    }
+    let context = input.context_registry();
+    let registry = context.commands();
+    let tk_active = context.context().authoring_query().package("Tk").is_some()
+        || source_requires_tk(source, retained);
     if !tk_active {
-        return TkUiModel {
-            schema_version: TK_UI_SCHEMA_VERSION,
-            tk_active: false,
-            root: None,
-            widget_count: 0,
-            widgets_truncated: 0,
-            orphan_widgets: Vec::new(),
-            uncertainties: Vec::new(),
-            uncertainties_truncated: 0,
-            geometry_conflicts: Vec::new(),
-            document_uri: None,
-            document_version: None,
-            document_sha256: None,
-        };
+        return empty_tk_model();
     }
     let mut analysis = TkAnalysis::default();
-    let tk_version = crate::document_context_for_profile(dialect)
+    let tk_version = context
+        .context()
         .placement_floor("Tk")
         .map(tcl_dialect::model::Version::as_str);
 
-    visit_executable_commands(
-        source,
-        config,
-        registry,
-        Some(crate::document_context_for_profile(dialect).authoring_query()),
-        &identities,
-        &mut |command, heads, context| {
-            collect_tk_command(
-                command,
-                heads.resolved,
+    visit_analysis_executable_commands(source, retained, &mut |command, _, region| {
+        let command = TkSourceCommand::capture(source, retained, command);
+        let Some(head) = tk_source_head(source, retained, &command) else {
+            return false;
+        };
+        collect_tk_command(
+            &command,
+            &head,
+            TkRegistryContext {
                 registry,
-                Some(crate::document_context_for_profile(dialect).authoring_query()),
-                tk_version,
-                &mut analysis,
-                context,
-            );
-            false
-        },
-    );
+                source_analysis: retained,
+            },
+            Some(context.context().authoring_query()),
+            tk_version,
+            &mut analysis,
+            region,
+        );
+        false
+    });
 
     finish_tk_analysis(analysis)
+}
+
+fn empty_tk_model() -> TkUiModel {
+    TkUiModel {
+        schema_version: TK_UI_SCHEMA_VERSION,
+        tk_active: false,
+        root: None,
+        widget_count: 0,
+        widgets_truncated: 0,
+        orphan_widgets: Vec::new(),
+        uncertainties: Vec::new(),
+        uncertainties_truncated: 0,
+        geometry_conflicts: Vec::new(),
+        document_uri: None,
+        document_version: None,
+        document_sha256: None,
+    }
+}
+
+fn unavailable_tk_context() -> TkUiModel {
+    let mut model = empty_tk_model();
+    model.uncertainties.push(uncertainty(
+        TkUncertaintyKind::SourceContextUnavailable,
+        Span::new(0, 0),
+        "Current source context is unavailable; widget facts could not be determined.",
+    ));
+    model
 }
 
 fn finish_tk_analysis(analysis: TkAnalysis) -> TkUiModel {
@@ -458,15 +553,23 @@ fn finish_tk_analysis(analysis: TkAnalysis) -> TkUiModel {
     }
 }
 
+#[derive(Clone, Copy)]
+struct TkRegistryContext<'a> {
+    registry: &'a CommandRegistry,
+    source_analysis: &'a AnalysisResult,
+}
+
 fn collect_tk_command(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     resolved_head: &str,
-    registry: &CommandRegistry,
+    registry_context: TkRegistryContext<'_>,
     dialect: Option<SurfaceQuery<'_>>,
     tk_version: Option<&str>,
     analysis: &mut TkAnalysis,
     context: ExecutableContext,
 ) {
+    let registry = registry_context.registry;
+    let source_analysis = registry_context.source_analysis;
     collect_known_widget_mutation(
         command,
         resolved_head,
@@ -520,7 +623,15 @@ fn collect_tk_command(
             context,
         );
     }
-    collect_registry_lifecycle_effect(command, resolved_head, spec, registry, analysis, context);
+    collect_registry_lifecycle_effect(
+        command,
+        resolved_head,
+        spec,
+        registry,
+        source_analysis,
+        analysis,
+        context,
+    );
 }
 
 // Serde's `skip_serializing_if` callback receives a shared reference even for
@@ -536,47 +647,91 @@ fn cap_uncertainties(uncertainties: &mut Vec<TkUiUncertainty>) -> usize {
     omitted
 }
 
-fn source_requires_tk(
+/// A standalone UI-advice input. Its explicitly supplied profile and frozen
+/// command store remain independent; a registry's display profile cannot
+/// replace the supplied version or grammar.
+fn tk_source_analysis(
     source: &str,
-    config: LexerConfig,
-    dialect: &'static tcl_dialect::DialectProfile,
+    profile: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
-    identities: &tcl_compiler::realm::CommandBindingRealm,
-) -> bool {
-    let mut active = false;
-    let available_tk = crate::document_context_for_profile(dialect)
+) -> AnalysisResult {
+    let generation = tcl_registry::model::context_for_profile(profile);
+    let context =
+        std::sync::Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));
+    let input = ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        context,
+        LexerConfig::for_file_grammar(profile.grammar),
+    );
+    Analyser::new()
+        .with_resolved_input(input)
+        .analyse(source, profile.name)
+}
+
+/// Constructor/manager schema must preserve every written UI operand. A
+/// captured or expanded effective prefix cannot borrow a widget path span.
+/// Literal widget-method heads belong only to the UI source model's own paths.
+fn tk_source_head(
+    source: &str,
+    analysis: &AnalysisResult,
+    command: &TkSourceCommand<'_>,
+) -> Option<String> {
+    if let Some(words) = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+        source, analysis, command,
+    ) {
+        if words.origins().len() != command.argv.len()
+            || words.origins().iter().enumerate().skip(1).any(|(ordinal, origin)| {
+                !matches!(origin, tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written) if *written == ordinal)
+            }) {
+            return None;
+        }
+        let context = analysis.resolved_input.as_ref()?.context_registry();
+        return words.with_source_schema(&context, |schema| schema.canonical_command.to_owned());
+    }
+    let (head, _) = literal_word(command, 0)?;
+    tcl_registry::tk_geometry::is_widget_path(&head).then_some(head)
+}
+
+fn source_requires_tk(source: &str, analysis: &AnalysisResult) -> bool {
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    let context = input.context_registry();
+    let available_tk = context
+        .context()
         .placement_floor("Tk")
         .map(tcl_dialect::model::Version::as_str);
-    visit_executable_commands(
-        source,
-        config,
-        registry,
-        Some(crate::document_context_for_profile(dialect).authoring_query()),
-        identities,
-        &mut |command, heads, context| {
-            if context != ExecutableContext::Direct {
-                return false;
-            }
-            let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-            let exact = literal_word(command, 2).is_some_and(|(word, _)| word == "-exact");
-            let package_index = if exact { 3 } else { 2 };
-            active = registry
-                .resolve_call(
-                    heads.resolved,
-                    &args,
-                    Some(crate::document_context_for_profile(dialect).authoring_query()),
-                )
-                .is_some_and(|call| call.analyser_hook == Some(AnalyserHookId::PackageRequire))
-                && literal_word(command, package_index).is_some_and(|(word, _)| word == "Tk")
-                && tk_requirement_is_satisfied(command, package_index + 1, exact, available_tk);
-            active
-        },
-    );
+    let mut active = false;
+    visit_analysis_executable_commands(source, analysis, &mut |command, _, region| {
+        if region != ExecutableContext::Direct {
+            return false;
+        }
+        let command = TkSourceCommand::capture(source, analysis, command);
+        let Some(words) =
+            tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                source, analysis, &command,
+            )
+        else {
+            return false;
+        };
+        if tk_source_head(source, analysis, &command).is_none()
+            || words.with_source_schema(&context, |schema| schema.semantics.analyser_hook)
+                != Some(Some(AnalyserHookId::PackageRequire))
+        {
+            return false;
+        }
+        let exact = literal_word(&command, 2).is_some_and(|(word, _)| word == "-exact");
+        let package_index = if exact { 3 } else { 2 };
+        active = literal_word(&command, package_index).is_some_and(|(word, _)| word == "Tk")
+            && tk_requirement_is_satisfied(&command, package_index + 1, exact, available_tk);
+        active
+    });
     active
 }
 
 fn tk_requirement_is_satisfied(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     requirement_start: usize,
     exact: bool,
     available_tk: Option<&str>,
@@ -612,7 +767,7 @@ fn tk_requirement_is_satisfied(
 // outputs would obscure which limit or fact each write affects.
 #[allow(clippy::too_many_arguments)]
 fn collect_widget(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     constructor: &str,
     spec: &CommandSpec,
     dialect: Option<SurfaceQuery<'_>>,
@@ -633,9 +788,15 @@ fn collect_widget(
         ));
         return;
     };
-    if !tcl_registry::tk_geometry::is_widget_path(&path)
-        || path.split('.').skip(1).count() > MAX_TK_UI_PATH_DEPTH
-    {
+    let Some(path_geometry) = tcl_registry::tk_geometry::widget_path_parent_depth(&path) else {
+        uncertainties.push(uncertainty(
+            TkUncertaintyKind::DynamicWidgetPath,
+            path_span,
+            "The Tk constructor's path is not a supported static widget path.",
+        ));
+        return;
+    };
+    if path_geometry.parent.is_none() || path_geometry.component_depth > MAX_TK_UI_PATH_DEPTH {
         uncertainties.push(uncertainty(
             TkUncertaintyKind::DynamicWidgetPath,
             path_span,
@@ -688,7 +849,7 @@ fn collect_widget(
 
 #[allow(clippy::too_many_arguments)]
 fn collect_known_widget_mutation(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     resolved_head: &str,
     registry: &CommandRegistry,
     dialect: Option<SurfaceQuery<'_>>,
@@ -756,7 +917,7 @@ fn collect_known_widget_mutation(
 }
 
 fn apply_pending_widget_calls(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     constructor: &CommandSpec,
     registry: &CommandRegistry,
     dialect: Option<SurfaceQuery<'_>>,
@@ -817,46 +978,43 @@ fn apply_pending_widget_calls(
 }
 
 fn collect_registry_lifecycle_effect(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     resolved_head: &str,
     spec: &CommandSpec,
     registry: &CommandRegistry,
+    source_analysis: &AnalysisResult,
     analysis: &mut TkAnalysis,
     context: ExecutableContext,
 ) {
     let releases_geometry = spec.traits.contains(Traits::FIRE_AND_FORGET_TEARDOWN)
         && spec.required_package == Some("Tk");
-    // Which calls move a command binding, and which word carries the moved
-    // name, is registry data read through the one transition vocabulary
-    // (centralisation ledger C8) — never a coarse effect word this consumer
-    // then re-destructures.
-    let renames_commands =
+    let possible_command_table_change =
         tcl_compiler::alias::command_table_transitions(registry, resolved_head, command.args())
-            .command_bindings()
-            .any(|transition| {
-                matches!(
-                    transition,
-                    tcl_registry::CommandBindingTransition::Move { .. }
-                        | tcl_registry::CommandBindingTransition::Delete { .. }
-                )
-            });
-    if !(releases_geometry || renames_commands) {
+            .touches_command_bindings();
+    let selected = command
+        .registry_words
+        .as_ref()
+        .and_then(|words| source_lifecycle_effects(words, source_analysis));
+    let mut effects = match selected {
+        Some(effects) => effects,
+        None if releases_geometry || possible_command_table_change => SourceLifecycleEffects {
+            operands: Vec::new(),
+            unknown: true,
+        },
+        None => return,
+    };
+    if !releases_geometry && !possible_command_table_change && effects.operands.is_empty() {
         return;
     }
-    let mut affected_indices = BTreeSet::new();
-    if releases_geometry {
-        affected_indices.extend(1..command.texts.len());
-    }
-    if renames_commands {
-        // `rename oldName newName` only changes the binding of `oldName`.
-        // A widget-looking destination is unrelated to an existing widget
-        // command (and normally makes the Tcl call fail because it exists).
-        affected_indices.insert(1);
-    }
-    for index in affected_indices {
-        let Some((path, source)) = literal_word(command, index) else {
+
+    let mut seen = BTreeSet::new();
+    effects
+        .operands
+        .retain(|(_, source)| seen.insert((source.start, source.end)));
+    for (path, source) in effects.operands {
+        if !tcl_registry::tk_geometry::is_widget_path_or_root(&path) {
             continue;
-        };
+        }
         let affected: Vec<String> = analysis
             .widgets
             .keys()
@@ -864,9 +1022,7 @@ fn collect_registry_lifecycle_effect(
             .cloned()
             .collect();
         if affected.is_empty() {
-            if context == ExecutableContext::PotentialBody
-                && tcl_registry::tk_geometry::is_widget_path_or_root(&path)
-            {
+            if context == ExecutableContext::PotentialBody {
                 analysis
                     .pending_lifecycle
                     .entry(path)
@@ -894,10 +1050,134 @@ fn collect_registry_lifecycle_effect(
             ));
         }
     }
+    if effects.unknown {
+        let source = TkSourceSpan::from(command.span);
+        if context == ExecutableContext::Direct {
+            for widget in analysis.widgets.values_mut() {
+                widget.certainty = TkFactCertainty::Potential;
+            }
+        } else {
+            analysis
+                .pending_lifecycle
+                .entry(".".to_owned())
+                .or_default()
+                .push(source);
+        }
+        analysis.uncertainties.push(uncertainty(
+            TkUncertaintyKind::WidgetLifecycleMutation,
+            source,
+            "A Registry-described lifecycle effect has unavailable original operand ownership; affected widget names are unknown.",
+        ));
+    }
+}
+
+#[derive(Default)]
+struct SourceLifecycleEffects {
+    operands: Vec<(String, TkSourceSpan)>,
+    unknown: bool,
+}
+
+fn source_lifecycle_effects(
+    words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    source_analysis: &AnalysisResult,
+) -> Option<SourceLifecycleEffects> {
+    let input = source_analysis.resolved_input.as_ref()?;
+    let context = input.context_registry();
+    let original_head = words.head_source()?.word()?;
+    if !words.matches_source(original_head.image(), input.lexer_config()) {
+        return None;
+    }
+    words.with_source_schema(&context, |schema| {
+        let transitions = schema.state_transitions();
+        let mut effects = SourceLifecycleEffects::default();
+        if transitions.widens(tcl_registry::StateTransitionDomain::CommandBindings) {
+            effects.unknown = true;
+        }
+        for binding in transitions.command_bindings() {
+            use tcl_registry::CommandBindingTransition as Binding;
+            match binding {
+                Binding::Move { from, .. } => {
+                    if let Some(operand) = source_lifecycle_operand(words, from) {
+                        effects.operands.push(operand);
+                    } else {
+                        effects.unknown = true;
+                    }
+                }
+                Binding::Delete { interpreter, name } => {
+                    match interpreter {
+                        None => {}
+                        Some(subject) => match subject.literal() {
+                            Some("") => {}
+                            Some(_) => continue,
+                            None => {
+                                effects.unknown = true;
+                                continue;
+                            }
+                        },
+                    }
+                    if let Some(operand) = source_lifecycle_operand(words, name) {
+                        effects.operands.push(operand);
+                    } else {
+                        effects.unknown = true;
+                    }
+                }
+                Binding::Alias {
+                    source_interpreter,
+                    alias,
+                    ..
+                } => match source_interpreter.literal() {
+                    Some("") => {
+                        if let Some(operand) = source_lifecycle_operand(words, alias) {
+                            effects.operands.push(operand);
+                        } else {
+                            effects.unknown = true;
+                        }
+                    }
+                    Some(_) => {}
+                    None => effects.unknown = true,
+                },
+                Binding::Unknown { .. } => effects.unknown = true,
+                Binding::Define { .. } => {}
+            }
+        }
+        let descriptor = schema.authored_source_descriptors().command;
+        let selected_tk_teardown = descriptor.required_package == Some("Tk")
+            && descriptor.traits.contains(Traits::FIRE_AND_FORGET_TEARDOWN);
+        if selected_tk_teardown {
+            let Some(layout) = schema.authored_source_teardown_arguments() else {
+                effects.unknown = true;
+                return effects;
+            };
+            for ordinal in layout.arguments {
+                if let Some(operand) = source_lifecycle_word(words, ordinal) {
+                    effects.operands.push(operand);
+                } else {
+                    effects.unknown = true;
+                }
+            }
+        }
+        effects
+    })
+}
+
+fn source_lifecycle_operand(
+    words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    subject: &tcl_registry::TransitionSubject,
+) -> Option<(String, TkSourceSpan)> {
+    source_lifecycle_word(words, subject.argument_index()?)
+}
+
+fn source_lifecycle_word(
+    words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    ordinal: usize,
+) -> Option<(String, TkSourceSpan)> {
+    let word = words.original_argument_word(ordinal)?;
+    let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+    Some((String::from_utf8(value).ok()?, word.span().into()))
 }
 
 fn apply_pending_lifecycle(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     constructor: &CommandSpec,
     analysis: &mut TkAnalysis,
 ) {
@@ -934,7 +1214,7 @@ fn apply_pending_lifecycle(
 // keep conflict invalidation beside the registry-derived placement facts.
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn collect_placement(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     manager: &str,
     spec: &CommandSpec,
     dialect: Option<SurfaceQuery<'_>>,
@@ -1035,10 +1315,7 @@ fn collect_placement(
     }
     let mut targets = vec![(first_path, first_target)];
     let mut index = target_start + 1;
-    while let Some(word) = command.texts.get(index) {
-        if declared_option(word, &option_specs).is_some() {
-            break;
-        }
+    while index < command.argv.len() {
         let Some((path, target)) = literal_word(command, index) else {
             uncertainties.push(uncertainty(
                 TkUncertaintyKind::DynamicGeometryTarget,
@@ -1051,6 +1328,9 @@ fn collect_placement(
             index += 1;
             continue;
         };
+        if declared_option(&path, &option_specs).is_some() {
+            break;
+        }
         if !tcl_registry::tk_geometry::is_widget_path(&path) {
             uncertainties.push(uncertainty(
                 TkUncertaintyKind::UnsupportedGeometryForm,
@@ -1173,7 +1453,7 @@ fn record_potential_execution(
 }
 
 fn effective_geometry_container(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     option_start: usize,
     target: &str,
     container_option: Option<&str>,
@@ -1181,14 +1461,19 @@ fn effective_geometry_container(
     options: &BTreeMap<String, TkLiteralOption>,
     uncertainties: &mut Vec<TkUiUncertainty>,
 ) -> Option<String> {
+    let parent =
+        tcl_registry::tk_geometry::widget_path_parent_depth(target).and_then(|path| path.parent)?;
     let Some(container_option) = container_option else {
-        return Some(parent_path(target).to_owned());
+        return Some(parent.to_owned());
     };
-    let option_was_written = command.texts.iter().skip(option_start).any(|word| {
-        declared_option(word, option_specs).is_some_and(|option| option.name == container_option)
+    let option_was_written = (option_start..command.argv.len()).any(|index| {
+        literal_word(command, index).is_some_and(|(word, _)| {
+            declared_option(&word, option_specs)
+                .is_some_and(|option| option.name == container_option)
+        })
     });
     if !option_was_written {
-        return Some(parent_path(target).to_owned());
+        return Some(parent.to_owned());
     }
     let value = options.get(container_option)?;
     if tcl_registry::tk_geometry::is_widget_path_or_root(&value.value) {
@@ -1206,15 +1491,19 @@ fn effective_geometry_container(
 }
 
 fn literal_options(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     start: usize,
     specs: &[OptionSpec],
     uncertainties: &mut Vec<TkUiUncertainty>,
 ) -> BTreeMap<String, TkLiteralOption> {
     let mut result = BTreeMap::new();
     let mut index = start;
-    while let Some(word) = command.texts.get(index) {
-        let Some(option) = declared_option(word, specs) else {
+    while index < command.argv.len() {
+        let Some((word, option_source)) = literal_word(command, index) else {
+            index += 1;
+            continue;
+        };
+        let Some(option) = declared_option(&word, specs) else {
             index += 1;
             continue;
         };
@@ -1223,7 +1512,7 @@ fn literal_options(
                 option.name.to_owned(),
                 TkLiteralOption {
                     value: "true".to_owned(),
-                    source: command.argv[index].span.into(),
+                    source: option_source,
                 },
             );
             index += 1;
@@ -1232,10 +1521,7 @@ fn literal_options(
         let Some((value, source)) = literal_word(command, index + 1) else {
             uncertainties.push(uncertainty(
                 TkUncertaintyKind::NonLiteralOption,
-                command
-                    .argv
-                    .get(index)
-                    .map_or(command.span, |token| token.span),
+                option_source,
                 format!(
                     "The value of option '{}' is not a static literal.",
                     option.name
@@ -1268,39 +1554,13 @@ fn declared_option<'a>(word: &str, specs: &'a [OptionSpec]) -> Option<&'a Option
     resolve_option_prefix(specs, word)
 }
 
-fn literal_word(command: &SegmentedCommand, index: usize) -> Option<(String, TkSourceSpan)> {
-    if !command.word_views_aligned()
-        || !command
-            .single_token_word
-            .get(index)
-            .copied()
-            .unwrap_or(false)
-        || command
-            .expand_word
-            .as_ref()
-            .is_some_and(|expanded| expanded.get(index).copied().unwrap_or(false))
-    {
+fn literal_word(command: &TkSourceCommand<'_>, index: usize) -> Option<(String, TkSourceSpan)> {
+    let word = command.original_words.as_ref()?.get(index)?;
+    if word.group().expand {
         return None;
     }
-    let fragment = command.word_fragments.get(index)?.as_slice();
-    let [fragment] = fragment else { return None };
-    match fragment.token.kind {
-        TokenType::Str => Some((
-            command.texts.get(index)?.clone(),
-            fragment.token.span.into(),
-        )),
-        TokenType::Esc if !fragment.text.contains('$') && !fragment.text.contains('[') => Some((
-            command.texts.get(index)?.clone(),
-            fragment.token.span.into(),
-        )),
-        _ => None,
-    }
-}
-
-fn parent_path(path: &str) -> &str {
-    path.rfind('.')
-        .filter(|index| *index > 0)
-        .map_or(".", |index| &path[..index])
+    let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+    Some((String::from_utf8(value).ok()?, word.span().into()))
 }
 
 fn widget_is_within(candidate: &str, ancestor: &str) -> bool {
@@ -1350,7 +1610,26 @@ fn build_hierarchy(
     let mut children = BTreeMap::<String, Vec<String>>::new();
     let mut orphan_roots: Vec<String> = Vec::new();
     for path in &paths {
-        let parent = parent_path(path);
+        let Some(path_geometry) = tcl_registry::tk_geometry::widget_path_parent_depth(path) else {
+            if let Some(widget) = widgets.get(path) {
+                uncertainties.push(uncertainty(
+                    TkUncertaintyKind::DynamicWidgetPath,
+                    widget.source.path,
+                    "The collected Tk widget path is not a supported static pathname.",
+                ));
+            }
+            continue;
+        };
+        let Some(parent) = path_geometry.parent else {
+            if let Some(widget) = widgets.get(path) {
+                uncertainties.push(uncertainty(
+                    TkUncertaintyKind::DynamicWidgetPath,
+                    widget.source.path,
+                    "The implicit Tk root cannot be a constructed widget path.",
+                ));
+            }
+            continue;
+        };
         if parent == "." || paths.contains(parent) {
             children
                 .entry(parent.to_owned())
@@ -1393,8 +1672,12 @@ fn build_widget(
     children: &BTreeMap<String, Vec<String>>,
 ) -> Option<TkWidget> {
     let widget = widgets.get(path)?;
+    let source_parent_path = tcl_registry::tk_geometry::widget_path_parent_depth(path)?
+        .parent
+        .map(str::to_owned);
     Some(TkWidget {
         path: path.to_owned(),
+        source_parent_path,
         constructor: widget.constructor.clone(),
         options: widget.options.clone(),
         geometry: widget.geometry.clone(),
@@ -1412,6 +1695,7 @@ fn build_widget(
 fn implicit_root() -> TkWidget {
     TkWidget {
         path: ".".to_owned(),
+        source_parent_path: None,
         constructor: "root".to_owned(),
         options: BTreeMap::new(),
         geometry: None,
@@ -1444,6 +1728,225 @@ mod tests {
             dialect,
             crate::registry_for_dialect_profile(dialect),
         )
+    }
+
+    #[test]
+    fn original_tk_literals_decode_escapes_and_retain_complete_word_spans() {
+        let source = r#"label \x2ew -te\x78t "snow \u2603 \$cash \[literal\]"
+pack .w -\x69n \x2e"#;
+        let ui = model(source);
+        let widget = &ui.root.as_ref().unwrap().children[0];
+        assert_eq!(widget.path, ".w");
+        let text = &widget.options["-text"];
+        assert_eq!(text.value, "snow ☃ $cash [literal]");
+        assert_eq!(
+            &source[text.source.start as usize..text.source.end as usize],
+            r#""snow \u2603 \$cash \[literal\]""#,
+        );
+        assert_eq!(
+            &source[widget.source.path.start as usize..widget.source.path.end as usize],
+            r"\x2ew",
+        );
+        let geometry = widget.geometry.as_ref().unwrap();
+        assert_eq!(geometry.container.as_deref(), Some("."));
+        assert_eq!(geometry.options["-in"].value, ".");
+    }
+
+    #[test]
+    fn original_tk_literals_keep_braced_data_and_the_actual_full_configuration() {
+        let source = r"label .w -text {literal $name [data] \u2603}";
+        let ui = model(source);
+        assert_eq!(
+            ui.root.as_ref().unwrap().children[0].options["-text"].value,
+            r"literal $name [data] \u2603",
+        );
+        let source = concat!("label .w -text {first\\", "\n", "  second}");
+        let profile = crate::profile_for_dialect("tk");
+        for (style, expected) in [
+            (tcl_dialect::BraceBackslashNewline::Folds, "first second"),
+            (
+                tcl_dialect::BraceBackslashNewline::Literal,
+                "first\\\n  second",
+            ),
+        ] {
+            let config = LexerConfig {
+                brace_backslash_newline: style,
+                ..LexerConfig::for_file_grammar(profile.grammar)
+            };
+            let input = ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::context_for_profile(profile),
+                config,
+            );
+            let analysis = Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, profile.name);
+            let command =
+                tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let original = TkSourceCommand::capture(source, &analysis, &command);
+            assert_eq!(literal_word(&original, 3).unwrap().0, expected);
+        }
+    }
+
+    #[test]
+    fn original_tk_literals_refuse_substitution_expansion_and_foreign_source() {
+        let profile = crate::profile_for_dialect("tk");
+        let registry = crate::registry_for_dialect_profile(profile);
+        for source in [
+            "label .w -text $name",
+            "label .w -text [value]",
+            "label .w -text prefix$name",
+            "label .w -text {*}{value}",
+            r"label .w -text \uD800",
+        ] {
+            let analysis = tk_source_analysis(source, profile, registry);
+            let command = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                analysis.body_lexer_config.unwrap(),
+            )
+            .remove(0);
+            let original = TkSourceCommand::capture(source, &analysis, &command);
+            assert!(literal_word(&original, 3).is_none(), "{source}");
+        }
+        let source = "label .w -text kept";
+        let analysis = tk_source_analysis(source, profile, registry);
+        let command = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            analysis.body_lexer_config.unwrap(),
+        )
+        .remove(0);
+        let changed = TkSourceCommand::capture("label .w -text lost", &analysis, &command);
+        assert!(literal_word(&changed, 3).is_none());
+        let mut incomplete = command.clone();
+        incomplete.is_partial = true;
+        let incomplete = TkSourceCommand::capture(source, &analysis, &incomplete);
+        assert!(literal_word(&incomplete, 3).is_none());
+        let mut unavailable = analysis;
+        unavailable.resolved_input = None;
+        let unavailable = TkSourceCommand::capture(source, &unavailable, &command);
+        assert!(literal_word(&unavailable, 3).is_none());
+    }
+
+    #[test]
+    fn supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source() {
+        // naming.core.original-tk-source-context
+
+        let source = "package require Tk\nttk::toggleswitch .new\nframe .kept";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let newer = crate::registry_for_dialect_profile(crate::profile_for_dialect("tcl9.1"));
+        let analyse = |version: &str| {
+            let generation =
+                tcl_registry::model::context_for_profile(crate::profile_for_dialect(version));
+            let context = std::sync::Arc::new(
+                generation.with_command_store(newer.snapshot().shared_registry()),
+            );
+            let input = ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context,
+                LexerConfig {
+                    braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+                    ..LexerConfig::for_profile(Some(profile))
+                },
+            );
+            Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, profile.name)
+        };
+        let current = analyse("tcl9.1");
+        let paths = |analysis: &AnalysisResult| {
+            analyse_tk_ui_with_analysis(source, analysis)
+                .root
+                .unwrap()
+                .children
+                .into_iter()
+                .map(|widget| widget.path)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(paths(&current), vec![".kept", ".new"]);
+        let older = analyse("tcl8.6");
+        assert_eq!(
+            current
+                .resolved_registry()
+                .unwrap()
+                .snapshot()
+                .semantic_key(),
+            older.resolved_registry().unwrap().snapshot().semantic_key()
+        );
+        assert_eq!(paths(&older), vec![".kept"]);
+
+        let mut missing = current.clone();
+        missing.resolved_input = None;
+        let mut foreign = current.clone();
+        foreign.resolved_input = older.resolved_input.clone();
+        let mut grammar = current.clone();
+        grammar.body_lexer_config = Some(LexerConfig::for_profile(Some(profile)));
+        let mut unavailable = current.clone();
+        unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl".to_owned(),
+            overlay: u64::MAX - 361,
+        });
+        for refused in [&missing, &foreign, &grammar, &unavailable] {
+            let model = analyse_tk_ui_with_analysis(source, refused);
+            assert_eq!(model.widget_count, 0);
+            assert!(model.root.is_none());
+            assert_eq!(
+                model.uncertainties[0].kind,
+                TkUncertaintyKind::SourceContextUnavailable
+            );
+        }
+        assert_eq!(
+            analyse_tk_ui_with_analysis("frame .changed", &current).widget_count,
+            0
+        );
+    }
+
+    #[test]
+    fn original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries() {
+        // naming.core.original-tk-source-context
+
+        let supplied = crate::profile_for_dialect("tcl8.6");
+        let newer = crate::registry_for_dialect_profile(crate::profile_for_dialect("tcl9.1"));
+        let source = "package require Tk\nttk::toggleswitch .unavailable\nframe .kept";
+        let retained = tk_source_analysis(source, supplied, newer);
+        let input = retained.resolved_input.as_ref().unwrap();
+        assert_eq!(input.analyser_profile().cache_key(), supplied.cache_key());
+        assert_eq!(
+            input
+                .context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key(),
+            newer.snapshot().semantic_key()
+        );
+        let ui = analyse_tk_ui(source, supplied, newer);
+        assert!(ui.tk_active);
+        assert_eq!(ui.widget_count, 2);
+        assert_eq!(ui.root.unwrap().children[0].path, ".kept");
+        let source = "package require Tk\ninterp alias {} install {} frame .captured\ninstall .wrong\ninterp alias {} normal {} frame\nnormal .written";
+        let ui = model_in_dialect(source, "tcl8.6");
+        let paths = ui
+            .root
+            .unwrap()
+            .children
+            .into_iter()
+            .map(|widget| widget.path)
+            .collect::<Vec<_>>();
+        assert_eq!(paths, vec![".written"]);
+        let source = "package require Tk\nproc if args {}\nif 1 {frame .inert}\nframe .live";
+        let ui = model_in_dialect(source, "tcl8.6");
+        let paths = ui
+            .root
+            .unwrap()
+            .children
+            .into_iter()
+            .map(|widget| widget.path)
+            .collect::<Vec<_>>();
+        assert_eq!(paths, vec![".live"]);
     }
 
     #[test]
@@ -1639,6 +2142,72 @@ mod tests {
         let current_options = &current.root.as_ref().expect("Tk is active").children[0].options;
         assert_eq!(current_options["-text"].value, "old");
         assert_eq!(current_options["-textangle"].value, "45");
+    }
+
+    #[test]
+    fn projects_source_parent_for_root_regular_and_orphan_widgets() {
+        let ui = model(
+            "frame .\nframe .main\nbutton .main.child\npack .main.child\nframe .lost.child\nframe .lost.child.grandchild\n",
+        );
+        let root = ui.root.as_ref().expect("Tk is active");
+        assert_eq!(
+            root.path, ".",
+            "the implicit root remains the only root node"
+        );
+        assert_eq!(
+            root.children[0].path, ".main",
+            "a constructor cannot replace the root"
+        );
+        assert!(
+            ui.uncertainties
+                .iter()
+                .any(|entry| { entry.kind == TkUncertaintyKind::DynamicWidgetPath })
+        );
+        assert_eq!(
+            root.source_parent_path, None,
+            "the root has no pathname parent"
+        );
+        assert_eq!(root.children[0].source_parent_path.as_deref(), Some("."));
+        assert_eq!(
+            root.children[0].children[0].source_parent_path.as_deref(),
+            Some(".main")
+        );
+        assert_eq!(
+            root.children[0].children[0]
+                .geometry
+                .as_ref()
+                .and_then(|placement| placement.container.as_deref()),
+            Some(".main"),
+            "the default geometry container comes from the same owner projection",
+        );
+        assert_eq!(
+            ui.orphan_widgets[0].source_parent_path.as_deref(),
+            Some(".lost")
+        );
+        assert_eq!(
+            ui.orphan_widgets[0].children[0]
+                .source_parent_path
+                .as_deref(),
+            Some(".lost.child"),
+        );
+        let payload = serde_json::to_value(&ui).expect("model serializes");
+        assert!(payload["root"]["source_parent_path"].is_null());
+        assert_eq!(payload["root"]["children"][0]["source_parent_path"], ".");
+        assert_eq!(payload["orphan_widgets"][0]["source_parent_path"], ".lost");
+    }
+
+    #[test]
+    fn tk_widget_deserializes_legacy_payload_without_source_parent_path() {
+        let ui = model("frame .main\n");
+        let mut legacy =
+            serde_json::to_value(&ui.root.as_ref().unwrap().children[0]).expect("model serializes");
+        legacy
+            .as_object_mut()
+            .expect("widget serializes as an object")
+            .remove("source_parent_path");
+        let restored: TkWidget =
+            serde_json::from_value(legacy).expect("legacy widget deserializes");
+        assert_eq!(restored.source_parent_path, None);
     }
 
     #[test]

@@ -1,0 +1,27 @@
+{
+  "native_only": true,
+  "rust_comparisons": 0,
+  "controls": 6,
+  "scope": "C84 original fresh versus cached TRY_CVT procedure activation",
+  "command": [
+    "gcc",
+    "-I",
+    "tmp/tcl8.4.20/generic",
+    "-I",
+    "tmp/tcl8.4.20/unix",
+    "/workspace/.proofs/2286-float-error-design/fresh.c",
+    "tmp/tcl8.4.20/unix/libtcl8.4.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/2286-float-error-design/fresh84"
+  ],
+  "sha256": {
+    "fresh.c": "9f6f1d11d56733def082769b9adcc34ca520eed2c544d2deb68bfa22754eaafb",
+    "fresh84": "9883a8244a28ce5f76ec01101b8aa7c11fbc25ddbfa84c9ae0df913d930f2255",
+    "fresh84.tsv": "afbccff131157c046cc2ae14ca2ebfbab3e93009825cff25fc83079624a4f01b"
+  },
+  "exit": 0
+}

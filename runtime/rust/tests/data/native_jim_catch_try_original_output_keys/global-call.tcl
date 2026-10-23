@@ -1,0 +1,1 @@
+namespace eval CatchKey {proc p {} {set errorCode LOCAL; reset_selected_error_code}; p}

@@ -114,6 +114,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::prefix",
+        pack_source_sandbox_helper: true,
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Unresolved,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("tcl::prefix"),
         traits: Traits::NOT_PROC_FACTORY,
         // Added in Tcl 8.6 (TIP 265).

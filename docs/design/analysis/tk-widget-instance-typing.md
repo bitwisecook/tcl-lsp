@@ -18,10 +18,8 @@ highlighting, hover, completion, or arity / unknown-subcommand diagnostics,
 for any widget whose `CommandSpec::subcommands` is non-empty (`treeview`,
 `notebook`, `listbox`, `text`, `canvas`, `entry`, …).
 
-`tcloo-object-typing.md`'s own corpus evidence (`experiments/tcloo_diag`)
-shows this is not a corner case: of 8241 unresolved `$var` receivers, 71%
-are "unbound", **dominated by snit `$self`/components and Tk widget paths
-(`$win.c`) — not TclOO**.
+Snit self/components and Tk widget paths have different command identities
+from TclOO handles and need their own source-owned receiver model.
 
 ## Why this needs its own model, not TclOO's
 

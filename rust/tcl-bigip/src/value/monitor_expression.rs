@@ -20,6 +20,23 @@
 
 use std::fmt;
 
+/// `monitor default` — the parent object's default selection.
+pub const DEFAULT_WORD: &str = "default";
+/// `monitor none` — no monitoring.
+pub const NONE_WORD: &str = "none";
+/// The `min` of `monitor min N of { … }`.
+pub const MIN_WORD: &str = "min";
+/// The `of` of `monitor min N of { … }`.
+pub const OF_WORD: &str = "of";
+/// The conjunction of `monitor M1 and M2`.
+pub const AND_WORD: &str = "and";
+
+/// Every word of the `monitor` expression grammar, as
+/// [`MonitorExpression::try_parse`] reads it. Static editor grammars project
+/// this list (`cargo xtask gen-bigip-grammars`) to paint an expression's own
+/// words — a lexical display, never a parse of the expression.
+pub const GRAMMAR_WORDS: [&str; 5] = [DEFAULT_WORD, NONE_WORD, MIN_WORD, OF_WORD, AND_WORD];
+
 /// The grammatical shape of a parsed `monitor` expression.
 ///
 /// [`MonitorMode::as_str`] returns the canonical string literal for
@@ -94,32 +111,36 @@ impl MonitorExpression {
         if stripped.is_empty() {
             return None;
         }
-        if stripped == "default" {
+        if stripped == DEFAULT_WORD {
             return Some(Self {
                 mode: MonitorMode::Default,
                 raw: stripped.to_owned(),
                 ..Default::default()
             });
         }
-        if stripped == "none" {
+        if stripped == NONE_WORD {
             return Some(Self {
                 mode: MonitorMode::None,
                 raw: stripped.to_owned(),
                 ..Default::default()
             });
         }
-        if stripped.starts_with("min ") {
+        if stripped
+            .strip_prefix(MIN_WORD)
+            .is_some_and(|rest| rest.starts_with(' '))
+        {
             return Self::parse_min_of(stripped);
         }
         Self::parse_and_chain(stripped)
     }
 
     fn parse_min_of(text: &str) -> Option<Self> {
-        let rest_start = "min ".len();
+        let rest_start = MIN_WORD.len() + 1;
         let rest = text[rest_start..].trim_start();
-        let of_idx = rest.find(" of ")?;
+        let separator = format!(" {OF_WORD} ");
+        let of_idx = rest.find(&separator)?;
         let minimum: i64 = rest[..of_idx].trim().parse().ok()?;
-        let body_start_in_rest = of_idx + " of ".len();
+        let body_start_in_rest = of_idx + separator.len();
         let body = rest[body_start_in_rest..].trim_start();
         if !body.starts_with('{') || !body.trim_end().ends_with('}') {
             return None;
@@ -180,7 +201,7 @@ impl MonitorExpression {
                 spans.push((tok_start, i));
                 expect_monitor = false;
             } else {
-                if token != "and" {
+                if token != AND_WORD {
                     return None;
                 }
                 expect_monitor = true;

@@ -805,7 +805,7 @@ SCCP determines `x₁ = Const(Int(5))`:
 
 - `i₁ = Const(Int(0))` (before loop)
 - `i₂ = phi(i₁, i₃)` at `while_header_2` → `Overdefined` (loop-carried)
-- `evaluate_def` folds `Statement::Incr` through the registry's `incr`
+- `LatticeDriver::evaluate_incr` folds `Statement::Incr` through the registry's `incr`
   route only when the target's current value is exact; `i₂` is
   `Overdefined`, so the route declines, `i₃` is `Overdefined` too, and the
   phi cannot recover
@@ -814,11 +814,14 @@ SCCP determines `x₁ = Const(Int(5))`:
 
 - If a value should be constant but is `Overdefined`, check whether a
   loop phi or barrier is widening it — or whether the defining statement is
-  simply not a shape `evaluate_def` folds.
-- `evaluate_def` folds `Statement::AssignConst`, `Statement::AssignExpr`
-  through the expression evaluator, a `Statement::AssignValue` whose RHS is a
-  literal / lattice-constant `$var` / foldable `[cmd …]`, and a
-  single-variable single-list `foreach` (to the `ConstSet` of its elements).
+  outside the typed statement transfer supported by `evaluate_def_dispatch`.
+- `evaluate_def_dispatch` asks the retained `LatticeDriver` for literal
+  `Statement::AssignConst` and expression `Statement::AssignExpr` transfers.
+  `Statement::AssignValue` uses a literal, exact scalar SSA value or an owned
+  foldable command substitution. A
+  single-variable single-list `foreach` may yield the `ConstSet` of its elements. `execution_value_facts` supplies the
+  execution-erasure projection; `semantic_value_facts` keeps semantic values
+  and obligations separate from executable constant replacement.
   A command's value — the typed `Statement::Incr`, a call such as `append`,
   `lappend`, `set` or a `dict` keyed update, and a `[cmd …]` such as
   `[string range …]`, `[llength …]` or `[set x]` — comes through the

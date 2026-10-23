@@ -9,7 +9,7 @@
 //! instructions and it does not recognise Tcl commands by spelling. Procedure
 //! identities come from the lowered module, command mutation and trace hazards
 //! come from their shared analyses, and formal-list semantics come from the
-//! shared strict Tcl parameter parser.
+//! shared independently selected parameter grammar.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -19,23 +19,41 @@ use tcl_registry::{SemanticOperationId, hooks::LoweringHookId};
 
 use crate::analyses::LatticeValue;
 use crate::cfg::{Block, BlockId};
-use crate::command_binding::{BindingKind, CommandBinding, analyse_command_binding};
+use crate::command_binding::BindingKind;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-use crate::intervals::{Interval, compute_intervals_with, numbers_for_dialect};
+use crate::intervals::{Interval, compute_intervals_with};
 use crate::ir::{CommandTokens, Procedure, Statement};
 use crate::native_integer_proof::NativeIntegerDeclineReason;
-use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
+use crate::registry_invocation::{
+    InvocationMetadataContext, RegistryInvocationResolution,
+    resolve_command_tokens_with_metadata_context,
+};
 use crate::representation_plan::{SharingState, VarStorage};
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::ssa::{SsaBlock, SsaStatement, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice, TypeShape, type_join};
 use crate::var_escape::{EscapeTag, ProcEscapeSummary, analyse_var_escape_cu_with_registry};
 
+mod authored_source;
+pub use authored_source::{
+    OriginalAuthoredProgramSourceDecline, OriginalAuthoredProgramSourcePlan,
+    OriginalAuthoredSourceResidual, OriginalAuthoredSourceStatement,
+    OriginalAuthoredSourceStatementKind, OriginalAuthoredStorageTemplate,
+};
+mod declared_arguments;
+pub use declared_arguments::{
+    DeclaredArgumentDecision, DeclaredArgumentEvidence, DeclaredArgumentIdentity,
+};
+
 /// Stable identity of one CFG invocation, including an immediate command
 /// substitution nested in one argument of the enclosing statement.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DirectCallSiteId {
-    /// Qualified caller function.
+    /// Genuine retained Module issuer, including the top-level body owner.
+    pub module_id: tcl_core_types::ProcedureModuleId,
+    /// Actual retained caller body; `None` denotes the top level.
+    pub body_id: Option<crate::ir::ProcedureId>,
+    /// Caller display, retained separately from body identity.
     pub function: String,
     /// CFG block identity.
     pub block: BlockId,
@@ -49,7 +67,9 @@ pub struct DirectCallSiteId {
 /// Stable source identity of an in-unit Tcl procedure definition.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProcedureIdentity {
-    /// Fully qualified Tcl command name.
+    /// Exact Module-issued declaration identity, independent of its label.
+    pub id: crate::ir::ProcedureId,
+    /// Declaration display; no callable name or allocation authority.
     pub qualified_name: String,
     /// Definition source-span start.
     pub definition_start: u32,
@@ -60,7 +80,11 @@ pub struct ProcedureIdentity {
 /// Stable identity of one SSA value in one procedure.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SsaValueIdentity {
-    /// Qualified procedure name.
+    /// Genuine retained Module issuer, including the top-level body owner.
+    pub module_id: tcl_core_types::ProcedureModuleId,
+    /// Actual retained body owning the local SSA namespace.
+    pub body_id: Option<crate::ir::ProcedureId>,
+    /// Body display; local symbols are joined through `body_id`.
     pub function: String,
     /// Function-local interned variable symbol.
     pub symbol: Symbol,
@@ -96,14 +120,19 @@ impl CommonAotEnvironment {
 pub struct DirectProcEvidence {
     /// Exact in-unit definition selected by command-binding analysis.
     pub callee: ProcedureIdentity,
-    /// Fixed required formal names, in Tcl binding order.
+    /// Checked display of fixed required formal keys, in argument order.
     pub formals: Vec<String>,
+    /// Genuine counted declaration/argument ordinals, separate from native slots.
+    pub original_formals:
+        Option<std::sync::Arc<crate::var_escape::original_slots::OriginalScalarArgumentSlots>>,
     /// Types propagated from this call's already-evaluated actual arguments.
     pub actual_types: Vec<TypeLattice>,
     /// Exact caller values corresponding to each formal, when retained by SSA.
     pub actual_values: Vec<DirectActualValue>,
-    /// Exact environment premise used for Tcl numeric and completion rules.
+    /// Explicit standalone context, when the caller supplied one.
     pub context: Option<SemanticContext>,
+    /// Complete selected availability; independent Native premises remain required.
+    pub metadata_context: tcl_registry::model::ResolvedContext,
     /// Mutable dispatch domains a later runtime guard must cover.
     pub dispatch_dependencies: DispatchDependencies,
     /// Whether the entire body is authorised for specialised execution.
@@ -207,6 +236,11 @@ pub fn semantic_operation_binding_is_trusted(
 /// Why common analysis did not select a direct procedure call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DirectProcDecline {
+    /// A genuine provider must admit the body before validating its formals.
+    NativeCompilationAdmissionRequired,
+    /// Actual caller or callee constants depend on math bindings which this
+    /// direct execution plan cannot retain and validate.
+    MathBindingPrerequisiteRequired,
     /// The pass is disabled by default and was not explicitly enabled.
     PassDisabled,
     /// No resolved environment was carried by the unit's semantic bundle.
@@ -229,8 +263,12 @@ pub enum DirectProcDecline {
     InvalidFormalList,
     /// Defaulted parameters are deliberately outside this first direct tier.
     DefaultArgumentUnsupported,
-    /// A trailing `args` formal is deliberately outside this first direct tier.
+    /// A native rest binding is outside this first direct tier.
     VariadicUnsupported,
+    /// Native caller-variable reference bindings need the ordinary frame owner.
+    ReferenceArgumentUnsupported,
+    /// Multiple formals share one native name rather than independent direct slots.
+    SharedFormalSlotUnsupported,
     /// The already-evaluated argv does not match the fixed formal count.
     ArityMismatch {
         /// Number of fixed required formals.
@@ -238,6 +276,8 @@ pub enum DirectProcDecline {
         /// Number of already-evaluated actual arguments.
         actual: usize,
     },
+    /// The direct tier cannot preserve an original argv expansion operation.
+    ExpandedArgumentsUnsupported,
     /// Escape/call analysis found a dynamic frame or nested fallback surface.
     DynamicCallee,
     /// Current completion planning cannot yet rewrite a CFG with exceptional edges.
@@ -249,6 +289,8 @@ impl DirectProcDecline {
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
+            Self::NativeCompilationAdmissionRequired => "native-compilation-admission-required",
+            Self::MathBindingPrerequisiteRequired => "math-binding-prerequisite-required",
             Self::PassDisabled => "pass-disabled",
             Self::ContextUnavailable => "context-unavailable",
             Self::BindingNotProcedure { .. } => "binding-not-procedure",
@@ -259,7 +301,10 @@ impl DirectProcDecline {
             Self::InvalidFormalList => "invalid-formal-list",
             Self::DefaultArgumentUnsupported => "default-argument-unsupported",
             Self::VariadicUnsupported => "variadic-unsupported",
+            Self::ReferenceArgumentUnsupported => "reference-argument-unsupported",
+            Self::SharedFormalSlotUnsupported => "shared-formal-slot-unsupported",
             Self::ArityMismatch { .. } => "arity-mismatch",
+            Self::ExpandedArgumentsUnsupported => "expanded-arguments-unsupported",
             Self::DynamicCallee => "dynamic-callee",
             Self::ExceptionalControlFlow => "exceptional-control-flow",
         }
@@ -312,8 +357,10 @@ pub struct SemanticCallEvidence {
     pub operation: SemanticOperationId,
     /// Registry form identity, when a determinate form matched.
     pub form: Option<SemanticFormIdentity>,
-    /// Environment premise used for registry resolution.
+    /// Explicit standalone context, when the caller supplied one.
     pub context: Option<SemanticContext>,
+    /// Complete availability used for registry resolution.
+    pub metadata_context: tcl_registry::model::ResolvedContext,
     /// Mutable interpreter domains a runtime guard must cover.
     pub dispatch_dependencies: DispatchDependencies,
     /// Registry-declared behaviour traits used by boundary coverage proofs.
@@ -371,6 +418,8 @@ pub struct MaterialisableSlotEvidence {
     pub local_slot: u32,
     /// Variable display name retained for diagnostics.
     pub variable: String,
+    /// Independent byte/frame or explicit authored allocation selecting the slot.
+    pub authority: MaterialisableSlotAuthority,
     /// Exact singleton type shape used by materialisation.
     pub shape: TypeShape,
     /// Existing sparse-conditional-constant-propagation fact.
@@ -384,6 +433,30 @@ pub struct MaterialisableSlotEvidence {
     /// Live-interpreter epochs a later consumer must guard before using this
     /// slot without a continuously authoritative frame cell.
     pub runtime_guards: MaterialisationGuardRequirements,
+}
+
+/// Purpose of a selected allocation. Source rewrite ordinals never describe a
+/// physical local cache, and an advisory label cannot construct a native receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MaterialisableSlotAuthority {
+    /// Explicit logical analysis of a symbolic authored cell.
+    Authored,
+    /// Fixed argument ordinal for a newly compiled original declaration.
+    SourceFormal {
+        /// Original declaration, counted arguments and declaration compiler purpose.
+        declaration: std::sync::Arc<
+            crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots,
+        >,
+        /// Exact local activation represented by SSA.
+        cell: crate::var_resolve::VariableCellKey,
+    },
+    /// Exact source cell accounted for by the sealed-program statement proof.
+    SealedProgramCell {
+        /// Original namespace and root storage key, without a label conversion.
+        cell: crate::var_resolve::VariableCellKey,
+    },
+    /// Actual retained native frame layout and its required incarnation.
+    NativeFrame(Box<crate::var_escape::original_slots::OriginalNativeFrameSlot>),
 }
 
 /// Runtime observability domains not discharged by source-only analysis.
@@ -411,10 +484,15 @@ pub enum MaterialisationRecipe {
 /// Why an SSA value cannot use a materialisable slot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MaterialisableSlotDecline {
+    /// This slot's analysis world retains implicit math prerequisites which
+    /// the materialisation plan cannot validate before native execution.
+    MathBindingPrerequisiteRequired,
     /// The pass is disabled by default and was not explicitly enabled.
     PassDisabled,
     /// Escape analysis did not allocate a local slot for this name.
     NoLocalSlot,
+    /// A typed original cell lacks its own byte/frame allocation receipt.
+    OriginalSlotUnavailable,
     /// This SSA version may be observed through a frame alias.
     EscapesToFrame,
     /// A literal or dynamic variable trace may observe representation changes.
@@ -432,8 +510,10 @@ impl MaterialisableSlotDecline {
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
+            Self::MathBindingPrerequisiteRequired => "math-binding-prerequisite-required",
             Self::PassDisabled => "pass-disabled",
             Self::NoLocalSlot => "no-local-slot",
+            Self::OriginalSlotUnavailable => "original-slot-unavailable",
             Self::EscapesToFrame => "escapes-to-frame",
             Self::VariableTrace => "variable-trace",
             Self::TypeNotSingleton => "type-not-singleton",
@@ -447,7 +527,7 @@ impl MaterialisableSlotDecline {
 #[derive(Debug, Clone, PartialEq)]
 pub enum MaterialisableSlotDecision {
     /// Common analysis proved an exact materialisation recipe.
-    Selected(MaterialisableSlotEvidence),
+    Selected(Box<MaterialisableSlotEvidence>),
     /// The value stays boxed/frame-resident.
     Declined(MaterialisableSlotDecline),
 }
@@ -656,6 +736,10 @@ pub enum NativeDeclineReason {
     ProofFunctionUnavailable,
     /// The complexity guard disabled the integer analysis.
     ProofComplexityGuarded,
+    /// The actual source metadata needed by the integer proof is unavailable.
+    ProofSourceMetadataUnavailable,
+    /// The integer proof lacks the selected math command binding premise.
+    ProofMathBindingPrerequisiteRequired,
     /// The callee holds no addition of two variables.
     NoAddCandidate,
     /// The callee holds more than one candidate addition.
@@ -697,6 +781,10 @@ impl NativeDeclineReason {
             Self::NoSelectedBoundary => "no-selected-boundary",
             Self::ProofFunctionUnavailable => "function-unavailable",
             Self::ProofComplexityGuarded => "complexity-guarded",
+            Self::ProofSourceMetadataUnavailable => "proof-source-metadata-unavailable",
+            Self::ProofMathBindingPrerequisiteRequired => {
+                "proof-math-binding-prerequisite-required"
+            }
             Self::NoAddCandidate => "no-add-candidate",
             Self::AmbiguousAdd => "ambiguous-add",
             Self::Integer(reason) => reason.as_str(),
@@ -729,11 +817,39 @@ pub struct NativeDecline {
 pub struct CommonAotProofPlan {
     environment: CommonAotEnvironment,
     direct_calls: BTreeMap<DirectCallSiteId, DirectProcDecision>,
-    declined_direct_callees: BTreeSet<String>,
+    declined_direct_callees: BTreeSet<crate::ir::ProcedureId>,
     semantic_calls: BTreeMap<DirectCallSiteId, SemanticCallDecision>,
     closed_program_coverage: ClosedProgramCoverageDecision,
     materialisable_slots: BTreeMap<SsaValueIdentity, MaterialisableSlotDecision>,
+    declared_arguments: BTreeMap<DeclaredArgumentIdentity, DeclaredArgumentDecision>,
     coverage_declines: Vec<CommonAotCoverageDecline>,
+}
+
+#[derive(Clone, Copy)]
+enum AotMetadataSelection {
+    Standalone(Option<SemanticContext>),
+    Retained,
+}
+
+impl AotMetadataSelection {
+    fn for_function<'a>(
+        self,
+        function: &'a FunctionUnit,
+        registry: &tcl_registry::CommandRegistry,
+        module: &crate::ir::Module,
+    ) -> Option<InvocationMetadataContext<'a>> {
+        match self {
+            Self::Standalone(context) => context.map(InvocationMetadataContext::from),
+            Self::Retained => function.invocation_metadata_context_for_module(registry, module),
+        }
+    }
+
+    const fn standalone_context(self) -> Option<SemanticContext> {
+        match self {
+            Self::Standalone(context) => context,
+            Self::Retained => None,
+        }
+    }
 }
 
 impl CommonAotProofPlan {
@@ -746,6 +862,41 @@ impl CommonAotProofPlan {
         config: SemanticOptimisationConfig,
         environment: CommonAotEnvironment,
     ) -> Self {
+        Self::build_with_selection(
+            unit,
+            registry,
+            AotMetadataSelection::Standalone(context),
+            config,
+            environment,
+        )
+    }
+
+    /// Build from each function's actual retained availability and grammar.
+    /// Missing, foreign or stale owners cannot supply metadata. Binding,
+    /// dispatch, frame and Native execution obligations remain independent.
+    #[must_use]
+    pub fn build_with_retained_metadata(
+        unit: &CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+        config: SemanticOptimisationConfig,
+        environment: CommonAotEnvironment,
+    ) -> Self {
+        Self::build_with_selection(
+            unit,
+            registry,
+            AotMetadataSelection::Retained,
+            config,
+            environment,
+        )
+    }
+
+    fn build_with_selection(
+        unit: &CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+        selection: AotMetadataSelection,
+        config: SemanticOptimisationConfig,
+        environment: CommonAotEnvironment,
+    ) -> Self {
         // The registry this unit was lowered under, not `tcl8.6`: the three
         // calls below already take it, and an escape analysis answering from
         // a different dialect can under-report escaping variables (#2167).
@@ -754,7 +905,7 @@ impl CommonAotProofPlan {
         let direct = collect_direct_calls(
             unit,
             registry,
-            context,
+            selection,
             config,
             &escape,
             mutations,
@@ -765,7 +916,7 @@ impl CommonAotProofPlan {
         let propagated = direct.propagated;
 
         let semantic_calls =
-            collect_semantic_calls(unit, registry, context, config, mutations, &direct_calls);
+            collect_semantic_calls(unit, registry, selection, config, mutations, &direct_calls);
 
         let closed_program_coverage = prove_closed_program_coverage(
             unit,
@@ -785,6 +936,9 @@ impl CommonAotProofPlan {
             &closed_program_coverage,
         );
 
+        let declared_arguments =
+            declared_arguments::collect(unit, registry, selection, &escape, &propagated, config);
+
         let mut coverage_declines = Vec::new();
         if !unit.methods.is_empty() {
             coverage_declines.push(CommonAotCoverageDecline::TclOoMethods);
@@ -799,6 +953,7 @@ impl CommonAotProofPlan {
             semantic_calls,
             closed_program_coverage,
             materialisable_slots,
+            declared_arguments,
             coverage_declines,
         }
     }
@@ -824,8 +979,8 @@ impl CommonAotProofPlan {
     /// must therefore treat a decline naming the same callee as proof that the
     /// selected sites do not exhaust its callers.
     #[must_use]
-    pub fn has_declined_direct_call_to(&self, callee: &str) -> bool {
-        self.declined_direct_callees.contains(callee)
+    pub fn has_declined_direct_call_to(&self, callee: crate::ir::ProcedureId) -> bool {
+        self.declined_direct_callees.contains(&callee)
     }
 
     /// Registry semantic-call decisions in stable CFG identity order.
@@ -854,6 +1009,41 @@ impl CommonAotProofPlan {
         self.materialisable_slots.iter()
     }
 
+    /// Proposed declared argument storage, independent of physical SSA slots.
+    pub fn declared_arguments(
+        &self,
+    ) -> impl Iterator<Item = (&DeclaredArgumentIdentity, &DeclaredArgumentDecision)> {
+        self.declared_arguments.iter()
+    }
+
+    /// Join an exact incoming read to its canonical original declaration.
+    /// A slot label alone or a different source occurrence cannot select this
+    /// proposed argument, and no physical SSA symbol is created.
+    #[must_use]
+    pub fn declared_argument_for_incoming_read(
+        &self,
+        procedure: &ProcedureIdentity,
+        read: &crate::ssa::SsaIncomingSlotRead,
+    ) -> Option<(&DeclaredArgumentIdentity, &DeclaredArgumentEvidence)> {
+        self.declared_arguments
+            .iter()
+            .find_map(|(identity, decision)| {
+                if &identity.procedure != procedure {
+                    return None;
+                }
+                let DeclaredArgumentDecision::Selected(evidence) = decision else {
+                    return None;
+                };
+                (evidence.reads().contains(read)
+                    && evidence
+                        .declaration()
+                        .arguments()
+                        .ordinal(read.slot.as_bytes())
+                        == Some(identity.ordinal))
+                .then_some((identity, evidence.as_ref()))
+            })
+    }
+
     /// Deliberately excluded semantic surfaces.
     #[must_use]
     pub fn coverage_declines(&self) -> &[CommonAotCoverageDecline] {
@@ -867,19 +1057,19 @@ struct CallCandidate<'a> {
     statement_index: u32,
     command: String,
     args: Vec<String>,
-    tokens: Option<&'a CommandTokens>,
-    ssa_statement: &'a crate::ssa::SsaStatement,
+    tokens: Option<std::borrow::Cow<'a, CommandTokens>>,
 }
 
 fn function_units(unit: &CompilationUnit) -> impl Iterator<Item = (&str, &FunctionUnit)> {
     std::iter::once((unit.top_level.name.as_str(), &unit.top_level)).chain(
         unit.procedures
-            .iter()
-            .map(|(name, unit)| (name.as_str(), unit)),
+            .values()
+            .map(|unit| (unit.name.as_str(), unit)),
     )
 }
 
 fn call_sites<'a>(
+    unit: &CompilationUnit,
     caller: &str,
     function: &'a FunctionUnit,
     lexer_config: tcl_lexer::LexerConfig,
@@ -890,21 +1080,32 @@ fn call_sites<'a>(
             continue;
         };
         for (index, statement) in cfg_block.statements.iter().enumerate() {
-            let Some(ssa_statement) = ssa_block.statements.get(index) else {
+            if ssa_block.statements.get(index).is_none() {
                 continue;
-            };
-            let Statement::Call {
-                command,
-                args,
-                tokens,
-                ..
-            } = statement
-            else {
-                continue;
+            }
+            let original = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+                &function.cfg.command_binding_sites,
+                statement,
+            );
+            let (command, args) = match statement {
+                Statement::Call { command, args, .. } => (command.clone(), args.clone()),
+                _ => {
+                    let Some(tokens) = original.filter(|tokens| {
+                        tokens.synthetic.is_none() && tokens.words_align_with_argv_text()
+                    }) else {
+                        continue;
+                    };
+                    let Some((head, arguments)) = tokens.argv_texts.split_first() else {
+                        continue;
+                    };
+                    (head.clone(), arguments.to_vec())
+                }
             };
             let statement_index = u32::try_from(index).unwrap_or(u32::MAX);
             out.push(CallCandidate {
                 id: DirectCallSiteId {
+                    module_id: unit.ir_module.procedure_ids.module_id(),
+                    body_id: function.body_id,
                     function: caller.to_owned(),
                     block: *block,
                     statement_index,
@@ -912,39 +1113,49 @@ fn call_sites<'a>(
                 },
                 block: *block,
                 statement_index,
-                command: command.clone(),
+                command,
                 args: args.clone(),
-                tokens: tokens.as_ref(),
-                ssa_statement,
+                tokens: original.map(std::borrow::Cow::Borrowed),
             });
-            for (argument_index, argument) in args.iter().enumerate() {
-                if let Some((nested, nested_args)) =
-                    crate::value_shapes::parse_command_substitution_with_config(
-                        argument,
-                        lexer_config,
-                    )
-                {
-                    out.push(CallCandidate {
-                        id: DirectCallSiteId {
-                            function: caller.to_owned(),
-                            block: *block,
-                            statement_index,
-                            nested_argument: Some(
-                                u32::try_from(argument_index).unwrap_or(u32::MAX),
-                            ),
-                        },
+            for argument_index in 0..args.len() {
+                let Some(tokens) = nested_call_tokens(original, argument_index, lexer_config)
+                else {
+                    continue;
+                };
+                let Some((nested, nested_args)) = tokens.argv_texts.split_first() else {
+                    continue;
+                };
+                out.push(CallCandidate {
+                    id: DirectCallSiteId {
+                        module_id: unit.ir_module.procedure_ids.module_id(),
+                        body_id: function.body_id,
+                        function: caller.to_owned(),
                         block: *block,
                         statement_index,
-                        command: nested,
-                        args: nested_args,
-                        tokens: None,
-                        ssa_statement,
-                    });
-                }
+                        nested_argument: Some(u32::try_from(argument_index).unwrap_or(u32::MAX)),
+                    },
+                    block: *block,
+                    statement_index,
+                    command: nested.clone(),
+                    args: nested_args.to_vec(),
+                    tokens: Some(std::borrow::Cow::Owned(tokens)),
+                });
             }
         }
     }
     out
+}
+
+fn nested_call_tokens(
+    parent: Option<&CommandTokens>,
+    argument: usize,
+    config: tcl_lexer::LexerConfig,
+) -> Option<CommandTokens> {
+    let parent = parent?;
+    let word = parent.words().get(argument.checked_add(1)?)?;
+    let mut commands =
+        crate::value_shapes::command_substitution_tokens(word, Some(parent), config)?;
+    (commands.len() == 1).then(|| commands.remove(0))
 }
 
 struct DirectCollection {
@@ -952,20 +1163,19 @@ struct DirectCollection {
     /// Callees named by at least one *declined* candidate — the set a consumer
     /// joining facts across selected sites must consult before treating those
     /// sites as the callee's complete caller set.
-    declined_callees: BTreeSet<String>,
-    propagated: HashMap<(String, usize), Option<TypeLattice>>,
+    declined_callees: BTreeSet<crate::ir::ProcedureId>,
+    propagated: HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>>,
 }
 
 fn collect_direct_calls(
     unit: &CompilationUnit,
     registry: &tcl_registry::CommandRegistry,
-    context: Option<SemanticContext>,
+    selection: AotMetadataSelection,
     config: SemanticOptimisationConfig,
-    escape: &HashMap<String, ProcEscapeSummary>,
+    escape: &HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
     mutations: &crate::command_binding::ModuleCommandMutations,
     proc_binding_trust: &crate::command_binding::ProcBindingTrustProjection,
 ) -> DirectCollection {
-    let known: HashSet<String> = unit.ir_module.procedures.keys().cloned().collect();
     let mut direct_calls = BTreeMap::new();
     let mut declined_callees = BTreeSet::new();
     // `None` is a poison fact: at least one selected call supplied an actual
@@ -973,51 +1183,58 @@ fn collect_direct_calls(
     // the declined-callee sweep below). `TypeLattice::Unknown` is lattice
     // bottom, so joining it directly would incorrectly preserve another call's
     // fact.
-    let mut propagated: HashMap<(String, usize), Option<TypeLattice>> = HashMap::new();
+    let mut propagated: HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>> =
+        HashMap::new();
     for (caller_name, function) in function_units(unit) {
-        let bindings = analyse_command_binding(&function.cfg, registry, &[]);
-        for site in call_sites(
-            caller_name,
-            function,
-            tcl_lexer::LexerConfig::for_profile(registry.profile()),
-        ) {
-            let binding =
-                bindings.binding_at(site.block, site.statement_index as usize, &site.command);
-            let resolved =
-                crate::interprocedural::resolve_internal_call(&site.command, caller_name, &known)
-                    .or_else(|| {
-                        binding
-                            .target
-                            .clone()
-                            .filter(|target| known.contains(target))
-                    });
-            let Some(callee_name) = resolved else {
+        for site in call_sites(unit, caller_name, function, function.source_lexer_config()) {
+            let binding = site
+                .tokens
+                .as_deref()
+                .and_then(|tokens| tokens.source_binding.as_ref());
+            let terminal = binding
+                .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target);
+            let target = binding.and_then(|binding| binding.direct_procedure_target(&site.command));
+            let resolved = terminal
+                .and_then(|target| unit.ir_module.source_procedure_for_target(target))
+                .or_else(|| {
+                    let ids = crate::registry_invocation::original_source_procedure_ids_for_word_for_module(
+                        site.tokens.as_deref()?, &site.command, &unit.ir_module, registry,
+                    )?;
+                    let [id] = ids.as_slice() else { return None; };
+                    Some((*id, unit.ir_module.procedures.get(id)?))
+                });
+            let Some((callee_id, proc_def)) = resolved else {
                 continue;
             };
-            let Some(proc_def) = unit.ir_module.procedures.get(&callee_name) else {
-                continue;
-            };
+            let callee_name = proc_def.qualified_name.clone();
             let decision = direct_decision(&DirectInputs {
                 unit,
                 registry,
                 function,
                 site: &site,
-                binding_kind: binding.kind,
-                binding_target: binding.target.as_deref(),
+                binding_kind: terminal.map_or(BindingKind::Unknown, |target| target.kind),
+                binding_target: terminal.map(|target| target.command.as_str()),
+                source_target: target,
                 callee_name: &callee_name,
+                callee_id,
                 proc_def,
-                summary: escape.get(&callee_name),
+                summary: escape.get(&tcl_core_types::BodyFrameId::Body(callee_id)),
                 mutations,
                 proc_binding_trust,
-                context,
+                context: selection.standalone_context(),
+                metadata: selection.for_function(function, registry, &unit.ir_module),
+                callee_metadata: unit
+                    .procedures
+                    .get(&callee_id)
+                    .and_then(|callee| selection.for_function(callee, registry, &unit.ir_module)),
                 enabled: config.is_enabled(SemanticOptimisationPassId::DirectProc),
                 frame_elision_enabled: config.is_enabled(SemanticOptimisationPassId::FrameElision),
                 native_integer_enabled: config
                     .is_enabled(SemanticOptimisationPassId::NativeInteger),
             });
-            propagate_actual_types(&mut propagated, &callee_name, &decision);
+            propagate_actual_types(&mut propagated, callee_id, &decision);
             if matches!(decision, DirectProcDecision::Declined(_)) {
-                declined_callees.insert(callee_name);
+                declined_callees.insert(callee_id);
             }
             direct_calls.insert(site.id, decision);
         }
@@ -1040,8 +1257,8 @@ fn collect_direct_calls(
 }
 
 fn propagate_actual_types(
-    propagated: &mut HashMap<(String, usize), Option<TypeLattice>>,
-    callee_name: &str,
+    propagated: &mut HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>>,
+    callee_id: crate::ir::ProcedureId,
     decision: &DirectProcDecision,
 ) {
     let DirectProcDecision::Selected(evidence) = decision else {
@@ -1049,7 +1266,7 @@ fn propagate_actual_types(
     };
     for (index, ty) in evidence.actual_types.iter().enumerate() {
         propagated
-            .entry((callee_name.to_owned(), index))
+            .entry((callee_id, index))
             .and_modify(|current| match current {
                 Some(existing) if matches!(ty.kind(), TypeKind::Known | TypeKind::Shimmered) => {
                     *existing = type_join(existing, ty);
@@ -1065,28 +1282,24 @@ fn propagate_actual_types(
 fn collect_semantic_calls(
     unit: &CompilationUnit,
     registry: &tcl_registry::CommandRegistry,
-    context: Option<SemanticContext>,
+    selection: AotMetadataSelection,
     config: SemanticOptimisationConfig,
     mutations: &crate::command_binding::ModuleCommandMutations,
     direct_calls: &BTreeMap<DirectCallSiteId, DirectProcDecision>,
 ) -> BTreeMap<DirectCallSiteId, SemanticCallDecision> {
     let mut decisions = BTreeMap::new();
     for (caller, function) in function_units(unit) {
-        let bindings = analyse_command_binding(&function.cfg, registry, &[]);
-        for site in call_sites(
-            caller,
-            function,
-            tcl_lexer::LexerConfig::for_profile(registry.profile()),
-        ) {
+        for site in call_sites(unit, caller, function, function.source_lexer_config()) {
             if site.id.nested_argument.is_some() {
                 continue;
             }
             let decision = semantic_call_decision(&SemanticCallInputs {
                 unit,
                 registry,
-                context,
+                function,
+                context: selection.standalone_context(),
+                metadata: selection.for_function(function, registry, &unit.ir_module),
                 site: &site,
-                bindings: &bindings,
                 mutations,
                 direct_calls,
                 enabled: config
@@ -1101,9 +1314,10 @@ fn collect_semantic_calls(
 struct SemanticCallInputs<'a> {
     unit: &'a CompilationUnit,
     registry: &'a tcl_registry::CommandRegistry,
+    function: &'a FunctionUnit,
     context: Option<SemanticContext>,
+    metadata: Option<InvocationMetadataContext<'a>>,
     site: &'a CallCandidate<'a>,
-    bindings: &'a crate::command_binding::CommandBinding<'a>,
     mutations: &'a crate::command_binding::ModuleCommandMutations,
     direct_calls: &'a BTreeMap<DirectCallSiteId, DirectProcDecision>,
     enabled: bool,
@@ -1114,30 +1328,32 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
     if !input.enabled {
         return decline(SemanticCallDecline::PassDisabled);
     }
-    if input.context.is_none() {
+    if input.metadata.is_none() {
         return decline(SemanticCallDecline::ContextUnavailable);
     }
     if input.mutations.has_dynamic_mutation() {
         return decline(SemanticCallDecline::DynamicCommandMutation);
     }
-    let Some(tokens) = input.site.tokens else {
+    let Some(tokens) = input.site.tokens.as_deref() else {
         return decline(SemanticCallDecline::TokensUnavailable);
     };
     let Ok(RegistryInvocationResolution::Resolved(facts)) =
-        resolve_command_tokens(input.registry, input.context, tokens)
+        resolve_command_tokens_with_metadata_context(input.registry, input.metadata, tokens)
     else {
         return decline(SemanticCallDecline::RegistryUnresolved);
     };
     if facts.operation == SemanticOperationId::Invoke {
         return decline(SemanticCallDecline::GenericInvocation);
     }
-    let binding = input.bindings.binding_at(
-        input.site.block,
-        input.site.statement_index as usize,
-        &facts.canonical_command,
-    );
-    if !binding.is_original_builtin() {
-        return decline(SemanticCallDecline::BindingNotOriginal { kind: binding.kind });
+    let binding = tokens.source_binding.as_ref();
+    if binding
+        .and_then(|binding| binding.direct_registry_target(&input.site.command))
+        .is_none()
+    {
+        let kind = binding
+            .and_then(crate::command_binding::SourceInvocationBinding::called_slot_kind)
+            .unwrap_or(BindingKind::Unknown);
+        return decline(SemanticCallDecline::BindingNotOriginal { kind });
     }
     if !input.mutations.trusts(&facts.canonical_command) {
         return decline(SemanticCallDecline::ReboundOrAliased);
@@ -1145,7 +1361,13 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
     if input.unit.ir_module.has_dynamic_trace {
         return decline(SemanticCallDecline::DynamicExecutionTrace);
     }
-    if command_has_execution_trace(&input.unit.ir_module, &facts.canonical_command) {
+    if crate::registry_invocation::original_invocation_has_execution_trace(
+        input.registry,
+        input.metadata.expect("selected metadata prerequisite"),
+        tokens,
+        facts.descriptor_key(),
+        &input.unit.ir_module.traced_commands,
+    ) {
         return decline(SemanticCallDecline::ExecutionTrace);
     }
     let mut arguments = Vec::with_capacity(input.site.args.len());
@@ -1153,11 +1375,13 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
         let outer_argument = u32::try_from(index).unwrap_or(u32::MAX);
         if crate::value_shapes::parse_command_substitution_with_config(
             argument,
-            tcl_lexer::LexerConfig::for_profile(input.registry.profile()),
+            input.function.source_lexer_config(),
         )
         .is_some()
         {
             let nested = DirectCallSiteId {
+                module_id: input.site.id.module_id,
+                body_id: input.site.id.body_id,
                 function: input.site.id.function.clone(),
                 block: input.site.block,
                 statement_index: input.site.statement_index,
@@ -1181,17 +1405,31 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
         operation: facts.operation,
         form: facts.form.clone().map(SemanticFormIdentity),
         context: input.context,
+        metadata_context: input
+            .metadata
+            .expect("selected metadata prerequisite")
+            .context()
+            .clone(),
         dispatch_dependencies: facts.dispatch_dependencies,
         traits: facts.traits,
         arguments,
     })
 }
 
-fn command_has_execution_trace(module: &crate::ir::Module, command: &str) -> bool {
-    module.traced_commands.contains(command)
-        || module
-            .traced_commands
-            .contains(command.trim_start_matches("::"))
+fn command_has_execution_trace(
+    registry: &tcl_registry::CommandRegistry,
+    module: &crate::ir::Module,
+    command: tcl_registry::CanonicalCommandDescriptorKey<'_>,
+) -> bool {
+    // An implicit semantic operation has no actual called-slot receipt.
+    // Native inventories require token history; ambiguous authored descriptor
+    // punctuation likewise supplies no constructed-key encoding contract.
+    crate::registry_invocation::trace_set_requires_original_owner(
+        registry,
+        module,
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module),
+    ) || (!module.traced_commands.is_empty() && command.label().starts_with("::"))
+        || module.traced_commands.contains(command.label())
 }
 
 fn closed_program_linear_entry(function: &FunctionUnit) -> Option<(&Block, &SsaBlock)> {
@@ -1232,20 +1470,139 @@ fn closed_program_linear_entry(function: &FunctionUnit) -> Option<(&Block, &SsaB
         .map(|ssa| (block, ssa))
 }
 
-struct ClosedStatementInputs<'a, 'binding> {
+struct ClosedStatementInputs<'a> {
     unit: &'a CompilationUnit,
     registry: &'a tcl_registry::CommandRegistry,
     mutations: &'a crate::command_binding::ModuleCommandMutations,
     direct_calls: &'a BTreeMap<DirectCallSiteId, DirectProcDecision>,
     semantic_calls: &'a BTreeMap<DirectCallSiteId, SemanticCallDecision>,
     function: &'a FunctionUnit,
-    bindings: &'binding CommandBinding<'a>,
     direct_actuals: &'a HashSet<SsaValueIdentity>,
     set_operation: SemanticOperationId,
 }
 
+fn closed_constant_store(
+    input: &ClosedStatementInputs<'_>,
+    index: usize,
+    statement: &Statement,
+) -> bool {
+    if matches!(statement, Statement::AssignConst { .. }) {
+        return true;
+    }
+    let Some(tokens) = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+        &input.function.cfg.command_binding_sites,
+        statement,
+    ) else {
+        return false;
+    };
+    let site = DirectCallSiteId {
+        module_id: input.unit.ir_module.procedure_ids.module_id(),
+        body_id: input.function.body_id,
+        function: input.function.name.clone(),
+        block: input.function.cfg.entry,
+        statement_index: u32::try_from(index).unwrap_or(u32::MAX),
+        nested_argument: None,
+    };
+    if !matches!(
+        input.semantic_calls.get(&site),
+        Some(SemanticCallDecision::Selected(semantic)) if semantic.operation == input.set_operation
+    ) {
+        return false;
+    }
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return false;
+    };
+    crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        input.registry,
+        input
+            .function
+            .invocation_metadata_context_for_module(input.registry, &input.unit.ir_module),
+        tokens,
+    )
+    .and_then(|normal| normal.stored_value_literal(&binding.variable_context, input.registry))
+    .is_some()
+}
+
+fn closed_native_store_binding(input: &ClosedStatementInputs<'_>, statement: &Statement) -> bool {
+    let Statement::AssignConst { value, .. } = statement else {
+        return false;
+    };
+    let Some(tokens) = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+        &input.function.cfg.command_binding_sites,
+        statement,
+    ) else {
+        return false;
+    };
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return false;
+    };
+    binding
+        .evaluated_command_word()
+        .is_some_and(|head| binding.direct_registry_target(head).is_some())
+        && crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+            input.registry,
+            input
+                .function
+                .invocation_metadata_context_for_module(input.registry, &input.unit.ir_module),
+            tokens,
+        )
+        .and_then(|normal| normal.stored_value_literal(&binding.variable_context, input.registry))
+        .as_deref()
+            == Some(value.as_str())
+}
+
+fn cover_closed_constant_store(
+    input: &ClosedStatementInputs<'_>,
+    statement: &Statement,
+    ssa: &SsaStatement,
+    statement_id: CfgStatementId,
+) -> Option<ClosedProgramStatementEvidence> {
+    if input.unit.ir_module.has_dynamic_trace
+        || !semantic_operation_binding_is_trusted(
+            input.registry,
+            input.mutations,
+            input.set_operation,
+        )
+        || semantic_operation_has_execution_trace(
+            input.registry,
+            &input.unit.ir_module,
+            input.set_operation,
+        )
+        || (matches!(statement, Statement::AssignConst { .. })
+            && !closed_native_store_binding(input, statement))
+    {
+        return None;
+    }
+    let (symbol, version) = ssa.defs.iter().find_map(|(symbol, version)| {
+        let value = SsaValueIdentity {
+            module_id: input.unit.ir_module.procedure_ids.module_id(),
+            body_id: input.function.body_id,
+            function: input.function.name.clone(),
+            symbol: *symbol,
+            version: *version,
+        };
+        input
+            .direct_actuals
+            .contains(&value)
+            .then_some((*symbol, *version))
+    })?;
+    let constant = input.function.sccp.values.get(&(symbol, version))?.clone();
+    Some(ClosedProgramStatementEvidence::DirectActualConstant {
+        statement: statement_id,
+        value: SsaValueIdentity {
+            module_id: input.unit.ir_module.procedure_ids.module_id(),
+            body_id: input.function.body_id,
+            function: input.function.name.clone(),
+            symbol,
+            version,
+        },
+        constant,
+        operation: input.set_operation,
+    })
+}
+
 fn cover_closed_statement(
-    input: &ClosedStatementInputs<'_, '_>,
+    input: &ClosedStatementInputs<'_>,
     index: usize,
     statement: &Statement,
     ssa: &SsaStatement,
@@ -1256,56 +1613,15 @@ fn cover_closed_statement(
         block: input.function.cfg.entry,
         statement_index,
     };
-    if matches!(statement, Statement::AssignConst { .. }) {
-        if input.unit.ir_module.has_dynamic_trace
-            || !semantic_operation_binding_is_trusted(
-                input.registry,
-                input.mutations,
-                input.set_operation,
-            )
-            || semantic_operation_has_execution_trace(
-                input.registry,
-                &input.unit.ir_module,
-                input.set_operation,
-            )
-            || !input
-                .registry
-                .command_names_for_semantic_operation(input.set_operation)
-                .any(|command| {
-                    input
-                        .bindings
-                        .is_original_builtin_at(input.function.cfg.entry, index, command)
-                })
-        {
-            return None;
-        }
-        let (symbol, version) = ssa.defs.iter().find_map(|(symbol, version)| {
-            let value = SsaValueIdentity {
-                function: input.function.name.clone(),
-                symbol: *symbol,
-                version: *version,
-            };
-            input
-                .direct_actuals
-                .contains(&value)
-                .then_some((*symbol, *version))
-        })?;
-        let constant = input.function.sccp.values.get(&(symbol, version))?.clone();
-        return Some(ClosedProgramStatementEvidence::DirectActualConstant {
-            statement: statement_id,
-            value: SsaValueIdentity {
-                function: input.function.name.clone(),
-                symbol,
-                version,
-            },
-            constant,
-            operation: input.set_operation,
-        });
+    if closed_constant_store(input, index, statement) {
+        return cover_closed_constant_store(input, statement, ssa, statement_id);
     }
     let Statement::Call { .. } = statement else {
         return None;
     };
     let site = DirectCallSiteId {
+        module_id: input.unit.ir_module.procedure_ids.module_id(),
+        body_id: input.function.body_id,
         function: input.function.name.clone(),
         block: input.function.cfg.entry,
         statement_index,
@@ -1379,7 +1695,6 @@ fn prove_closed_program_coverage(
             DirectActualValue::Unproven => None,
         })
         .collect();
-    let bindings = analyse_command_binding(&function.cfg, registry, &[]);
     let set_operation = SemanticOperationId::StructuredLowering(LoweringHookId::Set);
     let input = ClosedStatementInputs {
         unit,
@@ -1388,7 +1703,6 @@ fn prove_closed_program_coverage(
         direct_calls,
         semantic_calls,
         function,
-        bindings: &bindings,
         direct_actuals: &direct_actuals,
         set_operation,
     };
@@ -1420,15 +1734,32 @@ struct DirectInputs<'a> {
     site: &'a CallCandidate<'a>,
     binding_kind: BindingKind,
     binding_target: Option<&'a str>,
+    source_target: Option<&'a crate::command_binding::SourceCommandTarget>,
     callee_name: &'a str,
+    callee_id: crate::ir::ProcedureId,
     proc_def: &'a Procedure,
     summary: Option<&'a ProcEscapeSummary>,
     mutations: &'a crate::command_binding::ModuleCommandMutations,
     proc_binding_trust: &'a crate::command_binding::ProcBindingTrustProjection,
     context: Option<SemanticContext>,
+    metadata: Option<InvocationMetadataContext<'a>>,
+    callee_metadata: Option<InvocationMetadataContext<'a>>,
     enabled: bool,
     frame_elision_enabled: bool,
     native_integer_enabled: bool,
+}
+
+fn direct_prerequisite_decline(input: &DirectInputs<'_>) -> Option<DirectProcDecline> {
+    if crate::native_compilation_admission::script_requires_admission(&input.proc_def.body) {
+        return Some(DirectProcDecline::NativeCompilationAdmissionRequired);
+    }
+    (input.function.requires_native_math_binding_validation()
+        || input
+            .unit
+            .procedures
+            .get(&input.callee_id)
+            .is_some_and(FunctionUnit::requires_native_math_binding_validation))
+    .then_some(DirectProcDecline::MathBindingPrerequisiteRequired)
 }
 
 fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
@@ -1436,7 +1767,7 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
     if !input.enabled {
         return decline(DirectProcDecline::PassDisabled);
     }
-    if input.context.is_none() {
+    if input.metadata.is_none() || input.callee_metadata.is_none() {
         return decline(DirectProcDecline::ContextUnavailable);
     }
     if input.proc_binding_trust.has_dynamic_binding_transition() {
@@ -1447,6 +1778,18 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
         .trusts_proc_binding(input.callee_name)
     {
         return decline(DirectProcDecline::ReboundOrAliased);
+    }
+    if input.unit.ir_module.has_dynamic_trace {
+        return decline(DirectProcDecline::DynamicExecutionTrace);
+    }
+    if crate::registry_invocation::original_procedure_has_execution_trace(
+        input.registry,
+        input.metadata,
+        input.site.tokens.as_deref(),
+        input.callee_name,
+        &input.unit.ir_module.traced_commands,
+    ) {
+        return decline(DirectProcDecline::ExecutionTrace);
     }
     if input.binding_kind == BindingKind::Alias
         || input
@@ -1460,70 +1803,143 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
             kind: input.binding_kind,
         });
     }
-    if input.unit.ir_module.has_dynamic_trace {
-        return decline(DirectProcDecline::DynamicExecutionTrace);
+    if !input.source_target.is_some_and(|target| {
+        target.prepended.is_empty()
+            && target.matches_authored_implementation_image(
+                &input.unit.ir_module.source,
+                input.proc_def.span.start(),
+            )
+    }) {
+        return decline(DirectProcDecline::ReboundOrAliased);
     }
-    let trace_name = input.callee_name.trim_start_matches("::");
-    if input.unit.ir_module.traced_commands.contains(trace_name) {
-        return decline(DirectProcDecline::ExecutionTrace);
+    if let Some(reason) = direct_prerequisite_decline(input) {
+        return decline(reason);
     }
     if !input.function.cfg.exception_edges.is_empty()
         || input
             .unit
             .procedures
-            .get(input.callee_name)
+            .get(&input.callee_id)
             .is_some_and(|callee| !callee.cfg.exception_edges.is_empty())
     {
         return decline(DirectProcDecline::ExceptionalControlFlow);
     }
-    // The lowered module's own dialect — the same `Module::dialect` the
-    // interval pass reads below — so the formals divide the way this unit's
-    // runtime divides them.
-    let word_rules = tcl_syntax::word_rules::WordValueRules::of_dialect_name(
-        input.unit.ir_module.dialect.as_deref(),
-    );
-    let Ok(formals) = crate::signature_scan::params::parse_param_list_strict(
-        &input.proc_def.params_raw,
-        word_rules,
-    ) else {
-        return decline(DirectProcDecline::InvalidFormalList);
+    if input.site.tokens.as_deref().is_some_and(|tokens| {
+        tokens
+            .words()
+            .iter()
+            .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
+    }) {
+        return decline(DirectProcDecline::ExpandedArgumentsUnsupported);
+    }
+    let (formals, original_formals) = match selected_direct_formals(input) {
+        Ok(selected) => selected,
+        Err(reason) => return decline(reason),
     };
-    if formals.last().is_some_and(|formal| formal.name == "args") {
-        return decline(DirectProcDecline::VariadicUnsupported);
-    }
-    if formals.iter().any(|formal| formal.default.is_some()) {
-        return decline(DirectProcDecline::DefaultArgumentUnsupported);
-    }
-    if formals.len() != input.site.args.len() {
-        return decline(DirectProcDecline::ArityMismatch {
-            expected: formals.len(),
-            actual: input.site.args.len(),
-        });
-    }
     let Some(summary) = input.summary else {
         return decline(DirectProcDecline::DynamicCallee);
     };
+    select_direct_evidence(input, &formals, original_formals, summary)
+}
+
+fn selected_direct_formals(
+    input: &DirectInputs<'_>,
+) -> Result<DirectFormalSelection, DirectProcDecline> {
+    let Some(grammar) = input.unit.ir_module.parameter_grammar() else {
+        return Err(DirectProcDecline::ContextUnavailable);
+    };
+    let original_formals = crate::var_escape::original_slots::original_procedure_argument_slots(
+        &input.unit.ir_module,
+        input.proc_def,
+    );
+    let formals = if let Some(original) = &original_formals {
+        if original.names().len() != input.site.args.len() {
+            return Err(DirectProcDecline::ArityMismatch {
+                expected: original.names().len(),
+                actual: input.site.args.len(),
+            });
+        }
+        let Some(formals) = original
+            .names()
+            .iter()
+            .map(|name| {
+                Some(tcl_syntax::formal_params::FormalParameter {
+                    name: name.try_utf8().ok()?.to_owned(),
+                    default: None,
+                })
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            return Err(DirectProcDecline::InvalidFormalList);
+        };
+        formals
+    } else if input.unit.ir_module.source.is_empty()
+        && input.unit.ir_module.source_entry.native_entry.is_none()
+    {
+        // Explicit synthetic/logical IR keeps its authored parameter grammar.
+        direct_formal_bindings(&input.proc_def.params_raw, input.site.args.len(), grammar)?
+    } else {
+        // Preserve the established typed shape reasons without using the
+        // presentation parser as an original-name issuer.
+        return Err(direct_formal_bindings(
+            &input.proc_def.params_raw,
+            input.site.args.len(),
+            grammar,
+        )
+        .err()
+        .unwrap_or(DirectProcDecline::InvalidFormalList));
+    };
+    Ok((formals, original_formals))
+}
+
+type DirectFormalSelection = (
+    Vec<tcl_syntax::formal_params::FormalParameter>,
+    Option<crate::var_escape::original_slots::OriginalScalarArgumentSlots>,
+);
+
+fn select_direct_evidence(
+    input: &DirectInputs<'_>,
+    formals: &[tcl_syntax::formal_params::FormalParameter],
+    original_formals: Option<crate::var_escape::original_slots::OriginalScalarArgumentSlots>,
+    summary: &ProcEscapeSummary,
+) -> DirectProcDecision {
     let actual_facts: Vec<_> = input
         .site
         .args
         .iter()
-        .map(|argument| actual_fact(input.function, input.site.ssa_statement, argument))
+        .enumerate()
+        .map(|(index, _)| {
+            actual_fact(
+                input.function,
+                input.site,
+                index,
+                input.registry,
+                &input.unit.ir_module,
+            )
+        })
         .collect();
     let actual_types = actual_facts.iter().map(|fact| fact.0.clone()).collect();
     let actual_values = actual_facts.into_iter().map(|fact| fact.1).collect();
-    let body = direct_body_decision(input, &formals);
+    let body = direct_body_decision(input, formals);
     let frame_elidable =
         matches!(body, DirectProcBodyDecision::Selected(_)) && summary.safe_for_frame_elision();
     DirectProcDecision::Selected(DirectProcEvidence {
         callee: ProcedureIdentity {
+            id: input.callee_id,
             qualified_name: input.callee_name.to_owned(),
             definition_start: input.proc_def.span.start(),
             definition_end: input.proc_def.span.end(),
         },
-        formals: formals.into_iter().map(|formal| formal.name).collect(),
+        formals: formals.iter().map(|formal| formal.name.clone()).collect(),
+        original_formals: original_formals.map(std::sync::Arc::new),
         actual_types,
         actual_values,
         context: input.context,
+        metadata_context: input
+            .metadata
+            .expect("selected metadata prerequisite")
+            .context()
+            .clone(),
         dispatch_dependencies: DispatchDependencies::BASE.union(DispatchDependencies::one(
             DispatchDependencyDomain::UnknownHandling,
         )),
@@ -1531,6 +1947,92 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
         frame_escape_private: summary.safe_for_frame_elision(),
         frame_elidable,
     })
+}
+
+fn direct_formal_bindings(
+    source: &str,
+    actual: usize,
+    grammar: tcl_dialect::ParameterGrammar,
+) -> Result<Vec<tcl_syntax::formal_params::FormalParameter>, DirectProcDecline> {
+    use tcl_syntax::formal_params::{
+        FormalArgumentBinding, bind_formal_arguments, parse_formal_parameters_in,
+    };
+    let formals = parse_formal_parameters_in(source, grammar)
+        .map_err(|_| DirectProcDecline::InvalidFormalList)?;
+    // Inspect the shared activation plan with a sufficient argument count,
+    // before selecting the actual call. Native rest/reference/default slots
+    // cannot be replaced by positional direct-call slots.
+    let shape = bind_formal_arguments(&formals, formals.len(), grammar)
+        .map_err(|_| DirectProcDecline::InvalidFormalList)?;
+    for binding in &shape {
+        match binding {
+            FormalArgumentBinding::Rest { .. } => {
+                return Err(DirectProcDecline::VariadicUnsupported);
+            }
+            FormalArgumentBinding::CallerLink { .. } => {
+                return Err(DirectProcDecline::ReferenceArgumentUnsupported);
+            }
+            FormalArgumentBinding::Default { .. } | FormalArgumentBinding::Value { .. } => {}
+        }
+    }
+    let mut slots = std::collections::HashSet::new();
+    if formals.iter().any(|formal| !slots.insert(&formal.name)) {
+        return Err(DirectProcDecline::SharedFormalSlotUnsupported);
+    }
+    if formals.iter().any(|formal| formal.default.is_some()) {
+        return Err(DirectProcDecline::DefaultArgumentUnsupported);
+    }
+    let bindings = bind_formal_arguments(&formals, actual, grammar).map_err(|_| {
+        DirectProcDecline::ArityMismatch {
+            expected: formals.len(),
+            actual,
+        }
+    })?;
+    if !bindings.iter().all(|binding| {
+        matches!(binding,
+        FormalArgumentBinding::Value { parameter, argument } if parameter == argument)
+    }) {
+        return Err(DirectProcDecline::ContextUnavailable);
+    }
+    Ok(formals)
+}
+
+/// Original outer return and sole nested expression from one supplied body.
+/// This selects metadata only; binding, frame, compiler and result-equivalence
+/// premises belong to the caller's independent admission checks.
+pub(crate) fn original_direct_expression_body_operations(
+    registry: &tcl_registry::CommandRegistry,
+    metadata: Option<InvocationMetadataContext<'_>>,
+    procedure: &Procedure,
+    config: tcl_lexer::LexerConfig,
+) -> Option<[SemanticOperationId; 2]> {
+    let metadata = metadata?;
+    let [statement @ Statement::Return { expr: Some(_), .. }] =
+        procedure.body.statements.as_slice()
+    else {
+        return None;
+    };
+    let original = procedure
+        .body
+        .retained_source_tokens_for_statement(statement)?;
+    let operation = |tokens: &CommandTokens, expected| {
+        if tokens.words().len() != 2 {
+            return None;
+        }
+        let selected =
+            crate::registry_invocation::logical_structured_invocation_with_metadata_context(
+                registry, metadata, tokens, None,
+            )?;
+        (selected.lowering_hook() == Some(expected))
+            .then_some(SemanticOperationId::StructuredLowering(expected))
+    };
+    let outer = operation(original, LoweringHookId::Return)?;
+    let children = crate::word_subst::checked_lifted_calls(original, config)?;
+    let [child] = children.as_slice() else {
+        return None;
+    };
+    let nested = operation(child.tokens.as_ref()?, LoweringHookId::Expr)?;
+    Some([nested, outer])
 }
 
 fn direct_body_decision(
@@ -1544,19 +2046,7 @@ fn direct_body_decision(
     if !input.native_integer_enabled {
         return decline(DirectProcBodyDecline::NativeIntegerPassDisabled);
     }
-    let [
-        Statement::Return {
-            expr: Some(expr), ..
-        },
-    ] = input.proc_def.body.statements.as_slice()
-    else {
-        return decline(DirectProcBodyDecline::UnsupportedBodyShape);
-    };
-    let formal_names: HashSet<&str> = formals.iter().map(|formal| formal.name.as_str()).collect();
-    if !closed_integer_add_expression(expr, &formal_names) {
-        return decline(DirectProcBodyDecline::UnsupportedBodyShape);
-    }
-    let operations = vec![
+    let operations = [
         SemanticOperationId::StructuredLowering(LoweringHookId::Expr),
         SemanticOperationId::StructuredLowering(LoweringHookId::Return),
     ];
@@ -1569,8 +2059,35 @@ fn direct_body_decision(
             return decline(DirectProcBodyDecline::InternalExecutionTrace { operation });
         }
     }
+    let Some(callee) = input.unit.function_for_body(Some(input.callee_id)) else {
+        return decline(DirectProcBodyDecline::UnsupportedBodyShape);
+    };
+    let Some(operations) = original_direct_expression_body_operations(
+        input.registry,
+        input.callee_metadata,
+        input.proc_def,
+        callee.source_lexer_config(),
+    ) else {
+        return decline(DirectProcBodyDecline::UnsupportedBodyShape);
+    };
+    let [
+        Statement::Return {
+            expr: Some(expr), ..
+        },
+    ] = input.proc_def.body.statements.as_slice()
+    else {
+        return decline(DirectProcBodyDecline::UnsupportedBodyShape);
+    };
+    let formal_names: HashSet<&str> = formals.iter().map(|formal| formal.name.as_str()).collect();
+    if !closed_integer_add_expression(
+        expr,
+        &formal_names,
+        input.unit.ir_module.native_lexer_config(),
+    ) {
+        return decline(DirectProcBodyDecline::UnsupportedBodyShape);
+    }
     DirectProcBodyDecision::Selected(DirectProcBodyEvidence {
-        operations,
+        operations: operations.to_vec(),
         dispatch_dependencies: DispatchDependencies::CONSERVATIVE,
     })
 }
@@ -1578,16 +2095,20 @@ fn direct_body_decision(
 fn closed_integer_add_expression(
     expression: &tcl_syntax::expr::ast::ExprNode,
     formals: &HashSet<&str>,
+    config: tcl_lexer::LexerConfig,
 ) -> bool {
     match expression {
-        tcl_syntax::expr::ast::ExprNode::Var { name, .. } => formals.contains(name.as_str()),
+        tcl_syntax::expr::ast::ExprNode::Var { text, .. } => matches!(
+            crate::native_lowering::cells::variable_reference_place(text, config),
+            Ok(crate::native_lowering::cells::CellPlace::Named { name }) if formals.contains(name.as_str())
+        ),
         tcl_syntax::expr::ast::ExprNode::Binary {
             op: tcl_syntax::expr::ast::BinOp::Add,
             left,
             right,
         } => {
-            closed_integer_add_expression(left, formals)
-                && closed_integer_add_expression(right, formals)
+            closed_integer_add_expression(left, formals, config)
+                && closed_integer_add_expression(right, formals, config)
         }
         _ => false,
     }
@@ -1599,44 +2120,156 @@ fn semantic_operation_has_execution_trace(
     operation: SemanticOperationId,
 ) -> bool {
     registry
-        .command_names_for_semantic_operation(operation)
-        .any(|command| {
-            module.traced_commands.contains(command)
-                || module
-                    .traced_commands
-                    .contains(command.trim_start_matches("::"))
-        })
+        .command_descriptor_keys_for_semantic_operation(operation)
+        .any(|command| command_has_execution_trace(registry, module, command))
 }
 
 fn actual_fact(
     function: &FunctionUnit,
-    statement: &crate::ssa::SsaStatement,
-    argument: &str,
+    site: &CallCandidate<'_>,
+    argument: usize,
+    registry: &tcl_registry::CommandRegistry,
+    module: &crate::ir::Module,
 ) -> (TypeLattice, DirectActualValue) {
-    if let Some(name) = crate::value_shapes::whole_word_scalar_var_name(argument)
-        && let Some(symbol) = function.ssa.var_symbol(name)
-        && let Some(version) = statement.uses.get(&symbol)
+    if site.id.module_id != module.procedure_ids.module_id() || site.id.body_id != function.body_id
+    {
+        return (TypeLattice::unknown(), DirectActualValue::Unproven);
+    }
+    let read = site
+        .tokens
+        .as_deref()
+        .and_then(|tokens| tokens.words().get(argument.checked_add(1)?))
+        .and_then(|word| {
+            let view = crate::ssa::SsaSourceView::at_statement(
+                &function.ssa,
+                site.block,
+                site.statement_index as usize,
+            );
+            if site.id.nested_argument.is_some() {
+                let invocation = site
+                    .tokens
+                    .as_deref()?
+                    .source_binding
+                    .as_ref()?
+                    .invocation_site()?;
+                let (symbol, version) =
+                    view.captured_argument_value_definition(word, invocation, registry)?;
+                Some(crate::ssa::SsaReadReference {
+                    symbol,
+                    version: Some(version),
+                })
+            } else {
+                view.read_word(word)
+            }
+        });
+    if let Some(crate::ssa::SsaReadReference {
+        symbol,
+        version: Some(version),
+    }) = read
     {
         let ty = function
             .types
-            .get(&(symbol, *version))
+            .get(&(symbol, version))
             .cloned()
             .unwrap_or_else(TypeLattice::unknown);
         return (
             ty,
             DirectActualValue::Ssa(SsaValueIdentity {
+                module_id: module.procedure_ids.module_id(),
+                body_id: function.body_id,
                 function: function.name.clone(),
                 symbol,
-                version: *version,
+                version,
             }),
         );
     }
-    // The compatibility CFG stores flattened argument text rather than the
-    // executable WordExpr. It is unsound to infer a literal type here because
-    // that text may have originated from a template or substitution. Exact
-    // variable uses retain SSA identity above; every other word stays unknown
-    // until this proof is keyed directly from executable IR.
-    (TypeLattice::unknown(), DirectActualValue::Unproven)
+    // A literal has source-owned contents without a caller SSA identity.
+    // This readonly type does not authorise materialising a Native object.
+    let literal = site.tokens.as_deref().and_then(|tokens| {
+        crate::type_infer::original_literal_argument_contents(registry, module, tokens, argument)
+    });
+    (
+        literal.map_or_else(TypeLattice::unknown, |literal| literal.contents_type()),
+        DirectActualValue::Unproven,
+    )
+}
+
+fn direct_call_tokens<'a>(
+    unit: &'a CompilationUnit,
+    id: &DirectCallSiteId,
+) -> Option<std::borrow::Cow<'a, CommandTokens>> {
+    if id.module_id != unit.ir_module.procedure_ids.module_id() {
+        return None;
+    }
+    let function = unit.function_for_body(id.body_id)?;
+    let statement = function
+        .ssa
+        .blocks
+        .get(&id.block)?
+        .statements
+        .get(id.statement_index as usize)?;
+    let original = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+        &function.cfg.command_binding_sites,
+        &statement.statement,
+    )?;
+    if let Some(outer) = id.nested_argument {
+        Some(std::borrow::Cow::Owned(nested_call_tokens(
+            Some(original),
+            outer as usize,
+            function.source_lexer_config(),
+        )?))
+    } else {
+        Some(std::borrow::Cow::Borrowed(original))
+    }
+}
+
+/// Contents dependency of one original direct-call value operand.
+/// This proves no object representation or permission to erase its coercions.
+pub(crate) fn direct_call_argument_read(
+    unit: &CompilationUnit,
+    id: &DirectCallSiteId,
+    argument: usize,
+) -> Option<crate::ssa::SsaReadReference> {
+    if id.module_id != unit.ir_module.procedure_ids.module_id() {
+        return None;
+    }
+    let function = unit.function_for_body(id.body_id)?;
+    let tokens = direct_call_tokens(unit, id)?;
+    let word = tokens.words().get(argument.checked_add(1)?)?;
+    let view = crate::ssa::SsaSourceView::at_statement(
+        &function.ssa,
+        id.block,
+        id.statement_index as usize,
+    );
+    if id.nested_argument.is_some() {
+        let invocation = tokens.source_binding.as_ref()?.invocation_site()?;
+        let (symbol, version) = view.captured_argument_value_definition(
+            word,
+            invocation,
+            unit.ir_module.resolved_registry(),
+        )?;
+        Some(crate::ssa::SsaReadReference {
+            symbol,
+            version: Some(version),
+        })
+    } else {
+        view.read_word(word)
+    }
+}
+
+/// Exact captured contents of a selected, unexpanded direct-call operand.
+/// The native tier must independently preserve the original operand evaluation.
+pub(crate) fn direct_call_argument_value(
+    unit: &CompilationUnit,
+    id: &DirectCallSiteId,
+    argument: usize,
+) -> Option<String> {
+    let tokens = direct_call_tokens(unit, id)?;
+    tokens
+        .source_binding
+        .as_ref()?
+        .evaluated_written_argument_value(argument)
+        .map(str::to_owned)
 }
 
 fn ssa_value_keys(function: &FunctionUnit, proc_def: Option<&Procedure>) -> BTreeSet<ValueKey> {
@@ -1672,44 +2305,54 @@ fn ssa_value_keys(function: &FunctionUnit, proc_def: Option<&Procedure>) -> BTre
 
 fn collect_materialisable_slots(
     unit: &CompilationUnit,
-    escape: &HashMap<String, ProcEscapeSummary>,
-    propagated: &HashMap<(String, usize), Option<TypeLattice>>,
+    escape: &HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
+    propagated: &HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>>,
     config: SemanticOptimisationConfig,
     environment: CommonAotEnvironment,
     closed_program_coverage: &ClosedProgramCoverageDecision,
 ) -> BTreeMap<SsaValueIdentity, MaterialisableSlotDecision> {
     let mut slots = BTreeMap::new();
-    for (qname, function) in
-        std::iter::once((&unit.top_level.name, &unit.top_level)).chain(unit.procedures.iter())
-    {
-        let summary = escape.get(qname);
-        let local_slots = if qname == "::top" && environment == CommonAotEnvironment::SealedProgram
-        {
-            let names: BTreeSet<String> = match closed_program_coverage {
-                ClosedProgramCoverageDecision::Selected(coverage) => coverage
-                    .statements
-                    .iter()
-                    .filter_map(|statement| match statement {
-                        ClosedProgramStatementEvidence::DirectActualConstant { value, .. } => {
-                            Some(function.ssa.var_name(value.symbol).to_owned())
-                        }
-                        ClosedProgramStatementEvidence::DirectProcedureDefinition { .. }
-                        | ClosedProgramStatementEvidence::SemanticBoundary { .. } => None,
-                    })
-                    .collect(),
-                ClosedProgramCoverageDecision::Declined(_) => BTreeSet::new(),
-            };
-            names
-                .into_iter()
-                .take(crate::var_escape::LOCALS_ARRAY_CAP)
-                .enumerate()
-                .map(|(slot, name)| (name, u32::try_from(slot).unwrap_or(u32::MAX)))
-                .collect()
+    for (qname, function) in std::iter::once((&unit.top_level.name, &unit.top_level)).chain(
+        unit.procedures
+            .values()
+            .map(|function| (&function.name, function)),
+    ) {
+        let frame = if std::ptr::eq(function, std::ptr::from_ref(&unit.top_level)) {
+            Some(tcl_core_types::BodyFrameId::Top(
+                unit.ir_module.procedure_ids.module_id(),
+            ))
         } else {
-            summary
-                .map(|summary| summary.local_slots.clone())
-                .unwrap_or_default()
+            function.body_id.map(tcl_core_types::BodyFrameId::Body)
         };
+        let summary = frame.and_then(|frame| escape.get(&frame));
+        let sealed_cells = if std::ptr::eq(function, std::ptr::from_ref(&unit.top_level))
+            && environment == CommonAotEnvironment::SealedProgram
+        {
+            (|| {
+                let ClosedProgramCoverageDecision::Selected(coverage) = closed_program_coverage
+                else {
+                    return None;
+                };
+                let mut cells = Vec::new();
+                for statement in &coverage.statements {
+                    if let ClosedProgramStatementEvidence::DirectActualConstant { value, .. } =
+                        statement
+                    {
+                        let cell = function.ssa.cell_key(value.symbol)?;
+                        if !cells.contains(cell) {
+                            cells.push(cell.clone());
+                        }
+                    }
+                }
+                cells.truncate(crate::var_escape::LOCALS_ARRAY_CAP);
+                Some(cells)
+            })()
+        } else {
+            None
+        };
+        let local_slots = summary
+            .map(|summary| summary.local_slots.clone())
+            .unwrap_or_default();
         // The lowered module's own numeral grammar (`Module::dialect`) — the
         // same source `codegen_module` reads, so a slot decision made here and
         // the code emitted for it agree on what `0755` is.
@@ -1717,23 +2360,28 @@ fn collect_materialisable_slots(
             &function.cfg,
             &function.ssa,
             &function.sccp.values,
-            numbers_for_dialect(unit.ir_module.dialect.as_deref().map(|name| {
-                crate::environment_ingress::resolve_environment(name).analyser_profile()
-            })),
+            unit.ir_module.number_syntax(),
         );
-        for key in ssa_value_keys(function, unit.ir_module.procedures.get(qname)) {
+        for key in ssa_value_keys(
+            function,
+            function
+                .body_id
+                .and_then(|id| unit.ir_module.procedures.get(&id)),
+        ) {
             let identity = SsaValueIdentity {
+                module_id: unit.ir_module.procedure_ids.module_id(),
+                body_id: function.body_id,
                 function: qname.clone(),
                 symbol: key.0,
                 version: key.1,
             };
             let decision = materialisable_decision(&MaterialisableInputs {
                 unit,
-                qname,
                 function,
                 key,
                 summary,
                 local_slots: &local_slots,
+                sealed_cells: sealed_cells.as_deref(),
                 propagated,
                 intervals: &intervals,
                 enabled: config.is_enabled(SemanticOptimisationPassId::MaterialisableSlot),
@@ -1747,15 +2395,141 @@ fn collect_materialisable_slots(
 
 struct MaterialisableInputs<'a> {
     unit: &'a CompilationUnit,
-    qname: &'a str,
     function: &'a FunctionUnit,
     key: ValueKey,
     summary: Option<&'a ProcEscapeSummary>,
     local_slots: &'a BTreeMap<String, u32>,
-    propagated: &'a HashMap<(String, usize), Option<TypeLattice>>,
+    sealed_cells: Option<&'a [crate::var_resolve::VariableCellKey]>,
+    propagated: &'a HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>>,
     intervals: &'a HashMap<ValueKey, Interval>,
     enabled: bool,
     environment: CommonAotEnvironment,
+}
+
+fn native_frame_slot_allocation(
+    input: &MaterialisableInputs<'_>,
+    cell: &crate::var_resolve::VariableCellKey,
+) -> Option<(u32, MaterialisableSlotAuthority)> {
+    use crate::var_escape::original_slots::OriginalNativeFrameSlot;
+    // The entry layout belongs only to the root's actual active frame.
+    // It cannot be lent to a separately declared procedure.
+    if !std::ptr::eq(input.function, std::ptr::from_ref(&input.unit.top_level)) {
+        return None;
+    }
+    let receipt = OriginalNativeFrameSlot::from_entry(&input.unit.ir_module, cell)?;
+    let points = input.function.ssa.point_contexts.as_ref()?;
+    let mut represented = false;
+    for (&block, statements) in &input.function.ssa.blocks {
+        for (index, statement) in statements.statements.iter().enumerate() {
+            if statement.uses.contains_key(&input.key.0)
+                || statement.defs.contains_key(&input.key.0)
+            {
+                let context = points.context_before(block, index)?;
+                // A compiled name alone establishes neither link absence nor
+                // quiet activation contents. Those domains remain separate.
+                if !receipt.matches_current_activation(context)
+                    || !context.activation_observers_closed()
+                    || context.dynamic_bindings
+                    || context.dynamic_traces
+                    || !context.alias_bindings.is_empty()
+                    || !context.name_alias_bindings.is_empty()
+                {
+                    return None;
+                }
+                represented = true;
+            }
+        }
+    }
+    represented.then(|| {
+        (
+            receipt.ordinal(),
+            MaterialisableSlotAuthority::NativeFrame(Box::new(receipt)),
+        )
+    })
+}
+
+fn materialisable_slot_allocation(
+    input: &MaterialisableInputs<'_>,
+) -> Option<(u32, MaterialisableSlotAuthority)> {
+    use crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots;
+    use crate::var_resolve::VariableCellKey;
+    let cell = input.function.ssa.cell_key(input.key.0)?;
+    if std::ptr::eq(input.function, std::ptr::from_ref(&input.unit.top_level))
+        && input.unit.ir_module.source_entry.native_entry.is_some()
+    {
+        return native_frame_slot_allocation(input, cell);
+    }
+    if std::ptr::eq(input.function, std::ptr::from_ref(&input.unit.top_level))
+        && input.environment == CommonAotEnvironment::SealedProgram
+    {
+        if !matches!(
+            cell,
+            VariableCellKey::Authored(_) | VariableCellKey::Namespace { .. }
+        ) {
+            return None;
+        }
+        let ordinal = u32::try_from(
+            input
+                .sealed_cells?
+                .iter()
+                .position(|candidate| candidate == cell)?,
+        )
+        .ok()?;
+        return Some((
+            ordinal,
+            MaterialisableSlotAuthority::SealedProgramCell { cell: cell.clone() },
+        ));
+    }
+    match cell {
+        VariableCellKey::Authored(_) => {
+            let ordinal = *input
+                .local_slots
+                .get(input.function.ssa.var_name(input.key.0))?;
+            Some((ordinal, MaterialisableSlotAuthority::Authored))
+        }
+        VariableCellKey::Activation { identity, simple } => {
+            let procedure = input
+                .unit
+                .ir_module
+                .procedures
+                .get(&input.function.body_id?)?;
+            let declaration = OriginalDeclaredProcedureArgumentSlots::from_module(
+                &input.unit.ir_module,
+                procedure,
+            )?;
+            let topology = declaration.topology();
+            let ordinal = declaration.arguments().ordinal(simple.as_bytes())?;
+            let points = input.function.ssa.point_contexts.as_ref()?;
+            let mut represented = false;
+            for (&block, statements) in &input.function.ssa.blocks {
+                for (index, statement) in statements.statements.iter().enumerate() {
+                    if statement.uses.contains_key(&input.key.0)
+                        || statement.defs.contains_key(&input.key.0)
+                    {
+                        let context = points.context_before(block, index)?;
+                        if context.activation.as_ref() != Some(identity)
+                            || context.original_formal_topology.as_deref() != Some(topology)
+                            || context.dynamic_bindings
+                            || !context.activation_observers_closed()
+                        {
+                            return None;
+                        }
+                        represented = true;
+                    }
+                }
+            }
+            represented.then(|| {
+                (
+                    ordinal,
+                    MaterialisableSlotAuthority::SourceFormal {
+                        declaration: std::sync::Arc::new(declaration),
+                        cell: cell.clone(),
+                    },
+                )
+            })
+        }
+        _ => None,
+    }
 }
 
 fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSlotDecision {
@@ -1763,7 +2537,12 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
     if !input.enabled {
         return decline(MaterialisableSlotDecline::PassDisabled);
     }
-    if input.qname == "::top" && input.environment == CommonAotEnvironment::Hosted {
+    if input.function.requires_native_math_binding_validation() {
+        return decline(MaterialisableSlotDecline::MathBindingPrerequisiteRequired);
+    }
+    if std::ptr::eq(input.function, std::ptr::from_ref(&input.unit.top_level))
+        && input.environment == CommonAotEnvironment::Hosted
+    {
         return decline(MaterialisableSlotDecline::HostedTopLevelObservable);
     }
     if !input.function.cfg.exception_edges.is_empty() {
@@ -1776,8 +2555,8 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
     if summary.tags.get(&variable) == Some(&EscapeTag::Frame) {
         return decline(MaterialisableSlotDecline::EscapesToFrame);
     }
-    let Some(&local_slot) = input.local_slots.get(&variable) else {
-        return decline(MaterialisableSlotDecline::NoLocalSlot);
+    let Some((local_slot, authority)) = materialisable_slot_allocation(input) else {
+        return decline(MaterialisableSlotDecline::OriginalSlotUnavailable);
     };
     if input.unit.ir_module.has_dynamic_variable_trace
         || input.unit.ir_module.traced_variables.contains(&variable)
@@ -1791,21 +2570,33 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
     if input.key.1 == 0
-        && let Some(proc_def) = input.unit.ir_module.procedures.get(input.qname)
-        && let Some(index) = proc_def.params.iter().position(|name| name == &variable)
-        && let Some(propagated) = input
-            .propagated
-            .get(&(input.qname.to_owned(), index))
-            .and_then(Option::as_ref)
+        && let Some(body_id) = input.function.body_id
+        && let Some(proc_def) = input.unit.ir_module.procedures.get(&body_id)
+        && let Some(index) = match &authority {
+            MaterialisableSlotAuthority::SourceFormal { .. } => usize::try_from(local_slot).ok(),
+            MaterialisableSlotAuthority::Authored => {
+                proc_def.params.iter().position(|name| name == &variable)
+            }
+            MaterialisableSlotAuthority::SealedProgramCell { .. }
+            | MaterialisableSlotAuthority::NativeFrame(_) => None,
+        }
+        && let Some(propagated) = input.propagated.get(&(body_id, index))
     {
+        let Some(propagated) = propagated else {
+            // A missing actual type on one reached caller is a retained poison
+            // fact. Arithmetic use inside the body cannot establish the entry
+            // object's representation for that caller.
+            return decline(MaterialisableSlotDecline::TypeNotSingleton);
+        };
         ty = type_join(&ty, propagated);
     }
     let Some(shape) = ty.single_shape().cloned() else {
         return decline(MaterialisableSlotDecline::TypeNotSingleton);
     };
-    MaterialisableSlotDecision::Selected(MaterialisableSlotEvidence {
+    MaterialisableSlotDecision::Selected(Box::new(MaterialisableSlotEvidence {
         local_slot,
         variable,
+        authority,
         shape,
         constant: input.function.sccp.values.get(&input.key).cloned(),
         interval: input
@@ -1821,11 +2612,45 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
             variable_trace_epoch: true,
             interpreter_policy_epoch: true,
         },
-    })
+    }))
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
+    #[test]
+    fn direct_formals_consume_native_activation_plan() {
+        use tcl_dialect::ParameterGrammar;
+        for grammar in [ParameterGrammar::Tcl, ParameterGrammar::Jim] {
+            assert!(super::direct_formal_bindings("x y", 2, grammar).is_ok());
+            assert_eq!(
+                super::direct_formal_bindings("x x", 2, grammar),
+                Err(super::DirectProcDecline::SharedFormalSlotUnsupported)
+            );
+            assert_eq!(
+                super::direct_formal_bindings("x y", 1, grammar),
+                Err(super::DirectProcDecline::ArityMismatch {
+                    expected: 2,
+                    actual: 1
+                })
+            );
+            assert_eq!(
+                super::direct_formal_bindings("x args", 2, grammar),
+                Err(super::DirectProcDecline::VariadicUnsupported)
+            );
+        }
+        assert!(super::direct_formal_bindings("args x", 2, ParameterGrammar::Tcl).is_ok());
+        assert_eq!(
+            super::direct_formal_bindings("args x", 2, ParameterGrammar::Jim),
+            Err(super::DirectProcDecline::VariadicUnsupported)
+        );
+        assert_eq!(
+            super::direct_formal_bindings("&x", 1, ParameterGrammar::Jim),
+            Err(super::DirectProcDecline::ReferenceArgumentUnsupported)
+        );
+        assert!(super::direct_formal_bindings("&x", 1, ParameterGrammar::Tcl).is_ok());
+    }
 
     use super::*;
     use tcl_registry::{IntrinsicId, TclType};
@@ -1839,15 +2664,716 @@ mod tests {
         config: SemanticOptimisationConfig,
         environment: CommonAotEnvironment,
     ) -> CommonAotProofPlan {
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
-        CommonAotProofPlan::build(
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(source, std::sync::Arc::clone(&context));
+        CommonAotProofPlan::build_with_retained_metadata(
             &unit,
-            &registry,
-            unit.top_level.semantic_facts.context(),
+            context.commands(),
             config,
             environment,
         )
+    }
+
+    fn native_unit(
+        source: &str,
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> crate::environment_ingress::RetainedNativeUnit {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let (owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        crate::environment_ingress::RetainedNativeUnit::new(unit, owner)
+    }
+
+    fn logical_unit(
+        source: &str,
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let entry = crate::command_binding::SourceAnalysisEntry::for_logical_source(&input)
+            .expect("positive supplied Logical source input");
+        CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        )
+    }
+
+    /// An explicit authored compiler/naming model, without an entered Native world.
+    fn authored_program_unit(
+        source: &str,
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        assert_eq!(
+            entry
+                .options()
+                .execution_name_policy()
+                .unwrap()
+                .native_recipe()
+                .unwrap()
+                .authority(),
+            tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation,
+        );
+        CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        )
+    }
+
+    #[test]
+    fn authored_program_storage_keeps_original_coverage_without_native_frame_or_body_grants() {
+        // naming.variable.aot-original-slot-purpose
+
+        // These positives describe original schemas and future storage templates.
+        // Executable coverage retains its independent entry/provider requirement.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = authored_program_unit(
+            "proc p {x y} {}; set d 2; set e 4; puts [p $d $e]",
+            std::sync::Arc::clone(&context),
+        );
+        let module = &unit.ir_module;
+        assert!(module.source_entry.native_entry.is_none());
+        let source = OriginalAuthoredProgramSourcePlan::build(module, context.commands())
+            .expect("current explicitly authored source owner");
+        assert!(source.is_complete(), "source schemas: {source:#?}");
+        assert_eq!(source.statements().len(), 4);
+        let templates: Vec<_> = source.storage_templates().collect();
+        assert_eq!(templates.len(), 2);
+        for (name, value) in [(b"d".as_slice(), "2"), (b"e".as_slice(), "4")] {
+            let template = templates
+                .iter()
+                .find(|template| template.name().as_bytes() == name)
+                .expect("exact original scalar destination");
+            assert_eq!(template.literal(), value);
+            assert_eq!(
+                template.contents_type().single_shape(),
+                Some(&TypeShape::Int)
+            );
+        }
+        let OriginalAuthoredSourceStatementKind::ProcedureDeclaration {
+            procedure,
+            arguments,
+        } = source.statements()[0].kind()
+        else {
+            panic!("exact original declaration")
+        };
+        assert_eq!(procedure.qualified_name, "::p");
+        assert_eq!(arguments.arguments().ordinal(b"x"), Some(0));
+        assert_eq!(arguments.arguments().ordinal(b"y"), Some(1));
+        assert!(matches!(source.statements()[3].kind(),
+            OriginalAuthoredSourceStatementKind::Invocation { procedures }
+                if procedures.as_slice() == [procedure.clone()]));
+        assert!(
+            crate::native_compilation_admission::script_requires_admission(
+                &module
+                    .procedures
+                    .get(&fixture_id(&module.procedures, "::p"))
+                    .expect("authored fixture body")
+                    .body
+            )
+        );
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::SealedProgram,
+        );
+        assert_eq!(
+            plan.closed_program_coverage(),
+            &ClosedProgramCoverageDecision::Declined(
+                ClosedProgramCoverageDecline::UncoveredStatement
+            )
+        );
+        assert!(
+            plan.direct_calls().any(|(_, decision)| matches!(
+                decision,
+                DirectProcDecision::Declined(DirectProcDecline::NativeCompilationAdmissionRequired)
+            )),
+            "the source template cannot admit this call: {plan:#?}"
+        );
+        assert!(
+            plan.materialisable_slots()
+                .all(|(_, decision)| !matches!(decision, MaterialisableSlotDecision::Selected(_))),
+            "source templates allocate no program or borrowed Native cells: {plan:#?}"
+        );
+    }
+
+    #[test]
+    fn authored_source_templates_withdraw_changed_module_and_point_owners() {
+        // naming.variable.aot-original-slot-purpose
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = authored_program_unit("set value 2", std::sync::Arc::clone(&context));
+        let module = &unit.ir_module;
+        let baseline =
+            OriginalAuthoredProgramSourcePlan::build(module, context.commands()).unwrap();
+        assert!(baseline.is_complete(), "{baseline:#?}");
+        assert_eq!(baseline.storage_templates().count(), 1);
+        let mut missing = module.clone();
+        missing.source_metadata_input = None;
+        let mut changed_source = module.clone();
+        changed_source.source = tcl_lexer::SourceImage::document("set value OTHER");
+        let mut changed_config = module.clone();
+        changed_config.lexer_config.escapes = tcl_dialect::EscapeSyntax::Tcl84;
+        let mut changed_entry = module.clone();
+        changed_entry.source_entry.unknown_entry = true;
+        let mut changed_namespace = module.clone();
+        changed_namespace.top_level_namespace = "::different".into();
+        for changed in [
+            missing,
+            changed_source,
+            changed_config,
+            changed_entry,
+            changed_namespace,
+        ] {
+            assert_eq!(
+                OriginalAuthoredProgramSourcePlan::build(&changed, context.commands()),
+                Err(OriginalAuthoredProgramSourceDecline::SourceOwnerUnavailable)
+            );
+        }
+        let mut omitted = module.clone();
+        omitted.top_level.statements.clear();
+        assert_eq!(
+            OriginalAuthoredProgramSourcePlan::build(&omitted, context.commands()),
+            Err(OriginalAuthoredProgramSourceDecline::RootSourceUnavailable)
+        );
+        let foreign = tcl_registry::CommandRegistry::build_default();
+        assert_eq!(
+            OriginalAuthoredProgramSourcePlan::build(module, &foreign),
+            Err(OriginalAuthoredProgramSourceDecline::SourceOwnerUnavailable)
+        );
+        let mut missing_point = module.clone();
+        missing_point.top_level.command_binding_sites = Default::default();
+        for statement in &mut missing_point.top_level.statements {
+            if let Statement::AssignValue { tokens, .. } | Statement::Call { tokens, .. } =
+                statement
+            {
+                *tokens = None;
+            }
+        }
+        let source =
+            OriginalAuthoredProgramSourcePlan::build(&missing_point, context.commands()).unwrap();
+        assert_eq!(source.residuals().len(), 1);
+        assert_eq!(
+            source.residuals()[0].1,
+            OriginalAuthoredSourceResidual::StatementCarrierUnavailable
+        );
+        assert_eq!(source.storage_templates().count(), 0);
+    }
+
+    #[test]
+    fn authored_source_inventory_keeps_availability_replacement_and_native_entry_separate() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = authored_program_unit("throw ERROR payload", std::sync::Arc::clone(&current));
+        let source =
+            OriginalAuthoredProgramSourcePlan::build(&unit.ir_module, current.commands()).unwrap();
+        assert!(source.is_complete(), "{source:#?}");
+        let older =
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry();
+        let unit = authored_program_unit("throw ERROR payload", std::sync::Arc::clone(&older));
+        let source =
+            OriginalAuthoredProgramSourcePlan::build(&unit.ir_module, older.commands()).unwrap();
+        assert!(!source.is_complete());
+        assert_eq!(
+            source.residuals()[0].1,
+            OriginalAuthoredSourceResidual::StatementSchemaUnavailable
+        );
+        for original in [
+            "proc set args {}; set value 2",
+            "rename set {}; set value 2",
+            "set a(k) 2",
+            "set ::qualified 2",
+            "set value $outside",
+        ] {
+            let unit = authored_program_unit(original, std::sync::Arc::clone(&current));
+            let source =
+                OriginalAuthoredProgramSourcePlan::build(&unit.ir_module, current.commands())
+                    .unwrap();
+            assert!(!source.is_complete(), "{original}: {source:#?}");
+            assert_eq!(source.storage_templates().count(), 0, "{original}");
+        }
+        let entered = native_unit("proc p {x} {}; p VALUE", std::sync::Arc::clone(&current));
+        assert_eq!(
+            OriginalAuthoredProgramSourcePlan::build(&entered.ir_module, current.commands()),
+            Err(OriginalAuthoredProgramSourceDecline::AuthoredPurposeUnavailable)
+        );
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &entered,
+            current.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        assert!(
+            plan.direct_calls().any(|(_, decision)| matches!(decision,
+            DirectProcDecision::Selected(direct) if direct.callee.qualified_name == "::p")),
+            "genuine Native empty-body call remains independent: {plan:#?}"
+        );
+    }
+
+    #[test]
+    fn original_declared_argument_slots_do_not_borrow_the_parent_native_frame() {
+        // Implementation contract: naming.variable.aot-original-slot-purpose
+
+        use crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots;
+        use tcl_syntax::naming::NativeCompiledVariableEnvironment;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit("proc p {x y} {return $x}; p FIRST SECOND", context);
+        let module = &unit.ir_module;
+        let procedure = module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::p"))
+            .expect("authored fixture body");
+        let entry = module.source_entry.native_entry.as_deref().unwrap();
+        assert!(entry.compiled_local_layout.is_none());
+        let receipt = OriginalDeclaredProcedureArgumentSlots::from_module(module, procedure)
+            .expect("original declaration allocates its own argument convention");
+        assert_eq!(receipt.arguments().ordinal(b"x"), Some(0));
+        assert_eq!(receipt.arguments().ordinal(b"y"), Some(1));
+        assert_eq!(receipt.declaration_span(), procedure.span);
+        assert!(
+            receipt
+                .protocol()
+                .supports_environment(NativeCompiledVariableEnvironment::DeclareProcedure)
+        );
+        assert_eq!(
+            receipt.arguments().original_input(),
+            receipt.topology().original_input()
+        );
+        let mut entered = module.clone();
+        entered.source_entry.compilation_scope =
+            tcl_runtime_api::SourceCompilationScope::EnteredSource;
+        assert!(OriginalDeclaredProcedureArgumentSlots::from_module(&entered, procedure).is_none());
+        let mut unavailable = module.clone();
+        std::sync::Arc::make_mut(unavailable.source_entry.native_entry.as_mut().unwrap())
+            .compiled_variable_protocol = None;
+        assert!(
+            OriginalDeclaredProcedureArgumentSlots::from_module(&unavailable, procedure).is_none()
+        );
+        let mut missing = module.clone();
+        missing.procedure_implementation_bodies = std::sync::Arc::from([]);
+        assert!(OriginalDeclaredProcedureArgumentSlots::from_module(&missing, procedure).is_none());
+        let mut stale = module.clone();
+        stale.source = tcl_lexer::SourceImage::document("proc p {x y} {return OTHER}");
+        assert!(OriginalDeclaredProcedureArgumentSlots::from_module(&stale, procedure).is_none());
+        let mut changed = procedure.clone();
+        changed.body.executed_source = None;
+        assert!(OriginalDeclaredProcedureArgumentSlots::from_module(module, &changed).is_none());
+    }
+
+    #[test]
+    fn original_procedure_body_preflight_keeps_entry_and_missing_provider_independent() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Compiler traversal only: no body execution, numeric result, old frame
+        // slot or direct-body specialisation is certified by this control.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        for (formals, body, arguments) in [
+            ("x", "return $x", "VALUE"),
+            ("x y", "return [expr {$x+$y}]", "1 2"),
+            ("", "return [expr {1+2}]", ""),
+            ("x", "set y $x; return $y", "VALUE"),
+        ] {
+            let source = format!("proc p {{{formals}}} {{{body}}}; p {arguments}");
+            let unit = native_unit(&source, std::sync::Arc::clone(&context));
+            let procedure = unit
+                .ir_module
+                .procedures
+                .get(&fixture_id(&unit.ir_module.procedures, "::p"))
+                .expect("authored fixture body");
+            let original = procedure.body.executed_source.as_ref().unwrap();
+            assert_eq!(original.text.bytes(), body.as_bytes());
+            assert!(
+                !crate::native_compilation_admission::script_requires_admission(&procedure.body),
+                "{body}: {:?}",
+                procedure.body.native_compilation_admission,
+            );
+            let unavailable = crate::command_binding::SourceCommandBindings::analyse_with_options(
+                body,
+                config,
+                context.commands(),
+                crate::command_binding::SourceAnalysisOptions {
+                    unknown_entry: true,
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                        mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+                        frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+            );
+            assert!(unavailable.native_compilation_source_at(0).is_some());
+            assert!(
+                unavailable.native_compilation_provider_required_at(0),
+                "{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_empty_procedure_direct_call_keeps_formals_without_body_specialisation() {
+        // Implementation contract: naming.variable.aot-original-slot-purpose
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit("proc p {x} {}; p VALUE", std::sync::Arc::clone(&context));
+        let procedure = unit
+            .ir_module
+            .procedures
+            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
+            .expect("authored fixture body");
+        assert!(procedure.body.statements.is_empty());
+        assert!(!crate::native_compilation_admission::script_requires_admission(&procedure.body));
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        let selected = plan
+            .direct_calls()
+            .find_map(|(_, decision)| match decision {
+                DirectProcDecision::Selected(evidence)
+                    if evidence.callee.qualified_name == "::p" =>
+                {
+                    Some(evidence)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("original empty procedure direct call: {plan:#?}"));
+        assert_eq!(selected.formals, ["x"]);
+        assert_eq!(
+            selected.original_formals.as_ref().unwrap().ordinal(b"x"),
+            Some(0)
+        );
+        assert!(matches!(
+            selected.body,
+            DirectProcBodyDecision::Declined(DirectProcBodyDecline::UnsupportedBodyShape)
+        ));
+        assert!(!selected.frame_elidable);
+    }
+
+    #[test]
+    fn retained_aot_metadata_cannot_borrow_missing_or_foreign_function_input() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for_dialect(
+            "proc p {x} {return $x}; p VALUE",
+            &registry,
+            false,
+            "tcl8.6",
+        );
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            &registry,
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        assert_eq!(plan.direct_calls().count(), 1);
+        assert!(plan.direct_calls().all(|(_, decision)| !matches!(
+            decision,
+            DirectProcDecision::Declined(DirectProcDecline::ContextUnavailable)
+        )));
+        let mut missing_module = unit.clone();
+        missing_module.ir_module.source_metadata_input = None;
+        let mut missing_caller = unit.clone();
+        missing_caller.top_level.source_metadata_input = None;
+        let mut missing_callee = unit.clone();
+        {
+            let id = fixture_id(&missing_callee.procedures, "::p");
+            missing_callee.procedures.get_mut(&id)
+        }
+        .unwrap()
+        .source_metadata_input = None;
+        let mut stale_grammar = unit.clone();
+        stale_grammar.top_level.source_config.expand_syntax =
+            !stale_grammar.top_level.source_config.expand_syntax;
+        let input = unit.top_level.source_metadata_input().unwrap();
+        let mut foreign = unit.clone();
+        foreign.top_level.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                tcl_registry::model::ingress::resolve_environment("tcl9.1")
+                    .default_context_registry(),
+                input.lexer_config(),
+            ));
+        for refused in [
+            missing_module,
+            missing_caller,
+            missing_callee,
+            stale_grammar,
+            foreign,
+        ] {
+            let plan = CommonAotProofPlan::build_with_retained_metadata(
+                &refused,
+                &registry,
+                enabled(),
+                CommonAotEnvironment::Hosted,
+            );
+            assert_eq!(plan.direct_calls().count(), 1);
+            assert!(plan.direct_calls().all(|(_, decision)| matches!(
+                decision,
+                DirectProcDecision::Declined(DirectProcDecline::ContextUnavailable)
+            )));
+        }
+    }
+
+    #[test]
+    fn original_source_queries_require_unanimous_statement_carriers() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = logical_unit("set result VALUE", std::sync::Arc::clone(&context));
+        let (block, index) = unit
+            .top_level
+            .ssa
+            .blocks
+            .iter()
+            .find_map(|(id, block)| {
+                block
+                    .statements
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, statement)| {
+                        matches!(statement.statement, Statement::AssignConst { .. })
+                            .then_some((*id, index))
+                    })
+            })
+            .expect("original source store retains a structural statement");
+        let id = DirectCallSiteId {
+            module_id: unit.ir_module.procedure_ids.module_id(),
+            body_id: None,
+            function: "::top".into(),
+            block,
+            statement_index: u32::try_from(index).unwrap(),
+            nested_argument: None,
+        };
+        let statement = &unit.top_level.ssa.blocks[&block].statements[index].statement;
+        assert!(
+            statement.tokens().is_none(),
+            "typed store consumes its inline vector"
+        );
+        assert_eq!(
+            direct_call_tokens(&unit, &id).unwrap().argv_texts,
+            ["set", "result", "VALUE"],
+        );
+        let foreign = logical_unit("set result VALUE", context);
+        assert_ne!(id.module_id, foreign.ir_module.procedure_ids.module_id());
+        assert!(direct_call_tokens(&foreign, &id).is_none());
+        assert!(direct_call_argument_read(&foreign, &id, 0).is_none());
+        assert!(direct_call_argument_value(&foreign, &id, 0).is_none());
+        let mut missing = unit.clone();
+        missing.top_level.cfg.command_binding_sites.clear();
+        assert!(direct_call_tokens(&missing, &id).is_none());
+        let mut conflicting = unit.clone();
+        let mut other = conflicting
+            .top_level
+            .cfg
+            .command_binding_sites
+            .iter()
+            .find(|site| site.span == statement.span() && site.source_tokens.is_some())
+            .unwrap()
+            .clone();
+        other.source_tokens.as_mut().unwrap().argv_texts[0] = "other".into();
+        conflicting.top_level.cfg.command_binding_sites.push(other);
+        assert!(direct_call_tokens(&conflicting, &id).is_none());
+    }
+
+    #[test]
+    fn structural_call_candidates_keep_original_nested_words_and_literal_boundaries() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = logical_unit(
+            "proc p {x} {return $x}; proc q {x} {return [p $x]}; list {[p VALUE]}",
+            context,
+        );
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::q"))
+            .expect("authored fixture body");
+        let candidates = call_sites(&unit, "::q", function, function.source_lexer_config());
+        let nested = candidates
+            .iter()
+            .find(|site| site.command == "p")
+            .expect("structural return retains its original nested call");
+        assert_eq!(nested.id.nested_argument, Some(0));
+        assert_eq!(nested.args, ["$x"]);
+        assert_eq!(nested.tokens.as_ref().unwrap().argv_texts, ["p", "$x"]);
+        let top = call_sites(
+            &unit,
+            "::top",
+            &unit.top_level,
+            unit.top_level.source_lexer_config(),
+        );
+        assert!(
+            top.iter().all(|site| site.id.nested_argument.is_none()),
+            "procedure body words and braced list values are data at these invocations"
+        );
+        let mut missing = function.clone();
+        missing.cfg.command_binding_sites.clear();
+        for block in missing.cfg.blocks.values_mut() {
+            for statement in &mut block.statements {
+                if let Statement::Return { tokens, .. } = statement {
+                    *tokens = None;
+                } else {
+                    assert!(statement.tokens().is_none());
+                }
+            }
+        }
+        assert!(
+            call_sites(&unit, "::q", &missing, missing.source_lexer_config())
+                .iter()
+                .all(|site| site.command != "p")
+        );
+    }
+
+    #[test]
+    fn original_direct_expression_body_requires_the_actual_nested_operation_receipts() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let unit = logical_unit(
+            "proc p {x y} {return [expr {$x+$y}]}",
+            std::sync::Arc::clone(&context),
+        );
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body");
+        let procedure = unit
+            .ir_module
+            .procedures
+            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
+            .expect("authored fixture body");
+        let metadata = function.invocation_metadata_context_for_module(registry, &unit.ir_module);
+        let operations = original_direct_expression_body_operations(
+            registry,
+            metadata,
+            procedure,
+            function.source_lexer_config(),
+        );
+        assert_eq!(
+            operations,
+            Some([
+                SemanticOperationId::StructuredLowering(LoweringHookId::Expr),
+                SemanticOperationId::StructuredLowering(LoweringHookId::Return),
+            ])
+        );
+        assert!(
+            original_direct_expression_body_operations(
+                registry,
+                None,
+                procedure,
+                function.source_lexer_config(),
+            )
+            .is_none()
+        );
+        let mut missing_source = procedure.clone();
+        missing_source.body.command_binding_sites = crate::ir::CommandBindingSites::default();
+        for statement in &mut missing_source.body.statements {
+            if let Statement::Return { tokens, .. } = statement {
+                *tokens = None;
+            }
+        }
+        assert!(
+            original_direct_expression_body_operations(
+                registry,
+                metadata,
+                &missing_source,
+                function.source_lexer_config(),
+            )
+            .is_none()
+        );
+        for source in [
+            "proc expr args {return 0}; proc p {x y} {return [expr {$x+$y}]}",
+            "proc return args {}; proc p {x y} {return [expr {$x+$y}]}",
+            "proc p {x y} {return [expr {$x+[unknown]}]}",
+        ] {
+            let changed = logical_unit(source, std::sync::Arc::clone(&context));
+            let function = changed
+                .procedures
+                .get(&fixture_id(&changed.procedures, "::p"))
+                .expect("authored fixture body");
+            assert!(
+                original_direct_expression_body_operations(
+                    registry,
+                    function.invocation_metadata_context_for_module(registry, &changed.ir_module),
+                    changed
+                        .ir_module
+                        .procedures
+                        .get(&fixture_id(&changed.ir_module.procedures, "::p"))
+                        .expect("authored fixture body"),
+                    function.source_lexer_config(),
+                )
+                .is_none(),
+                "{source}"
+            );
+        }
     }
 
     fn enabled() -> SemanticOptimisationConfig {
@@ -1863,6 +3389,40 @@ mod tests {
         "proc add {b c} { return [expr {$b+$c}] }\nset d 2\nset e 4\nputs [add $d $e]\n";
 
     #[test]
+    fn direct_procedure_selection_preserves_native_preformal_admission() {
+        use crate::native_compilation_admission::NativeCompilationAdmission;
+        use std::sync::Arc;
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let mut unit = CompilationUnit::build_for_dialect(
+            "proc p {} {return 1}; p",
+            &registry,
+            false,
+            "tcl9.0",
+        );
+        {
+            let id = fixture_id(&unit.ir_module.procedures, "::p");
+            unit.ir_module.procedures.get_mut(&id)
+        }
+        .unwrap()
+        .body
+        .native_compilation_admission = Some(Arc::new(NativeCompilationAdmission {
+            source: None,
+            failure: None,
+            provider_required: true,
+        }));
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            &registry,
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        assert!(plan.direct_calls().any(|(_, decision)| matches!(
+            decision,
+            DirectProcDecision::Declined(DirectProcDecline::NativeCompilationAdmissionRequired)
+        )));
+    }
+
+    #[test]
     fn a_declined_caller_poisons_propagated_actual_types() {
         // `::p` is reached by a selected top-level call passing an integer and
         // by a declined call (exceptional control flow) passing a string.  The
@@ -1870,13 +3430,19 @@ mod tests {
         // it narrows the parameter to `Int` — while the caller-scope constant
         // for the very same slot is the declined site's `abc`.  A materialised
         // slot must not be selected from that contradiction.
-        let plan = plan(
-            "proc p {x} { return [expr {$x + 1}] }\n\
-             proc risky {} { try { p abc } on error {} {} }\n\
-             set d 7\nputs [p $d]\n",
-            enabled(),
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(
+            "proc p {x} { return [expr {$x + 1}] }\nproc risky {} { try { p abc } on error {} {} }\nset d 7\nputs [p $d]\n",
+            std::sync::Arc::clone(&context),
         );
-        assert!(plan.has_declined_direct_call_to("::p"));
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        assert!(plan.has_declined_direct_call_to(fixture_id(&unit.ir_module.procedures, "::p")));
         for (id, decision) in plan.materialisable_slots() {
             assert!(
                 id.function != "::p" || matches!(decision, MaterialisableSlotDecision::Declined(_)),
@@ -1898,9 +3464,108 @@ mod tests {
         )));
     }
 
+    fn original_formal_diagnostics(unit: &CompilationUnit, function: &str) -> String {
+        let function = &unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, function))
+            .expect("authored fixture body");
+        let mut rows = vec![format!("SSA cells: {:?}", function.ssa.cell_keys())];
+        if let Some(points) = &function.ssa.point_contexts {
+            for (&block, body) in &function.cfg.blocks {
+                for index in (0..body.statements.len()).chain(std::iter::once(usize::MAX)) {
+                    if let Some(context) = points.context_before(block, index) {
+                        rows.push(format!(
+                            "{block:?}/{index}: activation={:?}, topology={}, observers={}, dynamic={}",
+                            context.activation,
+                            context.original_formal_topology.is_some(),
+                            context.activation_observers_closed(),
+                            context.dynamic_bindings,
+                        ));
+                    }
+                    for access in points.source_reads_at(block, index) {
+                        rows.push(format!(
+                            "read {:?} at {:?}: residual={:?}, activations={:?}",
+                            access.original_spelling,
+                            access.source.span,
+                            access.context_residual(),
+                            access
+                                .context_alternatives()
+                                .iter()
+                                .map(|context| (
+                                    &context.activation,
+                                    context.original_formal_topology.is_some(),
+                                    context.activation_observers_closed(),
+                                    context.dynamic_bindings,
+                                ))
+                                .collect::<Vec<_>>(),
+                        ));
+                    }
+                }
+            }
+        }
+        rows.join("\n")
+    }
+
+    fn assert_declared_add_arguments(
+        plan: &CommonAotProofPlan,
+        unit: &CompilationUnit,
+        direct: &DirectProcEvidence,
+    ) {
+        let selected: Vec<_> = plan
+            .declared_arguments()
+            .filter_map(|(identity, decision)| match decision {
+                DeclaredArgumentDecision::Selected(evidence)
+                    if identity.procedure == direct.callee =>
+                {
+                    Some((identity, evidence))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            selected.len(),
+            2,
+            "{}\n{plan:#?}",
+            original_formal_diagnostics(&unit, "::add")
+        );
+        assert!(
+            selected
+                .iter()
+                .all(|(_, slot)| slot.shape() == &TypeShape::Int)
+        );
+        assert!(selected.iter().all(|(_, slot)| {
+            slot.storage() == VarStorage::MaterializableSlot
+                && slot.recipe()
+                    == MaterialisationRecipe::RetainOriginalTclObject {
+                        sharing: SharingState::Shared,
+                    }
+        }));
+        assert!(
+            plan.materialisable_slots().all(|(identity, decision)| {
+                identity.function != "::add"
+                    || !matches!(decision, MaterialisableSlotDecision::Selected(_))
+            }),
+            "declared arguments cannot fabricate a physical SSA value"
+        );
+        assert!(selected.iter().all(|(identity, slot)| {
+            slot.reads().iter().all(|read| {
+                plan.declared_argument_for_incoming_read(&direct.callee, read)
+                    .is_some_and(|(selected, _)| selected == *identity)
+            })
+        }));
+    }
+
     #[test]
     fn add_call_and_integer_formals_receive_common_proofs() {
-        let plan = plan(ADD, enabled());
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(ADD, std::sync::Arc::clone(&context));
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
         let direct = plan
             .direct_calls()
             .find_map(|(_, decision)| match decision {
@@ -1923,26 +3588,7 @@ mod tests {
                 .all(|ty| ty.tcl_type() == Some(TclType::Int))
         );
 
-        let selected: Vec<_> = plan
-            .materialisable_slots()
-            .filter_map(|(_, decision)| match decision {
-                MaterialisableSlotDecision::Selected(evidence)
-                    if matches!(evidence.variable.as_str(), "b" | "c") =>
-                {
-                    Some(evidence)
-                }
-                _ => None,
-            })
-            .collect();
-        assert_eq!(selected.len(), 2);
-        assert!(selected.iter().all(|slot| slot.shape == TypeShape::Int));
-        assert!(selected.iter().all(|slot| {
-            slot.storage == VarStorage::MaterializableSlot
-                && slot.recipe
-                    == MaterialisationRecipe::RetainOriginalTclObject {
-                        sharing: SharingState::Shared,
-                    }
-        }));
+        assert_declared_add_arguments(&plan, &unit, direct);
 
         assert_eq!(direct.actual_values.len(), 2);
         assert!(direct.actual_values.iter().all(|actual| matches!(
@@ -1973,6 +3619,176 @@ mod tests {
     }
 
     #[test]
+    fn original_literal_actual_types_do_not_create_native_or_ssa_value_identity() {
+        // naming.variable.aot-original-slot-purpose
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit("proc p {x} {}; p 2", std::sync::Arc::clone(&context));
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        let selected = plan
+            .direct_calls()
+            .find_map(|(_, decision)| match decision {
+                DirectProcDecision::Selected(evidence)
+                    if evidence.callee.qualified_name == "::p" =>
+                {
+                    Some(evidence)
+                }
+                _ => None,
+            })
+            .expect("independent actual calling convention selects the original empty procedure");
+        assert_eq!(selected.actual_types[0].tcl_type(), Some(TclType::Int));
+        assert_eq!(selected.actual_values, [DirectActualValue::Unproven]);
+        assert!(
+            !plan.materialisable_slots().any(|(_, decision)| {
+                matches!(decision, MaterialisableSlotDecision::Selected(_))
+            })
+        );
+        let function = &unit.top_level;
+        let site = call_sites(&unit, "::top", function, function.source_lexer_config())
+            .into_iter()
+            .find(|site| site.command == "p")
+            .unwrap();
+        let mut missing = unit.ir_module.clone();
+        missing.source_metadata_input = None;
+        let (contents, identity) = actual_fact(function, &site, 0, context.commands(), &missing);
+        assert!(matches!(contents.kind(), TypeKind::Unknown));
+        assert_eq!(identity, DirectActualValue::Unproven);
+        let foreign = tcl_registry::CommandRegistry::build_default();
+        let (contents, identity) = actual_fact(function, &site, 0, &foreign, &unit.ir_module);
+        assert!(matches!(contents.kind(), TypeKind::Unknown));
+        assert_eq!(identity, DirectActualValue::Unproven);
+    }
+
+    #[test]
+    fn declared_arguments_keep_distinct_reached_cells_and_exact_source_receipts() {
+        // naming.variable.aot-original-slot-purpose
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(
+            "proc p {x y} {return [expr {$x + $y}]}; p 1 2; p 3 4",
+            std::sync::Arc::clone(&context),
+        );
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        let arguments: Vec<_> = plan
+            .declared_arguments()
+            .filter_map(|(identity, decision)| {
+                let DeclaredArgumentDecision::Selected(evidence) = decision else {
+                    return None;
+                };
+                Some((identity, evidence))
+            })
+            .collect();
+        assert_eq!(arguments.len(), 2, "{plan:#?}");
+        assert_eq!(
+            arguments
+                .iter()
+                .map(|(identity, _)| identity.ordinal)
+                .collect::<Vec<_>>(),
+            [0, 1]
+        );
+        assert!(
+            arguments
+                .iter()
+                .all(|(_, evidence)| evidence.reads().iter().any(|read| read.cells.len() >= 2))
+        );
+        assert!(
+            plan.materialisable_slots()
+                .all(|(identity, decision)| identity.function != "::p"
+                    || !matches!(decision, MaterialisableSlotDecision::Selected(_)))
+        );
+        let (identity, evidence) = arguments[0];
+        let read = &evidence.reads()[0];
+        assert!(
+            plan.declared_argument_for_incoming_read(&identity.procedure, read)
+                .is_some()
+        );
+        let mut wrong_source = read.clone();
+        wrong_source.source.span =
+            tcl_lexer::Span::new(read.source.span.start() + 1, read.source.span.end());
+        let mut wrong_cell = read.clone();
+        wrong_cell.cells.pop();
+        let mut wrong_slot = read.clone();
+        wrong_slot.slot = "y".into();
+        for invalid in [wrong_source, wrong_cell, wrong_slot] {
+            assert!(
+                plan.declared_argument_for_incoming_read(&identity.procedure, &invalid)
+                    .is_none()
+            );
+        }
+        let mut wrong_declaration = identity.procedure.clone();
+        wrong_declaration.definition_start += 1;
+        assert!(
+            plan.declared_argument_for_incoming_read(&wrong_declaration, read)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn declared_arguments_refuse_missing_owners_changed_contents_and_future_callers() {
+        // naming.variable.aot-original-slot-purpose
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(
+            "proc p {x} {return [expr {$x + 0}]}; p 1",
+            std::sync::Arc::clone(&context),
+        );
+        let make_plan = |unit: &CompilationUnit| {
+            CommonAotProofPlan::build_with_retained_metadata(
+                unit,
+                context.commands(),
+                enabled(),
+                CommonAotEnvironment::Hosted,
+            )
+        };
+        assert!(
+            make_plan(&unit)
+                .declared_arguments()
+                .any(|(_, decision)| matches!(decision, DeclaredArgumentDecision::Selected(_)))
+        );
+        let mut missing = (*unit).clone();
+        missing.ir_module.source_metadata_input = None;
+        let mut changed = (*unit).clone();
+        changed.ir_module.source =
+            tcl_lexer::SourceImage::document("proc p {x} {return DIFFERENT}; p 1");
+        for refused in [&missing, &changed] {
+            assert!(
+                make_plan(refused)
+                    .declared_arguments()
+                    .all(|(_, decision)| matches!(decision, DeclaredArgumentDecision::Declined(_)))
+            );
+        }
+        for source in [
+            "proc p {x} {set x 9; return [expr {$x + 0}]}; p 1",
+            "proc p {x} {trace add variable x read {list}; return [expr {$x + 0}]}; p 1",
+            "proc p {x} {return [expr {$x + 0}]}; proc future {y} {p $y}; p 1",
+        ] {
+            let unit = native_unit(source, std::sync::Arc::clone(&context));
+            let plan = make_plan(&unit);
+            assert!(
+                plan.declared_arguments()
+                    .all(
+                        |(identity, decision)| identity.procedure.qualified_name != "::p"
+                            || matches!(decision, DeclaredArgumentDecision::Declined(_))
+                    ),
+                "{source}: {plan:#?}"
+            );
+        }
+    }
+
+    #[test]
     fn semantic_operation_pass_is_independently_default_off() {
         let config = enabled().with_enabled(SemanticOptimisationPassId::DirectProc);
         let mut without_semantic = config;
@@ -1989,7 +3805,7 @@ mod tests {
         for (source, expected) in [
             (
                 "proc add {b c} {return [expr {$b+$c}]}\nrename puts q\nq [add 2 4]\n",
-                SemanticCallDecline::RegistryUnresolved,
+                SemanticCallDecline::ReboundOrAliased,
             ),
             (
                 "proc add {b c} {return [expr {$b+$c}]}\nrename puts coreputs\ninterp alias {} puts {} coreputs\nputs [add 2 4]\n",
@@ -1998,7 +3814,7 @@ mod tests {
                 },
             ),
             (
-                "proc add {b c} {return [expr {$b+$c}]}\ntrace add execution puts enter cb\nputs [add 2 4]\n",
+                "proc cb args {}; proc add {b c} {return [expr {$b+$c}]}\ntrace add execution puts enter cb\nputs [add 2 4]\n",
                 SemanticCallDecline::ExecutionTrace,
             ),
             (
@@ -2034,18 +3850,35 @@ mod tests {
         assert!(plan.materialisable_slots().all(|(_, decision)| {
             !matches!(
                 decision,
-                MaterialisableSlotDecision::Selected(MaterialisableSlotEvidence {
-                    storage: VarStorage::NativeOnly,
-                    ..
-                })
+                MaterialisableSlotDecision::Selected(evidence)
+                    if evidence.storage == VarStorage::NativeOnly
             )
         }));
         assert!(CommonAotEnvironment::SealedProgram.permits_native_only());
     }
 
     #[test]
-    fn sealed_program_proves_exact_top_slots_proc_and_output_boundary() {
-        let plan = plan_in_environment(ADD, enabled(), CommonAotEnvironment::SealedProgram);
+    fn retained_native_program_coverage_does_not_donate_root_frame_slots() {
+        // naming.variable.aot-original-slot-purpose
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(ADD, std::sync::Arc::clone(&context));
+        assert!(
+            unit.ir_module
+                .source_entry
+                .native_entry
+                .as_ref()
+                .unwrap()
+                .compiled_local_layout
+                .is_none()
+        );
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::SealedProgram,
+        );
         let ClosedProgramCoverageDecision::Selected(coverage) = plan.closed_program_coverage()
         else {
             panic!("sealed program coverage missing: {plan:#?}");
@@ -2060,23 +3893,27 @@ mod tests {
                 ClosedProgramStatementEvidence::SemanticBoundary { .. }
             ]
         ));
-        for (variable, expected) in [("d", 2), ("e", 4)] {
-            assert!(
-                plan.materialisable_slots().any(|(identity, decision)| {
+        for variable in ["d", "e"] {
+            let decisions: Vec<_> = plan
+                .materialisable_slots()
+                .filter(|(identity, _)| {
                     identity.function == "::top"
-                        && matches!(
-                            decision,
-                            MaterialisableSlotDecision::Selected(MaterialisableSlotEvidence {
-                                variable: selected,
-                                shape: TypeShape::Int,
-                                constant: Some(LatticeValue::Const(
-                                    crate::analyses::ConstValue::Int(value)
-                                )),
-                                ..
-                            }) if selected == variable && *value == expected
-                        )
-                }),
-                "missing sealed {variable}={expected}: {plan:#?}"
+                        && unit.top_level.ssa.var_name(identity.symbol) == variable
+                })
+                .map(|(_, decision)| decision)
+                .collect();
+            assert!(
+                !decisions.is_empty(),
+                "original root {variable} is represented"
+            );
+            assert!(
+                decisions.iter().all(|decision| matches!(
+                    decision,
+                    MaterialisableSlotDecision::Declined(
+                        MaterialisableSlotDecline::OriginalSlotUnavailable
+                    )
+                )),
+                "captured ScriptCode cannot borrow a procedure local: {decisions:#?}"
             );
         }
 
@@ -2135,13 +3972,15 @@ mod tests {
                 true,
             ),
             (
-                "proc add {b c} {return [expr {$b+$c}]}\ntrace add execution expr enter cb\nadd 2 4\n",
+                "proc cb args {}; proc add {b c} {return [expr {$b+$c}]}\ntrace add execution expr enter cb\nadd 2 4\n",
                 SemanticOperationId::StructuredLowering(LoweringHookId::Expr),
                 false,
             ),
         ] {
-            let registry = tcl_registry::CommandRegistry::build_default();
-            let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+            let context = tcl_registry::model::ingress::resolve_environment("tcl9.0")
+                .default_context_registry();
+            let registry = context.commands();
+            let unit = native_unit(source, std::sync::Arc::clone(&context));
             assert_eq!(
                 unit.command_mutations.has_dynamic_mutation(),
                 transitive_mutation_is_dynamic,
@@ -2153,10 +3992,9 @@ mod tests {
                     .trusts_proc_binding("::add"),
                 "body-dispatch opacity must not erase the separately proven proc identity"
             );
-            let plan = CommonAotProofPlan::build(
+            let plan = CommonAotProofPlan::build_with_retained_metadata(
                 &unit,
-                &registry,
-                unit.top_level.semantic_facts.context(),
+                registry,
                 enabled(),
                 CommonAotEnvironment::Hosted,
             );
@@ -2177,10 +4015,30 @@ mod tests {
     }
 
     #[test]
+    fn known_computed_rename_preserves_callee_identity_and_rejects_its_internal_operation() {
+        let proof = plan(
+            "proc add {b c} {return [expr {$b+$c}]}; set command expr; rename $command saved_expr; add 2 4",
+            enabled(),
+        );
+        assert!(
+            proof.direct_calls().any(|(_, decision)| matches!(
+                decision,
+                DirectProcDecision::Selected(DirectProcEvidence {
+                    body: DirectProcBodyDecision::Declined(
+                        DirectProcBodyDecline::InternalDispatchUntrusted { .. }
+                    ),
+                    ..
+                })
+            )),
+            "{proof:#?}"
+        );
+    }
+
+    #[test]
     fn dynamic_binding_transition_still_declines_direct_call_identity() {
         let plan = plan(
             "proc add {b c} {return [expr {$b+$c}]}\n\
-             set command expr\nrename $command saved_expr\nadd 2 4\n",
+             set command [lindex $argv 0]\nrename $command saved_expr\nadd 2 4\n",
             enabled(),
         );
         assert!(plan.direct_calls().any(|(_, decision)| matches!(
@@ -2200,10 +4058,9 @@ mod tests {
         // decline it pins is therefore the surviving one: a unit built with
         // no dialect carries no context.
         let unit = CompilationUnit::build_for(ADD, &registry, false);
-        let ambiguous = CommonAotProofPlan::build(
+        let ambiguous = CommonAotProofPlan::build_with_retained_metadata(
             &unit,
             &registry,
-            unit.top_level.semantic_facts.context(),
             enabled(),
             CommonAotEnvironment::Hosted,
         );
@@ -2233,22 +4090,125 @@ mod tests {
 
     #[test]
     fn unknown_actual_type_poisons_cross_call_formal_propagation() {
-        let plan = plan(
-            "proc add {b c} {return [expr {$b+$c}]}\nset d 2\nset e 4\nadd $d $e\nset x [lindex $argv 0]\nadd $d $x\n",
-            enabled(),
+        // naming.variable.aot-original-slot-purpose
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(
+            "proc add {b c} {return [expr {$b+$c}]}\nproc caller {x} {set d 2; add $d $x}\nset d 2\nset e 4\nadd $d $e\ncaller [eval {set original_input 4}]\n",
+            std::sync::Arc::clone(&context),
         );
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        // The second caller is actually entered. Its original eval operand
+        // is not a represented SSA actual, so the call's type remains unknown
+        // independently of the runtime bytes produced by the original setter.
+        // Exact source reads can be retained without a scalar SSA entry key.
+        // Join the same selected-caller type owner used by materialisation;
+        // absence of a physical formal SSA key cannot be replaced by fake v0.
+        let mut propagated = HashMap::new();
+        let mut selected_callers = 0;
+        for (_, decision) in plan.direct_calls() {
+            if let DirectProcDecision::Selected(evidence) = decision
+                && evidence.callee.qualified_name == "::add"
+            {
+                selected_callers += 1;
+                propagate_actual_types(&mut propagated, evidence.callee.id, decision);
+            }
+        }
+        assert_eq!(
+            selected_callers,
+            2,
+            "{}\n{}\n{plan:#?}",
+            original_formal_diagnostics(&unit, "::caller"),
+            original_formal_diagnostics(&unit, "::add"),
+        );
+        let actual = propagated
+            .get(&(fixture_id(&unit.ir_module.procedures, "::add"), 1))
+            .expect("both callers recorded");
         assert!(
-            plan.materialisable_slots().any(|(identity, decision)| {
-                identity.function == "::add"
+            actual
+                .as_ref()
+                .is_none_or(|value| value.single_shape().is_none())
+        );
+        assert!(!plan.materialisable_slots().any(|(identity, decision)| {
+            identity.function == "::add"
+                && matches!(decision, MaterialisableSlotDecision::Selected(_))
+        }));
+    }
+
+    #[test]
+    fn unentered_unknown_caller_keeps_a_refusal_without_fabricating_a_reached_call() {
+        // naming.variable.aot-original-slot-purpose
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(
+            "proc add {b c} {return [expr {$b+$c}]}\nproc caller {x} {set d 2; add $d $x}\nset d 2\nset e 4\nadd $d $e\n",
+            std::sync::Arc::clone(&context),
+        );
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        assert_eq!(plan.direct_calls().filter(|(_, decision)| matches!(decision,
+            DirectProcDecision::Selected(evidence) if evidence.callee.qualified_name == "::add"
+        )).count(), 1, "{plan:#?}");
+        assert!(
+            plan.direct_calls()
+                .any(|(site, decision)| site.function == "::caller"
                     && matches!(
                         decision,
-                        MaterialisableSlotDecision::Declined(
-                            MaterialisableSlotDecline::TypeNotSingleton
-                        )
-                    )
-            }),
-            "{plan:#?}"
+                        DirectProcDecision::Declined(DirectProcDecline::BindingNotProcedure {
+                            kind: BindingKind::Unknown
+                        })
+                    )),
+            "future conditional lookup cannot grant reached procedure dispatch: {plan:#?}"
         );
+        assert!(
+            plan.declared_arguments()
+                .any(
+                    |(identity, decision)| identity.procedure.qualified_name == "::add"
+                        && identity.ordinal == 1
+                        && matches!(
+                            decision,
+                            DeclaredArgumentDecision::Declined(
+                                MaterialisableSlotDecline::TypeNotSingleton
+                            )
+                        )
+                ),
+            "unresolved source caller remains an independent poison premise: {plan:#?}"
+        );
+    }
+
+    #[test]
+    fn direct_calls_retain_native_argv_expansion_at_the_generic_boundary() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(
+            "proc p {x y} {return $x}; p {*}{2 4}",
+            std::sync::Arc::clone(&context),
+        );
+        let proof = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        assert!(
+            proof.direct_calls().any(|(_, decision)| matches!(
+                decision,
+                DirectProcDecision::Declined(DirectProcDecline::ExpandedArgumentsUnsupported)
+            )),
+            "{proof:#?}"
+        );
+        assert!(proof.has_declined_direct_call_to(fixture_id(&unit.ir_module.procedures, "::p")));
     }
 
     #[test]

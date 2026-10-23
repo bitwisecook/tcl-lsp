@@ -26,6 +26,7 @@
 //! comments, semicolons) and dispatches each directive directly — no VM
 //! required.
 
+use std::ops::Range;
 use std::path::Path;
 use std::sync::LazyLock;
 
@@ -79,6 +80,71 @@ pub struct Requirement {
     pub minimum: Version,
     pub source_url: Option<String>,
     pub dev: bool,
+}
+
+/// Which dependency list an original requirement declaration contributes to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequirementKind {
+    Runtime,
+    Development,
+}
+
+/// A validated dependency directive in its original manifest source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalRequirementDeclaration {
+    name: String,
+    kind: RequirementKind,
+    command_span: Range<usize>,
+}
+
+impl OriginalRequirementDeclaration {
+    /// The exact package name after the manifest loader's literal decoding.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    #[must_use]
+    pub fn kind(&self) -> RequirementKind {
+        self.kind
+    }
+
+    /// Complete original command bytes, excluding its command separator.
+    #[must_use]
+    pub fn command_span(&self) -> Range<usize> {
+        self.command_span.clone()
+    }
+}
+
+/// Requirement declarations tied to the same source the loader validated.
+pub struct OriginalManifestRequirements<'source> {
+    source: &'source str,
+    declarations: Vec<OriginalRequirementDeclaration>,
+}
+
+impl OriginalManifestRequirements<'_> {
+    #[must_use]
+    pub fn declarations(&self) -> &[OriginalRequirementDeclaration] {
+        &self.declarations
+    }
+
+    /// Remove every declaration of this exact decoded name. Other commands,
+    /// comments and separators retain their original bytes. Missing geometry
+    /// or no matching declaration returns no edit.
+    #[must_use]
+    pub fn remove(&self, package: &str) -> Option<(String, usize)> {
+        let mut result = String::with_capacity(self.source.len());
+        let mut cursor = 0;
+        let mut count = 0;
+        for declaration in self.declarations.iter().filter(|row| row.name == package) {
+            result.push_str(self.source.get(cursor..declaration.command_span.start)?);
+            self.source.get(declaration.command_span.clone())?;
+            cursor = declaration.command_span.end;
+            count += 1;
+        }
+        result.push_str(self.source.get(cursor..)?);
+        (count != 0).then_some((result, count))
+    }
 }
 
 /// A single `replace` directive.
@@ -177,29 +243,281 @@ impl Default for ManifestAst {
 
 /// Evaluate a manifest source string and return the AST.
 pub fn load_manifest_text(source: &str, path: Option<&str>) -> Result<ManifestAst, TclPkgError> {
-    let mut ast = ManifestAst {
-        path: path.unwrap_or("").to_string(),
-        ..ManifestAst::default()
-    };
+    parse_manifest_source(source, path).map(|(ast, _)| ast)
+}
 
-    let commands = parse_script(source).map_err(|m| manifest_err(&m, path))?;
+/// Complete original manifest `spec`-selection census under the same literal
+/// source parser and directive grammar. Other manifest fields are not validated
+/// for this independent discovery purpose; this grants no full manifest validity.
+pub struct OriginalManifestSpecSelection<'source> {
+    source: &'source str,
+    directive: Option<SpecDirective>,
+}
+
+impl OriginalManifestSpecSelection<'_> {
+    /// Complete original source whose directive inventory was examined.
+    #[must_use]
+    pub fn source(&self) -> &str {
+        self.source
+    }
+
+    /// The actual selected `spec` directive, or a complete source-level absence.
+    #[must_use]
+    pub fn directive(&self) -> Option<&SpecDirective> {
+        self.directive.as_ref()
+    }
+}
+
+/// Read only the original manifest's explicit source-selection declaration.
+/// Every original command must be completely represented and use a known
+/// directive; malformed/duplicate `spec` refuses. Unrelated package/version
+/// validation supplies no authority and remains the full loader's obligation.
+///
+/// # Errors
+/// Returns the existing manifest source/directive error on unavailable syntax,
+/// unknown directives or invalid `spec` layout.
+pub fn original_manifest_spec_selection<'source>(
+    source: &'source str,
+    path: Option<&str>,
+) -> Result<OriginalManifestSpecSelection<'source>, TclPkgError> {
+    let commands = parse_script(source).map_err(|message| manifest_err(&message, path))?;
+    let mut ast = empty_manifest_ast(path);
     for command in commands {
-        if command.is_empty() {
+        let Some(name) = command.words.first() else {
             continue;
-        }
-        let name = &command[0];
+        };
         if !DIRECTIVES.contains(&name.as_str()) {
             return Err(manifest_err(
                 &format!("command not permitted in safe mode: {name}"),
                 path,
             ));
         }
-        let args = &command[1..];
+        if name == "spec" {
+            dispatch(&mut ast, name, &command.words[1..])
+                .map_err(|message| manifest_err(&message, path))?;
+        }
+    }
+    Ok(OriginalManifestSpecSelection {
+        source,
+        directive: ast.spec,
+    })
+}
+
+/// Original dependency declarations under the same grammar and full manifest
+/// validation as [`load_manifest_text`], without evaluating Tcl substitutions.
+pub fn original_manifest_requirements<'source>(
+    source: &'source str,
+    path: Option<&str>,
+) -> Result<OriginalManifestRequirements<'source>, TclPkgError> {
+    let (_, declarations) = parse_manifest_source(source, path)?;
+    Ok(OriginalManifestRequirements {
+        source,
+        declarations,
+    })
+}
+
+/// Render the initial complete manifest under its fixed declarative grammar.
+/// Original literal values are validated before any source is returned.
+pub fn render_manifest_header(
+    package: &str,
+    version: &str,
+    license: &str,
+    tcl: &str,
+    path: Option<&str>,
+) -> Result<String, TclPkgError> {
+    let mut source = String::new();
+    let mut expected = empty_manifest_ast(path);
+    for (directive, value) in [
+        ("package", package),
+        ("version", version),
+        ("license", license),
+        ("tcl", tcl),
+    ] {
+        let rendered =
+            render_manifest_directive(vec![directive.to_owned(), value.to_owned()], 12, path)?;
+        dispatch(&mut expected, &rendered.words[0], &rendered.words[1..])
+            .map_err(|error| manifest_err(&error, path))?;
+        source.push_str(&rendered.source);
+        source.push('\n');
+    }
+    validate(&expected, path)?;
+    if load_manifest_text(&source, path)? != expected {
+        return Err(manifest_err(
+            "manifest header source changes its literal values",
+            path,
+        ));
+    }
+    Ok(source)
+}
+
+/// One independently validated dependency declaration for manifest source output.
+/// This is a directive fragment; it does not claim the surrounding manifest's
+/// required package/version fields or resolve the named package.
+pub fn render_manifest_requirement(
+    package: &str,
+    minimum: &str,
+    source_url: Option<&str>,
+    kind: RequirementKind,
+    path: Option<&str>,
+) -> Result<String, TclPkgError> {
+    requirement_directive(package, minimum, source_url, kind, path).map(|rendered| rendered.source)
+}
+
+/// Append one literal requirement using the manifest's own source grammar.
+/// The complete edited source must preserve the original AST and reproduce
+/// exactly the supplied dependency before an edit is returned.
+pub fn append_manifest_requirement(
+    source: &str,
+    path: Option<&str>,
+    package: &str,
+    minimum: &str,
+    source_url: Option<&str>,
+    kind: RequirementKind,
+) -> Result<String, TclPkgError> {
+    let mut expected = load_manifest_text(source, path)?;
+    let rendered = requirement_directive(package, minimum, source_url, kind, path)?;
+    dispatch(&mut expected, &rendered.words[0], &rendered.words[1..])
+        .map_err(|error| manifest_err(&error, path))?;
+    validate(&expected, path)?;
+    let edited = format!("{source}\n{}\n", rendered.source);
+    if load_manifest_text(&edited, path)? != expected {
+        return Err(manifest_err(
+            "appended requirement changes the original manifest",
+            path,
+        ));
+    }
+    Ok(edited)
+}
+
+struct RenderedDirective {
+    source: String,
+    words: Vec<String>,
+}
+
+fn requirement_directive(
+    package: &str,
+    minimum: &str,
+    source_url: Option<&str>,
+    kind: RequirementKind,
+    path: Option<&str>,
+) -> Result<RenderedDirective, TclPkgError> {
+    let directive = match kind {
+        RequirementKind::Runtime => "require",
+        RequirementKind::Development => "dev-require",
+    };
+    let mut words = vec![directive.to_owned(), package.to_owned(), minimum.to_owned()];
+    if let Some(url) = source_url {
+        words.extend(["-source".to_owned(), url.to_owned()]);
+    }
+    render_manifest_directive(words, directive.len() + 1, path)
+}
+
+fn empty_manifest_ast(path: Option<&str>) -> ManifestAst {
+    ManifestAst {
+        path: path.unwrap_or("").to_owned(),
+        ..ManifestAst::default()
+    }
+}
+
+fn render_manifest_directive(
+    words: Vec<String>,
+    head_width: usize,
+    path: Option<&str>,
+) -> Result<RenderedDirective, TclPkgError> {
+    let Some((directive, arguments)) = words.split_first() else {
+        return Err(manifest_err("missing directive words", path));
+    };
+    let mut expected = empty_manifest_ast(path);
+    dispatch(&mut expected, directive, arguments).map_err(|error| manifest_err(&error, path))?;
+    let mut command = format!("{:<head_width$}", words[0]);
+    for (index, word) in words[1..].iter().enumerate() {
+        if index != 0 {
+            command.push(' ');
+        }
+        if tcl_syntax::word_rules::lexical_ascii_source_word(word, manifest_lexer_config())
+            .as_deref()
+            == Some(word.as_str())
+        {
+            command.push_str(word);
+            continue;
+        }
+        let fragment = tcl_syntax::backslash::literal_quoted_source_fragment(
+            word,
+            manifest_lexer_config().escapes,
+        )
+        .ok_or_else(|| manifest_err("directive has no literal source spelling", path))?;
+        command.push('"');
+        command.push_str(&fragment);
+        command.push('"');
+    }
+    let parsed = parse_script(&command).map_err(|error| manifest_err(&error, path))?;
+    let [parsed] = parsed.as_slice() else {
+        return Err(manifest_err(
+            "directive source does not preserve one command",
+            path,
+        ));
+    };
+    if parsed.words != words {
+        return Err(manifest_err(
+            "directive source does not preserve its literal words",
+            path,
+        ));
+    }
+    let mut actual = empty_manifest_ast(path);
+    dispatch(&mut actual, &parsed.words[0], &parsed.words[1..])
+        .map_err(|error| manifest_err(&error, path))?;
+    if actual != expected {
+        return Err(manifest_err("directive source changes its AST", path));
+    }
+    Ok(RenderedDirective {
+        source: command,
+        words,
+    })
+}
+
+fn parse_manifest_source(
+    source: &str,
+    path: Option<&str>,
+) -> Result<(ManifestAst, Vec<OriginalRequirementDeclaration>), TclPkgError> {
+    let mut ast = empty_manifest_ast(path);
+
+    let commands = parse_script(source).map_err(|m| manifest_err(&m, path))?;
+    let mut declarations = Vec::new();
+    for command in commands {
+        if command.words.is_empty() {
+            continue;
+        }
+        let name = &command.words[0];
+        if !DIRECTIVES.contains(&name.as_str()) {
+            return Err(manifest_err(
+                &format!("command not permitted in safe mode: {name}"),
+                path,
+            ));
+        }
+        let args = &command.words[1..];
         dispatch(&mut ast, name, args).map_err(|m| manifest_err(&m, path))?;
+        let requirement = match name.as_str() {
+            "require" => ast
+                .requires
+                .last()
+                .map(|row| (row, RequirementKind::Runtime)),
+            "dev-require" => ast
+                .dev_requires
+                .last()
+                .map(|row| (row, RequirementKind::Development)),
+            _ => None,
+        };
+        if let Some((requirement, kind)) = requirement {
+            declarations.push(OriginalRequirementDeclaration {
+                name: requirement.name.clone(),
+                kind,
+                command_span: command.span,
+            });
+        }
     }
 
     validate(&ast, path)?;
-    Ok(ast)
+    Ok((ast, declarations))
 }
 
 /// Read a manifest file from disk and evaluate it.
@@ -509,27 +827,34 @@ fn validate(ast: &ManifestAst, path: Option<&str>) -> Result<(), TclPkgError> {
 
 // Tcl script parsing (commands + words; no substitution)
 
+struct ParsedCommand {
+    words: Vec<String>,
+    span: Range<usize>,
+}
+
+fn manifest_lexer_config() -> LexerConfig {
+    LexerConfig {
+        strict_quoting: true,
+        // dialect-drift-ok: a `tclpkg.tcl` manifest DSL, not a Tcl
+        // document — a fixed declarative vocabulary with no dialect axis.
+        ..LexerConfig::default()
+    }
+}
+
 /// Split a manifest script into commands, each a list of literal words.
 ///
 /// The lexer owns Tcl's structural grouping rules (including nested command
 /// substitutions in quotes). This loader deliberately only decodes grouping /
 /// backslashes afterwards: it never evaluates a variable or command
 /// substitution.
-fn parse_script(src: &str) -> Result<Vec<Vec<String>>, String> {
-    let tokens = Lexer::with_config(
-        src,
-        LexerConfig {
-            strict_quoting: true,
-            // dialect-drift-ok: a `tclpkg.tcl` manifest DSL, not a Tcl
-            // document — a fixed declarative vocabulary with no dialect axis.
-            ..LexerConfig::default()
-        },
-    )
-    .tokenise_all()
-    .map_err(|err| err.to_string())?;
+fn parse_script(src: &str) -> Result<Vec<ParsedCommand>, String> {
+    let tokens = Lexer::with_config(src, manifest_lexer_config())
+        .tokenise_all()
+        .map_err(|err| err.to_string())?;
     let mut commands = Vec::new();
     let mut words = Vec::new();
     let mut word = Vec::new();
+    let mut command_start = None;
 
     for token in tokens {
         match token.kind {
@@ -545,10 +870,22 @@ fn parse_script(src: &str) -> Result<Vec<Vec<String>>, String> {
             TokenType::Eol | TokenType::Eof => {
                 finish_word(src, &mut word, token.span.start() as usize, &mut words)?;
                 if !words.is_empty() {
-                    commands.push(std::mem::take(&mut words));
+                    let start = command_start
+                        .take()
+                        .ok_or("missing original command span")?;
+                    let span = start..token.span.start() as usize;
+                    src.get(span.clone())
+                        .ok_or("invalid original command span")?;
+                    commands.push(ParsedCommand {
+                        words: std::mem::take(&mut words),
+                        span,
+                    });
                 }
             }
-            _ => word.push(token),
+            _ => {
+                command_start.get_or_insert(token.span.start() as usize);
+                word.push(token);
+            }
         }
     }
     Ok(commands)
@@ -580,10 +917,15 @@ fn finish_word(
             .and_then(|s| s.strip_suffix('"'))
             .map_or_else(
                 || Err("missing \"".to_string()),
-                |s| Ok(tcl_syntax::backslash::decode(s).into_owned()),
+                |s| {
+                    Ok(
+                        tcl_syntax::backslash::decode_in(s, manifest_lexer_config().escapes)
+                            .into_owned(),
+                    )
+                },
             )?
     } else {
-        tcl_syntax::backslash::decode(raw).into_owned()
+        tcl_syntax::backslash::decode_in(raw, manifest_lexer_config().escapes).into_owned()
     };
     words.push(value);
     word.clear();
@@ -604,7 +946,7 @@ mod tests {
         assert_eq!(ast.name, "myapp");
         assert_eq!(ast.version, Some(Version::parse("1.0.0").unwrap()));
         assert_eq!(ast.tcl_constraint, ">=8.6");
-        assert!(ast.requires.is_empty());
+        assert_eq!(ast.requires.len(), 0);
     }
 
     #[test]
@@ -651,13 +993,241 @@ mod tests {
     #[test]
     fn dev_require_and_conflict() {
         let ast = load("package myapp\nversion 1.0.0\ndev-require tcltest 2.5\n").unwrap();
-        assert!(ast.requires.is_empty());
+        assert_eq!(ast.requires.len(), 0);
         assert_eq!(ast.dev_requires.len(), 1);
         assert!(ast.dev_requires[0].dev);
 
         let err = load("package myapp\nversion 1.0.0\nrequire json 1.0\ndev-require json 1.0\n")
             .unwrap_err();
         assert!(err.to_string().contains("both as require and dev-require"));
+    }
+
+    #[test]
+    fn original_requirement_removal_uses_exact_decoded_names_and_command_spans() {
+        let source = "package demo; version 1.0\n\
+# require foo 99\n\
+require foo-bar 1.0; require foo::bar 1.0; require foo.bar 1.0\n\
+require {foo} \\\n    1.0 -source {https://example.test/foo}; provides foo\n\
+require \"f\\x6fo\" 2.0\n\
+dev-require {test name} 1.0\n";
+        let original = original_manifest_requirements(source, None).unwrap();
+        let selected = original
+            .declarations()
+            .iter()
+            .filter(|row| row.name() == "foo")
+            .collect::<Vec<_>>();
+        assert_eq!(selected.len(), 2);
+        assert_eq!(selected[0].kind(), RequirementKind::Runtime);
+        assert_eq!(
+            &source[selected[1].command_span()],
+            "require \"f\\x6fo\" 2.0"
+        );
+        let (edited, count) = original.remove("foo").unwrap();
+        assert_eq!(count, 2);
+        assert_eq!(
+            edited,
+            source
+                .replace(
+                    "require {foo} \\\n    1.0 -source {https://example.test/foo}",
+                    ""
+                )
+                .replace("require \"f\\x6fo\" 2.0", "")
+        );
+        let ast = load(&edited).unwrap();
+        assert_eq!(
+            ast.requires
+                .iter()
+                .map(|row| row.name.as_str())
+                .collect::<Vec<_>>(),
+            ["foo-bar", "foo::bar", "foo.bar"]
+        );
+        assert_eq!(ast.provides, ["foo"]);
+        assert_eq!(
+            original.declarations().last().unwrap().kind(),
+            RequirementKind::Development
+        );
+        let (edited, count) = original.remove("test name").unwrap();
+        assert_eq!(count, 1);
+        assert!(load(&edited).unwrap().dev_requires.is_empty());
+    }
+
+    #[test]
+    fn original_requirement_removal_preserves_unicode_identity_and_refuses_missing_geometry() {
+        let source =
+            "package demo\nversion 1.0\nrequire {caf\u{e9}} 1.0\nrequire {cafe\u{301}} 1.0\n";
+        let mut original = original_manifest_requirements(source, None).unwrap();
+        assert!(original.remove("caf").is_none());
+        let (edited, count) = original.remove("caf\u{e9}").unwrap();
+        assert_eq!(count, 1);
+        assert_eq!(load(&edited).unwrap().requires[0].name, "cafe\u{301}");
+        original.declarations[0].command_span.end = source.len() + 1;
+        assert!(original.remove("caf\u{e9}").is_none());
+        assert!(original_manifest_requirements("package demo\nrequire foo 1.0", None).is_err());
+        assert!(
+            original_manifest_requirements("package demo; version 1.0; require foo", None).is_err()
+        );
+    }
+
+    #[test]
+    fn appended_requirements_keep_literal_package_and_source_words() {
+        let original = "package demo; version 1.0\n# retain this source\n";
+        for package in [
+            "foo-bar",
+            "foo::bar",
+            "foo.bar",
+            "two words",
+            "foo; require injected 9.0",
+            "[foo]$bar",
+            "a}b{c",
+            "caf\u{e9}",
+            "line\nbreak",
+        ] {
+            for kind in [RequirementKind::Runtime, RequirementKind::Development] {
+                let url = "https://example.test/a b;[literal]$name\\tail\nnext";
+                let edited =
+                    append_manifest_requirement(original, None, package, "1.2", Some(url), kind)
+                        .unwrap();
+                assert!(edited.starts_with(original));
+                let ast = load(&edited).unwrap();
+                let requirements = if kind == RequirementKind::Runtime {
+                    &ast.requires
+                } else {
+                    &ast.dev_requires
+                };
+                assert_eq!(requirements.len(), 1);
+                assert_eq!(requirements[0].name, package);
+                assert_eq!(requirements[0].source_url.as_deref(), Some(url));
+                assert_eq!(ast.name, "demo");
+                assert_eq!(ast.version, Some(Version::parse("1.0").unwrap()));
+                assert!(if kind == RequirementKind::Runtime {
+                    ast.dev_requires.is_empty()
+                } else {
+                    ast.requires.is_empty()
+                });
+            }
+        }
+    }
+
+    #[test]
+    fn appended_requirements_preserve_verified_bare_source_spelling() {
+        let original = "package demo\nversion 1.0\n";
+        let edited = append_manifest_requirement(
+            original,
+            None,
+            "json::write",
+            "1.7",
+            None,
+            RequirementKind::Runtime,
+        )
+        .unwrap();
+        assert_eq!(edited, format!("{original}\nrequire json::write 1.7\n"));
+        assert_eq!(load(&edited).unwrap().requires[0].name, "json::write");
+    }
+
+    #[test]
+    fn rendered_headers_preserve_literal_values_and_plain_source_alignment() {
+        let plain = render_manifest_header("demo", "1.0.0", "MIT", ">=8.6", None).unwrap();
+        assert_eq!(
+            plain,
+            "package     demo\nversion     1.0.0\nlicense     MIT\ntcl         >=8.6\n"
+        );
+        for name in [
+            "two words",
+            "demo; require injected 9.0",
+            "[name]$value",
+            "a}b{c",
+            "caf\u{e9}",
+            "line\nbreak",
+        ] {
+            let source =
+                render_manifest_header(name, "1.0", "MIT OR Apache-2.0", ">=8.6", None).unwrap();
+            let ast = load(&source).unwrap();
+            assert_eq!(ast.name, name);
+            assert_eq!(ast.license, "MIT OR Apache-2.0");
+            assert!(ast.requires.is_empty());
+            assert!(ast.dev_requires.is_empty());
+        }
+        assert!(
+            render_manifest_header("demo", "1.0; require injected 9.0", "MIT", ">=8.6", None)
+                .is_err()
+        );
+        assert!(
+            render_manifest_header("demo", "1.0", "MIT\nrequire injected 9.0", ">=8.6", None)
+                .is_err()
+        );
+        assert!(
+            render_manifest_header("demo", "1.0", "MIT", ">=8.6; require injected 9.0", None)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn rendered_dependency_fragments_keep_original_names_sources_and_kinds() {
+        let header = render_manifest_header("demo", "1.0", "MIT", ">=8.6", None).unwrap();
+        assert_eq!(
+            render_manifest_requirement("plain", "1.0", None, RequirementKind::Runtime, None)
+                .unwrap(),
+            "require plain 1.0"
+        );
+        let name = "test name; [literal]$value";
+        let url = "https://example.test/a b;[literal]$value\\tail";
+        let declaration =
+            render_manifest_requirement(name, "1.0", Some(url), RequirementKind::Development, None)
+                .unwrap();
+        let ast = load(&format!("{header}{declaration}\n")).unwrap();
+        assert!(ast.requires.is_empty());
+        assert_eq!(ast.dev_requires.len(), 1);
+        assert_eq!(ast.dev_requires[0].name, name);
+        assert_eq!(ast.dev_requires[0].source_url.as_deref(), Some(url));
+        assert!(
+            render_manifest_requirement(
+                "plain",
+                "1.0; require injected 9.0",
+                None,
+                RequirementKind::Runtime,
+                None
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn appended_requirements_refuse_invalid_versions_conflicts_and_changed_source_boundaries() {
+        let source = "package demo\nversion 1.0\nrequire foo 1.0\n";
+        assert!(
+            append_manifest_requirement(
+                source,
+                None,
+                "bar",
+                "1.0; require injected 9.0",
+                None,
+                RequirementKind::Runtime
+            )
+            .is_err()
+        );
+        assert!(
+            append_manifest_requirement(
+                source,
+                None,
+                "foo",
+                "1.0",
+                None,
+                RequirementKind::Development
+            )
+            .is_err()
+        );
+        let continued_comment = "package demo\nversion 1.0\n# original comment\\";
+        assert!(
+            append_manifest_requirement(
+                continued_comment,
+                None,
+                "foo",
+                "1.0",
+                None,
+                RequirementKind::Runtime
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -891,5 +1461,27 @@ description {*}$value
             err.to_string()
                 .contains("expansion prefix `{*}` is not permitted")
         );
+    }
+}
+
+#[cfg(test)]
+mod original_manifest_selection_tests {
+    use super::*;
+
+    #[test]
+    fn complete_selection_census_is_separate_from_full_manifest_validation() {
+        let legacy = "package require x\n";
+        assert!(load_manifest_text(legacy, None).is_err());
+        let selection = original_manifest_spec_selection(legacy, None).unwrap();
+        assert_eq!(selection.source(), legacy);
+        assert!(selection.directive().is_none());
+        let selected = "package require x\nspec {packs {chosen.tclspec}}\n";
+        let selection = original_manifest_spec_selection(selected, None).unwrap();
+        assert!(selection.directive().is_some());
+        assert!(original_manifest_spec_selection("spec {packs", None).is_err());
+        assert!(
+            original_manifest_spec_selection("spec {packs {a}}; spec {packs {b}}", None).is_err()
+        );
+        assert!(original_manifest_spec_selection("eval {spec {packs {hidden}}}", None).is_err());
     }
 }

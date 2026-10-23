@@ -168,17 +168,16 @@ which keeps the reasoning contained.
 
 ## Dialect scoping
 
-`*::payload` source/sink recognition is iRules-specific. The command registry
-is process-global, so once any iRules document loads the f5-irules pack the
-payload commands stay registered for the rest of the session. The gate is at
-the call site rather than in the pass: `run_all_checks`
-(`rust/tcl-compiler/src/compiler_checks.rs`) builds the `payload_layouts` map
-from `registry.byte_array_payload_layouts()` only when
-`is_irules_dialect(dialect)` holds, and hands an **empty** map otherwise. With
-no layouts, `is_payload_getter` and the sink arm both answer `false`, so a
-plain-Tcl document that merely names a `*::payload` command never trips S110.
+`*::payload` source/sink recognition is iRules-specific. Command specs are
+read through the immutable context selected for the document or environment;
+that context identifies a profile and registry generation rather than a
+process-global mutable pack shared by unrelated documents. The S110 call site
+still applies an independent purpose gate: `run_all_checks`
+(`rust/tcl-compiler/src/compiler_checks.rs`) supplies payload layouts only for
+the iRules dialect and an empty map otherwise. Thus naming a payload command
+in a plain-Tcl document does not enable the iRules-specific source/sink rule.
 The dialect-agnostic binary sources (`binary format`, `binary decode`,
-`encoding convertto`) stay enabled everywhere.
+`encoding convertto`) remain separate and available across dialects.
 
 ## Pointers
 

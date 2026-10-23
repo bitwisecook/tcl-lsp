@@ -19,10 +19,6 @@
 //! `cargo xtask` — the native task runner for the workspace's build and check
 //! tasks.
 //!
-//! Each subcommand is kept byte-compatible with the `scripts/` tool it
-//! replaces so the Makefile / CI can switch over incrementally, with the
-//! legacy script available as a fallback.
-//!
 //! Run a task with `cargo xtask <command>` (the workspace `.cargo/config.toml`
 //! aliases `xtask` to `run --package xtask --`).
 //!
@@ -30,8 +26,7 @@
 //!
 //! - `kcs-index-links` — validate markdown links + KCS/design index coverage
 //!   under `docs/`.
-//! - `version` — print the setuptools-scm / hatch-vcs project version from
-//!   `git describe`.
+//! - `version` — derive the project version from `git describe`.
 //! - `tzdata-bundle` — pack the curated tzdata `TZBL` bundle for the WASM
 //!   runtime.
 //! - `audit-option-dialects` — probe `OptionSpec` dialect gates against real
@@ -49,8 +44,8 @@
 //! - `catalogue-callers` — hold every spelling of `DialectProfile::all()`,
 //!   `KNOWN_DIALECTS` and `available_dialects(` to an allowlist (`--check` is
 //!   accepted for symmetry; the gate only verifies).
-//! - `gen-editor-catalogs` — generate the VS Code iRules-event catalog JSON
-//!   from the registry (`--check` to verify instead of write).
+//! - `gen-editor-catalogs` — generate editor event catalogs and shared scaffold
+//!   naming policy (`--check` to verify instead of write).
 //! - `gen-editor-configs` — generate the Zed `extension.toml` language table,
 //!   the Helix, Emacs, Neovim and Sublime guides' configuration and dialect
 //!   lists, and `INSTALL-editors.md`'s extension lists from the environment
@@ -101,6 +96,7 @@ mod environment;
 mod f5query_builtins_doc;
 mod fp_sweep;
 mod gen_ai;
+mod gen_bigip_grammars;
 mod gen_bundled_environments;
 mod gen_editor_catalogs;
 mod gen_editor_configs;
@@ -301,6 +297,15 @@ enum Command {
     GenZedQueries {
         /// Verify the committed query is in sync instead of rewriting it;
         /// exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generate the Zed and VS Code BIG-IP configuration / APL grammars'
+    /// vocabularies from their `tcl-bigip` owners.
+    GenBigipGrammars {
+        /// Verify the committed grammars are in sync instead of rewriting
+        /// them; exit non-zero on drift.
         #[arg(long)]
         check: bool,
     },
@@ -558,6 +563,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::GenEnvironmentDocs { check } => gen_environment_docs::run(check),
         Command::GenIruleTestData { check } => gen_irule_test_data::run(check),
         Command::GenZedQueries { check } => gen_zed_queries::run(check),
+        Command::GenBigipGrammars { check } => gen_bigip_grammars::run(check),
         Command::GenTmlanguageKeywords { check } => gen_tmlanguage_keywords::run(check),
         Command::GenEditorSettings { check } => gen_editor_settings::run(check),
         Command::GenVscodePackage { check } => gen_vscode_package::run(check),

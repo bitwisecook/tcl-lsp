@@ -48,19 +48,19 @@ A finding's category is the verdict that produced it:
 
 ### 3. Replay the seed to get a minimal reproducer
 
-Findings are keyed by their generating seed, so they replay exactly. A
-release-aware finding lives in its own `tclX.Y` registry and replay discovers
-one matching record automatically, then pins the whole pair to its recorded
-release. If the same seed exists at more than one release, replay refuses and
-asks for `--tcl-version X.Y`; that flag selects the record in the exact
-`tclX.Y` registry, while still refusing if no record exists there.
+Findings are keyed by their generating seed, but the seed alone does not
+reconstruct every campaign input. A release-aware finding lives in its own
+`tclX.Y` registry and replay selects its recorded release. If the same seed
+exists at more than one release, replay refuses and asks for
+`--tcl-version X.Y`; that flag selects the record in the exact `tclX.Y`
+registry.
 
-New unpinned campaigns carry replay metadata too and therefore replay directly
-from the plain pair registry. An older finding with an explicit recorded
-release is still replay-safe; only an older *release-less* record missing the
-metadata is deliberately refused, because its old subject-only configuration
-cannot be reconstructed safely. Replaying it at today's default would be
-misleading.
+`replay_metadata_version` marks only the Tcl-release dimension, including an
+explicitly unpinned release. Generator rates are separate replay inputs:
+current records retain and restore them, while older findings without rates
+replay at current rates with a warning that the seed may not regenerate the
+same script. An older release-less record without the release marker is
+refused rather than silently replayed at today's default.
 `summary` without a release includes the unpinned registry plus each `tclX.Y`
 registry as a separately labelled count; pass `--tcl-version X.Y` to inspect
 only one release. Replay prints both engines'

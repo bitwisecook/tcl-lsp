@@ -116,6 +116,8 @@ pub fn builtin_alias_claim(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use tcl_registry::CommandSpec;
     use tcl_registry::hooks::InlineCodegenHookId;
@@ -143,7 +145,7 @@ mod tests {
         let cfg = crate::cfg_builder::build_cfg_codegen_with_registry_and_config(
             &ir, false, registry, config,
         );
-        crate::codegen::codegen_module(&cfg, &ir, registry)
+        crate::codegen::codegen_module(&cfg, &ir, registry).expect("original source namespace")
     }
 
     fn stamp(registry: &CommandRegistry) -> PackFactStamp {
@@ -286,7 +288,10 @@ mod tests {
         let source = "proc caller {n} {vdouble $n}\nset x 1";
         let module = service_over(registry).compile(source).unwrap();
 
-        let caller = &module.procedures["::caller"];
+        let caller = module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::caller"))
+            .expect("authored fixture body");
         assert_eq!(caller.procedure_bindings, vec![binding()]);
         assert_eq!(
             caller.site_claims,
@@ -388,7 +393,10 @@ mod tests {
         let caller = "proc caller {n} {vdouble $n}";
         let inlined = |registry: CommandRegistry, source: &str| {
             let module = service_over(registry).compile(source).unwrap();
-            let function = &module.procedures["::caller"];
+            let function = module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::caller"))
+                .expect("authored fixture body");
             (
                 function.procedure_bindings.clone(),
                 function.site_claims.clone(),
@@ -447,7 +455,10 @@ mod tests {
         let module = service_over(registry)
             .compile("proc caller {n} {vdouble $n}")
             .unwrap();
-        let caller = &module.procedures["::caller"];
+        let caller = module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::caller"))
+            .expect("authored fixture body");
         assert!(caller.procedure_bindings.is_empty());
         assert!(caller.site_claims.is_empty());
         assert!(calls_a_command(caller));

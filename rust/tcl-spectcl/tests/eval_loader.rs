@@ -1531,3 +1531,41 @@ fn runtime_backing_reads_each_shape_through_both_paths() {
         assert_eq!(pack.notices.len(), 2, "{:#?}", pack.notices);
     }
 }
+
+#[test]
+fn derived_frame_aliases_register_explicit_logical_source_dispatch() {
+    let source = r"speclib probe 2.1 {
+        command probe::alias {
+            arity 2..
+            state_transitions { resolver from-frame-effect }
+            frame_effect -level-word ArityParity -layout AliasPairs
+        }
+        command probe::plain {
+            arity 1
+            state_transitions { resolver from-frame-effect }
+        }
+    }";
+    for pack in [
+        evaluate_pack(source),
+        evaluate_through_the_interpreter(source),
+    ] {
+        let alias = pack.command("probe::alias").unwrap();
+        assert!(
+            alias
+                .spec
+                .state_transitions
+                .unwrap()
+                .logical_source_resolver
+                .is_some()
+        );
+        let plain = pack.command("probe::plain").unwrap();
+        assert!(
+            plain
+                .spec
+                .state_transitions
+                .unwrap()
+                .logical_source_resolver
+                .is_none()
+        );
+    }
+}

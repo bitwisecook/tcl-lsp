@@ -6,8 +6,9 @@ released binaries — `tcl-lsp-server`, `tcl`, `f5-query`, `tcl-mcp` — plus
 editor integrations under `editors/` (VS Code, Zed, JetBrains, Neovim, Emacs,
 Helix, Sublime) and the WASM runtime the compiler targets under
 `runtime/rust/`. It covers Tcl 8.4–9.1, F5 iRules/iApps, and the EDA dialects.
-`rust` is the only active branch; `legacy-py` is a locked archive — never
-branch, merge, or tag from it.
+`rust` is the development branch; reviewed release candidates may be cut from
+it under `release/*`. `legacy-py` is a locked archive — never branch, merge,
+or tag from it.
 
 Orientation: the crate map and dependency direction in
 [project-layout.md](docs/design/contracts/project-layout.md); the compiler
@@ -149,6 +150,8 @@ crate and one semantic axis; never re-derive one, and never add an
 owner-shaped implementation without updating the contract and its gate.
 `cargo xtask owner-resolution` (in `make rust-check`) enforces it. Owner map:
 [shared-utility-contracts-rust.md](docs/design/contracts/shared-utility-contracts-rust.md).
+For name representations, lookup context and consumer boundaries, read
+[name-handling.md](docs/design/contracts/name-handling.md).
 
 ### WASM command parity
 

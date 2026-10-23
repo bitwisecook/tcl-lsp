@@ -15,14 +15,14 @@ cargo xtask fp-sweep --code CODE [--code CODE...] \
 
 ## What the sweep runs
 
-The sweep reproduces, in one pass, everything the editor can publish for a
-file, so no code the user can see is invisible to it:
+The sweep collects the per-document analyser, compiler, optimiser and source
+style facts without editor suppression policy:
 
 | Source | What it contributes |
 |---|---|
 | `Analyser::analyse` | W-, E-, and H-series checks |
 | `run_all_checks` + `optimise_unit` over one interprocedural-summarised `CompilationUnit` | O-, S-, and T-series codes |
-| `tcl_lsp_core::source_style::style_diagnostics` | the pure-text style pass (W111/W112/W115/W118) |
+| `tcl_lsp_core::source_style::style_facts_from_analysis` | Source-style facts (W111/W112/W115/W118) using retained analysis, plus byte-backed encoding checks (W107/W109) |
 
 That is a superset of `tcl diag`'s own collector, which deliberately drops the
 O-series. It mirrors `tcl_lsp_db::compiler_check_diagnostics_uncached`, the
@@ -76,7 +76,10 @@ shape is common.
 The workflow for each shape worth investigating:
 
 1. Reduce the highest-volume shape to a minimal reproducer.
-2. Verify the reproducer against real C tclsh for the relevant dialect.
+2. Verify the relevant operation in its native engine and context. Use C tclsh
+   or Jim for their dialects; use native appliance probes for F5 TMM/MCPD.
+   Those F5 contexts cannot run Tcl-level `tcltest`, and appliance stock tclsh
+   does not establish hosted TMM/MCPD behaviour.
 3. Either fix the emitter and land paired must-fire (TP) and
    must-stay-silent (FP) regression tests, or record the shape as a confirmed
    true positive.
@@ -104,5 +107,5 @@ egress is unavailable, the committed tree still provides a usable substitute:
 | `editors/vscode/testFixture` | noisy — many fixtures are deliberately malformed to exercise one diagnostic, so co-firings there carry less weight |
 
 A code with no corpus firing is verified synthetically instead: a minimal
-reproducer through `tcl diag`, cross-checked against real tclsh wherever
-runtime behaviour is load-bearing.
+reproducer through `tcl diag`, cross-checked against the relevant native
+engine and hosted context wherever runtime behaviour is load-bearing.

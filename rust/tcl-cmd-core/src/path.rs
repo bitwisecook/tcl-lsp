@@ -1166,16 +1166,16 @@ mod tests {
         let part = part_name(b"~/x", TclVersion::V8_6, &env, None).expect("a name");
         assert_eq!(text(&part), "~/x");
         let error = part_name(b"~nosuch", TclVersion::V8_6, &env, None).expect_err("no user");
-        assert_eq!(error.message(), "user \"nosuch\" doesn't exist");
-        assert_eq!(error.error_code(), Some("TCL VALUE PATH NOUSER"));
+        assert_eq!(error.message().unwrap(), "user \"nosuch\" doesn't exist");
+        assert_eq!(error.error_code().unwrap(), Some("TCL VALUE PATH NOUSER"));
         let error = part_name(b"~nosuch", TclVersion::V8_5, &env, None).expect_err("no user");
-        assert_eq!(error.error_code(), None);
+        assert_eq!(error.error_code().unwrap(), None);
         let error = part_name(b"~", TclVersion::V8_6, &Home(None), None).expect_err("homeless");
         assert_eq!(
-            error.message(),
+            error.message().unwrap(),
             "couldn't find HOME environment variable to expand path"
         );
-        assert_eq!(error.error_code(), Some("TCL VALUE PATH HOMELESS"));
+        assert_eq!(error.error_code().unwrap(), Some("TCL VALUE PATH HOMELESS"));
         for (home, dir, last) in [
             ("/", "/", ""),
             ("/homewontexist/test", "/homewontexist", "test"),
@@ -1355,8 +1355,8 @@ mod tests {
             "/root"
         );
         let error = home_directory(&env, b"nosuch", TclVersion::V9_0).expect_err("no user");
-        assert_eq!(error.message(), "user \"nosuch\" doesn't exist");
-        assert_eq!(error.error_code(), Some("TCL VALUE PATH NOUSER"));
+        assert_eq!(error.message().unwrap(), "user \"nosuch\" doesn't exist");
+        assert_eq!(error.error_code().unwrap(), Some("TCL VALUE PATH NOUSER"));
     }
 
     /// `file tildeexpand` as tclsh 9.0.4 and 9.1.0 give it with `HOME=/root`.
@@ -1378,6 +1378,6 @@ mod tests {
             assert_eq!(text(&got), expected, "file tildeexpand {name}");
         }
         let error = tilde_expand(b"~/x", TclVersion::V9_0, &Home(None)).expect_err("homeless");
-        assert_eq!(error.error_code(), Some("TCL VALUE PATH HOMELESS"));
+        assert_eq!(error.error_code().unwrap(), Some("TCL VALUE PATH HOMELESS"));
     }
 }

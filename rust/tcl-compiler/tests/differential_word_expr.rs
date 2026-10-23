@@ -537,6 +537,7 @@ fn a_welded_word_carries_the_parse_cut_owners_message() {
 #[test]
 fn parse_errors_carry_c_tcls_message() {
     let cases = [
+        ("puts {broken", "missing close-brace"),
         ("puts x[b", "missing close-bracket"),
         ("puts $arr(", "missing )"),
         ("puts ${abc", "missing close-brace for variable name"),

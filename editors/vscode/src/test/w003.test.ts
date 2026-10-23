@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics, pollUntil } from "./helper";
+import { getDocUri, activate, pollUntil, waitForDiagnosticsSnapshot } from "./helper";
 
 // Fixture (`# tcl-dialect: tcl8.4`):
 //   line 1: if {$a lt $b} {        -- 'lt' at columns 7..9
@@ -33,7 +33,13 @@ suite("W003 (dialect-gated expr operators)", () => {
 
   test("fires with a tight range covering only the operator", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     const w003 = diagnostics.filter((d) => codeOf(d) === "W003");
     assert.ok(
       w003.length >= 1,
@@ -52,7 +58,13 @@ suite("W003 (dialect-gated expr operators)", () => {
 
   test("reports one diagnostic per occurrence, each at its own range", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 3 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 3,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     const w003 = diagnostics.filter((d) => codeOf(d) === "W003");
     // line 1: 'lt'; line 4: 'in' twice.
     assert.ok(
@@ -74,7 +86,13 @@ suite("W003 (dialect-gated expr operators)", () => {
 
   test("offers a quick fix that rewrites 'lt' to a portable form", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     const lt = diagnostics.find((d) => codeOf(d) === "W003" && d.range.start.line === 1);
     assert.ok(lt, "expected a W003 on line 1");
 
@@ -105,7 +123,13 @@ suite("W003 (dialect-gated expr operators)", () => {
 
   test("no quick fix is offered for the nested 'in' occurrences", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 3 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 3,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     const inHit = diagnostics.find((d) => codeOf(d) === "W003" && d.range.start.line === 4);
     assert.ok(inHit, "expected a W003 on line 4");
 

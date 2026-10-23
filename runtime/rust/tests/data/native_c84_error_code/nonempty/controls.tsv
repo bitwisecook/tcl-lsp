@@ -1,0 +1,3 @@
+info-no-code	0	4641494c20494e464f204e4f4e45	::errorInfo|w|;::errorCode|w|4e4f4e45;::errorInfo|w|494e464f;::errorInfo|r|494e464f;::errorCode|r|4e4f4e45
+info-NONE	0	4641494c20494e464f204e4f4e45	::errorInfo|w|;::errorCode|w|4e4f4e45;::errorInfo|w|494e464f;errorCode|w|4e4f4e45;::errorInfo|r|494e464f;::errorCode|r|4e4f4e45
+info-structured	0	4641494c20494e464f207b435553544f4d2044455441494c7d	::errorInfo|w|;::errorCode|w|4e4f4e45;::errorInfo|w|494e464f;errorCode|w|435553544f4d2044455441494c;::errorInfo|r|494e464f;::errorCode|r|435553544f4d2044455441494c

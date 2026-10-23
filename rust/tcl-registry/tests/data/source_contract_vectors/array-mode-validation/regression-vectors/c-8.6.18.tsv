@@ -1,0 +1,37 @@
+cases/arity-no-name.tcl	1 {wrong # args: should be "array names arrayName ?mode? ?pattern?"} {TCL WRONGARGS}\n
+cases/arity-too-many-missing.tcl	1 {wrong # args: should be "array names arrayName ?mode? ?pattern?"} {TCL WRONGARGS}\n
+cases/arity-too-many-populated.tcl	1 {wrong # args: should be "array names arrayName ?mode? ?pattern?"} {TCL WRONGARGS}\n
+cases/empty-ambiguous-mode.tcl	1 {ambiguous option "-": must be -exact, -glob, or -regexp} {TCL LOOKUP INDEX option -}\n
+cases/empty-bad-mode.tcl	1 {bad option "-bad": must be -exact, -glob, or -regexp} {TCL LOOKUP INDEX option -bad}\n
+cases/empty-exact-prefix.tcl	0 {} {}\n
+cases/empty-glob-prefix.tcl	0 {} {}\n
+cases/empty-invalid-regexp.tcl	0 {} {}\n
+cases/empty-regexp-valid.tcl	0 {} {}\n
+cases/empty-single-dash-pattern.tcl	0 {} {}\n
+cases/missing-ambiguous-mode.tcl	1 {ambiguous option "-": must be -exact, -glob, or -regexp} {TCL LOOKUP INDEX option -}\n
+cases/missing-bad-mode.tcl	1 {bad option "-bad": must be -exact, -glob, or -regexp} {TCL LOOKUP INDEX option -bad}\n
+cases/missing-exact-prefix.tcl	0 {} {}\n
+cases/missing-glob-prefix.tcl	0 {} {}\n
+cases/missing-invalid-regexp.tcl	0 {} {}\n
+cases/missing-regexp-valid.tcl	0 {} {}\n
+cases/missing-single-dash-pattern.tcl	0 {} {}\n
+cases/populated-ambiguous-mode.tcl	1 {ambiguous option "-": must be -exact, -glob, or -regexp} {TCL LOOKUP INDEX option -}\n
+cases/populated-bad-mode.tcl	1 {bad option "-bad": must be -exact, -glob, or -regexp} {TCL LOOKUP INDEX option -bad}\n
+cases/populated-exact-prefix.tcl	0 x {}\n
+cases/populated-glob-prefix.tcl	0 x {}\n
+cases/populated-invalid-regexp.tcl	1 {couldn't compile regular expression pattern: brackets [] not balanced} {REGEXP REG_EBRACK {brackets [] not balanced}}\n
+cases/populated-regexp-valid.tcl	0 x {}\n
+cases/populated-single-dash-pattern.tcl	0 {} {}\n
+cases/scalar-ambiguous-mode.tcl	1 {ambiguous option "-": must be -exact, -glob, or -regexp} {TCL LOOKUP INDEX option -}\n
+cases/scalar-bad-mode.tcl	1 {bad option "-bad": must be -exact, -glob, or -regexp} {TCL LOOKUP INDEX option -bad}\n
+cases/scalar-exact-prefix.tcl	0 {} {}\n
+cases/scalar-glob-prefix.tcl	0 {} {}\n
+cases/scalar-invalid-regexp.tcl	0 {} {}\n
+cases/scalar-regexp-valid.tcl	0 {} {}\n
+cases/scalar-single-dash-pattern.tcl	0 {} {}\n
+traces/missing-bad-mode.tcl	registration 0 {}\n1 {bad option "-bad": must be -exact, -glob, or -regexp} {TCL LOOKUP INDEX option -bad}\nevents array\n
+traces/missing-create-bad-mode.tcl	registration 0 {}\n1 {bad option "-bad": must be -exact, -glob, or -regexp} {TCL LOOKUP INDEX option -bad}\nevents array\n
+traces/populated-bad-mode.tcl	registration 0 {}\n1 {bad option "-bad": must be -exact, -glob, or -regexp} {TCL LOOKUP INDEX option -bad}\nevents array\n
+traces/populated-fail-bad-mode.tcl	registration 0 {}\n1 {can't trace array "a": TRACE_FAILURE} NONE\nevents array\n
+traces/populated-fail-too-many.tcl	registration 0 {}\n1 {wrong # args: should be "array names arrayName ?mode? ?pattern?"} {TCL WRONGARGS}\nevents {}\n
+traces/populated-too-many.tcl	registration 0 {}\n1 {wrong # args: should be "array names arrayName ?mode? ?pattern?"} {TCL WRONGARGS}\nevents {}\n

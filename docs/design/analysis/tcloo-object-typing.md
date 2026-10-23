@@ -108,33 +108,21 @@ above. It is explicitly not wired into any diagnostic; nothing under
 `analyser/diagnostics/` calls into it. It exists to measure whether
 splitting the problem into an MRO graph plus a binding lattice over the
 existing SSA beats the current heuristic on real code at an acceptable
-⊤-collapse rate. See `experiments/mro_eval/RESULTS.md`.
+⊤-collapse rate. Its advisory result supplies no shipping diagnostic authority.
 
 Everything else in the model above — CHA∩RTA over a workspace
 instantiated-classes query, SSA guard narrowing on `info object class` /
 `isa`, per-method summaries behind an incremental firewall, signature
 stubs for `oo::` builtins — is design, not code.
 
-## Evidence: where the remaining gap is (`tcloo_diag`)
+## Receiver boundaries
 
-The `tcloo_diag` provenance experiment categorised 8241 unresolved `$var`
-receivers across the corpus, and the result is the reason the VTA-lite
-fixpoint did not move the resolution rate: **the bottleneck is not
-TclOO.**
-
-- **71% "unbound"** — dominated by **snit** (`$self` = 1035, `my…`
-  components, `$hull`, `options(...)`) and **Tk widget paths** (`$win.c`),
-  not `TclOO`.
-- ~12% within-CU `TclOO` edges (alias, method-return, proc-return,
-  collection) — the slice the shipping layer addresses.
-- ~11% `cmd-return` — mostly non-object commands that should *abstain*.
-
-The snit self-dispatch and constructor slices carry the corpus resolution
-rate to **14.0% local / 16.4% project**, against a 6.8% / 8.1% baseline
-without them (`experiments/tcloo_dispatch/RESULTS.md`) — which is why the
-histogram, not the type theory, decides what to model next. Tk widget paths — the other half of the "unbound" mass — are
-handled by their own model; see
-[`tk-widget-instance-typing.md`](tk-widget-instance-typing.md).
+Snit self-dispatch, TclOO handles and Tk widget paths require their respective
+source and binding owners. An unknown command return must abstain rather than
+becoming an object solely from its spelling. Cross-file and cross-method
+relationships need their own current inputs; intraprocedural type information
+cannot establish those relationships by itself. Tk widget paths use the
+separate [widget model](tk-widget-instance-typing.md).
 
 The categories still open, in corpus-impact order:
 

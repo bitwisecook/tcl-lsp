@@ -268,6 +268,11 @@ const ROWS: &[Row] = &[
         "Whether the subcommand destroys its subject.",
     ),
     boolean("returns_path", "Whether the subcommand's result is a path."),
+    one(
+        "source_path_operation",
+        "Conditional source path algebra operation.",
+        "`Join`, `Dirname`, `Normalize` or `ScriptPath`; no runtime handler, current filename or filesystem authority.",
+    ),
     boolean(
         "is_unescape",
         "Whether the subcommand reverses an escaping.",
@@ -317,6 +322,11 @@ const ROWS: &[Row] = &[
         "",
     ),
     one("side_switch_target", "`Client` or `Server`.", ""),
+    one(
+        "irules_source_flow",
+        "`DropsConnection`, `ReturnsDnsPacket`, or `EventControl`; conditional source grammar only.",
+        "",
+    ),
     // Taint.
     one(
         "taint_output_sink",
@@ -359,6 +369,11 @@ const ROWS: &[Row] = &[
         "taint_sink_safe_colour",
         "Colours that make the sink safe.",
         "",
+    ),
+    one(
+        "channel_configuration",
+        "Conditional channel-configuration source relationship.",
+        "EncodingTranslation selects original available -encoding and -translation value positions; it supplies no channel state, handler acceptance or evaluation.",
     ),
     one("credential_options", "Options that carry a credential.", ""),
     one(

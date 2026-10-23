@@ -123,6 +123,44 @@ pub const SOURCE_DIALECT_KEY: &str = "__sourceDialect";
 /// A draft is a plain JSON object; the schema names its keys.
 pub type Draft = Map<String, Value>;
 
+/// Validate authored receiver rows before either renderer emits the field.
+/// Invalid draft data must not silently select Combined or argument zero.
+pub(crate) fn selected_variable_receivers(
+    values: &[Value],
+) -> Option<
+    Vec<(
+        u8,
+        tcl_registry::resolved_invocation::VariableReceiverOperandForm,
+    )>,
+> {
+    use tcl_registry::resolved_invocation::VariableReceiverOperandForm;
+    let mut selected = Vec::with_capacity(values.len());
+    for value in values {
+        let (index, form) = if let Some(row) = value.as_object() {
+            if row.len() != 2 {
+                return None;
+            }
+            let index = u8::try_from(row.get("index")?.as_u64()?).ok()?;
+            let form = match row.get("form")?.as_str()? {
+                "Combined" => VariableReceiverOperandForm::Combined,
+                "TraceSubject" => VariableReceiverOperandForm::TraceSubject,
+                _ => return None,
+            };
+            (index, form)
+        } else {
+            (
+                u8::try_from(value.as_u64()?).ok()?,
+                VariableReceiverOperandForm::Combined,
+            )
+        };
+        if selected.iter().any(|&(previous, _)| previous == index) {
+            return None;
+        }
+        selected.push((index, form));
+    }
+    Some(selected)
+}
+
 fn opt_str(value: Option<&'static str>) -> Value {
     value.map_or(Value::Null, |s| json!(s))
 }
@@ -190,6 +228,7 @@ fn taint(value: Option<TaintColour>) -> Value {
 pub(crate) fn arity(value: Arity) -> Value {
     json!({
         "min": value.min,
+        "count": value.count.as_str(),
         "max": if value.is_unlimited() { Value::Null } else { json!(value.max) },
         "step": value.step,
         "also_exact": value.also_exact.map_or(Value::Null, |n| json!(n)),
@@ -262,6 +301,30 @@ fn role_map(entries: &[(u8, ArgRole)]) -> Value {
             .map(|(i, role)| json!({ "index": i, "role": catalogue::variant_name(role) }))
             .collect(),
     )
+}
+
+fn variable_receiver_positions(
+    receivers: Option<
+        &[(
+            u8,
+            tcl_registry::resolved_invocation::VariableReceiverOperandForm,
+        )],
+    >,
+) -> Value {
+    use tcl_registry::resolved_invocation::VariableReceiverOperandForm;
+    receivers.map_or(Value::Null, |receivers| {
+        Value::Array(
+            receivers
+                .iter()
+                .map(|&(index, form)| match form {
+                    VariableReceiverOperandForm::Combined => json!(index),
+                    VariableReceiverOperandForm::TraceSubject => {
+                        json!({ "index": index, "form": "TraceSubject" })
+                    }
+                })
+                .collect(),
+        )
+    })
 }
 
 fn role_list(entries: &[ArgRole]) -> Value {
@@ -658,6 +721,7 @@ pub fn definition_body_block(grammar: &DefinitionBodyGrammar) -> Value {
         family,
         members,
         implicit_vars,
+        implicit_receiver_vars,
         member_body_namespace_path,
         builtin_type_methods,
         builtin_object_methods,
@@ -665,6 +729,7 @@ pub fn definition_body_block(grammar: &DefinitionBodyGrammar) -> Value {
         member_body_commands,
         bare_word_construction,
         bare_word_construction_hint,
+        bare_word_construction_source_hint,
         dynamic_method_dispatch,
         manufacturers,
         unknown_dispatch_method,
@@ -674,6 +739,7 @@ pub fn definition_body_block(grammar: &DefinitionBodyGrammar) -> Value {
         "family": catalogue::variant_name(family),
         "members": Value::Array(members.iter().map(member_spec).collect()),
         "implicit_vars": str_list(implicit_vars),
+        "implicit_receiver_vars": str_list(implicit_receiver_vars),
         "member_body_namespace_path": str_list(member_body_namespace_path),
         "builtin_type_methods": str_list(builtin_type_methods),
         "builtin_object_methods": Value::Array(
@@ -685,6 +751,7 @@ pub fn definition_body_block(grammar: &DefinitionBodyGrammar) -> Value {
         ),
         "bare_word_construction": bare_word_construction,
         "bare_word_construction_hint": bare_word_construction_hint.is_some(),
+        "bare_word_construction_source_hint": bare_word_construction_source_hint.map(|hint| json!({ "values": str_list(hint.values), "prefixes": str_list(hint.prefixes) })),
         "dynamic_method_dispatch": dynamic_method_dispatch,
         "manufacturers": Value::Array(manufacturers.iter().map(manufacturer_method).collect()),
         "unknown_dispatch_method": unknown_dispatch_method,
@@ -777,6 +844,7 @@ fn builtin_object_method(method: &BuiltinObjectMethod) -> Value {
         "name": method.name,
         "visibility": catalogue::variant_name(&method.visibility),
         "receiver": catalogue::variant_name(&method.receiver),
+        "operation": method.operation.as_ref().map(catalogue::variant_name),
         "detail": method.detail,
     })
 }
@@ -901,10 +969,16 @@ pub(crate) fn hover(value: Option<HoverSnippet>) -> Value {
 
 pub(crate) fn sub_subcommand(sub: &SubSubCommand) -> (Value, bool) {
     let mut d = Map::new();
+    d.insert("option_prefix_words".into(), json!(sub.option_prefix_words));
     d.insert("name".into(), json!(sub.name));
     d.insert("detail".into(), json!(sub.detail));
     d.insert("synopsis".into(), json!(sub.synopsis));
     d.insert("surface".into(), dialects(sub.surface));
+    d.insert(
+        "native_compilation".into(),
+        sub.native_compilation
+            .map_or(Value::Null, |_| json!("excluded native worker proof")),
+    );
     let mut lost = Unrecovered::default();
     // `null` — declares nothing, inherits the subcommand's table — is a
     // different draft value from `[]`, which declares that there are no
@@ -914,7 +988,9 @@ pub(crate) fn sub_subcommand(sub: &SubSubCommand) -> (Value, bool) {
         sub.options
             .map_or(Value::Null, |options| option_rows(options, &mut lost)),
     );
-    let complete = insert_lifecycle(&mut d, sub.lifecycle) && lost.is_empty();
+    let complete = insert_lifecycle(&mut d, sub.lifecycle)
+        && lost.is_empty()
+        && sub.native_compilation.is_none();
     (Value::Object(d), complete)
 }
 
@@ -957,6 +1033,9 @@ fn return_elements_expr(value: ReturnElements) -> String {
 /// The Rust expression for a [`VarElementsEffect`], wrapped in `Some(…)`.
 fn var_elements_effect_expr(value: VarElementsEffect) -> String {
     let inner = match value {
+        VarElementsEffect::SetsArrayElementsFromList { values_at } => {
+            format!("SetsArrayElementsFromList {{ values_at: {values_at} }}")
+        }
         VarElementsEffect::AppendsListElements { values_from } => {
             format!("AppendsListElements {{ values_from: {values_from} }}")
         }
@@ -1171,6 +1250,34 @@ fn versioned_arg_values_expr(gates: &[VersionedArgValue]) -> Option<String> {
 fn representation_effect_expr(effect: RepresentationEffect) -> String {
     match effect {
         RepresentationEffect::None => "Some(RepresentationEffect::None)".to_owned(),
+        RepresentationEffect::CoerceExpressionValues { arguments_from } => format!(
+            "Some(RepresentationEffect::CoerceExpressionValues {{ arguments_from: {arguments_from} }})"
+        ),
+        RepresentationEffect::CoerceNumericValues { arguments_from } => format!(
+            "Some(RepresentationEffect::CoerceNumericValues {{ arguments_from: {arguments_from} }})"
+        ),
+        RepresentationEffect::CoerceOrdinaryList { operand } => {
+            format!("Some(RepresentationEffect::CoerceOrdinaryList {{ operand: {operand} }})")
+        }
+        RepresentationEffect::CoerceOrdinaryDictionary { operand } => {
+            format!("Some(RepresentationEffect::CoerceOrdinaryDictionary {{ operand: {operand} }})")
+        }
+        RepresentationEffect::CoerceOrdinaryListPairs { variables_from } => format!(
+            "Some(RepresentationEffect::CoerceOrdinaryListPairs {{ variables_from: {variables_from} }})"
+        ),
+        RepresentationEffect::CoerceOrdinaryListIndices {
+            operand,
+            indices_from,
+        } => format!(
+            "Some(RepresentationEffect::CoerceOrdinaryListIndices {{ operand: {operand}, indices_from: {indices_from} }})"
+        ),
+        RepresentationEffect::CoerceOrdinaryListRange {
+            operand,
+            first,
+            last,
+        } => format!(
+            "Some(RepresentationEffect::CoerceOrdinaryListRange {{ operand: {operand}, first: {first}, last: {last} }})"
+        ),
         RepresentationEffect::CopyOnWriteContainerMutation {
             variable_arg,
             minimum_arguments,
@@ -1343,6 +1450,9 @@ pub fn from_subcommand(sub: &SubCommand) -> Draft {
 }
 
 fn subcommand_body(sub: &SubCommand, lost: &mut Unrecovered) -> Draft {
+    if sub.source_package_query.is_some() {
+        lost.note("source_package_query");
+    }
     let mut d = Map::new();
     subcommand_identity(&mut d, sub, lost);
     subcommand_types(&mut d, sub);
@@ -1362,6 +1472,10 @@ fn subcommand_identity(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) 
     d.insert("hover".into(), hover(sub.hover));
     d.insert("arg_roles".into(), role_map(sub.arg_roles));
     d.insert(
+        "variable_receivers".into(),
+        variable_receiver_positions(sub.variable_receivers),
+    );
+    d.insert(
         "arg_presentation".into(),
         presentation_map(sub.arg_presentation),
     );
@@ -1374,6 +1488,20 @@ fn subcommand_identity(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) 
     d.insert(
         "arg_role_resolver".into(),
         lost.expr("arg_role_resolver", sub.arg_role_resolver.is_some()),
+    );
+    d.insert(
+        "arg_role_count_resolver".into(),
+        lost.expr(
+            "arg_role_count_resolver",
+            sub.arg_role_count_resolver.is_some(),
+        ),
+    );
+    d.insert(
+        "arg_role_layout_resolver".into(),
+        lost.expr(
+            "arg_role_layout_resolver",
+            sub.arg_role_layout_resolver.is_some(),
+        ),
     );
     d.insert(
         "arg_role_resolver_roles".into(),
@@ -1610,6 +1738,10 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         lost.expr("result_stability", sub.result_stability.is_some()),
     );
     d.insert(
+        "native_result".into(),
+        lost.expr("native_result", sub.native_result.is_some()),
+    );
+    d.insert(
         "constraints".into(),
         lost.expr("constraints", sub.constraints.is_some()),
     );
@@ -1661,6 +1793,10 @@ fn command_form(form: &CommandForm, lost: &mut Unrecovered) -> (Value, bool) {
         }),
     );
     d.insert("arg_roles".into(), role_map(form.arg_roles));
+    d.insert(
+        "variable_receivers".into(),
+        variable_receiver_positions(form.variable_receivers),
+    );
     d.insert("options".into(), option_rows(form.options, lost));
     d.insert(
         "option_relations".into(),
@@ -1699,14 +1835,27 @@ fn command_form(form: &CommandForm, lost: &mut Unrecovered) -> (Value, bool) {
     );
     // What is left of the descriptor is native: a compiler proof or a
     // function pointer, with no expression to recover.
-    let native = form.semantic_operation.is_some()
+    if form.source_package_query.is_some() {
+        lost.note("source_package_query");
+    }
+    let native = form.source_package_query.is_some()
+        || form.semantic_operation.is_some()
         || form.completion.is_some()
         || form.result_stability.is_some()
+        || form.native_result.is_some()
         || form.world_effects.is_some()
         || form.state_transitions.is_some()
         || form.dispatch_dependencies.is_some()
         || form.literal_argument_validator.is_some();
-    (Value::Object(d), !native)
+    let value_overrides = form.return_type.is_some()
+        || form.arg_types.is_some()
+        || form.byte_array_effect.is_some()
+        || form.var_elements_effect.is_some()
+        || form.safe_on_uninit.is_some();
+    if value_overrides {
+        lost.note("form_value_effects");
+    }
+    (Value::Object(d), !native && !value_overrides)
 }
 
 fn option_rows(options: &[OptionSpec], lost: &mut Unrecovered) -> Value {
@@ -1753,12 +1902,56 @@ fn subcommand_option_surface(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecov
     );
 }
 
+/// Reflect the selected body and handler contracts together, so a subcommand
+/// draft cannot retain body metadata while omitting its execution policy.
+fn subcommand_execution_fields(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
+    d.insert(
+        "body_kind".into(),
+        json!(catalogue::variant_name(&sub.body_kind)),
+    );
+    d.insert(
+        "script_lookup_scope".into(),
+        sub.script_lookup_scope
+            .map_or(Value::Null, |scope| json!(catalogue::variant_name(&scope))),
+    );
+    d.insert(
+        "body_execution".into(),
+        lost.expr("body_execution", sub.body_execution.is_some()),
+    );
+    d.insert(
+        "native_compilation".into(),
+        lost.expr("native_compilation", sub.native_compilation.is_some()),
+    );
+    d.insert(
+        "successful_handler".into(),
+        sub.successful_handler.map_or(Value::Null, |contract| {
+            json!(format!(
+                "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::{contract:?})"
+            ))
+        }),
+    );
+    d.insert(
+        "body_interpreter".into(),
+        body_interpreter(sub.body_interpreter),
+    );
+    d.insert(
+        "byte_array_effect".into(),
+        json!(catalogue::variant_name(&sub.byte_array_effect)),
+    );
+}
+
+#[allow(clippy::too_many_lines)]
 fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     subcommand_option_surface(d, sub, lost);
     d.insert("min_abbrev".into(), opt_index(sub.min_abbrev));
     d.insert(
         "prefix_matching".into(),
         json!(catalogue::variant_name(&sub.prefix_matching)),
+    );
+    d.insert("option_prefix_words".into(), json!(sub.option_prefix_words));
+    d.insert(
+        "reserved_trailing_words".into(),
+        json!(sub.reserved_trailing_words),
     );
     d.insert("arg_values".into(), arg_value_map(sub.arg_values, lost));
     let versioned_arg_values = if sub.versioned_arg_values.is_empty() {
@@ -1786,18 +1979,7 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         sub.inferred_storage_type
             .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
     );
-    d.insert(
-        "body_kind".into(),
-        json!(catalogue::variant_name(&sub.body_kind)),
-    );
-    d.insert(
-        "body_interpreter".into(),
-        body_interpreter(sub.body_interpreter),
-    );
-    d.insert(
-        "byte_array_effect".into(),
-        json!(catalogue::variant_name(&sub.byte_array_effect)),
-    );
+    subcommand_execution_fields(d, sub, lost);
     d.insert(
         "closed_value_args".into(),
         index_list(sub.closed_value_args),
@@ -1821,6 +2003,12 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         taint(sub.taint_double_encode_colour),
     );
     d.insert("taint_output_sink".into(), opt_str(sub.taint_output_sink));
+    d.insert(
+        "channel_configuration".into(),
+        sub.channel_configuration.map_or(Value::Null, |descriptor| {
+            json!(catalogue::variant_name(&descriptor))
+        }),
+    );
     d.insert("credential_arg".into(), opt_index(sub.credential_arg));
     d.insert("sensitive_headers".into(), str_list(sub.sensitive_headers));
     d.insert(
@@ -1839,6 +2027,25 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     );
     d.insert("destructive".into(), json!(sub.destructive));
     d.insert("returns_path".into(), json!(sub.returns_path));
+    d.insert(
+        "source_index_bounds".into(),
+        sub.source_index_bounds.map_or(Value::Null, |operation| {
+            json!(catalogue::variant_name(&operation))
+        }),
+    );
+    d.insert(
+        "source_path_operation".into(),
+        sub.source_path_operation.map_or(Value::Null, |operation| {
+            json!(catalogue::variant_name(&operation))
+        }),
+    );
+    d.insert(
+        "source_configuration_reference".into(),
+        sub.source_configuration_reference
+            .map_or(Value::Null, |layout| {
+                json!(catalogue::variant_name(&layout))
+            }),
+    );
     d.insert("is_unescape".into(), json!(sub.is_unescape));
     d.insert("cfg_rewrite_name".into(), opt_str(sub.cfg_rewrite_name));
     d.insert(
@@ -1884,6 +2091,10 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert("arity_windows".into(), arity_windows(spec.arity_windows));
     d.insert("arg_roles".into(), role_map(spec.arg_roles));
     d.insert(
+        "variable_receivers".into(),
+        variable_receiver_positions(spec.variable_receivers),
+    );
+    d.insert(
         "arg_presentation".into(),
         presentation_map(spec.arg_presentation),
     );
@@ -1896,6 +2107,20 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "arg_role_resolver".into(),
         lost.expr("arg_role_resolver", spec.arg_role_resolver.is_some()),
+    );
+    d.insert(
+        "arg_role_count_resolver".into(),
+        lost.expr(
+            "arg_role_count_resolver",
+            spec.arg_role_count_resolver.is_some(),
+        ),
+    );
+    d.insert(
+        "arg_role_layout_resolver".into(),
+        lost.expr(
+            "arg_role_layout_resolver",
+            spec.arg_role_layout_resolver.is_some(),
+        ),
     );
     d.insert(
         "arg_role_resolver_roles".into(),
@@ -2030,6 +2255,7 @@ fn command_docs(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
 }
 
 /// Constant folders, compiler / analyser hooks, and effects.
+#[allow(clippy::too_many_lines)]
 fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "const_fold".into(),
@@ -2110,8 +2336,18 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         lost.expr("result_stability", spec.result_stability.is_some()),
     );
     d.insert(
+        "native_result".into(),
+        lost.expr("native_result", spec.native_result.is_some()),
+    );
+    d.insert(
         "constraints".into(),
         lost.expr("constraints", spec.constraints.is_some()),
+    );
+    d.insert(
+        "source_index_bounds".into(),
+        spec.source_index_bounds.map_or(Value::Null, |operation| {
+            json!(catalogue::variant_name(&operation))
+        }),
     );
     d.insert(
         "literal_argument_validator".into(),
@@ -2162,6 +2398,11 @@ fn command_irules_events(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecover
         lost.expr("data_collection", spec.data_collection.is_some()),
     );
     d.insert(
+        "irules_source_flow".into(),
+        spec.irules_source_flow
+            .map_or(Value::Null, |flow| json!(catalogue::variant_name(&flow))),
+    );
+    d.insert(
         "side_switch_target".into(),
         lost.expr("side_switch_target", spec.side_switch_target.is_some()),
     );
@@ -2207,6 +2448,10 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "closed_value_args".into(),
         index_list(spec.closed_value_args),
     );
+    d.insert(
+        "arg_values_accept_prefix".into(),
+        json!(spec.arg_values_accept_prefix),
+    );
     command_irules_events(d, spec, lost);
     d.insert("options".into(), option_rows(spec.options, lost));
     let option_relations = if spec.option_relations.is_empty() {
@@ -2222,6 +2467,10 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         json!(option_effect_families_expr(spec.option_effect_families))
     };
     d.insert("option_effect_families".into(), option_effect_families);
+    d.insert(
+        "option_prefix_words".into(),
+        json!(spec.option_prefix_words),
+    );
     d.insert(
         "reserved_trailing_words".into(),
         json!(spec.reserved_trailing_words),
@@ -2239,6 +2488,31 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "body_kind".into(),
         json!(catalogue::variant_name(&spec.body_kind)),
+    );
+    d.insert(
+        "script_lookup_scope".into(),
+        spec.script_lookup_scope
+            .map_or(Value::Null, |scope| json!(catalogue::variant_name(&scope))),
+    );
+    d.insert(
+        "body_execution".into(),
+        lost.expr("body_execution", spec.body_execution.is_some()),
+    );
+    d.insert(
+        "procedure_definition".into(),
+        lost.expr("procedure_definition", spec.procedure_definition.is_some()),
+    );
+    d.insert(
+        "native_compilation".into(),
+        lost.expr("native_compilation", spec.native_compilation.is_some()),
+    );
+    d.insert(
+        "successful_handler".into(),
+        spec.successful_handler.map_or(Value::Null, |contract| {
+            json!(format!(
+                "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::{contract:?})"
+            ))
+        }),
     );
     d.insert(
         "body_interpreter".into(),
@@ -2293,6 +2567,13 @@ fn command_taint(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "taint_sink_gate".into(),
         lost.expr("taint_sink_gate", spec.taint_sink_gate.is_some()),
+    );
+    d.insert(
+        "channel_configuration".into(),
+        spec.channel_configuration
+            .map_or(Value::Null, |descriptor| {
+                json!(catalogue::variant_name(&descriptor))
+            }),
     );
     d.insert(
         "credential_options".into(),
@@ -2357,6 +2638,13 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "deprecated_replacement".into(),
         opt_str(spec.deprecated_replacement),
+    );
+    d.insert(
+        "source_deprecation_advice".into(),
+        spec.source_deprecation_advice
+            .map_or(Value::Null, |advice| {
+                json!(catalogue::variant_name(&advice))
+            }),
     );
     d.insert(
         "deprecated_replacement_drop_in".into(),

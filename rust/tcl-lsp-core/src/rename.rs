@@ -16,71 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Rename provider.
+//! Rename plans for current original symbols and explicit lexical compatibility.
 //!
-//! Computes a workspace edit that renames the symbol at the
-//! cursor across the current document.  Handles:
+//! Native namespace, variable, command and member selection uses the shared
+//! typed owners. Plans require current source/configuration, complete occurrence
+//! coverage, unoccupied replacements and independently validated edit geometry.
+//! Missing identity or coverage refuses the entire edit set.
 //!
-//! * `$var` references → rewrite the `VarDef.definition_span`
-//!   and every `VarDef.references` span to the new name.
-//! * proc references → rewrite `ProcDef.name_span` and every
-//!   matching command-invocation head to the new name.
-//!
-//! With **safety gating**: the caller may pass a
-//! [`tcl_registry::CommandRegistry`].  When provided, the new
-//! name is validated against:
-//!
-//! * `is_safe_symbol_name(name)` — must match
-//!   `^[A-Za-z_][A-Za-z0-9_]*$`.  Applies to every rename
-//!   target.
-//! * `is_builtin_command_name(name, registry)` — proc renames
-//!   refuse to overwrite a built-in command name.
-//!
-//! When the new name fails either check, [`rename`] returns an
-//! empty `Vec<TextEdit>` so the editor refuses the rename
-//! rather than producing a partial edit set.
-//!
-//! Class renames are also supported: when the cursor sits on a
-//! `oo::class create ClassName` declaration name (or on any
-//! `ClassName new` / `ClassName create instance` invocation
-//! head), the provider rewrites the declaration's name span
-//! and every invocation that targets the class.  The same
-//! `is_safe_symbol_name` / `is_builtin_command_name` gates
-//! apply.
-//!
-//! Method / classmethod / property renames: when
-//! the cursor sits on a member name inside the class body
-//! (either at the declaration or at a call site), the
-//! provider rewrites the declaration's name span plus every
-//! same-name command invocation inside the class body, **and**
-//! every external `$obj method` / `[$obj method]` call site
-//! where `$obj`'s class (per `analysis.instance_classes`)
-//! matches.  Renaming can also be triggered from an external
-//! call site.  See [`crate::references::find_obj_method_call_sites`]
-//! for the external-site scan's coverage.
-//!
-//! Cross-document rename: procs and classes rewrite their sibling-document
-//! call / definition sites via [`cross_document_symbol_edits`] over the
-//! workspace index.  **Methods** rename across their whole override family,
-//! including sibling documents: the server resolves the family via
-//! [`crate::workspace_index::WorkspaceIndex::method_override_family`] and
-//! calls [`method_spans_in_document`] per family-member document.
-//! [`method_rename_target`] identifies the seed class + method under the
-//! cursor for that path.
-//!
-//! Limitations:
-//!
-//! * A `$obj method` site is only rewritten in a document that also
-//!   *defines* the receiver's class — the same single-document constraint
-//!   under which the analyser resolves `$obj`'s class at all.  A `$obj
-//!   method` call in a file that only *uses* a class (never defines it) is
-//!   not resolvable, so it is neither found nor (mis)renamed.
-//! * `$obj method` sites embedded in quoted / word tokens
-//!   (`"prefix[$d bark]"`) — the external scan descends into
-//!   command-substitution args and proc / method bodies but
-//!   not into string interpolation.
+//! Lexical compatibility uses separate ASCII-name and builtin-collision gates.
+//! The server validates every participating document before combining shared
+//! plans; an empty result and an explicit safety refusal remain distinct.
 
-use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
@@ -129,23 +75,6 @@ pub fn is_builtin_command_name(name: &str, registry: &CommandRegistry) -> bool {
     registry.command_names().any(|n| n == name)
 }
 
-/// Compute the text edits for a rename of the symbol at the
-/// cursor.
-///
-/// Returns an empty vector when no recognisable symbol is at
-/// the position, the new name fails the safety gate, or a
-/// proc rename would shadow a built-in command.  The caller
-/// (server) is responsible for wrapping the output in a
-/// `WorkspaceEdit { changes: { uri: edits } }`.
-///
-/// `registry`, when `Some`, enables safety
-/// gating:
-///
-/// * Every rename target rejects new names that don't match
-///   `is_safe_symbol_name` — invalid syntax is refused.
-/// * Proc renames additionally refuse names registered as
-///   built-in commands via [`is_builtin_command_name`].
-///
 /// Result of [`prepare_rename`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrepareRename {
@@ -213,7 +142,74 @@ pub fn prepare_rename_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Option<PrepareRename> {
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let line_index = LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if crate::definition::program_forced_import_abstains(analysis, resolution.program, cursor) {
+        return None;
+    }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::namespace_symbol::select_at_offset(source, analysis, cursor)
+    {
+        selected?;
+        let span = crate::namespace_rename::original_namespace_rename_span_at_offset(
+            source, analysis, cursor,
+        )?;
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, span),
+            placeholder: source.get(span.as_range())?.to_owned(),
+        });
+    }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::variable_symbol::select(source, analysis, line, character)
+    {
+        let occurrence = selected?;
+        if !analysis.original_variable_rename_is_complete(occurrence.symbol()) {
+            return None;
+        }
+        let span = occurrence.rename_span()?;
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, span),
+            placeholder: source.get(span.as_range())?.to_owned(),
+        });
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        let std::ops::ControlFlow::Break(Some(identity)) =
+            crate::original_declaration::select_at_offset("", source, analysis, cursor)
+        else {
+            return None;
+        };
+        let document = crate::original_declaration::OriginalDeclarationDocument {
+            uri: "",
+            source,
+            analysis,
+        };
+        let span = if matches!(
+            identity.role(),
+            crate::original_declaration::OriginalDeclarationRole::Method(_)
+        ) {
+            crate::original_member_rename::original_member_prepare_span(document, &identity, cursor)
+                .ok()?
+        } else {
+            crate::original_command_rename::original_command_prepare_span(
+                document, &identity, cursor,
+            )
+            .ok()?
+        };
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, span),
+            placeholder: source.get(span.as_range())?.to_owned(),
+        });
+    }
+    if crate::receiver_identity::definition_reference_at_cursor(analysis, source, cursor).is_some()
+    {
+        let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor)?;
+        let span = selected.editable_selector()?;
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, span),
+            placeholder: selected.method.name.clone(),
+        });
+    }
     // A namespace name is renameable, and the check must come
     // first: the word resolvers below would otherwise anchor prepare on a
     // same-spelled proc or class in a completely different place in the file.
@@ -241,18 +237,13 @@ pub fn prepare_rename_in_program(
     let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some(var_name) = crate::definition::substituting_var_at_position(
         source,
-        crate::profile_for_dialect(""),
+        analysis,
         line,
         character,
         byte_offset,
-    ) && let Some(var_def) = crate::definition::lookup_var_read_at(
-        &analysis.global_scope,
-        source,
-        crate::profile_for_dialect(""),
-        byte_offset,
-        &var_name,
-        analysis.ns_var_global_fallback(),
-    ) {
+    ) && let Some(var_def) =
+        crate::definition::lookup_var_read_at(analysis, source, byte_offset, &var_name)
+    {
         return Some(PrepareRename {
             range: span_to_range(source, &line_index, var_def.definition_span),
             placeholder: var_def.name.clone(),
@@ -303,45 +294,22 @@ pub fn prepare_rename_in_program(
             placeholder: word.clone(),
         });
     }
-    // External `$obj method` call site — editors that gate the
-    // rename UI on `prepare_rename` should still see it as
-    // renameable.  Resolve `$obj`'s class and confirm a method
-    // of that name exists.
-    if let Some((inst, method, is_dollar)) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        crate::definition::dialect_config(analysis),
-    ) && let Some(class_q) =
-        crate::definition::receiver_instance_class_at(analysis, &inst, is_dollar, cursor_offset)
-        && let Some(class_def) = analysis.all_classes.get(class_q)
+    if let Some(selected) =
+        crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)
+        && let Some(selector) = selected.editable_selector()
     {
-        let member = class_def
-            .methods
-            .get(&method)
-            .or_else(|| class_def.class_methods.get(&method));
-        if let Some(m) = member {
-            // Anchor the placeholder range on the call
-            // site's method token so the editor's rename
-            // box opens where the cursor is.
-            let (_, mstart, mend) = find_word_span_at_position(source, line, character)?;
-            return Some(PrepareRename {
-                range: LspRange {
-                    start_line: line,
-                    start_character: mstart,
-                    end_line: line,
-                    end_character: mend,
-                },
-                placeholder: m.name.clone(),
-            });
-        }
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, selector),
+            placeholder: selected.method.name.clone(),
+        });
     }
     None
 }
 
 /// Compute rename text edits.
 ///
-/// See module-level docs for the dispatch order (variable → proc → class).
+/// Explicit safety refusals become an empty edit set; use
+/// [`rename_with_diagnosis`] when the caller needs the refusal reason.
 #[must_use]
 pub fn rename(
     source: &str,
@@ -400,6 +368,41 @@ fn pre_edit_refusal(
     })
 }
 
+/// A variable a TclOO class declares with `variable NAME` is linked into
+/// every method body (tclsh `8.6`/`9.0`: `oo::class create C {variable n; method
+/// get {} {return $n}; method set {x} {set n $x}}` shares one `n` per object).
+/// The original variable symbol of a method-body read does not yet unify the
+/// class declaration and the other methods' uses, so renaming it would edit
+/// one occurrence and break the program; the rename is refused instead.
+fn class_variable_rename_refusal(
+    source: &str,
+    analysis: &AnalysisResult,
+    occurrence: &tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+    line_index: &LineIndex,
+) -> Option<crate::rename_safety::RenameRefusal> {
+    let span = occurrence.span();
+    let name = source.get(span.as_range())?;
+    let name = name.strip_prefix('$').unwrap_or(name);
+    let name = name
+        .strip_prefix('{')
+        .and_then(|inner| inner.strip_suffix('}'))
+        .unwrap_or(name);
+    // Inside the class body every method shares the declared variable, and
+    // the `variable NAME` declaration itself is one of its occurrences.
+    let declared = analysis.all_classes.values().any(|class| {
+        class.variables.iter().any(|variable| variable == name)
+            && class.body_span.start() <= span.start()
+            && span.end() <= class.body_span.end()
+    });
+    declared.then(|| crate::rename_safety::RenameRefusal {
+        reason: format!(
+            "cannot rename `{name}`: it is a class-declared variable linked into every method, \
+             and its declaration and other method uses are not yet one symbol"
+        ),
+        range: Some(span_to_range(source, line_index, span)),
+    })
+}
+
 /// [`rename`], but reporting *why* a rename was refused.
 ///
 /// `Err(refusal)` means the cursor names a real, resolvable symbol whose
@@ -448,6 +451,11 @@ pub fn rename_with_diagnosis(
 ///
 /// `resolution` carries the registry and the oracle together, which also keeps
 /// this entry point at [`rename_with_diagnosis`]'s arity.
+///
+/// A call whose `-force` shadow only the whole-program view decides is never
+/// edited (user decision 2026-10-22T07:18Z, `force_import_shadow_direction`):
+/// [`references_in_program`](crate::references::references_in_program) omits
+/// it, so a rename whose edit set would touch it is refused as a whole.
 pub fn rename_in_program(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -457,11 +465,193 @@ pub fn rename_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal> {
-    // Shape gate first — applies to every rename target.
+    let edits = rename_in_program_unchecked(
+        source, dialect, line, character, new_name, analysis, resolution,
+    )?;
+    let line_index = LineIndex::new(source);
+    if resolution.program.is_some()
+        && let Some(edit) = edits.iter().find(|edit| {
+            crate::definition::program_forced_import_abstains(
+                analysis,
+                resolution.program,
+                crate::definition::byte_offset_at(
+                    &line_index,
+                    source,
+                    edit.range.start_line,
+                    edit.range.start_character,
+                ),
+            )
+        })
+    {
+        return Err(crate::rename_safety::RenameRefusal {
+            reason: FORCE_IMPORT_CONDITIONAL.to_owned(),
+            range: Some(edit.range),
+        });
+    }
+    // One settlement for both providers (review N05): a rename never edits an
+    // occurrence that find-references from the same cursor does not report as
+    // the same binding — e.g. a call a later `namespace import -force`
+    // retargets. Any such edit refuses the whole rename.
+    if !edits.is_empty() {
+        let references = crate::references::references_in_program(
+            source,
+            dialect,
+            line,
+            character,
+            analysis,
+            true,
+            resolution.program,
+        );
+        let offset = |line: u32, character: u32| {
+            crate::definition::byte_offset_at(&line_index, source, line, character)
+        };
+        let covered = |edit: &TextEdit| {
+            let start = offset(edit.range.start_line, edit.range.start_character);
+            let end = offset(edit.range.end_line, edit.range.end_character);
+            // The same occurrence: the edit and a reported reference overlap
+            // (a variable edit may also cover its `$`).
+            references.iter().any(|reference| {
+                let reference_start = offset(reference.start_line, reference.start_character);
+                let reference_end = offset(reference.end_line, reference.end_character);
+                start < reference_end.max(reference_start + 1)
+                    && reference_start < end.max(start + 1)
+            })
+        };
+        if let Some(edit) = edits.iter().find(|edit| !covered(edit)) {
+            return Err(crate::rename_safety::RenameRefusal {
+                reason: "unreferenced-edit: an edit falls outside the occurrences \
+                         find-references reports for this binding"
+                    .to_owned(),
+                range: Some(edit.range),
+            });
+        }
+    }
+    Ok(edits)
+}
+
+const FORCE_IMPORT_CONDITIONAL: &str = "force-import-shadow-conditional: a sibling document's \
+     export decides this call only under a cross-document execution order that is not proven";
+
+fn rename_in_program_unchecked(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    line: u32,
+    character: u32,
+    new_name: &str,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+) -> Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Err(crate::rename_safety::RenameRefusal {
+            reason: "source analysis does not match the current document and input".to_owned(),
+            range: None,
+        });
+    }
+    let line_index = LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if crate::definition::program_forced_import_abstains(analysis, resolution.program, cursor) {
+        return Err(crate::rename_safety::RenameRefusal {
+            reason: FORCE_IMPORT_CONDITIONAL.to_owned(),
+            range: None,
+        });
+    }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::namespace_symbol::select_at_offset(source, analysis, cursor)
+    {
+        let symbol = selected.ok_or_else(|| crate::rename_safety::RenameRefusal {
+            reason: "cannot prove the original namespace selected by this occurrence".to_owned(),
+            range: None,
+        })?;
+        return crate::namespace_rename::original_namespace_rename_edits(
+            source, dialect, analysis, &symbol, new_name,
+        );
+    }
+    // The new-name shape gate applies to every variable and command tier,
+    // including the original-input ones below; only a namespace path keeps
+    // its own `::`-separated grammar above.
     if !is_safe_symbol_name(new_name) {
         return Ok(Vec::new());
     }
-    let line_index = LineIndex::new(source);
+    // A variable whose name can only be written quoted (`set {$n} 1`) is
+    // refused before any variable tier: its occurrences carry delimiters the
+    // new name may not need, so no edit set is guessed.
+    if let Some(refusal) = crate::rename_safety::literal_name_variable_rename_refusal(
+        source,
+        line,
+        character,
+        analysis,
+        &line_index,
+    ) {
+        return Err(refusal);
+    }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::variable_symbol::select(source, analysis, line, character)
+    {
+        let occurrence = selected.ok_or_else(|| crate::rename_safety::RenameRefusal {
+            reason: "cannot prove the original variable selected by this occurrence".to_owned(),
+            range: None,
+        })?;
+        if let Some(refusal) =
+            class_variable_rename_refusal(source, analysis, occurrence, &line_index)
+        {
+            return Err(refusal);
+        }
+        return crate::variable_symbol::original_variable_rename_edits(
+            source,
+            analysis,
+            occurrence.symbol(),
+            new_name,
+        );
+    }
+    if let Some(refusal) = readonly_math_rename_refusal(source, analysis, cursor) {
+        return Err(refusal);
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        let std::ops::ControlFlow::Break(Some(identity)) =
+            crate::original_declaration::select_at_offset("", source, analysis, cursor)
+        else {
+            return Err(crate::rename_safety::RenameRefusal {
+                reason: "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits".to_owned(),
+                range: None,
+            });
+        };
+        let document = crate::original_declaration::OriginalDeclarationDocument {
+            uri: "",
+            source,
+            analysis,
+        };
+        let edits = if matches!(
+            identity.role(),
+            crate::original_declaration::OriginalDeclarationRole::Method(_)
+        ) {
+            crate::original_member_rename::original_member_rename_edits(
+                &[document],
+                &identity,
+                new_name,
+            )
+            .map_err(|refusal| crate::rename_safety::RenameRefusal {
+                reason: format!("{}: {}", refusal.code(), refusal.reason()),
+                range: Some(span_to_range(source, &line_index, identity.span())),
+            })?
+        } else {
+            crate::original_command_rename::original_command_rename_edits(
+                &[document],
+                &identity,
+                new_name,
+            )
+            .map_err(|refusal| crate::rename_safety::RenameRefusal {
+                reason: format!("{}: {}", refusal.code(), refusal.reason()),
+                range: Some(span_to_range(source, &line_index, identity.span())),
+            })?
+        };
+        return Ok(edits
+            .into_iter()
+            .map(|edit| TextEdit {
+                range: span_to_range(source, &line_index, edit.span),
+                new_text: edit.new_text,
+            })
+            .collect());
+    }
     if let Some(refusal) = pre_edit_refusal(
         source,
         dialect,
@@ -472,6 +662,12 @@ pub fn rename_in_program(
         &line_index,
     ) {
         return Err(refusal);
+    }
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if let Some(result) =
+        rename_definition_operand(source, dialect, analysis, &line_index, cursor, new_name)
+    {
+        return result;
     }
 
     // Namespace name first: the position is *definitive* (a proc or class of
@@ -499,7 +695,7 @@ pub fn rename_in_program(
         (&word, new_name),
         def_byte,
     ) {
-        return Ok(edits);
+        return edits;
     }
 
     if let Some(edits) = rename_named_command(
@@ -510,7 +706,7 @@ pub fn rename_in_program(
         (&word, new_name),
         def_byte,
     ) {
-        return Ok(edits);
+        return edits;
     }
     if let Some(edits) = rename_itcl_class_proc(
         source,
@@ -520,39 +716,31 @@ pub fn rename_in_program(
         analysis,
         &line_index,
     ) {
-        return Ok(edits);
+        return edits;
     }
-    // `$obj method` external call site — when the cursor sits
-    // on the method-name token of an instance-method call and
-    // `$obj`'s class is known, rename the method across its
-    // declaration + all call sites (intra-class + external).
-    if let Some((inst, method, is_dollar)) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        tcl_lexer::LexerConfig::for_profile(Some(dialect)),
-    ) && method == word
-        && let Some(class_q) = crate::definition::receiver_instance_class_at(
-            analysis,
-            &inst,
-            is_dollar,
-            crate::definition::byte_offset_at(&line_index, source, line, character),
-        )
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if let Some(selected) =
+        crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)
+        && selected.method.name == word
+        && selected.editable_selector().is_some()
+        && analysis
+            .all_classes
+            .get(&selected.class.qualified_name)
+            .is_some_and(|current| current.name_span == selected.class.name_span)
         && let Some(edits) = rename_method_in_class(
             source,
             dialect,
             (
-                class_q,
-                &method,
-                crate::definition::receiver_method_bucket(analysis, &inst, is_dollar)
-                    == crate::definition::MethodBucket::Class,
+                &selected.class.qualified_name,
+                &selected.method.name,
+                selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class,
             ),
             new_name,
             analysis,
             &line_index,
         )
     {
-        return Ok(edits);
+        return edits;
     }
     // Method rename — match `word` against any class's methods
     // / classmethods / properties at the cursor's byte offset.
@@ -568,29 +756,105 @@ pub fn rename_in_program(
     .map(Option::unwrap_or_default)
 }
 
+fn readonly_math_rename_refusal(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<crate::rename_safety::RenameRefusal> {
+    if analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
+    let refuse = || {
+        crate::rename_safety::RenameRefusal {
+        reason: "cannot rename this procedure atomically: its expression identifier references have no separately authorised edit owner".to_owned(),
+        range: None,
+    }
+    };
+    if let std::ops::ControlFlow::Break(Some(_)) =
+        crate::math_function_symbol::select_at_offset(source, analysis, cursor)
+    {
+        return Some(refuse());
+    }
+    let line_index = LineIndex::new(source);
+    let position = line_index.position_at_utf16(cursor, source);
+    let std::ops::ControlFlow::Break(Some(identity)) = crate::original_declaration::select(
+        "",
+        source,
+        analysis,
+        position.line,
+        position.character.get(),
+    ) else {
+        return None;
+    };
+    let declaration = identity.procedure_metadata(analysis)?;
+    match crate::math_function_symbol::procedure_references_in(
+        source,
+        analysis,
+        source,
+        analysis,
+        declaration,
+        true,
+    ) {
+        Some(references) if references.is_empty() => None,
+        Some(_) | None => Some(refuse()),
+    }
+}
+
+fn rename_definition_operand(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+    cursor: u32,
+    new_name: &str,
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
+    let reference =
+        crate::receiver_identity::definition_reference_at_cursor(analysis, source, cursor)?;
+    let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor);
+    let edits = selected
+        .filter(|selected| {
+            selected.editable_selector().is_some()
+                && analysis
+                    .all_classes
+                    .get(&selected.class.qualified_name)
+                    .is_some_and(|current| current.name_span == selected.class.name_span)
+        })
+        .and_then(|selected| {
+            rename_method_in_class(
+                source,
+                dialect,
+                (
+                    &selected.class.qualified_name,
+                    &selected.method.name,
+                    selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class,
+                ),
+                new_name,
+                analysis,
+                line_index,
+            )
+        });
+    Some(edits.unwrap_or_else(|| Err(crate::rename_safety::RenameRefusal::at(
+        "cannot rename this metadata operand: its original method declaration is unavailable for a complete edit.".to_owned(),
+        source, line_index, Some(reference.name_span()),
+    ))))
+}
+
 fn prepare_list_built_self_method_rename(
     source: &str,
-    line: u32,
-    word_range: (u32, u32),
+    _line: u32,
+    _word_range: (u32, u32),
     analysis: &AnalysisResult,
     word: &str,
     cursor_offset: u32,
 ) -> Option<PrepareRename> {
-    crate::references::list_built_self_method_target_at_cursor(
-        source,
-        crate::profile_for_dialect(&analysis.dialect),
-        analysis,
-        word,
-        cursor_offset,
-    )?;
+    let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)?;
+    if selected.method.name != word {
+        return None;
+    }
+    let selector = selected.editable_selector()?;
     Some(PrepareRename {
-        range: LspRange {
-            start_line: line,
-            start_character: word_range.0,
-            end_line: line,
-            end_character: word_range.1,
-        },
-        placeholder: word.to_owned(),
+        range: span_to_range(source, &LineIndex::new(source), selector),
+        placeholder: selected.method.name.clone(),
     })
 }
 
@@ -601,7 +865,7 @@ fn rename_list_built_self_method(
     line_index: &LineIndex,
     names: (&str, &str),
     cursor_offset: u32,
-) -> Option<Vec<TextEdit>> {
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
     let (word, new_name) = names;
     let (provider, is_classmethod) = crate::references::list_built_self_method_target_at_cursor(
         source,
@@ -636,8 +900,13 @@ fn prepare_named_command_rename(
             placeholder: proc_def.name.clone(),
         });
     }
-    let (_, class_def) =
-        crate::definition::resolve_class_target_at(analysis, resolution, cursor_offset, word)?;
+    let (_, class_def) = crate::definition::resolve_class_target_at(
+        analysis,
+        source,
+        resolution,
+        cursor_offset,
+        word,
+    )?;
     Some(PrepareRename {
         range: span_to_range(source, line_index, class_def.name_span),
         placeholder: class_def.name.clone(),
@@ -651,7 +920,7 @@ fn rename_named_command(
     line_index: &LineIndex,
     names: (&str, &str),
     cursor_offset: u32,
-) -> Option<Vec<TextEdit>> {
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
     let (word, new_name) = names;
     rename_proc(
         source,
@@ -714,7 +983,7 @@ fn gated_untargeted_member_rename(
     {
         return Err(refusal);
     }
-    Ok(rename_method(
+    rename_method(
         source,
         dialect,
         word,
@@ -722,7 +991,8 @@ fn gated_untargeted_member_rename(
         analysis,
         cursor_offset,
         line_index,
-    ))
+    )
+    .transpose()
 }
 
 /// The refusal for a cursor sitting on a **namespace name** — a word the
@@ -865,6 +1135,9 @@ pub fn untargeted_member_rename_target(
     word: &str,
     cursor_offset: u32,
 ) -> Option<(String, String, bool)> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
     let class_q = crate::definition::enclosing_class_at(analysis, cursor_offset)?;
     let class_def = analysis.all_classes.get(class_q)?;
     let (kind, _span) = resolve_member_span(class_def, word, cursor_offset)?;
@@ -899,13 +1172,9 @@ fn rename_variable_at(
     // search, so it names the literal cell; the refusal gate in
     // `rename_with_diagnosis` has already stopped it before this point, but
     // resolving it correctly here keeps the two from disagreeing.
-    let name = if let Some(var_name) = crate::definition::substituting_var_at_position(
-        source,
-        crate::profile_for_dialect(""),
-        line,
-        character,
-        def_byte,
-    ) {
+    let name = if let Some(var_name) =
+        crate::definition::substituting_var_at_position(source, analysis, line, character, def_byte)
+    {
         var_name
     } else {
         crate::definition::var_def_at_declaration_offset(&analysis.global_scope, def_byte)?
@@ -953,7 +1222,7 @@ fn rename_itcl_class_proc(
     new_name: &str,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
-) -> Option<Vec<TextEdit>> {
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
     let (line, character) = cursor;
     let (class_q, member) =
         crate::definition::itcl_class_proc_target_at(source, dialect, line, character, analysis)?;
@@ -974,7 +1243,7 @@ fn rename_method_in_class(
     new_name: &str,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
-) -> Option<Vec<TextEdit>> {
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
     let (class_q, method, is_classmethod) = target;
     let family = override_family(analysis, class_q, method);
     if family.is_empty() {
@@ -998,13 +1267,13 @@ fn rename_method_in_class(
         ) else {
             continue;
         };
-        edits.push(TextEdit {
-            range: span_to_range(source, line_index, decl_span),
+        edits.push(PendingRenameEdit {
+            span: decl_span,
             new_text: new_name.to_owned(),
         });
         for span in call_spans {
-            edits.push(TextEdit {
-                range: span_to_range(source, line_index, span),
+            edits.push(PendingRenameEdit {
+                span,
                 new_text: new_name.to_owned(),
             });
         }
@@ -1012,8 +1281,7 @@ fn rename_method_in_class(
     if edits.is_empty() {
         return None;
     }
-    dedup_edits(&mut edits);
-    Some(edits)
+    Some(finish_rename_edits(source, line_index, edits))
 }
 
 /// When the cursor sits on a renameable `TclOO` **method**, return the
@@ -1062,7 +1330,7 @@ fn callback_prefix_target_in_workspace(
     let (receiver, is_classmethod, external) =
         crate::references::callback_prefix_method_receiver_at_cursor(
             source,
-            crate::profile_for_dialect(&analysis.dialect),
+            crate::profile_for_analysis(analysis),
             analysis,
             word,
             cursor,
@@ -1116,9 +1384,43 @@ pub fn method_target_with_access_in_workspace(
     index: Option<(&crate::workspace_index::WorkspaceIndex, &str)>,
 ) -> Option<(String, String, bool, crate::workspace_index::MethodAccess)> {
     use crate::workspace_index::MethodAccess;
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let line_index = LineIndex::new(source);
     let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    // Only the retained single-field link form couples command and member edits.
+    if let Some(linked) =
+        tcl_compiler::analyser::types::original_source_linked_member_at(analysis, source, cursor)
+        && linked.has_coupled_name()
+        && linked.editable_target_span(source).is_some()
+        && linked.alias_input().bytes() == word.as_bytes()
+        && linked.target_input().bytes() == word.as_bytes()
+    {
+        return Some((
+            linked.class_declaration().metadata().qualified_name.clone(),
+            linked.target().metadata().name.clone(),
+            linked.target().side() == tcl_compiler::analyser::MemberSide::ClassObject,
+            MethodAccess::Internal,
+        ));
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
+    if crate::receiver_identity::definition_reference_at_cursor(analysis, source, cursor).is_some()
+    {
+        let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor)?;
+        let current = analysis.all_classes.get(&selected.class.qualified_name)?;
+        return (current.name_span == selected.class.name_span
+            && selected.editable_selector().is_some())
+        .then(|| {
+            (
+                selected.class.qualified_name.clone(),
+                selected.method.name.clone(),
+                selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class,
+                MethodAccess::Internal,
+            )
+        });
+    }
     if let Some(target) =
         callback_prefix_target_in_workspace(source, analysis, &word, cursor, index)
     {
@@ -1127,7 +1429,7 @@ pub fn method_target_with_access_in_workspace(
     if let Some((provider, is_classmethod)) =
         crate::references::list_built_self_method_target_at_cursor(
             source,
-            crate::profile_for_dialect(&analysis.dialect),
+            crate::profile_for_analysis(analysis),
             analysis,
             &word,
             cursor,
@@ -1135,74 +1437,20 @@ pub fn method_target_with_access_in_workspace(
     {
         return Some((provider, word, is_classmethod, MethodAccess::External));
     }
-    // A bare receiver word resolves like any other command word — against the
-    // namespace in effect where it is written, then the global one, then
-    // through whatever `namespace import` has made reachable there. Both facts
-    // are read off the cursor, so the server only has to hand over the index
-    // and the document's URI.
-    let receiver_ns = crate::definition::namespace_context_at(
-        &analysis.global_scope,
-        cursor,
-        &analysis.namespace_overrides,
-    );
-    let workspace = index.map(|(index, uri)| crate::definition::WorkspaceReceiver {
-        index,
-        namespace: &receiver_ns,
-        call: crate::workspace_index::CallSite {
-            uri,
-            at: cursor,
-            enclosing_body: analysis.innermost_definition_body_span(cursor),
-        },
-    });
-    if let Some((inst, method, is_dollar)) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        crate::definition::dialect_config(analysis),
-    ) && method == word
+    if let Some((_, method, _)) =
+        crate::definition::original_instance_method_at_cursor(source, analysis, line, character)
+        && method == word
     {
-        // `my method` — an internal call from inside the enclosing class.
-        // Always instance-context: `my` never reaches a classmethod.
-        if crate::definition::is_self_dispatch_keyword(&inst)
-            && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor)
+        if let Some(selected) = crate::receiver_identity::method_at_cursor(analysis, source, cursor)
         {
-            return Some((class_q.to_owned(), method, false, MethodAccess::Internal));
+            return Some((
+                selected.class.qualified_name.clone(),
+                selected.method.name.clone(),
+                selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class,
+                MethodAccess::External,
+            ));
         }
-        // Bare `ClassName method` — a classmethod dispatches on the class's
-        // **own** command, never an instance, so it's tried only when the
-        // receiver isn't `$`-prefixed (a `$var` can never name a class).
-        //
-        // Ordered ahead of the instance branch, and gated on the receiver
-        // resolving as a *class* rather than an object handle
-        // ([`MethodBucket`], which recomputes `receiver_instance_class`'s own
-        // instance test rather than inferring it from outside). Without the
-        // gate this arm was unreachable: `receiver_instance_class` answers for
-        // a bare class name too — its last resort is "this word names a class"
-        // — so every bare `ClassName member` was classified instance-side and
-        // resolved against the wrong table. That is why a class-side member
-        // could never reach the cross-file class-command dispatch, whatever
-        // the index held.
-        //
-        // The gate keeps the change to exactly the shape it is about: an
-        // object handle still takes the instance branch, and a bare class name
-        // whose class-object side has no such member falls through to it
-        // unchanged.
-        if !is_dollar
-            && crate::definition::receiver_method_bucket(analysis, &inst, is_dollar)
-                == crate::definition::MethodBucket::Class
-            && let Some(class_q) = crate::definition::classmethod_dispatch_class_in_workspace(
-                analysis, &inst, &method, workspace,
-            )
-        {
-            return Some((class_q, method, true, MethodAccess::External));
-        }
-        // External `$obj method` — resolve `$obj`'s class.  Always
-        // instance-context too: a classmethod is never reached via `$obj`.
-        if let Some(class_q) =
-            crate::definition::receiver_instance_class_at(analysis, &inst, is_dollar, cursor)
-        {
-            return Some((class_q.clone(), method, false, MethodAccess::External));
-        }
+        return None;
     }
     // Inside a class body on one of its method / classmethod names — the
     // declaration side, an internal context.
@@ -1211,34 +1459,17 @@ pub fn method_target_with_access_in_workspace(
     {
         let method_decl = class_def.methods.get(&word);
         let classmethod_decl = class_def.class_methods.get(&word);
-        // A member-name-shaped word anywhere inside the class body is not by
-        // itself a reference to that member.  It only is when the cursor sits
-        // on the member's **own declaration name**, or on a bareword that
-        // `link` genuinely made bareword-callable and pointed back at this
-        // same member (`ClassDef::linked_members` — an un-linked bareword
-        // errors "invalid command name" in real Tcl, so it names nothing).
-        // This is the gate the in-document provider's
-        // `definition::lookup_class_member` already applies; without it here,
-        // any same-spelled word — a parameter, a literal, an un-linked
-        // sibling call — reads as the member and reaches the workspace
-        // resolver, which then answers non-deterministically.
         let on_declaration = |m: &tcl_compiler::analyser::MethodDef| {
             m.name_span.start() <= cursor && cursor < m.name_span.end()
         };
         let cursor_on_method_decl = method_decl.is_some_and(on_declaration);
         let cursor_on_classmethod_decl = classmethod_decl.is_some_and(on_declaration);
-        let linked_to_self = class_def
-            .linked_members
-            .get(&word)
-            .is_some_and(|target| *target == word);
         if (method_decl.is_some() || classmethod_decl.is_some())
-            && (cursor_on_method_decl || cursor_on_classmethod_decl || linked_to_self)
+            && (cursor_on_method_decl || cursor_on_classmethod_decl)
         {
             // A `method` and a `classmethod` of the same name are distinct
             // members; unambiguous when only one exists, otherwise prefer
-            // whichever one's declaration the cursor is actually on (a linked
-            // bareword that could be either falls back to the method — the
-            // pre-existing preference).
+            // whichever one's declaration the cursor is actually on.
             let is_classmethod =
                 classmethod_decl.is_some() && (method_decl.is_none() || cursor_on_classmethod_decl);
             return Some((
@@ -1266,6 +1497,9 @@ pub fn method_spans_in_document(
     method: &str,
     is_classmethod: bool,
 ) -> Vec<tcl_lexer::Span> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return Vec::new();
+    }
     match crate::references::method_references_for_class(
         source,
         dialect,
@@ -1308,6 +1542,9 @@ pub fn inherited_method_spans_in_document(
     is_classmethod: bool,
     workspace: crate::references::InheritedReceiverFacts<'_>,
 ) -> Vec<tcl_lexer::Span> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return Vec::new();
+    }
     crate::references::inherited_method_call_sites(
         source,
         dialect,
@@ -1388,6 +1625,12 @@ fn rename_var(
     line_index: &LineIndex,
     var_name: &str,
 ) -> Vec<TextEdit> {
+    let Some(config) = analysis.body_lexer_config else {
+        return Vec::new();
+    };
+    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
+        return Vec::new();
+    }
     let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     // The ordinary scope-chain lookup resolves a `$ref` cursor (and a
     // definition-site cursor that happens to sit inside its own scope's
@@ -1395,73 +1638,45 @@ fn rename_var(
     // *before* its scope's body span even starts, so fall back to the
     // byte-offset span search there (see `var_def_at_declaration_offset`'s
     // own doc).
-    let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
-        &analysis.global_scope,
-        byte_offset,
-        var_name,
-        analysis.ns_var_global_fallback(),
-    )
-    .or_else(|| {
-        crate::definition::var_def_at_declaration_offset(&analysis.global_scope, byte_offset)
-            .filter(|v| v.name == var_name)
-    }) else {
+    let Some(var_def) =
+        crate::definition::lookup_var_in_scope_chain(analysis, source, byte_offset, var_name)
+            .or_else(|| {
+                crate::definition::var_def_at_declaration_offset(
+                    &analysis.global_scope,
+                    byte_offset,
+                )
+                .filter(|v| v.name == var_name)
+            })
+    else {
         return Vec::new();
     };
     // Collision gate: refuse when `new_name` already resolves to a *different*
     // variable visible at the cursor (e.g. a sibling `set y` in the same proc
     // scope) — renaming would merge two distinct variables.
-    if let Some(existing) = crate::definition::lookup_var_in_scope_chain(
-        &analysis.global_scope,
-        byte_offset,
-        new_name,
-        analysis.ns_var_global_fallback(),
-    ) && existing.definition_span != var_def.definition_span
+    if let Some(existing) =
+        crate::definition::lookup_var_in_scope_chain(analysis, source, byte_offset, new_name)
+        && existing.definition_span != var_def.definition_span
     {
         return Vec::new();
     }
-    let mut edits = Vec::with_capacity(1 + var_def.references.len());
-    // Preserve any namespace qualifier on the declaration token itself
-    // (`set myns::count` → `set myns::total`).  Derive the prefix from the
-    // actual source token so it is independent of how the analyser stores
-    // the name.
-    let def_text = source
-        .get(var_def.definition_span.start() as usize..var_def.definition_span.end() as usize)
-        .unwrap_or("");
-    // The declaration token can carry an array-element suffix
-    // (`set arr(0) 1` → the span covers `arr(0)`); renaming must rewrite only
-    // the base name and keep both any namespace qualifier and the `(idx)`
-    // suffix, exactly like `build_var_ref_replacement` does for references.
-    // Dropping the suffix here produced `set data 1` and turned every `$arr(0)`
-    // ref into `$data(0)`, so the script then errored "variable isn't array".
-    let (def_name_part, def_suffix) = split_array_suffix(def_text);
-    let def_ns_prefix = match def_name_part.rfind("::") {
-        Some(idx) => &def_name_part[..idx + 2],
-        None => "",
+    let Some(declaration) =
+        crate::variable_symbol::declaration_at_cursor(source, analysis, var_def, byte_offset)
+    else {
+        return Vec::new();
     };
-    let def_new_text = format!("{def_ns_prefix}{new_name}{def_suffix}");
-    edits.push(TextEdit {
-        range: span_to_range(source, line_index, var_def.definition_span),
-        new_text: def_new_text,
-    });
-    // Rewrite every alias Tcl treats as one cell together — namespace/global
-    // aliases (`global`/`variable`/`namespace upvar`) and a class instance
-    // variable's per-method copies — so a rename never leaves a sibling use or
-    // an aliasing declaration pointing at the old name.
-    let ref_spans = crate::definition::linked_var_reference_spans(&analysis.global_scope, var_def);
-    let mut seen: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
-    for r in ref_spans {
-        if !seen.insert((r.start(), r.end())) {
-            continue;
-        }
-        // Brace-ref escaping — see
-        // [`build_var_ref_replacement`].
-        let replacement = build_var_ref_replacement(source, r, new_name);
-        edits.push(TextEdit {
-            range: span_to_range(source, line_index, var_ref_edit_span(source, r)),
-            new_text: replacement,
-        });
+    // A conditional alias supplies readonly navigation, never an editable
+    // reference set. The original constructor separately checks source coverage,
+    // collisions and every original receiver/container before producing edits.
+    if declaration.original_occurrence().is_none() {
+        return Vec::new();
     }
-    edits
+    crate::variable_symbol::original_variable_rename_edits(
+        source,
+        analysis,
+        declaration.symbol(),
+        new_name,
+    )
+    .unwrap_or_default()
 }
 
 /// Whether this call site is an ensemble **dispatch word whose spelling the
@@ -1519,7 +1734,7 @@ fn rename_proc(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
     line_index: &LineIndex,
-) -> Option<Vec<TextEdit>> {
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
     let registry = resolution.registry;
     // Resolve the target the same way go-to-definition does: the proc whose
     // declaration covers the cursor, else C Tcl's namespace-aware call-site
@@ -1532,7 +1747,7 @@ fn rename_proc(
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {
-        return Some(Vec::new());
+        return Some(Ok(Vec::new()));
     }
     let namespace_prefix = namespace_prefix_of(&proc_def.qualified_name);
     let (new_qualified, qualified_decl) = qualified_and_decl_text(namespace_prefix, new_name);
@@ -1541,7 +1756,7 @@ fn rename_proc(
     // (`assist`); one declared qualified (`proc ::ns::greet`) stays qualified.
     let decl_was_qualified = source
         .get(proc_def.name_span.start() as usize..proc_def.name_span.end() as usize)
-        .is_some_and(|t| t.contains("::"));
+        .is_some_and(|t| tcl_syntax::naming::is_qualified(t.as_bytes()));
     let new_decl_text = if decl_was_qualified {
         qualified_decl
     } else {
@@ -1550,12 +1765,12 @@ fn rename_proc(
     // Collision gate: renaming onto an existing proc of the same qualified
     // name would shadow it — refuse.  Compare names normalised to the
     // leading-`::` form.
-    let target_q = format!("::{}", proc_def.qualified_name.trim_start_matches("::"));
-    if analysis.all_procs.keys().any(|qn| {
-        let q = format!("::{}", qn.trim_start_matches("::"));
-        q != target_q && q == new_qualified
-    }) {
-        return Some(Vec::new());
+    if analysis
+        .all_procs
+        .keys()
+        .any(|qn| qn != &proc_def.qualified_name && qn == &new_qualified)
+    {
+        return Some(Ok(Vec::new()));
     }
     // Provenance gate: an indirect dispatch of this
     // proc whose contributing constants are not all source-writable cannot
@@ -1563,12 +1778,12 @@ fn rename_proc(
     // emit edits that leave the dispatch running the old name.
     if analysis.command_invocations.iter().any(|inv| {
         !inv.rename_safe
-            && crate::references::invocation_references_proc(analysis, inv, qname, proc_def)
+            && crate::references::invocation_references_proc(analysis, inv, qname, proc_def, source)
     }) {
-        return Some(Vec::new());
+        return Some(Ok(Vec::new()));
     }
-    let mut edits = vec![TextEdit {
-        range: span_to_range(source, line_index, proc_def.name_span),
+    let mut edits = vec![PendingRenameEdit {
+        span: proc_def.name_span,
         new_text: new_decl_text,
     }];
     for inv in &analysis.command_invocations {
@@ -1587,18 +1802,17 @@ fn rename_proc(
         // rename never rewrites a call the reference finder wouldn't report —
         // in particular the namespace gate that keeps a bare `helper` call in
         // `namespace eval ::b` from matching `::a::helper`.
-        if !crate::references::invocation_references_proc(analysis, inv, qname, proc_def) {
+        if !crate::references::invocation_references_proc(analysis, inv, qname, proc_def, source) {
             continue;
         }
         let replacement =
             invocation_replacement(namespace_prefix, &new_qualified, new_name, &inv.name);
-        edits.push(TextEdit {
-            range: span_to_range(source, line_index, inv.range),
+        edits.push(PendingRenameEdit {
+            span: inv.range,
             new_text: replacement,
         });
     }
-    dedup_edits(&mut edits);
-    Some(edits)
+    Some(finish_rename_edits(source, line_index, edits))
 }
 
 /// Class-rename path — `oo::class create ClassName`
@@ -1616,17 +1830,17 @@ fn rename_class(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
     line_index: &LineIndex,
-) -> Option<Vec<TextEdit>> {
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
     let registry = resolution.registry;
     // Declaration under the cursor, else namespace-aware resolution — never a
     // namespace-blind `c.name == word` scan (which from a call site could
     // rename the wrong same-named class in another namespace).
     let (qname, class_def) =
-        crate::definition::resolve_class_target_at(analysis, resolution, cursor_off, word)?;
+        crate::definition::resolve_class_target_at(analysis, source, resolution, cursor_off, word)?;
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {
-        return Some(Vec::new());
+        return Some(Ok(Vec::new()));
     }
     let namespace_prefix = namespace_prefix_of(&class_def.qualified_name);
     let (new_qualified, qualified_decl) = qualified_and_decl_text(namespace_prefix, new_name);
@@ -1637,7 +1851,7 @@ fn rename_class(
     // `rename_proc`'s identical `decl_was_qualified` handling.
     let decl_was_qualified = source
         .get(class_def.name_span.start() as usize..class_def.name_span.end() as usize)
-        .is_some_and(|t| t.contains("::"));
+        .is_some_and(|t| tcl_syntax::naming::is_qualified(t.as_bytes()));
     let new_decl_text = if decl_was_qualified {
         qualified_decl
     } else {
@@ -1648,12 +1862,14 @@ fn rename_class(
     // follow the rename, so refuse it outright.
     if analysis.command_invocations.iter().any(|inv| {
         !inv.rename_safe
-            && crate::references::invocation_references_class(analysis, inv, qname, class_def)
+            && crate::references::invocation_references_class(
+                analysis, inv, qname, class_def, source,
+            )
     }) {
-        return Some(Vec::new());
+        return Some(Ok(Vec::new()));
     }
-    let mut edits = vec![TextEdit {
-        range: span_to_range(source, line_index, class_def.name_span),
+    let mut edits = vec![PendingRenameEdit {
+        span: class_def.name_span,
         new_text: new_decl_text,
     }];
     for inv in &analysis.command_invocations {
@@ -1671,7 +1887,8 @@ fn rename_class(
         // rename never rewrites a call the reference finder wouldn't report —
         // in particular the namespace gate that keeps a bare `ClassName new`
         // call in a *different* namespace from being rewritten.
-        if !crate::references::invocation_references_class(analysis, inv, qname, class_def) {
+        if !crate::references::invocation_references_class(analysis, inv, qname, class_def, source)
+        {
             continue;
         }
         // Skip an invocation whose range contains the class
@@ -1684,13 +1901,12 @@ fn rename_class(
         }
         let replacement =
             invocation_replacement(namespace_prefix, &new_qualified, new_name, &inv.name);
-        edits.push(TextEdit {
-            range: span_to_range(source, line_index, inv.range),
+        edits.push(PendingRenameEdit {
+            span: inv.range,
             new_text: replacement,
         });
     }
-    dedup_edits(&mut edits);
-    Some(edits)
+    Some(finish_rename_edits(source, line_index, edits))
 }
 
 /// Method / property rename — locate the class whose body
@@ -1716,7 +1932,7 @@ fn rename_method(
     analysis: &AnalysisResult,
     cursor_offset: u32,
     line_index: &LineIndex,
-) -> Option<Vec<TextEdit>> {
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
     use tcl_lexer::Span;
 
     let class_def = analysis
@@ -1732,8 +1948,8 @@ fn rename_method(
     // `resolve_member_span`.
     let (selected_kind, name_span) = resolve_member_span(class_def, word, cursor_offset)?;
     let is_classmethod = selected_kind == MemberSel::ClassMethod;
-    let mut edits = vec![TextEdit {
-        range: span_to_range(source, line_index, name_span),
+    let mut edits = vec![PendingRenameEdit {
+        span: name_span,
         new_text: new_name.to_owned(),
     }];
     // `command_invocations` records top-level invocations only; method
@@ -1768,14 +1984,14 @@ fn rename_method(
             };
             // The cursor class's own declaration edit is already queued.
             if member != class_def.qualified_name {
-                edits.push(TextEdit {
-                    range: span_to_range(source, line_index, decl_span),
+                edits.push(PendingRenameEdit {
+                    span: decl_span,
                     new_text: new_name.to_owned(),
                 });
             }
             for span in call_spans {
-                edits.push(TextEdit {
-                    range: span_to_range(source, line_index, span),
+                edits.push(PendingRenameEdit {
+                    span,
                     new_text: new_name.to_owned(),
                 });
             }
@@ -1785,16 +2001,15 @@ fn rename_method(
         // (see `references::find_class_member_references`), so a
         // class-local `my <prop>` scan is the whole story.
         for span in
-            crate::references::scan_my_method_sites(source, dialect, &body_spans, word, None)
+            crate::references::scan_my_method_sites(source, analysis, &body_spans, word, None)
         {
-            edits.push(TextEdit {
-                range: span_to_range(source, line_index, span),
+            edits.push(PendingRenameEdit {
+                span,
                 new_text: new_name.to_owned(),
             });
         }
     }
-    dedup_edits(&mut edits);
-    Some(edits)
+    Some(finish_rename_edits(source, line_index, edits))
 }
 
 /// Compute the qualified rewrite (`prefix::new`) and the
@@ -1802,11 +2017,7 @@ fn rename_method(
 /// in a namespace, short at the top level).  Shared by the
 /// proc and class rename paths.
 fn qualified_and_decl_text(namespace_prefix: &str, new_name: &str) -> (String, String) {
-    let new_qualified = if namespace_prefix.is_empty() {
-        format!("::{new_name}")
-    } else {
-        format!("{namespace_prefix}::{new_name}")
-    };
+    let new_qualified = tcl_syntax::naming::qualify(namespace_prefix, new_name);
     let new_decl_text = if namespace_prefix.is_empty() {
         new_name.to_owned()
     } else {
@@ -1828,10 +2039,7 @@ fn invocation_replacement(
     // Preserve the call's *as-written* qualifier: a qualified call replaces
     // only its final `::`-segment (`utils::helper` → `utils::assist`,
     // `::myns::greet` → `::myns::hello`); a short call becomes the short name.
-    match inv_name.rfind("::") {
-        Some(idx) => format!("{}::{new_name}", &inv_name[..idx]),
-        None => new_name.to_owned(),
-    }
+    format!("{}{new_name}", source_name_qualifier(inv_name))
 }
 
 /// A rename edit targeting a specific document, expressed as a
@@ -1867,6 +2075,9 @@ pub fn cross_document_symbol_edits(
     index: &crate::workspace_index::WorkspaceIndex,
     current_uri: &str,
 ) -> Vec<WorkspaceTextEdit> {
+    if !index.allows_lexical_rename_advice() || !is_safe_symbol_name(new_name) {
+        return Vec::new();
+    }
     let namespace_prefix = namespace_prefix_of(qualified_name);
     let (new_qualified, new_decl_text) = qualified_and_decl_text(namespace_prefix, new_name);
     let mut edits = Vec::new();
@@ -1944,6 +2155,9 @@ pub fn workspace_symbol_rename_edits(
     new_name: &str,
     index: &crate::workspace_index::WorkspaceIndex,
 ) -> Option<Vec<WorkspaceTextEdit>> {
+    if !index.allows_lexical_rename_advice() || !is_safe_symbol_name(new_name) {
+        return None;
+    }
     let namespace_prefix = namespace_prefix_of(qualified_name);
     let (new_qualified, _) = qualified_and_decl_text(namespace_prefix, new_name);
     if index.workspace_command_exists(&new_qualified) {
@@ -1963,44 +2177,9 @@ pub fn workspace_symbol_rename_edits(
     ))
 }
 
-/// Every edit renaming the **namespace-variable cell** `cell` to `new_name`
-/// within `source` — one document's share of the workspace-wide rename the
-/// cross-document tier drives.
-///
-/// `cell` is a `::`-rooted qualified name
-/// ([`crate::definition::qualified_variable_cell_at`] is the single entry
-/// point that decides which cell a cursor names, shared with go-to-definition
-/// / hover / find-references so the four cannot disagree).  Three occurrence
-/// kinds are rewritten, and they are the complete static set for a namespace
-/// cell:
-///
-/// * the **namespace-scoped declaration(s)** this document holds — the
-///   `variable v` / `set v …` sitting directly in a `namespace eval` body,
-///   read off the scope tree via `namespace_variables` rather than re-derived;
-/// * every **alias** Tcl treats as the same cell — a `variable v` / `global v`
-///   / `namespace upvar ns v local` inside a proc or method body, enumerated
-///   by [`tcl_compiler::analyser::variable_alias_links`] over
-///   `VarDef::link_target` (the analyser's analogue of Tcl's `VAR_LINK`).
-///   Missing these is what makes a naive "declaration + qualified
-///   occurrences" rename break a program: `namespace eval ns { proc p {} {
-///   variable v; puts $v } }` keeps working only if that `variable v` and its
-///   `$v` are renamed too;
-/// * every **`::`-qualified occurrence** (`$::ns::v`, `set app::ns::v 1`) —
-///   `analysis.qualified_var_refs`, the same table the workspace index's
-///   cross-document reference set is built from.
-///
-/// Deliberately *not* rewritten: an unqualified `$v` that is not an alias of
-/// this cell.  A bare name means whatever the local scope chain supplies,
-/// which is a per-document question this cell's identity cannot answer.
-///
-/// Also deliberately *not* rewritten: the **local spelling of a
-/// differently-named alias**.  `namespace upvar ::ns v local` names the cell
-/// in its `otherVar` word (`v`); `local` is an independent local name the
-/// cell's identity does not determine.  See
-/// [`cell_rename_spans`] for the rule and its oracle.
-///
-/// The result is unsorted and deduplicated by range; the caller merges it
-/// with the other documents' shares.
+/// Source edits for an independently retained namespace symbol matching one
+/// checked compatibility coordinate. The caller string cannot manufacture the
+/// symbol, and alias reports supply no reference-set or edit authority.
 #[must_use]
 pub fn namespace_variable_rename_edits(
     source: &str,
@@ -2008,206 +2187,94 @@ pub fn namespace_variable_rename_edits(
     cell: &str,
     new_name: &str,
 ) -> Vec<TextEdit> {
-    if !is_safe_symbol_name(new_name) {
+    if !analysis.allows_lexical_declaration_advice() || !is_safe_symbol_name(new_name) {
         return Vec::new();
     }
-    let target = cell.trim_start_matches("::");
-    // Collision gate, the in-document half of the workspace one the server
-    // applies: renaming onto a cell this document already declares would
-    // merge two distinct variables into one.  Same discipline (and same
-    // "answer nothing" shape) as the single-document variable rename's own
-    // scope-chain collision check.
-    let new_cell = match cell.rfind("::") {
-        Some(idx) => format!("{}::{new_name}", &cell[..idx]),
-        None => format!("::{new_name}"),
+    let Some(symbol) =
+        crate::variable_symbol::namespace_symbol_for_compatibility_key(source, analysis, cell)
+    else {
+        return Vec::new();
     };
-    if tcl_compiler::analyser::lookup_var_by_qualified_name(&analysis.global_scope, &new_cell)
-        .is_some()
-    {
-        return Vec::new();
-    }
-    let line_index = LineIndex::new(source);
-    let mut spans: Vec<tcl_lexer::Span> = Vec::new();
-    for (qualified, var) in tcl_compiler::analyser::namespace_variables(&analysis.global_scope) {
-        if qualified.trim_start_matches("::") != target {
-            continue;
-        }
-        // The declaration itself, plus its own unqualified reads in the
-        // namespace frame.  Aliases are *not* unioned in here — they are
-        // handled by `cell_rename_spans`, which knows which of an alias's
-        // words names the cell and which is merely a local spelling.
-        spans.push(var.definition_span);
-        spans.extend(var.references.iter().copied());
-    }
-    cell_rename_spans(&analysis.global_scope, target, &mut spans);
-    for vref in &analysis.qualified_var_refs {
-        if vref.qualified_name.trim_start_matches("::") == target {
-            spans.push(vref.span);
-        }
-    }
-    let mut edits: Vec<TextEdit> = spans
-        .into_iter()
-        .filter(|s| !s.is_empty())
-        .map(|s| TextEdit {
-            range: span_to_range(source, &line_index, var_ref_edit_span(source, s)),
-            new_text: build_var_ref_replacement(source, s, new_name),
-        })
-        .collect();
-    dedup_edits(&mut edits);
-    edits
+    crate::variable_symbol::original_variable_rename_edits(source, analysis, symbol, new_name)
+        .unwrap_or_default()
 }
 
-/// The spans a rename of the `::`-rooted cell `target` must rewrite in every
-/// variable *aliasing* it — a proc-local `variable v` / `global v` /
-/// `namespace upvar ns v local` / `upvar #0 ::ns::v local`, anywhere in the
-/// scope tree.
-///
-/// The namespace-scoped declaration walk above only sees namespace and global
-/// scopes, so an alias declared inside a proc or method body (the ordinary way
-/// a namespace variable is used) is invisible to it; without this the
-/// cross-document rename would rewrite the declaration and leave every
-/// `variable v; … $v` body naming a cell that no longer exists.
-///
-/// # Which word an alias contributes
-///
-/// An alias binds a **local spelling** to a **cell**, and only one of the two
-/// words involved is determined by the cell's name.
-/// [`VarDef::link_target_span`](tcl_compiler::analyser::VarDef::link_target_span)
-/// says which word names the cell, and this walk splits on whether that is the
-/// declaration word itself:
-///
-/// * **Same word** — `variable v`, `global ::ns::v`.  The local spelling *is*
-///   the cell's tail name, so renaming the cell renames the declaration and
-///   every unqualified read with it.  Rewriting only some of them breaks the
-///   program: with `variable total` against a body still reading `$v`, tclsh
-///   9.0.4 and 8.6.16 both give `can't read "v": no such variable`.
-///
-/// * **Different words** — `namespace upvar ::ns v local`, `upvar #0 ::ns::v
-///   local`.  The cell is named by `otherVar`; `local` is an independent
-///   spelling the cell's name does not determine.  Only `otherVar` is
-///   rewritten, and `local` and all its reads are left exactly as written.
-///   Rewriting `local` instead — which is what the declaration span alone
-///   gives — produces `namespace upvar ::ns v total; … $total`, and both
-///   interpreters then fail `can't read "total": no such variable`, because
-///   the alias still points at the cell that was renamed away.
-///
-/// A same-*spelled* `namespace upvar ::ns v v` is the second case, not the
-/// first: its two `v`s are distinct words at distinct offsets, and the local
-/// one is still an independent spelling.  Both interpreters accept either
-/// answer (`namespace upvar ::ns total v; … $v` and `namespace upvar ::ns
-/// total total; … $total` both print `42` on 9.0.4 and 8.6.16), so the
-/// **minimal** edit is taken: rewrite the word that names the cell, and touch
-/// nothing whose meaning the rename does not change.
-fn cell_rename_spans(
-    scope: &tcl_compiler::analyser::Scope,
-    target: &str,
-    out: &mut Vec<tcl_lexer::Span>,
-) {
-    for link in tcl_compiler::analyser::variable_alias_links(scope) {
-        if link.cell.trim_start_matches("::") != target {
-            continue;
-        }
-        let var = link.var;
-        match var.link_target_span {
-            // The cell is named by a word other than the declaration: rewrite
-            // only that word, and leave the local spelling (and its reads)
-            // alone.
-            Some(span) if span != var.definition_span => out.push(span),
-            // Declaration word and cell-naming word are one and the same.
-            _ => {
-                out.push(var.definition_span);
-                out.extend(var.references.iter().copied());
-            }
-        }
-    }
-}
-
-/// Extend a `${name}` reference span to cover its own closing
-/// brace when the lexer's recorded span stops one byte short of it.
-///
-/// `tcl-lexer`'s `Var` token span deliberately excludes the closing
-/// `}` for a non-degenerate braced name — `${a{b}}` names `a{b}`,
-/// whose content can legitimately end in `}` itself, so the span
-/// convention leaves the outer delimiter unconsumed rather than risk
-/// misreading it as content (see `SourceMap::token_text`'s doc). That
-/// makes `span` unsafe to use directly as a rename *edit range*:
-/// `build_var_ref_replacement` already emits a self-closed `${new}`
-/// string, so replacing only the short span leaves the source's own
-/// original `}` sitting right after it, corrupting `${new}` into
-/// `${new}}` — enough to break `tk.tcl`'s `${dir}view` idiom so that the
-/// renamed source no longer parses. Mirrors
-/// `token_text`'s own degenerate-`${}`-empty-name check so this never
-/// mis-fires on a span that already legitimately includes the brace.
-///
-/// The widening itself is not decided here: [`tcl_lexer::word_span_at`]
-/// owns the closer arithmetic for every delimited word shape, `${name}`
-/// included, and this is a two-line delegate to it.
+/// Token-only compatibility geometry controls. Actual rename consumers use
+/// the original selected component's whole span rather than widening tokens.
+#[cfg(test)]
 fn var_ref_edit_span(source: &str, span: tcl_lexer::Span) -> tcl_lexer::Span {
     tcl_lexer::word_span_at(source, span)
 }
 
-/// Build a replacement string for a variable reference span.
-///
-/// The reference span covers the full Var token (`$x`,
-/// `${name}`, `$ns::var`, `${ns::var}`).  We read the source
-/// bytes at the span to decide which leader characters (`$`,
-/// `${`, `}`) to preserve, then splice in `new_tail` in place
-/// of the existing tail name.
-///
-/// For `${name}` and `$name`, we strip the prefix to find the
-/// inner text, find its namespace prefix (`ns::`), and emit
-/// `${ns::new_tail}` / `$ns::new_tail` so namespace-qualified
-/// refs keep their qualification.
-fn build_var_ref_replacement(source: &str, span: tcl_lexer::Span, new_tail: &str) -> String {
-    let start = span.start() as usize;
-    let end = span.end() as usize;
-    let bytes = source.as_bytes();
-    if start >= bytes.len() || end > bytes.len() {
-        return new_tail.to_owned();
+/// Selected whole-reference source projection. The caller's independent
+/// Logical rename gates supply edit authority; this helper supplies syntax
+/// and refuses malformed, compound or unavailable source geometry.
+#[cfg(test)]
+fn build_var_ref_replacement(
+    source: &str,
+    span: tcl_lexer::Span,
+    new_tail: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let original =
+        tcl_lexer::scan_var_ref(source.as_bytes(), span.start() as usize, config).ok()??;
+    let whole = tcl_lexer::Span::new(span.start(), u32::try_from(original.next).ok()?);
+    if span != whole
+        && Some(span) != original.source_span(source.as_bytes(), span.start() as usize, 0)
+    {
+        return None;
     }
-    let text = &source[start..end];
-    if let Some(rest) = text.strip_prefix("${") {
-        // `${arr(idx)}` is recorded against base `arr` (the analyser's
-        // `normalise_var_name` strips the index for the braced form
-        // too), so preserve the index here as well: `${arr(idx)}` →
-        // `${<new>(idx)}` rather than clobbering it to `${<new>}`.
-        let inner = rest.strip_suffix('}').unwrap_or(rest);
-        let (name_part, suffix) = split_array_suffix(inner);
-        let ns_prefix = match name_part.rfind("::") {
-            Some(idx) => &name_part[..idx + 2],
-            None => "",
-        };
-        return format!("${{{ns_prefix}{new_tail}{suffix}}}");
-    }
-    if let Some(rest) = text.strip_prefix('$') {
-        // Preserve an array-index suffix so renaming the base array
-        // variable keeps the element index: `$arr(idx)` → `$<new>(idx)`
-        // rather than clobbering it to `$<new>`.  The index text is
-        // copied verbatim (any `$`/`[` substitution inside it is
-        // renamed independently via its own reference).
-        let (name_part, suffix) = split_array_suffix(rest);
-        let ns_prefix = match name_part.rfind("::") {
-            Some(idx) => &name_part[..idx + 2],
-            None => "",
-        };
-        return format!("${ns_prefix}{new_tail}{suffix}");
-    }
-    let (name_part, suffix) = split_array_suffix(text);
-    let ns_prefix = match name_part.rfind("::") {
-        Some(idx) => &name_part[..idx + 2],
-        None => "",
-    };
-    format!("{ns_prefix}{new_tail}{suffix}")
+    let text = source.get(whole.as_range())?;
+    tcl_syntax::naming::variable_source_reference_with_tail(text, new_tail, config)
 }
 
-/// Split a (already `$`-stripped) variable reference into its base
-/// name and any trailing array-index suffix.  `arr(idx)` →
-/// `("arr", "(idx)")`; `name` → `("name", "")`.
-fn split_array_suffix(rest: &str) -> (&str, &str) {
-    match rest.find('(') {
-        Some(idx) => (&rest[..idx], &rest[idx..]),
-        None => (rest, ""),
+#[cfg(test)]
+fn build_var_replacement_in_analysis(
+    source: &str,
+    analysis: &AnalysisResult,
+    span: tcl_lexer::Span,
+    new_tail: &str,
+) -> Option<(tcl_lexer::Span, String)> {
+    let config = analysis.body_lexer_config?;
+    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
+        return None;
     }
+    if let Some(reference) =
+        crate::source_structure::original_variable_reference_at(source, analysis, span.start())
+    {
+        if reference.token_span != span && reference.whole_span != span {
+            return None;
+        }
+        return Some((
+            reference.whole_span,
+            build_var_ref_replacement(source, span, new_tail, config)?,
+        ));
+    }
+    let text = source.get(span.as_range())?;
+    // A sigil in non-data source must have a genuine selected variable
+    // component. A literal name word can itself contain dollar bytes.
+    if text.starts_with('$') && !crate::definition::offset_is_inert(source, analysis, span.start())?
+    {
+        return None;
+    }
+    let (name, suffix) = split_array_suffix(text);
+    let qualifier = source_name_qualifier(name);
+    Some((span, format!("{qualifier}{new_tail}{suffix}")))
+}
+
+fn source_name_qualifier(name: &str) -> &str {
+    // Original written bytes, not a constructed holder or native identity.
+    // The shared tail consumes every colon in its final separator run.
+    let tail = tcl_syntax::naming::written_command_tail(name.as_bytes());
+    &name[..name.len() - tail.len()]
+}
+
+/// Closed literal element partition shared with variable naming. An unmatched
+/// open or trailing text belongs to the scalar name and has no index suffix.
+#[cfg(test)]
+fn split_array_suffix(name: &str) -> (&str, &str) {
+    tcl_syntax::naming::split_element_ref(name)
+        .map_or((name, ""), |(root, _)| (root, &name[root.len()..]))
 }
 
 /// Return the namespace prefix of a qualified name — everything
@@ -2216,7 +2283,7 @@ fn split_array_suffix(rest: &str) -> (&str, &str) {
 /// namespace).  `"greet"` → `""` likewise.
 fn namespace_prefix_of(qualified: &str) -> &str {
     // `qualified` is a constructed key: its holder comes from the
-    // construction-inverse split — a repeated-strip + `rfind` would
+    // analytical holder projection — a repeated-strip + `rfind` would
     // misread a lone-colon segment.  The root holder maps to `""` (a global
     // proc has no enclosing-namespace prefix).
     let (holder, _tail) = tcl_syntax::naming::key_holder_and_tail(qualified);
@@ -2234,24 +2301,94 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) ->
     }
 }
 
-fn dedup_edits(edits: &mut Vec<TextEdit>) {
-    let mut seen: FxHashSet<(u32, u32, u32, u32)> = FxHashSet::default();
-    edits.retain(|e| {
-        let key = (
-            e.range.start_line,
-            e.range.start_character,
-            e.range.end_line,
-            e.range.end_character,
-        );
-        seen.insert(key)
-    });
+/// Compatibility edits retain their actual producer byte geometry until the
+/// complete plan has passed conflict checks. This does not select symbols or
+/// strengthen any source applicability receipt.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PendingRenameEdit {
+    span: tcl_lexer::Span,
+    new_text: String,
+}
+
+fn finish_rename_edits(
+    source: &str,
+    line_index: &LineIndex,
+    edits: Vec<PendingRenameEdit>,
+) -> Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal> {
+    if edits
+        .iter()
+        .any(|edit| edit.span.is_empty() || source.get(edit.span.as_range()).is_none())
+    {
+        return Err(crate::rename_safety::RenameRefusal {
+            reason: "cannot rename: edit ranges are invalid or conflicting".to_owned(),
+            range: None,
+        });
+    }
+    // Check source order without changing the established publication order.
+    // Only identical edits collapse; equal ranges with different text conflict.
+    let mut order: Vec<usize> = (0..edits.len()).collect();
+    order.sort_by_key(|&index| (edits[index].span.start(), edits[index].span.end()));
+    let mut keep = vec![true; edits.len()];
+    for pair in order.windows(2) {
+        let (left, right) = (&edits[pair[0]], &edits[pair[1]]);
+        if left == right {
+            keep[pair[1]] = false;
+        } else if left.span.end() > right.span.start() {
+            return Err(crate::rename_safety::RenameRefusal {
+                reason: "cannot rename: edit ranges are invalid or conflicting".to_owned(),
+                range: Some(span_to_range(source, line_index, right.span)),
+            });
+        }
+    }
+    Ok(edits
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| keep[*index])
+        .map(|(_, edit)| TextEdit {
+            range: span_to_range(source, line_index, edit.span),
+            new_text: edit.new_text,
+        })
+        .collect())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tcl_compiler::analyser::Analyser;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
     use tcl_dialect::model::{Family, SurfaceLayer};
+
+    #[test]
+    fn rename_edit_plan_refuses_conflicts_before_utf16_publication() {
+        use tcl_lexer::Span;
+        let source = "αbc def";
+        let index = LineIndex::new(source);
+        let edit = |start, end, text: &str| PendingRenameEdit {
+            span: Span::new(start, end),
+            new_text: text.to_owned(),
+        };
+        let same = edit(0, 3, "x");
+        let accepted = finish_rename_edits(
+            source,
+            &index,
+            vec![same.clone(), edit(5, 8, "y"), same.clone()],
+        )
+        .unwrap();
+        assert_eq!(accepted.len(), 2);
+        assert_eq!(accepted[0].range.end_character, 2);
+        assert_eq!(accepted[0].new_text, "x");
+        assert!(finish_rename_edits(source, &index, vec![same.clone(), edit(0, 3, "z")]).is_err());
+        assert!(finish_rename_edits(source, &index, vec![same.clone(), edit(2, 4, "x")]).is_err());
+        assert!(finish_rename_edits(source, &index, vec![edit(0, 8, "x"), same]).is_err());
+        assert!(finish_rename_edits(source, &index, vec![edit(1, 3, "x")]).is_err());
+        assert!(finish_rename_edits(source, &index, vec![edit(5, 9, "x")]).is_err());
+        assert!(finish_rename_edits(source, &index, vec![edit(2, 2, "x")]).is_err());
+        assert_eq!(
+            finish_rename_edits(source, &index, vec![edit(2, 3, "x"), edit(3, 4, "y")])
+                .unwrap()
+                .len(),
+            2
+        );
+    }
 
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
@@ -2302,6 +2439,83 @@ mod tests {
     /// `::app::widget Show` is `unknown or ambiguous subcommand "Show": must
     /// be show` — the key is arbitrary, so the applied edit set must keep
     /// spelling it `show`.
+    #[test]
+    fn original_primary_command_rename_uses_canonical_opaque_inputs_and_atomic_prepare() {
+        // Implementation contract: naming.editor.original-command-rename-plans
+
+        let source = "proc p\\uD800 {argument} {return $argument}\np\\uD800 value\n";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        analysis.all_classes.clear();
+        let prepared = prepare_rename(source, 0, 7, &analysis).unwrap();
+        assert_eq!(prepared.placeholder, "p\\uD800");
+        let profile = crate::profile_for_dialect("tcl8.6");
+        let edits =
+            rename_with_diagnosis(source, profile, 0, 7, "changed", &analysis, None).unwrap();
+        assert_eq!(edits.len(), 2);
+        let mut changed = source.to_owned();
+        let index = LineIndex::new(source);
+        for edit in edits.iter().rev() {
+            let start = crate::definition::byte_offset_at(
+                &index,
+                source,
+                edit.range.start_line,
+                edit.range.start_character,
+            );
+            let end = crate::definition::byte_offset_at(
+                &index,
+                source,
+                edit.range.end_line,
+                edit.range.end_character,
+            );
+            changed.replace_range(start as usize..end as usize, &edit.new_text);
+        }
+        assert_eq!(
+            changed,
+            "proc changed {argument} {return $argument}\nchanged value\n"
+        );
+        assert!(prepare_rename("# displaced\n", 0, 5, &analysis).is_none());
+        assert!(
+            rename_with_diagnosis("# displaced\n", profile, 0, 5, "changed", &analysis, None)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn original_primary_member_rename_does_not_enter_string_override_families() {
+        // Implementation contract: naming.editor.original-command-rename-plans
+
+        let source =
+            "oo::class create C {method ping {} {return}}\noo::class create D {superclass C}\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let row = analysis.original_class_declarations().next().unwrap();
+        assert_eq!(
+            row.metadata()
+                .original_members
+                .methods(tcl_compiler::analyser::types::MemberSide::Instance)
+                .unwrap()
+                .len(),
+            1
+        );
+        let offset = u32::try_from(source.find("ping").unwrap()).unwrap();
+        let position = LineIndex::new(source).position_at_utf16(offset, source);
+        assert!(
+            prepare_rename(source, position.line, position.character.get(), &analysis).is_none()
+        );
+        let refusal = rename_with_diagnosis(
+            source,
+            crate::profile_for_dialect("tcl8.6"),
+            position.line,
+            position.character.get(),
+            "changed",
+            &analysis,
+            None,
+        )
+        .unwrap_err();
+        assert!(refusal.reason.contains("typed override family"));
+    }
+
     #[test]
     fn renaming_a_map_target_does_not_rewrite_the_subcommand_word_1281() {
         let src = "namespace eval ::app::widget {}\n\
@@ -3047,14 +3261,15 @@ mod tests {
         // result-var reuses an existing variable; renaming from a cursor
         // on its own bareword token must rewrite every occurrence,
         // including the original declaration elsewhere in the proc.
-        let src = "proc resolveSwitch {name def} {\n    catch {foo} name\n    return $name\n}\n";
+        let src =
+            "proc resolveSwitch {name def} {\n    catch {error boom} name\n    return $name\n}\n";
         let analysis = analyse(src);
-        // Cursor on the catch result-var `name` (line 1, col 16-20).
+        // Cursor on the catch result-var `name` (line 1, col 23-27).
         let edits = rename(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
-            17,
+            24,
             "resolved",
             &analysis,
             None,
@@ -3071,11 +3286,12 @@ mod tests {
             edits.iter().any(|e| e.range.start_line == 2),
             "the later $name read must be rewritten: {edits:?}"
         );
-        // The bareword sites (decl + catch result-var) rewrite to plain
-        // `resolved`; the `$name` read preserves its `$` prefix.
-        let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
-        assert!(texts.contains(&"resolved"), "{texts:?}");
-        assert!(texts.contains(&"$resolved"), "{texts:?}");
+        // The formal list and lexical root have independent edit extents;
+        // applying the complete edit set preserves the read's original `$`.
+        assert_eq!(
+            apply_edits(src, &edits),
+            "proc resolveSwitch {resolved def} {\n    catch {error boom} resolved\n    return $resolved\n}\n",
+        );
     }
 
     // brace-ref escaping
@@ -3319,6 +3535,33 @@ mod tests {
     }
 
     #[test]
+    fn original_prepare_variable_rename_selects_the_tail_and_preserves_index_geometry() {
+        let source = "namespace eval N {}\nset ::N::a(k) 1\nlist $::N::a(k) ${::N::a(k)}\n";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut analysis = Analyser::new().analyse(source, dialect);
+            analysis.global_scope.variables.clear();
+            for reference in &mut analysis.qualified_var_refs {
+                reference.qualified_name.clear();
+            }
+            for prefix in ["set ::N::", "list $::N::", "${::N::"] {
+                let offset = source.find(prefix).unwrap() + prefix.len();
+                let position = LineIndex::new(source)
+                    .position_at_utf16(u32::try_from(offset).unwrap(), source);
+                let prepared =
+                    prepare_rename(source, position.line, position.character.get(), &analysis)
+                        .unwrap_or_else(|| panic!("{dialect}: {prefix}"));
+                assert_eq!(prepared.placeholder, "a");
+                assert_eq!(prepared.range.start_line, prepared.range.end_line);
+                assert_eq!(
+                    prepared.range.end_character - prepared.range.start_character,
+                    1
+                );
+            }
+            assert!(prepare_rename("# changed\n", 0, 2, &analysis).is_none());
+        }
+    }
+
+    #[test]
     fn prepare_rename_returns_none_for_unknown_word() {
         let src = "puts hello\n";
         let analysis = analyse(src);
@@ -3340,14 +3583,28 @@ mod tests {
         let span_braced_y = tcl_lexer::Span::new(6, 10);
         let span_qualified_z = tcl_lexer::Span::new(12, 18);
         let span_braced_w = tcl_lexer::Span::new(20, 28);
-        assert_eq!(build_var_ref_replacement(src, span_x, "a"), "$a");
-        assert_eq!(build_var_ref_replacement(src, span_braced_y, "b"), "${b}");
         assert_eq!(
-            build_var_ref_replacement(src, span_qualified_z, "c"),
+            build_var_ref_replacement(src, span_x, "a", tcl_lexer::LexerConfig::default()).unwrap(),
+            "$a"
+        );
+        assert_eq!(
+            build_var_ref_replacement(src, span_braced_y, "b", tcl_lexer::LexerConfig::default())
+                .unwrap(),
+            "${b}"
+        );
+        assert_eq!(
+            build_var_ref_replacement(
+                src,
+                span_qualified_z,
+                "c",
+                tcl_lexer::LexerConfig::default()
+            )
+            .unwrap(),
             "$ns::c"
         );
         assert_eq!(
-            build_var_ref_replacement(src, span_braced_w, "d"),
+            build_var_ref_replacement(src, span_braced_w, "d", tcl_lexer::LexerConfig::default())
+                .unwrap(),
             "${ns::d}"
         );
     }
@@ -3358,18 +3615,36 @@ mod tests {
         // index: `$arr(idx)` → `$data(idx)`, not `$data`.
         let src = "$arr(idx)  $arr($i)  $ns::a(k)";
         assert_eq!(
-            build_var_ref_replacement(src, tcl_lexer::Span::new(0, 9), "data"),
+            build_var_ref_replacement(
+                src,
+                tcl_lexer::Span::new(0, 9),
+                "data",
+                tcl_lexer::LexerConfig::default()
+            )
+            .unwrap(),
             "$data(idx)"
         );
         // A substituted index is copied verbatim (the inner `$i`
         // reference is renamed on its own if `i` is renamed).
         assert_eq!(
-            build_var_ref_replacement(src, tcl_lexer::Span::new(11, 19), "data"),
+            build_var_ref_replacement(
+                src,
+                tcl_lexer::Span::new(11, 19),
+                "data",
+                tcl_lexer::LexerConfig::default()
+            )
+            .unwrap(),
             "$data($i)"
         );
         // Namespace prefix + array index together.
         assert_eq!(
-            build_var_ref_replacement(src, tcl_lexer::Span::new(21, 30), "b"),
+            build_var_ref_replacement(
+                src,
+                tcl_lexer::Span::new(21, 30),
+                "b",
+                tcl_lexer::LexerConfig::default()
+            )
+            .unwrap(),
             "$ns::b(k)"
         );
     }
@@ -3380,13 +3655,108 @@ mod tests {
         // must keep the index inside the braces: `${data(idx)}`.
         let src = "${arr(idx)}  ${ns::a(k)}";
         assert_eq!(
-            build_var_ref_replacement(src, tcl_lexer::Span::new(0, 11), "data"),
+            build_var_ref_replacement(
+                src,
+                tcl_lexer::Span::new(0, 11),
+                "data",
+                tcl_lexer::LexerConfig::default()
+            )
+            .unwrap(),
             "${data(idx)}"
         );
         assert_eq!(
-            build_var_ref_replacement(src, tcl_lexer::Span::new(13, 23), "b"),
+            build_var_ref_replacement(
+                src,
+                tcl_lexer::Span::new(13, 23),
+                "b",
+                tcl_lexer::LexerConfig::default()
+            )
+            .unwrap(),
             "${ns::b(k)}"
         );
+    }
+
+    #[test]
+    fn original_reference_replacement_preserves_closed_elements_and_scalar_parentheses() {
+        // Implementation contract: naming.core.selected-variable-cursor-syntax
+
+        for style in [
+            tcl_dialect::BracedVarStyle::FirstClose,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting,
+        ] {
+            let config = tcl_lexer::LexerConfig {
+                braced_var: style,
+                ..Default::default()
+            };
+            for (source, expected) in [
+                ("${scalar(open}", "${new}"),
+                ("${scalar(open)tail}", "${new}"),
+                ("${arr(first(second)}", "${new(first(second)}"),
+                ("${cash$name}", "${new}"),
+                ("${café🙂}", "${new}"),
+                ("$arr($idx)", "$new($idx)"),
+                ("${ns::arr(k)}", "${ns::new(k)}"),
+            ] {
+                let span = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
+                assert_eq!(
+                    build_var_ref_replacement(source, span, "new", config).as_deref(),
+                    Some(expected)
+                );
+            }
+            for source in ["${missing", "$a tail", "${a}(tail)", "not_a_reference"] {
+                let span = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
+                assert!(build_var_ref_replacement(source, span, "new", config).is_none());
+            }
+            assert!(
+                build_var_ref_replacement("$a", tcl_lexer::Span::new(0, 9), "new", config)
+                    .is_none()
+            );
+        }
+        assert_eq!(split_array_suffix("scalar(open"), ("scalar(open", ""));
+        assert_eq!(
+            split_array_suffix("scalar(open)tail"),
+            ("scalar(open)tail", "")
+        );
+    }
+
+    #[test]
+    fn original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names() {
+        // Implementation contract: naming.core.selected-variable-cursor-syntax
+
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        for name in [
+            "scalar(open",
+            "scalar(open)tail",
+            "cash$name",
+            "$n",
+            "café🙂",
+        ] {
+            let source = format!("set {{{name}}} 1\nputs ${{{name}}}\n");
+            let input = ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(&source, profile.name)
+                .clone();
+            assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+            assert!(analysis.allows_lexical_declaration_advice());
+            let edits = rename(&source, profile, 1, 7, "new", &analysis, None);
+            assert!(!edits.is_empty(), "{name}");
+            assert_eq!(apply_edits(&source, &edits), "set {new} 1\nputs ${new}\n");
+            assert!(
+                rename(
+                    &(source.clone() + " "),
+                    profile,
+                    1,
+                    7,
+                    "new",
+                    &analysis,
+                    None,
+                )
+                .is_empty()
+            );
+        }
     }
 
     // safety gating
@@ -3971,11 +4341,11 @@ mod tests {
     #[test]
     fn rename_classmethod_does_not_corrupt_unrelated_instance_method_call_site() {
         let src = "oo::class create C {\n    method greet {} {}\n    classmethod greet {} {}\n    method twice {} { my greet }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         // Cursor on the *classmethod* declaration (line 2, col 16).
         let edits = rename(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
             2,
             16,
             "hail",
@@ -4342,11 +4712,11 @@ mod tests {
         // `references::method_references_for_class`, so this exercises
         // Part 2 + Part 3 together end-to-end).
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         // Cursor on `find` in `ActiveRecord find foo bar` (line 7, col 13).
         let edits = rename(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
             7,
             13,
             "lookup",
@@ -4866,6 +5236,21 @@ mod tests {
     /// and after the complete rename; renaming only the declaration and the
     /// qualified read leaves `p` reading a cell that no longer exists.
     #[test]
+    fn colon_variable_rename_keeps_the_empty_cell_separate() {
+        let source = "set {} EMPTY; set : COLON; puts ${}; puts $:";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut analyser = tcl_compiler::analyser::Analyser::new();
+            let analysis = analyser.analyse(source, dialect);
+            let edits = namespace_variable_rename_edits(source, &analysis, ":::", "total");
+            let applied = apply_edits(source, &edits);
+            assert_eq!(
+                applied, "set {} EMPTY; set total COLON; puts ${}; puts $total",
+                "{dialect}"
+            );
+        }
+    }
+
+    #[test]
     fn tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use() {
         let src = "namespace eval ::ns {\n\
                    \x20   variable v 1\n\
@@ -4886,6 +5271,24 @@ mod tests {
         assert!(
             !applied.contains("$v\n"),
             "no stale read may survive: {applied}"
+        );
+    }
+
+    #[test]
+    fn namespace_variable_rename_requires_the_retained_consumer_image() {
+        let source = "namespace eval N {variable x 1}\nputs $::N::x\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let edits = namespace_variable_rename_edits(source, &analysis, "::N::x", "total");
+        assert_eq!(
+            apply_edits(source, &edits),
+            "namespace eval N {variable total 1}\nputs $::N::total\n"
+        );
+        let changed_source = source.replace(" x 1", " y 1").replace("::N::x", "::N::y");
+        assert!(
+            namespace_variable_rename_edits(&changed_source, &analysis, "::N::x", "total")
+                .is_empty(),
+            "retained x spans cannot rename the changed document's y"
         );
     }
 
@@ -5266,6 +5669,203 @@ mod tests {
             untargeted_member_rename_target(&analysis, "X", 0),
             None,
             "outside any class body there is no member to resolve"
+        );
+    }
+
+    #[test]
+    fn logical_rename_preserves_original_separator_runs_unicode_and_array_extent() {
+        // naming.editor.logical-written-component-geometry
+
+        // Exact source geometry only; edit permission stays with the caller.
+        let config =
+            tcl_lexer::LexerConfig::from_grammar(tcl_dialect::DialectProfile::plain_tcl().grammar);
+        for (written, expected) in [
+            ("${::::茶:::箱(槽)}", "${::::茶:::total(槽)}"),
+            ("$::::茶:::箱(槽)", "$::::茶:::total(槽)"),
+            ("${茶:箱}", "${total}"),
+        ] {
+            let span = tcl_lexer::Span::new(0, u32::try_from(written.len()).unwrap());
+            assert_eq!(
+                build_var_ref_replacement(written, span, "total", config).as_deref(),
+                Some(expected)
+            );
+            assert!(
+                build_var_ref_replacement(written, tcl_lexer::Span::new(0, 1), "total", config)
+                    .is_none()
+            );
+        }
+        for (written, expected) in [
+            ("::::茶:::méthode", "::::茶:::changed"),
+            ("茶::::", "茶::::changed"),
+            ("茶:méthode", "changed"),
+        ] {
+            assert_eq!(
+                invocation_replacement("unused", "unused", "changed", written),
+                expected
+            );
+        }
+        let source = "set 茶:::箱(槽) VALUE";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let start = source.find("茶").unwrap();
+        let end = source.find(" VALUE").unwrap();
+        let span = tcl_lexer::Span::new(u32::try_from(start).unwrap(), u32::try_from(end).unwrap());
+        assert_eq!(
+            build_var_replacement_in_analysis(source, &analysis, span, "total")
+                .unwrap()
+                .1,
+            "茶:::total(槽)"
+        );
+        assert!(
+            build_var_replacement_in_analysis("set 茶:::箱(槽) OTHER", &analysis, span, "total")
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod selected_replacement_qualification_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_rename_proposals_share_qualification_and_reject_unsafe_public_inputs() {
+        for (prefix, qualified, declaration) in [
+            ("", "::replacement", "replacement"),
+            ("::A", "::A::replacement", "::A::replacement"),
+            (":::", ":::::replacement", ":::::replacement"),
+        ] {
+            assert_eq!(
+                qualified_and_decl_text(prefix, "replacement"),
+                (qualified.to_owned(), declaration.to_owned())
+            );
+        }
+        let source = "proc original {} {}; original";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let index =
+            crate::workspace_index::WorkspaceIndex::from_documents([("provider", &analysis)]);
+        assert!(index.allows_lexical_rename_advice());
+        for replacement in ["", "::escape", "nested::escape", "has space", "$computed"] {
+            assert!(
+                cross_document_symbol_edits("::original", replacement, &index, "caller").is_empty()
+            );
+            assert!(workspace_symbol_rename_edits("::original", replacement, &index).is_none());
+        }
+        assert!(workspace_symbol_rename_edits("::original", "replacement", &index).is_some());
+    }
+}
+
+#[cfg(test)]
+mod selected_reference_tail_proposal_tests {
+    use super::*;
+
+    #[test]
+    fn logical_reference_rename_declines_unrepresentable_qualified_brace_tail() {
+        let nested = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::Tcl9Nesting,
+            ..Default::default()
+        };
+        let source = "${ns{::x}}";
+        let span = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
+        assert!(build_var_ref_replacement(source, span, "new", nested).is_none());
+        let first = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..nested
+        };
+        let source = "${ns{::x}";
+        let span = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
+        assert_eq!(
+            build_var_ref_replacement(source, span, "new", first).as_deref(),
+            Some("${ns{::new}")
+        );
+        let source = "$ns:::arr($index[command])";
+        let span = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
+        assert_eq!(
+            build_var_ref_replacement(source, span, "new", nested).as_deref(),
+            Some("$ns:::new($index[command])")
+        );
+    }
+}
+
+#[cfg(test)]
+mod source_declaration_rename_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_variable_rename_uses_original_edit_coverage_and_refuses_alias_only_anchors() {
+        let source = "set actual 1; puts $actual";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let edits = rename_var(
+            source,
+            0,
+            4,
+            "changed",
+            &analysis,
+            &LineIndex::new(source),
+            "actual",
+        );
+        assert_eq!(edits.len(), 2);
+        let source = "proc p {i} {upvar ::n::a($i) data; puts $data}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.find(" data;").unwrap() + 1).unwrap();
+        let index = LineIndex::new(source);
+        let position = index.position_at_utf16(offset, source);
+        assert!(
+            rename_var(
+                source,
+                position.line,
+                position.character.get(),
+                "changed",
+                &analysis,
+                &index,
+                "data"
+            )
+            .is_empty()
+        );
+    }
+}
+
+#[cfg(test)]
+mod typed_namespace_variable_rename_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn namespace_variable_source_edits_ignore_alias_reports_and_require_current_symbols() {
+        let source = "namespace eval ::N {set value 1; puts $value}";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let expected = namespace_variable_rename_edits(source, &analysis, "::N::value", "changed");
+        assert_eq!(expected.len(), 2);
+        let mut scopes = vec![&mut analysis.global_scope];
+        while let Some(scope) = scopes.pop() {
+            scope.name = "::REPORT_ONLY".to_owned();
+            for variable in scope.variables.values_mut() {
+                variable.name = "REPORT_ONLY".to_owned();
+                variable.link_target = Some("::COUNTERFEIT".to_owned());
+            }
+            scopes.extend(&mut scope.children);
+        }
+        analysis.qualified_var_refs.clear();
+        assert_eq!(
+            namespace_variable_rename_edits(source, &analysis, "::N::value", "changed"),
+            expected
+        );
+        assert!(
+            namespace_variable_rename_edits(source, &analysis, "::COUNTERFEIT", "changed")
+                .is_empty()
+        );
+        assert!(
+            namespace_variable_rename_edits(
+                "namespace eval ::N {set value 2; puts $value}",
+                &analysis,
+                "::N::value",
+                "changed"
+            )
+            .is_empty()
+        );
+        analysis.resolved_input = None;
+        assert!(
+            namespace_variable_rename_edits(source, &analysis, "::N::value", "changed").is_empty()
         );
     }
 }

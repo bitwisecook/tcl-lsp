@@ -1,0 +1,7 @@
+0	double	1	0	int	1	int	0	3
+1	double	1	0	double	1	double	0	3.0
+2	double	0	0	double	0	double	0	3.0
+3	wideInt	1	0	wideInt	1	wideInt	0	3
+4	wideInt	0	0	wideInt	0	wideInt	0	3
+5	none	1	0	int	1	int	0	17
+6	none	1	0	int	1	int	0	9

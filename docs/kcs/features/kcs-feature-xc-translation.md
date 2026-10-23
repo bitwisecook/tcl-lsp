@@ -21,7 +21,7 @@ VS Code, JetBrains, Copilot Chat, MCP, Claude skill, transform, lowering
 | JetBrains action | `Translate iRule to F5 XC` |
 | MCP | `xc_translate` tool |
 | Claude Code | `/irule-xc` |
-| LSP command | `tcl-lsp.xcTranslate` |
+| LSP command | `tcl-lsp.xcTranslate` (text), `tcl-lsp.xcTranslateDocument` (open document) |
 
 ## Question
 
@@ -43,6 +43,14 @@ configuration — and a notification reports the coverage with the
 translatable and untranslatable counts. Nothing is written to disk; save
 either tab yourself to keep it.
 
+The commands translate the open document under the language server's own
+analysis of it — its configured dialect, packs and BIG-IP settings — and
+the notification says so. A document the server does not analyse as an
+iRule is translated as standalone iRule text instead, and the notification
+says that too. If the document changes while it is being translated, the
+command asks you to run it again rather than translating an older copy.
+The same document analysis decides the opt-in `xcDiagnostics` findings.
+
 `Tcl: Translate iRule to F5 XC (Console JSON)` renders the same objects
 for the Distributed Cloud Console instead. It opens one tab per object,
 each holding a document you paste straight into that object's JSON
@@ -51,7 +59,9 @@ editor in the Console.
 ### VS Code chat
 
 `@irule /xc` translates the iRule in the editor, or one you attach or
-paste. It opens the same two scratch tabs, lists the untranslatable and
+paste. A whole open document is translated under its own analysis; a
+selection or pasted text is translated as standalone iRule source, and the
+reply says which. It opens the same two scratch tabs, lists the untranslatable and
 advisory constructs in the chat, and when coverage is below 100 % asks
 the model to suggest XC alternatives for the gaps.
 

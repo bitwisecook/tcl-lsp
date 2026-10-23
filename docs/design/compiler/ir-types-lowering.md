@@ -72,12 +72,15 @@ state at barrier points — the command can read/write any variable.
 
 ```rust
 Module {
-    source: /* the analysed text */,
+    source: SourceImage, // original lowered source image
+    procedure_ids: ProcedureIdIssuer,
     top_level: Script { statements: vec![/* … */] }, // code outside procs
-    procedures: HashMap::from([("::add".into(), Procedure { .. })]),
-    methods: HashMap::new(),                        // TclOO method bodies
-    redefined_procedures: HashSet::new(),           // procs defined twice
-    // …plus the namespace, trace, and TclOO evidence maps
+    procedures: ProcedureInventory, // keyed by Module-issued ProcedureId
+    methods: MethodInventory,       // keyed by Module-issued ProcedureId
+    body_units: ProcedureInventory, // lambda/namespace/declaration bodies
+    // installed and original declaration bodies are separate inventories
+    redefined_procedures: HashSet<String>, // compatibility/display names
+    // …plus registry, entry, source-binding and TclOO evidence
 }
 ```
 

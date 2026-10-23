@@ -1,0 +1,519 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Derived lexical projections of one immutable original source instance.
+
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
+
+use crate::ir::WordExpr;
+use crate::registry_invocation::OriginalSourceCommandProjection;
+use tcl_lexer::{LexerConfig, SourceImage};
+
+type ProjectionKey = (u32, LexerConfig);
+type ProjectionEntries = HashMap<ProjectionKey, Vec<Arc<ProjectionEntry>>>;
+
+struct ProjectionEntry {
+    words: Arc<[WordExpr]>,
+    original: OnceLock<Option<Arc<OriginalSourceCommandProjection>>>,
+}
+
+/// The actual immutable source-kind allocation owns image and source channel.
+/// The weak-owner sidecar table retains this derived memo outside source keys.
+/// A bucket key never substitutes for exact complete vector correspondence.
+pub(super) struct OriginalSourceProjectionMemo {
+    entries: Mutex<ProjectionEntries>,
+    /// Clean nested command-body parse verdicts of this origin's whole image,
+    /// shared by every command projection and script-word plan captured from it.
+    nested_cuts: tcl_lexer::NestedBodyCutMemo,
+
+    #[cfg(test)]
+    captures: std::sync::atomic::AtomicUsize,
+}
+
+impl Default for OriginalSourceProjectionMemo {
+    fn default() -> Self {
+        Self {
+            entries: Mutex::default(),
+            nested_cuts: tcl_lexer::NestedBodyCutMemo::default(),
+
+            #[cfg(test)]
+            captures: std::sync::atomic::AtomicUsize::default(),
+        }
+    }
+}
+
+// Derived cache warmth is neither semantic identity nor diagnostic output.
+impl std::fmt::Debug for OriginalSourceProjectionMemo {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("OriginalSourceProjectionMemo")
+    }
+}
+
+impl OriginalSourceProjectionMemo {
+    pub(super) const fn nested_cuts(&self) -> &tcl_lexer::NestedBodyCutMemo {
+        &self.nested_cuts
+    }
+
+    pub(super) fn capture(
+        &self,
+        image: &SourceImage,
+        words: &[WordExpr],
+        offset: u32,
+        config: LexerConfig,
+    ) -> Option<Arc<OriginalSourceCommandProjection>> {
+        let entry = {
+            let mut entries = self
+                .entries
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let candidates = entries.entry((offset, config)).or_default();
+            if let Some(entry) = candidates
+                .iter()
+                .find(|entry| entry.words.as_ref() == words)
+            {
+                Arc::clone(entry)
+            } else {
+                let entry = Arc::new(ProjectionEntry {
+                    words: Arc::from(words),
+                    original: OnceLock::new(),
+                });
+                candidates.push(Arc::clone(&entry));
+                entry
+            }
+        };
+        // Neither the original parser nor a future callback runs under the
+        // memo mutex. Failure depends only on this immutable lexical producer.
+        entry
+            .original
+            .get_or_init(|| {
+                #[cfg(test)]
+                {
+                    self.captures
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+                let original = OriginalSourceCommandProjection::capture_with_nested_cuts(
+                    image,
+                    &entry.words,
+                    offset,
+                    config,
+                    Some(&self.nested_cuts),
+                )
+                .map(Arc::new);
+                original
+            })
+            .clone()
+    }
+
+    #[cfg(test)]
+    pub(super) fn capture_count(&self) -> usize {
+        self.captures.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::command_binding::SourceOriginId;
+    use crate::ir::{CommandTokens, Provenance};
+
+    fn original_words(image: &SourceImage, config: LexerConfig) -> (u32, Vec<WordExpr>) {
+        let commands =
+            crate::segmenter::segment_commands_image_with_offset_and_config(image, 0, config)
+                .unwrap();
+        let command = commands.last().unwrap();
+        (
+            command.span.start(),
+            CommandTokens::from_segmented(&image.source_map(), config, command)
+                .words()
+                .to_vec(),
+        )
+    }
+
+    fn body_words(
+        image: &SourceImage,
+        start: usize,
+        body: &str,
+        config: LexerConfig,
+    ) -> (u32, Vec<WordExpr>) {
+        let local =
+            SourceImage::from_bytes(&image.bytes()[start..start + body.len()], image.channel());
+        let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+            &local,
+            u32::try_from(start).unwrap(),
+            config.nested(),
+        )
+        .unwrap();
+        let [command] = commands.as_slice() else {
+            panic!("one body command")
+        };
+        (
+            command.span.start(),
+            CommandTokens::from_segmented(&image.source_map(), config, command)
+                .words()
+                .to_vec(),
+        )
+    }
+
+    #[test]
+    fn original_lexical_projection_reuses_complete_geometry_across_source_queries() {
+        // naming.source.original-point-operand-projection
+
+        let source = "# original prefix\r\nlist {} \"\" café \"\\x00\" {A\0B} {a\\}} [list value]";
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
+            let config = LexerConfig::from_grammar(profile.grammar);
+            for image in [
+                SourceImage::document(source),
+                SourceImage::native(source.as_bytes()),
+            ] {
+                let (offset, words) = original_words(&image, config);
+                assert!(offset > 0);
+                let owner = SourceOriginId::authored_image(image.clone());
+                let first = owner
+                    .original_lexical_command(&words, offset, config)
+                    .unwrap();
+                let second = owner
+                    .original_lexical_command(&words, offset, config)
+                    .unwrap();
+                assert!(Arc::ptr_eq(&first, &second));
+                assert_eq!(owner.original_lexical_projection().capture_count(), 1);
+                let uncached = crate::registry_invocation::original_native_compiler_words(
+                    &image, &words, offset, config,
+                )
+                .unwrap();
+                assert_eq!(first.native_words(), uncached);
+                assert_eq!(
+                    CommandTokens::from_segmented(&image.source_map(), config, first.command())
+                        .words(),
+                    words,
+                );
+                assert_eq!(
+                    &image.bytes()[first.native_words()[1].span().as_range()],
+                    b"{}"
+                );
+                assert_eq!(
+                    &image.bytes()[first.native_words()[2].span().as_range()],
+                    b"\"\""
+                );
+                assert!(
+                    first
+                        .native_words()
+                        .iter()
+                        .all(|word| word.image().channel() == image.channel())
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_lexical_projection_refuses_changed_vector_grammar_and_partial_source() {
+        // naming.source.original-point-operand-projection
+
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let config = LexerConfig::from_grammar(profile.grammar);
+        let image = SourceImage::document("list {} {*}{one two}");
+        let (offset, words) = original_words(&image, config);
+        let owner = SourceOriginId::authored_image(image.clone());
+        assert!(
+            owner
+                .original_lexical_command(&words, offset, config)
+                .is_some()
+        );
+        let mut changed = words.clone();
+        let WordExpr::BracedLiteral { text, .. } = &mut changed[1] else {
+            panic!("braced original")
+        };
+        *text = "changed".into();
+        let mut derived = words.clone();
+        let WordExpr::Literal { source, .. } = &mut derived[0] else {
+            panic!("source head")
+        };
+        source.provenance = Provenance::Opaque;
+        let mut old_grammar = config;
+        old_grammar.expand_syntax = false;
+        for (vector, start, lexer) in [
+            (changed.as_slice(), offset, config),
+            (derived.as_slice(), offset, config),
+            (words.as_slice(), offset + 1, config),
+            (words.as_slice(), offset, old_grammar),
+        ] {
+            assert!(
+                crate::registry_invocation::original_native_compiler_words(
+                    &image, vector, start, lexer
+                )
+                .is_none()
+            );
+            assert!(
+                owner
+                    .original_lexical_command(vector, start, lexer)
+                    .is_none()
+            );
+            let count = owner.original_lexical_projection().capture_count();
+            assert!(
+                owner
+                    .original_lexical_command(vector, start, lexer)
+                    .is_none()
+            );
+            assert_eq!(owner.original_lexical_projection().capture_count(), count);
+        }
+        let partial = SourceImage::document("list {");
+        let (start, vector) = original_words(&partial, config);
+        let malformed = SourceOriginId::authored_image(partial.clone());
+        assert!(
+            crate::registry_invocation::original_native_compiler_words(
+                &partial, &vector, start, config
+            )
+            .is_none()
+        );
+        assert!(
+            malformed
+                .original_lexical_command(&vector, start, config)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_lexical_projection_keeps_cache_warmth_and_independent_origins_separate() {
+        // naming.source.original-point-operand-projection
+
+        use std::hash::{Hash, Hasher};
+        let config = LexerConfig::default();
+        let image = SourceImage::document("list {literal} café");
+        let (offset, words) = original_words(&image, config);
+        let owner = SourceOriginId::authored_image(image.clone());
+        let cloned = owner.clone();
+        let independent = SourceOriginId::authored_image(image);
+        let debug = format!("{owner:?}");
+        let mut before = std::collections::hash_map::DefaultHasher::new();
+        owner.hash(&mut before);
+        let original = owner
+            .original_lexical_command(&words, offset, config)
+            .unwrap();
+        let from_clone = cloned
+            .original_lexical_command(&words, offset, config)
+            .unwrap();
+        let separate = independent
+            .original_lexical_command(&words, offset, config)
+            .unwrap();
+        assert!(Arc::ptr_eq(&original, &from_clone));
+        assert!(!Arc::ptr_eq(&original, &separate));
+        assert_eq!(original.native_words(), separate.native_words());
+        assert_eq!(owner.original_lexical_projection().capture_count(), 1);
+        assert_eq!(independent.original_lexical_projection().capture_count(), 1);
+        assert_eq!(owner, independent);
+        assert_eq!(owner.cmp(&independent), std::cmp::Ordering::Equal);
+        let mut after = std::collections::hash_map::DefaultHasher::new();
+        owner.hash(&mut after);
+        assert_eq!(before.finish(), after.finish());
+        assert_eq!(debug, format!("{owner:?}"));
+        let concurrent =
+            SourceOriginId::authored_image(SourceImage::document("list {literal} café"));
+        let barrier = std::sync::Barrier::new(8);
+        std::thread::scope(|scope| {
+            let handles = (0..8)
+                .map(|_| {
+                    let concurrent = &concurrent;
+                    let barrier = &barrier;
+                    let words = &words;
+                    scope.spawn(move || {
+                        barrier.wait();
+                        concurrent
+                            .original_lexical_command(words, offset, config)
+                            .unwrap()
+                    })
+                })
+                .collect::<Vec<_>>();
+            let results = handles
+                .into_iter()
+                .map(|handle| handle.join().unwrap())
+                .collect::<Vec<_>>();
+            assert!(
+                results
+                    .iter()
+                    .all(|result| Arc::ptr_eq(result, &results[0]))
+            );
+        });
+        assert_eq!(concurrent.original_lexical_projection().capture_count(), 1);
+    }
+
+    #[test]
+    fn original_lexical_projection_nested_cut_memo_matches_the_unmemoised_capture() {
+        // naming.source.original-point-operand-projection
+
+        let source = "set x [list [list a] [list b]]\nlist [list [list a] {b}c]";
+        let clean = source.find("list [list a] [list b]").unwrap();
+        let malformed = source.find("list [list a] {b}c").unwrap();
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
+            let config = LexerConfig::from_grammar(profile.grammar);
+            for image in [
+                SourceImage::document(source),
+                SourceImage::native(source.as_bytes()),
+            ] {
+                let top = crate::segmenter::segment_commands_image_with_offset_and_config(
+                    &image, 0, config,
+                )
+                .unwrap();
+                let top_words = |index: usize| {
+                    (
+                        top[index].span.start(),
+                        CommandTokens::from_segmented(&image.source_map(), config, &top[index])
+                            .words()
+                            .to_vec(),
+                    )
+                };
+                // Innermost first, as source points are recorded.
+                let captures = [
+                    (body_words(&image, clean + 6, "list a", config), true),
+                    (
+                        body_words(&image, clean, "list [list a] [list b]", config),
+                        true,
+                    ),
+                    (top_words(0), true),
+                    (body_words(&image, malformed + 6, "list a", config), true),
+                    (
+                        body_words(&image, malformed, "list [list a] {b}c", config),
+                        false,
+                    ),
+                    (top_words(1), false),
+                ];
+                for reverse in [false, true] {
+                    let memo = OriginalSourceProjectionMemo::default();
+                    let nested_cuts = tcl_lexer::NestedBodyCutMemo::default();
+                    let mut ordered = captures.iter().collect::<Vec<_>>();
+                    if reverse {
+                        ordered.reverse();
+                    }
+                    for ((offset, words), complete) in ordered {
+                        let geometry = |original: &OriginalSourceCommandProjection| {
+                            (original.native_words().to_vec(), original.command().clone())
+                        };
+                        let unmemoised = OriginalSourceCommandProjection::capture(
+                            &image, words, *offset, config,
+                        )
+                        .map(|original| geometry(&original));
+                        let shared = OriginalSourceCommandProjection::capture_with_nested_cuts(
+                            &image,
+                            words,
+                            *offset,
+                            config,
+                            Some(&nested_cuts),
+                        )
+                        .map(|original| geometry(&original));
+                        let memoised = memo
+                            .capture(&image, words, *offset, config)
+                            .map(|original| geometry(&original));
+                        assert_eq!(unmemoised.is_some(), *complete, "{name} {offset}");
+                        assert_eq!(shared, unmemoised, "{name} {offset}");
+                        assert_eq!(memoised, unmemoised, "{name} {offset}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn one_nested_cut_memo_serves_whole_input_and_nested_script_plans_in_any_order() {
+        // naming.source.original-point-operand-projection
+
+        use tcl_lexer::{SourceSegmentationPurpose as Purpose, Span};
+        // (source, whole input stops at a parse cut, some body stops at one)
+        let sources = [
+            (
+                "set x [list [list a] [list b]]\nputs [list [list c]]\n",
+                false,
+                false,
+            ),
+            (
+                "set x [list [list a]]\nlist [list [list a] {b}c]\nputs after\n",
+                true,
+                true,
+            ),
+            (
+                "\u{feff}set x [list [list a]]\nlist [list {b}c]",
+                true,
+                true,
+            ),
+            (
+                "set y [\u{feff}list [list a]]\nlist [\u{feff}list {b}c]",
+                true,
+                true,
+            ),
+        ];
+        for (source, whole_cut, body_cut) in sources {
+            let whole = Span::new(0, u32::try_from(source.len()).unwrap());
+            let mut plans = vec![(whole, Purpose::WholeInput)];
+            for (open, _) in source.match_indices('[') {
+                let end = tcl_lexer::command_substitution_end(source, open).unwrap();
+                let body = Span::new(
+                    u32::try_from(open + 1).unwrap(),
+                    u32::try_from(end - 1).unwrap(),
+                );
+                plans.push((body, Purpose::NestedScript));
+            }
+            let mut reversed = plans.clone();
+            reversed.reverse();
+            let mut interleaved = plans[1..].to_vec();
+            interleaved.reverse();
+            interleaved.insert(interleaved.len() / 2, plans[0]);
+            for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+                let profile =
+                    tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
+                let config = LexerConfig::from_grammar(profile.grammar);
+                for image in [
+                    SourceImage::document(source),
+                    SourceImage::native(source.as_bytes()),
+                ] {
+                    let unmemoised = |region: Span, purpose: Purpose| {
+                        tcl_lexer::native_script_words_in_with_purpose(
+                            image.clone(),
+                            region,
+                            config,
+                            purpose,
+                        )
+                    };
+                    let tail = |region: Span, purpose: Purpose| {
+                        unmemoised(region, purpose).unwrap().fatal_tail.is_some()
+                    };
+                    assert_eq!(
+                        tail(whole, Purpose::WholeInput),
+                        whole_cut,
+                        "{name} {source:?}"
+                    );
+                    assert_eq!(
+                        plans[1..]
+                            .iter()
+                            .any(|(region, purpose)| tail(*region, *purpose)),
+                        body_cut,
+                        "{name} {source:?}",
+                    );
+                    for order in [&plans, &reversed, &interleaved] {
+                        let memo = tcl_lexer::NestedBodyCutMemo::default();
+                        let origin = SourceOriginId::authored_image(image.clone());
+                        for &(region, purpose) in order {
+                            let expected = unmemoised(region, purpose);
+                            let shared = tcl_lexer::native_script_words_in_with_purpose_and_memo(
+                                image.clone(),
+                                region,
+                                config,
+                                purpose,
+                                &memo,
+                            );
+                            assert_eq!(shared, expected, "{name} {source:?} {region:?}");
+                            assert_eq!(
+                                origin.original_script_words_in(region, config, purpose),
+                                expected,
+                                "{name} {source:?} {region:?}",
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

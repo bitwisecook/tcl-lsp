@@ -36,17 +36,139 @@
 //! and releasing argv can never free a still-referenced result. Immediate free
 //! + retain-into-result is the whole discipline.
 
+#[cfg(test)]
+mod anonymous_cell_cleanup_tests;
+#[cfg(test)]
+mod bootstrap_context_tests;
+#[cfg(test)]
+mod byte_store_retirement_tests;
+#[cfg(test)]
+mod c_api_error_tests;
+mod captured_rmw;
+#[cfg(test)]
+mod command_publication_tests;
+#[cfg(test)]
+mod container_access_tests;
+#[cfg(test)]
+mod container_removal_tests;
+mod jim_local;
+mod jim_teardown;
+mod native_alias_registration;
+mod native_alias_roles;
+mod native_append;
+pub(crate) mod native_body_artifact;
+mod native_children;
+mod native_command_names;
+mod native_command_recreation;
+mod native_command_retirement;
+pub use native_alias_roles::NativeAliasHeader;
+#[cfg(not(target_arch = "wasm32"))]
+mod native_coroutine_names;
+#[cfg(test)]
+mod original_error_code_setter_tests;
+#[cfg(test)]
+mod original_trace_outcome_tests;
+pub use native_children::ChildInterpreterCommand;
+mod native_compilation;
+mod native_dictionary;
+#[cfg(feature = "engine")]
+pub(crate) mod native_host_publication;
+mod native_introspection;
+pub(crate) use native_dictionary::DictionaryScopeRead;
+pub(crate) mod namespace_address;
+mod native_ensemble_objects;
+mod native_error_variables;
+pub(crate) use native_error_variables::OriginalJimErrorCodeCapture;
+mod native_execution_constants;
+mod native_hidden_invocation;
+mod native_index_lookup;
+mod native_jim_import;
+mod native_jim_increment;
+pub(crate) use native_jim_import::{OriginalJimImportEachLoop, OriginalJimImportTraversal};
+#[cfg(test)]
+mod native_jim_invocation_tests;
+mod native_jim_links;
+mod native_jim_lookup;
+mod native_jim_subcommands;
+pub(crate) use native_jim_lookup::OriginalJimLookupNamespace;
+pub(crate) use native_jim_subcommands::OriginalJimNamespaceSubcommandOutcome;
+mod native_jim_namespace;
+mod native_jim_namespace_info;
+pub(crate) use native_jim_namespace_info::{
+    OriginalNamespaceInfoEachLoop, OriginalNamespaceInfoFrame,
+};
+mod native_jim_result;
+pub(crate) mod native_jim_tailcall;
+pub(crate) mod native_literal_pool;
+mod native_namespace_names;
+mod native_precision;
+mod native_procedure_body;
+#[cfg(test)]
+mod native_procedure_relocation_tests;
+mod native_procedure_resources;
+pub use native_procedure_resources::NativeProcedureCommand;
+pub(crate) use native_procedure_resources::OriginalProcedureBinding;
+
+/// The actual insertion receipt, before any post-publication owner retirement.
+/// A refused publication has already retained its full execution cause.
+enum OriginalCommandPublication {
+    Published(u64),
+    Refused,
+}
+
+struct OriginalBuiltinPublication {
+    namespace: NsId,
+    tail: Vec<u8>,
+    generation: u64,
+}
+
+struct OriginalProcedurePublication {
+    namespace: NsId,
+    tail: Vec<u8>,
+    generation: u64,
+    binding: OriginalProcedureBinding,
+}
+pub(crate) use native_procedure_resources::{NativeCallableProcedure, NativeProcedureDefinition};
+mod execution_name_policy;
+mod native_argument_usage;
+pub(crate) mod native_arguments;
+mod native_command_rename;
+pub(crate) mod native_encoding_source;
+#[cfg(test)]
+#[path = "interp/native_eval_object_tests.rs"]
+mod native_eval_object_tests;
+mod native_event_context;
+mod native_name_queries;
+mod native_object_vector;
+pub(crate) mod native_operation_currency;
+pub(crate) mod native_scalar_context;
+mod native_script;
+pub(crate) use native_script::{OriginalSourceCommandReturn, OriginalSourceConstruction};
+mod native_substitution;
+mod native_variable_names;
+mod native_variable_observers;
+mod native_variable_teardown;
+mod stock_ensembles;
+mod variable_names;
+
 use core::ffi::{c_char, c_int, c_void};
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
+use native_error_headers::{NativeErrorStack, NativeReturnOptions};
 use tcl_core_types::{OoId, RecursionLimit};
 use tcl_runtime_api::codegen_abi::NATIVE_PROC_STATUS_DECLINED;
-use tcl_runtime_api::error_stack::{validate_error_stack, ErrorStack};
+use tcl_runtime_api::error_stack::validate_error_stack;
 use tcl_runtime_api::guard::{
     GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
+    OwnedGuardManager,
+};
+use tcl_runtime_api::jim_error_stack::{
+    select_jim_error_frame_sources, JimErrorFrame, JimErrorStack, JimErrorTrace,
+    JimEvaluationFrame, JimScriptLocation, NativeErrorStackProtocol,
 };
 use tcl_runtime_api::{CommandEvaluation, RegisteredBacking};
+use tcl_syntax::value::ValueError;
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
@@ -102,17 +224,6 @@ impl Code {
     }
 }
 
-fn shared_code(code: Code) -> tcl_runtime_api::Code {
-    match code {
-        Code::Ok => tcl_runtime_api::Code::Ok,
-        Code::Error => tcl_runtime_api::Code::Error,
-        Code::Return => tcl_runtime_api::Code::Return,
-        Code::Break => tcl_runtime_api::Code::Break,
-        Code::Continue => tcl_runtime_api::Code::Continue,
-        Code::Other(value) => tcl_runtime_api::Code::Other(value),
-    }
-}
-
 /// Parse a completion-code integer the way `TclGetIntFromObj` does: the emulated
 /// release's integer grammar (an optional sign, the radix prefixes that release
 /// has, and octal-by-leading-zero up to 8.6), accepting the full signed **and**
@@ -154,6 +265,8 @@ pub(crate) fn parse_completion_int(b: &[u8]) -> Option<i32> {
 /// [`Interp::set_result_bytes`] and returns a [`Code`].
 pub type BuiltinFn = fn(&mut Interp, &[*mut TclObj]) -> Code;
 
+type NativeCommandFrameDescription = Vec<(Vec<u8>, Vec<u8>)>;
+
 /// The kind of body-frame a proc-style caller appends to the error trace when
 /// its body throws (`MakeProcError` / `MakeLambdaError`, `tclProc.c`). Both
 /// truncate the name to 60 bytes (`...` on overflow) and cite the body-relative
@@ -164,6 +277,8 @@ pub(crate) enum ProcFrame<'a> {
     /// `(lambda term "LAMBDA" line N)` — an `apply` lambda. `LAMBDA` is the whole
     /// lambda-expression string (`{params body ?ns?}`, i.e. `argv[1]`).
     Lambda(&'a [u8]),
+    /// Jim records its original invocation without a lambda-expression display.
+    JimLambda,
     /// A TclOO method body (`CommonMethErrorHandler`, `tclOOMethod.c`):
     /// `(KIND "OWNER" method "NAME" line N)`, or `(KIND "OWNER" constructor|
     /// destructor line N)`. `kind` is `object`/`class` per the declaring entity,
@@ -186,6 +301,9 @@ pub(crate) enum MethodFrameWhat<'a> {
 /// What a proc/lambda call contributes to the diagnostic stacks: the errorInfo
 /// frame (PC-4) plus the `info frame` proc FQN and defining-source (PC-5).
 pub(crate) struct CallMeta<'a> {
+    /// Borrowed from the active dispatcher; the procedure frame owns no extra
+    /// object references merely to record its original invocation.
+    pub original_argv: Option<&'a [*mut TclObj]>,
     /// The errorInfo `(procedure/lambda ...)` frame.
     pub err: ProcFrame<'a>,
     /// The proc's FQN — the `info frame` `proc` key (`None` for a lambda).
@@ -201,6 +319,8 @@ pub(crate) struct CallMeta<'a> {
     /// storage name (== `local` for public vars, a mangled name for TIP 500
     /// private vars). Empty for procs/lambdas.
     pub link_vars: &'a [(Vec<u8>, Vec<u8>)],
+    /// Current declaring-provider resolver, issued only by the reached OO body.
+    pub oo_variable_resolver: Option<crate::cmd_oo::native_variables::NativeOoVariableResolver>,
     /// Return a body-level `break`/`continue` as the raw `Code` instead of the
     /// `invoked "break" outside of a loop` error. Set for TIP 558 property
     /// accessor methods, whose `configure` caller maps the loop codes to its
@@ -229,8 +349,28 @@ pub(crate) struct CallMeta<'a> {
     pub quote_name: bool,
     /// The compiled body to run instead of the source one, from
     /// [`ProcDef::native`]. `None` for `apply` and every TclOO method: only a
-    /// `proc` definition can carry a compiled body.
+    /// ordinary command can carry that entry; commandless methods and lambdas use
+    /// their genuine original Proc body through `c_procedure`.
     pub native: Option<NativeProcEntry>,
+    /// Persistent native procedure slots shared by the definition and activations.
+    pub statics: Option<Rc<crate::frame::StaticVariables>>,
+    pub c_procedure: Option<&'a Rc<ProcDef>>,
+    /// Actual TclOO ProcedureMethod clientData, retained only after compilation.
+    pub c_method_client_data: Option<&'a NativeCallableProcedure>,
+    pub jim_parameters: Option<*mut TclObj>,
+    pub jim_body: Option<*mut TclObj>,
+    pub jim_namespace: Option<&'a Rc<obj::Owned>>,
+}
+
+impl<'a> CallMeta<'a> {
+    /// Borrow genuine C or Jim invocation objects without reading argument Strings.
+    /// Other frame formats keep their independently selected word transport.
+    pub(crate) fn original_frame_arguments(
+        dialect: tcl_registry::InvocationDialect,
+        original_argv: Option<&'a [*mut TclObj]>,
+    ) -> Option<&'a [*mut TclObj]> {
+        dialect.native_string_protocol().and(original_argv)
+    }
 }
 
 /// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
@@ -240,7 +380,7 @@ pub(crate) struct CallMeta<'a> {
 /// `if`/`while`/`for`/`foreach` body (those run in the enclosing frame). The
 /// `cmd`/`line` are updated to the currently-executing command of the
 /// frame-owning script as the eval loop steps through it.
-struct CmdFrame {
+pub(crate) struct CmdFrame {
     /// The frame's location `type` (`eval`/`proc`/`source`). Explicit rather than
     /// derived: an `uplevel` body is `type eval` yet still names the invoking
     /// proc, and an `eval` body inherits the enclosing kind.
@@ -281,6 +421,7 @@ struct CmdFrame {
     /// The currently-executing command at this level (the `cmd` key) and its
     /// reported source line (the `line` key).
     cmd: Vec<u8>,
+    original_command: Option<obj::Owned>,
     line: u32,
     /// TclOO method context for `info frame`: `(method-name, declarer-kind,
     /// declarer-name)` where kind is `class`/`object`. Present for a method
@@ -301,12 +442,12 @@ type ArgLoc = (*mut TclObj, Option<Rc<[u8]>>, u32);
 /// prefix, and whether it was registered through the deprecated 8.x
 /// `trace variable` form — which decides the op word its callback receives,
 /// here exactly as on the explicit-unset path.
-type VarTeardownCallback = (Vec<u8>, Vec<u8>, Vec<u8>, bool);
+type VarTeardownCallback = (Vec<u8>, Vec<u8>, native_variable_observers::Callback, bool);
 
 /// The outcome of an ensemble `-unknown` handler (`EnsembleUnknownCallback`).
 enum EnsembleUnknown {
     /// A non-empty result: the replacement command prefix to dispatch.
-    Prefix(Vec<Vec<u8>>),
+    Prefix(obj::Owned),
     /// An empty result: the handler defined the subcommand — reparse the call.
     Reparse,
     /// The handler errored (or returned a bad code); `Code` carries the failure.
@@ -347,23 +488,12 @@ impl CmdFrame {
             line_base: 0,
             proc_line_base: 0,
             cmd: Vec::new(),
+            original_command: None,
             line: 1,
             oo: None,
             lambda: None,
         }
     }
-}
-
-/// Join argument objects with single spaces (the `eval`/`interp eval` body form).
-fn join_words(args: &[*mut TclObj]) -> Vec<u8> {
-    let mut out = Vec::new();
-    for (i, &a) in args.iter().enumerate() {
-        if i > 0 {
-            out.push(b' ');
-        }
-        out.extend_from_slice(&obj_bytes(a));
-    }
-    out
 }
 
 /// The 1-based source line of byte `offset` in `src` — `1 + count('\n' in
@@ -421,14 +551,16 @@ fn scan_list_offsets(src: &[u8]) -> Option<Vec<(u32, bool)>> {
 /// `errorInfo`/`errorCode`/`errorLine`/`ERR_ALREADY_LOGGED` (PC-4). The trace is
 /// built **incrementally as the error unwinds** (`TclLogCommandInfo` +
 /// `MakeProcError`, `proc-call-and-stack-traces.md` §1.5), not at the throw, and
-/// published to the `::errorInfo`/`::errorCode` globals when the error is caught
-/// or reaches the outermost eval.
+/// retained after an outermost eval. Native hidden variable traces publish the
+/// original objects on a read or result reset; catch consumes the exception.
 #[derive(Default, Clone)]
 pub(crate) struct ExceptionState {
     /// The accumulating `errorInfo`. `None` until the first frame is appended
     /// (C's `errorInfo == NULL`) — which selects `while executing` over `invoked
     /// from within` and seeds the buffer from the result message.
     info: Option<Vec<u8>>,
+    /// Actual C private object ownership and legacy-copy state.
+    native: native_error_variables::NativeErrorObjects,
     /// `::errorCode` (empty ⇒ the `NONE` default is applied when published,
     /// unless [`code_explicit`](Self::code_explicit) is set).
     code: Vec<u8>,
@@ -439,6 +571,26 @@ pub(crate) struct ExceptionState {
     /// `ERR_ALREADY_LOGGED`: the current command has already been logged deeper
     /// in the same script, so its enclosing command must not re-log it.
     already_logged: bool,
+    /// Primitive result retained until an actual script propagation boundary.
+    primitive_getter: Option<Box<tcl_syntax::scalar_getter::NativeScalarGetterError>>,
+    expression_error_stage:
+        Option<Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>>,
+}
+
+/// The Guest part of one actual variable trace outcome. Host refusals travel
+/// separately in the producer's outer Result and never permit Guest formatting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum VariableTraceGuestOutcome {
+    /// No callback error aborts this operation.
+    Complete,
+    /// A genuine callback error has populated the operation's pending message.
+    GuestError,
+}
+
+impl VariableTraceGuestOutcome {
+    fn is_guest_error(self) -> bool {
+        self == Self::GuestError
+    }
 }
 
 /// How one variable access presents itself to the trace machinery — see
@@ -464,9 +616,89 @@ struct TraceAccess {
 /// accumulation — moved between flows by [`Interp::snapshot_error`] /
 /// [`Interp::restore_error`] (see `coroprobe`).
 pub(crate) struct ErrorSnapshot {
+    currency: native_operation_currency::SavedNativeOperationCurrency,
+    native: native_error_variables::NativeErrorObjects,
+    jim_error_stack: JimErrorStack<obj::Owned>,
     info: Option<Vec<u8>>,
     code: Vec<u8>,
     code_explicit: bool,
+    already_logged: bool,
+    primitive_getter: Option<Box<tcl_syntax::scalar_getter::NativeScalarGetterError>>,
+    expression_error_stage:
+        Option<Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>>,
+}
+
+/// Full saved error state for mandatory failed-constructor cleanup. Its real
+/// entered receipt survives callback effects independently of byte projections.
+pub(crate) struct ErrorStateSnapshot {
+    currency: native_operation_currency::SavedNativeOperationCurrency,
+    result: Result<Vec<u8>, tcl_runtime_api::NativeExecutionError>,
+    exception: ExceptionState,
+    jim_stack: JimErrorStack<obj::Owned>,
+}
+
+#[cfg(test)]
+impl ErrorSnapshot {
+    /// Observe the retained code without reaching a getter or settling an error.
+    pub(crate) fn code_bytes(&self) -> &[u8] {
+        &self.code
+    }
+}
+
+/// Evaluation metadata retains command identity so later cold lookups remain
+/// visible to error capture without acquiring a native command-name reference.
+struct OriginalJimEvaluationFrame {
+    procedure_level: u32,
+    command: Option<u64>,
+    is_procedure: bool,
+    script: Option<JimScriptLocation<Vec<u8>>>,
+    invocation: Vec<u8>,
+}
+
+/// Borrow argv until its synchronous invocation or parked coroutine returns.
+struct JimBorrowedInvocation {
+    frame_index: usize,
+    argv: Vec<*mut TclObj>,
+    // The active original Script owns this filename through the evaluation scope.
+    script_filename: Option<*mut TclObj>,
+    source: Option<Rc<native_script::OriginalSourceInvocation>>,
+}
+
+/// Restore the diagnostic borrow stack before the caller releases its argv.
+/// Coroutine handoff swaps this stack with its evaluation frames; resumption
+/// restores the same flow before this native invocation can return or unwind.
+struct JimInvocationScope {
+    interp: Interp,
+    previous_len: usize,
+}
+
+/// Restore the actual original-script command frame before its argv retire.
+struct JimEvaluationScope {
+    interp: Interp,
+    previous_len: usize,
+    previous_borrows_len: usize,
+}
+
+impl Drop for JimEvaluationScope {
+    fn drop(&mut self) {
+        self.interp
+            .jim_invocation_borrows
+            .borrow_mut()
+            .truncate(self.previous_borrows_len);
+        self.interp
+            .jim_evaluation_frames
+            .borrow_mut()
+            .truncate(self.previous_len);
+    }
+}
+
+impl Drop for JimInvocationScope {
+    fn drop(&mut self) {
+        self.interp
+            .jim_invocation_borrows
+            .borrow_mut()
+            .truncate(self.previous_len);
+    }
 }
 
 /// A coroutine's saved execution context: the per-flow interpreter state that
@@ -481,11 +713,18 @@ pub(crate) struct CoroContext {
     script_stack: Vec<Vec<u8>>,
     return_code: Code,
     return_level: usize,
-    return_options: Vec<(Vec<u8>, Vec<u8>)>,
+    return_options: NativeReturnOptions,
     array_operation_targets: Vec<ArrayOperationTarget>,
     active_var_trace_scopes: Vec<crate::cmd_trace::VarTraceScope>,
+    native_compilation: native_compilation::CompilationExecution,
     exc: ExceptionState,
-    error_stack: ErrorStack<Vec<u8>>,
+    error_stack: NativeErrorStack,
+    jim_error_stack: JimErrorStack<obj::Owned>,
+    jim_evaluation_frames: Vec<OriginalJimEvaluationFrame>,
+    jim_invocation_borrows: Vec<JimBorrowedInvocation>,
+    jim_procedure_level: u32,
+    native_dispatch_depth: u32,
+    deferred_tailcalls: Vec<(u32, crate::frame::PendingTailcall)>,
     error_line: u32,
     arg_lines: Vec<u32>,
     eval_depth: u32,
@@ -505,11 +744,18 @@ impl CoroContext {
             script_stack: Vec::new(),
             return_code: Code::Ok,
             return_level: 1,
-            return_options: Vec::new(),
+            return_options: NativeReturnOptions::default(),
             array_operation_targets: Vec::new(),
             active_var_trace_scopes: Vec::new(),
+            native_compilation: native_compilation::CompilationExecution::default(),
             exc: ExceptionState::default(),
-            error_stack: ErrorStack::default(),
+            error_stack: NativeErrorStack::default(),
+            jim_error_stack: JimErrorStack::default(),
+            jim_evaluation_frames: Vec::new(),
+            jim_invocation_borrows: Vec::new(),
+            jim_procedure_level: 0,
+            native_dispatch_depth: 0,
+            deferred_tailcalls: Vec::new(),
             error_line: 1,
             arg_lines: Vec::new(),
             eval_depth: 0,
@@ -572,25 +818,26 @@ pub type TclObjCmdProc =
 /// `Tcl_CmdDeleteProc`: run with the `clientData` when the command is deleted.
 pub type TclCmdDeleteProc = unsafe extern "C" fn(*mut c_void);
 
-/// An extension's command: the procedure, its `clientData` and its delete
-/// procedure, registered through `Tcl_CreateObjCommand`.
-///
-/// The delete procedure runs when the last handle to the command goes: at the
-/// deletion, a replacement or a `rename` to the empty name when the command is
-/// idle, and once the call that is running it returns when it is not — which
-/// keeps the `clientData` live for as long as the command's own procedure
-/// executes, where C Tcl runs the procedure at the deletion itself. The table,
-/// a displaced binding and an interpreter's teardown are all just drops of the
-/// handle.
+/// An extension's actual command procedure, client data and delete procedure.
+/// Selected C true deletion withdraws the once-only callback while an active
+/// dispatch keeps only the command allocation. Neutral and Jim record lifetime
+/// still call an unconsumed delete procedure when its final handle drops.
+/// Selected idle creation discard retains its independent producer contract.
 pub struct ObjCommand {
     proc_: TclObjCmdProc,
     client_data: *mut c_void,
-    delete_proc: Option<TclCmdDeleteProc>,
+    delete_proc: Cell<Option<TclCmdDeleteProc>>,
+    original_deleted: Cell<bool>,
+    host_backing_retired: Cell<bool>,
+    creation_purpose:
+        Option<tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose>,
 }
 
 impl ObjCommand {
-    /// A command over `proc_`; `delete_proc` is called with `client_data` once,
-    /// when the command's last handle drops.
+    /// A command over `proc_`. Selected C deletion withdraws `delete_proc`
+    /// once independently of the dispatch allocation; neutral and Jim record
+    /// retirement calls an unconsumed callback when the last handle drops.
+    /// Selected idle creation discard has its own no-callback purpose.
     #[must_use]
     pub fn new(
         proc_: TclObjCmdProc,
@@ -600,14 +847,65 @@ impl ObjCommand {
         Self {
             proc_,
             client_data,
-            delete_proc,
+            delete_proc: Cell::new(delete_proc),
+            original_deleted: Cell::new(false),
+            host_backing_retired: Cell::new(false),
+            creation_purpose: None,
         }
+    }
+
+    /// Observe the actual once-only callback withdrawal in a genuine Host bridge.
+    #[cfg(all(test, feature = "engine"))]
+    pub(crate) fn original_delete_role_is_withdrawn(&self) -> bool {
+        self.delete_proc.get().is_none() && self.original_deleted.get()
+    }
+
+    /// Withdraw before invoking, so recursive deletion cannot replay this role.
+    pub(super) fn retire_original_delete_procedure(&self) {
+        if let Some(delete_proc) = self.delete_proc.take() {
+            if self.creation_purpose == Some(
+                tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::OwnedRuntimeShim,
+            ) {
+                // Withdraw this actual private backing role before its Drop
+                // can reenter. The C token's final objProc-null stage is separate.
+                self.host_backing_retired.set(true);
+            }
+            // SAFETY: the actual command supplied this callback and client data.
+            unsafe { delete_proc(self.client_data) };
+        }
+    }
+
+    #[cfg(all(test, feature = "engine"))]
+    pub(crate) fn original_host_backing_is_retired(&self) -> bool {
+        self.host_backing_retired.get() && self.delete_proc.get().is_none()
+    }
+
+    /// Retain the actual producer's record purpose independently of dispatch,
+    /// native name/address and object ownership permissions.
+    pub(crate) fn creation_purpose(
+        &self,
+    ) -> Option<tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose> {
+        self.creation_purpose
+    }
+
+    /// Runtime-owned shim storage keeps its own destructor contract; it cannot
+    /// inherit the external legacy C callback's intermediate-record discard.
+    pub(crate) fn new_owned_runtime_shim(
+        proc_: TclObjCmdProc,
+        client_data: *mut c_void,
+        delete_proc: Option<TclCmdDeleteProc>,
+    ) -> Self {
+        let mut command = Self::new(proc_, client_data, delete_proc);
+        command.creation_purpose = Some(
+            tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::OwnedRuntimeShim,
+        );
+        command
     }
 }
 
 impl Drop for ObjCommand {
     fn drop(&mut self) {
-        if let Some(delete_proc) = self.delete_proc {
+        if let Some(delete_proc) = self.delete_proc.take() {
             // SAFETY: the extension registered this procedure for this client
             // data; the handle is dropped once, so it is called once.
             unsafe { delete_proc(self.client_data) };
@@ -620,9 +918,9 @@ pub enum Command {
     /// A native Rust handler.
     Builtin(BuiltinFn),
     /// An extension's command, registered through `Tcl_CreateObjCommand`: a
-    /// C procedure called with the call's words as `objv`. Behind an `Rc` so
-    /// the dispatch-time clone is a count, and so the delete procedure runs
-    /// exactly once however the binding goes (see [`ObjCommand`]).
+    /// C procedure called with the call's words as `objv`. Its dispatch `Rc`
+    /// remains independent of the selected C once-only delete callback. Jim
+    /// and neutral deletion retain their final-record callback schedule.
     ObjCmd(Rc<ObjCommand>),
     /// An `interp alias`: dispatch re-resolves `target` **by name, anchored at
     /// the global namespace, on every call** (so it lazily observes the target's
@@ -630,8 +928,13 @@ pub enum Command {
     /// resolving), then prepends the frozen `prefix` words to the caller's args.
     /// See `docs/design/runtime/rename-alias.md` §4.
     Alias {
-        target: Vec<u8>,
-        prefix: Vec<Vec<u8>>,
+        /// Original member ownership; command-token clones do not duplicate
+        /// the native List or its member references.
+        original_prefix: Rc<NativeAliasHeader>,
+        /// C retains the original registration name independently of its slot.
+        registration_name: Option<Rc<NativeAliasHeader>>,
+        /// Registration report retained independently from the lookup slot.
+        publication_name: Vec<u8>,
         /// Per-instance identity — see [`Command::is_same_binding`].
         identity: Rc<()>,
     },
@@ -655,11 +958,11 @@ pub enum Command {
     /// the params (defaults + an `args` catch-all), runs the body in the proc's
     /// defining namespace, and maps a body-level `return` to `Ok`. Behind an `Rc`
     /// so the dispatch-time clone of the command handle is O(1), not a body copy.
-    Proc(Rc<ProcDef>),
+    Proc(NativeProcedureCommand),
     /// A child interpreter, addressable as a command (`$child eval …`). The
     /// `Vec<u8>` is the child's name; dispatch routes the subcommand to the child
     /// `Interp` stored in [`Interp::children`].
-    ChildInterp(Vec<u8>),
+    ChildInterp(ChildInterpreterCommand),
     /// A TclOO object or class, addressable as a command (`$obj method …`,
     /// `Class new`). The opaque token remains stable across rename and same-name
     /// recreation; Tcl-facing names are projections owned by `OoState`.
@@ -673,8 +976,13 @@ pub enum Command {
     /// command in the *parent* (`interp alias child name {} parentCmd …`). When
     /// invoked, it runs `target` (+ `prefix` + the call args) in the parent.
     ParentAlias {
-        target: Vec<u8>,
-        prefix: Vec<Vec<u8>>,
+        /// Original member ownership; command-token clones do not duplicate
+        /// the native List or its member references.
+        original_prefix: Rc<NativeAliasHeader>,
+        /// Only C retains the original registration name in the alias record.
+        registration_name: Option<Rc<NativeAliasHeader>>,
+        /// Selected child registration spelling, independent of command lookup.
+        publication_name: Vec<u8>,
         /// Per-instance identity — see [`Command::is_same_binding`].
         identity: Rc<()>,
     },
@@ -729,7 +1037,7 @@ impl Command {
         match (self, other) {
             (Self::Builtin(a), Self::Builtin(b)) => std::ptr::fn_addr_eq(*a, *b),
             (Self::ObjCmd(a), Self::ObjCmd(b)) => Rc::ptr_eq(a, b),
-            (Self::Proc(a), Self::Proc(b)) => Rc::ptr_eq(a, b),
+            (Self::Proc(a), Self::Proc(b)) => a.is_same_binding(b),
             (Self::Ensemble(a), Self::Ensemble(b)) => Rc::ptr_eq(a, b),
             (Self::Imported { identity: a, .. }, Self::Imported { identity: b, .. }) => {
                 Rc::ptr_eq(a, b)
@@ -743,7 +1051,7 @@ impl Command {
             | (Self::ParentAlias { identity: a, .. }, Self::ParentAlias { identity: b, .. }) => {
                 Rc::ptr_eq(a, b)
             }
-            (Self::ChildInterp(a), Self::ChildInterp(b)) => a == b,
+            (Self::ChildInterp(a), Self::ChildInterp(b)) => a.same_allocation(b),
             (Self::OoObject(a), Self::OoObject(b))
             | (Self::OoMy(a), Self::OoMy(b))
             | (Self::OoMyClass(a), Self::OoMyClass(b)) => a == b,
@@ -759,6 +1067,60 @@ enum CommandGenerationLookup {
     Missing,
     Unavailable,
     Found { fqn: Vec<u8>, command: Command },
+}
+
+/// Import queries share a generation walk while retaining their separate
+/// surface and retained-ensemble contracts.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ImportQueryPurpose {
+    /// Procedure/ensemble introspection respects actual command availability.
+    Introspection,
+    /// Namespace origin projects the original command-table binding.
+    Origin,
+    /// OO object lookup follows the same retained imported-command tokens.
+    OriginalObject,
+}
+
+/// A query result retains the actual binding generation and its current name.
+/// An imported ensemble can retain a live configuration independently from its
+/// source binding; its command is not replaced by a fabricated ensemble binding.
+struct ImportQueryTarget {
+    fqn: Vec<u8>,
+    generation: u64,
+    command: Command,
+    retained_ensemble: Option<Rc<crate::ensemble::EnsembleToken>>,
+    followed_import: bool,
+}
+
+/// A selected miss retains its own lookup context instead of restarting lookup
+/// in the variable frame restored after a tailcall or alias invocation.
+enum CommandDispatchSelection {
+    Unselected,
+    LookupAt(NsId, tcl_registry::command_lookup::CommandLookupOrigin),
+    Bound(Vec<u8>, CommandBinding),
+    Missing {
+        lookup: NsId,
+        caller: NsId,
+        origin: tcl_registry::command_lookup::CommandLookupOrigin,
+    },
+}
+
+/// Prepared original unknown-prefix words and the selected handler. Keeping
+/// preparation off the recursive invocation stack leaves only the actual
+/// callback ownership and namespace restoration live during re-entry.
+struct PreparedMissingCommand {
+    owned: Vec<obj::Owned>,
+    words: Vec<*mut TclObj>,
+    selected: Option<(Command, Option<u64>)>,
+    fqn: Option<Vec<u8>>,
+}
+
+impl From<Option<(Vec<u8>, CommandBinding)>> for CommandDispatchSelection {
+    fn from(binding: Option<(Vec<u8>, CommandBinding)>) -> Self {
+        binding.map_or(Self::Unselected, |(name, binding)| {
+            Self::Bound(name, binding)
+        })
+    }
 }
 
 thread_local! {
@@ -798,21 +1160,20 @@ const MAX_CROSS_INTERP_DEPTH: u32 = 80;
 
 /// One formal parameter of a [`ProcDef`]: a name and an optional default value.
 #[derive(Clone)]
-pub struct Param {
+pub struct Param<O = obj::Owned> {
     pub name: Vec<u8>,
-    pub default: Option<Vec<u8>>,
+    pub default: Option<O>,
 }
 
 /// A compiled `proc` definition: its parameters, body script, and the namespace
 /// it was defined in (which becomes the current namespace while it runs).
-#[derive(Clone)]
 pub struct ProcDef {
-    pub params: Vec<Param>,
-    pub body: Vec<u8>,
-    pub ns: NsId,
-    /// The proc's fully-qualified name (`::ns::name`) — the `info frame` `proc`
-    /// key, fixed at definition time.
-    pub fqn: Vec<u8>,
+    pub params: Vec<Param<obj::ProcedureObject>>,
+    /// The chosen original body object; queries and entry materialise it at
+    /// their own native string-access boundary.
+    pub body: obj::ProcedureObject,
+    pub(crate) compiler_header: Cell<tcl_dialect::NativeProcedureHeaderCompilation>,
+    location: RefCell<ProcLocation>,
     /// The file the proc was defined in (`source`d), if any — makes its body
     /// frame `type source` with this `file` (`info frame`).
     pub source: Option<Rc<[u8]>>,
@@ -827,10 +1188,43 @@ pub struct ProcDef {
     /// It lives *on the definition*, not in a side table, so every existing
     /// lifecycle rule already covers it: redefining the proc builds a fresh
     /// `ProcDef` with `native: None` and the new source body runs interpreted;
-    /// `rename` clones the definition and carries the entry with it;
+    /// `rename` moves the same definition and its compiled entry;
     /// `rename p ""` / `namespace delete` drop it with the definition. Nothing
     /// has to remember to invalidate anything.
     pub native: Option<NativeProcEntry>,
+    /// Persistent raw static slots retained for this command definition.
+    pub(crate) jim_parameters: Option<obj::ProcedureObject>,
+    pub(crate) native_resources: native_procedure_resources::NativeProcedureResources,
+    pub(crate) native_local_names: RefCell<Option<native_variable_names::NativeProcedureNameTable>>,
+}
+
+#[derive(Clone)]
+pub(crate) struct ProcLocation {
+    pub(crate) namespace: NsId,
+    pub(crate) qualified_name: Vec<u8>,
+    pub(crate) jim_namespace: Option<Rc<obj::Owned>>,
+}
+
+impl ProcDef {
+    /// Namespace token selected by future procedure invocations.
+    #[must_use]
+    pub fn namespace(&self) -> NsId {
+        self.location.borrow().namespace
+    }
+
+    /// Current command placement used by future body source frames.
+    #[must_use]
+    pub fn qualified_name(&self) -> Vec<u8> {
+        self.location.borrow().qualified_name.clone()
+    }
+
+    pub(crate) fn location(&self) -> ProcLocation {
+        self.location.borrow().clone()
+    }
+
+    pub(crate) fn relocate(&self, location: ProcLocation) {
+        *self.location.borrow_mut() = location;
+    }
 }
 
 /// Whether a command trace hangs off the token being deleted. Generations are
@@ -897,6 +1291,22 @@ pub type NativeProcEntry = unsafe extern "C" fn(
 #[derive(Clone)]
 pub struct Interp(Rc<InterpState>);
 
+/// Weak actual interpreter holder. Upgrading grants no operation or native purpose.
+#[derive(Clone)]
+pub(crate) struct WeakInterp(Weak<InterpState>);
+
+impl WeakInterp {
+    pub(crate) fn upgrade(&self) -> Option<Interp> {
+        self.0.upgrade().map(Interp)
+    }
+}
+
+impl Interp {
+    pub(crate) fn downgrade(&self) -> WeakInterp {
+        WeakInterp(Rc::downgrade(&self.0))
+    }
+}
+
 impl core::ops::Deref for Interp {
     type Target = InterpState;
     fn deref(&self) -> &InterpState {
@@ -928,10 +1338,24 @@ struct ArrayOperationTarget {
 }
 
 pub struct InterpState {
+    /// Owned native cache authority; neither allocation addresses nor display names issue it.
+    native_command_interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+    native_compiler_pass_owner:
+        std::cell::OnceCell<tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner>,
+    native_literal_world:
+        Rc<RefCell<tcl_runtime_api::native_literal::NativeLiteralWorld<obj::Owned>>>,
+    native_literal_arrays:
+        RefCell<Vec<std::rc::Weak<native_literal_pool::NativeRuntimeLiteralArray>>>,
+    native_execution_constants: RefCell<Option<[obj::Owned; 2]>>,
+    jim_local_depth: Cell<usize>,
+    jim_active_command_workers: RefCell<Vec<native_jim_tailcall::JimCommandReference>>,
+    jim_command_references: RefCell<Vec<Weak<native_jim_tailcall::JimCommandReferenceData>>>,
     pub(crate) frames: RefCell<FrameStack>,
     /// The command-table-as-core-service: the namespace tree + the one
     /// `resolve(currentNs, name)` resolver.
     namespaces: RefCell<Namespaces>,
+    native_alias_registrations:
+        RefCell<tcl_registry::native_alias_registration::NativeAliasRegistrationTable<u64>>,
     /// Exact array bindings retained by nested `array` operations. The public
     /// runtime contract carries only the opaque `VarId`; this stack keeps the
     /// standalone table owner and slot private while callbacks re-enter Tcl.
@@ -943,12 +1367,8 @@ pub struct InterpState {
     /// cannot suppress or unbalance another coroutine's trace walk.
     active_var_trace_scopes: RefCell<Vec<crate::cmd_trace::VarTraceScope>>,
     /// Runtime-issued speculative guards and explicitly attested builtin IDs.
-    guards: RefCell<GuardManager>,
-    /// The stable semantic identities attested for each command token, by the
-    /// token's generation. A generation follows its command through rename and
-    /// hide, and a replacement or deletion leaves the old entry unreachable, so
-    /// an attestation lasts exactly as long as the command it describes.
-    /// Ordinary registration attests nothing.
+    guards: RefCell<OwnedGuardManager<u64>>,
+    guard_lookup_environment_revision: Cell<Option<u64>>,
     guarded_commands:
         RefCell<std::collections::BTreeMap<u64, std::collections::BTreeSet<GuardIdentity>>>,
     /// Registry identity of each engine-installed builtin command generation.
@@ -956,6 +1376,11 @@ pub struct InterpState {
     /// token continue to apply the final builtin's dialect availability rather
     /// than treating its new display spelling as an unrelated extension.
     registry_builtin_names: RefCell<std::collections::HashMap<u64, Vec<u8>>>,
+    original_byte_command_registrations: RefCell<
+        std::collections::HashMap<u64, native_command_names::OriginalByteCommandRegistration>,
+    >,
+    native_compilation: RefCell<native_compilation::CompilationState>,
+    stock_ensembles: RefCell<stock_ensembles::StockEnsembles>,
     /// The generations of the builtins registered only to refuse a call with a
     /// "not supported" error ([`Interp::register_unsupported`]), which the
     /// backing report tells apart from a handler.
@@ -984,9 +1409,18 @@ pub struct InterpState {
     /// Non-control pairs carried by the current `return` completion. Byte
     /// storage is sufficient at this portable boundary and preserves arbitrary
     /// pre-TIP/custom option spellings for `catch`, `try`, and host adapters.
-    return_options: RefCell<Vec<(Vec<u8>, Vec<u8>)>>,
+    return_options: RefCell<NativeReturnOptions>,
     /// Variable-trace registry (`trace add|remove|info variable`).
     pub(crate) traces: RefCell<crate::cmd_trace::TraceTable>,
+    native_error_cells: RefCell<
+        Vec<(
+            tcl_registry::special_vars::NativeErrorStorageVariable,
+            tcl_runtime_api::VarId,
+        )>,
+    >,
+    /// Physical cell carrying the hidden precision trace, including relocation
+    /// through an alias spelling during unset.
+    native_precision_cell: Cell<Option<tcl_runtime_api::VarId>>,
     /// The error stack-trace accumulator (PC-4).
     exc: RefCell<ExceptionState>,
     /// How many errors the C API has stated ([`Interp::c_api_error`],
@@ -1021,6 +1455,9 @@ pub struct InterpState {
     /// [`eval_in_child`]: Interp::eval_in_child
     /// [`with_child`]: Interp::with_child
     parent: RefCell<Weak<InterpState>>,
+    /// Actual child creation remains independent of the temporary reentrant parent handle.
+    native_child_interpreter: Cell<bool>,
+    native_child_command_generation: Cell<Option<u64>>,
     /// Whether this interp is safe (`interp create -safe` / `interp issafe`).
     is_safe: Cell<bool>,
     /// How many of *this* interp's evals are currently on the stack (as a child:
@@ -1033,9 +1470,8 @@ pub struct InterpState {
     /// [`eval_in_child`]: Interp::eval_in_child
     /// [`with_child`]: Interp::with_child
     eval_active: Cell<usize>,
-    /// Set when a delete was requested while [`eval_active`](Self::eval_active)
-    /// was non-zero; the actual removal from the parent's table is deferred until
-    /// the last eval unwinds (C's deferred `Tcl_DeleteInterp`).
+    /// Marks the actual interpreter deleted. Existing activation leases keep
+    /// its storage alive while every later evaluation entry rejects it.
     pending_delete: Cell<bool>,
     /// The capability host — the platform seam every file/`env`/`clock`/
     /// subprocess facility is reached through (instead of direct `std::fs`/
@@ -1049,7 +1485,8 @@ pub struct InterpState {
     /// command needs both `&mut self` (its `ValueOps`) and the host at once.
     host: RefCell<Rc<dyn tcl_platform::Host>>,
     /// TclOO object system state (classes, objects, the method-call stack).
-    pub(crate) oo: RefCell<crate::cmd_oo::OoState>,
+    /// Reached variable resolvers hold weak handles to this same current owner.
+    pub(crate) oo: Rc<RefCell<crate::cmd_oo::OoState>>,
     /// The source-location stack (`cmdFramePtr`; PC-5) — what `info frame` reads.
     cmd_frames: RefCell<Vec<CmdFrame>>,
     /// TIP 280 argument lines of the command currently being dispatched: each
@@ -1095,6 +1532,10 @@ pub struct InterpState {
     /// Whether the release compiles the control command whose body
     /// [`Interp::eval_control_body`] runs next, where its caller says.
     compiled_control_body: Cell<Option<bool>>,
+    /// The command a namespace body runs under, which its error frame names:
+    /// `eval`, or `inscope` while `namespace inscope` runs its script
+    /// (`(in namespace inscope "::ns" script line N)`).
+    namespace_frame_command: Cell<&'static str>,
     /// `eval_str` nesting depth. The outermost eval (depth returning to 0)
     /// publishes the accumulated error trace to the `::errorInfo`/`::errorCode`
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
@@ -1131,22 +1572,29 @@ pub struct InterpState {
     /// The `interp bgerror` handler command prefix (a Tcl list). Empty means the
     /// default. A background error (e.g. a destructor failing during implicit
     /// teardown) is reported to it: `{*}$handler $message $options`.
-    bgerror: RefCell<Vec<u8>>,
+    bgerror: RefCell<Option<obj::Owned>>,
     /// Queued background errors `(message, options)`, drained by `update` (Tcl
     /// defers them to the event loop rather than firing at the error site).
-    bg_queue: RefCell<Vec<(Vec<u8>, Vec<u8>)>>,
+    bg_queue: RefCell<Vec<(obj::Owned, obj::Owned)>>,
     /// The event loop's pending timer + idle events (`after`/`vwait`/`update`).
     events: RefCell<crate::cmd_event::EventQueue>,
     /// Live coroutines (`coroutine`/`yield`), keyed by command name. Each holds
     /// the coroutine's saved execution context (swapped in/out on resume/yield)
     /// and the handoff channels to its worker thread (`cmd_coro`).
-    coros: RefCell<std::collections::BTreeMap<Vec<u8>, crate::cmd_coro::CoroEntry>>,
+    coros: RefCell<std::collections::BTreeMap<u64, crate::cmd_coro::CoroEntry>>,
+    /// Original error objects awaiting the serialised coroutine probe handoff.
+    /// The worker stores this before its acknowledgement and then parks; the
+    /// caller consumes it before another worker can run.
+    #[cfg(not(target_arch = "wasm32"))]
+    coro_probe_error: RefCell<Option<ErrorSnapshot>>,
     /// The active ensemble-rewrite, if any (C's `iPtr->ensembleRewrite`): the
     /// original command words a forward / ensemble / constructor dispatch
     /// replaced, so a downstream `wrong # args` can report the call as the user
     /// wrote it. `removed` is how many leading words of `source` map to the
     /// rewritten prefix. Set at the root dispatch, cleared when it returns.
     ensemble_rewrite: RefCell<Option<EnsembleRewrite>>,
+    /// Exact parser views of active stock workers, separate from ensemble state.
+    handler_usage_adapters: RefCell<Vec<stock_ensembles::HandlerUsageAdapter>>,
     /// The `expr rand()`/`srand()` PRNG seed (C's `iPtr->randSeed`); `None`
     /// until first seeded (lazily from a nondeterministic source on first
     /// `rand()`, or explicitly by `srand()`). Kept in `[1, 2^31-2]`.
@@ -1157,7 +1605,18 @@ pub struct InterpState {
     /// error unwinds — `INNER <ctx>` for the innermost command, `CALL <info
     /// level 0>` per proc frame, `UP <delta>` per `uplevel` boundary. Rendered to
     /// a Tcl list on demand.
-    error_stack: RefCell<ErrorStack<Vec<u8>>>,
+    error_stack: RefCell<NativeErrorStack>,
+    jim_error_stack: RefCell<JimErrorStack<obj::Owned>>,
+    jim_evaluation_frames: RefCell<Vec<OriginalJimEvaluationFrame>>,
+    jim_invocation_borrows: RefCell<Vec<JimBorrowedInvocation>>,
+    jim_procedure_level: Cell<u32>,
+    native_dispatch_depth: Cell<u32>,
+    /// Actual execution-context currency, independent of speculative command policy.
+    /// Exhaustion permanently refuses new receipts; ordinary Guest mutations do not move it.
+    native_operation_context_epoch: Cell<Option<u64>>,
+    /// Original entered ABI operations, inherited by synchronous nested work.
+    entered_native_operations: RefCell<Vec<Rc<native_operation_currency::NativeOperationEntry>>>,
+    deferred_tailcalls: RefCell<Vec<(u32, crate::frame::PendingTailcall)>>,
     /// The `try` exception-chaining link (TIP 329 `-during`): when a `try`
     /// handler or `finally` script throws, the options dict of the *prior*
     /// exception it superseded is stashed here so the next error-options build
@@ -1182,7 +1641,6 @@ pub struct InterpState {
     stores_confined: Cell<bool>,
     /// Free-running counter that throttles wall-clock polling for the `time`
     /// limit (see [`Interp::limit_check_tick`]).
-    #[cfg(have_tommath)]
     limit_tick: Cell<u32>,
     /// `interp debug -frame` — the TIP 280 frame-debug switch. A one-way latch
     /// (once on, stays on), seeded from `env(TCL_INTERP_DEBUG_FRAME)` at create.
@@ -1193,12 +1651,35 @@ pub struct InterpState {
     /// (`interp create`) or safe interpreter can emulate a different release
     /// from its parent, exactly as each owns its own global namespace.
     runtime_version: Cell<tcl_dialect::TclVersion>,
+    jim_object_context: RefCell<Option<Rc<crate::native_source::NativeJimObjectContext>>>,
+    jim_teardown_started: Cell<bool>,
     /// The dialect profile this interpreter validates its builtin command
     /// surface against and derives its lexing grammar from. Defaults to the
     /// permissive fallback profile, which hides nothing and lexes with the
     /// modern grammar; [`Interp::set_runtime_version`] pins the matching
     /// plain-Tcl profile.
     dialect_profile: Cell<&'static tcl_dialect::DialectProfile>,
+    observed_names: RefCell<Option<execution_name_policy::ObservedNameSelection>>,
+    observed_frame_storage: RefCell<Option<execution_name_policy::ObservedFrameStorage>>,
+    logical_name_provider: Cell<Option<tcl_syntax::naming::NamePolicyProtocol>>,
+    logical_eval_object_provider: Cell<
+        Option<(
+            tcl_registry::native_eval_object::LogicalEvalObjectProvider,
+            &'static tcl_dialect::DialectProfile,
+        )>,
+    >,
+    logical_source_word_provider: Cell<
+        Option<(
+            tcl_registry::invocation_words::LogicalSourceWordProvider,
+            tcl_dialect::DialectProfileKey,
+        )>,
+    >,
+    logical_expression_parse_provider: Cell<
+        Option<(
+            tcl_registry::invocation_words::LogicalExpressionParseProvider,
+            tcl_dialect::DialectProfileKey,
+        )>,
+    >,
     /// The availability registry for `dialect_profile` — its environment's
     /// registry generation, resolved once at pin time through the ingress
     /// seam ([`crate::environment::store_for_profile`]; the generation
@@ -1232,6 +1713,8 @@ pub struct InterpState {
     /// being retired. Delete traces are re-entrant, so the stable owner guards
     /// the one retirement transaction instead of any mutable spelling.
     retiring_oo_commands: RefCell<std::collections::HashSet<OoId>>,
+    original_command_retirement_recipes:
+        RefCell<Vec<native_command_retirement::OriginalCommandDeletionRecipe>>,
 }
 
 /// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
@@ -1239,10 +1722,25 @@ pub struct InterpState {
 /// `removed` words of `source` in place of the `inserted` leading words of the
 /// actual (rewritten) call.
 #[derive(Clone)]
+pub(crate) enum EnsembleRewriteWord {
+    Owned(crate::obj::Owned),
+    Borrowed(crate::obj::NativeObjectLifetime),
+}
+impl EnsembleRewriteWord {
+    fn as_ptr(&self) -> *mut TclObj {
+        match self {
+            Self::Owned(word) => word.as_ptr(),
+            Self::Borrowed(word) => word.as_ptr(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub(crate) struct EnsembleRewrite {
+    birth: Rc<()>,
     /// The original command words as the user wrote them (e.g. `foo test 1 2 3`),
     /// with the subcommand spell-fixed to its resolved name.
-    pub source: Vec<Vec<u8>>,
+    pub source: Vec<EnsembleRewriteWord>,
     /// How many leading `source` words to print (C's `numRemovedObjs`).
     pub removed: usize,
     /// How many leading words of the rewritten call the inserted prefix occupies
@@ -1281,10 +1779,12 @@ impl Default for LimitSet {
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
 const RECURSION_LIMIT: usize = 1000;
 
-/// A native-stack safety net over **every** script-body evaluation —
+/// A native-stack safety net over **every** script-body evaluation and nested
+/// command-dispatch entry —
 /// control-flow bodies (`if`/`while`/`for`/`foreach`/…), proc bodies,
 /// `eval`/`uplevel`/`source`, and command substitution — checked against
-/// [`Interp::eval_depth`] in [`Interp::eval_script_mode`], independently of
+/// [`Interp::eval_depth`] in [`Interp::eval_script_mode`] and the actual nested
+/// dispatch depth, independently of
 /// [`RECURSION_LIMIT`]/[`Interp::recursion_limit`].
 ///
 /// This is a genuinely different concern from `recursion_limit`:
@@ -1330,13 +1830,13 @@ const NATIVE_EVAL_DEPTH_LIMIT: RecursionLimit = RecursionLimit(128);
 
 /// Build a Tcl dict (flat key/value list) object from `pairs`, releasing the
 /// builder's references once the list has taken its own.
-fn dict_obj(pairs: &[(&[u8], Vec<u8>)]) -> *mut TclObj {
+fn dict_obj(interp: &Interp, pairs: &[(&[u8], Vec<u8>)]) -> *mut TclObj {
     let mut elems: Vec<*mut TclObj> = Vec::with_capacity(pairs.len() * 2);
     for (k, v) in pairs {
         elems.push(obj::new_string_bytes(k));
         elems.push(obj::new_string_bytes(v));
     }
-    let list = crate::list::new_list_obj(&elems);
+    let list = interp.new_list_object(&elems);
     for e in elems {
         drop_fresh(e);
     }
@@ -1379,20 +1879,10 @@ const DEBUG_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
 pub(crate) const LIMIT_TYPES: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
     tcl_cmd_core::prefix::OptionTable::abbreviating("limit type", &[b"commands", b"time"]);
 
-/// Validate an `interp debug` option through the shared owner.
-fn check_debug_opt(opt: *mut TclObj) -> Result<(), Vec<u8>> {
-    DEBUG_OPTIONS.index_of(&obj_bytes(opt)).map(|_| ())
-}
-
 /// An `interp limit` value outside its option's range (`TCL OPERATION INTERP
 /// BADVALUE`).
 fn bad_limit_value(message: &str) -> tcl_cmd_core::CmdError {
     tcl_cmd_core::CmdError::with_error_code(message, "TCL OPERATION INTERP BADVALUE")
-}
-
-/// A message-only failure (an option-table miss) as a command error.
-fn message_error(message: Vec<u8>) -> tcl_cmd_core::CmdError {
-    tcl_cmd_core::CmdError::new(String::from_utf8_lossy(&message))
 }
 
 /// The release a fresh [`Interp`] emulates until an embedder pins another with
@@ -1418,9 +1908,15 @@ const DEFAULT_RUNTIME_VERSION: tcl_dialect::TclVersion = tcl_dialect::TclVersion
 fn install_ambient_release(version: tcl_dialect::TclVersion) {
     tcl_syntax::number::set_runtime_syntax(version.number_syntax());
     crate::regex_capi::set_runtime_release(version);
+    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    parse::install_native_list_policy(
+        dialect.lexer_grammar.list_parse,
+        dialect.lexer_grammar.escapes,
+    );
+    obj::install_double_string_policy(tcl_dialect::DoubleStringPolicy::for_tcl_version(version));
 }
 
-fn default_host() -> Rc<dyn tcl_platform::Host> {
+pub(crate) fn default_host() -> Rc<dyn tcl_platform::Host> {
     #[cfg(not(target_arch = "wasm32"))]
     let host = Rc::new(tcl_host_native::NativeHost::new()) as Rc<dyn tcl_platform::Host>;
     #[cfg(all(target_arch = "wasm32", target_os = "wasi"))]
@@ -1443,6 +1939,50 @@ impl Interp {
     /// Restricted and synthetic embedders should prefer this constructor so
     /// no process-host values are ever installed, even transiently.
     pub fn with_host(host: Rc<dyn tcl_platform::Host>) -> Interp {
+        Self::with_host_bootstrap(host, None)
+    }
+
+    /// Construct the selected native core variable inventory before any library
+    /// or CLI arguments. Host/build path bytes are supplied independently.
+    /// The registered command set remains this backend's supported commands.
+    pub fn with_native_core(
+        host: Rc<dyn tcl_platform::Host>,
+        profile: &'static tcl_dialect::DialectProfile,
+        inputs: tcl_registry::special_vars::NativeBootstrapInputs,
+    ) -> Option<Interp> {
+        let protocol =
+            tcl_registry::InvocationDialect::of_profile(profile).native_bootstrap_protocol()?;
+        if protocol.names().tcl_version().is_some() {
+            tcl_syntax::list::split_native_list_bytes(
+                &inputs.package_path,
+                protocol.names().string_protocol(),
+            )
+            .ok()?;
+        }
+        Some(Self::with_host_bootstrap(
+            host,
+            Some((profile, protocol, inputs)),
+        ))
+    }
+
+    fn with_host_bootstrap(
+        host: Rc<dyn tcl_platform::Host>,
+        native: Option<(
+            &'static tcl_dialect::DialectProfile,
+            tcl_registry::special_vars::NativeBootstrapProtocol,
+            tcl_registry::special_vars::NativeBootstrapInputs,
+        )>,
+    ) -> Interp {
+        let profile = native.as_ref().map_or_else(
+            || crate::environment::profile_for_dialect(""),
+            |(profile, _, _)| *profile,
+        );
+        let version = native
+            .as_ref()
+            .map_or(DEFAULT_RUNTIME_VERSION, |(profile, _, _)| {
+                profile.vm_runtime_version
+            });
+        let _constructor_allocation = obj::JimAllocationScope::enter(None, Rc::new(|| true));
         let result = obj::new_obj();
         let system_encoding = host.system_encoding();
         // SAFETY: `result` is freshly created; the interp takes the owning ref.
@@ -1454,29 +1994,45 @@ impl Interp {
         // `invalidate_interpreter_policy` below and can issue live guards.
         guards.poison(GuardDomain::ObjectDispatch);
         let mut interp = Interp(Rc::new(InterpState {
+            native_literal_world: Rc::new(RefCell::new(Default::default())),
+            native_literal_arrays: RefCell::new(Vec::new()),
+            native_execution_constants: RefCell::new(None),
+            native_command_interpreter:
+                tcl_runtime_api::native_compilation::NativeInterpreterIdentity {
+                    owner:
+                        tcl_runtime_api::native_compilation::NativeInterpreterIdentity::fresh_owner(
+                        ),
+                    interpreter: 0,
+                },
+            native_compiler_pass_owner: std::cell::OnceCell::new(),
+            jim_local_depth: Cell::new(0),
+            jim_active_command_workers: RefCell::new(Vec::new()),
+            jim_command_references: RefCell::new(Vec::new()),
             frames: RefCell::new(FrameStack::new()),
             namespaces: RefCell::new(Namespaces::new()),
+            native_alias_registrations: RefCell::new(Default::default()),
             array_operation_targets: RefCell::new(Vec::new()),
             active_var_trace_scopes: RefCell::new(Vec::new()),
-            guards: RefCell::new(guards),
+            guards: RefCell::new(OwnedGuardManager::new(guards)),
+            guard_lookup_environment_revision: Cell::new(Some(0)),
             guarded_commands: RefCell::new(std::collections::BTreeMap::new()),
             registry_builtin_names: RefCell::new(std::collections::HashMap::new()),
+            original_byte_command_registrations: RefCell::new(std::collections::HashMap::new()),
+            native_compilation: RefCell::new(native_compilation::CompilationState::default()),
+            stock_ensembles: RefCell::new(stock_ensembles::StockEnsembles::default()),
             unsupported_builtins: RefCell::new(std::collections::HashSet::new()),
             current_ns: Cell::new(GLOBAL),
             recursion_depth: Cell::new(0),
             recursion_limit: Cell::new(RECURSION_LIMIT),
-            packages: RefCell::new(crate::cmd_package::PackageState::with_core(
-                DEFAULT_RUNTIME_VERSION,
-            )),
+            packages: RefCell::new(crate::cmd_package::PackageState::with_core(version)),
             script_stack: RefCell::new(Vec::new()),
-            channels: RefCell::new(crate::cmd_chan::ChannelTable::new(
-                DEFAULT_RUNTIME_VERSION,
-                system_encoding,
-            )),
+            channels: RefCell::new(crate::cmd_chan::ChannelTable::new(version, system_encoding)),
             return_code: Cell::new(Code::Ok),
             return_level: Cell::new(1),
-            return_options: RefCell::new(Vec::new()),
+            return_options: RefCell::new(NativeReturnOptions::default()),
             traces: RefCell::new(crate::cmd_trace::TraceTable::default()),
+            native_error_cells: RefCell::new(Vec::new()),
+            native_precision_cell: Cell::new(None),
             exc: RefCell::new(ExceptionState::default()),
             c_api_errors: Cell::new(0),
             error_line: Cell::new(1),
@@ -1484,11 +2040,13 @@ impl Interp {
             interp_counter: Cell::new(0),
             hidden: RefCell::new(std::collections::BTreeMap::new()),
             parent: RefCell::new(Weak::new()),
+            native_child_interpreter: Cell::new(false),
+            native_child_command_generation: Cell::new(None),
             is_safe: Cell::new(false),
             eval_active: Cell::new(0),
             pending_delete: Cell::new(false),
             host: RefCell::new(host),
-            oo: RefCell::new(crate::cmd_oo::OoState::default()),
+            oo: Rc::new(RefCell::new(crate::cmd_oo::OoState::default())),
             cmd_frames: RefCell::new(Vec::new()),
             arg_lines: RefCell::new(Vec::new()),
             arg_locs: RefCell::new(Vec::new()),
@@ -1499,57 +2057,152 @@ impl Interp {
             next_proc_body: Cell::new(false),
             next_top_level_file: Cell::new(false),
             compiled_control_body: Cell::new(None),
+            namespace_frame_command: Cell::new("eval"),
             eval_depth: Cell::new(0),
             var_trace_epoch: Cell::new(1),
             cmd_count: Cell::new(0),
             native_proc_dispatches: Cell::new(0),
             exit_code: Cell::new(None),
             measure_overhead: Cell::new(0.0),
-            bgerror: RefCell::new(Vec::new()),
+            bgerror: RefCell::new(None),
             bg_queue: RefCell::new(Vec::new()),
             events: RefCell::new(crate::cmd_event::EventQueue::default()),
             coros: RefCell::new(std::collections::BTreeMap::new()),
+            #[cfg(not(target_arch = "wasm32"))]
+            coro_probe_error: RefCell::new(None),
             ensemble_rewrite: RefCell::new(None),
+            handler_usage_adapters: RefCell::new(Vec::new()),
             #[cfg(have_tommath)]
             rand_seed: Cell::new(None),
-            error_stack: RefCell::new(ErrorStack::default()),
+            error_stack: RefCell::new(NativeErrorStack::default()),
+            jim_error_stack: RefCell::new(JimErrorStack::default()),
+            jim_evaluation_frames: RefCell::new(Vec::new()),
+            jim_invocation_borrows: RefCell::new(Vec::new()),
+            jim_procedure_level: Cell::new(0),
+            native_dispatch_depth: Cell::new(0),
+            native_operation_context_epoch: Cell::new(Some(0)),
+            entered_native_operations: RefCell::new(Vec::new()),
+            deferred_tailcalls: RefCell::new(Vec::new()),
             during: Cell::new(None),
             result: Cell::new(result),
             cmd_arena: RefCell::new(CmdArena::default()),
             limits: RefCell::new(LimitSet::default()),
             budget: RefCell::new(crate::budget::Budget::default()),
             stores_confined: Cell::new(false),
-            #[cfg(have_tommath)]
             limit_tick: Cell::new(0),
             debug_frame: Cell::new(false),
-            runtime_version: Cell::new(DEFAULT_RUNTIME_VERSION),
+            runtime_version: Cell::new(version),
+            jim_object_context: RefCell::new(None),
+            jim_teardown_started: Cell::new(false),
             // The "no dialect pinned" ingress: the lenient environment,
             // whose unit profile is the permissive fallback that hides
             // nothing. `set_dialect_profile` replaces all three together.
-            dialect_profile: Cell::new(crate::environment::profile_for_dialect("")),
-            profile_registry: Cell::new(None),
-            dialect_point: Cell::new(Some(crate::environment::surface_point(
-                crate::environment::profile_for_dialect(""),
-            ))),
-            pin: RefCell::new(tcl_registry::model::PinnedContext::for_profile(
-                crate::environment::profile_for_dialect(""),
-            )),
+            dialect_profile: Cell::new(profile),
+            observed_names: RefCell::new(None),
+            observed_frame_storage: RefCell::new(None),
+            logical_name_provider: Cell::new(None),
+            logical_expression_parse_provider: Cell::new(None),
+            logical_source_word_provider: Cell::new(None),
+            logical_eval_object_provider: Cell::new(None),
+            profile_registry: Cell::new(
+                native
+                    .as_ref()
+                    .map(|(profile, _, _)| crate::environment::store_for_profile(profile)),
+            ),
+            dialect_point: Cell::new(Some(crate::environment::surface_point(profile))),
+            pin: RefCell::new(tcl_registry::model::PinnedContext::for_profile(profile)),
             registry_object_roots: RefCell::new(std::collections::HashMap::new()),
             retiring_oo_commands: RefCell::new(std::collections::HashSet::new()),
+            original_command_retirement_recipes: RefCell::new(Vec::new()),
         }));
+        interp.configure_variable_storage();
+        interp.namespaces.borrow_mut().ns_var_global_fallback =
+            version.namespace_var_global_fallback();
+        interp.namespaces.borrow_mut().set_native_command_version(
+            interp
+                .native_invocation_dialect()
+                .native_command_name_protocol()
+                .map(|protocol| protocol.version()),
+        );
+        if native.is_some() {
+            let dialect = interp.native_invocation_dialect();
+            parse::install_native_list_policy(
+                dialect.lexer_grammar.list_parse,
+                dialect.lexer_grammar.escapes,
+            );
+            if let Some(policy) = profile.double_string_policy() {
+                obj::install_double_string_policy(policy);
+            }
+        }
         // The numeric grammar is thread-ambient and may have been left on
         // another release by an interpreter built earlier on this thread, so a
         // fresh interp installs its own rather than inheriting whatever is
         // there (`set_runtime_version` re-installs when an embedder repins).
-        install_ambient_release(DEFAULT_RUNTIME_VERSION);
-        builtins::install(&mut interp);
+        install_ambient_release(version);
+        let _root_operation = match native_operation_currency::NativeOperationScope::enter(&interp)
+        {
+            Ok(scope) => scope,
+            Err(first) => {
+                interp.refuse_native_execution(first);
+                return interp;
+            }
+        };
+        if let Err(first) = interp.configure_native_error_stack_checked() {
+            interp.refuse_native_execution(first);
+            return interp;
+        }
+        if let Some((_, protocol, _)) = &native {
+            builtins::install_native_core(&mut interp, *protocol);
+        } else {
+            builtins::install(&mut interp);
+        }
+        interp.install_jim_local_commands();
+        interp.seal_native_compiler_tokens();
         // C sets `tcl_version`/`tcl_patchLevel` in `Tcl_CreateInterp`
         // (9.0.4 `generic/tclBasic.c:1346-1347`), **not** in `Tcl_Init` — so
         // they exist in an interpreter that never sources `init.tcl`.
-        // Mirroring that placement is what lets `info patchlevel` answer
-        // without `--init`. `set_startup_globals` installs that pair together
-        // with the rest of Tcl_CreateInterp's predefined surface.
-        interp.set_startup_globals();
+        // The ordinary embedding host also supplies application and library
+        // globals. The explicit native constructor consumes only its selected
+        // physical root allocation plan.
+        if let Some((_, protocol, inputs)) = native {
+            // The constructor's original entry covers both root publication
+            // and its final result. Failed bootstrap cannot publish success.
+            let scope = match native_operation_currency::NativeOperationScope::enter(&interp) {
+                Ok(scope) => scope,
+                Err(first) => {
+                    interp.refuse_native_execution(first);
+                    return interp;
+                }
+            };
+            let bootstrapped = interp.bootstrap_native_core(protocol, &inputs);
+            let current = scope.currency().ensure_current_or_refuse();
+            if bootstrapped.is_err() || current.is_err() {
+                return interp;
+            }
+            if protocol.names().string_protocol()
+                == tcl_syntax::native_string::NativeStringProtocol::Jim084
+            {
+                let context = interp
+                    .native_jim_object_context()
+                    .map_err(|error| interp.report_cmd_error(error.into()));
+                let context = match interp.checked_bootstrap_outcome(scope.currency(), context) {
+                    Ok(context) => context,
+                    Err(_) => return interp,
+                };
+                if scope.currency().ensure_current_or_refuse().is_err() {
+                    return interp;
+                }
+                interp.set_result(context.empty_object().as_ptr());
+            } else {
+                // Tcl_CreateInterp returns its fresh untyped empty result.
+                interp.set_result_bytes(b"");
+            }
+            if scope.currency().ensure_current_or_refuse().is_err() {
+                return interp;
+            }
+        } else {
+            interp.set_startup_globals();
+        }
         interp
     }
 
@@ -1568,14 +2221,34 @@ impl Interp {
     /// no-subprocess host to prove the capability gate, or a safe interp taking
     /// a restricted one). Interior-mutable since the interp is shared via `Rc`.
     pub fn set_host(&self, host: Rc<dyn tcl_platform::Host>) {
+        self.invalidate_native_operation_context();
         self.invalidate_interpreter_policy();
+        let previous = std::mem::replace(&mut *self.0.host.borrow_mut(), host.clone());
+        let mut interp = self.clone();
+        let scope = match native_operation_currency::NativeOperationScope::enter(&interp) {
+            Ok(scope) => scope,
+            Err(first) => {
+                interp.refuse_native_execution(first);
+                drop(previous);
+                return;
+            }
+        };
+        drop(previous);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         let system_encoding = host.system_encoding();
-        *self.0.host.borrow_mut() = host;
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         self.channels
             .borrow()
             .reset_process_state_if_owner(self.runtime_version(), system_encoding);
-        let mut interp = self.clone();
-        interp.rebootstrap_host_globals();
+        if scope.currency().ensure_current_or_refuse().is_err()
+            || interp.rebootstrap_host_globals().is_err()
+        {
+            return;
+        }
         if interp.is_safe.get() {
             interp.scrub_host_globals_for_safe();
         }
@@ -1606,6 +2279,209 @@ impl Interp {
         self.set_dialect_profile(crate::environment::profile_for_dialect(
             version.dialect_name(),
         ));
+    }
+
+    /// Install an independently authored script-object evaluation recipe.
+    /// The separately selected actual host supplies physical materialisation.
+    #[must_use]
+    pub fn set_logical_eval_object_provider(
+        &mut self,
+        provider: tcl_registry::native_eval_object::LogicalEvalObjectProvider,
+        actual_host: &'static tcl_dialect::DialectProfile,
+    ) -> bool {
+        if tcl_registry::InvocationDialect::of_profile(actual_host)
+            .execution_point()
+            .is_none()
+            || self
+                .native_invocation_dialect()
+                .eval_object_protocol(Some(provider))
+                .is_none()
+        {
+            return false;
+        }
+        if !self
+            .logical_eval_object_provider
+            .get()
+            .is_some_and(|(installed, host)| {
+                installed == provider && host.cache_key() == actual_host.cache_key()
+            })
+        {
+            self.invalidate_interpreter_policy();
+            self.invalidate_native_operation_context();
+            self.logical_eval_object_provider
+                .set(Some((provider, actual_host)));
+        }
+        true
+    }
+
+    fn eval_object_protocol(
+        &self,
+    ) -> Option<tcl_registry::native_eval_object::NativeEvalObjectProtocol> {
+        self.native_invocation_dialect()
+            .invocation_eval_object_protocol(
+                self.logical_eval_object_provider
+                    .get()
+                    .map(|(provider, _)| provider),
+            )
+    }
+
+    pub(crate) fn eval_frame_dialect(&self) -> tcl_registry::InvocationDialect {
+        let dialect = self.native_invocation_dialect();
+        if dialect.native_eval_object_protocol().is_some() {
+            return dialect;
+        }
+        self.logical_eval_object_provider.get().map_or_else(
+            || dialect,
+            |(_, host)| tcl_registry::InvocationDialect::of_profile(host),
+        )
+    }
+
+    fn eval_object_bytes(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<Vec<u8>, tcl_syntax::value::ValueError> {
+        let check = || {
+            self.check_entered_native_operation().map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "entered original script-object String getter",
+                )
+            })?;
+            obj::check_native_liveness(original)
+        };
+        check()?;
+        let _original_lifetime = obj::NativeObjectLifetime::retain(original);
+        let dialect = self.eval_frame_dialect();
+        let protocol = dialect.native_string_protocol().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native script-object string materialisation",
+            ),
+        )?;
+        let host = self.host();
+        let formatter = host.native_integer_formatter();
+        check()?;
+        let result =
+            crate::dict::native_object_bytes_with_integer_formatter(original, protocol, formatter);
+        // Preserve reached getter effects and its first refusal even on Err.
+        check()?;
+        result
+    }
+
+    /// Install source-word materialisation independently of physical object
+    /// conversion and expression/name providers. The host engine is explicit.
+    #[must_use]
+    pub fn set_logical_source_word_provider(
+        &mut self,
+        provider: tcl_registry::invocation_words::LogicalSourceWordProvider,
+        actual_host: &'static tcl_dialect::DialectProfile,
+    ) -> bool {
+        if tcl_registry::InvocationDialect::of_profile(actual_host)
+            .execution_point()
+            .is_none()
+            || self
+                .native_invocation_dialect()
+                .logical_source_string_protocol(provider, self.dialect_profile())
+                .is_none()
+        {
+            return false;
+        }
+        let capability = Some((provider, actual_host.cache_key()));
+        if self.logical_source_word_provider.get() != capability {
+            self.invalidate_interpreter_policy();
+            self.invalidate_native_operation_context();
+            self.logical_source_word_provider.set(capability);
+        }
+        true
+    }
+
+    pub(crate) fn source_string_protocol(
+        &self,
+    ) -> Option<tcl_syntax::native_string::NativeStringProtocol> {
+        let dialect = self.native_invocation_dialect();
+        dialect
+            .native_source_string_protocol()
+            .filter(|protocol| protocol.escape_syntax() == self.lexer_config().escapes)
+            .or_else(|| {
+                self.logical_source_word_provider
+                    .get()
+                    .and_then(|(provider, _)| {
+                        dialect.logical_source_string_protocol(provider, self.dialect_profile())
+                    })
+            })
+    }
+
+    /// Install the embedding host's authored logical parser capability with
+    /// an independently selected actual host engine. Compatibility versions
+    /// and command availability cannot supply that host receipt.
+    #[must_use]
+    pub fn set_logical_expression_parse_provider(
+        &mut self,
+        provider: tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        actual_host: &'static tcl_dialect::DialectProfile,
+    ) -> bool {
+        let dialect = tcl_registry::InvocationDialect::of_profile(self.dialect_profile());
+        if tcl_registry::InvocationDialect::of_profile(actual_host)
+            .execution_point()
+            .is_none()
+            || dialect
+                .logical_expression_parse_context(provider, self.dialect_profile())
+                .is_none()
+        {
+            return false;
+        }
+        let capability = Some((provider, actual_host.cache_key()));
+        if self.logical_expression_parse_provider.get() != capability {
+            self.invalidate_interpreter_policy();
+            self.invalidate_native_operation_context();
+            self.logical_expression_parse_provider.set(capability);
+        }
+        true
+    }
+
+    pub(crate) fn logical_expression_parse_policy(
+        &self,
+    ) -> Option<(
+        tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        tcl_dialect::DialectProfileKey,
+    )> {
+        self.logical_expression_parse_provider
+            .get()
+            .filter(|(provider, _)| {
+                self.native_invocation_dialect()
+                    .logical_expression_parse_context(*provider, self.dialect_profile())
+                    .is_some()
+            })
+    }
+
+    pub(crate) fn expression_evaluation_policy(
+        &self,
+    ) -> Option<tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy> {
+        use tcl_registry::native_expression_program::{
+            authored_expression_evaluation_policy, native_expression_evaluation_policy,
+        };
+        if let Some((provider, _)) = self.logical_expression_parse_policy() {
+            return authored_expression_evaluation_policy(self.dialect_profile(), provider, None);
+        }
+        let dialect = self.native_invocation_dialect();
+        let point = dialect.execution_point()?;
+        let profile = if tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+            .execution_point()
+            == Some(point)
+        {
+            self.dialect_profile()
+        } else {
+            tcl_dialect::DialectProfile::find(dialect.tcl_version?.dialect_profile_name())?
+        };
+        native_expression_evaluation_policy(profile, point)
+    }
+
+    #[cfg(have_tommath)]
+    pub(crate) fn expression_parse_context(&self) -> tcl_syntax::expr::parser::ExprParseContext {
+        let dialect = self.native_invocation_dialect();
+        self.logical_expression_parse_policy()
+            .and_then(|(provider, _)| {
+                dialect.logical_expression_parse_context(provider, self.dialect_profile())
+            })
+            .unwrap_or_else(|| dialect.expression_parse_context(Some(self.dialect_profile())))
     }
 
     /// Pin the dialect profile this interpreter emulates — the profile form
@@ -1655,7 +2531,11 @@ impl Interp {
     }
 
     fn install_pin(&mut self, pin: tcl_registry::model::PinnedContext) {
+        let context_changed = self.0.pin.borrow().context != pin.context;
         let profile = pin.profile;
+        if context_changed || !std::ptr::eq(self.dialect_profile(), profile) {
+            self.invalidate_native_operation_context();
+        }
         *self.0.pin.borrow_mut() = pin;
         let version = profile.vm_runtime_version;
         // Ahead of the unchanged-profile short-circuit: the numeric grammar is
@@ -1665,11 +2545,29 @@ impl Interp {
         // installed 8.4 must re-install its own release even when its version
         // field needs no change.
         install_ambient_release(version);
+        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        parse::install_native_list_policy(
+            dialect.lexer_grammar.list_parse,
+            dialect.lexer_grammar.escapes,
+        );
+        if let Some(policy) = profile.double_string_policy() {
+            obj::install_double_string_policy(policy);
+        }
         if std::ptr::eq(self.dialect_profile(), profile) {
+            if context_changed {
+                self.invalidate_interpreter_policy();
+            }
             return;
         }
         self.invalidate_interpreter_policy();
         self.0.dialect_profile.set(profile);
+        if dialect.return_options_protocol()
+            == Some(tcl_cmd_core::return_options::ReturnOptionsProtocol::Jim084)
+        {
+            self.return_level.set(0);
+            self.return_code.set(Code::Ok);
+        }
+        self.refresh_native_math_function_table();
         self.0
             .profile_registry
             .set((!profile.is_fallback()).then(|| crate::environment::store_for_profile(profile)));
@@ -1682,11 +2580,49 @@ impl Interp {
             .reset_standard_channels_if_owner(version);
         self.namespaces.borrow_mut().ns_var_global_fallback =
             version.namespace_var_global_fallback();
+        self.configure_variable_storage();
+        self.namespaces.borrow_mut().set_native_command_version(
+            self.native_invocation_dialect()
+                .native_command_name_protocol()
+                .map(|protocol| protocol.version()),
+        );
+        if let Err(error) = self.publish_original_jim_registration_keys() {
+            self.report_cmd_error(error.into());
+            return;
+        }
+        if self.configure_native_error_stack_checked().is_err() {
+            return;
+        }
         self.write_release_globals();
+        self.install_native_precision_trace();
         // `package provide Tcl` is a release fact, not a runtime constant, and
         // the pre-provided entries were written against the *previous* pin —
         // re-derive them.
-        self.packages.borrow_mut().provide_core(version);
+        match self.native_invocation_dialect().native_package_protocol() {
+            Some(tcl_registry::native_package::NativePackageProtocol::C(release)) => {
+                self.packages.borrow_mut().provide_core(release)
+            }
+            Some(tcl_registry::native_package::NativePackageProtocol::Jim084) | None => {
+                self.packages.borrow_mut().clear_core()
+            }
+        }
+        self.refresh_stock_ensembles();
+        self.install_jim_local_commands();
+        crate::cmd_proc::install_stock_scripted_wrappers(self);
+        // Scripted wrapper installation changes the command generation epoch.
+        // Re-attest only the actual untouched stock String allocation and map.
+        self.attest_stock_string_implementation();
+        self.seal_native_compiler_attachments();
+        if self.native_invocation_dialect().native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            match self.native_jim_object_context() {
+                Ok(context) => self.set_result(context.empty_object().as_ptr()),
+                Err(error) => {
+                    self.report_cmd_error(error.into());
+                }
+            }
+        }
     }
 
     /// The Tcl release this interpreter emulates (see
@@ -1702,6 +2638,10 @@ impl Interp {
         self.channels.borrow().system_encoding()
     }
 
+    pub(crate) fn default_system_encoding(&self) -> tcl_platform::SystemEncoding {
+        self.channels.borrow().default_system_encoding()
+    }
+
     /// Replace the system encoding used to initialise subsequently opened
     /// channels. Existing channel handles retain their own configuration.
     pub(crate) fn set_system_encoding(&self, encoding: tcl_platform::SystemEncoding) {
@@ -1713,6 +2653,144 @@ impl Interp {
     #[must_use]
     pub fn dialect_profile(&self) -> &'static tcl_dialect::DialectProfile {
         self.0.dialect_profile.get()
+    }
+
+    /// Actual Jim interpreter objects; source grammar cannot issue this context.
+    pub(crate) fn native_jim_object_context(
+        &self,
+    ) -> Result<Rc<crate::native_source::NativeJimObjectContext>, tcl_syntax::value::ValueError>
+    {
+        self.native_jim_object_context_in(self.native_invocation_dialect())
+    }
+
+    pub(crate) fn associate_native_jim_arguments(
+        &self,
+        values: &[*mut TclObj],
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        if self.native_invocation_dialect().native_string_protocol()
+            != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            return Ok(());
+        }
+        let context = self.native_jim_object_context()?;
+        for &value in values {
+            crate::native_source::bind_context(value, &context)?;
+        }
+        Ok(())
+    }
+
+    fn associate_native_jim_variable_value(&self, value: *mut TclObj) -> Result<(), VarError> {
+        self.associate_native_jim_arguments(&[value])
+            .map_err(|error| {
+                self.clone().refuse_native_access(
+                    error
+                        .native_access_refusal()
+                        .expect("Jim context association is a host refusal"),
+                );
+                VarError::NameProtocolUnavailable
+            })
+    }
+
+    pub(crate) fn native_jim_object_context_in(
+        &self,
+        dialect: tcl_registry::InvocationDialect,
+    ) -> Result<Rc<crate::native_source::NativeJimObjectContext>, tcl_syntax::value::ValueError>
+    {
+        if dialect.native_string_protocol()
+            != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim original source context",
+            ));
+        }
+        if let Some(context) = self.jim_object_context.borrow().as_ref() {
+            if !context.is_live() {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "retired Jim interpreter",
+                ));
+            }
+            context.select_numeric_host(self.host());
+            return Ok(Rc::clone(context));
+        }
+        let context = crate::native_source::NativeJimObjectContext::new(dialect)?;
+        context.select_numeric_host(self.host());
+        self.namespaces
+            .borrow_mut()
+            .adopt_jim_root_namespace(context.empty_object().clone());
+        let namespace = self
+            .namespaces
+            .borrow_mut()
+            .take_jim_namespace_owner(crate::namespace::GLOBAL)
+            .expect("authentic Jim root namespace reference");
+        self.frames
+            .borrow_mut()
+            .retain_jim_root_namespace(namespace);
+        *self.jim_object_context.borrow_mut() = Some(Rc::clone(&context));
+        Ok(context)
+    }
+
+    fn configure_variable_storage(&self) {
+        let dialect = self.native_invocation_dialect();
+        if let Some(names) = dialect.native_name_protocol() {
+            let policy = names.variable_lookup_policy();
+            let mut frames = self.frames.borrow_mut();
+            let mut namespaces = self.namespaces.borrow_mut();
+            frames.variable_lookup_policy = policy;
+            namespaces.variable_lookup_policy = policy;
+            frames.variable_container_model = policy.container_model();
+            namespaces.variable_container_model = policy.container_model();
+            namespaces.variable_link_binding = policy.link_binding();
+        }
+        // Missing naming authority cannot replace an existing physical model.
+        let names = self.name_policy_protocol();
+        let recipe = self
+            .selected_variable_table_protocol()
+            .map(|protocol| protocol.recipe());
+        let mut frames = self.frames.borrow_mut();
+        let mut namespaces = self.namespaces.borrow_mut();
+        frames.variable_hash_recipe = recipe;
+        namespaces.variable_hash_recipe = recipe;
+        frames.variable_string_protocol = dialect.native_string_protocol();
+        namespaces.variable_string_protocol = dialect.native_string_protocol();
+        namespaces.variable_name_protocol = names.map(|names| names.recipe());
+    }
+
+    fn variable_storage_matches(&self, policy: tcl_dialect::VariableLookupPolicy) -> bool {
+        let frames = self.frames.borrow();
+        let namespaces = self.namespaces.borrow();
+        frames.variable_lookup_policy == policy
+            && namespaces.variable_lookup_policy == policy
+            && frames.variable_container_model == policy.container_model()
+            && namespaces.variable_container_model == policy.container_model()
+            && namespaces.variable_link_binding == policy.link_binding()
+    }
+
+    pub(crate) fn selected_variable_table_protocol(
+        &self,
+    ) -> Option<tcl_registry::native_variable_table::NativeVariableTableProtocol> {
+        let abi = tcl_runtime_api::native_hash_abi::supported_backend_hash_abi(Some(0))?;
+        let policy = self.name_policy_protocol()?;
+        let dialect = self.native_invocation_dialect();
+        match policy.authority() {
+            tcl_syntax::naming::NamePolicyAuthority::Native => {
+                dialect.native_variable_table_protocol(abi)
+            }
+            tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation => {
+                dialect.authored_variable_table_protocol(policy, abi)
+            }
+        }
+    }
+
+    pub(crate) fn native_invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+        let dialect = tcl_registry::InvocationDialect::of_profile(self.dialect_profile());
+        if dialect.family() == Some(tcl_dialect::model::Family::Tcl)
+            && dialect.tcl_version.is_none()
+            && dialect.core_point.is_none()
+        {
+            tcl_registry::InvocationDialect::for_version(self.runtime_version())
+        } else {
+            dialect
+        }
     }
 
     /// The lexer configuration scripts evaluate under: the pinned profile's
@@ -1794,6 +2872,22 @@ impl Interp {
         hidden
     }
 
+    /// Retire a hidden stock OO root only at the exact selected publication slot.
+    pub(crate) fn retire_gate_hidden_object_in_slot(&mut self, ns: NsId, tail: &[u8]) {
+        let owner = self.namespaces().command_in(ns, tail).and_then(|command| {
+            let owner = command.oo_object()?;
+            self.0
+                .registry_object_roots
+                .borrow()
+                .get(&owner)
+                .is_some_and(|name| !self.builtin_command_visible_for_surface(name))
+                .then_some(owner)
+        });
+        if let Some(owner) = owner {
+            self.oo_command_renamed(owner, None);
+        }
+    }
+
     /// The availability half of [`Self::builtin_command_visible_for_surface`]:
     /// whether the pinned profile admits registry builtin `name`. Names the
     /// registry does not know are always admitted — they may be engine
@@ -1802,6 +2896,12 @@ impl Interp {
         let Some(registry) = self.0.profile_registry.get() else {
             return true; // the permissive fallback profile gates nothing
         };
+        if let Some(admitted) = tcl_registry::CommandRegistry::native_stock_registration_admission(
+            tcl_registry::InvocationDialect::of_profile(self.dialect_profile()),
+            name,
+        ) {
+            return admitted;
+        }
         registry.get(name).is_none()
             || registry
                 .get_for_surface(name, self.0.dialect_point.get())
@@ -1812,14 +2912,12 @@ impl Interp {
     /// command token. Engine builtins retain their registry identity by exact
     /// generation across rename and hide; other native commands use their
     /// current Tcl-facing spelling as before.
-    fn command_visible_for_surface_at(
-        &self,
-        command: &Command,
-        fqn: &[u8],
-        generation: Option<u64>,
-    ) -> bool {
+    fn command_visible_for_surface_at(&self, command: &Command, generation: Option<u64>) -> bool {
         match command {
             Command::Builtin(_) => {
+                if generation.is_some_and(|token| self.is_stock_scripted_worker(token)) {
+                    return true;
+                }
                 let registry_name = generation.and_then(|generation| {
                     self.0
                         .registry_builtin_names
@@ -1827,8 +2925,13 @@ impl Interp {
                         .get(&generation)
                         .cloned()
                 });
-                self.builtin_command_visible_for_surface(registry_name.as_deref().unwrap_or(fqn))
+                registry_name
+                    .as_deref()
+                    .is_none_or(|name| self.builtin_command_visible_for_surface(name))
             }
+            Command::Ensemble(_) => generation
+                .and_then(|generation| self.stock_ensemble_registry_identity(generation))
+                .is_none_or(|name| self.builtin_command_visible_for_surface(&name)),
             Command::OoObject(id) => self
                 .0
                 .registry_object_roots
@@ -1837,6 +2940,20 @@ impl Interp {
                 .is_none_or(|name| self.builtin_command_visible_for_surface(name)),
             _ => true,
         }
+    }
+
+    /// Observe the selected surface at an existing slot without reinterpreting
+    /// its namespace components or recovering identity from a reporting name.
+    pub(crate) fn has_visible_command_in_slot(&self, namespace: NsId, simple: &[u8]) -> bool {
+        let namespaces = self.namespaces();
+        namespaces
+            .command_in(namespace, simple)
+            .is_some_and(|command| {
+                self.command_visible_for_surface_at(
+                    &command,
+                    namespaces.command_generation(namespace, simple),
+                )
+            })
     }
 
     /// Resolve `name` (from namespace `origin`) to a command handle, applying
@@ -1862,16 +2979,26 @@ impl Interp {
     /// the "this release does not have that command" contract this gate
     /// implements.
     pub(crate) fn resolve_dispatchable(&self, origin: NsId, name: &[u8]) -> Option<Command> {
-        let (command, fqn, generation) = {
+        self.resolve_dispatchable_with_generation(origin, name)
+            .map(|(command, _)| command)
+    }
+
+    /// Resolve an invocation and retain the selected token generation together.
+    /// Native implementation identity must not be reconstructed from display argv.
+    pub(crate) fn resolve_dispatchable_with_generation(
+        &self,
+        origin: NsId,
+        name: &[u8],
+    ) -> Option<(Command, Option<u64>)> {
+        let (command, generation) = {
             let ns = self.namespaces.borrow();
             (
                 ns.resolve(origin, name)?,
-                ns.resolve_fqn(origin, name)?,
                 ns.resolve_generation(origin, name),
             )
         };
-        self.command_visible_for_surface_at(&command, &fqn, generation)
-            .then_some(command)
+        self.command_visible_for_surface_at(&command, generation)
+            .then_some((command, generation))
     }
 
     /// Convert `obj` to the byte view consumed by Tcl's `binary` command.
@@ -1881,9 +3008,29 @@ impl Interp {
     /// wide code point to one byte, while Tcl 9 rejects it. Keeping this at the
     /// interpreter boundary makes every `binary` subcommand use the same
     /// dual-representation and version rule.
-    pub(crate) fn binary_bytes(&mut self, obj: *mut TclObj) -> Result<Vec<u8>, Code> {
-        crate::bytearray::binary_bytes(obj, self.runtime_version().byte_string_encoding())
-            .map_err(|err| self.report_cmd_error(err.into()))
+    pub(crate) fn binary_bytes(&mut self, value: *mut TclObj) -> Result<Vec<u8>, Code> {
+        let Some(policy) = self.native_invocation_dialect().binary_data_conversion() else {
+            return Err(self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "binary conversion",
+                ),
+            ));
+        };
+        self.native_binary_bytes_with(value, policy, true)
+    }
+
+    pub(crate) fn native_binary_bytes_with(
+        &mut self,
+        value: *mut TclObj,
+        policy: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+        cache: bool,
+    ) -> Result<Vec<u8>, Code> {
+        if policy == tcl_registry::native_binary_value::NativeBinaryByteConversion::Utf8 {
+            return Ok(obj::bytes_of(value));
+        }
+        let recipe = self.byte_array_string_recipe()?;
+        crate::bytearray::native_binary_bytes(value, policy, cache, recipe)
+            .map_err(|error| self.error_with_code(error.message().as_bytes(), b"TCL VALUE BYTES"))
     }
 
     /// Invoke a Tcl 8.4 fixed-table `expr` math function selected by the
@@ -1906,7 +3053,7 @@ impl Interp {
             unsafe { obj::incr_ref_count(arg) };
             argv.push(arg);
         }
-        let code = crate::cmd_mathfunc::mathfunc(self, &argv);
+        let code = crate::cmd_mathfunc::mathfunc_identity(self, &argv, spec.name.as_bytes());
         release_all(&argv);
         code
     }
@@ -1916,58 +3063,141 @@ impl Interp {
     /// (C does this in `Tcl_CreateInterp`) and again whenever
     /// [`Self::set_runtime_version`] changes the answer.
     pub(crate) fn write_release_globals(&mut self) {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return;
+            }
+        };
         let version = self.runtime_version();
+        // These are owned bootstrap slots, not guest name-lookup operations.
+        // Installing an unsupported native profile must not manufacture an
+        // unrelated variable-access refusal before the requested operation.
         for (name, val) in [
-            (&b"::tcl_version"[..], version.version_string()),
-            (b"::tcl_patchLevel", version.patchlevel()),
+            (&b"tcl_version"[..], version.version_string()),
+            (b"tcl_patchLevel", version.patchlevel()),
         ] {
-            let o = new_string(val.as_bytes());
-            if self.var_set(name, o).is_err() {
-                drop_fresh(o);
+            let value = obj::Owned::fresh(new_string(val.as_bytes()));
+            let previous = self
+                .namespaces_mut()
+                .var_table_mut(GLOBAL)
+                .publish_scalar(name, value.as_ptr());
+            // Release the actual displaced owner after the namespace borrow.
+            drop(previous);
+            drop(value);
+            if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                self.refuse_native_execution(first);
+                return;
             }
         }
     }
 
     // command registry
 
-    /// Register a built-in command (a possibly-qualified `name`, creating
-    /// intermediate namespaces; overwrites any existing command of `name`).
+    /// Register a host handler at a possibly-qualified name. This replaces the
+    /// actual binding without claiming stock dialect or compiler identity.
     pub fn register_builtin(&mut self, name: &[u8], f: BuiltinFn) {
         self.bind_builtin(name, f);
     }
 
-    /// Bind a builtin, returning the token generation it is bound under.
-    fn bind_builtin(&mut self, name: &[u8], f: BuiltinFn) -> u64 {
-        let ns = self.namespaces.borrow_mut().command_home_ns(GLOBAL, name);
-        let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
-        self.bind_command_replacement(ns, &tail, Command::Builtin(f));
-        let (fqn, generation) = {
-            let namespaces = self.namespaces.borrow();
-            (
-                namespaces.command_fqn_at(ns, &tail),
-                namespaces
-                    .command_generation(ns, &tail)
-                    .expect("the builtin command was just bound"),
-            )
-        };
-        self.0
-            .registry_builtin_names
-            .borrow_mut()
-            .insert(generation, fqn);
-        generation
+    /// Only engine installation identifies an actual stock handler token.
+    pub(crate) fn register_stock_builtin(&mut self, name: &[u8], f: BuiltinFn) -> u64 {
+        self.register_stock_builtin_publication(name, f)
+            .map_or(0, |publication| publication.generation)
     }
 
-    /// Bind a builtin and attest `identities` for the token it is bound under.
-    /// The token it displaces takes its attestation with it.
-    fn bind_attested_builtin(
+    /// Publish a stock object handler with its actual client-data deletion owner.
+    pub(crate) fn register_stock_obj_command(
+        &mut self,
+        name: &[u8],
+        command: ObjCommand,
+    ) -> Option<u64> {
+        let generation = self.create_obj_command(name, command)?;
+        self.check_entered_native_operation().ok()?;
+        let (fqn, _) = self.raw_command_location_by_generation(generation)?;
+        self.registry_builtin_names
+            .borrow_mut()
+            .insert(generation, fqn.clone());
+        self.remember_stock_registration(generation);
+        self.record_scripted_helper_registration(generation);
+        Some(generation)
+    }
+
+    fn register_stock_builtin_publication(
         &mut self,
         name: &[u8],
         f: BuiltinFn,
-        identities: std::collections::BTreeSet<GuardIdentity>,
-    ) {
-        let displaced = self.namespaces.borrow().resolve_generation(GLOBAL, name);
-        let generation = self.bind_builtin(name, f);
-        self.attest(generation, displaced, identities);
+    ) -> Option<OriginalBuiltinPublication> {
+        let publication = self.bind_builtin_publication(name, f)?;
+        self.check_entered_native_operation().ok()?;
+        if !self.original_command_publication_is_current(
+            publication.namespace,
+            &publication.tail,
+            publication.generation,
+        ) {
+            return None;
+        }
+        let (fqn, _) = self.raw_command_location_by_generation(publication.generation)?;
+        self.registry_builtin_names
+            .borrow_mut()
+            .insert(publication.generation, fqn.clone());
+        self.remember_stock_registration(publication.generation);
+        self.record_scripted_helper_registration(publication.generation);
+        Some(publication)
+    }
+
+    /// Bind a builtin through its actual publication owner.
+    fn bind_builtin(&mut self, name: &[u8], f: BuiltinFn) -> u64 {
+        self.bind_builtin_publication(name, f)
+            .map_or(0, |publication| publication.generation)
+    }
+
+    fn bind_builtin_publication(
+        &mut self,
+        name: &[u8],
+        f: BuiltinFn,
+    ) -> Option<OriginalBuiltinPublication> {
+        let original_key = match self.generated_jim_command_key(
+            GLOBAL,
+            name,
+            tcl_syntax::naming::NativeNamePurpose::CommandCApiPublication,
+        ) {
+            Ok(key) => key,
+            Err(error) => {
+                self.report_cmd_error(error.into());
+                return None;
+            }
+        };
+        let Some((ns, tail)) = self.namespaces_mut().command_publication_at(GLOBAL, name) else {
+            let _ = self.refuse_host_command("builtin publication has no actual namespace");
+            return None;
+        };
+        let report = self.namespaces().jim_command_table_key_at(
+            GLOBAL,
+            name,
+            tcl_syntax::naming::NativeNamePurpose::AliasPublication,
+        );
+        let OriginalCommandPublication::Published(generation) = self
+            .bind_command_replacement_with_original_jim_key(
+                ns,
+                &tail,
+                Command::Builtin(f),
+                report,
+                original_key,
+            )
+        else {
+            return None;
+        };
+        if self.host_refusal_pending() {
+            return None;
+        }
+        self.remember_original_byte_command_registration(name, ns, &tail, generation);
+        Some(OriginalBuiltinPublication {
+            namespace: ns,
+            tail,
+            generation,
+        })
     }
 
     /// The one writer of the attestation table: attest `identities` for the
@@ -1992,7 +3222,38 @@ impl Interp {
     /// offline-generated code. Ordinary registration never infers identity
     /// from a spelling or function address.
     pub fn register_guarded_builtin(&mut self, name: &[u8], f: BuiltinFn, identity: GuardIdentity) {
-        self.bind_attested_builtin(name, f, std::collections::BTreeSet::from([identity]));
+        let generation = self.bind_builtin(name, f);
+        if generation != 0 {
+            self.retire_guarded_command_identities();
+            self.attest(
+                generation,
+                None,
+                std::collections::BTreeSet::from([identity]),
+            );
+        }
+    }
+
+    /// Register a builtin and derive every semantic identity from its registry
+    /// command, subcommand, and invocation-form descriptors.
+    pub fn register_spec_builtin(&mut self, spec: &tcl_registry::CommandSpec, f: BuiltinFn) {
+        let generation = self.bind_builtin(spec.name.as_bytes(), f);
+        if generation != 0 {
+            self.retire_guarded_command_identities();
+            self.attest_spec_at(spec, generation);
+        }
+    }
+
+    fn attest_spec_at(&self, spec: &tcl_registry::CommandSpec, generation: u64) {
+        let identities: std::collections::BTreeSet<_> = spec
+            .intrinsic_ids()
+            .into_iter()
+            .flat_map(|id| {
+                id.guard_semantics_variants().iter().map(move |semantics| {
+                    GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
+                })
+            })
+            .collect();
+        self.attest(generation, None, identities);
     }
 
     /// Register a builtin that only refuses: a call answers "not supported"
@@ -2000,8 +3261,10 @@ impl Interp {
     /// backing report says so ([`RegisteredBacking::Unsupported`]) rather than
     /// counting it as a handler.
     pub(crate) fn register_unsupported(&mut self, name: &[u8], f: BuiltinFn) {
-        let generation = self.bind_builtin(name, f);
-        self.0.unsupported_builtins.borrow_mut().insert(generation);
+        let generation = self.register_stock_builtin(name, f);
+        if generation != 0 {
+            self.unsupported_builtins.borrow_mut().insert(generation);
+        }
     }
 
     /// Attach the registry's intrinsic identities to the builtins this
@@ -2014,9 +3277,9 @@ impl Interp {
     /// since redefined or renamed over gains no attestation for a procedure,
     /// and a builtin moved to another name keeps the one it already has (the
     /// table is keyed by the command token's generation, which a rename
-    /// carries). It runs once, at the end of registration: the table survives
-    /// the profile pin, and a later sweep would attest whatever an embedder
-    /// registered at a registry name as the registry's command.
+    /// carries). The sweep runs after stock installation and retains its
+    /// attestations through a profile pin. Public host registration never adds
+    /// a shipped token, even when its spelling belongs to this registry.
     pub(crate) fn attach_identities(&mut self) {
         let registry = crate::environment::store_for_profile(self.dialect_profile());
         self.attach_identities_from(registry);
@@ -2072,7 +3335,10 @@ impl Interp {
     /// the commands that library defines, which exist once `init_library` has
     /// sourced it. A build without the numeric tower reports the commands a
     /// build with it registers as needing the tower. Names are without a
-    /// leading `::`, and a name this runtime does not mention is absent.
+    /// constructed root marker; literal colon components remain part of each
+    /// unrooted key. Use `BackingReport::from_unrooted_entries` to store these
+    /// keys. This Unicode catalogue omits opaque byte names; lookup and
+    /// publication retain those names independently through their counted APIs.
     #[must_use]
     pub fn backing_report(&self) -> Vec<(String, RegisteredBacking)> {
         let mut report = std::collections::BTreeMap::new();
@@ -2093,18 +3359,38 @@ impl Interp {
                                 RegisteredBacking::Builtin
                             }
                         }
+                        Some(Command::ObjCmd(_))
+                            if namespaces.command_generation(ns, name).is_some_and(
+                                |generation| {
+                                    self.registry_builtin_names
+                                        .borrow()
+                                        .contains_key(&generation)
+                                },
+                            ) =>
+                        {
+                            RegisteredBacking::Builtin
+                        }
+                        Some(Command::Ensemble(_))
+                            if namespaces.command_generation(ns, name).is_some_and(
+                                |generation| {
+                                    self.stock_ensemble_registry_identity(generation).is_some()
+                                },
+                            ) =>
+                        {
+                            RegisteredBacking::Builtin
+                        }
                         Some(Command::OoObject(id)) if roots.contains_key(&id) => {
                             RegisteredBacking::Object
                         }
                         _ => continue,
                     };
                     let fqn = namespaces.command_fqn_at(ns, name);
-                    report.insert(
-                        String::from_utf8_lossy(&fqn)
-                            .trim_start_matches("::")
-                            .to_owned(),
-                        backing,
-                    );
+                    let Ok(text) = std::str::from_utf8(&fqn) else {
+                        continue;
+                    };
+                    let key = tcl_syntax::naming::unroot_rooted_key(text)
+                        .expect("actual command FQN contains its constructed root");
+                    report.insert(key.to_owned(), backing);
                 }
             }
             if !roots.is_empty() {
@@ -2133,23 +3419,30 @@ impl Interp {
     /// replaced, renamed away, hidden, or is no longer admitted by the pinned
     /// surface answers `None`, and one restored by `rename` or `expose` answers
     /// what it did before.
+    #[cfg(test)]
     fn attested_identities(
         &self,
         name: &[u8],
     ) -> Option<std::collections::BTreeSet<GuardIdentity>> {
-        let current = self.current_ns.get();
-        let (fqn, generation, command) = {
-            let namespaces = self.namespaces.borrow();
-            (
-                namespaces.resolve_fqn(current, name)?,
-                namespaces.resolve_generation(current, name)?,
-                namespaces.resolve(current, name)?,
-            )
-        };
-        if !self.command_visible_for_surface_at(&command, &fqn, Some(generation)) {
+        self.attested_command_identity(name)
+            .map(|(_, identities)| identities)
+    }
+
+    fn attested_command_identity(
+        &self,
+        name: &[u8],
+    ) -> Option<(u64, std::collections::BTreeSet<GuardIdentity>)> {
+        let (command, generation) =
+            self.resolve_dispatchable_with_generation(self.current_ns.get(), name)?;
+        let generation = generation?;
+        if matches!(command, Command::Ensemble(_))
+            && self.stock_ensemble_registry_identity(generation).is_some()
+            && !self.stock_ensemble_implementation_is_current(generation)
+        {
             return None;
         }
-        self.guarded_commands.borrow().get(&generation).cloned()
+        let identities = self.guarded_commands.borrow().get(&generation).cloned()?;
+        Some((generation, identities))
     }
 
     /// Verify live command identity and issue a guard over `domains`.
@@ -2164,6 +3457,7 @@ impl Interp {
         expected: GuardIdentity,
         domains: GuardDomains,
     ) -> Result<GuardToken, GuardError> {
+        self.synchronise_command_environment_guards();
         if !domains.covers(tcl_registry::IntrinsicId::required_guard_domains(expected)) {
             return Err(GuardError::DomainsInsufficient);
         }
@@ -2174,27 +3468,31 @@ impl Interp {
             return Err(GuardError::PrerequisiteUnsatisfied);
         }
         drop(traces);
-        let observed = self.attested_identities(name).and_then(|identities| {
-            Some(if identities.contains(&expected) {
-                expected
-            } else {
-                *identities.first()?
-            })
-        });
+        let (generation, identities) = self
+            .attested_command_identity(name)
+            .ok_or(GuardError::IdentityUnavailable)?;
+        let observed = if identities.contains(&expected) {
+            Some(expected)
+        } else {
+            identities.first().copied()
+        };
         self.guards
             .borrow_mut()
-            .prepare(expected, observed, domains)
+            .prepare(expected, observed, domains, generation)
     }
 
     /// Re-check a guard against the current resolved implementation identity.
     #[must_use]
     pub fn check_command_guard(&self, token: GuardToken, name: &[u8]) -> bool {
-        let Some(identities) = self.attested_identities(name) else {
+        self.synchronise_command_environment_guards();
+        let Some((generation, identities)) = self.attested_command_identity(name) else {
             return false;
         };
-        identities
-            .iter()
-            .any(|identity| self.guards.borrow().check(token, Some(*identity)))
+        identities.iter().any(|identity| {
+            self.guards
+                .borrow()
+                .check(token, Some(*identity), &generation)
+        })
     }
 
     /// Re-check a guard for one exact registry intrinsic identity.
@@ -2209,15 +3507,16 @@ impl Interp {
         name: &[u8],
         expected: GuardIdentity,
     ) -> bool {
-        if !self
-            .attested_identities(name)
-            .is_some_and(|identities| identities.contains(&expected))
-        {
+        self.synchronise_command_environment_guards();
+        let Some((generation, identities)) = self.attested_command_identity(name) else {
+            return false;
+        };
+        if !identities.contains(&expected) {
             return false;
         }
         self.guards
             .borrow()
-            .check_expected(token, expected, Some(expected))
+            .check_expected(token, expected, Some(expected), &generation)
     }
 
     /// Execute one registry intrinsic over arguments after command and
@@ -2229,9 +3528,13 @@ impl Interp {
     ) -> Option<Code> {
         match (intrinsic, args) {
             (tcl_registry::IntrinsicId::StringLength, [value]) => {
-                let result = tcl_cmd_core::string::length(self, value);
-                self.set_result(result);
-                Some(Code::Ok)
+                Some(match tcl_cmd_core::string::length(self, value) {
+                    Ok(result) => {
+                        self.set_result(result);
+                        Code::Ok
+                    }
+                    Err(error) => self.report_cmd_error(error),
+                })
             }
             _ => None,
         }
@@ -2265,15 +3568,39 @@ impl Interp {
         self.invalidate_guard_domain(GuardDomain::Interpreter);
     }
 
+    fn retire_guarded_command_identities(&self) {
+        self.guarded_commands.borrow_mut().retain(|generation, _| {
+            self.raw_command_location_by_generation(*generation)
+                .is_some()
+        });
+    }
+
+    /// Observe the actual table owner's policy revision before any guard door.
+    /// A mutable namespace borrow alone is not a lookup-policy mutation.
+    fn synchronise_command_environment_guards(&self) {
+        let revision = self.namespaces().guard_lookup_environment_revision();
+        let previous = self.guard_lookup_environment_revision.replace(revision);
+        if revision.is_none() {
+            let mut guards = self.guards.borrow_mut();
+            for domain in [
+                GuardDomain::CommandEnvironment,
+                GuardDomain::Namespace,
+                GuardDomain::UnknownHandling,
+            ] {
+                guards.poison(domain);
+            }
+        } else if previous != revision {
+            self.invalidate_command_environment();
+        }
+    }
+
     /// Invalidate the guard domains that depend on the command lookup
     /// environment: namespace structure and lifecycle, and interpreter topology.
     ///
-    /// A command-table mutation does not come here. What a guard needs of its
-    /// command is decided when it is checked, by resolving the guarded name to
-    /// a token generation and finding an attestation there
-    /// ([`Self::attested_identities`]), so replacing, deleting, renaming,
-    /// hiding, or aliasing one command invalidates that command's guards and no
-    /// other's.
+    /// Ordinary command mutations are checked by resolving the guarded name
+    /// to its actual generation and semantic attestation. Renaming that same
+    /// token preserves its guard; replacing, deleting, hiding or resolving a
+    /// different token refuses it without invalidating unrelated commands.
     fn invalidate_command_environment(&self) {
         let mut guards = self.guards.borrow_mut();
         guards.invalidate(GuardDomain::CommandEnvironment);
@@ -2293,25 +3620,90 @@ impl Interp {
     /// `TclRenameCommand` applies before anything observable happens, then
     /// [`Self::move_bound_command`] or [`Self::delete_bound_command`].
     pub(crate) fn rename_command(&mut self, old: &[u8], new: &[u8]) -> RenameOutcome {
-        // Inside an open `rename` window the vacating name still resolves, but
-        // it *is* the destination command — C's two hash entries reference the
-        // one `Command` — so a callback's `rename <old> <third>` or `rename
-        // <old> {}` moves or destroys that command rather than a second copy
-        // standing at the vacating name. Resolved up front, because every guard
-        // below and both halves address the binding through this name.
-        let through_window = self
-            .resolve_cmd_fqn(old)
-            .and_then(|fqn| self.renamed_cmd_key(&fqn));
-        let old: &[u8] = through_window.as_deref().unwrap_or(old);
+        let _scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return RenameOutcome::NoSuchCommand;
+            }
+        };
+        let original_key = if new.is_empty() {
+            None
+        } else {
+            match self.generated_jim_command_key(
+                self.current_ns.get(),
+                new,
+                tcl_syntax::naming::NativeNamePurpose::RenameDestination,
+            ) {
+                Ok(key) => key,
+                Err(error) => {
+                    self.report_cmd_error(error.into());
+                    return RenameOutcome::NoSuchCommand;
+                }
+            }
+        };
+        self.rename_command_with_original_jim_key(old, new, original_key)
+    }
+
+    pub(crate) fn rename_command_with_original_jim_key(
+        &mut self,
+        old: &[u8],
+        new: &[u8],
+        original_key: Option<Rc<obj::Owned>>,
+    ) -> RenameOutcome {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return RenameOutcome::NoSuchCommand;
+            }
+        };
+        if self
+            .name_policy_protocol()
+            .is_some_and(|protocol| protocol.recipe().is_jim084())
+        {
+            if self
+                .namespaces()
+                .original_jim_rename_source_of(self.current_ns.get(), old)
+                .is_none()
+            {
+                return RenameOutcome::NoSuchCommand;
+            }
+            if let Some(key) = original_key.as_ref() {
+                let reached = self.native_object_string_bytes(key.as_ptr());
+                if scope.currency().ensure_current_or_refuse().is_err() {
+                    return RenameOutcome::NoSuchCommand;
+                }
+                if let Err(error) = reached {
+                    self.report_cmd_error(error.into());
+                    return RenameOutcome::NoSuchCommand;
+                }
+            }
+        }
         // C's `TclPreventAliasLoop` guards `rename` too, and refuses before
         // anything observable happens — no rename trace fires for a rename that
         // does not take place.
-        if self
-            .namespaces
-            .borrow_mut()
-            .rename_creates_alias_loop(self.current_ns.get(), old, new)
-        {
-            return RenameOutcome::AliasLoop;
+        let probe =
+            self.namespaces
+                .borrow_mut()
+                .begin_alias_rename_probe(self.current_ns.get(), old, new);
+        if let Some(probe) = probe {
+            let loops = self.alias_chain_loops_original(probe.destination.0, &probe.destination.1);
+            let retired = self
+                .namespaces
+                .borrow_mut()
+                .restore_alias_rename_probe(probe);
+            drop(retired);
+            match loops {
+                Ok(true) => return RenameOutcome::AliasLoop,
+                Ok(false) => {}
+                Err(error) => {
+                    // The original command caller checks retained first Host
+                    // before interpreting this internal outcome or publishing.
+                    self.report_cmd_error(error);
+                    return RenameOutcome::AliasLoop;
+                }
+            }
         }
         // C's `TclRenameCommand` checks the destination's hash table before
         // touching `old`'s (tclBasic.c), so an occupied destination — self-
@@ -2351,39 +3743,51 @@ impl Interp {
         if new.is_empty() {
             self.delete_bound_command(old)
         } else {
-            self.move_bound_command(old, new)
+            self.move_bound_command(old, new, original_key)
         }
     }
 
-    /// The `rename old new` half, after [`Self::rename_command`]'s guards.
-    ///
-    /// C's `TclRenameCommand` (`tclBasic.c` 9.0.4) creates the destination hash
-    /// entry, fires the `rename` traces, and only *then* deletes the source
-    /// one; both entries reference the one `Command`, and the traces hang off
-    /// that rather than off either entry. So for the callbacks' duration the
-    /// vacating name **is** the destination command: both names resolve and are
-    /// callable, `trace info` answers the same list through either, a `trace
-    /// add`/`remove` through either edits it, and a `rename` or delete through
-    /// either moves or destroys that one command. Everything the command
-    /// carries therefore moves to the destination *before* the callbacks run,
-    /// and the window
-    /// ([`rename_windows`](crate::cmd_trace::TraceTable::rename_windows))
-    /// records the equivalence our name-keyed registries cannot express.
-    fn move_bound_command(&mut self, old: &[u8], new: &[u8]) -> RenameOutcome {
-        let Some(old_fqn) = self.resolve_cmd_fqn(old) else {
+    /// Publish the new entry before callbacks; both slots retain one generation.
+    fn move_bound_command(
+        &mut self,
+        old: &[u8],
+        new: &[u8],
+        original_key: Option<Rc<obj::Owned>>,
+    ) -> RenameOutcome {
+        // Both Jim qualification temporaries survive AddHashEntry and the
+        // original source-slot retirement; keyDup owns a separate reference.
+        let _qualified_destination = original_key.as_ref().map(Rc::clone);
+        let Some(old_fqn) = self
+            .resolve_cmd_token(old)
+            .and_then(|generation| self.namespaces().command_fqn_by_generation(generation))
+        else {
             return RenameOutcome::NoSuchCommand;
         };
         let oo_object = match self.namespaces.borrow().resolve(self.current_ns.get(), old) {
             Some(Command::OoObject(id)) => Some(id),
             _ => None,
         };
-        let Some(publication) = self.namespaces.borrow_mut().publish_rename_destination(
-            self.current_ns.get(),
-            old,
-            new,
-        ) else {
+        let Some(publication) = self
+            .namespaces
+            .borrow_mut()
+            .publish_rename_destination_with_original_key(
+                self.current_ns.get(),
+                old,
+                new,
+                original_key,
+            )
+        else {
             return RenameOutcome::NoSuchCommand;
         };
+        if self.retire_pending_native_ensemble_roles().is_err() {
+            self.namespaces
+                .borrow_mut()
+                .retire_rename_source(&publication);
+            if let Err(first) = self.retire_pending_native_ensemble_roles() {
+                self.refuse_native_execution(first);
+            }
+            return RenameOutcome::Renamed;
+        }
         let new_fqn = publication.destination_fqn.clone();
         // The trace list (and any OO object) follows to the new name, and so
         // does every `namespace import` redirect of the old name — C's imports
@@ -2393,14 +3797,10 @@ impl Interp {
         // before it fired them.
         self.move_cmd_traces(&old_fqn, &new_fqn, publication.generation);
         self.retarget_import_sources(publication.generation, &new_fqn);
-        crate::cmd_coro::on_command_renamed(self, &old_fqn, &new_fqn);
+        crate::cmd_coro::on_command_renamed(self, publication.generation, &new_fqn);
         if let Some(object) = oo_object {
             self.oo_command_renamed(object, Some(&new_fqn));
         }
-        self.traces
-            .borrow_mut()
-            .rename_windows
-            .push((old_fqn.clone(), new_fqn.clone()));
         self.fire_cmd_trace_of_token(
             &new_fqn,
             &old_fqn,
@@ -2408,7 +3808,6 @@ impl Interp {
             crate::cmd_trace::ops::RENAME,
             Some(publication.generation),
         );
-        self.traces.borrow_mut().rename_windows.pop();
         // C's `Tcl_DeleteHashEntry(oldHPtr)` at the tail of `TclRenameCommand`:
         // a plain table removal, firing no `delete` trace, after which the
         // command stands under its new name alone. Whatever occupies the slot
@@ -2418,6 +3817,9 @@ impl Interp {
         self.namespaces
             .borrow_mut()
             .retire_rename_source(&publication);
+        if let Err(first) = self.retire_pending_native_ensemble_roles() {
+            self.refuse_native_execution(first);
+        }
         RenameOutcome::Renamed
     }
 
@@ -2425,6 +3827,16 @@ impl Interp {
     /// `Tcl_DeleteCommandFromToken`, whose `delete` traces fire while the
     /// command is still bound under its name.
     fn delete_bound_command(&mut self, old: &[u8]) -> RenameOutcome {
+        if self.uses_original_c_command_retirement() {
+            let Some(generation) = self.resolve_cmd_token(old) else {
+                return RenameOutcome::NoSuchCommand;
+            };
+            if let Err(error) = self.retire_original_command_generation(generation, true) {
+                self.report_cmd_error(error);
+            }
+            return RenameOutcome::Deleted;
+        }
+
         let (ensemble_token, import_token) =
             match self.namespaces.borrow().resolve(self.current_ns.get(), old) {
                 Some(Command::Ensemble(token)) => (Some(token), None),
@@ -2458,8 +3870,8 @@ impl Interp {
         }
         let existed = old_fqn.is_some();
         // Deleting a suspended coroutine's command tears down its worker first.
-        if let Some(of) = &old_fqn {
-            crate::cmd_coro::on_command_deleted(self, of);
+        if let Some(generation) = dying_token {
+            crate::cmd_coro::on_command_deleted(self, generation);
         }
         // An imported command carries a stable identity. Its delete trace may
         // force-reimport or otherwise replace the same binding; delete the
@@ -2500,6 +3912,10 @@ impl Interp {
         } else {
             RenameOutcome::NoSuchCommand
         };
+        drop(bound_before);
+        if let Err(first) = self.retire_pending_native_ensemble_roles() {
+            self.refuse_native_execution(first);
+        }
         // A delete-trace callback may itself delete the command (e.g. by
         // deleting the object's namespace). C captured the command token before
         // the callback, so the deletion still succeeds — treat "existed at
@@ -2528,6 +3944,9 @@ impl Interp {
                 self.oo_command_renamed(object, None);
             }
         }
+        if let Err(first) = self.retire_pending_native_ensemble_roles() {
+            self.refuse_native_execution(first);
+        }
         outcome
     }
 
@@ -2539,34 +3958,200 @@ impl Interp {
     /// command it displaced (`proc x …; interp alias {} x {} x` leaves no `x`
     /// at all, tclsh 8.6/9.0-pinned). `Err` carries the alias's simple command
     /// name for the caller's error message.
+    #[cfg(test)]
     pub(crate) fn install_alias(
         &mut self,
         name: &[u8],
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
     ) -> Result<(), Vec<u8>> {
-        let simple = tcl_syntax::naming::written_command_tail(name).to_vec();
-        let ns = self.namespaces.borrow_mut().command_home_ns(GLOBAL, name);
-        self.bind_command_replacement(
+        self.install_alias_with_original(name, target, prefix, None)
+    }
+
+    /// Explicit generated byte inputs create fresh original objects. Actual
+    /// command operands enter through `install_alias_objects` without decoding
+    /// or replacing any retained prefix member.
+    #[cfg(test)]
+    pub(crate) fn install_alias_with_original(
+        &mut self,
+        name: &[u8],
+        target: Vec<u8>,
+        prefix: Vec<Vec<u8>>,
+        original: Option<obj::Owned>,
+    ) -> Result<(), Vec<u8>> {
+        let original_prefix =
+            original.unwrap_or_else(|| self.generated_alias_prefix(&target, &prefix));
+        let registration_name =
+            Rc::new(NativeAliasHeader::new(obj::Owned::fresh(new_string(name))));
+        match self.install_alias_objects(
+            name,
+            registration_name,
+            Rc::new(NativeAliasHeader::new(original_prefix)),
+        ) {
+            Ok(None) => Ok(()),
+            Ok(Some(simple)) => Err(simple),
+            Err(error) => {
+                self.report_cmd_error(error);
+                Err(name.to_vec())
+            }
+        }
+    }
+
+    fn generated_alias_prefix(&self, target: &[u8], prefix: &[Vec<u8>]) -> obj::Owned {
+        let members = std::iter::once(target)
+            .chain(prefix.iter().map(Vec::as_slice))
+            .map(|bytes| obj::Owned::fresh(new_string(bytes)))
+            .collect::<Vec<_>>();
+        let pointers = members.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+        obj::Owned::fresh(self.new_list_object(&pointers))
+    }
+
+    /// Capture the exact original name and prefix before publication. C's
+    /// loop check then reaches the original target getter, outside the table
+    /// borrow. A query or invocation never reconstructs these members.
+    pub(crate) fn install_alias_objects(
+        &mut self,
+        name: &[u8],
+        registration_name: Rc<NativeAliasHeader>,
+        original_prefix: Rc<NativeAliasHeader>,
+    ) -> Result<Option<Vec<u8>>, tcl_cmd_core::CmdError> {
+        let _scope = native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
+        use tcl_syntax::value::ValueError;
+        let recipe = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "alias publication issuer",
+            ))?
+            .recipe();
+        let publication_name = recipe
+            .alias_publication_input(tcl_syntax::naming::NativeNameContext::root(), name)
+            .map_err(|_| ValueError::CommandProtocolUnavailable("alias publication input"))?
+            .alias_registration_report_bytes()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "alias registration report",
+            ))?
+            .to_vec();
+        let current = self.current_ns.get();
+        let (ns, simple) = self
+            .namespaces_mut()
+            .alias_publication_at(current, name)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "alias publication namespace",
+            ))?;
+        let report = self.namespaces().jim_command_table_key_at(
+            current,
+            name,
+            tcl_syntax::naming::NativeNamePurpose::AliasPublication,
+        );
+        let original_key = if recipe.is_jim084() {
+            Some(Rc::new(registration_name.take_role().ok_or(
+                ValueError::CommandProtocolUnavailable("original Jim alias registration role"),
+            )?))
+        } else {
+            None
+        };
+        let retained_registration = Rc::clone(&registration_name);
+        let registration_name = recipe
+            .alias_record_retains_original_registration_name()
+            .then_some(registration_name);
+        let identity = Rc::new(());
+        self.bind_command_replacement_with_original_jim_key(
             ns,
             &simple,
             Command::Alias {
-                target,
-                prefix,
-                identity: Rc::new(()),
+                original_prefix,
+                registration_name,
+                publication_name,
+                identity: Rc::clone(&identity),
             },
+            report,
+            original_key,
         );
-        let mut namespaces = self.namespaces.borrow_mut();
-        if namespaces.alias_chain_loops(ns, &simple) {
-            namespaces.unbind_in(ns, &simple);
-            return Err(simple);
+        if !recipe.alias_publication_checks_original_target() {
+            return Ok(None);
         }
-        Ok(())
+        let generation = {
+            let namespaces = self.namespaces.borrow();
+            match namespaces.command_in(ns, &simple) {
+                Some(Command::Alias {
+                    identity: current, ..
+                }) if Rc::ptr_eq(&identity, &current) => namespaces.command_generation(ns, &simple),
+                _ => None,
+            }
+        };
+        let loops = self.alias_chain_loops_original(ns, &simple);
+        if loops.as_ref().is_ok_and(|loops| !loops) {
+            self.complete_original_alias_registration(
+                name,
+                tcl_syntax::naming::NativeNamePurpose::AliasPublication,
+                &retained_registration,
+                generation,
+            )?;
+            return Ok(None);
+        }
+        // Reentrant getters may replace the slot. Retire only this actual
+        // capture, and drop its object owners after the table borrow ends.
+        if let Err(error) = &loops {
+            if let Some(first) = error.native_execution_refusal() {
+                self.refuse_native_execution(first.clone());
+            }
+        }
+        if self.uses_original_c_command_retirement() {
+            if let Some(generation) = generation {
+                self.finish_original_command_deletion(generation, true);
+            }
+        } else {
+            let retired = {
+                let mut namespaces = self.namespaces.borrow_mut();
+                match namespaces.command_in(ns, &simple) {
+                    Some(Command::Alias {
+                        identity: current, ..
+                    }) if Rc::ptr_eq(&identity, &current) => namespaces.unbind_in(ns, &simple),
+                    _ => None,
+                }
+            };
+            drop(retired);
+        }
+        self.retire_pending_native_ensemble_roles()
+            .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
+        loops?;
+        Ok(Some(simple))
     }
 
-    /// Install a cross-interp alias in child `child`: `name` (in the child)
-    /// delegates to `target ?prefix...?` run in this (the parent) interp.
-    /// Returns whether the child exists.
+    fn alias_chain_loops_original(
+        &mut self,
+        namespace: NsId,
+        simple: &[u8],
+    ) -> Result<bool, tcl_cmd_core::CmdError> {
+        tcl_syntax::naming::alias_chain_loops((namespace, simple.to_vec()), |hop| {
+            let command = self.namespaces.borrow().command_in(hop.0, &hop.1);
+            let Some(Command::Alias {
+                original_prefix, ..
+            }) = command
+            else {
+                return Ok(None);
+            };
+            let members =
+                tcl_syntax::value::ValueOps::list_elements(self, &original_prefix.checked_ptr()?)?;
+            original_prefix.checked_ptr()?;
+            let original = *members.first().ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original alias target member",
+                ),
+            )?;
+            let arguments = native_arguments::OriginalArguments::enter(self, &[original])?;
+            let bytes = arguments.bytes(0)?;
+            original_prefix.checked_ptr()?;
+            let target = self.namespaces.borrow().home_of(GLOBAL, &bytes);
+            arguments.check()?;
+            Ok(target)
+        })
+    }
+
+    /// Explicit generated test inputs create fresh original prefix objects.
+    /// Actual child commands use the original-object publication owner.
+    #[cfg(test)]
     pub(crate) fn install_parent_alias(
         &mut self,
         child: &[u8],
@@ -2574,30 +4159,254 @@ impl Interp {
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
     ) -> bool {
-        self.with_child(child, |c| {
-            c.ns_register(
-                name,
-                Command::ParentAlias {
-                    target,
-                    prefix,
-                    identity: Rc::new(()),
-                },
-            );
-        })
-        .is_some()
+        let original_prefix = Rc::new(NativeAliasHeader::new(
+            self.generated_alias_prefix(&target, &prefix),
+        ));
+        let registration_name =
+            Rc::new(NativeAliasHeader::new(obj::Owned::fresh(new_string(name))));
+        match self.install_parent_alias_objects(
+            child,
+            name,
+            Some(registration_name),
+            original_prefix,
+        ) {
+            Ok(installed) => installed,
+            Err(error) => {
+                self.report_cmd_error(error.into());
+                false
+            }
+        }
     }
 
-    /// The `(target, prefix)` of the alias bound to `name` (the query form), or
-    /// `None` if `name` resolves to something that isn't an alias.
-    pub(crate) fn alias_info(&self, name: &[u8]) -> Option<(Vec<u8>, Vec<Vec<u8>>)> {
-        match self
-            .namespaces
-            .borrow()
-            .resolve(self.current_ns.get(), name)
-        {
-            Some(Command::Alias { target, prefix, .. }) => Some((target, prefix)),
+    pub(crate) fn install_parent_alias_objects(
+        &mut self,
+        child: &[u8],
+        name: &[u8],
+        registration_name: Option<Rc<NativeAliasHeader>>,
+        original_prefix: Rc<NativeAliasHeader>,
+    ) -> Result<bool, tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        let producer =
+            self.name_policy_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "parent alias publication issuer",
+                ))?;
+        self.with_child(child, |c| {
+            let receiver =
+                c.name_policy_protocol()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "child alias publication issuer",
+                    ))?;
+            if producer != receiver {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "child alias producer realm",
+                ));
+            }
+            let selected = receiver
+                .recipe()
+                .child_alias_publication_input(tcl_syntax::naming::NativeNameContext::root(), name)
+                .map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("child alias publication input")
+                })?;
+            let publication_name = selected
+                .alias_registration_report_bytes()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "child alias registration report",
+                ))?
+                .to_vec();
+            let current = c.current_ns.get();
+            let report = c.namespaces().jim_command_table_key_at(
+                current,
+                name,
+                tcl_syntax::naming::NativeNamePurpose::ChildAliasPublication,
+            );
+            let (namespace, simple) = c
+                .namespaces_mut()
+                .child_alias_publication_at(current, name)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "child alias publication holder",
+                ))?;
+            let original_key = c.generated_jim_command_key(
+                current,
+                name,
+                tcl_syntax::naming::NativeNamePurpose::ChildAliasPublication,
+            )?;
+            let registration_name = if receiver
+                .recipe()
+                .alias_record_retains_original_registration_name()
+            {
+                Some(
+                    registration_name.ok_or(ValueError::CommandProtocolUnavailable(
+                        "original C child alias registration name",
+                    ))?,
+                )
+            } else {
+                // Jim_RegisterCmd creates its own String-name table key.
+                // It does not retain the original child caller name.
+                drop(registration_name);
+                None
+            };
+            c.bind_command_replacement_with_original_jim_key(
+                namespace,
+                &simple,
+                Command::ParentAlias {
+                    original_prefix,
+                    registration_name,
+                    publication_name,
+                    identity: Rc::new(()),
+                },
+                report,
+                original_key,
+            );
+            Ok(true)
+        })
+        .unwrap_or(Ok(false))
+    }
+
+    /// Observe the actual just-published child alias before its target getter.
+    pub(crate) fn original_parent_alias_generation(
+        &self,
+        name: &[u8],
+        original: &Rc<NativeAliasHeader>,
+    ) -> Option<u64> {
+        let namespaces = self.namespaces.borrow();
+        let (namespace, simple) = namespaces.home_of(self.current_ns.get(), name)?;
+        match namespaces.command_in(namespace, &simple) {
+            Some(Command::ParentAlias {
+                original_prefix, ..
+            }) if Rc::ptr_eq(&original_prefix, original) => {
+                namespaces.command_generation(namespace, &simple)
+            }
             _ => None,
         }
+    }
+
+    /// Roll back only the actual child capture after a refused target getter.
+    /// The C generation was captured before that getter, independent of spelling.
+    pub(crate) fn retire_original_parent_alias(
+        &mut self,
+        name: &[u8],
+        original: &Rc<NativeAliasHeader>,
+        generation: Option<u64>,
+    ) {
+        if self.uses_original_c_command_retirement() {
+            if let Some(generation) = generation {
+                self.finish_original_command_deletion(generation, true);
+            }
+            return;
+        }
+        let retired = {
+            let mut namespaces = self.namespaces.borrow_mut();
+            let Some((namespace, simple)) = namespaces.home_of(self.current_ns.get(), name) else {
+                return;
+            };
+            match namespaces.command_in(namespace, &simple) {
+                Some(Command::ParentAlias {
+                    original_prefix, ..
+                }) if Rc::ptr_eq(&original_prefix, original) => {
+                    namespaces.unbind_in(namespace, &simple)
+                }
+                _ => None,
+            }
+        };
+        drop(retired);
+        if let Err(first) = self.retire_pending_native_ensemble_roles() {
+            self.refuse_native_execution(first);
+        }
+    }
+
+    /// Return the actual Jim prefix header selected by the original name object.
+    pub(crate) fn original_alias_prefix_value(
+        &mut self,
+        original_name: *mut TclObj,
+    ) -> Result<tcl_runtime_api::AliasPrefixLookup<*mut TclObj>, tcl_syntax::value::ValueError>
+    {
+        self.original_alias_prefix_value_at(self.current_ns.get(), original_name)
+    }
+
+    /// Borrow the actual Jim prefix in the helper's retained lookup namespace.
+    /// Destination publication and the caller frame remain independent.
+    pub(crate) fn original_alias_prefix_value_at(
+        &mut self,
+        lookup: NsId,
+        original_name: *mut TclObj,
+    ) -> Result<tcl_runtime_api::AliasPrefixLookup<*mut TclObj>, tcl_syntax::value::ValueError>
+    {
+        if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_none()
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Jim alias prefix issuer",
+            ));
+        }
+        // The original lookup owns the actual namespace holder/frame checks.
+        // A same-pointer Jim cache hit needs no name bytes; a cold lookup
+        // reaches its genuine namespace getter before the command getter.
+        let Some((command, _)) = self.resolve_original_command_at(lookup, original_name)? else {
+            return Ok(tcl_runtime_api::AliasPrefixLookup::MissingCommand);
+        };
+        match command {
+            Command::Alias {
+                original_prefix: original,
+                ..
+            } => {
+                let prefix = original.checked_ptr()?;
+                self.original_import_alias_prefix(original_name, prefix)?;
+                Ok(tcl_runtime_api::AliasPrefixLookup::Prefix(prefix))
+            }
+            _ => Ok(tcl_runtime_api::AliasPrefixLookup::NotAlias),
+        }
+    }
+
+    /// Object query projection: C creates a fresh List header over retained
+    /// original members; Jim returns the same stored prefix List. Neither
+    /// query reaches a member String getter.
+    pub(crate) fn alias_query_object(
+        &mut self,
+        name: &[u8],
+    ) -> Result<Option<obj::Owned>, tcl_syntax::value::ValueError> {
+        let recipe = self
+            .name_policy_protocol()
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "alias query issuer",
+            ))?
+            .recipe();
+        let command = self
+            .original_alias_registration_binding(name)?
+            .map(|(_, command)| command);
+        let original_prefix = match command {
+            Some(Command::Alias {
+                original_prefix,
+                registration_name,
+                ..
+            }) => {
+                if let Some(registration_name) = registration_name {
+                    registration_name.checked_ptr()?;
+                }
+                original_prefix
+            }
+            Some(Command::ParentAlias {
+                original_prefix,
+                registration_name,
+                ..
+            }) => {
+                if let Some(registration_name) = registration_name {
+                    registration_name.checked_ptr()?;
+                }
+                original_prefix
+            }
+            _ => return Ok(None),
+        };
+        original_prefix.checked_ptr()?;
+        if recipe.alias_query_returns_original_list() {
+            return Ok(Some(obj::Owned::retain(original_prefix.checked_ptr()?)));
+        }
+        let members =
+            tcl_syntax::value::ValueOps::list_elements(self, &original_prefix.checked_ptr()?)?;
+        original_prefix.checked_ptr()?;
+        Ok(Some(obj::Owned::fresh(self.new_list_object(&members))))
     }
 
     /// The interp-path (from `self`) to the target interpreter of the alias
@@ -2615,26 +4424,47 @@ impl Interp {
         &mut self,
         path: &[Vec<u8>],
         alias: &[u8],
-    ) -> Option<Vec<Vec<u8>>> {
+    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
         let path_owned = path.to_vec();
         self.with_child_path(path, move |c| {
-            match c.namespaces.borrow().resolve(c.current_ns.get(), alias) {
-                Some(Command::Alias { .. }) => Some(path_owned),
-                Some(Command::ParentAlias { .. }) => {
-                    Some(path_owned[..path_owned.len().saturating_sub(1)].to_vec())
-                }
-                _ => None,
-            }
+            Ok(
+                match c
+                    .original_alias_registration_binding(alias)?
+                    .map(|(_, command)| command)
+                {
+                    Some(Command::Alias { .. }) => Some(path_owned),
+                    Some(Command::ParentAlias { .. }) => {
+                        Some(path_owned[..path_owned.len().saturating_sub(1)].to_vec())
+                    }
+                    _ => None,
+                },
+            )
         })
-        .flatten()
+        .unwrap_or(Ok(None))
     }
 
     /// Delete the command bound to `name` (the alias-clear form); returns whether
     /// it existed.
     pub(crate) fn delete_command(&mut self, name: &[u8]) -> bool {
+        if self.uses_original_c_command_retirement() {
+            let Some(generation) = self.resolve_cmd_token(name) else {
+                return false;
+            };
+            return self.finish_original_command_deletion(generation, true);
+        }
+
+        let _scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return false;
+            }
+        };
         // If `name` is a suspended coroutine, terminate its worker first.
-        crate::cmd_coro::on_command_deleted(self, name);
         let source_generation = self.resolve_cmd_token(name);
+        if let Some(generation) = source_generation {
+            crate::cmd_coro::on_command_deleted(self, generation);
+        }
         let ensemble_token = match self
             .namespaces
             .borrow()
@@ -2647,82 +4477,250 @@ impl Interp {
             .namespaces
             .borrow_mut()
             .delete(self.current_ns.get(), name);
+        let retirement = self.retire_pending_native_ensemble_roles();
         if deleted {
             if let Some(source_generation) = source_generation {
                 let tokens: Vec<_> = ensemble_token.into_iter().collect();
                 self.remove_imports_for_deleted_origins([source_generation], &tokens);
             }
         }
+        let settled = self.retire_pending_native_ensemble_roles();
+        if let Err(first) = retirement.and(settled) {
+            self.refuse_native_execution(first);
+        }
         deleted
     }
 
-    /// Register an ensemble command (`namespace ensemble create`); `name` is the
-    /// ensemble command (possibly qualified — rooted at global like any builtin).
-    pub(crate) fn create_ensemble(&mut self, name: &[u8], cfg: crate::ensemble::EnsembleConfig) {
-        let fqn = self.fqn_for(name);
-        // The `-command` name resolves relative to the current namespace, like a
-        // proc name (C's `TclGetNamespaceForQualName(name, cxtPtr=nsPtr, ...)` in
-        // `NamespaceEnsembleCmd`). `namespace ensemble create -command path`
-        // inside `namespace eval ::tcl::tm` therefore binds `::tcl::tm::path`,
-        // not a bare `::path` at global scope.
-        let ns = self
+    /// Remove one command generation without recovering an address from its report.
+    pub(crate) fn delete_command_generation(&mut self, generation: u64) -> bool {
+        if self.uses_original_c_command_retirement() {
+            return self.finish_original_command_deletion(generation, true);
+        }
+
+        let _scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return false;
+            }
+        };
+        if self.check_entered_native_operation().is_err() {
+            return false;
+        }
+        let original = self.raw_command_by_generation(generation);
+        crate::cmd_coro::on_command_deleted(self, generation);
+        if self.check_entered_native_operation().is_err() {
+            return false;
+        }
+        let slot = self.namespaces().native_command_slot_at_node(generation);
+        let removed = if let Some((namespace, simple)) = slot {
+            self.namespaces_mut().remove_in(namespace, &simple)
+        } else {
+            let hidden = self.hidden.borrow().iter().find_map(|(name, binding)| {
+                (binding.generation == generation).then(|| name.clone())
+            });
+            let retired = hidden.and_then(|name| self.hidden.borrow_mut().remove(&name));
+            let removed = retired.is_some();
+            if !self
+                .name_policy_protocol()
+                .is_some_and(|protocol| protocol.recipe().is_jim084())
+            {
+                if let Some(CommandBinding {
+                    command: Command::Proc(procedure),
+                    ..
+                }) = retired.as_ref()
+                {
+                    drop(procedure.take_for_retirement());
+                }
+            }
+            drop(retired);
+            removed
+        };
+        drop(original);
+        let retirement = self.retire_pending_native_ensemble_roles();
+        if removed {
+            self.namespaces_mut().retire_native_command_node(generation);
+            self.remove_imports_for_deleted_origins([generation], &[]);
+            if self.retire_pending_native_ensemble_roles().is_err() {
+                return false;
+            }
+        }
+        // The original extension delete callback has run outside every table borrow.
+        if retirement.is_err() || self.check_entered_native_operation().is_err() {
+            return false;
+        }
+        removed
+    }
+
+    /// Return the actual shared publisher's generation after its cleanup.
+    /// Stock installation must never derive this receipt from a later name lookup.
+    pub(crate) fn create_ensemble(
+        &mut self,
+        name: &[u8],
+        cfg: crate::ensemble::EnsembleConfig,
+    ) -> Option<u64> {
+        let (ns, tail) = self
             .namespaces
             .borrow_mut()
-            .command_home_ns(self.current_ns.get(), name);
-        // Written-name tail: empty for a trailing separator run (the `{}`
-        // command) — must match `home_of`'s resolution split.
-        let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
-        let displaced = self.namespaces.borrow().command_in(ns, &tail);
+            .command_publication_at(self.current_ns.get(), name)
+            .expect("stock ensemble has a native publication context");
+        self.create_ensemble_in_slot_with_publication(ns, &tail, cfg)
+    }
+
+    /// Install one ensemble in its already selected physical command holder.
+    pub(crate) fn create_ensemble_in_slot(
+        &mut self,
+        ns: NsId,
+        tail: &[u8],
+        cfg: crate::ensemble::EnsembleConfig,
+    ) {
+        // This void facade retains the existing caller contract; publication
+        // refusal is already latched by the same checked worker.
+        let _publication = self.create_ensemble_in_slot_with_publication(ns, tail, cfg);
+    }
+
+    fn create_ensemble_in_slot_with_publication(
+        &mut self,
+        ns: NsId,
+        tail: &[u8],
+        cfg: crate::ensemble::EnsembleConfig,
+    ) -> Option<u64> {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return None;
+            }
+        };
+        let reached = self.create_ensemble_in_slot_entered(ns, tail, cfg, &scope);
+        // The entered worker's original token/configuration cleanup has finished.
+        // A recreated spelling cannot become this publication's receipt.
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            self.refuse_native_execution(first);
+            return None;
+        }
+        let generation = reached?;
+        self.original_command_publication_is_current(ns, tail, generation)
+            .then_some(generation)
+    }
+
+    fn create_ensemble_in_slot_entered(
+        &mut self,
+        ns: NsId,
+        tail: &[u8],
+        mut cfg: crate::ensemble::EnsembleConfig,
+        scope: &native_operation_currency::NativeOperationScope,
+    ) -> Option<u64> {
+        let Some(holder) = self.native_namespace_token_at(ns) else {
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original ensemble publication namespace",
+                ),
+            );
+            return None;
+        };
+        let holder_lifecycle = holder.lifecycle();
+        let Some(configuration_holder) = self.native_namespace_token_at(cfg.ns) else {
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original ensemble configuration namespace",
+                ),
+            );
+            return None;
+        };
+        let configuration_namespace = cfg.ns;
+        let configuration_lifecycle = configuration_holder.lifecycle();
+        self.prepare_original_ensemble_configuration(&mut cfg);
+        if scope.currency().ensure_current_or_refuse().is_err()
+            || !self.original_publication_namespace_is_current(ns, &holder, holder_lifecycle)
+            || !self.original_publication_namespace_is_current(
+                configuration_namespace,
+                &configuration_holder,
+                configuration_lifecycle,
+            )
+        {
+            return None;
+        }
+        let fqn = self.namespaces.borrow().command_fqn_at(ns, tail);
+        let displaced = self.namespaces.borrow().command_in(ns, tail);
+        let had_displaced = displaced.is_some();
         let old_token = match displaced.as_ref() {
-            Some(Command::Ensemble(token)) => Some(token),
+            Some(Command::Ensemble(token)) => Some(Rc::clone(token)),
             _ => None,
         };
-        let new_token = Rc::new(crate::ensemble::EnsembleToken::new(cfg, fqn.clone()));
+        // Only the actual ensemble identity is needed below. A generic command
+        // transport must not protect an idle extension from the shared delete.
+        drop(displaced);
+        let new_token = Rc::new(
+            crate::ensemble::EnsembleToken::with_configuration_retirement(
+                cfg,
+                fqn.clone(),
+                tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent,
+                crate::ensemble::retire_configuration,
+            ),
+        );
 
         // Creating an ensemble at an occupied name is command replacement, not
         // in-place token mutation. The old token must become dead (an active
         // unknown callback observes UNKNOWN_DELETED), while imports of the
         // occupied source binding are explicitly reattached to the new token.
         if let Some(old_token) = old_token.as_ref() {
-            self.retire_ensemble_identity(old_token);
-        } else {
-            self.on_command_replaced(&fqn);
+            self.retire_ensemble_replacement_identity(old_token);
         }
+        if scope.currency().ensure_current_or_refuse().is_err()
+            || !self.original_publication_namespace_is_current(ns, &holder, holder_lifecycle)
+            || !self.original_publication_namespace_is_current(
+                configuration_namespace,
+                &configuration_holder,
+                configuration_lifecycle,
+            )
+        {
+            return None;
+        }
+        let OriginalCommandPublication::Published(new_generation) = self
+            .bind_command_replacement_with_jim_key(
+                ns,
+                tail,
+                Command::Ensemble(Rc::clone(&new_token)),
+                None,
+            )
+        else {
+            return None;
+        };
+        if scope.currency().ensure_current_or_refuse().is_err()
+            || !self.original_publication_namespace_is_current(ns, &holder, holder_lifecycle)
+            || !self.original_publication_namespace_is_current(
+                configuration_namespace,
+                &configuration_holder,
+                configuration_lifecycle,
+            )
+        {
+            return None;
+        }
+        new_token.config().originals.activate();
         self.namespaces
             .borrow_mut()
-            .bind(ns, &tail, Command::Ensemble(Rc::clone(&new_token)));
-        let (new_fqn, new_generation) = {
-            let namespaces = self.namespaces.borrow();
-            (
-                namespaces.command_fqn_at(ns, &tail),
-                namespaces
-                    .command_generation(ns, &tail)
-                    .expect("the new ensemble was just bound"),
-            )
-        };
-        if displaced.is_some() {
+            .advance_ensemble_export_epoch(new_token.config().ns);
+        let new_fqn = self.namespaces.borrow().command_fqn_at(ns, tail);
+        if had_displaced {
             self.reattach_missing_import_sources(&new_fqn, new_generation);
         }
         self.retarget_imports_to_ensemble(new_generation, &new_token);
+        Some(new_generation)
     }
 
     /// Define a user proc (`proc name params body`). The proc's defining
     /// namespace (where its body runs, and where it is bound) is the namespace
     /// `name` lands in — **relative to the current namespace** (so `proc next`
     /// inside `namespace eval counter` binds `::counter::next`, not a global).
+    #[cfg(test)]
     pub(crate) fn define_proc(&mut self, name: &[u8], params: Vec<Param>, body_obj: *mut TclObj) {
         self.define_proc_native(name, params, body_obj, None);
     }
 
-    /// [`define_proc`](Self::define_proc) with a compiled body entry.
-    ///
-    /// The one funnel that builds a [`ProcDef`] field by field, so `native` has
-    /// exactly one origin: a generated module's
-    /// `tcl_codegen_proc_define_native`. Every other construction site clones
-    /// an existing definition (`rename`'s re-homing, TclOO's namespace copy)
-    /// and carries the entry along with it; the `proc` command reaches this
-    /// through [`define_proc`](Self::define_proc) with `None`, which is what
-    /// makes a redefinition drop back to the source body.
+    /// Test constructor forwarding an explicit compiled entry to the
+    /// original procedure storage owner.
+    #[cfg(test)]
     pub(crate) fn define_proc_native(
         &mut self,
         name: &[u8],
@@ -2730,24 +4728,375 @@ impl Interp {
         body_obj: *mut TclObj,
         native: Option<NativeProcEntry>,
     ) {
-        let body = obj_bytes(body_obj);
-        let ns = self
-            .namespaces
-            .borrow_mut()
-            .command_home_ns(self.current_ns.get(), name);
-        // Written-name tail: empty for a trailing separator run (`proc x::`
-        // defines `::x::`, the `{}` command in `::x` — matching tclsh);
-        // must match `home_of`'s resolution split or the proc just defined
-        // could not be invoked.
-        let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
-        // The proc's FQN (`info frame` `proc` key): `<ns>::<tail>`, the global ns
-        // contributing just the leading `::`.
-        let qn = self.namespaces.borrow().qualified_name(ns);
-        let mut fqn = qn.clone();
-        if qn != b"::" {
-            fqn.extend_from_slice(b"::");
+        self.define_proc_storage(name, params, body_obj, native, None);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn define_proc_storage(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        body_obj: *mut TclObj,
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) {
+        self.define_proc_original_storage(name, params, None, body_obj, native, statics);
+    }
+
+    pub(crate) fn define_proc_original_storage(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body_obj: *mut TclObj,
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) {
+        let _ = self.install_proc_original_storage(
+            name,
+            params,
+            parameters_obj,
+            body_obj,
+            native,
+            statics,
+        );
+    }
+
+    /// Install original procedure storage and return its actual command generation.
+    pub(crate) fn install_proc_original_storage(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body_obj: *mut TclObj,
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<u64> {
+        self.install_proc_original_storage_publication(
+            name,
+            params,
+            parameters_obj,
+            body_obj,
+            native,
+            statics,
+        )
+        .map(|publication| publication.generation)
+    }
+
+    fn install_proc_original_storage_publication(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body_obj: *mut TclObj,
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<OriginalProcedurePublication> {
+        self.install_proc_original_storage_publication_using(
+            name,
+            params,
+            parameters_obj,
+            body_obj,
+            native,
+            statics,
+            None,
+        )
+    }
+
+    fn install_proc_original_storage_publication_using(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body_obj: *mut TclObj,
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+        import_source: Option<native_procedure_resources::OriginalJimNamespaceHelperSource>,
+    ) -> Option<OriginalProcedurePublication> {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return None;
+            }
+        };
+        let reached = self.install_proc_original_storage_entered(
+            name,
+            params,
+            parameters_obj,
+            body_obj,
+            native,
+            statics,
+            import_source,
+        );
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            self.refuse_native_execution(first);
+            return None;
         }
-        fqn.extend_from_slice(&tail);
+        let publication = reached?;
+        self.check_original_procedure_publication(
+            publication.namespace,
+            &publication.tail,
+            publication.generation,
+            &publication.binding,
+        )
+        .ok()?;
+        Some(publication)
+    }
+
+    fn install_proc_original_storage_entered(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body_obj: *mut TclObj,
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+        import_source: Option<native_procedure_resources::OriginalJimNamespaceHelperSource>,
+    ) -> Option<OriginalProcedurePublication> {
+        if self.host_refusal_pending() {
+            return None;
+        }
+        let chosen = match self.choose_original_procedure_body(body_obj) {
+            Ok(chosen) => chosen,
+            Err(error) => {
+                self.report_cmd_error(error.into());
+                return None;
+            }
+        };
+        self.install_proc_chosen_storage_publication(
+            name,
+            params,
+            parameters_obj,
+            (body_obj, chosen, import_source),
+            native,
+            statics,
+        )
+    }
+
+    /// Bind the chosen original procedure and return its installed generation.
+    pub(crate) fn install_proc_chosen_storage(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body: (*mut TclObj, obj::Owned),
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<u64> {
+        self.install_proc_chosen_storage_publication(
+            name,
+            params,
+            parameters_obj,
+            (body.0, body.1, None),
+            native,
+            statics,
+        )
+        .map(|publication| publication.generation)
+    }
+
+    fn install_proc_chosen_storage_publication(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body: (
+            *mut TclObj,
+            obj::Owned,
+            Option<native_procedure_resources::OriginalJimNamespaceHelperSource>,
+        ),
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<OriginalProcedurePublication> {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return None;
+            }
+        };
+        let reached = self.install_proc_chosen_storage_entered(
+            name,
+            params,
+            parameters_obj,
+            body,
+            native,
+            statics,
+        );
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            self.refuse_native_execution(first);
+            return None;
+        }
+        let publication = reached?;
+        self.check_original_procedure_publication(
+            publication.namespace,
+            &publication.tail,
+            publication.generation,
+            &publication.binding,
+        )
+        .ok()?;
+        Some(publication)
+    }
+
+    fn install_proc_chosen_storage_entered(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body: (
+            *mut TclObj,
+            obj::Owned,
+            Option<native_procedure_resources::OriginalJimNamespaceHelperSource>,
+        ),
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<OriginalProcedurePublication> {
+        let original_key = match self.generated_jim_command_key(
+            self.current_ns.get(),
+            name,
+            tcl_syntax::naming::NativeNamePurpose::CommandPublication,
+        ) {
+            Ok(key) => key,
+            Err(error) => {
+                self.report_cmd_error(error.into());
+                return None;
+            }
+        };
+        self.install_proc_chosen_storage_with_original_key_publication(
+            (name, original_key),
+            params,
+            parameters_obj,
+            body,
+            native,
+            statics,
+        )
+    }
+
+    /// The original proc command supplies the already-qualified actual key.
+    /// This does not reconstruct a header from the publication report.
+    pub(crate) fn install_proc_chosen_storage_with_original_key(
+        &mut self,
+        name: (&[u8], Option<Rc<obj::Owned>>),
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body: (*mut TclObj, obj::Owned),
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<u64> {
+        self.install_proc_chosen_storage_with_original_key_publication(
+            name,
+            params,
+            parameters_obj,
+            (body.0, body.1, None),
+            native,
+            statics,
+        )
+        .map(|publication| publication.generation)
+    }
+
+    fn install_proc_chosen_storage_with_original_key_publication(
+        &mut self,
+        name: (&[u8], Option<Rc<obj::Owned>>),
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body: (
+            *mut TclObj,
+            obj::Owned,
+            Option<native_procedure_resources::OriginalJimNamespaceHelperSource>,
+        ),
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<OriginalProcedurePublication> {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return None;
+            }
+        };
+        let registration_name = name.1.as_ref().map(Rc::clone);
+        let reached = self.install_proc_chosen_storage_with_original_key_entered(
+            name,
+            params,
+            parameters_obj,
+            body,
+            native,
+            statics,
+        );
+        drop(registration_name);
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            self.refuse_native_execution(first);
+            return None;
+        }
+        let publication = reached?;
+        self.check_original_procedure_publication(
+            publication.namespace,
+            &publication.tail,
+            publication.generation,
+            &publication.binding,
+        )
+        .ok()?;
+        Some(publication)
+    }
+
+    fn install_proc_chosen_storage_with_original_key_entered(
+        &mut self,
+        name: (&[u8], Option<Rc<obj::Owned>>),
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body: (
+            *mut TclObj,
+            obj::Owned,
+            Option<native_procedure_resources::OriginalJimNamespaceHelperSource>,
+        ),
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<OriginalProcedurePublication> {
+        let (name, original_key) = name;
+        // JimQualifyName's temporary spans CreateCommand and the procedure's
+        // namespace/header handoff, independently of the table's keyDup role.
+        if self.host_refusal_pending() {
+            return None;
+        }
+        let (original_body, body, import_source) = body;
+        if self.native_invocation_dialect().native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            if let Err(error) = self.native_jim_object_context() {
+                self.report_cmd_error(error.into());
+                return None;
+            }
+        }
+        let publication = self
+            .namespaces_mut()
+            .procedure_publication_at(self.current_ns.get(), name);
+        let (binding_ns, tail) = match publication {
+            Some(slot) => slot,
+            None => {
+                self.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "procedure publication namespace",
+                    ),
+                );
+                return None;
+            }
+        };
+        let ns = if self
+            .name_policy_protocol()
+            .is_some_and(|protocol| protocol.recipe().is_jim084())
+        {
+            let context = self.namespaces_mut().jim_procedure_context(&tail);
+            match context {
+                Some(context) => context,
+                None => {
+                    self.refuse_native_access(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("Jim procedure namespace object"));
+                    return None;
+                }
+            }
+        } else {
+            binding_ns
+        };
+        let fqn = self.namespaces().command_fqn_at(binding_ns, &tail);
         // The proc's body frame reports `type source` with file-absolute lines
         // when its body argument is a located literal (TIP 280 LABC) — the body
         // word, not the `proc` command, carries the location, so a `proc` whose
@@ -2756,20 +5105,113 @@ impl Interp {
         // built list) has no location and stays body-relative (`type proc`),
         // matching C's literal line table rather than a whole-file "am I
         // sourcing" flag.
-        let (source, body_line_base) = match self.arg_loc(body_obj) {
+        let (source, body_line_base) = match self.arg_loc(original_body) {
             Some((file @ Some(_), line)) => (file, line.saturating_sub(1)),
             _ => (None, 0),
         };
-        let def = Rc::new(ProcDef {
+        let jim = self.native_invocation_dialect().native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084);
+        let jim_namespace = if jim {
+            self.namespaces_mut().take_jim_namespace_owner(ns)
+        } else {
+            None
+        };
+        let command = NativeProcedureCommand::new(
             params,
             body,
-            ns,
-            fqn: fqn.clone(),
-            source,
-            body_line_base,
-            native,
-        });
-        self.bind_command_replacement(ns, &tail, Command::Proc(def));
+            native_procedure_resources::NativeProcedureDefinition {
+                location: ProcLocation {
+                    namespace: ns,
+                    qualified_name: fqn.clone(),
+                    jim_namespace,
+                },
+                jim_parameters: if jim {
+                    parameters_obj.map(obj::Owned::retain)
+                } else {
+                    None
+                },
+                source,
+                body_line_base,
+                native,
+                statics,
+            },
+        );
+        let def = command.declaration();
+        if let Some(import_source) = import_source {
+            if let Err(error) = def.retain_original_jim_namespace_helper_source(import_source) {
+                self.report_cmd_error(error.into());
+                return None;
+            }
+        }
+
+        let original_binding = command.observe_original_binding();
+        let report = self.namespaces().jim_command_table_key_at(
+            self.current_ns.get(),
+            name,
+            tcl_syntax::naming::NativeNamePurpose::CommandPublication,
+        );
+        let OriginalCommandPublication::Published(generation) = self
+            .bind_command_replacement_with_original_jim_key(
+                binding_ns,
+                &tail,
+                Command::Proc(command),
+                report,
+                original_key,
+            )
+        else {
+            return None;
+        };
+        if let Err(first) = self.check_entered_native_operation() {
+            self.refuse_native_execution(first);
+            return None;
+        }
+        let current = |interpreter: &mut Self| {
+            interpreter.check_original_procedure_publication(
+                binding_ns,
+                &tail,
+                generation,
+                &original_binding,
+            )
+        };
+        if current(self).is_err() {
+            return None;
+        }
+        let header = match self.original_procedure_compiler_header(
+            parameters_obj,
+            original_body,
+            &current,
+        ) {
+            Ok(header) => header,
+            Err(error) => {
+                self.report_cmd_error(error);
+                return None;
+            }
+        };
+        if current(self).is_err() {
+            return None;
+        }
+        def.compiler_header.set(header);
+        {
+            let recipe = match header {
+                tcl_dialect::NativeProcedureHeaderCompilation::Absent => {
+                    crate::namespace::NativeCompilerRecipe::Absent
+                }
+                tcl_dialect::NativeProcedureHeaderCompilation::NoOp => {
+                    crate::namespace::NativeCompilerRecipe::ProcedureNoOp
+                }
+                tcl_dialect::NativeProcedureHeaderCompilation::Unknown => {
+                    crate::namespace::NativeCompilerRecipe::Unknown
+                }
+            };
+            self.namespaces_mut()
+                .set_native_compiler_recipe(generation, recipe);
+        }
+        Some(OriginalProcedurePublication {
+            namespace: binding_ns,
+            tail,
+            generation,
+            binding: original_binding,
+        })
     }
 
     /// Install a fresh command token at an exact namespace binding, applying
@@ -2779,13 +5221,213 @@ impl Interp {
     /// command is bound. Fresh bindings use the same funnel (the lifecycle step
     /// is then a no-op).
     pub(crate) fn bind_command_replacement(&mut self, ns: NsId, tail: &[u8], command: Command) {
+        self.bind_command_replacement_with_jim_key(ns, tail, command, None);
+    }
+
+    fn bind_command_replacement_with_jim_key(
+        &mut self,
+        ns: NsId,
+        tail: &[u8],
+        command: Command,
+        incoming: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
+    ) -> OriginalCommandPublication {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                drop(command);
+                return OriginalCommandPublication::Refused;
+            }
+        };
+        let reached = self.generated_jim_command_key(
+            ns,
+            tail,
+            tcl_syntax::naming::NativeNamePurpose::CommandCApiPublication,
+        );
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return OriginalCommandPublication::Refused;
+        }
+        let original_key = match reached {
+            Ok(key) => key,
+            Err(error) => {
+                self.report_cmd_error(error.into());
+                return OriginalCommandPublication::Refused;
+            }
+        };
+        let reached = self.bind_command_replacement_with_original_jim_key(
+            ns,
+            tail,
+            command,
+            incoming,
+            original_key,
+        );
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            self.refuse_native_execution(first);
+            return OriginalCommandPublication::Refused;
+        }
+        reached
+    }
+
+    fn bind_command_replacement_with_original_jim_key(
+        &mut self,
+        ns: NsId,
+        tail: &[u8],
+        command: Command,
+        incoming: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
+        original_key: Option<Rc<obj::Owned>>,
+    ) -> OriginalCommandPublication {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                drop(command);
+                drop(original_key);
+                return OriginalCommandPublication::Refused;
+            }
+        };
+        // The original registration temporary is independent of keyDup. An Rc
+        // lease adds no native reference and settles after every entered exit.
+        let registration_name = original_key.as_ref().map(Rc::clone);
+        let reached = self.bind_command_replacement_entered(
+            ns,
+            tail,
+            command,
+            incoming,
+            original_key,
+            &scope,
+        );
+        drop(registration_name);
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            self.refuse_native_execution(first);
+            return OriginalCommandPublication::Refused;
+        }
+        if let OriginalCommandPublication::Published(generation) = reached {
+            if !self.original_command_publication_is_current(ns, tail, generation) {
+                return OriginalCommandPublication::Refused;
+            }
+        }
+        reached
+    }
+
+    fn bind_command_replacement_entered(
+        &mut self,
+        ns: NsId,
+        tail: &[u8],
+        command: Command,
+        incoming: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
+        original_key: Option<Rc<obj::Owned>>,
+        scope: &native_operation_currency::NativeOperationScope,
+    ) -> OriginalCommandPublication {
+        // RegisterCommand/QualifyName owns this temporary through replacement
+        // callbacks and publication, separately from a fresh table-key retain.
+        // Retain the actual holder before any trace or delete procedure. Its
+        // name and NsId alone cannot admit a recreated namespace incarnation.
+        let namespace = self
+            .namespaces()
+            .namespace_name_token(self.native_command_interpreter, ns);
+        let Some(namespace) = namespace else {
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original command publication namespace retired",
+                ),
+            );
+            return OriginalCommandPublication::Refused;
+        };
+        let lifecycle = namespace.lifecycle();
+        if !self.original_publication_namespace_is_current(ns, &namespace, lifecycle) {
+            return OriginalCommandPublication::Refused;
+        }
+        let native_entry = self
+            .namespaces
+            .borrow_mut()
+            .native_command_creation_entry_with_original_key(ns, tail, incoming, original_key);
+        if self.jim_local_depth.get() != 0
+            && self
+                .native_invocation_dialect()
+                .native_jim_local_protocol()
+                .is_some()
+        {
+            let generation =
+                self.namespaces
+                    .borrow_mut()
+                    .bind_jim_local(native_entry, tail, command);
+            if self.retire_pending_native_ensemble_roles().is_err() {
+                return OriginalCommandPublication::Refused;
+            }
+            if scope.currency().ensure_current_or_refuse().is_err()
+                || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+                || !self.original_command_publication_is_current(ns, tail, generation)
+            {
+                return OriginalCommandPublication::Refused;
+            }
+            return OriginalCommandPublication::Published(generation);
+        }
+        let creation_protocol = self
+            .native_invocation_dialect()
+            .native_command_creation_protocol();
+        let creates_object_command = matches!(&command, Command::ObjCmd(command)
+            if command.creation_purpose == Some(tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand));
         let displaced = self.namespaces.borrow().command_in(ns, tail);
-        self.on_bound_command_replaced(ns, tail);
-        if let Some(owner) = displaced.as_ref().and_then(Command::oo_object) {
-            // The old object command's delete trace has run while the token was
-            // still visible. Unlink that exact binding before TclOO teardown so
-            // identity-based cleanup cannot remove the replacement installed
-            // below, then run the displaced owner's destructor and cascades.
+        let original_object_retirement =
+            native_command_recreation::OriginalIdleObjectRetirement::capture(displaced.as_ref());
+        let had_displaced = displaced.is_some();
+        let slot_was_empty = if self.uses_original_c_command_retirement() {
+            // C creation calls the same actual token deletion even while the
+            // old command has a live invocation. The creation entry and its
+            // callback-recreated disposal remain independent producer purposes.
+            let original_generation = self.namespaces.borrow().command_generation(ns, tail);
+            if let Some(original_generation) = original_generation {
+                if let Err(error) = self.retire_original_command_for_creation(original_generation) {
+                    self.report_cmd_error(error);
+                    return OriginalCommandPublication::Refused;
+                }
+                if scope.currency().ensure_current_or_refuse().is_err()
+                    || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+                {
+                    return OriginalCommandPublication::Refused;
+                }
+                // The original exact slot is withdrawn. A different generation
+                // left by its delete callback has its separate disposal receipt.
+                self.namespaces.borrow().command_generation(ns, tail) != Some(original_generation)
+            } else {
+                true
+            }
+        } else {
+            self.on_bound_command_replaced(ns, tail);
+            if scope.currency().ensure_current_or_refuse().is_err()
+                || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+            {
+                return OriginalCommandPublication::Refused;
+            }
+            if let Some(owner) = displaced.as_ref().and_then(Command::oo_object) {
+                // The old object command's delete trace has run while the token was
+                // still visible. Unlink that exact binding before TclOO teardown so
+                // identity-based cleanup cannot remove the replacement installed
+                // below, then run the displaced owner's destructor and cascades.
+                let still_displaced =
+                    self.namespaces
+                        .borrow()
+                        .command_in(ns, tail)
+                        .is_some_and(|current| {
+                            displaced
+                                .as_ref()
+                                .is_some_and(|old| old.is_same_binding(&current))
+                        });
+                if still_displaced {
+                    self.namespaces
+                        .borrow_mut()
+                        .remove_in_for_replacement(ns, tail);
+                }
+                self.oo_command_renamed(owner, None);
+                if scope.currency().ensure_current_or_refuse().is_err()
+                    || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+                {
+                    return OriginalCommandPublication::Refused;
+                }
+            }
+            // Keep the actual old handle while unlinking its exact slot. Releasing
+            // it outside the table borrow runs an idle extension's deleteProc before
+            // publication; a running call's independent Rc still defers retirement.
             let still_displaced =
                 self.namespaces
                     .borrow()
@@ -2796,39 +5438,232 @@ impl Interp {
                             .is_some_and(|old| old.is_same_binding(&current))
                     });
             if still_displaced {
-                self.namespaces.borrow_mut().remove_in(ns, tail);
+                self.namespaces
+                    .borrow_mut()
+                    .remove_in_for_replacement(ns, tail);
             }
-            self.oo_command_renamed(owner, None);
+            self.namespaces.borrow().command_in(ns, tail).is_none()
+        };
+        drop(displaced);
+        if self.retire_pending_native_ensemble_roles().is_err() {
+            return OriginalCommandPublication::Refused;
         }
-        self.namespaces.borrow_mut().bind(ns, tail, command);
-        if displaced.is_some() {
-            let (fqn, generation) = {
-                let namespaces = self.namespaces.borrow();
-                (
-                    namespaces.command_fqn_at(ns, tail),
-                    namespaces
-                        .command_generation(ns, tail)
-                        .expect("the replacement command was just bound"),
-                )
+        if scope.currency().ensure_current_or_refuse().is_err()
+            || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+        {
+            return OriginalCommandPublication::Refused;
+        }
+        if !self
+            .namespaces()
+            .original_jim_creation_slot_is_current(&native_entry)
+        {
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original Jim command key slot retired",
+                ),
+            );
+            return OriginalCommandPublication::Refused;
+        }
+        // The original idle public object-command overwrite discards a record
+        // created by the old deleteProc. Reuse the exact creation entry, actual
+        // slot generation and unique record ownership; a spelling is no proof.
+        let recreated_generation = self.namespaces.borrow().command_generation(ns, tail);
+        if creates_object_command && recreated_generation.is_some() {
+            let admissible = original_object_retirement
+                .as_ref()
+                .is_some_and(|original| original.completed_delete(slot_was_empty));
+            let selected = creation_protocol.filter(|_| admissible);
+            let Some(selected) = selected else {
+                self.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original idle object-command recreation purpose unavailable",
+                    ),
+                );
+                return OriginalCommandPublication::Refused;
             };
+            let recreated = self
+                .namespaces
+                .borrow_mut()
+                .take_recreated_object_for_creation(
+                    &native_entry,
+                    tail,
+                    recreated_generation.expect("the actual recreated slot was observed"),
+                );
+            let discarded = recreated.is_some_and(|recreated| {
+                // Release only the actual intermediate object outside the table
+                // borrow. Additional owners keep their ordinary retirement.
+                native_command_recreation::discard_idle_recreated_object(
+                    selected,
+                    recreated.command,
+                )
+                .is_ok()
+            });
+            if scope.currency().ensure_current_or_refuse().is_err()
+                || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+            {
+                return OriginalCommandPublication::Refused;
+            }
+            if !discarded {
+                self.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original idle object-command recreation ownership unavailable",
+                    ),
+                );
+                return OriginalCommandPublication::Refused;
+            }
+        }
+        // Other publication purposes keep their ordinary retained-handle
+        // retirement; no idle object-command receipt is donated to them.
+        let recreated = self.namespaces.borrow().command_in(ns, tail);
+        if creation_protocol.is_some() && recreated.is_some() {
+            // Native C and Jim overwrite a callback-created token without a
+            // second payload delete. Only the existing original idle ObjCmd
+            // disposal above carries that purpose; Proc payload retirement is
+            // not inferred from its spelling or a surviving metadata handle.
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "callback-recreated command payload disposal purpose unavailable",
+                ),
+            );
+            return OriginalCommandPublication::Refused;
+        }
+        let generation = if self
+            .name_policy_protocol()
+            .is_some_and(|protocol| protocol.recipe().is_jim084())
+        {
+            self.namespaces
+                .borrow_mut()
+                .remove_in_for_replacement(ns, tail);
+            drop(recreated);
+            if self.retire_pending_native_ensemble_roles().is_err() {
+                return OriginalCommandPublication::Refused;
+            }
+            if scope.currency().ensure_current_or_refuse().is_err()
+                || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+            {
+                return OriginalCommandPublication::Refused;
+            }
+            if !self
+                .namespaces()
+                .original_jim_creation_slot_is_current(&native_entry)
+            {
+                self.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original Jim command key slot retired",
+                    ),
+                );
+                return OriginalCommandPublication::Refused;
+            }
+            self.namespaces
+                .borrow_mut()
+                .bind_after_native_creation_entry(native_entry, tail, command)
+        } else {
+            let generation = self
+                .namespaces
+                .borrow_mut()
+                .bind_after_native_creation_entry(native_entry, tail, command);
+            drop(recreated);
+            generation
+        };
+        if scope.currency().ensure_current_or_refuse().is_err()
+            || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+        {
+            return OriginalCommandPublication::Refused;
+        }
+        if self.retire_pending_native_ensemble_roles().is_err() {
+            return OriginalCommandPublication::Refused;
+        }
+        if scope.currency().ensure_current_or_refuse().is_err()
+            || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+        {
+            return OriginalCommandPublication::Refused;
+        }
+        if !self.original_command_publication_is_current(ns, tail, generation) {
+            return OriginalCommandPublication::Refused;
+        }
+        if had_displaced {
+            let fqn = self.namespaces().command_fqn_at(ns, tail);
             self.reattach_missing_import_sources(&fqn, generation);
         }
+        OriginalCommandPublication::Published(generation)
     }
 
-    /// A command at `fqn` is being replaced or deleted: fire its `delete`
-    /// command traces, then drop every command/execution trace on it (the
-    /// command — and its trace list — go away). No-op when it has no traces.
-    ///
-    /// Only the *dying token's* traces are dropped. C frees `cmdPtr->tracePtr`,
-    /// so a trace the callback adds to the command being deleted dies with it,
-    /// while one it registers on a replacement it bound at the same name lives
-    /// on that new token.
-    fn on_command_replaced(&mut self, fqn: &[u8]) {
-        let dying = self.resolve_cmd_token(fqn);
-        self.fire_delete_traces_of_token(fqn, dying);
+    /// Fixed original slot continuation; a renamed token is not a new receipt.
+    fn original_command_publication_is_current(
+        &mut self,
+        namespace: NsId,
+        name: &[u8],
+        generation: u64,
+    ) -> bool {
+        if self
+            .namespaces()
+            .original_publication_is_current(namespace, name, generation)
+        {
+            return true;
+        }
+        self.refuse_native_access(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "original command publication binding changed",
+            ),
+        );
+        false
     }
 
-    /// [`on_command_replaced`] for an exact binding the caller already holds.
+    fn check_original_procedure_publication(
+        &mut self,
+        namespace: NsId,
+        name: &[u8],
+        generation: u64,
+        original: &native_procedure_resources::OriginalProcedureBinding,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        self.check_entered_native_operation()?;
+        if self
+            .namespaces()
+            .original_procedure_publication_is_current(namespace, name, generation, original)
+        {
+            return Ok(());
+        }
+        self.refuse_native_access(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "original procedure publication binding changed",
+            ),
+        );
+        Err(self
+            .native_execution_refusal()
+            .expect("the exact original binding refusal was retained"))
+    }
+
+    /// Check the retained holder without resolving its reporting name again.
+    /// A caller's original dying OO holder remains distinct from a live holder
+    /// that a callback retires. The permanent root retains its existing token.
+    pub(crate) fn original_publication_namespace_is_current(
+        &mut self,
+        ns: NsId,
+        namespace: &tcl_runtime_api::native_namespace_name::NativeNamespaceNameToken,
+        lifecycle: tcl_syntax::native_namespace_name::NativeNamespaceLifecycle,
+    ) -> bool {
+        use tcl_syntax::native_namespace_name::NativeNamespaceLifecycle;
+        let current = {
+            let namespaces = self.namespaces();
+            namespaces.owns_namespace_name_token(namespace)
+                && namespace.lifecycle() == lifecycle
+                && match lifecycle {
+                    NativeNamespaceLifecycle::Live => namespaces.namespace_is_live(ns),
+                    NativeNamespaceLifecycle::Dying => true,
+                    NativeNamespaceLifecycle::Dead => false,
+                }
+        };
+        if !current {
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original command publication namespace retired",
+                ),
+            );
+        }
+        current
+    }
+
+    /// Fire deletion traces for the exact binding the caller already holds.
     /// A fully-qualified name is not a token identity once a retained
     /// namespace and a same-named recreation both hold `::N::q`: resolving the
     /// name again would find the live one and fire its traces instead. An
@@ -2847,6 +5682,13 @@ impl Interp {
             return;
         }
         self.fire_delete_traces_of_token(&fqn, dying);
+        if self.check_entered_native_operation().is_err() {
+            return;
+        }
+        if let Some(generation) = dying {
+            crate::cmd_coro::on_command_deleted(self, generation);
+            let _ = self.check_entered_native_operation();
+        }
     }
 
     /// Current visible, retained, and hidden locations of an owner's exact
@@ -2959,6 +5801,23 @@ impl Interp {
     }
 
     fn remove_oo_command_roles(&mut self, owner: OoId, roles: &[OoCommandRole]) {
+        if self.uses_original_c_command_retirement() {
+            let generations = self
+                .oo_command_locations(owner, None)
+                .into_iter()
+                .filter_map(|(_, generation)| {
+                    self.raw_command_by_generation(generation)
+                        .and_then(|command| command.oo_binding())
+                        .filter(|(_, role)| roles.contains(role))
+                        .map(|_| generation)
+                })
+                .collect::<std::collections::BTreeSet<_>>();
+            for generation in generations {
+                self.finish_original_command_deletion(generation, false);
+            }
+            return;
+        }
+
         let mut removed: Vec<(Vec<u8>, u64)> = self
             .namespaces
             .borrow_mut()
@@ -2977,6 +5836,9 @@ impl Interp {
             .collect();
         for name in hidden_names {
             if let Some(binding) = self.hidden.borrow_mut().remove(&name) {
+                self.namespaces
+                    .borrow_mut()
+                    .retire_native_command_node(binding.generation);
                 let mut fqn = b"::".to_vec();
                 fqn.extend_from_slice(&name);
                 removed.push((fqn, binding.generation));
@@ -3019,7 +5881,7 @@ impl Interp {
         let Some((fqn, command)) = self.raw_command_location_by_generation(generation) else {
             return CommandGenerationLookup::Missing;
         };
-        if !self.command_visible_for_surface_at(&command, &fqn, Some(generation)) {
+        if !self.command_visible_for_surface_at(&command, Some(generation)) {
             return CommandGenerationLookup::Unavailable;
         }
         CommandGenerationLookup::Found { fqn, command }
@@ -3068,16 +5930,84 @@ impl Interp {
         false
     }
 
-    /// Resolve an import's retained source token. Tcl redirects follow the
-    /// exact generation through rename and visibility moves. Once that token
-    /// truly retires, command replacement deliberately falls back through the
-    /// mutable source projection; a merely surface-gated token is still
-    /// present and must not take that fallback.
-    fn resolve_import_source(&self, source: &[u8], generation: u64) -> Option<Command> {
-        match self.command_by_generation(generation) {
-            CommandGenerationLookup::Found { command, .. } => Some(command),
-            CommandGenerationLookup::Unavailable => None,
-            CommandGenerationLookup::Missing => self.resolve_dispatchable(GLOBAL, source),
+    /// Select the captured source token. Original origin/object purposes never
+    /// replace a retired source using its reported spelling.
+    fn import_source_binding(
+        &self,
+        generation: u64,
+        purpose: ImportQueryPurpose,
+    ) -> Option<(Vec<u8>, u64, Command)> {
+        match purpose {
+            ImportQueryPurpose::Introspection => match self.command_by_generation(generation) {
+                CommandGenerationLookup::Found { fqn, command } => Some((fqn, generation, command)),
+                CommandGenerationLookup::Unavailable | CommandGenerationLookup::Missing => None,
+            },
+            ImportQueryPurpose::Origin | ImportQueryPurpose::OriginalObject => self
+                .raw_command_location_by_generation(generation)
+                .map(|(fqn, command)| (fqn, generation, command)),
+        }
+    }
+
+    /// Resolve an invocation's captured immediate source token with its
+    /// availability gate. A recreated reported name never replaces that token.
+    fn resolve_import_source(&self, generation: u64) -> Option<Command> {
+        self.import_source_binding(generation, ImportQueryPurpose::Introspection)
+            .map(|(_, _, command)| command)
+    }
+
+    /// Select an introspection query's original current-namespace table entry.
+    fn import_query_binding(&self, name: &[u8]) -> Option<(Vec<u8>, u64, Command)> {
+        let namespaces = self.namespaces.borrow();
+        let current = self.current_ns.get();
+        Some((
+            namespaces.resolve_fqn(current, name)?,
+            namespaces.resolve_generation(current, name)?,
+            namespaces.resolve(current, name)?,
+        ))
+    }
+
+    /// Follow actual imported bindings to the query's terminal owner. The
+    /// visited-generation set rejects a malformed cycle without truncating a
+    /// valid chain. Names remain current projections, never visited identities.
+    fn resolve_import_query(
+        &self,
+        (mut fqn, mut generation, mut command): (Vec<u8>, u64, Command),
+        purpose: ImportQueryPurpose,
+    ) -> Option<ImportQueryTarget> {
+        let mut visited = std::collections::BTreeSet::new();
+        let mut followed_import = false;
+        loop {
+            if !visited.insert(generation) {
+                return None;
+            }
+            let Command::Imported {
+                source_generation,
+                ensemble,
+                ..
+            } = &command
+            else {
+                return Some(ImportQueryTarget {
+                    fqn,
+                    generation,
+                    command,
+                    retained_ensemble: None,
+                    followed_import,
+                });
+            };
+            followed_import = true;
+            let ensemble = ensemble.as_ref().filter(|token| !token.is_deleted());
+            if purpose == ImportQueryPurpose::Introspection {
+                if let Some(ensemble) = ensemble {
+                    return Some(ImportQueryTarget {
+                        fqn,
+                        generation,
+                        retained_ensemble: Some(ensemble.clone()),
+                        command,
+                        followed_import,
+                    });
+                }
+            }
+            (fqn, generation, command) = self.import_source_binding(*source_generation, purpose)?;
         }
     }
 
@@ -3154,47 +6084,75 @@ impl Interp {
     /// if `name` is not an ensemble), plus the fully-qualified name of the
     /// command that actually **owns** that config.
     ///
-    /// `namespace import` is followed to its source: in C an imported command
-    /// shares the source's command token, and the ensemble config hangs off
-    /// that token, so configuring through an alias configures the origin and
-    /// both spellings observe one config (tclsh 9.0.4-pinned). Reading through
-    /// the alias likewise reads the origin's config, and the alias stays an
-    /// alias — `namespace origin` still answers the source.
+    /// `namespace import` follows the source's retained ensemble configuration.
+    /// Configuring through an import changes the same live token observed by
+    /// the origin; the import remains a separate binding and namespace origin
+    /// follows its actual command-generation chain.
     pub(crate) fn ensemble_config_at(
         &self,
         name: &[u8],
     ) -> Option<Rc<crate::ensemble::EnsembleToken>> {
-        let mut cur = self
-            .namespaces
-            .borrow()
-            .resolve(self.current_ns.get(), name)?;
-        // Bounded walk: an import chain cannot outlive the table, and a
-        // malformed cycle terminates instead of spinning.
-        for _ in 0..64 {
-            match cur {
-                Command::Ensemble(token) => return Some(token),
-                Command::Imported {
-                    source,
-                    source_generation,
-                    ensemble,
-                    ..
-                } => {
-                    if let Some(token) = ensemble {
-                        if !token.is_deleted() {
-                            return Some(token);
-                        }
-                    }
-                    cur = self.resolve_import_source(&source, source_generation)?;
-                }
-                _ => return None,
-            }
+        let target = self.resolve_import_query(
+            self.import_query_binding(name)?,
+            ImportQueryPurpose::Introspection,
+        )?;
+        if let Some(ensemble) = target.retained_ensemble {
+            return Some(ensemble);
         }
-        None
+        match target.command {
+            Command::Ensemble(token) => Some(token),
+            _ => None,
+        }
     }
 
     /// Every alias command's name across the whole tree (`interp aliases`).
-    pub(crate) fn alias_names(&self) -> Vec<Vec<u8>> {
-        self.namespaces.borrow().alias_names()
+    pub(crate) fn alias_names(&self) -> Result<Vec<obj::Owned>, tcl_syntax::value::ValueError> {
+        if self
+            .name_policy_protocol()
+            .is_some_and(|protocol| !protocol.recipe().is_jim084())
+        {
+            self.select_original_alias_registration_order()?;
+            let tokens = self
+                .native_alias_registrations
+                .borrow()
+                .ordered_tokens()
+                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original alias table order",
+                ))?
+                .into_iter()
+                .copied()
+                .collect::<Vec<_>>();
+            return tokens
+                .into_iter()
+                .map(|generation| {
+                    let registration = match self.raw_command_by_generation(generation) {
+                        Some(
+                            Command::Alias {
+                                registration_name: Some(registration),
+                                ..
+                            }
+                            | Command::ParentAlias {
+                                registration_name: Some(registration),
+                                ..
+                            },
+                        ) => registration,
+                        _ => {
+                            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original alias inventory token",
+                            ));
+                        }
+                    };
+                    Ok(obj::Owned::retain(registration.checked_ptr()?))
+                })
+                .collect();
+        }
+        Ok(self
+            .namespaces
+            .borrow()
+            .alias_names()
+            .iter()
+            .map(|name| obj::Owned::fresh(new_string(name)))
+            .collect())
     }
 
     /// The current namespace (the eval context) — for the `namespace` builtin.
@@ -3202,12 +6160,8 @@ impl Interp {
         self.current_ns.get()
     }
 
-    /// Set the current namespace context directly, with no frame push and no
-    /// restore-on-return of its own — the caller saves/restores
-    /// [`Self::current_ns`] around whatever it runs. Used by `interp
-    /// invokehidden`'s `-global`/`-namespace` evaluation-context switch,
-    /// which invokes one command rather than evaluating a script body, so it
-    /// needs no `namespace eval`-style frame.
+    /// Set the current namespace without changing the selected variable frame.
+    /// The caller owns frame selection and namespace restoration.
     pub(crate) fn set_current_ns(&self, ns: NsId) {
         self.current_ns.set(ns);
     }
@@ -3230,9 +6184,16 @@ impl Interp {
     /// exceed the native nesting bound. Pair every `true` with exactly one
     /// [`codegen_activation_leave`](Self::codegen_activation_leave).
     pub(crate) fn codegen_activation_enter(&mut self) -> bool {
+        if !self.evaluation_is_live() {
+            return false;
+        }
         if NATIVE_EVAL_DEPTH_LIMIT.exceeded(self.eval_depth.get() + 1) {
             self.error(b"too many nested evaluations (infinite loop?)");
             return false;
+        }
+        self.reset_outermost_native_error();
+        if self.uses_jim_error_stack() {
+            self.jim_error_stack.borrow_mut().mark_reset();
         }
         self.eval_depth.set(self.eval_depth.get() + 1);
         true
@@ -3248,8 +6209,12 @@ impl Interp {
     /// the policy lives in one place and a compiled statement at the true top
     /// level leaves exactly the error state its interpreted twin would.
     pub(crate) fn codegen_activation_leave(&mut self, code: Code) {
-        self.eval_depth.set(self.eval_depth.get().saturating_sub(1));
+        self.codegen_activation_leave_unpublished();
         self.finish_outermost_eval(code);
+    }
+
+    fn codegen_activation_leave_unpublished(&self) {
+        self.eval_depth.set(self.eval_depth.get().saturating_sub(1));
     }
 
     /// Record the activation `Tcl_PushCallFrame` adds to the namespace token a
@@ -3272,26 +6237,73 @@ impl Interp {
     }
 
     /// Enter a generated procedure body using the ordinary Tcl variable frame.
+    pub(crate) fn pop_native_call_frame(&mut self) -> Option<NsId> {
+        self.release_native_procedure_execution();
+        self.clean_current_jim_local_commands();
+        let departed = self.frames.borrow_mut().take_frame_for_pop();
+        let (namespace, owners) = departed?;
+        let storage = owners.release();
+        self.frames.borrow_mut().recycle_jim_storage(storage);
+        Some(namespace)
+    }
+
+    pub(crate) fn retain_native_jim_frame_namespace(
+        &mut self,
+        namespace: NsId,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        if self.native_invocation_dialect().native_string_protocol()
+            != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            return Ok(());
+        }
+        let _context = self.native_jim_object_context()?;
+        let owner = self
+            .namespaces
+            .borrow_mut()
+            .take_jim_namespace_owner(namespace)
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim activation namespace object",
+            ))?;
+        self.frames
+            .borrow_mut()
+            .retain_jim_activation_objects(None, None, owner);
+        Ok(())
+    }
+
     pub(crate) fn codegen_frame_push(&mut self) {
         let ns = self.current_ns.get();
         self.enter_namespace_activation(ns);
         self.frames.borrow_mut().push(ns);
+        if let Err(error) = self.retain_native_jim_frame_namespace(ns) {
+            self.report_cmd_error(error.into());
+        }
     }
 
     /// Leave a generated procedure body and restore its caller's namespace.
     pub(crate) fn codegen_frame_pop(&mut self) {
+        self.clean_current_jim_local_commands();
         let popped = {
             let mut frames = self.frames.borrow_mut();
-            let popped = frames.pop();
+            let popped = frames.take_frame_for_pop();
             self.current_ns.set(frames.frame_ns(frames.current_level()));
             popped
         };
+        let popped = popped.map(|(namespace, owners)| {
+            let storage = owners.release();
+            self.frames.borrow_mut().recycle_jim_storage(storage);
+            namespace
+        });
         self.leave_namespace_activation(popped);
     }
 
     /// Associate an indexed generated local with its name-addressable Tcl cell.
-    pub(crate) fn codegen_bind_slot(&self, slot: usize, name: &[u8]) {
+    pub(crate) fn codegen_bind_slot(
+        &self,
+        slot: usize,
+        name: &[u8],
+    ) -> Result<(), tcl_cmd_core::CmdError> {
         self.frames.borrow_mut().bind_compiled_slot(slot, name);
+        self.refresh_native_local_name_table()
     }
 
     /// Resolve a generated local index to its Tcl-visible name.
@@ -3315,15 +6327,15 @@ impl Interp {
         if !self.traces_may_observe(name) {
             return false;
         }
-        let (base, _) = crate::frame::split_array_ref(name);
+        let Ok((base, _)) = self.variable_name_parts(name) else {
+            return true;
+        };
         let home = self.trace_identity(&base);
         self.env_trace_reaches(&home)
-            || self
-                .traces
-                .borrow()
-                .traces
-                .iter()
-                .any(|t| crate::cmd_trace::same_variable(t, &home.base, home.ns, home.level))
+            || self.traces.borrow().traces.iter().any(|t| {
+                crate::cmd_trace::same_variable(t, &home.base, home.ns, home.level)
+                    && t.binding_id == home.binding_id
+            })
     }
 
     /// [`var_is_traced`](Self::var_is_traced) for a compiled slot, answered from
@@ -3353,10 +6365,10 @@ impl Interp {
     /// linked cell, or a traced interpreter — and the caller takes the name path,
     /// which owns the link walk, the trace firing, and the error text.
     pub(crate) fn codegen_slot_scalar(&self, slot: usize) -> Option<*mut TclObj> {
-        if !self.traces.borrow().traces.is_empty() {
+        if self.has_variable_traces() {
             return None;
         }
-        match self.frames.borrow().compiled_slot_var(slot)? {
+        match &*self.frames.borrow().compiled_slot_var(slot)? {
             crate::frame::Var::Scalar(value) => Some(*value),
             _ => None,
         }
@@ -3365,12 +6377,24 @@ impl Interp {
     /// Begin an ensemble-rewrite (a forward / ensemble / constructor replacing
     /// the original command words). Returns `true` if this is the *root* rewrite
     /// (no rewrite was active) — the caller must `clear_ensemble_rewrite` when
-    /// its dispatch returns. A nested rewrite is ignored (the root's `source` is
-    /// what `wrong # args` reports), matching the common case of C's
-    /// `TclInitRewriteEnsemble` chaining.
+    /// its dispatch returns. Nested rewrites retain the root's original words
+    /// and compose their removed/inserted counts.
     pub(crate) fn begin_ensemble_rewrite(
         &self,
-        source: Vec<Vec<u8>>,
+        source: Vec<crate::obj::Owned>,
+        removed: usize,
+        inserted: usize,
+    ) -> bool {
+        self.begin_original_ensemble_rewrite(
+            source.into_iter().map(EnsembleRewriteWord::Owned).collect(),
+            removed,
+            inserted,
+        )
+    }
+
+    fn begin_original_ensemble_rewrite(
+        &self,
+        source: Vec<EnsembleRewriteWord>,
         removed: usize,
         inserted: usize,
     ) -> bool {
@@ -3378,6 +6402,7 @@ impl Interp {
         match rw.as_mut() {
             None => {
                 *rw = Some(EnsembleRewrite {
+                    birth: Rc::new(()),
                     source,
                     removed,
                     inserted,
@@ -3389,6 +6414,7 @@ impl Interp {
             // inner step so a deeply forwarded `wrong # args` still prints the full
             // original prefix.
             Some(r) => {
+                r.birth = Rc::new(());
                 if r.inserted < removed {
                     r.removed += removed - r.inserted;
                     r.inserted = inserted;
@@ -3401,13 +6427,59 @@ impl Interp {
     }
 
     /// Clear the active ensemble-rewrite (paired with a root `begin_…`).
+    pub(crate) fn clear_ensemble_rewrite_checked(
+        &self,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self);
+        let before = match &scope {
+            Ok(scope) => scope.currency().ensure_current_or_refuse(),
+            Err(first) => Err(first.clone()),
+        };
+        let retired = self.ensemble_rewrite.borrow_mut().take();
+        drop(retired);
+        let after = match &scope {
+            Ok(scope) => scope.currency().ensure_current_or_refuse(),
+            Err(first) => Err(first.clone()),
+        };
+        before.and(after)
+    }
+
+    #[cfg(test)]
     pub(crate) fn clear_ensemble_rewrite(&self) {
-        *self.ensemble_rewrite.borrow_mut() = None;
+        let _ = self.clear_ensemble_rewrite_checked();
     }
 
     /// The active ensemble-rewrite, if any.
+    #[cfg(test)]
     pub(crate) fn ensemble_rewrite(&self) -> Option<EnsembleRewrite> {
         self.ensemble_rewrite.borrow().clone()
+    }
+
+    pub(super) fn reset_native_ensemble_rewrite(
+        &mut self,
+        event: tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent,
+    ) -> Result<(), Code> {
+        use tcl_registry::native_ensemble_rewrite::LogicalEnsembleRewriteProvider;
+        let Some(protocol) = self
+            .native_invocation_dialect()
+            .ensemble_rewrite_protocol(Some(LogicalEnsembleRewriteProvider::Tcl84CoreSimulation))
+        else {
+            return Err(self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "ensemble rewrite reset",
+                ),
+            ));
+        };
+        if protocol.resets_at(event) {
+            self.clear_ensemble_rewrite_checked()
+                .map_err(|first| self.refuse_native_execution(first))?;
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn original_variable_storage_borrows_are_available(&self) -> bool {
+        self.frames.try_borrow_mut().is_ok() && self.namespaces.try_borrow_mut().is_ok()
     }
 
     /// The namespace tree (read) — for the `namespace` builtin's queries. The
@@ -3420,9 +6492,8 @@ impl Interp {
     /// The namespace tree (mutable) — for the `namespace` builtin's mutations
     /// (`export`/`import`/`forget`/`path`).
     pub(crate) fn namespaces_mut(&self) -> std::cell::RefMut<'_, Namespaces> {
-        // This escape hatch is used only by namespace/OO mutators. Invalidate
-        // conservatively before exposing mutable namespace state.
-        self.invalidate_command_environment();
+        // The actual mutators record lookup-policy revisions; an ordinary
+        // command publication must not invalidate unrelated command guards.
         self.namespaces.borrow_mut()
     }
 
@@ -3430,8 +6501,8 @@ impl Interp {
     /// `$tcl_library/init.tcl`. After this the
     /// pure-Tcl `unknown`/auto-load/`package` machinery is live, so
     /// `package require` works through `pkgIndex.tcl`/`tclIndex`.
-    /// Set the predefined variables (`tcl_version`/`tcl_platform`/`env`/
-    /// `argv`/…) that C installs in `Tcl_CreateInterp`, before `Tcl_Init`.
+    /// Install the embedding host's globals, including application arguments
+    /// and a selected library path. Native core construction is separate.
     pub(crate) fn set_startup_globals(&mut self) {
         let set = |i: &mut Interp, name: &[u8], val: &[u8]| {
             let o = new_string(val);
@@ -3448,54 +6519,513 @@ impl Interp {
         set(self, b"::argv", b"");
         set(self, b"::argv0", b"");
         set(self, b"::argc", b"0");
-        self.rebootstrap_host_globals();
+        let _ = self.rebootstrap_host_globals();
     }
 
-    fn set_global_raw(&mut self, name: &[u8], value: &[u8]) {
-        let object = new_string(value);
-        if self.var_set_at(name, object, 0).is_err() {
-            drop_fresh(object);
+    fn bootstrap_native_core(
+        &mut self,
+        protocol: tcl_registry::special_vars::NativeBootstrapProtocol,
+        inputs: &tcl_registry::special_vars::NativeBootstrapInputs,
+    ) -> Result<(), Code> {
+        use tcl_registry::special_vars::{NativeBootstrapPurpose, NativeBootstrapVariable as V};
+        let scope = native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let snapshot = tcl_platform::bootstrap::snapshot_checked(
+            &*self.host(),
+            "treewalk",
+            env!("CARGO_PKG_VERSION"),
+            || scope.currency().ensure_current_or_refuse(),
+        )
+        .map_err(|first| self.refuse_native_execution(first))?;
+        let allocations = protocol
+            .allocations(
+                NativeBootstrapPurpose::CreateInterpreter,
+                inputs.default_library.is_some(),
+            )
+            .ok_or_else(|| {
+                self.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "native core allocation plan",
+                    ),
+                )
+            })?;
+        for variable in allocations {
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
+            let name = variable.name().as_bytes();
+            // Jim_SetVariableStr creates the original name before the table entry.
+            let original_jim_root = (protocol.names().string_protocol()
+                == tcl_syntax::native_string::NativeStringProtocol::Jim084)
+                .then(|| obj::Owned::fresh(new_string(name)));
+            match variable {
+                V::ErrorInfo | V::ErrorCode | V::Precision => {
+                    let allocated = self.ensure_trace_variable(name);
+                    scope
+                        .currency()
+                        .ensure_current_or_refuse()
+                        .map_err(|first| self.refuse_native_execution(first))?;
+                    let allocated =
+                        allocated.map_err(|error| crate::builtins::var_error(self, name, error));
+                    self.checked_bootstrap_outcome(scope.currency(), allocated)?;
+                }
+                V::Environment | V::Platform => {
+                    let allocated = self.ensure_array(name);
+                    scope
+                        .currency()
+                        .ensure_current_or_refuse()
+                        .map_err(|first| self.refuse_native_execution(first))?;
+                    let allocated =
+                        allocated.map_err(|error| crate::builtins::var_error(self, name, error));
+                    self.checked_bootstrap_outcome(scope.currency(), allocated)?;
+                    if let Some(original) = &original_jim_root {
+                        crate::vars::retain_original_jim_variable_key(
+                            &self.frames.borrow(),
+                            &self.namespaces.borrow(),
+                            crate::namespace::GLOBAL,
+                            name,
+                            original.as_ptr(),
+                        );
+                        let installed = self.install_original_jim_variable(original.as_ptr(), name);
+                        let installed =
+                            installed.map_err(|error| self.report_cmd_error(error.into()));
+                        self.checked_bootstrap_outcome(scope.currency(), installed)?;
+                    }
+                    let entries: Vec<(&str, &str)> = if variable == V::Environment {
+                        snapshot
+                            .environment()
+                            .iter()
+                            .map(|(key, value)| (key.as_str(), value.as_str()))
+                            .collect()
+                    } else {
+                        snapshot
+                            .platform()
+                            .iter()
+                            .map(|(key, value)| (*key, value.as_str()))
+                            .collect()
+                    };
+                    for (key, value) in entries {
+                        self.publish_host_bootstrap_value(
+                            scope.currency(),
+                            name,
+                            Some(key.as_bytes()),
+                            value.as_bytes(),
+                        )?;
+                    }
+                }
+                V::PatchLevel => self.publish_host_bootstrap_value(
+                    scope.currency(),
+                    name,
+                    None,
+                    self.runtime_version().patchlevel().as_bytes(),
+                )?,
+                V::Version => self.publish_host_bootstrap_value(
+                    scope.currency(),
+                    name,
+                    None,
+                    self.runtime_version().version_string().as_bytes(),
+                )?,
+                V::PackagePath => {
+                    let string_protocol = protocol.names().string_protocol();
+                    let members = tcl_syntax::list::split_native_list_bytes(
+                        &inputs.package_path,
+                        string_protocol,
+                    )
+                    .map_err(|error| {
+                        self.report_cmd_error(
+                            tcl_syntax::value::ValueError::NativeListParse {
+                                error,
+                                source: inputs.package_path.clone(),
+                                protocol: string_protocol,
+                            }
+                            .into(),
+                        )
+                    });
+                    let members = self.checked_bootstrap_outcome(scope.currency(), members)?;
+                    let members: Vec<_> = members
+                        .into_iter()
+                        .map(|member| obj::Owned::fresh(new_string(&member)))
+                        .collect();
+                    let pointers: Vec<_> = members.iter().map(obj::Owned::as_ptr).collect();
+                    let value = obj::Owned::fresh(crate::list::new_list_obj_native(
+                        &pointers,
+                        string_protocol,
+                    ));
+                    scope
+                        .currency()
+                        .ensure_current_or_refuse()
+                        .map_err(|first| self.refuse_native_execution(first))?;
+                    let written = self.publish_host_bootstrap_object(
+                        scope.currency(),
+                        name,
+                        None,
+                        value.as_ptr(),
+                    );
+                    drop(value);
+                    drop(members);
+                    self.checked_bootstrap_outcome(scope.currency(), written)?;
+                }
+                V::AutoPath => self.publish_host_bootstrap_value(
+                    scope.currency(),
+                    name,
+                    None,
+                    &inputs.package_path,
+                )?,
+                V::DefaultLibrary => {
+                    let library = inputs.default_library.as_deref().ok_or_else(|| {
+                        self.refuse_native_access(
+                            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                                "native default library input",
+                            ),
+                        )
+                    })?;
+                    self.publish_host_bootstrap_value(scope.currency(), name, None, library)?;
+                }
+                V::Interactive => {
+                    self.publish_host_bootstrap_value(scope.currency(), name, None, b"0")?
+                }
+                V::Argv0 | V::Argc | V::Argv => {
+                    return Err(self.refuse_native_access(
+                        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                            "native constructor main-argument allocation",
+                        ),
+                    ));
+                }
+            }
+            if !matches!(variable, V::Environment | V::Platform) {
+                if let Some(original) = &original_jim_root {
+                    crate::vars::retain_original_jim_variable_key(
+                        &self.frames.borrow(),
+                        &self.namespaces.borrow(),
+                        crate::namespace::GLOBAL,
+                        name,
+                        original.as_ptr(),
+                    );
+                    let installed = self.install_original_jim_variable(original.as_ptr(), name);
+                    let installed = installed.map_err(|error| self.report_cmd_error(error.into()));
+                    self.checked_bootstrap_outcome(scope.currency(), installed)?;
+                }
+            }
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
         }
+        self.install_native_error_variable_traces_checked()?;
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let installed = self.install_native_precision_trace_checked();
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        installed.map_err(|first| self.refuse_native_execution(first))?;
+        Ok(())
     }
 
-    fn set_global_element_raw(&mut self, name: &[u8], key: &[u8], value: &[u8]) {
-        let object = new_string(value);
-        if self.var_set_elem_at(name, key, object, 0).is_err() {
-            drop_fresh(object);
-        }
-    }
-
-    /// Replace the complete host-derived bootstrap surface without firing Tcl
-    /// variable traces between its clear and install phases.
-    fn rebootstrap_host_globals(&mut self) {
-        let snapshot =
-            tcl_platform::bootstrap::snapshot(&*self.host(), "treewalk", env!("CARGO_PKG_VERSION"));
+    /// Replace the host-derived globals under the original entered context.
+    /// Storage retirement and publication are checked without firing traces
+    /// during the quiet clear boundary.
+    fn rebootstrap_host_globals(&mut self) -> Result<(), Code> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let snapshot = tcl_platform::bootstrap::snapshot_checked(
+            &*self.host(),
+            "treewalk",
+            env!("CARGO_PKG_VERSION"),
+            || scope.currency().ensure_current_or_refuse(),
+        )
+        .map_err(|first| self.refuse_native_execution(first))?;
         self.disarm_env_trace();
         for name in tcl_platform::bootstrap::HOST_ARRAYS {
-            self.var_unset_at(format!("::{name}").as_bytes(), 0);
+            self.quiet_var_unset_at(format!("::{name}").as_bytes(), 0);
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
         }
         for name in tcl_platform::bootstrap::HOST_PATH_GLOBALS {
-            self.var_unset_at(format!("::{name}").as_bytes(), 0);
+            self.quiet_var_unset_at(format!("::{name}").as_bytes(), 0);
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
         }
-        self.ensure_array(b"::tcl_platform")
-            .expect("fresh tcl_platform array");
-        self.ensure_array(b"::env").expect("fresh env array");
-        self.set_global_raw(b"::tcl_library", snapshot.tcl_library().as_bytes());
-        self.set_global_raw(b"::auto_path", b"");
+        for name in [b"::tcl_platform".as_slice(), b"::env"] {
+            let allocated = self.ensure_array(name);
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
+            let allocated =
+                allocated.map_err(|error| crate::builtins::var_error(self, name, error));
+            self.checked_bootstrap_outcome(scope.currency(), allocated)?;
+        }
+        self.publish_host_bootstrap_value(
+            scope.currency(),
+            b"::tcl_library",
+            None,
+            snapshot.tcl_library().as_bytes(),
+        )?;
+        self.publish_host_bootstrap_value(scope.currency(), b"::auto_path", None, b"")?;
         for (name, value) in snapshot.platform() {
-            self.set_global_element_raw(b"::tcl_platform", name.as_bytes(), value.as_bytes());
+            self.publish_host_bootstrap_value(
+                scope.currency(),
+                b"::tcl_platform",
+                Some(name.as_bytes()),
+                value.as_bytes(),
+            )?;
         }
         for (name, value) in snapshot.environment() {
-            self.set_global_element_raw(b"::env", name.as_bytes(), value.as_bytes());
+            self.publish_host_bootstrap_value(
+                scope.currency(),
+                b"::env",
+                Some(name.as_bytes()),
+                value.as_bytes(),
+            )?;
         }
         // C's `TclSetupEnv` traces `env` in every interpreter it creates; a
         // safe one loses the array, and a confined one never reads the host.
         if !self.is_safe.get() && !self.stores_confined.get() {
             self.arm_env_trace();
         }
+        Ok(())
+    }
+
+    fn publish_host_bootstrap_value(
+        &mut self,
+        currency: &native_operation_currency::NativeOperationCurrency,
+        name: &[u8],
+        element: Option<&[u8]>,
+        bytes: &[u8],
+    ) -> Result<(), Code> {
+        currency
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let value = obj::Owned::fresh(new_string(bytes));
+        let written = self.publish_host_bootstrap_object(currency, name, element, value.as_ptr());
+        drop(value);
+        self.checked_bootstrap_outcome(currency, written)
+    }
+
+    /// Publish a caller-held original object into its root bootstrap cell.
+    /// The addressed store and selected C Write observer are distinct stages;
+    /// the latter holds the original receiver through callback retirement.
+    fn publish_host_bootstrap_object(
+        &mut self,
+        currency: &native_operation_currency::NativeOperationCurrency,
+        name: &[u8],
+        element: Option<&[u8]>,
+        value: *mut TclObj,
+    ) -> Result<(), Code> {
+        currency
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let selected = if self.has_variable_traces()
+            && self.native_c_variable_name_protocol().is_some()
+        {
+            if self.store_escapes_at(name, 0) {
+                let refused = Err(crate::builtins::var_error(self, name, VarError::Confined));
+                return self.checked_bootstrap_outcome(currency, refused);
+            }
+            let input = self.separate_variable_input(name, element);
+            currency
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
+            let input = input.map_err(|error| crate::builtins::var_error(self, name, error));
+            let input = self.checked_bootstrap_outcome(currency, input)?;
+            let root = input.root().selected().to_vec();
+            let member = input.element().map(|element| element.selected().to_vec());
+            let captured = crate::vars::capture_variable_store_receiver_at(
+                &mut self.frames.borrow_mut(),
+                &mut self.namespaces.borrow_mut(),
+                &root,
+                member.clone(),
+                0,
+            );
+            currency
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
+            let captured = captured.map_err(|error| crate::builtins::var_error(self, name, error));
+            let captured = self.checked_bootstrap_outcome(currency, captured)?;
+            let (receiver, home) = captured.ok_or_else(|| {
+                self.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "native bootstrap store receiver",
+                    ),
+                )
+            })?;
+            Some((receiver, home, root, member))
+        } else {
+            None
+        };
+        let outcome = (|| {
+            let written = match &selected {
+                Some((receiver, _, _, _)) => receiver.store(value),
+                None => match element {
+                    Some(element) => self.var_set_elem_at(name, element, value, 0),
+                    None => self.var_set_at(name, value, 0),
+                },
+            };
+            currency
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
+            let written = written.map_err(|error| crate::builtins::var_error(self, name, error));
+            self.checked_bootstrap_outcome(currency, written)?;
+            if let Some((_, home, root, member)) = &selected {
+                let access = self.trace_access(name, root, member.as_deref(), home, false);
+                let traced = self.fire_var_trace_resolved(home, &access, b"write");
+                currency
+                    .ensure_current_or_refuse()
+                    .map_err(|first| self.refuse_native_execution(first))?;
+                let traced = traced.map_err(|first| self.refuse_native_execution(first))?;
+                match traced {
+                    VariableTraceGuestOutcome::Complete => {}
+                    VariableTraceGuestOutcome::GuestError => {
+                        let failed =
+                            Err(crate::builtins::var_error(self, name, VarError::TraceError));
+                        return self.checked_bootstrap_outcome(currency, failed);
+                    }
+                }
+            }
+            Ok(())
+        })();
+        drop(selected);
+        self.checked_bootstrap_outcome(currency, outcome)
+    }
+
+    /// Keep the original first cause after reached error reporting or cleanup.
+    /// A current Guest outcome is preserved without replaying its producer.
+    fn checked_bootstrap_outcome<T>(
+        &mut self,
+        currency: &native_operation_currency::NativeOperationCurrency,
+        outcome: Result<T, Code>,
+    ) -> Result<T, Code> {
+        currency
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        outcome
+    }
+
+    pub(crate) fn init_auto_path(&mut self, argv: &[*mut TclObj]) -> Code {
+        if argv.len() != 1 {
+            return self.wrong_args_for_invocation(argv, b"");
+        }
+        let arguments = match native_arguments::OriginalArguments::enter(self, argv) {
+            Ok(arguments) => arguments,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let result = self.init_auto_path_entered(&arguments);
+        match arguments.check() {
+            Ok(()) => result,
+            Err(error) => self.report_cmd_error(error),
+        }
+    }
+
+    fn init_auto_path_entered(&mut self, arguments: &native_arguments::OriginalArguments) -> Code {
+        let existing = self.read_named_variable(b"::auto_path").ok();
+        if let Err(error) = arguments.check() {
+            return self.report_cmd_error(error);
+        }
+        if self.is_safe() {
+            if existing.is_none() {
+                let value = new_string(b"");
+                if let Err(error) = self.store_var_result(b"::auto_path", None, value) {
+                    return builtins::var_error(self, b"::auto_path", error);
+                }
+            }
+            self.set_result_bytes(b"");
+            return Code::Ok;
+        }
+        let existing = match existing.map(|value| self.auto_path_list(value)).transpose() {
+            Ok(existing) => existing,
+            Err(error) => return error,
+        };
+        let mut environment = Vec::new();
+        if existing.is_none() {
+            if let Ok(value) = self.read_named_variable(b"::env(TCLLIBPATH)") {
+                environment = match self.auto_path_list(value) {
+                    Ok(environment) => environment,
+                    Err(error) => return error,
+                };
+                let home = self.host().env().get("HOME");
+                if let Err(error) = arguments.check() {
+                    return self.report_cmd_error(error);
+                }
+                environment = match tcl_cmd_core::platform::auto_path_environment(
+                    environment,
+                    home.as_deref().map(str::as_bytes),
+                    tcl_cmd_core::path::PathReading::of_release(self.runtime_version()),
+                ) {
+                    Ok(paths) => paths,
+                    Err(error) => return self.report_cmd_error(error),
+                };
+            }
+        }
+        let library = match self.read_named_variable(b"::tcl_library") {
+            Ok(value) => match self.native_object_string_bytes(value) {
+                Ok(bytes) => Some(bytes),
+                Err(error) => return self.report_cmd_error(error.into()),
+            },
+            Err(_) => None,
+        };
+        let executable = self.host().env().current_exe();
+        if let Err(error) = arguments.check() {
+            return self.report_cmd_error(error);
+        }
+        let installation = tcl_cmd_core::platform::auto_path_installation(
+            library.as_deref(),
+            executable.as_deref().map(str::as_bytes),
+            tcl_cmd_core::path::PathReading::of_release(self.runtime_version()),
+        );
+        let packages = self
+            .read_named_variable(b"::tcl_pkgPath")
+            .ok()
+            .and_then(|value| self.auto_path_list(value).ok())
+            .unwrap_or_default();
+        if let Err(error) = arguments.check() {
+            return self.report_cmd_error(error);
+        }
+        let paths = tcl_platform::bootstrap::auto_path(
+            existing,
+            &environment,
+            &installation,
+            &packages,
+            false,
+        );
+        let elements = paths
+            .iter()
+            .map(|path| new_string(path))
+            .collect::<Vec<_>>();
+        let value = self.new_list_object(&elements);
+        match self.store_var_result(b"::auto_path", None, value) {
+            Ok(()) => Code::Ok,
+            Err(error) => builtins::var_error(self, b"::auto_path", error),
+        }
+    }
+
+    fn auto_path_list(&mut self, value: *mut TclObj) -> Result<Vec<Vec<u8>>, Code> {
+        let original = obj::Owned::retain(value);
+        let elements = tcl_syntax::value::ValueOps::list_elements(self, &original.as_ptr())
+            .map_err(|error| self.report_cmd_error(error.into()))?;
+        elements
+            .into_iter()
+            .map(|element| {
+                self.native_object_string_bytes(element)
+                    .map(|bytes| bytes.to_vec())
+                    .map_err(|error| self.report_cmd_error(error.into()))
+            })
+            .collect()
     }
 
     pub fn init_library(&mut self) -> Code {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return self.refuse_native_execution(first),
+        };
         let lib = self.host().env().get("TCL_LIBRARY").unwrap_or_default();
         // Source init.tcl, which sets up unknown/auto-load/package + appends
         // tcl_library (and its parent) to auto_path.
@@ -3504,8 +7034,27 @@ impl Interp {
             .host()
             .filesystem()
             .and_then(|fs| fs.read(&init_path).ok());
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            return self.refuse_native_execution(first);
+        }
         match bytes {
-            Some(bytes) => self.eval_sourced(&bytes, init_path.as_bytes()),
+            Some(bytes) => {
+                if let Err(code) = self.publish_host_bootstrap_value(
+                    scope.currency(),
+                    b"::tcl_library",
+                    None,
+                    lib.as_bytes(),
+                ) {
+                    return code;
+                }
+                let active = self.begin_package_initialization();
+                let code = self.eval_sourced(&bytes, init_path.as_bytes());
+                self.end_package_initialization(active);
+                match scope.currency().ensure_current_or_refuse() {
+                    Ok(()) => code,
+                    Err(first) => self.refuse_native_execution(first),
+                }
+            }
             None => {
                 let mut m = b"can't find ".to_vec();
                 m.extend_from_slice(init_path.as_bytes());
@@ -3515,59 +7064,161 @@ impl Interp {
         }
     }
 
+    /// Initialise the selected library while keeping host refusals separate.
+    ///
+    /// # Errors
+    /// Returns the original execution refusal before reading guest values.
+    pub fn init_library_completion(
+        &mut self,
+    ) -> Result<tcl_runtime_api::ScriptCompletion, tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let code = self.init_library();
+        scope.currency().ensure_current_or_refuse()?;
+        crate::completion::capture_bytes(self, code)
+    }
+
     /// Record `return -level L -code C` state (set by the `return` command).
     pub(crate) fn set_return_state(&mut self, level: usize, code: Code) {
         self.return_level.set(level);
         self.return_code.set(code);
     }
 
-    /// Replace the arbitrary option pairs carried by the current `return`.
-    pub(crate) fn set_return_options(&self, options: Vec<(Vec<u8>, Vec<u8>)>) {
-        *self.return_options.borrow_mut() = options;
-    }
-
-    /// Snapshot the current `return`'s non-control option pairs.
-    pub(crate) fn pending_return_options(&self) -> Vec<(Vec<u8>, Vec<u8>)> {
-        self.return_options.borrow().clone()
-    }
-
-    /// Move the active completion's carried option pairs out of the
-    /// interpreter. SaveInterpState-style callbacks use this to run with a
-    /// fresh completion and restore the caller's pairs when the callback's
-    /// completion is ignored.
-    fn take_return_options(&self) -> Vec<(Vec<u8>, Vec<u8>)> {
-        std::mem::take(&mut *self.return_options.borrow_mut())
-    }
-
-    /// Restore a previously saved carried-options set.
-    fn restore_return_options(&self, options: Vec<(Vec<u8>, Vec<u8>)>) {
-        *self.return_options.borrow_mut() = options;
-    }
-
-    /// Begin an evaluation/completion boundary with no carried options.
-    pub(crate) fn clear_return_options(&self) {
-        self.return_options.borrow_mut().clear();
-    }
-
-    /// Enter a control-command body under the shared completion-option policy.
-    pub(crate) fn begin_control_options(
+    /// Replace byte-authored options through the same checked original-object
+    /// publication owner. Generated keys grant no name or execution purpose.
+    pub(crate) fn set_return_options_checked(
         &self,
-        policy: tcl_runtime_api::completion_options::ControlOptionPolicy,
-    ) {
-        if policy.begins_fresh() {
-            self.clear_return_options();
+        options: Vec<(Vec<u8>, Vec<u8>)>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let options = options
+            .into_iter()
+            .map(
+                |(key, value)| tcl_cmd_core::return_options::ReturnOptionPair {
+                    key: obj::Owned::fresh(obj::new_string_bytes(&key)),
+                    value: obj::Owned::fresh(obj::new_string_bytes(&value)),
+                    key_bytes: key,
+                },
+            )
+            .collect();
+        let reached = self.set_return_option_objects_checked(options);
+        scope.currency().ensure_current_or_refuse()?;
+        reached
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_return_options(&self, options: Vec<(Vec<u8>, Vec<u8>)>) {
+        if let Err(error) = self.set_return_options_checked(options) {
+            self.clone().report_cmd_error(error);
         }
     }
 
-    /// Settle a control command's successful completion under the shared policy.
-    pub(crate) fn settle_control_options(
+    /// Retain exact original options through checked Dict construction and
+    /// outside-borrow retirement, under the actual entered operation.
+    pub(crate) fn set_return_option_objects_checked(
+        &self,
+        options: Vec<tcl_cmd_core::return_options::ReturnOptionPair<obj::Owned>>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let reached = NativeReturnOptions::new_checked(
+            options,
+            self.native_invocation_dialect()
+                .native_error_objects_protocol(),
+            &|| scope.currency().ensure_current_or_refuse(),
+        );
+        scope.currency().ensure_current_or_refuse()?;
+        let options = reached?;
+        self.restore_return_options_checked(options)?;
+        scope.currency().ensure_current_or_refuse()?;
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_return_option_objects(
+        &self,
+        options: Vec<tcl_cmd_core::return_options::ReturnOptionPair<obj::Owned>>,
+    ) {
+        if let Err(error) = self.set_return_option_objects_checked(options) {
+            self.clone().report_cmd_error(error);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pending_return_option_objects(
+        &self,
+    ) -> Vec<tcl_cmd_core::return_options::ReturnOptionPair<obj::Owned>> {
+        self.return_options.borrow().pairs()
+    }
+
+    fn take_return_options(&self) -> NativeReturnOptions {
+        let mut saved = std::mem::take(&mut *self.return_options.borrow_mut());
+        saved.renew_incarnation();
+        saved
+    }
+
+    fn restore_return_options_checked(
+        &self,
+        options: NativeReturnOptions,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let (ticket, lifetime) = self.publish_carried_return_options(options);
+        scope.currency().ensure_current_or_refuse()?;
+        self.check_carried_return_options_publication(&ticket, &lifetime)?;
+        drop(lifetime);
+        scope.currency().ensure_current_or_refuse()
+    }
+
+    // Mandatory saved-state settlement has an already attached original entry.
+    // It publishes and retires even under refusal, then returns the full cause.
+    fn restore_return_options_for_cleanup(
+        &self,
+        options: NativeReturnOptions,
+        cleanup: &native_operation_currency::NativeSavedCleanupScope,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let (ticket, lifetime) = self.publish_carried_return_options(options);
+        let reached = cleanup
+            .check()
+            .and_then(|()| self.check_carried_return_options_publication(&ticket, &lifetime));
+        drop(lifetime);
+        cleanup.check()?;
+        reached
+    }
+
+    /// Start a new completion boundary, refusing before later work if the old
+    /// owning fields retain a Host cause while retiring outside state borrows.
+    pub(crate) fn clear_return_options_checked(
+        &self,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        self.restore_return_options_checked(NativeReturnOptions::default())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn clear_return_options(&self) {
+        let _ = self.clear_return_options_checked();
+    }
+
+    /// Enter a control body using the shared completion-option policy.
+    pub(crate) fn begin_control_options_checked(
+        &self,
+        policy: tcl_runtime_api::completion_options::ControlOptionPolicy,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        if policy.begins_fresh() {
+            self.clear_return_options_checked()?;
+        }
+        scope.currency().ensure_current_or_refuse()
+    }
+
+    /// Settle a successful control completion before publishing later effects.
+    pub(crate) fn settle_control_options_checked(
         &self,
         policy: tcl_runtime_api::completion_options::ControlOptionPolicy,
         code: Code,
-    ) {
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
         if code == Code::Ok && policy.settles_success() {
-            self.clear_return_options();
+            self.clear_return_options_checked()?;
         }
+        scope.currency().ensure_current_or_refuse()
     }
 
     /// The pending `return` `-code`/`-level` (the options a body that completed
@@ -3601,8 +7252,40 @@ impl Interp {
         }
     }
 
-    /// Evaluate one source boundary, projecting its completion before an
-    /// outermost error is published and its live return-options state reset.
+    /// Settle the selected native file boundary independently of procedure return.
+    fn settle_source_return(&mut self, code: Code) -> Code {
+        use tcl_registry::completion::CompletionCode;
+        use tcl_registry::completion_route::{
+            InvocationCompletionRoute as Route, ReturnCompletionRoute,
+        };
+        let route = if code == Code::Return {
+            Route::Return(ReturnCompletionRoute {
+                eventual_code: CompletionCode::from_int(self.return_code.get().as_int() as i32),
+                remaining_level: self.return_level.get() as u64,
+            })
+        } else {
+            Route::Tcl(CompletionCode::from_int(code.as_int() as i32))
+        };
+        match tcl_registry::source_file::completion_route(self.native_invocation_dialect(), route) {
+            Route::Return(pending) => {
+                self.return_level.set(pending.remaining_level as usize);
+                self.return_code
+                    .set(Code::from_int(pending.eventual_code.as_int() as i32));
+                Code::Return
+            }
+            Route::Tcl(code) => {
+                if matches!(route, Route::Return(_)) {
+                    self.return_level.set(0);
+                    self.return_code.set(Code::Ok);
+                }
+                Code::from_int(code.as_int() as i32)
+            }
+            _ => self.set_error(b"selected native source completion is unavailable"),
+        }
+    }
+
+    /// Evaluate one source boundary, projecting its live completion before
+    /// outermost error propagation and background-error processing.
     fn eval_sourced_boundary<T>(
         &mut self,
         script: &[u8],
@@ -3610,7 +7293,22 @@ impl Interp {
         evaluation: CommandEvaluation,
         project: impl FnOnce(&mut Self, Code) -> T,
     ) -> T {
-        self.clear_return_options();
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return project(self, Code::Error);
+            }
+        };
+        self.reset_outermost_native_error();
+        if let Err(error) = self.record_package_source_file(name) {
+            let code = self.report_cmd_error(error.into());
+            return project(self, code);
+        }
+        if let Err(first) = self.clear_return_options_checked() {
+            self.refuse_native_execution(first);
+            return project(self, Code::Error);
+        }
         self.script_stack.borrow_mut().push(name.to_vec());
         // A `source`d file is its own `info frame` level: `type source` + the
         // file path, inheriting the enclosing proc/level. Its commands are
@@ -3620,20 +7318,40 @@ impl Interp {
         frame.file = Some(Rc::from(name));
         frame.line_base = 0;
         self.next_evaluation.set(Some(evaluation));
-        let code = self.eval_framed_unpublished(script, frame);
+        let code = if self.native_invocation_dialect().native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            self.eval_native_jim_source_unpublished(script, name, frame)
+        } else {
+            self.eval_framed_unpublished(script, frame)
+        };
         self.script_stack.borrow_mut().pop();
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return project(self, Code::Error);
+        }
         // An error a `return` settles to names no file, as C's `else if`.
         let raised = code == Code::Error;
-        let code = self.settle_return(code);
-        if raised {
+        let code = self.settle_source_return(code);
+        if raised && !self.uses_jim_error_stack() {
             self.append_frame_line(&tcl_cmd_core::error::file_frame_text(
                 name,
                 self.runtime_version(),
             ));
             self.clear_error_logged();
         }
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return project(self, Code::Error);
+        }
         let projected = project(self, code);
+        if self
+            .native_invocation_dialect()
+            .native_eval_object_protocol()
+            .is_some_and(|protocol| protocol.clears_public_source_error_logged())
+        {
+            self.exc.borrow_mut().already_logged = false;
+        }
         self.finish_outermost_eval(code);
+        let _ = scope.currency().ensure_current_or_refuse();
         projected
     }
 
@@ -3687,18 +7405,36 @@ impl Interp {
     /// command active, so a completion leaving one is settled as C settles one
     /// at `numLevels == 0` and an error is logged against the command, before
     /// the file's own frame is added.
+    ///
+    /// # Errors
+    /// Returns a retained host execution refusal before accessing guest values.
     pub fn eval_script_file_completion(
         &mut self,
         script: &[u8],
         name: &[u8],
-    ) -> tcl_runtime_api::ScriptCompletion {
+    ) -> Result<tcl_runtime_api::ScriptCompletion, tcl_runtime_api::NativeExecutionError> {
         self.next_top_level_file.set(true);
-        self.eval_sourced_boundary(
+        let completion = self.eval_sourced_boundary(
             script,
             name,
             CommandEvaluation::Direct,
             crate::completion::capture_bytes,
-        )
+        );
+        if let Some(error) = self.native_execution_refusal() {
+            return Err(error);
+        }
+        completion
+    }
+
+    /// Evaluate a package file in the interpreter-global frame and namespace.
+    pub(crate) fn eval_sourced_global(&mut self, script: &[u8], name: &[u8]) -> Code {
+        let previous_level = self.frames.borrow_mut().set_active_level(0);
+        let previous_namespace = self.current_ns.get();
+        self.current_ns.set(self.frames.borrow().frame_ns(0));
+        let code = self.eval_sourced(script, name);
+        self.frames.borrow_mut().set_active_level(previous_level);
+        self.current_ns.set(previous_namespace);
+        code
     }
 
     /// Evaluate a sourced script and return its owned, byte-preserving
@@ -3706,19 +7442,26 @@ impl Interp {
     ///
     /// The source return boundary is settled before the snapshot. An uncaught
     /// error is published to Tcl's globals only after its live options,
-    /// including `-during`, have been captured. Each command is evaluated
-    /// directly.
+    /// including `-during`, have been captured. Host refusals return their typed
+    /// original cause without fabricating a Tcl result or options dictionary.
+    ///
+    /// # Errors
+    /// Returns a retained host execution refusal before accessing guest values.
     pub fn eval_sourced_completion(
         &mut self,
         script: &[u8],
         name: &[u8],
-    ) -> tcl_runtime_api::ScriptCompletion {
-        self.eval_sourced_boundary(
+    ) -> Result<tcl_runtime_api::ScriptCompletion, tcl_runtime_api::NativeExecutionError> {
+        let completion = self.eval_sourced_boundary(
             script,
             name,
             CommandEvaluation::Direct,
             crate::completion::capture_bytes,
-        )
+        );
+        if let Some(error) = self.native_execution_refusal() {
+            return Err(error);
+        }
+        completion
     }
 
     /// `info script` — the file currently being sourced (empty at top level).
@@ -3755,7 +7498,9 @@ impl Interp {
     /// frame, so its commands — and the method bodies they define — report
     /// file-absolute `info frame` lines (TIP 280). Otherwise it runs inline.
     pub(crate) fn eval_def_body(&mut self, body: &[u8], src: Option<(Rc<[u8]>, u32)>) -> Code {
-        self.clear_return_options();
+        if let Err(first) = self.clear_return_options_checked() {
+            return self.refuse_native_execution(first);
+        }
         match src {
             Some((file, line_base)) => {
                 let mut frame = self.inherited_cmd_frame();
@@ -3774,7 +7519,9 @@ impl Interp {
     /// together), then restore. Transparent — the body's completion
     /// code (incl. `return`) propagates unchanged.
     pub(crate) fn eval_uplevel(&mut self, target_level: usize, script: &[u8]) -> Code {
-        self.clear_return_options();
+        if let Err(first) = self.clear_return_options_checked() {
+            return self.refuse_native_execution(first);
+        }
         let prev_level = self.frames.borrow_mut().set_active_level(target_level);
         let prev_ns = self.current_ns.get();
         self.current_ns
@@ -3796,38 +7543,6 @@ impl Interp {
         code
     }
 
-    /// `namespace eval name body`: switch the current namespace to `name`
-    /// (creating it, relative to the current ns unless `::`-anchored), evaluate
-    /// `body` there, then restore. The current-ns switch is what makes commands
-    /// defined in `body` land in the right table.
-    pub(crate) fn ns_eval(&mut self, name: &[u8], body: &[u8]) -> Code {
-        self.ns_eval_framed(name, body, None, None, Some("eval"))
-    }
-
-    /// [`Self::ns_eval`] for `namespace inscope`, whose error frame names it.
-    pub(crate) fn ns_inscope(&mut self, name: &[u8], body: &[u8]) -> Code {
-        self.ns_eval_framed(name, body, None, None, Some("inscope"))
-    }
-
-    /// `namespace eval`-style body evaluation in `name` for callers that supply
-    /// their *own* errorInfo frame (the TclOO `eval`/`my eval` method, which logs
-    /// `(in "my eval" script line N)` instead of the `namespace eval` frame).
-    pub(crate) fn ns_eval_no_frame(&mut self, name: &[u8], body: &[u8]) -> Code {
-        self.ns_eval_framed(name, body, None, None, None)
-    }
-
-    /// `namespace eval` of a single body **object** — like
-    /// [`ns_eval`](Self::ns_eval), but a literal obj with a recorded TIP 280
-    /// source location runs as `type source` at its file+line (so a `proc`/
-    /// command defined inside `namespace eval { … }` reports file-absolute
-    /// `info frame` lines), rather than the dynamic `type eval`.
-    pub(crate) fn ns_eval_obj(&mut self, name: &[u8], obj: *mut TclObj) -> Code {
-        let loc = self.arg_loc(obj);
-        let bytes = obj_bytes(obj);
-        let list = crate::list::is_pure_list(obj).then_some(obj);
-        self.ns_eval_framed(name, &bytes, loc, list, Some("eval"))
-    }
-
     /// Shared `namespace eval` core: enter `name`, push a namespace var-scope
     /// frame *and* a `CmdFrame` for the body (C's `namespace eval` is its own
     /// `info frame` level — depth and `info level` both advance — with `proc`
@@ -3840,26 +7555,64 @@ impl Interp {
         name: &[u8],
         body: &[u8],
         loc: Option<(Option<Rc<[u8]>>, u32)>,
-        list: Option<*mut TclObj>,
-        frame_command: Option<&'static str>,
+        add_eval_frame: bool,
+        original_body: Option<(
+            tcl_registry::native_eval_object::EvalObjectPurpose,
+            *mut TclObj,
+        )>,
+        original_arguments: Option<&[*mut TclObj]>,
     ) -> Code {
-        self.clear_return_options();
-        let dying_name = {
-            let namespaces = self.namespaces.borrow();
-            namespaces
-                .dying_namespace(self.current_ns.get(), name)
-                .map(|id| namespaces.qualified_name(id))
-        };
-        if let Some(dying_name) = dying_name {
-            let mut message = b"can't create namespace \"".to_vec();
-            message.extend_from_slice(&dying_name);
-            message.extend_from_slice(b"\": already exists");
-            return self.set_error(&message);
+        if let Err(first) = self.clear_return_options_checked() {
+            return self.refuse_native_execution(first);
         }
-        let target = self
-            .namespaces
-            .borrow_mut()
-            .ensure_namespace(self.current_ns.get(), name);
+        let target = if self
+            .name_policy_protocol()
+            .is_some_and(|protocol| protocol.recipe().is_jim084())
+        {
+            let original = crate::obj::Owned::fresh(crate::obj::new_string_bytes(name));
+            let namespace = match self.jim_current_namespace_object() {
+                Ok(namespace) => namespace,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
+            let canonical = match self.jim_canonical_namespace_object(&namespace, original.as_ptr())
+            {
+                Ok(canonical) => canonical,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
+            let bytes =
+                match tcl_syntax::value::ValueOps::native_string_bytes(self, &canonical.as_ptr()) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return self.report_cmd_error(error.into()),
+                };
+            self.namespaces_mut().retain_jim_namespace(canonical, bytes)
+        } else {
+            match self.publish_namespace_address(name) {
+                Ok(namespace) => namespace,
+                Err(error) => return self.report_cmd_error(error),
+            }
+        };
+        self.ns_eval_in_token(
+            target,
+            body,
+            loc,
+            add_eval_frame,
+            original_body,
+            original_arguments,
+        )
+    }
+
+    pub(crate) fn ns_eval_in_token(
+        &mut self,
+        target: NsId,
+        body: &[u8],
+        loc: Option<(Option<Rc<[u8]>>, u32)>,
+        add_eval_frame: bool,
+        original_body: Option<(
+            tcl_registry::native_eval_object::EvalObjectPurpose,
+            *mut TclObj,
+        )>,
+        original_arguments: Option<&[*mut TclObj]>,
+    ) -> Code {
         let saved = self.current_ns.get();
         self.current_ns.set(target);
         // A namespace frame: a new scope whose unqualified vars resolve to the
@@ -3868,6 +7621,38 @@ impl Interp {
         // enclosing proc's locals).
         self.enter_namespace_activation(target);
         self.frames.borrow_mut().push_namespace(target);
+        if let Some(arguments) = original_arguments {
+            let installed = self
+                .frames
+                .borrow_mut()
+                .install_original_error_stack_argv(arguments);
+            if let Err(error) = installed {
+                let popped = self.pop_native_call_frame();
+                self.current_ns.set(saved);
+                self.leave_namespace_activation(popped);
+                return self.report_cmd_error(error.into());
+            }
+        }
+        if let Err(error) = self.retain_native_jim_frame_namespace(target) {
+            let popped = self.pop_native_call_frame();
+            self.current_ns.set(saved);
+            self.leave_namespace_activation(popped);
+            return self.report_cmd_error(error.into());
+        }
+        let jim_body = if self.native_invocation_dialect().native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            Some(match original_body {
+                Some((_, original)) => obj::Owned::retain(original),
+                None => obj::Owned::fresh(new_string(body)),
+            })
+        } else {
+            None
+        };
+        let jim_body_pointer = jim_body.as_ref().map(obj::Owned::as_ptr);
+        if let Some(original) = jim_body {
+            self.frames.borrow_mut().retain_jim_frame_body(original);
+        }
         let (kind, file, line_base) = match loc {
             Some((file, line)) => (FrameKind::Source, file, line.saturating_sub(1)),
             None => (FrameKind::Eval, None, 0),
@@ -3886,30 +7671,45 @@ impl Interp {
             line_base,
             proc_line_base: line_base,
             cmd: Vec::new(),
+            original_command: None,
             line: 1,
             oo: None,
             lambda: None,
         };
-        let code = match list {
-            Some(list) => self.dispatch_list_obj(list, frame),
-            None => self.eval_framed(body, frame),
+        let code = match original_body {
+            Some((purpose, original)) => self.eval_original_body_framed(purpose, original, frame),
+            None => match jim_body_pointer {
+                Some(original) => self.eval_original_body_framed(
+                    tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+                    original,
+                    frame,
+                ),
+                None => self.eval_framed(body, frame),
+            },
         };
-        if let (Code::Error, Some(command)) = (code, frame_command) {
+        if code == Code::Error && add_eval_frame && !self.uses_jim_error_stack() {
             // `(in namespace eval "::ns" script line N)` — the body's own frame.
             let fqn = self.namespaces.borrow().qualified_name(target);
-            self.append_namespace_eval_frame(command, &fqn);
+            self.append_namespace_eval_frame(self.namespace_frame_command.get(), &fqn);
         }
-        let popped = self.frames.borrow_mut().pop();
+        self.clean_current_jim_local_commands();
+        let popped = self.pop_native_call_frame();
         self.current_ns.set(saved);
         self.leave_namespace_activation(popped);
         code
     }
 
-    /// Evaluate a procedure or lambda body, which the release compiles as one
-    /// unit making its own locals ([`InterpState::proc_body`]).
-    fn eval_proc_body(&mut self, body: &[u8], frame: CmdFrame) -> Code {
-        self.next_proc_body.set(true);
-        self.eval_framed(body, frame)
+    /// Run `f`, whose namespace body's error frame names `command`
+    /// (`namespace inscope`) rather than `eval`.
+    pub(crate) fn with_namespace_frame_command<T>(
+        &mut self,
+        command: &'static str,
+        f: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let outer = self.namespace_frame_command.replace(command);
+        let result = f(self);
+        self.namespace_frame_command.set(outer);
+        result
     }
 
     /// Whether the active variable frame is a proc call frame (vs. global /
@@ -3952,17 +7752,66 @@ impl Interp {
     //
     // Every variable op routes through the one classification + link walk
     // (frame-local vs namespace, qualified vs not), instead of the old flat
-    // per-frame table. The `name` here is the array *base* (callers split
-    // `a(k)` via `split_array_ref` first), so `::ns::base` qualifies correctly.
+    // per-frame table. Root and element inputs stay separate at the storage
+    // door; complete names use the selected combined-name projection first.
 
     /// `set name` — borrowed value (the table keeps its +1), or `None`.
     pub(crate) fn var_get(&self, name: &[u8]) -> Option<*mut TclObj> {
-        crate::vars::get(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            self.current_ns.get(),
-            name,
-        )
+        if self.observed_names.borrow().is_some() {
+            let level = self.frames.borrow().current_level();
+            return self.observed_variable_get(name, level).ok().flatten();
+        }
+        self.require_variable_name_protocol().ok()?;
+        self.read_captured_byte_variable(self.current_ns.get(), None, name, None, false)
+            .ok()
+            .flatten()
+    }
+
+    /// Read a complete byte-valued variable name, retaining its literal
+    /// element key through trace dispatch, lookup and failure presentation.
+    /// The returned value remains borrowed from the selected variable cell.
+    pub(crate) fn read_named_variable(&mut self, name: &[u8]) -> Result<*mut TclObj, Code> {
+        if self.observed_names.borrow().is_some() {
+            let level = self.frames.borrow().current_level();
+            return self
+                .observed_variable_get(name, level)
+                .map_err(|_| Code::Error)?
+                .ok_or(Code::Error);
+        }
+        let input = self
+            .combined_variable_input(name)
+            .map_err(|_| Code::Error)?;
+        let base = input.root().selected();
+        let key = input.element().map(|element| element.selected());
+        if let Some(code) = self.fire_read_trace(base, key) {
+            return Err(code);
+        }
+        let value = match key {
+            Some(key) => self.var_get_elem(base, key),
+            None => self.var_get(base),
+        };
+        if self.native_execution_refusal().is_some() {
+            return Err(Code::Error);
+        }
+        value.ok_or_else(|| self.no_such_variable(name, None))
+    }
+
+    /// Store through a complete fresh byte-valued name. Root-only storage
+    /// callers continue to use `var_set`; this ingress owns element splitting.
+    pub(crate) fn var_set_named(
+        &mut self,
+        name: &[u8],
+        value: *mut TclObj,
+    ) -> Result<(), VarError> {
+        if self.observed_names.borrow().is_some() {
+            let level = self.frames.borrow().current_level();
+            return self.observed_variable_set(name, level, value);
+        }
+        let input = self.combined_variable_input(name)?;
+        match input.element() {
+            Some(element) => self.var_set_elem(input.root().selected(), element.selected(), value),
+            None => self.var_set(input.root().selected(), value),
+        }
     }
 
     // frame-addressed access (the `VarStore` `FrameId`-honouring path)
@@ -3972,12 +7821,13 @@ impl Interp {
 
     /// Frame-addressed [`var_get`](Self::var_get).
     pub(crate) fn var_get_at(&self, name: &[u8], level: usize) -> Option<*mut TclObj> {
-        crate::vars::get_at(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            name,
-            level,
-        )
+        if self.observed_names.borrow().is_some() {
+            return self.observed_variable_get(name, level).ok().flatten();
+        }
+        self.require_variable_name_protocol().ok()?;
+        self.read_captured_byte_variable(self.current_ns.get(), Some(level), name, None, false)
+            .ok()
+            .flatten()
     }
 
     /// Frame-addressed `set name(key)`. The base and element stay separate at
@@ -3988,13 +7838,315 @@ impl Interp {
         key: &[u8],
         level: usize,
     ) -> Option<*mut TclObj> {
-        crate::vars::get_elem_at(
+        self.require_variable_name_protocol().ok()?;
+        self.read_captured_byte_variable(self.current_ns.get(), Some(level), name, Some(key), false)
+            .ok()
+            .flatten()
+    }
+
+    fn with_captured_byte_variable<T>(
+        &self,
+        current: NsId,
+        level: Option<usize>,
+        name: &[u8],
+        element: Option<&[u8]>,
+        create: bool,
+        worker: impl FnOnce(
+            &mut crate::vars::EnteredVariablePlace,
+            &native_operation_currency::NativeOperationCurrency,
+        ) -> Result<T, crate::frame::JimLinkStoreError>,
+    ) -> Result<T, VarError> {
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.clone().refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        self.require_variable_name_protocol()?;
+        let captured = crate::vars::EnteredVariablePlace::capture(
+            self,
+            current,
+            level,
+            name,
+            element,
+            create,
+            scope.currency(),
+        );
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.clone().refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        let mut captured = captured.map_err(|error| self.byte_store_failure(error))?;
+        let reached = worker(&mut captured, scope.currency());
+        let current = captured.check(self, scope.currency());
+        drop(captured);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.clone().refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        current.map_err(|error| self.byte_store_failure(error))?;
+        reached.map_err(|error| self.byte_store_failure(error))
+    }
+
+    pub(crate) fn read_captured_byte_variable(
+        &self,
+        current: NsId,
+        level: Option<usize>,
+        name: &[u8],
+        element: Option<&[u8]>,
+        default: bool,
+    ) -> Result<Option<*mut TclObj>, VarError> {
+        self.with_captured_byte_variable(current, level, name, element, false, |place, currency| {
+            place.read(self, currency, default)
+        })
+    }
+
+    fn byte_store_failure(&self, error: crate::frame::JimLinkStoreError) -> VarError {
+        match error {
+            crate::frame::JimLinkStoreError::Variable(error) => error,
+            crate::frame::JimLinkStoreError::Command(error) => {
+                if let Some(first) = error.native_execution_refusal() {
+                    self.clone().refuse_native_execution(first.clone());
+                }
+                VarError::NameProtocolUnavailable
+            }
+        }
+    }
+
+    /// Storage-only port for an already selected byte-name context. It grants
+    /// no original header, native lookup or Jim dictionary path purpose.
+    pub(crate) fn store_captured_byte_variable(
+        &mut self,
+        current: NsId,
+        level: Option<usize>,
+        name: &[u8],
+        element: Option<&[u8]>,
+        value: *mut TclObj,
+    ) -> Result<(), VarError> {
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        self.require_variable_name_protocol()?;
+        obj::check_native_liveness(value).map_err(|error| self.byte_store_failure(error.into()))?;
+        let allocation = obj::NativeObjectLifetime::retain(value);
+        self.associate_native_jim_variable_value(value)?;
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        let captured = crate::vars::capture_byte_store_entered(
+            self,
+            current,
+            level,
+            name,
+            element,
+            scope.currency(),
+        );
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        let mut captured = captured.map_err(|error| self.byte_store_failure(error))?;
+        let reached = captured.store(value, scope.currency());
+        let current = captured.check(
             &self.frames.borrow(),
             &self.namespaces.borrow(),
-            name,
-            key,
-            level,
-        )
+            scope.currency(),
+        );
+        // Receiver cleanup can retire a genuine native alias/shell owner.
+        drop(captured);
+        drop(allocation);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        current.map_err(|error| self.byte_store_failure(error))?;
+        reached.map_err(|error| self.byte_store_failure(error))
+    }
+
+    /// Publish the same indexed formal role outside frame/table borrows, under
+    /// its actual original activation and cell through all reached retirement.
+    pub(crate) fn store_native_formal_cell_checked(
+        &mut self,
+        slot: usize,
+        value: *mut TclObj,
+    ) -> Result<(), VarError> {
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        obj::check_native_liveness(value).map_err(|error| {
+            self.refuse_completion_value_access(error);
+            VarError::NameProtocolUnavailable
+        })?;
+        let (prepared, frame) = {
+            let mut frames = self.frames.borrow_mut();
+            let frame = frames.current_activation_owner();
+            (frames.prepare_formal_cell_store(slot, value), frame)
+        };
+        // Preserve the full prepared-owner refusal after ending the frame
+        // borrow; the legacy VarError port only unwinds the same first cause.
+        let prepared = prepared.map_err(|error| {
+            self.refuse_completion_value_access(error);
+            VarError::NameProtocolUnavailable
+        })?;
+        let original = prepared.observation();
+        let check = || {
+            let reached = (|| {
+                scope.currency().ensure_current_or_refuse().map_err(|_| {
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "entered original formal store",
+                    )
+                })?;
+                let current = self.frames.borrow().current_activation_owner();
+                if frame.strong_count() == 0 || !std::rc::Weak::ptr_eq(&frame, &current) {
+                    return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original formal frame",
+                    ));
+                }
+                if !self
+                    .frames
+                    .borrow()
+                    .original_formal_cell_is_current(slot, &original)
+                {
+                    return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original formal cell publication",
+                    ));
+                }
+                original.check_current()
+            })();
+            reached.map_err(|error| {
+                self.clone().refuse_completion_value_access(error.clone());
+                error
+            })
+        };
+        let reached = prepared.finish(&check).and_then(|old| old.finish(&check));
+        if let Err(error) = reached {
+            self.refuse_completion_value_access(error);
+            return Err(VarError::NameProtocolUnavailable);
+        }
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })
+    }
+
+    /// The admitted anonymous-cell worker keeps its original frame through
+    /// displaced-value retirement. A reported name supplies no indexed grant.
+    pub(crate) fn store_native_compiled_temporary_checked(
+        &mut self,
+        slot: usize,
+        value: *mut TclObj,
+    ) -> Result<(), VarError> {
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        obj::check_native_liveness(value).map_err(|error| self.byte_store_failure(error.into()))?;
+        let allocation = obj::NativeObjectLifetime::retain(value);
+        let (receiver, frame) = {
+            let mut frames = self.frames.borrow_mut();
+            let frame = frames.current_activation_owner();
+            (
+                frames.capture_native_compiled_temporary_receiver(slot)?,
+                frame,
+            )
+        };
+        let reached = receiver.store(value);
+        let receiver_current = receiver.check_current();
+        drop(receiver);
+        drop(allocation);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        let frame_current = {
+            let frames = self.frames.borrow();
+            std::rc::Weak::ptr_eq(&frame, &frames.current_activation_owner())
+                && frame.strong_count() != 0
+        };
+        if !frame_current {
+            let failure = tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "captured native anonymous frame",
+            );
+            return Err(self.byte_store_failure(failure.into()));
+        }
+        receiver_current?;
+        reached
+    }
+
+    /// Clear the original anonymous cell, then retire its actual displaced
+    /// owner outside the frame borrow before continuing the instruction.
+    pub(crate) fn unset_native_compiled_temporary_checked(
+        &mut self,
+        slot: usize,
+    ) -> Result<(), VarError> {
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        let (receiver, frame) = {
+            let mut frames = self.frames.borrow_mut();
+            let frame = frames.current_activation_owner();
+            (
+                frames.capture_native_compiled_temporary_receiver_for_unset(slot)?,
+                frame,
+            )
+        };
+        let reached = receiver.as_ref().map_or(Ok(()), |receiver| {
+            receiver.unset_checked(scope.currency()).map(|_| ())
+        });
+        let receiver_current = receiver
+            .as_ref()
+            .map_or(Ok(()), |receiver| receiver.check_current());
+        drop(receiver);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        let frame_current = {
+            let frames = self.frames.borrow();
+            std::rc::Weak::ptr_eq(&frame, &frames.current_activation_owner())
+                && frame.strong_count() != 0
+        };
+        if !frame_current {
+            return Err(self.byte_store_failure(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "captured native anonymous frame",
+                )
+                .into(),
+            ));
+        }
+        receiver_current?;
+        reached.map_err(|error| self.byte_store_failure(error))
     }
 
     /// Frame-addressed [`var_set`](Self::var_set) — the cell takes a **+1**.
@@ -4007,13 +8159,10 @@ impl Interp {
         if self.store_escapes_at(name, level) {
             return Err(VarError::Confined);
         }
-        crate::vars::set_at(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            name,
-            obj,
-            level,
-        )
+        if self.observed_names.borrow().is_some() {
+            return self.observed_variable_set(name, level, obj);
+        }
+        self.store_captured_byte_variable(self.current_ns.get(), Some(level), name, None, obj)
     }
 
     /// Frame-addressed `set name(key) value`. The table takes its +1 on `obj`.
@@ -4027,56 +8176,89 @@ impl Interp {
         if self.store_escapes_at(name, level) {
             return Err(VarError::Confined);
         }
-        crate::vars::set_elem_at(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            name,
-            key,
-            obj,
-            level,
-        )
+        self.store_captured_byte_variable(self.current_ns.get(), Some(level), name, Some(key), obj)
     }
 
-    /// Frame-addressed [`var_unset`](Self::var_unset).
+    /// Operational byte removal in a genuine addressed variable frame.
     pub(crate) fn var_unset_at(&mut self, name: &[u8], level: usize) -> bool {
-        crate::vars::unset_at(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
+        if self.observed_names.borrow().is_some() {
+            return self.observed_variable_unset(name, level).unwrap_or(false);
+        }
+        if level == self.frames.borrow().current_level() {
+            return self.var_unset(name);
+        }
+        let Ok(input) = self.combined_variable_input(name) else {
+            return false;
+        };
+        let root = input.root().selected().to_vec();
+        let element = input.element().map(|element| element.selected().to_vec());
+        self.unset_byte_variable_at(name, &root, element.as_deref(), level, false)
+    }
+
+    /// Storage-only removal for the quiet bootstrap clear/install boundary.
+    pub(crate) fn quiet_var_unset_at(&mut self, name: &[u8], level: usize) -> bool {
+        if self.observed_names.borrow().is_some() {
+            return self.observed_variable_unset(name, level).unwrap_or(false);
+        }
+        self.remove_captured_byte_variable(
+            self.current_ns.get(),
+            Some(level),
             name,
-            level,
+            None,
+            name,
+            false,
+            false,
         )
+        .unwrap_or(false)
     }
 
     /// Frame-addressed `unset name(key)`.
     pub(crate) fn var_unset_elem_at(&mut self, name: &[u8], key: &[u8], level: usize) -> bool {
-        crate::vars::unset_elem_at(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            name,
-            key,
-            level,
-        )
+        if level == self.frames.borrow().current_level() {
+            return self.var_unset_elem(name, key);
+        }
+        let Ok(input) = self.separate_variable_input(name, Some(key)) else {
+            return false;
+        };
+        let root = input.root().selected().to_vec();
+        let key = input
+            .element()
+            .expect("separate member")
+            .selected()
+            .to_vec();
+        // Presentation only: the receiver retains separate original parts.
+        let mut spelling = name.to_vec();
+        spelling.push(b'(');
+        spelling.extend_from_slice(&key);
+        spelling.push(b')');
+        self.unset_byte_variable_at(&spelling, &root, Some(&key), level, true)
     }
 
     /// Frame-addressed [`var_exists`](Self::var_exists).
     pub(crate) fn var_exists_at(&self, name: &[u8], level: usize) -> bool {
-        crate::vars::exists_at(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
+        if self.observed_names.borrow().is_some() {
+            return self.observed_variable_exists(name, level).unwrap_or(false);
+        }
+        if self.require_variable_name_protocol().is_err() {
+            return false;
+        };
+        self.with_captured_byte_variable(
+            self.current_ns.get(),
+            Some(level),
             name,
-            level,
+            None,
+            false,
+            |place, currency| place.exists(self, currency),
         )
+        .unwrap_or(false)
     }
 
     /// `set name(key)` — borrowed.
     pub(crate) fn var_get_elem(&self, name: &[u8], key: &[u8]) -> Option<*mut TclObj> {
-        crate::vars::get_elem(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            self.current_ns.get(),
-            name,
-            key,
-        )
+        self.require_variable_name_protocol().ok()?;
+        self.read_captured_byte_variable(self.current_ns.get(), None, name, Some(key), true)
+            .ok()
+            .flatten()
     }
 
     /// `set name value` — the cell takes a **+1** on `obj`.
@@ -4084,22 +8266,46 @@ impl Interp {
         if self.store_escapes(name) {
             return Err(VarError::Confined);
         }
-        crate::vars::set(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            self.current_ns.get(),
-            name,
-            obj,
-        )?;
-        if self.traces_may_observe(name) {
-            let (base, elem) = crate::frame::split_array_ref(name);
-            if self.fire_var_trace(&base, elem.as_deref(), b"write") {
+        if self.observed_names.borrow().is_some() {
+            let level = self.frames.borrow().current_level();
+            return self.observed_variable_set(name, level, obj);
+        }
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        self.store_captured_byte_variable(self.current_ns.get(), None, name, None, obj)?;
+        if self.variable_traces_may_observe(name) {
+            let input = self.separate_variable_input(name, None)?;
+            if self
+                .fire_var_trace(input.root().selected(), None, b"write")
+                .map_err(|first| {
+                    self.refuse_native_execution(first);
+                    VarError::NameProtocolUnavailable
+                })?
+                .is_guest_error()
+            {
                 // A write trace errored: the value is set, but the command
                 // fails (C's TclObjCallVarTraces). `var_error` wraps the
                 // message from `pending_err` as `can't set "name": <msg>`.
+                scope
+                    .currency()
+                    .ensure_current_or_refuse()
+                    .map_err(|first| {
+                        self.refuse_native_execution(first);
+                        VarError::NameProtocolUnavailable
+                    })?;
                 return Err(VarError::TraceError);
             }
         }
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
         Ok(())
     }
 
@@ -4113,17 +8319,42 @@ impl Interp {
         if self.store_escapes(name) {
             return Err(VarError::Confined);
         }
-        crate::vars::set_elem(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            self.current_ns.get(),
-            name,
-            key,
-            obj,
-        )?;
-        if self.traces_may_observe(name) && self.fire_var_trace(name, Some(key), b"write") {
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        self.store_captured_byte_variable(self.current_ns.get(), None, name, Some(key), obj)?;
+        let input = self.separate_variable_input(name, Some(key))?;
+        if self.variable_traces_may_observe(name)
+            && self
+                .fire_var_trace(
+                    input.root().selected(),
+                    input.element().map(|element| element.selected()),
+                    b"write",
+                )
+                .map_err(|first| {
+                    self.refuse_native_execution(first);
+                    VarError::NameProtocolUnavailable
+                })?
+                .is_guest_error()
+        {
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| {
+                    self.refuse_native_execution(first);
+                    VarError::NameProtocolUnavailable
+                })?;
             return Err(VarError::TraceError);
         }
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
         Ok(())
     }
 
@@ -4143,6 +8374,11 @@ impl Interp {
         elem: Option<&[u8]>,
         obj: *mut TclObj,
     ) -> Result<(), VarError> {
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
         // SAFETY: `obj` is a live object the caller just built or read; the
         // increment/decrement bracket keeps it alive across the trace firing.
         unsafe { obj::incr_ref_count(obj) };
@@ -4167,12 +8403,22 @@ impl Interp {
         // SAFETY: balances the protective increment above (the store retained its
         // own reference on success; `set_result` retained the result's).
         unsafe { obj::decr_ref_count(obj) };
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
         stored
     }
 
     /// Flag the scalar `name` `const` (the `const` command, after its value is
     /// stored and its write traces have fired).
     pub(crate) fn mark_constant(&self, name: &[u8]) {
+        if self.require_variable_name_protocol().is_err() {
+            return;
+        }
         crate::vars::mark_constant(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -4187,7 +8433,10 @@ impl Interp {
     /// call this before mutating, since their in-place value update would
     /// otherwise bypass the store-time constant check.
     pub(crate) fn const_write_check(&mut self, name: &[u8]) -> Option<Code> {
-        let (base, elem) = crate::frame::split_array_ref(name);
+        let (base, elem) = match self.variable_name_parts(name) {
+            Ok(parts) => parts,
+            Err(_) => return Some(Code::Error),
+        };
         if self.store_escapes(&base) {
             return Some(self.confined_store_error(name));
         }
@@ -4257,19 +8506,43 @@ impl Interp {
     /// The error a confined store to `name` is refused with — the bytecode
     /// VM's words and code.
     pub(crate) fn confined_store_error(&mut self, name: &[u8]) -> Code {
+        self.confined_store_error_using(name, None)
+    }
+
+    pub(crate) fn confined_store_error_using(
+        &mut self,
+        name: &[u8],
+        stage: native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(first) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error(first);
+        }
+
         let mut message = b"can't set \"".to_vec();
         message.extend_from_slice(name);
         message.extend_from_slice(b"\": stores are confined to the activation");
-        self.error_with_code(&message, b"TCL WRITE VARNAME")
+        self.error_with_code_using(&message, b"TCL WRITE VARNAME", stage)
     }
 
     /// The error a confined unset of `name` is refused with — the bytecode
     /// VM's words and code.
     pub(crate) fn confined_unset_error(&mut self, name: &[u8]) -> Code {
+        self.confined_unset_error_using(name, None)
+    }
+
+    pub(crate) fn confined_unset_error_using(
+        &mut self,
+        name: &[u8],
+        stage: native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(first) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error(first);
+        }
+
         let mut message = b"can't unset \"".to_vec();
         message.extend_from_slice(name);
         message.extend_from_slice(b"\": stores are confined to the activation");
-        self.error_with_code(&message, b"TCL UNSET VARNAME")
+        self.error_with_code_using(&message, b"TCL UNSET VARNAME", stage)
     }
 
     /// The error a draw from the `rand()` generator is refused with while
@@ -4292,34 +8565,56 @@ impl Interp {
     /// `tcl::mathfunc::abs`) `keep` refuses: the whitelist an engine confines
     /// a body to. A command `keep` names keeps its own binding; nothing is
     /// renamed or replaced.
-    pub fn retain_commands(&mut self, keep: &dyn Fn(&str) -> bool) {
-        let mut refused: Vec<Vec<u8>> = Vec::new();
-        {
+    pub fn retain_commands(
+        &mut self,
+        keep: &dyn Fn(&str) -> bool,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        self.retain_command_tokens(&|_, report| core::str::from_utf8(report).is_ok_and(keep))
+    }
+
+    /// Keep exact live command generations selected by their original table owners.
+    /// Reporting bytes are provided for a caller's byte whitelist; they never
+    /// supply the generation used for deletion.
+    pub(crate) fn retain_command_tokens(
+        &mut self,
+        keep: &dyn Fn(u64, &[u8]) -> bool,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        if let Some(cause) = self.native_execution_refusal() {
+            return Err(cause);
+        }
+        let refused: Vec<_> = {
             let namespaces = self.namespaces.borrow();
-            let mut pending = vec![crate::namespace::GLOBAL];
-            while let Some(ns) = pending.pop() {
-                let qualified = namespaces.qualified_name(ns);
-                let mut prefix = qualified.clone();
-                if qualified != b"::" {
-                    prefix.extend_from_slice(b"::");
-                }
-                for name in namespaces.command_names(ns) {
-                    let mut full = prefix.clone();
-                    full.extend_from_slice(name);
-                    if !keep(&String::from_utf8_lossy(&full[2..])) {
-                        refused.push(full);
-                    }
-                }
-                pending.extend(namespaces.children(ns));
+            namespaces
+                .native_command_generations()
+                .into_iter()
+                .filter(|&generation| {
+                    namespaces
+                        .native_command_slot_at_node(generation)
+                        .is_some_and(|(ns, simple)| {
+                            let report = namespaces.command_fqn_at(ns, &simple);
+                            !keep(
+                                generation,
+                                tcl_syntax::naming::unroot_rooted_key_bytes(&report)
+                                    .unwrap_or(&report),
+                            )
+                        })
+                })
+                .collect()
+        };
+        for generation in refused {
+            self.delete_command_generation(generation);
+            if let Some(cause) = self.native_execution_refusal() {
+                return Err(cause);
             }
         }
-        for name in refused {
-            self.delete_command(&name);
-        }
+        Ok(())
     }
 
     /// Whether `name` resolves to a `const` scalar.
     pub(crate) fn is_constant(&self, name: &[u8]) -> bool {
+        if self.require_variable_name_protocol().is_err() {
+            return false;
+        };
         crate::vars::is_constant(
             &self.frames.borrow(),
             &self.namespaces.borrow(),
@@ -4330,6 +8625,9 @@ impl Interp {
 
     /// Whether `name`, resolved as if `level` were active, is a `const` cell.
     pub(crate) fn is_constant_at(&self, name: &[u8], level: usize) -> bool {
+        if self.require_variable_name_protocol().is_err() {
+            return false;
+        };
         crate::vars::is_constant_at(
             &self.frames.borrow(),
             &self.namespaces.borrow(),
@@ -4338,63 +8636,86 @@ impl Interp {
         )
     }
 
-    /// `array default set arrayName value` — set the array's TIP 508 default
-    /// (creating an empty array if needed). `Err` if the name is a scalar / its
-    /// namespace is missing.
-    pub(crate) fn set_array_default(
-        &mut self,
-        name: &[u8],
-        obj: *mut TclObj,
-    ) -> Result<(), VarError> {
-        crate::vars::set_array_default(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            self.current_ns.get(),
-            name,
-            obj,
-        )
-    }
-
     /// Ensure `name` is an array (creating an empty one if unset) — backs
     /// `array set name {}` with an empty value list. A scalar `name` errors.
     pub(crate) fn ensure_array(&self, name: &[u8]) -> Result<(), VarError> {
-        crate::vars::ensure_array(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
+        if self.observed_names.borrow().is_some() {
+            let level = self.frames.borrow().current_level();
+            return self.observed_ensure_array(name, level);
+        }
+        self.require_variable_name_protocol()?;
+        self.with_captured_byte_variable(
             self.current_ns.get(),
+            None,
             name,
+            None,
+            true,
+            |place, currency| place.ensure_array(self, currency),
         )
     }
 
     /// Materialise an unset variable cell for `trace add variable` without
     /// firing write traces or making `info exists` true.
     pub(crate) fn ensure_trace_variable(&self, name: &[u8]) -> Result<(), VarError> {
-        crate::vars::ensure_undefined(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            self.current_ns.get(),
-            name,
-        )
+        self.prepare_trace_registration(name, None, None)
+            .map(|_| ())
     }
 
-    /// The array's TIP 508 default value (borrowed), or `None`.
-    pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
-        crate::vars::array_default(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
+    pub(crate) fn prepare_trace_registration(
+        &self,
+        name: &[u8],
+        element: Option<&[u8]>,
+        level: Option<usize>,
+    ) -> Result<crate::vars::TraceHome, VarError> {
+        let operation =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.clone().refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        self.require_variable_name_protocol()?;
+        let captured = crate::vars::EnteredVariablePlace::capture_trace(
+            self,
             self.current_ns.get(),
+            level,
             name,
-        )
-    }
-
-    /// `array default unset arrayName` — drop the array's default value.
-    pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
-        crate::vars::unset_array_default(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            self.current_ns.get(),
-            name,
+            operation.currency(),
         );
+        operation
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|_| VarError::NameProtocolUnavailable)?;
+        let mut captured = captured.map_err(|error| self.byte_store_failure(error))?;
+        let reached = captured.prepare_trace_registration(self, element, operation.currency());
+        // Retain the complete intrinsic refusal before selected metadata drops.
+        let reached = reached.map_err(|error| self.byte_store_failure(error));
+        let current = captured
+            .check(self, operation.currency())
+            .map_err(|error| self.byte_store_failure(error));
+        drop(captured);
+        operation
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|_| VarError::NameProtocolUnavailable)?;
+        current?;
+        reached
+    }
+
+    pub(crate) fn cleanup_trace_shell(
+        &self,
+        home: &crate::vars::TraceHome,
+        key: Option<&[u8]>,
+        current: impl Fn() -> Result<(), tcl_cmd_core::CmdError>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        if key.is_none()
+            && (self.native_error_variable_at(home).is_some()
+                || self.native_precision_trace_at(home))
+        {
+            return current();
+        }
+        match crate::vars::CapturedTraceShell::capture(self, home, key) {
+            Some(original) => original.finish(self, current),
+            None => current(),
+        }
     }
 
     /// The call-frame level a variable trace on `base` should be tied to, so it
@@ -4407,17 +8728,6 @@ impl Interp {
     /// or a qualified name), so it fires only for that namespace's variable and
     /// dies with the namespace; `None` for a proc-local trace, which matches by
     /// raw name. Used at both trace-add and trace-fire time so they agree.
-    /// The fully-qualified name `name` (resolved from namespace `base_ns`,
-    /// following links) ultimately points at — for the `varname` object method.
-    pub(crate) fn resolved_var_full_name(&self, base_ns: NsId, name: &[u8]) -> Option<Vec<u8>> {
-        crate::vars::resolved_full_name(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            base_ns,
-            name,
-        )
-    }
-
     /// The `(home namespace, home frame level, simple name)` identity a variable
     /// trace on `base` belongs to.
     ///
@@ -4427,12 +8737,31 @@ impl Interp {
     /// this for free: there the alias and its target are the same `Var`, and
     /// the trace list hangs off that `Var`.
     pub(crate) fn trace_identity(&self, base: &[u8]) -> crate::vars::TraceHome {
+        let _ = self.require_variable_name_protocol();
+
         crate::vars::trace_home(
             &self.frames.borrow(),
             &self.namespaces.borrow(),
             self.current_ns.get(),
             base,
         )
+    }
+
+    /// Shared reentrancy identity of the actual selected root and member allocations.
+    pub(super) fn variable_trace_scope(
+        &self,
+        home: &crate::vars::TraceHome,
+        element: Option<&[u8]>,
+    ) -> crate::cmd_trace::VarTraceScope {
+        let member = element.and_then(|element| {
+            crate::vars::trace_element_identity(
+                &self.frames.borrow(),
+                &self.namespaces.borrow(),
+                home,
+                element,
+            )
+        });
+        crate::cmd_trace::VarTraceScope::cell(home, element, member)
     }
 
     /// Whether this release recovers an array element from the resolved `Var`
@@ -4457,8 +8786,8 @@ impl Interp {
     /// Read while the frame is still on the stack: after the pop its variables
     /// are gone, and an array local's elements with them. Each variable's own
     /// callbacks fire newest-first and contiguously; *which* variable comes
-    /// first is C's local-slot / hash walk and is not a pinned property, so the
-    /// frame's own (sorted) name order stands in for it.
+    /// first follows the frame's retained compiled declarations and native
+    /// physical hash entries, including undefined entries carrying traces.
     fn frame_teardown_unset_traces(&self, level: usize) -> Vec<VarTeardownCallback> {
         if self
             .traces
@@ -4470,12 +8799,22 @@ impl Interp {
             return Vec::new();
         }
         let names: Vec<Vec<u8>> = match self.frames.borrow().table(level) {
-            Some(table) => table.names().into_iter().map(<[u8]>::to_vec).collect(),
+            Some(table) => table
+                .teardown_names()
+                .into_iter()
+                .map(<[u8]>::to_vec)
+                .collect(),
             None => return Vec::new(),
         };
         let mut victims = Vec::new();
         for name in names {
             let home = crate::vars::TraceHome {
+                binding_id: self
+                    .frames
+                    .borrow()
+                    .table(level)
+                    .and_then(|table| table.binding_id(&name)),
+                selected_member: None,
                 ns: None,
                 level: Some(level),
                 base: name.clone(),
@@ -4486,8 +8825,8 @@ impl Interp {
                 .frames
                 .borrow()
                 .table(level)
-                .and_then(|t| t.array_names(&name))
-                .map(|keys| keys.into_iter().map(<[u8]>::to_vec).collect::<Vec<_>>())
+                .and_then(|table| table.capture_array_cell(&name))
+                .and_then(|array| array.search_keys())
                 .unwrap_or_default();
             for elem in elements {
                 victims.extend(self.cell_unset_traces(&home, Some(&elem), &name, &elem));
@@ -4515,13 +8854,28 @@ impl Interp {
     /// result set to `can't read "name": <msg>` — if a read trace callback
     /// errored (C's `TclObjCallVarTraces` propagation); else `None`.
     pub(crate) fn fire_read_trace(&mut self, name: &[u8], key: Option<&[u8]>) -> Option<Code> {
-        if !self.traces_may_observe(name) {
+        if self.observed_name_policy_selected() {
+            return self
+                .observed_substitution_receiver(name, key)
+                .err()
+                .map(|_| Code::Error);
+        }
+        let input = match key {
+            Some(key) => self.separate_variable_input(name, Some(key)),
+            None => self.combined_variable_input(name),
+        };
+        let Ok(input) = input else {
+            return Some(Code::Error);
+        };
+        if !self.variable_traces_may_observe(name) {
             return None;
         }
-        let (base, elem) = crate::frame::split_array_ref(name);
-        let key = key.or(elem.as_deref());
-        if !self.fire_var_trace(&base, key, b"read") {
-            return None;
+        let base = input.root().selected().to_vec();
+        let key = input.element().map(|element| element.selected());
+        match self.fire_var_trace(&base, key, b"read") {
+            Ok(VariableTraceGuestOutcome::Complete) => return None,
+            Ok(VariableTraceGuestOutcome::GuestError) => {}
+            Err(first) => return Some(self.refuse_native_execution(first)),
         }
         let msg = self
             .traces
@@ -4537,22 +8891,6 @@ impl Interp {
             display.push(b')');
         }
         Some(self.var_trace_error(&display, b"read", &msg))
-    }
-
-    /// Fire `name`'s read traces for `info exists`, as C's `TclVarTraceExists`
-    /// does: a trace error is swallowed and the interpreter state restored, so
-    /// the answer comes from whatever the traces left. That is what lets
-    /// `info exists env(X)` see a host variable the array has not cached yet.
-    pub(crate) fn fire_exists_read_trace(&mut self, name: &[u8]) {
-        if !self.traces_may_observe(name) {
-            return;
-        }
-        let (base, elem) = crate::frame::split_array_ref(name);
-        let saved = self.exc.borrow().clone();
-        if self.fire_var_trace(&base, elem.as_deref(), b"read") {
-            self.traces.borrow_mut().pending_err = None;
-            *self.exc.borrow_mut() = saved;
-        }
     }
 
     /// Read a variable's current value for a **read-modify-write** command
@@ -4572,100 +8910,191 @@ impl Interp {
         &mut self,
         base: &[u8],
         elem: Option<&[u8]>,
-    ) -> Option<*mut TclObj> {
-        if self.traces_may_observe(base) && self.fire_var_trace(base, elem, b"read") {
-            // The read trace errored: discard it and treat the value as absent.
+    ) -> Result<Option<*mut TclObj>, tcl_runtime_api::NativeExecutionError> {
+        self.check_entered_native_operation()?;
+        if self.variable_traces_may_observe(base)
+            && self.fire_var_trace(base, elem, b"read")?.is_guest_error()
+        {
             self.traces.borrow_mut().pending_err.take();
-            return None;
+            return Ok(None);
         }
-        match elem {
+        self.check_entered_native_operation()?;
+        Ok(match elem {
             Some(k) => self.var_get_elem(base, k),
             None => self.var_get(base),
-        }
+        })
     }
 
-    /// `lappend`'s name for [`read_for_update`](Self::read_for_update).
-    pub(crate) fn lappend_read(&mut self, base: &[u8], elem: Option<&[u8]>) -> Option<*mut TclObj> {
+    /// `lappend`'s name for the same checked read-update owner.
+    pub(crate) fn lappend_read(
+        &mut self,
+        base: &[u8],
+        elem: Option<&[u8]>,
+    ) -> Result<Option<*mut TclObj>, tcl_runtime_api::NativeExecutionError> {
         self.read_for_update(base, elem)
     }
 
     /// `unset name` — returns whether it existed.
     pub(crate) fn var_unset(&mut self, name: &[u8]) -> bool {
-        // Resolve the trace key BEFORE removing the variable. Resolution can
-        // depend on the cell still existing — the 8.x namespace-scope fallback
-        // only reaches the global when the global cell is present — so
-        // re-resolving after the removal would silently pick a different
-        // variable and the unset trace would never fire. C resolves the
-        // `Var`, fires its traces, and only then frees it.
-        let (base, elem) = crate::frame::split_array_ref(name);
-        let key = self
-            .traces_may_observe(name)
-            .then(|| self.trace_identity(&base));
-        // Unsetting a whole array destroys each element cell too, and C's
-        // `DeleteArray` fires each element's own traces — with `arrayPtr` NULL,
-        // so only that element's list runs — after the array's own firing
-        // (tclVar.c). The elements have to be read while the array is still
-        // there.
-        let elements = if !self.traces.borrow().traces.is_empty() && elem.is_none() {
-            self.array_names(&base).unwrap_or_default()
-        } else {
-            Vec::new()
+        if self.observed_name_policy_selected() {
+            return self
+                .observed_variable_unset(name, self.frames.borrow().current_level())
+                .unwrap_or(false);
+        }
+        let Ok(input) = self.combined_variable_input(name) else {
+            return false;
         };
-        // The `env` trace dies with its variable, whoever spells it; the
-        // binding it hangs off is gone once the variable is.
-        let unsets_env = elem.is_none()
-            && key
-                .as_ref()
-                .is_some_and(|home| home.link_elem.is_none() && self.env_trace_reaches(home));
-        let existed = crate::vars::unset(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
+        let root = input.root().selected().to_vec();
+        let element = input.element().map(|element| element.selected().to_vec());
+        self.remove_captured_byte_variable(
             self.current_ns.get(),
+            None,
+            &root,
+            element.as_deref(),
             name,
-        );
-        if existed && unsets_env {
-            self.disarm_env_trace();
-        }
-        if let (true, Some(home)) = (existed, key) {
-            let access = self.trace_access(name, &base, elem.as_deref(), &home, true);
-            self.fire_var_trace_resolved(&home, &access, b"unset");
-            // Then, for a whole-array unset, each element cell in turn.
-            let per_element: Vec<VarTeardownCallback> = elements
-                .iter()
-                .flat_map(|e| self.cell_unset_traces(&home, Some(e), &access.reported, e))
-                .collect();
-            self.fire_unset_callbacks(per_element);
-            // The variable (and its traces) go away — drop every trace on it
-            // (C frees the Var's trace list on unset). Element unset drops only
-            // that element's traces (whole-variable traces survive) — and an
-            // alias for an element (`upvar #0 a(k) e; unset e`) is an element
-            // unset, so the element comes from the access shape, not the
-            // spelling.
-            let mut t = self.traces.borrow_mut();
-            let before = t.traces.len();
-            match access.match_elem.as_deref() {
-                Some(e) => t.traces.retain(|v| {
-                    !(crate::cmd_trace::same_variable(v, &home.base, home.ns, home.level)
-                        && v.elem.as_deref() == Some(e))
-                }),
-                None => t.traces.retain(|v| {
-                    !crate::cmd_trace::same_variable(v, &home.base, home.ns, home.level)
-                }),
+            true,
+            false,
+        )
+        .unwrap_or(false)
+    }
+
+    fn finish_array_unset(
+        &mut self,
+        name: &[u8],
+        base: &[u8],
+        home: Option<crate::vars::TraceHome>,
+        selected: crate::frame::RetainedArrayCell,
+        current: impl Fn(&Interp) -> Result<(), tcl_runtime_api::NativeExecutionError>,
+    ) -> Result<bool, tcl_runtime_api::NativeExecutionError> {
+        let mut first = current(self).err();
+        let native_error = home
+            .as_ref()
+            .and_then(|home| self.native_error_variable_at(home));
+        let native_precision = home
+            .as_ref()
+            .is_some_and(|home| self.native_precision_trace_at(home));
+        // naming.variable.original-undefined-array-member-retirement
+
+        // The selected generation keeps original physical entries. Software
+        // refusals stop later callbacks while its mandatory owners still retire.
+        let elements = selected.search_keys().unwrap_or_default();
+        if let Some(home) = home.as_ref() {
+            let access = self.trace_access(name, base, None, home, true);
+            let root = self.cell_unset_traces(home, None, &access.reported, b"");
+            self.detach_destroyed_trace_group(home, None);
+            if first.is_none() {
+                self.fire_unset_callbacks(root);
+                if let Err(error) = current(self) {
+                    first.get_or_insert(error);
+                }
             }
-            let removed = t.traces.len() != before;
-            drop(t);
-            if removed {
-                self.invalidate_guard_domain(GuardDomain::VariableTrace);
+            for element in &elements {
+                let Some(member_home) = home.for_selected_array_member(&selected, element) else {
+                    continue;
+                };
+                let callbacks =
+                    self.cell_unset_traces(&member_home, Some(element), &access.reported, element);
+                let registrations = self.destroyed_trace_group_ids(&member_home, Some(element));
+                self.detach_destroyed_trace_ids(&registrations);
+                let preserve_definition =
+                    self.native_c_variable_name_protocol()
+                        .is_some_and(|protocol| {
+                            protocol.element_unset_preserves_definition_during_trace()
+                        });
+                let trace = selected.begin_member_retirement(
+                    element,
+                    preserve_definition,
+                    first.is_none() && !callbacks.is_empty(),
+                );
+                selected.retire_member(element);
+                if let Err(error) = current(self) {
+                    first.get_or_insert(error);
+                }
+                if first.is_none() {
+                    self.fire_unset_callbacks(callbacks);
+                    if let Err(error) = current(self) {
+                        first.get_or_insert(error);
+                    }
+                }
+                drop(trace);
+                if let Err(error) = current(self) {
+                    first.get_or_insert(error);
+                }
+                let object_table = self
+                    .native_c_variable_name_protocol()
+                    .is_some_and(|protocol| protocol.element_table_retains_original());
+                selected.finish_member_retirement(element, object_table);
+                if let Err(error) = current(self) {
+                    first.get_or_insert(error);
+                }
             }
         }
-        existed
+        if let Err(error) = selected.finish_destruction_with_check(|| current(self)) {
+            first.get_or_insert(error);
+        }
+        if first.is_none()
+            && native_precision
+            && home
+                .as_ref()
+                .is_some_and(|home| self.native_precision_trace_at(home))
+        {
+            self.install_native_precision_trace_at(name);
+            if let Err(error) = current(self) {
+                first.get_or_insert(error);
+            }
+        }
+        if first.is_none() {
+            if let Some(variable) = native_error {
+                self.install_native_error_variable_trace(variable);
+                if let Err(error) = current(self) {
+                    first.get_or_insert(error);
+                }
+            }
+        }
+        drop(selected);
+        if let Err(error) = current(self) {
+            first.get_or_insert(error);
+        }
+        first.map_or(Ok(true), Err)
+    }
+
+    fn destroyed_trace_group_ids(
+        &self,
+        home: &crate::vars::TraceHome,
+        element: Option<&[u8]>,
+    ) -> Vec<u64> {
+        let cell = self.variable_trace_scope(home, element);
+        self.traces
+            .borrow()
+            .traces
+            .iter()
+            .filter(|trace| cell.owns_registration(trace))
+            .map(|trace| trace.id)
+            .collect()
+    }
+
+    fn detach_destroyed_trace_ids(&mut self, registrations: &[u64]) {
+        self.traces
+            .borrow_mut()
+            .traces
+            .retain(|trace| !registrations.contains(&trace.id));
+        self.invalidate_guard_domain(GuardDomain::VariableTrace);
+    }
+
+    fn detach_destroyed_trace_group(
+        &mut self,
+        home: &crate::vars::TraceHome,
+        element: Option<&[u8]>,
+    ) {
+        let cell = self.variable_trace_scope(home, element);
+        self.traces
+            .borrow_mut()
+            .traces
+            .retain(|trace| !cell.owns_registration(trace));
+        self.invalidate_guard_domain(GuardDomain::VariableTrace);
     }
 
     /// `unset name(key)` — returns whether it existed.
-    pub(crate) fn var_unset_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
-        self.var_unset_elem_reported(name, None, key)
-    }
-
     /// [`Self::var_unset_elem`], with `reported` (when given) as the name the
     /// unset traces are told in every release — C's `Tcl_UnsetVar2` with the
     /// array and element passed apart, where 9.0 would otherwise report the
@@ -4676,42 +9105,37 @@ impl Interp {
         reported: Option<&[u8]>,
         key: &[u8],
     ) -> bool {
-        // Resolved before the removal — see [`Self::var_unset`].
-        let trace_key = self
-            .traces_may_observe(name)
-            .then(|| self.trace_identity(name));
-        let existed = crate::vars::unset_elem(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            self.current_ns.get(),
-            name,
-            key,
-        );
-        if let (true, Some(home)) = (existed, trace_key) {
-            let access = if let Some(reported) = reported {
-                self.trace_access(reported, reported, Some(key), &home, true)
-            } else {
-                let mut spelling = name.to_vec();
-                spelling.push(b'(');
-                spelling.extend_from_slice(key);
-                spelling.push(b')');
-                self.trace_access(&spelling, name, Some(key), &home, true)
-            };
-            self.fire_var_trace_resolved(&home, &access, b"unset");
-            // Drop this element's traces (whole-array traces survive).
-            let mut t = self.traces.borrow_mut();
-            let before = t.traces.len();
-            t.traces.retain(|v| {
-                !(crate::cmd_trace::same_variable(v, &home.base, home.ns, home.level)
-                    && v.elem.as_deref() == Some(key))
-            });
-            let removed = t.traces.len() != before;
-            drop(t);
-            if removed {
-                self.invalidate_guard_domain(GuardDomain::VariableTrace);
-            }
+        let Some(reported) = reported else {
+            return self.var_unset_elem(name, key);
+        };
+        if self.require_variable_name_protocol().is_err() {
+            return false;
         }
-        existed
+        // `reported` names the same global array from the global frame (the
+        // `env` re-sync's `Tcl_UnsetVar2(interp, "env", name, 0)`), and the
+        // traces are told the array and element apart.
+        let _ = name;
+        self.unset_byte_variable_at(reported, reported, Some(key), 0, true)
+    }
+
+    pub(crate) fn var_unset_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
+        if self.require_variable_name_protocol().is_err() {
+            return false;
+        }
+        let mut spelling = name.to_vec();
+        spelling.push(b'(');
+        spelling.extend_from_slice(key);
+        spelling.push(b')');
+        self.remove_captured_byte_variable(
+            self.current_ns.get(),
+            None,
+            name,
+            Some(key),
+            &spelling,
+            true,
+            false,
+        )
+        .unwrap_or(false)
     }
 
     /// Invoke every variable trace matching `(base, elem, op)`, as
@@ -4719,16 +9143,20 @@ impl Interp {
     /// on the same resolved variable cell, while traces on unrelated cells
     /// remain active. The interp result is preserved across the callbacks (the
     /// triggering operation owns the result). For `read`/`write` ops a callback
-    /// error is **propagated**: the message is stashed in `pending_err` and the
-    /// function returns `true` (the access then fails; C's `TclCallVarTraces`).
-    /// `unset`/`array` errors are ignored (C does too). Returns whether a
-    /// read/write callback errored.
-    fn fire_var_trace(&mut self, base: &[u8], elem: Option<&[u8]>, op: &[u8]) -> bool {
-        // Resolve the access to the same identity registration used, so a trace
-        // matches every spelling of the variable it is on (`::v` vs `v`, an
-        // `upvar` alias, and the 8.x namespace-scope fallback).
+    /// error is **propagated** as `GuestError`: the message is stashed in
+    /// `pending_err` and the access then fails. The selected coordinator keeps
+    /// its operation-specific Guest propagation rules. A Host refusal is the
+    /// outer error and never permits Guest variable-error formatting.
+    fn fire_var_trace(
+        &mut self,
+        base: &[u8],
+        elem: Option<&[u8]>,
+        op: &[u8],
+    ) -> Result<VariableTraceGuestOutcome, tcl_runtime_api::NativeExecutionError> {
+        self.check_entered_native_operation()?;
         let home = self.trace_identity(base);
         let access = self.trace_access(base, base, elem, &home, false);
+        self.check_entered_native_operation()?;
         self.fire_var_trace_resolved(&home, &access, op)
     }
 
@@ -4784,6 +9212,23 @@ impl Interp {
         }
     }
 
+    /// Native precision is a hidden C variable trace and is not reported by
+    /// script-level `trace info`. Its registration follows resolved cell homes.
+    /// [`Self::has_variable_traces`] for an access spelt `name`, including the
+    /// native `env` trace where the spelling may reach the global `env` array
+    /// ([`Self::traces_may_observe`]).
+    fn variable_traces_may_observe(&self, name: &[u8]) -> bool {
+        !self.native_error_cells.borrow().is_empty()
+            || self.native_precision_cell.get().is_some()
+            || self.traces_may_observe(name)
+    }
+
+    fn has_variable_traces(&self) -> bool {
+        !self.native_error_cells.borrow().is_empty()
+            || !self.traces.borrow().traces.is_empty()
+            || self.native_precision_cell.get().is_some()
+    }
+
     /// [`Self::fire_var_trace`] with the identity already resolved — for
     /// `unset`, which must resolve *before* it removes the variable (resolution
     /// can depend on the cell existing).
@@ -4792,13 +9237,24 @@ impl Interp {
         home: &crate::vars::TraceHome,
         access: &TraceAccess,
         op: &[u8],
-    ) -> bool {
-        let (access_ns, access_frame_level, base) = (home.ns, home.level, home.base.as_slice());
+    ) -> Result<VariableTraceGuestOutcome, tcl_runtime_api::NativeExecutionError> {
+        self.fire_var_trace_resolved_with_errors(home, access, op, true)
+    }
+
+    fn fire_var_trace_resolved_with_errors(
+        &mut self,
+        home: &crate::vars::TraceHome,
+        access: &TraceAccess,
+        op: &[u8],
+        leave_error_message: bool,
+    ) -> Result<VariableTraceGuestOutcome, tcl_runtime_api::NativeExecutionError> {
+        let _operation = native_operation_currency::NativeOperationScope::enter(self)?;
+        self.check_entered_native_operation()?;
         let elem = access.match_elem.as_deref();
         let reported = access.reported.as_slice();
         // The cell this access reaches, and the array cell containing it — C's
         // `varPtr` and `arrayPtr`, each with its own `VAR_TRACE_ACTIVE`.
-        let cell = crate::cmd_trace::VarTraceScope::cell(base, elem, access_ns, access_frame_level);
+        let cell = self.variable_trace_scope(home, elem);
         let traces = self.traces.borrow();
         // "If there are already similar trace functions active for the
         // variable, don't call them again" — C's early return on
@@ -4806,7 +9262,7 @@ impl Interp {
         // callback writing a different element of the same array is a different
         // `Var` and fires.
         if self.active_var_trace_scopes.borrow().contains(&cell) {
-            return false;
+            return Ok(VariableTraceGuestOutcome::Complete);
         }
         let array_active = elem.is_some()
             && self
@@ -4815,27 +9271,31 @@ impl Interp {
                 .contains(&cell.array());
         let whole_array = access.whole_array && !array_active;
         let any = traces.traces.iter().any(|trace| {
-            (trace.elem.is_some() || whole_array)
-                && crate::cmd_trace::matches(trace, base, elem, op, access_ns, access_frame_level)
+            let whole = trace.elem.is_none();
+            (!whole || (access.whole_array && !array_active)) && cell.matches(trace, op)
         });
         drop(traces);
         if !(any || (whole_array && self.env_trace_reaches(home))) {
-            return false;
+            self.fire_native_error_variable_trace(home, access, op);
+            self.check_entered_native_operation()?;
+            let outcome = self.native_precision_trace(home, access, op);
+            self.check_entered_native_operation()?;
+            return outcome;
         }
         // C aborts the chain on the first callback error for every op *except*
         // unset — "ignore errors in unset traces" (tclTrace.c 9.0.4:2600). An
         // `array` trace's error therefore fails the `array` subcommand.
         let propagate = op != b"unset";
         // Preserve the result object across the callbacks.
-        let saved = self.result.get();
-        unsafe { obj::incr_ref_count(saved) };
-        let saved_options = self.take_return_options();
+        let saved = self.save_native_variable_trace_result(false)?;
+        let global_error_flags = self.capture_native_global_error_flags();
 
         // The cell is marked active for the whole firing, as C marks `varPtr`
         // once on entry and clears it on the way out — not per callback.
         self.active_var_trace_scopes.borrow_mut().push(cell.clone());
 
         let mut errored = false;
+        let mut callback_failure: Option<obj::Owned> = None;
         let op_name = String::from_utf8_lossy(op).into_owned();
         'groups: for whole_array_group in [true, false] {
             if whole_array_group && !whole_array {
@@ -4851,9 +9311,7 @@ impl Interp {
                 .iter()
                 .rev()
                 .filter(|trace| trace.elem.is_none() == whole_array_group)
-                .filter(|trace| {
-                    crate::cmd_trace::matches(trace, base, elem, op, access_ns, access_frame_level)
-                })
+                .filter(|trace| cell.matches(trace, op))
                 .map(|trace| trace.id)
                 .collect();
             for id in order {
@@ -4865,29 +9323,144 @@ impl Interp {
                     .traces
                     .iter()
                     .find(|trace| trace.id == id)
-                    .map(|trace| (trace.command.clone(), trace.old_style))
+                    .map(|trace| {
+                        (
+                            native_variable_observers::Callback::from_trace(trace),
+                            trace.old_style,
+                        )
+                    })
                 else {
                     continue;
                 };
-                let op_word = tcl_cmd_core::trace::callback_op_word(&op_name, old_style);
-                let args = crate::list::new_list_obj(&[
-                    new_string(reported),
-                    new_string(access.report_elem.as_deref().unwrap_or(b"")),
-                    new_string(op_word.as_bytes()),
-                ]);
-                let mut line = cmd;
-                line.push(b' ');
-                line.extend_from_slice(&obj_bytes(args));
-                drop_fresh(args);
-                self.clear_return_options();
-                let code = self.eval_str(&line);
-                if propagate && code == Code::Error {
-                    // Stop firing: C aborts the trace chain on the first error.
-                    self.var_trace_failed(op, reported, access);
+                let code = match cmd {
+                    native_variable_observers::Callback::Native(observer) => self
+                        .call_native_variable_observer(
+                            observer,
+                            reported,
+                            access.report_elem.as_deref().unwrap_or(b""),
+                            &op_name,
+                        ),
+                    native_variable_observers::Callback::Script(cmd) => {
+                        let op_word = tcl_cmd_core::trace::callback_op_word(&op_name, old_style);
+                        let args = self.new_list_object(&[
+                            new_string(reported),
+                            new_string(access.report_elem.as_deref().unwrap_or(b"")),
+                            new_string(op_word.as_bytes()),
+                        ]);
+                        let mut line = cmd;
+                        line.push(b' ');
+                        line.extend_from_slice(&obj_bytes(args));
+                        drop_fresh(args);
+                        self.reset_native_error_objects_before_trace_script();
+                        if self.clear_return_options_checked().is_err() {
+                            errored = true;
+                            break 'groups;
+                        }
+                        let saved = match self.save_native_variable_trace_result(true) {
+                            Ok(saved) => saved,
+                            Err(_) => {
+                                errored = true;
+                                break 'groups;
+                            }
+                        };
+                        let code = match self
+                            .native_invocation_dialect()
+                            .native_variable_trace_protocol()
+                        {
+                            Some(protocol) => {
+                                self.eval_str(protocol.variable_callback_source(&line))
+                            }
+                            None => self.report_cmd_error(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "variable trace callback source",
+                                )
+                                .into(),
+                            ),
+                        };
+                        if code != Code::Ok
+                            && self
+                                .native_invocation_dialect()
+                                .native_variable_trace_protocol()
+                                .is_some()
+                        {
+                            callback_failure = Some(obj::Owned::retain(self.result.get()));
+                        }
+                        if let Some(saved) = saved {
+                            let _ = self.restore_native_variable_trace_result(saved);
+                        }
+                        code
+                    }
+                };
+                // Every callback is a separate reached stage. Keep mandatory
+                // trace-scope cleanup, but do not render a Guest failure or
+                // run later callbacks after an original Host refusal.
+                if self.check_entered_native_operation().is_err() {
                     errored = true;
                     break 'groups;
                 }
-                self.restore_return_options(saved_options.clone());
+                if propagate && code == Code::Error {
+                    // Capture the callback's error message; stop firing (C
+                    // aborts the trace chain on the first error).
+                    let msg = callback_failure.as_ref().map_or_else(
+                        || self.result_bytes(),
+                        |failure| obj_bytes(failure.as_ptr()),
+                    );
+                    // The callback's original result getter can itself reach
+                    // an extension updater. Classify that Host stage before
+                    // publishing a Guest message or trace frame.
+                    if self.check_entered_native_operation().is_err() {
+                        errored = true;
+                        break 'groups;
+                    }
+                    self.traces.borrow_mut().pending_err = Some(msg);
+                    if leave_error_message {
+                        let mut frame = op.to_vec();
+                        frame.extend_from_slice(b" trace on \"");
+                        frame.extend_from_slice(reported);
+                        if let Some(k) = access.spelling_elem.as_deref() {
+                            frame.push(b'(');
+                            frame.extend_from_slice(k);
+                            frame.push(b')');
+                        }
+                        frame.push(b'"');
+                        self.append_frame_noline(&frame);
+                    }
+                    errored = true;
+                    break 'groups;
+                }
+                drop(callback_failure.take());
+                if self.check_entered_native_operation().is_err() {
+                    errored = true;
+                    break 'groups;
+                }
+            }
+            // The intrinsic was installed before user registrations: it is
+            // last in the whole-variable group, before any element traces.
+            if whole_array_group {
+                self.fire_native_error_variable_trace(home, access, op);
+                if self.check_entered_native_operation().is_err() {
+                    errored = true;
+                    break 'groups;
+                }
+            }
+            if whole_array_group {
+                let outcome = self.native_precision_trace(home, access, op);
+                if self.check_entered_native_operation().is_err() {
+                    errored = true;
+                    break;
+                }
+                match outcome {
+                    Ok(VariableTraceGuestOutcome::Complete) => {}
+                    Ok(VariableTraceGuestOutcome::GuestError) => {
+                        errored = true;
+                        break;
+                    }
+                    Err(first) => {
+                        self.refuse_native_execution(first);
+                        errored = true;
+                        break;
+                    }
+                }
             }
             // The `env` trace is the array's oldest, so it runs last among the
             // whole-array traces — after any a script added to `env`, before
@@ -4899,22 +9472,41 @@ impl Interp {
                 && propagate
             {
                 self.error(b"no such variable");
-                self.var_trace_failed(op, reported, access);
+                if leave_error_message {
+                    self.var_trace_failed(op, reported, access);
+                } else {
+                    let message = self.result_bytes();
+                    self.traces.borrow_mut().pending_err = Some(message);
+                }
                 errored = true;
                 break 'groups;
             }
         }
         let popped = self.active_var_trace_scopes.borrow_mut().pop();
         debug_assert_eq!(popped, Some(cell));
-        // Restore the saved result (release the trace's, adopt our held +1).
-        unsafe {
-            obj::decr_ref_count(self.result.get());
-            self.result.set(saved);
-        }
         if !errored {
-            self.restore_return_options(saved_options);
+            self.restore_native_global_error_flags(global_error_flags);
         }
-        errored
+        // Retire callback-owned state before deciding how to settle the
+        // independently selected saved chain state. A typed Host refusal must
+        // restore that state rather than publish the callback's Guest result.
+        drop(callback_failure);
+        let refused = self.check_entered_native_operation().is_err();
+        if !errored || !leave_error_message || refused {
+            if let Some(saved) = saved {
+                let _ = self.restore_native_variable_trace_result(saved);
+            }
+        } else {
+            drop(saved);
+        }
+        // Saved-state restoration/retirement can itself reach an extension
+        // free hook. Mandatory cleanup is complete before observing its cause.
+        self.check_entered_native_operation()?;
+        Ok(if errored {
+            VariableTraceGuestOutcome::GuestError
+        } else {
+            VariableTraceGuestOutcome::Complete
+        })
     }
 
     /// Record a variable trace's failure, whose message is the interp result:
@@ -4945,6 +9537,20 @@ impl Interp {
     /// throw the callback's trace away, leaving `errorInfo` as the bare
     /// `can't set "x": …` line.
     pub(crate) fn var_trace_error(&mut self, name: &[u8], op: &[u8], reason: &[u8]) -> Code {
+        self.var_trace_error_using(name, op, reason, None)
+    }
+
+    pub(crate) fn var_trace_error_using(
+        &mut self,
+        name: &[u8],
+        op: &[u8],
+        reason: &[u8],
+        stage: native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(first) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error(first);
+        }
+
         // C's `TclCallVarTraces` verb table (tclTrace.c 9.0.4:2668-2681). The
         // `-errorcode` is *not* set there but by the access that failed, and
         // only `TclPtrGetVarIdx`/`TclPtrSetVarIdx` do so — `TclCheckArrayTraces`
@@ -4962,10 +9568,29 @@ impl Interp {
         msg.extend_from_slice(b"\": ");
         msg.extend_from_slice(reason);
         self.set_result_bytes(&msg);
+        if self.check_original_c_name_stage(stage).is_err() {
+            return Code::Error;
+        }
         if let Some(word) = word {
             let mut code = b"TCL ".to_vec();
             code.extend_from_slice(word);
             code.extend_from_slice(b" VARNAME");
+            if stage.is_some() {
+                let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+                    return Code::Error;
+                };
+                if self
+                    .replace_native_error_code_using(scope.currency(), &code, stage)
+                    .is_err()
+                {
+                    return Code::Error;
+                }
+            } else {
+                self.replace_native_error_code(&code);
+            }
+            if self.check_original_c_name_stage(stage).is_err() {
+                return Code::Error;
+            }
             let mut exc = self.exc.borrow_mut();
             exc.code = code;
             exc.code_explicit = false;
@@ -4980,6 +9605,33 @@ impl Interp {
         name: &[u8],
         operation: impl FnOnce(&mut Self, &tcl_runtime_api::ArrayTarget) -> Code,
     ) -> Code {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return self.refuse_native_execution(first),
+        };
+        let reached = self.with_array_trace_target_entered(name, operation);
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            return self.refuse_native_execution(first);
+        }
+        reached
+    }
+
+    fn with_array_trace_target_entered(
+        &mut self,
+        name: &[u8],
+        operation: impl FnOnce(&mut Self, &tcl_runtime_api::ArrayTarget) -> Code,
+    ) -> Code {
+        if self.observed_name_policy_selected() {
+            let level = self.frames.borrow().current_level();
+            return match self.observed_array_target(name, level) {
+                Ok(target) => operation(self, &target),
+                Err(error) => self.report_cmd_error(error.into()),
+            };
+        }
+        if self.require_variable_name_protocol().is_err() {
+            return Code::Error;
+        }
+
         let frame = tcl_runtime_api::FrameId(self.frames.borrow().current_level());
         let located = crate::vars::array_target_at(
             &self.frames.borrow(),
@@ -4987,10 +9639,9 @@ impl Interp {
             name,
             frame.0,
         );
-        let display = String::from_utf8_lossy(name).into_owned();
         let target = located.as_ref().map_or_else(
-            || tcl_runtime_api::ArrayTarget::named(frame, display.clone()),
-            |record| tcl_runtime_api::ArrayTarget::cell(frame, display.clone(), record.id()),
+            || tcl_runtime_api::ArrayTarget::named_bytes(frame, name),
+            |record| tcl_runtime_api::ArrayTarget::cell_bytes(frame, name, record.id()),
         );
         if let Some(record) = located {
             let retained = crate::vars::retain_array_target(
@@ -5011,17 +9662,14 @@ impl Interp {
             let popped = self.array_operation_targets.borrow_mut().pop();
             debug_assert_eq!(popped.as_ref().map(|record| record.target.id()), Some(id));
             if let Some(record) = popped {
-                crate::vars::release_array_target(
-                    &mut self.frames.borrow_mut(),
-                    &mut self.namespaces.borrow_mut(),
-                    &record.target,
-                );
+                crate::vars::release_array_target(&record.target);
+                drop(record);
             }
         }
         result
     }
 
-    fn array_operation_target(
+    pub(crate) fn array_operation_target(
         &self,
         target: &tcl_runtime_api::ArrayTarget,
     ) -> Option<crate::vars::ArrayCellTarget> {
@@ -5046,6 +9694,91 @@ impl Interp {
         )
     }
 
+    pub(crate) fn name_policy_protocol(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
+        let dialect = self.native_invocation_dialect();
+        if let Some(recipe) = dialect.native_name_protocol() {
+            let protocol = tcl_syntax::naming::NamePolicyProtocol::for_native_point(
+                dialect.execution_point()?,
+            )?;
+            return (protocol.recipe() == recipe).then_some(protocol);
+        }
+        let names = dialect.authored_logical_name_simulation(self.logical_name_provider.get()?)?;
+        self.variable_storage_matches(names.variable_lookup_policy())
+            .then_some(names)
+    }
+
+    pub(crate) fn array_search_keys_at_target(
+        &self,
+        target: &tcl_runtime_api::ArrayTarget,
+    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
+        if target.cell_id().is_none() {
+            // LocateArray observed no original cell; a later same-name creation
+            // cannot become this operation's target.
+            return Ok(None);
+        }
+        let record = self.array_operation_target(target).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("retained array search"),
+        )?;
+        Ok(crate::vars::array_search_keys_at_target(&record))
+    }
+
+    pub(crate) fn array_search_element_exists_at_target(
+        &self,
+        target: &tcl_runtime_api::ArrayTarget,
+        key: &[u8],
+    ) -> Result<bool, tcl_syntax::value::ValueError> {
+        let record = self.array_operation_target(target).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("retained array search"),
+        )?;
+        Ok(crate::vars::array_search_element_exists_at_target(
+            &record, key,
+        ))
+    }
+
+    pub(crate) fn array_unset_elem_at_target(
+        &mut self,
+        target: &tcl_runtime_api::ArrayTarget,
+        key: &[u8],
+    ) -> bool {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return false;
+            }
+        };
+        let Some(record) = self.array_operation_target(target) else {
+            return false;
+        };
+        let reached = crate::vars::unset_element_at_target(&record, key, scope.currency());
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return false;
+        }
+        let selected = match reached {
+            Ok(selected) => selected,
+            Err(error) => {
+                self.byte_store_failure(error);
+                return false;
+            }
+        };
+        let removed = if let Some((removed, home)) = selected {
+            if removed && self.has_variable_traces() {
+                self.fire_selected_unset_callbacks(
+                    &home,
+                    target.name_bytes(),
+                    Some(key),
+                    target.name_bytes(),
+                    true,
+                );
+            }
+            removed
+        } else {
+            false
+        };
+        drop(record);
+        scope.currency().ensure_current_or_refuse().is_ok() && removed
+    }
+
     /// Tcl's `TclPtrGetVarIdx` read used by `array get`: select the live
     /// element before callbacks, fire containing-array then element traces,
     /// and read that same element afterwards. Trace errors are swallowed but
@@ -5056,10 +9789,29 @@ impl Interp {
         target: &tcl_runtime_api::ArrayTarget,
         key: &[u8],
     ) -> tcl_runtime_api::ArrayElementRead<*mut TclObj> {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return tcl_runtime_api::ArrayElementRead::HostRefusal(first),
+        };
+        let reached = self.array_read_elem_at_target_entered(target, key);
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            return tcl_runtime_api::ArrayElementRead::HostRefusal(first);
+        }
+        reached
+    }
+
+    fn array_read_elem_at_target_entered(
+        &mut self,
+        target: &tcl_runtime_api::ArrayTarget,
+        key: &[u8],
+    ) -> tcl_runtime_api::ArrayElementRead<*mut TclObj> {
+        if let Some(error) = self.native_execution_refusal() {
+            return tcl_runtime_api::ArrayElementRead::HostRefusal(error);
+        }
         let live_array = crate::vars::array_target_at(
             &self.frames.borrow(),
             &self.namespaces.borrow(),
-            target.name().as_bytes(),
+            target.name_bytes(),
             target.frame().0,
         );
         let live_was_array = live_array.as_ref().is_some_and(|live| {
@@ -5073,7 +9825,7 @@ impl Interp {
         let selected = crate::vars::array_element_target_at(
             &self.frames.borrow(),
             &self.namespaces.borrow(),
-            target.name().as_bytes(),
+            target.name_bytes(),
             key,
             target.frame().0,
         );
@@ -5087,103 +9839,112 @@ impl Interp {
             )
         });
         let trace_errored = self
-            .fire_read_trace(target.name().as_bytes(), Some(key))
+            .fire_read_trace(target.name_bytes(), Some(key))
             .is_some();
-        let trace_failure = trace_errored.then(|| {
-            (
-                self.result_bytes(),
-                self.error_code(),
-                self.error_info(),
-                i64::from(self.error_line()),
-            )
-        });
-
-        let outcome = match self.array_operation_target(target) {
-            Some(operation)
-                if crate::vars::array_names_at_target(
-                    &self.frames.borrow(),
-                    &self.namespaces.borrow(),
-                    &operation,
-                )
-                .is_some() =>
-            {
-                if let Some((_, _, info, line)) = trace_failure {
-                    self.publish_and_reset_error();
-                    tcl_runtime_api::ArrayElementRead::Missing(
-                        tcl_runtime_api::ArrayReadMiss::trace_error(Some(info), line),
+        let trace_failure = if trace_errored {
+            self.error_code_bytes_checked().and_then(|code| {
+                let message = self.completion_result_bytes_checked()?;
+                let info = self.completion_error_info_bytes_checked()?;
+                Ok(Some((message, code, info, i64::from(self.error_line()))))
+            })
+        } else if let Some(error) = self.native_execution_refusal() {
+            Err(error)
+        } else {
+            Ok(None)
+        };
+        let outcome = match trace_failure {
+            Err(error) => tcl_runtime_api::ArrayElementRead::HostRefusal(error),
+            Ok(trace_failure) => match self.array_operation_target(target) {
+                Some(operation)
+                    if crate::vars::array_names_at_target(
+                        &self.frames.borrow(),
+                        &self.namespaces.borrow(),
+                        &operation,
                     )
-                } else {
-                    let value = selected.as_ref().map_or_else(
-                        || self.var_get_elem(target.name().as_bytes(), key),
-                        |(array, element)| {
-                            crate::vars::get_element_at_target(
-                                &self.frames.borrow(),
-                                &self.namespaces.borrow(),
-                                array,
-                                key,
-                                *element,
+                    .is_some() =>
+                {
+                    if let Some((_, _, info, line)) = trace_failure {
+                        self.publish_and_reset_error();
+                        if let Some(error) = self.native_execution_refusal() {
+                            tcl_runtime_api::ArrayElementRead::HostRefusal(error)
+                        } else {
+                            tcl_runtime_api::ArrayElementRead::Missing(
+                                tcl_runtime_api::ArrayReadMiss::trace_error(Some(info), line),
+                            )
+                        }
+                    } else {
+                        let value = selected.as_ref().map_or_else(
+                            || self.var_get_elem(target.name_bytes(), key),
+                            |(array, element)| {
+                                crate::vars::get_element_at_target(
+                                    &self.frames.borrow(),
+                                    &self.namespaces.borrow(),
+                                    array,
+                                    key,
+                                    *element,
+                                )
+                            },
+                        );
+                        value.map_or_else(
+                            || {
+                                let miss = if live_was_array {
+                                    tcl_runtime_api::ArrayReadMiss::missing()
+                                } else {
+                                    tcl_runtime_api::ArrayReadMiss::lookup(error_code_list(&[
+                                        b"TCL",
+                                        b"LOOKUP",
+                                        b"VARNAME",
+                                        target.name_bytes(),
+                                    ]))
+                                };
+                                tcl_runtime_api::ArrayElementRead::Missing(miss)
+                            },
+                            tcl_runtime_api::ArrayElementRead::Value,
+                        )
+                    }
+                }
+                Some(operation) => {
+                    let invalidation = if crate::vars::array_target_is_set(
+                        &self.frames.borrow(),
+                        &self.namespaces.borrow(),
+                        &operation,
+                    ) {
+                        tcl_runtime_api::ArrayInvalidation::Retyped
+                    } else {
+                        tcl_runtime_api::ArrayInvalidation::Unset
+                    };
+                    trace_failure.map_or_else(
+                        || tcl_runtime_api::ArrayElementRead::ArrayInvalidated(invalidation),
+                        |(message, code, info, line)| {
+                            tcl_runtime_api::ArrayElementRead::TraceError(
+                                tcl_runtime_api::ArrayReadFailure::new_bytes(
+                                    message,
+                                    code,
+                                    Some(info),
+                                    Some(line),
+                                ),
                             )
                         },
-                    );
-                    value.map_or_else(
-                        || {
-                            let miss = if live_was_array {
-                                tcl_runtime_api::ArrayReadMiss::missing()
-                            } else {
-                                tcl_runtime_api::ArrayReadMiss::lookup(error_code_list(&[
-                                    b"TCL",
-                                    b"LOOKUP",
-                                    b"VARNAME",
-                                    target.name().as_bytes(),
-                                ]))
-                            };
-                            tcl_runtime_api::ArrayElementRead::Missing(miss)
-                        },
-                        tcl_runtime_api::ArrayElementRead::Value,
                     )
                 }
-            }
-            Some(operation) => {
-                let invalidation = if crate::vars::array_target_is_set(
-                    &self.frames.borrow(),
-                    &self.namespaces.borrow(),
-                    &operation,
-                ) {
-                    tcl_runtime_api::ArrayInvalidation::Retyped
-                } else {
-                    tcl_runtime_api::ArrayInvalidation::Unset
-                };
-                trace_failure.map_or_else(
-                    || tcl_runtime_api::ArrayElementRead::ArrayInvalidated(invalidation),
+                None => trace_failure.map_or_else(
+                    || {
+                        tcl_runtime_api::ArrayElementRead::ArrayInvalidated(
+                            tcl_runtime_api::ArrayInvalidation::Unset,
+                        )
+                    },
                     |(message, code, info, line)| {
                         tcl_runtime_api::ArrayElementRead::TraceError(
-                            tcl_runtime_api::ArrayReadFailure::new(
-                                String::from_utf8_lossy(&message),
+                            tcl_runtime_api::ArrayReadFailure::new_bytes(
+                                message,
                                 code,
                                 Some(info),
                                 Some(line),
                             ),
                         )
                     },
-                )
-            }
-            None => trace_failure.map_or_else(
-                || {
-                    tcl_runtime_api::ArrayElementRead::ArrayInvalidated(
-                        tcl_runtime_api::ArrayInvalidation::Unset,
-                    )
-                },
-                |(message, code, info, line)| {
-                    tcl_runtime_api::ArrayElementRead::TraceError(
-                        tcl_runtime_api::ArrayReadFailure::new(
-                            String::from_utf8_lossy(&message),
-                            code,
-                            Some(info),
-                            Some(line),
-                        ),
-                    )
-                },
-            ),
+                ),
+            },
         };
         if let tcl_runtime_api::ArrayElementRead::Value(value) = &outcome {
             // The selected element's retained cell is released immediately
@@ -5193,13 +9954,7 @@ impl Interp {
         }
         if selected_retained {
             if let Some((array, element)) = selected {
-                crate::vars::release_array_element_target(
-                    &mut self.frames.borrow_mut(),
-                    &mut self.namespaces.borrow_mut(),
-                    &array,
-                    key,
-                    element,
-                );
+                crate::vars::release_array_element_target(&array, key, element);
             }
         }
         outcome
@@ -5220,12 +9975,17 @@ impl Interp {
         if !self.traces_may_observe(name) {
             return None;
         }
-        let (base, elem) = crate::frame::split_array_ref(name);
+        let (base, elem) = match self.variable_name_parts(name) {
+            Ok(parts) => parts,
+            Err(_) => return Some(Code::Error),
+        };
         if elem.is_some() || (!self.var_is_array(&base) && self.var_exists(&base)) {
             return None;
         }
-        if !self.fire_var_trace(&base, None, b"array") {
-            return None;
+        match self.fire_var_trace(&base, None, b"array") {
+            Ok(VariableTraceGuestOutcome::Complete) => return None,
+            Ok(VariableTraceGuestOutcome::GuestError) => {}
+            Err(first) => return Some(self.refuse_native_execution(first)),
         }
         let msg = self
             .traces
@@ -5240,12 +10000,24 @@ impl Interp {
     /// access-aborting message, already wrapped as `can't read/set "var": <msg>`
     /// (`TclCallVarTraces`), else `None`. The `Traces::fire` engine (`state_traits.rs`)
     /// — it keeps the trace internals (the firing guard, `pending_err`, the
-    /// per-op wrapping) here; `unset`/`array` callback errors do not abort, so
-    /// they yield `None`.
-    pub(crate) fn fire_var_traces_for(&mut self, var: &[u8], op: &[u8]) -> Option<Vec<u8>> {
-        let (base, elem) = crate::frame::split_array_ref(var);
-        if !self.fire_var_trace(&base, elem.as_deref(), op) {
-            return None;
+    /// per-op wrapping) here. The selected trace coordinator decides which
+    /// operations propagate Guest errors; an original Host refusal is always
+    /// the outer error and reaches no Guest message formatting.
+    pub(crate) fn fire_var_traces_for(
+        &mut self,
+        var: &[u8],
+        op: &[u8],
+    ) -> Result<Option<Vec<u8>>, tcl_runtime_api::NativeExecutionError> {
+        self.check_entered_native_operation()?;
+        let Ok((base, elem)) = self.variable_name_parts(var) else {
+            self.check_entered_native_operation()?;
+            return Ok(None);
+        };
+        if !self
+            .fire_var_trace(&base, elem.as_deref(), op)?
+            .is_guest_error()
+        {
+            return Ok(None);
         }
         let raw = self
             .traces
@@ -5261,7 +10033,7 @@ impl Interp {
         m.extend_from_slice(var);
         m.extend_from_slice(b"\": ");
         m.extend_from_slice(&raw);
-        Some(m)
+        Ok(Some(m))
     }
 
     /// Fire matching command traces (`rename`/`delete`) as `command oldName
@@ -5290,6 +10062,9 @@ impl Interp {
         op_bit: u8,
         dying: Option<u64>,
     ) {
+        if self.host_refusal_pending() {
+            return;
+        }
         if self
             .traces
             .borrow()
@@ -5331,9 +10106,10 @@ impl Interp {
             b"delete"
         };
         // Preserve the result object across the callbacks.
-        let saved = self.result.get();
-        unsafe { obj::incr_ref_count(saved) };
-        let saved_options = self.take_return_options();
+        let saved = match self.save_native_command_trace_result(false) {
+            Ok(saved) => saved,
+            Err(_) => return,
+        };
 
         // Only `firing_cmd_traces` is raised, never `exec_firing`: C sets
         // `INTERP_TRACE_IN_PROGRESS` in exactly one place — `TraceExecutionProc`
@@ -5354,18 +10130,26 @@ impl Interp {
                 continue;
             }
             // Append `oldName newName op` as properly-quoted list elements.
-            let args = crate::list::new_list_obj(&[
-                new_string(old_fqn),
-                new_string(new_fqn),
-                new_string(op),
-            ]);
+            let args =
+                self.new_list_object(&[new_string(old_fqn), new_string(new_fqn), new_string(op)]);
             let mut line = cmd;
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
-            self.clear_return_options();
-            let _ = self.eval_str(&line);
-            self.restore_return_options(saved_options.clone());
+            self.reset_native_error_objects_before_trace_script();
+            if self.clear_return_options_checked().is_err() {
+                break;
+            }
+            let saved_script = match self.save_native_command_trace_result(true) {
+                Ok(saved) => saved,
+                Err(_) => break,
+            };
+            let _ = self.eval_native_command_trace_script(false, &line);
+            if let Some(saved) = saved_script {
+                if self.restore_native_variable_trace_result(saved).is_err() {
+                    break;
+                }
+            }
         }
         {
             let mut traces = self.traces.borrow_mut();
@@ -5375,11 +10159,9 @@ impl Interp {
             }
         }
 
-        unsafe {
-            obj::decr_ref_count(self.result.get());
-            self.result.set(saved);
+        if let Some(saved) = saved {
+            let _ = self.restore_native_variable_trace_result(saved);
         }
-        self.restore_return_options(saved_options);
     }
 
     /// The callback prefix of the live command/execution trace `id`, or `None`
@@ -5423,6 +10205,31 @@ impl Interp {
         self.traces.borrow().untraced_cmd_trace_ids.contains(&id)
     }
 
+    fn finish_saved_execution_result(
+        &self,
+        currency: &native_operation_currency::SavedNativeOperationCurrency,
+        saved: *mut TclObj,
+        saved_options: NativeReturnOptions,
+        restore: bool,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let cleanup =
+            native_operation_currency::NativeOperationScope::enter_saved_cleanup(currency, self)?;
+        let options_outcome = if restore {
+            let retired = self.result.replace(saved);
+            // SAFETY: publish the saved owning reference before retiring the
+            // callback result; neither role is borrowed under its destructor.
+            unsafe { obj::decr_ref_count(retired) };
+            self.restore_return_options_for_cleanup(saved_options, &cleanup)
+        } else {
+            // These are genuine discarded saved roles, not protective holds.
+            unsafe { obj::decr_ref_count(saved) };
+            drop(saved_options);
+            Ok(())
+        };
+        cleanup.check()?;
+        options_outcome
+    }
+
     /// Fire `enter` execution traces on `fqn` (creation order), invoking each as
     /// `<prefix> {cmd args} enter`. Returns `Some(code)` if a callback completed
     /// non-OK — the command is then aborted with that code and the callback's
@@ -5443,6 +10250,11 @@ impl Interp {
         if ids.is_empty() {
             return None;
         }
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return Some(self.refuse_native_execution(first)),
+        };
+        let saved_currency = native_operation_currency::SavedNativeOperationCurrency::capture(self);
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
         let saved_options = self.take_return_options();
@@ -5457,14 +10269,16 @@ impl Interp {
             let Some(cmd) = self.live_cmd_trace(id) else {
                 continue;
             };
-            let args = crate::list::new_list_obj(&[new_string(cmd_word), new_string(b"enter")]);
+            let args = self.new_list_object(&[new_string(cmd_word), new_string(b"enter")]);
             let mut line = cmd;
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
             self.traces.borrow_mut().firing_exec_traces.push(id);
-            self.clear_return_options();
-            let c = self.eval_str(&line);
+            let c = match self.clear_return_options_checked() {
+                Ok(()) => self.eval_native_command_trace_script(true, &line),
+                Err(first) => self.refuse_native_execution(first),
+            };
             self.traces.borrow_mut().firing_exec_traces.pop();
             if c != Code::Ok {
                 // The callback's result becomes the command's result; abort.
@@ -5473,15 +10287,14 @@ impl Interp {
             }
         }
         self.traces.borrow_mut().exec_firing -= 1;
-        if abort.is_some() {
-            // Drop the preserved result; the callback's result stands.
-            unsafe { obj::decr_ref_count(saved) };
-        } else {
-            unsafe {
-                obj::decr_ref_count(self.result.get());
-                self.result.set(saved);
-            }
-            self.restore_return_options(saved_options);
+        let cleanup = self.finish_saved_execution_result(
+            &saved_currency,
+            saved,
+            saved_options,
+            abort.is_none(),
+        );
+        if let Err(first) = scope.currency().ensure_current_or_refuse().and(cleanup) {
+            return Some(self.refuse_native_execution(first));
         }
         abort
     }
@@ -5515,6 +10328,11 @@ impl Interp {
         // result is NOT restored *between* callbacks: each leave callback's
         // `<result>` element is the live result, so a callback that changes the
         // result is observed by the next one.
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return self.refuse_native_execution(first),
+        };
+        let saved_currency = native_operation_currency::SavedNativeOperationCurrency::capture(self);
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
         let saved_options = self.take_return_options();
@@ -5532,7 +10350,7 @@ impl Interp {
                 continue;
             };
             let result_bytes = obj_bytes(self.result.get());
-            let args = crate::list::new_list_obj(&[
+            let args = self.new_list_object(&[
                 new_string(cmd_word),
                 new_string(&code_str),
                 new_string(&result_bytes),
@@ -5543,8 +10361,10 @@ impl Interp {
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
             self.traces.borrow_mut().firing_exec_traces.push(id);
-            self.clear_return_options();
-            let c = self.eval_str(&line);
+            let c = match self.clear_return_options_checked() {
+                Ok(()) => self.eval_native_command_trace_script(true, &line),
+                Err(first) => self.refuse_native_execution(first),
+            };
             self.traces.borrow_mut().firing_exec_traces.pop();
             if c != Code::Ok {
                 override_code = Some(c);
@@ -5553,53 +10373,21 @@ impl Interp {
         }
         self.traces.borrow_mut().exec_firing -= 1;
 
-        match override_code {
-            // A leave-trace error/return overrides; the callback's result stands.
-            Some(c) => {
-                unsafe { obj::decr_ref_count(saved) };
-                c
-            }
-            // Restore the command's own result and code.
-            None => {
-                unsafe {
-                    obj::decr_ref_count(self.result.get());
-                    self.result.set(saved);
-                }
-                self.restore_return_options(saved_options);
-                code
-            }
+        let cleanup = self.finish_saved_execution_result(
+            &saved_currency,
+            saved,
+            saved_options,
+            override_code.is_none(),
+        );
+        if let Err(first) = scope.currency().ensure_current_or_refuse().and(cleanup) {
+            return self.refuse_native_execution(first);
         }
+        override_code.unwrap_or(code)
     }
 
-    /// The name a command's identity lives under now, following any open
-    /// `rename` window (see [`crate::cmd_trace::TraceTable::rename_windows`]) —
-    /// `None` outside one. Inside a rename's callbacks the vacating name still
-    /// resolves, but it *is* the destination command, so a `trace`, a `rename`
-    /// or a delete through it must reach the destination's state.
-    pub(crate) fn renamed_cmd_key(&self, fqn: &[u8]) -> Option<Vec<u8>> {
-        self.traces
-            .borrow()
-            .rename_windows
-            .iter()
-            .find(|(from, _)| from == fqn)
-            .map(|(_, to)| to.clone())
-    }
-
-    /// A command moved `old_fqn` → `new_fqn`: point every open `rename` window
-    /// and every in-flight firing record that named the old key at the new one.
-    /// C needs no equivalent — both its hash entries reference one `Command`, so
-    /// a nested rename cannot strand them — but our name-keyed state would
-    /// otherwise be left on a name the move just vacated: an enclosing window
-    /// would stop answering through the vacating name, and the
-    /// `firing_cmd_traces` record standing in for `CMD_TRACE_ACTIVE` would stop
-    /// suppressing the command's own remaining callbacks.
+    /// Keep a moved token's in-flight trace suppression attached to that token.
     fn relocate_rename_state(&self, old_fqn: &[u8], new_fqn: &[u8], generation: u64) {
         let mut traces = self.traces.borrow_mut();
-        for (_, destination) in &mut traces.rename_windows {
-            if destination == old_fqn {
-                *destination = new_fqn.to_vec();
-            }
-        }
         for (firing, token) in &mut traces.firing_cmd_traces {
             if firing == old_fqn && *token == Some(generation) {
                 *firing = new_fqn.to_vec();
@@ -5631,12 +10419,18 @@ impl Interp {
     /// Whether `name` resolves to an array variable (`set a` array-vs-scalar
     /// diagnostic, `array exists`).
     pub(crate) fn var_is_array(&self, name: &[u8]) -> bool {
-        crate::vars::is_array(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
+        if self.require_variable_name_protocol().is_err() {
+            return false;
+        };
+        self.with_captured_byte_variable(
             self.current_ns.get(),
+            None,
             name,
+            None,
+            false,
+            |place, currency| place.is_array(self, currency),
         )
+        .unwrap_or(false)
     }
 
     /// Resolve a `global`/`variable`/`upvar` name argument to its
@@ -5648,11 +10442,23 @@ impl Interp {
         context_ns: NsId,
         name: &[u8],
     ) -> Option<(NsId, Vec<u8>)> {
-        if tcl_syntax::naming::is_qualified(name) {
+        let protocol = self.require_variable_name_protocol().ok()?;
+        let input = protocol.variable_root_input(name);
+        if protocol.is_jim084()
+            || input.qualification() != tcl_syntax::naming::NativeNameQualification::Unqualified
+        {
             self.namespaces.borrow().var_home(context_ns, name)
         } else {
-            Some((context_ns, name.to_vec()))
+            Some((context_ns, input.selected().to_vec()))
         }
+    }
+
+    /// Qualification selected from the original variable operand.
+    pub(crate) fn variable_is_qualified(&self, name: &[u8]) -> bool {
+        self.require_variable_name_protocol().is_ok_and(|protocol| {
+            protocol.variable_root_input(name).qualification()
+                != tcl_syntax::naming::NativeNameQualification::Unqualified
+        })
     }
 
     /// The current call-frame level (`upvar` relative-level arithmetic).
@@ -5662,41 +10468,26 @@ impl Interp {
 
     /// `variable tail` / `global tail` — link `tail` in the current frame to
     /// `target_ns::tail` (a no-op when the current context already is that var).
-    pub(crate) fn make_variable(&mut self, target_ns: NsId, tail: &[u8]) {
-        self.note_variable_link(tail, tail);
-        crate::vars::make_variable(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            self.current_ns.get(),
-            target_ns,
-            tail,
-        );
+    pub(crate) fn make_variable(&mut self, target_ns: NsId, tail: &[u8]) -> Code {
+        self.make_variable_mapped(target_ns, tail, tail)
     }
 
-    /// Link local name `local` to `target_ns::target` (TIP 500 private instance
-    /// variables, whose storage name is mangled per declaring class).
-    pub(crate) fn make_variable_mapped(&mut self, target_ns: NsId, local: &[u8], target: &[u8]) {
-        self.note_variable_link(local, target);
-        crate::vars::make_variable_mapped(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            self.current_ns.get(),
-            target_ns,
-            local,
-            target,
-        );
-    }
-
-    /// Install an automatic `TclOO` instance-variable projection in the active
-    /// method frame.
-    pub(crate) fn make_tcloo_variable_mapped(
+    /// Generic publication preserves adoption before old-role retirement.
+    pub(crate) fn make_variable_mapped(
         &mut self,
         target_ns: NsId,
         local: &[u8],
         target: &[u8],
-    ) {
+    ) -> Code {
         self.note_variable_link(local, target);
-        crate::vars::make_tcloo_variable_mapped(
+        let operation = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(operation) => operation,
+            Err(first) => return self.refuse_native_execution(first),
+        };
+        if let Err(error) = self.require_variable_name_protocol() {
+            return crate::builtins::var_error(self, local, error);
+        }
+        let publication = crate::vars::publish_variable_mapped(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             self.current_ns.get(),
@@ -5704,15 +10495,38 @@ impl Interp {
             local,
             target,
         );
+        self.finish_generic_variable_link(publication, operation.currency(), local)
     }
 
-    /// The fully-qualified name of an existing namespace `name` (absolute or
-    /// relative to the current namespace), or `None` if it does not exist —
-    /// for `definitionnamespace`, which requires the namespace to exist.
-    pub(crate) fn resolve_namespace_name(&self, name: &[u8]) -> Option<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        let id = ns.find_namespace(self.current_ns.get(), name)?;
-        Some(ns.qualified_name(id))
+    fn finish_generic_variable_link(
+        &mut self,
+        publication: crate::vars::PublishedVariableLink,
+        currency: &native_operation_currency::NativeOperationCurrency,
+        local: &[u8],
+    ) -> Code {
+        match publication.finish(self, currency) {
+            Ok(()) => Code::Ok,
+            Err(crate::frame::JimLinkStoreError::Command(error)) => self.report_cmd_error(error),
+            Err(crate::frame::JimLinkStoreError::Variable(error)) => {
+                crate::builtins::var_error(self, local, error)
+            }
+        }
+    }
+
+    /// Report an existing namespace only after the selected byte-address lookup.
+    pub(crate) fn resolve_namespace_name(
+        &self,
+        name: &[u8],
+    ) -> Result<Option<Vec<u8>>, tcl_syntax::value::ValueError> {
+        let current = u32::try_from(self.current_ns()).map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("namespace context width")
+        })?;
+        let selected = tcl_runtime_api::Namespaces::find_namespace_bytes_checked(
+            self,
+            tcl_runtime_api::NsId(current),
+            name,
+        )?;
+        Ok(selected.map(|namespace| self.namespaces().qualified_name(namespace.0 as usize)))
     }
 
     /// Resolve (creating if needed) a namespace by name, relative to the current
@@ -5730,18 +10544,13 @@ impl Interp {
     /// where the command and its owned namespace must both join the dying
     /// generation.
     pub(crate) fn ensure_command_owned_namespace(&mut self, name: &[u8]) -> NsId {
-        self.invalidate_command_environment();
         self.namespaces
             .borrow_mut()
             .ensure_command_owned_namespace(self.current_ns.get(), name)
     }
 
-    /// Resolve (creating if needed) a namespace by name, anchored at the
-    /// **global** namespace regardless of the current one — C's
-    /// `TclGetNamespaceForQualName(..., TCL_GLOBAL_ONLY |
-    /// TCL_CREATE_NS_IF_UNKNOWN)`. Used by `interp invokehidden -namespace`:
-    /// `-namespace bar` names `::bar` even when called from inside another
-    /// namespace (tclsh 9.0.4-pinned).
+    /// Create an internal test namespace from the global token.
+    #[cfg(test)]
     pub(crate) fn ensure_global_namespace(&mut self, name: &[u8]) -> NsId {
         self.invalidate_command_environment();
         self.namespaces.borrow_mut().ensure_namespace(GLOBAL, name)
@@ -5750,8 +10559,34 @@ impl Interp {
     /// Delete the namespace `ns` (by id), e.g. an OO object's instance namespace
     /// when the object is destroyed.
     pub(crate) fn delete_namespace_by_id(&mut self, ns: NsId) {
+        let recipe = self.original_command_deletion_recipe();
+        if let Some(recipe) = recipe {
+            self.original_command_retirement_recipes
+                .borrow_mut()
+                .push(recipe);
+        }
+        self.delete_namespace_by_id_using(ns);
+        if recipe.is_some() {
+            let _ = self.original_command_retirement_recipes.borrow_mut().pop();
+        }
+    }
+
+    fn delete_namespace_by_id_using(&mut self, ns: NsId) {
+        // The reached namespace cleanup keeps its original receipt through
+        // every extracted table/key release, including a refused entry.
+        let saved = native_operation_currency::SavedNativeOperationCurrency::capture(self);
+        let cleanup = match native_operation_currency::NativeOperationScope::enter_saved_cleanup(
+            &saved, self,
+        ) {
+            Ok(cleanup) => cleanup,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return;
+            }
+        };
         self.invalidate_command_environment();
         if self.defer_namespace_teardown(ns) {
+            let _ = cleanup.check();
             return;
         }
         let teardown_ids = self.namespaces.borrow().descendant_ids(ns);
@@ -5760,11 +10595,19 @@ impl Interp {
         // with fresh objects at the same Tcl-facing name. Descendants receive
         // the same check when recursion reaches their own token.
         self.oo_namespace_deleted(ns);
+        let native_error_reset = ns == GLOBAL && !self.native_error_cells.borrow().is_empty();
+        if ns == GLOBAL {
+            self.native_error_cells.borrow_mut().clear();
+        }
         self.delete_namespace_token(ns);
         self.sweep_dying_namespace(ns, &teardown_ids);
         self.namespaces
             .borrow_mut()
             .finish_namespace_teardown(&teardown_ids);
+        if cleanup.check().is_ok() && native_error_reset {
+            self.install_native_error_variable_traces();
+        }
+        let _ = cleanup.check();
     }
 
     /// C's `activationCount > (nsPtr == globalNsPtr)` branch of
@@ -5778,7 +10621,9 @@ impl Interp {
             return false;
         }
         self.retire_namespace_owned_ensembles(ns);
-        self.namespaces.borrow_mut().defer_namespace(ns);
+        self.retire_namespace_unknown_root(ns);
+        let retired = self.namespaces.borrow_mut().defer_namespace(ns);
+        drop(retired);
         true
     }
 
@@ -5836,19 +10681,39 @@ impl Interp {
     /// this token becomes dying and loses its ordinary command table. Children
     /// receive the same lifecycle recursively after the parent's callbacks.
     fn delete_namespace_token(&mut self, ns: NsId) {
-        // Variables in this namespace are about to be unset. Names are captured
-        // while the token is live, then callbacks run after this exact token is
-        // marked dying (C's order; oo-11.8).
-        let victims = self.take_ns_unset_traces(ns);
-        // Ensemble commands are tied to their configured namespace, even when
-        // their binding lives elsewhere (for example the default global `::ns`
-        // command), so they retire before this token is marked dying. Every
-        // other command in the table retires one token at a time below.
+        if self
+            .require_variable_name_protocol()
+            .is_ok_and(|protocol| protocol.is_jim084())
+        {
+            let qualified = self.namespaces.borrow().qualified_name(ns);
+            let key = tcl_syntax::naming::jim_global_variable_key_bytes(b"", &qualified);
+            let prefix = (!key.is_empty()).then(|| [key.as_slice(), b"::"].concat());
+            let names = self.namespaces.borrow().var_names(GLOBAL);
+            for name in names.into_iter().filter(|name| {
+                prefix
+                    .as_ref()
+                    .is_none_or(|prefix| name.starts_with(prefix))
+            }) {
+                let absolute = [b"::".as_slice(), &name].concat();
+                self.var_unset(&absolute);
+            }
+        }
         self.retire_namespace_owned_ensembles(ns);
+        self.retire_namespace_unknown_root(ns);
+        // Keep this token's original variable path during its callbacks. Its
+        // public namespace identity is dying; the parent edge retires afterwards.
+        self.namespaces
+            .borrow_mut()
+            .begin_namespace_variable_teardown(ns);
+        self.retire_namespace_variables(ns);
         self.namespaces.borrow_mut().begin_namespace_teardown(ns);
-        self.namespaces.borrow_mut().clear_namespace_token(ns);
-        self.fire_unset_callbacks(victims);
+        let retired = self.namespaces.borrow_mut().clear_namespace_token(ns);
+        drop(retired);
+        let _ = self.check_entered_native_operation();
         self.tear_down_command_table(ns);
+        self.namespaces
+            .borrow_mut()
+            .finish_native_namespace_command_path(ns);
 
         // Tcl snapshots and recursively deletes children only after this
         // token's ordinary command callbacks have completed. A callback may
@@ -5859,11 +10724,14 @@ impl Interp {
                 self.delete_namespace_token_checked(child);
             }
         }
+        self.namespaces
+            .borrow_mut()
+            .namespace_name_finish_deletion(ns);
     }
 
-    /// Delete one dying namespace's command table the way `TclTeardownNamespace`
-    /// does: snapshot `cmdTable` in `Tcl_FirstHashEntry` order, then delete each
-    /// snapshotted token in turn, repeating while the table is non-empty.
+    /// Delete one dying namespace's command table in its selected C traversal:
+    /// Tcl 8.4/8.5 select the first entry again after each command; Tcl 8.6/9
+    /// retain each complete table frontier until that deletion pass finishes.
     ///
     /// Each token's `delete` traces fire while its entry is still in the table
     /// (`Tcl_DeleteCommandFromToken` calls `CallCommandTraces` before
@@ -5873,8 +10741,22 @@ impl Interp {
     /// `CMD_DYING` early return then leaves the replacement to the next
     /// snapshot.
     fn tear_down_command_table(&mut self, ns: NsId) {
+        if self.uses_original_c_command_retirement() {
+            self.retire_original_namespace_command_table(ns);
+            return;
+        }
+
+        // Native proof: naming.namespace.original-command-holder-routing
+
+        // The public callback rows and pinned C teardown traversal stay separate.
+        let traversal = self
+            .name_policy_protocol()
+            .and_then(|policy| policy.recipe().namespace_command_teardown());
         loop {
-            let snapshot = self.namespaces.borrow().command_hash_order(ns);
+            let mut snapshot = self.namespaces.borrow().command_hash_order(ns);
+            if let Some(traversal) = traversal {
+                snapshot.truncate(traversal.frontier_len(snapshot.len()));
+            }
             if snapshot.is_empty() {
                 break;
             }
@@ -5883,7 +10765,9 @@ impl Interp {
                 if self.namespaces.borrow().command_generation(ns, &tail) != Some(generation) {
                     continue;
                 }
-                self.on_bound_command_replaced(ns, &tail);
+                if self.check_entered_native_operation().is_ok() {
+                    self.on_bound_command_replaced(ns, &tail);
+                }
                 if self.namespaces.borrow().command_generation(ns, &tail) != Some(generation) {
                     // The callback deleted this token, or redefined the name:
                     // its own deletion already unlinked the entry, and any
@@ -5898,6 +10782,10 @@ impl Interp {
                 };
                 let oo_owner = command.as_ref().and_then(Command::oo_object);
                 self.namespaces.borrow_mut().remove_in(ns, &tail);
+                drop(command);
+                if let Err(first) = self.retire_pending_native_ensemble_roles() {
+                    self.refuse_native_execution(first);
+                }
                 self.remove_imports_for_deleted_origins([generation], &ensemble_tokens);
                 if let Some(owner) = oo_owner {
                     self.oo_command_renamed(owner, None);
@@ -5925,6 +10813,11 @@ impl Interp {
     /// delete callbacks ran. The detached namespace remains command-addressable
     /// during this sweep, but never reappears in the visible namespace tree.
     fn sweep_dying_namespace(&mut self, root: NsId, retained_ids: &[NsId]) {
+        if self.uses_original_c_command_retirement() {
+            self.sweep_original_dying_namespace(root, retained_ids);
+            return;
+        }
+
         // A child whose own frame was still running deferred its teardown; it
         // and its subtree keep every binding they had until that frame pops.
         let mut ids: Vec<NsId> = {
@@ -5984,7 +10877,9 @@ impl Interp {
             for (id, tail) in &new_slots {
                 // Callback-created command traces fire while the command is
                 // still addressable through the dying namespace token.
-                self.on_bound_command_replaced(*id, tail);
+                if self.check_entered_native_operation().is_ok() {
+                    self.on_bound_command_replaced(*id, tail);
+                }
                 traced.insert((*id, tail.clone()));
             }
 
@@ -6027,7 +10922,46 @@ impl Interp {
         );
         self.remove_imports_for_deleted_origins(origins.iter().copied(), &tokens);
         let cleared = self.namespaces.borrow().command_locations_in_ids(&ids);
-        self.namespaces.borrow_mut().clear_namespace_ids(&ids);
+        if self
+            .name_policy_protocol()
+            .is_some_and(|policy| policy.recipe().is_jim084())
+        {
+            // The residual fixed-point sweep may contain callback-created Jim
+            // slots. Retire each captured generation before variable/namespace
+            // cleanup; an original key destructor runs outside the borrow.
+            let slots = {
+                let namespaces = self.namespaces.borrow();
+                namespaces
+                    .command_slots_in_ids(&ids)
+                    .into_iter()
+                    .filter_map(|(ns, tail)| {
+                        Some((ns, tail.clone(), namespaces.command_generation(ns, &tail)?))
+                    })
+                    .collect::<Vec<_>>()
+            };
+            for (ns, tail, generation) in slots {
+                {
+                    let mut namespaces = self.namespaces.borrow_mut();
+                    if namespaces.command_generation(ns, &tail) == Some(generation) {
+                        namespaces.remove_in(ns, &tail);
+                    }
+                }
+                if let Err(first) = self.retire_pending_native_ensemble_roles() {
+                    self.refuse_native_execution(first);
+                }
+            }
+            // A destructor may publish a distinct new slot. It needs the
+            // existing fresh teardown frontier and callbacks, never the old
+            // captured generation's authority or a blind bulk removal.
+            for &ns in &ids {
+                self.tear_down_command_table(ns);
+            }
+        }
+        let retired = self.namespaces.borrow_mut().clear_namespace_ids(&ids);
+        if let Err(first) = self.retire_pending_native_ensemble_roles() {
+            self.refuse_native_execution(first);
+        }
+        drop(retired);
         for (fqn, generation) in cleared {
             self.remove_cmd_traces_of_token(&fqn, Some(generation));
         }
@@ -6043,109 +10977,20 @@ impl Interp {
         report_name: &[u8],
         report_elem: &[u8],
     ) -> Vec<VarTeardownCallback> {
+        let cell = self.variable_trace_scope(home, elem);
         self.traces
             .borrow()
             .traces
             .iter()
             .rev()
-            .filter(|t| {
-                crate::cmd_trace::same_variable(t, &home.base, home.ns, home.level)
-                    && t.elem.as_deref() == elem
-                    && t.ops.iter().any(|o| o == b"unset")
-            })
+            .filter(|trace| cell.owns_registration(trace) && cell.matches(trace, b"unset"))
             .map(|t| {
                 (
                     report_name.to_vec(),
                     report_elem.to_vec(),
-                    t.command.clone(),
+                    native_variable_observers::Callback::from_trace(t),
                     t.old_style,
                 )
-            })
-            .collect()
-    }
-
-    /// Remove and return the `(fullName, command)` of every *unset* variable
-    /// trace registered directly on a namespace variable in `ns`. Descendants
-    /// retain their traces until recursive teardown reaches their own token.
-    fn take_ns_unset_traces(&self, ns: NsId) -> Vec<VarTeardownCallback> {
-        if self.traces.borrow().traces.iter().all(|t| t.ns.is_none()) {
-            return Vec::new();
-        }
-        let mut victims = Vec::new();
-        let mut traces = self.traces.borrow_mut();
-        let old_len = traces.traces.len();
-        let ns_ref = self.namespaces.borrow();
-        traces.traces.retain(|t| {
-            let hit =
-                t.ns.is_some_and(|n| n == ns && t.ops.iter().any(|o| o == b"unset"));
-            if hit {
-                let home = t.ns.unwrap();
-                let mut fqn = ns_ref.qualified_name(home);
-                if fqn != b"::" {
-                    fqn.extend_from_slice(b"::");
-                }
-                // `base` may be qualified (registered as `::n::x`); use its
-                // simple tail under the home namespace.
-                let simple = match t.base.windows(2).rposition(|w| w == b"::") {
-                    Some(i) => &t.base[i + 2..],
-                    None => &t.base[..],
-                };
-                fqn.extend_from_slice(simple);
-                if let Some(e) = &t.elem {
-                    fqn.push(b'(');
-                    fqn.extend_from_slice(e);
-                    fqn.push(b')');
-                }
-                victims.push((fqn, Vec::new(), t.command.clone(), t.old_style));
-            }
-            !hit
-        });
-        let removed = traces.traces.len() != old_len;
-        drop(ns_ref);
-        drop(traces);
-        if removed {
-            self.invalidate_guard_domain(GuardDomain::VariableTrace);
-        }
-        // Grouped per variable, newest-first inside each group — see
-        // [`Self::group_newest_first_per_entity`].
-        Self::group_newest_first_per_entity(victims, |victim| victim.0.clone())
-    }
-
-    /// Order a namespace's collected teardown callbacks the way C fires them.
-    ///
-    /// C tears a namespace down one entity at a time — a per-`Var` loop for
-    /// variables, a per-`Command` loop for commands — and each of those
-    /// completes that entity's whole trace list before the next entity starts.
-    /// So an entity's callbacks are **contiguous**, and within an entity the
-    /// newest registration fires first (the list is prepended and walked head
-    /// to tail).
-    ///
-    /// We collect with `retain` over one flat, registration-ordered Vec, which
-    /// interleaves entities. Regroup it: entities keep the order they were
-    /// first seen, each group runs newest-first. *Which* entity comes first is
-    /// C's hash-table walk and is deliberately not pinned — but that a group is
-    /// contiguous is pinned regardless of hash order, which a flat reverse got
-    /// wrong (`A1 B1 A2 B2` fired `B2 A2 B1 A1`, not C's `A2 A1 B2 B1`).
-    fn group_newest_first_per_entity<T>(victims: Vec<T>, key: impl Fn(&T) -> Vec<u8>) -> Vec<T> {
-        let mut order: Vec<Vec<u8>> = Vec::new();
-        let mut groups: std::collections::HashMap<Vec<u8>, Vec<T>> =
-            std::collections::HashMap::new();
-        for victim in victims {
-            let entity = key(&victim);
-            groups
-                .entry(entity.clone())
-                .or_insert_with(|| {
-                    order.push(entity);
-                    Vec::new()
-                })
-                .push(victim);
-        }
-        order
-            .into_iter()
-            .flat_map(|key| {
-                let mut group = groups.remove(&key).unwrap_or_default();
-                group.reverse();
-                group
             })
             .collect()
     }
@@ -6153,19 +10998,33 @@ impl Interp {
     /// Fire collected unset-trace callbacks as `command name {} unset`. Errors
     /// are ignored (an unset trace's result is discarded, as in C).
     fn fire_unset_callbacks(&mut self, victims: Vec<VarTeardownCallback>) {
-        if victims.is_empty() {
+        if self.host_refusal_pending() || victims.is_empty() {
             return;
         }
-        let saved = self.result.get();
-        unsafe { obj::incr_ref_count(saved) };
-        let saved_options = self.take_return_options();
+        let saved = match self.save_native_variable_trace_result(false) {
+            Ok(saved) => saved,
+            Err(_) => return,
+        };
         for (name, elem, cmd, old_style) in victims {
+            if self.check_entered_native_operation().is_err() {
+                break;
+            }
+            if let native_variable_observers::Callback::Native(observer) = &cmd {
+                self.call_native_variable_observer(observer.clone(), &name, &elem, "unset");
+                if self.check_entered_native_operation().is_err() {
+                    break;
+                }
+                continue;
+            }
+            let native_variable_observers::Callback::Script(cmd) = cmd else {
+                unreachable!()
+            };
             // A trace registered the deprecated way is called with the `rwua`
             // letter, not the operation name — the teardown path must honour
             // that exactly as the explicit-unset path does (`TraceVarProc`,
             // tclTrace.c 8.6.16:2002-2011).
             let op = tcl_cmd_core::trace::callback_op_word("unset", old_style);
-            let args = crate::list::new_list_obj(&[
+            let args = self.new_list_object(&[
                 new_string(&name),
                 new_string(&elem),
                 new_string(op.as_bytes()),
@@ -6174,15 +11033,24 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
-            self.clear_return_options();
+            if self.clear_return_options_checked().is_err() {
+                break;
+            }
+            let saved_script = match self.save_native_variable_trace_result(true) {
+                Ok(saved) => saved,
+                Err(_) => break,
+            };
             let _ = self.eval_str(&line);
-            self.restore_return_options(saved_options.clone());
+            if let Some(saved_script) = saved_script {
+                let _ = self.restore_native_variable_trace_result(saved_script);
+            }
+            if self.check_entered_native_operation().is_err() {
+                break;
+            }
         }
-        unsafe {
-            obj::decr_ref_count(self.result.get());
-            self.result.set(saved);
+        if let Some(saved) = saved {
+            let _ = self.restore_native_variable_trace_result(saved);
         }
-        self.restore_return_options(saved_options);
     }
 
     /// Resolve a (relative/absolute) namespace name to its id, or `None`.
@@ -6192,48 +11060,43 @@ impl Interp {
             .find_namespace(self.current_ns.get(), name)
     }
 
-    /// Namespace lookup for defining a qualified command. A detached dying
-    /// namespace is intentionally invisible to namespace introspection but its
-    /// retained command table remains a valid definition target until the
-    /// teardown callback sweep completes.
-    pub(crate) fn find_command_namespace_id(&self, name: &[u8]) -> Option<NsId> {
-        let namespaces = self.namespaces.borrow();
-        namespaces
-            .find_namespace(self.current_ns.get(), name)
-            .or_else(|| namespaces.dying_namespace(self.current_ns.get(), name))
-    }
-
     // introspection (`info` / `array`)
 
     /// `info exists name` — whether a scalar/array/element variable is set
     /// (splitting `arr(key)`).
     pub(crate) fn var_exists(&self, name: &[u8]) -> bool {
-        let (base, elem) = crate::frame::split_array_ref(name);
-        match elem {
-            Some(k) => crate::vars::exists_elem(
-                &self.frames.borrow(),
-                &self.namespaces.borrow(),
-                self.current_ns.get(),
-                &base,
-                &k,
-            ),
-            None => crate::vars::exists(
-                &self.frames.borrow(),
-                &self.namespaces.borrow(),
-                self.current_ns.get(),
-                &base,
-            ),
+        if self.observed_names.borrow().is_some() {
+            let level = self.frames.borrow().current_level();
+            return self.observed_variable_exists(name, level).unwrap_or(false);
         }
+        let Ok(input) = self.combined_variable_input(name) else {
+            return false;
+        };
+        let base = input.root().selected();
+        self.with_captured_byte_variable(
+            self.current_ns.get(),
+            None,
+            base,
+            input.element().map(|element| element.selected()),
+            false,
+            |place, currency| place.exists(self, currency),
+        )
+        .unwrap_or(false)
     }
 
     /// The element names of array `name` (`array names`/`get`), or `None`.
     pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<Vec<u8>>> {
-        crate::vars::array_names(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
+        self.require_variable_name_protocol().ok()?;
+        self.with_captured_byte_variable(
             self.current_ns.get(),
+            None,
             name,
+            None,
+            false,
+            |place, currency| place.array_names(self, currency),
         )
+        .ok()
+        .flatten()
     }
 
     /// The invoking command words at call `level` (`info level N`), or `None`
@@ -6246,32 +11109,11 @@ impl Interp {
             .map(<[Vec<u8>]>::to_vec)
     }
 
-    /// Simple command names in the namespace named `qualifier` (absolute or
-    /// relative to the current namespace), or empty if it does not exist. Used by
-    /// `cmd_oo` for ensemble/method enumeration. (`info commands`/`procs` listing
-    /// is the shared `tcl_cmd_core::info::command_list` core.)
-    pub(crate) fn commands_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
-        let target = {
-            let ns = self.namespaces.borrow();
-            // An empty qualifier (a leading `::pattern`) addresses the global ns.
-            if qualifier.is_empty() {
-                Some(GLOBAL)
-            } else {
-                ns.find_namespace(self.current_ns.get(), qualifier)
-            }
-        };
-        target.map_or_else(Vec::new, |id| self.visible_command_names_in(id))
-    }
-
     /// The directly-bound command names that the selected runtime surface
     /// permits callers to enumerate. This is the common filter behind the
     /// `info commands` adapter and internal namespace listings.
     pub(crate) fn visible_command_names_in(&self, id: NsId) -> Vec<Vec<u8>> {
         let ns = self.namespaces.borrow();
-        let mut prefix = ns.qualified_name(id);
-        if prefix != b"::" {
-            prefix.extend_from_slice(b"::");
-        }
         ns.command_names(id)
             .iter()
             .filter_map(|name| {
@@ -6284,12 +11126,45 @@ impl Interp {
                 // the exact generation too, so a renamed builtin is gated by
                 // the same stable registry identity as dispatch.
                 let command = ns.command_in(id, name)?;
-                let mut fqn = prefix.clone();
-                fqn.extend_from_slice(name);
-                self.command_visible_for_surface_at(&command, &fqn, ns.command_generation(id, name))
+                self.command_visible_for_surface_at(&command, ns.command_generation(id, name))
                     .then(|| name.to_vec())
             })
             .collect()
+    }
+
+    /// Actual original Jim table reports, filtered using their independent comparison slots.
+    pub(crate) fn visible_command_report_names_in(&self, id: NsId) -> Vec<Vec<u8>> {
+        let names = self.visible_command_names_in(id);
+        let namespaces = self.namespaces();
+        names
+            .iter()
+            .map(|name| namespaces.command_table_report_name(id, name).to_vec())
+            .collect()
+    }
+
+    /// Report original table keys only for actual visible Jim alias bindings.
+    pub(crate) fn visible_alias_report_names_in(
+        &self,
+        id: NsId,
+    ) -> Result<Vec<Vec<u8>>, tcl_syntax::value::ValueError> {
+        if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_none()
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim alias inventory issuer",
+            ));
+        }
+        let names = self.visible_command_names_in(id);
+        let namespaces = self.namespaces();
+        Ok(names
+            .iter()
+            .filter_map(|name| {
+                matches!(namespaces.command_in(id, name), Some(Command::Alias { .. }))
+                    .then(|| namespaces.command_table_report_name(id, name).to_vec())
+            })
+            .collect())
     }
 
     /// The unqualified names of `id`'s commands that `namespace import`
@@ -6311,39 +11186,46 @@ impl Interp {
 
     /// The proc definition bound to `name` (for `info body`/`args`/`default`).
     pub(crate) fn proc_def(&self, name: &[u8]) -> Option<Rc<ProcDef>> {
-        let mut cmd = self
-            .namespaces
-            .borrow()
-            .resolve(self.current_ns.get(), name)?;
-        // Follow `namespace import` redirects to the underlying proc, so
-        // `info args`/`body`/`default` work on an imported proc (info-1.7/2.4).
-        for _ in 0..64 {
-            match cmd {
-                Command::Proc(def) => return Some(def),
-                Command::Imported {
-                    source,
-                    source_generation,
-                    ensemble,
-                    ..
-                } if ensemble.as_ref().is_none_or(|token| token.is_deleted()) => {
-                    cmd = self.resolve_import_source(&source, source_generation)?;
-                }
-                _ => return None,
-            }
+        let target = self.resolve_import_query(
+            self.import_query_binding(name)?,
+            ImportQueryPurpose::Introspection,
+        )?;
+        match target.command {
+            Command::Proc(def) => Some(def.declaration()),
+            _ => None,
         }
-        None
+    }
+
+    /// Capture the selected target cell before installing an element alias.
+    pub(crate) fn prepare_upvar_target(&mut self, target: &mut Link) -> Result<(), VarError> {
+        if self.observed_names.borrow().is_some() {
+            return self.observed_refusal();
+        }
+        crate::vars::prepare_upvar_target(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            target,
+        )
     }
 
     /// `upvar` — link `local` in the current frame to the resolved `target`.
-    pub(crate) fn make_upvar(&mut self, target: Link, local: &[u8]) {
+    pub(crate) fn make_upvar(&mut self, target: Link, local: &[u8]) -> Code {
         self.note_variable_link(local, &target.name);
-        crate::vars::make_upvar(
+        let operation = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(operation) => operation,
+            Err(first) => return self.refuse_native_execution(first),
+        };
+        if let Err(error) = self.require_variable_name_protocol() {
+            return crate::builtins::var_error(self, local, error);
+        }
+        let publication = crate::vars::publish_upvar(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             self.current_ns.get(),
             target,
             local,
         );
+        self.finish_generic_variable_link(publication, operation.currency(), local)
     }
 
     /// The storage resolver's lifetime check for an `upvar` alias.
@@ -6359,30 +11241,84 @@ impl Interp {
 
     /// `upvar … target ns::tail` — install the link as namespace variable
     /// `home_ns::tail` (a qualified local name).
-    pub(crate) fn make_upvar_in(&mut self, home_ns: NsId, tail: &[u8], target: Link) {
+    pub(crate) fn make_upvar_in(&mut self, home_ns: NsId, tail: &[u8], target: Link) -> Code {
         self.note_variable_link(tail, &target.name);
-        crate::vars::make_upvar_in(
+        let operation = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(operation) => operation,
+            Err(first) => return self.refuse_native_execution(first),
+        };
+        if let Err(error) = self.require_variable_name_protocol() {
+            return crate::builtins::var_error(self, tail, error);
+        }
+        let publication = crate::vars::publish_upvar_in(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             home_ns,
             tail,
             target,
         );
+        self.finish_generic_variable_link(publication, operation.currency(), tail)
     }
 
     // result
+
+    /// Construct a List retaining the producer's selected string updater.
+    /// An unavailable dialect leaves the backing unselected; construction
+    /// grants no native conversion or execution authority.
+    pub(crate) fn new_list_object(&self, elements: &[*mut TclObj]) -> *mut TclObj {
+        let recipe = self
+            .native_invocation_dialect()
+            .native_string_materialization(Some(
+            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+        ));
+        match recipe {
+            Some(recipe) => crate::list::new_list_obj_native(elements, recipe.protocol()),
+            None => crate::list::new_list_obj(elements),
+        }
+    }
 
     /// `Tcl_SetObjResult`: retain `obj` into the result slot, release the prior.
     ///
     /// # Safety
     /// `obj` must be a live `TclObj`.
     pub unsafe fn set_obj_result(&mut self, obj: *mut TclObj) {
+        if let Some(recipe) = self
+            .native_invocation_dialect()
+            .native_string_materialization(Some(
+            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+        )) {
+            // A fresh compound producer retains the selected updater without
+            // materialising members or changing their native references.
+            if crate::list::native_string_protocol(obj).is_none() {
+                let _ = crate::list::seal_string_protocol(obj, recipe.protocol());
+            }
+            if crate::dict::native_string_protocol(obj).is_none() {
+                let _ = crate::dict::seal_string_protocol(obj, recipe.protocol());
+            }
+        }
+        // A different result cannot inherit a primitive getter projection.
+        let mut exc = self.exc.borrow_mut();
+        exc.primitive_getter = None;
+        exc.expression_error_stage = None;
+        drop(exc);
         let old = self.result.get();
         // SAFETY: `obj` live (caller); `old` is the interp's owned result.
         unsafe {
             obj::incr_ref_count(obj);
-            self.result.set(obj);
-            obj::decr_ref_count(old);
+            if self
+                .native_invocation_dialect()
+                .native_jim_lookup_protocol()
+                .is_some()
+            {
+                let retirement: native_jim_result::JimResultRetirement =
+                    native_jim_result::JimResultRetirement::enter(self, old);
+                obj::decr_ref_count(old);
+                self.result.set(obj);
+                drop(retirement);
+            } else {
+                self.result.set(obj);
+                obj::decr_ref_count(old);
+            }
         }
     }
 
@@ -6411,11 +11347,29 @@ impl Interp {
     /// Set the result to a byte-array object with `bytes` as its exact raw
     /// payload. Its normal string representation is generated only when a
     /// string consumer requests it.
-    pub(crate) fn set_result_byte_array(&mut self, bytes: &[u8]) {
-        let obj = crate::bytearray::new_byte_array(bytes);
+    pub(crate) fn byte_array_string_recipe(
+        &mut self,
+    ) -> Result<tcl_registry::native_string_materialization::ByteArrayStringRecipe, Code> {
+        self.native_invocation_dialect().byte_array_string_recipe(
+            Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+        ).ok_or_else(|| self.refuse_native_access(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("byte-array string materialization")))
+    }
+
+    /// Create byte-array storage only after its complete updater recipe is selected.
+    pub(crate) fn new_native_byte_array(&mut self, bytes: &[u8]) -> Result<*mut TclObj, Code> {
+        let recipe = self.byte_array_string_recipe()?;
+        Ok(crate::bytearray::new_byte_array(bytes, recipe))
+    }
+
+    pub(crate) fn set_result_byte_array(&mut self, bytes: &[u8]) -> Code {
+        let obj = match self.new_native_byte_array(bytes) {
+            Ok(value) => value,
+            Err(code) => return code,
+        };
         // SAFETY: fresh byte-array object; the interpreter takes its owning
         // reference exactly as it does for an ordinary fresh string object.
         unsafe { self.set_obj_result(obj) };
+        Code::Ok
     }
 
     /// `Tcl_GetObjResult` — borrowed (interp keeps its +1).
@@ -6427,11 +11381,37 @@ impl Interp {
     /// starts its own `errorInfo`, `-errorcode` and error stack) and no pending
     /// `return`, so its level and code are the defaults again.
     pub(crate) fn reset_result(&mut self) {
+        if self
+            .native_invocation_dialect()
+            .native_error_log_protocol()
+            .is_some()
+        {
+            if let Err(first) = self.reset_original_c_result() {
+                self.refuse_native_execution(first);
+            }
+            return;
+        }
+        // The separately selected Jim compatibility entry retains its actual
+        // common reset state; it does not borrow the C private-field recipe.
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
         self.set_result_bytes(b"");
-        *self.exc.borrow_mut() = ExceptionState::default();
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
+        if self
+            .replace_exception_state_checked(scope.currency(), ExceptionState::default())
+            .is_err()
+        {
+            return;
+        }
         self.mark_error_stack_reset();
         self.set_return_state(1, Code::Ok);
-        self.clear_return_options();
+        if self.clear_return_options_checked().is_err() {
+            return;
+        }
+        let _ = scope.currency().ensure_current_or_refuse();
     }
 
     /// An error a C API call reports: `message` as the result and, when given,
@@ -6443,27 +11423,141 @@ impl Interp {
     }
 
     pub(crate) fn c_api_error(&mut self, message: &[u8], code: Option<&[u8]>) {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
         self.set_result_bytes(message);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         let code = code.map(|code| self.release_error_code(code));
-        *self.exc.borrow_mut() = ExceptionState {
+        let retired = self.exc.replace(ExceptionState {
             info: None,
             code: code.map(<[u8]>::to_vec).unwrap_or_default(),
             code_explicit: code.is_some(),
             already_logged: false,
-        };
+            ..ExceptionState::default()
+        });
+        // A retained native error object can retire extension backing. Release
+        // it outside the exception borrow and keep the already reached result.
+        drop(retired);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
+        self.capture_native_error_objects();
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         self.c_api_errors.set(self.c_api_errors.get() + 1);
     }
 
     /// `Tcl_SetObjErrorCode`: `code` is the `-errorcode` of the error the running
     /// C command is about to return, whatever its result.
     pub(crate) fn set_c_error_code(&mut self, code: &[u8]) {
-        *self.exc.borrow_mut() = ExceptionState {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        let retired = self.exc.replace(ExceptionState {
             info: None,
             code: code.to_vec(),
             code_explicit: true,
             already_logged: false,
-        };
+            ..ExceptionState::default()
+        });
+        drop(retired);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
+        let original = obj::Owned::fresh(new_string(code));
+        if let Err(first) = self.set_original_c_error_code(original.as_ptr()) {
+            self.refuse_native_execution(first);
+        }
+    }
+
+    /// Set the actual C error-code header without reaching its String getter.
+    /// Global C8.4 publication and modern private storage retain their own
+    /// selected protocols; a byte author is a separate original object producer.
+    pub(crate) fn set_original_c_error_code(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let actual = self.clone();
+        self.set_original_c_error_code_using(
+            scope.currency(),
+            original,
+            &|| Ok(()),
+            &|error| actual.clone().refuse_completion_value_access(error),
+            &|error| {
+                actual.clone().refuse_native_execution(error.clone());
+                error
+            },
+        )?;
+        scope.currency().ensure_current_or_refuse()?;
         self.c_api_errors.set(self.c_api_errors.get() + 1);
+        Ok(())
+    }
+
+    /// The same selected old-code retirement and incoming native role stages.
+    /// A compiled caller supplies its original frame/pair receipt; only the
+    /// public C API wrapper increments its software error-call counter.
+    pub(super) fn set_original_c_error_code_using<E>(
+        &mut self,
+        currency: &native_operation_currency::NativeOperationCurrency,
+        original: *mut TclObj,
+        extra: &dyn Fn() -> Result<(), E>,
+        refuse: &dyn Fn(ValueError) -> E,
+        retain: &dyn Fn(E) -> E,
+    ) -> Result<(), E>
+    where
+        E: From<tcl_runtime_api::NativeExecutionError>,
+    {
+        currency.ensure_current_or_refuse()?;
+        extra()?;
+        obj::check_native_liveness(original).map_err(refuse)?;
+        let lifetime = obj::NativeObjectLifetime::retain(original);
+        let reached = (|| -> Result<(), E> {
+            currency.ensure_current_or_refuse()?;
+            extra()?;
+            if self.uses_c84_global_error_info() {
+                // The reached C84 global write settles ERROR_CODE_SET even
+                // when a trace refuses; classify only after mandatory cleanup.
+                self.publish_original_c84_error_code(original);
+            } else if self
+                .native_invocation_dialect()
+                .native_error_variable_protocol()
+                .is_some()
+            {
+                self.retire_native_error_object_checked(
+                    currency,
+                    tcl_registry::special_vars::NativeErrorStorageVariable::ErrorCode,
+                    native_error_variables::NativeErrorObjectRetirementPurpose::OriginalSetter,
+                )?;
+                currency.ensure_current_or_refuse()?;
+                extra()?;
+                obj::check_native_liveness(original).map_err(refuse)?;
+                let reentered = self
+                    .exc
+                    .borrow_mut()
+                    .native
+                    .code
+                    .replace(obj::Owned::retain(original));
+                drop(reentered);
+            } else {
+                return Err(refuse(ValueError::CommandProtocolUnavailable(
+                    "original C error-code setter",
+                )));
+            }
+            currency.ensure_current_or_refuse()?;
+            extra()?;
+            obj::check_native_liveness(lifetime.as_ptr()).map_err(refuse)?;
+            Ok(())
+        })();
+        let reached = reached.map_err(retain);
+        drop(lifetime);
+        currency.ensure_current_or_refuse()?;
+        extra()?;
+        reached
     }
 
     /// Note that a C API call left an error the interpreter already holds (a
@@ -6475,15 +11569,36 @@ impl Interp {
 
     /// `Tcl_AppendResult`'s one piece: the result grows by `piece`, in place when
     /// it is a plain string nothing else holds.
-    pub(crate) fn append_result_bytes(&mut self, piece: &[u8]) {
+    pub(crate) fn append_result_bytes_checked(
+        &mut self,
+        piece: &[u8],
+    ) -> Result<(), tcl_cmd_core::CmdError> {
         let current = self.result.get();
+        let arguments = native_arguments::OriginalArguments::enter(self, &[current])?;
+        arguments.check_original_for(self, 0, current)?;
         if obj::is_plain_string(current) && !obj::is_shared(current) {
             obj::string_append_inplace(current, piece);
-            return;
+            arguments.check_original_for(self, 0, current)?;
+            return Ok(());
         }
-        let mut bytes = obj_bytes(current);
+        let bytes = arguments.bytes(0)?;
+        arguments.check_for(self)?;
+        if self.result.get() != current {
+            return Err(tcl_cmd_core::CmdError::from_execution_refusal(
+                self.refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "changed original appended result slot",
+                    ),
+                ),
+            ));
+        }
+        arguments.check_original_for(self, 0, current)?;
+        let mut bytes = bytes.to_vec();
         bytes.extend_from_slice(piece);
         self.set_result_bytes(&bytes);
+        // A successful replacement can retire the old header; its allocation
+        // lease adds no native role. Only the original operation continues.
+        arguments.check_for(self)
     }
 
     /// The current result's string bytes (copied).
@@ -6494,19 +11609,22 @@ impl Interp {
     /// Run an implicit callback while preserving the caller's result and
     /// carried completion options. The callback may inspect and replace the
     /// live result internally; its final value is discarded when `f` returns.
-    pub(crate) fn with_preserved_result<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+    pub(crate) fn with_preserved_result_checked<R>(
+        &mut self,
+        f: impl FnOnce(&mut Self) -> R,
+    ) -> Result<R, tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let saved_currency = native_operation_currency::SavedNativeOperationCurrency::capture(self);
         let saved = self.result.get();
-        // SAFETY: the interpreter owns `saved`; hold an independent reference
-        // while callback evaluation replaces the result slot.
+        // SAFETY: preserve the same real saved result role across the callback.
         unsafe { obj::incr_ref_count(saved) };
         let saved_options = self.take_return_options();
         let output = f(self);
-        // SAFETY: discard the callback's owned result and transfer the saved
-        // reference back into the interpreter result slot.
-        unsafe { obj::decr_ref_count(self.result.get()) };
-        self.result.set(saved);
-        self.restore_return_options(saved_options);
-        output
+        let cleanup =
+            self.finish_saved_execution_result(&saved_currency, saved, saved_options, true);
+        scope.currency().ensure_current_or_refuse()?;
+        cleanup?;
+        Ok(output)
     }
 
     /// The current result **object** — a borrowed pointer (the interp keeps its
@@ -6557,42 +11675,18 @@ impl Interp {
             .map(|(fqn, _)| fqn)
     }
 
-    /// The command an interned command was ultimately imported from — C's
-    /// `TclGetOriginalCommand` (following an imported command's retained
-    /// ensemble token or by-name source to a fixed point), interned in its turn.
-    /// `None` when it is not an imported command. Backs
-    /// `Namespaces::command_origin`. Bounded against a cycle a retargeting bug
-    /// could leave behind; a well-formed chain is acyclic.
+    /// The actual terminal binding an interned command was imported from,
+    /// interned with its current name and genuine generation. Origin follows
+    /// imported bindings independently from introspection's live-ensemble stop.
+    /// Nonimports and malformed generation cycles have no imported source.
     pub(crate) fn imported_source_id(&self, id: u32) -> Option<u32> {
-        let (_, mut generation) = self.command_identity(id)?;
-        let (mut fqn, mut command) = self.raw_command_location_by_generation(generation)?;
-        let mut hops = 0;
-        while let Command::Imported {
-            source,
-            source_generation,
-            ensemble,
-            ..
-        } = command
-        {
-            let source = ensemble
-                .filter(|token| !token.is_deleted())
-                .map_or(source, |token| token.name());
-            if let Some(next) = self.raw_command_by_generation(source_generation) {
-                fqn = source;
-                generation = source_generation;
-                command = next;
-            } else {
-                let namespaces = self.namespaces.borrow();
-                fqn = namespaces.resolve_fqn(GLOBAL, &source)?;
-                generation = namespaces.resolve_generation(GLOBAL, &source)?;
-                command = namespaces.resolve(GLOBAL, &source)?;
-            }
-            hops += 1;
-            if hops >= 64 {
-                break;
-            }
-        }
-        (hops > 0).then(|| self.intern_cmd(&fqn, generation))
+        let (_, generation) = self.command_identity(id)?;
+        let (fqn, command) = self.raw_command_location_by_generation(generation)?;
+        let target =
+            self.resolve_import_query((fqn, generation, command), ImportQueryPurpose::Origin)?;
+        target
+            .followed_import
+            .then(|| self.intern_cmd(&target.fqn, target.generation))
     }
 
     /// Immediate source binding and optional real-ensemble identity for a new
@@ -6629,11 +11723,29 @@ impl Interp {
     /// [`make_proc_error`](Self::make_proc_error)) and published to the globals at
     /// the catch / outermost-eval boundary — not stamped here.
     ///
-    /// The `-errorcode` taxonomy here only distinguishes `wrong # args` (⇒
-    /// `TCL WRONGARGS`) from everything else (⇒ `NONE`); `error`/`throw` set a
-    /// richer code on their own paths.
+    /// Arbitrary result bytes carry the neutral `NONE` error-code identity.
     pub(crate) fn error(&mut self, msg: &[u8]) -> Code {
+        self.error_using(msg, None)
+    }
+
+    pub(crate) fn error_using(
+        &mut self,
+        msg: &[u8],
+        stage: native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(first) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error(first);
+        }
+
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return Code::Error;
+        };
         self.set_result_bytes(msg);
+        if self.check_original_c_name_stage(stage).is_err()
+            || scope.currency().ensure_current_or_refuse().is_err()
+        {
+            return Code::Error;
+        }
         // `Tcl_WrongNumArgs` and the list parser tag their errors only from
         // 8.6; before it `$errorCode` is `NONE`.
         let tags = self.runtime_version().tags_usage_error_codes();
@@ -6647,28 +11759,28 @@ impl Interp {
                 .and_then(tcl_syntax::list::ListError::from_message)
                 .map_or(b"NONE", |error| error.error_code().as_bytes())
         };
-        *self.exc.borrow_mut() = ExceptionState {
+        let state = ExceptionState {
+            native: Default::default(),
             info: None,
             code: code.to_vec(),
             code_explicit: false,
             already_logged: false,
+            primitive_getter: None,
+            expression_error_stage: None,
         };
+        if self
+            .replace_exception_state_using(scope.currency(), state, stage)
+            .and_then(|()| self.capture_native_error_objects_using(scope.currency(), stage))
+            .is_err()
+        {
+            return Code::Error;
+        }
         Code::Error
     }
 
-    /// Like [`error`](Self::error) but with an explicit `-errorcode` (the trace
-    /// still builds up as the error unwinds). For commands that mirror C's
-    /// richer error codes (`TCL LOOKUP INDEX …`, `TCL OO …`).
-    pub(crate) fn error_with_code(&mut self, msg: &[u8], code: &[u8]) -> Code {
-        self.set_result_bytes(msg);
-        let code = self.release_error_code(code);
-        *self.exc.borrow_mut() = ExceptionState {
-            info: None,
-            code: code.to_vec(),
-            code_explicit: false,
-            already_logged: false,
-        };
-        Code::Error
+    /// Publish a failed typed read with the message and `-errorcode` C sets.
+    pub(crate) fn report_typed_error(&mut self, error: &crate::typed_value::TypedError) -> Code {
+        self.error_with_code(&error.message, error.code)
     }
 
     /// Start the error trace at the result message, where none is started, so
@@ -6684,80 +11796,277 @@ impl Interp {
         }
     }
 
+    /// Like [`error`](Self::error) but with an explicit `-errorcode` (the trace
+    /// still builds up as the error unwinds). For commands that mirror C's
+    /// richer error codes (`TCL LOOKUP INDEX …`, `TCL OO …`).
+    pub(crate) fn error_with_code(&mut self, msg: &[u8], code: &[u8]) -> Code {
+        self.error_with_code_using(msg, code, None)
+    }
+
+    pub(crate) fn error_with_code_using(
+        &mut self,
+        msg: &[u8],
+        code: &[u8],
+        stage: native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(first) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error(first);
+        }
+
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return Code::Error;
+        };
+        self.set_result_bytes(msg);
+        if self.check_original_c_name_stage(stage).is_err()
+            || scope.currency().ensure_current_or_refuse().is_err()
+        {
+            return Code::Error;
+        }
+        let code = self.release_error_code(code);
+        let state = ExceptionState {
+            native: Default::default(),
+            info: None,
+            code: code.to_vec(),
+            code_explicit: false,
+            already_logged: false,
+            primitive_getter: None,
+            expression_error_stage: None,
+        };
+        if self
+            .replace_exception_state_using(scope.currency(), state, stage)
+            .and_then(|()| self.capture_native_error_objects_using(scope.currency(), stage))
+            .is_err()
+        {
+            return Code::Error;
+        }
+        Code::Error
+    }
+
+    /// Select result representation from retained command-error metadata.
+    /// A lookalike message cannot select the native arity append producer.
+    fn command_error_string_result(
+        &self,
+        expected: Option<tcl_syntax::native_string::NativeStringProtocol>,
+        wrong_arguments: bool,
+    ) -> Result<
+        Option<tcl_registry::native_string_materialization::NativeStringMaterialization>,
+        tcl_syntax::value::ValueError,
+    > {
+        let dialect = self.native_invocation_dialect();
+        let expected = expected.or_else(|| {
+            wrong_arguments.then(|| dialect.native_wrong_arguments_protocol())
+                .flatten()
+                .and_then(tcl_registry::native_wrong_arguments::NativeWrongArgumentsProtocol::string_result)
+        });
+        let Some(expected) = expected else {
+            return Ok(None);
+        };
+        dialect
+            .native_string_materialization(None)
+            .filter(|actual| actual.protocol() == expected)
+            .map(Some)
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "selected error String producer",
+            ))
+    }
+
     /// Publish a portable command-layer error through this runtime's result
     /// and exception-state ABI without losing a structured error code.
     pub(crate) fn report_cmd_error(&mut self, error: tcl_cmd_core::CmdError) -> Code {
-        let (message, code, info, line) = error.into_details();
-        if let Some(info) = info {
-            self.set_result_bytes(message.as_bytes());
-            *self.exc.borrow_mut() = ExceptionState {
-                info: Some(info),
-                code: code.map_or_else(|| b"NONE".to_vec(), String::into_bytes),
-                code_explicit: false,
-                // The variable-trace frame is already present, but the array
-                // command which propagated it still has to log while unwinding.
-                already_logged: false,
-            };
-            if let Some(line) = line.and_then(|value| u32::try_from(value).ok()) {
-                self.error_line.set(line);
-            }
+        self.report_cmd_error_using(error, None)
+    }
+
+    /// An owned object-command shim states its shared error through the C ABI.
+    pub(crate) fn report_obj_cmd_error(&mut self, error: tcl_cmd_core::CmdError) -> Code {
+        self.c_api_errors.set(self.c_api_errors.get() + 1);
+        self.report_cmd_error(error)
+    }
+
+    pub(crate) fn report_cmd_error_using(
+        &mut self,
+        error: tcl_cmd_core::CmdError,
+        stage: native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
+        if self.host_refusal_pending() {
             return Code::Error;
         }
-        match code {
-            Some(code) => self.error_with_code(message.as_bytes(), code.as_bytes()),
-            None => self.set_error(message.as_bytes()),
+        if let Some(error) = error.native_execution_refusal() {
+            return self.refuse_native_execution(error.clone());
         }
-    }
+        if let Err(first) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error(first);
+        }
 
-    /// Publish a failed typed read with the message and `-errorcode` C sets.
-    pub(crate) fn report_typed_error(&mut self, error: &crate::typed_value::TypedError) -> Code {
-        self.error_with_code(&error.message, error.code)
-    }
-
-    /// Publish a list parse failure using the shared list owner's message and
-    /// structured code.
-    pub(crate) fn report_list_error(&mut self, source: &[u8], error: parse::ListError) -> Code {
-        self.error_with_code(
-            &parse::list_error_message(source, error),
-            error.error_code(),
-        )
-    }
-
-    /// The `interp bgerror` handler command prefix (empty ⇒ default).
-    pub(crate) fn bgerror_handler(&self) -> Vec<u8> {
-        self.bgerror.borrow().clone()
-    }
-
-    /// Set the `interp bgerror` handler command prefix.
-    pub(crate) fn set_bgerror_handler(&self, prefix: &[u8]) {
-        self.invalidate_interpreter_policy();
-        *self.bgerror.borrow_mut() = prefix.to_vec();
-    }
-
-    /// `interp bgerror` get / set on this interp. With no `prefix` it returns
-    /// the current handler; with one it must be a list of length ≥ 1 (set, then
-    /// returned). Returns the handler bytes, or the error message.
-    pub(crate) fn bgerror_apply(&self, prefix: Option<*mut TclObj>) -> Result<Vec<u8>, Vec<u8>> {
-        match prefix {
-            None => Ok(self.bgerror_handler()),
-            Some(p) => {
-                if crate::list::list_length(p).unwrap_or(0) < 1 {
-                    return Err(b"cmdPrefix must be list of length >= 1".to_vec());
-                }
-                let bytes = obj_bytes(p);
-                self.set_bgerror_handler(&bytes);
-                Ok(bytes)
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return Code::Error;
+        };
+        let details = error.into_byte_details();
+        let explicit_code_store =
+            matches!(details.error_code, tcl_cmd_core::CmdErrorCodeUpdate::Set(_));
+        let wrong_arguments = matches!(
+            details.error_code,
+            tcl_cmd_core::CmdErrorCodeUpdate::WrongArguments
+        );
+        let update = match details.error_code.resolve(|| {
+            self.native_invocation_dialect()
+                .wrong_arguments_protocol(Some(tcl_registry::native_wrong_arguments::LogicalWrongArgumentsProvider::Tcl84CoreSimulation))
+                .map(|protocol| protocol.error_code().as_bytes().to_vec())
+                .ok_or(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("wrong arguments"))
+        }) {
+            Ok(update) => update,
+            Err(refusal) => return self.refuse_native_access(refusal),
+        };
+        let string_result =
+            match self.command_error_string_result(details.string_result, wrong_arguments) {
+                Ok(result) => result,
+                Err(error) => return self.report_cmd_error_using(error.into(), stage),
+            };
+        self.set_result_bytes(&details.message);
+        if self.check_original_c_name_stage(stage).is_err()
+            || scope.currency().ensure_current_or_refuse().is_err()
+        {
+            return Code::Error;
+        }
+        if let Some(materialization) = string_result {
+            if let Err(error) =
+                obj::retain_native_string_representation(self.get_obj_result(), materialization)
+            {
+                return self.report_cmd_error_using(error.into(), stage);
             }
         }
+        if self.check_original_c_name_stage(stage).is_err() {
+            return Code::Error;
+        }
+        if let tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(code) = &update {
+            if !self.uses_c84_global_error_info() || explicit_code_store {
+                if self
+                    .replace_native_error_code_using(scope.currency(), code, stage)
+                    .is_err()
+                {
+                    return Code::Error;
+                }
+            } else {
+                self.exc.borrow_mut().native.global_code_set = false;
+            }
+        }
+        if self.check_original_c_name_stage(stage).is_err() {
+            return Code::Error;
+        }
+        let original_info = self
+            .native_invocation_dialect()
+            .native_error_variable_protocol()
+            .is_some()
+            .then(|| {
+                details
+                    .error_info
+                    .as_deref()
+                    .map(|bytes| obj::Owned::fresh(new_string(bytes)))
+            });
+        let info_len = details.error_info.as_ref().map_or(0, Vec::len);
+        let mut exc = self.exc.borrow_mut();
+        match update {
+            tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(code) => {
+                exc.code = code;
+                exc.code_explicit = false;
+            }
+            tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Unchanged => {}
+        }
+        exc.info = details.error_info;
+        exc.already_logged = false;
+        exc.primitive_getter = details.primitive_getter;
+        exc.expression_error_stage = None;
+        drop(exc);
+        if let Some(original_info) = original_info {
+            if self
+                .replace_native_error_object_using(
+                    scope.currency(),
+                    tcl_registry::special_vars::NativeErrorStorageVariable::ErrorInfo,
+                    original_info,
+                    Some(info_len),
+                    stage,
+                )
+                .is_err()
+            {
+                return Code::Error;
+            }
+        }
+        if self.check_original_c_name_stage(stage).is_err()
+            || scope.currency().ensure_current_or_refuse().is_err()
+        {
+            return Code::Error;
+        }
+        if let Some(line) = details
+            .error_line
+            .and_then(|value| u32::try_from(value).ok())
+        {
+            self.error_line.set(line);
+        }
+        Code::Error
+    }
+
+    /// Set an authored background-handler prefix in a fixture.
+    #[cfg(test)]
+    pub(crate) fn set_bgerror_handler(&self, prefix: &[u8]) {
+        self.invalidate_interpreter_policy();
+        let replaced = self
+            .bgerror
+            .borrow_mut()
+            .replace(obj::Owned::fresh(new_string(prefix)));
+        drop(replaced);
+    }
+
+    /// Store or return the original background handler, retaining its object identity.
+    pub(crate) fn bgerror_apply(
+        &mut self,
+        prefix: Option<*mut TclObj>,
+    ) -> Result<obj::Owned, tcl_cmd_core::CmdError> {
+        if let Some(prefix) = prefix {
+            let valid = match tcl_syntax::value::ValueOps::list_len(self, &prefix) {
+                Ok(length) => length > 0,
+                Err(error) if error.native_access_refusal().is_some() => return Err(error.into()),
+                Err(_) => false,
+            };
+            if !valid {
+                let mut detail = tcl_cmd_core::CmdError::new_bytes(
+                    b"cmdPrefix must be list of length >= 1".to_vec(),
+                )
+                .into_byte_details();
+                if let Some(code) = self
+                    .native_invocation_dialect()
+                    .native_event_protocol()
+                    .and_then(|p| p.background_prefix_format_code())
+                {
+                    detail.error_code = tcl_cmd_core::CmdErrorCodeUpdate::Set(code.to_vec());
+                }
+                return Err(tcl_cmd_core::CmdError::from_byte_details(detail));
+            }
+            self.invalidate_interpreter_policy();
+            let replaced = self
+                .bgerror
+                .borrow_mut()
+                .replace(obj::Owned::retain(prefix));
+            drop(replaced);
+        }
+        Ok(self
+            .bgerror
+            .borrow()
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| obj::Owned::fresh(new_string(b"::tcl::Bgerror"))))
     }
 
     /// Queue a background error (a destructor failing during implicit teardown,
     /// etc.) for later processing by `update` — Tcl defers it to the event loop
     /// rather than firing at the error site.
     pub(crate) fn report_bg_error(&mut self, msg: &[u8], options: &[u8]) {
-        self.bg_queue
-            .borrow_mut()
-            .push((msg.to_vec(), options.to_vec()));
+        self.bg_queue.borrow_mut().push((
+            obj::Owned::fresh(new_string(msg)),
+            obj::Owned::fresh(new_string(options)),
+        ));
+    }
+
+    pub(crate) fn report_bg_error_original(&mut self, message: obj::Owned, options: obj::Owned) {
+        self.bg_queue.borrow_mut().push((message, options));
     }
 
     /// Mutable access to the event loop's pending-event queue (`after`/`vwait`/
@@ -6772,9 +12081,25 @@ impl Interp {
     /// reaches the same registry to swap its context).
     pub(crate) fn coros_mut(
         &self,
-    ) -> std::cell::RefMut<'_, std::collections::BTreeMap<Vec<u8>, crate::cmd_coro::CoroEntry>>
-    {
+    ) -> std::cell::RefMut<'_, std::collections::BTreeMap<u64, crate::cmd_coro::CoroEntry>> {
         self.coros.borrow_mut()
+    }
+
+    /// Publish a probe's original objects before acknowledging its handoff.
+    /// Only the running worker accesses the interpreter until that acknowledgement.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn publish_coro_probe_error(&self, snapshot: ErrorSnapshot) {
+        let previous = self.coro_probe_error.replace(Some(snapshot));
+        debug_assert!(
+            previous.is_none(),
+            "previous probe receipt was not consumed"
+        );
+    }
+
+    /// Consume the parked worker's receipt before any further coroutine handoff.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn take_coro_probe_error(&self) -> Option<ErrorSnapshot> {
+        self.coro_probe_error.borrow_mut().take()
     }
 
     /// Swap the interp's per-flow *execution context* (call frames, the
@@ -6785,6 +12110,9 @@ impl Interp {
     /// call it once. The shared *definitions* (namespaces, commands, classes,
     /// channels, the result object) are not swapped — coroutines share them.
     pub(crate) fn swap_coro_ctx(&self, ctx: &mut CoroContext) {
+        self.native_compilation
+            .borrow_mut()
+            .swap_execution(&mut ctx.native_compilation);
         {
             let mut f = self.frames.borrow_mut();
             std::mem::swap(&mut *f, &mut ctx.frames);
@@ -6794,6 +12122,30 @@ impl Interp {
         std::mem::swap(&mut *self.arg_lines.borrow_mut(), &mut ctx.arg_lines);
         std::mem::swap(&mut *self.exc.borrow_mut(), &mut ctx.exc);
         std::mem::swap(&mut *self.error_stack.borrow_mut(), &mut ctx.error_stack);
+        self.error_stack.borrow_mut().renew_incarnation();
+        // Configuration may retire actual headers. The rest of this physical
+        // handoff is mandatory even if that retirement retains the first cause.
+        let stack_configuration = self.configure_native_error_stack_checked();
+        std::mem::swap(
+            &mut *self.jim_error_stack.borrow_mut(),
+            &mut ctx.jim_error_stack,
+        );
+        std::mem::swap(
+            &mut *self.jim_evaluation_frames.borrow_mut(),
+            &mut ctx.jim_evaluation_frames,
+        );
+        std::mem::swap(
+            &mut *self.jim_invocation_borrows.borrow_mut(),
+            &mut ctx.jim_invocation_borrows,
+        );
+        ctx.jim_procedure_level = self.jim_procedure_level.replace(ctx.jim_procedure_level);
+        ctx.native_dispatch_depth = self
+            .native_dispatch_depth
+            .replace(ctx.native_dispatch_depth);
+        std::mem::swap(
+            &mut *self.deferred_tailcalls.borrow_mut(),
+            &mut ctx.deferred_tailcalls,
+        );
         self.oo.borrow_mut().swap_exec(&mut ctx.oo);
         let ns = self.current_ns.replace(ctx.current_ns);
         ctx.current_ns = ns;
@@ -6803,10 +12155,12 @@ impl Interp {
         ctx.return_code = rc;
         let rl = self.return_level.replace(ctx.return_level);
         ctx.return_level = rl;
-        std::mem::swap(
-            &mut *self.return_options.borrow_mut(),
-            &mut ctx.return_options,
-        );
+        {
+            let mut options = self.return_options.borrow_mut();
+            std::mem::swap(&mut *options, &mut ctx.return_options);
+            options.renew_incarnation();
+            ctx.return_options.renew_incarnation();
+        }
         std::mem::swap(
             &mut *self.array_operation_targets.borrow_mut(),
             &mut ctx.array_operation_targets,
@@ -6819,23 +12173,26 @@ impl Interp {
         ctx.eval_depth = ed;
         let el = self.error_line.replace(ctx.error_line);
         ctx.error_line = el;
+        if let Err(first) = stack_configuration {
+            self.clone().refuse_native_execution(first);
+        }
     }
 
-    /// Swap the execution context of the coroutine named `name` with the live
+    /// Swap the execution context of the actual coroutine generation with the live
     /// interpreter context (the resume/yield handoff in `cmd_coro`). A no-op if
     /// the coroutine is gone. The registry borrow is released before any
     /// blocking handoff.
-    pub(crate) fn coro_swap_named(&self, name: &[u8]) {
+    pub(crate) fn coro_swap_generation(&self, generation: u64) {
         // Take the context out (releasing the registry borrow), swap, put back —
         // so `swap_coro_ctx`'s RefCell touches never overlap the registry borrow.
         let taken = self
             .coros
             .borrow_mut()
-            .get_mut(name)
+            .get_mut(&generation)
             .map(|e| std::mem::replace(&mut e.context, CoroContext::placeholder()));
         if let Some(mut ctx) = taken {
             self.swap_coro_ctx(&mut ctx);
-            if let Some(e) = self.coros.borrow_mut().get_mut(name) {
+            if let Some(e) = self.coros.borrow_mut().get_mut(&generation) {
                 e.context = ctx;
             }
         }
@@ -6855,45 +12212,78 @@ impl Interp {
             .is_some()
     }
 
-    /// Register coroutine command `name` (its invocation resumes it).
-    pub(crate) fn register_coroutine_command(&mut self, name: &[u8]) {
-        self.ns_register(name, Command::Builtin(crate::cmd_coro::coro_resume_command));
-    }
-
-    /// Process queued background errors (called by `update`): invoke the
-    /// `interp bgerror` handler as `{*}$handler $msg $options` for each. With no
-    /// handler set they are dropped. The caller's result is preserved.
+    /// Dispatch retained background-error prefixes and preserve the caller's result.
     pub(crate) fn process_bg_errors(&mut self) {
-        // Drain in FIFO order; processing one may queue more.
-        while !self.bg_queue.borrow().is_empty() {
-            let batch: Vec<(Vec<u8>, Vec<u8>)> = std::mem::take(&mut self.bg_queue.borrow_mut());
-            for (msg, options) in batch {
-                let handler = self.bgerror_handler();
-                if handler.is_empty() {
-                    continue;
+        while !self.host_refusal_pending() && !self.bg_queue.borrow().is_empty() {
+            let batch = {
+                let mut pending = self.bg_queue.borrow_mut();
+                std::mem::take(&mut *pending)
+            };
+            for (message, options) in batch {
+                let jim = self
+                    .native_invocation_dialect()
+                    .native_event_protocol()
+                    .is_some_and(|p| p.after_options_exact());
+                let configured = if jim {
+                    None
+                } else {
+                    self.bgerror.borrow().clone()
+                };
+                let has_configured = configured.is_some();
+                let handler =
+                    configured.unwrap_or_else(|| obj::Owned::fresh(new_string(b"bgerror")));
+                let saved = obj::Owned::retain(self.get_obj_result());
+                let mut argv =
+                    match tcl_syntax::value::ValueOps::list_elements(self, &handler.as_ptr()) {
+                        Ok(words) => words
+                            .into_iter()
+                            .map(obj::Owned::retain)
+                            .collect::<Vec<_>>(),
+                        Err(error) => {
+                            self.report_cmd_error(error.into());
+                            if self.host_refusal_pending() {
+                                return;
+                            }
+                            continue;
+                        }
+                    };
+                if let Some(head) = argv.first() {
+                    let namespace = if jim {
+                        self.current_ns.get()
+                    } else {
+                        crate::namespace::GLOBAL
+                    };
+                    match self.resolve_original_command_at(namespace, head.as_ptr()) {
+                        Ok(Some(_)) => {
+                            argv.push(message);
+                            if has_configured {
+                                argv.push(options);
+                            }
+                            let words = argv.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+                            if jim {
+                                let _ = self.dispatch(&words);
+                            } else {
+                                self.with_event_global_frame(|interp| {
+                                    let _ = interp.dispatch(&words);
+                                });
+                            }
+                        }
+                        Ok(None) => {}
+                        Err(error) => {
+                            self.report_cmd_error(error.into());
+                            if self.host_refusal_pending() {
+                                return;
+                            }
+                            continue;
+                        }
+                    }
                 }
-                let saved = self.result_bytes();
-                let hobj = obj::new_string_bytes(&handler);
-                unsafe { obj::incr_ref_count(hobj) };
-                let words = crate::list::list_elements(hobj).unwrap_or_default();
-                let mut argv: Vec<*mut TclObj> = Vec::with_capacity(words.len() + 2);
-                for w in words {
-                    unsafe { obj::incr_ref_count(w) };
-                    argv.push(w);
+                if self.host_refusal_pending() {
+                    return;
                 }
-                for s in [&msg, &options] {
-                    let o = obj::new_string_bytes(s);
-                    unsafe { obj::incr_ref_count(o) };
-                    argv.push(o);
+                unsafe {
+                    self.set_obj_result(saved.as_ptr());
                 }
-                if !argv.is_empty() {
-                    let _ = self.dispatch(&argv);
-                }
-                for a in &argv {
-                    unsafe { obj::decr_ref_count(*a) };
-                }
-                unsafe { obj::decr_ref_count(hobj) };
-                self.set_result_bytes(&saved);
             }
         }
     }
@@ -6903,13 +12293,41 @@ impl Interp {
     /// re-logged — `ERR_ALREADY_LOGGED`), and `-errorcode` is `code`. Returns
     /// [`Code::Error`].
     pub(crate) fn raise_with_info(&mut self, msg: &[u8], info: &[u8], code: &[u8]) -> Code {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return Code::Error;
+        };
         self.set_result_bytes(msg);
-        *self.exc.borrow_mut() = ExceptionState {
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return Code::Error;
+        }
+        if self.uses_jim_error_stack() {
+            if self
+                .adopt_jim_stacktrace(obj::Owned::fresh(new_string(info)))
+                .is_err()
+            {
+                return Code::Error;
+            }
+        }
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return Code::Error;
+        }
+        let state = ExceptionState {
+            native: Default::default(),
             info: Some(info.to_vec()),
             code: code.to_vec(),
             code_explicit: false,
             already_logged: true,
+            primitive_getter: None,
+            expression_error_stage: None,
         };
+        if self
+            .replace_exception_state_checked(scope.currency(), state)
+            .and_then(|()| self.capture_native_error_objects_checked(scope.currency()))
+            .is_err()
+        {
+            return Code::Error;
+        }
+        self.exc.borrow_mut().native.legacy_copy = true;
         Code::Error
     }
 
@@ -6917,12 +12335,25 @@ impl Interp {
     /// `-errorcode` `code` and an empty trace (it accumulates as the error
     /// unwinds). Used by `error msg`/`throw`. Returns [`Code::Error`].
     pub(crate) fn set_error_state(&mut self, code: &[u8]) -> Code {
-        *self.exc.borrow_mut() = ExceptionState {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return Code::Error;
+        };
+        let state = ExceptionState {
+            native: Default::default(),
             info: None,
             code: code.to_vec(),
             code_explicit: false,
             already_logged: false,
+            primitive_getter: None,
+            expression_error_stage: None,
         };
+        if self
+            .replace_exception_state_checked(scope.currency(), state)
+            .and_then(|()| self.capture_native_error_objects_checked(scope.currency()))
+            .is_err()
+        {
+            return Code::Error;
+        }
         Code::Error
     }
 
@@ -6941,21 +12372,51 @@ impl Interp {
         errorcode: Option<&[u8]>,
         errorstack: Option<&[u8]>,
     ) {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        if self.uses_jim_error_stack() {
+            if let Some(info) = errorinfo {
+                if self
+                    .adopt_jim_stacktrace(obj::Owned::fresh(new_string(info)))
+                    .is_err()
+                {
+                    return;
+                }
+            }
+        }
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         let (info, already_logged) = match errorinfo {
             Some(i) if !i.is_empty() => (Some(i.to_vec()), true),
             _ => (None, false),
         };
-        *self.exc.borrow_mut() = ExceptionState {
+        let state = ExceptionState {
+            native: Default::default(),
             info,
             code: errorcode.unwrap_or(b"NONE").to_vec(),
             code_explicit: errorcode.is_some(),
             already_logged,
+            primitive_getter: None,
+            expression_error_stage: None,
         };
+        if self
+            .replace_exception_state_checked(scope.currency(), state)
+            .and_then(|()| self.capture_native_error_objects_checked(scope.currency()))
+            .is_err()
+        {
+            return;
+        }
+        self.exc.borrow_mut().native.legacy_copy = true;
         if let Some(es) = errorstack.filter(|_| self.runtime_version().has_error_stack()) {
             if let Ok(parts) = validate_error_stack(crate::parse::split_list(es)) {
-                let _ = self.error_stack.borrow_mut().adopt(parts);
+                if self.adopt_error_stack_bytes_checked(&parts).is_err() {
+                    return;
+                }
             }
         }
+        let _ = scope.currency().ensure_current_or_refuse();
     }
 
     /// Append one `while executing` / `invoked from within` frame for the command
@@ -6972,7 +12433,7 @@ impl Interp {
         if self.exc.borrow().already_logged {
             return;
         }
-        self.log_command_bytes(line_of(src, cmd.start), &src[cmd.start..cmd.end]);
+        self.log_evaluated_command_bytes(line_of(src, cmd.start), &src[cmd.start..cmd.end]);
     }
 
     /// [`log_command_info`](Self::log_command_info) over the command's bytes
@@ -6983,7 +12444,33 @@ impl Interp {
     /// single writer, and a compiled statement gets the identical
     /// `already_logged` protocol, error-stack entry, and 150-byte truncation
     /// rather than a second, drifting copy of them.
+    pub(crate) fn log_evaluated_command_bytes(&mut self, raw_line: u32, cmd_bytes: &[u8]) {
+        self.log_command_bytes(raw_line, cmd_bytes);
+        if self.check_entered_native_operation().is_err() {
+            return;
+        }
+        if self
+            .native_invocation_dialect()
+            .native_error_log_protocol()
+            .is_some_and(
+                tcl_registry::native_error_log::NativeErrorLogProtocol::evaluation_owns_logged_flag,
+            )
+        {
+            self.exc.borrow_mut().already_logged = true;
+        }
+    }
+
     pub(crate) fn log_command_bytes(&mut self, raw_line: u32, cmd_bytes: &[u8]) {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        if self.propagate_error_stage().is_err() {
+            return;
+        }
+        if self.uses_jim_error_stack() {
+            let _ = self.capture_jim_error_stack();
+            return;
+        }
         // Already logged deeper in the same script (e.g. an inner `[cmd]` subst,
         // or an inline `if`/`while` body): the enclosing command is the same C
         // bytecode frame, so it is *not* re-logged. The flag stays set and is
@@ -6994,7 +12481,9 @@ impl Interp {
         }
         // TIP 348: record this frame's inner context / uplevel boundary into the
         // error stack (the errorStack half of C's `Tcl_LogCommandInfo`).
-        self.error_stack_log(cmd_bytes);
+        if self.error_stack_log(cmd_bytes).is_err() {
+            return;
+        }
         // errorLine, measured against the enclosing `codePtr->source` (C's
         // `TclLogCommandInfo`): the command's file-absolute line
         // (`line_base + 1 + count('\n')`) minus the proc/eval body's base, so an
@@ -7008,11 +12497,10 @@ impl Interp {
         });
         self.error_line.set(line);
         let started = self.exc.borrow().info.is_some();
-        if !started {
-            // First frame: errorInfo is seeded from the error message (the result).
-            let msg = self.result_bytes();
-            self.exc.borrow_mut().info = Some(msg);
+        if self.seed_error_info_checked(scope.currency()).is_err() {
+            return;
         }
+
         let verb: &[u8] = if started {
             b"invoked from within"
         } else {
@@ -7036,24 +12524,58 @@ impl Interp {
         buf.push(b'"');
         exc.already_logged = true;
         drop(exc);
+        if self
+            .update_native_error_info_checked(scope.currency())
+            .is_err()
+        {
+            return;
+        }
         // Pre-8.5 compatibility (C's `TclLogCommandInfo`, tclNamesp.c): if user
         // code traces `::errorInfo` for writes, push the value out to the variable
         // *now*, mid-unwind — firing the write trace while the failing command's
         // call frame is still live (so the handler's `info level` sees it). Skipped
         // (no var write) when nothing traces `::errorInfo`, so the normal path
         // still publishes once, at the `catch`/top level.
-        if self.errorinfo_has_write_trace() {
-            let info = self.error_info();
-            let ei = new_string(&info);
-            if self.var_set(b"::errorInfo", ei).is_err() {
-                drop_fresh(ei);
+        if !self.uses_c84_global_error_info() && self.errorinfo_has_write_trace() {
+            if self
+                .native_invocation_dialect()
+                .native_error_variable_protocol()
+                .is_some()
+            {
+                self.publish_traced_native_error_info();
+            } else {
+                let info = match self.error_info() {
+                    Ok(info) => info,
+                    Err(first) => {
+                        self.refuse_native_execution(first);
+                        return;
+                    }
+                };
+                let ei = new_string(&info);
+                if self.var_set(b"::errorInfo", ei).is_err() {
+                    drop_fresh(ei);
+                }
             }
+        }
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
+        if self
+            .native_invocation_dialect()
+            .native_error_log_protocol()
+            .is_some_and(
+                tcl_registry::native_error_log::NativeErrorLogProtocol::evaluation_owns_logged_flag,
+            )
+        {
+            // C8.4 Tcl_LogCommandInfo clears this after AddObjErrorInfo and
+            // its setters' trace chains. The evaluating command owns the set.
+            self.exc.borrow_mut().already_logged = false;
         }
     }
 
     /// Whether `::errorInfo` carries a user write-trace — C's `TclIsVarTraced`
-    /// gate in `TclLogCommandInfo` (we install no core `EstablishErrorInfoTraces`,
-    /// so any matching write trace qualifies).
+    /// gate in `TclLogCommandInfo`. Hidden core read/unset registrations
+    /// do not qualify as user write observers.
     fn errorinfo_has_write_trace(&self) -> bool {
         if self.traces.borrow().traces.is_empty() {
             return false;
@@ -7062,11 +12584,12 @@ impl Interp {
         // literal `::errorInfo` here would miss every trace now that traces
         // are keyed by the resolved variable rather than the spelling.
         let home = self.trace_identity(b"::errorInfo");
+        let cell = self.variable_trace_scope(&home, None);
         self.traces
             .borrow()
             .traces
             .iter()
-            .any(|t| crate::cmd_trace::matches(t, &home.base, None, b"write", home.ns, home.level))
+            .any(|trace| cell.matches(trace, b"write"))
     }
 
     /// Append the `(procedure "NAME" line N)` / `(lambda term "..." line N)`
@@ -7075,6 +12598,9 @@ impl Interp {
     /// proc-call command itself is logged by its enclosing eval. The line is the
     /// body-relative `error_line` the innermost body command recorded.
     fn make_proc_error(&mut self, frame: ProcFrame) {
+        if self.uses_jim_error_stack() {
+            return;
+        }
         // `(procedure "NAME" line N)` / `(lambda term "NAME" line N)` — the name
         // quoted, truncated to 60 bytes (`...` on overflow).
         // Append a name quoted and truncated to 60 bytes (`...` on overflow),
@@ -7089,6 +12615,7 @@ impl Interp {
             out.push(b'"');
         }
         let inner = match frame {
+            ProcFrame::JimLambda => return,
             ProcFrame::Proc(n) | ProcFrame::Lambda(n) => {
                 let kind: &[u8] = if matches!(frame, ProcFrame::Lambda(_)) {
                     b"lambda term"
@@ -7128,6 +12655,9 @@ impl Interp {
     /// through a fresh `CmdFrame` (`eval`/`uplevel`/`foreach`), unlike the
     /// inline-compiled `if`/`while`/`for`/`switch`.
     pub(crate) fn append_body_frame(&mut self, label: &[u8]) {
+        if self.uses_jim_error_stack() {
+            return;
+        }
         // The `"label" body` shape: `("eval" body line N)`.
         let mut inner = Vec::with_capacity(label.len() + 8);
         inner.push(b'"');
@@ -7142,6 +12672,9 @@ impl Interp {
     /// unwinds with an error (C's `NsEval_Callback`), then clear
     /// `already_logged` so the command itself logs.
     pub(crate) fn append_namespace_eval_frame(&mut self, command: &str, fqn: &[u8]) {
+        if self.uses_jim_error_stack() {
+            return;
+        }
         let inner =
             tcl_cmd_core::namespace::script_frame_text(command, fqn, self.runtime_version());
         self.append_frame_line(&inner);
@@ -7159,31 +12692,37 @@ impl Interp {
         self.exc.borrow_mut().already_logged = false;
     }
 
-    /// Append `"\n    (parsing lambda expression \"<name>\")"` to errorInfo — the
-    /// `apply` lambda-parse failure frame (C's `Tcl_AppendObjToErrorInfo` in
-    /// `Tcl_ApplyObjCmd`). Unlike [`append_frame_line`](Self::append_frame_line)
-    /// it carries no `line N` suffix. Clears `already_logged` so the enclosing
-    /// `apply` command still logs its own `invoked from within` frame.
-    pub(crate) fn append_lambda_parse_frame(&mut self, name: &[u8]) {
-        if self.exc.borrow().info.is_none() {
-            let msg = self.result_bytes();
-            self.exc.borrow_mut().info = Some(msg);
+    /// Append the independently selected lambda-parse frame to errorInfo.
+    /// This carries no line suffix and clears already_logged so the enclosing
+    /// original invocation can still log its own frame.
+    pub(crate) fn append_lambda_parse_frame(&mut self, frame: &[u8]) {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        if self.seed_error_info_checked(scope.currency()).is_err() {
+            return;
         }
         {
             let mut exc = self.exc.borrow_mut();
             let buf = exc.info.as_mut().expect("seeded above");
-            buf.extend_from_slice(b"\n    (parsing lambda expression \"");
-            buf.extend_from_slice(name);
-            buf.extend_from_slice(b"\")");
+            buf.extend_from_slice(frame);
+        }
+        if self
+            .update_native_error_info_checked(scope.currency())
+            .is_err()
+        {
+            return;
         }
         self.exc.borrow_mut().already_logged = false;
     }
 
     pub(crate) fn append_frame_line(&mut self, inner: &[u8]) {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
         let line = self.error_line.get();
-        if self.exc.borrow().info.is_none() {
-            let msg = self.result_bytes();
-            self.exc.borrow_mut().info = Some(msg);
+        if self.seed_error_info_checked(scope.currency()).is_err() {
+            return;
         }
         let mut exc = self.exc.borrow_mut();
         let buf = exc.info.as_mut().expect("seeded above");
@@ -7192,6 +12731,13 @@ impl Interp {
         buf.extend_from_slice(b" line ");
         buf.extend_from_slice(line.to_string().as_bytes());
         buf.push(b')');
+        drop(exc);
+        if self
+            .update_native_error_info_checked(scope.currency())
+            .is_err()
+        {
+            return;
+        }
     }
 
     /// Append a frame with no `line N` suffix — `"\n    (<text>)"`, e.g.
@@ -7200,9 +12746,11 @@ impl Interp {
     /// from the result if needed, then clear `already_logged` so the enclosing
     /// command logs its own `invoked from within` frame.
     pub(crate) fn append_frame_noline(&mut self, text: &[u8]) {
-        if self.exc.borrow().info.is_none() {
-            let msg = self.result_bytes();
-            self.exc.borrow_mut().info = Some(msg);
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        if self.seed_error_info_checked(scope.currency()).is_err() {
+            return;
         }
         {
             let mut exc = self.exc.borrow_mut();
@@ -7211,6 +12759,12 @@ impl Interp {
             buf.extend_from_slice(text);
             buf.push(b')');
         }
+        if self
+            .update_native_error_info_checked(scope.currency())
+            .is_err()
+        {
+            return;
+        }
         self.exc.borrow_mut().already_logged = false;
     }
 
@@ -7218,10 +12772,12 @@ impl Interp {
     /// unknown-handler result diagnostics use this Tcl_AddErrorInfo shape (no
     /// parentheses and no line suffix), then allow the enclosing command to log
     /// its ordinary `invoked from within` frame.
-    fn append_error_info_context(&mut self, text: &[u8]) {
-        if self.exc.borrow().info.is_none() {
-            let msg = self.result_bytes();
-            self.exc.borrow_mut().info = Some(msg);
+    pub(crate) fn append_error_info_context(&mut self, text: &[u8]) {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        if self.seed_error_info_checked(scope.currency()).is_err() {
+            return;
         }
         {
             let mut exc = self.exc.borrow_mut();
@@ -7229,14 +12785,377 @@ impl Interp {
             buf.extend_from_slice(b"\n    ");
             buf.extend_from_slice(text);
         }
+        if self
+            .update_native_error_info_checked(scope.currency())
+            .is_err()
+        {
+            return;
+        }
         self.exc.borrow_mut().already_logged = false;
+    }
+
+    pub(crate) fn uses_jim_error_stack(&self) -> bool {
+        self.native_invocation_dialect().error_stack_protocol()
+            == Some(NativeErrorStackProtocol::Jim084)
+    }
+
+    /// Retain only selected original objects at actual error capture. Merely
+    /// observing a frame must not change argv sharing or read an unused key.
+    fn materialized_jim_error_frames(
+        &self,
+        script_failure: Option<&JimScriptLocation<obj::Owned>>,
+    ) -> Result<Option<Vec<JimErrorFrame<obj::Owned>>>, tcl_runtime_api::NativeExecutionError> {
+        let empty = self
+            .native_jim_object_context()
+            .map_err(|error| self.clone().refuse_completion_value_access(error))?
+            .empty_object()
+            .clone();
+        let level = self.jim_procedure_level.get();
+        if level == 0 {
+            if let Some(script) = script_failure {
+                return Ok(Some(vec![JimErrorFrame {
+                    procedure: empty.clone(),
+                    file: script.file.clone(),
+                    line: script.line,
+                    invocation: empty,
+                }]));
+            }
+        }
+        let frames = self.jim_evaluation_frames.borrow();
+        let selections = {
+            let world = self.namespaces.borrow();
+            let metadata: Vec<_> = frames
+                .iter()
+                .rev()
+                .map(|frame| JimEvaluationFrame {
+                    procedure_level: frame.procedure_level,
+                    command_name: frame.command.and_then(|command| {
+                        world
+                            .original_jim_command_name_observation(command)
+                            .map(|_| ())
+                    }),
+                    is_procedure: frame.is_procedure,
+                    script: None,
+                    invocation: (),
+                })
+                .collect();
+            select_jim_error_frame_sources(level, &metadata)
+        };
+        let Some(selections) = selections else {
+            return Ok(None);
+        };
+        let borrows = self.jim_invocation_borrows.borrow();
+        let mut result = Vec::new();
+        for selection in selections {
+            let index = frames.len() - 1 - selection.frame;
+            let frame = &frames[index];
+            let procedure = if let Some(selected) = selection.procedure {
+                let command = frames[frames.len() - 1 - selected]
+                    .command
+                    .expect("selected observed command");
+                let world = self.namespaces.borrow();
+                let observation = world
+                    .original_jim_command_name_observation(command)
+                    .expect("selected original command-name observation");
+                let original = observation
+                    .current_ptr()
+                    .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+                obj::Owned::retain(original)
+            } else {
+                empty.clone()
+            };
+            let invocation = borrows
+                .iter()
+                .rev()
+                .find(|view| view.frame_index == index && !view.argv.is_empty())
+                .map_or_else(
+                    || obj::Owned::fresh(new_string(&frame.invocation)),
+                    |view| obj::Owned::fresh(self.new_list_object(&view.argv)),
+                );
+            let file = frame.script.as_ref().map_or_else(
+                || empty.clone(),
+                |script| {
+                    borrows
+                        .iter()
+                        .rev()
+                        .find_map(|view| {
+                            (view.frame_index == index)
+                                .then_some(view.script_filename)
+                                .flatten()
+                        })
+                        .map_or_else(
+                            || obj::Owned::fresh(new_string(&script.file)),
+                            obj::Owned::retain,
+                        )
+                },
+            );
+            result.push(JimErrorFrame {
+                procedure,
+                file,
+                line: frame.script.as_ref().map_or(1, |script| script.line),
+                invocation,
+            });
+        }
+        Ok(Some(result))
+    }
+
+    fn jim_trace_object(
+        &self,
+        frames: Vec<tcl_runtime_api::jim_error_stack::JimErrorFrame<obj::Owned>>,
+    ) -> obj::Owned {
+        let values: Vec<_> = frames
+            .into_iter()
+            .flat_map(|frame| {
+                [
+                    frame.procedure,
+                    frame.file,
+                    obj::Owned::fresh(obj::new_wide_int_obj(i64::from(frame.line))),
+                    frame.invocation,
+                ]
+            })
+            .collect();
+        let pointers: Vec<_> = values.iter().map(obj::Owned::as_ptr).collect();
+        obj::Owned::fresh(self.new_list_object(&pointers))
+    }
+
+    fn capture_jim_error_stack(&self) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        self.capture_jim_error_stack_at(None)
+    }
+
+    fn capture_jim_error_stack_at(
+        &self,
+        script: Option<&JimScriptLocation<obj::Owned>>,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let ticket = self.jim_error_stack.borrow().capture_ticket();
+        let Some(ticket) = ticket else {
+            return Ok(());
+        };
+        let captured = self
+            .materialized_jim_error_frames(script)?
+            .map(|frames| self.jim_trace_object(frames));
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            drop(captured);
+            let _ = scope.currency().ensure_current_or_refuse();
+            return Err(self.native_execution_refusal().unwrap_or(first));
+        }
+        if let Some(captured) = captured {
+            let retired = self
+                .jim_error_stack
+                .borrow_mut()
+                .publish_capture(&ticket, JimErrorTrace::Explicit(captured));
+            // Both old and declined original traces retire outside the borrow.
+            drop(retired);
+        }
+        scope.currency().ensure_current_or_refuse()
+    }
+
+    fn capture_jim_script_parse_failure(
+        &self,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let script = self
+            .cmd_frames
+            .borrow()
+            .last()
+            .map(|frame| JimScriptLocation {
+                file: obj::Owned::fresh(new_string(frame.file.as_deref().unwrap_or(b""))),
+                line: frame.line_base + 1,
+            })
+            .unwrap_or_else(|| JimScriptLocation {
+                file: obj::Owned::fresh(new_string(b"")),
+                line: 1,
+            });
+        let reached = self.capture_jim_error_stack_at(Some(&script));
+        drop(script);
+        scope.currency().ensure_current_or_refuse()?;
+        reached
+    }
+
+    pub(crate) fn jim_stacktrace_object(
+        &self,
+    ) -> Result<obj::Owned, tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let trace = self.jim_error_stack.borrow().trace().cloned();
+        let value = match trace {
+            Some(JimErrorTrace::Explicit(value)) => value,
+            Some(JimErrorTrace::Automatic(frames)) => self.jim_trace_object(frames),
+            None => obj::Owned::fresh(self.new_list_object(&[])),
+        };
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            drop(value);
+            let _ = scope.currency().ensure_current_or_refuse();
+            return Err(self.native_execution_refusal().unwrap_or(first));
+        }
+        Ok(value)
+    }
+
+    pub(crate) fn jim_stacktrace(&self) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let original = self.jim_stacktrace_object()?;
+        let reached = self.native_object_string_bytes(original.as_ptr());
+        let checked = scope.currency().ensure_current_or_refuse();
+        drop(original);
+        scope.currency().ensure_current_or_refuse()?;
+        checked?;
+        reached
+            .map(|bytes| bytes.to_vec())
+            .map_err(|error| self.clone().refuse_completion_value_access(error))
+    }
+
+    pub(crate) fn reset_jim_error_capture(&self) {
+        self.jim_error_stack.borrow_mut().mark_reset();
+    }
+
+    pub(crate) fn adopt_jim_stacktrace(
+        &self,
+        original: obj::Owned,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let saved = native_operation_currency::SavedNativeOperationCurrency::capture(self);
+        let cleanup =
+            native_operation_currency::NativeOperationScope::enter_saved_cleanup(&saved, self)?;
+        if let Err(first) = cleanup.check() {
+            // The consumed original argument still has mandatory retirement.
+            // Keep its actual failed entry attached through that callback.
+            drop(original);
+            let _ = cleanup.check();
+            return Err(self.native_execution_refusal().unwrap_or(first));
+        }
+        let retired = self.jim_error_stack.borrow_mut().replace_explicit(original);
+        drop(retired);
+        cleanup.check()
+    }
+
+    pub(crate) fn jim_return_receipt(
+        &self,
+    ) -> Result<
+        tcl_runtime_api::jim_return_state::JimReturnReceipt<obj::Owned>,
+        tcl_runtime_api::NativeExecutionError,
+    > {
+        let captured = self
+            .clone()
+            .capture_original_jim_error_code()
+            .map_err(|error| {
+                error
+                    .native_execution_refusal()
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        self.clone().refuse_completion_value_access(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original Jim error-code receipt capture",
+                            ),
+                        )
+                    })
+            })?;
+        self.jim_return_receipt_with_captured_error_code(&captured)
+    }
+
+    pub(crate) fn jim_return_receipt_with_captured_error_code(
+        &self,
+        captured: &OriginalJimErrorCodeCapture,
+    ) -> Result<
+        tcl_runtime_api::jim_return_state::JimReturnReceipt<obj::Owned>,
+        tcl_runtime_api::NativeExecutionError,
+    > {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let error_code = captured.retain_for_receipt(self).map_err(|error| {
+            error
+                .native_execution_refusal()
+                .cloned()
+                .unwrap_or_else(|| {
+                    self.clone().refuse_completion_value_access(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original Jim captured error-code receipt",
+                        ),
+                    )
+                })
+        })?;
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            drop(error_code);
+            let _ = scope.currency().ensure_current_or_refuse();
+            return Err(self.native_execution_refusal().unwrap_or(first));
+        }
+        let stack_trace = match self.jim_stacktrace_object() {
+            Ok(value) => value,
+            Err(first) => {
+                drop(error_code);
+                let _ = scope.currency().ensure_current_or_refuse();
+                return Err(self.native_execution_refusal().unwrap_or(first));
+            }
+        };
+        if let Err(error) = captured.original(self) {
+            drop(error_code);
+            drop(stack_trace);
+            return Err(error
+                .native_execution_refusal()
+                .cloned()
+                .unwrap_or_else(|| {
+                    self.clone().refuse_completion_value_access(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original Jim captured error-code publication",
+                        ),
+                    )
+                }));
+        }
+        Ok(tcl_runtime_api::jim_return_state::JimReturnReceipt {
+            pending: tcl_runtime_api::jim_return_state::JimReturnState {
+                code: self.return_code.get().as_int() as i32,
+                level: i64::try_from(self.return_level.get()).unwrap_or(i64::MAX),
+            },
+            error_code,
+            stack_trace,
+        })
+    }
+
+    pub(crate) fn jim_option_pairs_with_captured_error_code(
+        &self,
+        captured: &OriginalJimErrorCodeCapture,
+        exit: Code,
+    ) -> Result<
+        Vec<(
+            &'static [u8],
+            tcl_runtime_api::completion_options::OptionValue<obj::Owned>,
+        )>,
+        tcl_runtime_api::NativeExecutionError,
+    > {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let current = || {
+            captured.check_context(self).map_err(|error| {
+                error
+                    .native_execution_refusal()
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        self.clone().refuse_completion_value_access(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original Jim captured options context",
+                            ),
+                        )
+                    })
+            })
+        };
+        current()?;
+        let exit = tcl_runtime_api::Code::from_int(exit.as_int() as i32);
+        let pairs =
+            if tcl_runtime_api::jim_return_state::JimReturnReceipt::<()>::uses_error_metadata(exit)
+            {
+                self.jim_return_receipt_with_captured_error_code(captured)?
+                    .option_pairs(exit)
+            } else {
+                tcl_runtime_api::jim_return_state::JimReturnState {
+                    code: self.return_code.get().as_int() as i32,
+                    level: i64::try_from(self.return_level.get()).unwrap_or(i64::MAX),
+                }
+                .option_pairs(exit)
+            };
+        scope.currency().ensure_current_or_refuse()?;
+        current()?;
+        Ok(pairs)
     }
 
     /// The current accumulated `errorInfo` (for `catch`'s `-errorinfo`): the
     /// trace if any frame was logged, else the bare error message.
-    pub(crate) fn error_info(&self) -> Vec<u8> {
-        let info = self.exc.borrow().info.clone();
-        info.unwrap_or_else(|| self.result_bytes())
+    pub(crate) fn error_info(&mut self) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
+        self.completion_error_info_bytes_checked()
     }
 
     /// Capture the error trace state (`errorInfo`/`errorCode` accumulation), so a
@@ -7245,22 +13164,48 @@ impl Interp {
     /// state, but its error must surface in the *caller's* trace once that state
     /// is swapped back out.
     pub(crate) fn snapshot_error(&self) -> ErrorSnapshot {
+        let currency = native_operation_currency::SavedNativeOperationCurrency::capture(self);
         let exc = self.exc.borrow();
         ErrorSnapshot {
+            currency,
+            native: exc.native.clone(),
+            jim_error_stack: self.jim_error_stack.borrow().clone(),
             info: exc.info.clone(),
             code: exc.code.clone(),
             code_explicit: exc.code_explicit,
+            already_logged: exc.already_logged,
+            primitive_getter: exc.primitive_getter.clone(),
+            expression_error_stage: exc.expression_error_stage.clone(),
         }
     }
 
     /// Restore an [`ErrorSnapshot`] captured by [`snapshot_error`] into this
     /// flow's exception state (the trace continues from there — e.g. `coroprobe`
     /// then appends its own `(injected coroutine probe command)` frame).
-    pub(crate) fn restore_error(&self, snap: ErrorSnapshot) {
-        let mut exc = self.exc.borrow_mut();
-        exc.info = snap.info;
-        exc.code = snap.code;
-        exc.code_explicit = snap.code_explicit;
+    pub(crate) fn restore_error(
+        &self,
+        snap: ErrorSnapshot,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let cleanup = native_operation_currency::NativeOperationScope::enter_saved_cleanup(
+            &snap.currency,
+            self,
+        )?;
+        let retired_stack = self.jim_error_stack.replace(snap.jim_error_stack);
+        let retired_native = {
+            let mut exc = self.exc.borrow_mut();
+            let retired = std::mem::replace(&mut exc.native, snap.native);
+            exc.info = snap.info;
+            exc.code = snap.code;
+            exc.code_explicit = snap.code_explicit;
+            exc.already_logged = snap.already_logged;
+            exc.primitive_getter = snap.primitive_getter;
+            exc.expression_error_stage = snap.expression_error_stage;
+            retired
+        };
+        // Publish the complete saved state before mandatory original retirement.
+        drop(retired_stack);
+        drop(retired_native);
+        cleanup.check()
     }
 
     /// `info frame` (no arg): the depth of the source-location stack.
@@ -7273,12 +13218,28 @@ impl Interp {
     /// relative to the current top, `0` = current). Returns the dict's
     /// (key, value) pairs in C's key order (`type line [file] cmd [proc]
     /// level`), or `None` if out of range.
-    pub(crate) fn cmd_frame_info(&self, n: i64) -> Option<Vec<(Vec<u8>, Vec<u8>)>> {
+    pub(crate) fn cmd_frame_info(
+        &mut self,
+        n: i64,
+    ) -> Result<Option<NativeCommandFrameDescription>, tcl_syntax::value::ValueError> {
+        let original = {
+            let frames = self.cmd_frames.borrow();
+            let depth = frames.len() as i64;
+            let pos = if n > 0 { n } else { depth + n };
+            if pos < 1 || pos > depth {
+                return Ok(None);
+            }
+            frames[(pos - 1) as usize].original_command.clone()
+        };
+        let original_bytes = match original {
+            Some(value) => Some(self.eval_object_bytes(value.as_ptr())?),
+            None => None,
+        };
         let cmd_frames = self.cmd_frames.borrow();
         let depth = cmd_frames.len() as i64;
         let pos = if n > 0 { n } else { depth + n };
         if pos < 1 || pos > depth {
-            return None;
+            return Ok(None);
         }
         let f = &cmd_frames[(pos - 1) as usize];
         let mut pairs = vec![
@@ -7288,7 +13249,12 @@ impl Interp {
         if let Some(file) = &f.file {
             pairs.push((b"file".to_vec(), file.to_vec()));
         }
-        pairs.push((b"cmd".to_vec(), f.cmd.clone()));
+        pairs.push((
+            b"cmd".to_vec(),
+            original_bytes
+                .as_ref()
+                .map_or_else(|| f.cmd.clone(), |bytes| bytes.to_vec()),
+        ));
         // A TclOO method frame reports `method`/`class`|`object` (the declarer),
         // and an `apply` lambda reports `lambda <expr>`, in place of `proc`
         // (C's `TclInfoFrame`).
@@ -7316,32 +13282,167 @@ impl Interp {
                 pairs.push((b"level".to_vec(), level.to_string().into_bytes()));
             }
         }
-        Some(pairs)
+        Ok(Some(pairs))
     }
 
     /// Snapshot the current error/result state (the result bytes + the
     /// `errorInfo`/`errorCode` accumulator) so a side-effecting cleanup (e.g.
     /// running a destructor after a failed constructor) can run and then have
     /// the original error restored.
-    pub(crate) fn error_snapshot(&self) -> (Vec<u8>, ExceptionState) {
-        (self.result_bytes(), self.exc.borrow().clone())
+    pub(crate) fn error_snapshot(&mut self) -> ErrorStateSnapshot {
+        let currency = native_operation_currency::SavedNativeOperationCurrency::capture(self);
+        let result = self.completion_result_bytes_checked();
+        let _ = currency.check(self);
+        ErrorStateSnapshot {
+            currency,
+            result,
+            exception: self.exc.borrow().clone(),
+            jim_stack: self.jim_error_stack.borrow().clone(),
+        }
     }
 
     /// Restore a previously taken [`error_snapshot`](Self::error_snapshot).
-    pub(crate) fn error_restore(&mut self, snap: (Vec<u8>, ExceptionState)) {
-        self.set_result_bytes(&snap.0);
-        *self.exc.borrow_mut() = snap.1;
+    pub(crate) fn error_restore(
+        &mut self,
+        snap: ErrorStateSnapshot,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let cleanup = native_operation_currency::NativeOperationScope::enter_saved_cleanup(
+            &snap.currency,
+            self,
+        )?;
+        let retired_stack = self.jim_error_stack.replace(snap.jim_stack);
+        // Retained result bytes are actual getter output. Missing bytes remain
+        // an explicit first operational failure, never an empty replacement.
+        if let Ok(result) = &snap.result {
+            self.set_result_bytes(result);
+        }
+        let retired_state = self.exc.replace(snap.exception);
+        drop(retired_stack);
+        drop(retired_state);
+        cleanup.check()?;
+        snap.result.map(|_| ())
     }
 
-    /// The current `errorCode` (for `catch`'s `-errorcode`): the stamped value,
-    /// or `NONE`.
-    pub(crate) fn error_code(&self) -> Vec<u8> {
-        let exc = self.exc.borrow();
-        if exc.code.is_empty() && !exc.code_explicit {
+    /// Exact current error-code bytes, with an absent implicit code represented
+    /// by the guest `NONE` list. A positive explicit empty code remains empty.
+    /// Host failures are returned before and after the actual original getter.
+    pub(crate) fn error_code_bytes_checked(
+        &mut self,
+    ) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        self.check_native_error_object_readable(
+            tcl_registry::special_vars::NativeErrorStorageVariable::ErrorCode,
+        )?;
+        let (original, stamped, explicit) = {
+            let exc = self.exc.borrow();
+            (
+                exc.native
+                    .code
+                    .as_ref()
+                    .map(|value| obj::NativeObjectLifetime::retain(value.as_ptr())),
+                exc.code.clone(),
+                exc.code_explicit,
+            )
+        };
+        let original = if self.uses_c84_global_error_info() {
+            let reached = self.var_get_at(b"::errorCode", 0);
+            scope.currency().ensure_current_or_refuse()?;
+            if let Some(original) = reached {
+                obj::check_native_liveness(original)
+                    .map_err(|error| self.refuse_completion_value_access(error))?;
+                Some(obj::NativeObjectLifetime::retain(original))
+            } else {
+                None
+            }
+        } else {
+            original
+        };
+        let bytes = if let Some(original) = original {
+            let protocol = self
+                .native_invocation_dialect()
+                .native_string_protocol()
+                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "private error-code string",
+                ));
+            let reached = protocol
+                .and_then(|protocol| crate::dict::native_object_bytes(original.as_ptr(), protocol));
+            scope.currency().ensure_current_or_refuse()?;
+            obj::check_native_liveness(original.as_ptr())
+                .map_err(|error| self.refuse_completion_value_access(error))?;
+            reached.map_err(|error| self.refuse_completion_value_access(error))?
+        } else if stamped.is_empty() && !explicit {
             b"NONE".to_vec()
         } else {
-            exc.code.clone()
+            stamped
+        };
+        scope.currency().ensure_current_or_refuse()?;
+        Ok(bytes)
+    }
+
+    /// Read the genuine current result without a context-free presentation getter.
+    pub(crate) fn completion_result_bytes_checked(
+        &mut self,
+    ) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
+        self.completion_object_bytes_checked(self.result_obj())
+    }
+
+    /// Project accumulated error info or the original result at its actual getter.
+    pub(crate) fn completion_error_info_bytes_checked(
+        &mut self,
+    ) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let reached = if self.uses_jim_error_stack() {
+            self.jim_stacktrace()
+        } else {
+            let accumulated = self.exc.borrow().info.clone();
+            match accumulated {
+                Some(bytes) => Ok(bytes),
+                None => self.completion_result_bytes_checked(),
+            }
+        };
+        scope.currency().ensure_current_or_refuse()?;
+        reached
+    }
+
+    fn completion_object_bytes_checked(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        obj::check_native_liveness(original)
+            .map_err(|error| self.refuse_completion_value_access(error))?;
+        let original = obj::NativeObjectLifetime::retain(original);
+        let reached = self.native_object_string_bytes(original.as_ptr());
+        scope.currency().ensure_current_or_refuse()?;
+        obj::check_native_liveness(original.as_ptr())
+            .map_err(|error| self.refuse_completion_value_access(error))?;
+        let bytes = reached.map_err(|error| self.refuse_completion_value_access(error))?;
+        drop(original);
+        scope.currency().ensure_current_or_refuse()?;
+        Ok(bytes.to_vec())
+    }
+
+    /// Retain a reached original metadata getter failure without changing guest
+    /// state. Reentrant callbacks' earlier host cause remains authoritative.
+    pub(crate) fn refuse_completion_value_access(
+        &mut self,
+        error: tcl_syntax::value::ValueError,
+    ) -> tcl_runtime_api::NativeExecutionError {
+        if let Some(cause) = error.native_access_refusal() {
+            self.refuse_native_access(cause);
+        } else {
+            self.refuse_host_command(format!("native completion value access failed: {error}"));
         }
+        self.native_execution_refusal()
+            .expect("original host cause retained")
+    }
+
+    /// Positive guest fixture projection; production uses the fallible owner.
+    #[cfg(test)]
+    pub(crate) fn error_code(&self) -> Vec<u8> {
+        self.clone()
+            .error_code_bytes_checked()
+            .expect("fixture has genuine guest error-code state")
     }
 
     /// Mark the live error's `-errorcode` as explicitly supplied (so an explicit
@@ -7350,67 +13451,92 @@ impl Interp {
         self.exc.borrow_mut().code_explicit = true;
     }
 
-    /// Record one command frame into the TIP 348 error stack as an error unwinds
-    /// (`Tcl_LogCommandInfo`'s errorStack half). On the first log of a new error
-    /// episode (`reset_error_stack`), the stack is cleared and seeded with `INNER
-    /// <command>`. Then, if the active frame is an `uplevel`-redirected one
-    /// (`framePtr != varFramePtr`), an `UP <delta>` entry is appended. `CALL`
-    /// entries are added separately at proc-frame boundaries
-    /// ([`error_stack_push_call`](Self::error_stack_push_call)).
-    pub(crate) fn error_stack_log(&self, command: &[u8]) {
-        if !self.runtime_version().has_error_stack() {
-            return;
-        }
-        let mut es = self.error_stack.borrow_mut();
-        let _ = es.begin_inner(b"INNER".to_vec(), command.to_vec());
-        let (top, active) = {
-            let f = self.frames.borrow();
-            (f.top_level(), f.current_level())
-        };
-        if top > active {
-            let _ = es.push_pair(b"UP".to_vec(), (top - active).to_string().into_bytes());
-        }
-    }
-
-    /// Append a TIP 348 `CALL <info level 0>` entry — the invocation words of a
-    /// proc/lambda/method frame that an error is unwinding out of. The words are
-    /// joined into a single Tcl-list element (so `g 1212` renders as `{g 1212}`).
-    pub(crate) fn error_stack_push_call(
+    /// Record the inner context and actual call-frame role at the reached
+    /// command-log operation. The caller owns the already-logged guard.
+    pub(crate) fn error_stack_log(
         &self,
-        body_code: Code,
-        settled_code: Code,
-        words: &[Vec<u8>],
-    ) {
-        if !self.runtime_version().has_error_stack() {
-            return;
-        }
-        let mut value = Vec::new();
-        for (i, w) in words.iter().enumerate() {
-            if i > 0 {
-                value.push(b' ');
+        command: &[u8],
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let reached = (|| {
+            if !self.runtime_version().has_error_stack() {
+                return Ok(());
             }
-            crate::list::append_list_element(&mut value, w, i == 0);
-        }
-        let _ = self.error_stack.borrow_mut().push_proc_call(
-            shared_code(body_code),
-            shared_code(settled_code),
-            b"CALL".to_vec(),
-            value,
-        );
+            self.begin_error_stack_bytes_checked(command)?;
+            use tcl_runtime_api::error_stack::ErrorStackFrame;
+            // Preserve the existing actual frame/argv selection, but release its
+            // borrow before constructing or replacing any real List/header.
+            let frame = {
+                let frames = self.frames.borrow();
+                frames.error_stack_frame().map(|(delta, words)| {
+                    (delta, words.to_vec(), frames.original_error_stack_argv())
+                })
+            };
+            let strings = self
+                .native_invocation_dialect()
+                .native_error_objects_protocol()
+                .ok_or_else(|| {
+                    self.clone().refuse_completion_value_access(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "actual C error stack",
+                        ),
+                    )
+                })?
+                .strings();
+            let frame = match frame {
+                Some((Some(delta), _, _)) => ErrorStackFrame::Redirect(obj::Owned::fresh(
+                    obj::new_wide_int_obj(i64::try_from(delta).unwrap_or(i64::MAX)),
+                )),
+                Some((None, words, original)) => {
+                    if original.as_ref().is_some_and(Vec::is_empty) {
+                        return Ok(());
+                    }
+                    let replacements = if original.is_none() {
+                        words
+                            .iter()
+                            .map(|word| obj::Owned::fresh(obj::new_string_bytes(word)))
+                            .collect::<Vec<_>>()
+                    } else {
+                        Vec::new()
+                    };
+                    let pointers = original
+                        .unwrap_or_else(|| replacements.iter().map(obj::Owned::as_ptr).collect());
+                    let allocations = pointers
+                        .iter()
+                        .map(|&original| {
+                            obj::check_native_liveness(original).map_err(|error| {
+                                self.clone().refuse_completion_value_access(error)
+                            })?;
+                            Ok(obj::NativeObjectLifetime::retain(original))
+                        })
+                        .collect::<Result<Vec<_>, tcl_runtime_api::NativeExecutionError>>()?;
+                    let frame =
+                        obj::Owned::fresh(crate::list::new_list_obj_native(&pointers, strings));
+                    drop(allocations);
+                    drop(replacements);
+                    scope.currency().ensure_current_or_refuse()?;
+                    ErrorStackFrame::Call(frame)
+                }
+                None => ErrorStackFrame::Unreported,
+            };
+            self.log_original_error_stack_frame_checked(frame)
+        })();
+        scope.currency().ensure_current_or_refuse()?;
+        reached
     }
 
-    /// Render the TIP 348 error stack as a Tcl list (`info errorstack` / the
-    /// options-dict `-errorstack` value).
-    pub(crate) fn error_stack_value(&self) -> Vec<u8> {
-        let es = self.error_stack.borrow();
-        let mut buf = Vec::new();
-        for (i, e) in es.entries().iter().enumerate() {
-            if i > 0 {
-                buf.push(b' ');
-            }
-            crate::list::append_list_element(&mut buf, e, false);
-        }
-        buf
+    /// Retain the actual private List header without reconstructing its members.
+    #[cfg(test)]
+    pub(crate) fn original_error_stack_value(&self) -> obj::Owned {
+        self.error_stack.borrow().value()
+    }
+
+    /// Copy supplied original members into the selected private List header.
+    pub(crate) fn seed_original_error_stack(
+        &self,
+        original: *mut TclObj,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.seed_original_error_stack_checked(original)
     }
 
     /// The innermost error command's 1-based source line.
@@ -7426,31 +13552,164 @@ impl Interp {
         self.error_stack.borrow_mut().mark_reset();
     }
 
-    /// Publish the accumulated trace to the `::errorInfo`/`::errorCode` globals
-    /// and reset the accumulator for the next error. Called when the error is
-    /// caught (`catch`) or reaches the outermost eval.
+    /// Preserve the reached expression failure record until script propagation.
+    #[cfg_attr(not(have_tommath), allow(dead_code))]
+    pub(crate) fn retain_expression_error_stage(
+        &self,
+        stage: Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>,
+    ) {
+        self.exc.borrow_mut().expression_error_stage = Some(stage);
+    }
+
+    /// Primitive callers retain their result and state. Script propagation owns
+    /// the separate message projection and selected expression error-code update.
+    fn propagate_error_stage(&mut self) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let stage = self.exc.borrow_mut().expression_error_stage.take();
+        if let Some(stage) = stage {
+            if let tcl_registry::native_numeric_error::NativeExpressionErrorCodeUpdate::Set(code) =
+                stage.eval_update()
+            {
+                self.replace_native_error_code_checked(scope.currency(), code)?;
+                let mut exc = self.exc.borrow_mut();
+                exc.code.clone_from(code);
+                exc.code_explicit = false;
+            }
+        }
+        let primitive = self.exc.borrow_mut().primitive_getter.take();
+        if let Some(primitive) = primitive {
+            if let tcl_syntax::scalar_getter::NativeScalarGetterErrorCode::Set(code) =
+                primitive.eval_error_code_update()
+            {
+                if self.uses_c84_global_error_info() {
+                    // This selected default-code setter is a normal global
+                    // write, without Tcl_SetObjErrorCode's explicit flag.
+                    let original = obj::Owned::fresh(new_string(code));
+                    let _ = self.var_set(b"::errorCode", original.as_ptr());
+                    drop(original);
+                    scope.currency().ensure_current_or_refuse()?;
+                } else {
+                    self.replace_native_error_code_checked(scope.currency(), code)?;
+                }
+                let mut exc = self.exc.borrow_mut();
+                exc.code.clone_from(code);
+                exc.code_explicit = false;
+            }
+            let original = obj::NativeObjectLifetime::retain(self.result.get());
+            let reached = self.completion_result_bytes_checked();
+            scope.currency().ensure_current_or_refuse()?;
+            obj::check_native_liveness(original.as_ptr())
+                .map_err(|error| self.refuse_completion_value_access(error))?;
+            if self.result.get() != original.as_ptr() {
+                return Err(self.refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "primitive error result replaced during getter",
+                    ),
+                ));
+            }
+            let current = reached?;
+            let projected = primitive.eval_result_bytes(&current);
+            if projected.len() != current.len() {
+                self.set_result_bytes(projected);
+            }
+            drop(original);
+            scope.currency().ensure_current_or_refuse()?;
+        }
+        scope.currency().ensure_current_or_refuse()
+    }
+
+    /// Publish and consume the accumulated exception at a native result reset.
     fn publish_error(&mut self) {
-        let info = self.error_info();
-        let code = self.error_code();
-        let ei = new_string(&info);
-        if self.var_set(b"::errorInfo", ei).is_err() {
-            drop_fresh(ei);
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        if self.propagate_error_stage().is_err() {
+            return;
         }
-        let ec = new_string(&code);
-        if self.var_set(b"::errorCode", ec).is_err() {
-            drop_fresh(ec);
+        if self
+            .native_invocation_dialect()
+            .error_arguments()
+            .is_some_and(|protocol| protocol.publishes_tcl_error_globals())
+        {
+            if self
+                .native_invocation_dialect()
+                .native_error_variable_protocol()
+                .is_some()
+            {
+                if self
+                    .publish_native_error_objects_checked(scope.currency())
+                    .is_err()
+                {
+                    return;
+                }
+            } else if !self.uses_c84_global_error_info() || !self.exc.borrow().native.legacy_copy {
+                let info = match self.completion_error_info_bytes_checked() {
+                    Ok(info) => info,
+                    Err(_) => return,
+                };
+                if scope.currency().ensure_current_or_refuse().is_err() {
+                    return;
+                }
+                let code = match self.error_code_bytes_checked() {
+                    Ok(code) => code,
+                    Err(_) => return,
+                };
+                if scope.currency().ensure_current_or_refuse().is_err() {
+                    return;
+                }
+                for (name, bytes) in [
+                    (b"::errorInfo".as_slice(), info),
+                    (b"::errorCode".as_slice(), code),
+                ] {
+                    let original = new_string(&bytes);
+                    let memory = obj::NativeObjectLifetime::retain(original);
+                    let reached = self.var_set(name, original);
+                    if reached.is_err() && obj::allocation_is_live(memory.as_ptr()) {
+                        drop_fresh(original);
+                    }
+                    drop(memory);
+                    if scope.currency().ensure_current_or_refuse().is_err() {
+                        return;
+                    }
+                }
+            }
         }
-        *self.exc.borrow_mut() = ExceptionState::default();
-        // The exception is consumed: drop any `-during` chain link with it.
+        if self
+            .replace_exception_state_checked(scope.currency(), ExceptionState::default())
+            .is_err()
+        {
+            return;
+        }
         self.clear_during();
-        // A new error episode starts fresh: the next logged command rebuilds the
-        // TIP 348 error stack (C's `Tcl_ResetResult` sets `resetErrorStack`).
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         self.mark_error_stack_reset();
+    }
+
+    /// A new public native evaluation resets the active exception episode.
+    /// Modern C publishes its retained private originals before releasing them;
+    /// C8.4 leaves the existing global headers in their cells.
+    fn reset_outermost_native_error(&mut self) {
+        if self.eval_depth.get() != 0 || self.host_refusal_pending() {
+            return;
+        }
+        if self.uses_c84_global_error_info() {
+            self.reset_native_global_error_episode();
+        } else if self
+            .native_invocation_dialect()
+            .native_error_variable_protocol()
+            .is_some()
+        {
+            self.publish_error();
+        }
     }
 
     /// Publish + reset, for `catch`/`try` once they have captured the options.
     pub(crate) fn publish_and_reset_error(&mut self) {
-        self.publish_error();
+        if !self.host_refusal_pending() {
+            self.publish_error();
+        }
     }
 
     /// Stash the `-during` chain link for the next error-options build (TIP 329
@@ -7493,16 +13752,56 @@ impl Interp {
         evaluation: CommandEvaluation,
         project: impl FnOnce(&mut Self, Code) -> T,
     ) -> T {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return project(self, Code::Error);
+            }
+        };
+        self.reset_outermost_native_error();
         if self.eval_depth.get() == 0 {
-            self.clear_return_options();
+            if let Err(first) = self.clear_return_options_checked() {
+                self.refuse_native_execution(first);
+                return project(self, Code::Error);
+            }
         }
         let owned = self.cmd_frames.borrow().is_empty().then(CmdFrame::root);
-        if owned.is_some() {
-            self.next_evaluation.set(Some(evaluation));
+        let code = if self.native_invocation_dialect().native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            // Jim's source entry evaluates an original String through the Script
+            // owner. Real token objects retain Source on a returned literal.
+            let original = obj::Owned::fresh(obj::new_string_bytes(src));
+            let frame = owned.unwrap_or_else(|| self.inherited_cmd_frame());
+            if self.codegen_activation_enter() {
+                let code = self.eval_native_jim_script(original, frame);
+                // The public projector captures the live completion before
+                // this boundary publishes its outermost exception state.
+                self.eval_depth.set(self.eval_depth.get().saturating_sub(1));
+                code
+            } else {
+                Code::Error
+            }
+        } else {
+            if owned.is_some() {
+                self.next_evaluation.set(Some(evaluation));
+            }
+            self.eval_script_mode_unpublished(src, owned, false)
+        };
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return project(self, Code::Error);
         }
-        let code = self.eval_script_mode_unpublished(src, owned, false);
         let projected = project(self, code);
+        if self
+            .native_invocation_dialect()
+            .native_eval_object_protocol()
+            .is_some_and(|protocol| protocol.clears_public_source_error_logged())
+        {
+            self.exc.borrow_mut().already_logged = false;
+        }
         self.finish_outermost_eval(code);
+        let _ = scope.currency().ensure_current_or_refuse();
         projected
     }
 
@@ -7524,34 +13823,80 @@ impl Interp {
     /// Evaluate a script and return an owned, byte-preserving completion.
     ///
     /// This is the public host/embedding boundary. The result and live return
-    /// options are captured before an outermost error is published and resets
-    /// the exception state; Tcl's error globals are still published before this
-    /// method returns. No text encoding is applied.
-    pub fn eval_completion(&mut self, script: &[u8]) -> tcl_runtime_api::ScriptCompletion {
-        self.eval_str_boundary(
+    /// options are captured from the live exception. Actual C private error
+    /// objects remain owned after this method returns, until a native result
+    /// reset or a hidden error-variable read. No text encoding is applied.
+    /// Host-only failures return their original typed cause independently of
+    /// every guest completion code, including Tcl errors captured by `catch`.
+    ///
+    /// # Errors
+    /// Returns a retained host execution refusal before accessing guest values.
+    pub fn eval_completion(
+        &mut self,
+        script: &[u8],
+    ) -> Result<tcl_runtime_api::ScriptCompletion, tcl_runtime_api::NativeExecutionError> {
+        let completion = self.eval_str_boundary(
             script,
             CommandEvaluation::Direct,
             crate::completion::capture_bytes,
-        )
+        );
+        if let Some(error) = self.native_execution_refusal() {
+            return Err(error);
+        }
+        completion
     }
 
     /// [`Self::eval_completion`] with each command compiled, as `tclsh`
     /// compiles every command its stdin feeds it.
-    pub fn eval_compiled_completion(&mut self, script: &[u8]) -> tcl_runtime_api::ScriptCompletion {
-        self.eval_str_boundary(
+    ///
+    /// # Errors
+    /// Returns a retained host execution refusal before accessing guest values.
+    pub fn eval_compiled_completion(
+        &mut self,
+        script: &[u8],
+    ) -> Result<tcl_runtime_api::ScriptCompletion, tcl_runtime_api::NativeExecutionError> {
+        let completion = self.eval_str_boundary(
             script,
             CommandEvaluation::Compiled,
             crate::completion::capture_bytes,
-        )
+        );
+        if let Some(error) = self.native_execution_refusal() {
+            return Err(error);
+        }
+        completion
     }
 
     /// One chunk `tclsh` read from its stdin, compiled and evaluated with no
     /// command active: a completion leaving it is settled as C settles one at
     /// `numLevels == 0` (`TclUpdateReturnInfo`, then
     /// `ProcessUnexpectedResult`).
-    fn eval_top_level_chunk(&mut self, chunk: &[u8]) -> tcl_runtime_api::ScriptCompletion {
+    fn eval_top_level_chunk(
+        &mut self,
+        chunk: &[u8],
+    ) -> Result<tcl_runtime_api::ScriptCompletion, tcl_runtime_api::NativeExecutionError> {
+        if self.native_invocation_dialect().native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            // Jim's source entry owns its own script evaluation.
+            return self.eval_compiled_completion(chunk);
+        }
+        let refused = |interp: &mut Self| match interp.native_execution_refusal() {
+            Some(error) => Err(error),
+            None => crate::completion::capture_bytes(interp, Code::Error),
+        };
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return refused(self);
+            }
+        };
+        self.reset_outermost_native_error();
         if self.eval_depth.get() == 0 {
-            self.clear_return_options();
+            if let Err(first) = self.clear_return_options_checked() {
+                self.refuse_native_execution(first);
+                return refused(self);
+            }
         }
         let owned = self.cmd_frames.borrow().is_empty().then(CmdFrame::root);
         if owned.is_some() {
@@ -7565,8 +13910,15 @@ impl Interp {
                 self.raise_with_info(&message, &message, &error_code)
             }
         };
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return refused(self);
+        }
         let projected = crate::completion::capture_bytes(self, code);
         self.finish_outermost_eval(code);
+        let _ = scope.currency().ensure_current_or_refuse();
+        if let Some(error) = self.native_execution_refusal() {
+            return Err(error);
+        }
         projected
     }
 
@@ -7617,11 +13969,15 @@ impl Interp {
     /// normally hands its result to `report`, and the next runs, as `tclsh`
     /// prints the error and reads on; an `exit` ends the run, and an
     /// incomplete last chunk never runs. The completion is the last chunk's.
+    ///
+    /// # Errors
+    /// Returns the first chunk's retained host execution refusal; no later
+    /// chunk runs.
     pub fn eval_stdin(
         &mut self,
         script: &[u8],
         mut report: impl FnMut(&mut Self, &[u8]),
-    ) -> tcl_runtime_api::ScriptCompletion {
+    ) -> Result<tcl_runtime_api::ScriptCompletion, tcl_runtime_api::NativeExecutionError> {
         let mut completion = tcl_runtime_api::ScriptCompletion::new(
             tcl_runtime_api::Code::Ok,
             Vec::new(),
@@ -7629,7 +13985,7 @@ impl Interp {
         );
         let mut start = 0;
         for end in tcl_lexer::stdin_chunk_ends(script) {
-            completion = self.eval_top_level_chunk(&script[start..end]);
+            completion = self.eval_top_level_chunk(&script[start..end])?;
             start = end;
             if self.exit_pending() {
                 break;
@@ -7638,7 +13994,7 @@ impl Interp {
                 report(self, &completion.result);
             }
         }
-        completion
+        Ok(completion)
     }
 
     /// Evaluate `src` as the body of its own `info frame` level (`frame` is
@@ -7696,6 +14052,20 @@ impl Interp {
         owned: Option<CmdFrame>,
         advance_shared: bool,
     ) -> Code {
+        if !self.evaluation_is_live() {
+            return Code::Error;
+        }
+        // The C object callback has no interpreter argument. Activate the
+        // selected engine policy before evaluating; its precision remains
+        // shared by interpreters of that engine on this thread.
+        if let Some(policy) = self.native_invocation_dialect().double_string_policy() {
+            obj::install_double_string_policy(policy);
+        }
+        let dialect = self.native_invocation_dialect();
+        parse::install_native_list_policy(
+            dialect.lexer_grammar.list_parse,
+            dialect.lexer_grammar.escapes,
+        );
         // Native-stack safety net — see `NATIVE_EVAL_DEPTH_LIMIT`'s doc
         // comment. Checked before incrementing / doing any other setup, so
         // bailing out here needs no unwind: `owned` (not yet pushed) simply
@@ -7704,6 +14074,21 @@ impl Interp {
         let top_level_file = self.next_top_level_file.replace(false) && owned.is_some();
         if NATIVE_EVAL_DEPTH_LIMIT.exceeded(self.eval_depth.get() + 1) {
             return self.error(b"too many nested evaluations (infinite loop?)");
+        }
+        if self.eval_depth.get() == 0 {
+            self.reset_native_compilation_admission();
+        }
+        if let Err(failure) = self.enter_native_script(src) {
+            return self.admit_native_compilation_error(&failure, None);
+        }
+        if let Err(code) = self.reset_native_ensemble_rewrite(
+            tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BytecodeEntry,
+        ) {
+            self.leave_native_script();
+            return code;
+        }
+        if self.uses_jim_error_stack() {
+            self.jim_error_stack.borrow_mut().mark_reset();
         }
         let pushed = owned.is_some();
         let evaluation = self.next_evaluation.take().unwrap_or(if pushed {
@@ -7716,6 +14101,7 @@ impl Interp {
         // stdin a chunk at a time.
         if pushed && evaluation == CommandEvaluation::Compiled && !next_proc_body {
             if let Some(failure) = self.compile_failure_84(src, false) {
+                self.leave_native_script();
                 return self.raise_compile_failure(&failure, b"");
             }
         }
@@ -7732,7 +14118,30 @@ impl Interp {
             self.cmd_frames.borrow_mut().push(f);
         }
         let mut last = Code::Ok;
-        let commands = parse::parse_script_with_config(src, self.lexer_config());
+        let commands = if self
+            .native_invocation_dialect()
+            .native_source_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::C(
+                tcl_dialect::TclVersion::V8_6,
+            )) {
+            parse::parse_script_with_original_text(src, self.lexer_config())
+        } else {
+            parse::parse_script_with_config(src, self.lexer_config())
+        };
+        let failure = (self.native_invocation_dialect().script_parse_timing()
+            == Some(tcl_registry::invocation_words::NativeScriptParseTiming::BeforeScript))
+        .then(|| {
+            commands
+                .iter()
+                .find_map(|command| parse::first_parse_error(&command.words, self.lexer_config()))
+        })
+        .flatten();
+        if let Some(message) = failure {
+            last = self.error(message.as_bytes());
+            if let Err(first) = self.capture_jim_script_parse_failure() {
+                return self.refuse_native_execution(first);
+            }
+        }
         if commands.is_empty() {
             // A script with no commands (empty / whitespace / comments only)
             // evaluates to the empty result — `Tcl_EvalEx` resets the result at
@@ -7742,7 +14151,13 @@ impl Interp {
             self.set_result_bytes(b"");
         }
         for cmd in &commands {
+            if last != Code::Ok {
+                break;
+            }
             last = self.eval_command(src, cmd, owns_frame);
+            if self.host_refusal_pending() {
+                last = Code::Error;
+            }
             if last != Code::Ok {
                 if top_level_file {
                     last = self.settle_top_level_command(src, cmd, last);
@@ -7756,19 +14171,34 @@ impl Interp {
         self.evaluation.set(outer_evaluation);
         self.proc_body.set(outer_proc_body);
         self.eval_depth.set(self.eval_depth.get() - 1);
+        self.leave_native_script();
         last
     }
 
     /// Apply the one outermost-evaluation tail after any result/options
     /// projection has observed the live completion state.
     fn finish_outermost_eval(&mut self, code: Code) {
-        if self.eval_depth.get() != 0 {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        if self.host_refusal_pending() || self.eval_depth.get() != 0 {
             return;
         }
-        // Publish the accumulated trace to the globals so an uncaught error
-        // leaves `::errorInfo`/`::errorCode` set, exactly as a `catch` would.
         if code == Code::Error {
-            self.publish_error();
+            if self
+                .native_invocation_dialect()
+                .native_error_variable_protocol()
+                .is_some()
+            {
+                if self.propagate_error_stage().is_err() {
+                    return;
+                }
+            } else {
+                self.publish_error();
+            }
+        }
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
         }
         // Between top-level commands, drain any queued background errors with the
         // current handler — the event loop's behaviour, so errors from one
@@ -7804,6 +14234,7 @@ impl Interp {
             line_base,
             proc_line_base: line_base,
             cmd: Vec::new(),
+            original_command: None,
             line: 1,
             oo: top.and_then(|f| f.oo.clone()),
             lambda: top.and_then(|f| f.lambda.clone()),
@@ -7830,9 +14261,39 @@ impl Interp {
             .compiled_control_body
             .take()
             .unwrap_or_else(|| self.in_proc());
-        if crate::list::is_pure_list(body) {
+        let snapshot = match obj::native_object_snapshot(body) {
+            Ok(snapshot) => snapshot,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        let Some(protocol) = self.eval_object_protocol() else {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native control-body object dispatch",
+                )
+                .into(),
+            );
+        };
+        if protocol.dispatches_list(
+            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            &snapshot,
+        ) {
             let frame = self.unlocated_frame();
             return self.dispatch_list_obj(body, frame);
+        }
+        // Jim's control workers evaluate the same original object through
+        // Script; Source primary fields are independent of C TIP280 locations.
+        if self.native_invocation_dialect().native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            return self.eval_generic_control_body(body);
+        }
+        // naming.mathop-procedure-source-controls
+
+        if !self.in_proc()
+            && protocol
+                .compiles_source(tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody)
+        {
+            return self.eval_generic_control_body(body);
         }
         if let Some((file, line)) = self.arg_loc(body) {
             // A command the release compiles inline (inside a proc where its
@@ -7869,12 +14330,17 @@ impl Interp {
         let saved = {
             let mut frames = self.cmd_frames.borrow_mut();
             frames.last_mut().map(|top| {
-                let saved = (top.line_base, top.line, std::mem::take(&mut top.cmd));
+                let saved = (
+                    top.line_base,
+                    top.line,
+                    std::mem::take(&mut top.cmd),
+                    top.original_command.take(),
+                );
                 top.line_base = line.saturating_sub(1);
                 saved
             })
         };
-        let Some((line_base, line, cmd)) = saved else {
+        let Some((line_base, line, cmd, original_command)) = saved else {
             // No enclosing frame to share (shouldn't happen under `in_proc`) —
             // fall back to a body-relative eval rather than panic.
             return self.eval_unlocated_body(&obj_bytes(body));
@@ -7885,6 +14351,7 @@ impl Interp {
             top.line_base = line_base;
             top.line = line;
             top.cmd = cmd;
+            top.original_command = original_command;
         }
         code
     }
@@ -7935,27 +14402,10 @@ impl Interp {
         Some((file, line + nl))
     }
 
-    /// Evaluate a body whose file-absolute first `line` and `file` were computed
-    /// by the caller (C's `switch`/list-element TIP 280 path, where the body is a
-    /// sub-element of a list literal, so it has no `Tcl_Obj` of its own to carry
-    /// a location). Runs as a line-advancing `type source` frame.
-    pub(crate) fn eval_located_body(
-        &mut self,
-        file: Option<Rc<[u8]>>,
-        line: u32,
-        body: &[u8],
-    ) -> Code {
-        let mut frame = self.inherited_cmd_frame();
-        frame.kind = FrameKind::Source;
-        frame.file = file;
-        frame.line_base = line.saturating_sub(1);
-        self.eval_framed(body, frame)
-    }
-
     /// A `type eval`, no-file, body-relative `CmdFrame` (inheriting the enclosing
     /// proc/level) — the frame for a body with no source location (a dynamic
     /// script, or a canonical-list body).
-    fn unlocated_frame(&self) -> CmdFrame {
+    pub(crate) fn unlocated_frame(&self) -> CmdFrame {
         let mut frame = self.inherited_cmd_frame();
         frame.kind = FrameKind::Eval;
         frame.file = None;
@@ -7978,7 +14428,9 @@ impl Interp {
     /// `TclEvalObjEx` of a non-literal). The errorInfo `("eval" body line N)`
     /// frame is appended separately by the caller.
     pub(crate) fn eval_body(&mut self, script: &[u8]) -> Code {
-        self.clear_return_options();
+        if let Err(first) = self.clear_return_options_checked() {
+            return self.refuse_native_execution(first);
+        }
         self.eval_unlocated_body(script)
     }
 
@@ -8002,7 +14454,12 @@ impl Interp {
             let mut frames = self.cmd_frames.borrow_mut();
             match frames.last_mut() {
                 Some(top) if offset <= src.len() => {
-                    let saved = (top.line_base, top.line, std::mem::take(&mut top.cmd));
+                    let saved = (
+                        top.line_base,
+                        top.line,
+                        std::mem::take(&mut top.cmd),
+                        top.original_command.take(),
+                    );
                     // Shift the body-relative base so the inner script's line 1
                     // maps to the bracket's file-absolute line.
                     top.line_base = (top.line_base + line_of(src, offset)).saturating_sub(1);
@@ -8019,11 +14476,12 @@ impl Interp {
         if code == Code::Error && self.evaluation.get() == CommandEvaluation::Direct {
             self.clear_error_logged();
         }
-        if let Some((line_base, line, cmd)) = saved {
+        if let Some((line_base, line, cmd, original_command)) = saved {
             if let Some(top) = self.cmd_frames.borrow_mut().last_mut() {
                 top.line_base = line_base;
                 top.line = line;
                 top.cmd = cmd;
+                top.original_command = original_command;
             }
         }
         code
@@ -8033,14 +14491,69 @@ impl Interp {
     /// but a literal obj with a recorded source location (TIP 280 LABC) runs as
     /// `type source` at its original file+line (the test-body case) rather than
     /// `type eval`.
+    /// Generic command bodies always enter their original object activation.
+    /// Enter an original control-body object at its retained optional source location.
+    pub(crate) fn eval_original_control_body_location(
+        &mut self,
+        original: *mut TclObj,
+        location: Option<(Option<Rc<[u8]>>, u32)>,
+    ) -> Code {
+        self.eval_original_control_body_location_with_purpose(
+            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            original,
+            location,
+        )
+    }
+
+    fn eval_original_control_body_location_with_purpose(
+        &mut self,
+        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        original: *mut TclObj,
+        location: Option<(Option<Rc<[u8]>>, u32)>,
+    ) -> Code {
+        let mut frame = self.inherited_cmd_frame();
+        match location {
+            Some((file, line)) => {
+                frame.kind = FrameKind::Source;
+                frame.file = file;
+                frame.line_base = line.saturating_sub(1);
+            }
+            None => {
+                frame.kind = FrameKind::Eval;
+                frame.file = None;
+                frame.line_base = 0;
+            }
+        }
+        self.eval_original_body_framed(purpose, original, frame)
+    }
+
+    pub(crate) fn eval_generic_control_body(&mut self, original: *mut TclObj) -> Code {
+        self.eval_original_control_body_location(original, self.arg_loc(original))
+    }
+
+    /// Only admitted Native control instructions select this dynamic-body entry.
+    /// C EVAL_STK compiles the original header with a NULL invoker, even when
+    /// that header retains a canonical List or an outer literal location.
+    fn eval_compiled_stack_control_body(&mut self, original: *mut TclObj) -> Code {
+        self.eval_original_control_body_location_with_purpose(
+            tcl_registry::native_eval_object::EvalObjectPurpose::CompiledStack,
+            original,
+            None,
+        )
+    }
+
     pub(crate) fn eval_body_obj(&mut self, obj: *mut TclObj) -> Code {
-        self.clear_return_options();
-        // A pure list is one command, dispatched by element identity (so a
-        // contained literal keeps its source location — C's list-eval path),
-        // inside its own `type eval` frame.
-        if crate::list::is_pure_list(obj) {
-            let frame = self.unlocated_frame();
-            return self.dispatch_list_obj(obj, frame);
+        self.eval_body_obj_with_inventory(obj, &mut None)
+    }
+
+    fn eval_body_obj_with_inventory(
+        &mut self,
+        obj: *mut TclObj,
+        inventory: &mut Option<Rc<native_jim_lookup::OriginalJimCommandInventoryReturn>>,
+    ) -> Code {
+        *inventory = None;
+        if let Err(first) = self.clear_return_options_checked() {
+            return self.refuse_native_execution(first);
         }
         let mut frame = self.inherited_cmd_frame();
         match self.arg_loc(obj) {
@@ -8058,37 +14571,125 @@ impl Interp {
                 frame.line_base = 0;
             }
         }
-        let bytes = obj_bytes(obj);
-        self.eval_framed(&bytes, frame)
+        self.eval_original_body_framed_with_inventory(
+            tcl_registry::native_eval_object::EvalObjectPurpose::Eval,
+            obj,
+            frame,
+            inventory,
+        )
+    }
+
+    /// Evaluate an original object using its selected native dispatch recipe.
+    pub(crate) fn eval_original_body_framed(
+        &mut self,
+        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        original: *mut TclObj,
+        frame: CmdFrame,
+    ) -> Code {
+        self.eval_original_body_framed_with_inventory(purpose, original, frame, &mut None)
+    }
+
+    fn eval_original_body_framed_with_inventory(
+        &mut self,
+        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        original: *mut TclObj,
+        frame: CmdFrame,
+        inventory: &mut Option<Rc<native_jim_lookup::OriginalJimCommandInventoryReturn>>,
+    ) -> Code {
+        *inventory = None;
+        let owner = obj::Owned::retain(original);
+        let Some(protocol) = self.eval_object_protocol() else {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native script-object dispatch",
+                )
+                .into(),
+            );
+        };
+        let compiled_stack = matches!(
+            purpose,
+            tcl_registry::native_eval_object::EvalObjectPurpose::CompiledStack
+        );
+        if compiled_stack && !protocol.compiles_source(purpose) {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native compiled-stack script-object dispatch",
+                )
+                .into(),
+            );
+        }
+        let snapshot = match obj::native_object_snapshot(owner.as_ptr()) {
+            Ok(snapshot) => snapshot,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        let list_dispatch = protocol.dispatches_list(purpose, &snapshot);
+        let jim_script = self.native_invocation_dialect().native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084);
+        if list_dispatch || jim_script {
+            // Original-object drivers enter the same evaluation activation as
+            // generated bodies. Their dispatch can recursively evaluate another
+            // original object without entering the parsed-source command loop.
+            if !self.codegen_activation_enter() {
+                return Code::Error;
+            }
+            let code = if list_dispatch {
+                self.dispatch_list_obj(owner.as_ptr(), frame)
+            } else {
+                self.eval_native_jim_script_with_inventory(owner, frame, inventory)
+            };
+            self.codegen_activation_leave(code);
+            return code;
+        }
+        if protocol.compiles_source(purpose)
+            && self.native_invocation_dialect().tcl_version.is_some()
+        {
+            match self.prepare_original_c_body(owner.as_ptr(), self.current_ns.get(), None) {
+                Ok(Some(artifact)) => return self.execute_original_c_body(&artifact, frame),
+                Ok(None) if compiled_stack => {
+                    return self.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "native compiled-stack body artifact",
+                        )
+                        .into(),
+                    );
+                }
+                Ok(None) => {}
+                Err(code) => return code,
+            }
+        }
+        match self.eval_object_bytes(owner.as_ptr()) {
+            Ok(bytes) => self.eval_framed(&bytes, frame),
+            Err(error) => self.report_cmd_error(error.into()),
+        }
     }
 
     /// Dispatch a pure-list script object as a single command, using its element
     /// objects directly (no stringify/re-parse) — this preserves each element's
     /// `Tcl_Obj` identity, so a nested `eval`/`uplevel $bodyVar` still finds the
     /// body's TIP 280 source location.
-    fn dispatch_list_obj(&mut self, obj: *mut TclObj, frame: CmdFrame) -> Code {
-        let elems = match crate::list::list_elements(obj) {
-            Ok(e) => e,
-            Err(e) => return self.error(e.message()),
+    fn dispatch_list_obj(&mut self, original: *mut TclObj, mut frame: CmdFrame) -> Code {
+        let owner = obj::Owned::retain(original);
+        let Some(backing) = crate::list::native_list_backing(owner.as_ptr()) else {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "retained native List backing",
+                )
+                .into(),
+            );
         };
-        if elems.is_empty() {
+        let elements = match backing.elements() {
+            Ok(elements) => elements,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        if elements.is_empty() {
             self.set_result_bytes(b"");
             return Code::Ok;
         }
-        // The pure list is exactly one command; push its `info frame` level (a
-        // canonical-list body has no source location, so the frame is the
-        // `type eval`, body-relative one the caller supplies) and report the list
-        // string as the executing command, before dispatching by element identity.
-        let mut owned = frame;
-        owned.cmd = obj_bytes(obj);
-        owned.line = owned.line_base + 1;
-        self.cmd_frames.borrow_mut().push(owned);
-        for &e in &elems {
-            // SAFETY: live element; take an owning +1 for the call.
-            unsafe { obj::incr_ref_count(e) };
-        }
-        let code = self.dispatch(&elems);
-        release_all(&elems);
+        frame.original_command = Some(owner);
+        frame.cmd.clear();
+        frame.line = frame.line_base + 1;
+        self.cmd_frames.borrow_mut().push(frame);
+        let code = self.dispatch(&elements);
         self.cmd_frames.borrow_mut().pop();
         code
     }
@@ -8097,38 +14698,34 @@ impl Interp {
     /// [`eval_body_obj`](Self::eval_body_obj). A located literal keeps its source
     /// provenance; a dynamic body is `type eval`, no file.
     pub(crate) fn eval_uplevel_obj(&mut self, target_level: usize, obj: *mut TclObj) -> Code {
-        self.clear_return_options();
+        if let Err(first) = self.clear_return_options_checked() {
+            return self.refuse_native_execution(first);
+        }
         let loc = self.arg_loc(obj);
         let prev_level = self.frames.borrow_mut().set_active_level(target_level);
         let prev_ns = self.current_ns.get();
         self.current_ns
             .set(self.frames.borrow().frame_ns(target_level));
-        let code = if crate::list::is_pure_list(obj) {
-            // Pure list → one command by element identity (see `dispatch_list_obj`),
-            // in a `type eval` frame redirected to the target level.
-            let mut frame = self.unlocated_frame();
-            frame.level = target_level;
-            frame.omit_level = true;
-            self.dispatch_list_obj(obj, frame)
-        } else {
-            let mut frame = self.inherited_cmd_frame();
-            frame.level = target_level;
-            frame.omit_level = true;
-            match loc {
-                Some((file, line)) => {
-                    frame.kind = FrameKind::Source;
-                    frame.file = file;
-                    frame.line_base = line.saturating_sub(1);
-                }
-                None => {
-                    frame.kind = FrameKind::Eval;
-                    frame.file = None;
-                    frame.line_base = 0;
-                }
+        let mut frame = self.inherited_cmd_frame();
+        frame.level = target_level;
+        frame.omit_level = true;
+        match loc {
+            Some((file, line)) => {
+                frame.kind = FrameKind::Source;
+                frame.file = file;
+                frame.line_base = line.saturating_sub(1);
             }
-            let bytes = obj_bytes(obj);
-            self.eval_framed(&bytes, frame)
-        };
+            None => {
+                frame.kind = FrameKind::Eval;
+                frame.file = None;
+                frame.line_base = 0;
+            }
+        }
+        let code = self.eval_original_body_framed(
+            tcl_registry::native_eval_object::EvalObjectPurpose::UpLevel,
+            obj,
+            frame,
+        );
         self.frames.borrow_mut().set_active_level(prev_level);
         self.current_ns.set(prev_ns);
         code
@@ -8151,16 +14748,45 @@ impl Interp {
                 top.line = top.line_base + line_of(src, cmd.start);
             }
             top.cmd = src[cmd.start..cmd.end].to_vec();
+            top.original_command = None;
         }
-        let code = self.eval_words(src, &cmd.words);
+        if self.uses_jim_error_stack() {
+            let script = self
+                .cmd_frames
+                .borrow()
+                .last()
+                .map(|frame| JimScriptLocation {
+                    file: frame.file.as_deref().unwrap_or(b"").to_vec(),
+                    line: frame.line_base + line_of(src, cmd.start),
+                });
+            self.jim_evaluation_frames
+                .borrow_mut()
+                .push(OriginalJimEvaluationFrame {
+                    procedure_level: self.jim_procedure_level.get(),
+                    command: None,
+                    is_procedure: false,
+                    script,
+                    invocation: Vec::new(),
+                });
+        }
+        let selected = self.native_command_selection(src, cmd);
+        let code = self.eval_words(src, &cmd.words, selected);
         if code == Code::Error {
             self.log_command_info(src, cmd);
+        }
+        if self.uses_jim_error_stack() {
+            self.jim_evaluation_frames.borrow_mut().pop();
         }
         code
     }
 
     /// Substitute each word of a command (with `{*}` expansion), then dispatch.
-    fn eval_words(&mut self, src: &[u8], words: &[parse::Word]) -> Code {
+    fn eval_words(
+        &mut self,
+        src: &[u8],
+        words: &[parse::Word],
+        selected: Option<Box<native_compilation::SelectedInvocation>>,
+    ) -> Code {
         // C parses a command WHOLE before it substitutes any of it
         // (`Tcl_EvalEx` → `Tcl_ParseCommand` → `TclEvalObjvInternal`), so a
         // parse failure in a later word — or inside a later word's `[…]` —
@@ -8198,35 +14824,59 @@ impl Interp {
         for w in words {
             let word_line = cmd_line + count_newlines(&src[w0..w.start.min(src.len())]);
             let is_literal = matches!(w.body, parse::WordBody::Literal(_));
-            let obj = match self.substitute_word(src, &w.body) {
+            self.begin_native_arguments();
+            let substituted = self.substitute_word(src, w);
+            self.end_native_arguments();
+            let obj = match substituted {
                 Ok(o) => o, // owned (+1)
                 Err(code) => {
                     release_all(&argv);
                     return code;
                 }
             };
+            let obj = if w.kind == parse::WordKind::Quoted
+                && self
+                    .native_invocation_dialect()
+                    .quoted_substitution_preserves_object()
+                    == Some(false)
+                && matches!(&w.body, WordBody::Parts(parts) if parts.len() == 1
+                    && matches!(&parts[0], WordPart::Variable(_) | WordPart::Command(_) | WordPart::Expression(_)))
+            {
+                let copy = new_string(&obj_bytes(obj));
+                // SAFETY: the substituted object is owned; the new string has
+                // independent bytes and starts its own native count recipe.
+                unsafe {
+                    obj::incr_ref_count(copy);
+                    obj::decr_ref_count(obj);
+                }
+                copy
+            } else {
+                obj
+            };
             if w.expand {
-                // Split the substituted value as a list; each element is an arg.
-                let bytes = obj_bytes(obj);
-                unsafe { obj::decr_ref_count(obj) }; // done with the word obj
-                let elems = match parse::split_list(&bytes) {
+                // Expand the live list objects directly. Stringifying and
+                // reparsing would lose numeric/byte representations and reject
+                // raw Jim strings already held in valid list elements.
+                let elems = match crate::list::list_elements(obj) {
                     Ok(e) => e,
                     Err(e) => {
+                        unsafe { obj::decr_ref_count(obj) };
                         release_all(&argv);
-                        return self.error_with_code(e.message(), e.error_code());
+                        return self.report_cmd_error(e.into());
                     }
                 };
                 // For a `{*}` of a *literal* word, each element keeps its source
                 // line (its offset within the literal — C's `TclListLines`), so a
                 // body-defining element (`namespace {*}{eval ns {proc …}}`) is
                 // `type source`. A dynamic `{*}$v` has no per-element location.
-                let offsets = is_literal.then(|| scan_list_offsets(&bytes)).flatten();
+                let offsets = is_literal
+                    .then(|| scan_list_offsets(&obj_bytes(obj)))
+                    .flatten();
                 let parsed = offsets
                     .as_ref()
                     .is_some_and(|o| o.iter().all(|&(_, lit)| lit));
                 compiled &= parsed;
-                for (k, e) in elems.iter().enumerate() {
-                    let eo = new_string(e);
+                for (k, &eo) in elems.iter().enumerate() {
                     unsafe { obj::incr_ref_count(eo) };
                     let idx = argv.len();
                     argv.push(eo);
@@ -8241,6 +14891,7 @@ impl Interp {
                     }
                     literals.push(idx);
                 }
+                unsafe { obj::decr_ref_count(obj) };
             } else {
                 let idx = argv.len();
                 argv.push(obj); // already owned (+1)
@@ -8270,6 +14921,9 @@ impl Interp {
             let mut locs = self.arg_locs.borrow_mut();
             for &idx in &labc {
                 locs.push((argv[idx], file.clone(), arg_lines[idx]));
+                if self.uses_jim_error_stack() {
+                    obj::retain_script_location(argv[idx], file.clone(), arg_lines[idx]);
+                }
             }
         }
         *self.arg_lines.borrow_mut() = arg_lines;
@@ -8284,7 +14938,7 @@ impl Interp {
                 .extend(literals.iter().map(|&idx| (base, idx)));
         }
 
-        let code = self.dispatch(&argv);
+        let code = self.dispatch_native_selection(selected, &argv);
         if compiled_pushed > 0 {
             let mut literals = self.compiled_literals.borrow_mut();
             let keep = literals.len() - compiled_pushed;
@@ -8436,14 +15090,6 @@ impl Interp {
         )
     }
 
-    /// The signature the registry states for the command `name` at the
-    /// emulated release (`CommandRegistry::release_arity`); `None` where the
-    /// pinned profile has no registry or the command no specification.
-    pub(crate) fn release_arity(&self, name: &str) -> Option<tcl_registry::Arity> {
-        let registry = self.0.profile_registry.get()?;
-        registry.get(name).map(|spec| registry.release_arity(spec))
-    }
-
     /// Why the emulated release refuses to compile `src` whole, as 8.4's
     /// `TclCompileScript` does (`tcl_registry::compile_84`), a procedure body
     /// where `in_procedure` says; `None` where it compiles, or the release
@@ -8485,6 +15131,31 @@ impl Interp {
         info.extend_from_slice(tail);
         self.error_line.set(failure.line);
         let code = failure.error_code.as_deref().unwrap_or("NONE");
+        if self.uses_c84_global_error_info() && failure.error_code.is_none() {
+            let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+                return Code::Error;
+            };
+            self.set_result_bytes(failure.message.as_bytes());
+            if scope.currency().ensure_current_or_refuse().is_err() {
+                return Code::Error;
+            }
+            // LogCompilationInfo reaches AddObjErrorInfo before the outer
+            // catch. Reuse its initial global setters and counted append;
+            // setting legacy_copy alone would skip those reached operations.
+            let suffix = &info[failure.message.len()..];
+            return match self.publish_c84_error_command_info(suffix, code.as_bytes()) {
+                Ok(true) => Code::Error,
+                Ok(false) => {
+                    self.refuse_completion_value_access(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "entered C8.4 compilation error publication",
+                        ),
+                    );
+                    Code::Error
+                }
+                Err(first) => self.refuse_native_execution(first),
+            };
+        }
         self.raise_with_info(failure.message.as_bytes(), &info, code.as_bytes())
     }
 
@@ -8498,6 +15169,13 @@ impl Interp {
     /// The recorded TIP 280 source location of a script obj (C's `lineLABCPtr`
     /// lookup), or `None` for a dynamic/computed script. Scans newest-first.
     fn arg_loc(&self, obj: *mut TclObj) -> Option<(Option<Rc<[u8]>>, u32)> {
+        if let Some(location) = self
+            .uses_jim_error_stack()
+            .then(|| obj::script_location(obj))
+            .flatten()
+        {
+            return Some(location);
+        }
         self.arg_locs
             .borrow()
             .iter()
@@ -8510,7 +15188,43 @@ impl Interp {
     /// (auto-load / `package` / friendly errors — the pure-Tcl `unknown` proc),
     /// matching C's `TclEvalObjvInternal`.
     pub(crate) fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
+        self.dispatch_prebound_with_entry(argv, None, true)
+    }
+
+    fn dispatch_original_source(
+        &mut self,
+        argv: &[*mut TclObj],
+        source: Option<&Rc<native_script::OriginalSourceInvocation>>,
+    ) -> Code {
+        self.dispatch_selection_with_source(
+            argv,
+            CommandDispatchSelection::Unselected,
+            true,
+            source,
+        )
+    }
+
+    /// Internal forwarding retains the current ensemble rewrite until its
+    /// target evaluates an ordinary command or bytecode body.
+    pub(crate) fn dispatch_invoke(&mut self, argv: &[*mut TclObj]) -> Code {
         self.dispatch_prebound(argv, None)
+    }
+
+    /// Forward original words through an explicit command lookup namespace,
+    /// retaining the caller's variable frame and the real dispatch boundary.
+    pub(crate) fn dispatch_in_lookup_namespace(
+        &mut self,
+        lookup: NsId,
+        argv: &[*mut TclObj],
+    ) -> Code {
+        self.dispatch_selection_with_entry(
+            argv,
+            CommandDispatchSelection::LookupAt(
+                lookup,
+                tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+            ),
+            false,
+        )
     }
 
     /// Invoke the exact command token named by a shared-runtime `CommandId`.
@@ -8539,6 +15253,7 @@ impl Interp {
                 CommandBinding {
                     generation,
                     command,
+                    jim_table_key: None,
                 },
             )),
         );
@@ -8555,12 +15270,105 @@ impl Interp {
         argv: &[*mut TclObj],
         prebound: Option<(Vec<u8>, CommandBinding)>,
     ) -> Code {
-        // TclEvalObjvInternal resets the interpreter result before execution
-        // traces and command dispatch. This is the central entry used by parsed
-        // commands, canonical-list eval, aliases/ensembles, callbacks and the
-        // native ABI. `argv` owns/borrows its objects independently, so dropping
-        // the prior result here cannot invalidate an argument.
-        self.set_result_bytes(b"");
+        self.dispatch_prebound_with_entry(argv, prebound, false)
+    }
+
+    fn dispatch_prebound_with_entry(
+        &mut self,
+        argv: &[*mut TclObj],
+        prebound: Option<(Vec<u8>, CommandBinding)>,
+        ordinary: bool,
+    ) -> Code {
+        self.dispatch_selection_with_entry(argv, prebound.into(), ordinary)
+    }
+
+    fn dispatch_selection_with_entry(
+        &mut self,
+        argv: &[*mut TclObj],
+        prebound: CommandDispatchSelection,
+        ordinary: bool,
+    ) -> Code {
+        self.dispatch_selection_with_source(argv, prebound, ordinary, None)
+    }
+
+    fn dispatch_selection_with_source(
+        &mut self,
+        argv: &[*mut TclObj],
+        prebound: CommandDispatchSelection,
+        ordinary: bool,
+        source: Option<&Rc<native_script::OriginalSourceInvocation>>,
+    ) -> Code {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return Code::Error;
+            }
+        };
+        let code = (|| {
+            let previous = self.native_dispatch_depth.get();
+            let depth = previous.saturating_add(1);
+            // Unknown handlers and other forwarding entries add real recursive
+            // dispatch frames between script-body activations. Bound this shared
+            // entry before lookup/rewrite effects, using the existing native-stack
+            // budget independently of the body evaluator's depth.
+            if NATIVE_EVAL_DEPTH_LIMIT.exceeded(depth) {
+                return self.error(b"too many nested evaluations (infinite loop?)");
+            }
+            if ordinary {
+                let reset = self.reset_native_ensemble_rewrite(
+                    tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BeforeOrdinaryLookup,
+                );
+                if scope.currency().ensure_current_or_refuse().is_err() {
+                    return Code::Error;
+                }
+                if let Err(code) = reset {
+                    return code;
+                }
+            }
+            self.native_dispatch_depth.set(depth);
+            let code = self.dispatch_prebound_inner(argv, prebound, ordinary, source);
+            let code = if self.check_entered_native_operation().is_err() {
+                Code::Error
+            } else {
+                self.drain_tailcalls(depth, code)
+            };
+            self.native_dispatch_depth.set(previous);
+            code
+        })();
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            Code::Error
+        } else {
+            code
+        }
+    }
+    fn dispatch_prebound_inner(
+        &mut self,
+        argv: &[*mut TclObj],
+        prebound: CommandDispatchSelection,
+        ordinary: bool,
+        source: Option<&Rc<native_script::OriginalSourceInvocation>>,
+    ) -> Code {
+        if !self.evaluation_is_live() {
+            return Code::Error;
+        }
+        // C resets before lookup and traces. Jim's selected worker resets only
+        // after retaining the actual command; its Script entry owns a separate
+        // source reset. The caller independently owns the original argv.
+        if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_none()
+        {
+            self.set_result_bytes(b"");
+        }
+        if self.check_entered_native_operation().is_err() {
+            return Code::Error;
+        }
+        self.reset_native_global_error_episode();
+        if self.check_entered_native_operation().is_err() {
+            return Code::Error;
+        }
         self.cmd_count.set(self.cmd_count.get() + 1);
         // An embedder's limits are charged here, where every command passes:
         // past one, the command fails instead of running.
@@ -8574,13 +15382,43 @@ impl Interp {
         // `enter`/`leave` traces. Only the step machinery is gated, in
         // `dispatch_traced`.
         let traced = !self.traces.borrow().cmd_traces.is_empty();
-        let code = if traced {
-            self.dispatch_traced(argv, prebound)
-        } else {
+        // A command's result is charged against the value-size limit once it
+        // is built (`charge_result`), so no value over the limit outlives the
+        // command that built it.
+        let code = if !traced {
             match prebound {
-                Some((_, binding)) => self.invoke(binding.command, argv),
-                None => self.dispatch_inner(argv),
+                CommandDispatchSelection::Bound(_, binding) => {
+                    if ordinary {
+                        if let Err(code) = self.reset_native_ensemble_rewrite(
+                            tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
+                        ) { return code; }
+                    }
+                    self.invoke_bound_with_source(
+                        binding.command,
+                        Some(binding.generation),
+                        argv,
+                        None,
+                        source,
+                    )
+                }
+                CommandDispatchSelection::Unselected => self.dispatch_inner_at_with_source(
+                    argv,
+                    ordinary,
+                    self.current_ns.get(),
+                    tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+                    source,
+                ),
+                CommandDispatchSelection::LookupAt(lookup, origin) => {
+                    self.dispatch_inner_at_with_source(argv, ordinary, lookup, origin, source)
+                }
+                CommandDispatchSelection::Missing {
+                    lookup,
+                    caller,
+                    origin,
+                } => self.dispatch_missing_command(argv, lookup, caller, origin),
             }
+        } else {
+            self.dispatch_traced(argv, prebound, ordinary, source)
         };
         self.charge_result(code)
     }
@@ -8592,25 +15430,64 @@ impl Interp {
     fn dispatch_traced(
         &mut self,
         argv: &[*mut TclObj],
-        prebound: Option<(Vec<u8>, CommandBinding)>,
+        prebound: CommandDispatchSelection,
+        ordinary: bool,
+        source: Option<&Rc<native_script::OriginalSourceInvocation>>,
     ) -> Code {
         use crate::cmd_trace::ops;
-        let name = obj_bytes(argv[0]);
         // Inside a rename's callbacks the vacating name still resolves, but the
         // one command's trace list has already moved to the destination key —
         // so look the traces up there, as C reaches them through the shared
         // `Command` from either hash entry. Only the *key* is canonicalised:
         // the callback's own words stay the spelling the caller invoked
         // (`cmd_word` below), which is what tclsh passes.
+        let lookup_context = match &prebound {
+            CommandDispatchSelection::LookupAt(lookup, origin) => Some((*lookup, *origin)),
+            _ => None,
+        };
+        let mut missing = match &prebound {
+            CommandDispatchSelection::Missing {
+                lookup,
+                caller,
+                origin,
+            } => Some((*lookup, *caller, *origin)),
+            _ => None,
+        };
         let (fqn, token, prebound_command) = match prebound {
-            Some((fqn, binding)) => (Some(fqn), Some(binding.generation), Some(binding.command)),
-            None => {
-                let fqn = self
-                    .resolve_cmd_fqn(&name)
-                    .map(|fqn| self.renamed_cmd_key(&fqn).unwrap_or(fqn));
-                let token = fqn.as_deref().and_then(|fqn| self.resolve_cmd_token(fqn));
+            CommandDispatchSelection::Bound(fqn, binding) => {
+                if ordinary {
+                    if let Err(code) = self.reset_native_ensemble_rewrite(
+                        tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
+                    ) { return code; }
+                }
+                (Some(fqn), Some(binding.generation), Some(binding.command))
+            }
+            CommandDispatchSelection::Unselected | CommandDispatchSelection::LookupAt(..) => {
+                let lookup = lookup_context.map_or(self.current_ns.get(), |(lookup, _)| lookup);
+                let selected = match self.resolve_original_command_at(lookup, argv[0]) {
+                    Ok(selected) => selected,
+                    Err(error) => return self.report_cmd_error(error.into()),
+                };
+                if selected.is_none() {
+                    if let Some((lookup, origin)) = lookup_context {
+                        missing = Some((lookup, self.current_ns.get(), origin));
+                    }
+                }
+                if ordinary && selected.is_some() {
+                    if let Err(code) = self.reset_native_ensemble_rewrite(
+                        tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
+                    ) { return code; }
+                }
+                let token = selected.and_then(|(_, generation)| generation);
+                let fqn = token.and_then(|generation| {
+                    self.namespaces
+                        .borrow()
+                        .native_command_at_node(generation)
+                        .map(|(_, fqn)| fqn)
+                });
                 (fqn, token, None)
             }
+            CommandDispatchSelection::Missing { .. } => (None, None, None),
         };
         let (has_enter, has_leave, has_step) = match &fqn {
             Some(f) => {
@@ -8638,14 +15515,29 @@ impl Interp {
         };
         if !has_enter && !has_leave && !has_step && !stepping {
             return match prebound_command {
-                Some(command) => self.invoke(command, argv),
-                None => self.dispatch_inner(argv),
+                Some(command) => self.invoke_bound_with_source(command, token, argv, None, source),
+                None => match missing {
+                    Some((lookup, caller, origin)) => {
+                        self.dispatch_missing_command(argv, lookup, caller, origin)
+                    }
+                    None => match lookup_context {
+                        Some((lookup, origin)) => self
+                            .dispatch_inner_at_with_source(argv, ordinary, lookup, origin, source),
+                        None => self.dispatch_inner_at_with_source(
+                            argv,
+                            ordinary,
+                            self.current_ns.get(),
+                            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+                            source,
+                        ),
+                    },
+                },
             };
         }
         // The `{cmd arg ...}` word: argv rendered as a single list element (C's
         // `TraceExecutionProc` builds it via per-arg `DStringAppendElement`).
         let cmd_word = {
-            let lst = crate::list::new_list_obj(argv);
+            let lst = self.new_list_object(argv);
             let bytes = obj_bytes(lst);
             drop_fresh(lst);
             bytes
@@ -8670,12 +15562,26 @@ impl Interp {
             0
         };
         let mut code = match prebound_command {
-            Some(command) => self.invoke(command, argv),
-            None => self.dispatch_inner(argv),
+            Some(command) => self.invoke_bound_with_source(command, token, argv, None, source),
+            None => match missing {
+                Some((lookup, caller, origin)) => {
+                    self.dispatch_missing_command(argv, lookup, caller, origin)
+                }
+                None => self.dispatch_inner_at_with_source(
+                    argv,
+                    ordinary,
+                    self.current_ns.get(),
+                    tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+                    source,
+                ),
+            },
         };
         // (D) remove the step traces installed above (they are the last pushed).
         if installed > 0 {
             self.remove_installed_step_traces(installed);
+        }
+        if self.host_refusal_pending() {
+            return Code::Error;
         }
         // (E) per-command leave (before interp/step leave), then (F) leavestep.
         if has_leave {
@@ -8751,6 +15657,11 @@ impl Interp {
         if cmds.is_empty() {
             return None;
         }
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return Some(self.refuse_native_execution(first)),
+        };
+        let saved_currency = native_operation_currency::SavedNativeOperationCurrency::capture(self);
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
         let saved_options = self.take_return_options();
@@ -8761,10 +15672,10 @@ impl Interp {
         let mut outcome: Option<Code> = None;
         for cmd in cmds {
             let args = if is_enter {
-                crate::list::new_list_obj(&[new_string(cmd_word), new_string(op_label)])
+                self.new_list_object(&[new_string(cmd_word), new_string(op_label)])
             } else {
                 let result_bytes = obj_bytes(self.result.get());
-                crate::list::new_list_obj(&[
+                self.new_list_object(&[
                     new_string(cmd_word),
                     new_string(code_str.as_deref().unwrap_or(b"0")),
                     new_string(&result_bytes),
@@ -8775,8 +15686,10 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
-            self.clear_return_options();
-            let c = self.eval_str(&line);
+            let c = match self.clear_return_options_checked() {
+                Ok(()) => self.eval_native_command_trace_script(true, &line),
+                Err(first) => self.refuse_native_execution(first),
+            };
             if c != Code::Ok {
                 outcome = Some(c);
                 break;
@@ -8784,99 +15697,421 @@ impl Interp {
         }
         self.traces.borrow_mut().exec_firing -= 1;
 
-        match outcome {
-            Some(c) => {
-                unsafe { obj::decr_ref_count(saved) };
-                Some(c)
-            }
-            None => {
-                unsafe {
-                    obj::decr_ref_count(self.result.get());
-                    self.result.set(saved);
-                }
-                self.restore_return_options(saved_options);
-                None
-            }
+        let cleanup = self.finish_saved_execution_result(
+            &saved_currency,
+            saved,
+            saved_options,
+            outcome.is_none(),
+        );
+        if let Err(first) = scope.currency().ensure_current_or_refuse().and(cleanup) {
+            return Some(self.refuse_native_execution(first));
         }
+        outcome
     }
 
-    /// The original resolve→invoke→unknown dispatch (trace-free).
-    fn dispatch_inner(&mut self, argv: &[*mut TclObj]) -> Code {
-        let name = obj_bytes(argv[0]);
+    fn dispatch_inner_at_with_source(
+        &mut self,
+        argv: &[*mut TclObj],
+        ordinary: bool,
+        lookup: NsId,
+        origin: tcl_registry::command_lookup::CommandLookupOrigin,
+        source: Option<&Rc<native_script::OriginalSourceInvocation>>,
+    ) -> Code {
         // The availability gate lives in `resolve_dispatchable`, so a builtin
         // the emulated release does not carry misses here and falls through to
         // the `unknown` machinery below like any other unresolved name.
-        if let Some(cmd) = self.resolve_dispatchable(self.current_ns.get(), &name) {
-            return self.invoke(cmd, argv);
-        }
-        // Inside an `oo::define`/`oo::objdefine` body, an unresolved leading word
-        // may be a definition subcommand (an abbreviation, or one without a
-        // global builtin); resolve it as C's define ensemble would.
-        if self.in_oo_define() {
-            if let Some(code) = self.oo_define_command(&name, argv) {
-                return code;
-            }
-        }
-        // Command miss: dispatch through the current namespace's `namespace
-        // unknown` handler if it has a custom one, else the global `unknown`
-        // command (and only if we're not already resolving `unknown` itself).
-        if name != b"unknown" {
-            // A custom unknown handler is a command *prefix* (a list), invoked as
-            // `handler… name args…`. The current namespace's handler wins; a
-            // namespace with none falls back to the global namespace's (which a
-            // script can set to override `::unknown`), else the `unknown` command.
-            let ns_handler = {
-                let ns = self.namespaces.borrow();
-                let cur = self.current_ns.get();
-                ns.unknown_handler(cur).map(<[u8]>::to_vec).or_else(|| {
-                    (cur != GLOBAL)
-                        .then(|| ns.unknown_handler(GLOBAL).map(<[u8]>::to_vec))
-                        .flatten()
-                })
-            };
-            if let Some(handler) = ns_handler {
-                if let Ok(prefix) = crate::parse::split_list(&handler) {
-                    let mut new_argv: Vec<*mut TclObj> =
-                        Vec::with_capacity(prefix.len() + argv.len());
-                    for w in &prefix {
-                        let o = new_string(w);
-                        unsafe { obj::incr_ref_count(o) };
-                        new_argv.push(o);
-                    }
-                    for &a in argv {
-                        unsafe { obj::incr_ref_count(a) };
-                        new_argv.push(a);
-                    }
-                    let code = self.dispatch(&new_argv);
-                    release_all(&new_argv);
-                    return code;
+        match self.resolve_original_command_at(lookup, argv[0]) {
+            Ok(Some((cmd, generation))) => {
+                if ordinary {
+                    if let Err(code) = self.reset_native_ensemble_rewrite(
+                        tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
+                    ) { return code; }
                 }
+                return self.invoke_bound_with_source(cmd, generation, argv, None, source);
             }
-            let unk = self.resolve_dispatchable(GLOBAL, b"unknown");
-            if let Some(unk) = unk {
-                let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(argv.len() + 1);
-                let head = new_string(b"unknown");
-                // SAFETY: fresh + live argv elements; take the owning +1.
-                unsafe { obj::incr_ref_count(head) };
-                new_argv.push(head);
-                for &a in argv {
-                    unsafe { obj::incr_ref_count(a) };
-                    new_argv.push(a);
-                }
-                let code = self.invoke(unk, &new_argv);
-                release_all(&new_argv);
-                return code;
-            }
+            Ok(None) => {}
+            Err(error) => return self.report_cmd_error(error.into()),
         }
-        self.invalid_command(&name)
+        self.dispatch_missing_command(
+            argv,
+            lookup,
+            self.current_ns.get(),
+            if origin != tcl_registry::command_lookup::CommandLookupOrigin::Ordinary {
+                origin
+            } else if ordinary {
+                tcl_registry::command_lookup::CommandLookupOrigin::Ordinary
+            } else {
+                tcl_registry::command_lookup::CommandLookupOrigin::AliasInvocation
+            },
+        )
     }
 
-    /// Invoke an already-resolved command handle with `argv`.
-    fn invoke(&mut self, cmd: Command, argv: &[*mut TclObj]) -> Code {
+    /// Return the original stored root, installing the native global default
+    /// lazily. Namespace storage owns the root independently from the result.
+    pub(crate) fn namespace_unknown_root(
+        &mut self,
+        namespace: NsId,
+        default: bool,
+    ) -> Option<obj::Owned> {
+        let stored = self.namespaces.borrow().unknown_handler(namespace);
+        if let Some(stored) = stored {
+            return Some(obj::Owned::retain(stored));
+        }
+        if !default {
+            return None;
+        }
+        let root = obj::Owned::fresh(new_string(b"::unknown"));
+        let retired = self
+            .namespaces
+            .borrow_mut()
+            .set_unknown_handler(namespace, Some(root.clone()));
+        drop(retired);
+        Some(root)
+    }
+
+    fn retire_namespace_unknown_root(&mut self, namespace: NsId) {
+        let retired = self
+            .namespaces
+            .borrow_mut()
+            .set_unknown_handler(namespace, None);
+        drop(retired);
+    }
+
+    fn prepare_missing_command(
+        &mut self,
+        argv: &[*mut TclObj],
+        lookup: NsId,
+        caller: NsId,
+        origin: tcl_registry::command_lookup::CommandLookupOrigin,
+    ) -> Result<Box<PreparedMissingCommand>, Code> {
+        use tcl_registry::command_lookup::{
+            native_lookup_fallback_policy, UnknownHandlerNamespace,
+        };
+        use tcl_syntax::value::ValueOps;
+        let Some(policy) = native_lookup_fallback_policy(self.native_invocation_dialect(), origin)
+        else {
+            return Err(self.invalid_original_command(argv[0]));
+        };
+        let (owned, selected) = if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_some()
+        {
+            let context = match self.native_jim_object_context() {
+                Ok(context) => context,
+                Err(error) => return Err(self.report_cmd_error(error.into())),
+            };
+            let head = match crate::native_source::NativeJimObjectContext::unknown_object(&context)
+            {
+                Ok(original) => original.as_ptr(),
+                Err(error) => return Err(self.report_cmd_error(error.into())),
+            };
+            let _allocation = obj::NativeObjectLifetime::retain(head);
+            let selected = match self.resolve_original_command_at(lookup, head) {
+                Ok(Some(selected)) => selected,
+                Ok(None) => return Err(Code::Error),
+                Err(error) => return Err(self.report_cmd_error(error.into())),
+            };
+            let owned = std::iter::once(&head)
+                .chain(argv)
+                .map(|original| obj::Owned::retain(*original))
+                .collect::<Vec<_>>();
+            (owned, selected)
+        } else {
+            let selected = match policy.namespace_handler {
+                Some(UnknownHandlerNamespace::Caller) => caller,
+                Some(UnknownHandlerNamespace::Lookup) => lookup,
+                None => GLOBAL,
+            };
+            let root = if policy.namespace_handler.is_some() {
+                self.namespace_unknown_root(selected, selected == GLOBAL)
+                    .or_else(|| self.namespace_unknown_root(GLOBAL, true))
+                    .expect("the native global default is installed")
+            } else {
+                obj::Owned::fresh(new_string(policy.default_handler.as_bytes()))
+            };
+            let prefix = match self.list_elements(&root.as_ptr()) {
+                Ok(prefix) => prefix,
+                Err(error) => return Err(self.report_cmd_error(error.into())),
+            };
+            let owned: Vec<_> = prefix
+                .iter()
+                .chain(argv)
+                .map(|word| obj::Owned::retain(*word))
+                .collect();
+            drop(root);
+            let Some(head) = owned.first() else {
+                return Err(self.invalid_original_command(argv[0]));
+            };
+            let selected = match self.resolve_original_command_at(lookup, head.as_ptr()) {
+                Ok(Some(selected)) => selected,
+                Ok(None) => return Err(self.invalid_original_command(argv[0])),
+                Err(error) => return Err(self.report_cmd_error(error.into())),
+            };
+            (owned, selected)
+        };
+        self.reset_native_ensemble_rewrite(
+            tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
+        )?;
+        let fqn = selected.1.and_then(|generation| {
+            self.namespaces
+                .borrow()
+                .native_command_at_node(generation)
+                .map(|(_, fqn)| fqn)
+        });
+        let words = owned.iter().map(obj::Owned::as_ptr).collect();
+        Ok(Box::new(PreparedMissingCommand {
+            owned,
+            words,
+            selected: Some(selected),
+            fqn,
+        }))
+    }
+
+    fn dispatch_missing_command(
+        &mut self,
+        argv: &[*mut TclObj],
+        lookup: NsId,
+        caller: NsId,
+        origin: tcl_registry::command_lookup::CommandLookupOrigin,
+    ) -> Code {
+        if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_some()
+        {
+            let arguments = match native_arguments::OriginalArguments::enter(self, argv) {
+                Ok(arguments) => arguments,
+                Err(error) => return self.report_cmd_error(error),
+            };
+            let frame = native_arguments::OriginalArgumentFrame::capture(self);
+            let namespace = self.current_ns();
+            let _ = self.invalid_original_command(argv[0]);
+            if let Err(error) = frame.check(self, &arguments) {
+                return self.report_cmd_error(error);
+            }
+            if self.current_ns() != namespace {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "Jim missing-command original namespace changed",
+                    )
+                    .into(),
+                );
+            }
+            if arguments.finish(Code::Ok) != Code::Ok {
+                return Code::Error;
+            }
+        }
+        let mut prepared = match self.prepare_missing_command(argv, lookup, caller, origin) {
+            Ok(prepared) => prepared,
+            Err(code) => return code,
+        };
+        let previous_namespace = self.current_ns.replace(lookup);
+        let previous_frame_namespace = self.frames.borrow_mut().replace_active_namespace(lookup);
+        let (command, generation) = prepared.selected.take().expect("prepared handler");
+        let code = match (prepared.fqn.take(), generation) {
+            (Some(fqn), Some(generation)) => self.dispatch_prebound(
+                &prepared.words,
+                Some((
+                    fqn,
+                    CommandBinding {
+                        generation,
+                        command,
+                        jim_table_key: None,
+                    },
+                )),
+            ),
+            _ => self.invoke_bound(command, generation, &prepared.words),
+        };
+        self.frames
+            .borrow_mut()
+            .replace_active_namespace(previous_frame_namespace);
+        self.current_ns.set(previous_namespace);
+        // Keep actual prefix members through the reached invocation, then free
+        // them after callback replacement/deletion has released the stored root.
+        prepared.owned.clear();
+        code
+    }
+
+    fn invoke_bound(
+        &mut self,
+        cmd: Command,
+        generation: Option<u64>,
+        argv: &[*mut TclObj],
+    ) -> Code {
+        self.invoke_bound_with_jim_reference(cmd, generation, argv, None)
+    }
+
+    fn invoke_bound_with_jim_reference(
+        &mut self,
+        cmd: Command,
+        generation: Option<u64>,
+        argv: &[*mut TclObj],
+        selected: Option<native_jim_tailcall::JimCommandReference>,
+    ) -> Code {
+        self.invoke_bound_with_source(cmd, generation, argv, selected, None)
+    }
+
+    fn invoke_bound_with_source(
+        &mut self,
+        cmd: Command,
+        generation: Option<u64>,
+        argv: &[*mut TclObj],
+        selected: Option<native_jim_tailcall::JimCommandReference>,
+        source: Option<&Rc<native_script::OriginalSourceInvocation>>,
+    ) -> Code {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                // A refused entry still retires its actual argument worker.
+                drop(cmd);
+                if let Err(first) = self.retire_pending_native_ensemble_roles() {
+                    self.refuse_native_execution(first);
+                }
+                return Code::Error;
+            }
+        };
+        let mut jim_command = match self.retain_active_jim_command(&cmd, generation, selected) {
+            Ok(command) => command,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        let code = (|| {
+            if self.check_entered_native_operation().is_err() {
+                return Code::Error;
+            }
+            if let Some(source) = source {
+                if let Err(error) = source.check(self, argv) {
+                    return self.report_cmd_error(error.into());
+                }
+            }
+            if let Err(error) = self.associate_native_jim_arguments(argv) {
+                return self.report_cmd_error(error.into());
+            }
+            if self.uses_jim_error_stack() {
+                let mut frames = self.jim_evaluation_frames.borrow_mut();
+                if let Some(frame) = frames.last_mut() {
+                    frame.command = generation;
+                    frame.is_procedure = matches!(cmd, Command::Proc(_));
+                }
+            }
+            let _jim_invocation = self.borrow_jim_invocation(argv, source);
+            if self.native_invocation_dialect().native_string_protocol()
+                == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+            {
+                let context = match self.native_jim_object_context() {
+                    Ok(context) => context,
+                    Err(error) => return self.report_cmd_error(error.into()),
+                };
+                self.set_result(context.empty_object().as_ptr());
+            }
+            let code = self.invoke_bound_body(cmd, generation, argv);
+            // Retirement releases reached owners even after a Host refusal.
+            let retirement = self.retire_pending_native_ensemble_roles();
+            // Final current and previous worker cleanup is part of this operation,
+            // before Guest projection or a success status can leave the boundary.
+            drop(jim_command.take());
+            if retirement.is_err() {
+                return Code::Error;
+            }
+            // Check the original context before Guest projection or later work.
+            if self.check_entered_native_operation().is_err() {
+                return Code::Error;
+            }
+            if code == Code::Error && self.uses_jim_error_stack() {
+                if let Err(first) = self.capture_jim_error_stack() {
+                    return self.refuse_native_execution(first);
+                }
+            }
+            code
+        })();
+        drop(jim_command);
+        // Also covers early reporting and the actual invocation-scope cleanup.
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return Code::Error;
+        }
+        code
+    }
+
+    fn enter_original_jim_evaluation(
+        &self,
+        line: u32,
+        filename: *mut TclObj,
+    ) -> JimEvaluationScope {
+        // naming.source.jim-original-source-entry
+
+        let script = self
+            .cmd_frames
+            .borrow()
+            .last()
+            .map(|frame| JimScriptLocation {
+                file: frame.file.as_deref().unwrap_or(b"").to_vec(),
+                line,
+            });
+        let mut frames = self.jim_evaluation_frames.borrow_mut();
+        let previous_len = frames.len();
+        frames.push(OriginalJimEvaluationFrame {
+            procedure_level: self.jim_procedure_level.get(),
+            command: None,
+            is_procedure: false,
+            script,
+            invocation: Vec::new(),
+        });
+        let mut borrows = self.jim_invocation_borrows.borrow_mut();
+        let previous_borrows_len = borrows.len();
+        borrows.push(JimBorrowedInvocation {
+            frame_index: previous_len,
+            argv: Vec::new(),
+            script_filename: Some(filename),
+            source: None,
+        });
+        JimEvaluationScope {
+            interp: self.clone(),
+            previous_len,
+            previous_borrows_len,
+        }
+    }
+
+    fn borrow_jim_invocation(
+        &self,
+        argv: &[*mut TclObj],
+        source: Option<&Rc<native_script::OriginalSourceInvocation>>,
+    ) -> Option<JimInvocationScope> {
+        if !self.uses_jim_error_stack() {
+            return None;
+        }
+        let frame_index = self.jim_evaluation_frames.borrow().len().checked_sub(1)?;
+        let mut borrows = self.jim_invocation_borrows.borrow_mut();
+        let previous_len = borrows.len();
+        borrows.push(JimBorrowedInvocation {
+            frame_index,
+            // Copy pointer slots, not object references: the caller owns the
+            // objects through invoke_bound's synchronous return or unwind.
+            argv: argv.to_vec(),
+            script_filename: None,
+            source: source.cloned(),
+        });
+        Some(JimInvocationScope {
+            interp: self.clone(),
+            previous_len,
+        })
+    }
+
+    fn invoke_bound_body(
+        &mut self,
+        cmd: Command,
+        generation: Option<u64>,
+        argv: &[*mut TclObj],
+    ) -> Code {
         match cmd {
-            Command::Builtin(f) => f(self, argv),
+            Command::Builtin(f) => {
+                let _native_admission = self.enter_native_builtin(generation, argv);
+                f(self, argv)
+            }
+            Command::Alias {
+                original_prefix, ..
+            } => self.dispatch_alias(&original_prefix, argv),
             Command::ObjCmd(command) => self.invoke_obj_cmd(&command, argv),
-            Command::Alias { target, prefix, .. } => self.dispatch_alias(&target, &prefix, argv),
             Command::Imported {
                 source,
                 source_generation,
@@ -8888,21 +16123,21 @@ impl Interp {
                         return self.dispatch_ensemble(&token, argv);
                     }
                 }
-                match self.resolve_import_source(&source, source_generation) {
+                match self.resolve_import_source(source_generation) {
                     // Transparent redirect: forward argv unchanged to the source.
-                    Some(cmd) => self.invoke(cmd, argv),
+                    Some(cmd) => self.invoke_bound(cmd, Some(source_generation), argv),
                     None => self.invalid_command(&source),
                 }
             }
             Command::Ensemble(token) => self.dispatch_ensemble(&token, argv),
-            Command::Proc(def) => self.call_proc(&def, argv),
-            Command::ChildInterp(name) => self.dispatch_child(&name, argv),
+            Command::Proc(def) => self.call_bound_proc(&def, argv),
+            Command::ChildInterp(command) => self.dispatch_original_child(&command, argv),
             Command::OoObject(id) => self.oo_dispatch(id, argv),
             Command::OoMy(id) => crate::cmd_oo::my_cmd(self, id, argv),
             Command::OoMyClass(id) => crate::cmd_oo::myclass_cmd(self, id, argv),
-            Command::ParentAlias { target, prefix, .. } => {
-                self.dispatch_parent_alias(&target, &prefix, argv)
-            }
+            Command::ParentAlias {
+                original_prefix, ..
+            } => self.dispatch_parent_alias(&original_prefix, argv),
         }
     }
 
@@ -8911,6 +16146,26 @@ impl Interp {
     /// procedure left in the interpreter through `Tcl_SetObjResult`, which
     /// dispatch emptied before the call.
     fn invoke_obj_cmd(&mut self, command: &ObjCommand, argv: &[*mut TclObj]) -> Code {
+        if command.host_backing_retired.get() {
+            self.refuse_completion_value_access(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original Runtime host backing retired",
+                ),
+            );
+            return Code::Error;
+        }
+        if command.original_deleted.get() {
+            self.refuse_completion_value_access(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original C object command retired",
+                ),
+            );
+            return Code::Error;
+        }
+
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return Code::Error;
+        };
         let Ok(objc) = c_int::try_from(argv.len()) else {
             self.set_result_bytes(b"too many arguments for a C command");
             return Code::Error;
@@ -8929,51 +16184,155 @@ impl Interp {
             )
         };
         let code = Code::from_int(code);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return Code::Error;
+        }
         // C Tcl starts every command with no error in flight, so an error the
         // procedure returned without stating a code through the C API is
         // `NONE`, whatever error came before it.
         if code == Code::Error && self.c_api_errors.get() == stated {
-            *self.exc.borrow_mut() = ExceptionState::default();
+            if let Err(first) =
+                self.replace_exception_state_checked(scope.currency(), ExceptionState::default())
+            {
+                return self.refuse_native_execution(first);
+            }
         }
         code
     }
 
-    /// `Tcl_CreateObjCommand`: bind `name` (qualified or relative to the current
-    /// namespace) to `command`, replacing and so deleting any command of that
-    /// name. Answers the new binding's generation.
+    /// Select the actual public object-command registration recipe. C qualified
+    /// names use the current namespace; Jim constructs a root CString key.
+    /// Answers the installed token without relooking up a name.
     pub(crate) fn create_obj_command(&mut self, name: &[u8], command: ObjCommand) -> Option<u64> {
-        self.ns_register(name, Command::ObjCmd(Rc::new(command)));
-        self.resolve_cmd_token(name)
+        self.create_obj_command_for_purpose(
+            name,
+            command,
+            tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand,
+        )
+    }
+
+    /// Counted Engine creation retains its own receipt and callback purpose,
+    /// independently of the measured legacy public C object-command call.
+    pub(crate) fn create_counted_engine_obj_command(
+        &mut self,
+        name: &[u8],
+        command: ObjCommand,
+    ) -> Option<u64> {
+        self.create_obj_command_for_purpose(
+            name,
+            command,
+            tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::CountedEngineObjectCommand,
+        )
+    }
+
+    fn create_obj_command_for_purpose(
+        &mut self,
+        name: &[u8],
+        mut command: ObjCommand,
+        purpose: tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose,
+    ) -> Option<u64> {
+        use tcl_registry::native_command_creation::NativePublicCommandRegistrationRecipe;
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return None;
+            }
+        };
+        let Some(protocol) = self
+            .native_invocation_dialect()
+            .native_command_creation_protocol()
+        else {
+            self.refuse_host_command("public command registration has no selected native protocol");
+            return None;
+        };
+        let (namespace, simple, report, original_key) =
+            match protocol.public_registration_recipe(purpose) {
+                Some(NativePublicCommandRegistrationRecipe::CNamespacePublication) => {
+                    let selected = self
+                        .namespaces_mut()
+                        .command_c_api_publication_at(self.current_ns(), name);
+                    let Some((namespace, simple)) = selected else {
+                        self.refuse_host_command(
+                            "C command publication has no selected original namespace",
+                        );
+                        return None;
+                    };
+                    (namespace, simple, None, None)
+                }
+                Some(NativePublicCommandRegistrationRecipe::JimRootCStringKey) => {
+                    let Some(report) = protocol.public_jim_registration_key(purpose, name) else {
+                        self.refuse_host_command(
+                            "Jim public registration has no original CString key projection",
+                        );
+                        return None;
+                    };
+                    let original_key = self.generated_jim_command_key(
+                        GLOBAL,
+                        name,
+                        tcl_syntax::naming::NativeNamePurpose::CommandCApiPublication,
+                    );
+                    if scope.currency().ensure_current_or_refuse().is_err() {
+                        return None;
+                    }
+                    let original_key = match original_key {
+                        Ok(Some(key)) => key,
+                        Ok(None) => {
+                            self.refuse_host_command(
+                                "Jim public registration has no original key owner",
+                            );
+                            return None;
+                        }
+                        Err(error) => {
+                            self.report_cmd_error(error.into());
+                            return None;
+                        }
+                    };
+                    (
+                        GLOBAL,
+                        report.comparison_bytes().to_vec(),
+                        Some(report),
+                        Some(original_key),
+                    )
+                }
+                None => {
+                    self.refuse_host_command(
+                        "public command constructor purpose has no selected native recipe",
+                    );
+                    return None;
+                }
+            };
+        // A caller-provided owned-shim purpose remains independently sealed
+        // even when its record passes through a public constructor facade.
+        if command.creation_purpose.is_none() {
+            command.creation_purpose = Some(purpose);
+        }
+        let OriginalCommandPublication::Published(generation) = self
+            .bind_command_replacement_with_original_jim_key(
+                namespace,
+                &simple,
+                Command::ObjCmd(Rc::new(command)),
+                report,
+                original_key,
+            )
+        else {
+            return None;
+        };
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return None;
+        }
+        self.remember_original_byte_command_registration(name, namespace, &simple, generation);
+        Some(generation)
     }
 
     /// Register `cmd` under the (possibly qualified) name `name` — for the OO
     /// object/class commands.
     pub(crate) fn ns_register(&mut self, name: &[u8], cmd: Command) {
-        let ns = self
+        let (namespace, tail) = self
             .namespaces
             .borrow_mut()
-            .command_home_ns(self.current_ns.get(), name);
-        let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
-        self.bind_command_replacement(ns, &tail, cmd);
-    }
-
-    /// The fully-qualified name a (relative or absolute) command/object name
-    /// resolves to, relative to the current namespace — used to name OO
-    /// objects/classes consistently.
-    pub(crate) fn fqn_for(&self, name: &[u8]) -> Vec<u8> {
-        if name.starts_with(b"::") {
-            return normalize_colons(name);
-        }
-        let qn = self
-            .namespaces
-            .borrow()
-            .qualified_name(self.current_ns.get());
-        let mut fqn = qn.clone();
-        if qn != b"::" {
-            fqn.extend_from_slice(b"::");
-        }
-        fqn.extend_from_slice(name);
-        normalize_colons(&fqn)
+            .support_command_publication_at(self.current_ns.get(), name);
+        self.bind_command_replacement(namespace, &tail, cmd);
     }
 
     /// Commands dispatched so far (`info cmdcount`).
@@ -9020,16 +16379,10 @@ impl Interp {
         Some(match cmd {
             // A coroutine resume command registers as a builtin but reports
             // its own cmdType (C's per-command registration).
-            Command::Builtin(_) => {
-                let fqn = self
-                    .namespaces
-                    .borrow()
-                    .resolve_fqn(self.current_ns.get(), name);
-                match fqn {
-                    Some(fqn) if self.coros.borrow().contains_key(&fqn) => b"coroutine",
-                    _ => b"native",
-                }
-            }
+            Command::Builtin(_) => match self.resolve_cmd_token(name) {
+                Some(generation) if self.coros.borrow().contains_key(&generation) => b"coroutine",
+                _ => b"native",
+            },
             Command::ObjCmd(_) => b"native",
             Command::Proc(_) => b"proc",
             Command::Alias { .. } | Command::ParentAlias { .. } => b"alias",
@@ -9077,22 +16430,6 @@ impl Interp {
     /// advertises a *shorter* list than `interp` does (no `children`, `create`,
     /// `delete`, or `exists`: those are only ever spelled `interp <op> path`),
     /// and this runtime dispatches all thirteen.
-    pub(crate) const CHILD_OPTIONS: &[&[u8]] = &[
-        b"alias",
-        b"aliases",
-        b"bgerror",
-        b"debug",
-        b"eval",
-        b"expose",
-        b"hide",
-        b"hidden",
-        b"issafe",
-        b"invokehidden",
-        b"limit",
-        b"marktrusted",
-        b"recursionlimit",
-    ];
-
     /// The `wrong # args: should be "<child><tail>"` message for the `$child
     /// <sub>` shorthand. C's `NRChildCmd` builds every one of its arity errors
     /// with `Tcl_WrongNumArgs(interp, 1, objv, …)`, so the noun is **`objv[0]`
@@ -9120,12 +16457,40 @@ impl Interp {
     /// `kid hidd extra` is `"kid hidden"`, not `"kid hidd"` (tclsh
     /// 8.6.16 / 9.0.4-pinned). Written word for the command, canonical word
     /// for the subcommand.
-    fn child_wrong_args(&mut self, argv: &[*mut TclObj], tail: &[u8]) -> Code {
+    fn child_wrong_args(
+        &mut self,
+        command: &ChildInterpreterCommand,
+        argv: &[*mut TclObj],
+        arguments: &native_arguments::OriginalArguments,
+        tail: &[u8],
+    ) -> Code {
+        let head = match self.invoked_word_checked(argv, arguments) {
+            Ok(head) => head,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        if let Err(error) = self.check_original_child_command(command, arguments) {
+            return self.report_cmd_error(error);
+        }
         let mut message = b"wrong # args: should be \"".to_vec();
-        message.extend_from_slice(&invoked_word(argv));
+        message.extend_from_slice(&head);
         message.extend_from_slice(tail);
         message.push(b'"');
-        self.error(&message)
+        self.wrong_arguments_message(&message)
+    }
+
+    fn invoked_word_checked(
+        &self,
+        argv: &[*mut TclObj],
+        arguments: &native_arguments::OriginalArguments,
+    ) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
+        arguments.check_for(self)?;
+        let Some(&word) = argv.first() else {
+            return Ok(Vec::new());
+        };
+        arguments.check_original_for(self, 0, word)?;
+        let bytes = arguments.bytes(0)?;
+        arguments.check_original_for(self, 0, word)?;
+        Ok(bytes.to_vec())
     }
 
     /// Dispatch a child-interpreter command (`$child subcommand ?arg ...?`): the
@@ -9137,37 +16502,88 @@ impl Interp {
     /// `NRChildCmd` and `NRInterpCmd` share `ChildHide` / `ChildExpose` /
     /// `ChildInvokeHidden` the same way. Only the arity check and its noun
     /// differ between the two entry points.
-    fn dispatch_child(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
-        if argv.len() < 2 {
-            return self.child_wrong_args(argv, b" cmd ?arg ...?");
+    fn dispatch_child(&mut self, command: &ChildInterpreterCommand, argv: &[*mut TclObj]) -> Code {
+        let arguments = match native_arguments::OriginalArguments::enter(self, argv) {
+            Ok(arguments) => arguments,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        if let Err(error) = arguments.check_for(self) {
+            return self.report_cmd_error(error);
         }
-        let word = obj_bytes(argv[1]);
-        // `$child delete` is this runtime's own extra — C's child table has no
-        // `delete` (it is only ever spelled `interp delete path`) — so it is
-        // matched exactly, never abbreviates, and stays out of the enumeration.
-        let sub: &[u8] = if word == b"delete" {
-            b"delete"
-        } else {
-            match crate::cmd_alias::resolve_interp_option(
-                Self::CHILD_OPTIONS,
-                Self::CHILD_OPTIONS,
-                &word,
-            ) {
-                Ok(canonical) => canonical,
-                Err(m) => return self.error(&m),
+        if !command.is_current_for(self) {
+            return self.error(b"interpreter has been deleted");
+        }
+        let code = self.dispatch_child_original(command, argv, &arguments);
+        arguments.finish(code)
+    }
+
+    fn dispatch_child_original(
+        &mut self,
+        command: &ChildInterpreterCommand,
+        argv: &[*mut TclObj],
+        arguments: &native_arguments::OriginalArguments,
+    ) -> Code {
+        let name = command.name();
+        if argv.len() < 2 {
+            return self.child_wrong_args(command, argv, arguments, b" cmd ?arg ...?");
+        }
+        if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_some()
+        {
+            const CHOICES: &[&[u8]] = &[b"eval", b"delete", b"alias"];
+            let word = match arguments.bytes(1) {
+                Ok(word) => word,
+                Err(error) => return self.report_cmd_error(error),
+            };
+            if let Err(error) = self.check_original_child_command(command, arguments) {
+                return self.report_cmd_error(error);
             }
+            let sub = match crate::cmd_alias::resolve_interp_option(CHOICES, CHOICES, &word) {
+                Ok(sub) => sub,
+                Err(message) => return self.error(&message),
+            };
+            return match sub {
+                b"eval" if argv.len() >= 3 => self.child_eval_original(name, &argv[2..]),
+                b"delete" if argv.len() == 2 => {
+                    self.delete_child(name);
+                    if let Err(error) = arguments.check_for(self) {
+                        return self.report_cmd_error(error);
+                    }
+                    self.set_result_bytes(b"");
+                    Code::Ok
+                }
+                b"alias" if argv.len() >= 4 => {
+                    crate::cmd_alias::child_alias_handle_original(self, name, argv, arguments)
+                }
+                _ => self.child_wrong_args(command, argv, arguments, b" subcommand ?arg ...?"),
+            };
+        }
+        if let Err(error) = arguments.check_original_for(self, 1, argv[1]) {
+            return self.report_cmd_error(error);
+        }
+        let selected = self.native_interpreter_option_from_original(argv[1], true);
+        if let Err(error) = arguments.check_original_for(self, 1, argv[1]) {
+            return self.report_cmd_error(error);
+        }
+        if let Err(error) = self.check_original_child_command(command, arguments) {
+            return self.report_cmd_error(error);
+        }
+        let sub = match selected {
+            Ok(name) => name.as_bytes(),
+            Err(error) => return self.report_cmd_error(error),
         };
         match sub {
             b"eval" => {
                 if argv.len() < 3 {
-                    return self.child_wrong_args(argv, b" eval arg ?arg ...?");
+                    return self.child_wrong_args(command, argv, arguments, b" eval arg ?arg ...?");
                 }
-                let script = join_words(&argv[2..]);
-                self.eval_in_child(name, &script)
+                self.child_eval_original(name, &argv[2..])
             }
             b"issafe" => {
                 if argv.len() != 2 {
-                    return self.child_wrong_args(argv, b" issafe");
+                    return self.child_wrong_args(command, argv, arguments, b" issafe");
                 }
                 let safe = self.with_child(name, |c| c.is_safe()).unwrap_or(false);
                 self.set_result_bytes(if safe { b"1" } else { b"0" });
@@ -9175,6 +16591,9 @@ impl Interp {
             }
             b"delete" => {
                 self.delete_child(name);
+                if let Err(error) = arguments.check_for(self) {
+                    return self.report_cmd_error(error);
+                }
                 self.set_result_bytes(b"");
                 Code::Ok
             }
@@ -9193,7 +16612,9 @@ impl Interp {
                 };
                 if argv.len() != 3 && argv.len() != 4 {
                     return self.child_wrong_args(
+                        command,
                         argv,
+                        arguments,
                         if hide {
                             b" hide cmdName ?hiddenCmdName?"
                         } else {
@@ -9213,7 +16634,13 @@ impl Interp {
                 crate::cmd_alias::hidectl_in(self, &[name.to_vec()], op, &argv[2..])
             }
             b"invokehidden" => {
-                let mut usage = invoked_word(argv);
+                let mut usage = match self.invoked_word_checked(argv, arguments) {
+                    Ok(usage) => usage,
+                    Err(error) => return self.report_cmd_error(error),
+                };
+                if let Err(error) = self.check_original_child_command(command, arguments) {
+                    return self.report_cmd_error(error);
+                }
                 usage.extend_from_slice(
                     b" invokehidden ?-namespace ns? ?-global? ?--? cmd ?arg ..?",
                 );
@@ -9221,48 +16648,54 @@ impl Interp {
             }
             b"hidden" => {
                 if argv.len() != 2 {
-                    return self.child_wrong_args(argv, b" hidden");
+                    return self.child_wrong_args(command, argv, arguments, b" hidden");
                 }
                 let names = self
                     .with_child(name, |c| c.hidden_names())
                     .unwrap_or_default();
                 let elems: Vec<*mut TclObj> =
                     names.iter().map(|n| obj::new_string_bytes(n)).collect();
-                self.set_result(crate::list::new_list_obj(&elems));
+                self.set_result(self.new_list_object(&elems));
                 Code::Ok
             }
             b"aliases" => {
                 if argv.len() != 2 {
-                    return self.child_wrong_args(argv, b" aliases");
+                    return self.child_wrong_args(command, argv, arguments, b" aliases");
                 }
-                let names = self
-                    .with_child(name, |c| c.alias_names())
-                    .unwrap_or_default();
-                let elems: Vec<*mut TclObj> =
-                    names.iter().map(|n| obj::new_string_bytes(n)).collect();
-                self.set_result(crate::list::new_list_obj(&elems));
+                let names = match self.with_child(name, |c| c.alias_names()) {
+                    Some(Ok(names)) => names,
+                    Some(Err(error)) => return self.report_cmd_error(error.into()),
+                    None => return self.error(b"could not find interpreter"),
+                };
+                let elems = names.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+                self.set_result(self.new_list_object(&elems));
                 Code::Ok
             }
             // `$child alias srcCmd targetCmd ?arg ...?` — a cross-interp alias in
             // the child delegating to `targetCmd` in this (parent) interp. (The
             // target is implicitly the parent, so there is no target-path arg.)
-            b"alias" => {
-                if argv.len() < 4 {
-                    return self.child_wrong_args(argv, b" alias aliasName ?targetName? ?arg ...?");
-                }
-                let alias = obj_bytes(argv[2]);
-                let target = obj_bytes(argv[3]);
-                let prefix: Vec<Vec<u8>> = argv[4..].iter().map(|&a| obj_bytes(a)).collect();
-                self.install_parent_alias(name, &alias, target, prefix);
-                self.set_result(obj::new_string_bytes(&alias));
-                Code::Ok
-            }
+            b"alias" => crate::cmd_alias::child_alias_handle_original(self, name, argv, arguments),
             // `$child recursionlimit ?newlimit?` — the path-less child form.
             b"recursionlimit" => {
                 if argv.len() > 3 {
-                    return self.child_wrong_args(argv, b" recursionlimit ?newlimit?");
+                    return self.child_wrong_args(
+                        command,
+                        argv,
+                        arguments,
+                        b" recursionlimit ?newlimit?",
+                    );
                 }
-                let newlimit = argv.get(2).copied();
+                let newlimit = if argv.len() == 3 {
+                    if let Err(error) = arguments.bytes(2) {
+                        return self.report_cmd_error(error);
+                    }
+                    if let Err(error) = self.check_original_child_command(command, arguments) {
+                        return self.report_cmd_error(error);
+                    }
+                    argv.get(2).copied()
+                } else {
+                    None
+                };
                 match self.with_child(name, |c| c.recursion_limit_apply(newlimit)) {
                     // C answers a new limit with the word it was given.
                     Some(Ok(n)) => {
@@ -9280,15 +16713,22 @@ impl Interp {
             // handler.
             b"bgerror" => {
                 if argv.len() > 3 {
-                    return self.child_wrong_args(argv, b" bgerror ?cmdPrefix?");
+                    return self.child_wrong_args(
+                        command,
+                        argv,
+                        arguments,
+                        b" bgerror ?cmdPrefix?",
+                    );
                 }
                 let prefix = argv.get(2).copied();
                 match self.with_child(name, |c| c.bgerror_apply(prefix)) {
                     Some(Ok(h)) => {
-                        self.set_result_bytes(&h);
+                        unsafe {
+                            self.set_obj_result(h.as_ptr());
+                        }
                         Code::Ok
                     }
-                    Some(Err(m)) => self.error(&m),
+                    Some(Err(error)) => self.report_cmd_error(error),
                     None => self.error(b"could not find interpreter"),
                 }
             }
@@ -9305,7 +16745,12 @@ impl Interp {
             // `$child debug ?-frame ?bool??` — the per-interp frame-debug switch.
             b"debug" => {
                 if argv.len() > 4 {
-                    return self.child_wrong_args(argv, b" debug ?-frame ?bool??");
+                    return self.child_wrong_args(
+                        command,
+                        argv,
+                        arguments,
+                        b" debug ?-frame ?bool??",
+                    );
                 }
                 let opts: Vec<*mut TclObj> = argv[2..].to_vec();
                 match self.with_child(name, |c| c.debug_apply(&opts)) {
@@ -9313,7 +16758,7 @@ impl Interp {
                         self.set_result(o);
                         Code::Ok
                     }
-                    Some(Err(m)) => self.error(&m),
+                    Some(Err(error)) => self.report_cmd_error(error),
                     None => self.error(b"could not find interpreter"),
                 }
             }
@@ -9321,30 +16766,44 @@ impl Interp {
             // child's commands/time limit.
             b"limit" => {
                 if argv.len() < 3 {
-                    return self.child_wrong_args(argv, b" limit limitType ?-option value ...?");
+                    return self.child_wrong_args(
+                        command,
+                        argv,
+                        arguments,
+                        b" limit limitType ?-option value ...?",
+                    );
                 }
-                let ltype = obj_bytes(argv[2]);
+                let ltype = match arguments.bytes(2) {
+                    Ok(value) => value,
+                    Err(error) => return self.report_cmd_error(error),
+                };
+                if let Err(error) = self.check_original_child_command(command, arguments) {
+                    return self.report_cmd_error(error);
+                }
                 let opts: Vec<*mut TclObj> = argv[3..].to_vec();
                 match self.with_child(name, |c| c.limit_apply(&ltype, &opts)) {
                     Some(Ok(o)) => {
                         self.set_result(o);
                         Code::Ok
                     }
-                    Some(Err(e)) => self.report_cmd_error(e),
+                    Some(Err(error)) => self.report_cmd_error(error),
                     None => self.error(b"could not find interpreter"),
                 }
             }
-            // Unreachable: every name in `Self::CHILD_OPTIONS` has an arm above.
-            other => {
-                let mut m = b"bad option \"".to_vec();
-                m.extend_from_slice(other);
-                m.extend_from_slice(b"\": must be ");
-                m.extend_from_slice(&tcl_cmd_core::prefix::choice_list_bytes(
-                    Self::CHILD_OPTIONS,
-                ));
-                self.error(&m)
-            }
+            _ => self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native child interpreter worker",
+                )
+                .into(),
+            ),
         }
+    }
+
+    /// Jim's zero-argument factory creates a global interpreter handle.
+    pub(crate) fn create_jim_child(&mut self) -> Vec<u8> {
+        let name = format!("::interp.handle{}", self.interp_counter.get()).into_bytes();
+        self.interp_counter.set(self.interp_counter.get() + 1);
+        self.create_child(Some(name))
     }
 
     /// Create a child interpreter named `name` (auto-generated when empty),
@@ -9357,7 +16816,21 @@ impl Interp {
             self.interp_counter.set(self.interp_counter.get() + 1);
             n.into_bytes()
         });
-        let mut child = Interp::with_host(self.host());
+        // Physical constructor inventory requires the same explicit profile
+        // recipe as with_native_core; a logical runtime version is not one.
+        let bootstrap = tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+            .native_bootstrap_protocol();
+        let mut child = if bootstrap.is_some() {
+            Interp::with_native_core(
+                self.host(),
+                self.dialect_profile(),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .expect("selected native child core bootstrap")
+        } else {
+            Interp::with_host(self.host())
+        };
+        child.native_child_interpreter.set(true);
         // A child interpreter is another interpreter of the *same* Tcl build,
         // not a different release — C compiles one library in, so every child
         // reports and behaves as its parent's release. Inherited before the
@@ -9366,37 +16839,113 @@ impl Interp {
         // parent. Resolution still runs against the child's *own* global
         // namespace: the rule is shared, the variables are not. The whole
         // profile is inherited, not just the release, so a child's
-        // command-surface availability gate agrees too, and so is the
-        // context it is pinned to, so the identity it states is its parent's.
+        // command-surface availability gate agrees too.
+        child.set_dialect_profile(self.dialect_profile());
+        let initialisation = bootstrap
+            .map(|bootstrap| bootstrap.child_initialisation())
+            .filter(|initialisation| initialisation.initialises_jim_static_extensions());
+        let initialisation = initialisation.map_or(Ok(()), |initialisation| {
+            self.initialise_original_jim_child(&mut child, initialisation)
+        });
+        if self.host_refusal_pending() {
+            return name;
+        }
+        if child.host_refusal_pending() {
+            self.transport_host_refusal_from(&child);
+            return name;
+        }
+        if let Err(error) = initialisation {
+            self.report_cmd_error(error.into());
+            return name;
+        }
+        // Inherited logical ingress can differ from the fresh child constructor.
+        // Invalidate that child's actual context before changing any provider.
+        if child.logical_expression_parse_provider.get()
+            != self.logical_expression_parse_provider.get()
+            || child.logical_source_word_provider.get() != self.logical_source_word_provider.get()
+            || child.logical_eval_object_provider.get() != self.logical_eval_object_provider.get()
+        {
+            child.invalidate_native_operation_context();
+            child.invalidate_interpreter_policy();
+        }
+        child
+            .logical_expression_parse_provider
+            .set(self.logical_expression_parse_provider.get());
+        child
+            .logical_source_word_provider
+            .set(self.logical_source_word_provider.get());
+        child
+            .logical_eval_object_provider
+            .set(self.logical_eval_object_provider.get());
         let pin = self.0.pin.borrow().clone();
         child.install_pin(pin);
         child
             .channels
             .borrow_mut()
             .share_process_state_from(&self.channels.borrow());
-        // `Interp::new` already gave the child its own predefined globals
-        // (`tcl_platform`, `env`, argv, …). The full `init.tcl`
-        // (package/auto-load) remains deferred.
+        // The child owns its selected core root allocations. Jim's child API
+        // additionally initializes its supported static distribution and copies
+        // its designated parent globals; C library initialisation is separate.
         // `interp debug -frame` is seeded from the creating interp's
         // `env(TCL_INTERP_DEBUG_FRAME)` (C's `Tcl_CreateChild`).
         if self
             .var_get_elem(b"env", b"TCL_INTERP_DEBUG_FRAME")
-            .map(|o| crate::typed_value::boolean(o).unwrap_or(false))
+            .map(|value| {
+                match crate::typed_value::native_boolean(value, self.native_invocation_dialect()) {
+                    Ok(boolean) => boolean,
+                    Err(error) => {
+                        if let Some(refusal) = error.native_access_refusal() {
+                            self.refuse_native_access(refusal);
+                        }
+                        false
+                    }
+                }
+            })
             .unwrap_or(false)
         {
             child.0.debug_frame.set(true);
             child.invalidate_interpreter_policy();
         }
-        self.children.borrow_mut().insert(name.clone(), child);
-        self.namespaces
+        if self.host_refusal_pending() {
+            return name;
+        }
+        let command = ChildInterpreterCommand::new(name.clone(), child.clone());
+        self.children
             .borrow_mut()
-            .register(&name, Command::ChildInterp(name.clone()));
+            .insert(name.clone(), child.clone());
+        let (namespace, tail) = if self
+            .native_invocation_dialect()
+            .native_string_protocol()
+            .is_some_and(|protocol| {
+                !matches!(
+                    protocol,
+                    tcl_syntax::native_string::NativeStringProtocol::Jim084
+                )
+            }) {
+            self.namespaces
+                .borrow_mut()
+                .command_c_api_publication_at(self.current_ns.get(), &name)
+                .expect("selected native child C command registration")
+        } else {
+            self.namespaces
+                .borrow_mut()
+                .support_command_publication_at(GLOBAL, &name)
+        };
+        self.bind_command_replacement(namespace, &tail, Command::ChildInterp(command));
+        child.native_child_command_generation.set(
+            self.namespaces
+                .borrow()
+                .command_generation(namespace, &tail),
+        );
         name
     }
 
     /// Whether a child interpreter `name` exists.
     pub(crate) fn child_exists(&self, name: &[u8]) -> bool {
-        self.children.borrow().contains_key(name)
+        self.children
+            .borrow()
+            .get(name)
+            .is_some_and(|child| !child.pending_delete.get())
     }
 
     /// Run `f` on the child interpreter `name` (or `None` if it doesn't exist) —
@@ -9411,14 +16960,19 @@ impl Interp {
     /// the call so re-entrancy can reach up, and restored after.
     ///
     /// The child is marked active for the call ([`eval_active`](InterpState)), so
-    /// a delete requested *during* `f` (the self-deleting `exit` alias) is
-    /// deferred to here and applied once no eval of it remains on the stack.
+    /// a deleted child remains alive through this retained activation while its
+    /// former parent-table entry and command token are retired independently.
     pub(crate) fn with_child<R>(
         &mut self,
         name: &[u8],
         f: impl FnOnce(&mut Interp) -> R,
     ) -> Option<R> {
-        let mut child = self.children.borrow().get(name)?.clone();
+        let mut child = self
+            .children
+            .borrow()
+            .get(name)
+            .filter(|child| !child.pending_delete.get())?
+            .clone();
         // Parent association and active/deferred-delete lifecycle are part of
         // child-interpreter policy. A token minted before this entry must not
         // survive into a differently-associated child evaluation.
@@ -9429,14 +16983,7 @@ impl Interp {
         child.eval_active.set(child.eval_active.get() - 1);
         *child.parent.borrow_mut() = saved_parent;
         child.invalidate_interpreter_policy();
-        let teardown = child.pending_delete.get() && child.eval_active.get() == 0;
-        drop(child); // release our handle clone before freeing the table's
-        if teardown {
-            self.invalidate_interpreter_policy();
-            self.children.borrow_mut().remove(name);
-            self.namespaces.borrow_mut().delete(GLOBAL, name);
-            self.invalidate_command_environment();
-        }
+        self.retire_pending_children();
         Some(r)
     }
 
@@ -9470,6 +17017,13 @@ impl Interp {
         name: &[u8],
         hidden_name: &[u8],
     ) -> CommandVisibilityOutcome {
+        let _scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return CommandVisibilityOutcome::Missing;
+            }
+        };
         // Gated: a builtin the emulated release does not carry is not there to
         // be hidden, so `interp hide` cannot park it in the hidden table where
         // `interp invokehidden` would reach it past the surface check.
@@ -9497,6 +17051,9 @@ impl Interp {
                 let Some(binding) = self.namespaces.borrow_mut().take(GLOBAL, name) else {
                     return CommandVisibilityOutcome::Missing;
                 };
+                if self.retire_pending_native_ensemble_roles().is_err() {
+                    return CommandVisibilityOutcome::Missing;
+                }
                 let mut hidden_fqn = b"::".to_vec();
                 hidden_fqn.extend_from_slice(hidden_name);
                 if let Some(old_fqn) = &old_fqn {
@@ -9506,6 +17063,9 @@ impl Interp {
                 if let Command::Ensemble(token) = &binding.command {
                     token.rename(hidden_fqn);
                 }
+                self.namespaces
+                    .borrow_mut()
+                    .note_native_command_hidden(binding.generation);
                 self.hidden
                     .borrow_mut()
                     .insert(hidden_name.to_vec(), binding);
@@ -9521,6 +17081,13 @@ impl Interp {
         hidden_name: &[u8],
         name: &[u8],
     ) -> CommandVisibilityOutcome {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return CommandVisibilityOutcome::Missing;
+            }
+        };
         // C's order: `Tcl_ExposeCommand` looks the token up (tclBasic.c:2486)
         // before it examines the destination (:2525), so `interp expose kid
         // nosuchtok taken` is `unknown hidden command "nosuchtok"`, not the
@@ -9531,6 +17098,17 @@ impl Interp {
         if self.namespaces.borrow().resolve_fqn(GLOBAL, name).is_some() {
             return CommandVisibilityOutcome::Collision;
         }
+        let original_key = match self.generated_jim_command_key(
+            GLOBAL,
+            name,
+            tcl_syntax::naming::NativeNamePurpose::CommandCApiPublication,
+        ) {
+            Ok(key) => key,
+            Err(error) => {
+                self.report_cmd_error(error.into());
+                return CommandVisibilityOutcome::Missing;
+            }
+        };
         // Invalidate before removing from the hidden table. A missing entry may
         // over-invalidate, which is preferable to a re-entrant visibility gap.
         self.invalidate_interpreter_policy();
@@ -9544,12 +17122,36 @@ impl Interp {
                     Command::Ensemble(token) => Some(Rc::clone(token)),
                     _ => None,
                 };
-                self.namespaces.borrow_mut().restore(name, binding);
+                let restored = {
+                    let mut namespaces = self.namespaces.borrow_mut();
+                    let slot = namespaces.exposed_command_publication_at(name);
+                    namespaces.restore_binding_at_checked(slot, binding, original_key)
+                };
+                if let Err(unpublished) = restored {
+                    self.refuse_host_command("exposed command has no actual publication slot");
+                    if let Err(first) =
+                        unpublished.retire_checked(&|| scope.currency().ensure_current_or_refuse())
+                    {
+                        self.refuse_native_execution(first);
+                    }
+                }
+                let retirement = self.retire_pending_native_ensemble_roles();
+                if let Err(first) = retirement {
+                    self.refuse_native_execution(first);
+                }
+                if scope.currency().ensure_current_or_refuse().is_err() {
+                    drop(ensemble);
+                    return CommandVisibilityOutcome::Missing;
+                }
                 let new_fqn = self
                     .namespaces
                     .borrow()
-                    .resolve_fqn(GLOBAL, name)
-                    .unwrap_or_else(|| self.fqn_for(name));
+                    .command_fqn_by_generation(generation);
+                let Some(new_fqn) = new_fqn else {
+                    self.refuse_host_command("exposed original command generation was retired");
+                    drop(ensemble);
+                    return CommandVisibilityOutcome::Missing;
+                };
                 self.move_cmd_traces(&old_hidden_fqn, &new_fqn, generation);
                 self.retarget_import_sources(generation, &new_fqn);
                 if let Some(token) = ensemble {
@@ -9572,55 +17174,70 @@ impl Interp {
         destination: &[u8],
         outcome: CommandVisibilityOutcome,
     ) -> Code {
-        let (message, error_code) = match (op, outcome) {
+        let (failure, original) = match (op, outcome) {
             (_, CommandVisibilityOutcome::Moved) => {
                 self.set_result_bytes(b"");
                 return Code::Ok;
             }
-            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::Missing) => {
-                let mut message = b"unknown command \"".to_vec();
-                message.extend_from_slice(source);
-                message.push(b'"');
-                (
-                    message,
-                    error_code_list(&[b"TCL", b"LOOKUP", b"COMMAND", source]),
-                )
-            }
-            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::Missing) => {
-                let mut message = b"unknown hidden command \"".to_vec();
-                message.extend_from_slice(source);
-                message.push(b'"');
-                (
-                    message,
-                    error_code_list(&[b"TCL", b"LOOKUP", b"HIDDENTOKEN", source]),
-                )
-            }
+            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::Missing) => (
+                tcl_syntax::naming::NativeCommandVisibilityFailure::MissingCommand,
+                source,
+            ),
+            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::Missing) => (
+                tcl_syntax::naming::NativeCommandVisibilityFailure::MissingHiddenToken,
+                source,
+            ),
             (CommandVisibilityOp::Hide, CommandVisibilityOutcome::NonGlobal) => (
-                b"can only hide global namespace commands (use rename then hide)".to_vec(),
-                b"TCL HIDE NON_GLOBAL".to_vec(),
+                tcl_syntax::naming::NativeCommandVisibilityFailure::HideNonGlobal,
+                source,
             ),
-            // C keeps this branch behind its own "theoretically impossible"
-            // comment (tclBasic.c:2500): only `Tcl_HideCommand` fills the
-            // hidden table, and it already refused a non-global source, so
-            // `expose_command` never reports it either.
             (CommandVisibilityOp::Expose, CommandVisibilityOutcome::NonGlobal) => (
-                b"trying to expose a non-global command namespace command".to_vec(),
-                b"NONE".to_vec(),
+                tcl_syntax::naming::NativeCommandVisibilityFailure::HiddenSourceNonGlobal,
+                source,
             ),
-            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::Collision) => {
-                let mut message = b"hidden command named \"".to_vec();
-                message.extend_from_slice(destination);
-                message.extend_from_slice(b"\" already exists");
-                (message, b"TCL HIDE ALREADY_HIDDEN".to_vec())
-            }
-            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::Collision) => {
-                let mut message = b"exposed command \"".to_vec();
-                message.extend_from_slice(destination);
-                message.extend_from_slice(b"\" already exists");
-                (message, b"TCL EXPOSE COMMAND_EXISTS".to_vec())
+            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::Collision) => (
+                tcl_syntax::naming::NativeCommandVisibilityFailure::AlreadyHidden,
+                destination,
+            ),
+            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::Collision) => (
+                tcl_syntax::naming::NativeCommandVisibilityFailure::CommandExists,
+                destination,
+            ),
+        };
+        self.report_command_visibility_failure(failure, original)
+    }
+
+    pub(crate) fn report_command_visibility_failure(
+        &mut self,
+        failure: tcl_syntax::naming::NativeCommandVisibilityFailure,
+        original: &[u8],
+    ) -> Code {
+        let Some(policy) = self.name_policy_protocol() else {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "command visibility diagnostic",
+                )
+                .into(),
+            );
+        };
+        let error = match policy
+            .recipe()
+            .command_visibility_diagnostic(failure, original)
+        {
+            Ok(error) => error,
+            Err(_) => {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "command visibility diagnostic",
+                    )
+                    .into(),
+                );
             }
         };
-        self.error_with_code(&message, &error_code)
+        match error.error_code {
+            Some(code) => self.error_with_code(&error.message, &code),
+            None => self.error(&error.message),
+        }
     }
 
     /// `interp invokehidden name ?arg ...?` — invoke a hidden command.
@@ -9632,12 +17249,10 @@ impl Interp {
                 fqn.extend_from_slice(name);
                 self.dispatch_prebound(argv, Some((fqn, binding)))
             }
-            None => {
-                let mut m = b"invalid hidden command name \"".to_vec();
-                m.extend_from_slice(name);
-                m.push(b'"');
-                self.error(&m)
-            }
+            None => self.report_command_visibility_failure(
+                tcl_syntax::naming::NativeCommandVisibilityFailure::InvokeHiddenMissing,
+                name,
+            ),
         }
     }
 
@@ -9744,11 +17359,14 @@ impl Interp {
     }
 
     fn remove_import_identity(&mut self, identity: &Rc<ImportToken>) -> Option<(Vec<u8>, u64)> {
-        if let Some(fqn) = self
+        let visible = self
             .namespaces
             .borrow_mut()
-            .remove_import_identity(identity)
-        {
+            .remove_import_identity(identity);
+        if let Err(first) = self.retire_pending_native_ensemble_roles() {
+            self.refuse_native_execution(first);
+        }
+        if let Some(fqn) = visible {
             return Some(fqn);
         }
         let hidden_name = self.hidden.borrow().iter().find_map(|(name, binding)| {
@@ -9760,6 +17378,9 @@ impl Interp {
             .then(|| name.clone())
         })?;
         let binding = self.hidden.borrow_mut().remove(&hidden_name)?;
+        self.namespaces
+            .borrow_mut()
+            .retire_native_command_node(binding.generation);
         let mut fqn = b"::".to_vec();
         fqn.extend_from_slice(&hidden_name);
         Some((fqn, binding.generation))
@@ -9797,26 +17418,51 @@ impl Interp {
         &mut self,
         identity: &Rc<crate::ensemble::EnsembleToken>,
     ) -> Option<(Vec<u8>, u64)> {
+        self.retire_ensemble_identity_using(identity, true)
+    }
+    fn retire_ensemble_replacement_identity(
+        &mut self,
+        identity: &Rc<crate::ensemble::EnsembleToken>,
+    ) -> Option<(Vec<u8>, u64)> {
+        self.retire_ensemble_identity_using(identity, false)
+    }
+    fn retire_ensemble_identity_using(
+        &mut self,
+        identity: &Rc<crate::ensemble::EnsembleToken>,
+        true_deletion: bool,
+    ) -> Option<(Vec<u8>, u64)> {
+        if true_deletion && self.uses_original_c_command_retirement() {
+            let original = self.ensemble_identity_location(identity)?;
+            self.finish_original_command_deletion(original.1, true);
+            return Some(original);
+        }
+
         if let Some((trace_fqn, generation)) = self.ensemble_identity_location(identity) {
             self.fire_delete_traces_of_token(&trace_fqn, Some(generation));
         }
-        let removed_fqn = self
+        let visible_removed = self
             .namespaces
             .borrow_mut()
-            .remove_ensemble_identity(identity)
-            .or_else(|| {
-                let hidden_name = self.hidden.borrow().iter().find_map(|(name, binding)| {
-                    matches!(
-                        &binding.command,
-                        Command::Ensemble(current) if Rc::ptr_eq(current, identity)
-                    )
-                    .then(|| name.clone())
-                })?;
-                let binding = self.hidden.borrow_mut().remove(&hidden_name)?;
-                let mut fqn = b"::".to_vec();
-                fqn.extend_from_slice(&hidden_name);
-                Some((fqn, binding.generation))
-            });
+            .remove_ensemble_identity(identity);
+        if let Err(first) = self.retire_pending_native_ensemble_roles() {
+            self.refuse_native_execution(first);
+        }
+        let removed_fqn = visible_removed.or_else(|| {
+            let hidden_name = self.hidden.borrow().iter().find_map(|(name, binding)| {
+                matches!(
+                    &binding.command,
+                    Command::Ensemble(current) if Rc::ptr_eq(current, identity)
+                )
+                .then(|| name.clone())
+            })?;
+            let binding = self.hidden.borrow_mut().remove(&hidden_name)?;
+            self.namespaces
+                .borrow_mut()
+                .retire_native_command_node(binding.generation);
+            let mut fqn = b"::".to_vec();
+            fqn.extend_from_slice(&hidden_name);
+            Some((fqn, binding.generation))
+        });
         if let Some((live_fqn, generation)) = removed_fqn.as_ref() {
             self.remove_cmd_traces_of_token(live_fqn, Some(*generation));
         }
@@ -9836,6 +17482,11 @@ impl Interp {
         origins: impl IntoIterator<Item = u64>,
         tokens: &[Rc<crate::ensemble::EnsembleToken>],
     ) {
+        if self.uses_original_c_command_retirement() {
+            self.retire_original_import_origins(origins, tokens);
+            return;
+        }
+
         let mut origins: std::collections::HashSet<u64> = origins.into_iter().collect();
         loop {
             let visible = self
@@ -9873,7 +17524,9 @@ impl Interp {
                 let Some((fqn, generation)) = self.import_identity_location(&identity) else {
                     continue;
                 };
-                self.fire_delete_traces_of_token(&fqn, Some(generation));
+                if self.check_entered_native_operation().is_ok() {
+                    self.fire_delete_traces_of_token(&fqn, Some(generation));
+                }
                 if let Some((removed_fqn, removed_generation)) =
                     self.remove_import_identity(&identity)
                 {
@@ -9886,7 +17539,9 @@ impl Interp {
                 let Some((fqn, generation)) = self.import_identity_location(&identity) else {
                     continue;
                 };
-                self.fire_delete_traces_of_token(&fqn, Some(generation));
+                if self.check_entered_native_operation().is_ok() {
+                    self.fire_delete_traces_of_token(&fqn, Some(generation));
+                }
                 if let Some((removed_fqn, removed_generation)) =
                     self.remove_import_identity(&identity)
                 {
@@ -9932,8 +17587,13 @@ impl Interp {
         self.ns_register(
             b"clock",
             Command::ParentAlias {
-                target: b"clock".to_vec(),
-                prefix: Vec::new(),
+                original_prefix: Rc::new(NativeAliasHeader::new(
+                    self.generated_alias_prefix(b"clock", &[]),
+                )),
+                registration_name: Some(Rc::new(NativeAliasHeader::new(obj::Owned::fresh(
+                    new_string(b"clock"),
+                )))),
+                publication_name: b"clock".to_vec(),
                 identity: Rc::new(()),
             },
         );
@@ -9971,17 +17631,30 @@ impl Interp {
     /// `interp debug ?-frame ?bool??` on this interp. Returns the fresh result
     /// object (the `-frame N` dict, or the bool), or the error-message bytes.
     /// `-frame` is a one-way latch: setting it to false once true keeps it true.
-    pub(crate) fn debug_apply(&self, opts: &[*mut TclObj]) -> Result<*mut TclObj, Vec<u8>> {
+    pub(crate) fn debug_apply(
+        &mut self,
+        opts: &[*mut TclObj],
+    ) -> Result<*mut TclObj, tcl_cmd_core::CmdError> {
         let frame_byte: &[u8] = if self.debug_frame.get() { b"1" } else { b"0" };
         match opts.len() {
-            0 => Ok(dict_obj(&[(b"-frame", frame_byte.to_vec())])),
+            0 => Ok(dict_obj(self, &[(b"-frame", frame_byte.to_vec())])),
             1 => {
-                check_debug_opt(opts[0])?;
+                self.native_static_option_index(
+                    opts[0],
+                    DEBUG_OPTIONS.names(),
+                    false,
+                    "debug option",
+                )?;
                 Ok(obj::new_string_bytes(frame_byte))
             }
             _ => {
-                check_debug_opt(opts[0])?;
-                if crate::typed_value::boolean(opts[1]).map_err(|e| e.message)? {
+                self.native_static_option_index(
+                    opts[0],
+                    DEBUG_OPTIONS.names(),
+                    false,
+                    "debug option",
+                )?;
+                if crate::typed_value::native_boolean(opts[1], self.native_invocation_dialect())? {
                     self.invalidate_interpreter_policy();
                     self.debug_frame.set(true);
                 }
@@ -10024,7 +17697,7 @@ impl Interp {
         ltype: &[u8],
         opts: &[*mut TclObj],
     ) -> Result<*mut TclObj, tcl_cmd_core::CmdError> {
-        match LIMIT_TYPES.index_of(ltype).map_err(message_error)? {
+        match LIMIT_TYPES.index_of_cmd(ltype)? {
             0 => self.limit_commands(opts),
             _ => self.limit_time(opts),
         }
@@ -10034,14 +17707,18 @@ impl Interp {
         const OPTS: &[&[u8]] = &[b"-command", b"-granularity", b"-value"];
         if opts.is_empty() {
             let l = self.limits.borrow();
-            return Ok(dict_obj(&[
-                (b"-command", l.cmd_command.clone()),
-                (b"-granularity", l.cmd_granularity.to_string().into_bytes()),
-                (b"-value", opt_int(l.cmd_value)),
-            ]));
+            return Ok(dict_obj(
+                self,
+                &[
+                    (b"-command", l.cmd_command.clone()),
+                    (b"-granularity", l.cmd_granularity.to_string().into_bytes()),
+                    (b"-value", opt_int(l.cmd_value)),
+                ],
+            ));
         }
         if opts.len() == 1 {
-            let opt = resolve_limit_opt(&obj_bytes(opts[0]), OPTS).map_err(message_error)?;
+            let opt = resolve_limit_opt(&obj_bytes(opts[0]), OPTS)
+                .map_err(tcl_cmd_core::CmdError::new_bytes)?;
             let l = self.limits.borrow();
             let val = match opt.as_slice() {
                 b"-command" => l.cmd_command.clone(),
@@ -10053,8 +17730,9 @@ impl Interp {
         // A trailing option with no value is a catchable error, not a silent
         // drop (`interp limit c commands -value 1 -granularity`).
         if opts.len() % 2 != 0 {
-            return Err(tcl_cmd_core::CmdError::wrong_args(
-                "interp limit path commands ?-option value ...?",
+            return Err(tcl_cmd_core::CmdError::wrong_arguments_message_bytes(
+                b"wrong # args: should be \"interp limit path commands ?-option value ...?\""
+                    .to_vec(),
             ));
         }
         // The option loop may commit an earlier pair before a later pair is
@@ -10063,7 +17741,8 @@ impl Interp {
         self.invalidate_interpreter_policy();
         let mut i = 0;
         while i + 1 < opts.len() {
-            let opt = resolve_limit_opt(&obj_bytes(opts[i]), OPTS).map_err(message_error)?;
+            let opt = resolve_limit_opt(&obj_bytes(opts[i]), OPTS)
+                .map_err(tcl_cmd_core::CmdError::new_bytes)?;
             let val = opts[i + 1];
             match opt.as_slice() {
                 b"-command" => self.limits.borrow_mut().cmd_command = obj_bytes(val),
@@ -10095,15 +17774,19 @@ impl Interp {
                 Some((s, m)) => (s.to_string().into_bytes(), m.to_string().into_bytes()),
                 None => (Vec::new(), Vec::new()),
             };
-            return Ok(dict_obj(&[
-                (b"-command", l.time_command.clone()),
-                (b"-granularity", l.time_granularity.to_string().into_bytes()),
-                (b"-milliseconds", millis),
-                (b"-seconds", secs),
-            ]));
+            return Ok(dict_obj(
+                self,
+                &[
+                    (b"-command", l.time_command.clone()),
+                    (b"-granularity", l.time_granularity.to_string().into_bytes()),
+                    (b"-milliseconds", millis),
+                    (b"-seconds", secs),
+                ],
+            ));
         }
         if opts.len() == 1 {
-            let opt = resolve_limit_opt(&obj_bytes(opts[0]), OPTS).map_err(message_error)?;
+            let opt = resolve_limit_opt(&obj_bytes(opts[0]), OPTS)
+                .map_err(tcl_cmd_core::CmdError::new_bytes)?;
             let l = self.limits.borrow();
             let val = match opt.as_slice() {
                 b"-command" => l.time_command.clone(),
@@ -10114,8 +17797,8 @@ impl Interp {
             return Ok(obj::new_string_bytes(&val));
         }
         if opts.len() % 2 != 0 {
-            return Err(tcl_cmd_core::CmdError::wrong_args(
-                "interp limit path time ?-option value ...?",
+            return Err(tcl_cmd_core::CmdError::wrong_arguments_message_bytes(
+                b"wrong # args: should be \"interp limit path time ?-option value ...?\"".to_vec(),
             ));
         }
         // As with command limits, parsing is incremental and can partially
@@ -10125,7 +17808,8 @@ impl Interp {
         let mut touched = self.limits.borrow().time_value.is_some();
         let mut i = 0;
         while i + 1 < opts.len() {
-            let opt = resolve_limit_opt(&obj_bytes(opts[i]), OPTS).map_err(message_error)?;
+            let opt = resolve_limit_opt(&obj_bytes(opts[i]), OPTS)
+                .map_err(tcl_cmd_core::CmdError::new_bytes)?;
             let val = opts[i + 1];
             match opt.as_slice() {
                 b"-command" => self.limits.borrow_mut().time_command = obj_bytes(val),
@@ -10166,7 +17850,6 @@ impl Interp {
 
     /// Whether this interp's `time` limit has elapsed (an absolute wall-clock
     /// deadline). `false` when no time limit is set.
-    #[cfg(have_tommath)]
     pub(crate) fn time_limit_exceeded(&self) -> bool {
         match self.limits.borrow().time_value {
             Some((secs, millis)) => {
@@ -10179,7 +17862,6 @@ impl Interp {
 
     /// Whether a `time` limit is configured at all — the cheap guard the loop
     /// commands check before paying for a wall-clock read.
-    #[cfg(have_tommath)]
     pub(crate) fn has_time_limit(&self) -> bool {
         self.limits.borrow().time_value.is_some()
     }
@@ -10189,7 +17871,6 @@ impl Interp {
     /// its `Code`. Called from the loop commands (`while`/`for`) each iteration
     /// so an unbounded loop under `interp limit $i time` terminates. A guarded
     /// no-op when no time limit is set.
-    #[cfg(have_tommath)]
     pub(crate) fn limit_check_tick(&mut self) -> Option<Code> {
         if let Some(code) = self.charge_tick() {
             return Some(code);
@@ -10212,63 +17893,43 @@ impl Interp {
 
     /// Delete a child interpreter (and its command). Returns whether it existed.
     ///
-    /// If the child is currently executing (a self-deleting `exit`/`interp
-    /// delete` from inside its own eval), the actual teardown is **deferred**:
-    /// the command binding is removed now so the name stops dispatching, but the
-    /// interp handle is freed only when its last eval unwinds
+    /// Its exact command token is removed and its parent-table entry retired now.
+    /// An executing child is retained by the actual `with_child` activation,
+    /// so the interpreter allocation survives until that eval unwinds
     /// ([`with_child`]/[`eval_in_child`]) — never while a re-entrant eval of it is
     /// still on the stack. Mirrors C's deferred `Tcl_DeleteInterp`.
     ///
     /// [`with_child`]: Interp::with_child
     /// [`eval_in_child`]: Interp::eval_in_child
     pub(crate) fn delete_child(&mut self, name: &[u8]) -> bool {
-        // Classify under a short `children` borrow, then act (re-borrowing) so we
-        // never hold `children` across the `namespaces` mutation.
-        let disposition = {
-            let children = self.children.borrow();
-            match children.get(name) {
-                Some(child) if child.eval_active.get() > 0 => {
-                    child.invalidate_interpreter_policy();
-                    child.pending_delete.set(true);
-                    Some(false) // busy: defer the removal
-                }
-                Some(_) => Some(true), // idle: remove now
-                None => None,
-            }
+        let child = self.children.borrow().get(name).cloned();
+        let Some(child) = child else {
+            return false;
         };
-        match disposition {
-            None => false,
-            Some(remove_now) => {
-                self.invalidate_interpreter_policy();
-                if remove_now {
-                    self.children.borrow_mut().remove(name);
-                }
-                self.namespaces.borrow_mut().delete(GLOBAL, name);
-                self.invalidate_command_environment();
-                true
+        self.invalidate_interpreter_policy();
+        let generation = child.native_child_command_generation.get();
+        let placed = generation.and_then(|generation| {
+            self.namespaces
+                .borrow()
+                .native_command_at_node(generation)
+                .map(|(_, full_name)| full_name)
+        });
+        if let Some(full_name) = placed {
+            self.delete_bound_command(&full_name);
+        } else if let Some(generation) = generation {
+            if self.uses_original_c_command_retirement() {
+                self.finish_original_command_deletion(generation, true);
+            } else {
+                self.hidden
+                    .borrow_mut()
+                    .retain(|_, binding| binding.generation != generation);
             }
         }
-    }
-
-    /// Evaluate `script` in child interpreter `name`, copying its result/code
-    /// back. `None`-returning if the child doesn't exist (caller raises).
-    ///
-    /// Runs through [`with_child`](Self::with_child), so a parent command invoked
-    /// *during* this eval — via a child→parent alias — can re-enter the same child
-    /// (`interp invokehidden $child …`), which the Safe Base relies on.
-    pub(crate) fn eval_in_child(&mut self, name: &[u8], script: &[u8]) -> Code {
-        match self.with_child(name, |c| (c.eval_str(script), c.result_bytes())) {
-            Some((code, result)) => {
-                self.set_result_bytes(&result);
-                code
-            }
-            None => {
-                let mut m = b"could not find interpreter \"".to_vec();
-                m.extend_from_slice(name);
-                m.push(b'"');
-                self.error(&m)
-            }
-        }
+        child.pending_delete.set(true);
+        child.invalidate_interpreter_policy();
+        self.retire_pending_children();
+        self.invalidate_command_environment();
+        true
     }
 
     /// Run a cross-interp alias (`ParentAlias`): invoke `target` (+ `prefix` +
@@ -10280,72 +17941,424 @@ impl Interp {
     /// `MAX_CROSS_INTERP_DEPTH` to cap native-stack growth.
     fn dispatch_parent_alias(
         &mut self,
-        target: &[u8],
-        prefix: &[Vec<u8>],
+        original_prefix: &NativeAliasHeader,
         argv: &[*mut TclObj],
     ) -> Code {
         let policy = tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED;
-        self.begin_control_options(policy);
+        if let Err(first) = self.begin_control_options_checked(policy) {
+            return self.refuse_native_execution(first);
+        }
         let Some(parent_state) = self.parent.borrow().upgrade() else {
             return self.error(b"cannot invoke a parent alias from the root interpreter");
         };
         if CROSS_INTERP_DEPTH.with(|d| d.get()) >= MAX_CROSS_INTERP_DEPTH {
             return self.error(b"too many nested cross-interpreter calls");
         }
-        // Build [target, *prefix, *argv[1..]] — each element owned (+1).
-        let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len());
-        let push_owned = |v: &mut Vec<*mut TclObj>, o: *mut TclObj| {
-            unsafe { obj::incr_ref_count(o) };
-            v.push(o);
-        };
-        push_owned(&mut new_argv, new_string(target));
-        for p in prefix {
-            push_owned(&mut new_argv, new_string(p));
+        let mut parent = Interp(parent_state);
+        if self.native_invocation_dialect().native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            return self.dispatch_original_jim_parent_alias(&mut parent, original_prefix, argv);
         }
-        for &a in &argv[1..] {
-            push_owned(&mut new_argv, a);
+        let scope = match native_operation_currency::NativeOperationScope::enter(&parent) {
+            Ok(scope) => scope,
+            Err(first) => {
+                parent.refuse_native_execution(first);
+                return self.transport_host_refusal_from(&parent);
+            }
+        };
+        let original_prefix_ptr = match original_prefix.checked_ptr() {
+            Ok(pointer) => pointer,
+            Err(error) => {
+                self.refuse_completion_value_access(error);
+                return Code::Error;
+            }
+        };
+        let members =
+            match tcl_syntax::value::ValueOps::list_elements(&mut parent, &original_prefix_ptr) {
+                Ok(members) => members,
+                Err(error) => {
+                    // This is the captured Native List, not a guest list parse.
+                    // A failed original-member projection retains a typed cause.
+                    parent.refuse_completion_value_access(error);
+                    return self.transport_host_refusal_from(&parent);
+                }
+            };
+        if let Err(error) = original_prefix.checked_ptr() {
+            self.refuse_completion_value_access(error);
+            return Code::Error;
+        }
+        let mut new_argv = Vec::with_capacity(members.len() + argv.len());
+        for original in members.into_iter().chain(argv.iter().skip(1).copied()) {
+            unsafe { obj::incr_ref_count(original) };
+            new_argv.push(original);
         }
         CROSS_INTERP_DEPTH.with(|d| d.set(d.get() + 1));
-        // `parent` is an owned handle sharing the parent's `InterpState`; the
-        // dispatch mutates it through interior mutability (no aliased `&mut`).
-        let mut parent = Interp(parent_state);
-        parent.begin_control_options(policy);
-        let code = parent.dispatch(&new_argv);
-        let res = parent.result_bytes();
-        let options = parent.pending_return_options();
+        let code = match parent.begin_control_options_checked(policy) {
+            Ok(()) => parent.dispatch_in_lookup_namespace(GLOBAL, &new_argv),
+            Err(first) => parent.refuse_native_execution(first),
+        };
         CROSS_INTERP_DEPTH.with(|d| d.set(d.get().saturating_sub(1)));
         release_all(&new_argv);
-        self.set_result_bytes(&res);
-        self.set_return_options(options);
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            parent.refuse_native_execution(first);
+            return self.transport_host_refusal_from(&parent);
+        }
+        let result = match parent.native_object_string_bytes(parent.result_obj()) {
+            Ok(result) => result,
+            Err(error) => {
+                parent.refuse_completion_value_access(error);
+                return self.transport_host_refusal_from(&parent);
+            }
+        };
+        let options = match parent.pending_return_option_objects_checked(scope.currency()) {
+            Ok(options) => options,
+            Err(first) => {
+                parent.refuse_native_execution(first);
+                return self.transport_host_refusal_from(&parent);
+            }
+        };
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            parent.refuse_native_execution(first);
+            return self.transport_host_refusal_from(&parent);
+        }
+        self.set_result_bytes(&result);
+        if let Err(error) = self.set_return_option_objects_checked(options) {
+            return self.report_cmd_error(error);
+        }
         code
+    }
+
+    fn call_bound_proc(&mut self, binding: &NativeProcedureCommand, argv: &[*mut TclObj]) -> Code {
+        use tcl_registry::native_procedure::{
+            NativeProcedureCompilationPurpose, NativeProcedureRecompileAction,
+        };
+        use tcl_runtime_api::native_procedure_roles::NativeProcedureRoleOwner;
+        let mut declaration = binding.declaration();
+        if let Err(error) = declaration.check_native_liveness() {
+            return self.report_cmd_error(error.into());
+        }
+        if declaration.native.is_none()
+            && !self.original_procedure_artifact_is_current(&declaration)
+        {
+            if let Some(protocol) = tcl_registry::native_procedure::procedure_activation_protocol(
+                self.native_invocation_dialect(),
+            ) {
+                match protocol.recompilation_action(
+                    NativeProcedureCompilationPurpose::CommandBody,
+                    declaration.native_procedure_role_ledger().references(),
+                ) {
+                    Some(NativeProcedureRecompileAction::ReplaceSharedDeclaration) => {
+                        declaration = match binding.replace_for_recompilation() {
+                            Ok(declaration) => declaration,
+                            Err(error) => return self.report_cmd_error(error.into()),
+                        };
+                    }
+                    Some(NativeProcedureRecompileAction::RetainDeclaration) | None => {}
+                }
+            }
+        }
+        if self.check_entered_native_operation().is_err() {
+            return Code::Error;
+        }
+        self.call_proc(&declaration, argv)
     }
 
     /// Call a user proc (`TclObjInterpProc`): a thin wrapper over [`run_proc`]
     /// with the proc's `(params, body, ns)` and the call args (`argv[1..]`).
     ///
     /// [`run_proc`]: Interp::run_proc
-    fn call_proc(&mut self, def: &ProcDef, argv: &[*mut TclObj]) -> Code {
-        let name = obj_bytes(argv[0]);
-        self.run_proc(
-            &def.params,
-            &def.body,
-            def.ns,
-            &argv[1..],
-            &name,
-            CallMeta {
-                err: ProcFrame::Proc(&name),
-                fqn: Some(&def.fqn),
-                source: def.source.clone(),
-                body_line_base: def.body_line_base,
-                link_vars: &[],
-                keep_loop_codes: false,
-                same_level: false,
-                usage_prefix: None,
-                level_words: None,
-                quote_name: true,
-                native: def.native,
+    fn call_proc(&mut self, def: &Rc<ProcDef>, argv: &[*mut TclObj]) -> Code {
+        let arguments = match native_arguments::OriginalArguments::enter(self, argv) {
+            Ok(arguments) => arguments,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let code = (|| {
+            let original_body = match def
+                .check_native_liveness()
+                .and_then(|()| def.body.checked_ptr())
+            {
+                Ok(original) => original,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
+            let body_lifetime = obj::NativeObjectLifetime::retain(original_body);
+            let jim_parameters = match def
+                .jim_parameters
+                .as_ref()
+                .map(obj::ProcedureObject::checked_ptr)
+                .transpose()
+            {
+                Ok(original) => original,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
+            let name = match arguments.bytes(0) {
+                Ok(name) => name,
+                Err(error) => return self.report_cmd_error(error),
+            };
+            if let Err(error) = def
+                .check_native_liveness()
+                .and_then(|()| def.body.checked_ptr())
+                .and_then(|current| {
+                    if current == original_body {
+                        Ok(())
+                    } else {
+                        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original procedure body replaced",
+                        ))
+                    }
+                })
+            {
+                return self.report_cmd_error(error.into());
+            }
+            let body = tcl_syntax::value::ValueOps::native_string_bytes(self, &original_body);
+            if let Err(error) = arguments.check() {
+                return self.report_cmd_error(error);
+            }
+            if let Err(error) = def
+                .check_native_liveness()
+                .and_then(|()| obj::check_native_liveness(body_lifetime.as_ptr()))
+            {
+                return self.report_cmd_error(error.into());
+            }
+            let body = match body {
+                Ok(body) => body,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
+            let location = def.location();
+            self.run_proc(
+                &def.params,
+                &body,
+                location.namespace,
+                &argv[1..],
+                &name,
+                CallMeta {
+                    original_argv: Some(argv),
+                    err: ProcFrame::Proc(&name),
+                    fqn: Some(&location.qualified_name),
+                    source: def.source.clone(),
+                    body_line_base: def.body_line_base,
+                    link_vars: &[],
+                    oo_variable_resolver: None,
+                    keep_loop_codes: false,
+                    same_level: false,
+                    usage_prefix: None,
+                    level_words: None,
+                    quote_name: true,
+                    native: def.native,
+                    statics: def.native_statics(),
+                    c_procedure: Some(def),
+                    c_method_client_data: None,
+                    jim_parameters,
+                    jim_body: self.uses_jim_error_stack().then_some(original_body),
+                    jim_namespace: location.jim_namespace.as_ref(),
+                },
+            )
+        })();
+        arguments.finish(code)
+    }
+
+    pub(crate) fn schedule_tailcall(&mut self, words: &[*mut TclObj]) -> Code {
+        if !self.in_proc() {
+            return self.error(b"tailcall can only be called from a proc, lambda or method");
+        }
+        let Some(protocol) = self.native_invocation_dialect().tailcall_protocol() else {
+            return self.error(b"native tailcall protocol is not selected");
+        };
+        if protocol == tcl_registry::invocation_words::NativeTailcallProtocol::Tcl {
+            // The generic handler retires the previous request before producing
+            // a namespace operand; an empty invocation creates no replacement.
+            if !self.replace_pending_tailcall(None) {
+                return self.error(b"tailcall can only be called from a proc, lambda or method");
+            }
+            if words.is_empty() {
+                self.set_result_bytes(b"");
+                return Code::Return;
+            }
+            let namespace = match tcl_cmd_core::namespace::current_original(self) {
+                Ok(original) => crate::obj::Owned::fresh(original),
+                Err(error) => return self.report_cmd_error(error),
+            };
+            let Some(strings) = self.native_invocation_dialect().native_string_protocol() else {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original tailcall List issuer",
+                    )
+                    .into(),
+                );
+            };
+            let mut members = Vec::with_capacity(words.len() + 1);
+            members.push(namespace.as_ptr());
+            members.extend_from_slice(words);
+            let original =
+                crate::obj::Owned::fresh(crate::list::new_list_obj_native(&members, strings));
+            return self.schedule_original_tailcall_list(original);
+        }
+        self.schedule_jim_tailcall(words)
+    }
+
+    pub(crate) fn schedule_original_tailcall_list(&mut self, original: crate::obj::Owned) -> Code {
+        if !self.in_proc() {
+            return self.error(b"tailcall can only be called from a proc, lambda or method");
+        }
+        // Compiled operands already exist. Retire the old List before examining
+        // the new one, and release a namespace-only cancellation at this opcode.
+        if !self.replace_pending_tailcall(None) {
+            return self.error(b"tailcall can only be called from a proc, lambda or method");
+        }
+        let Some(protocol) = self.native_invocation_dialect().native_string_protocol() else {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original tailcall List issuer",
+                )
+                .into(),
+            );
+        };
+        let members = match crate::list::list_elements_native_checked(original.as_ptr(), protocol) {
+            Ok(members) => members,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        if members.len() <= 1 {
+            drop(original);
+            self.set_result_bytes(b"");
+            return Code::Return;
+        }
+        let request = crate::frame::PendingTailcall::OriginalNamespaceList(original);
+        if !self.replace_pending_tailcall(Some(request)) {
+            return self.error(b"tailcall can only be called from a proc, lambda or method");
+        }
+        self.set_result_bytes(b"");
+        Code::Return
+    }
+
+    fn replace_pending_tailcall(&mut self, request: Option<crate::frame::PendingTailcall>) -> bool {
+        let retired = { self.frames.borrow_mut().replace_tailcall(request) };
+        match retired {
+            Ok(previous) => {
+                drop(previous);
+                true
+            }
+            Err(rejected) => {
+                drop(rejected);
+                false
+            }
+        }
+    }
+
+    fn dispatch_tailcall(&mut self, request: crate::frame::PendingTailcall) -> Code {
+        match request {
+            crate::frame::PendingTailcall::OriginalNamespaceList(original) => {
+                self.invoke_original_namespace_list(original.as_ptr())
+            }
+            crate::frame::PendingTailcall::Jim(request) => {
+                self.invoke_selected_jim_tailcall(request)
+            }
+        }
+    }
+
+    pub(crate) fn invoke_original_namespace_list(&mut self, original: *mut TclObj) -> Code {
+        let Some(protocol) = self.native_invocation_dialect().native_string_protocol() else {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original coroutine List issuer",
+                )
+                .into(),
+            );
+        };
+        let members = match crate::list::list_elements_native_checked(original, protocol) {
+            Ok(members) => members,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        let Some((namespace, words)) = members.split_first() else {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original coroutine namespace operand",
+                )
+                .into(),
+            );
+        };
+        if words.is_empty() {
+            self.set_result_bytes(b"");
+            return Code::Ok;
+        }
+        let lookup = match self.native_namespace_object_lookup(*namespace) {
+            Ok(Some(namespace)) => namespace,
+            Ok(None) => {
+                return crate::cmd_namespace::ns_operation_not_found(
+                    self,
+                    *namespace,
+                    tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
+                );
+            }
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        self.dispatch_original_words_at(words, lookup)
+    }
+
+    fn dispatch_original_words_at(&mut self, words: &[*mut TclObj], lookup: NsId) -> Code {
+        let Some(head) = words.first() else {
+            self.set_result_bytes(b"");
+            return Code::Ok;
+        };
+        if let Err(code) = self.reset_native_ensemble_rewrite(
+            tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BeforeOrdinaryLookup,
+        ) {
+            return code;
+        }
+        let selected = match self.resolve_original_command_at(lookup, *head) {
+            Ok(selected) => selected,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        let selection = match selected {
+            Some((command, Some(generation))) => {
+                let fqn = self
+                    .namespaces
+                    .borrow()
+                    .native_command_at_node(generation)
+                    .map(|(_, fqn)| fqn);
+                let Some(fqn) = fqn else {
+                    return self.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "tailcall command allocation",
+                        )
+                        .into(),
+                    );
+                };
+                CommandDispatchSelection::Bound(
+                    fqn,
+                    CommandBinding {
+                        generation,
+                        command,
+                        jim_table_key: None,
+                    },
+                )
+            }
+            Some((command, None)) => return self.invoke_bound(command, None, words),
+            None => CommandDispatchSelection::Missing {
+                lookup,
+                caller: self.current_ns.get(),
+                origin: tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
             },
-        )
+        };
+        self.dispatch_prebound_inner(words, selection, true, None)
+    }
+
+    fn drain_tailcalls(&mut self, depth: u32, mut code: Code) -> Code {
+        loop {
+            let request = {
+                let mut requests = self.deferred_tailcalls.borrow_mut();
+                if requests.last().is_some_and(|(owner, _)| *owner == depth) {
+                    requests.pop().map(|(_, request)| request)
+                } else {
+                    None
+                }
+            };
+            let Some(request) = request else {
+                return code;
+            };
+            if code == Code::Ok {
+                code = self.dispatch_tailcall(request);
+            }
+        }
     }
 
     /// The shared proc-call protocol (`TclObjInterpProc`), used by both `proc`
@@ -10357,20 +18370,82 @@ impl Interp {
     /// lambdaExpr` for `apply`). Conservative-first per
     /// `proc-call-and-stack-traces.md` PC-2 (the CmdFrame/stack-trace +
     /// `info level`/`info frame` bookkeeping land with PC-1/PC-4/PC-5).
-    pub(crate) fn run_proc(
+    pub(crate) fn run_proc<O: obj::ObjectPointer>(
         &mut self,
-        params: &[Param],
+        params: &[Param<O>],
         body: &[u8],
         ns: NsId,
         call_args: &[*mut TclObj],
         usage_called: &[u8],
-        meta: CallMeta,
+        mut meta: CallMeta,
     ) -> Code {
-        let has_args = params.last().is_some_and(|p| p.name == b"args");
-        let positional = if has_args {
-            &params[..params.len() - 1]
-        } else {
-            params
+        let requires_source = match meta
+            .c_procedure
+            .map(|procedure| {
+                procedure.requires_original_namespace_helper_source_execution(self, meta.jim_body)
+            })
+            .transpose()
+        {
+            Ok(required) => required.unwrap_or(false),
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        let original_import = match meta
+            .c_procedure
+            .map(|procedure| procedure.original_jim_import_origin(self))
+            .transpose()
+        {
+            Ok(origin) => origin.flatten().is_some(),
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        if original_import && !requires_source {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original Import selected Source execution",
+                )
+                .into(),
+            );
+        }
+        let issuer_dispatch = self.native_dispatch_depth.get();
+        let original_artifact =
+            if let Some(procedure) = meta.c_procedure.filter(|_| !original_import) {
+                let original = match procedure
+                    .check_native_liveness()
+                    .and_then(|()| procedure.body.checked_ptr())
+                {
+                    Ok(original) => original,
+                    Err(error) => return self.report_cmd_error(error.into()),
+                };
+                match self.prepare_original_c_body(original, ns, Some(procedure)) {
+                    Ok(artifact) => artifact,
+                    Err(code) => return code,
+                }
+            } else {
+                None
+            };
+        if requires_source && original_artifact.is_some() {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original namespace helper Source execution transport",
+                )
+                .into(),
+            );
+        }
+        let mut native_admission = match self.prepare_native_procedure(body, ns) {
+            Ok(admission) => admission,
+            Err(failure) => {
+                return self.admit_native_compilation_error(&failure, Some(usage_called));
+            }
+        };
+        // InvokeProcedureMethod retains its ProcedureMethod after compiling the
+        // body, before the proc core binds formals. Replacement withdraws the
+        // table's clientData reference while this entered owner stays live.
+        let _method_execution = match meta
+            .c_method_client_data
+            .map(|method| method.enter_method())
+            .transpose()
+        {
+            Ok(execution) => execution,
+            Err(error) => return self.report_cmd_error(error.into()),
         };
         // A release that compiles a body whole as its procedure is called
         // refuses it before binding a word or running a command
@@ -10383,39 +18458,40 @@ impl Interp {
                 return code;
             }
         }
-        // The `wrong # args` command prefix (an OO method passes the invoking
-        // `obj method`; everything else uses the invoked name).
         let usage = meta.usage_prefix.as_deref().unwrap_or(usage_called);
-        // Arity (defaults assumed trailing — the common shape): supplied must
-        // cover the no-default params, and not exceed the positionals unless an
-        // `args` catch-all soaks up the rest.
         let supplied = call_args.len();
-        let required = positional.iter().filter(|p| p.default.is_none()).count();
-        if supplied < required || (!has_args && supplied > positional.len()) {
-            return self.error(&self.proc_wrong_args(usage, params, supplied, meta.quote_name));
+        let Some(grammar) = self.native_invocation_dialect().parameter_grammar() else {
+            return self.error(b"formal parameter dialect is not selected");
+        };
+        let Ok(bindings) = native_compilation::native_parameter_plan(params, supplied, grammar)
+        else {
+            return match self.proc_wrong_args(usage, params, supplied, meta.quote_name) {
+                Ok(message) => self.wrong_arguments_message(&message),
+                Err(error) => self.report_cmd_error(error.into()),
+            };
+        };
+        if grammar.skips_empty_body_activation() && body.is_empty() {
+            self.set_result_bytes(b"");
+            return Code::Ok;
         }
-        // Recursion bound (catchable, not a stack overflow).
-        if self.recursion_depth.get() >= self.recursion_limit.get() {
-            return self.error(b"too many nested evaluations (infinite loop?)");
-        }
-        self.recursion_depth.set(self.recursion_depth.get() + 1);
-
-        self.enter_namespace_activation(ns);
-        if meta.same_level {
-            self.frames.borrow_mut().push_same_level(ns);
-        } else {
-            self.frames.borrow_mut().push(ns);
-        }
-        // Record the invocation words for `info level N`: an OO constructor
-        // supplies the `create`/`new` invocation words verbatim; otherwise the
-        // invoked name plus the supplied arguments.
-        let words = meta.level_words.unwrap_or_else(|| {
-            let mut w = Vec::with_capacity(call_args.len() + 1);
-            w.push(usage_called.to_vec());
-            w.extend(call_args.iter().map(|&a| obj_bytes(a)));
-            w
-        });
-        self.frames.borrow_mut().set_words(words);
+        let jim_body = meta.jim_body;
+        let info_receiver = match self.original_namespace_info_receiver(meta.original_argv) {
+            Ok(receiver) => receiver,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        let (saved_ns, proc_frame) = match self.enter_native_procedure_frame(
+            params,
+            call_args,
+            usage_called,
+            (ns, &mut meta),
+            bindings,
+            original_artifact
+                .as_ref()
+                .and_then(|artifact| artifact.compiled_local_layout()),
+        ) {
+            Ok(frame) => frame,
+            Err(code) => return code,
+        };
         if tcl_registry::release_compilation::compile_procedures_modelled(self.runtime_version()) {
             let unit = crate::compiled_locals::ProcUnit::new(
                 body,
@@ -10423,110 +18499,16 @@ impl Interp {
             );
             self.frames.borrow_mut().set_unit(Rc::new(unit));
         }
-        let saved_ns = self.current_ns.get();
-        self.current_ns.set(ns);
-
-        // Pre-link a TclOO method's declared instance variables: each name in
-        // the frame becomes a link to the object's namespace variable (`ns`), so
-        // the method sees instance state without an explicit `variable`.
-        for (local, target) in meta.link_vars {
-            self.make_tcloo_variable_mapped(ns, local, target);
+        if matches!(meta.err, ProcFrame::Method { .. }) {
+            self.oo_bind_method_activation();
         }
-
-        // Bind positionals left-to-right: the supplied arg, else the default.
-        // Binding is purely positional — a defaulted parameter does *not* yield
-        // its slot to a later one, so a required parameter reached with no
-        // supplied arg (a non-trailing default, e.g. `proc p {a {b 2} c}` called
-        // with 2 args) is a `wrong # args` error, matching tclsh 9.0.
-        for (i, p) in positional.iter().enumerate() {
-            let stored = if i < call_args.len() {
-                self.var_set(&p.name, call_args[i])
-            } else if let Some(def) = &p.default {
-                // A fresh rc-0 default; `var_set` retains it, so on the error
-                // path it must be dropped.
-                let o = new_string(def);
-                match self.var_set(&p.name, o) {
-                    Ok(()) => Ok(()),
-                    Err(e) => {
-                        drop_fresh(o);
-                        Err(e)
-                    }
-                }
-            } else {
-                let popped = self.frames.borrow_mut().pop();
-                self.current_ns.set(saved_ns);
-                self.leave_namespace_activation(popped);
-                self.recursion_depth.set(self.recursion_depth.get() - 1);
-                return self.error(&self.proc_wrong_args(usage, params, supplied, meta.quote_name));
-            };
-            if stored.is_err() {
-                let popped = self.frames.borrow_mut().pop();
-                self.current_ns.set(saved_ns);
-                self.leave_namespace_activation(popped);
-                self.recursion_depth.set(self.recursion_depth.get() - 1);
-                return self.error(b"proc parameter binding failed");
-            }
-        }
-        // The `args` catch-all: a list of the remaining args. Clamp the split
-        // point — when trailing positionals took their defaults, fewer args were
-        // supplied than there are positionals, so `args` is simply empty.
-        if has_args {
-            let rest = &call_args[positional.len().min(call_args.len())..];
-            let list = crate::list::new_list_obj(rest); // rc 0; var_set retains
-            if self.var_set(b"args", list).is_err() {
-                drop_fresh(list);
-            }
-        }
-
-        // The proc body runs as its own `info frame` level: `type proc` (or
-        // `source` if defined in a sourced file), the proc FQN, and the new call
-        // level (set after `frames.push`, so `current_level` is the proc's).
-        // A TclOO method body carries its method context for `info frame`
-        // (`method`/`class`|`object`), which displaces the `proc` key.
-        let oo = match &meta.err {
-            ProcFrame::Method { kind, owner, what } => {
-                let method = match what {
-                    MethodFrameWhat::Named(n) => n.to_vec(),
-                    MethodFrameWhat::Constructor | MethodFrameWhat::Destructor => Vec::new(),
-                };
-                Some((method, kind.to_vec(), owner.to_vec()))
-            }
-            _ => None,
-        };
-        // An `apply` lambda reports `lambda <expr>` (not `proc`) in `info frame`.
-        let lambda = match &meta.err {
-            ProcFrame::Lambda(expr) => Some(expr.to_vec()),
-            _ => None,
-        };
-        let (proc_lvl, proc_idx) = {
-            let f = self.frames.borrow();
-            (f.current_level(), f.current_frame_index())
-        };
-        let proc_frame = CmdFrame {
-            kind: if meta.source.is_some() {
-                FrameKind::Source
-            } else {
-                FrameKind::Proc
-            },
-            file: meta.source,
-            proc: meta.fqn.map(<[u8]>::to_vec),
-            level: proc_lvl,
-            omit_level: false,
-            frame_index: proc_idx,
-            line_base: meta.body_line_base,
-            proc_line_base: meta.body_line_base,
-            cmd: Vec::new(),
-            line: 1,
-            oo,
-            lambda,
-        };
         // Run the compiled body when there is one, else the source body. The
         // two are interchangeable here precisely because everything a body can
         // observe about its call — the variable frame, its namespace, `info
         // level`'s words, the bound formals, `wrong # args` — was decided
         // above, and everything about its completion is decided below.
         //
-        // Two things force the source body even when a compiled one exists:
+        // Source execution is required in these cases:
         //
         // - a live step trace. `dispatch_traced` installs this proc's own
         //   `enterstep`/`leavestep` into `step_active` *before* dispatching, so
@@ -10538,22 +18520,113 @@ impl Interp {
         // - the entry declining, which it may only do before any observable
         //   effect, so falling through to the source body is not a partial
         //   re-run.
+        // - an actual installed Source owner requires token/operation receipts
+        //   that the compiled entry does not transport.
         let native = meta
             .native
-            .filter(|_| self.traces.borrow().step_active.is_empty());
-        self.clear_return_options();
-        let code = match native {
-            Some(entry) => match self.run_native_body(entry, call_args, proc_frame) {
-                Ok(code) => code,
-                Err(frame) => self.eval_proc_body(body, *frame),
-            },
-            None => self.eval_proc_body(body, proc_frame),
+            .filter(|_| !requires_source && self.traces.borrow().step_active.is_empty());
+        let import_traversal = self
+            .frames
+            .borrow()
+            .current_original_jim_procedure()
+            .and_then(|procedure| match procedure {
+                Some(procedure) => {
+                    native_jim_import::OriginalJimImportTraversal::capture(self, &procedure)
+                }
+                None => Ok(None),
+            });
+        if let Ok(Some(traversal)) = &import_traversal {
+            self.frames
+                .borrow_mut()
+                .observe_original_jim_import_traversal(Rc::clone(traversal));
+        }
+        let info_frame = if let Some(receiver) = info_receiver {
+            self.frames.borrow().current_original_jim_procedure().and_then(|procedure| {
+                match procedure {
+                    Some(procedure) if procedure.original_jim_namespace_helper_origin(self)?.is_some_and(|(kind, _)| kind == tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Info) => {
+                        native_jim_namespace_info::OriginalNamespaceInfoFrame::capture(self, &procedure, receiver).map(Some)
+                    }
+                    _ => Ok(None),
+                }
+            })
+        } else {
+            Ok(None)
         };
+        if let Ok(Some(frame)) = &info_frame {
+            self.frames
+                .borrow_mut()
+                .observe_original_namespace_info_frame(Rc::clone(frame));
+        }
+        let body_options = self.clear_return_options_checked();
+        native_admission.activate();
+        let jim_level = self.jim_procedure_level.get();
+        if self.uses_jim_error_stack() {
+            self.jim_procedure_level.set(jim_level + 1);
+        }
+        let execution: Result<(), tcl_cmd_core::CmdError> = match body_options {
+            Ok(()) => self
+                .acquire_native_procedure_execution(meta.c_procedure)
+                .map_err(tcl_cmd_core::CmdError::from)
+                .and_then(|()| {
+                    let traversal = import_traversal
+                        .as_ref()
+                        .map_err(|error| tcl_cmd_core::CmdError::from(error.clone()))?;
+                    if let Some(procedure) = meta.c_procedure {
+                        procedure
+                            .require_original_jim_import_traversal(self, traversal.as_ref())
+                            .map_err(tcl_cmd_core::CmdError::from)?;
+                    }
+                    Ok(())
+                })
+                .and_then(|()| {
+                    info_frame
+                        .as_ref()
+                        .map(|_| ())
+                        .map_err(|error| error.clone().into())
+                }),
+            Err(first) => Err(first.into()),
+        };
+        // The body is compiled as one unit making its own locals
+        // ([`InterpState::proc_body`]); the source path's script loop takes the
+        // flag, and it is cleared after for a body that never reached one.
+        self.next_proc_body.set(true);
+        let code = match execution {
+            Err(error) => self.report_cmd_error(error.into()),
+            Ok(()) => match native {
+                Some(entry) => match self.run_native_body(entry, call_args, *proc_frame) {
+                    Ok(code) => code,
+                    Err(frame) => self.run_selected_procedure_body(
+                        body,
+                        original_artifact.as_ref(),
+                        jim_body,
+                        *frame,
+                    ),
+                },
+                None => self.run_selected_procedure_body(
+                    body,
+                    original_artifact.as_ref(),
+                    jim_body,
+                    *proc_frame,
+                ),
+            },
+        };
+        self.next_proc_body.set(false);
+        let import_completion = import_traversal
+            .as_ref()
+            .ok()
+            .and_then(Option::as_ref)
+            .map(|traversal| traversal.normal_completion(self));
+        let info_completion = info_frame
+            .as_ref()
+            .ok()
+            .and_then(Option::as_ref)
+            .map(|frame| frame.completion(self));
+        self.release_native_procedure_execution();
+        self.jim_procedure_level.set(jim_level);
         // The frame's local variables (and any traces on them) die with it.
         let proc_level = self.frames.borrow().current_level();
         // Capture `[info level 0]` (the invocation words) before the frame is
         // popped — the TIP 348 `CALL` entry if this body unwinds with an error.
-        let call_words = self.level_words(proc_level);
         // The locals' unset traces are collected while the frame — and its
         // arrays' elements — still exist, and fire once it is gone, as C's
         // `TclDeleteVars` runs over a frame that is on its way out.
@@ -10562,8 +18635,10 @@ impl Interp {
         } else {
             self.frame_teardown_unset_traces(proc_level)
         };
-        let popped = self.frames.borrow_mut().pop();
-        if !self.traces.borrow().traces.is_empty() {
+        let tailcall = self.frames.borrow_mut().take_tailcall();
+        self.clean_current_jim_local_commands();
+        let popped = self.pop_native_call_frame();
+        if self.has_variable_traces() {
             self.clear_frame_var_traces(proc_level);
         }
         self.current_ns.set(saved_ns);
@@ -10579,6 +18654,28 @@ impl Interp {
         // raw completion code unchanged — C distinguishes these, e.g. an
         // ensemble `-unknown` handler that does `return -code break` yields code
         // 3, not the loop error (namespace-47.4).
+        let tailcall_code = self
+            .native_invocation_dialect()
+            .tailcall_protocol()
+            .map(|protocol| i64::from(protocol.pending_code()));
+        if let Some(tailcall) = tailcall.filter(|_| {
+            code == Code::Ok || code == Code::Return || Some(code.as_int()) == tailcall_code
+        }) {
+            if let Some(Err(error)) = import_completion {
+                return self.report_cmd_error(error.into());
+            }
+            if let Some(Err(error)) = info_completion {
+                return self.report_cmd_error(error.into());
+            }
+            if let Err(first) = self.clear_return_options_checked() {
+                return self.refuse_native_execution(first);
+            }
+            self.deferred_tailcalls
+                .borrow_mut()
+                .push((issuer_dispatch, tailcall));
+            self.set_result_bytes(b"");
+            return Code::Ok;
+        }
         let from_return = code == Code::Return;
         let settled = match self.settle_return(code) {
             Code::Break if !meta.keep_loop_codes && !from_return => {
@@ -10589,6 +18686,26 @@ impl Interp {
             }
             other => other,
         };
+        let settled = if settled == Code::Ok {
+            match import_completion {
+                Some(Err(error)) => self.report_cmd_error(error.into()),
+                _ => settled,
+            }
+        } else {
+            settled
+        };
+        let settled = if settled == Code::Ok {
+            match info_completion {
+                Some(Ok(completion)) => match completion.publish(self) {
+                    Ok(()) => settled,
+                    Err(error) => self.report_cmd_error(error.into()),
+                },
+                Some(Err(error)) => self.report_cmd_error(error.into()),
+                None => settled,
+            }
+        } else {
+            settled
+        };
         // On error, append the `(procedure "name" line N)` / `(lambda term ...)`
         // frame and clear `already_logged` so the proc-call command logs next.
         // Skipped when the error was produced by the return boundary itself
@@ -10598,10 +18715,6 @@ impl Interp {
         if settled == Code::Error {
             if code != Code::Return {
                 self.make_proc_error(meta.err);
-                // TIP 348: record this proc/lambda/method frame as a `CALL` entry.
-                if let Some(words) = call_words {
-                    self.error_stack_push_call(code, settled, &words);
-                }
             } else {
                 // `return -code error`: no procedure frame, but the *caller* still
                 // logs its own `invoked from within "<call>"` frame, so release
@@ -10611,6 +18724,28 @@ impl Interp {
             }
         }
         settled
+    }
+
+    /// Execute the body selected before activation and formal binding. A native
+    /// entry that declines uses this same retained selection and untouched frame.
+    fn run_selected_procedure_body(
+        &mut self,
+        body: &[u8],
+        original_artifact: Option<&Rc<native_body_artifact::NativeBodyArtifact>>,
+        jim_body: Option<*mut TclObj>,
+        frame: CmdFrame,
+    ) -> Code {
+        if let Some(artifact) = original_artifact {
+            self.execute_original_c_body(artifact, frame)
+        } else if let Some(original) = jim_body {
+            self.eval_original_body_framed(
+                tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+                original,
+                frame,
+            )
+        } else {
+            self.eval_framed(body, frame)
+        }
     }
 
     /// Run a proc's **compiled** body in the call frame
@@ -10667,6 +18802,10 @@ impl Interp {
         // call arguments it borrows; `out` is live, zeroed completion storage.
         let status = unsafe { entry(call_args.as_ptr(), argc, core::ptr::from_mut(&mut out)) };
         let popped = self.cmd_frames.borrow_mut().pop();
+        if status == tcl_runtime_api::codegen_abi::NATIVE_PROC_STATUS_HOST_REFUSED {
+            self.codegen_activation_leave(Code::Error);
+            return Ok(Code::Error);
+        }
         if status == NATIVE_PROC_STATUS_DECLINED {
             self.codegen_activation_leave(Code::Ok);
             return Err(Box::new(
@@ -10701,6 +18840,45 @@ impl Interp {
         self.native_proc_dispatches.get()
     }
 
+    fn ensemble_wrong_args_for_invocation(
+        &mut self,
+        argv: &[*mut TclObj],
+        parameters: &[Vec<u8>],
+    ) -> Code {
+        let arguments = match native_arguments::OriginalArguments::enter(self, argv) {
+            Ok(arguments) => arguments,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let code = (|| {
+            let Some(configuration) = self
+                .native_invocation_dialect()
+                .native_ensemble_configuration_protocol()
+            else {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "ensemble argument usage",
+                    )
+                    .into(),
+                );
+            };
+            let name = match arguments.bytes(0) {
+                Ok(name) => name,
+                Err(error) => return self.report_cmd_error(error),
+            };
+            let mut message = b"wrong # args: should be \"".to_vec();
+            message.extend_from_slice(&name);
+            for parameter in parameters {
+                message.push(b' ');
+                crate::list::append_list_element(&mut message, parameter, false);
+            }
+            message.push(b' ');
+            message.extend_from_slice(configuration.missing_selector_usage());
+            message.push(b'"');
+            self.wrong_arguments_message(&message)
+        })();
+        arguments.finish(code)
+    }
+
     /// The ensemble trampoline: resolve `argv[1]` against the subcommand set
     /// (exact, then unambiguous prefix unless `-prefixes 0`), map it to a target
     /// command prefix (`-map`, else `<ns>::<sub>`), and re-dispatch
@@ -10709,6 +18887,20 @@ impl Interp {
         &mut self,
         token: &crate::ensemble::EnsembleToken,
         argv: &[*mut TclObj],
+    ) -> Code {
+        let arguments = match native_arguments::OriginalArguments::enter(self, argv) {
+            Ok(arguments) => arguments,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let code = self.dispatch_ensemble_with_original(token, argv, &arguments);
+        arguments.finish(code)
+    }
+
+    fn dispatch_ensemble_with_original(
+        &mut self,
+        token: &crate::ensemble::EnsembleToken,
+        argv: &[*mut TclObj],
+        arguments: &native_arguments::OriginalArguments,
     ) -> Code {
         let mut current = token.config();
         let mut reparsed = false;
@@ -10720,42 +18912,68 @@ impl Interp {
             let Some(layout) =
                 tcl_cmd_core::ensemble::invocation_layout(argv.len(), 1, cfg.parameters.len())
             else {
-                let mut m = b"wrong # args: should be \"".to_vec();
-                m.extend_from_slice(&obj_bytes(argv[0]));
-                for p in &cfg.parameters {
-                    m.push(b' ');
-                    crate::list::append_list_element(&mut m, p, false);
-                }
-                m.extend_from_slice(b" subcommand ?arg ...?\"");
-                return self.error(&m);
+                return self.ensemble_wrong_args_for_invocation(argv, &cfg.parameters);
             };
-            let sub = obj_bytes(argv[layout.subcommand]);
+            let Some(configuration) = self
+                .native_invocation_dialect()
+                .native_ensemble_configuration_protocol()
+            else {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "ensemble member names",
+                    )
+                    .into(),
+                );
+            };
+            let original_sub = match arguments.bytes(layout.subcommand) {
+                Ok(original) => original,
+                Err(error) => return self.report_cmd_error(error),
+            };
+            if token.is_deleted() {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original ensemble token retired",
+                    )
+                    .into(),
+                );
+            }
+            let sub = configuration.member_name(&original_sub);
             let subs = self.ensemble_subcommands(cfg);
-            if let Some(idx) = tcl_cmd_core::ensemble::resolve_subcommand(&subs, &sub, cfg.prefixes)
-            {
+            if let Some(idx) = configuration.resolve_member(&subs, &original_sub, cfg.prefixes) {
                 let resolved = &subs[idx];
-                // The target command prefix: a `-map` entry, else `<ns>::<sub>`.
-                let mapped = cfg.map.as_ref().and_then(|m| {
-                    m.iter()
-                        .find(|(k, _)| k == resolved)
-                        .map(|(_, p)| p.clone())
-                });
-                let default_target = mapped.is_none();
-                let prefix: Vec<Vec<u8>> = mapped.unwrap_or_else(|| {
-                    let mut t = self.namespaces.borrow().qualified_name(cfg.ns);
-                    if cfg.ns != GLOBAL {
-                        t.extend_from_slice(b"::");
-                    }
-                    t.extend_from_slice(resolved);
-                    vec![t]
-                });
+                let built = self.build_original_ensemble_table(cfg);
+                if let Err(error) = arguments.check() {
+                    return self.report_cmd_error(error);
+                }
+                if let Err(error) = built {
+                    return self.report_cmd_error(error.into());
+                }
+                let Some((prefix, mapped)) = cfg.originals.table.prefix(resolved) else {
+                    return self.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "ensemble original selected prefix",
+                        )
+                        .into(),
+                    );
+                };
+                let prefix = obj::Owned::retain(prefix);
+                let default_target = !mapped;
                 // Spell-fix the subcommand to its resolved name in the recorded
                 // source, so an abbreviated `ev` is reported as `event` (C's
                 // `TclSpellFix`).
-                let mut source: Vec<Vec<u8>> = argv.iter().map(|&a| obj_bytes(a)).collect();
-                source[layout.subcommand] = resolved.clone();
+                let mut source: Vec<_> = argv
+                    .iter()
+                    .map(|&word| {
+                        EnsembleRewriteWord::Borrowed(crate::obj::NativeObjectLifetime::retain(
+                            word,
+                        ))
+                    })
+                    .collect();
+                source[layout.subcommand] =
+                    EnsembleRewriteWord::Owned(crate::obj::Owned::fresh(new_string(resolved)));
                 return self.dispatch_ensemble_target(
-                    &prefix,
+                    prefix,
+                    cfg.ns,
                     argv,
                     &layout,
                     source,
@@ -10765,7 +18983,12 @@ impl Interp {
             // Miss: try the `-unknown` handler once.
             if !cfg.unknown.is_empty() && !reparsed {
                 reparsed = true;
-                match self.ensemble_unknown(token, cfg, argv) {
+                let outcome = self.ensemble_unknown(token, cfg, argv);
+                if let Err(error) = arguments.check() {
+                    drop(outcome);
+                    return self.report_cmd_error(error);
+                }
+                match outcome {
                     EnsembleUnknown::Prefix(prefix) => {
                         let live = token.config();
                         let Some(live_layout) = tcl_cmd_core::ensemble::invocation_layout(
@@ -10773,18 +18996,19 @@ impl Interp {
                             1,
                             live.parameters.len(),
                         ) else {
-                            let mut m = b"wrong # args: should be \"".to_vec();
-                            m.extend_from_slice(&obj_bytes(argv[0]));
-                            for parameter in &live.parameters {
-                                m.push(b' ');
-                                crate::list::append_list_element(&mut m, parameter, false);
-                            }
-                            m.extend_from_slice(b" subcommand ?arg ...?\"");
-                            return self.error(&m);
+                            return self.ensemble_wrong_args_for_invocation(argv, &live.parameters);
                         };
-                        let source: Vec<Vec<u8>> = argv.iter().map(|&a| obj_bytes(a)).collect();
+                        let source: Vec<_> = argv
+                            .iter()
+                            .map(|&word| {
+                                EnsembleRewriteWord::Borrowed(
+                                    crate::obj::NativeObjectLifetime::retain(word),
+                                )
+                            })
+                            .collect();
                         return self.dispatch_ensemble_target(
-                            &prefix,
+                            prefix,
+                            live.ns,
                             argv,
                             &live_layout,
                             source,
@@ -10802,11 +19026,11 @@ impl Interp {
             // message; otherwise "unknown or ambiguous" (prefixes on) / "unknown"
             // (prefixes off) followed by the candidate list (C's
             // `NsEnsembleImplementationCmdNR`).
-            let ecode = error_code_list(&[b"TCL", b"LOOKUP", b"SUBCOMMAND", &sub]);
+            let ecode = error_code_list(&[b"TCL", b"LOOKUP", b"SUBCOMMAND", sub]);
             let ns_fqn = self.namespaces.borrow().qualified_name(cfg.ns);
             let m = tcl_cmd_core::ensemble::unknown_subcommand_message(
                 &subs,
-                &sub,
+                sub,
                 cfg.prefixes,
                 &ns_fqn,
             );
@@ -10817,14 +19041,34 @@ impl Interp {
     /// The ensemble's valid subcommand set (sorted, deduped): explicit
     /// `-subcommands`, else the `-map` keys, else the namespace's exports.
     fn ensemble_subcommands(&self, cfg: &crate::ensemble::EnsembleConfig) -> Vec<Vec<u8>> {
-        let mut subs: Vec<Vec<u8>> = match (&cfg.subcommands, &cfg.map) {
-            (Some(list), _) => list.clone(),
-            (None, Some(map)) => map.iter().map(|(k, _)| k.clone()).collect(),
-            (None, None) => self.namespaces.borrow().exported_commands(cfg.ns),
+        let Some(protocol) = self
+            .native_invocation_dialect()
+            .native_ensemble_configuration_protocol()
+        else {
+            return Vec::new();
         };
-        subs.sort();
-        subs.dedup();
-        subs
+        let keys: Vec<_> = cfg
+            .map
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .map(|(key, _)| key.as_slice())
+            .collect();
+        let explicit = cfg
+            .subcommands
+            .as_ref()
+            .map(|names| names.iter().map(Vec::as_slice).collect::<Vec<_>>());
+        let exports = self.namespaces.borrow().exported_commands(cfg.ns);
+        let exports: Vec<_> = exports.iter().map(Vec::as_slice).collect();
+        let map = crate::ensemble::NativeEnsembleObjects::pointer(&cfg.originals.map);
+        let same = map.is_some()
+            && map == crate::ensemble::NativeEnsembleObjects::pointer(&cfg.originals.subcommands);
+        protocol
+            .table_plan(explicit.as_deref(), &keys, &exports, same)
+            .entries
+            .into_iter()
+            .map(|entry| entry.member)
+            .collect()
     }
 
     /// Dispatch a resolved ensemble subcommand: `[prefix…, params…, rest…]` (the
@@ -10833,64 +19077,210 @@ impl Interp {
     /// ensemble owner from the live token configuration.
     fn dispatch_ensemble_target(
         &mut self,
-        prefix: &[Vec<u8>],
+        prefix: obj::Owned,
+        namespace: NsId,
         argv: &[*mut TclObj],
         layout: &tcl_cmd_core::ensemble::InvocationLayout,
-        source: Vec<Vec<u8>>,
+        source: Vec<EnsembleRewriteWord>,
         default_name: Option<&[u8]>,
     ) -> Code {
-        let default_target_was_missing = default_name.is_some()
-            && self
-                .resolve_cmd_fqn(prefix.first().map_or(b"", Vec::as_slice))
-                .is_none();
-        let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len() - 1);
-        for w in prefix {
-            let o = new_string(w);
-            // SAFETY: fresh obj; take the owning +1 the new argv holds.
-            unsafe { obj::incr_ref_count(o) };
-            new_argv.push(o);
-        }
-        for &a in &argv[layout.parameters.clone()] {
-            // SAFETY: live arg; take an owning +1.
-            unsafe { obj::incr_ref_count(a) };
-            new_argv.push(a);
-        }
-        for &a in &argv[layout.arguments..] {
-            // SAFETY: live arg; take an owning +1.
-            unsafe { obj::incr_ref_count(a) };
-            new_argv.push(a);
-        }
-        // Record the call as the user wrote it so a `wrong # args` from the target
-        // is reported in ensemble terms (C's `TclInitRewriteEnsemble`): the
-        // ensemble command, its `-parameters`, and the subcommand word (`2 +
-        // nparams`) are removed; the target prefix + `-parameters` are inserted.
-        let nparams = layout.parameters.len();
-        let is_root = self.begin_ensemble_rewrite(source, layout.arguments, prefix.len() + nparams);
-        let code = self.dispatch(&new_argv);
-        if code == Code::Error && default_target_was_missing {
-            if let Some(name) = default_name {
-                let mut qualified = b"invalid command name \"".to_vec();
-                qualified.extend_from_slice(&prefix[0]);
-                qualified.push(b'"');
-                if obj_bytes(self.get_obj_result()) == qualified {
-                    let mut message = b"invalid command name \"".to_vec();
-                    message.extend_from_slice(name);
-                    message.push(b'"');
-                    // This is a presentation rewrite only. `::unknown` may
-                    // have supplied custom -errorcode/-errorinfo/-errorstack;
-                    // replacing ExceptionState here would discard all three.
-                    // The target miss was proven before dispatch, and the
-                    // exact default-target message proves this is the miss we
-                    // are allowed to spell in ensemble terms.
-                    self.set_result_bytes(&message);
+        let mut retained = argv.to_vec();
+        retained.push(prefix.as_ptr());
+        let originals = match native_arguments::OriginalArguments::enter(self, &retained) {
+            Ok(originals) => originals,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let code = (|| {
+            let Some(dispatch) = self
+                .native_invocation_dialect()
+                .native_ensemble_dispatch_protocol()
+            else {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "native ensemble forwarding",
+                    )
+                    .into(),
+                );
+            };
+            let Some(string) = self
+                .eval_frame_dialect()
+                .native_string_materialization(None)
+            else {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "native ensemble invocation List",
+                    )
+                    .into(),
+                );
+            };
+            let protocol = string.protocol();
+            let members = match crate::list::list_elements_native_with_currency(
+                prefix.as_ptr(),
+                protocol,
+                Some(originals.currency()),
+            ) {
+                Ok(members) => members,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
+            if let Err(error) = originals.check() {
+                return self.report_cmd_error(error);
+            }
+            let prefix_len = members.len();
+            let invocation = if dispatch.always_copy_prefix || argv.len() == 2 {
+                match crate::list::native_list_copy(prefix.as_ptr(), protocol) {
+                    Ok(copy) => copy,
+                    Err(error) => return self.report_cmd_error(error.into()),
+                }
+            } else {
+                let mut words = members;
+                words.extend_from_slice(&argv[layout.parameters.clone()]);
+                words.extend_from_slice(&argv[layout.arguments..]);
+                obj::Owned::fresh(crate::list::new_list_obj_native(&words, protocol))
+            };
+            let mut words = match crate::list::list_elements_native_with_currency(
+                invocation.as_ptr(),
+                protocol,
+                Some(originals.currency()),
+            ) {
+                Ok(words) => words,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
+            if let Err(error) = originals.check() {
+                return self.report_cmd_error(error);
+            }
+            if dispatch.always_copy_prefix {
+                words.extend_from_slice(&argv[layout.parameters.clone()]);
+                words.extend_from_slice(&argv[layout.arguments..]);
+            }
+            let prefix = if dispatch.always_copy_prefix {
+                Some(prefix)
+            } else {
+                drop(prefix);
+                None
+            };
+            if let Err(error) = originals.check() {
+                return self.report_cmd_error(error);
+            }
+            let lookup = if dispatch.use_ensemble_namespace {
+                namespace
+            } else {
+                GLOBAL
+            };
+            let selected_words = match native_arguments::OriginalArguments::enter(self, &words) {
+                Ok(arguments) => arguments,
+                Err(error) => return self.report_cmd_error(error),
+            };
+            let default_head = if default_name.is_some() {
+                match selected_words.bytes(0) {
+                    Ok(name) => Some(name),
+                    Err(error) => return self.report_cmd_error(error),
+                }
+            } else {
+                None
+            };
+            let default_target_was_missing = default_head.as_ref().is_some_and(|name| {
+                self.resolve_dispatchable_with_generation(lookup, name)
+                    .is_none()
+            });
+            if let Err(error) = originals.check() {
+                return self.report_cmd_error(error);
+            }
+            let root = self.begin_original_ensemble_rewrite(
+                source,
+                layout.arguments,
+                prefix_len + layout.parameters.len(),
+            );
+            let code = self.dispatch_selection_with_entry(
+                &words,
+                CommandDispatchSelection::LookupAt(
+                    lookup,
+                    tcl_registry::command_lookup::CommandLookupOrigin::EnsembleInvocation,
+                ),
+                false,
+            );
+            let current = originals.check().and_then(|()| selected_words.check());
+            if current.is_ok()
+                && code == Code::Error
+                && default_target_was_missing
+                && dispatch.use_ensemble_namespace
+            {
+                if let Some(name) = default_name {
+                    let reached_head = selected_words.bytes(0);
+                    if let Err(error) = originals
+                        .check_for(self)
+                        .and_then(|()| selected_words.check_for(self))
+                    {
+                        if root {
+                            let _ = self.clear_ensemble_rewrite_checked();
+                        }
+                        return self.report_cmd_error(error);
+                    }
+                    let actual_head = match reached_head {
+                        Ok(head) => head,
+                        Err(error) => {
+                            if root {
+                                let _ = self.clear_ensemble_rewrite_checked();
+                            }
+                            return self.report_cmd_error(error);
+                        }
+                    };
+                    let expected = [
+                        b"invalid command name \"".as_slice(),
+                        actual_head.as_ref(),
+                        b"\"",
+                    ]
+                    .concat();
+                    let result = self.get_obj_result();
+                    let selected_result =
+                        match native_arguments::OriginalArguments::enter(self, &[result]) {
+                            Ok(arguments) => arguments,
+                            Err(error) => {
+                                if root {
+                                    let _ = self.clear_ensemble_rewrite_checked();
+                                }
+                                return self.report_cmd_error(error);
+                            }
+                        };
+                    let presented = selected_result.bytes(0);
+                    if self.result.get() != result {
+                        self.refuse_completion_value_access(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original ensemble error result replaced",
+                            ),
+                        );
+                    }
+                    if originals
+                        .check()
+                        .and_then(|()| selected_words.check())
+                        .is_ok()
+                    {
+                        match presented {
+                            Ok(presented) if presented.as_ref() == expected => {
+                                let message =
+                                    [b"invalid command name \"".as_slice(), name, b"\""].concat();
+                                self.set_result_bytes(&message);
+                            }
+                            Ok(_) => {}
+                            Err(error) => {
+                                self.report_cmd_error(error);
+                            }
+                        }
+                    }
                 }
             }
-        }
-        if is_root {
-            self.clear_ensemble_rewrite();
-        }
-        release_all(&new_argv);
-        code
+            let cleared = if root {
+                self.clear_ensemble_rewrite_checked()
+            } else {
+                Ok(())
+            };
+            drop(invocation);
+            drop(prefix);
+            if let Err(first) = cleared {
+                self.refuse_native_execution(first);
+            }
+            code
+        })();
+        originals.finish(code)
     }
 
     /// Invoke an ensemble's `-unknown` handler on a subcommand miss
@@ -10903,76 +19293,218 @@ impl Interp {
         cfg: &crate::ensemble::EnsembleConfig,
         argv: &[*mut TclObj],
     ) -> EnsembleUnknown {
-        let ens_fqn = token.name();
-        let mut hv: Vec<*mut TclObj> = Vec::with_capacity(cfg.unknown.len() + argv.len());
-        for w in &cfg.unknown {
-            let o = new_string(w);
-            unsafe { obj::incr_ref_count(o) };
-            hv.push(o);
-        }
-        let fqo = new_string(&ens_fqn);
-        unsafe { obj::incr_ref_count(fqo) };
-        hv.push(fqo);
-        for &a in &argv[1..] {
-            unsafe { obj::incr_ref_count(a) };
-            hv.push(a);
-        }
-        let mut handler_call = Vec::new();
-        for (index, &word) in hv.iter().enumerate() {
-            if index != 0 {
-                handler_call.push(b' ');
+        let Some(handler) = crate::ensemble::NativeEnsembleObjects::pointer(&cfg.originals.unknown)
+        else {
+            return EnsembleUnknown::Failed(
+                self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "ensemble unknown configured root",
+                    )
+                    .into(),
+                ),
+            );
+        };
+        let mut retained = argv.to_vec();
+        retained.push(handler);
+        let originals = match native_arguments::OriginalArguments::enter(self, &retained) {
+            Ok(originals) => originals,
+            Err(error) => return EnsembleUnknown::Failed(self.report_cmd_error(error)),
+        };
+        let outcome = (|| {
+            let ens_fqn = token.name();
+            let Some(protocol) = self
+                .eval_frame_dialect()
+                .native_string_materialization(None)
+                .map(|recipe| recipe.protocol())
+            else {
+                return EnsembleUnknown::Failed(
+                    self.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "ensemble unknown original prefix",
+                        )
+                        .into(),
+                    ),
+                );
+            };
+            if let Err(error) = originals
+                .check_original_for(self, argv.len(), handler)
+                .and_then(|()| originals.original(argv.len()).map(|_| ()))
+            {
+                return EnsembleUnknown::Failed(self.report_cmd_error(error));
             }
-            crate::list::append_list_element(&mut handler_call, &obj_bytes(word), false);
-        }
-        let code = self.dispatch(&hv);
-        release_all(&hv);
-        match code {
-            Code::Ok => {
-                if token.is_deleted() {
-                    let code = self.error_with_code(
-                        tcl_cmd_core::ensemble::UNKNOWN_DELETED_MESSAGE.as_bytes(),
-                        tcl_cmd_core::ensemble::UNKNOWN_DELETED_ERROR_CODE.as_bytes(),
-                    );
-                    self.append_frame_noline(b"ensemble unknown subcommand handler");
-                    return EnsembleUnknown::Failed(code);
+            let call = obj::Owned::fresh(obj::duplicate(handler));
+            if let Err(error) = originals
+                .check_original_for(self, argv.len(), handler)
+                .and_then(|()| originals.original(argv.len()).map(|_| ()))
+            {
+                return EnsembleUnknown::Failed(self.report_cmd_error(error));
+            }
+            let selected_call =
+                match native_arguments::OriginalArguments::enter(self, &[call.as_ptr()]) {
+                    Ok(originals) => originals,
+                    Err(error) => return EnsembleUnknown::Failed(self.report_cmd_error(error)),
+                };
+            let fqn = obj::Owned::fresh(new_string(&ens_fqn));
+            let mut additions = vec![fqn.as_ptr()];
+            additions.extend_from_slice(&argv[1..]);
+            let checked = || {
+                originals
+                    .check_for(self)
+                    .and_then(|()| selected_call.check_original_for(self, 0, call.as_ptr()))
+            };
+            let prepared = crate::list::append_prepared_native_elements_using(
+                call.as_ptr(),
+                &additions,
+                protocol,
+                &checked,
+                &|error| originals.retain_refusal(error.into()),
+            );
+            if let Err(error) = checked() {
+                return EnsembleUnknown::Failed(self.report_cmd_error(error));
+            }
+            if let Err(error) = prepared {
+                return EnsembleUnknown::Failed(self.report_cmd_error(error));
+            }
+            drop(fqn);
+            if let Err(error) = originals
+                .check_for(self)
+                .and_then(|()| selected_call.check_original_for(self, 0, call.as_ptr()))
+            {
+                return EnsembleUnknown::Failed(self.report_cmd_error(error));
+            }
+            let checked = || {
+                originals
+                    .check_for(self)
+                    .and_then(|()| selected_call.check_original_for(self, 0, call.as_ptr()))
+            };
+            let reached = crate::list::list_elements_native_using(
+                call.as_ptr(),
+                protocol,
+                &checked,
+                &|error| originals.retain_refusal(error.into()),
+            );
+            if let Err(error) = checked() {
+                return EnsembleUnknown::Failed(self.report_cmd_error(error));
+            }
+            let hv = match reached {
+                Ok(words) => words,
+                Err(error) => return EnsembleUnknown::Failed(self.report_cmd_error(error)),
+            };
+            let selected_words = match native_arguments::OriginalArguments::enter(self, &hv) {
+                Ok(originals) => originals,
+                Err(error) => return EnsembleUnknown::Failed(self.report_cmd_error(error)),
+            };
+            let mut handler_call = Vec::new();
+            for index in 0..hv.len() {
+                let reached = selected_words.bytes(index);
+                if let Err(error) = originals
+                    .check_for(self)
+                    .and_then(|()| selected_words.check_for(self))
+                {
+                    return EnsembleUnknown::Failed(self.report_cmd_error(error));
                 }
-                let res = obj_bytes(self.get_obj_result());
-                match crate::parse::split_list(&res) {
-                    Ok(prefix) if !prefix.is_empty() => EnsembleUnknown::Prefix(prefix),
-                    Ok(_) => EnsembleUnknown::Reparse,
-                    Err(e) => {
-                        let message = crate::parse::list_error_message(&res, e);
-                        let code = self.error_with_code(&message, e.error_code());
-                        self.append_error_info_context(
-                            b"while parsing result of ensemble unknown subcommand handler",
+                let word = match reached {
+                    Ok(word) => word,
+                    Err(error) => return EnsembleUnknown::Failed(self.report_cmd_error(error)),
+                };
+                if index != 0 {
+                    handler_call.push(b' ');
+                }
+                crate::list::append_list_element(&mut handler_call, &word, false);
+            }
+            let code = self.dispatch(&hv);
+            if let Err(error) = originals
+                .check_for(self)
+                .and_then(|()| selected_words.check_for(self))
+            {
+                return EnsembleUnknown::Failed(self.report_cmd_error(error));
+            }
+            match code {
+                Code::Ok => {
+                    if token.is_deleted() {
+                        let code = self.error_with_code(
+                            tcl_cmd_core::ensemble::UNKNOWN_DELETED_MESSAGE.as_bytes(),
+                            tcl_cmd_core::ensemble::UNKNOWN_DELETED_ERROR_CODE.as_bytes(),
                         );
-                        EnsembleUnknown::Failed(code)
+                        self.append_frame_noline(b"ensemble unknown subcommand handler");
+                        return EnsembleUnknown::Failed(code);
+                    }
+                    let result = obj::Owned::retain(self.get_obj_result());
+                    let selected_result = match native_arguments::OriginalArguments::enter(
+                        self,
+                        &[result.as_ptr()],
+                    ) {
+                        Ok(originals) => originals,
+                        Err(error) => return EnsembleUnknown::Failed(self.report_cmd_error(error)),
+                    };
+                    self.set_result_bytes(b"");
+                    drop(call);
+                    if let Err(error) = originals
+                        .check_for(self)
+                        .and_then(|()| selected_result.check_original_for(self, 0, result.as_ptr()))
+                    {
+                        return EnsembleUnknown::Failed(self.report_cmd_error(error));
+                    }
+                    let checked = || {
+                        originals.check_for(self).and_then(|()| {
+                            selected_result.check_original_for(self, 0, result.as_ptr())
+                        })
+                    };
+                    let parsed = crate::list::list_elements_native_using(
+                        result.as_ptr(),
+                        protocol,
+                        &checked,
+                        &|error| originals.retain_refusal(error.into()),
+                    );
+                    if let Err(error) = checked() {
+                        return EnsembleUnknown::Failed(self.report_cmd_error(error));
+                    }
+                    match parsed {
+                        Ok(words) if !words.is_empty() => EnsembleUnknown::Prefix(result),
+                        Ok(_) => EnsembleUnknown::Reparse,
+                        Err(error) => {
+                            let code = self.report_cmd_error(error);
+                            self.append_error_info_context(
+                                b"while parsing result of ensemble unknown subcommand handler",
+                            );
+                            EnsembleUnknown::Failed(code)
+                        }
                     }
                 }
-            }
-            Code::Error => {
-                if let Some(command) = parse::parse_script(&handler_call).first() {
-                    self.log_command_info(&handler_call, command);
+                Code::Error => {
+                    if let Some(command) =
+                        parse::parse_script_with_config(&handler_call, self.lexer_config()).first()
+                    {
+                        self.log_command_info(&handler_call, command);
+                    }
+                    self.append_frame_noline(b"ensemble unknown subcommand handler");
+                    EnsembleUnknown::Failed(Code::Error)
                 }
-                self.append_frame_noline(b"ensemble unknown subcommand handler");
-                EnsembleUnknown::Failed(Code::Error)
-            }
-            other => {
-                let mut m = b"unknown subcommand handler returned bad code: ".to_vec();
-                match other {
-                    Code::Return => m.extend_from_slice(b"return"),
-                    Code::Break => m.extend_from_slice(b"break"),
-                    Code::Continue => m.extend_from_slice(b"continue"),
-                    Code::Other(value) => m.extend_from_slice(value.to_string().as_bytes()),
-                    Code::Ok | Code::Error => unreachable!("handled above"),
+                other => {
+                    let mut message = b"unknown subcommand handler returned bad code: ".to_vec();
+                    match other {
+                        Code::Return => message.extend_from_slice(b"return"),
+                        Code::Break => message.extend_from_slice(b"break"),
+                        Code::Continue => message.extend_from_slice(b"continue"),
+                        Code::Other(value) => {
+                            message.extend_from_slice(value.to_string().as_bytes())
+                        }
+                        Code::Ok | Code::Error => unreachable!("checked above"),
+                    }
+                    let code = self.error_with_code(&message, b"TCL ENSEMBLE UNKNOWN_RESULT");
+                    let mut context = b"result of ensemble unknown subcommand handler: ".to_vec();
+                    context.extend_from_slice(&handler_call);
+                    self.append_error_info_context(&context);
+                    EnsembleUnknown::Failed(code)
                 }
-                let code = self.error_with_code(&m, b"TCL ENSEMBLE UNKNOWN_RESULT");
-                let mut context = b"result of ensemble unknown subcommand handler: ".to_vec();
-                context.extend_from_slice(&handler_call);
-                self.append_error_info_context(&context);
-                EnsembleUnknown::Failed(code)
             }
+        })();
+        if let Err(error) = originals.check_for(self) {
+            drop(outcome);
+            let _ = originals.check_for(self);
+            return EnsembleUnknown::Failed(self.report_cmd_error(error));
         }
+        outcome
     }
 
     /// Invoke `::tcl::mathfunc::<fname>` (resolved **absolutely**, so it works
@@ -10991,8 +19523,8 @@ impl Interp {
         // is simply the final fall-through base.
         let mut rel = b"tcl::mathfunc::".to_vec();
         rel.extend_from_slice(fname);
-        let cmd = self.resolve_dispatchable(self.current_ns.get(), &rel);
-        let Some(cmd) = cmd else {
+        let cmd = self.resolve_dispatchable_with_generation(self.current_ns.get(), &rel);
+        let Some((cmd, generation)) = cmd else {
             let mut m = b"invalid command name \"tcl::mathfunc::".to_vec();
             m.extend_from_slice(fname);
             m.push(b'"');
@@ -11010,7 +19542,7 @@ impl Interp {
             unsafe { obj::incr_ref_count(a) };
             argv.push(a);
         }
-        let code = self.invoke(cmd, &argv);
+        let code = self.invoke_bound(cmd, generation, &argv);
         release_all(&argv);
         code
     }
@@ -11025,46 +19557,79 @@ impl Interp {
     /// definition-time gate errors instead of exhausting the native stack. The
     /// wrapper begins a fresh completion-option scope before invoking its
     /// target, including across an interpreter boundary.
-    fn dispatch_alias(&mut self, target: &[u8], prefix: &[Vec<u8>], argv: &[*mut TclObj]) -> Code {
-        self.begin_control_options(
+    fn dispatch_alias(
+        &mut self,
+        original_prefix: &NativeAliasHeader,
+        argv: &[*mut TclObj],
+    ) -> Code {
+        if let Err(first) = self.begin_control_options_checked(
             tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED,
-        );
+        ) {
+            return self.refuse_native_execution(first);
+        }
         if ALIAS_DISPATCH_DEPTH.with(|d| d.get()) >= MAX_ALIAS_DISPATCH_DEPTH {
             return self.error(b"too many nested alias invocations (infinite loop?)");
         }
-        let target_cmd = self.resolve_dispatchable(GLOBAL, target);
         // Build [target, *prefix, *argv[1..]] — each element owned (+1).
-        let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len());
+        let mut new_argv: Vec<*mut TclObj> = Vec::new();
         let push_owned = |v: &mut Vec<*mut TclObj>, o: *mut TclObj| {
             // SAFETY: `o` is a live object; take the owning +1 the new argv holds.
             unsafe { obj::incr_ref_count(o) };
             v.push(o);
         };
-        push_owned(&mut new_argv, new_string(target));
-        for p in prefix {
-            push_owned(&mut new_argv, new_string(p));
+        let original_prefix_ptr = match original_prefix.checked_ptr() {
+            Ok(pointer) => pointer,
+            Err(error) => {
+                self.refuse_completion_value_access(error);
+                return Code::Error;
+            }
+        };
+        let words = match tcl_syntax::value::ValueOps::list_elements(self, &original_prefix_ptr) {
+            Ok(words) => words,
+            Err(error) => {
+                // The captured Native List is retained state, not a guest
+                // list parse. Keep its first operational refusal typed.
+                self.refuse_completion_value_access(error);
+                return Code::Error;
+            }
+        };
+        if let Err(error) = original_prefix.checked_ptr() {
+            self.refuse_completion_value_access(error);
+            return Code::Error;
+        }
+        if words.is_empty() {
+            self.refuse_completion_value_access(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original alias target member",
+                ),
+            );
+            return Code::Error;
+        }
+        for word in words {
+            push_owned(&mut new_argv, word);
         }
         for &a in &argv[1..] {
             push_owned(&mut new_argv, a);
         }
         ALIAS_DISPATCH_DEPTH.with(|d| d.set(d.get() + 1));
-        let code = match target_cmd {
-            Some(target_cmd) => self.invoke(target_cmd, &new_argv),
-            None => {
-                // Lazily bound: the target was deleted, never existed, or is
-                // a builtin the emulated release does not carry. Feed the
-                // synthesised target call back through ordinary dispatch so
-                // the global `unknown` handler sees the target name, prefix,
-                // and original arguments exactly as C's `TclInvokeAlias`
-                // does (tclBasic.c / tclNamesp.c). Alias targets are resolved
-                // in the global namespace, so do the fallback dispatch there
-                // too; in particular, do not let a caller namespace's
-                // `namespace unknown` intercept this path.
-                let saved_ns = self.current_ns.replace(GLOBAL);
-                let code = self.dispatch(&new_argv);
-                self.current_ns.set(saved_ns);
-                code
-            }
+        let lookup = if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_some()
+        {
+            self.current_ns.get()
+        } else {
+            GLOBAL
+        };
+        let code = match self.resolve_original_command_at(lookup, new_argv[0]) {
+            Ok(Some((command, generation))) => self.invoke_bound(command, generation, &new_argv),
+            Ok(None) => self.dispatch_missing_command(
+                &new_argv,
+                lookup,
+                self.current_ns.get(),
+                tcl_registry::command_lookup::CommandLookupOrigin::AliasInvocation,
+            ),
+            Err(error) => self.report_cmd_error(error.into()),
         };
         ALIAS_DISPATCH_DEPTH.with(|d| d.set(d.get().saturating_sub(1)));
         release_all(&new_argv);
@@ -11073,10 +19638,7 @@ impl Interp {
 
     /// The `invalid command name "X"` error (the resolver miss; `unknown` later).
     pub(crate) fn invalid_command(&mut self, name: &[u8]) -> Code {
-        let mut msg = b"invalid command name \"".to_vec();
-        msg.extend_from_slice(name);
-        msg.push(b'"');
-        self.error(&msg)
+        self.invalid_command_result(name)
     }
 
     /// C's `Tcl_FindCommand` + `TCL_LEAVE_ERR_MSG` miss (`unknown command "X"`,
@@ -11089,11 +19651,84 @@ impl Interp {
         self.error(&msg)
     }
 
+    /// Jim sugar enters the expression evaluator without command lookup or a
+    /// fabricated script frame. Its result is owned by the caller.
+    fn eval_word_expression(&mut self, source: &[u8]) -> Result<*mut TclObj, Code> {
+        #[cfg(have_tommath)]
+        {
+            if let Err(error) = core::str::from_utf8(source) {
+                return Err(self.refuse_unicode_access(
+                    tcl_syntax::raw_string::UnicodeAccessError {
+                        valid_up_to: error.valid_up_to(),
+                        error_len: error.error_len(),
+                    },
+                ));
+            }
+            crate::builtins::eval_expr_obj(self, source)
+        }
+        #[cfg(not(have_tommath))]
+        {
+            let _ = source;
+            Err(self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::ExpressionEngineUnavailable,
+            ))
+        }
+    }
+
+    fn word_expression_bytes(&mut self, source: &[u8]) -> Result<Vec<u8>, Code> {
+        let arguments = match native_arguments::OriginalArguments::enter(self, &[]) {
+            Ok(arguments) => arguments,
+            Err(error) => return Err(self.report_cmd_error(error)),
+        };
+        let evaluated = self.eval_word_expression(source);
+        match evaluated {
+            Ok(value) => self
+                .word_expression_result_bytes_checked(value, &arguments)
+                .map_err(|error| self.report_cmd_error(error)),
+            Err(code) => match arguments.check_for(self) {
+                Ok(()) => Err(code),
+                Err(error) => Err(self.report_cmd_error(error)),
+            },
+        }
+    }
+
+    /// Consume the expression evaluator's actual owning reference on every
+    /// outcome; allocation-only argument leases do not add a working hold.
+    fn word_expression_result_bytes_checked(
+        &mut self,
+        value: *mut TclObj,
+        arguments: &native_arguments::OriginalArguments,
+    ) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
+        let reached: Result<Vec<u8>, tcl_cmd_core::CmdError> = (|| {
+            arguments.check_for(self)?;
+            let original = native_arguments::OriginalArguments::enter(self, &[value])?;
+            let bytes = original.bytes(0)?;
+            original.check_original_for(self, 0, value)?;
+            Ok(bytes.to_vec())
+        })();
+        if let Err(ref error) = reached {
+            if let Some(first) = error.native_execution_refusal() {
+                self.refuse_native_execution(first.clone());
+            }
+        }
+        // SAFETY: the genuine expression result transfers one owning reference.
+        unsafe { obj::decr_ref_count(value) };
+        arguments.check_for(self)?;
+        reached
+    }
+
     /// Substitute one word's body into an **owned** (`+1`) object.
     /// A `Variable` reference to an unset variable, or a `[cmd]` that errors,
     /// returns `Err(code)` with the interp result already set.
-    fn substitute_word(&mut self, src: &[u8], body: &WordBody) -> Result<*mut TclObj, Code> {
-        match body {
+    fn substitute_word(&mut self, src: &[u8], word: &parse::Word<'_>) -> Result<*mut TclObj, Code> {
+        let native_text = !word.original_text.is_empty()
+            || self
+                .native_invocation_dialect()
+                .native_source_string_protocol()
+                == Some(tcl_syntax::native_string::NativeStringProtocol::C(
+                    tcl_dialect::TclVersion::V8_6,
+                ));
+        match &word.body {
             WordBody::Literal(bytes) => {
                 let obj = new_string(bytes);
                 unsafe { obj::incr_ref_count(obj) };
@@ -11129,6 +19764,9 @@ impl Interp {
                                 None => Err(self.no_such_variable(v.name, index.as_deref())),
                             };
                         }
+                        WordPart::Expression(expression) => {
+                            return self.eval_word_expression(expression);
+                        }
                         WordPart::Command(script) => {
                             // Command substitution propagates *any* non-OK
                             // completion code (`return`/`break`/`continue`, not
@@ -11147,9 +19785,25 @@ impl Interp {
                     }
                 }
                 let mut buf: Vec<u8> = Vec::new();
-                for part in parts {
+                for (part_index, part) in parts.iter().enumerate() {
                     match part {
-                        WordPart::Text(b) => buf.extend_from_slice(b),
+                        WordPart::Text(b) => {
+                            let original = if native_text {
+                                word.original_text
+                                    .iter()
+                                    .find(|original| original.part_index == part_index)
+                            } else {
+                                None
+                            };
+                            if let Some(original) = original {
+                                buf.extend_from_slice(&self.original_c86_word_text(original)?);
+                            } else {
+                                buf.extend_from_slice(b);
+                            }
+                        }
+                        WordPart::Expression(expression) => {
+                            buf.extend_from_slice(&self.word_expression_bytes(expression)?);
+                        }
                         WordPart::Variable(v) => {
                             let index = match &v.index {
                                 Some(parts) => Some(self.subst_index_value(parts)?),
@@ -11180,18 +19834,213 @@ impl Interp {
         }
     }
 
-    /// `subst` — substitute variables / commands / backslashes in `src` per
-    /// `flags`, propagating errors (an unset variable or a failing `[...]`).
-    #[cfg(have_tommath)]
-    pub(crate) fn do_subst(
+    fn original_c86_word_text(
         &mut self,
-        src: &[u8],
-        flags: crate::subst::SubstFlags,
+        original: &parse::OriginalEscapedText,
     ) -> Result<Vec<u8>, Code> {
-        self.do_subst_located(src, flags, None)
+        use tcl_syntax::{
+            native_string::NativeStringProtocol, raw_string::NativeValueAccessRefusal,
+        };
+        let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
+        if let Err(first) = self.check_entered_native_operation() {
+            self.refuse_native_execution(first);
+            return Err(Code::Error);
+        }
+        if self
+            .native_invocation_dialect()
+            .native_source_string_protocol()
+            != Some(protocol)
+            || self.source_string_protocol() != Some(protocol)
+        {
+            return Err(self.refuse_native_access(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original C86 word source producer",
+                ),
+            ));
+        }
+        let arena = original.arena.as_ref().map_err(|_| {
+            self.refuse_native_access(NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "original escaped word geometry",
+            ))
+        })?;
+        if arena.image().channel() != tcl_lexer::SourceChannel::NativeValue
+            || arena.config() != self.lexer_config()
+        {
+            return Err(self.refuse_native_access(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original escaped word channel or grammar",
+                ),
+            ));
+        }
+        let mut at = original.span.start();
+        let mut output = Vec::new();
+        for component in arena.list(arena.root()) {
+            let source_span = arena.source_span(component).ok_or_else(|| {
+                self.refuse_native_access(NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original escaped word source extent",
+                ))
+            })?;
+            if source_span.start() != at
+                || source_span.end() > original.span.end()
+                || !matches!(component.part, tcl_lexer::ExecutablePart::Text(_))
+            {
+                return Err(self.refuse_native_access(
+                    NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original escaped word component extent",
+                    ),
+                ));
+            }
+            let bytes = tcl_syntax::backslash::native_arena_text(
+                arena,
+                component,
+                arena.config().escapes,
+                protocol,
+            )
+            .map_err(|_| {
+                self.refuse_native_access(NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original escaped word decoding",
+                ))
+            })?;
+            output.extend_from_slice(&bytes);
+            at = source_span.end();
+        }
+        if at != original.span.end() {
+            return Err(self.refuse_native_access(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original escaped word coverage",
+                ),
+            ));
+        }
+        if let Err(first) = self.check_entered_native_operation() {
+            self.refuse_native_execution(first);
+            return Err(Code::Error);
+        }
+        Ok(output)
     }
 
-    /// [`do_subst`](Self::do_subst) with the input string's TIP 280 location
+    /// Evaluate a quoted expression or raw index through its original arena.
+    /// Command completions follow this purpose, independently of `subst`.
+    #[cfg(have_tommath)]
+    pub(crate) fn do_expression_subst(
+        &mut self,
+        source: &[u8],
+        quoted: bool,
+    ) -> Result<Vec<u8>, Code> {
+        use tcl_lexer::{ExecutablePart, ExecutablePartArena, SourceImage, Span};
+        use tcl_registry::invocation_words::{
+            ExpressionQuoteControl, LogicalExpressionQuoteProvider,
+        };
+        let dialect = self.native_invocation_dialect();
+        let policy = if quoted {
+            Some(dialect.expression_quote_control().or_else(|| dialect.logical_expression_quote_control(LogicalExpressionQuoteProvider::Tcl84CoreSimulation)).ok_or_else(|| self.refuse_native_access(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("native expression quote settlement")))?)
+        } else {
+            None
+        };
+        let end = u32::try_from(source.len()).map_err(|_| {
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native expression operand extent",
+                ),
+            )
+        })?;
+        let arena = ExecutablePartArena::decompose(
+            SourceImage::native(source),
+            Span::new(0, end),
+            Default::default(),
+            self.lexer_config(),
+        )
+        .map_err(|_| {
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native expression operand geometry",
+                ),
+            )
+        })?;
+        let mut stack = vec![(arena.root(), 0usize, Vec::<u8>::new(), None::<Vec<u8>>)];
+        loop {
+            let frame = stack.last_mut().expect("operand root frame");
+            let Some(component) = arena.list(frame.0).get(frame.1) else {
+                let (_, _, out, _) = stack.pop().expect("completed operand");
+                let Some(parent) = stack.last_mut() else {
+                    return Ok(out);
+                };
+                let name = parent.3.take().expect("index receiver");
+                if let Some(code) = self.fire_read_trace(&name, Some(&out)) {
+                    return Err(code);
+                }
+                let value = self
+                    .read_var(&name, Some(&out))
+                    .ok_or_else(|| self.no_such_variable(&name, Some(&out)))?;
+                parent.2.extend_from_slice(&value);
+                continue;
+            };
+            frame.1 += 1;
+            match &component.part {
+                ExecutablePart::Text(_) => {
+                    let protocol = self.source_string_protocol().ok_or_else(|| {
+                        self.refuse_native_access(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("native executable text recipe"))
+                    })?;
+                    let text = tcl_syntax::backslash::native_arena_text(
+                        &arena, component, self.lexer_config().escapes, protocol,
+                    ).map_err(|_| self.refuse_native_access(
+                        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                            "native executable text decoding",
+                        ),
+                    ))?;
+                    frame.2.extend_from_slice(&text);
+                }
+                ExecutablePart::Variable {
+                    name,
+                    index: Some(index),
+                } => {
+                    frame.3 = Some(arena.bytes(*name).expect("arena name geometry").to_vec());
+                    stack.push((*index, 0, Vec::new(), None));
+                }
+                ExecutablePart::Variable { name, index: None } => {
+                    let name = arena.bytes(*name).expect("arena name geometry");
+                    if let Some(code) = self.fire_read_trace(name, None) {
+                        return Err(code);
+                    }
+                    let value = self
+                        .read_var(name, None)
+                        .ok_or_else(|| self.no_such_variable(name, None))?;
+                    frame.2.extend_from_slice(&value);
+                }
+                ExecutablePart::Command { body } => {
+                    let code = self.eval_command_subst(
+                        arena.image().bytes(),
+                        arena.bytes(*body).expect("arena command geometry"),
+                    );
+                    let code = if policy == Some(ExpressionQuoteControl::Jim084) {
+                        match code {
+                            Code::Return => {
+                                self.return_code.set(Code::Ok);
+                                Code::Ok
+                            }
+                            Code::Break => self.error(b"invoked \"break\" outside of a loop"),
+                            Code::Continue => self.error(b"invoked \"continue\" outside of a loop"),
+                            Code::Other(_) => Code::Error,
+                            other => other,
+                        }
+                    } else {
+                        code
+                    };
+                    if code != Code::Ok {
+                        return Err(code);
+                    }
+                    frame.2.extend_from_slice(&self.result_bytes());
+                }
+                ExecutablePart::Expression { expression } => {
+                    frame.2.extend_from_slice(&self.word_expression_bytes(
+                        arena.bytes(*expression).expect("arena expression geometry"),
+                    )?)
+                }
+                ExecutablePart::ParseError(message) => return Err(self.error(message.as_bytes())),
+            }
+        }
+    }
+
+    /// Substitute with the input string's TIP 280 location
     /// (the `subst` command's argument word): a `[...]` inside the substituted
     /// string then reports the line it appears on (C compiles `subst` with the
     /// argument's line table). `loc` is `None` for internal callers that do not
@@ -11242,6 +20091,9 @@ impl Interp {
         for part in parts {
             match part {
                 WordPart::Text(b) => out.extend_from_slice(b),
+                WordPart::Expression(expression) => {
+                    out.extend_from_slice(&self.word_expression_bytes(expression)?);
+                }
                 WordPart::Variable(v) => {
                     // A `break`/`continue`/`return` from a `[...]` in the array
                     // index diverts the whole variable substitution (C's
@@ -11314,6 +20166,9 @@ impl Interp {
         for part in parts {
             match part {
                 WordPart::Text(b) => buf.extend_from_slice(b),
+                WordPart::Expression(expression) => {
+                    buf.extend_from_slice(&self.word_expression_bytes(expression)?);
+                }
                 WordPart::Variable(v) => {
                     let (idx, idx_code) = match &v.index {
                         Some(p) => {
@@ -11346,19 +20201,61 @@ impl Interp {
     }
 
     /// Read a variable's value bytes via the variable resolver.
-    fn read_var(&self, name: &[u8], index: Option<&[u8]>) -> Option<Vec<u8>> {
-        crate::vars::resolve_var_bytes(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
+    fn read_var(&mut self, name: &[u8], index: Option<&[u8]>) -> Option<Vec<u8>> {
+        if self.observed_name_policy_selected() {
+            let value = self.observed_substitution_receiver(name, index).ok()??;
+            return tcl_syntax::value::ValueOps::native_string_bytes(self, &value)
+                .ok()
+                .map(|bytes| bytes.to_vec());
+        }
+        self.require_variable_name_protocol().ok()?;
+        let input = match index {
+            Some(index) => self.separate_variable_input(name, Some(index)),
+            None => self.combined_variable_input(name),
+        }
+        .ok()?;
+        let name = input.root().selected();
+        let index = input.element().map(|element| element.selected());
+        self.with_captured_byte_variable(
             self.current_ns.get(),
+            None,
             name,
             index,
+            false,
+            |place, currency| {
+                let Some(value) = place.read(self, currency, index.is_some())? else {
+                    return Ok(None);
+                };
+                let reached = self.native_object_string_bytes(value);
+                place.check(self, currency)?;
+                reached
+                    .map(|bytes| Some(bytes.to_vec()))
+                    .map_err(Into::into)
+            },
         )
+        .ok()
+        .flatten()
     }
 
     fn no_such_variable(&mut self, name: &[u8], index: Option<&[u8]>) -> Code {
+        self.no_such_variable_using(name, index, None)
+    }
+
+    pub(super) fn no_such_variable_using(
+        &mut self,
+        name: &[u8],
+        index: Option<&[u8]>,
+        stage: native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(first) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error(first);
+        }
+
+        if self.host_refusal_pending() {
+            return Code::Error;
+        }
         let msg = self.read_miss_msg(name, index);
-        self.error(&msg)
+        self.error_using(&msg, stage)
     }
 
     /// Build the C-faithful `can't read "NAME": …` message for a failed variable
@@ -11366,29 +20263,64 @@ impl Interp {
     /// an array (`variable is array`), a missing element of an *existing* array
     /// (`no such element in array`), and a wholly missing variable (`no such
     /// variable`). `base`/`index` are the split reference (`base(index)`).
-    pub(crate) fn read_miss_msg(&self, base: &[u8], index: Option<&[u8]>) -> Vec<u8> {
-        let mut msg = b"can't read \"".to_vec();
-        msg.extend_from_slice(base);
-        if let Some(i) = index {
-            msg.push(b'(');
-            msg.extend_from_slice(i);
-            msg.push(b')');
-        }
-        msg.extend_from_slice(b"\": ");
-        if self.var_is_array(base) {
-            if index.is_some() {
-                msg.extend_from_slice(b"no such element in array");
+    pub(crate) fn read_miss_msg(&self, original: &[u8], index: Option<&[u8]>) -> Vec<u8> {
+        use tcl_syntax::naming::{
+            NativeVariableDiagnosticOperation as Operation,
+            NativeVariableDiagnosticReason as Reason, NativeVariableFailureSite as Site,
+            NativeVariableInputForm,
+        };
+        let input = match index {
+            Some(element) => self.separate_variable_input(original, Some(element)),
+            None => self.combined_variable_input(original),
+        };
+        let Ok(input) = input else {
+            return Vec::new();
+        };
+        let root = input.root().selected();
+        let element = input.element().map(|element| element.selected());
+        let reason = if self.var_is_array(root) {
+            if element.is_some() {
+                Reason::NoSuchElement
             } else {
-                msg.extend_from_slice(b"variable is array");
+                Reason::IsArray
             }
-        } else if index.is_some() && self.var_exists(base) {
-            // An existing scalar accessed with an index (`set b(123)` where `b`
-            // is a scalar): C's `tclVar.c` reports `variable isn't array`.
-            msg.extend_from_slice(b"variable isn't array");
+        } else if element.is_some() && self.var_get(root).is_some() {
+            Reason::NotArray
         } else {
-            msg.extend_from_slice(b"no such variable");
-        }
-        msg
+            Reason::NoSuchVariable
+        };
+        let form = match index {
+            Some(element) => NativeVariableInputForm::Separate {
+                root: original,
+                element: Some(element),
+            },
+            None => NativeVariableInputForm::Combined(original),
+        };
+        let protocol = input.root().protocol();
+        let diagnostic = tcl_syntax::naming::report_native_variable_diagnostic_at(
+            protocol,
+            Operation::Read,
+            reason,
+            if reason == Reason::IsArray {
+                Site::ValueRead
+            } else {
+                Site::NameLookup
+            },
+            form,
+        );
+        let Ok(diagnostic) = diagnostic else {
+            self.clone().refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "variable read diagnostic",
+                ),
+            );
+            return Vec::new();
+        };
+        let mut message = b"can't read \"".to_vec();
+        message.extend_from_slice(&diagnostic.name);
+        message.extend_from_slice(b"\": ");
+        message.extend_from_slice(diagnostic.reason.message().as_bytes());
+        message
     }
 
     /// Set an error result and return [`Code::Error`] — for builtins.
@@ -11396,15 +20328,83 @@ impl Interp {
         self.error(msg)
     }
 
-    /// Set the canonical `wrong # args: should be "usage"` arity error and
-    /// return [`Code::Error`] (`Tcl_WrongNumArgs` with a literal usage) — the
-    /// one home for the builtins' arity message, formerly a per-`cmd_*.rs`
-    /// copy.
+    /// Render the arity error with the actual invoked command word.
+    pub(crate) fn wrong_args_for_invocation(
+        &mut self,
+        arguments: &[*mut TclObj],
+        suffix: &[u8],
+    ) -> Code {
+        self.wrong_args_for_prefix(arguments, 1, suffix)
+    }
+
+    /// Render actual leading argument values through the retained dispatch
+    /// rewrite and the selected native usage quoting policy, preserving bytes.
+    pub(crate) fn wrong_args_for_prefix(
+        &mut self,
+        arguments: &[*mut TclObj],
+        prefix_words: usize,
+        suffix: &[u8],
+    ) -> Code {
+        let originals = match native_arguments::OriginalArguments::enter(self, arguments) {
+            Ok(originals) => originals,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let code = (|| {
+            let mut usage = match self.argument_usage_prefix(arguments, prefix_words) {
+                Ok(usage) => usage,
+                Err(code) => return code,
+            };
+            if let Err(error) = originals.check() {
+                return self.report_cmd_error(error);
+            }
+            if !suffix.is_empty() {
+                if !usage.is_empty() {
+                    usage.push(b' ');
+                }
+                usage.extend_from_slice(suffix);
+            }
+            self.wrong_args(&usage)
+        })();
+        originals.finish(code)
+    }
+
+    /// Render only the retained actual handler header, without touching operands.
+    pub(crate) fn argument_usage_prefix(
+        &mut self,
+        arguments: &[*mut TclObj],
+        prefix_words: usize,
+    ) -> Result<Vec<u8>, Code> {
+        let Some(protocol) = self.native_invocation_dialect().usage_protocol(Some(
+            tcl_registry::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
+        )) else {
+            return Err(self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "argument usage",
+                ),
+            ));
+        };
+        let original = native_argument_usage::OriginalArgumentUsage::capture(
+            self,
+            arguments,
+            prefix_words,
+            true,
+        )
+        .map_err(|error| self.report_cmd_error(error))?;
+        let outcome = original.render_header(self, protocol);
+        original
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
+        outcome.map_err(|error| self.report_cmd_error(error))
+    }
+
     pub(crate) fn wrong_args(&mut self, usage: &[u8]) -> Code {
-        let mut m = b"wrong # args: should be \"".to_vec();
-        m.extend_from_slice(usage);
-        m.push(b'"');
-        self.set_error(&m)
+        self.report_cmd_error(tcl_cmd_core::CmdError::wrong_args_bytes(usage))
+    }
+
+    pub(crate) fn wrong_arguments_message(&mut self, message: &[u8]) -> Code {
+        self.report_cmd_error(tcl_cmd_core::CmdError::wrong_arguments_message_bytes(
+            message,
+        ))
     }
 }
 
@@ -11418,102 +20418,82 @@ impl Interp {
     /// inserted words are accounted for, the leading `removed` words of the
     /// original `source` replace the rewritten prefix, and the formal parameters
     /// already satisfied by the inserted arguments are dropped.
-    pub(crate) fn proc_wrong_args(
-        &self,
+    pub(crate) fn proc_wrong_args<O: obj::ObjectPointer>(
+        &mut self,
         called: &[u8],
-        params: &[Param],
+        params: &[Param<O>],
         supplied: usize,
         quote_name: bool,
-    ) -> Vec<u8> {
-        if let Some(rw) = self.ensemble_rewrite() {
-            // Print the first `removed` words of `source` (the chained
-            // `numRemovedObjs`) in place of the target prefix, then the formal
-            // parameters not already satisfied by the supplied arguments. Using
-            // the runtime `supplied` count (rather than the static `inserted`)
-            // keeps the dropped-parameter count right across an OO forward, where
-            // the inserted prefix words (`my method …`) are dispatch verbs that do
-            // not themselves fill the target's parameters.
-            let user_args = rw.source.len().saturating_sub(rw.removed);
-            let drop = supplied.saturating_sub(user_args);
-            // Only rewrite when the dropped parameters are actually present (C's
-            // `objc < toSkip` guard); otherwise fall back to the plain message.
-            if drop <= params.len() {
-                let prefix: Vec<&[u8]> = rw
-                    .source
-                    .iter()
-                    .take(rw.removed)
-                    .map(Vec::as_slice)
-                    .collect();
-                return proc_usage_words(&prefix, &params[drop..], params);
-            }
+    ) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
+        let protocol = self
+            .native_invocation_dialect()
+            .usage_protocol(Some(
+                tcl_registry::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
+            ))
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "procedure usage",
+            ))?;
+        let original = native_argument_usage::OriginalArgumentUsage::capture(self, &[], 0, false)?;
+        if let Some((words, drop_parameters)) = original.procedure_prefix(supplied, params.len())? {
+            let words: Vec<_> = words.iter().map(|word| word.as_ref()).collect();
+            original.check()?;
+            return Ok(proc_usage_words(
+                protocol,
+                &words,
+                &params[drop_parameters..],
+                self.native_invocation_dialect().parameter_grammar(),
+            ));
         }
-        proc_usage(called, params, quote_name)
+        original.check()?;
+        Ok(proc_usage(
+            protocol,
+            called,
+            params,
+            quote_name,
+            self.native_invocation_dialect().parameter_grammar(),
+        ))
     }
 }
 
 /// Build a `wrong # args` message from explicit leading `words` followed by the
 /// formal `shown` parameters (`all` is the full parameter list, for the `args`
 /// catch-all test). Shared by the plain and ensemble-rewritten forms.
-fn proc_usage_words(words: &[&[u8]], shown: &[Param], all: &[Param]) -> Vec<u8> {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    for (i, w) in words.iter().enumerate() {
-        if i > 0 {
-            m.push(b' ');
+fn proc_usage_words<O: obj::ObjectPointer>(
+    protocol: tcl_registry::native_usage::NativeUsageProtocol,
+    words: &[&[u8]],
+    shown: &[Param<O>],
+    grammar: Option<tcl_dialect::ParameterGrammar>,
+) -> Vec<u8> {
+    let mut header = Vec::new();
+    for (index, word) in words.iter().enumerate() {
+        if index > 0 {
+            header.push(b' ');
         }
-        m.extend_from_slice(w);
+        header.extend_from_slice(word);
     }
-    let last_is_args = all.last().is_some_and(|p| p.name == b"args");
-    for p in shown {
-        m.push(b' ');
-        if last_is_args && std::ptr::eq(p, all.last().unwrap()) {
-            m.extend_from_slice(b"?arg ...?");
-        } else if p.default.is_some() {
-            m.push(b'?');
-            m.extend_from_slice(&p.name);
-            m.push(b'?');
-        } else {
-            m.extend_from_slice(&p.name);
-        }
-    }
-    m.push(b'"');
-    m
+    protocol.render_procedure_message(&header, &formal_usage(shown, grammar))
 }
 
-fn proc_usage(called: &[u8], params: &[Param], quote_name: bool) -> Vec<u8> {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    // A single-word proc name is list-quoted if it needs it — `a b  c` → `{a b  c}`,
-    // `` → `{}` (C's `Tcl_WrongNumArgs` via `TclScanElement`, Bug 942757). `apply`
-    // and TclOO pass a pre-joined multi-word usage prefix that must stay raw.
-    if quote_name {
-        crate::list::append_list_element(&mut m, called, false);
-    } else {
-        m.extend_from_slice(called);
-    }
-    let n = params.len();
-    for (i, p) in params.iter().enumerate() {
-        m.push(b' ');
-        if i + 1 == n && p.name == b"args" {
-            m.extend_from_slice(b"?arg ...?");
-        } else if p.default.is_some() {
-            m.push(b'?');
-            m.extend_from_slice(&p.name);
-            m.push(b'?');
-        } else {
-            m.extend_from_slice(&p.name);
-        }
-    }
-    m.push(b'"');
-    m
+fn formal_usage<O: obj::ObjectPointer>(
+    params: &[Param<O>],
+    grammar: Option<tcl_dialect::ParameterGrammar>,
+) -> Vec<u8> {
+    let Some(grammar) = grammar else {
+        return Vec::new();
+    };
+    let parameters = native_compilation::formal_parameters(params, grammar);
+    tcl_syntax::formal_params::formal_parameter_usage_bytes(&parameters, grammar)
 }
 
-/// The word a call was written with — `argv[0]`, C's `objv[0]`.
-///
-/// This is what `Tcl_WrongNumArgs` prints, and it is deliberately *not* the
-/// name a command is filed under: the two differ after a `rename`, under a
-/// qualified spelling, and through an alias. Empty for an argv with no words,
-/// which no dispatch path produces.
-fn invoked_word(argv: &[*mut TclObj]) -> Vec<u8> {
-    argv.first().map_or_else(Vec::new, |&word| obj_bytes(word))
+fn proc_usage<O: obj::ObjectPointer>(
+    protocol: tcl_registry::native_usage::NativeUsageProtocol,
+    called: &[u8],
+    params: &[Param<O>],
+    quote_name: bool,
+    grammar: Option<tcl_dialect::ParameterGrammar>,
+) -> Vec<u8> {
+    let header = protocol.render_procedure_name(called, quote_name);
+    protocol.render_procedure_message(&header, &formal_usage(params, grammar))
 }
 
 /// Discard a freshly created (`rc 0`) object that is not going to be stored
@@ -11535,19 +20515,36 @@ impl Default for Interp {
 
 impl Drop for InterpState {
     fn drop(&mut self) {
-        // Runs when the last `Interp` handle to this state is dropped. Release
-        // the result; the `FrameStack` field drops afterwards, releasing all
-        // variable refs. The command table holds no object refs. Children are
-        // `Interp` handles (their own `Rc`s); the parent link is `Weak`, so the
-        // tree has no reference cycle to leak.
+        native_literal_pool::retire_arrays(&self.native_literal_arrays);
+        if let Some(mut bindings) = self
+            .namespaces
+            .get_mut()
+            .c_procedure_bindings_for_retirement()
+        {
+            bindings.extend(self.hidden.get_mut().values().filter_map(|binding| {
+                match &binding.command {
+                    Command::Proc(procedure) => Some(procedure.clone()),
+                    _ => None,
+                }
+            }));
+            for binding in bindings {
+                binding.retire();
+            }
+        }
+        // Selected Jim retirement runs with the last live handle so deferred
+        // scripts can still dispatch. Other engines release their residual
+        // result here. Child handles own independent interpreter storage.
         // SAFETY: `result` is the interp's owned reference, dropped once.
-        unsafe { obj::decr_ref_count(self.result.get()) };
-        self.result.set(core::ptr::null_mut());
+        let result = self.result.replace(core::ptr::null_mut());
+        if !result.is_null() {
+            unsafe { obj::decr_ref_count(result) };
+        }
         // Release any pending `-during` chain link the interp still owns.
         if let Some(d) = self.during.take() {
             // SAFETY: `during` held an owning reference; drop it once.
             unsafe { obj::decr_ref_count(d) };
         }
+        drop(self.native_execution_constants.get_mut().take());
     }
 }
 
@@ -11557,37 +20554,6 @@ impl Drop for InterpState {
 pub(crate) fn new_string(bytes: &[u8]) -> *mut TclObj {
     // SAFETY: `bytes` is a valid readable slice.
     unsafe { obj::new_string_obj(bytes.as_ptr() as *const c_char, bytes.len() as obj::TclSize) }
-}
-
-/// Collapse every run of two-or-more `:` to a single `::` separator, matching
-/// Tcl's namespace-name normalisation (empty namespace components are ignored):
-/// `::::classinstance` → `::classinstance`, `::a:::b` → `::a::b`. A lone `:` is
-/// a legal identifier character and is left untouched.
-fn normalize_colons(name: &[u8]) -> Vec<u8> {
-    if !name.windows(3).any(|w| w == b":::") {
-        return name.to_vec();
-    }
-    let mut out = Vec::with_capacity(name.len());
-    let mut i = 0;
-    while i < name.len() {
-        if name[i] == b':' {
-            let mut j = i;
-            while j < name.len() && name[j] == b':' {
-                j += 1;
-            }
-            let run = j - i;
-            if run >= 2 {
-                out.extend_from_slice(b"::");
-            } else {
-                out.push(b':');
-            }
-            i = j;
-        } else {
-            out.push(name[i]);
-            i += 1;
-        }
-    }
-    out
 }
 
 /// Copy an object's string rep (shimmering if needed) into owned bytes.
@@ -11641,9 +20607,1165 @@ fn release_all(objs: &[*mut TclObj]) {
 }
 
 #[cfg(test)]
+fn jim_list_bytes(words: impl IntoIterator<Item = Vec<u8>>) -> Vec<u8> {
+    let mut result = Vec::new();
+    for (index, word) in words.into_iter().enumerate() {
+        if index > 0 {
+            result.push(b' ');
+        }
+        crate::list::append_list_element(&mut result, &word, index == 0);
+    }
+    result
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::counters;
+
+    struct ExposureRetirement {
+        interpreter: std::rc::Weak<InterpState>,
+        calls: Rc<std::cell::Cell<usize>>,
+        mode: u8,
+    }
+
+    unsafe extern "C" fn exposure_retire(data: *mut c_void) {
+        // SAFETY: this exact command owns the client record until its once-only drop.
+        let state = unsafe { Box::from_raw(data.cast::<ExposureRetirement>()) };
+        state.calls.set(state.calls.get() + 1);
+        let mut interpreter = state.interpreter.upgrade().map(Interp).unwrap();
+        assert!(interpreter.namespaces.try_borrow_mut().is_ok());
+        assert!(interpreter.hidden.try_borrow_mut().is_ok());
+        assert!(interpreter.traces.try_borrow_mut().is_ok());
+        match state.mode {
+            1 => {
+                interpreter.refuse_host_command("original exposure retirement refusal");
+            }
+            2 => {
+                let original = interpreter.runtime_context();
+                let mut changed = original.clone();
+                changed
+                    .packages
+                    .push(("exposure-retirement".into(), "1.0".into()));
+                interpreter.pin_context(&changed).unwrap();
+                interpreter.pin_context(&original).unwrap();
+            }
+            4 => {
+                interpreter.refuse_host_command("later unpublished binding retirement refusal");
+            }
+            3 => {
+                assert_eq!(
+                    interpreter.rename_command(b"destination", b""),
+                    crate::namespace::RenameOutcome::Deleted,
+                );
+                interpreter.register_builtin(b"destination", guarded_builtin);
+            }
+            _ => {
+                assert_eq!(
+                    interpreter.rename_command(b"destination", b"other::moved"),
+                    crate::namespace::RenameOutcome::Renamed,
+                );
+            }
+        }
+    }
+
+    fn queue_exposure_retirement(interpreter: &mut Interp, mode: u8) -> Rc<std::cell::Cell<usize>> {
+        let calls = Rc::new(std::cell::Cell::new(0));
+        let state = Box::new(ExposureRetirement {
+            interpreter: Rc::downgrade(&interpreter.0),
+            calls: calls.clone(),
+            mode,
+        });
+        interpreter
+            .create_obj_command(
+                b"exposure_cleanup",
+                ObjCommand::new(
+                    publication_noop,
+                    Box::into_raw(state).cast(),
+                    Some(exposure_retire),
+                ),
+            )
+            .unwrap();
+        // Use the real extracted slot's deferred cleanup door, before expose enters.
+        interpreter.namespaces.borrow_mut().bind(
+            GLOBAL,
+            b"exposure_cleanup",
+            Command::Builtin(guarded_builtin),
+        );
+        assert_eq!(calls.get(), 0);
+        calls
+    }
+
+    #[test]
+    fn original_exposure_after_cleanup_follows_actual_generation_for_traces_and_imports() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Real software delete callback moves the token; no Native callback chronology is asserted.
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            ok(interpreter, b"proc kept {} {return VALUE}; namespace export kept; namespace eval imports {namespace import ::kept}; trace add command kept rename {list}");
+            let original = interpreter
+                .namespaces()
+                .resolve_generation(GLOBAL, b"kept")
+                .unwrap();
+            assert_eq!(
+                interpreter.hide_command(b"kept", b"hidden"),
+                CommandVisibilityOutcome::Moved
+            );
+            let calls = queue_exposure_retirement(interpreter, 0);
+            assert_eq!(
+                interpreter.expose_command(b"hidden", b"destination"),
+                CommandVisibilityOutcome::Moved
+            );
+            assert_eq!(calls.get(), 1);
+            assert_eq!(
+                interpreter
+                    .namespaces()
+                    .command_fqn_by_generation(original)
+                    .as_deref(),
+                Some(b"::other::moved".as_slice()),
+            );
+            assert!(interpreter
+                .traces
+                .borrow()
+                .cmd_traces
+                .iter()
+                .any(|trace| { trace.token == Some(original) && trace.name == b"::other::moved" }));
+            let imported = interpreter
+                .namespaces()
+                .resolve(GLOBAL, b"imports::kept")
+                .unwrap();
+            assert!(
+                matches!(imported, Command::Imported { source, source_generation, .. }
+                if source == b"::other::moved" && source_generation == original)
+            );
+            assert!(interpreter.native_execution_refusal().is_none());
+            assert_eq!(ok(interpreter, b"imports::kept"), b"VALUE");
+        });
+    }
+
+    #[test]
+    fn original_exposure_cleanup_preserves_host_and_context_first_causes_before_retargeting() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Fixed genuine callback controls check software currency, not external provider outcomes.
+        for mode in [1, 2] {
+            leak_free(|interpreter| {
+                interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                ok(
+                    interpreter,
+                    b"proc kept {} {return VALUE}; trace add command kept rename {list}",
+                );
+                let original = interpreter
+                    .namespaces()
+                    .resolve_generation(GLOBAL, b"kept")
+                    .unwrap();
+                assert_eq!(
+                    interpreter.hide_command(b"kept", b"hidden"),
+                    CommandVisibilityOutcome::Moved
+                );
+                let calls = queue_exposure_retirement(interpreter, mode);
+                assert_eq!(
+                    interpreter.expose_command(b"hidden", b"destination"),
+                    CommandVisibilityOutcome::Missing
+                );
+                assert_eq!(calls.get(), 1);
+                assert!(interpreter
+                    .traces
+                    .borrow()
+                    .cmd_traces
+                    .iter()
+                    .any(|trace| { trace.token == Some(original) && trace.name == b"::hidden" }));
+                if mode == 1 {
+                    assert_eq!(
+                        interpreter.host_command_refusal().as_deref(),
+                        Some("original exposure retirement refusal")
+                    );
+                } else {
+                    assert_eq!(interpreter.native_execution_refusal(), Some(
+                        tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                                "stale entered native operation",
+                            ),
+                        ),
+                    ));
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn original_exposure_cleanup_declines_a_replacement_generation_at_the_requested_name() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // A real software delete callback recreates the requested slot with another token.
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            ok(interpreter, b"proc kept {} {return VALUE}");
+            let original = interpreter
+                .namespaces()
+                .resolve_generation(GLOBAL, b"kept")
+                .unwrap();
+            assert_eq!(
+                interpreter.hide_command(b"kept", b"hidden"),
+                CommandVisibilityOutcome::Moved
+            );
+            let calls = queue_exposure_retirement(interpreter, 3);
+            assert_eq!(
+                interpreter.expose_command(b"hidden", b"destination"),
+                CommandVisibilityOutcome::Missing
+            );
+            assert_eq!(calls.get(), 1);
+            assert!(interpreter
+                .namespaces()
+                .command_fqn_by_generation(original)
+                .is_none());
+            let replacement = interpreter
+                .namespaces()
+                .resolve_generation(GLOBAL, b"destination")
+                .unwrap();
+            assert_ne!(replacement, original);
+            assert_eq!(
+                interpreter.host_command_refusal().as_deref(),
+                Some("exposed original command generation was retired")
+            );
+        });
+    }
+
+    thread_local! {
+        static EXPOSURE_CONFIG_OWNER: std::cell::RefCell<Option<WeakInterp>> = const { std::cell::RefCell::new(None) };
+        static EXPOSURE_CONFIG_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+        static EXPOSURE_CONFIG_FIRST: std::cell::RefCell<Option<tcl_runtime_api::NativeExecutionError>> = const { std::cell::RefCell::new(None) };
+    }
+
+    extern "C" fn exposure_configuration_retire(original: *mut TclObj) {
+        EXPOSURE_CONFIG_CALLS.with(|calls| calls.set(calls.get() + 1));
+        // SAFETY: the owning role passes its live original during final release.
+        assert_eq!(unsafe { (*original).ref_count }, 0);
+        let mut interpreter = EXPOSURE_CONFIG_OWNER.with(|owner| {
+            owner
+                .borrow()
+                .as_ref()
+                .and_then(WeakInterp::upgrade)
+                .unwrap()
+        });
+        assert!(interpreter.namespaces.try_borrow_mut().is_ok());
+        assert!(interpreter.hidden.try_borrow_mut().is_ok());
+        EXPOSURE_CONFIG_FIRST
+            .with(|first| *first.borrow_mut() = interpreter.native_execution_refusal());
+        interpreter.refuse_host_command("later unpublished ensemble configuration refusal");
+    }
+
+    static EXPOSURE_CONFIGURATION: obj::TclObjType = obj::TclObjType {
+        name: c"originalExposureConfiguration".as_ptr(),
+        free_int_rep_proc: Some(exposure_configuration_retire),
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+
+    #[test]
+    fn original_failed_exposure_retires_incoming_binding_outside_table_borrow_after_first_cause() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Real extension client-data release on this software unavailable-slot route only.
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            let calls = Rc::new(std::cell::Cell::new(0));
+            let state = Box::new(ExposureRetirement {
+                interpreter: Rc::downgrade(&interpreter.0),
+                calls: calls.clone(),
+                mode: 4,
+            });
+            interpreter
+                .create_obj_command(
+                    b"kept",
+                    ObjCommand::new(
+                        publication_noop,
+                        Box::into_raw(state).cast(),
+                        Some(exposure_retire),
+                    ),
+                )
+                .unwrap();
+            assert_eq!(
+                interpreter.hide_command(b"kept", b"hidden"),
+                CommandVisibilityOutcome::Moved
+            );
+            assert_eq!(
+                interpreter.expose_command(b"hidden", b"::unavailable"),
+                CommandVisibilityOutcome::Missing
+            );
+            assert_eq!(calls.get(), 1);
+            assert!(interpreter.hidden_names().is_empty());
+            assert_eq!(
+                interpreter.host_command_refusal().as_deref(),
+                Some("exposed command has no actual publication slot")
+            );
+        });
+    }
+
+    #[test]
+    fn original_failed_exposure_retires_actual_ensemble_configuration_after_publication_first_cause(
+    ) {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // A genuine owning configured role supplies its existing +1; no protective Native hold.
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            EXPOSURE_CONFIG_OWNER.with(|owner| *owner.borrow_mut() = Some(interpreter.downgrade()));
+            EXPOSURE_CONFIG_CALLS.with(|calls| calls.set(0));
+            EXPOSURE_CONFIG_FIRST.with(|first| first.borrow_mut().take());
+            let original = obj::Owned::fresh(obj::alloc_typed(&EXPOSURE_CONFIGURATION, 0));
+            // SAFETY: this fresh owning role retains the live original.
+            assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
+            let mut originals = crate::ensemble::NativeEnsembleObjects::default();
+            originals.unknown = Some(tcl_cmd_core::ensemble::EnsembleObjectRole::new(
+                crate::ensemble::NativeEnsembleRoot::owned(original),
+            ));
+            let config = crate::ensemble::EnsembleConfig {
+                originals,
+                ns: GLOBAL,
+                map: None,
+                subcommands: None,
+                prefixes: true,
+                parameters: Vec::new(),
+                unknown: Vec::new(),
+            };
+            let token = crate::ensemble::EnsembleToken::with_configuration_retirement(
+                config,
+                b"::kept".to_vec(),
+                tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent,
+                crate::ensemble::retire_configuration,
+            );
+            interpreter.bind_command_replacement(
+                GLOBAL,
+                b"kept",
+                Command::Ensemble(Rc::new(token)),
+            );
+            assert_eq!(
+                interpreter.hide_command(b"kept", b"hidden"),
+                CommandVisibilityOutcome::Moved
+            );
+            assert_eq!(
+                interpreter.expose_command(b"hidden", b"::unavailable"),
+                CommandVisibilityOutcome::Missing
+            );
+            assert_eq!(EXPOSURE_CONFIG_CALLS.with(std::cell::Cell::get), 1);
+            let first = EXPOSURE_CONFIG_FIRST.with(|first| first.borrow().clone());
+            assert!(first.is_some());
+            assert_eq!(interpreter.native_execution_refusal(), first);
+            assert_eq!(
+                interpreter.host_command_refusal().as_deref(),
+                Some("exposed command has no actual publication slot")
+            );
+            EXPOSURE_CONFIG_OWNER.with(|owner| owner.borrow_mut().take());
+        });
+    }
+
+    struct PublicationRetirement {
+        interpreter: std::rc::Weak<InterpState>,
+        calls: Rc<std::cell::Cell<usize>>,
+        absent: Rc<std::cell::Cell<bool>>,
+        active_calls: Rc<std::cell::Cell<usize>>,
+        mode: u8,
+    }
+
+    unsafe extern "C" fn publication_noop(
+        _: *mut c_void,
+        _: *mut Interp,
+        _: c_int,
+        _: *const *mut TclObj,
+    ) -> c_int {
+        0
+    }
+
+    unsafe extern "C" fn publication_retire(data: *mut c_void) {
+        // SAFETY: this exact command owns one boxed client record until its
+        // final Rc is retired; the delete procedure consumes it once.
+        let state = unsafe { Box::from_raw(data.cast::<PublicationRetirement>()) };
+        state.calls.set(state.calls.get() + 1);
+        let mut interpreter = state.interpreter.upgrade().map(Interp).unwrap();
+        state
+            .absent
+            .set(interpreter.resolve_cmd_token(b"retiring").is_none());
+        match state.mode {
+            1 => {
+                interpreter.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original delete procedure refusal",
+                    ),
+                );
+            }
+            2 => {
+                let original = interpreter.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("publication-retirement".into(), "1.0".into())];
+                interpreter.pin_context(&changed).unwrap();
+                interpreter.pin_context(&original).unwrap();
+            }
+            _ => {}
+        }
+    }
+
+    unsafe extern "C" fn publication_active(
+        data: *mut c_void,
+        interpreter: *mut Interp,
+        _: c_int,
+        _: *const *mut TclObj,
+    ) -> c_int {
+        // SAFETY: dispatch retains the original command throughout this call.
+        let state = unsafe { &*data.cast::<PublicationRetirement>() };
+        let interpreter = unsafe { &mut *interpreter };
+        let created = interpreter.create_obj_command(
+            b"retiring",
+            ObjCommand::new(publication_noop, core::ptr::null_mut(), None),
+        );
+        state.active_calls.set(state.calls.get());
+        c_int::from(created.is_none())
+    }
+
+    fn retirement_state(interpreter: &Interp, mode: u8) -> Box<PublicationRetirement> {
+        Box::new(PublicationRetirement {
+            interpreter: Rc::downgrade(&interpreter.0),
+            calls: Rc::new(std::cell::Cell::new(0)),
+            absent: Rc::new(std::cell::Cell::new(false)),
+            active_calls: Rc::new(std::cell::Cell::new(usize::MAX)),
+            mode,
+        })
+    }
+
+    struct PublicationNamespaceRetirement {
+        interpreter: std::rc::Weak<InterpState>,
+        namespace: NsId,
+        recreated: Rc<std::cell::Cell<Option<NsId>>>,
+        calls: Rc<std::cell::Cell<usize>>,
+        currency_current: Rc<std::cell::Cell<bool>>,
+    }
+
+    unsafe extern "C" fn publication_retire_namespace(data: *mut c_void) {
+        // SAFETY: the original command owns this record until its sole final
+        // retirement; the actual deletion callback consumes that ownership.
+        let state = unsafe { Box::from_raw(data.cast::<PublicationNamespaceRetirement>()) };
+        let mut interpreter = state.interpreter.upgrade().map(Interp).unwrap();
+        state.calls.set(state.calls.get() + 1);
+        let currency =
+            native_operation_currency::NativeOperationCurrency::issue(&interpreter).unwrap();
+        assert!(interpreter
+            .namespaces()
+            .command_in(state.namespace, b"retiring")
+            .is_none());
+        interpreter.delete_namespace_by_id(state.namespace);
+        state
+            .recreated
+            .set(Some(interpreter.ensure_global_namespace(b"::retirement")));
+        state
+            .currency_current
+            .set(currency.ensure_current().is_ok());
+    }
+
+    fn publication_builtin(_: &mut Interp, _: &[*mut TclObj]) -> Code {
+        Code::Ok
+    }
+
+    #[test]
+    fn original_publication_holder_refuses_delete_and_recreated_namespace() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Actual software namespace retirement without an interpreter epoch
+        // change; no new native-provider timing or discard observation.
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            let namespace = interpreter.ensure_global_namespace(b"::retirement");
+            let calls = Rc::new(std::cell::Cell::new(0));
+            let recreated = Rc::new(std::cell::Cell::new(None));
+            let currency_current = Rc::new(std::cell::Cell::new(false));
+            let state = Box::new(PublicationNamespaceRetirement {
+                interpreter: Rc::downgrade(&interpreter.0),
+                namespace,
+                recreated: recreated.clone(),
+                calls: calls.clone(),
+                currency_current: currency_current.clone(),
+            });
+            interpreter
+                .create_obj_command(
+                    b"::retirement::retiring",
+                    ObjCommand::new(
+                        publication_noop,
+                        Box::into_raw(state).cast(),
+                        Some(publication_retire_namespace),
+                    ),
+                )
+                .unwrap();
+            let currency =
+                native_operation_currency::NativeOperationCurrency::issue(interpreter).unwrap();
+            let original_context = interpreter.runtime_context();
+            interpreter.set_result_bytes(b"SEEDED RESULT");
+            let result = interpreter.get_obj_result();
+            let replacement = interpreter.create_obj_command(
+                b"::retirement::retiring",
+                ObjCommand::new(publication_noop, core::ptr::null_mut(), None),
+            );
+            assert!(replacement.is_none());
+            assert_eq!(calls.get(), 1);
+            assert!(
+                currency_current.get(),
+                "namespace retirement did not change interpreter currency"
+            );
+            let fresh = recreated.get().unwrap();
+            assert_ne!(fresh, namespace);
+            assert!(interpreter.namespaces().namespace_is_live(fresh));
+            assert!(interpreter
+                .namespaces()
+                .command_in(namespace, b"retiring")
+                .is_none());
+            assert!(interpreter
+                .namespaces()
+                .command_in(fresh, b"retiring")
+                .is_none());
+            assert_eq!(interpreter.runtime_context(), original_context);
+            assert_eq!(interpreter.get_obj_result(), result);
+            let first = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original command publication namespace retired",
+                ),
+            );
+            assert_eq!(interpreter.native_execution_refusal(), Some(first.clone()));
+            assert_eq!(currency.ensure_current(), Err(first));
+        });
+    }
+
+    #[test]
+    fn original_publication_holder_refuses_initial_dead_or_absent_namespace() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        for absent in [false, true] {
+            leak_free(|interpreter| {
+                interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                let namespace = interpreter.ensure_global_namespace(b"::retired");
+                interpreter.delete_namespace_by_id(namespace);
+                let selected = if absent { usize::MAX } else { namespace };
+                let root_children = interpreter.namespaces().children(GLOBAL);
+                interpreter.bind_command_replacement(
+                    selected,
+                    b"untouched",
+                    Command::Builtin(publication_builtin),
+                );
+                assert!(interpreter
+                    .namespaces()
+                    .command_in(namespace, b"untouched")
+                    .is_none());
+                assert_eq!(interpreter.namespaces().children(GLOBAL), root_children);
+                assert_eq!(interpreter.native_execution_refusal(), Some(
+                    tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                            "original command publication namespace retired",
+                        ),
+                    ),
+                ));
+            });
+        }
+    }
+
+    #[test]
+    fn original_publication_holder_preserves_retained_dying_and_permanent_root_tokens() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // The actual retained arena holder exercises the shared publication
+        // seam. Independent original TclOO source comparisons retain OO scope.
+        leak_free(|interpreter| {
+            use tcl_syntax::native_namespace_name::NativeNamespaceLifecycle;
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            let namespace = interpreter.ensure_global_namespace(b"::dying");
+            let retained = interpreter
+                .namespaces()
+                .namespace_name_token(interpreter.native_command_interpreter, namespace)
+                .unwrap();
+            interpreter
+                .namespaces_mut()
+                .begin_namespace_teardown(namespace);
+            assert_eq!(retained.lifecycle(), NativeNamespaceLifecycle::Dying);
+            interpreter.bind_command_replacement(
+                namespace,
+                b"retained",
+                Command::Builtin(publication_builtin),
+            );
+            assert!(interpreter
+                .namespaces()
+                .command_in(namespace, b"retained")
+                .is_some());
+            assert!(interpreter
+                .namespaces()
+                .owns_namespace_name_token(&retained));
+            assert_eq!(retained.lifecycle(), NativeNamespaceLifecycle::Dying);
+            assert!(interpreter.native_execution_refusal().is_none());
+            interpreter
+                .namespaces_mut()
+                .delete_namespace_by_id(namespace);
+            assert_eq!(retained.lifecycle(), NativeNamespaceLifecycle::Dead);
+            let root = interpreter
+                .namespaces()
+                .namespace_name_token(interpreter.native_command_interpreter, GLOBAL)
+                .unwrap();
+            interpreter
+                .namespaces_mut()
+                .begin_namespace_teardown(GLOBAL);
+            assert_eq!(root.lifecycle(), NativeNamespaceLifecycle::Dying);
+            interpreter.namespaces_mut().delete_namespace_by_id(GLOBAL);
+            interpreter
+                .namespaces_mut()
+                .finish_namespace_teardown(&[GLOBAL]);
+            assert_eq!(root.lifecycle(), NativeNamespaceLifecycle::Live);
+            interpreter.bind_command_replacement(
+                GLOBAL,
+                b"root",
+                Command::Builtin(publication_builtin),
+            );
+            assert!(interpreter
+                .namespaces()
+                .command_in(GLOBAL, b"root")
+                .is_some());
+            assert!(interpreter.namespaces().owns_namespace_name_token(&root));
+            assert!(interpreter.native_execution_refusal().is_none());
+        });
+    }
+
+    #[test]
+    fn idle_original_delete_procedure_runs_before_publication_and_preserves_first_refusal() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Actual software object-command retirement, not a new native-provider
+        // observation or an assertion about callback-recreated-slot discard.
+        for mode in 0..3 {
+            leak_free(|interpreter| {
+                interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                let state = retirement_state(interpreter, mode);
+                let calls = state.calls.clone();
+                let absent = state.absent.clone();
+                let original = interpreter
+                    .create_obj_command(
+                        b"retiring",
+                        ObjCommand::new(
+                            publication_noop,
+                            Box::into_raw(state).cast(),
+                            Some(publication_retire),
+                        ),
+                    )
+                    .unwrap();
+                interpreter.set_result_bytes(b"SEEDED RESULT");
+                let result = interpreter.get_obj_result();
+                let replacement = interpreter.create_obj_command(
+                    b"retiring",
+                    ObjCommand::new(publication_noop, core::ptr::null_mut(), None),
+                );
+                assert_eq!(calls.get(), 1);
+                assert!(
+                    absent.get(),
+                    "the exact original slot was unlinked before deleteProc"
+                );
+                assert_eq!(interpreter.get_obj_result(), result);
+                match mode {
+                    0 => {
+                        assert_ne!(replacement.unwrap(), original);
+                        assert!(interpreter.native_execution_refusal().is_none());
+                    }
+                    _ => {
+                        assert!(replacement.is_none());
+                        assert!(interpreter.resolve_cmd_token(b"retiring").is_none());
+                        let reason = if mode == 1 {
+                            "original delete procedure refusal"
+                        } else {
+                            "stale entered native operation"
+                        };
+                        assert_eq!(interpreter.native_execution_refusal(), Some(
+                            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(reason))));
+                    }
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn active_original_command_keeps_client_data_until_dispatch_releases_its_handle() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // This tests this adapter's documented active Rc lifetime separately
+        // from C Tcl's callback timing.
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            let state = retirement_state(interpreter, 0);
+            let calls = state.calls.clone();
+            let active_calls = state.active_calls.clone();
+            let original = interpreter
+                .create_obj_command(
+                    b"retiring",
+                    ObjCommand::new(
+                        publication_active,
+                        Box::into_raw(state).cast(),
+                        Some(publication_retire),
+                    ),
+                )
+                .unwrap();
+            let word = obj::Owned::fresh(new_string(b"retiring"));
+            let refs = unsafe { (*word.as_ptr()).ref_count };
+            assert_eq!(interpreter.dispatch(&[word.as_ptr()]), Code::Ok);
+            assert_eq!(
+                active_calls.get(),
+                0,
+                "clientData stayed live inside the actual call"
+            );
+            assert_eq!(
+                calls.get(),
+                1,
+                "dispatch released the last original command handle"
+            );
+            assert_ne!(
+                interpreter.resolve_cmd_token(b"retiring").unwrap(),
+                original
+            );
+            assert_eq!(unsafe { (*word.as_ptr()).ref_count }, refs);
+            assert!(interpreter.native_execution_refusal().is_none());
+        });
+    }
+
+    #[test]
+    fn c_command_publication_preserves_pending_host_before_namespace_or_output_changes() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            interpreter
+                .create_obj_command(
+                    b"kept",
+                    ObjCommand::new(publication_noop, core::ptr::null_mut(), None),
+                )
+                .unwrap();
+            let kept = interpreter.resolve_cmd_token(b"kept");
+            let children = interpreter.namespaces().children(crate::namespace::GLOBAL);
+            interpreter.set_result_bytes(b"SEEDED RESULT");
+            let result = interpreter.get_obj_result();
+            interpreter.refuse_host_command("original C publication refusal");
+            let first = interpreter.native_execution_refusal();
+            assert!(unsafe {
+                crate::capi::Tcl_CreateObjCommand(
+                    interpreter,
+                    c"untouched::command".as_ptr(),
+                    Some(publication_noop),
+                    core::ptr::null_mut(),
+                    None,
+                )
+            }
+            .is_null());
+            assert_eq!(
+                unsafe { crate::capi::Tcl_DeleteCommand(interpreter, c"kept".as_ptr()) },
+                -1
+            );
+            assert_eq!(interpreter.resolve_cmd_token(b"kept"), kept);
+            assert_eq!(
+                interpreter.namespaces().children(crate::namespace::GLOBAL),
+                children
+            );
+            assert_eq!(interpreter.get_obj_result(), result);
+            assert_eq!(interpreter.native_execution_refusal(), first);
+        });
+    }
+
+    /// Seed the actual selected error-code storage used by the native probes.
+    /// ExceptionState bytes alone do not publish C8.4's global errorCode cell.
+    fn seed_original_getter_code(interp: &mut Interp, bytes: &[u8]) {
+        interp.set_error_state(bytes);
+        let code = crate::obj::Owned::fresh(new_string(bytes));
+        // SAFETY: the actual interpreter and borrowed original code header are live.
+        unsafe { crate::capi::Tcl_SetObjErrorCode(interp, code.as_ptr()) };
+        assert!(interp.native_execution_refusal().is_none());
+        assert_eq!(interp.error_code(), bytes);
+    }
+
+    #[test]
+    fn c84_primitive_invalid_code_is_preserved_until_actual_script_propagation() {
+        // naming.numeric.original-capi-scalar-publication-width
+
+        // naming.numeric.seeded-wide-frontier
+
+        // Software publication at the actual Runtime boundary, independently
+        // of the public primitive fields and the original callback captures.
+        use tcl_syntax::scalar_getter::{
+            NativeScalarGetterFailure, NativeScalarGetterKind, NativeScalarGetterProtocol,
+        };
+        leak_free(|interp| {
+            interp.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            let protocol =
+                NativeScalarGetterProtocol::for_tcl_version(tcl_dialect::TclVersion::V8_4);
+            for kind in [
+                NativeScalarGetterKind::Int,
+                NativeScalarGetterKind::Long,
+                NativeScalarGetterKind::Wide,
+                NativeScalarGetterKind::Double,
+                NativeScalarGetterKind::Boolean,
+            ] {
+                seed_original_getter_code(interp, b"SEEDED CODE");
+                let record = protocol
+                    .failure_presentation(kind, NativeScalarGetterFailure::Invalid, b"bad")
+                    .unwrap();
+                let message = record.message_bytes().to_vec();
+                let error = tcl_syntax::value::ValueError::NativeScalarGetter(Box::new(record));
+                assert_eq!(interp.report_cmd_error(error.into()), Code::Error);
+                assert_eq!(interp.error_code(), b"SEEDED CODE", "{kind:?} direct");
+                assert_eq!(interp.result_bytes(), message);
+                interp.log_command_bytes(1, b"original_getter");
+                assert_eq!(interp.error_code(), b"NONE", "{kind:?} Eval");
+                assert!(interp.exc.borrow().primitive_getter.is_none());
+            }
+            seed_original_getter_code(interp, b"SEEDED CODE");
+            let record = protocol
+                .failure_presentation(
+                    NativeScalarGetterKind::Long,
+                    NativeScalarGetterFailure::IntegerOverflow,
+                    b"18446744073709551616",
+                )
+                .unwrap();
+            assert_eq!(
+                interp.report_cmd_error(
+                    tcl_syntax::value::ValueError::NativeScalarGetter(Box::new(record)).into(),
+                ),
+                Code::Error
+            );
+            let code = interp.error_code();
+            assert!(code.starts_with(b"ARITH IOVERFLOW"));
+            interp.log_command_bytes(1, b"original_getter");
+            assert_eq!(interp.error_code(), code);
+        });
+    }
+
+    #[test]
+    fn primitive_getter_preserves_seeded_code_until_script_propagation() {
+        use tcl_syntax::scalar_getter::{
+            NativeScalarGetterFailure, NativeScalarGetterKind, NativeScalarGetterProtocol,
+        };
+        leak_free(|interp| {
+            interp.set_error_state(b"PROBE BEFORE");
+            interp.mark_error_code_explicit();
+            let protocol =
+                NativeScalarGetterProtocol::for_tcl_version(tcl_dialect::TclVersion::V8_5);
+            let record = protocol
+                .failure_presentation(
+                    NativeScalarGetterKind::Wide,
+                    NativeScalarGetterFailure::CachedNonInteger,
+                    b"1.5\0X",
+                )
+                .expect("audited cached C8.5 getter failure");
+            let primitive_message = record.message_bytes().to_vec();
+            let propagated_message = record.eval_message_bytes().to_vec();
+            assert_ne!(primitive_message, propagated_message);
+            let error = tcl_syntax::value::ValueError::NativeScalarGetter(Box::new(record));
+            assert_eq!(interp.report_cmd_error(error.into()), Code::Error);
+            assert_eq!(interp.result_bytes(), primitive_message);
+            assert_eq!(interp.error_code(), b"PROBE BEFORE");
+            assert!(interp.exc.borrow().code_explicit);
+
+            let snapshot = interp.snapshot_error();
+            interp.error_with_code(b"other", b"OTHER");
+            interp.set_result_bytes(&primitive_message);
+            let _ = interp.restore_error(snapshot);
+            interp.log_command_bytes(1, b"getter");
+            assert_eq!(interp.result_bytes(), propagated_message);
+            assert_eq!(interp.error_code(), b"PROBE BEFORE");
+            assert!(interp.exc.borrow().primitive_getter.is_none());
+
+            let record = protocol
+                .failure_presentation(
+                    NativeScalarGetterKind::Wide,
+                    NativeScalarGetterFailure::CachedNonInteger,
+                    b"1.5\0X",
+                )
+                .expect("same primitive stage inside contextual command error");
+            let error = tcl_cmd_core::CmdError::from(
+                tcl_syntax::value::ValueError::NativeScalarGetter(Box::new(record)),
+            );
+            let mut details = error.into_byte_details();
+            details.message.splice(0..0, b"context: ".iter().copied());
+            interp.report_cmd_error(tcl_cmd_core::CmdError::from_byte_details(details));
+            interp.log_command_bytes(1, b"getter");
+            let mut wrapped = b"context: ".to_vec();
+            wrapped.extend_from_slice(&propagated_message);
+            assert_eq!(interp.result_bytes(), wrapped);
+        });
+    }
+
+    #[test]
+    #[cfg(have_tommath)]
+    fn c84_direct_invalid_expression_preserves_code_until_eval() {
+        // Native proof: naming.expression.original-direct-arithmetic-error-stage
+
+        leak_free(|interp| {
+            interp.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            for source in [b"\"bad\" + 1".as_slice(), b"\"bad\" ? 1 : 0".as_slice()] {
+                seed_original_getter_code(interp, b"PROBE BEFORE");
+                assert_eq!(
+                    crate::builtins::eval_expr_obj(interp, source),
+                    Err(Code::Error)
+                );
+                assert_eq!(interp.error_code(), b"PROBE BEFORE");
+                assert!(interp.exc.borrow().expression_error_stage.is_some());
+                interp.log_command_bytes(1, b"expr");
+                assert_eq!(interp.error_code(), b"NONE");
+            }
+            seed_original_getter_code(interp, b"PROBE BEFORE");
+            assert_eq!(
+                crate::builtins::eval_expr_obj(interp, b"NaN + 1"),
+                Err(Code::Error)
+            );
+            assert_ne!(interp.error_code(), b"PROBE BEFORE");
+            assert!(interp.exc.borrow().expression_error_stage.is_none());
+            let domain = interp.error_code();
+            interp.log_command_bytes(1, b"expr");
+            assert_eq!(interp.error_code(), domain);
+        });
+    }
+
+    #[test]
+    #[cfg(have_tommath)]
+    fn counted_syntax_failures_keep_direct_code_and_apply_eval_update() {
+        for &(engine, case, source, message, direct, propagated) in
+            tcl_test_support::expressions::NATIVE_EXPRESSION_SYNTAX_STATES
+        {
+            leak_free(|interp| {
+                interp.set_dialect_profile(crate::environment::profile_for_dialect(engine));
+                interp.set_error_state(b"PROBE BEFORE");
+                assert_eq!(
+                    crate::builtins::eval_expr_obj(interp, source),
+                    Err(Code::Error),
+                    "{engine}/{case}"
+                );
+                assert_eq!(interp.result_bytes(), message, "{engine}/{case}");
+                assert_eq!(interp.error_code(), direct, "{engine}/{case} Direct");
+                let snapshot = interp.snapshot_error();
+                interp.error_with_code(b"other failure", b"OTHER");
+                interp.set_result_bytes(message);
+                let _ = interp.restore_error(snapshot);
+                interp.log_command_bytes(1, b"expr $probeSource");
+                assert_eq!(interp.error_code(), propagated, "{engine}/{case} Eval");
+                assert_eq!(interp.result_bytes(), message, "{engine}/{case}");
+                assert!(interp.exc.borrow().expression_error_stage.is_none());
+            });
+        }
+    }
+
+    #[test]
+    fn native_wrong_arguments_string_result_requires_the_structured_presenter() {
+        // naming.variable.original-upvar-and-exists-completion-and-name-windows
+
+        // naming.list.original-assign-objects-and-instructions
+
+        // The original tables independently observe C84 upvar case11 and
+        // C85 lassign case28 String results. This tests the shared presenter.
+        use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = Interp::with_native_core(
+                default_host(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let error =
+                tcl_cmd_core::CmdError::wrong_args_bytes(b"upvar ?level? otherVar localVar");
+            let message = error.message_bytes().to_vec();
+            assert_eq!(interp.report_cmd_error(error), Code::Error);
+            assert!(!interp.host_refusal_pending(), "{engine}");
+            assert!(
+                matches!(
+                    obj::native_object_snapshot(interp.result_obj())
+                        .unwrap()
+                        .cache,
+                    Cache::String { .. }
+                ),
+                "{engine}"
+            );
+            assert_eq!(interp.result_bytes(), message, "{engine}");
+            assert_eq!(
+                interp.report_cmd_error(tcl_cmd_core::CmdError::new_bytes(message.as_slice())),
+                Code::Error
+            );
+            assert!(
+                matches!(
+                    obj::native_object_snapshot(interp.result_obj())
+                        .unwrap()
+                        .cache,
+                    Cache::None
+                ),
+                "{engine}: unrelated message"
+            );
+        }
+    }
+
+    #[test]
+    fn unchanged_primitive_projection_preserves_the_original_string_result() {
+        // naming.compiler.introspection-source-and-effect-frontiers
+
+        // Native case13 observes the selected integer-getter String result.
+        // This separate owner control checks unchanged propagation identity.
+        use tcl_syntax::scalar_getter::{
+            NativeScalarGetterFailure, NativeScalarGetterKind, NativeScalarGetterProtocol,
+        };
+        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = Interp::with_native_core(
+                default_host(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let version = interp.native_invocation_dialect().tcl_version.unwrap();
+            let record = NativeScalarGetterProtocol::for_tcl_version(version)
+                .failure_presentation(
+                    NativeScalarGetterKind::Int,
+                    NativeScalarGetterFailure::Invalid,
+                    b"invalid",
+                )
+                .expect("retained native integer failure");
+            let error = tcl_cmd_core::CmdError::from(
+                tcl_syntax::value::ValueError::NativeScalarGetter(Box::new(record)),
+            )
+            .with_native_string_result(tcl_syntax::native_string::NativeStringProtocol::C(version));
+            assert_eq!(interp.report_cmd_error(error), Code::Error);
+            let original = obj::Owned::retain(interp.result_obj());
+            let before = obj::native_object_snapshot(original.as_ptr()).unwrap();
+            assert!(matches!(
+                before.cache,
+                tcl_syntax::native_object::NativeObjectCacheSnapshot::String { .. }
+            ));
+            interp.propagate_error_stage().unwrap();
+            assert_eq!(interp.result_obj(), original.as_ptr(), "{engine}");
+            assert_eq!(
+                obj::native_object_snapshot(interp.result_obj())
+                    .unwrap()
+                    .cache,
+                before.cache,
+                "{engine}"
+            );
+            assert!(interp.exc.borrow().primitive_getter.is_none());
+        }
+    }
+
+    #[test]
+    fn command_error_default_and_explicit_updates_replace_seeded_code() {
+        for (environment, expected) in [
+            ("tcl8.4", b"NONE".as_slice()),
+            ("tcl8.5", b"NONE".as_slice()),
+            ("tcl8.6", b"TCL WRONGARGS".as_slice()),
+            ("tcl9.0", b"TCL WRONGARGS".as_slice()),
+            ("tcl9.1", b"TCL WRONGARGS".as_slice()),
+            ("jim", b"NONE".as_slice()),
+        ] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
+                interp.set_error_state(b"PROBE BEFORE");
+                interp.mark_error_code_explicit();
+                let authentic = tcl_cmd_core::CmdError::wrong_args_bytes(b"n\0\xc0\x80\xff arg");
+                let original = authentic.message_bytes().to_vec();
+                interp.report_cmd_error(tcl_cmd_core::CmdError::new_bytes(original.as_slice()));
+                assert_eq!(interp.result_bytes(), original);
+                assert_eq!(interp.error_code(), b"NONE", "{environment}");
+                assert!(!interp.exc.borrow().code_explicit);
+                interp.report_cmd_error(authentic);
+                assert_eq!(interp.result_bytes(), original);
+                assert_eq!(interp.error_code(), expected, "{environment}");
+                interp
+                    .report_cmd_error(tcl_cmd_core::CmdError::with_error_code("bad", "EXACT CODE"));
+                assert_eq!(interp.error_code(), b"EXACT CODE");
+            });
+        }
+    }
+
+    #[test]
+    fn missing_arity_protocol_refuses_before_guest_state_changes() {
+        leak_free(|interp| {
+            let unknown = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+                "jim",
+                &[],
+                "Jim",
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+            )));
+            interp.set_dialect_profile(unknown);
+            // Bootstrap release globals use their owned slots; installing an
+            // unsupported profile does not issue an unrelated variable lookup.
+            assert_eq!(interp.native_access_refusal(), None);
+            assert!(interp
+                .native_invocation_dialect()
+                .wrong_arguments_protocol(Some(tcl_registry::native_wrong_arguments::LogicalWrongArgumentsProvider::Tcl84CoreSimulation))
+                .is_none());
+            interp.set_result_bytes(b"RESULT BEFORE");
+            interp.set_error_state(b"CODE BEFORE");
+            assert_eq!(
+                interp.report_cmd_error(tcl_cmd_core::CmdError::wrong_args("native arg")),
+                Code::Error
+            );
+            assert_eq!(interp.result_bytes(), b"RESULT BEFORE");
+            assert_eq!(interp.exc.borrow().code, b"CODE BEFORE");
+            assert_eq!(
+                interp.error_code_bytes_checked().unwrap_err(),
+                interp.native_execution_refusal().unwrap()
+            );
+            assert_eq!(
+                interp.native_access_refusal(),
+                Some(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "wrong arguments",
+                    ),
+                )
+            );
+        });
+    }
+
+    #[test]
+    fn jim_diagnostic_argv_borrows_preserve_sharing_and_lazy_string_representation() {
+        fn probe(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+            // SAFETY: invocation owns the argument through this callback.
+            assert_eq!(unsafe { (*argv[1]).ref_count }, 1);
+            assert!(unsafe { (*argv[1]).bytes.is_null() });
+            // SAFETY: argv is live; set_obj_result takes its own result hold.
+            unsafe { interp.set_obj_result(argv[1]) };
+            Code::Ok
+        }
+        fn fail(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+            assert_eq!(unsafe { (*argv[1]).ref_count }, 1);
+            assert!(unsafe { (*argv[1]).bytes.is_null() });
+            interp.error(b"BOOM")
+        }
+        let mut interp = Interp::new();
+        interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+        interp
+            .jim_evaluation_frames
+            .borrow_mut()
+            .push(OriginalJimEvaluationFrame {
+                procedure_level: 0,
+                command: None,
+                is_procedure: false,
+                script: None,
+                invocation: Vec::new(),
+            });
+        for (callback, expected) in [
+            (probe as BuiltinFn, Code::Ok),
+            (fail as BuiltinFn, Code::Error),
+        ] {
+            let argv = [new_string(b"probe"), obj::new_wide_int_obj(42)];
+            for word in argv {
+                unsafe { obj::incr_ref_count(word) };
+            }
+            assert_eq!(
+                interp.invoke_bound(Command::Builtin(callback), None, &argv),
+                expected
+            );
+            assert!(interp.jim_invocation_borrows.borrow().is_empty());
+            if expected == Code::Ok {
+                assert!(unsafe { (*argv[1]).bytes.is_null() });
+            } else {
+                assert_eq!(interp.jim_stacktrace().unwrap(), b"{} {} 1 {probe 42}");
+            }
+            release_all(&argv);
+            interp.set_result_bytes(b"");
+        }
+        interp.jim_evaluation_frames.borrow_mut().pop();
+    }
 
     struct SyntheticHost {
         clock: SyntheticClock,
@@ -11764,6 +21886,784 @@ mod tests {
         // check proves the Interpreter epoch changed.
         assert!(interp.attested_identities(b"guarded").is_some());
         assert!(!interp.check_command_guard(token, b"guarded"));
+    }
+
+    fn registration_host_worker(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
+        interpreter.set_result_bytes(b"HOST");
+        Code::Ok
+    }
+
+    #[test]
+    fn namespace_child_birth_and_export_clear_use_the_shared_lookup_revision() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        leak_free(|interpreter| {
+            let namespace = interpreter
+                .namespaces_mut()
+                .ensure_namespace(GLOBAL, b"::RegistrationExisting");
+            interpreter.register_guarded_builtin(
+                b"registrationGuarded",
+                registration_host_worker,
+                GUARDED_IDENTITY,
+            );
+            let domains = [
+                GuardDomain::CommandEnvironment,
+                GuardDomain::Namespace,
+                GuardDomain::UnknownHandling,
+            ];
+            let prepare = |interpreter: &mut Interp| {
+                domains.map(|domain| {
+                    interpreter
+                        .prepare_command_guard(
+                            b"registrationGuarded",
+                            GUARDED_IDENTITY,
+                            GuardDomains::one(domain),
+                        )
+                        .unwrap()
+                })
+            };
+            let tokens = prepare(interpreter);
+            assert_eq!(
+                interpreter
+                    .namespaces_mut()
+                    .ensure_namespace(GLOBAL, b"::RegistrationExisting"),
+                namespace
+            );
+            interpreter.namespaces_mut().clear_exports(namespace);
+            interpreter.register_builtin(
+                b"::RegistrationExisting::unrelated",
+                registration_host_worker,
+            );
+            assert!(tokens
+                .iter()
+                .all(|token| interpreter.check_command_guard(*token, b"registrationGuarded")));
+            // This is the actual command-publication child birth, rather than
+            // an Interp facade adding an invalidation after table mutation.
+            interpreter
+                .register_builtin(b"::RegistrationBorn::unrelated", registration_host_worker);
+            assert!(tokens
+                .iter()
+                .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded")));
+            for token in tokens {
+                assert!(interpreter.release_command_guard(token));
+            }
+            interpreter.namespaces_mut().export(namespace, b"unrelated");
+            let tokens = prepare(interpreter);
+            interpreter.namespaces_mut().clear_exports(namespace);
+            assert!(tokens
+                .iter()
+                .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded")));
+            for token in tokens {
+                assert!(interpreter.release_command_guard(token));
+            }
+        });
+    }
+
+    unsafe extern "C" fn registration_ensemble_retirement(data: *mut c_void) {
+        // The actual old ObjCommand transfers its sole client record here.
+        let state = unsafe { Box::from_raw(data.cast::<PublicationRetirement>()) };
+        state.calls.set(state.calls.get() + 1);
+        let mut interpreter = state.interpreter.upgrade().map(Interp).unwrap();
+        match state.mode {
+            0 => interpreter.register_builtin(b"retiring", registration_host_worker),
+            1 => {
+                interpreter.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original ensemble delete refusal",
+                    ),
+                );
+            }
+            2 => {
+                let original = interpreter.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("ensemble-publication-retirement".into(), "1.0".into())];
+                interpreter.pin_context(&changed).unwrap();
+                interpreter.pin_context(&original).unwrap();
+            }
+            _ => {}
+        }
+    }
+
+    #[test]
+    fn stock_root_installation_keeps_the_actual_publication_receipt_after_retirement() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        // Runtime callbacks check custody/refusal, not native ensemble chronology.
+        for mode in 0..4 {
+            leak_free(|interpreter| {
+                interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                let state = retirement_state(interpreter, mode);
+                let calls = state.calls.clone();
+                let old = interpreter
+                    .create_obj_command(
+                        b"retiring",
+                        ObjCommand::new(
+                            publication_noop,
+                            Box::into_raw(state).cast(),
+                            Some(registration_ensemble_retirement),
+                        ),
+                    )
+                    .unwrap();
+                interpreter.register_stock_ensemble(
+                    tcl_registry::invocation_words::EnsembleImplementationFamily::String,
+                    b"retiring",
+                    registration_host_worker,
+                    &[(b"length", registration_host_worker)],
+                    &[b"length".as_slice()],
+                );
+                assert_eq!(calls.get(), 1);
+                let current = interpreter.resolve_cmd_token(b"retiring");
+                if mode == 3 {
+                    let generation = current.unwrap();
+                    assert_ne!(generation, old);
+                    assert!(interpreter.native_execution_refusal().is_none());
+                    assert_eq!(
+                        interpreter
+                            .native_compilation
+                            .borrow()
+                            .stock
+                            .get(&generation),
+                        Some(&b"retiring".to_vec())
+                    );
+                    assert!(matches!(
+                        interpreter.raw_command_by_generation(generation),
+                        Some(Command::Ensemble(_))
+                    ));
+                } else {
+                    assert!(interpreter.native_execution_refusal().is_some());
+                    if let Some(generation) = current {
+                        assert!(!interpreter
+                            .native_compilation
+                            .borrow()
+                            .stock
+                            .contains_key(&generation));
+                        assert!(!interpreter
+                            .registry_builtin_names
+                            .borrow()
+                            .contains_key(&generation));
+                    }
+                    if mode == 0 {
+                        assert!(matches!(
+                            interpreter.raw_command_by_generation(current.unwrap()),
+                            Some(Command::Builtin(_))
+                        ));
+                    }
+                }
+            });
+        }
+    }
+
+    std::thread_local! {
+        static REGISTRATION_NESTED_RETIREMENT_MODE: std::cell::Cell<u8> = const { std::cell::Cell::new(3) };
+        static REGISTRATION_NESTED_RETIREMENT_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    fn registration_nested_retirement(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
+        REGISTRATION_NESTED_RETIREMENT_CALLS.with(|calls| calls.set(calls.get() + 1));
+        match REGISTRATION_NESTED_RETIREMENT_MODE.with(std::cell::Cell::get) {
+            0 => interpreter.register_builtin(b"::tcl::binary::encode", registration_host_worker),
+            1 => {
+                interpreter.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original nested ensemble delete refusal",
+                    ),
+                );
+            }
+            2 => {
+                let original = interpreter.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("nested-ensemble-retirement".into(), "1.0".into())];
+                interpreter.pin_context(&changed).unwrap();
+                interpreter.pin_context(&original).unwrap();
+            }
+            _ => {}
+        }
+        Code::Ok
+    }
+
+    #[test]
+    fn stock_nested_installation_stops_before_attesting_a_refused_or_recreated_slot() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        // The actual command delete trace, not an invented native delete role,
+        // supplies this software callback on the installed nested ensemble.
+        for mode in 0..4 {
+            leak_free(|interpreter| {
+                interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                REGISTRATION_NESTED_RETIREMENT_MODE.with(|value| value.set(mode));
+                REGISTRATION_NESTED_RETIREMENT_CALLS.with(|value| value.set(0));
+                interpreter.register_builtin(
+                    b"registrationNestedRetirement",
+                    registration_nested_retirement,
+                );
+                let name = b"::tcl::binary::encode";
+                let old = interpreter.resolve_cmd_token(name).unwrap();
+                assert_eq!(interpreter.eval_str(
+                    b"trace add command ::tcl::binary::encode delete registrationNestedRetirement"
+                ), Code::Ok);
+                interpreter.register_stock_nested_ensemble(
+                    tcl_registry::invocation_words::EnsembleImplementationFamily::Binary,
+                    name,
+                    registration_host_worker,
+                    &[(b"hex", registration_host_worker)],
+                );
+                assert_eq!(
+                    REGISTRATION_NESTED_RETIREMENT_CALLS.with(std::cell::Cell::get),
+                    1
+                );
+                let current = interpreter.resolve_cmd_token(name);
+                if mode == 3 {
+                    let generation = current.unwrap();
+                    assert_ne!(generation, old);
+                    assert!(interpreter.native_execution_refusal().is_none());
+                    assert_eq!(
+                        interpreter
+                            .native_compilation
+                            .borrow()
+                            .stock
+                            .get(&generation),
+                        Some(&name.to_vec())
+                    );
+                    assert!(matches!(
+                        interpreter.raw_command_by_generation(generation),
+                        Some(Command::Ensemble(_))
+                    ));
+                } else {
+                    assert!(interpreter.native_execution_refusal().is_some());
+                    if let Some(generation) = current {
+                        assert!(!interpreter
+                            .native_compilation
+                            .borrow()
+                            .stock
+                            .contains_key(&generation));
+                    }
+                    if mode == 0 {
+                        assert!(matches!(
+                            interpreter.raw_command_by_generation(current.unwrap()),
+                            Some(Command::Builtin(_))
+                        ));
+                    }
+                }
+                REGISTRATION_NESTED_RETIREMENT_MODE.with(|value| value.set(3));
+                REGISTRATION_NESTED_RETIREMENT_CALLS.with(|value| value.set(0));
+            });
+        }
+    }
+
+    #[test]
+    fn dynamic_builtin_registration_preserves_native_namespace_fallback_without_stock_identity() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        // These are Runtime registration/lookup controls, not external execution proofs.
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|interpreter| {
+                *interpreter = Interp::with_native_core(
+                    default_host(),
+                    crate::environment::profile_for_dialect(profile),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                interpreter.register_builtin(b"registrationHostWorker", registration_host_worker);
+                let generation = interpreter
+                    .resolve_cmd_token(b"registrationHostWorker")
+                    .unwrap();
+                assert!(!interpreter
+                    .registry_builtin_names
+                    .borrow()
+                    .contains_key(&generation));
+                assert!(!interpreter
+                    .native_compilation
+                    .borrow()
+                    .stock
+                    .contains_key(&generation));
+                assert!(interpreter
+                    .guarded_commands
+                    .borrow()
+                    .get(&generation)
+                    .is_none());
+                assert_eq!(
+                    interpreter
+                        .eval_str(b"namespace eval RegistrationHost {registrationHostWorker}"),
+                    Code::Ok,
+                    "{profile}: result={:?}, refusal={:?}",
+                    interpreter.result_bytes(),
+                    interpreter.native_execution_refusal(),
+                );
+                assert_eq!(interpreter.result_bytes(), b"HOST", "{profile}");
+                assert!(interpreter.native_execution_refusal().is_none());
+            });
+        }
+    }
+
+    #[test]
+    fn explicitly_guarded_host_replacement_has_no_stock_release_floor() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        leak_free(|interpreter| {
+            interpreter.register_guarded_builtin(
+                b"lassign",
+                registration_host_worker,
+                GUARDED_IDENTITY,
+            );
+            let generation = interpreter.resolve_cmd_token(b"lassign").unwrap();
+            let token = interpreter
+                .prepare_command_guard(
+                    b"lassign",
+                    GUARDED_IDENTITY,
+                    GuardDomains::one(GuardDomain::CommandEnvironment),
+                )
+                .unwrap();
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert_eq!(interpreter.eval_str(b"lassign"), Code::Ok);
+            assert_eq!(interpreter.result_bytes(), b"HOST");
+            assert!(interpreter.check_command_guard_identity(token, b"lassign", GUARDED_IDENTITY));
+            assert!(!interpreter
+                .registry_builtin_names
+                .borrow()
+                .contains_key(&generation));
+            assert!(!interpreter
+                .native_compilation
+                .borrow()
+                .stock
+                .contains_key(&generation));
+            assert!(interpreter.release_command_guard(token));
+        });
+    }
+
+    #[test]
+    fn stock_ensemble_attestation_requires_the_original_worker_at_its_actual_map_slot() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        for move_original in [false, true] {
+            leak_free(|interpreter| {
+                let intrinsic = tcl_registry::IntrinsicId::StringLength;
+                let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                    intrinsic.stable_id(),
+                    intrinsic.guard_semantics_key(interpreter.runtime_version()),
+                );
+                let token = interpreter
+                    .prepare_command_guard(
+                        b"string",
+                        identity,
+                        GuardDomains::one(GuardDomain::CommandEnvironment),
+                    )
+                    .unwrap();
+                let worker = interpreter
+                    .resolve_cmd_token(b"::tcl::string::length")
+                    .unwrap();
+                if move_original {
+                    assert_eq!(
+                        interpreter
+                            .eval_str(b"rename ::tcl::string::length ::registrationOriginalLength"),
+                        Code::Ok
+                    );
+                    assert!(interpreter
+                        .raw_command_location_by_generation(worker)
+                        .is_some());
+                }
+                interpreter.register_builtin(b"::tcl::string::length", registration_host_worker);
+                assert!(!interpreter.check_command_guard_identity(token, b"string", identity));
+                assert!(interpreter.attested_identities(b"string").is_none());
+                assert_eq!(interpreter.eval_str(b"string length abc"), Code::Ok);
+                assert_eq!(interpreter.result_bytes(), b"HOST");
+                assert!(interpreter.release_command_guard(token));
+            });
+        }
+    }
+
+    #[test]
+    fn stock_ensemble_attestation_refuses_a_changed_actual_mapping() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        leak_free(|interpreter| {
+            let intrinsic = tcl_registry::IntrinsicId::StringLength;
+            let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                intrinsic.stable_id(),
+                intrinsic.guard_semantics_key(interpreter.runtime_version()),
+            );
+            let token = interpreter
+                .prepare_command_guard(
+                    b"string",
+                    identity,
+                    GuardDomains::one(GuardDomain::CommandEnvironment),
+                )
+                .unwrap();
+            interpreter.register_builtin(b"registrationMappedLength", registration_host_worker);
+            assert_eq!(
+                interpreter.eval_str(
+                    b"namespace ensemble configure string -map {length ::registrationMappedLength}",
+                ),
+                Code::Ok
+            );
+            assert!(!interpreter.check_command_guard_identity(token, b"string", identity));
+            assert_eq!(interpreter.eval_str(b"string length abc"), Code::Ok);
+            assert_eq!(interpreter.result_bytes(), b"HOST");
+            assert!(interpreter.release_command_guard(token));
+        });
+    }
+
+    #[test]
+    fn namespace_mutation_owner_synchronises_all_lookup_guard_domains() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        for mutation in 0..10 {
+            leak_free(|interpreter| {
+                assert_eq!(interpreter.eval_str(
+                    b"namespace eval RegistrationSource {proc target {} {}; namespace export target};
+                      namespace eval RegistrationImports {namespace import ::RegistrationSource::target}",
+                ), Code::Ok);
+                let namespace = interpreter
+                    .namespaces()
+                    .find_namespace(GLOBAL, b"RegistrationImports")
+                    .unwrap();
+                if mutation == 4 {
+                    interpreter.namespaces_mut().export(namespace, b"target");
+                } else if mutation == 5 {
+                    interpreter
+                        .namespaces_mut()
+                        .set_path(namespace, vec![GLOBAL]);
+                } else if mutation == 9 {
+                    interpreter
+                        .namespaces_mut()
+                        .begin_namespace_teardown(namespace);
+                }
+                interpreter.register_guarded_builtin(
+                    b"registrationGuarded",
+                    registration_host_worker,
+                    GUARDED_IDENTITY,
+                );
+                let tokens = [
+                    GuardDomain::CommandEnvironment,
+                    GuardDomain::Namespace,
+                    GuardDomain::UnknownHandling,
+                ]
+                .map(|domain| {
+                    interpreter
+                        .prepare_command_guard(
+                            b"registrationGuarded",
+                            GUARDED_IDENTITY,
+                            GuardDomains::one(domain),
+                        )
+                        .unwrap()
+                });
+                interpreter.register_builtin(b"registrationUnrelated", registration_host_worker);
+                assert!(tokens
+                    .iter()
+                    .all(|token| interpreter.check_command_guard(*token, b"registrationGuarded")));
+                match mutation {
+                    0 => interpreter.namespaces_mut().set_path(GLOBAL, vec![GLOBAL]),
+                    1 => interpreter
+                        .namespaces_mut()
+                        .export(GLOBAL, b"registrationNewExport"),
+                    2 => {
+                        let handler = obj::Owned::fresh(new_string(b"registrationUnknown"));
+                        let previous = interpreter
+                            .namespaces_mut()
+                            .set_unknown_handler(GLOBAL, Some(handler));
+                        drop(previous);
+                    }
+                    3 => assert!(interpreter.namespaces_mut().remove_in(namespace, b"target")),
+                    4 => interpreter.namespaces_mut().clear_exports(namespace),
+                    5 => interpreter
+                        .namespaces_mut()
+                        .finish_native_namespace_command_path(namespace),
+                    6 => interpreter
+                        .namespaces_mut()
+                        .delete_namespace_by_id(namespace),
+                    7 => {
+                        let retired = interpreter
+                            .namespaces_mut()
+                            .clear_namespace_ids(&[namespace]);
+                        drop(retired);
+                    }
+                    8 => interpreter
+                        .namespaces_mut()
+                        .begin_namespace_variable_teardown(namespace),
+                    _ => interpreter
+                        .namespaces_mut()
+                        .finish_namespace_teardown(&[namespace]),
+                }
+                assert!(tokens
+                    .iter()
+                    .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded")));
+                for token in tokens {
+                    assert!(interpreter.release_command_guard(token));
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn exhausted_namespace_lookup_revision_permanently_poisons_its_guard_domains() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        leak_free(|interpreter| {
+            interpreter.register_guarded_builtin(
+                b"registrationGuarded",
+                registration_host_worker,
+                GUARDED_IDENTITY,
+            );
+            let domains = [
+                GuardDomain::CommandEnvironment,
+                GuardDomain::Namespace,
+                GuardDomain::UnknownHandling,
+            ];
+            let tokens = domains.map(|domain| {
+                interpreter
+                    .prepare_command_guard(
+                        b"registrationGuarded",
+                        GUARDED_IDENTITY,
+                        GuardDomains::one(domain),
+                    )
+                    .unwrap()
+            });
+            let independent = interpreter
+                .prepare_command_guard(
+                    b"registrationGuarded",
+                    GUARDED_IDENTITY,
+                    GuardDomains::one(GuardDomain::Interpreter),
+                )
+                .unwrap();
+            interpreter
+                .namespaces_mut()
+                .exhaust_guard_lookup_environment_revision_for_test();
+            assert!(tokens
+                .iter()
+                .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded")));
+            assert!(interpreter.check_command_guard(independent, b"registrationGuarded"));
+            interpreter.namespaces_mut().set_path(GLOBAL, vec![GLOBAL]);
+            for domain in domains {
+                assert_eq!(
+                    interpreter.prepare_command_guard(
+                        b"registrationGuarded",
+                        GUARDED_IDENTITY,
+                        GuardDomains::one(domain),
+                    ),
+                    Err(GuardError::Poisoned)
+                );
+            }
+            for token in tokens {
+                assert!(interpreter.release_command_guard(token));
+            }
+            assert!(interpreter.release_command_guard(independent));
+        });
+    }
+
+    unsafe extern "C" fn registration_recreate_on_retirement(data: *mut c_void) {
+        // SAFETY: the actual retiring command transfers this sole client record.
+        let state = unsafe { Box::from_raw(data.cast::<PublicationRetirement>()) };
+        state.calls.set(state.calls.get() + 1);
+        let mut interpreter = state.interpreter.upgrade().map(Interp).unwrap();
+        interpreter.register_builtin(b"retiring", registration_host_worker);
+    }
+
+    #[test]
+    fn refused_guarded_registration_cannot_attest_a_callback_created_generation() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        // This checks the Runtime receipt; it claims no native discard chronology.
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            let state = retirement_state(interpreter, 0);
+            let calls = state.calls.clone();
+            interpreter
+                .create_obj_command(
+                    b"retiring",
+                    ObjCommand::new(
+                        publication_noop,
+                        Box::into_raw(state).cast(),
+                        Some(registration_recreate_on_retirement),
+                    ),
+                )
+                .unwrap();
+            interpreter.register_guarded_builtin(b"retiring", resultless_builtin, GUARDED_IDENTITY);
+            assert_eq!(calls.get(), 1);
+            assert!(interpreter.native_execution_refusal().is_some());
+            let replacement = interpreter.resolve_cmd_token(b"retiring").unwrap();
+            assert!(interpreter
+                .guarded_commands
+                .borrow()
+                .get(&replacement)
+                .is_none());
+            assert!(interpreter.attested_identities(b"retiring").is_none());
+            assert!(!interpreter
+                .registry_builtin_names
+                .borrow()
+                .contains_key(&replacement));
+        });
+    }
+
+    #[test]
+    fn renamed_stock_ensemble_keeps_its_release_identity_and_dynamic_replacement_does_not() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        leak_free(|interpreter| {
+            assert_eq!(
+                interpreter.eval_str(b"rename dict registrationMovedDict"),
+                Code::Ok
+            );
+            let stock = interpreter
+                .resolve_cmd_token(b"registrationMovedDict")
+                .unwrap();
+            assert!(matches!(
+                interpreter.raw_command_by_generation(stock),
+                Some(Command::Ensemble(_))
+            ));
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert!(interpreter
+                .resolve_dispatchable(GLOBAL, b"registrationMovedDict")
+                .is_none());
+            interpreter.register_builtin(b"registrationMovedDict", registration_host_worker);
+            let replacement = interpreter
+                .resolve_cmd_token(b"registrationMovedDict")
+                .unwrap();
+            assert_ne!(replacement, stock);
+            assert_eq!(interpreter.eval_str(b"registrationMovedDict"), Code::Ok);
+            assert_eq!(interpreter.result_bytes(), b"HOST");
+        });
+    }
+
+    #[test]
+    fn release_visibility_does_not_donate_a_foreign_list_backing_origin() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        // The explicit origin refusal is separate from command-table visibility.
+        use tcl_syntax::value::ValueOps;
+        leak_free(|interpreter| {
+            let member = obj::Owned::fresh(new_string(b"A"));
+            let list = obj::Owned::fresh(interpreter.new_list(vec![member.as_ptr()]));
+            assert_eq!(
+                interpreter.list_elements(&list.as_ptr()).unwrap(),
+                vec![member.as_ptr()]
+            );
+            let before = obj::native_object_snapshot(list.as_ptr()).unwrap();
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert!(matches!(
+                interpreter.list_elements(&list.as_ptr()),
+                Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native List string recipe origin"
+                ))
+            ));
+            assert_eq!(obj::native_object_snapshot(list.as_ptr()).unwrap(), before);
+        });
+    }
+
+    #[test]
+    fn native_jim_core_keeps_only_constructor_empty_roles() {
+        let interp = Interp::with_native_core(
+            default_host(),
+            crate::environment::profile_for_dialect("jim"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let context = interp.native_jim_object_context().unwrap();
+        let empty = context.empty_object();
+        assert_eq!(interp.result_obj(), empty.as_ptr());
+        // These are the actual empty, result, errorProc and top-frame namespace
+        // roles in Jim_CreateInterp, before a distribution extension is loaded.
+        assert_eq!(unsafe { (*empty.as_ptr()).ref_count }, 4);
+        assert!(interp.find_command_id(GLOBAL, b"binary").is_none());
+        assert!(interp.find_command_id(GLOBAL, b"set").is_some());
+    }
+
+    #[test]
+    fn native_core_root_cells_match_six_original_constructor_inventories() {
+        use tcl_registry::special_vars::NativeBootstrapInputs;
+        let fixture =
+            include_str!("../../../rust/tcl-registry/tests/data/native_bootstrap/core-roots.tsv");
+        for (profile_name, version) in [
+            ("tcl8.4", "8.4"),
+            ("tcl8.5", "8.5"),
+            ("tcl8.6", "8.6"),
+            ("tcl9.0", "9.0"),
+            ("tcl9.1", "9.1"),
+            ("jim", "jim"),
+        ] {
+            counters::reset();
+            {
+                let interp = Interp::with_native_core(
+                    default_host(),
+                    crate::environment::profile_for_dialect(profile_name),
+                    NativeBootstrapInputs {
+                        package_path: Vec::new(),
+                        default_library: Some(b"/native/build/library".to_vec()),
+                    },
+                )
+                .unwrap();
+                assert_eq!(
+                    interp.find_command_id(GLOBAL, b"binary").is_some(),
+                    version != "jim",
+                    "{profile_name}"
+                );
+                assert_eq!(
+                    interp.find_command_id(GLOBAL, b"oo::class").is_some(),
+                    matches!(version, "8.6" | "9.0" | "9.1"),
+                    "{profile_name}"
+                );
+                assert_eq!(
+                    interp.find_command_id(GLOBAL, b"try").is_some(),
+                    matches!(version, "8.6" | "9.0" | "9.1" | "jim"),
+                    "{profile_name}"
+                );
+                assert_eq!(
+                    interp.find_command_id(GLOBAL, b"throw").is_some(),
+                    matches!(version, "8.6" | "9.0" | "9.1"),
+                    "{profile_name}"
+                );
+                assert!(
+                    interp.find_command_id(GLOBAL, b"auto_load").is_none(),
+                    "{profile_name}"
+                );
+                assert!(
+                    interp.find_command_id(GLOBAL, b"auto_import").is_none(),
+                    "{profile_name}"
+                );
+                let expected: Vec<_> = fixture
+                    .lines()
+                    .filter_map(|line| {
+                        let fields: Vec<_> = line.split('\t').collect();
+                        (fields[0] == version && fields[2] == "1")
+                            .then_some(fields[1].as_bytes().to_vec())
+                    })
+                    .collect();
+                assert!(!expected.is_empty());
+                let namespaces = interp.namespaces.borrow();
+                let table = namespaces.var_table(GLOBAL);
+                assert_eq!(
+                    table
+                        .names()
+                        .into_iter()
+                        .map(<[u8]>::to_vec)
+                        .collect::<Vec<_>>(),
+                    expected,
+                    "{profile_name}"
+                );
+                for line in fixture
+                    .lines()
+                    .filter(|line| line.starts_with(&format!("{version}\t")))
+                {
+                    let fields: Vec<_> = line.split('\t').collect();
+                    assert!(
+                        table.has_native_namespace_cell(fields[1].as_bytes()),
+                        "{profile_name}: {}",
+                        fields[1]
+                    );
+                }
+                for name in [b"argv".as_slice(), b"argc", b"argv0", b"tcl_library"] {
+                    assert!(
+                        !table.has_native_namespace_cell(name),
+                        "{profile_name}: {name:?}"
+                    );
+                }
+            }
+            assert_eq!(
+                counters::finalize(),
+                0,
+                "{profile_name}: {} objects, {} buffers",
+                counters::live_objs(),
+                counters::live_bufs()
+            );
+        }
     }
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
@@ -12030,6 +22930,8 @@ mod tests {
     /// token brings it back; a profile pin keeps the attestation.
     #[test]
     fn an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
         leak_free(|i| {
             i.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
             let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
@@ -12181,6 +23083,8 @@ mod tests {
     /// only the runtime may attest.
     #[test]
     fn identities_come_from_the_pinned_generation_never_an_overlay() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
         use tcl_registry::{CommandSpec, IntrinsicId, SemanticOperationId};
         leak_free(|i| {
             // A generation an overlay installed under this interpreter's own
@@ -12211,9 +23115,14 @@ mod tests {
                 "and still attests the shipped command"
             );
 
-            // Control: the fixture is sound, a sweep over the overlay's own
-            // store would attest the builtin.
+            // A store cannot attest an ordinary host handler by its spelling.
             i.attach_identities_from(&overlaid);
+            assert!(i.attested_identities(b"overlay_length").is_none());
+            // Explicit spec registration supplies the independent semantic claim.
+            i.register_spec_builtin(
+                overlaid.get_exact("overlay_length").unwrap(),
+                guarded_builtin,
+            );
             assert!(i.attested_identities(b"overlay_length").is_some());
         });
     }
@@ -12291,12 +23200,86 @@ mod tests {
         });
     }
 
+    #[test]
+    fn unicode_backing_catalogue_omits_opaque_names_without_changing_command_identity() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        leak_free(|interp| {
+            interp.register_builtin(b"opaque_\xff", guarded_builtin);
+            interp.register_builtin("café".as_bytes(), guarded_builtin);
+            assert!(interp
+                .command_names()
+                .iter()
+                .any(|name| name == b"opaque_\xff"));
+            let head = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"opaque_\xff"));
+            assert_eq!(interp.dispatch_invoke(&[head.as_ptr()]), Code::Ok);
+            assert!(interp.native_execution_refusal().is_none());
+            let report = interp.backing_report();
+            assert!(report
+                .iter()
+                .any(|(name, backing)| name == "café" && *backing == RegisteredBacking::Builtin));
+            assert!(!report.iter().any(|(name, _)| name == "opaque_�"));
+            assert!(!report.iter().any(|(name, _)| name.starts_with("opaque_")));
+        });
+    }
+
+    #[test]
+    fn backing_report_preserves_colon_components_from_actual_placed_slots() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Actual software table placement and diagnostic projection only; no Native dispatch or inverse-name claim.
+        leak_free(|interp| {
+            let holder = {
+                let mut namespaces = interp.namespaces.borrow_mut();
+                for name in [b"run".as_slice(), b":run", b"::run"] {
+                    namespaces.bind(GLOBAL, name, Command::Builtin(guarded_builtin));
+                }
+                let holder = namespaces.ensure_namespace(GLOBAL, b":");
+                namespaces.bind(holder, b"run", Command::Builtin(guarded_builtin));
+                namespaces.bind(holder, b":run", Command::Builtin(guarded_builtin));
+                assert_eq!(namespaces.command_fqn_at(GLOBAL, b":run"), b":::run");
+                assert_eq!(namespaces.command_fqn_at(GLOBAL, b"::run"), b"::::run");
+                assert_eq!(namespaces.command_fqn_at(holder, b"run"), b":::::run");
+                holder
+            };
+            let original = interp
+                .namespaces
+                .borrow()
+                .command_generation(holder, b"run");
+            assert!(original.is_some());
+            let entries = interp.backing_report();
+            for expected in ["run", ":run", "::run", ":::run", "::::run"] {
+                assert!(
+                    entries
+                        .iter()
+                        .any(|(key, backing)| key == expected
+                            && *backing == RegisteredBacking::Builtin),
+                    "{expected}"
+                );
+            }
+            let report = tcl_runtime_api::BackingReport::from_unrooted_entries(entries);
+            for expected in ["run", ":run", "::run", ":::run", "::::run"] {
+                assert_eq!(report.of_unrooted(expected), RegisteredBacking::Builtin);
+            }
+            assert_eq!(report.of_unrooted(":::::run"), RegisteredBacking::Absent);
+            assert_eq!(
+                interp
+                    .namespaces
+                    .borrow()
+                    .command_generation(holder, b"run"),
+                original
+            );
+        });
+    }
+
     /// The backing report says what the handler table holds: handlers, the
     /// engine's `TclOO` roots and the commands the object system binds in every
     /// object, handlers that only refuse, and absences; and nothing a script
     /// defines.
     #[test]
     fn the_backing_report_says_what_the_handler_table_holds() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
         leak_free(|i| {
             let report =
                 |i: &Interp| tcl_runtime_api::BackingReport::from_entries(i.backing_report());
@@ -12311,7 +23294,8 @@ mod tests {
             assert_eq!(before.of("oo::object"), RegisteredBacking::Object);
             assert_eq!(before.of("my"), RegisteredBacking::Object);
             assert_eq!(before.of("zipfs"), RegisteredBacking::Absent);
-            assert_eq!(before.of("tcl::dict::get"), RegisteredBacking::Absent);
+            // The selected native ensemble owns this real private worker.
+            assert_eq!(before.of("tcl::dict::get"), RegisteredBacking::Builtin);
             #[cfg(have_tommath)]
             assert_eq!(before.of("expr"), RegisteredBacking::Builtin);
             #[cfg(not(have_tommath))]
@@ -12407,6 +23391,53 @@ mod tests {
             );
             let token = prepare_interpreter_guard(i);
             assert!(i.check_command_guard(token, b"guarded"));
+        });
+    }
+
+    #[test]
+    fn command_identity_survives_unrelated_mutation_and_follows_its_actual_generation() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        leak_free(|i| {
+            let token = prepare_interpreter_guard(i);
+            i.register_builtin(b"unrelated", resultless_builtin);
+            assert!(i.check_command_guard(token, b"guarded"));
+            let fresh = i
+                .prepare_command_guard(
+                    b"guarded",
+                    GUARDED_IDENTITY,
+                    GuardDomains::one(GuardDomain::CommandEnvironment),
+                )
+                .unwrap();
+            assert_eq!(
+                i.rename_command(b"guarded", b"moved"),
+                RenameOutcome::Renamed
+            );
+            // A rename preserves the actual command token and both guards.
+            assert!(i.check_command_guard(fresh, b"moved"));
+            assert!(i.check_command_guard(token, b"moved"));
+            let moved = i
+                .prepare_command_guard(
+                    b"moved",
+                    GUARDED_IDENTITY,
+                    GuardDomains::one(GuardDomain::Interpreter),
+                )
+                .unwrap();
+            i.register_guarded_builtin(b"moved", guarded_builtin, GUARDED_IDENTITY);
+            assert!(!i.check_command_guard(token, b"moved"));
+            assert!(!i.check_command_guard(moved, b"moved"));
+            let replacement = i
+                .prepare_command_guard(
+                    b"moved",
+                    GUARDED_IDENTITY,
+                    GuardDomains::one(GuardDomain::Interpreter),
+                )
+                .unwrap();
+            assert!(i.check_command_guard(replacement, b"moved"));
+            assert!(i.release_command_guard(token));
+            assert!(i.release_command_guard(fresh));
+            assert!(i.release_command_guard(moved));
+            assert!(i.release_command_guard(replacement));
         });
     }
 
@@ -12550,6 +23581,165 @@ mod tests {
     }
 
     #[test]
+    fn expression_policy_keeps_native_dispatch_separate_from_authored_parser() {
+        use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+        use tcl_runtime_api::expression_policy::ExpressionEvaluationOrigin;
+        leak_free(|interp| {
+            interp.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            let native = interp.expression_evaluation_policy().unwrap();
+            assert!(matches!(
+                native.origin,
+                ExpressionEvaluationOrigin::Native(_)
+            ));
+            assert_eq!(
+                tcl_registry::native_expression_program::expression_function_dispatch(
+                    Some(&native),
+                    interp.native_invocation_dialect()
+                ),
+                Some(tcl_registry::mathfunc::NativeMathFunctionDispatch::CommandTable)
+            );
+            interp.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+            assert!(interp.expression_evaluation_policy().is_none());
+            let host = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+            assert!(interp.set_logical_expression_parse_provider(
+                LogicalExpressionParseProvider::Tcl84CoreSimulation,
+                host
+            ));
+            let authored = interp.expression_evaluation_policy().unwrap();
+            assert_eq!(
+                authored.origin,
+                ExpressionEvaluationOrigin::AuthoredTcl84Parser
+            );
+            assert!(authored.numeric_simulation.is_none());
+            assert_eq!(
+                tcl_registry::native_expression_program::expression_function_dispatch(
+                    Some(&authored),
+                    tcl_registry::InvocationDialect::of_profile(host)
+                ),
+                None
+            );
+        });
+    }
+
+    // These helpers exercise epoch policy against an original live registration.
+    // They do not restore a named lookup, native instruction or hosted engine.
+    fn retained_fixture_identity(interp: &Interp, generation: u64) -> Option<GuardIdentity> {
+        interp.raw_command_location_by_generation(generation)?;
+        interp
+            .guarded_commands
+            .borrow()
+            .get(&generation)?
+            .contains(&GUARDED_IDENTITY)
+            .then_some(GUARDED_IDENTITY)
+    }
+
+    fn prepare_retained_fixture_guard(
+        interp: &Interp,
+        generation: u64,
+        domain: GuardDomain,
+    ) -> GuardToken {
+        let observed = retained_fixture_identity(interp, generation);
+        interp
+            .guards
+            .borrow_mut()
+            .prepare(
+                GUARDED_IDENTITY,
+                observed,
+                GuardDomains::one(domain),
+                generation,
+            )
+            .unwrap()
+    }
+
+    fn check_retained_fixture_guard(interp: &Interp, token: GuardToken, generation: u64) -> bool {
+        interp.guards.borrow().check(
+            token,
+            retained_fixture_identity(interp, generation),
+            &generation,
+        )
+    }
+
+    #[test]
+    fn logical_provider_changes_stale_only_interpreter_policy_guards() {
+        fn install(
+            interp: &mut Interp,
+            host: &'static tcl_dialect::DialectProfile,
+            provider: u8,
+        ) -> bool {
+            match provider {
+                0 => interp.set_logical_eval_object_provider(
+                    tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation,
+                    host,
+                ),
+                1 => interp.set_logical_source_word_provider(
+                    tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation,
+                    host,
+                ),
+                2 => interp.set_logical_expression_parse_provider(
+                    tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+                    host,
+                ),
+                _ => unreachable!(),
+            }
+        }
+        for provider in [0, 1, 2] {
+            leak_free(|interp| {
+                let source = tcl_dialect::DialectProfile::irules();
+                let host = crate::environment::profile_for_dialect("tcl9.0");
+                let replacement = crate::environment::profile_for_dialect("tcl9.1");
+                // Retain an actual registration before selecting a hosted
+                // source profile that has no command naming capability.
+                interp.set_dialect_profile(host);
+                interp.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+                let generation = interp
+                    .namespaces
+                    .borrow()
+                    .resolve_generation(GLOBAL, b"guarded")
+                    .unwrap();
+                interp.set_dialect_profile(source);
+                assert!(matches!(
+                    interp.prepare_command_guard(
+                        b"guarded",
+                        GUARDED_IDENTITY,
+                        GuardDomains::one(GuardDomain::Interpreter)
+                    ),
+                    Err(GuardError::IdentityUnavailable)
+                ));
+                let command = prepare_retained_fixture_guard(
+                    interp,
+                    generation,
+                    GuardDomain::CommandEnvironment,
+                );
+                let policy =
+                    prepare_retained_fixture_guard(interp, generation, GuardDomain::Interpreter);
+                assert!(interp.native_compiler_cache_epochs(GLOBAL).is_none());
+                assert!(!install(interp, source, provider));
+                assert!(check_retained_fixture_guard(interp, policy, generation));
+                assert!(install(interp, host, provider));
+                assert!(!check_retained_fixture_guard(interp, policy, generation));
+                assert!(interp.release_command_guard(policy));
+
+                let policy =
+                    prepare_retained_fixture_guard(interp, generation, GuardDomain::Interpreter);
+                assert!(install(interp, host, provider));
+                assert!(check_retained_fixture_guard(interp, policy, generation));
+                assert!(!install(interp, source, provider));
+                assert!(check_retained_fixture_guard(interp, policy, generation));
+                assert!(install(interp, replacement, provider));
+                assert!(!check_retained_fixture_guard(interp, policy, generation));
+                assert!(check_retained_fixture_guard(interp, command, generation));
+                assert!(interp.native_compiler_cache_epochs(GLOBAL).is_none());
+                assert!(interp
+                    .native_invocation_dialect()
+                    .execution_point()
+                    .is_none());
+                assert!(interp.release_command_guard(policy));
+                assert!(interp.release_command_guard(command));
+            });
+        }
+    }
+
+    #[test]
     fn string_length_intrinsic_uses_the_selected_runtime_character_model() {
         leak_free(|i| {
             let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
@@ -12590,6 +23780,20 @@ mod tests {
             assert!(i.release_command_guard(token));
             assert_eq!(
                 i.execute_intrinsic(tcl_registry::IntrinsicId::StringLength, &[value]),
+                Some(Code::Error)
+            );
+            assert_eq!(
+                i.native_access_refusal(),
+                Some(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "native string count cache origin",
+                    ),
+                )
+            );
+            i.reset_native_compilation_admission();
+            let c86_value = new_string("é🙂".as_bytes());
+            assert_eq!(
+                i.execute_intrinsic(tcl_registry::IntrinsicId::StringLength, &[c86_value]),
                 Some(Code::Ok)
             );
             assert_eq!(i.result_bytes(), b"3");
@@ -12600,6 +23804,7 @@ mod tests {
             assert_eq!(i.eval_str("string length é🙂".as_bytes()), Code::Ok);
             assert_eq!(i.result_bytes(), b"2");
             drop_fresh(value);
+            drop_fresh(c86_value);
             assert_eq!(
                 i.execute_intrinsic(tcl_registry::IntrinsicId::ListLength, &[]),
                 None
@@ -12671,25 +23876,32 @@ mod tests {
     /// again under a release that has it.
     #[test]
     fn a_pin_to_a_release_without_the_command_leaves_it_unattested() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
         leak_free(|i| {
-            // `lassign` is a command Tcl 8.4 does not have.
-            i.register_guarded_builtin(b"lassign", guarded_builtin, GUARDED_IDENTITY);
-            let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+            // This is the actual shipped allocation, not a same-name host handler.
+            let intrinsic = tcl_registry::IntrinsicId::ListAssign;
+            let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                intrinsic.stable_id(),
+                intrinsic.guard_semantics_key(i.runtime_version()),
+            );
+            let domains =
+                GuardDomains::one(GuardDomain::CommandEnvironment).with(GuardDomain::VariableTrace);
             let token = i
-                .prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains)
+                .prepare_command_guard(b"lassign", identity, domains)
                 .expect("attested in the default release");
             assert!(i.check_command_guard(token, b"lassign"));
 
             i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
             assert!(!i.check_command_guard(token, b"lassign"));
             assert_eq!(
-                i.prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains),
+                i.prepare_command_guard(b"lassign", identity, domains),
                 Err(GuardError::IdentityUnavailable)
             );
 
             i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
             assert!(i
-                .prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains)
+                .prepare_command_guard(b"lassign", identity, domains)
                 .is_ok());
         });
     }
@@ -12716,24 +23928,16 @@ mod tests {
         });
     }
 
-    /// Regression coverage for the native-stack recursion hazard this
-    /// runtime is exposed to: a tree-walking interpreter recurses natively
-    /// (`eval_command` → command
-    /// dispatch → `eval_control_body`/`run_proc` → `eval_script_mode`,
-    /// recursively) for every nested control-flow body or proc call, unlike
-    /// C Tcl's bytecode-compiled control structures. Empirically, on this
-    /// crate's native build under `cargo test`'s ~2 MiB per-test stack:
-    /// unguarded nested `foreach` bodies overflowed (SIGABRT) between depth
-    /// 200 and 250, and unbounded recursive proc calls overflowed *before
-    /// ever reaching* the pre-existing `RECURSION_LIMIT` of 1000 — i.e. that
-    /// cap was never actually a safe backstop against a native crash. See
-    /// `NATIVE_EVAL_DEPTH_LIMIT`'s doc comment for the full rationale.
+    /// The native Runtime returns its explicit host evaluation-limit error
+    /// before synchronously nested generic callbacks exhaust the host stack.
+    /// This host boundary is separate from the original native completions.
     #[test]
-    fn deeply_nested_foreach_errors_instead_of_crashing() {
+    fn deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit() {
+        // Native proof: naming.runtime.original-nested-foreach-source-completion
+
+        // The identical 300-body source completes in all six native providers.
+        // These assertions exercise this Runtime's separately bounded host path.
         leak_free(|i| {
-            // 300 is comfortably past the measured 200-250 crash range and
-            // past NATIVE_EVAL_DEPTH_LIMIT (128); the assertion is that this
-            // *returns* a catchable error rather than aborting the process.
             let mut src = String::new();
             for _ in 0..300 {
                 src.push_str("foreach x {1} {\n");
@@ -12760,8 +23964,13 @@ mod tests {
     fn a_planted_alias_cycle_errors_instead_of_exhausting_the_stack() {
         leak_free(|i| {
             let alias = |target: &[u8]| Command::Alias {
-                target: target.to_vec(),
-                prefix: Vec::new(),
+                original_prefix: Rc::new(NativeAliasHeader::new(
+                    i.generated_alias_prefix(target, &[]),
+                )),
+                registration_name: Some(Rc::new(NativeAliasHeader::new(obj::Owned::fresh(
+                    new_string(target),
+                )))),
+                publication_name: target.to_vec(),
                 identity: Rc::new(()),
             };
             {
@@ -12906,20 +24115,94 @@ mod tests {
     }
 
     #[test]
-    fn missing_alias_target_uses_global_unknown_not_caller_namespace_unknown() {
-        leak_free(|i| {
-            assert_eq!(
-                i.eval_str(b"proc unknown {cmd args} {list global $cmd $args}"),
-                Code::Ok
-            );
-            assert_eq!(
-                i.eval_str(
-                    b"namespace eval n {proc u {cmd args} {list ns $cmd $args}; namespace unknown u; interp alias {} la {} nosuch; la x}"
-                ),
-                Code::Ok
-            );
-            assert_eq!(i.result_bytes(), b"global nosuch x");
-        });
+    fn missing_alias_target_selects_the_native_handler_context() {
+        for version in tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .filter(|version| *version >= tcl_dialect::TclVersion::V8_5)
+        {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                assert_eq!(
+                    i.eval_str(b"proc unknown {cmd args} {list global $cmd $args}"),
+                    Code::Ok
+                );
+                assert_eq!(i.eval_str(b"namespace eval n {proc u {cmd args} {list ns $cmd $args}; namespace unknown ::n::u; interp alias {} la {} nosuch; la x}"), Code::Ok);
+                let expected: &[u8] = if version == tcl_dialect::TclVersion::V8_5 {
+                    b"global nosuch x"
+                } else {
+                    b"ns nosuch x"
+                };
+                assert_eq!(i.result_bytes(), expected);
+            });
+        }
+    }
+
+    #[test]
+    fn original_command_getter_uses_the_retained_lookup_namespace() {
+        for version in tcl_dialect::TclVersion::ALL {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                assert_eq!(i.eval_str(b"namespace eval A {proc p {} {return A}}; namespace eval B {proc p {} {return B}}"), Code::Ok);
+                let head = crate::obj::Owned::fresh(new_string(b"p"));
+                for name in [b"::A".as_slice(), b"::B", b"::A"] {
+                    let namespace = i.namespaces.borrow().find_namespace(GLOBAL, name).unwrap();
+                    let (command, generation) = i
+                        .resolve_original_command_at(namespace, head.as_ptr())
+                        .unwrap()
+                        .unwrap();
+                    assert_eq!(
+                        i.invoke_bound(command, generation, &[head.as_ptr()]),
+                        Code::Ok
+                    );
+                    assert_eq!(i.result_bytes(), &name[2..]);
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn tailcall_retired_namespace_relookup_observes_deletion_and_recreation() {
+        for version in tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .filter(|version| *version >= tcl_dialect::TclVersion::V8_6)
+        {
+            for recreate in [false, true] {
+                leak_free(|i| {
+                    i.set_runtime_version(version);
+                    let source: &[u8] = if recreate {
+                        b"namespace eval N {proc issue {} {tailcall target}; proc target {} {return OLD}}; proc leave args {namespace delete N; namespace eval N {proc target {} {return NEW}}}; trace add execution N::issue leave leave; N::issue"
+                    } else {
+                        b"namespace eval N {proc issue {} {tailcall target}; proc target {} {return OLD}}; proc leave args {namespace delete N}; trace add execution N::issue leave leave; N::issue"
+                    };
+                    assert_eq!(
+                        i.eval_str(source),
+                        if recreate { Code::Ok } else { Code::Error }
+                    );
+                    assert_eq!(
+                        i.result_bytes(),
+                        if recreate {
+                            b"NEW".as_slice()
+                        } else {
+                            b"namespace \"::N\" not found"
+                        }
+                    );
+                });
+            }
+        }
+    }
+
+    #[test]
+    fn tailcall_selected_miss_does_not_relookup_the_callers_command() {
+        for version in tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .filter(|version| *version >= tcl_dialect::TclVersion::V8_6)
+        {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                assert_eq!(i.eval_str(b"namespace eval Iss {proc p {} {tailcall missing}}; namespace eval Caller {proc missing {} {return WRONG}; proc u {cmd args} {return HANDLER}; namespace unknown ::Caller::u; ::Iss::p}"), Code::Ok);
+                assert_eq!(i.result_bytes(), b"HANDLER");
+            });
+        }
     }
 
     #[test]
@@ -13103,6 +24386,305 @@ mod tests {
             assert_eq!(i.eval_str(b"set out $a(k)"), Code::Ok);
             assert_eq!(i.result_bytes(), b"hello");
         });
+    }
+
+    #[test]
+    fn literal_element_references_match_the_selected_native_interpreter() {
+        let mut engines: Vec<_> = tcl_test_support::available_tclshs()
+            .into_iter()
+            .map(|engine| (engine.path, Some(engine.version)))
+            .collect();
+        if let Some(engine) = tcl_test_support::locate_jimsh().expect("Jim oracle discovery") {
+            engines.push((engine.path, None));
+        }
+        let scripts = [
+            "set arr(k) ELEMENT; list ${arr(k)} $arr(k)",
+            "set i k; set arr(k) ELEMENT; set {arr($i)} LITERAL; list ${arr($i)} $arr($i)",
+            "set arr(k) ELEMENT; list prefix${arr(k)}suffix [subst {${arr(k)}}]",
+            "set arr(k) ELEMENT; catch {set result ${arr(missing)}} result; set result",
+            "proc probe {} {set arr(k) ELEMENT; set {arr($i)} LITERAL; set i k; list ${arr(k)} ${arr($i)} $arr($i)}; probe",
+            "set code [catch {proc probe {{arr(k)}} {list [info exists arr] ${arr(k)} $arr(k) [set arr]}; probe FORMAL} result]; list $code $result",
+        ];
+        for (path, version) in engines {
+            for script in scripts {
+                let expected = tcl_test_support::run_script(
+                    &path,
+                    format!("set c [catch {{{script}}} r]; puts [list $c $r]\n").as_bytes(),
+                )
+                .expect("native variable reference execution");
+                assert!(
+                    expected.success() && expected.stderr.is_empty(),
+                    "{expected:?}"
+                );
+                counters::reset();
+                {
+                    let profile =
+                        version.map_or("jim", tcl_dialect::TclVersion::dialect_profile_name);
+                    let mut interp = Interp::with_native_core(
+                        default_host(),
+                        crate::environment::profile_for_dialect(profile),
+                        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                    )
+                    .expect("selected original native interpreter constructor");
+                    let code = interp.eval_str(script.as_bytes());
+                    assert!(
+                        !interp.host_refusal_pending(),
+                        "{path:?}: {script}: {:?}",
+                        interp.native_access_refusal(),
+                    );
+                    let observed = jim_list_bytes([
+                        code.as_int().to_string().into_bytes(),
+                        interp.result_bytes(),
+                    ]);
+                    assert_eq!(
+                        observed,
+                        expected
+                            .stdout
+                            .strip_suffix(b"\n")
+                            .unwrap_or(&expected.stdout),
+                        "{path:?}: {script}"
+                    );
+                    assert!(!interp.host_refusal_pending(), "{path:?}: {script}");
+                }
+                assert_eq!(
+                    counters::finalize(),
+                    0,
+                    "{path:?}: native source owner leaks"
+                );
+                assert_eq!(counters::double_free_count(), 0);
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(not(have_tommath))]
+    fn an_unavailable_sugar_engine_cannot_be_caught_as_a_guest_error() {
+        leak_free(|interp| {
+            interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+            let code = interp
+                .eval_str(b"set prior 1; catch {set destination $(1+2)} captured; set after 1");
+            assert_eq!(code, Code::Error);
+            assert_eq!(
+                interp.native_access_refusal(),
+                Some(tcl_syntax::raw_string::NativeValueAccessRefusal::ExpressionEngineUnavailable)
+            );
+            assert_eq!(interp.var_get(b"prior").map(obj_bytes), Some(b"1".to_vec()));
+            assert!(interp.var_get(b"captured").is_none());
+            assert!(interp.var_get(b"destination").is_none());
+            assert!(interp.var_get(b"after").is_none());
+        });
+    }
+
+    #[test]
+    #[cfg(not(have_tommath))]
+    fn unavailable_safe_integer_engine_stops_after_the_reached_operand() {
+        leak_free(|interp| {
+            interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+            let code = interp
+                .eval_str(b"set prior 1; catch {string repeat x {1+1}} captured; set after 1");
+            assert_eq!(code, Code::Error);
+            assert_eq!(
+                interp.native_access_refusal(),
+                Some(tcl_syntax::raw_string::NativeValueAccessRefusal::ExpressionEngineUnavailable)
+            );
+            assert_eq!(interp.var_get(b"prior").map(obj_bytes), Some(b"1".to_vec()));
+            assert!(interp.var_get(b"captured").is_none());
+            assert!(interp.var_get(b"after").is_none());
+        });
+    }
+
+    #[test]
+    #[cfg(have_tommath)]
+    fn jim_expression_sugar_bypasses_command_lookup_and_keeps_original_expression() {
+        let jim = tcl_test_support::require_jimsh().expect("Jim expression sugar oracle");
+        let scripts = [
+            "rename expr oldexpr; proc expr args {return WRONG}; set x 3; list $(1+2) \"pre$($x+1)post\" [subst {$(1+2)}] [subst -novariables {$(1+2)}] [subst -nocommands {$(1+2)}]",
+            "set seen 0; proc once {} {incr ::seen; return 4}; list $([once]+1) $seen",
+            "set prior 1; set code [catch {set destination $(k)} result]; list $code $result $prior [info exists destination]",
+            "set value $(1+(2*3)); list $value $()",
+        ];
+        for script in scripts {
+            let expected = tcl_test_support::run_script(
+                &jim.path,
+                format!("set c [catch {{{script}}} r]; puts [list $c $r]\n").as_bytes(),
+            )
+            .expect("native sugar execution");
+            assert!(
+                expected.success() && expected.stderr.is_empty(),
+                "{expected:?}"
+            );
+            leak_free(|interp| {
+                interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+                let code = interp.eval_str(script.as_bytes());
+                let observed = jim_list_bytes([
+                    code.as_int().to_string().into_bytes(),
+                    interp.result_bytes(),
+                ]);
+                assert_eq!(
+                    observed,
+                    expected
+                        .stdout
+                        .strip_suffix(b"\n")
+                        .unwrap_or(&expected.stdout),
+                    "{script}"
+                );
+                assert!(!interp.host_refusal_pending(), "{script}");
+            });
+        }
+    }
+
+    #[test]
+    #[cfg(have_tommath)]
+    fn jim_raw_expression_comparisons_errors_and_numeric_nul_match_native() {
+        use tcl_test_support::expressions::{
+            JIM_RAW_EXPRESSION_ERROR_SCRIPTS, JIM_RAW_EXPRESSION_VALUE_SCRIPTS,
+            NUMERIC_NUL_EXPRESSION_OBSERVATION_SCRIPTS,
+        };
+        let jim = tcl_test_support::require_jimsh().expect("required Jim expression oracle");
+        for script in JIM_RAW_EXPRESSION_VALUE_SCRIPTS
+            .iter()
+            .chain(JIM_RAW_EXPRESSION_ERROR_SCRIPTS)
+            .chain(NUMERIC_NUL_EXPRESSION_OBSERVATION_SCRIPTS)
+        {
+            let observation = format!(
+                "set ::errorCode NONE; set c [catch {{{script}}} r]; binary scan $r H* hx; list $c $hx $::errorCode"
+            );
+            let expected = tcl_test_support::run_script(
+                &jim.path,
+                format!("puts [{observation}]\n").as_bytes(),
+            )
+            .expect("native raw expression observation");
+            assert!(
+                expected.success() && expected.stderr.is_empty(),
+                "{script}: {expected:?}"
+            );
+            leak_free(|interp| {
+                interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+                assert_eq!(
+                    interp.eval_str(observation.as_bytes()),
+                    Code::Ok,
+                    "{script}"
+                );
+                assert!(!interp.host_refusal_pending(), "{script}");
+                assert_eq!(
+                    interp.result_bytes(),
+                    expected
+                        .stdout
+                        .strip_suffix(b"\n")
+                        .unwrap_or(&expected.stdout),
+                    "{script}"
+                );
+            });
+        }
+    }
+
+    #[test]
+    #[cfg(have_tommath)]
+    fn numeric_nul_expression_observations_match_every_selected_native_engine() {
+        let scripts = tcl_test_support::expressions::NUMERIC_NUL_EXPRESSION_OBSERVATION_SCRIPTS;
+        assert_eq!(scripts.len(), 18);
+        let mut engines: Vec<_> = tcl_test_support::available_tclshs()
+            .into_iter()
+            .map(|engine| (engine.path, Some(engine.version)))
+            .collect();
+        let jim = if std::env::var_os("TCL_LSP_REQUIRE_JIM_ORACLE").is_some() {
+            Some(tcl_test_support::require_jimsh().expect("required Jim numeric oracle"))
+        } else {
+            tcl_test_support::locate_jimsh().expect("Jim numeric oracle discovery")
+        };
+        if let Some(jim) = jim {
+            engines.push((jim.path, None));
+        }
+        let mut failures = Vec::new();
+        for (path, version) in engines {
+            for (index, script) in scripts.iter().enumerate() {
+                let expected =
+                    tcl_test_support::run_script(&path, format!("puts [{script}]\n").as_bytes())
+                        .expect("native numeric NUL observation");
+                assert!(
+                    expected.success() && expected.stderr.is_empty(),
+                    "{script}: {expected:?}"
+                );
+                leak_free(|interp| {
+                    match version {
+                        Some(version) => interp.set_runtime_version(version),
+                        None => interp
+                            .set_dialect_profile(crate::environment::profile_for_dialect("jim")),
+                    }
+                    let code = interp.eval_str(script.as_bytes());
+                    let observed = interp.result_bytes();
+                    let wanted = expected
+                        .stdout
+                        .strip_suffix(b"\n")
+                        .unwrap_or(&expected.stdout);
+                    if code != Code::Ok || interp.host_refusal_pending() || observed != wanted {
+                        failures.push(format!("{version:?} case {index}: {script}\ncode {code:?}, observed {observed:?}, expected {wanted:?}"));
+                    }
+                });
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn original_variable_word_vectors_match_the_selected_native_interpreter() {
+        use tcl_syntax::execution_conformance::{vectors, ExecutionDomain};
+        let cases: Vec<_> = vectors(ExecutionDomain::CommandBinding)
+            .into_iter()
+            .filter(|case| case.id.starts_with("variable_word_"))
+            .collect();
+        assert_eq!(
+            cases.len(),
+            12,
+            "retain every shared original-variable control"
+        );
+        let mut engines: Vec<_> = tcl_test_support::available_tclshs()
+            .into_iter()
+            .map(|engine| (engine.path, Some(engine.version)))
+            .collect();
+        let jim = if std::env::var_os("TCL_LSP_REQUIRE_JIM_ORACLE").is_some() {
+            Some(tcl_test_support::require_jimsh().expect("required Jim variable-word oracle"))
+        } else {
+            tcl_test_support::locate_jimsh().expect("Jim variable-word oracle discovery")
+        };
+        if let Some(engine) = jim {
+            engines.push((engine.path, None));
+        }
+        let mut failures = Vec::new();
+        for (path, version) in engines {
+            for case in &cases {
+                let expected = tcl_test_support::run_script(&path, case.script().as_bytes())
+                    .expect("native original-variable execution");
+                assert!(
+                    expected.success() && expected.stderr.is_empty(),
+                    "{expected:?}"
+                );
+                leak_free(|interp| {
+                    match version {
+                        Some(version) => interp.set_runtime_version(version),
+                        None => interp.set_dialect_profile(
+                            tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+                        ),
+                    }
+                    let code = interp.eval_str(case.source.as_bytes());
+                    let observed = jim_list_bytes([
+                        code.as_int().to_string().into_bytes(),
+                        interp.result_bytes(),
+                    ]);
+                    let wanted = expected
+                        .stdout
+                        .strip_suffix(b"\n")
+                        .unwrap_or(&expected.stdout);
+                    if observed != wanted || interp.host_refusal_pending() {
+                        failures.push(format!(
+                            "{path:?} {}: observed {observed:?}, expected {wanted:?}, host refusal {}",
+                            case.id, interp.host_refusal_pending(),
+                        ));
+                    }
+                });
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 
     #[test]
@@ -13392,6 +24974,8 @@ mod tests {
     /// path that deliberately bypasses ordinary command visibility.
     #[test]
     fn an_imported_hidden_builtin_keeps_its_release_gate() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
         use tcl_dialect::TclVersion;
 
         leak_free(|i| {
@@ -13413,7 +24997,16 @@ mod tests {
             assert_eq!(i.result_bytes(), b"invalid command name \"::hp\"");
             assert_eq!(ok(i, b"set l"), b"a b");
 
-            assert_eq!(i.eval_str(b"interp invokehidden {} hp l"), Code::Ok);
+            // Release visibility grants no cross-provider List backing. Supply
+            // fresh current-release input after observing the earlier effect.
+            assert_eq!(ok(i, b"set l {a b}"), b"a b");
+            assert_eq!(
+                i.eval_str(b"interp invokehidden {} hp l"),
+                Code::Ok,
+                "result={:?}, refusal={:?}",
+                i.result_bytes(),
+                i.native_execution_refusal(),
+            );
             assert_eq!(i.result_bytes(), b"b");
 
             i.set_runtime_version(TclVersion::V9_0);
@@ -13964,5 +25557,218 @@ mod tests {
             .expect("installed, so it pins");
         assert_eq!(interp.runtime_context().overlay_generation, OVERLAY);
         assert!(std::ptr::eq(interp.dialect_profile(), profile));
+    }
+}
+
+#[cfg(test)]
+mod native_error_log_tests;
+
+#[cfg(test)]
+mod native_error_code_projection_tests;
+#[cfg(test)]
+mod native_import_chain_tests;
+
+mod native_command_traces;
+mod native_error_headers;
+mod native_return_instruction;
+mod native_trace_result;
+
+#[cfg(test)]
+mod native_child_alias_publication_tests;
+
+#[cfg(test)]
+#[path = "interp/native_result_boundaries_tests.rs"]
+mod native_result_boundaries_tests;
+
+#[cfg(test)]
+#[path = "interp/original_limit_tick_cfg_tests.rs"]
+mod original_limit_tick_cfg_tests;
+
+#[cfg(test)]
+mod c86_original_source_text_tests {
+    use super::*;
+    use std::cell::Cell;
+    use tcl_lexer::{ExecutablePartArena, LexerConfig, SourceChannel, SourceImage, Span};
+
+    thread_local! { static MARKS: Cell<usize> = const { Cell::new(0) }; }
+    fn native() -> Interp {
+        Interp::with_native_core(
+            default_host(),
+            crate::environment::profile_for_dialect("tcl8.6"),
+            tcl_registry::special_vars::NativeBootstrapInputs {
+                package_path: Vec::new(),
+                default_library: None,
+            },
+        )
+        .unwrap()
+    }
+    fn mark(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
+        MARKS.with(|marks| marks.set(marks.get() + 1));
+        interpreter.set_result(obj::new_string_bytes(b"X"));
+        Code::Ok
+    }
+    fn mutate(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
+        let original = interpreter.runtime_context();
+        let mut changed = original.clone();
+        changed.packages = vec![("original-source-text-test".to_owned(), "1.0".to_owned())];
+        interpreter.pin_context(&changed).unwrap();
+        interpreter.pin_context(&original).unwrap();
+        interpreter.set_result(obj::new_obj());
+        Code::Ok
+    }
+
+    #[test]
+    fn original_top_level_escapes_preserve_written_and_literal_native_extents() {
+        for (script, expected) in [
+            (b"set d \\0".as_slice(), b"\xc0\x80".as_slice()),
+            (b"set d \\u0000", b"\xc0\x80"),
+            (b"set d \\uD800", b"\xed\xa0\x80"),
+            (b"set d {\0}", b"\0"),
+            (b"set d {\xc0\x80}", b"\xc0\x80"),
+            (b"set d {\\0}", b"\\0"),
+            (b"set d \\\\0", b"\\0"),
+        ] {
+            let mut interpreter = native();
+            assert_eq!(interpreter.eval_str(script), Code::Ok, "{script:?}");
+            assert_eq!(interpreter.result_bytes(), expected, "{script:?}");
+            assert!(interpreter.native_execution_refusal().is_none());
+        }
+    }
+
+    #[test]
+    fn original_word_order_preserves_substitution_effects_and_single_object_passthrough() {
+        let mut interpreter = native();
+        interpreter.register_builtin(b"mark", mark);
+        MARKS.with(|marks| marks.set(0));
+        assert_eq!(
+            interpreter.eval_str(b"set v V; set d \"A\\0$v[mark]\\u0000B\""),
+            Code::Ok
+        );
+        assert_eq!(interpreter.result_bytes(), b"A\xc0\x80VX\xc0\x80B");
+        assert_eq!(MARKS.with(Cell::get), 1);
+        assert_eq!(
+            interpreter.eval_str(b"set v [list a b]; set d $v"),
+            Code::Ok
+        );
+        assert_eq!(interpreter.var_get(b"v"), interpreter.var_get(b"d"));
+        MARKS.with(|marks| marks.set(0));
+        assert_eq!(interpreter.eval_str(b"list [mark] {broken"), Code::Error);
+        assert_eq!(MARKS.with(Cell::get), 0);
+    }
+
+    #[test]
+    fn selected_source_producer_does_not_fall_back_after_change_and_restore() {
+        let mut interpreter = native();
+        interpreter.register_builtin(b"mutate", mutate);
+        assert_eq!(
+            interpreter.eval_str(b"set v V; trace add variable v read mutate; set d \"$v\\0\""),
+            Code::Error
+        );
+        assert!(interpreter.native_execution_refusal().is_some());
+        assert!(interpreter.var_get(b"d").is_none());
+    }
+
+    fn mutate_profile(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
+        interpreter.set_dialect_profile(crate::environment::profile_for_dialect("tcl9.0"));
+        interpreter.set_result(obj::new_obj());
+        Code::Ok
+    }
+
+    #[test]
+    fn original_text_request_cannot_fall_back_after_prior_argument_changes_profile() {
+        let mut interpreter = native();
+        interpreter.register_builtin(b"mutateProfile", mutate_profile);
+        assert_eq!(
+            interpreter.eval_str(b"list [mutateProfile] \\0"),
+            Code::Error
+        );
+        assert!(interpreter.native_execution_refusal().is_some());
+
+        // The captured source operand remains a physical request even if an
+        // earlier argument's callback changed the current admission recipe.
+        let mut interpreter = native();
+        let source = b"set d \\0";
+        let commands = parse::parse_script_with_original_text(source, interpreter.lexer_config());
+        let _operation =
+            native_operation_currency::NativeOperationScope::enter(&interpreter).unwrap();
+        interpreter.set_dialect_profile(crate::environment::profile_for_dialect("tcl9.0"));
+        assert!(interpreter
+            .substitute_word(source, &commands[0].words[2])
+            .is_err());
+        assert!(interpreter.native_execution_refusal().is_some());
+    }
+
+    #[test]
+    fn source_channel_and_grammar_refuse_before_decoding_under_actual_operation() {
+        for (channel, config) in [
+            (SourceChannel::Document, LexerConfig::for_dialect("tcl8.6")),
+            (
+                SourceChannel::NativeValue,
+                LexerConfig::for_dialect("tcl8.5"),
+            ),
+        ] {
+            let mut interpreter = native();
+            let original = parse::OriginalEscapedText {
+                part_index: 0,
+                span: Span::new(0, 2),
+                arena: ExecutablePartArena::decompose(
+                    SourceImage::from_bytes(b"\\0".to_vec(), channel),
+                    Span::new(0, 2),
+                    tcl_lexer::word_parts::SubstFlags {
+                        vars: false,
+                        cmds: false,
+                        backslashes: true,
+                        ..Default::default()
+                    },
+                    config,
+                ),
+            };
+            let _operation =
+                native_operation_currency::NativeOperationScope::enter(&interpreter).unwrap();
+            assert_eq!(
+                interpreter.original_c86_word_text(&original),
+                Err(Code::Error)
+            );
+            assert!(interpreter.native_execution_refusal().is_some());
+        }
+    }
+
+    #[test]
+    fn explicit_logical_and_previous_native_source_routes_keep_their_text_domain() {
+        let mut logical = Interp::new();
+        logical.set_dialect_profile(crate::environment::profile_for_dialect("irules"));
+        assert!(logical.set_logical_name_provider(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4),
+        ));
+        assert!(logical.set_logical_source_word_provider(
+            tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation,
+            crate::environment::profile_for_dialect("tcl8.6"),
+        ));
+        assert_eq!(
+            logical.eval_str(b"set d \\0"),
+            Code::Ok,
+            "actual refusal: {:?}; result: {:?}",
+            logical.native_execution_refusal(),
+            logical.result_bytes()
+        );
+        assert_eq!(logical.result_bytes(), b"\0");
+        for dialect in ["tcl8.4", "tcl8.5", "tcl9.0", "tcl9.1", "jim"] {
+            let mut interpreter = Interp::with_native_core(
+                default_host(),
+                crate::environment::profile_for_dialect(dialect),
+                tcl_registry::special_vars::NativeBootstrapInputs {
+                    package_path: Vec::new(),
+                    default_library: None,
+                },
+            )
+            .unwrap();
+            assert_eq!(
+                interpreter.eval_str(b"set d \\0; split word {}"),
+                Code::Ok,
+                "{dialect}"
+            );
+            assert_eq!(interpreter.result_bytes(), b"w o r d", "{dialect}");
+            assert!(interpreter.native_execution_refusal().is_none());
+        }
     }
 }

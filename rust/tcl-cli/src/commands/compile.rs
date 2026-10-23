@@ -68,9 +68,26 @@ fn maybe_optimise(
     }
 }
 
+/// Lower the CLI's complete combined document with its actual file grammar.
+fn lower_disassembly_document(
+    source: &str,
+    registry: &CommandRegistry,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> tcl_compiler::ir::Module {
+    lower_to_ir_for_bytecode_with_dialect(
+        source,
+        registry,
+        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
+        Some(dialect),
+    )
+}
+
 /// `tcl dis` — compile source and emit human-readable bytecode disassembly.
 pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    for document in &documents {
+        document.require_faithful_source()?;
+    }
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let registry = registry_for_dialect(dialect.name);
     let source = maybe_optimise(
@@ -80,14 +97,9 @@ pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
         optimise_on,
     );
 
-    let ir = lower_to_ir_for_bytecode_with_dialect(
-        &source,
-        &registry,
-        tcl_lexer::LexerConfig::for_profile(Some(dialect)),
-        Some(dialect),
-    );
+    let ir = lower_disassembly_document(&source, &registry, dialect);
     let cfg = build_cfg_codegen_with_registry(&ir, false, &registry);
-    let module = codegen_module(&cfg, &ir, &registry);
+    let module = codegen_module(&cfg, &ir, &registry)?;
     let disassembly = format_module_asm(&module);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
@@ -108,6 +120,9 @@ pub fn run_compwasm(
     optimisations: tcl_explorer::SemanticOptimisationConfig,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    for document in &documents {
+        document.require_faithful_source()?;
+    }
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let registry = registry_for_dialect(dialect.name);
     let source = combine_sources(&documents);
@@ -146,4 +161,97 @@ pub fn run_compwasm(
         eprintln!("codegen plan: {}", wasm.plan.as_str());
     }
     Ok(0)
+}
+
+#[cfg(test)]
+mod original_disassembly_document_tests {
+    use super::*;
+
+    #[test]
+    fn document_adapter_keeps_root_and_non_root_bom_roles_for_actual_dialects() {
+        // naming.source.original-configured-script-completeness
+
+        // Original command geometry does not grant a Native implementation.
+        let source = "\u{feff}probe root\n\u{feff}probe later\n";
+        for name in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+            "f5-iapps",
+            "f5-tmsh",
+        ] {
+            let environment = tcl_registry::model::ingress::resolve_known_environment(name)
+                .expect("actual known provider ingress");
+            let profile = environment.analyser_profile();
+            let registry = environment.default_context_registry();
+            let module = lower_disassembly_document(source, registry.commands(), profile);
+            assert_eq!(
+                module.source,
+                tcl_lexer::SourceImage::document(source),
+                "{name}"
+            );
+            assert_eq!(
+                module.lexer_config,
+                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                "{name}"
+            );
+            assert_eq!(module.dialect_profile, Some(profile), "{name}");
+            let statements = &module.top_level.statements;
+            assert_eq!(statements.len(), 2, "{name}: {statements:?}");
+            let first = statements[0].tokens().expect("original root command");
+            assert_eq!(
+                first.argv_texts[0],
+                if profile.grammar.script_skips_leading_bom {
+                    "probe"
+                } else {
+                    "\u{feff}probe"
+                },
+                "{name}"
+            );
+            assert_eq!(
+                &source[first.argv[0].as_range()],
+                first.argv_texts[0],
+                "{name}"
+            );
+            let later = statements[1].tokens().expect("original later command");
+            assert_eq!(later.argv_texts[0], "\u{feff}probe", "{name}");
+            assert_eq!(&source[later.argv[0].as_range()], "\u{feff}probe", "{name}");
+            assert!(module.source_entry.native_entry.is_none(), "{name}");
+        }
+    }
+
+    #[test]
+    fn document_adapter_keeps_the_actual_custom_grammar_over_the_profile_label() {
+        // naming.source.original-configured-script-completeness
+
+        let environment = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+            .expect("actual C Tcl provider ingress");
+        let mut custom = environment.analyser_profile().clone();
+        custom.grammar.irules_brace_separator = true;
+        custom.grammar.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        custom.grammar.array_index = tcl_dialect::ArrayIndexSyntax::Tcl8;
+        let custom = custom.intern();
+        let registry = environment.default_context_registry();
+        let source = "\u{feff}probe {left}right\n\u{feff}probe tail";
+        let module = lower_disassembly_document(source, registry.commands(), custom);
+        assert_eq!(
+            module.lexer_config,
+            tcl_lexer::LexerConfig::for_file_grammar(custom.grammar)
+        );
+        assert_eq!(module.dialect_profile, Some(custom));
+        let first = module.top_level.statements[0]
+            .tokens()
+            .expect("original split words");
+        assert_eq!(first.argv_texts, ["probe", "left", "right"]);
+        assert_eq!(&source[first.argv[2].as_range()], "right");
+        let later = module.top_level.statements[1]
+            .tokens()
+            .expect("non-root mark retained");
+        assert_eq!(later.argv_texts[0], "\u{feff}probe");
+        assert!(module.source_entry.native_entry.is_none());
+    }
 }

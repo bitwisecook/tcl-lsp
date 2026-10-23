@@ -70,11 +70,10 @@ fn main() -> std::process::ExitCode {
     let mut breakpoints: Vec<u32> = Vec::new();
     let stdin = std::io::stdin();
     for line in stdin.lock().lines().map_while(Result::ok) {
-        let mut parts = line.split_whitespace();
-        let Some(cmd) = parts.next() else {
+        let Some((cmd, operand)) = command_and_operand(&line) else {
             continue;
         };
-        let arg = parts.next();
+        let arg = operand.and_then(|operand| operand.split_whitespace().next());
         match cmd {
             "q" | "quit" => break,
             "b" | "break" => match arg.and_then(|a| a.parse::<u32>().ok()) {
@@ -93,7 +92,7 @@ fn main() -> std::process::ExitCode {
             "n" | "next" => control(&mut backend, &mut out, VmBackend::step_over),
             "f" | "finish" => control(&mut backend, &mut out, VmBackend::step_out),
             "c" | "continue" => control(&mut backend, &mut out, VmBackend::continue_execution),
-            "p" | "print" => match arg {
+            "p" | "print" => match operand {
                 Some(name) => {
                     let _ = match backend.evaluate(name) {
                         Ok(v) => writeln!(out, "{name} = {v}"),
@@ -134,6 +133,19 @@ fn main() -> std::process::ExitCode {
     std::process::ExitCode::SUCCESS
 }
 
+fn command_and_operand(line: &str) -> Option<(&str, Option<&str>)> {
+    let line = line.trim_start();
+    if line.is_empty() {
+        return None;
+    }
+    let (command, operand) = line
+        .split_once(char::is_whitespace)
+        .map_or((line, ""), |(command, operand)| {
+            (command, operand.trim_start())
+        });
+    Some((command, (!operand.is_empty()).then_some(operand)))
+}
+
 /// Run a control operation and report the resulting stop (or end of program).
 fn control(
     backend: &mut VmBackend,
@@ -161,5 +173,27 @@ fn announce_stop(backend: &VmBackend, out: &mut impl Write) {
         );
     } else {
         let _ = writeln!(out, "not running");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::command_and_operand;
+
+    #[test]
+    fn print_keeps_the_whole_original_name_operand() {
+        for operand in [
+            "${odd name}",
+            "odd name",
+            "${a(x y)}",
+            "${cash$name}",
+            "trailing ",
+        ] {
+            let line = format!("  print\t{operand}");
+            assert_eq!(command_and_operand(&line), Some(("print", Some(operand))));
+        }
+        assert_eq!(command_and_operand("p ${}"), Some(("p", Some("${}"))));
+        assert_eq!(command_and_operand("print  "), Some(("print", None)));
+        assert_eq!(command_and_operand(" \t"), None);
     }
 }

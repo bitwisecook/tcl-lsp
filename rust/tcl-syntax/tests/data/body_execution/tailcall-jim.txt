@@ -1,0 +1,7 @@
+available 1
+root-empty 1
+root-target 1
+empty 0
+missing 1
+pending 7
+outer 0 DONE

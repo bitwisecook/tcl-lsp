@@ -15,7 +15,7 @@ and before adding compile-time knowledge about any command to a consumer.
 It is one of three pages. [value-evaluation.md](value-evaluation.md) is the
 evaluation contract: the routes an answer is computed by, the shared cores
 and engines behind them, state isolation, budgets, and caches.
-[value-transfers-migration.md](value-transfers-migration.md) is the
+[value-transfer-consumers.md](value-transfer-consumers.md) is the
 command-knowledge inventory: what the
 registry owns and what remains elsewhere, the ledger, the gate, and what
 each pass and diagnostic reads.
@@ -52,9 +52,9 @@ These are the owner's decisions, and every section below fits inside them.
 1. **Ownership boundary.** Command-specific specialisation lives in
    registry-owned code and data. The analyser exposes generic operations
    and applies validated answers; it acquires no new command-name or
-   command-ID arms. A compiler-owned handler that remains is listed in the
-   migration page's ledger with where it lives, what keys it, and why it
-   stays.
+   command-ID arms. The current
+   [command-knowledge inventory](value-transfer-consumers.md#compiler-owned-handlers)
+   records each compiler-owned handler's owner, selection key and purpose.
 2. **Executable backing is declared, never inferred.** A command's
    evaluator route — a direct shared core, the shared expression engine,
    or a declared implementation in the bounded engine — is an explicit
@@ -105,7 +105,7 @@ These are the owner's decisions, and every section below fits inside them.
 Each of these is legal, common Tcl, and each has one answer: the registry's
 declaration of its command computes the value once, and every consumer — the
 optimiser, the diagnostics, the editor features and the Explorer — reads it
-from the one lattice. [value-transfers-migration.md](value-transfers-migration.md)
+from the one lattice. [value-transfer-consumers.md](value-transfer-consumers.md)
 § *Where per-command knowledge lives* lists the evaluators that answer from
 their own reading.
 
@@ -251,6 +251,12 @@ invocation view `incr name ?amount?`; the synthetic loop header the CFG
 builder emits for `foreach`, `lmap`, and `dict for` projects to its
 declared iteration protocol, and its `container_arg: 0` refers to the
 synthetic layout, never to the source var-list.
+
+The path specialisation reads values from `argument_offset` through the end
+of the same invocation. A selected file member retains its selector at
+operand zero and offset one; a typed source path operation that already
+excludes the selector retains every supplied value at offset zero. Both
+layouts use the same path kernel, cardinality checks and decline rules.
 
 **Three declaration states.** For each specialisation on a spec, a
 subcommand, or a form: *inherited* from the enclosing level, *declared*
@@ -2856,7 +2862,8 @@ count is unknown.
 An analyser-local fact not in this table is not exempt: its owner declares
 its input dependencies, its monotone transfer and join or its non-dataflow
 evaluation phase, its unknown policy, its cache key, and its consumers. The
-migration page's ledger is the checklist.
+current [command-knowledge inventory](value-transfer-consumers.md) is the
+checklist.
 
 **Construction and solving are different phases.** First, resolve the
 invocation and its structural semantics and build scopes, IR, CFG, and SSA
@@ -2966,7 +2973,7 @@ backend legality is never gated by diagnostic enablement.
 
 ## The completion test
 
-Migrated command names are not the proof. The proof is the experiment:
+The following experiment checks shared interface coverage:
 
 1. Author one private command with a supported existing transfer,
    validation, and body pattern. Rename it, and add a subcommand form with
@@ -3038,7 +3045,7 @@ unit-level lattice evaluates.
 - `rust/tcl-registry/src/hooks.rs`, `return_type.rs` — `ReturnTypeHookId` and the intrep-guaranteeing return-type algorithms
 - `rust/tcl-registry/src/literal_validation.rs` — `LiteralArgumentValidator`, the validation pattern
 - `rust/tcl-registry/src/bpf_op.rs`, `commands/bpf/loop_.rs` — `BpfOpSpec`, the BPF descriptor
-- `rust/tcl-compiler/src/sccp.rs` — the transfer function, `evaluate_def_with_folds`, `evaluate_branch`, `ExistenceRun`, `existence_refinements`, `enumerate_loops`, `start_state`, `catch_body_answer`, `parse_literal_value`, `TraceInputs`
+- `rust/tcl-compiler/src/sccp.rs` — the purpose-aware solver projections `execution_value_facts` / `semantic_value_facts`, typed `evaluate_defs_under` / `evaluate_def_dispatch` and their `LatticeDriver`, `evaluate_branch`, `ExistenceRun`, `existence_refinements`, `enumerate_loops`, `start_state`, `catch_body_answer`, `parse_literal_value`, `TraceInputs`
 - `rust/tcl-compiler/src/const_subst.rs` — `ConstSubstCtx`, `ResolvedConstSubst` and its `command_bindings`
 - `rust/tcl-compiler/src/analyses.rs` — `LatticeValue`, `ConstValue`, `MAX_CONSTSET_SIZE`
 - `rust/tcl-compiler/src/command_binding.rs` — `ModuleCommandMutations`, `CommandTrustSnapshot`, binding validity
@@ -3093,7 +3100,7 @@ unit-level lattice evaluates.
 
 - [value-evaluation.md](value-evaluation.md) — the evaluation contract behind `evaluate`
 - [value-transfers-examples.md](value-transfers-examples.md) — one program per optimisation and diagnostic, and the declarations in Rust and `.tclspec`
-- [value-transfers-migration.md](value-transfers-migration.md) — the command-knowledge inventory, ledger, gate, and what each consumer reads
+- [value-transfer-consumers.md](value-transfer-consumers.md) — the command-knowledge inventory, ledger, gate, and what each consumer reads
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) — the other axes and the runtime, package, and extension contracts
 - [sccp-core-analyses.md](sccp-core-analyses.md) — the lattice and the drivers
 - [constant-folding-type-inference.md](constant-folding-type-inference.md) — the fold-versus-rewrite separation and the type lattice

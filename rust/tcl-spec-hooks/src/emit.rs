@@ -204,7 +204,7 @@ impl Reading {
         let [name] = arguments else {
             return Err(misuse("option-present", "expected OPTION"));
         };
-        let name = text(name);
+        let name = text(name)?;
         let present = self
             .view
             .borrow()
@@ -218,7 +218,7 @@ impl Reading {
         let [name] = arguments else {
             return Err(misuse("option-value", "expected OPTION"));
         };
-        let name = text(name);
+        let name = text(name)?;
         Ok(self
             .view
             .borrow()
@@ -264,17 +264,22 @@ struct Verb {
     family: HookFamily,
     sink: Rc<Sink>,
     reading: Rc<Reading>,
+    metadata_list_reader: Option<tcl_engine_api::HostMetadataListReader>,
 }
 
-fn text(value: &Value) -> String {
-    value.as_str().map_or_else(
-        || match value {
-            Value::Int(number) => number.to_string(),
-            Value::Double(number) => number.to_string(),
-            _ => String::new(),
-        },
-        str::to_owned,
-    )
+fn text(value: &Value) -> Result<String, EngineError> {
+    if let Some(bytes) = value.as_bytes() {
+        return std::str::from_utf8(bytes).map(str::to_owned).map_err(|_| {
+            EngineError::ExecutionRefusal("SpecTcl metadata requires Unicode text".into())
+        });
+    }
+    match value {
+        Value::Int(number) => Ok(number.to_string()),
+        Value::Double(number) => Ok(number.to_string()),
+        _ => Err(EngineError::ExecutionRefusal(
+            "SpecTcl metadata requires a string or scalar value".into(),
+        )),
+    }
 }
 
 fn misuse(verb: &str, detail: &str) -> EngineError {
@@ -285,18 +290,19 @@ fn misuse(verb: &str, detail: &str) -> EngineError {
 }
 
 fn index_of(verb: &str, value: &Value) -> Result<usize, EngineError> {
-    text(value)
+    text(value)?
         .parse::<usize>()
         .map_err(|_| misuse(verb, "expected a word index"))
 }
 
 /// Parse an `AppendedArity` the way the DSL spells it: `{Exactly N}`,
 /// `{AtLeast N}`, or `Unknown`.
-fn appended_arity(verb: &str, value: &Value) -> Result<AppendedArity, EngineError> {
-    let words: Vec<String> = value.as_list().map_or_else(
-        || text(value).split_whitespace().map(str::to_owned).collect(),
-        |items| items.iter().map(text).collect(),
-    );
+fn appended_arity(
+    verb: &str,
+    value: &Value,
+    reader: Option<&tcl_engine_api::HostMetadataListReader>,
+) -> Result<AppendedArity, EngineError> {
+    let words = word_list_in(value, reader)?;
     let count = |raw: Option<&String>| -> Result<u8, EngineError> {
         raw.ok_or_else(|| misuse(verb, "expected an arity count"))?
             .parse::<u8>()
@@ -316,23 +322,26 @@ fn appended_arity(verb: &str, value: &Value) -> Result<AppendedArity, EngineErro
 /// drift apart. Matched case-insensitively: `VarWrite` and `varwrite` both
 /// name the same role, and the difference is not worth an abstention.
 fn role_by_name(verb: &str, name: &str) -> Result<ArgRole, EngineError> {
-    ArgRole::ALL
-        .iter()
-        .copied()
-        .find(|role| format!("{role:?}").eq_ignore_ascii_case(name))
-        .ok_or_else(|| misuse(verb, &format!("unknown argument role \"{name}\"")))
+    tcl_registry::metadata_catalogue::metadata_variant_by_name(
+        ArgRole::ALL,
+        name,
+        tcl_registry::metadata_catalogue::MetadataSpellingComparison::AsciiInsensitive,
+    )
+    .ok_or_else(|| misuse(verb, &format!("unknown argument role \"{name}\"")))
 }
 
 fn timing_by_name(name: &str) -> Result<ScriptTiming, EngineError> {
-    match name {
-        "SameInvocation" => Ok(ScriptTiming::SameInvocation),
-        "Deferred" => Ok(ScriptTiming::Deferred),
-        "ReferenceOnly" => Ok(ScriptTiming::ReferenceOnly),
-        _ => Err(misuse(
+    tcl_registry::metadata_catalogue::metadata_variant_by_name(
+        ScriptTiming::ALL,
+        name,
+        tcl_registry::metadata_catalogue::MetadataSpellingComparison::Exact,
+    )
+    .ok_or_else(|| {
+        misuse(
             "timing",
             &format!("expected SameInvocation, Deferred, or ReferenceOnly, got \"{name}\""),
-        )),
-    }
+        )
+    })
 }
 
 impl HostCommand for Verb {
@@ -373,7 +382,7 @@ impl Verb {
                 };
                 let index = u8::try_from(index_of(self.name, index)?)
                     .map_err(|_| misuse(self.name, "word index out of range"))?;
-                Emission::Role(index, role_by_name(self.name, &text(role))?)
+                Emission::Role(index, role_by_name(self.name, &text(role)?)?)
             }
             "prefix" => {
                 let [index, arity] = arguments else {
@@ -381,7 +390,10 @@ impl Verb {
                 };
                 let index = u8::try_from(index_of(self.name, index)?)
                     .map_err(|_| misuse(self.name, "word index out of range"))?;
-                Emission::Prefix(index, appended_arity(self.name, arity)?)
+                Emission::Prefix(
+                    index,
+                    appended_arity(self.name, arity, self.metadata_list_reader.as_ref())?,
+                )
             }
             "timing" => {
                 let [index, timing] = arguments else {
@@ -389,13 +401,13 @@ impl Verb {
                 };
                 let index = u8::try_from(index_of(self.name, index)?)
                     .map_err(|_| misuse(self.name, "word index out of range"))?;
-                Emission::Timing(index, timing_by_name(&text(timing))?)
+                Emission::Timing(index, timing_by_name(&text(timing)?)?)
             }
             "fold" => {
                 let [value] = arguments else {
                     return Err(misuse(self.name, "expected VALUE"));
                 };
-                Emission::Fold(text(value))
+                Emission::Fold(text(value)?)
             }
             "sink-applies" => Emission::SinkApplies,
             "sink-suppressed" => Emission::SinkSuppressed,
@@ -403,14 +415,14 @@ impl Verb {
                 let [message] = arguments else {
                     return Err(misuse(self.name, "expected MESSAGE"));
                 };
-                Emission::Reject(text(message))
+                Emission::Reject(text(message)?)
             }
-            "invalid" => invalid_emission(arguments)?,
+            "invalid" => invalid_emission(arguments, self.metadata_list_reader.as_ref())?,
             "abstain" => {
                 let [reason] = arguments else {
                     return Err(misuse(self.name, "expected REASON"));
                 };
-                Emission::Abstain(decline_by_name(&text(reason))?)
+                Emission::Abstain(decline_by_name(&text(reason)?)?)
             }
             "missing-expr" => match arguments {
                 [] => Emission::MissingExpr(None),
@@ -455,7 +467,7 @@ impl Verb {
         match (self.name, arguments) {
             ("write", [target, value]) => Ok(Emission::Write {
                 target: self.reading.target(self.name, target)?,
-                value: text(value),
+                value: text(value)?,
             }),
             ("write", _) => Err(misuse(self.name, "expected TARGET VALUE")),
             (_, [target]) => Ok(Emission::Preserve {
@@ -480,7 +492,10 @@ fn decline_by_name(reason: &str) -> Result<LiteralValidationDecline, EngineError
 }
 
 /// `invalid -index N -subject S -reason … -allowed {…} ?-replacement V?`
-fn invalid_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
+fn invalid_emission(
+    arguments: &[Value],
+    reader: Option<&tcl_engine_api::HostMetadataListReader>,
+) -> Result<Emission, EngineError> {
     let mut index = None;
     let mut subject = None;
     let mut reason = None;
@@ -489,17 +504,17 @@ fn invalid_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
     let mut replacement = None;
     let mut rest = arguments.iter();
     while let Some(flag) = rest.next() {
-        let flag = text(flag);
+        let flag = text(flag)?;
         let value = rest
             .next()
             .ok_or_else(|| misuse("invalid", &format!("{flag} takes a value")))?;
         match flag.as_str() {
             "-index" => index = Some(index_of("invalid", value)?),
-            "-subject" => subject = Some(text(value)),
-            "-reason" => reason = Some(text(value)),
-            "-members" => members = word_list(value),
-            "-allowed" => allowed = word_list(value),
-            "-replacement" => replacement = Some(text(value)),
+            "-subject" => subject = Some(text(value)?),
+            "-reason" => reason = Some(text(value)?),
+            "-members" => members = word_list_in(value, reader)?,
+            "-allowed" => allowed = word_list_in(value, reader)?,
+            "-replacement" => replacement = Some(text(value)?),
             other => {
                 return Err(misuse("invalid", &format!("unknown flag \"{other}\"")));
             }
@@ -533,14 +548,14 @@ fn constraint_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
     };
     let mut conflict = false;
     for flag in rest {
-        match text(flag).as_str() {
+        match text(flag)?.as_str() {
             "-conflict" => conflict = true,
             other => return Err(misuse("invalid", &format!("unknown flag \"{other}\""))),
         }
     }
     Ok(Emission::Constraint(ConstraintReport {
-        slot: constraint_slot(&text(slot))?,
-        message: text(message),
+        slot: constraint_slot(&text(slot)?)?,
+        message: text(message)?,
         conflict,
     }))
 }
@@ -575,7 +590,7 @@ fn constraint_slot(spelling: &str) -> Result<ConstraintSlot, EngineError> {
 fn alias_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
     let (local, target, level) = match arguments {
         [local, target] => (local, target, None),
-        [local, target, flag, level] if text(flag) == "-level" => (local, target, Some(level)),
+        [local, target, flag, level] if text(flag)? == "-level" => (local, target, Some(level)),
         _ => return Err(misuse("alias", "expected LOCAL TARGET ?-level LEVEL?")),
     };
     Ok(Emission::Transition(PackTransition::Alias {
@@ -593,22 +608,34 @@ fn consume_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
     let words = index_of("consume", count)?;
     let invalid = match rest {
         [] => None,
-        [flag, message] if text(flag) == "-invalid" => Some(text(message)),
+        [flag, message] if text(flag)? == "-invalid" => Some(text(message)?),
         _ => return Err(misuse("consume", "expected N ?-invalid MESSAGE?")),
     };
     Ok(Emission::Consume { words, invalid })
 }
 
-fn word_list(value: &Value) -> Vec<String> {
-    value.as_list().map_or_else(
-        || {
-            text(value)
-                .split_whitespace()
-                .map(str::to_owned)
-                .collect::<Vec<_>>()
-        },
-        |items| items.iter().map(text).collect(),
-    )
+fn word_list_in(
+    value: &Value,
+    reader: Option<&tcl_engine_api::HostMetadataListReader>,
+) -> Result<Vec<String>, EngineError> {
+    if let Some(items) = value.as_list() {
+        items.iter().map(text).collect()
+    } else {
+        let source = text(value)?;
+        let reader = reader.ok_or_else(|| {
+            EngineError::ExecutionRefusal(
+                "host metadata list receiver grammar is unavailable".into(),
+            )
+        })?;
+        reader(&source)
+    }
+}
+
+#[cfg(test)]
+fn word_list(value: &Value) -> Result<Vec<String>, EngineError> {
+    // Existing direct typed-value fixture delegates the production owner;
+    // absence of an engine never supplies a string parser.
+    word_list_in(value, None)
 }
 
 /// Build the verb commands a family injects, all sharing `sink`.
@@ -617,6 +644,18 @@ pub fn verbs_for(
     family: HookFamily,
     sink: &Rc<Sink>,
     reading: &Rc<Reading>,
+) -> Vec<(&'static str, Rc<dyn HostCommand>)> {
+    verbs_for_with_metadata_reader(family, sink, reading, None)
+}
+
+/// Build emitter verbs with the actual pinned engine's captured Unicode-list
+/// receiver. Missing capability affects only an actual string-valued list use.
+#[must_use]
+pub fn verbs_for_with_metadata_reader(
+    family: HookFamily,
+    sink: &Rc<Sink>,
+    reading: &Rc<Reading>,
+    metadata_list_reader: Option<&tcl_engine_api::HostMetadataListReader>,
 ) -> Vec<(&'static str, Rc<dyn HostCommand>)> {
     family
         .verbs()
@@ -627,6 +666,7 @@ pub fn verbs_for(
                 family,
                 sink: Rc::clone(sink),
                 reading: Rc::clone(reading),
+                metadata_list_reader: metadata_list_reader.cloned(),
             });
             (*verb, command)
         })
@@ -812,4 +852,146 @@ fn evaluation_answer(emissions: Vec<Emission>, targets: &[usize]) -> HookAnswer 
         return HookAnswer::Abstain;
     }
     HookAnswer::Evaluation(EvaluationAnswer { result, stores })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn emitted_values_and_alias_flags_preserve_unicode_refusal() {
+        let sink = std::rc::Rc::new(super::Sink::default());
+        let reading = std::rc::Rc::new(super::Reading::default());
+        reading.set_targets(&[0]);
+        let verb = super::Verb {
+            name: "write",
+            family: tcl_registry::pack_hooks::HookFamily::Evaluate,
+            sink: std::rc::Rc::clone(&sink),
+            reading,
+            metadata_list_reader: None,
+        };
+        let raw = tcl_engine_api::Value::string_bytes(&b"value\xFF"[..]);
+        assert!(matches!(
+            verb.answer(&[tcl_engine_api::Value::Int(0), raw.clone()]),
+            Err(tcl_engine_api::EngineError::ExecutionRefusal(_))
+        ));
+        assert!(sink.drain().is_empty());
+        assert!(matches!(
+            super::alias_emission(&[
+                tcl_engine_api::Value::Int(0),
+                tcl_engine_api::Value::Int(1),
+                raw,
+                tcl_engine_api::Value::Int(0),
+            ]),
+            Err(tcl_engine_api::EngineError::ExecutionRefusal(_))
+        ));
+        verb.answer(&[
+            tcl_engine_api::Value::Int(0),
+            tcl_engine_api::Value::string_bytes(&b"k\0z"[..]),
+        ])
+        .unwrap();
+        assert_eq!(
+            sink.drain(),
+            [super::Emission::Write {
+                target: 0,
+                value: "k\0z".into()
+            }]
+        );
+    }
+
+    #[test]
+    fn metadata_requires_an_explicit_unicode_view_of_native_bytes() {
+        let raw = tcl_engine_api::Value::string_bytes(&b"name\xFF"[..]);
+        assert!(matches!(
+            super::text(&raw),
+            Err(tcl_engine_api::EngineError::ExecutionRefusal(_))
+        ));
+        let words = tcl_engine_api::Value::list([tcl_engine_api::Value::string("ok"), raw]);
+        assert!(matches!(
+            super::word_list(&words),
+            Err(tcl_engine_api::EngineError::ExecutionRefusal(_))
+        ));
+        assert_eq!(
+            super::text(&tcl_engine_api::Value::string_bytes(&b"k\0z"[..]))
+                .expect("Unicode NUL is exact"),
+            "k\0z"
+        );
+    }
+}
+
+#[cfg(test)]
+mod actual_metadata_receiver_controls {
+    use super::*;
+    use tcl_engine_api::Engine;
+
+    fn actual_receiver<E: Engine>(mut engine: E) {
+        engine.set_release("tcl8.5").unwrap();
+        let original_reader = engine.host_metadata_list_reader().unwrap();
+        let sink = Rc::new(Sink::default());
+        let reading = Rc::new(Reading::default());
+        let verbs = verbs_for_with_metadata_reader(
+            HookFamily::LiteralArgumentValidator,
+            &sink,
+            &reading,
+            Some(&original_reader),
+        );
+        let (_, verb) = verbs.iter().find(|(name, _)| *name == "invalid").unwrap();
+        verb.invoke(&[
+            Value::string("-index"),
+            Value::Int(0),
+            Value::string("-subject"),
+            Value::string("colour"),
+            Value::string("-allowed"),
+            Value::string("{red green} café"),
+        ])
+        .unwrap();
+        let emitted = sink.drain();
+        let [Emission::Invalid(issue)] = emitted.as_slice() else {
+            panic!("actual metadata emitter")
+        };
+        assert_eq!(issue.allowed_values, &["red green", "café"]);
+
+        assert_eq!(
+            word_list_in(
+                &Value::string("{red green} café {[inert]}"),
+                Some(&original_reader)
+            )
+            .unwrap(),
+            ["red green", "café", "[inert]"]
+        );
+        assert_eq!(
+            word_list_in(&Value::string(r"\x4142"), Some(&original_reader)).unwrap(),
+            ["B"]
+        );
+        assert!(word_list_in(&Value::string("{unclosed"), Some(&original_reader)).is_err());
+        engine.set_release("tcl9.0").unwrap();
+        let current_reader = engine.host_metadata_list_reader().unwrap();
+        assert_eq!(
+            word_list_in(&Value::string(r"\x4142"), Some(&current_reader)).unwrap(),
+            ["A42"]
+        );
+        // A decoder is an immutable selected grammar snapshot, not a claim
+        // about a later mutable engine or its current native list objects.
+        assert_eq!(
+            word_list_in(&Value::string(r"\x4142"), Some(&original_reader)).unwrap(),
+            ["B"]
+        );
+    }
+
+    #[test]
+    fn actual_vm_and_runtime_metadata_receivers_keep_grouping_and_release() {
+        actual_receiver(tcl_engine_tclvm::TclVmEngine::new());
+        actual_receiver(tcl_runtime::engine::RuntimeEngine::new());
+    }
+
+    #[test]
+    fn unknown_string_receiver_refuses_but_actual_typed_list_needs_no_string_recipe() {
+        assert!(word_list_in(&Value::string("{red green}"), None).is_err());
+        assert_eq!(
+            word_list_in(
+                &Value::list([Value::string("red green"), Value::string("café")]),
+                None
+            )
+            .unwrap(),
+            ["red green", "café"]
+        );
+    }
 }

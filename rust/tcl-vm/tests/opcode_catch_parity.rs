@@ -36,25 +36,54 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{Code, Vm};
+use tcl_vm::Code;
 
-/// Compile `src` and return the AOT body of proc `qname` (e.g. `::p`).
+/// Select the final original declaration in these procedure-only fixtures.
+fn final_declared_body<'a>(
+    ir: &tcl_compiler::ir::Module,
+    module: &'a tcl_bytecode::ModuleAsm,
+    report_name: &str,
+) -> &'a FunctionAsm {
+    let declaration = ir
+        .top_level
+        .statements
+        .last()
+        .expect("original declaration")
+        .span();
+    let mut bodies = ir
+        .procedures
+        .iter()
+        .filter(|(_, procedure)| procedure.span == declaration);
+    let (id, procedure) = bodies
+        .next()
+        .expect("body of the final original declaration");
+    assert!(
+        bodies.next().is_none(),
+        "one body at this original declaration"
+    );
+    assert_eq!(
+        procedure.qualified_name, report_name,
+        "fixture reporting name"
+    );
+    module
+        .procedures
+        .get(id)
+        .expect("same-module compiled body")
+}
+
+/// Compile `src` and return the AOT body of its final original declaration.
 fn compiled_proc_body(src: &str, qname: &str) -> FunctionAsm {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir_for_bytecode(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let module = codegen_module(&cfg, &ir, &registry);
-    module
-        .procedures
-        .get(qname)
-        .unwrap_or_else(|| panic!("{qname} not compiled — got {:?}", module.procedures.keys()))
-        .clone()
+    let module = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
+    final_declared_body(&ir, &module, qname).clone()
 }
 
 /// Run a proc body compiled by [`compiled_proc_body`] on a fresh VM.
 fn run_body(src: &str, qname: &str) -> (Code, String) {
     let asm = compiled_proc_body(src, qname);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     (c.code, c.result.to_str().to_string())
 }
@@ -74,6 +103,11 @@ fn assemble(
         labels: label_offsets,
         loop_targets: HashMap::new(),
         body_base_line: 0,
+        native_compilation_failure: None,
+        native_compilation_preflight: tcl_runtime_api::NativeCompilationPreflight::NotRequired,
+        native_math_table_prerequisite: None,
+        native_compiler_prerequisites: Vec::new(),
+        required_compiled_local_layout: None,
         proc_body_src: None,
         error_regions: Vec::new(),
         plain_command_dispatch: false,
@@ -159,14 +193,14 @@ fn inline_catch_absorbs_child_proc_error() {
         "proc boom {} {error kaboom}\nproc p {} {\n  set r [catch {boom} msg]\n  list $r $msg\n}";
     let ir = lower_to_ir_for_bytecode(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let module = codegen_module(&cfg, &ir, &registry);
-    let mut vm = Vm::new();
+    let module = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
+    let mut vm = tcl_vm::test_support::native_vm();
     // Defining the procs needs a compile service for their (dynamic) bodies —
     // route through the compiler exactly like the CLI embedders.
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     assert!(vm.run_module(&module).code.is_ok());
     // Now run the AOT inline-catch body with `boom` registered.
-    let body = module.procedures.get("::p").expect("::p");
+    let body = final_declared_body(&ir, &module, "::p");
     let c = vm.run_function(body);
     assert_eq!(c.code, Code::Ok, "{}", c.result.to_str());
     assert_eq!(&*c.result.to_str(), "1 kaboom");
@@ -221,7 +255,7 @@ fn nested_ranges_fire_inner_then_outer_not_handler() {
     instrs.push(Instruction::new(Op::END_CATCH, vec![]));
     instrs.push(Instruction::new(Op::DONE, vec![]));
     let asm = assemble(instrs, &labels, lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Error, "handler error must escape");
     assert_eq!(&*c.result.to_str(), "handler-boom");
@@ -237,9 +271,9 @@ fn inline_catch_publishes_error_info() {
     let src = "proc p {} {\n  set r [catch {nosuchcmd} msg]\n  string match {invalid command name*} $::errorInfo\n}";
     let ir = lower_to_ir_for_bytecode(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let module = codegen_module(&cfg, &ir, &registry);
-    let body = module.procedures.get("::p").expect("::p");
-    let mut vm = Vm::new();
+    let module = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
+    let body = final_declared_body(&ir, &module, "::p");
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(body);
     assert_eq!(c.code, Code::Ok, "{}", c.result.to_str());
     assert_eq!(&*c.result.to_str(), "1");
@@ -261,7 +295,7 @@ fn decorative_begin_catch_stays_inert() {
         Instruction::new(Op::DONE, vec![]),
     ];
     let asm = assemble(instrs, &HashMap::new(), lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Error);
     assert_eq!(&*c.result.to_str(), "boom");
@@ -292,7 +326,7 @@ fn run_return_code_branch(code_lit: &str) -> (Code, String) {
         instrs.push(Instruction::new(Op::DONE, vec![]));
     }
     let asm = assemble(instrs, &labels, lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     (c.code, c.result.to_str().to_string())
 }
@@ -339,7 +373,7 @@ fn return_stk_applies_code_from_options() {
         Instruction::new(Op::DONE, vec![]),
     ];
     let asm = assemble(instrs, &HashMap::new(), lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Error);
     assert_eq!(&*c.result.to_str(), "boom");
@@ -359,7 +393,7 @@ fn return_stk_ok_outcome_continues() {
         Instruction::new(Op::DONE, vec![]),
     ];
     let asm = assemble(instrs, &HashMap::new(), lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Ok);
     assert_eq!(&*c.result.to_str(), "4", "strlen of the kept result");
@@ -377,7 +411,7 @@ fn return_stk_malformed_options_error() {
         Instruction::new(Op::DONE, vec![]),
     ];
     let asm = assemble(instrs, &HashMap::new(), lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Error);
     assert_eq!(
@@ -398,7 +432,7 @@ fn return_stk_plain_return() {
         Instruction::new(Op::DONE, vec![]),
     ];
     let asm = assemble(instrs, &HashMap::new(), lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Return, "level 1 raises TCL_RETURN");
     assert_eq!(&*c.result.to_str(), "value");
@@ -417,7 +451,7 @@ fn epilogue_reads_without_catch() {
         Instruction::new(Op::DONE, vec![]),
     ];
     let asm = assemble(instrs, &HashMap::new(), LiteralTable::new());
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Ok);
     assert_eq!(&*c.result.to_str(), "0 {-code 0 -level 0}");
@@ -478,7 +512,7 @@ fn outer_range_does_not_inherit_inner_ranges_absorption() {
     instrs.push(push_lit(&mut lits, "outer-handler-ran"));
     instrs.push(Instruction::new(Op::DONE, vec![]));
     let asm = assemble(instrs, &labels, lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Ok, "{}", c.result.to_str());
     assert_eq!(

@@ -80,12 +80,11 @@ fn vm_output(src: &str, version: TclVersion) -> String {
         Some(tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile()),
     );
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, registry);
+    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
 
     let cap = Capture::default();
-    let mut vm = Vm::with_output(Box::new(cap.clone()));
+    let mut vm = tcl_vm::test_support::native_vm_for_release(version, Box::new(cap.clone()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
-    vm.set_runtime_version(version);
     let _ = vm.run_module(&asm);
     String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
 }
@@ -369,10 +368,9 @@ fn vectors_match_real_tclsh_when_available() {
 fn build_vm(version: TclVersion) -> (Vm, Capture, &'static str) {
     let dialect = version.dialect_name();
     let cap = Capture::default();
-    let mut vm = Vm::with_output(Box::new(cap.clone()));
+    let mut vm = tcl_vm::test_support::native_vm_for_release(version, Box::new(cap.clone()));
     let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
-    vm.set_runtime_version(version);
     (vm, cap, dialect)
 }
 
@@ -388,7 +386,7 @@ fn run_on(vm: &mut Vm, cap: &Capture, dialect: &str, src: &str) -> String {
         Some(tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile()),
     );
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, registry);
+    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     let _ = vm.run_module(&asm);
     String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
 }

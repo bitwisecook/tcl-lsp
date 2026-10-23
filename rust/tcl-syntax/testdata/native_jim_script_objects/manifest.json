@@ -1,0 +1,22 @@
+{
+  "native_only": true,
+  "rust_comparisons": 0,
+  "commands_exit": [
+    0,
+    0
+  ],
+  "preparation_windows": 156,
+  "execution_windows": 51,
+  "authority": "Current Jim native jim.c functions included directly; original libjim archive supplies support objects; no script/WORD updater observer before physical windows",
+  "files": {
+    "/workspace/.proofs/2286-jim-script-physical-design/probe.c": "8e0e09ff6d3553f7bcdfabe65b45339aa8e9e780fef459b54cc3b36e0e2ab385",
+    "/workspace/.proofs/2286-jim-script-physical-design/probe": "aae6732b7b5a935dd0bdb634f149457431f1770b1730d0453a1d8d52a9fd889c",
+    "/workspace/.proofs/2286-jim-script-physical-design/observations.tsv": "59af1d18f568cffcb98ce4d3c6c2e982741ca96af7816ef8f18a52d84419a30d",
+    "/workspace/.proofs/2286-jim-script-physical-design/eval_probe.c": "2f92775bd8cdfa68e43c2f3fb543e9c5bb341c621bb73d4ebdedf509247a94e8",
+    "/workspace/.proofs/2286-jim-script-physical-design/eval_probe": "8b287419f1fd33f2b198b7f0c905da47f36b1497a81fe92b890ad7cc7cbe75db",
+    "/workspace/.proofs/2286-jim-script-physical-design/eval_observations.tsv": "1b400fc26a6a8757d9dce0d8407577a2373f4520b1744167aa2533f68a4daf5a",
+    "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff"
+  }
+}

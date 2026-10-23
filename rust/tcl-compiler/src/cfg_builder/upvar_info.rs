@@ -97,9 +97,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use tcl_registry::frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel};
-use tcl_registry::{
-    ArgRole, CommandRegistry, InvocationArgument, InvocationArguments, InvocationWord,
-};
+use tcl_registry::{CommandRegistry, InvocationArgument, InvocationArguments, InvocationWord};
 
 use crate::command_binding::{
     ModuleCommandBindings, ResolvedBindingInvocation, ResolvedFrameBody, ResolvedFrameBodySelection,
@@ -173,7 +171,7 @@ pub struct UpvarInfo {
     ///
     /// Deliberately *not* part of [`Self::is_empty`]'s summary contract, and
     /// no caller-side resolver reads it: it exists for the strictly
-    /// structural question [`reaches_caller_frame`] asks — "can this body
+    /// structural caller-frame reachability question — "can this body
     /// reach its caller's frame at all?" — where an alias nobody can name
     /// counts every bit as much as a nameable one.  The *caller-side effect*
     /// of such a pair is carried separately: a literal source
@@ -214,9 +212,8 @@ pub(super) enum OmittedName<'a> {
     Raises,
     /// The caller-frame variable its default names.
     Names(&'a str),
-    /// A default that names no variable the analysis can place — an
-    /// element, a name with a substitution character — or a parameter
-    /// list that cannot be read.
+    /// An array-element default or an unreadable parameter list retains
+    /// the caller-frame widening obligation.
     Unplaceable,
 }
 
@@ -227,8 +224,8 @@ pub(super) struct CallerSideEffects {
 }
 
 fn push_caller_side_def(effects: &mut CallerSideEffects, name: &str) {
-    let name = crate::naming::normalise_var_name(name);
-    if !name.is_empty() && !effects.defs.iter().any(|found| found == name) {
+    let name = crate::naming::split_element_ref(name).map_or(name, |(root, _)| root);
+    if !effects.defs.iter().any(|found| found == name) {
         effects.defs.push(name.to_owned());
     }
 }
@@ -306,7 +303,9 @@ impl UpvarInfo {
     pub(super) fn default_name(&self, param: &str) -> OmittedName<'_> {
         match self.param_defaults.get(param) {
             None => OmittedName::Raises,
-            Some(Some(name)) if is_var_name(name) => OmittedName::Names(name),
+            Some(Some(name)) if crate::naming::split_element_ref(name).is_none() => {
+                OmittedName::Names(name)
+            }
             Some(_) => OmittedName::Unplaceable,
         }
     }
@@ -358,6 +357,7 @@ impl UpvarInfo {
     ///   we pair it positionally with a tail argument at the call
     ///   site (tail start = `params.len() - 1`, since `args` consumes
     ///   the trailing slot in the param list).
+    #[cfg(test)]
     #[must_use]
     pub fn caller_side_defs(&self, call_args: &[String], params: &[String]) -> Vec<String> {
         let mut defs: Vec<String> = Vec::new();
@@ -459,25 +459,24 @@ impl UpvarInfo {
     }
 }
 
-/// True if *src* looks like a `$<param>` or `${<param>}` reference,
-/// returning the inner param name.  The IR lowerer normalises bare
-/// `$name` to `${name}` for some shapes, so we accept both.
-fn is_dollar_param_ref(raw_src: &str) -> Option<&str> {
-    let stripped = raw_src.strip_prefix('$')?;
-    let inner = if let Some(rest) = stripped.strip_prefix('{') {
-        // ${name}
-        let end = rest.strip_suffix('}')?;
-        if end.is_empty() {
-            return None;
-        }
-        end
-    } else {
-        stripped
-    };
-    if inner.is_empty() || !is_var_name(inner) {
+fn original_scalar_argument<'a>(
+    tokens: &'a CommandTokens,
+    args: &[String],
+    index: usize,
+) -> Option<&'a str> {
+    let config = tokens
+        .source_binding
+        .as_ref()?
+        .original_lexer_config_for_tokens(tokens)?;
+    let word = tokens.words().get(index.checked_add(1)?)?;
+    if word.legacy_text() != *args.get(index)? {
         return None;
     }
-    Some(inner)
+    let (spelling, source) = word.sole_variable_substitution()?;
+    if source.provenance != crate::ir::Provenance::Source {
+        return None;
+    }
+    tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
 }
 
 /// True if *name* is a plain literal name with no substitutions or
@@ -491,53 +490,100 @@ fn is_literal_name(name: &str) -> bool {
         && !name.contains(' ')
 }
 
-fn is_var_name(name: &str) -> bool {
-    !name.is_empty()
-        && name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':')
-}
-
 /// Resolve a frame-crossing command's level word and its remaining
 /// arguments through the registry's [`FrameEffectSpec`].
 fn resolve_frame_args<'a>(
     spec: FrameEffectSpec,
     args: &'a [String],
     registry: &tcl_registry::CommandRegistry,
+    dialect: Option<tcl_registry::InvocationDialect>,
+    tokens: Option<&CommandTokens>,
 ) -> (FrameLevel, &'a [String]) {
-    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let taken = spec.level_word_len(&refs);
-    let level = if taken == 0 {
-        FrameLevel::DEFAULT
-    } else {
-        FrameLevel::parse_in(&args[0], registry).unwrap_or(FrameLevel::Dynamic)
+    let Some(tokens) = tokens.filter(|tokens| {
+        tokens.original_words_match_argv_text() && tokens.argv_texts.get(1..) == Some(args)
+    }) else {
+        return (FrameLevel::Dynamic, &[]);
     };
-    (level, &args[taken..])
+    let words = tokens
+        .words()
+        .iter()
+        .skip(1)
+        .map(crate::registry_invocation::invocation_word)
+        .collect::<Vec<_>>();
+    let mut arguments = InvocationArguments::Structured(&words).with_profile(registry.profile());
+    if let Some(dialect) = dialect {
+        arguments = arguments.with_dialect(dialect);
+    }
+    match spec.successful_layout(arguments).layout {
+        tcl_registry::frame_effect::FrameArgumentResolution::Valid {
+            level,
+            level_word_len,
+        } => (level, &args[level_word_len..]),
+        tcl_registry::frame_effect::FrameArgumentResolution::Invalid => {
+            (FrameLevel::Relative(0), &[])
+        }
+        tcl_registry::frame_effect::FrameArgumentResolution::Unknown => (FrameLevel::Dynamic, &[]),
+    }
 }
 
-/// True when `body` can reach the **caller's** frame — through an `upvar`
-/// alias (whatever the dynamism of either side of the pair), an `uplevel`
-/// script that runs there, or a level this analysis cannot place.
-///
-/// The strictly structural counterpart to [`collect_upvar_targets`], which
-/// answers the richer question "*which* caller-frame names, through which
-/// local?".  Every alias pair contributes to a bucket
-/// [`UpvarInfo::is_empty`] covers — a dynamic **source** lands in
-/// `param_targets` or sets `has_unresolvable_caller_target`, and a dynamic
-/// **local** (`upvar 1 x $dst`) files its caller-side name in the keyless
-/// write buckets (or widens).  [`UpvarInfo::unnameable_local_aliases`] is
-/// kept as the purely structural record of the dynamic-local pairs.
-///
-/// A dynamic name makes an alias *more* dangerous, never exempt, so this
-/// deliberately reads the whole summary rather than any one bucket.
-///
-/// Consumed by the optimiser's `TclOO` method-body propagation gate, which
-/// must decide whether a *sibling* body's private locals can survive a `my` /
-/// `next` dispatch to this one — a call the CFG's upvar-callee table cannot
-/// model, because the dispatch never names its target.
-#[must_use]
-pub fn reaches_caller_frame(body: &Script, params: &[String]) -> bool {
-    let info = collect_upvar_targets(body, params);
+/// Caller-frame reach under the exact issued method source and Registry.
+/// Missing source namespace or owner correspondence remains opaque.
+pub(crate) fn method_reaches_caller_frame(
+    module: &crate::ir::Module,
+    body_id: crate::ir::ProcedureId,
+    registry: &CommandRegistry,
+) -> bool {
+    let Some(method) = module
+        .methods
+        .get(&body_id)
+        .filter(|_| module.procedure_ids.owns(body_id))
+    else {
+        return true;
+    };
+    let Some(owner) = module.retained_source_bindings.as_deref().filter(|owner| {
+        owner.matches_module(module, registry)
+            && owner.matches_original_method_summary(body_id, method)
+    }) else {
+        return true;
+    };
+    if owner.positioned_for_module(module, registry).is_none() {
+        return true;
+    }
+    if method.body.statements.is_empty() {
+        return false;
+    }
+    let info = if module.source_metadata_input.is_none()
+        && module.source_entry.metadata_context.is_standalone()
+        && module.source_entry.native_entry.is_none()
+        && !module.source_entry.unknown_entry
+    {
+        collect_upvar_targets_with_registry(&method.body, &method.params, registry)
+    } else {
+        let namespace = method
+            .body
+            .namespace_context
+            .as_deref()
+            .cloned()
+            .or_else(|| match &method.execution_namespace {
+                ExecutionNamespace::Exact(namespace) => Some(
+                    crate::command_binding::SourceNamespaceKey::authored(namespace),
+                ),
+                ExecutionNamespace::SourceContext(context) => Some(context.clone()),
+                ExecutionNamespace::RuntimeSelected => None,
+            });
+        let Some(namespace) = namespace else {
+            return true;
+        };
+        let bindings = ModuleCommandBindings::analyse(module, registry);
+        collect_upvar_targets_with_bindings(
+            &method.body,
+            &method.params,
+            registry,
+            &bindings,
+            &namespace,
+            module,
+        )
+    };
     !info.is_empty() || !info.unnameable_local_aliases.is_empty()
 }
 
@@ -547,25 +593,26 @@ pub fn reaches_caller_frame(body: &Script, params: &[String]) -> bool {
 /// `param_targets`).  `body` is the lowered IR body.  Walks every
 /// statement for a registry-declared frame-crossing command
 /// ([`FrameEffectSpec`]) and accumulates the result in [`UpvarInfo`].
-#[must_use]
-pub fn collect_upvar_targets(body: &Script, params: &[String]) -> UpvarInfo {
+#[cfg(test)]
+fn collect_upvar_targets(body: &Script, params: &[String]) -> UpvarInfo {
     collect_upvar_targets_with_registry(body, params, tcl_registry::default_registry())
 }
 
-/// Collect a per-procedure frame-effect summary against the exact command
-/// registry that lowered `body`.
-///
-/// The default wrapper remains useful for standalone structural callers, but
-/// whole-module CFG construction uses this entry point so a custom command's
-/// registry-declared frame grammar is neither lost nor replaced by Tcl 8.6
-/// defaults.
+/// Explicit standalone structural summary under the supplied Registry.
+/// Supplied whole-source analysis uses the retained Module counterpart.
 #[must_use]
-pub fn collect_upvar_targets_with_registry(
+pub(crate) fn collect_upvar_targets_with_registry(
     body: &Script,
     params: &[String],
     registry: &CommandRegistry,
 ) -> UpvarInfo {
-    collect_upvar_targets_inner(body, params, registry, None, "::")
+    collect_upvar_targets_inner(
+        body,
+        params,
+        registry,
+        None,
+        &crate::command_binding::SourceNamespaceKey::authored("::"),
+    )
 }
 
 /// Whole-module counterpart which can prove the live binding of a
@@ -575,52 +622,294 @@ pub(super) fn collect_upvar_targets_with_bindings(
     params: &[String],
     registry: &CommandRegistry,
     bindings: &ModuleCommandBindings,
-    namespace: &str,
+    namespace: &crate::command_binding::SourceNamespaceKey,
+    module: &crate::ir::Module,
 ) -> UpvarInfo {
+    let Some((input, metadata)) =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+            .and_then(|metadata| {
+                metadata
+                    .source_analysis_input()
+                    .map(|input| (input, metadata))
+            })
+    else {
+        return UpvarInfo {
+            caller_frame_opaque_writes: true,
+            caller_frame_opaque_reads: true,
+            has_unresolvable_caller_target: true,
+            ..UpvarInfo::default()
+        };
+    };
+    let bindings = UpvarBindings {
+        source: bindings,
+        input,
+        metadata,
+        module,
+    };
     collect_upvar_targets_inner(body, params, registry, Some(bindings), namespace)
+}
+
+#[derive(Clone, Copy)]
+struct UpvarBindings<'a> {
+    module: &'a crate::ir::Module,
+    source: &'a ModuleCommandBindings,
+    input: &'a crate::analyser::ResolvedAnalysisInput,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
+}
+impl UpvarBindings<'_> {
+    fn invocation_dialect(self) -> Option<tcl_registry::InvocationDialect> {
+        self.source.invocation_dialect()
+    }
+    fn resolve_statement(
+        self,
+        statement: &Statement,
+        registry: &CommandRegistry,
+        namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
+    ) -> Vec<ResolvedBindingInvocation> {
+        self.source.resolve_statement_with_metadata_context(
+            statement,
+            registry,
+            Some(self.metadata),
+            namespace,
+        )
+    }
+    fn resolve_command_words(
+        self,
+        words: &[crate::ir_helpers::CommandWord],
+        registry: &CommandRegistry,
+        namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
+    ) -> Vec<tcl_registry::InvocationFacts> {
+        self.source.resolve_command_words_with_metadata_context(
+            words,
+            registry,
+            Some(self.metadata),
+            namespace,
+        )
+    }
+    fn for_each_resolved_invocation<F>(
+        self,
+        statement: &Statement,
+        namespace: &crate::command_binding::SourceNamespaceKey,
+        visit: F,
+    ) where
+        F: for<'w> FnMut(
+            &'w crate::command_binding::ResolvedCommandTarget,
+            tcl_registry::InvocationWords<'w>,
+        ),
+    {
+        self.source
+            .for_each_resolved_invocation(statement, namespace, visit);
+    }
+    fn target_resolution_may_be_unknown(
+        self,
+        command: &str,
+        namespace: &crate::command_binding::SourceNamespaceKey,
+    ) -> bool {
+        self.source
+            .target_resolution_may_be_unknown(command, namespace)
+    }
 }
 
 fn collect_upvar_targets_inner(
     body: &Script,
     params: &[String],
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
-    namespace: &str,
+    bindings: Option<UpvarBindings<'_>>,
+    namespace: &crate::command_binding::SourceNamespaceKey,
 ) -> UpvarInfo {
     let mut info = UpvarInfo::default();
-    walk_script(
-        &body.statements,
-        params,
-        registry,
-        bindings,
-        namespace,
-        &mut info,
-    );
+    walk_script(body, params, registry, bindings, namespace, &mut info);
     info
 }
 
 fn walk_script(
-    stmts: &[Statement],
+    script: &Script,
     params: &[String],
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
-    namespace: &str,
+    bindings: Option<UpvarBindings<'_>>,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
-    for stmt in stmts {
-        walk_stmt(stmt, params, registry, bindings, namespace, info);
+    for stmt in &script.statements {
+        walk_stmt(
+            stmt,
+            script.retained_source_tokens_for_statement(stmt),
+            params,
+            registry,
+            bindings,
+            namespace,
+            info,
+        );
+        if let Some(bindings) = bindings
+            && bindings.input.has_logical_source_name_context()
+            && let Some(tokens) = script.retained_source_tokens_for_statement(stmt)
+        {
+            record_original_child_frame_effects(
+                tokens, params, registry, bindings, namespace, info,
+            );
+        }
+    }
+}
+
+fn record_original_child_frame_effects(
+    tokens: &CommandTokens,
+    params: &[String],
+    registry: &CommandRegistry,
+    bindings: UpvarBindings<'_>,
+    namespace: &crate::command_binding::SourceNamespaceKey,
+    info: &mut UpvarInfo,
+) {
+    let mut pending = vec![(tokens.clone(), 0_u32)];
+    let mut seen = BTreeSet::new();
+    while let Some((parent, depth)) = pending.pop() {
+        if crate::optimiser::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+            info.caller_frame_opaque_writes = true;
+            info.caller_frame_opaque_reads = true;
+            continue;
+        }
+        let Some(site) = parent
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.invocation_site())
+        else {
+            info.caller_frame_opaque_writes = true;
+            info.caller_frame_opaque_reads = true;
+            continue;
+        };
+        if !seen.insert(site.offset) {
+            continue;
+        }
+        let selected = crate::registry_invocation::original_logical_frame_invocation_for_module(
+            bindings.module,
+            registry,
+            &parent,
+        );
+        let Some(selected) = selected else {
+            info.caller_frame_opaque_writes = true;
+            info.caller_frame_opaque_reads = true;
+            continue;
+        };
+        if depth != 0 {
+            record_logical_frame_invocation(
+                &selected,
+                LogicalFrameScan {
+                    tokens: &parent,
+                    current: FrameContext::Own,
+                    params,
+                    registry,
+                    bindings,
+                    namespace,
+                    depth,
+                },
+                info,
+            );
+        }
+        if selected.layout().is_none() {
+            if let Some(children) = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
+                bindings.module, registry, &parent,
+            ) {
+                pending.extend(children.into_iter().map(|child| (child, depth + 1)));
+            } else {
+                info.caller_frame_opaque_writes = true;
+                info.caller_frame_opaque_reads = true;
+            }
+        }
+        if let Some(children) =
+            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                &parent,
+                bindings.input.lexer_config(),
+                registry,
+                bindings.metadata,
+            )
+        {
+            for child in children {
+                if let Some(child) = child.tokens {
+                    pending.push((child, depth + 1));
+                } else {
+                    info.caller_frame_opaque_writes = true;
+                    info.caller_frame_opaque_reads = true;
+                }
+            }
+        } else {
+            info.caller_frame_opaque_writes = true;
+            info.caller_frame_opaque_reads = true;
+        }
     }
 }
 
 #[allow(clippy::too_many_lines)] // One exhaustive IR walk keeps frame-context transitions coupled.
 fn walk_stmt(
     stmt: &Statement,
+    tokens: Option<&CommandTokens>,
     params: &[String],
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
-    namespace: &str,
+    bindings: Option<UpvarBindings<'_>>,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
+    if let Some(bindings) = bindings
+        && bindings.input.has_logical_source_name_context()
+        && matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. })
+    {
+        let selected = tokens.and_then(|tokens| {
+            let metadata = tokens
+                .source_binding
+                .as_ref()?
+                .original_invocation_metadata_for_module(tokens, bindings.module, registry)?;
+            crate::registry_invocation::original_logical_frame_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            )
+        });
+        match (tokens, selected) {
+            (Some(tokens), Some(selected)) => record_logical_frame_invocation(
+                &selected,
+                LogicalFrameScan {
+                    tokens,
+                    current: FrameContext::Own,
+                    params,
+                    registry,
+                    bindings,
+                    namespace,
+                    depth: 0,
+                },
+                info,
+            ),
+            _ => {
+                info.caller_frame_opaque_writes = true;
+                info.caller_frame_opaque_reads = true;
+            }
+        }
+        return;
+    }
+    if let (Some(bindings), Some(tokens)) = (bindings, tokens)
+        && bindings.input.has_logical_source_name_context()
+        && matches!(
+            stmt,
+            Statement::UpFrame {
+                absolute: false,
+                frame_shift: 1,
+                ..
+            }
+        )
+    {
+        let candidates = tokens.source_binding.as_ref().and_then(|binding| {
+            let metadata = binding.original_invocation_metadata_for_module(
+                tokens,
+                bindings.module,
+                registry,
+            )?;
+            crate::registry_invocation::original_logical_frame_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            )?
+            .unknown_caller_variable_candidates(bindings.module, registry, tokens)
+        });
+        if let Some(candidates) = candidates {
+            info.uplevel_literal_writes.extend(candidates.bindings);
+        }
+        info.caller_frame_opaque_writes = true;
+        info.caller_frame_opaque_reads = true;
+        return;
+    }
     match stmt {
         Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
             if let Some(bindings) = bindings {
@@ -643,17 +932,17 @@ fn walk_stmt(
                         continue;
                     };
                     match spec.layout {
-                        FrameArgLayout::AliasPairs | FrameArgLayout::OpaqueCallerVars => {
-                            record_frame_effect(
+                        FrameArgLayout::AliasPairs => {
+                            record_resolved_alias_pairs(
+                                &invocation,
                                 spec,
-                                &invocation.arguments,
                                 params,
                                 registry,
-                                Some(bindings),
-                                namespace,
+                                bindings.invocation_dialect(),
                                 info,
                             );
                         }
+                        FrameArgLayout::OpaqueCallerVars => {}
                         FrameArgLayout::ScriptInCurrentFrame
                         | FrameArgLayout::ScriptInSelectedFrame => {
                             record_resolved_frame_body(
@@ -663,7 +952,7 @@ fn walk_stmt(
                                 registry,
                                 bindings,
                                 namespace,
-                                &ExecutionNamespace::exact(namespace),
+                                &ExecutionNamespace::SourceContext(namespace.clone()),
                                 info,
                                 0,
                             );
@@ -682,7 +971,22 @@ fn walk_stmt(
                 return;
             }
             if let Some(spec) = registry.frame_effect(command) {
-                record_frame_effect(spec, args, params, registry, None, namespace, info);
+                record_frame_effect(
+                    spec,
+                    args,
+                    params,
+                    registry,
+                    FrameCommandContext {
+                        bindings: None,
+                        tokens,
+                        dialect: stmt
+                            .tokens()
+                            .and_then(|tokens| tokens.source_binding.as_ref())
+                            .and_then(|binding| binding.variable_context.invocation_dialect),
+                    },
+                    namespace,
+                    info,
+                );
             } else {
                 record_plain_call(command, info);
             }
@@ -715,14 +1019,7 @@ fn walk_stmt(
             // local, but a nested `uplevel 1` still reaches this procedure's
             // caller and must participate in the summary.
             (false, 0) => {
-                walk_script(
-                    &body.statements,
-                    params,
-                    registry,
-                    bindings,
-                    namespace,
-                    info,
-                );
+                walk_script(body, params, registry, bindings, namespace, info);
             }
             // `uplevel #0` selects the global frame, which is owned by the
             // global-write summary rather than this caller-frame projection.
@@ -733,81 +1030,55 @@ fn walk_stmt(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_script(
-                    &c.body.statements,
-                    params,
-                    registry,
-                    bindings,
-                    namespace,
-                    info,
-                );
+                walk_script(&c.body, params, registry, bindings, namespace, info);
             }
             if let Some(e) = else_body {
-                walk_script(&e.statements, params, registry, bindings, namespace, info);
+                walk_script(e, params, registry, bindings, namespace, info);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_script(
-                &init.statements,
-                params,
-                registry,
-                bindings,
-                namespace,
-                info,
-            );
-            walk_script(
-                &next.statements,
-                params,
-                registry,
-                bindings,
-                namespace,
-                info,
-            );
-            walk_script(
-                &body.statements,
-                params,
-                registry,
-                bindings,
-                namespace,
-                info,
-            );
+            walk_script(init, params, registry, bindings, namespace, info);
+            walk_script(next, params, registry, bindings, namespace, info);
+            walk_script(body, params, registry, bindings, namespace, info);
         }
         Statement::While { body, .. }
         | Statement::Foreach { body, .. }
         | Statement::Catch { body, .. } => {
-            walk_script(
-                &body.statements,
-                params,
-                registry,
-                bindings,
-                namespace,
-                info,
-            );
+            walk_script(body, params, registry, bindings, namespace, info);
         }
         Statement::Block {
             body,
             namespace: body_namespace,
             ..
-        } => walk_script(
-            &body.statements,
-            params,
-            registry,
-            bindings,
-            body_namespace,
-            info,
-        ),
+        } => {
+            if let Some(context) = body.namespace_context.as_deref() {
+                walk_script(body, params, registry, bindings, context, info);
+            } else if bindings.is_none() {
+                walk_script(
+                    body,
+                    params,
+                    registry,
+                    bindings,
+                    &crate::command_binding::SourceNamespaceKey::authored(body_namespace),
+                    info,
+                );
+            } else {
+                info.caller_frame_opaque_writes = true;
+                info.caller_frame_opaque_reads = true;
+            }
+        }
         Statement::Switch {
             arms, default_body, ..
         } => {
             for arm in arms {
                 if let Some(b) = &arm.body {
-                    walk_script(&b.statements, params, registry, bindings, namespace, info);
+                    walk_script(b, params, registry, bindings, namespace, info);
                 }
             }
             if let Some(b) = default_body {
-                walk_script(&b.statements, params, registry, bindings, namespace, info);
+                walk_script(b, params, registry, bindings, namespace, info);
             }
         }
         Statement::Try {
@@ -816,26 +1087,12 @@ fn walk_stmt(
             finally_body,
             ..
         } => {
-            walk_script(
-                &body.statements,
-                params,
-                registry,
-                bindings,
-                namespace,
-                info,
-            );
+            walk_script(body, params, registry, bindings, namespace, info);
             for h in handlers {
-                walk_script(
-                    &h.body.statements,
-                    params,
-                    registry,
-                    bindings,
-                    namespace,
-                    info,
-                );
+                walk_script(&h.body, params, registry, bindings, namespace, info);
             }
             if let Some(f) = finally_body {
-                walk_script(&f.statements, params, registry, bindings, namespace, info);
+                walk_script(f, params, registry, bindings, namespace, info);
             }
         }
         _ => {}
@@ -871,6 +1128,173 @@ fn selected_frame_context(
     }
 }
 
+struct LogicalFrameScan<'a> {
+    tokens: &'a CommandTokens,
+    current: FrameContext,
+    params: &'a [String],
+    registry: &'a CommandRegistry,
+    bindings: UpvarBindings<'a>,
+    namespace: &'a crate::command_binding::SourceNamespaceKey,
+    depth: u32,
+}
+
+fn record_logical_frame_invocation(
+    invocation: &crate::registry_invocation::OriginalLogicalFrameInvocation,
+    context: LogicalFrameScan<'_>,
+    info: &mut UpvarInfo,
+) {
+    use tcl_registry::frame_effect::FrameArgumentResolution;
+    let Some(layout) = invocation.layout() else {
+        return;
+    };
+    let selection = match invocation.arguments() {
+        Some(FrameArgumentResolution::Valid {
+            level,
+            level_word_len,
+        }) => (level, invocation.offset() + level_word_len),
+        Some(FrameArgumentResolution::Invalid) => return,
+        Some(FrameArgumentResolution::Unknown) | None => {
+            if layout != FrameArgLayout::ScriptInCurrentFrame {
+                widen_beyond_caller(info);
+                info.caller_frame_opaque_reads = true;
+            }
+            return;
+        }
+    };
+    match layout {
+        FrameArgLayout::AliasPairs => {
+            record_logical_alias_pairs(invocation, selection, context, info);
+        }
+        FrameArgLayout::ScriptInCurrentFrame | FrameArgLayout::ScriptInSelectedFrame => {
+            record_logical_frame_script(invocation, layout, selection, context, info);
+        }
+        FrameArgLayout::OpaqueCallerVars => {}
+    }
+}
+
+fn record_logical_alias_pairs(
+    invocation: &crate::registry_invocation::OriginalLogicalFrameInvocation,
+    selection: (FrameLevel, usize),
+    context: LogicalFrameScan<'_>,
+    info: &mut UpvarInfo,
+) {
+    let (level, start) = selection;
+    if level != FrameLevel::Relative(1) {
+        if !level.is_global_frame() && !level.is_current_frame() {
+            widen_beyond_caller(info);
+        }
+        return;
+    }
+    for source in (start..invocation.count()).step_by(2) {
+        let Some(destination) = source
+            .checked_add(1)
+            .filter(|index| *index < invocation.count())
+        else {
+            info.has_unresolvable_caller_target = true;
+            return;
+        };
+        let local = invocation.literal(destination);
+        if let Some(target) = invocation.literal(source) {
+            if let Some(local) = local {
+                info.literal_targets.insert(local, target);
+            } else {
+                info.unnameable_local_aliases.insert(target.clone());
+                info.uplevel_literal_writes.insert(target);
+            }
+        } else if let Some(parameter) = invocation.parameter(
+            source,
+            context.params,
+            context.bindings.input.lexer_config(),
+        ) {
+            if parameter == "args" {
+                if let Some(local) = local {
+                    info.args_tail_upvar.push(local);
+                } else {
+                    info.has_unresolvable_caller_target = true;
+                }
+            } else if let Some(local) = local {
+                info.param_targets.insert(local, parameter);
+            } else {
+                info.uplevel_param_writes.insert(parameter);
+            }
+        } else {
+            info.has_unresolvable_caller_target = true;
+        }
+    }
+}
+
+fn record_logical_frame_script(
+    invocation: &crate::registry_invocation::OriginalLogicalFrameInvocation,
+    layout: FrameArgLayout,
+    selection: (FrameLevel, usize),
+    context: LogicalFrameScan<'_>,
+    info: &mut UpvarInfo,
+) {
+    let selected = if layout == FrameArgLayout::ScriptInCurrentFrame {
+        context.current
+    } else {
+        selected_frame_context(
+            context.current,
+            ResolvedFrameBodySelection::Selected(selection.0),
+        )
+    };
+    if selected == FrameContext::Global {
+        return;
+    }
+    if selected == FrameContext::PastTheCaller {
+        widen_beyond_caller(info);
+        info.caller_frame_opaque_reads = true;
+        return;
+    }
+    let start = if layout == FrameArgLayout::ScriptInCurrentFrame {
+        invocation.offset()
+    } else {
+        selection.1
+    };
+    let body = (start.checked_add(1) == Some(invocation.count()))
+        .then(|| {
+            invocation.source_body(
+                context.bindings.module,
+                context.registry,
+                context.tokens,
+                start,
+            )
+        })
+        .flatten();
+    let Some(body) = body else {
+        if selected == FrameContext::DirectCaller {
+            info.caller_frame_opaque_writes = true;
+            info.caller_frame_opaque_reads = true;
+        }
+        return;
+    };
+    if crate::optimiser::MAX_OPTIMISER_WALK_DEPTH.exceeded(context.depth) {
+        info.caller_frame_opaque_writes = true;
+        info.caller_frame_opaque_reads = true;
+        return;
+    }
+    if selected == FrameContext::Own {
+        walk_script(
+            &body,
+            context.params,
+            context.registry,
+            Some(context.bindings),
+            context.namespace,
+            info,
+        );
+    } else {
+        record_upframe_body_at_depth(
+            &body,
+            true,
+            context.registry,
+            Some(context.bindings),
+            context.namespace,
+            info,
+            context.depth + 1,
+        );
+    }
+}
+
 /// Consume the shared binding/registry projection of an evaluated body.  The
 /// command-binding layer alone owns alias-prefix insertion and body-word
 /// positioning; this module only composes the selected variable frame into a
@@ -881,13 +1305,18 @@ fn record_resolved_frame_body(
     current: FrameContext,
     params: &[String],
     registry: &CommandRegistry,
-    bindings: &ModuleCommandBindings,
-    namespace: &str,
+    bindings: UpvarBindings<'_>,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     execution_namespace: &ExecutionNamespace,
     info: &mut UpvarInfo,
     depth: u32,
 ) {
-    let body = invocation.resolved_frame_body(registry, bindings, execution_namespace);
+    let body = invocation.resolved_frame_body_with_metadata_context(
+        registry,
+        bindings.source,
+        execution_namespace,
+        Some(bindings.metadata),
+    );
     match body {
         ResolvedFrameBody::Readable { source, selection } => {
             let selected = selected_frame_context(current, selection);
@@ -925,8 +1354,8 @@ fn record_readable_frame_body(
     selected: FrameContext,
     params: &[String],
     registry: &CommandRegistry,
-    bindings: &ModuleCommandBindings,
-    namespace: &str,
+    bindings: UpvarBindings<'_>,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
     depth: u32,
 ) {
@@ -942,20 +1371,14 @@ fn record_readable_frame_body(
             info.caller_frame_opaque_reads = true;
         }
         FrameContext::Own | FrameContext::DirectCaller => {
-            let config = registry
-                .profile()
-                .map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-                    tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-                });
-            let module = crate::lowering::lower_to_ir_with_dialect(
-                source,
-                registry,
-                config,
-                registry.profile(),
-            );
+            let config = bindings.input.lexer_config();
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+                .with_dialect(Some(bindings.input.unit_profile()))
+                .with_context_registry(bindings.input.context_registry());
+            let module = lowerer.lower(source).clone();
             if selected == FrameContext::Own {
                 walk_script(
-                    &module.top_level.statements,
+                    &module.top_level,
                     params,
                     registry,
                     Some(bindings),
@@ -977,6 +1400,13 @@ fn record_readable_frame_body(
     }
 }
 
+#[derive(Clone, Copy)]
+struct FrameCommandContext<'a> {
+    bindings: Option<UpvarBindings<'a>>,
+    tokens: Option<&'a CommandTokens>,
+    dialect: Option<tcl_registry::InvocationDialect>,
+}
+
 /// Dispatch a registry-declared frame grammar after command binding has
 /// supplied its effective argv. This stays command-neutral: aliases, renamed
 /// commands, and direct spellings all consume the same descriptor.
@@ -985,14 +1415,16 @@ fn record_frame_effect(
     args: &[String],
     params: &[String],
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
-    namespace: &str,
+    context: FrameCommandContext<'_>,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
     match spec.layout {
-        FrameArgLayout::AliasPairs => record_upvar_call(spec, args, params, info, registry),
+        FrameArgLayout::AliasPairs => {
+            record_upvar_call(spec, args, params, info, registry, context);
+        }
         FrameArgLayout::ScriptInSelectedFrame => {
-            record_uplevel_call(spec, args, registry, bindings, namespace, info);
+            record_uplevel_call(spec, args, registry, context, namespace, info);
         }
         // A script that runs in the callee's own frame, and an opaque
         // injection into whoever called the command, are effects on the
@@ -1022,6 +1454,76 @@ fn widen_beyond_caller(info: &mut UpvarInfo) {
     info.frame_reach = FrameReach::PastTheCaller;
 }
 
+fn record_resolved_alias_pairs(
+    invocation: &ResolvedBindingInvocation,
+    spec: FrameEffectSpec,
+    parameters: &[String],
+    registry: &CommandRegistry,
+    dialect: Option<tcl_registry::InvocationDialect>,
+    info: &mut UpvarInfo,
+) {
+    use tcl_registry::frame_effect::FrameArgumentResolution;
+    let (level, start) = match invocation.frame_alias_layout(spec, registry, dialect) {
+        FrameArgumentResolution::Valid {
+            level,
+            level_word_len,
+        } => (level, level_word_len),
+        FrameArgumentResolution::Invalid => return,
+        FrameArgumentResolution::Unknown => {
+            widen_beyond_caller(info);
+            return;
+        }
+    };
+    if !level.is_caller_frame() {
+        if !level.is_global_frame() && !level.is_current_frame() {
+            widen_beyond_caller(info);
+        }
+        return;
+    }
+    for source in (start..invocation.arguments.len()).step_by(2) {
+        let Some(destination) = source
+            .checked_add(1)
+            .filter(|index| *index < invocation.arguments.len())
+        else {
+            info.has_unresolvable_caller_target = true;
+            return;
+        };
+        let local = invocation
+            .literal_argument(destination)
+            .filter(|name| is_literal_name(name));
+        let target = invocation
+            .literal_argument(source)
+            .filter(|name| is_literal_name(name));
+        if local.is_none() {
+            info.unnameable_local_aliases
+                .insert(invocation.arguments[source].clone());
+        }
+        if let Some(target) = target {
+            if let Some(local) = local {
+                info.literal_targets
+                    .insert(local.to_owned(), target.to_owned());
+            } else {
+                info.uplevel_literal_writes.insert(target.to_owned());
+            }
+        } else if let Some(parameter) = invocation.scalar_parameter_argument(source, parameters) {
+            if parameter == "args" {
+                if let Some(local) = local {
+                    info.args_tail_upvar.push(local.to_owned());
+                } else {
+                    info.has_unresolvable_caller_target = true;
+                }
+            } else if let Some(local) = local {
+                info.param_targets
+                    .insert(local.to_owned(), parameter.to_owned());
+            } else {
+                info.uplevel_param_writes.insert(parameter.to_owned());
+            }
+        } else {
+            info.has_unresolvable_caller_target = true;
+        }
+    }
+}
+
 /// `upvar ?level? otherVar myVar …` — classify each pair against the frame
 /// the level word selects.
 fn record_upvar_call(
@@ -1030,8 +1532,9 @@ fn record_upvar_call(
     params: &[String],
     info: &mut UpvarInfo,
     registry: &CommandRegistry,
+    context: FrameCommandContext<'_>,
 ) {
-    let (level, rest) = resolve_frame_args(spec, args, registry);
+    let (level, rest) = resolve_frame_args(spec, args, registry, context.dialect, context.tokens);
     if !level.is_caller_frame() {
         // A level this summary cannot place at the direct caller. `#0` and
         // `0` genuinely miss the caller's frame (the global frame is
@@ -1045,8 +1548,13 @@ fn record_upvar_call(
         }
         return;
     }
+    let start = args.len().saturating_sub(rest.len());
     let mut i = 0;
     while i + 1 < rest.len() {
+        let parameter = context
+            .tokens
+            .and_then(|tokens| original_scalar_argument(tokens, args, start + i))
+            .filter(|name| params.iter().any(|parameter| parameter == name));
         let (src, dst) = (rest[i].as_str(), rest[i + 1].as_str());
         i += 2;
         let dst_is_literal = is_literal_name(dst);
@@ -1054,7 +1562,7 @@ fn record_upvar_call(
             // Dynamic destination (`upvar 1 x $dst`) — there is no local
             // key to file the alias under, so the per-local maps cannot
             // carry it.  The alias is still real: record the structural
-            // fact for [`reaches_caller_frame`], and classify the CALLER
+            // fact for caller-frame reachability, and classify the CALLER
             // side below so call sites still widen the right caller name
             // — otherwise such a proc reads as summary-empty and `p x` leaves
             // the caller's `x` foldable to a stale constant.
@@ -1073,7 +1581,7 @@ fn record_upvar_call(
                 // it lands in the keyless bucket.
                 info.uplevel_literal_writes.insert(src.to_string());
             }
-        } else if let Some(param) = is_dollar_param_ref(src) {
+        } else if let Some(param) = parameter {
             // `upvar 1 $param x` — substitution-driven, gated on
             // the param existing on the proc.
             if param == "args" {
@@ -1126,11 +1634,11 @@ fn record_uplevel_call(
     spec: FrameEffectSpec,
     args: &[String],
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
-    namespace: &str,
+    context: FrameCommandContext<'_>,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
-    let (level, rest) = resolve_frame_args(spec, args, registry);
+    let (level, rest) = resolve_frame_args(spec, args, registry, context.dialect, context.tokens);
     if !level.is_caller_frame() {
         // Same reasoning as `record_upvar_call`: `uplevel 0` stays in the
         // callee's own frame and `uplevel #0` runs in the global one, so
@@ -1146,7 +1654,7 @@ fn record_uplevel_call(
     // `SCRIPT_CONCATENATES_ARGS` trait). A single constructed-list word is
     // the readable case; a multi-word join is not worth reassembling.
     if let [single] = rest
-        && record_constructed_body(single, registry, bindings, namespace, info)
+        && record_constructed_body(single, registry, context.bindings, namespace, info)
     {
         return;
     }
@@ -1164,8 +1672,8 @@ fn record_upframe_body(
     body: &Script,
     source_body_is_braced: bool,
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
-    namespace: &str,
+    bindings: Option<UpvarBindings<'_>>,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
     record_upframe_body_at_depth(
@@ -1203,8 +1711,8 @@ fn record_upframe_body_at_depth(
     body: &Script,
     source_body_is_braced: bool,
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
-    namespace: &str,
+    bindings: Option<UpvarBindings<'_>>,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
     depth: u32,
 ) {
@@ -1220,8 +1728,13 @@ fn record_upframe_body_at_depth(
             opaque_variable_frame: super::global_write_info::script_has_dynamic_write_target(body),
         },
         |bindings| {
-            super::global_write_info::script_value_write_projection(
-                body, registry, bindings, namespace,
+            super::global_write_info::script_value_write_projection_with_metadata_context(
+                body,
+                registry,
+                bindings.source,
+                namespace,
+                Some(bindings.metadata),
+                bindings.input.lexer_config(),
             )
         },
     );
@@ -1244,13 +1757,7 @@ fn record_upframe_body_at_depth(
             depth + 1,
         );
     }
-    for name in projected_names {
-        if is_literal_name(&name) {
-            info.uplevel_literal_writes.insert(name);
-        } else {
-            info.caller_frame_opaque_writes = true;
-        }
-    }
+    info.uplevel_literal_writes.extend(projected_names);
     info.caller_frame_opaque_writes |= projection.opaque_variable_frame;
 
     // A relative `uplevel` evaluates in the *target frame's* namespace. The
@@ -1277,7 +1784,7 @@ fn compose_selected_frame_alias_writes(
     projected_names: &BTreeSet<String>,
     opaque_write: bool,
     registry: &CommandRegistry,
-    bindings: &ModuleCommandBindings,
+    bindings: UpvarBindings<'_>,
     info: &mut UpvarInfo,
     depth: u32,
 ) {
@@ -1290,20 +1797,15 @@ fn compose_selected_frame_alias_writes(
         if !stmt.is_executable_invocation() {
             continue;
         }
-        if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt {
-            let execution_namespace = ExecutionNamespace::RuntimeSelected;
-            if let Some(command_namespace) = execution_namespace.for_head(command) {
-                for invocation in bindings.resolve_statement(stmt, registry, command_namespace) {
-                    compose_selected_alias_facts(
-                        &invocation.facts,
-                        projected_names,
-                        any_write,
-                        registry,
-                        info,
-                    );
-                }
-            }
-        }
+        compose_selected_statement_aliases(
+            stmt,
+            script.retained_source_tokens_for_statement(stmt),
+            projected_names,
+            any_write,
+            registry,
+            bindings,
+            info,
+        );
 
         let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, registry);
         for words in embedded.commands {
@@ -1314,11 +1816,20 @@ fn compose_selected_frame_alias_writes(
                 continue;
             };
             let execution_namespace = ExecutionNamespace::RuntimeSelected;
-            let Some(command_namespace) = execution_namespace.for_head(head) else {
+            let Some(command_namespace) = execution_namespace.for_head_context(head) else {
                 continue;
             };
-            for facts in bindings.resolve_command_words(&words, registry, command_namespace) {
-                compose_selected_alias_facts(&facts, projected_names, any_write, registry, info);
+            for facts in
+                bindings.resolve_command_words(&words, registry, command_namespace.as_ref())
+            {
+                compose_selected_alias_facts(
+                    &facts,
+                    projected_names,
+                    any_write,
+                    registry,
+                    bindings.invocation_dialect(),
+                    info,
+                );
             }
         }
 
@@ -1342,6 +1853,100 @@ fn compose_selected_frame_alias_writes(
     }
 }
 
+fn compose_selected_statement_aliases(
+    stmt: &Statement,
+    tokens: Option<&CommandTokens>,
+    projected_names: &BTreeSet<String>,
+    any_write: bool,
+    registry: &CommandRegistry,
+    bindings: UpvarBindings<'_>,
+    info: &mut UpvarInfo,
+) {
+    if bindings.input.has_logical_source_name_context() {
+        if let Some((_, aliases)) = tokens.and_then(|tokens| {
+            let metadata = tokens
+                .source_binding
+                .as_ref()?
+                .original_invocation_metadata_for_module(tokens, bindings.module, registry)?;
+            crate::registry_invocation::original_logical_variable_footprint_with_metadata_context(
+                registry, metadata, tokens,
+            )
+        }) {
+            for alias in &aliases {
+                compose_selected_alias(
+                    alias,
+                    projected_names,
+                    any_write,
+                    registry,
+                    bindings.invocation_dialect(),
+                    info,
+                );
+            }
+        }
+        return;
+    }
+    if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt {
+        let execution_namespace = ExecutionNamespace::RuntimeSelected;
+        if let Some(command_namespace) =
+            execution_namespace.for_invocation_context(command, stmt.tokens())
+        {
+            let normal = stmt.tokens().and_then(|tokens| {
+                crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                    registry,
+                    Some(bindings.metadata),
+                    tokens,
+                )
+            });
+            if let Some(normal) = normal {
+                // A compiler-hook choice is independent of a normal alias
+                // declaration. Consume only the active alias projection.
+                for alias in normal.variable_alias_transitions() {
+                    compose_selected_alias(
+                        alias,
+                        projected_names,
+                        any_write,
+                        registry,
+                        bindings.invocation_dialect(),
+                        info,
+                    );
+                }
+            }
+            if let Some(possible) = stmt.tokens().and_then(|tokens| {
+                crate::registry_invocation::possible_variable_alias_transitions_with_metadata_context(
+                    registry,
+                    Some(bindings.metadata),
+                    tokens,
+                )
+            }) {
+                // This summary records may-writes across possible callers.
+                // Unknown physical frame identity cannot erase a selected
+                // native alias candidate's outward exposure footprint.
+                for alias in possible.aliases() {
+                    compose_selected_alias(
+                        alias,
+                        projected_names,
+                        any_write,
+                        registry,
+                        bindings.invocation_dialect(),
+                        info,
+                    );
+                }
+            }
+            for invocation in bindings.resolve_statement(stmt, registry, command_namespace.as_ref())
+            {
+                compose_selected_alias_facts(
+                    &invocation.facts,
+                    projected_names,
+                    any_write,
+                    registry,
+                    bindings.invocation_dialect(),
+                    info,
+                );
+            }
+        }
+    }
+}
+
 enum SelectedAliasTarget {
     SameExact(String),
     SameOpaque,
@@ -1353,6 +1958,7 @@ enum SelectedAliasTarget {
 fn selected_alias_target(
     target: &tcl_registry::VariableAliasTarget,
     registry: &CommandRegistry,
+    dialect: Option<tcl_registry::InvocationDialect>,
 ) -> SelectedAliasTarget {
     let tcl_registry::VariableAliasTarget::CallerSelectedFrame { frame, variable } = target else {
         return SelectedAliasTarget::Other;
@@ -1363,7 +1969,10 @@ fn selected_alias_target(
     let Some(level) = level.literal() else {
         return SelectedAliasTarget::Unplaced;
     };
-    let Some(level) = FrameLevel::parse_in(level, registry) else {
+    let Some(level) = dialect.map_or_else(
+        || FrameLevel::parse_in(level, registry),
+        |dialect| FrameLevel::parse_for_dialect(level, dialect),
+    ) else {
         // Tcl rejects the invocation before installing this pair.
         return SelectedAliasTarget::Other;
     };
@@ -1373,7 +1982,9 @@ fn selected_alias_target(
                 .literal()
                 .map_or(SelectedAliasTarget::SameOpaque, |name| {
                     SelectedAliasTarget::SameExact(
-                        crate::naming::normalise_var_name(name).to_owned(),
+                        crate::naming::split_element_ref(name)
+                            .map_or(name, |(root, _)| root)
+                            .to_owned(),
                     )
                 })
         }
@@ -1388,6 +1999,7 @@ fn compose_selected_alias_facts(
     projected_names: &BTreeSet<String>,
     any_write: bool,
     registry: &CommandRegistry,
+    dialect: Option<tcl_registry::InvocationDialect>,
     info: &mut UpvarInfo,
 ) {
     let Some(transitions) = facts.state_transitions.declared() else {
@@ -1397,27 +2009,37 @@ fn compose_selected_alias_facts(
         let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition else {
             continue;
         };
-        let local_written = alias.writes_value
-            || alias.local.literal().map_or(any_write, |local| {
-                projected_names.contains(crate::naming::normalise_var_name(local))
-            });
-        if !local_written {
-            continue;
+        compose_selected_alias(alias, projected_names, any_write, registry, dialect, info);
+    }
+}
+
+fn compose_selected_alias(
+    alias: &tcl_registry::state_transition::VariableCellAliasTransition,
+    projected_names: &BTreeSet<String>,
+    any_write: bool,
+    registry: &CommandRegistry,
+    dialect: Option<tcl_registry::InvocationDialect>,
+    info: &mut UpvarInfo,
+) {
+    let local_written = alias.writes_value
+        || alias.local.literal().map_or(any_write, |local| {
+            projected_names
+                .contains(crate::naming::split_element_ref(local).map_or(local, |(root, _)| root))
+        });
+    if !local_written {
+        return;
+    }
+    match selected_alias_target(&alias.target, registry, dialect) {
+        SelectedAliasTarget::SameExact(target) => {
+            info.uplevel_literal_writes.insert(target);
         }
-        match selected_alias_target(&alias.target, registry) {
-            SelectedAliasTarget::SameExact(target) => {
-                if !target.is_empty() {
-                    info.uplevel_literal_writes.insert(target);
-                }
-            }
-            SelectedAliasTarget::SameOpaque => info.caller_frame_opaque_writes = true,
-            SelectedAliasTarget::Past => widen_beyond_caller(info),
-            SelectedAliasTarget::Unplaced => {
-                info.caller_frame_opaque_writes = true;
-                widen_beyond_caller(info);
-            }
-            SelectedAliasTarget::Other => {}
+        SelectedAliasTarget::SameOpaque => info.caller_frame_opaque_writes = true,
+        SelectedAliasTarget::Past => widen_beyond_caller(info),
+        SelectedAliasTarget::Unplaced => {
+            info.caller_frame_opaque_writes = true;
+            widen_beyond_caller(info);
         }
+        SelectedAliasTarget::Other => {}
     }
 }
 
@@ -1429,8 +2051,8 @@ fn compose_selected_alias_facts(
 fn record_nested_upframe_effects(
     script: &Script,
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
-    namespace: &str,
+    bindings: Option<UpvarBindings<'_>>,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
     depth: u32,
 ) {
@@ -1444,16 +2066,51 @@ fn record_nested_upframe_effects(
             continue;
         }
         if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt {
+            if let Some(bindings) = bindings
+                && bindings.input.has_logical_source_name_context()
+            {
+                let selected = script.retained_source_tokens_for_statement(stmt)
+                    .and_then(|tokens| {
+                        let metadata = tokens.source_binding.as_ref()?
+                            .original_invocation_metadata_for_module(tokens, bindings.module, registry)?;
+                        let invocation = crate::registry_invocation::original_logical_frame_invocation_with_metadata_context(
+                            registry, metadata, tokens,
+                        )?;
+                        Some((tokens, invocation))
+                    });
+                if let Some((tokens, invocation)) = selected {
+                    record_logical_frame_invocation(
+                        &invocation,
+                        LogicalFrameScan {
+                            tokens,
+                            current: FrameContext::DirectCaller,
+                            params: &[],
+                            registry,
+                            bindings,
+                            namespace,
+                            depth: depth + 1,
+                        },
+                        info,
+                    );
+                } else {
+                    info.caller_frame_opaque_writes = true;
+                    info.caller_frame_opaque_reads = true;
+                }
+                continue;
+            }
             let execution_namespace = ExecutionNamespace::RuntimeSelected;
             if let Some(bindings) = bindings
-                && let Some(command_namespace) = execution_namespace.for_head(command)
+                && let Some(command_namespace) =
+                    execution_namespace.for_invocation_context(command, stmt.tokens())
             {
                 // A call which lowering saw before its alias was installed may
                 // terminally be `eval` or `uplevel`.  Resolve the effective
                 // body through the shared helper, including every baked alias
                 // prefix, then compose its selection from the caller frame in
                 // which this enclosing body already executes.
-                for invocation in bindings.resolve_statement(stmt, registry, command_namespace) {
+                for invocation in
+                    bindings.resolve_statement(stmt, registry, command_namespace.as_ref())
+                {
                     record_resolved_frame_body(
                         &invocation,
                         FrameContext::DirectCaller,
@@ -1519,16 +2176,20 @@ fn record_nested_upframe_effects(
 fn record_constructed_body(
     word: &str,
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
-    namespace: &str,
+    bindings: Option<UpvarBindings<'_>>,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) -> bool {
     let Some(bindings) = bindings else {
         return false;
     };
-    let Some(constructed) =
-        crate::command_binding::constructed_script_words(word, registry, bindings, namespace)
-    else {
+    let Some(constructed) = crate::command_binding::constructed_script_words_with_metadata_context(
+        word,
+        registry,
+        bindings.source,
+        namespace,
+        Some(bindings.metadata),
+    ) else {
         return false;
     };
     let Some((command, cargs)) = constructed.split_first() else {
@@ -1546,38 +2207,16 @@ fn record_constructed_body(
         return true;
     }
     let arg_refs: Vec<&str> = cargs.iter().map(String::as_str).collect();
-    if let Some(invocation) =
-        registry.resolve_invocation(command, &arg_refs, registry.own_surface_query())
-    {
-        // A registry command: its own `VarWrite` roles say which words name
-        // the variables it creates, and they name them in whatever frame it
-        // runs in — here, the caller's.
-        let facts = invocation.facts();
-        let indices: Vec<usize> = facts
-            .arg_roles
-            .iter()
-            .filter(|(_, role)| *role == ArgRole::VarWrite)
-            .map(|(index, _)| facts.argument_offset + usize::from(*index))
-            .collect();
-        if indices.is_empty() {
-            // A known command that writes no variable (`uplevel 1 [list
-            // puts hi]`) has no caller-frame effect at all.
-            return true;
-        }
-        for idx in indices {
-            let Some(target) = arg_refs.get(idx) else {
-                continue;
-            };
-            if is_literal_name(target) {
-                info.uplevel_literal_writes.insert((*target).to_string());
-            } else {
-                // Constructor projection returns evaluated Tcl values, not
-                // source expressions. A value such as `$name` came from a
-                // quoted literal operand and names that literal variable; it
-                // must never be reinterpreted as parameter substitution.
-                info.caller_frame_opaque_writes = true;
-            }
-        }
+    if let Some(invocation) = tcl_registry::model::assembly::resolve_invocation_in_context(
+        registry,
+        Some(bindings.metadata.context()),
+        command,
+        &arg_refs,
+    ) {
+        let projection =
+            CommandRegistry::variable_write_projection_for_selected_source(&invocation);
+        info.uplevel_literal_writes.extend(projection.literal_names);
+        info.caller_frame_opaque_writes |= projection.opaque_variable_frame;
         return true;
     }
     // Not a registry command — a candidate user proc. Its own `upvar 1`
@@ -1618,98 +2257,210 @@ pub(super) fn name_param_defaults(
     }
 }
 
-/// Compose a callee's caller-frame effects into `info`, for a
-/// `uplevel <caller frame> [list callee ARG…]` forward.
-///
-/// The callee's `upvar 1` binds a name in *its* caller's frame — which,
-/// because the constructed script runs in `info`'s own caller's frame, is
-/// that same frame.  So each of the callee's caller-frame names becomes one
-/// of `info`'s, translated through the constructed argument list:
-/// every retained constructor argument is a source-proven literal Tcl value;
-/// a simple value contributes that literal name and anything outside the
-/// summary's name grammar widens.
-///
-/// tclsh 9.0.4 / 8.6.14, identical: with
-/// `proc worker {nvar} {upvar 1 $nvar v; set v WORKED}` and
-/// `proc wrapper {} {uplevel 1 [list worker target]}`, calling `wrapper`
-/// leaves `target` set in *wrapper's* caller — while the
-/// plain-call spelling `proc wrapper2 {nvar} {worker $nvar}` raises
-/// `can't read "target": no such variable`.
-pub(super) fn compose_forwarded(
-    callee: &UpvarInfo,
-    callee_params: &[String],
-    constructed: &[String],
-    info: &mut UpvarInfo,
-) {
-    if callee.has_unresolvable_caller_target
-        || callee.caller_frame_opaque_writes
-        || !callee.args_tail_upvar.is_empty()
-    {
-        info.caller_frame_opaque_writes = true;
-    }
-    if callee.caller_frame_opaque_reads {
-        info.caller_frame_opaque_reads = true;
-    }
-    for name in callee
-        .literal_targets
-        .values()
-        .chain(callee.uplevel_literal_writes.iter())
-    {
-        info.uplevel_literal_writes.insert(name.clone());
-    }
-    for param_name in callee
-        .param_targets
-        .values()
-        .chain(callee.uplevel_param_writes.iter())
-    {
-        let Some(idx) = callee_params.iter().position(|p| p == param_name) else {
-            continue;
-        };
-        let arg = match constructed.get(idx) {
-            Some(arg) => arg.as_str(),
-            None => match callee.default_name(param_name) {
-                OmittedName::Names(name) => name,
-                OmittedName::Unplaceable => {
-                    info.caller_frame_opaque_writes = true;
-                    continue;
-                }
-                OmittedName::Raises => continue,
-            },
-        };
-        if is_literal_name(arg) {
-            info.uplevel_literal_writes.insert(arg.to_owned());
-        } else {
-            info.caller_frame_opaque_writes = true;
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ir::Script;
-    use crate::lowering::lower_to_ir;
     use tcl_registry::CommandRegistry;
 
     fn lower(src: &str) -> Script {
-        let m = lower_to_ir(src, &CommandRegistry::build_default());
-        m.top_level
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("test native core");
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        crate::lowering::lower_proc_body_isolated(
+            src,
+            "::",
+            &registry,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            Some(profile),
+        )
     }
 
     fn module_proc_info(src: &str, qname: &str) -> UpvarInfo {
-        let registry = CommandRegistry::build_default();
-        let module = lower_to_ir(src, &registry);
+        let context =
+            crate::environment_ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(registry, input.lexer_config())
+                .with_resolved_analysis_input(input),
+            src,
+        );
         let bindings = ModuleCommandBindings::analyse(&module, &registry);
-        let procedure = module.procedures.get(qname).expect("procedure");
-        let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
-        let namespace = if holder.is_empty() { "::" } else { holder };
+        let procedure = module
+            .procedures
+            .get(&crate::interprocedural::test_body_identity::fixture_id(
+                &module.procedures,
+                qname,
+            ))
+            .expect("procedure");
+        let namespace = procedure
+            .body
+            .namespace_context
+            .as_deref()
+            .expect("actual original body namespace");
         collect_upvar_targets_with_bindings(
             &procedure.body,
             &procedure.params,
             &registry,
             &bindings,
             namespace,
+            &module,
         )
+    }
+
+    #[test]
+    fn method_frame_summary_keeps_the_issued_header_and_actual_registry() {
+        let environment = crate::environment_ingress::resolve_environment("tcl9.0");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = environment.unit_profile();
+        let (_owner, native) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            native_entry: Some(std::sync::Arc::new(native)),
+            ..Default::default()
+        };
+        let build = || {
+            crate::compilation_unit::CompilationUnit::build_with_context_registry(
+                "oo::class create C {method empty {} {}}",
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                Some(&entry),
+                std::sync::Arc::clone(&context),
+            )
+            .ir_module
+        };
+        let module = build();
+        assert_eq!(module.methods.len(), 1);
+        let (&id, method) = module.methods.iter().next().unwrap();
+        assert!(module.procedure_ids.owns(id));
+        assert!(
+            module
+                .retained_source_bindings
+                .as_ref()
+                .unwrap()
+                .matches_original_method_summary(id, method)
+        );
+        assert!(!method_reaches_caller_frame(&module, id, registry));
+        let mut changed = module.clone();
+        changed
+            .methods
+            .get_mut(&id)
+            .unwrap()
+            .params
+            .push("detached".into());
+        assert!(method_reaches_caller_frame(&changed, id, registry));
+        let mut changed_body = module.clone();
+        changed_body.methods.get_mut(&id).unwrap().body = lower("upvar 1 caller local");
+        assert!(method_reaches_caller_frame(&changed_body, id, registry));
+        let foreign = build();
+        let foreign_id = *foreign.methods.keys().next().unwrap();
+        assert_eq!(foreign_id.ordinal(), id.ordinal());
+        assert_ne!(foreign_id, id);
+        assert!(method_reaches_caller_frame(&module, foreign_id, registry));
+        let foreign_registry =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        assert!(method_reaches_caller_frame(
+            &module,
+            id,
+            foreign_registry.commands(),
+        ));
+    }
+
+    #[test]
+    fn native_frame_aliases_distinguish_written_scalar_reads_from_literal_values() {
+        let environment = crate::environment_ingress::resolve_environment("tcl9.0");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = environment.unit_profile();
+        let (_owner, native) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            native_entry: Some(std::sync::Arc::new(native)),
+            ..Default::default()
+        };
+        for (source, parameter) in [
+            ("proc helper {source} {upvar 1 $source local}", true),
+            ("proc helper {source} {upvar 1 \"$source\" local}", true),
+            ("proc helper {source} {upvar 1 {$source} local}", false),
+            (
+                "interp alias {} captured {} upvar 1 {$source}; proc helper {source} {captured local}",
+                false,
+            ),
+        ] {
+            let module = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                Some(&entry),
+                std::sync::Arc::clone(&context),
+            )
+            .ir_module;
+            let id = crate::interprocedural::test_body_identity::fixture_id(
+                &module.procedures,
+                "::helper",
+            );
+            assert!(module.procedure_ids.owns(id));
+            let summaries = crate::cfg_builder::detect_upvar_procs_with_registry(&module, registry);
+            let summary = &summaries[&id];
+            assert_eq!(
+                summary.param_targets.get("local").map(String::as_str),
+                parameter.then_some("source"),
+                "{source}"
+            );
+            if !parameter {
+                assert!(summary.param_targets.is_empty(), "{source}");
+                assert!(
+                    summary.has_unresolvable_caller_target || summary.caller_frame_opaque_writes,
+                    "{source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn logical_frame_aliases_keep_real_formals_and_literal_dollar_names() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let formal = module_proc_info("proc helper {source} {upvar 1 $source local}", "::helper");
+        assert_eq!(
+            formal.param_targets.get("local"),
+            Some(&"source".to_owned())
+        );
+        assert!(!formal.has_unresolvable_caller_target);
+        assert!(!formal.caller_frame_opaque_writes);
+
+        let literal = module_proc_info(
+            "proc helper {} {upvar 1 {$scalar(open} {$alias}; set {$alias} VALUE}",
+            "::helper",
+        );
+        assert_eq!(
+            literal.literal_targets.get("$alias"),
+            Some(&"$scalar(open".to_owned())
+        );
+        assert!(!literal.has_unresolvable_caller_target);
     }
 
     #[test]
@@ -1720,12 +2471,41 @@ mod tests {
     }
 
     #[test]
+    fn standalone_alias_pairs_keep_original_reference_grammar_and_literal_data() {
+        for (source, parameter) in [
+            ("upvar 1 ${odd name} local", "odd name"),
+            ("upvar 1 \"$source\" local", "source"),
+        ] {
+            let body = lower(source);
+            let info = collect_upvar_targets(&body, &[parameter.to_owned()]);
+            assert_eq!(
+                info.param_targets.get("local").map(String::as_str),
+                Some(parameter)
+            );
+        }
+        let body = lower("upvar 1 {$source} local");
+        let info = collect_upvar_targets(&body, &["source".to_owned()]);
+        assert!(info.param_targets.is_empty());
+        assert!(info.has_unresolvable_caller_target);
+        let mut changed = lower("upvar 1 $source local");
+        let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) =
+            &mut changed.statements[0]
+        else {
+            panic!("actual standalone upvar call");
+        };
+        args[1] = "$different".to_owned();
+        let info = collect_upvar_targets(&changed, &["different".to_owned()]);
+        assert!(info.param_targets.is_empty());
+        assert!(info.caller_frame_opaque_writes);
+    }
+
+    #[test]
     fn literal_target_recorded() {
         let body = lower("upvar 1 caller_x x");
         let info = collect_upvar_targets(&body, &[]);
         assert_eq!(info.literal_targets.get("x"), Some(&"caller_x".to_string()),);
-        assert!(info.param_targets.is_empty());
-        assert!(info.args_tail_upvar.is_empty());
+        assert_eq!(info.param_targets.len(), 0);
+        assert_eq!(info.args_tail_upvar.len(), 0);
     }
 
     #[test]
@@ -1742,7 +2522,7 @@ mod tests {
         let body = lower("upvar 1 $name x");
         let info = collect_upvar_targets(&body, &["name".to_string()]);
         assert_eq!(info.param_targets.get("x"), Some(&"name".to_string()));
-        assert!(info.literal_targets.is_empty());
+        assert_eq!(info.literal_targets.len(), 0);
     }
 
     #[test]
@@ -1752,8 +2532,8 @@ mod tests {
         // $foo is not a param (only `bar` is); not classifiable per-name —
         // and the summary must say so, not silently under-approximate: the
         // callee can write ANY caller variable through the alias.
-        assert!(info.param_targets.is_empty());
-        assert!(info.literal_targets.is_empty());
+        assert_eq!(info.param_targets.len(), 0);
+        assert_eq!(info.literal_targets.len(), 0);
         assert!(info.has_unresolvable_caller_target);
     }
 
@@ -1783,7 +2563,7 @@ mod tests {
         // `args` triggers the trailing-vararg path regardless of
         // its position in the param list.
         assert_eq!(info.args_tail_upvar, vec!["y".to_string()]);
-        assert!(info.param_targets.is_empty());
+        assert_eq!(info.param_targets.len(), 0);
     }
 
     #[test]
@@ -1804,7 +2584,7 @@ mod tests {
         // `global_write_info` owns the real, global effect.
         let body = lower("upvar #0 g local_g");
         let info = collect_upvar_targets(&body, &[]);
-        assert!(info.literal_targets.is_empty(), "got {info:?}");
+        assert_eq!(info.literal_targets.len(), 0, "got {info:?}");
         assert!(!info.caller_frame_opaque_writes, "got {info:?}");
     }
 
@@ -1833,7 +2613,7 @@ mod tests {
                 info.caller_frame_opaque_writes,
                 "{src} must widen; got {info:?}"
             );
-            assert!(info.literal_targets.is_empty(), "{src}: got {info:?}");
+            assert_eq!(info.literal_targets.len(), 0, "{src}: got {info:?}");
         }
     }
 
@@ -1864,12 +2644,61 @@ mod tests {
     }
 
     #[test]
+    fn original_protected_substitution_keeps_caller_alias_pairs() {
+        for command in [
+            "catch {upvar 1 target local}",
+            "catch {catch {upvar 1 target local}}",
+        ] {
+            let info = module_proc_info(
+                &format!("proc p {{}} {{set result [{command}]; set local VALUE}}"),
+                "::p",
+            );
+            assert_eq!(
+                info.literal_targets.get("local"),
+                Some(&"target".to_owned()),
+                "{command}"
+            );
+        }
+        let dynamic = module_proc_info("proc p {script} {set result [catch $script]}", "::p");
+        assert!(dynamic.caller_frame_opaque_writes);
+        assert!(dynamic.caller_frame_opaque_reads);
+    }
+
+    #[test]
+    fn original_caller_argument_values_preserve_literal_scalar_names() {
+        let mut info = module_proc_info("proc helper {source} {upvar 1 $source local}", "::helper");
+        let params = vec!["source".to_owned()];
+        for name in ["", "$name", "a b", "{literal}"] {
+            let words = [InvocationWord::Literal(name)];
+            let explicit =
+                info.caller_side_effects(InvocationArguments::Structured(&words), &params);
+            assert_eq!(explicit.defs, vec![name.to_owned()]);
+            assert!(!explicit.opaque);
+            info.param_defaults = name_param_defaults(
+                &info,
+                &format!("{{source {{{name}}}}}"),
+                tcl_syntax::word_rules::WordValueRules::from_config(
+                    &tcl_lexer::LexerConfig::default(),
+                ),
+            );
+            let omitted = info.caller_side_effects(InvocationArguments::Structured(&[]), &params);
+            assert_eq!(omitted.defs, vec![name.to_owned()]);
+            assert!(!omitted.opaque);
+        }
+        let dynamic = [InvocationWord::Dynamic];
+        let effects = info.caller_side_effects(InvocationArguments::Structured(&dynamic), &params);
+        assert!(effects.opaque);
+    }
+
+    #[test]
     fn uplevel_literal_body_records_caller_frame_writes() {
         // `uplevel 1 {set litVar hello}` — the lowering inlines the literal
         // body as `Statement::UpFrame`; its writes land in the caller. The
         // caller can shadow unqualified `set`, so the summary also widens.
-        let body = lower("uplevel 1 {set litVar hello}");
-        let info = collect_upvar_targets(&body, &[]);
+        let info = module_proc_info(
+            "proc ::setter {} {uplevel 1 {set litVar hello}}; ::setter",
+            "::setter",
+        );
         assert!(
             info.uplevel_literal_writes.contains("litVar"),
             "got {info:?}"
@@ -1895,7 +2724,7 @@ mod tests {
     #[test]
     fn nested_relative_zero_preserves_the_caller_frame() {
         let info = module_proc_info(
-            "proc ::setter {} { uplevel 1 { uplevel 0 { set x 1 } } }",
+            "proc ::setter {} { uplevel 1 { uplevel 0 { set x 1 } } }; ::setter",
             "::setter",
         );
         assert!(info.uplevel_literal_writes.contains("x"), "got {info:?}");
@@ -1984,7 +2813,8 @@ mod tests {
     #[test]
     fn nested_relative_one_reaches_past_the_caller() {
         let info = module_proc_info(
-            "proc ::setter {} { uplevel 1 { uplevel 1 { set x 1 } } }",
+            "proc ::setter {} { uplevel 1 { uplevel 1 { set x 1 } } }; \
+             proc ::caller {} {::setter}; ::caller",
             "::setter",
         );
         assert_eq!(info.frame_reach, FrameReach::PastTheCaller, "got {info:?}");
@@ -2016,7 +2846,7 @@ mod tests {
         );
         assert!(info.caller_frame_opaque_writes, "got {info:?}");
         assert!(info.caller_frame_opaque_reads, "got {info:?}");
-        assert!(info.uplevel_param_writes.is_empty(), "got {info:?}");
+        assert_eq!(info.uplevel_param_writes.len(), 0, "got {info:?}");
 
         // Even literal result words retain an unqualified command head, which
         // resolves in the caller's namespace rather than ::literal's.
@@ -2026,7 +2856,7 @@ mod tests {
         );
         assert!(info.caller_frame_opaque_writes, "got {info:?}");
         assert!(info.caller_frame_opaque_reads, "got {info:?}");
-        assert!(info.uplevel_literal_writes.is_empty(), "got {info:?}");
+        assert_eq!(info.uplevel_literal_writes.len(), 0, "got {info:?}");
 
         // A target that is neither literal nor a parameter (a `foreach`
         // variable, say) is unknowable — widen.
@@ -2055,10 +2885,7 @@ mod tests {
             "proc ::relative {} { uplevel 1 [list set fixed 1] }",
             "::relative",
         );
-        assert!(
-            relative.uplevel_literal_writes.is_empty(),
-            "got {relative:?}"
-        );
+        assert_eq!(relative.uplevel_literal_writes.len(), 0, "got {relative:?}");
         assert!(relative.caller_frame_opaque_writes, "got {relative:?}");
         assert!(relative.caller_frame_opaque_reads, "got {relative:?}");
     }
@@ -2072,7 +2899,7 @@ mod tests {
         );
         assert!(setter.caller_frame_opaque_writes, "got {setter:?}");
         assert!(setter.caller_frame_opaque_reads, "got {setter:?}");
-        assert!(setter.uplevel_literal_writes.is_empty(), "got {setter:?}");
+        assert_eq!(setter.uplevel_literal_writes.len(), 0, "got {setter:?}");
 
         let forwarded = module_proc_info(
             "proc ::worker {name} { upvar 1 $name local; set local 1 }\n\
@@ -2082,8 +2909,9 @@ mod tests {
         );
         assert!(forwarded.caller_frame_opaque_writes, "got {forwarded:?}");
         assert!(forwarded.caller_frame_opaque_reads, "got {forwarded:?}");
-        assert!(
-            forwarded.uplevel_forwarded_calls.is_empty(),
+        assert_eq!(
+            forwarded.uplevel_forwarded_calls.len(),
+            0,
             "got {forwarded:?}"
         );
     }
@@ -2097,7 +2925,7 @@ mod tests {
         );
         assert!(info.caller_frame_opaque_writes, "got {info:?}");
         assert!(info.caller_frame_opaque_reads, "got {info:?}");
-        assert!(info.uplevel_literal_writes.is_empty(), "got {info:?}");
+        assert_eq!(info.uplevel_literal_writes.len(), 0, "got {info:?}");
     }
 
     #[test]
@@ -2147,7 +2975,7 @@ mod tests {
             "got {info:?}"
         );
         assert!(!info.has_unresolvable_caller_target, "got {info:?}");
-        // The structural record survives for `reaches_caller_frame`.
+        // Structural caller-frame reach survives an unnameable local.
         assert!(info.unnameable_local_aliases.contains("caller_x"));
         // And the call-site resolver surfaces the caller-side name.
         assert_eq!(info.caller_side_defs(&[], &[]), vec!["caller_x"]);
@@ -2335,7 +3163,7 @@ mod tests {
         let call_args = vec!["v".to_string()];
         let defs = info.caller_side_defs(&call_args, &params);
         // `missing_param` isn't in params — skip silently.
-        assert!(defs.is_empty());
+        assert_eq!(defs.len(), 0);
     }
 
     #[test]
@@ -2346,6 +3174,62 @@ mod tests {
         // `$` alone normalises to empty — should be skipped.
         let call_args = vec!["$".to_string()];
         let defs = info.caller_side_defs(&call_args, &params);
-        assert!(defs.is_empty());
+        assert_eq!(defs.len(), 0);
+    }
+    #[test]
+    fn caller_frame_metadata_keeps_actual_availability_and_missing_owner_hazards() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        // A source MAY footprint does not require or create a Native entered frame.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&current),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let mut module = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            "proc helper {} {uplevel 1 {::lassign {VALUE} target}}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        )
+        .ir_module;
+        let body_id =
+            crate::interprocedural::test_body_identity::fixture_id(&module.procedures, "::helper");
+        let selected = crate::cfg_builder::detect_upvar_procs_with_registry(&module, registry);
+        assert!(selected[&body_id].uplevel_literal_writes.contains("target"));
+        let original = module.source_metadata_input.as_ref().unwrap().clone();
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(registry));
+        for context in [
+            std::sync::Arc::new(older),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+        ] {
+            module.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+                original.analyser_profile(),
+                original.unit_profile(),
+                context,
+                original.lexer_config(),
+            ));
+            let unavailable =
+                crate::cfg_builder::detect_upvar_procs_with_registry(&module, registry);
+            assert!(unavailable[&body_id].caller_frame_opaque_writes);
+        }
+        module.source_metadata_input = None;
+        let missing = crate::cfg_builder::detect_upvar_procs_with_registry(&module, registry);
+        assert!(missing[&body_id].caller_frame_opaque_writes);
+        assert!(missing[&body_id].caller_frame_opaque_reads);
+        assert!(!missing[&body_id].is_empty());
     }
 }

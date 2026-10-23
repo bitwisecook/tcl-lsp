@@ -29,20 +29,12 @@ import com.intellij.platform.lsp.api.LspServerState
 internal const val TCL_LSP_SERVER_WAIT_TIMEOUT_MS = 10_000L
 
 /**
- * Resolve a running Tcl LSP server, kicking it and waiting briefly if one
- * isn't ready yet. Returns null only after a real timeout.
+ * Resolve a running server, starting it and waiting briefly when needed.
+ * Returns null on timeout, project disposal or interrupted waiting.
  *
- * The server starts lazily on the first Tcl editor (see
- * [TclLspServerSupportProvider]), so a tool window that talks to it before the
- * user has opened a Tcl file finds nothing running. Every such caller has to
- * start it and wait rather than give up, or its request is silently dropped
- * and nothing retries it: the Compiler Explorer restored on IDE startup
- * reported a spurious "LSP server not running", and Spec Studio's dialect pin
- * left the sample under generic Tcl until the selector was touched again.
- *
- * Must be called off the EDT — it sleeps. `invokeAndWait` for the start
- * request is safe for that reason: a pooled thread cannot deadlock against
- * the dispatch it waits on.
+ * Start requests allow tool windows to use the lazy server before a Tcl
+ * editor has opened. Must run off the EDT: waiting sleeps, and server startup
+ * uses `invokeAndWait` on the EDT.
  */
 @Suppress("UnstableApiUsage")
 internal fun awaitRunningTclLspServer(

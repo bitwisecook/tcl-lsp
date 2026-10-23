@@ -46,12 +46,46 @@ use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::DialectProfile;
 use tcl_dialect::model::DependencyTier;
 use tcl_registry::CommandRegistry;
+use tcl_runtime_api::native_substitution::{
+    NativeSubstitutionCompilationEntry, NativeSubstitutionTarget,
+};
 use tcl_runtime_api::{
-    BackingKind, CommandBindingIdentity, CompileError, PackFactStamp, ProcedureBindingIdentity,
-    ProcedureCompileTarget, ProcedureDispatch, ScriptCommandPlan, ScriptCompileTarget, SiteClaim,
+    BackingKind, CommandBindingIdentity, CompileError, CompileFailure, CompileUnit,
+    NativeCompilationEntry, PackFactStamp, ProcedureBindingIdentity, ProcedureCompileTarget,
+    ProcedureCompileTargetBytes, ProcedureDispatch, ScriptCommandPlan, ScriptCompileTarget,
+    ScriptCompileTargetBytes, SiteClaim, SourceImage,
 };
 use tcl_spectcl::PackSet;
 use tcl_vm::{Code, CompileService, Vm};
+
+// Select one original compiled fixture body through its retained provenance.
+fn fixture_procedure<'a>(
+    module: &'a ModuleAsm,
+    label: &str,
+) -> &'a tcl_compiler::codegen::FunctionAsm {
+    let mut candidates = module
+        .procedure_provenance
+        .iter()
+        .filter(|(_, source)| source.name == label);
+    let (id, provenance) = candidates
+        .next()
+        .expect("original compiled fixture procedure");
+    assert!(
+        candidates.next().is_none(),
+        "ambiguous compiled fixture {label}"
+    );
+    let body = module
+        .procedures
+        .get(id)
+        .expect("same retained compiled body ID");
+    assert_eq!(body.name, provenance.name);
+    let rules = tcl_syntax::word_rules::WordValueRules::from_grammar(&module.profile.grammar);
+    assert_eq!(
+        body.proc_body_src.as_deref(),
+        Some(rules.collapse_braced_word(&provenance.body).as_ref())
+    );
+    body
+}
 
 /// The default compile service, counting the plain-dispatch compiles the VM
 /// asks of it.
@@ -186,7 +220,7 @@ impl CompileService for PlainCounting {
         &self,
         src: &str,
         profile: &'static DialectProfile,
-    ) -> ScriptCommandPlan {
+    ) -> Result<ScriptCommandPlan, CompileError> {
         self.inner.script_command_plan_for_profile(src, profile)
     }
 
@@ -202,6 +236,146 @@ impl CompileService for PlainCounting {
         self.inner
             .compile_procedure_for_profile(target, profile, dispatch)
             .map(|module| self.forge(module))
+    }
+
+    // The entry-aware and byte-ingress compiles the VM asks for: forwarded to
+    // the inner service exactly, so the wrapper changes nothing but the count
+    // (a defaulted method here would refuse, or silently compile plain).
+
+    fn compile_script_with_entry(
+        &self,
+        target: ScriptCompileTarget<'_>,
+        profile: &'static DialectProfile,
+        entry: &NativeCompilationEntry,
+    ) -> Result<ModuleAsm, CompileError> {
+        self.inner
+            .compile_script_with_entry(target, profile, entry)
+            .map(|module| self.forge(module))
+    }
+
+    fn compile_procedure_with_entry(
+        &self,
+        target: ProcedureCompileTarget<'_>,
+        profile: &'static DialectProfile,
+        entry: &NativeCompilationEntry,
+        dispatch: ProcedureDispatch,
+    ) -> Result<ModuleAsm, CompileError> {
+        if dispatch == ProcedureDispatch::Plain {
+            self.count();
+        }
+        self.inner
+            .compile_procedure_with_entry(target, profile, entry, dispatch)
+            .map(|module| self.forge(module))
+    }
+
+    fn compile_substitution_with_entry(
+        &self,
+        target: NativeSubstitutionTarget<'_>,
+        profile: &'static DialectProfile,
+        entry: NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<ModuleAsm, CompileError> {
+        self.inner
+            .compile_substitution_with_entry(target, profile, entry)
+            .map(|module| self.forge(module))
+    }
+
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: ScriptCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+    ) -> Result<ModuleAsm, CompileError> {
+        self.inner
+            .compile_script_bytes_for_profile(target, profile)
+            .map(|module| self.forge(module))
+    }
+
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: ScriptCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+        entry: &NativeCompilationEntry,
+    ) -> Result<ModuleAsm, CompileError> {
+        self.inner
+            .compile_script_bytes_with_entry(target, profile, entry)
+            .map(|module| self.forge(module))
+    }
+
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: ScriptCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+    ) -> Result<ModuleAsm, CompileError> {
+        self.count();
+        self.inner
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: ScriptCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+        entry: &NativeCompilationEntry,
+    ) -> Result<ModuleAsm, CompileError> {
+        self.count();
+        self.inner
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+    }
+
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: ProcedureCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+        dispatch: ProcedureDispatch,
+    ) -> Result<ModuleAsm, CompileError> {
+        if dispatch == ProcedureDispatch::Plain {
+            self.count();
+        }
+        self.inner
+            .compile_procedure_bytes_for_profile(target, profile, dispatch)
+            .map(|module| self.forge(module))
+    }
+
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: ProcedureCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+        entry: &NativeCompilationEntry,
+        dispatch: ProcedureDispatch,
+    ) -> Result<ModuleAsm, CompileError> {
+        if dispatch == ProcedureDispatch::Plain {
+            self.count();
+        }
+        self.inner
+            .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+            .map(|module| self.forge(module))
+    }
+
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &SourceImage,
+        profile: &'static DialectProfile,
+    ) -> Result<ScriptCommandPlan, CompileError> {
+        self.inner
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &SourceImage,
+        profile: &'static DialectProfile,
+        entry: &NativeCompilationEntry,
+    ) -> Result<ScriptCommandPlan, CompileError> {
+        self.inner
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
+
+    fn compile_failure_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+        unit: CompileUnit,
+    ) -> Option<CompileFailure> {
+        self.inner.compile_failure_for_profile(src, profile, unit)
     }
 }
 
@@ -269,17 +443,13 @@ fn facts(set: &PackSet) -> Vec<PackFactStamp> {
     set.fact_stamps(tcl_compiler::site_claims::evaluator_revision())
 }
 
-/// Compile `source` against `registry` — the pipeline a compile service runs,
-/// over a registry that carries the pack.
+/// Compile this whole-document fixture through the production service, which
+/// retains its supplied-source entry and the pack registry's overlay provenance.
 fn compile(source: &str, registry: &CommandRegistry) -> ModuleAsm {
-    let config = tcl_lexer::LexerConfig::default();
-    let ir = tcl_compiler::lowering::lower_script_module_for_bytecode(
-        source, "", registry, config, None, false,
-    );
-    let cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
-        &ir, false, registry, config,
-    );
-    tcl_compiler::codegen::codegen_module(&cfg, &ir, registry)
+    let profile = tcl9();
+    BytecodeCompileService::new(registry.project_for_profile(profile))
+        .compile_for_profile(source, profile)
+        .expect("fixture whole document compiles")
 }
 
 /// Run a setup script through the default compile service on `vm`.
@@ -321,7 +491,7 @@ fn a_workspace_stamp_is_refused_and_specialises_nothing() {
     );
     assert!(module.top_level.site_claims.is_empty());
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let plain = PlainCounting::installed_on(&mut vm);
     prepare(
         &mut vm,
@@ -381,7 +551,7 @@ fn the_vm_admits_it_through_the_alias_hop() {
     let (set, registry) = bundled("admitted", "lassign");
     let module = compile(USE, &registry);
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let plain = PlainCounting::installed_on(&mut vm);
     vm.set_pack_facts(facts(&set));
     let refused = vm.run_module(&module);
@@ -420,7 +590,7 @@ fn a_changed_pack_invalidates_the_site() {
     let (set, registry) = bundled("changed", "lassign");
     let module = compile(USE, &registry);
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let plain = PlainCounting::installed_on(&mut vm);
     prepare(
         &mut vm,
@@ -482,7 +652,7 @@ fn a_pack_fold_is_admitted_only_under_its_pack_s_facts() {
         module.top_level
     );
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let plain = PlainCounting::installed_on(&mut vm);
     let refused = vm.run_module(&module);
     assert_eq!(refused.code, Code::Ok, "{}", refused.result.to_str());
@@ -609,8 +779,9 @@ fn a_service_for_the_packs_overlay_compiles_against_the_generation_they_installe
     let refused = service
         .compile_for_profile(USE, older)
         .expect_err("no generation for 8.6 under this overlay");
+    let refused_text = refused.to_string();
     assert!(
-        refused.0.contains("tcl8.6") && refused.0.contains("not installed"),
+        refused_text.contains("tcl8.6") && refused_text.contains("not installed"),
         "{refused:?}"
     );
 }
@@ -624,7 +795,7 @@ fn a_proc_at_the_pack_name_recompiles_plain() {
     let (set, registry) = bundled("proc", "lassign");
     let module = compile(USE, &registry);
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let plain = PlainCounting::installed_on(&mut vm);
     vm.set_pack_facts(facts(&set));
     prepare(
@@ -673,9 +844,7 @@ fn tcl9() -> &'static DialectProfile {
 /// A VM pinned to the profile a packs' overlay is installed for, which is the
 /// one a service for that overlay compiles under.
 fn vm_for_overlay() -> Vm {
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(tcl9());
-    vm
+    tcl_vm::test_support::native_vm_for_profile(tcl9(), Box::new(std::io::stdout()))
 }
 
 /// The service for the packs' overlay — what the editor's queries compile
@@ -723,7 +892,7 @@ fn a_tcl_body_backed_command_is_inlined_and_admitted() {
     let module = service_for(&set)
         .compile_for_profile(CALLER, tcl9())
         .expect("compiles");
-    let caller = &module.procedures["::caller"];
+    let caller = fixture_procedure(&module, "::caller");
     assert_eq!(caller.procedure_bindings, vec![double_binding()]);
     assert_eq!(
         caller.site_claims,
@@ -779,7 +948,7 @@ fn a_host_native_backing_never_defines_a_proc() {
     let module = service_for(&native)
         .compile_for_profile(CALLER, tcl9())
         .expect("compiles");
-    let caller = &module.procedures["::caller"];
+    let caller = fixture_procedure(&module, "::caller");
     assert!(caller.procedure_bindings.is_empty());
     assert!(caller.site_claims.is_empty());
     assert!(calls_a_command(caller), "{:#?}", caller.instructions);
@@ -922,7 +1091,7 @@ fn a_package_source_body_is_read_at_load_through_the_store() {
     let module = service_for(&set)
         .compile_for_profile(CALLER, tcl9())
         .expect("compiles");
-    let caller = &module.procedures["::caller"];
+    let caller = fixture_procedure(&module, "::caller");
     assert_eq!(caller.procedure_bindings, vec![double_binding()]);
     assert!(!calls_a_command(caller));
 
@@ -944,7 +1113,7 @@ fn a_package_source_body_is_read_at_load_through_the_store() {
         .compile_for_profile(CALLER, tcl9())
         .expect("compiles");
     assert_eq!(
-        module.procedures["::caller"].procedure_bindings,
+        fixture_procedure(&module, "::caller").procedure_bindings,
         vec![ProcedureBindingIdentity::new(
             "vdouble",
             "::vdouble",
@@ -1000,7 +1169,9 @@ fn a_package_source_that_cannot_be_read_is_said_and_not_inlined() {
             .compile_for_profile(CALLER, tcl9())
             .expect("compiles");
         assert!(
-            module.procedures["::caller"].procedure_bindings.is_empty(),
+            fixture_procedure(&module, "::caller")
+                .procedure_bindings
+                .is_empty(),
             "{name}"
         );
     }
@@ -1107,7 +1278,9 @@ fn a_direct_dependencys_reference_body_is_dropped_at_load() {
         let module = service_for(&set)
             .compile_for_profile(CALLER, tcl9())
             .expect("compiles");
-        let inlined = !module.procedures["::caller"].procedure_bindings.is_empty();
+        let inlined = !fixture_procedure(&module, "::caller")
+            .procedure_bindings
+            .is_empty();
         let refusal = warnings(&set)
             .into_iter()
             .find(|message| message.contains("may not declare a reference body"));
@@ -1243,12 +1416,10 @@ impl Spliced {
     /// How many pack commands `source` compiled with a definition spliced in:
     /// the procedure bindings of the procedure `name`.
     fn bindings(&self, source: &str, name: &str) -> usize {
-        service_for(&self.set)
+        let module = service_for(&self.set)
             .compile_for_profile(source, tcl9())
-            .expect("compiles")
-            .procedures[name]
-            .procedure_bindings
-            .len()
+            .expect("compiles");
+        fixture_procedure(&module, name).procedure_bindings.len()
     }
 }
 
@@ -1570,7 +1741,7 @@ fn a_function_claims_a_splice_only_where_it_emits_it() {
             let module = service_for(&pack.set)
                 .compile_for_profile(&source, tcl9())
                 .expect("compiles");
-            let caller = &module.procedures["::caller"];
+            let caller = fixture_procedure(&module, "::caller");
             assert_eq!(
                 !caller.procedure_bindings.is_empty(),
                 !calls_a_command(caller),

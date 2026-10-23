@@ -19,9 +19,9 @@
 //! Portable `string` command logic, generic over [`ValueOps`].
 //!
 //! Each helper takes already-sliced argument values and returns
-//! `Result<O::Value, CmdError>`. All indexing is by **character** (the contract
-//! in [`tcl_syntax::value`]), so a byte-oriented runtime conforms via its
-//! `ValueOps` impl and these bodies stay correct everywhere.
+//! `Result<O::Value, CmdError>`. Physical indexed consumers select original C
+//! storage/units or Jim UTF traversal through [`NativeIndexOps`]. Neutral
+//! adapters use their independently authored lexical character model.
 //!
 //! [`dispatch`] covers the portable subcommands shared across both
 //! runtimes (`length`/`index`/`range`/`map`/`match`/`replace`/`insert`/
@@ -36,8 +36,19 @@
 //! thread last installed. `string range abcdefghijkl 010 end` is `ijkl` on
 //! tclsh 8.4.20 to 8.6.18 and `kl` from 9.0.4.
 
+mod native_c;
+pub use native_c::NativeCStringStorage;
+mod native_compiled;
+pub use native_compiled::{
+    compiled_find, compiled_index, compiled_qualifiers, compiled_range, compiled_tail,
+};
+mod native_trim;
+pub use native_trim::compiled_trim;
+
+use crate::index::NativeIndexOps;
 use tcl_dialect::TclVersion;
 use tcl_syntax::number::NumberSyntax;
+use tcl_syntax::raw_string::RawString;
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
@@ -45,25 +56,34 @@ use crate::index;
 use crate::value_size;
 
 /// `string length str` — the character count.
-pub fn length<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
-    let n = ops.char_len(s);
-    ops.new_int(i64::try_from(n).unwrap_or(i64::MAX))
+pub fn length<O: ValueOps>(ops: &mut O, s: &O::Value) -> Result<O::Value, CmdError> {
+    let n = ops.native_char_len(s)?;
+    Ok(ops.new_int(i64::try_from(n).unwrap_or(i64::MAX)))
 }
 
-/// `string bytelength str` (8.4 to 8.6) — the bytes of the string's internal
-/// form, Tcl's modified UTF-8, which spells a NUL in two and keeps every
-/// character within three (`TCL_UTF_MAX` 3 in those releases).
-pub fn bytelength<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
-    let text = ops.as_chars(s);
-    let n: usize = text
-        .chars()
+/// `string bytelength str` counts the original Tcl string representation.
+pub fn bytelength<O: ValueOps>(ops: &mut O, s: &O::Value) -> Result<O::Value, CmdError> {
+    let length = match ops.native_string_bytes(s) {
+        Ok(bytes) => bytes.len(),
+        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(_)) => {
+            modified_utf8_length(&ops.as_chars(s)?)
+        }
+        Err(error) => return Err(error.into()),
+    };
+    Ok(ops.new_int(i64::try_from(length).unwrap_or(i64::MAX)))
+}
+
+/// The bytes of `text` in Tcl's internal form, modified UTF-8, which spells a
+/// NUL in two and keeps every character within three (`TCL_UTF_MAX` 3 in
+/// 8.4 to 8.6) — `string bytelength` where no native string bytes exist.
+fn modified_utf8_length(text: &str) -> usize {
+    text.chars()
         .map(|c| match u32::from(c) {
             1..0x80 => 1,
             0 | 0x80..0x800 => 2,
             _ => 3,
         })
-        .sum();
-    ops.new_int(i64::try_from(n).unwrap_or(i64::MAX))
+        .sum()
 }
 
 /// Every subcommand `string` has in some release, in the order the `string`
@@ -168,50 +188,149 @@ pub fn select_subcommand<T: AsRef<[u8]>>(
 
 /// `string index str charIndex` — the one-character string at `idx`, or empty
 /// when out of range.
-pub fn index<O: ValueOps>(
+pub fn index<O: NativeIndexOps>(
     ops: &mut O,
     s: &O::Value,
     idx: &O::Value,
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let chars: Vec<char> = ops.as_chars(s).chars().collect();
-    let i = index::resolve_with(&ops.as_str(idx), chars.len(), numbers)?;
-    if i < 0 {
-        return Ok(ops.empty());
+    index::run_created_index_result(ops, |ops| {
+        if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+            let prepared = index::prepare_jim_indices(ops, &[idx])?;
+            let raw = RawString::from_bytes(ops.index_operand_bytes(s)?);
+            let len = ops.index_character_count(s)?;
+            let i = match prepared {
+                Some(indices) => index::resolve_jim_encoding(indices[0], len),
+                None => index::resolve_value_with(ops, idx, len, numbers)?,
+            };
+            return Ok(match usize::try_from(i) {
+                Ok(i) => ops.new_bytes(&raw.jim084_character_bytes(i, len)?),
+                Err(_) => ops.empty(),
+            });
+        }
+        if let Some(version) = ops.index_c_version() {
+            return native_c::original_index(ops, s, idx, version);
+        }
+        let chars: Vec<char> = ops.index_unicode(s)?.chars().collect();
+        let i = index::resolve_value_with(ops, idx, chars.len(), numbers)?;
+        if i < 0 {
+            return Ok(ops.empty());
+        }
+        match usize::try_from(i).ok().and_then(|i| chars.get(i)) {
+            Some(c) => Ok(ops.new_string(c.to_string())),
+            None => Ok(ops.empty()),
+        }
+    })
+}
+
+/// The completed Jim range recipe, borrowed before result-role transfer.
+pub struct NativeJimStringRangeConstruction<'a, V> {
+    original: &'a V,
+    first: &'a V,
+    last: &'a V,
+    result: &'a index::IndexResult<V>,
+}
+
+impl<V> NativeJimStringRangeConstruction<'_, V> {
+    /// The actual selected source and index operands.
+    #[must_use]
+    pub fn operands(&self) -> [&V; 3] {
+        [self.original, self.first, self.last]
     }
-    match usize::try_from(i).ok().and_then(|i| chars.get(i)) {
-        Some(c) => Ok(ops.new_string(c.to_string())),
-        None => Ok(ops.empty()),
+
+    /// The actual selected borrowed or created output.
+    #[must_use]
+    pub fn result(&self) -> &V {
+        match self.result {
+            index::IndexResult::Borrowed(value)
+            | index::IndexResult::Created(value)
+            | index::IndexResult::Detached(value)
+            | index::IndexResult::ReturnedOwnedTransport(value) => value,
+        }
     }
 }
 
 /// `string range str first last` — the inclusive character slice, clamped.
-pub fn range<O: ValueOps>(
+pub fn range<O: NativeIndexOps>(
     ops: &mut O,
     s: &O::Value,
     first: &O::Value,
     last: &O::Value,
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let chars: Vec<char> = ops.as_chars(s).chars().collect();
-    let len = chars.len();
-    let lo = index::resolve_with(&ops.as_str(first), len, numbers)?.max(0);
-    let hi = index::resolve_with(&ops.as_str(last), len, numbers)?;
-    let Ok(lo) = usize::try_from(lo) else {
-        return Ok(ops.empty());
-    };
-    if hi < 0 || lo >= len || lo > usize::try_from(hi).unwrap_or(usize::MAX) {
-        return Ok(ops.empty());
-    }
-    let hi = usize::try_from(hi).unwrap_or(usize::MAX).min(len - 1);
-    let out: String = chars[lo..=hi].iter().collect();
-    Ok(ops.new_string(out))
+    index::run_index_result_using(ops, |ops, operation| {
+        if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+            let raw = RawString::from_bytes(ops.index_operand_bytes(s)?);
+            let len = ops.index_character_count(s)?;
+            let low = index::resolve_value_with(ops, first, len, numbers)?.max(0);
+            let high = index::resolve_value_with(ops, last, len, numbers)?;
+            let result = match (usize::try_from(low), usize::try_from(high)) {
+                (Ok(0), Ok(last)) if last.saturating_add(1) >= len => {
+                    index::IndexResult::Borrowed(s.clone())
+                }
+                (Ok(first), Ok(last)) => {
+                    let (bytes, count) = raw.jim084_range_bytes(first, last, len)?;
+                    index::IndexResult::Created(if len == raw.bytes().len() {
+                        ops.new_bytes(&bytes)
+                    } else {
+                        ops.new_jim_string(&bytes, count)
+                    })
+                }
+                _ => index::IndexResult::Created(ops.empty()),
+            };
+            let recorded = ops.check_index_operation(operation).and_then(|()| {
+                ops.completed_jim_string_range(
+                    operation,
+                    &NativeJimStringRangeConstruction {
+                        original: s,
+                        first,
+                        last,
+                        result: &result,
+                    },
+                )
+            });
+            if let Err(first) = recorded {
+                ops.retain_index_failure(&first);
+                match result {
+                    index::IndexResult::Created(created)
+                    | index::IndexResult::Detached(created)
+                    | index::IndexResult::ReturnedOwnedTransport(created) => {
+                        ops.discard_owned_index_result(created);
+                    }
+                    index::IndexResult::Borrowed(borrowed) => drop(borrowed),
+                }
+                return Err(first);
+            }
+            return Ok(result);
+        }
+        if let Some(version) = ops.index_c_version() {
+            return native_c::original_range(ops, s, first, last, version)
+                .map(index::IndexResult::Created);
+        }
+        let chars: Vec<char> = ops.index_unicode(s)?.chars().collect();
+        let len = chars.len();
+        let lo = index::resolve_value_with(ops, first, len, numbers)?.max(0);
+        let hi = index::resolve_value_with(ops, last, len, numbers)?;
+        let Ok(lo) = usize::try_from(lo) else {
+            return Ok(index::IndexResult::Created(ops.empty()));
+        };
+        if hi < 0 || lo >= len || lo > usize::try_from(hi).unwrap_or(usize::MAX) {
+            return Ok(index::IndexResult::Created(ops.empty()));
+        }
+        let hi = usize::try_from(hi).unwrap_or(usize::MAX).min(len - 1);
+        let out: String = chars[lo..=hi].iter().collect();
+        Ok(index::IndexResult::Created(ops.new_string(out)))
+    })
 }
 
 /// `string reverse str`.
-pub fn reverse<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
-    let out: String = ops.as_chars(s).chars().rev().collect();
-    ops.new_string(out)
+pub fn reverse<O: ValueOps>(ops: &mut O, s: &O::Value) -> Result<O::Value, CmdError> {
+    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        let raw = RawString::from_bytes(ops.as_bytes(s)).jim084_reversed();
+        return Ok(ops.new_bytes(&raw.bytes()));
+    }
+    let out: String = ops.try_as_str(s)?.chars().rev().collect();
+    Ok(ops.new_string(out))
 }
 
 /// `string repeat str count` — `count` (clamped at 0) copies, with the result
@@ -239,15 +358,52 @@ pub fn repeat<O: ValueOps>(
     s: &O::Value,
     count: &O::Value,
 ) -> Result<O::Value, CmdError> {
-    let n = ops.as_int(count)?;
-    // One copy is the value itself (`StringReptCmd`).
-    if n == 1 {
-        return Ok(s.clone());
-    }
+    let count = prepare_repeat_count(ops, count)?;
+    repeat_with_count(ops, s, count)
+}
+
+/// Convert a repeat count using the selected native operand grammar.
+///
+/// Hosts with allocation limits can retain this result, charge the actual
+/// source byte length times its nonnegative count, then call
+/// [`repeat_with_count`] without evaluating or coercing the operand again.
+pub fn prepare_repeat_count<O: ValueOps>(ops: &mut O, count: &O::Value) -> Result<i64, CmdError> {
+    // Jim_GetWideExpr is shared with increment's amount conversion. Its safe
+    // expression phase cannot dispatch public commands or read variables.
+    let n = if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        use tcl_syntax::value::{IntegerOperandError, IntegerOperandGrammar};
+        let value = match IntegerOperandGrammar::SafeIntegerExpression.prepare(ops, count) {
+            Ok(value) => value,
+            Err(IntegerOperandError::Integer(error)) => return Err(error.into()),
+            Err(error @ IntegerOperandError::SafeExpression) => {
+                return Err(CmdError::new_bytes(
+                    error
+                        .safe_expression_message_bytes(&ops.as_bytes(count))
+                        .expect("safe expression failure has its authored byte message"),
+                ));
+            }
+        };
+        ops.pin_value(&value);
+        let integer = ops.as_int(&value);
+        ops.unpin_value(&value);
+        integer?
+    } else {
+        ops.as_int(count)?
+    };
+    Ok(n)
+}
+
+/// Build a repeated string from a count already converted by
+/// [`prepare_repeat_count`]. Source bytes are copied without Unicode projection.
+pub fn repeat_with_count<O: ValueOps>(
+    ops: &mut O,
+    s: &O::Value,
+    n: i64,
+) -> Result<O::Value, CmdError> {
     if n <= 0 {
         return Ok(ops.empty());
     }
-    let src = ops.as_str(s);
+    let src = ops.as_bytes(s);
     let len = i64::try_from(src.len()).unwrap_or(i64::MAX);
     if len == 0 {
         return Ok(ops.empty());
@@ -275,14 +431,13 @@ pub fn repeat<O: ValueOps>(
     // recover from (the unbounded `str::repeat` this replaces aborted the
     // process with `memory allocation of 200000000000 bytes failed`).
     let capacity = usize::try_from(total).map_err(|_| overflow())?;
-    value_size::charge(ops, |_, _| capacity as u64)?;
-    let mut out = String::new();
+    let mut out = Vec::new();
     out.try_reserve_exact(capacity).map_err(|_| overflow())?;
     let n = usize::try_from(n).unwrap_or(0);
     for _ in 0..n {
-        out.push_str(&src);
+        out.extend_from_slice(&src);
     }
-    Ok(ops.new_string(out))
+    Ok(ops.new_bytes(&out))
 }
 
 /// The result form of [`compare`].
@@ -309,6 +464,9 @@ pub fn compare<O: ValueOps>(
         CompareMode::Compare => "compare",
     };
     let usage = format!("string {name} ?-nocase? ?-length int? string1 string2");
+    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        return jim_compare(ops, args, mode, &usage);
+    }
     if !(2..=5).contains(&args.len()) {
         return Err(CmdError::wrong_args(&usage));
     }
@@ -328,7 +486,7 @@ pub fn compare<O: ValueOps>(
     let mut i = 0;
     let option_end = args.len() - 2;
     while i < option_end {
-        let option = ops.as_str(&args[i]);
+        let option = ops.try_as_str(&args[i])?;
         if option.len() > 1 && "-nocase".starts_with(&*option) {
             nocase = true;
             i += 1;
@@ -345,17 +503,69 @@ pub fn compare<O: ValueOps>(
         }
     }
 
-    let key = |ops: &mut O, value: &O::Value| {
-        let mut chars: Vec<char> = ops.as_str(value).chars().collect();
+    let key = |ops: &mut O, value: &O::Value| -> Result<Vec<char>, CmdError> {
+        let mut chars: Vec<char> = ops.try_as_str(value)?.chars().collect();
         if nocase {
             chars = chars.iter().flat_map(|c| c.to_lowercase()).collect();
         }
         if let Some(n) = length {
             chars.truncate(n);
         }
-        chars
+        Ok(chars)
     };
-    let ordering = key(ops, &args[i]).cmp(&key(ops, &args[i + 1]));
+    let ordering = key(ops, &args[i])?.cmp(&key(ops, &args[i + 1])?);
+    Ok(match mode {
+        CompareMode::Equal => ops.new_bool(ordering.is_eq()),
+        CompareMode::Compare => ops.new_int(match ordering {
+            core::cmp::Ordering::Less => -1,
+            core::cmp::Ordering::Equal => 0,
+            core::cmp::Ordering::Greater => 1,
+        }),
+    })
+}
+
+fn jim_compare<O: ValueOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    mode: CompareMode,
+    usage: &str,
+) -> Result<O::Value, CmdError> {
+    if args.len() < 2 {
+        return Err(CmdError::wrong_args(usage));
+    }
+    let option_end = args.len() - 2;
+    let mut i = 0;
+    let mut nocase = false;
+    let mut length = None;
+    while i < option_end {
+        let option = ops.as_bytes(&args[i]);
+        if option.len() > 1 && b"-nocase".starts_with(&option) {
+            nocase = true;
+            i += 1;
+        } else if option.len() > 1 && b"-length".starts_with(&option) && i + 1 < option_end {
+            length = usize::try_from(ops.as_int(&args[i + 1])?).ok();
+            i += 2;
+        } else {
+            return Err(CmdError::wrong_args(usage));
+        }
+    }
+    let left = ops.as_bytes(&args[i]);
+    let right = ops.as_bytes(&args[i + 1]);
+    if matches!(mode, CompareMode::Equal) && !nocase && length.is_none() {
+        return Ok(ops.new_bool(left == right));
+    }
+    let mut left_count = ops.native_char_len(&args[i])?;
+    let mut right_count = ops.native_char_len(&args[i + 1])?;
+    if let Some(limit) = length {
+        left_count = left_count.min(limit);
+        right_count = right_count.min(limit);
+    }
+    let ordering = RawString::from_bytes(left).jim084_compare(
+        left_count,
+        &RawString::from_bytes(right),
+        right_count,
+        nocase,
+    )?;
     Ok(match mode {
         CompareMode::Equal => ops.new_bool(ordering.is_eq()),
         CompareMode::Compare => ops.new_int(match ordering {
@@ -380,55 +590,71 @@ pub enum CaseMode {
 /// `string toupper`/`tolower`/`totitle string ?first? ?last?` — convert the case
 /// of the characters in `[first, last]` (default the whole string; with only
 /// `first`, that single character), leaving the rest unchanged.
-pub fn case_convert<O: ValueOps>(
+pub fn case_convert<O: NativeIndexOps>(
     ops: &mut O,
     args: &[O::Value],
     mode: CaseMode,
     usage: &str,
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let (s, first_spec, last_spec) = match args {
-        [s] => (s, None, None),
-        [s, f] => (s, Some(f), None),
-        [s, f, l] => (s, Some(f), Some(l)),
-        _ => return Err(CmdError::wrong_args(usage)),
-    };
-    let chars: Vec<char> = ops.as_str(s).chars().collect();
-    let len = chars.len();
-    if len == 0 {
-        return Ok(ops.empty());
-    }
-    let first = match first_spec {
-        None => 0,
-        Some(f) => index::resolve_with(&ops.as_str(f), len, numbers)?.max(0),
-    };
-    let last = match last_spec {
-        Some(l) => index::resolve_with(&ops.as_str(l), len, numbers)?,
-        None if first_spec.is_some() => first,
-        None => i64::try_from(len).unwrap_or(i64::MAX) - 1,
-    };
-    let mut out = String::new();
-    for (idx, &c) in chars.iter().enumerate() {
-        let i = i64::try_from(idx).unwrap_or(i64::MAX);
-        if i < first || i > last {
-            out.push(c);
-            continue;
+    index::run_created_index_result(ops, |ops| {
+        if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+            use tcl_syntax::raw_string::JimCaseMapping;
+            let (mapping, usage) = match mode {
+                CaseMode::Upper => (JimCaseMapping::Upper, "string toupper string"),
+                CaseMode::Lower => (JimCaseMapping::Lower, "string tolower string"),
+                CaseMode::Title => (JimCaseMapping::Title, "string totitle string"),
+            };
+            let [value] = args else {
+                return Err(CmdError::wrong_args(usage));
+            };
+            let mapped =
+                RawString::from_bytes(ops.index_operand_bytes(value)?).jim084_case_mapped(mapping);
+            return Ok(ops.new_bytes(&mapped.bytes()));
         }
-        // Per-character *simple* mapping throughout ([`simple_upper`] &co), the
-        // way C's `Tcl_UtfTo{Upper,Lower,Title}` do it: `string toupper ß` is
-        // `ß`, not `SS`. `string totitle`'s first character uses the Unicode
-        // *titlecase* mapping (`Tcl_UniCharToTitle`), which differs from
-        // uppercase only for the Latin DŽ/LJ/NJ/DZ digraphs (string-17.7), and
-        // its remaining characters go through `Tcl_UtfToTitle`'s
-        // lowercase-with-Georgian-exception rule.
-        out.push(match mode {
-            CaseMode::Upper => simple_upper(c),
-            CaseMode::Lower => simple_lower(c),
-            CaseMode::Title if i == first => simple_title(c),
-            CaseMode::Title => simple_title_rest(c),
-        });
-    }
-    Ok(ops.new_string(out))
+        let (s, first_spec, last_spec) = match args {
+            [s] => (s, None, None),
+            [s, f] => (s, Some(f), None),
+            [s, f, l] => (s, Some(f), Some(l)),
+            _ => return Err(CmdError::wrong_args(usage)),
+        };
+        let chars: Vec<char> = ops.index_unicode(s)?.chars().collect();
+        let len = chars.len();
+        if len == 0 {
+            return Ok(ops.empty());
+        }
+        let first = match first_spec {
+            None => 0,
+            Some(f) => index::resolve_value_with(ops, f, len, numbers)?.max(0),
+        };
+        let last = match last_spec {
+            Some(l) => index::resolve_value_with(ops, l, len, numbers)?,
+            None if first_spec.is_some() => first,
+            None => i64::try_from(len).unwrap_or(i64::MAX) - 1,
+        };
+        let mut out = String::new();
+        for (idx, &c) in chars.iter().enumerate() {
+            let i = i64::try_from(idx).unwrap_or(i64::MAX);
+            if i < first || i > last {
+                out.push(c);
+                continue;
+            }
+            // Per-character *simple* mapping throughout ([`simple_upper`] &co), the
+            // way C's `Tcl_UtfTo{Upper,Lower,Title}` do it: `string toupper ß` is
+            // `ß`, not `SS`. `string totitle`'s first character uses the Unicode
+            // *titlecase* mapping (`Tcl_UniCharToTitle`), which differs from
+            // uppercase only for the Latin DŽ/LJ/NJ/DZ digraphs (string-17.7), and
+            // its remaining characters go through `Tcl_UtfToTitle`'s
+            // lowercase-with-Georgian-exception rule.
+            out.push(match mode {
+                CaseMode::Upper => simple_upper(c),
+                CaseMode::Lower => simple_lower(c),
+                CaseMode::Title if i == first => simple_title(c),
+                CaseMode::Title => simple_title_rest(c),
+            });
+        }
+        Ok(ops.new_string(out))
+    })
 }
 
 /// C's `Tcl_UtfTo{Upper,Lower,Title}` length guard: the mapped character
@@ -582,82 +808,359 @@ fn titlecase_digraph(c: char) -> Option<char> {
     })
 }
 
+/// Jim's counted `string replace` over its original UTF-8 representation.
+fn replace_jim<O: NativeIndexOps>(
+    ops: &mut O,
+    args: &[O::Value],
+) -> Result<index::IndexResult<O::Value>, CmdError> {
+    // naming.string.original-counted-replacement-and-index-stages:
+    // the original count precedes both original indices, including
+    // when the subject itself is one of those Index headers.
+    let len = ops.index_character_count(&args[0])?;
+    let first = index::resolve_value(ops, &args[1], len)?.max(0);
+    let last =
+        index::resolve_value(ops, &args[2], len)?.min(i64::try_from(len).unwrap_or(i64::MAX) - 1);
+    if last < first {
+        return Ok(index::IndexResult::Borrowed(args[0].clone()));
+    }
+    let first = usize::try_from(first).map_err(|_| {
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original Jim replacement prefix extent",
+        )
+    })?;
+    let last = usize::try_from(last).map_err(|_| {
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original Jim replacement after-part extent",
+        )
+    })?;
+    let raw = RawString::from_bytes(ops.index_operand_bytes(&args[0])?);
+    let (mut bytes, after) = raw.jim084_replacement_parts(first, last, len)?;
+    let mut count = first;
+    if let Some(replacement) = args.get(3) {
+        let replacement = ops.index_operand_bytes(replacement)?;
+        count += RawString::from_bytes(std::rc::Rc::clone(&replacement))
+            .jim084_characters()
+            .count();
+        bytes.extend_from_slice(&replacement);
+    }
+    count += RawString::from_bytes(after.as_slice())
+        .jim084_characters()
+        .count();
+    bytes.extend_from_slice(&after);
+    Ok(index::IndexResult::Created(
+        ops.new_jim_string(&bytes, count),
+    ))
+}
+
+/// C's `string replace` through the selected release's original producer.
+fn replace_c<O: NativeIndexOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    version: tcl_dialect::TclVersion,
+) -> Result<index::IndexResult<O::Value>, CmdError> {
+    // naming.string.original-counted-replacement-and-index-stages
+
+    // C84–86 reach original Unicode first. C9 reaches CharLength first
+    // and defers Unicode until a range is actually replaced.
+    let initial_units = if version < tcl_dialect::TclVersion::V9_0 {
+        Some(ops.index_c_unicode_units(&args[0])?)
+    } else {
+        None
+    };
+    let len = match &initial_units {
+        Some(units) => units.len(),
+        None => ops.index_character_count(&args[0])?,
+    };
+    let end = i64::try_from(len).map_err(|_| {
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original C replacement character width",
+        )
+    })? - 1;
+    let first = index::resolve_value(ops, &args[1], len)?;
+    let last = index::resolve_value(ops, &args[2], len)?;
+    if last < 0 || first > end || last < first {
+        return Ok(index::IndexResult::Borrowed(args[0].clone()));
+    }
+    if version >= tcl_dialect::TclVersion::V9_0 {
+        let first = usize::try_from(first.max(0)).map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original C replacement prefix extent",
+            )
+        })?;
+        let after = usize::try_from(last.min(end).saturating_add(1)).map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original C replacement suffix extent",
+            )
+        })?;
+        return replace_c_parsed_range_result(
+            ops,
+            &args[0],
+            first,
+            after - first,
+            args.get(3),
+            true,
+        );
+    }
+    let units = if version == tcl_dialect::TclVersion::V8_4 {
+        let units = initial_units.expect("reached original C84 Unicode");
+        let snapshot = ops.native_object_snapshot(&args[0])?;
+        if !matches!(snapshot.cache, tcl_syntax::native_object::NativeObjectCacheSnapshot::String {
+            protocol: tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4),
+            unicode: Some(ref cached), ..
+        } if std::rc::Rc::ptr_eq(cached, &units))
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "retired original C84 replacement Unicode backing",
+            )
+            .into());
+        }
+        units
+    } else {
+        ops.index_c_unicode_units(&args[0])?
+    };
+    let first = usize::try_from(first.max(0)).map_err(|_| {
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original C replacement prefix extent",
+        )
+    })?;
+    let after = usize::try_from(last.saturating_add(1))
+        .unwrap_or(usize::MAX)
+        .min(units.len());
+    let prefix =
+        units
+            .get(..first)
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "retired original C replacement prefix extent",
+            ))?;
+    let result = ops.index_c_unicode_result(prefix.into(), version)?;
+    let reached = (|| -> Result<(), CmdError> {
+        if let Some(replacement) = args.get(3) {
+            ops.index_c_append_object(&result, replacement)?;
+        }
+        if after < units.len() {
+            ops.index_c_append_unicode(&result, &units[after..])?;
+        }
+        Ok(())
+    })();
+    if let Err(first) = reached {
+        ops.discard_owned_index_result(result);
+        return Err(first);
+    }
+    Ok(index::IndexResult::Created(result))
+}
+
 /// `string replace string first last ?newstring?` — remove the characters in
 /// `[first, last]` (inclusive), optionally inserting `newstring`. An empty or
 /// inverted range leaves the string unchanged.
-pub fn replace<O: ValueOps>(
+pub fn replace<O: NativeIndexOps>(
     ops: &mut O,
     args: &[O::Value],
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    if args.len() < 3 || args.len() > 4 {
-        return Err(CmdError::wrong_args(
-            "string replace string first last ?string?",
-        ));
+    index::run_index_result(ops, |ops| {
+        if args.len() < 3 || args.len() > 4 {
+            return Err(CmdError::wrong_args(
+                "string replace string first last ?string?",
+            ));
+        }
+        if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+            return replace_jim(ops, args);
+        }
+        if let Some(version) = ops.index_c_version() {
+            return replace_c(ops, args, version);
+        }
+        let chars: Vec<char> = ops.index_unicode(&args[0])?.chars().collect();
+        let len = chars.len();
+        let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
+        let first = index::resolve_value_with(ops, &args[1], len, numbers)?;
+        let last = index::resolve_value_with(ops, &args[2], len, numbers)?;
+        if last < 0 || first > end || last < first {
+            return Ok(index::IndexResult::Borrowed(args[0].clone()));
+        }
+        let first = first.max(0);
+        let last = last.min(end);
+        let lo = usize::try_from(first).unwrap_or(0);
+        let hi_excl = usize::try_from(last + 1).unwrap_or(0).min(len);
+        let mut out: String = chars[..lo].iter().collect();
+        if args.len() == 4 {
+            out.push_str(&ops.index_unicode(&args[3])?);
+        }
+        out.extend(chars[hi_excl..].iter());
+        Ok(index::IndexResult::Created(ops.new_string(out)))
+    })
+}
+
+/// Replace an already parsed, bounded range through the original C9 producer.
+/// The caller supplies the actual in-place flag; original native sharing decides
+/// whether equal-sized binary replacement can reuse the subject header. This
+/// entry supplies neither an index-parser result nor an entered `EvalObjv` role.
+///
+/// # Errors
+/// A missing actual C9 producer, invalid reached range, original storage failure,
+/// or the complete first Host refusal. Nonempty NULL-source binary allocation
+/// is unavailable because its initial native payload is unspecified.
+pub fn replace_c_parsed_range<O: NativeIndexOps>(
+    ops: &mut O,
+    subject: &O::Value,
+    first: usize,
+    count: usize,
+    replacement: Option<&O::Value>,
+    in_place: bool,
+) -> Result<O::Value, CmdError> {
+    index::run_index_result(ops, |ops| {
+        replace_c_parsed_range_result(ops, subject, first, count, replacement, in_place)
+    })
+}
+
+fn replace_c_parsed_range_result<O: NativeIndexOps>(
+    ops: &mut O,
+    subject: &O::Value,
+    first: usize,
+    count: usize,
+    replacement: Option<&O::Value>,
+    in_place: bool,
+) -> Result<index::IndexResult<O::Value>, CmdError> {
+    use tcl_syntax::value::ValueError;
+    let version = ops
+        .index_c_version()
+        .filter(|version| *version >= tcl_dialect::TclVersion::V9_0)
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "original C9 parsed replacement producer",
+        ))?;
+    if replacement.is_none() && count == 0 {
+        if in_place {
+            return Ok(index::IndexResult::Borrowed(subject.clone()));
+        }
+        return ops
+            .index_c_duplicate_original(subject)
+            .map(index::IndexResult::Created);
     }
-    let chars: Vec<char> = ops.as_chars(&args[0]).chars().collect();
-    let len = chars.len();
-    let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
-    let first = index::resolve_with(&ops.as_str(&args[1]), len, numbers)?;
-    let last = index::resolve_with(&ops.as_str(&args[2]), len, numbers)?;
-    // A range outside the string leaves the value itself (`StringRplcCmd`).
-    if last < 0 || first > end || last < first {
-        return Ok(args[0].clone());
+    let after = first
+        .checked_add(count)
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "original C replacement range width",
+        ))?;
+    if let Some(bytes) = ops.index_c_pure_binary(subject)? {
+        let prefix = bytes
+            .get(..first)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original C binary prefix extent",
+            ))?;
+        let suffix = bytes
+            .get(after..)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original C binary suffix extent",
+            ))?;
+        if let Some(replacement) = replacement {
+            // naming.string.original-binary-replacement-direct-helper-sharing
+
+            // Whole replacement returns the exact insertPtr before its getter.
+            if first == 0 && after == bytes.len() {
+                return Ok(index::IndexResult::Borrowed(replacement.clone()));
+            }
+            if let Some(insert) = ops.index_c_pure_binary(replacement)? {
+                let capacity = prefix
+                    .len()
+                    .checked_add(insert.len())
+                    .and_then(|length| length.checked_add(suffix.len()))
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original C binary result width",
+                    ))?;
+                let mut result = Vec::with_capacity(capacity);
+                result.extend_from_slice(prefix);
+                result.extend_from_slice(&insert);
+                result.extend_from_slice(suffix);
+                if count == insert.len() && in_place && !ops.index_c_original_is_shared(subject)? {
+                    ops.index_c_binary_splice(subject, result.into())?;
+                    return Ok(index::IndexResult::Borrowed(subject.clone()));
+                }
+                return Ok(index::IndexResult::Created(
+                    ops.index_c_binary_result(result.into())?,
+                ));
+            }
+        } else {
+            if !prefix.is_empty() || !suffix.is_empty() {
+                // naming.string.original-binary-replacement-sharing-and-result-roles
+
+                // Nonzero NULL-source constructor storage is not initialised.
+                // No recorded allocator bytes authenticate a deterministic producer.
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "uninitialised original C binary replacement constructor",
+                )
+                .into());
+            }
+            return Ok(index::IndexResult::Created(
+                ops.index_c_binary_result(std::rc::Rc::from([]))?,
+            ));
+        }
     }
-    let first = first.max(0);
-    let last = last.min(end);
-    let lo = usize::try_from(first).unwrap_or(0);
-    let hi_excl = usize::try_from(last + 1).unwrap_or(0).min(len);
-    let mut out: String = chars[..lo].iter().collect();
-    if args.len() == 4 {
-        out.push_str(&ops.as_str(&args[3]));
+    let units = ops.index_c_unicode_units(subject)?;
+    let prefix = units
+        .get(..first)
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "original C Unicode prefix extent",
+        ))?;
+    let suffix = units
+        .get(after..)
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "original C Unicode suffix extent",
+        ))?;
+    let result = ops.index_c_unicode_result(prefix.into(), version)?;
+    let reached = (|| -> Result<(), CmdError> {
+        if let Some(replacement) = replacement {
+            ops.index_c_append_object(&result, replacement)?;
+        }
+        if !suffix.is_empty() {
+            ops.index_c_append_unicode(&result, suffix)?;
+        }
+        Ok(())
+    })();
+    if let Err(first) = reached {
+        ops.discard_owned_index_result(result);
+        return Err(first);
     }
-    out.extend(chars[hi_excl..].iter());
-    Ok(ops.new_string(out))
+    Ok(index::IndexResult::Created(result))
 }
 
 /// `string insert string index insertString` — insert `insertString` before the
 /// character at `index`. `end` denotes the position *after* the last character
 /// (so it appends); the index resolves against `len + 1`.
-pub fn insert<O: ValueOps>(
+pub fn insert<O: NativeIndexOps>(
     ops: &mut O,
     args: &[O::Value],
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let [s, idx, ins] = args else {
-        return Err(CmdError::wrong_args(
-            "string insert string index insertString",
-        ));
-    };
-    let chars: Vec<char> = ops.as_str(s).chars().collect();
-    let len = chars.len();
-    let at = index::resolve_with(&ops.as_str(idx), len + 1, numbers)?;
-    let at = if at < 0 {
-        0
-    } else {
-        usize::try_from(at).unwrap_or(len).min(len)
-    };
-    let mut out: String = chars[..at].iter().collect();
-    out.push_str(&ops.as_str(ins));
-    out.extend(chars[at..].iter());
-    Ok(ops.new_string(out))
+    index::run_created_index_result(ops, |ops| {
+        let [s, idx, ins] = args else {
+            return Err(CmdError::wrong_args(
+                "string insert string index insertString",
+            ));
+        };
+        let chars: Vec<char> = ops.index_unicode(s)?.chars().collect();
+        let len = chars.len();
+        let at = index::resolve_value_with(ops, idx, len + 1, numbers)?;
+        let at = if at < 0 {
+            0
+        } else {
+            usize::try_from(at).unwrap_or(len).min(len)
+        };
+        let mut out: String = chars[..at].iter().collect();
+        out.push_str(&ops.index_unicode(ins)?);
+        out.extend(chars[at..].iter());
+        Ok(ops.new_string(out))
+    })
 }
 
 /// `string cat ?arg ...?` — concatenate the string reps of all arguments.
-///
-/// # Errors
-/// The value-size limit, when the concatenation would be over it.
 pub fn cat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
-    // One word is the value itself (`StringCatCmd`).
-    if let [only] = args {
-        return Ok(only.clone());
+    if let Some(original) = ops.native_jim_string_cat(args)? {
+        return Ok(original);
     }
-    value_size::charge(ops, |ops, cap| value_size::joined(ops, args, 0, cap))?;
-    let mut out = String::new();
-    for a in args {
-        out.push_str(&ops.as_str(a));
+    let mut output = Vec::new();
+    for value in args {
+        output.extend_from_slice(&ops.native_string_bytes(value)?);
     }
-    Ok(ops.new_string(out))
+    Ok(ops.new_bytes(&output))
 }
 
 /// The default `string trim` set — every Unicode space character plus NUL
@@ -684,9 +1187,47 @@ pub fn trim<O: ValueOps>(
     chars: Option<&O::Value>,
     left: bool,
     right: bool,
-) -> O::Value {
-    let string = ops.as_str(s).to_string();
-    let custom: Option<Vec<char>> = chars.map(|c| ops.as_str(c).chars().collect());
+) -> Result<O::Value, CmdError> {
+    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        let characters = if left {
+            None
+        } else {
+            chars
+                .map(|value| ops.native_string_bytes(value))
+                .transpose()?
+        };
+        let string = tcl_syntax::raw_string::RawString::from_bytes(ops.native_string_bytes(s)?);
+        let characters = if left {
+            chars
+                .map(|value| ops.native_string_bytes(value))
+                .transpose()?
+        } else {
+            characters
+        };
+        let characters = tcl_syntax::raw_string::RawString::from_bytes(
+            characters.unwrap_or_else(|| std::rc::Rc::from(&b" \t\n\r\0"[..])),
+        );
+        let plan = string.jim084_trim_plan(&characters, left, right);
+        return Ok(ops.jim_string_trim_result(s, plan));
+    }
+    let version = match ops.string_character_model() {
+        Some(tcl_dialect::StringCharacterModel::BmpCharsElseUtf8Bytes) => {
+            Some(tcl_dialect::TclVersion::V8_4)
+        }
+        Some(tcl_dialect::StringCharacterModel::Utf16CodeUnits) => {
+            Some(tcl_dialect::TclVersion::V8_6)
+        }
+        Some(tcl_dialect::StringCharacterModel::UnicodeScalars) => {
+            Some(tcl_dialect::TclVersion::V9_0)
+        }
+        _ => None,
+    };
+    if let Some(version) = version {
+        return native_trim::command_trim(ops, s, chars, version, left, right);
+    }
+    let string = ops.try_as_str(s)?.to_string();
+    let custom = chars.map(|c| ops.try_as_str(c)).transpose()?;
+    let custom: Option<Vec<char>> = custom.map(|c| c.chars().collect());
     let pred = |c: char| match &custom {
         Some(set) => set.contains(&c),
         None => DEFAULT_TRIM_SET.contains(&c),
@@ -697,87 +1238,149 @@ pub fn trim<O: ValueOps>(
         (false, true) => string.trim_end_matches(pred),
         (false, false) => string.as_str(),
     };
-    ops.new_string(trimmed.to_string())
+    Ok(ops.new_string(trimmed.to_string()))
 }
 
 /// `string first needleString haystackString ?startIndex?` — the character index
 /// of the first occurrence of `needle` at or after `start` (default 0), or -1.
-pub fn first<O: ValueOps>(
+pub fn first<O: NativeIndexOps>(
     ops: &mut O,
     needle: &O::Value,
     haystack: &O::Value,
     start: Option<&O::Value>,
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let hay: Vec<char> = ops.as_chars(haystack).chars().collect();
-    let needle: Vec<char> = ops.as_chars(needle).chars().collect();
-    let start = match start {
-        None => 0,
-        Some(s) => usize::try_from(index::resolve_with(&ops.as_str(s), hay.len(), numbers)?.max(0))
-            .unwrap_or(0),
-    };
-    if needle.is_empty() {
-        return Ok(ops.new_int(-1));
-    }
-    let mut idx: i64 = -1;
-    if needle.len() <= hay.len() {
-        for i in start..=hay.len() - needle.len() {
-            if hay[i..i + needle.len()] == needle[..] {
-                idx = i64::try_from(i).unwrap_or(i64::MAX);
-                break;
+    index::run_created_index_result(ops, |ops| {
+        if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+            let needle_count = ops.index_character_count(needle)?;
+            let count = ops.index_character_count(haystack)?;
+            let start = start
+                .map(|value| index::resolve_value_with(ops, value, count, numbers))
+                .transpose()?
+                .unwrap_or(0)
+                .max(0);
+            let found = RawString::from_bytes(ops.index_operand_bytes(haystack)?).jim084_first(
+                count,
+                &RawString::from_bytes(ops.index_operand_bytes(needle)?),
+                needle_count,
+                usize::try_from(start).unwrap_or(usize::MAX),
+            )?;
+            return Ok(
+                ops.new_int(found.map_or(-1, |index| i64::try_from(index).unwrap_or(i64::MAX)))
+            );
+        }
+        let hay: Vec<char> = ops.index_unicode(haystack)?.chars().collect();
+        let needle: Vec<char> = ops.index_unicode(needle)?.chars().collect();
+        let start = match start {
+            None => 0,
+            Some(s) => {
+                usize::try_from(index::resolve_value_with(ops, s, hay.len(), numbers)?.max(0))
+                    .unwrap_or(0)
+            }
+        };
+        if needle.is_empty() {
+            return Ok(ops.new_int(-1));
+        }
+        let mut idx: i64 = -1;
+        if needle.len() <= hay.len() {
+            for i in start..=hay.len() - needle.len() {
+                if hay[i..i + needle.len()] == needle[..] {
+                    idx = i64::try_from(i).unwrap_or(i64::MAX);
+                    break;
+                }
             }
         }
-    }
-    Ok(ops.new_int(idx))
+        Ok(ops.new_int(idx))
+    })
 }
 
 /// `string last needleString haystackString ?lastIndex?` — the character index of
 /// the last occurrence ending at or before `lastIndex` (default end), or -1.
-pub fn last<O: ValueOps>(
+pub fn last<O: NativeIndexOps>(
     ops: &mut O,
     needle: &O::Value,
     haystack: &O::Value,
     last_index: Option<&O::Value>,
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let hay: Vec<char> = ops.as_chars(haystack).chars().collect();
-    let needle: Vec<char> = ops.as_chars(needle).chars().collect();
-    let last: i64 = match last_index {
-        None => i64::try_from(hay.len()).unwrap_or(i64::MAX) - 1,
-        Some(s) => index::resolve_with(&ops.as_str(s), hay.len(), numbers)?,
-    };
-    // An empty haystack can hold no non-empty needle — return -1 before the
-    // clamp below, whose `saturating_sub(1)` would otherwise yield index 0 and
-    // panic when the search slices `hay[0..needle.len()]` (e.g.
-    // `string last a {} 0`).
-    if needle.is_empty() || last < 0 || hay.is_empty() {
-        return Ok(ops.new_int(-1));
-    }
-    let last = usize::try_from(last)
-        .unwrap_or(0)
-        .min(hay.len().saturating_sub(1));
-    let mut idx: i64 = -1;
-    // `needle.len() <= hay.len()` guards the `hay[i..i + needle.len()]` slice:
-    // without it, an empty (or too-short) haystack with an explicit index
-    // (`string last a "" 0`) drives `last` to 0, passes `last + 1 >= needle`,
-    // and slices past the end. `string first` has the same guard.
-    if needle.len() <= hay.len() && last + 1 >= needle.len() {
-        let hi = last + 1 - needle.len();
-        for i in (0..=hi).rev() {
-            if hay[i..i + needle.len()] == needle[..] {
-                idx = i64::try_from(i).unwrap_or(i64::MAX);
-                break;
+    index::run_created_index_result(ops, |ops| {
+        if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+            let needle_count = ops.index_character_count(needle)?;
+            let count = ops.index_character_count(haystack)?;
+            let prefix = last_index
+                .map(|value| index::resolve_value_with(ops, value, count, numbers))
+                .transpose()?
+                .unwrap_or_else(|| i64::try_from(count).unwrap_or(i64::MAX))
+                .max(0);
+            let found = RawString::from_bytes(ops.index_operand_bytes(haystack)?).jim084_last(
+                usize::try_from(prefix).unwrap_or(usize::MAX),
+                &RawString::from_bytes(ops.index_operand_bytes(needle)?),
+                needle_count,
+            )?;
+            return Ok(
+                ops.new_int(found.map_or(-1, |index| i64::try_from(index).unwrap_or(i64::MAX)))
+            );
+        }
+        let hay: Vec<char> = ops.index_unicode(haystack)?.chars().collect();
+        let needle: Vec<char> = ops.index_unicode(needle)?.chars().collect();
+        let last: i64 = match last_index {
+            None => i64::try_from(hay.len()).unwrap_or(i64::MAX) - 1,
+            Some(s) => index::resolve_value_with(ops, s, hay.len(), numbers)?,
+        };
+        // An empty haystack can hold no non-empty needle — return -1 before the
+        // clamp below, whose `saturating_sub(1)` would otherwise yield index 0 and
+        // panic when the search slices `hay[0..needle.len()]` (e.g.
+        // `string last a {} 0`).
+        if needle.is_empty() || last < 0 || hay.is_empty() {
+            return Ok(ops.new_int(-1));
+        }
+        let last = usize::try_from(last)
+            .unwrap_or(0)
+            .min(hay.len().saturating_sub(1));
+        let mut idx: i64 = -1;
+        // `needle.len() <= hay.len()` guards the `hay[i..i + needle.len()]` slice:
+        // without it, an empty (or too-short) haystack with an explicit index
+        // (`string last a "" 0`) drives `last` to 0, passes `last + 1 >= needle`,
+        // and slices past the end. `string first` has the same guard.
+        if needle.len() <= hay.len() && last + 1 >= needle.len() {
+            let hi = last + 1 - needle.len();
+            for i in (0..=hi).rev() {
+                if hay[i..i + needle.len()] == needle[..] {
+                    idx = i64::try_from(i).unwrap_or(i64::MAX);
+                    break;
+                }
             }
         }
-    }
-    Ok(ops.new_int(idx))
+        Ok(ops.new_int(idx))
+    })
 }
 
 /// `string match ?-nocase? pattern string` — glob match, returning a boolean.
 pub fn string_match<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        let (nocase, pattern, subject) = match args {
+            [pattern, subject] => (false, pattern, subject),
+            [option, pattern, subject]
+                if {
+                    let option = ops.as_bytes(option);
+                    option.len() >= 2 && b"-nocase".starts_with(&option)
+                } =>
+            {
+                (true, pattern, subject)
+            }
+            _ => {
+                return Err(CmdError::wrong_args(
+                    "string match ?-nocase? pattern string",
+                ));
+            }
+        };
+        let matched = RawString::from_bytes(ops.as_bytes(subject))
+            .jim084_matches(&RawString::from_bytes(ops.as_bytes(pattern)), nocase)?;
+        return Ok(ops.new_bool(matched));
+    }
     let (nocase, pat, s) = match args {
         [p, s] => (false, p, s),
-        [opt, p, s] if is_nocase(&ops.as_str(opt)) => (true, p, s),
+        [opt, p, s] if is_nocase(&ops.try_as_str(opt)?) => (true, p, s),
         // Three arguments whose first is not `-nocase` is a bad option, not a
         // wrong count (C's `StringMatchCmd`): `string match -bogus a b` and
         // `string match -- a a` both report `bad option "…": must be -nocase`
@@ -785,7 +1388,7 @@ pub fn string_match<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Va
         [opt, _, _] => {
             return Err(CmdError::new(format!(
                 "bad option \"{}\": must be -nocase",
-                ops.as_str(opt)
+                ops.try_as_str(opt)?
             )));
         }
         _ => {
@@ -794,13 +1397,8 @@ pub fn string_match<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Va
             ));
         }
     };
-    // `TclStringMatchObj` reads both by character where the string has no
-    // type or is a string, converting the pattern too.
-    let (pattern, text) = if ops.is_untyped_or_string(s) {
-        (ops.as_chars(pat), ops.as_chars(s))
-    } else {
-        (ops.as_str(pat), ops.as_str(s))
-    };
+    let pattern = ops.try_as_str(pat)?.to_string();
+    let text = ops.try_as_str(s)?.to_string();
     Ok(ops.new_bool(tcl_syntax::glob::string_case_match(&pattern, &text, nocase)))
 }
 
@@ -829,14 +1427,14 @@ fn fold_chars(cs: &[char]) -> Vec<char> {
 pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
     let (nocase, pairs, text) = match args {
         [m, s] => (false, m, s),
-        [opt, m, s] if is_nocase(&ops.as_str(opt)) => (true, m, s),
+        [opt, m, s] if is_nocase(&ops.try_as_str(opt)?) => (true, m, s),
         // Three arguments whose first is not `-nocase` is a bad option, not a
         // wrong count (C's `StringMapCmd`): `string map {a b} abba oops`
         // reports `bad option "a b"` (string-10.2).
         [opt, _, _] => {
             return Err(CmdError::new(format!(
                 "bad option \"{}\": must be -nocase",
-                ops.as_str(opt)
+                ops.try_as_str(opt)?
             )));
         }
         _ => return Err(CmdError::wrong_args("string map ?-nocase? charMap string")),
@@ -845,30 +1443,18 @@ pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdE
     if items.len() % 2 != 0 {
         return Err(CmdError::new("char map list unbalanced"));
     }
-    // As `StringMapCmd`: an empty map leaves the value itself, any other reads
-    // the string by character, and an empty string stops there; a single pair
-    // reads its key by character and its value only where the key could match
-    // (non-empty and no longer than the string), while several pairs read
-    // every key and value so.
+    // As `StringMapCmd`: an empty map leaves the value itself.
     if items.is_empty() {
         return Ok(text.clone());
     }
-    let string = ops.as_chars(text).to_string();
-    if string.is_empty() {
-        return Ok(ops.empty());
-    }
     let mut map: Vec<(String, String)> = Vec::with_capacity(items.len() / 2);
     for c in items.as_chunks::<2>().0 {
-        let key = ops.as_chars(&c[0]).to_string();
-        let reads_value =
-            items.len() > 2 || (!key.is_empty() && key.chars().count() <= string.chars().count());
-        let value = if reads_value {
-            ops.as_chars(&c[1])
-        } else {
-            ops.as_str(&c[1])
-        };
-        map.push((key, value.to_string()));
+        map.push((
+            ops.try_as_str(&c[0])?.to_string(),
+            ops.try_as_str(&c[1])?.to_string(),
+        ));
     }
+    let string = ops.try_as_str(text)?.to_string();
 
     // Case-insensitive matching folds full Unicode case (like `string equal
     // -nocase` and `tolower`), not just ASCII, and matches/advances by
@@ -921,7 +1507,7 @@ pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdE
 }
 
 /// Arity-check (`string ?chars?`) wrapper shared by the three `trim` arms.
-fn trim_dispatch<O: ValueOps>(
+fn trim_dispatch<O: NativeIndexOps>(
     ops: &mut O,
     rest: &[O::Value],
     usage: &str,
@@ -929,8 +1515,8 @@ fn trim_dispatch<O: ValueOps>(
     right: bool,
 ) -> Result<O::Value, CmdError> {
     match rest {
-        [s] => Ok(trim(ops, s, None, left, right)),
-        [s, c] => Ok(trim(ops, s, Some(c), left, right)),
+        [s] => trim(ops, s, None, left, right),
+        [s, c] => trim(ops, s, Some(c), left, right),
         _ => Err(CmdError::wrong_args(usage)),
     }
 }
@@ -942,9 +1528,8 @@ fn trim_dispatch<O: ValueOps>(
 /// Returns `Some(result)` when the subcommand is handled here, or `None` when it
 /// is not handled here — letting the calling runtime fall back to its own
 /// implementation. The `Some(Err(..))` case is a genuine command error (arity,
-/// bad index, …). Index words are read under `numbers`, the grammar of the
-/// release the caller runs or targets.
-pub fn dispatch_canon<O: ValueOps>(
+/// bad index, …).
+pub fn dispatch_canon<O: NativeIndexOps>(
     ops: &mut O,
     sub: &str,
     rest: &[O::Value],
@@ -958,15 +1543,15 @@ pub fn dispatch_canon<O: ValueOps>(
         }
     };
     match sub {
-        "length" => arity(1, "string length string").or_else(|| Some(Ok(length(ops, &rest[0])))),
         "bytelength" => {
-            arity(1, "string bytelength string").or_else(|| Some(Ok(bytelength(ops, &rest[0]))))
+            arity(1, "string bytelength string").or_else(|| Some(bytelength(ops, &rest[0])))
         }
+        "length" => arity(1, "string length string").or_else(|| Some(length(ops, &rest[0]))),
         "index" => arity(2, "string index string charIndex")
             .or_else(|| Some(index(ops, &rest[0], &rest[1], numbers))),
         "range" => arity(3, "string range string first last")
             .or_else(|| Some(range(ops, &rest[0], &rest[1], &rest[2], numbers))),
-        "reverse" => arity(1, "string reverse string").or_else(|| Some(Ok(reverse(ops, &rest[0])))),
+        "reverse" => arity(1, "string reverse string").or_else(|| Some(reverse(ops, &rest[0]))),
         "repeat" => {
             arity(2, "string repeat string count").or_else(|| Some(repeat(ops, &rest[0], &rest[1])))
         }
@@ -1046,21 +1631,23 @@ pub fn dispatch_canon<O: ValueOps>(
 /// `charIndex` (`StringStartCmd`/`StringEndCmd`). A "word" is a maximal run of
 /// word-characters, or a single non-word character. `start` selects `wordstart`
 /// (the index of the word's first char) vs `wordend` (one past its last char).
-pub fn word_bound<O: ValueOps>(
+pub fn word_bound<O: NativeIndexOps>(
     ops: &mut O,
     s: &O::Value,
     idx: &O::Value,
     start: bool,
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let chars: Vec<char> = ops.as_str(s).chars().collect();
-    let index = index::resolve_with(&ops.as_str(idx), chars.len(), numbers)?;
-    let result = if start {
-        word_start(&chars, index)
-    } else {
-        word_end(&chars, index)
-    };
-    Ok(ops.new_int(i64::try_from(result).unwrap_or(i64::MAX)))
+    index::run_created_index_result(ops, |ops| {
+        let chars: Vec<char> = ops.index_unicode(s)?.chars().collect();
+        let index = index::resolve_value_with(ops, idx, chars.len(), numbers)?;
+        let result = if start {
+            word_start(&chars, index)
+        } else {
+            word_end(&chars, index)
+        };
+        Ok(ops.new_int(i64::try_from(result).unwrap_or(i64::MAX)))
+    })
 }
 
 /// The start of the word containing (clamped) `index` — walk left over word
@@ -1125,10 +1712,11 @@ fn is_connector_punct(c: char) -> bool {
     )
 }
 
-/// [`dispatch_canon`] as `release`'s `string` runs `sub`: its numerals, and
-/// the usage `first` and `last` give, whose words 8.4 names `subString
-/// string` and whose last index 9.0 names `lastIndex`.
-pub fn dispatch_canon_in<O: ValueOps>(
+/// [`dispatch_canon`] as `release`'s `string` runs `sub`: the usage `first`
+/// and `last` give, whose words 8.4 names `subString string` and whose last
+/// index 9.0 names `lastIndex`. Index words are read by the selected native
+/// index policy of `ops`.
+pub fn dispatch_canon_in<O: NativeIndexOps>(
     ops: &mut O,
     sub: &str,
     rest: &[O::Value],
@@ -1150,12 +1738,15 @@ pub fn dispatch_canon_in<O: ValueOps>(
 /// Dispatch a `string` subcommand from the raw argument vector (`args[0]` is the
 /// subcommand). Convenience over [`dispatch_canon`] for a runtime that does not
 /// pre-resolve abbreviations; exact subcommand names only.
-pub fn dispatch<O: ValueOps>(
+pub fn dispatch<O: NativeIndexOps>(
     ops: &mut O,
     args: &[O::Value],
     numbers: NumberSyntax,
 ) -> Option<Result<O::Value, CmdError>> {
-    let sub = ops.as_str(args.first()?).to_string();
+    let sub = match ops.try_as_str(args.first()?) {
+        Ok(sub) => sub,
+        Err(error) => return Some(Err(error.into())),
+    };
     dispatch_canon(ops, &sub, &args[1..], numbers)
 }
 
@@ -1171,7 +1762,77 @@ mod tests {
     #[derive(Default)]
     struct StrOps;
 
+    impl crate::index::NativeIndexOps for StrOps {
+        type IndexOperation = ();
+        type IndexBinaryReceipt = ();
+        type IndexKeyOwner = Self::Value;
+        fn index_borrowed_key(
+            &mut self,
+            value: &Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(value.clone())
+        }
+        fn index_created_key(
+            &mut self,
+            value: Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(value)
+        }
+        fn index_key_value(owner: &Self::Value) -> &Self::Value {
+            owner
+        }
+        fn index_hold_key_result(
+            &mut self,
+            owner: &Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(owner.clone())
+        }
+        fn index_finish_held_key_result(
+            &mut self,
+            held: Self::Value,
+        ) -> Result<crate::index::IndexResult<Self::Value>, crate::CmdError> {
+            Ok(crate::index::IndexResult::Detached(held))
+        }
+        fn index_key_argument(
+            &mut self,
+            owner: &Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(owner.clone())
+        }
+        fn index_key_result(
+            &mut self,
+            owner: &Self::Value,
+            created: bool,
+            ancestor: bool,
+        ) -> Result<crate::index::IndexResult<Self::Value>, crate::CmdError> {
+            Ok(if created {
+                crate::index::IndexResult::Created(owner.clone())
+            } else if ancestor {
+                crate::index::IndexResult::Detached(owner.clone())
+            } else {
+                crate::index::IndexResult::Borrowed(owner.clone())
+            })
+        }
+        fn enter_index_operation(&mut self) -> Result<(), crate::CmdError> {
+            Ok(())
+        }
+        fn check_index_operation(&mut self, _: &()) -> Result<(), crate::CmdError> {
+            Ok(())
+        }
+        fn retain_index_failure(&mut self, _error: &crate::CmdError) {
+            // Pure neutral adapter has no interpreter first-cause owner.
+        }
+        fn discard_owned_index_result(&mut self, created: Self::Value) {
+            drop(created);
+        }
+    }
+
     impl ValueOps for StrOps {
+        fn index_syntax(&self) -> Option<tcl_dialect::IndexSyntax> {
+            Some(tcl_dialect::IndexSyntax::for_version(
+                tcl_dialect::TclVersion::V9_0,
+            ))
+        }
         type Value = String;
         fn new_str(&mut self, s: &str) -> String {
             s.to_owned()
@@ -1188,9 +1849,13 @@ mod tests {
         fn new_list(&mut self, items: Vec<String>) -> String {
             items.join(" ")
         }
-        fn as_str(&mut self, v: &String) -> std::rc::Rc<str> {
-            std::rc::Rc::from(v.as_str())
+        fn as_bytes(&mut self, v: &String) -> std::rc::Rc<[u8]> {
+            std::rc::Rc::from(v.as_bytes())
         }
+        fn new_bytes(&mut self, bytes: &[u8]) -> Self::Value {
+            self.new_str(std::str::from_utf8(bytes).expect("Unicode-only fixture input"))
+        }
+
         fn as_int(&mut self, v: &String) -> Result<i64, tcl_syntax::value::ValueError> {
             v.parse()
                 .map_err(|_| tcl_syntax::value::ValueError::NotInteger(v.clone()))
@@ -1228,7 +1893,7 @@ mod tests {
         let args: Vec<String> = words.iter().map(|&w| w.to_owned()).collect();
         let answer = dispatch(&mut StrOps, &args, numbers).expect("a core subcommand");
         set_runtime_syntax(restore);
-        answer.unwrap_or_else(|error| format!("error: {}", error.message()))
+        answer.unwrap_or_else(|error| format!("error: {}", error.message().expect("guest message")))
     }
 
     #[test]
@@ -1414,7 +2079,8 @@ mod tests {
                 CompareMode::Equal,
             )
             .unwrap_err()
-            .message(),
+            .message()
+            .unwrap(),
             "bad option \"-bogus\": must be -nocase or -length"
         );
     }
@@ -1535,14 +2201,11 @@ mod tests {
 
     #[test]
     fn string_repeat_bounds_the_result_before_allocating() {
-        // Regression (#2127): `repeat` used to hand `count` straight to
-        // `str::repeat`, so `string repeat ab 100000000000` attempted a 200 GB
-        // allocation. C refuses first — tclsh 9.0.4/9.1b0:
-        //   % string repeat ab 100000000000
-        //   string size overflow: unable to alloc 200000000000 bytes
+        // Reject the oversized result before allocating its 200 GB payload.
+        // Original C9.0.4/9.1b0: string size overflow: unable to alloc 200000000000 bytes
         let err = repeat_of("ab", "100000000000").expect_err("bounded");
         assert_eq!(
-            err.message(),
+            err.message().unwrap(),
             "string size overflow: unable to alloc 200000000000 bytes"
         );
         // The byte count is the *byte* length of the string rep, not the
@@ -1550,7 +2213,7 @@ mod tests {
         // 100000000000` as 200000000000 bytes too.
         let err = repeat_of("\u{e9}", "100000000000").expect_err("bounded");
         assert_eq!(
-            err.message(),
+            err.message().unwrap(),
             "string size overflow: unable to alloc 200000000000 bytes"
         );
         // `count * length` is computed in `Tcl_Size` and wraps, and C reports
@@ -1559,7 +2222,7 @@ mod tests {
         //   string size overflow: unable to alloc -8446744073709551616 bytes
         let err = repeat_of("ab", "5000000000000000000").expect_err("bounded");
         assert_eq!(
-            err.message(),
+            err.message().unwrap(),
             "string size overflow: unable to alloc -8446744073709551616 bytes"
         );
         // `count > TCL_SIZE_MAX - 1` is a different message — tclsh 9.0.4:
@@ -1567,7 +2230,7 @@ mod tests {
         //   max size for a Tcl value (9223372036854775807 bytes) exceeded
         let err = repeat_of("ab", "9223372036854775807").expect_err("bounded");
         assert_eq!(
-            err.message(),
+            err.message().unwrap(),
             "max size for a Tcl value (9223372036854775807 bytes) exceeded"
         );
         // …but an empty string short-circuits before either check, so even that

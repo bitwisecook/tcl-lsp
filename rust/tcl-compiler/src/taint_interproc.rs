@@ -40,21 +40,19 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use tcl_lexer::{Lexer, SourceMap, TokenType};
+use tcl_lexer::SourceMap;
 use tcl_registry::{Arity, CommandRegistry};
 
 use crate::cfg::Terminator;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-use crate::interprocedural::resolve_call_target;
-use crate::naming::normalise_var_name;
+use crate::ir::ProcedureId;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
 #[cfg(test)]
 use crate::taint::local_instance_classes;
 use crate::taint::{
-    LocalInstanceClasses, TaintColour, TaintCtx, TaintGraph, TaintLattice,
-    instance_classes_for_function, propagate_taints, word_taint,
+    LocalInstanceClasses, TaintColour, TaintCtx, TaintGraph, TaintLattice, TaintPropagationInputs,
+    TaintSourceContext, instance_classes_for_function, propagate_taints, word_taint,
 };
-use crate::value_shapes::parse_command_substitution_with_config;
 
 // Basis lattices
 
@@ -134,7 +132,7 @@ impl TaintBasis {
             TaintBasis::PathJoined => t | TaintColour::PATH_JOINED,
             TaintBasis::Channel => t | TaintColour::CHANNEL,
         };
-        TaintLattice { colours: colour }
+        TaintLattice::from_colours(colour)
     }
 }
 
@@ -178,6 +176,12 @@ pub struct ProcTaintSummary {
     /// `(param, [taint_per_basis])`, `taint_per_basis[i]` is the taint the
     /// call returns when `param` is seeded with `TaintBasis::ALL[i]`'s lattice.
     pub return_by_param_basis: Vec<(String, Vec<TaintLattice>)>,
+    /// Original selected formal topology, when the Module issuer reborrowed it.
+    /// This is syntax/binding structure only; it grants no activation.
+    pub source_formals:
+        Option<crate::signature_scan::formal_parameters::SourceProcedureFormalTopology>,
+    /// Production summaries require source formals; absent topology is unknown.
+    pub source_formals_required: bool,
 }
 
 impl ProcTaintSummary {
@@ -200,6 +204,50 @@ impl ProcTaintSummary {
                 .iter()
                 .map(|p| (p.clone(), vec![clean; TaintBasis::ALL.len()]))
                 .collect(),
+            source_formals: None,
+            source_formals_required: false,
+        }
+    }
+
+    fn untainted_for_source(
+        qname: &str,
+        params: &[String],
+        source_formals: Option<
+            crate::signature_scan::formal_parameters::SourceProcedureFormalTopology,
+        >,
+    ) -> Self {
+        let Some(formals) = source_formals
+            .as_ref()
+            .filter(|formals| formal_names_match(params, formals))
+        else {
+            return Self::unknown_for_source(qname, params, source_formals);
+        };
+        let mut summary = Self::untainted(qname, params);
+        summary.arity = source_formal_arity(formals).unwrap_or_else(Arity::any);
+        summary.source_formals = source_formals;
+        summary.source_formals_required = true;
+        summary
+    }
+
+    fn unknown_for_source(
+        qname: &str,
+        params: &[String],
+        source_formals: Option<
+            crate::signature_scan::formal_parameters::SourceProcedureFormalTopology,
+        >,
+    ) -> Self {
+        let tainted = TaintLattice::tainted();
+        Self {
+            qualified_name: qname.to_owned(),
+            params: params.to_vec(),
+            arity: Arity::any(),
+            return_base: tainted,
+            return_by_param_basis: params
+                .iter()
+                .map(|parameter| (parameter.clone(), vec![tainted; TaintBasis::ALL.len()]))
+                .collect(),
+            source_formals,
+            source_formals_required: true,
         }
     }
 
@@ -212,6 +260,125 @@ impl ProcTaintSummary {
         }
         TaintLattice::clean()
     }
+}
+
+fn formal_names_match(
+    report_names: &[String],
+    formals: &crate::signature_scan::formal_parameters::SourceProcedureFormalTopology,
+) -> bool {
+    let mut seen = HashSet::new();
+    match formals {
+        crate::signature_scan::formal_parameters::SourceProcedureFormalTopology::Native(
+            formals,
+        ) => {
+            report_names.len() == formals.parameters().len()
+                && report_names
+                    .iter()
+                    .zip(formals.parameters())
+                    .all(|(reported, formal)| {
+                        reported.as_bytes() == formal.name.as_slice()
+                            && seen.insert(formal.name.as_slice().to_vec())
+                    })
+        }
+        crate::signature_scan::formal_parameters::SourceProcedureFormalTopology::Logical(
+            formals,
+        ) => {
+            report_names.len() == formals.parameters().len()
+                && report_names
+                    .iter()
+                    .zip(formals.parameters())
+                    .all(|(reported, formal)| {
+                        reported.as_bytes() == formal.name.as_bytes()
+                            && seen.insert(formal.name.as_bytes().to_vec())
+                    })
+        }
+    }
+}
+
+fn source_formal_arity(
+    formals: &crate::signature_scan::formal_parameters::SourceProcedureFormalTopology,
+) -> Option<Arity> {
+    let shape = formals.argument_count_shape();
+    let min = u16::try_from(shape.minimum).ok()?;
+    let max = shape
+        .maximum
+        .map(u16::try_from)
+        .transpose()
+        .ok()?
+        .unwrap_or(Arity::UNLIMITED);
+    Some(Arity::new(min, max))
+}
+
+fn source_formal_argument_taints(
+    summary: &ProcTaintSummary,
+    args: &[TaintLattice],
+) -> Option<Vec<(String, TaintLattice)>> {
+    let formals = summary.source_formals.as_ref()?;
+    if !formal_names_match(&summary.params, formals) {
+        return None;
+    }
+    let mut bound = vec![TaintLattice::clean(); formals.len()];
+    match formals {
+        crate::signature_scan::formal_parameters::SourceProcedureFormalTopology::Native(
+            formals,
+        ) => {
+            for binding in formals.bindings(args.len()).ok()? {
+                use tcl_syntax::formal_params::FormalByteArgumentBinding as Binding;
+                match binding {
+                    Binding::Value {
+                        parameter,
+                        argument,
+                    } => {
+                        bound[parameter] = *args.get(argument)?;
+                    }
+                    Binding::Default { .. } => {}
+                    Binding::Rest {
+                        parameter,
+                        start,
+                        len,
+                        ..
+                    } => {
+                        let end = start.checked_add(len)?;
+                        for value in args.get(start..end)? {
+                            bound[parameter] = bound[parameter].join(*value);
+                        }
+                    }
+                    // Caller-link bytes name a caller location; they are not
+                    // the value taint, so preserve uncertainty.
+                    Binding::CallerLink { parameter, .. } => {
+                        bound[parameter] = TaintLattice::tainted();
+                    }
+                }
+            }
+        }
+        crate::signature_scan::formal_parameters::SourceProcedureFormalTopology::Logical(
+            formals,
+        ) => {
+            let shape = formals.argument_count_shape();
+            if !shape.accepts(args.len()) {
+                return None;
+            }
+            let parameters = formals.parameters();
+            let mut argument = 0;
+            for (parameter, formal) in parameters.iter().enumerate() {
+                if parameter + 1 == parameters.len() && formal.name == "args" {
+                    for value in args.get(argument..)? {
+                        bound[parameter] = bound[parameter].join(*value);
+                    }
+                    argument = args.len();
+                } else if let Some(value) = args.get(argument) {
+                    bound[parameter] = *value;
+                    argument += 1;
+                } else if formal.default.is_none() {
+                    return None;
+                }
+            }
+            if argument != args.len() {
+                return None;
+            }
+        }
+    }
+    Some(summary.params.iter().cloned().zip(bound).collect())
 }
 
 /// Apply a procedure's return-taint summary to a tuple of argument taints.
@@ -229,8 +396,19 @@ pub fn apply_proc_return_summary(
         return TaintLattice::clean();
     }
 
+    let source_bound = if summary.source_formals_required {
+        let Some(bound) = source_formal_argument_taints(summary, arg_taints) else {
+            return TaintLattice::tainted();
+        };
+        Some(bound)
+    } else {
+        None
+    };
+
     let mut bound: Vec<(String, TaintLattice)> = Vec::with_capacity(summary.params.len());
-    if summary.params.last().is_some_and(|p| p == "args") {
+    if let Some(source_bound) = source_bound {
+        bound = source_bound;
+    } else if summary.params.last().is_some_and(|p| p == "args") {
         let fixed = summary.params.len() - 1;
         for (i, p) in summary.params.iter().take(fixed).enumerate() {
             let t = arg_taints
@@ -272,35 +450,163 @@ pub fn apply_proc_return_summary(
 
 // Return-taint collection
 
-/// Build a `symbol -> version` use map for `text` from a block's exit
-/// versions, scanning the word for `$var` references. A scanned name not
-/// interned in `ssa` is not an SSA variable here, so it is dropped.
+/// Possible lexical return dependencies under the actual word grammar.
+/// Only existing function symbols and exit versions enter the use map.
+struct ReturnWordUses {
+    uses: HashMap<Symbol, u32>,
+    unknown: bool,
+}
+
+fn original_return_word_uses(
+    text: &str,
+    word: Option<&crate::ir::WordExpr>,
+    versions: &HashMap<Symbol, u32>,
+    ssa: &SsaFunction,
+    config: tcl_lexer::LexerConfig,
+) -> ReturnWordUses {
+    use crate::ir::{WordExpr, WordPart};
+    let Some(word) = word else {
+        return return_word_uses_from_versions(text, versions, ssa, config);
+    };
+    let mut out = ReturnWordUses {
+        uses: HashMap::new(),
+        unknown: false,
+    };
+    let mut pending = vec![word];
+    let mut spellings = Vec::new();
+    while let Some(word) = pending.pop() {
+        match word {
+            WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => {}
+            WordExpr::Variable { spelling, .. } => {
+                out.unknown |= !matches!(
+                    tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config),
+                    Ok(Some(_))
+                );
+                spellings.push(spelling.as_str());
+            }
+            WordExpr::CommandSubstitution { spelling, .. } => spellings.push(spelling.as_str()),
+            WordExpr::Template {
+                parts, rejected, ..
+            } => {
+                out.unknown |= rejected.is_some();
+                for part in parts {
+                    match part {
+                        WordPart::Text { .. } => {}
+                        WordPart::Variable { spelling, .. } => {
+                            out.unknown |= !matches!(
+                                tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config),
+                                Ok(Some(_))
+                            );
+                            spellings.push(spelling.as_str());
+                        }
+                        WordPart::CommandSubstitution { spelling, .. } => {
+                            spellings.push(spelling.as_str());
+                        }
+                        WordPart::Opaque { text, .. } => {
+                            out.unknown = true;
+                            spellings.push(text.as_str());
+                        }
+                    }
+                }
+            }
+            WordExpr::Expand { word, .. } => {
+                out.unknown = true;
+                pending.push(word);
+            }
+            WordExpr::Opaque { text, .. } => {
+                out.unknown = true;
+                spellings.push(text.as_str());
+            }
+        }
+    }
+    for spelling in spellings {
+        let candidates =
+            tcl_syntax::naming::substitution_variable_candidates(spelling.as_bytes(), config);
+        out.unknown |= candidates.has_unknown_residual();
+        for name in candidates.names() {
+            match ssa
+                .var_symbol(name)
+                .and_then(|symbol| versions.get(&symbol).map(|&version| (symbol, version)))
+            {
+                Some((symbol, version)) => {
+                    out.uses.insert(symbol, version);
+                }
+                None => out.unknown = true,
+            }
+        }
+    }
+    if out.unknown {
+        out.uses.extend(versions);
+    }
+    out
+}
+
+fn return_word_uses_from_versions(
+    text: &str,
+    versions: &HashMap<Symbol, u32>,
+    ssa: &SsaFunction,
+    config: tcl_lexer::LexerConfig,
+) -> ReturnWordUses {
+    let mut out = ReturnWordUses {
+        uses: HashMap::new(),
+        unknown: false,
+    };
+    let config = tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config);
+    let image = tcl_lexer::SourceImage::document(text);
+    let plan = u32::try_from(image.len()).ok().and_then(|end| {
+        tcl_lexer::native_script_words_in_with_purpose(
+            image,
+            tcl_lexer::Span::new(0, end),
+            config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()
+    });
+    let Some(plan) = plan else {
+        return ReturnWordUses {
+            uses: versions.clone(),
+            unknown: true,
+        };
+    };
+    out.unknown = plan.fatal_tail.is_some();
+    for command in plan.commands {
+        for word in command.words {
+            if word.group().kind == tcl_lexer::WordKind::Braced {
+                continue;
+            }
+            let Some(original) = text.as_bytes().get(word.word_span().as_range()) else {
+                out.unknown = true;
+                continue;
+            };
+            let candidates = tcl_syntax::naming::substitution_variable_candidates(original, config);
+            out.unknown |= candidates.has_unknown_residual();
+            for name in candidates.names() {
+                let Some(symbol) = ssa.var_symbol(name) else {
+                    out.unknown = true;
+                    continue;
+                };
+                let Some(&version) = versions.get(&symbol) else {
+                    out.unknown = true;
+                    continue;
+                };
+                out.uses.insert(symbol, version);
+            }
+        }
+    }
+    if out.unknown {
+        out.uses.extend(versions);
+    }
+    out
+}
+
+#[cfg(test)]
 fn word_uses_from_versions(
     text: &str,
     versions: &HashMap<Symbol, u32>,
     ssa: &SsaFunction,
     config: tcl_lexer::LexerConfig,
 ) -> HashMap<Symbol, u32> {
-    let mut uses: HashMap<Symbol, u32> = HashMap::new();
-    let source_map = SourceMap::new(text);
-    let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
-        return uses;
-    };
-    for tok in tokens {
-        if tok.kind != TokenType::Var {
-            continue;
-        }
-        let name = normalise_var_name(source_map.text(tok.span));
-        if name.is_empty() {
-            continue;
-        }
-        let Some(sym) = ssa.var_symbol(name) else {
-            continue;
-        };
-        let ver = versions.get(&sym).copied().unwrap_or(0);
-        uses.insert(sym, ver);
-    }
-    uses
+    return_word_uses_from_versions(text, versions, ssa, config).uses
 }
 
 /// Whether `fu`'s return taint is a **constant** — the same value whatever
@@ -346,6 +652,8 @@ fn collect_return_taint(
             continue;
         };
         let Some(Terminator::Return {
+            tokens,
+            value_word,
             span,
             value: Some(value),
             ..
@@ -356,14 +664,30 @@ fn collect_return_taint(
         let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
             continue;
         };
-        let uses =
-            word_uses_from_versions(value, &ssa_block.exit_versions, &fu.ssa, ctx.lexer_config());
-        ret = ret.join(word_taint(
+        let inventory = original_return_word_uses(
             value,
-            &uses,
-            taints,
-            ctx.at(span.map_or(0, tcl_lexer::Span::start)),
-        ));
+            value_word.as_ref(),
+            &ssa_block.exit_versions,
+            &fu.ssa,
+            ctx.lexer_config(),
+        );
+        let returned = TaintCtx {
+            source_tokens: tokens.as_deref(),
+            source_word: value_word.as_ref(),
+            word_offset: value_word.as_ref().map(|word| word.source().span.start()),
+            ..ctx.at(span.map_or(0, tcl_lexer::Span::start))
+        };
+        if inventory.unknown
+            && !matches!(
+                value_word,
+                Some(
+                    crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                )
+            )
+        {
+            ret = ret.join(TaintLattice::tainted());
+        }
+        ret = ret.join(word_taint(value, &inventory.uses, taints, returned));
     }
     ret
 }
@@ -381,19 +705,21 @@ fn run_propagation(
     instance_classes: &LocalInstanceClasses,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    source: TaintSourceContext<'_>,
     param_taints: Option<&HashMap<String, TaintLattice>>,
-    summaries: &HashMap<String, ProcTaintSummary>,
+    summaries: &HashMap<crate::ir::ProcedureId, ProcTaintSummary>,
 ) -> HashMap<ValueKey, TaintLattice> {
     propagate_taints(
         graph,
-        registry,
-        Some(&fu.rendered_props),
-        interproc,
-        dialect,
-        param_taints,
-        Some(summaries),
-        instance_classes,
+        TaintPropagationInputs {
+            registry,
+            rendered_props: Some(&fu.rendered_props),
+            interproc,
+            source,
+            param_taints,
+            taint_summaries: Some(summaries),
+            instance_classes,
+        },
     )
 }
 
@@ -402,9 +728,9 @@ fn return_ctx<'a>(
     fu: &'a FunctionUnit,
     registry: &'a CommandRegistry,
     interproc: Option<&'a crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
-    known: &'a HashSet<String>,
-    summaries: &'a HashMap<String, ProcTaintSummary>,
+    source: TaintSourceContext<'a>,
+    known: &'a HashSet<crate::ir::ProcedureId>,
+    summaries: &'a HashMap<crate::ir::ProcedureId, ProcTaintSummary>,
     instance_classes: &'a LocalInstanceClasses,
 ) -> TaintCtx<'a> {
     TaintCtx {
@@ -412,11 +738,14 @@ fn return_ctx<'a>(
         ssa: &fu.ssa,
         interproc,
         known_procs: Some(known),
-        caller_qname: Some(fu.ssa.name.as_str()),
-        dialect,
+        dialect: source.dialect(),
+        source,
         taint_summaries: Some(summaries),
         instance_classes: Some(instance_classes),
         source_position: None,
+        source_tokens: None,
+        word_offset: None,
+        source_word: None,
     }
 }
 
@@ -428,11 +757,11 @@ fn return_ctx<'a>(
 /// unchanged proc's summary from cache (keyed on its offset-0 body + its
 /// direct callees' summaries) instead of re-running the propagation here.
 pub type InferProcSummaryFn<'a> = dyn FnMut(
-        &str,
-        &[String],
-        &FunctionUnit,
-        &HashSet<String>,
-        &HashMap<String, ProcTaintSummary>,
+        &CompilationUnit,
+        crate::ir::ProcedureId,
+        Option<&crate::interprocedural::InterproceduralAnalysis>,
+        &HashSet<crate::ir::ProcedureId>,
+        &HashMap<crate::ir::ProcedureId, ProcTaintSummary>,
     ) -> ProcTaintSummary
     + 'a;
 
@@ -482,34 +811,105 @@ pub type InferProcSummaryFn<'a> = dyn FnMut(
 //   hasher is impossible without making `TaintCtx` generic crate-wide.
 #[allow(clippy::too_many_arguments, clippy::implicit_hasher)]
 pub fn infer_proc_summary(
-    qname: &str,
-    params: &[String],
-    fu: &FunctionUnit,
+    cu: &CompilationUnit,
+    body_id: ProcedureId,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
-    known: &HashSet<String>,
-    summaries: &HashMap<String, ProcTaintSummary>,
-) -> ProcTaintSummary {
+    _dialect: Option<&'static tcl_dialect::DialectProfile>,
+    known: &HashSet<ProcedureId>,
+    summaries: &HashMap<ProcedureId, ProcTaintSummary>,
+) -> Option<ProcTaintSummary> {
+    let procedure = cu.original_procedure_for_body(body_id)?;
+    let fu = cu.function_for_body(Some(body_id))?;
+    if fu.body_id != Some(body_id) {
+        return None;
+    }
+    Some(infer_proc_summary_with_source(ProcSummaryInputs {
+        qname: &procedure.qualified_name,
+        params: &procedure.params,
+        fu,
+        registry,
+        interproc,
+        source: TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+        source_formals: cu
+            .ir_module
+            .original_source_formal_topology(body_id, registry),
+        known,
+        summaries,
+    }))
+}
+
+struct ProcSummaryInputs<'a> {
+    qname: &'a str,
+    params: &'a [String],
+    fu: &'a FunctionUnit,
+    registry: &'a CommandRegistry,
+    interproc: Option<&'a crate::interprocedural::InterproceduralAnalysis>,
+    source: TaintSourceContext<'a>,
+    source_formals: Option<crate::signature_scan::formal_parameters::SourceProcedureFormalTopology>,
+    known: &'a HashSet<crate::ir::ProcedureId>,
+    summaries: &'a HashMap<crate::ir::ProcedureId, ProcTaintSummary>,
+}
+
+fn infer_proc_summary_with_source(inputs: ProcSummaryInputs<'_>) -> ProcTaintSummary {
+    let ProcSummaryInputs {
+        qname,
+        params,
+        fu,
+        registry,
+        interproc,
+        source,
+        source_formals,
+        known,
+        summaries,
+    } = inputs;
+
+    if !source_formals
+        .as_ref()
+        .is_some_and(|formals| formal_names_match(params, formals))
+    {
+        return ProcTaintSummary::unknown_for_source(qname, params, source_formals);
+    }
+
+    if fu.cfg.has_opaque_native_accesses() {
+        return ProcTaintSummary {
+            qualified_name: qname.to_owned(),
+            params: params.to_vec(),
+            arity: crate::interprocedural::arity_from_names(params),
+            return_base: TaintLattice::tainted(),
+            return_by_param_basis: params
+                .iter()
+                .map(|param| {
+                    (
+                        param.clone(),
+                        vec![TaintLattice::tainted(); TaintBasis::ALL.len()],
+                    )
+                })
+                .collect(),
+            source_formals,
+            source_formals_required: true,
+        };
+    }
     // Prune 1 — the return taint does not depend on the taint map at all, so
     // neither the clean base nor any of the `17P` seeded scenarios needs a
     // solve.  Every scenario is `clean`, which is exactly what
     // `ProcTaintSummary::untainted` builds.  Checked before the index build
     // below, so a constant-return procedure costs nothing at all.
     if return_taint_is_constant(fu) {
-        return ProcTaintSummary::untainted(qname, params);
+        return ProcTaintSummary::untainted_for_source(qname, params, source_formals);
     }
 
     // One index build for the baseline propagation and every scenario below.
     let graph = TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp);
-    let instance_classes = instance_classes_for_function(&fu.cfg, registry, interproc, true);
+    let instance_classes =
+        instance_classes_for_function(&fu.cfg, registry, interproc, true, source);
     let base_taints = run_propagation(
         &graph,
         fu,
         &instance_classes,
         registry,
         interproc,
-        dialect,
+        source,
         None,
         summaries,
     );
@@ -517,7 +917,7 @@ pub fn infer_proc_summary(
         fu,
         registry,
         interproc,
-        dialect,
+        source,
         known,
         summaries,
         &instance_classes,
@@ -547,7 +947,7 @@ pub fn infer_proc_summary(
                 &instance_classes,
                 registry,
                 interproc,
-                dialect,
+                source,
                 Some(&seed),
                 summaries,
             );
@@ -559,9 +959,12 @@ pub fn infer_proc_summary(
     ProcTaintSummary {
         qualified_name: qname.to_owned(),
         params: params.to_vec(),
-        arity: crate::interprocedural::arity_from_names(params),
+        arity: source_formal_arity(source_formals.as_ref().expect("validated source formals"))
+            .unwrap_or_else(Arity::any),
         return_base,
         return_by_param_basis: by_param_basis,
+        source_formals,
+        source_formals_required: true,
     }
 }
 
@@ -575,22 +978,102 @@ fn resolve_call_flows(
     instance_classes: &LocalInstanceClasses,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
-    known: &HashSet<String>,
-    summaries: &HashMap<String, ProcTaintSummary>,
-) -> Vec<(String, Vec<TaintLattice>)> {
+    source: TaintSourceContext<'_>,
+    known: &HashSet<crate::ir::ProcedureId>,
+    summaries: &HashMap<crate::ir::ProcedureId, ProcTaintSummary>,
+) -> Vec<(crate::ir::ProcedureId, Vec<TaintLattice>)> {
     let ctx = return_ctx(
         fu,
         registry,
         interproc,
-        dialect,
+        source,
         known,
         summaries,
         instance_classes,
     );
-    let caller_qname = fu.ssa.name.as_str();
-    let mut flows: Vec<(String, Vec<TaintLattice>)> = Vec::new();
-
+    let mut flows = Vec::new();
+    let Some(module) = source.module() else {
+        return flows;
+    };
+    let mut collect = |tokens: &crate::ir::CommandTokens,
+                       uses: &HashMap<Symbol, u32>,
+                       position: u32| {
+        let mut invocations = vec![tokens.clone()];
+        let lifted = source.metadata_context().and_then(|metadata| {
+            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                tokens,
+                source.lexer_config(),
+                registry,
+                metadata,
+            )
+        });
+        if let Some(lifted) = lifted {
+            invocations.extend(lifted.into_iter().filter_map(|call| call.tokens));
+        }
+        for invocation in invocations {
+            let Some(head) = original_head(&invocation) else {
+                continue;
+            };
+            let Some(calls) =
+                crate::registry_invocation::original_source_procedure_calls_for_word_for_module(
+                    &invocation,
+                    &head,
+                    module,
+                    registry,
+                )
+            else {
+                continue;
+            };
+            for call in calls {
+                if !known.contains(&call.id()) {
+                    continue;
+                }
+                let Some(summary) = summaries.get(&call.id()) else {
+                    continue;
+                };
+                let Some(count) = call.argument_count() else {
+                    flows.push((
+                        call.id(),
+                        vec![TaintLattice::tainted(); summary.params.len()],
+                    ));
+                    continue;
+                };
+                if !summary
+                    .arity
+                    .accepts(u16::try_from(count).unwrap_or(u16::MAX))
+                {
+                    continue;
+                }
+                let effective = call.effective_arguments();
+                let arguments = effective.words.iter().skip(1).enumerate().map(|(argument, _word)| {
+                        match effective.origins.get(argument + 1) {
+                            Some(crate::registry_invocation::InvocationWordOrigin::Written(index)) => {
+                                let Some(original) = invocation.words().get(*index) else { return TaintLattice::tainted(); };
+                                if matches!(original, crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }) {
+                                    return TaintLattice::clean();
+                                }
+                                let argument_context = TaintCtx {
+                                    source_tokens: Some(&invocation),
+                                    source_word: Some(original),
+                                    word_offset: Some(original.source().span.start()),
+                                    ..ctx.at(position)
+                                };
+                                word_taint(&original.legacy_text(), uses, taints, argument_context)
+                            }
+                            Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(index)) => {
+                                match effective.binding_prefix.get(*index) {
+                                    Some(crate::registry_invocation::EffectiveInvocationWord::Literal(_)
+                                        | crate::registry_invocation::EffectiveInvocationWord::ByteLiteral(_)) => TaintLattice::clean(),
+                                    _ => TaintLattice::tainted(),
+                                }
+                            }
+                            _ => TaintLattice::tainted(),
+                        }
+                    }).collect();
+                flows.push((call.id(), arguments));
+            }
+        }
+    };
     for bn in &fu.sccp.executable_blocks {
         let Some(block) = fu.cfg.blocks.get(bn) else {
             continue;
@@ -598,49 +1081,42 @@ fn resolve_call_flows(
         let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
             continue;
         };
-        let stmt_count = block.statements.len().min(ssa_block.statements.len());
-        for idx in 0..stmt_count {
-            let stmt = &block.statements[idx];
-            let ssa_stmt = &ssa_block.statements[idx];
-
-            let resolved: Option<(String, Vec<String>)> = match stmt {
-                crate::ir::Statement::Call { command, args, .. } => {
-                    Some((command.clone(), args.clone()))
-                }
-                crate::ir::Statement::AssignValue { value, .. } => {
-                    parse_command_substitution_with_config(
-                        value,
-                        tcl_lexer::LexerConfig::for_profile(dialect),
-                    )
-                }
-                _ => None,
-            };
-            let Some((cmd_name, cmd_args)) = resolved else {
+        for (index, statement) in block.statements.iter().enumerate() {
+            let Some(ssa_statement) = ssa_block.statements.get(index) else {
                 continue;
             };
-
-            let Some(callee) = resolve_call_target(&cmd_name, &cmd_args, caller_qname, known)
-            else {
+            let Some(tokens) = fu.cfg.source_input_tokens_at(*bn, index) else {
                 continue;
             };
-            let Some(summary) = summaries.get(&callee) else {
-                continue;
-            };
-            let n = u16::try_from(cmd_args.len()).unwrap_or(u16::MAX);
-            if !summary.arity.accepts(n) {
-                continue;
-            }
-
-            let statement_ctx = ctx.at(stmt.span().start());
-            let arg_taints: Vec<TaintLattice> = cmd_args
-                .iter()
-                .map(|arg| word_taint(arg, &ssa_stmt.uses, taints, statement_ctx))
-                .collect();
-            flows.push((callee, arg_taints));
+            collect(tokens, &ssa_statement.uses, statement.span().start());
+        }
+        if let Some(Terminator::Return {
+            tokens: Some(tokens),
+            span,
+            ..
+        }) = &block.terminator
+        {
+            collect(
+                tokens,
+                &ssa_block.exit_versions,
+                span.map_or(0, tcl_lexer::Span::start),
+            );
         }
     }
-
     flows
+}
+fn original_head(tokens: &crate::ir::CommandTokens) -> Option<String> {
+    let binding = tokens.source_binding.as_ref()?;
+    let site = binding.invocation_site()?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let words = crate::registry_invocation::original_native_compiler_words(
+        site.source.source_image(),
+        tokens.words(),
+        site.offset,
+        config,
+    )?;
+    let head = tcl_syntax::word_rules::original_static_word_source_bytes(words.first()?)?;
+    String::from_utf8(head).ok()
 }
 
 /// The known-proc callees a function references — every call target
@@ -658,135 +1134,271 @@ fn resolve_call_flows(
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn resolved_callees(
-    fu: &FunctionUnit,
-    known: &HashSet<String>,
-    config: tcl_lexer::LexerConfig,
-) -> Vec<String> {
-    let caller_qname = fu.ssa.name.as_str();
-    let mut out: Vec<String> = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
-    for bn in &fu.sccp.executable_blocks {
-        let Some(block) = fu.cfg.blocks.get(bn) else {
+    cu: &CompilationUnit,
+    body_id: Option<crate::ir::ProcedureId>,
+    known: &HashSet<crate::ir::ProcedureId>,
+    registry: &CommandRegistry,
+) -> Vec<crate::ir::ProcedureId> {
+    let fu = cu.function_for_body(body_id);
+    let Some(fu) = fu else {
+        return known.iter().copied().collect();
+    };
+    let source = TaintSourceContext::for_module_function(registry, &cu.ir_module, fu);
+    let mut out = std::collections::BTreeSet::new();
+    for block_id in &fu.sccp.executable_blocks {
+        let Some(block) = fu.cfg.blocks.get(block_id) else {
             continue;
         };
-        for stmt in &block.statements {
-            let resolved: Option<(String, Vec<String>)> = match stmt {
-                crate::ir::Statement::Call { command, args, .. } => {
-                    Some((command.clone(), args.clone()))
+        for (index, statement) in block.statements.iter().enumerate() {
+            let invokes_head = matches!(
+                statement,
+                crate::ir::Statement::Call { .. }
+                    | crate::ir::Statement::Barrier { .. }
+                    | crate::ir::Statement::NativeCall { .. }
+            );
+            let Some(tokens) = fu.cfg.source_input_tokens_at(*block_id, index) else {
+                if invokes_head {
+                    out.extend(known.iter().copied());
                 }
-                crate::ir::Statement::AssignValue { value, .. } => {
-                    parse_command_substitution_with_config(value, config)
-                }
-                _ => None,
-            };
-            let Some((cmd_name, cmd_args)) = resolved else {
                 continue;
             };
-            if let Some(callee) = resolve_call_target(&cmd_name, &cmd_args, caller_qname, known)
-                && seen.insert(callee.clone())
+            if invokes_head {
+                if let Some(head) = original_head(tokens) {
+                    if let Some(dependencies) = crate::registry_invocation::original_procedure_may_dependencies_for_word_for_module(tokens, &head, &cu.ir_module, registry) {
+                    out.extend(dependencies.bodies.into_iter().filter(|id| known.contains(id)));
+                    if dependencies.unknown_alternatives { out.extend(known.iter().copied()); }
+                } else {
+                    out.extend(known.iter().copied());
+                }
+                } else {
+                    out.extend(known.iter().copied());
+                }
+            }
+            let lifted = source.metadata_context().and_then(|metadata| {
+                crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                    tokens,
+                    source.lexer_config(),
+                    registry,
+                    metadata,
+                )
+            });
+            if let Some(lifted) = lifted {
+                for call in lifted {
+                    let Some(child) = call.tokens else {
+                        out.extend(known.iter().copied());
+                        continue;
+                    };
+                    let selected = original_head(&child)
+                        .and_then(|head| crate::registry_invocation::original_procedure_may_dependencies_for_word_for_module(&child, &head, &cu.ir_module, registry));
+                    if let Some(dependencies) = selected {
+                        out.extend(
+                            dependencies
+                                .bodies
+                                .into_iter()
+                                .filter(|id| known.contains(id)),
+                        );
+                        if dependencies.unknown_alternatives {
+                            out.extend(known.iter().copied());
+                        }
+                    } else {
+                        out.extend(known.iter().copied());
+                    }
+                }
+            } else if tokens
+                .words()
+                .iter()
+                .any(|word| word.legacy_text().contains('['))
             {
-                out.push(callee);
+                out.extend(known.iter().copied());
+            }
+        }
+        if let Some(Terminator::Return {
+            value: Some(value), ..
+        }) = &block.terminator
+        {
+            if value.contains('[') {
+                out.extend(known.iter().copied());
             }
         }
     }
-    out.sort();
-    out
+    out.into_iter().collect()
 }
 
-/// Known-proc callees reached through a **command substitution** `[name …]`
-/// embedded in a word (return value, argument, expression operand) of `caller`'s
-/// body — the summaries [`infer_proc_summary`] reads when it evaluates those
-/// words (`word_taint` recurses into nested substitutions), which neither
-/// `direct_calls` nor the CFG-statement scan of [`resolved_callees`] captures
-/// (e.g. `symbolNodeOf` in `return [$t get [symbolNodeOf …] …]`).
-///
-/// A deliberately conservative source scan: every `[` opens a candidate
-/// substitution whose head word is resolved against `known` (a `$`-led dynamic
-/// head is skipped).  It over-approximates (a `[` in a string/comment, an escaped
-/// `\[`) — sound, since an unread callee summary only widens the memo key, never
-/// changes the inferred result — but never misses a real `[name …]` head, so the
-/// cascade memo sees every summary the whole-module solve does.
+/// Memo dependencies of original substitutions in one Module-owned body.
+/// Unresolved or incomplete source retains every candidate; this selects no call edge.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn command_subst_callees(
-    body_source: &str,
-    caller_qname: &str,
-    known: &HashSet<String>,
-) -> Vec<String> {
-    let bytes = body_source.as_bytes();
-    let is_word = |b: u8| !matches!(b, b' ' | b'\t' | b'\r' | b'\n' | b'[' | b']' | b';' | b'\\');
-    let mut out: Vec<String> = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
-    for (i, &b) in bytes.iter().enumerate() {
-        if b != b'[' {
+    cu: &CompilationUnit,
+    body_id: ProcedureId,
+    known: &HashSet<ProcedureId>,
+    registry: &CommandRegistry,
+) -> Vec<ProcedureId> {
+    let module = &cu.ir_module;
+    let mut dependencies = std::collections::BTreeSet::new();
+    let original = (|| {
+        let procedure = cu.original_procedure_for_body(body_id)?;
+        let retained = module.retained_source_bindings.as_deref()?;
+        if !retained.matches_original_procedure_summary(body_id, procedure)
+            || !module
+                .original_source_procedure_bodies()
+                .any(|(id, current)| *id == body_id && std::ptr::eq(current, procedure))
+            || module.source.try_text().ok()? != cu.source
+        {
+            return None;
+        }
+        let bindings = retained.positioned_for_module(module, registry)?;
+        let body = procedure.body_source.as_deref()?;
+        let base = usize::try_from(procedure.body_offset).ok()?;
+        if cu.source.get(base..base.checked_add(body.len())?) != Some(body) {
+            return None;
+        }
+        Some((body, base, bindings))
+    })();
+    let Some((body, base, bindings)) = original else {
+        return known.iter().copied().collect();
+    };
+    let config = module.lexer_config.nested();
+    let profile = module
+        .source_metadata_input
+        .as_ref()
+        .map(crate::analyser::ResolvedAnalysisInput::analyser_profile)
+        .or(module.dialect_profile);
+    let Some(end) = base
+        .checked_add(body.len())
+        .and_then(|end| u32::try_from(end).ok())
+    else {
+        return known.iter().copied().collect();
+    };
+    let Ok(start) = u32::try_from(base) else {
+        return known.iter().copied().collect();
+    };
+    let mut pending = vec![(tcl_lexer::Span::new(start, end), false, 0)];
+    let mut seen = HashSet::new();
+    while let Some((span, substitution, depth)) = pending.pop() {
+        if !seen.insert((span, substitution)) {
             continue;
         }
-        // Skip leading whitespace after the bracket, then read the head word.
-        let mut j = i + 1;
-        while j < bytes.len() && matches!(bytes[j], b' ' | b'\t' | b'\r' | b'\n') {
-            j += 1;
-        }
-        let start = j;
-        while j < bytes.len() && is_word(bytes[j]) {
-            j += 1;
-        }
-        if start == j {
+        if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+            dependencies.extend(known.iter().copied());
             continue;
         }
-        let Ok(head) = std::str::from_utf8(&bytes[start..j]) else {
+        let Ok(plan) = tcl_lexer::native_script_words_in_with_purpose(
+            module.source.clone(),
+            span,
+            config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        ) else {
+            dependencies.extend(known.iter().copied());
             continue;
         };
-        if head.starts_with('$') {
-            continue;
+        if plan.fatal_tail.is_some() {
+            dependencies.extend(known.iter().copied());
         }
-        if let Some(callee) = resolve_call_target(head, &[], caller_qname, known)
-            && seen.insert(callee.clone())
-        {
-            out.push(callee);
+        for command in plan.commands {
+            let Some(inner) = cu.source.get(command.span.as_range()) else {
+                dependencies.extend(known.iter().copied());
+                continue;
+            };
+            let offset = command.span.start();
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(inner, offset, config);
+            let [segment] = commands.as_slice() else {
+                dependencies.extend(known.iter().copied());
+                continue;
+            };
+            if segment.is_partial {
+                dependencies.extend(known.iter().copied());
+                continue;
+            }
+            let map = SourceMap::new(inner).with_base(offset, 0, 0);
+            let mut tokens = crate::ir::CommandTokens::from_segmented(&map, config, segment);
+            bindings.stamp_original_tokens(&mut tokens);
+            if substitution {
+                let ids = original_head(&tokens).and_then(|head| {
+                    crate::registry_invocation::original_procedure_may_dependencies_for_word_for_module(
+                        &tokens, &head, module, registry,
+                    )
+                });
+                if let Some(selected) = ids {
+                    dependencies
+                        .extend(selected.bodies.into_iter().filter(|id| known.contains(id)));
+                    if selected.unknown_alternatives {
+                        dependencies.extend(known.iter().copied());
+                    }
+                } else {
+                    dependencies.extend(known.iter().copied());
+                }
+            }
+            if let Some(regions) = crate::word_subst::original_source_dependency_regions(
+                &tokens,
+                &command.words,
+                registry,
+                profile,
+            ) {
+                if regions.unknown {
+                    dependencies.extend(known.iter().copied());
+                }
+                pending.extend(
+                    regions
+                        .substitutions
+                        .into_iter()
+                        .map(|span| (span, true, depth + 1)),
+                );
+                pending.extend(
+                    regions
+                        .scripts
+                        .into_iter()
+                        .map(|span| (span, substitution, depth + 1)),
+                );
+            } else {
+                dependencies.extend(known.iter().copied());
+            }
         }
     }
-    out.sort();
-    out
+    dependencies.into_iter().collect()
 }
 
-// Solver
-
-/// Result of the interprocedural taint solve. Summaries are dropped — the
-/// warning consumers only read `top_taints` / `proc_taints`.
-///
-/// `PartialEq` lets the LSP db return this from the memoised `proc_taint_solve`
-/// salsa query (early-cutoff via salsa's update-fallback: a re-solve that
-/// produces the same taints backdates, waking no downstream check).
+/// Per-body solved taints and the separate actual top-level solve.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct InterprocTaintResult {
     /// Taints for the top-level script.
     pub top_taints: HashMap<ValueKey, TaintLattice>,
     /// Per-procedure taints, keyed by qualified name.
-    pub proc_taints: HashMap<String, HashMap<ValueKey, TaintLattice>>,
+    pub proc_taints: HashMap<crate::ir::ProcedureId, HashMap<ValueKey, TaintLattice>>,
 }
 
 impl InterprocTaintResult {
-    /// The solved taints for `name`, falling back to `fallback` (the bare
-    /// per-function taints) when the function was not part of the solve.
+    /// Select the actual top-level or Module-owned procedure solve.
+    /// Methods and unavailable body owners retain their own conservative lattice.
     #[must_use]
-    pub fn taints_for<'a>(
+    pub fn taints_for_function<'a>(
         &'a self,
-        name: &str,
-        fallback: &'a HashMap<ValueKey, TaintLattice>,
+        cu: &'a CompilationUnit,
+        fu: &'a FunctionUnit,
     ) -> &'a HashMap<ValueKey, TaintLattice> {
-        if name == "::top" {
+        if std::ptr::eq(fu, std::ptr::from_ref(&cu.top_level)) {
             return &self.top_taints;
         }
-        self.proc_taints.get(name).unwrap_or(fallback)
+        let Some(id) = fu.body_id else {
+            return &fu.taints;
+        };
+        if cu
+            .function_for_body(Some(id))
+            .is_none_or(|current| !std::ptr::eq(current, fu))
+        {
+            return &fu.taints;
+        }
+        self.proc_taints.get(&id).unwrap_or(&fu.taints)
     }
 }
 
 /// Update a callee's accumulated entry taints with an incoming argument tuple.
 /// Returns `true` when any parameter's entry taint grew.
 fn update_entry(
-    summaries: &HashMap<String, ProcTaintSummary>,
-    entry_taints: &mut HashMap<String, HashMap<String, TaintLattice>>,
-    callee: &str,
+    summaries: &HashMap<crate::ir::ProcedureId, ProcTaintSummary>,
+    entry_taints: &mut HashMap<crate::ir::ProcedureId, HashMap<String, TaintLattice>>,
+    callee: &crate::ir::ProcedureId,
     args: &[TaintLattice],
 ) -> bool {
     let Some(summary) = summaries.get(callee) else {
@@ -794,6 +1406,26 @@ fn update_entry(
     };
     let entry = entry_taints.entry(callee.to_owned()).or_default();
     let mut changed = false;
+
+    if summary.source_formals_required {
+        let bindings = source_formal_argument_taints(summary, args).unwrap_or_else(|| {
+            summary
+                .params
+                .iter()
+                .cloned()
+                .map(|parameter| (parameter, TaintLattice::tainted()))
+                .collect()
+        });
+        for (parameter, incoming) in bindings {
+            let slot = entry.entry(parameter).or_insert_with(TaintLattice::clean);
+            let merged = slot.join(incoming);
+            if merged != *slot {
+                *slot = merged;
+                changed = true;
+            }
+        }
+        return changed;
+    }
 
     if summary.params.last().is_some_and(|p| p == "args") {
         let fixed = summary.params.len() - 1;
@@ -862,7 +1494,11 @@ fn update_entry(
 ///
 /// Append `val` to `map[key]`, deduplicated — the caller-edge insert for the
 /// reverse call graph in [`converge_summaries_with`].
-fn push_unique_edge<'a>(map: &mut HashMap<&'a str, Vec<&'a str>>, key: &'a str, val: &'a str) {
+fn push_unique_edge(
+    map: &mut HashMap<crate::ir::ProcedureId, Vec<crate::ir::ProcedureId>>,
+    key: crate::ir::ProcedureId,
+    val: crate::ir::ProcedureId,
+) {
     let entry = map.entry(key).or_default();
     if !entry.contains(&val) {
         entry.push(val);
@@ -877,22 +1513,33 @@ pub fn converge_summaries_with(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    _dialect: Option<&'static tcl_dialect::DialectProfile>,
     infer_fn: &mut InferProcSummaryFn<'_>,
-) -> HashMap<String, ProcTaintSummary> {
-    let mut proc_names: Vec<&String> = cu.ir_module.procedures.keys().collect();
+) -> HashMap<crate::ir::ProcedureId, ProcTaintSummary> {
+    let mut proc_names: Vec<&crate::ir::ProcedureId> = cu
+        .ir_module
+        .original_source_procedure_bodies()
+        .filter_map(|(id, _)| cu.function_for_body(Some(*id)).map(|_| id))
+        .collect();
     proc_names.sort();
 
     // Seed summaries (all scenarios untainted).
-    let mut summaries: HashMap<String, ProcTaintSummary> = HashMap::new();
+    let mut summaries: HashMap<crate::ir::ProcedureId, ProcTaintSummary> = HashMap::new();
     for qname in &proc_names {
-        let proc = &cu.ir_module.procedures[*qname];
+        let proc = cu
+            .original_procedure_for_body(**qname)
+            .expect("current original procedure body");
         summaries.insert(
-            (*qname).clone(),
-            ProcTaintSummary::untainted(qname, &proc.params),
+            **qname,
+            ProcTaintSummary::untainted_for_source(
+                &proc.qualified_name,
+                &proc.params,
+                cu.ir_module
+                    .original_source_formal_topology(**qname, registry),
+            ),
         );
     }
-    let known: HashSet<String> = summaries.keys().cloned().collect();
+    let known: HashSet<crate::ir::ProcedureId> = summaries.keys().copied().collect();
 
     // `callers[Q]` = procedures that directly call `Q`; when `Q`'s summary changes
     // its callers are re-queued. Without a call graph, re-queue everything.
@@ -907,29 +1554,27 @@ pub fn converge_summaries_with(
     // the completion sweep below still reaches the true least fixpoint — but it
     // costs a whole extra round-robin round to discover, which is the expensive
     // thing this solve does.
-    let callers: Option<HashMap<&str, Vec<&str>>> = interproc.map(|ia| {
-        let mut map: HashMap<&str, Vec<&str>> = HashMap::new();
-        for (caller, summary) in &ia.procedures {
-            for callee in &summary.direct_calls {
-                push_unique_edge(&mut map, callee.as_str(), caller.as_str());
-            }
-        }
-        for qname in &proc_names {
-            let Some(fu) = cu.procedures.get(*qname) else {
-                continue;
-            };
-            for callee in resolved_callees(fu, &known, tcl_lexer::LexerConfig::for_profile(dialect))
-            {
-                // `resolved_callees` returns owned names; the map borrows from
-                // `known`'s keys, which outlive it and hold the same strings.
-                if let Some(interned) = known.get(&callee) {
-                    push_unique_edge(&mut map, interned.as_str(), qname.as_str());
+    let callers: Option<HashMap<crate::ir::ProcedureId, Vec<crate::ir::ProcedureId>>> = interproc
+        .map(|ia| {
+            let mut map: HashMap<crate::ir::ProcedureId, Vec<crate::ir::ProcedureId>> =
+                HashMap::new();
+            for (caller, summary) in &ia.procedures {
+                for callee in &summary.direct_calls {
+                    push_unique_edge(&mut map, *callee, *caller);
                 }
             }
-        }
-        map
-    });
-    let mut dirty: HashSet<&str> = proc_names.iter().map(|q| q.as_str()).collect();
+            for qname in &proc_names {
+                for callee in resolved_callees(cu, Some(**qname), &known, registry) {
+                    // `resolved_callees` returns owned names; the map borrows from
+                    // `known`'s keys, which outlive it and hold the same strings.
+                    if known.contains(&callee) {
+                        push_unique_edge(&mut map, callee, **qname);
+                    }
+                }
+            }
+            map
+        });
+    let mut dirty: HashSet<crate::ir::ProcedureId> = proc_names.iter().map(|q| **q).collect();
     // Outer fixpoint-completion loop. The dirty-set worklist below converges
     // fast *when the call graph is complete*, but `callers` is derived from
     // `direct_calls`, which misses a callee edge buried in a nested command
@@ -943,24 +1588,43 @@ pub fn converge_summaries_with(
     // movement and breaks after one clean sweep — the common, cheap case.
     loop {
         while !dirty.is_empty() {
-            let mut next: HashSet<&str> = HashSet::new();
+            let mut next: HashSet<crate::ir::ProcedureId> = HashSet::new();
             for qname in &proc_names {
-                if !dirty.contains(qname.as_str()) {
+                if !dirty.contains(*qname) {
                     continue;
                 }
-                let Some(fu) = cu.procedures.get(*qname) else {
+                let Some(fu) = cu.function_for_body(Some(**qname)) else {
                     continue;
                 };
-                let proc = &cu.ir_module.procedures[*qname];
-                let inferred = infer_fn(qname, &proc.params, fu, &known, &summaries);
+                let proc = cu
+                    .original_procedure_for_body(**qname)
+                    .expect("current original procedure body");
+                let source = TaintSourceContext::for_module_function(registry, &cu.ir_module, fu);
+                let inferred = if source.metadata_context().is_some() {
+                    infer_fn(cu, **qname, interproc, &known, &summaries)
+                } else {
+                    infer_proc_summary_with_source(ProcSummaryInputs {
+                        qname: &proc.qualified_name,
+                        params: &proc.params,
+                        fu,
+                        registry,
+                        interproc,
+                        source,
+                        source_formals: cu
+                            .ir_module
+                            .original_source_formal_topology(**qname, registry),
+                        known: &known,
+                        summaries: &summaries,
+                    })
+                };
                 if summaries.get(*qname) != Some(&inferred) {
-                    summaries.insert((*qname).clone(), inferred);
+                    summaries.insert(**qname, inferred);
                     // Re-queue `qname` itself (a self-recursive proc reads its own
                     // summary) plus its known callers from the reverse call graph.
-                    next.insert(qname.as_str());
+                    next.insert(**qname);
                     match &callers {
-                        Some(map) => next.extend(map.get(qname.as_str()).into_iter().flatten()),
-                        None => next.extend(proc_names.iter().map(|q| q.as_str())),
+                        Some(map) => next.extend(map.get(*qname).into_iter().flatten()),
+                        None => next.extend(proc_names.iter().map(|q| **q)),
                     }
                 }
             }
@@ -968,16 +1632,35 @@ pub fn converge_summaries_with(
         }
         // Completion pass: a full round-robin catches any proc still short of the
         // fixpoint because the worklist's `callers` map missed an inbound edge.
-        let mut moved: HashSet<&str> = HashSet::new();
+        let mut moved: HashSet<crate::ir::ProcedureId> = HashSet::new();
         for qname in &proc_names {
-            let Some(fu) = cu.procedures.get(*qname) else {
+            let Some(fu) = cu.function_for_body(Some(**qname)) else {
                 continue;
             };
-            let proc = &cu.ir_module.procedures[*qname];
-            let inferred = infer_fn(qname, &proc.params, fu, &known, &summaries);
+            let proc = cu
+                .original_procedure_for_body(**qname)
+                .expect("current original procedure body");
+            let source = TaintSourceContext::for_module_function(registry, &cu.ir_module, fu);
+            let inferred = if source.metadata_context().is_some() {
+                infer_fn(cu, **qname, interproc, &known, &summaries)
+            } else {
+                infer_proc_summary_with_source(ProcSummaryInputs {
+                    qname: &proc.qualified_name,
+                    params: &proc.params,
+                    fu,
+                    registry,
+                    interproc,
+                    source,
+                    source_formals: cu
+                        .ir_module
+                        .original_source_formal_topology(**qname, registry),
+                    known: &known,
+                    summaries: &summaries,
+                })
+            };
             if summaries.get(*qname) != Some(&inferred) {
-                summaries.insert((*qname).clone(), inferred);
-                moved.insert(qname.as_str());
+                summaries.insert(**qname, inferred);
+                moved.insert(**qname);
             }
         }
         if moved.is_empty() {
@@ -992,22 +1675,27 @@ pub fn converge_summaries_with(
     // false-negative risk). Zero cost in release; proven clean over the tcllib corpus.
     #[cfg(debug_assertions)]
     for qname in &proc_names {
-        if let Some(fu) = cu.procedures.get(*qname) {
-            let proc = &cu.ir_module.procedures[*qname];
-            let reinferred = infer_proc_summary(
-                qname,
-                &proc.params,
+        if let Some(fu) = cu.function_for_body(Some(**qname)) {
+            let proc = cu
+                .original_procedure_for_body(**qname)
+                .expect("current original procedure body");
+            let reinferred = infer_proc_summary_with_source(ProcSummaryInputs {
+                qname: &proc.qualified_name,
+                params: &proc.params,
                 fu,
                 registry,
                 interproc,
-                dialect,
-                &known,
-                &summaries,
-            );
+                source: TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+                source_formals: cu
+                    .ir_module
+                    .original_source_formal_topology(**qname, registry),
+                known: &known,
+                summaries: &summaries,
+            });
             debug_assert_eq!(
                 summaries.get(*qname),
                 Some(&reinferred),
-                "interproc taint summary fixpoint under-converged for `{qname}` \
+                "interproc taint summary fixpoint under-converged for `{qname:?}` \
                  (call graph missed a callee-summary edge)"
             );
         }
@@ -1065,14 +1753,13 @@ fn solve_interprocedural_taints_with_seed_option(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
 ) -> InterprocTaintResult {
-    // `find_taint_warnings_for_cu` is also a public entry point on a freshly
-    // built unit, before `CompilationUnit::with_interprocedural` has attached
-    // the full call/effect summary.  Preserve the smaller but security-critical
-    // interpreter-global receiver facts in that mode: a top-level `ttk::entry
-    // .user` remains the same command inside a later callback procedure
-    // without retroactively typing a procedure invoked before construction.
+    // A fresh actual CU can retain conditional receiver setup before the full
+    // summary is attached. The map and its Module owner travel together; no
+    // callback frame or live object is supplied by these source candidates.
     let global_instance_classes =
         crate::interprocedural::global_instance_classes(&cu.ir_module, registry);
+    let global_source =
+        crate::interprocedural::global_instance_class_source(&cu.ir_module, registry);
     let fallback_interproc = crate::interprocedural::InterproceduralAnalysis {
         tainted_global_writes: crate::interprocedural::tainted_global_writes(
             &cu.ir_module,
@@ -1080,17 +1767,18 @@ fn solve_interprocedural_taints_with_seed_option(
             &global_instance_classes,
         ),
         global_instance_classes,
+        global_instance_class_input: global_source.as_ref().map(|(input, _)| input.clone()),
+        global_instance_class_owner: global_source.map(|(_, owner)| owner),
         ..crate::interprocedural::InterproceduralAnalysis::default()
     };
     let interproc = cu.interproc.as_ref().or(Some(&fallback_interproc));
-    let mut infer = |qname: &str,
-                     params: &[String],
-                     fu: &FunctionUnit,
-                     known: &HashSet<String>,
-                     summaries: &HashMap<String, ProcTaintSummary>| {
-        infer_proc_summary(
-            qname, params, fu, registry, interproc, dialect, known, summaries,
-        )
+    let mut infer = |cu: &CompilationUnit,
+                     body_id: ProcedureId,
+                     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
+                     known: &HashSet<ProcedureId>,
+                     summaries: &HashMap<ProcedureId, ProcTaintSummary>| {
+        infer_proc_summary(cu, body_id, registry, interproc, dialect, known, summaries)
+            .expect("worklist retains the actual procedure and function")
     };
     solve_interprocedural_taints_with_context(
         cu,
@@ -1132,20 +1820,29 @@ fn solve_interprocedural_taints_with_context(
 
     // Procedures in deterministic (sorted) order, and the name set — both consumed
     // by the entry-taint worklist below.
-    let mut proc_names: Vec<&String> = cu.ir_module.procedures.keys().collect();
+    let mut proc_names: Vec<&crate::ir::ProcedureId> = cu
+        .ir_module
+        .original_source_procedure_bodies()
+        .filter_map(|(id, _)| cu.function_for_body(Some(*id)).map(|_| id))
+        .collect();
     proc_names.sort();
-    let known: HashSet<String> = summaries.keys().cloned().collect();
+    let known: HashSet<crate::ir::ProcedureId> = summaries.keys().copied().collect();
 
     // Top-level taints under the converged summaries.
-    let top_instance_classes =
-        instance_classes_for_function(&cu.top_level.cfg, registry, interproc, false);
+    let top_instance_classes = instance_classes_for_function(
+        &cu.top_level.cfg,
+        registry,
+        interproc,
+        false,
+        TaintSourceContext::for_module_function(registry, &cu.ir_module, &cu.top_level),
+    );
     let top_taints = run_propagation(
         &TaintGraph::new(&cu.top_level.cfg, &cu.top_level.ssa, &cu.top_level.sccp),
         &cu.top_level,
         &top_instance_classes,
         registry,
         interproc,
-        dialect,
+        TaintSourceContext::for_module_function(registry, &cu.ir_module, &cu.top_level),
         external_variable_seeds,
         &summaries,
     );
@@ -1154,15 +1851,17 @@ fn solve_interprocedural_taints_with_context(
     // re-propagating each callee until a fixpoint. Every proc is seeded into
     // the queue (so each is propagated at least once, with its accumulated —
     // initially empty — entry taints).
-    let mut entry_taints: HashMap<String, HashMap<String, TaintLattice>> = HashMap::new();
-    let mut proc_taints: HashMap<String, HashMap<ValueKey, TaintLattice>> = HashMap::new();
+    let mut entry_taints: HashMap<crate::ir::ProcedureId, HashMap<String, TaintLattice>> =
+        HashMap::new();
+    let mut proc_taints: HashMap<crate::ir::ProcedureId, HashMap<ValueKey, TaintLattice>> =
+        HashMap::new();
     for qname in &proc_names {
-        entry_taints.insert((*qname).clone(), HashMap::new());
-        proc_taints.insert((*qname).clone(), HashMap::new());
+        entry_taints.insert(**qname, HashMap::new());
+        proc_taints.insert(**qname, HashMap::new());
     }
 
-    let mut queue: VecDeque<String> = proc_names.iter().map(|q| (*q).clone()).collect();
-    let mut queued: HashSet<String> = queue.iter().cloned().collect();
+    let mut queue: VecDeque<crate::ir::ProcedureId> = proc_names.iter().map(|q| **q).collect();
+    let mut queued: HashSet<crate::ir::ProcedureId> = queue.iter().copied().collect();
 
     // Initial flows from the top level.
     let initial_flows = resolve_call_flows(
@@ -1171,14 +1870,12 @@ fn solve_interprocedural_taints_with_context(
         &top_instance_classes,
         registry,
         interproc,
-        dialect,
+        TaintSourceContext::for_module_function(registry, &cu.ir_module, &cu.top_level),
         &known,
         &summaries,
     );
     for (callee, args) in initial_flows {
-        if update_entry(&summaries, &mut entry_taints, &callee, &args)
-            && queued.insert(callee.clone())
-        {
+        if update_entry(&summaries, &mut entry_taints, &callee, &args) && queued.insert(callee) {
             queue.push_back(callee);
         }
     }
@@ -1186,12 +1883,13 @@ fn solve_interprocedural_taints_with_context(
     // The entry-taint worklist re-propagates a procedure every time one of its
     // callers' argument taints move, so its CFG-derived indices are built once
     // per procedure and cached rather than once per dequeue.
-    let mut graphs: HashMap<String, TaintGraph<'_>> = HashMap::new();
-    let mut instance_classes_by_proc: HashMap<String, LocalInstanceClasses> = HashMap::new();
+    let mut graphs: HashMap<crate::ir::ProcedureId, TaintGraph<'_>> = HashMap::new();
+    let mut instance_classes_by_proc: HashMap<crate::ir::ProcedureId, LocalInstanceClasses> =
+        HashMap::new();
 
     while let Some(qname) = queue.pop_front() {
         queued.remove(&qname);
-        let Some(fu) = cu.procedures.get(&qname) else {
+        let Some(fu) = cu.function_for_body(Some(qname)) else {
             continue;
         };
         let mut entry = entry_taints.get(&qname).cloned().unwrap_or_default();
@@ -1204,18 +1902,24 @@ fn solve_interprocedural_taints_with_context(
             }
         }
         let graph = graphs
-            .entry(qname.clone())
+            .entry(qname)
             .or_insert_with(|| TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp));
-        let instance_classes = instance_classes_by_proc
-            .entry(qname.clone())
-            .or_insert_with(|| instance_classes_for_function(&fu.cfg, registry, interproc, true));
+        let instance_classes = instance_classes_by_proc.entry(qname).or_insert_with(|| {
+            instance_classes_for_function(
+                &fu.cfg,
+                registry,
+                interproc,
+                true,
+                TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+            )
+        });
         let taints = run_propagation(
             graph,
             fu,
             instance_classes,
             registry,
             interproc,
-            dialect,
+            TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
             Some(&entry),
             &summaries,
         );
@@ -1226,15 +1930,14 @@ fn solve_interprocedural_taints_with_context(
             instance_classes,
             registry,
             interproc,
-            dialect,
+            TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
             &known,
             &summaries,
         );
-        proc_taints.insert(qname.clone(), taints);
+        proc_taints.insert(qname, taints);
 
         for (callee, args) in flows {
-            if update_entry(&summaries, &mut entry_taints, &callee, &args)
-                && queued.insert(callee.clone())
+            if update_entry(&summaries, &mut entry_taints, &callee, &args) && queued.insert(callee)
             {
                 queue.push_back(callee);
             }
@@ -1258,6 +1961,69 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(&reg, None);
         crate::taint::find_taint_warnings_for_cu(&cu, &reg, None)
+    }
+
+    #[test]
+    fn dynamic_original_head_retains_all_actual_summary_dependencies() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let source = "proc target {} {return VALUE}\nproc other {} {return OTHER}\nproc caller {command x} {$command $x}\n";
+        let cu = CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        assert!(cu.ir_module.source_entry.native_entry.is_none());
+        let known = cu
+            .ir_module
+            .original_source_procedure_bodies()
+            .map(|(id, _)| *id)
+            .collect::<HashSet<_>>();
+        assert_eq!(known.len(), 3);
+        let caller = *cu
+            .ir_module
+            .original_native_declaration_body_units
+            .iter()
+            .find(|(_, card)| card.name() == Some("caller"))
+            .unwrap()
+            .0;
+        let function = cu.function_for_body(Some(caller)).unwrap();
+        assert!(
+            function
+                .cfg
+                .blocks
+                .values()
+                .flat_map(|block| block.statements.iter())
+                .any(|statement| {
+                    statement.tokens().is_some_and(|tokens| {
+                        original_head(tokens).is_none()
+                            && tokens
+                                .words()
+                                .first()
+                                .is_some_and(|head| head.legacy_text().contains("$command"))
+                    })
+                })
+        );
+        let actual = resolved_callees(&cu, Some(caller), &known, context.commands())
+            .into_iter()
+            .collect::<HashSet<_>>();
+        assert_eq!(actual, known);
     }
 
     #[test]
@@ -1299,7 +2065,7 @@ mod tests {
         for (basis, colour) in expected {
             assert_eq!(
                 basis.lattice(),
-                TaintLattice { colours: colour },
+                TaintLattice::from_colours(colour),
                 "{basis:?} mapped to an unexpected lattice"
             );
         }
@@ -1322,6 +2088,88 @@ mod tests {
     }
 
     #[test]
+    fn summary_dependencies_read_original_static_heads_under_source_grammar() {
+        // naming.compiler.original-summary-dependency-source-heads
+
+        // Lexical memo dependencies supply no selected command or execution.
+        let known: HashSet<_> = ["::foo", "::café", "::ns::local", "::unused"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        let config =
+            tcl_lexer::LexerConfig::for_profile(tcl_dialect::DialectProfile::find("tcl8.6"));
+        let dependencies = command_subst_callees_with_config(
+            r#"return ["foo"] [{café}] [\u0066oo] [local]"#,
+            "::ns::caller",
+            &known,
+            config,
+        );
+        assert_eq!(dependencies, ["::café", "::foo", "::ns::local"]);
+        assert_eq!(
+            command_subst_callees_with_config("return [foo; café]", "::ns::caller", &known, config),
+            ["::café", "::foo"],
+        );
+        assert!(
+            command_subst_callees_with_config("return []", "::ns::caller", &known, config)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn summary_dependencies_keep_original_bracket_data_inert() {
+        let known = HashSet::from(["::foo".to_owned(), "::unused".to_owned()]);
+        let config =
+            tcl_lexer::LexerConfig::for_profile(tcl_dialect::DialectProfile::find("tcl8.6"));
+        assert!(
+            command_subst_callees_with_config(
+                "while {$value} {incr value}",
+                "::caller",
+                &known,
+                config,
+            )
+            .is_empty()
+        );
+        assert!(
+            command_subst_callees_with_config(
+                "puts {[foo]}; return {[unused]}",
+                "::caller",
+                &known,
+                config,
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn summary_dependencies_keep_unresolved_and_dialect_residuals() {
+        // naming.compiler.original-summary-dependency-source-heads
+
+        let known: HashSet<_> = ["::foo", "::other"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        let config =
+            tcl_lexer::LexerConfig::for_profile(tcl_dialect::DialectProfile::find("tcl8.6"));
+        for source in ["return [$head]", "return [installed_alias]", "return [foo"] {
+            assert_eq!(
+                command_subst_callees_with_config(source, "::caller", &known, config),
+                ["::foo", "::other"],
+                "unresolved source dependency: {source}",
+            );
+        }
+        assert_eq!(
+            command_subst_callees_with_config(r"return [\U00000066oo]", "::caller", &known, config),
+            ["::foo"],
+        );
+        let older =
+            tcl_lexer::LexerConfig::for_profile(tcl_dialect::DialectProfile::find("tcl8.4"));
+        assert_eq!(
+            command_subst_callees_with_config(r"return [\U00000066oo]", "::caller", &known, older),
+            ["::foo", "::other"],
+        );
+    }
+
+    #[test]
     fn cross_proc_entry_taint_into_sink_warns() {
         // A tainted argument flowing into a proc parameter and then into a
         // sink inside that proc is reported (cross-proc entry-taint) — the
@@ -1338,7 +2186,23 @@ mod tests {
     fn clean_argument_into_proc_does_not_warn() {
         // A clean (literal) argument flowing into the same proc must NOT warn.
         let src = "proc s {v} { eval $v }\ns hello\n";
-        assert!(warnings(src).is_empty());
+        assert_eq!(warnings(src), [] as [crate::taint::TaintWarning; 0]);
+    }
+
+    #[test]
+    fn original_return_substitution_flows_arguments_into_the_actual_callee() {
+        let source = "proc sink {argument} {eval $argument}\n\
+            proc wrapper {value} {return [sink $value]}\n\
+            set input [gets stdin]\nwrapper $input\n";
+        let findings = warnings(source);
+        assert!(
+            findings.iter().any(|finding| {
+                finding.code == DiagCode::T100
+                    && finding.variable == "argument"
+                    && finding.sink_command == "eval"
+            }),
+            "the original returned invocation must taint its actual callee's parameter: {findings:?}"
+        );
     }
 
     #[test]
@@ -1351,6 +2215,91 @@ mod tests {
             w.iter()
                 .any(|w| w.code == DiagCode::T100 && w.sink_command == "eval"),
             "expected eval injection via return summary: {w:?}"
+        );
+    }
+
+    #[test]
+    fn original_return_lookup_without_a_target_cannot_supply_a_clean_summary() {
+        let (context, cu) = crate::interprocedural::logical_completion_unit(
+            "proc wrapper {} {return [missing]}",
+            "tcl8.6",
+        );
+        let body = *cu.ir_module.procedures.keys().next().unwrap();
+        assert!(cu.procedures[&body].cfg.blocks.values().any(|block| {
+            matches!(
+                &block.terminator,
+                Some(Terminator::Return {
+                    tokens: Some(_),
+                    value_word: Some(_),
+                    ..
+                })
+            )
+        }));
+        let summary = infer_proc_summary(
+            &cu,
+            body,
+            context.commands(),
+            cu.interproc.as_ref(),
+            None,
+            &HashSet::from([body]),
+            &HashMap::new(),
+        )
+        .expect("actual original wrapper declaration");
+        assert_eq!(summary.return_base, TaintLattice::tainted());
+    }
+
+    #[test]
+    fn source_summary_reborrows_formals_from_its_actual_module_body() {
+        let (context, cu) = crate::interprocedural::logical_completion_unit(
+            "proc defaulted {{value fallback} args} { return $value }",
+            "tcl8.6",
+        );
+        let registry = context.commands();
+        let body = *cu.ir_module.procedures.keys().next().unwrap();
+        let formals = cu
+            .ir_module
+            .original_source_formal_topology(body, registry)
+            .expect("the exact retained source procedure supplies its selected ParamList");
+        assert_eq!(formals.len(), 2);
+        let crate::signature_scan::formal_parameters::SourceProcedureFormalTopology::Logical(
+            logical,
+        ) = &formals
+        else {
+            panic!("Logical source procedure keeps its separate selected topology");
+        };
+        assert_eq!(logical.parameters()[0].name, "value");
+        assert_eq!(logical.parameters()[0].default.as_deref(), Some("fallback"));
+        assert_eq!(logical.parameters()[1].name, "args");
+        assert_eq!(formals.argument_count_shape().minimum, 0);
+        assert_eq!(formals.argument_count_shape().maximum, None);
+
+        let summary = infer_proc_summary(
+            &cu,
+            body,
+            registry,
+            cu.interproc.as_ref(),
+            None,
+            &HashSet::from([body]),
+            &HashMap::new(),
+        )
+        .expect("the Module-owned procedure summary is available");
+        assert_eq!(summary.source_formals.as_ref(), Some(&formals));
+        assert!(summary.source_formals_required);
+        assert_eq!(
+            apply_proc_return_summary(&summary, &[TaintLattice::tainted(), TaintLattice::clean()],),
+            TaintLattice::tainted(),
+            "the actual first formal carries its tainted argument"
+        );
+
+        let mut foreign = cu.clone();
+        foreign.ir_module.procedures.get_mut(&body).unwrap().params[0] =
+            "renamed_without_source_change".to_owned();
+        assert!(
+            foreign
+                .ir_module
+                .original_source_formal_topology(body, registry)
+                .is_none(),
+            "a changed body projection cannot reuse the retained source ParamList"
         );
     }
 
@@ -1372,21 +2321,97 @@ mod tests {
         let _ = warnings(src);
     }
 
+    fn fixture_body(cu: &CompilationUnit, display: &str) -> ProcedureId {
+        *cu.ir_module
+            .procedures
+            .unique_display(display)
+            .expect("fixture has one independently retained declaration")
+            .0
+    }
+
+    fn summaries_for_unit(
+        cu: &CompilationUnit,
+        registry: &CommandRegistry,
+    ) -> HashMap<ProcedureId, ProcTaintSummary> {
+        converge_summaries_with(
+            cu,
+            registry,
+            cu.interproc.as_ref(),
+            None,
+            &mut |unit, id, interproc, known, summaries| {
+                infer_proc_summary(unit, id, registry, interproc, None, known, summaries)
+                    .expect("actual fixture body")
+            },
+        )
+    }
+
+    fn command_subst_callees_with_config(
+        body: &str,
+        caller: &str,
+        known: &HashSet<String>,
+        config: tcl_lexer::LexerConfig,
+    ) -> Vec<String> {
+        let mut declarations: Vec<_> = known.iter().collect();
+        declarations.sort();
+        let mut source = String::from("namespace eval ::ns {}\n");
+        for name in declarations {
+            source.push_str(&format!("proc {name} {{}} {{}}\n"));
+        }
+        source.push_str(&format!("proc {caller} {{}} {{{body}}}\n"));
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for_with_config(&source, &registry, false, config);
+        let known_ids: HashSet<_> = known
+            .iter()
+            .filter_map(|name| {
+                cu.ir_module
+                    .procedures
+                    .unique_display(name)
+                    .map(|(id, _)| *id)
+            })
+            .collect();
+        assert_eq!(
+            known_ids.len(),
+            known.len(),
+            "every dependency fixture retains its actual declaration"
+        );
+        let ids = if let Some((id, _)) = cu.ir_module.procedures.unique_display(caller) {
+            command_subst_callees(&cu, *id, &known_ids, &registry)
+        } else {
+            known_ids.iter().copied().collect()
+        };
+        let mut displays: Vec<_> = ids
+            .into_iter()
+            .map(|id| {
+                cu.ir_module
+                    .procedures
+                    .get(&id)
+                    .unwrap()
+                    .qualified_name
+                    .clone()
+            })
+            .collect();
+        displays.sort();
+        displays
+    }
+
     /// Build the whole-module summary map the way the solver does, so a test
     /// can compare summaries rather than only the diagnostics they produce.
     fn summaries_for(src: &str) -> HashMap<String, ProcTaintSummary> {
         let reg = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(&reg, None);
-        let interproc = cu.interproc.as_ref();
-        converge_summaries_with(
-            &cu,
-            &reg,
-            interproc,
-            None,
-            &mut |qname, params, fu, known, summaries| {
-                infer_proc_summary(qname, params, fu, &reg, interproc, None, known, summaries)
-            },
-        )
+        let mut shown = HashMap::new();
+        for (id, summary) in summaries_for_unit(&cu, &reg) {
+            let body = cu
+                .ir_module
+                .procedures
+                .get(&id)
+                .expect("actual taint fixture body");
+            assert!(
+                shown.insert(body.qualified_name.clone(), summary).is_none(),
+                "authored taint fixture labels must be unique"
+            );
+        }
+        shown
     }
 
     #[test]
@@ -1399,20 +2424,12 @@ mod tests {
         let cu = CompilationUnit::build_for("proc id {v} { return $v }\n", &reg, false)
             .with_interprocedural(&reg, None);
         let interproc = cu.interproc.as_ref();
-        let fu = &cu.procedures["::id"];
-        let known = HashSet::from(["::id".to_owned()]);
+        let id = fixture_body(&cu, "::id");
+        let known = HashSet::from([id]);
         crate::taint::reset_instance_class_solve_count();
 
-        let summary = infer_proc_summary(
-            "::id",
-            &["v".to_owned()],
-            fu,
-            &reg,
-            interproc,
-            None,
-            &known,
-            &HashMap::new(),
-        );
+        let summary = infer_proc_summary(&cu, id, &reg, interproc, None, &known, &HashMap::new())
+            .expect("actual fixture body");
 
         assert_eq!(
             summary.return_by_param_basis[0].1.len(),
@@ -1429,10 +2446,11 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(&reg, None);
         let interproc = cu.interproc.as_ref();
-        let summaries = summaries_for(src);
-        let known: HashSet<String> = summaries.keys().cloned().collect();
-        let proc = &cu.ir_module.procedures[target];
-        let fu = &cu.procedures[target];
+        let summaries = summaries_for_unit(&cu, &reg);
+        let known: HashSet<_> = summaries.keys().copied().collect();
+        let id = fixture_body(&cu, target);
+        let proc = cu.ir_module.procedures.get(&id).unwrap();
+        let fu = &cu.procedures[&id];
 
         let graph = TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp);
         let instance_classes = local_instance_classes(&fu.cfg, &reg);
@@ -1442,7 +2460,7 @@ mod tests {
             &instance_classes,
             &reg,
             interproc,
-            None,
+            TaintSourceContext::for_module_function(&reg, &cu.ir_module, fu),
             None,
             &summaries,
         );
@@ -1450,7 +2468,7 @@ mod tests {
             fu,
             &reg,
             interproc,
-            None,
+            TaintSourceContext::for_module_function(&reg, &cu.ir_module, fu),
             &known,
             &summaries,
             &instance_classes,
@@ -1468,7 +2486,7 @@ mod tests {
                     &instance_classes,
                     &reg,
                     interproc,
-                    None,
+                    TaintSourceContext::for_module_function(&reg, &cu.ir_module, fu),
                     Some(&seed),
                     &summaries,
                 );
@@ -1482,6 +2500,8 @@ mod tests {
             arity: crate::interprocedural::arity_from_names(&proc.params),
             return_base,
             return_by_param_basis: by_param_basis,
+            source_formals: None,
+            source_formals_required: false,
         }
     }
 
@@ -1532,6 +2552,40 @@ mod tests {
     }
 
     #[test]
+    fn opaque_native_call_cannot_produce_a_clean_constant_return_summary() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let mut unit = crate::compilation_unit::CompilationUnit::build_for(
+            "proc p {value} {return LITERAL}",
+            registry,
+            false,
+        );
+        let id = fixture_body(&unit, "::p");
+        let function = unit.procedures.get_mut(&id).unwrap();
+        function
+            .cfg
+            .blocks
+            .get_mut(&function.cfg.entry)
+            .unwrap()
+            .statements
+            .push(crate::ir::native_call_for_test(b"opaque \xff"));
+        let summary = infer_proc_summary(
+            &unit,
+            id,
+            registry,
+            None,
+            registry.profile(),
+            &HashSet::from([id]),
+            &HashMap::new(),
+        )
+        .expect("actual fixture body");
+        assert_eq!(summary.return_base, TaintLattice::tainted());
+        assert_eq!(
+            apply_proc_return_summary(&summary, &[TaintLattice::clean()]),
+            TaintLattice::tainted()
+        );
+    }
+
+    #[test]
     fn constant_return_prune_yields_the_untainted_summary() {
         // A procedure whose every executable return value is substitution-free
         // cannot carry taint out, so the whole summary is the clean one — with
@@ -1573,12 +2627,13 @@ mod tests {
         );
         // …and a procedure the constant-return prune skips *entirely* (zero
         // solves) must still produce exactly what the unpruned solver did.
-        // The sink check reports `$x` here because the tainted variable is
-        // written literally inside `eval`'s word, independently of what `lit`'s
-        // summary says — behaviour this change does not touch, pinned so a
-        // future prune cannot quietly move it.
+        // The original `eval` operand contains only the selected procedure's
+        // clean result. An input read inside that procedure call cannot supply
+        // bytes to the outer sink independently of the returned value.
         let src = "proc lit {v} { return safe }\nset x [gets stdin]\neval [lit $x]\n";
         let w = warnings(src);
+        assert!(w.is_empty(), "constant result must remain clean: {w:?}");
+        let w = warnings("proc lit {v} { return safe }\nset x [gets stdin]\neval [lit $x]$x\n");
         assert_eq!(w.len(), 1, "{w:?}");
         assert_eq!(w[0].code, DiagCode::T100);
         assert_eq!(w[0].variable, "x");
@@ -1600,5 +2655,229 @@ mod tests {
         // Wrong arity → untainted.
         let out = apply_proc_return_summary(&summary, &[TaintLattice::tainted()]);
         assert!(!out.is_tainted());
+    }
+}
+
+#[cfg(test)]
+mod original_return_taint_word_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn return_dependencies_keep_original_template_reads_and_inert_text() {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for(
+            "set value TEXT; return \"#prefix:\\$inert/$value\"",
+            &registry,
+            false,
+        );
+        let function = &unit.top_level;
+        let symbol = function
+            .ssa
+            .var_symbol("value")
+            .expect("actual scalar source symbol");
+        let (value, word, versions) = function
+            .cfg
+            .blocks
+            .iter()
+            .find_map(|(id, block)| {
+                let Terminator::Return {
+                    value: Some(value),
+                    value_word: Some(word),
+                    ..
+                } = block.terminator.as_ref()?
+                else {
+                    return None;
+                };
+                Some((value, word, &function.ssa.blocks.get(id)?.exit_versions))
+            })
+            .expect("actual original return word");
+        let uses = original_return_word_uses(
+            value,
+            Some(word),
+            versions,
+            &function.ssa,
+            function.source_lexer_config(),
+        );
+        assert!(!uses.unknown);
+        assert_eq!(uses.uses, HashMap::from([(symbol, versions[&symbol])]));
+    }
+
+    #[test]
+    fn return_dependencies_keep_literal_names_index_children_and_unknown_versions() {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for(
+            "set array(key) VALUE; set index key; set {$literal} VALUE; set {} EMPTY; return [list $array($index) ${$literal} ${}]",
+            &registry,
+            false,
+        );
+        let function = &unit.top_level;
+        let names = ["array", "index", "$literal", ""];
+        let symbols = names.map(|name| {
+            function
+                .ssa
+                .var_symbol(name)
+                .expect("actual function symbol")
+        });
+        let versions = function
+            .ssa
+            .blocks
+            .values()
+            .find_map(|block| {
+                symbols
+                    .iter()
+                    .all(|symbol| block.exit_versions.contains_key(symbol))
+                    .then_some(&block.exit_versions)
+            })
+            .expect("actual function exit versions");
+        let config = function.source_lexer_config();
+        let inventory = return_word_uses_from_versions(
+            "[list $array($index) ${$literal} ${}]",
+            versions,
+            &function.ssa,
+            config,
+        );
+        assert!(!inventory.unknown);
+        for symbol in symbols {
+            assert_eq!(inventory.uses.get(&symbol), versions.get(&symbol));
+        }
+        let inert = return_word_uses_from_versions(
+            "{$array($index) ${$literal} ${}}",
+            versions,
+            &function.ssa,
+            config,
+        );
+        assert!(!inert.unknown && inert.uses.is_empty());
+        let escaped =
+            return_word_uses_from_versions("\\$inert/$index", versions, &function.ssa, config);
+        assert!(!escaped.unknown);
+        assert_eq!(
+            escaped.uses,
+            HashMap::from([(symbols[1], versions[&symbols[1]])])
+        );
+        for original in ["[missing $index", "${name\0tail}", "$unrepresented"] {
+            let unknown = return_word_uses_from_versions(original, versions, &function.ssa, config);
+            assert!(unknown.unknown, "{original:?}");
+            for (symbol, version) in versions {
+                assert_eq!(unknown.uses.get(symbol), Some(version));
+            }
+        }
+        let mut missing = versions.clone();
+        missing.remove(&symbols[1]);
+        let unknown = return_word_uses_from_versions("$index", &missing, &function.ssa, config);
+        assert!(unknown.unknown);
+        assert!(!unknown.uses.contains_key(&symbols[1]));
+    }
+
+    #[test]
+    fn original_return_word_keeps_bom_and_actual_ssa_exit_versions() {
+        // naming.source.original-configured-script-completeness
+
+        // Lexical SSA-use projection only; no executable return-taint closure.
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for_with_config(
+            "\u{feff}set x VALUE\nreturn $x",
+            &registry,
+            false,
+            config,
+        );
+        let function = &unit.top_level;
+        assert_eq!(function.source_lexer_config(), config);
+        let symbol = function.ssa.var_symbol("x").expect("actual SSA variable");
+        let versions = function
+            .ssa
+            .blocks
+            .values()
+            .find_map(|block| {
+                block
+                    .exit_versions
+                    .contains_key(&symbol)
+                    .then_some(&block.exit_versions)
+            })
+            .expect("actual exit version");
+        let expected = HashMap::from([(symbol, versions[&symbol])]);
+        let text = "\u{feff}#prefix $x $not_in_this_ssa";
+        assert_eq!(
+            word_uses_from_versions(
+                text,
+                versions,
+                &function.ssa,
+                function.source_lexer_config()
+            ),
+            expected
+        );
+        assert_eq!(
+            word_uses_from_versions(text, versions, &function.ssa, config.nested()),
+            expected
+        );
+        assert!(
+            word_uses_from_versions("{\u{feff}#prefix $x}", versions, &function.ssa, config)
+                .is_empty()
+        );
+        assert_eq!(config.leading_bom, tcl_lexer::LeadingBom::Skip);
+    }
+}
+
+#[cfg(test)]
+mod consumed_source_dependency_tests {
+    #[test]
+    fn native_consumed_source_heads_do_not_read_unrelated_procedure_summaries() {
+        let source = "proc f {x} {set value $x; return $value}\nproc other {} {return OTHER}\n";
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let known = unit
+            .ir_module
+            .original_source_procedure_bodies()
+            .map(|(id, _)| *id)
+            .collect::<std::collections::HashSet<_>>();
+        assert_eq!(known.len(), 2);
+        for &body in &known {
+            let function = unit.function_for_body(Some(body)).unwrap();
+            assert!(
+                function
+                    .cfg
+                    .blocks
+                    .values()
+                    .flat_map(|block| &block.statements)
+                    .all(|statement| !matches!(
+                        statement,
+                        crate::ir::Statement::Call { .. }
+                            | crate::ir::Statement::Barrier { .. }
+                            | crate::ir::Statement::NativeCall { .. }
+                    ))
+            );
+            assert!(
+                super::resolved_callees(&unit, Some(body), &known, context.commands()).is_empty()
+            );
+            assert!(
+                super::command_subst_callees(&unit, body, &known, context.commands()).is_empty()
+            );
+        }
     }
 }

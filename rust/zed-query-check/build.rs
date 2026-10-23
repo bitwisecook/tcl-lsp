@@ -3,7 +3,7 @@
 //   * the vendored `tree-sitter-tcl`, pinned to the rev in `vendor/REV` /
 //     `editors/zed/extension.toml`;
 //   * the two grammars this repo owns — `tree-sitter-apl` and
-//     `tree-sitter-bigip`, which back Zed's APL and TMSH languages, each
+//     `tree-sitter-bigip`, which back Zed's APL and BIG-IP languages, each
 //     with their own queries to validate — as opposed to pointing at the
 //     *Tcl* grammar and shipping no queries at all.
 fn main() {

@@ -321,6 +321,7 @@ pub enum CompletionSupport {
     NormalOnly,
 }
 
+crate::hooks::source_catalogue_enum! {
 /// The catalogue of registry-named direct evaluators.
 ///
 /// The registry owns the catalogue; who implements each entry is stated by
@@ -329,162 +330,163 @@ pub enum CompletionSupport {
 pub enum NativeEvalId {
     /// The cell increment behind `incr`: read the cell, add under the
     /// target's integer tower, write it back, return the new value.
-    CellIncrement,
+    CellIncrement => (0, "the cell increment behind incr"),
     /// The cell append behind `append`: read the cell, append the values'
     /// bytes, write it back, return the new value.
-    CellAppend,
+    CellAppend => (1, "the cell append behind append"),
     /// The cell list-append behind `lappend`: read the cell as a list,
     /// append the values as elements, write it back, return the new value.
-    CellListAppend,
+    CellListAppend => (2, "the cell list-append behind lappend"),
     /// The exact-value write behind `set`: write the value and return it,
     /// or return the value the cell holds.
-    CellWrite,
+    CellWrite => (3, "the exact-value write behind set"),
     /// The constant's creation behind `const` (from 9.0): write the value
     /// into an absent place and return the empty string.
-    ConstWrite,
+    ConstWrite => (4, "the constant's creation behind const"),
     /// `dict set`: the dictionary with a value at a key path.
-    DictSet,
+    DictSet => (5, "dict set"),
     /// `dict unset`: the dictionary without the key at a key path.
-    DictUnset,
+    DictUnset => (6, "dict unset"),
     /// `dict incr`: the dictionary with one key's integer incremented.
-    DictIncr,
+    DictIncr => (7, "dict incr"),
     /// `dict append`: the dictionary with strings appended to one key's
     /// value.
-    DictAppend,
+    DictAppend => (8, "dict append"),
     /// `dict lappend`: the dictionary with elements appended to one key's
     /// list.
-    DictListAppend,
+    DictListAppend => (9, "dict lappend"),
     /// `string range string first last`: the shared string core, with the
     /// index numerals pre-resolved under the target's grammar.
-    StringRange,
+    StringRange => (10, "string range"),
     /// `list ?arg …?`: the arguments as one canonical list.
-    ListOfArgs,
+    ListOfArgs => (11, "list"),
     /// `format template ?arg …?`: the rendered template.
-    FormatTemplate,
+    FormatTemplate => (12, "format"),
     /// `llength list`: the element count.
-    ListLength,
+    ListLength => (13, "llength"),
     /// `string length string`: the character count under the target's
     /// character model.
-    StringLength,
+    StringLength => (14, "string length"),
     /// `regexp`: the regexp owner's typed match over the shared plumbing and
     /// the Tcl ARE engine — the count or the inline list as the result, and
     /// one write or preserve per match variable.
-    RegexpMatch,
+    RegexpMatch => (15, "regexp"),
     /// `regsub`: the regexp owner's substitution — the text as the result,
     /// or the count with the text written to the result variable.
-    RegsubSubstitute,
+    RegsubSubstitute => (16, "regsub"),
     /// `scan`: the shared matcher's conversions — the count with one write
     /// per converted variable, or the inline list.
-    ScanFormat,
+    ScanFormat => (17, "scan"),
     /// `binary scan`: the shared unpacker's fields, one write per scanned
     /// variable.
-    BinaryScan,
+    BinaryScan => (18, "binary scan"),
     /// `lassign`: the list's elements written in order, the rest returned.
-    ListAssign,
+    ListAssign => (19, "lassign"),
     /// `array set`: one element write per pair.
-    ArraySet,
+    ArraySet => (20, "array set"),
     /// `binary format`: the shared packer's bytes, a byte array by
     /// construction.
-    BinaryFormat,
+    BinaryFormat => (21, "binary format"),
     /// `unset`: each named variable unbound in order, the first absent one
     /// the command's error.
-    VariableUnset,
+    VariableUnset => (22, "the unbinds behind unset"),
     /// `error`: the `TCL_ERROR` completion with the message and `-errorcode`
     /// its words give.
-    ErrorRaise,
+    ErrorRaise => (23, "the error completion behind error"),
     /// `return`: the completion its `-code` and `-level` give, with its
     /// result.
-    ReturnComplete,
+    ReturnComplete => (24, "the completion behind return, from its -code and -level"),
     /// `break`: the `TCL_BREAK` completion.
-    BreakComplete,
+    BreakComplete => (25, "the break completion behind break"),
     /// `continue`: the `TCL_CONTINUE` completion.
-    ContinueComplete,
+    ContinueComplete => (26, "the continue completion behind continue"),
     /// `catch`: a closed script run under the protected policy, the code it
     /// completes with, and the variables that receive it.
-    CatchProtected,
+    CatchProtected => (27, "the protected script's completion behind catch"),
     /// `info default`: a procedure parameter's default written to the
     /// variable, where the analyser proves the procedure and the parameter.
-    ParameterDefault,
+    ParameterDefault => (28, "the parameter default behind info default"),
     /// `lset`: the list a variable holds with the element at an index path
     /// replaced, written back and returned.
-    ListSet,
+    ListSet => (29, "lset"),
     /// `ledit`: the list a variable holds with a range replaced, written back
     /// and returned.
-    ListEdit,
+    ListEdit => (30, "ledit"),
     /// `lpop`: the element at an index path removed from the list a variable
     /// holds, the rest written back and the element returned.
-    ListPop,
+    ListPop => (31, "lpop"),
     /// `b64encode`: the base64 of the bytes.
-    Base64Encode,
+    Base64Encode => (32, "the iRules b64encode"),
     /// `b64decode`: the bytes a canonical base64 text spells.
-    Base64Decode,
+    Base64Decode => (33, "the iRules b64decode"),
     /// `crc32`: zlib's CRC-32, sign-extended from 32 bits.
-    Crc32Checksum,
+    Crc32Checksum => (34, "the iRules crc32"),
     /// `md5`: the MD5 digest's bytes.
-    Md5Digest,
+    Md5Digest => (35, "the iRules md5"),
     /// `sha1`: the SHA-1 digest's bytes.
-    Sha1Digest,
+    Sha1Digest => (36, "the iRules sha1"),
     /// `sha256`: the SHA-256 digest's bytes.
-    Sha256Digest,
+    Sha256Digest => (37, "the iRules sha256"),
     /// `sha384`: the SHA-384 digest's bytes.
-    Sha384Digest,
+    Sha384Digest => (38, "the iRules sha384"),
     /// `sha512`: the SHA-512 digest's bytes.
-    Sha512Digest,
+    Sha512Digest => (39, "the iRules sha512"),
     /// `findstr`: the text after a search string, to a terminator.
-    FindString,
+    FindString => (40, "the iRules findstr"),
     /// `getfield`: one field of a separated string.
-    StringField,
+    StringField => (41, "the iRules getfield"),
     /// `substr`: the text from an offset, to a terminator.
-    Substring,
+    Substring => (42, "the iRules substr"),
     /// `domain`: the last labels of a dotted name.
-    DomainLabels,
+    DomainLabels => (43, "the iRules domain"),
     /// `URI::basename`: the last segment of a URI's path.
-    UriBasename,
+    UriBasename => (44, "the iRules URI::basename"),
     /// `URI::path`: a URI path's directories, or their count.
-    UriPath,
+    UriPath => (45, "the iRules URI::path"),
     /// `URI::query`: a URI's query, or one parameter's value.
-    UriQuery,
+    UriQuery => (46, "the iRules URI::query"),
     /// `URI::host`: a URI's host.
-    UriHost,
+    UriHost => (47, "the iRules URI::host"),
     /// `URI::port`: a URI's port, or its scheme's default.
-    UriPort,
+    UriPort => (48, "the iRules URI::port"),
     /// `URI::protocol`: a URI's scheme.
-    UriProtocol,
+    UriProtocol => (49, "the iRules URI::protocol"),
     /// `URI::decode`: one pass of percent-decoding.
-    UriDecode,
+    UriDecode => (50, "the iRules URI::decode"),
     /// `URI::encode`: percent-encoding.
-    UriEncode,
+    UriEncode => (51, "the iRules URI::encode"),
     /// `URI::compare`: whether two URIs are equivalent.
-    UriCompare,
+    UriCompare => (52, "the iRules URI::compare"),
     /// `IP::addr A equals B`: whether two addresses share a network.
-    IpAddrEquals,
+    IpAddrEquals => (53, "the iRules IP::addr ... equals ..."),
     /// `file join`: the names' elements after the last absolute name's.
-    PathJoin,
+    PathJoin => (54, "file join"),
     /// `file dirname`: a name's elements but the last.
-    PathDirname,
+    PathDirname => (55, "file dirname"),
     /// `file tail`: a name's last element.
-    PathTail,
+    PathTail => (56, "file tail"),
     /// `file extension`: a name from its last dot, no separator after it.
-    PathExtension,
+    PathExtension => (57, "file extension"),
     /// `file rootname`: a name without its extension.
-    PathRootname,
+    PathRootname => (58, "file rootname"),
     /// `file split`: a name's elements, as a list.
-    PathSplit,
+    PathSplit => (59, "file split"),
     /// `split`: a string's pieces between separator characters, as a list.
-    ListSplit,
+    ListSplit => (60, "split"),
     /// `string first`: the index of a needle's first occurrence.
-    StringFirst,
+    StringFirst => (61, "string first"),
     /// `string match`: whether a string matches a glob pattern.
-    StringMatch,
+    StringMatch => (62, "string match"),
     /// `base32::encode`: bytes as RFC 4648 base32.
-    Base32Encode,
+    Base32Encode => (63, "base32::encode"),
     /// `base32::decode`: a canonical base32 encoding's bytes.
-    Base32Decode,
+    Base32Decode => (64, "base32::decode"),
     /// `base32::hex::encode`: bytes as base32 over the extended-hex
     /// alphabet.
-    Base32HexEncode,
+    Base32HexEncode => (65, "base32::hex::encode"),
     /// `base32::hex::decode`: a canonical extended-hex encoding's bytes.
-    Base32HexDecode,
+    Base32HexDecode => (66, "base32::hex::decode"),
+}
 }
 
 impl NativeEvalId {

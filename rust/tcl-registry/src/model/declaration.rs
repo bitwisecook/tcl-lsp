@@ -191,7 +191,7 @@ fn whole_document_axis() -> VersionSet {
 
 /// One argument of a declared command: its written name, its registry
 /// [`ArgRole`], and whether the directive wrapped it in `?…?`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DeclaredArgument {
     /// Argument name as the directive wrote it (optional markers stripped).
     pub name: String,
@@ -365,6 +365,53 @@ impl DeclaredCommand {
         self.declaration.provenance
     }
 
+    /// Complete argument-count contract supplied by the declaration itself.
+    /// This metadata supplies no successful execution or builtin behaviour.
+    #[must_use]
+    pub fn source_arity(&self) -> Option<crate::Arity> {
+        // naming.source.original-declared-command-word-contract
+
+        let required = self
+            .arguments
+            .iter()
+            .filter(|argument| !argument.optional)
+            .count();
+        let maximum = u16::try_from(self.arguments.len()).ok()?;
+        if maximum == crate::Arity::UNLIMITED {
+            return None;
+        }
+        Some(crate::Arity::new(u16::try_from(required).ok()?, maximum))
+    }
+
+    /// Effective post-head roles under the same optional-slot convention as
+    /// `arg_indices_for_role`. Invalid counts have no complete source layout.
+    #[must_use]
+    pub fn supplied_argument_roles(&self, supplied: usize) -> Option<Vec<(usize, ArgRole)>> {
+        // naming.source.original-declared-command-word-contract
+
+        let arity = self.source_arity()?;
+        if !arity.accepts(u16::try_from(supplied).ok()?) {
+            return None;
+        }
+        let mut roles = self
+            .arguments
+            .iter()
+            .map(|argument| argument.role)
+            .collect::<Vec<_>>();
+        roles.sort_by_key(|role| *role as u8);
+        roles.dedup();
+        let mut result = roles
+            .into_iter()
+            .flat_map(|role| {
+                self.arg_indices_for_role(role, supplied)
+                    .into_iter()
+                    .map(move |index| (index, role))
+            })
+            .collect::<Vec<_>>();
+        result.sort_by_key(|&(index, _)| index);
+        Some(result)
+    }
+
     /// The 0-based indices **into a call's own post-head argument list**
     /// whose declared role is `role`, for a call supplying `supplied` words.
     ///
@@ -416,6 +463,19 @@ impl DeclaredCommand {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DeclaredSurface {
     commands: BTreeMap<String, DeclaredCommand>,
+}
+
+impl std::hash::Hash for DeclaredSurface {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Hash is only an index. Full derived equality above retains declaration
+        // providers, availability, predicates, and provenance on collisions.
+        self.commands.len().hash(state);
+        for (name, command) in &self.commands {
+            name.hash(state);
+            command.name.hash(state);
+            command.arguments.hash(state);
+        }
+    }
 }
 
 impl DeclaredSurface {
@@ -504,6 +564,13 @@ impl<'a> DocumentCommandSurface<'a> {
         self.declared
     }
 
+    /// Read one declared assistance contract through the document surface owner.
+    /// This is metadata from a document or workspace, not a runtime binding proof.
+    #[must_use]
+    pub fn declared_command(&self, name: &str) -> Option<&'a DeclaredCommand> {
+        self.declared?.get(name)
+    }
+
     /// Whether this document declares `name` for itself.
     #[must_use]
     pub fn declares(&self, name: &str) -> bool {
@@ -519,6 +586,14 @@ impl<'a> DocumentCommandSurface<'a> {
             .map(|(name, _)| name)
     }
 
+    /// Exact descriptor labels supplied by the document's own declarations.
+    pub fn declared_descriptor_keys(
+        &self,
+    ) -> impl Iterator<Item = crate::CanonicalCommandDescriptorKey<'a>> {
+        self.declared_names()
+            .map(crate::CanonicalCommandDescriptorKey::from_registry_label)
+    }
+
     /// Every command this document declares that a reader holding the
     /// catalogue alone may call by name, with the frame effect its
     /// declaration states ([`DeclaredCommand::plain_call_frame_effect`]), in
@@ -530,6 +605,24 @@ impl<'a> DocumentCommandSurface<'a> {
             .into_iter()
             .flat_map(DeclaredSurface::iter)
             .filter_map(|(name, command)| Some((name, command.plain_call_frame_effect()?)))
+    }
+
+    /// Selected declaration descriptor keys with their stated plain-call effect.
+    /// These metadata keys establish no runtime binding or entered frame.
+    pub fn plain_call_frame_effect_descriptor_keys(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            crate::CanonicalCommandDescriptorKey<'a>,
+            Option<FrameEffectSpec>,
+        ),
+    > {
+        self.plain_call_frame_effects().map(|(name, effect)| {
+            (
+                crate::CanonicalCommandDescriptorKey::from_registry_label(name),
+                effect,
+            )
+        })
     }
 
     /// The document's own declaration of `name`, when it has one — the row
@@ -722,7 +815,7 @@ mod tests {
         );
         assert_eq!(command.arg_indices_for_role(ArgRole::VarWrite, 3), vec![0]);
         assert_eq!(command.arg_indices_for_role(ArgRole::Body, 3), vec![2]);
-        assert!(command.arg_indices_for_role(ArgRole::Expr, 3).is_empty());
+        assert_eq!(command.arg_indices_for_role(ArgRole::Expr, 3).len(), 0);
     }
 
     /// An optional slot the call omits shifts every later role one position
@@ -765,7 +858,7 @@ mod tests {
             "with_var",
             &[("varName", ArgRole::VarWrite), ("body", ArgRole::Body)],
         );
-        assert!(command.arg_indices_for_role(ArgRole::Body, 1).is_empty());
+        assert_eq!(command.arg_indices_for_role(ArgRole::Body, 1).len(), 0);
     }
 
     /// The one door answers the catalogue for a shipped name and the
@@ -818,7 +911,7 @@ mod tests {
                 .is_empty(),
             "the catalogue's condition the declaration omits is not assigned"
         );
-        assert!(view.command_prefixes("while", &args).is_empty());
+        assert_eq!(view.command_prefixes("while", &args).len(), 0);
     }
 
     /// A declaration's traits and side effects answer for the name it
@@ -927,7 +1020,7 @@ mod tests {
 
         let plain = declared("pkga_calc", &[]);
         assert!(plain.traits.is_empty());
-        assert!(plain.side_effects.is_empty());
+        assert_eq!(plain.side_effects.len(), 0);
     }
 
     #[test]
@@ -939,7 +1032,7 @@ mod tests {
             "a pure command evaluates no code and establishes no trace: {}",
             narrowed.traits
         );
-        assert!(narrowed.side_effects.is_empty());
+        assert_eq!(narrowed.side_effects.len(), 0);
         for kept in [extension_default::TAINT, extension_default::SAFETY] {
             assert!(
                 narrowed.traits.contains(kept),
@@ -1144,6 +1237,13 @@ mod tests {
                 ("db_bind", Some(DeclaredFrameEffect::CALLER)),
                 ("db_query", None),
             ]
+        );
+        assert_eq!(
+            document
+                .plain_call_frame_effect_descriptor_keys()
+                .map(|(key, effect)| (key.label(), effect))
+                .collect::<Vec<_>>(),
+            document.plain_call_frame_effects().collect::<Vec<_>>()
         );
         assert_eq!(
             DocumentCommandSurface::new(registry, None)

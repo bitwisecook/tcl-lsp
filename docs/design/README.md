@@ -71,11 +71,9 @@ passes, and ownership matrices.
   rule behind it, the open defects the examples witness, and the
   declarations behind the examples as they are written in the Rust command
   registry and in `.tclspec` packs.
-- [value-transfers-migration.md](compiler/value-transfers-migration.md) —
-  the command-knowledge inventory — what the
-  registry owns and what remains elsewhere, what each analysis,
-  optimisation, and diagnostic reads, the third-party tiers, the drift gate
-  and its ledger, and the validation matrix.
+- [value-transfer-consumers.md](compiler/value-transfer-consumers.md) —
+  the current value-transfer consumer boundaries, registry-owned routes,
+  compiler-local handlers and enforced command-recognition limits.
 - [registry-consumer-contracts.md](compiler/registry-consumer-contracts.md)
   — the description, identity, and backing contracts under which the
   registry drives the analyser, codegen, and the runtimes: the three
@@ -101,8 +99,19 @@ passes, and ownership matrices.
 
 ## contracts/
 
+- [runtime-trace-outcomes.md](contracts/runtime-trace-outcomes.md) — original callback Guest outcomes, full typed Host refusal and shared caller transport.
+
+- [runtime-error-code-owners.md](contracts/runtime-error-code-owners.md) — original C error-code headers, selected global/private storage and checked publication.
+
 One contract per file: who owns a surface, what its rules are, and how it
 fails.
+
+- [name-handling.md](contracts/name-handling.md) - shared name representations,
+  semantic owners and lookup boundaries across all consumers.
+- [bigip-object-name-resolution.md](contracts/bigip-object-name-resolution.md) —
+  authored slash-domain object candidates, explicit precedence and ambiguity.
+- [bpf-name-handling.md](contracts/bpf-name-handling.md) — exact command contracts and independent BPF map symbols.
+- [tcloo-linked-member-source.md](contracts/tcloo-linked-member-source.md) — original linked-member source, alias/target geometry and complete edit coverage.
 
 - [callback-surface-inventory.md](contracts/callback-surface-inventory.md) —
   registry-derived executable/callback coverage, the audited external and
@@ -136,6 +145,8 @@ fails.
   owner of every pinned version, and the build entry points.
 - [dialect-detection.md](contracts/dialect-detection.md) — the dialect
   detection priority chain.
+- [diagnostic-subjects.md](contracts/diagnostic-subjects.md) — typed naming
+  subjects and their shared LSP, CLI, and MCP reporting transport.
 - [environment-selection.md](contracts/environment-selection.md) — the one
   vocabulary every dialect picker, setting, flag and directive enumerates,
   the `Language` / `Packages` kind, and the server-owned notice.
@@ -154,10 +165,12 @@ fails.
 - [irule4005-racy-static-cross-event.md](contracts/irule4005-racy-static-cross-event.md)
   — the IRULE4005 racy `static::` cross-event contract.
 - [lexing.md](contracts/lexing.md) — token and range fidelity rules.
+- [lsp-proposal-diagnostics.md](contracts/lsp-proposal-diagnostics.md) — the isolated source-proposal diagnostic protocol and its boundary from checked edits.
 - [lsp-diagnostics-publication.md](contracts/lsp-diagnostics-publication.md) —
   the LSP diagnostics publication and suppression model.
 - [lsp-feature-providers.md](contracts/lsp-feature-providers.md) — the
   non-diagnostics LSP provider contracts and their failure modes.
+- [naming-consumer-matrix.md](contracts/naming-consumer-matrix.md) — shared naming interfaces, consumer purposes and bounded appliance evidence.
 - [lsp-source-store.md](contracts/lsp-source-store.md) — the `SourceStore`
   seam every closed file reaches the server through, why `NativeStore` stays
   a literal `std::fs` delegation, the virtual `.tclspec` mount a browser host
@@ -166,6 +179,20 @@ fails.
   handler-admission, and stdout liveness boundaries for the LSP transport.
 - [namespace-model.md](contracts/namespace-model.md) — the unified namespace
   model across dialects.
+- [native-scalar-getters.md](contracts/native-scalar-getters.md) — original-object
+  primitive getter purposes, queried C target widths, host numeric effects,
+  single-probe failure rendering, and raw Boolean output.
+- [original-secondary-body-analysis.md](contracts/original-secondary-body-analysis.md) —
+  actual source ownership, full parser policy and shared class roster for
+  conditional original child CFG/lattice facts.
+- [logical-call-targets.md](contracts/logical-call-targets.md) — exact current
+  declaration targets, procedure/member kind and independent member-side
+  source advice across local and workspace call hierarchy consumers.
+- [retained-explorer-source-views.md](contracts/retained-explorer-source-views.md) —
+  actual Module source/configuration/store owners and unavailable Explorer view rendering.
+- [retained-positioned-command-realm.md](contracts/retained-positioned-command-realm.md) —
+  reuse of the original Module source inventory, terminal ownership refusal,
+  copy-on-write and independent new-source ingress.
 - [numeric-tower-and-expr-semantics.md](contracts/numeric-tower-and-expr-semantics.md)
   — the small-int → wide → bignum → double tower, and `expr` as a separate
   language with overridable `mathfunc` dispatch.
@@ -181,6 +208,16 @@ fails.
   inference.
 - [project-layout.md](contracts/project-layout.md) — repository layout and
   dependency direction.
+- [name-resolution-implementer-guide.md](compiler/name-resolution-implementer-guide.md)
+  — central query contracts, consumer requirements and native regression
+  test recipes.
+- [original-procedure-analysis.md](compiler/original-procedure-analysis.md) — current issued-body inventory,
+  readonly declaration cards, prepared CFG ownership and memo correspondence.
+- [evaluated-tcl-semantics.md](compiler/evaluated-tcl-semantics.md)
+  — current command, variable, execution, dialect and host-domain semantics.
+- [resolved-semantic-queries.md](contracts/resolved-semantic-queries.md) — shared
+  command/cell/execution owners, API usage recipes, uncertainty and dialect
+  obligations, consumer inventory, and independent interpreter regression gates.
 - [registry-contract-tests.md](contracts/registry-contract-tests.md) — the
   language-agnostic registry shape contract, its golden fixtures, and the
   front-end-driven tests that validate them.
@@ -235,11 +272,9 @@ fails.
 The BIG-IP side of the toolchain: the appliance evidence, the registry it
 feeds, and the `f5` CLI.
 
-- [bigip-irule-parser-measurements.md](f5/bigip-irule-parser-measurements.md)
-  — live-appliance measurements behind the F5 model: the three BIG-IP
-  contexts as one parser, the `}{` separator and brace-continuation rules,
-  the disabled-command surface, the 8.4-versus-8.5 discriminators, and rule
-  priority order.
+- [embedded-tcl-contract.md](f5/embedded-tcl-contract.md)
+  — the supported embedded script grammar, expression surface and
+  execution-context boundaries, backed by packaged product observations.
 - [bigip-registry-architecture.md](f5/bigip-registry-architecture.md) — the
   registry contract for BIG-IP object kinds and value specs (parse / project
   / render / references), and source-range fidelity.
@@ -293,6 +328,10 @@ declarations are written in.
 
 ## runtime/
 
+- [native-variable-access.md](runtime/native-variable-access.md) — original variable arguments, current frame/storage and independent read/write protocols.
+- [original-command-arguments.md](runtime/original-command-arguments.md) — authentic argument origins and checked command consumers.
+- [original-container-indices.md](runtime/original-container-indices.md) — retained list/dict index operands and current container ownership.
+
 The Tcl runtime: object model, namespaces, commands, the C surface it
 exports, and the ladder toward C tcltest parity.
 
@@ -330,6 +369,9 @@ exports, and the ladder toward C tcltest parity.
 - [proc-call-and-stack-traces.md](runtime/proc-call-and-stack-traces.md) —
   the proc call protocol: argument binding, exception propagation, and
   `-errorinfo` / `-errorcode` stack-trace assembly across the call stack.
+- [procedure-body-activation.md](runtime/procedure-body-activation.md) —
+  original procedure source, deferred body preparation, native activation
+  ordering, and compiled-cache versus Script execution ownership.
 - [refcount-contract.md](runtime/refcount-contract.md) — ownership categories
   for every WASM-exported runtime function (callee-takes / caller-keeps /
   borrow), the linter that enforces them, and the decision rules for new

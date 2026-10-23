@@ -62,7 +62,14 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "next",
-        runtime_backing: RuntimeBacking::shipped("next"),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::TclOoHelper(
+                crate::native_tcloo_compilation::NativeTclOoHelper::Next,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        runtime_backing: RuntimeBacking::shipped("::oo::Helpers::next"),
         traits: Traits::LANGUAGE_KEYWORD
             .union(Traits::TCLOO_NEXT_CHAIN)
             .union(Traits::TCLOO_METHOD_CONTEXT)

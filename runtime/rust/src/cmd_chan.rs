@@ -62,6 +62,7 @@ pub struct ChannelTable {
     next: usize,
     standard: Rc<RefCell<StandardChannelConfigs>>,
     system_encoding: Rc<Cell<SystemEncoding>>,
+    default_system_encoding: Rc<Cell<SystemEncoding>>,
     owns_process_state: bool,
 }
 
@@ -72,6 +73,7 @@ impl ChannelTable {
             next: 0,
             standard: Rc::new(RefCell::new(StandardChannelConfigs::new(version, system))),
             system_encoding: Rc::new(Cell::new(system)),
+            default_system_encoding: Rc::new(Cell::new(system)),
             owns_process_state: true,
         }
     }
@@ -79,6 +81,7 @@ impl ChannelTable {
     pub(crate) fn share_process_state_from(&mut self, parent: &Self) {
         self.standard = Rc::clone(&parent.standard);
         self.system_encoding = Rc::clone(&parent.system_encoding);
+        self.default_system_encoding = Rc::clone(&parent.default_system_encoding);
         self.owns_process_state = false;
     }
 
@@ -89,6 +92,7 @@ impl ChannelTable {
     ) {
         if self.owns_process_state {
             self.system_encoding.set(system);
+            self.default_system_encoding.set(system);
             *self.standard.borrow_mut() = StandardChannelConfigs::new(version, system);
         }
     }
@@ -102,6 +106,10 @@ impl ChannelTable {
 
     pub(crate) fn system_encoding(&self) -> SystemEncoding {
         self.system_encoding.get()
+    }
+
+    pub(crate) fn default_system_encoding(&self) -> SystemEncoding {
+        self.default_system_encoding.get()
     }
 
     pub(crate) fn set_system_encoding(&self, encoding: SystemEncoding) {
@@ -201,18 +209,18 @@ impl ChannelTable {
 
 /// Register the channel commands.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"open", open_cmd);
-    interp.register_builtin(b"close", close_cmd);
-    interp.register_builtin(b"read", read_cmd);
-    interp.register_builtin(b"gets", gets_cmd);
-    interp.register_builtin(b"puts", puts_cmd);
-    interp.register_builtin(b"flush", flush_cmd);
-    interp.register_builtin(b"eof", eof_cmd);
-    interp.register_builtin(b"fconfigure", fconfigure_cmd);
-    interp.register_builtin(b"fblocked", fblocked_cmd);
-    interp.register_builtin(b"seek", seek_cmd);
-    interp.register_builtin(b"tell", tell_cmd);
-    interp.register_builtin(b"chan", chan_cmd);
+    interp.register_stock_builtin(b"open", open_cmd);
+    interp.register_stock_builtin(b"close", close_cmd);
+    interp.register_stock_builtin(b"read", read_cmd);
+    interp.register_stock_builtin(b"gets", gets_cmd);
+    interp.register_stock_builtin(b"puts", puts_cmd);
+    interp.register_stock_builtin(b"flush", flush_cmd);
+    interp.register_stock_builtin(b"eof", eof_cmd);
+    interp.register_stock_builtin(b"fconfigure", fconfigure_cmd);
+    interp.register_stock_builtin(b"fblocked", fblocked_cmd);
+    interp.register_stock_builtin(b"seek", seek_cmd);
+    interp.register_stock_builtin(b"tell", tell_cmd);
+    interp.register_stock_builtin(b"chan", chan_cmd);
 }
 
 /// `chan subcommand ?arg ...?` — the core channel ensemble. Its subcommand set
@@ -557,9 +565,26 @@ pub(crate) fn puts_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let usage = b"puts ?-nonewline? ?channelId? string";
     let mut rest = &argv[1..];
     let mut newline = true;
-    if rest.first().map(|&a| obj_bytes(a)) == Some(b"-nonewline".to_vec()) {
-        newline = false;
-        rest = &rest[1..];
+    if let Some(&first) = rest.first() {
+        let nonewline = if interp
+            .native_invocation_dialect()
+            .native_jim_enum_protocol()
+            .is_some()
+        {
+            const FLAG: &[&str] = &["-nonewline"];
+            let table =
+                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(FLAG);
+            match interp.native_jim_compare_immediate(first, &table, 0) {
+                Ok(matched) => matched,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            }
+        } else {
+            obj_bytes(first) == b"-nonewline"
+        };
+        if nonewline {
+            newline = false;
+            rest = &rest[1..];
+        }
     }
     let (chan, string) = match rest {
         [s] => (b"stdout".to_vec(), obj_bytes(*s)),
@@ -783,7 +808,14 @@ fn seek_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let origin = match argv.get(3) {
         None => 0,
-        Some(&a) => match SEEK_ORIGINS.index_of_cmd(&obj_bytes(a)) {
+        Some(&a) => match interp.native_index_operand(
+            a,
+            &tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend_bytes(
+                SEEK_ORIGINS.names(),
+            ),
+            false,
+            "origin",
+        ) {
             Ok(i) => i,
             Err(error) => return interp.report_cmd_error(error),
         },

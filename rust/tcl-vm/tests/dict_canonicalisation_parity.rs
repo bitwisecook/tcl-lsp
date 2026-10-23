@@ -100,14 +100,19 @@ const CREATE_CORPUS: &[&[&str]] = &[
 /// Leg 1 — the owner, through this crate's `ValueOps` binding (the same code
 /// path every VM `dict` opcode takes).
 fn owner_pairs(dict: &str) -> Vec<(String, String)> {
-    let mut vm = tcl_vm::Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let value = vm.new_str(dict);
     let pairs = vm
         .dict_pairs(&value)
         .expect("every corpus row is an even-length list");
     pairs
         .into_iter()
-        .map(|(k, v)| (vm.as_str(&k).to_string(), vm.as_str(&v).to_string()))
+        .map(|(k, v)| {
+            (
+                vm.try_as_str(&k).expect("Unicode corpus key").to_string(),
+                vm.try_as_str(&v).expect("Unicode corpus value").to_string(),
+            )
+        })
         .collect()
 }
 
@@ -133,6 +138,8 @@ fn compiler_dict_create_fold(args: &[&str]) -> Option<String> {
     tcl_compiler::const_subst::ConstSubstCtx {
         registry: tcl_registry::default_registry(),
         resolution_namespace: "::",
+        // Independent registry folding supplies no original executable namespace.
+        namespace_context: None,
         version: Some(TclVersion::V9_0),
         defining_class: None,
         trusts: &trusts,

@@ -71,6 +71,10 @@
 //! selects is the carrier of that computed value and is what the structural
 //! assertion pins, with the value itself proven against tclsh.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::{fixture_id, fixture_id_if_present};
+
 use std::collections::HashMap;
 
 mod common;
@@ -132,10 +136,11 @@ fn proc_asm(source: &str, qname: &str) -> FunctionAsm {
     let reg = registry();
     let ir = lower_to_ir(source, &reg);
     let cfg = build_cfg(&ir, false);
-    let mut module = codegen_module(&cfg, &ir, &reg);
+    let mut module = codegen_module(&cfg, &ir, &reg).expect("original source namespace");
+    let id = fixture_id(&ir.procedures, qname);
     module
         .procedures
-        .remove(qname)
+        .remove(&id)
         .unwrap_or_else(|| panic!("procedure {qname} not found"))
 }
 
@@ -872,7 +877,12 @@ fn empty_cmd_subst_pushes_empty() {
     let mut ctx = proc_ctx(&reg, &[]);
     ctx.emit_inline_cmd_subst("[]");
     assert_eq!(ctx_ops(&ctx), vec![Op::PUSH1]);
-    assert!(ctx.literals.entries().iter().any(String::is_empty));
+    assert!(
+        ctx.literals
+            .entries()
+            .iter()
+            .any(tcl_bytecode::NativeStringLiteral::is_empty)
+    );
 }
 
 #[test]
@@ -1073,9 +1083,9 @@ fn module_dispatch_emits_proc_and_top_level() {
     let reg = registry();
     let ir = lower_to_ir("proc foo {x} { return $x }\nset z 9", &reg);
     let cfg = build_cfg(&ir, false);
-    let m = codegen_module(&cfg, &ir, &reg);
+    let m = codegen_module(&cfg, &ir, &reg).expect("original source namespace");
     assert!(
-        m.procedures.contains_key("::foo"),
+        fixture_id_if_present(&m.procedures, "::foo").is_some(),
         "proc emitted: {:?}",
         m.procedures.keys()
     );
@@ -1086,7 +1096,13 @@ fn module_dispatch_emits_proc_and_top_level() {
         "top-level ends with done"
     );
     assert_eq!(
-        m.procedures["::foo"].instructions.last().unwrap().op,
+        m.procedures
+            .get(&fixture_id(&m.procedures, "::foo"))
+            .expect("authored fixture body")
+            .instructions
+            .last()
+            .unwrap()
+            .op,
         Op::DONE,
         "the proc body ends with done"
     );
@@ -1098,7 +1114,7 @@ fn module_dispatch_empty_source_is_just_top_level_done() {
     let reg = registry();
     let ir = lower_to_ir("", &reg);
     let cfg = build_cfg(&ir, false);
-    let m = codegen_module(&cfg, &ir, &reg);
+    let m = codegen_module(&cfg, &ir, &reg).expect("original source namespace");
     assert!(m.procedures.is_empty(), "no procedures for an empty module");
     assert_eq!(m.top_level.name, "::top");
     assert_eq!(m.top_level.instructions.last().unwrap().op, Op::DONE);
@@ -1119,22 +1135,52 @@ fn reg_static() -> &'static CommandRegistry {
 }
 
 /// CFG/SSA (codegen frame-analysis) summaries, interprocedural on.
-fn escape_cu(src: &str) -> HashMap<String, ProcEscapeSummary> {
+struct EscapeSummaries {
+    module: tcl_compiler::Module,
+    by_body: HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
+}
+
+impl EscapeSummaries {
+    fn fixture_body(&self, label: &str) -> tcl_core_types::BodyFrameId {
+        if label == tcl_compiler::var_escape::TOP_LEVEL_QNAME {
+            return tcl_core_types::BodyFrameId::Top(self.module.procedure_ids.module_id());
+        }
+        let mut bodies = self
+            .module
+            .procedures
+            .iter()
+            .filter(|(_, body)| body.qualified_name == label);
+        let (id, _) = bodies.next().expect("original authored fixture body");
+        assert!(
+            bodies.next().is_none(),
+            "ambiguous authored fixture body {label}"
+        );
+        assert!(self.module.procedure_ids.owns(*id));
+        tcl_core_types::BodyFrameId::Body(*id)
+    }
+}
+
+fn escape_cu(src: &str) -> EscapeSummaries {
     let cu = CompilationUnit::build_for(src, reg_static(), false);
-    analyse_var_escape_cu(&cu, true)
+    let by_body = analyse_var_escape_cu(&cu, true);
+    EscapeSummaries {
+        module: cu.ir_module,
+        by_body,
+    }
 }
 
 /// IR-walk (inliner path) summaries, interprocedural on.
-fn escape_ir(src: &str) -> HashMap<String, ProcEscapeSummary> {
+fn escape_ir(src: &str) -> EscapeSummaries {
     let module = lower_to_ir(src, reg_static());
-    analyse_var_escape(&module, true)
+    let by_body = analyse_var_escape(&module, true);
+    EscapeSummaries { module, by_body }
 }
 
-fn summary<'a>(m: &'a HashMap<String, ProcEscapeSummary>, q: &str) -> &'a ProcEscapeSummary {
-    m.get(q).unwrap_or_else(|| {
+fn summary<'a>(m: &'a EscapeSummaries, q: &str) -> &'a ProcEscapeSummary {
+    m.by_body.get(&m.fixture_body(q)).unwrap_or_else(|| {
         panic!(
             "summary {q} missing; keys = {:?}",
-            m.keys().collect::<Vec<_>>()
+            m.by_body.keys().collect::<Vec<_>>()
         )
     })
 }

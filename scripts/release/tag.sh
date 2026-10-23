@@ -42,8 +42,7 @@ V="${1:?Usage: scripts/release/tag.sh X.Y.Z}"
 # server and would prevent publish_zed.sh from preparing the registry PR.
 bash "$(dirname "$0")/zed_version.sh" check "$V"
 
-# Refuse to tag a dirty tree — hatch-vcs would otherwise embed a ``+dev``
-# suffix in the wheel built from this commit later.
+# Require a clean tracked worktree before creating the release tag.
 git diff --quiet && git diff --cached --quiet || {
     echo "error: worktree is dirty — commit or stash first"
     exit 1

@@ -2,13 +2,17 @@
 //!
 //! The framework is intentionally Tcl so it can run in a stock `tclsh` as
 //! well as the in-process VM, but its event and command surfaces belong to
-//! `tcl-registry`.  This module projects those owners into the two framework
+//! `tcl-registry`.  This module projects those owners into the framework
 //! assets that need them:
 //!
 //! - `rust/tcl-irule-test/tcl/_event_data.tcl` — event order, flow chains,
 //!   and multiplicity sets from [`tcl_registry::events::EventRegistry`];
+//! - `rust/tcl-irule-test/tcl/_mock_names.tcl` — exact authored simulator labels
+//!   projected through the shared mock publication recipe;
 //! - `rust/tcl-irule-test/tcl/_mock_stubs.tcl` — generic fallback mock actions
-//!   for command specs without a hand-written Tcl mock.
+//!   for command specs without a hand-written Tcl mock;
+//! - `rust/tcl-irule-test/tcl/_user_surface_data.tcl` — unavailable modern core
+//!   commands, including individually callable qualified ensemble members.
 //!
 //! Run `cargo xtask gen-irule-test-data` to update the checked-in files, or
 //! pass `--check` to make stale generated data fail the Rust check gate.
@@ -21,12 +25,16 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 use tcl_registry::events::{EventRegistry, FlowChain, OrderEntry};
 use tcl_registry::model::ResolvedContext;
+use tcl_registry::simulator_mock_name::SimulatorMockName;
 use tcl_registry::{CommandRegistry, RuntimeBacking};
 
 use crate::util::{DISABLED_SENTINEL, license_banner, repo_root, write_if_changed};
 
 const EVENT_DATA_PATH: &str = "rust/tcl-irule-test/tcl/_event_data.tcl";
+const MOCK_NAMES_PATH: &str = "rust/tcl-irule-test/tcl/_mock_names.tcl";
+const SIMULATION_ROSTER_PATH: &str = "rust/tcl-irule-test/tcl/_registry_data.tcl";
 const MOCK_STUBS_PATH: &str = "rust/tcl-irule-test/tcl/_mock_stubs.tcl";
+const USER_SURFACE_PATH: &str = "rust/tcl-irule-test/tcl/_user_surface_data.tcl";
 const HAND_WRITTEN_MOCKS_PATH: &str = "rust/tcl-irule-test/tcl/command_mocks.tcl";
 const GENERATED_BY: &str = "cargo xtask gen-irule-test-data";
 /// The canonical id of the environment the iRules harness simulates — the
@@ -117,29 +125,77 @@ fn render_event_data(order: &[OrderEntry], chains: &[FlowChain], events: &EventR
     out
 }
 
-fn mock_proc_name(command: &str) -> String {
-    let command = command.strip_prefix("::").unwrap_or(command);
-    if let Some((namespace, _)) = command.split_once("::") {
-        let action = command.rsplit("::").next().unwrap_or(command);
-        format!(
-            "{}_{}",
-            safe_mock_piece(namespace.to_ascii_lowercase()),
-            safe_mock_piece(action)
-        )
-    } else {
-        format!("cmd_{}", safe_mock_piece(command))
+fn simulation_command_labels(source: &str) -> Result<BTreeSet<String>> {
+    let config = tcl_lexer::LexerConfig::for_dialect("tcl8.4");
+    let mut labels = BTreeSet::new();
+    let mut found = BTreeSet::new();
+    for command in
+        tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    {
+        if command.name() != "namespace"
+            || command.args().len() != 3
+            || command.args()[..2] != ["eval", "::itest::cmd"]
+        {
+            continue;
+        }
+        anyhow::ensure!(
+            !command.is_partial && command.arg_tokens()[2].kind == tcl_lexer::TokenType::Str,
+            "simulation command roster requires an original braced namespace body"
+        );
+        for variable in tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            &command.args()[2],
+            0,
+            config.nested(),
+        ) {
+            if variable.name() != "variable"
+                || variable.args().len() != 2
+                || !matches!(
+                    variable.args()[0].as_str(),
+                    "_gen_namespaced_commands" | "_gen_toplevel_commands"
+                )
+            {
+                continue;
+            }
+            anyhow::ensure!(
+                !variable.is_partial && variable.arg_tokens()[1].kind == tcl_lexer::TokenType::Str,
+                "simulation command roster requires original braced command lists"
+            );
+            anyhow::ensure!(
+                found.insert(variable.args()[0].clone()),
+                "duplicate simulation command list"
+            );
+            labels.extend(
+                tcl_syntax::list::split_list_in(&variable.args()[1], config.escapes)
+                    .map_err(|error| anyhow::anyhow!("invalid simulation command list: {error:?}"))?
+                    .into_iter()
+                    .map(std::borrow::Cow::into_owned),
+            );
+        }
     }
+    anyhow::ensure!(found.len() == 2, "missing simulation command roster");
+    Ok(labels)
 }
 
-fn safe_mock_piece(piece: impl AsRef<str>) -> String {
-    piece
-        .as_ref()
-        .chars()
-        .map(|ch| match ch {
-            '-' | '.' => '_',
-            _ => ch,
-        })
-        .collect()
+fn render_mock_names(labels: &BTreeSet<String>) -> String {
+    let mut out = license_banner("#");
+    let _ = writeln!(
+        out,
+        "# Generated by `{GENERATED_BY}` from exact simulator labels.\nnamespace eval ::itest::cmd {{\n    variable _mock_names\n    array set _mock_names {{"
+    );
+    for label in labels {
+        let Some(publication) = SimulatorMockName::for_label(label) else {
+            continue;
+        };
+        let mock = publication.command_address();
+        let _ = writeln!(
+            out,
+            "        {} {}",
+            tcl_syntax::list::list_element(label),
+            tcl_syntax::list::list_element(&mock)
+        );
+    }
+    out.push_str("    }\n}\n");
+    out
 }
 
 fn handwritten_mock_names(source: &str) -> BTreeSet<String> {
@@ -158,14 +214,7 @@ fn stub_entries(
 ) -> Vec<MockStubEntry> {
     let mut entries = BTreeSet::new();
     for command in registry.command_names() {
-        // The generation's store intentionally begins with the broad
-        // default registry so package and cross-dialect descriptions remain
-        // available to analysis.  The Tcl harness, however, may only
-        // register commands callable in its F5 iRules environment.  Resolve
-        // through the environment's own context — the replacement for
-        // `ProfileQueries::resolve_command` — instead of treating registry
-        // membership as visibility (notably excludes Tcllib, Tk, `file`,
-        // and `exec`).
+        // Catalogue membership does not establish availability in this simulator.
         let Some(spec) = context.resolve_spec(registry, command) else {
             continue;
         };
@@ -183,32 +232,17 @@ fn stub_entries(
         if command == DISABLED_SENTINEL || command.starts_with("::tcl::mathop::") {
             continue;
         }
-        let mock_name = mock_proc_name(command);
+        let Some(publication) = SimulatorMockName::for_label(command) else {
+            continue;
+        };
+        let mock_name = publication.suffix().to_owned();
         if handwritten.contains(&mock_name) {
             continue;
         }
-        let (category, action) = if let Some((namespace, _)) = command
-            .strip_prefix("::")
-            .unwrap_or(command)
-            .split_once("::")
-        {
-            (
-                namespace.to_ascii_lowercase(),
-                command
-                    .strip_prefix("::")
-                    .unwrap_or(command)
-                    .rsplit("::")
-                    .next()
-                    .unwrap_or(command)
-                    .to_owned(),
-            )
-        } else {
-            ("toplevel".to_owned(), command.to_owned())
-        };
         entries.insert(MockStubEntry {
             mock_name,
-            category,
-            action,
+            category: publication.category().to_owned(),
+            action: publication.action().to_owned(),
         });
     }
     entries.into_iter().collect()
@@ -240,23 +274,91 @@ fn render_mock_stubs(entries: &[MockStubEntry]) -> String {
     out
 }
 
+fn unavailable_modern_commands(
+    registry: &CommandRegistry,
+    context: &ResolvedContext,
+) -> BTreeSet<String> {
+    let tcl84 = crate::environment::context_for_dialect("tcl8.4");
+    let mut commands: BTreeSet<_> = registry
+        .command_descriptor_keys()
+        .filter(|descriptor| {
+            let command = descriptor.label();
+            registry
+                .specs(command)
+                .iter()
+                .any(|spec| tcl_registry::registry::spec_pack_of(spec) == Some("tcl"))
+                && tcl84.resolve_spec(registry, command).is_none()
+                && context.resolve_spec(registry, command).is_none()
+        })
+        .map(tcl_registry::CanonicalCommandDescriptorKey::rooted_binding_label)
+        .collect();
+    // TclOO definition members have a native namespace roster rather than
+    // ordinary callable catalogue rows. The same owner seeds source lookup.
+    let modern = crate::environment::store_for_dialect("tcl9.0");
+    if let Some(grammar) = modern.default_construction_grammar("oo::class") {
+        for member in grammar.members {
+            if let Some(lookup) =
+                grammar.definition_member_lookup(member, modern.own_surface_query())
+            {
+                commands.insert(lookup.implementation);
+            }
+        }
+    }
+    commands
+}
+
+fn render_user_surface(commands: &BTreeSet<String>) -> String {
+    let mut out = license_banner("#");
+    let _ = write!(
+        out,
+        "# _user_surface_data.tcl -- AUTO-GENERATED from tcl-registry by `{GENERATED_BY}`\n#\n# DO NOT EDIT. Regenerate with:\n#   {GENERATED_BY}\n#\n# Modern core command availability includes qualified ensemble members.\n\nnamespace eval ::tmm {{\n    variable _gen_unavailable_modern_commands {{\n"
+    );
+    for command in commands {
+        let _ = writeln!(out, "        {command}");
+    }
+    out.push_str("    }\n    variable _gen_runtime_compiler_refused {\n");
+    for command in tcl_registry::irules_policy::IRULES_COMPILER_REFUSED {
+        let _ = writeln!(out, "        {command}");
+    }
+    out.push_str("    }\n    variable _gen_runtime_namespace_members {\n");
+    let registry = crate::environment::store_for_dialect("tcl8.4");
+    let context = crate::environment::context_for_dialect("tcl8.4");
+    let spec = context
+        .resolve_spec(registry, "namespace")
+        .expect("core namespace descriptor");
+    for sub in spec.subcommands {
+        if spec
+            .resolve_subcommand_for_dialect(sub.name, Some(context.authoring_query()))
+            .is_some()
+        {
+            let _ = writeln!(out, "        {}", sub.name);
+        }
+    }
+    out.push_str("    }\n}\n");
+    out
+}
+
 fn generated_files() -> Result<Vec<(&'static str, String)>> {
     let root = repo_root();
     let events = EventRegistry::build();
-    // The harness simulates the F5 iRules environment, not every optional
-    // package that `CommandRegistry::build_default` happens to preload.  The
-    // resolved environment's registry generation is the same store
-    // LiveSession uses: this generator replaces the frozen
-    // `_registry_data.tcl` subtraction, so its own ingress goes through the
-    // one seam.
+    // Stub availability uses the same resolved environment as LiveSession.
     let registry = crate::environment::store_for_dialect(IRULES_DIALECT);
     let irules_context = crate::environment::context_for_dialect(IRULES_DIALECT);
     let mocks = fs::read_to_string(root.join(HAND_WRITTEN_MOCKS_PATH))
         .with_context(|| format!("reading {HAND_WRITTEN_MOCKS_PATH}"))?;
+    let roster = fs::read_to_string(root.join(SIMULATION_ROSTER_PATH))
+        .with_context(|| format!("reading {SIMULATION_ROSTER_PATH}"))?;
+    let mut labels = simulation_command_labels(&roster)?;
+    labels.extend(registry.command_names().map(str::to_owned));
     Ok(vec![
+        (MOCK_NAMES_PATH, render_mock_names(&labels)),
         (
             EVENT_DATA_PATH,
             render_event_data(events.master_order(), events.flow_chains(), &events),
+        ),
+        (
+            USER_SURFACE_PATH,
+            render_user_surface(&unavailable_modern_commands(registry, irules_context)),
         ),
         (
             MOCK_STUBS_PATH,
@@ -269,7 +371,7 @@ fn generated_files() -> Result<Vec<(&'static str, String)>> {
     ])
 }
 
-/// Update or verify the two registry-backed iRule-test Tcl assets.
+/// Update or verify the registry-backed iRule-test Tcl assets.
 pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
     let mut drift = Vec::new();
@@ -335,10 +437,67 @@ mod tests {
     }
 
     #[test]
+    fn mock_table_keeps_authored_roster_labels_and_refuses_dynamic_lists() {
+        let source = r"namespace eval ::itest::cmd {
+            variable _gen_namespaced_commands {HTTP::header ::NS::inner::cmd :literal}
+            variable _gen_toplevel_commands {traffic-group}
+        }";
+        let labels = simulation_command_labels(source).unwrap();
+        assert_eq!(
+            labels,
+            BTreeSet::from([
+                "HTTP::header".to_owned(),
+                "::NS::inner::cmd".to_owned(),
+                ":literal".to_owned(),
+                "traffic-group".to_owned(),
+            ])
+        );
+        let table = render_mock_names(&labels);
+        assert!(table.contains("::NS::inner::cmd ::itest::cmd::ns_cmd"));
+        assert!(table.contains(":literal ::itest::cmd::cmd_:literal"));
+        assert!(!table.contains("::itest::cmd::ns_inner::cmd"));
+        assert!(simulation_command_labels("namespace eval ::itest::cmd {variable _gen_namespaced_commands $dynamic; variable _gen_toplevel_commands {one}}").is_err());
+    }
+
+    #[test]
     fn mock_name_follows_tcl_registration_convention() {
-        assert_eq!(mock_proc_name("HTTP::header"), "http_header");
-        assert_eq!(mock_proc_name("traffic-group"), "cmd_traffic_group");
-        assert_eq!(mock_proc_name("::tcl::path"), "tcl_path");
+        assert_eq!(
+            SimulatorMockName::for_label("HTTP::header")
+                .unwrap()
+                .suffix(),
+            "http_header"
+        );
+        assert_eq!(
+            SimulatorMockName::for_label("traffic-group")
+                .unwrap()
+                .suffix(),
+            "cmd_traffic_group"
+        );
+        assert_eq!(
+            SimulatorMockName::for_label("::tcl::path")
+                .unwrap()
+                .suffix(),
+            "tcl_path"
+        );
+    }
+
+    #[test]
+    fn user_surface_blocks_modern_qualified_members_without_hiding_tmm_commands() {
+        let registry = crate::environment::store_for_dialect(IRULES_DIALECT);
+        let context = crate::environment::context_for_dialect(IRULES_DIALECT);
+        let blocked = unavailable_modern_commands(registry, context);
+        for command in ["::dict", "::tcl::dict::create", "::coroutine", "::lmap"] {
+            assert!(
+                blocked.contains(command),
+                "modern core command leaked: {command}"
+            );
+        }
+        for command in ["::set", "::namespace", "::HTTP::host", "::when", "::after"] {
+            assert!(
+                !blocked.contains(command),
+                "existing TMM command blocked: {command}"
+            );
+        }
     }
 
     #[test]

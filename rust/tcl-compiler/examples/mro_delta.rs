@@ -31,14 +31,13 @@
 //! 2. **Labelling worksheet.** Emit a CSV of a deterministic ≥120-site
 //!    sample (all resolved sites + a strided sample of abstentions) with
 //!    enough source context (the dispatch line + the nearest preceding
-//!    binding of the receiver) to hand-label ground truth. Feeds
-//!    `experiments/mro_eval/labeled_sample.csv` + `score_labels.py`.
+//!    binding of the receiver) for independent manual classification.
 //!
 //! Usage:
 //! ```text
 //! cargo run --release -p tcl-compiler --example mro_delta -- \
 //!     experiments/corpus/{georgtree,adversarial,vendor,repo-fixtures} \
-//!     > experiments/mro_eval/label_worksheet.csv
+//!     > /tmp/tcl-receiver-worksheet.csv
 //! ```
 //! The confusion matrix + delta go to stderr; the CSV worksheet to stdout.
 

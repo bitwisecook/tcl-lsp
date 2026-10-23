@@ -1,11 +1,10 @@
-//! Generate the VS Code iRules-event catalog JSON from the Rust event registry.
+//! Generate editor event catalogs and shared scaffold naming policy.
 //!
-//! One checked-in artifact is a pure projection of `tcl-registry`:
-//! `editors/vscode/src/generated/iruleEvents.json`, with event descriptions
-//! and `common`/`hot`/lifecycle flags.
+//! Event descriptions and flags come from `tcl-registry`; generated namespace
+//! construction policy and cross-language cases come from `tcl-syntax`.
 //!
 //! Run `cargo xtask gen-editor-catalogs` to (re)write them; `--check` verifies
-//! the committed files match what the registry would produce, exiting non-zero
+//! the committed files match their shared owners, exiting non-zero
 //! on drift — the same invariant the `committed_catalogs_match_generated` test
 //! pins into the `cargo test` gate.
 //!
@@ -92,13 +91,87 @@ fn to_json(value: &impl Serialize) -> String {
     serde_json::to_string_pretty(value).expect("serialise catalog") + "\n"
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScaffoldNamespacePolicy {
+    separator: &'static str,
+    root: &'static str,
+    fallback: &'static str,
+    identifier_prefix: &'static str,
+    replacement: char,
+    first_unit_ranges: &'static [(u16, u16)],
+    following_unit_ranges: &'static [(u16, u16)],
+    input_units: &'static str,
+    may_collide: bool,
+}
+
+#[derive(Serialize)]
+struct ScaffoldNamespaceCase {
+    input: &'static str,
+    spelling: String,
+    lossy: bool,
+}
+
+#[derive(Serialize)]
+struct ScaffoldNamespaceCatalog {
+    #[serde(rename = "__generated")]
+    generated: &'static str,
+    policy: ScaffoldNamespacePolicy,
+    cases: Vec<ScaffoldNamespaceCase>,
+}
+
+fn scaffold_namespace_catalog() -> ScaffoldNamespaceCatalog {
+    use tcl_syntax::naming::{
+        PACKAGE_SCAFFOLD_NAMESPACE_CASES, PACKAGE_SCAFFOLD_NAMESPACE_POLICY,
+        scaffold_namespace_from_package_name,
+    };
+    let policy = &PACKAGE_SCAFFOLD_NAMESPACE_POLICY;
+    ScaffoldNamespaceCatalog {
+        generated: GENERATED_HEADER,
+        policy: ScaffoldNamespacePolicy {
+            separator: policy.separator,
+            root: policy.root,
+            fallback: policy.fallback,
+            identifier_prefix: policy.identifier_prefix,
+            replacement: policy.replacement,
+            first_unit_ranges: policy.first_unit_ranges,
+            following_unit_ranges: policy.following_unit_ranges,
+            input_units: "utf16",
+            may_collide: true,
+        },
+        cases: PACKAGE_SCAFFOLD_NAMESPACE_CASES
+            .iter()
+            .map(|&input| {
+                let name = scaffold_namespace_from_package_name(input);
+                ScaffoldNamespaceCase {
+                    input,
+                    spelling: name.spelling,
+                    lossy: name.lossy,
+                }
+            })
+            .collect(),
+    }
+}
+
 /// The `(relative-path, content)` catalogs the verb owns.
 fn catalogs() -> Vec<(&'static str, String)> {
     let events = EventRegistry::build();
-    vec![(
-        "editors/vscode/src/generated/iruleEvents.json",
-        to_json(&vscode_irule_events_catalog(&events)),
-    )]
+    vec![
+        (
+            "editors/vscode/src/generated/fileUriPathPolicy.json",
+            to_json(&tcl_lsp_core::file_uri::file_uri_path_byte_projection(
+                tcl_lsp_core::file_uri::FileUriEscaping::Unreserved,
+            )),
+        ),
+        (
+            "editors/vscode/src/generated/iruleEvents.json",
+            to_json(&vscode_irule_events_catalog(&events)),
+        ),
+        (
+            "editors/vscode/src/generated/scaffoldNamespacePolicy.json",
+            to_json(&scaffold_namespace_catalog()),
+        ),
+    ]
 }
 
 /// Write (or, with `check`, verify) the editor catalog file.

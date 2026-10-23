@@ -627,7 +627,8 @@ what makes the studio a *browser* of the registry as well as an editor.
 
 ### Fields that cannot round-trip
 
-Some fields hold a function pointer (`arg_role_resolver`, `const_fold`,
+Some fields hold a function pointer (`arg_role_resolver`, `arg_role_count_resolver`,
+`arg_role_layout_resolver`, `const_fold`,
 `taint_sink_gate`, …) or a reference to a **named** registry descriptor or
 constant (`case_list`, `body_scope`, `frame_effect`, `bpf_op`,
 `event_requires`, `event_requirement_forms`, `data_collection`,
@@ -635,10 +636,24 @@ constant (`case_list`, `body_scope`, `frame_effect`, `bpf_op`,
 can observe that such a field is set, but not recover the expression — the
 constant's path — that set it.
 
+Argument-role callbacks select exactly one input contract: literal values,
+exact cardinality, or structured operands with ingress-selected options.
+The SpecTcl renderer preserves native count/layout references; the loader
+rejects unsupported Tcl count/layout bodies and conflicting contracts. It
+never invents empty operand values to invoke them.
+
 Seeding records those keys under `draft::UNRENDERABLE_KEY` (`__unrenderable`).
 The form warns about them and the renderer emits a `TODO` comment naming each
 one. **A field the studio cannot recover is never dropped silently** — the
 rendered file says what is missing.
+
+`CaseListSpec`'s SpecTcl block loader and declaration grammar expose all its
+plain fields, including `exhaustive_keyword_patterns`. That row identifies
+catch-all clauses for the shared no-match completion projection; a keyword
+pattern alone does not establish exhaustive coverage. Studio records the whole
+`case_list` descriptor as unrenderable and emits its explicit TODO because the
+form retains a Rust constant expression rather than a structured descriptor.
+It does not render a partial block or silently discard coverage information.
 
 Those fields use `FieldKind::RustExpr`: the value is a string emitted
 verbatim, so it carries its own `Some(…)` and type path. The schema's `hint`
@@ -674,6 +689,14 @@ picks a shipped grammar by name and shows an inline grammar's rows read-only,
 as it does a clause grammar's; the semantic operation is a picker over the
 vocabulary. A form-level (`refine`) `semantic_operation` stays native — no
 shipped form sets one.
+
+Built-in object methods retain their native `operation` in the draft and
+the Rust struct literal. That field also participates in shipped-grammar
+equality: a grammar without the original operation cannot acquire it by
+matching the other rows. SpecTcl carries such operations only through an
+exact shipped grammar name. A custom inline grammar that retains a native
+operation is omitted with an explicit `definition_body` gap; its remaining
+rows cannot stand in for the complete native descriptor.
 
 One unrecoverable expression is not a top-level field. `OptionArity::Hook`
 holds a function pointer inside an *option row*, so it gets a `hook fn` text
@@ -781,6 +804,12 @@ Roles map through the inverse of `tcl_registry::model::role_for_word`, so a stub
 studio renders parses back to the roles the draft declared.
 
 Both deliveries are rendered on every export; the pane offers one at a time.
+
+Option-relation terms contain nested Tcl list values. The renderer constructs
+those values with the shared Syntax list encoder before applying the outer
+SpecTcl word spelling. Whitespace, backslashes, empty values and Tcl syntax
+characters remain data at both levels; the loaded relation must equal the
+original structured relation.
 
 ## The export is the pack
 
@@ -987,18 +1016,22 @@ cannot say, with no `GAPS` entry, is a bug. New DSL words are **additive**:
 the `speclib` version word revs (1.0 → 1.1), `VOCABULARY_VERSION` bumps only
 on meaning changes, and the loader keeps accepting every older vocabulary.
 
-The value-transfer evaluation statements (`semantics`, `evaluate`, `facts`;
-DSL 2.2) are the newest rows to move this way: `EvaluatorCapability` and
-`DeclaredSemantics` on the registry side, `loader/semantics.rs`'s grammar,
-`render_spectcl.rs`'s `semantics_block` (or the `GAPS`-tracked
-`DraftOpaque` placeholder for a body it cannot recover), and the studio's
-`route` and `body` fields under the existing "Effects and purity" cluster
-all moved together
-([value-evaluation.md](../compiler/value-evaluation.md) § *The four
-surfaces, the parity tests, and `spectcl_check`*). The `GAPS` row for the
-whole family is gone; only a declared implementation's *body* — the one
-thing the draft can never recover from a compiled hook slot, `const_fold`
-included — and an option-level `-evaluate` decline stay `GAPS` entries.
+Native `CommandForm` value overrides (`return_type`, `arg_types`,
+`byte_array_effect`, `var_elements_effect`, and `safe_on_uninit`) can explicitly
+withdraw a mutating parent's guarantees. The `form_value_effects` gap records
+that the refinement DSL cannot preserve those tri-state withdrawals. The
+loader rejects these rows as semantic exclusions, and Studio marks their draft
+unrecovered instead of silently exporting the inherited parent contract.
+
+Nested `SubSubCommand::native_compilation` is deliberately excluded from pack authoring. The loader rejects `sub_subcommand NAME -native_compilation CONTRACT` as a semantic exclusion. Studio marks the nested draft incomplete and both renderers preserve an explicit omission; the SpecTcl renderer records `nested_native_compilation` in `GAPS`. Recovered names, availability and options do not establish a native worker's compiler identity.
+
+Value-transfer statements (`semantics`, `evaluate`, `facts`; DSL 2.2) share
+`EvaluatorCapability` and `DeclaredSemantics`, `loader/semantics.rs`, the
+SpecTcl renderer's `semantics_block`, and Studio's route and body fields in
+"Effects and purity". A body unavailable from a compiled hook slot is an
+explicit `DraftOpaque` placeholder tracked by `GAPS`; option-level `-evaluate`
+declines also retain a `GAPS` entry. See
+[value-evaluation.md](../compiler/value-evaluation.md) for the parity contract.
 
 ## Publishing
 

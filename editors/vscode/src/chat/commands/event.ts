@@ -19,14 +19,29 @@
 import * as vscode from "vscode";
 import { CommandContext } from "../types";
 import { sendContextualRequest } from "../contextPack";
+import { iruleEventDeclaredAt } from "../../iruleSkeleton";
 
 interface IruleEventInfo {
   event: string;
   known: boolean;
+  /** The event-completion detail flag, not an F5 deprecation verdict. */
   deprecated: boolean;
+  /** The declared BIG-IP lifecycle, when the server reports it. */
+  lifecycle?: {
+    axis: string;
+    introduced: string | null;
+    deprecated: string | null;
+    retired: string | null;
+  } | null;
+  catalogue?: string;
   validCommandCount: number;
   sampleCommands: string[];
 }
+
+/** Where the metadata in an answer comes from, stated in the answer itself. */
+export const REGISTRY_CATALOGUE_NOTE =
+  "Registry catalogue metadata (the standalone iRules catalogue, not checked against your " +
+  "document or BIG-IP release)";
 
 interface IruleCommandInfo {
   found: boolean;
@@ -96,12 +111,19 @@ async function fetchCommandInfo(
   }
 }
 
-function formatEventContext(info: IruleEventInfo | undefined): string {
+export function formatEventContext(info: IruleEventInfo | undefined): string {
   if (!info) return "No deterministic registry metadata available.";
 
   const lines: string[] = [];
   lines.push(`- Event known by registry: ${info.known ? "yes" : "no"}`);
-  lines.push(`- Event deprecated: ${info.deprecated ? "yes" : "no"}`);
+  const lifecycle = info.lifecycle;
+  if (lifecycle) {
+    const at = (value: string | null) => value ?? "—";
+    lines.push(
+      `- Declared ${lifecycle.axis} lifecycle: introduced ${at(lifecycle.introduced)}, ` +
+        `deprecated ${at(lifecycle.deprecated)}, retired ${at(lifecycle.retired)}`,
+    );
+  }
   lines.push(`- Commands marked valid: ${info.validCommandCount}`);
   if (info.sampleCommands.length > 0) {
     lines.push(`- Sample valid commands: ${info.sampleCommands.slice(0, 25).join(", ")}`);
@@ -162,7 +184,22 @@ export async function handleEvent(ctx: CommandContext): Promise<vscode.ChatResul
     commandInfo = await fetchCommandInfo(ctx, query.value);
   }
 
-  const eventContext = formatEventContext(eventInfo);
+  // The active document's configured release, stated with the catalogue facts
+  // rather than standing in for them: declared lifecycle data, not a measured
+  // appliance.
+  const bigipVersion = vscode.workspace
+    .getConfiguration("tclLsp", vscode.window.activeTextEditor?.document.uri)
+    .get<string>("bigipVersion", "")
+    .trim();
+  const releaseLine =
+    eventInfo?.known && bigipVersion
+      ? `\n- Declared at the configured BIG-IP release ${bigipVersion}: ${
+          iruleEventDeclaredAt(eventInfo.event, bigipVersion) ? "yes" : "no"
+        }`
+      : eventInfo?.known
+        ? "\n- No BIG-IP release is configured for the active document (`tclLsp.bigipVersion`)."
+        : "";
+  const eventContext = formatEventContext(eventInfo) + (eventInfo ? releaseLine : "");
   const commandContext = formatCommandContext(commandInfo);
 
   let specificPrompt: string;
@@ -175,7 +212,7 @@ export async function handleEvent(ctx: CommandContext): Promise<vscode.ChatResul
         `3. Available request/response data\n` +
         `4. Performance and safety notes\n` +
         `5. Minimal useful example\n\n` +
-        `Registry metadata (authoritative):\n${eventContext}`;
+        `${REGISTRY_CATALOGUE_NOTE}:\n${eventContext}`;
       break;
     case "command":
       specificPrompt =
@@ -184,7 +221,7 @@ export async function handleEvent(ctx: CommandContext): Promise<vscode.ChatResul
         `2. Valid/invalid events\n` +
         `3. Typical usage patterns\n` +
         `4. Common mistakes\n\n` +
-        `Registry metadata (authoritative):\n${commandContext}`;
+        `${REGISTRY_CATALOGUE_NOTE}:\n${commandContext}`;
       break;
     default:
       specificPrompt =
@@ -195,10 +232,14 @@ export async function handleEvent(ctx: CommandContext): Promise<vscode.ChatResul
 
   ctx.response.markdown("## Event Reference\n");
   if (query.type === "event" && eventInfo) {
-    ctx.response.markdown(`\n### Registry Facts\n\n${eventContext}\n`);
+    ctx.response.markdown(
+      `\n### Registry Facts\n\n_${REGISTRY_CATALOGUE_NOTE}._\n\n${eventContext}\n`,
+    );
   }
   if (query.type === "command" && commandInfo) {
-    ctx.response.markdown(`\n### Registry Facts\n\n${commandContext}\n`);
+    ctx.response.markdown(
+      `\n### Registry Facts\n\n_${REGISTRY_CATALOGUE_NOTE}._\n\n${commandContext}\n`,
+    );
   }
 
   const llmResponse = await sendContextualRequest(ctx, specificPrompt, {

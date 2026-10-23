@@ -27,8 +27,8 @@
 //!   which Tcl performs for free rather than a genuine shimmer;
 //!   [`is_free_first_conversion`] asks the same of a value whose producing
 //!   evaluation states its representation, and reads that first.
-//! - [`inert_braced_args`] — the argument positions whose brace-quoted word
-//!   Tcl never substitutes, so nothing in them is read here.
+//! - [`inert_effective_args`] — inert retained-value prefixes and original
+//!   braced operands under the selected invocation's expression roles.
 
 use std::borrow::Cow;
 
@@ -38,7 +38,65 @@ use tcl_syntax::boolean::parse_boolean_word;
 use tcl_syntax::number::{self, NumberSyntax, ParseFlags};
 
 use crate::analyses::{ConstValue, LatticeValue};
-use crate::ir::CommandTokens;
+
+/// Convert captured native representation facts into conversion-cost advice.
+/// Semantic List/Dict contents alone never establish an internal representation.
+/// Closed container alternatives are cost-only May facts, not a value proof.
+pub(super) fn representation_cost_type(
+    semantic: TclType,
+    representation: Option<tcl_syntax::value::ValueRepresentation>,
+    alternatives: Option<crate::native_numeric::ClosedContainerRepresentations>,
+    expected: TclType,
+) -> Option<TclType> {
+    use tcl_syntax::value::ValueRepresentation;
+    match representation {
+        Some(ValueRepresentation::List) => Some(TclType::List),
+        Some(ValueRepresentation::Dict) => Some(TclType::Dict),
+        Some(ValueRepresentation::String) if matches!(semantic, TclType::List | TclType::Dict) => {
+            Some(TclType::String)
+        }
+        None | Some(ValueRepresentation::Unknown)
+            if matches!(semantic, TclType::List | TclType::Dict) =>
+        {
+            let alternatives = alternatives?;
+            match (
+                alternatives.contains(ValueRepresentation::List),
+                alternatives.contains(ValueRepresentation::Dict),
+            ) {
+                (true, _) if expected != TclType::List => Some(TclType::List),
+                (_, true) => Some(TclType::Dict),
+                (true, false) => Some(TclType::List),
+                (false, false) => None,
+            }
+        }
+        _ => Some(semantic),
+    }
+}
+
+/// A selected native operand that preserves the captured original cache does
+/// not install its positional hint. Only actual current class evidence can
+/// select this route; semantic numeric contents and replay are insufficient.
+pub(super) fn operand_preserves_captured_cache(
+    invocation: &crate::registry_invocation::NormalRepresentationInvocation,
+    index: usize,
+    advice: crate::ssa::SsaReadRepresentationAdvice,
+) -> bool {
+    use tcl_registry::native_stock_list::{
+        NativeStockListCacheDisposition as Cache, NativeStockListInputClass as Class,
+    };
+    use tcl_syntax::value::ValueRepresentation;
+    let class = if advice.already_numeric {
+        Class::Numeric
+    } else {
+        match advice.representation {
+            Some(ValueRepresentation::List) => Class::List,
+            Some(ValueRepresentation::Dict) => Class::Dictionary,
+            Some(ValueRepresentation::String) => Class::String,
+            None | Some(ValueRepresentation::Unknown) => return false,
+        }
+    };
+    invocation.stock_length_operand_cache(index, class, None) == Some(Cache::Preserved)
+}
 
 /// Return the expected `TclType` for argument `arg_index` of `command`
 /// when that argument position is tagged `shimmers = true` in the registry.
@@ -85,6 +143,9 @@ impl ShimmerExpectation {
     }
 }
 
+/// Standalone catalogue advice for the explicitly supplied command spelling.
+/// Actual function consumers use [`invocation_shimmer_expectation`] after the
+/// shared owner selects a normal representation contract under retained metadata.
 /// Like [`arg_shimmer_type`] but returning the full [`ShimmerExpectation`]
 /// (expected type + transparency list) for consumers that must suppress the
 /// warning on transparent current intreps.
@@ -134,49 +195,51 @@ pub fn arg_shimmer_expectation(
         .and_then(|(_, h)| expectation(h))
 }
 
-/// The argument indices of one call whose word is a **brace-quoted literal
-/// the callee never substitutes in this frame** — the positions whose text
-/// must not be read as a variable reference at all.
-///
-/// Tcl performs no substitution inside `{…}`: `lindex {$x} 0` yields the two
-/// characters `$x` and reads nothing (tclsh 9.0.4). The IR's `args` hold the
-/// *de-braced* word, which is indistinguishable there from a real `$x`, so
-/// the answer comes from the segmenter's per-word token kinds
-/// ([`CommandTokens::arg_is_braced_literal`]) rather than from the text.
-///
-/// The exemption is
-/// [`CommandRegistry::arg_indices_evaluated_in_frame`]: `expr {$x} + 1` and
-/// `if {$c} …` re-evaluate their braced word where the caller's variables
-/// are in scope, so those names *are* read here and now — `expr {$x} + 1`
-/// really is 6 for `x` = 5. `apply {{} {puts $x}}` runs in a fresh frame and
-/// is not exempt.
-///
-/// Only [`crate::ir::Statement::Call`] needs this. A `[cmd …]` lifted out of
-/// a word and the command substitution inside a `Statement::AssignValue`
-/// both carry their argument words as raw source text with the braces still
-/// on, so `is_pure_var_ref("{$x}")` already declines for them.
+/// Query the registry's typed positional hint using frozen argv knowledge.
 #[must_use]
-pub fn inert_braced_args(
-    registry: &CommandRegistry,
-    command: &str,
-    args: &[&str],
-    tokens: Option<&CommandTokens>,
+pub fn invocation_shimmer_expectation(
+    invocation: &crate::registry_invocation::NormalRepresentationInvocation,
+    index: usize,
+) -> Option<ShimmerExpectation> {
+    let hint = invocation.argument_type_hint(index)?;
+    hint.shimmers.then_some(ShimmerExpectation {
+        expected: hint.expected?,
+        transparent_from: hint.transparent_from,
+    })
+}
+
+/// Effective argument positions that cannot read a source variable. Alias
+/// prefixes are retained values, and written braces are interpreted under the
+/// proved callee's caller-frame evaluation contract.
+#[must_use]
+pub fn inert_effective_args(
+    invocation: &crate::registry_invocation::NormalRepresentationInvocation,
 ) -> Vec<usize> {
-    let Some(tokens) = tokens else {
-        return Vec::new();
-    };
-    let braced: Vec<usize> = (0..args.len())
-        .filter(|&idx| tokens.arg_is_braced_literal(idx))
+    let evaluated: Vec<_> = invocation
+        .operand_roles()
+        .iter()
+        .filter_map(|(index, role)| {
+            (*role == tcl_registry::ArgRole::Expr)
+                .then_some(invocation.argument_offset() + usize::from(*index))
+        })
         .collect();
-    // The overwhelming majority of calls brace nothing; skip the role query
-    // entirely for those rather than run it per statement.
-    if braced.is_empty() {
-        return braced;
-    }
-    let evaluated = registry.arg_indices_evaluated_in_frame(command, args);
-    braced
-        .into_iter()
-        .filter(|idx| !evaluated.contains(idx))
+    invocation
+        .effective_words()
+        .words
+        .iter()
+        .zip(&invocation.effective_words().origins)
+        .skip(1)
+        .enumerate()
+        .filter_map(|(index, (word, origin))| {
+            let prefix = matches!(
+                origin,
+                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
+            );
+            (prefix
+                || (matches!(word, crate::ir::WordExpr::BracedLiteral { .. })
+                    && !evaluated.contains(&index)))
+            .then_some(index)
+        })
         .collect()
 }
 
@@ -417,6 +480,61 @@ mod tests {
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn length_cost_requires_a_captured_class_and_the_selected_operand() {
+        for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(name).unwrap();
+            let registry =
+                tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+            let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                "set x 0; incr x; llength $x",
+                registry,
+                false,
+                profile,
+            );
+            let function = unit.function("::top").unwrap();
+            let mut found = false;
+            for (&block, body) in &function.ssa.blocks {
+                for (index, statement) in body.statements.iter().enumerate() {
+                    let source =
+                        crate::ssa::SsaSourceView::at_statement(&function.ssa, block, index);
+                    let Some(tokens) = source.source_tokens() else {
+                        continue;
+                    };
+                    let Some(invocation) =
+                        crate::registry_invocation::normal_statement_representation(
+                            registry,
+                            None,
+                            &statement.statement,
+                        )
+                    else {
+                        continue;
+                    };
+                    let Some(word) = tokens.words().get(1) else {
+                        continue;
+                    };
+                    if word.sole_variable_substitution().is_none() {
+                        continue;
+                    }
+                    let advice = source.read_word_representation_advice(word, registry);
+                    assert!(advice.already_numeric, "actual reached increment: {name}");
+                    assert_eq!(
+                        operand_preserves_captured_cache(&invocation, 0, advice),
+                        name != "tcl8.6"
+                    );
+                    assert!(!operand_preserves_captured_cache(&invocation, 1, advice));
+                    assert!(!operand_preserves_captured_cache(
+                        &invocation,
+                        0,
+                        crate::ssa::SsaReadRepresentationAdvice::default()
+                    ));
+                    found = true;
+                }
+            }
+            assert!(found, "original Length operand: {name}");
+        }
     }
 
     #[test]

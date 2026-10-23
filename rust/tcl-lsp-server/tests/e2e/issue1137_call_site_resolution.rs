@@ -194,7 +194,9 @@ fn a_bare_helper_call_in_a_method_body_resolves_across_files() {
     .expect("write esnap.tcl");
 
     let mut lsp = Lsp::at_workspace_root(&root);
-    let uri = format!("file://{}", esnap.to_string_lossy());
+    let uri = tcl_lsp_server::canonical_file_uri(&esnap)
+        .expect("source fixture has a representable file URI")
+        .to_string();
     lsp.open_ready(&uri, &std::fs::read_to_string(&esnap).expect("read"));
     // `utils.tcl` is written straight to disk and never opened, so the
     // cross-file target is only known once the background workspace scan has
@@ -216,7 +218,10 @@ fn a_bare_helper_call_in_a_method_body_resolves_across_files() {
     // the helper's own declaration must reach the method-body call site in
     // the other file. The two providers have to agree — a definition that
     // resolves while references does not is a real inconsistency.
-    let utils_uri = format!("file://{}", root.join("utils.tcl").to_string_lossy());
+    let utils_path = root.join("utils.tcl");
+    let utils_uri = tcl_lsp_server::canonical_file_uri(&utils_path)
+        .expect("helper fixture has a representable file URI")
+        .to_string();
     lsp.open_ready(
         &utils_uri,
         &std::fs::read_to_string(root.join("utils.tcl")).expect("read utils"),

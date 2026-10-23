@@ -1,0 +1,6 @@
+SIMPLE|namespace import ::ReceiptImportSrc::p
+ALIAS|namespace import ::ReceiptImportSrc::a
+DEEP_ALIAS|namespace import ::ReceiptImportSrc::b
+EMPTY|namespace import ::ReceiptMissing::*
+EMPTY_REST|namespace import
+MUTABLE_INFO|namespace import ::ReceiptImportSrc::p

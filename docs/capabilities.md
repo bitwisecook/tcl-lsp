@@ -57,6 +57,44 @@ Reference: `docs/design/compiler/architecture.md` (+ `docs/design/compiler/`), h
 
 ---
 
+## Source-aware editor behaviour and execution limits
+
+Navigation, references, rename and refactoring share the selected document's
+execution context, dialect profile and revision-aware source analysis. A result
+belongs to that source and registry configuration; changing the document,
+profile, imported definitions or registry invalidates it. A displayed command
+name alone does not prove which command a call reaches.
+
+When ordering, binding or source ownership is uncertain, providers may omit a
+navigation result or decline an edit. In particular, a cross-file force import
+whose execution order is unproven does not select either competing definition.
+This abstention keeps rename and references consistent and prevents rewrites
+from assuming a target that the program has not established.
+
+For iRulesLX, supported same-frame source tracking can relate an ILX handle to
+its initialisation and the first remote operation. An opaque remote call ends
+that tracking: later calls and notifications cannot recover the earlier binding
+merely from a matching variable or method name. This is a navigation boundary,
+not a claim to execute or inspect the remote JavaScript service.
+
+Bundled SpecTcl packs describe EDA and UPF commands and provide their declared
+analysis and execution hooks. UPF option scanning and declared script-body
+traversal follow the selected pack's grammar; list data is not treated as an
+executable body. These hooks model the supported command surface, not an
+installed vendor EDA tool or a power simulator. Jim likewise uses its own
+selected command, procedure and naming rules rather than borrowing stock Tcl
+behaviour from a displayed version.
+
+Execution support is specific to the selected profile, command route and host.
+General bytecode-VM parity with every native Tcl/Jim backend, arbitrary vendor
+command or callback is deferred. A successful source analysis does not certify
+runtime executability, backend parity or identical editor-host behaviour.
+
+These are capability bounds, not a statement that every release gate has
+passed. See the [provider contract](design/contracts/lsp-feature-providers.md)
+and [environment selection](design/contracts/environment-selection.md) for the
+corresponding ownership rules.
+
 ## 3. The BIG-IP registries
 
 Command + event registries and the `f5-irules` dialect: what backs hover/completion,

@@ -111,6 +111,23 @@ impl PathGlobSet {
         self.patterns.is_empty()
     }
 
+    /// Match actual host paths without replacing opaque components with display text.
+    #[must_use]
+    pub fn matches_path(&self, rel_path: Option<&Path>, path: &Path) -> bool {
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+            return false;
+        };
+        let relative = rel_path
+            .filter(|path| {
+                path.components().all(|component| match component {
+                    Component::Normal(part) => part.to_str().is_some(),
+                    _ => true,
+                })
+            })
+            .map(slash_path);
+        self.matches(relative.as_deref(), file_name)
+    }
+
     /// Whether the file matches any pattern.
     ///
     /// `rel_path` is the workspace-folder-relative path, `/`-separated, and
@@ -130,7 +147,8 @@ impl PathGlobSet {
     }
 }
 
-/// Render `path` as a `/`-separated string for matching.
+/// Render `path` as `/`-separated display text.
+/// Match actual filesystem paths through [`PathGlobSet::matches_path`].
 ///
 /// Only [`Component::Normal`] components survive, so a root, a drive prefix
 /// and any `.` are dropped; non-UTF-8 components go through lossily.
@@ -682,6 +700,25 @@ mod tests {
         assert!(set(&[over.as_str()]).is_empty());
         let under = "{a,b}".repeat(10);
         assert!(!set(&[under.as_str()]).is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn native_path_matching_does_not_collapse_opaque_and_replacement_characters() {
+        use std::os::unix::ffi::OsStringExt as _;
+        let raw_name = PathBuf::from(std::ffi::OsString::from_vec(b"entry-\xff.tcl".to_vec()));
+        let unicode_name = PathBuf::from("entry-\u{fffd}.tcl");
+        let names = set(&["entry-\u{fffd}.tcl"]);
+        assert!(!names.matches_path(None, &raw_name));
+        assert!(names.matches_path(None, &unicode_name));
+        let raw_path = PathBuf::from("generated")
+            .join(std::ffi::OsString::from_vec(vec![0xff]))
+            .join("item.tcl");
+        let unicode_path = PathBuf::from("generated/\u{fffd}/item.tcl");
+        let paths = set(&["generated/\u{fffd}/item.tcl"]);
+        assert!(!paths.matches_path(Some(&raw_path), &raw_path));
+        assert!(paths.matches_path(Some(&unicode_path), &unicode_path));
+        assert!(set(&["*.tcl"]).matches_path(Some(&raw_path), &raw_path));
     }
 
     #[test]

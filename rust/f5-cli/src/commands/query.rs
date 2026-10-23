@@ -55,9 +55,11 @@ use std::collections::BTreeMap;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
-use tcl_bigip_io::{read_path, read_ucs_member, resolve_passphrase};
+use tcl_bigip_io::{read_path_source, resolve_passphrase};
 use tcl_bigip_query::value::Value;
-use tcl_bigip_query::{QueryError, QueryOptions, QueryResult, output, run_query};
+use tcl_bigip_query::{
+    QueryError, QueryOptions, QueryResult, TokenKind, output, run_query, tokenise,
+};
 
 use crate::cli::FormatArgs;
 
@@ -106,10 +108,34 @@ fn ucs_uri_to_path(config_uri: &str) -> Option<String> {
     }
 }
 
+#[derive(Default)]
+struct QueryProviderSources {
+    entries: Vec<tcl_bigip_io::UcsFileEntry>,
+    members: Vec<tcl_bigip_io::UcsMemberSource>,
+    errors: Vec<tcl_bigip_io::UcsError>,
+}
+
+impl QueryProviderSources {
+    fn require_faithful(&self) -> Result<(), tcl_bigip_io::UcsError> {
+        if let Some(error) = self.errors.first() {
+            return Err(tcl_bigip_io::UcsError(error.to_string()));
+        }
+        for entry in &self.entries {
+            entry.require_faithful_path()?;
+        }
+        for member in &self.members {
+            member.require_faithful()?;
+        }
+        Ok(())
+    }
+}
+
+type ProviderSources = std::rc::Rc<std::cell::RefCell<QueryProviderSources>>;
+
 /// Build the `ucs_cert` reader the query engine injects: map a cert object's
 /// `config_uri` + filestore `cache-path` to an `x509_parse`-shaped value,
 /// reading the PEM out of the (possibly encrypted) UCS.
-fn make_ucs_cert_reader() -> tcl_bigip_query::eval::UcsCertReader {
+fn make_ucs_cert_reader(sources: ProviderSources) -> tcl_bigip_query::eval::UcsCertReader {
     let opts = crate::cli::PassphraseArgs::default().to_options();
     std::rc::Rc::new(
         move |config_uri: &str, cache_path: &str| -> Result<Value, QueryError> {
@@ -122,13 +148,15 @@ fn make_ucs_cert_reader() -> tcl_bigip_query::eval::UcsCertReader {
                 QueryError::builtin(format!("ucs_cert: cannot read UCS {path}: {e}"))
             })?;
             let provider = || resolve_passphrase(&opts);
-            let pem = read_ucs_member(&raw, cache_path, &provider, &path).map_err(|e| {
-                QueryError::builtin(format!(
-                    "ucs_cert: {cache_path} not found in {path} ({e}) \
+            let pem = tcl_bigip_io::read_ucs_member_source(&raw, cache_path, &provider, &path)
+                .map_err(|e| {
+                    QueryError::builtin(format!(
+                        "ucs_cert: {cache_path} not found in {path} ({e}) \
                  (a plain bigip.conf has no filestore — read the UCS itself)"
-                ))
-            })?;
-            let pem_str = String::from_utf8_lossy(&pem);
+                    ))
+                })?;
+            let pem_str = String::from_utf8_lossy(pem.bytes()).into_owned();
+            sources.borrow_mut().members.push(pem);
             tcl_bigip_query::probes::x509_parse(&pem_str)
         },
     )
@@ -137,7 +165,7 @@ fn make_ucs_cert_reader() -> tcl_bigip_query::eval::UcsCertReader {
 /// Build the `files` / `file` / `glob` / `grep` reader the query engine injects:
 /// enumerate a source's forensic UCS members (metadata) or read one member's
 /// content, decrypting the archive as needed with the shared passphrase.
-fn make_files_reader() -> tcl_bigip_query::eval::FilesReader {
+fn make_files_reader(sources: ProviderSources) -> tcl_bigip_query::eval::FilesReader {
     use tcl_bigip_io::{MemberScope, list_ucs_members};
     use tcl_bigip_query::eval::FileOp;
 
@@ -162,25 +190,37 @@ fn make_files_reader() -> tcl_bigip_query::eval::FilesReader {
                         ))
                     })?;
                     let list = entries
-                        .into_iter()
+                        .iter()
                         .map(|e| {
                             Value::object([
-                                ("path".to_owned(), Value::Str(e.path)),
+                                ("path".to_owned(), Value::Str(e.path.clone())),
                                 (
                                     "size".to_owned(),
                                     Value::Int(i64::try_from(e.size).unwrap_or(i64::MAX)),
                                 ),
-                                ("sha256".to_owned(), Value::Str(e.sha256)),
+                                ("sha256".to_owned(), Value::Str(e.sha256.clone())),
                                 ("is_text".to_owned(), Value::Bool(e.is_text)),
                             ])
                         })
                         .collect();
+                    sources.borrow_mut().entries.extend(entries);
                     Ok(Value::List(list))
                 }
-                FileOp::Content(member) => match read_ucs_member(&raw, member, &provider, &path) {
-                    Ok(bytes) => Ok(Value::Str(String::from_utf8_lossy(&bytes).into_owned())),
-                    Err(_) => Ok(Value::Null),
-                },
+                FileOp::Content(member) => {
+                    match tcl_bigip_io::find_ucs_member_source(&raw, member, &provider, &path) {
+                        Ok(Some(member)) => {
+                            let value =
+                                Value::Str(String::from_utf8_lossy(member.bytes()).into_owned());
+                            sources.borrow_mut().members.push(member);
+                            Ok(value)
+                        }
+                        Ok(None) => Ok(Value::Null),
+                        Err(error) => {
+                            sources.borrow_mut().errors.push(error);
+                            Ok(Value::Null)
+                        }
+                    }
+                }
             }
         },
     )
@@ -233,19 +273,33 @@ impl OutputModeFlags {
     }
 }
 
+/// Whether `name` is exactly one variable identifier in the query DSL.
+fn is_query_binding_identifier(name: &str) -> bool {
+    let source = format!("${name}");
+    let Ok(tokens) = tokenise(&source) else {
+        return false;
+    };
+    matches!(
+        tokens.as_slice(),
+        [name_token, eof_token]
+            if name_token.kind == TokenKind::DollarIdent
+                && name_token.value == tcl_bigip_query::LitValue::Str(name.to_owned())
+                && eof_token.kind == TokenKind::Eof
+    )
+}
+
 /// Parse `--name NAME=PATH` bindings into a `name -> path` map, validating the
 /// identifier and that the path was supplied as a positional input.
 fn parse_name_bindings(
     raw: &[String],
     paths: &[String],
 ) -> Result<std::collections::HashMap<String, String>, String> {
-    let name_re = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_-]*$").expect("valid regex");
     let mut bindings = std::collections::HashMap::new();
     for entry in raw {
         let Some((nm, pth)) = entry.split_once('=') else {
             return Err(format!("--name expects NAME=PATH (got '{entry}')"));
         };
-        if !name_re.is_match(nm) {
+        if !is_query_binding_identifier(nm) {
             return Err(format!(
                 "--name '{entry}': '{nm}' is not a valid DSL identifier \
                  (letters, digits, '_', '-'; cannot start with a digit)"
@@ -326,14 +380,13 @@ fn parse_input_bindings(
     flag: &str,
     allow_csv_headers: bool,
 ) -> Result<Vec<InputBinding>, String> {
-    let name_re = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_-]*$").expect("valid regex");
     let mut bindings: Vec<InputBinding> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     for entry in raw {
         let Some((nm, pth)) = entry.split_once('=') else {
             return Err(format!("{flag} expects NAME=PATH (got '{entry}')"));
         };
-        if !name_re.is_match(nm) {
+        if !is_query_binding_identifier(nm) {
             return Err(format!(
                 "{flag} '{entry}': '{nm}' is not a valid DSL identifier \
                  (letters, digits, '_', '-'; cannot start with a digit)"
@@ -400,7 +453,6 @@ fn split_csv_path_headers(
 /// `(kind, name, path)` entries. KIND is validated against the registry by
 /// the caller.
 fn parse_custom_input_bindings(raw: &[String]) -> Result<Vec<(String, String, String)>, String> {
-    let name_re = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_-]*$").expect("valid regex");
     let mut entries: Vec<(String, String, String)> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     // clap delivers the two-value `--input` flag as a flat list of pairs.
@@ -421,7 +473,7 @@ fn parse_custom_input_bindings(raw: &[String]) -> Result<Vec<(String, String, St
                 "--input {kind} expects NAME=PATH (got '{binding}')"
             ));
         };
-        if !name_re.is_match(nm) {
+        if !is_query_binding_identifier(nm) {
             return Err(format!(
                 "--input {kind} '{binding}': '{nm}' is not a valid DSL \
                  identifier (letters, digits, '_', '-'; cannot start with a digit)"
@@ -465,6 +517,11 @@ fn parse_input_args(args: &InputArgs) -> Result<ParsedInputArgs, String> {
     })
 }
 
+struct LoadedSideInputs {
+    inputs: Vec<tcl_bigip_query::SideInput>,
+    original: Vec<tcl_bigip_io::ConfigInput>,
+}
+
 /// Read each side-input file and build the `$NAME`-bound [`SideInput`]s.
 ///
 /// Each binding reads its file, collides-checks the URI against positional
@@ -475,8 +532,9 @@ fn load_side_inputs(
     parsed: &ParsedInputArgs,
     path_for_uri: &[(String, String)],
     opts: &tcl_bigip_io::PassphraseOptions,
-) -> Result<Vec<tcl_bigip_query::SideInput>, (String, u8)> {
+) -> Result<LoadedSideInputs, (String, u8)> {
     let mut side_inputs: Vec<tcl_bigip_query::SideInput> = Vec::new();
+    let mut original = Vec::new();
     let mut side_names: std::collections::HashMap<String, String> =
         std::collections::HashMap::new();
     let mut side_uris: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -495,7 +553,7 @@ fn load_side_inputs(
             } else {
                 tcl_bigip_query::InputSpec::new(kind)
             };
-            load_one_side_input(
+            original.push(load_one_side_input(
                 nm,
                 pth,
                 flag,
@@ -505,7 +563,7 @@ fn load_side_inputs(
                 &mut side_inputs,
                 &mut side_names,
                 &mut side_uris,
-            )?;
+            )?);
         }
     }
 
@@ -525,7 +583,7 @@ fn load_side_inputs(
                 2,
             ));
         }
-        load_one_side_input(
+        original.push(load_one_side_input(
             nm,
             pth,
             &format!("--input {kind}"),
@@ -535,9 +593,12 @@ fn load_side_inputs(
             &mut side_inputs,
             &mut side_names,
             &mut side_uris,
-        )?;
+        )?);
     }
-    Ok(side_inputs)
+    Ok(LoadedSideInputs {
+        inputs: side_inputs,
+        original,
+    })
 }
 
 /// Load a single side-input file, threading the collision-tracking state.
@@ -554,7 +615,7 @@ fn load_one_side_input(
     side_inputs: &mut Vec<tcl_bigip_query::SideInput>,
     side_names: &mut std::collections::HashMap<String, String>,
     side_uris: &mut std::collections::HashSet<String>,
-) -> Result<(), (String, u8)> {
+) -> Result<tcl_bigip_io::ConfigInput, (String, u8)> {
     if let Some(prior_uri) = side_names.get(nm) {
         return Err((
             format!(
@@ -564,8 +625,9 @@ fn load_one_side_input(
             2,
         ));
     }
-    let (uri, src) =
-        read_path(pth, false, opts).map_err(|e| (format!("{flag} {nm}={pth}: {e}"), 2))?;
+    let input = read_path_source(pth, opts).map_err(|e| (format!("{flag} {nm}={pth}: {e}"), 2))?;
+    let uri = input.uri().to_owned();
+    let src = input.source().to_owned();
     if path_for_uri.iter().any(|(u, _)| *u == uri) {
         return Err((
             format!("{flag} {nm}={pth}: URI {uri} is already loaded as a positional input"),
@@ -586,7 +648,7 @@ fn load_one_side_input(
         source: src,
         spec,
     });
-    Ok(())
+    Ok(input)
 }
 
 /// Render the `--help-inputs` catalogue.
@@ -765,6 +827,7 @@ pub fn run_query_verb(
     let opts = crate::cli::PassphraseArgs::default().to_options();
     let mut sources: Vec<(String, String)> = Vec::with_capacity(path_strs.len());
     let mut path_for_uri: Vec<(String, String)> = Vec::new();
+    let mut original_inputs = Vec::new();
     for path_str in &path_strs {
         // `--in-place` rewriting a UCS archive would mean repacking the
         // gzipped tar and losing other artefacts — refuse.
@@ -775,17 +838,16 @@ pub fn run_query_verb(
             );
             return Ok(2);
         }
-        // Strict UTF-8 for mutating in-place writes: if any byte can't be
-        // decoded, raise instead of silently swapping it for U+FFFD —
-        // otherwise the read…rewrite…write round-trip would permanently
-        // overwrite the unreadable bytes.
-        let (uri, src) = match read_path(path_str, flags.in_place, &opts) {
-            Ok(pair) => pair,
-            Err(e) => {
-                eprintln!("error: {e}");
+        let input = match read_path_source(path_str, &opts) {
+            Ok(input) => input,
+            Err(error) => {
+                eprintln!("error: {error}");
                 return Ok(2);
             }
         };
+        let uri = input.uri().to_owned();
+        let src = input.source().to_owned();
+        original_inputs.push(input);
         if let Some((_, prev)) = path_for_uri.iter().find(|(u, _)| *u == uri) {
             let label = if path_str == "-" {
                 "stdin"
@@ -850,7 +912,10 @@ pub fn run_query_verb(
 
     // Load every structured side-input into `$NAME`-bound `SideInput`s.
     let side_inputs = match load_side_inputs(&parsed_inputs, &path_for_uri, &opts) {
-        Ok(s) => s,
+        Ok(loaded) => {
+            original_inputs.extend(loaded.original);
+            loaded.inputs
+        }
         Err((msg, code)) => {
             eprintln!("error: {msg}");
             return Ok(code);
@@ -862,6 +927,7 @@ pub fn run_query_verb(
     // `sources` yet are skipped by the per-file loop's source check.
     let n_sources = sources.len() + side_inputs.len();
 
+    let provider_sources = ProviderSources::default();
     let query_opts = QueryOptions {
         names: resolved_names,
         partitions: resolved_partitions,
@@ -871,10 +937,10 @@ pub fn run_query_verb(
         // `ucs_cert` re-opens a cert from inside a UCS (decrypt + un-tar);
         // inject a reader using the same passphrase resolution the input
         // loader uses.
-        ucs_cert_reader: Some(make_ucs_cert_reader()),
+        ucs_cert_reader: Some(make_ucs_cert_reader(std::rc::Rc::clone(&provider_sources))),
         // `files` / `file` / `glob` / `grep` read the OS files inside a UCS;
         // inject a reader over the same passphrase resolution.
-        files_reader: Some(make_files_reader()),
+        files_reader: Some(make_files_reader(std::rc::Rc::clone(&provider_sources))),
         merge: flags.merge,
     };
 
@@ -887,6 +953,16 @@ pub fn run_query_verb(
     };
 
     if result.has_mutation {
+        if let Err(error) = provider_sources.borrow().require_faithful() {
+            eprintln!("error: {error}");
+            return Ok(2);
+        }
+        for input in &original_inputs {
+            if let Err(error) = input.require_faithful() {
+                eprintln!("error: {error}");
+                return Ok(2);
+            }
+        }
         return emit_mutation(&result, &path_for_uri, flags, format);
     }
 
@@ -1060,23 +1136,32 @@ pub fn help_renderers_text() -> String {
 }
 
 #[cfg(test)]
+#[path = "../../../tcl-bigip-query/tests/common/ucs.rs"]
+mod certificate_test_fixture;
+
+#[cfg(test)]
 mod ucs_cert_tests {
-    use super::{make_ucs_cert_reader, percent_decode, ucs_uri_to_path};
+    use super::{ProviderSources, make_ucs_cert_reader, percent_decode, ucs_uri_to_path};
     use tcl_bigip_query::value::Value;
 
-    // The committed UCS holds a metadata-free `sys file ssl-cert` stanza plus
-    // the real PEM in the filestore; `ucs_cert` must recover the cert's identity
-    // from the PEM, not the stanza.
+    // Generate the filestore certificate locally; recover its identity from
+    // the certificate rather than the metadata-free configuration stanza.
     const CACHE_PATH: &str = "/config/filestore/files_d/Common_d/certificate_d/:Common:t.crt_1";
-    const EXPECTED_FP: &str = "79F67B000B1E685F3B2EC336A82C37985A1175F17176D60A60CDD6DD7FE874CD";
+    fn fixture() -> (super::certificate_test_fixture::UcsFixture, String) {
+        super::certificate_test_fixture::ucs(
+            std::path::Path::new(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/fixtures/ucs-cert-sample.ucs"
+            )),
+            false,
+        )
+    }
 
     #[test]
     fn reader_reads_and_parses_real_cert() {
-        let fixture = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/fixtures/ucs-cert-sample.ucs"
-        );
-        let reader = make_ucs_cert_reader();
+        let (archive, expected_fp) = fixture();
+        let fixture = archive.path.to_str().expect("temporary UCS path");
+        let reader = make_ucs_cert_reader(ProviderSources::default());
         let value = reader(&format!("file://{fixture}"), CACHE_PATH)
             .expect("reader reads + parses the cert");
         let Value::Object(map) = value else {
@@ -1087,7 +1172,7 @@ mod ucs_cert_tests {
             _ => panic!("x509 dict has no fingerprint_sha256 string"),
         };
         assert_eq!(
-            fp, EXPECTED_FP,
+            fp, expected_fp,
             "ucs_cert must parse the real PEM from the filestore",
         );
     }
@@ -1098,15 +1183,13 @@ mod ucs_cert_tests {
     /// breaks the reachable path even though both unit tests above pass.
     #[test]
     fn ucs_cert_reaches_cert_through_the_dsl() {
-        let fixture = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/fixtures/ucs-cert-sample.ucs"
-        );
+        let (archive, expected_fp) = fixture();
+        let fixture = archive.path.to_str().expect("temporary UCS path");
         let pass = crate::cli::PassphraseArgs::default().to_options();
         let (uri, src) =
             tcl_bigip_io::read_path(fixture, false, &pass).expect("UCS reads as an SCF");
         let opts = tcl_bigip_query::QueryOptions {
-            ucs_cert_reader: Some(make_ucs_cert_reader()),
+            ucs_cert_reader: Some(make_ucs_cert_reader(ProviderSources::default())),
             ..tcl_bigip_query::QueryOptions::default()
         };
         let result = tcl_bigip_query::run_query(
@@ -1128,16 +1211,14 @@ mod ucs_cert_tests {
         let Value::Str(fp) = values[0] else {
             panic!("fingerprint_sha256 must be a string, got {:?}", values[0]);
         };
-        assert_eq!(fp, EXPECTED_FP);
+        assert_eq!(fp, &expected_fp);
     }
 
     #[test]
     fn reader_errors_on_missing_member() {
-        let fixture = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/fixtures/ucs-cert-sample.ucs"
-        );
-        let reader = make_ucs_cert_reader();
+        let (archive, _) = fixture();
+        let fixture = archive.path.to_str().expect("temporary UCS path");
+        let reader = make_ucs_cert_reader(ProviderSources::default());
         let err = reader(&format!("file://{fixture}"), "/config/filestore/nope_1").unwrap_err();
         assert!(format!("{err}").contains("ucs_cert"), "got: {err}");
     }

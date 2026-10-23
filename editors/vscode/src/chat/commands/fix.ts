@@ -18,8 +18,9 @@
 
 import * as vscode from "vscode";
 import { CommandContext } from "../types";
-import { runAgenticLoop } from "../agenticLoop";
-import { waitForDiagnostics, renderDiagnosticSection } from "../diagnosticAccess";
+import { proposalReportEvidence, runAgenticLoop } from "../agenticLoop";
+import { documentWriteReceipt, snapshotDocumentSource } from "../codeUtils";
+import { waitForProposalDiagnostics, renderDiagnosticSection } from "../diagnosticAccess";
 import { isTclLanguage } from "../../extension";
 
 export async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult> {
@@ -29,13 +30,19 @@ export async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult>
     return {};
   }
 
-  const code = editor.document.getText();
+  const sourceSnapshot = snapshotDocumentSource(editor.document);
+  const code = sourceSnapshot.fullSource;
   const uri = editor.document.uri;
 
   // Check current diagnostics
   ctx.response.progress("Checking current diagnostics...");
-  const diagnostics = await waitForDiagnostics(uri, { timeout: 5000 });
-  const actionable = diagnostics.filter((d) => d.severity <= vscode.DiagnosticSeverity.Warning);
+  const initialReport = await waitForProposalDiagnostics(uri, code, {
+    timeout: 5000,
+    expectedSource: code,
+  });
+  const actionable = initialReport.diagnostics.filter(
+    (d) => d.severity <= vscode.DiagnosticSeverity.Warning,
+  );
 
   if (actionable.length === 0) {
     ctx.response.markdown("No errors or warnings found in the current document.");
@@ -45,11 +52,22 @@ export async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult>
   ctx.response.markdown(`Found **${actionable.length}** issue(s). Starting fix loop...\n`);
 
   // Run agentic loop using the existing document
-  const result = await runAgenticLoop(ctx, code, editor.document, { targetDialect: "f5-irules" });
+  const result = await runAgenticLoop(ctx, code, editor.document, {
+    sourceSnapshot,
+    initialProposalReport: initialReport,
+  });
 
   // Present result
-  ctx.response.markdown(`## Fixed iRule\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`);
+  ctx.response.markdown(
+    `## Fixed Tcl source (${initialReport.response.dialectId})\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`,
+  );
 
+  if (result.proposalReport) {
+    const report = result.proposalReport.response;
+    ctx.response.markdown(
+      `\nDiagnostics were captured for the proposal at ${report.uri}, source version ${report.version}.`,
+    );
+  }
   if (result.clean) {
     ctx.response.markdown(`\nAll issues resolved in ${result.iterations} iteration(s).`);
   } else {
@@ -64,11 +82,17 @@ export async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult>
     );
   }
 
-  // Offer to apply
+  // Offer to apply only against the completed document snapshot.
+  if (!result.documentSnapshot) throw new Error("Fix result has no current document snapshot");
+  const writeReceipt = documentWriteReceipt(result.documentSnapshot);
   ctx.response.button({
     command: "tclLsp.applyFix",
     title: "Apply fixes to document",
-    arguments: [result.finalCode, uri.toString()],
+    arguments: [
+      result.finalCode,
+      writeReceipt,
+      proposalReportEvidence(result.proposalReport, writeReceipt),
+    ],
   });
 
   return {

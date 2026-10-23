@@ -47,16 +47,13 @@ use std::collections::HashMap;
 use serde_json::{Value, json};
 
 use tcl_compiler::codegen::format::{format_function_asm, instruction_operand_text};
-use tcl_compiler::codegen::{
-    FunctionAsm, ModuleAsm, Op, Operand, codegen_module_with_command_mutations,
-};
+use tcl_compiler::codegen::{FunctionAsm, Op, Operand, codegen_module_with_command_mutations};
 use tcl_compiler::ir::Module;
 use tcl_lexer::LineIndex;
 // The pack-carrying registry, not the plain one: since the EDA vendor
 // libraries became `.tclspec` loadables they exist nowhere else, so an
 // explorer on the plain registry reports every `synth_design` unknown while
 // the diagnostic on the same line resolves it.
-use tcl_spectcl::bundled::active_registry_for_dialect as registry_for_dialect;
 
 use crate::ExplorerResult;
 use crate::formatters::range_dict;
@@ -66,8 +63,10 @@ use crate::formatters::range_dict;
 /// per-entry `sourceRange` from the IR.
 #[must_use]
 pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
+    let Some(retained) = crate::serialise::retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry();
     // Codegen lowers the plain (analysis-only-transform-free) CFG so the emitted
     // bytecode is byte-identical to the unannotated source: the analysis CFG
     // (`unit.cfg_module`) carries `faithful_exceptions` transforms (tailcall /
@@ -79,34 +78,46 @@ pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
         false,
         registry,
     );
-    let module: ModuleAsm = codegen_module_with_command_mutations(
+    let Ok(module) = codegen_module_with_command_mutations(
         &codegen_cfg,
         &result.unit.ir_module,
         registry,
         &result.unit.command_mutations,
-    );
+    ) else {
+        return Value::Null;
+    };
 
     let mut entries: Vec<Value> = Vec::new();
-    entries.push(function_explorer(
+    let mut top = function_explorer(
         &module.top_level,
         &module.top_level.name,
         "top",
         top_source_range(&result.unit.ir_module, li, source),
         li,
         source,
+    );
+    top["isTopLevel"] = json!(true);
+    top["bodyKey"] = json!(format!(
+        "{}:root",
+        result.unit.ir_module.procedure_ids.reporting_scope()
     ));
+    entries.push(top);
 
-    let mut qnames: Vec<&String> = module.procedures.keys().collect();
-    qnames.sort();
-    for qname in qnames {
-        let asm = &module.procedures[qname];
+    let mut procedures: Vec<_> = module.procedures.iter().collect();
+    procedures.sort_by(|(left_id, left), (right_id, right)| {
+        left.name.cmp(&right.name).then(left_id.cmp(right_id))
+    });
+    for (id, asm) in procedures {
         let src_range = result
             .unit
             .ir_module
             .procedures
-            .get(qname)
+            .get(id)
             .map_or(Value::Null, |p| range_dict(p.span, li, source));
-        entries.push(function_explorer(asm, qname, "proc", src_range, li, source));
+        let mut entry = function_explorer(asm, &asm.name, "proc", src_range, li, source);
+        entry["bodyId"] = json!(id.ordinal());
+        entry["bodyKey"] = json!(id.reporting_key());
+        entries.push(entry);
     }
     Value::Array(entries)
 }
@@ -300,8 +311,15 @@ fn function_explorer(
         "kind": kind,
         "instrCount": instrs.len(),
         "byteCount": instrs.iter().map(|i| u32::from(i.op.size())).sum::<u32>(),
-        "literals": asm.literals.entries(),
-        "locals": asm.lvt.entries(),
+        "literals": asm.literals.entries().iter().map(|literal| {
+            literal.unicode().map_or_else(
+                |_| json!({"bytes": literal.bytes()}),
+                |text| json!(text),
+            )
+        }).collect::<Vec<_>>(),
+        "locals": asm.lvt.entries().iter().map(|name| {
+            name.try_utf8().map_or_else(|_| json!({"bytes": name.as_bytes()}), |text| json!(text))
+        }).collect::<Vec<_>>(),
         "instructions": rows,
         "text": format_function_asm(asm),
         "sourceRange": source_range,

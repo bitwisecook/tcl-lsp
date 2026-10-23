@@ -32,14 +32,8 @@
 //! both wasm32-unknown-unknown and wasm32-wasip1 answer to it, and they need
 //! opposite things. The gates below are keyed on `target_os` for that reason.
 //!
-//! **The native contract is "nothing changed".** On every non-wasm target the
-//! items below are plain re-exports of the Tokio ones the call sites used
-//! before this module existed — same types, same semantics, same scheduling.
-//! `available_parallelism` is the one function with a body, and it is the
-//! `std::thread::available_parallelism().map_or(4, …)` expression that used to
-//! be written out at each of its three call sites. Adding a wrapper type or a
-//! behavioural tweak on the native arm defeats the point of the seam: the
-//! native server must not be able to regress because of a browser port.
+//! Native targets re-export Tokio scheduling and types. `available_parallelism`
+//! selects the host count with a fallback of four.
 //!
 //! **The browser contract is "same shapes, single thread".** A browser worker
 //! has no threads *and* no OS beneath it: no clock to read, and nothing for a

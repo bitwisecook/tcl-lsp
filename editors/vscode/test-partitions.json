@@ -1,16 +1,12 @@
 {
   "version": 1,
   "canonical_glob": "**/*.test.js",
-  "exclude": [
-    "multiFolder/**"
-  ],
-  "multi_folder_files": [
-    "multiFolderConfig.test.js"
-  ],
+  "exclude": ["multiFolder/**"],
+  "multi_folder_files": ["multiFolderConfig.test.js"],
   "expected_tests": {
     "single_root": {
-      "identities": 973,
-      "passed": 972,
+      "identities": 1011,
+      "passed": 1010,
       "pending": 1
     },
     "multi_folder": {
@@ -30,16 +26,8 @@
         "2": 102366472969,
         "3": 102366473057
       },
-      "before_partition_ms": [
-        28817,
-        63001,
-        94948
-      ],
-      "projected_partition_ms": [
-        62255,
-        62256,
-        62255
-      ]
+      "before_partition_ms": [28817, 63001, 94948],
+      "projected_partition_ms": [62255, 62256, 62255]
     },
     "measurement_field": "fileDurationsMs"
   },
@@ -52,6 +40,7 @@
       "closedFileRetention.test.js",
       "codeActions.test.js",
       "commandAliasTracking.test.js",
+      "currentDiagnostics.test.js",
       "definition.test.js",
       "diagnostics.test.js",
       "dialectChoices.test.js",
@@ -82,6 +71,7 @@
       "workspaceSymbols.test.js"
     ],
     "2": [
+      "bigipSourceActions.test.js",
       "codeLens.test.js",
       "compilerExplorerWebview.test.js",
       "completion.test.js",

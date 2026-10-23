@@ -156,20 +156,108 @@ fn diag_section_groups() -> Vec<(&'static str, Vec<DiagRow>)> {
         .collect()
 }
 
-/// Replace the text between `// @generated:{marker}:begin` and `:end`,
-/// preserving the begin-line indentation.
-fn replace_block(content: &str, marker: &str, replacement: &str) -> String {
+/// Find exact marker comment lines outside Kotlin strings and block comments.
+fn kotlin_marker_line_offsets(content: &str, marker: &str) -> Vec<usize> {
+    let mut offsets = Vec::new();
+    let mut block_depth = 0usize;
+    let mut raw_string = false;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut line_start = 0usize;
+    for line in content.split_inclusive('\n') {
+        let body = line
+            .strip_suffix('\n')
+            .unwrap_or(line)
+            .strip_suffix('\r')
+            .unwrap_or(line.strip_suffix('\n').unwrap_or(line));
+        if block_depth == 0 && !raw_string && quote.is_none() && body.trim() == marker {
+            offsets.push(line_start + body.len() - body.trim_start().len());
+        }
+        let bytes = line.as_bytes();
+        let mut cursor = 0usize;
+        while cursor < bytes.len() {
+            if block_depth > 0 {
+                if bytes.get(cursor..cursor + 2) == Some(b"/*") {
+                    block_depth += 1;
+                    cursor += 2;
+                } else if bytes.get(cursor..cursor + 2) == Some(b"*/") {
+                    block_depth -= 1;
+                    cursor += 2;
+                } else {
+                    cursor += 1;
+                }
+            } else if raw_string {
+                if bytes.get(cursor..cursor + 3) == Some(b"\"\"\"") {
+                    raw_string = false;
+                    cursor += 3;
+                } else {
+                    cursor += 1;
+                }
+            } else if let Some(delimiter) = quote {
+                if escaped {
+                    escaped = false;
+                    cursor += 1;
+                } else if bytes[cursor] == b'\\' {
+                    escaped = true;
+                    cursor += 1;
+                } else if bytes[cursor] == delimiter {
+                    quote = None;
+                    cursor += 1;
+                } else {
+                    cursor += 1;
+                }
+            } else if bytes.get(cursor..cursor + 2) == Some(b"//") {
+                break;
+            } else if bytes.get(cursor..cursor + 2) == Some(b"/*") {
+                block_depth = 1;
+                cursor += 2;
+            } else if bytes.get(cursor..cursor + 3) == Some(b"\"\"\"") {
+                raw_string = true;
+                cursor += 3;
+            } else if matches!(bytes[cursor], b'"' | b'\'') {
+                quote = Some(bytes[cursor]);
+                cursor += 1;
+            } else {
+                cursor += 1;
+            }
+        }
+        line_start += line.len();
+    }
+    offsets
+}
+
+/// Replace the text between unique reachable marker comment lines, preserving
+/// the begin-line indentation. Marker-shaped text in strings/comments is inert.
+fn replace_block(content: &str, marker: &str, replacement: &str) -> Result<String> {
     let begin_tag = format!("// @generated:{marker}:begin");
     let end_tag = format!("// @generated:{marker}:end");
-    let (Some(begin_idx), Some(end_idx)) = (content.find(&begin_tag), content.find(&end_tag))
-    else {
-        return content.to_owned();
-    };
-    let indent_start = content[..begin_idx].rfind('\n').map_or(0, |i| i + 1);
-    let indent = &content[indent_start..begin_idx];
-    let before = &content[..begin_idx + begin_tag.len()];
-    let after = &content[end_idx..];
-    format!("{before}\n{replacement}{indent}{after}")
+    let begins = kotlin_marker_line_offsets(content, &begin_tag);
+    let ends = kotlin_marker_line_offsets(content, &end_tag);
+    anyhow::ensure!(
+        begins.len() == 1,
+        "expected one exact reachable {begin_tag:?} marker line, found {}",
+        begins.len()
+    );
+    anyhow::ensure!(
+        ends.len() == 1,
+        "expected one exact reachable {end_tag:?} marker line, found {}",
+        ends.len()
+    );
+    let begin_idx = begins[0];
+    let end_idx = ends[0];
+    anyhow::ensure!(
+        begin_idx < end_idx,
+        "{begin_tag:?} must precede {end_tag:?}"
+    );
+    anyhow::ensure!(
+        content.find(&begin_tag) == Some(begin_idx),
+        "decoy occurrence precedes {begin_tag:?}"
+    );
+    anyhow::ensure!(
+        content.find(&end_tag) == Some(end_idx),
+        "decoy occurrence precedes {end_tag:?}"
+    );
+    crate::util::replace_marked_block(content, &begin_tag, &end_tag, replacement)
 }
 
 /// Render the full `DiagnosticCatalog.kt`.
@@ -233,7 +321,7 @@ const PANEL_PATH: &str =
 
 /// Regenerate the `@generated` blocks of `TclLspSettings.kt` (persisted var
 /// declarations + the code→var maps).
-fn settings(current: &str) -> String {
+fn settings(current: &str) -> Result<String> {
     let diags = sorted_diags();
     let opts = sorted_opts();
     let mut out = current.to_owned();
@@ -242,13 +330,13 @@ fn settings(current: &str) -> String {
     for (code, _, default_on, _) in &diags {
         let _ = writeln!(vars, "    var diagnostic{code}: Boolean = {default_on}");
     }
-    out = replace_block(&out, "diagnostic-vars", &vars);
+    out = replace_block(&out, "diagnostic-vars", &vars)?;
 
     let mut map = String::new();
     for (code, _, _, _) in &diags {
         let _ = writeln!(map, "                \"{code}\" to diagnostic{code},");
     }
-    out = replace_block(&out, "diagnostic-map", &map);
+    out = replace_block(&out, "diagnostic-map", &map)?;
 
     let mut opt_vars = String::from("    var optimiserEnabled: Boolean = true\n");
     let _ = writeln!(
@@ -264,7 +352,7 @@ fn settings(current: &str) -> String {
     for (code, _) in &opts {
         let _ = writeln!(opt_vars, "    var optimiser{code}: Boolean? = null");
     }
-    out = replace_block(&out, "optimiser-vars", &opt_vars);
+    out = replace_block(&out, "optimiser-vars", &opt_vars)?;
 
     let mut opt_map = String::from("                \"enabled\" to optimiserEnabled,\n");
     opt_map.push_str("                \"profile\" to optimiserProfile,\n");
@@ -290,7 +378,7 @@ const PROFILE_LEGEND: [&str; 6] = [
 ///
 /// Split out of [`panel`] to keep each side inside clippy's per-function line
 /// budget; the two halves share nothing but the file being rewritten.
-fn optimiser_blocks(current: String, opts: &[(&'static str, &'static str)]) -> String {
+fn optimiser_blocks(current: String, opts: &[(&'static str, &'static str)]) -> Result<String> {
     let opts = opts.to_vec();
     let mut out = current;
     // opt-checkboxes.
@@ -320,7 +408,7 @@ fn optimiser_blocks(current: String, opts: &[(&'static str, &'static str)]) -> S
     let box_refs: Vec<String> = opts.iter().map(|(code, _)| format!("opt{code}")).collect();
     opt_cb.push_str(&six_per_line_at(&box_refs, 8));
     opt_cb.push_str("    )\n");
-    out = replace_block(&out, "opt-checkboxes", &opt_cb);
+    out = replace_block(&out, "opt-checkboxes", &opt_cb)?;
 
     // opt-ui.
     let mut opt_ui = String::from(
@@ -332,7 +420,7 @@ fn optimiser_blocks(current: String, opts: &[(&'static str, &'static str)]) -> S
     for line in PROFILE_LEGEND {
         let _ = writeln!(opt_ui, "{line}");
     }
-    out = replace_block(&out, "opt-ui", &opt_ui);
+    out = replace_block(&out, "opt-ui", &opt_ui)?;
 
     // opt dirty/apply/reset.
     let mut opt_dirty =
@@ -355,8 +443,8 @@ fn optimiser_blocks(current: String, opts: &[(&'static str, &'static str)]) -> S
             "        opt{code}.state = threeState(s.optimiser{code})"
         );
     }
-    out = replace_block(&out, "opt-dirty", &opt_dirty);
-    out = replace_block(&out, "opt-apply", &opt_apply);
+    out = replace_block(&out, "opt-dirty", &opt_dirty)?;
+    out = replace_block(&out, "opt-apply", &opt_apply)?;
     replace_block(&out, "opt-reset", &opt_reset)
 }
 
@@ -372,7 +460,7 @@ fn six_per_line_at(refs: &[String], indent: usize) -> String {
 
 /// Regenerate the `@generated` blocks of `TclLspSettingsPanel.kt` (checkbox
 /// fields + the Swing UI + dirty/apply/reset handlers).
-fn panel(current: &str) -> String {
+fn panel(current: &str) -> Result<String> {
     let diags = sorted_diags();
     let opts = sorted_opts();
     let groups = diag_section_groups();
@@ -392,7 +480,7 @@ fn panel(current: &str) -> String {
         cb.push('\n');
     }
     let cb = cb.strip_suffix('\n').unwrap_or(&cb);
-    out = replace_block(&out, "diag-checkboxes", cb);
+    out = replace_block(&out, "diag-checkboxes", cb)?;
 
     // diag-ui: titled separator + grid panel + six-per-line refs.
     let mut ui = String::new();
@@ -413,7 +501,7 @@ fn panel(current: &str) -> String {
         ui.push('\n');
     }
     let ui = ui.strip_suffix('\n').unwrap_or(&ui);
-    out = replace_block(&out, "diag-ui", ui);
+    out = replace_block(&out, "diag-ui", ui)?;
 
     // diag dirty/apply/reset.
     let mut dirty = String::new();
@@ -427,9 +515,9 @@ fn panel(current: &str) -> String {
         let _ = writeln!(apply, "        s.diagnostic{code} = diag{code}.isSelected");
         let _ = writeln!(reset, "        diag{code}.isSelected = s.diagnostic{code}");
     }
-    out = replace_block(&out, "diag-dirty", &dirty);
-    out = replace_block(&out, "diag-apply", &apply);
-    out = replace_block(&out, "diag-reset", &reset);
+    out = replace_block(&out, "diag-dirty", &dirty)?;
+    out = replace_block(&out, "diag-apply", &apply)?;
+    out = replace_block(&out, "diag-reset", &reset)?;
 
     optimiser_blocks(out, &opts)
 }
@@ -442,8 +530,8 @@ fn artifacts() -> Result<Vec<(&'static str, String)>> {
     };
     Ok(vec![
         (CATALOG_PATH, catalog()),
-        (SETTINGS_PATH, settings(&read(SETTINGS_PATH)?)),
-        (PANEL_PATH, panel(&read(PANEL_PATH)?)),
+        (SETTINGS_PATH, settings(&read(SETTINGS_PATH)?)?),
+        (PANEL_PATH, panel(&read(PANEL_PATH)?)?),
     ])
 }
 
@@ -545,6 +633,41 @@ mod tests {
     use super::*;
 
     #[test]
+    fn generated_blocks_require_one_reachable_exact_marker_pair() {
+        let valid = "// Kotlin header\npackage example\n\n  // @generated:x:begin\nold\n  // @generated:x:end\n";
+        assert_eq!(
+            replace_block(valid, "x", "new\n").unwrap(),
+            "// Kotlin header\npackage example\n\n  // @generated:x:begin\nnew\n  // @generated:x:end\n"
+        );
+        assert!(replace_block("plain\n", "x", "new\n").is_err());
+        let raw_string = r#"val decoy = """
+  // @generated:x:begin
+old
+  // @generated:x:end
+"""
+"#;
+        assert!(replace_block(raw_string, "x", "new\n").is_err());
+        let block_comment = "/*\n  // @generated:x:begin\nold\n  // @generated:x:end\n*/\n";
+        assert!(replace_block(block_comment, "x", "new\n").is_err());
+        assert!(
+            replace_block(
+                "// @generated:x:begin\n// @generated:x:begin\n// @generated:x:end\n",
+                "x",
+                "new\n"
+            )
+            .is_err()
+        );
+        assert!(
+            replace_block(
+                "// decoy // @generated:x:begin\n// @generated:x:begin\n// @generated:x:end\n",
+                "x",
+                "new\n"
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn short_label_truncates_and_escapes() {
         assert_eq!(
             short_label("W001", "Unknown subcommand."),
@@ -572,7 +695,10 @@ mod tests {
     fn quoted_keys_reads_only_the_block_it_is_given() {
         let source = "internal val A = mapOf(\n  \"x\" to 1,\n  \"y\" to 2,\n)\nval B = \"z\"\n";
         assert_eq!(quoted_keys(source, "internal val A", "\n)"), ["x", "y"]);
-        assert!(quoted_keys(source, "no such marker", "\n)").is_empty());
+        assert_eq!(
+            quoted_keys(source, "no such marker", "\n)"),
+            [] as [String; 0]
+        );
     }
 
     #[test]

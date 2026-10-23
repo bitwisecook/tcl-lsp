@@ -1,0 +1,13 @@
+IDENTITY 8.5.19
+GEOMETRY when 0 ::when 0 ROOT
+GEOMETRY ::when 0 ::when 0 ROOT
+GEOMETRY :::when 0 ::when 0 ROOT
+GEOMETRY ::::when 0 ::when 0 ROOT
+GEOMETRY :::::when 0 ::when 0 ROOT
+GEOMETRY :when 0 :::when 0 LONE_COLON
+GEOMETRY named::when 0 ::named::when 0 INTERIOR
+GEOMETRY named:::when 0 ::named::when 0 INTERIOR
+GEOMETRY ::named::when 0 ::named::when 0 INTERIOR
+GEOMETRY when:: 0 {} 1 {invalid command name "when::"}
+GEOMETRY ::when:: 0 {} 1 {invalid command name "::when::"}
+GEOMETRY :: 0 {} 1 {invalid command name "::"}

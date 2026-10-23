@@ -34,7 +34,6 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::Vm;
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
 #[derive(Clone)]
@@ -55,10 +54,10 @@ fn run(src: &str) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
 
@@ -128,13 +127,9 @@ fn array_unset_pattern_and_whole() {
     assert_eq!(run("set a(x) 1\narray unset a\narray exists a").1, "0");
 }
 
-/// `array set` onto an existing scalar reports the wrong variable name in
-/// its error. C raises the failure at the *element* write, so the message names
-/// the element (`s(a)`); the VM pre-checks with `ensure_array`, which raises
-/// before any element is written and so names only the bare scalar (`s`).
+/// Array publication onto a scalar fails at the selected element write.
 ///   script:        set s 5; array set s {a 1}
 ///   tclsh (8.6+9.0): can't set "s(a)": variable isn't array
-///   VM (wrong):      can't set "s": variable isn't array
 #[test]
 fn array_set_onto_scalar_errors_bug() {
     let (ok, msg, _) = run("set s 5\narray set s {a 1}");
@@ -346,13 +341,9 @@ fn dict_read_errors() {
     );
 }
 
-/// `dict get` with NO keys does not validate that its argument is a
-/// well-formed dict. tclsh always parses the dict first, so `dict get` of an
-/// odd-length value errors; the VM's shared `get` core returns the value
-/// unchanged when the key path is empty, so the malformed value slips through.
+/// An empty dictionary key path still validates the original dictionary value.
 ///   script:        dict get {a 1 b}
 ///   tclsh (8.6+9.0): missing value to go with key   (error)
-///   VM (wrong):      a 1 b                           (ok, returns it verbatim)
 #[test]
 fn dict_get_no_keys_validates_dict_bug() {
     let (ok, msg, _) = run("dict get {a 1 b}");
@@ -480,16 +471,9 @@ fn dict_for() {
     assert_eq!(msg, "must have exactly two variable names");
 }
 
-/// The *compiled* form of `dict map` fails. The codegen rewrites
-/// `dict map` to the qualified ensemble member `::tcl::dict::map` (its registry
-/// spec carries `cfg_rewrite_name`), but `cmd_dict::register` only installs
-/// `::tcl::dict::for` among the rewritten members — `::tcl::dict::map` is never
-/// registered — so the compiled call hits an unresolved command. (The indirect
-/// form via a dynamic command word, which is not rewritten, works fine — see
-/// `dict_map_indirect_path_works`.)
+/// Compiled dictionary-map dispatch retains the selected registered worker.
 ///   script:        set d {a 1 b 2}; dict map {k v} $d {expr {$v*2}}
 ///   tclsh (8.6+9.0): a 2 b 4
-///   VM (wrong):      invalid command name `::tcl::dict::map`
 #[test]
 fn dict_map_compiled_path_bug() {
     let (ok, result, _) = run("set d {a 1 b 2}\ndict map {k v} $d {expr {$v*2}}");
@@ -525,14 +509,9 @@ fn dict_map_indirect_path_works() {
     );
 }
 
-/// `dict map` with `break` in the body must discard *all* accumulated pairs
-/// and return the empty dict (C `DictMapNRCmd` drops the result on `TCL_BREAK`).
-/// The VM's `cmd_dict_map` instead returns the pairs collected before the break.
-/// (Exercised through the indirect dispatch path so it is not masked by the
-/// separate compiled-`dict map` bug.)
+/// A dictionary-map break discards all accumulated result pairs.
 ///   script:        set d {a 1 b 2 c 3}; dict map {k v} $d {if {$v==2} break; set v}
 ///   tclsh (8.6+9.0): "" (empty)
-///   VM (wrong):      a 1   (the pre-break accumulation)
 #[test]
 fn dict_map_break_returns_empty_bug() {
     let (ok, result, _) =
@@ -1091,14 +1070,9 @@ fn lsort_modes() {
     assert_eq!(run("lsort -unique {a b a c b}").1, "a b c");
 }
 
-/// `lsort -unique` retains the WRONG member of an equal run. Tcl keeps the
-/// *last* element of each duplicate group (in input order); the VM keeps the
-/// *first*. Distinct elements under the mode are unaffected, so this only shows
-/// when two inputs compare equal but render differently.
+/// Unique sorting retains the last original member of an equal run.
 ///   script:        lsort -nocase -unique {A a B b}
 ///   tclsh (8.6+9.0): a b      (keeps the later `a`/`b`)
-///   VM (wrong):      A B      (keeps the earlier `A`/`B`)
-/// Also: `lsort -integer -unique {01 1}` → tclsh `1`, VM `01`.
 #[test]
 fn lsort_unique_retains_last_duplicate_bug() {
     // tclsh8.6/9.0: a b

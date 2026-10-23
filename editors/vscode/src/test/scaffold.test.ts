@@ -26,6 +26,9 @@ import {
   validateVersion,
 } from "../scaffold";
 
+import namespaceCatalog from "../generated/scaffoldNamespacePolicy.json";
+import { packageScaffoldNamespace } from "../nameGeneration";
+
 suite("Package Scaffold", () => {
   test("validates package names", () => {
     assert.strictEqual(validatePackageName("acme::tools"), undefined);
@@ -50,6 +53,21 @@ suite("Package Scaffold", () => {
     assert.strictEqual(packageDirectoryName("acme::http-utils"), "acme__http-utils");
   });
 
+  test("uses the shared namespace construction policy and exposes collisions", () => {
+    for (const { input, spelling, lossy } of namespaceCatalog.cases) {
+      assert.deepStrictEqual(packageScaffoldNamespace(input), {
+        spelling,
+        lossy,
+      });
+      assert.strictEqual(namespaceFromPackageName(input), spelling);
+    }
+    assert.strictEqual(namespaceCatalog.policy.inputUnits, "utf16");
+    assert.strictEqual(namespaceCatalog.policy.mayCollide, true);
+    assert.strictEqual(namespaceFromPackageName("a-b"), namespaceFromPackageName("a.b"));
+    assert.strictEqual(packageScaffoldNamespace("a-b").lossy, true);
+    assert.strictEqual(packageScaffoldNamespace("pkg").lossy, false);
+  });
+
   test("builds package scaffold files", () => {
     const plan = buildPackageScaffold({
       packageName: "acme::tools",
@@ -64,6 +82,38 @@ suite("Package Scaffold", () => {
     assert.ok(paths.includes("tests/run.tcl"));
     assert.ok(paths.includes(".github/workflows/ci.yml"));
     assert.ok(paths.includes("README.md"));
+  });
+
+  test("builder rejects source-injection values even when called without the UI", () => {
+    assert.throws(() =>
+      buildPackageScaffold({
+        packageName: "pkg; exec exploit",
+        version: "1.0",
+        commandName: "hello",
+      }),
+    );
+    assert.throws(() =>
+      buildPackageScaffold({
+        packageName: "pkg",
+        version: "1.0",
+        commandName: "hello; exec exploit",
+      }),
+    );
+    assert.throws(() =>
+      buildPackageScaffold({
+        packageName: "pkg",
+        version: "1.0; exec exploit",
+        commandName: "hello",
+      }),
+    );
+    assert.throws(() =>
+      buildPackageScaffold({
+        packageName: "pkg",
+        version: "1.0",
+        commandName: "hello",
+        minimumTclVersion: "8.6; exec exploit",
+      }),
+    );
   });
 
   test("includes CI test invocation and package metadata", () => {

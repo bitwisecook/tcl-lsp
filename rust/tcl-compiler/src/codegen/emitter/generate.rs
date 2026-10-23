@@ -24,14 +24,13 @@
 
 #![allow(dead_code)]
 
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use tcl_registry::InlineBodyErrorContext;
 
 use crate::cfg::BodyErrorContext;
 
 use crate::cfg::{Function as CfgFunction, Terminator};
-use crate::ir::Procedure as IrProcedure;
 use crate::ir::Statement;
 
 use super::super::CodegenCtx;
@@ -41,7 +40,6 @@ use super::loop_blocks::{ComplexForeach, ForeachInfo, detect_complex_foreach, de
 use super::ordering::{
     self, LOOP_BODY_PREFIXES, LOOP_END_PREFIXES, VALUE_JOIN_PREFIXES, linearise, starts_with_any,
 };
-use super::proc_defs::is_static_proc;
 use super::try_blocks::{
     CatchRegionInfo, TryFinallyInfo, detect_catch_regions, detect_try_finally, is_catch_defs_marker,
 };
@@ -49,6 +47,14 @@ use super::try_blocks::{
 /// Per-block `(continue, break)` loop-target labels, innermost-first.
 /// Continue is `None` for a `for`-step block (continue propagates out).
 type LoopContext = HashMap<String, (Option<String>, String)>;
+
+type SourceCommandOwner = (
+    u32,
+    Option<tcl_lexer::Span>,
+    tcl_lexer::SourceImage,
+    tcl_runtime_api::ByteNamespacePath,
+    Option<tcl_runtime_api::CompiledNamespaceContext>,
+);
 
 /// Convert a target-neutral Tcl inline-body error context to the bytecode
 /// runtime's body-frame label ABI.
@@ -60,9 +66,6 @@ const fn inline_body_frame_label(context: InlineBodyErrorContext) -> &'static st
 
 /// Transient state passed between the per-block handlers in `generate`.
 struct GenerateState {
-    /// Pending proc definitions, sorted by source offset. A
-    /// `VecDeque` keeps `pop_front` O(1) during interleaved drain.
-    pending_proc_defs: VecDeque<IrProcedure>,
     /// Block names to skip — consumed by jump tables or try/finally.
     skip_blocks: HashSet<String>,
     /// Detected try/finally chains keyed by `try_body` block.
@@ -96,15 +99,8 @@ struct GenerateState {
 }
 
 impl GenerateState {
-    fn new(proc_defs: &[IrProcedure]) -> Self {
-        let mut sorted: Vec<IrProcedure> = proc_defs
-            .iter()
-            .filter(|p| is_static_proc(p))
-            .cloned()
-            .collect();
-        sorted.sort_by_key(|p| p.span.start());
+    fn new() -> Self {
         Self {
-            pending_proc_defs: VecDeque::from(sorted),
             skip_blocks: HashSet::new(),
             try_finally_info: HashMap::new(),
             catch_region_info: HashMap::new(),
@@ -167,7 +163,10 @@ fn setup_foreach(
 ) -> ForeachData {
     // Detect foreach loops; bodies are marked so we can append
     // foreach_step/foreach_end after their statements.
-    let info: HashMap<String, ForeachInfo> = detect_foreach(cfg);
+    let info: HashMap<String, ForeachInfo> = detect_foreach(cfg).unwrap_or_else(|| {
+        ctx.refuse_native_dependency();
+        HashMap::new()
+    });
     let bodies: HashSet<String> = info.values().map(|i| i.body.clone()).collect();
     // Collecting (`lmap`) loops: gather their body + end blocks so the emitter can
     // strip the body's trailing `POP` (→ `LMAP_COLLECT`) and suppress the end
@@ -258,23 +257,6 @@ fn setup_foreach(
         complex_body_blocks,
         collect_bodies,
         collect_ends,
-    }
-}
-
-/// Emit proc defs that appear before the first statement (for cases
-/// where the entry block has no statements).
-fn pre_emit_proc_defs(ctx: &mut CodegenCtx, cfg: &CfgFunction, state: &mut GenerateState) {
-    if state.pending_proc_defs.is_empty() {
-        return;
-    }
-    let first_stmt_offset: Option<u32> = cfg
-        .blocks
-        .values()
-        .flat_map(|blk| blk.statements.iter())
-        .map(|s| s.span().start())
-        .min();
-    if let Some(off) = first_stmt_offset {
-        ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, off);
     }
 }
 
@@ -410,6 +392,27 @@ fn emit_foreach_header(
     for var in fi.var_groups.iter().flatten() {
         ctx.intern_compiled_local(var);
     }
+    // Native compilation allocates every iterator target before compiling the
+    // value words. Original dynamic names remain data on authored backends.
+    let targets = fi
+        .var_groups
+        .iter()
+        .map(|group| {
+            group
+                .iter()
+                .map(|name| {
+                    ctx.command_variable_slot(name.as_bytes()).map_or_else(
+                        || {
+                            tcl_bytecode::CompiledVariableTarget::Name(
+                                tcl_runtime_api::NameBytes::from(name.as_bytes()),
+                            )
+                        },
+                        tcl_bytecode::CompiledVariableTarget::Slot,
+                    )
+                })
+                .collect()
+        })
+        .collect();
     for (i, la) in fi.list_args.iter().enumerate() {
         // A braced list word is a literal in every direction: `TclFindElement`'s
         // brace semantics keep `$` / `[…]` inert both for the word itself and
@@ -430,7 +433,7 @@ fn emit_foreach_header(
     let fs_idx = ctx.emit(Op::FOREACH_START, vec![Operand::Imm(0)]);
     // Carry the loop-variable groups (C Tcl `ForeachInfo.varLists`) so
     // the VM can bind them; not rendered in disassembly.
-    ctx.instructions[fs_idx].foreach_vars = Some(fi.var_groups.clone());
+    ctx.instructions[fs_idx].foreach_vars = Some(targets);
     // A collecting loop (`lmap`) tells the VM to accumulate each iteration's
     // result and yield `list(accum)` at `FOREACH_END`.
     ctx.instructions[fs_idx].foreach_collect = fi.collect;
@@ -443,16 +446,20 @@ fn emit_foreach_header(
 /// foreach body (caller should `return`).
 fn emit_foreach_body(
     ctx: &mut CodegenCtx,
-    state: &mut GenerateState,
     fe: &ForeachData,
+    cfg: &CfgFunction,
     bname: &str,
     blk: &crate::cfg::Block,
 ) -> bool {
     if !fe.bodies.contains(bname) || fe.complex_body_blocks.contains(bname) {
         return false;
     }
-    for stmt in &blk.statements {
-        ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
+    for (index, stmt) in blk.statements.iter().enumerate() {
+        ctx.pending_math_source = cfg
+            .block_id(bname)
+            .and_then(|id| cfg.statement_sources.get(&(id, index)))
+            .cloned()
+            .flatten();
         ctx.emit_stmt_with_start_cmd(stmt, None, None);
     }
     // foreach_step/foreach_end are synthetic loop machinery with no
@@ -513,6 +520,11 @@ fn emit_block_statements(
         .values()
         .any(|info| info.catch_end == *bname);
     for (stmt_idx, stmt) in blk.statements.iter().enumerate() {
+        ctx.pending_math_source = cfg
+            .block_id(bname)
+            .and_then(|id| cfg.statement_sources.get(&(id, stmt_idx)))
+            .cloned()
+            .flatten();
         // The defs-only marker `lower_catch` leaves on a `catch_end` block
         // exists for SSA; its stores were emitted with the scaffolding. Keyed
         // on the block being a *detected* catch end, so an ordinary
@@ -521,7 +533,6 @@ fn emit_block_statements(
         if is_catch_end_block && is_catch_defs_marker(stmt) {
             continue;
         }
-        ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
         if Some(stmt_idx) == first_command_covered {
             ctx.emit_stmt_under_start_cmd(stmt);
             continue;
@@ -626,6 +637,35 @@ fn emit_block_terminator(
     block_order: &[String],
     i: usize,
 ) {
+    let source = cfg
+        .block_id(bname)
+        .and_then(|id| cfg.terminator_sources.get(&id).and_then(Clone::clone));
+    let previous_source = std::mem::replace(&mut ctx.math_source, source);
+    let base = match &blk.terminator {
+        Some(Terminator::Branch { condition_base, .. }) => *condition_base,
+        Some(Terminator::Return { expr_base, .. }) => *expr_base,
+        _ => None,
+    };
+    let previous_base = std::mem::replace(&mut ctx.math_expression_base, base);
+    let tokens = cfg
+        .block_id(bname)
+        .and_then(|id| cfg.source_tokens_at(id, usize::MAX));
+    ctx.with_invocation_tokens(tokens, |ctx| {
+        emit_block_terminator_inner(ctx, cfg, state, bname, blk, block_order, i);
+    });
+    ctx.math_source = previous_source;
+    ctx.math_expression_base = previous_base;
+}
+
+fn emit_block_terminator_inner(
+    ctx: &mut CodegenCtx,
+    cfg: &CfgFunction,
+    state: &mut GenerateState,
+    bname: &str,
+    blk: &crate::cfg::Block,
+    block_order: &[String],
+    i: usize,
+) {
     let next_block = block_order.get(i + 1).map(String::as_str);
     if let Some(term) = &blk.terminator {
         let switch_dispatch = matches!(
@@ -720,6 +760,18 @@ fn preserve_value_join_result(
     }
 }
 
+/// Select lexical loop labels for this block, including inline catch/try bodies.
+/// Layout order cannot carry labels from an unrelated, previously emitted block.
+fn select_lexical_loop_context(ctx: &mut CodegenCtx, loop_ctx: &LoopContext, block: &str) {
+    if let Some((continue_target, break_target)) = loop_ctx.get(block) {
+        ctx.continue_target.clone_from(continue_target);
+        ctx.break_target = Some(break_target.clone());
+    } else {
+        ctx.continue_target = None;
+        ctx.break_target = None;
+    }
+}
+
 /// Emit one CFG block (the body of the main block-order loop). Skips
 /// try/finally-consumed blocks, dispatches foreach headers/bodies, emits
 /// statements, and finishes with the block's terminator.
@@ -746,6 +798,9 @@ fn emit_block(
     // sets a real span below.
     ctx.clear_source_site();
 
+    // A `for` step has no local continue target; its completion propagates.
+    select_lexical_loop_context(ctx, loop_ctx, bname);
+
     // try/finally inline compilation at try_body block.
     if let Some(info) = state.try_finally_info.get(bname).cloned() {
         ctx.set_command_boundary_site(
@@ -766,20 +821,15 @@ fn emit_block(
             cfg.block_id(bname)
                 .and_then(|id| cfg.command_boundary_sites.get(&id)),
         );
-        ctx.emit_catch_region_inline(
-            cfg,
-            bname,
-            info.result_var.as_deref(),
-            info.options_var.as_deref(),
-        );
+        ctx.with_invocation_tokens(info.tokens.as_ref(), |ctx| {
+            ctx.emit_catch_region_inline(
+                cfg,
+                bname,
+                info.result_var.as_deref(),
+                info.options_var.as_deref(),
+            );
+        });
         return;
-    }
-
-    // Update loop context for break/continue compilation. The continue
-    // target is `None` for a `for`-step block (continue propagates out).
-    if let Some((cont, brk)) = loop_ctx.get(bname) {
-        ctx.continue_target.clone_from(cont);
-        ctx.break_target = Some(brk.clone());
     }
 
     let is_loop_end = emit_block_prologue(ctx, cfg, state, fe, bname, blk);
@@ -788,7 +838,7 @@ fn emit_block(
     if emit_foreach_header(ctx, cfg, state, fe, bname) {
         return;
     }
-    if emit_foreach_body(ctx, state, fe, bname, blk) {
+    if emit_foreach_body(ctx, fe, cfg, bname, blk) {
         return;
     }
 
@@ -929,10 +979,7 @@ fn open_branch_command(
 }
 
 /// Emit the trailing `DONE` / proc-exit machinery after all blocks.
-fn emit_function_tail(ctx: &mut CodegenCtx, cfg: &CfgFunction, state: &mut GenerateState) {
-    // Flush any remaining proc defs.
-    ctx.flush_proc_defs(&mut state.pending_proc_defs);
-
+fn emit_function_tail(ctx: &mut CodegenCtx, cfg: &CfgFunction) {
     // Empty proc body: push "" as the implicit return value.
     if ctx.is_proc && ctx.instructions.is_empty() {
         ctx.push_lit("");
@@ -967,10 +1014,17 @@ fn finalize_function(
     block_order: &[String],
     loop_ctx: &LoopContext,
 ) -> FunctionAsm {
+    if let Some(failure) = cfg.native_compilation_failure.as_deref() {
+        super::super::native_failure::retain_dependencies(ctx, failure);
+    }
+    super::super::native_compiler_pass::capture_first_pass(ctx);
+    if ctx.compact_compiler_pass {
+        super::super::native_compiler_pass::omit_command_markers(ctx);
+    }
     // Peephole passes.
+    ctx.strip_empty_start_cmd();
     ctx.remove_trailing_pop();
     ctx.fold_tail_return_to_done();
-    ctx.strip_empty_start_cmd();
     ctx.strip_unused_start_cmd();
     ctx.fixup_top_level_start_cmd();
     ctx.fold_const_push_pop_nops();
@@ -986,8 +1040,8 @@ fn finalize_function(
     // change the implicit owner: nested inline catch/try instructions retain
     // the enclosing absolute span, and returning to that span is not a second
     // execution of the outer command.
-    let mut source_owner: Option<(u32, Option<tcl_lexer::Span>, String, String)> = None;
-    let mut nested_start_owner: Option<(u32, Option<tcl_lexer::Span>, String, String)> = None;
+    let mut source_owner: Option<SourceCommandOwner> = None;
+    let mut nested_start_owner: Option<SourceCommandOwner> = None;
     for instruction in &mut ctx.instructions {
         if let Some(site) = instruction.source_span.and_then(|span| {
             cfg.command_binding_sites
@@ -995,9 +1049,11 @@ fn finalize_function(
                 .rev()
                 .find(|site| site.span == span)
         }) {
+            instruction.source_command_namespace =
+                super::super::namespace_path_for_binding(&site.binding);
             instruction
-                .source_command_namespace
-                .clone_from(&site.binding.resolution_namespace);
+                .source_command_namespace_context
+                .clone_from(&site.binding.namespace_context);
         }
         if instruction.op == Op::START_CMD {
             if instruction.source_command_boundary.is_start() {
@@ -1006,6 +1062,7 @@ fn finalize_function(
                     instruction.source_span,
                     instruction.source_cmd_text.clone(),
                     instruction.source_command_namespace.clone(),
+                    instruction.source_command_namespace_context.clone(),
                 ));
                 nested_start_owner = None;
             } else if !instruction.source_cmd_text.is_empty() {
@@ -1014,6 +1071,7 @@ fn finalize_function(
                     instruction.source_span,
                     instruction.source_cmd_text.clone(),
                     instruction.source_command_namespace.clone(),
+                    instruction.source_command_namespace_context.clone(),
                 ));
             }
             continue;
@@ -1028,6 +1086,7 @@ fn finalize_function(
             instruction.source_span,
             instruction.source_cmd_text.clone(),
             instruction.source_command_namespace.clone(),
+            instruction.source_command_namespace_context.clone(),
         );
         if nested_start_owner.as_ref() == Some(&owner) {
             continue;
@@ -1055,13 +1114,38 @@ fn finalize_function(
     // (`if {…} $z`, `eval break`). Built post-layout from the (innermost-first)
     // `loop_ctx` block targets + the final block index ranges. `label_positions`
     // is maintained through the peephole removals, so the indices are final.
-    let loop_targets = build_loop_targets(
+    let mut loop_targets = build_loop_targets(
         block_order,
         loop_ctx,
         &ctx.label_positions,
         &labels,
         ctx.instructions.len(),
     );
+    for region in ctx.inline_loop_regions.iter().rev() {
+        let (Some(&start), Some(&end), Some(&break_offset)) = (
+            ctx.label_positions.get(&region.start),
+            ctx.label_positions.get(&region.end),
+            labels.get(&region.break_target),
+        ) else {
+            panic!("native inline loop labels must be placed before layout");
+        };
+        let targets = (
+            Some(i32::try_from(break_offset).expect("native loop offset fits i32")),
+            region.continue_target.as_ref().map(|target| {
+                i32::try_from(
+                    *labels
+                        .get(target)
+                        .expect("native loop continue label must be placed"),
+                )
+                .expect("native loop offset fits i32")
+            }),
+        );
+        for index in start..end {
+            // The outer region is installed first; recursively emitted inner
+            // loops then replace its targets for their own instructions.
+            loop_targets.insert(index, targets);
+        }
+    }
 
     // Inline-body error regions: each registry-described body context the CFG
     // builder retained becomes a region keyed by the enclosing command's source
@@ -1120,7 +1204,7 @@ fn finalize_function(
                         .source
                         .get(pattern.start() as usize..pattern.end() as usize);
                     let text = tcl_cmd_core::switch::arm_frame_text(
-                        pattern.unwrap_or("").as_bytes(),
+                        pattern.unwrap_or_default(),
                         ctx.vm_release(),
                     );
                     (
@@ -1147,8 +1231,31 @@ fn finalize_function(
         })
         .collect();
 
+    let native_compilation_failure = cfg
+        .native_compilation_failure
+        .as_deref()
+        .and_then(super::super::native_failure::error);
+    let native_compilation_preflight =
+        if cfg.native_compilation_failure.is_some() && native_compilation_failure.is_none() {
+            tcl_runtime_api::NativeCompilationPreflight::UnpresentedDefiniteFailure
+        } else if ctx.native_dependency_refusal
+            || (native_compilation_failure.is_none()
+                && cfg
+                    .native_compilation_admission
+                    .as_ref()
+                    .is_some_and(|admission| admission.provider_required))
+        {
+            tcl_runtime_api::NativeCompilationPreflight::ProviderRequired
+        } else {
+            tcl_runtime_api::NativeCompilationPreflight::NotRequired
+        };
     FunctionAsm {
         name: cfg.name.clone(),
+        required_compiled_local_layout: ctx.required_compiled_local_layout.take(),
+        native_compilation_failure,
+        native_compilation_preflight,
+        native_math_table_prerequisite: ctx.math_table_prerequisite.take(),
+        native_compiler_prerequisites: std::mem::take(&mut ctx.native_compiler_prerequisites),
         literals: std::mem::take(&mut ctx.literals),
         lvt: std::mem::take(&mut ctx.lvt),
         instructions: std::mem::take(&mut ctx.instructions),
@@ -1182,7 +1289,42 @@ fn finalize_function(
 /// opcodes, for-init / while `startCommand` wrapping with deferred
 /// end labels at the loop-end pop, try/finally CFG patterns,
 /// bottom-tested loop layout (via `ordering::reorder_bottom_tested`).
-pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedure]) -> FunctionAsm {
+///
+/// # Panics
+/// Rejects an analysis graph containing [`Terminator::Complete`] before any
+/// instruction is emitted. Build execution graphs with
+/// [`crate::cfg_builder::build_cfg_codegen_with_registry_and_config`]. Analysis
+/// completion summaries cannot replace runtime invocation continuations.
+pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction) -> FunctionAsm {
+    // Completion summaries describe analysis reachability. Execution retains
+    // the original invocation and its runtime continuation instead. Check the
+    // whole function before emission, so an analysis CFG cannot accidentally
+    // become a partial executable or a fabricated Tcl return.
+    assert!(
+        cfg.blocks
+            .values()
+            .all(|block| !matches!(block.terminator, Some(Terminator::Complete { .. }))),
+        "bytecode emission requires an execution CFG, not an analysis completion summary"
+    );
+    ctx.math_invocations
+        .clone_from(&cfg.implicit_math_invocations);
+    ctx.expression_preparations
+        .clone_from(&cfg.expression_preparations);
+    ctx.math_table_prerequisite = cfg
+        .native_compilation_failure
+        .as_deref()
+        .and_then(|failure| failure.math_table_prerequisite.clone());
+    if cfg.native_compilation_failure.is_some() {
+        // The retained compiler traversal ends at this rejection. Required
+        // transforms and later source instructions never run at that entry;
+        // its original prefix dependencies and unknown presentation remain.
+        let block_order = linearise(cfg);
+        let loop_ctx = ordering::build_loop_context(cfg);
+        return finalize_function(ctx, cfg, &block_order, &loop_ctx);
+    }
+    ctx.native_dependency_refusal = !ctx
+        .retain_expression_preparations(&cfg.required_expression_preparations)
+        || !ctx.retain_math_invocations(&cfg.required_math_invocations);
     if !ctx.plain_command_dispatch {
         for site in &cfg.command_binding_sites {
             ctx.require_command_site(site);
@@ -1190,10 +1332,31 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
     }
     let block_order = linearise(cfg);
     let mut loop_ctx = ordering::build_loop_context(cfg);
-    let mut state = GenerateState::new(proc_defs);
+    let mut state = GenerateState::new();
     state.laid_out = block_order.iter().cloned().collect();
+    // Native Tcl compiles an original zero-command script as an empty result,
+    // independently of the synthetic return used to terminate an IR graph.
+    // The retained source instance also covers procedure bodies whose parent
+    // module contains commands; an empty module projection is insufficient.
+    if ctx.instructions.is_empty()
+        && cfg.native_compilation_failure.is_none()
+        && let Some(protocol @ tcl_syntax::native_string::NativeStringProtocol::C(_)) =
+            ctx.source_string_protocol
+        && cfg.executed_source.as_ref().is_some_and(|source| {
+            crate::lowering::command_at_time_script_image(&source.text, ctx.lexer_config())
+                .is_ok_and(|script| script.commands.is_empty() && script.fatal_tail.is_none())
+        })
+    {
+        if tcl_runtime_api::native_literal::source_literal_empty_result_is_unshared(protocol) {
+            ctx.push_lit_no_dedup_verbatim("");
+        } else {
+            ctx.push_lit_verbatim("");
+        }
+        ctx.emit(Op::DONE, vec![]);
+        return finalize_function(ctx, cfg, &block_order, &loop_ctx);
+    }
     state.try_finally_info = detect_try_finally(cfg, &block_order);
-    state.catch_region_info = detect_catch_regions(cfg, &block_order);
+    state.catch_region_info = detect_catch_regions(cfg, &block_order, ctx.registry);
 
     // The same-frame script bodies folded into this function, so the variable
     // emitters can decline the compiled-local forms inside them
@@ -1221,8 +1384,6 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         state.skip_blocks.insert(info.try_after.clone());
     }
 
-    pre_emit_proc_defs(ctx, cfg, &mut state);
-
     let bodies = BodyTree::new(cfg);
     for i in 0..block_order.len() {
         let block = cfg.block_id(&block_order[i]);
@@ -1249,7 +1410,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
     ctx.direct_body = false;
     intern_dead_compiled_locals(ctx, cfg, &state.laid_out);
 
-    emit_function_tail(ctx, cfg, &mut state);
+    emit_function_tail(ctx, cfg);
     finalize_function(ctx, cfg, &block_order, &loop_ctx)
 }
 
@@ -1314,7 +1475,13 @@ fn intern_dead_compiled_locals(
             .statements
             .iter()
             .filter(|statement| statement.is_executable_invocation())
-            .map(|statement| ctx.error_info_source_text(statement.span()))
+            // A script with no Unicode spelling has no text to lower here.
+            .filter_map(|statement| {
+                ctx.error_info_source_text(statement.span())
+                    .try_text()
+                    .ok()
+                    .map(str::to_owned)
+            })
             .collect();
         for script in scripts {
             ctx.intern_script_locals(&script);
@@ -1545,7 +1712,7 @@ fn block_has_work(cfg: &CfgFunction, blk: &crate::cfg::Block, is_proc: bool) -> 
         return true;
     }
     match &blk.terminator {
-        Some(Terminator::Branch { .. }) => true,
+        Some(Terminator::Branch { .. } | Terminator::Complete { .. }) => true,
         Some(Terminator::Return { .. }) => is_proc,
         Some(Terminator::Goto { target, .. }) => !cfg.block_name(*target).starts_with("exit_"),
         None => false,
@@ -1569,6 +1736,8 @@ mod tests {
         let mut cfg = CfgFunction::new("::top", "entry_0");
         let entry = cfg.entry;
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -1583,15 +1752,70 @@ mod tests {
         let cfg = trivial_cfg();
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        let asm = generate(&mut ctx, &cfg, &[]);
+        let asm = generate(&mut ctx, &cfg);
         assert_eq!(asm.name, "::top");
-        assert!(!asm.instructions.is_empty());
+        assert_ne!(asm.instructions, [] as [tcl_bytecode::Instruction; 0]);
         // Top-level scripts terminate with RETURN_IMM or DONE
         let last = asm.instructions.last().unwrap().op;
         assert!(
             matches!(last, Op::DONE | Op::RETURN_IMM),
             "expected DONE or RETURN_IMM, got {last:?}"
         );
+    }
+
+    #[test]
+    fn original_empty_script_uses_the_selected_native_literal_producer() {
+        use tcl_dialect::TclVersion;
+        use tcl_syntax::native_string::NativeStringProtocol;
+        for (engine, version) in [
+            ("tcl8.4", TclVersion::V8_4),
+            ("tcl8.5", TclVersion::V8_5),
+            ("tcl8.6", TclVersion::V8_6),
+            ("tcl9.0", TclVersion::V9_0),
+            ("tcl9.1", TclVersion::V9_1),
+        ] {
+            let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
+            let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+            for source in ["", " \t\n", "# comment\n"] {
+                let module = crate::lowering::lower_to_ir_with_config(source, registry, config);
+                let cfg =
+                    crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, registry);
+                for is_proc in [false, true] {
+                    let mut ctx = CodegenCtx::new(is_proc, &[], registry);
+                    ctx.source_string_protocol = Some(NativeStringProtocol::C(version));
+                    let asm = generate(&mut ctx, &cfg.top_level);
+                    assert_eq!(asm.instructions.len(), 2, "{engine} {source:?}");
+                    assert_eq!(asm.instructions[0].op, Op::PUSH1);
+                    assert_eq!(asm.instructions[1].op, Op::DONE);
+                    assert_eq!(asm.literals.entries().len(), 1);
+                    assert_eq!(
+                        matches!(
+                            asm.literals.entries()[0].allocation(),
+                            tcl_bytecode::NativeLiteralAllocation::Unshared
+                        ),
+                        version == TclVersion::V8_5,
+                        "{engine} {source:?} procedure={is_proc}",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn analysis_completion_graph_is_rejected_before_any_emission() {
+        let mut cfg = trivial_cfg();
+        cfg.blocks.get_mut(&cfg.entry).unwrap().terminator = Some(Terminator::Complete {
+            route: tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                tcl_registry::CompletionCode::Error,
+            ),
+            span: Some(sp()),
+        });
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| generate(&mut ctx, &cfg)));
+        assert!(result.is_err());
+        assert_eq!(ctx.instructions, [] as [tcl_bytecode::Instruction; 0]);
     }
 
     #[test]
@@ -1611,7 +1835,7 @@ mod tests {
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.set_source(source);
 
-        let asm = generate(&mut ctx, &cfg, &[]);
+        let asm = generate(&mut ctx, &cfg);
 
         let [region] = asm.error_regions.as_slice() else {
             panic!("semantic inline-body context should emit exactly one error region");
@@ -1623,7 +1847,7 @@ mod tests {
         assert_eq!(region.cmd_text, source);
 
         let mut source_less = CodegenCtx::new(false, &[], &registry);
-        let source_less_asm = generate(&mut source_less, &cfg, &[]);
+        let source_less_asm = generate(&mut source_less, &cfg);
         assert!(
             source_less_asm.error_regions.is_empty(),
             "a source-less context retains the previous no-region behaviour",
@@ -1650,6 +1874,8 @@ mod tests {
                 value_span: None,
             });
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -1658,7 +1884,7 @@ mod tests {
         });
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        let asm = generate(&mut ctx, &cfg, &[]);
+        let asm = generate(&mut ctx, &cfg);
 
         // The store-into-x instruction came from the AssignConst statement.
         let store = asm
@@ -1697,6 +1923,8 @@ mod tests {
                 value_span: None,
             });
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -1705,7 +1933,7 @@ mod tests {
         });
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        let asm = generate(&mut ctx, &cfg, &[]);
+        let asm = generate(&mut ctx, &cfg);
         // Should contain push and store (tail pop is folded away)
         let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::PUSH1));
@@ -1721,13 +1949,15 @@ mod tests {
         let mut cfg = cfg;
         let entry = cfg.entry;
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
             expr: None,
             braced: false,
         });
-        let asm = generate(&mut ctx, &cfg, &[]);
+        let asm = generate(&mut ctx, &cfg);
         // Proc with empty body should push "" and emit done
         assert_eq!(asm.instructions.last().unwrap().op, Op::DONE);
     }
@@ -1787,6 +2017,8 @@ mod tests {
             span: None,
         });
         cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -1797,7 +2029,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
 
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        let asm = generate(&mut ctx, &cfg, &[]);
+        let asm = generate(&mut ctx, &cfg);
         let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
         // Should include a conditional jump (maybe shrunk to 1-byte)
         assert!(

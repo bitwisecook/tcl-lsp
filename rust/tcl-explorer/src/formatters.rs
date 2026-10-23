@@ -133,6 +133,7 @@ pub fn stmt_kind(stmt: &Statement) -> &'static str {
         Statement::Incr { .. } => "IRIncr",
         Statement::ExprEval { .. } => "IRExprEval",
         Statement::Call { .. } => "IRCall",
+        Statement::NativeCall { .. } => "IRNativeCall",
         Statement::Return { .. } => "IRReturn",
         Statement::Barrier { .. } => "IRBarrier",
         Statement::Block { .. } => "IRBlock",

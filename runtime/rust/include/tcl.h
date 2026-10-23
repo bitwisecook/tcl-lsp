@@ -369,6 +369,8 @@ EXTERN Tcl_Obj *Tcl_ObjSetVar2(Tcl_Interp *interp, Tcl_Obj *part1Ptr,
 EXTERN int Tcl_UnsetVar2(Tcl_Interp *interp, const char *part1,
 	const char *part2, int flags);
 EXTERN int Tcl_EvalObjEx(Tcl_Interp *interp, Tcl_Obj *objPtr, int flags);
+/* The return options of the last result; the runtime does not export it. */
+EXTERN Tcl_Obj *Tcl_GetReturnOptions(Tcl_Interp *interp, int code);
 #endif /* TCL_HOST_NATIVE */
 
 #if TCL_MAJOR_VERSION < 9

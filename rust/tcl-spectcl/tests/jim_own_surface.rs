@@ -22,12 +22,14 @@
 //! environment sees any of it.
 
 use std::collections::BTreeSet;
+use std::path::PathBuf;
 
 use tcl_dialect::model::{Family, SpecProvider, SurfaceQuery, surface_admits};
 use tcl_registry::ArgRole;
 use tcl_registry::definer::DefinerFamily;
 use tcl_registry::model::resolve_environment;
 use tcl_registry::spec::CommandSpec;
+use tcl_spectcl::discovery::{Origin, PackFile, Tier};
 
 /// The releases on Jim's ladder.
 const LADDER: &[&str] = &[
@@ -182,7 +184,12 @@ fn every_command_carries_exactly_its_measured_window() {
     }
 }
 
-/// A `jim` document resolves every command the pack declares.
+/// The pack commands the registry also compiles in as native Jim rows, which
+/// carry the execution contract and supersede the pack's row.
+const NATIVE_JIM_ROWS: &[&str] = &["alias", "exists"];
+
+/// A `jim` document resolves every command the pack declares: the pack's own
+/// row, or for [`NATIVE_JIM_ROWS`] the native Jim row; never Tcl's.
 #[test]
 fn a_jim_document_resolves_every_declared_command() {
     let generation = jim();
@@ -190,6 +197,16 @@ fn a_jim_document_resolves_every_declared_command() {
         let resolved = generation
             .resolve_command(spec.name)
             .unwrap_or_else(|| panic!("{} resolves for a jim document", spec.name));
+        if NATIVE_JIM_ROWS.contains(&spec.name) {
+            assert!(
+                !std::ptr::eq(resolved, spec)
+                    && own_family(resolved)
+                    && resolved.native_compilation.is_some(),
+                "{}: the native jim row is the one selected",
+                spec.name
+            );
+            continue;
+        }
         assert!(
             std::ptr::eq(resolved, spec),
             "{}: the jim row is the one selected",
@@ -320,6 +337,8 @@ fn class_carries_the_jim_class_grammar_and_no_body_word() {
     assert!(grammar.manufacturer("new").is_some());
     assert!(grammar.dynamic_method_dispatch);
     assert_eq!(grammar.implicit_vars, ["self"]);
+    assert_eq!(grammar.implicit_receiver_vars, ["self"]);
+    assert!(grammar.is_implicit_receiver_variable("self"));
 
     let generation = jim();
     let store = generation.commands();
@@ -370,5 +389,108 @@ fn arithmetic_command_forms_are_visible_to_jim() {
     let generation = jim();
     for name in ["+", "-", "*", "/"] {
         assert!(generation.resolve_command(name).is_some(), "{name}");
+    }
+}
+
+/// Heads only `jimsh` has, which no other shipped surface declares under the
+/// same name, so a store either resolves each to its jim row or not at all.
+const JIM_ONLY: &[&str] = &[
+    "local",
+    "upcall",
+    "stackdump",
+    "getref",
+    "setref",
+    "ref",
+    "finalize",
+    "curry",
+    "defer",
+    "xtrace",
+    "lsubst",
+];
+
+/// A pack set declaring one command no shipped surface has, so installing it
+/// builds a pack-carrying store rather than returning the plain one.
+fn a_pack_set() -> tcl_spectcl::PackSet {
+    let pack = PackFile {
+        tier: Tier::Bundled,
+        path: PathBuf::from("probe.tclspec"),
+        origin: Origin::Bundled,
+        dependency_tier: None,
+    };
+    let source = "speclib probe 2.0 {\n    command probe::hello {\n        arity 0\n    }\n}\n";
+    tcl_spectcl::pack::load_in_memory(vec![(pack, source.to_owned())])
+}
+
+/// A pack set installed for a `jim` profile layers over Jim's own surface: the
+/// pack-carrying store holds every declared command beside the pack's, and
+/// resolves each Jim-only head to the row the `jim` generation resolves it to,
+/// exactly as the store without packs does. A `jim` generation asked for the
+/// set's key reads that same store.
+#[test]
+fn a_pack_carrying_jim_store_keeps_jims_own_surface() {
+    let profile = tcl_spectcl::environment::profile_for_dialect("jim");
+    let packs = a_pack_set();
+    assert!(!packs.is_empty(), "the probe pack loads");
+    assert_ne!(packs.key, 0, "a loaded set has a content key");
+    let with_packs = tcl_spectcl::install::registry_with_packs(profile, &packs);
+    let without =
+        tcl_spectcl::install::registry_with_packs(profile, &tcl_spectcl::PackSet::default());
+    assert!(
+        with_packs.get("probe::hello").is_some(),
+        "the pack's own command is installed"
+    );
+    for spec in declared() {
+        assert!(
+            with_packs
+                .specs(spec.name)
+                .iter()
+                .any(|held| std::ptr::eq(*held, spec)),
+            "{}: the pack-carrying store holds the jim row",
+            spec.name
+        );
+    }
+    let generation = jim();
+    for head in JIM_ONLY {
+        let expected = generation
+            .resolve_command(head)
+            .unwrap_or_else(|| panic!("{head} resolves for a jim document"));
+        for (label, store) in [("with packs", &with_packs), ("without packs", &without)] {
+            assert!(store.has_command_in_this_dialect(head), "{head}: {label}");
+            let held = store
+                .get(head)
+                .unwrap_or_else(|| panic!("{head}: unknown {label}"));
+            assert!(
+                std::ptr::eq(held, expected),
+                "{head}: {label} selects the jim row"
+            );
+        }
+    }
+    // A `jim` analysis handed the set's key reads Jim's own pack store.
+    let analysed = resolve_environment("jim")
+        .context_registry(&tcl_registry::model::KeyedVersions::default(), packs.key)
+        .expect("a jim generation finds the pack set installed for jim");
+    assert!(
+        std::sync::Arc::ptr_eq(analysed.commands(), &with_packs),
+        "the generation reads the store the jim profile was handed"
+    );
+    assert!(
+        analysed.commands().get("probe::hello").is_some(),
+        "the generation carries the pack's command"
+    );
+    for head in JIM_ONLY {
+        let resolved = analysed
+            .resolve_command(head)
+            .unwrap_or_else(|| panic!("{head} resolves in the pack-carrying generation"));
+        assert!(
+            std::ptr::eq(resolved, generation.resolve_command(head).expect("jim row")),
+            "{head}: the generation with packs selects the jim row"
+        );
+    }
+    let tcl = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+    for head in JIM_ONLY {
+        assert!(
+            tcl.get(head).is_none(),
+            "{head} stays out of a Tcl 8.6 store"
+        );
     }
 }

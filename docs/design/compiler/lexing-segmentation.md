@@ -66,7 +66,29 @@ break in the incremental counter (but not the index) made the token *after* it
 report `start` one line below its own `end` — a backwards range. Any new
 position-tracking path must keep the two mechanisms in lock-step.
 
+Command structure follows a different rule from positions. In a Document whose
+grammar's `source_line_endings` is `TranslateAuto` (C Tcl's `source`), a lone
+CR is an `Eol`, read through `SourceChannel::script_byte`. Positions still
+break only on `\n`.
+
 ### Stage 2 — Segmentation
+
+`segment_script_image_with_offset_and_config` returns a checked `SegmentedScript`:
+complete CST commands and a separate typed `SegmentedParseCut`. It delegates
+syntax failure selection to `tcl_lexer::first_parse_cut_image_checked` and joins
+the cut ordinal before F5 lookahead merges the complete prefix. Source or lexer
+unavailability is a `Result` error, never a clean empty script. Callers retain
+the complete lexer configuration and choose file or nested-body purpose before
+calling this adapter.
+
+Execution and package scans use only `commands`; a compiler projects the retained
+cut into its runtime error. Editor assistance may use `into_editor_commands` to
+include the original incomplete command, which is marked `is_partial`. Terminal
+syntax errors do not become incomplete commands, and no projection includes
+commands after a cut. The raw CST and heuristic recovery entry points remain
+available for presentation. Neither projection supplies execution or name
+resolution authority. Add fixed source/configuration controls when changing
+this adapter; retain independent parser-kind, source-range and consumer checks.
 
 `segment_commands` does not run its own token loop: it builds
 the canonical lossless **red-green concrete syntax tree** for the region
@@ -222,3 +244,53 @@ Statement::AssignValue { name: "y", value: "${x}", .. }
 - [Data structure reference](../../../docs/design/compiler/example-walkthroughs.md#data-structure-reference)
 - [error-recovery.md](error-recovery.md)
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md)
+
+### Signature input purpose
+
+`signature_scan::extract_signatures` accepts an independently supplied complete document. It selects `LexerConfig::for_file_grammar` from the actual Registry profile, including that grammar's leading-BOM rule. The signature walker selects `NestedScript` for original child bodies, where a leading BOM is content. The CLI's cross-file procedure-name discovery uses this same document ingress on `InputDocument::analysis_source`, including its line-ending policy.
+
+`extract_signatures_with_config` retains the caller's complete explicit policy for a separately supplied script. `extract_signatures_with_original_bindings` retains the existing original image/configuration/inventory checks. Consumers which already own analysis input and retained source bindings pass those actual owners; they do not select a default document grammar from a report label. Signature source geometry and conditional declarations supply no procedure execution or Native implementation receipt.
+
+Finite source/API controls reference source-original-configured-script-completeness. Each provider's script-loading and parser behaviour remains independently recorded by its corresponding proof.
+
+### CLI compilation input purpose
+
+The `dis` and `compwasm` verbs receive complete combined input documents. Their root grammar is `LexerConfig::for_file_grammar` from the actual resolved profile, so that profile's file BOM rule applies once at the document boundary. A mark after the root boundary remains source content. The disassembly adapter passes the complete actual grammar, including custom lexical axes, without selecting another grammar from the profile label.
+
+The Compiler's explicitly configured bytecode lowering APIs keep the caller's supplied policy. Callers compiling a procedure body, extracted script or synthetic Studio body must retain their appropriate body purpose. Original geometry does not supply a Native entry or prove emitted bytecode execution.
+
+
+`NativeWord::written_span_from_group` projects the same original fragment,
+expansion-marker and delimiter geometry used before `NativeWord::from_group`
+constructs its executable parts. It supplies lexical written extents only.
+Recovered and materialized command inventories join the complete CST word
+vector to those original groups before reusing written bytes. Their raw spelling
+includes every wrapper and expansion marker; component spans remain separate.
+Missing geometry stays a dynamic/opaque inventory entry and cannot become an
+empty successfully parsed word or a static Registry operand.
+
+
+## Selected Direct script parsing
+
+`NativeCompilationContext::direct_script_parse_entry` reads the actual retained
+Direct entry's physical point. Supported C entries keep command-at-a-time
+execution; the selected Jim entry validates its whole script before any prefix
+publication. Missing or unsupported actual points remain unavailable. Authored
+source advice and unentered declaration previews retain their distinct purpose.
+
+`tcl_lexer::jim_script_syntax_tokens` projects the existing Jim scanner's full
+roster, missing marker and original completeness line while preserving the
+input channel. Its enclosing delimiter scan delays command-body syntax until
+that child script is entered. The NativeValue-only `jim_script_tokens` door
+still owns native token ingress; the readonly syntax sibling supplies no native
+object, filename, interpreter, Script backing or execution receipt. Jim's
+info-complete query retains its separate terminal-brace rule.
+
+The shared `parse_cut::first_parse_cut_image_with_descent_checked` accepts an
+explicit `ParseCutDescent`. `RecursiveCommands` is the unchanged compatibility
+purpose. `EnclosingScript` inspects the same original word/component delimiters
+and variable-index parts but delays command-body syntax. This syntax choice
+issues no physical engine entry, and the generic component scanner does not
+substitute for Jim's selected scanner. Both purposes preserve unavailable
+ownership separately from a clean script. Complete lexical editor prefixes do
+not establish a Jim execution prefix.

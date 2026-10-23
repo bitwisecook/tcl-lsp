@@ -14,8 +14,8 @@ This is **not** described here. There is one canonical algorithm, one Rust
 home, and a conformance-vector gate:
 
 - [command-resolution.md](command-resolution.md) — the `Tcl_FindCommand` rule,
-  its single implementation (`tcl_syntax::naming::resolve_command_with`), every
-  consumer, and the anti-drift gates.
+  its shared lookup-base order, purpose-specific original name projections,
+  storage adapters, consumers and conformance gates.
 - [../analysis/name-resolution.md](../analysis/name-resolution.md) — the model across all four
   name kinds, and its deliberate abstentions.
 - [../analysis/name-resolution-c-conformance.md](../analysis/name-resolution-c-conformance.md) —

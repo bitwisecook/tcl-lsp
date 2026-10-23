@@ -448,7 +448,7 @@ impl CommandSemantics for StringLengthSemantics {
             Self::NEEDS,
             |ops| {
                 ops.admissible_text(&subject)?;
-                Ok(tcl_cmd_core::string::length(ops, &subject))
+                tcl_cmd_core::string::length(ops, &subject).map_err(|error| ops.decline(&error))
             },
         ) {
             Ok((value, target)) => pure_outcome(
@@ -521,7 +521,8 @@ impl CommandSemantics for SplitSemantics {
                 for arg in &args {
                     ops.admissible_text(arg)?;
                 }
-                Ok(tcl_cmd_core::list::split(ops, &args[0], args.get(1)))
+                tcl_cmd_core::list::split(ops, &args[0], args.get(1))
+                    .map_err(|error| ops.decline(&error))
             },
         ) {
             Ok((value, target)) => pure_outcome(

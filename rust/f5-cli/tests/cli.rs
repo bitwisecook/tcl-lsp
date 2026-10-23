@@ -73,6 +73,58 @@ fn merge() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn merge_refuses_opaque_path_without_opening_replacement_sibling() {
+    use std::os::unix::ffi::OsStringExt;
+
+    let dir = std::env::temp_dir().join(format!("f5-merge-native-path-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+
+    let opaque_name = std::ffi::OsString::from_vec(b"input-\xff.conf".to_vec());
+    let opaque_path = dir.join(opaque_name);
+    let replacement_path = dir.join("input-\u{fffd}.conf");
+    let marker = "# Unicode replacement sibling sentinel\n";
+    std::fs::write(&opaque_path, "# opaque original file\n").expect("write opaque input");
+    std::fs::write(&replacement_path, marker).expect("write replacement sibling");
+
+    // This is the concrete alias that the former lossy conversion created.
+    assert_eq!(
+        PathBuf::from(opaque_path.to_string_lossy().as_ref()),
+        replacement_path
+    );
+    assert!(replacement_path.is_file());
+
+    let refused = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+        .arg("merge")
+        .arg(&opaque_path)
+        .output()
+        .expect("run merge with opaque path");
+    assert_eq!(refused.status.code(), Some(2));
+    assert!(
+        refused.stdout.is_empty(),
+        "refusal must not emit merged data"
+    );
+    assert!(
+        String::from_utf8_lossy(&refused.stderr)
+            .contains("input path is not representable as Unicode"),
+        "unexpected diagnostic: {}",
+        String::from_utf8_lossy(&refused.stderr)
+    );
+
+    let accepted = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+        .arg("merge")
+        .arg(&replacement_path)
+        .output()
+        .expect("run merge with Unicode replacement sibling");
+    assert_eq!(accepted.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&accepted.stdout).contains(marker));
+    assert_eq!(accepted.stderr, [] as [u8; 0]);
+
+    std::fs::remove_dir_all(&dir).expect("remove temp dir");
+}
+
 #[test]
 fn split_then_merge() {
     // split a multi-partition fixture into a temp dir, then merge it back, and
@@ -245,4 +297,185 @@ fn diff_scalar_modify() {
         &["diff", before.to_str().unwrap(), after.to_str().unwrap()],
         "diff-mod.text.golden",
     );
+}
+
+#[test]
+fn source_transforms_refuse_invalid_name_bytes_before_artifacts() {
+    let dir = std::env::temp_dir().join(format!("f5-source-fidelity-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let input = dir.join("input.conf");
+    let output = dir.join("output.conf");
+    let split = dir.join("split");
+    let original = b"ltm pool /Common/old { description \"\xff\" }\n";
+    std::fs::write(&input, original).unwrap();
+    let input_arg = input.to_str().unwrap();
+    let output_arg = output.to_str().unwrap();
+    let expression = r#"rename("/Common/old", "/Common/new")"#;
+    for args in [
+        vec!["rename", "/Common/old", "/Common/new", input_arg],
+        vec!["rename", "/Common/old", "/Common/new", input_arg, "--write"],
+        vec![
+            "rename",
+            "/Common/old",
+            "/Common/new",
+            input_arg,
+            "--output",
+            output_arg,
+        ],
+        vec![
+            "rename",
+            "/Common/old",
+            "/Common/new",
+            input_arg,
+            "--in-place",
+        ],
+        vec!["query", expression, input_arg],
+        vec!["query", "--write", expression, input_arg],
+        vec!["query", "--in-place", expression, input_arg],
+        vec!["split", input_arg, split.to_str().unwrap()],
+    ] {
+        let result = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+            .args(&args)
+            .output()
+            .unwrap();
+        assert!(!result.status.success(), "{args:?}");
+        assert!(result.stdout.is_empty(), "{args:?}");
+        assert!(
+            String::from_utf8_lossy(&result.stderr).contains("invalid UTF-8"),
+            "{args:?}: {:?}",
+            result.stderr
+        );
+        assert_eq!(std::fs::read(&input).unwrap(), original);
+        assert!(!output.exists());
+        assert!(!split.exists());
+    }
+    let report = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+        .args(["query", ".ltm.pool[].name", input_arg])
+        .output()
+        .unwrap();
+    assert!(report.status.success(), "{:?}", report.stderr);
+    assert!(
+        String::from_utf8(report.stdout)
+            .unwrap()
+            .contains("/Common/old")
+    );
+    std::fs::write(
+        &input,
+        "ltm pool /Common/old { description \"\u{fffd}\" }\n",
+    )
+    .unwrap();
+    let literal = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+        .args(["rename", "/Common/old", "/Common/new", input_arg, "--write"])
+        .output()
+        .unwrap();
+    assert!(literal.status.success(), "{:?}", literal.stderr);
+    let text = String::from_utf8(literal.stdout).unwrap();
+    assert!(text.contains("/Common/new"));
+    assert!(text.contains('\u{fffd}'));
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn mutating_queries_require_faithful_named_and_structured_donors() {
+    let dir = std::env::temp_dir().join(format!("f5-query-donor-fidelity-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let target = dir.join("target.conf");
+    let donor = dir.join("donor.conf");
+    let json = dir.join("donor.json");
+    let original = "ltm pool /Common/old { }\n";
+    std::fs::write(&target, original).unwrap();
+    std::fs::write(&donor, b"ltm pool /Common/\xff { }\n").unwrap();
+    std::fs::write(&json, b"{\"name\":\"/Common/\xff\"}").unwrap();
+    for (flag, binding, expression, extra) in [
+        (
+            "--name",
+            format!("donor={}", donor.display()),
+            r#"rename("/Common/old", $donor.ltm.pool[].name)"#,
+            Some(donor.as_path()),
+        ),
+        (
+            "--input-json",
+            format!("donor={}", json.display()),
+            r#"rename("/Common/old", $donor.name)"#,
+            None,
+        ),
+    ] {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_f5-query"));
+        command
+            .args(["query", "--write", flag, &binding, expression])
+            .arg(&target);
+        if let Some(extra) = extra {
+            command.arg(extra);
+        }
+        let output = command.output().unwrap();
+        assert!(!output.status.success());
+        assert_eq!(output.stdout, [] as [u8; 0]);
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("invalid UTF-8"),
+            "{:?}",
+            output.stderr
+        );
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), original);
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn query_archive_file_donors_keep_original_bytes_before_mutation() {
+    let dir = std::env::temp_dir().join(format!("f5-query-file-donor-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("input.ucs");
+    for (donor, faithful) in [
+        (b"new\xff".as_slice(), false),
+        ("new\u{fffd}".as_bytes(), true),
+    ] {
+        let gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        let mut archive = tar::Builder::new(gzip);
+        for (name, bytes) in [
+            (
+                "config/bigip.conf",
+                b"ltm pool /Common/old { description old }\n".as_slice(),
+            ),
+            ("etc/donor", donor),
+        ] {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(u64::try_from(bytes.len()).unwrap());
+            header.set_mode(0o644);
+            header.set_cksum();
+            archive.append_data(&mut header, name, bytes).unwrap();
+        }
+        std::fs::write(&path, archive.into_inner().unwrap().finish().unwrap()).unwrap();
+        let preview = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+            .args(["query", r#"file("etc/donor") | .content"#])
+            .arg(&path)
+            .output()
+            .unwrap();
+        assert!(preview.status.success(), "{:?}", preview.stderr);
+        assert!(
+            String::from_utf8(preview.stdout)
+                .unwrap()
+                .contains('\u{fffd}')
+        );
+        let result = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+            .args([
+                "query",
+                "--write",
+                r#".ltm.pool[] | .description = (file("etc/donor") | .content)"#,
+            ])
+            .arg(&path)
+            .output()
+            .unwrap();
+        assert_eq!(result.status.success(), faithful, "{:?}", result.stderr);
+        if faithful {
+            assert!(
+                String::from_utf8(result.stdout)
+                    .unwrap()
+                    .contains('\u{fffd}')
+            );
+        } else {
+            assert_eq!(result.stdout, [] as [u8; 0]);
+            assert!(String::from_utf8_lossy(&result.stderr).contains("invalid UTF-8"));
+        }
+    }
+    std::fs::remove_dir_all(dir).unwrap();
 }

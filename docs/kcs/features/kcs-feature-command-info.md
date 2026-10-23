@@ -24,8 +24,13 @@ tcl command-info --dialect f5-irules HTTP::uri
 tcl command-info string --json
 ```
 
-Pass a bare command name; `--dialect` selects the registry to look it up in
-(default `tcl8.6`).
+Pass the exact command name; `--dialect` selects the registry to look it up in
+(default `tcl8.6`). Names are case-sensitive, and whitespace is part of the
+name: `puts` and `::puts` find the built-in, while `Puts` and `" puts "`
+report an unknown target. The result describes registry metadata and dialect
+availability; it does not establish a live interpreter binding.
+An explicitly supplied empty name is looked up as written; omitting the
+argument is a CLI usage error.
 
 ### MCP
 

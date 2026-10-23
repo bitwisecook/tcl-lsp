@@ -66,6 +66,6 @@ Adding an arm to the compiler is the one thing not to do.
 - [KCS index](../README.md)
 - [Glossary](../../GLOSSARY.md)
 - [value-transfers.md](../../design/compiler/value-transfers.md) — the interface contract
-- [value-transfers-migration.md](../../design/compiler/value-transfers-migration.md) — the inventory, the ledger, and the gate
+- [value-transfer-consumers.md](../../design/compiler/value-transfer-consumers.md) — the inventory, the ledger, and the gate
 - [kcs-issue-the-value-transfers-gate-reports-a-command-name.md](../kcs-issue-the-value-transfers-gate-reports-a-command-name.md)
 - [How to declare an evaluator for a pack command](../spectcl/kcs-howto-declare-an-evaluator-for-a-pack-command.md) — the `Declared` state's own `evaluate -implementation` route, for a pack rather than a shipped command

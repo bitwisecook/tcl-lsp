@@ -143,7 +143,8 @@ dataflow over the SCCP-executable blocks, shared by the use-site, expr, and
   from side.
 - **Def-site pushback**: a pure def whose every executable typed read commits
   the same intrep exposes it via
-  `shimmer::first_use_commitments_for_cu` — hover renders
+  `shimmer::first_use_value_commitments_for_function` for the exact represented
+  ValueKey selected by the original source owner — hover renders
   "string (first used as: list)" at the creation site.
 
 ## Where the command-level knowledge lives
@@ -232,32 +233,18 @@ a stale representation. Six properties matter:
 
 ### A braced argument word substitutes nothing
 
-The same distinction applies to a statement's **own** words, and for the same
-reason: `Statement::Call::args` holds the *de-braced* text, so `lindex {$x} 0`
-and `lindex $x 0` both arrive as the argument `$x`. Only the second is a read
-— tclsh 9.0.4 answers `$x` (two characters) for the braced form and `5` for
-the bare and `"…"`-quoted ones — so `commit` and `use_site` gate the argument
-loop of their `Statement::Call` arm on `hints::inert_braced_args`, which pairs
-the segmenter's `CommandTokens::arg_is_braced_literal` with the registry's
-`CommandRegistry::arg_indices_evaluated_in_frame`.
+Original word kinds distinguish `lindex {$x} 0` from `lindex $x 0`, even
+when their compatibility argument text is identical. `commit` and `use_site`
+obtain the current `NormalRepresentationInvocation` from `ShimmerContext` and
+use `hints::inert_effective_args` to exclude retained-value prefixes and braced
+literal operands. Only the held invocation's `Expr` roles allow those operands
+to read the caller's variables.
 
-That second half makes the rule role-aware rather than "skip every braced
-argument": `expr` and `if` re-evaluate their braced word where the caller's
-variables are in scope, so `expr {$x} + 1` really is `6` for `x` = 5 and its
-operand stays a read, while `apply {{} {puts $x}}` runs in a fresh frame and
-does not. The authority is `ArgRole::braced_word_evaluated_in_frame`, the same
-one `ssa::braced_word_class` consults for the identical question — the
-detectors ask it, they do not restate it.
-
-Both passes need the gate because they have separate jobs: `commit` only moves
-the committed-intrep state and emits nothing, so gating the emitting pass alone
-would still record a conversion at the braced word and make the *next*, genuine
-read report a shimmer against an intrep the runtime never installs.
-
-The lift needs no gate, and gets none: a lifted `[cmd …]` carries its argument
-words as raw source text with the braces still on, so `is_pure_var_ref`
-already declines a `{$x}` there, so `set r [lindex {$x} 0]` is correct with an
-assignment's words going through the same lift as a call's.
+The commitment pass and the warning pass share this gate: recording a
+conversion for inert data would make a later real read appear to shimmer.
+Nested substitutions require their own checked original invocation and word
+geometry. Missing ownership cannot be replaced with a bare registry lookup or
+source-looking compatibility bytes.
 
 ### Known limitation — the underlying representational gap
 

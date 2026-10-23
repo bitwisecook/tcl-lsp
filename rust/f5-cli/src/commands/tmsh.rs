@@ -26,23 +26,9 @@
 use std::path::Path;
 
 use tcl_bigip::parser::parse_bigip_conf;
-use tcl_bigip::tmsh_emit::emit_tmsh;
+use tcl_bigip::tmsh_emit::{DEFAULT_ORDER, emit_tmsh};
 use tcl_bigip_io::read_path;
 use tcl_cli_support::OutputTarget;
-
-/// The kinds accepted by `--include`.
-const VALID_KINDS: [&str; 10] = [
-    "generic-foundation",
-    "node",
-    "monitor",
-    "data-group",
-    "profile",
-    "snatpool",
-    "persistence",
-    "pool",
-    "rule",
-    "virtual",
-];
 
 /// `f5 tmsh <path>` — render an SCF as a tmsh create/modify script.
 pub fn run_tmsh(
@@ -51,9 +37,8 @@ pub fn run_tmsh(
     modify: bool,
     include: &[String],
 ) -> anyhow::Result<u8> {
-    let path_str = path.to_string_lossy();
     let opts = crate::cli::PassphraseArgs::default().to_options();
-    let (_uri, source) = match read_path(&path_str, false, &opts) {
+    let (_uri, source) = match read_path(path, false, &opts) {
         Ok(pair) => pair,
         Err(e) => {
             eprintln!("error: {e}");
@@ -62,13 +47,13 @@ pub fn run_tmsh(
     };
 
     let include: Vec<&str> = if include.is_empty() {
-        VALID_KINDS.to_vec()
+        DEFAULT_ORDER.to_vec()
     } else {
         for kind in include {
-            if !VALID_KINDS.contains(&kind.as_str()) {
+            if !DEFAULT_ORDER.contains(&kind.as_str()) {
                 eprintln!(
                     "error: unknown kind '{kind}' (expected one of {})",
-                    VALID_KINDS.join(", ")
+                    DEFAULT_ORDER.join(", ")
                 );
                 return Ok(2);
             }

@@ -18,6 +18,8 @@
 
 //! Small shared helpers for the xtask subcommands.
 
+pub(crate) mod source_literals;
+
 use std::ffi::OsString;
 use std::fmt::Write as _;
 use std::fs::{self, OpenOptions};
@@ -266,7 +268,9 @@ pub const ANALYSIS_TIER_ROOTS: &[&str] = &[
 #[must_use]
 pub fn is_internal_or_test_harness_noise(name: &str) -> bool {
     let is_test_harness = name.starts_with("test") && name.len() > "test".len();
-    let is_tcl_internal_namespace = name.strip_prefix("::").unwrap_or(name).starts_with("tcl::");
+    let is_tcl_internal_namespace = tcl_syntax::naming::unroot_rooted_key(name)
+        .unwrap_or(name)
+        .starts_with("tcl::");
     is_test_harness || is_tcl_internal_namespace
 }
 
@@ -283,9 +287,7 @@ mod tests {
         assert!(is_internal_or_test_harness_noise("tcl::mathop::eq"));
         assert!(is_internal_or_test_harness_noise("::tcl::mathop::eq"));
         assert!(is_internal_or_test_harness_noise("::tcl::process"));
-        // A DIFFERENT package's namespace that merely ends in "tcl" before its
-        // own "::" must NOT be excluded (issue caught in PR #866 review: a
-        // `.contains("tcl::")` substring check wrongly matched this).
+        // A package namespace ending in "tcl" is not the reserved "tcl::" prefix.
         assert!(!is_internal_or_test_harness_noise("itcl::class"));
         assert!(!is_internal_or_test_harness_noise("itcl::configure"));
     }

@@ -448,7 +448,7 @@ mod tests {
             ..CommandSpec::DEFAULT
         };
         SecurityFloor::of(Box::leak(Box::new(unversioned))).apply(&mut swapped);
-        assert!(swapped.codegen_hook_windows.is_empty());
+        assert_eq!(swapped.codegen_hook_windows.len(), 0);
         assert_eq!(swapped.codegen_hook, Some(CodegenHookId::Lassign));
 
         // The shipped command carries the hook in a window only.

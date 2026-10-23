@@ -4,7 +4,7 @@
 # an appended arity, an integer-domain option), per-option dialect gates,
 # forms, hover.
 
-speclib tcl 1.1 {
+speclib tcl 2.1 {
 
 command lsort {
     runtime_backing shipped-builtin lsort
@@ -17,7 +17,12 @@ command lsort {
     # as an ordinary nested call, never an uplevel-style scope walk.
     traits {FRAMELESS_RUNTIME BYTE_COMPILED}
 
-    arity 1..
+    # One positional operand — the list — after the option words, which
+    # Tcl_LsortObjCmd scans with the final word reserved for that list.
+    arity 1 -positionals
+    reserved_trailing_words 1
+    # A -command comparator resolves in the frame that called lsort.
+    script_lookup_scope InvokingFrame
     return_type           List
     inferred_storage_type List
 

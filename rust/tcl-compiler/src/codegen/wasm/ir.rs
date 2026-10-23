@@ -29,6 +29,8 @@
     clippy::too_many_lines
 )]
 
+use std::collections::BTreeMap;
+
 use tcl_lexer::Span;
 
 use super::encoding::{
@@ -515,6 +517,10 @@ pub struct WasmData {
 pub struct WasmModule {
     /// Defined functions, in declaration order.
     pub functions: Vec<WasmFunction>,
+    /// Actual source bodies by full function index, including the import offset.
+    /// Generated helpers have no entry; this is reporting provenance only.
+    pub source_function_ids:
+        std::collections::BTreeMap<u32, crate::native_lowering::NativeFunctionId>,
     /// Imported host functions (occupy function indices `0..imports.len()`).
     pub imports: Vec<WasmImport>,
     /// Data segments.
@@ -561,8 +567,9 @@ impl WasmModule {
         }
     }
 
-    /// Register an imported host function, returning its function index
-    /// (imports occupy indices `0..imports.len()`, before defined functions).
+    /// Intern an imported host function by module, name and full signature,
+    /// returning its function index. Existing imports retain their indices;
+    /// imports occupy `0..imports.len()`, before defined functions.
     ///
     /// This is the supported way to add imports: it interns the import's
     /// signature into the type section so the emitted `type_idx` is always
@@ -578,6 +585,11 @@ impl WasmModule {
         results: &[ValType],
     ) -> usize {
         let type_idx = self.intern_type(params, results);
+        if let Some(func_idx) = self.imports.iter().position(|import| {
+            import.module == module && import.name == name && import.type_idx == type_idx
+        }) {
+            return func_idx;
+        }
         let func_idx = self.imports.len();
         self.imports.push(WasmImport {
             module: module.to_owned(),
@@ -873,10 +885,30 @@ impl WasmModule {
             ));
         }
 
-        for imp in &self.imports {
+        let function_ids = wat_indexed_ids(
+            &self
+                .imports
+                .iter()
+                .map(|import| format!("imp_{}", import.name))
+                .chain(self.functions.iter().map(|function| function.name.clone()))
+                .collect::<Vec<_>>(),
+            "func",
+        );
+        let global_ids = wat_indexed_ids(
+            &self
+                .globals
+                .iter()
+                .map(|global| global.name.clone())
+                .collect::<Vec<_>>(),
+            "global",
+        );
+        for (index, imp) in self.imports.iter().enumerate() {
             lines.push(format!(
-                "  (import \"{}\" \"{}\" (func $imp_{} (type $t{})))",
-                imp.module, imp.name, imp.name, imp.type_idx
+                "  (import \"{}\" \"{}\" (func {} (type $t{})))",
+                escape_wat_bytes(imp.module.as_bytes()),
+                escape_wat_bytes(imp.name.as_bytes()),
+                function_ids[index],
+                imp.type_idx
             ));
         }
 
@@ -894,11 +926,12 @@ impl WasmModule {
 
         if self.import_table {
             lines.push(format!(
-                "  (import \"tcl\" \"{FUNCTION_TABLE_IMPORT}\" (table 0 funcref))"
+                "  (import \"tcl\" \"{}\" (table 0 funcref))",
+                escape_wat_bytes(FUNCTION_TABLE_IMPORT.as_bytes())
             ));
         }
 
-        for global in &self.globals {
+        for (index, global) in self.globals.iter().enumerate() {
             let ty = global.init.val_type().wat_name();
             let ty = if global.mutable {
                 format!("(mut {ty})")
@@ -906,8 +939,8 @@ impl WasmModule {
                 ty.to_owned()
             };
             lines.push(format!(
-                "  (global ${} {ty} {})",
-                global.name,
+                "  (global {} {ty} {})",
+                global_ids[index],
                 global.init.to_wat()
             ));
         }
@@ -917,35 +950,41 @@ impl WasmModule {
             lines.push(format!("  (elem declare func {})", indices.join(" ")));
         }
 
-        for func in &self.functions {
+        for (index, func) in self.functions.iter().enumerate() {
             let export = if func.exported {
-                format!(" (export \"{}\")", func.name)
+                format!(" (export \"{}\")", escape_wat_bytes(func.name.as_bytes()))
             } else {
                 String::new()
             };
+            let local_ids = wat_indexed_ids(
+                &(0..func.params.len() + func.locals.len())
+                    .map(|index| {
+                        func.local_names
+                            .get(index)
+                            .and_then(|name| name.strip_prefix('$'))
+                            .unwrap_or("")
+                            .to_owned()
+                    })
+                    .collect::<Vec<_>>(),
+                "local",
+            );
             let mut sig: Vec<String> = Vec::new();
             for (j, p) in func.params.iter().enumerate() {
-                let name = func
-                    .local_names
-                    .get(j)
-                    .cloned()
-                    .unwrap_or_else(|| format!("$p{j}"));
-                sig.push(format!("(param {name} {})", p.wat_name()));
+                sig.push(format!("(param {} {})", local_ids[j], p.wat_name()));
             }
             for r in &func.results {
                 sig.push(format!("(result {})", r.wat_name()));
             }
-            lines.push(format!("  (func ${}{export} {}", func.name, sig.join(" ")));
+            lines.push(format!(
+                "  (func {}{export} {}",
+                function_ids[self.imports.len() + index],
+                sig.join(" ")
+            ));
 
             let param_count = func.params.len();
             for (j, lt) in func.locals.iter().enumerate() {
-                let local_idx = param_count + j;
-                let name = func
-                    .local_names
-                    .get(local_idx)
-                    .cloned()
-                    .unwrap_or_else(|| format!("$l{j}"));
-                lines.push(format!("    (local {name} {})", lt.wat_name()));
+                let slot = param_count + j;
+                lines.push(format!("    (local {} {})", local_ids[slot], lt.wat_name()));
             }
 
             let mut indent = 2usize;
@@ -970,7 +1009,37 @@ impl WasmModule {
     }
 }
 
-/// Escape raw data-segment bytes for a WAT string literal without changing
+/// Declare aliases for an actual WASM index space. Safe unique labels remain
+/// readable; every other label uses its index. Instructions still reference
+/// the original numeric indices, independently of these presentation aliases.
+fn wat_indexed_ids(labels: &[String], space: &str) -> Vec<String> {
+    const RESERVED: &str = "__tcl_wat_";
+    let mut counts = BTreeMap::new();
+    for label in labels {
+        *counts.entry(label.as_str()).or_insert(0usize) += 1;
+    }
+    labels
+        .iter()
+        .enumerate()
+        .map(|(index, label)| {
+            // This is a conservative subset of WAT's identifier alphabet,
+            // not a restriction or normalisation of the original Tcl name.
+            let admitted = !label.is_empty()
+                && !label.starts_with(RESERVED)
+                && label.bytes().all(|byte| {
+                    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b':' | b'.' | b'$')
+                })
+                && counts.get(label.as_str()) == Some(&1);
+            if admitted {
+                format!("${label}")
+            } else {
+                format!("${RESERVED}{space}_{index}")
+            }
+        })
+        .collect()
+}
+
+/// Escape original bytes for quoted WAT names and data without changing
 /// their value. Printable ASCII stays readable; quotes and backslashes use
 /// their named escapes, and every other byte uses WAT's two-digit hex escape.
 fn escape_wat_bytes(bytes: &[u8]) -> String {
@@ -1213,6 +1282,145 @@ mod tests {
         );
     }
 
+    fn module_with_wat_name_collisions() -> WasmModule {
+        let mut module = WasmModule::new();
+        module.add_import("host \"\\\0\né", "same", &[], &[]);
+        module.add_import("other", "same", &[], &[]);
+        module.add_import("host", "field \"\\\0\né", &[], &[]);
+        for name in ["imp_same", "with space\"\\\0\né", "__tcl_wat_func_0"] {
+            module.functions.push(WasmFunction {
+                name: name.into(),
+                params: vec![ValType::I32],
+                results: vec![ValType::I32],
+                locals: vec![ValType::I32; 3],
+                body: vec![
+                    WasmInstruction::with_operands(WasmOp::Call, leb128_unsigned(0)),
+                    WasmInstruction::with_operands(WasmOp::Call, leb128_unsigned(1)),
+                    WasmInstruction::with_operands(WasmOp::LocalGet, leb128_unsigned(0)),
+                    WasmInstruction::with_operands(WasmOp::LocalSet, leb128_unsigned(1)),
+                    WasmInstruction::with_operands(WasmOp::LocalGet, leb128_unsigned(1)),
+                ],
+                local_names: vec![
+                    "$x".into(),
+                    "$x".into(),
+                    "$bad name".into(),
+                    "$__tcl_wat_local_0".into(),
+                ],
+                exported: name.starts_with("with "),
+                source_range: None,
+                kind: "proc".into(),
+            });
+        }
+        for name in ["same", "same", "with space\"\0", "__tcl_wat_global_0"] {
+            module.globals.push(WasmGlobal {
+                name: name.into(),
+                mutable: false,
+                init: GlobalInit::I32(0),
+            });
+        }
+        module
+    }
+
+    #[test]
+    fn to_wat_preserves_external_name_bytes_and_actual_index_spaces() {
+        let mut module = module_with_wat_name_collisions();
+        let binary = module.to_bytes();
+        let wat = module.to_wat();
+        assert!(
+            wat.contains(r#"(import "host \"\\\00\0a\c3\a9" "same" (func $__tcl_wat_func_0"#),
+            "{wat}"
+        );
+        assert!(
+            wat.contains(r#"(export "with space\"\\\00\0a\c3\a9")"#),
+            "{wat}"
+        );
+        assert!(
+            wat.contains(r#"(import "host" "field \"\\\00\0a\c3\a9" (func $__tcl_wat_func_2"#),
+            "{wat}"
+        );
+        for index in 0..6 {
+            assert_eq!(
+                wat.matches(&format!("(func $__tcl_wat_func_{index} "))
+                    .count(),
+                1,
+                "{wat}"
+            );
+        }
+        for index in 0..4 {
+            assert_eq!(
+                wat.matches(&format!("(global $__tcl_wat_global_{index} "))
+                    .count(),
+                1,
+                "{wat}"
+            );
+        }
+        assert_eq!(wat.matches("(param $__tcl_wat_local_0 i32)").count(), 3);
+        for index in 1..4 {
+            assert_eq!(
+                wat.matches(&format!("(local $__tcl_wat_local_{index} i32)"))
+                    .count(),
+                3
+            );
+        }
+        assert_eq!(wat.matches("call 0").count(), 3);
+        assert_eq!(wat.matches("call 1").count(), 3);
+        assert_eq!(wat.matches("local.get 0").count(), 3);
+        assert_eq!(wat.matches("local.set 1").count(), 3);
+        assert!(
+            wat.bytes()
+                .all(|byte| byte == b'\n' || !byte.is_ascii_control())
+        );
+        assert_eq!(
+            module.to_bytes(),
+            binary,
+            "WAT aliases cannot change binary identities or names"
+        );
+    }
+
+    #[test]
+    fn to_wat_arbitrary_names_parse_with_wasmtime_when_available() {
+        use std::process::Command;
+        if !Command::new("wasmtime")
+            .arg("--version")
+            .output()
+            .is_ok_and(|output| output.status.success())
+        {
+            eprintln!("skipping WAT parse: wasmtime CLI is unavailable");
+            return;
+        }
+        let mut module = module_with_wat_name_collisions();
+        let directory = std::env::temp_dir().join(format!(
+            "tcl-wat-names-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        for (extension, bytes) in [
+            ("wat", module.to_wat().into_bytes()),
+            ("wasm", module.to_bytes()),
+        ] {
+            let input = directory.join(format!("names.{extension}"));
+            let output = directory.join(format!("names-{extension}.cwasm"));
+            std::fs::write(&input, bytes).unwrap();
+            let result = Command::new("wasmtime")
+                .arg("compile")
+                .arg(&input)
+                .arg("-o")
+                .arg(&output)
+                .output()
+                .unwrap();
+            assert!(
+                result.status.success(),
+                "{extension} did not compile: {}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+        }
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
     #[test]
     fn encode_body_compresses_locals_and_appends_end() {
         let func = WasmFunction {
@@ -1259,6 +1467,51 @@ mod tests {
         );
         // Two distinct signatures => two types.
         assert_eq!(m.types.len(), 2);
+    }
+
+    #[test]
+    fn import_interning_keeps_full_identity_and_existing_function_indices() {
+        let mut module = WasmModule::new();
+        let first = module.add_import("tcl", "frame", &[ValType::I32], &[ValType::I32]);
+        let other_module = module.add_import("other", "frame", &[ValType::I32], &[ValType::I32]);
+        let other_name = module.add_import("tcl", "release", &[ValType::I32], &[ValType::I32]);
+        let other_params = module.add_import("tcl", "frame", &[ValType::I64], &[ValType::I32]);
+        let other_results = module.add_import("tcl", "frame", &[ValType::I32], &[ValType::I64]);
+        assert_eq!(
+            [first, other_module, other_name, other_params, other_results],
+            [0, 1, 2, 3, 4]
+        );
+        let repeated = module.add_import("tcl", "frame", &[ValType::I32], &[ValType::I32]);
+        assert_eq!(repeated, first);
+        assert_eq!(module.imports.len(), 5);
+        assert_eq!(module.imports[other_module].module, "other");
+        assert_eq!(module.imports[other_name].name, "release");
+        let types = module.type_section();
+        assert_eq!(
+            types[module.imports[other_params].type_idx].0,
+            [ValType::I64]
+        );
+        assert_eq!(
+            types[module.imports[other_results].type_idx].1,
+            [ValType::I64]
+        );
+        let binary = module.to_bytes();
+        let mut offset = 8;
+        let mut import_count = None;
+        while offset < binary.len() {
+            let section = binary[offset];
+            offset += 1;
+            let (size, used) = read_uleb(&binary[offset..]);
+            offset += used;
+            if section == SectionId::Import as u8 {
+                import_count = Some(read_uleb(&binary[offset..]).0);
+            }
+            offset += usize::try_from(size).unwrap();
+        }
+        // Five host functions plus the independent imported memory.
+        assert_eq!(import_count, Some(6));
+        let wat = module.to_wat();
+        assert_eq!(wat.matches("(import ").count(), 6);
     }
 
     #[test]
@@ -1426,8 +1679,8 @@ mod tests {
         // it keep loading against a runtime with no exported table.
         let mut plain = sample_module();
         assert!(!plain.import_table);
-        assert!(plain.globals.is_empty());
-        assert!(plain.elem_declared.is_empty());
+        assert_eq!(plain.globals.len(), 0);
+        assert_eq!(plain.elem_declared, [] as [u32; 0]);
         let bytes = plain.to_bytes();
         let mut seen = Vec::new();
         let mut i = 8;

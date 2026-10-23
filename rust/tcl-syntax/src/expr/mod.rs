@@ -26,23 +26,28 @@
 pub mod ast;
 pub mod errors;
 pub mod eval;
+pub mod jim_function_tree;
 pub mod mathfunc;
+pub mod native_objects;
 pub mod operators;
 pub mod parser;
 pub mod rand;
 pub mod substitution;
 pub mod syntax_84;
 pub mod syntax_error;
+pub mod wide;
 
 pub use ast::{
-    BinOp, ExprNode, ExprOffset, UnaryOp, fixed_string_body, fixed_string_operand,
-    quoted_string_body,
+    BinOp, ExprNode, ExprOffset, ExprText, NativeExprNode, UnaryOp, fixed_string_body,
+    fixed_string_operand, quoted_string_body,
 };
-pub use eval::{ExprOps, NumericCompare, eval};
+pub use eval::{ExprEvalRequest, ExprEvalState, ExprEvalStep, ExprOps, NumericCompare, eval};
 pub use mathfunc::{MathFuncSpec, MathResultClass};
 pub use operators::{ALL_BIN_OPS, ALL_UNARY_OPS, CommandArity, OperatorShape, OperatorSpec};
 pub use parser::parse_expr;
 pub use substitution::{
-    LiveExpressionSubstitutions, command_substitution_spans, live_expression_substitutions,
+    LiveExpressionSubstitutions, OriginalSourceExpression, checked_expression_substitutions,
+    checked_source_expression_substitutions, command_substitution_spans,
+    command_substitutions_in_checked_expression, expression_span, live_expression_substitutions,
 };
 pub use syntax_error::{ExprSyntaxError, ExprSyntaxErrorKind};

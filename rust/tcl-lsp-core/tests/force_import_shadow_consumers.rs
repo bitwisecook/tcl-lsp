@@ -40,6 +40,11 @@
 //! visible in its output — parameter labels, signature text, the item detail,
 //! the inlined body — and not only in a span.
 //!
+//! In the shadowed direction, tclsh gives `SRC/1/2` only when the sibling
+//! runs before MAIN. Cross-document execution order remains conditional;
+//! MAIN alone is analysed as a fresh interpreter. Neither target is proven,
+//! so every provider abstains. The unshadowed direction keeps the local answer.
+//!
 //! The call sits at global scope deliberately. A `-force` import rewrites a
 //! bare name in the *importing* namespace, and `::` is the one importing
 //! namespace whose call sites the inlay-hint segmenter reaches (it walks
@@ -162,21 +167,19 @@ fn definition_follows_the_shadow() {
         .map(|r| r.start_line)
         .collect::<Vec<_>>()
     });
-    let src_line = u32::try_from(
-        MAIN[..MAIN
-            .find("proc helper {alpha beta}")
-            .expect("src proc present")]
-            .matches('\n')
-            .count(),
-    )
-    .expect("tiny");
     let local_line = u32::try_from(
         MAIN[..MAIN.find("proc helper {args}").expect("local proc present")]
             .matches('\n')
             .count(),
     )
     .expect("tiny");
-    assert_eq!(shadowed, vec![src_line], "the import replaced ::helper");
+    // The sibling's export can replace the local command, but its execution
+    // order relative to MAIN is unproven. Abstain from selecting either target.
+    assert_eq!(
+        shadowed,
+        Vec::<u32>::new(),
+        "an unproven sibling export: no definition"
+    );
     assert_eq!(
         unshadowed,
         vec![local_line],
@@ -203,11 +206,14 @@ fn inlay_hints_label_the_reached_proc_not_the_shadowed_local() {
         .collect::<Vec<_>>()
     });
 
-    // TP — the call runs `::src::helper {alpha beta}`, so those are the
-    // parameter names that belong on the arguments `1` and `2`.
+    // Abstain: neither proc's parameters label the arguments `1` and `2`.
+    // The sibling's export can replace the local command, but its execution
+    // order relative to MAIN is unproven. Abstain from selecting either target.
     assert!(
-        shadowed.iter().any(|l| l.contains("alpha")) && shadowed.iter().any(|l| l.contains("beta")),
-        "a live -force shadow must label the imported proc's parameters: {shadowed:?}"
+        !shadowed
+            .iter()
+            .any(|l| l.contains("alpha") || l.contains("beta")),
+        "an unproven sibling export labels no parameters: {shadowed:?}"
     );
     // TN — the import bound nothing, so the variadic local `{args}` is reached
     // and contributes no positional labels.
@@ -232,13 +238,15 @@ fn signature_help_describes_the_reached_proc_not_the_shadowed_local() {
             resolution(exports),
         )
         .map(|h| h.signatures[0].label.clone())
-        .expect("signature help on a resolvable call")
     });
 
-    assert!(
-        shadowed.contains("alpha") && shadowed.contains("beta"),
-        "a live -force shadow must render `::src::helper`'s signature: {shadowed:?}"
+    // The sibling's export can replace the local command, but its execution
+    // order relative to MAIN is unproven. Abstain from selecting either target.
+    assert_eq!(
+        shadowed, None,
+        "an unproven sibling export renders no signature"
     );
+    let unshadowed = unshadowed.expect("signature help on a resolvable call");
     assert!(
         unshadowed.contains("args") && !unshadowed.contains("alpha"),
         "with no covering export the local `helper {{args}}` is correct: {unshadowed:?}"
@@ -265,10 +273,11 @@ fn call_hierarchy_prepare_roots_at_the_reached_proc() {
     // The two procs differ in arity, which the item detail carries — so this
     // pins *which* definition the hierarchy is rooted at, not merely that one
     // was found.
-    assert_eq!(
-        shadowed,
-        vec!["(2 params)".to_owned()],
-        "a live -force shadow roots the hierarchy at `::src::helper {{alpha beta}}`"
+    // The sibling's export can replace the local command, but its execution
+    // order relative to MAIN is unproven. Abstain from selecting either target.
+    assert!(
+        shadowed.is_empty(),
+        "an unproven sibling export roots no hierarchy: {shadowed:?}"
     );
     assert_eq!(
         unshadowed,
@@ -295,15 +304,17 @@ fn inline_proc_inlines_the_reached_body_not_the_shadowed_local() {
                 .collect::<Vec<_>>()
                 .join("\n")
         })
-        .expect("inline-proc offered on a resolvable call")
     });
 
-    // TP — inlining the local body over a call that runs `::src::helper`
-    // would silently change what the program does.
-    assert!(
-        shadowed.contains("SRC/") && !shadowed.contains("LOCAL"),
-        "a live -force shadow must inline the imported body: {shadowed:?}"
+    // Inlining either body over a call whose target is unproven could
+    // silently change what the program does.
+    // The sibling's export can replace the local command, but its execution
+    // order relative to MAIN is unproven. Abstain from selecting either target.
+    assert_eq!(
+        shadowed, None,
+        "an unproven sibling export offers no inline"
     );
+    let unshadowed = unshadowed.expect("inline-proc offered on a resolvable call");
     // TN — the local proc really is what runs, so its body is the right one.
     assert!(
         unshadowed.contains("LOCAL") && !unshadowed.contains("SRC/"),
@@ -338,9 +349,11 @@ fn code_actions_offer_the_reached_body_for_inlining() {
         .join("\n")
     });
 
+    // The sibling's export can replace the local command, but its execution
+    // order relative to MAIN is unproven. Abstain from selecting either target.
     assert!(
-        shadowed.contains("SRC/") && !shadowed.contains("LOCAL"),
-        "a live -force shadow must offer the imported body: {shadowed:?}"
+        shadowed.is_empty(),
+        "an unproven sibling export offers no inline-proc body: {shadowed:?}"
     );
     assert!(
         unshadowed.contains("LOCAL") && !unshadowed.contains("SRC/"),
@@ -503,10 +516,12 @@ fn rename_retargets_with_the_shadow() {
             analysis,
             resolution(exports),
         )
-        .expect("no refusal on a resolvable call")
-        .into_iter()
-        .map(|e| e.range.start_line)
-        .collect::<Vec<_>>()
+        .map(|edits| {
+            edits
+                .into_iter()
+                .map(|e| e.range.start_line)
+                .collect::<Vec<_>>()
+        })
     });
 
     let src_line = u32::try_from(
@@ -524,10 +539,13 @@ fn rename_retargets_with_the_shadow() {
     )
     .expect("tiny");
 
+    // The sibling's export can replace the local command, but its execution
+    // order relative to MAIN is unproven. Abstain from selecting either target.
     assert!(
-        shadowed.contains(&src_line) && !shadowed.contains(&local_line),
-        "a live -force shadow retargets the rename to `::src::helper`: {shadowed:?}"
+        shadowed.is_err(),
+        "an unproven sibling export refuses the rename: {shadowed:?}"
     );
+    let unshadowed = unshadowed.expect("no refusal on a resolvable call");
     assert!(
         unshadowed.contains(&local_line) && !unshadowed.contains(&src_line),
         "with no covering export the local definition is renamed: {unshadowed:?}"
@@ -546,24 +564,73 @@ fn prepare_rename_offers_the_reached_definition() {
         )
         .map(|p| p.range.start_line)
     });
-    let src_line = u32::try_from(
-        MAIN[..MAIN
-            .find("proc helper {alpha beta}")
-            .expect("src proc present")]
-            .matches('\n')
-            .count(),
-    )
-    .expect("tiny");
     let local_line = u32::try_from(
         MAIN[..MAIN.find("proc helper {args}").expect("local proc present")]
             .matches('\n')
             .count(),
     )
     .expect("tiny");
-    assert_eq!(shadowed, Some(src_line), "prepare follows the shadow");
+    // The sibling's export can replace the local command, but its execution
+    // order relative to MAIN is unproven. Abstain from selecting either target.
+    assert_eq!(
+        shadowed, None,
+        "an unproven sibling export prepares no rename"
+    );
     assert_eq!(
         unshadowed,
         Some(local_line),
         "prepare keeps the local when nothing is imported"
+    );
+}
+
+// References and rename use the same abstention: a call shadowed only in
+// the whole-program view is neither reported for the local declaration nor
+// edited by its rename.
+#[test]
+fn rename_and_references_from_the_local_declaration_agree_on_the_unproven_call() {
+    let local_line = u32::try_from(
+        MAIN[..MAIN.find("proc helper {args}").expect("local proc present")]
+            .matches('\n')
+            .count(),
+    )
+    .expect("tiny");
+    let decl_character = 5;
+    let (shadowed, unshadowed) = both_directions(|analysis, exports| {
+        tcl_lsp_core::references::references_in_program(
+            MAIN,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            local_line,
+            decl_character,
+            analysis,
+            true,
+            Some(program(exports)),
+        )
+        .into_iter()
+        .map(|r| r.start_line)
+        .collect::<Vec<_>>()
+    });
+    assert!(
+        !shadowed.contains(&call_line()),
+        "an unproven sibling export: the call is no reference of the local proc: {shadowed:?}"
+    );
+    assert!(
+        unshadowed.contains(&call_line()),
+        "with no covering export the call references the local proc: {unshadowed:?}"
+    );
+    let (main_s, exports_s) = snapshot(SIBLING_SHADOWS);
+    let renamed = tcl_lsp_core::rename::rename_in_program(
+        MAIN,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        local_line,
+        decl_character,
+        "renamed",
+        &main_s,
+        resolution(&exports_s),
+    );
+    assert!(
+        renamed.as_ref().map_or(true, |edits| edits
+            .iter()
+            .all(|e| e.range.start_line != call_line())),
+        "rename never edits a call references does not return: {renamed:?}"
     );
 }

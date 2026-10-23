@@ -91,12 +91,19 @@ js-sys = { version = "0.3", optional = true }
 # fails loudly if anything reintroduces an import.
 default = ["js-clock"]
 js-clock = ["dep:js-sys"]
+# Conformance drivers over actual closed VM object capabilities.
+test-support = []
 
 [dev-dependencies]
 # End-to-end tests compile real Tcl to bytecode then run it. Dev-only, so the
 # library itself stays off the compiler (CompileService is the runtime seam).
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-test-support = { path = "../tcl-test-support" }
+# Integration tests and examples build their interpreters through
+# `tcl_vm::test_support` (native-core constructors).
+tcl-vm = { path = ".", features = ["test-support"] }
+# Read retained appliance traffic in authored-policy regression controls.
+serde_json.workspace = true
 
 [lints]
 workspace = true

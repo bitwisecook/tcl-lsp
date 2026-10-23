@@ -60,7 +60,7 @@ use serde_json::{Value, json};
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_compiler::signature_scan::types::ParamDef;
-use tcl_lexer::{LexerConfig, SourceMap};
+use tcl_lexer::{LexerConfig, SourceMap, SourceSegmentationPurpose};
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::registry::CommandRegistry;
 
@@ -239,9 +239,10 @@ fn option_row(option: &OptionShape) -> Value {
 
 // Reading the body
 
-/// One statement of the body, flattened to its word texts.
+/// One statement's presentation words and original whole-scalar reads.
 struct Stmt {
     words: Vec<String>,
+    scalar_reads: Vec<Option<String>>,
 }
 
 impl Stmt {
@@ -250,6 +251,9 @@ impl Stmt {
     }
     fn word(&self, index: usize) -> &str {
         self.words.get(index).map_or("", String::as_str)
+    }
+    fn scalar_read(&self, index: usize) -> Option<&str> {
+        self.scalar_reads.get(index)?.as_deref()
     }
 }
 
@@ -266,6 +270,7 @@ fn statements(
         return;
     }
     let source_map = SourceMap::new(source);
+    let config = SourceSegmentationPurpose::NestedScript.config(config);
     let (document, _warnings) = build_document(source, config);
     for segment in segments_from_document(document, &source_map) {
         let words = segment.texts.clone();
@@ -276,7 +281,31 @@ fn statements(
                 statements(registry, config, body, depth + 1, out);
             }
         }
-        out.push(Stmt { words });
+        let tokens = tcl_compiler::ir::CommandTokens::from_segmented(&source_map, config, &segment);
+        let scalar_reads = tokens
+            .words()
+            .iter()
+            .map(|word| {
+                let (spelling, site) = word.sole_variable_substitution()?;
+                let start = usize::try_from(site.span.start()).ok()?;
+                if site.provenance != tcl_compiler::ir::Provenance::Source
+                    || source.as_bytes().get(start) != Some(&b'$')
+                {
+                    return None;
+                }
+                let reference =
+                    tcl_lexer::scan_var_ref(source.as_bytes(), start, config).ok()??;
+                (reference.source_span(source.as_bytes(), start, 0) == Some(site.span)
+                    && source.get(start..reference.next) == Some(spelling))
+                .then_some(())?;
+                tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
+                    .map(str::to_owned)
+            })
+            .collect();
+        out.push(Stmt {
+            words,
+            scalar_reads,
+        });
     }
 }
 
@@ -286,25 +315,27 @@ struct Arm {
     script: String,
 }
 
-/// The arms of a braced `switch` body.
-///
-/// The list is `pattern script pattern script …`, one pair per line by
-/// convention — which is exactly what the segmenter reports as a "command" of
-/// two words, so the same parse serves.
+/// Pattern/script pairs from the selected target's list-value grammar.
+/// This independent advisory scan has no original execution receipt. A table
+/// with invalid list syntax or an unmatched pattern supplies no arm evidence.
 fn arms(body: &str, config: LexerConfig) -> Vec<Arm> {
-    let source_map = SourceMap::new(body);
-    let (document, _warnings) = build_document(body, config);
-    let mut out: Vec<Arm> = Vec::new();
-    for segment in segments_from_document(document, &source_map) {
-        let mut words = segment.texts.iter();
-        while let Some(pattern) = words.next() {
-            let script = words.next().cloned().unwrap_or_default();
-            out.push(Arm {
-                pattern: pattern.clone(),
-                script,
-            });
-        }
+    let Ok(elements) =
+        tcl_syntax::word_rules::WordValueRules::from_config(&config).split_list(body)
+    else {
+        return Vec::new();
+    };
+    if elements.len() % 2 != 0 {
+        return Vec::new();
     }
+    let mut out = elements
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| Arm {
+            pattern: pair[0].to_string(),
+            script: pair[1].to_string(),
+        })
+        .collect::<Vec<_>>();
     // A `-` script is Tcl's fall-through: the arm runs the *next* arm's body.
     for i in 0..out.len() {
         if out[i].script.trim() == "-" {
@@ -324,26 +355,11 @@ fn arms(body: &str, config: LexerConfig) -> Vec<Arm> {
 ///
 /// `switch $x { … }`, `switch -- $x { … }`, `switch -exact -- $x { … }` — in
 /// every form the string word is the second to last.
-fn switched_variable(stmt: &Stmt) -> Option<String> {
+fn switched_variable(stmt: &Stmt) -> Option<&str> {
     if stmt.head() != "switch" || stmt.words.len() < 3 {
         return None;
     }
-    let word = stmt.word(stmt.words.len() - 2);
-    variable_name(word)
-}
-
-/// `$name` / `${name}` → `name`; anything else → `None`.
-fn variable_name(word: &str) -> Option<String> {
-    let rest = word.strip_prefix('$')?;
-    let name = rest
-        .strip_prefix('{')
-        .and_then(|r| r.strip_suffix('}'))
-        .unwrap_or(rest);
-    if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
-        Some(name.to_owned())
-    } else {
-        None
-    }
+    stmt.scalar_read(stmt.words.len() - 2)
 }
 
 /// Whether a pattern is a literal word rather than a glob.
@@ -385,6 +401,17 @@ pub fn scan(body: &str, params: &[ParamDef], dialect: &str) -> Shape {
     // The body is the authored pack's own Tcl, so it is read under the
     // grammar of the environment the pack is being authored for.
     let config = LexerConfig::for_profile(Some(crate::environment::profile_for_dialect(dialect)));
+    scan_in(body, params, registry, config)
+}
+
+/// Conditional body-value advice under its retained grammar and Registry.
+/// The value itself supplies no reached invocation or body-entry authority.
+pub(crate) fn scan_in(
+    body: &str,
+    params: &[ParamDef],
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Shape {
     let mut stmts = Vec::new();
     statements(registry, config, body, 0, &mut stmts);
 
@@ -516,7 +543,7 @@ fn values_from_dispatch(
         let Some(variable) = switched_variable(stmt) else {
             continue;
         };
-        let Some(&index) = positions.get(variable.as_str()) else {
+        let Some(&index) = positions.get(variable) else {
             continue;
         };
         let Some(last) = stmt.words.last() else {
@@ -575,10 +602,10 @@ fn callbacks(stmts: &[Stmt], params: &[ParamDef], shape: &mut Shape) {
     // parameter index → every observed appended count.
     let mut seen: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
     for stmt in stmts {
-        let Some(name) = variable_name(stmt.head()) else {
+        let Some(name) = stmt.scalar_read(0) else {
             continue;
         };
-        let Some(&index) = positions.get(name.as_str()) else {
+        let Some(&index) = positions.get(name) else {
             continue;
         };
         seen.entry(index).or_default().push(stmt.words.len() - 1);
@@ -821,5 +848,108 @@ mod tests {
         assert_eq!(d["command_prefixes"][0]["index"], json!(1));
         assert_eq!(d["command_prefixes"][0]["arity"]["kind"], json!("Exactly"));
         assert!(!notes.is_empty());
+    }
+
+    #[test]
+    fn original_corpus_switch_pairs_use_selected_list_values_and_nested_body_purpose() {
+        // naming.source.original-configured-script-completeness
+
+        let profile = crate::environment::profile_for_dialect("tcl9.0");
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let pairs = arms(
+            "a; {return ONE} #literal {return TWO} a\\ b {return THREE}",
+            config,
+        );
+        assert_eq!(
+            pairs
+                .iter()
+                .map(|arm| (arm.pattern.as_str(), arm.script.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("a;", "return ONE"),
+                ("#literal", "return TWO"),
+                ("a b", "return THREE")
+            ]
+        );
+        let fallthrough = arms("first - second {return TWO}", config);
+        assert_eq!(fallthrough[0].script, "return TWO");
+        assert!(arms("x body dangling", config).is_empty());
+        assert!(arms("x {unfinished", config).is_empty());
+        let jim = LexerConfig::for_profile(Some(
+            tcl_registry::model::ingress::resolve_known_environment("jim")
+                .expect("selected Jim test environment")
+                .unit_profile(),
+        ));
+        let tolerant = arms("x {unfinished", jim);
+        assert_eq!(tolerant.len(), 1);
+        assert_eq!(tolerant[0].pattern, "x");
+        assert_eq!(tolerant[0].script, "unfinished");
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile);
+        let mut body = Vec::new();
+        statements(
+            registry.commands(),
+            config,
+            "\u{feff}return VALUE",
+            0,
+            &mut body,
+        );
+        assert_eq!(body[0].head(), "\u{feff}return");
+    }
+
+    #[test]
+    fn corpus_parameter_reads_use_original_whole_scalar_words_and_selected_grammar() {
+        for name in ["a b", "a$b", "", "::qualified"] {
+            let body = format!("\"${{{name}}}\" first second");
+            let shape = scan(&body, &[param(name)], "tcl9.0");
+            assert_eq!(
+                shape.callbacks,
+                vec![Callback {
+                    index: 0,
+                    appended: Appended::Exactly(2)
+                }],
+                "{body}"
+            );
+            let body = format!("switch -- \"${{{name}}}\" {{one {{}} two {{}}}}");
+            let shape = scan(&body, &[param(name)], "tcl9.0");
+            assert_eq!(
+                shape.closed,
+                Some(ClosedValues {
+                    index: 0,
+                    values: vec!["one".into(), "two".into()]
+                }),
+                "{body}"
+            );
+        }
+        for word in [
+            "{$cb}",
+            "{${cb}}",
+            "pre-$cb",
+            "$cb-post",
+            "$cb(index)",
+            "${cb(index)}",
+            "{*}$cb",
+            "\\$cb",
+        ] {
+            let shape = scan(&format!("{word} payload"), &[param("cb")], "tcl9.0");
+            assert!(shape.callbacks.is_empty(), "{word}");
+            let shape = scan(
+                &format!("switch -- {word} {{one {{}} two {{}}}}"),
+                &[param("cb")],
+                "tcl9.0",
+            );
+            assert!(shape.closed.is_none(), "{word}");
+        }
+        assert!(
+            scan("$café payload", &[param("café")], "tcl9.0")
+                .callbacks
+                .is_empty()
+        );
+        assert_eq!(
+            scan("$café payload", &[param("café")], "jim").callbacks,
+            vec![Callback {
+                index: 0,
+                appended: Appended::Exactly(1)
+            }]
+        );
     }
 }

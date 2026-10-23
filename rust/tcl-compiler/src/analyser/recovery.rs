@@ -197,9 +197,8 @@ impl Analyser {
     /// backward-only visibility every other inline per-command check has.
     pub(super) fn user_command_tail_names(&self) -> std::collections::HashSet<String> {
         fn tail(qn: &str) -> Option<&str> {
-            qn.rsplit_once("::")
-                .map(|(_, t)| t)
-                .filter(|t| !t.is_empty())
+            let (holder, simple) = crate::naming::key_holder_and_tail(qn);
+            (!holder.is_empty() && !simple.is_empty()).then_some(simple)
         }
         let mut names: std::collections::HashSet<String> = std::collections::HashSet::new();
         names.extend(
@@ -442,8 +441,12 @@ impl Analyser {
 
         // Abstain when the swallowed text spans more than one
         // top-level command — see the doc comment above.
-        if crate::segmenter::segment_commands_with_offset_and_config(&text, 0, self.lexer_config())
-            .len()
+        if crate::segmenter::segment_commands_with_offset_and_config(
+            &text,
+            0,
+            self.file_lexer_config().nested(),
+        )
+        .len()
             != 1
         {
             return false;
@@ -1019,7 +1022,10 @@ mod tests {
         let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);
         let cmd = &commands[0];
         assert!(!a.detect_stolen_close_brace(cmd));
-        assert!(a.result.diagnostics.is_empty());
+        assert_eq!(
+            a.result.diagnostics,
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
     }
 
     #[test]
@@ -1151,6 +1157,29 @@ mod tests {
             "expected a zero-width anchor at the unclosed `{{` (byte 21), not \
              the command start (byte {}) or a wide span",
             cmd.span.start()
+        );
+    }
+}
+
+#[cfg(test)]
+mod constructed_projection_tests {
+    use super::*;
+
+    #[test]
+    fn constructed_recovery_inventory_preserves_literal_colon_tails() {
+        // Implementation contract: naming.analysis.constructed-key-consumer-projections
+
+        // Constructed recovery inventory only, with no declaration/lookup authority.
+        let mut analyser = Analyser::new();
+        for qname in [":::", "::a::::p", "::é::λ", "::empty::", "bare"] {
+            analyser.result.all_classes.insert(
+                qname.to_owned(),
+                crate::analyser::types::ClassDef::default(),
+            );
+        }
+        assert_eq!(
+            analyser.user_command_tail_names(),
+            std::collections::HashSet::from([":".to_owned(), ":p".to_owned(), "λ".to_owned(),]),
         );
     }
 }

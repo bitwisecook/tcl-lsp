@@ -24,6 +24,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "bytecount"
+version = "0.6.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "175812e0be2bccb6abe50bb8d566126198344f707e304f45c648fd8f2cc0365e"
+
+[[package]]
+name = "cc"
+version = "1.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "877bf67ac8e52449eb2f9e98a344ea163beb70dd1f9eebe3cc5357dcfeaee4df"
+dependencies = [
+ "find-msvc-tools",
+ "shlex",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -78,6 +94,12 @@ dependencies = [
  "const-oid",
  "crypto-common",
 ]
+
+[[package]]
+name = "find-msvc-tools"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c66915cc5391097de7a2b0b972e8505aa33c0df401fd3a6811dbdb32881ba48"
 
 [[package]]
 name = "flate2"
@@ -189,6 +211,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "shlex"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+
+[[package]]
 name = "simd-adler32"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -212,12 +240,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-bytecode"
+version = "0.1.0"
+dependencies = [
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-runtime-api",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-cmd-core"
 version = "0.1.0"
 dependencies = [
  "md-5",
  "sha1",
  "sha2",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-platform",
  "tcl-runtime-api",
@@ -233,17 +272,33 @@ name = "tcl-dialect"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "tcl-core-types",
 ]
 
 [[package]]
 name = "tcl-engine-api"
 version = "0.1.0"
+dependencies = [
+ "tcl-core-types",
+ "tcl-runtime-api",
+]
+
+[[package]]
+name = "tcl-host-c-abi"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "libc",
+ "sha2",
+ "tcl-platform",
+]
 
 [[package]]
 name = "tcl-host-native"
 version = "0.1.0"
 dependencies = [
  "nix",
+ "tcl-host-c-abi",
  "tcl-platform",
 ]
 
@@ -251,6 +306,7 @@ dependencies = [
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
+ "bytecount",
  "tcl-core-types",
  "tcl-dialect",
  "thiserror",
@@ -266,6 +322,7 @@ version = "0.1.0"
 dependencies = [
  "tcl-cmd-core",
  "tcl-core-types",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -290,10 +347,12 @@ name = "tcl-runtime"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-engine-api",
+ "tcl-host-c-abi",
  "tcl-host-native",
  "tcl-lexer",
  "tcl-platform",
@@ -310,6 +369,8 @@ version = "0.1.0"
 dependencies = [
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-lexer",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -318,6 +379,7 @@ version = "0.1.0"
 dependencies = [
  "bitflags",
  "libm",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
 ]
@@ -326,7 +388,10 @@ dependencies = [
 name = "tcl-test-support"
 version = "0.1.0"
 dependencies = [
+ "sha2",
  "tcl-dialect",
+ "tcl-host-c-abi",
+ "tcl-platform",
 ]
 
 [[package]]

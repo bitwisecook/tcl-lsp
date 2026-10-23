@@ -188,9 +188,7 @@ mod lattice_extra {
     use super::*;
 
     fn t(c: TaintColour) -> TaintLattice {
-        TaintLattice {
-            colours: TaintColour::TAINTED | c,
-        }
+        TaintLattice::from_colours(TaintColour::TAINTED | c)
     }
 
     #[test]

@@ -45,7 +45,7 @@ fn rust_disasm(source: &str) -> String {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(source, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     format_module_asm(&asm)
 }
 

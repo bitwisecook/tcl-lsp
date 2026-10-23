@@ -61,7 +61,7 @@ OLD {}` / `interp alias {} NAME {}` — a plain rename is not one, because the
 alias holds the command object and survives it).  `glob_imports` and the exact
 form's `import_gate` both carry `forced`, so a non-`-force` import onto a name
 the target namespace already **defines** installs nothing, while a `-force` one
-replaces it.  `WorkspaceIndex::resolve_wildcard_import` therefore takes a
+replaces it.  `WorkspaceIndex::resolve_wildcard_import_for_binding` therefore takes a
 `CallSite` (the calling document plus the call's own offset): removals are a
 question about the *call*, not the import, and the same shared decision
 function the same-document resolver uses
@@ -155,8 +155,13 @@ statements run consecutively), so a `namespace export p` followed by a
 
 The **exact**-import link tier runs the same decision function with no call
 site (`WildcardImportIndex::link_alias_live`, issue #1116 finding 2): the
-question a link answers is "does this alias exist for navigation", so every
-recorded removal counts as having run and the ordering that remains is the
+question a link answers is "does this alias exist for navigation", so it reads
+the state after the document completes normally, as tclsh leaves it after
+`source`. A removal counts as having run when its document's end is admitted
+and it is a straight-line position before that end
+([import-order-source-graph.md §8.1](../analysis/import-order-source-graph.md));
+where the end is withheld, or the removal sits in a deferred body or a
+branch, it does not, and the link stays live. The ordering that remains is the
 removal's position relative to the *import* — a forget or a redefinition of
 the imported name in the import's own document revokes the link when written
 after it, one before it is undone by the import, and one in another document
@@ -453,6 +458,29 @@ change another file's answer retains the necessary whole-workspace cost.
    directory; and a `package require NAME VERSION` selects the highest release
    satisfying `package vsatisfies`, not whichever was discovered first.
 
+10. A closed-file workspace scan binds dialect selection and per-file
+    `auto_path` contributions to the analyser-input epoch captured after
+    asynchronous package discovery. Document overrides, session overrides and
+    the explicit `setDialect` default setter advance that epoch when their
+    selected value changes; folder dialect overrides are initialized before
+    the first scan. Each row retains the epoch and class-factory generation it
+    analysed with, and those exact generations must still be current at index
+    and package-resolver publication; the final inventory receipt joins the
+    same factory generation captured for that scan. A stale or unavailable row
+    contributes neither a resolver path nor a complete source-inventory receipt. The final
+    resolver and inventory joins use nonblocking config/factory checks after
+    taking their publication lock, so an in-flight writer makes the scan
+    incomplete instead of waiting in a lock cycle. Ordinary open-document skips
+    and candidates confirmed absent from the source store are distinct
+    intentional skips. Each candidate resolves to an available row, an open or
+    confirmed-absent skip, or an unavailable result. Stale inputs, a busy
+    final config/factory gate, an unrepresentable candidate path, or another
+    unproven omission marks coverage incomplete for that scan. An unavailable
+    analysis seed may retain its typed index row, but it cannot prove absence.
+    A later stable generation check cannot renew an incomplete receipt, and an
+    incomplete scan cannot replace the package resolver with a partial candidate
+    set.
+
 ## File-path anchors
 
 - `rust/tcl-lsp-core/src/workspace_index.rs`
@@ -488,7 +516,12 @@ change another file's answer retains the necessary whole-workspace cost.
   FP-guard computed alias cell, FN-guard computed alias of another cell)
 - `rust/tcl-lsp-server/tests/e2e/issue923_class_refs.rs`
 - `rust/tcl-lsp-server/src/lib.rs` unit tests
-  (`watcher_and_rename_globs_cover_every_indexed_extension`,
+  (`workspace_scan_publishes_under_unchanged_closed_document_override`,
+  `workspace_scan_omits_closed_row_after_document_override_changes`,
+  `workspace_scan_rejects_rows_after_default_or_session_dialect_changes`,
+  `workspace_scan_rejects_rows_after_factory_generation_changes`,
+  `workspace_scan_resolver_publication_requires_current_inputs`,
+  `watcher_and_rename_globs_cover_every_indexed_extension`,
   `document_auto_path_mutation_feeds_the_package_database`,
   `set_auto_path_puts_every_list_element_on_the_search_path`,
   `a_versioned_require_indexes_the_release_it_asks_for`)
@@ -501,3 +534,78 @@ change another file's answer retains the necessary whole-workspace cost.
 - [Design doc index](../README.md)
 - [LSP feature providers](lsp-feature-providers.md)
 - [package loading](package-loading.md)
+
+## Workspace symbol source projection
+
+Logical `workspace/symbol` candidates retain a distinct readonly source owner
+alongside their display row. It binds the actual target URI, complete indexed
+source image, lexer configuration, selected Registry semantic key, advice mode,
+byte span and document-index revision. A label or qualified-name string is
+never used to recreate this owner. Cross-document effective-member candidates
+retain the source context of the arrival document that owns their name span.
+
+The server maps a Logical span only when the captured source image equals the
+source snapshot read for that URI, the candidate span agrees with the owner, the
+index still reports the captured document revision, and the selected
+`DocumentPathAdmission` remains current through synchronous range projection.
+Open-document snapshots are also checked against the live document revision,
+raw source bytes, dialect and any retained provider admission at that final
+boundary. Host-reported file rows require that admission; in-memory URI rows and
+the Native provider keep their existing document-snapshot/index-revision path.
+A missing Logical source owner, changed URI mapping, changed open document or
+changed indexed revision leaves the candidate unavailable instead of applying
+its old span to different bytes. The provider callback protects the selected
+URI/path mapping; it does not lock external filesystem contents after the read.
+
+Native declaration rows keep their existing `OriginalIndexedSourceLocation`
+validation against the actual current analysis. The Logical owner supports only
+readonly report-location projection: it establishes no Native identity, lookup,
+execution, complete-workspace absence or source-edit authority.
+## Conditional namespace statement-horizon reports
+
+`WorkspaceIndex::conditional_namespace_import_advice` separately retains actual
+indexed source images/full inputs/Realms, original import/export/forget operands,
+source order and index revision. Its selected target is an independently held
+source publication matched through the actual final import pattern, not a
+report-name lookup. The existing temporal fold kernel is reused with a private
+source-horizon purpose; `modeled_source_exclusion`, Native export oracles,
+ordinary settlement and binding/edit folds retain their stronger purpose. The
+only order `modeled_source_exclusion` admits from source navigation is the
+same-document straight-line sequence of
+[import-order-source-graph.md §8.1](../analysis/import-order-source-graph.md),
+for folds with a query point and, through the admitted document end, for the
+unpositioned link fold.
+
+A written query uses its genuine source statement. The legacy report-only
+`u32::MAX` query spelling declares an end-of-document source horizon using the
+retained image extent; it does not issue an original command, enter a body or
+claim root completion. An unknown foreign query remains unplaced. Deferred or
+sibling bodies cannot donate root-horizon effects. Actual original forget
+patterns use the shared selected Native glob purposes and decline unsupported
+policy/context; raw lifecycle labels cannot retire source candidates. Missing
+operation evidence, uncertain chronology and unknown alternatives remain debt.
+
+`resolve_wildcard_import` is now only the explicit legacy compatibility
+presentation of that sealed advice. Its positive is conditional source navigation;
+its empty projection is neither complete candidate inventory nor live-slot
+absence. The preceding historical install/liveness explanation describes the
+strong modeled fold, exposed as `resolve_wildcard_import_for_binding`; it does
+not turn a source graph into interpreter chronology.
+
+Server readonly fallback retains the typed advice until its current index,
+source/configuration/publication and original provider leases agree. The existing
+readonly source preflight/currentness kernel is shared without recomputing full
+analysis just to validate currency. Unavailable advice is terminal and cannot
+fall through as an autoload miss. Both actual cross-document rename paths,
+prepare-rename and edit preflight explicitly retain Binding purpose; internal
+settlement continues to use its independent private strong index. The source
+report supplies no Native identity, installed alias, completed namespace effect,
+absence, execution or edit permission. Additional source lifecycle/body-replacement
+coverage remains unrepresented rather than inferred from raw labels.
+
+
+Readonly hover retains the conditional selection disposition through its own
+second legacy autoload tier. Both an empty conditional report and a conditional
+candidate whose current owner cannot supply hover text terminate without a new
+autoload donor. Ordinary genuine misses retain their existing library lookup;
+Binding callers cannot receive either conditional selection variant.

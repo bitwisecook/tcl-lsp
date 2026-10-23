@@ -49,28 +49,43 @@
 //! `{package Tk 8.5-8.6}` carries the name and reports that the window is
 //! not representable yet.
 //!
-//! Jim used to be the other one: the retired availability mask had no Jim
-//! member, so `available {jim 0.78-}` contributed nothing and gated the
-//! command off. A row names its family directly now (Q13), so a Jim window
-//! projects exactly as a Tcl one does.
+//! Jim availability windows retain their explicit family and release axis.
 
 use std::sync::LazyLock;
 use tcl_dialect::model::SpecWindow;
 
 use tcl_dialect::model::{Family, Version, VersionAxisId, VersionSet};
 
-use super::{Log, Stmt, leak_str, list_words};
+use super::{Log, Stmt, VocabularyClass, leak_str, list_words};
 use tcl_dialect::model::SpecSurface;
 
 /// What one `available` row set translates to in the 1.x fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(super) struct Availability {
-    /// The projected surface rows, `None` when no row parsed (the same
-    /// "said nothing" answer [`super::parse_dialects`] gives).
-    pub(super) surface: Option<&'static [SpecSurface]>,
+    /// Actual represented projected rows. Invalid explicit restrictions are
+    /// retained independently and cannot use omission's default projection.
+    surface: Option<&'static [SpecSurface]>,
+    unavailable: bool,
     /// The package a `{package NAME}` row requires, when it is not one the
     /// 1.x dialect words already name.
     pub(super) required_package: Option<&'static str>,
+}
+
+impl Availability {
+    /// Explicit restriction representation is unavailable, not proven absent.
+    pub(super) fn is_unavailable(self) -> bool {
+        self.unavailable
+    }
+
+    /// Source restriction projection, never physical/provider absence. An
+    /// unavailable explicit restriction cannot inherit an omitted default.
+    pub(super) fn surface(self) -> Option<&'static [SpecSurface]> {
+        if self.unavailable {
+            Some(&[])
+        } else {
+            self.surface
+        }
+    }
 }
 
 /// The provider keywords a spec row may open with. Closed: an unknown
@@ -151,13 +166,23 @@ pub(super) fn from_flag(text: &str, line: u32, log: &mut Log) -> Availability {
 pub(super) fn from_texts(words: &[String], line: u32, log: &mut Log) -> Availability {
     if words.is_empty() {
         log.say(line, "`available` needs at least one `{PROVIDER …}` row");
-        return Availability::default();
+        log.say_classified(
+            line,
+            VocabularyClass::Semantic,
+            "explicit availability restriction is unavailable; no unrestricted default is inferred",
+        );
+        return Availability {
+            unavailable: true,
+            ..Availability::default()
+        };
     }
     let mut rows: Vec<SpecSurface> = Vec::new();
     let mut required_package = None;
     let mut parsed_any = false;
+    let mut unavailable = false;
     for row in split_rows(words) {
         let Some(row) = parse_row(&row, line, log) else {
+            unavailable = true;
             continue;
         };
         // A row that names only a package the model has no compiled surface
@@ -182,7 +207,12 @@ pub(super) fn from_texts(words: &[String], line: u32, log: &mut Log) -> Availabi
             }
         }
     }
+    if unavailable {
+        log.say_classified(line, VocabularyClass::Semantic,
+            "explicit availability restriction contains an unavailable provider/window; no unrestricted default is inferred");
+    }
     Availability {
+        unavailable,
         surface: parsed_any.then(|| &*Box::leak(rows.into_boxed_slice())),
         required_package,
     }
@@ -247,7 +277,12 @@ fn parse_row(words: &[String], line: u32, log: &mut Log) -> Option<Row> {
                 "`f5-bigip` is a configuration surface off the Tcl axis and is not an \
                  `available` provider (design §2, Q3); the row is dropped",
             );
-            None
+            // Preserve the existing explicitly out-of-Tcl-axis compatibility
+            // policy (dedicated product semantics are not a generic provider).
+            Some(Row {
+                surface: Vec::new(),
+                package: None,
+            })
         }
         "package" => package_row(rest, line, log),
         "" => {
@@ -415,5 +450,81 @@ fn window_of(
             );
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod explicit_restriction_controls {
+    use super::*;
+
+    #[test]
+    fn unknown_or_invalid_explicit_restrictions_cannot_inherit_omitted_defaults() {
+        assert_eq!(Availability::default().surface(), None);
+        for row in [
+            vec!["klingon 1.0".to_owned()],
+            vec!["tcl not-a-version".to_owned()],
+            Vec::new(),
+            vec!["tcl 8.6-".to_owned(), "unknown".to_owned()],
+        ] {
+            let mut log = Log::default();
+            let availability = from_texts(&row, 1, &mut log);
+            assert!(availability.unavailable, "{row:?}");
+            assert_eq!(availability.surface(), Some(&[][..]));
+            assert!(log.semantic_unknown);
+        }
+        for source in [
+            "speclib probe 2.0 {command bad {arity 1; available {klingon 1.0}}}",
+            "speclib probe 2.0 {command bad {arity 1; available {tcl not-a-version}}}",
+            "speclib probe 2.0 {command bad {arity 1; option -x -available {klingon}}}",
+        ] {
+            let pack = super::super::evaluate_pack(source);
+            assert!(
+                pack.command("bad").is_none(),
+                "unknown restriction must not publish strong command metadata"
+            );
+            assert!(
+                pack.notices
+                    .iter()
+                    .any(|notice| notice.message.contains("no unrestricted default"))
+            );
+        }
+    }
+
+    #[test]
+    fn actual_availability_query_refuses_unknown_requirement_and_unknown_declared_support() {
+        for source in [
+            "speclib probe 2.0 {if {[available? {klingon}]} {command bad {arity 1}}}",
+            "speclib probe 2.0 {default available {klingon}; if {[available? {tcl 8.6-}]} {command bad {arity 1}}}",
+        ] {
+            let pack = super::super::evaluate_pack(source);
+            assert!(pack.command("bad").is_none());
+            assert!(
+                pack.notices
+                    .iter()
+                    .any(|notice| notice.message.contains("no boolean answer")),
+                "{:?}",
+                pack.notices
+            );
+        }
+    }
+
+    #[test]
+    fn valid_source_restrictions_and_known_off_axis_compatibility_remain_distinct() {
+        let pack = super::super::evaluate_pack(
+            "speclib probe 2.0 {command good {arity 1; available {tcl 8.6-}}}",
+        );
+        assert_eq!(
+            pack.command("good").unwrap().spec.surface,
+            Some(SpecSurface::TCL86_PLUS)
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let mut log = Log::default();
+        let package = from_texts(&["package Foo".to_owned()], 1, &mut log);
+        assert!(!package.unavailable);
+        assert_eq!(package.surface(), None);
+        assert_eq!(package.required_package, Some("Foo"));
+        let off_axis = from_texts(&["f5-bigip".to_owned()], 1, &mut log);
+        assert!(!off_axis.unavailable);
+        assert_eq!(off_axis.surface(), None);
     }
 }

@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnosticsSnapshot } from "./helper";
 
 // Normalise the `code` field (string | { value }) to a plain string.
 function codeOf(d: vscode.Diagnostic): string {
@@ -49,9 +49,13 @@ suite("Arity + loop-termination precision", () => {
   test("E003 highlights only the surplus arguments", async () => {
     await activate(docUri);
     // W241 on line 7 is the marker that a full analysis ran.
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W241"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const e003 = withCode(diags, "E003");
     assert.strictEqual(e003.length, 1, `expected one E003; got ${JSON.stringify(e003)}`);
     const r = e003[0].range;
@@ -64,17 +68,25 @@ suite("Arity + loop-termination precision", () => {
 
   test("lmap even arg count fires E005", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W241"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(linesWithCode(diags, "E005").includes(3), "lmap a b c d must fire E005 on line 3");
   });
 
   test("global and auto_load two-arg forms have no arity error", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W241"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(!linesWithCode(diags, "E002").includes(4), "bare `global` must not fire E002");
     assert.ok(
       !linesWithCode(diags, "E003").includes(5),
@@ -84,9 +96,13 @@ suite("Arity + loop-termination precision", () => {
 
   test("while-true with throw is not flagged infinite (W241)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W241"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w241Lines = linesWithCode(diags, "W241");
     assert.ok(!w241Lines.includes(6), "throw in the body must suppress W241");
     assert.ok(w241Lines.includes(7), "a body with no exit must still fire W241");

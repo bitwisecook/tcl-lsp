@@ -28,8 +28,10 @@
 //! The result is pure metadata hung off [`crate::ir::BpfProgramDecl::attach`]
 //! for a future ELF/loader — codegen ignores it.
 
+use crate::source::OriginalBpfSource;
 use tcl_compiler::{Script, Statement};
 use tcl_lexer::Span;
+use tcl_registry::CommandRegistry;
 
 use crate::diag::{BpfDiag, BpfError};
 use crate::event::event_to_prog_type;
@@ -39,9 +41,14 @@ use crate::ir::{AttachSpec, BpfProgramDecl, ProgType};
 /// level.
 ///
 /// # Errors
-/// Bad arity, more than one `attach`, or an unknown attach kind.
-pub fn collect_attach(top_level: &Script) -> Result<Option<AttachSpec>, BpfError> {
-    Ok(find_attach(top_level)?.map(|(spec, _)| spec))
+/// Missing original static operands, bad arity, more than one `attach`, or an
+/// unknown attach kind.
+pub fn collect_attach(
+    top_level: &Script,
+    registry: &CommandRegistry,
+    source: &OriginalBpfSource,
+) -> Result<Option<AttachSpec>, BpfError> {
+    Ok(find_attach(top_level, registry, source)?.map(|(spec, _)| spec))
 }
 
 /// Resolve a file's `attach` onto the programs it governs: every program whose
@@ -51,8 +58,13 @@ pub fn collect_attach(top_level: &Script) -> Result<Option<AttachSpec>, BpfError
 /// # Errors
 /// A malformed/duplicate/unknown `attach`, or an `attach` that matches no
 /// program's type (a deployment that could never apply).
-pub fn resolve_attach(top_level: &Script, programs: &mut [BpfProgramDecl]) -> Result<(), BpfError> {
-    let Some((spec, span)) = find_attach(top_level)? else {
+pub fn resolve_attach(
+    top_level: &Script,
+    programs: &mut [BpfProgramDecl],
+    registry: &CommandRegistry,
+    source: &OriginalBpfSource,
+) -> Result<(), BpfError> {
+    let Some((spec, span)) = find_attach(top_level, registry, source)? else {
         return Ok(());
     };
     let want = event_to_prog_type(&spec.kind);
@@ -85,20 +97,22 @@ pub fn attach_prog_type(kind: &str) -> Option<ProgType> {
 
 /// Scan the top level for the single `attach` declaration, returning its parsed
 /// spec and declaration span.
-fn find_attach(top_level: &Script) -> Result<Option<(AttachSpec, Span)>, BpfError> {
+fn find_attach(
+    top_level: &Script,
+    registry: &CommandRegistry,
+    source: &OriginalBpfSource,
+) -> Result<Option<(AttachSpec, Span)>, BpfError> {
+    source.validate_script(top_level, registry, BpfDiag::BadAttach)?;
     let mut found: Option<(AttachSpec, Span)> = None;
     for stmt in &top_level.statements {
+        let declaration = source.declaration_kind(stmt, registry, BpfDiag::BadAttach)?;
         let Statement::Call {
-            command,
-            canonical_command,
-            args,
-            span,
-            ..
+            args, span, tokens, ..
         } = stmt
         else {
             continue;
         };
-        if canonical_command.as_deref().unwrap_or(command.as_str()) != "attach" {
+        if declaration != Some(tcl_registry::bpf_op::BpfDeclKind::Attach) {
             continue;
         }
         if found.is_some() {
@@ -108,12 +122,17 @@ fn find_attach(top_level: &Script) -> Result<Option<(AttachSpec, Span)>, BpfErro
                 "at most one `attach` per file (v1)",
             ));
         }
-        found = Some((parse_attach(args, *span)?, *span));
+        found = Some((parse_attach(args, tokens.as_ref(), source, *span)?, *span));
     }
     Ok(found)
 }
 
-fn parse_attach(args: &[String], span: Span) -> Result<AttachSpec, BpfError> {
+fn parse_attach(
+    args: &[String],
+    tokens: Option<&tcl_compiler::ir::CommandTokens>,
+    source: &OriginalBpfSource,
+    span: Span,
+) -> Result<AttachSpec, BpfError> {
     // attach KIND TARGET
     if args.len() != 2 {
         return Err(BpfError::new(
@@ -122,7 +141,18 @@ fn parse_attach(args: &[String], span: Span) -> Result<AttachSpec, BpfError> {
             "`attach` expects: attach KIND TARGET",
         ));
     }
-    let kind = &args[0];
+    let values = (0..args.len())
+        .map(|index| {
+            source.scalar(tokens, args, index).ok_or_else(|| {
+                BpfError::new(
+                    BpfDiag::BadAttach,
+                    span,
+                    "attach declarations require original static kind and target words",
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let kind = &values[0];
     if attach_prog_type(kind).is_none() {
         return Err(BpfError::new(
             BpfDiag::BadAttach,
@@ -132,6 +162,77 @@ fn parse_attach(args: &[String], span: Span) -> Result<AttachSpec, BpfError> {
     }
     Ok(AttachSpec {
         kind: kind.clone(),
-        target: args[1].clone(),
+        target: values[1].clone(),
     })
+}
+
+#[cfg(test)]
+mod original_operand_tests {
+    use super::*;
+    use tcl_compiler::ir::WordExpr;
+
+    #[test]
+    fn attach_selection_requires_the_actual_original_head_and_each_operand() {
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        for index in 0..3 {
+            let mut module = crate::source::lower_bpf_source(
+                if index == 0 {
+                    "ignore xdp eth0"
+                } else {
+                    "attach xdp eth0"
+                },
+                registry,
+            );
+            let source = OriginalBpfSource::from_module(&module);
+            if index != 0 {
+                let spec = collect_attach(&module.top_level, registry, &source)
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(spec.kind, "xdp");
+                assert_eq!(spec.target, "eth0");
+            }
+            let Statement::Call {
+                command,
+                args,
+                tokens: Some(tokens),
+                ..
+            } = &mut module.top_level.statements[0]
+            else {
+                panic!("original attach command");
+            };
+            let replacement = match index {
+                0 => "attach",
+                1 => "socket",
+                _ => "eth1",
+            };
+            let WordExpr::Literal { text, .. } = &mut tokens.word_exprs[index] else {
+                panic!("original literal operand");
+            };
+            *text = replacement.into();
+            tokens.argv_texts[index] = replacement.into();
+            if index == 0 {
+                *command = replacement.into();
+            } else {
+                args[index - 1] = replacement.into();
+            }
+            assert_eq!(
+                collect_attach(&module.top_level, registry, &source)
+                    .unwrap_err()
+                    .code,
+                BpfDiag::BadAttach
+            );
+        }
+        let mut module = crate::source::lower_bpf_source("attach xdp eth0", registry);
+        let source = OriginalBpfSource::from_module(&module);
+        let Statement::Call { tokens, .. } = &mut module.top_level.statements[0] else {
+            panic!("original attach command");
+        };
+        *tokens = None;
+        assert_eq!(
+            collect_attach(&module.top_level, registry, &source)
+                .unwrap_err()
+                .code,
+            BpfDiag::BadAttach
+        );
+    }
 }

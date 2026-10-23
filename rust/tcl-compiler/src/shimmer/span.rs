@@ -116,6 +116,7 @@ mod tests {
                 d
             },
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };

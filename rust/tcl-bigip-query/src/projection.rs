@@ -2524,9 +2524,19 @@ pub fn resolve_pathref(reference: &PathRef, root: &Rc<Root>) -> Option<Rc<Object
 
 #[cfg(test)]
 mod tests {
-    use super::{KINDS, placed_kind};
+    use super::{KINDS, MODULE_NAMES, placed_kind};
     use std::collections::BTreeSet;
     use tcl_bigip::parser::parse_bigip_conf;
+
+    /// The root's module containers and the configuration lexer's stanza
+    /// modules are one set: a module this projection navigates is one whose
+    /// header the editor layers paint as a header.
+    #[test]
+    fn root_modules_are_the_configuration_modules() {
+        let root: BTreeSet<&str> = MODULE_NAMES.iter().copied().collect();
+        let lexer: BTreeSet<&str> = tcl_bigip::conf_tokens::MODULES.iter().copied().collect();
+        assert_eq!(root, lexer);
+    }
 
     /// The committed configs the coverage gate reads. Between them they carry
     /// every module the parser types, so a kind the model gains without a

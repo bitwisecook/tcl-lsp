@@ -1,10 +1,10 @@
 # WASM extensions
 
-> **Current truth:** the Rust runtime embeds optional Tcl scripts through the
-> `wasm_stdlib` Cargo feature. The compiler does not yet select or bundle
-> package-specific runtime extensions.
+The Rust runtime embeds optional Tcl scripts through the `wasm_stdlib` Cargo
+feature. The compiler does not select or bundle package-specific runtime
+extensions.
 
-## What ships today
+## Embedded scripts
 
 `runtime/rust/Cargo.toml` defines `wasm_stdlib`. When enabled,
 `runtime/rust/src/embedded_stdlib.rs` seeds the in-memory filesystem with
@@ -29,13 +29,9 @@ are loaded by the runtime and do not create a second compiler backend.
 
 ## Package-driven extensions (not implemented)
 
-A package-aware extension system would scan retained `package require` facts
-from `CompilationUnit` through generic package metadata, resolve requested
-runtime features against an explicit extension registry, build or select
-compatible runtime/extension artefacts, and link them with the canonical
-`WasmModule` while preserving the shared memory, object ownership,
-completion, and capability contracts. It must not add a second compiler
-backend or an out-of-band bundle test path.
+A `package require` in compiled source does not select runtime features or
+package-specific artefacts. Runtime package availability depends on the
+commands and files supplied by the selected runtime and host.
 
 ## Related
 

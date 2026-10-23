@@ -220,54 +220,64 @@ impl CommandSemantics for ContinueSemantics {
     }
 }
 
-/// One word of a `return` invocation, as the decoding of its options reads
-/// it ([`decode_return`]).
+/// One value read by the return-options decoder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReturnWord<'w> {
-    /// A word whose value is this text.
+    /// An exact logical value.
     Text(&'w str),
-    /// A computed word whose value cannot begin with `-`, so it names none of
-    /// the options a release reads.
+    /// Exact counted bytes, which expose ASCII option syntax only. Opaque
+    /// non-ASCII bytes retain an unknown value rather than a text projection.
+    Bytes(&'w [u8]),
+    /// A computed value whose nonempty prefix cannot begin with `-`.
     NotAnOption,
-    /// A computed word.
+    /// A computed value with no selected option syntax.
     Unknown,
 }
 
-/// Why [`decode_return`] gives no answer.
+/// Why the return-options decoder cannot determine a completion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReturnUnknown {
-    /// A word the decoding reads is computed.
+    /// A word whose value the selected grammar reads is not exact.
     Word,
-    /// `-options` merges a dictionary, which the decoding does not read.
+    /// An options dictionary lacks exact contents.
     Options,
-    /// The target's release is not named, and the releases read the words
-    /// differently: 8.4 reads three options and rejects any other, 8.5 keeps
-    /// any pair; or a numeral the release's integer conversion reads its own
-    /// way.
+    /// An engine, release, numeric width or source/compiler distinction remains.
     Release,
 }
 
-/// The completion a `return` whose options are accepted gives.
+/// The admitted facet of a return invocation, independently of its values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReturnInvocationFacet {
+    /// Original-source advice without a selected native compiler artifact.
+    /// A source/worker disagreement remains unknown.
+    OriginalSource,
+    /// Already evaluated argv consumed by the selected original worker.
+    /// This facet does not itself establish that worker's availability.
+    EvaluatedArguments,
+}
+
+/// The completion carried by accepted return options.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReturnCompletion {
-    /// The code the completion carries once `level` frames are left. `-code
-    /// return` is `ok` one level further out, as every release reads it
-    /// (`catch {return -code return x} m o` leaves `o` `-code 0 -level 2`).
+    /// Eventual code. C Tcl normalises `return` to `ok` one level further out;
+    /// Jim retains code two and the supplied level.
     pub code: CompletionCode,
-    /// How many frames the completion climbs: 0 is the command's own
-    /// completion. 8.4 has no `-level`, so it is 1 there.
+    /// Pending unwind count. Wider Jim levels remain unresolved because this
+    /// public representation does not carry Jim's signed-wide catch field.
     pub level: u32,
-    /// The index of the result word, `None` for the empty result.
+    /// Original argv ordinal of the result, or no result word.
     pub result: Option<usize>,
-    /// The index of the last `-errorcode` value word.
+    /// Original argv ordinal of the selected direct `-errorcode` value.
     pub error_code: Option<usize>,
+    /// Exact selected `-errorcode` from an options dictionary. A nested member
+    /// is a value, not an invented original argv ordinal.
+    pub merged_error_code: Option<String>,
 }
 
 impl ReturnCompletion {
-    /// The code the command itself completes with: its own at level 0, and
-    /// `TCL_RETURN` while a level remains to climb.
+    /// Immediate completion, before a procedure consumes any unwind level.
     #[must_use]
-    pub fn own_code(self) -> CompletionCode {
+    pub fn own_code(&self) -> CompletionCode {
         if self.level == 0 {
             self.code
         } else {
@@ -276,123 +286,429 @@ impl ReturnCompletion {
     }
 }
 
-/// What a `return` completes with, read from its words ([`decode_return`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A selected return grammar's completion or explicit unresolved premise.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReturnDecoding {
-    /// The release accepts the options, and the command completes so.
+    /// The selected grammar accepts these values.
     Completes(ReturnCompletion),
-    /// The release rejects an option or its value: the command raises
-    /// `TCL_ERROR` before it returns.
+    /// The selected grammar rejects a known option or value.
     Rejects,
-    /// What the command completes with is not known.
+    /// A required value, grammar or invocation facet is unavailable.
     Unknown(ReturnUnknown),
 }
 
-/// `return`'s `count` words after its name, read as the release `profile`
-/// runs reads them (`Tcl_ReturnObjCmd` and `TclMergeReturnOptions`, 8.4 to
-/// 9.1): the one decoding of `return`'s options, which the lowering, the CFG,
-/// the registry's completion queries and the solver's route all read.
-///
-/// While two words remain the first names an option and the second is its
-/// value, and a last word on its own is the result, whatever it starts with
-/// (`return -code` returns the text `-code`). `-code` takes one of the five
-/// names or an integer, `-errorinfo` any value, and `-errorcode` a list from
-/// 8.5 (8.4 takes any text); any other name is rejected by 8.4. From 8.5
-/// `-level` takes a non-negative integer, `-options` merges a dictionary,
-/// `-errorstack` takes a list of even length from 8.6, and any other pair is
-/// kept in the options dictionary, which changes nothing here. A later pair
-/// replaces an earlier one. Integers are read with the release's numeral
-/// grammar and its 32-bit conversion (`010` is 8 in 8.x and 10 from 9.0).
-/// Where the target names no release, only the readings every release
-/// shares are answered.
+#[derive(Debug, Clone, Copy)]
+struct ReturnTarget {
+    grammar: crate::completion_route::ReturnInvocationGrammar,
+    numbers: Numbers,
+    release: Option<TclVersion>,
+    facet: ReturnInvocationFacet,
+}
+
+impl ReturnTarget {
+    fn for_profile(profile: Option<&DialectProfile>) -> Self {
+        let dialect = profile.map(crate::InvocationDialect::of_profile);
+        Self {
+            grammar: dialect.map_or(
+                crate::completion_route::ReturnInvocationGrammar::Unknown,
+                crate::completion_route::ReturnInvocationGrammar::for_dialect,
+            ),
+            numbers: dialect.map_or(Numbers::Unknown, |dialect| Numbers::Target(dialect.numbers)),
+            release: dialect.and_then(|dialect| dialect.tcl_version),
+            facet: ReturnInvocationFacet::OriginalSource,
+        }
+    }
+
+    fn option_name(self, text: &str) -> &str {
+        if self.grammar == crate::completion_route::ReturnInvocationGrammar::Jim {
+            text.split_once('\0').map_or(text, |(prefix, _)| prefix)
+        } else {
+            text
+        }
+    }
+}
+
+/// Explicit standalone original-source advice under the supplied profile.
+/// The last odd word is the result even when it resembles an option. Actual
+/// retained invocations use [`decode_return_words_in`] with their real facet.
+#[must_use]
 pub fn decode_return<'w>(
     profile: Option<&'static DialectProfile>,
     count: usize,
     word: impl Fn(usize) -> ReturnWord<'w>,
 ) -> ReturnDecoding {
-    let target = TargetSemantics::of(profile);
-    let numbers = target.numerals.map_or(Numbers::Unknown, Numbers::Target);
-    // Whether the release keeps any pair in a dictionary (8.5 on) or reads
-    // three options and rejects the rest (8.4); `None` where it is unnamed.
-    let dictionary = target
-        .release
-        .map(TclVersion::has_return_options_dictionary);
-    let result = (count % 2 == 1).then(|| count - 1);
-    let mut completion = ReturnCompletion {
-        code: CompletionCode::Ok,
-        level: 1,
-        result,
-        error_code: None,
+    decode_return_in(ReturnTarget::for_profile(profile), count, &word)
+}
+
+/// Standalone source-word adapter. An actual retained dialect is consumed
+/// directly; the profile is only this explicit compatibility entry's input.
+#[must_use]
+pub fn decode_return_words(
+    profile: Option<&'static DialectProfile>,
+    args: InvocationArguments<'_>,
+) -> ReturnDecoding {
+    let mut target = ReturnTarget::for_profile(profile);
+    if let Some(dialect) = args.dialect() {
+        target.grammar = crate::completion_route::ReturnInvocationGrammar::for_dialect(dialect);
+        target.numbers = Numbers::Target(dialect.numbers);
+        target.release = dialect.tcl_version;
+    }
+    decode_argument_words(target, args)
+}
+
+/// Decode the selected original grammar, numeric policy, actual release and
+/// invocation facet. Source advice cannot establish a worker, compiler entry,
+/// result object or frame. Expansion and opaque operand syntax stay unknown.
+#[must_use]
+pub fn decode_return_words_in(
+    grammar: crate::completion_route::ReturnInvocationGrammar,
+    numbers: Numbers,
+    args: InvocationArguments<'_>,
+    facet: ReturnInvocationFacet,
+) -> ReturnDecoding {
+    decode_argument_words(
+        ReturnTarget {
+            grammar,
+            numbers,
+            release: args.dialect().and_then(|dialect| dialect.tcl_version),
+            facet,
+        },
+        args,
+    )
+}
+
+fn decode_argument_words(target: ReturnTarget, args: InvocationArguments<'_>) -> ReturnDecoding {
+    let Some(count) = args.exact_argv_len() else {
+        return ReturnDecoding::Unknown(ReturnUnknown::Word);
     };
-    for at in (0..count - usize::from(result.is_some())).step_by(2) {
-        let name = match word(at) {
-            ReturnWord::Text(name) => name,
-            ReturnWord::NotAnOption => match dictionary {
-                Some(true) => continue,
-                Some(false) => return ReturnDecoding::Rejects,
-                None => return ReturnDecoding::Unknown(ReturnUnknown::Release),
+    decode_return_in(target, count, &|at| match args.get(at) {
+        Some(InvocationWord::Literal(text))
+            if args.is_source_aware() || !tcl_syntax::naming::is_dynamic_word(text) =>
+        {
+            ReturnWord::Text(text)
+        }
+        Some(InvocationWord::KnownBytes(bytes)) => ReturnWord::Bytes(bytes),
+        Some(InvocationWord::DynamicNonOption) => ReturnWord::NotAnOption,
+        _ => ReturnWord::Unknown,
+    })
+}
+
+fn unanimous_return(answers: impl IntoIterator<Item = ReturnDecoding>) -> ReturnDecoding {
+    let mut answers = answers.into_iter();
+    let Some(first) = answers.next() else {
+        return ReturnDecoding::Unknown(ReturnUnknown::Release);
+    };
+    if answers.all(|answer| answer == first) {
+        first
+    } else {
+        ReturnDecoding::Unknown(ReturnUnknown::Release)
+    }
+}
+
+fn decode_return_in<'w>(
+    target: ReturnTarget,
+    count: usize,
+    word: &impl Fn(usize) -> ReturnWord<'w>,
+) -> ReturnDecoding {
+    use crate::completion_route::ReturnInvocationGrammar as Grammar;
+    if target.grammar == Grammar::Unknown {
+        return unanimous_return(
+            [Grammar::LegacyTcl, Grammar::OptionsTcl, Grammar::Jim]
+                .map(|grammar| decode_return_in(ReturnTarget { grammar, ..target }, count, word)),
+        );
+    }
+    if target.grammar == Grammar::OptionsTcl && target.release.is_none() {
+        return unanimous_return([TclVersion::V8_5, TclVersion::V8_6, TclVersion::V9_0].map(
+            |release| {
+                decode_return_in(
+                    ReturnTarget {
+                        release: Some(release),
+                        ..target
+                    },
+                    count,
+                    word,
+                )
             },
-            ReturnWord::Unknown => return ReturnDecoding::Unknown(ReturnUnknown::Word),
-        };
-        let value = word(at + 1);
-        let read = match name {
-            "-code" => read_code(value, numbers).map(|code| completion.code = code),
-            "-errorinfo" => Ok(()),
-            "-errorcode" => {
-                completion.error_code = Some(at + 1);
-                match dictionary {
-                    Some(false) => Ok(()),
-                    _ => read_list(value, dictionary, |_| true),
-                }
-            }
-            _ if dictionary == Some(false) => Err(ReturnDecoding::Rejects),
-            _ if dictionary.is_none() => Err(ReturnDecoding::Unknown(ReturnUnknown::Release)),
-            "-level" => read_level(value, numbers).map(|level| completion.level = level),
-            "-options" => Err(ReturnDecoding::Unknown(ReturnUnknown::Options)),
-            "-errorstack"
-                if target
-                    .release
-                    .is_some_and(|release| release >= TclVersion::V8_6) =>
-            {
-                read_list(value, dictionary, |elements| elements % 2 == 0)
-            }
-            _ => Ok(()),
-        };
-        if let Err(decoding) = read {
-            return decoding;
+        ));
+    }
+    if target.grammar == Grammar::OptionsTcl
+        && target.release == Some(TclVersion::V8_5)
+        && target.facet == ReturnInvocationFacet::OriginalSource
+    {
+        // Native source379/380 and worker383 measure different nested-option
+        // readings in C85. No selected compiler artifact is present here.
+        return unanimous_return(
+            [false, true].map(|inline| decode_return_selected(target, count, word, inline)),
+        );
+    }
+    decode_return_selected(
+        target,
+        count,
+        word,
+        target.release != Some(TclVersion::V8_5),
+    )
+}
+
+#[derive(Debug, Clone)]
+struct ReturnOption<'w> {
+    value: Option<std::borrow::Cow<'w, str>>,
+    ordinal: Option<usize>,
+}
+
+impl<'w> ReturnOption<'w> {
+    fn from_word(value: ReturnWord<'w>, ordinal: usize) -> Self {
+        Self {
+            value: return_word_text(value).map(std::borrow::Cow::Borrowed),
+            ordinal: Some(ordinal),
         }
     }
-    if completion.code == CompletionCode::Return {
-        completion.code = CompletionCode::Ok;
-        completion.level = completion.level.saturating_add(1);
-    }
-    ReturnDecoding::Completes(completion)
-}
 
-/// A `-code` value: one of the five names or an integer the release's
-/// conversion reads.
-fn read_code(value: ReturnWord<'_>, numbers: Numbers) -> Result<CompletionCode, ReturnDecoding> {
-    let ReturnWord::Text(text) = value else {
-        return Err(ReturnDecoding::Unknown(ReturnUnknown::Word));
-    };
-    completion_code_selector(text, numbers).ok_or_else(|| not_an_integer(text, numbers))
-}
-
-/// A `-level` value: an integer the release's conversion reads as
-/// non-negative.
-fn read_level(value: ReturnWord<'_>, numbers: Numbers) -> Result<u32, ReturnDecoding> {
-    let ReturnWord::Text(text) = value else {
-        return Err(ReturnDecoding::Unknown(ReturnUnknown::Word));
-    };
-    match crate::completion::canonical_completion_code(text, numbers) {
-        Some(level) => u32::try_from(level).map_err(|_| ReturnDecoding::Rejects),
-        None => Err(not_an_integer(text, numbers)),
+    fn text(&self) -> Result<&str, ReturnDecoding> {
+        self.value
+            .as_deref()
+            .ok_or(ReturnDecoding::Unknown(ReturnUnknown::Word))
     }
 }
 
-/// The answer for an option value the conversion did not read: an integer
-/// spelling a release reads its own way, or one past the conversion's range,
-/// is left to the release, and anything else is rejected.
+fn return_word_text(word: ReturnWord<'_>) -> Option<&str> {
+    match word {
+        ReturnWord::Text(text) => Some(text),
+        ReturnWord::Bytes(bytes) if bytes.is_ascii() => std::str::from_utf8(bytes).ok(),
+        ReturnWord::Bytes(_) | ReturnWord::NotAnOption | ReturnWord::Unknown => None,
+    }
+}
+
+#[derive(Debug, Default)]
+struct ReturnOptions<'w> {
+    code: Option<ReturnOption<'w>>,
+    level: Option<ReturnOption<'w>>,
+    error_code: Option<ReturnOption<'w>>,
+    error_stack: Option<ReturnOption<'w>>,
+}
+
+impl<'w> ReturnOptions<'w> {
+    fn select(&mut self, name: &str, value: ReturnOption<'w>) {
+        match name {
+            "-code" => self.code = Some(value),
+            "-level" => self.level = Some(value),
+            "-errorcode" => self.error_code = Some(value),
+            "-errorstack" => self.error_stack = Some(value),
+            _ => {}
+        }
+    }
+
+    fn direct(
+        &mut self,
+        target: ReturnTarget,
+        name: &str,
+        value: ReturnOption<'w>,
+    ) -> Result<(), ReturnDecoding> {
+        use crate::completion_route::ReturnInvocationGrammar as Grammar;
+        match name {
+            "-code" => {
+                read_return_code(value.text()?, target)?;
+            }
+            "-level" if target.grammar == Grammar::Jim => {
+                read_return_level(value.text()?, target)?;
+            }
+            "-errorinfo" | "-errorcode" => {}
+            _ => return Err(ReturnDecoding::Rejects),
+        }
+        self.select(name, value);
+        Ok(())
+    }
+
+    fn finish(
+        self,
+        target: ReturnTarget,
+        result: Option<usize>,
+    ) -> Result<ReturnCompletion, ReturnDecoding> {
+        use crate::completion_route::ReturnInvocationGrammar as Grammar;
+        let mut code = self.code.as_ref().map_or(Ok(CompletionCode::Ok), |value| {
+            read_return_code(value.text()?, target)
+        })?;
+        let mut level = self
+            .level
+            .as_ref()
+            .map_or(Ok(1), |value| read_return_level(value.text()?, target))?;
+        if target.grammar == Grammar::OptionsTcl {
+            if let Some(value) = &self.error_code {
+                validate_return_list(value.text()?, false)?;
+            }
+            if target
+                .release
+                .is_some_and(|release| release >= TclVersion::V8_6)
+                && let Some(value) = &self.error_stack
+            {
+                validate_return_list(value.text()?, true)?;
+            }
+        }
+        if code == CompletionCode::Return && target.grammar != Grammar::Jim {
+            code = CompletionCode::Ok;
+            if level == i32::MAX.unsigned_abs() {
+                return Err(ReturnDecoding::Unknown(ReturnUnknown::Release));
+            }
+            level += 1;
+        }
+        let error_code = self.error_code.as_ref().and_then(|value| value.ordinal);
+        let merged_error_code = self
+            .error_code
+            .filter(|value| value.ordinal.is_none())
+            .and_then(|value| value.value.map(std::borrow::Cow::into_owned));
+        Ok(ReturnCompletion {
+            code,
+            level,
+            result,
+            error_code,
+            merged_error_code,
+        })
+    }
+}
+
+fn decode_return_selected<'w>(
+    target: ReturnTarget,
+    count: usize,
+    word: &impl Fn(usize) -> ReturnWord<'w>,
+    inline: bool,
+) -> ReturnDecoding {
+    use crate::completion_route::ReturnInvocationGrammar as Grammar;
+    let result = (count % 2 == 1).then(|| count - 1);
+    let mut options = ReturnOptions::default();
+    for at in (0..count - count % 2).step_by(2) {
+        let name_word = word(at);
+        let Some(name) = return_word_text(name_word) else {
+            if name_word == ReturnWord::NotAnOption {
+                if target.grammar == Grammar::OptionsTcl {
+                    continue;
+                }
+                return ReturnDecoding::Rejects;
+            }
+            return ReturnDecoding::Unknown(ReturnUnknown::Word);
+        };
+        let name = target.option_name(name);
+        let value = ReturnOption::from_word(word(at + 1), at + 1);
+        let selected = if target.grammar != Grammar::OptionsTcl {
+            options.direct(target, name, value)
+        } else if name == "-options" {
+            merge_return_options(&mut options, value, inline)
+        } else {
+            options.select(name, value);
+            Ok(())
+        };
+        if let Err(answer) = selected {
+            return answer;
+        }
+    }
+    options
+        .finish(target, result)
+        .map_or_else(|answer| answer, ReturnDecoding::Completes)
+}
+
+/// C85 expands the selected nested dictionary after merging its surrounding
+/// entries. C86+ expands every nested list pair in place. The iterative stack
+/// preserves that order without imposing a source-depth or host-stack limit.
+fn merge_return_options<'w>(
+    options: &mut ReturnOptions<'w>,
+    value: ReturnOption<'w>,
+    inline: bool,
+) -> Result<(), ReturnDecoding> {
+    let text = value
+        .value
+        .ok_or(ReturnDecoding::Unknown(ReturnUnknown::Options))?;
+    let mut pending = vec![return_option_pairs(&text)?.into_iter()];
+    let mut deferred: Vec<Option<String>> = Vec::new();
+    while let Some(pairs) = pending.last_mut() {
+        let Some((name, value)) = pairs.next() else {
+            pending.pop();
+            if !inline && let Some(value) = deferred.pop().flatten() {
+                pending.push(return_option_pairs(&value)?.into_iter());
+                deferred.push(None);
+            }
+            continue;
+        };
+        if name == "-options" {
+            if inline {
+                pending.push(return_option_pairs(&value)?.into_iter());
+            } else if let Some(nested) = deferred.last_mut() {
+                *nested = Some(value);
+            } else {
+                deferred.push(Some(value));
+            }
+        } else {
+            options.select(
+                &name,
+                ReturnOption {
+                    value: Some(std::borrow::Cow::Owned(value)),
+                    ordinal: None,
+                },
+            );
+        }
+    }
+    Ok(())
+}
+
+fn return_option_pairs(text: &str) -> Result<Vec<(String, String)>, ReturnDecoding> {
+    let elements = WordValueRules::TCL
+        .split_list(text)
+        .map_err(|_| ReturnDecoding::Rejects)?;
+    if elements.len() % 2 != 0 {
+        return Err(ReturnDecoding::Rejects);
+    }
+    Ok(elements
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|[key, value]| (key.to_string(), value.to_string()))
+        .collect())
+}
+
+fn read_return_code(text: &str, target: ReturnTarget) -> Result<CompletionCode, ReturnDecoding> {
+    use crate::completion::{CompletionCodeSelection, resolve_completion_code_selector};
+    match resolve_completion_code_selector(
+        target.option_name(text),
+        target.numbers,
+        target.grammar.completion_code_policy(target.release),
+    ) {
+        CompletionCodeSelection::Exact(code) => Ok(code),
+        CompletionCodeSelection::Invalid => Err(ReturnDecoding::Rejects),
+        CompletionCodeSelection::Unknown => Err(ReturnDecoding::Unknown(ReturnUnknown::Release)),
+    }
+}
+
+fn read_return_level(text: &str, target: ReturnTarget) -> Result<u32, ReturnDecoding> {
+    use crate::completion::CompletionCodePolicy as Policy;
+    let text = target.option_name(text);
+    let Some(value) = target.numbers.parse_wide(text) else {
+        return Err(not_an_integer(text, target.numbers));
+    };
+    let policy = target.grammar.completion_code_policy(target.release);
+    if policy == Policy::Jim {
+        if value < 0 {
+            return Err(ReturnDecoding::Rejects);
+        }
+        return u32::try_from(value)
+            .ok()
+            .filter(|level| *level <= i32::MAX.unsigned_abs())
+            .ok_or(ReturnDecoding::Unknown(ReturnUnknown::Release));
+    }
+    let lower = match policy {
+        Policy::Tcl8 => -i64::from(u32::MAX),
+        Policy::Tcl9 | Policy::Unknown => i64::from(i32::MIN),
+        Policy::Jim => unreachable!("Jim levels use their separate width contract"),
+    };
+    if value < lower || value > i64::from(u32::MAX) {
+        return Err(
+            if policy == Policy::Unknown && value >= -i64::from(u32::MAX) && value < lower {
+                ReturnDecoding::Unknown(ReturnUnknown::Release)
+            } else {
+                ReturnDecoding::Rejects
+            },
+        );
+    }
+    let [a, b, c, d, ..] = value.to_le_bytes();
+    u32::try_from(i32::from_le_bytes([a, b, c, d])).map_err(|_| ReturnDecoding::Rejects)
+}
+
 fn not_an_integer(text: &str, numbers: Numbers) -> ReturnDecoding {
     let integer = |syntax: NumberSyntax| {
         matches!(
@@ -400,54 +716,17 @@ fn not_an_integer(text: &str, numbers: Numbers) -> ReturnDecoding {
             Some(Number::Int(_) | Number::Big { .. })
         )
     };
-    if numbers
-        .syntax()
-        .map_or_else(|| NumberSyntax::any(integer), integer)
-    {
+    if numbers.syntax().is_none() && NumberSyntax::any(integer) {
         ReturnDecoding::Unknown(ReturnUnknown::Release)
     } else {
         ReturnDecoding::Rejects
     }
 }
 
-/// [`decode_return`] over an invocation's words: a literal is its text — save,
-/// in the literal compatibility view, one spelled as a substitution
-/// (`$code`), which may hold any value — a substituted word that cannot begin
-/// with `-` names no option, and any other word is unknown. A word an
-/// expansion contributes leaves the count unknown.
-#[must_use]
-pub fn decode_return_words(
-    profile: Option<&'static DialectProfile>,
-    args: InvocationArguments<'_>,
-) -> ReturnDecoding {
-    let Some(count) = args.exact_argv_len() else {
-        return ReturnDecoding::Unknown(ReturnUnknown::Word);
-    };
-    decode_return(profile, count, |at| match args.get(at) {
-        Some(InvocationWord::Literal(text))
-            if args.is_source_aware() || !tcl_syntax::naming::is_dynamic_word(text) =>
-        {
-            ReturnWord::Text(text)
-        }
-        Some(InvocationWord::DynamicNonOption) => ReturnWord::NotAnOption,
-        _ => ReturnWord::Unknown,
-    })
-}
-
-/// A value 8.5 on requires to be a list whose element count `fits`: a
-/// release that requires it rejects any other, and an unnamed release may.
-fn read_list(
-    value: ReturnWord<'_>,
-    dictionary: Option<bool>,
-    fits: impl Fn(usize) -> bool,
-) -> Result<(), ReturnDecoding> {
-    let ReturnWord::Text(text) = value else {
-        return Err(ReturnDecoding::Unknown(ReturnUnknown::Word));
-    };
+fn validate_return_list(text: &str, even: bool) -> Result<(), ReturnDecoding> {
     match WordValueRules::TCL.split_list(text) {
-        Ok(elements) if fits(elements.len()) => Ok(()),
-        _ if dictionary == Some(true) => Err(ReturnDecoding::Rejects),
-        _ => Err(ReturnDecoding::Unknown(ReturnUnknown::Release)),
+        Ok(elements) if !even || elements.len() % 2 == 0 => Ok(()),
+        _ => Err(ReturnDecoding::Rejects),
     }
 }
 
@@ -460,10 +739,10 @@ fn read_list(
 /// `-errorcode` word where one is given. Options the release rejects are an
 /// error whose message the route does not word.
 ///
-/// A word the solver has not reached makes the answer pending. An option
-/// word that is not exact, `-options`, whose dictionary the decoding does not
-/// merge, and a reading that depends on a release the target does not name
-/// decline. The result is exact where its word is, and unproven otherwise.
+/// A word the solver has not reached makes the answer pending. Exact options
+/// dictionaries are merged by the shared decoder. A required computed word,
+/// an unresolved native width or a source/compiler disagreement declines. The
+/// result is exact where its selected original word is, and unproven otherwise.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReturnSemantics;
 
@@ -485,7 +764,11 @@ impl ReturnSemantics {
             });
         }
         let text = |at: usize| options.get(at).and_then(Option::as_deref);
-        let returned = match decode_return(input.context().profile, count, |at| {
+        let mut target = ReturnTarget::for_profile(input.context().profile);
+        if input.context().profile.is_some() {
+            target.numbers = Numbers::Target(input.context().grammar.numbers);
+        }
+        let returned = match decode_return_in(target, count, &|at| {
             text(at).map_or(ReturnWord::Unknown, ReturnWord::Text)
         }) {
             ReturnDecoding::Completes(returned) => returned,
@@ -525,7 +808,12 @@ impl ReturnSemantics {
                 written: 0,
                 message: result.clone(),
                 error_code: returned.error_code.map_or_else(
-                    || ExactValueOrUnavailable::exact_text("NONE"),
+                    || {
+                        returned.merged_error_code.as_deref().map_or_else(
+                            || ExactValueOrUnavailable::exact_text("NONE"),
+                            ExactValueOrUnavailable::exact_text,
+                        )
+                    },
                     |at| {
                         text(at).map_or_else(ExactValueOrUnavailable::unproven_string, |code| {
                             ExactValueOrUnavailable::exact_text(code)
@@ -1118,5 +1406,855 @@ impl CommandSemantics for TrySemantics {
             reconcile: Reconcile::None,
             completion: CompletionProtocol::Handlers { handlers, finally },
         }
+    }
+}
+
+#[cfg(test)]
+mod return_decoder_tests {
+    use super::*;
+    use crate::completion_route::ReturnInvocationGrammar as Grammar;
+    use crate::invocation_words::InvocationWord::{KnownBytes as B, Literal as L};
+
+    // Post-evaluation values of the exact native request cases. Counted NUL
+    // values are binary-produced in the probe, not source NUL characters.
+    const CASES: &[(&str, &[InvocationWord<'static>])] = &[
+        ("empty", &[]),
+        ("result", &[L("RESULT")]),
+        ("ordinary_pair", &[L("foo"), L("bar")]),
+        ("ordinary_pair_result", &[L("foo"), L("bar"), L("RESULT")]),
+        ("ordinary_pairs", &[L("foo"), L("bar"), L("baz"), L("quux")]),
+        ("lone_code", &[L("-code")]),
+        ("lone_level", &[L("-level")]),
+        ("lone_options", &[L("-options")]),
+        ("lone_dashdash", &[L("--")]),
+        ("dashdash_pair", &[L("--"), L("VALUE")]),
+        ("code_ok", &[L("-code"), L("ok"), L("RESULT")]),
+        ("code_error", &[L("-code"), L("error"), L("RESULT")]),
+        ("code_return", &[L("-code"), L("return"), L("RESULT")]),
+        ("code_break", &[L("-code"), L("break"), L("RESULT")]),
+        ("code_continue", &[L("-code"), L("continue"), L("RESULT")]),
+        ("code_signal", &[L("-code"), L("signal"), L("RESULT")]),
+        ("code_exit", &[L("-code"), L("exit"), L("RESULT")]),
+        ("code_eval", &[L("-code"), L("eval"), L("RESULT")]),
+        ("code_prefix", &[L("-code"), L("o"), L("RESULT")]),
+        ("code_010", &[L("-code"), L("010"), L("RESULT")]),
+        ("code_uintmax", &[L("-code"), L("4294967295"), L("RESULT")]),
+        (
+            "code_negative_uintmax",
+            &[L("-code"), L("-4294967295"), L("RESULT")],
+        ),
+        (
+            "code_over_uintmax",
+            &[L("-code"), L("4294967296"), L("RESULT")],
+        ),
+        ("code_intmin", &[L("-code"), L("-2147483648"), L("RESULT")]),
+        (
+            "code_bad_then_ok",
+            &[L("-code"), L("BAD"), L("-code"), L("ok"), L("RESULT")],
+        ),
+        (
+            "code_ok_then_bad",
+            &[L("-code"), L("ok"), L("-code"), L("BAD"), L("RESULT")],
+        ),
+        ("level_zero", &[L("-level"), L("0"), L("RESULT")]),
+        ("level_two", &[L("-level"), L("2"), L("RESULT")]),
+        ("level_negative", &[L("-level"), L("-1"), L("RESULT")]),
+        ("level_010", &[L("-level"), L("010"), L("RESULT")]),
+        ("level_intmax", &[L("-level"), L("2147483647"), L("RESULT")]),
+        (
+            "level_over_intmax",
+            &[L("-level"), L("2147483648"), L("RESULT")],
+        ),
+        (
+            "level_uintmax",
+            &[L("-level"), L("4294967295"), L("RESULT")],
+        ),
+        (
+            "level_bad_then_zero",
+            &[L("-level"), L("BAD"), L("-level"), L("0"), L("RESULT")],
+        ),
+        (
+            "level_negative_then_zero",
+            &[L("-level"), L("-1"), L("-level"), L("0"), L("RESULT")],
+        ),
+        (
+            "errorcode_valid",
+            &[
+                L("-code"),
+                L("error"),
+                L("-errorcode"),
+                L("A B"),
+                L("RESULT"),
+            ],
+        ),
+        ("errorcode_bad", &[L("-errorcode"), L("{"), L("RESULT")]),
+        (
+            "errorcode_bad_then_good",
+            &[
+                L("-errorcode"),
+                L("{"),
+                L("-errorcode"),
+                L("A B"),
+                L("RESULT"),
+            ],
+        ),
+        ("errorinfo_any", &[L("-errorinfo"), L("{"), L("RESULT")]),
+        (
+            "errorstack_odd",
+            &[L("-errorstack"), L("INNER"), L("RESULT")],
+        ),
+        (
+            "errorstack_even",
+            &[L("-errorstack"), L("INNER command"), L("RESULT")],
+        ),
+        ("errorstack_bad", &[L("-errorstack"), L("{"), L("RESULT")]),
+        (
+            "errorstack_bad_then_good",
+            &[
+                L("-errorstack"),
+                L("{"),
+                L("-errorstack"),
+                L("INNER command"),
+                L("RESULT"),
+            ],
+        ),
+        ("custom_dash", &[L("-custom"), L("VALUE"), L("RESULT")]),
+        ("custom_bare", &[L("custom"), L("VALUE"), L("RESULT")]),
+        ("custom_dynamic_value", &[L("-custom"), L("V"), L("RESULT")]),
+        ("options_empty", &[L("-options"), L(""), L("RESULT")]),
+        (
+            "options_code_ok",
+            &[L("-options"), L("-code ok -level 0"), L("RESULT")],
+        ),
+        ("options_odd", &[L("-options"), L("-code"), L("RESULT")]),
+        (
+            "options_bad_code",
+            &[L("-options"), L("-code BAD"), L("RESULT")],
+        ),
+        (
+            "options_bad_overridden",
+            &[
+                L("-options"),
+                L("-code BAD"),
+                L("-code"),
+                L("ok"),
+                L("RESULT"),
+            ],
+        ),
+        (
+            "options_bad_level_overridden",
+            &[
+                L("-options"),
+                L("-level -1"),
+                L("-level"),
+                L("0"),
+                L("RESULT"),
+            ],
+        ),
+        (
+            "options_overrides_bad_code",
+            &[
+                L("-code"),
+                L("BAD"),
+                L("-options"),
+                L("-code ok"),
+                L("RESULT"),
+            ],
+        ),
+        (
+            "options_nested",
+            &[
+                L("-options"),
+                L("-options {-code ok -level 0}"),
+                L("RESULT"),
+            ],
+        ),
+        (
+            "options_code_key_bare",
+            &[L("-options"), L("code error"), L("RESULT")],
+        ),
+        (
+            "code_return_level_zero",
+            &[L("-code"), L("return"), L("-level"), L("0"), L("RESULT")],
+        ),
+        (
+            "code_return_level_two",
+            &[L("-code"), L("return"), L("-level"), L("2"), L("RESULT")],
+        ),
+        (
+            "code_break_level_zero",
+            &[L("-code"), L("break"), L("-level"), L("0"), L("RESULT")],
+        ),
+        (
+            "nul_key_code",
+            &[B(b"-code\0tail"), L("error"), L("RESULT")],
+        ),
+        ("nul_code_ok", &[L("-code"), B(b"ok\0tail"), L("RESULT")]),
+        (
+            "nul_custom_key",
+            &[B(b"custom\0tail"), L("VALUE"), L("RESULT")],
+        ),
+        (
+            "level_negative_uintmax",
+            &[L("-level"), L("-4294967295"), L("RESULT")],
+        ),
+        (
+            "level_negative_over_intmin",
+            &[L("-level"), L("-2147483649"), L("RESULT")],
+        ),
+        (
+            "level_negative_over_uintmax",
+            &[L("-level"), L("-4294967296"), L("RESULT")],
+        ),
+        (
+            "level_over_uintmax",
+            &[L("-level"), L("4294967296"), L("RESULT")],
+        ),
+        ("level_named_ok", &[L("-level"), L("ok"), L("RESULT")]),
+        (
+            "options_nested_before_outer_code",
+            &[
+                L("-options"),
+                L("-options {-code error} -code ok"),
+                L("RESULT"),
+            ],
+        ),
+        (
+            "options_nested_after_outer_code",
+            &[
+                L("-options"),
+                L("-code ok -options {-code error}"),
+                L("RESULT"),
+            ],
+        ),
+        (
+            "options_repeated_nested_bad_then_good",
+            &[
+                L("-options"),
+                L("-options {-code BAD} -options {-code ok}"),
+                L("RESULT"),
+            ],
+        ),
+        (
+            "options_repeated_nested_invalid_then_good",
+            &[
+                L("-options"),
+                L("-options \\{ -options {-code ok}"),
+                L("RESULT"),
+            ],
+        ),
+        (
+            "options_repeated_code_bad_then_good",
+            &[L("-options"), L("-code BAD -code ok"), L("RESULT")],
+        ),
+        (
+            "options_odd_then_empty",
+            &[L("-options"), L("-code"), L("-options"), L(""), L("RESULT")],
+        ),
+        (
+            "options_bad_list_then_empty",
+            &[L("-options"), L("{"), L("-options"), L(""), L("RESULT")],
+        ),
+        (
+            "options_errorcode_origin",
+            &[
+                L("-options"),
+                L("-code error -level 0 -errorcode {MERGED CODE}"),
+                L("RESULT"),
+            ],
+        ),
+        (
+            "nul_numeric_code",
+            &[L("-code"), B(b"1\0tail"), L("RESULT")],
+        ),
+        (
+            "nul_numeric_level",
+            &[L("-level"), B(b"1\0tail"), L("RESULT")],
+        ),
+    ];
+
+    struct Provider {
+        profile: &'static str,
+        source: &'static str,
+        extension: &'static str,
+        worker: &'static str,
+    }
+
+    const PROVIDERS: &[Provider] = &[
+        Provider {
+            profile: "tcl8.4",
+            source: include_str!(
+                "../../tests/data/native_return_option_pair_grammar379/8.4.20/stdout"
+            ),
+            extension: include_str!(
+                "../../tests/data/native_return_option_pair_grammar380/8.4.20/stdout"
+            ),
+            worker: include_str!(
+                "../../tests/data/native_return_evaluated_worker383/8.4.20/stdout"
+            ),
+        },
+        Provider {
+            profile: "tcl8.5",
+            source: include_str!(
+                "../../tests/data/native_return_option_pair_grammar379/8.5.19/stdout"
+            ),
+            extension: include_str!(
+                "../../tests/data/native_return_option_pair_grammar380/8.5.19/stdout"
+            ),
+            worker: include_str!(
+                "../../tests/data/native_return_evaluated_worker383/8.5.19/stdout"
+            ),
+        },
+        Provider {
+            profile: "tcl8.6",
+            source: include_str!(
+                "../../tests/data/native_return_option_pair_grammar379/8.6.18/stdout"
+            ),
+            extension: include_str!(
+                "../../tests/data/native_return_option_pair_grammar380/8.6.18/stdout"
+            ),
+            worker: include_str!(
+                "../../tests/data/native_return_evaluated_worker383/8.6.18/stdout"
+            ),
+        },
+        Provider {
+            profile: "tcl9.0",
+            source: include_str!(
+                "../../tests/data/native_return_option_pair_grammar379/9.0.4/stdout"
+            ),
+            extension: include_str!(
+                "../../tests/data/native_return_option_pair_grammar380/9.0.4/stdout"
+            ),
+            worker: include_str!("../../tests/data/native_return_evaluated_worker383/9.0.4/stdout"),
+        },
+        Provider {
+            profile: "tcl9.1",
+            source: include_str!(
+                "../../tests/data/native_return_option_pair_grammar379/9.1.0/stdout"
+            ),
+            extension: include_str!(
+                "../../tests/data/native_return_option_pair_grammar380/9.1.0/stdout"
+            ),
+            worker: include_str!("../../tests/data/native_return_evaluated_worker383/9.1.0/stdout"),
+        },
+        Provider {
+            profile: "jim",
+            source: include_str!(
+                "../../tests/data/native_return_option_pair_grammar379/jim/stdout"
+            ),
+            extension: include_str!(
+                "../../tests/data/native_return_option_pair_grammar380/jim/stdout"
+            ),
+            worker: include_str!("../../tests/data/native_return_evaluated_worker383/jim/stdout"),
+        },
+    ];
+
+    fn decoded(
+        provider: &Provider,
+        words: &[InvocationWord<'_>],
+        facet: ReturnInvocationFacet,
+    ) -> ReturnDecoding {
+        let profile = crate::native_test_provider::profile(provider.profile);
+        let dialect = crate::InvocationDialect::of_profile(profile);
+        let numbers = if provider.profile == "jim" {
+            Numbers::Target(NumberSyntax::Jim)
+        } else {
+            Numbers::Target(dialect.numbers)
+        };
+        decode_return_words_in(
+            Grammar::for_dialect(dialect),
+            numbers,
+            InvocationArguments::structured(words).with_dialect(dialect),
+            facet,
+        )
+    }
+
+    fn hex(text: &str) -> String {
+        use std::fmt::Write;
+        let mut out = String::new();
+        for byte in text.bytes() {
+            write!(out, "{byte:02x}").expect("String formatting");
+        }
+        out
+    }
+
+    fn compare_public_fields(provider: &Provider, row: &str, facet: ReturnInvocationFacet) -> bool {
+        let fields: Vec<_> = row.split('|').collect();
+        assert_eq!(fields.len(), 8, "{}: {row}", provider.profile);
+        let label = fields[1];
+        let words = CASES
+            .iter()
+            .find(|(name, _)| *name == label)
+            .expect("exact native case label")
+            .1;
+        let answer = decoded(provider, words, facet);
+        let context = format!("{} {label} {facet:?}", provider.profile);
+        if provider.profile == "jim"
+            && matches!(
+                label,
+                "level_over_intmax" | "level_uintmax" | "level_over_uintmax"
+            )
+        {
+            // The original public Jim rows are retained in full. This API has
+            // no signed-wide level field, so none is fabricated from the u32
+            // field, the observed catch cast or a C recipe.
+            assert_eq!(
+                answer,
+                ReturnDecoding::Unknown(ReturnUnknown::Release),
+                "{context}"
+            );
+            return false;
+        }
+        if provider.profile == "tcl8.5"
+            && facet == ReturnInvocationFacet::OriginalSource
+            && matches!(
+                label,
+                "options_nested_before_outer_code" | "options_repeated_nested_invalid_then_good"
+            )
+        {
+            // Source380 and original-worker383 disagree at these exact rows.
+            // Source values do not identify a selected compiler artifact.
+            assert_eq!(
+                answer,
+                ReturnDecoding::Unknown(ReturnUnknown::Release),
+                "{context}"
+            );
+            return false;
+        }
+        if provider.profile != "tcl8.4"
+            && provider.profile != "jim"
+            && label == "options_errorcode_origin"
+        {
+            // An accepted level-zero error also has catch code one. Its
+            // supplied result and errorcode distinguish acceptance from a
+            // grammar rejection; code one alone must not pass this control.
+            assert!(matches!(answer, ReturnDecoding::Completes(_)), "{context}");
+        }
+        match answer {
+            ReturnDecoding::Rejects => assert_eq!(fields[2], "1", "{context}"),
+            ReturnDecoding::Unknown(reason) => {
+                panic!("unresolved measured fields {context}: {reason:?}")
+            }
+            ReturnDecoding::Completes(returned) => {
+                assert_eq!(
+                    returned.own_code().as_int().to_string(),
+                    fields[2],
+                    "{context}"
+                );
+                if fields[4] != "ABSENT" {
+                    assert_eq!(returned.code.as_int().to_string(), fields[4], "{context}");
+                    assert_eq!(returned.level.to_string(), fields[5], "{context}");
+                }
+                let result = returned.result.map_or("", |at| {
+                    return_word_text(match words[at] {
+                        L(text) => ReturnWord::Text(text),
+                        B(bytes) => ReturnWord::Bytes(bytes),
+                        _ => panic!("exact result fixture"),
+                    })
+                    .expect("known result")
+                });
+                assert_eq!(hex(result), fields[3], "{context}");
+                if returned.code == CompletionCode::Error
+                    && fields[6] != "ABSENT"
+                    && fields[4] != "ABSENT"
+                {
+                    let error_code = returned
+                        .error_code
+                        .and_then(|at| match words[at] {
+                            L(text) => Some(text),
+                            _ => None,
+                        })
+                        .or(returned.merged_error_code.as_deref())
+                        .unwrap_or("NONE");
+                    assert_eq!(hex(error_code), fields[6], "{context}");
+                }
+            }
+        }
+        true
+    }
+
+    #[test]
+    fn source_return_decoder_matches_measured_public_fields_with_explicit_refusals() {
+        // naming.completion.return-option-pair-grammar
+
+        // Original source379/380 only: own code, accepted result, and available
+        // catch options. No compiler instruction, object, frame or message claim.
+        for provider in PROVIDERS {
+            let mut compared = 0;
+            let mut count = 0;
+            for row in provider
+                .source
+                .lines()
+                .chain(provider.extension.lines())
+                .filter(|line| line.starts_with("ROW|"))
+            {
+                compared += usize::from(compare_public_fields(
+                    provider,
+                    row,
+                    ReturnInvocationFacet::OriginalSource,
+                ));
+                count += 1;
+            }
+            assert_eq!(count, 76);
+            assert_eq!(
+                compared,
+                if provider.profile == "jim" {
+                    73
+                } else if provider.profile == "tcl8.5" {
+                    74
+                } else {
+                    76
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn evaluated_return_decoder_matches_original_worker_public_fields() {
+        // naming.completion.return-evaluated-argument-worker-grammar
+
+        // Alias-to-original-worker383 keeps every original operand. This compares
+        // public fields only, independently of source379/380 compilation.
+        for provider in PROVIDERS {
+            let rows: Vec<_> = provider
+                .worker
+                .lines()
+                .filter(|line| line.starts_with("ROW|"))
+                .collect();
+            assert_eq!(rows.len(), 76);
+            let compared = rows
+                .into_iter()
+                .filter(|row| {
+                    compare_public_fields(provider, row, ReturnInvocationFacet::EvaluatedArguments)
+                })
+                .count();
+            assert_eq!(compared, if provider.profile == "jim" { 73 } else { 76 });
+        }
+    }
+
+    #[test]
+    fn return_decoder_preserves_unknown_values_count_and_original_ordinals() {
+        // naming.completion.return-option-pair-grammar
+
+        // Software contract: constructed source carriers test uncertainty and
+        // provenance. They are not independently observed Native entry/header facts.
+        let profile = crate::native_test_provider::profile("tcl8.6");
+        let dialect = crate::InvocationDialect::of_profile(profile);
+        let read = |words: &[InvocationWord<'_>]| {
+            decode_return_words_in(
+                Grammar::OptionsTcl,
+                Numbers::Target(dialect.numbers),
+                InvocationArguments::structured(words).with_dialect(dialect),
+                ReturnInvocationFacet::OriginalSource,
+            )
+        };
+        assert_eq!(
+            read(&[L("-code"), InvocationWord::Dynamic]),
+            ReturnDecoding::Unknown(ReturnUnknown::Word)
+        );
+        assert_eq!(
+            read(&[InvocationWord::Expanded]),
+            ReturnDecoding::Unknown(ReturnUnknown::Word)
+        );
+        assert_eq!(
+            read(&[B(&[0xff]), L("ok")]),
+            ReturnDecoding::Unknown(ReturnUnknown::Word)
+        );
+        assert_eq!(
+            read(&[L("-options"), InvocationWord::Dynamic]),
+            ReturnDecoding::Unknown(ReturnUnknown::Options)
+        );
+        let ReturnDecoding::Completes(custom) = read(&[
+            InvocationWord::DynamicNonOption,
+            InvocationWord::Dynamic,
+            L("RESULT"),
+        ]) else {
+            panic!("non-reserved custom C pair");
+        };
+        assert_eq!(custom.result, Some(2));
+        let ReturnDecoding::Completes(overridden) = read(&[
+            L("-code"),
+            InvocationWord::Dynamic,
+            L("-code"),
+            L("ok"),
+            L("-errorcode"),
+            L("A B"),
+            L("RESULT"),
+        ]) else {
+            panic!("known final values");
+        };
+        assert_eq!(overridden.code, CompletionCode::Ok);
+        assert_eq!(overridden.error_code, Some(5));
+        assert_eq!(overridden.merged_error_code, None);
+        assert_eq!(overridden.result, Some(6));
+        let ReturnDecoding::Completes(merged) = read(&[
+            L("-options"),
+            L("-code error -level 0 -errorcode {MERGED CODE}"),
+            L("RESULT"),
+        ]) else {
+            panic!("exact dictionary");
+        };
+        assert_eq!(merged.error_code, None);
+        assert_eq!(merged.merged_error_code.as_deref(), Some("MERGED CODE"));
+        assert_eq!(merged.result, Some(2));
+    }
+
+    #[test]
+    fn return_value_transfer_keeps_actual_numeric_context_and_merged_error_code() {
+        // naming.completion.return-option-pair-grammar
+
+        // Software overlay/route contract. A retained mixed numeral grammar is
+        // not a newly measured C90 engine or a Native object/handler receipt.
+        let profile = crate::native_test_provider::profile("tcl9.0");
+        let mut context = super::super::context::AnalysisContext::detached(Some(profile));
+        context.grammar.numbers = NumberSyntax::Tcl85;
+        let inputs = super::super::literal::LiteralInputs::new(
+            "return",
+            None,
+            &["-code", "010", "RESULT"],
+            Some(profile),
+        )
+        .with_context(context);
+        let EvalAnswer::Evaluated(outcome) = RETURN.evaluate(&inputs, &mut Budget::evaluation())
+        else {
+            panic!("exact source value route");
+        };
+        assert_eq!(outcome.completion.options_code_and_level(), (8, 1));
+        let inputs = super::super::literal::LiteralInputs::new(
+            "return",
+            None,
+            &[
+                "-options",
+                "-code error -level 0 -errorcode {MERGED CODE}",
+                "RESULT",
+            ],
+            Some(profile),
+        );
+        let EvalAnswer::Evaluated(outcome) = RETURN.evaluate(&inputs, &mut Budget::evaluation())
+        else {
+            panic!("exact dictionary route");
+        };
+        let CompletionOutcome::Error { error_code, .. } = outcome.completion else {
+            panic!("selected level-zero error");
+        };
+        assert_eq!(
+            error_code,
+            ExactValueOrUnavailable::exact_text("MERGED CODE")
+        );
+    }
+
+    #[test]
+    fn return_decoder_release_and_invocation_facet_are_independent_premises() {
+        // naming.completion.return-option-pair-grammar
+
+        // Software contract: a missing release/entry facet cannot be replaced by
+        // numeral grammar or a source word. Public disagreement is in380/383.
+        let values = [L("-errorstack"), L("INNER"), L("RESULT")];
+        assert_eq!(
+            decode_return_words_in(
+                Grammar::OptionsTcl,
+                Numbers::Target(NumberSyntax::Tcl85),
+                InvocationArguments::structured(&values),
+                ReturnInvocationFacet::OriginalSource
+            ),
+            ReturnDecoding::Unknown(ReturnUnknown::Release)
+        );
+        let nested = [
+            L("-options"),
+            L("-options {-code error} -code ok"),
+            L("RESULT"),
+        ];
+        let dialect = crate::InvocationDialect::for_version(TclVersion::V8_5);
+        let args = InvocationArguments::structured(&nested).with_dialect(dialect);
+        assert_eq!(
+            decode_return_words_in(
+                Grammar::OptionsTcl,
+                Numbers::Target(NumberSyntax::Tcl85),
+                args,
+                ReturnInvocationFacet::OriginalSource
+            ),
+            ReturnDecoding::Unknown(ReturnUnknown::Release)
+        );
+        let ReturnDecoding::Completes(worker) = decode_return_words_in(
+            Grammar::OptionsTcl,
+            Numbers::Target(NumberSyntax::Tcl85),
+            args,
+            ReturnInvocationFacet::EvaluatedArguments,
+        ) else {
+            panic!("explicit worker reading");
+        };
+        assert_eq!(worker.code, CompletionCode::Error);
+        assert_eq!(worker.result, Some(2));
+    }
+
+    #[test]
+    fn return_conversion_width_keeps_release_independent_of_numeral_overlay() {
+        // naming.completion.return-option-pair-grammar
+
+        // Source379/380 measures the C8/C9 conversion-width distinction.
+        // These mixed carriers separately test the software axis contract;
+        // they do not claim a newly observed mixed Native engine or entry.
+        let numbers = Numbers::Target(NumberSyntax::Tcl85);
+        let c90 = crate::InvocationDialect::for_version(TclVersion::V9_0);
+        let c86 = crate::InvocationDialect::for_version(TclVersion::V8_6);
+        for option in ["-code", "-level"] {
+            let values = [L(option), L("-4294967295"), L("RESULT")];
+            let arguments = InvocationArguments::structured(&values);
+            assert_eq!(
+                decode_return_words_in(
+                    Grammar::OptionsTcl,
+                    numbers,
+                    arguments.with_dialect(c90),
+                    ReturnInvocationFacet::OriginalSource,
+                ),
+                ReturnDecoding::Rejects,
+            );
+            assert!(matches!(
+                decode_return_words_in(
+                    Grammar::OptionsTcl,
+                    numbers,
+                    arguments.with_dialect(c86),
+                    ReturnInvocationFacet::OriginalSource,
+                ),
+                ReturnDecoding::Completes(_),
+            ));
+            assert_eq!(
+                decode_return_words_in(
+                    Grammar::OptionsTcl,
+                    numbers,
+                    arguments,
+                    ReturnInvocationFacet::OriginalSource,
+                ),
+                ReturnDecoding::Unknown(ReturnUnknown::Release),
+            );
+        }
+        let values = [L("-code"), L("010"), L("RESULT")];
+        let ReturnDecoding::Completes(parsed) = decode_return_words_in(
+            Grammar::OptionsTcl,
+            numbers,
+            InvocationArguments::structured(&values).with_dialect(c90),
+            ReturnInvocationFacet::OriginalSource,
+        ) else {
+            panic!("the retained numeral overlay still reads octal");
+        };
+        assert_eq!(parsed.code, CompletionCode::Other(8));
+    }
+
+    #[test]
+    fn registry_return_routes_keep_release_grammar_and_numerals_independent() {
+        use crate::completion_route::{InvocationCompletionRoute as Route, ReturnCompletionRoute};
+
+        // naming.completion.return-option-pair-grammar
+
+        // Actual Registry consumer contracts under explicit mixed carriers.
+        // These source advice queries prove no Native entry or object state.
+        let values = [L("-options"), L("-code ok -level 0"), L("RESULT")];
+        for (name, version, numbers, expected) in [
+            (
+                "tcl9.0",
+                TclVersion::V9_0,
+                NumberSyntax::Tcl84,
+                Route::Tcl(CompletionCode::Ok),
+            ),
+            (
+                "tcl8.4",
+                TclVersion::V8_4,
+                NumberSyntax::Tcl90,
+                Route::Tcl(CompletionCode::Error),
+            ),
+        ] {
+            let registry = crate::model::ingress::static_context_for(name).commands();
+            let mut dialect = crate::InvocationDialect::for_version(version);
+            dialect.numbers = numbers;
+            let arguments = InvocationArguments::structured(&values).with_dialect(dialect);
+            assert_eq!(
+                registry.invocation_completion_route("return", arguments, None),
+                Some(expected),
+            );
+            assert_eq!(
+                matches!(
+                    registry.return_completion(arguments),
+                    ReturnDecoding::Completes(_)
+                ),
+                version != TclVersion::V8_4,
+            );
+        }
+        let values = [L("-code"), L("-4294967295"), L("RESULT")];
+        for (name, version, numbers, expected) in [
+            (
+                "tcl9.0",
+                TclVersion::V9_0,
+                NumberSyntax::Tcl85,
+                Route::Tcl(CompletionCode::Error),
+            ),
+            (
+                "tcl8.6",
+                TclVersion::V8_6,
+                NumberSyntax::Tcl90,
+                Route::Return(ReturnCompletionRoute {
+                    eventual_code: CompletionCode::Error,
+                    remaining_level: 1,
+                }),
+            ),
+        ] {
+            let registry = crate::model::ingress::static_context_for(name).commands();
+            let mut dialect = crate::InvocationDialect::for_version(version);
+            dialect.numbers = numbers;
+            let arguments = InvocationArguments::structured(&values).with_dialect(dialect);
+            assert_eq!(
+                registry.invocation_completion_route("return", arguments, None),
+                Some(expected),
+            );
+        }
+    }
+
+    #[test]
+    fn return_decoder_keeps_unknown_grammar_and_numbers_as_separate_premises() {
+        // naming.completion.return-option-pair-grammar
+
+        // Software consensus contract: provider grammar and numeral knowledge
+        // are independent; agreement supplies no worker or compiler entry.
+        let values = [L("RESULT")];
+        let ReturnDecoding::Completes(common) = decode_return_words_in(
+            Grammar::Unknown,
+            Numbers::Unknown,
+            InvocationArguments::structured(&values),
+            ReturnInvocationFacet::OriginalSource,
+        ) else {
+            panic!("a result-only return needs neither numeric nor option selection");
+        };
+        assert_eq!(common.code, CompletionCode::Ok);
+        assert_eq!(common.level, 1);
+        assert_eq!(common.result, Some(0));
+        let values = [L("-code"), L("return"), L("RESULT")];
+        assert_eq!(
+            decode_return_words_in(
+                Grammar::Unknown,
+                Numbers::Target(NumberSyntax::Tcl85),
+                InvocationArguments::structured(&values),
+                ReturnInvocationFacet::OriginalSource,
+            ),
+            ReturnDecoding::Unknown(ReturnUnknown::Release),
+        );
+        let values = [L("-code"), L("010"), L("RESULT")];
+        assert_eq!(
+            decode_return_words_in(
+                Grammar::OptionsTcl,
+                Numbers::Unknown,
+                InvocationArguments::structured(&values)
+                    .with_dialect(crate::InvocationDialect::for_version(TclVersion::V8_6)),
+                ReturnInvocationFacet::OriginalSource,
+            ),
+            ReturnDecoding::Unknown(ReturnUnknown::Release),
+        );
+        let ReturnDecoding::Completes(common) = decode_return_words_in(
+            Grammar::Unknown,
+            Numbers::Target(NumberSyntax::Tcl85),
+            InvocationArguments::structured(&values),
+            ReturnInvocationFacet::OriginalSource,
+        ) else {
+            panic!("the explicit numeral overlay agrees at this narrow code");
+        };
+        assert_eq!(common.code, CompletionCode::Other(8));
     }
 }

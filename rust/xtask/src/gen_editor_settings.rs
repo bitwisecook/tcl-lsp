@@ -75,7 +75,7 @@ fn section_rank(key: &str) -> usize {
 
 /// A TypeScript/JSON string literal (double-quoted, standard JSON escaping, raw
 /// UTF-8). `serde_json::to_string` never fails for a `&str`.
-fn ts_string(value: &str) -> String {
+pub(crate) fn ts_string(value: &str) -> String {
     serde_json::to_string(value).expect("serialise string")
 }
 

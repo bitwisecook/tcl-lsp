@@ -16,20 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `string match` glob matching — the shared, byte-exact mirror of
-//! `Tcl_StringCaseMatch` (`tmp/tcl9.0.4/generic/tclUtil.c:2138`).
+//! Unicode-scalar glob compatibility helpers for analysis and display strings.
 //!
-//! One implementation for every consumer: the compiler's `matches_glob`
-//! constant-folding, `string match`, `lsearch -glob`, `switch -glob`,
-//! `array names pattern`, and the runtime's `namespace export`/`import`/`forget`
-//! pattern matching all funnel here so the glob dialect never drifts.
-//!
-//! Operates on Unicode scalar values (Tcl matches code points and case-folds
-//! per code point), consistent with the crate's UTF-8-internal invariant.
-//! Special characters: `*` (any run), `?` (one char), `[...]` (set, with `a-z`
-//! ranges — reversed `z-a` too — and no negation, matching Tcl), and `\` (escape
-//! the next char to a literal). An unterminated `[` matches only if both pattern
-//! and string end together, exactly as the C does.
+//! Native engines select [`crate::native_glob::NativeGlobProtocol`] with an
+//! independently retained issuer and actual object storage or named purpose.
+//! These helpers use Rust Unicode casing and grant no native byte/object,
+//! C-string extent, exact table lookup or callback-effect proof.
 
 /// Tcl `string match pattern text` (case-sensitive).
 #[must_use]
@@ -37,14 +29,9 @@ pub fn string_match(pattern: &str, text: &str) -> bool {
     string_case_match(pattern, text, false)
 }
 
-/// Tcl `string match` over byte-valued strings.
-///
-/// Valid UTF-8 retains the ordinary Unicode-scalar semantics. An embedder can
-/// also supply an invalid-UTF-8 plain string; that is outside Tcl's normal
-/// script-created string representation, so the runtime's established policy
-/// is deliberately narrow and collision-free: such a pattern/text pair matches
-/// only when its bytes are identical. In particular, a valid `*` does not
-/// reinterpret an invalid byte string through replacement characters.
+/// Compatibility matching for Unicode analysis strings, with exact equality
+/// for non-UTF-8 operands. This is not a native Tcl byte-string recipe; native
+/// consumers must use [`crate::native_glob`] and an explicit protocol/purpose.
 #[must_use]
 pub fn string_match_bytes(pattern: &[u8], text: &[u8]) -> bool {
     match (core::str::from_utf8(pattern), core::str::from_utf8(text)) {
@@ -72,14 +59,29 @@ pub fn is_literal(pattern: &str) -> bool {
 
 /// [`is_literal`] for a byte-valued Tcl string.
 ///
-/// This is the shared equivalent of C Tcl's `TclMatchIsTrivial`: the four
-/// ASCII metacharacters have the same byte representation in every valid Tcl
-/// string, and invalid UTF-8 must not be normalised before the decision.
+/// Inspect the complete supplied byte extent without Unicode conversion.
+/// Native trivial-pattern selection first applies the operation's extent via
+/// [`crate::native_glob::name_pattern_uses_exact_lookup`].
 #[must_use]
 pub fn is_literal_bytes(pattern: &[u8]) -> bool {
     !pattern
         .iter()
         .any(|byte| matches!(byte, b'*' | b'?' | b'[' | b'\\'))
+}
+
+/// Quote glob metacharacters in analytical text without changing other data.
+/// Callers retain the selected native matcher, input extent and namespace
+/// pattern purpose; this text projection grants no lookup identity.
+#[must_use]
+pub fn literal_pattern(text: &str) -> String {
+    let mut pattern = String::with_capacity(text.len());
+    for ch in text.chars() {
+        if matches!(ch, '*' | '?' | '[' | ']' | '\\') {
+            pattern.push('\\');
+        }
+        pattern.push(ch);
+    }
+    pattern
 }
 
 /// Tcl `string match ?-nocase? pattern text`.
@@ -379,6 +381,25 @@ pub fn re_to_glob(re: &[u8]) -> Option<(Vec<u8>, bool)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn literal_pattern_preserves_metacharacters_as_data() {
+        for text in [
+            "",
+            ":literal",
+            "ghost*",
+            "quer?",
+            "a[0]",
+            r"a\b",
+            "é*",
+            "::N::cmd?",
+        ] {
+            let pattern = literal_pattern(text);
+            assert!(string_match(&pattern, text));
+            assert!(!string_match(&pattern, &format!("{text}x")));
+        }
+        assert!(!string_match(&literal_pattern("ghost*"), "ghostOther"));
+    }
 
     #[test]
     fn literals_and_empty() {

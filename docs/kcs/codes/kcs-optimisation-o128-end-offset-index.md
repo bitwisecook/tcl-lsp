@@ -46,10 +46,10 @@ set last_char [string index $s end]
 
 List commands (paired with `llength`):
 
-- `lindex list index` — only the single-index form rewrites; additional
-  indices in `lindex list i j …` resolve against the sub-list produced
-  by the previous step, so the outer `llength` would no longer describe
-  the correct container.
+- `lindex list index` — the single-index form is considered. For
+  `lindex list i j …`, O128 can consider the first index, which is relative
+  to the original list; later indices resolve against the intermediate
+  sub-list and are not rewritten from the outer list's `llength`.
 - `lrange list first last`
 - `lreplace list first last ?element ...?`
 

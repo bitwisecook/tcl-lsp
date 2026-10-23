@@ -26,8 +26,8 @@
 //! list.
 //!
 //! `return ?value?` lowers to [`Statement::Return`] when the call
-//! is the simple `return` or `return value` shape. `return -code`
-//! / `return -level` and other option-bearing forms emit a
+//! is the simple `return` or `return value` shape. A lone `-code` is also
+//! result data; option/value pairs and other multiword forms emit a
 //! [`Statement::Barrier`] so downstream passes do not assume a
 //! particular value slot, and `{*}` expansion does the same.
 //! When the value is a `[expr {…}]` command substitution (or one
@@ -36,10 +36,10 @@
 //! can emit the value directly.
 
 use crate::alias::CommandAliasMap;
-use crate::expr_parser::parse_expr_for_profile;
+use crate::expr_parser::parse_expr_for_profile_with_lexer_config;
 use crate::ir::Statement;
 use crate::lowering_hooks::{
-    ArgTokenKind, LoweringCommand, extract_single_expr_arg_with_config, has_expansion,
+    ArgTokenKind, LoweringCommand, extract_proved_expr_arg, has_expansion,
 };
 use tcl_runtime_api::CommandBindingIdentity;
 
@@ -70,7 +70,8 @@ pub fn try_lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
         Some(ArgTokenKind::Esc) if !cmd.args[0].contains('\\') => {}
         _ => return None,
     }
-    let expr = parse_expr_for_profile(&cmd.args[0], cmd.dialect);
+    let expr =
+        parse_expr_for_profile_with_lexer_config(&cmd.args[0], cmd.dialect, cmd.lexer_config);
     // Anchor the expression text absolutely when the arg word's content is
     // a verbatim source slice (see `word_content_base`) so consumers can map
     // expression-AST leaf offsets to source operand spans.
@@ -91,6 +92,11 @@ pub fn try_lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
             cmd.resolution_namespace,
             cmd.name,
             cmd.name,
+        )
+        .with_namespace_context(
+            cmd.tokens
+                .as_ref()
+                .and_then(crate::registry_invocation::compiled_namespace_context),
         ),
         expr,
         expr_base,
@@ -163,11 +169,45 @@ pub fn try_lower_return(
                 .cloned()
         })
         .flatten();
+    let ReturnValueLowering {
+        expr,
+        expr_base,
+        command_binding,
+        braced,
+    } = lower_return_value(cmd, aliases, registry, context);
+
+    Some(Statement::Return {
+        span: cmd.span,
+        tokens: cmd.tokens.clone(),
+        value,
+        value_word,
+        expr,
+        expr_base,
+        command_binding,
+        braced,
+    })
+}
+
+#[derive(Default)]
+struct ReturnValueLowering {
+    expr: Option<tcl_syntax::expr::ExprNode>,
+    expr_base: Option<u32>,
+    command_binding: Option<CommandBindingIdentity>,
+    braced: bool,
+}
+
+fn lower_return_value(
+    cmd: &LoweringCommand<'_>,
+    aliases: &CommandAliasMap,
+    registry: &tcl_registry::CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
+) -> ReturnValueLowering {
     let mut expr = None;
+    let mut expr_base = None;
     let mut command_binding = None;
     let mut braced = false;
 
-    if value.is_some()
+    if !cmd.args.is_empty()
         && !cmd.arg_kinds.is_empty()
         && cmd.single_token_word.len() >= 2
         && cmd.single_token_word[1]
@@ -179,8 +219,9 @@ pub fn try_lower_return(
                     .strip_prefix('[')
                     .and_then(|s| s.strip_suffix(']'))
                     .unwrap_or(&cmd.args[0]);
-                if let Some((expr_cmd, canonical_cmd, expr_arg, _)) =
-                    extract_single_expr_arg_with_config(
+                if let Some((expr_cmd, canonical_cmd, expr_arg, relative_base)) =
+                    extract_proved_expr_arg(
+                        (cmd.tokens.as_ref(), 1),
                         inner,
                         aliases,
                         cmd.resolution_namespace,
@@ -189,12 +230,31 @@ pub fn try_lower_return(
                         cmd.lexer_config,
                     )
                 {
-                    expr = Some(parse_expr_for_profile(&expr_arg, cmd.dialect));
-                    command_binding = Some(CommandBindingIdentity::in_rooted_namespace(
-                        cmd.resolution_namespace,
-                        expr_cmd,
-                        canonical_cmd,
+                    expr = Some(parse_expr_for_profile_with_lexer_config(
+                        &expr_arg,
+                        cmd.dialect,
+                        cmd.lexer_config,
                     ));
+                    expr_base = cmd.tokens.as_ref().and_then(|tokens| {
+                        let base = crate::lowering_hooks::word_content_base(
+                            *tokens.argv.get(1)?,
+                            tokens.single_token_word.get(1).copied().unwrap_or(false),
+                            inner,
+                        )?;
+                        base.checked_add(relative_base?)
+                    });
+                    command_binding = Some(
+                        CommandBindingIdentity::in_rooted_namespace(
+                            cmd.resolution_namespace,
+                            expr_cmd,
+                            canonical_cmd,
+                        )
+                        .with_namespace_context(
+                            cmd.tokens
+                                .as_ref()
+                                .and_then(crate::registry_invocation::compiled_namespace_context),
+                        ),
+                    );
                 }
             }
             ArgTokenKind::ExprSugar => {
@@ -204,21 +264,29 @@ pub fn try_lower_return(
                     .strip_prefix("$(")
                     .and_then(|s| s.strip_suffix(')'))
                 {
-                    expr = Some(parse_expr_for_profile(body, cmd.dialect));
+                    expr = Some(parse_expr_for_profile_with_lexer_config(
+                        body,
+                        cmd.dialect,
+                        cmd.lexer_config,
+                    ));
+                    expr_base = cmd.tokens.as_ref().and_then(|tokens| {
+                        let span = *tokens.argv.get(1)?;
+                        let raw_len = span.end().checked_sub(span.start())?;
+                        let body_len = u32::try_from(body.len()).ok()?;
+                        (raw_len == body_len.checked_add(2)?).then(|| span.start() + 2)
+                    });
                 }
             }
             _ => {}
         }
     }
 
-    Some(Statement::Return {
-        span: cmd.span,
-        value,
-        value_word,
+    ReturnValueLowering {
         expr,
+        expr_base,
         command_binding,
         braced,
-    })
+    }
 }
 
 /// The words of a `return` as the registry reads them: each word's own
@@ -250,6 +318,8 @@ fn return_words<'c>(cmd: &'c LoweringCommand<'_>) -> Vec<tcl_registry::Invocatio
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use super::*;
     use crate::lowering::lower_to_ir;
     use tcl_lexer::Span;
@@ -259,7 +329,67 @@ mod tests {
         CommandRegistry::build_default()
     }
 
+    fn native_return_module(
+        source: &str,
+    ) -> crate::environment_ingress::RetainedNativeFixture<crate::ir::Module> {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
+        let mut lowerer = crate::lowering::Lowerer::new(registry).with_dialect(Some(profile));
+        lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
+            native_entry: Some(&entry),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let module = crate::lowering::lower_to_ir_with(lowerer, source);
+        entry.retain(module)
+    }
+
     // expr — end-to-end via lower_to_ir
+
+    #[test]
+    fn nested_return_expression_retains_original_parser_source_base() {
+        let source = "proc p {} {return [expr {abs(-3)}]}; p";
+        let module = native_return_module(source);
+        let statement = module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::p"))
+            .expect("authored fixture body")
+            .body
+            .statements
+            .first()
+            .unwrap();
+        let Statement::Return {
+            expr: Some(_),
+            expr_base: Some(base),
+            ..
+        } = statement
+        else {
+            panic!(
+                "missing exact returned expression: {:?}",
+                std::mem::discriminant(statement)
+            );
+        };
+        assert_eq!(
+            source.get(*base as usize..*base as usize + 7),
+            Some("abs(-3)")
+        );
+        assert!(
+            module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .expect("authored fixture body")
+                .body
+                .implicit_math_invocations
+                .iter()
+                .any(|proof| proof.site == *base && proof.function == "abs")
+        );
+    }
 
     #[test]
     fn expr_braced_lowers_to_expr_eval() {
@@ -346,13 +476,60 @@ mod tests {
     fn return_with_expr_substitution_attaches_expr() {
         // `return [expr {$x + 1}]` should attach the parsed expression
         // so codegen can emit the value directly without re-eval.
-        let m = lower_to_ir("return [expr {$x + 1}]", &reg());
-        match &m.top_level.statements[0] {
+        let m = native_return_module("proc p {x} {return [expr {$x + 1}]}; p 1");
+        match &m
+            .procedures
+            .get(&fixture_id(&m.procedures, "::p"))
+            .expect("authored fixture body")
+            .body
+            .statements[0]
+        {
             Statement::Return { expr, .. } => {
                 assert!(expr.is_some(), "expected expr attached, got None");
             }
-            other => panic!("expected Return, got {other:?}"),
+            other => panic!("expected Return, got {:?}", std::mem::discriminant(other)),
         }
+    }
+
+    #[test]
+    fn unentered_or_failed_return_value_does_not_gain_executable_expression_metadata() {
+        for (source, preparation_reached) in [
+            ("proc p {x} {return [expr {$x + 1}]}", false),
+            ("proc p {} {return [expr {$missing + 1}]}; p", true),
+            ("proc p {x} {return [expr {$x + 1}]}; mystery; p 1", false),
+        ] {
+            let module = native_return_module(source);
+            let body = &module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .expect("authored fixture body")
+                .body;
+            assert!(body.implicit_math_invocations.is_empty());
+            // Reached preparation precedes the missing-variable failure; it
+            // supplies neither a normal result nor admission of the Return.
+            assert_eq!(
+                !body.expression_preparations.is_empty(),
+                preparation_reached
+            );
+            assert!(body.statements.iter().all(|statement| {
+                let Some(tokens) = statement.tokens() else {
+                    return true;
+                };
+                tokens.source_binding.as_ref().is_none_or(|binding| {
+                    binding.proved_execution_target().is_none()
+                        && !binding.original_arguments_complete_normally(tokens)
+                        && binding.original_normal_result(tokens).is_none()
+                })
+            }));
+        }
+    }
+
+    #[test]
+    fn sole_return_option_spelling_is_original_result_data() {
+        let module = lower_to_ir("return -code", &reg());
+        assert!(
+            matches!(&module.top_level.statements[0], Statement::Return { value: Some(value), .. } if value == "-code")
+        );
     }
 
     #[test]
@@ -374,8 +551,8 @@ mod tests {
     fn lowered_in_p(source: &str, dialect: &str) -> Statement {
         let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
         let m = lower_to_ir(source, registry);
-        m.procedures
-            .get("::p")
+        fixture_id_if_present(&m.procedures, "::p")
+            .and_then(|id| m.procedures.get(&id))
             .and_then(|p| p.body.statements.first())
             .cloned()
             .expect("the procedure's first statement")
@@ -417,7 +594,13 @@ mod tests {
             "tcl8.4"
         )));
         let m = lower_to_ir("proc p {} {return -level 0 -code ok x}", &reg());
-        assert!(barrier(&m.procedures["::p"].body.statements[0]));
+        assert!(barrier(
+            &m.procedures
+                .get(&fixture_id(&m.procedures, "::p"))
+                .expect("authored fixture body")
+                .body
+                .statements[0]
+        ));
         match lowered_in_p("proc p {} {return -code}", "tcl8.6") {
             Statement::Return { value, .. } => assert_eq!(value.as_deref(), Some("-code")),
             other => panic!("expected Return, got {other:?}"),
@@ -426,15 +609,40 @@ mod tests {
 
     #[test]
     fn return_with_expansion_emits_barrier() {
-        let m = lower_to_ir("return {*}$args", &reg());
-        match &m.top_level.statements[0] {
-            Statement::Barrier {
-                reason, command, ..
-            } => {
-                assert_eq!(reason, "return with expansion");
-                assert_eq!(command, "return");
-            }
-            other => panic!("expected Barrier, got {other:?}"),
+        // Native evaluation reads args before dispatch. An absent operand
+        // reaches no Return handler; successful expansion still lacks the
+        // original one-to-one slots required by structured Return lowering.
+        for (source, entered) in [
+            ("return {*}$args", false),
+            ("set args {42}; return {*}$args", true),
+        ] {
+            let module = native_return_module(source);
+            let statement = module.top_level.statements.last().unwrap();
+            let Statement::Call {
+                command,
+                tokens: Some(tokens),
+                ..
+            } = statement
+            else {
+                panic!(
+                    "expanded Return must retain generic original argv: {:?}",
+                    std::mem::discriminant(statement)
+                );
+            };
+            assert_eq!(command, "return");
+            assert!(matches!(
+                tokens.words().get(1),
+                Some(crate::ir::WordExpr::Expand { .. })
+            ));
+            assert_eq!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .proved_execution_target()
+                    .is_some(),
+                entered
+            );
         }
     }
 
@@ -443,8 +651,13 @@ mod tests {
         // The shared dispatcher in ``lowering_hooks::try_lower_hook``
         // must route ``return`` and ``expr`` to this module.
         let m = lower_to_ir("proc f {} { return 1 }\nexpr {1}", &reg());
-        assert!(m.procedures.contains_key("::f"));
-        let body = &m.procedures["::f"].body.statements;
+        assert!(fixture_id_if_present(&m.procedures, "::f").is_some());
+        let body = &m
+            .procedures
+            .get(&fixture_id(&m.procedures, "::f"))
+            .expect("authored fixture body")
+            .body
+            .statements;
         assert!(body.iter().any(|s| matches!(s, Statement::Return { .. })));
         assert!(
             m.top_level
@@ -543,6 +756,22 @@ mod tests {
             Some(Statement::Return { value, .. }) => assert!(value.is_none()),
             other => panic!("expected Return, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn unit_return_extra_values_preserve_runtime_arity_error() {
+        let args = vec!["first".to_owned(), "second".to_owned()];
+        let cmd = make_cmd(
+            "return",
+            &args,
+            &[true, true, true],
+            &[ArgTokenKind::Esc, ArgTokenKind::Esc],
+            None,
+        );
+        assert!(matches!(
+            try_lower_return(&cmd, &CommandAliasMap::new(), &reg(), None),
+            None
+        ));
     }
 
     #[test]

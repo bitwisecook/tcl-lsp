@@ -119,13 +119,30 @@ fn command_segment(
         expand.push(!word.green().expand_markers.is_empty());
     }
 
-    let all_tokens: Vec<Token> = cmd.tokens().iter().map(SyntaxToken::to_token).collect();
+    let fragments: Vec<Token> = cmd.tokens().iter().map(SyntaxToken::to_token).collect();
+    let lexical = cmd.lexer_tokens();
+    // Original inter-word separators belong to the command stream. Leading
+    // comments/separators and its EOL remain attached CST trivia, outside the
+    // command's first/last semantic-fragment extent and reporting span.
+    let content = |token: &Token| {
+        !matches!(
+            token.kind,
+            TokenType::Sep | TokenType::Eol | TokenType::Comment
+        )
+    };
+    let all_tokens = match (
+        lexical.iter().position(content),
+        lexical.iter().rposition(content),
+    ) {
+        (Some(first), Some(last)) => lexical[first..=last].to_vec(),
+        _ => Vec::new(),
+    };
     // The segmenter records expansion for the command whenever it saw any
     // `{*}`, mirrored here as "any EXPAND fragment in the token stream".
     let has_expand = all_tokens.iter().any(|t| t.kind == TokenType::Expand);
 
     SegmentedCommand {
-        span: command_span(&all_tokens, sm),
+        span: command_span(&fragments, sm),
         argv,
         texts,
         word_fragments: fragments_by_word,

@@ -1413,14 +1413,10 @@ fn http_response_data_implicit_release_is_clean_end_to_end() {
     // declares HTTP_RESPONSE_DATA as HTTP_RESPONSE's implicit-release event.
     let mut lsp = Lsp::irules();
     let uri = unique_uri("irule");
-    lsp.open_ready_lang(
-        &uri,
-        "when HTTP_RESPONSE { HTTP::collect }\n\
-         when HTTP_RESPONSE_DATA { set payload [HTTP::payload] }\n",
-        "tcl-irule",
-    );
-    let diags =
-        lsp.await_diagnostics_version(&uri, Some(1), scaled_timeout(Duration::from_secs(25)));
+    let source = "when HTTP_RESPONSE { HTTP::collect }\n\
+         when HTTP_RESPONSE_DATA { set payload [HTTP::payload] }\n";
+    lsp.open_ready_lang(&uri, source, "tcl-irule");
+    let diags = lsp.current_complete_diagnostics(&uri, 1, source, Duration::from_secs(25));
     let codes = irules_codes(&diags);
     assert!(!codes.contains("IRULE1005"), "{codes:?}");
     assert!(!codes.contains("IRULE1006"), "{codes:?}");

@@ -33,70 +33,14 @@
 //! `trace vinfo` renders that set back as letters in C's fixed `r`, `w`, `u`,
 //! `a` order, unlike `trace info variable`'s word list.
 
-use std::cell::RefCell;
-use std::io::Write as _;
-use std::rc::Rc;
+mod common;
 
-use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileService, Vm};
+use tcl_test_support::{JimCapability, require_jimsh, required_tclshs};
 
-#[derive(Clone, Default)]
-struct Capture(Rc<RefCell<Vec<u8>>>);
-
-impl std::io::Write for Capture {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.borrow_mut().extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-fn vm_output(src: &str, version: TclVersion) -> String {
-    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
-        .analyser_profile();
-    let service = BytecodeCompileService::for_profile(profile);
-    let asm = service
-        .compile_for_profile(src, profile)
-        .expect("test script compiles for its selected profile");
-    let capture = Capture::default();
-    let mut vm = Vm::with_output(Box::new(capture.clone()));
-    vm.set_compiler(Box::new(service));
-    vm.set_runtime_version(version);
-    let _ = vm.run_module(&asm);
-    String::from_utf8_lossy(&capture.0.borrow())
-        .trim()
-        .to_owned()
-}
-
-fn tclsh_output(bin_env: &str, names: &[&str], src: &str) -> Option<String> {
-    let mut candidates = std::env::var(bin_env).ok().into_iter().collect::<Vec<_>>();
-    candidates.extend(names.iter().map(ToString::to_string));
-    for name in candidates {
-        let Ok(mut child) = std::process::Command::new(name)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-        else {
-            continue;
-        };
-        child
-            .stdin
-            .as_mut()
-            .expect("stdin")
-            .write_all(src.as_bytes())
-            .expect("write Tcl script");
-        let output = child.wait_with_output().expect("run Tcl script");
-        if output.status.success() {
-            return Some(String::from_utf8_lossy(&output.stdout).trim().to_owned());
-        }
-    }
-    None
+fn vm_output(source: &str, version: TclVersion) -> String {
+    common::vm_output(source, version.dialect_name())
 }
 
 /// Runs to completion on every release: each line is `catch`-wrapped so the
@@ -187,40 +131,28 @@ modernfire: 0:1";
 struct Vector {
     version: TclVersion,
     expected: &'static str,
-    env: &'static str,
-    tclsh: &'static [&'static str],
 }
 
 const VECTORS: &[Vector] = &[
     Vector {
         version: TclVersion::V8_4,
         expected: EXPECT_8X,
-        env: "TCL_LSP_TCLSH84",
-        tclsh: &["tclsh8.4"],
     },
     Vector {
         version: TclVersion::V8_5,
         expected: EXPECT_8X,
-        env: "TCL_LSP_TCLSH85",
-        tclsh: &["tclsh8.5"],
     },
     Vector {
         version: TclVersion::V8_6,
         expected: EXPECT_8X,
-        env: "TCL_LSP_TCLSH86",
-        tclsh: &["tclsh8.6"],
     },
     Vector {
         version: TclVersion::V9_0,
         expected: EXPECT_9X,
-        env: "TCL_LSP_TCLSH90",
-        tclsh: &["tclsh9.0"],
     },
     Vector {
         version: TclVersion::V9_1,
         expected: EXPECT_9X,
-        env: "TCL_LSP_TCLSH91",
-        tclsh: &["tclsh9.1"],
     },
 ];
 
@@ -237,17 +169,29 @@ fn legacy_variable_trace_forms_follow_the_selected_release() {
 }
 
 #[test]
-fn vectors_match_real_tclsh_when_available() {
-    let mut ran = 0;
-    for vector in VECTORS {
-        if let Some(actual) = tclsh_output(vector.env, vector.tclsh, SCRIPT) {
-            assert_eq!(actual, vector.expected, "{:?}", vector.version);
-            ran += 1;
-        }
+fn vectors_match_all_five_pinned_tclshs() {
+    for oracle in required_tclshs(&TclVersion::ALL).expect("all five pinned C trace engines") {
+        let vector = VECTORS
+            .iter()
+            .find(|vector| vector.version == oracle.version)
+            .expect("exact release vector");
+        assert_eq!(
+            common::oracle_output(&oracle.path, SCRIPT),
+            vector.expected,
+            "{}",
+            oracle.patchlevel
+        );
     }
-    if ran == 0 {
-        eprintln!("skipping: no versioned tclsh binaries found");
-    }
+}
+
+#[test]
+fn jim_variable_trace_surfaces_are_explicitly_unsupported() {
+    let oracle = require_jimsh().expect("pinned Jim trace surface");
+    assert!(!oracle.supports(JimCapability::VariableTrace));
+    let script = "puts [catch {trace variable x w list} m]\nputs $m\nputs [catch {trace add variable x write list} m]\nputs $m\n";
+    let expected = "1\ninvalid command name \"trace\"\n1\ninvalid command name \"trace\"";
+    assert_eq!(common::oracle_output(&oracle.path, script), expected);
+    assert_eq!(common::vm_output(script, "jim"), expected);
 }
 
 /// The registry, not the VM, states the 9.0 boundary — so a spec edit moves

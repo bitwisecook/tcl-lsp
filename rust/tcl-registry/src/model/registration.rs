@@ -261,6 +261,20 @@ pub struct SyncOutcome {
     /// Sources refused, each with the rule it broke. The rest still
     /// registered.
     pub rejected: Vec<RejectedSource>,
+    // Actual successful assembly/triage payloads, never reconstructed from
+    // rejection labels. None means the base-state fallback did not publish.
+    accepted_sources: Option<Vec<EnvironmentSource>>,
+}
+
+impl SyncOutcome {
+    /// Actual source declarations accepted by this successful sync invocation.
+    /// Includes unchanged/same-content publications; None is the failed-base
+    /// fallback, not an empty accepted set. This is declaration publication
+    /// correspondence, not a current execution or installation receipt.
+    #[must_use]
+    pub fn accepted_sources(&self) -> Option<&[EnvironmentSource]> {
+        self.accepted_sources.as_deref()
+    }
 }
 
 /// The dynamic half of the live registry: what registrations have added
@@ -575,6 +589,7 @@ pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome 
             (accepted, rejected)
         };
 
+    let accepted_sources = Some(accepted.clone());
     let before = declared_ids(&state.sources);
     let after = declared_ids(&accepted);
     let retired = before.iter().filter(|id| !after.contains(id)).count();
@@ -592,6 +607,7 @@ pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome 
             extended,
             retired,
             rejected,
+            accepted_sources,
         };
     }
 
@@ -613,6 +629,7 @@ pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome 
                     extended,
                     retired,
                     rejected,
+                    accepted_sources,
                 };
             }
             *live_cell().lock().expect("live environment registry lock") = Arc::new(registry);
@@ -623,6 +640,7 @@ pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome 
                 extended,
                 retired,
                 rejected,
+                accepted_sources,
             }
         }
         Err(error) => {
@@ -640,6 +658,7 @@ pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome 
                 extended: 0,
                 retired: 0,
                 rejected,
+                accepted_sources: None,
             }
         }
     }
@@ -1218,7 +1237,7 @@ mod tests {
         assert!(outcome.changed);
         assert_eq!(outcome.declared, 1);
         assert_eq!(outcome.retired, 0);
-        assert!(outcome.rejected.is_empty());
+        assert_eq!(outcome.rejected.len(), 0);
         assert!(is_known_environment_name("sync-probe-env"));
         assert_eq!(resolve_environment("sync-probe-env").id(), "sync-probe-env");
 
@@ -1314,5 +1333,29 @@ mod tests {
         assert!(!untrusted(Provenance::BundledPack));
         assert!(!untrusted(Provenance::User));
         assert!(!untrusted(Provenance::WorkspaceTrusted));
+    }
+    #[test]
+    fn successful_source_receipts_exclude_refused_payloads_and_survive_no_change() {
+        let _sync = SYNCING
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let good = EnvironmentSource {
+            id: "user:accepted-source-receipt".to_owned(),
+            definitions: vec![definition("accepted-source-receipt-env", Provenance::User)],
+            extensions: Vec::new(),
+        };
+        let bad = EnvironmentSource {
+            id: "workspace:refused-source-receipt".to_owned(),
+            definitions: vec![definition("tcl", Provenance::WorkspaceTrusted)],
+            extensions: Vec::new(),
+        };
+        let first = sync_environment_sources(vec![good.clone(), bad.clone()]);
+        assert_eq!(first.accepted_sources(), Some(std::slice::from_ref(&good)));
+        assert_ne!(first.rejected.len(), 0);
+        let again = sync_environment_sources(vec![good.clone(), bad]);
+        assert!(!again.changed);
+        assert_eq!(again.accepted_sources(), Some(std::slice::from_ref(&good)));
+        let empty = sync_environment_sources(Vec::new());
+        assert_eq!(empty.accepted_sources(), Some(&[][..]));
     }
 }

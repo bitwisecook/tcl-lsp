@@ -61,6 +61,14 @@
 //!   observation. They are asserted structurally and flagged `// f5-dialect`
 //!   (iRules events) or noted as compiler-internal at the site.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+#[path = "support/function_identity.rs"]
+mod function_identity;
+use function_identity::OriginalFixtureFunctions;
+
+use body_identity::fixture_id_if_present;
+
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::analyses::{ConstValue, LatticeValue};
 use tcl_compiler::compilation_unit::{CompilationUnit, decode_param_constants};
@@ -661,12 +669,12 @@ mod compilation_unit_build {
         // A proc inside `namespace eval ::a` is keyed by its fully-qualified name.
         let cu = build("namespace eval ::a { proc helper {x} { set y $x } }");
         assert!(
-            cu.function("::a::helper").is_some(),
+            cu.fixture_function("::a::helper").is_some(),
             "procedures: {:?}",
             cu.procedures.keys().collect::<Vec<_>>()
         );
         // The top level always exists.
-        assert!(cu.function("::top").is_some());
+        assert!(cu.fixture_function("::top").is_some());
     }
 
     #[test]
@@ -674,7 +682,7 @@ mod compilation_unit_build {
         let cu =
             build("namespace eval ::a { namespace eval ::a::b { proc deep {} { return 1 } } }");
         assert!(
-            cu.function("::a::b::deep").is_some(),
+            cu.fixture_function("::a::b::deep").is_some(),
             "procedures: {:?}",
             cu.procedures.keys().collect::<Vec<_>>()
         );
@@ -683,8 +691,8 @@ mod compilation_unit_build {
     #[test]
     fn function_accessor_unknown_name_is_none() {
         let cu = build("proc p {} {}");
-        assert!(cu.function("::nope").is_none());
-        assert!(cu.function("::p").is_some());
+        assert!(cu.fixture_function("::nope").is_none());
+        assert!(cu.fixture_function("::p").is_some());
     }
 
     #[test]
@@ -735,8 +743,8 @@ mod compilation_unit_build {
             "interproc summary must be populated"
         );
         // Procedures survive the re-run.
-        assert!(cu.function("::f").is_some());
-        assert!(cu.function("::src").is_some());
+        assert!(cu.fixture_function("::f").is_some());
+        assert!(cu.fixture_function("::src").is_some());
     }
 
     #[test]
@@ -746,7 +754,7 @@ mod compilation_unit_build {
             Some(SemanticContext::for_environment("tcl8.6")),
         );
         assert!(cu.top_level.memory_ssa.is_some());
-        assert!(cu.function("::f").unwrap().memory_ssa.is_some());
+        assert!(cu.fixture_function("::f").unwrap().memory_ssa.is_some());
     }
 
     #[test]
@@ -756,11 +764,11 @@ mod compilation_unit_build {
         let src = "oo::class create C {\n method m {} { return 1 }\n}\n";
         let cu = build(src);
         assert!(
-            cu.methods.contains_key("::C::m"),
+            fixture_id_if_present(&cu.methods, "::C::m").is_some(),
             "methods: {:?}",
             cu.methods.keys().collect::<Vec<_>>()
         );
-        assert!(!cu.procedures.contains_key("::C::m"));
+        assert!(!fixture_id_if_present(&cu.procedures, "::C::m").is_some());
     }
 
     #[test]

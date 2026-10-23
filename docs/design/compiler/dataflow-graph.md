@@ -77,7 +77,13 @@ operations, rather than as scalar def-use edges.
 ## Serialisation
 
 The graph types are plain Rust structs with no serialisation of their own.
-Each consumer projects them:
+Each consumer projects them. A chain is keyed by the typed pair
+`(Symbol, Version)`, not by a rendered variable name. The extractor selects a
+current physical cell when `DefUseFacts` proves one for that symbol, or a
+current source-variable projection when the source binding proves ownership;
+without either proof it omits the chain. `Symbol` and `Version` are retained
+on nodes and edges as identity. Names and cell labels are display output only;
+rendering never resolves a name back to a symbol.
 
 - `tcl-lsp-core/src/graphs.rs` — `function_dataflow_json` renders the
   camelCase wire dict (`defKind`, `statementIndex`, `typeInfo`, `fromName`,
@@ -91,7 +97,7 @@ There is no Mermaid renderer for this graph.
 ## How It Consumes Def-Use Chains and Memory-SSA
 
 1. **Nodes** are built from `DefUseResult.chains` — one node per
-   SSA definition, in sorted key order (name, then version) so the output is
+   SSA definition, in sorted `(Symbol, Version)` order so the output is
    deterministic.  Each is annotated with lattice value and type from the
    `FunctionUnit` (`rust/tcl-compiler/src/compilation_unit.rs`, built by
    `CompilationUnit::build_for()`): the lattice value comes from
@@ -100,10 +106,9 @@ There is no Mermaid renderer for this graph.
    `Option` arguments to `extract_function_dataflow()`, so a node renders
    without them when those analyses have not run.
 
-   Those two maps are keyed by `ssa::ValueKey` (interned `Symbol`), while the
-   chains are keyed by name, so the extractor resolves each chain's name back
-   through `SsaFunction::var_symbol`.  A name with no SSA symbol yields an
-   empty display column rather than a wrong one.
+   Both maps use the interned `Symbol` identity. The extractor looks up the
+   same symbol in the analysis results and uses the SSA name only to populate
+   display fields; it does not infer identity from that name.
 2. **Edges** are built from `DefUseChain.uses` — a `UseKind::PhiIncoming` use
    becomes a `Phi` edge carrying the receiving phi's name and version;
    every other use, including a terminator-condition read, becomes a

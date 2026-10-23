@@ -116,9 +116,9 @@ mod tests {
     fn a_vendor_dialect_has_no_core_range() {
         // `f5-irules` names a runtime, not a core release: nothing to widen
         // over, so the consumer keeps the single table it holds.
-        assert!(forward_range("f5-irules").is_empty());
+        assert_eq!(forward_range("f5-irules").len(), 0);
         assert!(registries_over_range(forward_range("f5-irules")).is_empty());
-        assert!(forward_range("nonsense").is_empty());
+        assert_eq!(forward_range("nonsense").len(), 0);
     }
 
     #[test]
@@ -127,7 +127,7 @@ mod tests {
         let names = core_releases_in(FROM_85);
         assert_eq!(names, FROM_85);
         assert_eq!(registries_over_range(FROM_85).len(), names.len());
-        assert!(core_releases_in(&[]).is_empty());
+        assert_eq!(core_releases_in(&[]).len(), 0);
     }
 
     #[test]

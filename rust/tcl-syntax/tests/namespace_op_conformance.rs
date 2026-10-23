@@ -78,3 +78,59 @@ fn tagging_matches_whether_the_releases_disagree() {
         }
     }
 }
+
+#[test]
+fn namespace_snapshot_refuses_ambiguous_array_roots_before_reading_another_cell() {
+    let script = format!(
+        r"{}
+set ::snapshot_reads 0
+proc ::snapshot_read {{args}} {{::incr ::snapshot_reads}}
+namespace eval ::snapshot_case {{
+    array set a( {{k intended}}
+    array set a {{(k trap}}
+    trace add variable a read ::snapshot_read
+}}
+set code [catch {{::__tcl_name_snapshot::element_value [list ::snapshot_case a(] k}}]
+puts [list $code $::snapshot_reads]
+",
+        tcl_syntax::naming::original_namespace_variable_snapshot_support(),
+    );
+    let releases = support::available_releases();
+    assert!(
+        !releases.is_empty(),
+        "no reference Tcl interpreter available"
+    );
+    for (release, tclsh) in releases {
+        let got = support::run_script(&tclsh, &script).expect("snapshot refusal script");
+        assert_eq!(got, "1 0", "Tcl {}", release.version_string());
+    }
+}
+
+#[test]
+fn namespace_snapshot_keeps_element_keys_separate_from_the_array_root() {
+    let script = format!(
+        r"{}
+namespace eval ::snapshot_case {{
+    array set values [list {{}} empty-key {{(k)}} parenthesised {{$key[cmd]\tail}} literal]
+}}
+foreach key [list {{}} {{(k)}} {{$key[cmd]\tail}}] {{
+    puts [::__tcl_name_snapshot::element_value [list ::snapshot_case values] $key]
+}}
+",
+        tcl_syntax::naming::original_namespace_variable_snapshot_support(),
+    );
+    let releases = support::available_releases();
+    assert!(
+        !releases.is_empty(),
+        "no reference Tcl interpreter available"
+    );
+    for (release, tclsh) in releases {
+        let got = support::run_script(&tclsh, &script).expect("snapshot key script");
+        assert_eq!(
+            got,
+            "empty-key\nparenthesised\nliteral",
+            "Tcl {}",
+            release.version_string(),
+        );
+    }
+}

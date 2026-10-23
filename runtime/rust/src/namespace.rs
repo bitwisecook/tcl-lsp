@@ -38,16 +38,24 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use tcl_cmd_core::namespace::TclStringHashOrder;
 use tcl_core_types::OoId;
-use tcl_syntax::naming::{ends_with_separator, qualifier_segments as split_qualifier};
+use tcl_syntax::naming::{qualifier_segments as split_qualifier, written_command_parts};
 
 use crate::frame::VarTable;
-use crate::interp::{Command, OoCommandRole};
+use crate::interp::{BuiltinFn, Command, OoCommandRole};
+
+mod jim_local;
+#[cfg(test)]
+mod jim_table_key_tests;
+mod native_namespace_name;
 
 /// An index into the namespace arena. The global namespace `::` is always 0.
 pub type NsId = usize;
 
 /// The global namespace `::`.
 pub const GLOBAL: NsId = 0;
+
+static JIM_CONTEXT_PATH: tcl_core_types::ByteNamespacePath =
+    tcl_core_types::ByteNamespacePath::root();
 
 /// The result of a [`crate::interp::Interp::rename_command`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,7 +78,7 @@ pub enum RenameOutcome {
     TargetExists,
 }
 
-/// The half-finished `rename` a [`Namespaces::publish_rename_destination`]
+/// The half-finished `rename` a [`Namespaces::publish_rename_destination_with_original_key`]
 /// leaves behind: the command stands under *both* names until
 /// [`Namespaces::retire_rename_source`] drops the source's table entry.
 pub(crate) struct RenamePublication {
@@ -85,6 +93,13 @@ pub(crate) struct RenamePublication {
     pub(crate) generation: u64,
 }
 
+/// Actual temporary placement, independent of the original target getter.
+pub(crate) struct AliasRenameProbe {
+    pub(crate) destination: (NsId, Vec<u8>),
+    binding: CommandBinding,
+    displaced: Option<CommandBinding>,
+}
+
 /// One command token and the interpreter-unique generation that owns all of
 /// its sidecars. Placements may move between namespace and hidden tables, but
 /// this pair moves intact.
@@ -92,11 +107,12 @@ pub(crate) struct RenamePublication {
 pub(crate) struct CommandBinding {
     pub(crate) generation: u64,
     pub(crate) command: Command,
+    pub(crate) jim_table_key: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
 }
 
 /// One namespace's command table: the `BTreeMap` the resolver looks names up
-/// in, plus the retained `TCL_STRING_KEYS` bucket order `TclTeardownNamespace`
-/// snapshots and a per-slot generation.
+/// in, plus the retained `TCL_STRING_KEYS` bucket order used by namespace
+/// teardown and a per-slot generation.
 ///
 /// The order owner is C's `Namespace.cmdTable` itself: its bucket array
 /// quadruples at a 3:1 load factor, never shrinks, and reverses chains on
@@ -107,130 +123,228 @@ pub(crate) struct CommandBinding {
 /// minted by the owning [`Namespaces`], so they identify a token across the
 /// whole interpreter — a retained table and a same-named recreation hold two
 /// distinct `::N::q` tokens at once.
+/// A Jim hash slot owns its key independently of the replaceable command value.
+/// Cloned command transports never acquire this native reference.
+#[derive(Default)]
+struct CommandSlot {
+    original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
+    binding: Option<CommandBinding>,
+}
+
+/// An actual current root-table entry, independent of its displayed name.
+#[derive(Clone)]
+pub(crate) struct OriginalJimCommandInventoryKey {
+    pub(crate) generation: u64,
+    pub(crate) report: Vec<u8>,
+    original: crate::obj::NativeObjectLifetime,
+}
+
+impl OriginalJimCommandInventoryKey {
+    pub(crate) fn original(
+        &self,
+    ) -> Result<*mut crate::obj::TclObj, tcl_syntax::value::ValueError> {
+        self.original.checked_ptr()
+    }
+}
+
+/// Extracted original owners, released after the namespace borrow. Jim releases
+/// the key before the value on deletion; replacement contains only the value.
+pub(crate) struct RetiredCommandSlot {
+    procedure: Option<
+        tcl_runtime_api::native_procedure_roles::NativeProcedureReference<crate::interp::ProcDef>,
+    >,
+    original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
+    binding: Option<CommandBinding>,
+}
+impl RetiredCommandSlot {
+    pub(crate) fn retire_checked(
+        mut self,
+        current: &dyn Fn() -> Result<(), tcl_runtime_api::NativeExecutionError>,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let mut first = None;
+        // C's existing Proc binding is withdrawn independently of command views.
+        // Jim has no extracted Proc role and keeps its key-before-value release.
+        drop(self.procedure.take());
+        if let Err(error) = current() {
+            first.get_or_insert(error);
+        }
+        drop(self.original_jim_key.take());
+        if let Err(error) = current() {
+            first.get_or_insert(error);
+        }
+        drop(self.binding.take());
+        if let Err(error) = current() {
+            first.get_or_insert(error);
+        }
+        first.map_or(Ok(()), Err)
+    }
+}
+
 #[derive(Default)]
 struct CommandTable {
-    entries: BTreeMap<Vec<u8>, CommandBinding>,
+    entries: BTreeMap<Vec<u8>, CommandSlot>,
     order: TclStringHashOrder,
+    retired: std::cell::RefCell<Vec<RetiredCommandSlot>>,
 }
 
 impl CommandTable {
+    fn binding(&self, key: &[u8]) -> Option<&CommandBinding> {
+        self.entries.get(key)?.binding.as_ref()
+    }
     fn get(&self, key: &[u8]) -> Option<&Command> {
-        self.entries.get(key).map(|binding| &binding.command)
+        self.binding(key).map(|binding| &binding.command)
     }
-
     fn contains_key(&self, key: &[u8]) -> bool {
-        self.entries.contains_key(key)
+        self.binding(key).is_some()
     }
-
     fn keys(&self) -> impl Iterator<Item = &Vec<u8>> {
-        self.entries.keys()
+        self.entries
+            .iter()
+            .filter_map(|(key, slot)| slot.binding.as_ref().map(|_| key))
     }
-
     fn iter(&self) -> impl Iterator<Item = (&Vec<u8>, &Command)> {
         self.entries
             .iter()
-            .map(|(key, binding)| (key, &binding.command))
+            .filter_map(|(key, slot)| Some((key, &slot.binding.as_ref()?.command)))
     }
-
     fn values(&self) -> impl Iterator<Item = &Command> {
-        self.entries.values().map(|binding| &binding.command)
+        self.entries
+            .values()
+            .filter_map(|slot| Some(&slot.binding.as_ref()?.command))
     }
-
     fn values_mut(&mut self) -> impl Iterator<Item = &mut Command> {
         self.entries
             .values_mut()
-            .map(|binding| &mut binding.command)
+            .filter_map(|slot| Some(&mut slot.binding.as_mut()?.command))
     }
-
-    /// Bind `command` at `key`, returning whatever it displaced. A live key is
-    /// re-created at its bucket head, as C's `TclCreateObjCommandInNs` does
-    /// when it deletes the old hash entry and creates a fresh one.
-    fn insert(&mut self, key: Vec<u8>, command: Command, generation: u64) -> Option<Command> {
-        match self.entries.insert(
-            key.clone(),
-            CommandBinding {
-                generation,
-                command,
-            },
-        ) {
-            Some(displaced) => {
-                self.order.reinsert(&key);
-                Some(displaced.command)
-            }
-            None => {
-                self.order.insert(&key);
+    fn insert(
+        &mut self,
+        key: Vec<u8>,
+        command: Command,
+        generation: u64,
+        jim_table_key: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
+        original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
+    ) -> Option<Command> {
+        let jim = jim_table_key.is_some();
+        let slot = self.entries.entry(key.clone()).or_default();
+        // Jim's keyDup takes its own native reference at a fresh hash slot.
+        // A registration/qualification temporary is a distinct source role;
+        // sharing its Rust Rc would erase the temporary reference during
+        // publication. Occupied slots keep the original key unchanged.
+        if slot.original_jim_key.is_none() {
+            slot.original_jim_key = original_jim_key
+                .as_ref()
+                .map(|key| std::rc::Rc::new(crate::obj::Owned::retain(key.as_ptr())));
+        }
+        let unused_incoming = original_jim_key;
+        let displaced = slot.binding.replace(CommandBinding {
+            generation,
+            command,
+            jim_table_key,
+        });
+        if jim {
+            self.order.insert(&key);
+        } else if displaced.is_some() {
+            self.order.reinsert(&key);
+        } else {
+            self.order.insert(&key);
+        }
+        let result = displaced.map(|binding| {
+            let command = binding.command.clone();
+            let procedure = if jim {
                 None
-            }
+            } else {
+                match &binding.command {
+                    Command::Proc(procedure) => procedure.take_for_retirement(),
+                    _ => None,
+                }
+            };
+            self.retired.borrow_mut().push(RetiredCommandSlot {
+                procedure,
+                original_jim_key: None,
+                binding: Some(binding),
+            });
+            command
+        });
+        if unused_incoming.is_some() {
+            self.retired.borrow_mut().push(RetiredCommandSlot {
+                procedure: None,
+                original_jim_key: unused_incoming,
+                binding: None,
+            });
+        }
+        result
+    }
+    fn remove_binding(&mut self, key: &[u8]) -> Option<CommandBinding> {
+        let slot = self.entries.remove(key)?;
+        self.order.remove(key);
+        if slot.original_jim_key.is_some() {
+            let result = slot.binding.clone();
+            self.retired.borrow_mut().push(RetiredCommandSlot {
+                procedure: None,
+                original_jim_key: slot.original_jim_key,
+                binding: slot.binding,
+            });
+            result
+        } else {
+            slot.binding
         }
     }
-
-    /// Delete `key`'s entry, returning its binding. The bucket array keeps its
-    /// capacity (`Tcl_DeleteHashEntry` never shrinks).
-    fn remove(&mut self, key: &[u8]) -> Option<Command> {
-        let command = self.remove_binding(key)?.command;
-        Some(command)
-    }
-
-    /// Remove `key` while preserving the command token generation for a
-    /// placement move such as hide/expose.
-    fn remove_binding(&mut self, key: &[u8]) -> Option<CommandBinding> {
-        let binding = self.entries.remove(key)?;
-        self.order.remove(key);
-        Some(binding)
-    }
-
-    /// Take a slot's binding out while leaving its hash entry in place —
-    /// C's alias-loop probe (`TclRenameCommand`) reassigns `cmdPtr->hPtr` and
-    /// undoes the move without ever deleting the source's entry.
+    /// Take only the value. The actual occupied Jim key survives local pushes
+    /// and replacement; C's temporary alias-loop slots retain their hash entry.
     fn take_slot(&mut self, key: &[u8]) -> Option<CommandBinding> {
-        self.entries.remove(key)
+        self.entries.get_mut(key)?.binding.take()
     }
-
-    /// Put a slot taken by [`Self::take_slot`] back, creating the hash entry
-    /// when the probe's destination did not already have one.
-    fn restore_slot(&mut self, key: Vec<u8>, slot: CommandBinding) -> Option<CommandBinding> {
+    fn restore_slot(&mut self, key: Vec<u8>, binding: CommandBinding) -> Option<CommandBinding> {
         self.order.insert(&key);
-        self.entries.insert(key, slot)
+        self.entries
+            .entry(key)
+            .or_default()
+            .binding
+            .replace(binding)
     }
-
-    /// Swap `key`'s binding without disturbing its hash entry, so the slot
-    /// keeps its generation and its bucket position. C's `TclRenameCommand`
-    /// never touches the source entry until the very end, but it does re-home
-    /// the one `Command` both entries point at, so the vacating name reports
-    /// the destination's namespace for the callbacks' duration.
     fn rebind_slot(&mut self, key: &[u8], command: Command) {
-        if let Some(binding) = self.entries.get_mut(key) {
+        if let Some(binding) = self
+            .entries
+            .get_mut(key)
+            .and_then(|slot| slot.binding.as_mut())
+        {
             binding.command = command;
         }
     }
-
-    /// Create `key`'s hash entry ahead of the binding that fills it — C's
-    /// `TclRenameCommand` calls `Tcl_CreateHashEntry` on the destination
-    /// before it deletes the source's entry.
     fn reserve_entry(&mut self, key: &[u8]) {
         self.order.insert(key);
+        self.entries.entry(key.to_vec()).or_default();
     }
-
-    /// Delete a hash entry created by [`Self::reserve_entry`] whose value has
-    /// been taken back — the alias-loop probe's refused destination.
     fn drop_entry(&mut self, key: &[u8]) {
-        self.order.remove(key);
+        let _ = self.remove_binding(key);
     }
-
-    /// `Tcl_DeleteHashTable` + `Tcl_InitHashTable`: the table returns to Tcl's
-    /// four static buckets.
+    fn drop_entry_with_binding(&mut self, key: &[u8], binding: CommandBinding) {
+        let slot = self.entries.remove(key);
+        self.order.remove(key);
+        self.retired.borrow_mut().push(RetiredCommandSlot {
+            procedure: None,
+            original_jim_key: slot.and_then(|slot| slot.original_jim_key),
+            binding: Some(binding),
+        });
+    }
     fn clear(&mut self) {
-        self.entries.clear();
+        let entries = std::mem::take(&mut self.entries);
+        for (_, slot) in entries {
+            self.retired.borrow_mut().push(RetiredCommandSlot {
+                procedure: None,
+                original_jim_key: slot.original_jim_key,
+                binding: slot.binding,
+            });
+        }
         self.order.clear();
     }
-
-    /// The token generation currently bound at `key`.
     fn generation(&self, key: &[u8]) -> Option<u64> {
-        self.entries.get(key).map(|binding| binding.generation)
+        self.binding(key).map(|binding| binding.generation)
     }
 
-    /// The live `(name, generation)` slots in `Tcl_FirstHashEntry` order — the
-    /// snapshot `TclTeardownNamespace` takes before deleting each token.
+    /// Live `(name, generation)` slots in original `Tcl_FirstHashEntry` order.
+    /// The selected teardown recipe chooses one entry or the complete frontier.
     fn hash_order(&self) -> Vec<(Vec<u8>, u64)> {
         self.order
             .keys()
@@ -242,14 +356,41 @@ impl CommandTable {
 
 /// One namespace: its simple name, its command table, child namespaces, the
 /// `namespace path` search list, and `export` patterns.
+enum JimNamespaceObject {
+    Initial(std::rc::Rc<crate::obj::Owned>),
+    Published(Vec<std::rc::Weak<crate::obj::Owned>>),
+}
+impl JimNamespaceObject {
+    fn owner(&self) -> Option<std::rc::Rc<crate::obj::Owned>> {
+        match self {
+            Self::Initial(owner) => Some(std::rc::Rc::clone(owner)),
+            Self::Published(owners) => owners.iter().find_map(std::rc::Weak::upgrade),
+        }
+    }
+}
+
+enum JimNamespaceName {
+    Unmaterialized,
+    Materialized(std::rc::Rc<[u8]>),
+}
+
 struct Namespace {
+    /// Actual Jim namespace object context, separate from C tree coordinates.
+    jim_namespace: Option<(JimNamespaceObject, JimNamespaceName)>,
     /// Simple name (e.g. `mathfunc`); the global namespace's is empty.
     name: Vec<u8>,
     parent: Option<NsId>,
+    /// Original constructed C address, retained independently of public edges
+    /// and the diagnostic full-name spelling after namespace deletion.
+    constructed_path: tcl_core_types::ByteNamespacePath,
     children: BTreeMap<Vec<u8>, NsId>,
     /// The child's `TCL_STRING_KEYS` table, including retained resize history.
     child_order: TclStringHashOrder,
     commands: CommandTable,
+    /// Native command-reference invalidation, independent of compiler guards.
+    command_reference_epoch: u64,
+    ensemble_export_epoch: u64,
+    native_resolver_epoch: Option<u64>,
     /// `namespace path` — namespaces searched for unqualified commands (step b).
     path: Vec<NsId>,
     /// `namespace export` patterns — gate what `import` may pull (matched with
@@ -262,7 +403,7 @@ struct Namespace {
     /// `namespace unknown` handler (a command prefix). `None` ⇒ the namespace
     /// uses the interpreter default (the global `::unknown`); an empty handler
     /// also resets to the default.
-    unknown: Option<Vec<u8>>,
+    unknown: Option<crate::obj::Owned>,
     /// The name a retained token keeps reporting once its parent edge is gone.
     /// C's deferred deletion nulls `parentPtr` — freeing the name for a fresh
     /// token — but leaves `fullName` alone, so `namespace current` in the
@@ -273,11 +414,16 @@ struct Namespace {
 impl Namespace {
     fn new(name: Vec<u8>, parent: Option<NsId>) -> Namespace {
         Namespace {
+            jim_namespace: None,
             name,
             parent,
+            constructed_path: tcl_core_types::ByteNamespacePath::root(),
             children: BTreeMap::new(),
             child_order: TclStringHashOrder::default(),
             commands: CommandTable::default(),
+            command_reference_epoch: 0,
+            ensemble_export_epoch: 0,
+            native_resolver_epoch: Some(0),
             path: Vec::new(),
             exports: Vec::new(),
             vars: VarTable::default(),
@@ -287,9 +433,68 @@ impl Namespace {
     }
 }
 
+/// The raw compiler copied at native command publication. Callable lookup is
+/// independent: imports may follow another implementation after this copy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum NativeCompilerRecipe {
+    Absent,
+    Unknown,
+    Registered {
+        registration: Vec<u8>,
+        spec: tcl_registry::native_compilation::NativeCompilationSpec,
+    },
+    ProcedureNoOp,
+}
+
+/// Metadata for a native command node. No worker or procedure is retained.
+struct NativeCommandNode {
+    epoch: u64,
+    compiler_hook: tcl_runtime_api::native_compilation::NativeCompilerHookPresence,
+    compiler_recipe: NativeCompilerRecipe,
+    compiler_handler: Option<BuiltinFn>,
+    placement: Option<(NsId, Vec<u8>)>,
+    namespace: NsId,
+    deletion_started: bool,
+    jim_command_name: Option<crate::obj::JimCommandNameObservation>,
+}
+
+/// The original creation entry, retained across re-entrant delete callbacks.
+pub(crate) struct NativeCommandCreation {
+    namespace: NsId,
+    original_tail: Vec<u8>,
+    occupied: bool,
+    occupied_jim_key: Option<std::rc::Weak<crate::obj::Owned>>,
+    jim_table_key: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
+    original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
+}
+
 /// The namespace tree + the command resolver.
+pub(crate) struct RetiredJimCommands {
+    _pending_slots: Vec<RetiredCommandSlot>,
+    _tables: Vec<CommandTable>,
+    _nodes: BTreeMap<u64, NativeCommandNode>,
+    _previous: BTreeMap<u64, CommandBinding>,
+}
+
 pub struct Namespaces {
     arena: Vec<Namespace>,
+    native_namespace_names: std::cell::RefCell<
+        BTreeMap<NsId, tcl_runtime_api::native_namespace_name::NativeNamespaceNameToken>,
+    >,
+    native_namespace_name_dead: BTreeSet<NsId>,
+    native_command_nodes: BTreeMap<u64, NativeCommandNode>,
+    retired_ensemble_roles: std::cell::RefCell<Vec<std::rc::Rc<crate::ensemble::EnsembleToken>>>,
+    native_command_version: Option<tcl_dialect::TclVersion>,
+    native_compiler_epoch: Option<u64>,
+    /// Software lookup-policy mutations, separate from native compiler epochs.
+    guard_lookup_environment_revision: Option<u64>,
+    jim_previous_commands: BTreeMap<u64, CommandBinding>,
+    jim_previous_locations: BTreeMap<u64, (NsId, Vec<u8>)>,
+    jim_upcalls: BTreeMap<u64, usize>,
+    jim_procedure_epoch: u64,
+    jim_retired_commands: usize,
+    jim_active_commands: BTreeMap<u64, usize>,
+    jim_retired_tokens: BTreeSet<u64>,
     /// Call frames currently running in each arena slot (C's
     /// `Namespace.activationCount`). `Tcl_PushCallFrame` counts every frame —
     /// proc, `apply`, TclOO method, `namespace eval`/`inscope` — and
@@ -300,6 +505,7 @@ pub struct Namespaces {
     /// same name receives a distinct live identity while retained activations
     /// keep naming their deleted token.
     dead: BTreeSet<NsId>,
+    retired_variable_namespaces: BTreeSet<NsId>,
     /// The next command-token generation. One counter for the interpreter, so
     /// a token's identity is unique across namespaces and across a table that
     /// was thrown away and recreated under the same name.
@@ -322,6 +528,14 @@ pub struct Namespaces {
     /// (`false`); an 8.x embedding flips it via
     /// [`crate::interp::Interp::set_runtime_version`].
     pub(crate) ns_var_global_fallback: bool,
+    pub(crate) variable_container_model: tcl_dialect::VariableContainerModel,
+    pub(crate) variable_hash_recipe: Option<tcl_core_types::NativeHashRecipe>,
+    pub(crate) variable_lookup_policy: tcl_dialect::VariableLookupPolicy,
+    /// Selected byte-name recipe; absence is a host capability withdrawal.
+    pub(crate) variable_name_protocol: Option<tcl_syntax::naming::NativeNameProtocol>,
+    pub(crate) variable_string_protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
+    pub(crate) execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
+    pub(crate) variable_link_binding: tcl_dialect::VariableLinkBinding,
 }
 
 impl Default for Namespaces {
@@ -331,71 +545,1718 @@ impl Default for Namespaces {
 }
 
 impl Namespaces {
-    fn mark_command_deleted(command: &Command) {
-        if let Command::Ensemble(token) = command {
-            token.mark_deleted();
+    pub(crate) fn take_jim_frame_owners(
+        &mut self,
+    ) -> (Vec<std::rc::Rc<crate::obj::Owned>>, Vec<VarTable>) {
+        let mut namespaces = Vec::new();
+        let mut variables = Vec::new();
+        for namespace in &mut self.arena {
+            if let Some((JimNamespaceObject::Initial(object), _)) = namespace.jim_namespace.take() {
+                namespaces.push(object);
+            }
+            variables.push(std::mem::take(&mut namespace.vars));
         }
+        (namespaces, variables)
+    }
+
+    pub(crate) fn take_jim_command_owners(&mut self) -> RetiredJimCommands {
+        RetiredJimCommands {
+            _pending_slots: self.take_retired_command_slots(),
+            _tables: self
+                .arena
+                .iter_mut()
+                .map(|namespace| std::mem::take(&mut namespace.commands))
+                .collect(),
+            _nodes: std::mem::take(&mut self.native_command_nodes),
+            _previous: std::mem::take(&mut self.jim_previous_commands),
+        }
+    }
+
+    pub(crate) fn take_retired_command_slots(&self) -> Vec<RetiredCommandSlot> {
+        self.arena
+            .iter()
+            .flat_map(|namespace| std::mem::take(&mut *namespace.commands.retired.borrow_mut()))
+            .collect()
+    }
+
+    pub(crate) fn has_original_jim_registration_key(
+        &self,
+        namespace: NsId,
+        tail: &[u8],
+        generation: u64,
+    ) -> bool {
+        self.arena
+            .get(namespace)
+            .and_then(|namespace| namespace.commands.entries.get(tail))
+            .is_some_and(|slot| {
+                slot.binding
+                    .as_ref()
+                    .is_some_and(|binding| binding.generation == generation)
+                    && slot.original_jim_key.is_some()
+            })
+    }
+
+    pub(crate) fn publish_original_jim_registration_key(
+        &mut self,
+        namespace: NsId,
+        tail: &[u8],
+        generation: u64,
+        report: tcl_syntax::naming::NativeJimCommandTableKey,
+        original: &std::rc::Rc<crate::obj::Owned>,
+    ) -> bool {
+        if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084)
+            || report.comparison_bytes() != tail
+        {
+            return false;
+        }
+        let Some(slot) = self
+            .arena
+            .get_mut(namespace)
+            .and_then(|namespace| namespace.commands.entries.get_mut(tail))
+        else {
+            return false;
+        };
+        let Some(binding) = slot
+            .binding
+            .as_mut()
+            .filter(|binding| binding.generation == generation)
+        else {
+            return false;
+        };
+        if slot.original_jim_key.is_some() {
+            return true;
+        }
+        slot.original_jim_key = Some(std::rc::Rc::new(crate::obj::Owned::retain(
+            original.as_ptr(),
+        )));
+        binding.jim_table_key = Some(report);
+        true
+    }
+
+    /// Observe the actual found Jim hash key before retiring the lookup object's
+    /// old primary. The allocation lease adds no native object reference.
+    pub(crate) fn observe_original_jim_command_name(
+        &mut self,
+        generation: u64,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Jim command name",
+            ));
+        }
+        let (namespace, simple) = self.native_command_slot_at_node(generation).ok_or(
+            ValueError::CommandProtocolUnavailable("original Jim command slot"),
+        )?;
+        let original = self.arena[namespace]
+            .commands
+            .entries
+            .get(&simple)
+            .and_then(|entry| entry.original_jim_key.as_ref())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Jim command hash key",
+            ))?
+            .as_ptr();
+        crate::obj::check_native_liveness(original)?;
+        let observation = crate::obj::JimCommandNameObservation::capture(original)?;
+        self.native_command_nodes
+            .get_mut(&generation)
+            .expect("checked current command slot")
+            .jim_command_name = Some(observation);
+        Ok(())
+    }
+
+    /// The helper's info-commands List owns these exact current hash keys.
+    #[cfg(test)]
+    pub(crate) fn original_jim_command_enumeration_keys(
+        &self,
+        names: &[Vec<u8>],
+    ) -> Result<Vec<crate::obj::NativeObjectLifetime>, tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Jim command enumeration issuer",
+            ));
+        }
+        names
+            .iter()
+            .map(|name| {
+                let slot = self.arena[GLOBAL].commands.entries.get(name).ok_or(
+                    ValueError::CommandProtocolUnavailable("original Jim enumeration slot"),
+                )?;
+                let binding =
+                    slot.binding
+                        .as_ref()
+                        .ok_or(ValueError::CommandProtocolUnavailable(
+                            "original Jim enumeration binding",
+                        ))?;
+                if !self.original_publication_is_current(GLOBAL, name, binding.generation) {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original Jim enumeration generation",
+                    ));
+                }
+                let key = slot.original_jim_key.as_ref().ok_or(
+                    ValueError::CommandProtocolUnavailable("original Jim enumeration hash key"),
+                )?;
+                crate::obj::check_native_liveness(key.as_ptr())?;
+                Ok(crate::obj::NativeObjectLifetime::retain(key.as_ptr()))
+            })
+            .collect()
+    }
+
+    pub(crate) fn original_jim_command_inventory_keys(
+        &self,
+        kind: tcl_runtime_api::NativeJimCommandInventoryKind,
+        visible: &impl Fn(&Command, u64) -> bool,
+    ) -> Result<Vec<OriginalJimCommandInventoryKey>, tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Jim command inventory table",
+            ));
+        }
+        self.arena[GLOBAL]
+            .commands
+            .entries
+            .iter()
+            .filter_map(|(slot, entry)| {
+                entry.binding.as_ref().map(|binding| (slot, entry, binding))
+            })
+            .filter(|(_, _, binding)| {
+                visible(&binding.command, binding.generation)
+                    && match kind {
+                        tcl_runtime_api::NativeJimCommandInventoryKind::Commands => true,
+                        tcl_runtime_api::NativeJimCommandInventoryKind::Procs => {
+                            matches!(&binding.command, Command::Proc(_))
+                        }
+                        tcl_runtime_api::NativeJimCommandInventoryKind::Aliases => matches!(
+                            &binding.command,
+                            Command::Alias { .. } | Command::ParentAlias { .. }
+                        ),
+                    }
+            })
+            .map(|(slot, entry, binding)| {
+                if !self.original_publication_is_current(GLOBAL, slot, binding.generation) {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original Jim inventory current binding",
+                    ));
+                }
+                let key = entry.original_jim_key.as_ref().ok_or(
+                    ValueError::CommandProtocolUnavailable("original Jim inventory actual key"),
+                )?;
+                let table_key = binding.jim_table_key.as_ref().ok_or(
+                    ValueError::CommandProtocolUnavailable("original Jim inventory table geometry"),
+                )?;
+                if table_key.comparison_bytes() != slot.as_slice() {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original Jim inventory key geometry",
+                    ));
+                }
+                crate::obj::check_native_liveness(key.as_ptr())?;
+                Ok(OriginalJimCommandInventoryKey {
+                    generation: binding.generation,
+                    report: table_key.report_bytes().to_vec(),
+                    original: crate::obj::NativeObjectLifetime::retain(key.as_ptr()),
+                })
+            })
+            .collect()
+    }
+
+    pub(crate) fn check_original_jim_command_inventory_key(
+        &self,
+        key: &OriginalJimCommandInventoryKey,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        let original = key.original()?;
+        let (namespace, slot) = self.native_command_slot_at_node(key.generation).ok_or(
+            ValueError::CommandProtocolUnavailable("retired original Jim inventory binding"),
+        )?;
+        let current = self.arena[namespace]
+            .commands
+            .entries
+            .get(&slot)
+            .filter(|_| namespace == GLOBAL)
+            .and_then(|entry| entry.original_jim_key.as_ref());
+        if !current.is_some_and(|current| current.as_ptr() == original) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "replaced original Jim inventory key",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Cold lookup observes one allocator/header slot. Selected readers check
+    /// its current resident; exact key owners keep their own allocation birth.
+    pub(crate) fn original_jim_command_name_observation(
+        &self,
+        generation: u64,
+    ) -> Option<&crate::obj::JimCommandNameObservation> {
+        self.native_command_nodes
+            .get(&generation)?
+            .jim_command_name
+            .as_ref()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn original_jim_command_key(
+        &self,
+        ns: NsId,
+        simple: &[u8],
+    ) -> Option<*mut crate::obj::TclObj> {
+        self.arena
+            .get(ns)?
+            .commands
+            .entries
+            .get(simple)?
+            .original_jim_key
+            .as_ref()
+            .map(|key| key.as_ptr())
+    }
+
+    pub(crate) fn retire_jim_procedure_epoch(&mut self) {
+        self.advance_jim_procedure_epoch();
+    }
+
+    /// Retain command-binding transports for C interpreter retirement.
+    /// Native roles are withdrawn after the namespace owner is released.
+    pub(crate) fn c_procedure_bindings_for_retirement(
+        &self,
+    ) -> Option<Vec<crate::interp::NativeProcedureCommand>> {
+        self.native_command_version?;
+        Some(
+            self.arena
+                .iter()
+                .flat_map(|namespace| namespace.commands.values())
+                .filter_map(|command| match command {
+                    Command::Proc(procedure) => Some(procedure.clone()),
+                    _ => None,
+                })
+                .collect(),
+        )
+    }
+
+    pub(crate) fn native_command_generations(&self) -> Vec<u64> {
+        self.native_command_nodes.keys().copied().collect()
+    }
+
+    /// Actual compiler attachment on a retained raw token, independent of
+    /// origin redirects and current handler semantics.
+    pub(crate) fn native_compiler_hook(
+        &self,
+        generation: u64,
+    ) -> Option<tcl_runtime_api::native_compilation::NativeCompilerHookPresence> {
+        self.native_command_nodes
+            .get(&generation)
+            .map(|node| node.compiler_hook)
+    }
+
+    /// Install an actual compiler attachment. C's procedure NoOp installation
+    /// does not itself advance the interpreter compiler epoch. Existing imports
+    /// retain the attachment they copied when their own token was created.
+    #[cfg(test)]
+    pub(crate) fn set_native_compiler_hook(
+        &mut self,
+        generation: u64,
+        hook: tcl_runtime_api::native_compilation::NativeCompilerHookPresence,
+    ) {
+        if let Some(node) = self.native_command_nodes.get_mut(&generation) {
+            node.compiler_hook = hook;
+            node.compiler_handler = None;
+            node.compiler_recipe = match hook {
+                tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent => {
+                    NativeCompilerRecipe::Absent
+                }
+                _ => NativeCompilerRecipe::Unknown,
+            };
+        }
+    }
+
+    pub(crate) fn native_compiler_recipe(&self, generation: u64) -> Option<NativeCompilerRecipe> {
+        self.native_command_nodes
+            .get(&generation)
+            .map(|node| node.compiler_recipe.clone())
+    }
+
+    pub(crate) fn set_native_compiler_recipe(
+        &mut self,
+        generation: u64,
+        recipe: NativeCompilerRecipe,
+    ) {
+        use tcl_runtime_api::native_compilation::NativeCompilerHookPresence as Hook;
+        if let Some(node) = self.native_command_nodes.get_mut(&generation) {
+            node.compiler_hook = match recipe {
+                NativeCompilerRecipe::Absent => Hook::Absent,
+                NativeCompilerRecipe::Unknown => Hook::Unknown,
+                NativeCompilerRecipe::Registered { .. } | NativeCompilerRecipe::ProcedureNoOp => {
+                    Hook::Present
+                }
+            };
+            node.compiler_recipe = recipe;
+            node.compiler_handler = None;
+        }
+    }
+    pub(crate) fn native_compiler_handler(&self, generation: u64) -> Option<BuiltinFn> {
+        self.native_command_nodes.get(&generation)?.compiler_handler
+    }
+    pub(crate) fn set_native_compiler_handler(
+        &mut self,
+        generation: u64,
+        handler: Option<BuiltinFn>,
+    ) {
+        if let Some(node) = self.native_command_nodes.get_mut(&generation) {
+            node.compiler_handler = handler;
+        }
+    }
+
+    /// Apply the shared native invalidation policy at its actual mutation door.
+    /// Namespace resolver epochs and the interpreter compiler epoch are separate.
+    pub(crate) fn note_native_compiler_mutation(
+        &mut self,
+        namespace: Option<NsId>,
+        mutation: tcl_registry::native_procedure::NativeCompilerCacheMutation,
+    ) {
+        let Some(version) = self.native_command_version else {
+            return;
+        };
+        let invalidated = tcl_registry::native_procedure::native_compiler_cache_invalidated(
+            tcl_registry::InvocationDialect::for_version(version),
+            mutation,
+        );
+        let epoch = match namespace {
+            Some(namespace) => &mut self.arena[namespace].native_resolver_epoch,
+            None => &mut self.native_compiler_epoch,
+        };
+        match invalidated {
+            Some(false) => {}
+            Some(true) => {
+                *epoch = epoch.map(|epoch| {
+                    epoch
+                        .checked_add(1)
+                        .expect("native compiler epoch exhausted")
+                });
+            }
+            None => *epoch = None,
+        }
+    }
+
+    pub(crate) fn native_compiler_cache_epochs(&self, namespace: NsId) -> Option<(u64, u64)> {
+        self.native_command_version?;
+        if !self.namespace_is_live(namespace)
+            && self.activations.get(namespace).copied().unwrap_or(0) == 0
+            && !self.dying.contains(&namespace)
+            && !self.deferred.contains(&namespace)
+        {
+            return None;
+        }
+        Some((
+            self.native_compiler_epoch?,
+            self.arena.get(namespace)?.native_resolver_epoch?,
+        ))
+    }
+
+    /// Select independently authenticated native command-cache semantics.
+    pub(crate) fn set_native_command_version(&mut self, version: Option<tcl_dialect::TclVersion>) {
+        if self.native_command_version != version {
+            for node in &mut self.arena {
+                node.command_reference_epoch = node
+                    .command_reference_epoch
+                    .checked_add(1)
+                    .expect("native command reference epoch exhausted");
+            }
+            for node in self.native_command_nodes.values_mut() {
+                node.epoch = node
+                    .epoch
+                    .checked_add(1)
+                    .expect("native command epoch exhausted");
+            }
+            self.native_command_version = version;
+        }
+    }
+
+    fn increment_command_reference(&mut self, ns: NsId) {
+        self.arena[ns].command_reference_epoch = self.arena[ns]
+            .command_reference_epoch
+            .checked_add(1)
+            .expect("native command reference epoch exhausted");
+    }
+
+    /// TclInvalidateNsPath: each actual reverse-path entry invalidates its creator.
+    fn invalidate_native_path_dependents(&mut self, target: NsId) {
+        if self
+            .native_command_version
+            .is_none_or(|version| version == tcl_dialect::TclVersion::V8_4)
+        {
+            return;
+        }
+        for ns in 0..self.arena.len() {
+            let count = self.arena[ns]
+                .path
+                .iter()
+                .filter(|entry| **entry == target)
+                .count();
+            for _ in 0..count {
+                self.increment_command_reference(ns);
+            }
+        }
+    }
+
+    /// TclInvalidateNsCmdLookup is distinct from reverse-path invalidation.
+    pub(crate) fn ensemble_export_epoch(&self, namespace: NsId) -> u64 {
+        self.arena[namespace].ensemble_export_epoch
+    }
+
+    pub(crate) fn advance_ensemble_export_epoch(&mut self, namespace: NsId) {
+        self.arena[namespace].ensemble_export_epoch = self.arena[namespace]
+            .ensemble_export_epoch
+            .checked_add(1)
+            .expect("native ensemble export epoch exhausted");
+    }
+
+    pub(crate) fn invalidate_native_command_lookup(&mut self, ns: NsId) {
+        if !self.arena[ns].exports.is_empty() {
+            self.note_guard_lookup_environment_mutation();
+            self.advance_ensemble_export_epoch(ns);
+        }
+
+        if self
+            .native_command_version
+            .is_some_and(|version| version != tcl_dialect::TclVersion::V8_4)
+            && !self.arena[ns].path.is_empty()
+        {
+            self.increment_command_reference(ns);
+        }
+    }
+
+    /// TclResetShadowedCmdRefs walks physical parents and global child trails.
+    fn reset_native_shadowed_references(&mut self, namespace: NsId, simple: &[u8]) {
+        if self.native_command_version.is_none() {
+            return;
+        }
+        let mut trail: Vec<NsId> = Vec::new();
+        let mut current = Some(namespace);
+        while let Some(ns) = current.filter(|ns| *ns != GLOBAL) {
+            let mut shadow = Some(GLOBAL);
+            for &child in trail.iter().rev() {
+                shadow = shadow.and_then(|parent| {
+                    self.arena[parent]
+                        .children
+                        .get(&self.arena[child].name)
+                        .copied()
+                });
+            }
+            if let Some(global) =
+                shadow.filter(|global| self.arena[*global].commands.contains_key(simple))
+            {
+                let generation = self.arena[global]
+                    .commands
+                    .generation(simple)
+                    .expect("shadowed command retains its token");
+                let hook = self
+                    .native_compiler_hook(generation)
+                    .expect("shadowed command retains its native node");
+                self.note_native_compiler_mutation(Some(ns),
+                    tcl_registry::native_procedure::NativeCompilerCacheMutation::NamespaceCommandShadow { hook });
+                self.increment_command_reference(ns);
+                self.invalidate_native_path_dependents(ns);
+            }
+            trail.push(ns);
+            current = self.arena[ns].parent;
+        }
+    }
+
+    /// Capture occupancy and C8.5's early ObjCommand path invalidation.
+    pub(crate) fn native_command_creation_entry(
+        &mut self,
+        ns: NsId,
+        simple: &[u8],
+    ) -> NativeCommandCreation {
+        self.native_command_creation_entry_with_jim_key(ns, simple, None)
+    }
+
+    pub(crate) fn native_command_creation_entry_with_jim_key(
+        &mut self,
+        ns: NsId,
+        simple: &[u8],
+        incoming: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
+    ) -> NativeCommandCreation {
+        self.native_command_creation_entry_with_original_key(ns, simple, incoming, None)
+    }
+
+    /// The actual constructor supplies its key object separately from reporting
+    /// units. Byte-only table utilities do not manufacture an original header.
+    pub(crate) fn native_command_creation_entry_with_original_key(
+        &mut self,
+        ns: NsId,
+        simple: &[u8],
+        incoming: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
+        original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
+    ) -> NativeCommandCreation {
+        if self.native_command_version == Some(tcl_dialect::TclVersion::V8_5) {
+            self.invalidate_native_path_dependents(ns);
+        }
+        let occupied = self.arena[ns].commands.binding(simple);
+        let jim_table_key = self
+            .variable_name_protocol
+            .filter(|protocol| protocol.is_jim084())
+            .and_then(|protocol| {
+                let incoming = incoming.or_else(|| {
+                    tcl_syntax::naming::NativeJimCommandTableKey::from_comparison_key(
+                        protocol, simple,
+                    )
+                })?;
+                assert_eq!(
+                    incoming.comparison_bytes(),
+                    simple,
+                    "actual Jim table comparison slot"
+                );
+                Some(incoming.retain_for_replacement(
+                    occupied.and_then(|binding| binding.jim_table_key.as_ref()),
+                ))
+            });
+        NativeCommandCreation {
+            namespace: ns,
+            original_tail: simple.to_vec(),
+            occupied: occupied.is_some(),
+            occupied_jim_key: self.arena[ns]
+                .commands
+                .entries
+                .get(simple)
+                .and_then(|slot| slot.original_jim_key.as_ref())
+                .map(std::rc::Rc::downgrade),
+            jim_table_key,
+            original_jim_key,
+        }
+    }
+
+    /// A value destructor may replace the value under the same original key.
+    /// It may not donate a deleted/recreated key slot to this old operation.
+    pub(crate) fn original_jim_creation_slot_is_current(
+        &self,
+        entry: &NativeCommandCreation,
+    ) -> bool {
+        if !self
+            .variable_name_protocol
+            .is_some_and(|protocol| protocol.is_jim084())
+        {
+            return true;
+        }
+        let current = self
+            .arena
+            .get(entry.namespace)
+            .and_then(|namespace| {
+                namespace
+                    .commands
+                    .entries
+                    .get(entry.original_tail.as_slice())
+            })
+            .and_then(|slot| slot.original_jim_key.as_ref());
+        match (&entry.occupied_jim_key, current) {
+            (None, None) => true,
+            (Some(original), Some(current)) => {
+                std::rc::Weak::ptr_eq(original, &std::rc::Rc::downgrade(current))
+                    && crate::obj::allocation_is_live(current.as_ptr())
+            }
+            _ => false,
+        }
+    }
+
+    fn note_native_command_created(&mut self, entry: NativeCommandCreation, simple: &[u8]) {
+        let ns = entry.namespace;
+        if !entry.occupied {
+            self.invalidate_native_command_lookup(ns);
+            if self.native_command_version != Some(tcl_dialect::TclVersion::V8_5) {
+                self.invalidate_native_path_dependents(ns);
+            }
+        }
+        self.reset_native_shadowed_references(ns, simple);
+    }
+
+    fn increment_native_command_epoch(&mut self, generation: u64) {
+        if let Some(hook) = self.native_compiler_hook(generation) {
+            self.note_native_compiler_mutation(
+                None,
+                tcl_registry::native_procedure::NativeCompilerCacheMutation::CommandToken { hook },
+            );
+        }
+        if let Some(node) = self.native_command_nodes.get_mut(&generation) {
+            node.epoch = node
+                .epoch
+                .checked_add(1)
+                .expect("native command epoch exhausted");
+        }
+    }
+
+    pub(crate) fn original_command_deletion_started(&self, generation: u64) -> bool {
+        self.native_command_nodes
+            .get(&generation)
+            .is_some_and(|node| node.deletion_started)
+    }
+    pub(crate) fn begin_original_command_deletion(&mut self, generation: u64) {
+        if let Some(node) = self.native_command_nodes.get_mut(&generation) {
+            node.deletion_started = true;
+        }
+    }
+
+    /// Selected deletion's command epoch is independent of compiler mutation.
+    pub(crate) fn advance_original_deletion_epoch(&mut self, generation: u64) {
+        if let Some(node) = self.native_command_nodes.get_mut(&generation) {
+            node.epoch = node
+                .epoch
+                .checked_add(1)
+                .expect("native command epoch exhausted");
+        }
+    }
+
+    /// The original post-trace compiler and namespace stages. No reported name
+    /// is resolved, and the ordinary rename/hide workers retain their own effects.
+    pub(crate) fn original_deletion_after_trace(
+        &mut self,
+        generation: u64,
+        invalidate_namespace: bool,
+    ) {
+        if invalidate_namespace {
+            if let Some(namespace) = self
+                .native_command_nodes
+                .get(&generation)
+                .map(|node| node.namespace)
+            {
+                self.invalidate_native_command_lookup(namespace);
+            }
+        }
+        if let Some(hook) = self.native_compiler_hook(generation) {
+            self.note_native_compiler_mutation(
+                None,
+                tcl_registry::native_procedure::NativeCompilerCacheMutation::CommandToken { hook },
+            );
+        }
+    }
+
+    /// Raw unlink for this one already captured deletion. Implementation roles
+    /// are retired by the outside-borrow owner; no generic epoch is replayed.
+    pub(crate) fn unlink_original_command_generation(
+        &mut self,
+        generation: u64,
+    ) -> Option<CommandBinding> {
+        let (namespace, simple) = self.native_command_slot_at_node(generation)?;
+        let binding = self.arena[namespace].commands.remove_binding(&simple)?;
+        if matches!(&binding.command, Command::Imported { .. }) {
+            self.note_guard_lookup_environment_mutation();
+        }
+        self.native_command_nodes.get_mut(&generation)?.placement = None;
+        Some(binding)
+    }
+
+    fn unlink_native_binding(&mut self, ns: NsId, simple: &[u8]) -> Option<CommandBinding> {
+        let binding = self.arena[ns].commands.remove_binding(simple)?;
+        self.increment_native_command_epoch(binding.generation);
+        self.native_command_nodes
+            .get_mut(&binding.generation)
+            .expect("bound command retains its native command node")
+            .placement = None;
+        self.invalidate_native_command_lookup(ns);
+        self.note_jim_command_retirement(binding.generation);
+        Some(binding)
+    }
+
+    fn remove_native_binding(&mut self, ns: NsId, simple: &[u8]) -> Option<CommandBinding> {
+        let binding = self.unlink_native_binding(ns, simple)?;
+        if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084) {
+            let procedure = match &binding.command {
+                Command::Proc(procedure) => procedure.take_for_retirement(),
+                _ => None,
+            };
+            let view = binding.clone();
+            self.arena[ns]
+                .commands
+                .retired
+                .borrow_mut()
+                .push(RetiredCommandSlot {
+                    procedure,
+                    original_jim_key: None,
+                    binding: Some(binding),
+                });
+            Some(view)
+        } else {
+            // remove_binding already extracted Jim's real key and value owners.
+            Some(binding)
+        }
+    }
+
+    fn take_native_binding_for_replacement(
+        &mut self,
+        ns: NsId,
+        simple: &[u8],
+    ) -> Option<CommandBinding> {
+        if !self
+            .variable_name_protocol
+            .is_some_and(|protocol| protocol.is_jim084())
+        {
+            return self.remove_native_binding(ns, simple);
+        }
+        let binding = self.arena[ns].commands.take_slot(simple)?;
+        self.increment_native_command_epoch(binding.generation);
+        self.native_command_nodes
+            .get_mut(&binding.generation)
+            .expect("bound command retains its native command node")
+            .placement = None;
+        self.note_jim_command_retirement(binding.generation);
+        Some(binding)
+    }
+
+    /// Value replacement retains Jim's genuine occupied key. C still removes
+    /// the original entry using its independent replacement recipe.
+    pub(crate) fn remove_in_for_replacement(&mut self, ns: NsId, simple: &[u8]) -> bool {
+        self.take_native_binding_for_replacement(ns, simple)
+            .is_some_and(|binding| {
+                Self::mark_command_deleted(&binding.command, &self.retired_ensemble_roles);
+                // Actual callers retain the displaced command through this stage.
+                true
+            })
+    }
+
+    /// Hide retains the command node, but invalidates its cached references.
+    pub(crate) fn note_native_command_hidden(&mut self, generation: u64) {
+        self.increment_native_command_epoch(generation);
+        if let Some(node) = self.native_command_nodes.get_mut(&generation) {
+            let placement = node.placement.take();
+            if let Some((ns, _)) = placement {
+                self.invalidate_native_command_lookup(ns);
+            }
+        }
+    }
+
+    /// Retire a hidden node without deriving its identity from the hidden name.
+    pub(crate) fn retire_native_command_node(&mut self, generation: u64) {
+        self.increment_native_command_epoch(generation);
+        if let Some(node) = self.native_command_nodes.get_mut(&generation) {
+            node.placement = None;
+        }
+    }
+
+    /// Native Jim epoch; independent of compiler guards and C command epochs.
+    pub(crate) const fn jim_procedure_epoch(&self) -> u64 {
+        self.jim_procedure_epoch
+    }
+    fn advance_jim_procedure_epoch(&mut self) {
+        self.jim_procedure_epoch = self
+            .jim_procedure_epoch
+            .checked_add(1)
+            .expect("Jim procedure epoch exhausted");
+        self.jim_retired_commands = 0;
+        self.jim_retired_tokens.clear();
+    }
+    fn note_jim_command_retirement(&mut self, token: u64) {
+        if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084) {
+            return;
+        }
+        self.note_retained_jim_command_retirement(token);
+    }
+    fn note_retained_jim_command_retirement(&mut self, token: u64) {
+        if self.jim_active_commands.contains_key(&token)
+            || self
+                .jim_previous_commands
+                .values()
+                .any(|node| node.generation == token)
+            || !self.jim_retired_tokens.insert(token)
+        {
+            return;
+        }
+        self.jim_previous_locations.remove(&token);
+        self.release_jim_previous(token);
+        self.jim_retired_commands += 1;
+        if self.jim_retired_commands >= 1000 {
+            self.advance_jim_procedure_epoch();
+        }
+    }
+    pub(crate) fn enter_jim_command(&mut self, token: u64) {
+        *self.jim_active_commands.entry(token).or_default() += 1;
+    }
+    pub(crate) fn leave_jim_command(&mut self, token: u64) {
+        let count = self
+            .jim_active_commands
+            .get_mut(&token)
+            .expect("active Jim command lease");
+        *count -= 1;
+        if *count == 0 {
+            self.jim_active_commands.remove(&token);
+            if self.native_command_at_node(token).is_none() {
+                self.note_retained_jim_command_retirement(token);
+            }
+        }
+    }
+
+    /// Current independently mutable command-reference context.
+    pub(crate) fn native_command_reference(
+        &self,
+        ns: NsId,
+    ) -> tcl_runtime_api::native_command_name::NativeCommandNameReference {
+        tcl_runtime_api::native_command_name::NativeCommandNameReference {
+            namespace_token: ns as u64,
+            command_reference_epoch: self.arena[ns].command_reference_epoch,
+        }
+    }
+
+    /// Observe an original node without retaining its callable implementation.
+    pub(crate) fn native_command_target(
+        &self,
+        generation: u64,
+    ) -> Option<tcl_runtime_api::native_command_name::NativeCommandNameTarget> {
+        let node = self.native_command_nodes.get(&generation)?;
+        let (ns, simple) = node.placement.as_ref()?;
+        (self.arena[*ns].commands.generation(simple) == Some(generation)).then_some(
+            tcl_runtime_api::native_command_name::NativeCommandNameTarget {
+                token: generation,
+                implementation_generation: generation,
+                command_epoch: node.epoch,
+                namespace_token: *ns as u64,
+                namespace_dying: self.dead.contains(ns) || self.dying.contains(ns),
+            },
+        )
+    }
+
+    /// Actual current command holder/tail for one still-live command generation.
+    pub(crate) fn native_command_slot_at_node(&self, generation: u64) -> Option<(NsId, Vec<u8>)> {
+        let node = self.native_command_nodes.get(&generation)?;
+        let (namespace, simple) = node.placement.as_ref()?;
+        (self.arena[*namespace].commands.generation(simple) == Some(generation))
+            .then(|| (*namespace, simple.clone()))
+    }
+
+    /// Borrow a live native command's actual simple table key without display parsing.
+    pub(crate) fn native_command_simple_at_node(&self, generation: u64) -> Option<&[u8]> {
+        let node = self.native_command_nodes.get(&generation)?;
+        let (namespace, simple) = node.placement.as_ref()?;
+        (self.arena[*namespace].commands.generation(simple) == Some(generation))
+            .then_some(simple.as_slice())
+    }
+
+    /// Check the original published slot without retaining its callable payload.
+    pub(crate) fn original_publication_is_current(
+        &self,
+        namespace: NsId,
+        name: &[u8],
+        generation: u64,
+    ) -> bool {
+        self.native_command_nodes
+            .get(&generation)
+            .is_some_and(|node| {
+                node.placement.as_ref().is_some_and(|(holder, key)| {
+                    *holder == namespace
+                        && key.as_slice() == name
+                        && self.arena[*holder].commands.generation(key) == Some(generation)
+                })
+            })
+    }
+
+    /// Join a genuine prepared Proc observation to the same original table node.
+    pub(crate) fn original_procedure_publication_is_current(
+        &self,
+        namespace: NsId,
+        name: &[u8],
+        generation: u64,
+        original: &crate::interp::OriginalProcedureBinding,
+    ) -> bool {
+        self.original_publication_is_current(namespace, name, generation)
+            && self.arena[namespace].commands.get(name).is_some_and(|command| {
+                matches!(command, Command::Proc(procedure) if procedure.observes_original_binding(original))
+            })
+    }
+
+    /// Borrow Jim's independently retained active worker location.
+    fn retained_jim_command_at_node(&self, generation: u64) -> Option<(&Command, NsId, &[u8])> {
+        let (namespace, simple) = self.jim_previous_locations.get(&generation)?;
+        let binding = self
+            .jim_previous_commands
+            .values()
+            .find(|binding| binding.generation == generation)?;
+        Some((&binding.command, *namespace, simple))
+    }
+
+    /// Project the actual current node placement without imposing callable ownership.
+    fn native_command_at_node_using<T>(
+        &self,
+        generation: u64,
+        project: impl Fn(&Command, NsId, &[u8]) -> T,
+    ) -> Option<T> {
+        let node = self.native_command_nodes.get(&generation)?;
+        let (ns, simple) = node.placement.as_ref()?;
+        (self.arena[*ns].commands.generation(simple) == Some(generation)).then(|| {
+            project(
+                self.arena[*ns]
+                    .commands
+                    .get(simple)
+                    .expect("matching generation has a command"),
+                *ns,
+                simple,
+            )
+        })
+    }
+
+    /// Clone a live worker only after its actual node placement is checked.
+    pub(crate) fn native_command_at_node(&self, generation: u64) -> Option<(Command, Vec<u8>)> {
+        if let Some((command, namespace, simple)) = self.retained_jim_command_at_node(generation) {
+            return Some((command.clone(), self.command_fqn(namespace, simple)));
+        }
+        self.native_command_at_node_using(generation, |command, namespace, simple| {
+            (command.clone(), self.command_fqn(namespace, simple))
+        })
+    }
+
+    /// Capture the actual selected registration and release-specific reference context.
+    pub(crate) fn native_command_name_cache(
+        &self,
+        interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+        current: NsId,
+        original: &[u8],
+        protocol: tcl_registry::native_command_literal::NativeCommandNameProtocol,
+    ) -> Option<tcl_runtime_api::native_command_name::NativeCommandNameCache> {
+        let (ns, simple) = self.home_of(current, original)?;
+        let generation = self.arena[ns].commands.generation(&simple)?;
+        let node = self.native_command_nodes.get(&generation)?;
+        Some(
+            tcl_runtime_api::native_command_name::NativeCommandNameCache {
+                interpreter,
+                version: protocol.version(),
+                slot: tcl_core_types::NativeByteCommandSlot {
+                    namespace: self.arena[ns].constructed_path.clone(),
+                    simple: tcl_core_types::NameBytes::from(simple),
+                },
+                namespace_token: ns as u64,
+                token: generation,
+                implementation_generation: generation,
+                command_epoch: node.epoch,
+                reference: protocol.lookup_reference(
+                    written_command_parts(original).absolute,
+                    self.native_command_reference(current),
+                    self.native_command_reference(GLOBAL),
+                ),
+            },
+        )
+    }
+
+    /// Prime an already selected node without reparsing its reported full name.
+    pub(crate) fn native_command_name_cache_from_binding(
+        &self,
+        interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+        binding: &tcl_runtime_api::native_compilation::NativeCompilationBinding,
+        protocol: tcl_registry::native_command_literal::NativeCommandNameProtocol,
+    ) -> Option<tcl_runtime_api::native_command_name::NativeCommandNameCache> {
+        let node = self.native_command_nodes.get(&binding.token)?;
+        let (namespace, simple) = node.placement.as_ref()?;
+        if *namespace as u64 != binding.namespace_token
+            || self.arena[*namespace].commands.generation(simple) != Some(binding.token)
+            || binding.implementation_generation != binding.token
+            || self.arena[*namespace].constructed_path != binding.slot.namespace
+            || simple.as_slice() != binding.slot.simple.as_bytes()
+        {
+            return None;
+        }
+        Some(
+            tcl_runtime_api::native_command_name::NativeCommandNameCache {
+                interpreter,
+                version: protocol.version(),
+                slot: binding.slot.clone(),
+                namespace_token: binding.namespace_token,
+                token: binding.token,
+                implementation_generation: binding.implementation_generation,
+                command_epoch: node.epoch,
+                reference: None,
+            },
+        )
+    }
+
+    fn mark_command_deleted(
+        command: &Command,
+        retired: &std::cell::RefCell<Vec<std::rc::Rc<crate::ensemble::EnsembleToken>>>,
+    ) {
+        if let Command::Ensemble(token) = command {
+            token.mark_deleted_deferred();
+            retired.borrow_mut().push(std::rc::Rc::clone(token));
+        } else if let Command::ChildInterp(command) = command {
+            command.retire();
+        }
+    }
+
+    pub(crate) fn take_retired_ensemble_roles(
+        &self,
+    ) -> Vec<std::rc::Rc<crate::ensemble::EnsembleToken>> {
+        self.retired_ensemble_roles.borrow_mut().drain(..).collect()
     }
 
     /// The identity a freshly bound command token carries.
     fn mint_command_generation(&mut self) -> u64 {
-        self.next_command_generation += 1;
+        self.next_command_generation = self
+            .next_command_generation
+            .checked_add(1)
+            .expect("native command identity exhausted");
         self.next_command_generation
     }
 
     fn command_fqn(&self, ns: NsId, simple: &[u8]) -> Vec<u8> {
-        let mut fqn = self.qualified_name(ns);
-        if fqn != b"::" {
-            fqn.extend_from_slice(b"::");
+        if !self
+            .variable_name_protocol
+            .is_some_and(|protocol| protocol.is_jim084())
+        {
+            return tcl_syntax::naming::native_command_full_name_bytes(
+                &tcl_core_types::NativeByteCommandSlot {
+                    namespace: self.arena[ns].constructed_path.clone(),
+                    simple: simple.into(),
+                },
+            );
         }
-        fqn.extend_from_slice(simple);
-        fqn
+        let namespace = if ns != GLOBAL && self.arena[ns].jim_namespace.is_some() {
+            tcl_syntax::naming::NativeNamespaceReportParts::JimFlat(
+                self.jim_namespace_bytes(ns)
+                    .expect("Jim namespace reporting requires an already reached namespace getter")
+                    .into(),
+            )
+        } else {
+            tcl_syntax::naming::NativeNamespaceReportParts::CConstructed(
+                self.arena[ns].constructed_path.clone(),
+            )
+        };
+        tcl_syntax::naming::native_qualified_inventory_report_bytes(&namespace, simple)
     }
 
     /// Install one real command binding. Replacement deletes the displaced
     /// command token; the installed ensemble token acquires this binding's FQN.
     fn insert_bound(&mut self, ns: NsId, simple: Vec<u8>, command: Command) {
+        let entry = self.native_command_creation_entry(ns, &simple);
+        self.insert_bound_after_entry(entry, simple, command);
+    }
+
+    fn insert_bound_after_entry(
+        &mut self,
+        mut entry: NativeCommandCreation,
+        simple: Vec<u8>,
+        command: Command,
+    ) -> u64 {
+        let ns = entry.namespace;
         // C redefines a command by deleting the old hash entry and creating a
         // new one, so the name moves to its bucket head
         // (`TclCreateObjCommandInNs`).
-        if let Some(displaced) = self.arena[ns].commands.remove(&simple) {
-            Self::mark_command_deleted(&displaced);
+        if let Some(displaced) = self.take_native_binding_for_replacement(ns, &simple) {
+            Self::mark_command_deleted(&displaced.command, &self.retired_ensemble_roles);
+            if self
+                .variable_name_protocol
+                .is_some_and(|protocol| protocol.is_jim084())
+            {
+                self.arena[ns]
+                    .commands
+                    .retired
+                    .borrow_mut()
+                    .push(RetiredCommandSlot {
+                        procedure: None,
+                        original_jim_key: None,
+                        binding: Some(displaced),
+                    });
+            }
         }
         if let Command::Ensemble(token) = &command {
             token.rename(self.command_fqn(ns, &simple));
         }
+        let compiler_hook = match &command {
+            Command::Imported {
+                source_generation, ..
+            } => self.native_compiler_hook(*source_generation).unwrap_or(
+                tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Unknown,
+            ),
+            _ => tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent,
+        };
+        let compiler_recipe = match &command {
+            Command::Imported {
+                source_generation, ..
+            } => self
+                .native_compiler_recipe(*source_generation)
+                .unwrap_or(NativeCompilerRecipe::Unknown),
+            _ => NativeCompilerRecipe::Absent,
+        };
+        let compiler_handler = match &command {
+            Command::Imported {
+                source_generation, ..
+            } => self.native_compiler_handler(*source_generation),
+            _ => None,
+        };
         let generation = self.mint_command_generation();
-        self.arena[ns].commands.insert(simple, command, generation);
+        self.native_command_nodes.insert(
+            generation,
+            NativeCommandNode {
+                epoch: 0,
+                compiler_hook,
+                compiler_recipe,
+                compiler_handler,
+                placement: Some((ns, simple.clone())),
+                namespace: ns,
+                deletion_started: false,
+                jim_command_name: None,
+            },
+        );
+        let jim_table_key = entry.jim_table_key.clone();
+        let original_jim_key = entry.original_jim_key.take();
+        self.note_native_command_created(entry, &simple);
+        if self.variable_name_protocol == Some(tcl_syntax::naming::NativeNameProtocol::Jim084)
+            && matches!(&command, Command::Proc(_))
+        {
+            let recipe = tcl_syntax::native_jim_lookup::NativeJimLookupProtocol::jim084();
+            if recipe
+                .procedure_shadow_tail(&simple)
+                .is_some_and(|tail| self.arena[GLOBAL].commands.contains_key(tail))
+            {
+                self.advance_jim_procedure_epoch();
+            }
+        }
+        self.arena[ns].commands.insert(
+            simple,
+            command,
+            generation,
+            jim_table_key,
+            original_jim_key,
+        );
+        generation
     }
 
     /// Publish an existing command token at a new placement. Visibility and
     /// rename moves retain the generation because they move Tcl's `Command *`;
     /// only a new definition goes through [`Self::insert_bound`].
-    fn insert_moved_binding(&mut self, ns: NsId, simple: Vec<u8>, binding: CommandBinding) {
-        if let Some(displaced) = self.arena[ns].commands.remove(&simple) {
-            Self::mark_command_deleted(&displaced);
+    fn insert_moved_binding(
+        &mut self,
+        ns: NsId,
+        simple: Vec<u8>,
+        binding: CommandBinding,
+        original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
+    ) {
+        if let Some(displaced) = self.remove_native_binding(ns, &simple) {
+            Self::mark_command_deleted(&displaced.command, &self.retired_ensemble_roles);
         }
         if let Command::Ensemble(token) = &binding.command {
             token.rename(self.command_fqn(ns, &simple));
         }
-        self.arena[ns]
-            .commands
-            .insert(simple, binding.command, binding.generation);
+        let node = self
+            .native_command_nodes
+            .get_mut(&binding.generation)
+            .expect("moved binding retains its native command node");
+        node.namespace = ns;
+        node.placement = Some((ns, simple.clone()));
+        self.arena[ns].commands.insert(
+            simple,
+            binding.command,
+            binding.generation,
+            binding.jim_table_key,
+            original_jim_key,
+        );
     }
 
     /// A fresh tree with just the global namespace `::`.
     #[must_use]
     pub fn new() -> Namespaces {
         Namespaces {
+            native_namespace_names: std::cell::RefCell::new(BTreeMap::new()),
+            native_namespace_name_dead: BTreeSet::new(),
+            native_command_nodes: BTreeMap::new(),
+            retired_ensemble_roles: std::cell::RefCell::new(Vec::new()),
+            native_command_version: Some(tcl_dialect::TclVersion::V9_0),
+            native_compiler_epoch: Some(0),
+            guard_lookup_environment_revision: Some(0),
+            jim_previous_commands: BTreeMap::new(),
+            jim_previous_locations: BTreeMap::new(),
+            jim_upcalls: BTreeMap::new(),
+            jim_procedure_epoch: 1,
+            jim_retired_commands: 0,
+            jim_active_commands: BTreeMap::new(),
+            jim_retired_tokens: BTreeSet::new(),
             ns_var_global_fallback: false,
-            arena: vec![Namespace::new(Vec::new(), None)],
+            variable_container_model: tcl_dialect::VariableContainerModel::DistinctArray,
+            variable_hash_recipe: None,
+            variable_lookup_policy: tcl_dialect::VariableLookupPolicy::Tcl,
+            execution_name_policy: None,
+            variable_string_protocol: Some(tcl_syntax::native_string::NativeStringProtocol::C(
+                tcl_dialect::TclVersion::V9_0,
+            )),
+            variable_name_protocol: Some(tcl_syntax::naming::NativeNameProtocol::for_tcl_version(
+                tcl_dialect::TclVersion::V9_0,
+            )),
+            variable_link_binding: tcl_dialect::VariableLinkBinding::StableCell,
+            arena: vec![{
+                let mut root = Namespace::new(Vec::new(), None);
+                root.jim_namespace = Some((
+                    JimNamespaceObject::Initial(std::rc::Rc::new(crate::obj::Owned::fresh(
+                        crate::obj::new_string_bytes(b""),
+                    ))),
+                    JimNamespaceName::Materialized(std::rc::Rc::from(&b""[..])),
+                ));
+                root
+            }],
             activations: vec![0],
             next_command_generation: 0,
             dead: BTreeSet::new(),
+            retired_variable_namespaces: BTreeSet::new(),
             deferred: BTreeSet::new(),
             dying_children: BTreeMap::new(),
             dying: BTreeSet::new(),
         }
+    }
+
+    /// Retain the actual canonical Jim object for a new activation context.
+    /// Jim helper contexts are counted objects, not C namespace-tree nodes.
+    /// Equal names do not replace the supplied holder with another object.
+    pub(crate) fn retain_jim_namespace(
+        &mut self,
+        holder: crate::obj::Owned,
+        bytes: std::rc::Rc<[u8]>,
+    ) -> NsId {
+        self.retain_jim_namespace_with_name(holder, JimNamespaceName::Materialized(bytes))
+    }
+
+    /// Allocate an actual original-object context without claiming a name coordinate.
+    pub(crate) fn retain_unmaterialized_jim_namespace(
+        &mut self,
+        holder: crate::obj::Owned,
+    ) -> NsId {
+        self.retain_jim_namespace_with_name(holder, JimNamespaceName::Unmaterialized)
+    }
+
+    fn retain_jim_namespace_with_name(
+        &mut self,
+        holder: crate::obj::Owned,
+        name: JimNamespaceName,
+    ) -> NsId {
+        let token = self.arena.len();
+        let mut namespace = Namespace::new(Vec::new(), None);
+        namespace.jim_namespace =
+            Some((JimNamespaceObject::Initial(std::rc::Rc::new(holder)), name));
+        self.arena.push(namespace);
+        self.activations.push(0);
+        token
+    }
+
+    /// Adopt the original empty object as the genuine Jim top-frame namespace.
+    pub(crate) fn adopt_jim_root_namespace(&mut self, holder: crate::obj::Owned) {
+        self.arena[GLOBAL].jim_namespace = Some((
+            JimNamespaceObject::Initial(std::rc::Rc::new(holder)),
+            JimNamespaceName::Materialized(std::rc::Rc::from(&b""[..])),
+        ));
+    }
+
+    /// The counted canonical name selected from the actual retained Jim object.
+    pub(crate) fn jim_namespace_bytes(&self, token: NsId) -> Option<&[u8]> {
+        let (holder, name) = self.arena.get(token)?.jim_namespace.as_ref()?;
+        let JimNamespaceName::Materialized(bytes) = name else {
+            return None;
+        };
+        let original = holder.owner()?;
+        let resident = crate::obj::native_object_snapshot(original.as_ptr())
+            .ok()?
+            .resident?;
+        (resident.as_ref() == bytes.as_ref()).then_some(bytes.as_ref())
+    }
+
+    /// Record only bytes obtained from this context's actual original object.
+    pub(crate) fn record_jim_namespace_materialized(
+        &mut self,
+        token: NsId,
+        original: *mut crate::obj::TclObj,
+        bytes: std::rc::Rc<[u8]>,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        let context = self
+            .arena
+            .get_mut(token)
+            .and_then(|namespace| namespace.jim_namespace.as_mut());
+        let Some((holder, name)) = context else {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim namespace context owner",
+            ));
+        };
+        if !holder
+            .owner()
+            .is_some_and(|holder| holder.as_ptr() == original)
+            || !crate::obj::native_object_snapshot(original)?
+                .resident
+                .is_some_and(|resident| resident.as_ref() == bytes.as_ref())
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim namespace materialization owner",
+            ));
+        }
+        *name = JimNamespaceName::Materialized(bytes);
+        Ok(())
+    }
+
+    /// Retain the actual original Jim namespace object, without display reparsing.
+    pub(crate) fn jim_namespace_object(&self, token: NsId) -> Option<crate::obj::Owned> {
+        self.arena
+            .get(token)?
+            .jim_namespace
+            .as_ref()
+            .and_then(|(holder, _)| holder.owner())
+            .map(|holder| crate::obj::Owned::retain(holder.as_ptr()))
+    }
+
+    /// Transfer a newly allocated native namespace reference to its actual
+    /// frame or procedure. Published indexing retains only a weak lifetime.
+    pub(crate) fn take_jim_namespace_owner(
+        &mut self,
+        token: NsId,
+    ) -> Option<std::rc::Rc<crate::obj::Owned>> {
+        let (slot, _) = self.arena.get_mut(token)?.jim_namespace.as_mut()?;
+        let owner = slot.owner()?;
+        match slot {
+            JimNamespaceObject::Initial(_) => {
+                *slot = JimNamespaceObject::Published(vec![std::rc::Rc::downgrade(&owner)]);
+                Some(owner)
+            }
+            JimNamespaceObject::Published(owners) => {
+                let owner = std::rc::Rc::new(crate::obj::Owned::retain(owner.as_ptr()));
+                owners.retain(|owner| owner.strong_count() != 0);
+                owners.insert(0, std::rc::Rc::downgrade(&owner));
+                Some(owner)
+            }
+        }
+    }
+
+    /// Index an independently acquired actual frame role without retaining that role.
+    pub(crate) fn remember_jim_namespace_owner(
+        &mut self,
+        token: NsId,
+        owner: &std::rc::Rc<crate::obj::Owned>,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        let context = self
+            .arena
+            .get_mut(token)
+            .and_then(|namespace| namespace.jim_namespace.as_mut());
+        let Some((holder, _)) = context else {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim frame namespace context",
+            ));
+        };
+        if !holder
+            .owner()
+            .is_some_and(|actual| actual.as_ptr() == owner.as_ptr())
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim frame namespace original",
+            ));
+        }
+        match holder {
+            JimNamespaceObject::Initial(_) => {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "Jim frame namespace role transfer",
+                ));
+            }
+            JimNamespaceObject::Published(owners) => {
+                owners.retain(|actual| actual.strong_count() != 0);
+                let birth = std::rc::Rc::downgrade(owner);
+                if !owners
+                    .first()
+                    .is_some_and(|actual| std::rc::Weak::ptr_eq(actual, &birth))
+                {
+                    owners.insert(0, birth);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn jim_namespace_original_owner(
+        &self,
+        token: NsId,
+    ) -> Option<std::rc::Rc<crate::obj::Owned>> {
+        self.arena.get(token)?.jim_namespace.as_ref()?.0.owner()
+    }
+
+    fn jim_context(&self, token: NsId) -> Option<tcl_syntax::naming::NativeNameContext<'_>> {
+        // Jim uses only the retained object. The constructed path is not an address.
+        Some(tcl_syntax::naming::NativeNameContext::with_jim_namespace(
+            &JIM_CONTEXT_PATH,
+            self.jim_namespace_bytes(token)?,
+        ))
+    }
+
+    /// Original Jim table spelling selected before comparison-key normalisation.
+    pub(crate) fn jim_command_table_key_at(
+        &self,
+        current: NsId,
+        original: &[u8],
+        purpose: tcl_syntax::naming::NativeNamePurpose,
+    ) -> Option<tcl_syntax::naming::NativeJimCommandTableKey> {
+        use tcl_syntax::naming::{NativeJimCommandTableKey, NativeNamePurpose};
+        let protocol = self
+            .variable_name_protocol
+            .filter(|protocol| protocol.is_jim084())?;
+        let context = self.jim_context(current)?;
+        let selected = match purpose {
+            NativeNamePurpose::CommandPublication => {
+                protocol.command_publication_input(context, original)
+            }
+            NativeNamePurpose::AliasPublication => {
+                protocol.alias_publication_input(context, original)
+            }
+            NativeNamePurpose::ChildAliasPublication => {
+                protocol.child_alias_publication_input(context, original)
+            }
+            NativeNamePurpose::RenameDestination => {
+                protocol.rename_destination_input(context, original)
+            }
+            _ => return None,
+        }
+        .ok()?;
+        NativeJimCommandTableKey::from_projection(&selected)
+    }
+
+    /// Original report units of an actual table entry, with its slot kept separate.
+    pub(crate) fn command_table_report_name<'a>(&'a self, ns: NsId, simple: &'a [u8]) -> &'a [u8] {
+        self.arena[ns]
+            .commands
+            .binding(simple)
+            .and_then(|binding| binding.jim_table_key.as_ref())
+            .filter(|_| {
+                self.variable_name_protocol
+                    .is_some_and(|protocol| protocol.is_jim084())
+            })
+            .map_or(
+                simple,
+                tcl_syntax::naming::NativeJimCommandTableKey::report_bytes,
+            )
+    }
+
+    /// Exact publication slot selected for the active native name recipe.
+    pub(crate) fn command_publication_at(
+        &mut self,
+        current: NsId,
+        original: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        if let Some(protocol) = self
+            .variable_name_protocol
+            .filter(|protocol| protocol.is_jim084())
+        {
+            let selected = protocol
+                .command_publication_input(self.jim_context(current)?, original)
+                .ok()?;
+            return Some((GLOBAL, selected.jim_flat_key()?.to_vec()));
+        }
+        let protocol = self.variable_name_protocol?;
+        let path = self.native_context_path(current)?;
+        let selected = protocol
+            .command_publication_projection(
+                tcl_syntax::naming::NativeNameContext::new(&path),
+                original,
+            )
+            .ok()?;
+        Some(self.materialise_command_publication_slot(current, &selected))
+    }
+
+    /// C command registration uses global unqualified names and current qualified names.
+    pub(crate) fn command_c_api_publication_at(
+        &mut self,
+        current: NsId,
+        original: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        let protocol = self.variable_name_protocol?;
+        let path = self.native_context_path(current)?;
+        let selected = protocol
+            .command_c_api_publication_projection(
+                tcl_syntax::naming::NativeNameContext::new(&path),
+                original,
+            )
+            .ok()?;
+        Some(self.materialise_command_publication_slot(current, &selected))
+    }
+
+    /// TclOO publication retains its actual selected holder and counted tail.
+    pub(crate) fn oo_object_publication_at(
+        &mut self,
+        current: NsId,
+        original: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        let protocol = self.variable_name_protocol?;
+        let path = self.native_context_path(current)?;
+        let selected = protocol
+            .oo_object_publication_projection(
+                tcl_syntax::naming::NativeNameContext::new(&path),
+                original,
+            )
+            .ok()?;
+        Some(self.materialise_command_publication_slot(current, &selected))
+    }
+
+    /// Create an object's owned namespace from an already selected command slot.
+    pub(crate) fn ensure_command_owned_namespace_in_slot(
+        &mut self,
+        namespace: NsId,
+        simple: &[u8],
+    ) -> NsId {
+        self.ensure_child(namespace, simple)
+    }
+
+    /// Select standalone alias publication in the actual interpreter realm.
+    pub(crate) fn alias_publication_at(
+        &mut self,
+        current: NsId,
+        original: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        let protocol = self.variable_name_protocol?;
+        let current = if protocol.is_jim084() {
+            GLOBAL
+        } else {
+            current
+        };
+        let path = self.native_context_path(current)?;
+        let selected = protocol
+            .alias_publication_projection(
+                tcl_syntax::naming::NativeNameContext::new(&path),
+                original,
+            )
+            .ok()?;
+        Some(self.materialise_command_publication_slot(current, &selected))
+    }
+
+    /// Select the child extension's distinct registration constructor.
+    pub(crate) fn child_alias_publication_at(
+        &mut self,
+        current: NsId,
+        original: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        let protocol = self.variable_name_protocol?;
+        let current = if protocol.is_jim084() {
+            GLOBAL
+        } else {
+            current
+        };
+        let path = self.native_context_path(current)?;
+        let selected = protocol
+            .child_alias_publication_projection(
+                tcl_syntax::naming::NativeNameContext::new(&path),
+                original,
+            )
+            .ok()?;
+        Some(self.materialise_command_publication_slot(current, &selected))
+    }
+
+    fn command_projection_base(
+        &self,
+        current: NsId,
+        selected: &tcl_syntax::naming::NativeCommandSlotProjection,
+    ) -> NsId {
+        match selected.namespace_route() {
+            tcl_syntax::naming::NativeCommandNamespaceRoute::Root => GLOBAL,
+            tcl_syntax::naming::NativeCommandNamespaceRoute::Context => current,
+            tcl_syntax::naming::NativeCommandNamespaceRoute::ContextParent => {
+                self.parent(current).unwrap_or(current)
+            }
+        }
+    }
+
+    pub(crate) fn command_projection_holder(
+        &self,
+        current: NsId,
+        selected: &tcl_syntax::naming::NativeCommandSlotProjection,
+    ) -> Option<NsId> {
+        let mut token = self.command_projection_base(current, selected);
+        for segment in selected.qualifiers() {
+            token = self
+                .arena
+                .get(token)?
+                .children
+                .get(segment.as_bytes())
+                .copied()
+                .or_else(|| {
+                    self.dying_children
+                        .get(&(token, segment.as_bytes().to_vec()))
+                        .copied()
+                })?;
+        }
+        Some(token)
+    }
+
+    fn materialise_command_publication_slot(
+        &mut self,
+        current: NsId,
+        selected: &tcl_syntax::naming::NativeCommandSlotProjection,
+    ) -> (NsId, Vec<u8>) {
+        // Preserve an exact existing holder, including a synchronously dying
+        // token. A missing longer qualifier chain creates visible children
+        // from the operation's selected anchor.
+        let namespace = self
+            .command_projection_holder(current, selected)
+            .unwrap_or_else(|| {
+                let mut token = self.command_projection_base(current, selected);
+                for segment in selected.qualifiers() {
+                    token = self.ensure_child(token, segment.as_bytes());
+                }
+                token
+            });
+        (namespace, selected.slot().simple.as_bytes().to_vec())
+    }
+
+    /// Materialise a namespace ensemble's selected registration holder.
+    /// Original default-parent and explicit-current contexts remain distinct.
+    pub(crate) fn ensemble_publication_at(
+        &mut self,
+        current: NsId,
+        original: Option<&[u8]>,
+    ) -> Option<(NsId, Vec<u8>)> {
+        let protocol = self.variable_name_protocol?;
+        let path = self.native_context_path(current)?;
+        let parent = self
+            .parent(current)
+            .and_then(|parent| self.native_context_path(parent));
+        let selected = protocol
+            .ensemble_publication_projection(
+                tcl_syntax::naming::NativeNameContext::new(&path),
+                original,
+                parent.as_ref(),
+            )
+            .ok()?;
+        Some(self.materialise_command_publication_slot(current, &selected))
+    }
+
+    /// Jim's procedure namespace derives from the counted flat publication key.
+    pub(crate) fn jim_procedure_context(&mut self, selected_key: &[u8]) -> Option<NsId> {
+        let protocol = self
+            .variable_name_protocol
+            .filter(|protocol| protocol.is_jim084())?;
+        let bytes = protocol.jim_procedure_namespace(selected_key).ok()?;
+        if bytes.is_empty() {
+            return Some(GLOBAL);
+        }
+        let holder = crate::obj::Owned::fresh(crate::obj::new_string_bytes(bytes));
+        Some(self.retain_jim_namespace(holder, std::rc::Rc::from(bytes)))
+    }
+
+    /// Resolve a procedure's original holder before any declaration resources
+    /// are accessed. The selected lookup slot retains the original holder.
+    pub(crate) fn procedure_lookup_at(
+        &self,
+        current: NsId,
+        original: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        let protocol = self.variable_name_protocol?;
+        let path = self.native_context_path(current)?;
+        let selected = protocol
+            .command_lookup_projection(tcl_syntax::naming::NativeNameContext::new(&path), original)
+            .ok()?;
+        let namespace = self.command_projection_holder(current, &selected)?;
+        Some((namespace, selected.slot().simple.as_bytes().to_vec()))
+    }
+
+    /// Procedure publication uses the release-selected registration slot;
+    /// general builtin C API publication has an independent entry.
+    pub(crate) fn procedure_publication_at(
+        &mut self,
+        current: NsId,
+        original: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        let protocol = self.variable_name_protocol?;
+        if protocol.is_jim084() {
+            return self.command_publication_at(current, original);
+        }
+        let path = self.native_context_path(current)?;
+        let selected = protocol
+            .command_publication_projection(
+                tcl_syntax::naming::NativeNameContext::new(&path),
+                original,
+            )
+            .ok()?;
+        Some(self.materialise_command_publication_slot(current, &selected))
     }
 
     /// Register `command` under `name` (possibly qualified), creating any
@@ -409,13 +2270,26 @@ impl Namespaces {
     /// `::` only, where nothing is registered). The alias-loop gate needs the
     /// binding site so it can walk the chain from it and unbind again.
     pub(crate) fn register_at(&mut self, name: &[u8], command: Command) -> Option<(NsId, Vec<u8>)> {
-        let segments = split_qualifier(name);
-        let (simple, ns_parts) = segments.split_last()?;
-        let mut ns = GLOBAL;
-        for part in ns_parts {
-            ns = self.ensure_child(ns, part);
+        if self
+            .variable_name_protocol
+            .is_some_and(|protocol| protocol.is_jim084())
+        {
+            let (namespace, key) = self.command_publication_at(GLOBAL, name)?;
+            let report = self.jim_command_table_key_at(
+                GLOBAL,
+                name,
+                tcl_syntax::naming::NativeNamePurpose::AliasPublication,
+            );
+            let entry = self.native_command_creation_entry_with_jim_key(namespace, &key, report);
+            self.insert_bound_after_entry(entry, key.clone(), command);
+            return Some((namespace, key));
         }
-        let simple = (*simple).to_vec();
+        let slot = tcl_syntax::naming::support_command_registration_slot(name)?;
+        let mut ns = GLOBAL;
+        for part in slot.namespace.as_segments() {
+            ns = self.ensure_child(ns, part.as_bytes());
+        }
+        let simple = slot.simple.as_bytes().to_vec();
         self.insert_bound(ns, simple.clone(), command);
         Some((ns, simple))
     }
@@ -476,7 +2350,7 @@ impl Namespaces {
         }
         let mut removed = Vec::with_capacity(hits.len());
         for (ns, name, generation) in hits {
-            self.arena[ns].commands.remove(&name);
+            self.remove_native_binding(ns, &name);
             removed.push((self.command_fqn(ns, &name), generation));
         }
         removed
@@ -485,7 +2359,8 @@ impl Namespaces {
     /// Remove the binding at `(ns, name)`, returning it — the rollback for a
     /// refused alias definition.
     pub(crate) fn unbind_in(&mut self, ns: NsId, name: &[u8]) -> Option<Command> {
-        self.arena[ns].commands.remove(name)
+        self.remove_native_binding(ns, name)
+            .map(|binding| binding.command)
     }
 
     /// The single command resolver, `resolve(currentNs, name)` (A2). Returns a
@@ -517,19 +2392,11 @@ impl Namespaces {
         }
     }
 
-    /// The canonical fully-qualified name a (relative/absolute) command `name`
-    /// resolves to, following the full resolution order — or `None` if no such
-    /// command exists. Used to key command/execution traces so they address the
-    /// same binding `resolve` (and `rename`/`delete`) hit.
+    /// Report the selected command's full name. Its generation remains the identity.
     #[must_use]
     pub fn resolve_fqn(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>> {
-        self.home_of(current, name).map(|(ns, simple)| {
-            let q = self.qualified_name(ns);
-            let mut fqn = if q == b"::" { Vec::new() } else { q };
-            fqn.extend_from_slice(b"::");
-            fqn.extend_from_slice(&simple);
-            fqn
-        })
+        self.home_of(current, name)
+            .map(|(namespace, simple)| self.command_fqn(namespace, &simple))
     }
 
     /// Sorted command names in namespace `ns` (`info commands`).
@@ -543,11 +2410,10 @@ impl Namespaces {
     /// `delete` retires the same binding `resolve` would have hit.
     pub fn delete(&mut self, current: NsId, name: &[u8]) -> bool {
         match self.home_of(current, name) {
-            Some((ns, simple)) => self.arena[ns]
-                .commands
-                .remove(&simple)
-                .is_some_and(|command| {
-                    Self::mark_command_deleted(&command);
+            Some((ns, simple)) => self
+                .remove_native_binding(ns, &simple)
+                .is_some_and(|binding| {
+                    Self::mark_command_deleted(&binding.command, &self.retired_ensemble_roles);
                     true
                 }),
             None => false,
@@ -561,19 +2427,60 @@ impl Namespaces {
         self.arena[ns].commands.remove_binding(&simple)
     }
 
-    /// Restore a command token taken for a visibility move under `name`,
-    /// preserving its generation while creating any destination namespaces.
-    pub(crate) fn restore(&mut self, name: &[u8], binding: CommandBinding) -> bool {
-        let segments = split_qualifier(name);
-        let Some((simple, ns_parts)) = segments.split_last() else {
+    #[cfg(test)]
+    fn restore(&mut self, name: &[u8], binding: CommandBinding) -> bool {
+        let Some(slot) = tcl_syntax::naming::support_command_registration_slot(name) else {
             return false;
         };
-        let mut ns = GLOBAL;
-        for part in ns_parts {
-            ns = self.ensure_child(ns, part);
+        let mut namespace = GLOBAL;
+        for part in slot.namespace.as_segments() {
+            namespace = self.ensure_child(namespace, part.as_bytes());
         }
-        self.insert_moved_binding(ns, (*simple).to_vec(), binding);
-        true
+        self.restore_binding_at_checked(
+            Some((namespace, slot.simple.as_bytes().to_vec())),
+            binding,
+            None,
+        )
+        .is_ok()
+    }
+
+    /// Select the exposed C table's global slot from the original operand.
+    pub(crate) fn exposed_command_publication_at(
+        &self,
+        original: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        let slot = self
+            .variable_name_protocol?
+            .exposed_command_publication_slot(original)
+            .ok()?;
+        Some((GLOBAL, slot.simple.as_bytes().to_vec()))
+    }
+
+    /// Restore the original token in its independently selected physical slot.
+    /// Unpublished owners retire outside the caller's table borrow.
+    pub(crate) fn restore_binding_at_checked(
+        &mut self,
+        slot: Option<(NsId, Vec<u8>)>,
+        binding: CommandBinding,
+        original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
+    ) -> Result<(), RetiredCommandSlot> {
+        let Some((namespace, simple)) = slot else {
+            return Err(RetiredCommandSlot {
+                procedure: None,
+                original_jim_key,
+                binding: Some(binding),
+            });
+        };
+        let hook = self
+            .native_compiler_hook(binding.generation)
+            .expect("restored command retains its native node");
+        self.note_native_compiler_mutation(
+            None,
+            tcl_registry::native_procedure::NativeCompilerCacheMutation::CommandToken { hook },
+        );
+        self.insert_moved_binding(namespace, simple, binding, original_jim_key);
+        self.invalidate_native_command_lookup(namespace);
+        Ok(())
     }
 
     /// Publish the destination half of `rename old new` — both names resolved
@@ -601,13 +2508,24 @@ impl Namespaces {
     /// Built-in protection lives in the `rename` builtin, not here — this is
     /// the pure table operation, as is the `rename old ""` deletion
     /// ([`Self::delete`]).
+    #[cfg(test)]
     pub(crate) fn publish_rename_destination(
         &mut self,
         current: NsId,
         old: &[u8],
         new: &[u8],
     ) -> Option<RenamePublication> {
-        let (old_ns, old_simple) = self.home_of(current, old)?;
+        self.publish_rename_destination_with_original_key(current, old, new, None)
+    }
+
+    pub(crate) fn publish_rename_destination_with_original_key(
+        &mut self,
+        current: NsId,
+        old: &[u8],
+        new: &[u8],
+        original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
+    ) -> Option<RenamePublication> {
+        let (old_ns, old_simple) = self.original_rename_source_of(current, old)?;
         // Unreachable for a non-empty, non-separator-terminated name; nothing
         // has moved yet, so there is nothing to put back.
         let (ns, simple) = self.destination_of(current, new)?;
@@ -626,20 +2544,38 @@ impl Namespaces {
             .cloned()
             .expect("home_of reported a binding at the rename source");
         let destination_fqn = self.command_fqn(ns, &simple);
-        let cmd = Self::rehome_command(cmd, ns, &destination_fqn);
+        let cmd = self.rehome_command(cmd, ns, &simple, &destination_fqn);
         // One command under two names, as C has it: the source slot takes the
         // re-homed binding too, and an ensemble token is shared outright.
         self.arena[old_ns]
             .commands
             .rebind_slot(&old_simple, cmd.clone());
+        let jim_table_key = self.jim_command_table_key_at(
+            current,
+            new,
+            tcl_syntax::naming::NativeNamePurpose::RenameDestination,
+        );
         self.insert_moved_binding(
             ns,
             simple,
             CommandBinding {
                 generation: source_generation,
                 command: cmd,
+                jim_table_key,
             },
+            original_jim_key,
         );
+        self.reset_native_shadowed_references(
+            ns,
+            &self.native_command_nodes[&source_generation]
+                .placement
+                .as_ref()
+                .expect("published rename destination")
+                .1
+                .clone(),
+        );
+        self.invalidate_native_command_lookup(old_ns);
+        self.invalidate_native_command_lookup(ns);
         Some(RenamePublication {
             source: (old_ns, old_simple),
             destination_fqn,
@@ -647,7 +2583,7 @@ impl Namespaces {
         })
     }
 
-    /// Delete the source entry [`Self::publish_rename_destination`] left
+    /// Delete the source entry [`Self::publish_rename_destination_with_original_key`] left
     /// standing — C's `Tcl_DeleteHashEntry(oldHPtr)` at the tail of
     /// `TclRenameCommand`. A plain table removal: no `delete` trace fires and
     /// no token dies, because the command lives on under its new name. A
@@ -655,7 +2591,37 @@ impl Namespaces {
     /// there goes and an already-vacated entry is not an error.
     pub(crate) fn retire_rename_source(&mut self, publication: &RenamePublication) {
         let (ns, simple) = &publication.source;
-        self.arena[*ns].commands.remove(simple);
+        if let Some(removed) = self.arena[*ns].commands.remove_binding(simple) {
+            let replaced = removed.generation != publication.generation;
+            if replaced {
+                self.retire_native_command_node(removed.generation);
+            }
+            if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084) {
+                // The moved source view does not withdraw its surviving binding.
+                // A callback-created different token owns a distinct Proc role.
+                let procedure = if replaced {
+                    match &removed.command {
+                        Command::Proc(procedure) => procedure.take_for_retirement(),
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
+                self.arena[*ns]
+                    .commands
+                    .retired
+                    .borrow_mut()
+                    .push(RetiredCommandSlot {
+                        procedure,
+                        original_jim_key: None,
+                        binding: Some(removed),
+                    });
+            }
+        }
+        self.increment_native_command_epoch(publication.generation);
+        if self.variable_name_protocol == Some(tcl_syntax::naming::NativeNameProtocol::Jim084) {
+            self.advance_jim_procedure_epoch();
+        }
     }
 
     /// The fully-qualified name of whatever is currently bound at the
@@ -694,124 +2660,161 @@ impl Namespaces {
     /// `Command::OoObject` carries a stable identity, so it deliberately passes
     /// through unchanged; `OoState` updates only its Tcl-facing name projection.
     /// Every other variant carries no site of its own and passes through unchanged.
-    fn rehome_command(command: Command, ns: NsId, fqn: &[u8]) -> Command {
-        match command {
-            Command::Proc(def) if def.ns != ns => {
-                let mut def = (*def).clone();
-                def.ns = ns;
-                def.fqn = fqn.to_vec();
-                Command::Proc(std::rc::Rc::new(def))
+    fn rehome_command(&mut self, command: Command, ns: NsId, simple: &[u8], fqn: &[u8]) -> Command {
+        if let Command::Proc(definition) = &command {
+            let declaration = definition.declaration();
+            let mut location = declaration.location();
+            location.qualified_name = fqn.to_vec();
+            if let Some(protocol) = self
+                .variable_name_protocol
+                .filter(|protocol| protocol.is_jim084())
+            {
+                if let Some(bytes) = protocol
+                    .jim_procedure_relocation_namespace(simple)
+                    .expect("selected Jim relocation recipe")
+                {
+                    let holder = crate::obj::Owned::fresh(crate::obj::new_string_bytes(bytes));
+                    let namespace = self.retain_jim_namespace(holder, std::rc::Rc::from(bytes));
+                    location.namespace = namespace;
+                    location.jim_namespace = self.take_jim_namespace_owner(namespace);
+                }
+            } else {
+                location.namespace = ns;
             }
-            other => other,
+            declaration.relocate(location);
         }
+        command
     }
 
-    /// The `(namespace, simple name)` a written destination name binds — the
-    /// split C's `TclGetNamespaceForQualName(…, TCL_CREATE_NS_IF_UNKNOWN)`
-    /// performs for `rename`'s new name, creating any intermediate namespaces
-    /// (C creates them even when the rename is later refused). A trailing
-    /// separator run names the empty-string `{}` command in the full qualifier
-    /// chain (`rename foo x::` binds `::x::`, `rename bar ::` the global `{}` —
-    /// tclsh 8.6/9.0-pinned), matching `command_home_ns` / `home_of`.
+    /// Select the original rename operand, then retain the token's current slot.
+    /// During a C rename callback both entries refer to that same token.
+    pub(crate) fn original_rename_source_of(
+        &self,
+        current: NsId,
+        old: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        if self
+            .variable_name_protocol
+            .is_some_and(|protocol| protocol.is_jim084())
+        {
+            return self.original_jim_rename_source_of(current, old);
+        }
+        let (holder, simple) = self.home_of(current, old)?;
+        let generation = self.arena[holder].commands.generation(&simple)?;
+        self.native_command_slot_at_node(generation)
+    }
+
+    /// Jim rename uses its original qualified source key without global fallback.
+    pub(crate) fn original_jim_rename_source_of(
+        &self,
+        current: NsId,
+        old: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        let protocol = self
+            .variable_name_protocol
+            .filter(|protocol| protocol.is_jim084())?;
+        let selected = protocol
+            .rename_source_input(self.jim_context(current)?, old)
+            .ok()?;
+        let key = selected.jim_flat_key()?;
+        self.arena[GLOBAL]
+            .commands
+            .contains_key(key)
+            .then(|| (GLOBAL, key.to_vec()))
+    }
+
     fn destination_of(&mut self, current: NsId, new: &[u8]) -> Option<(NsId, Vec<u8>)> {
-        let absolute = new.starts_with(b"::");
-        let segments = split_qualifier(new);
-        let (simple, ns_parts): (&[u8], &[&[u8]]) = if ends_with_separator(new) {
-            (b"", &segments[..])
-        } else {
-            let (simple, ns_parts) = segments.split_last()?;
-            (*simple, ns_parts)
-        };
-        let mut ns = if absolute { GLOBAL } else { current };
-        for part in ns_parts {
-            ns = self.ensure_child(ns, part);
+        if let Some(protocol) = self
+            .variable_name_protocol
+            .filter(|protocol| protocol.is_jim084())
+        {
+            let selected = protocol
+                .rename_destination_input(self.jim_context(current)?, new)
+                .ok()?;
+            return Some((GLOBAL, selected.jim_flat_key()?.to_vec()));
         }
-        Some((ns, simple.to_vec()))
+        let protocol = self.variable_name_protocol?;
+        let path = self.native_context_path(current)?;
+        let selected = protocol
+            .rename_destination_projection(tcl_syntax::naming::NativeNameContext::new(&path), new)
+            .ok()?;
+        let mut namespace = self.command_projection_base(current, &selected);
+        for part in selected.qualifiers() {
+            namespace = self.ensure_child(namespace, part.as_bytes());
+        }
+        Some((namespace, selected.slot().simple.as_bytes().to_vec()))
     }
 
-    /// C's `TclPreventAliasLoop` (`tclInterp.c`) on the alias bound at
-    /// `(ns, simple)`: follow the chain — each hop resolves the alias's stored
-    /// target name **anchored at the global namespace**, exactly as dispatch
-    /// does — and report whether it comes back to the alias we started from.
-    /// An unresolvable target ends the chain (legal: aliases late-bind), and so
-    /// does a target that is not itself an alias.
-    ///
-    /// Every alias already in the table passed this same gate when it was
-    /// defined or renamed, so the chain holds no pre-existing cycle; the
-    /// visited list bounds the walk regardless, so no table state can spin it.
-    pub(crate) fn alias_chain_loops(&self, ns: NsId, simple: &[u8]) -> bool {
-        let start = (ns, simple.to_vec());
-        let mut hop = start.clone();
-        let mut seen: Vec<(NsId, Vec<u8>)> = Vec::new();
-        loop {
-            let Some(Command::Alias { target, .. }) = self.command_in(hop.0, &hop.1) else {
-                return false;
-            };
-            let Some(next) = self.home_of(GLOBAL, &target) else {
-                return false;
-            };
-            if next == start || seen.contains(&next) {
-                return true;
-            }
-            seen.push(next.clone());
-            hop = next;
-        }
-    }
-
-    /// C's `TclPreventAliasLoop` on the *rename* path (`TclRenameCommand` moves
-    /// the command, checks, and puts it back on a hit): would moving the command
-    /// bound to `old` onto `new` close an alias loop? The chain can only close
-    /// on the alias once it is visible at its destination, so the move is made
-    /// tentatively here and undone again — including any command it displaced —
-    /// leaving the caller to perform the real rename when this returns `false`.
-    pub(crate) fn rename_creates_alias_loop(
+    /// Place only the tentative destination for C's alias-loop check. The
+    /// caller runs original target getters after releasing this table borrow.
+    /// The old entry still refers to the actual same command token.
+    pub(crate) fn begin_alias_rename_probe(
         &mut self,
         current: NsId,
         old: &[u8],
         new: &[u8],
-    ) -> bool {
-        if new.is_empty() {
-            return false; // a delete cannot close a loop
+    ) -> Option<AliasRenameProbe> {
+        if new.is_empty()
+            || self
+                .variable_name_protocol
+                .is_some_and(|protocol| protocol.is_jim084())
+        {
+            return None;
         }
-        let Some((old_ns, old_simple)) = self.home_of(current, old) else {
-            return false;
-        };
-        if !matches!(
-            self.command_in(old_ns, &old_simple),
-            Some(Command::Alias { .. })
-        ) {
-            return false; // renaming a non-alias is always allowed
+        let (old_ns, old_simple) = self.original_rename_source_of(current, old)?;
+        let binding = self.arena[old_ns].commands.binding(&old_simple)?.clone();
+        if !matches!(binding.command, Command::Alias { .. }) {
+            return None;
         }
-        let Some((dest_ns, dest_simple)) = self.destination_of(current, new) else {
-            return false;
-        };
-        if (dest_ns, dest_simple.as_slice()) == (old_ns, old_simple.as_slice()) {
-            return false; // a self-rename moves nothing
+        let (destination_ns, destination_simple) = self.destination_of(current, new)?;
+        if destination_ns == old_ns && destination_simple == old_simple {
+            return None;
         }
-        // C creates the destination's hash entry for the probe and deletes it
-        // again on a refusal, and never touches the source's entry at all
-        // (`TclRenameCommand` deletes `oldHPtr` only once the check passes).
-        // The tentative move therefore carries the slot values only.
-        let Some(moving) = self.arena[old_ns].commands.take_slot(&old_simple) else {
-            return false;
-        };
-        let displaced = self.arena[dest_ns]
+        let displaced = self.arena[destination_ns]
             .commands
-            .restore_slot(dest_simple.clone(), moving);
-        let loops = self.alias_chain_loops(dest_ns, &dest_simple);
-        let moved = self.arena[dest_ns].commands.take_slot(&dest_simple);
-        match displaced {
-            Some(displaced) => {
-                self.arena[dest_ns]
-                    .commands
-                    .restore_slot(dest_simple, displaced);
+            .restore_slot(destination_simple.clone(), binding.clone());
+        Some(AliasRenameProbe {
+            destination: (destination_ns, destination_simple),
+            binding,
+            displaced,
+        })
+    }
+
+    /// Restore only the actual tentative slot. A reached getter may have
+    /// replaced it; such a Guest mutation is retained. Returned owners must
+    /// retire after the namespace borrow ends.
+    pub(crate) fn restore_alias_rename_probe(
+        &mut self,
+        probe: AliasRenameProbe,
+    ) -> Vec<CommandBinding> {
+        let (namespace, simple) = probe.destination;
+        let mut retired = Vec::new();
+        let owns_probe = self.arena[namespace]
+            .commands
+            .binding(&simple)
+            .is_some_and(|binding| {
+                binding.generation == probe.binding.generation
+                    && binding.command.is_same_binding(&probe.binding.command)
+            });
+        if owns_probe {
+            if let Some(binding) = self.arena[namespace].commands.take_slot(&simple) {
+                retired.push(binding);
             }
-            None => self.arena[dest_ns].commands.drop_entry(&dest_simple),
+            if let Some(displaced) = probe.displaced {
+                if let Some(binding) = self.arena[namespace]
+                    .commands
+                    .restore_slot(simple, displaced)
+                {
+                    retired.push(binding);
+                }
+            } else {
+                self.arena[namespace].commands.drop_entry(&simple);
+            }
+        } else if let Some(displaced) = probe.displaced {
+            retired.push(displaced);
         }
-        if let Some(moved) = moved {
-            self.arena[old_ns].commands.restore_slot(old_simple, moved);
-        }
-        loops
+        retired.push(probe.binding);
+        retired
     }
 
     /// Rewrite redirects retaining one exact source generation. The FQN is a
@@ -885,71 +2888,124 @@ impl Namespaces {
         }
     }
 
-    /// Every alias command's fully-qualified name across the tree (`interp
-    /// aliases`). Global aliases keep their simple name (aliases are registered
-    /// interpreter-wide); namespaced ones are qualified.
-    #[must_use]
-    pub fn alias_names(&self) -> Vec<Vec<u8>> {
-        let mut found: Vec<(NsId, Vec<u8>)> = Vec::new();
-        for (id, ns) in self.arena.iter().enumerate() {
-            for (key, cmd) in ns.commands.iter() {
-                // Both single-interp aliases and cross-interp (child→parent)
-                // aliases are reported by `interp aliases` / `$child aliases`.
-                if matches!(cmd, Command::Alias { .. } | Command::ParentAlias { .. }) {
-                    found.push((id, key.clone()));
+    pub(crate) fn replace_alias_registration(
+        &mut self,
+        generation: u64,
+        original: &std::rc::Rc<crate::interp::NativeAliasHeader>,
+        replacement: &std::rc::Rc<crate::interp::NativeAliasHeader>,
+        report: &[u8],
+    ) -> bool {
+        for namespace in &mut self.arena {
+            for slot in namespace.commands.entries.values_mut() {
+                let Some(binding) = slot
+                    .binding
+                    .as_mut()
+                    .filter(|binding| binding.generation == generation)
+                else {
+                    continue;
+                };
+                let (registration_name, publication_name) = match &mut binding.command {
+                    Command::Alias {
+                        registration_name,
+                        publication_name,
+                        ..
+                    }
+                    | Command::ParentAlias {
+                        registration_name,
+                        publication_name,
+                        ..
+                    } => (registration_name, publication_name),
+                    _ => return false,
+                };
+                if !registration_name
+                    .as_ref()
+                    .is_some_and(|actual| std::rc::Rc::ptr_eq(actual, original))
+                {
+                    return false;
                 }
+                *registration_name = Some(std::rc::Rc::clone(replacement));
+                *publication_name = report.to_vec();
+                return true;
             }
         }
-        found
-            .into_iter()
-            .map(|(id, key)| {
-                if id == GLOBAL {
-                    key
-                } else {
-                    let mut q = self.qualified_name(id);
-                    q.extend_from_slice(b"::");
-                    q.extend_from_slice(&key);
-                    q
+        false
+    }
+
+    /// Selected alias-record publication names, independently of lookup slots.
+    /// Original C interp aliases preserves its registration spelling; command
+    /// inventory has its own normalized reporting and lookup purpose.
+    #[must_use]
+    pub fn alias_names(&self) -> Vec<Vec<u8>> {
+        self.arena
+            .iter()
+            .flat_map(|namespace| namespace.commands.iter())
+            .filter_map(|(_, command)| match command {
+                Command::Alias {
+                    publication_name, ..
                 }
+                | Command::ParentAlias {
+                    publication_name, ..
+                } => Some(publication_name.clone()),
+                _ => None,
             })
             .collect()
     }
 
-    /// Set namespace `ns`'s `namespace path` to the given namespaces.
-    pub fn set_path(&mut self, ns: NsId, path: Vec<NsId>) {
-        self.arena[ns].path = path;
+    pub(crate) fn guard_lookup_environment_revision(&self) -> Option<u64> {
+        self.guard_lookup_environment_revision
     }
 
-    /// The namespace a (possibly qualified) **command** `name` lives in, creating
-    /// any intermediate namespaces — i.e. everything before the simple tail
-    /// (`::a::b::foo` → `::a::b`; `foo` → `current`). For `proc`/`define_proc`,
-    /// which needs the proc's home ns id (its run-time current namespace).
-    pub(crate) fn command_home_ns(&mut self, current: NsId, name: &[u8]) -> NsId {
-        let absolute = name.starts_with(b"::");
-        let segments = split_qualifier(name);
-        let mut ns = if absolute { GLOBAL } else { current };
-        // A written name ending in a separator run names the empty-string
-        // `{}` command inside its FULL qualifier chain — every segment is a
-        // namespace part, none is the tail (`proc x:: {} {}` defines
-        // `::x::`, tclsh 8.6/9.0-pinned) — mirroring `home_of`'s
-        // resolution split so definition and dispatch agree.
-        let ns_parts: &[&[u8]] = if ends_with_separator(name) || name.is_empty() {
-            &segments[..]
-        } else {
-            segments
-                .split_last()
-                .map_or(&[][..], |(_tail, ns_parts)| ns_parts)
-        };
-        // Command definition may target an *exact* detached namespace token
-        // during its delete callback (`proc ::N::q ...`). Namespace creation
-        // is different: a longer missing path below an original dying
-        // descendant (`namespace eval ::N::C::X ...`) must build an entirely
-        // fresh visible `N::C::X` tree. Resolve the whole qualifier first and
-        // retain a dying token only when every qualifier segment already names
-        // that exact token; otherwise creation below uses visible edges only.
+    #[cfg(test)]
+    pub(crate) fn exhaust_guard_lookup_environment_revision_for_test(&mut self) {
+        self.guard_lookup_environment_revision = Some(u64::MAX);
+        self.note_guard_lookup_environment_mutation();
+    }
+
+    fn note_guard_lookup_environment_mutation(&mut self) {
+        self.guard_lookup_environment_revision = self
+            .guard_lookup_environment_revision
+            .and_then(|revision| revision.checked_add(1));
+    }
+
+    /// Set namespace `ns`'s `namespace path` to the given namespaces.
+    pub fn set_path(&mut self, ns: NsId, path: Vec<NsId>) {
+        self.note_guard_lookup_environment_mutation();
+        self.arena[ns].path = path;
+        if self
+            .native_command_version
+            .is_some_and(|version| version != tcl_dialect::TclVersion::V8_4)
+        {
+            self.note_native_compiler_mutation(
+                Some(ns),
+                tcl_registry::native_procedure::NativeCompilerCacheMutation::NamespacePath,
+            );
+            self.increment_command_reference(ns);
+        }
+    }
+
+    /// Select one authored support slot from counted written components.
+    /// The actual holder token survives ambiguous reports and dying namespaces.
+    pub(crate) fn support_command_publication_at(
+        &mut self,
+        current: NsId,
+        written: &[u8],
+    ) -> (NsId, Vec<u8>) {
+        let parts = written_command_parts(written);
+        let namespace = self.command_home_parts(current, &parts);
+        (namespace, parts.simple.to_vec())
+    }
+
+    fn command_home_parts(
+        &mut self,
+        current: NsId,
+        parts: &tcl_syntax::naming::WrittenCommandParts<'_>,
+    ) -> NsId {
+        let mut ns = if parts.absolute { GLOBAL } else { current };
+        // Retain a complete dying holder; a missing longer chain creates
+        // visible children from the supplied token anchor.
         let mut existing = ns;
         let mut complete = true;
-        for part in ns_parts {
+        for part in &parts.qualifiers {
             let next = self.arena[existing]
                 .children
                 .get(*part)
@@ -964,7 +3020,7 @@ impl Namespaces {
         if complete {
             return existing;
         }
-        for part in ns_parts {
+        for part in &parts.qualifiers {
             ns = self.ensure_child(ns, part);
         }
         ns
@@ -976,12 +3032,12 @@ impl Namespaces {
     /// created by a delete trace must join that generation and its fixed-point
     /// sweep, not recreate the visible qualifier chain.
     pub(crate) fn ensure_command_owned_namespace(&mut self, current: NsId, name: &[u8]) -> NsId {
-        let home = self.command_home_ns(current, name);
-        let tail = tcl_syntax::naming::written_command_tail(name);
-        if tail.is_empty() {
+        let parts = written_command_parts(name);
+        let home = self.command_home_parts(current, &parts);
+        if parts.simple.is_empty() {
             return home;
         }
-        self.ensure_child(home, tail)
+        self.ensure_child(home, parts.simple)
     }
 
     /// Find (creating if needed) the namespace named `qualified`, rooted at
@@ -996,7 +3052,7 @@ impl Namespaces {
                 return existing;
             }
         }
-        let absolute = qualified.starts_with(b"::");
+        let absolute = written_command_parts(qualified).absolute;
         let mut ns = if absolute { GLOBAL } else { current };
         for part in split_qualifier(qualified) {
             ns = self.ensure_child(ns, part);
@@ -1009,7 +3065,7 @@ impl Namespaces {
     /// but a dying/dead final token is never returned as a public namespace.
     #[must_use]
     pub fn find_namespace(&self, current: NsId, qualified: &[u8]) -> Option<NsId> {
-        let absolute = qualified.starts_with(b"::");
+        let absolute = written_command_parts(qualified).absolute;
         let mut ns = if absolute { GLOBAL } else { current };
         for part in split_qualifier(qualified) {
             ns = self.arena[ns]
@@ -1021,6 +3077,78 @@ impl Namespaces {
         self.namespace_is_live(ns).then_some(ns)
     }
 
+    pub(crate) fn namespace_at_path(
+        &self,
+        path: &tcl_core_types::ByteNamespacePath,
+    ) -> Option<NsId> {
+        self.namespace_at_components(GLOBAL, path.as_segments())
+    }
+
+    pub(crate) fn namespace_at_components(
+        &self,
+        current: NsId,
+        components: &[tcl_core_types::NameBytes],
+    ) -> Option<NsId> {
+        let namespace = self.namespace_token_at_components(current, components)?;
+        self.namespace_is_live(namespace).then_some(namespace)
+    }
+
+    /// Follow physical child tokens; callers apply the selected lifetime policy.
+    pub(crate) fn namespace_token_at_components(
+        &self,
+        current: NsId,
+        components: &[tcl_core_types::NameBytes],
+    ) -> Option<NsId> {
+        self.arena.get(current)?;
+        let mut namespace = current;
+        for part in components {
+            namespace = self
+                .arena
+                .get(namespace)?
+                .children
+                .get(part.as_bytes())
+                .copied()
+                .or_else(|| {
+                    self.dying_children
+                        .get(&(namespace, part.as_bytes().to_vec()))
+                        .copied()
+                })?;
+        }
+        Some(namespace)
+    }
+
+    pub(crate) fn dying_namespace_at_components(
+        &self,
+        current: NsId,
+        components: &[tcl_core_types::NameBytes],
+    ) -> Option<NsId> {
+        let namespace = self.namespace_token_at_components(current, components)?;
+        self.dying.contains(&namespace).then_some(namespace)
+    }
+
+    pub(crate) fn ensure_namespace_at_components(
+        &mut self,
+        current: NsId,
+        components: &[tcl_core_types::NameBytes],
+    ) -> NsId {
+        if let Some(existing) = self.namespace_at_components(current, components) {
+            return existing;
+        }
+        components
+            .iter()
+            .enumerate()
+            .fold(current, |parent, (index, part)| {
+                if index + 1 < components.len() {
+                    if let Some(existing) =
+                        self.namespace_token_at_components(parent, std::slice::from_ref(part))
+                    {
+                        return existing;
+                    }
+                }
+                self.ensure_child(parent, part.as_bytes())
+            })
+    }
+
     /// Whether `ns` still denotes a public namespace token. A dying arena node
     /// remains command-addressable during delete callbacks, but namespace
     /// introspection must reject even an empty relative name resolved from its
@@ -1028,6 +3156,11 @@ impl Namespaces {
     #[must_use]
     pub(crate) fn namespace_is_live(&self, ns: NsId) -> bool {
         !self.dead.contains(&ns) && !self.dying.contains(&ns)
+    }
+
+    /// Whether namespace teardown has destroyed this token's variable cells.
+    pub(crate) fn namespace_variables_are_deleted(&self, ns: NsId) -> bool {
+        self.retired_variable_namespaces.contains(&ns)
     }
 
     // activations and deferred teardown (C's `activationCount`)
@@ -1061,11 +3194,13 @@ impl Namespaces {
     /// exports stay exactly as they are until the last activation pops. No
     /// `dying_children` edge is recorded — unlike the synchronous window, the
     /// name is free for a fresh token straight away (C nulls `parentPtr`).
-    pub(crate) fn defer_namespace(&mut self, ns: NsId) {
+    pub(crate) fn defer_namespace(&mut self, ns: NsId) -> Option<crate::obj::Owned> {
+        self.note_guard_lookup_environment_mutation();
+        self.namespace_name_begin_deletion(ns);
         self.dead.insert(ns);
         self.deferred.insert(ns);
         // C frees `unknownHandlerPtr` before it looks at the activation count.
-        self.arena[ns].unknown = None;
+        let retired = self.arena[ns].unknown.take();
         if let Some(parent) = self.arena[ns].parent {
             let fqn = self.qualified_name(ns);
             let name = self.arena[ns].name.clone();
@@ -1074,8 +3209,10 @@ impl Namespaces {
             // C nulls `parentPtr`: the spelling is free for a wholly separate
             // token straight away, and this one answers from its own name.
             self.arena[ns].parent = None;
+            self.namespace_name_detach_parent(ns);
             self.arena[ns].retained_fqn = Some(fqn);
         }
+        retired
     }
 
     /// Whether `ns` is a retained token, or lies inside one. A deferred token
@@ -1094,35 +3231,32 @@ impl Namespaces {
 
     // per-namespace variable tables (the variable resolver's storage)
 
-    /// For a **qualified** variable name, the `(namespace, simple tail)` it
-    /// addresses, or `None` if that namespace doesn't exist. Absolute when
-    /// `::`-led, else relative to `current` (`tclVar.c` /
-    /// `namespace-tree.md` §5.3). Callers guard with `is_qualified` first,
-    /// so `None` means *namespace missing*.
-    ///
-    /// Deliberately **not** the command rule ([`Self::home_of`]): variable
-    /// resolution has no existence-checked fall-through — a qualified write
-    /// creates the variable in the first namespace the qualifier resolves
-    /// to — so this commits at namespace level.
+    /// Selected variable components under the exact supplied namespace token.
+    /// Table presence and read/write fallback are independently caller-owned.
     #[must_use]
     pub(crate) fn var_home(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
-        let absolute = name.starts_with(b"::");
-        let segments = split_qualifier(name);
-        // C: a trailing `::` names the `{}` (empty) variable in the qualified
-        // namespace — every segment is then a namespace component (the simple
-        // name being `""`), unlike the usual "last segment is the var" split.
-        let (simple, ns_parts): (Vec<u8>, &[&[u8]]) =
-            if tcl_syntax::naming::ends_with_separator(name) {
-                (Vec::new(), &segments[..])
-            } else {
-                let (s, parts) = segments.split_last()?;
-                ((*s).to_vec(), parts)
-            };
-        let mut ns = if absolute { GLOBAL } else { current };
-        for part in ns_parts {
-            ns = *self.arena[ns].children.get(*part)?;
+        let protocol = self.variable_name_protocol?;
+        let input = protocol.variable_root_input(name);
+        if protocol.is_jim084() {
+            let namespace = self.jim_namespace_bytes(current)?;
+            let mut prefix = b"::".to_vec();
+            prefix.extend_from_slice(namespace);
+            return Some((
+                GLOBAL,
+                tcl_syntax::naming::jim_global_variable_key_bytes(&prefix, input.selected()),
+            ));
         }
-        Some((ns, simple))
+        let projected = input.variable_namespace_projection().ok()?;
+        let mut namespace =
+            if projected.qualification() == tcl_syntax::naming::NativeNameQualification::Absolute {
+                GLOBAL
+            } else {
+                current
+            };
+        for part in projected.qualifiers() {
+            namespace = *self.arena[namespace].children.get(part.as_bytes())?;
+        }
+        Some((namespace, projected.simple().as_bytes().to_vec()))
     }
 
     /// Sorted variable names in namespace `ns` (`info vars`/`globals`).
@@ -1153,44 +3287,123 @@ impl Namespaces {
             .commands
             .iter()
             .filter(|(_, c)| matches!(c, Command::Proc(_)))
-            .map(|(k, _)| k.clone())
+            .map(|(k, _)| self.command_table_report_name(ns, k).to_vec())
             .collect()
+    }
+
+    pub(crate) fn original_variable_table_at(&self, ns: NsId) -> Option<&VarTable> {
+        if self.namespace_variables_are_deleted(ns) {
+            return None;
+        }
+        Some(&self.arena.get(ns)?.vars)
+    }
+
+    /// Mutable access to the already selected physical table. The caller owns
+    /// conversion/currentness and cannot acquire it by a new name lookup.
+    pub(crate) fn original_variable_table_at_mut(&mut self, ns: NsId) -> Option<&mut VarTable> {
+        if self.namespace_variables_are_deleted(ns) {
+            return None;
+        }
+        self.arena.get_mut(ns).map(|namespace| &mut namespace.vars)
+    }
+
+    pub(crate) fn capture_container_model_at(
+        &self,
+        ns: NsId,
+    ) -> Option<(
+        std::rc::Weak<std::cell::RefCell<tcl_core_types::NativeEntryLedger>>,
+        Option<crate::frame::CapturedContainerModel>,
+    )> {
+        let namespace = self.arena.get(ns)?;
+        if self.namespace_variables_are_deleted(ns) {
+            return None;
+        }
+        let table = &namespace.vars;
+        table.set_hash_recipe(self.variable_hash_recipe);
+        Some((
+            table.original_table_ledger(),
+            table.capture_container_model(
+                self.variable_container_model,
+                self.variable_string_protocol,
+            ),
+        ))
     }
 
     /// Namespace `ns`'s variable table (read).
     #[must_use]
     pub(crate) fn var_table(&self, ns: NsId) -> &VarTable {
+        self.arena[ns]
+            .vars
+            .set_hash_recipe(self.variable_hash_recipe);
+        self.arena[ns]
+            .vars
+            .set_container_model(self.variable_container_model, self.variable_string_protocol);
         &self.arena[ns].vars
     }
 
     /// Namespace `ns`'s variable table (mutable).
     pub(crate) fn var_table_mut(&mut self, ns: NsId) -> &mut VarTable {
+        self.arena[ns]
+            .vars
+            .set_hash_recipe(self.variable_hash_recipe);
+        self.arena[ns]
+            .vars
+            .set_container_model(self.variable_container_model, self.variable_string_protocol);
         &mut self.arena[ns].vars
     }
 
     /// The fully-qualified name of `ns` (`::a::b`; global is `::`).
     #[must_use]
     pub fn qualified_name(&self, ns: NsId) -> Vec<u8> {
-        let mut parts: Vec<&[u8]> = Vec::new();
-        let mut cur = ns;
-        let mut out = loop {
-            if let Some(fqn) = self.arena[cur].retained_fqn.as_deref() {
-                break fqn.to_vec();
-            }
-            let Some(parent) = self.arena[cur].parent else {
-                break Vec::new();
-            };
-            parts.push(&self.arena[cur].name);
-            cur = parent;
-        };
-        if out.is_empty() && parts.is_empty() {
-            return b"::".to_vec();
+        if ns != GLOBAL && self.arena[ns].jim_namespace.is_some() {
+            let namespace = self
+                .jim_namespace_bytes(ns)
+                .expect("Jim namespace reporting requires an already reached namespace getter");
+            let mut rooted = b"::".to_vec();
+            rooted.extend_from_slice(namespace);
+            return rooted;
         }
-        for part in parts.iter().rev() {
-            out.extend_from_slice(b"::");
-            out.extend_from_slice(part);
+        tcl_syntax::naming::native_namespace_full_name_bytes(&self.arena[ns].constructed_path)
+    }
+
+    /// C command-table components under the same selected command recipe.
+    /// This ignores variable-name/Jim holder policies and supplies no token receipt.
+    pub(crate) fn native_c_command_context_path(
+        &self,
+        namespace: NsId,
+        version: tcl_dialect::TclVersion,
+    ) -> Option<tcl_core_types::ByteNamespacePath> {
+        if self.native_command_version != Some(version) {
+            return None;
         }
-        out
+        self.arena
+            .get(namespace)
+            .filter(|node| namespace == GLOBAL || node.jim_namespace.is_none())
+            .map(|node| node.constructed_path.clone())
+    }
+
+    /// Return the original constructed address of an actual arena token.
+    /// Public liveness and physical command/variable tables remain separate;
+    /// detached frames keep their own address without reparsing a display.
+    pub(crate) fn native_context_path(
+        &self,
+        ns: NsId,
+    ) -> Option<tcl_core_types::ByteNamespacePath> {
+        if self
+            .variable_name_protocol
+            .is_some_and(|protocol| protocol.is_jim084())
+        {
+            let original = self.jim_namespace_bytes(ns)?;
+            return Some(if original.is_empty() {
+                tcl_core_types::ByteNamespacePath::root()
+            } else {
+                tcl_core_types::ByteNamespacePath::from_segments([original])
+            });
+        }
+        self.arena
+            .get(ns)
+            .filter(|namespace| ns == GLOBAL || namespace.jim_namespace.is_none())
+            .map(|namespace| namespace.constructed_path.clone())
     }
 
     // the `namespace` command surface
@@ -1199,25 +3412,26 @@ impl Namespaces {
     /// (`namespace which -command`), or `None` if it doesn't resolve.
     #[must_use]
     pub fn which_command(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>> {
-        let (ns, simple) = self.home_of(current, name)?;
-        let mut fqn = self.qualified_name(ns);
-        if ns != GLOBAL {
-            fqn.extend_from_slice(b"::"); // global's qualified_name is already `::`
-        }
-        fqn.extend_from_slice(&simple);
-        Some(fqn)
+        let (namespace, simple) = self.home_of(current, name)?;
+        Some(self.command_fqn(namespace, &simple))
     }
 
     /// `namespace export` — append a pattern (deduplicated). `-clear` first is the
     /// caller's job via [`clear_exports`](Self::clear_exports).
     pub fn export(&mut self, ns: NsId, pattern: &[u8]) {
         if !self.arena[ns].exports.iter().any(|p| p == pattern) {
+            self.note_guard_lookup_environment_mutation();
             self.arena[ns].exports.push(pattern.to_vec());
+            self.advance_ensemble_export_epoch(ns);
         }
     }
 
     /// Drop all of `ns`'s export patterns (`namespace export -clear`).
     pub fn clear_exports(&mut self, ns: NsId) {
+        if !self.arena[ns].exports.is_empty() {
+            self.note_guard_lookup_environment_mutation();
+            self.advance_ensemble_export_epoch(ns);
+        }
         self.arena[ns].exports.clear();
     }
 
@@ -1256,6 +3470,53 @@ impl Namespaces {
         self.insert_bound(ns, name.to_vec(), command);
     }
 
+    /// Take only the actual object record at the original occupied creation
+    /// slot. The generation identifies the callback-created binding; no name
+    /// resolution or a recreated namespace holder supplies this permission.
+    pub(crate) fn take_recreated_object_for_creation(
+        &mut self,
+        entry: &NativeCommandCreation,
+        name: &[u8],
+        generation: u64,
+    ) -> Option<CommandBinding> {
+        if !entry.occupied || entry.original_tail != name {
+            return None;
+        }
+        let binding = self.arena.get(entry.namespace)?.commands.binding(name)?;
+        if binding.generation != generation
+            || !matches!(&binding.command, Command::ObjCmd(command)
+                if command.creation_purpose() == Some(tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand))
+        {
+            return None;
+        }
+        // The owned binding is returned before its record can be retired;
+        // callers release it outside the namespace RefCell borrow. Jim's
+        // Jim_ReplaceHashEntry overwrites only the value of an occupied key,
+        // including a value recreated by the original delete procedure.
+        // The shared replacement worker preserves that key; C removes its
+        // independent entry using the existing selected replacement recipe.
+        if self
+            .variable_name_protocol
+            .is_some_and(|protocol| protocol.is_jim084())
+        {
+            self.take_native_binding_for_replacement(entry.namespace, name)
+        } else {
+            // This separately admitted ObjCmd must remain uniquely transferred:
+            // its disposal purpose does not execute a second delete procedure.
+            self.unlink_native_binding(entry.namespace, name)
+        }
+    }
+
+    /// Consume the original creation entry after its callbacks have returned.
+    pub(crate) fn bind_after_native_creation_entry(
+        &mut self,
+        entry: NativeCommandCreation,
+        name: &[u8],
+        command: Command,
+    ) -> u64 {
+        self.insert_bound_after_entry(entry, name.to_vec(), command)
+    }
+
     /// `ns`'s `namespace path` (the resolver's step-b list).
     #[must_use]
     pub fn path(&self, ns: NsId) -> &[NsId] {
@@ -1274,6 +3535,11 @@ impl Namespaces {
         let mut children: Vec<NsId> = self.arena[ns].children.values().copied().collect();
         children.sort_unstable();
         children
+    }
+
+    /// Probe the actual child table without parsing the original member key.
+    pub(crate) fn child_token(&self, parent: NsId, member: &[u8]) -> Option<NsId> {
+        self.arena.get(parent)?.children.get(member).copied()
     }
 
     /// `ns`'s live children in Tcl string-hash enumeration order.
@@ -1311,15 +3577,49 @@ impl Namespaces {
         self.arena[ns].commands.generation(&simple)
     }
 
+    /// Share actual node and retained-table traversal across result projections.
+    fn command_by_generation_using<T>(
+        &self,
+        generation: u64,
+        native_project: impl Fn(&Command, NsId, &[u8]) -> T,
+        table_project: impl Fn(&Command, NsId, &[u8]) -> T,
+    ) -> Option<T> {
+        if let Some(selected) = self.native_command_at_node_using(generation, native_project) {
+            return Some(selected);
+        }
+        self.arena.iter().enumerate().find_map(|(ns, node)| {
+            node.commands.entries.iter().find_map(|(name, slot)| {
+                let binding = slot.binding.as_ref()?;
+                (binding.generation == generation)
+                    .then(|| table_project(&binding.command, ns, name))
+            })
+        })
+    }
+
     /// Resolve an interpreter-unique command generation in any visible or
     /// retained namespace table, including its current Tcl-facing location.
     pub(crate) fn command_by_generation(&self, generation: u64) -> Option<(Vec<u8>, Command)> {
-        self.arena.iter().enumerate().find_map(|(ns, node)| {
-            node.commands.entries.iter().find_map(|(name, binding)| {
-                (binding.generation == generation)
-                    .then(|| (self.command_fqn(ns, name), binding.command.clone()))
-            })
-        })
+        if let Some((command, namespace, simple)) = self.retained_jim_command_at_node(generation) {
+            let command = command.clone();
+            return Some((self.command_fqn(namespace, simple), command));
+        }
+        self.command_by_generation_using(
+            generation,
+            |command, namespace, simple| {
+                let command = command.clone();
+                (self.command_fqn(namespace, simple), command)
+            },
+            |command, namespace, simple| (self.command_fqn(namespace, simple), command.clone()),
+        )
+    }
+
+    /// Report the same generation's actual location without retaining its callable.
+    pub(crate) fn command_fqn_by_generation(&self, generation: u64) -> Option<Vec<u8>> {
+        self.command_by_generation_using(
+            generation,
+            |_, namespace, simple| self.command_fqn(namespace, simple),
+            |_, namespace, simple| self.command_fqn(namespace, simple),
+        )
     }
 
     /// Every command generation currently resident in a visible or retained
@@ -1328,7 +3628,7 @@ impl Namespaces {
         self.arena
             .iter()
             .flat_map(|node| node.commands.entries.values())
-            .map(|binding| binding.generation)
+            .filter_map(|slot| slot.binding.as_ref().map(|binding| binding.generation))
             .collect()
     }
 
@@ -1340,17 +3640,22 @@ impl Namespaces {
     /// `ns`'s `namespace unknown` handler, if one is set (an empty/`None` handler
     /// means "use the interpreter default `::unknown`").
     #[must_use]
-    pub(crate) fn unknown_handler(&self, ns: NsId) -> Option<&[u8]> {
-        self.arena[ns].unknown.as_deref()
+    pub(crate) fn unknown_handler(&self, ns: NsId) -> Option<*mut crate::obj::TclObj> {
+        self.arena[ns]
+            .unknown
+            .as_ref()
+            .map(crate::obj::Owned::as_ptr)
     }
 
-    /// Set `ns`'s `namespace unknown` handler (an empty handler resets to default).
-    pub(crate) fn set_unknown_handler(&mut self, ns: NsId, handler: &[u8]) {
-        self.arena[ns].unknown = if handler.is_empty() {
-            None
-        } else {
-            Some(handler.to_vec())
-        };
+    /// Transfer the original handler root; release the retired root after the
+    /// namespace borrow ends so native free hooks may re-enter the interpreter.
+    pub(crate) fn set_unknown_handler(
+        &mut self,
+        ns: NsId,
+        handler: Option<crate::obj::Owned>,
+    ) -> Option<crate::obj::Owned> {
+        self.note_guard_lookup_environment_mutation();
+        std::mem::replace(&mut self.arena[ns].unknown, handler)
     }
 
     /// Find every ensemble command whose configured namespace is in `victims`,
@@ -1398,7 +3703,7 @@ impl Namespaces {
             }
         }
         let (ns, name) = found?;
-        let binding = self.arena[ns].commands.remove_binding(&name)?;
+        let binding = self.remove_native_binding(ns, &name)?;
         Some((self.command_fqn(ns, &name), binding.generation))
     }
 
@@ -1484,7 +3789,7 @@ impl Namespaces {
             }
         }
         let (ns, name) = found?;
-        let binding = self.arena[ns].commands.remove_binding(&name)?;
+        let binding = self.remove_native_binding(ns, &name)?;
         Some((self.command_fqn(ns, &name), binding.generation))
     }
 
@@ -1526,14 +3831,21 @@ impl Namespaces {
         true
     }
 
-    /// Mark and detach one exact namespace token before its ordinary command
-    /// callbacks. Descendants remain live and are reached through the retained
-    /// parent edge until recursive teardown reaches each token in turn.
-    pub(crate) fn begin_namespace_teardown(&mut self, ns: NsId) {
+    /// Mark a synchronous token dying while its original variable table and
+    /// parent edge remain available to the variable deletion callbacks.
+    pub(crate) fn begin_namespace_variable_teardown(&mut self, ns: NsId) {
+        self.note_guard_lookup_environment_mutation();
+        self.namespace_name_begin_deletion(ns);
         self.dying.insert(ns);
         if ns != GLOBAL {
             self.dead.insert(ns);
         }
+    }
+
+    /// Detach the exact token after its variable callbacks. Descendants remain
+    /// live through its retained edge until recursive teardown reaches them.
+    pub(crate) fn begin_namespace_teardown(&mut self, ns: NsId) {
+        self.begin_namespace_variable_teardown(ns);
         if let Some(parent) = self.arena[ns].parent {
             let name = self.arena[ns].name.clone();
             self.arena[parent].children.remove(&name);
@@ -1544,6 +3856,9 @@ impl Namespaces {
 
     /// Drop the temporary lookup edges after the final post-callback sweep.
     pub(crate) fn finish_namespace_teardown(&mut self, victims: &[NsId]) {
+        if !victims.is_empty() {
+            self.note_guard_lookup_environment_mutation();
+        }
         let victim_set: BTreeSet<NsId> = victims.iter().copied().collect();
         self.dying.retain(|id| !victim_set.contains(id));
         self.dying_children.retain(|_, id| !victim_set.contains(id));
@@ -1554,7 +3869,7 @@ impl Namespaces {
     /// still-live child, but checks the final token's liveness; this helper
     /// specifically requires the final token itself to be dying.
     pub(crate) fn dying_namespace(&self, current: NsId, qualified: &[u8]) -> Option<NsId> {
-        let absolute = qualified.starts_with(b"::");
+        let absolute = written_command_parts(qualified).absolute;
         let mut ns = if absolute { GLOBAL } else { current };
         for part in split_qualifier(qualified) {
             ns = self.arena[ns]
@@ -1570,6 +3885,7 @@ impl Namespaces {
     /// Deleting the global namespace clears its contents but keeps the node
     /// (it has no parent to unlink from) — matching `namespace delete ::`.
     pub fn delete_namespace_by_id(&mut self, ns: NsId) {
+        self.note_guard_lookup_environment_mutation();
         let victims = self.descendant_ids(ns);
         // The global namespace is a permanent interpreter root: deleting it
         // clears its contents but does not invalidate its token. Every other
@@ -1595,6 +3911,9 @@ impl Namespaces {
             if !node.path.is_empty() {
                 node.path.retain(|p| !victims.contains(p));
             }
+        }
+        for victim in victims {
+            self.namespace_name_finish_deletion(victim);
         }
     }
 
@@ -1649,29 +3968,64 @@ impl Namespaces {
 
     /// Clear callback-created state from explicit dying arena nodes. The
     /// caller has already fired command traces and removed dependent imports.
-    pub(crate) fn clear_namespace_ids(&mut self, ids: &[NsId]) {
+    pub(crate) fn clear_namespace_ids(
+        &mut self,
+        ids: &[NsId],
+    ) -> (Vec<VarTable>, Vec<crate::obj::Owned>) {
+        if !ids.is_empty() {
+            self.note_guard_lookup_environment_mutation();
+        }
+        let mut retired = Vec::new();
+        let mut tables = Vec::new();
         for &id in ids.iter().rev() {
+            if id != GLOBAL {
+                self.retired_variable_namespaces.insert(id);
+            }
+            let commands = self.arena[id].commands.hash_order();
+            for (simple, _) in commands {
+                if let Some(binding) = self.remove_native_binding(id, &simple) {
+                    Self::mark_command_deleted(&binding.command, &self.retired_ensemble_roles);
+                }
+            }
             let n = &mut self.arena[id];
             n.children.clear();
             n.child_order.clear();
             for command in n.commands.values() {
-                Self::mark_command_deleted(command);
+                Self::mark_command_deleted(command, &self.retired_ensemble_roles);
             }
             n.commands.clear();
             n.path.clear();
             n.exports.clear();
-            n.vars = VarTable::default();
-            n.unknown = None;
+            tables.push(std::mem::take(&mut n.vars));
+            retired.extend(n.unknown.take());
         }
+        (tables, retired)
     }
 
-    /// Clear one dying namespace's own variable table and drop it from every
-    /// `namespace path`, while retaining its child links and metadata for the
+    /// Clear one dying namespace's own variable table, retaining paths and
+    /// child links through the ordinary command deletion callbacks. The
     /// recursive delete callbacks still to run. The command table is emptied
     /// one token at a time afterwards, in hash order; the final fixed-point
     /// sweep clears the retained metadata and links.
-    pub(crate) fn clear_namespace_token(&mut self, ns: NsId) {
-        self.arena[ns].vars = VarTable::default();
+    pub(crate) fn clear_namespace_token(&mut self, ns: NsId) -> VarTable {
+        if ns != GLOBAL {
+            self.retired_variable_namespaces.insert(ns);
+        }
+        std::mem::take(&mut self.arena[ns].vars)
+    }
+
+    /// Unpublish this token and its resolution paths after its commands retire.
+    pub(crate) fn finish_native_namespace_command_path(&mut self, ns: NsId) {
+        self.note_guard_lookup_environment_mutation();
+        self.dying_children.retain(|_, child| *child != ns);
+        if self.arena[ns].parent.is_some() {
+            let fqn = self.qualified_name(ns);
+            self.arena[ns].parent = None;
+            self.arena[ns].retained_fqn = Some(fqn);
+            self.namespace_name_detach_parent(ns);
+        }
+        self.arena[ns].path.clear();
+        self.invalidate_native_path_dependents(ns);
         for node in &mut self.arena {
             node.path.retain(|entry| *entry != ns);
         }
@@ -1681,14 +4035,23 @@ impl Namespaces {
     /// releases the variables' object references (`TclFreeVar`); commands and
     /// child links are dropped.
     fn delete_subtree(&mut self, ns: NsId) {
+        if ns != GLOBAL {
+            self.retired_variable_namespaces.insert(ns);
+        }
         for child in self.children(ns) {
             self.delete_subtree(child);
+        }
+        let commands = self.arena[ns].commands.hash_order();
+        for (simple, _) in commands {
+            if let Some(binding) = self.remove_native_binding(ns, &simple) {
+                Self::mark_command_deleted(&binding.command, &self.retired_ensemble_roles);
+            }
         }
         let n = &mut self.arena[ns];
         n.children.clear();
         n.child_order.clear();
         for command in n.commands.values() {
-            Self::mark_command_deleted(command);
+            Self::mark_command_deleted(command, &self.retired_ensemble_roles);
         }
         n.commands.clear();
         // Keep namespace metadata alive through delete callbacks. The node is
@@ -1698,8 +4061,7 @@ impl Namespaces {
         n.vars = VarTable::default(); // drop → release variable refcounts
     }
 
-    /// The `(simple_name, source_fqn)` of every imported redirect in `ns`
-    /// (`namespace forget` walks these).
+    /// The reporting `(simple_name, source_fqn)` of every imported redirect in `ns`.
     #[must_use]
     pub fn imported_in(&self, ns: NsId) -> Vec<(Vec<u8>, Vec<u8>)> {
         self.arena[ns]
@@ -1720,58 +4082,133 @@ impl Namespaces {
             .collect()
     }
 
+    fn original_import_origin_slot(&self, mut generation: u64) -> Option<(NsId, Vec<u8>)> {
+        let mut visited = BTreeSet::new();
+        loop {
+            if !visited.insert(generation) {
+                return None;
+            }
+            let (namespace, simple) = self.native_command_slot_at_node(generation)?;
+            match self.arena[namespace].commands.get(&simple)? {
+                Command::Imported {
+                    source_generation, ..
+                } => generation = *source_generation,
+                _ => return Some((namespace, simple)),
+            }
+        }
+    }
+
+    pub(crate) fn imported_forget_bindings(
+        &self,
+        namespace: NsId,
+        source: Option<NsId>,
+        pattern: &[u8],
+        matcher: tcl_syntax::native_glob::NativeGlobProtocol,
+    ) -> Result<Vec<(Vec<u8>, u64)>, tcl_syntax::value::ValueError> {
+        use tcl_syntax::native_glob::NativeNameGlobPurpose;
+        use tcl_syntax::value::ValueError;
+
+        let mut bindings = Vec::new();
+        for (simple, command) in self.arena[namespace].commands.iter() {
+            let Command::Imported {
+                source_generation, ..
+            } = command
+            else {
+                continue;
+            };
+            let matches = if let Some(source) = source {
+                let (origin_namespace, origin_tail) = self
+                    .original_import_origin_slot(*source_generation)
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "namespace forget original import origin",
+                    ))?;
+                let (match_namespace, match_tail) = if origin_namespace == source {
+                    (origin_namespace, origin_tail)
+                } else {
+                    self.native_command_slot_at_node(*source_generation).ok_or(
+                        ValueError::CommandProtocolUnavailable(
+                            "namespace forget immediate import source",
+                        ),
+                    )?
+                };
+                match_namespace == source
+                    && matcher
+                        .match_name_pattern(
+                            NativeNameGlobPurpose::ForgetOriginFilter,
+                            pattern,
+                            &match_tail,
+                        )
+                        .map_err(|_| {
+                            ValueError::CommandProtocolUnavailable("namespace forget origin filter")
+                        })?
+            } else {
+                matcher
+                    .match_name_pattern(NativeNameGlobPurpose::ForgetOwnSearch, pattern, simple)
+                    .map_err(|_| {
+                        ValueError::CommandProtocolUnavailable("namespace forget own-name search")
+                    })?
+            };
+            if matches {
+                let generation = self.arena[namespace].commands.generation(simple).ok_or(
+                    ValueError::CommandProtocolUnavailable("namespace forget import binding"),
+                )?;
+                bindings.push((simple.clone(), generation));
+            }
+        }
+        Ok(bindings)
+    }
+
     /// Remove the simple-named command `name` directly from `ns` (no resolution
     /// walk); returns whether it existed. For `namespace forget`.
     pub fn remove_in(&mut self, ns: NsId, name: &[u8]) -> bool {
-        self.arena[ns].commands.remove(name).is_some()
+        self.remove_native_binding(ns, name).is_some_and(|binding| {
+            if matches!(&binding.command, Command::Imported { .. }) {
+                self.note_guard_lookup_environment_mutation();
+            }
+            Self::mark_command_deleted(&binding.command, &self.retired_ensemble_roles);
+            true
+        })
     }
 
     // helpers
 
-    /// Locate the namespace + simple name that *holds* the binding `name`
-    /// resolves to, following C Tcl's full command-resolution order
-    /// (`Tcl_FindCommand`, `generic/tclNamesp.c`). The shared core of
-    /// `resolve`/`delete`/`rename`.
-    ///
-    /// Structural mirror of the canonical
-    /// [`tcl_syntax::naming::resolve_command_with`] rule (this table is a
-    /// namespace tree, not a flat string map, so the loop walks base
-    /// namespaces instead of joining candidate strings — conformance is
-    /// pinned by the shared vector suite,
-    /// `rust/tcl-syntax/tests/data/command_resolution_vectors.txt`):
-    ///
-    /// * An absolute name resolves from the global namespace only.
-    /// * Any relative name — bare (`helper`) *or* qualifier-carrying
-    ///   (`inner::p`) — tries the current namespace, then each
-    ///   `namespace path` entry in order, then global, dispatching the
-    ///   first base under which the **command exists**.  A qualifier
-    ///   namespace merely existing does not commit resolution: `inner::p`
-    ///   from `::outer` reaches `::inner::p` even when the namespace
-    ///   `::outer::inner` exists but holds no `p` (tclsh 8.6/9.0
-    ///   confirmed).
-    fn home_of(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
-        let segments = split_qualifier(name);
-        // A name ending in a separator run — or consisting only of colons, or
-        // empty — names the empty-string `{}` command in the qualified
-        // namespace; `qualifier_segments` drops that empty tail, so restore
-        // it (with `proc {} {} {}` defined, `::` and `:::` both
-        // dispatch it, tclsh 8.6/9.0-pinned).
-        let (simple, ns_parts): (&[u8], &[&[u8]]) = if ends_with_separator(name) || name.is_empty()
+    /// Select the first existing command slot through shared original-name
+    /// lookup bases, retaining this arena's namespace tokens and dying children.
+    pub(crate) fn home_of(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
+        if let Some(protocol) = self
+            .variable_name_protocol
+            .filter(|protocol| protocol.is_jim084())
         {
-            (b"", &segments[..])
-        } else {
-            let (simple, ns_parts) = segments.split_last()?;
-            (*simple, ns_parts)
-        };
+            let keys = protocol
+                .jim_command_lookup_keys(self.jim_context(current)?, name)
+                .ok()?;
+            return keys.into_iter().find_map(|key| {
+                self.arena[GLOBAL]
+                    .commands
+                    .contains_key(key.as_bytes())
+                    .then(|| (GLOBAL, key.as_bytes().to_vec()))
+            });
+        }
+        let protocol = self.variable_name_protocol?;
+        let path = self.native_context_path(current)?;
+        let selected = protocol
+            .command_lookup_projection(tcl_syntax::naming::NativeNameContext::new(&path), name)
+            .ok()?;
+        let simple = selected.slot().simple.as_bytes();
+        let ns_parts = selected.qualifiers();
         // Walk `ns_parts` from `base`, then require the command itself.
         let find_under = |base: NsId| -> Option<NsId> {
             let mut ns = base;
             for part in ns_parts {
                 ns = self.arena[ns]
                     .children
-                    .get(*part)
+                    .get(part.as_bytes())
                     .copied()
-                    .or_else(|| self.dying_children.get(&(ns, part.to_vec())).copied())?;
+                    .or_else(|| {
+                        self.dying_children
+                            .get(&(ns, part.as_bytes().to_vec()))
+                            .copied()
+                    })?;
             }
             if self.arena[ns].commands.contains_key(simple) {
                 Some(ns)
@@ -1779,20 +4216,16 @@ impl Namespaces {
                 None
             }
         };
-        if name.starts_with(b"::") {
-            return find_under(GLOBAL).map(|ns| (ns, simple.to_vec()));
-        }
-        if let Some(ns) = find_under(current) {
-            return Some((ns, simple.to_vec()));
-        }
-        for &p in &self.arena[current].path {
-            if let Some(ns) = find_under(p) {
-                return Some((ns, simple.to_vec()));
-            }
-        }
-        if current != GLOBAL {
-            if let Some(ns) = find_under(GLOBAL) {
-                return Some((ns, simple.to_vec()));
+        for base in selected
+            .lookup_bases(current, &self.arena[current].path)
+            .ok()?
+        {
+            let namespace = match base {
+                tcl_syntax::naming::CommandLookupBase::Context(namespace) => namespace,
+                tcl_syntax::naming::CommandLookupBase::Root => GLOBAL,
+            };
+            if let Some(namespace) = find_under(namespace) {
+                return Some((namespace, simple.to_vec()));
             }
         }
         None
@@ -1802,8 +4235,15 @@ impl Namespaces {
         if let Some(&id) = self.arena[parent].children.get(name) {
             return id;
         }
+        // Existing child selection above is observation; only this new child
+        // changes the shared namespace lookup environment.
+        self.note_guard_lookup_environment_mutation();
         let id = self.arena.len();
-        self.arena.push(Namespace::new(name.to_vec(), Some(parent)));
+        let mut path = self.arena[parent].constructed_path.clone().into_segments();
+        path.push(tcl_core_types::NameBytes::from(name));
+        let mut namespace = Namespace::new(name.to_vec(), Some(parent));
+        namespace.constructed_path = tcl_core_types::ByteNamespacePath::from_segments(path);
+        self.arena.push(namespace);
         self.activations.push(0);
         self.arena[parent].children.insert(name.to_vec(), id);
         self.arena[parent].child_order.insert(name);
@@ -1824,6 +4264,420 @@ mod tests {
     }
     fn is_some(c: Option<Command>) -> bool {
         c.is_some()
+    }
+
+    #[test]
+    fn support_publication_keeps_actual_relative_holders_and_counted_empty_tails() {
+        let mut namespaces = Namespaces::new();
+        let current = namespaces.ensure_child(GLOBAL, b":");
+        let child = namespaces.ensure_child(current, b"child");
+        assert_eq!(
+            namespaces.support_command_publication_at(current, b"p"),
+            (current, b"p".to_vec())
+        );
+        assert_eq!(
+            namespaces.support_command_publication_at(current, b"::p"),
+            (GLOBAL, b"p".to_vec())
+        );
+        assert_eq!(
+            namespaces.support_command_publication_at(current, b"child::\xff\0tail"),
+            (child, b"\xff\0tail".to_vec())
+        );
+        assert_eq!(
+            namespaces.support_command_publication_at(current, b"child::"),
+            (child, Vec::new())
+        );
+    }
+
+    #[test]
+    fn bootstrap_registration_and_restore_keep_the_last_nonempty_component() {
+        let mut namespaces = Namespaces::new();
+        assert!(namespaces.register_at(b"", cmd()).is_none());
+        assert!(namespaces.register_at(b"::::", cmd()).is_none());
+        for name in [b"::A:::b::".as_slice(), b"\xff::k\0tail::"] {
+            let (namespace, simple) = namespaces.register_at(name, cmd()).unwrap();
+            assert_eq!(
+                simple,
+                if name.starts_with(b"::A") {
+                    b"b".as_slice()
+                } else {
+                    b"k\0tail".as_slice()
+                },
+            );
+            let generation = namespaces.command_generation(namespace, &simple).unwrap();
+            let binding = namespaces.arena[namespace]
+                .commands
+                .remove_binding(&simple)
+                .unwrap();
+            assert!(namespaces.restore(b"::D:::moved::", binding));
+            let destination = namespaces.find_namespace(GLOBAL, b"D").unwrap();
+            assert_eq!(
+                namespaces.command_generation(destination, b"moved"),
+                Some(generation)
+            );
+        }
+    }
+
+    #[test]
+    fn generation_location_projects_actual_constructed_slots_and_declines_replacement() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Fixed table-owner control; no Native namespace or callback timing is asserted.
+        let mut namespaces = Namespaces::new();
+        let holder = namespaces.ensure_namespace(GLOBAL, b":");
+        namespaces.bind(holder, b":run", cmd());
+        let original = namespaces.command_generation(holder, b":run").unwrap();
+        assert_eq!(
+            namespaces.command_fqn_by_generation(original).as_deref(),
+            Some(b"::::::run".as_slice()),
+        );
+        let moved = namespaces.take(holder, b":run").unwrap();
+        assert!(namespaces.command_fqn_by_generation(original).is_none());
+        assert!(namespaces.restore(b"other::moved", moved));
+        let owned = namespaces.command_by_generation(original).unwrap();
+        assert_eq!(owned.0, b"::other::moved");
+        assert_eq!(
+            namespaces.command_fqn_by_generation(original),
+            Some(owned.0)
+        );
+        namespaces.register(b"other::moved", cmd());
+        assert!(namespaces.command_fqn_by_generation(original).is_none());
+        assert!(namespaces.command_by_generation(original).is_none());
+        let replacement = namespaces
+            .resolve_generation(GLOBAL, b"other::moved")
+            .unwrap();
+        assert_ne!(replacement, original);
+        assert_eq!(
+            namespaces.command_fqn_by_generation(replacement).as_deref(),
+            Some(b"::other::moved".as_slice()),
+        );
+    }
+
+    #[test]
+    fn generation_publication_projection_excludes_the_actual_saved_jim_previous_worker() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Real previous-edge and restoration workers; this is a software ownership control.
+        let mut namespaces = Namespaces::new();
+        namespaces.bind(GLOBAL, b"kept", cmd());
+        let original = namespaces.command_generation(GLOBAL, b"kept").unwrap();
+        let entry = namespaces.native_command_creation_entry(GLOBAL, b"kept");
+        let top = namespaces.bind_jim_local(entry, b"kept", cmd());
+        assert_ne!(original, top);
+        assert_eq!(
+            namespaces.native_command_at_node(original).unwrap().1,
+            b"::kept"
+        );
+        assert_eq!(
+            namespaces.command_by_generation(original).unwrap().0,
+            b"::kept"
+        );
+        assert!(namespaces.command_fqn_by_generation(original).is_none());
+        assert_eq!(
+            namespaces.command_fqn_by_generation(top).as_deref(),
+            Some(b"::kept".as_slice()),
+        );
+        namespaces.clean_jim_local_key(b"kept");
+        assert_eq!(
+            namespaces.command_fqn_by_generation(original).as_deref(),
+            Some(b"::kept".as_slice()),
+        );
+        assert!(namespaces.command_fqn_by_generation(top).is_none());
+    }
+
+    #[test]
+    fn compiler_and_resolver_epochs_match_original_native_mutation_rows() {
+        use tcl_runtime_api::native_compilation::NativeCompilerHookPresence as Hook;
+        let cases = [
+            (
+                tcl_dialect::TclVersion::V8_4,
+                include_str!("../tests/data/native_compiler_epochs/8.4.20.tsv"),
+            ),
+            (
+                tcl_dialect::TclVersion::V8_5,
+                include_str!("../tests/data/native_compiler_epochs/8.5.19.tsv"),
+            ),
+            (
+                tcl_dialect::TclVersion::V8_6,
+                include_str!("../tests/data/native_compiler_epochs/8.6.18.tsv"),
+            ),
+            (
+                tcl_dialect::TclVersion::V9_0,
+                include_str!("../tests/data/native_compiler_epochs/9.0.4.tsv"),
+            ),
+            (
+                tcl_dialect::TclVersion::V9_1,
+                include_str!("../tests/data/native_compiler_epochs/9.1.0.tsv"),
+            ),
+        ];
+        for (version, rows) in cases {
+            let mut namespaces = Namespaces::new();
+            namespaces.set_native_command_version(Some(version));
+            namespaces.bind(GLOBAL, b"set", cmd());
+            let stock = namespaces.resolve_generation(GLOBAL, b"set").unwrap();
+            namespaces.set_native_compiler_hook(stock, Hook::Present);
+            let baseline = rows
+                .lines()
+                .nth(1)
+                .unwrap()
+                .split('\t')
+                .nth(2)
+                .unwrap()
+                .parse::<u64>()
+                .unwrap();
+            let mut local = None;
+            let mut hidden = None;
+            for row in rows.lines().skip(1) {
+                let fields: Vec<_> = row.split('\t').collect();
+                let event = fields[0];
+                match event {
+                    "initial" => {}
+                    "namespace_create" | "namespace_recreate" => {
+                        local = Some(namespaces.ensure_namespace(GLOBAL, b"N"));
+                    }
+                    "plain_create" => namespaces.bind(GLOBAL, b"p", cmd()),
+                    "plain_rename" | "compiled_rename" | "compiled_restore" => {
+                        let (from, to) = match event {
+                            "plain_rename" => (b"p".as_slice(), b"q".as_slice()),
+                            "compiled_rename" => (b"set".as_slice(), b"stamp_saved_set".as_slice()),
+                            _ => (b"stamp_saved_set".as_slice(), b"set".as_slice()),
+                        };
+                        let publication = namespaces
+                            .publish_rename_destination(GLOBAL, from, to)
+                            .unwrap();
+                        namespaces.retire_rename_source(&publication);
+                    }
+                    "plain_delete" => assert!(namespaces.delete(GLOBAL, b"q")),
+                    "compiled_shadow" => namespaces.bind(local.unwrap(), b"set", cmd()),
+                    "shadow_delete" => assert!(namespaces.delete(local.unwrap(), b"set")),
+                    "replacement_plain" => namespaces.bind(GLOBAL, b"set", cmd()),
+                    "replacement_delete" => assert!(namespaces.delete(GLOBAL, b"set")),
+                    "compiled_hide" => {
+                        // The hidden table owns this exact token between operations.
+                        let binding = namespaces.take(GLOBAL, b"set").unwrap();
+                        namespaces.note_native_command_hidden(binding.generation);
+                        assert_eq!(binding.generation, stock);
+                        hidden = Some(binding);
+                    }
+                    "compiled_expose" => {
+                        assert!(namespaces.restore(b"set", hidden.take().unwrap()));
+                    }
+                    "namespace_path" | "same_path" => {
+                        let target = namespaces.ensure_namespace(GLOBAL, b"M");
+                        namespaces.set_path(local.unwrap(), vec![target]);
+                    }
+                    "clear_path" => namespaces.set_path(local.unwrap(), Vec::new()),
+                    "namespace_delete" => {
+                        assert!(namespaces.delete_namespace(GLOBAL, b"N"));
+                        local = None;
+                    }
+                    _ => panic!("unhandled original native event {event}"),
+                }
+                assert_eq!(fields[1], "0", "{version:?} {event}: native completion");
+                let expected_compiler = fields[2].parse::<u64>().unwrap() - baseline;
+                assert_eq!(
+                    namespaces.native_compiler_cache_epochs(GLOBAL),
+                    Some((expected_compiler, fields[3].parse().unwrap())),
+                    "{version:?} {event}: global stamp"
+                );
+                match local {
+                    Some(local) => assert_eq!(
+                        namespaces.native_compiler_cache_epochs(local),
+                        Some((expected_compiler, fields[4].parse().unwrap())),
+                        "{version:?} {event}: original namespace stamp"
+                    ),
+                    None => assert_eq!(fields[4], "-1", "{version:?} {event}"),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn imported_raw_compiler_recipe_is_independent_of_future_origin_header() {
+        let mut namespaces = Namespaces::new();
+        namespaces.bind(GLOBAL, b"origin", cmd());
+        let origin = namespaces.resolve_generation(GLOBAL, b"origin").unwrap();
+        namespaces.set_native_compiler_recipe(origin, NativeCompilerRecipe::ProcedureNoOp);
+        namespaces.bind(
+            GLOBAL,
+            b"copied",
+            Command::Imported {
+                source: b"::origin".to_vec(),
+                source_generation: origin,
+                ensemble: None,
+                identity: std::rc::Rc::new(crate::interp::ImportToken),
+            },
+        );
+        let imported = namespaces.resolve_generation(GLOBAL, b"copied").unwrap();
+        namespaces.set_native_compiler_recipe(origin, NativeCompilerRecipe::Absent);
+        assert_eq!(
+            namespaces.native_compiler_recipe(imported),
+            Some(NativeCompilerRecipe::ProcedureNoOp)
+        );
+        namespaces.set_native_compiler_recipe(origin, NativeCompilerRecipe::Unknown);
+        assert_eq!(
+            namespaces.native_compiler_recipe(imported),
+            Some(NativeCompilerRecipe::ProcedureNoOp)
+        );
+    }
+
+    #[test]
+    fn imported_raw_compiler_attachment_is_copied_once() {
+        use tcl_runtime_api::native_compilation::NativeCompilerHookPresence as Hook;
+        let mut namespaces = Namespaces::new();
+        namespaces.bind(GLOBAL, b"origin", cmd());
+        let origin = namespaces.resolve_generation(GLOBAL, b"origin").unwrap();
+        namespaces.bind(
+            GLOBAL,
+            b"old",
+            Command::Imported {
+                source: b"::origin".to_vec(),
+                source_generation: origin,
+                ensemble: None,
+                identity: std::rc::Rc::new(crate::interp::ImportToken),
+            },
+        );
+        let old = namespaces.resolve_generation(GLOBAL, b"old").unwrap();
+        namespaces.set_native_compiler_hook(origin, Hook::Present);
+        assert_eq!(namespaces.native_compiler_hook(old), Some(Hook::Absent));
+        namespaces.bind(
+            GLOBAL,
+            b"new",
+            Command::Imported {
+                source: b"::origin".to_vec(),
+                source_generation: origin,
+                ensemble: None,
+                identity: std::rc::Rc::new(crate::interp::ImportToken),
+            },
+        );
+        let new = namespaces.resolve_generation(GLOBAL, b"new").unwrap();
+        assert_eq!(namespaces.native_compiler_hook(new), Some(Hook::Present));
+        assert!(namespaces.delete(GLOBAL, b"old"));
+        assert_eq!(
+            namespaces.native_compiler_cache_epochs(GLOBAL),
+            Some((0, 0))
+        );
+        assert!(namespaces.delete(GLOBAL, b"new"));
+        assert_eq!(
+            namespaces.native_compiler_cache_epochs(GLOBAL),
+            Some((1, 0))
+        );
+    }
+
+    #[test]
+    fn command_reference_epochs_follow_shadow_trails_and_reverse_path_entries() {
+        let mut namespaces = Namespaces::new();
+        let local = namespaces.ensure_namespace(GLOBAL, b"local");
+        let watcher = namespaces.ensure_namespace(GLOBAL, b"watcher");
+        namespaces.set_path(watcher, vec![local, local]);
+        namespaces.bind(GLOBAL, b"p", cmd());
+        let watcher_before = namespaces
+            .native_command_reference(watcher)
+            .command_reference_epoch;
+        let local_before = namespaces
+            .native_command_reference(local)
+            .command_reference_epoch;
+        namespaces.bind(local, b"p", cmd());
+        // Fresh publication invalidates two path entries, then shadowing the
+        // global p invalidates the local reference and the same two entries.
+        assert_eq!(
+            namespaces
+                .native_command_reference(watcher)
+                .command_reference_epoch,
+            watcher_before + 4
+        );
+        assert_eq!(
+            namespaces
+                .native_command_reference(local)
+                .command_reference_epoch,
+            local_before + 1
+        );
+        let global_child = namespaces.ensure_namespace(GLOBAL, b"child");
+        let local_child = namespaces.ensure_namespace(local, b"child");
+        namespaces.bind(global_child, b"q", cmd());
+        let before = namespaces
+            .native_command_reference(local)
+            .command_reference_epoch;
+        namespaces.bind(local_child, b"q", cmd());
+        assert_eq!(
+            namespaces
+                .native_command_reference(local)
+                .command_reference_epoch,
+            before + 1
+        );
+        assert_eq!(
+            namespaces
+                .native_command_reference(local_child)
+                .command_reference_epoch,
+            0
+        );
+    }
+
+    #[test]
+    fn c85_obj_creation_invalidates_reverse_paths_before_delete_callback_window() {
+        let mut namespaces = Namespaces::new();
+        namespaces.set_native_command_version(Some(tcl_dialect::TclVersion::V8_5));
+        let source = namespaces.ensure_namespace(GLOBAL, b"source");
+        let watcher = namespaces.ensure_namespace(GLOBAL, b"watcher");
+        namespaces.set_path(watcher, vec![source, source]);
+        namespaces.bind(source, b"p", cmd());
+        let before = namespaces
+            .native_command_reference(watcher)
+            .command_reference_epoch;
+        let entry = namespaces.native_command_creation_entry(source, b"p");
+        assert_eq!(
+            namespaces
+                .native_command_reference(watcher)
+                .command_reference_epoch,
+            before + 2
+        );
+        namespaces.bind_after_native_creation_entry(entry, b"p", cmd());
+        assert_eq!(
+            namespaces
+                .native_command_reference(watcher)
+                .command_reference_epoch,
+            before + 2
+        );
+        namespaces.set_native_command_version(Some(tcl_dialect::TclVersion::V8_4));
+        let before = namespaces
+            .native_command_reference(watcher)
+            .command_reference_epoch;
+        namespaces.bind(source, b"q", cmd());
+        assert_eq!(
+            namespaces
+                .native_command_reference(watcher)
+                .command_reference_epoch,
+            before
+        );
+    }
+
+    #[test]
+    fn constructed_path_and_lookup_stay_on_detached_original_token() {
+        let mut namespaces = Namespaces::new();
+        let original = namespaces.ensure_namespace(GLOBAL, b"a:");
+        let child = namespaces.ensure_child(original, b"x\xff");
+        namespaces.bind(original, b"p", cmd());
+        let path = namespaces.native_context_path(original).unwrap();
+        assert_eq!(
+            path.as_segments(),
+            &[tcl_core_types::NameBytes::from(b"a:".as_slice())]
+        );
+        namespaces.activation_enter(original);
+        drop(namespaces.defer_namespace(original));
+        let replacement = namespaces.ensure_namespace(GLOBAL, b"a:");
+        assert_ne!(replacement, original);
+        assert_eq!(namespaces.native_context_path(original), Some(path.clone()));
+        assert_eq!(namespaces.native_context_path(replacement), Some(path));
+        assert_eq!(
+            namespaces.native_context_path(child).unwrap().as_segments(),
+            &[
+                tcl_core_types::NameBytes::from(b"a:".as_slice()),
+                tcl_core_types::NameBytes::from(b"x\xff".as_slice()),
+            ]
+        );
+        assert!(namespaces.resolve(original, b"p").is_some());
+        assert!(namespaces.resolve(replacement, b"p").is_none());
+        assert!(namespaces.activation_leave(original));
     }
 
     #[test]
@@ -1862,3 +4716,37 @@ mod tests {
         assert!(is_some(ns.resolve(foo, b"+")));
     }
 }
+
+#[cfg(test)]
+mod original_variable_geometry_tests {
+    use super::*;
+
+    #[test]
+    fn namespace_variable_roots_keep_qualification_before_zero_and_counted_simple_keys() {
+        // Native proof: naming.tcloo.explicit-variable-link-counted-target
+
+        for version in tcl_dialect::TclVersion::ALL {
+            let mut namespaces = Namespaces::new();
+            namespaces.variable_name_protocol =
+                Some(tcl_syntax::naming::NativeNameProtocol::C(version));
+            let current = namespaces.ensure_namespace(GLOBAL, b"::N");
+            let key = if version == tcl_dialect::TclVersion::V8_4 {
+                b"k".as_slice()
+            } else {
+                b"k\0::Q".as_slice()
+            };
+            assert_eq!(
+                namespaces.var_home(current, b"k\0::Q"),
+                Some((current, key.to_vec()))
+            );
+            assert_eq!(
+                namespaces.var_home(current, b"::N::k\0::Q"),
+                Some((current, b"k".to_vec()))
+            );
+            assert_eq!(namespaces.var_home(current, b"missing::k"), None);
+        }
+    }
+}
+
+#[cfg(test)]
+mod native_jim_context_tests;

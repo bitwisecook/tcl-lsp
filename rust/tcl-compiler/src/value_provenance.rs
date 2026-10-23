@@ -144,11 +144,34 @@ fn pre_invocation_operand_version(
         Statement::AssignValue { tokens, .. } | Statement::Call { tokens, .. } => tokens.as_ref(),
         _ => None,
     };
-    let calls = crate::word_subst::lifted_calls(tokens, config);
+    let Some(tokens) = tokens else {
+        return version;
+    };
+    let Some(registry) = fu.semantic_value_projection.retained_registry() else {
+        return version;
+    };
+    let Some(metadata) = tokens.source_binding.as_ref().and_then(|binding| {
+        binding.original_invocation_metadata_for_function(tokens, fu, registry)
+    }) else {
+        return version;
+    };
+    let metadata = metadata.context();
+    let calls =
+        if let Some(actual) = metadata.filter(|actual| actual.source_analysis_input().is_some()) {
+            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                tokens, config, registry, actual,
+            )
+        } else {
+            // Only the shared point issuer's explicit Standalone mode reaches here.
+            crate::word_subst::checked_lifted_calls(tokens, config)
+        };
+    let Some(calls) = calls else {
+        return version;
+    };
     let Some(first) = calls.first() else {
         return version;
     };
-    if pure_copy_source(&first.command) != Some(fu.ssa.var_name(symbol))
+    if pure_copy_source(&first.command, config) != Some(fu.ssa.var_name(symbol))
         || fu.abs_span(first.span).start().saturating_add(1) != offset
     {
         return version;
@@ -175,67 +198,79 @@ fn pre_invocation_operand_version(
 /// exactly one scalar substitution (`$name` / `${name}`) and nothing
 /// else.  An array element (`$a(k)`), a compound word, or any extra
 /// text disqualifies it.
-fn pure_copy_source(value: &str) -> Option<&str> {
-    let rest = value.strip_prefix('$')?;
-    let name = rest
-        .strip_prefix('{')
-        .and_then(|inner| inner.strip_suffix('}'))
-        .unwrap_or(rest);
-    // The unbraced form must consume the whole word with name
-    // characters only; the braced form must not be an array element.
-    let plain = name
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':');
-    (!name.is_empty() && plain && !name.contains('(')).then_some(name)
+fn pure_copy_source(value: &str, config: tcl_lexer::LexerConfig) -> Option<&str> {
+    let reference = tcl_lexer::word_parts::whole_var_ref(value.as_bytes(), config)
+        .ok()
+        .flatten()?;
+    if reference.index.is_some()
+        || tcl_syntax::naming::split_element_ref_bytes(reference.name).is_some()
+    {
+        return None;
+    }
+    std::str::from_utf8(reference.name)
+        .ok()
+        .filter(|name| !name.is_empty())
 }
 
-/// Fold a `[list W1 W2 ...]` value to its space-joined string when every
-/// element is a **plain** literal word — no `$`/`[`/`{`/`"`/backslash/
-/// whitespace, so Tcl's own `list` command needs no brace/backslash
-/// quoting to represent it (tclsh9.0/8.6-verified: `[list a b]` is
-/// byte-identical to the string `"a b"` for such elements). Deliberately
-/// narrow — not a general `list`-command simulator: any element needing
-/// quoting protection
-/// (containing whitespace, braces, or another special character) bails, as
-/// does anything other than a single, whole-value `[list ...]` call.
-///
-/// Returns `(joined, first_offset, first_len)`: the joined string, plus the
-/// first element's own byte offset and length — both relative to `value`'s
-/// own start (its opening `[`) — so the caller can anchor a rename-writable
-/// span on just that one argument.
+/// Project a list-construction result selected by the retained normal handler.
+/// Lexical command text provides only the whole-word source boundary. The
+/// result owner supplies exact bytes and the first written operand's anchor.
 fn fold_literal_list_call(
-    value: &str,
+    fu: &FunctionUnit,
+    tokens: &crate::ir::CommandTokens,
     config: tcl_lexer::LexerConfig,
-) -> Option<(String, u32, u32)> {
-    let inner = value.strip_prefix('[')?.strip_suffix(']')?;
-    let cmds = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
-    let [cmd] = cmds.as_slice() else {
-        return None;
-    };
-    if cmd.name() != "list" {
-        return None;
-    }
-    let args = cmd.args();
-    let arg_tokens = cmd.arg_tokens();
-    let singles = cmd.arg_single_token();
-    if args.is_empty() || args.len() != singles.len() || args.len() != arg_tokens.len() {
+) -> Option<(String, Span)> {
+    let binding = tokens.source_binding.as_ref()?;
+    if !matches!(
+        binding.source_origin()?.kind(),
+        crate::command_binding::SourceOriginKind::Authored(_)
+    ) {
         return None;
     }
-    let mut words = Vec::with_capacity(args.len());
-    for (word, &single) in args.iter().zip(singles) {
-        if !single
-            || word.is_empty()
-            || word.contains(['{', '}', '"', '\\', '$', '[', ']'])
-            || word.chars().any(char::is_whitespace)
-        {
-            return None;
-        }
-        words.push(word.as_str());
+    let registry = fu.semantic_value_projection.retained_registry()?;
+    let config = retained_config(fu, config)?;
+    let metadata = binding
+        .original_invocation_metadata_for_function(tokens, fu, registry)?
+        .context();
+    let calls =
+        if let Some(actual) = metadata.filter(|actual| actual.source_analysis_input().is_some()) {
+            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                tokens, config, registry, actual,
+            )?
+        } else {
+            crate::word_subst::checked_lifted_calls(tokens, config)?
+        };
+    let word = tokens.words().get(2)?;
+    let mut nested = crate::word_subst::whole_word_command_tokens(word, config)?;
+    nested.inherit_nested_bindings(tokens);
+    if !calls
+        .iter()
+        .any(|call| call.tokens.as_ref() == Some(&nested))
+    {
+        return None;
     }
-    // `inner`'s own offset 0 is one byte past `value`'s opening `[`.
-    let first_offset = arg_tokens[0].span.start() + 1;
-    let first_len = u32::try_from(words[0].len()).ok()?;
-    Some((words.join(" "), first_offset, first_len))
+    let metadata = nested
+        .source_binding
+        .as_ref()?
+        .original_invocation_metadata_for_function(&nested, fu, registry)?
+        .context();
+    let normal =
+        crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+            registry, metadata, &nested,
+        )?;
+    let (value, span) = normal.plain_literal_list_result()?;
+    let captured = binding.evaluated_argument_values.get(1)?.as_deref()?;
+    (captured == value).then_some((value, fu.abs_span(span)))
+}
+
+/// The caller can request a source policy, but cannot relabel an existing FU.
+/// Normalising a genuine nested BOM rule remains a source geometry operation.
+fn retained_config(
+    function: &FunctionUnit,
+    supplied: tcl_lexer::LexerConfig,
+) -> Option<tcl_lexer::LexerConfig> {
+    let retained = function.source_lexer_config();
+    (supplied.nested().normalized() == retained.nested().normalized()).then_some(retained)
 }
 
 /// The contributing constant definitions for the value of `var_name` at
@@ -258,6 +293,9 @@ pub fn const_contributors(
     var_name: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<ValueContributor>> {
+    let Some(config) = retained_config(fu, config) else {
+        return None;
+    };
     if fu.complexity_guarded {
         return None;
     }
@@ -277,6 +315,9 @@ pub fn const_contributors_for_version(
     version: Version,
     config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<ValueContributor>> {
+    let Some(config) = retained_config(fu, config) else {
+        return None;
+    };
     if fu.complexity_guarded {
         return None;
     }
@@ -305,6 +346,9 @@ pub fn known_const_contributors_for_version(
     version: Version,
     config: tcl_lexer::LexerConfig,
 ) -> Vec<ValueContributor> {
+    let Some(config) = retained_config(fu, config) else {
+        return Vec::new();
+    };
     if fu.complexity_guarded {
         return Vec::new();
     }
@@ -328,6 +372,9 @@ pub fn known_const_contributors(
     var_name: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Vec<ValueContributor> {
+    let Some(config) = retained_config(fu, config) else {
+        return Vec::new();
+    };
     if fu.complexity_guarded {
         return Vec::new();
     }
@@ -414,40 +461,21 @@ fn contributor_from_stmt(
         } => {
             // A pure `$other` copy chains to the source variable's own
             // contributors at this statement's use version.
-            if let Some(src_name) = pure_copy_source(value) {
+            if let Some(src_name) = pure_copy_source(value, config) {
                 let src_sym = fu.ssa.var_symbol(src_name)?;
                 let &src_version = stmt.uses.get(&src_sym)?;
                 return collect(fu, index, src_sym, src_version, visited, out, config);
             }
-            // A `[list W1 W2 ...]` value whose every element is a plain
-            // literal folds to the space-joined string (`set cmdD [list greetD
-            // World]; eval $cmdD`). The joined *value* has no single source
-            // span (it's
-            // synthesised from several separate argument tokens), but the
-            // first element — the actual command-dispatch anchor, the only
-            // part `settle_one_site`'s `head_expanded` narrowing ever reads
-            // — does: anchor `literal_span` there directly (skipping
-            // `command_component`'s usual "narrow a whole-value span down
-            // to its first word" step, since there is no whole-value span
-            // to narrow) so a rename can still safely rewrite just that
-            // one argument in place. The value token's own span *starts*
-            // exactly at its opening `[` (`tcl-lexer`'s `Cmd`-token span
-            // convention — the same one idx 95 already found excludes the
-            // *closing* delimiter, so `word_content_base`'s length-based
-            // delta below underflows for it and correctly declines; the
-            // *start* offset needs no such adjustment), so this reads it
-            // directly rather than reusing that helper.
+            // The actual list result owner retains bytes and source anchors.
+            // A command named list or coincidentally equal result cannot donate
+            // writable provenance from another implementation.
             if !*value_needs_backsubst
-                && let Some((joined, first_offset, first_len)) =
-                    fold_literal_list_call(value, config)
+                && let Some(tokens) = tokens
+                && let Some((joined, literal_span)) = fold_literal_list_call(fu, tokens, config)
             {
-                let literal_span = tokens.as_ref().and_then(|t| {
-                    let base = t.argv.get(2)?.start() + first_offset;
-                    Some(fu.abs_span(Span::new(base, base + first_len)))
-                });
                 out.push(ValueContributor {
                     value: joined,
-                    literal_span,
+                    literal_span: Some(literal_span),
                 });
                 return Some(());
             }
@@ -484,6 +512,141 @@ fn contributor_from_stmt(
 mod tests {
     use super::*;
 
+    fn list_result(source: &str) -> Option<(String, Span)> {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+        retained_list_result(&unit.top_level, tcl_lexer::LexerConfig::default())
+    }
+
+    fn retained_list_result(
+        function: &FunctionUnit,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<(String, Span)> {
+        function
+            .ssa
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .find_map(|statement| {
+                let Statement::AssignValue {
+                    tokens: Some(tokens),
+                    ..
+                } = &statement.statement
+                else {
+                    return None;
+                };
+                fold_literal_list_call(function, tokens, config)
+            })
+    }
+
+    #[test]
+    fn list_provenance_retains_actual_input_config_and_selected_child() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Source ancestry of the independently selected construction receipt;
+        // availability alone grants no Native execution or editable alias prefix.
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let (_owner, native) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::SuppliedSource(
+                    Box::new(input.clone()),
+                ),
+            native_entry: Some(std::sync::Arc::new(native)),
+            ..Default::default()
+        };
+        for (source, expected) in [
+            ("set cmd [list helper baked]", Some("helper baked")),
+            (
+                "rename list nativeList; set cmd [nativeList helper baked]",
+                Some("helper baked"),
+            ),
+            (
+                "proc list {args} {return {helper baked}}; set cmd [list helper baked]",
+                None,
+            ),
+            (
+                "proc other {args} {return {helper baked}}; interp alias {} list {} other; set cmd [list helper baked]",
+                None,
+            ),
+            (
+                "interp alias {} bake {} list helper; set cmd [bake baked]",
+                None,
+            ),
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry: context.commands(),
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                Some(&entry),
+                &input,
+            );
+            let result = retained_list_result(&unit.top_level, config);
+            assert_eq!(
+                result.as_ref().map(|value| value.0.as_str()),
+                expected,
+                "{source}"
+            );
+            if let Some((_, span)) = result {
+                assert_eq!(source.get(span.as_range()), Some("helper"));
+            }
+            let mut different = config;
+            different.strict_quoting = !different.strict_quoting;
+            assert!(retained_list_result(&unit.top_level, different).is_none());
+            let mut missing = unit.top_level.clone();
+            missing.source_metadata_input = None;
+            assert!(retained_list_result(&missing, config).is_none());
+        }
+    }
+
+    #[test]
+    fn list_provenance_requires_the_actual_construction_handler() {
+        let source = "set cmd [list helper baked]";
+        let (value, span) = list_result(source).expect("native list result receipt");
+        assert_eq!(value, "helper baked");
+        assert_eq!(
+            &source[span.start() as usize..span.end() as usize],
+            "helper"
+        );
+        assert!(
+            list_result("proc list {args} {return {helper baked}}; set cmd [list helper baked]")
+                .is_none()
+        );
+        assert!(list_result("proc other {args} {return {helper baked}}; interp alias {} list {} other; set cmd [list helper baked]").is_none());
+    }
+
+    #[test]
+    fn list_provenance_retains_a_renamed_native_handler() {
+        let source = "rename list nativeList; set cmd [nativeList helper baked]";
+        let (value, span) = list_result(source).expect("retained native construction identity");
+        assert_eq!(value, "helper baked");
+        assert_eq!(
+            &source[span.start() as usize..span.end() as usize],
+            "helper"
+        );
+    }
+
+    #[test]
+    fn materialised_list_results_do_not_supply_authored_edit_spans() {
+        assert!(list_result("eval \"set cmd \\[list helper baked\\]\"").is_none());
+    }
+
     #[test]
     fn first_substitution_head_uses_pre_invocation_value_only() {
         for (middle, expected) in [
@@ -511,18 +674,71 @@ mod tests {
 
     #[test]
     fn pure_copy_source_accepts_plain_and_braced() {
-        assert_eq!(pure_copy_source("$cmd"), Some("cmd"));
-        assert_eq!(pure_copy_source("${cmd}"), Some("cmd"));
-        assert_eq!(pure_copy_source("$ns::cmd"), Some("ns::cmd"));
+        assert_eq!(
+            pure_copy_source("$cmd", tcl_lexer::LexerConfig::default()),
+            Some("cmd")
+        );
+        assert_eq!(
+            pure_copy_source("${cmd}", tcl_lexer::LexerConfig::default()),
+            Some("cmd")
+        );
+        assert_eq!(
+            pure_copy_source("$ns::cmd", tcl_lexer::LexerConfig::default()),
+            Some("ns::cmd")
+        );
     }
 
     #[test]
     fn pure_copy_source_rejects_compound_and_array_shapes() {
-        assert_eq!(pure_copy_source("x$cmd"), None);
-        assert_eq!(pure_copy_source("$cmd tail"), None);
-        assert_eq!(pure_copy_source("$a(k)"), None);
-        assert_eq!(pure_copy_source("${a(k)}"), None);
-        assert_eq!(pure_copy_source("$"), None);
-        assert_eq!(pure_copy_source("plain"), None);
+        assert_eq!(
+            pure_copy_source("x$cmd", tcl_lexer::LexerConfig::default()),
+            None
+        );
+        assert_eq!(
+            pure_copy_source("$cmd tail", tcl_lexer::LexerConfig::default()),
+            None
+        );
+        assert_eq!(
+            pure_copy_source("$a(k)", tcl_lexer::LexerConfig::default()),
+            None
+        );
+        assert_eq!(
+            pure_copy_source("${a(k)}", tcl_lexer::LexerConfig::default()),
+            None
+        );
+        assert_eq!(
+            pure_copy_source("$", tcl_lexer::LexerConfig::default()),
+            None
+        );
+        assert_eq!(
+            pure_copy_source("plain", tcl_lexer::LexerConfig::default()),
+            None
+        );
+    }
+
+    #[test]
+    fn scalar_copy_roots_use_selected_grammar_and_closed_element_partition() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Lexical copy ancestry only; no physical variable receiver is inferred.
+        let first = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        let nested = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        for config in [first, nested] {
+            for (text, name) in [
+                ("$café", "café"),
+                ("${$literal}", "$literal"),
+                ("${café(open}", "café(open"),
+                ("${café)tail}", "café)tail"),
+            ] {
+                assert_eq!(pure_copy_source(text, config), Some(name));
+            }
+            for text in ["$a(k)", "${a(k)}", "$a($k)", "${a(k)}tail", "$a\\x"] {
+                assert_eq!(pure_copy_source(text, config), None, "{text}");
+            }
+        }
+        assert_eq!(pure_copy_source("${a{b}", first), Some("a{b"));
+        assert_eq!(pure_copy_source("${a{b}", nested), None);
+        assert_eq!(pure_copy_source("${a{b}c}", first), None);
+        assert_eq!(pure_copy_source("${a{b}c}", nested), Some("a{b}c"));
     }
 }

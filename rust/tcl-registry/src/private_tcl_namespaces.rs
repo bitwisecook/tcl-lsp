@@ -136,13 +136,9 @@ pub struct PrivateTclNamespaceCall {
     /// The tail written after the namespace (`create` for
     /// `::tcl::dict::create`, `a::b` for `::tcl::dict::a::b`).
     pub tail: String,
-    /// The concrete replacement call — the public command followed by the
-    /// same tail (`"dict create"`) — **only** when that tail is a genuine
-    /// subcommand of the public ensemble under the active dialect, i.e.
-    /// when the rewrite is a legal edit. `None` for a tail that is private
-    /// machinery with no public spelling (`::tcl::clock::GetSystemTimeZone`,
-    /// `::tcl::dict::mycustom`): the call is still flagged, but suggesting
-    /// `clock GetSystemTimeZone` would corrupt the code.
+    /// Public ensemble spelling for a recognised subcommand, requiring review.
+    /// Source classification alone proves neither the binding nor equivalent
+    /// private/public behaviour.
     pub suggestion: Option<String>,
 }
 
@@ -178,12 +174,21 @@ pub fn classify_private_tcl_namespace_call(
     registry: &crate::CommandRegistry,
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Option<PrivateTclNamespaceCall> {
-    let rest = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
-    let rest = rest.strip_prefix("tcl::")?;
-    let (namespace, tail) = rest.split_once("::")?;
-    if tail.is_empty() {
+    if dialect.is_some_and(|query| {
+        query
+            .core
+            .nearest()
+            .is_some_and(|(family, _)| family == tcl_dialect::model::Family::Jim)
+    }) {
         return None;
     }
+    let mut components = tcl_syntax::naming::qualifier_component_extents(cmd_name.as_bytes());
+    let root = components.next()?;
+    if &cmd_name[root] != "tcl" {
+        return None;
+    }
+    let namespace = &cmd_name[components.next()?];
+    let tail = &cmd_name[components.next()?.start..];
     let entry = PRIVATE_TCL_NAMESPACES
         .iter()
         .find(|ns| ns.namespace == namespace)?;
@@ -194,7 +199,10 @@ pub fn classify_private_tcl_namespace_call(
     // [`crate::spec::CommandSpec::implementation_namespace`]; tcllib's
     // `tcl::chan::memchan` and friends are registered without one.
     if registry
-        .get_for_surface(cmd_name, dialect)
+        .get_for_surface(
+            &tcl_syntax::naming::canonical_written_command(cmd_name),
+            dialect,
+        )
         .is_some_and(|spec| spec.implementation_namespace.is_none())
     {
         return None;
@@ -217,6 +225,21 @@ pub fn classify_private_tcl_namespace_call(
     })
 }
 
+/// Literal package-name prefix advice for an original written command.
+/// Package names remain data; only command geometry uses the shared written
+/// name projection. This establishes no loaded package or callable binding.
+#[must_use]
+pub fn required_package_namespace_advice_covers(package: &str, command: &str) -> bool {
+    if package.is_empty() {
+        return false;
+    }
+    let command = tcl_syntax::naming::canonical_written_command(command);
+    command == package
+        || command
+            .strip_prefix(package)
+            .is_some_and(|tail| tail.starts_with("::"))
+}
+
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
@@ -230,6 +253,41 @@ mod tests {
             registry,
             Some(SurfaceQuery::core(Family::Tcl, "9.0")),
         )
+    }
+
+    #[test]
+    fn required_package_namespace_advice_preserves_literal_package_colons() {
+        for command in [
+            "tcl::dict",
+            "::tcl::dict::member",
+            "::::tcl:::dict:::member",
+        ] {
+            assert!(required_package_namespace_advice_covers(
+                "tcl::dict",
+                command
+            ));
+        }
+        for package in [
+            "",
+            ":tcl::dict",
+            "::tcl::dict",
+            "::::tcl::dict",
+            "Tcl::dict",
+            "tcl::dictionary",
+        ] {
+            assert!(!required_package_namespace_advice_covers(
+                package,
+                "::tcl::dict::member"
+            ));
+        }
+        assert!(required_package_namespace_advice_covers(
+            ":provider",
+            ":provider::member"
+        ));
+        assert!(!required_package_namespace_advice_covers(
+            "provider",
+            ":provider::member"
+        ));
     }
 
     #[test]
@@ -293,6 +351,26 @@ mod tests {
         let call = classify("::tcl::chan::truncate").unwrap();
         assert_eq!(call.public_command, "chan");
         assert_eq!(call.suggestion.as_deref(), Some("chan truncate"));
+    }
+
+    #[test]
+    fn written_separator_runs_use_the_selected_source_namespace_geometry() {
+        for head in [":::tcl:::dict:::create", "::::tcl::::dict::::create"] {
+            let call = classify(head).unwrap();
+            assert_eq!(call.suggestion.as_deref(), Some("dict create"));
+        }
+        assert_eq!(classify(":::tcl:::dictionary:::create"), None);
+        assert_eq!(classify(":::tcl:::dict::"), None);
+        assert_eq!(classify(":::tcl:::chan:::memchan"), None);
+        let registry = crate::model::ingress::static_context_for("jim").commands();
+        assert_eq!(
+            classify_private_tcl_namespace_call(
+                "::tcl::dict::create",
+                registry,
+                Some(SurfaceQuery::core(Family::Jim, "0.84")),
+            ),
+            None,
+        );
     }
 
     #[test]

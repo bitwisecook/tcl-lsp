@@ -40,7 +40,7 @@ for each of them would be ceremony rather than review.
 
 The generator visits every selectable `DialectProfile` plus the additive Tk
 profile (Tk is a library surface and intentionally is not selectable on its
-own), and the same profiles again through their **pack-installed** stores — the
+own), the resolved Jim environment, and the catalogue profiles again through their **pack-installed** stores — the
 EDA vendor libraries ship as bundled `SpecTcl` loadables rather than native
 specs, so without that second pass a vendor callback would be invisible to the
 audit rather than merely unclassified. It records every visible:
@@ -154,3 +154,24 @@ pair notices *any* metadata movement and makes it reviewable in a diff, the
 baseline notices a declaration disappearing anywhere in the inventory, and the
 requirements notice the movement a diff cannot judge — a callback whose
 contract quietly stopped matching what Tcl documents.
+
+## Typed callback role contracts
+
+Profile projection uses the registry's surface-qualified selector. An unqualified
+`get` can select Jim's later catch registration while visiting a C or F5 profile,
+which hides the real positional `catch` body. The inventory retains C/F5
+`catch arg[0]` and separately records Jim's switch-dependent dynamic role.
+
+Tk `bind` and every canvas receiver/factory projection identify `arg[2]` as a
+deferred body. Tk's bind(n) and canvas(n) document that the full binding form
+registers that trailing script; unknown tag or sequence bytes cannot erase its
+role. A leading `+` changes append versus replacement, while evaluation remains
+deferred. The inventory records the static role and checks its callback kind and
+timing independently.
+
+`set` and `lassign` variable operand resolvers declare only variable reads/writes,
+rather than callbacks or scripts. Their typed capability sets keep variable
+roles separate from executable positions. The SpecTcl
+`arg_role_count_resolver -native ID` declaration likewise
+names a native descriptor; script hook bodies are explicitly rejected at loader
+ingress and its ID is not an executable `Body` argument.

@@ -30,17 +30,17 @@
 //! `count`/`by` keywords, the same int-vs-double selection and length formula
 //! (`ArithSeriesLenInt`/`ArithSeriesLenDbl`), and the same double-precision
 //! matching (`maxObjPrecision`/`ArithRound`) so e.g. `lseq 0 0.5 by 0.1` →
-//! `0.0 0.1 0.2 0.3 0.4 0.5`. Both runtimes materialise a concrete list (the C
-//! lazy abstract-list object is representation-only and incompatible-by-design).
+//! `0.0 0.1 0.2 0.3 0.4 0.5`. These backends materialise a concrete list,
+//! whereas [`prepare_series`] validates a constant-space native arithmetic
+//! payload. Capacity refusals apply only when an element table or string is
+//! actually materialized, outside the guest completion channel.
 //!
-//! The split that lets this be shared: [`decode`] runs the argument state
-//! machine and the reads C makes of each value, and [`generate`] then builds the
-//! element list over `ValueOps`. Every word is a number or a keyword, never an
-//! expression: tclsh 9.0.4 and 9.1.0 refuse `lseq 1+2` as `expected number`,
-//! whatever the manpage's `{[llength $l]-1}` example suggests.
+//! [`decode`] accepts native numeric arguments and unique keyword prefixes;
+//! it never evaluates argument bytes as Tcl expressions. [`generate`] then
+//! builds the ordinary result list over the selected runtime's `ValueOps`.
 //!
-//! `lseq` is `i64`-based even on the bignum runtime (C's `assignNumber` refuses
-//! `TCL_NUMBER_BIG` as the overflow), so [`Num`] carries a fixed `i64`/`f64` pair — sound for both
+//! `lseq` is `i64`-based even on the bignum runtime (C's `assignNumber` rejects
+//! `TCL_NUMBER_BIG`), so [`Num`] carries a fixed `i64`/`f64` pair — sound for both
 //! the bignum runtime and the `i64`+`double` VM.
 //!
 //! Semantics follow tclsh 9.0.
@@ -60,17 +60,14 @@
     clippy::float_cmp
 )]
 
+use crate::CmdError;
 use tcl_syntax::number::{self, Number};
+use tcl_syntax::raw_string::{NativeMaterializationLimitError, NativeValueAccessRefusal};
 use tcl_syntax::value::ValueOps;
 
-use crate::error::CmdError;
-use crate::prefix::OptionTable;
-
-/// We materialise a concrete list (the C lazy *abstract* series is
-/// representation-only, incompatible-by-design — `lseq 10 2147483647` builds a
-/// 2-billion-element series lazily in C). Beyond this cap we raise C's
-/// `TclNewArithSeriesObj` "max length" error rather than OOM-aborting; no
-/// legitimate behavioural test asks for a list anywhere near this size.
+/// Capacity of this eager backend, independent of native Tcl's lazy list size.
+/// Exceeding it produces a host-only materialization refusal, never Tcl's
+/// catchable list-length error.
 pub const MAX_MATERIALIZE: i64 = 100_000_000;
 
 /// A range/operation keyword.
@@ -82,24 +79,17 @@ enum Op {
     By,    // "by"
 }
 
-/// `seq_operations[]` (`tclCmdIL.c`), looked up as `Tcl_GetIndexFromObj` does
-/// with flags `0`, so a unique prefix (`co`, `t`) names its keyword.
-const OPERATIONS: OptionTable<'static> =
-    OptionTable::abbreviating("operation", &["..", "to", "count", "by"]);
-
-/// A decoded numeric argument: its int and double views, what kind of number
-/// `Tcl_GetNumberFromObj` read, the fractional-digit precision of its source
-/// text (for double sequences), and which argument it was.
+/// A decoded numeric argument: its int and double views, whether it is a double,
+/// and the fractional-digit precision of its source text (for double sequences).
+///
+/// Opaque to the adapters; only the shared decoder inspects its numeric parts.
 #[derive(Clone, Copy)]
 pub struct Num {
     is_double: bool,
-    /// An integer past the wide range: a number to the decode, refused as C's
-    /// overflow once the series reads it.
-    big: bool,
     i: i64,
     d: f64,
     prec: u32,
-    arg: usize,
+    position: Option<usize>,
 }
 
 /// One decoded argument.
@@ -118,6 +108,82 @@ pub struct Plan {
     use_doubles: bool,
 }
 
+impl Plan {
+    /// Reach only selected original Double precision enquiries, in the native
+    /// step/start/end order. Count objects are excluded and stay unmaterialized.
+    pub fn prepare_double_precision(
+        &mut self,
+        mut original: impl FnMut(usize) -> Result<Vec<u8>, CmdError>,
+    ) -> Result<(), CmdError> {
+        if !self.use_doubles {
+            return Ok(());
+        }
+        for argument in [self.step.as_mut(), Some(&mut self.start), self.end.as_mut()]
+            .into_iter()
+            .flatten()
+        {
+            if argument.is_double
+                && let Some(index) = argument.position
+            {
+                argument.prec = frac_digits(&original(index)?);
+            }
+        }
+        Ok(())
+    }
+}
+
+/// An `lseq` argument-decode failure, without evaluating argument scripts.
+pub enum LseqError {
+    /// Native usage error, rendered using the actual invocation header.
+    WrongArguments,
+    /// Ready-to-publish native guest error with byte-exact payload and code.
+    Command(CmdError),
+}
+
+fn argument_error(expected: &[u8], bytes: &[u8], code: &[u8]) -> LseqError {
+    let mut message = b"expected ".to_vec();
+    message.extend_from_slice(expected);
+    message.extend_from_slice(b" but got \"");
+    message.extend_from_slice(bytes);
+    message.push(b'"');
+    LseqError::Command(CmdError::with_byte_error_details(
+        message,
+        code.to_vec(),
+        None,
+        None,
+    ))
+}
+
+fn number_error(bytes: &[u8]) -> LseqError {
+    if core::str::from_utf8(bytes)
+        .ok()
+        .and_then(number::parse_whole)
+        .is_some_and(|number| matches!(number, Number::Big { .. }))
+    {
+        overflow_error()
+    } else {
+        // `Tcl_GetNumberFromObj`'s refusal (`formaterr`): a well-formed list
+        // of several words is `a list`, anything else quoted and cut at 50
+        // bytes (upstream `not_a_number`).
+        let text = String::from_utf8_lossy(bytes);
+        let mut message = b"expected number but got ".to_vec();
+        message.extend_from_slice(tcl_syntax::list::describe_bad_value(&text).as_bytes());
+        LseqError::Command(CmdError::with_byte_error_details(
+            message,
+            b"TCL VALUE NUMBER".to_vec(),
+            None,
+            None,
+        ))
+    }
+}
+
+fn overflow_error() -> LseqError {
+    LseqError::Command(CmdError::with_error_code(
+        "integer value too large to represent",
+        "ARITH IOVERFLOW {integer value too large to represent}",
+    ))
+}
+
 /// Fractional-digit count of a number's source text (`ObjPrecision`): the digits
 /// after `.`, or 0 for an integer or `e`-notation.
 fn frac_digits(s: &[u8]) -> u32 {
@@ -130,151 +196,170 @@ fn frac_digits(s: &[u8]) -> u32 {
     }
 }
 
-/// Read `bytes` as `Tcl_GetNumberFromObj` reads a number — an integer of any
-/// size, a double or a NaN — or `None` for anything else.
-fn as_number(bytes: &[u8], arg: usize) -> Option<Num> {
+/// Classify `bytes` as a plain numeric literal (the `Tcl_GetNumberFromObj` step),
+/// or `None` for a keyword, invalid numeric bytes, or a non-wide integer.
+#[must_use]
+pub fn as_number(bytes: &[u8]) -> Option<Num> {
     let s = core::str::from_utf8(bytes).ok()?;
-    let num = |is_double, big, i, d, prec| Num {
-        is_double,
-        big,
-        i,
-        d,
-        prec,
-        arg,
-    };
-    Some(match number::parse_whole(s)? {
-        Number::Int(v) => num(false, false, v, v as f64, 0),
-        Number::Double(f) => num(true, false, f as i64, f, frac_digits(bytes)),
-        Number::Nan { .. } => num(true, false, 0, f64::NAN, 0),
-        Number::Big { .. } => num(false, true, 0, 0.0, 0),
+    match number::parse_whole(s)? {
+        Number::Int(v) => Some(Num {
+            is_double: false,
+            i: v,
+            d: v as f64,
+            prec: 0,
+            position: None,
+        }),
+        Number::Double(f) => Some(Num {
+            is_double: true,
+            i: f as i64,
+            d: f,
+            prec: frac_digits(bytes),
+            position: None,
+        }),
+        Number::Nan { .. } => Some(Num {
+            is_double: true,
+            i: 0,
+            d: f64::NAN,
+            prec: 0,
+            position: None,
+        }),
+        // A bignum literal: C's `assignNumber` rejects `TCL_NUMBER_BIG`.
+        Number::Big { .. } => None,
+    }
+}
+
+/// Construct the decoder's numeric view from an actual reached Number getter.
+/// Original spelling is used only for the native Double precision enquiry.
+#[must_use]
+pub fn number_argument(number: &Number, original: &[u8]) -> Option<Num> {
+    match number {
+        Number::Int(value) => Some(Num {
+            is_double: false,
+            i: *value,
+            d: *value as f64,
+            prec: 0,
+            position: None,
+        }),
+        Number::Double(value) => Some(Num {
+            is_double: true,
+            i: *value as i64,
+            d: *value,
+            prec: frac_digits(original),
+            position: None,
+        }),
+        Number::Nan { .. } => Some(Num {
+            is_double: true,
+            i: 0,
+            d: f64::NAN,
+            prec: 0,
+            position: None,
+        }),
+        Number::Big { .. } => None,
+    }
+}
+
+/// Match a range keyword.
+fn as_keyword(bytes: &[u8]) -> Option<Op> {
+    if bytes.is_empty() {
+        return None;
+    }
+    [
+        (b"..".as_slice(), Op::Dots),
+        (b"to".as_slice(), Op::To),
+        (b"count".as_slice(), Op::Count),
+        (b"by".as_slice(), Op::By),
+    ]
+    .into_iter()
+    .find_map(|(word, operation)| word.starts_with(bytes).then_some(operation))
+}
+
+fn syntax() -> LseqError {
+    LseqError::WrongArguments
+}
+
+/// Decode name-stripped native arguments without executing Tcl expression text.
+///
+/// # Errors
+/// Returns the native numeric, keyword, count or usage validation failure.
+pub fn decode(args: &[&[u8]]) -> Result<Plan, LseqError> {
+    decode_original(args.len(), |index, numeric_allowed| {
+        let bytes = args[index];
+        Ok((
+            numeric_allowed.then(|| as_number(bytes)).flatten(),
+            bytes.to_vec(),
+        ))
     })
 }
 
-/// The `wrong # args` error.
-fn syntax() -> CmdError {
-    CmdError::wrong_args("lseq n ??op? n ??by? n??")
-}
-
-/// `Tcl_GetNumberFromObj`'s refusal of a word that is no number.
-fn not_a_number(bytes: &[u8]) -> CmdError {
-    let text = String::from_utf8_lossy(bytes);
-    CmdError::with_error_code(
-        format!(
-            "expected number but got {}",
-            tcl_syntax::list::describe_bad_value(&text)
-        ),
-        "TCL VALUE NUMBER",
-    )
-}
-
-fn overflow() -> CmdError {
-    CmdError::with_error_code(
-        tcl_syntax::expr::errors::IOVERFLOW_MESSAGE,
-        tcl_syntax::expr::errors::IOVERFLOW_CODE,
-    )
-}
-
-/// An `ARITH DOMAIN` failure, its description as the code's third word.
-fn domain(message: &str, description: &str) -> CmdError {
-    CmdError::with_error_code(
-        message,
-        tcl_syntax::list::join_list(["ARITH", "DOMAIN", description]),
-    )
-}
-
-fn max_length() -> CmdError {
-    CmdError::with_error_code("max length of a Tcl list exceeded", "TCL MEMORY")
-}
-
-/// Decode the (already name-stripped) `lseq` arguments into a [`Plan`] —
-/// `SequenceIdentifyArgument` and `Tcl_LseqObjCmd`'s argument table, then the
-/// reads `TclNewArithSeriesObj` makes of each value. A word is a number or a
-/// keyword, never an expression (tclsh 9.0.4/9.1.0 refuse `lseq 1+2` as
-/// `expected number`, the manpage's `{[llength $l]-1}` example included).
-///
-/// # Errors
-/// C's message and `-errorcode`: `expected number` for a word that is
-/// neither, `bad operation` where only a keyword may stand, `missing "…"
-/// value.` for a trailing keyword, `wrong # args` for any other shape, then
-/// a count that is no integer (`TCL VALUE INTEGER`) or a value past the wide
-/// range (`ARITH IOVERFLOW`).
-pub fn decode(args: &[&[u8]]) -> Result<Plan, CmdError> {
-    let nargs = args.len();
-    if nargs > 5 {
+/// Decode original arguments in native positional order. The backend supplies
+/// the reached Number primitive payload and bytes only where the actual
+/// keyword, diagnostic, or Double precision stage requires them.
+pub fn decode_original(
+    nargs: usize,
+    mut original: impl FnMut(usize, bool) -> Result<(Option<Num>, Vec<u8>), LseqError>,
+) -> Result<Plan, LseqError> {
+    if nargs == 0 || nargs > 5 {
         return Err(syntax());
     }
 
-    // `allow_num`/`allow_kw` gate what each position may be: after a keyword
-    // only a number; after a number a keyword, and a further number unless
-    // this is the last of three with exactly two words left (C's
-    // `remNums`/`allowedArgs`).
+    // Decode each argument (the `SequenceIdentifyArgument` state machine).
+    // `allowed_num`/`allowed_kw` gate what each position may be; after a keyword
+    // only a number is allowed; a number after the first restricts when the next
+    // may be a keyword (mirrors C's `remNums`/`allowedArgs`).
     let mut decoded: Vec<Arg> = Vec::with_capacity(nargs);
     let mut use_doubles = 0u32;
-    let mut allow_num = true;
-    let mut allow_kw = false;
+    let mut allowed_num = true;
+    let mut allowed_kw = false;
     let mut rem_nums = 3i32;
-    for (idx, &bytes) in args.iter().enumerate() {
-        if allow_num && let Some(n) = as_number(bytes, idx) {
+    let mut sources = Vec::with_capacity(nargs);
+    for idx in 0..nargs {
+        let (num, bytes) = original(idx, allowed_num)?;
+        sources.push(bytes);
+        let bytes = sources
+            .last()
+            .expect("original reached argument")
+            .as_slice();
+        let is_last = idx == nargs - 1;
+        // 1) a plain number (when numbers are allowed here);
+        let num = if allowed_num { num } else { None };
+        if let Some(mut n) = num {
+            n.position = Some(idx);
             if n.is_double {
                 use_doubles += 1;
             }
             decoded.push(Arg::Num(n));
             rem_nums -= 1;
-            allow_kw = true;
-            allow_num = !(rem_nums == 1 && nargs - 1 - idx == 2);
+            // After a number: a keyword is allowed next; a further number too,
+            // unless this is the last number with exactly two args remaining.
+            allowed_kw = true;
+            allowed_num = !(rem_nums == 1 && (nargs - 1 - idx) == 2);
             continue;
         }
-        if allow_kw && let Ok(op) = OPERATIONS.index_of(bytes) {
-            if idx + 1 == nargs {
-                let word = String::from_utf8_lossy(bytes);
-                return Err(CmdError::new(format!("missing \"{word}\" value.")));
+        // 2) a range keyword (when allowed);
+        if allowed_kw && let Some(op) = as_keyword(bytes) {
+            if is_last {
+                let mut m = b"missing \"".to_vec();
+                m.extend_from_slice(bytes);
+                m.extend_from_slice(b"\" value.");
+                return Err(LseqError::Command(CmdError::new_bytes(m)));
             }
-            decoded.push(Arg::Kw(match op {
-                0 => Op::Dots,
-                1 => Op::To,
-                2 => Op::Count,
-                _ => Op::By,
-            }));
-            allow_num = true;
-            allow_kw = false;
+            decoded.push(Arg::Kw(op));
+            allowed_num = true;
+            allowed_kw = false;
             continue;
         }
-        if !allow_num {
-            return Err(OPERATIONS.index_of_cmd(bytes).err().unwrap_or_else(syntax));
+        // Native C only performs number conversion here; Tcl expression
+        // evaluation is not part of the lseq argument protocol.
+        if allowed_num {
+            return Err(number_error(bytes));
         }
-        return Err(not_a_number(bytes));
+        return Err(syntax());
     }
 
-    let plan = plan_from(&decoded, use_doubles)?;
-    check_reads(&plan, args)?;
-    Ok(plan)
-}
-
-/// `TclNewArithSeriesObj`'s reads, in its order: the count as a wide integer
-/// (a fractional double is refused as the double it holds), then the step,
-/// start and end, any of which past the wide range is C's overflow.
-fn check_reads(plan: &Plan, args: &[&[u8]]) -> Result<(), CmdError> {
-    if let Some(count) = plan.count {
-        if count.big {
-            return Err(overflow());
-        }
-        if count.is_double {
-            let word = String::from_utf8_lossy(args[count.arg]);
-            return Err(CmdError::with_error_code(
-                format!("expected integer but got \"{word}\""),
-                "TCL VALUE INTEGER",
-            ));
-        }
-    }
-    for value in [plan.step, Some(plan.start), plan.end]
-        .into_iter()
-        .flatten()
-    {
-        if value.big {
-            return Err(overflow());
-        }
-    }
-    Ok(())
+    let sources = sources.iter().map(Vec::as_slice).collect::<Vec<_>>();
+    plan_from(&decoded, &sources, use_doubles, |index| {
+        original(index, false).map(|(_, bytes)| bytes)
+    })
 }
 
 /// Resolve the decoded arguments into a [`Plan`] via the decode key (number→1,
@@ -283,7 +368,12 @@ fn check_reads(plan: &Plan, args: &[&[u8]]) -> Result<(), CmdError> {
 /// without obscuring the 1:1 correspondence.
 // `too_many_lines`: one match arm per decode-key shape — the C argument table, 1:1.
 #[allow(clippy::too_many_lines)]
-fn plan_from(decoded: &[Arg], mut use_doubles: u32) -> Result<Plan, CmdError> {
+fn plan_from(
+    decoded: &[Arg],
+    _args: &[&[u8]],
+    mut use_doubles: u32,
+    mut diagnostic: impl FnMut(usize) -> Result<Vec<u8>, LseqError>,
+) -> Result<Plan, LseqError> {
     let key: u32 = decoded.iter().fold(0, |k, a| {
         k * 10
             + match a {
@@ -300,22 +390,29 @@ fn plan_from(decoded: &[Arg], mut use_doubles: u32) -> Result<Plan, CmdError> {
         Arg::Num(_) => unreachable!(),
     };
 
-    let constant = |i: i64| Num {
+    let zero = Num {
         is_double: false,
-        big: false,
-        i,
-        d: i as f64,
+        i: 0,
+        d: 0.0,
         prec: 0,
-        arg: 0,
+        position: None,
     };
-    let (zero, one) = (constant(0), constant(1));
+    let one = Num {
+        is_double: false,
+        i: 1,
+        d: 1.0,
+        prec: 0,
+        position: None,
+    };
     let (mut start, mut end, mut step, mut count): (Num, Option<Num>, Option<Num>, Option<Num>) =
         (zero, None, None, None);
 
+    let mut count_at = None;
     match key {
         // lseq n
         1 => {
             count = Some(n(0));
+            count_at = Some(0);
             step = Some(one);
             use_doubles = 0; // count-only is integer-valued
         }
@@ -338,11 +435,13 @@ fn plan_from(decoded: &[Arg], mut use_doubles: u32) -> Result<Plan, CmdError> {
             }
             Op::By => {
                 count = Some(n(0));
+                count_at = Some(0);
                 step = Some(n(2));
             }
             Op::Count => {
                 start = n(0);
                 count = Some(n(2));
+                count_at = Some(2);
                 step = Some(one);
             }
         },
@@ -356,6 +455,7 @@ fn plan_from(decoded: &[Arg], mut use_doubles: u32) -> Result<Plan, CmdError> {
             Op::Count => {
                 start = n(0);
                 count = Some(n(2));
+                count_at = Some(2);
                 step = Some(n(3));
             }
             Op::By => return Err(syntax()),
@@ -383,6 +483,7 @@ fn plan_from(decoded: &[Arg], mut use_doubles: u32) -> Result<Plan, CmdError> {
                 Op::Count => {
                     start = n(0);
                     count = Some(n(2));
+                    count_at = Some(2);
                 }
                 Op::By => return Err(syntax()),
             }
@@ -390,21 +491,21 @@ fn plan_from(decoded: &[Arg], mut use_doubles: u32) -> Result<Plan, CmdError> {
         _ => return Err(syntax()),
     }
 
-    // A double-valued count does not, by itself, make the sequence use
-    // doubles (C: "Don't consider Count type ..."); a whole one reads as the
-    // integer it is, past the wide range as a bignum, and a fractional or
-    // non-finite one is left to fail the count read.
-    if let Some(c) = count.as_mut()
+    // A double-valued count is converted to an integer and does not, by itself,
+    // make the sequence use doubles (C: "Don't consider Count type ...").
+    if let Some(c) = count
         && c.is_double
     {
         use_doubles = use_doubles.saturating_sub(1);
-        if c.d.is_finite() && c.d.floor() == c.d {
-            c.is_double = false;
-            if c.d >= i64::MAX as f64 || c.d <= i64::MIN as f64 {
-                c.big = true;
-            } else {
-                c.i = c.d as i64;
-            }
+        if !c.d.is_finite() || c.d.floor() != c.d {
+            return Err(argument_error(
+                b"integer",
+                &diagnostic(count_at.expect("selected count retains its original operand"))?,
+                b"TCL VALUE INTEGER",
+            ));
+        }
+        if c.d < i64::MIN as f64 || c.d >= -(i64::MIN as f64) {
+            return Err(overflow_error());
         }
     }
 
@@ -417,12 +518,192 @@ fn plan_from(decoded: &[Arg], mut use_doubles: u32) -> Result<Plan, CmdError> {
     })
 }
 
+/// The validated constant-space arithmetic-series payload. This owner does
+/// not allocate an element table or grant a backend's native type identity.
+#[derive(Clone, Copy, Debug)]
+pub struct Series {
+    length: usize,
+    values: SeriesValues,
+}
+#[derive(Clone, Copy, Debug)]
+enum SeriesValues {
+    Integer {
+        start: i64,
+        step: i64,
+    },
+    Double {
+        start: f64,
+        step: f64,
+        precision: u32,
+    },
+}
+impl Series {
+    /// Captured native Length; no element or string materialization.
+    #[must_use]
+    pub fn length(&self) -> usize {
+        self.length
+    }
+    /// A fresh numeric payload for Index, never a cached element handle.
+    #[must_use]
+    pub fn number_at(&self, index: usize) -> Option<Number> {
+        if index >= self.length {
+            return None;
+        }
+        Some(match self.values {
+            SeriesValues::Integer { start, step } => {
+                Number::Int((i128::from(start) + index as i128 * i128::from(step)) as i64)
+            }
+            SeriesValues::Double {
+                start,
+                step,
+                precision,
+            } => {
+                let value = if index == 0 {
+                    start
+                } else {
+                    start + index as f64 * step
+                };
+                Number::Double(arith_round(value, precision))
+            }
+        })
+    }
+}
+
+/// Validate the native C9 arithmetic-series constructor before any header is
+/// manufactured. None selects `Tcl_NewObj`, distinct from an integer series of
+/// length zero, which retains its actual arithmetic primary.
+pub fn prepare_series(plan: &Plan) -> Result<Option<Series>, CmdError> {
+    if plan.use_doubles {
+        prepare_double_series(plan)
+    } else {
+        prepare_integer_series(plan)
+    }
+}
+
+fn series_domain_error() -> CmdError {
+    CmdError::with_error_code(
+        "invalid arithmetic series parameter values",
+        "ARITH DOMAIN {invalid arithmetic series parameter values}",
+    )
+}
+
+fn prepare_double_series(plan: &Plan) -> Result<Option<Series>, CmdError> {
+    let start = plan.start.d;
+    let step = plan.step.map_or_else(
+        || {
+            if plan.end.is_some_and(|end| start > end.d) {
+                -1.0
+            } else {
+                1.0
+            }
+        },
+        |step| step.d,
+    );
+    let precision = plan
+        .start
+        .prec
+        .max(plan.step.map_or(0, |step| step.prec))
+        .max(plan.end.map_or(0, |end| end.prec));
+    let length = if let Some(count) = plan.count {
+        count.i
+    } else {
+        let end = plan.end.expect("selected endpoint").d;
+        if start.is_infinite() || end.is_infinite() {
+            return Err(CmdError::with_error_code(
+                "max length of a Tcl list exceeded",
+                "TCL MEMORY",
+            ));
+        }
+        if start.is_nan() || end.is_nan() {
+            return Err(CmdError::with_error_code(
+                "cannot use non-numeric floating-point value \"NaN\" to estimate length of arith-series",
+                "ARITH DOMAIN {non-numeric floating-point value}",
+            ));
+        }
+        if step == 0.0 {
+            1
+        } else {
+            native_double_length(start, end, step, precision)?
+        }
+    };
+    if (start + length.saturating_sub(1) as f64 * step).is_nan() {
+        return Err(CmdError::with_error_code(
+            "domain error: argument not in valid range",
+            "ARITH DOMAIN {domain error: argument not in valid range}",
+        ));
+    }
+    if length <= 0 {
+        return Ok(None);
+    }
+    let length = usize::try_from(length).map_err(|_| series_domain_error())?;
+    Ok(Some(Series {
+        length,
+        values: SeriesValues::Double {
+            start,
+            step,
+            precision,
+        },
+    }))
+}
+
+fn prepare_integer_series(plan: &Plan) -> Result<Option<Series>, CmdError> {
+    let start = plan.start.i;
+    let step = plan.step.map_or_else(
+        || {
+            if plan.end.is_some_and(|end| start > end.i) {
+                -1
+            } else {
+                1
+            }
+        },
+        |step| step.i,
+    );
+    let length = if let Some(count) = plan.count {
+        i128::from(count.i)
+    } else if step == 0 {
+        1
+    } else {
+        let end = plan.end.expect("selected endpoint").i;
+        let distance = end.checked_sub(start).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native arithmetic-series signed endpoint distance",
+            ),
+        )?;
+        if (step < 0 && distance > 0) || (step > 0 && distance < 0) {
+            0
+        } else {
+            (i128::from(distance) / i128::from(step) + 1).max(0)
+        }
+    };
+    if length < 0 {
+        return Ok(None);
+    }
+    if length > i128::from(i64::MAX) {
+        return Err(series_domain_error());
+    }
+    if length >= 1 {
+        let intervals = length - 1;
+        let magnitude = i128::from(step).abs() * intervals;
+        if magnitude > i128::from(u64::MAX)
+            || (step == i64::MIN && (intervals > 0 || start < 0))
+            || !(i128::from(i64::MIN)..=i128::from(i64::MAX))
+                .contains(&(i128::from(start) + i128::from(step) * intervals))
+        {
+            return Err(series_domain_error());
+        }
+    }
+    let length = usize::try_from(length).map_err(|_| series_domain_error())?;
+    Ok(Some(Series {
+        length,
+        values: SeriesValues::Integer { start, step },
+    }))
+}
+
 /// Build the sequence's element list over `ops` from a decoded [`Plan`].
 ///
 /// # Errors
-/// C's `TclNewArithSeriesObj` failures: the series would exceed
-/// [`MAX_MATERIALIZE`] (`TCL MEMORY`), a NaN bound or element (`ARITH
-/// DOMAIN`), or an integer series whose last element overflows.
+/// Native generation errors retain guest completion. Exceeding this eager
+/// backend's [`MAX_MATERIALIZE`] capacity retains a host-only refusal tag.
 pub fn generate<O: ValueOps>(ops: &mut O, plan: &Plan) -> Result<O::Value, CmdError> {
     let elems = if plan.use_doubles {
         build_double(ops, plan)?
@@ -432,47 +713,58 @@ pub fn generate<O: ValueOps>(ops: &mut O, plan: &Plan) -> Result<O::Value, CmdEr
     Ok(ops.new_list(elems))
 }
 
-/// Charge a series of `len` elements against the value-size limit before it is
-/// built: each element renders to at least one byte, with a separator between.
-fn charge_series<O: ValueOps>(ops: &mut O, len: i128) -> Result<(), CmdError> {
-    let bytes = u64::try_from(len.saturating_mul(2).saturating_sub(1)).unwrap_or(0);
-    crate::value_size::charge(ops, |_, _| bytes)
-        .map_err(|_| CmdError::new(crate::value_size::VALUE_SIZE_EXCEEDED))
-}
-
-/// The bytes a series renders to so far, charged against the value-size
-/// limit as it is built: [`charge_series`] can only count a byte per element
-/// before the elements exist, so a series of long numerals is stopped here
-/// once it crosses the limit, not after it is whole.
-struct SeriesMeter {
-    limit: Option<u64>,
-    bytes: u64,
-}
-
-impl SeriesMeter {
-    fn new<O: ValueOps>(ops: &O) -> Self {
-        Self {
-            limit: ops.value_size_limit(),
-            bytes: 0,
-        }
+fn native_double_length(start: f64, end: f64, step: f64, precision: u32) -> Result<i64, CmdError> {
+    if step == 0.0 {
+        return Ok(1);
     }
-
-    fn add<O: ValueOps>(&mut self, ops: &mut O, element: &O::Value) -> Result<(), CmdError> {
-        let Some(limit) = self.limit else {
-            return Ok(());
+    let scale = power10(precision);
+    let (start, end, step) = if precision == 0 {
+        (start, end, step)
+    } else {
+        (start * scale, end * scale, step * scale)
+    };
+    let distance = end - start;
+    if (i64::MIN as f64..=i64::MAX as f64).contains(&distance)
+        && (i64::MIN as f64..=i64::MAX as f64).contains(&step)
+    {
+        let rounded_distance = if distance < 0.0 {
+            distance - 0.5
+        } else {
+            distance + 0.5
         };
-        let separator = u64::from(self.bytes > 0);
-        self.bytes = self
-            .bytes
-            .saturating_add(separator)
-            .saturating_add(ops.measure_value(element, limit));
-        if self.bytes > limit {
-            let bytes = self.bytes;
-            return crate::value_size::charge(ops, |_, _| bytes)
-                .map_err(|_| CmdError::new(crate::value_size::VALUE_SIZE_EXCEEDED));
+        let rounded_step = if step < 0.0 { step - 0.5 } else { step + 0.5 };
+        if rounded_distance >= -(i64::MIN as f64) || rounded_step >= -(i64::MIN as f64) {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native arithmetic-series floating-to-wide frontier",
+            )
+            .into());
         }
-        Ok(())
+        let distance = rounded_distance as i64;
+        let step = rounded_step as i64;
+        if step != 0 {
+            let length = distance
+                .checked_div(step)
+                .and_then(|length| length.checked_add(1))
+                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native arithmetic-series signed length frontier",
+                ))?;
+            return Ok(length.max(0));
+        }
     }
+    let length = distance / step + 1.0;
+    if length.is_nan() {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native arithmetic-series NaN length frontier",
+        )
+        .into());
+    }
+    Ok(if length >= i64::MAX as f64 {
+        i64::MAX
+    } else if length <= 0.0 {
+        1
+    } else {
+        length as i64
+    })
 }
 
 /// `power10` for the precision scaling.
@@ -489,58 +781,45 @@ fn arith_round(d: f64, n: u32) -> f64 {
     (d * s).round() / s
 }
 
-/// `ArithSeriesLenInt`: no elements when the step runs against the range, a
-/// single one for a zero step.
-fn arith_series_len_int(start: i64, end: i64, step: i64) -> i128 {
-    let distance = i128::from(end) - i128::from(start);
-    if (step < 0 && distance > 0) || (step > 0 && distance < 0) {
-        return 0;
-    }
-    if step == 0 {
-        return 1;
-    }
-    (distance / i128::from(step) + 1).max(0)
-}
-
 /// Integer arithmetic series → element values (`Tcl_WideInt` path).
 fn build_int<O: ValueOps>(ops: &mut O, plan: &Plan) -> Result<Vec<O::Value>, CmdError> {
     let s = plan.start.i;
     // Length is computed in i128 so an extreme `end - start` (e.g.
     // `lseq 10 9223372036854775000`) cannot overflow i64 before the cap check.
     let (len, st): (i128, i64) = if let Some(c) = plan.count {
-        (i128::from(c.i), plan.step.map_or(1, |x| x.i))
+        // count given: len = count, step defaults to 1.
+        let st = plan.step.map_or(1, |x| x.i);
+        (i128::from(c.i).max(0), st)
     } else {
         let e = plan
             .end
             .expect("int series without end or count has a count")
             .i;
         // step defaults to ±1 by direction when omitted.
-        let st = plan.step.map_or(if s <= e { 1 } else { -1 }, |x| x.i);
-        (arith_series_len_int(s, e, st), st)
+        let st = match plan.step {
+            Some(x) => x.i,
+            None => {
+                if s <= e {
+                    1
+                } else {
+                    -1
+                }
+            }
+        };
+        let len = if st == 0 {
+            1
+        } else {
+            (i128::from(e) - i128::from(s)) / i128::from(st) + 1
+        };
+        (len.max(0), st)
     };
-    if len <= 0 {
-        return Ok(Vec::new());
-    }
-    // `NewArithSeriesInt`: the last element must stay in the wide range.
-    let last = i128::from(s) + (len - 1) * i128::from(st);
-    if i64::try_from(last).is_err() {
-        let description = "invalid arithmetic series parameter values";
-        return Err(domain(description, description));
-    }
-    if len > i128::from(MAX_MATERIALIZE) {
-        return Err(max_length());
-    }
-    charge_series(ops, len)?;
-    let len = len as i64;
-    let mut meter = SeriesMeter::new(ops);
-    let mut out = Vec::with_capacity(len as usize);
+    let len = materialization_length(len as u128)?;
+    let mut out = Vec::with_capacity(len);
     for i in 0..len {
         // s + i*st, computed in i128 (each value is in range, so the cast is
         // lossless) — avoids accumulation overflow at the i64 boundary.
-        let v = (i128::from(s) + i128::from(i) * i128::from(st)) as i64;
-        let element = ops.new_int(v);
-        meter.add(ops, &element)?;
-        out.push(element);
+        let v = (i128::from(s) + (i as i128) * i128::from(st)) as i64;
+        out.push(ops.new_int(v));
     }
     Ok(out)
 }
@@ -558,52 +837,68 @@ fn build_double<O: ValueOps>(ops: &mut O, plan: &Plan) -> Result<Vec<O::Value>, 
         p
     };
     let (len, dstep) = if let Some(c) = plan.count {
-        (c.i, plan.step.map_or(1.0, |x| x.d))
+        let dstep = plan.step.map_or(1.0, |x| x.d);
+        (c.i.max(0), dstep)
     } else {
         let de = plan.end.expect("double series without end or count").d;
-        let dstep = plan.step.map_or(if ds > de { -1.0 } else { 1.0 }, |x| x.d);
-        if ds.is_infinite() || de.is_infinite() {
-            return Err(max_length());
-        }
-        if ds.is_nan() || de.is_nan() {
-            let description = "non-numeric floating-point value";
-            return Err(domain(
-                &format!("cannot use {description} \"NaN\" to estimate length of arith-series"),
-                description,
+        let dstep = match plan.step {
+            Some(x) => x.d,
+            None => {
+                if ds <= de {
+                    1.0
+                } else {
+                    -1.0
+                }
+            }
+        };
+        if !ds.is_finite() || !de.is_finite() {
+            if ds.is_nan() || de.is_nan() {
+                return Err(CmdError::new_bytes(
+                    b"cannot use non-numeric floating-point value to estimate length of arith-series",
+                ));
+            }
+            return Err(CmdError::with_error_code(
+                "max length of a Tcl list exceeded",
+                "TCL MEMORY",
             ));
         }
-        (arith_series_len_dbl(ds, de, dstep, prec), dstep)
+        (
+            if dstep == 0.0 {
+                1
+            } else {
+                arith_series_len_dbl(ds, de, dstep, prec)
+            },
+            dstep,
+        )
     };
-    if len > MAX_MATERIALIZE {
-        return Err(max_length());
-    }
-    if len <= 0 {
-        return Ok(Vec::new());
-    }
-    // No NaN anywhere in the series: C checks its last element, as
-    // `expr {Inf - Inf}` would fail.
-    if (ds + (len - 1) as f64 * dstep).is_nan() {
-        let message = "domain error: argument not in valid range";
-        return Err(domain(message, message));
-    }
-    charge_series(ops, i128::from(len))?;
-    let mut meter = SeriesMeter::new(ops);
-    let mut out = Vec::with_capacity(len as usize);
+    let len = materialization_length(len.max(0) as u128)?;
+    let mut out = Vec::with_capacity(len);
     for i in 0..len {
         let d = arith_round(ds + (i as f64) * dstep, prec);
-        let element = ops.new_double(d);
-        meter.add(ops, &element)?;
-        out.push(element);
+        out.push(ops.new_double(d));
     }
     Ok(out)
 }
 
+pub fn materialization_length(requested: u128) -> Result<usize, CmdError> {
+    let limit = MAX_MATERIALIZE as u128;
+    if requested > limit {
+        return Err(
+            NativeValueAccessRefusal::from(NativeMaterializationLimitError::new(
+                requested,
+                MAX_MATERIALIZE as u64,
+            ))
+            .into(),
+        );
+    }
+    Ok(usize::try_from(requested).expect("bounded sequence length fits host usize"))
+}
+
 /// `ArithSeriesLenDbl` — element count of a double series, computed in scaled
-/// wide arithmetic for stability (mirrors the C function); a zero step is a
-/// single element.
+/// wide arithmetic for stability (mirrors the C function).
 fn arith_series_len_dbl(start: f64, end: f64, step: f64, precision: u32) -> i64 {
     if step == 0.0 {
-        return 1;
+        return 0;
     }
     let (mut s, mut e, mut st) = (start, end, step);
     if precision > 0 {
@@ -631,32 +926,53 @@ mod tests {
     use super::*;
 
     #[test]
+    fn materialization_capacity_is_a_host_refusal_without_guest_error_details() {
+        assert_eq!(
+            NativeMaterializationLimitError::new(u128::MAX, 100_000_000).requested(),
+            u128::MAX
+        );
+        assert_eq!(materialization_length(0).unwrap(), 0);
+        assert_eq!(
+            materialization_length(MAX_MATERIALIZE as u128).unwrap(),
+            MAX_MATERIALIZE as usize
+        );
+        let error = materialization_length(MAX_MATERIALIZE as u128 + 1).unwrap_err();
+        assert_eq!(
+            error.native_access_refusal(),
+            Some(NativeValueAccessRefusal::Materialization(
+                NativeMaterializationLimitError::new(100_000_001, 100_000_000)
+            ))
+        );
+        assert_eq!(error.message_bytes(), []);
+        assert!(error.error_code_bytes().is_none());
+    }
+
+    #[test]
     #[allow(clippy::approx_constant)] // `3.14` is parsed test data, not π
     fn as_number_parses_ints_doubles_and_precision() {
         // `lseq` number parsing: ints stay ints, doubles record their
-        // fractional precision, hex is an int, a bignum is a number marked
-        // big, and non-numbers are rejected.
-        let i = as_number(b"42", 0).unwrap();
+        // fractional precision, hex is an int, and non-numbers / bignums are
+        // rejected.
+        let i = as_number(b"42").unwrap();
         assert!(!i.is_double);
         assert_eq!(i.i, 42);
 
-        let d = as_number(b"3.14", 0).unwrap();
+        let d = as_number(b"3.14").unwrap();
         assert!(d.is_double);
         assert_eq!(d.prec, 2);
         assert!((d.d - 3.14).abs() < 1e-9);
 
         // Trailing zeros count toward the recorded precision.
-        assert_eq!(as_number(b"1.500", 0).unwrap().prec, 3);
+        assert_eq!(as_number(b"1.500").unwrap().prec, 3);
 
         // Hex integer literal.
-        let h = as_number(b"0x10", 0).unwrap();
+        let h = as_number(b"0x10").unwrap();
         assert!(!h.is_double);
         assert_eq!(h.i, 16);
 
-        assert!(as_number(b"99999999999999999999", 0).unwrap().big);
         // Non-numbers are rejected.
-        assert!(as_number(b"abc", 0).is_none());
-        assert!(as_number(b"", 0).is_none());
+        assert!(as_number(b"abc").is_none());
+        assert!(as_number(b"").is_none());
     }
 
     #[test]

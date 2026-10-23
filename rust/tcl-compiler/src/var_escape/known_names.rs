@@ -35,139 +35,167 @@ pub fn collect_known_names<I: IntoIterator<Item = String>>(
     params: I,
     body: &Script,
 ) -> HashSet<String> {
-    let mut names: HashSet<String> = params.into_iter().collect();
-    visit(&body.statements, &mut names);
-    names
+    collect_known_name_inventory(params, body).names
 }
 
-fn visit(stmts: &[Statement], names: &mut HashSet<String>) {
-    for stmt in stmts {
-        visit_one(stmt, names);
-    }
+pub(crate) struct KnownNameInventory {
+    pub(crate) names: HashSet<String>,
+    pub(crate) unknown_residual: bool,
 }
 
-fn insert_nonempty(names: &mut HashSet<String>, name: &str) {
-    if !name.is_empty() {
-        names.insert(name.to_string());
-    }
+pub(crate) fn collect_known_name_inventory<I: IntoIterator<Item = String>>(
+    params: I,
+    body: &Script,
+) -> KnownNameInventory {
+    let mut inventory = KnownNameInventory {
+        names: params.into_iter().collect(),
+        unknown_residual: false,
+    };
+    visit(body, &mut inventory, None);
+    inventory
 }
 
-fn visit_catch_or_try(stmt: &Statement, names: &mut HashSet<String>) -> bool {
-    match stmt {
-        Statement::Catch {
-            result_var,
-            options_var,
-            body,
-            ..
-        } => {
-            if let Some(r) = result_var {
-                insert_nonempty(names, r);
-            }
-            if let Some(o) = options_var {
-                insert_nonempty(names, o);
-            }
-            visit(&body.statements, names);
-            true
-        }
-        Statement::Try {
-            body,
-            handlers,
-            finally_body,
-            ..
-        } => {
-            visit(&body.statements, names);
-            for h in handlers {
-                if let Some(v) = &h.var_name {
-                    insert_nonempty(names, v);
+pub(crate) fn collect_known_name_inventory_with_registry<I: IntoIterator<Item = String>>(
+    params: I,
+    body: &Script,
+    registry: &tcl_registry::CommandRegistry,
+) -> KnownNameInventory {
+    let mut inventory = KnownNameInventory {
+        names: params.into_iter().collect(),
+        unknown_residual: false,
+    };
+    visit(body, &mut inventory, Some(registry));
+    inventory
+}
+
+fn visit(
+    body: &Script,
+    inventory: &mut KnownNameInventory,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) {
+    for statement in &body.statements {
+        if let Some(tokens) = body.retained_source_tokens_for_statement(statement)
+            && let Some(registry) = registry.or_else(|| {
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .and_then(|binding| binding.retained_registry_for_tokens(tokens))
+            })
+            && let Some(source) =
+                crate::registry_invocation::original_source_name_roles(registry, tokens)
+        {
+            inventory.unknown_residual |= source.has_unknown_residual();
+            for &(argument, role) in source.roles() {
+                let relevant = matches!(
+                    role,
+                    tcl_registry::ArgRole::VarRead
+                        | tcl_registry::ArgRole::VarWrite
+                        | tcl_registry::ArgRole::LoopVarList
+                        | tcl_registry::ArgRole::StaticVarList
+                );
+                let Some(value) = source.argument_literal(argument) else {
+                    inventory.unknown_residual |= relevant;
+                    continue;
+                };
+                match role {
+                    tcl_registry::ArgRole::VarRead | tcl_registry::ArgRole::VarWrite => {
+                        inventory.names.insert(value);
+                    }
+                    tcl_registry::ArgRole::LoopVarList | tcl_registry::ArgRole::StaticVarList => {
+                        if let Ok(values) =
+                            tcl_syntax::word_rules::WordValueRules::from_config(&source.config())
+                                .split_list(&value)
+                        {
+                            inventory
+                                .names
+                                .extend(values.into_iter().map(std::borrow::Cow::into_owned));
+                        } else {
+                            inventory.unknown_residual = true;
+                        }
+                    }
+                    _ => {}
                 }
-                if let Some(o) = &h.options_var {
-                    insert_nonempty(names, o);
-                }
-                visit(&h.body.statements, names);
             }
-            if let Some(f) = finally_body {
-                visit(&f.statements, names);
-            }
-            true
         }
-        _ => false,
+        if let Some(tokens) = body.retained_source_tokens_for_statement(statement)
+            && let Some(registry) = registry.or_else(|| {
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .and_then(|binding| binding.retained_registry_for_tokens(tokens))
+            })
+            && let Some(candidates) =
+                crate::registry_invocation::original_authored_body_name_candidates(tokens, registry)
+        {
+            inventory.names.extend(candidates.names);
+            inventory.unknown_residual |= candidates.unknown_residual;
+        }
+        visit_one(statement, inventory, registry);
     }
 }
 
-fn visit_one(stmt: &Statement, names: &mut HashSet<String>) {
-    if visit_catch_or_try(stmt, names) {
-        return;
-    }
+fn insert_name(names: &mut HashSet<String>, name: &str) {
+    names.insert(name.to_owned());
+}
+
+fn visit_one(
+    stmt: &Statement,
+    inventory: &mut KnownNameInventory,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) {
+    let names = &mut inventory.names;
     match stmt {
         Statement::AssignConst { name, .. }
         | Statement::AssignValue { name, .. }
         | Statement::AssignExpr { name, .. }
-        | Statement::Incr { name, .. }
-            if !name.is_empty() =>
-        {
-            names.insert(name.clone());
-        }
+        | Statement::Incr { name, .. } => insert_name(names, name),
         Statement::Call { defs, reads, .. } => {
-            for n in defs.iter().chain(reads.iter()) {
-                insert_nonempty(names, n);
+            for name in defs.iter().chain(reads.iter()) {
+                insert_name(names, name);
             }
         }
-        Statement::If {
-            clauses, else_body, ..
+        Statement::Catch {
+            result_var,
+            options_var,
+            ..
         } => {
-            for c in clauses {
-                visit(&c.body.statements, names);
-            }
-            if let Some(b) = else_body {
-                visit(&b.statements, names);
+            for name in result_var.iter().chain(options_var.iter()) {
+                insert_name(names, name);
             }
         }
-        Statement::For {
-            init, next, body, ..
-        } => {
-            visit(&init.statements, names);
-            visit(&next.statements, names);
-            visit(&body.statements, names);
-        }
-        Statement::Foreach {
-            iterators, body, ..
-        } => {
-            for it in iterators {
-                for v in &it.vars {
-                    insert_nonempty(names, v);
+        Statement::Try { handlers, .. } => {
+            for handler in handlers {
+                for name in handler.var_name.iter().chain(handler.options_var.iter()) {
+                    insert_name(names, name);
                 }
             }
-            visit(&body.statements, names);
         }
-        Statement::Switch {
-            arms, default_body, ..
-        } => {
-            for a in arms {
-                if let Some(b) = &a.body {
-                    visit(&b.statements, names);
+        Statement::Foreach { iterators, .. } => {
+            for iterator in iterators {
+                for name in &iterator.vars {
+                    insert_name(names, name);
                 }
             }
-            if let Some(d) = default_body {
-                visit(&d.statements, names);
-            }
-        }
-        Statement::While { body, .. }
-        | Statement::Block { body, .. }
-        | Statement::UpFrame { body, .. } => {
-            visit(&body.statements, names);
         }
         _ => {}
+    }
+    for child in stmt.child_scripts() {
+        visit(child, inventory, registry);
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use super::*;
     use crate::lowering::lower_to_ir;
     use tcl_registry::CommandRegistry;
 
-    fn reg() -> CommandRegistry {
-        CommandRegistry::build_default()
+    fn reg() -> std::sync::Arc<CommandRegistry> {
+        tcl_registry::model::ingress::static_context_for("tcl8.6")
+            .commands()
+            .clone()
     }
 
     fn body_of(src: &str) -> Script {
@@ -184,6 +212,28 @@ mod tests {
     }
 
     #[test]
+    fn original_authored_name_roles_preserve_empty_and_literal_sigils() {
+        for (source, expected) in [
+            ("set {} VALUE", vec![""]),
+            ("info exists {$literal}", vec!["$literal"]),
+            (
+                "catch {puts value} {$result} {[options]}",
+                vec!["$result", "[options]"],
+            ),
+            (
+                "foreach {{} {$item} {[item]}} values {}",
+                vec!["", "$item", "[item]"],
+            ),
+        ] {
+            let body = body_of(source);
+            let inventory = collect_known_name_inventory(std::iter::empty::<String>(), &body);
+            for name in expected {
+                assert!(inventory.names.contains(name), "{source}: {name:?}");
+            }
+        }
+    }
+
+    #[test]
     fn includes_seeded_params() {
         let body = body_of("");
         let names = collect_known_names(["a".to_string(), "b".to_string()], &body);
@@ -193,8 +243,16 @@ mod tests {
 
     #[test]
     fn descends_into_if_body() {
-        let body = body_of("if {1} { set inside_if 1 } else { set inside_else 2 }");
-        let names = collect_known_names(std::iter::empty::<String>(), &body);
+        let module = lower_to_ir(
+            "proc f {condition} {if {$condition} {set inside_if 1} else {set inside_else 2}}",
+            &reg(),
+        );
+        let body = &module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::f"))
+            .expect("authored fixture body")
+            .body;
+        let names = collect_known_names(std::iter::empty::<String>(), body);
         assert!(names.contains("inside_if"));
         assert!(names.contains("inside_else"));
     }
@@ -255,7 +313,9 @@ mod tests {
         // ``eval {set y 5}`` lowers to a Statement::Block in a proc
         // context — collect_known_names should descend into it.
         let m = lower_to_ir("proc f {} { eval {set y 5} }", &reg());
-        let proc = m.procedures.get("::f").unwrap();
+        let proc = fixture_id_if_present(&m.procedures, "::f")
+            .and_then(|id| m.procedures.get(&id))
+            .unwrap();
         let names = collect_known_names(std::iter::empty::<String>(), &proc.body);
         assert!(names.contains("y"));
     }

@@ -51,6 +51,18 @@ pub enum TraceKind {
 }
 
 impl TraceKind {
+    /// Selected native trace-type table member, as used by the index-backed
+    /// wrong-argument presenter after a successful type lookup. The original
+    /// operand's string representation need not be Unicode or canonical.
+    #[must_use]
+    pub const fn canonical_name(self) -> &'static str {
+        match self {
+            Self::Variable => "variable",
+            Self::Command => "command",
+            Self::Execution => "execution",
+        }
+    }
+
     /// The valid operation names for this kind, in C's `opStrings[]` table
     /// order (`tclTrace.c`) — the bad-operation error enumerates them in
     /// this order.
@@ -115,6 +127,34 @@ pub fn parse_ops(spec: &[u8], kind: TraceKind) -> Result<Vec<&'static str>, CmdE
     Ok(canonical_set(&elems, kind))
 }
 
+/// Validate the actual original operation-list object and its SAME members.
+/// Physical adapters resolve each member through their selected static Index
+/// owner; the returned names are the canonical trace bitset presentation.
+pub fn parse_ops_original<O: tcl_syntax::value::ValueOps>(
+    ops: &mut O,
+    original: &O::Value,
+    kind: TraceKind,
+) -> Result<Vec<&'static str>, CmdError> {
+    let members = ops.list_elements(original)?;
+    let valid = kind.ops();
+    if members.is_empty() {
+        return Err(CmdError::new(format!(
+            "bad operation list \"\": must be one or more of {}",
+            choice_list(valid)
+        )));
+    }
+    let table = OptionTable::exact_only("operation", valid);
+    let selected = members
+        .iter()
+        .map(|member| {
+            table
+                .index_of_original(ops, member)
+                .map(|index| valid[index])
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(canonical_set(&selected, kind))
+}
+
 /// The `spec` operations selected out of `kind`'s [`TraceKind::info_order`] —
 /// the bitset collapse C performs, applied to already-validated words.
 fn canonical_set(elems: &[impl AsRef<str>], kind: TraceKind) -> Vec<&'static str> {
@@ -150,13 +190,20 @@ const LEGACY_LETTERS: [(u8, &str); 4] = [
 /// rendering differs, and that is [`legacy_ops_letters`].
 ///
 /// # Errors
-/// An empty string or any byte outside `rwua` produces C Tcl's legacy error.
+/// An empty counted string or a byte outside `rwua` before its `CString`
+/// terminator produces C Tcl's legacy error. A nonempty counted string with
+/// an initial zero delegates an empty operation list to the modern parser.
 pub fn parse_legacy_variable_ops(spec: &[u8]) -> Result<Vec<&'static str>, CmdError> {
-    if spec.is_empty() || spec.iter().any(|byte| !b"rwua".contains(byte)) {
-        let got = String::from_utf8_lossy(spec);
-        return Err(CmdError::new(format!(
-            "bad operations \"{got}\": should be one or more of rwua"
-        )));
+    let counted_empty = spec.is_empty();
+    let spec = tcl_core_types::c_string_extent(spec);
+    if counted_empty || spec.iter().any(|byte| !b"rwua".contains(byte)) {
+        let mut message = b"bad operations \"".to_vec();
+        message.extend_from_slice(spec);
+        message.extend_from_slice(b"\": should be one or more of rwua");
+        return Err(CmdError::new_bytes(message));
+    }
+    if spec.is_empty() {
+        return parse_ops(b"", TraceKind::Variable);
     }
     let words: Vec<&str> = LEGACY_LETTERS
         .iter()
@@ -164,6 +211,18 @@ pub fn parse_legacy_variable_ops(spec: &[u8]) -> Result<Vec<&'static str>, CmdEr
         .map(|(_, operation)| *operation)
         .collect();
     Ok(canonical_set(&words, TraceKind::Variable))
+}
+
+/// Materialise the original operation object's selected native string, then
+/// apply the legacy counted-empty test and `CString` letter scan.
+///
+/// # Errors
+/// Returns an original string-getter refusal or the legacy operation error.
+pub fn parse_legacy_variable_ops_original<O: tcl_syntax::value::ValueOps>(
+    ops: &mut O,
+    original: &O::Value,
+) -> Result<Vec<&'static str>, CmdError> {
+    parse_legacy_variable_ops(ops.native_string_bytes(original)?.as_ref())
 }
 
 /// The operation word a variable-trace callback is invoked with. A trace
@@ -222,6 +281,34 @@ pub fn resolve_option<'a>(word: &str, visible: &[&'a str]) -> Result<&'a str, Cm
     Ok(visible[index])
 }
 
+static TRACE_OPTIONS_8: [&str; 6] = ["add", "info", "remove", "variable", "vdelete", "vinfo"];
+static TRACE_OPTIONS_9: [&str; 3] = ["add", "info", "remove"];
+
+/// Original trace dispatcher lookup using the selected physical C declaration.
+/// Jim's compatibility trace engine uses the portable legacy roster without
+/// installing a C Index; missing physical selection remains a host refusal.
+pub fn resolve_option_original<O: tcl_syntax::value::ValueOps>(
+    ops: &mut O,
+    original: &O::Value,
+    protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
+) -> Result<&'static str, CmdError> {
+    use tcl_syntax::native_string::NativeStringProtocol;
+    let names = match protocol {
+        Some(NativeStringProtocol::C(version)) if version >= tcl_dialect::TclVersion::V9_0 => {
+            &TRACE_OPTIONS_9[..]
+        }
+        Some(NativeStringProtocol::C(_) | NativeStringProtocol::Jim084) => &TRACE_OPTIONS_8[..],
+        None => {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "trace option declaration",
+            )
+            .into());
+        }
+    };
+    let table = OptionTable::abbreviating("option", names);
+    Ok(names[table.index_of_original(ops, original)?])
+}
+
 /// `bad option "X": must be execution, command, or variable` — the trace-type
 /// error (`trace add|remove|info <type> …`). C resolves the type word against
 /// `traceTypeOptions`, so it reports a bad *option*, not a bad type.
@@ -244,13 +331,13 @@ pub fn ambiguous_type_error(got: &str) -> CmdError {
 // C's `traceTypeOptions[]` (`tclTrace.c`), resolved with abbreviations
 // allowed (flags 0) — which is why `trace add var x write cb` is accepted
 // (set-2.4 / set-4.4).
-const TYPE_NAMES: [&str; 3] = ["execution", "command", "variable"];
+static TYPE_NAMES: [&str; 3] = ["execution", "command", "variable"];
 const TYPE_KINDS: [TraceKind; 3] = [
     TraceKind::Execution,
     TraceKind::Command,
     TraceKind::Variable,
 ];
-const TYPE_OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &TYPE_NAMES);
+static TYPE_OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &TYPE_NAMES);
 
 /// Resolve a trace-type word (`trace add|remove|info <type> …`) to its
 /// [`TraceKind`] with the shared [`OptionTable`] rule: an exact match always
@@ -261,12 +348,29 @@ const TYPE_OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &
 /// [`ambiguous_type_error`] when it abbreviates more than one — including the
 /// empty word, which prefixes all three types (`trace add "" x …` is
 /// `ambiguous option ""` in tclsh).
+/// Resolve the original type object against the authentic static declaration.
+pub fn resolve_type_original<O: tcl_syntax::value::ValueOps>(
+    ops: &mut O,
+    original: &O::Value,
+) -> Result<TraceKind, CmdError> {
+    Ok(TYPE_KINDS[TYPE_OPTIONS.index_of_original(ops, original)?])
+}
+
 pub fn resolve_type(got: &str) -> Result<TraceKind, CmdError> {
     match TYPE_OPTIONS.resolve(got.as_bytes()) {
         Resolution::Exact(i) | Resolution::UniquePrefix(i) => Ok(TYPE_KINDS[i]),
         Resolution::Ambiguous => Err(ambiguous_type_error(got)),
         Resolution::NoMatch => Err(bad_type_error(got)),
     }
+}
+
+/// Resolve already selected type bytes against the actual trace table.
+/// Native input extent, object getters/cache and registration stay independent.
+///
+/// # Errors
+/// Returns the shared unmatched or ambiguous table error with exact input bytes.
+pub fn resolve_type_bytes(selected: &[u8]) -> Result<TraceKind, CmdError> {
+    Ok(TYPE_KINDS[TYPE_OPTIONS.index_of_cmd(selected)?])
 }
 
 #[cfg(test)]
@@ -318,7 +422,10 @@ mod tests {
     #[test]
     fn bad_operation_enumerates_table_order() {
         assert_eq!(
-            parse_ops(b"w", TraceKind::Variable).unwrap_err().message(),
+            parse_ops(b"w", TraceKind::Variable)
+                .unwrap_err()
+                .message()
+                .unwrap(),
             "bad operation \"w\": must be array, read, unset, or write"
         );
     }
@@ -336,12 +443,46 @@ mod tests {
             parse_ops(b"write read", TraceKind::Variable).unwrap()
         );
         assert_eq!(
-            parse_legacy_variable_ops(b"").unwrap_err().message(),
+            parse_legacy_variable_ops(b"")
+                .unwrap_err()
+                .message()
+                .unwrap(),
             "bad operations \"\": should be one or more of rwua"
         );
         assert_eq!(
-            parse_legacy_variable_ops(b"read").unwrap_err().message(),
+            parse_legacy_variable_ops(b"read")
+                .unwrap_err()
+                .message()
+                .unwrap(),
             "bad operations \"read\": should be one or more of rwua"
+        );
+    }
+
+    #[test]
+    fn legacy_operation_extent_preserves_counted_empty_and_opaque_errors() {
+        // Native proof: naming.variable.legacy-trace-operation-cstring
+
+        assert_eq!(parse_legacy_variable_ops(b"w\0bad").unwrap(), ["write"]);
+        for input in [b"w\xc0\x80bad".as_slice(), b"w\xff"] {
+            let mut expected = b"bad operations \"".to_vec();
+            expected.extend_from_slice(input);
+            expected.extend_from_slice(b"\": should be one or more of rwua");
+            assert_eq!(
+                parse_legacy_variable_ops(input)
+                    .unwrap_err()
+                    .message_bytes(),
+                expected
+            );
+        }
+        assert_eq!(
+            parse_legacy_variable_ops(b"\0")
+                .unwrap_err()
+                .message_bytes(),
+            b"bad operation list \"\": must be one or more of array, read, unset, or write"
+        );
+        assert_eq!(
+            parse_legacy_variable_ops(b"").unwrap_err().message_bytes(),
+            b"bad operations \"\": should be one or more of rwua"
         );
     }
 
@@ -368,15 +509,18 @@ mod tests {
         assert_eq!(resolve_option("var", &V8).unwrap(), "variable");
         assert_eq!(resolve_option("add", &V9).unwrap(), "add");
         assert_eq!(
-            resolve_option("v", &V8).unwrap_err().message(),
+            resolve_option("v", &V8).unwrap_err().message().unwrap(),
             "ambiguous option \"v\": must be add, info, remove, variable, vdelete, or vinfo"
         );
         assert_eq!(
-            resolve_option("variable", &V9).unwrap_err().message(),
+            resolve_option("variable", &V9)
+                .unwrap_err()
+                .message()
+                .unwrap(),
             "bad option \"variable\": must be add, info, or remove"
         );
         assert_eq!(
-            resolve_option("zzz", &V8).unwrap_err().message(),
+            resolve_option("zzz", &V8).unwrap_err().message().unwrap(),
             "bad option \"zzz\": must be add, info, remove, variable, vdelete, or vinfo"
         );
     }

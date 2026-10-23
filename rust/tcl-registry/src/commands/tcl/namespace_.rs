@@ -19,7 +19,9 @@
 //! `namespace` — create and manipulate contexts for commands and variables.
 
 use crate::prelude::*;
+use crate::{InvocationArgument, InvocationWord};
 use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "namespace subcommand ?arg ...?",
@@ -181,8 +183,13 @@ const ENSEMBLE_OPT_UNKNOWN: OptionSpec = OptionSpec {
 
 /// A namespace unknown handler is installed for a future failed dispatch;
 /// setting or querying it never invokes the prefix in this call.
-fn namespace_unknown_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (!args.is_empty())
+fn namespace_unknown_script_timing(
+    args: crate::InvocationArguments<'_>,
+) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count != 0)
         .then_some((0, ScriptTiming::Deferred))
         .into_iter()
         .collect()
@@ -247,21 +254,30 @@ static ENSEMBLE_ANY_OPTIONS: &[OptionSpec] = &[
 /// the probe existence policy keeps it out of the W123 unresolved-command
 /// pass, so a perfectly valid existence check
 /// (`if {[namespace which -command foo] eq ""} …`) of a command the
-/// analyser cannot see is never flagged.  `args` are the words after the
-/// `which` subcommand.
-fn namespace_which_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let is_variable = args
+/// analyser cannot see is never flagged. The selected option run and original
+/// word ordinals determine the role; the final word remains the name even when
+/// it begins with `-`. This describes the source probe, not its lookup result.
+fn namespace_which_arg_roles(
+    args: crate::InvocationArguments<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_, '_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    let count = args.exact_argv_len()?;
+    let occurrences = options.prefix_occurrences(args)?;
+    let name = options.leading_word_count(args)?;
+    if name.checked_add(1)? != count {
+        return None;
+    }
+    let is_variable = occurrences
         .iter()
-        .any(|a| a.len() > 1 && "-variable".starts_with(*a));
-    let Some(idx) = args.iter().rposition(|a| !a.starts_with('-')) else {
-        return Vec::new();
-    };
+        .filter_map(|occurrence| occurrence.option)
+        .rfind(|option| option.name == "-variable" || option.name == "-command")
+        .is_some_and(|option| option.name == "-variable");
     let role = if is_variable {
         ArgRole::VarRead
     } else {
         ArgRole::CommandNameProbe
     };
-    u8::try_from(idx).map_or_else(|_| Vec::new(), |i| vec![(i, role)])
+    Some(vec![(u8::try_from(name).ok()?, role)])
 }
 
 static WHICH_OPTIONS: &[OptionSpec] = &[
@@ -335,6 +351,7 @@ const ENSEMBLE_SUB_SUBCOMMANDS: &[SubSubCommand] = &[
         detail: "Query or update an existing ensemble command.",
         synopsis: "namespace ensemble configure command ?-option? ?value ...?",
         options: Some(ENSEMBLE_CONFIG_OPTIONS),
+        option_prefix_words: 1,
         ..SubSubCommand::DEFAULT
     },
     SubSubCommand {
@@ -360,6 +377,34 @@ const ENSEMBLE_SUB_SUBCOMMANDS: &[SubSubCommand] = &[
         ..SubSubCommand::DEFAULT
     },
 ];
+
+// Jim's loaded helper compares `create` exactly and forwards only the
+// original scripted factory's literal string-prefix option. The mutable
+// helper/factory binding supplies no C ensemble configuration or compiler fact.
+const JIM_ENSEMBLE_OPTIONS: &[OptionSpec] = &[OptionSpec {
+    name: "-automap",
+    value: OptionValue::value("prefix"),
+    detail: "Literal target command-name prefix concatenated with each requested subcommand; defaults to the current namespace followed by ::.",
+    surface: None,
+    effect: None,
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: Some(8),
+}];
+
+const JIM_ENSEMBLE_OP_VALUES: &[ArgValue] = &[ArgValue {
+    value: "create",
+    detail: "Create a scripted ensemble procedure for the current namespace.",
+    ..ArgValue::DEFAULT
+}];
+
+const JIM_ENSEMBLE_SUB_SUBCOMMANDS: &[SubSubCommand] = &[SubSubCommand {
+    name: "create",
+    detail: "Create a scripted ensemble procedure for the current namespace.",
+    synopsis: "namespace ensemble create ?-automap prefix?",
+    options: Some(JIM_ENSEMBLE_OPTIONS),
+    ..SubSubCommand::DEFAULT
+}];
 
 /// `namespace export`'s only flag — present unchanged in the synopsis of
 /// every fetched version (8.4 through 9.1).
@@ -393,10 +438,12 @@ static IMPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
 /// `NamespaceDeleteCmd` (tclNamesp.c) walks `objv[1..]` and deletes each,
 /// erroring on the first unknown one (`unknown namespace "::never" in
 /// namespace delete command`, rc 1 — identical on tclsh 9.0.4 and 8.6.16), so
-/// there is no flag or terminator word to skip. `args` are the words after
-/// the `delete` subcommand.
-fn namespace_delete_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    (0..args.len())
+/// there is no flag or terminator word to skip. The exact count is after
+/// the `delete` subcommand; namespace values need not be logical strings.
+fn namespace_delete_count_arg_roles(count: usize) -> Vec<(u8, ArgRole)> {
+    // naming.namespace.original-fresh-namespace-deletion
+
+    (0..count)
         .filter_map(|i| u8::try_from(i).ok())
         .map(|i| (i, ArgRole::NamespaceName))
         .collect()
@@ -436,28 +483,11 @@ pub(crate) fn fold_qualifiers(args: &[&str]) -> Option<String> {
 }
 
 pub(crate) fn fold_tail(args: &[&str]) -> Option<String> {
-    let [s] = args else {
+    let [written] = args else {
         return None;
     };
-    let b = s.as_bytes();
-    if b.is_empty() {
-        // `NamespaceTailCmd`'s `p` lands before the string start for the
-        // empty input and sets no result at all — the empty string.
-        return Some(String::new());
-    }
-    // The scan stops one short of the front (C's `while (--p > name)`), so a
-    // leading `::` is never treated as a separator: `namespace tail ::foo` is
-    // `foo`, but `namespace tail :` is `:`.
-    let mut p = b.len() - 1;
-    let mut start = 0usize;
-    while p > 0 {
-        if b[p] == b':' && b[p - 1] == b':' {
-            start = p + 1;
-            break;
-        }
-        p -= 1;
-    }
-    Some(s[start..].to_owned())
+    let tail = tcl_syntax::naming::written_command_tail(written.as_bytes());
+    Some(written[written.len() - tail.len()..].to_owned())
 }
 
 const NAMESPACE_UPVAR_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
@@ -497,6 +527,20 @@ const NAMESPACE_LOOKUP_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[Transiti
     domains: &[WorldStateDomain::NamespaceLookup],
 }];
 
+// The selected recursive deletion owns the parent's coarse interpreter-state
+// bridge as well as namespace lookup. NamespaceDeleteCmd/Tcl_DeleteNamespace
+// account for the exact tree, commands, cells and observers in this transition;
+// callbacks and independently declared policy/host accesses remain separate.
+// Implementation contract: naming.namespace.original-fresh-namespace-deletion
+
+const NAMESPACE_DELETE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
+    NAMESPACE_LOOKUP_EFFECT_COVERAGE[0],
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
+        domains: &[WorldStateDomain::InterpreterPolicy],
+    },
+];
+
 const NAMESPACE_DELETE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     composition: WorldEffectComposition::Extend,
     static_footprint: StaticEffectFootprint {
@@ -510,6 +554,7 @@ const NAMESPACE_DELETE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
         },
     },
     resolver: None,
+    source_resolver: None,
     dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
 };
 
@@ -526,18 +571,21 @@ const NAMESPACE_EVAL_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
         },
     },
     resolver: None,
+    source_resolver: None,
     dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
 };
 
 const NAMESPACE_DELETE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(namespace_delete_state_transitions),
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[StateTransitionWideningRule {
         operands: StateTransitionOperandLayout::EveryArgument,
         domains: NAMESPACE_DELETE_TRANSITION_DOMAINS,
     }],
-    effect_coverage: NAMESPACE_LOOKUP_EFFECT_COVERAGE,
+    effect_coverage: NAMESPACE_DELETE_EFFECT_COVERAGE,
     // Tcl destroys each requested tree in turn.  A later unknown namespace or
     // an observer callback can therefore report an abrupt completion after a
     // preceding tree has disappeared.
@@ -545,7 +593,9 @@ const NAMESPACE_DELETE_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
 };
 
 const NAMESPACE_ENSEMBLE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(namespace_ensemble_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -560,7 +610,9 @@ const NAMESPACE_ENSEMBLE_TRANSITIONS: StateTransitionDescriptor = StateTransitio
 };
 
 const NAMESPACE_EVAL_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(namespace_eval_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -574,7 +626,9 @@ const NAMESPACE_EVAL_TRANSITIONS: StateTransitionDescriptor = StateTransitionDes
 };
 
 const NAMESPACE_EXPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(namespace_export_state_transitions),
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -586,7 +640,9 @@ const NAMESPACE_EXPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
 };
 
 const NAMESPACE_FORGET_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(namespace_forget_state_transitions),
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -598,7 +654,9 @@ const NAMESPACE_FORGET_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
 };
 
 const NAMESPACE_IMPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(namespace_import_state_transitions),
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -612,7 +670,9 @@ const NAMESPACE_IMPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
 };
 
 const NAMESPACE_PATH_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(namespace_path_state_transitions),
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -624,7 +684,9 @@ const NAMESPACE_PATH_TRANSITIONS: StateTransitionDescriptor = StateTransitionDes
 };
 
 const NAMESPACE_UNKNOWN_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(namespace_unknown_state_transitions),
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -639,7 +701,9 @@ const NAMESPACE_UNKNOWN_TRANSITIONS: StateTransitionDescriptor = StateTransition
 };
 
 const NAMESPACE_UPVAR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(namespace_upvar_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -670,6 +734,8 @@ fn namespace_upvar_state_transitions(arguments: InvocationArguments<'_>) -> Stat
         };
         transitions.push(StateTransition::VariableCellAlias(
             VariableCellAliasTransition {
+                destination:
+                    crate::state_transition::VariableAliasDestination::CurrentNamespaceOrLocal,
                 local,
                 target: VariableAliasTarget::Namespace {
                     namespace: namespace.clone(),
@@ -700,12 +766,6 @@ fn subjects_from(arguments: InvocationArguments<'_>, first: usize) -> Vec<Transi
         .collect()
 }
 
-fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
-    arguments
-        .literal_at(1)
-        .is_some_and(|value| !value.is_empty() && option.starts_with(value))
-}
-
 fn namespace_delete_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
     let mut transitions = StateTransitions::default();
     for namespace in subjects_from(arguments, 1) {
@@ -725,6 +785,15 @@ fn namespace_ensemble_state_transitions(arguments: InvocationArguments<'_>) -> S
     if arguments.len() > 1 && arguments.literal_at(1) != Some("exists") {
         transitions.push(StateTransition::Namespace(NamespaceTransition::Ensemble {
             namespace: current_namespace(),
+            operation: arguments.literal_at(1).map(|word| match word {
+                "create" => crate::state_transition::EnsembleManagementOperation::Create,
+                "configure" => crate::state_transition::EnsembleManagementOperation::Configure,
+                "exists" => crate::state_transition::EnsembleManagementOperation::Exists,
+                _ => crate::state_transition::EnsembleManagementOperation::Other,
+            }),
+            arguments: (0..arguments.len())
+                .filter_map(|index| TransitionSubject::from_argument(arguments, index))
+                .collect(),
         }));
     }
     transitions
@@ -769,15 +838,25 @@ fn namespace_forget_state_transitions(arguments: InvocationArguments<'_>) -> Sta
 
 fn namespace_import_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
     let mut transitions = StateTransitions::default();
-    let first_pattern = if is_leading_option(arguments, "-force") {
-        2
-    } else {
-        1
+    let force = match arguments.argv_at(1) {
+        InvocationArgument::Word(InvocationWord::Literal(word)) => arguments
+            .dialect()
+            .and_then(crate::InvocationDialect::authored_name_policy)
+            .and_then(|policy| policy.namespace_import_source_control(word).ok())
+            .map(tcl_syntax::naming::AuthoredNamespaceImportControl::forces),
+        InvocationArgument::Word(InvocationWord::KnownBytes(bytes)) => arguments
+            .dialect()
+            .and_then(crate::InvocationDialect::native_name_protocol)
+            .and_then(|protocol| protocol.namespace_import_forces(bytes).ok()),
+        InvocationArgument::Missing => Some(false),
+        InvocationArgument::Word(_) | InvocationArgument::Indeterminate => None,
     };
+    let first_pattern = if force == Some(true) { 2 } else { 1 };
     let patterns = subjects_from(arguments, first_pattern);
     if !patterns.is_empty() {
         transitions.push(StateTransition::Namespace(NamespaceTransition::Import {
             namespace: current_namespace(),
+            force,
             patterns,
         }));
     }
@@ -810,9 +889,127 @@ fn namespace_unknown_state_transitions(arguments: InvocationArguments<'_>) -> St
     transitions
 }
 
+// C8.5 namespace compilation recognises only upvar. C8.6.18,
+// C9.0.4 and C9.1.0 register the following exact private workers.
+// These use Basic* late-name hooks. The lookup records registration
+// independently of normal handler effects.
+// Private namespace workers retain their native NULL compileProc separately
+// from the public ensemble compiler and runtime body-selection contract.
+macro_rules! namespace_no_hook_compiler {
+    ($member:literal, $operation:expr, $body:expr) => {
+        // naming.namespace.original-counted-namespace-allocation
+
+        crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::WithImplementationPath {
+                compiler: &crate::native_compilation::NativeCompilationSpec {
+                    grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+                    operation: $operation,
+                    body: $body,
+                },
+                lookups: &[
+                    crate::native_compilation::NativeCompilerImplementationLookup {
+                        ensemble: "::namespace",
+                        member: $member,
+                        slot: concat!("::tcl::namespace::", $member),
+                        command: "namespace",
+                        prepended: &[$member],
+                    },
+                ],
+                implementation_from: tcl_dialect::TclVersion::V8_6,
+                monolithic_no_hook_before: true,
+            },
+            operation: $operation,
+            body: $body,
+        }
+    };
+}
+
+const NAMESPACE_NAMED_LOOKUPS: &[crate::native_compilation::NativeCompilerImplementationLookup] = &[
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::namespace",
+        member: "children",
+        slot: "::tcl::namespace::children",
+        command: "namespace",
+        prepended: &["children"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::namespace",
+        member: "delete",
+        slot: "::tcl::namespace::delete",
+        command: "namespace",
+        prepended: &["delete"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::namespace",
+        member: "exists",
+        slot: "::tcl::namespace::exists",
+        command: "namespace",
+        prepended: &["exists"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::namespace",
+        member: "export",
+        slot: "::tcl::namespace::export",
+        command: "namespace",
+        prepended: &["export"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::namespace",
+        member: "forget",
+        slot: "::tcl::namespace::forget",
+        command: "namespace",
+        prepended: &["forget"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::namespace",
+        member: "import",
+        slot: "::tcl::namespace::import",
+        command: "namespace",
+        prepended: &["import"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::namespace",
+        member: "parent",
+        slot: "::tcl::namespace::parent",
+        command: "namespace",
+        prepended: &["parent"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::namespace",
+        member: "path",
+        slot: "::tcl::namespace::path",
+        command: "namespace",
+        prepended: &["path"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::namespace",
+        member: "unknown",
+        slot: "::tcl::namespace::unknown",
+        command: "namespace",
+        prepended: &["unknown"],
+    },
+];
+
+const fn namespace_named_compilation(
+    index: usize,
+    arity: Arity,
+) -> crate::native_compilation::NativeCompilationSpec {
+    crate::native_compilation::NativeCompilationSpec {
+        grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+            lookup: &NAMESPACE_NAMED_LOOKUPS[index],
+            implementation_from: tcl_dialect::TclVersion::V8_6,
+            hook_from: tcl_dialect::TclVersion::V8_6,
+            arity,
+        },
+        operation: crate::SemanticOperationId::Invoke,
+        body: crate::native_compilation::NativeBodyCompilation::Direct,
+    }
+}
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "children",
+        native_compilation: Some(namespace_named_compilation(0, Arity::new(0, 2))),
         arity: Arity::new(0, 2),
         detail: "Returns a list of all child namespaces.",
         synopsis: "namespace children ?namespace? ?pattern?",
@@ -827,9 +1024,18 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "code",
+        // TclCompileNamespaceCodeCmd builds only a SIMPLE_WORD; dynamic and
+        // already-scoped scripts retain the original private handler rewrite.
+        inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::NamespaceCode),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceCode,
+            operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::NamespaceCode),
+            body: crate::native_compilation::NativeBodyCompilation::Direct,
+        }),
         arity: Arity::exact(1),
         detail: "Captures the current namespace context for later execution.",
         synopsis: "namespace code script",
+        native_result: Some(crate::native_result::NativeResultContract::NamespaceCommandPrefix),
         pure: true,
         return_type: Some(TclType::String),
         // The captured script runs in the *current* namespace when the
@@ -852,6 +1058,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "current",
+        inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::NamespaceCurrent),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceCurrent,
+            operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::NamespaceCurrent),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         arity: Arity::exact(0),
         detail: "Returns the fully-qualified name for the current namespace.",
         synopsis: "namespace current",
@@ -862,6 +1074,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "delete",
+        native_compilation: Some(namespace_named_compilation(1, Arity::any())),
         traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::any(),
         detail: "Delete namespaces and their contents.",
@@ -874,8 +1087,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         destructive: true,
         return_type: Some(TclType::String),
         // Every positional word names a namespace — see
-        // `namespace_delete_arg_roles`.
-        arg_role_resolver: Some(namespace_delete_arg_roles),
+        // `namespace_delete_count_arg_roles`.
+        arg_role_count_resolver: Some(namespace_delete_count_arg_roles),
         arg_role_resolver_roles: &[ArgRole::NamespaceName],
         world_effects: Some(NAMESPACE_DELETE_EFFECTS),
         state_transitions: Some(NAMESPACE_DELETE_TRANSITIONS),
@@ -883,6 +1096,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "ensemble",
+        // C8.5's namespace compiler handles only upvar; the C8.6–9.1
+        // ensemble implementation table registers this management worker
+        // with a NULL compileProc. Its create/configure/exists dispatcher
+        // therefore has ordinary post-argv lookup and no compiled bodies.
+        native_compilation: Some(namespace_no_hook_compiler!(
+            "ensemble",
+            crate::SemanticOperationId::Invoke,
+            crate::native_compilation::NativeBodyCompilation::Direct
+        )),
         arity: Arity::at_least(1),
         detail: "Creates and manipulates a command ensemble.",
         synopsis: "namespace ensemble subcommand ?arg ...?",
@@ -920,6 +1142,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "eval",
+        native_compilation: Some(namespace_no_hook_compiler!(
+            "eval",
+            crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::NamespaceEval
+            ),
+            crate::native_compilation::NativeBodyCompilation::ScriptObject
+        )),
+        // The exact handler owns namespace/frame selection and concatenates
+        // the remaining frozen words. Candidate body entry is independent of
+        // a host's unresolved native compiler protocol.
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::PossibleBodies),
         arity: Arity::at_least(2),
         detail: "Evaluate a script in a namespace context.",
         synopsis: "namespace eval namespace arg ?arg ...?",
@@ -962,6 +1195,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "exists",
+        native_compilation: Some(namespace_named_compilation(2, Arity::exact(1))),
         arity: Arity::exact(1),
         detail: "Test whether a namespace exists.",
         synopsis: "namespace exists namespace",
@@ -976,6 +1210,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "export",
+        native_compilation: Some(namespace_named_compilation(3, Arity::any())),
         arity: Arity::any(),
         detail: "Specifies which commands are exported from a namespace; with no patterns and no -clear, returns the namespace's current export list.",
         synopsis: "namespace export ?-clear? ?pattern pattern ...?",
@@ -1001,6 +1236,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "forget",
+        native_compilation: Some(namespace_named_compilation(4, Arity::any())),
         // Removes imported commands matched by spelled name / pattern.
         traits: Traits::FIRE_AND_FORGET_TEARDOWN.union(Traits::REFLECTS_COMMAND_NAMES),
         arity: Arity::any(),
@@ -1024,6 +1260,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "import",
+        native_compilation: Some(namespace_named_compilation(5, Arity::any())),
         // Imports commands by their spelled names / patterns.
         traits: Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::any(),
@@ -1061,6 +1298,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "inscope",
+        native_compilation: Some(namespace_no_hook_compiler!(
+            "inscope",
+            crate::SemanticOperationId::Invoke,
+            crate::native_compilation::NativeBodyCompilation::ScriptObject
+        )),
         arity: Arity::at_least(2),
         detail: "Executes a script in the context of the specified namespace.",
         synopsis: "namespace inscope namespace script ?arg ...?",
@@ -1086,6 +1328,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "origin",
+        // C8.6+ registers TclCompileNamespaceOriginCmd on this exact worker;
+        // the original visit accepts one operand and emits ORIGIN_COMMAND.
+        // Registration metadata remains separate from normal worker effects.
+        inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::NamespaceOrigin),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceOrigin,
+            operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::NamespaceOrigin),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Resolves an imported command's original spelled name.
         traits: Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::exact(1),
@@ -1101,6 +1352,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "parent",
+        native_compilation: Some(namespace_named_compilation(6, Arity::new(0, 1))),
         arity: Arity::new(0, 1),
         detail: "Returns the fully-qualified name of the parent namespace.",
         synopsis: "namespace parent ?namespace?",
@@ -1113,6 +1365,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "path",
+        native_compilation: Some(namespace_named_compilation(7, Arity::new(0, 1))),
         arity: Arity::new(0, 1),
         detail: "Returns the command resolution path of the current namespace.",
         synopsis: "namespace path ?namespaceList?",
@@ -1125,6 +1378,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "qualifiers",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceString(
+                crate::native_namespace_string_compilation::NativeNamespaceStringOperation::Qualifiers,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Direct,
+        }),
         arity: Arity::exact(1),
         detail: "Returns any leading namespace qualifiers for string.",
         synopsis: "namespace qualifiers string",
@@ -1139,6 +1399,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "tail",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceString(
+                crate::native_namespace_string_compilation::NativeNamespaceStringOperation::Tail,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Direct,
+        }),
         arity: Arity::exact(1),
         detail: "Returns the simple name at the end of a qualified string.",
         synopsis: "namespace tail string",
@@ -1153,6 +1420,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "unknown",
+        native_compilation: Some(namespace_named_compilation(8, Arity::new(0, 1))),
         // Installs a handler that receives unresolved command names.
         traits: Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::new(0, 1),
@@ -1167,6 +1435,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // prefix invoked with the unknown command name + its args appended
         // (variadic ⇒ AtLeast(1)). The zero-arg query form has no prefix.
         command_prefixes: &[(0, AppendedArity::AtLeast(1))],
+        // naming.callback.original-unknown-handler-lookup-scope
+
+        // TEOV_NotFound resolves in the failing dispatch's frame/lookup
+        // namespace, never by borrowing the earlier installer's frame.
+        script_lookup_scope: Some(crate::ScriptLookupScope::TriggerFrame),
         script_timing_resolver: Some(namespace_unknown_script_timing),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceUnknown),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
@@ -1175,6 +1448,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "upvar",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceUpvarBindings,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Direct,
+        }),
         // `namespace` + zero-or-more otherVar/myVar PAIRS is a stepped
         // shape, not a flat `at_least` range: Tcl 9.1's own
         // `NamespaceUpvarCmd` (tclNamesp.c) rejects both too few args
@@ -1219,6 +1497,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "which",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceWhich,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Direct,
+        }),
         // Looks a command up by its spelled name.
         traits: Traits::REFLECTS_COMMAND_NAMES,
         // Exactly one trailing `name`; the two leading flags are declared in
@@ -1228,7 +1511,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Looks up name as either a command or variable.",
         synopsis: "namespace which ?-command? ?-variable? name",
         options: WHICH_OPTIONS,
-        arg_role_resolver: Some(namespace_which_arg_roles),
+        reserved_trailing_words: 1,
+        arg_role_layout_resolver: Some(namespace_which_arg_roles),
         arg_role_resolver_roles: &[ArgRole::VarRead, ArgRole::CommandNameProbe],
         pure: true,
         return_type: Some(TclType::String),
@@ -1238,9 +1522,80 @@ static SUBCOMMANDS: &[SubCommand] = &[
 ];
 
 /// Command spec for `namespace`.
+/// The measured Jim namespace helper surface, without C-only subcommands.
+pub fn jim_spec() -> CommandSpec {
+    static SUBCOMMANDS_JIM: std::sync::OnceLock<Box<[SubCommand]>> = std::sync::OnceLock::new();
+    let mut command = spec();
+    // Jim's namespace extension has no C namespace compiler worker.
+    command.native_compilation = None;
+    command.surface = Some(surface![SpecSurface::core_in(
+        tcl_dialect::model::Family::Jim,
+        &[("0.84", None)]
+    )]);
+    command.subcommands = SUBCOMMANDS_JIM
+        .get_or_init(|| {
+            let mut subcommands: Vec<_> = command
+                .subcommands
+                .iter()
+                .filter(|sub| {
+                    crate::native_jim_lookup::namespace_subcommand_declarations()
+                        .iter()
+                        .any(|entry| entry.name() == sub.name)
+                })
+                .cloned()
+                .collect();
+            for subcommand in &mut subcommands {
+                if matches!(
+                    subcommand.name,
+                    "code" | "delete" | "ensemble" | "import" | "inscope" | "origin" | "which"
+                ) {
+                    subcommand.min_abbrev = Some(
+                        u8::try_from(subcommand.name.len()).expect("namespace subcommand length"),
+                    );
+                }
+                if subcommand.name == "ensemble" {
+                    *subcommand = SubCommand {
+                        name: "ensemble",
+                        arity: Arity::at_least(1),
+                        detail: "Creates a scripted ensemble procedure for the current namespace.",
+                        synopsis: "namespace ensemble create ?-automap prefix?",
+                        min_abbrev: Some(8),
+                        prefix_matching: crate::abbrev::PrefixMatching::Strict,
+                        options: JIM_ENSEMBLE_OPTIONS,
+                        arg_values: &[(0, JIM_ENSEMBLE_OP_VALUES)],
+                        closed_value_args: &[0],
+                        sub_subcommands: JIM_ENSEMBLE_SUB_SUBCOMMANDS,
+                        // This schema describes the original source library.
+                        // Current helper/factory resolution is independent;
+                        // do not inherit C publication/effect/compiler facts.
+                        ..SubCommand::DEFAULT
+                    };
+                }
+                if subcommand.name == "export" {
+                    subcommand.options = &[];
+                    subcommand.state_transitions = None;
+                }
+            }
+            subcommands.push(SubCommand {
+                name: "canonical",
+                arity: Arity::new(0, 2),
+                synopsis: "namespace canonical ?namespace? ?name?",
+                ..SubCommand::DEFAULT
+            });
+            subcommands.into_boxed_slice()
+        })
+        .as_ref();
+    command
+}
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "namespace",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceLegacy,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("namespace"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::FRAMELESS_RUNTIME
@@ -1282,12 +1637,189 @@ pub fn spec() -> CommandSpec {
 mod tests {
     use super::{
         NamespaceTransition, NamespaceTransitionTarget, StateTransition, TransitionSubject,
-        fold_qualifiers, fold_tail, namespace_delete_state_transitions,
-        namespace_path_state_transitions,
+        WHICH_OPTIONS, fold_qualifiers, fold_tail, namespace_delete_state_transitions,
+        namespace_path_state_transitions, namespace_which_arg_roles, spec,
     };
-    use crate::InvocationArguments;
+    use crate::prelude::SideEffectTarget;
+    use crate::{
+        CallbackEffect, CallbackKinds, InvocationArguments, StaticEffectFootprint,
+        WorldEffectComposition, WorldEffectDescriptor, WorldEffectDynamicFallback,
+        WorldEffectWriteSource, WorldStateDomain,
+    };
     use tcl_dialect::model::surface_admits;
     use tcl_dialect::model::{Family, SurfaceQuery};
+
+    #[test]
+    fn which_roles_use_the_selected_option_order_and_reserved_final_name() {
+        let options = crate::resolved_invocation::InvocationOptions {
+            availability: crate::resolved_invocation::InvocationAvailability::default(),
+            parent_surface: None,
+            form_surface: None,
+            prefix_matching: crate::abbrev::PrefixMatching::Enabled,
+            positional_prefix_words: 0,
+            reserved_trailing_words: 1,
+            case_list: None,
+            base: WHICH_OPTIONS,
+            form: &[],
+        };
+        assert_eq!(
+            namespace_which_arg_roles(
+                crate::InvocationArguments::literals(&["-variable", "-command", "-dash"]),
+                options,
+            ),
+            Some(vec![(2, crate::arg_role::ArgRole::CommandNameProbe)])
+        );
+        assert_eq!(
+            namespace_which_arg_roles(
+                crate::InvocationArguments::literals(&["-command", "-variable", "-dash"]),
+                options,
+            ),
+            Some(vec![(2, crate::arg_role::ArgRole::VarRead)])
+        );
+        let expanded = [
+            crate::InvocationWord::Literal("-variable"),
+            crate::InvocationWord::Expanded,
+            crate::InvocationWord::Literal("name"),
+        ];
+        assert!(
+            namespace_which_arg_roles(crate::InvocationArguments::structured(&expanded), options,)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn jim_scripted_ensemble_metadata_requires_exact_words_and_separate_helper_binding() {
+        // naming.namespace.jim-original-scripted-ensemble-publication-with-rooted-result
+
+        // naming.namespace.jim-original-scripted-helper-availability-and-forwarding
+
+        // The original returned helper body rejects unsupported operations.
+        // These are source-schema assertions, not current helper/Normal proofs.
+        let spec = super::jim_spec();
+        let ensemble = spec.subcommand("ensemble").expect("Jim helper schema");
+        let query = Some(SurfaceQuery::core(Family::Jim, "0.84"));
+        assert!(ensemble.surface.is_none());
+        let context = crate::model::ingress::static_context_for("jim");
+        let current = context
+            .context()
+            .resolve_spec(context.commands(), "namespace")
+            .expect("Jim namespace source card");
+        assert!(
+            context
+                .context()
+                .available_subcommands(current)
+                .iter()
+                .any(|sub| sub.name == "ensemble")
+        );
+        assert_eq!(
+            ensemble
+                .available_sub_subcommands(query, None)
+                .iter()
+                .map(|sub| sub.name)
+                .collect::<Vec<_>>(),
+            ["create"]
+        );
+        for invalid in ["cre", "configure", "exists"] {
+            assert!(
+                ensemble
+                    .resolve_sub_subcommand_for_dialect(invalid, query)
+                    .is_none()
+            );
+        }
+        assert_eq!(
+            ensemble
+                .resolve_sub_subcommand_for_dialect("create", query)
+                .map(|sub| sub.name),
+            Some("create")
+        );
+        assert_eq!(
+            ensemble
+                .options
+                .iter()
+                .map(|option| option.name)
+                .collect::<Vec<_>>(),
+            ["-automap"]
+        );
+        for (word, expected) in [
+            ("-automap", Some("-automap")),
+            ("-auto", None),
+            ("-map", None),
+        ] {
+            assert_eq!(
+                ensemble
+                    .resolve_option_word(word, query, None, None)
+                    .unique(),
+                expected
+            );
+        }
+        let dialect = crate::InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment("jim").unit_profile(),
+        );
+        let operands = [
+            crate::InvocationWord::Literal("ensemble"),
+            crate::InvocationWord::Literal("create"),
+        ];
+        let words = crate::InvocationWords::structured(
+            crate::InvocationWord::Literal("namespace"),
+            &operands,
+        )
+        .with_dialect(dialect);
+        let facts = context
+            .commands()
+            .resolve_structured_invocation(words, dialect.authoring_query())
+            .resolved()
+            .unwrap()
+            .facts();
+        assert!(facts.native_compilation.is_none());
+        assert!(!ensemble.prefix_matching.accepts_prefixes());
+        assert!(!ensemble.arg_values_accept_prefix);
+        assert!(ensemble.native_compilation.is_none());
+        assert!(ensemble.successful_handler.is_none());
+        assert!(ensemble.analyser_hook.is_none());
+        assert!(ensemble.state_transitions.is_none());
+        assert!(ensemble.world_effects.is_none());
+    }
+
+    #[test]
+    fn namespace_basic_members_use_versioned_private_invocation_protocol() {
+        use crate::native_compilation::{
+            NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
+            NativeCompilationSelection, NativeCompilationWordShape,
+        };
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::of_profile(
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
+            );
+            for member in ["import", "export", "path"] {
+                let native = super::spec()
+                    .subcommands
+                    .iter()
+                    .find(|sub| sub.name == member)
+                    .unwrap()
+                    .native_compilation
+                    .unwrap();
+                let selection = native.select(
+                    crate::InvocationWords::literals("namespace", &[member, "::A"]),
+                    &[NativeCompilationWordShape::Literal; 2],
+                    Some(dialect),
+                    NativeCompilationContext {
+                        mode: NativeCompilationMode::BytecodeObject,
+                        frame: NativeCompilationFrame::ScriptCode,
+                        loop_depth: 0,
+                        catch_depth: Some(0),
+                    },
+                );
+                if version < tcl_dialect::TclVersion::V8_6 {
+                    assert!(native.implementation_lookup(dialect).is_none());
+                    assert_eq!(selection, NativeCompilationSelection::Generic);
+                } else {
+                    assert!(matches!(selection,
+                        NativeCompilationSelection::NamedInvocation {lookup,arguments_from: 1,..}
+                            if lookup.member == member && lookup.ensemble == "::namespace"));
+                }
+            }
+        }
+    }
 
     #[test]
     fn namespace_code_declares_deferred_execution_timing() {
@@ -1313,10 +1845,136 @@ mod tests {
                     &fact.transition,
                     StateTransition::Namespace(NamespaceTransition::SetPath {
                         namespace: NamespaceTransitionTarget::Current,
-                        path: TransitionSubject::Literal(path),
+                        path: TransitionSubject::LocatedLiteral { value: path, .. },
                     }) if path == "::pkg {::other child}"
                 )
         ));
+    }
+
+    #[test]
+    fn original_namespace_delete_roles_require_cardinality_without_requiring_text_values() {
+        // naming.namespace.original-fresh-namespace-deletion
+
+        use crate::{ArgRole, InvocationWord, InvocationWords};
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let registry =
+                crate::model::ingress::static_context_for(version.dialect_name()).commands();
+            let exact = [
+                InvocationWord::Literal("delete"),
+                InvocationWord::KnownBytes(b"N\xed\xa0\x80"),
+                InvocationWord::Dynamic,
+            ];
+            let selected = registry.resolve_structured_invocation(
+                InvocationWords::structured(InvocationWord::Literal("namespace"), &exact)
+                    .with_dialect(dialect),
+                dialect.authoring_query(),
+            );
+            let facts = selected.resolved().unwrap().facts();
+            assert!(facts.arg_roles_complete, "{version:?}");
+            assert_eq!(facts.argument_offset, 1);
+            assert_eq!(
+                facts.arg_roles,
+                [(0, ArgRole::NamespaceName), (1, ArgRole::NamespaceName)]
+            );
+            let expanded = [InvocationWord::Literal("delete"), InvocationWord::Expanded];
+            let selected = registry.resolve_structured_invocation(
+                InvocationWords::structured(InvocationWord::Literal("namespace"), &expanded)
+                    .with_dialect(dialect),
+                dialect.authoring_query(),
+            );
+            let facts = selected.resolved().unwrap().facts();
+            assert!(!facts.arg_roles_complete, "{version:?}");
+            assert_eq!(facts.arg_roles.len(), 0);
+        }
+    }
+
+    #[test]
+    fn original_namespace_delete_effects_hand_only_legacy_state_to_the_recursive_transition() {
+        // naming.namespace.original-fresh-namespace-deletion
+
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let registry =
+                crate::model::ingress::static_context_for(version.dialect_name()).commands();
+            let arguments = ["delete", "N"];
+            let selected = registry.resolve_structured_invocation(
+                crate::InvocationWords::literals("namespace", &arguments).with_dialect(dialect),
+                dialect.authoring_query(),
+            );
+            let facts = selected.resolved().unwrap().facts();
+            assert!(facts.effects.accesses().is_empty(), "{version:?}");
+            assert_eq!(facts.effects.callback().kinds, CallbackKinds::TRACE);
+            assert_eq!(facts.effects.legacy().side_effects.len(), 2);
+            assert!(
+                facts
+                    .transition_effect_coverage
+                    .entries()
+                    .iter()
+                    .any(|coverage| coverage.covers(
+                        WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
+                        WorldStateDomain::InterpreterPolicy,
+                    ))
+            );
+            assert!(matches!(
+                facts.state_transitions.declared().unwrap().facts(),
+                [fact] if matches!(&fact.transition, StateTransition::Namespace(NamespaceTransition::Delete { .. }))
+            ));
+            let no_targets = ["delete"];
+            let selected = registry.resolve_structured_invocation(
+                crate::InvocationWords::literals("namespace", &no_targets).with_dialect(dialect),
+                dialect.authoring_query(),
+            );
+            let facts = selected.resolved().unwrap().facts();
+            assert_eq!(facts.transition_effect_coverage.entries().len(), 0);
+            assert!(facts.effects.accesses().iter().any(|access| access.domain
+                == WorldStateDomain::InterpreterPolicy
+                && access.mode == crate::world_effect::EffectAccessMode::Write));
+        }
+    }
+
+    #[test]
+    fn original_namespace_delete_keeps_independent_policy_writes_and_trace_callbacks() {
+        // naming.namespace.original-fresh-namespace-deletion
+
+        use crate::world_effect::{
+            EffectAccessMode, StaticEffectAccess, StaticInterpreterScope, StaticNamespaceScope,
+            StaticSubjectScope,
+        };
+        const POLICY_WRITE: &[StaticEffectAccess] = &[StaticEffectAccess::new(
+            WorldStateDomain::InterpreterPolicy,
+            EffectAccessMode::Write,
+            StaticInterpreterScope::Current,
+            StaticNamespaceScope::Current,
+            StaticSubjectScope::Wildcard,
+        )];
+        let mut registry = crate::CommandRegistry::build_default();
+        registry.insert(crate::CommandSpec {
+            world_effects: Some(WorldEffectDescriptor {
+                composition: WorldEffectComposition::Extend,
+                static_footprint: StaticEffectFootprint {
+                    accesses: POLICY_WRITE,
+                    callback: CallbackEffect::NONE,
+                },
+                resolver: None,
+                source_resolver: None,
+                dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
+            }),
+            ..spec()
+        });
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let arguments = ["delete", "N"];
+            let selected = registry.resolve_structured_invocation(
+                crate::InvocationWords::literals("namespace", &arguments).with_dialect(dialect),
+                dialect.authoring_query(),
+            );
+            let facts = selected.resolved().unwrap().facts();
+            assert!(facts.effects.accesses().iter().any(|access| access.domain
+                == WorldStateDomain::InterpreterPolicy
+                && access.mode == EffectAccessMode::Write));
+            assert_eq!(facts.effects.callback().kinds, CallbackKinds::TRACE);
+        }
     }
 
     #[test]
@@ -1331,12 +1989,12 @@ mod tests {
                 if matches!(
                     &first.transition,
                     StateTransition::Namespace(NamespaceTransition::Delete {
-                        namespace: NamespaceTransitionTarget::Named(TransitionSubject::Literal(name)),
+                        namespace: NamespaceTransitionTarget::Named(TransitionSubject::LocatedLiteral { value: name, .. }),
                     }) if name == "::pkg"
                 ) && matches!(
                     &second.transition,
                     StateTransition::Namespace(NamespaceTransition::Delete {
-                        namespace: NamespaceTransitionTarget::Named(TransitionSubject::Literal(name)),
+                        namespace: NamespaceTransitionTarget::Named(TransitionSubject::LocatedLiteral { value: name, .. }),
                     }) if name == "::other"
                 )
         ));
@@ -1535,5 +2193,50 @@ mod tests {
                 .is_none()
         );
         assert!(ensemble.resolve_sub_subcommand("c").is_none());
+    }
+}
+
+#[cfg(test)]
+mod import_value_purpose_controls {
+    use super::*;
+
+    #[test]
+    fn original_source_and_native_operands_select_control_and_pattern_ordinal_by_actual_purpose() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let project = |words: &[InvocationWord<'_>], configured| {
+            let arguments = InvocationArguments::structured(words).with_profile(configured);
+            let transitions = namespace_import_state_transitions(arguments);
+            transitions
+                .facts()
+                .iter()
+                .find_map(|fact| match &fact.transition {
+                    StateTransition::Namespace(NamespaceTransition::Import {
+                        force,
+                        patterns,
+                        ..
+                    }) => Some((*force, patterns.len())),
+                    _ => None,
+                })
+                .unwrap()
+        };
+        let source = [
+            InvocationWord::Literal("import"),
+            InvocationWord::Literal("-force"),
+            InvocationWord::Literal("::m::*"),
+        ];
+        assert_eq!(project(&source, Some(profile)), (Some(true), 1));
+        assert_eq!(project(&source, None), (None, 2));
+        let source = [
+            InvocationWord::Literal("import"),
+            InvocationWord::Literal("-force\0tail"),
+            InvocationWord::Literal("::m::*"),
+        ];
+        assert_eq!(project(&source, Some(profile)), (Some(false), 2));
+        let native = [
+            InvocationWord::Literal("import"),
+            InvocationWord::KnownBytes(b"-force\0tail"),
+            InvocationWord::Literal("::m::*"),
+        ];
+        assert_eq!(project(&native, Some(profile)), (Some(true), 1));
     }
 }

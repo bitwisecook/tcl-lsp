@@ -1006,10 +1006,20 @@ fn a_variable_renames_again_after_the_first_rename_was_undone() {
     lsp.open_ready(&uri, "set a 1\nincr a\nputs \"$a\"\n");
     // The editor applies the rename...
     lsp.replace_document(&uri, 2, "set b 1\nincr b\nputs \"$b\"\n");
-    lsp.await_diagnostics(&uri);
+    lsp.current_complete_diagnostics(
+        &uri,
+        2,
+        "set b 1\nincr b\nputs \"$b\"\n",
+        std::time::Duration::from_secs(30),
+    );
     // ...and the user undoes it.
     lsp.replace_document(&uri, 3, "set a 1\nincr a\nputs \"$a\"\n");
-    lsp.await_diagnostics(&uri);
+    lsp.current_complete_diagnostics(
+        &uri,
+        3,
+        "set a 1\nincr a\nputs \"$a\"\n",
+        std::time::Duration::from_secs(30),
+    );
     let result = lsp.rename(&uri, 0, 4, "b");
     assert!(
         !result.is_null(),

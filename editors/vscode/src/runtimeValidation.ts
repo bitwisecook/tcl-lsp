@@ -75,6 +75,29 @@ export function resolveRuntimeValidationAdapter(
   return "tcl-syntax";
 }
 
+export interface RuntimeValidationDialectReport {
+  readonly uri: string;
+  readonly version: number;
+  readonly source: string;
+  readonly dialectId: string;
+}
+
+/** Select auto mode only when the completed report matches the captured document snapshot. */
+export function runtimeValidationAdapterFromReport(
+  report: RuntimeValidationDialectReport,
+  expected: { readonly uri: string; readonly version: number; readonly source: string },
+): RuntimeValidationAdapter | undefined {
+  if (
+    report.uri !== expected.uri ||
+    report.version !== expected.version ||
+    report.source !== expected.source ||
+    report.dialectId.length === 0
+  ) {
+    return undefined;
+  }
+  return resolveRuntimeValidationAdapter("auto", report.dialectId);
+}
+
 export function buildRuntimeValidationChecker(adapter: RuntimeValidationAdapter): string {
   return adapter === "irules-stub" ? IRULES_STUB_CHECKER_SCRIPT : TCL_SYNTAX_CHECKER_SCRIPT;
 }

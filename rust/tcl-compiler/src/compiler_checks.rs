@@ -34,19 +34,23 @@ use crate::gvn::{
     find_loop_invariants_for_function, find_partial_redundancies_for_function,
     find_redundancies_for_function,
 };
+#[cfg(test)]
+use crate::irules_checks::find_conditional_irule_source_flow_advice;
 use crate::irules_checks::{
-    CodeFix, IrulesCheckWarning, find_collect_flow_warnings, find_generic_static_name_warnings,
-    find_hoistable_set_warnings, find_http_flow_warnings, find_unguarded_drop_warnings,
+    CodeFix, IrulesCheckWarning, find_conditional_collection_source_pairing_advice,
+    find_generic_static_name_warnings, find_hoistable_set_warnings,
 };
-use crate::path_concat::{PathConcatWarning, find_path_concat_warnings};
+use crate::path_concat::PathConcatWarning;
 use crate::sccp::{BranchFactKind, ConstantBranch};
 use crate::shimmer::{
-    SharingWarning, ShimmerWarning, ThunkingWarning, find_byte_array_warnings,
-    find_sharing_warnings, find_shimmer_warnings, find_thunking_warnings,
+    SharingWarning, ShimmerWarning, ThunkingWarning, find_byte_array_warnings_with_context,
+    find_sharing_warnings_with_context, find_shimmer_warnings_with_context,
+    find_thunking_warnings_with_context,
 };
 use crate::taint::{
-    TaintWarning, find_destructive_file_warnings, find_setter_constraint_warnings,
-    find_taint_warnings_for_function, is_irules_dialect,
+    TaintWarning, find_destructive_file_warnings_for_module_function,
+    find_path_concat_warnings_for_module_function,
+    find_setter_constraint_warnings_for_module_function, is_irules_dialect,
 };
 use crate::uri_split::find_uri_split_suggestions;
 use tcl_registry::CommandRegistry;
@@ -56,6 +60,102 @@ use tcl_registry::CommandRegistry;
 pub use tcl_core_types::DiagCode;
 /// Severity of a compiler diagnostic — the shared [`tcl_core_types::Severity`].
 pub use tcl_core_types::Severity;
+
+/// Exact source and command-store inputs retained by a diagnostic issuer.
+/// This is source currency, not a reached command, cell or edit permission.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DiagnosticSourceContext {
+    image: tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    registry: tcl_registry::RegistrySnapshot,
+    input: crate::analyser::ResolvedAnalysisInput,
+    authoring_purpose: DiagnosticSourceAuthoringPurpose,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum DiagnosticSourceAuthoringPurpose {
+    OrdinarySourceSubject,
+    ConditionalSourceNoAction,
+}
+
+impl DiagnosticSourceContext {
+    /// Eligibility for a retained authoring subject, independently of every
+    /// action's further source/intent checks. Conditional source advice grants none.
+    #[must_use]
+    pub fn allows_context_action_subject(&self) -> bool {
+        self.authoring_purpose == DiagnosticSourceAuthoringPurpose::OrdinarySourceSubject
+    }
+
+    fn for_unit(cu: &CompilationUnit, registry: &CommandRegistry) -> Option<Self> {
+        if cu.ir_module.registry_snapshot.as_ref()?.semantic_key()
+            != registry.snapshot().semantic_key()
+        {
+            return None;
+        }
+        let input = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &cu.ir_module,
+        )?
+        .source_analysis_input()?;
+        Some(Self {
+            image: cu.ir_module.source.clone(),
+            config: cu.ir_module.lexer_config,
+            registry: registry.snapshot(),
+            input: input.clone(),
+            authoring_purpose: DiagnosticSourceAuthoringPurpose::OrdinarySourceSubject,
+        })
+    }
+
+    /// Whole original image, including the source channel.
+    #[must_use]
+    pub const fn image(&self) -> &tcl_lexer::SourceImage {
+        &self.image
+    }
+    /// Every actual lexer configuration axis.
+    #[must_use]
+    pub const fn lexer_config(&self) -> tcl_lexer::LexerConfig {
+        self.config
+    }
+    /// Complete actual availability and source policies used by the issuer.
+    /// This retained input supplies currency only, not an execution grant.
+    #[must_use]
+    pub const fn analysis_input(&self) -> &crate::analyser::ResolvedAnalysisInput {
+        &self.input
+    }
+    /// Immutable command store used by the diagnostic producer.
+    #[must_use]
+    pub const fn registry(&self) -> &tcl_registry::RegistrySnapshot {
+        &self.registry
+    }
+}
+
+/// Structured taint producer fields, independent of the rendered message.
+/// The variable is a taint-analysis subject, not a native lookup key. Consumers
+/// select a source read independently before proposing a replacement.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TaintDiagnosticSubject {
+    variable: String,
+    sink_command: String,
+    source_sink: Option<crate::taint::TaintSinkSource>,
+}
+
+impl TaintDiagnosticSubject {
+    /// Taint-analysis subject used for source advice and presentation.
+    #[must_use]
+    pub fn variable(&self) -> &str {
+        &self.variable
+    }
+    /// Original source invocation retained by the actual warning producer.
+    #[must_use]
+    pub fn source_sink(&self) -> Option<&crate::taint::TaintSinkSource> {
+        self.source_sink.as_ref()
+    }
+    /// Sink selected by the producer; never extracted from diagnostic prose.
+    #[must_use]
+    pub fn sink_command(&self) -> &str {
+        &self.sink_command
+    }
+}
 
 /// A unified diagnostic emitted by the compiler-checks pipeline.
 ///
@@ -84,6 +184,10 @@ pub struct Diagnostic {
     /// check has no such fix. Consumers emit one `TextEdit` per fix at its own
     /// `span`.
     pub fixes: Vec<CodeFix>,
+    /// Exact issuer inputs for a context-driven source action, when retained.
+    pub source_context: Option<DiagnosticSourceContext>,
+    /// Original taint fields, independent of any message or reporting label.
+    pub taint_subject: Option<TaintDiagnosticSubject>,
 }
 
 impl Diagnostic {
@@ -97,11 +201,13 @@ impl Diagnostic {
             category: "sccp".into(),
             severity: Severity::Hint,
             message: format!(
-                "condition in block {} is a constant {} — take target `{}`",
+                "condition in block {} is {} on normal completion — target `{}`",
                 cb.block, cb.value, cb.taken_target
             ),
             replacement: None,
             fixes: Vec::new(),
+            source_context: None,
+            taint_subject: None,
         }
     }
 
@@ -120,6 +226,8 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: None,
             fixes: Vec::new(),
+            source_context: None,
+            taint_subject: None,
         }
     }
 
@@ -132,6 +240,8 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: None,
             fixes: Vec::new(),
+            source_context: None,
+            taint_subject: None,
         }
     }
 
@@ -148,6 +258,8 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: None,
             fixes: Vec::new(),
+            source_context: None,
+            taint_subject: None,
         }
     }
 
@@ -165,7 +277,63 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: w.replacement.clone(),
             fixes: w.fixes.clone(),
+            source_context: None,
+            taint_subject: Some(TaintDiagnosticSubject {
+                variable: w.variable.clone(),
+                sink_command: w.sink_command.clone(),
+                source_sink: w.source_sink.clone(),
+            }),
         }
+    }
+
+    fn from_conditional_collection_source_pairing(
+        advice: &crate::irules_checks::ConditionalCollectionSourcePairingAdvice<'_>,
+        pairing: &crate::irules_checks::ConditionalCollectionSourcePairing,
+    ) -> Option<Self> {
+        let (unit, registry) = advice.diagnostic_source_owner_for(pairing)?;
+        Self::from_conditional_irule_source(
+            unit,
+            registry,
+            pairing.span(),
+            pairing.code(),
+            pairing.message(),
+        )
+    }
+
+    fn from_conditional_irule_source_flow(
+        advice: &crate::irules_checks::ConditionalIruleSourceFlowAdvice<'_>,
+        finding: &crate::irules_checks::ConditionalIruleSourceFlowFinding,
+    ) -> Option<Self> {
+        let (unit, registry) = advice.diagnostic_source_owner_for(finding)?;
+        Self::from_conditional_irule_source(
+            unit,
+            registry,
+            finding.span(),
+            finding.code(),
+            finding.message(),
+        )
+    }
+
+    fn from_conditional_irule_source(
+        unit: &CompilationUnit,
+        registry: &CommandRegistry,
+        span: Span,
+        code: DiagCode,
+        message: &str,
+    ) -> Option<Self> {
+        let mut context = DiagnosticSourceContext::for_unit(unit, registry)?;
+        context.authoring_purpose = DiagnosticSourceAuthoringPurpose::ConditionalSourceNoAction;
+        Some(Self {
+            span,
+            code,
+            category: "irules".to_owned(),
+            severity: Severity::Warning,
+            message: message.to_owned(),
+            replacement: None,
+            fixes: Vec::new(),
+            source_context: Some(context),
+            taint_subject: None,
+        })
     }
 
     fn from_irules_check(w: &IrulesCheckWarning) -> Self {
@@ -184,6 +352,8 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: w.replacement.clone(),
             fixes: w.fixes.clone(),
+            source_context: None,
+            taint_subject: None,
         }
     }
 
@@ -196,6 +366,8 @@ impl Diagnostic {
             message: r.message.clone(),
             replacement: None,
             fixes: Vec::new(),
+            source_context: None,
+            taint_subject: None,
         }
     }
 
@@ -227,6 +399,8 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: w.replacement.clone(),
             fixes,
+            source_context: None,
+            taint_subject: None,
         }
     }
 }
@@ -244,6 +418,15 @@ fn shift(fu: &FunctionUnit, mut d: Diagnostic) -> Diagnostic {
         fix.span = fu.abs_span(fix.span);
     }
     d
+}
+
+/// Compiler diagnostics and availability of required taint replays.
+#[derive(Debug, Clone)]
+pub struct CompilerCheckReport {
+    /// Diagnostics produced by the requested checks.
+    pub diagnostics: Vec<Diagnostic>,
+    /// Command-head replay status for the checked functions; stored callbacks are a separate whole-unit query.
+    pub taint_replays: crate::taint::TaintReplayAnalysis,
 }
 
 /// Run every check against a compilation unit and return a
@@ -276,6 +459,18 @@ pub fn run_all_checks_with_generic_patterns(
     run_all_checks_with_solved_and_patterns(cu, registry, dialect, &solved, generic_patterns)
 }
 
+/// Preserve diagnostics and required replay availability independently.
+#[must_use]
+pub fn compiler_check_report_with_generic_patterns(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    generic_patterns: Option<&[String]>,
+) -> CompilerCheckReport {
+    let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
+    compiler_check_report_with_solved_and_patterns(cu, registry, dialect, &solved, generic_patterns)
+}
+
 /// Like [`run_all_checks`] but consumes a pre-computed interprocedural taint
 /// solve, so a caller can supply a memoised one instead of
 /// re-solving the whole module on every edit — that solve is ~95% of this pass.
@@ -299,6 +494,19 @@ pub fn run_all_checks_with_solved_and_patterns(
     solved: &crate::taint_interproc::InterprocTaintResult,
     generic_patterns: Option<&[String]>,
 ) -> Vec<Diagnostic> {
+    compiler_check_report_with_solved_and_patterns(cu, registry, dialect, solved, generic_patterns)
+        .diagnostics
+}
+
+/// Preserve diagnostics and required replay availability independently.
+#[must_use]
+pub fn compiler_check_report_with_solved_and_patterns(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    solved: &crate::taint_interproc::InterprocTaintResult,
+    generic_patterns: Option<&[String]>,
+) -> CompilerCheckReport {
     let mut out: Vec<Diagnostic> = Vec::new();
 
     // Per-function non-taint checks (SCCP constant branches, GVN redundancies,
@@ -316,7 +524,8 @@ pub fn run_all_checks_with_solved_and_patterns(
     // An unedited procedure's checks are a cache hit
     // instead of recomputed over the whole unit every edit.
     for fu in cu.analysable_body_function_units() {
-        for d in function_nontaint_checks(fu, registry, dialect, cu.method_instance_vars(&fu.name))
+        for d in
+            function_nontaint_checks(fu, registry, dialect, cu.method_instance_vars(fu.body_id))
         {
             out.push(shift(fu, d));
         }
@@ -324,13 +533,18 @@ pub fn run_all_checks_with_solved_and_patterns(
 
     // Taint (per-function, reading the interprocedural `solved`) + iRules
     // module-level checks — the half that is not per-function-pure.
-    push_taint_and_module_checks(cu, registry, dialect, solved, generic_patterns, &mut out);
+    let taint_replays =
+        push_taint_and_module_checks(cu, registry, dialect, solved, generic_patterns, &mut out);
 
+    retain_diagnostic_source_context(cu, registry, &mut out);
     // Deterministic ordering (producers emit in `HashMap`-iteration order);
     // see [`sort_diagnostics`].
     sort_diagnostics(&mut out);
 
-    out
+    CompilerCheckReport {
+        diagnostics: out,
+        taint_replays,
+    }
 }
 
 /// Every per-function **non-taint** check for one procedure, returned at the
@@ -352,11 +566,9 @@ pub fn function_nontaint_checks<S: std::hash::BuildHasher>(
     instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
-    // A `Selected` fact names an arm no branch leads to: it is I231's, from
-    // the analyser, and no folded condition to hint at.
     for cb in fu
-        .sccp
-        .constant_branches
+        .diagnostic_value_facts()
+        .constant_branches()
         .iter()
         .filter(|cb| cb.kind != BranchFactKind::Selected)
     {
@@ -379,51 +591,57 @@ pub fn function_nontaint_checks<S: std::hash::BuildHasher>(
 /// / expression / phi shimmer (S100/S101), loop-oscillation thunking (S102),
 /// shared-value copy-on-write (S103), and byte-array corruption (S110).
 ///
-/// Split out of [`function_nontaint_checks`] so it can also run over `TclOO`
-/// method bodies and synthetic body units (`apply` lambdas, `namespace eval`
-/// bodies) — [`CompilationUnit.methods`](crate::compilation_unit::CompilationUnit::methods)
-/// and `.body_units` are excluded from the SCCP/GVN half (`cu.analysable_functions()`
-/// only walks the top level and procedures), so without this split every
-/// shimmer diagnostic was silently unreachable inside a method or a
-/// `namespace eval` body. The S110 `*::payload` byte-command set is
-/// dialect-gated (empty outside iRules).
+/// Uses the function's actual retained availability and lexical configuration.
+/// Missing, foreign or mismatched metadata declines the entire family.
+/// Callers can supply procedures, `TclOO` methods and synthetic body units;
+/// [`CompilationUnit::analysable_functions`] visits top level and procedures.
+/// Byte payload layouts follow the retained source profile, independently of
+/// the compatibility dialect argument. Availability supplies no Native handler.
 #[must_use]
 pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    _dialect: Option<&'static tcl_dialect::DialectProfile>,
     instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
+    let Some(context) = crate::shimmer::ShimmerContext::for_function(fu, registry) else {
+        return Vec::new();
+    };
     let mut out: Vec<Diagnostic> = Vec::new();
-    for w in find_shimmer_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp, registry) {
+    for w in find_shimmer_warnings_with_context(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp, context) {
         out.push(Diagnostic::from_shimmer(&w));
     }
-    for w in find_thunking_warnings(
+    for w in find_thunking_warnings_with_context(
         &fu.cfg,
         &fu.ssa,
         &fu.types,
         &fu.sccp.executable_blocks,
-        registry,
+        context,
         instance_vars,
     ) {
         out.push(Diagnostic::from_thunking(&w));
     }
-    for w in find_sharing_warnings(
+    for w in find_sharing_warnings_with_context(
         &fu.cfg,
         &fu.ssa,
         &fu.def_use,
         &fu.sccp.executable_blocks,
-        registry,
+        context,
         instance_vars,
     ) {
         out.push(Diagnostic::from_sharing(&w));
     }
-    let payload_layouts = if is_irules_dialect(dialect) {
+    let payload_layouts = if is_irules_dialect(
+        fu.source_metadata_input()
+            .map(crate::analyser::ResolvedAnalysisInput::unit_profile),
+    ) {
         registry.byte_array_payload_layouts()
     } else {
         std::collections::HashMap::new()
     };
-    for w in find_byte_array_warnings(&fu.cfg, &fu.ssa, &fu.sccp, registry, &payload_layouts) {
+    for w in
+        find_byte_array_warnings_with_context(&fu.cfg, &fu.ssa, &fu.sccp, context, &payload_layouts)
+    {
         out.push(Diagnostic::from_shimmer(&w));
     }
     out
@@ -440,14 +658,16 @@ pub fn push_taint_and_module_checks(
     solved: &crate::taint_interproc::InterprocTaintResult,
     generic_patterns: Option<&[String]>,
     out: &mut Vec<Diagnostic>,
-) {
+) -> crate::taint::TaintReplayAnalysis {
+    let first = out.len();
+    let mut taint_replays = crate::taint::TaintReplayAnalysis::Analysed {
+        unavailable: Vec::new(),
+    };
     // The interprocedural solve produces colour-aware return summaries and
     // parameter entry taints; its `top_taints` / `proc_taints` supersede the bare
     // per-function `fu.taints` for the warning families so a tainted argument
     // flowing into a callee parameter and then a sink is reported (cross-proc
     // entry-taint).
-    let proc_qnames: std::collections::HashSet<&str> =
-        cu.procedures.keys().map(String::as_str).collect();
     // `trace add variable` / `trace variable` lets a runtime callback rewrite
     // a variable's value in ways static analysis can't see; a name traced
     // anywhere in the module is conservatively treated as tainted everywhere
@@ -462,42 +682,39 @@ pub fn push_taint_and_module_checks(
     // body — is still checked; see its doc comment.
     for fu in cu.analysable_body_function_units() {
         let taints = crate::taint::apply_module_variable_traces(
-            solved.taints_for(&fu.name, &fu.taints).clone(),
+            solved.taints_for_function(cu, fu).clone(),
             &fu.ssa,
             module_traces,
         );
-        // A namespace-scoped proc of the same name shadows a builtin for
-        // every call made from that namespace (`proc ::myns::puts {...}`
-        // shadows `puts` inside `::myns`) — see `taint::shadowed_builtin_names`.
-        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&fu.name);
-        let shadowed =
-            crate::taint::shadowed_builtin_names(&namespace, proc_qnames.iter().copied(), registry);
-        for w in find_taint_warnings_for_function(
+        if let Some(shadowed) =
+            crate::taint::shadowed_builtin_names_for_module_function(fu, cu, registry)
+        {
+            let report = crate::taint::taint_warning_report_for_module_function(
+                fu,
+                &taints,
+                &fu.sccp.executable_blocks,
+                registry,
+                &cu.ir_module,
+                &shadowed,
+                module_traces,
+            );
+            taint_replays.merge(report.replays);
+            for warning in report.warnings {
+                out.push(shift(fu, Diagnostic::from_taint(&warning)));
+            }
+        } else {
+            taint_replays.merge(crate::taint::TaintReplayAnalysis::unavailable());
+        }
+        // Conditional setter metadata follows the actual source owner.
+        for w in find_setter_constraint_warnings_for_module_function(
             fu,
-            &taints,
-            &fu.sccp.executable_blocks,
+            &cu.ir_module,
             registry,
-            dialect,
-            &shadowed,
-            module_traces,
+            &taints,
         ) {
             out.push(shift(fu, Diagnostic::from_taint(&w)));
         }
-        // IRULE3101 is iRules-only. `find_setter_constraint_warnings`
-        // gates internally too; this outer check is defence-in-depth
-        // and lets us skip the entire walk under non-iRules dialects.
         if is_irules_dialect(dialect) {
-            for w in find_setter_constraint_warnings(
-                registry,
-                &fu.cfg,
-                &fu.ssa,
-                &taints,
-                Some(&fu.sccp.values),
-                &fu.sccp.executable_blocks,
-                dialect,
-            ) {
-                out.push(shift(fu, Diagnostic::from_taint(&w)));
-            }
             // IRULE3103 — `*::uri` getter + manual decomposition.
             for w in find_uri_split_suggestions(
                 &fu.cfg,
@@ -510,31 +727,56 @@ pub fn push_taint_and_module_checks(
                 out.push(shift(fu, Diagnostic::from_taint(&w)));
             }
         }
-        for w in find_path_concat_warnings(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.rendered_props,
-            &taints,
-            &fu.sccp.executable_blocks,
-            tcl_lexer::LexerConfig::for_profile(dialect),
-        ) {
+        for w in find_path_concat_warnings_for_module_function(fu, &cu.ir_module, registry, &taints)
+        {
             out.push(shift(fu, Diagnostic::from_path_concat(&w)));
         }
         // W313: destructive `file` ops on a variable/tainted path.
-        for w in find_destructive_file_warnings(
-            &fu.cfg,
-            &fu.ssa,
-            &taints,
-            &fu.sccp.executable_blocks,
-            registry,
-            dialect,
-        ) {
+        for w in
+            find_destructive_file_warnings_for_module_function(fu, &cu.ir_module, registry, &taints)
+        {
             out.push(shift(fu, Diagnostic::from_taint(&w)));
         }
     }
 
     // iRules-dialect non-taint (module-level / control-flow) checks.
     push_irules_flow_checks(cu, registry, dialect, generic_patterns, out);
+    retain_diagnostic_source_context(cu, registry, &mut out[first..]);
+    taint_replays
+}
+
+/// Attach complete original issuer inputs after diagnostics have their final
+/// whole-document spans. A foreign command store supplies no source currency.
+/// This retains provenance, independently of every diagnostic's fix permission.
+pub fn retain_diagnostic_source_context(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    diagnostics: &mut [Diagnostic],
+) {
+    // Implementation contract: naming.editor.original-diagnostic-edit-currency
+
+    let context = DiagnosticSourceContext::for_unit(cu, registry);
+    for diagnostic in diagnostics {
+        let purpose = diagnostic.source_context.as_ref().map_or(
+            DiagnosticSourceAuthoringPurpose::OrdinarySourceSubject,
+            |current| current.authoring_purpose,
+        );
+        let previous = diagnostic.source_context.take();
+        diagnostic.source_context = context
+            .clone()
+            .map(|mut current| {
+                current.authoring_purpose = purpose;
+                current
+            })
+            .or_else(|| {
+                // Preserve a withheld authoring purpose with its original issuer;
+                // an unavailable currency refresh must never reset it to Ordinary.
+                previous.filter(|previous| {
+                    previous.authoring_purpose
+                        == DiagnosticSourceAuthoringPurpose::ConditionalSourceNoAction
+                })
+            });
+    }
 }
 
 /// Append the iRules-dialect module-level checks (IRULE5002/5004 +
@@ -563,14 +805,23 @@ fn push_irules_flow_checks(
     // fact, so an aliased spelling cannot be treated differently by a later
     // pass.
     let dialect = dialect.map(tcl_dialect::DialectProfile::surface_query);
-    for w in find_unguarded_drop_warnings(cu, dialect) {
-        out.push(Diagnostic::from_irules_check(&w));
-    }
-    for w in find_collect_flow_warnings(cu, registry, dialect) {
-        out.push(Diagnostic::from_irules_check(&w));
-    }
-    for w in find_http_flow_warnings(cu, dialect) {
-        out.push(Diagnostic::from_irules_check(&w));
+    if let Some(advice) = find_conditional_collection_source_pairing_advice(cu, registry, dialect) {
+        if let Some(flow) = advice.conditional_source_flow() {
+            for finding in flow.findings() {
+                if let Some(diagnostic) =
+                    Diagnostic::from_conditional_irule_source_flow(&flow, finding)
+                {
+                    out.push(diagnostic);
+                }
+            }
+        }
+        for pairing in advice.pairings() {
+            if let Some(diagnostic) =
+                Diagnostic::from_conditional_collection_source_pairing(&advice, pairing)
+            {
+                out.push(diagnostic);
+            }
+        }
     }
     for w in find_hoistable_set_warnings(cu, dialect) {
         out.push(Diagnostic::from_irules_check(&w));
@@ -611,6 +862,145 @@ pub fn sort_diagnostics(out: &mut [Diagnostic]) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn conditional_source_flow_has_no_authoring_subject_or_foreign_entry_membership() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = environment.default_context_registry();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            context.clone(),
+            config,
+        );
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            "when HTTP_REQUEST {HTTP::respond 200; HTTP::header insert X yes}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let surface = Some(environment.unit_profile().surface_query());
+        let advice =
+            super::find_conditional_irule_source_flow_advice(&unit, context.commands(), surface)
+                .unwrap();
+        let finding = advice
+            .findings()
+            .iter()
+            .find(|finding| finding.code() == super::DiagCode::Irule1201)
+            .unwrap();
+        let mut diagnostic =
+            super::Diagnostic::from_conditional_irule_source_flow(&advice, finding).unwrap();
+        assert!(diagnostic.fixes.is_empty() && diagnostic.replacement.is_none());
+        let foreign = tcl_registry::model::resolve_known_environment("tcl8.6")
+            .unwrap()
+            .default_context_registry();
+        for registry in [context.commands(), foreign.commands(), context.commands()] {
+            super::retain_diagnostic_source_context(
+                &unit,
+                registry,
+                std::slice::from_mut(&mut diagnostic),
+            );
+            assert!(
+                !diagnostic
+                    .source_context
+                    .as_ref()
+                    .unwrap()
+                    .allows_context_action_subject()
+            );
+        }
+        let other =
+            super::find_conditional_irule_source_flow_advice(&unit, context.commands(), surface)
+                .unwrap();
+        assert!(super::Diagnostic::from_conditional_irule_source_flow(&other, finding).is_none());
+    }
+
+    #[test]
+    fn conditional_pairing_authoring_withdrawal_survives_currency_refresh() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = environment.default_context_registry();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            context.clone(),
+            config,
+        );
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            "when HTTP_REQUEST {HTTP::payload}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let advice = super::find_conditional_collection_source_pairing_advice(
+            &unit,
+            context.commands(),
+            Some(environment.unit_profile().surface_query()),
+        )
+        .unwrap();
+        let pairing = advice
+            .pairings()
+            .iter()
+            .find(|pairing| pairing.code() == super::DiagCode::Irule1006)
+            .unwrap();
+        let mut diagnostic =
+            super::Diagnostic::from_conditional_collection_source_pairing(&advice, pairing)
+                .unwrap();
+        assert!(diagnostic.replacement.is_none() && diagnostic.fixes.is_empty());
+        assert!(
+            !diagnostic
+                .source_context
+                .as_ref()
+                .unwrap()
+                .allows_context_action_subject()
+        );
+        let foreign = tcl_registry::model::resolve_known_environment("tcl8.6")
+            .unwrap()
+            .default_context_registry();
+        for registry in [context.commands(), foreign.commands(), context.commands()] {
+            super::retain_diagnostic_source_context(
+                &unit,
+                registry,
+                std::slice::from_mut(&mut diagnostic),
+            );
+            assert!(
+                !diagnostic
+                    .source_context
+                    .as_ref()
+                    .unwrap()
+                    .allows_context_action_subject()
+            );
+        }
+        assert!(
+            super::DiagnosticSourceContext::for_unit(&unit, context.commands())
+                .unwrap()
+                .allows_context_action_subject()
+        );
+        let other_advice = super::find_conditional_collection_source_pairing_advice(
+            &unit,
+            context.commands(),
+            Some(environment.unit_profile().surface_query()),
+        )
+        .unwrap();
+        assert!(
+            super::Diagnostic::from_conditional_collection_source_pairing(&other_advice, pairing)
+                .is_none()
+        );
+    }
+
     use super::*;
 
     fn registry() -> CommandRegistry {
@@ -646,7 +1036,7 @@ mod tests {
         for diagnostic in o105 {
             assert_eq!(diagnostic.severity, Severity::Suggestion);
             assert!(diagnostic.replacement.is_none());
-            assert!(diagnostic.fixes.is_empty());
+            assert_eq!(diagnostic.fixes, [] as [crate::irules_checks::CodeFix; 0]);
         }
     }
 
@@ -673,7 +1063,10 @@ mod tests {
     #[test]
     fn run_all_checks_on_empty_source_is_empty() {
         let cu = CompilationUnit::build_for("", &registry(), false);
-        assert!(run_all_checks(&cu, &registry(), None).is_empty());
+        assert_eq!(
+            run_all_checks(&cu, &registry(), None),
+            [] as [crate::compiler_checks::Diagnostic; 0]
+        );
     }
 
     /// (FP guard) `my variable count` links an object-instance variable whose
@@ -689,8 +1082,9 @@ mod tests {
             .iter()
             .filter(|d| matches!(d.code.as_str(), "S100" | "S101"))
             .collect();
-        assert!(
-            shimmer.is_empty(),
+        assert_eq!(
+            shimmer.len(),
+            0,
             "'my variable'-linked instance var must not spuriously shimmer: {shimmer:?}"
         );
     }
@@ -735,17 +1129,28 @@ mod tests {
         assert_eq!(s100.severity, Severity::Info, "S100 must be Info: {s100:?}");
         assert_eq!(s100.severity.as_str(), "info");
 
-        // S101 — a per-iteration shimmer inside a loop is a warning. `$x` is a
-        // loop element of unknown value used in arithmetic: a non-constant pure
-        // string is not provably a valid number, so the conversion is flagged
-        // per iteration (unlike a list target, where any string is a valid
-        // list — see `is_uncommitted_first_conversion`).
+        // An unknown iterable does not establish its elements' object class.
+        // Preserve the original source as a representation-withdrawal control.
         let cu = CompilationUnit::build_for(
             "proc f {l} {\n  foreach x $l {\n    set y [expr {$x + 1}]\n  }\n}\n",
             &registry(),
             false,
         );
         let diags = run_all_checks(&cu, &registry(), None);
+        assert!(diags.iter().all(|diag| diag.code != DiagCode::S101));
+
+        // Each reached iteration constructs a List before numeric conversion.
+        // All five C releases and current Jim observe List -> Int on this path.
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let native_registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = environment.analyser_profile();
+        let cu = CompilationUnit::build_for_profile(
+            "proc f {item} {foreach i [list $item $item] {set x [list $i]; set y [expr {$x+1}]}}; f 7",
+            native_registry,
+            false,
+            profile,
+        );
+        let diags = run_all_checks(&cu, native_registry, Some(profile));
         let s101 = diags
             .iter()
             .find(|d| d.code == DiagCode::S101)
@@ -773,17 +1178,16 @@ mod tests {
 
     #[test]
     fn run_all_checks_reports_irule3001_end_to_end() {
-        let cu = CompilationUnit::build_for(
+        let profile = tcl_dialect::DialectProfile::irules();
+        let registry = registry().project_for_profile(profile);
+        let cu = CompilationUnit::build_for_profile(
             "set u [HTTP::uri]\nHTTP::respond 200 content $u",
-            &registry(),
+            &registry,
             false,
+            profile,
         )
-        .with_interprocedural(&registry(), Some(tcl_dialect::DialectProfile::irules()));
-        let diagnostics = run_all_checks(
-            &cu,
-            &registry(),
-            Some(tcl_dialect::DialectProfile::irules()),
-        );
+        .with_interprocedural(&registry, Some(profile));
+        let diagnostics = run_all_checks(&cu, &registry, Some(profile));
         assert!(
             diagnostics
                 .iter()
@@ -811,18 +1215,17 @@ mod tests {
 
     #[test]
     fn run_all_checks_reports_s110_payload_roundtrip_end_to_end() {
-        let cu = CompilationUnit::build_for(
+        let profile = tcl_dialect::DialectProfile::irules();
+        let registry = registry().project_for_profile(profile);
+        let cu = CompilationUnit::build_for_profile(
             "when CLIENT_DATA {\n  set p [TCP::payload]\n  set q [string map {a b} $p]\n  \
              TCP::payload replace 0 100 $q\n}",
-            &registry(),
+            &registry,
             false,
+            profile,
         )
-        .with_interprocedural(&registry(), Some(tcl_dialect::DialectProfile::irules()));
-        let diagnostics = run_all_checks(
-            &cu,
-            &registry(),
-            Some(tcl_dialect::DialectProfile::irules()),
-        );
+        .with_interprocedural(&registry, Some(profile));
+        let diagnostics = run_all_checks(&cu, &registry, Some(profile));
         let hit = diagnostics
             .iter()
             .find(|d| d.code == DiagCode::S110)
@@ -959,5 +1362,80 @@ mod tests {
             "\"/tmp/$x\"",
             "the fix span must cover exactly the value word",
         );
+    }
+}
+
+#[cfg(test)]
+mod retained_taint_sink_source_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+    use crate::compilation_unit::UnitBuildOptions;
+
+    #[test]
+    fn taint_sink_retains_original_invocation_independently_of_report_labels() {
+        let environment = tcl_registry::model::resolve_known_environment("tcl8.6").unwrap();
+        let profile = environment.analyser_profile();
+        let context = environment.default_context_registry();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            environment.unit_profile(),
+            context.clone(),
+            config,
+        );
+        for source in [
+            "set value [gets stdin]; puts $value",
+            "proc p {} {set value [gets stdin]; puts $value}",
+        ] {
+            let cu = CompilationUnit::build_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    registry: context.commands(),
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(environment.unit_profile()),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            );
+            let mut diagnostic =
+                run_all_checks(&cu, context.commands(), Some(environment.unit_profile()))
+                    .into_iter()
+                    .find(|diagnostic| diagnostic.code == DiagCode::T101)
+                    .expect("the original output sink warning");
+            let subject = diagnostic.taint_subject.as_mut().unwrap();
+            let sink = subject
+                .source_sink()
+                .expect("actual original sink invocation")
+                .clone();
+            assert!(sink.matches_original_words(sink.original_words(), &input));
+            let head = sink.original_words().first().unwrap();
+            assert_eq!(
+                tcl_syntax::word_rules::original_static_word_unicode_value(head).as_deref(),
+                Some(b"puts".as_slice())
+            );
+            subject.sink_command = "a counterfactual composite reporting label".to_owned();
+            assert_eq!(subject.source_sink(), Some(&sink));
+            assert!(sink.matches_original_words(sink.original_words(), &input));
+            let foreign = ResolvedAnalysisInput::new(
+                profile,
+                environment.unit_profile(),
+                tcl_registry::model::resolve_known_environment("tcl8.4")
+                    .unwrap()
+                    .default_context_registry(),
+                config,
+            );
+            assert!(!sink.matches_original_words(sink.original_words(), &foreign));
+            let other_source = "puts $other";
+            let other = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(other_source),
+                tcl_lexer::Span::new(0, u32::try_from(other_source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert!(!sink.matches_original_words(&other.commands[0].words, &input));
+        }
     }
 }

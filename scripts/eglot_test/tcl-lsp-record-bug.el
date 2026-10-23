@@ -77,6 +77,9 @@ having to call `tcl-lsp-bug-record-mark' for every event."
   "Recorded events, newest first.  Reversed on save.")
 (defvar tcl-lsp-bug-record--start-time nil)
 (defvar tcl-lsp-bug-record--server nil)
+(defvar tcl-lsp-bug-record--process nil)
+(defvar tcl-lsp-bug-record--events-buffer nil)
+(defvar tcl-lsp-bug-record--session-id 0)
 
 
 ;;; Helpers.
@@ -344,11 +347,32 @@ through `read'."
            :last-command last-command
            :this-command this-command))))
 
+(defun tcl-lsp-bug-record--active-connection-p (connection)
+  "Return non-nil when CONNECTION belongs to the active recorded session."
+  (and connection
+       tcl-lsp-bug-record--buffer
+       (buffer-live-p tcl-lsp-bug-record--buffer)
+       (buffer-live-p tcl-lsp-bug-record--events-buffer)
+       (eq connection tcl-lsp-bug-record--server)
+       (processp tcl-lsp-bug-record--process)
+       (process-live-p tcl-lsp-bug-record--process)
+       (eq tcl-lsp-bug-record--process
+           (ignore-errors (jsonrpc--process connection)))))
+
+(defun tcl-lsp-bug-record--on-buffer-killed ()
+  "Stop recording before its selected document or connection log is destroyed."
+  (when (and tcl-lsp-bug-record--buffer
+             (or (eq (current-buffer) tcl-lsp-bug-record--buffer)
+                 (eq (current-buffer) tcl-lsp-bug-record--events-buffer)))
+    (tcl-lsp-bug-record-stop)))
+
 (defun tcl-lsp-bug-record--around-semtok-request (orig &rest args)
   "Wrap eglot--semtok-request to auto-snapshot when responses arrive."
   (if (or (null tcl-lsp-bug-record--buffer)
           (not tcl-lsp-bug-record-auto-snapshot-on-tokens)
-          (not (eq (current-buffer) tcl-lsp-bug-record--buffer)))
+          (not (eq (current-buffer) tcl-lsp-bug-record--buffer))
+          (not (tcl-lsp-bug-record--active-connection-p
+                (eglot-current-server))))
       (apply orig args)
     (tcl-lsp-bug-record--push
      (list :semtok-request-issued
@@ -361,8 +385,14 @@ through `read'."
         ;; eglot's :success-fn updates :data.
         (run-with-idle-timer
          0 nil
-         (lambda (buf prev)
-           (when (buffer-live-p buf)
+         (lambda (buf prev server process session-id)
+           (when (and (buffer-live-p buf)
+                      (eq buf tcl-lsp-bug-record--buffer)
+                      (eq server tcl-lsp-bug-record--server)
+                      (eq process tcl-lsp-bug-record--process)
+                      (process-live-p process)
+                      (eq process (ignore-errors (jsonrpc--process server)))
+                      (= session-id tcl-lsp-bug-record--session-id))
              (with-current-buffer buf
                (let ((now (cl-getf eglot--semtok-state :data)))
                  (unless (eq prev now)
@@ -373,12 +403,12 @@ through `read'."
                           :data-len (and (vectorp now) (length now))
                           :face-snapshot
                           (tcl-lsp-bug-record--face-snapshot))))))))
-         tcl-lsp-bug-record--buffer before)))))
+         tcl-lsp-bug-record--buffer before tcl-lsp-bug-record--server
+         tcl-lsp-bug-record--process tcl-lsp-bug-record--session-id)))))
 
 (defun tcl-lsp-bug-record--around-rpc-request (orig conn method params &rest rest)
   "Tap outgoing JSON-RPC requests."
-  (when (eq (and (boundp 'eglot--cached-server) eglot--cached-server)
-            tcl-lsp-bug-record--server)
+  (when (tcl-lsp-bug-record--active-connection-p conn)
     (tcl-lsp-bug-record--push
      (list :rpc-request :method method
            :params (tcl-lsp-bug-record--truncate
@@ -387,8 +417,7 @@ through `read'."
 
 (defun tcl-lsp-bug-record--around-rpc-notification (orig conn method params &rest rest)
   "Tap outgoing JSON-RPC notifications."
-  (when (eq (and (boundp 'eglot--cached-server) eglot--cached-server)
-            tcl-lsp-bug-record--server)
+  (when (tcl-lsp-bug-record--active-connection-p conn)
     (tcl-lsp-bug-record--push
      (list :rpc-notify :method method
            :params (tcl-lsp-bug-record--truncate
@@ -397,9 +426,7 @@ through `read'."
 
 (defun tcl-lsp-bug-record--around-handle-message (orig connection message)
   "Tap incoming JSON-RPC messages from the server."
-  (when (and tcl-lsp-bug-record--server
-             (eq (jsonrpc--process tcl-lsp-bug-record--server)
-                 (jsonrpc--process connection)))
+  (when (tcl-lsp-bug-record--active-connection-p connection)
     (tcl-lsp-bug-record--push
      (list :rpc-incoming
            :method (plist-get message :method)
@@ -422,10 +449,21 @@ Stop with `tcl-lsp-bug-record-stop' and save with
                 tcl-lsp-bug-record--buffer))
   (unless (eglot-current-server)
     (user-error "Buffer has no eglot server connected"))
-  (setq tcl-lsp-bug-record--buffer (current-buffer)
-        tcl-lsp-bug-record--start-time (float-time)
-        tcl-lsp-bug-record--server (eglot-current-server)
-        tcl-lsp-bug-record--events nil)
+  (let* ((server (eglot-current-server))
+         (events-buffer (and (fboundp 'jsonrpc-events-buffer)
+                             (jsonrpc-events-buffer server)))
+         (process (ignore-errors (jsonrpc--process server))))
+    (unless (and (buffer-live-p events-buffer)
+                 (processp process)
+                 (process-live-p process))
+      (user-error "The selected eglot connection or its events buffer is unavailable"))
+    (setq tcl-lsp-bug-record--buffer (current-buffer)
+          tcl-lsp-bug-record--start-time (float-time)
+          tcl-lsp-bug-record--server server
+          tcl-lsp-bug-record--process process
+          tcl-lsp-bug-record--events-buffer events-buffer
+          tcl-lsp-bug-record--session-id (1+ tcl-lsp-bug-record--session-id)
+          tcl-lsp-bug-record--events nil))
   ;; Initial snapshot.
   (tcl-lsp-bug-record--push
    (list :start
@@ -452,6 +490,9 @@ Stop with `tcl-lsp-bug-record-stop' and save with
          :loaded-features-count (length features)))
   ;; Hook in.
   (add-hook 'after-change-functions #'tcl-lsp-bug-record--on-change nil t)
+  (add-hook 'kill-buffer-hook #'tcl-lsp-bug-record--on-buffer-killed nil t)
+  (with-current-buffer tcl-lsp-bug-record--events-buffer
+    (add-hook 'kill-buffer-hook #'tcl-lsp-bug-record--on-buffer-killed nil t))
   (when (fboundp 'jsonrpc-async-request)
     (advice-add 'jsonrpc-async-request :around
                 #'tcl-lsp-bug-record--around-rpc-request))
@@ -497,7 +538,11 @@ Stop with `tcl-lsp-bug-record-stop' and save with
   (unless tcl-lsp-bug-record--buffer
     (user-error "No recording in progress"))
   (with-current-buffer tcl-lsp-bug-record--buffer
-    (remove-hook 'after-change-functions #'tcl-lsp-bug-record--on-change t))
+    (remove-hook 'after-change-functions #'tcl-lsp-bug-record--on-change t)
+    (remove-hook 'kill-buffer-hook #'tcl-lsp-bug-record--on-buffer-killed t))
+  (when (buffer-live-p tcl-lsp-bug-record--events-buffer)
+    (with-current-buffer tcl-lsp-bug-record--events-buffer
+      (remove-hook 'kill-buffer-hook #'tcl-lsp-bug-record--on-buffer-killed t)))
   (when (fboundp 'jsonrpc-async-request)
     (advice-remove 'jsonrpc-async-request
                    #'tcl-lsp-bug-record--around-rpc-request))
@@ -514,7 +559,7 @@ Stop with `tcl-lsp-bug-record-stop' and save with
   (let ((n (length tcl-lsp-bug-record--events))
         (buf tcl-lsp-bug-record--buffer))
     (setq tcl-lsp-bug-record--buffer nil
-          tcl-lsp-bug-record--server nil)
+          tcl-lsp-bug-record--session-id (1+ tcl-lsp-bug-record--session-id))
     (message "tcl-lsp-bug-record: stopped.  %d events captured for %s.  M-x tcl-lsp-bug-record-save to write."
              n (buffer-name buf))))
 
@@ -532,15 +577,13 @@ Stop with `tcl-lsp-bug-record-stop' and save with
   (unless tcl-lsp-bug-record--events
     (user-error "No events to save"))
   ;; Capture trailing context into a final synthetic event.
-  (let* ((events-buf (cl-find-if
-                      (lambda (b)
-                        (string-match-p "\\*EGLOT.*\\(events\\|EVENTS\\)\\*"
-                                        (buffer-name b)))
-                      (buffer-list)))
-         (stderr-buf (cl-find-if
-                      (lambda (b) (string-match-p " stderr\\*$"
-                                                  (buffer-name b)))
-                      (buffer-list)))
+  (unless (buffer-live-p tcl-lsp-bug-record--events-buffer)
+    (user-error "The recorded Eglot events buffer is no longer available"))
+  (let* ((events-buf tcl-lsp-bug-record--events-buffer)
+         ;; jsonrpc exposes the actual connection events buffer.  There is no
+         ;; stable stderr-buffer accessor across supported Eglot versions, so
+         ;; never guess one from a process-global buffer name.
+         (stderr-buf nil)
          (msgs-buf (get-buffer "*Messages*"))
          (warns-buf (get-buffer "*Warnings*"))
          (tail-bytes (* 64 1024))
@@ -581,8 +624,12 @@ Stop with `tcl-lsp-bug-record-stop' and save with
              (if tcl-lsp-bug-record-include-source
                  " (includes source text)"
                ""))
-    ;; Clear so a subsequent recording starts fresh.
-    (setq tcl-lsp-bug-record--events nil)))
+    ;; Clear captured session handles only after the actual session context
+    ;; has been written successfully.
+    (setq tcl-lsp-bug-record--events nil
+          tcl-lsp-bug-record--server nil
+          tcl-lsp-bug-record--process nil
+          tcl-lsp-bug-record--events-buffer nil)))
 
 ;;;###autoload
 (defun tcl-lsp-bug-record-status ()

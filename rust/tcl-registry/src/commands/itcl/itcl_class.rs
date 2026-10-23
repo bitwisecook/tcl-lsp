@@ -50,7 +50,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        arg_roles: &[(1, ArgRole::Body)],
+        arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Body)],
         // A separate definition scope, not enclosing-scope data flow —
         // matches `oo::class`'s own `Structural` classification.
         body_kind: BodyKind::Structural,

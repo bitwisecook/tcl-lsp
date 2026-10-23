@@ -67,7 +67,7 @@ tcl-test-support = { path = "../tcl-test-support" }
 # `tests/codegen_stamps.rs` compiles against a pack-installed registry and
 # runs the module on the VM, so the identity a stamp records is checked by
 # the VM's own admission rather than asserted about it.
-tcl-vm = { path = "../tcl-vm" }
+tcl-vm = { path = "../tcl-vm", features = ["test-support"] }
 
 [lints]
 workspace = true

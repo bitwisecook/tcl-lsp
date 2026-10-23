@@ -18,25 +18,20 @@
 
 //! Project-source dependency discovery for `tcl pkg discover`.
 //!
-//! The full analyser owns the occurrence inventory: unlike the lightweight
-//! signature scan it reaches ordinary procedure, method, namespace, and
-//! nested-substitution bodies.  A standard optimiser pass then refines the
-//! same source without dead-code elimination, allowing SCCP, constant
-//! propagation, interpolation folding, and registry-declared pure builtin
-//! folds to turn otherwise-dynamic package words into constants.  Findings
-//! retain their original analyser spans; if the two inventories ever cease to
-//! align, discovery conservatively falls back to the original one.
+//! Original Native discovery consumes the analyser's exact package keys and
+//! requirement value producers. Manifest spelling is checked independently.
+//! Optimiser-based text refinement belongs to explicitly selected lexical
+//! advice and cannot reassign original Native operands by occurrence order.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use serde::Serialize;
 use tcl_compiler::analyser::Analyser;
-use tcl_compiler::optimiser::optimise_source_multipass_filtered;
+use tcl_compiler::optimiser::optimise_source_multipass_admitting_with_analysis_input;
 use tcl_compiler::optimiser::profiles::{OptimisationProfile, profile_to_disabled};
-use tcl_pkg::manifest::{ManifestAst, load_manifest, load_manifest_text};
+use tcl_pkg::manifest::{ManifestAst, RequirementKind, append_manifest_requirement, load_manifest};
 use tcl_pkg::version::Version;
 
 use crate::cli::PkgCommon;
@@ -119,6 +114,7 @@ pub struct DiscoverOptions<'a> {
 }
 
 /// Run `tcl pkg discover`.
+#[allow(clippy::too_many_lines)]
 pub fn run(options: &DiscoverOptions<'_>) -> anyhow::Result<u8> {
     let DiscoverOptions {
         inputs,
@@ -158,6 +154,12 @@ pub fn run(options: &DiscoverOptions<'_>) -> anyhow::Result<u8> {
     } else {
         tcl_cli_support::read_input_documents(&source_paths, &[], false)?
     };
+
+    if add {
+        for document in &documents {
+            document.require_faithful_source()?;
+        }
+    }
 
     let declared: BTreeSet<String> = manifest
         .requires
@@ -248,32 +250,31 @@ fn discover_document_requirements(
     registry: &tcl_registry::CommandRegistry,
     pack_overlay: u64,
 ) -> (Vec<ResolvedRequirement>, Option<String>) {
-    let original = Analyser::new()
+    let analysis = Analyser::new()
         .with_file_path(Some(file.to_owned()))
         .with_pack_overlay(pack_overlay)
-        .analyse(source, profile.name)
-        .package_requires;
+        .analyse(source, profile.name);
+    document_requirements_from_analysis(source, file, registry, &analysis)
+}
 
-    // `standard` enables the optimiser's constant-analysis family while
-    // leaving DCE and code motion off. One pass preserves the analyser's
-    // occurrence order and count, which lets the refined values retain the
-    // original source spans below.
-    let disabled: HashSet<String> = profile_to_disabled(OptimisationProfile::Standard)
-        .into_iter()
-        .map(str::to_owned)
-        .collect();
-    let (optimised, _, _) = optimise_source_multipass_filtered(
-        source,
-        registry,
-        Some(profile),
-        OptimisationProfile::Standard.max_iterations(),
-        &disabled,
-    );
-    let refined = Analyser::new()
-        .with_file_path(Some(file.to_owned()))
-        .with_pack_overlay(pack_overlay)
-        .analyse(&optimised, profile.name)
-        .package_requires;
+/// Refine only the actual source owner's conditional package inventory.
+fn document_requirements_from_analysis(
+    source: &str,
+    file: &str,
+    registry: &tcl_registry::CommandRegistry,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> (Vec<ResolvedRequirement>, Option<String>) {
+    if tcl_compiler::source_graph::current_analysis(source, analysis).is_none() {
+        return (Vec::new(), None);
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        return (original_document_requirements(source, analysis), None);
+    }
+    let Some(refined) = refine_document_analysis(source, file, registry, analysis) else {
+        return (Vec::new(), None);
+    };
+    let original = analysis.package_requires.clone();
+    let refined = refined.package_requires;
 
     let aligned = original.len() == refined.len()
         && original
@@ -351,6 +352,85 @@ fn discover_document_requirements(
     (requirements, warning)
 }
 
+/// Each rewritten image is analysed with the complete retained input. A Native
+/// entry from the original image cannot cross this source-only refinement.
+fn refine_document_analysis(
+    source: &str,
+    file: &str,
+    registry: &tcl_registry::CommandRegistry,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> Option<tcl_compiler::analyser::AnalysisResult> {
+    tcl_compiler::source_graph::current_analysis(source, analysis)?;
+    let input = analysis.resolved_input.as_ref()?;
+    tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+        registry,
+        input,
+        input.lexer_config(),
+        Some(input.unit_profile()),
+    )?;
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
+    // The existing Standard policy preserves the ordered require inventory.
+    let disabled: HashSet<String> = profile_to_disabled(OptimisationProfile::Standard)
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    let (optimised, _, _) = optimise_source_multipass_admitting_with_analysis_input(
+        source,
+        registry,
+        Some(input),
+        OptimisationProfile::Standard.max_iterations(),
+        |_, candidates| {
+            candidates
+                .into_iter()
+                .filter(|candidate| !disabled.contains(candidate.code.as_str()))
+                .collect()
+        },
+    );
+    let refined = Analyser::new()
+        .with_file_path(Some(file.to_owned()))
+        .with_resolved_input(input.clone())
+        .analyse(&optimised, input.analyser_profile().name);
+    tcl_compiler::source_graph::current_analysis(&optimised, &refined)?;
+    Some(refined)
+}
+
+fn original_document_requirements(
+    source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> Vec<ResolvedRequirement> {
+    let Some(config) = analysis.body_lexer_config else {
+        return Vec::new();
+    };
+    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+        || analysis.resolved_registry().is_none()
+    {
+        return Vec::new();
+    }
+    analysis.package_requires.iter().map(|raw| {
+        let name = raw.original_name.as_ref().and_then(|name| name.key().manifest_atom(config));
+        let policy = raw.original_name.as_ref().map(|name| name.input().policy());
+        let requirements:Vec<_>=(0..raw.original_requirements.len()).map(|ordinal| {
+            let input=raw.original_requirements.get(ordinal)?.as_ref()?;
+            if Some(input.policy()) != policy { return None; }
+            match input {
+                tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalWord(_)
+                | tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalValue(_) => {}
+                tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(_)
+                | tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
+            }
+            let value=std::str::from_utf8(input.bytes()).ok()?;
+            (value.is_ascii() && manifest_atom(value)).then(||value.to_owned())
+        }).collect();
+        let minimum=match requirements.as_slice() { []=>Some("0.0.1".to_owned()),[Some(value)]=>Some(value.clone()),_=>None };
+        let unresolved=name.is_none() || requirements.iter().any(Option::is_none);
+        let produced=raw.original_name.as_ref().is_some_and(|name|name.input().original_word_key().is_none())
+            || raw.original_requirements.iter().flatten().any(|input|input.original_word_key().is_none());
+        ResolvedRequirement { name,minimum,requirements,expression:raw.name.clone(),version_expression:raw.version.clone(),requirement_expressions:raw.requirements.clone(),conditional:raw.conditional,control_flow:raw.control_flow,exact:raw.exact,resolution:if unresolved {"unresolved"} else if produced {"original-value"} else {"literal"},line:line_number(source,raw.range.start()) }
+    }).collect()
+}
+
 fn classify(
     requirement: ResolvedRequirement,
     file: &str,
@@ -420,7 +500,7 @@ fn classify(
         report.reason = Some("tclpkg.tcl requirements cannot express -exact".to_owned());
         return report;
     }
-    if report.requirement_expressions.len() > 1 {
+    if report.requirements.len() > 1 {
         report.status = "review";
         report.reason = Some(
             "multiple alternative requirements cannot be represented by one manifest minimum"
@@ -475,14 +555,18 @@ fn append_requirements(
 ) -> anyhow::Result<()> {
     let original = std::fs::read_to_string(path)
         .with_context(|| format!("cannot read manifest {}", path.display()))?;
-    let mut proposed = original.trim_end_matches(['\r', '\n']).to_owned();
+    let mut proposed = original;
     for (name, (_, minimum)) in additions {
-        proposed.push('\n');
-        write!(&mut proposed, "require {name} {minimum}").expect("writing to a String cannot fail");
-    }
-    proposed.push('\n');
-    load_manifest_text(&proposed, Some(&path.to_string_lossy()))
+        proposed = append_manifest_requirement(
+            &proposed,
+            Some(&path.to_string_lossy()),
+            name,
+            minimum,
+            None,
+            RequirementKind::Runtime,
+        )
         .context("discovered requirements would produce an invalid manifest")?;
+    }
     std::fs::write(path, proposed)
         .with_context(|| format!("cannot update manifest {}", path.display()))
 }
@@ -542,6 +626,7 @@ fn manifest_atom(value: &str) -> bool {
     !value.is_empty()
         && !value.chars().any(|character| {
             character.is_whitespace()
+                || character.is_control()
                 || matches!(
                     character,
                     ';' | '$' | '[' | ']' | '{' | '}' | '"' | '\\' | '#'
@@ -653,6 +738,120 @@ fn is_tcl_source(path: &Path) -> bool {
 mod tests {
     use super::*;
 
+    fn package_source_registry() -> std::sync::Arc<tcl_registry::CommandRegistry> {
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let mut descriptor = registry.get("package").unwrap().clone();
+        descriptor.name = "source_package";
+        descriptor.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(descriptor);
+        std::sync::Arc::new(registry)
+    }
+
+    fn package_source_analysis(
+        source: &str,
+        environment: &str,
+        registry: std::sync::Arc<tcl_registry::CommandRegistry>,
+    ) -> tcl_compiler::analyser::AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        config.strict_quoting = true;
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(
+                tcl_registry::model::ingress::resolve_environment(environment)
+                    .default_context_registry()
+                    .with_command_store(registry),
+            ),
+            config,
+        );
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .with_file_path(Some("main.tcl".into()))
+            .analyse(source, profile.name);
+        assert!(analysis.allows_lexical_declaration_advice());
+        analysis
+    }
+
+    #[test]
+    fn original_package_refinement_keeps_pack_input_availability_and_full_lexer() {
+        // naming.package.original-manifest-source-advice
+
+        let source = "source_package require json {1.2}";
+        let registry = package_source_registry();
+        for environment in ["tcl8.6", "tcl9.0"] {
+            let analysis = package_source_analysis(source, environment, registry.clone());
+            assert_eq!(analysis.package_requires.len(), 1);
+            let refined = refine_document_analysis(source, "main.tcl", &registry, &analysis)
+                .expect("current complete source input through actual multipass refinement");
+            assert_eq!(refined.resolved_input, analysis.resolved_input);
+            assert_eq!(refined.body_lexer_config, analysis.body_lexer_config);
+            assert_eq!(refined.package_requires.len(), 1);
+            assert_eq!(refined.package_requires[0].name, "json");
+            assert!(tcl_compiler::source_graph::current_analysis(source, &refined).is_some());
+            let (requirements, warning) =
+                document_requirements_from_analysis(source, "main.tcl", &registry, &analysis);
+            assert!(warning.is_none());
+            assert_eq!(requirements.len(), 1);
+            assert_eq!(requirements[0].name.as_deref(), Some("json"));
+            assert_eq!(requirements[0].requirements, [Some("1.2".into())]);
+            assert_eq!(requirements[0].line, 1);
+        }
+        let older = package_source_analysis(source, "tcl8.4", registry.clone());
+        assert!(older.package_requires.is_empty());
+        assert!(
+            document_requirements_from_analysis(source, "main.tcl", &registry, &older)
+                .0
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn original_package_refinement_refuses_missing_foreign_stale_and_unavailable_owners() {
+        // naming.package.original-manifest-source-advice
+
+        let source = "source_package require json {1.2}";
+        let registry = package_source_registry();
+        let analysis = package_source_analysis(source, "tcl8.6", registry.clone());
+        assert!(
+            !document_requirements_from_analysis(source, "main.tcl", &registry, &analysis)
+                .0
+                .is_empty()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(!missing.package_requires.is_empty());
+        let mut stale = analysis.clone();
+        stale.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        let mut foreign = analysis.clone();
+        foreign.resolved_input =
+            package_source_analysis(source, "tcl9.0", registry.clone()).resolved_input;
+        let mut unavailable = analysis.clone();
+        unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl8.6".into(),
+            overlay: u64::MAX - 406,
+        });
+        for refused in [&missing, &stale, &foreign, &unavailable] {
+            assert!(refine_document_analysis(source, "main.tcl", &registry, refused).is_none());
+            assert!(
+                document_requirements_from_analysis(source, "main.tcl", &registry, refused)
+                    .0
+                    .is_empty()
+            );
+        }
+        let other = tcl_registry::CommandRegistry::build_default();
+        assert!(refine_document_analysis(source, "main.tcl", &other, &analysis).is_none());
+        assert!(refine_document_analysis("# replaced", "main.tcl", &registry, &analysis).is_none());
+        assert!(refine_document_analysis(source, "main.tcl", &registry, &analysis).is_some());
+        let shadowed = "proc source_package args {}; source_package require json {1.2}";
+        let owner = package_source_analysis(shadowed, "tcl8.6", registry.clone());
+        assert!(
+            document_requirements_from_analysis(shadowed, "main.tcl", &registry, &owner)
+                .0
+                .is_empty()
+        );
+    }
+
     #[test]
     fn additions_choose_the_highest_minimum() {
         let reports = [
@@ -663,6 +862,49 @@ mod tests {
         let additions = collect_additions(&reports);
         assert_eq!(additions["json"].1, "1.10");
         assert_eq!(additions["http"].1, "2.9");
+    }
+
+    #[test]
+    fn appended_discovery_requirements_preserve_original_source_and_refuse_partial_edits() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "tcl-discover-append-{}-{stamp}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("tclpkg.tcl");
+        let original = "package demo\r\nversion 1.0\r\n# retain trailing bytes\r\n\r\n";
+        std::fs::write(&path, original).unwrap();
+        let additions = collect_additions(&[report("json::write", "1.2"), report("tls", "1.7")]);
+        append_requirements(&path, &additions).unwrap();
+        let edited = std::fs::read_to_string(&path).unwrap();
+        assert!(edited.starts_with(original));
+        assert!(edited.contains("require json::write 1.2\n"));
+        assert!(edited.contains("require tls 1.7\n"));
+        let parsed = load_manifest(&path).unwrap();
+        assert_eq!(
+            parsed
+                .requires
+                .iter()
+                .map(|row| row.name.as_str())
+                .collect::<Vec<_>>(),
+            ["json::write", "tls"]
+        );
+        std::fs::write(&path, original).unwrap();
+        let mut refused = additions;
+        refused.insert(
+            "zzz".to_owned(),
+            (
+                Version::parse("1.0").unwrap(),
+                "1.0; require injected 9.0".to_owned(),
+            ),
+        );
+        assert!(append_requirements(&path, &refused).is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
@@ -690,5 +932,71 @@ mod tests {
             status: "candidate",
             reason: None,
         }
+    }
+    #[test]
+    fn original_package_discovery_ignores_reporting_values_and_refuses_stale_or_opaque_manifest_names()
+     {
+        // Implementation contract: naming.package.original-manifest-source-advice
+
+        let source = r"package require {json::write} {1.2}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let raw = analysis.package_requires.first_mut().unwrap();
+        raw.name = "$fake".to_owned();
+        raw.version = Some("$fake".to_owned());
+        raw.requirements[0] = "$fake".to_owned();
+        let rows = original_document_requirements(source, &analysis);
+        assert_eq!(rows[0].name.as_deref(), Some("json::write"));
+        assert_eq!(rows[0].requirements, [Some("1.2".to_owned())]);
+        assert!(
+            original_document_requirements(&format!("# changed\n{source}"), &analysis).is_empty()
+        );
+        for source in [
+            r"package require p\uD800 1.2",
+            r"package require p\u0000tail 1.2",
+            r"package require {$package} {1.2}",
+            r"package require json {$version}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let rows = original_document_requirements(source, &analysis);
+            assert!(
+                rows.iter()
+                    .all(|row| row.name.is_none() || row.requirements.iter().any(Option::is_none))
+            );
+        }
+        let source = r"package require json {1.2}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        assert!(original_document_requirements(source, &analysis).is_empty());
+    }
+
+    #[test]
+    fn original_package_requirement_values_keep_actual_option_ordinals_and_unknowns() {
+        // Implementation contract: naming.package.original-manifest-source-advice
+
+        let source = r"package require -exact json {1.2} {2.0} $unknown";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let raw = analysis.package_requires.first().unwrap();
+        assert!(raw.exact);
+        assert_eq!(raw.original_requirements.len(), 3);
+        assert_eq!(
+            raw.original_requirements[0].as_ref().unwrap().bytes(),
+            b"1.2"
+        );
+        assert_eq!(
+            raw.original_requirements[1].as_ref().unwrap().bytes(),
+            b"2.0"
+        );
+        assert!(raw.original_requirements[2].is_none());
+        let scan = tcl_compiler::signature_scan::extract_signatures(
+            source,
+            analysis.resolved_registry().unwrap(),
+        );
+        let scanned = scan.package_requires.first().unwrap();
+        assert_eq!(scanned.original_requirements.len(), 3);
+        assert_eq!(
+            scanned.original_requirements[0].as_ref().unwrap().bytes(),
+            b"1.2"
+        );
+        assert!(scanned.original_requirements[2].is_none());
     }
 }

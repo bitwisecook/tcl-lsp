@@ -94,7 +94,12 @@ fn per_item_matches_analyse_over_corpus() {
             }
             let want = Analyser::new().analyse(&src, dialect);
             let got = Analyser::new().analyse_per_item(&src, dialect);
-            let fellback = !tcl_lexer::script_is_complete(&src) || src.contains("tcl-lsp: stub");
+            let fellback = want.resolved_input.as_ref().is_none_or(|input| {
+                tcl_lexer::script_image_is_complete(
+                    &tcl_lexer::SourceImage::document(&src),
+                    input.lexer_config(),
+                ) != Ok(true)
+            }) || src.contains("tcl-lsp: stub");
             let name = path.file_name().unwrap().to_string_lossy().into_owned();
             let mismatch = (got != want).then(|| describe_analysis_divergence(&name, &got, &want));
             let n = done.fetch_add(1, Ordering::Relaxed) + 1;

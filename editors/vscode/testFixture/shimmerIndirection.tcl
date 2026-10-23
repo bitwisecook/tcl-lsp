@@ -18,9 +18,7 @@ proc arrayelems {} {
     incr arr(n)
 }
 
-# A numeric/string oscillation seeded by an int entry (`set x 0`): the loop
-# body is Numeric on one arm and String on the other. Previously masked to
-# OVERDEFINED by type_join; now fires S102 (FP-SH-18).
+# A numeric/string loop oscillation with an integer entry exercises S102.
 proc numeric {n} {
     set x 0
     while {$n > 0} {

@@ -38,14 +38,27 @@
 use std::rc::Rc;
 
 use tcl_runtime_api::{Code, Completion, FatalTail};
+use tcl_syntax::value::ValueOps;
 
-use crate::command::{completion_options, opt_get, options_dict};
+use crate::command::{completion_options, opt_get_checked, options_dict};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("try", cmd_try);
-    vm.register("throw", cmd_throw);
+    register_for_bootstrap(vm, None);
+}
+
+pub(crate) fn register_for_bootstrap(
+    vm: &mut Vm,
+    native: Option<tcl_registry::special_vars::NativeBootstrapProtocol>,
+) {
+    if native.is_none_or(tcl_registry::special_vars::NativeBootstrapProtocol::registers_core_try) {
+        vm.register_stock_builtin("try", cmd_try);
+    }
+    if native.is_none_or(tcl_registry::special_vars::NativeBootstrapProtocol::registers_core_throw)
+    {
+        vm.register_stock_builtin("throw", cmd_throw);
+    }
 }
 
 /// A parsed `try` handler clause.
@@ -62,6 +75,14 @@ struct Handler {
     script: Value,
     /// Whether the body is the fall-through marker `-`.
     is_dash: bool,
+    /// Match selected at this actual Jim clause ordinal after the body.
+    jim_matches: Option<bool>,
+    jim_variables: Option<OriginalJimTryVariables>,
+}
+
+struct OriginalJimTryVariables {
+    result: Option<crate::value::NativeObjectLifetimeLease>,
+    options: Option<crate::value::NativeObjectLifetimeLease>,
 }
 
 /// A `try`'s handlers + `finally` script, parsed once up front and shared
@@ -70,7 +91,12 @@ struct Handler {
 struct TryPlan {
     handlers: Vec<Handler>,
     finally: Option<Value>,
-    /// The release compiles this `try` (`TclCompileTryCmd`), whose matched
+    jim: bool,
+    deferred_clauses: Option<Vec<Value>>,
+    jim_prefix: Option<tcl_registry::catch_invocation::JimCapturePrefix>,
+    ignored_body: bool,
+    body_error_code: Option<Rc<crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture>>,
+    /// The release compiles this `try` (`TclCompileTryCmd`): the matched
     /// clause binds its own variables before a `-` script falls through,
     /// where the command (`TryPostBody`) binds those of the clause whose
     /// script runs.
@@ -119,64 +145,127 @@ pub(crate) enum TryOutcome {
     Deliver(Completion<Value>),
 }
 
-/// Map a `try`/`on` completion-code word (`ok`/`error`/`return`/`break`/
-/// `continue`, or an integer that fits a C `int`) to its numeric code.
-fn code_word_to_int(spec: &str) -> Option<i64> {
-    match spec {
-        "ok" => Some(0),
-        "error" => Some(1),
-        "return" => Some(2),
-        "break" => Some(3),
-        "continue" => Some(4),
-        // A completion code accepts a signed integer that fits a C `int`; a value
-        // outside the `i32` range is *not* a valid code (error-20.2).
-        _ => Value::string(spec)
-            .as_int()
-            .ok()
-            .and_then(|n| i32::try_from(n).ok())
-            .map(i64::from),
-    }
-}
-
 /// Append `-during prior` to an error's options dict (TIP 329 exception
 /// chaining): the superseded exception's options ride along on the new one.
 /// Replaces an existing `-during` (a handler over a handler) rather than dup it.
-fn add_during(options: &Value, prior: &Value) -> Value {
-    let mut out: Vec<Value> = options.as_list().map(|l| (*l).clone()).unwrap_or_default();
-    let mut i = 0;
-    while i + 1 < out.len() {
-        if &*out[i].to_str() == "-during" {
-            out[i + 1] = prior.clone();
-            return Value::list(out);
+fn add_during(vm: &mut Vm, options: &Value, prior: &Value) -> Result<Value, Completion<Value>> {
+    let mut pairs = ValueOps::dict_pairs(vm, options)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+    for (key, value) in &mut pairs {
+        let bytes = ValueOps::native_string_bytes(vm, key)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        if bytes.as_ref() == b"-during" {
+            *value = prior.clone();
+            return ValueOps::new_dict_checked(vm, pairs)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()));
         }
-        i += 2;
     }
-    out.push(Value::string("-during"));
-    out.push(prior.clone());
-    Value::list(out)
+    pairs.push((Value::string("-during"), prior.clone()));
+    ValueOps::new_dict_checked(vm, pairs)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))
 }
 
-/// `bad completion code "X": must be ok, error, return, break, continue, or an
-/// integer` — an unrecognised `on` code word.
-fn bad_completion_code(word: &str) -> String {
-    format!(
-        "bad completion code \"{word}\": must be ok, error, return, break, \
-         continue, or an integer"
-    )
+/// Compare original trap elements through the native physical equality owner.
+fn errorcode_prefix_match(
+    vm: &mut Vm,
+    pattern: &Value,
+    errorcode: &Value,
+) -> Result<bool, Completion<Value>> {
+    let pattern = ValueOps::list_elements(vm, pattern)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+    let code = ValueOps::list_elements(vm, errorcode)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+    if pattern.len() > code.len() {
+        return Ok(false);
+    }
+    for (left, right) in pattern.iter().zip(&code) {
+        let equal = tcl_syntax::native_equality::full_native_equality(vm, left, right)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        if !equal {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
-/// Does `pattern` (a list) match `errorcode` (a list) as a leading sublist?
-/// An empty pattern matches any error (`trap {} ...`).
-fn errorcode_prefix_match(pattern: &Value, errorcode: &Value) -> bool {
-    let Ok(pat) = pattern.as_list() else {
-        return false;
+fn original_jim_errorcode_prefix_match(
+    vm: &mut Vm,
+    pattern: &Value,
+    errorcode: &Value,
+    captured: &crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture,
+) -> Result<bool, Completion<Value>> {
+    use crate::interp::{
+        native_name_consumers::OriginalNameConsumerScope, native_numeric_ops::OriginalNumericOps,
     };
-    let ec = errorcode.as_list().unwrap_or_default();
-    pat.len() <= ec.len()
-        && pat
-            .iter()
-            .zip(ec.iter())
-            .all(|(a, b)| a.to_str() == b.to_str())
+    use tcl_syntax::native_string::NativeStringProtocol;
+    let scope = OriginalNameConsumerScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let reached = (|| -> Result<bool, tcl_cmd_core::CmdError> {
+        captured.check(vm)?;
+        scope.current_for_value(vm, pattern)?;
+        scope.current_for_value(vm, errorcode)?;
+        let (pattern_members, code_members) = {
+            let objects = OriginalNumericOps::in_original_scope(vm, scope.operation_scope())?;
+            let pattern_members = objects.list_with_original_caller_check(
+                pattern,
+                NativeStringProtocol::Jim084,
+                |vm| captured.check(vm),
+            )?;
+            let code_members = objects.list_with_original_caller_check(
+                errorcode,
+                NativeStringProtocol::Jim084,
+                |vm| captured.check(vm),
+            )?;
+            (pattern_members, code_members)
+        };
+        let current = |vm: &mut Vm| -> Result<(), tcl_cmd_core::CmdError> {
+            captured.check(vm)?;
+            scope.current_for_value(vm, pattern)?;
+            scope.current_for_value(vm, errorcode)?;
+            pattern_members.check_generation()?;
+            code_members.check_generation()?;
+            scope.require(
+                vm,
+                pattern.native_list_attachment_matches(&pattern_members)
+                    && errorcode.native_list_attachment_matches(&code_members),
+                "original Jim trap List backing",
+            )
+        };
+        current(vm)?;
+        if pattern_members.len() > code_members.len() {
+            return Ok(false);
+        }
+        for (left, right) in pattern_members.iter().zip(code_members.iter()) {
+            current(vm)?;
+            scope.current_for_value(vm, left)?;
+            scope.current_for_value(vm, right)?;
+            let equal = tcl_syntax::native_equality::full_native_equality(vm, left, right)?;
+            current(vm)?;
+            scope.current_for_value(vm, left)?;
+            scope.current_for_value(vm, right)?;
+            if !equal {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    })();
+    if let Err(error) = &reached {
+        if let Some(first) = error.native_execution_refusal() {
+            vm.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+        } else if let Some(first) = error.native_access_refusal() {
+            vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(first));
+        }
+    }
+    let finished = scope.finish(vm);
+    match reached {
+        Err(first) => {
+            let _ = finished;
+            Err(crate::command::completion_from_cmd_error(vm, first))
+        }
+        Ok(value) => finished
+            .map(|()| value)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error)),
+    }
 }
 
 /// Bind a handler's `[resultVar ?optionsVar?]` variables. A failed set becomes
@@ -187,23 +276,142 @@ fn bind_handler_vars(
     result: &Value,
     opts: &Value,
 ) -> Result<(), Completion<Value>> {
-    let names = vars.as_list().unwrap_or_default();
-    // `var_set`, not `set_var`: a handler variable written as an array element
-    // (`on error {x(y)}`) must resolve `x(y)` to the element — and fail if the
-    // base `x` is a scalar (`can't set "x(y)": variable isn't array`), which C's
-    // `handlerFailed` turns into the handler outcome, skipping the body.
+    let names = ValueOps::list_elements(vm, vars)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+    let Some(_policy) = vm.name_policy_protocol() else {
+        return Err(vm.refuse_host_command("try variable binding protocol is unavailable".into()));
+    };
     if let Some(rv) = names.first() {
-        let n = rv.to_str();
-        if !n.is_empty()
-            && let Err(e) = vm.var_set(&n, result.clone())
-        {
-            return Err(e);
-        }
+        let name = ValueOps::native_string_bytes(vm, rv)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        vm.set_var_bytes(&name, result.clone())?;
     }
     if let Some(ov) = names.get(1) {
-        vm.var_set(&ov.to_str(), opts.clone())?;
+        let name = ValueOps::native_string_bytes(vm, ov)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        vm.set_var_bytes(&name, opts.clone())?;
     }
     Ok(())
+}
+
+fn capture_original_jim_try_variables(
+    vm: &mut Vm,
+    vars: &Value,
+    captured: &crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture,
+) -> Result<OriginalJimTryVariables, Completion<Value>> {
+    use crate::interp::{
+        native_name_consumers::OriginalNameConsumerScope, native_numeric_ops::OriginalNumericOps,
+    };
+    let scope = OriginalNameConsumerScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let reached = (|| -> Result<OriginalJimTryVariables, tcl_cmd_core::CmdError> {
+        captured.check(vm)?;
+        scope.current_for_value(vm, vars)?;
+        let members = OriginalNumericOps::in_original_scope(vm, scope.operation_scope())?
+            .list_with_original_caller_check(
+                vars,
+                tcl_syntax::native_string::NativeStringProtocol::Jim084,
+                |vm| captured.check(vm),
+            )?;
+        members.check_generation()?;
+        captured.check(vm)?;
+        scope.current_for_value(vm, vars)?;
+        scope.require(
+            vm,
+            vars.native_list_attachment_matches(&members),
+            "original Jim selected handler variable List",
+        )?;
+        let result = members.first().map(Value::native_lifetime_lease);
+        let options = members.get(1).map(Value::native_lifetime_lease);
+        for original in [&result, &options].into_iter().flatten() {
+            scope.current_for_value(vm, original.value())?;
+        }
+        Ok(OriginalJimTryVariables { result, options })
+    })();
+    if let Err(error) = &reached {
+        if let Some(first) = error.native_execution_refusal() {
+            vm.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+        } else if let Some(first) = error.native_access_refusal() {
+            vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(first));
+        }
+    }
+    let finished = scope.finish(vm);
+    match reached {
+        Err(first) => {
+            let _ = finished;
+            Err(crate::command::completion_from_cmd_error(vm, first))
+        }
+        Ok(names) => finished
+            .map(|()| names)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error)),
+    }
+}
+
+fn bind_original_jim_handler_vars(
+    vm: &mut Vm,
+    names: &OriginalJimTryVariables,
+    body_code: Code,
+    captured: &crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture,
+) -> Result<(), Completion<Value>> {
+    use crate::interp::native_name_consumers::OriginalNameConsumerScope;
+    captured
+        .check(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let scope = OriginalNameConsumerScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let check = |vm: &mut Vm, original: &Value| -> Result<(), tcl_cmd_core::CmdError> {
+        captured.check(vm)?;
+        scope.current_for_value(vm, original)
+    };
+    let reached = (|| -> Result<(), Completion<Value>> {
+        if let Some(name) = &names.result {
+            let name = name.value();
+            let bytes = vm
+                .native_name_operand_bytes_checked_using(name, &|vm| check(vm, name))
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            if !bytes.is_empty() {
+                let result = vm
+                    .with_native_interp_result(Value::native_lifetime_lease)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+                check(vm, name)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                scope
+                    .current_for_value(vm, result.value())
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                vm.store_original_named_variable(name, result.into_value())?;
+                check(vm, name)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            }
+        }
+        if let Some(name) = &names.options {
+            let name = name.value();
+            let bytes = vm
+                .native_name_operand_bytes_checked_using(name, &|vm| check(vm, name))
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            if !bytes.is_empty() {
+                let options = vm
+                    .current_jim_options_for_exit_code_with_error_code(body_code, captured)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                check(vm, name)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                vm.store_original_named_variable(name, options)?;
+                check(vm, name)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            }
+        }
+        captured
+            .check(vm)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        Ok(())
+    })();
+    let finished = scope.finish(vm);
+    match reached {
+        Err(first) => {
+            let _ = finished;
+            Err(first)
+        }
+        Ok(()) => finished.map_err(|error| crate::command::completion_from_cmd_error(vm, error)),
+    }
 }
 
 /// `try`'s handler-type words, in C table order (`TryObjCmd`'s `handlerNames`,
@@ -214,56 +422,340 @@ fn bind_handler_vars(
 const HANDLER_TYPES: tcl_cmd_core::prefix::OptionTable<'static> =
     tcl_cmd_core::prefix::OptionTable::abbreviating("handler type", &["finally", "on", "trap"]);
 
-/// Parse a `try`'s handler (`on`/`trap`) and `finally` clauses, validating the
-/// grammar (a bad clause errors before the body runs). Returns the handlers and
-/// the optional `finally` script.
-fn parse_clauses(rest: &[Value]) -> Result<(Vec<Handler>, Option<Value>), Completion<Value>> {
+fn clause_argument_error(
+    vm: &mut Vm,
+    clause: tcl_registry::NativeTryClauseArgument,
+    message: impl Into<Vec<u8>>,
+) -> Completion<Value> {
+    if vm
+        .actual_native_invocation_dialect()
+        .native_jim_try_handler_table()
+        .is_some()
+    {
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"try ?options? script ?on|trap code varlist script ...? ?finally script?\"",
+        );
+    }
+    let Some(code) = vm
+        .actual_native_invocation_dialect()
+        .try_clause_argument_error_code(clause)
+    else {
+        return vm.refuse_host_command("try clause argument protocol is unavailable".to_owned());
+    };
+    crate::command::err_with_code(message.into(), code)
+}
+
+fn clause_failure(
+    vm: &mut Vm,
+    failure: tcl_registry::NativeTryClauseFailure,
+    message: impl Into<Vec<u8>>,
+) -> Completion<Value> {
+    let Some(code) = vm
+        .actual_native_invocation_dialect()
+        .try_clause_failure_error_code(failure)
+    else {
+        return vm.refuse_host_command("try clause failure protocol is unavailable".into());
+    };
+    crate::command::err_with_code(message.into(), code)
+}
+
+fn original_handler_type(
+    vm: &mut Vm,
+    original: &Value,
+    jim: bool,
+) -> Result<&'static str, Completion<Value>> {
+    let selected = if jim {
+        let dialect = vm.actual_native_invocation_dialect();
+        let Some(table) = dialect.native_jim_try_handler_table() else {
+            return Err(vm.refuse_host_command("original Jim try handler table".into()));
+        };
+        let index = vm
+            .native_jim_enum_from_original_checked(
+                original,
+                &table,
+                tcl_registry::native_jim_enum::NativeJimEnumFlags(1),
+                Some(b"handler"),
+            )
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
+            .map_err(|message| {
+                let mut details =
+                    tcl_cmd_core::CmdError::new_bytes(message.expect("ERRMSG handler lookup"))
+                        .into_byte_details();
+                details.error_code = tcl_cmd_core::CmdErrorCodeUpdate::Unchanged;
+                crate::command::completion_from_cmd_error(
+                    vm,
+                    tcl_cmd_core::CmdError::from_byte_details(details),
+                )
+            })?;
+        let Some(kind) = dialect.native_jim_try_handler(index) else {
+            return Err(vm.refuse_host_command("original Jim try handler ordinal".into()));
+        };
+        kind.name()
+    } else {
+        let index = vm
+            .native_static_option_index_checked(
+                original,
+                HANDLER_TYPES.names(),
+                false,
+                "handler type",
+            )
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        HANDLER_TYPES.names()[index]
+    };
+    Ok(selected)
+}
+
+fn original_handler_code(
+    vm: &mut Vm,
+    original: &Value,
+    is_trap: bool,
+    jim: bool,
+    body_code: Option<Code>,
+) -> Result<i64, Completion<Value>> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let selected = if is_trap {
+        if let Err(error) = ValueOps::list_elements(vm, original) {
+            if error.native_access_refusal().is_some() {
+                return Err(crate::command::completion_from_cmd_error(vm, error.into()));
+            }
+            let original = ValueOps::native_string_bytes(vm, original)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+            let mut message = b"bad prefix '".to_vec();
+            message.extend_from_slice(tcl_core_types::c_string_extent(&original));
+            message.extend_from_slice(b"': must be a list");
+            return Err(clause_failure(
+                vm,
+                tcl_registry::NativeTryClauseFailure::TrapPrefixFormat,
+                message,
+            ));
+        }
+        1
+    } else {
+        let (mut ops, protocol) = crate::return_options::selected_in_original_scope(vm, &scope)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        if jim {
+            let requested = ValueOps::list_elements(vm, original)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+            let Some(body_code) = body_code else {
+                return Err(vm.refuse_host_command("Jim handlers require a completed body".into()));
+            };
+            let mut matched = false;
+            for original in requested {
+                match crate::return_options::with_original_return_ops(
+                    vm,
+                    &scope,
+                    &mut ops,
+                    |checked| {
+                        tcl_cmd_core::return_options::parse_completion_code(
+                            checked, protocol, &original,
+                        )
+                    },
+                ) {
+                    Ok(code) if i64::from(code) == body_code.as_int() => {
+                        matched = true;
+                        break;
+                    }
+                    Ok(_) => {}
+                    Err(error) if error.native_execution_refusal().is_some() => {
+                        return Err(crate::command::completion_from_cmd_error(vm, error));
+                    }
+                    Err(_) => {
+                        return Err(crate::command::native_wrong_arguments_message(
+                            vm,
+                            "wrong # args: should be \"try ?options? script ?on|trap code varlist script ...? ?finally script?\"",
+                        ));
+                    }
+                }
+            }
+            if matched {
+                body_code.as_int()
+            } else {
+                i64::MIN
+            }
+        } else {
+            i64::from(
+                crate::return_options::with_original_return_ops(vm, &scope, &mut ops, |checked| {
+                    tcl_cmd_core::return_options::parse_completion_code(checked, protocol, original)
+                })
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?,
+            )
+        }
+    };
+    scope
+        .check(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    Ok(selected)
+}
+
+fn original_final_clause(
+    vm: &mut Vm,
+    rest: &[Value],
+    j: usize,
+    jim: bool,
+) -> Result<Value, Completion<Value>> {
+    if j + 2 < rest.len() {
+        return Err(if jim {
+            crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"try ?options? script ?on|trap code varlist script ...? ?finally script?\"",
+            )
+        } else {
+            clause_failure(
+                vm,
+                tcl_registry::NativeTryClauseFailure::FinallyNonterminal,
+                b"finally clause must be last".to_vec(),
+            )
+        });
+    }
+    if j + 1 >= rest.len() {
+        return Err(clause_argument_error(
+            vm,
+            tcl_registry::NativeTryClauseArgument::Finally,
+            b"wrong # args to finally clause: must be \"... finally script\"".to_vec(),
+        ));
+    }
+    Ok(rest[j + 1].clone())
+}
+
+fn require_handler_arguments(
+    vm: &mut Vm,
+    rest: &[Value],
+    j: usize,
+    kind: &str,
+) -> Result<(), Completion<Value>> {
+    if j + 4 > rest.len() {
+        return Err(clause_argument_error(
+            vm,
+            if kind == "on" {
+                tcl_registry::NativeTryClauseArgument::On
+            } else {
+                tcl_registry::NativeTryClauseArgument::Trap
+            },
+            format!(
+                "wrong # args to {kind} clause: must be \"... {kind} {} variableList script\"",
+                if kind == "on" { "code" } else { "pattern" }
+            )
+            .into_bytes(),
+        ));
+    }
+    Ok(())
+}
+
+fn original_jim_clause_match(
+    vm: &mut Vm,
+    pattern: &Value,
+    is_trap: bool,
+    body_code: Option<Code>,
+    code: i64,
+    captured_error_code: Option<&crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture>,
+) -> Result<bool, Completion<Value>> {
+    let captured = captured_error_code.ok_or_else(|| {
+        vm.refuse_host_command("original Jim clause capture is unavailable".into())
+    })?;
+    captured
+        .check(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let matched = if is_trap {
+        match captured
+            .original(vm)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
+        {
+            Some(original) => {
+                original_jim_errorcode_prefix_match(vm, pattern, &original, captured)?
+            }
+            None => false,
+        }
+    } else {
+        body_code.is_some_and(|body| code == body.as_int())
+    };
+    captured
+        .check(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    Ok(matched)
+}
+
+fn original_handler_fallthrough(
+    vm: &mut Vm,
+    script: &Value,
+    jim: bool,
+) -> Result<bool, Completion<Value>> {
+    if jim {
+        Ok(false)
+    } else {
+        let script_bytes = ValueOps::native_string_bytes(vm, script)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        Ok(tcl_core_types::c_string_extent(&script_bytes) == b"-")
+    }
+}
+
+/// Parse clauses; Jim resolves each match at its reached post-body ordinal.
+fn parse_clauses(
+    vm: &mut Vm,
+    rest: &[Value],
+    body_code: Option<Code>,
+    captured_error_code: Option<&crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture>,
+) -> Result<(Vec<Handler>, Option<Value>), Completion<Value>> {
     let mut handlers: Vec<Handler> = Vec::new();
     let mut finally: Option<Value> = None;
     let mut j = 0;
+    let mut first_jim_match = false;
     while j < rest.len() {
-        let word = rest[j].to_str();
-        let handler_type = match HANDLER_TYPES.index_of_str(&word) {
-            Ok(i) => HANDLER_TYPES.names()[i],
-            Err(e) => return Err(err(e.into_message())),
+        if let Some(captured) = captured_error_code {
+            captured
+                .check(vm)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        }
+        let Some(protocol) = vm
+            .actual_native_invocation_dialect()
+            .return_options_protocol()
+        else {
+            return Err(vm.refuse_host_command("try clause protocol is unavailable".into()));
         };
+        let jim = protocol == tcl_cmd_core::return_options::ReturnOptionsProtocol::Jim084;
+        let handler_type = original_handler_type(vm, &rest[j], jim)?;
         match handler_type {
             "finally" => {
-                if j + 2 < rest.len() {
-                    return Err(err("finally clause must be last"));
-                }
-                if j + 1 >= rest.len() {
-                    return Err(err(
-                        "wrong # args to finally clause: must be \"... finally script\"",
-                    ));
-                }
-                finally = Some(rest[j + 1].clone());
+                finally = Some(original_final_clause(vm, rest, j, jim)?);
                 j += 2;
             }
             kind @ ("on" | "trap") => {
-                if j + 4 > rest.len() {
-                    return Err(err(format!(
-                        "wrong # args to {kind} clause: must be \"... {kind} {} variableList script\"",
-                        if kind == "on" { "code" } else { "pattern" }
-                    )));
-                }
+                require_handler_arguments(vm, rest, j, kind)?;
                 let is_trap = kind == "trap";
-                let code = if is_trap {
-                    if rest[j + 1].as_list().is_err() {
-                        return Err(err(format!(
-                            "bad prefix '{}': must be a list",
-                            rest[j + 1].to_str()
-                        )));
-                    }
-                    1
+                let code = original_handler_code(vm, &rest[j + 1], is_trap, jim, body_code)?;
+                if !jim {
+                    ValueOps::list_elements(vm, &rest[j + 2]).map_err(|error| {
+                        crate::command::completion_from_cmd_error(vm, error.into())
+                    })?;
+                }
+                let jim_matches = if jim {
+                    Some(original_jim_clause_match(
+                        vm,
+                        &rest[j + 1],
+                        is_trap,
+                        body_code,
+                        code,
+                        captured_error_code,
+                    )?)
                 } else {
-                    match code_word_to_int(&rest[j + 1].to_str()) {
-                        Some(c) => c,
-                        None => return Err(err(bad_completion_code(&rest[j + 1].to_str()))),
-                    }
+                    None
+                };
+                let jim_variables = if jim_matches == Some(true) && !first_jim_match {
+                    first_jim_match = true;
+                    let captured = captured_error_code.ok_or_else(|| {
+                        vm.refuse_host_command("original Jim clause capture is unavailable".into())
+                    })?;
+                    Some(capture_original_jim_try_variables(
+                        vm,
+                        &rest[j + 2],
+                        captured,
+                    )?)
+                } else {
+                    None
                 };
                 let script = rest[j + 3].clone();
-                let is_dash = &*script.to_str() == "-";
+                let is_dash = original_handler_fallthrough(vm, &script, jim)?;
                 handlers.push(Handler {
                     code,
                     is_trap,
@@ -271,6 +763,8 @@ fn parse_clauses(rest: &[Value]) -> Result<(Vec<Handler>, Option<Value>), Comple
                     vars: rest[j + 2].clone(),
                     script,
                     is_dash,
+                    jim_matches,
+                    jim_variables,
                 });
                 j += 4;
             }
@@ -284,7 +778,16 @@ fn parse_clauses(rest: &[Value]) -> Result<(Vec<Handler>, Option<Value>), Comple
         }
     }
     if handlers.last().is_some_and(|h| h.is_dash) {
-        return Err(err("last non-finally clause must not have a body of \"-\""));
+        return Err(clause_failure(
+            vm,
+            tcl_registry::NativeTryClauseFailure::BadFallthrough,
+            b"last non-finally clause must not have a body of \"-\"".to_vec(),
+        ));
+    }
+    if let Some(captured) = captured_error_code {
+        captured
+            .check(vm)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
     }
     Ok((handlers, finally))
 }
@@ -299,56 +802,132 @@ fn parse_clauses(rest: &[Value]) -> Result<(Vec<Handler>, Option<Value>), Comple
 fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     const USAGE: &str = "wrong # args: should be \"try body ?handler ...? ?finally script?\"";
     let compiled = vm.pending.release_compiled.take().is_some();
-    let Some((body, rest)) = args.split_first() else {
-        return err(USAGE);
+    let Some(protocol) = vm
+        .actual_native_invocation_dialect()
+        .return_options_protocol()
+    else {
+        return vm.refuse_host_command("try protocol is unavailable".into());
     };
-    let (handlers, finally) = match parse_clauses(rest) {
-        Ok(parsed) => parsed,
-        Err(e) => return e,
-    };
-    let plan = Rc::new(TryPlan {
-        handlers,
-        finally,
-        compiled,
-    });
-    let evaluation = vm.script_evaluation(std::slice::from_ref(body));
-    match vm.prepare_script_commands_as(&body.to_str(), evaluation) {
-        Ok(prepared) if prepared.prefix.is_some() => {
-            vm.pending.try_phase = Some(TryReq {
-                script: prepared.prefix.expect("checked above"),
-                state: TryState {
-                    plan,
-                    phase: TryPhase::Body,
-                    fatal_tail: prepared.fatal_tail,
-                },
-            });
-            ok(Value::empty())
+    let jim = protocol == tcl_cmd_core::return_options::ReturnOptionsProtocol::Jim084;
+    let original = if jim {
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(original) => Some(original),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         }
-        Ok(prepared) => {
-            let body_completion = prepared
-                .fatal_tail
-                .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
-            match advance_after_body(vm, &plan, body_completion) {
-                TryOutcome::Push(req) => {
-                    vm.pending.try_phase = Some(*req);
-                    ok(Value::empty())
-                }
-                TryOutcome::Deliver(c) => c,
+    } else {
+        None
+    };
+    let reached = (|| {
+        if jim
+            && let Err(error) = vm.reset_original_jim_global_error_code()
+            && vm.refused_completion().is_some()
+        {
+            return error;
+        }
+        let jim_prefix = if let Some(original) = &original {
+            let selected = tcl_registry::catch_invocation::select_native_jim_capture_prefix(
+                args.len(),
+                vm.actual_native_invocation_dialect(),
+                |index| original.read(vm, &args[index]).map(|bytes| bytes.to_vec()),
+            );
+            if let Err(error) = original.check(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
             }
+            match selected {
+                Ok(tcl_registry::catch_invocation::JimCapturePrefixSelection::Valid(prefix)) => {
+                    Some(prefix)
+                }
+                Ok(tcl_registry::catch_invocation::JimCapturePrefixSelection::Invalid) => {
+                    return crate::command::native_wrong_arguments_message(vm, USAGE);
+                }
+                Ok(tcl_registry::catch_invocation::JimCapturePrefixSelection::Unknown) => {
+                    return vm.refuse_host_command("original Jim try prefix is unavailable".into());
+                }
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            }
+        } else {
+            None
+        };
+        let rest_args = &args[jim_prefix.map_or(0, |prefix| prefix.script_at)..];
+        let Some((body, rest)) = rest_args.split_first() else {
+            return crate::command::native_wrong_arguments_message(vm, USAGE);
+        };
+        let (handlers, finally, deferred_clauses) = if jim {
+            (Vec::new(), None, Some(rest.to_vec()))
+        } else {
+            match parse_clauses(vm, rest, None, None) {
+                Ok((handlers, finally)) => (handlers, finally, None),
+                Err(error) => return error,
+            }
+        };
+        let plan = Rc::new(TryPlan {
+            handlers,
+            finally,
+            jim,
+            deferred_clauses,
+            jim_prefix,
+            ignored_body: false,
+            body_error_code: None,
+            compiled,
+        });
+        if let Some(original) = &original
+            && let Err(error) = original.current_for_value(vm, body)
+        {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
-        // A body parse error is a regular runtime error, subject to the same
-        // `on error`/`trap`/`finally` handling as any other body error: its
-        // `Err(TclError)` becomes a plain `Completion{Error}` fed through
-        // `advance_after_body`'s handler matching, not returned as a hard
-        // failure that skips it (try-body-parse-error tclsh-pinned test).
-        Err(e) => match advance_after_body(vm, &plan, err(e.message)) {
-            TryOutcome::Push(req) => {
-                vm.pending.try_phase = Some(*req);
+        let prepared = vm.prepare_script_commands_value(body);
+        if let Some(original) = &original
+            && let Err(error) = original.check(vm)
+        {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        match prepared {
+            Ok(prepared) if prepared.prefix.is_some() => {
+                vm.pending.try_phase = Some(TryReq {
+                    script: prepared.prefix.expect("checked above"),
+                    state: TryState {
+                        plan,
+                        phase: TryPhase::Body,
+                        fatal_tail: prepared.fatal_tail,
+                    },
+                });
                 ok(Value::empty())
             }
-            TryOutcome::Deliver(c) => c,
-        },
+            Ok(prepared) => {
+                let body_completion = prepared
+                    .fatal_tail
+                    .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
+                match advance_after_body(vm, &plan, body_completion) {
+                    TryOutcome::Push(req) => {
+                        vm.pending.try_phase = Some(*req);
+                        ok(Value::empty())
+                    }
+                    TryOutcome::Deliver(c) => c,
+                }
+            }
+            // A body parse error is a regular runtime error, subject to the same
+            // `on error`/`trap`/`finally` handling as any other body error: its
+            // `Err(TclError)` becomes a plain `Completion{Error}` fed through
+            // `advance_after_body`'s handler matching, not returned as a hard
+            // failure that skips it (try-body-parse-error tclsh-pinned test).
+            Err(error) => {
+                let completion = crate::command::completion_from_tcl_error(vm, error);
+                match advance_after_body(vm, &plan, completion) {
+                    TryOutcome::Push(req) => {
+                        vm.pending.try_phase = Some(*req);
+                        ok(Value::empty())
+                    }
+                    TryOutcome::Deliver(c) => c,
+                }
+            }
+        }
+    })();
+    if let Some(original) = original
+        && let Err(error) = original.finish(vm)
+    {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
+    reached
 }
 
 /// Advance a `try`'s state machine once its current phase's activation
@@ -364,64 +943,202 @@ pub(crate) fn advance_try(vm: &mut Vm, state: TryState, c: Completion<Value>) ->
     match phase {
         TryPhase::Body => advance_after_body(vm, &plan, c),
         TryPhase::Handler { body_opts } => advance_after_handler(vm, &plan, &body_opts, c),
-        TryPhase::Finally { outcome } => advance_after_finally(vm, outcome, c),
+        TryPhase::Finally { outcome } => advance_after_finally(vm, &plan, outcome, c),
     }
 }
 
 /// The body just completed as `body_comp`: match a handler (if any), bind its
 /// variables, and either push it as the next phase or fall through to
 /// [`finish_body_or_handler`].
-fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Value>) -> TryOutcome {
+fn advance_after_body(
+    vm: &mut Vm,
+    plan: &Rc<TryPlan>,
+    mut body_comp: Completion<Value>,
+) -> TryOutcome {
+    if let Some(refusal) = vm.refused_completion() {
+        return TryOutcome::Deliver(refusal);
+    }
+    if let Some(clauses) = &plan.deferred_clauses {
+        let captured_error_code = match vm.capture_original_jim_error_code() {
+            Ok(value) => Rc::new(value),
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_cmd_error(vm, error));
+            }
+        };
+        let (handlers, finally) = match parse_clauses(
+            vm,
+            clauses,
+            Some(body_comp.code),
+            Some(&captured_error_code),
+        ) {
+            Ok(parsed) => parsed,
+            Err(error) => return TryOutcome::Deliver(error),
+        };
+        let Some(prefix) = plan.jim_prefix else {
+            return TryOutcome::Deliver(
+                vm.refuse_host_command("original Jim try prefix is unavailable".into()),
+            );
+        };
+        let parsed = Rc::new(TryPlan {
+            handlers,
+            finally,
+            jim: true,
+            deferred_clauses: None,
+            jim_prefix: Some(prefix),
+            ignored_body: prefix.ignores(body_comp.code.as_int()),
+            body_error_code: Some(captured_error_code),
+            compiled: plan.compiled,
+        });
+        return advance_after_body(vm, &parsed, body_comp);
+    }
+    if plan.jim {
+        // Settlement and finally observe the result left by all reached clauses.
+        // This is a memory-only view; message binding reads again after its name getter.
+        body_comp.result = match vm.with_native_interp_result(Value::native_lifetime_lease) {
+            Ok(actual) => actual.into_value(),
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_cmd_error(
+                    vm,
+                    error.into(),
+                ));
+            }
+        };
+    }
+    if plan.ignored_body {
+        return finish_body_or_handler(vm, plan, body_comp);
+    }
     // `exit` is not catchable (C Tcl's `Tcl_Exit`): propagate the unwind
     // without running handlers or the `finally` clause.
     if vm.exit_pending() {
         return TryOutcome::Deliver(body_comp);
     }
-    let errorcode = if body_comp.code == Code::Error {
-        crate::command::resolved_error_code(&body_comp, vm.runtime_version())
+    let errorcode = if body_comp.code == Code::Error && !plan.jim {
+        match crate::command::resolved_error_code(vm, &body_comp) {
+            Ok(value) => value,
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_tcl_error(vm, error));
+            }
+        }
     } else {
         Value::empty()
     };
     // The body's options dict (bound to a handler's optionsVar and reused as the
     // `-during` chain link if a handler/finally throws over the body's exception).
-    let body_opts = vm.completion_options_snapshot(&body_comp);
-    let matched = plan.handlers.iter().position(|h| {
-        if h.is_trap {
-            body_comp.code == Code::Error && errorcode_prefix_match(&h.pattern, &errorcode)
-        } else {
-            h.code == body_comp.code.as_int()
+    let body_opts = if plan.jim {
+        // Original Jim constructs options only at a reached options-variable bind.
+        Value::empty()
+    } else {
+        match vm.completion_options_snapshot(&body_comp) {
+            Ok(value) => value,
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_tcl_error(vm, error));
+            }
         }
-    });
-    let Some(m) = matched else {
+    };
+    let mut matched = None;
+    for (index, handler) in plan.handlers.iter().enumerate() {
+        let applies = if plan.jim {
+            let Some(matched) = handler.jim_matches else {
+                return TryOutcome::Deliver(
+                    vm.refuse_host_command("original Jim clause match is unavailable".into()),
+                );
+            };
+            matched
+        } else if handler.is_trap && body_comp.code == Code::Error {
+            match errorcode_prefix_match(vm, &handler.pattern, &errorcode) {
+                Ok(applies) => applies,
+                Err(completion) => return TryOutcome::Deliver(completion),
+            }
+        } else {
+            !handler.is_trap && handler.code == body_comp.code.as_int()
+        };
+        if applies {
+            matched = Some(index);
+            break;
+        }
+    }
+    let Some(matched_index) = matched else {
         return finish_body_or_handler(vm, plan, body_comp);
     };
     // Scan forward over `-` fall-through bodies to the clause that runs.
-    let mut b = m;
-    while plan.handlers[b].is_dash {
-        b += 1; // guaranteed to terminate (the last body is not `-`)
+    let mut handler_index = matched_index;
+    while plan.handlers[handler_index].is_dash {
+        handler_index += 1; // guaranteed to terminate (the last body is not `-`)
     }
-    let binding = if plan.compiled { m } else { b };
-    match bind_handler_vars(
+    let binding_index = if plan.compiled {
+        matched_index
+    } else {
+        handler_index
+    };
+    enter_matched_handler(
         vm,
-        &plan.handlers[binding].vars,
-        &body_comp.result,
-        &body_opts,
-    ) {
+        plan,
+        handler_index,
+        binding_index,
+        &body_comp,
+        body_opts,
+        &errorcode,
+    )
+}
+
+fn enter_matched_handler(
+    vm: &mut Vm,
+    plan: &Rc<TryPlan>,
+    handler_index: usize,
+    binding_index: usize,
+    body_comp: &Completion<Value>,
+    body_opts: Value,
+    errorcode: &Value,
+) -> TryOutcome {
+    let binding = if plan.jim {
+        let (Some(captured), Some(names)) = (
+            plan.body_error_code.as_deref(),
+            plan.handlers[handler_index].jim_variables.as_ref(),
+        ) else {
+            return TryOutcome::Deliver(vm.refuse_host_command(
+                "original Jim selected handler names are unavailable".into(),
+            ));
+        };
+        bind_original_jim_handler_vars(vm, names, body_comp.code, captured)
+    } else {
+        bind_handler_vars(
+            vm,
+            &plan.handlers[binding_index].vars,
+            &body_comp.result,
+            &body_opts,
+        )
+    };
+    match binding {
         Ok(()) => {
             // The body's exception is now handled: publish `errorInfo`/
             // `errorCode` (so the handler reads the body's error) and reset the
             // trace so the handler's own errors start fresh.
-            if body_comp.code == Code::Error {
-                let einfo = vm.take_error_info().unwrap_or_else(|| {
-                    opt_get(&body_opts, "-errorinfo").map_or_else(
-                        || body_comp.result.to_str().to_string(),
-                        |v| v.to_str().to_string(),
-                    )
-                });
-                vm.publish_error(&einfo, &errorcode);
+            if body_comp.code == Code::Error && !plan.jim {
+                let einfo = if let Some(bytes) = vm.error_info_value() {
+                    bytes.to_vec()
+                } else {
+                    let original = match opt_get_checked(vm, &body_opts, b"-errorinfo") {
+                        Ok(value) => value.unwrap_or_else(|| body_comp.result.clone()),
+                        Err(error) => {
+                            return TryOutcome::Deliver(crate::command::completion_from_tcl_error(
+                                vm, error,
+                            ));
+                        }
+                    };
+                    match ValueOps::native_string_bytes(vm, &original) {
+                        Ok(bytes) => bytes.to_vec(),
+                        Err(error) => {
+                            return TryOutcome::Deliver(crate::command::completion_from_cmd_error(
+                                vm,
+                                error.into(),
+                            ));
+                        }
+                    }
+                };
+                let _ = vm.take_error_info();
+                vm.publish_error(&einfo, errorcode);
             }
-            let evaluation = vm.script_evaluation(std::slice::from_ref(&plan.handlers[b].script));
-            match vm.prepare_script_commands_as(&plan.handlers[b].script.to_str(), evaluation) {
+            match vm.prepare_script_commands_value(&plan.handlers[handler_index].script) {
                 Ok(prepared) if prepared.prefix.is_some() => TryOutcome::Push(Box::new(TryReq {
                     script: prepared.prefix.expect("checked above"),
                     state: TryState {
@@ -436,13 +1153,30 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
                         .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
                     advance_after_handler(vm, plan, &body_opts, completion)
                 }
-                Err(e) => finish_body_or_handler(vm, plan, err(e.message)),
+                Err(error) => {
+                    let completion = crate::command::completion_from_tcl_error(vm, error);
+                    finish_body_or_handler(vm, plan, completion)
+                }
             }
         }
         // A failed var bind also chains to the body (C's `handlerFailed`).
         Err(mut e) => {
-            if e.code == Code::Error {
-                e.options = add_during(&vm.completion_options_snapshot(&e), &body_opts);
+            if plan.jim {
+                e.code = body_comp.code;
+            }
+            if e.code == Code::Error && !plan.jim {
+                let options = match vm.completion_options_snapshot(&e) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        return TryOutcome::Deliver(crate::command::completion_from_tcl_error(
+                            vm, error,
+                        ));
+                    }
+                };
+                e.options = match add_during(vm, &options, &body_opts) {
+                    Ok(options) => options,
+                    Err(completion) => return TryOutcome::Deliver(completion),
+                };
             }
             finish_body_or_handler(vm, plan, e)
         }
@@ -458,9 +1192,21 @@ fn advance_after_handler(
     body_opts: &Value,
     handler_comp: Completion<Value>,
 ) -> TryOutcome {
+    if let Some(refusal) = vm.refused_completion() {
+        return TryOutcome::Deliver(refusal);
+    }
     let mut outcome = handler_comp;
-    if outcome.code == Code::Error {
-        outcome.options = add_during(&vm.completion_options_snapshot(&outcome), body_opts);
+    if outcome.code == Code::Error && !plan.jim {
+        let options = match vm.completion_options_snapshot(&outcome) {
+            Ok(value) => value,
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_tcl_error(vm, error));
+            }
+        };
+        outcome.options = match add_during(vm, &options, body_opts) {
+            Ok(options) => options,
+            Err(completion) => return TryOutcome::Deliver(completion),
+        };
     }
     finish_body_or_handler(vm, plan, outcome)
 }
@@ -473,32 +1219,44 @@ fn finish_body_or_handler(
     plan: &Rc<TryPlan>,
     mut outcome: Completion<Value>,
 ) -> TryOutcome {
-    if outcome.code == Code::Error {
-        outcome.options = vm.completion_options_snapshot(&outcome);
+    if let Some(refusal) = vm.refused_completion() {
+        return TryOutcome::Deliver(refusal);
+    }
+    if outcome.code == Code::Error && !plan.jim {
+        outcome.options = match vm.completion_options_snapshot(&outcome) {
+            Ok(value) => value,
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_tcl_error(vm, error));
+            }
+        };
     }
     let Some(fin) = plan.finally.clone() else {
         return TryOutcome::Deliver(outcome);
     };
-    if outcome.code == Code::Error {
+    // Finally preserves a genuine saved result reference while another command runs.
+    outcome.result = outcome.result.into_native_reference();
+    if outcome.code == Code::Error && !plan.jim {
         let _ = vm.take_error_info();
     }
     // Compiled lazily here rather than in `cmd_try` up front: a `finally`
     // never runs before this point, so a
     // body/handler compile error is reported before `finally`'s own grammar
     // is ever touched.
-    let evaluation = vm.script_evaluation(std::slice::from_ref(&fin));
-    let prepared = match vm.prepare_script_commands_as(&fin.to_str(), evaluation) {
+    let prepared = match vm.prepare_script_commands_value(&fin) {
         Ok(prepared) => prepared,
         // A `finally` parse error is `finally`'s own exception overriding the
         // prior outcome, same as a runtime error in `finally` would (chains
         // `-during` to what `finally` superseded).
-        Err(e) => return advance_after_finally(vm, outcome, err(e.message)),
+        Err(error) => {
+            let completion = crate::command::completion_from_tcl_error(vm, error);
+            return advance_after_finally(vm, plan, outcome, completion);
+        }
     };
     let Some(script) = prepared.prefix else {
         let completion = prepared
             .fatal_tail
             .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
-        return advance_after_finally(vm, outcome, completion);
+        return advance_after_finally(vm, plan, outcome, completion);
     };
     TryOutcome::Push(Box::new(TryReq {
         script,
@@ -514,17 +1272,55 @@ fn finish_body_or_handler(
 /// overrides — chaining `-during` to the prior outcome's options if it threw.
 fn advance_after_finally(
     vm: &mut Vm,
+    plan: &Rc<TryPlan>,
     outcome: Completion<Value>,
     fc: Completion<Value>,
 ) -> TryOutcome {
+    if let Some(refusal) = vm.refused_completion() {
+        return TryOutcome::Deliver(refusal);
+    }
+    if plan.jim {
+        let raw = if plan.ignored_body || fc.code == Code::Ok {
+            outcome.code
+        } else {
+            fc.code
+        };
+        let result = if !plan.ignored_body && fc.code == Code::Ok {
+            outcome.result
+        } else {
+            fc.result
+        };
+        let options = if !plan.ignored_body && fc.code == Code::Ok {
+            outcome.options
+        } else {
+            fc.options
+        };
+        return TryOutcome::Deliver(Completion::new(raw, result, options));
+    }
     if fc.code == Code::Ok {
-        vm.restore_completion_error_state(&outcome);
+        if let Err(error) = vm.restore_completion_error_state(&outcome) {
+            return TryOutcome::Deliver(crate::command::completion_from_tcl_error(vm, error));
+        }
         return TryOutcome::Deliver(outcome);
     }
     let mut fc = fc;
     if fc.code == Code::Error {
-        let prior_opts = completion_options(&outcome);
-        fc.options = add_during(&vm.completion_options_snapshot(&fc), &prior_opts);
+        let prior_opts = match completion_options(vm, &outcome) {
+            Ok(value) => value,
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_tcl_error(vm, error));
+            }
+        };
+        let options = match vm.completion_options_snapshot(&fc) {
+            Ok(value) => value,
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_tcl_error(vm, error));
+            }
+        };
+        fc.options = match add_during(vm, &options, &prior_opts) {
+            Ok(options) => options,
+            Err(completion) => return TryOutcome::Deliver(completion),
+        };
     }
     TryOutcome::Deliver(fc)
 }
@@ -533,13 +1329,17 @@ fn advance_after_finally(
 /// list). Equivalent to `return -code error -errorcode $type $message`.
 fn cmd_throw(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [ty, msg] = args else {
-        return err("wrong # args: should be \"throw type message\"");
+        return crate::command::native_wrong_args(vm, "throw type message");
     };
-    match ty.as_list() {
+    match tcl_syntax::value::ValueOps::list_elements(vm, ty) {
         Ok(parts) if !parts.is_empty() => {}
         Ok(_) => return err("type must be non-empty list"),
-        Err(e) => return err(e.message),
+        Err(e) => return crate::command::completion_from_cmd_error(vm, e.into()),
     }
+    let message = match tcl_syntax::value::ValueOps::native_string_bytes(vm, msg) {
+        Ok(bytes) => bytes,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+    };
     // Like `return -code error -errorcode $type $msg`: the message is the result,
     // the `while executing`/`invoked from within` trace accumulates as it unwinds.
     let options = options_dict(
@@ -547,9 +1347,92 @@ fn cmd_throw(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         0,
         &[
             ("-errorcode", ty.clone()),
-            ("-errorinfo", Value::string(msg.to_str().to_string())),
+            ("-errorinfo", Value::from_string_bytes(message)),
         ],
     );
-    let _ = vm;
     Completion::new(Code::Error, msg.clone(), options)
+}
+
+#[cfg(test)]
+mod jim_capture_prefix_tests;
+#[cfg(test)]
+mod jim_reached_message_tests;
+
+#[cfg(test)]
+mod native_fixture_tests {
+    use super::*;
+
+    fn bytes_from_hex(hex: &str) -> Vec<u8> {
+        assert_eq!(hex.len() % 2, 0);
+        hex.as_bytes()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| {
+                let text = core::str::from_utf8(pair).unwrap();
+                u8::from_str_radix(text, 16).unwrap()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn try_grammar_binding_and_finally_match_fixed_native_results() {
+        const CASES: &str = include_str!("../tests/data/native_try/cases.tsv");
+        let engines = [
+            (
+                "tcl8.6",
+                include_str!("../tests/data/native_try/8.6.18.tsv"),
+            ),
+            ("tcl9.0", include_str!("../tests/data/native_try/9.0.4.tsv")),
+            ("tcl9.1", include_str!("../tests/data/native_try/9.1.0.tsv")),
+            ("jim", include_str!("../tests/data/native_try/Jim.tsv")),
+        ];
+        let mut compared = 0;
+        for (engine, expected) in engines {
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+            assert_eq!(CASES.lines().count(), expected.lines().count());
+            for (input, expected) in CASES.lines().zip(expected.lines()) {
+                let (name, source) = input.split_once('\t').unwrap();
+                let mut wanted = expected.splitn(3, '\t');
+                assert_eq!(wanted.next().unwrap(), name);
+                let code: i64 = wanted.next().unwrap().parse().unwrap();
+                let result = bytes_from_hex(wanted.next().unwrap());
+                let source = bytes_from_hex(source);
+                // Retain genuine core/bootstrap and compiler owners for this native expectation.
+                let mut vm = crate::native_fixture::interpreter(profile);
+                let completion = vm
+                    .try_eval_source_bytes(&source)
+                    .unwrap_or_else(|error| panic!("{engine}/{name}: {error:?}"));
+                assert_eq!(completion.code.as_int(), code, "{engine}/{name}");
+                let actual = ValueOps::native_string_bytes(&mut vm, &completion.result).unwrap();
+                assert_eq!(actual.as_ref(), result.as_slice(), "{engine}/{name}");
+                compared += 1;
+            }
+        }
+        assert_eq!(compared, 60);
+    }
+
+    #[test]
+    fn original_try_source_without_actual_core_keeps_native_preflight_refusal() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // An authored profile/compiler is not a genuine native-core constructor.
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(profile);
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        let source = include_str!("../tests/data/native_try/cases.tsv")
+            .lines()
+            .find_map(|row| row.strip_prefix("malformed-unmatched-vars\t"))
+            .unwrap();
+        let source = bytes_from_hex(source);
+        assert!(matches!(
+            vm.try_eval_source_bytes(&source),
+            Err(tcl_runtime_api::NativeExecutionError::CompilationAdmission(
+                tcl_runtime_api::NativeCompilationAdmissionError::NativePreflightRequired
+            ))
+        ));
+    }
 }

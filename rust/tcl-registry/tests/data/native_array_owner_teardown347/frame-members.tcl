@@ -1,0 +1,1 @@
+set log {}; proc fresh args {lappend ::log NEW}; proc old args {lappend ::log OLD; trace add variable ::xx unset fresh; trace add variable ::yy unset fresh}; proc owner {} {set a(x) X; set a(y) Y; uplevel #0 {upvar #1 a(x) xx; upvar #1 a(y) yy}; trace add variable a(x) unset old; trace add variable a(y) unset old}; owner; set log

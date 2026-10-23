@@ -209,7 +209,7 @@ impl ArrayIndexSyntax {
 }
 
 /// The brace-line continuation axis — the F5 N-rules
-/// (`docs/design/f5/bigip-irule-parser-measurements.md` §2), a second
+/// (`docs/design/f5/embedded-tcl-contract.md` §2), a second
 /// divergence independent of the implicit word break and likewise an
 /// `f5-tcl` trunk fact (measurements §4a).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -280,7 +280,7 @@ pub struct LexerGrammar {
     /// 8.5+; false for Tcl 8.4 and iRules.
     pub expand_syntax: bool,
     /// When true, the word break implied by a close delimiter — the F5
-    /// R-rules (`docs/design/f5/bigip-irule-parser-measurements.md` §1, §3):
+    /// R-rules (`docs/design/f5/embedded-tcl-contract.md` §1, §3):
     /// a word that *started* with `{` or `"` ends at its matching close
     /// delimiter, and any character other than whitespace or a command
     /// terminator immediately after it begins a **new word** (a
@@ -338,6 +338,11 @@ pub struct LexerGrammar {
     pub var_syntax: VarSyntax,
     /// Whether malformed list text is an error — see [`ListParse`].
     pub list_parse: ListParse,
+    /// How the dialect's `source` reads a script file's line endings — see
+    /// [`SourceLineEndings`]. Like [`Self::script_skips_leading_bom`], this
+    /// describes the file reader, so it applies only to Document input
+    /// (`tcl_lexer::SourceChannel::Document`), never to a native value.
+    pub source_line_endings: SourceLineEndings,
     /// Which numeric literal forms the release accepts — see [`NumberSyntax`].
     pub numbers: NumberSyntax,
     /// Which backslash-escape grammar the release decodes — see
@@ -448,8 +453,9 @@ impl EscapeSyntax {
         !matches!(self, Self::Tcl84)
     }
 
-    /// Whether `\u{…}` — a brace-delimited scalar of any width — is a form
-    /// this grammar decodes.
+    /// Whether `\u{…}` — a brace-delimited numeric UTF8 unit — is a form
+    /// this grammar decodes. Jim accepts one through six hex digits up to
+    /// `0x1fffff`; its byte encoder also retains surrogate units.
     ///
     /// `JimTcl` alone accepts it (`\u{1F600}` is one character on jimsh 0.76
     /// and 0.84); no build of the Tcl core does, and tclsh 8.6 / 9.0 both read
@@ -758,13 +764,17 @@ impl NumberSyntax {
     /// Measured: at precision 17 `expr {1e-7}` is `9.9999999999999995e-08`
     /// on tclsh 8.4.20 to 8.6.18; at 12 `expr {1e15}` is `1e+15` on 8.4.20
     /// and `1000000000000000.0` on 8.5.19 and 8.6.18.
+    ///
+    /// The answer is the shared [`crate::DoubleFormat`] the native lazy
+    /// double-string owner selects (`crate::DoubleStringPolicy::format`):
+    /// `General` is the `%g` layout, `TclSignificant` 8.5/8.6's.
     #[must_use]
-    pub fn double_format(self, precision: u8) -> DoubleFormat {
+    pub fn double_format(self, precision: u8) -> crate::DoubleFormat {
         match self {
-            Self::Tcl84 => DoubleFormat::Printf(precision),
-            Self::Jim | Self::Jim080 => DoubleFormat::Printf(12),
-            Self::Tcl85 | Self::Tcl90 if precision == 0 => DoubleFormat::Shortest,
-            Self::Tcl85 | Self::Tcl90 => DoubleFormat::Significant(precision),
+            Self::Tcl84 => crate::DoubleFormat::General(precision),
+            Self::Jim | Self::Jim080 => crate::DoubleFormat::General(12),
+            Self::Tcl85 | Self::Tcl90 if precision == 0 => crate::DoubleFormat::Shortest,
+            Self::Tcl85 | Self::Tcl90 => crate::DoubleFormat::TclSignificant(precision),
         }
     }
 
@@ -836,21 +846,6 @@ pub enum DoubleSpelling {
     /// `%.12g`, with `.0` appended when that has neither a point nor an
     /// exponent: Tcl 8.4 at its default `tcl_precision` of 12, and Jim.
     Precision12,
-}
-
-/// How `Tcl_PrintDouble` lays a double out at run time
-/// ([`NumberSyntax::double_format`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DoubleFormat {
-    /// [`DoubleSpelling::Shortest`]: 8.5 onward at `tcl_precision` 0.
-    Shortest,
-    /// That many correctly rounded significant digits, trailing zeros
-    /// dropped, laid out as [`Self::Shortest`] is but with an exponent of at
-    /// least two digits: 8.5 and 8.6 at a non-zero `tcl_precision`.
-    Significant(u8),
-    /// `sprintf("%.<n>g")` with `.0` appended to an integral result: 8.4
-    /// and Jim.
-    Printf(u8),
 }
 
 /// How a target spells the numbers it computes, read back under the grammar
@@ -1075,7 +1070,7 @@ impl QuoteTermination {
 ///   is one variable where C Tcl names `caf`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum VarSyntax {
-    /// `TclParseVarName`: `$(` is a variable named `(`, an index ends at the
+    /// `TclParseVarName`: `$(` starts an empty-name array read; an index ends at the
     /// first `)`, and a bare name is ASCII alphanumerics plus `_`.
     #[default]
     Tcl,
@@ -1123,6 +1118,39 @@ pub enum ListParse {
     Lenient,
 }
 
+/// How a dialect's `source` command reads a script file's line endings
+/// before its parser sees the text.
+///
+/// C Tcl opens the file with `-translation auto`, and its `TranslateInputEOL`
+/// turns CR and CRLF into LF. A lone CR in a sourced file therefore ends a
+/// command or a comment, exactly as LF does, while `eval` of the same bytes
+/// keeps the CR as a word separator. This was measured on tclsh 8.4.20,
+/// 8.5.19, 8.6.18, 9.0.4 and 9.1.0, with identical results.
+/// `JimTcl`'s `Jim_EvalFile` reads the file with `fopen(…, "rt")` and
+/// `fread` and translates nothing (`jim.c:12130` at 0.84). On jimsh 0.84,
+/// `proc t {a b} {…}\rt x value\r` is one `proc` command ("wrong # args"),
+/// and `#\r{\nputs reached\n` prints `reached`, because the comment runs
+/// to the LF.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum SourceLineEndings {
+    /// `-translation auto`: a lone CR reads as LF. The CR of a CRLF pair
+    /// stays a word separator before the pair's LF, which gives the same
+    /// command structure as one translated LF. Every C Tcl release.
+    #[default]
+    TranslateAuto,
+    /// The file's bytes reach the parser unchanged, so a lone CR stays a
+    /// word separator — `JimTcl`.
+    Preserve,
+}
+
+impl SourceLineEndings {
+    /// Whether a lone CR in a sourced file reads as LF.
+    #[must_use]
+    pub const fn translates(self) -> bool {
+        matches!(self, Self::TranslateAuto)
+    }
+}
+
 impl Default for LexerGrammar {
     /// The modern-Tcl (9.x / unversioned) grammar — matches
     /// `LexerConfig::default()`.
@@ -1142,6 +1170,7 @@ impl Default for LexerGrammar {
             quote_termination: QuoteTermination::Strict,
             var_syntax: VarSyntax::Tcl,
             list_parse: ListParse::Strict,
+            source_line_endings: SourceLineEndings::TranslateAuto,
         }
     }
 }
@@ -1348,6 +1377,7 @@ mod grammar_of_dialect_name_tests {
         assert_eq!(jim.word_separators, WordSeparators::Jim);
         assert_eq!(jim.list_parse, ListParse::Lenient);
         assert_eq!(jim.brace_backslash_newline, BraceBackslashNewline::Literal);
+        assert_eq!(jim.source_line_endings, SourceLineEndings::Preserve);
         assert_ne!(
             jim,
             LexerGrammar::default(),

@@ -16,17 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `catch` + `error` — the exception foundation (PC-4, toward running tcltest).
+//! Tcl exception commands, original return-options dictionaries and error state.
 //!
-//! Modelled on C Tcl 9 (`tclCmdAH.c` `Tcl_CatchObjCmd`, `tclProc.c`/`tclResult.c`
-//! `Tcl_ErrorObjCmd`). `catch` snapshots the body's completion code
-//! and result **before** resetting the interp result; `error` stamps the
-//! `::errorInfo` / `::errorCode` globals on every error (`NONE` default).
-//!
-//! Conservative-first: the `-errorinfo` value is the message (or the explicit
-//! info arg) — the incremental `while executing` / `invoked from within`
-//! source-trace unwinder needs the `CmdFrame` source stack (PC-1) and lands with
-//! it. `-errorstack`, `try`, `throw`, and full `return -options` follow.
+//! `catch` and `try` snapshot original results and private metadata before
+//! resetting interpreter state. The shared completion-options owner supplies
+//! native key ordering; physical snapshots duplicate the private dictionary.
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -39,10 +33,21 @@ use tcl_runtime_api::completion_options::{self, ErrorOptions, OptionValue};
 
 /// Register `catch`, `error`, `try`, and `throw`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"catch", catch_cmd);
-    interp.register_builtin(b"error", error_cmd);
-    interp.register_builtin(b"try", try_cmd);
-    interp.register_builtin(b"throw", throw_cmd);
+    install_for_bootstrap(interp, None);
+}
+
+pub(crate) fn install_for_bootstrap(
+    interp: &mut Interp,
+    native: Option<tcl_registry::special_vars::NativeBootstrapProtocol>,
+) {
+    interp.register_stock_builtin(b"catch", catch_cmd);
+    interp.register_stock_builtin(b"error", error_cmd);
+    if native.is_none_or(|protocol| protocol.registers_core_try()) {
+        interp.register_stock_builtin(b"try", try_cmd);
+    }
+    if native.is_none_or(|protocol| protocol.registers_core_throw()) {
+        interp.register_stock_builtin(b"throw", throw_cmd);
+    }
 }
 
 // catch
@@ -50,68 +55,221 @@ pub fn install(interp: &mut Interp) {
 /// `catch script ?resultVarName? ?optionsVarName?` — evaluate `script`, trap any
 /// completion code, and return it as an integer (0=ok … 4=continue).
 fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    // The release's signature: 8.4's `catch` takes the result variable alone,
-    // and names the words of its narrower form.
-    let arity = interp
-        .release_arity("catch")
-        .unwrap_or(tcl_registry::Arity::new(1, 3));
-    if !arity.accepts(u16::try_from(argv.len() - 1).unwrap_or(u16::MAX)) {
-        return interp.wrong_args(if arity.max < 3 {
+    let dialect = interp.native_invocation_dialect();
+    let jim = dialect.family() == Some(tcl_dialect::model::Family::Jim);
+    if dialect.return_options_protocol()
+        == Some(tcl_cmd_core::return_options::ReturnOptionsProtocol::Jim084)
+    {
+        if let Err(error) = interp.reset_original_jim_catch_error_code() {
+            if interp.host_refusal_pending() {
+                return Code::Error;
+            }
+            let _ = error;
+        }
+    }
+    let jim_original = if jim {
+        match crate::interp::native_arguments::OriginalArguments::enter(interp, &argv[1..]) {
+            Ok(original) => Some(original),
+            Err(error) => return interp.report_cmd_error(error),
+        }
+    } else {
+        None
+    };
+    let selected = if let Some(original) = &jim_original {
+        let selected = tcl_registry::catch_invocation::select_native_jim_catch_invocation(
+            argv.len() - 1,
+            dialect,
+            |index| {
+                original.check_original_for(interp, index, argv[index + 1])?;
+                let reached = original.bytes(index)?;
+                original.check_original_for(interp, index, argv[index + 1])?;
+                Ok::<_, tcl_cmd_core::CmdError>(reached.to_vec())
+            },
+        );
+        if let Err(error) = original.check_for(interp) {
+            return interp.report_cmd_error(error);
+        }
+        match selected {
+            Ok(selected) => selected,
+            Err(error) => return interp.report_cmd_error(error),
+        }
+    } else {
+        tcl_registry::catch_invocation::select_original_catch_invocation(
+            argv.len() - 1,
+            dialect,
+            |index| Ok::<_, std::convert::Infallible>(obj_bytes(argv[index + 1])),
+        )
+        .unwrap_or_else(|error| match error {})
+    };
+    let tcl_registry::catch_invocation::CatchInvocationSelection::Valid(selected) = selected else {
+        let synopsis: &[u8] = if dialect.family() == Some(tcl_dialect::model::Family::Jim) {
+            b"catch ?-?no?code ... --? script ?resultVarName? ?optionVarName?".as_slice()
+        } else if dialect.completion_options_policy()
+            == Some(tcl_registry::CompletionOptionsPolicy::Legacy)
+        {
             b"catch command ?varName?"
         } else {
             b"catch script ?resultVarName? ?optionVarName?"
-        });
-    }
+        };
+        return interp.wrong_args(synopsis);
+    };
     // The caught body is a fresh completion scope. Commands within it retain
     // carried options until a later command replaces them, but neither the
     // caller's prior options nor the caught body's options belong to the
     // successful `catch` command itself.
-    interp.clear_return_options();
+    if let Err(first) = interp.clear_return_options_checked() {
+        return interp.refuse_native_execution(first);
+    }
     // `catch` is bytecode-compiled inline (C's `TclCompileCatchCmd`): a literal
     // body runs in the **same** `info frame` level and the same `codePtr->source`
     // as the enclosing proc/script. `eval_control_body` reproduces that — sharing
     // the enclosing frame in a proc (so `info frame` depth and the body-relative
     // `errorLine` for `MakeProcError` stay correct), while a top-level or dynamic
     // body still evaluates as its own frame.
-    let evaluates_script_word = catch_compiles_script_word(interp, argv);
+    // A `catch` the release compiles with its substituted script word
+    // evaluates that word's value (`INST_EVAL_STK`) as a script of its own.
+    let evaluates_script_word = jim_original.is_none() && catch_compiles_script_word(interp, argv);
     if evaluates_script_word {
-        crate::list::read_as_other_type(argv[1]);
+        crate::list::read_as_other_type(argv[selected.script_at + 1]);
     }
-    let code = interp.eval_control_body(argv[1]);
-    // The compiled `catch` evaluates the script word's value (`INST_EVAL_STK`),
-    // a script of its own, and an error leaving it logs the `catch` before the
-    // range catches it.
+    if let Some(original) = &jim_original {
+        if let Err(error) =
+            original.check_original_for(interp, selected.script_at, argv[selected.script_at + 1])
+        {
+            return interp.report_cmd_error(error);
+        }
+    }
+    let mut code = interp.eval_control_body(argv[selected.script_at + 1]);
+    if let Some(original) = &jim_original {
+        if let Err(error) = original.check_for(interp) {
+            return interp.report_cmd_error(error);
+        }
+    }
+    if interp.host_refusal_pending() {
+        return Code::Error;
+    }
+    // The compiled `catch` evaluates the script word's value, and an error
+    // leaving it logs the `catch` before the range catches it.
     if code == Code::Error && evaluates_script_word {
         interp.clear_error_logged();
         interp.log_current_command();
     }
+    let jim_error_code = if jim {
+        interp.reset_jim_error_capture();
+        match interp.capture_original_jim_error_code() {
+            Ok(captured) => Some(captured),
+            Err(error) => return interp.report_cmd_error(error),
+        }
+    } else {
+        None
+    };
     // An `exit` in the body is uncatchable (C's `Tcl_Exit`): re-propagate it
     // instead of turning it into a caught return code.
     if interp.exit_pending() {
-        return code;
+        if dialect.family() != Some(tcl_dialect::model::Family::Jim) || selected.ignores(6) {
+            return code;
+        }
+        let status = interp.take_exit().expect("pending process exit");
+        interp.set_result_bytes(status.to_string().as_bytes());
+        code = Code::from_int(6);
     }
-    // Snapshot the body's result BEFORE we overwrite the interp result with the
-    // catch return value (read the value before clearing the result). `var_set`
-    // retains it into the result var, so it survives the later `set_result`.
-    let result = interp.get_obj_result();
-    let options = argv.get(3).map(|_| completion_options(interp, code));
-    interp.clear_return_options();
-
-    if let Some(&rv) = argv.get(2) {
-        let name = obj_bytes(rv);
-        if let Err(e) = set_var_or_elem(interp, &name, result) {
-            if let Some(opts) = options {
-                drop_fresh(opts);
-            }
-            return crate::builtins::var_error(interp, &name, e);
+    if selected.ignores(code.as_int()) {
+        return jim_original
+            .as_ref()
+            .map_or(code, |original| original.finish(code));
+    }
+    // C captures before output construction; Jim reads after the name's Length.
+    let result = (!jim).then(|| crate::obj::Owned::retain(interp.get_obj_result()));
+    let options = if !jim && selected.options_var_at.is_some() {
+        match completion_options(interp, code) {
+            Ok(options) => Some(crate::obj::Owned::fresh(options)),
+            Err(error) => return interp.refuse_native_execution(error),
+        }
+    } else {
+        None
+    };
+    if !jim {
+        if let Err(first) = interp.clear_return_options_checked() {
+            return interp.refuse_native_execution(first);
         }
     }
-    if let Some(&ov) = argv.get(3) {
-        let opts = options.expect("options requested above"); // rc 0
-        let name = obj_bytes(ov);
-        if let Err(e) = set_var_or_elem(interp, &name, opts) {
-            drop_fresh(opts);
-            return crate::builtins::var_error(interp, &name, e);
+    let selection = interp.active_native_compilation_selection();
+    let Some(order) = selected.output_order(dialect, selection).indices(selected) else {
+        return interp.error(b"native catch output protocol is not selected");
+    };
+    let original_c_names = interp.native_c_variable_name_protocol().is_some();
+    for index in order.into_iter().flatten() {
+        let original = if jim || original_c_names {
+            match crate::interp::native_arguments::OriginalArguments::enter(
+                interp,
+                &[argv[index + 1]],
+            ) {
+                Ok(original) => Some(original),
+                Err(error) => return interp.report_cmd_error(error),
+            }
+        } else {
+            None
+        };
+        let name = match &original {
+            Some(original) if jim => match original.bytes(0) {
+                Ok(bytes) => Some(bytes.to_vec()),
+                Err(error) => return interp.report_cmd_error(error),
+            },
+            Some(_) => None,
+            None => Some(obj_bytes(argv[index + 1])),
+        };
+        if jim && name.as_ref().is_some_and(Vec::is_empty) {
+            continue;
+        }
+        let jim_options = if jim && Some(index) == selected.options_var_at {
+            match jim_options_object_with_captured_error_code(
+                interp,
+                jim_error_code
+                    .as_ref()
+                    .expect("Jim getter reached after body"),
+                code,
+            ) {
+                Ok(options) => Some(options),
+                Err(error) => return interp.refuse_native_execution(error),
+            }
+        } else {
+            None
+        };
+        let value = if Some(index) == selected.options_var_at {
+            jim_options
+                .as_ref()
+                .or(options.as_ref())
+                .expect("options requested above")
+                .as_ptr()
+        } else {
+            result
+                .as_ref()
+                .map_or_else(|| interp.get_obj_result(), obj::Owned::as_ptr)
+        };
+        if let Some(original) = &original {
+            if let Err(error) = original.check_original_for(interp, 0, argv[index + 1]) {
+                return interp.report_cmd_error(error);
+            }
+            let assigned = interp.assign_original_named_variable(argv[index + 1], value);
+            if let Err(error) = original.check_original_for(interp, 0, argv[index + 1]) {
+                return interp.report_cmd_error(error);
+            }
+            if let Err(code) = assigned {
+                if !jim || interp.host_refusal_pending() {
+                    return code;
+                }
+                break;
+            }
+        } else {
+            let name = name.as_deref().expect("byte-name output fallback");
+            if let Err(error) = set_var_or_elem(interp, name, value) {
+                return crate::builtins::var_error(interp, name, error);
+            }
+        }
+    }
+    if jim {
+        if let Err(first) = interp.clear_return_options_checked() {
+            return interp.refuse_native_execution(first);
         }
     }
     // The error is now caught: publish the accumulated trace to the
@@ -119,9 +277,14 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // and reset the accumulator for the next error.
     if code == Code::Error {
         interp.publish_and_reset_error();
+        if interp.host_refusal_pending() {
+            return Code::Error;
+        }
     }
     interp.set_result_bytes(code.as_int().to_string().as_bytes());
-    Code::Ok
+    jim_original
+        .as_ref()
+        .map_or(Code::Ok, |original| original.finish(Code::Ok))
 }
 
 /// Whether the release compiles this `catch` with its substituted script
@@ -162,52 +325,266 @@ fn set_var_or_elem(interp: &mut Interp, name: &[u8], obj: *mut TclObj) -> Result
     }
 }
 
-/// Build a completion's return-options dict from the live interpreter state.
-///
-/// This is the one implementation used by `catch`, `try`, and the shared
-/// [`tcl_runtime_api::Completion`] adapter. It returns a fresh (`rc 0`) dict
-/// containing `-code` and `-level`, plus the live error state when applicable.
-/// A caller that exports the dict across an ABI must take an owning reference
-/// before returning it.
-pub(crate) fn completion_options(interp: &mut Interp, code: Code) -> *mut TclObj {
-    // A body that completed via `return` propagates the return's *own* requested
-    // options (`-code C -level L`), not the settled `RETURN`(2)/level-0 — what
-    // `catch`'s options dict and TIP 329 `-during` chaining record
-    // (`Tcl_GetReturnOptions`, `tclResult.c`). Every other code is at level 0.
-    let (eff_code, level) = if code == Code::Return {
-        (interp.pending_return_code(), interp.pending_return_level())
-    } else {
-        (code, 0)
-    };
-    let error = (eff_code == Code::Error).then(|| ErrorOptions {
-        error_code: Some(interp.error_code()),
-        error_info: (level == 0).then(|| interp.error_info()),
-        error_stack: (level == 0 && interp.runtime_version().has_error_stack())
-            .then(|| interp.error_stack_value()),
-        error_line: (level == 0).then(|| i64::from(interp.error_line())),
-        during: (level == 0)
-            .then(|| interp.during_opts().map(obj_bytes))
-            .flatten(),
-    });
-    let carried = interp.pending_return_options();
-    let planned = completion_options::plan(
-        interp.runtime_version(),
-        api_code(eff_code),
-        i64::try_from(level).unwrap_or(i64::MAX),
-        &carried,
-        error.as_ref(),
-    );
-    let pairs: Vec<(*mut TclObj, *mut TclObj)> = planned
+/// Publish options from the one earlier getter at the actual raw-exit stage.
+pub(crate) fn jim_options_object_with_captured_error_code(
+    interp: &mut Interp,
+    captured: &crate::interp::OriginalJimErrorCodeCapture,
+    code: Code,
+) -> Result<obj::Owned, tcl_runtime_api::NativeExecutionError> {
+    let pairs = interp.jim_option_pairs_with_captured_error_code(captured, code)?;
+    let result = jim_options_pairs_raw(interp, pairs)?;
+    let original = obj::NativeObjectLifetime::retain(result);
+    if let Err(error) = captured.check_context(interp) {
+        if let Ok(result) = original.checked_ptr() {
+            drop_fresh(result);
+        }
+        return Err(error
+            .native_execution_refusal()
+            .cloned()
+            .unwrap_or_else(|| {
+                interp.refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original Jim options publication context",
+                    ),
+                )
+            }));
+    }
+    let result = original
+        .checked_ptr()
+        .map_err(|error| interp.refuse_completion_value_access(error))?;
+    Ok(obj::Owned::fresh(result))
+}
+
+fn jim_options_raw(
+    interp: &mut Interp,
+    receipt: tcl_runtime_api::jim_return_state::JimReturnReceipt<obj::Owned>,
+    code: Code,
+) -> Result<*mut TclObj, tcl_runtime_api::NativeExecutionError> {
+    jim_options_pairs_raw(interp, receipt.option_pairs(api_code(code)))
+}
+
+fn jim_options_pairs_raw(
+    interp: &mut Interp,
+    pairs: Vec<(&'static [u8], OptionValue<obj::Owned>)>,
+) -> Result<*mut TclObj, tcl_runtime_api::NativeExecutionError> {
+    if let Some(error) = interp.native_execution_refusal() {
+        return Err(error);
+    }
+    let values: Vec<_> = pairs
         .into_iter()
-        .map(|(key, value)| {
-            let value = match value {
-                OptionValue::Integer(value) => new_string(value.to_string().as_bytes()),
-                OptionValue::Value(value) => new_string(&value),
-            };
-            (new_string(&key), value)
+        .flat_map(|(key, value)| {
+            [
+                obj::Owned::fresh(new_string(key)),
+                match value {
+                    OptionValue::Integer(integer) => {
+                        obj::Owned::fresh(obj::new_wide_int_obj(integer))
+                    }
+                    OptionValue::Value(original) => original,
+                },
+            ]
         })
         .collect();
-    dict::new_dict_obj(&pairs)
+    let pointers: Vec<_> = values.iter().map(obj::Owned::as_ptr).collect();
+    finish_completion_options(interp, interp.new_list_object(&pointers))
+}
+
+fn finish_completion_options(
+    interp: &Interp,
+    options: *mut TclObj,
+) -> Result<*mut TclObj, tcl_runtime_api::NativeExecutionError> {
+    if let Some(error) = interp.native_execution_refusal() {
+        drop_fresh(options);
+        Err(error)
+    } else {
+        Ok(options)
+    }
+}
+
+/// Retain exact options or return the first host cause before any guest store.
+/// A returned pointer is fresh; a refusal returns no object or placeholder dict.
+pub(crate) fn completion_options(
+    interp: &mut Interp,
+    code: Code,
+) -> Result<*mut TclObj, tcl_runtime_api::NativeExecutionError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)?;
+    let reached = (|| -> Result<*mut TclObj, tcl_runtime_api::NativeExecutionError> {
+        if let Some(error) = interp.native_execution_refusal() {
+            return Err(error);
+        }
+        if interp.uses_jim_error_stack() {
+            let receipt = interp.jim_return_receipt()?;
+            return jim_options_raw(interp, receipt, code);
+        }
+        // Tcl_GetReturnOptions reaches Tcl_AddObjErrorInfo with an empty suffix
+        // on an ERROR result. In particular, this re-arms legacy publication
+        // after a compatibility write trace evaluated and reset the interpreter.
+        // Keep the restored private original; no bytes are appended here. C8.4
+        // has no Tcl_GetReturnOptions and retains its global error-info path.
+        if code == Code::Error
+            && interp
+                .native_invocation_dialect()
+                .native_error_variable_protocol()
+                .is_some()
+        {
+            interp.update_native_error_info_checked(scope.currency())?;
+        }
+        // A body that completed via `return` propagates the return's *own* requested
+        // options (`-code C -level L`), not the settled `RETURN`(2)/level-0 — what
+        // `catch`'s options dict and TIP 329 `-during` chaining record
+        // (`Tcl_GetReturnOptions`, `tclResult.c`). Every other code is at level 0.
+        let (eff_code, level) = if code == Code::Return {
+            (interp.pending_return_code(), interp.pending_return_level())
+        } else {
+            (code, 0)
+        };
+        let carried = interp.pending_return_option_objects_checked(scope.currency())?;
+        let protocol = interp.native_invocation_dialect().return_options_protocol();
+        let error = if eff_code == Code::Error {
+            Some(ErrorOptions {
+                error_code: Some(
+                    if let Some(pair) = carried.iter().find(|pair| {
+                        protocol.is_some_and(|protocol| pair.name_in(protocol) == b"-errorcode")
+                    }) {
+                        pair.value.clone()
+                    } else if let Some(original) =
+                        interp.native_private_error_object_checked(scope.currency(), false)?
+                    {
+                        original
+                    } else {
+                        let bytes = interp.error_code_bytes_checked()?;
+                        crate::obj::Owned::fresh(new_string(&bytes))
+                    },
+                ),
+                error_info: if level == 0 {
+                    Some(
+                        if let Some(original) =
+                            interp.native_private_error_object_checked(scope.currency(), true)?
+                        {
+                            original
+                        } else {
+                            let bytes = interp.completion_error_info_bytes_checked()?;
+                            crate::obj::Owned::fresh(new_string(&bytes))
+                        },
+                    )
+                } else {
+                    None
+                },
+                error_stack: if level == 0
+                    && !interp.uses_jim_error_stack()
+                    && interp.runtime_version().has_error_stack()
+                {
+                    Some(interp.original_error_stack_value_checked(scope.currency())?)
+                } else {
+                    None
+                },
+                error_line: (level == 0 && !interp.uses_jim_error_stack())
+                    .then(|| i64::from(interp.error_line())),
+                during: (level == 0)
+                    .then(|| interp.during_opts().map(crate::obj::Owned::retain))
+                    .flatten(),
+            })
+        } else {
+            None
+        };
+        let values: Vec<_> = carried
+            .iter()
+            .map(|pair| (pair.key_bytes.clone(), pair.value.clone()))
+            .collect();
+        let planned = completion_options::plan(
+            interp.runtime_version(),
+            api_code(eff_code),
+            i64::try_from(level).unwrap_or(i64::MAX),
+            &values,
+            error.as_ref(),
+        );
+        if let Some((original, strings)) =
+            interp.duplicate_original_return_options(scope.currency())?
+        {
+            let snapshot = match crate::dict::PreparedNativeDictionary::prepare_using(
+                Some(original.as_ptr()),
+                strings,
+                &|| scope.currency().ensure_current_or_refuse(),
+                &|error| interp.clone().refuse_completion_value_access(error),
+            ) {
+                Ok(snapshot) => snapshot,
+                Err(first) => return Err(first),
+            };
+            drop(original);
+            scope.currency().ensure_current_or_refuse()?;
+            let original_currency = scope.currency().clone();
+            let stage: crate::dict::NativeDictionaryStageCheck = std::rc::Rc::new(move || {
+                original_currency.ensure_current_or_refuse().map_err(|_| {
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original completion options stage",
+                    )
+                })
+            });
+            let mut working = crate::dict::EnteredNativeDictionary::borrowed_prepared(
+                snapshot.original(),
+                strings,
+                scope.currency(),
+                stage,
+            )
+            .map_err(|error| interp.refuse_completion_value_access(error))?;
+            let overlay = completion_options::plan_with_origin(
+                interp.runtime_version(),
+                api_code(eff_code),
+                i64::try_from(level).unwrap_or(i64::MAX),
+                tcl_core_types::CompletionOptionOrigin::ErrorMetadata,
+                &[],
+                error.as_ref(),
+            );
+            for (key, value) in overlay {
+                let key = obj::Owned::fresh(new_string(&key));
+                let value = match value {
+                    OptionValue::Integer(integer) => {
+                        obj::Owned::fresh(obj::new_wide_int_obj(integer))
+                    }
+                    OptionValue::Value(original) => original,
+                };
+                if let Some(error) = interp.native_execution_refusal() {
+                    return Err(error);
+                }
+                let reached = working.set_member(key.as_ptr(), value.as_ptr());
+                scope.currency().ensure_current_or_refuse()?;
+                reached.map_err(|error| interp.refuse_completion_value_access(error))?;
+            }
+            drop(working);
+            scope.currency().ensure_current_or_refuse()?;
+            return finish_completion_options(interp, snapshot.into_value().into_native_unowned());
+        }
+        let retained: Vec<_> = planned
+            .into_iter()
+            .map(|(key, value)| {
+                let key = carried
+                    .iter()
+                    .find(|pair| pair.key_bytes == key)
+                    .map_or_else(
+                        || crate::obj::Owned::fresh(new_string(&key)),
+                        |pair| pair.key.clone(),
+                    );
+                let value = match value {
+                    OptionValue::Integer(value) => {
+                        crate::obj::Owned::fresh(new_string(value.to_string().as_bytes()))
+                    }
+                    OptionValue::Value(value) => value,
+                };
+                (key, value)
+            })
+            .collect();
+        let pairs: Vec<_> = retained
+            .iter()
+            .map(|(key, value)| (key.as_ptr(), value.as_ptr()))
+            .collect();
+        finish_completion_options(interp, dict::new_dict_obj(&pairs))
+    })();
+    if let Err(first) = scope.currency().ensure_current_or_refuse() {
+        if let Ok(options) = reached {
+            drop_fresh(options);
+        }
+        return Err(first);
+    }
+    reached
 }
 
 fn api_code(code: Code) -> tcl_runtime_api::Code {
@@ -229,8 +606,55 @@ fn api_code(code: Code) -> tcl_runtime_api::Code {
 /// `while executing` / `invoked from within` trace accumulates as the error
 /// unwinds. `errorCode` defaults to `NONE`. (`tclProc.c` `Tcl_ErrorObjCmd`.)
 fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 || argv.len() > 4 {
-        return interp.wrong_args(b"error message ?errorInfo? ?errorCode?");
+    let Some(protocol) = interp.native_invocation_dialect().error_arguments() else {
+        return interp.error(b"native error argument grammar is not selected");
+    };
+    if !protocol.accepts_len(argv.len().saturating_sub(1)) {
+        let suffix = protocol.synopsis().split_once(' ').unwrap().1;
+        return interp.wrong_args_for_invocation(argv, suffix.as_bytes());
+    }
+    if protocol == tcl_registry::invocation_words::NativeErrorArguments::JimStackTrace {
+        interp.set_result(argv[1]);
+        if let Err(first) = interp.check_entered_native_operation() {
+            return interp.refuse_native_execution(first);
+        }
+        if let Some(&trace) = argv.get(2) {
+            if let Err(first) = interp.adopt_jim_stacktrace(obj::Owned::retain(trace)) {
+                return interp.refuse_native_execution(first);
+            }
+        }
+        return interp.set_error_state(b"NONE");
+    }
+    if interp
+        .native_invocation_dialect()
+        .native_error_variable_protocol()
+        .is_some()
+    {
+        let flags: Vec<_> = [
+            b"-code".as_slice(),
+            b"error",
+            b"-level",
+            b"0",
+            b"-errorinfo",
+            b"-errorcode",
+        ]
+        .into_iter()
+        .map(|bytes| obj::Owned::fresh(new_string(bytes)))
+        .collect();
+        let mut arguments = vec![
+            flags[0].as_ptr(),
+            flags[1].as_ptr(),
+            flags[2].as_ptr(),
+            flags[3].as_ptr(),
+        ];
+        if let Some(&info) = argv.get(2) {
+            arguments.extend([flags[4].as_ptr(), info]);
+        }
+        if let Some(&code) = argv.get(3) {
+            arguments.extend([flags[5].as_ptr(), code]);
+        }
+        arguments.push(argv[1]);
+        return crate::return_options::command(interp, &arguments);
     }
     // An explicit `errorCode` arg is honoured verbatim — even when empty, it
     // reads back empty rather than the `NONE` default (error-4.5).
@@ -248,25 +672,36 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let msg = obj_bytes(argv[1]);
     let rc = if info.is_empty() {
-        interp.set_result(argv[1]);
         interp.set_error_state(&ecode)
     } else {
-        interp.raise_with_info(&msg, &info, &ecode)
+        match interp.publish_c84_error_command_info(&info, &ecode) {
+            Ok(true) => Code::Error,
+            Ok(false) => interp.raise_with_info(&msg, &info, &ecode),
+            Err(first) => return interp.refuse_native_execution(first),
+        }
     };
+    if let Err(first) = interp.check_entered_native_operation() {
+        return interp.refuse_native_execution(first);
+    }
     if explicit_code {
+        interp.publish_original_c84_error_code(argv[3]);
+        if let Err(first) = interp.check_entered_native_operation() {
+            return interp.refuse_native_execution(first);
+        }
         interp.mark_error_code_explicit();
+    }
+    interp.set_result(argv[1]);
+    if let Err(first) = interp.check_entered_native_operation() {
+        return interp.refuse_native_execution(first);
     }
     rc
 }
 
 // try / throw
 
-/// A `try` handler clause. The handler `script` is kept as its argument object
-/// (not flattened to bytes) so it evaluates through `eval_control_body`, which
-/// A parsed `try` handler clause (`on code …` or `trap pattern …`). The
-/// completion code / errorcode prefix are resolved at parse time so a bad code
-/// word or trap prefix errors before the body runs; `is_dash` marks a `-`
-/// fall-through body (the next non-`-` clause's body runs instead).
+/// A parsed `try` clause. Original C variable lists and handler bodies remain
+/// objects through body execution and fall-through selection. Completion codes
+/// and trap prefixes are validated before the body runs.
 struct Handler {
     /// The completion code an `on` clause matches (a `trap` is always `1`).
     code: i64,
@@ -275,11 +710,60 @@ struct Handler {
     /// The `trap` errorcode prefix (a list); empty for `on`.
     pattern: Vec<u8>,
     /// The `[resultVar ?optionsVar?]` bind list.
-    vars: Vec<u8>,
+    vars: HandlerVariables,
     /// The handler body, or `-` (see `is_dash`).
     script: *mut TclObj,
     /// Whether the body is the fall-through marker `-`.
     is_dash: bool,
+}
+
+enum HandlerVariables {
+    Bytes(Vec<u8>),
+    OriginalC {
+        arguments: crate::interp::native_arguments::OriginalArguments,
+        frame: crate::interp::native_arguments::OriginalArgumentFrame,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    },
+}
+
+impl HandlerVariables {
+    fn parse(interp: &Interp, original: *mut TclObj) -> Result<Self, tcl_cmd_core::CmdError> {
+        let Some(protocol) = interp.native_c_variable_name_protocol() else {
+            return Ok(Self::Bytes(obj_bytes(original)));
+        };
+        let arguments =
+            crate::interp::native_arguments::OriginalArguments::enter(interp, &[original])?;
+        let frame = crate::interp::native_arguments::OriginalArgumentFrame::capture(interp);
+        let selected = Self::OriginalC {
+            arguments,
+            frame,
+            protocol: tcl_syntax::native_string::NativeStringProtocol::C(protocol.version()),
+        };
+        selected.current_c_members(interp)?;
+        Ok(selected)
+    }
+
+    fn current_c_members(
+        &self,
+        interp: &Interp,
+    ) -> Result<Vec<*mut TclObj>, tcl_cmd_core::CmdError> {
+        let Self::OriginalC {
+            arguments,
+            frame,
+            protocol,
+        } = self
+        else {
+            unreachable!("only the original C list owner reaches this worker");
+        };
+        let original = arguments.original(0)?;
+        let current = || {
+            frame.check(interp, arguments)?;
+            arguments.check_original_for(interp, 0, original)
+        };
+        crate::list::list_elements_native_using(original, *protocol, &current, &|error| {
+            arguments.retain_refusal(error.into())
+        })
+    }
 }
 
 /// Map a `try`/`on` completion-code word (`ok`/`error`/`return`/`break`/
@@ -316,12 +800,33 @@ fn errorcode_prefix_match(pattern: &[u8], errorcode: &[u8]) -> bool {
 const HANDLER_TYPES: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
     tcl_cmd_core::prefix::OptionTable::abbreviating("handler type", &[b"finally", b"on", b"trap"]);
 
+fn try_clause_arguments(
+    interp: &mut Interp,
+    clause: tcl_registry::NativeTryClauseArgument,
+    message: &[u8],
+) -> Code {
+    let Some(code) = interp
+        .native_invocation_dialect()
+        .try_clause_argument_error_code(clause)
+    else {
+        return interp.refuse_native_access(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "try clause arguments",
+            ),
+        );
+    };
+    interp.report_cmd_error(tcl_cmd_core::CmdError::with_error_code_bytes(message, code))
+}
+
 /// `try body ?handler ...? ?finally script?` — structured exception handling
 /// (TIP 329). Handlers are `on code varList script` and `trap pattern varList
 /// script`, tried in order; the first match runs and its completion becomes the
 /// `try` result. `finally` always runs; only an error from it overrides the
 /// result. Modelled on `tclCmdMZ.c` `Tcl_TryObjCmd`.
 fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if interp.uses_jim_error_stack() {
+        return crate::jim_try::command(interp, argv);
+    }
     const USAGE: &[u8] = b"try body ?handler ...? ?finally script?";
     if argv.len() < 2 {
         return interp.wrong_args(USAGE);
@@ -332,9 +837,14 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut finally: Option<*mut TclObj> = None;
     let mut j = 2;
     while j < argv.len() {
-        let handler_type = match HANDLER_TYPES.index_of(&obj_bytes(argv[j])) {
+        let handler_type = match interp.native_static_option_index(
+            argv[j],
+            HANDLER_TYPES.names(),
+            false,
+            "handler type",
+        ) {
             Ok(i) => HANDLER_TYPES.names()[i],
-            Err(m) => return interp.set_error(&m),
+            Err(m) => return interp.report_cmd_error(m),
         };
         match handler_type {
             b"finally" => {
@@ -342,7 +852,9 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     return interp.set_error(b"finally clause must be last");
                 }
                 if j == argv.len() - 1 {
-                    return interp.set_error(
+                    return try_clause_arguments(
+                        interp,
+                        tcl_registry::NativeTryClauseArgument::Finally,
                         b"wrong # args to finally clause: must be \"... finally script\"",
                     );
                 }
@@ -351,7 +863,9 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             b"on" => {
                 if j + 4 > argv.len() {
-                    return interp.set_error(
+                    return try_clause_arguments(
+                        interp,
+                        tcl_registry::NativeTryClauseArgument::On,
                         b"wrong # args to on clause: must be \"... on code variableList script\"",
                     );
                 }
@@ -360,11 +874,15 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     None => return bad_completion_code(interp, &obj_bytes(argv[j + 1])),
                 };
                 let script = argv[j + 3];
+                let vars = match HandlerVariables::parse(interp, argv[j + 2]) {
+                    Ok(vars) => vars,
+                    Err(error) => return interp.report_cmd_error(error),
+                };
                 handlers.push(Handler {
                     code,
                     is_trap: false,
                     pattern: Vec::new(),
-                    vars: obj_bytes(argv[j + 2]),
+                    vars,
                     script,
                     is_dash: obj_bytes(script).as_slice() == b"-",
                 });
@@ -372,9 +890,7 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             b"trap" => {
                 if j + 4 > argv.len() {
-                    return interp.set_error(
-                        b"wrong # args to trap clause: must be \"... trap pattern variableList script\"",
-                    );
+                    return try_clause_arguments(interp, tcl_registry::NativeTryClauseArgument::Trap, b"wrong # args to trap clause: must be \"... trap pattern variableList script\"");
                 }
                 let pattern = obj_bytes(argv[j + 1]);
                 if crate::parse::split_list(&pattern).is_err() {
@@ -384,11 +900,15 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     return interp.set_error(&m);
                 }
                 let script = argv[j + 3];
+                let vars = match HandlerVariables::parse(interp, argv[j + 2]) {
+                    Ok(vars) => vars,
+                    Err(error) => return interp.report_cmd_error(error),
+                };
                 handlers.push(Handler {
                     code: 1,
                     is_trap: true,
                     pattern,
-                    vars: obj_bytes(argv[j + 2]),
+                    vars,
                     script,
                     is_dash: obj_bytes(script).as_slice() == b"-",
                 });
@@ -418,9 +938,18 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `eval_control_body` recovers the body literal's TIP 280 source location so
     // an `info frame` inside reports the right `type source` line.
     let body_code = interp.eval_control_body(body);
-    let body_result = interp.result_bytes();
+    if interp.host_refusal_pending() {
+        return Code::Error;
+    }
+    let body_result = match interp.completion_result_bytes_checked() {
+        Ok(result) => result,
+        Err(error) => return interp.refuse_native_execution(error),
+    };
     let errorcode = if body_code == Code::Error {
-        interp.error_code()
+        match interp.error_code_bytes_checked() {
+            Ok(code) => code,
+            Err(error) => return interp.refuse_native_execution(error),
+        }
     } else {
         Vec::new()
     };
@@ -445,7 +974,10 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // (before it is published+reset). It is bound to the handler's optionsVar
         // and reused as the `-during` chain link if the handler itself throws
         // (TIP 329 exception chaining). Retained for the duration of the handler.
-        let body_opts = completion_options(interp, body_code);
+        let body_opts = match completion_options(interp, body_code) {
+            Ok(options) => options,
+            Err(error) => return interp.refuse_native_execution(error),
+        };
         // SAFETY: keep `body_opts` alive across the handler eval / var binding.
         unsafe { obj::incr_ref_count(body_opts) };
         // Bind the running clause's variables: [resultVar ?optionsVar?]. A failed
@@ -458,8 +990,16 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 // handler starts with clean error state.
                 if body_code == Code::Error {
                     interp.publish_and_reset_error();
+                    if interp.host_refusal_pending() {
+                        unsafe { obj::decr_ref_count(body_opts) };
+                        return Code::Error;
+                    }
                 }
                 outcome_code = interp.eval_control_body(handlers[b].script);
+                if interp.host_refusal_pending() {
+                    unsafe { obj::decr_ref_count(body_opts) };
+                    return Code::Error;
+                }
                 outcome_result = interp.result_bytes();
                 if outcome_code == Code::Error {
                     // The handler threw over the body's exception: chain it.
@@ -468,6 +1008,10 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             Err(()) => {
                 outcome_code = Code::Error;
+                if interp.host_refusal_pending() {
+                    unsafe { obj::decr_ref_count(body_opts) };
+                    return Code::Error;
+                }
                 outcome_result = interp.result_bytes();
                 interp.set_during(body_opts);
             }
@@ -481,10 +1025,17 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // Capture the options that would propagate from the body/handler stage
         // (carrying any `-during` already chained) in case `finally` throws and
         // must chain them in turn.
-        let prior_opts = completion_options(interp, outcome_code);
+        let prior_opts = match completion_options(interp, outcome_code) {
+            Ok(options) => options,
+            Err(error) => return interp.refuse_native_execution(error),
+        };
         // SAFETY: keep `prior_opts` alive across the finally eval.
         unsafe { obj::incr_ref_count(prior_opts) };
         let fc = interp.eval_control_body(fin);
+        if interp.host_refusal_pending() {
+            unsafe { obj::decr_ref_count(prior_opts) };
+            return Code::Error;
+        }
         if fc != Code::Ok {
             if fc == Code::Error {
                 interp.set_during(prior_opts); // chain the superseded exception
@@ -564,10 +1115,66 @@ fn bad_completion_code(interp: &mut Interp, word: &[u8]) -> Code {
 /// leaves the result variable assigned (error-19.11).
 fn bind_handler_vars(
     interp: &mut Interp,
-    vars: &[u8],
+    vars: &HandlerVariables,
     body_result: &[u8],
     body_opts: *mut TclObj,
 ) -> Result<(), ()> {
+    if let HandlerVariables::OriginalC {
+        arguments, frame, ..
+    } = vars
+    {
+        for index in 0..2 {
+            let members = vars.current_c_members(interp).map_err(|error| {
+                interp.report_cmd_error(error);
+            })?;
+            let Some(&name) = members.get(index) else {
+                break;
+            };
+            let original =
+                crate::interp::native_arguments::OriginalArguments::enter(interp, &[name])
+                    .map_err(|error| {
+                        interp.report_cmd_error(error);
+                    })?;
+            let current = |interp: &Interp| {
+                frame.check(interp, arguments)?;
+                arguments.original(0)?;
+                original.check_original_for(interp, 0, name)
+            };
+            current(interp).map_err(|error| {
+                interp.report_cmd_error(error);
+            })?;
+            let value = if index == 0 {
+                new_string(body_result)
+            } else {
+                body_opts
+            };
+            let fresh = (index == 0).then(|| obj::NativeObjectLifetime::retain(value));
+            let discard = || {
+                if let Some(fresh) = &fresh {
+                    // A write trace may already have retired the fresh value.
+                    if let Ok(original) = fresh.checked_ptr() {
+                        drop_fresh(original);
+                    }
+                }
+            };
+            let observed = interp.clone();
+            let assigned =
+                interp.assign_original_c_variable_using(name, value, Some(&|| current(&observed)));
+            if let Err(error) = current(interp) {
+                discard();
+                interp.report_cmd_error(error);
+                return Err(());
+            }
+            if assigned.is_err() {
+                discard();
+                return Err(());
+            }
+        }
+        return Ok(());
+    }
+    let HandlerVariables::Bytes(vars) = vars else {
+        unreachable!("original C binding returned above");
+    };
     let names = crate::parse::split_list(vars).unwrap_or_default();
     if let Some(rv) = names.first() {
         if !rv.is_empty() {
@@ -610,6 +1217,46 @@ fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 #[cfg(test)]
 mod tests {
+    mod jim_capture_prefix;
+    mod jim_output_name_stages;
+    mod original_c_output_names;
+    mod original_c_try_output_names;
+    mod original_jim_output_keys;
+    #[test]
+    fn dynamic_catch_resets_error_state_in_all_six_native_engines() {
+        fn decode(hex: &str) -> Vec<u8> {
+            hex.as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect()
+        }
+        let mut compared = 0;
+        for row in include_str!("../tests/data/native_dynamic_catch_reset/windows.tsv").lines() {
+            let fields = row.split('\t').collect::<Vec<_>>();
+            let engine = if fields[0] == "jim" {
+                "jim".to_owned()
+            } else {
+                format!("tcl{}", fields[0])
+            };
+            let mut interp = crate::interp::Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(&engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                interp.eval_str(&decode(fields[1])).as_int(),
+                fields[2].parse::<i64>().unwrap(),
+                "{engine}"
+            );
+            assert_eq!(interp.result_bytes(), decode(fields[3]), "{engine}");
+            assert!(!interp.host_refusal_pending(), "{engine}");
+            compared += 1;
+        }
+        assert_eq!(compared, 6);
+    }
     use crate::counters;
     use crate::interp::{Code, Interp};
 
@@ -633,8 +1280,10 @@ mod tests {
         assert_eq!(
             i.eval_str(src),
             Code::Ok,
-            "eval {:?}",
-            String::from_utf8_lossy(src)
+            "eval {:?}; native refusal {:?}; result {:?}",
+            String::from_utf8_lossy(src),
+            i.native_execution_refusal(),
+            i.result_bytes()
         );
         i.result_bytes()
     }
@@ -739,15 +1388,15 @@ mod tests {
     #[test]
     fn error_info_stack_traces() {
         leak_free(|i| {
+            // naming.runtime.original-command-source-extent
+
             // The worked example: proc body error → proc frame → call frame.
+            // The public Read invokes the native hidden error-global observer.
             run(i, b"proc p {} { error foo }");
             assert_eq!(i.eval_str(b"p"), Code::Error);
             assert_eq!(
-                i.var_get(b"::errorInfo").map(crate::interp::obj_bytes),
-                Some(
-                    b"foo\n    while executing\n\"error foo \"\n    (procedure \"p\" line 1)\n    invoked from within\n\"p\""
-                        .to_vec()
-                )
+                run(i, b"set ::errorInfo"),
+                b"foo\n    while executing\n\"error foo \"\n    (procedure \"p\" line 1)\n    invoked from within\n\"p\""
             );
             // Multi-line body: the proc frame cites the body-relative line (3).
             run(i, b"proc q {} {\n    set x 1\n    error boom\n}");
@@ -908,6 +1557,123 @@ mod tests {
             assert_eq!(run(i, b"catch {return -errorstack odd} m o"), b"2");
             assert_eq!(run(i, b"set o"), b"-errorstack odd -code 0 -level 1");
             i.eval_str(b"unset -nocomplain m o");
+        });
+    }
+
+    #[test]
+    fn catch_arity_rejects_before_body_under_legacy_c() {
+        for release in tcl_dialect::TclVersion::ALL {
+            leak_free(|interp| {
+                interp.set_runtime_version(release);
+                let result = run(interp, b"set ::hit 0; set code [catch {catch {set ::hit 1} result options} error]; list $code $::hit");
+                assert_eq!(
+                    result,
+                    if release == tcl_dialect::TclVersion::V8_4 {
+                        b"1 0"
+                    } else {
+                        b"0 1"
+                    }
+                );
+            });
+        }
+    }
+
+    #[test]
+    fn automatic_jim_error_stacks_match_the_actual_native_interpreter() {
+        // naming.source.jim-original-source-entry
+
+        let Some(reference) = tcl_test_support::locate_jimsh().expect("Jim oracle discovery")
+        else {
+            return;
+        };
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        for (name, script) in tcl_test_support::automatic_errors::JIM_AUTOMATIC_ERROR_CASES {
+            let source = format!("puts [eval {{{script}}}]\n");
+            let expected = tcl_test_support::run_script(&reference.path, source.as_bytes())
+                .expect("native Jim")
+                .strict_text()
+                .expect("native observation");
+            counters::reset();
+            {
+                let mut interp = Interp::with_native_core(
+                    crate::interp::default_host(),
+                    profile,
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .expect("selected original Jim constructor");
+                assert_eq!(
+                    interp.eval_sourced(script.as_bytes(), b"stdin"),
+                    Code::Ok,
+                    "{name}: {}",
+                    String::from_utf8_lossy(&interp.result_bytes())
+                );
+                assert_eq!(interp.result_bytes(), expected.as_bytes(), "{name}");
+            }
+            assert_eq!(
+                counters::finalize(),
+                0,
+                "{name}: original source owner leaks"
+            );
+            assert_eq!(counters::double_free_count(), 0);
+        }
+    }
+
+    #[test]
+    fn jim_automatic_stack_uses_evaluation_receipts_before_unwinding() {
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        leak_free(|interp| {
+            interp.set_dialect_profile(profile);
+            for (script, expected) in [
+                (b"catch {error BOOM} r o; dict get $o -errorinfo".as_slice(), b"{} {} 1 {error BOOM}".as_slice()),
+                (b"proc fail {} {error BOOM}; catch {fail} r o; dict get $o -errorinfo".as_slice(), b"fail {} 1 {error BOOM} {} {} 1 fail".as_slice()),
+                (b"proc inner {x} {error $x}; proc outer {} {inner BOOM}; catch {outer} r o; dict get $o -errorinfo".as_slice(), b"inner {} 1 {error BOOM} outer {} 1 {inner BOOM} {} {} 1 outer".as_slice()),
+                (b"rename fail saved; catch {saved} r o; dict get $o -errorinfo".as_slice(), b"saved {} 1 {error BOOM} {} {} 1 saved".as_slice()),
+                (b"proc fail {} {missingCommand BOOM}; catch {fail} r o; dict get $o -errorinfo".as_slice(), b"fail {} 1 {} {} {} 1 fail".as_slice()),
+                (b"proc fail {} {return -code error BOOM}; catch {fail} r o; dict get $o -errorinfo".as_slice(), b"{} {} 1 fail".as_slice()),
+            ] {
+                assert_eq!(run(interp, script), expected, "{}", String::from_utf8_lossy(script));
+            }
+        });
+    }
+
+    #[test]
+    fn native_jim_error_keeps_raw_stack_trace_and_does_not_publish_c_globals() {
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        leak_free(|interp| {
+            interp.set_dialect_profile(profile);
+            assert_eq!(run(interp, b"set ::errorCode KEEP; set ::errorInfo KEEP; catch {error BOOM {P file 3}} result options; list $result [dict get $options -errorinfo] [dict get $options -errorcode] $::errorCode $::errorInfo"), b"BOOM {P file 3} NONE NONE KEEP");
+            assert_eq!(
+                run(interp, b"catch {error BOOM TRACE CODE} result; set result"),
+                b"wrong # args: should be \"error message ?stacktrace?\""
+            );
+        });
+    }
+
+    #[test]
+    fn jim_catch_switches_and_process_exit_use_native_completion_protocol() {
+        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        )));
+        leak_free(|interp| {
+            interp.set_dialect_profile(profile);
+            assert_eq!(run(interp, b"set ::hit 0; set code [catch {catch -bogus {set ::hit 1}} result]; list $code $::hit"), b"1 0");
+            assert_eq!(run(interp, b"set code [catch {catch -noerror {error E} result} message]; list $code $message"), b"1 E");
+            assert_eq!(run(interp, b"catch -exit {exit 12} result options; list $result [dict get $options -code] [dict get $options -level]"), b"12 6 0");
+            assert!(!interp.exit_pending());
+            assert_eq!(
+                run(
+                    interp,
+                    b"catch -- {set ::hit 2} result options ignored; list $result $::hit"
+                ),
+                b"2 2"
+            );
+            assert_eq!(
+                run(interp, b"catch {return result} {} {}; info exists {}"),
+                b"0"
+            );
         });
     }
 

@@ -1,0 +1,41 @@
+if-zero 0 1 OK
+if-zero-float 0 1 OK
+if-zero-hex 0 1 OK
+if-off 0 1 OK
+if-expression-zero 0 1 OK
+if-variable-zero 0 1 OK
+if-dead-else 0 1 OK
+if-dead-elseif 0 1 OK
+while-zero 0 1 OK
+while-expression-zero 0 1 OK
+for-zero 0 1 OK
+foreach-empty 0 1 OK
+protected-catch 0 1 {wrong # args: should be "set varName ?newValue?"}
+return-before-error 0 1 OK
+expr-premature 1 1 {missing operand at _@_\nin expression "+_@_"}
+expr-multiple-arguments 1 1 {missing operand at _@_\nin expression "+ +_@_"}
+expr-substituted 1 1 {missing operand at _@_\nin expression "+_@_"}
+if-premature 1 1 {missing operand at _@_\nin expression "+_@_"}
+while-premature 1 1 {missing operand at _@_\nin expression "+_@_"}
+for-premature 1 1 {missing operand at _@_\nin expression "+_@_"}
+if-error-order 1 1 {missing operand at _@_\nin expression "+_@_"}
+while-error-order 1 1 {missing operand at _@_\nin expression "+_@_"}
+for-error-order 1 1 {missing operand at _@_\nin expression "+_@_"}
+catch-expression-error 0 1 {missing operand at _@_\nin expression "+_@_"}
+command 1 1 {wrong # args: should be "set varName ?newValue?"}
+short-and 0 1 0
+short-or 0 1 1
+conditional 0 1 1
+array-index 1 1 {wrong # args: should be "incr varName ?increment?"}
+for-initial 1 1 {wrong # args: should be "incr varName ?increment?"}
+math-unknown-syntax 1 1 {missing operand at _@_\nin expression "future_function(1+_@_)"}
+math-unknown-trailing 1 1 {missing function argument at _@_\nin expression "future_function(1,_@_)"}
+math-unknown-first 1 1 {wrong # args: should be "set varName ?newValue?"}
+math-required-extra 1 1 {wrong # args: should be "set varName ?newValue?"}
+math-required-missing 1 1 {wrong # args: should be "set varName ?newValue?"}
+math-nested-unknown 1 1 {invalid command name "tcl::mathfunc::unknown"}
+math-extra-not-visited 1 1 {wrong # args: should be "set varName ?newValue?"}
+math-second-required 1 1 {wrong # args: should be "set varName ?newValue?"}
+error-message-before-argv 0 1 CUSTOM
+error-info-before-argv 0 1 CUSTOM
+renamed-set-error 1 {wrong # args: should be "native_set varName ?newValue?"}

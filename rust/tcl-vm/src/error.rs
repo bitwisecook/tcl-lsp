@@ -18,64 +18,859 @@
 
 //! The VM's internal error type.
 
-use tcl_runtime_api::Code;
+use tcl_runtime_api::{Code, Completion, NativeExecutionError};
+use tcl_syntax::raw_string::{NativeValueAccessRefusal, RawString, UnicodeAccessError};
 
 use crate::value::Value;
 
-/// A Tcl runtime error — a message plus the completion detail needed to
-/// reconstruct the full `Completion` at the dispatch boundary.
-///
-/// Internal `Result<_, TclError>` is converted to a `Completion { code: Error,
-/// result: <message> }` at the dispatch boundary.
+/// An operational failure that guest Tcl completion cannot represent.
 #[derive(Debug, Clone)]
-pub struct TclError {
-    /// The error message (becomes the completion result).
-    pub message: String,
-    /// A non-`Error` completion code to propagate instead — set when a command
-    /// substitution (`[break]`, `[eval continue]`, `[return]`) carries a
-    /// `break`/`continue`/`return` out of the expression/word evaluation. `None`
-    /// means an ordinary error.
-    pub code: Option<Code>,
-    /// An explicit Tcl `-errorcode` for an ordinary error completion.
-    ///
-    /// This is distinct from [`Self::code`]: the latter propagates a non-error
-    /// completion such as `break`; this field preserves the structured code of
-    /// an actual `TCL_ERROR` as it crosses expression helpers.
-    pub error_code: Option<String>,
+pub enum TclHostFailure {
+    /// A concrete value operation is unavailable to this backend.
+    ValueAccess(NativeValueAccessRefusal),
+    /// A compilation or reached execution provider obligation.
+    Execution(NativeExecutionError),
+    /// A context-free value API has no interpreter state for an Unchanged
+    /// primitive error-code obligation. VM-aware getters resolve this directly.
+    PrimitiveErrorStateRequired(Box<tcl_syntax::scalar_getter::NativeScalarGetterError>),
+}
+
+fn resident_projection_failure(error: &tcl_syntax::value::ValueError) -> TclHostFailure {
+    TclHostFailure::ValueAccess(error.native_access_refusal().unwrap_or(
+        NativeValueAccessRefusal::CommandProtocolUnavailable("borrowed guest value projection"),
+    ))
+}
+
+impl std::fmt::Display for TclHostFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ValueAccess(error) => error.fmt(formatter),
+            Self::Execution(error) => error.fmt(formatter),
+            Self::PrimitiveErrorStateRequired(_) => formatter
+                .write_str("primitive getter error requires retained interpreter error-code state"),
+        }
+    }
+}
+
+/// Internal evaluation failure preserves either the complete original guest
+/// completion or an operational host refusal. Guest results and options retain
+/// their actual objects until an explicit consumer requests a byte/text view.
+#[derive(Debug, Clone)]
+pub enum TclError {
+    /// A guest completion propagated through an internal evaluation helper.
+    Guest(Completion<Value>),
+    /// A host refusal, outside guest catch/try and completion settlement.
+    Host(TclHostFailure),
 }
 
 impl TclError {
-    /// Build an error with the given message.
-    pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            code: None,
-            error_code: None,
-        }
+    /// Build an ordinary guest error with its explicit default error code.
+    pub fn new(message: impl AsRef<[u8]>) -> Self {
+        Self::Guest(crate::command::err_with_code(message, b"NONE"))
     }
 
-    /// Build a propagating non-`Error` completion (a `break`/`continue`/`return`
-    /// escaping a command substitution).
-    pub fn with_code(message: impl Into<String>, code: Code) -> Self {
-        Self {
-            message: message.into(),
-            code: Some(code),
-            error_code: None,
-        }
+    /// Build a fresh control completion. Propagating an existing completion
+    /// must instead use [`Self::from_completion`] to retain all its options.
+    pub fn with_code(message: impl AsRef<[u8]>, code: Code) -> Self {
+        let (option_code, level) = if code == Code::Return {
+            (Code::Ok, 1)
+        } else {
+            (code, 0)
+        };
+        Self::Guest(Completion::new(
+            code,
+            Value::from_string_bytes(message.as_ref()),
+            crate::command::options_dict(option_code, level, &[]),
+        ))
     }
 
-    /// Build an ordinary error carrying Tcl's structured `-errorcode`.
-    pub fn with_error_code(message: impl Into<String>, error_code: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            code: None,
-            error_code: Some(error_code.into()),
-        }
+    /// Build an ordinary guest error with an authored structured error code.
+    pub fn with_error_code(message: impl AsRef<[u8]>, error_code: impl AsRef<[u8]>) -> Self {
+        Self::Guest(crate::command::err_with_code(message, error_code))
     }
 
-    /// The error message as a [`Value`].
+    /// Retain an existing completion without rendering or rebuilding objects.
     #[must_use]
-    pub fn into_value(self) -> Value {
-        Value::string(self.message.as_str())
+    pub const fn from_completion(completion: Completion<Value>) -> Self {
+        Self::Guest(completion)
+    }
+
+    /// Retain the complete operational execution failure.
+    #[must_use]
+    pub const fn from_execution_failure(error: NativeExecutionError) -> Self {
+        Self::Host(TclHostFailure::Execution(error))
+    }
+
+    /// The retained guest completion, independently of its control code.
+    #[must_use]
+    pub const fn guest_completion(&self) -> Option<&Completion<Value>> {
+        match self {
+            Self::Guest(completion) => Some(completion),
+            Self::Host(_) => None,
+        }
+    }
+
+    /// Whether this failure belongs to the operational host channel.
+    #[must_use]
+    pub const fn is_host(&self) -> bool {
+        matches!(self, Self::Host(_))
+    }
+
+    /// Whether the original guest completion is an ordinary Tcl error.
+    #[must_use]
+    pub fn is_guest_error(&self) -> bool {
+        self.guest_completion()
+            .is_some_and(|completion| completion.code == Code::Error)
+    }
+
+    /// Compatibility projection of a concrete value-access refusal.
+    #[must_use]
+    pub const fn native_access_refusal(&self) -> Option<NativeValueAccessRefusal> {
+        match self {
+            Self::Host(TclHostFailure::ValueAccess(refusal)) => Some(*refusal),
+            _ => None,
+        }
+    }
+
+    /// Borrow already resident guest bytes without conversion or materialisation.
+    ///
+    /// # Errors
+    /// Host failures retain their channel; nonresident values require
+    /// `message_bytes_in` with the actual interpreter getter owner.
+    pub fn message_bytes(&self) -> Result<std::rc::Rc<[u8]>, TclHostFailure> {
+        match self {
+            Self::Guest(completion) => {
+                completion
+                    .result
+                    .check_native_header()
+                    .map_err(|error| resident_projection_failure(&error))?;
+                completion.result.resident_string_bytes().ok_or_else(|| {
+                    resident_projection_failure(
+                        &tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "borrowed guest message",
+                        ),
+                    )
+                })
+            }
+            Self::Host(error) => Err(error.clone()),
+        }
+    }
+
+    /// Project a guest message as Unicode only where the consumer requires it.
+    ///
+    /// # Errors
+    /// Preserves host failures and refuses non-Unicode guest message bytes.
+    pub fn message_unicode(&self) -> Result<std::rc::Rc<str>, TclHostFailure> {
+        RawString::from_bytes(self.message_bytes()?.as_ref())
+            .unicode()
+            .map_err(|error| TclHostFailure::ValueAccess(error.into()))
+    }
+
+    /// Read actual guest message bytes at the current interpreter getter owner.
+    pub fn message_bytes_in(&self, vm: &mut crate::Vm) -> Result<std::rc::Rc<[u8]>, TclError> {
+        if let Some(cause) = vm.execution_refusal.clone() {
+            return Err(TclError::from_execution_failure(cause));
+        }
+        match self {
+            Self::Host(cause) => Err(cause.clone().into()),
+            Self::Guest(completion) => {
+                let bytes =
+                    tcl_syntax::value::ValueOps::native_string_bytes(vm, &completion.result)
+                        .map_err(|error| crate::command::completion_option_failure(vm, error))?;
+                completion
+                    .result
+                    .check_native_header()
+                    .map_err(|error| crate::command::completion_option_failure(vm, error))?;
+                if let Some(cause) = vm.execution_refusal.clone() {
+                    return Err(TclError::from_execution_failure(cause));
+                }
+                Ok(bytes)
+            }
+        }
+    }
+
+    /// Read a retained completion at the actual getter, then require host Unicode.
+    ///
+    /// # Errors
+    /// Preserves the first Host cause and original bytes when Unicode is unavailable.
+    pub fn message_unicode_in(&self, vm: &mut crate::Vm) -> Result<std::rc::Rc<str>, TclError> {
+        RawString::from_bytes(self.message_bytes_in(vm)?.as_ref())
+            .unicode()
+            .map_err(|error| crate::command::completion_option_failure(vm, error))
+    }
+
+    /// Resident authored error-code bytes; unavailable backing is a failure,
+    /// independent of genuinely absent metadata. No native getter is inferred.
+    pub fn error_code_bytes(&self) -> Result<Option<std::rc::Rc<[u8]>>, TclHostFailure> {
+        match self {
+            Self::Host(cause) => Err(cause.clone()),
+            Self::Guest(completion) if completion.code == Code::Error => {
+                let original =
+                    crate::command::opt_get_resident_checked(&completion.options, b"-errorcode")
+                        .map_err(|error| resident_projection_failure(&error))?;
+                original
+                    .map(|value| {
+                        value
+                            .check_native_header()
+                            .map_err(|error| resident_projection_failure(&error))?;
+                        value.resident_string_bytes().ok_or_else(|| {
+                            resident_projection_failure(
+                                &tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "borrowed error-code bytes",
+                                ),
+                            )
+                        })
+                    })
+                    .transpose()
+            }
+            Self::Guest(_) => Ok(None),
+        }
+    }
+
+    /// Read exact error-code bytes through the actual retained option/getter owner.
+    pub fn error_code_bytes_in(
+        &self,
+        vm: &mut crate::Vm,
+    ) -> Result<Option<std::rc::Rc<[u8]>>, TclError> {
+        if let Some(cause) = vm.execution_refusal.clone() {
+            return Err(TclError::from_execution_failure(cause));
+        }
+        match self {
+            Self::Host(cause) => Err(cause.clone().into()),
+            Self::Guest(completion) if completion.code == Code::Error => {
+                crate::command::opt_get_checked(vm, &completion.options, b"-errorcode")?
+                    .map(|value| {
+                        tcl_syntax::value::ValueOps::native_string_bytes(vm, &value)
+                            .map_err(|error| crate::command::completion_option_failure(vm, error))
+                    })
+                    .transpose()
+            }
+            Self::Guest(_) => Ok(None),
+        }
+    }
+
+    /// Replace authored resident-list error metadata. Original native option
+    /// conversion/mutation requires the interpreter-aware checked owner.
+    pub(crate) fn set_error_code(&mut self, code: impl AsRef<[u8]>) -> Result<(), TclHostFailure> {
+        let completion = match self {
+            Self::Guest(completion) => completion,
+            Self::Host(cause) => return Err(cause.clone()),
+        };
+        if completion.code != Code::Error {
+            return Ok(());
+        }
+        if completion
+            .options
+            .with_cached_dictionary_representation(|_, _| ())
+            .is_some()
+        {
+            return Err(resident_projection_failure(
+                &tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "borrowed Dictionary error-code mutation",
+                ),
+            ));
+        }
+        let pairs = crate::command::completion_option_rows_resident(&completion.options)
+            .map_err(|error| resident_projection_failure(&error))?;
+        let mut replacement = Vec::with_capacity(pairs.len() * 2 + 2);
+        let mut replaced = false;
+        for (key, value) in pairs {
+            key.check_native_header()
+                .map_err(|error| resident_projection_failure(&error))?;
+            let bytes = key.resident_string_bytes().ok_or_else(|| {
+                resident_projection_failure(
+                    &tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "borrowed option key",
+                    ),
+                )
+            })?;
+            let matched = bytes.as_ref() == b"-errorcode";
+            replacement.push(key);
+            replacement.push(if matched {
+                replaced = true;
+                Value::from_string_bytes(code.as_ref())
+            } else {
+                value
+            });
+        }
+        if !replaced {
+            replacement.extend([
+                Value::string("-errorcode"),
+                Value::from_string_bytes(code.as_ref()),
+            ]);
+        }
+        completion.options = Value::list(replacement);
+        Ok(())
+    }
+
+    /// Move the original completion into a guest dispatch boundary.
+    ///
+    /// # Errors
+    /// Operational host failures remain outside guest Tcl completion.
+    pub fn into_completion(self) -> Result<Completion<Value>, TclHostFailure> {
+        match self {
+            Self::Guest(completion) => Ok(completion),
+            Self::Host(error) => Err(error),
+        }
+    }
+
+    /// Move the original guest result object into a value consumer.
+    ///
+    /// # Errors
+    /// Operational host failures cannot become guest values.
+    pub fn into_value(self) -> Result<Value, TclHostFailure> {
+        self.into_completion().map(|completion| completion.result)
+    }
+}
+
+impl From<TclHostFailure> for TclError {
+    fn from(error: TclHostFailure) -> Self {
+        Self::Host(error)
+    }
+}
+
+impl From<NativeValueAccessRefusal> for TclError {
+    fn from(refusal: NativeValueAccessRefusal) -> Self {
+        Self::Host(TclHostFailure::ValueAccess(refusal))
+    }
+}
+
+impl From<UnicodeAccessError> for TclError {
+    fn from(refusal: UnicodeAccessError) -> Self {
+        NativeValueAccessRefusal::from(refusal).into()
+    }
+}
+
+impl From<tcl_syntax::value::ValueError> for TclError {
+    fn from(error: tcl_syntax::value::ValueError) -> Self {
+        if let Some(refusal) = error.native_access_refusal() {
+            return refusal.into();
+        }
+        let details = tcl_cmd_core::CmdError::from(error).into_byte_details();
+        let code = match details.error_code {
+            tcl_cmd_core::CmdErrorCodeUpdate::WrongArguments => {
+                return tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("wrong arguments").into();
+            }
+            tcl_cmd_core::CmdErrorCodeUpdate::Default => Value::string("NONE"),
+            tcl_cmd_core::CmdErrorCodeUpdate::Set(bytes) => Value::from_string_bytes(bytes),
+            tcl_cmd_core::CmdErrorCodeUpdate::Unchanged => {
+                return Self::Host(TclHostFailure::PrimitiveErrorStateRequired(
+                    details
+                        .primitive_getter
+                        .expect("Unchanged originates in retained primitive getter"),
+                ));
+            }
+        };
+        let message = details
+            .primitive_getter
+            .as_ref()
+            .map_or(details.message.as_slice(), |getter| {
+                getter.eval_result_bytes(&details.message)
+            });
+        let mut extra = vec![("-errorcode", code)];
+        if let Some(info) = details.error_info {
+            extra.push(("-errorinfo", Value::from_string_bytes(info)));
+        }
+        if let Some(line) = details.error_line {
+            extra.push(("-errorline", Value::int(line)));
+        }
+        Self::Guest(Completion::new_error_metadata(
+            Code::Error,
+            Value::from_string_bytes(message),
+            crate::command::options_dict(Code::Error, 0, &extra),
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        Vm,
+        command::{Command, completion_from_tcl_error, opt_get},
+    };
+
+    #[test]
+    fn byte_guest_error_and_code_survive_the_completion_boundary() {
+        let mut vm = Vm::new();
+        let completion = completion_from_tcl_error(
+            &mut vm,
+            TclError::with_error_code(b"message \xff\0tail", b"RAW \xfe\0code"),
+        );
+        assert_eq!(completion.code, Code::Error);
+        assert_eq!(
+            completion.result.string_bytes().as_ref(),
+            b"message \xff\0tail"
+        );
+        assert_eq!(
+            opt_get(&completion.options, "-errorcode")
+                .expect("carried code")
+                .string_bytes()
+                .as_ref(),
+            b"RAW \xfe\0code"
+        );
+        assert!(vm.refused_completion().is_none());
+
+        let propagated =
+            completion_from_tcl_error(&mut vm, TclError::with_code(b"return \xff", Code::Return));
+        assert_eq!(propagated.code, Code::Return);
+        assert_eq!(propagated.result.string_bytes().as_ref(), b"return \xff");
+    }
+
+    #[test]
+    fn propagated_guest_completion_retains_original_objects_and_options() {
+        let mut vm = Vm::new();
+        for code in [
+            Code::Return,
+            Code::Break,
+            Code::Continue,
+            Code::Other(7),
+            Code::Error,
+        ] {
+            let result = Value::from_string_bytes(b"original \xff\0result".as_slice());
+            let options = crate::command::options_dict(
+                Code::Error,
+                2,
+                &[
+                    (
+                        "-errorcode",
+                        Value::from_string_bytes(b"RAW \xfe\0code".as_slice()),
+                    ),
+                    (
+                        "-errorinfo",
+                        Value::from_string_bytes(b"original \xff\0info".as_slice()),
+                    ),
+                    ("-custom", Value::list(vec![Value::int(19)])),
+                ],
+            );
+            let completion = Completion::new(code, result.clone(), options.clone());
+            let propagated =
+                completion_from_tcl_error(&mut vm, TclError::from_completion(completion));
+            assert_eq!(propagated.code, code);
+            assert!(propagated.result.is_same_object(&result));
+            assert!(propagated.options.is_same_object(&options));
+            assert!(vm.refused_completion().is_none());
+        }
+    }
+
+    #[test]
+    fn byte_guest_error_survives_command_logging_and_catch_publication() {
+        let mut vm = Vm::new();
+        let completion = crate::command::err_with_code(b"guest \xff\0tail", b"RAW \xfe\0code");
+        let original_result = completion.result.native_lifetime_lease();
+        let original_options = completion.options.native_lifetime_lease();
+        let original_code = opt_get(&completion.options, "-errorcode").unwrap();
+        let completion = vm.publish_native_interp_completion(completion).unwrap();
+        assert!(completion.result.is_same_object(original_result.value()));
+        assert!(completion.options.is_same_object(original_options.value()));
+        assert!(
+            vm.native_return_error_code()
+                .unwrap()
+                .is_same_object(&original_code)
+        );
+        vm.log_command_info("raw_failure", completion.result.string_bytes(), 1);
+        let snapshot = vm.completion_options_snapshot(&completion).unwrap();
+        assert!(
+            opt_get(&snapshot, "-errorinfo")
+                .expect("logged trace")
+                .string_bytes()
+                .starts_with(b"guest \xff\0tail")
+        );
+        let result = vm.finish_catch(completion, None, None, 0);
+        assert_eq!(result.code, Code::Ok);
+        assert_eq!(
+            vm.get_var("::errorCode")
+                .expect("published code")
+                .string_bytes()
+                .as_ref(),
+            b"RAW \xfe\0code"
+        );
+        assert!(
+            vm.get_var("::errorInfo")
+                .expect("published trace")
+                .string_bytes()
+                .starts_with(b"guest \xff\0tail")
+        );
+        assert!(vm.refused_completion().is_none());
+    }
+
+    #[test]
+    fn guest_error_receiver_preserves_the_original_primitive_code_owner() {
+        let mut vm = Vm::new();
+        let original = vm.apply_primitive_error_code(
+            tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(b"TCL VALUE INTEGER".to_vec()),
+        );
+        let references = original.native_object_reference_count();
+        let completion = crate::command::err_with_code(b"integer required", b"TCL VALUE INTEGER");
+        let rebuilt = opt_get(&completion.options, "-errorcode").unwrap();
+        assert!(!rebuilt.is_same_object(&original));
+        let completion = vm.publish_native_interp_completion(completion).unwrap();
+        assert!(
+            vm.native_return_error_code()
+                .unwrap()
+                .is_same_object(&original)
+        );
+        assert_eq!(original.native_object_reference_count(), references);
+        assert_eq!(completion.code, Code::Error);
+        assert!(vm.refused_completion().is_none());
+    }
+
+    #[test]
+    fn guest_error_receiver_does_not_invent_missing_code_metadata() {
+        let mut vm = Vm::new();
+        let completion = Completion::new_error_metadata(
+            Code::Error,
+            Value::from_string_bytes(b"guest error".as_slice()),
+            crate::command::options_dict(Code::Error, 0, &[]),
+        );
+        let options = completion.options.native_lifetime_lease();
+        let completion = vm.publish_native_interp_completion(completion).unwrap();
+        assert!(completion.options.is_same_object(options.value()));
+        assert!(vm.native_return_error_code().is_none());
+        assert!(opt_get(&completion.options, "-errorcode").is_none());
+        assert!(vm.refused_completion().is_none());
+    }
+
+    #[test]
+    fn frozen_guest_completion_restores_the_same_error_code_object() {
+        let mut vm = Vm::new();
+        let completion = crate::command::err_with_code(b"original message", b"RAW \xfe\0code");
+        let original = opt_get(&completion.options, "-errorcode").unwrap();
+        vm.apply_primitive_error_code(tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(
+            b"FINALLY OTHER".to_vec(),
+        ));
+        vm.restore_completion_error_state(&completion).unwrap();
+        assert!(
+            vm.native_return_error_code()
+                .unwrap()
+                .is_same_object(&original)
+        );
+        assert_eq!(
+            vm.native_return_error_code()
+                .unwrap()
+                .string_bytes()
+                .as_ref(),
+            b"RAW \xfe\0code"
+        );
+        assert!(vm.refused_completion().is_none());
+    }
+
+    #[test]
+    fn frozen_guest_code_restoration_uses_original_storage_in_six_engines() {
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+            let mut vm = Vm::with_native_core(
+                Box::new(std::io::sink()),
+                std::rc::Rc::new(crate::host_native::NativeHost::new()),
+                profile,
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let completion = crate::command::err_with_code(b"original message", b"RAW \xfe\0code");
+            let original = opt_get(&completion.options, "-errorcode").unwrap();
+            vm.restore_completion_error_state(&completion).unwrap();
+            assert!(
+                vm.native_return_error_code()
+                    .unwrap()
+                    .is_same_object(&original),
+                "{engine}"
+            );
+            if engine == "tcl8.4" {
+                assert!(
+                    vm.get_var("::errorCode").unwrap().is_same_object(&original),
+                    "{engine}"
+                );
+            }
+            assert_eq!(
+                vm.native_return_error_code()
+                    .unwrap()
+                    .string_bytes()
+                    .as_ref(),
+                b"RAW \xfe\0code",
+                "{engine}"
+            );
+            assert!(vm.refused_completion().is_none(), "{engine}");
+        }
+    }
+
+    #[test]
+    fn expression_math_function_preserves_complete_abrupt_guest_objects() {
+        struct Abrupt(Completion<Value>);
+        impl crate::command::NativeCommand for Abrupt {
+            fn invoke(&self, _: &mut Vm, _: &[Value]) -> Completion<Value> {
+                self.0.clone()
+            }
+        }
+        for code in [
+            Code::Return,
+            Code::Break,
+            Code::Continue,
+            Code::Other(7),
+            Code::Error,
+        ] {
+            let mut vm = Vm::new();
+            vm.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            let result = Value::from_string_bytes(b"math \xff\0result".as_slice());
+            let options = crate::command::options_dict(
+                Code::Error,
+                2,
+                &[
+                    (
+                        "-errorcode",
+                        Value::from_string_bytes(b"MATH \xfe\0code".as_slice()),
+                    ),
+                    (
+                        "-errorinfo",
+                        Value::from_string_bytes(b"retained \xff\0info".as_slice()),
+                    ),
+                    (
+                        "-custom",
+                        Value::from_string_bytes(b"CUSTOM \xfe".as_slice()),
+                    ),
+                ],
+            );
+            vm.register_native_command(
+                "::tcl::mathfunc::abrupt",
+                std::rc::Rc::new(Abrupt(Completion::new(
+                    code,
+                    result.clone(),
+                    options.clone(),
+                ))),
+            );
+            let completion = vm.try_eval_expr("abrupt()").expect("guest completion");
+            assert_eq!(completion.code, code);
+            assert!(completion.result.is_same_object(&result));
+            assert!(completion.options.is_same_object(&options));
+        }
+    }
+
+    #[test]
+    fn expression_quotes_follow_selected_native_control_and_level_protocol() {
+        for engine in ["tcl9.0", "jim"] {
+            let mut vm = Vm::new();
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(engine).analyser_profile();
+            vm.set_dialect_profile(profile);
+            vm.set_compiler(Box::new(
+                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            ));
+            let source = "\"prefix [return -level 2 -code error -errorcode {X Y} -errorinfo ORIGINAL MESSAGE]\"";
+            let completion = vm.try_eval_expr(source).expect("guest quote completion");
+            if engine == "jim" {
+                assert_eq!(completion.code, Code::Ok);
+                assert_eq!(completion.result.string_bytes().as_ref(), b"prefix MESSAGE");
+                assert_eq!(
+                    opt_get(&completion.options, "-level")
+                        .expect("retained level")
+                        .as_int()
+                        .unwrap(),
+                    2
+                );
+                let snapshot = vm.completion_options_snapshot(&completion).unwrap();
+                assert_eq!(opt_get(&snapshot, "-code").unwrap().as_int().unwrap(), 0);
+                assert_eq!(opt_get(&snapshot, "-level").unwrap().as_int().unwrap(), 2);
+            } else {
+                assert_eq!(completion.code, Code::Return);
+                assert_eq!(completion.result.string_bytes().as_ref(), b"MESSAGE");
+                assert_eq!(
+                    opt_get(&completion.options, "-errorcode")
+                        .unwrap()
+                        .string_bytes()
+                        .as_ref(),
+                    b"X Y"
+                );
+                assert_eq!(
+                    opt_get(&completion.options, "-errorinfo")
+                        .unwrap()
+                        .string_bytes()
+                        .as_ref(),
+                    b"ORIGINAL"
+                );
+                assert_eq!(
+                    opt_get(&completion.options, "-level")
+                        .unwrap()
+                        .as_int()
+                        .unwrap(),
+                    2
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn typed_access_refusal_bypasses_catch_and_finally() {
+        fn refuse(vm: &mut Vm, _: &[Value]) -> tcl_runtime_api::Completion<Value> {
+            vm.set_var("reached", Value::int(1))
+                .expect("unobserved handler entry marker");
+            completion_from_tcl_error(
+                vm,
+                UnicodeAccessError {
+                    valid_up_to: 0,
+                    error_len: Some(1),
+                }
+                .into(),
+            )
+        }
+        for source in [
+            "catch {byte_refusal} caught; set after 1",
+            "try {byte_refusal} on error {m o} {set handled 1} finally {set final 1}; set after 1",
+            "after 0 byte_refusal; after 0 {set later 1}; update; set after 1",
+        ] {
+            let mut vm = Vm::new();
+            vm.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            );
+            vm.set_compiler(Box::new(
+                tcl_compiler::compile_service::BytecodeCompileService::default(),
+            ));
+            vm.register_command("byte_refusal", Command::Builtin(refuse));
+            let refusal = vm.try_eval_source(source).expect_err("host access refusal");
+            assert_eq!(
+                refusal,
+                tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    UnicodeAccessError {
+                        valid_up_to: 0,
+                        error_len: Some(1),
+                    }
+                    .into()
+                ),
+                "{source}"
+            );
+            assert_eq!(
+                vm.get_var("reached")
+                    .expect("actual refusing handler reached")
+                    .string_bytes()
+                    .as_ref(),
+                b"1"
+            );
+            for name in ["caught", "handled", "final", "later", "after"] {
+                assert!(vm.get_var(name).is_none(), "{source}: {name}");
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod checked_projection_tests {
+    use super::*;
+    fn native() -> crate::Vm {
+        crate::native_fixture::interpreter(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+        )
+    }
+    #[test]
+    fn borrowed_projection_refuses_conversion_and_actual_context_reads_original_values() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Software getter/transport control, not a new original-provider receipt.
+        let mut vm = native();
+        let result = Value::int(7);
+        let code = Value::int(17);
+        let error = TclError::from_completion(Completion::new_error_metadata(
+            Code::Error,
+            result.clone(),
+            Value::list(vec![Value::string("-errorcode"), code.clone()]),
+        ));
+        assert!(matches!(
+            error.message_bytes(),
+            Err(TclHostFailure::ValueAccess(
+                NativeValueAccessRefusal::CommandProtocolUnavailable("borrowed guest message")
+            ))
+        ));
+        assert!(matches!(
+            error.error_code_bytes(),
+            Err(TclHostFailure::ValueAccess(
+                NativeValueAccessRefusal::CommandProtocolUnavailable("borrowed error-code bytes")
+            ))
+        ));
+        assert!(result.resident_string_bytes().is_none());
+        assert!(code.resident_string_bytes().is_none());
+        assert_eq!(error.message_bytes_in(&mut vm).unwrap().as_ref(), b"7");
+        assert_eq!(
+            error
+                .error_code_bytes_in(&mut vm)
+                .unwrap()
+                .unwrap()
+                .as_ref(),
+            b"17"
+        );
+        assert!(
+            error
+                .guest_completion()
+                .unwrap()
+                .result
+                .is_same_object(&result)
+        );
+    }
+    #[test]
+    fn checked_guest_projection_preserves_first_host_cause_without_materialising() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        let mut vm = native();
+        let cause = NativeValueAccessRefusal::ExpressionEngineUnavailable;
+        vm.refuse_tcl_host_failure(TclHostFailure::ValueAccess(cause));
+        let original = Value::int(42);
+        let error = TclError::from_completion(Completion::new(
+            Code::Error,
+            original.clone(),
+            Value::empty(),
+        ));
+        assert!(
+            matches!(error.message_bytes_in(&mut vm), Err(TclError::Host(TclHostFailure::Execution(NativeExecutionError::ValueAccessRefusal(retained)))) if retained == cause)
+        );
+        assert!(original.resident_string_bytes().is_none());
+        assert!(
+            matches!(error.message_unicode_in(&mut vm), Err(TclError::Host(TclHostFailure::Execution(NativeExecutionError::ValueAccessRefusal(retained)))) if retained == cause)
+        );
+        assert!(original.resident_string_bytes().is_none());
+    }
+
+    #[test]
+    fn original_completion_unicode_keeps_counted_nul_and_refuses_non_utf8() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Actual getter and host display controls, independent of Native source admission.
+        for code in [Code::Ok, Code::Error] {
+            let mut vm = native();
+            let original = Value::from_string_bytes(b"DISPLAY\0TAIL".as_slice());
+            let completion =
+                TclError::from_completion(Completion::new(code, original.clone(), Value::empty()));
+            assert_eq!(
+                completion.message_unicode_in(&mut vm).unwrap().as_ref(),
+                "DISPLAY\0TAIL"
+            );
+            assert!(
+                completion
+                    .guest_completion()
+                    .unwrap()
+                    .result
+                    .is_same_object(&original)
+            );
+
+            let original = Value::from_string_bytes(b"DISPLAY\xffTAIL".as_slice());
+            let completion =
+                TclError::from_completion(Completion::new(code, original.clone(), Value::empty()));
+            let expected = NativeValueAccessRefusal::from(UnicodeAccessError {
+                valid_up_to: 7,
+                error_len: Some(1),
+            });
+            assert!(
+                matches!(completion.message_unicode_in(&mut vm), Err(TclError::Host(TclHostFailure::Execution(NativeExecutionError::ValueAccessRefusal(cause)))) if cause == expected)
+            );
+            assert_eq!(
+                original.resident_string_bytes().unwrap().as_ref(),
+                b"DISPLAY\xffTAIL"
+            );
+            assert!(
+                completion
+                    .guest_completion()
+                    .unwrap()
+                    .result
+                    .is_same_object(&original)
+            );
+            assert!(
+                matches!(completion.message_unicode_in(&mut vm), Err(TclError::Host(TclHostFailure::Execution(NativeExecutionError::ValueAccessRefusal(cause)))) if cause == expected)
+            );
+        }
     }
 }

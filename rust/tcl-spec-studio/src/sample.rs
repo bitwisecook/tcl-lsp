@@ -55,12 +55,15 @@ use std::sync::Arc;
 
 use serde_json::{Value, json};
 use tcl_compiler::analyser::state::Analyser;
-use tcl_compiler::parsing::syntax::build::build_document;
-use tcl_compiler::parsing::syntax::segment::segments_from_document;
-use tcl_lexer::{LexerConfig, LineIndex, SourceMap};
+use tcl_compiler::ir::CommandTokens;
+use tcl_compiler::registry_invocation::{
+    EffectiveInvocationWord, effective_invocation_word, invocation_word_with_source,
+};
+use tcl_lexer::{LexerConfig, LineIndex, SourceMap, SourceSegmentationPurpose};
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::registry::CommandRegistry;
 use tcl_registry::spec::{CommandSpec, SubCommand};
+use tcl_registry::{InvocationArguments, InvocationDialect, InvocationWord, InvocationWords};
 use tcl_spectcl::catalogue;
 
 use crate::store::{Origin, Resolution};
@@ -89,6 +92,10 @@ struct Word {
     args: Vec<String>,
     /// How many bodies deep the statement is.
     depth: usize,
+    /// Genuine source-word topology and its independently decoded value facets.
+    tokens: Arc<CommandTokens>,
+    values: Arc<Vec<EffectiveInvocationWord>>,
+    config: LexerConfig,
 }
 
 impl Word {
@@ -96,35 +103,88 @@ impl Word {
     fn arg_index(&self) -> Option<usize> {
         self.index.checked_sub(1)
     }
+
+    fn head_literal(&self) -> Option<&str> {
+        self.values.first()?.as_registry_word().literal()
+    }
+
+    fn argument_words(&self) -> Vec<InvocationWord<'_>> {
+        self.tokens
+            .words()
+            .iter()
+            .zip(self.values.iter())
+            .skip(1)
+            .map(|(source, value)| invocation_word_with_source(source, value, self.config.escapes))
+            .collect()
+    }
+}
+
+/// Complete sample bytes and original configuration checked by `source_words`.
+/// This local display carrier supplies no execution entry or native header.
+#[derive(Clone, Copy)]
+struct SampleSource<'a> {
+    whole: &'a str,
+    config: LexerConfig,
 }
 
 /// Segment `source` into words, recursing into every word the registry says is
 /// a script body.
 ///
-/// `base` is `source`'s own offset inside the whole sample, so every emitted
-/// span is absolute no matter how deep the recursion went.
+/// The genuine producer selects whole input or an extracted body. Parsing
+/// uses its local purpose; original tokens and word facets retain the complete
+/// sample configuration and image. All regions address that same sample.
 fn walk(
     registry: &CommandRegistry,
-    config: LexerConfig,
-    whole: &str,
-    base: usize,
+    sample: SampleSource<'_>,
+    purpose: SourceSegmentationPurpose,
+    region: std::ops::Range<usize>,
     depth: usize,
     out: &mut Vec<Word>,
 ) {
     if depth > MAX_DEPTH {
         return;
     }
-    let source = &whole[base..];
-    let source_map = SourceMap::new(source);
-    let (document, _warnings) = build_document(source, config);
-    for segment in segments_from_document(document, &source_map) {
+    let SampleSource { whole, config } = sample;
+    let Some(source) = whole.get(region.clone()) else {
+        return;
+    };
+    let Ok(base) = u32::try_from(region.start) else {
+        return;
+    };
+    let source_map = SourceMap::new(whole);
+    let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        source,
+        base,
+        purpose.config(config),
+    );
+    for segment in segments {
         let head = segment.texts.first().cloned().unwrap_or_default();
         let args: Vec<String> = segment.texts.iter().skip(1).cloned().collect();
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let tokens = Arc::new(CommandTokens::from_segmented(&source_map, config, &segment));
+        let values = Arc::new(
+            tokens
+                .words()
+                .iter()
+                .map(|word| {
+                    effective_invocation_word(
+                        word,
+                        config.escapes,
+                        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                    )
+                })
+                .collect::<Vec<_>>(),
+        );
+        let argument_words = tokens
+            .words()
+            .iter()
+            .zip(values.iter())
+            .skip(1)
+            .map(|(source, value)| invocation_word_with_source(source, value, config.escapes))
+            .collect::<Vec<_>>();
 
         for (index, token) in segment.argv.iter().enumerate() {
-            let start = base + token.span.start() as usize;
-            let end = base + token.span.end() as usize;
+            let start = token.span.start() as usize;
+            let end = token.span.end() as usize;
             if start >= end || end > whole.len() {
                 continue;
             }
@@ -136,33 +196,50 @@ fn walk(
                 head: head.clone(),
                 args: args.clone(),
                 depth,
+                tokens: Arc::clone(&tokens),
+                values: Arc::clone(&values),
+                config,
             });
         }
 
         // Recurse into the words the *spec* calls scripts. This is the whole
         // reason a pack command that declares `arg_roles { 2 Body }` gets its
         // body inspected without a line of body-specific code here.
-        for arg_index in registry.arg_indices_for_role(&head, &arg_refs, ArgRole::Body) {
+        let Some(head_value) = values
+            .first()
+            .and_then(|value| value.as_registry_word().literal())
+        else {
+            continue;
+        };
+        for arg_index in registry
+            .arg_indices_for_role_words(
+                head_value,
+                InvocationArguments::structured(&argument_words),
+                ArgRole::Body,
+            )
+            .unwrap_or_default()
+        {
             let Some(token) = segment.argv.get(arg_index + 1) else {
                 continue;
             };
-            let start = base + token.span.start() as usize;
-            let end = base + token.span.end() as usize;
+            let start = token.span.start() as usize;
             let lead = usize::from(token.content_offset);
-            if lead == 0 || end <= start + lead || whole.as_bytes().get(start) != Some(&b'{') {
+            if lead == 0 || whole.as_bytes().get(start) != Some(&b'{') {
                 continue;
             }
-            // The braced word's contents: `{`…`}` minus both delimiters.
+            let Some(close) = tcl_lexer::word_closer_offset_at(whole.as_bytes(), token.span) else {
+                continue;
+            };
             let inner_start = start + lead;
-            let inner_end = end - 1;
+            let inner_end = close as usize;
             if inner_end <= inner_start {
                 continue;
             }
             walk(
                 registry,
-                config,
-                &whole[..inner_end],
-                inner_start,
+                sample,
+                SourceSegmentationPurpose::NestedScript,
+                inner_start..inner_end,
                 depth + 1,
                 out,
             );
@@ -187,11 +264,17 @@ struct Provenance {
 }
 
 /// The subcommand a call selects, if the spec dispatches on its first word.
-fn dispatching_subcommand<'s>(spec: &'s CommandSpec, args: &[&str]) -> Option<&'s SubCommand> {
+fn dispatching_subcommand<'s>(
+    spec: &'s CommandSpec,
+    args: InvocationArguments<'_>,
+) -> Option<&'s SubCommand> {
     if spec.subcommands.is_empty() {
         return None;
     }
-    args.first().and_then(|word| spec.resolve_subcommand(word))
+    spec.resolve_subcommand_for_dialect(
+        args.literal_at(0)?,
+        args.dialect().and_then(InvocationDialect::authoring_query),
+    )
 }
 
 /// Where argument `idx` of a call to `spec` gets its meaning.
@@ -200,7 +283,20 @@ fn dispatching_subcommand<'s>(spec: &'s CommandSpec, args: &[&str]) -> Option<&'
 /// subcommand dispatch, then the option scan (with its `--` terminator), then
 /// the positional tables — because an explanation that disagreed with the
 /// answer it explains would be worse than no explanation at all.
-fn provenance(spec: &CommandSpec, args: &[&str], idx: usize) -> Provenance {
+fn provenance(
+    registry: &CommandRegistry,
+    spec: &CommandSpec,
+    args: InvocationArguments<'_>,
+    idx: usize,
+) -> Provenance {
+    if registry
+        .arg_role_assignments_words(spec.name, args, ArgRole::ALL)
+        .is_none()
+    {
+        return unknown_provenance(
+            "computed or expanded words prevent an exact source-role projection",
+        );
+    }
     let sub = dispatching_subcommand(spec, args);
     if let Some(sub) = sub
         && idx == 0
@@ -212,103 +308,102 @@ fn provenance(spec: &CommandSpec, args: &[&str], idx: usize) -> Provenance {
                 "selects the `{}` subcommand of `{}`{}",
                 sub.name,
                 spec.name,
-                if args[0] == sub.name {
+                if args.literal_at(0) == Some(sub.name) {
                     String::new()
                 } else {
-                    format!(" (`{}` is an accepted abbreviation)", args[0])
+                    format!(
+                        " (`{}` is an accepted abbreviation)",
+                        args.literal_at(0).unwrap_or("")
+                    )
                 }
             ),
         };
     }
 
-    let (options, offset) = match sub {
-        Some(sub) => (sub.options, 1usize),
-        None => (spec.options, 0usize),
+    let Some(resolved) = registry
+        .resolve_structured_invocation(
+            InvocationWords::from_arguments(InvocationWord::Literal(spec.name), args),
+            args.dialect().and_then(InvocationDialect::authoring_query),
+        )
+        .resolved()
+    else {
+        return unknown_provenance("the computed invocation does not select an exact descriptor");
     };
+    let offset = resolved.semantics.argument_offset;
     let owner = match sub {
         Some(sub) => format!("subcommand {} / options", sub.name),
         None => "options".to_owned(),
     };
-    let mut i = offset;
-    while i < args.len() {
-        if args[i] == "--" {
-            if i == idx {
+    let Some(occurrences) = resolved
+        .semantics
+        .options
+        .prefix_occurrences(args.slice_from(offset))
+    else {
+        return unknown_provenance("the leading option layout is not established");
+    };
+    for occurrence in occurrences {
+        let at = offset + occurrence.argument_index;
+        let Some(option) = occurrence.option else {
+            if at == idx {
                 return Provenance {
                     kind: "terminator",
                     field: Some(owner),
                     detail: "ends option parsing — every later word is a value".to_owned(),
                 };
             }
-            break;
-        }
-        if let Some(option) = options.iter().find(|o| o.matches(args[i])) {
-            let values = option.value_indices(args, i);
-            if i == idx {
-                return Provenance {
-                    kind: "option",
-                    field: Some(owner),
-                    detail: if option.takes_value() {
-                        format!(
-                            "declared option `{}`{} — takes {} value word(s){}",
-                            option.name,
-                            if args[i] == option.name {
-                                String::new()
-                            } else {
-                                format!(" (written `{}`)", args[i])
-                            },
-                            values.len(),
-                            describe(option.detail),
-                        )
+            continue;
+        };
+        if at == idx {
+            let word = args.literal_at(at).unwrap_or("");
+            return Provenance {
+                kind: "option",
+                field: Some(owner),
+                detail: format!(
+                    "declared option `{}`{} — takes {} value word(s){}",
+                    option.name,
+                    if word == option.name {
+                        String::new()
                     } else {
-                        format!(
-                            "declared flag `{}`{} — takes no value{}",
-                            option.name,
-                            if args[i] == option.name {
-                                String::new()
-                            } else {
-                                format!(" (written `{}`)", args[i])
-                            },
-                            describe(option.detail),
-                        )
+                        format!(" (written `{word}`)")
                     },
-                };
-            }
-            if values.contains(&idx) {
-                return Provenance {
-                    kind: "option-value",
-                    field: Some(owner),
-                    detail: format!(
-                        "the value of `{}`{}{}",
-                        option.name,
-                        option
-                            .value_role()
-                            .map(|role| format!(", declared {}", catalogue::variant_name(&role)))
-                            .unwrap_or_default(),
-                        describe(option.value_hint()),
-                    ),
-                };
-            }
-            i += 1 + values.len();
-        } else {
-            i += 1;
+                    occurrence.values.len(),
+                    describe(option.detail)
+                ),
+            };
+        }
+        if occurrence.values.contains(&idx.saturating_sub(offset)) && idx >= offset {
+            return Provenance {
+                kind: "option-value",
+                field: Some(owner),
+                detail: format!(
+                    "the value of `{}`{}{}",
+                    option.name,
+                    option
+                        .value_role()
+                        .map(|role| format!(", declared {}", catalogue::variant_name(&role)))
+                        .unwrap_or_default(),
+                    describe(option.value_hint())
+                ),
+            };
         }
     }
 
-    positional(spec, sub, args, idx, offset)
+    positional(registry, spec, sub, args, idx, offset)
 }
 
 /// The positional half of [`provenance`]: the three tables that can name an
 /// argument position, in the registry's own precedence.
 fn positional(
+    registry: &CommandRegistry,
     spec: &CommandSpec,
     sub: Option<&SubCommand>,
-    args: &[&str],
+    args: InvocationArguments<'_>,
     idx: usize,
     offset: usize,
 ) -> Provenance {
-    let (roles, resolver, repeated) = match sub {
-        Some(sub) => (sub.arg_roles, sub.arg_role_resolver, sub.repeated_args),
-        None => (spec.arg_roles, spec.arg_role_resolver, spec.repeated_args),
+    let (roles, repeated) = match sub {
+        Some(sub) => (sub.arg_roles, sub.repeated_args),
+        None => (spec.arg_roles, spec.repeated_args),
     };
     let Some(local) = idx.checked_sub(offset) else {
         return Provenance {
@@ -322,23 +417,47 @@ fn positional(
         None => word.to_owned(),
     };
 
-    if let Some(resolve) = resolver {
-        let tail: Vec<&str> = args.iter().skip(offset).copied().collect();
-        if let Some((_, role)) = resolve(&tail)
-            .into_iter()
-            .find(|(at, _)| usize::from(*at) == local)
+    if let Some(resolved) = registry
+        .resolve_structured_invocation(
+            InvocationWords::from_arguments(InvocationWord::Literal(spec.name), args),
+            args.dialect().and_then(InvocationDialect::authoring_query),
+        )
+        .resolved()
+    {
+        let semantics = &resolved.semantics;
+        let field = if semantics.arg_role_layout_resolver.is_some() {
+            Some("arg_role_layout_resolver")
+        } else if semantics.arg_role_count_resolver.is_some() {
+            Some("arg_role_count_resolver")
+        } else if semantics.arg_role_resolver.is_some() {
+            Some("arg_role_resolver")
+        } else {
+            None
+        };
+        if let Some(field) = field
+            && let Some((_, role)) = resolved
+                .argument_roles()
+                .0
+                .into_iter()
+                .find(|(at, _)| usize::from(*at) + semantics.argument_offset == idx)
         {
             return Provenance {
                 kind: "argument",
-                field: Some(owner("arg_role_resolver")),
+                field: Some(owner(field)),
                 detail: format!(
-                    "the resolver read this whole call and gave word {local} the role {}",
+                    "the selected resolver gave word {local} the role {}",
                     catalogue::variant_name(&role)
                 ),
             };
         }
     }
-    if let Some((_, role)) = roles.iter().find(|(at, _)| usize::from(*at) == local) {
+    let assignments = registry
+        .arg_role_assignments_words(spec.name, args, ArgRole::ALL)
+        .unwrap_or_default();
+    if let Some((_, role)) = roles
+        .iter()
+        .find(|(at, role)| usize::from(*at) == local && assignments.contains(&(idx, *role)))
+    {
         return Provenance {
             kind: "argument",
             field: Some(owner("arg_roles")),
@@ -348,9 +467,14 @@ fn positional(
             ),
         };
     }
-    let tail_len = args.len().saturating_sub(offset);
+    let Some(tail_len) = args
+        .exact_argv_len()
+        .and_then(|length| length.checked_sub(offset))
+    else {
+        return unknown_provenance("expansion prevents an exact positional projection");
+    };
     for layout in repeated {
-        if layout.indices(tail_len).contains(&local) {
+        if layout.indices(tail_len).contains(&local) && assignments.contains(&(idx, layout.role)) {
             return Provenance {
                 kind: "argument",
                 field: Some(owner("repeated_args")),
@@ -371,6 +495,14 @@ fn positional(
             local + 1,
             spec.name
         ),
+    }
+}
+
+fn unknown_provenance(detail: &str) -> Provenance {
+    Provenance {
+        kind: "unknown",
+        field: None,
+        detail: detail.to_owned(),
     }
 }
 
@@ -413,31 +545,74 @@ impl<'a> Bench<'a> {
         &self.registry
     }
 
-    /// The grammar a sample is read under: the one belonging to the
-    /// environment this bench's built-ins were resolved for, so the sample
-    /// tokenises exactly as a document of that dialect would.
-    fn lexer_config(&self) -> LexerConfig {
-        LexerConfig::for_profile(Some(crate::environment::profile_for_dialect(
-            self.merged.builtins().dialect(),
-        )))
+    /// The actual producer runs once for lexical views and diagnostics alike.
+    fn analysis_result(&self, sample: &str) -> tcl_compiler::analyser::AnalysisResult {
+        Analyser::new()
+            .with_pack_overlay(self.overlay)
+            .analyse(sample, self.merged.builtins().dialect())
+    }
+
+    /// Checked full sample words. Catalogue role previews remain authored
+    /// questions; this source owner does not prove a reached native command.
+    fn source_words(
+        &self,
+        sample: &str,
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+    ) -> Option<Vec<Word>> {
+        let input = analysis.resolved_input.as_ref()?;
+        let config = input.lexer_config();
+        if !Arc::ptr_eq(input.borrowed_context_registry().commands(), &self.registry)
+            || !analysis
+                .matches_original_source_image(&tcl_lexer::SourceImage::document(sample), config)
+        {
+            return None;
+        }
+        let mut words = Vec::new();
+        walk(
+            &self.registry,
+            SampleSource {
+                whole: sample,
+                config,
+            },
+            SourceSegmentationPurpose::WholeInput,
+            0..sample.len(),
+            0,
+            &mut words,
+        );
+        words.sort_by_key(|word| (word.start, word.end));
+        words.dedup_by_key(|word| (word.start, word.end));
+        Some(words)
     }
 
     /// Analyse `sample` and return everything the tab paints: the render
     /// chunks, one entry per word, and the analyser's diagnostics.
     #[must_use]
     pub fn analyse(&self, sample: &str) -> Value {
-        let diagnostics = self.diagnostics(sample);
-        let mut words = Vec::new();
-        walk(
-            &self.registry,
-            self.lexer_config(),
-            sample,
-            0,
-            0,
-            &mut words,
-        );
-        words.sort_by_key(|w| (w.start, w.end));
-        words.dedup_by_key(|w| (w.start, w.end));
+        let analysis = self.analysis_result(sample);
+        self.analyse_result_view(sample, &analysis)
+    }
+
+    /// Present only this exact producer's source view; unavailable evidence
+    /// preserves diagnostics and plain sample text without invented counts.
+    #[allow(clippy::too_many_lines)]
+    fn analyse_result_view(
+        &self,
+        sample: &str,
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+    ) -> Value {
+        let diagnostics = Self::diagnostics(sample, analysis);
+        let Some(words) = self.source_words(sample, analysis) else {
+            return json!({
+                "dialect": self.merged.builtins().dialect(),
+                "pack": self.merged.store().name(),
+                "installed": self.overlay != 0,
+                "source_available": false,
+                "render": render_chunks(sample, &[]),
+                "tokens": null,
+                "diagnostics": diagnostics,
+                "summary": null,
+            });
+        };
 
         let lines = LineIndex::new(sample);
         let severities = severity_by_span(&diagnostics);
@@ -446,13 +621,20 @@ impl<'a> Bench<'a> {
             .iter()
             .map(|word| {
                 let position = lines.position_at_utf16(clamp_u32(word.start), sample);
-                let (origin, resolved) = self.resolve_head(&word.head);
-                let arg_refs: Vec<&str> = word.args.iter().map(String::as_str).collect();
+                let (origin, resolved) = word
+                    .head_literal()
+                    .map_or((None, None), |head| self.resolve_head(head));
+                let argument_words = word.argument_words();
+                let arg_refs = InvocationArguments::structured(&argument_words).with_dialect(
+                    InvocationDialect::of_profile(crate::environment::profile_for_dialect(
+                        self.merged.builtins().dialect(),
+                    )),
+                );
                 let roles = resolved
-                    .map(|spec| self.roles_at(spec, &word.head, &arg_refs, word.arg_index()))
+                    .map(|spec| self.roles_at(spec, spec.name, arg_refs, word.arg_index()))
                     .unwrap_or_default();
                 let prov = match (resolved, word.arg_index()) {
-                    (Some(spec), Some(idx)) => provenance(spec, &arg_refs, idx),
+                    (Some(spec), Some(idx)) => provenance(&self.registry, spec, arg_refs, idx),
                     (Some(_), None) => Provenance {
                         kind: "command",
                         field: Some("command".to_owned()),
@@ -490,18 +672,28 @@ impl<'a> Bench<'a> {
         let heads: BTreeMap<&str, bool> = words
             .iter()
             .filter(|w| w.index == 0)
-            .map(|w| (w.head.as_str(), self.resolve_head(&w.head).1.is_some()))
+            .map(|w| {
+                (
+                    w.head.as_str(),
+                    w.head_literal()
+                        .is_some_and(|head| self.resolve_head(head).1.is_some()),
+                )
+            })
             .collect();
         let from_pack = words
             .iter()
             .filter(|w| w.index == 0)
-            .filter(|w| self.resolve_head(&w.head).0.is_some_and(Origin::pack_wins))
+            .filter(|w| {
+                w.head_literal()
+                    .is_some_and(|head| self.resolve_head(head).0.is_some_and(Origin::pack_wins))
+            })
             .count();
 
         json!({
             "dialect": self.merged.builtins().dialect(),
             "pack": self.merged.store().name(),
             "installed": self.overlay != 0,
+            "source_available": true,
             "render": render_chunks(sample, &words),
             "tokens": tokens,
             "diagnostics": diagnostics,
@@ -530,15 +722,8 @@ impl<'a> Bench<'a> {
     /// diagnostics that land on the word.
     #[must_use]
     pub fn inspect(&self, sample: &str, offset: usize) -> Option<Value> {
-        let mut words = Vec::new();
-        walk(
-            &self.registry,
-            self.lexer_config(),
-            sample,
-            0,
-            0,
-            &mut words,
-        );
+        let analysis = self.analysis_result(sample);
+        let words = self.source_words(sample, &analysis)?;
         // The innermost word wins: a body's own statements are pushed after
         // the body word that holds them, and are strictly narrower.
         let word = words
@@ -546,12 +731,18 @@ impl<'a> Bench<'a> {
             .filter(|w| w.start <= offset && offset < w.end)
             .min_by_key(|w| w.end - w.start)?;
 
-        let arg_refs: Vec<&str> = word.args.iter().map(String::as_str).collect();
-        let (origin, resolved) = self.resolve_head(&word.head);
+        let argument_words = word.argument_words();
+        let arg_refs = InvocationArguments::structured(&argument_words).with_dialect(
+            InvocationDialect::of_profile(crate::environment::profile_for_dialect(
+                self.merged.builtins().dialect(),
+            )),
+        );
+        let (origin, resolved) = word
+            .head_literal()
+            .map_or((None, None), |head| self.resolve_head(head));
         let lines = LineIndex::new(sample);
         let position = lines.position_at_utf16(clamp_u32(word.start), sample);
-        let diagnostics: Vec<Value> = self
-            .diagnostics(sample)
+        let diagnostics: Vec<Value> = Self::diagnostics(sample, &analysis)
             .into_iter()
             .filter(|d| {
                 let start = json_usize(&d["start"]);
@@ -561,7 +752,7 @@ impl<'a> Bench<'a> {
             .collect();
 
         let prov = match (resolved, word.arg_index()) {
-            (Some(spec), Some(idx)) => provenance(spec, &arg_refs, idx),
+            (Some(spec), Some(idx)) => provenance(&self.registry, spec, arg_refs, idx),
             (Some(_), None) => Provenance {
                 kind: "command",
                 field: Some("command".to_owned()),
@@ -577,7 +768,7 @@ impl<'a> Bench<'a> {
                 ),
             },
         };
-        let sub = resolved.and_then(|spec| dispatching_subcommand(spec, &arg_refs));
+        let sub = resolved.and_then(|spec| dispatching_subcommand(spec, arg_refs));
 
         Some(json!({
             "word": {
@@ -605,7 +796,7 @@ impl<'a> Bench<'a> {
             })),
             "role": {
                 "roles": resolved
-                    .map(|spec| self.roles_at(spec, &word.head, &arg_refs, word.arg_index()))
+                    .map(|spec| self.roles_at(spec, spec.name, arg_refs, word.arg_index()))
                     .unwrap_or_default(),
                 "field": prov.field,
                 "detail": prov.detail,
@@ -631,7 +822,7 @@ impl<'a> Bench<'a> {
         &self,
         _spec: &CommandSpec,
         head: &str,
-        args: &[&str],
+        args: InvocationArguments<'_>,
         arg_index: Option<usize>,
     ) -> Vec<Value> {
         let Some(index) = arg_index else {
@@ -641,8 +832,8 @@ impl<'a> Bench<'a> {
             .iter()
             .filter(|role| {
                 self.registry
-                    .arg_indices_for_role(head, args, **role)
-                    .contains(&index)
+                    .arg_indices_for_role_words(head, args, **role)
+                    .is_some_and(|indices| indices.contains(&index))
             })
             .map(|role| {
                 let key = catalogue::variant_name(role);
@@ -691,10 +882,7 @@ impl<'a> Bench<'a> {
     /// The pack rides in on [`Analyser::with_pack_overlay`], which is the one
     /// and only way the server, the CLI and the MCP tools read a pack — so a
     /// diagnostic here is a diagnostic there.
-    fn diagnostics(&self, sample: &str) -> Vec<Value> {
-        let dialect = self.merged.builtins().dialect();
-        let mut analyser = Analyser::new().with_pack_overlay(self.overlay);
-        let result = analyser.analyse(sample, dialect);
+    fn diagnostics(sample: &str, result: &tcl_compiler::analyser::AnalysisResult) -> Vec<Value> {
         let lines = LineIndex::new(sample);
         let mut out: Vec<Value> = result
             .diagnostics
@@ -757,13 +945,17 @@ fn origin_label(origin: Option<Origin>) -> &'static str {
 
 /// `1..3`, `2..`, `0` — the arity as a spec author writes it in the DSL.
 fn arity_text(arity: tcl_registry::arity::Arity) -> String {
-    if arity.is_unlimited() {
+    let mut label = if arity.is_unlimited() {
         format!("{}..", arity.min)
     } else if arity.min == arity.max {
         format!("{}", arity.min)
     } else {
         format!("{}..{}", arity.min, arity.max)
+    };
+    if arity.count == tcl_registry::arity::ArityCount::Positionals {
+        label.push_str(" positionals");
     }
+    label
 }
 
 /// The pack's load notices that mention `name`, as plain lines.
@@ -1077,6 +1269,72 @@ mod tests {
     }
 
     #[test]
+    fn computed_selectors_and_expansion_keep_source_roles_unknown() {
+        // Implementation contract: naming.studio.source-word-role-projection
+
+        bench_on(PACK, |bench| {
+            for sample in [
+                "dict $member key value",
+                "proc {*}$definitions { greet hidden }",
+            ] {
+                let report = bench.analyse(sample);
+                assert!(
+                    report["tokens"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .filter(|word| word["index"] != json!(0))
+                        .all(|word| word["roles"] == json!([])),
+                    "{sample}: {report}"
+                );
+                assert!(
+                    !report["tokens"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|word| word["depth"] == json!(1)),
+                    "{sample}: {report}"
+                );
+            }
+            let report = bench.analyse("$command { greet hidden }");
+            assert_eq!(report["summary"]["unknown_commands"], json!(1));
+            assert!(
+                report["tokens"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|word| word["kind"] == json!("unknown"))
+            );
+        });
+    }
+
+    #[test]
+    fn literal_escapes_and_dynamic_value_words_share_the_registry_owner() {
+        // Implementation contract: naming.studio.source-word-role-projection
+
+        bench_on(PACK, |bench| {
+            let view = bench.inspect("di\\x63t {get} $value key", 10).unwrap();
+            assert_eq!(view["call"]["resolved"], json!(true));
+            assert_eq!(view["subcommand"]["name"], json!("get"));
+            let report = bench.analyse("proc p $parameters { greet inner }");
+            assert!(
+                report["tokens"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|word| word["text"] == json!("greet") && word["depth"] == json!(1))
+            );
+            let rebuilt = report["render"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|part| part["text"].as_str())
+                .collect::<String>();
+            assert_eq!(rebuilt, "proc p $parameters { greet inner }");
+        });
+    }
+
+    #[test]
     fn the_render_chunks_reassemble_the_sample_exactly() {
         bench_on(PACK, |bench| {
             let sample = "greet «wörld»\nproc p {} {\n    greet x\n}\n";
@@ -1177,6 +1435,270 @@ mod tests {
                 assert_eq!(view["spec"]["origin"], json!("shadowed"));
                 assert_ne!(view["spec"]["arity"], json!("9"));
             },
+        );
+    }
+
+    #[test]
+    fn original_sample_walk_keeps_actual_input_body_purpose_and_word_geometry() {
+        // naming.studio.source-word-role-projection
+
+        bench_on(PACK, |bench| {
+            let sample = "\u{feff}greet root\nwithbody {\u{feff}greet ${a{b}}}\n";
+            let default = bench.analysis_result(sample);
+            let input = default
+                .resolved_input
+                .as_ref()
+                .expect("actual sample input");
+            assert_eq!(
+                input.lexer_config().leading_bom,
+                tcl_lexer::LeadingBom::Skip
+            );
+            for disposition in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+                let config = LexerConfig {
+                    leading_bom: disposition,
+                    braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+                    strict_quoting: true,
+                    ..input.lexer_config()
+                };
+                let selected = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    input.context_registry(),
+                    config,
+                );
+                let result = Analyser::new()
+                    .with_resolved_input(selected.clone())
+                    .analyse(sample, bench.merged.builtins().dialect());
+                assert_eq!(result.resolved_input.as_ref(), Some(&selected));
+                let words = bench
+                    .source_words(sample, &result)
+                    .expect("same actual producer");
+                let root = words
+                    .iter()
+                    .find(|word| word.depth == 0 && word.index == 0)
+                    .unwrap();
+                assert_eq!(
+                    root.head,
+                    if disposition == tcl_lexer::LeadingBom::Skip {
+                        "greet"
+                    } else {
+                        "\u{feff}greet"
+                    }
+                );
+                let child = words
+                    .iter()
+                    .find(|word| word.depth == 1 && word.index == 0)
+                    .expect("actual authored body role");
+                assert_eq!(child.head, "\u{feff}greet");
+                assert_eq!(child.start, sample.find("\u{feff}greet ${").unwrap());
+                for word in &words {
+                    assert_eq!(word.config, config);
+                    assert_eq!(word.text, sample[word.start..word.end]);
+                    assert_eq!(
+                        word.tokens.words()[word.index].source().span.start() as usize,
+                        word.start
+                    );
+                    assert_eq!(word.tokens.argv[word.index].start() as usize, word.start);
+                    assert_eq!(word.tokens.argv[word.index].end() as usize, word.end);
+                }
+                assert!(
+                    bench.analyse_result_view(sample, &result)["source_available"]
+                        .as_bool()
+                        .unwrap()
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn original_sample_view_refuses_missing_foreign_and_changed_input_without_zero_counts() {
+        // naming.studio.source-word-role-projection
+
+        bench_on(PACK, |bench| {
+            let sample = "greet world\n";
+            let result = bench.analysis_result(sample);
+            assert!(bench.source_words(sample, &result).is_some());
+            assert!(bench.source_words("greet foreign\n", &result).is_none());
+            let mut missing = result.clone();
+            missing.resolved_input = None;
+            let unavailable = bench.analyse_result_view(sample, &missing);
+            assert_eq!(unavailable["source_available"], json!(false));
+            assert!(unavailable["tokens"].is_null());
+            assert!(unavailable["summary"].is_null());
+            assert_eq!(
+                unavailable["diagnostics"],
+                Value::Array(Bench::diagnostics(sample, &missing))
+            );
+            let plain = unavailable["render"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|chunk| chunk["text"].as_str().unwrap())
+                .collect::<String>();
+            assert_eq!(plain, sample);
+            let input = result.resolved_input.as_ref().unwrap();
+            let mut altered = result.clone();
+            altered.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                LexerConfig {
+                    strict_quoting: !input.lexer_config().strict_quoting,
+                    ..input.lexer_config()
+                },
+            ));
+            assert!(bench.source_words(sample, &altered).is_none());
+            bench_on(
+                "speclib foreign 1.0 { command outsider {arity 1} }",
+                |foreign| {
+                    let foreign_result = foreign.analysis_result(sample);
+                    assert!(bench.source_words(sample, &foreign_result).is_none());
+                },
+            );
+        });
+    }
+}
+
+impl Resolution<'_> {
+    /// Construct one sample argv from the actual installed command descriptor.
+    /// This authors source syntax, without promising runtime success or dispatch.
+    #[must_use]
+    pub fn sample_call_source(&self, name: &str, sample: &str) -> Option<Value> {
+        let site = self.store().declaration_site(name)?;
+        let registry = self.registry();
+        let profile = crate::environment::profile_for_dialect(self.builtins().dialect());
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let selected = registry
+            .resolve_structured_invocation(
+                tcl_registry::InvocationWords::literals(name, &[]).with_dialect(dialect),
+                dialect.authoring_query(),
+            )
+            .resolved()?;
+        let signature = selected.authored_source_arity()?;
+        let arity = if signature.windows.is_empty() {
+            signature.arity
+        } else {
+            tcl_registry::arity::ArityWindow::select(
+                signature.windows,
+                selected.semantics.options.availability.package_version,
+            )?
+            .arity
+        };
+        let mut words = vec![tcl_syntax::word_rules::lexical_unicode_source_word(
+            name, config,
+        )?];
+        for ordinal in 1..=arity.min {
+            words.push(tcl_syntax::word_rules::lexical_unicode_source_word(
+                &format!("arg{ordinal}"),
+                config,
+            )?);
+        }
+        let call_source = format!("{}\n", words.join(" "));
+        let source = append_sample_command(sample, &call_source, config)?;
+        Some(json!({
+            "source": source,
+            "call_source": call_source,
+            "sample_source": sample,
+            "pack_source": self.store().source(),
+            "name": name,
+            "dialect": self.builtins().dialect(),
+            "minimum_arguments": arity.min,
+            "origin": self.origin(name)?.key(),
+            "declaration_line": site.line,
+            "expanded": site.expanded,
+        }))
+    }
+}
+
+fn append_sample_command(
+    sample: &str,
+    call: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let capture = |source: &str| {
+        let image = tcl_lexer::SourceImage::document(source);
+        tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
+            config,
+        )
+        .ok()
+    };
+    let before = capture(sample)?;
+    before.fatal_tail.is_none().then_some(())?;
+    let separator = if sample.is_empty() || sample.ends_with('\n') || sample.ends_with('\r') {
+        ""
+    } else {
+        "\n"
+    };
+    let call_start = sample.len().checked_add(separator.len())?;
+    let source = format!("{sample}{separator}{call}");
+    let after = capture(&source)?;
+    (after.fatal_tail.is_none()
+        && after.commands.len() == before.commands.len().checked_add(1)?
+        && after.commands.last()?.span.start() as usize == call_start)
+        .then_some(())?;
+    for (original, current) in before.commands.iter().zip(&after.commands) {
+        if original.span != current.span
+            || original.words.len() != current.words.len()
+            || original.words.iter().zip(&current.words).any(|(old, new)| {
+                old.span() != new.span()
+                    || old.tokens() != new.tokens()
+                    || old.group() != new.group()
+            })
+        {
+            return None;
+        }
+    }
+    Some(source)
+}
+
+#[cfg(test)]
+mod original_sample_call_source_tests {
+    use super::*;
+    use crate::store::{Builtins, PackStore};
+
+    #[test]
+    fn sample_call_uses_actual_descriptor_and_preserves_the_original_prefix() {
+        let pack = "speclib demo 1.0 {command {odd name} {arity 2}}";
+        let store = PackStore::from_source(pack);
+        let resolution = Resolution::new(Builtins::for_dialect("tcl8.6"), &store);
+        let sample = "# keep exact source\nset original {🙂};";
+        let result = resolution.sample_call_source("odd name", sample).unwrap();
+        let source = result["source"].as_str().unwrap();
+        assert!(source.starts_with(sample));
+        assert_eq!(result["sample_source"], sample);
+        assert_eq!(result["pack_source"], pack);
+        assert_eq!(result["minimum_arguments"], 2);
+        let call = result["call_source"].as_str().unwrap();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(
+            crate::environment::profile_for_dialect("tcl8.6"),
+        ));
+        let image = tcl_lexer::SourceImage::document(call);
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, u32::try_from(call.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        assert_eq!(plan.commands.len(), 1);
+        assert_eq!(plan.commands[0].words.len(), 3);
+        assert_eq!(
+            tcl_syntax::word_rules::original_static_word_unicode_value(&plan.commands[0].words[0])
+                .unwrap(),
+            b"odd name"
+        );
+        assert!(resolution.sample_call_source("missing", sample).is_none());
+        assert!(
+            resolution
+                .sample_call_source("odd name", "set incomplete {")
+                .is_none()
+        );
+        assert!(
+            resolution
+                .sample_call_source("odd name", "# continued \\\n")
+                .is_none()
         );
     }
 }

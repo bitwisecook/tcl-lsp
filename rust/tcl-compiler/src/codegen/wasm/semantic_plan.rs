@@ -112,6 +112,21 @@ pub(super) fn plan_wasm_generic_invoke_named(
     function
         .validate()
         .map_err(|_| WasmExecutableInvokeDecline::InvalidExecutableIr)?;
+    // A bounded invoke plan cannot implement residual wrapper completion. Do
+    // this before selecting or emitting any inner invocation.
+    if function.blocks.iter().any(|block| {
+        matches!(
+            block.terminator,
+            Some(ExecutableTerminator::RegionChoice { .. })
+        ) || block.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                ExecutableInstruction::CompleteEvaluatedRegion(_)
+            )
+        })
+    }) {
+        return Err(WasmExecutableInvokeDecline::UnsupportedInstruction);
+    }
     let stages = staged_ok_spine(function)?;
     let Some(build_index) = stages
         .iter()
@@ -161,8 +176,23 @@ pub(super) fn plan_wasm_generic_invoke_named(
     {
         return Err(WasmExecutableInvokeDecline::LiteralTooLong);
     }
-    let mut stage_proofs = Vec::with_capacity(build_index + 1);
-    for stage in stages.iter().take(build_index + 1) {
+    let stage_proofs = literal_stage_proofs(&stages[..=build_index])?;
+    Ok(WasmGenericInvokePlan {
+        function_name,
+        node: invoke.node.clone(),
+        operation: invoke_operation(invoke),
+        argv: invoke.argv,
+        argv_literals: literals,
+        completion: invoke.completion,
+        stage_proofs,
+    })
+}
+
+fn literal_stage_proofs(
+    stages: &[StagedInstruction<'_>],
+) -> Result<Vec<WasmStageProof>, WasmExecutableInvokeDecline> {
+    let mut stage_proofs = Vec::with_capacity(stages.len());
+    for stage in stages {
         stage_proofs.push(match stage.instruction {
             ExecutableInstruction::EvaluateWord { completion, .. } => {
                 WasmStageProof::LiteralMaterialisation {
@@ -181,20 +211,13 @@ pub(super) fn plan_wasm_generic_invoke_named(
             | ExecutableInstruction::IterateLists { .. }
             | ExecutableInstruction::JoinCompletion { .. }
             | ExecutableInstruction::WriteCompletionCell { .. }
-            | ExecutableInstruction::CompleteStructuredRegion(_) => {
+            | ExecutableInstruction::CompleteStructuredRegion(_)
+            | ExecutableInstruction::CompleteEvaluatedRegion(_) => {
                 return Err(WasmExecutableInvokeDecline::UnsupportedInstruction);
             }
         });
     }
-    Ok(WasmGenericInvokePlan {
-        function_name,
-        node: invoke.node.clone(),
-        operation: invoke_operation(invoke),
-        argv: invoke.argv,
-        argv_literals: literals,
-        completion: invoke.completion,
-        stage_proofs,
-    })
+    Ok(stage_proofs)
 }
 
 /// Validate layout before the pipeline selects semantic emission.
@@ -273,7 +296,8 @@ fn staged_ok_spine(
             | ExecutableInstruction::IterateLists { .. }
             | ExecutableInstruction::JoinCompletion { .. }
             | ExecutableInstruction::WriteCompletionCell { .. }
-            | ExecutableInstruction::CompleteStructuredRegion(_) => {
+            | ExecutableInstruction::CompleteStructuredRegion(_)
+            | ExecutableInstruction::CompleteEvaluatedRegion(_) => {
                 return Err(WasmExecutableInvokeDecline::UnsupportedInstruction);
             }
         }
@@ -298,6 +322,7 @@ fn instruction_completion(instruction: &ExecutableInstruction) -> CompletionId {
         ExecutableInstruction::ExecuteLowered(operation) => operation.completion,
         ExecutableInstruction::ExecuteOpaqueRegion(region) => region.completion,
         ExecutableInstruction::CompleteStructuredRegion(region) => region.completion,
+        ExecutableInstruction::CompleteEvaluatedRegion(region) => region.invocation.completion,
     }
 }
 
@@ -362,5 +387,18 @@ fn invoke_operation(invoke: &GenericInvoke) -> SemanticOperationId {
     match &invoke.resolution {
         InvocationResolution::Resolved(facts) => facts.operation,
         InvocationResolution::Unresolved(_) => SemanticOperationId::Invoke,
+    }
+}
+
+#[cfg(test)]
+mod evaluated_region_tests {
+    #[test]
+    fn evaluated_wrapper_cannot_select_an_inner_invoke_as_the_whole_plan() {
+        let function = crate::execution_region::evaluated_region_test_fixture();
+        function.validate().unwrap();
+        assert_eq!(
+            super::plan_wasm_generic_invoke_named(&function, "fixture".into()),
+            Err(super::WasmExecutableInvokeDecline::UnsupportedInstruction)
+        );
     }
 }

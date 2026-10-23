@@ -23,59 +23,30 @@
 //! runs in the current scope; `uplevel ?level?` runs in an enclosing frame's
 //! variable scope *and* namespace (C Tcl `tclProc.c` `Tcl_UplevelObjCmd` —
 //! restore caller ns + depth together). Multiple args are space-joined (the `concat`-style
-//! eval form). Level parsing is shared with `upvar` ([`crate::cmd_var::frame_level`]).
+//! eval form). Level resolution uses the shared original-object frame protocol.
 
-use crate::cmd_var::{frame_level, FrameLevel};
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp};
 use crate::obj::TclObj;
+use tcl_registry::frame_effect::NativeFrameLevelFailure;
+use tcl_syntax::value::ValueError;
+
+#[cfg(test)]
+#[path = "cmd_eval/native_frame_reference_tests.rs"]
+mod native_frame_reference_tests;
 
 /// Register `eval` and `uplevel`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"eval", eval_cmd);
-    interp.register_builtin(b"uplevel", uplevel_cmd);
+    interp.register_stock_builtin(b"eval", eval_cmd);
+    interp.register_stock_builtin(b"uplevel", uplevel_cmd);
 }
 
-/// `args` joined as `Tcl_ConcatObj` joins strings (the multi-arg `eval`,
-/// `uplevel` and `namespace eval` body form). A single arg is used verbatim.
-pub(crate) fn join_body(args: &[*mut TclObj]) -> Vec<u8> {
-    if let [one] = args {
-        return obj_bytes(*one);
-    }
-    let mut out = Vec::new();
-    for &a in args {
-        let bytes = obj_bytes(a);
-        let part = crate::list::trim_concat_element_bytes(&bytes);
-        if part.is_empty() {
-            continue;
-        }
-        if !out.is_empty() {
-            out.push(b' ');
-        }
-        out.extend_from_slice(part);
-    }
-    out
-}
-
-/// `args` concatenated as `Tcl_ConcatObj` does where every one is a canonical
-/// list or empty: one canonical list of their elements, which runs as one
-/// command without being compiled. `None` where they concatenate as strings.
-fn concat_lists(args: &[*mut TclObj]) -> Option<*mut TclObj> {
-    if !args
-        .iter()
-        .all(|&a| crate::list::is_pure_list(a) || obj_bytes(a).is_empty())
-    {
-        return None;
-    }
-    let mut elems = Vec::new();
-    for &a in args {
-        if crate::list::is_pure_list(a) {
-            elems.extend(crate::list::list_elements(a).ok()?);
-        }
-    }
-    let list = crate::list::new_list_obj(&elems);
-    // SAFETY: a fresh object; the caller releases this hold.
-    unsafe { crate::obj::incr_ref_count(list) };
-    Some(list)
+/// Assemble multiple original script operands with the selected native concat
+/// owner. The fresh script keeps its full counted bytes and its own storage.
+fn joined_body(interp: &mut Interp, args: &[*mut TclObj]) -> Result<crate::obj::Owned, Code> {
+    interp
+        .concat_original_arguments(args)
+        .map(crate::obj::Owned::fresh)
+        .map_err(|error| interp.report_cmd_error(error))
 }
 
 /// `eval arg ?arg ...?` — concatenate the args and evaluate in the current scope.
@@ -86,18 +57,21 @@ fn eval_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // A single body argument keeps its object identity, so a literal from a
     // sourced file evaluates as `type source` (TIP 280 LABC); multiple args are
     // concatenated into a fresh dynamic script (`type eval`).
-    let code = interp.with_script_evaluation("eval", argv.len() - 1, |interp| {
-        if argv.len() == 2 {
-            interp.eval_body_obj(argv[1])
-        } else if let Some(list) = concat_lists(&argv[1..]) {
-            let code = interp.eval_body_obj(list);
-            // SAFETY: releases the hold `concat_lists` took.
-            unsafe { crate::obj::decr_ref_count(list) };
-            code
-        } else {
-            interp.eval_body(&join_body(&argv[1..]))
+    // The native concat owner joins as `Tcl_ConcatObj` does, keeping a
+    // canonical list of canonical-list words a list (upstream `concat_lists`).
+    let joined = if argv.len() == 2 {
+        None
+    } else {
+        match joined_body(interp, &argv[1..]) {
+            Ok(body) => Some(body),
+            Err(code) => return code,
         }
+    };
+    let code = interp.with_script_evaluation("eval", argv.len() - 1, |interp| match &joined {
+        None => interp.eval_body_obj(argv[1]),
+        Some(body) => interp.eval_body_obj(body.as_ptr()),
     });
+    drop(joined);
     if code == Code::Error {
         // `("eval" body line N)` — a body evaluated through a fresh frame.
         interp.append_body_frame(b"eval");
@@ -105,34 +79,139 @@ fn eval_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     code
 }
 
+#[path = "cmd_eval/original_level.rs"]
+mod original_level;
+use original_level::OriginalLevel;
+
+fn frame_failure(interp: &mut Interp, failure: NativeFrameLevelFailure) -> Code {
+    interp.report_cmd_error(tcl_cmd_core::native_frame_error::present(failure))
+}
+
+pub(crate) fn select_frame(
+    interp: &mut Interp,
+    args: &[*mut TclObj],
+    effect: tcl_registry::FrameEffectSpec,
+) -> Result<(usize, usize), Code> {
+    let dialect = interp.eval_frame_dialect();
+    let Some(protocol) = dialect.native_frame_level_protocol() else {
+        return Err(interp.report_cmd_error(
+            ValueError::CommandProtocolUnavailable("native original-object frame protocol").into(),
+        ));
+    };
+    let current = interp.current_level();
+    let default = |interp: &mut Interp| {
+        current
+            .checked_sub(1)
+            .map(|target| (0, target))
+            .ok_or_else(|| {
+                frame_failure(
+                    interp,
+                    NativeFrameLevelFailure::BadLevel {
+                        name: b"1".to_vec(),
+                        string_result: protocol.bad_level_string_result(),
+                        lookup_code: protocol
+                            .tcl_version()
+                            .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6),
+                    },
+                )
+            })
+    };
+    let width = effect.level_word_len_for_native_bytes(args.len(), None, dialect);
+    if width == Some(0) {
+        return default(interp);
+    }
+    let original = args[0];
+    let mut operand = OriginalLevel::selected(interp, original)
+        .map_err(|error| interp.report_cmd_error(error))?;
+    if effect == tcl_registry::FrameEffectSpec::UPLEVEL
+        && args.len() == 1
+        && protocol.probes_single_script_list_first()
+        && !crate::obj::has_string_rep(original)
+    {
+        match operand.single_script_list_len() {
+            Ok(length) if length > 1 => return default(interp),
+            Err(error) if error.native_execution_refusal().is_some() => {
+                return Err(interp.report_cmd_error(error));
+            }
+            _ => {}
+        }
+    }
+    let result = if width == Some(1) {
+        protocol.resolve_required_object(current, &mut operand)
+    } else {
+        protocol.resolve_leading_object(current, &mut operand)
+    };
+    operand
+        .check()
+        .map_err(|error| interp.report_cmd_error(error))?;
+    match result {
+        Ok(Ok(selected)) => Ok((
+            width.unwrap_or(usize::from(selected.explicit)),
+            selected.target,
+        )),
+        Ok(Err(failure)) => Err(frame_failure(interp, failure)),
+        Err(error) => Err(interp.report_cmd_error(error)),
+    }
+}
+
+/// The C9.1 UPLEVEL instruction already has an explicit original level operand.
+pub(crate) fn select_compiled_uplevel_frame(
+    interp: &mut Interp,
+    original: *mut TclObj,
+) -> Result<usize, Code> {
+    let dialect = interp.eval_frame_dialect();
+    let Some(protocol) = dialect
+        .native_frame_level_protocol()
+        .filter(|protocol| protocol.tcl_version() == Some(tcl_dialect::TclVersion::V9_1))
+    else {
+        return Err(interp.report_cmd_error(
+            ValueError::CommandProtocolUnavailable("native UPLEVEL frame protocol").into(),
+        ));
+    };
+    let mut operand = OriginalLevel::selected(interp, original)
+        .map_err(|error| interp.report_cmd_error(error))?;
+    let result = protocol.resolve_object(operand.current_level(), &mut operand);
+    operand
+        .check()
+        .map_err(|error| interp.report_cmd_error(error))?;
+    match result {
+        Ok(Ok(selected)) => Ok(selected.target),
+        Ok(Err(failure)) => Err(frame_failure(interp, failure)),
+        Err(error) => Err(interp.report_cmd_error(error)),
+    }
+}
+
 /// `uplevel ?level? arg ?arg ...?` — evaluate in an enclosing frame's scope.
 /// The optional level is `#N` (absolute) or `N` (relative; default 1); it is
-/// present iff the first arg reads as one ([`frame_level`]).
+/// present iff the first arg is level-shaped (`#`digits / all-digits).
 fn uplevel_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let usage = b"uplevel ?level? command ?arg ...?";
     if argv.len() < 2 {
         return interp.wrong_args(usage);
     }
-    let (target, body_start) = match frame_level(interp, Some(argv[1])) {
-        Ok(FrameLevel::Named(target)) => (target, 2),
-        Ok(FrameLevel::Default(target)) => (target, 1),
-        Err(code) => return code,
-    };
+    let (width, target) =
+        match select_frame(interp, &argv[1..], tcl_registry::FrameEffectSpec::UPLEVEL) {
+            Ok(selected) => selected,
+            Err(code) => return code,
+        };
+    let body_start = width + 1;
     if body_start >= argv.len() {
         return interp.wrong_args(usage);
     }
-    let code = interp.with_script_evaluation("uplevel", argv.len() - body_start, |interp| {
-        if body_start == argv.len() - 1 {
-            interp.eval_uplevel_obj(target, argv[body_start])
-        } else if let Some(list) = concat_lists(&argv[body_start..]) {
-            let code = interp.eval_uplevel_obj(target, list);
-            // SAFETY: releases the hold `concat_lists` took.
-            unsafe { crate::obj::decr_ref_count(list) };
-            code
-        } else {
-            interp.eval_uplevel(target, &join_body(&argv[body_start..]))
+    let joined = if body_start == argv.len() - 1 {
+        None
+    } else {
+        match joined_body(interp, &argv[body_start..]) {
+            Ok(body) => Some(body),
+            Err(code) => return code,
         }
-    });
+    };
+    let code =
+        interp.with_script_evaluation("uplevel", argv.len() - body_start, |interp| match &joined {
+            None => interp.eval_uplevel_obj(target, argv[body_start]),
+            Some(body) => interp.eval_uplevel_obj(target, body.as_ptr()),
+        });
+    drop(joined);
     if code == Code::Error {
         // `("uplevel" body line N)`.
         interp.append_body_frame(b"uplevel");
@@ -169,6 +248,66 @@ mod tests {
             String::from_utf8_lossy(src)
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn original_list_eval_retains_members_and_does_not_generate_source() {
+        for version in tcl_dialect::TclVersion::ALL {
+            leak_free(|interp| {
+                interp.set_runtime_version(version);
+                let command = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"return"));
+                let result = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"\xff\0TAIL"));
+                let script = crate::obj::Owned::fresh(crate::list::new_list_obj(&[
+                    command.as_ptr(),
+                    result.as_ptr(),
+                ]));
+                assert_eq!(interp.eval_body_obj(script.as_ptr()), Code::Return);
+                assert_eq!(interp.result_obj(), result.as_ptr());
+                assert!(!crate::obj::has_string_rep(script.as_ptr()));
+                assert_eq!(interp.result_bytes(), b"\xff\0TAIL");
+            });
+        }
+    }
+
+    #[test]
+    fn uplevel_object_dispatch_preserves_release_specific_list_entry() {
+        for version in tcl_dialect::TclVersion::ALL {
+            leak_free(|interp| {
+                interp.set_runtime_version(version);
+                let command = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"set"));
+                let name = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"x"));
+                let value = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"VALUE"));
+                let script = crate::obj::Owned::fresh(crate::list::new_list_obj(&[
+                    command.as_ptr(),
+                    name.as_ptr(),
+                    value.as_ptr(),
+                ]));
+                assert_eq!(interp.eval_uplevel_obj(0, script.as_ptr()), Code::Ok);
+                assert_eq!(
+                    crate::obj::has_string_rep(script.as_ptr()),
+                    version == tcl_dialect::TclVersion::V8_4
+                );
+                assert_eq!(interp.result_bytes(), b"VALUE");
+            });
+        }
+    }
+
+    #[test]
+    fn eval_compiles_original_counted_opaque_string_source() {
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(crate::environment::profile_for_dialect(engine));
+                let script = crate::obj::Owned::fresh(crate::obj::new_string_bytes(
+                    b"set opaque {\xff\0TAIL}; set opaque",
+                ));
+                assert_eq!(interp.eval_body_obj(script.as_ptr()), Code::Ok, "{engine}");
+                assert_eq!(interp.result_bytes(), b"\xff\0TAIL", "{engine}");
+                assert_eq!(
+                    crate::obj::bytes_of(script.as_ptr()),
+                    b"set opaque {\xff\0TAIL}; set opaque"
+                );
+            });
+        }
     }
 
     #[test]

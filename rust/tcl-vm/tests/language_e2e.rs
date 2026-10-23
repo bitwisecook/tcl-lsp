@@ -29,7 +29,6 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::Vm;
 
 #[derive(Clone)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -48,9 +47,9 @@ fn run(src: &str) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let c = vm.run_module(&asm);
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8");
@@ -128,10 +127,7 @@ fn while_command_subst_condition_with_substituted_body() {
     assert_eq!(out, "done\n");
 }
 
-/// Regression: an array element whose index embeds a substitution around
-/// literal text (`$a(x$item)`, `$a(-$opt)`, `$a(${item}suf)`) must expand the
-/// inner variable. Previously only a bare whole-index `$a($item)` worked; a
-/// composite index was pushed as a raw literal so the lookup failed.
+/// Compound array indices evaluate their original variable components.
 #[test]
 fn composite_array_index_substitutes() {
     let (ok, _r, out) = run(concat!(
@@ -254,10 +250,8 @@ fn composite_array_index_in_proc_and_store() {
     assert_eq!(out, "W\n");
 }
 
-/// Regression: `dict for`/`map` and a runtime-fallback `foreach` (qualified
-/// loop var) run the body via the runtime builtin, so the braced body must be
-/// pushed verbatim. Previously its command substitutions were evaluated once at
-/// the call site — before the loop variables existed — so the body errored.
+/// Runtime loop bodies retain original braced source and evaluate substitutions
+/// in each iteration after its variable bindings.
 #[test]
 fn dict_for_body_command_subst_per_iteration() {
     let (ok, _r, out) =

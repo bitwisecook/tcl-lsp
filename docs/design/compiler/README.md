@@ -16,6 +16,14 @@ User-facing compiler troubleshooting and how-tos live in
   contract for the shared semantic IR, value/cell/world SSA, registry
   boundaries, exact completion and trace flow, target-family lowering, and
   current backend contracts.
+- [name-resolution-implementer-guide.md](name-resolution-implementer-guide.md) —
+  proof-purpose API selection, consumer requirements, runtime entry contracts,
+  physical storage, native compiler admission, and discriminating test recipes.
+- [original-procedure-analysis.md](original-procedure-analysis.md) — current issued-body inventory,
+  readonly declaration cards, prepared CFG ownership and memo correspondence.
+- [evaluated-tcl-semantics.md](evaluated-tcl-semantics.md) —
+  shared command/cell resolution, evaluated bodies, dialect policy, package
+  provenance, completion and F5 storage domains.
 - [semantic-aot-optimisation.md](semantic-aot-optimisation.md) — default-off
   contract for guarded semantic AOT passes, mixed plans, materialisation,
   native numeric lowering, and Tcl's dynamic dispatch surfaces.
@@ -33,6 +41,8 @@ User-facing compiler troubleshooting and how-tos live in
 - [fp-sweep.md](fp-sweep.md) — the `cargo xtask fp-sweep` false-positive audit
   harness: what it runs, why it is dialect-aware, how firings are grouped, and
   where the paired regression tests live.
+
+- [evaluated-body-regions.md](evaluated-body-regions.md) — shared captured lifecycle phases, completion edges, provider dependencies and consumer usage.
 
 ## Pipeline stages
 
@@ -89,11 +99,9 @@ User-facing compiler troubleshooting and how-tos live in
   rule behind it, the open defects the examples witness, and the
   declarations behind the examples as they are written in the Rust command
   registry and in `.tclspec` packs.
-- [value-transfers-migration.md](value-transfers-migration.md) —
-  the command-knowledge inventory — what the
-  registry owns and what remains elsewhere, what each analysis,
-  optimisation, and diagnostic reads, the third-party tiers, the drift gate
-  and its ledger, and the validation matrix.
+- [value-transfer-consumers.md](value-transfer-consumers.md) —
+  the current value-transfer consumer boundaries, registry-owned routes,
+  compiler-local handlers and enforced command-recognition limits.
 - [registry-consumer-contracts.md](registry-consumer-contracts.md)
   — the description, identity, and backing contracts under which the
   registry drives the analyser, codegen, and the runtimes: the three
@@ -162,7 +170,7 @@ User-facing compiler troubleshooting and how-tos live in
   executable-IR generic argv transport, typed semantic declines, the single
   Rust emitter, and the shared runtime ABI.
 - [wasm-extensions.md](wasm-extensions.md) — current embedded-script boundary
-  and the explicitly future package-driven extension design.
+  and package-loading limitations.
 - [ebpf-backend.md](ebpf-backend.md) — BPF-Tcl layering, typed core and BPF-IR,
   the `rbpf` and kernel codegen ABIs, the event framework and loader
   lifecycle, and current limitations.
@@ -238,9 +246,8 @@ User-facing compiler troubleshooting and how-tos live in
 - [wasm-extensions.md](wasm-extensions.md) — the `wasm_stdlib` Cargo feature
   and how the Rust runtime embeds optional Tcl scripts.
 - [wasm-target-surfaces.md](wasm-target-surfaces.md) — WASI vs in-browser
-  WASM: the capability matrix, browser-target build/wiring gaps, the
-  proposed host-import surface, and measured module sizes.
-- [wasm-native-lowering-plan.md](wasm-native-lowering-plan.md) — the native
+  WASM: current host capabilities, library ownership and scoped build measurements.
+- [wasm-native-lowering.md](wasm-native-lowering.md) — the native
   lowering architecture (NLIR, representation and cell lattices, framing
   elision), the runtime ABI it adds, the sample tiers and framing budgets,
   and the corpus evidence behind its priorities.

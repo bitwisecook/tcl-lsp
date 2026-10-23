@@ -16,92 +16,50 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Call-hierarchy provider.
+//! Source call-hierarchy advice.
 //!
-//! Three entry points:
+//! [`prepare`], [`incoming_calls`] and [`outgoing_calls`] route Native source
+//! queries through the shared sealed declaration identity and
+//! `original_call_hierarchy` kernel. Genuine original command or member inputs
+//! retain their selected allocation, role, side and complete source/configuration.
+//! Independently owned URI/source inventories supply cross-document candidates;
+//! ambiguous providers, stale receipts and unavailable original targets decline
+//! advice. Item labels and wire ranges cannot reconstruct a declaration.
 //!
-//! * [`prepare`] — resolves the proc *or class method* at the
-//!   cursor into a single [`CallHierarchyItem`].
-//! * [`incoming_calls`] — every call site in the document that
-//!   targets the given proc / method, grouped by the enclosing
-//!   proc / method.
-//! * [`outgoing_calls`] — every call site inside the given
-//!   proc's / method's body, grouped by the callee.
+//! These edges describe readonly source relationships. They do not establish
+//! live native dispatch, an entered object/frame or source edit permission.
+//! Alias routes may retain the canonical target allocation while direct editable
+//! spelling remains a separate question.
 //!
-//! Proc edge enumeration walks `analysis.command_invocations` and
-//! intersects their byte spans with each proc's body span.
+//! Production Logical CALL publication uses the sealed [`LogicalCallIdentity`]
+//! and typed [`LogicalCallAdvice`] inventory adapters. They retain original
+//! source requests, caller ancestry and independent source/input currentness;
+//! missing representations remain applicability debt through the host lease.
 //!
-//! Class-method edges are computed differently: the analyser's
-//! `command_invocations` collection only records top-level
-//! invocations, so method bodies are re-segmented on demand.  A
-//! method item is identified by the synthetic name
-//! `<class-qualified-name>::<method-name>` (e.g. `::C::greet`);
-//! intra-class calls match through
-//! [`crate::references::scan_my_method_sites`] — a `TclOO` method is
-//! never a bare-callable command (`greet` alone errors "invalid
-//! command name"; only `my greet` dispatches), so this is the same
-//! `my`-aware, control-flow-recursing matcher Find-References / rename
-//! / the code lens use, not a bare-head
-//! comparison.  Plain proc calls inside a method body — genuinely
-//! bare-headed — still use
-//! [`tcl_compiler::segmenter::segment_commands_with_offset`] directly
-//! via [`segment_body_calls`].
-//!
-//! The in-document computations above need no workspace index.
-//! Cross-document edges are layered on top by the server: it
-//! feeds the heads from [`unresolved_outgoing_calls`] (call sites
-//! whose callee isn't defined locally) to the workspace index to
-//! resolve sibling-file definitions, and runs
-//! [`incoming_calls_for_target`] over each other document to find
-//! sibling-file call sites.
-//!
-//! Scope: method edges are the two dispatch shapes that name the member
-//! without a receiver variable — intra-class `my <method>`, and a
-//! `classmethod`'s bare `ClassName <method>` on the class's own command.
-//! The latter comes from
-//! [`crate::references::find_obj_method_call_sites`], the same scanner
-//! Find-References / rename / the code lens use, and is attributed to
-//! whichever body it sits in: a classmethod body, an instance-method body,
-//! a proc, or the top level — a class command is an ordinary global
-//! command, so all four really do dispatch it (tclsh9.0-verified), and the
-//! `my`-scope rule ([`dispatch_reaches`]) does not gate this shape.
-//!
-//! The same scanner also carries [incr Tcl]'s class-scoped `proc` shape — a
-//! single `::`-qualified `Factory::make` word rather than two words — so an
-//! itcl class proc gets the same edges from the same place.
-//! itcl's own two-word `Factory make` is object *creation*
-//! (`ClassName instanceName`) and never becomes an edge, which is the
-//! registry-driven definer-family rule the scanner already applies.
-//!
-//! Still out of scope: a `next` / `nextto` super-dispatch is not a
-//! call-hierarchy edge (it *is* a reference — see
-//! [`crate::references::method_next_dispatch_spans`] — but attributing it a
-//! call-graph direction is a distinct question this provider doesn't yet
-//! answer). An external `$obj method` site (dispatch through an instance
-//! variable) is likewise not an incoming edge here — that is
-//! [`crate::references::references`]'s concern, not this provider's.
-//!
-//! A `method` and a `classmethod` sharing a name (rare, but `TclOO` keeps
-//! them in independent tables, so it's legal) never collide: `my <word>`
-//! dispatch scope depends on which table the *caller's own body* belongs to
-//! (`self` is the class object inside a `classmethod`, the instance
-//! everywhere else — the two tables are never merged), so
-//! [`dispatch_reaches`] gates every incoming/outgoing edge by matching
-//! caller/callee kind, and [`resolve_method_item`] disambiguates a
-//! round-tripped item by its exact `selection_range` rather than a
-//! methods-first guess (mirroring [`find_proc_for_item`]'s same-named-proc
-//! disambiguation).
+//! Explicit standalone lexical compatibility scanners below retain their
+//! original callers and assertions. Their reporting fields cannot construct a
+//! production Logical CALL identity or cast to Native source authority.
 
-use tcl_compiler::analyser::{AnalysisResult, ClassDef, MethodDef, ProcDef};
+use tcl_compiler::analyser::{AnalysisResult, ClassDef, MemberSide, MethodDef, ProcDef};
 use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
 use crate::hover::find_word_span_at_position;
 
+mod logical_source;
+pub(crate) use logical_source::declared_logical_source_items;
+pub use logical_source::{
+    LogicalCallAdvice, LogicalCallHierarchyEdge, LogicalCallHierarchyItem, LogicalCallIdentity,
+    logical_incoming_from_inventory, logical_outgoing_from_inventory,
+    prepare_logical_from_inventory,
+};
+
 /// One hierarchy item — proc identification plus its name and
 /// definition span for editor display.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallHierarchyItem {
+    /// Sealed current source declaration; reporting item fields do not reissue it.
+    pub identity: Option<crate::original_declaration::OriginalDeclarationIdentity>,
     /// Proc name (qualified).
     pub name: String,
     /// Detail (e.g. parameter list summary).
@@ -145,6 +103,35 @@ pub fn prepare_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<CallHierarchyItem> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
+    let offset =
+        crate::definition::byte_offset_at(&LineIndex::new(source), source, line, character);
+    if crate::definition::program_forced_import_abstains(analysis, resolution.program, offset) {
+        return Vec::new();
+    }
+
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::original_declaration::select("", source, analysis, line, character)
+    {
+        let document = crate::original_call_hierarchy::OriginalCallDocument {
+            uri: "",
+            source,
+            analysis,
+        };
+        return selected
+            .and_then(|identity| crate::original_call_hierarchy::item(&identity, &document))
+            .into_iter()
+            .collect();
+    }
+
+    // The original selector can continue for variables and non-command
+    // source positions. Those positions cannot borrow a same-named method
+    // from the separate Logical compatibility maps.
+    if !analysis.allows_lexical_declaration_advice() {
+        return Vec::new();
+    }
     let line_index = LineIndex::new(source);
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
@@ -153,6 +140,17 @@ pub fn prepare_in_program(
     // (mirrors `references::proc_references` / `rename::rename_proc`) —
     // never a namespace-blind `p.name == word` first-`HashMap`-hit scan.
     let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if let Some(target) = LogicalCallTarget::at_declaration_offset(source, analysis, cursor_off) {
+        return vec![match target.declaration() {
+            LogicalCallDeclaration::Procedure {
+                qualified,
+                definition,
+            } => item_for_proc(source, definition, qualified, &line_index),
+            LogicalCallDeclaration::Member {
+                class, definition, ..
+            } => item_for_method(source, class, definition, &line_index),
+        }];
+    }
     let proc_match =
         crate::definition::resolve_proc_target_at(analysis, source, cursor_off, &word, resolution);
     if let Some((qname, proc_def)) = proc_match {
@@ -165,22 +163,6 @@ pub fn prepare_in_program(
         return vec![item_for_method(source, class_def, method, &line_index)];
     }
     Vec::new()
-}
-
-/// Synthetic call-hierarchy name for a class method:
-/// `<class-qualified-name>::<method-name>` (e.g. `::C::greet`).
-/// Whether `head` is a `TclOO` method-context keyword under `dialect` —
-/// `my`, `next`, `nextto`, or `self`.
-///
-/// The registry-first replacement for the `matches!(head, "my" | "next" |
-/// "nextto")` literals this module carried: a dialect that
-/// gains or loses one of these propagates through its `CommandSpec`, never
-/// through an edit here. All three kinds are excluded together because none
-/// of them is an *unresolved command reference* — a dispatch keyword resolves
-/// through the object's method table and an introspection keyword resolves to
-/// nothing at all, so neither belongs in a bare-head call scan.
-fn is_method_dispatch_keyword(dialect: &'static tcl_dialect::DialectProfile, head: &str) -> bool {
-    crate::definition::method_dispatch_keyword_in(dialect, head).is_some()
 }
 
 fn method_item_name(class_def: &ClassDef, method: &MethodDef) -> String {
@@ -239,40 +221,215 @@ const TOP_LEVEL_NAME: &str = "<top-level>";
 /// attributed to it, keyed by [`CallItemKey`].
 type EdgeBuckets = std::collections::BTreeMap<CallItemKey, (CallHierarchyItem, Vec<LspRange>)>;
 
-/// Find the proc a call-hierarchy item refers to.
-///
-/// Items carry only the *short* display name (`helper`), which is ambiguous
-/// when a document defines same-named procs in different namespaces
-/// (`::a::helper` / `::b::helper`).  Disambiguate first by the item's
-/// `selection_range` — it is the proc name token's exact location, a stable
-/// identity that round-trips through the LSP incoming/outgoing call requests —
-/// and only fall back to display-name matching when no definition's name span
-/// lines up (e.g. a synthetic or hand-built item).
-fn find_proc_for_item<'a>(
-    source: &str,
-    analysis: &'a AnalysisResult,
-    item: &CallHierarchyItem,
-    line_index: &LineIndex,
-    resolution: crate::definition::CallResolution<'_>,
-) -> Option<(&'a String, &'a ProcDef)> {
-    if let Some(hit) = analysis
-        .all_procs
-        .iter()
-        .find(|&(_, p)| span_to_range(source, line_index, p.name_span) == item.selection_range)
-    {
-        return Some(hit);
+/// A current Logical source declaration selected by its exact name-token range.
+/// Reporting labels and detail never reconstruct the target. Native and hosted
+/// naming inputs use their independent original declaration identities.
+pub struct LogicalCallTarget<'a> {
+    current: crate::original_context::CurrentSourceContext<'a>,
+    source_context: crate::workspace_index::WorkspaceDiagnosticSourceContext,
+    input: &'a tcl_compiler::analyser::ResolvedAnalysisInput,
+    declaration: LogicalCallDeclaration<'a>,
+    class_occurrence:
+        Option<tcl_compiler::signature_scan::original_name::SourceOriginalNameOccurrence>,
+    member: Option<&'a tcl_compiler::analyser::types::OriginalSourceMethodMetadata>,
+    logical_member: Option<tcl_compiler::analyser::types::LogicalSourceMemberDeclaration>,
+}
+
+/// Readonly metadata issued by [`LogicalCallTarget`]. This is source advice,
+/// without Native dispatch, runtime method-table currency or editing permission.
+#[derive(Clone, Copy)]
+pub enum LogicalCallDeclaration<'a> {
+    /// The actual procedure and its retained qualified source key.
+    Procedure {
+        /// Qualified source key retained by the selected current declaration.
+        qualified: &'a str,
+        /// Actual procedure declaration borrowed from the current analysis.
+        definition: &'a ProcDef,
+    },
+    /// The actual class/member declaration and the table containing it.
+    Member {
+        /// Actual class containing the selected current source member.
+        class: &'a ClassDef,
+        /// Actual member declaration borrowed from the current analysis.
+        definition: &'a MethodDef,
+        /// Declared member table, without runtime dispatch or export authority.
+        side: MemberSide,
+    },
+}
+
+impl<'a> LogicalCallTarget<'a> {
+    /// Select one unique declaration from the actual current source analysis.
+    /// A missing, stale, ambiguous or nondeclaration range is terminal.
+    #[must_use]
+    pub fn capture(
+        source: &str,
+        analysis: &'a AnalysisResult,
+        item: &CallHierarchyItem,
+    ) -> Option<Self> {
+        if item.identity.is_some() {
+            return None;
+        }
+        let lines = LineIndex::new(source);
+        Self::capture_matching(source, analysis, |span| {
+            span_to_range(source, &lines, span) == item.selection_range
+        })
     }
-    // No declaration's name span lines up (a synthetic / hand-built item):
-    // resolve namespace-aware from the item's own location rather than a
-    // namespace-blind `name == item.name` scan, which could bind the item to a
-    // same-named proc in an unrelated namespace.
-    let cursor_off = crate::definition::byte_offset_at(
-        line_index,
-        source,
-        item.selection_range.start_line,
-        item.selection_range.start_character,
-    );
-    crate::definition::resolve_proc_target_at(analysis, source, cursor_off, &item.name, resolution)
+
+    fn at_declaration_offset(
+        source: &str,
+        analysis: &'a AnalysisResult,
+        offset: u32,
+    ) -> Option<Self> {
+        Self::capture_matching(source, analysis, |span| {
+            span.start() <= offset && offset < span.end()
+        })
+    }
+
+    fn capture_matching(
+        source: &str,
+        analysis: &'a AnalysisResult,
+        matches: impl Fn(tcl_lexer::Span) -> bool,
+    ) -> Option<Self> {
+        let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        if !analysis.allows_retained_logical_declaration_advice() {
+            return None;
+        }
+        let mut selected = None;
+        for (qualified, definition) in &analysis.all_procs {
+            if matches(definition.name_span) {
+                if selected.is_some() {
+                    return None;
+                }
+                selected = Some(LogicalCallDeclaration::Procedure {
+                    qualified,
+                    definition,
+                });
+            }
+        }
+        for class in analysis.all_classes.values() {
+            for (side, members) in [
+                (MemberSide::Instance, &class.methods),
+                (MemberSide::ClassObject, &class.class_methods),
+            ] {
+                for definition in members.values() {
+                    if matches(definition.name_span) {
+                        if selected.is_some() {
+                            return None;
+                        }
+                        selected = Some(LogicalCallDeclaration::Member {
+                            class,
+                            definition,
+                            side,
+                        });
+                    }
+                }
+            }
+        }
+        let declaration = selected?;
+        let (class_occurrence, member) = if let LogicalCallDeclaration::Member {
+            class,
+            definition,
+            side,
+        } = declaration
+        {
+            let mut classes = analysis.original_class_declarations().filter(|original| {
+                original.metadata().name_span == class.name_span
+                    && original.metadata().body_span == class.body_span
+                    && class.source_name.as_ref() == Some(original.name())
+            });
+            let class_occurrence = classes
+                .next()
+                .filter(|_| classes.next().is_none())
+                .map(|original| original.original_occurrence().clone());
+            let mut members = class.original_members.declarations().filter(|original| {
+                original.side() == side
+                    && original.metadata().name_span == definition.name_span
+                    && original.metadata().body_span == definition.body_span
+            });
+            let member = members.next().filter(|_| members.next().is_none());
+            (class_occurrence, member)
+        } else {
+            (None, None)
+        };
+        let logical_member = if let LogicalCallDeclaration::Member {
+            class,
+            definition,
+            side,
+        } = declaration
+        {
+            analysis
+                .logical_source_class_declaration(class)
+                .and_then(|class| class.member(side, definition))
+        } else {
+            None
+        };
+        Some(Self {
+            current,
+            logical_member,
+            source_context: crate::workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(
+                analysis,
+            )?,
+            input: analysis.resolved_input.as_ref()?,
+            declaration,
+            class_occurrence,
+            member,
+        })
+    }
+
+    pub(crate) fn matches_indexed_member_provider(
+        &self,
+        declaring_uri: &str,
+        provider: &crate::workspace_index::WorkspaceClass,
+        context: &crate::workspace_index::WorkspaceDiagnosticSourceContext,
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        let LogicalCallDeclaration::Member { class, side, .. } = self.declaration else {
+            return false;
+        };
+        if provider.uri != declaring_uri
+            || context != &self.source_context
+            || input != self.input
+            || provider.name_span != class.name_span
+            || provider.source_name_ambiguous
+            || provider.source_name != class.source_name
+            || provider.original_declaration != self.class_occurrence
+        {
+            return false;
+        }
+        if let Some(logical_member) = &self.logical_member {
+            let LogicalCallDeclaration::Member { definition, .. } = self.declaration else {
+                return false;
+            };
+            return provider
+                .logical_declaration
+                .as_ref()
+                .and_then(|class| class.member(side, definition))
+                .as_ref()
+                == Some(logical_member);
+        }
+        let Some(member) = self.member else {
+            return false;
+        };
+        let Some(members) = provider.original_members.as_ref() else {
+            return false;
+        };
+        let mut selected = members.declarations().filter(|original| {
+            original.side() == side && original.declaration() == member.declaration()
+        });
+        selected.next().is_some_and(|original| original == member) && selected.next().is_none()
+    }
+
+    /// Selected original metadata, with procedure/member and member-side axes.
+    #[must_use]
+    pub const fn declaration(&self) -> LogicalCallDeclaration<'a> {
+        self.declaration
+    }
+
+    /// The actual supplied profile, independently of item and dialect labels.
+    #[must_use]
+    pub const fn profile(&self) -> &'static tcl_dialect::DialectProfile {
+        self.current.profile()
+    }
 }
 
 /// Build a [`CallHierarchyItem`] for a class method.
@@ -297,6 +454,7 @@ fn item_for_method(
         end_character: body_range.end_character,
     };
     CallHierarchyItem {
+        identity: None,
         name: method_item_name(class_def, method),
         detail,
         range: full_range,
@@ -353,100 +511,162 @@ fn enclosing_class_method<'a>(
     None
 }
 
-/// Resolve a call-hierarchy `item` back to its [`ClassDef`] + [`MethodDef`].
-///
-/// The item name is `<class-key>::<method>` — a construction; split it by
-/// the construction-inverse rule so a colon-bearing class key (or method
-/// name) survives.  A method and a classmethod sharing a name (rare,
-/// but `TclOO` keeps them in independent tables, so it's legal) collide on
-/// this name alone, so disambiguate first by the item's exact
-/// `selection_range` — the declaration's name-token location, which
-/// round-trips through every incoming/outgoing-calls request — mirroring
-/// [`find_proc_for_item`]'s same-named-proc disambiguation.  Only falls back
-/// to the methods-first default when neither declaration's range lines up
-/// (a synthetic / hand-built item).
-fn resolve_method_item<'a>(
-    source: &str,
-    analysis: &'a AnalysisResult,
-    item: &CallHierarchyItem,
-    line_index: &LineIndex,
-) -> Option<(&'a ClassDef, &'a MethodDef)> {
-    let (class_q, method_name) = tcl_syntax::naming::key_holder_and_tail(&item.name);
-    if class_q.is_empty() && method_name.len() == item.name.len() {
-        return None;
-    }
-    let class_def = analysis
-        .all_classes
-        .values()
-        .find(|c| c.qualified_name == class_q)?;
-    let by_range = [
-        class_def.methods.get(method_name),
-        class_def.class_methods.get(method_name),
-    ]
-    .into_iter()
-    .flatten()
-    .find(|m| span_to_range(source, line_index, m.name_span) == item.selection_range);
-    let method = by_range
-        .or_else(|| class_def.methods.get(method_name))
-        .or_else(|| class_def.class_methods.get(method_name))?;
-    Some((class_def, method))
-}
-
-/// Whether `my <word>` dispatch from a body of kind `caller_kind` can reach
-/// a member of kind `target_kind`.  `self` is the class object inside a
-/// `classmethod` body (its own method table is `class_methods`) and the
-/// instance everywhere else — a `method` / `forward` / `constructor` /
-/// `destructor` body all run with `self` bound to the instance (`methods`)
-/// — so the two tables never merge (confirmed against tclsh 9.0.4, see
-/// [`tcl_compiler::analyser::diagnostics::var_command`]'s dispatch-scope
-/// note).
-fn dispatch_reaches(caller_kind: &str, target_kind: &str) -> bool {
-    (caller_kind == "classmethod") == (target_kind == "classmethod")
-}
-
-/// Re-segment a method body and return `(head_word, head_span)`
-/// for every command invocation in it.  Surrounding braces are
-/// stripped so the segmenter descends into the body rather than
-/// treating the leading `{` as a braced literal.
+/// Conditional source calls in the same lexical method frame. Selected
+/// helper traits exclude method dispatch without reparsing a written head.
 fn segment_body_calls(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     body_span: tcl_lexer::Span,
 ) -> Vec<(String, tcl_lexer::Span)> {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    if body_span.is_empty() {
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return Vec::new();
+    };
+    if !analysis.allows_lexical_declaration_advice() {
         return Vec::new();
     }
-    let mut start = body_span.start() as usize;
-    let mut end = body_span.end() as usize;
-    if start >= source.len() || end > source.len() || start > end {
+    let Some(frame) =
+        crate::definition::source_frame_extent(analysis, body_span.start().saturating_add(1))
+    else {
         return Vec::new();
-    }
-    if source.as_bytes().get(start) == Some(&b'{') {
-        start += 1;
-    }
-    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
-        end -= 1;
-    }
-    let body_text = &source[start..end];
-    let commands = segment_commands_with_offset_and_config(
-        body_text,
-        u32::try_from(start).unwrap_or(body_span.start()),
-        tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
+    };
+    let mut calls = Vec::new();
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            let Some(head) = command.argv.first() else {
+                return false;
+            };
+            if !span_contains(body_span, head.span)
+                || crate::definition::source_frame_extent(analysis, head.span.start())
+                    != Some(frame)
+            {
+                return false;
+            }
+            let is_helper =
+                crate::original_invocation::source_registry_words(source, analysis, command)
+                    .and_then(|words| {
+                        words.with_source_schema(&current.context(), |schema| {
+                            schema.semantics.traits.intersects(
+                                tcl_registry::Traits::TCLOO_SELF_DISPATCH
+                                    | tcl_registry::Traits::TCLOO_NEXT_CHAIN
+                                    | tcl_registry::Traits::TCLOO_INTROSPECTION,
+                            )
+                        })
+                    })
+                    .unwrap_or(false);
+            if !is_helper {
+                calls.push((command.name().to_owned(), head.span));
+            }
+            false
+        },
     );
-    let mut out = Vec::new();
-    for cmd in &commands {
-        let Some(head) = cmd.argv.first() else {
-            continue;
-        };
-        let h_start = head.span.start() as usize;
-        let h_end = head.span.end() as usize;
-        if h_start >= source.len() || h_end > source.len() {
-            continue;
-        }
-        out.push((source[h_start..h_end].to_owned(), head.span));
+    calls
+}
+
+enum LogicalMethodProcedureSelection<'a> {
+    Unavailable,
+    Vacant {
+        candidates: Option<Box<tcl_compiler::command_binding::OriginalLogicalCommandCandidates>>,
+    },
+    Occupied {
+        procedure: Option<&'a ProcDef>,
+        earlier_unknown_mutations: bool,
+    },
+}
+
+/// Match conditional source coordinates against independent original headers.
+/// A method's reporting class name supplies no caller namespace. Unknown
+/// earlier effects and ambiguous occupied coordinates remain unresolved.
+fn logical_method_procedure_at<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+    offset: u32,
+) -> LogicalMethodProcedureSelection<'a> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none()
+        || !analysis.allows_lexical_declaration_advice()
+    {
+        return LogicalMethodProcedureSelection::Unavailable;
     }
-    out
+    let ordinary =
+        tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates_at(
+            source, analysis, offset,
+        );
+    let absolute = if ordinary.is_none() {
+        tcl_compiler::registry_invocation::source_structure::source_logical_absolute_command_candidate_at(source, analysis, offset)
+    } else {
+        None
+    };
+    if ordinary
+        .as_ref()
+        .is_some_and(tcl_compiler::command_binding::OriginalLogicalCommandCandidates::has_lookup_operand_effects)
+        || absolute
+            .as_ref()
+            .is_some_and(tcl_compiler::command_binding::OriginalLogicalAbsoluteCommandCandidate::has_lookup_operand_effects)
+    {
+        return LogicalMethodProcedureSelection::Unavailable;
+    }
+    let (coordinates, earlier_unknown_mutations) = if let Some(candidate) = &ordinary {
+        (
+            candidate.coordinates(),
+            candidate.has_earlier_unknown_mutations(),
+        )
+    } else if let Some(candidate) = &absolute {
+        (
+            candidate.coordinates().as_slice(),
+            candidate.has_earlier_unknown_mutations(),
+        )
+    } else {
+        return LogicalMethodProcedureSelection::Unavailable;
+    };
+    for coordinate in coordinates {
+        let mut selected: Option<&ProcDef> = None;
+        let mut occupied = false;
+        let mut ambiguous = false;
+        for procedure in
+            analysis
+                .all_procs
+                .values()
+                .chain(analysis.original_procedure_declarations().map(
+                tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::metadata,
+            ))
+        {
+            if analysis.logical_source_procedure_declaration(procedure)
+                .and_then(tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::source_candidate_coordinate)
+                .as_ref() != Some(coordinate)
+            {
+                continue;
+            }
+            occupied = true;
+            if let Some(previous) = selected {
+                if previous.name_span != procedure.name_span
+                    || previous.body_span != procedure.body_span
+                {
+                    ambiguous = true;
+                }
+            } else {
+                selected = Some(procedure);
+            }
+        }
+        if analysis.all_classes.values().any(|class| {
+            analysis.logical_source_class_declaration(class)
+                .and_then(tcl_compiler::analyser::types::LogicalSourceClassDeclaration::source_candidate_coordinate)
+                == Some(coordinate)
+        }) {
+            occupied = true;
+            ambiguous = true;
+        }
+        if occupied {
+            return LogicalMethodProcedureSelection::Occupied {
+                procedure: if ambiguous { None } else { selected },
+                earlier_unknown_mutations,
+            };
+        }
+    }
+    LogicalMethodProcedureSelection::Vacant {
+        candidates: ordinary.map(Box::new),
+    }
 }
 
 /// Build a [`CallHierarchyItem`] for a given proc definition.
@@ -470,9 +690,9 @@ fn item_for_proc(
         end_character: body_range.end_character,
     };
     CallHierarchyItem {
-        // Short display name (`helper`), not the qualified key (`::helper`) —
-        // matches the editor's call-hierarchy UI.  The
-        // incoming/outgoing lookups match this against both forms.
+        identity: None,
+        // The short name is presentation; target selection retains the actual
+        // declaration range and metadata independently.
         name: proc_def.name.clone(),
         detail,
         range: full_range,
@@ -516,21 +736,21 @@ fn enclosing_proc<'a>(
     best
 }
 
-/// `true` when `inv` (a command invocation) targets `proc_def`.
+/// `true` when an execution site targets `proc_def`.
 ///
-/// Delegates to [`crate::references::invocation_references_proc`] — the one
-/// shared matching rule behind Find-All-References, the code-lens count,
-/// and Rename — so Call Hierarchy can never disagree with them about
-/// whether a given call site is a reference (in particular the namespace
-/// gate that keeps a bare call in a different namespace from cross-matching
-/// a same-named proc).
+/// Retains the lookup-purpose distinction before delegating target identity
+/// to [`crate::references::invocation_calls_proc`]. Introspection and
+/// deferred registrations remain references without becoming calls. Actual
+/// heads share the namespace and allocation checks used by references and
+/// rename.
 fn invocation_targets(
     analysis: &AnalysisResult,
     inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
     proc_def: &ProcDef,
     qname: &str,
+    source: &str,
 ) -> bool {
-    crate::references::invocation_references_proc(analysis, inv, qname, proc_def)
+    crate::references::invocation_calls_proc(analysis, inv, qname, proc_def, source)
 }
 
 /// One incoming-call entry: the caller proc plus the spans at
@@ -566,9 +786,21 @@ pub struct UnresolvedOutgoingCall {
     /// Scope-resolved qualified name when the analyser inferred
     /// one for the call site, else `None`.
     pub resolved_qualified_name: Option<String>,
+    /// Independent current original source recipes and ranges for every occurrence.
+    /// Missing recipes remain unavailable; grouped head labels cannot replace them.
+    pub logical_occurrences: Vec<LogicalOutgoingCallOccurrence>,
     /// Ranges (in the *current* document) of each call site,
     /// grouped under this callee head.
     pub from_ranges: Vec<LspRange>,
+}
+
+/// One original Logical call occurrence with its independent source recipe.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalOutgoingCallOccurrence {
+    /// Missing body/name/path ownership remains unavailable.
+    pub candidates: Option<tcl_compiler::command_binding::OriginalLogicalCommandCandidates>,
+    /// Actual occurrence range, independently of other same-head calls.
+    pub range: LspRange,
 }
 
 /// Collect the call sites inside the queried item's body whose
@@ -597,6 +829,75 @@ pub fn unresolved_outgoing_calls(
     )
 }
 
+fn unresolved_source_procedure_calls(
+    source: &str,
+    item: &CallHierarchyItem,
+    analysis: &AnalysisResult,
+) -> Vec<UnresolvedOutgoingCall> {
+    let Some(identity) = &item.identity else {
+        return Vec::new();
+    };
+    if !identity.is_current(identity.uri(), source, analysis) {
+        return Vec::new();
+    }
+    let Some(declaration) = identity.procedure_metadata(analysis) else {
+        return Vec::new();
+    };
+    let index = LineIndex::new_lsp(source);
+    let mut by_head: std::collections::BTreeMap<String, UnresolvedOutgoingCall> =
+        std::collections::BTreeMap::new();
+    for command in
+        tcl_compiler::registry_invocation::source_structure::source_native_procedure_body_commands(
+            source, analysis,
+        )
+        .into_iter()
+        .flatten()
+    {
+        if !command
+            .caller_declaration(analysis)
+            .is_some_and(|caller| std::ptr::eq(caller, declaration))
+        {
+            continue;
+        }
+        let Some(head) = command.original_words().first() else {
+            continue;
+        };
+        if tcl_compiler::registry_invocation::source_structure::source_original_procedure_call_at(
+            source,
+            analysis,
+            head.span().start(),
+        )
+        .is_some()
+        {
+            continue;
+        }
+        let Some(name) = command
+            .static_head()
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+        else {
+            continue;
+        };
+        let range = span_to_range(source, &index, head.span());
+        let call = by_head
+            .entry(name.clone())
+            .or_insert_with(|| UnresolvedOutgoingCall {
+                name,
+                resolved_qualified_name: None,
+                logical_occurrences: Vec::new(),
+                from_ranges: Vec::new(),
+            });
+        call.logical_occurrences
+            .push(LogicalOutgoingCallOccurrence {
+                candidates: None,
+                range,
+            });
+        if !call.from_ranges.contains(&range) {
+            call.from_ranges.push(range);
+        }
+    }
+    by_head.into_values().collect()
+}
+
 /// [`unresolved_outgoing_calls`] with the caller's whole-program export view attached — the
 /// entry point a host with a workspace index should call.
 ///
@@ -612,42 +913,55 @@ pub fn unresolved_outgoing_calls_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<UnresolvedOutgoingCall> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
+
+    if !analysis.allows_lexical_declaration_advice() {
+        return unresolved_source_procedure_calls(source, item, analysis);
+    }
+
+    let Some(target) = LogicalCallTarget::capture(source, analysis, item) else {
+        return Vec::new();
+    };
     let line_index = LineIndex::new(source);
-    if let Some((_, source_proc)) =
-        find_proc_for_item(source, analysis, item, &line_index, resolution)
+    if let LogicalCallDeclaration::Procedure {
+        definition: source_proc,
+        ..
+    } = target.declaration()
     {
-        let mut by_head: std::collections::BTreeMap<String, (Option<String>, Vec<LspRange>)> =
+        let mut by_head: std::collections::BTreeMap<String, UnresolvedOutgoingCall> =
             std::collections::BTreeMap::new();
         for inv in &analysis.command_invocations {
-            if !span_contains(source_proc.body_span, inv.range) {
+            if !inv.lookup.is_execution_site() || !span_contains(source_proc.body_span, inv.range) {
                 continue;
             }
             // Skip call sites the local pass already resolves.
             if analysis
                 .all_procs
                 .iter()
-                .any(|(qname, proc_def)| invocation_targets(analysis, inv, proc_def, qname))
+                .any(|(qname, proc_def)| invocation_targets(analysis, inv, proc_def, qname, source))
             {
                 continue;
             }
             let range = span_to_range(source, &line_index, inv.range);
             let entry = by_head
                 .entry(inv.name.clone())
-                .or_insert_with(|| (inv.resolved_qualified_name.clone(), Vec::new()));
-            entry.1.push(range);
+                .or_insert_with(|| UnresolvedOutgoingCall {
+                    name: inv.name.clone(),
+                    resolved_qualified_name: inv.resolved_qualified_name.clone(),
+                    logical_occurrences: Vec::new(),
+                    from_ranges: Vec::new(),
+                });
+            entry.logical_occurrences.push(LogicalOutgoingCallOccurrence {
+                candidates: tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates_at(source, analysis, inv.range.start()),
+                range,
+            });
+            entry.from_ranges.push(range);
         }
-        return by_head
-            .into_iter()
-            .map(
-                |(name, (resolved_qualified_name, from_ranges))| UnresolvedOutgoingCall {
-                    name,
-                    resolved_qualified_name,
-                    from_ranges,
-                },
-            )
-            .collect();
+        return by_head.into_values().collect();
     }
-    unresolved_method_outgoing_calls(source, dialect, item, analysis, &line_index, resolution)
+    unresolved_method_outgoing_calls(source, dialect, &target, analysis, &line_index, resolution)
 }
 
 /// Method-body variant of [`unresolved_outgoing_calls`]: keeps
@@ -661,66 +975,63 @@ pub fn unresolved_outgoing_calls_in_program(
 /// unresolved, not silently treated as if it had resolved to the method.
 fn unresolved_method_outgoing_calls(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    item: &CallHierarchyItem,
+    _dialect: &'static tcl_dialect::DialectProfile,
+    target: &LogicalCallTarget<'_>,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
-    resolution: crate::definition::CallResolution<'_>,
+    _resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<UnresolvedOutgoingCall> {
-    let Some((class_def, source_method)) = resolve_method_item(source, analysis, item, line_index)
+    let LogicalCallDeclaration::Member {
+        definition: source_method,
+        ..
+    } = target.declaration()
     else {
         return Vec::new();
     };
-    let mut by_head: std::collections::BTreeMap<String, Vec<LspRange>> =
+    let mut by_head: std::collections::BTreeMap<String, UnresolvedOutgoingCall> =
         std::collections::BTreeMap::new();
-    for (head, span) in segment_body_calls(source, dialect, source_method.body_span) {
-        // A `TclOO` method-context keyword is not an unresolved command
-        // reference — the actual dispatch target (the word *after* `my`) is
-        // handled by `method_outgoing_calls`'s `scan_my_method_sites` pass,
-        // never by this bare-head scan. Membership comes from the registry,
-        // not a name list.
-        if is_method_dispatch_keyword(dialect, &head) {
+    for (head, span) in segment_body_calls(source, analysis, source_method.body_span) {
+        let selection = logical_method_procedure_at(source, analysis, span.start());
+        if matches!(
+            selection,
+            LogicalMethodProcedureSelection::Occupied {
+                procedure: Some(_),
+                earlier_unknown_mutations: false,
+            }
+        ) {
             continue;
         }
-        // Local top-level proc?  Resolved from the class's namespace (a
-        // method body's commands resolve there), with the deterministic
-        // simple-name fallback — not a namespace-blind `any` scan.
-        let class_ns = tcl_syntax::naming::key_holder_and_tail(&class_def.qualified_name).0;
-        if crate::definition::resolve_called_proc(
-            analysis,
-            source,
-            class_ns,
-            &head,
-            span.start(),
-            resolution,
-        )
-        .is_some()
-        {
-            continue;
-        }
-        by_head
-            .entry(head)
-            .or_default()
-            .push(span_to_range(source, line_index, span));
+        let candidates = match selection {
+            LogicalMethodProcedureSelection::Vacant { candidates } => {
+                candidates.map(|candidate| *candidate)
+            }
+            LogicalMethodProcedureSelection::Unavailable
+            | LogicalMethodProcedureSelection::Occupied { .. } => None,
+        };
+        let range = span_to_range(source, line_index, span);
+        let entry = by_head
+            .entry(head.clone())
+            .or_insert_with(|| UnresolvedOutgoingCall {
+                name: head,
+                resolved_qualified_name: None,
+                logical_occurrences: Vec::new(),
+                from_ranges: Vec::new(),
+            });
+        entry.from_ranges.push(range);
+        entry
+            .logical_occurrences
+            .push(LogicalOutgoingCallOccurrence { candidates, range });
     }
-    by_head
-        .into_iter()
-        .map(|(name, from_ranges)| UnresolvedOutgoingCall {
-            name,
-            resolved_qualified_name: None,
-            from_ranges,
-        })
-        .collect()
+    by_head.into_values().collect()
 }
 
-/// Enumerate incoming calls for the proc identified by
-/// `item.name`.  Walks every command invocation in
+/// Enumerate incoming calls for the actual selected declaration. Walks
+/// every eligible command invocation in
 /// `analysis.command_invocations` that targets the proc and
 /// groups by enclosing proc.  Top-level call sites are bucketed
 /// under a synthetic `<top-level>` caller.
 ///
-/// Returns an empty `Vec` when `item.name` doesn't match any
-/// proc in `analysis.all_procs`.
+/// Returns an empty `Vec` when the current declaration owner is unavailable.
 #[must_use]
 pub fn incoming_calls(
     source: &str,
@@ -750,14 +1061,40 @@ pub fn incoming_calls_in_program(
     dialect: &'static tcl_dialect::DialectProfile,
     item: &CallHierarchyItem,
     analysis: &AnalysisResult,
-    resolution: crate::definition::CallResolution<'_>,
+    _resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<IncomingCall> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
+
+    if !analysis.allows_lexical_declaration_advice() {
+        let Some(identity) = &item.identity else {
+            return Vec::new();
+        };
+        return crate::original_call_hierarchy::incoming(
+            identity,
+            &[crate::original_call_hierarchy::OriginalCallDocument {
+                uri: identity.uri(),
+                source,
+                analysis,
+            }],
+            None,
+        )
+        .into_iter()
+        .map(|(_, call)| call)
+        .collect();
+    }
+
+    let Some(target) = LogicalCallTarget::capture(source, analysis, item) else {
+        return Vec::new();
+    };
     let line_index = LineIndex::new(source);
-    let Some((target_qname, target_proc)) =
-        find_proc_for_item(source, analysis, item, &line_index, resolution)
+    let LogicalCallDeclaration::Procedure {
+        qualified: target_qname,
+        definition: target_proc,
+    } = target.declaration()
     else {
-        // Not a proc — try a class method.
-        return method_incoming_calls(source, dialect, item, analysis, &line_index);
+        return method_incoming_calls(source, dialect, &target, analysis, &line_index);
     };
     incoming_calls_for_target(
         source,
@@ -785,23 +1122,35 @@ pub fn incoming_calls_for_target(
     target_qualified: &str,
     target_name_span: Option<tcl_lexer::Span>,
 ) -> Vec<IncomingCall> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
+
+    if !analysis.allows_lexical_declaration_advice() {
+        return Vec::new();
+    }
+
     let line_index = LineIndex::new(source);
     let mut by_caller: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
         std::collections::BTreeMap::new();
     for inv in &analysis.command_invocations {
-        // Delegate to the shared matching rule (`invocation_references_proc`
+        if !inv.lookup.is_execution_site() {
+            continue;
+        }
+        // Delegate to the shared matching rule (`invocation_calls_proc`
         // takes a `ProcDef`; this caller may not have one — cross-document
         // callers are gathered from a target the calling document never
         // defines — so route through the string-keyed core directly). This
         // adds the namespace gate a bare simple-name match needs: without
         // it, a bare call in one namespace falsely credited *any* same-named
         // proc anywhere as an incoming caller.
-        if !crate::references::invocation_references_named(
+        if !crate::references::invocation_calls_named(
             analysis,
             inv,
             target_qualified,
             target_simple,
             target_qualified,
+            source,
         ) {
             continue;
         }
@@ -831,8 +1180,8 @@ pub fn incoming_calls_for_target(
         .collect()
 }
 
-/// Enumerate outgoing calls from the proc identified by
-/// `item.name`.  Walks every command invocation whose span
+/// Enumerate outgoing calls from the actual selected declaration. Walks
+/// every eligible command invocation whose span
 /// sits inside the proc's body span, then resolves each to its
 /// target proc (when the invocation names a user proc), and adds every bare
 /// `ClassName <classmethod>` dispatch in the same body.  Calls
@@ -876,12 +1225,38 @@ pub fn outgoing_calls_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<OutgoingCall> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
+
+    if !analysis.allows_lexical_declaration_advice() {
+        let Some(identity) = &item.identity else {
+            return Vec::new();
+        };
+        return crate::original_call_hierarchy::outgoing(
+            identity,
+            &[crate::original_call_hierarchy::OriginalCallDocument {
+                uri: identity.uri(),
+                source,
+                analysis,
+            }],
+            None,
+        )
+        .into_iter()
+        .map(|(_, call)| call)
+        .collect();
+    }
+
+    let Some(target) = LogicalCallTarget::capture(source, analysis, item) else {
+        return Vec::new();
+    };
     let line_index = LineIndex::new(source);
-    let Some((_, source_proc)) =
-        find_proc_for_item(source, analysis, item, &line_index, resolution)
+    let LogicalCallDeclaration::Procedure {
+        definition: source_proc,
+        ..
+    } = target.declaration()
     else {
-        // Not a proc — try a class method.
-        return method_outgoing_calls(source, dialect, item, analysis, &line_index, resolution);
+        return method_outgoing_calls(source, dialect, &target, analysis, &line_index, resolution);
     };
     let mut by_target: EdgeBuckets = EdgeBuckets::new();
     for inv in &analysis.command_invocations {
@@ -890,7 +1265,7 @@ pub fn outgoing_calls_in_program(
         }
         // Find the user-proc this invocation targets, if any.
         for (qname, proc_def) in &analysis.all_procs {
-            if invocation_targets(analysis, inv, proc_def, qname) {
+            if invocation_targets(analysis, inv, proc_def, qname, source) {
                 let inv_range = span_to_range(source, &line_index, inv.range);
                 let entry = by_target
                     .entry(CallItemKey::for_proc(qname, proc_def))
@@ -933,22 +1308,23 @@ pub fn outgoing_calls_in_program(
 fn method_incoming_calls(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
-    item: &CallHierarchyItem,
+    target: &LogicalCallTarget<'_>,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
 ) -> Vec<IncomingCall> {
-    let Some((class_def, target_method)) = resolve_method_item(source, analysis, item, line_index)
+    let LogicalCallDeclaration::Member {
+        class: class_def,
+        definition: target_method,
+        side,
+    } = target.declaration()
     else {
         return Vec::new();
     };
     let mut by_caller: EdgeBuckets = EdgeBuckets::new();
-    for caller in class_methods_iter(class_def) {
-        if !dispatch_reaches(&caller.kind, &target_method.kind) {
-            continue;
-        }
+    for caller in member_frames_iter(class_def, side) {
         let spans = crate::references::scan_method_sites(
             source,
-            dialect,
+            analysis,
             &[caller.body_span],
             &target_method.name,
             Some(target_method.name_span),
@@ -971,15 +1347,17 @@ fn method_incoming_calls(
                 .map(|s| span_to_range(source, line_index, s)),
         );
     }
-    add_classmethod_incoming(
-        source,
-        dialect,
-        analysis,
-        class_def,
-        target_method,
-        line_index,
-        &mut by_caller,
-    );
+    if side == MemberSide::ClassObject {
+        add_classmethod_incoming(
+            source,
+            dialect,
+            analysis,
+            class_def,
+            target_method,
+            line_index,
+            &mut by_caller,
+        );
+    }
     by_caller
         .into_values()
         .map(|(from, from_ranges)| IncomingCall { from, from_ranges })
@@ -995,21 +1373,72 @@ fn method_incoming_calls(
 #[must_use]
 pub fn incoming_instance_method_calls_in_class(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     receiver_class: &str,
     method: &str,
     external_callback_allowed: bool,
 ) -> Vec<IncomingCall> {
+    incoming_member_calls_in_class(
+        source,
+        analysis,
+        receiver_class,
+        method,
+        MemberSide::Instance,
+        external_callback_allowed,
+    )
+}
+
+/// Conditional incoming member calls in an actual caller class. The target's
+/// original declaration selects the member name and table; the host supplies
+/// the independently checked workspace provider and visibility relationship.
+#[must_use]
+pub fn incoming_calls_for_logical_member_in_class(
+    source: &str,
+    analysis: &AnalysisResult,
+    receiver_class: &str,
+    target: &LogicalCallTarget<'_>,
+    external_callback_allowed: bool,
+) -> Vec<IncomingCall> {
+    let LogicalCallDeclaration::Member {
+        definition, side, ..
+    } = target.declaration()
+    else {
+        return Vec::new();
+    };
+    incoming_member_calls_in_class(
+        source,
+        analysis,
+        receiver_class,
+        &definition.name,
+        side,
+        external_callback_allowed,
+    )
+}
+
+fn incoming_member_calls_in_class(
+    source: &str,
+    analysis: &AnalysisResult,
+    receiver_class: &str,
+    method: &str,
+    side: MemberSide,
+    external_callback_allowed: bool,
+) -> Vec<IncomingCall> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none()
+        || !analysis.allows_retained_logical_declaration_advice()
+    {
+        return Vec::new();
+    }
     let Some(class_def) = analysis.all_classes.get(receiver_class) else {
         return Vec::new();
     };
     let line_index = LineIndex::new(source);
-    instance_method_frames_iter(class_def)
+    let frames = member_frames_iter(class_def, side);
+    let mut incoming = frames
         .filter_map(|caller| {
             let spans = crate::references::scan_method_sites(
                 source,
-                dialect,
+                analysis,
                 &[caller.body_span],
                 method,
                 None,
@@ -1023,44 +1452,61 @@ pub fn incoming_instance_method_calls_in_class(
                     .collect(),
             })
         })
-        .collect()
+        .collect::<Vec<_>>();
+    // The class's own command has a separate source receiver owner. Its sites
+    // are added only when the actual class-side workspace visibility permits it.
+    if side == MemberSide::ClassObject && external_callback_allowed {
+        for span in crate::references::logical_class_command_method_sites(
+            source, analysis, class_def, method,
+        ) {
+            let (_, from) = enclosing_dispatch_caller(source, analysis, span, &line_index);
+            if let Some(existing) = incoming
+                .iter_mut()
+                .find(|call| call.from.selection_range == from.selection_range)
+            {
+                existing
+                    .from_ranges
+                    .push(span_to_range(source, &line_index, span));
+            } else {
+                incoming.push(IncomingCall {
+                    from,
+                    from_ranges: vec![span_to_range(source, &line_index, span)],
+                });
+            }
+        }
+    }
+    incoming
 }
 
-/// Add the bare `ClassName <classmethod>` dispatch sites of `target_method`
-/// to `by_caller`, each attributed to the innermost body it sits in.  A
-/// no-op unless `target_method` really is a `classmethod`.
+/// Add direct class-command selector sites for the selected class-object
+/// member, attributed to their actual enclosing source body. Its issued table
+/// side and the external visibility check are independent requirements.
 ///
-/// The sites come from [`crate::references::find_obj_method_call_sites`] —
-/// the same scanner Find-References / rename / the code lens use, which also
-/// carries the registry-driven definer-family rule that keeps [incr Tcl]'s
-/// `Factory::make` class-proc shape (and its unrelated two-word
-/// instance-creation syntax) out of this — rather than a head-word compare
-/// re-derived here.
+/// The shared Logical selector retains the actual original class factory,
+/// complete current source context and direct written selector. A reporting
+/// class name cannot supply its source receiver, and captured selectors cannot
+/// supply a call-site span.
 ///
-/// No [`dispatch_reaches`] gate: that rule is about `my`, whose scope
-/// depends on the calling body.  A class command is an ordinary global
-/// command, so `Factory make` reaches the classmethod from a classmethod
-/// body, an instance-method body, a proc, or the top level alike
-/// (tclsh9.0-verified).
+/// A class-command selector has its own original class receiver; the caller's
+/// surrounding method table cannot redirect it. These are conditional source
+/// edges and supply no entered Native handler or live dispatch.
 fn add_classmethod_incoming(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     class_def: &ClassDef,
     target_method: &MethodDef,
     line_index: &LineIndex,
     by_caller: &mut EdgeBuckets,
 ) {
-    if target_method.kind != "classmethod" {
+    if target_method.visibility != "public" {
         return;
     }
-    for span in crate::references::find_obj_method_call_sites(
+    for span in crate::references::logical_class_command_method_sites(
         source,
-        dialect,
         analysis,
-        &class_def.qualified_name,
+        class_def,
         &target_method.name,
-        true,
     ) {
         if span_contains(target_method.name_span, span) {
             continue;
@@ -1138,6 +1584,7 @@ fn top_level_item() -> CallHierarchyItem {
         end_character: 0,
     };
     CallHierarchyItem {
+        identity: None,
         name: TOP_LEVEL_NAME.to_owned(),
         detail: None,
         range: origin,
@@ -1163,23 +1610,34 @@ fn top_level_item() -> CallHierarchyItem {
 fn method_outgoing_calls(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
-    item: &CallHierarchyItem,
+    target: &LogicalCallTarget<'_>,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
-    resolution: crate::definition::CallResolution<'_>,
+    _resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<OutgoingCall> {
-    let Some((class_def, source_method)) = resolve_method_item(source, analysis, item, line_index)
+    let LogicalCallDeclaration::Member {
+        class: class_def,
+        definition: source_method,
+        side,
+    } = target.declaration()
     else {
         return Vec::new();
     };
     let mut by_target: EdgeBuckets = EdgeBuckets::new();
-    for callee in class_methods_iter(class_def) {
-        if !dispatch_reaches(&source_method.kind, &callee.kind) {
-            continue;
-        }
+    let callees = class_def
+        .methods
+        .values()
+        .filter(move |_| side == MemberSide::Instance)
+        .chain(
+            class_def
+                .class_methods
+                .values()
+                .filter(move |_| side == MemberSide::ClassObject),
+        );
+    for callee in callees {
         let spans = crate::references::scan_method_sites(
             source,
-            dialect,
+            analysis,
             &[source_method.body_span],
             &callee.name,
             None,
@@ -1210,24 +1668,12 @@ fn method_outgoing_calls(
         line_index,
         &mut by_target,
     );
-    let class_ns = tcl_syntax::naming::key_holder_and_tail(&class_def.qualified_name).0;
-    for (head, span) in segment_body_calls(source, dialect, source_method.body_span) {
-        if is_method_dispatch_keyword(dialect, &head) {
-            continue;
-        }
-        // Top-level user proc?  Resolved from the class's namespace (a
-        // method body's commands resolve there) — a deterministic
-        // simple-name fallback, never a namespace-blind `p.name == head`
-        // first-hit scan that could edge the hierarchy to an arbitrary
-        // same-named proc in an unrelated namespace.
-        if let Some(proc_def) = crate::definition::resolve_called_proc(
-            analysis,
-            source,
-            class_ns,
-            &head,
-            span.start(),
-            resolution,
-        ) {
+    for (_, span) in segment_body_calls(source, analysis, source_method.body_span) {
+        if let LogicalMethodProcedureSelection::Occupied {
+            procedure: Some(proc_def),
+            ..
+        } = logical_method_procedure_at(source, analysis, span.start())
+        {
             let qname = &proc_def.qualified_name;
             let entry = by_target
                 .entry(CallItemKey::for_proc(qname, proc_def))
@@ -1252,14 +1698,12 @@ fn method_outgoing_calls(
 /// Every class the document declares is a candidate, not just the calling
 /// method's own: a class command is global, so an instance method of one
 /// class may perfectly well dispatch another class's classmethod
-/// (tclsh9.0-verified).  Sites come from
-/// [`crate::references::find_obj_method_call_sites`], the shared scanner —
-/// so the [incr Tcl] definer-family exclusion and the inheriting-subclass
-/// dispatch heads it already knows about apply here too — filtered to the
-/// calling body's span.
+/// within the selected Logical source model. Sites come from the shared
+/// original class-command selector, filtered to the calling body's span.
+/// These source relationships do not establish Native dispatch.
 fn add_classmethod_outgoing(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     body: tcl_lexer::Span,
     line_index: &LineIndex,
@@ -1267,17 +1711,19 @@ fn add_classmethod_outgoing(
 ) {
     for class_def in analysis.all_classes.values() {
         for callee in class_def.class_methods.values() {
-            let spans: Vec<tcl_lexer::Span> = crate::references::find_obj_method_call_sites(
-                source,
-                dialect,
-                analysis,
-                &class_def.qualified_name,
-                &callee.name,
-                true,
-            )
-            .into_iter()
-            .filter(|span| span_contains(body, *span))
-            .collect();
+            if callee.visibility != "public" {
+                continue;
+            }
+            let spans: Vec<tcl_lexer::Span> =
+                crate::references::logical_class_command_method_sites(
+                    source,
+                    analysis,
+                    class_def,
+                    &callee.name,
+                )
+                .into_iter()
+                .filter(|span| span_contains(body, *span))
+                .collect();
             if spans.is_empty() {
                 continue;
             }
@@ -1319,6 +1765,18 @@ fn instance_method_frames_iter(class_def: &ClassDef) -> impl Iterator<Item = &Me
         .chain(class_def.destructor.iter())
 }
 
+/// Actual source frames on the independently selected member table.
+fn member_frames_iter(class_def: &ClassDef, side: MemberSide) -> impl Iterator<Item = &MethodDef> {
+    instance_method_frames_iter(class_def)
+        .filter(move |_| side == MemberSide::Instance)
+        .chain(
+            class_def
+                .class_methods
+                .values()
+                .filter(move |_| side == MemberSide::ClassObject),
+        )
+}
+
 fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
     let start = line_index.position_at_utf16(span.start(), source);
     let end = line_index.position_at_utf16(span.end(), source);
@@ -1338,6 +1796,85 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn native_unresolved_source_heads_keep_actual_body_and_ignore_report_mutation() {
+        let source = "proc owner {} {remote V; remote W; set data {inert COMMAND}}";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let item = prepare(source, 0, 5, &analysis)
+            .pop()
+            .expect("original owner header");
+        analysis.command_invocations.clear();
+        analysis.all_procs.clear();
+        let calls = unresolved_outgoing_calls(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            &item,
+            &analysis,
+        );
+        let remote = calls.iter().find(|call| call.name == "remote").unwrap();
+        assert_eq!(remote.from_ranges.len(), 2);
+        assert!(calls.iter().all(|call| call.name != "inert"));
+        assert!(remote.resolved_qualified_name.is_none());
+        assert!(
+            remote
+                .logical_occurrences
+                .iter()
+                .all(|call| call.candidates.is_none())
+        );
+        let independent = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let borrowed = tcl_compiler::registry_invocation::source_structure::source_native_procedure_body_commands(source, &analysis).unwrap();
+        assert!(
+            borrowed
+                .iter()
+                .all(|command| command.caller_declaration(&independent).is_none())
+        );
+        assert!(
+            unresolved_outgoing_calls(
+                &source.replace("COMMAND", "CHANGED"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+                &item,
+                &analysis
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn original_hierarchy_preparation_keeps_variable_cursors_and_method_declarations_separate() {
+        // Implementation contract: naming.consumer.original-call-hierarchy
+
+        let source = "oo::class create C {method x {} {set x 1; puts $x}}";
+        let mut analysis = analyse(source);
+        let variable = u32::try_from(source.find("$x").unwrap() + 1).unwrap();
+        assert!(!analysis.allows_lexical_declaration_advice());
+        assert!(crate::definition::original_variable_cursor_retained(
+            source, &analysis, 0, variable
+        ));
+        assert!(
+            analysis
+                .all_classes
+                .values()
+                .any(|class| class.methods.contains_key("x"))
+        );
+        assert!(prepare(source, 0, variable, &analysis).is_empty());
+        let declaration =
+            u32::try_from(source.find("method x").unwrap() + "method ".len()).unwrap();
+        analysis.all_classes.clear();
+        analysis.global_scope.classes.clear();
+        let items = prepare(source, 0, declaration, &analysis);
+        assert_eq!(items.len(), 1);
+        let identity = items[0]
+            .identity
+            .as_ref()
+            .expect("genuine source declaration identity");
+        assert_eq!(identity.span().start(), declaration);
+        assert!(matches!(
+            identity.role(),
+            crate::original_declaration::OriginalDeclarationRole::Method(_)
+        ));
+        assert!(prepare(&format!("#{source}"), 0, declaration, &analysis).is_empty());
     }
 
     #[test]
@@ -1362,8 +1899,9 @@ mod tests {
         // `helper`; the call-hierarchy item must resolve to the definition at
         // its own `selectionRange`, not whichever `all_procs` entry hashes
         // first. Each helper calls a distinct callee so the wrong resolution
-        // is observable.
-        let src = "proc ::a::helper {} { aCallee }\n\
+        // is observable. tclsh rejects `proc` into a missing namespace, so
+        // line 0 creates both.
+        let src = "namespace eval a {}; namespace eval b {}; proc ::a::helper {} { aCallee }\n\
                    proc ::b::helper {} { bCallee }\n\
                    proc aCallee {} {}\n\
                    proc bCallee {} {}\n";
@@ -1408,6 +1946,53 @@ mod tests {
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from.name, "caller");
         assert_eq!(incoming[0].from_ranges.len(), 1);
+    }
+
+    #[test]
+    fn consumed_command_names_remain_references_without_becoming_calls() {
+        let source =
+            "proc target {} {return yes}\nproc caller {} {info body target; target}\ncaller\n";
+        let analysis = analyse(source);
+        let dialect =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let target = prepare(source, 0, 6, &analysis).remove(0);
+        let caller = prepare(source, 1, 6, &analysis).remove(0);
+        let references = analysis
+            .command_invocations
+            .iter()
+            .filter(|invocation| invocation.name == "target")
+            .collect::<Vec<_>>();
+        assert_eq!(references.len(), 2);
+        assert!(references.iter().any(|invocation| matches!(
+            invocation.lookup,
+            tcl_compiler::signature_scan::types::SignatureCommandLookup::ConsumedName { .. }
+        )));
+        let incoming = incoming_calls(source, dialect, &target, &analysis);
+        assert_eq!(incoming.len(), 1);
+        assert_eq!(incoming[0].from_ranges.len(), 1);
+        let outgoing = outgoing_calls(source, dialect, &caller, &analysis);
+        assert_eq!(outgoing.len(), 1);
+        assert_eq!(outgoing[0].to.name, "target");
+        assert_eq!(outgoing[0].from_ranges.len(), 1);
+    }
+
+    #[test]
+    fn deferred_command_prefixes_do_not_create_incoming_call_edges() {
+        let source = "proc target args {}\nproc registrar {} {trace add command target delete target}\nregistrar\n";
+        let analysis = analyse(source);
+        let target = prepare(source, 0, 6, &analysis).remove(0);
+        assert!(analysis.command_invocations.iter().any(|invocation| {
+            invocation.name == "target"
+                && invocation.lookup
+                    == tcl_compiler::signature_scan::types::SignatureCommandLookup::DeferredReference
+        }));
+        let incoming = incoming_calls(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            &target,
+            &analysis,
+        );
+        assert!(incoming.is_empty(), "{incoming:?}");
     }
 
     #[test]
@@ -1487,6 +2072,7 @@ mod tests {
         let src = "proc greet {} {}\n";
         let analysis = analyse(src);
         let bogus = CallHierarchyItem {
+            identity: None,
             name: "::not_a_real_proc".to_string(),
             detail: None,
             range: LspRange {
@@ -1632,11 +2218,13 @@ mod tests {
 
     #[test]
     fn cross_document_instance_hierarchy_includes_constructor_and_destructor_frames() {
+        // naming.core.logical-call-target-owner
+
         let src = "oo::class create Child {\n    constructor {} { my read }\n    destructor { my read }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl");
         let mut incoming = incoming_instance_method_calls_in_class(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            analysis.resolved_profile().unwrap(),
             &analysis,
             "::Child",
             "read",
@@ -1679,10 +2267,11 @@ mod tests {
     /// instance method exists in the same class — the previous
     /// methods-first lookup ignored where the cursor actually was and would
     /// have silently returned the instance method's item instead.
+    /// `classmethod` is Tcl 9.0+, so this analyses at 9.0.
     #[test]
     fn prepare_resolves_classmethod_over_same_named_method_by_cursor() {
         let src = "oo::class create C {\n    method greet {} {}\n    classmethod greet {} {}\n}\n";
-        let analysis = analyse(src);
+        let analysis = analyse_tcl9(src);
         // Cursor on the *classmethod* declaration (line 2, col 16).
         let items = prepare(src, 2, 16, &analysis);
         assert_eq!(items.len(), 1, "{items:?}");
@@ -1693,18 +2282,17 @@ mod tests {
         );
     }
 
-    /// Regression: a `method` and a `classmethod` sharing a name (rare, but
-    /// `TclOO` keeps them in independent tables, so it's legal) must not
-    /// collide. `my greet` dispatched from an ordinary method's body can
-    /// only reach the *instance* method `greet` — never the classmethod of
-    /// the same name, since `self` inside an instance method is the
-    /// instance, whose method table never includes classmethods.
-    /// Matching both by name alone double-counts the single real call site
-    /// under one item key.
+    /// Regression: a `method` and a `classmethod` sharing a name must not
+    /// collide. In Tcl 9 `classmethod greet` also installs the instance forward
+    /// `greet` -> `myclass greet`; the later `method greet` replaces it, so
+    /// `my greet` from an instance method enters only the instance method
+    /// (tclsh 9.0.4/9.1.0). Matching both by name alone double-counts the
+    /// single real call site under one item key. `classmethod` is Tcl 9.0+,
+    /// so this analyses at 9.0 and declares the classmethod first.
     #[test]
     fn outgoing_calls_does_not_conflate_method_and_classmethod_sharing_a_name() {
-        let src = "oo::class create C {\n    method greet {} {}\n    classmethod greet {} {}\n    method twice {} { my greet }\n}\n";
-        let analysis = analyse(src);
+        let src = "oo::class create C {classmethod greet {} {}\n    method greet {} {}\n\n    method twice {} { my greet }\n}\n";
+        let analysis = analyse_tcl9(src);
         let items = prepare(src, 3, 11, &analysis);
         assert_eq!(items[0].name, "::C::twice");
         let outgoing = outgoing_calls(
@@ -1720,7 +2308,7 @@ mod tests {
             "must not double-count the single `my greet` site: {outgoing:?}"
         );
         // The resolved item is the instance method (line 1), not the
-        // classmethod (line 2).
+        // classmethod (line 0).
         assert_eq!(outgoing[0].to.selection_range.start_line, 1, "{outgoing:?}");
     }
 
@@ -2217,6 +2805,652 @@ mod tests {
             )
             .is_empty(),
             "an instance method has no bare class-command dispatch"
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_source_context_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn analyse(
+        source: &str,
+        environment: &str,
+        store: Arc<tcl_registry::CommandRegistry>,
+    ) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let context = Arc::new(
+            tcl_registry::model::ingress::static_context_for(environment).with_command_store(store),
+        );
+        Analyser::new()
+            .with_resolved_input(ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            ))
+            .analyse(source, profile.name)
+    }
+
+    fn store() -> Arc<tcl_registry::CommandRegistry> {
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let surface = Some(tcl_dialect::model::SpecSurface::TCL90_PLUS);
+        registry.insert(tcl_registry::CommandSpec {
+            name: "source_dispatch",
+            traits: tcl_registry::Traits::TCLOO_SELF_DISPATCH,
+            surface,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        Arc::new(registry)
+    }
+
+    fn method_body(analysis: &AnalysisResult) -> tcl_lexer::Span {
+        analysis.all_classes.values().next().unwrap().methods["m"].body_span
+    }
+
+    #[test]
+    fn original_method_hierarchy_uses_selected_helpers_and_same_source_frame() {
+        // naming.core.original-dispatch-region-context
+
+        let source = "oo::class create C {method m {} {source_dispatch; if 1 {puts x}; proc later {} {hidden}; missing}}";
+        let store = store();
+        let current = analyse(source, "tcl9.0", store.clone());
+        let calls = segment_body_calls(source, &current, method_body(&current));
+        let heads = calls
+            .iter()
+            .map(|(head, _)| head.as_str())
+            .collect::<Vec<_>>();
+        assert!(
+            heads.contains(&"puts") && heads.contains(&"missing"),
+            "{heads:?}"
+        );
+        assert!(
+            !heads.contains(&"source_dispatch") && !heads.contains(&"hidden"),
+            "{heads:?}"
+        );
+        let old = analyse(source, "tcl8.6", store);
+        assert!(
+            segment_body_calls(source, &old, method_body(&old))
+                .iter()
+                .any(|(head, _)| head == "source_dispatch")
+        );
+    }
+
+    #[test]
+    fn original_method_hierarchy_keeps_replaced_helpers_unresolved_and_withdraws_stale_source() {
+        // naming.core.original-dispatch-region-context
+
+        let source =
+            "proc source_dispatch args {}; oo::class create C {method m {} {source_dispatch}}";
+        let mut current = analyse(source, "tcl9.0", store());
+        let body = method_body(&current);
+        assert!(
+            segment_body_calls(source, &current, body)
+                .iter()
+                .any(|(head, _)| head == "source_dispatch")
+        );
+        assert!(
+            segment_body_calls(
+                &source.replace("source_dispatch", "other_dispatch"),
+                &current,
+                body
+            )
+            .is_empty()
+        );
+        current.resolved_input = None;
+        assert!(segment_body_calls(source, &current, body).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod logical_call_target_tests {
+    use super::*;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn analysed(source: &str) -> AnalysisResult {
+        Analyser::new().analyse(source, "tcl")
+    }
+
+    fn proc_item(source: &str, analysis: &AnalysisResult, qualified: &str) -> CallHierarchyItem {
+        item_for_proc(
+            source,
+            &analysis.all_procs[qualified],
+            qualified,
+            &LineIndex::new(source),
+        )
+    }
+
+    fn member_item(
+        source: &str,
+        analysis: &AnalysisResult,
+        class: &str,
+        method: &str,
+        side: MemberSide,
+    ) -> CallHierarchyItem {
+        let class = &analysis.all_classes[class];
+        let members = match side {
+            MemberSide::Instance => &class.methods,
+            MemberSide::ClassObject => &class.class_methods,
+        };
+        item_for_method(source, class, &members[method], &LineIndex::new(source))
+    }
+
+    #[test]
+    fn exact_declaration_owner_separates_procedure_member_and_member_side() {
+        // naming.core.logical-call-target-owner
+
+        let source = "namespace eval C {}; proc ::C::m {} {}; oo::class create C {method m {} {}; self method m {} {}}";
+        let analysis = analysed(source);
+        let mut proc = proc_item(source, &analysis, "::C::m");
+        proc.name = "::C::m".into();
+        let instance = member_item(source, &analysis, "::C", "m", MemberSide::Instance);
+        let class = member_item(source, &analysis, "::C", "m", MemberSide::ClassObject);
+        assert_eq!(proc.name, instance.name);
+        assert_eq!(instance.name, class.name);
+        for item in [&proc, &instance, &class] {
+            let prepared = prepare(
+                source,
+                item.selection_range.start_line,
+                item.selection_range.start_character,
+                &analysis,
+            );
+            assert_eq!(prepared.len(), 1);
+            assert_eq!(prepared[0].selection_range, item.selection_range);
+        }
+        assert!(matches!(
+            LogicalCallTarget::capture(source, &analysis, &proc)
+                .unwrap()
+                .declaration(),
+            LogicalCallDeclaration::Procedure {
+                qualified: "::C::m",
+                ..
+            }
+        ));
+        for (item, expected) in [
+            (instance, MemberSide::Instance),
+            (class, MemberSide::ClassObject),
+        ] {
+            let target = LogicalCallTarget::capture(source, &analysis, &item).unwrap();
+            let LogicalCallDeclaration::Member {
+                class,
+                definition,
+                side,
+            } = target.declaration()
+            else {
+                panic!("member declaration");
+            };
+            assert_eq!(class.qualified_name, "::C");
+            assert_eq!(definition.name, "m");
+            assert_eq!(side, expected);
+        }
+    }
+
+    #[test]
+    fn colon_bearing_members_and_equal_joined_titles_keep_actual_boundaries() {
+        // naming.core.logical-call-target-owner
+
+        let source = "namespace eval A {}; oo::class create A {method b::c {} {}}; oo::class create ::A::b {method c {} {}}";
+        let analysis = analysed(source);
+        let a = member_item(source, &analysis, "::A", "b::c", MemberSide::Instance);
+        let b = member_item(source, &analysis, "::A::b", "c", MemberSide::Instance);
+        assert_eq!(a.name, b.name);
+        for (item, class_name, member_name) in [(a, "::A", "b::c"), (b, "::A::b", "c")] {
+            let LogicalCallDeclaration::Member {
+                class, definition, ..
+            } = LogicalCallTarget::capture(source, &analysis, &item)
+                .unwrap()
+                .declaration()
+            else {
+                panic!("member declaration");
+            };
+            assert_eq!(class.qualified_name, class_name);
+            assert_eq!(definition.name, member_name);
+        }
+    }
+
+    #[test]
+    fn all_local_call_consumers_ignore_copied_reporting_labels() {
+        // naming.core.logical-call-target-owner
+
+        let source = "proc callee {} {}; proc p {} {callee; absent}; p; oo::class create C {method a::b {} {callee; absent}; method caller {} {my a::b}}";
+        let analysis = analysed(source);
+        let profile = analysis.resolved_profile().unwrap();
+        for original in [
+            proc_item(source, &analysis, "::p"),
+            member_item(source, &analysis, "::C", "a::b", MemberSide::Instance),
+        ] {
+            let mut relabelled = original.clone();
+            relabelled.name = "::unrelated::display".into();
+            relabelled.detail = Some("copied detail".into());
+            let incoming = incoming_calls(source, profile, &original, &analysis);
+            let outgoing = outgoing_calls(source, profile, &original, &analysis);
+            let unresolved = unresolved_outgoing_calls(source, profile, &original, &analysis);
+            assert!(
+                !outgoing.is_empty(),
+                "actual selected body must reach callee"
+            );
+            assert!(unresolved.iter().any(|call| call.name == "absent"));
+            assert_eq!(
+                incoming,
+                incoming_calls(source, profile, &relabelled, &analysis)
+            );
+            assert_eq!(
+                outgoing,
+                outgoing_calls(source, profile, &relabelled, &analysis)
+            );
+            assert_eq!(
+                unresolved,
+                unresolved_outgoing_calls(source, profile, &relabelled, &analysis)
+            );
+        }
+    }
+
+    #[test]
+    fn target_withdraws_missing_foreign_stale_ambiguous_and_non_declaration_owners() {
+        // naming.core.logical-call-target-owner
+
+        let source = "proc p {} {}; p";
+        let analysis = analysed(source);
+        let item = proc_item(source, &analysis, "::p");
+        assert!(LogicalCallTarget::capture(source, &analysis, &item).is_some());
+        assert!(LogicalCallTarget::capture("proc q {} {}; q", &analysis, &item).is_none());
+        let mut stale = item.clone();
+        stale.selection_range.start_character += 1;
+        assert!(LogicalCallTarget::capture(source, &analysis, &stale).is_none());
+        let mut non_decl = item.clone();
+        non_decl.selection_range = span_to_range(
+            source,
+            &LineIndex::new(source),
+            analysis.command_invocations.last().unwrap().range,
+        );
+        assert!(LogicalCallTarget::capture(source, &analysis, &non_decl).is_none());
+        let mut ambiguous = analysis.clone();
+        ambiguous
+            .all_procs
+            .insert("::copied".into(), analysis.all_procs["::p"].clone());
+        assert!(LogicalCallTarget::capture(source, &ambiguous, &item).is_none());
+        for axis in 0..3 {
+            let mut changed = analysis.clone();
+            match axis {
+                0 => changed.resolved_input = None,
+                1 => changed.body_lexer_config.as_mut().unwrap().strict_quoting ^= true,
+                _ => {
+                    let input = analysis.resolved_input.as_ref().unwrap();
+                    changed.resolved_input = Some(ResolvedAnalysisInput::new(
+                        input.analyser_profile(),
+                        input.unit_profile(),
+                        tcl_registry::model::ingress::resolve_environment("tcl8.4")
+                            .default_context_registry(),
+                        input.lexer_config(),
+                    ));
+                }
+            }
+            assert!(LogicalCallTarget::capture(source, &changed, &item).is_none());
+        }
+    }
+
+    #[test]
+    fn native_and_hosted_inputs_cannot_receive_a_logical_target_from_ranges() {
+        // naming.core.logical-call-target-owner
+
+        let source = "proc p {} {}; p";
+        for dialect in ["tcl8.6", "f5-irules"] {
+            let analysis = Analyser::new().analyse(source, dialect);
+            let item = proc_item(source, &analysis, "::p");
+            assert!(!analysis.allows_retained_logical_declaration_advice());
+            if dialect == "tcl8.6" {
+                assert!(
+                    crate::original_context::CurrentSourceContext::capture(source, &analysis)
+                        .is_some()
+                );
+            }
+            assert!(
+                LogicalCallTarget::capture(source, &analysis, &item).is_none(),
+                "{dialect}"
+            );
+        }
+    }
+
+    #[test]
+    fn class_selector_geometry_and_external_member_visibility_remain_independent() {
+        // naming.core.logical-call-target-owner
+
+        let source = "oo::class create C {self method visible {} {}; self method hidden {} {}; self unexport hidden}; proc caller {} {C visible; C hidden}";
+        let analysis = analysed(source);
+        let class = &analysis.all_classes["::C"];
+        assert_eq!(class.class_methods["hidden"].visibility, "unexported");
+        for method in ["visible", "hidden"] {
+            assert_eq!(
+                crate::references::logical_class_command_method_sites(
+                    source, &analysis, class, method
+                )
+                .len(),
+                1
+            );
+        }
+        let caller = proc_item(source, &analysis, "::caller");
+        let outgoing = outgoing_calls(
+            source,
+            analysis.resolved_profile().unwrap(),
+            &caller,
+            &analysis,
+        );
+        assert_eq!(outgoing.len(), 1, "{outgoing:?}");
+        assert_eq!(outgoing[0].to.name, "::C::visible");
+        assert_eq!(outgoing[0].from_ranges.len(), 1);
+    }
+
+    #[test]
+    fn logical_workspace_member_provider_uses_current_source_owners_instead_of_labels() {
+        use crate::workspace_index::{MethodAccess, WorkspaceIndex};
+        let source = "oo::class create Base {method m {} {}; self method m {} {}}";
+        let analysis = analysed(source);
+        let uri = "file:///provider.tcl";
+        for side in [MemberSide::Instance, MemberSide::ClassObject] {
+            let item = member_item(source, &analysis, "::Base", "m", side);
+            let target = LogicalCallTarget::capture(source, &analysis, &item).unwrap();
+            let mut index = WorkspaceIndex::new();
+            index.add_document(uri, &analysis);
+            let chain = match side {
+                MemberSide::Instance => {
+                    index.method_dispatch_chain("::Base", "m", MethodAccess::Internal)
+                }
+                MemberSide::ClassObject => {
+                    index.class_method_dispatch_chain("::Base", "m", MethodAccess::Internal)
+                }
+            };
+            let provider = chain.first().unwrap();
+            assert!(index.logical_member_provider_matches_target(uri, provider, &target));
+            assert!(!index.logical_member_provider_matches_target(
+                "file:///other.tcl",
+                provider,
+                &target
+            ));
+            let mut label_analysis = analysis.clone();
+            label_analysis
+                .all_classes
+                .get_mut("::Base")
+                .unwrap()
+                .qualified_name = "an unrelated display".to_owned();
+            let mut label_index = WorkspaceIndex::new();
+            label_index.add_document(uri, &label_analysis);
+            let label_provider = label_index.classes().next().unwrap();
+            assert!(label_index.logical_member_provider_matches_target(
+                uri,
+                label_provider,
+                &target
+            ));
+            let mut detached = (**provider).clone();
+            detached.qualified_name = "an unrelated display".to_owned();
+            assert!(!index.logical_member_provider_matches_target(uri, &detached, &target));
+            index.replace_document(uri, &analysed(&format!("# changed\n{source}")));
+            let provider = match side {
+                MemberSide::Instance => {
+                    index.method_dispatch_chain("::Base", "m", MethodAccess::Internal)
+                }
+                MemberSide::ClassObject => {
+                    index.class_method_dispatch_chain("::Base", "m", MethodAccess::Internal)
+                }
+            };
+            assert!(!index.logical_member_provider_matches_target(
+                uri,
+                provider.first().unwrap(),
+                &target
+            ));
+        }
+    }
+
+    #[test]
+    fn cross_document_member_advice_selects_only_the_actual_side_frames() {
+        // naming.core.logical-call-target-owner
+
+        let provider = "oo::class create Base {method m {} {}; self method m {} {}}";
+        let provider_analysis = analysed(provider);
+        let consumer = "oo::class create Child {method instanceCaller {} {my m}; self method classCaller {} {my m}}";
+        let consumer_analysis = analysed(consumer);
+        for (side, expected) in [
+            (MemberSide::Instance, "::Child::instanceCaller"),
+            (MemberSide::ClassObject, "::Child::classCaller"),
+        ] {
+            let item = member_item(provider, &provider_analysis, "::Base", "m", side);
+            let target = LogicalCallTarget::capture(provider, &provider_analysis, &item).unwrap();
+            let calls = incoming_calls_for_logical_member_in_class(
+                consumer,
+                &consumer_analysis,
+                "::Child",
+                &target,
+                true,
+            );
+            assert_eq!(calls.len(), 1, "{calls:?}");
+            assert_eq!(calls[0].from.name, expected);
+            assert_eq!(calls[0].from_ranges.len(), 1);
+        }
+    }
+}
+
+#[cfg(test)]
+mod logical_workspace_occurrence_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_outgoing_inventory_keeps_separate_scope_recipes_for_repeated_heads() {
+        let source = "proc caller {} {namespace eval A {helper}; namespace eval B {helper}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let item = prepare(source, 0, 6, &analysis).remove(0);
+        let calls = unresolved_outgoing_calls(
+            source,
+            tcl_dialect::DialectProfile::plain_tcl(),
+            &item,
+            &analysis,
+        );
+        let helper = calls.iter().find(|call| call.name == "helper").unwrap();
+        assert_eq!(helper.from_ranges.len(), 2);
+        assert_eq!(helper.logical_occurrences.len(), 2);
+        let first = helper.logical_occurrences[0].candidates.as_ref().unwrap();
+        let second = helper.logical_occurrences[1].candidates.as_ref().unwrap();
+        assert_ne!(first.coordinates(), second.coordinates());
+    }
+}
+
+#[cfg(test)]
+mod logical_method_source_candidate_tests {
+    use super::*;
+
+    fn analyse(source: &str) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn method_proc_source_candidates_keep_unknown_namespace_and_mutation_alternatives() {
+        let source =
+            "proc helper {} {}; oo::class create C {method m {} {unknown; helper; ::helper}}";
+        let mut analysis = analyse(source);
+        let relative = u32::try_from(source.find("helper;").unwrap()).unwrap();
+        assert!(matches!(
+            logical_method_procedure_at(source, &analysis, relative),
+            LogicalMethodProcedureSelection::Unavailable
+        ));
+        let absolute = u32::try_from(source.find("::helper").unwrap()).unwrap();
+        let LogicalMethodProcedureSelection::Occupied {
+            procedure: Some(target),
+            earlier_unknown_mutations,
+        } = logical_method_procedure_at(source, &analysis, absolute)
+        else {
+            panic!("actual absolute head must match its independent original procedure header");
+        };
+        let target_span = target.name_span;
+        assert_eq!(target_span, analysis.all_procs["::helper"].name_span);
+        assert!(earlier_unknown_mutations);
+        let class = &analysis.all_classes["::C"];
+        let item = item_for_method(source, class, &class.methods["m"], &LineIndex::new(source));
+        let outgoing = outgoing_calls(
+            source,
+            analysis.resolved_profile().unwrap(),
+            &item,
+            &analysis,
+        );
+        assert_eq!(outgoing.len(), 1);
+        assert_eq!(
+            outgoing[0].to.selection_range,
+            span_to_range(source, &LineIndex::new(source), target_span)
+        );
+        assert_eq!(outgoing[0].from_ranges.len(), 1);
+        assert_eq!(
+            outgoing[0].from_ranges[0],
+            span_to_range(
+                source,
+                &LineIndex::new(source),
+                tcl_lexer::Span::new(absolute, absolute + 8)
+            )
+        );
+        let unresolved = unresolved_outgoing_calls(
+            source,
+            analysis.resolved_profile().unwrap(),
+            &item,
+            &analysis,
+        );
+        assert!(unresolved.iter().any(|call| call.name == "helper"));
+        assert!(unresolved.iter().any(|call| call.name == "::helper"));
+        analysis.all_classes.get_mut("::C").unwrap().qualified_name = "::report::Different".into();
+        analysis
+            .all_procs
+            .get_mut("::helper")
+            .unwrap()
+            .qualified_name = "::report::Elsewhere".into();
+        assert!(
+            matches!(logical_method_procedure_at(source, &analysis, absolute), LogicalMethodProcedureSelection::Occupied { procedure: Some(procedure), .. } if procedure.name_span == target_span)
+        );
+        assert!(matches!(
+            logical_method_procedure_at(&format!("{source} "), &analysis, absolute),
+            LogicalMethodProcedureSelection::Unavailable
+        ));
+        analysis.resolved_input = None;
+        assert!(matches!(
+            logical_method_procedure_at(source, &analysis, absolute),
+            LogicalMethodProcedureSelection::Unavailable
+        ));
+    }
+
+    #[test]
+    fn method_proc_source_candidates_preserve_duplicate_headers_and_class_occupancy() {
+        for source in [
+            "proc helper {} {}; proc helper {} {}; oo::class create C {method m {} {::helper}}",
+            "oo::class create helper {}; oo::class create C {method m {} {::helper}}",
+        ] {
+            let analysis = analyse(source);
+            let absolute = u32::try_from(source.find("::helper").unwrap()).unwrap();
+            assert!(matches!(
+                logical_method_procedure_at(source, &analysis, absolute),
+                LogicalMethodProcedureSelection::Occupied {
+                    procedure: None,
+                    ..
+                }
+            ));
+        }
+    }
+}
+
+#[cfg(test)]
+mod method_original_lookup_operand_effect_tests {
+    use super::*;
+
+    #[test]
+    fn method_source_candidates_keep_pre_lookup_operand_effects_unresolved() {
+        let source = "proc helper {args} {}; oo::class create C {method m {} {::helper {[replaceHelper]}; ::helper [replaceHelper]; ::helper $value}}";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        let offsets = source
+            .match_indices("::helper")
+            .map(|(offset, _)| u32::try_from(offset).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(offsets.len(), 3);
+        for (offset, effects) in offsets.iter().zip([false, true, true]) {
+            let original = tcl_compiler::registry_invocation::source_structure::source_logical_absolute_command_candidate_at(source, &analysis, *offset)
+                .expect("actual original absolute method head syntax");
+            assert_eq!(original.has_lookup_operand_effects(), effects);
+            if effects {
+                assert!(matches!(
+                    logical_method_procedure_at(source, &analysis, *offset),
+                    LogicalMethodProcedureSelection::Unavailable
+                ));
+            } else {
+                assert!(matches!(
+                    logical_method_procedure_at(source, &analysis, *offset),
+                    LogicalMethodProcedureSelection::Occupied {
+                        procedure: Some(_),
+                        earlier_unknown_mutations: true,
+                    }
+                ));
+            }
+        }
+        let class = &analysis.all_classes["::C"];
+        let item = item_for_method(source, class, &class.methods["m"], &LineIndex::new(source));
+        let outgoing = outgoing_calls(source, profile, &item, &analysis);
+        assert_eq!(outgoing.len(), 1);
+        assert_eq!(outgoing[0].from_ranges.len(), 1);
+        assert_eq!(
+            outgoing[0].from_ranges[0],
+            span_to_range(
+                source,
+                &LineIndex::new(source),
+                tcl_lexer::Span::new(offsets[0], offsets[0] + 8)
+            )
+        );
+        let unresolved = unresolved_outgoing_calls(source, profile, &item, &analysis);
+        let helper = unresolved
+            .iter()
+            .find(|call| call.name == "::helper")
+            .unwrap();
+        assert_eq!(
+            helper.from_ranges,
+            offsets
+                .iter()
+                .map(|offset| span_to_range(
+                    source,
+                    &LineIndex::new(source),
+                    tcl_lexer::Span::new(*offset, *offset + 8)
+                ))
+                .collect::<Vec<_>>()
+        );
+        let effectful_ranges = offsets[1..]
+            .iter()
+            .map(|offset| {
+                span_to_range(
+                    source,
+                    &LineIndex::new(source),
+                    tcl_lexer::Span::new(*offset, *offset + 8),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(effectful_ranges.len(), 2);
+        assert!(
+            effectful_ranges
+                .iter()
+                .all(|range| helper.from_ranges.contains(range))
+        );
+        assert!(
+            helper
+                .logical_occurrences
+                .iter()
+                .all(|occurrence| occurrence.candidates.is_none())
         );
     }
 }

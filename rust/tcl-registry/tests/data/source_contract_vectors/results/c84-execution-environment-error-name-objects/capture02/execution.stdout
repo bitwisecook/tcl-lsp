@@ -1,0 +1,13 @@
+ENV|birth-before-init|1|1|1|1|1|none|1|3a3a6572726f72496e666f|1|none|1|3a3a6572726f72436f6465|-1
+DISTINCT|same-interpreter|1
+ENV|after-init|1|1|1|1|1|none|1|3a3a6572726f72496e666f|1|none|1|3a3a6572726f72436f6465|-1
+ENV|after-seed-default-append|1|1|1|1|1|parsedVarName|1|3a3a6572726f72496e666f|1|parsedVarName|1|3a3a6572726f72436f6465|-1
+ENV|after-second-append|1|1|1|1|1|parsedVarName|1|3a3a6572726f72496e666f|1|parsedVarName|1|3a3a6572726f72436f6465|-1
+ENV|after-reset|1|1|1|1|1|parsedVarName|1|3a3a6572726f72496e666f|1|parsedVarName|1|3a3a6572726f72436f6465|-1
+SCRIPT|nested-error|1
+ENV|after-nested-error|1|1|1|1|1|parsedVarName|1|3a3a6572726f72496e666f|1|parsedVarName|1|3a3a6572726f72436f6465|-1
+ENV|independent-birth|1|1|1|1|1|none|1|3a3a6572726f72496e666f|1|none|1|3a3a6572726f72436f6465|-1
+DISTINCT|independent-interpreters|1|1|1|1
+DELETE|independent-interpreter|completed
+ENV|with-observation-roles|1|1|1|1|2|parsedVarName|1|3a3a6572726f72496e666f|2|parsedVarName|1|3a3a6572726f72436f6465|-1
+AFTER_DELETE|observer-held|1|1|1|parsedVarName|1|3a3a6572726f72496e666f|1|parsedVarName|1|3a3a6572726f72436f6465

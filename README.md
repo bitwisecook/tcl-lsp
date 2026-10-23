@@ -1740,18 +1740,14 @@ tcl validate src/ --json
 # Format source text
 tcl format script.tcl -o formatted.tcl
 
-# Minify source (strip comments, collapse whitespace, join commands;
-# semantics-preserving — never renames symbols or adds variables)
+# Minify source, including safe spacing in selected braced expressions
+# and script bodies; literal data and names are preserved.
 tcl minify script.tcl -o minified.tcl
 
-# Compact minify (also renames proc-local variables; proc names and
-# global variables are renamed only with --isolated, since they are
-# observable public identities — see docs/kcs/features/kcs-feature-minifier.md)
+# Request compact or aggressive passes. Unsupported naming/semantic passes
+# report a reason; supported syntax compaction still runs. Isolated global
+# and procedure renaming is currently unavailable.
 tcl minify --compact script.tcl -o minified.tcl --symbol-map map.txt
-
-# Aggressive minify (optimise + static substring folding via SCCP + name
-# compaction + alias preambles; NOT frame-transparent — it introduces
-# helper variables visible to `info vars` and traces)
 tcl minify --aggressive script.tcl -o minified.tcl --symbol-map map.txt
 
 # Symbol/graph/find-legacy analysis verbs
@@ -1862,10 +1858,13 @@ manifest can express; dynamic, guarded, loop-contained, exact, bounded, and
 alternative requirements stay visible as review findings for explicit
 `tcl pkg add` decisions.
 
-The manifest is a native Tcl file (`tclpkg.tcl`) evaluated in a sandboxed
-interpreter.  The lockfile (`tclpkg.lock`) is canonical JSON — two runs against
-the same manifest produce byte-identical output (aside from the
-`generated` timestamp, which `--frozen` preserves).
+The manifest (`tclpkg.tcl`) uses a restricted declarative source grammar
+with Tcl-like command and word syntax. The loader parses directives such as
+`package`, `version`, `require`, and `dev-require`; it rejects commands
+outside the manifest directive set and does not evaluate arbitrary Tcl code.
+The lockfile (`tclpkg.lock`) is canonical JSON — two runs against the same
+manifest produce byte-identical output (aside from the `generated` timestamp,
+which `--frozen` preserves).
 
 ```tcl
 # tclpkg.tcl — example manifest

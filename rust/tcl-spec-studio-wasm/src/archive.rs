@@ -58,8 +58,7 @@ const MAX_ENTRIES: usize = 20_000;
 pub struct Entry {
     /// The member's path inside the archive, verbatim.
     pub name: String,
-    /// Its contents, decoded as UTF-8 (lossily — a stray Latin-1 byte in a
-    /// comment must not lose the whole file).
+    /// UTF-8 preview text. Unrepresentable source is recorded separately.
     pub text: String,
 }
 
@@ -70,6 +69,8 @@ pub struct Extraction {
     pub entries: Vec<Entry>,
     /// Members present but not extracted, and why — the trust surface.
     pub skipped: Vec<String>,
+    /// Extracted files whose preview cannot stand for their original source.
+    pub unsupported_encodings: Vec<String>,
     /// How many members the archive declared, before any filtering.
     pub members: usize,
     /// Total uncompressed bytes of the extracted entries.
@@ -86,6 +87,7 @@ impl Extraction {
                 .map(|e| json!({ "name": e.name, "text": e.text }))
                 .collect::<Vec<_>>(),
             "skipped": self.skipped.clone(),
+            "unsupported_encodings": self.unsupported_encodings,
             "members": self.members,
             "bytes": self.bytes,
         })
@@ -154,6 +156,9 @@ pub fn extract(bytes: &[u8]) -> Result<Extraction, String> {
             continue;
         }
         out.bytes = out.bytes.saturating_add(raw.len() as u64);
+        if std::str::from_utf8(&raw).is_err() {
+            out.unsupported_encodings.push(name.clone());
+        }
         out.entries.push(Entry {
             name,
             text: String::from_utf8_lossy(&raw).into_owned(),
@@ -231,6 +236,21 @@ mod tests {
         let out = extract(&bytes).expect("readable archive");
         assert_eq!(out.entries.len(), 1);
         assert!(out.entries[0].text.contains("proc p {} {}"));
+        assert_eq!(out.unsupported_encodings, ["p.tcl"]);
+    }
+
+    #[test]
+    fn preview_collisions_do_not_erase_original_source_encoding() {
+        let bytes = zip_of(&[
+            ("opaque.tcl", b"proc \xff {} {}"),
+            ("unicode.tcl", "proc \u{fffd} {} {}".as_bytes()),
+        ]);
+        let out = extract_json(&bytes);
+        assert_eq!(out["entries"][0]["text"], out["entries"][1]["text"]);
+        assert_eq!(
+            out["unsupported_encodings"],
+            serde_json::json!(["opaque.tcl"])
+        );
     }
 
     #[test]

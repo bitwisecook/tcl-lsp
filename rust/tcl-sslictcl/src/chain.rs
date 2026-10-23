@@ -658,12 +658,7 @@ mod tests {
         assert_eq!(evaluation.status, ChainStatus::Incomplete);
     }
 
-    /// An issuer cycle is a `PathLoop`, not an `IssuerNotFound`: the walk
-    /// refuses to revisit a certificate already on the path, so it runs out
-    /// of candidates exactly as a genuinely absent issuer does, and the two
-    /// used to be indistinguishable to the reader (#2075). They point at
-    /// different fixes — supply a certificate, versus stop cross-signing in a
-    /// circle — so they are different findings.
+    /// Repeated issuer identity is a path loop, independently of a missing issuer.
     #[test]
     fn an_issuer_cycle_is_a_path_loop_not_a_missing_issuer() {
         // leaf → a → b → a: `b`'s issuer `a` is already on the path.

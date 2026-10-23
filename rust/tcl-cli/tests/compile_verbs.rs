@@ -418,3 +418,30 @@ fn compwasm_dash_o_writes_stdout() {
     let out = run_tcl(&["compwasm", "--source", "set x 1\n", "-o", "-"]);
     assert_eq!(&out[0..4], b"\0asm", "stdout payload is not a wasm module");
 }
+
+#[test]
+fn dis_document_bom_policy_keeps_the_actual_non_root_command_literal() {
+    // naming.source.original-configured-script-completeness
+
+    // The actual verb's literal transport is separate from runtime execution.
+    let source = "\u{feff}probe root\n\u{feff}probe later";
+    for (dialect, root_literal) in [("tcl9.1", "probe"), ("tcl8.4", "\u{feff}probe")] {
+        let text = String::from_utf8(run_tcl(&["dis", "--dialect", dialect, "--source", source]))
+            .expect("UTF-8 disassembly");
+        assert!(text.contains("ByteCode ::top"), "{dialect}: {text}");
+        assert!(
+            text.contains(&format!(
+                "\"{}\"",
+                tcl_compiler::codegen::format::esc(root_literal, usize::MAX)
+            )),
+            "{dialect}: {text}"
+        );
+        assert!(
+            text.contains(&format!(
+                "\"{}\"",
+                tcl_compiler::codegen::format::esc("\u{feff}probe", usize::MAX)
+            )),
+            "{dialect}: {text}"
+        );
+    }
+}

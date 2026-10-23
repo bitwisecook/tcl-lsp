@@ -1,0 +1,1792 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Quiet original operations on the independently selected Logical source model.
+
+use super::{
+    Arc, BindingKind, CommandBindingTransition, MayBinding, ModuleCommandBindings,
+    SourceCommandTarget, SourceExecutionContext, SourceNamespaceKey, SourceOutcomes,
+    StateTransition, apply_may_binding_transition, apply_namespace_transition,
+    source_binding_projection,
+};
+use tcl_registry::{
+    ArgRole, InvocationFacts, SemanticOperationId, StateTransitions,
+    hooks::{AnalyserHookId, LoweringHookId},
+    world_effect::{CallbackKinds, EffectAccessMode, InterpreterScope, WorldStateDomain},
+};
+
+struct LogicalOriginalInvocation {
+    words: Vec<tcl_lexer::NativeWord>,
+    arguments: Vec<String>,
+    target: SourceCommandTarget,
+    namespace: SourceNamespaceKey,
+}
+
+pub(super) fn transfer(
+    words: &[crate::ir::WordExpr],
+    target: &SourceCommandTarget,
+    offset: u32,
+    state: &mut ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<SourceOutcomes> {
+    // naming.source.logical-original-operation-transfer
+
+    let original = LogicalOriginalInvocation::capture(words, target, offset, state, context)?;
+    let input = super::logical_definition::logical_entry(state, context)?.clone();
+    let actual = input.context_registry();
+    let arguments = original
+        .arguments
+        .iter()
+        .map(|value| tcl_registry::InvocationWord::Literal(value))
+        .collect::<Vec<_>>();
+    let resolution =
+        tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+            actual.commands(),
+            Some(actual.context()),
+            tcl_registry::InvocationWords::structured(
+                tcl_registry::InvocationWord::Literal(&original.target.command),
+                &arguments,
+            )
+            .with_dialect(super::source_analysis_entry::source_input_dialect(&input)),
+            context.realm,
+        );
+    let schema = resolution.resolved()?;
+    let facts = schema.facts();
+    if facts.arity_accepts_frozen_arguments() != Some(true) || facts.frame_effect.is_some() {
+        return None;
+    }
+    let transitions = schema.state_transitions();
+    if facts.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Set) {
+        variable_continuation(&original, &facts, &transitions, state, offset, context)?;
+    } else if matches!(
+        facts.analyser_hook,
+        Some(AnalyserHookId::Rename | AnalyserHookId::InterpAlias)
+    ) {
+        command_transfer(&original, &facts, &transitions, state, offset, context)?;
+    } else if let Some(phase) = schema.authored_dictionary_scope_source_phase() {
+        empty_dictionary_scope_continuation(&original, &schema, &phase, state, offset, context)?;
+    } else {
+        variable_continuation(&original, &facts, &transitions, state, offset, context)?;
+    }
+    // A continuation of this authored model has no Native handler, command
+    // publication, compiler, frame, argv or Normal completion certificate.
+    Some(SourceOutcomes::normal(state))
+}
+
+impl super::SourceInvocationBinding {
+    /// Quiet Logical store from its exact retained original source phase.
+    /// A public address-phase report cannot replace this snapshot. All scalar,
+    /// contents-provenance, input and observer checks remain in the store owner.
+    pub(crate) fn original_conditional_logical_scalar_store(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::variable_bindings::ConditionalLogicalScalarStore> {
+        let original = self.original_conditional_operand_layout_advice(tokens, registry)?;
+        self.conditional_logical_scalar_store(
+            tokens,
+            original.original_variable_context(),
+            metadata,
+            registry,
+        )
+    }
+
+    /// Quiet scalar contents in the exact authored source continuation. This
+    /// receipt does not prove a Native store, completed handler or Normal exit.
+    pub(crate) fn conditional_logical_scalar_store(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        before: &crate::var_resolve::ResolveContext,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::variable_bindings::ConditionalLogicalScalarStore> {
+        // naming.compiler.original-analysis-metadata-context
+
+        let input = metadata.source_analysis_input()?;
+        (self.original_invocation_source_purpose(tokens, metadata, registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            .then_some(())?;
+        let metadata = self.original_invocation_metadata_for_input(tokens, input, registry)?;
+        (self.original_invocation_source_purpose(tokens, metadata, registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            .then_some(())?;
+        let point_input = metadata.source_analysis_input()?;
+        let invocation = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )?;
+        if invocation.facts.operation
+            != SemanticOperationId::StructuredLowering(LoweringHookId::Set)
+            || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
+            || invocation.facts.frame_effect.is_some()
+        {
+            return None;
+        }
+        let advice = self.original_conditional_operand_layout_advice(tokens, registry)?;
+        if !advice.closed_logical_source_lookup()
+            || advice.snapshot.state.logical_source_name_advice_input() != Some(point_input)
+            || advice.snapshot.state.source_variables.as_ref() != before
+        {
+            return None;
+        }
+        let [target] = advice.targets.as_slice() else {
+            return None;
+        };
+        let mut options = super::SourceAnalysisOptions::for_logical_source(point_input)?;
+        options.invocation_realm = advice.realm();
+        let frame = advice.snapshot.state.variable_frame.clone();
+        let namespace = before.namespace.clone();
+        let mut context = super::root_source_execution_context(
+            &frame,
+            &namespace,
+            &advice.namespace,
+            advice.config,
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        );
+        context.invocation_offset = advice.site.offset;
+        let mut state = advice.snapshot.state.clone();
+        let original = LogicalOriginalInvocation::capture(
+            &advice.words,
+            target,
+            advice.site.offset,
+            &state,
+            context,
+        )?;
+        let [name, value] = original.arguments.as_slice() else {
+            return None;
+        };
+        Arc::make_mut(&mut state.source_variables)
+            .set_contents_write_source(Some(Arc::clone(&advice.site.source)));
+        scalar_store(
+            &original,
+            &invocation.facts,
+            &mut state,
+            advice.site.offset,
+            context,
+        )?;
+        crate::variable_bindings::ConditionalLogicalScalarStore::retain(
+            before,
+            state.source_variables.as_ref(),
+            input,
+            advice.words,
+            advice.site,
+            name.clone(),
+            value.clone(),
+            registry,
+        )
+    }
+}
+
+impl LogicalOriginalInvocation {
+    fn capture(
+        words: &[crate::ir::WordExpr],
+        target: &SourceCommandTarget,
+        offset: u32,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<Self> {
+        if !target.registry_backed
+            || !matches!(target.kind, BindingKind::Builtin | BindingKind::Alias)
+        {
+            return None;
+        }
+        let original = super::logical_definition::original_static_invocation_words(
+            words, offset, state, context,
+        )?;
+        let values = original
+            .iter()
+            .map(super::logical_definition::static_value)
+            .collect::<Option<Vec<_>>>()?;
+        let namespace = context.namespace_identity();
+        let selected = source_binding_projection(state, values.first()?, &namespace);
+        if selected.unknown
+            || selected.may_be_absent
+            || selected.targets.as_slice() != std::slice::from_ref(target)
+        {
+            return None;
+        }
+        let mut arguments = if target.prepended.is_empty() {
+            Vec::new()
+        } else {
+            let prefix = target.logical_original_prefix.as_ref()?;
+            prefix.matches_state(state).then_some(())?;
+            let input = state.logical_source_name_advice_input()?;
+            let captured = target.original_logical_prepended_source_inputs(
+                input,
+                state.current_source_origin.as_ref()?.source_image(),
+                context.config,
+            )?;
+            captured
+                .iter()
+                .map(|input| std::str::from_utf8(input.bytes()).ok().map(str::to_owned))
+                .collect::<Option<Vec<_>>>()?
+        };
+        arguments.extend(values.into_iter().skip(1));
+        Some(Self {
+            words: original,
+            arguments,
+            target: target.clone(),
+            namespace,
+        })
+    }
+
+    fn is_current(
+        &self,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        let Some(origin) = state.current_source_origin.as_ref() else {
+            return false;
+        };
+        self.namespace == context.namespace_identity()
+            && self.words.iter().all(|word| {
+                word.image() == origin.source_image() && word.config() == context.config
+            })
+            && self
+                .words
+                .first()
+                .and_then(super::logical_definition::static_value)
+                .is_some_and(|head| {
+                    let selected = source_binding_projection(state, &head, &self.namespace);
+                    !selected.unknown
+                        && !selected.may_be_absent
+                        && selected.targets.as_slice() == std::slice::from_ref(&self.target)
+                })
+    }
+}
+
+fn bounded_effects(facts: &InvocationFacts, domains: &[WorldStateDomain]) -> bool {
+    matches!(
+        facts.effects.callback().kinds,
+        CallbackKinds::NONE | CallbackKinds::TRACE
+    ) && facts.effects.accesses().iter().all(|access| {
+        access.interpreter == InterpreterScope::Current
+            && access.mode != EffectAccessMode::Clobber
+            && (domains.contains(&access.domain)
+                || (access.domain == WorldStateDomain::InterpreterPolicy
+                    && access.mode == EffectAccessMode::Read))
+    })
+}
+
+fn readonly_continuation(
+    original: &LogicalOriginalInvocation,
+    facts: &InvocationFacts,
+    transitions: &StateTransitions,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    if !original.is_current(state, context)
+        || !transitions.facts().is_empty()
+        || !facts.arg_roles_complete
+        || state.source_variables.dynamic_bindings
+        || state.source_variables.dynamic_traces
+        || !bounded_effects(
+            facts,
+            &[
+                WorldStateDomain::VariableStore,
+                WorldStateDomain::VariableTraces,
+            ],
+        )
+        || facts
+            .effects
+            .accesses()
+            .iter()
+            .any(|access| access.mode != EffectAccessMode::Read)
+        || facts
+            .arg_roles
+            .iter()
+            .any(|(_, role)| *role != ArgRole::VarRead)
+        || facts.arg_roles.is_empty()
+    {
+        return false;
+    }
+    facts.arg_roles.iter().all(|(ordinal, _)| {
+        let Some(name) = original
+            .arguments
+            .get(facts.argument_offset + usize::from(*ordinal))
+        else {
+            return false;
+        };
+        let access = crate::var_resolve::resolve_literal_access(
+            name,
+            &state.source_variables,
+            false,
+            context.registry,
+            tcl_registry::TraceOperation::Read,
+        );
+        !access.dynamic && !access.observed && logical_cell_is_local(&access, state, context)
+    })
+}
+
+fn variable_continuation(
+    original: &LogicalOriginalInvocation,
+    facts: &InvocationFacts,
+    transitions: &StateTransitions,
+    state: &mut ModuleCommandBindings,
+    offset: u32,
+    context: SourceExecutionContext<'_>,
+) -> Option<()> {
+    if (facts.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Set)
+        && scalar_store(original, facts, state, offset, context).is_some())
+        || readonly_continuation(original, facts, transitions, state, context)
+    {
+        return Some(());
+    }
+    scalar_write_continuation(original, facts, transitions, state, offset, context)
+}
+
+fn scalar_write_roles(facts: &InvocationFacts, transitions: &StateTransitions) -> bool {
+    transitions.facts().is_empty()
+        && facts.arg_roles_complete
+        && bounded_effects(
+            facts,
+            &[
+                WorldStateDomain::VariableStore,
+                WorldStateDomain::VariableTraces,
+            ],
+        )
+        && facts
+            .arg_roles
+            .iter()
+            .any(|(_, role)| *role == ArgRole::VarWrite)
+        && facts
+            .arg_roles
+            .iter()
+            .all(|(_, role)| matches!(role, ArgRole::VarRead | ArgRole::VarWrite))
+        && facts.effects.accesses().iter().all(|access| {
+            access.domain == WorldStateDomain::VariableStore
+                || access.mode == EffectAccessMode::Read
+        })
+        && facts.effects.accesses().iter().any(|access| {
+            access.domain == WorldStateDomain::VariableStore
+                && matches!(
+                    access.mode,
+                    EffectAccessMode::Write | EffectAccessMode::ReadWrite
+                )
+        })
+}
+
+fn scalar_write_continuation(
+    original: &LogicalOriginalInvocation,
+    facts: &InvocationFacts,
+    transitions: &StateTransitions,
+    state: &mut ModuleCommandBindings,
+    offset: u32,
+    context: SourceExecutionContext<'_>,
+) -> Option<()> {
+    if !original.is_current(state, context)
+        || !scalar_write_roles(facts, transitions)
+        || state.source_variables.dynamic_bindings
+        || state.source_variables.dynamic_traces
+    {
+        return None;
+    }
+    let mut writes = Vec::new();
+    for (ordinal, role) in &facts.arg_roles {
+        let name = original
+            .arguments
+            .get(facts.argument_offset + usize::from(*ordinal))?;
+        let read = crate::var_resolve::resolve_literal_access(
+            name,
+            &state.source_variables,
+            false,
+            context.registry,
+            tcl_registry::TraceOperation::Read,
+        );
+        if read.dynamic || read.observed || !logical_cell_is_local(&read, state, context) {
+            return None;
+        }
+        if *role == ArgRole::VarWrite {
+            let write = crate::var_resolve::resolve_literal_access(
+                name,
+                &state.source_variables,
+                false,
+                context.registry,
+                tcl_registry::TraceOperation::Write,
+            );
+            if write.dynamic
+                || write.observed
+                || write.kind != crate::place::PlaceKind::Scalar
+                || write.index.is_some()
+                || !logical_cell_is_local(&write, state, context)
+                || state.source_variables.root_contents_kind(&write)
+                    == Some(crate::var_resolve::RootContentsKind::Array)
+                || state.source_variables.store_would_error(&write)
+            {
+                return None;
+            }
+            writes.push(write);
+        }
+    }
+    // Conditional footprints withdraw values without publishing a successful store.
+    let variables = Arc::make_mut(&mut state.source_variables);
+    for write in writes {
+        variables.record_contents_write(&write, offset, true);
+    }
+    Some(())
+}
+
+fn original_empty_dictionary_body(
+    original: &LogicalOriginalInvocation,
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    phase: &tcl_registry::dictionary_scope::AuthoredDictionaryScopeSourcePhase,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<()> {
+    let facts = schema.facts();
+    if !original.is_current(state, context)
+        || !schema.state_transitions().facts().is_empty()
+        || !facts.arg_roles_complete
+        || !matches!(
+            phase.plan().bindings,
+            tcl_registry::dictionary_scope::DictionaryScopeBindings::AllKeys(_)
+        )
+        || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+        || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
+        || schema.authored_source_script_timing_at(phase.plan().body_argument)
+            != Some(tcl_registry::ScriptTiming::SameInvocation)
+        || state.source_variables.dynamic_bindings
+        || state.source_variables.dynamic_traces
+        || !state.source_variables.traced.is_empty()
+        || !matches!(
+            phase.effects().callback().kinds,
+            CallbackKinds::NONE | CallbackKinds::TRACE
+        )
+        || phase
+            .additional_effects()
+            .accesses()
+            .iter()
+            .any(|access| access.mode != EffectAccessMode::Read)
+        || phase.effects().callback().reentrancy
+            == tcl_registry::world_effect::Reentrancy::AnyInterpreter
+        || phase.effects().accesses().iter().any(|access| {
+            access.interpreter != InterpreterScope::Current
+                || access.mode == EffectAccessMode::Clobber
+                || (access.domain != WorldStateDomain::VariableStore
+                    && access.mode != EffectAccessMode::Read)
+                || !matches!(
+                    access.domain,
+                    WorldStateDomain::VariableStore | WorldStateDomain::VariableTraces
+                ) && !(access.domain == WorldStateDomain::InterpreterPolicy
+                    && access.mode == EffectAccessMode::Read)
+        })
+    {
+        return None;
+    }
+    let roles = facts
+        .arg_roles
+        .iter()
+        .map(|(ordinal, role)| (facts.argument_offset + usize::from(*ordinal), *role))
+        .collect::<Vec<_>>();
+    if roles.len() != 3
+        || ![
+            (phase.plan().dictionary_argument, ArgRole::VarRead),
+            (phase.plan().dictionary_argument, ArgRole::VarWrite),
+            (phase.plan().body_argument, ArgRole::Body),
+        ]
+        .iter()
+        .all(|expected| roles.contains(expected))
+    {
+        return None;
+    }
+    let written = phase
+        .plan()
+        .body_argument
+        .checked_sub(original.target.prepended.len())?
+        .checked_add(1)?;
+    let body = original.words.get(written)?;
+    if !crate::registry_invocation::original_written_script_body_is_empty(body)? {
+        return None;
+    }
+    Some(())
+}
+
+fn empty_dictionary_scope_continuation(
+    original: &LogicalOriginalInvocation,
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    phase: &tcl_registry::dictionary_scope::AuthoredDictionaryScopeSourcePhase,
+    state: &mut ModuleCommandBindings,
+    offset: u32,
+    context: SourceExecutionContext<'_>,
+) -> Option<()> {
+    original_empty_dictionary_body(original, schema, phase, state, context)?;
+    let name = original.arguments.get(phase.plan().dictionary_argument)?;
+    let write = crate::var_resolve::resolve_literal_access(
+        name,
+        &state.source_variables,
+        false,
+        context.registry,
+        tcl_registry::TraceOperation::Write,
+    );
+    let read = crate::var_resolve::resolve_literal_access(
+        name,
+        &state.source_variables,
+        false,
+        context.registry,
+        tcl_registry::TraceOperation::Read,
+    );
+    if write.dynamic
+        || write.observed
+        || read.dynamic
+        || read.observed
+        || write.kind != crate::place::PlaceKind::Scalar
+        || write.index.is_some()
+        || !logical_cell_is_local(&write, state, context)
+        || !logical_cell_is_local(&read, state, context)
+        || state.source_variables.store_would_error(&write)
+    {
+        return None;
+    }
+    let arguments = original
+        .arguments
+        .iter()
+        .map(|value| tcl_registry::InvocationWord::Literal(value))
+        .collect::<Vec<_>>();
+    let input = state.logical_source_name_advice_input()?;
+    let arguments = tcl_registry::InvocationArguments::structured(&arguments)
+        .with_dialect(super::source_analysis_entry::source_input_dialect(input));
+    let footprint = crate::dictionary_bindings::original_dictionary_scope_may_footprint(
+        &state.source_variables,
+        phase,
+        arguments,
+        context.registry,
+    )?;
+    // Possible source writes only withdraw contents; no reached scope is installed.
+    let variables = Arc::make_mut(&mut state.source_variables);
+    for place in footprint.clobbers.iter().chain(std::iter::once(&write)) {
+        variables.record_contents_write(place, offset, true);
+    }
+    Some(())
+}
+
+fn scalar_store(
+    original: &LogicalOriginalInvocation,
+    facts: &InvocationFacts,
+    state: &mut ModuleCommandBindings,
+    offset: u32,
+    context: SourceExecutionContext<'_>,
+) -> Option<()> {
+    let [name, value] = original.arguments.as_slice() else {
+        return None;
+    };
+    if !original.is_current(state, context)
+        || !facts.arg_roles_complete
+        || facts.argument_offset != 0
+        || facts.arg_roles.as_slice() != [(0, ArgRole::VarWrite)]
+        || !bounded_effects(
+            facts,
+            &[
+                WorldStateDomain::VariableStore,
+                WorldStateDomain::VariableTraces,
+            ],
+        )
+        || state.source_variables.dynamic_bindings
+        || state.source_variables.dynamic_traces
+    {
+        return None;
+    }
+    let access = crate::var_resolve::resolve_literal_access(
+        name,
+        &state.source_variables,
+        false,
+        context.registry,
+        tcl_registry::TraceOperation::Write,
+    );
+    if access.dynamic
+        || access.observed
+        || access.kind != crate::place::PlaceKind::Scalar
+        || access.index.is_some()
+        || !logical_cell_is_local(&access, state, context)
+        || state.source_variables.root_contents_kind(&access)
+            == Some(crate::var_resolve::RootContentsKind::Array)
+        || state.source_variables.store_would_error(&access)
+    {
+        return None;
+    }
+    let variables = Arc::make_mut(&mut state.source_variables);
+    variables.record_contents_write(&access, offset, false);
+    variables.define_literal(name, value, context.registry);
+    Some(())
+}
+
+/// Check an authored continuation's cell coordinate, independently of the
+/// storage-domain facet. This never selects a physical namespace or store.
+pub(super) fn logical_cell_is_local(
+    access: &crate::place::Place,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    use crate::place::CellOwner;
+    use tcl_registry::f5::VariableStorageDomain;
+    if super::logical_definition::logical_entry(state, context).is_none() {
+        return false;
+    }
+    let variables = &state.source_variables;
+    let namespace = context.namespace_identity();
+    let Some(cell) = access.cell.as_ref() else {
+        return false;
+    };
+    if !matches!(namespace, SourceNamespaceKey::Authored(_))
+        || variables.namespace_identity.as_ref() != Some(&namespace)
+        || variables.interpreter.is_some()
+        || variables.execution.is_some()
+        || variables.hosted_execution_context.is_some()
+        || variables.execution_name_policy.is_some()
+        || cell.interpreter.is_some()
+        || cell.execution.is_some()
+        || cell.generation == crate::place::CellGeneration::Unknown
+        || cell.generation
+            != variables
+                .generations
+                .get(&crate::var_resolve::cell_key(access))
+                .copied()
+                .unwrap_or_default()
+    {
+        return false;
+    }
+    match &cell.owner {
+        CellOwner::Namespace(_) | CellOwner::NamespaceIdentity(_) => {
+            variables.namespace_footprint(access) == Some(namespace)
+                && matches!(
+                    cell.storage_domain,
+                    None | Some(VariableStorageDomain::InterpreterNamespace)
+                )
+        }
+        CellOwner::Activation(activation) => {
+            variables.activation.as_ref() == Some(activation) && cell.storage_domain.is_none()
+        }
+        _ => false,
+    }
+}
+
+fn command_transfer(
+    original: &LogicalOriginalInvocation,
+    facts: &InvocationFacts,
+    transitions: &StateTransitions,
+    state: &mut ModuleCommandBindings,
+    offset: u32,
+    context: SourceExecutionContext<'_>,
+) -> Option<()> {
+    if !original.is_current(state, context)
+        || !bounded_effects(
+            facts,
+            &[
+                WorldStateDomain::CommandBindings,
+                WorldStateDomain::CommandTraces,
+                WorldStateDomain::NamespaceLookup,
+            ],
+        )
+        || transitions.facts().is_empty()
+    {
+        return None;
+    }
+    let namespace =
+        crate::ir_helpers::ExecutionNamespace::SourceContext(original.namespace.clone());
+    let mut candidate = state.clone();
+    for fact in transitions.facts() {
+        // A quiet authored continuation interprets the selected transition
+        // conditionally. Native abrupt-edge commit classification remains on
+        // the descriptor; it is neither changed nor a Normal certificate.
+        match &fact.transition {
+            StateTransition::Namespace(
+                transition @ tcl_registry::NamespaceTransition::Ensure { .. },
+            ) => {
+                apply_namespace_transition(&mut candidate, transition, &namespace, offset, None);
+            }
+            StateTransition::CommandBinding(transition) => {
+                admissible_transition(&candidate, transition, &original.namespace)?;
+                apply_may_binding_transition(
+                    &mut candidate,
+                    transition,
+                    &namespace,
+                    None,
+                    offset,
+                    None,
+                    None,
+                );
+                if let CommandBindingTransition::Alias { alias, .. } = transition {
+                    let selected = source_binding_projection(
+                        &candidate,
+                        alias.literal()?,
+                        &SourceNamespaceKey::authored("::"),
+                    );
+                    if selected.unknown {
+                        return None;
+                    }
+                    retain_logical_alias_prefix(
+                        original,
+                        transition,
+                        &mut candidate,
+                        offset,
+                        context,
+                    )?;
+                }
+            }
+            _ => return None,
+        }
+    }
+    if candidate.has_opaque_domain() {
+        return None;
+    }
+    *state = candidate;
+    Some(())
+}
+
+/// Optional authored-key capture is stronger than original source arguments;
+/// refusing this projection must not erase their independently retained words.
+fn authored_logical_alias_prefix_inputs(
+    original: &LogicalOriginalInvocation,
+    arguments: &[tcl_registry::TransitionSubject],
+    input: &crate::analyser::ResolvedAnalysisInput,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<crate::signature_scan::scope::SignatureSourceNameInput>> {
+    let policy = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+        .authored_name_policy()?;
+    (tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()
+        == Some(policy))
+    .then_some(())?;
+    let purpose =
+        crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+            input, None, policy,
+        );
+    let captured = arguments
+        .iter()
+        .map(|subject| {
+            let effective = subject.argument_index()?;
+            let value = original.arguments.get(effective)?;
+            (subject.literal() == Some(value.as_str())).then_some(())?;
+            let input = if effective < original.target.prepended.len() {
+                original
+                    .target
+                    .logical_original_prefix
+                    .as_ref()?
+                    .inputs()?
+                    .get(effective)?
+                    .clone()
+            } else {
+                let written = effective
+                    .checked_sub(original.target.prepended.len())?
+                    .checked_add(1)?;
+                let word = original.words.get(written)?;
+                crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(purpose.key(
+                    word,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                )?)
+            };
+            (input.bytes() == value.as_bytes() && input.policy() == policy).then_some(input)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(captured)
+}
+
+fn retain_logical_alias_prefix(
+    original: &LogicalOriginalInvocation,
+    transition: &CommandBindingTransition,
+    state: &mut ModuleCommandBindings,
+    offset: u32,
+    context: SourceExecutionContext<'_>,
+) -> Option<()> {
+    let CommandBindingTransition::Alias {
+        alias, arguments, ..
+    } = transition
+    else {
+        return None;
+    };
+    let input = super::logical_definition::logical_entry(state, context)?.clone();
+    let site = super::CommandAllocationSite {
+        source: Arc::clone(state.current_source_origin.as_ref()?),
+        offset,
+    };
+    (original.words.first()?.span().start() == offset).then_some(())?;
+    let source_arguments = arguments
+        .iter()
+        .map(|subject| {
+            let effective = subject.argument_index()?;
+            let value = original.arguments.get(effective)?;
+            (subject.literal() == Some(value.as_str())).then_some(())?;
+            let source = if effective < original.target.prepended.len() {
+                original
+                    .target
+                    .logical_original_prefix
+                    .as_ref()?
+                    .source_inputs()
+                    .get(effective)?
+                    .clone()
+            } else {
+                let written = effective
+                    .checked_sub(original.target.prepended.len())?
+                    .checked_add(1)?;
+                super::OriginalLogicalSourceNameInput::from_original_source_word(
+                    original.words.get(written)?,
+                    &input,
+                )?
+            };
+            (source.bytes() == value.as_bytes()).then_some(source)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    // The stronger authored-key projection remains independently unavailable
+    // when this Logical source purpose has no naming recipe.
+    let captured =
+        authored_logical_alias_prefix_inputs(original, arguments, &input, context.config);
+    let key = state.publication_key_at(
+        &SourceNamespaceKey::authored("::"),
+        alias.literal()?,
+        super::namespace_slots::PublicationPurpose::Alias,
+    )?;
+    let bindings = state.binding_alternatives(&key);
+    let mut targets = bindings.iter().filter_map(|binding| match binding {
+        MayBinding::Target(target) if !target.terminal && target.kind == BindingKind::Alias => {
+            Some(target)
+        }
+        _ => None,
+    });
+    let target = targets.next()?.clone();
+    (targets.next().is_none()
+        && bindings.len() == 1
+        && target.prepended.len() == source_arguments.len())
+    .then_some(())?;
+    let receipt = super::logical_prefix::LogicalAliasPrefix {
+        input,
+        site,
+        words: original.words.clone(),
+        arguments: captured,
+        source_arguments,
+        parent: original.target.logical_original_prefix.clone(),
+    };
+    Arc::make_mut(&mut state.logical_alias_prefixes).insert(target, Some(Arc::new(receipt)));
+    Some(())
+}
+
+fn admissible_transition(
+    state: &ModuleCommandBindings,
+    transition: &CommandBindingTransition,
+    namespace: &SourceNamespaceKey,
+) -> Option<()> {
+    match transition {
+        CommandBindingTransition::Move { from, to } => {
+            known_source(state, from.literal()?, namespace)?;
+            let key = state.publication_key_at(
+                namespace,
+                to.literal()?,
+                super::namespace_slots::PublicationPurpose::Rename,
+            )?;
+            if !state.namespaces.contains(key.holder().as_ref())
+                || state.binding_alternatives(&key)
+                    != std::collections::BTreeSet::from([MayBinding::Missing])
+            {
+                return None;
+            }
+        }
+        CommandBindingTransition::Delete { interpreter, name } => {
+            let namespace = match interpreter {
+                None => namespace.clone(),
+                Some(path) if path.literal() == Some("") => SourceNamespaceKey::authored("::"),
+                Some(_) => return None,
+            };
+            known_source(state, name.literal()?, &namespace)?;
+        }
+        CommandBindingTransition::Alias {
+            source_interpreter,
+            alias,
+            target_interpreter,
+            target,
+            arguments,
+            ..
+        } => {
+            if source_interpreter.literal() != Some("")
+                || target_interpreter.literal() != Some("")
+                || target.literal()?.is_empty()
+                || arguments.iter().any(|value| value.literal().is_none())
+            {
+                return None;
+            }
+            let key = state.publication_key_at(
+                &SourceNamespaceKey::authored("::"),
+                alias.literal()?,
+                super::namespace_slots::PublicationPurpose::Alias,
+            )?;
+            if key.authored_spelling()?.is_empty()
+                || !state.namespaces.contains(key.holder().as_ref())
+            {
+                return None;
+            }
+        }
+        CommandBindingTransition::Define { .. } | CommandBindingTransition::Unknown { .. } => {
+            return None;
+        }
+    }
+    Some(())
+}
+
+fn known_source(
+    state: &ModuleCommandBindings,
+    name: &str,
+    namespace: &SourceNamespaceKey,
+) -> Option<()> {
+    let keys = state.source_keys_checked(name, namespace).ok()?;
+    let [key] = keys.as_slice() else {
+        return None;
+    };
+    let alternatives = state.binding_alternatives(key);
+    if alternatives.len() != 1 || !matches!(alternatives.first(), Some(MayBinding::Target(_))) {
+        return None;
+    }
+    Some(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analyser::{Analyser, ResolvedAnalysisInput};
+    use crate::command_binding::{
+        SourceAnalysisOptions, SourceCommandSlotPresence, SourceInvocationBinding,
+    };
+
+    fn input() -> ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        )
+    }
+
+    fn final_binding(source: &str, input: &ResolvedAnalysisInput) -> SourceInvocationBinding {
+        let analysis = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, input.analyser_profile().name);
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        let binding = analysis
+            .retained_command_realm()
+            .unwrap()
+            .invocation_at_source("", command.span.start());
+        assert_eq!(binding.logical_source_name_advice_input(), Some(input));
+        assert!(binding.original_recorded_head_name_input().is_none());
+        binding
+    }
+
+    #[test]
+    fn logical_namespace_cell_continuation_keeps_the_independent_storage_facet() {
+        // naming.source.logical-original-operation-transfer
+
+        let input = input();
+        let registry = input.borrowed_context_registry().commands();
+        let options = SourceAnalysisOptions::for_logical_source(&input).unwrap();
+        let binding = final_binding("set", &input);
+        let state = binding.lookup_state.as_ref().unwrap().state.clone();
+        let namespace = state.source_variables.namespace_identity.clone().unwrap();
+        let frame = state.variable_frame.clone();
+        let context = super::super::root_source_execution_context(
+            &frame,
+            &state.source_variables.namespace,
+            &namespace,
+            input.lexer_config(),
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        );
+        let access = crate::var_resolve::resolve_literal_access(
+            "suffix",
+            &state.source_variables,
+            false,
+            registry,
+            tcl_registry::TraceOperation::Write,
+        );
+        let storage = Some(tcl_registry::f5::VariableStorageDomain::InterpreterNamespace);
+        assert_eq!(access.cell.as_ref().unwrap().storage_domain, storage);
+        assert!(logical_cell_is_local(&access, &state, context));
+        assert_eq!(access.cell.as_ref().unwrap().storage_domain, storage);
+        let mut worker = access.clone();
+        worker.cell.as_mut().unwrap().storage_domain =
+            Some(tcl_registry::f5::VariableStorageDomain::WorkerNamespace);
+        assert!(!logical_cell_is_local(&worker, &state, context));
+        let mut foreign = access.clone();
+        foreign.cell.as_mut().unwrap().owner = crate::place::CellOwner::Namespace("::other".into());
+        assert!(!logical_cell_is_local(&foreign, &state, context));
+        // A same-display Native coordinate supplies no authored correspondence.
+        let native = SourceNamespaceKey::Native(
+            tcl_runtime_api::native_compilation::NativeNamespaceContext {
+                interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity {
+                    owner: 37,
+                    interpreter: 13,
+                },
+                token: 99,
+                path: tcl_core_types::ByteNamespacePath::root(),
+            },
+        );
+        assert_eq!(native.display(), namespace.display());
+        let mut native_access = access.clone();
+        native_access.cell.as_mut().unwrap().owner =
+            crate::place::CellOwner::NamespaceIdentity(Box::new(native));
+        assert!(!logical_cell_is_local(&native_access, &state, context));
+        let mut recreated = access.clone();
+        recreated.cell.as_mut().unwrap().generation = crate::place::CellGeneration::After(17);
+        assert!(!logical_cell_is_local(&recreated, &state, context));
+        let mut physical = access.clone();
+        physical.cell.as_mut().unwrap().interpreter = Some("retained interpreter".into());
+        assert!(!logical_cell_is_local(&physical, &state, context));
+        let mut missing = state.clone();
+        super::super::Arc::make_mut(&mut missing.baseline).logical_source_input = None;
+        assert!(!logical_cell_is_local(&access, &missing, context));
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        assert!(!logical_cell_is_local(
+            &access,
+            &state,
+            SourceExecutionContext { config, ..context }
+        ));
+    }
+
+    #[test]
+    fn logical_scalar_continuation_keeps_original_values_and_captured_set_operands() {
+        // naming.source.logical-original-operation-transfer
+
+        let input = input();
+        for source in [
+            "proc foo_hi {} {}; rename foo_hi {}; set suffix _hi; foo$suffix",
+            "proc foo_hi {} {}; rename foo_hi {}; interp alias {} write {} set suffix; write _hi; foo$suffix",
+            "proc foo_é {} {}; rename foo_é {}; interp alias {} ::écrire {} set suffix; ::écrire _é; foo$suffix",
+        ] {
+            let binding = final_binding(source, &input);
+            assert_eq!(
+                binding.selected_slot_diagnostic_presence(),
+                SourceCommandSlotPresence::Absent,
+                "{source}"
+            );
+            assert!(binding.variable_context.execution_name_policy.is_none());
+            assert!(binding.variable_context.interpreter.is_none());
+            assert!(binding.variable_context.execution.is_none());
+        }
+        for source in [
+            "proc foo_hi {} {}; rename foo_hi {}; proc set args {}; set suffix _hi; foo$suffix",
+            "proc foo_hi {} {}; rename foo_hi {}; set suffix $unknown; foo$suffix",
+            "proc foo_hi {} {}; rename foo_hi {}; mystery; set suffix _hi; foo$suffix",
+        ] {
+            assert_eq!(
+                final_binding(source, &input).selected_slot_diagnostic_presence(),
+                SourceCommandSlotPresence::Unknown,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_original_transfers_preserve_unicode_registry_moves_and_aliases() {
+        // naming.source.logical-original-operation-transfer
+
+        // These are conditional authored continuations, not Native rename or
+        // alias execution, abrupt-edge exclusion or successful allocation.
+        let input = input();
+        for source in [
+            "rename proc ::α; ::α subject {} {}; subject",
+            "interp alias {} ::α {} proc; ::α subject {} {}; subject",
+            "rename proc ::α; interp alias {} ::β {} ::α; ::β subject {} {}; subject",
+        ] {
+            let binding = final_binding(source, &input);
+            assert_eq!(
+                binding.selected_slot_diagnostic_presence(),
+                SourceCommandSlotPresence::Present,
+                "{source}"
+            );
+            assert!(binding.variable_context.execution_name_policy.is_none());
+        }
+    }
+
+    #[test]
+    fn logical_original_transfers_preserve_moves_deletes_and_scalar_head_values() {
+        // naming.source.logical-original-operation-transfer
+
+        let input = input();
+        for (source, presence) in [
+            (
+                "proc original {} {}; rename original moved; moved",
+                SourceCommandSlotPresence::Present,
+            ),
+            (
+                "proc original {} {}; rename original moved; original",
+                SourceCommandSlotPresence::Absent,
+            ),
+            (
+                "proc original {} {}; rename original {}; original",
+                SourceCommandSlotPresence::Absent,
+            ),
+            (
+                "proc original {} {}; rename original ::fresh::nested::moved; ::fresh::nested::moved",
+                SourceCommandSlotPresence::Present,
+            ),
+            (
+                "proc foo_hi {} {}; rename foo_hi {}; set suffix _hi; foo$suffix",
+                SourceCommandSlotPresence::Absent,
+            ),
+            (
+                "proc foo_hi {} {}; rename foo_hi {}; set suffix _hi; proc foo_hi {} {}; foo$suffix",
+                SourceCommandSlotPresence::Present,
+            ),
+        ] {
+            assert_eq!(
+                final_binding(source, &input).selected_slot_diagnostic_presence(),
+                presence,
+                "{source}"
+            );
+        }
+        let source = "proc foo_hi {} {}; rename foo_hi {}; set suffix _hi; foo$suffix";
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl");
+        assert_eq!(
+            analysis
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W123)
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn logical_source_prefix_words_keep_actual_alias_lineage_without_name_key_policy() {
+        let mut profile = tcl_registry::model::ingress::resolve_environment("f5-irules")
+            .analyser_profile()
+            .clone();
+        profile.name = "original-logical-source-prefix-without-name-policy";
+        let profile = profile.intern();
+        assert!(
+            tcl_registry::InvocationDialect::of_profile(profile)
+                .authored_name_policy()
+                .is_none()
+        );
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig {
+                escapes: tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                    .analyser_profile()
+                    .grammar
+                    .escapes,
+                ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+            },
+        );
+        for source in [
+            "interp alias {} idx {} string index held; idx 1",
+            "interp alias {} inner {} string index held; interp alias {} idx {} inner; idx 1",
+        ] {
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "presentation-only");
+            let offset = u32::try_from(source.rfind("idx 1").unwrap()).unwrap();
+            let binding = analysis
+                .retained_command_realm()
+                .unwrap()
+                .invocation_at_source("", offset);
+            let [target] = binding.targets.as_slice() else {
+                panic!("actual single Logical alias target")
+            };
+            let image = tcl_lexer::SourceImage::document(source);
+            let original = target
+                .original_logical_prepended_source_inputs(&input, &image, input.lexer_config())
+                .expect("actual original Source words without a donated naming policy");
+            assert_eq!(
+                original
+                    .iter()
+                    .map(|input| input.bytes())
+                    .collect::<Vec<_>>(),
+                [b"index".as_slice(), b"held".as_slice()]
+            );
+            assert!(
+                original
+                    .iter()
+                    .all(|word| word.original_word().span().start() < offset)
+            );
+            assert!(target.original_prepended_name_inputs().is_none());
+            assert!(
+                target
+                    .original_logical_prepended_name_inputs(&input, &image, input.lexer_config())
+                    .is_none()
+            );
+            let words = crate::registry_invocation::source_structure::source_registry_words_at(
+                source, &analysis, offset,
+            )
+            .expect("readonly original alias source schema");
+            assert_eq!(words.command(), "string");
+            assert_eq!(words.arguments().len(), 3);
+            assert!(words.operands()[0].is_none() && words.operands()[1].is_none());
+            assert_eq!(
+                words.operands()[2].as_ref().unwrap().span().start(),
+                offset + 4
+            );
+            let mut config = input.lexer_config();
+            config.strict_quoting ^= true;
+            assert!(
+                target
+                    .original_logical_prepended_source_inputs(&input, &image, config)
+                    .is_none()
+            );
+            assert!(
+                target
+                    .original_logical_prepended_source_inputs(
+                        &input,
+                        &tcl_lexer::SourceImage::document(&source.replace("held", "away")),
+                        input.lexer_config()
+                    )
+                    .is_none()
+            );
+            let foreign = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::ingress::resolve_environment("tcl8.4")
+                    .default_context_registry(),
+                input.lexer_config(),
+            );
+            assert!(
+                target
+                    .original_logical_prepended_source_inputs(
+                        &foreign,
+                        &image,
+                        input.lexer_config()
+                    )
+                    .is_none()
+            );
+            let mut missing = target.clone();
+            missing.logical_original_prefix = None;
+            assert!(
+                missing
+                    .original_logical_prepended_source_inputs(&input, &image, input.lexer_config())
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn logical_captured_prefix_keeps_original_words_without_native_prefix_permission() {
+        for source in [
+            "interp alias {} branch {} if 1\nbranch {puts $value}",
+            "interp alias {} inner {} if 1\ninterp alias {} branch {} inner\nbranch {puts $value}",
+        ] {
+            let input = input();
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "tcl");
+            let head = u32::try_from(source.rfind("branch {").unwrap()).unwrap();
+            let binding = analysis
+                .retained_command_realm()
+                .unwrap()
+                .invocation_at_source("", head);
+            let [target] = binding.targets.as_slice() else {
+                panic!("one actual Logical alias target")
+            };
+            let image = tcl_lexer::SourceImage::document(source);
+            let captured = target
+                .original_logical_prepended_name_inputs(&input, &image, input.lexer_config())
+                .unwrap();
+            assert_eq!(captured.len(), 1);
+            assert_eq!(captured[0].bytes(), b"1");
+            assert_eq!(
+                captured[0].policy().authority(),
+                tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+            );
+            assert_eq!(
+                captured[0]
+                    .original_word_key()
+                    .unwrap()
+                    .original_word()
+                    .image(),
+                &image
+            );
+            assert!(target.original_prepended_name_inputs().is_none());
+            assert!(binding.proved_handler_target().is_none());
+            let stale = tcl_lexer::SourceImage::document(&format!("{source} "));
+            assert!(
+                target
+                    .original_logical_prepended_name_inputs(&input, &stale, input.lexer_config())
+                    .is_none()
+            );
+            let mut changed = input.lexer_config();
+            changed.strict_quoting = !changed.strict_quoting;
+            assert!(
+                target
+                    .original_logical_prepended_name_inputs(&input, &image, changed)
+                    .is_none()
+            );
+            let foreign = ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                Arc::new(
+                    input.context_registry().with_command_store(
+                        input
+                            .context_registry()
+                            .commands()
+                            .snapshot()
+                            .shared_registry(),
+                    ),
+                ),
+                input.lexer_config(),
+            );
+            assert!(
+                target
+                    .original_logical_prepended_name_inputs(&foreign, &image, input.lexer_config())
+                    .is_none()
+            );
+            let mut changed = target.clone();
+            changed.prepended[0] =
+                crate::registry_invocation::EffectiveInvocationWord::Literal("0".to_owned());
+            assert!(
+                changed
+                    .original_logical_prepended_name_inputs(&input, &image, input.lexer_config())
+                    .is_none()
+            );
+            let state = &binding.lookup_state.as_ref().unwrap().state;
+            let cloned = state.clone();
+            assert!(
+                target
+                    .logical_original_prefix
+                    .as_ref()
+                    .unwrap()
+                    .matches_state(&cloned)
+            );
+            let mut missing = cloned.clone();
+            missing.logical_alias_prefixes = Arc::new(std::collections::BTreeMap::new());
+            assert_ne!(&missing, state);
+            let mut joined = cloned;
+            joined.join(&missing);
+            let unavailable = super::source_binding_projection(
+                &joined,
+                "branch",
+                &SourceNamespaceKey::authored("::"),
+            );
+            assert!(unavailable.targets.iter().all(|target| {
+                target
+                    .original_logical_prepended_name_inputs(&input, &image, input.lexer_config())
+                    .is_none()
+            }));
+        }
+    }
+
+    #[test]
+    fn logical_original_alias_capture_composes_registry_operations_at_the_call() {
+        // naming.source.logical-original-operation-transfer
+
+        let input = input();
+        for source in [
+            "proc victim {} {}; interp alias {} drop {} rename victim; drop {}; victim",
+            "proc foo_hi {} {}; rename foo_hi {}; interp alias {} write {} set suffix; write _hi; foo$suffix",
+            "proc victim {} {}; interp alias {} inner {} rename; interp alias {} outer {} inner victim; outer {}; victim",
+        ] {
+            assert_eq!(
+                final_binding(source, &input).selected_slot_diagnostic_presence(),
+                SourceCommandSlotPresence::Absent,
+                "{source}"
+            );
+        }
+        let source = "interp alias {} ensure {} package require; ensure Tcl";
+        let binding = final_binding(source, &input);
+        assert_eq!(binding.targets.len(), 1);
+        assert!(binding.targets[0].registry_backed);
+        assert_eq!(
+            binding.targets[0].prepended,
+            vec![crate::registry_invocation::EffectiveInvocationWord::Literal("require".into())]
+        );
+        assert!(binding.original_recorded_head_name_input().is_none());
+    }
+
+    #[test]
+    fn logical_dispatch_projection_keeps_exact_targets_without_native_receipts() {
+        // naming.source.logical-original-operation-transfer
+
+        let input = input();
+        for (source, captured) in [
+            ("package require Tcl", false),
+            (
+                "interp alias {} ensure {} package require; ensure Tcl",
+                true,
+            ),
+            (
+                "interp alias {} ::assuré {} package require; ::assuré Tcl",
+                true,
+            ),
+        ] {
+            let binding = final_binding(source, &input);
+            let target = binding
+                .proved_target()
+                .expect("original Logical source target");
+            assert!(target.registry_backed, "{source}");
+            assert_eq!(
+                target.prepended,
+                if captured {
+                    vec![
+                        crate::registry_invocation::EffectiveInvocationWord::Literal(
+                            "require".into(),
+                        ),
+                    ]
+                } else {
+                    Vec::new()
+                },
+                "{source}",
+            );
+            assert!(binding.original_recorded_head_name_input().is_none());
+            assert!(binding.proved_handler_target().is_none());
+            assert!(binding.proved_execution_target().is_none());
+            assert!(binding.native_handler_envelope.is_none());
+            assert!(binding.native_compiler_admission.is_none());
+            assert!(binding.variable_context.execution_name_policy.is_none());
+            assert!(binding.variable_context.interpreter.is_none());
+            assert!(binding.variable_context.execution.is_none());
+        }
+    }
+
+    #[test]
+    fn logical_dispatch_projection_refuses_missing_changed_and_uninterpreted_owners() {
+        // naming.source.logical-original-operation-transfer
+
+        use crate::command_binding::SourceCommandBindings;
+        use crate::registry_invocation::OwnedInvocationMetadataContext;
+        let input = input();
+        let actual = input.context_registry();
+        let source = "interp alias {} ensure {} package require; ensure Tcl";
+        let offset = u32::try_from(source.rfind("ensure Tcl").unwrap()).unwrap();
+        let bindings = SourceCommandBindings::analyse_with_options(
+            source,
+            input.lexer_config(),
+            actual.commands(),
+            SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+        );
+        // The caller's reporting name never selects the target. The immutable
+        // point retains the original interpreted head at this exact source site.
+        assert!(
+            bindings
+                .invocation_at_source("different", offset)
+                .proved_target()
+                .is_some()
+        );
+        let foreign = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        );
+        let mut changed_config = input.lexer_config();
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        let changed = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            Arc::clone(&actual),
+            changed_config,
+        );
+        for (label, owner) in [
+            (
+                "missing metadata",
+                OwnedInvocationMetadataContext::Unavailable,
+            ),
+            (
+                "standalone metadata",
+                OwnedInvocationMetadataContext::Standalone,
+            ),
+            (
+                "foreign store",
+                OwnedInvocationMetadataContext::for_source_input(Some(&foreign)),
+            ),
+            (
+                "changed grammar",
+                OwnedInvocationMetadataContext::for_source_input(Some(&changed)),
+            ),
+        ] {
+            let mut withdrawn = bindings.clone();
+            let indices = withdrawn.dispatch_points.get(&offset).unwrap().clone();
+            for index in indices {
+                let point = &mut withdrawn.points[index];
+                Arc::make_mut(&mut point.state.baseline).metadata_context = owner.clone();
+                point.lookup_snapshot = std::sync::OnceLock::new();
+            }
+            let binding = withdrawn.invocation_at_source("ensure", offset);
+            assert!(binding.unknown, "{label}");
+            assert!(binding.targets.is_empty(), "{label}");
+            assert!(binding.declared_command.is_none(), "{label}");
+            assert!(binding.catalogue_command.is_none(), "{label}");
+            assert!(
+                binding.original_recorded_head_name_input().is_none(),
+                "{label}"
+            );
+            assert!(binding.proved_handler_target().is_none(), "{label}");
+        }
+        for withdraw_head in [false, true] {
+            let mut withdrawn = bindings.clone();
+            let indices = withdrawn.dispatch_points.get(&offset).unwrap().clone();
+            for index in indices {
+                let point = &mut withdrawn.points[index];
+                if withdraw_head {
+                    point.head = None;
+                } else {
+                    Arc::make_mut(&mut point.state.baseline).logical_source_input = None;
+                }
+                point.lookup_snapshot = std::sync::OnceLock::new();
+            }
+            let binding = withdrawn.invocation_at_source("ensure", offset);
+            assert!(binding.unknown);
+            assert!(binding.targets.is_empty());
+            assert!(binding.proved_handler_target().is_none());
+        }
+        let dynamic = final_binding(
+            "interp alias {} ensure {} package require; $unknown Tcl",
+            &input,
+        );
+        assert!(dynamic.unknown);
+        assert!(dynamic.targets.is_empty());
+    }
+
+    #[test]
+    fn native_source_dispatch_requires_its_independent_original_head_receipt() {
+        // naming.source.logical-original-operation-transfer
+
+        // This checks the selected source recipe's gate, without a Native
+        // process, entered handler, frame, value or Normal-completion claim.
+        use crate::command_binding::SourceCommandBindings;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let native = ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
+        assert!(!native.has_logical_source_name_context());
+        let mut bindings = SourceCommandBindings::analyse_with_options(
+            "package require Tcl",
+            config,
+            context.commands(),
+            SourceAnalysisOptions {
+                metadata_context:
+                    crate::registry_invocation::InvocationMetadataInput::SuppliedSource(Some(
+                        &native,
+                    )),
+                invocation_dialect: Some(
+                    super::super::source_analysis_entry::source_input_dialect(&native),
+                ),
+                ..Default::default()
+            },
+        );
+        let original = bindings.invocation_at_source("package", 0);
+        assert!(original.logical_source_name_advice_input().is_none());
+        assert!(original.original_recorded_head_name_input().is_some());
+        assert!(original.proved_target().is_some());
+        let indices = bindings.dispatch_points.get(&0).unwrap().clone();
+        for index in indices {
+            let point = &mut bindings.points[index];
+            point.original_head_input = None;
+            point.lookup_snapshot = std::sync::OnceLock::new();
+        }
+        let withdrawn = bindings.invocation_at_source("package", 0);
+        assert!(withdrawn.unknown);
+        assert!(withdrawn.targets.is_empty());
+        assert!(withdrawn.declared_command.is_none());
+        assert!(withdrawn.catalogue_command.is_none());
+    }
+
+    #[test]
+    fn logical_original_operation_refusals_do_not_recover_from_reporting_state() {
+        // naming.source.logical-original-operation-transfer
+
+        let input = input();
+        for source in [
+            "proc victim {} {}; mystery; rename victim {}; victim",
+            "proc victim {} {}; rename $which {}; victim",
+            "proc victim {} {}; proc rename args {}; rename victim {}; victim",
+            "proc victim {} {}; interp alias {} drop foreign rename victim; drop {}; victim",
+            "proc victim {} {}; interp alias {} drop {} rename victim; proc rename args {}; drop {}; victim",
+            "proc victim {} {}; proc occupied {} {}; rename victim occupied; victim",
+            "proc foo_hi {} {}; rename foo_hi {}; set suffix(index) _hi; foo$suffix",
+            "proc foo_hi {} {}; rename foo_hi {}; set suffix $unknown; foo$suffix",
+            "proc victim {} {}; trace add command victim delete observer; rename victim {}; victim",
+            "proc foo_hi {} {}; rename foo_hi {}; trace add variable suffix write observer; set suffix _hi; foo$suffix",
+            "interp alias {} cycle {} cycle; proc victim {} {}; victim",
+        ] {
+            assert_ne!(
+                final_binding(source, &input).selected_slot_diagnostic_presence(),
+                SourceCommandSlotPresence::Absent,
+                "{source}"
+            );
+        }
+    }
+
+    fn with_store_fixture(
+        test: impl FnOnce(
+            &crate::ir::CommandTokens,
+            &SourceCommandTarget,
+            ModuleCommandBindings,
+            SourceExecutionContext<'_>,
+        ),
+    ) {
+        let input = input();
+        let actual = input.context_registry();
+        let registry = actual.commands();
+        let options = SourceAnalysisOptions {
+            logical_source_input: Some(&input),
+            invocation_dialect: Some(super::super::source_analysis_entry::source_input_dialect(
+                &input,
+            )),
+            ..SourceAnalysisOptions::default()
+        };
+        let bindings = super::super::SourceCommandBindings::analyse_with_options(
+            "set suffix _hi",
+            input.lexer_config(),
+            registry,
+            options,
+        );
+        let mut points = bindings.dispatch_points_at(0);
+        let point = points.next().expect("genuine before-set source point");
+        assert!(points.next().is_none());
+        assert_eq!(point.head.as_deref(), Some("set"));
+        let state = point.state.clone();
+        assert_eq!(state.logical_source_name_advice_input(), Some(&input));
+        let image = state.current_source_origin.as_ref().unwrap().source_image();
+        let namespace = point.namespace_key.clone();
+        let frame = state.variable_frame.clone();
+        assert_eq!(
+            state.source_variables.namespace_identity.as_ref(),
+            Some(&namespace)
+        );
+        let context = super::super::root_source_execution_context(
+            &frame,
+            &point.namespace,
+            &namespace,
+            input.lexer_config(),
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        );
+        let command = crate::segmenter::segment_commands_image_with_offset_and_config(
+            image,
+            0,
+            context.config,
+        )
+        .unwrap()
+        .remove(0);
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_image(image),
+            context.config,
+            &command,
+        );
+        let selected = point.lookup_binding("set");
+        assert!(!selected.unknown && !selected.may_be_absent);
+        assert_eq!(selected.targets.len(), 1);
+        test(&tokens, &selected.targets[0], state, context);
+    }
+
+    #[test]
+    fn logical_original_store_transfer_retains_source_purpose_without_native_normal() {
+        // naming.source.logical-original-operation-transfer
+
+        with_store_fixture(|tokens, target, state, context| {
+            let outcomes =
+                transfer(tokens.words(), target, 0, &mut state.clone(), context).unwrap();
+            assert!(outcomes.normal_completion.is_none());
+            assert!(outcomes.native_normal_completion.is_none());
+            let normal = outcomes.normal.unwrap();
+            assert_eq!(normal.original_command_world, state.original_command_world);
+            assert_eq!(
+                normal
+                    .source_variables
+                    .literal_value("suffix", context.registry),
+                Some("_hi")
+            );
+        });
+    }
+
+    #[test]
+    fn logical_original_store_transfer_refuses_observers_foreign_and_missing_owners() {
+        // naming.source.logical-original-operation-transfer
+
+        with_store_fixture(|tokens, target, state, context| {
+            for dynamic in [false, true] {
+                let mut observed = state.clone();
+                Arc::make_mut(&mut observed.source_variables).dynamic_traces = dynamic;
+                Arc::make_mut(&mut observed.source_variables).dynamic_bindings = !dynamic;
+                assert!(transfer(tokens.words(), target, 0, &mut observed, context).is_none());
+            }
+            let mut foreign = state.clone();
+            foreign.current_source_origin =
+                Some(Arc::new(super::super::SourceOriginId::authored_image(
+                    tcl_lexer::SourceImage::document("set foreign _hi"),
+                )));
+            assert!(transfer(tokens.words(), target, 0, &mut foreign, context).is_none());
+            let mut config = context.config;
+            config.strict_quoting = !config.strict_quoting;
+            assert!(
+                transfer(
+                    tokens.words(),
+                    target,
+                    0,
+                    &mut state.clone(),
+                    SourceExecutionContext { config, ..context }
+                )
+                .is_none()
+            );
+            let mut missing = state.clone();
+            Arc::make_mut(&mut missing.baseline).logical_source_input = None;
+            assert!(transfer(tokens.words(), target, 0, &mut missing, context).is_none());
+            let mut foreign_cell = state.clone();
+            let mut selected_cell = crate::var_resolve::resolve_literal_access(
+                "suffix",
+                &state.source_variables,
+                false,
+                context.registry,
+                tcl_registry::TraceOperation::Write,
+            );
+            selected_cell.cell.as_mut().unwrap().owner =
+                crate::place::CellOwner::Namespace("::other".into());
+            Arc::make_mut(&mut foreign_cell.source_variables)
+                .alias_bindings
+                .insert("suffix", selected_cell);
+            assert!(transfer(tokens.words(), target, 0, &mut foreign_cell, context).is_none());
+            let mut foreign_frame = state.clone();
+            foreign_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+                namespace: "::".into(),
+                identity: "other-activation".into(),
+            };
+            assert!(transfer(tokens.words(), target, 0, &mut foreign_frame, context).is_none());
+            for dialect in [
+                "tcl8.4",
+                "tcl8.5",
+                "tcl8.6",
+                "tcl9.0",
+                "tcl9.1",
+                "jim",
+                "f5-irules",
+            ] {
+                let ingress = tcl_registry::model::ingress::resolve_environment(dialect);
+                let profile = ingress.analyser_profile();
+                let native = ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    ingress.default_context_registry(),
+                    tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                );
+                let options = SourceAnalysisOptions {
+                    logical_source_input: Some(&native),
+                    invocation_dialect: Some(
+                        super::super::source_analysis_entry::source_input_dialect(&native),
+                    ),
+                    ..SourceAnalysisOptions::default()
+                };
+                let mut outside = ModuleCommandBindings::initial_with_options(
+                    context.registry,
+                    options,
+                    Some(native.lexer_config()),
+                );
+                outside.current_source_origin = state.current_source_origin.clone();
+                assert!(
+                    transfer(tokens.words(), target, 0, &mut outside, context).is_none(),
+                    "{dialect}"
+                );
+            }
+        });
+    }
+}

@@ -826,7 +826,11 @@ fn did_rename_files_retires_the_old_path_and_keeps_source_rehoming() {
     let before = "namespace eval ::ns {\n    source sourced_old.tcl\n}\n::ns::rehomed_marker\n";
     std::fs::write(&main_path, before).expect("write main");
 
-    let uri_of = |p: &std::path::Path| format!("file://{}", p.to_string_lossy());
+    let uri_of = |p: &std::path::Path| {
+        tcl_lsp_server::canonical_file_uri(p)
+            .expect("fixture path has a representable file URI")
+            .to_string()
+    };
     let (old_uri, new_uri, main_uri) = (uri_of(&old_path), uri_of(&new_path), uri_of(&main_path));
 
     let mut lsp = Lsp::at_workspace_root(&root);

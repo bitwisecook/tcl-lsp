@@ -20,7 +20,7 @@
 //! existing `tests/codegen.rs` leaves thin:
 //!
 //! - `src/codegen/backend.rs` — the agnostic `Backend` trait + the
-//!   `BytecodeBackend` impl (0% before).
+//!   `BytecodeBackend` impl.
 //! - `src/codegen/control_flow.rs` — catch/try lowering: `emit_catch_*`,
 //!   `emit_try_on_error_inline`, `emit_try_finally_inline`,
 //!   `detect_const_expr_error`.
@@ -60,12 +60,16 @@
 //! functions; this one covers the *lowering branches* those tests skip, and the
 //! `Backend`-trait entry points they never touch.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::{fixture_id, fixture_id_if_present};
+
 use tcl_compiler::cfg::{CfgModule, Function as CfgFunction, Terminator};
 use tcl_compiler::cfg_builder::{build_cfg, build_cfg_codegen};
 use tcl_compiler::codegen::{
     Backend, BytecodeBackend, CodegenCtx, FunctionAsm, ModuleAsm, Op, Operand,
 };
-use tcl_compiler::ir::{Module as IrModule, Procedure, Statement};
+use tcl_compiler::ir::{Module as IrModule, Statement};
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 
@@ -84,7 +88,9 @@ fn module_via_backend(source: &str) -> (ModuleAsm, IrModule) {
     let ir = lower_to_ir(source, &reg);
     let cfg = build_cfg_codegen(&ir, true);
     let mut backend = BytecodeBackend;
-    let asm = backend.lower_module(&cfg, &ir, &reg);
+    let asm = backend
+        .lower_module(&cfg, &ir, &reg)
+        .expect("original source namespace");
     (asm, ir)
 }
 
@@ -96,14 +102,18 @@ fn module_inline_via_backend(source: &str) -> ModuleAsm {
     let ir = lower_to_ir(source, &reg);
     let cfg = build_cfg(&ir, false);
     let mut backend = BytecodeBackend;
-    backend.lower_module(&cfg, &ir, &reg)
+    backend
+        .lower_module(&cfg, &ir, &reg)
+        .expect("original source namespace")
 }
 
 /// The `FunctionAsm` for a named procedure, lowered through the backend.
 fn proc_via_backend(source: &str, qname: &str) -> FunctionAsm {
-    module_inline_via_backend(source)
+    let mut module = module_inline_via_backend(source);
+    let id = fixture_id(&module.procedures, qname);
+    module
         .procedures
-        .remove(qname)
+        .remove(&id)
         .unwrap_or_else(|| panic!("procedure {qname} not found"))
 }
 
@@ -141,8 +151,15 @@ fn backend_lower_module_names_top_level() {
     // module artifact shape (top-level named `::top`, the proc present).
     let (asm, _) = module_via_backend("proc add {a b} { return [expr {$a + $b}] }\nadd 1 2");
     assert_eq!(asm.top_level.name, "::top");
-    assert!(asm.procedures.contains_key("::add"));
-    assert!(opcodes(&asm.procedures["::add"]).contains(&Op::ADD));
+    assert!(fixture_id_if_present(&asm.procedures, "::add").is_some());
+    assert!(
+        opcodes(
+            asm.procedures
+                .get(&fixture_id(&asm.procedures, "::add"))
+                .expect("authored fixture body")
+        )
+        .contains(&Op::ADD)
+    );
     // The top-level script ends cleanly with done.
     assert_eq!(asm.top_level.instructions.last().unwrap().op, Op::DONE);
 }
@@ -159,16 +176,16 @@ fn backend_lower_module_empty() {
 
 #[test]
 fn backend_associated_types_are_function_and_module_asm() {
-    // The trait's associated artifact types are `FunctionAsm` / `ModuleAsm`.
-    // Bind them explicitly so the test fails to compile if the impl's
-    // associated types ever drift.
+    // Function emission returns its assembly; whole-module emission explicitly
+    // carries unavailable source namespace errors before yielding assembly.
     let reg = registry();
     let ir = lower_to_ir("set x 1", &reg);
     let cfg = build_cfg_codegen(&ir, true);
     let mut backend = BytecodeBackend;
     let f: <BytecodeBackend as Backend>::FuncArtifact =
-        backend.lower_function(&cfg.top_level, &[], false, &[], &reg);
+        backend.lower_function(&cfg.top_level, &[], false, &reg);
     let m: <BytecodeBackend as Backend>::ModuleArtifact = backend.lower_module(&cfg, &ir, &reg);
+    let m = m.expect("original source namespace");
     assert_eq!(f.name, "::top");
     assert_eq!(m.top_level.name, "::top");
 }
@@ -180,9 +197,12 @@ fn backend_lower_function_proc_flavour_uses_lvt() {
     let reg = registry();
     let ir = lower_to_ir("proc id {x} { return $x }", &reg);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::id"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::id"))
+        .expect("authored fixture body");
     let mut backend = BytecodeBackend;
-    let fa = backend.lower_function(proc_cfg, &["x"], true, &[], &reg);
+    let fa = backend.lower_function(proc_cfg, &["x"], true, &reg);
     let ops = opcodes(&fa);
     assert!(
         ops.contains(&Op::LOAD_SCALAR1),
@@ -200,7 +220,7 @@ fn backend_lower_function_script_flavour_uses_stack() {
     let ir = lower_to_ir("set x 1", &reg);
     let cfg = build_cfg(&ir, false);
     let mut backend = BytecodeBackend;
-    let fa = backend.lower_function(&cfg.top_level, &[], false, &[], &reg);
+    let fa = backend.lower_function(&cfg.top_level, &[], false, &reg);
     let ops = opcodes(&fa);
     assert!(ops.contains(&Op::PUSH1));
     assert!(
@@ -211,34 +231,61 @@ fn backend_lower_function_script_flavour_uses_stack() {
 }
 
 #[test]
-fn backend_lower_function_interleaves_proc_defs() {
-    // The `proc_defs` parameter interleaves pending proc definitions into the
-    // top-level stream (the same job `codegen_module` does). Driving it through
-    // the trait with a populated `proc_defs` slice emits the `proc` definition
-    // command (a `proc <name> <args> <body>` invoke) inline.
+fn backend_lower_module_retains_original_declaration_order_and_body_identity() {
     let reg = registry();
-    let ir = lower_to_ir("proc foo {} { return 1 }\nfoo", &reg);
+    let source =
+        "set before BEFORE\nproc foo {{x {a b}}} { return [list $x] }\nset after AFTER\nfoo";
+    let ir = lower_to_ir(source, &reg);
     let cfg = build_cfg_codegen(&ir, true);
-    let proc_defs: Vec<Procedure> = ir.procedures.values().cloned().collect();
-    assert!(
-        !proc_defs.is_empty(),
-        "expected a pending proc def to interleave"
-    );
+    assert_eq!(ir.procedures.len(), 1);
+    let (body_id, procedure) = ir.procedures.iter().next().unwrap();
     let mut backend = BytecodeBackend;
-    let top = backend.lower_function(&cfg.top_level, &[], false, &proc_defs, &reg);
-    // The interleaved proc definition pushes the literal `proc` + the proc name
-    // and invokes — distinct from the no-proc-defs lowering of the same CFG.
+    let module = backend
+        .lower_module(&cfg, &ir, &reg)
+        .expect("original source namespace");
+    let top = &module.top_level;
     let lits = top.literals.entries();
     assert!(
-        lits.iter().any(|l| l == "proc"),
-        "proc-def literal `proc`: {lits:?}"
+        lits.iter().any(|literal| literal == "proc"),
+        "original declaration head: {lits:?}"
     );
     assert!(
-        lits.iter().any(|l| l == "foo"),
-        "proc-def names `foo`: {lits:?}"
+        lits.iter().any(|literal| literal == "foo"),
+        "original declaration name: {lits:?}"
     );
-    assert!(opcodes(&top).contains(&Op::INVOKE_STK1));
+    assert!(
+        lits.iter().any(|literal| literal == " return [list $x] "),
+        "braced body remains literal data: {lits:?}"
+    );
+    assert!(opcodes(top).contains(&Op::INVOKE_STK1));
     assert_eq!(top.instructions.last().unwrap().op, Op::DONE);
+    assert!(module.procedures.contains_key(body_id));
+    assert_eq!(
+        module.procedure_provenance[body_id].body,
+        procedure.body_source.as_deref().unwrap()
+    );
+    let source_commands = top
+        .instructions
+        .iter()
+        .filter(|instruction| instruction.source_command_boundary.is_start())
+        .map(|instruction| instruction.source_cmd_text.bytes())
+        .collect::<Vec<_>>();
+    let before = source_commands
+        .iter()
+        .position(|command| command.starts_with(b"set before"))
+        .unwrap();
+    let declaration = source_commands
+        .iter()
+        .position(|command| command.starts_with(b"proc foo"))
+        .unwrap();
+    let after = source_commands
+        .iter()
+        .position(|command| command.starts_with(b"set after"))
+        .unwrap();
+    assert!(
+        before < declaration && declaration < after,
+        "original declaration order: {source_commands:?}"
+    );
 }
 
 #[test]
@@ -251,8 +298,12 @@ fn backend_default_and_copy() {
     let cfg = build_cfg_codegen(&ir, true);
     let mut a = BytecodeBackend;
     let mut b = BytecodeBackend::default();
-    let asm_a = a.lower_module(&cfg, &ir, &reg);
-    let asm_b = b.lower_module(&cfg, &ir, &reg);
+    let asm_a = a
+        .lower_module(&cfg, &ir, &reg)
+        .expect("original source namespace");
+    let asm_b = b
+        .lower_module(&cfg, &ir, &reg)
+        .expect("original source namespace");
     assert_eq!(
         opcodes(&asm_a.top_level),
         opcodes(&asm_b.top_level),
@@ -477,7 +528,12 @@ fn catch_body_empty_pushes_empty() {
         vec![Op::PUSH1],
         "empty catch body → single push of empty"
     );
-    assert!(ctx.literals.entries().iter().any(String::is_empty));
+    assert!(
+        ctx.literals
+            .entries()
+            .iter()
+            .any(tcl_bytecode::NativeStringLiteral::is_empty)
+    );
 }
 
 #[test]
@@ -586,7 +642,10 @@ fn try_finally_cfg_chain_present() {
         &reg,
     );
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::c"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::c"))
+        .expect("authored fixture body");
     let names = proc_cfg.block_names();
     assert!(
         names.iter().any(|n| n.starts_with("try_body_")),
@@ -708,7 +767,7 @@ fn try_on_error_inline_direct() {
     let lvt = ctx.lvt.entries();
     assert!(lvt.iter().any(|v| v == "msg"), "handler var slot: {lvt:?}");
     assert!(
-        lvt.iter().any(|v| v.starts_with("#temp")),
+        lvt.iter().any(|v| v.starts_with(b"#temp")),
         "temp opts/result slots: {lvt:?}"
     );
 }
@@ -738,7 +797,7 @@ fn try_on_error_handler_var_is_first_slot() {
         .expect("errVar in LVT");
     let temp_idx = lvt
         .iter()
-        .position(|v| v.starts_with("#temp"))
+        .position(|v| v.starts_with(b"#temp"))
         .expect("temp in LVT");
     assert!(err_idx < temp_idx, "handler var precedes temps: {lvt:?}");
 }
@@ -1194,6 +1253,8 @@ fn toplevel_cfg(statements: Vec<Statement>) -> CfgFunction {
     let blk = cfg.blocks.get_mut(&entry).unwrap();
     blk.statements = statements;
     blk.terminator = Some(Terminator::Return {
+        expr_base: None,
+        tokens: None,
         value: None,
         value_word: None,
         span: None,
@@ -1216,7 +1277,7 @@ fn backend_lower_function_handbuilt_assign_const() {
         value_span: None,
     }]);
     let mut backend = BytecodeBackend;
-    let fa = backend.lower_function(&cfg, &[], false, &[], &reg);
+    let fa = backend.lower_function(&cfg, &[], false, &reg);
     let ops = opcodes(&fa);
     assert!(ops.contains(&Op::PUSH1));
     assert!(ops.contains(&Op::STORE_STK));
@@ -1234,7 +1295,9 @@ fn backend_lower_module_handbuilt_empty_module() {
     };
     let ir = lower_to_ir("", &reg);
     let mut backend = BytecodeBackend;
-    let asm = backend.lower_module(&cfg_mod, &ir, &reg);
+    let asm = backend
+        .lower_module(&cfg_mod, &ir, &reg)
+        .expect("original source namespace");
     assert_eq!(asm.top_level.name, "::top");
     assert!(asm.procedures.is_empty());
     // An empty hand-built top-level block ends with `returnImm` (the explicit

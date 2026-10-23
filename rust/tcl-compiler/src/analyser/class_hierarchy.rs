@@ -27,6 +27,9 @@
 //! Inspired by the CHA techniques used in LLVM and JVM `HotSpot`
 //! for devirtualisation and call graph construction.
 
+/// Original byte-joined relation order for source declaration assistance.
+pub mod original_metadata;
+
 use std::collections::{HashMap, HashSet};
 
 use super::mro::{build_mro_map, tcloo_linearise};
@@ -41,28 +44,208 @@ pub const CONSTRUCTOR_MEMBER: &str = "<constructor>";
 /// [`CONSTRUCTOR_MEMBER`]'s twin for a `destructor` body.
 pub const DESTRUCTOR_MEMBER: &str = "<destructor>";
 
-/// The member of `class_def` named `member`, treating the two nameless
-/// slots by their synthetic labels ([`CONSTRUCTOR_MEMBER`] /
-/// [`DESTRUCTOR_MEMBER`]) and an ordinary name as an instance method,
-/// then a class-side one.
-///
-/// The lookup every `next`-resolution consumer needs once
-/// [`ClassHierarchy::member_next_provider`] has named the providing class:
-/// keeping it here means a constructor's `MethodDef` is fetched the same
-/// way in go-to-definition, find-references, and the arity check. The
-/// *effective* constructor is the last declared one, the
-/// same "most recent declaration wins" rule
-/// [`ClassHierarchy::constructor_provider`] applies.
+/// Source-selected member axis, independent of runtime receiver or dispatch.
+/// Ordinary names never stand for a nameless lifecycle slot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SourceMemberKind {
+    /// Actual ordinary member name and its own definition table.
+    Method {
+        /// Retained source name value, not a lifecycle display label.
+        name: String,
+        /// Instance versus class-object definition table.
+        side: super::types::MemberSide,
+    },
+    /// Native source naming units retain their genuine original producer and
+    /// policy; they are not decoded as Unicode report text.
+    NativeMethod {
+        /// Actual canonical declared name input, without a new byte recipe.
+        input: crate::signature_scan::scope::SignatureSourceNameInput,
+        /// Actual definition receiver table, independent of receiver entry.
+        side: super::types::MemberSide,
+    },
+    /// Independently selected Registry lifecycle declaration role.
+    Special(tcl_registry::definer::DefinitionSpecialMemberKind),
+}
+
+/// Read a typed source member slot from the selected class snapshot.
+/// This supplies reporting metadata, without entered receiver or MRO authority.
 #[must_use]
-pub fn class_member_def<'a>(class_def: &'a ClassDef, member: &str) -> Option<&'a MethodDef> {
+pub fn class_member_def(class_def: &ClassDef, member: &SourceMemberKind) -> Option<MethodDef> {
+    use super::types::MemberSide;
+    use tcl_registry::definer::DefinitionSpecialMemberKind;
     match member {
-        CONSTRUCTOR_MEMBER => class_def.constructors.last(),
-        DESTRUCTOR_MEMBER => class_def.destructor.as_ref(),
-        _ => class_def
-            .methods
-            .get(member)
-            .or_else(|| class_def.class_methods.get(member)),
+        SourceMemberKind::Special(DefinitionSpecialMemberKind::Constructor) => {
+            class_def.constructors.last().cloned()
+        }
+        SourceMemberKind::Special(DefinitionSpecialMemberKind::Destructor) => {
+            class_def.destructor.clone()
+        }
+        SourceMemberKind::Method {
+            name,
+            side: MemberSide::Instance,
+        } => class_def.methods.get(name).cloned(),
+        SourceMemberKind::Method {
+            name,
+            side: MemberSide::ClassObject,
+        } => class_def.class_methods.get(name).cloned(),
+        SourceMemberKind::NativeMethod { input, side } => {
+            native_source_member_def(class_def, *side, input)?
+        }
     }
+}
+
+fn native_source_member_def(
+    class: &ClassDef,
+    side: super::types::MemberSide,
+    input: &crate::signature_scan::scope::SignatureSourceNameInput,
+) -> Option<Option<MethodDef>> {
+    // Missing source inventory is not absence and cannot skip a provider.
+    let _complete = class.original_members.methods(side)?;
+    Some(
+        class
+            .original_members
+            .method_for_input(side, input)
+            .map(|method| method.metadata().clone()),
+    )
+}
+
+/// Reborrow the actual source member enclosing this current occurrence.
+/// Conditional Logical syntax remains source advice, never an entered frame.
+#[must_use]
+pub fn original_source_member_at(
+    analysis: &super::types::AnalysisResult,
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    cursor: u32,
+) -> Option<(String, SourceMemberKind, tcl_lexer::Span)> {
+    let input = analysis.resolved_input.as_ref()?;
+    if input.lexer_config() != config || !analysis.matches_original_source_image(image, config) {
+        return None;
+    }
+    if analysis.allows_retained_logical_declaration_advice() {
+        if let Some(member) = analysis.logical_source_member_frame_at(image, config, cursor) {
+            let word = member.original_name_word()?;
+            let name = String::from_utf8(
+                tcl_syntax::word_rules::original_static_word_unicode_value(word)?,
+            )
+            .ok()?;
+            let body = member.original_body_word()?.span();
+            return Some((
+                member.class().metadata().qualified_name.clone(),
+                SourceMemberKind::Method {
+                    name,
+                    side: member.side(),
+                },
+                body,
+            ));
+        }
+        return original_logical_special_member_at(analysis, image, config, cursor);
+    }
+    let mut pending = vec![&analysis.global_scope];
+    let mut candidates = Vec::new();
+    while let Some(scope) = pending.pop() {
+        pending.extend(&scope.children);
+        if let Some(candidate) = original_scope_member(analysis, image, config, cursor, scope) {
+            candidates.push(candidate);
+        }
+    }
+    unique_innermost_source_member(candidates)
+}
+
+fn original_scope_member(
+    analysis: &super::types::AnalysisResult,
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    cursor: u32,
+    scope: &super::types::Scope,
+) -> Option<(String, SourceMemberKind, tcl_lexer::Span)> {
+    let input = analysis.resolved_input.as_ref()?;
+    let (class, body, member) = if let Some(context) = scope.original_member_context.as_deref() {
+        if context.resolved_input() != input || !context.matches_source(image, config) {
+            return None;
+        }
+        let member = if let Some(method) = context.ordinary_method() {
+            SourceMemberKind::NativeMethod {
+                input: method.declaration().original_name_input().clone(),
+                side: context.side(),
+            }
+        } else {
+            SourceMemberKind::Special(context.special_member()?.kind())
+        };
+        (context.source_class(analysis)?, context.body_word(), member)
+    } else {
+        let context = scope.original_receiver_body_declaration.as_deref()?;
+        if context.resolved_input() != input || !context.matches_source(image, input) {
+            return None;
+        }
+        let mut classes = analysis.original_class_declarations().filter(|class| {
+            class
+                .metadata()
+                .original_members
+                .declarations()
+                .any(|method| method == context.method())
+        });
+        let class = classes.next()?;
+        if classes.next().is_some() {
+            return None;
+        }
+        let member = SourceMemberKind::NativeMethod {
+            input: context.method().declaration().original_name_input().clone(),
+            side: context.side(),
+        };
+        (class, context.body_word(), member)
+    };
+    let content = body.content_span().ok()?;
+    (content.start() <= cursor && cursor <= content.end())
+        .then(|| (class.metadata().qualified_name.clone(), member, body.span()))
+}
+
+fn original_logical_special_member_at(
+    analysis: &super::types::AnalysisResult,
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    cursor: u32,
+) -> Option<(String, SourceMemberKind, tcl_lexer::Span)> {
+    let input = analysis.resolved_input.as_ref()?;
+    let mut candidates = Vec::new();
+    for class in analysis.all_classes.values() {
+        let Some(owner) = analysis.logical_source_class_declaration(class) else {
+            continue;
+        };
+        if !owner.matches_source(image, input) {
+            continue;
+        }
+        for member in class.original_special_members.declarations() {
+            let word = member.body_word();
+            if word.image() != image || word.config() != config || word.group().expand {
+                continue;
+            }
+            let body = word.content_span().ok()?;
+            if body.start() <= cursor && cursor <= body.end() {
+                candidates.push((
+                    owner.metadata().qualified_name.clone(),
+                    SourceMemberKind::Special(member.kind()),
+                    word.span(),
+                ));
+            }
+        }
+    }
+    unique_innermost_source_member(candidates)
+}
+
+fn unique_innermost_source_member(
+    mut candidates: Vec<(String, SourceMemberKind, tcl_lexer::Span)>,
+) -> Option<(String, SourceMemberKind, tcl_lexer::Span)> {
+    candidates.sort_by_key(|(_, _, span)| span.len());
+    let mut candidates = candidates.into_iter();
+    let selected = candidates.next()?;
+    if candidates
+        .next()
+        .is_some_and(|(_, _, span)| span.len() == selected.2.len())
+    {
+        return None;
+    }
+    Some(selected)
 }
 
 /// Immutable snapshot of the complete class hierarchy.
@@ -76,6 +259,10 @@ pub struct ClassHierarchy {
     pub classes: HashMap<String, ClassDef>,
     /// Class → linearised MRO (including self).
     pub mro_map: HashMap<String, Vec<String>>,
+    /// Original relation lookups behind unresolved hierarchy rows.
+    /// Conflicting rows retain no lookup; report text never restores one.
+    original_unresolved_relations:
+        HashMap<String, Option<crate::signature_scan::scope::SignatureSourceLookup>>,
     /// Class → its owner-resolved **direct** `mixin` edges, in declaration
     /// order — the same resolution [`Self::mro_map`] linearises through, kept
     /// so a consumer can tell which *branch* of the call chain a provider was
@@ -124,6 +311,13 @@ pub struct ClassHierarchy {
 }
 
 impl ClassHierarchy {
+    pub(super) fn original_unresolved_relation(
+        &self,
+        row: &str,
+    ) -> Option<&crate::signature_scan::scope::SignatureSourceLookup> {
+        self.original_unresolved_relations.get(row)?.as_ref()
+    }
+
     /// Return `true` when `child` is a subtype of `parent`
     /// (transitively, via the linearised MRO).
     #[must_use]
@@ -131,6 +325,24 @@ impl ClassHierarchy {
         self.mro_map
             .get(child)
             .is_some_and(|mro| mro.iter().any(|c| c == parent))
+    }
+
+    /// Exact reported declaration on one member side, without inherited
+    /// lookup. Lexical compatibility consumers must independently select that
+    /// advice mode; this query supplies no original or runtime member identity.
+    #[must_use]
+    pub fn declared_member(
+        &self,
+        class: &str,
+        name: &str,
+        side: super::types::MemberSide,
+    ) -> Option<(&ClassDef, &MethodDef)> {
+        let class = self.classes.get(class)?;
+        let method = match side {
+            super::types::MemberSide::Instance => class.methods.get(name),
+            super::types::MemberSide::ClassObject => class.class_methods.get(name),
+        }?;
+        Some((class, method))
     }
 
     /// Resolve which class provides `method_name` for
@@ -287,42 +499,53 @@ impl ClassHierarchy {
         })
     }
 
-    /// Resolve `TclOO` `next` / `nextto` from inside **any** member body,
-    /// routing the two nameless slots to their own providers.
-    ///
-    /// `member` is the enclosing member as the analyser names it — a
-    /// method's own name, or the synthetic [`CONSTRUCTOR_MEMBER`] /
-    /// [`DESTRUCTOR_MEMBER`] label a nameless body carries (the same
-    /// `<constructor>` / `<destructor>` spelling C Tcl's own `info object
-    /// call` reports, and the one `walk_method_body` builds a constructor
-    /// scope's name from).
-    ///
-    /// The single entry point for `next` resolution, so go-to-definition,
-    /// find-references, and the `next`-arity check cannot disagree about
-    /// which slot a `next` chains through. [`Self::next_provider`]'s
-    /// per-ancestor filter consults only `methods`/`class_methods`, so going
-    /// straight there leaves a `next` inside a `constructor` — the ordinary way
-    /// a subclass forwards to its superclass's constructor — resolving to
-    /// nothing at all and its arity unchecked, while the identical `next`
-    /// inside a plain `method` resolves (a real `next` there does dispatch,
-    /// pinned against tclsh 9.0.4).
-    ///
-    /// `source` is the document text `body_span`s index into, needed only
-    /// for the constructor slot's empty-body rule — see
-    /// [`Self::constructor_provider`].
+    /// Resolve a source-selected typed member slot through the retained MRO.
+    /// Lifecycle roles are never reconstructed from ordinary method names.
     #[must_use]
     pub fn member_next_provider(
         &self,
         class: &str,
-        member: &str,
+        member: &SourceMemberKind,
         current: &str,
         start_from: Option<&str>,
         source: &str,
     ) -> Option<&str> {
+        use tcl_registry::definer::DefinitionSpecialMemberKind;
         match member {
-            CONSTRUCTOR_MEMBER => self.constructor_next_provider(class, start_from, source),
-            DESTRUCTOR_MEMBER => self.destructor_next_provider(class, start_from),
-            _ => self.next_provider(class, member, current, start_from),
+            SourceMemberKind::Special(DefinitionSpecialMemberKind::Constructor) => {
+                self.constructor_next_provider(class, start_from, source)
+            }
+            SourceMemberKind::Special(DefinitionSpecialMemberKind::Destructor) => {
+                self.destructor_next_provider(class, start_from)
+            }
+            SourceMemberKind::Method { .. } | SourceMemberKind::NativeMethod { .. } => {
+                let mro = self.mro_map.get(class)?;
+                let anchor = start_from.unwrap_or(current);
+                let position = mro.iter().position(|name| name == anchor)?;
+                let start = if start_from.is_some() {
+                    position
+                } else {
+                    position + 1
+                };
+                for name in mro.iter().skip(start) {
+                    let Some(class) = self.classes.get(name) else {
+                        if matches!(member, SourceMemberKind::NativeMethod { .. }) {
+                            return None;
+                        }
+                        continue;
+                    };
+                    let selected = match member {
+                        SourceMemberKind::NativeMethod { input, side } => {
+                            native_source_member_def(class, *side, input)?
+                        }
+                        _ => class_member_def(class, member),
+                    };
+                    if selected.is_some() {
+                        return Some(name.as_str());
+                    }
+                }
+                None
+            }
         }
     }
 
@@ -502,17 +725,9 @@ pub(in crate::analyser) fn is_empty_method_body(source: &str, body_span: tcl_lex
 /// Resolve a possibly-bare superclass / mixin name written in the body of
 /// class `owner` to a qualified name keyed in `classes`.
 ///
-/// A superclass declared bare (`superclass Device`) is resolved the way
-/// Tcl would resolve the command: in the **defining class's namespace**,
-/// then walking outward to the global namespace, and finally — when the
-/// simple name is *globally unique* — to that single class (covering the
-/// common `namespace import` idiom without needing per-file import data).
-/// An ambiguous simple name (several classes share the tail) stays bare,
-/// so no wrong link is ever manufactured.  This is what links cross-file
-/// inheritance where a subclass in one file names a base class defined,
-/// under a namespace, in another (the `SpiceGenTcl` `superclass Device`
-/// shape), which would otherwise stay unlinked, silently dropping the
-/// inherited methods.
+/// Explicitly constructed graph keys resolve in the enclosing namespace,
+/// then globally. A unique tail supplies no import or caller ownership.
+/// Source declarations use their retained relation lookup instead.
 fn resolve_super_name(
     name: &str,
     owner_qname: &str,
@@ -526,19 +741,9 @@ fn resolve_super_name(
         .unwrap_or_else(|| name.to_string())
 }
 
-/// Owner-aware resolution of a written class / superclass / mixin `name` to
-/// a qualified class name, mirroring how Tcl resolves a command: an exact
-/// hit, then `::name`, then a walk **outward from the owning class's
-/// namespace** to the global namespace, and finally — only when the simple
-/// (tail) name is *globally unique* — that single class (the `namespace
-/// import` idiom).  Returns `None` when nothing resolves or the tail is
-/// ambiguous, so callers stay **sound-by-abstention** (never manufacture a
-/// wrong cross-file link).
-///
-/// `is_known` tests membership of a candidate qualified name in the class
-/// universe (a `HashMap`/`HashSet` `contains`); `tail_index` maps each
-/// simple name to the qualified names sharing it — build it once with
-/// [`build_tail_index`] and reuse across many resolutions.
+/// Compatibility assistance for explicitly constructed class graph keys.
+/// Source declarations require original caller lookup receipts instead. This
+/// adapter supplies no native class, provider, import or execution authority.
 pub fn resolve_class_name<S: std::hash::BuildHasher>(
     name: &str,
     owner_qname: &str,
@@ -558,67 +763,161 @@ pub fn resolve_class_name<S: std::hash::BuildHasher>(
     // is reachable from neither `::a::b` nor global).  Uses the shared command
     // -resolution candidate order so class-name resolution can never diverge
     // from it (a class name *is* a command name).
-    let owner_ns = owner_qname.rsplit_once("::").map_or("", |(head, _)| head);
+    let (owner_ns, _) = crate::naming::key_holder_and_tail(owner_qname);
     for cand in crate::naming::bareword_resolution_candidates(owner_ns, name) {
         if is_known(&cand) {
             return Some(cand);
         }
     }
-    // Globally-unique simple-name match (the `namespace import` case).
-    //
-    // Tradeoff (deliberate): this can manufacture a *wrong* edge
-    // when `name` refers to a base that isn't in the class universe (e.g. an
-    // external/library class the index never saw) yet exactly one *unrelated*
-    // indexed class happens to share the tail — the fallback then links to
-    // that unrelated class.  We keep it because (a) it is the only thing that
-    // resolves the common `namespace import` idiom where a subclass names a
-    // namespaced base bare (the `SpiceGenTcl` `superclass Device` shape), and
-    // (b) it stays sound-by-abstention on the far more common failure mode: a
-    // tail shared by two or more indexed classes never links (returns `None`).
-    // The precondition — a globally *unique* tail that is nonetheless the
-    // wrong class — is rare in practice.
-    let tail = name.rsplit("::").next().unwrap_or(name);
-    match tail_index.get(tail) {
-        Some(qs) if qs.len() == 1 => Some(qs[0].clone()),
-        _ => None,
-    }
+    // Constructed graph compatibility has no source import/context receipt.
+    let _ = tail_index;
+    None
 }
 
-/// Resolve a class name *as written at a call site* (no owning-class
-/// context — `resolve_class_name` is the owner-aware variant for
-/// superclass / mixin edges) to a key of `classes`: an exact hit, the
-/// global-qualified form of its canonical spelling (colon-run rule),
-/// or — last — the unique class sharing its tail (the `namespace import`
-/// idiom).  `None` when unresolved or the tail is ambiguous, so callers
-/// stay sound-by-abstention.  The single implementation behind the
-/// analyser's method-validation keying and the LSP's definer-head
-/// resolution, so the two cannot drift.
-pub fn resolve_written_class_name<V, S: std::hash::BuildHasher>(
+/// Positively retained Logical reporting lookup in the actual lexical
+/// namespace. This shares command candidate ordering, without joining Native
+/// source-name records, guessing a unique tail or issuing a class identity.
+#[must_use]
+pub fn resolve_retained_logical_class_name(
+    analysis: &super::types::AnalysisResult,
     name: &str,
-    classes: &HashMap<String, V, S>,
+    namespace: &str,
 ) -> Option<String> {
-    if classes.contains_key(name) {
-        return Some(name.to_owned());
-    }
-    let canonical = tcl_syntax::naming::canonical_written_command(name);
-    let qualified = if canonical.starts_with("::") {
-        canonical.clone()
-    } else {
-        format!("::{canonical}")
-    };
-    if classes.contains_key(&qualified) {
-        return Some(qualified);
-    }
-    let tail = name.rsplit("::").next().unwrap_or(name);
-    let mut matches = classes
-        .keys()
-        .filter(|k| tcl_syntax::naming::key_tail(k) == tail);
-    let first = matches.next()?;
-    matches.next().is_none().then_some(first.clone())
+    analysis
+        .allows_retained_logical_declaration_advice()
+        .then_some(())?;
+    crate::naming::bareword_resolution_candidates(namespace, name)
+        .into_iter()
+        .find(|candidate| analysis.all_classes.contains_key(candidate))
 }
 
-/// Build the simple-name (tail) → qualified-names index that
-/// [`resolve_class_name`] consults for the unique-tail fallback.
+/// Resolve original source naming against retained class publication slots.
+/// Missing, colliding or foreign-policy records do not establish class identity.
+#[must_use]
+pub fn resolve_class_lookup<S: std::hash::BuildHasher>(
+    lookup: &crate::signature_scan::scope::SignatureSourceLookup,
+    classes: &HashMap<String, ClassDef, S>,
+) -> Option<String> {
+    for candidate in lookup.candidates()? {
+        if classes.values().any(|class| {
+            class.source_name_ambiguous.is_observed()
+                && class.source_name.as_ref().is_some_and(|source| {
+                    source.policy() == lookup.policy() && source.slot() == &candidate
+                })
+        }) {
+            return None;
+        }
+        let mut matches = classes.iter().filter(|(_, class)| {
+            !class.source_name_ambiguous.is_observed()
+                && class.source_name.as_ref().is_some_and(|source| {
+                    source.policy() == lookup.policy() && source.slot() == &candidate
+                })
+        });
+        if let Some((key, _)) = matches.next() {
+            return matches.next().is_none().then(|| key.clone());
+        }
+    }
+    None
+}
+
+/// Source lookup in an independently supplied original caller context.
+#[must_use]
+pub fn resolve_written_class_name_in_context<S: std::hash::BuildHasher>(
+    name: &str,
+    namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    classes: &HashMap<String, ClassDef, S>,
+) -> Option<String> {
+    let lookup = crate::signature_scan::scope::SignatureSourceLookup::new(
+        policy,
+        namespace.clone(),
+        name.to_owned(),
+    )?;
+    resolve_class_lookup(&lookup, classes)
+}
+
+/// Source query in a retained scope, without guessing a missing object frame.
+#[must_use]
+pub fn resolve_written_class_name_in_scope<S: std::hash::BuildHasher>(
+    name: &str,
+    namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+    classes: &HashMap<String, ClassDef, S>,
+) -> Option<String> {
+    let policies: HashSet<_> = classes
+        .values()
+        .filter_map(|class| {
+            class
+                .source_name
+                .as_ref()
+                .map(crate::signature_scan::scope::SignatureSourceCommand::policy)
+        })
+        .collect();
+    let mut selected = None;
+    for policy in policies {
+        if let Some(key) = resolve_written_class_name_in_context(name, namespace, policy, classes) {
+            if selected.as_ref().is_some_and(|previous| previous != &key) {
+                return None;
+            }
+            selected = Some(key);
+        }
+    }
+    selected
+}
+
+/// Exact innermost source scope containing a written query position.
+#[must_use]
+pub fn source_namespace_at(
+    scope: &super::types::Scope,
+    offset: u32,
+) -> Option<&crate::signature_scan::scope::SignatureNamespaceScope> {
+    let mut children = scope.children.iter().filter(|child| {
+        child
+            .body_span
+            .is_some_and(|span| span.start() <= offset && offset < span.end())
+    });
+    if let Some(child) = children.next() {
+        if children.next().is_some() {
+            return None;
+        }
+        return source_namespace_at(child, offset);
+    }
+    scope.naming_scope.as_ref()
+}
+
+/// Unpositioned root lookup using retained declaration policies only.
+/// A missing original caller context cannot borrow a globally unique tail.
+#[must_use]
+pub fn resolve_written_class_name<S: std::hash::BuildHasher>(
+    name: &str,
+    classes: &HashMap<String, ClassDef, S>,
+) -> Option<String> {
+    let policies: HashSet<_> = classes
+        .values()
+        .filter_map(|class| {
+            class
+                .source_name
+                .as_ref()
+                .map(crate::signature_scan::scope::SignatureSourceCommand::policy)
+        })
+        .collect();
+    let mut selected = None;
+    for policy in policies {
+        if let Some(key) = resolve_written_class_name_in_context(
+            name,
+            &crate::signature_scan::scope::SignatureNamespaceScope::root(Some(policy)),
+            policy,
+            classes,
+        ) {
+            if selected.as_ref().is_some_and(|previous| previous != &key) {
+                return None;
+            }
+            selected = Some(key);
+        }
+    }
+    selected
+}
+
+/// Presentation-only simple-name index; it grants no class lookup authority.
 pub fn build_tail_index<'a>(
     qnames: impl Iterator<Item = &'a String>,
 ) -> HashMap<String, Vec<String>> {
@@ -634,24 +933,33 @@ pub fn build_tail_index<'a>(
     tail_index
 }
 
+fn unresolved_class_relation_row(class: &str, written: &str) -> String {
+    format!("@unresolvedclass@{class} {written}")
+}
+
 /// Build the supers/mixins maps used by the MRO algorithm.
 fn build_supers_mixins_maps(
     classes: &HashMap<String, ClassDef>,
 ) -> (HashMap<String, Vec<String>>, HashMap<String, Vec<String>>) {
     let mut supers_map: HashMap<String, Vec<String>> = HashMap::new();
     let mut mixins_map: HashMap<String, Vec<String>> = HashMap::new();
-    // tail (simple name) → qualified class names sharing it.
-    let tail_index = build_tail_index(classes.keys());
-    let normalise = |owner: &str, names: &[String]| -> Vec<String> {
-        names
-            .iter()
-            .map(|p| resolve_super_name(p, owner, classes, &tail_index))
-            .collect()
-    };
-    for (qname, cd) in classes {
-        supers_map.insert(qname.clone(), normalise(qname, &cd.superclasses));
-        if !cd.mixins.is_empty() {
-            mixins_map.insert(qname.clone(), normalise(qname, &cd.mixins));
+    for (qname, class) in classes {
+        let normalise = |names: &[String]| -> Vec<String> {
+            names
+                .iter()
+                .map(|written| match class.relation_lookups.get(written) {
+                    Some(Some(lookup)) => resolve_class_lookup(lookup, classes)
+                        .unwrap_or_else(|| unresolved_class_relation_row(qname, written)),
+                    None if class.source_name.is_none() => {
+                        resolve_super_name(written, qname, classes, &HashMap::new())
+                    }
+                    Some(None) | None => unresolved_class_relation_row(qname, written),
+                })
+                .collect()
+        };
+        supers_map.insert(qname.clone(), normalise(&class.superclasses));
+        if !class.mixins.is_empty() {
+            mixins_map.insert(qname.clone(), normalise(&class.mixins));
         }
     }
     (supers_map, mixins_map)
@@ -761,6 +1069,24 @@ pub fn build_class_hierarchy<S: std::hash::BuildHasher>(
     // so the rest of the routine (and the public field) stay hasher-agnostic.
     let classes: HashMap<String, ClassDef> = classes.into_iter().collect();
     let (supers_map, mixins_map) = build_supers_mixins_maps(&classes);
+    let mut original_unresolved_relations = HashMap::new();
+    for (qname, class) in &classes {
+        for written in class.superclasses.iter().chain(&class.mixins) {
+            let Some(Some(lookup)) = class.relation_lookups.get(written) else {
+                continue;
+            };
+            if resolve_class_lookup(lookup, &classes).is_some() {
+                continue;
+            }
+            let row = unresolved_class_relation_row(qname, written);
+            let captured = original_unresolved_relations
+                .entry(row)
+                .or_insert_with(|| Some(lookup.clone()));
+            if captured.as_ref().is_some_and(|previous| previous != lookup) {
+                *captured = None;
+            }
+        }
+    }
 
     // Compute MRO for every class.  ``build_mro_map`` walks
     // ``supers_map.keys()`` only; classes that appear as parents
@@ -881,6 +1207,7 @@ pub fn build_class_hierarchy<S: std::hash::BuildHasher>(
     ClassHierarchy {
         classes,
         mro_map,
+        original_unresolved_relations,
         mixin_map: mixins_map,
         spine_map,
         subclasses: direct_subs,
@@ -917,6 +1244,9 @@ mod tests {
                     name: (*m).to_string(),
                     params: Vec::new(),
                     params_computed: false,
+                    formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                        tcl_dialect::ParameterGrammar::Tcl,
+                    ),
                     name_span: span(),
                     body_span: span(),
                     kind: "method".to_string(),
@@ -938,12 +1268,35 @@ mod tests {
     }
 
     #[test]
+    fn declared_member_keeps_reported_side_and_declaring_class_separate() {
+        let mut class = cls("::C", &[], &[], &["same"]);
+        let mut class_method = class.methods["same"].clone();
+        class_method.name_span = Span::new(20, 24);
+        class_method.is_self_method = true;
+        class.class_methods.insert("same".to_owned(), class_method);
+        let hierarchy = build_class_hierarchy(map(vec![class, cls("::Sub", &["::C"], &[], &[])]));
+        let (_, instance) = hierarchy
+            .declared_member("::C", "same", super::super::types::MemberSide::Instance)
+            .unwrap();
+        let (_, class_object) = hierarchy
+            .declared_member("::C", "same", super::super::types::MemberSide::ClassObject)
+            .unwrap();
+        assert_ne!(instance.name_span, class_object.name_span);
+        assert_eq!(hierarchy.method_target("::Sub", "same"), Some("::C"));
+        assert!(
+            hierarchy
+                .declared_member("::Sub", "same", super::super::types::MemberSide::Instance)
+                .is_none()
+        );
+    }
+
+    #[test]
     fn empty_input_yields_empty_hierarchy() {
         let h = build_class_hierarchy(HashMap::new());
-        assert!(h.classes.is_empty());
-        assert!(h.mro_map.is_empty());
-        assert!(h.subclasses.is_empty());
-        assert!(h.errors.is_empty());
+        assert_eq!(h.classes.len(), 0);
+        assert_eq!(h.mro_map.len(), 0);
+        assert_eq!(h.subclasses.len(), 0);
+        assert_eq!(h.errors, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -1010,7 +1363,7 @@ mod tests {
         assert!(a_subs.contains("::C"));
         assert_eq!(a_subs.len(), 2);
         // Leaves have empty subclass sets, never None.
-        assert!(h.subclasses["::B"].is_empty());
+        assert_eq!(h.subclasses["::B"].len(), 0);
     }
 
     #[test]
@@ -1056,7 +1409,7 @@ mod tests {
             cls("::B", &["::A"], &[], &[]),
         ]);
         let h = build_class_hierarchy(classes);
-        assert!(!h.errors.is_empty());
+        assert_ne!(h.errors, [] as [std::string::String; 0]);
         // Cycle classes get single-element MRO fallback.
         assert_eq!(h.mro_map["::A"], vec!["::A"]);
     }
@@ -1068,7 +1421,7 @@ mod tests {
             cls("::B", &[], &["::A"], &[]),
             cls("::C", &[], &["::A"], &[]),
         ]));
-        assert!(!cyclic.errors.is_empty());
+        assert_ne!(cyclic.errors, [] as [std::string::String; 0]);
 
         let diamond = build_class_hierarchy(map(vec![
             cls("::Root", &[], &[], &[]),
@@ -1076,7 +1429,7 @@ mod tests {
             cls("::Right", &["::Root"], &[], &[]),
             cls("::Leaf", &["::Left", "::Right"], &[], &[]),
         ]));
-        assert!(diamond.errors.is_empty());
+        assert_eq!(diamond.errors, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -1122,6 +1475,9 @@ mod tests {
             name: "<constructor>".to_string(),
             params: Vec::new(),
             params_computed: false,
+            formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                tcl_dialect::ParameterGrammar::Tcl,
+            ),
             name_span: span(),
             body_span,
             kind: "constructor".to_string(),
@@ -1289,6 +1645,9 @@ mod tests {
             name: "<destructor>".to_string(),
             params: Vec::new(),
             params_computed: false,
+            formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                tcl_dialect::ParameterGrammar::Tcl,
+            ),
             name_span: span(),
             body_span: NON_EMPTY_BODY,
             kind: "destructor".to_string(),
@@ -1363,19 +1722,34 @@ mod tests {
 
     #[test]
     fn bare_superclass_links_via_unique_tail_across_namespaces() {
-        // The SpiceGenTcl shape: a global class (`::Core`, from an
-        // `namespace import`) names a base defined under a namespace
-        // (`::SpiceGenTcl::Device`). The simple name is globally unique, so
-        // the tail match links them and the inherited method resolves.
+        // C Tcl 8.6/9.0/9.1 requires the actual import; a unique tail is not
+        // a lookup owner. Analyse the exported/imported original source.
+        let source = r#"namespace eval ::SpiceGenTcl {
+    namespace export Device
+    oo::class create Device {
+        method genSPICEString {} {return OK}
+    }
+}
+rename auto_import savedPrelude
+namespace import ::SpiceGenTcl::Device
+oo::class create ::Core {superclass Device}
+"#;
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let h = build_class_hierarchy(analysis.all_classes);
+        assert_eq!(
+            h.method_target("::Core", "genSPICEString"),
+            Some("::SpiceGenTcl::Device")
+        );
+    }
+
+    #[test]
+    fn bare_superclass_unique_tail_without_import_remains_unresolved() {
         let classes = map(vec![
             cls("::SpiceGenTcl::Device", &[], &[], &["genSPICEString"]),
             cls("::Core", &["Device"], &[], &[]),
         ]);
         let h = build_class_hierarchy(classes);
-        assert_eq!(
-            h.method_target("::Core", "genSPICEString"),
-            Some("::SpiceGenTcl::Device")
-        );
+        assert_eq!(h.method_target("::Core", "genSPICEString"), None);
     }
 
     #[test]
@@ -1463,17 +1837,15 @@ mod tests {
         assert_eq!(got.as_deref(), Some("::Base"));
     }
 
-    /// TP (regression guard): the cross-file `namespace import` idiom — a
-    /// subclass names a namespaced base bare when the base is unique — still
-    /// links via the sound-by-abstention unique-tail fallback.
+    /// A globally unique tail supplies no retained import or caller receipt.
     #[test]
-    fn superclass_cross_file_unique_tail_links() {
+    fn superclass_cross_file_unique_tail_withdraws() {
         let got = resolve_from(
             "Device",
             "::spice::sub::Sub",
             &["::spice::Device", "::spice::sub::Sub"],
         );
-        assert_eq!(got.as_deref(), Some("::spice::Device"));
+        assert_eq!(got, None);
     }
 
     /// TN: an absolute `::`-qualified name is taken exactly.
@@ -1481,5 +1853,260 @@ mod tests {
     fn superclass_absolute_name_is_exact() {
         let got = resolve_from("::a::Base", "::x::Sub", &["::a::Base", "::x::Sub"]);
         assert_eq!(got.as_deref(), Some("::a::Base"));
+    }
+}
+
+#[cfg(test)]
+mod source_naming_tests {
+    use super::*;
+    use crate::signature_scan::scope::{
+        SignatureNamespaceScope, SignatureSourceCommand, SignatureSourceLookup,
+    };
+    use tcl_syntax::naming::NamePolicyProtocol;
+
+    fn source_class(
+        policy: NamePolicyProtocol,
+        scope: &SignatureNamespaceScope,
+        written: &str,
+    ) -> ClassDef {
+        ClassDef {
+            source_name: SignatureSourceCommand::object_in_context(policy, scope, written),
+            ..ClassDef::default()
+        }
+    }
+
+    #[test]
+    fn class_lookup_requires_original_context_and_does_not_borrow_unique_tail() {
+        let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        let root = SignatureNamespaceScope::root(Some(policy));
+        let left = root.child("left", Some(policy)).unwrap();
+        let right = root.child("right", Some(policy)).unwrap();
+        let classes = HashMap::from([(
+            "::left::Base".to_owned(),
+            source_class(policy, &left, "Base"),
+        )]);
+        assert_eq!(
+            resolve_written_class_name_in_context("Base", &left, policy, &classes).as_deref(),
+            Some("::left::Base")
+        );
+        assert_eq!(
+            resolve_written_class_name_in_context("Base", &right, policy, &classes),
+            None
+        );
+        assert_eq!(resolve_written_class_name("Base", &classes), None);
+        let caller = SignatureSourceLookup::new(policy, left, "Base".to_owned()).unwrap();
+        assert_eq!(
+            resolve_class_lookup(&caller, &classes).as_deref(),
+            Some("::left::Base")
+        );
+        assert!(
+            SignatureSourceLookup::new(
+                NamePolicyProtocol::authored_jim084(),
+                right,
+                "Base".to_owned()
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn class_report_collisions_withdraw_instead_of_selecting_another_slot() {
+        let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        let root = SignatureNamespaceScope::root(Some(policy));
+        let left = root
+            .child("a:", Some(policy))
+            .unwrap()
+            .child("b", Some(policy))
+            .unwrap();
+        let right = root
+            .child("a", Some(policy))
+            .unwrap()
+            .child(":b", Some(policy))
+            .unwrap();
+        assert_eq!(left.display(), right.display());
+        let mut result = super::super::types::AnalysisResult::default();
+        result.retain_class_declaration(
+            "::a:::b::Base".to_owned(),
+            source_class(policy, &left, "Base"),
+        );
+        result.retain_class_declaration(
+            "::a:::b::Base".to_owned(),
+            source_class(policy, &right, "Base"),
+        );
+        assert!(
+            result.all_classes["::a:::b::Base"]
+                .source_name_ambiguous
+                .is_observed()
+        );
+        assert_eq!(
+            resolve_written_class_name_in_context("Base", &right, policy, &result.all_classes),
+            None
+        );
+    }
+}
+
+#[cfg(test)]
+mod constructed_projection_tests {
+    use super::*;
+
+    #[test]
+    fn constructed_class_graph_lookup_preserves_literal_colon_holder() {
+        // Implementation contract: naming.analysis.constructed-key-consumer-projections
+
+        // Explicit constructed graph assistance; no retained source lookup exists here.
+        let tails: HashMap<String, Vec<String>> = HashMap::new();
+        for (owner, expected) in [
+            ("Sub", "::Base"),
+            ("::Sub", "::Base"),
+            ("n::Sub", "::n::Base"),
+            ("::a::::Sub", "::a::Base"),
+            ("::::::", ":::::Base"),
+            ("::é::λ", "::é::Base"),
+        ] {
+            assert_eq!(
+                resolve_class_name("Base", owner, |candidate| candidate == expected, &tails)
+                    .as_deref(),
+                Some(expected),
+            );
+            assert_eq!(
+                resolve_class_name(
+                    "Base",
+                    owner,
+                    |candidate| candidate == "::foreign::Base",
+                    &tails
+                ),
+                None,
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod source_member_kind_controls {
+    use super::*;
+    use crate::analyser::Analyser;
+    use crate::analyser::types::MemberSide;
+    use tcl_registry::definer::DefinitionSpecialMemberKind;
+
+    #[test]
+    fn actual_source_members_do_not_decode_lifecycle_display_names() {
+        let source = "oo::class create C {method {<constructor>} {} {next}; constructor {} {next}; destructor {next}}";
+        for dialect in ["tcl", "tcl8.6"] {
+            let analysis = Analyser::new().analyse(source, dialect);
+            let image = tcl_lexer::SourceImage::document(source);
+            let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+            let mut offsets = source
+                .match_indices("next")
+                .map(|(offset, _)| u32::try_from(offset).unwrap());
+            let ordinary =
+                original_source_member_at(&analysis, &image, config, offsets.next().unwrap())
+                    .unwrap();
+            if dialect == "tcl" {
+                assert_eq!(
+                    ordinary.1,
+                    SourceMemberKind::Method {
+                        name: "<constructor>".to_string(),
+                        side: MemberSide::Instance
+                    }
+                );
+            } else {
+                let SourceMemberKind::NativeMethod { input, side } = ordinary.1 else {
+                    panic!("genuine Native name input")
+                };
+                assert_eq!(input.bytes(), b"<constructor>");
+                assert_eq!(side, MemberSide::Instance);
+            }
+            let constructor =
+                original_source_member_at(&analysis, &image, config, offsets.next().unwrap())
+                    .unwrap();
+            assert_eq!(
+                constructor.1,
+                SourceMemberKind::Special(DefinitionSpecialMemberKind::Constructor)
+            );
+            let destructor =
+                original_source_member_at(&analysis, &image, config, offsets.next().unwrap())
+                    .unwrap();
+            assert_eq!(
+                destructor.1,
+                SourceMemberKind::Special(DefinitionSpecialMemberKind::Destructor)
+            );
+            let foreign = tcl_lexer::SourceImage::document(&format!("{source} changed"));
+            assert!(original_source_member_at(&analysis, &foreign, config, 0).is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod source_class_object_member_kind_controls {
+    use super::*;
+    use crate::analyser::Analyser;
+    use crate::analyser::types::MemberSide;
+
+    #[test]
+    fn native_class_object_body_retains_its_actual_source_table() {
+        let source = "oo::class create C {self method {<constructor>} {} {next}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+        let cursor = u32::try_from(source.find("next").unwrap()).unwrap();
+        let (_, member, body) =
+            original_source_member_at(&analysis, &image, config, cursor).unwrap();
+        let SourceMemberKind::NativeMethod { input, side } = member else {
+            panic!("genuine Native name input")
+        };
+        assert_eq!(input.bytes(), b"<constructor>");
+        assert_eq!(side, MemberSide::ClassObject);
+        assert_eq!(&source[body.as_range()], "{next}");
+    }
+}
+
+#[cfg(test)]
+mod source_class_object_unicode_body_controls {
+    use super::*;
+    use crate::analyser::Analyser;
+    use crate::analyser::types::MemberSide;
+
+    #[test]
+    fn source_only_class_object_body_keeps_unicode_literal_data() {
+        let source = "oo::class create C {self method m {} {puts café; next}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+        let cursor = u32::try_from(source.find("next").unwrap()).unwrap();
+        let (_, member, body) =
+            original_source_member_at(&analysis, &image, config, cursor).unwrap();
+        let SourceMemberKind::NativeMethod { input, side } = member else {
+            panic!("genuine Native name input")
+        };
+        assert_eq!(input.bytes(), b"m");
+        assert_eq!(side, MemberSide::ClassObject);
+        assert_eq!(&source[body.as_range()], "{puts café; next}");
+    }
+}
+
+#[cfg(test)]
+mod source_native_counted_member_name_controls {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn native_method_input_reaches_target_without_unicode_redecoding() {
+        let source = "oo::class create Base {self method {m😀} {} {return ok}}; oo::class create C {superclass Base; self method {m😀} {} {next}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+        let cursor = u32::try_from(source.find("next").unwrap()).unwrap();
+        let (class, member, _) =
+            original_source_member_at(&analysis, &image, config, cursor).unwrap();
+        assert!(matches!(member, SourceMemberKind::NativeMethod { .. }));
+        let hierarchy = analysis.class_hierarchy();
+        let provider = hierarchy
+            .member_next_provider(&class, &member, &class, None, source)
+            .unwrap();
+        let target = class_member_def(&analysis.all_classes[provider], &member).unwrap();
+        assert_eq!(
+            target.name_span,
+            analysis.all_classes["::Base"].class_methods["m😀"].name_span
+        );
     }
 }

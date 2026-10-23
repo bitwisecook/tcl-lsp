@@ -1,0 +1,27 @@
+IDENTITY 9.0.4
+OBSERVATION first-create 0 ::original {}
+OBSERVATION first-rename 0 {} {}
+OBSERVATION original-query 0 ::__ar_target {}
+OBSERVATION moved-query 0 {} {}
+OBSERVATION original-target 0 {} {}
+OBSERVATION missing-query 0 {} {}
+OBSERVATION second-create 0 ::::original {}
+OBSERVATION inventory 0 {::::original ::original} {}
+OBSERVATION original-query-after 0 ::__ar_target {}
+OBSERVATION prefixed-query 0 ::__ar_target {}
+OBSERVATION original-delete 0 {} {}
+OBSERVATION moved-after-delete 1 {invalid command name "::moved"} {TCL LOOKUP COMMAND ::moved}
+OBSERVATION original-after-delete 0 TARGET {}
+OBSERVATION inventory-after-delete 0 ::::original {}
+OBSERVATION hidden-create 0 hiddenRecord {}
+OBSERVATION hidden-hide 0 {} {}
+OBSERVATION hidden-inventory 0 {::::original hiddenRecord} {}
+OBSERVATION hidden-query 0 ::__ar_target {}
+OBSERVATION hidden-target 0 {} {}
+OBSERVATION hidden-delete 0 {} {}
+OBSERVATION hidden-inventory-after 0 ::::original {}
+OBSERVATION unsorted-growth-inventory 0 {z06 ö z07 Q a q A z08 z10 z09 é z11 z12 U e u E z13 z14 z15 z16 Y i y I z01 z02 z03 ::::original m M z04 z05} {}
+OBSERVATION relocate-two-records 0 {z06 ö z07 Q a q A z08 z10 z09 é z11 z12 U e u E z13 z14 z15 z16 Y i y I z01 z02 z03 ::::original m M z04 z05} {}
+OBSERVATION delete-records 0 {z06 ö z07 Q q A z08 z10 z09 é z11 z12 U e u E z13 z14 z15 z16 Y y I z02 z03 ::::original m M z04 z05} {}
+OBSERVATION recreate-records 0 {z06 a ö z07 Q q A z08 z10 z09 é z11 z12 U e u E z13 z14 z15 z16 Y y I z01 z02 z03 ::::original m M z04 z05} {}
+OBSERVATION append-collision-record 0 {z06 a ö z07 Q q A z08 z10 z09 é z11 ::a z12 U e u E z13 z14 z15 z16 Y y I z01 z02 z03 ::::original m M z04 z05} {}

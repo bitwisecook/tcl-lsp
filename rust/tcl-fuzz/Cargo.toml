@@ -54,6 +54,8 @@ serde_json = { version = "1", features = ["preserve_order"] }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
+# Typed WASM import identity/signatures and completion transport layout.
+tcl-runtime-api = { path = "../tcl-runtime-api" }
 # The document lexing configuration threaded into the lowering entry point.
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-vm = { path = "../tcl-vm" }

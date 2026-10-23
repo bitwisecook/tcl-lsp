@@ -76,6 +76,10 @@
 //! proof: a caller variable and a callee local that share a name must stay
 //! distinct after inlining, and tclsh shows the two values never collide.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::{fixture_id, fixture_id_if_present};
+
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::inline_uplevel::{
     PassthroughShape, body_has_frame_reach, detect_passthrough_candidates,
@@ -153,10 +157,10 @@ fn assign_pairs(stmts: &[Statement]) -> Vec<(String, String)> {
 
 /// The escape summary for one proc (for `classify_proc`).
 fn summary_for<'a>(
-    summaries: &'a std::collections::HashMap<String, ProcEscapeSummary>,
-    qname: &str,
+    summaries: &'a std::collections::HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
+    id: tcl_compiler::ir::ProcedureId,
 ) -> Option<&'a ProcEscapeSummary> {
-    summaries.get(qname)
+    summaries.get(&tcl_core_types::BodyFrameId::Body(id))
 }
 
 // Proc classification
@@ -166,14 +170,20 @@ fn summary_for<'a>(
 #[test]
 fn statement_count_empty_body_is_zero() {
     let module = module_for("proc foo {} {}\n");
-    let proc = &module.procedures["::foo"];
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::foo"))
+        .expect("authored fixture body");
     assert_eq!(count_statements(&proc.body), 0);
 }
 
 #[test]
 fn statement_count_flat_body_counts_top_level() {
     let module = module_for("proc foo {} {\n  set a 1\n  set b 2\n  set c 3\n}\n");
-    let proc = &module.procedures["::foo"];
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::foo"))
+        .expect("authored fixture body");
     assert_eq!(count_statements(&proc.body), 3);
 }
 
@@ -182,7 +192,10 @@ fn statement_count_nested_if_counts_inner() {
     // The `if` contributes its clause plus the nested `set`, so the body
     // counts >= 1.
     let module = module_for("proc foo {x} {\n  if {$x} { set a 1 }\n}\n");
-    let proc = &module.procedures["::foo"];
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::foo"))
+        .expect("authored fixture body");
     assert!(count_statements(&proc.body) >= 1);
 }
 
@@ -202,8 +215,11 @@ fn static_call_count_drives_large_proc_decision() {
     let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\n"));
     let summaries = analyse_var_escape(&module, true);
-    let proc = &module.procedures["::big"];
-    let s = summary_for(&summaries, "::big");
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::big"))
+        .expect("authored fixture body");
+    let s = summary_for(&summaries, fixture_id(&module.procedures, "::big"));
     assert_eq!(classify_proc(proc, s, 0), InlineDecision::Never);
     assert_eq!(classify_proc(proc, s, 1), InlineDecision::IfSingleCall);
     assert_eq!(classify_proc(proc, s, 2), InlineDecision::Never);
@@ -218,9 +234,16 @@ fn classify_small_pure_leaf_is_always() {
     // inlining `add` must preserve that result.
     let module = module_for("proc add {a b} { return [expr {$a + $b}] }\n");
     let summaries = analyse_var_escape(&module, true);
-    let proc = &module.procedures["::add"];
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::add"))
+        .expect("authored fixture body");
     assert_eq!(
-        classify_proc(proc, summary_for(&summaries, "::add"), 0),
+        classify_proc(
+            proc,
+            summary_for(&summaries, fixture_id(&module.procedures, "::add")),
+            0
+        ),
         InlineDecision::Always
     );
 }
@@ -234,10 +257,20 @@ fn classify_non_pure_leaf_is_never() {
     // caller's frame; inlining must NOT relocate that body.
     let module = module_for("proc setter {name val} {\n  upvar 1 $name v\n  set v $val\n}\n");
     let summaries = analyse_var_escape(&module, true);
-    let proc = &module.procedures["::setter"];
-    assert!(!summary_for(&summaries, "::setter").is_some_and(ProcEscapeSummary::safe_to_inline));
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::setter"))
+        .expect("authored fixture body");
+    assert!(
+        !summary_for(&summaries, fixture_id(&module.procedures, "::setter"))
+            .is_some_and(ProcEscapeSummary::safe_to_inline)
+    );
     assert_eq!(
-        classify_proc(proc, summary_for(&summaries, "::setter"), 0),
+        classify_proc(
+            proc,
+            summary_for(&summaries, fixture_id(&module.procedures, "::setter")),
+            0
+        ),
         InlineDecision::Never
     );
 }
@@ -247,9 +280,16 @@ fn classify_large_pure_leaf_one_caller_is_if_single_call() {
     let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\nbig\n"));
     let summaries = analyse_var_escape(&module, true);
-    let proc = &module.procedures["::big"];
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::big"))
+        .expect("authored fixture body");
     assert_eq!(
-        classify_proc(proc, summary_for(&summaries, "::big"), 1),
+        classify_proc(
+            proc,
+            summary_for(&summaries, fixture_id(&module.procedures, "::big")),
+            1
+        ),
         InlineDecision::IfSingleCall
     );
 }
@@ -259,9 +299,16 @@ fn classify_large_pure_leaf_two_callers_is_never() {
     let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\nbig\nbig\n"));
     let summaries = analyse_var_escape(&module, true);
-    let proc = &module.procedures["::big"];
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::big"))
+        .expect("authored fixture body");
     assert_eq!(
-        classify_proc(proc, summary_for(&summaries, "::big"), 2),
+        classify_proc(
+            proc,
+            summary_for(&summaries, fixture_id(&module.procedures, "::big")),
+            2
+        ),
         InlineDecision::Never
     );
 }
@@ -273,10 +320,17 @@ fn classify_threshold_boundary_is_always() {
     let body = assign_body(SMALL_BODY_THRESHOLD);
     let module = module_for(&format!("proc edge {{}} {{\n{body}}}\nedge\nedge\n"));
     let summaries = analyse_var_escape(&module, true);
-    let proc = &module.procedures["::edge"];
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::edge"))
+        .expect("authored fixture body");
     assert_eq!(count_statements(&proc.body), SMALL_BODY_THRESHOLD);
     assert_eq!(
-        classify_proc(proc, summary_for(&summaries, "::edge"), 2),
+        classify_proc(
+            proc,
+            summary_for(&summaries, fixture_id(&module.procedures, "::edge")),
+            2
+        ),
         InlineDecision::Always
     );
 }
@@ -286,7 +340,10 @@ fn classify_missing_summary_is_never() {
     // Edge case driving the `!summary.is_some_and(...)` early return: with no
     // escape summary at all, a proc is conservatively NEVER inlinable.
     let module = module_for("proc add {a b} { return [expr {$a + $b}] }\n");
-    let proc = &module.procedures["::add"];
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::add"))
+        .expect("authored fixture body");
     assert_eq!(classify_proc(proc, None, 0), InlineDecision::Never);
 }
 
@@ -302,7 +359,7 @@ fn empty_body_call_is_dropped() {
     assert_eq!(top_calls_to(&module, "noop"), 2);
     let out = inline_module(module, &reg());
     assert_eq!(top_calls_to(&out, "noop"), 0);
-    assert!(out.procedures.contains_key("::noop"));
+    assert!(fixture_id_if_present(&out.procedures, "::noop").is_some());
 }
 
 #[test]
@@ -311,7 +368,7 @@ fn non_empty_body_v3_inlines_and_keeps_proc() {
     // observable).
     let out = inlined("proc setup {} { set x 1 }\nsetup\n");
     assert_eq!(top_calls_to(&out, "setup"), 0);
-    assert!(out.procedures.contains_key("::setup"));
+    assert!(fixture_id_if_present(&out.procedures, "::setup").is_some());
 }
 
 #[test]
@@ -797,19 +854,19 @@ fn inlinable_proc_kept_after_inlining() {
     // User procs are externally observable Tcl commands, so they survive even
     // when every static call site is spliced away.
     let out = inlined("proc noop {} {}\nnoop\nnoop\n");
-    assert!(out.procedures.contains_key("::noop"));
+    assert!(fixture_id_if_present(&out.procedures, "::noop").is_some());
 }
 
 #[test]
 fn unreferenced_inlinable_proc_kept() {
     let out = inlined("proc lonely {} {}\n");
-    assert!(out.procedures.contains_key("::lonely"));
+    assert!(fixture_id_if_present(&out.procedures, "::lonely").is_some());
 }
 
 #[test]
 fn non_inlinable_proc_kept_even_if_unreferenced() {
     let out = inlined("proc opaque {name} { upvar 1 $name v }\n");
-    assert!(out.procedures.contains_key("::opaque"));
+    assert!(fixture_id_if_present(&out.procedures, "::opaque").is_some());
 }
 
 // (There is no `compiler_synthetic`-drop test: the `Procedure` type carries no
@@ -862,7 +919,10 @@ fn qualified_registry_command_body_is_inlined_without_rewriting_the_head() {
     let summaries = analyse_var_escape_with_registry(&module, true, &registry);
     assert!(
         summaries
-            .get("::setup")
+            .get(&tcl_core_types::BodyFrameId::Body(fixture_id(
+                &module.procedures,
+                "::setup"
+            )))
             .is_some_and(ProcEscapeSummary::safe_to_inline),
         "an absolute spelling must receive its registry command's frameless facts"
     );
@@ -881,13 +941,23 @@ fn unqualified_call_in_namespace() {
     let module =
         module_for("namespace eval ::ns {\n  proc noop {} {}\n  proc caller {} { noop }\n}\n");
     let summaries = analyse_var_escape(&module, true);
-    let proc = &module.procedures["::ns::noop"];
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::ns::noop"))
+        .expect("authored fixture body");
     assert_eq!(
-        classify_proc(proc, summary_for(&summaries, "::ns::noop"), 0),
+        classify_proc(
+            proc,
+            summary_for(&summaries, fixture_id(&module.procedures, "::ns::noop")),
+            0
+        ),
         InlineDecision::Always
     );
     let out = inline_module(module, &reg());
-    let caller = &out.procedures["::ns::caller"];
+    let caller = out
+        .procedures
+        .get(&fixture_id(&out.procedures, "::ns::caller"))
+        .expect("authored fixture body");
     assert_eq!(calls_to(&caller.body.statements, "noop"), 0);
 }
 
@@ -902,7 +972,7 @@ fn namespace_eval_body_is_opaque_barrier_not_a_block() {
     // `unqualified_call_in_namespace` above.
     let out = inlined("namespace eval ::ns {\n  proc noop {} {}\n  noop\n}\n");
     assert!(
-        out.procedures.contains_key("::ns::noop"),
+        fixture_id_if_present(&out.procedures, "::ns::noop").is_some(),
         "the namespaced proc is registered"
     );
     assert!(
@@ -963,7 +1033,10 @@ fn zero_param_single_uplevel_is_candidate() {
     // preserves that.
     let out =
         uplevel_inlined("proc reset {} { uplevel 1 {set counter 0} }\nproc caller {} { reset }\n");
-    let caller = &out.procedures["::caller"];
+    let caller = out
+        .procedures
+        .get(&fixture_id(&out.procedures, "::caller"))
+        .expect("authored fixture body");
     let first = caller.body.statements.first().expect("non-empty body");
     assert!(
         matches!(first, Statement::Block { .. }),
@@ -982,7 +1055,10 @@ fn non_passthrough_not_inlined() {
     let out = uplevel_inlined(
         "proc worker {} {\n  set local 1\n  uplevel 1 {set g 2}\n}\nproc caller {} { worker }\n",
     );
-    let caller = &out.procedures["::caller"];
+    let caller = out
+        .procedures
+        .get(&fixture_id(&out.procedures, "::caller"))
+        .expect("authored fixture body");
     let first = caller.body.statements.first().expect("non-empty body");
     assert!(
         matches!(first, Statement::Call { command, .. } if command == "worker"),
@@ -995,7 +1071,10 @@ fn non_unit_frame_shift_not_inlined() {
     // `uplevel #0` goes to the absolute global frame; not a same-frame inline.
     let out =
         uplevel_inlined("proc reset {} { uplevel #0 {set ::g 0} }\nproc caller {} { reset }\n");
-    let caller = &out.procedures["::caller"];
+    let caller = out
+        .procedures
+        .get(&fixture_id(&out.procedures, "::caller"))
+        .expect("authored fixture body");
     let first = caller.body.statements.first().expect("non-empty body");
     assert!(
         matches!(first, Statement::Call { .. } | Statement::Barrier { .. }),
@@ -1010,7 +1089,10 @@ fn non_body_param_not_inlined() {
     let out = uplevel_inlined(
         "proc setter {n} { uplevel 1 \"set counter $n\" }\nproc caller {} { setter 5 }\n",
     );
-    let caller = &out.procedures["::caller"];
+    let caller = out
+        .procedures
+        .get(&fixture_id(&out.procedures, "::caller"))
+        .expect("authored fixture body");
     let first = caller.body.statements.first().expect("non-empty body");
     assert!(matches!(
         first,
@@ -1025,7 +1107,10 @@ fn nested_uplevel_poisons_inlining() {
     let out = uplevel_inlined(
         "proc double_up {} { uplevel 1 { uplevel 1 {set g 1} } }\nproc caller {} { double_up }\n",
     );
-    let caller = &out.procedures["::caller"];
+    let caller = out
+        .procedures
+        .get(&fixture_id(&out.procedures, "::caller"))
+        .expect("authored fixture body");
     let first = caller.body.statements.first().expect("non-empty body");
     assert!(matches!(
         first,
@@ -1039,7 +1124,10 @@ fn args_at_callsite_prevents_inline() {
     let out = uplevel_inlined(
         "proc reset {} { uplevel 1 {set g 0} }\nproc caller {} { reset extra_arg }\n",
     );
-    let caller = &out.procedures["::caller"];
+    let caller = out
+        .procedures
+        .get(&fixture_id(&out.procedures, "::caller"))
+        .expect("authored fixture body");
     let first = caller.body.statements.first().expect("non-empty body");
     assert!(matches!(
         first,
@@ -1056,7 +1144,7 @@ fn detect_static_passthrough_recognises_zero_param() {
     let m = module_for("proc reset {} { uplevel 1 {set counter 0} }\n");
     let candidates = detect_static_passthrough(&m, &reg());
     assert_eq!(candidates.len(), 1);
-    assert!(candidates.contains_key("::reset"));
+    assert!(candidates.contains_key(&fixture_id(&m.procedures, "::reset")));
 }
 
 #[test]
@@ -1088,11 +1176,21 @@ fn body_has_frame_reach_flags_uplevel_and_upvar() {
 fn uplevel_running_twice_is_noop() {
     let mut m = module_for("proc reset {} { uplevel 1 {set g 0} }\nproc caller {} { reset }\n");
     inline_uplevel_passthrough(&mut m, &reg());
-    let first = m.procedures["::caller"].body.clone();
+    let first = m
+        .procedures
+        .get(&fixture_id(&m.procedures, "::caller"))
+        .expect("authored fixture body")
+        .body
+        .clone();
     inline_uplevel_passthrough(&mut m, &reg());
-    let second = &m.procedures["::caller"].body;
+    let second = m
+        .procedures
+        .get(&fixture_id(&m.procedures, "::caller"))
+        .expect("authored fixture body")
+        .body
+        .clone();
     assert_eq!(first.statements.len(), second.statements.len());
-    assert_eq!(&first, second, "second pass is structurally a no-op");
+    assert_eq!(&first, &second, "second pass is structurally a no-op");
 }
 
 // Param-body passthrough.
@@ -1105,7 +1203,10 @@ fn param_body_explicit_level_one_call_site_inlined() {
     let out = uplevel_inlined(
         "proc dispatcher {body} { uplevel 1 $body }\nproc caller {} { dispatcher {set x 1} }\n",
     );
-    let caller = &out.procedures["::caller"];
+    let caller = out
+        .procedures
+        .get(&fixture_id(&out.procedures, "::caller"))
+        .expect("authored fixture body");
     let first = caller.body.statements.first().expect("non-empty body");
     assert!(
         matches!(first, Statement::Block { .. }),
@@ -1119,7 +1220,10 @@ fn param_body_implicit_level_call_site_inlined() {
     let out = uplevel_inlined(
         "proc dispatcher2 {body} { uplevel $body }\nproc caller {} { dispatcher2 {set x 1} }\n",
     );
-    let caller = &out.procedures["::caller"];
+    let caller = out
+        .procedures
+        .get(&fixture_id(&out.procedures, "::caller"))
+        .expect("authored fixture body");
     let first = caller.body.statements.first().expect("non-empty body");
     assert!(matches!(first, Statement::Block { .. }));
 }
@@ -1130,7 +1234,10 @@ fn param_body_dynamic_arg_at_call_site_stays_call() {
     let out = uplevel_inlined(
         "proc dispatcher {body} { uplevel 1 $body }\nproc caller {} { set b {set x 1}\ndispatcher $b }\n",
     );
-    let caller = &out.procedures["::caller"];
+    let caller = out
+        .procedures
+        .get(&fixture_id(&out.procedures, "::caller"))
+        .expect("authored fixture body");
     assert!(
         caller
             .body
@@ -1146,7 +1253,10 @@ fn param_body_wrong_arity_at_call_site_stays_call() {
     let out = uplevel_inlined(
         "proc dispatcher {body} { uplevel 1 $body }\nproc caller {} { dispatcher {set x 1} extra }\n",
     );
-    let caller = &out.procedures["::caller"];
+    let caller = out
+        .procedures
+        .get(&fixture_id(&out.procedures, "::caller"))
+        .expect("authored fixture body");
     let first = caller.body.statements.first().expect("non-empty body");
     assert!(matches!(
         first,
@@ -1162,7 +1272,10 @@ fn param_body_multiple_params_not_recognised() {
     let out = uplevel_inlined(
         "proc dispatcher2 {a body} { uplevel 1 $body }\nproc caller {} { dispatcher2 x {set x 1} }\n",
     );
-    let caller = &out.procedures["::caller"];
+    let caller = out
+        .procedures
+        .get(&fixture_id(&out.procedures, "::caller"))
+        .expect("authored fixture body");
     let first = caller.body.statements.first().expect("non-empty body");
     assert!(matches!(
         first,
@@ -1191,8 +1304,8 @@ fn param_body_shape_carries_param_name() {
     // `PassthroughShape` enum directly).
     let m = module_for("proc dispatcher {body} { uplevel 1 $body }\n");
     let candidates = detect_passthrough_candidates(&m, &reg());
-    match candidates.get("::dispatcher") {
-        Some(PassthroughShape::ParamBody { param_name }) => assert_eq!(param_name, "body"),
+    match candidates.get(&fixture_id(&m.procedures, "::dispatcher")) {
+        Some(PassthroughShape::ParamBody { param_name, .. }) => assert_eq!(param_name, "body"),
         other => panic!("expected ParamBody {{ body }}, got {other:?}"),
     }
 }
@@ -1202,7 +1315,7 @@ fn static_shape_carries_body() {
     // The Static shape carries the pre-lowered body to splice.
     let m = module_for("proc reset {} { uplevel 1 {set counter 0} }\n");
     let candidates = detect_passthrough_candidates(&m, &reg());
-    match candidates.get("::reset") {
+    match candidates.get(&fixture_id(&m.procedures, "::reset")) {
         Some(PassthroughShape::Static { body }) => {
             assert!(!body.statements.is_empty(), "static body is non-empty");
         }

@@ -1,0 +1,1 @@
+namespace import ::ReceiptCycle::a

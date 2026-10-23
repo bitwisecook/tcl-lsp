@@ -65,7 +65,8 @@ use crate::PACK_EXTENSION;
 /// winner first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Tier {
-    /// A live editor-hosted Spec Studio session under `.tcl-lsp/.spec-studio/`.
+    /// Editor-hosted Studio metadata under `.tcl-lsp/.spec-studio/`.
+    /// Actual session admission is separate from this precedence tier.
     StudioOverride,
     /// The `tclLsp.specPacks` setting, `.tcl-lsp/`, or beside a `tclpkg.tcl`.
     Workspace,
@@ -219,7 +220,7 @@ const MANIFEST_SCAN_DIR_CAP: usize = 4_000;
 
 /// What to look at. Every field is optional in the sense that an empty or
 /// absent one simply contributes no files.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DiscoveryOptions {
     /// The editor's workspace folders, as filesystem paths.
     pub workspace_roots: Vec<PathBuf>,
@@ -280,8 +281,8 @@ pub fn user_dir() -> PathBuf {
 /// `JetBrains` plugin copies `$(SPEC_PACK_SRC)` next to it, and both packaging gates fail
 /// if it is missing. A `cargo build` lays down nothing, so a
 /// `target/debug/tcl` — or a test binary in `target/debug/deps/` — would find
-/// no loadables and quietly lose the EDA vendor libraries, which since their
-/// migration exist *only* as packs. Compiling the checkout's `specs/` path in
+/// no loadables and quietly lose the EDA vendor libraries, which exist only
+/// as packs. Compiling the checkout's `specs/` path in
 /// under `debug_assertions` makes a development build behave like an install
 /// without any per-developer setup. It cannot fire in a shipped binary: the
 /// path is not compiled in at all when `debug_assertions` is off, and a test
@@ -342,24 +343,136 @@ pub fn discover(options: &DiscoveryOptions) -> Vec<PackFile> {
 /// filled in, so a page's `.tclspec` files are discovered from memory.
 #[must_use]
 pub fn discover_in(store: &dyn SourceStore, options: &DiscoveryOptions) -> Vec<PackFile> {
+    discover_selected_in(store, options, None).files
+}
+
+/// Discover ordinary packs and only the explicitly retained active Studio
+/// paths. This does not issue a session/source lease: the caller must retain
+/// and revalidate its actual source, provider and publication owner.
+/// Unregistered files in a workspace's reserved Studio directory cannot enter
+/// through the workspace/configured scan. Standalone [`discover_in`] retains
+/// its separate filesystem-only compatibility purpose.
+#[must_use]
+pub fn discover_with_active_studio_in(
+    store: &dyn SourceStore,
+    options: &DiscoveryOptions,
+    active: &[PathBuf],
+) -> Vec<PackFile> {
+    discover_selected_in(store, options, Some(active)).files
+}
+
+/// Whether this original provider Path is a pack file strictly below one of
+/// these workspace Studio directories. No canonicalisation, URI inverse,
+/// file existence, source currency or active-session grant follows.
+#[must_use]
+pub fn is_workspace_studio_source(path: &Path, roots: &[PathBuf]) -> bool {
+    is_pack_file(path)
+        && roots.iter().any(|root| {
+            path.strip_prefix(root.join(WORKSPACE_PACK_DIR).join(STUDIO_OVERRIDE_DIR))
+                .is_ok_and(|relative| {
+                    relative.components().next().is_some()
+                        && relative
+                            .components()
+                            .all(|part| matches!(part, std::path::Component::Normal(_)))
+                })
+        })
+}
+
+fn is_reserved_workspace_studio_path(
+    store: &dyn SourceStore,
+    path: &Path,
+    roots: &[PathBuf],
+) -> bool {
+    roots.iter().any(|root| {
+        let reserved = root.join(WORKSPACE_PACK_DIR).join(STUDIO_OVERRIDE_DIR);
+        path.starts_with(&reserved) || path.starts_with(normalise_in(store, &reserved))
+    })
+}
+
+/// Actual configured-source contributions from one discovery pass.
+/// This is source selection only, not publication or a live provider grant.
+pub struct ConfiguredDiscovery {
+    /// The exact final selected files passed to the loader.
+    pub files: Vec<PackFile>,
+    /// Original native files contributed by each session configured entry.
+    /// Empty means no selected contribution, never a successful load.
+    pub configured_sources: Vec<Vec<PathBuf>>,
+    /// Actual manifest observations governing this file selection, not a census.
+    pub(crate) manifest_selection: ManifestSelectionInputs,
+}
+
+/// Manifest reads used by this actual discovery operation. Unknown inputs
+/// cannot certify the selected-file plan; ordinary successful packs remain data.
+#[derive(Default)]
+pub(crate) struct ManifestSelectionInputs {
+    pub(crate) sources: Vec<(PathBuf, String)>,
+    pub(crate) issues: Vec<(PathBuf, String)>,
+    unavailable_subtrees: Vec<PathBuf>,
+}
+
+impl ManifestSelectionInputs {
+    fn record(&mut self, path: &Path, source: String) {
+        if let Some((_, previous)) = self.sources.iter().find(|(held, _)| held == path) {
+            if previous != &source {
+                self.issues.push((
+                    path.to_path_buf(),
+                    "manifest source changed during discovery".into(),
+                ));
+            }
+        } else {
+            self.sources.push((path.to_path_buf(), source));
+        }
+    }
+}
+
+/// Retain configured-entry correspondence from the same ordinary discovery.
+/// The caller must join these files to its actual successfully installed set.
+#[must_use]
+pub fn discover_configuration_with_active_studio_in(
+    store: &dyn SourceStore,
+    options: &DiscoveryOptions,
+    active: &[PathBuf],
+) -> ConfiguredDiscovery {
+    discover_selected_in(store, options, Some(active))
+}
+
+#[allow(clippy::too_many_lines)]
+fn discover_selected_in(
+    store: &dyn SourceStore,
+    options: &DiscoveryOptions,
+    active: Option<&[PathBuf]>,
+) -> ConfiguredDiscovery {
     let mut found: BTreeSet<PackFile> = BTreeSet::new();
+    let mut manifest_selection = ManifestSelectionInputs::default();
+    let mut configured_sources = vec![BTreeSet::<PathBuf>::new(); options.configured.len()];
 
     // --- workspace tier -----------------------------------------------------
     for root in &options.workspace_roots {
-        collect_dir(
-            store,
-            &root.join(WORKSPACE_PACK_DIR).join(STUDIO_OVERRIDE_DIR),
-            Tier::StudioOverride,
-            Origin::StudioOverride,
-            &mut found,
-        );
-        for configured in &options.configured {
+        if active.is_none() {
+            collect_dir(
+                store,
+                &root.join(WORKSPACE_PACK_DIR).join(STUDIO_OVERRIDE_DIR),
+                Tier::StudioOverride,
+                Origin::StudioOverride,
+                &mut found,
+            );
+        }
+        for (index, configured) in options.configured.iter().enumerate() {
             let path = if configured.is_absolute() {
                 configured.clone()
             } else {
                 root.join(configured)
             };
-            collect_path(store, &path, Tier::Workspace, Origin::Setting, &mut found);
+            let mut selected = BTreeSet::new();
+            collect_path(
+                store,
+                &path,
+                Tier::Workspace,
+                Origin::Setting,
+                &mut selected,
+            );
+            configured_sources[index].extend(selected.iter().map(|file| file.path.clone()));
+            found.extend(selected);
         }
         collect_dir(
             store,
@@ -368,7 +481,7 @@ pub fn discover_in(store: &dyn SourceStore, options: &DiscoveryOptions) -> Vec<P
             Origin::DotDir,
             &mut found,
         );
-        collect_beside_manifests(store, root, &mut found);
+        collect_beside_manifests_observed(store, root, &mut found, &mut manifest_selection);
     }
     // Folder-scoped `tclLsp.specPacks`. Resolved against its own folder and no
     // other, whether or not that folder is in `workspace_roots` — the client
@@ -388,15 +501,18 @@ pub fn discover_in(store: &dyn SourceStore, options: &DiscoveryOptions) -> Vec<P
     // open (a single-file editor session), so honour it once more outside the
     // per-root loop rather than making it depend on a root existing.
     if options.workspace_roots.is_empty() {
-        for configured in &options.configured {
+        for (index, configured) in options.configured.iter().enumerate() {
             if configured.is_absolute() {
+                let mut selected = BTreeSet::new();
                 collect_path(
                     store,
                     configured,
                     Tier::Workspace,
                     Origin::Setting,
-                    &mut found,
+                    &mut selected,
                 );
+                configured_sources[index].extend(selected.iter().map(|file| file.path.clone()));
+                found.extend(selected);
             }
         }
     }
@@ -427,6 +543,22 @@ pub fn discover_in(store: &dyn SourceStore, options: &DiscoveryOptions) -> Vec<P
         );
     }
 
+    if let Some(active) = active {
+        found.retain(|file| {
+            !is_reserved_workspace_studio_path(store, &file.path, &options.workspace_roots)
+        });
+        for path in active {
+            if is_workspace_studio_source(path, &options.workspace_roots) {
+                found.insert(PackFile {
+                    tier: Tier::StudioOverride,
+                    path: path.clone(),
+                    origin: Origin::StudioOverride,
+                    dependency_tier: None,
+                });
+            }
+        }
+    }
+
     // One entry per path: the set is already ordered by (tier, path, origin),
     // so the first sighting of a path is its best tier.
     let mut seen: BTreeSet<PathBuf> = BTreeSet::new();
@@ -435,7 +567,20 @@ pub fn discover_in(store: &dyn SourceStore, options: &DiscoveryOptions) -> Vec<P
         .filter(|file| seen.insert(file.path.clone()))
         .collect();
     assign_dependency_tiers(store, &options.workspace_roots, &mut files);
-    files
+    let configured_sources = configured_sources
+        .into_iter()
+        .map(|sources| {
+            sources
+                .into_iter()
+                .filter(|path| files.iter().any(|file| &file.path == path))
+                .collect()
+        })
+        .collect();
+    ConfiguredDiscovery {
+        files,
+        configured_sources,
+        manifest_selection,
+    }
 }
 
 /// Add `path` — a `.tclspec` file, or a directory to scan for them.
@@ -451,7 +596,7 @@ fn collect_path(
     } else if store.is_file(path) && is_pack_file(path) {
         out.insert(PackFile {
             tier,
-            path: normalise(path),
+            path: normalise_in(store, path),
             origin,
             dependency_tier: None,
         });
@@ -482,10 +627,28 @@ fn collect_dir_except(
     skip: &dyn Fn(&Path) -> bool,
     out: &mut BTreeSet<PackFile>,
 ) {
+    let _ = collect_dir_except_with_errors(store, dir, tier, origin, skip, out);
+}
+
+/// The existing recursive selector with explicit required-input failures.
+/// Compatibility discovery still keeps its independently useful positive prefix.
+fn collect_dir_except_with_errors(
+    store: &dyn SourceStore,
+    dir: &Path,
+    tier: Tier,
+    origin: Origin,
+    skip: &dyn Fn(&Path) -> bool,
+    out: &mut BTreeSet<PackFile>,
+) -> Vec<(PathBuf, std::io::Error)> {
+    let mut errors = Vec::new();
     let mut stack = vec![dir.to_path_buf()];
     while let Some(current) = stack.pop() {
-        let Ok(entries) = store.read_dir(&current) else {
-            continue;
+        let entries = match store.read_dir(&current) {
+            Ok(entries) => entries,
+            Err(error) => {
+                errors.push((current, error));
+                continue;
+            }
         };
         for entry in entries {
             if entry.is_dir {
@@ -495,13 +658,43 @@ fn collect_dir_except(
             } else if entry.is_file && is_pack_file(&entry.path) {
                 out.insert(PackFile {
                     tier,
-                    path: normalise(&entry.path),
+                    path: normalise_in(store, &entry.path),
                     origin,
                     dependency_tier: None,
                 });
             }
         }
     }
+    errors
+}
+
+/// Required bundled generation uses the same native selector and skip policy;
+/// a missing or unreadable directory cannot issue a complete selected roster.
+pub(crate) fn required_bundled_files(
+    store: &dyn SourceStore,
+    dir: &Path,
+) -> Result<Vec<PackFile>, String> {
+    let mut files = BTreeSet::new();
+    let errors = collect_dir_except_with_errors(
+        store,
+        dir,
+        Tier::Bundled,
+        Origin::Bundled,
+        &|_| false,
+        &mut files,
+    );
+    if let Some((path, error)) = errors.first() {
+        return Err(format!(
+            "required bundled directory {}: {error}",
+            path.display()
+        ));
+    }
+    Ok(files.into_iter().collect())
+}
+
+enum ManifestDirectiveObservation {
+    Parsed(Option<SpecDirective>),
+    Unavailable,
 }
 
 /// Add the packs that sit beside each `tclpkg.tcl` under `root`.
@@ -511,54 +704,125 @@ fn collect_dir_except(
 /// stays out. One without keeps the scan of every `.tclspec` under its
 /// directory — except under a directory whose own manifest has a directive,
 /// which decides its own packs and is read through its own entry.
-fn collect_beside_manifests(store: &dyn SourceStore, root: &Path, out: &mut BTreeSet<PackFile>) {
-    let dirs = manifest_dirs(store, root);
-    let declared: HashMap<&Path, SpecDirective> = dirs
+fn collect_beside_manifests_observed(
+    store: &dyn SourceStore,
+    root: &Path,
+    out: &mut BTreeSet<PackFile>,
+    selection: &mut ManifestSelectionInputs,
+) {
+    let dirs = manifest_dirs_observed(store, root, selection);
+    let observed: HashMap<&Path, ManifestDirectiveObservation> = dirs
         .iter()
-        .filter_map(|dir| {
-            let directive = list_package_files(store, dir)
-                .manifest
-                .and_then(|manifest| read_manifest(store, &manifest))?
-                .spec?;
-            Some((dir.as_path(), directive))
+        .map(|dir| {
+            let observation = if let Some(path) = list_package_files(store, dir).manifest {
+                match store.read_to_string(&path) {
+                    Ok(source) => {
+                        selection.record(&path, source.clone());
+                        match tcl_pkg_model::manifest::original_manifest_spec_selection(
+                            &source,
+                            path.to_str(),
+                        ) {
+                            Ok(selection) => {
+                                ManifestDirectiveObservation::Parsed(selection.directive().cloned())
+                            }
+                            Err(error) => {
+                                selection.issues.push((
+                                    path,
+                                    format!("cannot parse selected manifest: {error:?}"),
+                                ));
+                                ManifestDirectiveObservation::Unavailable
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        selection
+                            .issues
+                            .push((path, format!("cannot read selected manifest: {error}")));
+                        ManifestDirectiveObservation::Unavailable
+                    }
+                }
+            } else {
+                selection.issues.push((
+                    dir.clone(),
+                    "selected manifest has no represented original path".into(),
+                ));
+                ManifestDirectiveObservation::Unavailable
+            };
+            (dir.as_path(), observation)
         })
         .collect();
     for dir in &dirs {
-        match declared.get(dir.as_path()) {
-            Some(directive) => {
+        match observed.get(dir.as_path()) {
+            Some(ManifestDirectiveObservation::Parsed(Some(directive))) => {
                 for path in crate::package_specs::pack_paths(dir, directive) {
                     out.insert(PackFile {
                         tier: Tier::Workspace,
-                        path: normalise(&path),
+                        path: normalise_in(store, &path),
                         origin: Origin::BesideManifest,
                         dependency_tier: None,
                     });
                 }
             }
-            None => collect_dir_except(
-                store,
-                dir,
-                Tier::Workspace,
-                Origin::BesideManifest,
-                &|nested| declared.contains_key(nested),
-                out,
-            ),
+            Some(ManifestDirectiveObservation::Parsed(None)) => {
+                let errors = collect_dir_except_with_errors(
+                    store,
+                    dir,
+                    Tier::Workspace,
+                    Origin::BesideManifest,
+                    &|nested| {
+                        observed.contains_key(nested)
+                            || selection
+                                .unavailable_subtrees
+                                .iter()
+                                .any(|blocked| nested.starts_with(blocked))
+                    },
+                    out,
+                );
+                for (path, error) in errors {
+                    selection.issues.push((
+                        path,
+                        format!("cannot inspect selected implicit pack directory: {error}"),
+                    ));
+                }
+            }
+            Some(ManifestDirectiveObservation::Unavailable) | None => {}
         }
     }
 }
 
 /// The directories under `root` that hold a `tclpkg.tcl` manifest.
-fn manifest_dirs(store: &dyn SourceStore, root: &Path) -> Vec<PathBuf> {
+fn manifest_dirs_observed(
+    store: &dyn SourceStore,
+    root: &Path,
+    selection: &mut ManifestSelectionInputs,
+) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     let mut visited = 0usize;
     let mut stack = vec![root.to_path_buf()];
     while let Some(current) = stack.pop() {
         if visited >= MANIFEST_SCAN_DIR_CAP {
+            // The already observed positive prefix remains useful. Every
+            // unvisited frontier subtree is unavailable, never proven no-spec.
+            for path in std::iter::once(current).chain(stack.drain(..)) {
+                selection.issues.push((
+                    path.clone(),
+                    "manifest source scan reached its directory bound".into(),
+                ));
+                selection.unavailable_subtrees.push(path);
+            }
             break;
         }
         visited += 1;
-        let Ok(entries) = store.read_dir(&current) else {
-            continue;
+        let entries = match store.read_dir(&current) {
+            Ok(entries) => entries,
+            Err(error) => {
+                selection.issues.push((
+                    current.clone(),
+                    format!("cannot inspect manifest source directory: {error}"),
+                ));
+                selection.unavailable_subtrees.push(current);
+                continue;
+            }
         };
         let mut has_manifest = false;
         let mut children: Vec<PathBuf> = Vec::new();
@@ -614,19 +878,21 @@ fn is_skipped_dir(path: &Path) -> bool {
     }
 }
 
-/// Canonicalise when the filesystem allows it, so the same file reached by two
-/// different spellings (a `tclLsp.specPacks` relative path and a `.tcl-lsp/`
-/// scan) deduplicates. Falls back to the path as given — an unreadable path is
-/// still worth reporting, and a notice naming a symlink the user wrote is
-/// friendlier than one naming its target.
-///
-/// Deliberately **not** routed through the [`SourceStore`]: resolving `..`,
-/// symlinks, and a relative path against the process's working directory is a
-/// capability a byte map genuinely does not have, and the fallback is already
-/// the right answer for a store-supplied path — its spelling is the only one
-/// it has.
+/// Ask the actual source provider for its own canonical spelling. The native
+/// provider preserves filesystem deduplication; virtual/foreign providers keep
+/// their original Path unless they explicitly supply this namespace operation.
+/// Unavailable canonicalisation retains the supplied spelling for reporting.
+fn normalise_in(store: &dyn SourceStore, path: &Path) -> PathBuf {
+    store
+        .canonical_source_path(path)
+        .unwrap_or_else(|| path.to_path_buf())
+}
+
+// Original test compatibility probe uses the same actual native provider;
+// production discovery always supplies its retained SourceStore explicitly.
+#[cfg(test)]
 fn normalise(path: &Path) -> PathBuf {
-    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    normalise_in(&tcl_lsp_core::vfs::NativeStore, path)
 }
 
 /// Give every file found beside a manifest the tier of the package that
@@ -667,6 +933,9 @@ fn assign_dependency_tiers(store: &dyn SourceStore, roots: &[PathBuf], files: &m
 struct PackageFiles {
     manifest: Option<PathBuf>,
     lockfile: Option<PathBuf>,
+    /// An incomplete listing or distinct case-equivalent provider paths cannot
+    /// choose a manifest/lockfile pair or establish a package trust floor.
+    unavailable: bool,
 }
 
 /// The package metadata one discovery reads, kept so that the packs of one
@@ -687,7 +956,7 @@ impl<'a> TierReader<'a> {
     fn new(store: &'a dyn SourceStore, roots: &[PathBuf]) -> Self {
         let mut spellings: Vec<PathBuf> = Vec::new();
         for root in roots {
-            for spelling in [root.clone(), normalise(root)] {
+            for spelling in [root.clone(), normalise_in(store, root)] {
                 if !spellings.contains(&spelling) {
                     spellings.push(spelling);
                 }
@@ -722,6 +991,11 @@ impl<'a> TierReader<'a> {
             .take_while(|dir| dir.starts_with(&root))
             .map(Path::to_path_buf)
             .collect();
+        if chain.iter().any(|dir| self.listing(dir).unavailable) {
+            // Do not walk past an unknown local provider to a stronger outer
+            // package. Keep the actual pack but give it no promoted trust tier.
+            return Some(DependencyTier::Transitive);
+        }
         let package = chain
             .iter()
             .find(|dir| self.listing(dir).manifest.is_some())?
@@ -793,19 +1067,41 @@ impl<'a> TierReader<'a> {
 /// The manifest and the lockfile in `dir`, matched the way the manifest hunt
 /// matches a manifest: by file name, ignoring ASCII case.
 fn list_package_files(store: &dyn SourceStore, dir: &Path) -> PackageFiles {
-    let mut files = PackageFiles::default();
     let Ok(entries) = store.read_dir(dir) else {
-        return files;
+        return PackageFiles {
+            unavailable: true,
+            ..PackageFiles::default()
+        };
     };
+    let mut files = PackageFiles::default();
     for entry in entries.into_iter().filter(|entry| entry.is_file) {
-        let name = entry.path.file_name().and_then(|name| name.to_str());
-        if name.is_some_and(|name| name.eq_ignore_ascii_case(PACKAGE_MANIFEST)) {
-            files.manifest = Some(entry.path);
-        } else if name.is_some_and(|name| name.eq_ignore_ascii_case(PACKAGE_LOCKFILE)) {
-            files.lockfile = Some(entry.path);
-        }
+        files.observe_path(entry.path);
+    }
+    if files.unavailable {
+        files.manifest = None;
+        files.lockfile = None;
     }
     files
+}
+
+impl PackageFiles {
+    /// The original case-insensitive admission keeps actual provider paths;
+    /// distinct matches are unavailable regardless of enumeration order.
+    fn observe_path(&mut self, path: PathBuf) {
+        let name = path.file_name().and_then(|name| name.to_str());
+        let slot = if name.is_some_and(|name| name.eq_ignore_ascii_case(PACKAGE_MANIFEST)) {
+            &mut self.manifest
+        } else if name.is_some_and(|name| name.eq_ignore_ascii_case(PACKAGE_LOCKFILE)) {
+            &mut self.lockfile
+        } else {
+            return;
+        };
+        if slot.as_ref().is_some_and(|previous| previous != &path) {
+            self.unavailable = true;
+        } else {
+            *slot = Some(path);
+        }
+    }
 }
 
 fn read_manifest(store: &dyn SourceStore, path: &Path) -> Option<ManifestAst> {
@@ -919,6 +1215,31 @@ mod tests {
             .collect();
         assert_eq!(names, vec!["a.tclspec", "b.tclspec"], "{found:#?}");
         assert!(found.iter().all(|f| f.tier == Tier::Workspace));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn configured_discovery_retains_exact_native_sources_and_missing_entry() {
+        let root = tmpdir("configured-receipt");
+        write(&root.join("packs/one.tclspec"), "speclib one 1 {}\n");
+        let options = DiscoveryOptions {
+            workspace_roots: vec![root.clone()],
+            configured: vec![PathBuf::from("packs"), PathBuf::from("missing.tclspec")],
+            skip_user_tier: true,
+            bundled_dir: Some(root.join("no-bundled")),
+            ..DiscoveryOptions::default()
+        };
+        let receipt = discover_configuration_with_active_studio_in(&NativeStore, &options, &[]);
+        assert_eq!(
+            receipt.files,
+            discover_with_active_studio_in(&NativeStore, &options, &[])
+        );
+        assert_eq!(receipt.configured_sources.len(), 2);
+        assert_eq!(
+            receipt.configured_sources[0],
+            vec![normalise(&root.join("packs/one.tclspec"))]
+        );
+        assert!(receipt.configured_sources[1].is_empty());
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -1626,5 +1947,292 @@ mod tests {
             "`json` is direct and asked for development; `http` is transitive and asked for direct"
         );
         let _ = std::fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod active_studio_discovery_tests {
+    use super::*;
+    use tcl_lsp_core::vfs::MemoryStore;
+
+    #[test]
+    fn checked_studio_discovery_requires_explicit_paths_and_preserves_ordinary_tiers() {
+        let store = MemoryStore::new();
+        let active = PathBuf::from("/ws/.tcl-lsp/.spec-studio/a/active.tclspec");
+        let retired = PathBuf::from("/ws/.tcl-lsp/.spec-studio/b/active.tclspec");
+        for path in [&active, &retired] {
+            store.upsert(path, b"speclib studio 1 {}".to_vec());
+        }
+        store.upsert(
+            "/ws/.tcl-lsp/ordinary.tclspec",
+            b"speclib ordinary 1 {}".to_vec(),
+        );
+        store.upsert("/user/user.tclspec", b"speclib user 1 {}".to_vec());
+        store.upsert("/bundled/bundled.tclspec", b"speclib bundled 1 {}".to_vec());
+        let options = DiscoveryOptions {
+            workspace_roots: vec![PathBuf::from("/ws")],
+            configured: vec![retired.clone()],
+            user_dir: Some(PathBuf::from("/user")),
+            bundled_dir: Some(PathBuf::from("/bundled")),
+            ..DiscoveryOptions::default()
+        };
+        let closed = discover_with_active_studio_in(&store, &options, &[]);
+        assert_eq!(
+            closed.iter().map(|file| file.tier).collect::<Vec<_>>(),
+            vec![Tier::Workspace, Tier::User, Tier::Bundled]
+        );
+        let opened =
+            discover_with_active_studio_in(&store, &options, std::slice::from_ref(&active));
+        assert_eq!(opened[0].tier, Tier::StudioOverride);
+        assert_eq!(opened[0].path, active);
+        assert!(!opened.iter().any(|file| file.path == retired));
+        assert_eq!(opened[1..], closed);
+        assert!(!is_workspace_studio_source(
+            Path::new("/ws/.tcl-lsp/.spec-studio/a/../outside.tclspec"),
+            &options.workspace_roots
+        ));
+        assert!(!is_workspace_studio_source(
+            Path::new("/other/.tcl-lsp/.spec-studio/a/active.tclspec"),
+            &options.workspace_roots
+        ));
+    }
+}
+
+#[cfg(test)]
+mod reserved_studio_path_tests {
+    use super::*;
+    use tcl_lsp_core::vfs::MemoryStore;
+
+    #[test]
+    fn malformed_reserved_path_cannot_fall_through_as_workspace_metadata() {
+        let store = MemoryStore::new();
+        let malformed = PathBuf::from("/ws/.tcl-lsp/.spec-studio/panel/../retired.tclspec");
+        store.upsert(&malformed, b"speclib retired 1 {}".to_vec());
+        let options = DiscoveryOptions {
+            workspace_roots: vec![PathBuf::from("/ws")],
+            configured: vec![malformed.clone()],
+            skip_user_tier: true,
+            bundled_dir: Some(PathBuf::from("/no-bundled")),
+            ..DiscoveryOptions::default()
+        };
+        assert!(!is_workspace_studio_source(
+            &malformed,
+            &options.workspace_roots
+        ));
+        assert!(discover_with_active_studio_in(&store, &options, &[]).is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn native_symlink_workspace_quarantines_canonical_retired_studio_files() {
+        let nonce = tcl_lsp_core::wire_session::EditorWireSession::allocate().unwrap();
+        let root = std::env::temp_dir().join(format!("tcl-studio-quarantine-{nonce:?}"));
+        let real = root.join("real");
+        let linked = root.join("linked");
+        let reserved = real.join(WORKSPACE_PACK_DIR).join(STUDIO_OVERRIDE_DIR);
+        std::fs::create_dir_all(reserved.join("panel")).unwrap();
+        std::fs::write(reserved.join("retired.tclspec"), "speclib retired 1 {}").unwrap();
+        std::os::unix::fs::symlink(&real, &linked).unwrap();
+        let options = DiscoveryOptions {
+            workspace_roots: vec![linked.clone()],
+            configured: vec![
+                linked
+                    .join(WORKSPACE_PACK_DIR)
+                    .join(STUDIO_OVERRIDE_DIR)
+                    .join("panel/../retired.tclspec"),
+            ],
+            skip_user_tier: true,
+            bundled_dir: Some(root.join("no-bundled")),
+            ..DiscoveryOptions::default()
+        };
+        assert!(discover_with_active_studio_in(&NativeStore, &options, &[]).is_empty());
+        assert!(
+            discover_in(&NativeStore, &options)
+                .iter()
+                .any(|file| file.tier == Tier::StudioOverride)
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod source_provider_path_normalisation_tests {
+    use super::*;
+    use tcl_lsp_core::vfs::{MemoryStore, NativeStore};
+
+    #[test]
+    fn virtual_source_spelling_cannot_borrow_coincident_host_canonical_path() {
+        let path = Path::new(".");
+        let virtual_store = MemoryStore::new();
+        assert_eq!(normalise_in(&virtual_store, path), path);
+        let host = std::fs::canonicalize(path).unwrap();
+        assert_ne!(host, path);
+        assert_eq!(normalise_in(&NativeStore, path), host);
+        let missing = path.join("actual-missing-provider-path-54c6c147.tclspec");
+        assert_eq!(normalise_in(&virtual_store, &missing), missing);
+    }
+}
+
+#[cfg(test)]
+mod manifest_selection_source_controls {
+    use super::*;
+    use tcl_lsp_core::vfs::MemoryStore;
+
+    #[test]
+    fn unavailable_nested_manifest_cannot_borrow_parent_implicit_scan() {
+        let store = MemoryStore::new();
+        store.upsert(
+            PathBuf::from("/project/tclpkg.tcl"),
+            b"package require x\n".to_vec(),
+        );
+        store.upsert(
+            PathBuf::from("/project/visible.tclspec"),
+            b"speclib visible 1 {}".to_vec(),
+        );
+        store.upsert(
+            PathBuf::from("/project/nested/tclpkg.tcl"),
+            b"spec {packs".to_vec(),
+        );
+        store.upsert(
+            PathBuf::from("/project/nested/hidden.tclspec"),
+            b"speclib hidden 1 {}".to_vec(),
+        );
+        let mut found = BTreeSet::new();
+        let mut inputs = ManifestSelectionInputs::default();
+        collect_beside_manifests_observed(&store, Path::new("/project"), &mut found, &mut inputs);
+        assert_eq!(found.len(), 1);
+        assert_eq!(
+            found.first().unwrap().path,
+            Path::new("/project/visible.tclspec")
+        );
+        assert_eq!(inputs.sources.len(), 2);
+        assert_eq!(inputs.issues.len(), 1);
+        let mut loaded = crate::pack::LoadedSourceInputs::default();
+        loaded.retain_manifest_selection(&store, &inputs);
+        assert!(loaded.selected(&[]).is_none());
+    }
+
+    #[test]
+    fn complete_no_spec_selection_retains_actual_manifest_source_dependency() {
+        let store = MemoryStore::new();
+        let path = PathBuf::from("/project/tclpkg.tcl");
+        let source = "package require x\n";
+        store.upsert(path.clone(), source.as_bytes().to_vec());
+        let mut found = BTreeSet::new();
+        let mut inputs = ManifestSelectionInputs::default();
+        collect_beside_manifests_observed(&store, Path::new("/project"), &mut found, &mut inputs);
+        assert!(found.is_empty());
+        assert!(inputs.issues.is_empty());
+        assert_eq!(inputs.sources, vec![(path.clone(), source.to_owned())]);
+        let mut loaded = crate::pack::LoadedSourceInputs::default();
+        loaded.retain_manifest_selection(&store, &inputs);
+        let selected = loaded.selected(&[]).unwrap();
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].0.path(), path);
+        assert_eq!(selected[0].1, source.as_bytes());
+    }
+}
+
+#[cfg(test)]
+mod manifest_frontier_completeness_controls {
+    use super::*;
+    use tcl_lsp_core::vfs::MemoryStore;
+
+    #[test]
+    fn actual_scan_bound_cannot_donate_unvisited_nested_manifest_subtrees_to_parent() {
+        let store = MemoryStore::new();
+        store.upsert("/project/tclpkg.tcl", b"package require x\n".to_vec());
+        store.upsert("/project/visible.tclspec", b"speclib visible 1 {}".to_vec());
+        // Fixed finite fixture just beyond the actual production scan budget.
+        // Ordinary observed directories remain usable; the unvisited frontier
+        // cannot masquerade as complete absence of a nested manifest.
+        for index in 0..=MANIFEST_SCAN_DIR_CAP {
+            store.upsert(format!("/project/d{index:04}/marker"), Vec::<u8>::new());
+        }
+        let tail = format!("/project/d{MANIFEST_SCAN_DIR_CAP:04}");
+        store.upsert(format!("{tail}/tclpkg.tcl"), b"spec {packs".to_vec());
+        store.upsert(
+            format!("{tail}/hidden.tclspec"),
+            b"speclib hidden 1 {}".to_vec(),
+        );
+        let mut selected = BTreeSet::new();
+        let mut inputs = ManifestSelectionInputs::default();
+        collect_beside_manifests_observed(
+            &store,
+            Path::new("/project"),
+            &mut selected,
+            &mut inputs,
+        );
+        assert_eq!(selected.len(), 1);
+        assert_eq!(
+            selected.first().unwrap().path,
+            Path::new("/project/visible.tclspec")
+        );
+        assert!(
+            inputs
+                .unavailable_subtrees
+                .iter()
+                .any(|path| Path::new(&tail).starts_with(path))
+        );
+        assert!(
+            inputs
+                .issues
+                .iter()
+                .any(|(_, issue)| issue.contains("directory bound"))
+        );
+        let mut loaded = crate::pack::LoadedSourceInputs::default();
+        loaded.retain_manifest_selection(&store, &inputs);
+        assert!(loaded.selected(&[]).is_none());
+    }
+}
+
+#[cfg(test)]
+mod actual_manifest_case_controls {
+    use super::*;
+    #[test]
+    fn distinct_case_equivalent_providers_are_unavailable_in_either_order() {
+        for paths in [
+            ["/work/tclpkg.tcl", "/work/TCLPKG.TCL"],
+            ["/work/TCLPKG.TCL", "/work/tclpkg.tcl"],
+            ["/work/tclpkg.lock", "/work/TCLPKG.LOCK"],
+        ] {
+            let mut files = PackageFiles::default();
+            for path in paths {
+                files.observe_path(PathBuf::from(path));
+            }
+            assert!(files.unavailable);
+        }
+        let store = tcl_lsp_core::vfs::MemoryStore::new();
+        store.upsert(
+            PathBuf::from("/work/tclpkg.tcl"),
+            b"package one\nversion 1.0\n".to_vec(),
+        );
+        store.upsert(
+            PathBuf::from("/work/TCLPKG.TCL"),
+            b"package two\nversion 1.0\n".to_vec(),
+        );
+        let selected = list_package_files(&store, Path::new("/work"));
+        assert!(selected.unavailable);
+        assert!(selected.manifest.is_none());
+        assert!(selected.lockfile.is_none());
+    }
+
+    #[test]
+    fn single_original_case_path_and_repeated_same_provider_keep_identity() {
+        let store = tcl_lsp_core::vfs::MemoryStore::new();
+        store.upsert(
+            PathBuf::from("/work/TCLPKG.TCL"),
+            b"package one\nversion 1.0\n".to_vec(),
+        );
+        let selected = list_package_files(&store, Path::new("/work"));
+        assert!(!selected.unavailable);
+        assert_eq!(
+            selected.manifest.as_deref(),
+            Some(Path::new("/work/TCLPKG.TCL"))
+        );
+        let mut same = PackageFiles::default();
+        same.observe_path(PathBuf::from("/work/TCLPKG.TCL"));
+        same.observe_path(PathBuf::from("/work/TCLPKG.TCL"));
+        assert!(!same.unavailable);
     }
 }

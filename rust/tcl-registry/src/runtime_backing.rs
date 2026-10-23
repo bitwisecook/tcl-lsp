@@ -45,9 +45,9 @@
 pub enum RuntimeBacking {
     /// A shipped builtin, attested by its registry identity.
     ///
-    /// `identity` is the spelling the registry knows the builtin by — the
-    /// command's own name, with a leading `::` kept where the spec carries one,
-    /// which is the identity the VM's builtin table is keyed by.
+    /// `identity` is the registered implementation command, including its
+    /// namespace. A method-context spelling can refer to a qualified helper
+    /// reached through the receiver's namespace path.
     ShippedBuiltin {
         /// The builtin's registry identity.
         identity: &'static str,

@@ -62,6 +62,125 @@ pub fn completion_code_selector(
     }
 }
 
+/// Native numeric and named completion-selector conversion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CompletionCodePolicy {
+    /// C Tcl 8.x accepts signed magnitudes through `UINT_MAX` before conversion.
+    Tcl8,
+    /// C Tcl 9.x accepts `INT_MIN` through `UINT_MAX` before conversion.
+    Tcl9,
+    /// Jim accepts signed-wide codes and its extra native code names.
+    Jim,
+    /// No engine conversion has been established.
+    Unknown,
+}
+
+impl CompletionCodePolicy {
+    /// Protocol corresponding to an explicitly selected native numeral grammar.
+    /// A grammar union retains unknown rather than selecting one engine.
+    #[must_use]
+    pub fn for_numbers(numbers: tcl_syntax::number::Numbers) -> Self {
+        match numbers.syntax() {
+            Some(tcl_dialect::NumberSyntax::Tcl84 | tcl_dialect::NumberSyntax::Tcl85) => Self::Tcl8,
+            Some(tcl_dialect::NumberSyntax::Tcl90) => Self::Tcl9,
+            Some(tcl_dialect::NumberSyntax::Jim | tcl_dialect::NumberSyntax::Jim080) => Self::Jim,
+            None => Self::Unknown,
+        }
+    }
+}
+
+impl crate::InvocationDialect {
+    /// Completion selector protocol of the actual native runtime.
+    #[must_use]
+    pub fn completion_code_policy(self) -> CompletionCodePolicy {
+        if self.family() == Some(tcl_dialect::model::Family::Jim) {
+            return CompletionCodePolicy::Jim;
+        }
+        match self.tcl_version {
+            Some(version) if version < tcl_dialect::TclVersion::V9_0 => CompletionCodePolicy::Tcl8,
+            Some(_) => CompletionCodePolicy::Tcl9,
+            None => CompletionCodePolicy::Unknown,
+        }
+    }
+}
+
+/// Result of a dialect-sensitive completion selector, preserving ambiguity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompletionCodeSelection {
+    /// A proved native code after conversion.
+    Exact(CompletionCode),
+    /// The selected native grammar rejects this literal.
+    Invalid,
+    /// Numeric or engine-dependent residue has not been resolved.
+    Unknown,
+}
+
+/// Read a native completion selector with the shared numeric grammar.
+/// Unlike a rejected literal, unresolved numeric grammar retains unknown.
+///
+/// ```
+/// use tcl_registry::completion::{CompletionCodeSelection, CompletionCodePolicy, resolve_completion_code_selector};
+/// use tcl_syntax::number::Numbers;
+/// assert_eq!(resolve_completion_code_selector("ok", Numbers::Unknown, CompletionCodePolicy::Unknown),
+///     CompletionCodeSelection::Exact(tcl_registry::completion::CompletionCode::Ok));
+/// ```
+#[must_use]
+pub fn resolve_completion_code_selector(
+    value: &str,
+    numbers: tcl_syntax::number::Numbers,
+    policy: CompletionCodePolicy,
+) -> CompletionCodeSelection {
+    use CompletionCodeSelection::{Exact, Invalid, Unknown};
+    let named = match value {
+        "ok" => Some(CompletionCode::Ok),
+        "error" => Some(CompletionCode::Error),
+        "return" => Some(CompletionCode::Return),
+        "break" => Some(CompletionCode::Break),
+        "continue" => Some(CompletionCode::Continue),
+        "signal" | "exit" | "eval" if policy == CompletionCodePolicy::Unknown => return Unknown,
+        "signal" if policy == CompletionCodePolicy::Jim => Some(CompletionCode::Other(5)),
+        "exit" if policy == CompletionCodePolicy::Jim => Some(CompletionCode::Other(6)),
+        "eval" if policy == CompletionCodePolicy::Jim => Some(CompletionCode::Other(7)),
+        _ => None,
+    };
+    if let Some(code) = named {
+        return Exact(code);
+    }
+    let Some(number) = numbers.parse_wide(value) else {
+        return match numbers.parse_whole(value) {
+            Some(
+                tcl_syntax::number::Number::Double(_) | tcl_syntax::number::Number::Nan { .. },
+            ) => Invalid,
+            Some(tcl_syntax::number::Number::Big { .. })
+                if matches!(
+                    policy,
+                    CompletionCodePolicy::Tcl8 | CompletionCodePolicy::Tcl9
+                ) =>
+            {
+                Invalid
+            }
+            _ if numbers.is_number_in_any_release(value) => Unknown,
+            _ => Invalid,
+        };
+    };
+    let lower = match policy {
+        CompletionCodePolicy::Tcl8 => -i64::from(u32::MAX),
+        CompletionCodePolicy::Tcl9 | CompletionCodePolicy::Unknown => i64::from(i32::MIN),
+        CompletionCodePolicy::Jim => i64::MIN,
+    };
+    if number < lower || (policy != CompletionCodePolicy::Jim && number > i64::from(u32::MAX)) {
+        return if policy == CompletionCodePolicy::Unknown {
+            Unknown
+        } else {
+            Invalid
+        };
+    }
+    let bytes = number.to_le_bytes();
+    Exact(CompletionCode::from_int(i32::from_le_bytes([
+        bytes[0], bytes[1], bytes[2], bytes[3],
+    ])))
+}
+
 /// The statically possible Tcl completion codes for an invocation.
 ///
 /// [`Self::Exact`] retains named Tcl codes and arbitrary integer codes alike:
@@ -87,6 +206,9 @@ pub enum CompletionCodeDomain {
 pub enum CompletionValueSemantics {
     /// No value-sensitive completion parser is needed.
     None,
+    /// Native tail scheduling: C return (2), Jim eval (7), and validation error.
+    /// Jim's empty target list is normal in a procedure; runtime root is invalid.
+    Tailcall,
     /// Parse an optional Tcl integer process-exit status.
     ///
     /// Omission and a static valid integer terminate the process; a static
@@ -174,6 +296,16 @@ impl CompletionDescriptor {
             codes: CompletionCodeDomain::Exact(codes),
             payloads: CompletionPayloadObligations::PRODUCED,
             value_semantics: CompletionValueSemantics::None,
+        }
+    }
+
+    /// Native tail scheduling retains the target's unresolved eventual payload.
+    #[must_use]
+    pub const fn tailcall() -> Self {
+        Self {
+            codes: CompletionCodeDomain::Any,
+            payloads: CompletionPayloadObligations::UNKNOWN,
+            value_semantics: CompletionValueSemantics::Tailcall,
         }
     }
 

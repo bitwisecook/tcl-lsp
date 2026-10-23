@@ -37,8 +37,10 @@
  * Three message shapes are NOT protocol traffic and are handled here instead,
  * because they are objects rather than strings:
  *
- *   { tclLsp: "upsert", uri, text }          register a closed file's contents
+ *   { tclLsp: "upsert", uri, bytes }        register exact admitted source bytes
  *   { tclLsp: "delete", uri }                forget one
+ *   { tclLsp: "sourceInventory", rootUri, selection, status } census one root
+ *   { tclLsp: "validateSpecPackName", name, replyPort } check a pack name
  *   { tclLsp: "upsertSpecPack", name, text } register a .tclspec pack
  *
  * They fill the server's in-memory file store, which is where every file the
@@ -142,11 +144,33 @@ function dispatch(data) {
     return;
   }
   if (data && data.tclLsp === "upsert") {
-    server.vfs_upsert(data.uri, data.text);
+    if (data.bytes instanceof Uint8Array) {
+      server.vfs_upsert_bytes(data.uri, data.bytes);
+    } else if (typeof data.text === "string") {
+      // Compatibility for older hosts; new browser sync always sends bytes.
+      server.vfs_upsert(data.uri, data.text);
+    }
+    return;
+  }
+  if (
+    data &&
+    data.tclLsp === "sourceInventory" &&
+    typeof data.rootUri === "string" &&
+    typeof data.selection === "string" &&
+    typeof data.status === "string"
+  ) {
+    server.vfs_set_source_inventory(data.rootUri, data.selection, data.status);
     return;
   }
   if (data && data.tclLsp === "delete") {
     server.vfs_delete(data.uri);
+    return;
+  }
+  if (data && data.tclLsp === "validateSpecPackName" && data.replyPort) {
+    const accepted =
+      typeof data.name === "string" && server.vfs_is_safe_spec_pack_name(data.name);
+    data.replyPort.postMessage(accepted);
+    data.replyPort.close();
     return;
   }
   if (data && data.tclLsp === "upsertSpecPack") {

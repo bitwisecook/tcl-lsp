@@ -24,58 +24,517 @@
 //! (`Interp::call_proc`) pushes a frame, binds the args, and runs the body —
 //! see `proc-call-and-stack-traces.md`. `puts` writes to stdout/stderr.
 
+use crate::interp::native_arguments::OriginalArguments;
 use crate::interp::{obj_bytes, CallMeta, Code, Interp, Param, ProcFrame};
 use crate::obj::TclObj;
-use crate::parse::split_list;
-use tcl_syntax::formal_params::parse_formal_parameters;
+use crate::obj::{self, Owned};
+use tcl_cmd_core::CmdError;
+use tcl_syntax::value::ValueOps;
+mod native_jim_apply;
+
+#[cfg(test)]
+mod native_name_tests;
+
+#[cfg(test)]
+mod native_formal_alpha_tests;
+
+#[cfg(test)]
+mod native_lambda_tests;
+
+#[cfg(test)]
+mod native_static_original_tests;
 
 /// Register `proc`, `apply`, and `puts`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"proc", proc_cmd);
-    interp.register_builtin(b"apply", apply_cmd);
+    interp.register_stock_builtin(b"proc", proc_cmd);
+    interp.register_stock_builtin(b"apply", apply_cmd);
+}
+
+/// Install audited distribution wrappers without replacing host or user commands.
+pub(crate) fn install_stock_scripted_wrappers(interp: &mut Interp) {
+    use tcl_registry::native_scripted_distribution::NativeScriptedLibrary;
+    for &library in NativeScriptedLibrary::ALL {
+        install_stock_scripted_library(interp, library);
+    }
+}
+
+/// Explicit source-library entry, independent of core construction. Existing
+/// host or user bindings are preserved; calls keep using mutable lookup.
+pub(crate) fn install_stock_scripted_library(
+    interp: &mut Interp,
+    library: tcl_registry::native_scripted_distribution::NativeScriptedLibrary,
+) {
+    for wrapper in tcl_registry::native_scripted_distribution::procedures(
+        interp.native_invocation_dialect(),
+        library,
+    ) {
+        let qualified_name = tcl_syntax::naming::qualify("::", wrapper.command);
+        if interp.command_exists(qualified_name.as_bytes()) {
+            continue;
+        }
+        let original_parameters =
+            Owned::fresh(crate::interp::new_string(wrapper.parameters.as_bytes()));
+        let Ok(parameters) = parse_params_object(
+            interp,
+            original_parameters.as_ptr(),
+            wrapper.command.as_bytes(),
+        ) else {
+            continue;
+        };
+        let body = crate::interp::new_string(wrapper.body.as_bytes());
+        let body = crate::obj::Owned::fresh(body);
+        interp.define_proc_original_storage(
+            qualified_name.as_bytes(),
+            parameters,
+            Some(original_parameters.as_ptr()),
+            body.as_ptr(),
+            None,
+            None,
+        );
+    }
 }
 
 /// `proc name params body` — define a procedure.
 fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() != 4 {
-        return interp.wrong_args(b"proc name args body");
+    proc_cmd_with_native_entry(interp, argv, None)
+}
+
+pub(crate) fn proc_cmd_with_native_entry(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    native: Option<crate::interp::NativeProcEntry>,
+) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = proc_cmd_original(interp, argv, &arguments, native);
+    arguments.finish(code)
+}
+
+fn proc_cmd_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+    native: Option<crate::interp::NativeProcEntry>,
+) -> Code {
+    use tcl_registry::native_procedure::{
+        NativeProcedureDefinitionSelection, NativeProcedureDefinitionSpec,
+        ProcedureDefinitionResult,
+    };
+    let dialect = interp.native_invocation_dialect();
+    let argument_count = argv.len().saturating_sub(1);
+    // This selected definition grammar needs cardinality only. Its name,
+    // parameter bytes and body remain their actual evaluated values.
+    let words = vec![tcl_registry::InvocationWord::Dynamic; argument_count];
+    let selected = NativeProcedureDefinitionSpec::Core
+        .select(tcl_registry::InvocationArguments::structured(&words).with_dialect(dialect));
+    let NativeProcedureDefinitionSelection::Valid(definition) = selected else {
+        return interp.wrong_args(
+            NativeProcedureDefinitionSpec::Core
+                .usage(Some(dialect))
+                .unwrap_or("proc name args body")
+                .as_bytes(),
+        );
+    };
+    let Some(creation) = tcl_registry::native_procedure::procedure_activation_protocol(dialect)
+    else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original procedure definition order",
+            )
+            .into(),
+        );
+    };
+    let original_body = argv[definition.body_at + 1];
+    let mut prepared_body = None;
+    let mut prepared_formals = None;
+    let mut prepared_statics = None;
+    if creation.definition_formals_precede_name() {
+        // Jim reaches the outer List before retaining the body, then validates
+        // statics/formal members before qualifying the original command name.
+        let outer = ValueOps::list_elements(interp, &argv[definition.parameters_at + 1]);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        if let Err(error) = outer {
+            return interp.report_cmd_error(error.into());
+        }
+        let body = interp.choose_original_procedure_body(original_body);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        prepared_body = match body {
+            Ok(body) => Some(body),
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        if let Some(index) = definition.statics_at {
+            let statics = prepare_static_variables(interp, argv[index + 1]);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            prepared_statics = match statics {
+                Ok(statics) => Some(std::rc::Rc::new(statics)),
+                Err(error) => return interp.report_cmd_error(error),
+            };
+        }
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        let formals = parse_params_object(interp, argv[definition.parameters_at + 1], b"");
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        prepared_formals = match formals {
+            Ok(formals) => Some(formals),
+            Err(error) => return interp.report_cmd_error(error),
+        };
     }
-    let name = obj_bytes(argv[1]);
+    let prepared_key = match interp.original_jim_command_key(
+        interp.current_ns(),
+        argv[definition.name_at + 1],
+        tcl_syntax::naming::NativeNamePurpose::CommandPublication,
+    ) {
+        Ok(key) => key,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    // JimQualifyName retains its root original before the hash getter. A
+    // non-root qualification already retains the original name's byte owner.
+    let (original_key, prepared_name) = match prepared_key {
+        Some((key, name)) => (Some(key), name),
+        None => (None, None),
+    };
+    let name = match prepared_name {
+        Some(bytes) => bytes,
+        None => match arguments.bytes(definition.name_at + 1) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error),
+        },
+    };
     // A namespace-qualified proc name requires that namespace to already exist
     // (C's `Tcl_ProcObjCmd` via `TclGetNamespaceForQualName`).
-    if let Some(i) = name.windows(2).rposition(|w| w == b"::") {
-        let qualifier = &name[..i];
-        if !qualifier.is_empty() && interp.find_command_namespace_id(qualifier).is_none() {
-            let mut m = b"can't create procedure \"".to_vec();
-            m.extend_from_slice(&name);
-            m.extend_from_slice(b"\": unknown namespace");
-            return interp.set_error(&m);
+    let flat_jim = interp
+        .name_policy_protocol()
+        .is_some_and(|protocol| protocol.recipe().is_jim084());
+    if !flat_jim {
+        let selected_holder = {
+            let namespaces = interp.namespaces();
+            namespaces.procedure_lookup_at(interp.current_ns(), &name)
+        };
+        let Some((holder, simple)) = selected_holder else {
+            let Some((message, code)) =
+                tcl_registry::native_procedure::procedure_unknown_namespace_error(dialect, &name)
+            else {
+                return interp.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "procedure name validation",
+                    )
+                    .into(),
+                );
+            };
+            return interp.report_cmd_error(match code {
+                Some(code) => CmdError::with_error_code_bytes(message, code),
+                None => CmdError::new_bytes(message),
+            });
+        };
+        match tcl_registry::native_procedure::procedure_name_creation_error(
+            dialect,
+            holder == crate::namespace::GLOBAL,
+            &simple,
+        ) {
+            Some(Ok(())) => {}
+            Some(Err(message)) => {
+                let protocol = dialect
+                    .native_name_protocol()
+                    .expect("selected procedure name error recipe");
+                return interp.report_cmd_error(
+                    CmdError::new_bytes(message)
+                        .with_native_string_result(protocol.string_protocol()),
+                );
+            }
+            None => {
+                return interp.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "procedure name validation",
+                    )
+                    .into(),
+                );
+            }
         }
     }
-    let params = match parse_params(&obj_bytes(argv[2])) {
-        Ok(p) => p,
-        Err(e) => return interp.set_error(&e),
+    // C chooses its body before parsing the formal list, whose conversions
+    // can enter callbacks and change the incoming object's sharing.
+    let chosen_body = match prepared_body {
+        Some(body) => body,
+        None => {
+            let body = interp.choose_original_procedure_body(original_body);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            match body {
+                Ok(body) => body,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            }
+        }
     };
-    interp.define_proc(&name, params, argv[3]);
-    interp.set_result_bytes(b"");
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    let params = match prepared_formals {
+        Some(formals) => formals,
+        None => {
+            let formals = parse_params_object(
+                interp,
+                argv[definition.parameters_at + 1],
+                tcl_syntax::naming::written_command_tail(&name),
+            );
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            match formals {
+                Ok(formals) => formals,
+                Err(error) => return interp.report_cmd_error(error),
+            }
+        }
+    };
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    let statics = if creation.definition_formals_precede_name() {
+        prepared_statics
+    } else if let Some(index) = definition.statics_at {
+        match prepare_static_variables(interp, argv[index + 1]) {
+            Ok(statics) => Some(std::rc::Rc::new(statics)),
+            Err(error) => return interp.report_cmd_error(error),
+        }
+    } else {
+        None
+    };
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    interp.install_proc_chosen_storage_with_original_key(
+        (&name, original_key),
+        params,
+        Some(argv[definition.parameters_at + 1]),
+        (original_body, chosen_body),
+        native,
+        statics,
+    );
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    match definition.result {
+        ProcedureDefinitionResult::Empty => interp.set_result_bytes(b""),
+        ProcedureDefinitionResult::NameArgument => interp.set_result(argv[definition.name_at + 1]),
+    }
     Code::Ok
 }
 
-/// Parse a proc parameter spec (a Tcl list of names / `{name default}` pairs).
+fn prepare_static_variables(
+    interp: &mut Interp,
+    original: *mut TclObj,
+) -> Result<crate::frame::StaticVariables, CmdError> {
+    // naming.procedure-static.original-member-object-boundaries
+
+    use tcl_registry::native_procedure::{
+        StaticVariableValueError as Error, StaticVariableValueInitialiser as Initialiser,
+    };
+    let dialect = interp.native_invocation_dialect();
+    if !dialect
+        .native_scalar_getter_protocol()
+        .is_some_and(tcl_syntax::scalar_getter::NativeScalarGetterProtocol::is_jim084)
+    {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native procedure statics protocol",
+        )
+        .into());
+    }
+    let outer = ValueOps::list_elements(interp, &original)?;
+    let mut statics = crate::frame::StaticVariables::default();
+    let mut names = std::collections::BTreeSet::new();
+    for specifier in outer {
+        let fields = ValueOps::list_elements(interp, &specifier)?;
+        if !matches!(fields.len(), 1 | 2) {
+            let bytes = interp.native_object_string_bytes(specifier)?;
+            return Err(CmdError::new_bytes(Error::Fields.message(&bytes)));
+        }
+        let bytes = interp.native_object_string_bytes(fields[0])?;
+        let declaration = tcl_registry::native_procedure::static_variable_value_specifier(
+            dialect,
+            fields.len(),
+            Some(&bytes),
+        )
+        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native procedure static specifier",
+        ))?
+        .map_err(|error| {
+            let name = if bytes.first() == Some(&b'&') {
+                &bytes[1..]
+            } else {
+                bytes.as_ref()
+            };
+            CmdError::new_bytes(error.message(name))
+        })?;
+        let reference = declaration.initialiser == Initialiser::CaptureCurrentCell;
+        let source = if declaration.initialiser == Initialiser::LiteralValue {
+            None
+        } else {
+            Some(
+                crate::vars::capture_static_source(
+                    &interp.frames.borrow(),
+                    &interp.namespaces(),
+                    interp.current_ns(),
+                    &declaration.name,
+                    reference,
+                )
+                .ok_or_else(|| {
+                    CmdError::new_bytes(Error::MissingCurrent.message(&declaration.name))
+                })?,
+            )
+        };
+        if !names.insert(declaration.name.clone()) {
+            return Err(CmdError::new_bytes(
+                Error::Duplicate.message(&declaration.name),
+            ));
+        }
+        match declaration.initialiser {
+            Initialiser::LiteralValue => statics.insert_literal(&declaration.name, fields[1]),
+            Initialiser::CaptureCurrentCell => {
+                statics.insert_capture(&declaration.name, source.expect("selected raw cell"));
+            }
+            Initialiser::CopyCurrent => {
+                if !statics.insert_copy(&declaration.name, source.expect("selected contents cell"))
+                {
+                    return Err(CmdError::new_bytes(
+                        Error::MissingCurrent.message(&declaration.name),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(statics)
+}
+
+/// Parse a newly constructed formal-list string under the actual interpreter policy.
+pub(crate) fn parse_params_in(interp: &mut Interp, spec: &[u8]) -> Result<Vec<Param>, CmdError> {
+    let original = Owned::fresh(crate::interp::new_string(spec));
+    parse_params_object(interp, original.as_ptr(), b"")
+}
+
+#[cfg(test)]
 pub(crate) fn parse_params(spec: &[u8]) -> Result<Vec<Param>, Vec<u8>> {
-    let source =
-        core::str::from_utf8(spec).map_err(|_| b"invalid list (not valid UTF-8)".to_vec())?;
-    parse_formal_parameters(source)
-        .map(|parameters| {
-            parameters
-                .into_iter()
-                .map(|parameter| Param {
-                    name: parameter.name.into_bytes(),
-                    default: parameter.default.map(String::into_bytes),
-                })
-                .collect()
+    parse_params_in(&mut Interp::new(), spec).map_err(|error| error.into_byte_details().message)
+}
+
+fn split_formal_objects(
+    interp: &mut Interp,
+    value: &Owned,
+    protocol: tcl_syntax::naming::NativeNameProtocol,
+) -> Result<Vec<Owned>, CmdError> {
+    let pointer = value.as_ptr();
+    let string_protocol = interp
+        .native_invocation_dialect()
+        .native_string_protocol()
+        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "formal list producer",
+        ))?;
+    if matches!(
+        protocol.tcl_version(),
+        Some(tcl_dialect::TclVersion::V8_4 | tcl_dialect::TclVersion::V8_5)
+    ) {
+        let original = ValueOps::native_string_bytes(interp, &pointer)?;
+        let selected = protocol.formal_parameter_list_input(&original);
+        let bytes = selected.selected();
+        return tcl_syntax::list::split_native_list_bytes(bytes, string_protocol)
+            .map(|elements| {
+                elements
+                    .into_iter()
+                    .map(|element| Owned::fresh(crate::interp::new_string(&element)))
+                    .collect()
+            })
+            .map_err(|error| {
+                tcl_syntax::value::ValueError::ListParse {
+                    error,
+                    source: bytes.to_vec(),
+                }
+                .into()
+            });
+    }
+    let elements = ValueOps::list_elements(interp, &pointer)?;
+    Ok(elements.into_iter().map(Owned::retain).collect())
+}
+
+/// Parse the original native formal objects, retaining default object identity.
+pub(crate) fn parse_params_object(
+    interp: &mut Interp,
+    spec: *mut TclObj,
+    procedure: &[u8],
+) -> Result<Vec<Param>, CmdError> {
+    use tcl_syntax::formal_params::{parse_formal_parameter_values, FormalParameterValueError};
+    let protocol = interp
+        .name_policy_protocol()
+        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "formal storage",
+        ))?
+        .recipe();
+    let original = Owned::retain(spec);
+    let outer = split_formal_objects(interp, &original, protocol)?;
+    let interpreter = std::cell::RefCell::new(interp);
+    let parsed = parse_formal_parameter_values(
+        &outer,
+        protocol,
+        |value, _| split_formal_objects(&mut interpreter.borrow_mut(), value, protocol),
+        |value| {
+            ValueOps::native_string_bytes(&mut **interpreter.borrow_mut(), &value.as_ptr())
+                .map(|bytes| bytes.to_vec())
+                .map_err(CmdError::from)
+        },
+    )
+    .map_err(|error| match error {
+        FormalParameterValueError::Access(error) => error,
+        FormalParameterValueError::Format(error) => {
+            let message = error.message_for_definition(protocol, procedure);
+            match error.error_code_for_definition(protocol) {
+                Some(code) => CmdError::with_error_code_bytes(message, code.to_vec()),
+                None => CmdError::new_bytes(message),
+            }
+        }
+    })?;
+    if protocol.is_jim084() {
+        for parameter in &parsed {
+            if parameter.name == b"args" {
+                if let Some(default) = &parameter.default {
+                    ValueOps::native_string_bytes(
+                        &mut **interpreter.borrow_mut(),
+                        &default.as_ptr(),
+                    )?;
+                }
+            }
+        }
+    }
+    Ok(parsed
+        .into_iter()
+        .map(|parameter| Param {
+            name: parameter.name,
+            default: parameter.default,
         })
-        .map_err(|error| error.message().into_bytes())
+        .collect())
+}
+
+fn lambda_list_error(
+    interp: &mut Interp,
+    original: &Owned,
+    diagnostics: tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol,
+    failure: tcl_syntax::value::ValueError,
+) -> CmdError {
+    if !diagnostics.wraps_list_failure(&failure) {
+        return failure.into();
+    }
+    match ValueOps::native_string_bytes(interp, &original.as_ptr()) {
+        Ok(bytes) => diagnostics.conversion_error(&bytes),
+        Err(error) => error.into(),
+    }
 }
 
 /// `apply {params body ?namespace?} ?arg ...?` — invoke an anonymous procedure.
@@ -85,25 +544,52 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"apply lambdaExpr ?arg ...?");
     }
-    let lambda = obj_bytes(argv[1]);
-    let parts = match split_list(&lambda) {
-        Ok(p) => p,
-        Err(e) => return interp.set_error(e.message()),
+    let Some(protocol) = interp.name_policy_protocol().map(|policy| policy.recipe()) else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("lambda list").into(),
+        );
     };
-    if parts.len() < 2 || parts.len() > 3 {
-        let mut m = b"can't interpret \"".to_vec();
-        m.extend_from_slice(&lambda);
-        m.extend_from_slice(b"\" as a lambda expression");
-        return interp.set_error(&m);
+    let Some(diagnostics) = tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol::select(
+        interp.native_invocation_dialect(),
+    ) else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("lambda diagnostics").into(),
+        );
+    };
+    let original = Owned::retain(argv[1]);
+    if interp
+        .native_invocation_dialect()
+        .native_string_protocol()
+        .is_some_and(|protocol| protocol.tcl_version().is_some())
+    {
+        return apply_native_c(interp, argv, &original, protocol, diagnostics);
     }
-    let params = match parse_params(&parts[0]) {
-        Ok(p) => p,
-        Err(e) => {
-            // A malformed parameter list: report the parse error, then add the
-            // `(parsing lambda expression "<lambda>")` errorInfo frame (C's
-            // `Tcl_ApplyObjCmd` after a failed `TclCreateProc`).
-            let code = interp.set_error(&e);
-            interp.append_lambda_parse_frame(&lambda);
+    if interp.native_invocation_dialect().native_string_protocol()
+        == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+    {
+        return native_jim_apply::apply(interp, argv, &original, diagnostics);
+    }
+    let parts = match ValueOps::list_elements(interp, &original.as_ptr()) {
+        Ok(parts) => parts.into_iter().map(Owned::retain).collect::<Vec<_>>(),
+        Err(error) => {
+            let error = lambda_list_error(interp, &original, diagnostics, error);
+            return interp.report_cmd_error(error);
+        }
+    };
+    let lambda = match ValueOps::native_string_bytes(interp, &original.as_ptr()) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    if !(2..=3).contains(&parts.len()) {
+        return interp.report_cmd_error(diagnostics.conversion_error(&lambda));
+    }
+    let params = match parse_params_object(interp, parts[0].as_ptr(), b"") {
+        Ok(parameters) => parameters,
+        Err(error) => {
+            let code = interp.report_cmd_error(error);
+            if let Some(frame) = diagnostics.parameter_error_frame(&lambda) {
+                interp.append_lambda_parse_frame(&frame);
+            }
             return code;
         }
     };
@@ -111,22 +597,33 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // C prepends `::` to a non-global-qualified namespace name, then resolves
         // it (`TclGetNamespaceFromObj`); a missing namespace is an error — apply
         // does **not** create it.
-        let full: Vec<u8> = if parts[2].starts_with(b"::") {
-            parts[2].clone()
-        } else {
-            let mut f = b"::".to_vec();
-            f.extend_from_slice(&parts[2]);
-            f
+        let namespace = match ValueOps::native_string_bytes(interp, &parts[2].as_ptr()) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        let Some(recipe) = interp.native_invocation_dialect().native_name_protocol() else {
+            return interp.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "lambda namespace recipe",
+                )
+                .into(),
+            );
+        };
+        let full = match recipe.lambda_namespace_input(&namespace) {
+            Ok(input) => input.selected().to_vec(),
+            Err(_) => {
+                return interp.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "lambda namespace recipe",
+                    )
+                    .into(),
+                );
+            }
         };
         match interp.find_namespace_id(&full) {
             Some(id) => id,
             None => {
-                let mut m = b"namespace \"".to_vec();
-                m.extend_from_slice(&full);
-                m.extend_from_slice(b"\" not found");
-                let mut ecode = b"TCL LOOKUP NAMESPACE ".to_vec();
-                ecode.extend_from_slice(&full);
-                return interp.error_with_code(&m, &ecode);
+                return lambda_namespace_lookup_error(interp, recipe, &full);
             }
         }
     } else {
@@ -141,26 +638,233 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `info level N` of a lambda reports the actual invocation words
     // (`apply <lambdaExpr> ?arg ...?`), not the `apply lambdaExpr` usage prefix
     // used for `wrong # args` (C records `objv` verbatim for the lambda frame).
-    let level_words: Vec<Vec<u8>> = argv.iter().map(|&a| obj_bytes(a)).collect();
+    let level_words =
+        if CallMeta::original_frame_arguments(interp.native_invocation_dialect(), Some(argv))
+            .is_some()
+        {
+            None
+        } else {
+            Some(argv.iter().map(|&argument| obj_bytes(argument)).collect())
+        };
+    let body = match ValueOps::native_string_bytes(interp, &parts[1].as_ptr()) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
     interp.run_proc(
         &params,
-        &parts[1],
+        &body,
         ns,
         &argv[2..],
         b"apply lambdaExpr",
         CallMeta {
+            original_argv: Some(argv),
             err: ProcFrame::Lambda(&lambda),
             fqn: None,
             source,
             body_line_base,
             link_vars: &[],
+            oo_variable_resolver: None,
             keep_loop_codes: false,
             same_level: false,
             usage_prefix: None,
-            level_words: Some(level_words),
+            level_words,
             quote_name: false,
             // A lambda has no definition to carry a compiled body on.
             native: None,
+            statics: None,
+            c_procedure: None,
+            c_method_client_data: None,
+            jim_parameters: None,
+            jim_body: None,
+            jim_namespace: None,
+        },
+    )
+}
+
+fn lambda_namespace_lookup_error(
+    interp: &mut Interp,
+    protocol: tcl_syntax::naming::NativeNameProtocol,
+    original: &[u8],
+) -> Code {
+    let report = match tcl_syntax::naming::report_native_namespace_operation_error(
+        protocol,
+        tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
+        original,
+        b"::",
+    ) {
+        Ok(report) => report,
+        Err(_) => {
+            return interp.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "lambda namespace lookup diagnostic",
+                )
+                .into(),
+            );
+        }
+    };
+    let mut error = match report.error_code {
+        Some(code) => tcl_cmd_core::CmdError::with_error_code_bytes(report.message, code),
+        None => tcl_cmd_core::CmdError::new_bytes(report.message),
+    };
+    if interp.native_invocation_dialect().native_string_protocol() == Some(report.string_protocol) {
+        error = error.with_native_string_result(report.string_protocol);
+    }
+    interp.report_cmd_error(error)
+}
+
+/// C keeps a genuine commandless Proc in the original lambdaExpr primary.
+fn apply_native_c(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    original: &Owned,
+    protocol: tcl_syntax::naming::NativeNameProtocol,
+    diagnostics: tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol,
+) -> Code {
+    let interpreter = interp.native_callable_interpreter();
+    let (owner, namespace, lambda) =
+        match obj::native_lambda_expression::cached(original.as_ptr(), interpreter) {
+            Some((owner, namespace)) => {
+                let lambda = match ValueOps::native_string_bytes(interp, &original.as_ptr()) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return interp.report_cmd_error(error.into()),
+                };
+                (owner, namespace, lambda)
+            }
+            None => {
+                let parts = match crate::list::list_elements_native_checked(
+                    original.as_ptr(),
+                    protocol.string_protocol(),
+                ) {
+                    Ok(parts) => parts,
+                    Err(error) => {
+                        let error = lambda_list_error(interp, original, diagnostics, error);
+                        return interp.report_cmd_error(error);
+                    }
+                };
+                let lambda = match ValueOps::native_string_bytes(interp, &original.as_ptr()) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return interp.report_cmd_error(error.into()),
+                };
+                if !(2..=3).contains(&parts.len()) {
+                    return interp.report_cmd_error(diagnostics.conversion_error(&lambda));
+                }
+                let chosen = match interp.choose_original_procedure_body(parts[1]) {
+                    Ok(chosen) => chosen,
+                    Err(error) => return interp.report_cmd_error(error.into()),
+                };
+                let params = match parse_params_object(interp, parts[0], b"") {
+                    Ok(params) => params,
+                    Err(error) => {
+                        let code = interp.report_cmd_error(error);
+                        if let Some(frame) = diagnostics.parameter_error_frame(&lambda) {
+                            interp.append_lambda_parse_frame(&frame);
+                        }
+                        return code;
+                    }
+                };
+                let (source, body_line_base) = interp
+                    .list_element_location(original.as_ptr(), 1)
+                    .map_or((None, 0), |(file, line)| {
+                        (Some(file), line.saturating_sub(1))
+                    });
+                let owner = interp.create_native_callable_from_chosen(
+                    params,
+                    chosen,
+                    crate::namespace::GLOBAL,
+                    source,
+                    body_line_base,
+                );
+                let namespace = if parts.len() == 2 {
+                    Owned::fresh(obj::new_string_bytes(b"::"))
+                } else {
+                    let bytes = match ValueOps::native_string_bytes(interp, &parts[2]) {
+                        Ok(bytes) => bytes,
+                        Err(error) => return interp.report_cmd_error(error.into()),
+                    };
+                    let selected = match protocol.lambda_namespace_input(&bytes) {
+                        Ok(input) => input,
+                        Err(_) => {
+                            return interp.report_cmd_error(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "lambda namespace recipe",
+                                )
+                                .into(),
+                            );
+                        }
+                    };
+                    if selected.selected() == bytes.as_ref() {
+                        Owned::retain(parts[2])
+                    } else {
+                        Owned::fresh(obj::new_string_bytes(selected.selected()))
+                    }
+                };
+                let namespace_ptr = namespace.as_ptr();
+                let invocation = owner.clone();
+                obj::native_lambda_expression::install(
+                    original.as_ptr(),
+                    obj::native_lambda_expression::LambdaExpression {
+                        interpreter,
+                        procedure: owner,
+                        namespace,
+                    },
+                );
+                (invocation, namespace_ptr, lambda)
+            }
+        };
+    let ns = match interp.native_namespace_object_lookup(namespace) {
+        Ok(Some(ns)) => ns,
+        Ok(None) => {
+            let name = match ValueOps::native_string_bytes(interp, &namespace) {
+                Ok(name) => name,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            };
+            return lambda_namespace_lookup_error(interp, protocol, &name);
+        }
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    let procedure = owner.declaration();
+    let body = match procedure
+        .body
+        .checked_ptr()
+        .and_then(|original| ValueOps::native_string_bytes(interp, &original))
+    {
+        Ok(body) => body,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    let level_words =
+        if CallMeta::original_frame_arguments(interp.native_invocation_dialect(), Some(argv))
+            .is_some()
+        {
+            None
+        } else {
+            Some(argv.iter().map(|&argument| obj_bytes(argument)).collect())
+        };
+    interp.run_proc(
+        &procedure.params,
+        &body,
+        ns,
+        &argv[2..],
+        b"apply lambdaExpr",
+        CallMeta {
+            original_argv: Some(argv),
+            err: ProcFrame::Lambda(&lambda),
+            fqn: None,
+            source: procedure.source.clone(),
+            body_line_base: procedure.body_line_base,
+            link_vars: &[],
+            oo_variable_resolver: None,
+            keep_loop_codes: false,
+            same_level: false,
+            usage_prefix: None,
+            level_words,
+            quote_name: false,
+            native: None,
+            statics: None,
+            c_procedure: Some(&procedure),
+            c_method_client_data: None,
+            jim_parameters: None,
+            jim_body: None,
+            jim_namespace: None,
         },
     )
 }
@@ -169,9 +873,10 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_params;
+    use super::{obj_bytes, parse_params};
     use crate::counters;
     use crate::interp::{Code, Interp};
+    use crate::obj::Owned;
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         counters::reset();
@@ -189,6 +894,181 @@ mod tests {
         assert_eq!(counters::double_free_count(), 0);
     }
 
+    #[test]
+    fn ordinary_c_definition_keeps_the_body_chosen_before_formal_parsing() {
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interpreter = Interp::new();
+            interpreter.set_dialect_profile(crate::environment::profile_for_dialect(profile));
+            let command = Owned::fresh(crate::interp::new_string(b"proc"));
+            let name = Owned::fresh(crate::interp::new_string(b"original"));
+            let parameters = Owned::fresh(crate::interp::new_string(b""));
+            let recipe = interpreter
+                .native_invocation_dialect()
+                .byte_array_string_recipe(None)
+                .unwrap();
+            let body = Owned::fresh(crate::bytearray::new_byte_array(b"return ORIGINAL", recipe));
+            let original_type = crate::obj::obj_type_ptr(body.as_ptr());
+            assert_eq!(
+                super::proc_cmd(
+                    &mut interpreter,
+                    &[
+                        command.as_ptr(),
+                        name.as_ptr(),
+                        parameters.as_ptr(),
+                        body.as_ptr()
+                    ]
+                ),
+                Code::Ok
+            );
+            let definition = interpreter.proc_def(b"original").unwrap();
+            assert_eq!(definition.body.as_ptr(), body.as_ptr());
+            assert_eq!(crate::obj::obj_type_ptr(body.as_ptr()), original_type);
+            assert!(!crate::obj::has_string_rep(body.as_ptr()));
+
+            let alias = Owned::retain(body.as_ptr());
+            assert_eq!(
+                super::proc_cmd(
+                    &mut interpreter,
+                    &[
+                        command.as_ptr(),
+                        name.as_ptr(),
+                        parameters.as_ptr(),
+                        body.as_ptr()
+                    ]
+                ),
+                Code::Ok
+            );
+            let replacement = interpreter.proc_def(b"original").unwrap();
+            assert_ne!(replacement.body.as_ptr(), body.as_ptr());
+            assert!(crate::obj::obj_type_ptr(replacement.body.as_ptr()).is_null());
+            assert_eq!(crate::obj::obj_type_ptr(body.as_ptr()), original_type);
+            drop(alias);
+
+            let rest_parameters = Owned::fresh(crate::interp::new_string(b" args "));
+            let whitespace = Owned::fresh(crate::bytearray::new_byte_array(b" \t\n", recipe));
+            assert_eq!(
+                super::proc_cmd(
+                    &mut interpreter,
+                    &[
+                        command.as_ptr(),
+                        name.as_ptr(),
+                        rest_parameters.as_ptr(),
+                        whitespace.as_ptr()
+                    ]
+                ),
+                Code::Ok
+            );
+            let no_op = interpreter.proc_def(b"original").unwrap();
+            assert_eq!(
+                no_op.compiler_header.get(),
+                tcl_dialect::NativeProcedureHeaderCompilation::NoOp
+            );
+            assert!(crate::obj::has_string_rep(whitespace.as_ptr()));
+            let token = interpreter
+                .namespaces()
+                .command_generation(crate::namespace::GLOBAL, b"original")
+                .unwrap();
+            assert_eq!(
+                interpreter.namespaces().native_compiler_hook(token),
+                Some(tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Present)
+            );
+        }
+    }
+
+    #[test]
+    fn native_formals_keep_storage_keys_and_original_default_objects() {
+        // Native proof naming.formal.original-string-zero-storage-and-lookup:
+
+        // Native proof naming.formal.original-default-double-object-identity:
+
+        use crate::obj::{self, Owned};
+        let native_defaults = [
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.4.20.jsonl"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.5.19.jsonl"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.6.18.jsonl"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-9.0.4.jsonl"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-9.1.0.jsonl"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-jim0.84.jsonl"
+            ),
+        ];
+        for (profile, observation) in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"]
+            .into_iter()
+            .zip(native_defaults)
+        {
+            let mut interpreter = Interp::new();
+            interpreter.set_dialect_profile(crate::environment::profile_for_dialect(profile));
+            let name_spec = Owned::fresh(crate::interp::new_string(b"name\0tail"));
+            let parameters = super::parse_params_object(&mut interpreter, name_spec.as_ptr(), b"p")
+                .unwrap_or_else(|error| panic!("{profile}: {:?}", error.message_bytes()));
+            let old_c = matches!(profile, "tcl8.4" | "tcl8.5");
+            assert_eq!(
+                parameters[0].name,
+                if old_c {
+                    &b"name"[..]
+                } else {
+                    &b"name\0tail"[..]
+                }
+            );
+
+            let default = Owned::fresh(obj::new_double_obj(1.5));
+            let name = Owned::fresh(crate::interp::new_string(b"n\xFF"));
+            let pair = Owned::fresh(crate::list::new_list_obj(&[
+                name.as_ptr(),
+                default.as_ptr(),
+            ]));
+            let formals = Owned::fresh(crate::list::new_list_obj(&[pair.as_ptr()]));
+            let parameters = super::parse_params_object(&mut interpreter, formals.as_ptr(), b"p")
+                .unwrap_or_else(|error| panic!("{profile}: {:?}", error.message_bytes()));
+            assert_eq!(parameters[0].name, b"n\xFF");
+            let retained = parameters[0].default.as_ref().unwrap();
+            assert_eq!(
+                retained.as_ptr() == default.as_ptr(),
+                observation.contains("\"same_object\":true"),
+                "{profile}: default object"
+            );
+            assert_eq!(obj_bytes(retained.as_ptr()), b"1.5");
+        }
+    }
+
+    #[test]
+    fn info_queries_preserve_the_retained_default_object() {
+        use crate::obj::{self, Owned};
+        let mut interpreter = Interp::new();
+        let original = Owned::fresh(obj::new_double_obj(1.5));
+        let name = Owned::fresh(crate::interp::new_string(b"n\xFF"));
+        let pair = Owned::fresh(crate::list::new_list_obj(&[
+            name.as_ptr(),
+            original.as_ptr(),
+        ]));
+        let formals = Owned::fresh(crate::list::new_list_obj(&[pair.as_ptr()]));
+        let parameters =
+            super::parse_params_object(&mut interpreter, formals.as_ptr(), b"p").unwrap();
+        let body = Owned::fresh(crate::interp::new_string(b"return OK"));
+        interpreter.define_proc(b"p", parameters, body.as_ptr());
+        let procedure = Owned::fresh(crate::interp::new_string(b"p"));
+        let names =
+            Owned::fresh(tcl_cmd_core::info::args(&mut interpreter, &procedure.as_ptr()).unwrap());
+        assert!(!obj::has_string_rep(original.as_ptr()));
+        let _ = names;
+        let (value, declared) =
+            tcl_cmd_core::info::default(&mut interpreter, &procedure.as_ptr(), &name.as_ptr())
+                .unwrap();
+        assert!(declared);
+        assert_eq!(value, original.as_ptr());
+        assert!(!obj::has_string_rep(original.as_ptr()));
+    }
+
     fn run(i: &mut Interp, src: &[u8]) -> Vec<u8> {
         assert_eq!(
             i.eval_str(src),
@@ -198,6 +1078,55 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn jim_static_cells_match_native_definition_and_retirement() {
+        // naming.procedure-static.jim-primary-table-unset
+
+        const CASES: &[(&[u8], Code, &[u8])] = &[
+            (b"proc p {} {{x 0}} {incr x}; list [p] [p]", Code::Ok, b"1 2"),
+            (b"set x OLD; proc p {} {x} {set x}; set x NEW; list [p] $x", Code::Ok, b"OLD NEW"),
+            (b"set x OLD; proc p {} {&x} {set x NEW}; p; set x", Code::Ok, b"NEW"),
+            (b"set x OLD; proc p {} {&x} {set x}; unset x; set x NEW; list [p] $x", Code::Ok, b"OLD NEW"),
+            (b"set x OUTER; proc p {x} {&x} {set x}; list [p PARAM] $x", Code::Ok, b"PARAM PARAM"),
+            (b"proc p {} {{x STATIC}} {set x LOCAL; set x}; list [p] [p]", Code::Ok, b"LOCAL LOCAL"),
+            (b"proc maker {} {set x KEEP; proc p {} {&x} {set x}}; maker; p", Code::Ok, b"KEEP"),
+            (b"proc p {} {{x 0}} {incr x}; rename p q; list [q] [q]", Code::Ok, b"1 2"),
+            (b"proc p {} {{x 0}} {incr x}; set first [p]; proc p {} {{x 10}} {incr x}; list $first [p]", Code::Ok, b"1 11"),
+            (b"set a OLD; upvar 0 a x; proc p {} {&x} {set x}; set b NEW; upvar 0 b x; list [p] $x", Code::Ok, b"NEW NEW"),
+            (b"set a(k) VALUE; proc p {} {a(k)} {set a(k)}", Code::Error, b"Can't initialise array element \"a(k)\""),
+            (b"set a(k) VALUE; proc p {} {&a(k)} {set a(k)}", Code::Error, b"Can't link to array element \"a(k)\""),
+            (b"proc p {} {absent} {set absent}", Code::Error, b"variable for initialization of static \"absent\" not found in the local context"),
+            (b"set x X; proc p {} {x &x} {set x}", Code::Error, b"static variable name \"x\" duplicated in statics list"),
+            (b"proc p {} {{x STATIC}} {unset x; set x NEW; set x}; p", Code::Error, b"can't unset \"x\": no such variable"),
+            (b"set x OUTER; proc p {{x DEFAULT}} {&x} {set x}; list [p] $x", Code::Ok, b"DEFAULT DEFAULT"),
+            (b"set a(k) VALUE; proc p {} {a} {array get a}; set a(k) NEW; list [p] [array get a]", Code::Ok, b"{k VALUE} {k NEW}"),
+            (b"set a(k) OLD; proc p {} {&a} {set a(k)}; unset a; set a(k) NEW; list [p] $a(k)", Code::Ok, b"OLD NEW"),
+            (b"proc p {} {{x VALUE}} {rename p {}; set x}; p", Code::Ok, b"VALUE"),
+            (b"proc maker {} {set a KEEP;upvar 0 a x;proc p {} {&x} {set x}};maker;p", Code::Error, b"can't read \"x\": no such variable"),
+            (b"proc maker {} {set a KEEP;upvar 0 a x;proc p {} {&x} {set x}};maker;proc unrelated {} {set a OTHER;p};unrelated", Code::Ok, b"OTHER"),
+            (b"proc maker {} {set a OLD;upvar 0 a x;proc p {} {&x} {set x MODIFIED};proc r {} {&x} {set x}};maker;p;r", Code::Error, b"can't read \"x\": no such variable"),
+            (b"set a(k) V;proc p {} {a} {unset a(k);info exists a(k)};list [p] $a(k)", Code::Ok, b"0 V"),
+            (b"set a(k) V;proc p {} {&a} {unset a(k);info exists a(k)};list [p] [info exists a(k)]", Code::Ok, b"0 0"),
+        ];
+        for &(source, code, wanted) in CASES {
+            leak_free(|interp| {
+                interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+                assert_eq!(
+                    interp.eval_str(source),
+                    code,
+                    "{}",
+                    String::from_utf8_lossy(source)
+                );
+                assert_eq!(
+                    interp.result_bytes(),
+                    wanted,
+                    "{}",
+                    String::from_utf8_lossy(source)
+                );
+            });
+        }
     }
 
     #[test]
@@ -225,7 +1154,13 @@ mod tests {
     fn proc_parameter_parser_preserves_byte_errors() {
         let params = parse_params(b"a {b {hello world}} args").unwrap();
         assert_eq!(params[1].name, b"b");
-        assert_eq!(params[1].default.as_deref(), Some(&b"hello world"[..]));
+        assert_eq!(
+            params[1]
+                .default
+                .as_ref()
+                .map(|value| obj_bytes(value.as_ptr())),
+            Some(b"hello world".to_vec())
+        );
         assert_eq!(
             parse_params(b"{{} default}").err().unwrap(),
             b"argument with no name"
@@ -381,5 +1316,267 @@ mod tests {
             assert_eq!(i.eval_str(b"puts stdout hello"), Code::Ok);
             assert_eq!(i.eval_str(b"puts nosuchchan x"), Code::Error);
         });
+    }
+}
+
+#[cfg(test)]
+mod native_apply_original_tests;
+
+#[cfg(test)]
+mod original_argument_tests;
+
+#[cfg(test)]
+mod original_apply_frame_tests {
+    use super::*;
+    use crate::obj;
+    use std::cell::{Cell, RefCell};
+    use tcl_runtime_api::NativeExecutionError;
+
+    thread_local! {
+        static OWNER: RefCell<Option<Interp>> = const { RefCell::new(None) };
+        static ORIGINALS: RefCell<Vec<*mut TclObj>> = const { RefCell::new(Vec::new()) };
+        static READS: Cell<usize> = const { Cell::new(0) };
+        static INSPECTIONS: Cell<usize> = const { Cell::new(0) };
+        static LATER: Cell<usize> = const { Cell::new(0) };
+        static QUERY: Cell<bool> = const { Cell::new(false) };
+        static REFUSAL: Cell<u8> = const { Cell::new(0) };
+        static FIRST: RefCell<Option<NativeExecutionError>> = const { RefCell::new(None) };
+    }
+
+    extern "C" fn update(original: *mut TclObj) {
+        READS.with(|reads| reads.set(reads.get() + 1));
+        // The original caller value is still live in its formal cell and the
+        // genuine info-level List. This is the reached physical String getter.
+        unsafe { obj::set_native_updater_string_rep(original, b"LAZY\0\xff", false) };
+        if REFUSAL.with(Cell::get) != 0 {
+            let mut interp = OWNER.with(|owner| owner.borrow().as_ref().unwrap().clone());
+            match REFUSAL.with(Cell::get) {
+                1 => {
+                    interp.refuse_host_command("original apply argument first cause");
+                    FIRST.with(|first| *first.borrow_mut() = interp.native_execution_refusal());
+                }
+                2 => {
+                    let current = interp.runtime_context();
+                    let mut changed = current.clone();
+                    changed.packages = vec![("original-apply-frame".to_owned(), "1.0".to_owned())];
+                    interp.pin_context(&changed).unwrap();
+                    interp.pin_context(&current).unwrap();
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    static TYPE: obj::TclObjType = obj::TclObjType {
+        name: c"originalApplyFrameArgument".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(update),
+        set_from_any_proc: None,
+    };
+
+    fn inspect(interp: &mut Interp, _: &[*mut TclObj]) -> Code {
+        INSPECTIONS.with(|calls| calls.set(calls.get() + 1));
+        let expected = ORIGINALS.with(|words| words.borrow().clone());
+        assert_eq!(
+            interp.frames.borrow().original_error_stack_argv(),
+            Some(expected.clone())
+        );
+        assert_eq!(READS.with(Cell::get), 0);
+        assert!(unsafe { (*expected[2]).bytes.is_null() });
+        assert_eq!(interp.var_get(b"x"), Some(expected[2]));
+        // Caller and actual formal storage own these two native references;
+        // the frame tape supplies only allocation safety.
+        assert_eq!(unsafe { (*expected[2]).ref_count }, 2);
+        assert_ne!(interp.current_ns(), crate::namespace::GLOBAL);
+        if !QUERY.with(Cell::get) {
+            interp.set_result_bytes(b"INSPECTED");
+            return Code::Ok;
+        }
+        assert_eq!(interp.eval_str(b"info level 0"), Code::Ok);
+        let reported = Owned::retain(interp.get_obj_result());
+        let members = ValueOps::list_elements(interp, &reported.as_ptr()).unwrap();
+        assert_eq!(members, expected);
+        assert_eq!(READS.with(Cell::get), 0);
+        assert!(unsafe { (*expected[2]).bytes.is_null() });
+        assert_eq!(unsafe { (*expected[2]).ref_count }, 3);
+        let prior = Owned::fresh(obj::new_string_bytes(b"PRIOR\0\xff"));
+        interp.set_result(prior.as_ptr());
+        let rendered = ValueOps::native_string_bytes(interp, &reported.as_ptr());
+        assert_eq!(READS.with(Cell::get), 1);
+        assert_eq!(interp.get_obj_result(), prior.as_ptr());
+        if REFUSAL.with(Cell::get) == 0 {
+            let rendered = rendered.unwrap();
+            assert!(rendered.windows(4).any(|bytes| bytes == b"LAZY"));
+            Code::Ok
+        } else {
+            let error = rendered.expect_err("original reached getter refuses further work");
+            let first = interp
+                .native_execution_refusal()
+                .expect("original typed first cause");
+            FIRST.with(|held| {
+                if let Some(expected) = held.borrow().as_ref() {
+                    assert_eq!(first, *expected);
+                }
+            });
+            FIRST.with(|held| *held.borrow_mut() = Some(first));
+            interp.report_cmd_error(error.into())
+        }
+    }
+
+    fn later(interp: &mut Interp, _: &[*mut TclObj]) -> Code {
+        LATER.with(|calls| calls.set(calls.get() + 1));
+        interp.set_result_bytes(b"LATER");
+        Code::Ok
+    }
+
+    fn run_case(version: tcl_dialect::TclVersion, query: bool, refusal: u8) {
+        OWNER.with(|owner| owner.borrow_mut().take());
+        ORIGINALS.with(|words| words.borrow_mut().clear());
+        READS.with(|reads| reads.set(0));
+        INSPECTIONS.with(|calls| calls.set(0));
+        LATER.with(|calls| calls.set(0));
+        QUERY.with(|flag| flag.set(query));
+        REFUSAL.with(|flag| flag.set(refusal));
+        FIRST.with(|first| first.borrow_mut().take());
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            tcl_registry::model::resolve_environment(version.dialect_name()).unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let _cleanup = crate::cmd_namespace::original_argument_tests::FixtureCleanup(|| {
+            OWNER.with(|owner| owner.borrow_mut().take());
+            ORIGINALS.with(|words| words.borrow_mut().clear());
+        });
+        assert_ne!(
+            version,
+            tcl_dialect::TclVersion::V8_4,
+            "positive apply requires its actual producer"
+        );
+        assert_eq!(interp.eval_str(b"namespace eval applyCurrent {}"), Code::Ok);
+        interp.register_builtin(b"applyFrameInspect", inspect);
+        interp.register_builtin(b"applyFrameLater", later);
+        let command = Owned::fresh(obj::new_string_bytes(b"apply"));
+        let parameters = Owned::fresh(obj::new_string_bytes(b"x"));
+        let body = Owned::fresh(obj::new_string_bytes(
+            b"applyFrameInspect; applyFrameLater; return DONE",
+        ));
+        let namespace = Owned::fresh(obj::new_string_bytes(b"applyCurrent"));
+        let lambda = Owned::fresh(interp.new_list_object(&[
+            parameters.as_ptr(),
+            body.as_ptr(),
+            namespace.as_ptr(),
+        ]));
+        let argument = Owned::fresh(obj::alloc_typed(&TYPE, 0));
+        let argv = [command.as_ptr(), lambda.as_ptr(), argument.as_ptr()];
+        OWNER.with(|owner| *owner.borrow_mut() = Some(interp.clone()));
+        ORIGINALS.with(|words| *words.borrow_mut() = argv.to_vec());
+        let original_namespace = interp.current_ns();
+        let code = interp.dispatch(&argv);
+        assert_eq!(INSPECTIONS.with(Cell::get), 1, "{version:?}");
+        assert_eq!(interp.current_level(), 0);
+        assert_eq!(interp.current_ns(), original_namespace);
+        assert_eq!(interp.entered_native_operation_count(), 0);
+        assert_eq!(unsafe { (*argument.as_ptr()).ref_count }, 1);
+        if refusal == 0 {
+            assert_eq!(code, Code::Ok, "{version:?}");
+            assert_eq!(interp.result_bytes(), b"DONE");
+            assert_eq!(LATER.with(Cell::get), 1);
+            assert!(interp.native_execution_refusal().is_none());
+        } else {
+            assert_eq!(code, Code::Error, "{version:?}");
+            assert_eq!(LATER.with(Cell::get), 0);
+            assert_eq!(
+                interp.native_execution_refusal(),
+                FIRST.with(|first| first.borrow().clone())
+            );
+            assert_eq!(obj::bytes_of(interp.get_obj_result()), b"PRIOR\0\xff");
+        }
+        assert_eq!(READS.with(Cell::get), usize::from(query));
+        if !query {
+            assert!(unsafe { (*argument.as_ptr()).bytes.is_null() });
+        }
+        OWNER.with(|owner| owner.borrow_mut().take());
+        ORIGINALS.with(|words| words.borrow_mut().clear());
+    }
+
+    #[test]
+    fn original_apply_frame_keeps_unused_arguments_lazy_and_borrows_actual_tape() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // A real unused supplied value remains unread through lambda entry,
+        // body and pop. This proves the software frame transport, not a new
+        // original Tcl execution or opcode comparison.
+        for version in tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .filter(|version| *version != tcl_dialect::TclVersion::V8_4)
+        {
+            run_case(version, false, 0);
+        }
+    }
+
+    #[test]
+    fn original_apply_level_query_keeps_members_and_reached_getter_first_cause() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Actual info-level List creation is separate from its reached String
+        // rendering; Host/ABA stops later body work and restores the real frame.
+        for version in tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .filter(|version| *version != tcl_dialect::TclVersion::V8_4)
+        {
+            for refusal in [0, 1, 2] {
+                run_case(version, true, refusal);
+            }
+        }
+    }
+    #[test]
+    fn original_c84_apply_refuses_before_body_frame_or_argument_getter() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // C8.4 has no actual apply producer. This is a software refusal control,
+        // independent of the later C providers' lazy argument/frame positives.
+        OWNER.with(|owner| owner.borrow_mut().take());
+        ORIGINALS.with(|words| words.borrow_mut().clear());
+        READS.with(|reads| reads.set(0));
+        INSPECTIONS.with(|calls| calls.set(0));
+        LATER.with(|calls| calls.set(0));
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            tcl_registry::model::resolve_environment("tcl8.4").unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let _cleanup = crate::cmd_namespace::original_argument_tests::FixtureCleanup(|| {
+            OWNER.with(|owner| owner.borrow_mut().take());
+            ORIGINALS.with(|words| words.borrow_mut().clear());
+        });
+        assert!(
+            tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol::select(
+                interp.native_invocation_dialect()
+            )
+            .is_none()
+        );
+        interp.register_builtin(b"applyFrameInspect", inspect);
+        interp.register_builtin(b"applyFrameLater", later);
+        let command = Owned::fresh(obj::new_string_bytes(b"apply"));
+        let parameters = Owned::fresh(obj::new_string_bytes(b"x"));
+        let body = Owned::fresh(obj::new_string_bytes(b"applyFrameInspect; applyFrameLater"));
+        let lambda = Owned::fresh(interp.new_list_object(&[parameters.as_ptr(), body.as_ptr()]));
+        let argument = Owned::fresh(obj::alloc_typed(&TYPE, 0));
+        let argv = [command.as_ptr(), lambda.as_ptr(), argument.as_ptr()];
+        OWNER.with(|owner| *owner.borrow_mut() = Some(interp.clone()));
+        ORIGINALS.with(|words| *words.borrow_mut() = argv.to_vec());
+        let namespace = interp.current_ns();
+        assert_eq!(interp.dispatch(&argv), Code::Error);
+        assert_eq!(INSPECTIONS.with(Cell::get), 0);
+        assert_eq!(LATER.with(Cell::get), 0);
+        assert_eq!(READS.with(Cell::get), 0);
+        assert_eq!(interp.current_level(), 0);
+        assert_eq!(interp.current_ns(), namespace);
+        assert_eq!(interp.entered_native_operation_count(), 0);
+        assert_eq!(unsafe { (*argument.as_ptr()).ref_count }, 1);
+        assert!(!obj::has_string_rep(argument.as_ptr()));
     }
 }

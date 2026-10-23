@@ -53,8 +53,8 @@ use std::collections::{HashMap, HashSet};
 use tcl_registry::CommandRegistry;
 
 use crate::cfg::{self, BlockId, Terminator};
+use crate::place::{self, PlaceKind};
 use crate::ssa::{SsaFunction, SsaStatement, Symbol};
-use crate::var_refs::{VarReferenceScanner, VarScanOptions, vars_in_expr};
 
 /// An undirected interference graph over variable **names**: each name maps to
 /// the set of names whose live range overlaps its own.
@@ -63,52 +63,101 @@ pub type Interference = HashMap<String, HashSet<String>>;
 /// A coalescing: each variable name mapped to its assigned slot index.
 pub type SlotMapping = HashMap<String, usize>;
 
-/// Build a fresh [`VarReferenceScanner`] configured exactly like the SSA
-/// builder's — variable-read roles included, command substitutions recursed,
-/// reads-before-write excluded — so terminator-condition reads recovered here
-/// match the names SSA recorded in statement `uses`.
-fn make_scanner(registry: &CommandRegistry) -> VarReferenceScanner {
-    VarReferenceScanner::for_registry(
-        VarScanOptions {
-            include_var_read_roles: true,
-            recurse_cmd_substitutions: true,
-            include_reads_before_write: false,
-            element_qualified: false,
-        },
-        registry,
-    )
+/// Retained terminator reads select existing SSA cells; unknown reads keep
+/// every known cell live. Detached standalone lexical text grants no cell proof.
+fn terminator_read_symbols(
+    cfg: &cfg::Function,
+    id: BlockId,
+    block: &cfg::Block,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+) -> HashSet<Symbol> {
+    let Some(term) = block.terminator.as_ref() else {
+        return HashSet::new();
+    };
+    let all_symbols = || {
+        ssa.cell_symbols()
+            .map(|(symbol, _)| symbol)
+            .chain(ssa.source_variable_symbols().map(|(symbol, _)| symbol))
+            .collect::<HashSet<_>>()
+    };
+    let Some(points) = ssa.point_contexts.as_ref() else {
+        if !cfg.metadata_context.is_standalone() {
+            return all_symbols();
+        }
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let has_commands = match term {
+            Terminator::Branch { condition, .. } => !condition.command_texts().is_empty(),
+            Terminator::Return { value, expr, .. } => {
+                value.as_ref().is_some_and(|value| {
+                    !crate::var_refs::command_subst_texts_with_config(value, config).is_empty()
+                }) || expr
+                    .as_ref()
+                    .is_some_and(|expr| !expr.command_texts().is_empty())
+            }
+            Terminator::Goto { .. } | Terminator::Complete { .. } => false,
+        };
+        if has_commands {
+            return all_symbols();
+        }
+        let mut symbols = HashSet::new();
+        for (name, _) in crate::def_use::terminator_read_vars(Some(term), config) {
+            let Some(symbol) = ssa.var_symbol(&name) else {
+                return all_symbols();
+            };
+            if !ssa
+                .cell_key(symbol)
+                .is_some_and(|key| key.authored_spelling().is_some())
+            {
+                return all_symbols();
+            }
+            symbols.insert(symbol);
+        }
+        return symbols;
+    };
+    let mut symbols = HashSet::new();
+    for read in crate::place_bridge::terminator_read_places_at(term, id, points, registry) {
+        for read in std::iter::once(read.clone()).chain(place::places_read_to_form(&read)) {
+            if read.kind == PlaceKind::Unknown {
+                return all_symbols();
+            }
+            let Some(key) = crate::var_resolve::canonical_binding_value_key(&read) else {
+                if matches!(read.kind, PlaceKind::ArrayElem | PlaceKind::ArrayWhole) {
+                    let root = crate::var_resolve::cell_key(&read);
+                    symbols.extend(all_symbols().into_iter().filter(|symbol| {
+                        ssa.cell_key(*symbol)
+                            .is_none_or(|key| key.root() == root.root())
+                    }));
+                    continue;
+                }
+                return all_symbols();
+            };
+            let Some(symbol) = ssa.cell_symbol(&key) else {
+                return all_symbols();
+            };
+            symbols.insert(symbol);
+            if read.kind == PlaceKind::ArrayWhole {
+                symbols.extend(all_symbols().into_iter().filter(|symbol| {
+                    ssa.cell_key(*symbol)
+                        .is_none_or(|cell| cell.root() == key.root())
+                }));
+            }
+        }
+    }
+    symbols
 }
 
-/// Names read by a block's terminator (branch condition / return value).
-///
-/// These reads occur *after* every statement in the block, so they must be in
-/// the live set when the backward walk starts — otherwise a value used only in a
-/// `return` / `if` (e.g. a parameter passed straight to `return [expr {$x +
-/// $y}]`) would never appear live and would wrongly coalesce.
 fn terminator_read_names(
+    cfg: &cfg::Function,
+    id: BlockId,
     block: &cfg::Block,
-    scanner: &mut VarReferenceScanner,
+    ssa: &SsaFunction,
     registry: &CommandRegistry,
 ) -> HashSet<String> {
-    let grammar = registry
-        .profile()
-        .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar);
-    let mut names: HashSet<String> = HashSet::new();
-    match &block.terminator {
-        Some(Terminator::Branch { condition, .. }) => {
-            names.extend(vars_in_expr(condition, grammar));
-        }
-        Some(Terminator::Return { value, expr, .. }) => {
-            if let Some(v) = value {
-                names.extend(scanner.scan_word(v, registry));
-            }
-            if let Some(e) = expr {
-                names.extend(vars_in_expr(e, grammar));
-            }
-        }
-        _ => {}
-    }
-    names
+    terminator_read_symbols(cfg, id, block, ssa, registry)
+        .into_iter()
+        .map(|symbol| ssa.var_name(symbol).to_owned())
+        .collect()
 }
 
 /// The set of variable **names** an SSA statement reads / writes.
@@ -152,8 +201,6 @@ fn block_use_def(
         def_map.insert(*id, HashSet::new());
     }
 
-    let mut scanner = make_scanner(registry);
-
     for (id, sblock) in &ssa.blocks {
         let uses = use_map.get_mut(id).expect("block in use map");
         let defs = def_map.get_mut(id).expect("block in def map");
@@ -181,7 +228,7 @@ fn block_use_def(
         // The branch condition reads after every statement; an upward-exposed
         // condition read (not defined in this block) is a block use.
         if let Some(block) = cfg.blocks.get(id) {
-            let term_names = terminator_read_names(block, &mut scanner, registry);
+            let term_names = terminator_read_names(cfg, *id, block, ssa, registry);
             for name in term_names {
                 if !seen_defs.contains(&name) {
                     uses.insert(name);
@@ -226,39 +273,9 @@ fn scalar_block_liveness(
     ssa: &SsaFunction,
     registry: &CommandRegistry,
 ) -> HashMap<BlockId, ScalarBlockLiveness> {
-    let mut read_families: HashMap<&str, HashSet<Symbol>> = HashMap::new();
-    for name in ssa.var_names() {
-        if let Some(symbol) = ssa.var_symbol(name) {
-            read_families.entry(name).or_default().insert(symbol);
-            read_families
-                .entry(crate::naming::normalise_var_name(name))
-                .or_default()
-                .insert(symbol);
-        }
-    }
-    let mut scanner = VarReferenceScanner::for_registry(
-        VarScanOptions {
-            include_var_read_roles: true,
-            recurse_cmd_substitutions: true,
-            include_reads_before_write: false,
-            element_qualified: true,
-        },
-        registry,
-    );
     let mut inputs = HashMap::new();
     for (id, block) in &cfg.blocks {
-        // An opaque base read can consume any known element; a literal-key
-        // read retains its exact SSA identity.
-        let terminal_reads: HashSet<_> = terminator_read_names(block, &mut scanner, registry)
-            .iter()
-            .flat_map(|name| {
-                read_families
-                    .get(name.as_str())
-                    .into_iter()
-                    .flatten()
-                    .copied()
-            })
-            .collect();
+        let terminal_reads = terminator_read_symbols(cfg, *id, block, ssa, registry);
         let mut upward_uses = HashSet::new();
         let mut definitions = HashSet::new();
         if let Some(sblock) = ssa.blocks.get(id) {
@@ -337,11 +354,78 @@ pub(crate) fn unseen_call_live_names(
     ssa: &SsaFunction,
     registry: &CommandRegistry,
 ) -> HashMap<BlockId, HashMap<usize, HashSet<Symbol>>> {
-    if !ssa.blocks.values().any(|block| {
-        block
-            .statements
+    live_names_at_effects(cfg, ssa, registry, |_, _, stmt| {
+        crate::ssa::is_unseen_call_marker(&stmt.statement)
+    })
+}
+
+/// Values live across operations whose complete metadata owner is unavailable.
+/// These are analysis-only freshness barriers: they widen Value SSA, do not
+/// describe a Native write or supply a variable cell from source text. Explicit
+/// Standalone (`Some(None)`) remains on its existing catalogue path.
+/// Values live through a branch terminator whose nested command effects cannot
+/// be reborrowed from the CFG's unavailable metadata owner. The terminator's
+/// own condition reads precede this barrier, so only successor live-out names
+/// are refreshed. The existing dynamic-name owner decides whether the source
+/// expression can have effects; this facet only carries the SSA freshness.
+pub(crate) fn unavailable_metadata_terminator_live_names(
+    cfg: &cfg::Function,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> HashMap<BlockId, HashSet<Symbol>> {
+    let unavailable = ssa.point_contexts.as_ref().is_some_and(|points| {
+        let owner = points.source_metadata_owner();
+        !owner.is_standalone() && owner.metadata_context(registry).is_none()
+    });
+    if !unavailable {
+        return HashMap::new();
+    }
+    let inputs = scalar_block_liveness(cfg, ssa, registry);
+    let live_out = scalar_live_out(cfg, &inputs);
+    cfg.blocks
+        .iter()
+        .filter_map(|(&block, data)| {
+            let terminator = data.terminator.as_ref()?;
+            if crate::dynamic_names::terminator_barrier_for_cfg(terminator, cfg, registry, config)
+                .is_clear()
+            {
+                return None;
+            }
+            let live = live_out.get(&block)?;
+            (!live.is_empty()).then(|| (block, live.clone()))
+        })
+        .collect()
+}
+
+pub(crate) fn unavailable_metadata_effect_live_names(
+    cfg: &cfg::Function,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+) -> HashMap<BlockId, HashMap<usize, HashSet<Symbol>>> {
+    let unavailable = ssa.point_contexts.as_ref().is_some_and(|points| {
+        let owner = points.source_metadata_owner();
+        !owner.is_standalone() && owner.metadata_context(registry).is_none()
+    });
+    if !unavailable {
+        return HashMap::new();
+    }
+    live_names_at_effects(cfg, ssa, registry, |_, _, stmt| {
+        stmt.statement.is_executable_invocation()
+    })
+}
+
+fn live_names_at_effects(
+    cfg: &cfg::Function,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    mut is_effect: impl FnMut(BlockId, usize, &crate::ssa::SsaStatement) -> bool,
+) -> HashMap<BlockId, HashMap<usize, HashSet<Symbol>>> {
+    if !ssa.blocks.iter().any(|(&block, data)| {
+        data.statements
             .iter()
-            .any(|stmt| crate::ssa::is_unseen_call_marker(&stmt.statement))
+            .enumerate()
+            .any(|(index, statement)| is_effect(block, index, statement))
     }) {
         return HashMap::new();
     }
@@ -355,7 +439,7 @@ pub(crate) fn unseen_call_live_names(
         }
         let mut barriers = HashMap::new();
         for (index, stmt) in sblock.statements.iter().enumerate().rev() {
-            if crate::ssa::is_unseen_call_marker(&stmt.statement) {
+            if is_effect(*id, index, stmt) {
                 barriers.insert(index, live.clone());
             }
             for var in stmt.defs.keys() {
@@ -476,7 +560,6 @@ pub fn build_interference<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
     registry: &CommandRegistry,
 ) -> Interference {
     let mut graph: Interference = HashMap::new();
-    let mut scanner = make_scanner(registry);
 
     for (id, sblock) in &ssa.blocks {
         // Collect into a fresh default-hashed set so the inner set's hasher
@@ -486,7 +569,7 @@ pub fn build_interference<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
             .map(|s| s.iter().cloned().collect())
             .unwrap_or_default();
         if let Some(block) = cfg.blocks.get(id) {
-            live.extend(terminator_read_names(block, &mut scanner, registry));
+            live.extend(terminator_read_names(cfg, *id, block, ssa, registry));
         }
         add_clique(&mut graph, &live);
 
@@ -594,21 +677,190 @@ pub fn slot_count(mapping: &SlotMapping) -> usize {
 mod tests {
     use super::*;
 
+    #[test]
+    fn source_only_effect_symbols_remain_live_across_unknown_terminator_reads() {
+        let (context, unit) = crate::interprocedural::logical_completion_unit(
+            "proc p {} {global g; set g 1}\np\nreturn [unknown_read]",
+            "tcl8.6",
+        );
+        let function = &unit.top_level;
+        let source_symbols: HashSet<_> = function
+            .ssa
+            .source_variable_symbols()
+            .map(|(symbol, _)| symbol)
+            .collect();
+        assert!(
+            !source_symbols.is_empty(),
+            "actual source-only global effect producer"
+        );
+        assert!(
+            source_symbols
+                .iter()
+                .all(|&symbol| function.ssa.cell_key(symbol).is_none())
+        );
+        let mut barriers = 0;
+        for (&id, block) in &function.cfg.blocks {
+            let Some(Terminator::Return {
+                value: Some(value), ..
+            }) = &block.terminator
+            else {
+                continue;
+            };
+            if crate::var_refs::command_subst_texts_with_config(
+                value,
+                function.source_lexer_config(),
+            )
+            .is_empty()
+            {
+                continue;
+            }
+            let reads = terminator_read_symbols(
+                &function.cfg,
+                id,
+                block,
+                &function.ssa,
+                context.commands(),
+            );
+            assert!(
+                source_symbols.is_subset(&reads),
+                "missing location must not erase possible source reads"
+            );
+            barriers += 1;
+        }
+        assert!(barriers > 0, "actual retained unknown-command terminator");
+    }
+
     /// Lower `src`, build the analysis CFG for the named proc and its SSA.
-    /// `proc` is the qualified name, as `Module.procedures` keys it.
+    /// `proc` uniquely labels the authored body fixture.
     fn function(src: &str, proc: &str) -> (cfg::Function, SsaFunction, &'static CommandRegistry) {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let module = crate::lowering::lower_to_ir(src, registry);
-        let procedure = module
+        let (context, unit) = supplied_function(src);
+        assert!(std::sync::Arc::ptr_eq(registry, context.commands()));
+        let body = unit
             .procedures
-            .get(proc)
+            .values()
+            .find(|body| body.name == proc)
             .unwrap_or_else(|| panic!("proc {proc} not lowered"));
-        // `false` / `false` = the analysis CFG: no loop inlining, matching
-        // every other liveness consumer.
-        let cfg =
-            crate::cfg_builder::build_cfg_function(proc, &procedure.body, false, registry, false);
-        let ssa = crate::ssa::build_ssa(&cfg, registry);
+        let cfg = body.cfg.clone();
+        let ssa = body.ssa.clone();
         (cfg, ssa, registry)
+    }
+
+    fn supplied_function(
+        source: &str,
+    ) -> (
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        crate::compilation_unit::CompilationUnit,
+    ) {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        (context, unit)
+    }
+
+    fn return_site(cfg: &cfg::Function) -> (BlockId, &cfg::Block) {
+        cfg.blocks
+            .iter()
+            .find_map(|(&id, block)| {
+                matches!(block.terminator, Some(Terminator::Return { .. })).then_some((id, block))
+            })
+            .expect("represented return")
+    }
+
+    #[test]
+    fn retained_terminator_read_selects_the_original_ssa_cell() {
+        let (context, unit) =
+            supplied_function("proc p {} {set value DATA; set unrelated OTHER; return $value}");
+        let body = unit
+            .procedures
+            .values()
+            .find(|body| body.name == "::p")
+            .unwrap();
+        let (id, block) = return_site(&body.cfg);
+        let reads = terminator_read_names(&body.cfg, id, block, &body.ssa, context.commands());
+        assert!(reads.contains("value"), "{reads:?}");
+        assert!(!reads.contains("unrelated"), "{reads:?}");
+    }
+
+    #[test]
+    fn foreign_and_unavailable_terminator_owners_keep_known_cells_live() {
+        let (context, unit) =
+            supplied_function("proc p {} {set value DATA; set protected OTHER; return $value}");
+        let body = unit
+            .procedures
+            .values()
+            .find(|body| body.name == "::p")
+            .unwrap();
+        let mut foreign = CommandRegistry::build_default();
+        let mut added = foreign.get("set").unwrap().clone();
+        added.name = "foreign_probe";
+        foreign.insert(added);
+        assert!(foreign.snapshot().semantic_key() != context.commands().snapshot().semantic_key());
+        let (id, block) = return_site(&body.cfg);
+        let foreign_reads = terminator_read_names(&body.cfg, id, block, &body.ssa, &foreign);
+        assert!(foreign_reads.contains("value"), "{foreign_reads:?}");
+        assert!(foreign_reads.contains("protected"), "{foreign_reads:?}");
+        let mut cfg = body.cfg.clone();
+        cfg.metadata_context = crate::cfg_builder::CfgMetadataContext::Unavailable;
+        let mut ssa = body.ssa.clone();
+        ssa.point_contexts = None;
+        let (id, block) = return_site(&cfg);
+        let unavailable = terminator_read_names(&cfg, id, block, &ssa, context.commands());
+        assert!(unavailable.contains("value"), "{unavailable:?}");
+        assert!(unavailable.contains("protected"), "{unavailable:?}");
+    }
+
+    #[test]
+    fn retained_array_root_read_keeps_its_known_members_live() {
+        let (context, unit) =
+            supplied_function("proc p {} {set a(k) FIRST; set a(j) SECOND; return [array get a]}");
+        let body = unit
+            .procedures
+            .values()
+            .find(|body| body.name == "::p")
+            .unwrap();
+        let (id, block) = return_site(&body.cfg);
+        let reads = terminator_read_names(&body.cfg, id, block, &body.ssa, context.commands());
+        assert!(reads.contains("a(k)"), "{reads:?}");
+        assert!(reads.contains("a(j)"), "{reads:?}");
+    }
+
+    #[test]
+    fn standalone_nested_command_keeps_protective_reads() {
+        let (context, unit) =
+            supplied_function("proc p {} {set protected DATA; return [unknown_read]}");
+        let body = unit
+            .procedures
+            .values()
+            .find(|body| body.name == "::p")
+            .unwrap();
+        let mut cfg = body.cfg.clone();
+        cfg.metadata_context = crate::cfg_builder::CfgMetadataContext::Standalone;
+        let mut ssa = body.ssa.clone();
+        ssa.point_contexts = None;
+        let (id, block) = return_site(&cfg);
+        let reads = terminator_read_names(&cfg, id, block, &ssa, context.commands());
+        assert!(reads.contains("protected"), "{reads:?}");
     }
 
     /// The backward fixpoint sweeps exit-first, so a function whose blocks

@@ -99,35 +99,74 @@ pub struct BigipToken {
 }
 
 /// The tmsh top-level modules that open a stanza.
-const MODULES: &[&str] = &[
-    "apm", "asm", "auth", "cli", "cm", "gtm", "ilx", "ltm", "net", "pem", "security", "sys", "wom",
+///
+/// Every module the generated configuration schema dispatches an object kind
+/// under (`model::gen::dispatch::dispatch_minimal`) — the same set the
+/// `tcl-bigip-query` projection exposes at its root. The static editor
+/// grammars project this list (`cargo xtask gen-bigip-grammars`) to paint a
+/// stanza header's module word; that is lexical display only.
+pub const MODULES: &[&str] = &[
+    "analytics",
+    "apm",
+    "api-protection",
+    "asm",
+    "auth",
+    "cli",
+    "cm",
+    "gtm",
+    "ilx",
+    "ltm",
+    "net",
+    "pem",
+    "security",
+    "sys",
+    "vcmp",
+    "wom",
+];
+
+/// Property keys whose value names an object of a known kind, with that kind.
+///
+/// The one owner of the key → kind presentation rule: the lexer below reads
+/// it, and the static editor grammars project it (`cargo xtask
+/// gen-bigip-grammars`). A match grants the value no object identity — it is
+/// the same lexical display the semantic tokens give it.
+pub const KEYED_REFERENCES: &[(&str, BigipTokenKind)] = &[
+    ("pool", BigipTokenKind::Pool),
+    ("last-hop-pool", BigipTokenKind::Pool),
+    ("snatpool", BigipTokenKind::Pool),
+    ("default-pool", BigipTokenKind::Pool),
+    ("monitor", BigipTokenKind::Monitor),
+    ("monitors", BigipTokenKind::Monitor),
+    ("profile", BigipTokenKind::Profile),
+    ("profiles", BigipTokenKind::Profile),
+    ("defaults-from", BigipTokenKind::Profile),
+    ("vlan", BigipTokenKind::Vlan),
+    ("vlans", BigipTokenKind::Vlan),
+    ("vlan-group", BigipTokenKind::Vlan),
+    ("rule", BigipTokenKind::Object),
+    ("rules", BigipTokenKind::Object),
+    ("policy", BigipTokenKind::Object),
+    ("policies", BigipTokenKind::Object),
+    ("persist", BigipTokenKind::Object),
+    ("fallback-persistence", BigipTokenKind::Object),
+    ("snat-translation", BigipTokenKind::Object),
+    ("traffic-group", BigipTokenKind::Object),
+    ("device-group", BigipTokenKind::Object),
+    ("gateway", BigipTokenKind::Object),
+    ("destination", BigipTokenKind::Object),
+    ("virtual-address", BigipTokenKind::Object),
+    ("route-domain", BigipTokenKind::Object),
+    ("default-route-domain", BigipTokenKind::Object),
+    ("node", BigipTokenKind::Object),
+    ("members", BigipTokenKind::Object),
 ];
 
 /// Property keys whose value names an object of a known kind.
 fn keyed_ref_kind(key: &str) -> Option<BigipTokenKind> {
-    Some(match key {
-        "pool" | "last-hop-pool" | "snatpool" | "default-pool" => BigipTokenKind::Pool,
-        "monitor" | "monitors" => BigipTokenKind::Monitor,
-        "profile" | "profiles" | "defaults-from" => BigipTokenKind::Profile,
-        "vlan" | "vlans" | "vlan-group" => BigipTokenKind::Vlan,
-        "rule"
-        | "rules"
-        | "policy"
-        | "policies"
-        | "persist"
-        | "fallback-persistence"
-        | "snat-translation"
-        | "traffic-group"
-        | "device-group"
-        | "gateway"
-        | "destination"
-        | "virtual-address"
-        | "route-domain"
-        | "default-route-domain"
-        | "node"
-        | "members" => BigipTokenKind::Object,
-        _ => return None,
-    })
+    KEYED_REFERENCES
+        .iter()
+        .find(|(known, _)| *known == key)
+        .map(|&(_, kind)| kind)
 }
 
 /// The object-type word in a stanza header → the type its *name* should carry.
@@ -203,10 +242,35 @@ enum LexClass {
 /// substitutions were not tokenised at all — config highlighting applied to
 /// code, which is worse than none.
 ///
-/// [`tokenise_bigip_conf`] emits nothing inside these spans, leaving them for
-/// the caller to walk as Tcl.
+/// [`tokenise_bigip_conf`] emits nothing inside these spans. The bodies the
+/// shared rule parser recognises ([`crate::rule_extract::find_embedded_rules`],
+/// whose iRules brace grammar decides where a body ends) come first; a
+/// rule-shaped stanza that parser does not recognise is left to this
+/// presentation lexer's own bracket matching. Only the parser's bodies are
+/// source boundaries a caller may walk as Tcl; the rest are just not config.
 #[must_use]
 pub fn embedded_rule_bodies(source: &str) -> Vec<(u32, u32)> {
+    let mut spans: Vec<(u32, u32)> = crate::rule_extract::find_embedded_rules(source)
+        .iter()
+        .filter_map(|rule| {
+            Some((
+                u32::try_from(rule.body_start_offset).ok()?,
+                u32::try_from(rule.body_end_offset).ok()?,
+            ))
+        })
+        .collect();
+    for (start, end) in presentation_rule_bodies(source) {
+        if !spans.iter().any(|&(s, e)| start < e && s < end) {
+            spans.push((start, end));
+        }
+    }
+    spans.sort_unstable();
+    spans
+}
+
+/// The rule bodies this lexer's own bracket matching finds — a colour
+/// boundary, not a source one.
+fn presentation_rule_bodies(source: &str) -> Vec<(u32, u32)> {
     let mut spans = Vec::new();
     let mut line_start = 0usize;
     let mut depth: i32 = 0;
@@ -715,6 +779,51 @@ mod tests {
         assert_no_overlap("ltm pool /Common/web_pool {\n}\n");
     }
 
+    /// A module the configuration schema dispatches object kinds under opens a
+    /// stanza header like any other — `vcmp guest` was read as a property
+    /// line, its module word a property key.
+    #[test]
+    fn every_schema_module_opens_a_stanza_header() {
+        // A named stanza types its module and object-type words; a singleton
+        // (`analytics settings { }`) names no object, so its last word is the
+        // header's tail and only the module word is asserted.
+        for (src, words) in [
+            ("vcmp guest /Common/g1 {\n}\n", &["vcmp", "guest"][..]),
+            (
+                "api-protection response /Common/r {\n}\n",
+                &["api-protection", "response"],
+            ),
+            ("analytics settings {\n}\n", &["analytics"]),
+        ] {
+            let tokens = toks(src);
+            for (index, word) in words.iter().enumerate() {
+                assert_eq!(
+                    tokens.get(index),
+                    Some(&(*word, K::Keyword)),
+                    "{src:?}: {tokens:?}"
+                );
+            }
+            assert!(
+                !tokens.iter().any(|token| token.1 == K::Property),
+                "a header is not a property line: {src:?}: {tokens:?}"
+            );
+            assert_no_overlap(src);
+        }
+    }
+
+    /// The key table is the lexer's rule: a keyed bare value takes the kind.
+    #[test]
+    fn a_keyed_bare_value_takes_its_table_kind() {
+        for &(key, kind) in KEYED_REFERENCES {
+            let src = format!("ltm virtual /C/v {{\n    {key} target\n}}\n");
+            let tokens = toks(&src);
+            assert!(
+                tokens.contains(&(key, K::Property)) && tokens.contains(&("target", kind)),
+                "{key}: {tokens:?}"
+            );
+        }
+    }
+
     /// The separators are deliberately uncovered — that is what keeps the
     /// sub-tokens disjoint instead of overlaying a whole-path token.
     #[test]
@@ -887,6 +996,22 @@ mod tests {
     /// A `ltm rule { … }` body is iRules code, not config: the config lexer must
     /// leave it alone so the caller can walk it as Tcl.  Read as config, its
     /// `when` / `if` / `switch` became config *property keys*.
+    /// The rule parser's iRules brace grammar decides where a body ends: an
+    /// escaped `\}` inside the iRule does not close it, so the config lexer
+    /// tokenises nothing that belongs to the rule.
+    #[test]
+    fn an_escaped_brace_does_not_end_the_rule_body() {
+        let src = "ltm rule /Common/r {\n    when HTTP_REQUEST {\n        set x \\}\n        pool /Common/p\n    }\n}\nltm pool /Common/q { }\n";
+        let bodies = embedded_rule_bodies(src);
+        assert_eq!(bodies.len(), 1, "one rule body: {bodies:?}");
+        let body = &src[bodies[0].0 as usize..bodies[0].1 as usize];
+        assert!(body.contains("pool /Common/p"), "body: {body:?}");
+        assert!(!body.contains("ltm pool"), "body: {body:?}");
+        let t = toks(src);
+        assert!(!t.iter().any(|(text, _)| *text == "HTTP_REQUEST"), "{t:?}");
+        assert!(t.contains(&("q", K::Pool)), "{t:?}");
+    }
+
     #[test]
     fn embedded_rule_bodies_are_left_for_the_tcl_walker() {
         let src = "ltm rule /Common/r {\n    when HTTP_REQUEST {\n        pool /Common/p\n    }\n}\nltm pool /Common/q {\n    monitor /Common/http\n}\n";

@@ -696,13 +696,12 @@ fn minify_preserves_expr_comma_in_function_call() {
 
 #[test]
 fn minify_preserves_expr_membership_braced_list() {
-    // `$x ni {a b c}` keeps its braces and the `ni` word-operator spacing.
-    // tclsh (8.6 + 9.0): both
-    //   `set x b; puts [expr {$x ni {a b c}}]`  and  the minified
-    //   `set x b;puts [expr {$x ni {a b c}}]`   print `0`.
+    // Braced list data stays exact. The expression lexer separates `ni` from
+    // its following brace without a space. Matching C Tcl8.5/8.6/9.0/9.1 and
+    // Jim0.84 controls evaluate both exact forms to0.
     assert_eq!(
         minc("set x b\nputs [expr {$x ni {a b c}}]\n"),
-        "set x b;puts [expr {$x ni {a b c}}]",
+        "set x b;puts [expr {$x ni{a b c}}]",
     );
 }
 

@@ -16,11 +16,63 @@ The *contract* the tree implements is
 Source of truth for the C semantics we're mirroring is Tcl 9.0.4. All C-file
 citations in this doc use that release's source.
 
+Jim uses a separate flat command table and retained canonical namespace
+objects. Each active context has an `Owned` original Jim object and a stable
+arena token; its counted name is not parsed into C parent/child edges.
+`JimNamespaceName::Unmaterialized` records an original object context without
+name bytes or a C-tree coordinate. Only a reached guarded getter records the
+actual bytes on that same context; changing policy cannot turn a Jim-only
+context into a C path. Weak procedure/frame owners preserve native role
+retirement independently of allocation leases. Namespace display follows the actual
+retained object or tree kind across policy changes: nonGLOBAL Jim objects
+require already reached bytes, physical C namespaces keep their tree geometry,
+and the permanent real GLOBAL C root remains independent. Display supplies no
+current operation or namespace coordinate.
+The direct canonical helper acquires the original name before namespace bytes. Its
+absolute branch returns a fresh CString-extent suffix without obtaining the
+namespace String. Relative construction reaches the guarded actual namespace
+getter, then returns the original root-relative operand or duplicates and
+appends to the actual current object. `Interp::jim_canonical_namespace_object`
+retains original operation currency, physical frame and allocation checks
+around reached getters and construction. The pure Syntax absolute projection
+supplies no namespace holder or caller-frame authority; the existing contextual
+canonical entry still requires actual namespace bytes. This direct canonical contract supplies no public `namespace which`
+helper-head lookup or getter-order proof. `namespace eval` retains the original name and single body object;
+multiple body operands use the selected native concat owner. Namespace helper
+frames own local variables, while qualified globals use the root flat table.
+`namespace which -variable` constructs the canonical qualified name even when
+no variable exists. Procedure namespace objects derive from the counted flat
+publication key. Jim command enumeration and imports use the shared native
+name/glob owners and do not require a C namespace node to exist.
+
+The public selected Jim `namespace which`, `namespace code`, `namespace origin` and `namespace inscope` adapters check
+their original arity before ordinary fresh-helper-head lookup. Registry owns
+immutable source descriptors through `InvocationDialect::native_jim_namespace_helper`;
+these bytes supply no installed callable. Runtime installs real selected procedures
+under the actual global context or preserves the existing replacement and physical
+generation. Direct helpers retain their own frame, original argument and cache
+ownership. Code first reaches the original argument String operation: an already
+scoped argument returns the same object, including counted NUL bytes, while the
+plain branch reaches caller namespace current and constructs a genuine List with
+the original argument. Public lookup, direct cold lookup and direct hot literal
+cache have independent getter stages. Origin reaches its genuine original helper for canonical, Exists, Info alias
+and selected tailcall operations; a manual Runtime alias/name loop cannot
+substitute for those reached calls. Inscope checks its exact minimum-two public
+arity and reaches the selected helper with untouched original operands; that
+helper tailcalls namespace eval with the original name, argument and real args
+List. C retains its independent namespace/concatenation/evaluation path. Original
+Inscope argv/header observations establish no reentrant or final-free chronology.
+Snapshots gain no getter, and other scripted
+namespace helpers remain separate. Original Code and Which observations establish
+their measured source scope; Runtime parity requires its own execution.
+
+Jim tailcall resolves the original target header in its actual current namespace before issuer teardown. The selected physical command reference and a new original argument List survive independently of the issuing variable frame. A valid same-pointer cache can leave the namespace String absent. After cleanup the invocation consumes that retained command rather than looking up its spelling again, and its raw completion is preserved. The weak observer index keeps no command or interpreter alive; actual active and pending references own their native ledger roles. Uninvoked pending cancellation retires the command before its List; an entered selected evaluation retires the List before the command. Both release paths attach the original saved operation for mandatory cleanup and cannot issue fresh work after withdrawal. C retains its own namespace-prefixed original List protocol. These owners supply no public Jim defer/trace implementation or full Native lifecycle acceptance; the original SDK executed/defer-error observations remain scoped evidence independent of software owner controls.
+
 ## 1. Goal & non-goals
 
 ### Goal
 
-A real namespace tree — parent / child links, per-namespace command and
+The C Tcl namespace tree has parent / child links, per-namespace command and
 variable tables, explicit path and export lists — so command and variable
 resolution matches Tcl 9 semantics (`tclNamesp.c:Tcl_FindCommand`,
 `tclVar.c:TclObjLookupVarEx`) rather than any flat fully-qualified-name
@@ -36,11 +88,11 @@ name, possibly through `namespace import`, possibly from inside
 - **Not** a general OO / Itcl scaffold. This document covers the `namespace`
   built-in, `global`, `variable`, `upvar`, and the resolution paths those use.
   TclOO is its own subsystem (`cmd_oo.rs`) layered on the same tree.
-- **Not** any bytecode-level caching (`ResolvedCmdName`,
-  `resolverEpoch` on compiled bodies). Bodies are either compiled
-  to WASM (resolution happens at lowering time) or re-parsed per call, and
-  there is no runtime resolution cache at all — so there is nothing to
-  invalidate and no `cmdRefEpoch` analogue.
+- Runtime cache ownership belongs to the original-object owners. This tree
+  supplies namespace incarnations, command nodes and invalidation epochs to
+  `interp/native_command_names.rs` and the chosen procedure body's
+  `interp/native_body_artifact.rs`. A vocabulary entry alone supplies neither
+  an installed handler nor compiler admission.
 - **Not** custom resolvers. Ensembles, traces, safe interpreters, and
   namespace deletion are all implemented, but elsewhere — see §4 for where.
 - **Not** a change to the compiler's FQN mangling. Compiled procs keep their
@@ -50,8 +102,9 @@ name, possibly through `namespace import`, possibly from inside
 ## 2. C Tcl 9 reference model
 
 Only the fields that shape *resolution* and *storage* are called out
-here.  Refcounting, traces, deletion handlers, resolver plug-ins, and
-ensembles are listed in §4 and skipped from the Rust mirror.
+here. Original-object references, traces, deletion handlers and ensembles
+have their own retained owners described in §3–4; custom resolver plug-ins
+remain unsupported.
 
 ### `Namespace` (`tclInt.h:278`)
 
@@ -100,12 +153,12 @@ One per proc / built-in / imported redirect.  Mirror fields:
 | `importRefPtr` | `ImportRef *` | head of back-list of importing cmds |
 | `flags` | `int` | `CMD_DYING` / `CMD_DEAD` / `CMD_VIA_RESOLVER` / `CMD_REDEF_IN_PROGRESS` |
 
-Skipped: `hPtr` (the `BTreeMap` key is the identity here), `refCount`,
-`cmdEpoch`, `compileProc` (this compile is ahead-of-time), `proc`
-(string-based), `clientData` (string-based), `deleteProc` + `deleteData`,
-`tracePtr`, `nreProc`. The mirror is the `Command` enum of §3, where the
-payload each variant needs is in the variant rather than behind a flags-tagged
-`void *`.
+The `Command` enum of §3 carries handler-specific payloads. Native binding
+identity is the retained command node and generation, independently of its
+map key or reported name. The native registration owner supplies compiler-hook
+presence; an original command-name cache retains node/reference epochs and
+cannot infer that hook from the handler vocabulary. Legacy string-based C
+entry points and custom resolver callbacks are not supplied by this enum.
 
 ### `ImportRef` + `ImportedCmdData` (`tclInt.h:1807`, `:1826`)
 
@@ -204,7 +257,7 @@ struct Namespace {
     vars: VarTable,
     /// `namespace unknown` handler (a command prefix); `None` ⇒ inherit the
     /// interpreter default.
-    unknown: Option<Vec<u8>>,
+    unknown: Option<obj::Owned>,
     /// The name a retained token keeps after its parent edge is gone (C keeps
     /// `fullName` when the deferred deletion nulls `parentPtr`).
     retained_fqn: Option<Vec<u8>>,
@@ -216,23 +269,26 @@ struct Namespace {
 call frame — and `deferred: BTreeSet<NsId>`, the tokens a non-zero count is
 keeping alive (§4).
 
-Three fields of C's `Namespace` have no counterpart, deliberately:
+Namespace representation and cache coherence use these owners:
 
 - **`fullName`** is not stored. `qualified_name(ns)` walks the `parent` chain
   and builds it on demand — a namespace's FQN is derivable, and caching it
   would need invalidation that nothing else here needs.
-- **`cmdRefEpoch`** and **`commandPathSourceList`** are absent because there is
-  no resolution cache. `resolve` walks the live tables on every lookup, so a
-  command added or removed anywhere is visible immediately, with no
-  bookkeeping and no cascade.
+- **`cmdRefEpoch`** is represented by `command_reference_epoch`. The retained
+  reverse namespace-path entries invalidate their creators when a searched
+  namespace changes. `native_resolver_epoch` and `ensemble_export_epoch`
+  remain separate compiler and ensemble dependencies. Original command-name
+  objects validate these dependencies and the exact live command node before
+  reusing a cache.
 - **`flags`** (`NS_DYING` / `NS_DEAD` / `NS_TEARDOWN`) is absent as a word:
   the states it names are the `dying`, `dead` and `deferred` sets on
   `Namespaces`, keyed by token id.
 
-`BTreeMap` (not `HashMap`) throughout gives deterministic storage and makes
-`info commands` / `info vars` stable run to run. Two places are exceptions,
-where C's `Tcl_HashTable` bucket order is public behaviour: `namespace
-children` and namespace **teardown**. Both read a retained
+The maps provide deterministic storage independently of native enumeration.
+Variable tables retain selected entry ledgers for dynamic birth, undefined
+shells and array generations; compiled local index order remains separate.
+C's retained hash bucket order also governs `namespace children` and namespace
+**teardown**. Both read a retained
 [`TclStringHashOrder`] kept beside the map — one per child table, one per
 command table — because Tcl quadruples the bucket array at a 3:1 load factor,
 never shrinks it, and reverses chains on every rebuild, so the order cannot be
@@ -271,13 +327,15 @@ word. Its variants and their dispatch are tabulated in
   entry between maps is the whole of "changing its home". (One place notices:
   a `Command::Proc` carries its own `ns` and `fqn`, fixed at definition time
   for `info frame` provenance — see §8.1.)
-- **`namespace import` is a `Command::Imported { source }` entry** holding the
-  source's FQN as bytes, re-resolved at global on every dispatch. There is no
-  `ImportedCmdData` / `ImportRef` pair and no back-list of importers. The
-  operations C uses the back-list for are done by scanning instead: a source
-  rename walks the tree rewriting matching `source` fields
-  (`retarget_imports`), and `namespace forget` finds redirects with
-  `imported_in(ns)` and drops them with `remove_in`. Both are cold paths.
+- **`namespace import` is a `Command::Imported` entry** holding the source
+  FQN and exact source command generation. Dispatch follows the current binding
+  for that generation, rather than selecting whichever command later occupies
+  the same FQN. There is no `ImportedCmdData` / `ImportRef` pair and no
+  back-list of importers. A source rename scans the tree and retargets entries
+  for that exact generation; `namespace forget` finds redirects with
+  `imported_in(ns)` and drops them with `remove_in`. When a source generation
+  has retired, the separate by-name replacement path may attach a replacement;
+  it does not conflate simultaneously live generations at one FQN.
 
 ### `Var`
 
@@ -290,10 +348,12 @@ separate `consts` set on the table, and `VAR_IN_HASHTABLE` /
 `VAR_ARRAY_ELEMENT` / `VAR_DEAD_HASH` describe C's hash-entry mechanics and
 have no analogue.
 
-Critically, a `Link` is **path-resolved**, not a pointer: it holds
-`{ home: VarHome, name, elem }`, where `VarHome` is either a frame level or a
-namespace id. C's `linkPtr` would dangle if the target table reallocated; a
-path cannot.
+A `Link` carries `{ home: VarHome, name, elem }` for selected lookup, plus
+its actual native target owner. C scalar and element aliases retain the
+original entry and array generation, so deleting and recreating a spelling
+does not retarget an old alias. Jim retains the original recursive target-name
+object and a weak frame-incarnation receipt; its selected lookup follows that
+name. A byte label alone cannot identify a C captured cell or a live Jim frame.
 
 ### Call frames
 
@@ -364,10 +424,25 @@ current-namespace candidate and refuses the flat map's entries in that
 subtree, `info commands` / `info procs` / `namespace children` read it by
 token id, and a relative definition is absorbed into it. Its final teardown
 splices each token back into the live map one at a time, so the shared command
-lifecycle runs unchanged. Two pieces of the retained token are not in the
-record: its command-trace sidecars, which are still keyed by name and can therefore be reached by a recreation's traces during the
-window, and its variables, which stay in the VM's one flat global table under
-their canonical names.
+lifecycle runs unchanged. Variable tables remain separately owned by the
+actual namespace token in `ns_vars`; `VarTableOwner::Namespace` selects that
+token, so a same-path recreation receives a distinct table. Command-trace
+sidecars remain in the separate binding map, with each registration stamped
+by command generation. Retirement removes the dying token's registrations
+without removing a replacement token's registrations.
+
+Native C descendant creation follows the already selected physical namespace
+anchor and original component boundaries. Runtime `ensure_namespace_at_components` preserves
+a dying intermediate parent's actual token instead of rebuilding an ancestor
+from its spelling. The VM's `NativeNameWorld::ensure_namespace_at_components`
+uses the existing child publication owner under that same actual anchor;
+new children receive their own variable tables, and real creation invalidates
+command lookup and compiled command-environment guards. Entering a missing
+child during teardown therefore retains its actual ancestor for later cleanup.
+Final-target conflicts and the original trailing-parent return rule remain
+separate checks; selected name geometry alone does not publish a namespace or
+enter its frame. This contract does not establish the C8.4 public
+`namespace exists` distinction, Jim behaviour or full lifecycle conformance.
 
 `namespace delete` **is** implemented (`cmd_namespace.rs::ns_delete`, mirroring
 C's `NamespaceDeleteCmd`): it deletes each named namespace with its children,
@@ -376,6 +451,18 @@ living in that namespace — running its destructor while the namespace is still
 intact, as C's `ObjectNamespaceDeleted` does. Deletion goes **by namespace id**
 (`delete_namespace_by_id`, over `descendant_ids`) rather than by name,
 specifically so variable unset traces fire as the namespace is torn down.
+
+The original C descendant controls
+isolate publication through a dying ancestor during an actual unset callback.
+New descendants retain that original physical ancestor and disappear after the
+outer teardown. The native namespace API can still find the parent while the
+public existence query reports it absent in C8.5–9.1; C8.4 reports it present.
+Reentry into the newly created child preserves that child's identity. These
+observations do not identify the earlier allocation of a pre-existing child.
+They also do not establish Runtime/VM acceptance, command-delete callback
+behaviour, Jim or F5. Returning a selected dying final token for an original
+trailing-separator operand is a separate rule; it grants no descendant
+publication or cleanup authority.
 
 ### Variable and command traces
 
@@ -403,21 +490,26 @@ dangerous commands into.
 
 ### Per-namespace `unknown` (`unknownHandlerPtr`)
 
-Implemented — `namespace unknown` is a real subcommand
-(`cmd_namespace.rs::ns_unknown`) backed by the `Namespace::unknown` field, and
-handlers are per-namespace and **not** inherited by children; the global
-namespace's handler is the interpreter-wide default and beats the plain
-`::unknown` proc. See
-[`../contracts/command-resolution.md`](../contracts/command-resolution.md).
+`namespace unknown` stores the accepted original object root, after the selected
+native List Length getter succeeds. The setter and getter return that object,
+without reconstructing its bytes or members. Zero elements clear the stored
+handler even when its original string contains whitespace. A malformed prefix
+leaves the previous root in place.
 
-### Custom resolvers (**omit**)
+The selected native fallback policy chooses the caller or lookup namespace's
+handler; an unset handler falls back to the global original root. Handlers are
+not inherited by child namespaces. The global default is installed lazily.
+Dispatch converts the stored original root through the selected List getter,
+retains its original prefix members through the reached invocation, and resolves
+the original head object in the retained lookup namespace. Handler replacement
+or namespace deletion releases the stored root outside namespace-table borrows.
 
-`Tcl_SetNamespaceResolvers`, `Tcl_AddInterpResolver`, `cmdResProc`,
-`varResProc`, `compiledVarResProc`, `ResolverScheme`,
-`resolverEpoch`.  No test in the current corpus uses them.  If they are
-needed later the hook point is at the top of `Namespaces::home_of`,
-before the context-namespace table check — the same position as C's
-`Tcl_FindCommand:2678`.
+### Custom resolvers
+
+Native custom resolver callbacks (`Tcl_SetNamespaceResolvers`,
+`Tcl_AddInterpResolver`, and compiled-variable resolver hooks) are not exposed
+by these Runtime namespace tables. Resolution uses the shared native name
+protocol and the interpreter's actual command and variable tables.
 
 ### Compiled-local `Var`s (**omit by construction**)
 
@@ -447,19 +539,22 @@ by re-running the toolchain, not at runtime.
 
 User-ns state hooks.  No in-tree user.
 
-### `exportLookupEpoch` (**omit**)
+### Export lookup and ensemble dependencies
 
-Cache-coherence counter for TIP-112 `info commands` filtering.  Export
-matching is recomputed on demand from `Namespace::exports`
-(`is_exported` / `exported_commands`), and `info commands` reads
-`command_names` live, so there is no cache to keep coherent.
+Export matching for `info commands` reads live `Namespace::exports` through
+`is_exported` / `exported_commands`. The separate `ensemble_export_epoch`
+tracks actual ensemble dependencies. A live vocabulary query cannot provide
+an ensemble binding, prefix root or compiled dispatch-cache receipt.
 
-### `cmdRefEpoch` / `commandPathSourceList` (**omit**)
+### `cmdRefEpoch` / `commandPathSourceList`
 
-Both exist in C to invalidate cached path lookups. There is no lookup cache
-here: `resolve` walks the current namespace, then each `path` entry, then
-global, on every call. The back-list has nothing to invalidate and the epoch
-has nothing to stamp.
+The namespace owner retains reference epochs and reverse path dependencies.
+`resolve_original_command_at` selects the actual engine's command-name
+protocol on the same original object. A valid cached node bypasses string
+lookup; a stale cache returns to the selected ordinary lookup boundary. C's
+command-name cache and Jim's commandObj cache are separate primaries. Jim
+retains its original namespace object and procedure epoch; a C receipt cannot
+supply either role.
 
 ## 5. Resolution algorithms
 
@@ -545,7 +640,9 @@ means:
 
 - entering a **procedure** uses the token its binding lives in — C hands
   `Tcl_PushCallFrame` the `Namespace *` from `procPtr->cmdPtr->nsPtr`, and the
-  VM carries the same thing as `ProcDef::ns_id`. A retained procedure called
+  VM retains the entered-body owner as `ProcDef::execution_namespace`, separate
+  from the command-table publication token `ProcDef::command_ns_id`. A retained
+  procedure called
   after its namespace was recreated still runs in the retained token; one
   reached by absolute name in the recreation runs in that one;
 - `namespace eval` / `inscope` follow the qualifier: a **relative** name walks
@@ -559,18 +656,41 @@ means:
   entry) is memoised back into the table its binding came from, never into the
   flat map under a spelling a recreation owns.
 
-Deliberate C-parity gaps: no `CMD_VIA_RESOLVER` (no resolvers, §4) and no
-`cmdEpoch` rehash (there is no cache to stale). tclsh's `ResolvedCmdName`
-object cache is also **not** modelled: C only invalidates it when the
-command's own namespace is `NS_DYING`, so a *literal* absolute name to a
-command in a non-dying child of a retained namespace keeps resolving there.
-That is a caching artefact, not a semantic, and tests must build such names at
-run time rather than pin it.
+Custom `CMD_VIA_RESOLVER` callbacks remain unsupported (§4). Native original
+command-name caches retain the selected command node and reference context,
+including a valid cached absolute name into a retained child. Literal and
+dynamically constructed inputs must both be tested without erasing their
+cache differences. The chosen original procedure body can own an admitted
+Bytecode artifact with its literal array, local layout and entry guards;
+ordinary header duplication follows the selected string-only body rule.
+Future declaration relocation and an already active frame's namespace remain
+independent owners.
 
 ### 5.3 Variable resolution
 
 The variable resolver is `vars.rs`, modelled on `tclVar.c:TclLookupSimpleVar`.
 It is one classification plus one link walk.
+
+**Byte operand protocol.** `Interp::name_policy_protocol` selects the actual
+engine's `NativeNameProtocol`, or an explicitly installed logical name provider.
+`interp/variable_names.rs` retains that recipe in the namespace owner before
+fresh variable lookup. An unavailable recipe produces a typed host refusal;
+byte `VarStore` reads propagate that refusal instead of reporting absence.
+
+Complete names use `combined_variable_input`. Root and element arguments use
+`separate_variable_input`; a second element is never concatenated into a fresh
+name. These purposes have different NUL extents. Root qualification uses the
+original selected projection, so a separator after NUL cannot turn a counted
+unqualified scalar into a qualified namespace address. `global` and `variable`
+use their own byte local-name selectors. Trace registration and query apply
+their selected text extents before resolving the physical receiver.
+
+Jim namespace variables use the original constructed namespace bytes and
+`jim_global_variable_key_bytes`. Neither namespace components nor scalar or
+element keys pass through a Unicode replacement conversion. Procedure locals
+remain in their activation's byte table. Captured array targets and followed
+links retain their physical generation; name policy is not reapplied to those
+already selected cells.
 
 **Classification.** A name is a *namespace variable* when it is qualified
 (contains `::`) **or** there is no active proc frame — the global scope, or a
@@ -630,14 +750,16 @@ Two invariants that fall out of the layout and are easy to break:
 - **The global frame's variable table *is* the global namespace's**, so a
   level-0 frame target is canonicalised to `VarHome::Namespace(GLOBAL)` at the
   link site rather than kept as a frame reference.
-- **Resolution reads live tables, never a cache.** Any future cache has to be
-  invalidated on every table mutation *and* every `namespace path` change;
-  until one demonstrably pays for itself, the absence of a cache is the
-  correctness argument.
+- **Original command-object caches validate against live tables.** Cached
+  command allocations retain lookup-context and namespace token ownership;
+  command deletion, replacement and namespace-path changes invalidate their
+  corresponding lookup epochs. Text-only queries do not manufacture a cache.
 
 The compiled `tcl-runtime` WASM artefact is not checked in; it is built from
 `runtime/rust/` on demand, so a fresh checkout picks up the right binary
 without anyone committing one.
+
+The original Jim command entry selects and retains the actual command before resetting the interpreter result. A source String has its own earlier Script-entry reset; a vector or pure List does not acquire that source stage. Previous-result cleanup can replace a table binding, but the selected command reference remains the original allocation. On a miss, diagnostic publication and original frame/namespace checks precede lookup of the interpreter's actual retained Unknown header. The checked borrow refuses a withdrawn role instead of constructing a same-spelled replacement, and no getter or native reference is added merely to observe that header. The resident retiring-result observation has its own header/free-phase contract; stringless updaters, reentrant result mutation, unknown evaluation-frame/recursion/error-stack behavior and Jim trace execution remain separate obligations. The scoped worker-selection controls establish no full Native callback chronology.
 
 ## 7. Rust API surface
 
@@ -710,11 +832,12 @@ pub fn clear_exports(&mut self, ns: NsId);
 pub fn exports(&self, ns: NsId) -> &[Vec<u8>];
 pub fn exported_commands(&self, ns: NsId) -> Vec<Vec<u8>>;
 pub fn is_exported(&self, ns: NsId, name: &[u8]) -> bool;
-/// `(local name, source FQN)` for every `Command::Imported` in `ns`.
+/// `(local name, source FQN)` projection for imported entries in `ns`;
+/// the entry also retains its source command generation.
 pub fn imported_in(&self, ns: NsId) -> Vec<(Vec<u8>, Vec<u8>)>;
 pub fn remove_in(&mut self, ns: NsId, name: &[u8]) -> bool;
-/// Follow a source rename through every redirect that named it.
-pub fn retarget_imports(&mut self, old_fqn: &[u8], new_fqn: &[u8]);
+/// Retarget redirects bound to this exact source generation.
+pub fn retarget_imports(&mut self, source_generation: u64, new_fqn: &[u8]);
 ```
 
 `namespace import` itself lives in `cmd_namespace.rs::ns_import`: it splits the
@@ -730,8 +853,8 @@ clobber of a *different* command is a conflict.
 ```rust
 pub fn set_path(&mut self, ns: NsId, path: Vec<NsId>);
 pub fn path(&self, ns: NsId) -> &[NsId];
-pub(crate) fn unknown_handler(&self, ns: NsId) -> Option<&[u8]>;
-pub(crate) fn set_unknown_handler(&mut self, ns: NsId, handler: &[u8]);
+pub(crate) fn unknown_handler(&self, ns: NsId) -> Option<*mut TclObj>;
+pub(crate) fn set_unknown_handler(&mut self, ns: NsId, handler: Option<obj::Owned>) -> Option<obj::Owned>;
 ```
 
 ### Iteration
@@ -741,15 +864,13 @@ There are no visitor helpers: `command_names`, `var_names`, `proc_names`,
 borrowed listing directly. Two listings are ordered by the retained Tcl hash
 table instead of the map: `children_hash_order` (which
 `TclDeleteNamespaceChildren` and `namespace children` need) and
-`command_hash_order` (which `TclTeardownNamespace` needs). The rest retain the
-cheap deterministic `BTreeMap` order — including `info commands` / `info
-procs`, which C also answers in hash order; that divergence is tracked
-separately and only ever shows through an unsorted listing.
+`command_hash_order` (which `TclTeardownNamespace` needs). Command and procedure listings retain sorted map order rather than C's
+native hash order, so unsorted `info commands` / `info procs` remain a visible
+ordering difference. Variable inventories use the selected entry ledger and
+defined/declaration flags; compiled local index order is independent of dynamic
+hash-table birth order.
 
-## 8. Settled design points
-
-These were open questions while the tree was being built. Each is now
-answered by the code; the numbering is kept so older references still land.
+## 8. Resolution invariants
 
 ### 8.1 Compiler-side FQN vs runtime resolution
 
@@ -760,10 +881,12 @@ global table under a mangled name: callers either pass an FQN (which resolves
 through the qualifier walk) or a simple name plus context (which resolves
 through the chain of §5.2). There is exactly one entry per command.
 
-The one place a command remembers its own name is `ProcDef { ns, fqn }`, fixed
-at definition time and used for `info frame` provenance — not for dispatch. A
-consequence is that renaming a proc across namespaces in this runtime moves its
-table entry without re-homing its `ProcDef`; the bytecode VM re-homes it (see
+A procedure command retains its actual declaration independently of the
+binding's current name. The selected relocation protocol updates future entry
+namespace and reported provenance through that declaration; an already active
+frame retains its original namespace incarnation. Jim's original procedure
+namespace object is a separate owned role. Dispatch resolves the live binding,
+rather than parsing a procedure's reported name (see
 [`rename-alias.md`](rename-alias.md) §7).
 
 ### 8.2 Per-frame vs per-interp current namespace
@@ -782,12 +905,13 @@ each attempt requires the command to exist rather than merely the namespace.
 
 ### 8.4 Chained `namespace import`
 
-`Command::Imported` stores the source FQN as written at import time, and
-dispatch re-resolves it. Importing an already-imported command therefore
-produces a redirect naming the *intermediate*, which re-resolves through the
-intermediate's own redirect on each call — the chain is followed at dispatch
-rather than collapsed at import. `command_origin` walks the chain to report
-`namespace origin`.
+`Command::Imported` stores the source FQN and source generation captured at
+import time. Importing an already-imported command therefore produces a
+redirect naming the *intermediate*, which follows that intermediate's bound
+source on each call—the chain is followed at dispatch rather than collapsed at
+import. `command_origin` walks the chain to report `namespace origin`. A
+retired source may use the separate by-name replacement path; a still-live
+generation is not replaced merely because another command has the same FQN.
 
 ### 8.5 `variable` on an FQN
 
@@ -812,3 +936,27 @@ uplevel #0 { namespace current } }` reports `::`.
 
 Implemented — `Namespaces::which_command` / `which_variable`, described in
 [`command-introspection.md`](command-introspection.md) §5.
+
+During actual Jim result replacement, the previous result remains the interpreter's current slot while its native release runs. A scoped observation binds that original slot and allocation incarnation to the saved operation. The shared getter retains its original frame/instruction/enum/property primary-origin guards; retirement snapshots their pure admission result before cleanup and consumes it only at the actual resident getter. During the exact header's free phase, only resident String bytes remain readable through the interpreter's existing getter; normal native liveness, cache access and new owning references still refuse. Foreign interpreters, completed phases, changed primary descriptors, absent resident String storage and withdrawn issuers cannot obtain that observation. C retains its own publication order. This resident observation supplies no stringless updater, reentrant result mutation, unknown frame/recursion/trace producer or full Native lifecycle proof.
+
+Jim command inventory uses selected pure preflight before namespace input. Core
+-all/arity and exact -nons cases retain their original stage; remaining cases
+require the existing weak namespace/frame receipt around reached getters and
+query publication. The complete genuine argv and actual subvector must agree.
+Pattern materialisation precedes namespace selection, while flat query snapshots
+follow the reached pattern getter. The private namespace-info procedure is a
+genuine physical roster member, with its actual Proc formals and ordinary fresh
+helper lookup; replacement and deletion remain observable. Its descriptor grants
+no public subcommand dispatch. C inventory, other helpers, complete SDK rosters,
+reentrant traces and final-free chronology retain their separate obligations.
+
+Jim variable inventories retain the exact selected worker scope and complete
+original argv. Pure All/Exact/Scan lookup geometry supplies no physical key or
+namespace. Weak actual table/key/cell/binding receipts retain memory safety
+without keeping retired entries live; actual table changes refuse traversal.
+The existing weak namespace/frame receipt and current namespace checks surround
+reached getters, incremental original-key List membership and result publication,
+with first refusal retained. True-top locals is distinct from a non-top namespace
+frame. No replacement key String, report inversion, complete roster, live
+reentrant table traversal or broader lifecycle authority follows; C, VM and
+other variable APIs keep their independent owners.

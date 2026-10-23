@@ -75,16 +75,19 @@ pub fn frame_level<O: ValueOps>(
         },
         Err(ValueError::IntegerOverflow) => None,
         Err(_) => {
-            let spelling = ops.as_str(word);
-            let Some(absolute) = spelling.strip_prefix('#') else {
+            // A word whose bytes cannot be read names no frame (fail closed).
+            let Ok(spelling) = ops.native_string_bytes(word) else {
+                return Err(BadLevel::Word);
+            };
+            let Some(absolute) = spelling.strip_prefix(b"#") else {
                 return default();
             };
-            let absolute_value = ops.new_str(absolute);
+            let absolute_value = ops.new_bytes(absolute);
             ops.pin_value(&absolute_value);
             let level = ops.as_c_int(&absolute_value).ok();
             ops.unpin_value(&absolute_value);
             level
-                .filter(|&level| level == 0 || (level > 0 && !absolute.starts_with('-')))
+                .filter(|&level| level == 0 || (level > 0 && !absolute.starts_with(b"-")))
                 .and_then(|level| usize::try_from(level).ok())
                 .filter(|&level| level <= current)
         }

@@ -33,9 +33,9 @@
 //! loop. This produces a *structurally valid* module
 //! (validated with `wasmtime compile`) against the `"tcl"` import ABI the WASM
 //! runtime provides (values are i32 `*mut TclObj` pointers into shared linear
-//! memory). The runtime side of that ABI is the leak-tested eval surface in
-//! `runtime/rust/src/codegen_abi.rs` (`tcl_eval_code`, `tcl_expr_bool`, the
-//! object and direct-operation helpers); an emitted module runs against it through the
+//! memory). The runtime ABI is defined by the owning evaluation and completion
+//! exports in `runtime/rust/src/codegen_abi.rs` and `codegen_native.rs`;
+//! an emitted module runs against it through the
 //! shared-memory dynamic link (`__memory_base` relocation), which the standalone
 //! `wasm_execute` test exercises with a stub provider.
 
@@ -55,16 +55,21 @@ use crate::codegen::structured;
 use crate::command_binding::{
     Binding, BindingKind, CommandBinding, ModuleCommandMutations, analyse_command_binding,
 };
-use crate::common_aot_plan::semantic_operation_binding_is_trusted;
+use crate::common_aot_plan::{
+    original_direct_expression_body_operations, semantic_operation_binding_is_trusted,
+};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Module, Procedure, Statement};
 use crate::mixed_region_plan::GuardedSelectionEvidence;
-use crate::native_lowering::cells::{CellPlace, cell_place};
+use crate::native_lowering::cells::{CellPlace, name_data_place};
 use crate::native_lowering::{
     FunctionDecline, FunctionReport, LoweringInput, NativeBinding, NativeTierReport,
     ProcEntryDecline, lower_function,
 };
-use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
+use crate::registry_invocation::{
+    InvocationMetadataContext, RegistryInvocationResolution,
+    resolve_command_tokens_with_metadata_context,
+};
 use crate::semantic_optimisation::SemanticOptimisationConfig;
 use tcl_runtime_api::codegen_abi::{
     CodegenAbiImportId, CodegenAbiValueType, WASM32_CODEGEN_DATA_START, WASM32_COMPLETION_ALIGN,
@@ -132,6 +137,7 @@ pub const RESERVED_DATA_BASE: i64 = WASM32_CODEGEN_DATA_START;
 /// Indices of the `"tcl"` host imports the emitted module calls.
 #[derive(Clone, Copy)]
 struct Imports {
+    host_refusal_pending: u32,
     /// `(ptr, len) -> obj` — box a data-section string as a `TclObj`.
     obj_new_string: u32,
     /// `(script_obj) -> i32` — evaluate a leaf command and return its **completion
@@ -140,15 +146,33 @@ struct Imports {
     /// completion propagates. Adopts (frees) its argument, so
     /// there is no result reference for the emitter to release.
     eval_code: u32,
-    /// `(expr_obj) -> i32` — evaluate a condition to a boolean.
-    expr_bool: u32,
+    /// Completion-bearing expression evaluation with caller-owned source.
+    condition: ConditionImports,
     aot: Option<AotImports>,
 }
+
+/// The general tier owns condition source and completion storage until the
+/// single cleanup block settles Host or Guest completion.
+#[derive(Clone, Copy)]
+struct ConditionImports {
+    frame_alloc: u32,
+    frame_free: u32,
+    string_owned: u32,
+    expr_bool_eval: u32,
+    completion_release: u32,
+    object_release: u32,
+}
+
+const CONDITION_SOURCE_OFFSET: i64 = 0;
+const CONDITION_COMPLETION_OFFSET: i64 = WASM32_POINTER_BYTES as i64;
+const CONDITION_TRUTH_OFFSET: i64 = CONDITION_COMPLETION_OFFSET + WASM32_COMPLETION_SIZE as i64;
+const CONDITION_FRAME_BYTES: i64 = CONDITION_TRUTH_OFFSET + WASM32_POINTER_BYTES as i64;
 
 /// Runtime ABI imports used by the semantic prebuilt-argv mode of the same
 /// module emitter.
 #[derive(Clone, Copy)]
 struct SemanticImports {
+    host_refusal_pending: u32,
     frame_alloc: u32,
     frame_free: u32,
     string_owned: u32,
@@ -175,6 +199,7 @@ struct GuardedIntrinsicImports {
 /// unchanged when native proof selection is disabled.
 #[derive(Clone, Copy)]
 struct NativeI64AddImports {
+    host_refusal_pending: u32,
     value_new_wide_int: u32,
     puts: u32,
 }
@@ -220,7 +245,6 @@ struct AotImports {
     var_get: u32,
     expr_add: u32,
     puts: u32,
-    proc_register: u32,
     argv: ArgvImports,
 }
 
@@ -240,18 +264,11 @@ struct ArgvImports {
 
 #[derive(Default)]
 struct FunctionFacts {
-    operations: HashMap<(u32, u32), SemanticOperationId>,
-    direct_assignments: HashSet<(u32, u32)>,
-    direct_calls: HashMap<(u32, u32, String), String>,
+    direct_assignments: HashMap<(u32, u32), (String, String)>,
     /// Selected prebuilt-argv plans, keyed by leaf-statement span.
     leaf_invocations: HashMap<(u32, u32), WasmLeafInvokePlan>,
     /// Typed reasons a leaf statement stayed on the source-span eval fallback.
     leaf_declines: HashMap<(u32, u32), WasmLeafInvokeDecline>,
-    /// Spans of `proc` definitions that wrote every word out, so this tier may
-    /// register the definition itself instead of leaving it to the runtime's
-    /// own `proc`. Decided while planning, where the statement's
-    /// structured words are still to hand.
-    literal_proc_definitions: HashSet<(u32, u32)>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -282,6 +299,7 @@ struct WasmEmitter {
     data_offset: i64,
     /// Number of currently open control frames (`block`/`loop`/`if`).
     ctrl_depth: u32,
+    invocation_abort: Option<u32>,
     /// Stack of open loops; the last is the innermost (the `break`/`continue`
     /// target, since Tcl has no labelled break).
     loops: Vec<LoopFrame>,
@@ -290,10 +308,9 @@ struct WasmEmitter {
     frame_local: u64,
     mode: FunctionMode,
     local_slots: HashMap<String, u32>,
-    proc_indices: HashMap<String, u32>,
-    procedure_arity: HashMap<String, usize>,
-    direct_procs: HashSet<String>,
-    procedures_by_span: HashMap<(u32, u32), Procedure>,
+    proc_indices: HashMap<crate::ir::ProcedureId, u32>,
+    procedure_arity: HashMap<crate::ir::ProcedureId, usize>,
+    direct_procs: HashSet<crate::ir::ProcedureId>,
     facts: FunctionFacts,
 }
 
@@ -305,6 +322,7 @@ impl WasmEmitter {
             data: Vec::new(),
             data_offset,
             ctrl_depth: 0,
+            invocation_abort: None,
             loops: Vec::new(),
             code_local: 0,
             frame_local: 1,
@@ -313,7 +331,6 @@ impl WasmEmitter {
             proc_indices: HashMap::new(),
             procedure_arity: HashMap::new(),
             direct_procs: HashSet::new(),
-            procedures_by_span: HashMap::new(),
             facts: FunctionFacts::default(),
         }
     }
@@ -325,6 +342,7 @@ impl WasmEmitter {
             data: Vec::new(),
             data_offset,
             ctrl_depth: 0,
+            invocation_abort: None,
             loops: Vec::new(),
             code_local: 0,
             // Same local layout as `for_semantic_invoke`: slot 0 holds the
@@ -335,7 +353,6 @@ impl WasmEmitter {
             proc_indices: HashMap::new(),
             procedure_arity: HashMap::new(),
             direct_procs: HashSet::new(),
-            procedures_by_span: HashMap::new(),
             facts: FunctionFacts::default(),
         }
     }
@@ -366,16 +383,20 @@ impl WasmEmitter {
         }
     }
 
-    /// Intern `text` into the data section, returning its `(offset, len)`.
-    fn intern(&mut self, text: &str) -> (i64, i64) {
+    /// Intern the complete original bytes, including NUL and opaque byte units.
+    fn intern_bytes(&mut self, bytes: &[u8]) -> (i64, i64) {
         let offset = self.data_offset;
-        let len = i64::try_from(text.len()).unwrap_or(i64::MAX);
+        let len = i64::try_from(bytes.len()).unwrap_or(i64::MAX);
         self.data.push(WasmData {
             offset,
-            data: text.as_bytes().to_vec(),
+            data: bytes.to_vec(),
         });
         self.data_offset += len;
         (offset, len)
+    }
+
+    fn intern(&mut self, text: &str) -> (i64, i64) {
+        self.intern_bytes(text.as_bytes())
     }
 
     fn push(&mut self, op: WasmOp) {
@@ -396,11 +417,71 @@ impl WasmEmitter {
         ));
     }
 
-    fn call(&mut self, func_idx: u32) {
+    fn raw_call(&mut self, func_idx: u32) {
         self.body.push(WasmInstruction::with_operands(
             WasmOp::Call,
             leb128_unsigned(u64::from(func_idx)),
         ));
+    }
+
+    fn call(&mut self, func_idx: u32) {
+        self.raw_call(func_idx);
+        let EmitterImports::General(imports) = self.imports else {
+            return;
+        };
+        if !general_import_id(imports, func_idx)
+            .is_none_or(CodegenAbiImportId::requires_host_refusal_check)
+        {
+            return;
+        }
+        self.raw_call(imports.host_refusal_pending);
+        self.open_frame(WasmOp::If);
+        if let Some(abort) = self.invocation_abort {
+            self.br(abort);
+        } else {
+            self.emit_general_refusal_return(imports);
+        }
+        self.close_frame();
+    }
+
+    fn emit_general_refusal_return(&mut self, imports: Imports) {
+        if self.mode == FunctionMode::DirectProc
+            && let Some(aot) = imports.aot
+        {
+            self.raw_call(aot.frame_pop);
+        }
+        if self.mode == FunctionMode::DirectProc {
+            self.push_i32(0);
+        }
+        self.push(WasmOp::Return);
+    }
+
+    fn emit_semantic_refusal_check(&mut self, argc: usize, guarded: bool) {
+        let imports = self.semantic_imports();
+        self.raw_call(imports.host_refusal_pending);
+        self.open_frame(WasmOp::If);
+        if guarded {
+            self.local_get(GUARDED_TOKEN_LOCAL);
+            self.raw_call(self.guarded_intrinsic_imports().guard_release);
+        }
+        for index in 0..argc {
+            let local = if guarded {
+                semantic_word_local(index)
+            } else {
+                u64::try_from(5 + index).expect("word local fits u64")
+            };
+            self.local_get(local);
+            self.raw_call(imports.object_release);
+        }
+        self.local_get(SEMANTIC_FRAME_LOCAL);
+        self.raw_call(imports.frame_free);
+        self.push(WasmOp::Drop);
+        // These are transport placeholders; the retained refusal governs the result.
+        for _ in 0..3 {
+            self.push_i32(0);
+        }
+        self.push(WasmOp::Return);
+        self.close_frame();
     }
 
     /// Open a structured frame (`block`/`loop`/`if`, void type), returning its
@@ -441,12 +522,16 @@ impl WasmEmitter {
         ));
     }
 
-    /// Box `text` as a `TclObj`, leaving its i32 pointer on the stack.
-    fn box_text(&mut self, text: &str) {
-        let (offset, len) = self.intern(text);
+    /// Box original bytes as a Tcl object without a text projection.
+    fn box_bytes(&mut self, bytes: &[u8]) {
+        let (offset, len) = self.intern_bytes(bytes);
         self.push_i32(offset);
         self.push_i32(len);
         self.call(self.general_imports().obj_new_string);
+    }
+
+    fn box_text(&mut self, text: &str) {
+        self.box_bytes(text.as_bytes());
     }
 
     fn push_text_pair(&mut self, text: &str) {
@@ -510,12 +595,37 @@ impl WasmEmitter {
             return;
         };
         self.call(aot.frame_push);
+        let imports = self.general_imports();
+        self.raw_call(imports.host_refusal_pending);
+        self.open_frame(WasmOp::If);
+        self.emit_unbound_parameter_cleanup(proc, 0);
+        self.emit_general_refusal_return(imports);
+        self.close_frame();
         for (param_idx, name) in proc.params.iter().enumerate() {
             self.push_i32(i64::try_from(param_idx).unwrap_or(i64::MAX));
             self.push_text_pair(name);
             self.local_get(u64::try_from(param_idx).unwrap_or(u64::MAX));
-            self.call(aot.local_bind);
-            self.push(WasmOp::Drop);
+            // The binding ABI consumes this parameter even when it refuses.
+            // Later parameters still own their transferred references.
+            self.raw_call(aot.local_bind);
+            self.local_set(self.code_local);
+            self.raw_call(imports.host_refusal_pending);
+            self.local_get(self.code_local);
+            self.push(WasmOp::I32Or);
+            self.open_frame(WasmOp::If);
+            self.emit_unbound_parameter_cleanup(proc, param_idx + 1);
+            self.emit_general_refusal_return(imports);
+            self.close_frame();
+        }
+    }
+
+    fn emit_unbound_parameter_cleanup(&mut self, proc: &Procedure, first: usize) {
+        let Some(aot) = self.general_imports().aot else {
+            return;
+        };
+        for parameter in first..proc.params.len() {
+            self.local_get(u64::try_from(parameter).expect("formal index fits u64"));
+            self.raw_call(aot.argv.object_release);
         }
     }
 
@@ -545,24 +655,24 @@ impl WasmEmitter {
             return false;
         };
         match statement {
-            Statement::AssignConst {
-                span, name, value, ..
-            } => {
-                if !self.facts.direct_assignments.contains(&span_key(*span)) {
+            Statement::AssignConst { span, .. } | Statement::AssignValue { span, .. } => {
+                let Some((name, value)) =
+                    self.facts.direct_assignments.get(&span_key(*span)).cloned()
+                else {
                     return false;
-                }
+                };
                 if self.mode == FunctionMode::DirectProc {
-                    let Some(slot) = self.local_slots.get(name).copied() else {
+                    let Some(slot) = self.local_slots.get(&name).copied() else {
                         return false;
                     };
                     self.push_i32(i64::from(slot));
-                    if !self.box_value(value) {
+                    if !self.box_value(&value) {
                         return false;
                     }
                     self.call(aot.local_set);
                 } else if self.mode == FunctionMode::Top {
-                    self.push_text_pair(name);
-                    if !self.box_value(value) {
+                    self.push_text_pair(&name);
+                    if !self.box_value(&value) {
                         return false;
                     }
                     self.call(aot.var_set);
@@ -582,69 +692,8 @@ impl WasmEmitter {
                 self.push(WasmOp::Return);
                 true
             }
-            Statement::Call { span, .. } => {
-                // Each alternative must be transactional. A `try_*` may emit
-                // part of its sequence before hitting a word it cannot prove
-                // and declining — `try_emit_direct_operation` boxes leading
-                // arguments before it reaches, say, an `$arr(key)` it does not
-                // handle. `emit_typed_statement` only rolls back when the whole
-                // chain declines, so without this a decline followed by a
-                // successful fallback would leave the half-emitted prefix in
-                // the body and its operands stranded on the stack, producing a
-                // module wasmtime rejects with "values remaining on stack at
-                // end of block".
-                self.attempt(|emitter| emitter.try_emit_direct_operation(*span))
-                    || self.attempt(|emitter| emitter.try_emit_leaf_invocation(*span))
-            }
+            Statement::Call { span, .. } => self.try_emit_leaf_invocation(*span),
             _ => false,
-        }
-    }
-
-    /// The narrow direct specialisations that beat generic argv invocation
-    /// when the binding lattice proves the command is still its builtin.
-    fn try_emit_direct_operation(&mut self, span: Span) -> bool {
-        let Some(aot) = self.general_imports().aot else {
-            return false;
-        };
-        let Some(operation) = self.facts.operations.get(&span_key(span)).copied() else {
-            return false;
-        };
-        match operation {
-            SemanticOperationId::StructuredLowering(LoweringHookId::Proc) => {
-                // Only a definition whose words were all written out. Otherwise
-                // `Procedure` holds the *written* word while the body was
-                // compiled from a value this tier materialised, and registering
-                // that word reports the wrong `info body` and leaves any later
-                // run of the source body evaluating a substitution in the
-                // procedure's own frame. The generic invocation
-                // below hands the word to the runtime's `proc`, which evaluates
-                // it at the call site as Tcl does.
-                if !self
-                    .facts
-                    .literal_proc_definitions
-                    .contains(&span_key(span))
-                {
-                    return false;
-                }
-                let Some(proc) = self.procedures_by_span.get(&span_key(span)).cloned() else {
-                    return false;
-                };
-                let Some(body) = proc.body_source.as_deref() else {
-                    return false;
-                };
-                self.push_text_pair(&proc.qualified_name);
-                self.push_text_pair(&proc.params_raw);
-                self.push_text_pair(body);
-                self.call(aot.proc_register);
-                self.emit_completion_dispatch();
-                true
-            }
-            // There is no `puts` fast path reparsing compatibility text: the
-            // leaf-invocation path below evaluates its words structurally, and
-            // the native tier owns the channel-write intrinsic.
-            SemanticOperationId::Invoke
-            | SemanticOperationId::Intrinsic(_)
-            | SemanticOperationId::StructuredLowering(_) => false,
         }
     }
 
@@ -687,7 +736,9 @@ impl WasmEmitter {
         self.local_set(self.code_local);
 
         let abort = self.open_frame(WasmOp::Block);
+        self.invocation_abort = Some(abort);
         self.emit_invoke_node(&plan.root, &plan, argv, abort, true);
+        self.invocation_abort = None;
         self.close_frame();
 
         for slot in 0..plan.object_slots {
@@ -699,6 +750,11 @@ impl WasmEmitter {
         self.call(argv.frame_free);
         self.push(WasmOp::Drop);
 
+        let imports = self.general_imports();
+        self.raw_call(imports.host_refusal_pending);
+        self.open_frame(WasmOp::If);
+        self.emit_general_refusal_return(imports);
+        self.close_frame();
         self.dispatch_stashed_code();
         true
     }
@@ -905,6 +961,7 @@ impl WasmEmitter {
         self.local_tee(COMPLETION_LOCAL);
         self.call(imports.invoke_argv);
         self.push(WasmOp::Drop);
+        self.emit_semantic_refusal_check(plan.argv_literals.len(), false);
 
         self.local_get(COMPLETION_LOCAL);
         self.load_i32(i64::from(WASM32_COMPLETION_CODE_OFFSET));
@@ -1018,6 +1075,7 @@ impl WasmEmitter {
         self.push_i32(i64::from(guard.domains().bits()));
         self.call(imports.guard_prepare);
         self.local_set(GUARDED_TOKEN_LOCAL);
+        self.emit_semantic_refusal_check(argc, true);
         self.local_get(GUARDED_TOKEN_LOCAL);
         self.push(WasmOp::I64Eqz);
         self.open_frame(WasmOp::If);
@@ -1038,10 +1096,13 @@ impl WasmEmitter {
         self.local_get(SEMANTIC_FRAME_LOCAL);
         self.push_i32(i64::try_from(argc).expect("validated argc"));
         self.call(imports.guard_check);
+        self.emit_semantic_refusal_check(argc, true);
         self.push(WasmOp::I32Eqz);
         self.open_frame(WasmOp::If);
         self.local_get(GUARDED_TOKEN_LOCAL);
         self.call(imports.guard_release);
+        self.push_i64(0);
+        self.local_set(GUARDED_TOKEN_LOCAL);
         self.emit_generic_argv_invoke(argc, SEMANTIC_FRAME_LOCAL, SEMANTIC_COMPLETION_LOCAL);
         self.push(WasmOp::Else);
         self.push_i32(i64::from(intrinsic));
@@ -1050,14 +1111,19 @@ impl WasmEmitter {
         self.local_get(SEMANTIC_COMPLETION_LOCAL);
         self.call(imports.invoke_intrinsic_argv);
         self.local_set(GUARDED_STATUS_LOCAL);
+        self.emit_semantic_refusal_check(argc, true);
         self.local_get(GUARDED_STATUS_LOCAL);
         self.push(WasmOp::I32Eqz);
         self.open_frame(WasmOp::If);
         self.local_get(GUARDED_TOKEN_LOCAL);
         self.call(imports.guard_release);
+        self.push_i64(0);
+        self.local_set(GUARDED_TOKEN_LOCAL);
         self.push(WasmOp::Else);
         self.local_get(GUARDED_TOKEN_LOCAL);
         self.call(imports.guard_release);
+        self.push_i64(0);
+        self.local_set(GUARDED_TOKEN_LOCAL);
         self.emit_generic_argv_invoke(argc, SEMANTIC_FRAME_LOCAL, SEMANTIC_COMPLETION_LOCAL);
         self.close_frame();
         self.close_frame();
@@ -1130,6 +1196,7 @@ impl WasmEmitter {
         self.local_get(completion_local);
         self.call(self.semantic_imports().invoke_argv);
         self.push(WasmOp::Drop);
+        self.emit_semantic_refusal_check(argc, true);
     }
 
     /// Honour the completion code a leaf command's [`tcl_eval_code`] left on the
@@ -1151,20 +1218,119 @@ impl WasmEmitter {
 
     /// [`Self::emit_completion_dispatch`] for a code already in `code_local`.
     fn dispatch_stashed_code(&mut self) {
-        // In a loop, codes 3/4 are a structural break/continue of *this* loop.
-        if let Some(frame) = self.loops.last() {
-            let break_block = frame.break_block;
-            let continue_block = frame.continue_block;
+        let enclosing = self
+            .loops
+            .last()
+            .map(|frame| (frame.break_block, frame.continue_block));
+        self.dispatch_stashed_code_in_loop(enclosing);
+    }
+
+    fn dispatch_stashed_code_in_loop(&mut self, enclosing: Option<(u32, u32)>) {
+        if let Some((break_block, continue_block)) = enclosing {
             self.emit_code_eq_branch(TCL_BREAK, break_block);
             self.emit_code_eq_branch(TCL_CONTINUE, continue_block);
         }
-
-        // Any remaining non-`OK` code (error/return/other, or break/continue with
-        // no enclosing loop) unwinds the function.
         self.local_get(self.code_local);
-        self.open_frame(WasmOp::If); // if (code != 0)
-        self.push(WasmOp::Return);
+        self.open_frame(WasmOp::If);
+        // Only a DirectProc has the frame emitted by emit_proc_prelude.
+        self.emit_general_refusal_return(self.general_imports());
         self.close_frame();
+    }
+
+    /// Evaluate through the existing raw-evaluation/result/truth owner once,
+    /// then release the source and completion before any structural edge.
+    fn emit_condition_expression(&mut self, text: &str, loop_header: bool) {
+        let imports = self.general_imports();
+        let condition = imports.condition;
+        let status_local = self.frame_local + 1;
+        let truth_local = self.frame_local + 2;
+        self.raw_call(imports.host_refusal_pending);
+        self.open_frame(WasmOp::If);
+        self.emit_general_refusal_return(imports);
+        self.close_frame();
+        self.push_i32(CONDITION_FRAME_BYTES);
+        self.push_i32(i64::from(WASM32_COMPLETION_ALIGN));
+        self.call(condition.frame_alloc);
+        self.local_set(self.frame_local);
+        self.local_get(self.frame_local);
+        self.push(WasmOp::I32Eqz);
+        self.open_frame(WasmOp::If);
+        self.emit_general_refusal_return(imports);
+        self.close_frame();
+        for offset in (0..CONDITION_FRAME_BYTES).step_by(WASM32_POINTER_BYTES as usize) {
+            self.local_get(self.frame_local);
+            self.push_i32(0);
+            self.store_i32(offset);
+        }
+        self.push_i32(0);
+        self.local_set(self.code_local);
+        self.push_i32(0);
+        self.local_set(status_local);
+        self.push_i32(0);
+        self.local_set(truth_local);
+
+        let abort = self.open_frame(WasmOp::Block);
+        self.invocation_abort = Some(abort);
+        self.local_get(self.frame_local);
+        self.push_text_pair(text);
+        self.call(condition.string_owned);
+        self.store_i32(CONDITION_SOURCE_OFFSET);
+        self.local_get(self.frame_local);
+        self.load_i32(CONDITION_SOURCE_OFFSET);
+        self.local_get(self.frame_local);
+        self.push_i32(CONDITION_COMPLETION_OFFSET);
+        self.push(WasmOp::I32Add);
+        self.local_get(self.frame_local);
+        self.push_i32(CONDITION_TRUTH_OFFSET);
+        self.push(WasmOp::I32Add);
+        self.call(condition.expr_bool_eval);
+        self.local_set(status_local);
+        self.local_get(status_local);
+        self.open_frame(WasmOp::If);
+        self.br(abort);
+        self.close_frame();
+        self.local_get(self.frame_local);
+        self.load_i32(CONDITION_COMPLETION_OFFSET + i64::from(WASM32_COMPLETION_CODE_OFFSET));
+        self.local_set(self.code_local);
+        self.local_get(self.code_local);
+        self.open_frame(WasmOp::If);
+        self.br(abort);
+        self.close_frame();
+        self.local_get(self.frame_local);
+        self.load_i32(CONDITION_TRUTH_OFFSET);
+        self.local_set(truth_local);
+        self.invocation_abort = None;
+        self.close_frame();
+
+        self.local_get(self.frame_local);
+        self.load_i32(CONDITION_SOURCE_OFFSET);
+        self.call(condition.object_release);
+        self.local_get(self.frame_local);
+        self.push_i32(CONDITION_COMPLETION_OFFSET);
+        self.push(WasmOp::I32Add);
+        self.call(condition.completion_release);
+        self.local_get(self.frame_local);
+        self.call(condition.frame_free);
+        self.push(WasmOp::Drop);
+        self.raw_call(imports.host_refusal_pending);
+        self.open_frame(WasmOp::If);
+        self.emit_general_refusal_return(imports);
+        self.close_frame();
+        self.local_get(status_local);
+        self.open_frame(WasmOp::If);
+        self.emit_general_refusal_return(imports);
+        self.close_frame();
+
+        // A loop test is outside its own body completion handler. Its failure
+        // belongs to the caller of the whole while/for, possibly an outer loop.
+        let enclosing = if loop_header {
+            self.loops.iter().rev().nth(1)
+        } else {
+            self.loops.last()
+        }
+        .map(|frame| (frame.break_block, frame.continue_block));
+        self.dispatch_stashed_code_in_loop(enclosing);
+        self.local_get(truth_local);
     }
 
     /// `if (code == want) br <target>` — a guarded structural branch the
@@ -1219,6 +1385,8 @@ impl WasmEmitter {
         };
         local_names.push("$code".to_string());
         local_names.push("$frame".to_string());
+        local_names.push("$condition_status".to_string());
+        local_names.push("$condition_truth".to_string());
         WasmFunction {
             name: name.to_string(),
             params,
@@ -1227,9 +1395,8 @@ impl WasmEmitter {
             } else {
                 Vec::new()
             },
-            // `$code` (the completion-dispatch scratch) and `$frame` (the leaf
-            // invocation's transient call frame).
-            locals: vec![ValType::I32; 2],
+            // Completion code, transient frame, condition transport and truth.
+            locals: vec![ValType::I32; 4],
             body: std::mem::take(&mut self.body),
             local_names,
             exported: true,
@@ -1240,23 +1407,25 @@ impl WasmEmitter {
 }
 
 impl Emit for WasmEmitter {
+    fn refuse_native_compilation_admission(&mut self) {
+        self.push(WasmOp::Unreachable);
+    }
+
     fn emit_typed_statement(&mut self, statement: &Statement, _source: &str) -> bool {
         self.attempt(|emitter| emitter.try_emit_typed_statement(statement))
     }
 
-    fn emit_command(&mut self, source_text: &str) {
+    fn emit_command_image(&mut self, source: &tcl_lexer::SourceImage) {
         // code = tcl_eval_code(box(text)); then honour an abrupt completion code
         // (error/return unwinds, break/continue re-enters the loop) instead of
         // swallowing it — the top-level result stays the interp's own result.
-        self.box_text(source_text);
+        self.box_bytes(source.bytes());
         self.call(self.general_imports().eval_code);
         self.emit_completion_dispatch();
     }
 
     fn begin_if(&mut self, cond_text: &str) {
-        // if (tcl_expr_bool(box(cond)))   — void block type (no result)
-        self.box_text(cond_text);
-        self.call(self.general_imports().expr_bool);
+        self.emit_condition_expression(cond_text, false);
         self.open_frame(WasmOp::If);
     }
 
@@ -1283,9 +1452,7 @@ impl Emit for WasmEmitter {
 
     fn loop_test(&mut self, cond_text: Option<&str>) {
         if let Some(cond) = cond_text {
-            // if (!tcl_expr_bool(box(cond))) br <break>
-            self.box_text(cond);
-            self.call(self.general_imports().expr_bool);
+            self.emit_condition_expression(cond, true);
             self.push(WasmOp::I32Eqz);
             if let Some(frame) = self.loops.last() {
                 let brk = frame.break_block;
@@ -1340,47 +1507,131 @@ fn span_key(span: Span) -> (u32, u32) {
     (span.start(), span.end())
 }
 
-fn span_command_key(span: Span, command: &str) -> (u32, u32, String) {
-    (span.start(), span.end(), command.to_string())
-}
-
-fn direct_expr_supported(expr: &ExprNode, params: &HashSet<&str>) -> bool {
+fn direct_expr_supported(
+    expr: &ExprNode,
+    params: &HashSet<&str>,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
     match expr {
-        ExprNode::Var { name, .. } => params.contains(name.as_str()),
+        ExprNode::Var { text, name, .. } => {
+            matches!(
+                crate::native_lowering::cells::variable_reference_place(text, config),
+                Ok(crate::native_lowering::cells::CellPlace::Named { name: actual })
+                    if actual == *name && params.contains(actual.as_str())
+            )
+        }
         ExprNode::Literal { .. } => true,
         ExprNode::Binary {
             op: BinOp::Add,
             left,
             right,
-        } => direct_expr_supported(left, params) && direct_expr_supported(right, params),
+        } => {
+            direct_expr_supported(left, params, config)
+                && direct_expr_supported(right, params, config)
+        }
         _ => false,
+    }
+}
+
+/// Source naming coordinates retained from the actual issued primary bodies.
+/// These facts only withdraw optional WASM specializations; they publish no
+/// runtime command and grant no callable body, frame or Native admission.
+struct OriginalProcedureNames<'a> {
+    publications: Vec<(
+        crate::ir::ProcedureId,
+        &'a crate::signature_scan::scope::SignatureSourceCommand,
+    )>,
+}
+
+impl<'a> OriginalProcedureNames<'a> {
+    fn capture(module: &'a Module, registry: &CommandRegistry) -> Option<Self> {
+        let retained = module.retained_source_bindings.as_ref()?;
+        retained.original_top_namespace_for_module(module, registry)?;
+        let publications = module
+            .procedures
+            .iter()
+            .map(|(id, procedure)| {
+                (module.procedure_ids.owns(*id)
+                    && procedure.body_kind == crate::ir::ProcedureBodyKind::Named
+                    && retained.matches_original_procedure_summary(*id, procedure))
+                .then_some(())?;
+                Some((*id, procedure.publication.as_ref()?))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(Self { publications })
+    }
+
+    fn redefined_ids(&self) -> HashSet<crate::ir::ProcedureId> {
+        let mut counts = HashMap::new();
+        for (_, publication) in &self.publications {
+            *counts.entry(*publication).or_insert(0usize) += 1;
+        }
+        self.publications
+            .iter()
+            .filter(|(_, publication)| counts.get(publication).is_some_and(|count| *count > 1))
+            .map(|(id, _)| *id)
+            .collect()
+    }
+
+    fn shadow_obligations(&self) -> Option<Vec<(String, Binding)>> {
+        self.publications
+            .iter()
+            .map(|(_, publication)| {
+                Some((
+                    publication.source_spelling()?,
+                    Binding {
+                        kind: BindingKind::Unknown,
+                        target: None,
+                    },
+                ))
+            })
+            .collect()
     }
 }
 
 fn direct_proc_eligible(
     module: &Module,
+    id: crate::ir::ProcedureId,
     proc: &Procedure,
     unit: &FunctionUnit,
     registry: &CommandRegistry,
     mutations: &ModuleCommandMutations,
+    redefined_ids: &HashSet<crate::ir::ProcedureId>,
 ) -> bool {
-    if proc.namespace_scoped
-        || proc
-            .qualified_name
-            .strip_prefix("::")
-            .is_some_and(|name| name.contains("::"))
-        || module.redefined_procedures.contains(&proc.qualified_name)
+    if !module.procedure_ids.owns(id)
+        || module
+            .procedures
+            .get(&id)
+            .is_none_or(|held| !std::ptr::eq(held, proc))
+        || unit.body_id != Some(id)
+        || module
+            .source_entry
+            .native_entry
+            .as_ref()
+            .is_none_or(|entry| {
+                proc.body
+                    .namespace_context
+                    .as_deref()
+                    .is_none_or(|namespace| !namespace.is_native_root_in_entry(entry))
+            })
+    {
+        return false;
+    }
+    let Some(operations) = original_direct_expression_body_operations(
+        registry,
+        unit.invocation_metadata_context_for_module(registry, module),
+        proc,
+        unit.source_lexer_config(),
+    ) else {
+        return false;
+    };
+    if crate::native_compilation_admission::script_requires_admission(&proc.body)
+        || proc.namespace_scoped
+        || redefined_ids.contains(&id)
         || unit.complexity_guarded
-        || !semantic_operation_binding_is_trusted(
-            registry,
-            mutations,
-            SemanticOperationId::StructuredLowering(LoweringHookId::Expr),
-        )
-        || !semantic_operation_binding_is_trusted(
-            registry,
-            mutations,
-            SemanticOperationId::StructuredLowering(LoweringHookId::Return),
-        )
+        || operations
+            .into_iter()
+            .any(|operation| !semantic_operation_binding_is_trusted(registry, mutations, operation))
         || !matches!(
             unit.return_type.tcl_type(),
             Some(TclType::Int | TclType::Double | TclType::Numeric)
@@ -1388,12 +1639,19 @@ fn direct_proc_eligible(
     {
         return false;
     }
-    let raw_params: Vec<&str> = proc.params_raw.split_whitespace().collect();
-    if raw_params.len() != proc.params.len()
-        || !raw_params
+    let Some(arguments) =
+        crate::var_escape::original_slots::original_procedure_argument_slots(module, proc)
+    else {
+        return false;
+    };
+    // This emitter's string-keyed ABI is admitted only after exact native
+    // declaration bytes agree with every retained parameter position.
+    if arguments.names().len() != proc.params.len()
+        || !arguments
+            .names()
             .iter()
             .zip(&proc.params)
-            .all(|(raw, name)| *raw == name)
+            .all(|(original, name)| original.try_utf8().ok() == Some(name.as_str()))
     {
         return false;
     }
@@ -1406,7 +1664,19 @@ fn direct_proc_eligible(
         return false;
     };
     let params: HashSet<&str> = proc.params.iter().map(String::as_str).collect();
-    direct_expr_supported(expr, &params)
+    direct_expr_supported(expr, &params, unit.source_lexer_config())
+}
+
+/// Retained declarations can withdraw a builtin proof, never supply an implementation.
+fn procedure_shadow_obligations(
+    module: &Module,
+    registry: &CommandRegistry,
+    is_top: bool,
+) -> Option<Vec<(String, Binding)>> {
+    if is_top {
+        return Some(Vec::new());
+    }
+    OriginalProcedureNames::capture(module, registry)?.shadow_obligations()
 }
 
 fn function_facts(
@@ -1416,23 +1686,12 @@ fn function_facts(
     mutations: &ModuleCommandMutations,
     is_top: bool,
 ) -> FunctionFacts {
-    let initial: Vec<(String, Binding)> = if is_top {
-        Vec::new()
-    } else {
-        module
-            .procedures
-            .keys()
-            .map(|name| {
-                (
-                    name.clone(),
-                    Binding {
-                        kind: BindingKind::Proc,
-                        target: Some(name.clone()),
-                    },
-                )
-            })
-            .collect()
+    let Some(initial) = procedure_shadow_obligations(module, registry, is_top) else {
+        // Preserve original leaf source execution when declaration names cannot
+        // independently withdraw every possibly shadowed specialization.
+        return FunctionFacts::default();
     };
+    let context = unit.invocation_metadata_context_for_module(registry, module);
     let bindings = analyse_command_binding(&unit.cfg, registry, &initial);
     let mut facts = FunctionFacts::default();
     let mut planned_spans: HashSet<(u32, u32)> = HashSet::new();
@@ -1450,54 +1709,33 @@ fn function_facts(
             if let Statement::AssignConst {
                 span,
                 name,
-                name_braced,
+                ..
+            } | Statement::AssignValue {
+                span,
+                name,
                 ..
             } = statement
-                && (*name_braced || !crate::naming::is_dynamic_word(name))
                 // `tcl_codegen_var_set` stores under the exact name, so an
                 // array-element target — as opposed to a scalar whose name
                 // merely contains parentheses — keeps the source-span
-                // fallback. `cell_place` owns that reading for every backend.
-                && matches!(
-                    cell_place(name, *name_braced),
-                    Some(CellPlace::Named { .. })
-                )
-                && registry
-                    .command_names_for_semantic_operation(SemanticOperationId::StructuredLowering(
-                        LoweringHookId::Set,
-                    ))
-                    .any(|command| {
-                        bindings.is_original_builtin_at(block, stmt_idx, command)
-                            && mutations.trusts(command)
-                    })
-            {
-                facts.direct_assignments.insert(span_key(*span));
-            }
-            let (Statement::Call {
-                command, tokens, ..
-            }
-            | Statement::Barrier {
-                command, tokens, ..
-            }) = statement
-            else {
-                continue;
-            };
-            let bare = statement
-                .canonical_command_or_source()
-                .strip_prefix("::")
-                .unwrap_or_else(|| statement.canonical_command_or_source());
-            if bindings.is_original_builtin_at(block, stmt_idx, command)
-                && mutations.trusts(bare)
-                && let Some(tokens) = tokens
-            {
-                record_operation(
-                    &mut facts,
-                    module,
+                // fallback. Original word data supplies the name independently.
+                && let Some(original_name) = original_assignment_name(unit, module, registry, statement, name)
+                && name_data_place(&original_name)
+                    .is_some_and(|place| matches!(place, CellPlace::Named { .. }))
+                && assignment_operation_is_trusted(
+                    unit,
+                    context,
                     registry,
-                    unit.semantic_facts.context(),
-                    statement.span(),
-                    tokens,
-                );
+                    mutations,
+                    &bindings,
+                    (block, stmt_idx),
+                    statement,
+                )
+                && let Some(value) = original_assignment_literal(unit, module, registry, statement)
+            {
+                facts
+                    .direct_assignments
+                    .insert(span_key(*span), (original_name, value));
             }
             // Generic prebuilt-argv invocation is the normal leaf-command path
             // and needs no binding proof: the runtime resolves the command head
@@ -1508,19 +1746,10 @@ fn function_facts(
                     &mut facts,
                     &mut planned_spans,
                     registry,
-                    unit.semantic_facts.context(),
+                    context,
+                    unit.source_lexer_config(),
                     statement.span(),
                     tokens.as_ref(),
-                );
-            }
-            if is_top {
-                record_direct_calls(
-                    &mut facts,
-                    module,
-                    mutations,
-                    &bindings,
-                    (block, stmt_idx),
-                    statement,
                 );
             }
         }
@@ -1528,40 +1757,97 @@ fn function_facts(
     facts
 }
 
-/// Record every procedure this call site provably binds to, so the emitter may
-/// call the generated function instead of dispatching through the runtime.
-fn record_direct_calls(
-    facts: &mut FunctionFacts,
+fn original_assignment_name(
+    unit: &FunctionUnit,
     module: &Module,
+    registry: &CommandRegistry,
+    statement: &Statement,
+    name: &str,
+) -> Option<String> {
+    let tokens = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+        &unit.cfg.command_binding_sites,
+        statement,
+    )?;
+    (tokens.argv_texts.get(1).map(String::as_str) == Some(name)).then_some(())?;
+    crate::registry_invocation::original_literal_argument_data_for_module(
+        registry, module, tokens, 0,
+    )
+}
+
+/// The unchanged value operand uses its original point grammar, including
+/// upstream `AssignValue` escape preservation. This supplies no store authority.
+fn original_assignment_literal(
+    unit: &FunctionUnit,
+    module: &Module,
+    registry: &CommandRegistry,
+    statement: &Statement,
+) -> Option<String> {
+    let (Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. }) = statement
+    else {
+        return None;
+    };
+    let tokens = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+        &unit.cfg.command_binding_sites,
+        statement,
+    )?;
+    if tokens.argv_texts.get(2) != Some(value) {
+        return None;
+    }
+    crate::type_infer::original_literal_argument_contents(registry, module, tokens, 1)
+        .map(|literal| literal.value().to_owned())
+}
+
+/// A consumed assignment head keeps its original source selection and words.
+/// Catalogue membership and flow binding alone cannot recreate that carrier.
+fn assignment_operation_is_trusted(
+    unit: &FunctionUnit,
+    context: Option<InvocationMetadataContext<'_>>,
+    registry: &CommandRegistry,
     mutations: &ModuleCommandMutations,
     bindings: &CommandBinding<'_>,
     site: (crate::cfg::BlockId, usize),
     statement: &Statement,
-) {
-    let (block, stmt_idx) = site;
-    for proc in module.procedures.values() {
-        if proc.span.start() >= statement.span().start() {
-            continue;
-        }
-        for written in [proc.name.as_str(), proc.qualified_name.as_str()] {
-            let binding = bindings.binding_at(block, stmt_idx, written);
-            if binding.kind == BindingKind::Proc
-                && binding.target.as_deref() == Some(proc.qualified_name.as_str())
-                && mutations.trusts_proc_binding(&proc.qualified_name)
-                && !module.has_dynamic_trace
-                && !module.traced_commands.contains(
-                    proc.qualified_name
-                        .strip_prefix("::")
-                        .unwrap_or(&proc.qualified_name),
-                )
-            {
-                facts.direct_calls.insert(
-                    span_command_key(statement.span(), written),
-                    proc.qualified_name.clone(),
-                );
-            }
-        }
-    }
+) -> bool {
+    let Some(context) = context else {
+        return false;
+    };
+    let Some(tokens) = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+        &unit.cfg.command_binding_sites,
+        statement,
+    )
+    .filter(|tokens| {
+        tokens.synthetic.is_none()
+            && tokens.words_align_with_argv_text()
+            && tokens
+                .source_binding
+                .as_ref()
+                .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target)
+                .is_some()
+    }) else {
+        return false;
+    };
+    let Ok(RegistryInvocationResolution::Resolved(invocation)) =
+        resolve_command_tokens_with_metadata_context(registry, Some(context), tokens)
+    else {
+        return false;
+    };
+    let Some(effective) = crate::registry_invocation::effective_command_words(tokens) else {
+        return false;
+    };
+    let Some(written_head) = tokens.argv_texts.first() else {
+        return false;
+    };
+    invocation.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Set)
+        && effective.words.len() == 3
+        && effective.words.len() == tokens.words().len()
+        && !effective.origins.iter().any(|origin| {
+            matches!(
+                origin,
+                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
+            )
+        })
+        && bindings.is_original_builtin_at(site.0, site.1, written_head)
+        && mutations.trusts(invocation.descriptor_key().label())
 }
 
 /// Select and record the prebuilt-argv plan for one leaf `Statement::Call`.
@@ -1575,7 +1861,8 @@ fn plan_leaf_statement(
     facts: &mut FunctionFacts,
     planned_spans: &mut HashSet<(u32, u32)>,
     registry: &CommandRegistry,
-    context: Option<tcl_registry::model::semantic::SemanticContext>,
+    context: Option<InvocationMetadataContext<'_>>,
+    config: tcl_lexer::LexerConfig,
     span: Span,
     tokens: Option<&crate::ir::CommandTokens>,
 ) {
@@ -1593,23 +1880,20 @@ fn plan_leaf_statement(
             .insert(key, WasmLeafInvokeDecline::MissingCommandTokens);
         return;
     };
-    let resolution = resolve_command_tokens(registry, context, tokens);
+    // Missing actual metadata keeps generic argv planning, without entering
+    // the resolver's independently supported standalone catalogue mode.
+    let resolution = context.map(|context| {
+        resolve_command_tokens_with_metadata_context(registry, Some(context), tokens)
+    });
     let resolved = match &resolution {
-        Ok(RegistryInvocationResolution::Resolved(invocation)) => Some(invocation.as_ref()),
+        Some(Ok(RegistryInvocationResolution::Resolved(invocation))) => Some(invocation.as_ref()),
         _ => None,
     };
     let operation = resolved.map_or(SemanticOperationId::Invoke, |facts| facts.operation);
     let selection_facts = resolved.map_or_else(SelectionFacts::unavailable, |facts| {
         SelectionFacts::from_invocation(facts)
     });
-    match select_leaf_invocation(
-        tokens.words(),
-        operation,
-        selection_facts,
-        // The registry carries the environment's profile: a nested `[…]` word
-        // is re-segmented while planning, under the document's own grammar.
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
-    ) {
+    match select_leaf_invocation(tokens.words(), operation, selection_facts, config) {
         Ok(plan) => {
             facts.leaf_invocations.insert(key, plan);
         }
@@ -1621,63 +1905,6 @@ fn plan_leaf_statement(
             );
         }
     }
-}
-
-/// Record the semantic operation a proven statement resolves to, and — for a
-/// `proc` definition — whether this tier may register it itself.
-///
-/// The literal-definition verdict is decided here rather than at emit time
-/// because this is where the statement's structured words are still to hand;
-/// the emitter sees only spans and the surviving [`crate::ir::Procedure`].
-fn record_operation(
-    facts: &mut FunctionFacts,
-    module: &Module,
-    registry: &CommandRegistry,
-    context: Option<tcl_registry::model::semantic::SemanticContext>,
-    span: Span,
-    tokens: &crate::ir::CommandTokens,
-) {
-    let Ok(RegistryInvocationResolution::Resolved(invocation)) =
-        resolve_command_tokens(registry, context, tokens)
-    else {
-        return;
-    };
-    facts
-        .operations
-        .insert(span_key(span), invocation.operation);
-    if invocation.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Proc)
-        && proc_definition_is_written_out(module, span, tokens)
-    {
-        facts.literal_proc_definitions.insert(span_key(span));
-    }
-}
-
-/// Whether the `proc` statement at `span` wrote every word out, against the
-/// [`crate::ir::Procedure`] that survived for it.
-///
-/// The general tier's half of the rule the native tier applies in
-/// `native_lowering::lower::lower_definition`; both call the same predicate so
-/// the two cannot drift.
-fn proc_definition_is_written_out(
-    module: &crate::ir::Module,
-    span: Span,
-    tokens: &crate::ir::CommandTokens,
-) -> bool {
-    let Some(procedure) = module
-        .procedures
-        .values()
-        .find(|procedure| procedure.span == span)
-    else {
-        return false;
-    };
-    let Some(body_source) = procedure.body_source.as_deref() else {
-        return false;
-    };
-    crate::native_lowering::lower::definition_words_are_written_out(
-        tokens.words(),
-        &procedure.params_raw,
-        body_source,
-    )
 }
 
 const fn abi_value_type(value: CodegenAbiValueType) -> ValType {
@@ -1706,8 +1933,67 @@ fn add_codegen_import(module: &mut WasmModule, import: CodegenAbiImportId) -> u3
         .expect("WASM import index fits u32")
 }
 
+fn general_import_id(imports: Imports, index: u32) -> Option<CodegenAbiImportId> {
+    let mut entries = vec![
+        (
+            imports.host_refusal_pending,
+            CodegenAbiImportId::HostRefusalPending,
+        ),
+        (imports.obj_new_string, CodegenAbiImportId::ObjectNewString),
+        (imports.eval_code, CodegenAbiImportId::EvalCode),
+        (
+            imports.condition.frame_alloc,
+            CodegenAbiImportId::CallFrameAlloc,
+        ),
+        (
+            imports.condition.frame_free,
+            CodegenAbiImportId::CallFrameFree,
+        ),
+        (
+            imports.condition.string_owned,
+            CodegenAbiImportId::NewOwnedString,
+        ),
+        (
+            imports.condition.expr_bool_eval,
+            CodegenAbiImportId::ExprBoolEval,
+        ),
+        (
+            imports.condition.completion_release,
+            CodegenAbiImportId::CompletionRelease,
+        ),
+        (
+            imports.condition.object_release,
+            CodegenAbiImportId::ObjectRelease,
+        ),
+    ];
+    if let Some(aot) = imports.aot {
+        entries.push((aot.value_new_string, CodegenAbiImportId::ValueNewString));
+        entries.push((aot.frame_push, CodegenAbiImportId::FramePush));
+        entries.push((aot.frame_pop, CodegenAbiImportId::FramePop));
+        entries.push((aot.local_bind, CodegenAbiImportId::LocalBind));
+        entries.push((aot.local_set, CodegenAbiImportId::LocalSet));
+        entries.push((aot.local_get, CodegenAbiImportId::LocalGet));
+        entries.push((aot.var_set, CodegenAbiImportId::VarSet));
+        entries.push((aot.var_get, CodegenAbiImportId::VarGet));
+        entries.push((aot.expr_add, CodegenAbiImportId::ExprAdd));
+        entries.push((aot.puts, CodegenAbiImportId::Puts));
+        entries.push((aot.argv.frame_alloc, CodegenAbiImportId::CallFrameAlloc));
+        entries.push((aot.argv.frame_free, CodegenAbiImportId::CallFrameFree));
+        entries.push((aot.argv.string_owned, CodegenAbiImportId::NewOwnedString));
+        entries.push((aot.argv.invoke_argv, CodegenAbiImportId::InvokeArgv));
+        entries.push((aot.argv.object_release, CodegenAbiImportId::ObjectRelease));
+        entries.push((aot.argv.var_get, CodegenAbiImportId::VarGet));
+        entries.push((aot.argv.var_get_element, CodegenAbiImportId::VarGetElement));
+        entries.push((aot.argv.word_concat, CodegenAbiImportId::WordConcat));
+    }
+    entries
+        .into_iter()
+        .find_map(|(candidate, id)| (candidate == index).then_some(id))
+}
+
 fn add_semantic_imports(wasm: &mut WasmModule) -> SemanticImports {
     SemanticImports {
+        host_refusal_pending: add_codegen_import(wasm, CodegenAbiImportId::HostRefusalPending),
         frame_alloc: add_codegen_import(wasm, CodegenAbiImportId::CallFrameAlloc),
         frame_free: add_codegen_import(wasm, CodegenAbiImportId::CallFrameFree),
         string_owned: add_codegen_import(wasm, CodegenAbiImportId::NewOwnedString),
@@ -1730,6 +2016,7 @@ fn add_guarded_intrinsic_imports(wasm: &mut WasmModule) -> GuardedIntrinsicImpor
 
 fn add_native_i64_add_imports(wasm: &mut WasmModule) -> NativeI64AddImports {
     NativeI64AddImports {
+        host_refusal_pending: add_codegen_import(wasm, CodegenAbiImportId::HostRefusalPending),
         value_new_wide_int: add_codegen_import(wasm, CodegenAbiImportId::ValueNewWideInt),
         puts: add_codegen_import(wasm, CodegenAbiImportId::Puts),
     }
@@ -1737,9 +2024,17 @@ fn add_native_i64_add_imports(wasm: &mut WasmModule) -> NativeI64AddImports {
 
 fn add_general_imports(wasm: &mut WasmModule, analysis: bool) -> Imports {
     let mut imports = Imports {
+        host_refusal_pending: add_codegen_import(wasm, CodegenAbiImportId::HostRefusalPending),
         obj_new_string: add_codegen_import(wasm, CodegenAbiImportId::ObjectNewString),
         eval_code: add_codegen_import(wasm, CodegenAbiImportId::EvalCode),
-        expr_bool: add_codegen_import(wasm, CodegenAbiImportId::ExprBool),
+        condition: ConditionImports {
+            frame_alloc: add_codegen_import(wasm, CodegenAbiImportId::CallFrameAlloc),
+            frame_free: add_codegen_import(wasm, CodegenAbiImportId::CallFrameFree),
+            string_owned: add_codegen_import(wasm, CodegenAbiImportId::NewOwnedString),
+            expr_bool_eval: add_codegen_import(wasm, CodegenAbiImportId::ExprBoolEval),
+            completion_release: add_codegen_import(wasm, CodegenAbiImportId::CompletionRelease),
+            object_release: add_codegen_import(wasm, CodegenAbiImportId::ObjectRelease),
+        },
         aot: None,
     };
     if analysis {
@@ -1777,7 +2072,6 @@ fn add_aot_imports(wasm: &mut WasmModule) -> AotImports {
         var_get: add_codegen_import(wasm, CodegenAbiImportId::VarGet),
         expr_add: add_codegen_import(wasm, CodegenAbiImportId::ExprAdd),
         puts: add_codegen_import(wasm, CodegenAbiImportId::Puts),
-        proc_register: add_codegen_import(wasm, CodegenAbiImportId::ProcRegister),
         argv: ArgvImports::default(),
     };
     imports.argv = add_argv_imports(wasm, imports.var_get);
@@ -1785,11 +2079,10 @@ fn add_aot_imports(wasm: &mut WasmModule) -> AotImports {
 }
 
 struct ProcedurePlan<'a> {
-    procs: Vec<&'a Procedure>,
-    indices: HashMap<String, u32>,
-    arity: HashMap<String, usize>,
-    by_span: HashMap<(u32, u32), Procedure>,
-    direct: HashSet<String>,
+    procs: Vec<(crate::ir::ProcedureId, &'a Procedure)>,
+    indices: HashMap<crate::ir::ProcedureId, u32>,
+    arity: HashMap<crate::ir::ProcedureId, usize>,
+    direct: HashSet<crate::ir::ProcedureId>,
 }
 
 fn procedure_plan<'a>(
@@ -1797,18 +2090,21 @@ fn procedure_plan<'a>(
     analysis: Option<(&CompilationUnit, &CommandRegistry)>,
     top_idx: u32,
 ) -> ProcedurePlan<'a> {
-    let mut procs: Vec<&Procedure> = module
+    let procs: Vec<_> = module
         .procedures
-        .values()
-        .filter(|p| !p.namespace_scoped)
+        .iter()
+        .filter(|(_, procedure)| {
+            !procedure.namespace_scoped
+                && !crate::native_compilation_admission::script_requires_admission(&procedure.body)
+        })
+        .map(|(id, procedure)| (*id, procedure))
         .collect();
-    procs.sort_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
     let indices = procs
         .iter()
         .enumerate()
-        .map(|(position, proc)| {
+        .map(|(position, (id, _))| {
             (
-                proc.qualified_name.clone(),
+                *id,
                 top_idx
                     .saturating_add(1)
                     .saturating_add(u32::try_from(position).unwrap_or(u32::MAX)),
@@ -1817,28 +2113,35 @@ fn procedure_plan<'a>(
         .collect();
     let arity = procs
         .iter()
-        .map(|proc| (proc.qualified_name.clone(), proc.params.len()))
-        .collect();
-    let by_span = procs
-        .iter()
-        .map(|proc| (span_key(proc.span), (*proc).clone()))
+        .map(|(id, procedure)| (*id, procedure.params.len()))
         .collect();
     let direct = analysis.map_or_else(HashSet::new, |(unit, registry)| {
+        let Some(names) = OriginalProcedureNames::capture(module, registry) else {
+            return HashSet::new();
+        };
+        let redefined_ids = names.redefined_ids();
         procs
             .iter()
-            .filter(|proc| {
-                unit.procedures.get(&proc.qualified_name).is_some_and(|fu| {
-                    direct_proc_eligible(module, proc, fu, registry, &unit.command_mutations)
+            .filter(|(id, procedure)| {
+                unit.procedures.get(id).is_some_and(|function| {
+                    direct_proc_eligible(
+                        module,
+                        *id,
+                        procedure,
+                        function,
+                        registry,
+                        &unit.command_mutations,
+                        &redefined_ids,
+                    )
                 })
             })
-            .map(|proc| proc.qualified_name.clone())
+            .map(|(id, _)| *id)
             .collect()
     });
     ProcedurePlan {
         procs,
         indices,
         arity,
-        by_span,
         direct,
     }
 }
@@ -1846,6 +2149,9 @@ fn procedure_plan<'a>(
 /// Selected input mode for the single module emitter.
 #[derive(Clone, Copy)]
 pub(super) enum WasmEmissionMode<'a> {
+    /// The genuine host must compile one entire original script at entry.
+    /// `None` explicitly refuses admission instead of evaluating empty text.
+    RuntimeChunk(Option<&'a crate::command_binding::ExecutedScriptSource>),
     /// Common proofs selected sealed-program native i64 addition with one
     /// registry-proved boxed output boundary.
     NativeI64Add(&'a WasmNativeI64AddSelection),
@@ -1875,6 +2181,20 @@ pub(super) fn emit_wasm(
     options: WasmCompileOptions,
     mode: WasmEmissionMode<'_>,
 ) -> (WasmModule, NativeTierReport) {
+    use crate::native_compilation_admission::{
+        NativeCompilationAdmissionPlan, NativeCompilationAdmissionScope, script_admission_plan,
+    };
+    let mode = match script_admission_plan(
+        &unit.ir_module.top_level,
+        NativeCompilationAdmissionScope::Script,
+    ) {
+        NativeCompilationAdmissionPlan::HostScript(source) => {
+            WasmEmissionMode::RuntimeChunk(Some(source))
+        }
+        NativeCompilationAdmissionPlan::RefuseMissingSource => WasmEmissionMode::RuntimeChunk(None),
+        NativeCompilationAdmissionPlan::NoRetainedObligation => mode,
+        NativeCompilationAdmissionPlan::HostProcedure(_) => unreachable!("selected script scope"),
+    };
     let analysis = (matches!(mode, WasmEmissionMode::General)
         && options.analysis_specialisations())
     .then_some((unit, registry));
@@ -1884,7 +2204,7 @@ pub(super) fn emit_wasm(
             registry,
             config: options.semantic_optimisations(),
         });
-    let (mut module, report) = codegen(
+    let (mut module, mut report) = codegen(
         &unit.ir_module,
         &unit.source,
         options.data_base,
@@ -1894,6 +2214,7 @@ pub(super) fn emit_wasm(
         native,
         mode,
     );
+    report.enabled = options.native_tier_enabled();
     module.manifest = Some(module_manifest(unit));
     (module, report)
 }
@@ -1905,11 +2226,8 @@ pub(super) fn emit_wasm(
 fn module_manifest(unit: &CompilationUnit) -> tcl_runtime_api::ArtefactIdentityManifest {
     let profile = unit
         .ir_module
-        .dialect
-        .as_deref()
-        .map_or_else(tcl_dialect::DialectProfile::plain_tcl, |name| {
-            crate::environment_ingress::resolve_environment(name).analyser_profile()
-        });
+        .resolved_profile()
+        .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl);
     tcl_registry::model::runtime_context_for_profile(profile)
         .identity(&[], tcl_registry::intrinsic_table_hash())
 }
@@ -1974,14 +2292,17 @@ enum LoweredProc {
 /// shape, which is the exact set that can read a table entry.
 fn collect_defined_procs(
     function: &crate::native_lowering::ir::NativeFunction,
-    out: &mut HashSet<String>,
+    out: &mut HashSet<crate::ir::ProcedureId>,
 ) {
-    fn walk(ops: &[crate::native_lowering::ir::NativeOp], out: &mut HashSet<String>) {
+    fn walk(
+        ops: &[crate::native_lowering::ir::NativeOp],
+        out: &mut HashSet<crate::ir::ProcedureId>,
+    ) {
         use crate::native_lowering::ir::NativeOp;
         for op in ops {
             match op {
-                NativeOp::DefineProc { qualified_name, .. } => {
-                    out.insert(qualified_name.clone());
+                NativeOp::DefineProc { entry_key, .. } => {
+                    out.insert(*entry_key);
                 }
                 NativeOp::IfElse {
                     then_ops, else_ops, ..
@@ -2010,8 +2331,8 @@ fn collect_defined_procs(
 /// `--growable-table`: the module traps at its entry point with a clear
 /// backtrace rather than dispatching to whatever sits at slot 0.
 fn table_install(
-    bound: &BTreeMap<String, u32>,
-    indices: &HashMap<String, u32>,
+    bound: &BTreeMap<crate::ir::ProcedureId, u32>,
+    indices: &HashMap<crate::ir::ProcedureId, u32>,
     base_global: u32,
 ) -> Vec<WasmInstruction> {
     if bound.is_empty() {
@@ -2051,6 +2372,67 @@ fn table_install(
     ops
 }
 
+/// Host admission executes the whole source before any compiled effects,
+/// exports or procedure-table installation can bypass its compiler entry.
+fn codegen_runtime_chunk(
+    chunk: Option<&crate::command_binding::ExecutedScriptSource>,
+    data_base: i64,
+    standalone: bool,
+    init: bool,
+) -> (WasmModule, NativeTierReport) {
+    let mut wasm = WasmModule::new();
+    let imports = add_general_imports(&mut wasm, false);
+    let bootstrap = standalone.then(|| {
+        let create = add_codegen_import(&mut wasm, CodegenAbiImportId::RuntimeCreateInterp);
+        let set_current =
+            add_codegen_import(&mut wasm, CodegenAbiImportId::RuntimeSetCurrentInterp);
+        let library =
+            init.then(|| add_codegen_import(&mut wasm, CodegenAbiImportId::RuntimeInitLibrary));
+        (create, set_current, library)
+    });
+    let top_index = u32::try_from(wasm.imports.len()).expect("import count fits u32");
+    let mut emitter = WasmEmitter {
+        imports: EmitterImports::General(imports),
+        body: Vec::new(),
+        data: Vec::new(),
+        data_offset: data_base,
+        ctrl_depth: 0,
+        invocation_abort: None,
+        loops: Vec::new(),
+        code_local: 0,
+        frame_local: 1,
+        mode: FunctionMode::Top,
+        local_slots: HashMap::new(),
+        proc_indices: HashMap::new(),
+        procedure_arity: HashMap::new(),
+        direct_procs: HashSet::new(),
+        facts: FunctionFacts::default(),
+    };
+    if let Some(chunk) = chunk {
+        wasm.source_function_ids.insert(
+            top_index,
+            crate::native_lowering::NativeFunctionId::TopLevel,
+        );
+        emitter.emit_command_image(&chunk.text);
+    } else {
+        emitter.refuse_native_compilation_admission();
+    }
+    wasm.functions
+        .push(emitter.finish_function("::top", "host-compilation-entry", None));
+    wasm.data_segments = emitter.data;
+    if let Some((create, set_current, library)) = bootstrap {
+        wasm.functions
+            .push(start_function(create, set_current, library, top_index));
+    }
+    let mut report = NativeTierReport::default();
+    report.record(
+        crate::native_lowering::NativeFunctionId::TopLevel,
+        "::top",
+        FunctionReport::declined(FunctionDecline::NativeCompilationAdmissionRequired),
+    );
+    (wasm, report)
+}
+
 /// Shared implementation for hosted, linked, and standalone packaging.
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn codegen(
@@ -2063,6 +2445,9 @@ fn codegen(
     native: Option<NativeTier<'_>>,
     mode: WasmEmissionMode<'_>,
 ) -> (WasmModule, NativeTierReport) {
+    if let WasmEmissionMode::RuntimeChunk(chunk) = mode {
+        return codegen_runtime_chunk(chunk, data_base, standalone, init);
+    }
     let mut wasm = WasmModule::new();
     let mut report = NativeTierReport {
         enabled: native.is_some(),
@@ -2094,7 +2479,6 @@ fn codegen(
         procs,
         indices: proc_indices,
         arity: procedure_arity,
-        by_span: procedures_by_span,
         direct: direct_procs,
     } = procedure_plan(module, analysis, top_idx);
     let top_facts = analysis.map_or_else(FunctionFacts::default, |(unit, registry)| {
@@ -2113,6 +2497,7 @@ fn codegen(
         data: Vec::new(),
         data_offset: data_base,
         ctrl_depth: 0,
+        invocation_abort: None,
         loops: Vec::new(),
         code_local: 0,
         frame_local: 1,
@@ -2121,7 +2506,6 @@ fn codegen(
         proc_indices,
         procedure_arity,
         direct_procs,
-        procedures_by_span,
         facts: top_facts,
     };
     // Every procedure body is lowered *before* `::top` is emitted: which of
@@ -2131,9 +2515,9 @@ fn codegen(
     let lowered_top = native.map(|tier| tier.lower(&tier.unit.top_level, true, 0));
     let lowered_procs: Vec<Option<LoweredProc>> = procs
         .iter()
-        .map(|proc| {
+        .map(|(id, proc)| {
             let tier = native?;
-            let unit = tier.unit.procedures.get(&proc.qualified_name)?;
+            let unit = tier.unit.procedures.get(id)?;
             Some(match tier.lower(unit, false, proc.body_offset) {
                 Ok((function, report)) => LoweredProc::Lowered {
                     decline: native_emit::proc_entry_decline(&function),
@@ -2147,7 +2531,7 @@ fn codegen(
     // Only a definition statement the lowering actually took natively can
     // carry an entry, and the table window must hold exactly those: a slot
     // nothing binds would import the runtime's table for nothing.
-    let mut defined: HashSet<String> = HashSet::new();
+    let mut defined: HashSet<crate::ir::ProcedureId> = HashSet::new();
     if let Some(Ok((function, _))) = &lowered_top {
         collect_defined_procs(function, &mut defined);
     }
@@ -2159,21 +2543,16 @@ fn codegen(
     // A binding is only reachable through `::top`'s install sequence, so a
     // module whose entry point stayed on the legacy path installs nothing and
     // every definition it emits is source-only.
-    let bound: BTreeMap<String, u32> = if matches!(lowered_top, Some(Ok(_))) {
+    let bound: BTreeMap<crate::ir::ProcedureId, u32> = if matches!(lowered_top, Some(Ok(_))) {
         procs
             .iter()
             .zip(&lowered_procs)
-            .filter(|(proc, lowered)| {
+            .filter(|((id, _), lowered)| {
                 matches!(lowered, Some(LoweredProc::Lowered { decline: None, .. }))
-                    && defined.contains(&proc.qualified_name)
+                    && defined.contains(id)
             })
             .enumerate()
-            .map(|(slot, (proc, _))| {
-                (
-                    proc.qualified_name.clone(),
-                    u32::try_from(slot).unwrap_or(u32::MAX),
-                )
-            })
+            .map(|(slot, ((id, _), _))| (*id, u32::try_from(slot).unwrap_or(u32::MAX)))
             .collect()
     } else {
         BTreeMap::new()
@@ -2204,7 +2583,11 @@ fn codegen(
     // structured walk with the typed reason recorded.
     match (lowered_top, native_imports) {
         (Some(Ok((function, function_report))), Some(native_imports)) => {
-            report.functions.insert("::top".to_owned(), function_report);
+            report.record(
+                crate::native_lowering::NativeFunctionId::TopLevel,
+                "::top",
+                function_report,
+            );
             let mut top = native_emit::emit_function(
                 "::top",
                 "native-top",
@@ -2218,16 +2601,28 @@ fn codegen(
             );
             let install = table_install(&bound, &emitter.proc_indices, table_base_global);
             top.body.splice(0..0, install);
+            wasm.source_function_ids
+                .insert(top_idx, crate::native_lowering::NativeFunctionId::TopLevel);
             wasm.functions.push(top);
         }
         (lowered, _) => {
             if let Some(Err(reason)) = lowered {
-                report
-                    .functions
-                    .insert("::top".to_owned(), FunctionReport::declined(reason));
+                report.record(
+                    crate::native_lowering::NativeFunctionId::TopLevel,
+                    "::top",
+                    FunctionReport::declined(reason),
+                );
             }
-            structured::walk(&mut emitter, &module.top_level, source);
+            structured::walk(
+                &mut emitter,
+                &module.top_level,
+                source,
+                &module.source,
+                module.lexer_config,
+            );
             let top = emitter.finish_function("::top", "top", None);
+            wasm.source_function_ids
+                .insert(top_idx, crate::native_lowering::NativeFunctionId::TopLevel);
             wasm.functions.push(top);
         }
     }
@@ -2238,7 +2633,7 @@ fn codegen(
     // `namespace eval`, not at load, so they are skipped — mirroring the bytecode
     // backend (`codegen/emitter/mod.rs`). Emitted in qualified-name order so the
     // module bytes are deterministic (`procedures` is a hash map).
-    for (proc, lowered) in procs.iter().zip(lowered_procs) {
+    for ((id, proc), lowered) in procs.iter().zip(lowered_procs) {
         match (lowered, native_imports) {
             (
                 Some(LoweredProc::Lowered {
@@ -2248,15 +2643,16 @@ fn codegen(
                 }),
                 Some(native_imports),
             ) => {
-                function_report.binding = match (decline, bound.contains_key(&proc.qualified_name))
-                {
+                function_report.binding = match (decline, bound.contains_key(id)) {
                     (None, true) => NativeBinding::BoundNatively,
                     (Some(reason), _) => NativeBinding::SourceOnly(reason),
                     (None, false) => NativeBinding::NotApplicable,
                 };
-                report
-                    .functions
-                    .insert(proc.qualified_name.clone(), function_report);
+                report.record(
+                    crate::native_lowering::NativeFunctionId::Procedure(*id),
+                    &proc.qualified_name,
+                    function_report,
+                );
                 let func = native_emit::emit_function(
                     &proc.qualified_name,
                     "native-proc",
@@ -2268,18 +2664,23 @@ fn codegen(
                         offset: &mut emitter.data_offset,
                     },
                 );
+                wasm.source_function_ids.insert(
+                    emitter.proc_indices[id],
+                    crate::native_lowering::NativeFunctionId::Procedure(*id),
+                );
                 wasm.functions.push(func);
                 continue;
             }
             (Some(LoweredProc::Declined(reason)), _) => {
-                report.functions.insert(
-                    proc.qualified_name.clone(),
+                report.record(
+                    crate::native_lowering::NativeFunctionId::Procedure(*id),
+                    &proc.qualified_name,
                     FunctionReport::declined(reason),
                 );
             }
             _ => {}
         }
-        let direct = emitter.direct_procs.contains(&proc.qualified_name);
+        let direct = emitter.direct_procs.contains(id);
         emitter.mode = if direct {
             FunctionMode::DirectProc
         } else {
@@ -2303,15 +2704,25 @@ fn codegen(
         emitter.facts = analysis
             .and_then(|(unit, registry)| {
                 unit.procedures
-                    .get(&proc.qualified_name)
+                    .get(id)
                     .map(|fu| function_facts(fu, module, registry, &unit.command_mutations, false))
             })
             .unwrap_or_default();
         if direct {
             emitter.emit_proc_prelude(proc);
         }
-        structured::walk(&mut emitter, &proc.body, source);
+        structured::walk(
+            &mut emitter,
+            &proc.body,
+            source,
+            &module.source,
+            module.lexer_config,
+        );
         let func = emitter.finish_function(&proc.qualified_name, "proc", Some(proc));
+        wasm.source_function_ids.insert(
+            emitter.proc_indices[id],
+            crate::native_lowering::NativeFunctionId::Procedure(*id),
+        );
         wasm.functions.push(func);
     }
 
@@ -2333,6 +2744,10 @@ fn emit_special_mode(wasm: &mut WasmModule, data_base: i64, mode: WasmEmissionMo
         WasmEmissionMode::SemanticInvoke(plan) => {
             let imports = add_semantic_imports(wasm);
             let mut emitter = WasmEmitter::for_semantic_invoke(imports, data_base);
+            wasm.source_function_ids.insert(
+                u32::try_from(wasm.imports.len()).expect("import count fits u32"),
+                crate::native_lowering::NativeFunctionId::TopLevel,
+            );
             wasm.functions.push(emitter.finish_semantic_invoke(plan));
             wasm.memory_pages = required_pages(data_base, &emitter.data);
             wasm.data_segments = emitter.data;
@@ -2340,12 +2755,16 @@ fn emit_special_mode(wasm: &mut WasmModule, data_base: i64, mode: WasmEmissionMo
         WasmEmissionMode::GuardedIntrinsic { plan, evidence } => {
             let imports = add_guarded_intrinsic_imports(wasm);
             let mut emitter = WasmEmitter::for_guarded_intrinsic_invoke(imports, data_base);
+            wasm.source_function_ids.insert(
+                u32::try_from(wasm.imports.len()).expect("import count fits u32"),
+                crate::native_lowering::NativeFunctionId::TopLevel,
+            );
             wasm.functions
                 .push(emitter.finish_guarded_intrinsic_invoke(plan, evidence));
             wasm.memory_pages = required_pages(data_base, &emitter.data);
             wasm.data_segments = emitter.data;
         }
-        WasmEmissionMode::General => return false,
+        WasmEmissionMode::General | WasmEmissionMode::RuntimeChunk(_) => return false,
     }
     true
 }
@@ -2356,6 +2775,14 @@ fn emit_native_i64_add(wasm: &mut WasmModule, data_base: i64, plan: &WasmNativeI
     let add_index = top_index
         .checked_add(1)
         .expect("native function index fits u32");
+    wasm.source_function_ids.insert(
+        top_index,
+        crate::native_lowering::NativeFunctionId::TopLevel,
+    );
+    wasm.source_function_ids.insert(
+        add_index,
+        crate::native_lowering::NativeFunctionId::Procedure(plan.callee.id),
+    );
     wasm.functions.push(WasmFunction {
         name: "::top".to_owned(),
         params: Vec::new(),
@@ -2373,6 +2800,13 @@ fn emit_native_i64_add(wasm: &mut WasmModule, data_base: i64, plan: &WasmNativeI
             // Match structured lowering: a non-OK `puts` completion stops
             // the top-level script instead of being silently discarded.
             WasmInstruction::with_operands(WasmOp::LocalSet, leb128_unsigned(0)),
+            WasmInstruction::with_operands(
+                WasmOp::Call,
+                leb128_unsigned(u64::from(imports.host_refusal_pending)),
+            ),
+            WasmInstruction::with_operands(WasmOp::If, vec![BLOCK_VOID]),
+            WasmInstruction::new(WasmOp::Return),
+            WasmInstruction::new(WasmOp::End),
             WasmInstruction::with_operands(WasmOp::LocalGet, leb128_unsigned(0)),
             WasmInstruction::with_operands(WasmOp::If, vec![BLOCK_VOID]),
             WasmInstruction::new(WasmOp::Return),
@@ -2457,19 +2891,574 @@ fn start_function(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
+
+    #[test]
+    fn condition_argv_and_native_emitters_share_actual_abi_import_indices() {
+        let mut module = WasmModule::new();
+        let general = add_general_imports(&mut module, true);
+        let argv = general.aot.unwrap().argv;
+        assert_eq!(general.condition.frame_alloc, argv.frame_alloc);
+        assert_eq!(general.condition.frame_free, argv.frame_free);
+        assert_eq!(general.condition.string_owned, argv.string_owned);
+        assert_eq!(general.condition.object_release, argv.object_release);
+        let _ = native_emit::add_native_imports(&mut module, &mut add_codegen_import);
+        let identities = module
+            .imports
+            .iter()
+            .map(|import| (&import.module, &import.name, import.type_idx))
+            .collect::<HashSet<_>>();
+        assert_eq!(identities.len(), module.imports.len());
+        assert_eq!(
+            add_codegen_import(&mut module, CodegenAbiImportId::CallFrameAlloc),
+            general.condition.frame_alloc
+        );
+        assert_eq!(
+            add_codegen_import(&mut module, CodegenAbiImportId::CallFrameFree),
+            argv.frame_free
+        );
+        let alloc = usize::try_from(argv.frame_alloc).unwrap();
+        assert_eq!(
+            module.imports[alloc].name,
+            CodegenAbiImportId::CallFrameAlloc.descriptor().name
+        );
+    }
 
     /// Plan the top-level statements of `source` under the full analysed tier.
     fn top_level_facts(source: &str) -> FunctionFacts {
-        let registry = CommandRegistry::build_default();
-        let unit = CompilationUnit::build_for(source, &registry, false);
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let unit = retained_source_unit(
+            std::sync::Arc::clone(&context),
+            source,
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
         function_facts(
             &unit.top_level,
             &unit.ir_module,
-            &registry,
+            context.commands(),
             &unit.command_mutations,
             true,
         )
+    }
+
+    fn retained_source_unit(
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+    ) -> crate::environment_ingress::RetainedNativeUnit {
+        native_source_unit(
+            context,
+            source,
+            config,
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+        )
+    }
+
+    fn native_source_unit(
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> crate::environment_ingress::RetainedNativeUnit {
+        let (owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        crate::environment_ingress::RetainedNativeUnit::new(unit, owner)
+    }
+
+    fn assignment_facts(
+        function: &FunctionUnit,
+        unit: &CompilationUnit,
+        registry: &CommandRegistry,
+    ) -> FunctionFacts {
+        function_facts(
+            function,
+            &unit.ir_module,
+            registry,
+            &unit.command_mutations,
+            true,
+        )
+    }
+
+    fn original_assignment_diagnostics(
+        function: &FunctionUnit,
+        unit: &CompilationUnit,
+        registry: &CommandRegistry,
+    ) -> String {
+        let metadata = function.invocation_metadata_context_for_module(registry, &unit.ir_module);
+        let initial = procedure_shadow_obligations(&unit.ir_module, registry, true)
+            .expect("top level has no prior procedure shadow obligations");
+        let bindings = analyse_command_binding(&function.cfg, registry, &initial);
+        let mut rows = vec![format!("metadata available: {}", metadata.is_some())];
+        for (&block, body) in &function.cfg.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                if !matches!(
+                    statement,
+                    Statement::AssignConst { .. } | Statement::AssignValue { .. }
+                ) {
+                    continue;
+                }
+                let tokens = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+                    &function.cfg.command_binding_sites,
+                    statement,
+                );
+                rows.push(format!(
+                    "{block:?}/{index} {statement:?} original carrier: {}",
+                    tokens.is_some()
+                ));
+                if let Some(tokens) = tokens {
+                    let target = tokens.source_binding.as_ref().and_then(|binding| {
+                        binding
+                            .proved_execution_target()
+                            .map(|target| (&target.command, target.kind, target.registry_backed))
+                    });
+                    let handler = tokens.source_binding.as_ref().and_then(|binding| {
+                        binding
+                            .proved_handler_target()
+                            .map(|target| (&target.command, target.kind, target.registry_backed))
+                    });
+                    let literal =
+                        original_assignment_literal(function, &unit.ir_module, registry, statement);
+                    let resolution =
+                        resolve_command_tokens_with_metadata_context(registry, metadata, tokens)
+                            .map(|resolved| match resolved {
+                                RegistryInvocationResolution::Resolved(facts) => {
+                                    format!("{:?}: {}", facts.operation, facts.canonical_command)
+                                }
+                                other => format!("{other:?}"),
+                            });
+                    rows.push(format!(
+                        "words={:?}, aligned={}, target={target:?}, handler={handler:?}, literal={literal:?}, resolution={resolution:?}, flow={:?}, effective={:?}",
+                        tokens.argv_texts,
+                        tokens.words_align_with_argv_text(),
+                        bindings.binding_at(block, index, tokens.argv_texts.first().map_or("", String::as_str)),
+                        crate::registry_invocation::effective_command_words(tokens),
+                    ));
+                }
+            }
+        }
+        rows.join("\n")
+    }
+
+    #[test]
+    fn original_publication_names_ignore_reports_and_keep_duplicate_issued_ids() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let unit = retained_source_unit(
+            std::sync::Arc::clone(&context),
+            "proc append {} {return 1}\nproc append {} {return 2}\n",
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
+        let original = OriginalProcedureNames::capture(&unit.ir_module, registry)
+            .expect("genuine current primary source publication inventory");
+        let expected = original.redefined_ids();
+        assert_eq!(expected.len(), 2);
+        let shadows = original.shadow_obligations().unwrap();
+        assert_eq!(shadows.len(), 2);
+        assert!(
+            shadows
+                .iter()
+                .all(|(name, binding)| name == "::append" && binding.kind == BindingKind::Unknown)
+        );
+        let mut reports = unit.ir_module.clone();
+        for procedure in reports.procedures.values_mut() {
+            procedure.qualified_name = "::report::unrelated".to_owned();
+        }
+        reports.redefined_procedures.clear();
+        let current = OriginalProcedureNames::capture(&reports, registry).unwrap();
+        assert_eq!(current.redefined_ids(), expected);
+        assert_eq!(current.shadow_obligations().unwrap(), shadows);
+
+        let id = *expected.iter().next().unwrap();
+        reports.procedures.get_mut(&id).unwrap().publication = None;
+        assert!(OriginalProcedureNames::capture(&reports, registry).is_none());
+        let mut wrong_kind = unit.ir_module.clone();
+        wrong_kind.procedures.get_mut(&id).unwrap().body_kind =
+            crate::ir::ProcedureBodyKind::OriginalDeclaration;
+        assert!(OriginalProcedureNames::capture(&wrong_kind, registry).is_none());
+        let mut missing = unit.ir_module.clone();
+        missing.retained_source_bindings = None;
+        assert!(OriginalProcedureNames::capture(&missing, registry).is_none());
+        assert!(procedure_shadow_obligations(&missing, registry, false).is_none());
+    }
+
+    #[test]
+    fn original_assignment_literals_keep_decoding_separate_from_execution_authority() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig {
+            escapes: tcl_dialect::EscapeSyntax::Tcl84,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            r"set result \U00000041",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let statement = unit.top_level.cfg.blocks.values().flat_map(|block| &block.statements)
+            .find(|statement| matches!(statement, Statement::AssignValue { name, .. } if name == "result"))
+            .expect("upstream bare literal retains AssignValue");
+        assert_eq!(
+            original_assignment_literal(
+                &unit.top_level,
+                &unit.ir_module,
+                context.commands(),
+                statement
+            )
+            .as_deref(),
+            Some("U00000041")
+        );
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert!(
+            assignment_facts(&unit.top_level, &unit, context.commands())
+                .direct_assignments
+                .is_empty()
+        );
+        let mut changed = statement.clone();
+        let Statement::AssignValue { value, .. } = &mut changed else {
+            unreachable!()
+        };
+        *value = "OTHER".to_owned();
+        assert!(
+            original_assignment_literal(
+                &unit.top_level,
+                &unit.ir_module,
+                context.commands(),
+                &changed
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn assignment_plans_retain_decoded_original_names_separately_from_spelling() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        for (source, expected) in [
+            (r"set a\x62 VALUE", "ab"),
+            ("set {$name} VALUE", "$name"),
+            ("set {} VALUE", ""),
+        ] {
+            let unit = retained_source_unit(
+                std::sync::Arc::clone(&context),
+                source,
+                tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+            );
+            let statement = unit
+                .top_level
+                .cfg
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .find(|statement| {
+                    matches!(
+                        statement,
+                        Statement::AssignConst { .. } | Statement::AssignValue { .. }
+                    )
+                })
+                .expect("original lowered assignment");
+            let name = match statement {
+                Statement::AssignConst { name, .. } | Statement::AssignValue { name, .. } => name,
+                _ => unreachable!(),
+            };
+            assert_eq!(
+                original_assignment_name(
+                    &unit.top_level,
+                    &unit.ir_module,
+                    context.commands(),
+                    statement,
+                    name
+                )
+                .as_deref(),
+                Some(expected)
+            );
+            let planned = assignment_facts(&unit.top_level, &unit, context.commands());
+            assert_eq!(
+                planned.direct_assignments.get(&span_key(statement.span())),
+                Some(&(expected.to_owned(), "VALUE".to_owned()))
+            );
+            let mut missing = unit.ir_module.clone();
+            missing.retained_source_bindings = None;
+            assert!(
+                original_assignment_name(
+                    &unit.top_level,
+                    &missing,
+                    context.commands(),
+                    statement,
+                    name
+                )
+                .is_none()
+            );
+            let mut stale = statement.clone();
+            match &mut stale {
+                Statement::AssignConst { name, .. } | Statement::AssignValue { name, .. } => {
+                    *name = "OTHER".to_owned()
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                original_assignment_name(
+                    &unit.top_level,
+                    &unit.ir_module,
+                    context.commands(),
+                    &stale,
+                    "OTHER"
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn structural_assignments_require_actual_availability_and_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Availability selection retains a separate actual command-entry owner;
+        // it does not assert successful native compilation or fixture execution.
+        use std::sync::Arc;
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut setter = registry.get("set").unwrap().clone();
+        setter.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(setter);
+        let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let registry = current.commands();
+        let unit = retained_source_unit(
+            Arc::clone(&current),
+            "set result VALUE",
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
+        let selected = &unit.top_level;
+        assert_eq!(
+            assignment_facts(selected, &unit, registry)
+                .direct_assignments
+                .len(),
+            1,
+            "{}",
+            original_assignment_diagnostics(selected, &unit, registry),
+        );
+        let input = selected.source_metadata_input().unwrap();
+        let replace_input = |context| {
+            let mut changed = selected.clone();
+            changed.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                context,
+                input.lexer_config(),
+            ));
+            changed
+        };
+        let older = replace_input(Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(registry)),
+        ));
+        assert!(Arc::ptr_eq(
+            older
+                .source_metadata_input()
+                .unwrap()
+                .context_registry()
+                .commands(),
+            registry
+        ));
+        let mut older_module = unit.ir_module.clone();
+        older_module.source_metadata_input = older.source_metadata_input.clone();
+        assert!(
+            function_facts(
+                &older,
+                &older_module,
+                registry,
+                &unit.command_mutations,
+                true,
+            )
+            .direct_assignments
+            .is_empty()
+        );
+        let foreign = replace_input(
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+        );
+        let mut missing = selected.clone();
+        missing.source_metadata_input = None;
+        let mut different_grammar = selected.clone();
+        different_grammar.source_config.strict_quoting =
+            !different_grammar.source_config.strict_quoting;
+        let mut missing_module = unit.ir_module.clone();
+        missing_module.source_metadata_input = None;
+        assert!(
+            function_facts(
+                selected,
+                &missing_module,
+                registry,
+                &unit.command_mutations,
+                true,
+            )
+            .direct_assignments
+            .is_empty()
+        );
+        for refused in [older, foreign, missing, different_grammar] {
+            assert!(
+                assignment_facts(&refused, &unit, registry)
+                    .direct_assignments
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn structural_assignments_need_unanimous_original_source_carriers() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let unit = retained_source_unit(
+            std::sync::Arc::clone(&context),
+            "set result VALUE",
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
+        let registry = context.commands();
+        let selected = &unit.top_level;
+        assert_eq!(
+            assignment_facts(selected, &unit, registry)
+                .direct_assignments
+                .len(),
+            1,
+            "{}",
+            original_assignment_diagnostics(selected, &unit, registry),
+        );
+        let mut missing = selected.clone();
+        missing.cfg.command_binding_sites.clear();
+        // AssignValue retains its own original carrier beside the consumed
+        // command sites. This fixture withdraws both real sources of evidence.
+        for block in missing.cfg.blocks.values_mut() {
+            for statement in &mut block.statements {
+                if let Statement::AssignValue { tokens, .. } = statement {
+                    *tokens = None;
+                }
+            }
+        }
+        assert!(
+            assignment_facts(&missing, &unit, registry)
+                .direct_assignments
+                .is_empty()
+        );
+        let mut conflicting = selected.clone();
+        let mut additional = conflicting
+            .cfg
+            .command_binding_sites
+            .iter()
+            .find(|site| site.source_tokens.is_some())
+            .unwrap()
+            .clone();
+        let tokens = additional.source_tokens.as_mut().unwrap();
+        tokens.argv_texts[0] = "different".into();
+        conflicting.cfg.command_binding_sites.push(additional);
+        assert!(
+            assignment_facts(&conflicting, &unit, registry)
+                .direct_assignments
+                .is_empty()
+        );
+        let mut unqueried = selected.clone();
+        for site in &mut unqueried.cfg.command_binding_sites {
+            if let Some(tokens) = &mut site.source_tokens {
+                tokens.source_binding = None;
+            }
+        }
+        assert!(
+            assignment_facts(&unqueried, &unit, registry)
+                .direct_assignments
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn assignment_source_metadata_retains_nested_lexer_overlays() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let config = tcl_lexer::LexerConfig {
+            escapes: tcl_dialect::EscapeSyntax::Tcl84,
+            ..tcl_lexer::LexerConfig::for_dialect("tcl8.6")
+        };
+        // The original Tcl84 escape overlay is the measured Tcl8.5 lexer
+        // grammar. Its actual command entry stays separate from C8.6 availability.
+        let unit = native_source_unit(
+            std::sync::Arc::clone(&context),
+            r"proc p {} {set escaped \U00000041}; p",
+            config,
+            tcl_dialect::DialectProfile::find("tcl8.5").unwrap(),
+        );
+        let function = fixture_id_if_present(&unit.procedures, "::p")
+            .and_then(|id| unit.procedures.get(&id))
+            .unwrap();
+        assert_eq!(function.source_lexer_config(), config.nested().normalized());
+        assert_eq!(
+            function.source_metadata_input().unwrap().lexer_config(),
+            config.nested().normalized()
+        );
+        let facts = function_facts(
+            function,
+            &unit.ir_module,
+            context.commands(),
+            &unit.command_mutations,
+            false,
+        );
+        assert_eq!(facts.direct_assignments.len(), 1);
+        let mut stale = function.clone();
+        stale.source_config.escapes = tcl_dialect::EscapeSyntax::Tcl86;
+        assert!(
+            stale
+                .invocation_metadata_context(context.commands())
+                .is_none()
+        );
+        let facts = function_facts(
+            &stale,
+            &unit.ir_module,
+            context.commands(),
+            &unit.command_mutations,
+            false,
+        );
+        assert!(facts.direct_assignments.is_empty());
     }
 
     fn only_decline(facts: &FunctionFacts) -> WasmLeafInvokeDecline {
@@ -2501,21 +3490,19 @@ mod tests {
         found
     }
 
-    /// A definition whose body word is a substitution must not be registered
-    /// by this tier.
-    ///
-    /// `Procedure` records the *written* word
-    /// `${body}` while the body this module compiled came from `return hello`,
-    /// so registering it would report that word as `info body`, and any later
-    /// run of the source body would evaluate the substitution in `p`'s own
-    /// frame, where `body` does not exist.
-    ///
-    /// Asserted against the rule rather than against the emitted module,
-    /// because the emit path is unreachable today: every substituted word in a
-    /// definition also defeats the enclosing function's binding proof, so no
-    /// `StructuredLowering(Proc)` operation is recorded to gate. That is a
-    /// coincidence of two independent proofs, not a design — the point of the
-    /// guard is that it already holds when procedure bodies become proven.
+    #[test]
+    fn host_script_admission_boxes_the_complete_original_byte_image() {
+        use crate::command_binding::{ExecutedScriptSource, SourceOriginId};
+        use std::sync::Arc;
+        let original = tcl_lexer::SourceImage::native(b"set raw \xff\0tail".as_slice());
+        let origin = Arc::new(SourceOriginId::authored_image(original.clone()));
+        let chunk = ExecutedScriptSource::contiguous_image(origin, original.clone(), 0).unwrap();
+        let (module, _) = codegen_runtime_chunk(Some(&chunk), 64, false, false);
+        assert_eq!(module.data_segments.len(), 1);
+        assert_eq!(module.data_segments[0].offset, 64);
+        assert_eq!(module.data_segments[0].data, original.bytes());
+    }
+
     #[test]
     fn a_substituted_definition_body_is_left_to_the_runtimes_own_proc() {
         let registry = CommandRegistry::build_default();
@@ -2524,10 +3511,8 @@ mod tests {
             &registry,
             false,
         );
-        let procedure = unit
-            .ir_module
-            .procedures
-            .get("::p")
+        let procedure = fixture_id_if_present(&unit.ir_module.procedures, "::p")
+            .and_then(|id| unit.ir_module.procedures.get(&id))
             .expect("the inner definition survives as a procedure");
         assert_eq!(
             procedure.body_source.as_deref(),
@@ -2536,40 +3521,13 @@ mod tests {
              body, else this proves nothing",
         );
 
-        let enclosing = unit.procedures.get("::make").expect("the enclosing body");
+        let enclosing = fixture_id_if_present(&unit.procedures, "::make")
+            .and_then(|id| unit.procedures.get(&id))
+            .expect("the enclosing body");
         let definition = proc_statement_tokens(enclosing)
             .into_iter()
             .find(|(span, _)| *span == procedure.span)
             .expect("the inner `proc` statement kept its tokens");
-        assert!(
-            !proc_definition_is_written_out(&unit.ir_module, definition.0, definition.1),
-            "a substituted body word must keep the generic invocation",
-        );
-    }
-
-    /// The same proof, on a body that *is* written out, still binds — so the
-    /// rule is about substitution rather than a blanket refusal to register
-    /// anything defined inside a procedure.
-    #[test]
-    fn a_written_out_definition_body_still_binds() {
-        let registry = CommandRegistry::build_default();
-        let unit = CompilationUnit::build_for(
-            "proc make {} { proc p {x} {return $x} }\n",
-            &registry,
-            false,
-        );
-        let procedure = unit.ir_module.procedures.get("::p").expect("procedure");
-        let enclosing = unit.procedures.get("::make").expect("the enclosing body");
-        let definition = proc_statement_tokens(enclosing)
-            .into_iter()
-            .find(|(span, _)| *span == procedure.span)
-            .expect("the inner `proc` statement kept its tokens");
-        assert!(
-            proc_definition_is_written_out(&unit.ir_module, definition.0, definition.1),
-            "a written-out definition is exactly what this tier may register",
-        );
-
-        // And the reachable end of it: the fact the emitter consults is set.
         let facts = function_facts(
             enclosing,
             &unit.ir_module,
@@ -2577,26 +3535,76 @@ mod tests {
             &unit.command_mutations,
             false,
         );
-        assert!(
-            facts
-                .literal_proc_definitions
-                .contains(&span_key(procedure.span)),
-            "the guard must not refuse a definition it should register: {:?}",
-            facts.literal_proc_definitions,
-        );
+        let plan = facts
+            .leaf_invocations
+            .get(&span_key(definition.0))
+            .expect("the original variable word has a generic argv plan");
+        let [_, _, _, body] = plan.root.words.as_slice() else {
+            panic!(
+                "the original four-word vector survives: {:?}",
+                plan.root.words
+            );
+        };
+        assert!(matches!(body, WasmWordPlan::Scalar { name, .. } if name == "body"));
+        assert!(!facts.leaf_declines.contains_key(&span_key(definition.0)));
     }
 
-    /// A top-level written-out definition is registered too — the guard is
-    /// about the words, not about where the definition sits.
     #[test]
-    fn a_top_level_written_out_definition_is_registered() {
-        let facts = top_level_facts("proc p {x} {return $x}\n");
-        assert_eq!(
-            facts.literal_proc_definitions.len(),
-            1,
-            "{:?}",
-            facts.literal_proc_definitions,
+    fn a_written_out_definition_body_keeps_original_generic_argv() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let unit = retained_source_unit(
+            std::sync::Arc::clone(&context),
+            "proc make {} { proc p {x} {return $x} }; make\n",
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
         );
+        let procedure = fixture_id_if_present(&unit.ir_module.procedures, "::p")
+            .and_then(|id| unit.ir_module.procedures.get(&id))
+            .expect("procedure");
+        let enclosing = fixture_id_if_present(&unit.procedures, "::make")
+            .and_then(|id| unit.procedures.get(&id))
+            .expect("the enclosing body");
+        let definition = proc_statement_tokens(enclosing)
+            .into_iter()
+            .find(|(span, _)| *span == procedure.span)
+            .expect("the original definition keeps its own span");
+        let facts = function_facts(
+            enclosing,
+            &unit.ir_module,
+            registry,
+            &unit.command_mutations,
+            false,
+        );
+        let plan = facts
+            .leaf_invocations
+            .get(&span_key(definition.0))
+            .expect("the original literal definition retains its generic argv");
+        let [head, name, parameters, body] = plan.root.words.as_slice() else {
+            panic!("one complete original vector: {:?}", plan.root.words);
+        };
+        assert!(matches!(head, WasmWordPlan::Literal { text, .. } if text == "proc"));
+        assert!(matches!(name, WasmWordPlan::Literal { text, .. } if text == "p"));
+        assert!(matches!(parameters, WasmWordPlan::Literal { text, .. } if text == "x"));
+        assert!(matches!(body, WasmWordPlan::Literal { text, .. } if text == "return $x"));
+        assert!(!facts.leaf_declines.contains_key(&span_key(definition.0)));
+    }
+
+    #[test]
+    fn a_top_level_written_out_definition_retains_original_name_operand() {
+        let facts = top_level_facts("proc :audit {x} {return $x}\n");
+        assert_eq!(facts.leaf_invocations.len(), 1);
+        let plan = facts
+            .leaf_invocations
+            .values()
+            .next()
+            .expect("one original argv plan");
+        let [_, name, _, body] = plan.root.words.as_slice() else {
+            panic!("one complete original vector: {:?}", plan.root.words);
+        };
+        assert!(matches!(name, WasmWordPlan::Literal { text, .. } if text == ":audit"));
+        assert!(matches!(body, WasmWordPlan::Literal { text, .. } if text == "return $x"));
+        assert!(facts.leaf_declines.is_empty());
     }
 
     /// A leaf command whose words all compile selects a plan and records no
@@ -2634,4 +3642,85 @@ mod tests {
             assert_eq!(only_decline(&facts), expected, "{source}");
         }
     }
+
+    #[test]
+    fn constructed_procedure_calls_require_the_original_native_trace_owner() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Real source compilation and original entry; no Native trace execution.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let plain = retained_source_unit(
+            std::sync::Arc::clone(&context),
+            "proc p {x} {return $x}; p VALUE",
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
+        let current = function_facts(
+            &plain.top_level,
+            &plain.ir_module,
+            context.commands(),
+            &plain.command_mutations,
+            true,
+        );
+        assert!(current.leaf_invocations.values().any(|plan| {
+            matches!(plan.root.words.first(), Some(WasmWordPlan::Literal { text, .. }) if text == "p")
+        }));
+        let tokens = plain
+            .ir_module
+            .top_level
+            .statements
+            .iter()
+            .rev()
+            .find_map(crate::ir::Statement::tokens)
+            .unwrap();
+        let target = tokens
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .proved_execution_target()
+            .unwrap();
+        assert!(target.identity.as_ref().unwrap().runtime.is_none());
+        assert!(
+            !tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .unobserved_native_dispatch()
+        );
+        let traced = retained_source_unit(
+            std::sync::Arc::clone(&context),
+            "proc cb args {}; proc p {x} {return $x}; proc other args {}; trace add execution other enter cb; p VALUE",
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
+        assert!(traced.ir_module.traced_commands.contains("other"));
+        let refused = function_facts(
+            &traced.top_level,
+            &traced.ir_module,
+            context.commands(),
+            &traced.command_mutations,
+            true,
+        );
+        assert!(refused.leaf_invocations.values().any(|plan| {
+            matches!(plan.root.words.first(), Some(WasmWordPlan::Literal { text, .. }) if text == "p")
+        }));
+        let original = traced
+            .ir_module
+            .top_level
+            .statements
+            .iter()
+            .rev()
+            .find_map(crate::ir::Statement::tokens)
+            .expect("actual final source call");
+        assert!(
+            !original
+                .source_binding
+                .as_ref()
+                .expect("original source binding")
+                .unobserved_native_dispatch()
+        );
+    }
 }
+
+#[cfg(test)]
+#[path = "backend/original_bind_tests.rs"]
+mod original_bind_tests;

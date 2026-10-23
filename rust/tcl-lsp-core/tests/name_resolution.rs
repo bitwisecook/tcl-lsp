@@ -75,6 +75,20 @@ fn refs_at_dialect(src: &str, dialect: &str, line: u32, col: u32) -> Vec<u32> {
     ))
 }
 
+/// Reference lines for a fixture that declares a `TclOO` `classmethod`.
+///
+/// Test-input correction (user decision 2026-10-17T20:30Z, `non_tcl_tests`:
+/// classmethod under tcl8.6 follows tclsh). `classmethod` is a Tcl 9.0
+/// definition command: tclsh 8.6.18 rejects the class body with
+/// `invalid command name "classmethod"`, while tclsh 9.0.4 and 9.1.0 install
+/// the class-object method (`Factory make` returns a new object). These
+/// fixtures therefore run under tcl9.0; the assertions are unchanged, and
+/// `classmethod_dispatch::tcl86_rejects_classmethod_so_nothing_resolves`
+/// keeps the tclsh 8.6 result.
+fn classmethod_refs_at(src: &str, line: u32, col: u32) -> Vec<u32> {
+    refs_at_dialect(src, "tcl9.0", line, col)
+}
+
 /// W210 (read-before-set) diagnostic codes for `src` analysed as `path`.
 fn has_w210(src: &str, path: Option<&str>) -> bool {
     let mut a = Analyser::new().with_file_path(path.map(str::to_string));
@@ -235,7 +249,13 @@ mod classmethod_dispatch {
         let src = "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\nFactory make\n";
         // cursor on the `make` declaration name (line 1, col 16); the bare
         // `Factory make` dispatch is on line 5.
-        assert_eq!(refs_at(src, 1, 16), vec![1, 5], "decl + `Factory make`");
+        // tclsh 8.6.18: `invalid command name "classmethod"`; tclsh 9.0.4/9.1.0
+        // accept it, so this fixture runs under tcl9.0 (see `classmethod_refs_at`).
+        assert_eq!(
+            classmethod_refs_at(src, 1, 16),
+            vec![1, 5],
+            "decl + `Factory make`"
+        );
     }
 
     /// FN→TP: the reverse direction of the previous test — cursor on the
@@ -248,7 +268,13 @@ mod classmethod_dispatch {
     fn tp_bare_class_command_dispatch_resolves_from_the_call_site_itself() {
         let src = "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\nFactory make\n";
         // cursor on `make` in `Factory make` (line 5, col 8).
-        assert_eq!(refs_at(src, 5, 8), vec![1, 5], "decl + `Factory make`");
+        // tclsh 8.6.18: `invalid command name "classmethod"`; tclsh 9.0.4/9.1.0
+        // accept it, so this fixture runs under tcl9.0 (see `classmethod_refs_at`).
+        assert_eq!(
+            classmethod_refs_at(src, 5, 8),
+            vec![1, 5],
+            "decl + `Factory make`"
+        );
     }
 
     /// TP: a subclass that inherits (does not override) the classmethod
@@ -258,8 +284,10 @@ mod classmethod_dispatch {
     #[test]
     fn tp_inheriting_subclass_own_command_dispatch_is_a_reference() {
         let src = "oo::class create Factory {\n    classmethod make {} { return [Factory new] }\n}\noo::class create SubFactory {\n    superclass Factory\n}\nSubFactory make\n";
+        // tclsh 8.6.18: `invalid command name "classmethod"`; tclsh 9.0.4/9.1.0
+        // accept it, so this fixture runs under tcl9.0 (see `classmethod_refs_at`).
         assert_eq!(
-            refs_at(src, 1, 16),
+            classmethod_refs_at(src, 1, 16),
             vec![1, 6],
             "decl + inheriting subclass's own-command dispatch"
         );
@@ -274,7 +302,13 @@ mod classmethod_dispatch {
         // cursor on Factory::make (line 1). References must be its
         // declaration only — `SubFactory make` resolves to SubFactory's own
         // override, never Factory's.
-        assert_eq!(refs_at(src, 1, 16), vec![1], "override excluded");
+        // tclsh 8.6.18: `invalid command name "classmethod"`; tclsh 9.0.4/9.1.0
+        // accept it, so this fixture runs under tcl9.0 (see `classmethod_refs_at`).
+        assert_eq!(
+            classmethod_refs_at(src, 1, 16),
+            vec![1],
+            "override excluded"
+        );
     }
 
     /// FP guard: a regular *instance* method must never gain bare
@@ -299,7 +333,40 @@ mod classmethod_dispatch {
     #[test]
     fn tn_uncalled_classmethod_only_declaration() {
         let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n}\n";
-        assert_eq!(refs_at(src, 1, 16), vec![1], "declaration only");
+        // tclsh 8.6.18: `invalid command name "classmethod"`; tclsh 9.0.4/9.1.0
+        // accept it, so this fixture runs under tcl9.0 (see `classmethod_refs_at`).
+        assert_eq!(classmethod_refs_at(src, 1, 16), vec![1], "declaration only");
+    }
+
+    /// tclsh 8.6 control for the classmethod fixtures above (user decision
+    /// 2026-10-17T20:30Z): tclsh 8.6.18 raises `invalid command name
+    /// "classmethod"` while creating `Factory`, so the class body installs no
+    /// class-object method and `Factory make` reaches nothing. Under tcl8.6
+    /// the declaration is not a method, and find-references stays empty.
+    /// Control for the Tcl 9.0+ class-delegate chain: only a `classmethod`
+    /// (a delegate member) is inherited by a subclass's class object; a
+    /// `self method` is the class object's own and is not. tclsh 8.6.18,
+    /// 9.0.4 and 9.1.0 all answer `SubFactory make` with
+    /// `unknown method "make"` and `Factory make` with a new object, so the
+    /// declaration keeps only its own `Factory make` dispatch on every
+    /// profile, and tcl8.6 (no delegates at all) uses no chain.
+    #[test]
+    fn a_superclass_self_method_is_not_inherited_by_the_subclass_object() {
+        let src = "oo::class create Factory {\n    self method make {} { return [Factory new] }\n}\noo::class create SubFactory {\n    superclass Factory\n}\nSubFactory make\nFactory make\n";
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            assert_eq!(
+                refs_at_dialect(src, dialect, 1, 17),
+                vec![1, 7],
+                "{dialect}: decl + `Factory make`, never `SubFactory make`"
+            );
+        }
+    }
+
+    #[test]
+    fn tcl86_rejects_classmethod_so_nothing_resolves() {
+        let src = "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\nFactory make\n";
+        assert_eq!(refs_at(src, 1, 16), Vec::<u32>::new(), "declaration site");
+        assert_eq!(refs_at(src, 5, 8), Vec::<u32>::new(), "call site");
     }
 
     /// FN→TP: snit's `typemethod` is snit's equivalent of `TclOO`'s
@@ -738,10 +805,12 @@ mod my_method_dispatch {
     #[test]
     fn irules_switch_glob_body_is_followed() {
         let src = "proc hit {} { return hit }\nswitch -glob $value {\n    default {\n        hit\n    }\n}\n";
+        // A bare call to a rule-local proc is outside the rule-loader scope;
+        // its declaration remains, but this call is not a reference site.
         assert_eq!(
             refs_at_dialect(src, "f5-irules", 0, 5),
-            vec![0, 3],
-            "iRules switch -glob must descend its clause-list body"
+            vec![0],
+            "a bare call to a rule proc is not an iRules reference"
         );
     }
 
@@ -1109,8 +1178,10 @@ mod namespace_scoped_class_dispatch {
     /// **not** count `::b`'s bare dispatch.
     #[test]
     fn tn_bare_dispatch_in_a_sibling_namespace_is_not_cross_linked() {
+        // tclsh 8.6.18: `invalid command name "classmethod"`; tclsh 9.0.4/9.1.0
+        // accept it, so this fixture runs under tcl9.0 (see `classmethod_refs_at`).
         assert_eq!(
-            refs_at(two_namespaces(), 2, 20),
+            classmethod_refs_at(two_namespaces(), 2, 20),
             vec![2, 4, 12],
             "decl + the `::a` bare dispatch + the absolute `::a::Factory make`"
         );
@@ -1120,8 +1191,10 @@ mod namespace_scoped_class_dispatch {
     /// own sites.
     #[test]
     fn tn_the_mirror_direction_is_scoped_too() {
+        // tclsh 8.6.18: `invalid command name "classmethod"`; tclsh 9.0.4/9.1.0
+        // accept it, so this fixture runs under tcl9.0 (see `classmethod_refs_at`).
         assert_eq!(
-            refs_at(two_namespaces(), 8, 20),
+            classmethod_refs_at(two_namespaces(), 8, 20),
             vec![8, 10],
             "decl + the `::b` bare dispatch only"
         );
@@ -1140,8 +1213,10 @@ mod namespace_scoped_class_dispatch {
             "}\n",
             "Factory make\n",
         );
+        // tclsh 8.6.18: `invalid command name "classmethod"`; tclsh 9.0.4/9.1.0
+        // accept it, so this fixture runs under tcl9.0 (see `classmethod_refs_at`).
         assert_eq!(
-            refs_at(src, 1, 16),
+            classmethod_refs_at(src, 1, 16),
             vec![1, 4, 6],
             "decl + the `::d` fallback dispatch + the top-level one"
         );
@@ -1162,7 +1237,9 @@ mod namespace_scoped_class_dispatch {
             "    Factory make\n",
             "}\n",
         );
-        assert_eq!(refs_at(src, 2, 20), vec![2], "declaration only");
+        // tclsh 8.6.18: `invalid command name "classmethod"`; tclsh 9.0.4/9.1.0
+        // accept it, so this fixture runs under tcl9.0 (see `classmethod_refs_at`).
+        assert_eq!(classmethod_refs_at(src, 2, 20), vec![2], "declaration only");
     }
 
     /// FP guard: a same-named *proc* in the calling namespace shadows the
@@ -1178,7 +1255,9 @@ mod namespace_scoped_class_dispatch {
             "    Factory make\n",
             "}\n",
         );
-        assert_eq!(refs_at(src, 1, 16), vec![1], "declaration only");
+        // tclsh 8.6.18: `invalid command name "classmethod"`; tclsh 9.0.4/9.1.0
+        // accept it, so this fixture runs under tcl9.0 (see `classmethod_refs_at`).
+        assert_eq!(classmethod_refs_at(src, 1, 16), vec![1], "declaration only");
     }
 
     /// TP: the object-command (`CLASS create NAME`) matcher keeps working —
@@ -1268,8 +1347,10 @@ mod namespace_scoped_class_dispatch {
             "    Factory make\n",
             "}\n",
         );
+        // tclsh 8.6.18: `invalid command name "classmethod"`; tclsh 9.0.4/9.1.0
+        // accept it, so this fixture runs under tcl9.0 (see `classmethod_refs_at`).
         assert_eq!(
-            refs_at(src, 2, 20),
+            classmethod_refs_at(src, 2, 20),
             vec![2, 8],
             "decl + the bare dispatch through the imported name"
         );
@@ -1294,8 +1375,10 @@ mod namespace_scoped_class_dispatch {
             "    Factory make\n",
             "}\n",
         );
+        // tclsh 8.6.18: `invalid command name "classmethod"`; tclsh 9.0.4/9.1.0
+        // accept it, so this fixture runs under tcl9.0 (see `classmethod_refs_at`).
         assert_eq!(
-            refs_at(src, 2, 20),
+            classmethod_refs_at(src, 2, 20),
             vec![2],
             "declaration only — the wildcard-import model is out of scope (#1027)"
         );
@@ -1319,6 +1402,71 @@ mod namespace_scoped_class_dispatch {
             "    Factory make\n",
             "}\n",
         );
-        assert_eq!(refs_at(src, 2, 20), vec![2], "declaration only");
+        // tclsh 8.6.18: `invalid command name "classmethod"`; tclsh 9.0.4/9.1.0
+        // accept it, so this fixture runs under tcl9.0 (see `classmethod_refs_at`).
+        assert_eq!(classmethod_refs_at(src, 2, 20), vec![2], "declaration only");
+    }
+}
+
+#[test]
+fn class_commands_follow_each_invocations_namespace_path_before_kind_selection() {
+    // Review N10: a class command uses ordinary site-level command lookup.
+    // A nearer procedure remains an occupant even though it is not a class.
+    let source = concat!(
+        "namespace eval left {oo::class create C {}}\n",
+        "namespace eval right {oo::class create C {}}\n",
+        "oo::class create C {}\n",
+        "namespace eval app {\n",
+        "    namespace path {::left ::right}\n",
+        "    set one [C new]\n",
+        "    puts [info object class $one]\n",
+        "    namespace path {::right ::left}\n",
+        "    set two [C new]\n",
+        "    puts [info object class $two]\n",
+        "    proc C {args} {return LOCAL}\n",
+        "    puts [C new]\n",
+        "}\n",
+    );
+    for (dialect, version) in [
+        ("tcl8.6", tcl_dialect::TclVersion::V8_6),
+        ("tcl9.0", tcl_dialect::TclVersion::V9_0),
+        ("tcl9.1", tcl_dialect::TclVersion::V9_1),
+    ] {
+        if let Some(oracle) = tcl_test_support::witness_tclsh(version) {
+            let result = tcl_test_support::run_script(&oracle.path, source.as_bytes())
+                .expect("namespace-path oracle execution");
+            assert!(result.success(), "{dialect}: {:?}", result.stderr);
+            assert_eq!(result.stdout, b"::left::C\n::right::C\nLOCAL\n");
+        }
+        let analysis = Analyser::new().analyse(source, dialect);
+        for (line, character, declaration, owner) in
+            [(5, 13, 0, "::left::C"), (8, 13, 1, "::right::C")]
+        {
+            let definitions =
+                tcl_lsp_core::definition::definition(source, line, character, &analysis);
+            assert_eq!(
+                ref_lines(&definitions),
+                vec![declaration],
+                "{dialect}: {owner}"
+            );
+            let hover = tcl_lsp_core::hover::hover(source, line, character, &analysis, None)
+                .expect("class command hover");
+            assert!(hover.value.contains(owner), "{dialect}: {}", hover.value);
+            let hierarchy =
+                tcl_lsp_core::type_hierarchy::prepare(source, line, character, &analysis);
+            assert_eq!(hierarchy.len(), 1, "{dialect}: {owner}: {hierarchy:?}");
+            assert_eq!(hierarchy[0].name, owner);
+            assert_eq!(hierarchy[0].selection_range.start_line, declaration);
+        }
+        let definitions = tcl_lsp_core::definition::definition(source, 11, 10, &analysis);
+        assert_eq!(
+            ref_lines(&definitions),
+            vec![10],
+            "{dialect}: nearer procedure"
+        );
+        assert!(
+            tcl_lsp_core::type_hierarchy::prepare(source, 11, 10, &analysis).is_empty(),
+            "{dialect}: a nearer procedure must block all class candidates"
+        );
     }
 }

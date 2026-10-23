@@ -501,7 +501,7 @@ mod tests {
     #[test]
     fn a_same_line_waiver_is_honoured() {
         let src = "let t = Lexer::new(s); // dialect-drift-ok: spec DSL, not document Tcl\n";
-        assert!(scan(REL, src).is_empty());
+        assert_eq!(scan(REL, src).len(), 0);
     }
 
     #[test]
@@ -519,7 +519,7 @@ mod tests {
     #[test]
     fn the_test_tail_is_exempt() {
         let src = "fn f() {}\n#[cfg(test)]\nmod tests {\n    fn g() { Lexer::new(\"x\"); }\n}\n";
-        assert!(scan(REL, src).is_empty());
+        assert_eq!(scan(REL, src).len(), 0);
     }
 
     #[test]
@@ -532,8 +532,14 @@ mod tests {
     #[test]
     fn an_ambient_expression_parse_is_a_hit_and_a_profile_one_is_not() {
         assert_eq!(scan(REL, "let e = parse_expr(text, None);\n").len(), 1);
-        assert!(scan(REL, "let e = parse_expr(text, Some(profile.name));\n").is_empty());
-        assert!(scan(REL, "let e = parse_expr_for_profile(text, profile);\n").is_empty());
+        assert_eq!(
+            scan(REL, "let e = parse_expr(text, Some(profile.name));\n").len(),
+            0
+        );
+        assert_eq!(
+            scan(REL, "let e = parse_expr_for_profile(text, profile);\n").len(),
+            0
+        );
         assert_eq!(scan(REL, "let g = LexerGrammar::default();\n").len(), 1);
         assert_eq!(
             scan(REL, "let c = LexerConfig::for_profile(None);\n").len(),
@@ -546,24 +552,29 @@ mod tests {
         let src = "use crate::cfg_builder::build_cfg;\nlet m = build_cfg(&module);\n";
         assert_eq!(scan(REL, src).len(), 1);
         // A different `build_cfg` (a local view builder) is not the entry.
-        assert!(
+        assert_eq!(
             scan(
                 REL,
                 "fn build_cfg(v: &[Value]) {}\nlet n = build_cfg(data);\n"
             )
-            .is_empty()
+            .len(),
+            0
         );
         // The tail of a longer identifier is not the entry either.
-        assert!(
+        assert_eq!(
             scan(
                 REL,
                 "use crate::cfg_builder::build_cfg;\nlower_and_build_cfg(src, o);\n"
             )
-            .is_empty()
+            .len(),
+            0
         );
-        assert!(scan(REL, "let m = build_cfg(&module);\n").is_empty());
-        assert!(scan(CFG_OWNER, "let m = build_cfg(&module);\n").is_empty());
-        assert!(scan(REL, "let m = build_cfg_with_config(&module, cfg);\n").is_empty());
+        assert_eq!(scan(REL, "let m = build_cfg(&module);\n").len(), 0);
+        assert_eq!(scan(CFG_OWNER, "let m = build_cfg(&module);\n").len(), 0);
+        assert_eq!(
+            scan(REL, "let m = build_cfg_with_config(&module, cfg);\n").len(),
+            0
+        );
     }
 
     #[test]
@@ -587,13 +598,13 @@ mod tests {
     fn a_bare_split_is_only_flagged_in_document_crates() {
         let src = "let e = tcl_syntax::list::split_list(word);\n";
         assert_eq!(scan(REL, src).len(), 1);
-        assert!(scan("rust/tcl-pkg/src/manifest.rs", src).is_empty());
+        assert_eq!(scan("rust/tcl-pkg/src/manifest.rs", src).len(), 0);
     }
 
     #[test]
     fn the_owner_method_call_is_not_a_hit() {
         let src = "let e = rules.split_list(word);\nlet f = self.word_rules().split_list(w);\n";
-        assert!(scan(REL, src).is_empty());
+        assert_eq!(scan(REL, src).len(), 0);
         assert_eq!(
             scan(REL, "let e = tcl_syntax::list::split_list(word);\n").len(),
             1
@@ -602,12 +613,13 @@ mod tests {
 
     #[test]
     fn a_fixed_literal_name_is_an_ingress_but_a_name_variable_is_a_hit() {
-        assert!(
+        assert_eq!(
             scan(
                 REL,
                 "let c = LexerConfig::for_file_dialect(\"f5-irules\");\n"
             )
-            .is_empty()
+            .len(),
+            0
         );
         assert_eq!(
             scan(REL, "let c = LexerConfig::for_dialect(profile.name);\n").len(),
@@ -627,20 +639,21 @@ mod tests {
     fn a_blind_segmenter_entry_is_a_hit_outside_the_segmenter() {
         let src = "for c in segment_commands(source) {}\n";
         assert_eq!(scan(REL, src).len(), 1);
-        assert!(scan("rust/tcl-compiler/src/segmenter.rs", src).is_empty());
-        assert!(
+        assert_eq!(scan("rust/tcl-compiler/src/segmenter.rs", src).len(), 0);
+        assert_eq!(
             scan(
                 REL,
                 "for c in segment_commands_with_offset_and_config(s, 0, cfg) {}\n"
             )
-            .is_empty()
+            .len(),
+            0
         );
     }
 
     #[test]
     fn a_mention_in_a_comment_or_string_is_not_a_hit() {
         let src = "// the old form was Lexer::new(s)\nlet m = \"Lexer::new(\";\n";
-        assert!(scan(REL, src).is_empty());
+        assert_eq!(scan(REL, src).len(), 0);
     }
 
     #[test]

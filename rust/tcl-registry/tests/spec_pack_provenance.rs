@@ -121,5 +121,5 @@ fn a_redeclared_command_is_filed_where_the_dialect_registered_it() {
 /// A name no shipped pack declares has no provenance to report.
 #[test]
 fn a_pack_loaded_name_has_no_authoring_pack() {
-    assert!(spec_packs_of("definitely::not::a::command").is_empty());
+    assert_eq!(spec_packs_of("definitely::not::a::command").len(), 0);
 }

@@ -286,13 +286,8 @@ install_wasi_sdk() {
         return 1
     fi
 
-    # The wasi-sdk releases publish no SHA-256 sidecar: the `SHA256SUMS` asset
-    # this step used to fetch returns 404, which failed the step closed and
-    # meant wasi-sdk never installed (so `runtime/rust/build.rs` silently built
-    # every wasm artefact without the libtommath numeric tower).  Pin the
-    # hashes here alongside the version, exactly as wasmtime and binaryen above
-    # do; re-compute them when bumping WASI_SDK_VERSION.  Still fail closed: an
-    # arch with no pin is refused rather than installed unverified.
+    # wasi-sdk has no checksum sidecar; verify the version/architecture pin.
+    # An architecture without a pin is refused.
     local expected actual
     case "$sdk_arch" in
         x86_64)

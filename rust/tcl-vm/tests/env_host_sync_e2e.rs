@@ -122,9 +122,8 @@ fn vars(entries: &[(&str, &str)]) -> Vars {
 fn vm_on(version: TclVersion, env: &Vars) -> Vm {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
         .analyser_profile();
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm_for_release(version, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
-    vm.set_runtime_version(version);
     vm.set_host(Rc::new(MapHost {
         clock: MapClock,
         stdio: MapStdIo,
@@ -135,7 +134,9 @@ fn vm_on(version: TclVersion, env: &Vars) -> Vm {
 
 /// Evaluate `src`, returning its result or its error message.
 fn eval(vm: &mut Vm, src: &str) -> Result<String, String> {
-    let completion = vm.eval_source(src).map_err(|error| error.message)?;
+    let completion = vm.eval_source(src).map_err(|error| {
+        String::from_utf8_lossy(&error.message_bytes().expect("guest error message")).into_owned()
+    })?;
     let text = completion.result.to_str().to_string();
     if completion.code.is_ok() {
         Ok(text)
@@ -484,7 +485,7 @@ fn subprocesses_see_env_writes() {
     if !std::path::Path::new("/bin/sh").exists() {
         return;
     }
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     assert_eq!(
         eval(

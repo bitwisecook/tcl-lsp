@@ -37,17 +37,69 @@ interface GeneratedEvent {
   retiredVersion?: string;
 }
 
+const CATALOGUE: readonly GeneratedEvent[] = generatedEvents.events as GeneratedEvent[];
+const CATALOGUE_BY_NAME = new Map(CATALOGUE.map((event) => [event.name, event]));
+
 // Derive the common events list from the generated catalogue.
-export const COMMON_IRULE_EVENTS: readonly IruleEventTemplate[] = (
-  generatedEvents.events as GeneratedEvent[]
-)
-  .filter((e) => e.common)
-  .map((e) => ({ name: e.name, description: e.description ?? "" }));
+export const COMMON_IRULE_EVENTS: readonly IruleEventTemplate[] = CATALOGUE.filter(
+  (e) => e.common,
+).map((e) => ({ name: e.name, description: e.description ?? "" }));
 
 const EVENT_ORDER = new Map(COMMON_IRULE_EVENTS.map((entry, idx) => [entry.name, idx]));
 
-function normaliseEventName(value: string): string {
-  return value.trim().toUpperCase();
+/**
+ * The release a new skeleton is written for. `bigipVersion` is the
+ * configured target (`tclLsp.bigipVersion`); empty or absent means no
+ * release is configured and only the catalogue decides.
+ */
+export interface IruleSkeletonTarget {
+  bigipVersion?: string;
+}
+
+/** Why a requested event was left out of a skeleton. */
+export type IruleSkeletonRejection =
+  | { name: string; reason: "unknown" }
+  | { name: string; reason: "notAvailable"; bigipVersion: string };
+
+export interface IruleSkeletonResult {
+  source: string;
+  rejected: IruleSkeletonRejection[];
+}
+
+function compareReleases(left: string, right: string): number {
+  const a = left.split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const b = right.split(".").map((part) => Number.parseInt(part, 10) || 0);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const difference = (a[i] ?? 0) - (b[i] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return 0;
+}
+
+/**
+ * Whether the catalogue's declared lifecycle has `event` at `version`: at or
+ * after its introducing release and before its (exclusive) retiring one.
+ * Declared data, not a measurement of any appliance.
+ */
+export function iruleEventDeclaredAt(name: string, version: string): boolean {
+  const event = CATALOGUE_BY_NAME.get(name);
+  if (!event) return false;
+  if (event.introducedVersion && compareReleases(version, event.introducedVersion) < 0) {
+    return false;
+  }
+  return !event.retiredVersion || compareReleases(version, event.retiredVersion) < 0;
+}
+
+/**
+ * The catalogue spelling of a requested event: exact, else the upper-cased
+ * request. A new skeleton only ever writes catalogue names, never the
+ * request's own text.
+ */
+export function catalogueEventName(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (CATALOGUE_BY_NAME.has(trimmed)) return trimmed;
+  const upper = trimmed.toUpperCase();
+  return CATALOGUE_BY_NAME.has(upper) ? upper : undefined;
 }
 
 function sortEvents(events: readonly string[]): string[] {
@@ -67,15 +119,31 @@ function sortEvents(events: readonly string[]): string[] {
   });
 }
 
-function uniqueEvents(events: readonly string[]): string[] {
+function uniqueEvents(
+  events: readonly string[],
+  target: IruleSkeletonTarget,
+  rejected: IruleSkeletonRejection[],
+): string[] {
   const seen = new Set<string>();
   const unique: string[] = [];
+  const version = target.bigipVersion?.trim();
   for (const rawEvent of events) {
-    const eventName = normaliseEventName(rawEvent);
-    if (!eventName || seen.has(eventName)) {
+    if (!rawEvent.trim()) {
+      continue;
+    }
+    const eventName = catalogueEventName(rawEvent);
+    if (!eventName) {
+      rejected.push({ name: rawEvent, reason: "unknown" });
+      continue;
+    }
+    if (seen.has(eventName)) {
       continue;
     }
     seen.add(eventName);
+    if (version && !iruleEventDeclaredAt(eventName, version)) {
+      rejected.push({ name: eventName, reason: "notAvailable", bigipVersion: version });
+      continue;
+    }
     unique.push(eventName);
   }
   return sortEvents(unique);
@@ -195,8 +263,29 @@ function shouldIncludeClientAccepted(events: readonly string[]): boolean {
   return events.some((name) => HTTP_EVENTS.has(name));
 }
 
-export function buildIruleEventSkeleton(events: readonly string[]): string {
-  const selected = uniqueEvents(events);
+/**
+ * Build a new iRule skeleton for the requested events: only events the
+ * generated registry catalogue names (at the target release, when one is
+ * configured) are written; every other request is reported in `rejected`.
+ * This authors new source; it neither reads nor edits existing handlers.
+ */
+export function buildIruleEventSkeletonFor(
+  events: readonly string[],
+  target: IruleSkeletonTarget = {},
+): IruleSkeletonResult {
+  const rejected: IruleSkeletonRejection[] = [];
+  const selected = uniqueEvents(events, target, rejected);
+  return { source: skeletonSource(selected), rejected };
+}
+
+export function buildIruleEventSkeleton(
+  events: readonly string[],
+  target: IruleSkeletonTarget = {},
+): string {
+  return buildIruleEventSkeletonFor(events, target).source;
+}
+
+function skeletonSource(selected: readonly string[]): string {
   if (selected.length === 0) {
     return "";
   }
@@ -216,4 +305,14 @@ export function buildIruleEventSkeleton(events: readonly string[]): string {
 
   const blocks = ordered.map((eventName) => buildEventBlock(eventName, hasHttpEvents));
   return `${blocks.join("\n\n")}\n`;
+}
+
+/** One line naming the events a skeleton left out, and why. */
+export function describeSkeletonRejections(rejected: readonly IruleSkeletonRejection[]): string {
+  const parts = rejected.map((entry) =>
+    entry.reason === "unknown"
+      ? `${entry.name} (not an iRules event in the registry catalogue)`
+      : `${entry.name} (not declared at BIG-IP ${entry.bigipVersion})`,
+  );
+  return `Left out of the skeleton: ${parts.join(", ")}.`;
 }

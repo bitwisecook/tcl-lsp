@@ -19,7 +19,7 @@
 //! The keyed updates of the dictionary one variable holds — `dict set`,
 //! `unset`, `incr`, `append`, `lappend`, and their `::tcl::dict::`
 //! spellings — over the shared dict cores
-//! (`docs/design/compiler/value-transfers-migration.md` § *Third-party
+//! (`docs/design/compiler/value-transfer-consumers.md` § *Third-party
 //! commands*, Tier 1).
 //!
 //! The dictionary operand is the one the resolver gives the `VarWrite`
@@ -253,10 +253,14 @@ impl KeyedUpdateSemantics {
                 let mut pairs = ops
                     .dict_pairs(&dictionary)
                     .map_err(|error| ops.decline_value(&error))?;
-                let key_text = ops.as_str(key);
-                let old = tcl_cmd_core::dict::lookup(ops, &pairs, &key_text);
+                let key_text = ops
+                    .native_string_bytes(key)
+                    .map_err(|error| ops.decline_value(&error))?;
+                let old = tcl_cmd_core::dict::lookup(ops, &pairs, &key_text)
+                    .map_err(|error| ops.decline(&error))?;
                 let new_value = self.update_value(ops, old, values)?;
-                tcl_cmd_core::dict::upsert(ops, &mut pairs, key, new_value);
+                tcl_cmd_core::dict::upsert(ops, &mut pairs, key, new_value)
+                    .map_err(|error| ops.decline(&error))?;
                 Ok(ops.new_dict(pairs))
             }
         }
@@ -286,7 +290,7 @@ impl KeyedUpdateSemantics {
                     .map_err(|error| ops.decline_value(&error)),
                 (None, None) => Ok(ConstValue::int(1)),
             },
-            KeyedUpdate::Append => Ok(tcl_cmd_core::var::append_bytes(ops, old, values)),
+            KeyedUpdate::Append => ops.logical_append(old, values),
             KeyedUpdate::ListAppend => tcl_cmd_core::var::lappend_value(ops, old, values)
                 .map_err(|error| ops.decline(&error)),
             KeyedUpdate::Set | KeyedUpdate::Unset => Err(DeclineReason::Unsupported),
@@ -317,13 +321,16 @@ fn set_path(
         let pairs = ops
             .dict_pairs(&node)
             .map_err(|error| ops.decline_value(&error))?;
-        let key_text = ops.as_str(key);
-        let next =
-            tcl_cmd_core::dict::lookup(ops, &pairs, &key_text).unwrap_or_else(|| ops.empty());
+        let key_text = ops
+            .native_string_bytes(key)
+            .map_err(|error| ops.decline_value(&error))?;
+        let next = tcl_cmd_core::dict::lookup(ops, &pairs, &key_text)
+            .map_err(|error| ops.decline(&error))?
+            .unwrap_or_else(|| ops.empty());
         levels.push((pairs, key));
         node = next;
     }
-    Ok(rebuild(ops, levels, value))
+    rebuild(ops, levels, value)
 }
 
 /// `dict unset`'s key path: every intermediate key must be present — a
@@ -341,8 +348,12 @@ fn unset_path(
         let pairs = ops
             .dict_pairs(&node)
             .map_err(|error| ops.decline_value(&error))?;
-        let key_text = ops.as_str(key);
-        let Some(next) = tcl_cmd_core::dict::lookup(ops, &pairs, &key_text) else {
+        let key_text = ops
+            .native_string_bytes(key)
+            .map_err(|error| ops.decline_value(&error))?;
+        let Some(next) = tcl_cmd_core::dict::lookup(ops, &pairs, &key_text)
+            .map_err(|error| ops.decline(&error))?
+        else {
             return Err(DeclineReason::WrongRepresentation);
         };
         levels.push((pairs, key));
@@ -350,7 +361,7 @@ fn unset_path(
     }
     let innermost = tcl_cmd_core::dict::remove(ops, &node, std::slice::from_ref(last))
         .map_err(|error| ops.decline(&error))?;
-    Ok(rebuild(ops, levels, innermost))
+    rebuild(ops, levels, innermost)
 }
 
 /// Rebuild a key path bottom-up: each level takes the rebuilt level below
@@ -359,13 +370,14 @@ fn rebuild(
     ops: &mut ConstOps<'_>,
     levels: Vec<(Vec<(ConstValue, ConstValue)>, &ConstValue)>,
     innermost: ConstValue,
-) -> ConstValue {
+) -> Result<ConstValue, DeclineReason> {
     let mut value = innermost;
     for (mut pairs, key) in levels.into_iter().rev() {
-        tcl_cmd_core::dict::upsert(ops, &mut pairs, key, value);
+        tcl_cmd_core::dict::upsert(ops, &mut pairs, key, value)
+            .map_err(|error| ops.decline(&error))?;
         value = ops.new_dict(pairs);
     }
-    value
+    Ok(value)
 }
 
 impl CommandSemantics for KeyedUpdateSemantics {

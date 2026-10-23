@@ -60,10 +60,31 @@ fn installed_unit(
     document_compilation_unit_for(db, file, config).expect("the pack overlay is installed")
 }
 
+fn fixture_function<'a>(
+    unit: &'a CompilationUnit,
+    display: &str,
+) -> &'a tcl_compiler::compilation_unit::FunctionUnit {
+    let mut declarations = unit.ir_module.procedures.iter().filter(|(_, procedure)| {
+        procedure.qualified_name == display
+            && procedure
+                .declaration_site
+                .as_ref()
+                .is_some_and(|site| site.source.source_image().bytes() == unit.source.as_bytes())
+    });
+    let (&body, _) = declarations
+        .next()
+        .expect("fixture retains one original declaration for this display");
+    assert!(declarations.next().is_none());
+    assert!(unit.ir_module.procedure_ids.owns(body));
+    let function = unit.function_for_body(Some(body)).expect(display);
+    assert_eq!(function.body_id, Some(body));
+    function
+}
+
 /// `qname`'s lattice, value by value: `(variable, version, value)`,
 /// sorted.
 fn lattice_of(unit: &CompilationUnit, qname: &str) -> Vec<(String, u32, String)> {
-    lattice_values(unit.procedures.get(qname).expect(qname))
+    lattice_values(fixture_function(unit, qname))
 }
 
 /// The top level's lattice, listed as [`lattice_of`] lists a procedure's.
@@ -84,7 +105,7 @@ fn lattice_values(fu: &tcl_compiler::compilation_unit::FunctionUnit) -> Vec<(Str
 
 /// The value `name`'s version `version` holds in `qname`.
 fn value_at(unit: &CompilationUnit, qname: &str, name: &str, version: u32) -> Option<LatticeValue> {
-    let fu = unit.procedures.get(qname).expect(qname);
+    let fu = fixture_function(unit, qname);
     let sym = fu.ssa.var_symbol(name).expect(name);
     fu.sccp.values.get(&(sym, version)).cloned()
 }
@@ -96,16 +117,14 @@ fn existence_at(
     name: &str,
     version: u32,
 ) -> Option<tcl_registry::value_transfer::Existence> {
-    let fu = unit.procedures.get(qname).expect(qname);
+    let fu = fixture_function(unit, qname);
     let sym = fu.ssa.var_symbol(name).expect(name);
     fu.sccp.existence.get(&(sym, version)).copied()
 }
 
 /// The answers recorded for `command`'s statements in `qname`.
 fn answers_for(unit: &CompilationUnit, qname: &str, command: &str) -> Vec<String> {
-    unit.procedures
-        .get(qname)
-        .expect(qname)
+    fixture_function(unit, qname)
         .sccp
         .explanations
         .iter()
@@ -446,7 +465,7 @@ fn a_workspace_pack_evaluator_reaches_i230_on_the_memoised_path() {
         "both conditions fold through the pack's evaluator"
     );
     let unit = installed_unit(&db, file, config);
-    let tally = unit.procedures.get("::p").expect("::p").sccp.route_tally;
+    let tally = fixture_function(&unit, "::p").sccp.route_tally;
     assert!(
         tally.implementation > 0,
         "the procedure's memoised lattice ran the declared implementation: {tally:?}"
@@ -755,7 +774,7 @@ fn the_seven_ordered_state_witnesses() {
                 }
                 let lookup = |unit: &CompilationUnit, name: &str, version: u32| {
                     let function = if form == "procedure" {
-                        unit.procedures.get("::p")?
+                        fixture_function(unit, "::p")
                     } else {
                         &unit.top_level
                     };
@@ -887,8 +906,13 @@ fn only_a_call_a_summary_may_answer_reads_the_module() {
     let surface = declared_command_surface(&db, file);
     let registry = db.registry(&dialect);
     let options = unit_build_options(&db, file, cfg_key, registry, None, &surface);
-    let (_, keys) = build_unit_with_keys(&db, source, options);
-    let reads = |qname: &str| function_lattice(&db, keys[qname]).sccp.reads_module;
+    let (unit, keys) = build_unit_with_keys(&db, source, options);
+    let reads = |qname: &str| {
+        let body = fixture_function(&unit, qname)
+            .body_id
+            .expect("actual fixture body");
+        function_lattice(&db, keys[&body]).sccp.reads_module
+    };
     assert!(reads("::p"));
     assert!(!reads("::q"));
     assert!(!reads("::bump"));

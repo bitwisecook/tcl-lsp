@@ -31,7 +31,7 @@ import {
   activate,
   getServerLogSize,
   waitForDeepDiagnostics,
-  waitForDiagnostics,
+  waitForDiagnosticsSnapshot,
   waitForProviderResult,
 } from "./helper";
 
@@ -60,9 +60,7 @@ async function renameAt(
 // `[$other X]` behind makes both interpreters throw
 // `unknown method "X": must be Get, GetX or destroy`.
 //
-// The gate used to be reachable only from the method's own declaration.  VS
-// Code's rename gesture works from any occurrence of the symbol, so the two
-// positions below are the *common* ones — and they must refuse too.
+// Rename from either a declaration or an occurrence retains the same dispatch hazard.
 suite("Issue #1019 idx 79 — rename refuses an untracked dispatch", () => {
   const docUri = getDocUri("issue1019Idx79Hazard.tcl");
 
@@ -213,8 +211,11 @@ suite("Issue #1019 idx 11 — a proc named after a package command", () => {
     // never happens.
     const since = getServerLogSize();
     await activate(docUri);
-    await waitForDeepDiagnostics(docUri, { since });
-    const diags = vscode.languages.getDiagnostics(docUri);
+    const deep = await waitForDeepDiagnostics(docUri, { since });
+    if (!deep?.isCurrent()) {
+      throw new Error("The proc-argument deep-diagnostics report became stale");
+    }
+    const diags = [...deep.report.diagnostics];
     const seen = diags.map(codeOf);
     assert.ok(!seen.includes("W113"), `the proc shadows no built-in: ${seen.join(", ")}`);
     assert.ok(!seen.includes("W120"), `the file defines the command itself: ${seen.join(", ")}`);
@@ -231,9 +232,13 @@ suite("Issue #1019 idx 11 — a proc named after a package command", () => {
     edit.insert(builtinUri, new vscode.Position(0, 0), "proc lindex {a b} { return $a }\n");
     await vscode.workspace.applyEdit(edit);
     try {
-      const diags = await waitForDiagnostics(builtinUri, {
+      const diagsSnapshot = await waitForDiagnosticsSnapshot(builtinUri, {
         predicate: (d) => d.some((x) => codeOf(x) === "W113"),
       });
+      if (!diagsSnapshot.isCurrent()) {
+        throw new Error("The retained diagnostics report became stale before its assertions");
+      }
+      const diags = [...diagsSnapshot.report.diagnostics];
       assert.ok(
         diags.some((d) => codeOf(d) === "W113"),
         "`lindex` is a core built-in and must still be flagged",

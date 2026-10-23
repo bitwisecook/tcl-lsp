@@ -196,7 +196,7 @@ mod tests {
         let doc = "### `select`\n";
         let (undocumented, stale) = diff(doc);
         assert!(undocumented.contains(&"map".to_owned()), "{undocumented:?}");
-        assert!(stale.is_empty());
+        assert_eq!(stale.len(), 0);
     }
 
     #[test]

@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, pollUntil, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, pollUntil, waitForDiagnosticsSnapshot } from "./helper";
 
 // Caller-frame injection through `upvar`, through the real editor surface.
 //
@@ -167,10 +167,14 @@ suite("Caller-frame variables (issue #923 audit cluster C1)", () => {
   // editor: a regression that resurrects any of those FPs shows up here.
   test("none of the cluster's caller-frame reads draws W210", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       timeout: 20_000,
       predicate: () => true,
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w210 = diags.filter((d) => String(d.code) === "W210");
     assert.strictEqual(
       w210.length,

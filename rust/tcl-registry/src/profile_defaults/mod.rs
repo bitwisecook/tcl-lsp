@@ -512,7 +512,7 @@ mod tests {
     fn unknown_profile_or_field_is_none() {
         assert!(profile_field_default("TCP", "no-such-field", None).is_none());
         assert!(profile_field_default("NOPE", "idle-timeout", None).is_none());
-        assert!(profile_field_defaults("NOPE", None).is_empty());
+        assert_eq!(profile_field_defaults("NOPE", None).len(), 0);
     }
 
     #[test]

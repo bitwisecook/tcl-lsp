@@ -12,6 +12,10 @@
     "**/node_modules",
     "**/.venv*",
     "**/target",
+    // Work-only name-handling evidence: captured probe/oracle scripts kept
+    // byte-exact and not carried into the PR to `rust` (user decision
+    // 2026-10-21T12:05Z). `make lint-py`/ty already exclude experiments/.
+    "experiments/name-handling",
     "scripts/perf/corpus",
     "scripts/perf/servers",
     "scripts/perf/.stage",

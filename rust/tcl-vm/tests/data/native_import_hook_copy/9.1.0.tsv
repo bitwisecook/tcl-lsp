@@ -1,0 +1,14 @@
+event	code	compiler	source_hook	old_hook	fresh_hook	old_same	fresh_same
+import_absent	0	24	0	0	-1	1	-1
+attach_source	0	25	1	0	-1	0	-1
+import_present	0	26	1	0	1	0	1
+detach_source	0	27	0	0	1	1	0
+configure_unhooked	0	27	0	0	1	1	0
+reattach_source	0	28	1	0	1	0	1
+configure_hooked	0	31	1	0	1	0	1
+rename_old	0	31	1	0	1	0	1
+hide_old	0	31	1	-1	1	-1	1
+expose_old	0	31	1	0	1	0	1
+hide_fresh	0	32	1	0	-1	0	-1
+expose_fresh	0	33	1	0	1	0	1
+delete_source	0	35	-1	-1	-1	-1	-1

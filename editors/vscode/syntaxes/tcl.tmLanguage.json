@@ -20,7 +20,7 @@
     "comment": {
       "patterns": [
         {
-          "comment": "Line comment at command position. Uses begin/end (not a single-line match) so a trailing unescaped backslash continues the comment onto the next physical line, matching Tcl's line-continuation rule (issue #759). The two inner patterns consume escaped backslash pairs and backslash-newline continuations so that only an ODD run of trailing backslashes continues the comment (an even run, e.g. '\\\\', terminates it). contentName scopes only the '#...' body, leaving the leading ^/; and whitespace unscoped as the original match capture did.",
+          "comment": "Line comment at command position. Uses begin/end (not a single-line match) so a trailing unescaped backslash continues the comment onto the next physical line, matching Tcl's line-continuation rule (issue #759). The two inner patterns consume escaped backslash pairs and backslash-newline continuations so that only an ODD run of trailing backslashes continues the comment (an even run, e.g. '\\\\', terminates it). contentName scopes only the '#...' body, leaving the leading ^/; and whitespace unscoped.",
           "begin": "(?:^|;)\\s*(?=#)",
           "end": "(?=\\n)",
           "contentName": "comment.line.number-sign.tcl",
@@ -115,7 +115,7 @@
               "patterns": [
                 {
                   "name": "keyword.operator.option.tcl",
-                  "match": "-(?:nocase|expanded|line|linestop|lineanchor|indices|all|inline|about|start)\\b"
+                  "match": "-(?:nocase|expanded|line|linestop|lineanchor|indices|all|inline|about|start|command)\\b"
                 },
                 {
                   "name": "constant.numeric.tcl",
@@ -146,7 +146,7 @@
               "patterns": [
                 {
                   "name": "keyword.operator.option.tcl",
-                  "match": "-(?:nocase|expanded|line|linestop|lineanchor|indices|all|inline|about|start)\\b"
+                  "match": "-(?:nocase|expanded|line|linestop|lineanchor|indices|all|inline|about|start|command)\\b"
                 },
                 {
                   "name": "constant.numeric.tcl",
@@ -335,7 +335,7 @@
         {
           "comment": "Braced variable: ${name with spaces}",
           "name": "variable.other.braced.tcl",
-          "match": "\\$\\{[^}]+\\}"
+          "match": "\\$\\{[^}]*\\}"
         },
         {
           "comment": "Namespace-qualified variable with optional array: $ns::var(idx)",

@@ -1,0 +1,14 @@
+SETUP|namespace eval ReceiptReuse {proc p {} {return P}; proc q {} {return Q}}; alias ReceiptReuse::a ReceiptReuse::p
+REUSE_1|namespace import ::ReceiptReuse::a
+VALUE_1|list [info alias a] [a]
+REPLACE|alias ReceiptReuse::a ReceiptReuse::q
+REUSE_2|namespace import ::ReceiptReuse::a
+VALUE_2|list [info alias a] [a]
+RECREATE|namespace delete ReceiptReuse; namespace eval ReceiptReuse {proc p {} {return R}}; alias ReceiptReuse::a ReceiptReuse::p
+REUSE_3|namespace import ::ReceiptReuse::a
+VALUE_3|list [info alias a] [a]
+REPEATED_PATTERN|namespace import ::ReceiptReuse::a ::ReceiptReuse::a
+VALUE_4|list [info alias a] [a]
+BREAK_SETUP|namespace eval ReceiptBreak {proc p {} {return P}; proc q {} {return Q}}
+BREAK_IMPORT|namespace import ::ReceiptBreak::*
+BREAK_COMMANDS|list [info -nons commands p] [info -nons commands q]

@@ -302,6 +302,35 @@ may carry a human-readable label such as `foreach`, `if`, or `catch body`.
 Explorer surfaces the label on the opening operation and on every `br` or
 `br_if` whose decoded target reaches the matching close.
 
+## VS Code source projection lease
+
+The VS Code host sends `compilerExplorer` and `compilerExplorerView` an explicit
+source string and dialect. Those requests do not carry a selected document
+Registry or project-input receipt, so the returned compiler data remains a
+standalone source compilation. When the input came from an editor, the host
+retains the exact document snapshot, URI, version, resource dialect hint, panel
+generation and compile token as a separate readonly navigation witness. The
+host validates in-process WASM completion against the same current lease before
+the webview renders it; host-brokered results are suppressed when their lease
+has been superseded. The renderer does not receive a resource Registry/project-input
+receipt: its explicit dialect is recorded with the request, while the resource
+hint and captured analysis context are retained as context only. A projection
+or highlight may navigate only while the exact source snapshot and panel/compile
+token remain current; changing the document, panel or newer compile revokes the
+witness. Standalone input still compiles, but has no document navigation target.
+
+Navigation consumes the renderer's `startLine`/`endLine` and
+`startColUtf16`/`endColUtf16` pair. The byte offsets remain byte offsets and are
+never passed to VS Code's UTF-16 `positionAt` or converted locally. Missing,
+malformed or out-of-bounds UTF-16 coordinates leave that row non-navigable.
+Navigation checks repeat after document-open/show awaits so a projection
+cannot reveal a newer document through a span from an older source snapshot.
+A `showTextDocument` request already in flight may finish opening its read-only
+historical projection after its compile lease expires; that projection has no
+current source-navigation authority. A webview callback is bound to the panel
+instance and generation that registered it, so delayed messages from a disposed
+panel cannot act on a replacement panel.
+
 ## Versioning
 
 The shape above is additive.  Consumers that don't understand a new

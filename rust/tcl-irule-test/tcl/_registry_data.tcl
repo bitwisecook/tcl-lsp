@@ -263,7 +263,7 @@ namespace eval ::tmm::expr_ops {
     # Authority for the word-form operator set and for each operator's
     # binding power is the F5 dialect model -- F5_TCL_WORDS and
     # F5_TCL_PRECEDENCE_ROWS in rust/tcl-dialect/src/model/expr_grammar.rs,
-    # measured in docs/design/f5/bigip-irule-parser-measurements.md (§4a).
+    # measured in docs/design/f5/embedded-tcl-contract.md (§4a).
     #
     # _gen_operators is the subset the rewriter turns into helper-proc
     # calls: the string comparisons that have no plain-Tcl spelling.  The

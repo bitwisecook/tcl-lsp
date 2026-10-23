@@ -37,10 +37,7 @@ fn spaced_workspace(label: &str) -> std::path::PathBuf {
     root
 }
 
-/// §B: an unencoded folder URI used to fail `Uri`'s deserialisation, which
-/// failed the whole `initialize` request — the session never started.  The
-/// transport boundary now repairs it, so the handshake succeeds and the server
-/// reports the folder in its *encoded* form.
+/// Unencoded folder URIs are accepted and reported with canonical encoding.
 #[test]
 fn an_unencoded_workspace_folder_uri_is_accepted_and_normalised() {
     let root = spaced_workspace("unencoded");
@@ -90,11 +87,7 @@ fn a_scanned_file_and_the_same_open_file_are_one_document() {
     std::fs::write(&lib, "proc shared_marker {} { return 1 }\n").expect("write lib");
     std::fs::write(&caller, "shared_marker\n").expect("write caller");
 
-    // The client sends unencoded URIs throughout — the shape that used to make
-    // the scan's spelling and the editor's spelling disagree.  `didOpen` is
-    // driven by hand rather than through `open_ready`, because the server
-    // answers on the *normalised* URI (the only valid spelling of the two), so
-    // there is no `publishDiagnostics` for the raw one to wait on.
+    // Replies use canonical URIs; waiting on the raw request spelling cannot match them.
     let raw_root = format!("file://{}", root.to_string_lossy());
     let raw_lib = format!("file://{}", lib.to_string_lossy());
     let encoded_lib = raw_lib.replace(' ', "%20");

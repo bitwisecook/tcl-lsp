@@ -47,6 +47,7 @@ use crate::editor_extensions::{
     Language, ZED_LANGUAGES, ZedLanguage, all_extensions, language_of_environment, languages,
     shebang_stem, zed_config_path,
 };
+use crate::util::source_literals::{elisp_string, lua_string, toml_array, toml_string};
 use crate::util::{replace_generated_region, repo_root, write_if_changed};
 
 const ZED_EXTENSION: &str = "editors/zed/extension.toml";
@@ -71,6 +72,12 @@ const LUA_KEYWORDS: &[&str] = &[
 
 /// The width comment lists and extension tables wrap at.
 const WRAP_WIDTH: usize = 78;
+
+fn contains_source_line_separator(value: &str) -> bool {
+    value
+        .chars()
+        .any(|ch| ch.is_control() || matches!(ch, '\u{2028}' | '\u{2029}'))
+}
 
 /// What every render reads: the editor language model and the selectable
 /// environments.
@@ -304,33 +311,458 @@ fn with_default_dialect(text: &str) -> String {
         .into_owned()
 }
 
-/// Rewrite the value list of every `<key> = { … }` on its own line.
-fn set_lua_list(text: &str, key: &str, items: &[String]) -> Result<String> {
-    let re = Regex::new(&format!(r"{}\s*=\s*\{{[^}}]*\}}", regex::escape(key)))
-        .context("the Lua list pattern is a valid regex")?;
-    if !re.is_match(text) {
-        bail!("no `{key} = {{ … }}` list to generate");
+#[derive(Clone, Copy)]
+enum LuaFiletypesOwner {
+    ReturnedRootTable,
+    LspconfigDefaultConfig,
+}
+
+#[derive(Clone, Copy)]
+struct LuaToken<'a> {
+    text: &'a str,
+    start: usize,
+}
+
+fn lua_long_bracket_open(bytes: &[u8], start: usize) -> Option<(usize, usize)> {
+    if bytes.get(start) != Some(&b'[') {
+        return None;
     }
-    let quoted: Vec<String> = items.iter().map(|item| format!("'{item}'")).collect();
-    Ok(re
-        .replace_all(text, |_: &regex::Captures| {
-            format!("{key} = {{ {} }}", quoted.join(", "))
-        })
-        .into_owned())
+    let mut cursor = start + 1;
+    while bytes.get(cursor) == Some(&b'=') {
+        cursor += 1;
+    }
+    (bytes.get(cursor) == Some(&b'[')).then_some((cursor - start - 1, cursor + 1))
+}
+
+fn skip_lua_long_bracket(bytes: &[u8], body: usize, equals: usize) -> Result<usize> {
+    let close = format!("]{}]", "=".repeat(equals));
+    let relative = bytes[body..]
+        .windows(close.len())
+        .position(|window| window == close.as_bytes())
+        .ok_or_else(|| anyhow!("unterminated Lua long string or comment"))?;
+    Ok(body + relative + close.len())
+}
+
+/// Tokenize the lexical surface needed to identify Lua table fields. Strings
+/// and comments are skipped, so marker-looking text in them is never a field.
+fn lua_tokens(text: &str) -> Result<Vec<LuaToken<'_>>> {
+    let bytes = text.as_bytes();
+    let mut tokens = Vec::new();
+    let mut cursor = 0;
+    while cursor < bytes.len() {
+        if bytes[cursor].is_ascii_whitespace() {
+            cursor += 1;
+            continue;
+        }
+        if bytes[cursor] == b'-' && bytes.get(cursor + 1) == Some(&b'-') {
+            cursor += 2;
+            if let Some((equals, body)) = lua_long_bracket_open(bytes, cursor) {
+                cursor = skip_lua_long_bracket(bytes, body, equals)?;
+            } else {
+                while cursor < bytes.len() && bytes[cursor] != b'\n' {
+                    cursor += 1;
+                }
+            }
+            continue;
+        }
+        if let Some((equals, body)) = lua_long_bracket_open(bytes, cursor) {
+            let start = cursor;
+            cursor = skip_lua_long_bracket(bytes, body, equals)?;
+            tokens.push(LuaToken {
+                text: "<string>",
+                start,
+            });
+            continue;
+        }
+        if matches!(bytes[cursor], b'\'' | b'"') {
+            let start = cursor;
+            let quote = bytes[cursor];
+            cursor += 1;
+            let mut closed = false;
+            while cursor < bytes.len() {
+                match bytes[cursor] {
+                    b'\\' => cursor = (cursor + 2).min(bytes.len()),
+                    byte if byte == quote => {
+                        cursor += 1;
+                        closed = true;
+                        break;
+                    }
+                    b'\n' | b'\r' => bail!("newline in quoted Lua string"),
+                    _ => cursor += 1,
+                }
+            }
+            if !closed {
+                bail!("unterminated quoted Lua string");
+            }
+            tokens.push(LuaToken {
+                text: "<string>",
+                start,
+            });
+            continue;
+        }
+        let start = cursor;
+        if bytes[cursor].is_ascii_alphabetic() || bytes[cursor] == b'_' {
+            cursor += 1;
+            while cursor < bytes.len()
+                && (bytes[cursor].is_ascii_alphanumeric() || bytes[cursor] == b'_')
+            {
+                cursor += 1;
+            }
+        } else if bytes[cursor].is_ascii() {
+            cursor += 1;
+        } else {
+            let width = text[cursor..].chars().next().map_or(1, char::len_utf8);
+            cursor += width;
+        }
+        tokens.push(LuaToken {
+            text: &text[start..cursor],
+            start,
+        });
+    }
+    Ok(tokens)
+}
+
+fn lua_matching_brace(tokens: &[LuaToken<'_>], open: usize) -> Result<usize> {
+    anyhow::ensure!(
+        tokens.get(open).is_some_and(|token| token.text == "{"),
+        "expected Lua table opener"
+    );
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(open) {
+        match token.text {
+            "{" => depth += 1,
+            "}" => {
+                depth = depth
+                    .checked_sub(1)
+                    .ok_or_else(|| anyhow!("unbalanced Lua table close"))?;
+                if depth == 0 {
+                    return Ok(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    bail!("unterminated Lua table")
+}
+
+fn lua_direct_table_fields(
+    tokens: &[LuaToken<'_>],
+    parent: usize,
+    name: &str,
+) -> Result<Vec<usize>> {
+    let end = lua_matching_brace(tokens, parent)?;
+    let mut fields = Vec::new();
+    let mut nested = 0usize;
+    for index in parent + 1..end {
+        let token = tokens[index].text;
+        if nested == 0
+            && matches!(tokens[index - 1].text, "{" | "," | ";")
+            && token == name
+            && tokens.get(index + 1).is_some_and(|token| token.text == "=")
+            && tokens.get(index + 2).is_some_and(|token| token.text == "{")
+        {
+            fields.push(index);
+        }
+        match token {
+            "{" => nested += 1,
+            "}" => nested -= 1,
+            _ => {}
+        }
+    }
+    Ok(fields)
+}
+
+/// This generator accepts a bounded authored Lua table chunk, not arbitrary
+/// executing Lua. Block/function expressions require a real Lua parser and are
+/// refused instead of donating fields across a different lexical scope.
+fn lua_table_chunk_delimiters(tokens: &[LuaToken<'_>]) -> Result<()> {
+    let mut stack = Vec::new();
+    for token in tokens {
+        match token.text {
+            "function" | "local" | "if" | "then" | "else" | "elseif" | "end" | "for" | "while"
+            | "repeat" | "until" | "do" | "return" | "goto" => {
+                bail!("unsupported Lua block in authored table chunk")
+            }
+            "{" => stack.push("}"),
+            "(" => stack.push(")"),
+            "[" => bail!("computed/quoted Lua keys and indexing require an unsupported key census"),
+            "}" | ")" | "]" => anyhow::ensure!(
+                stack.pop() == Some(token.text),
+                "unbalanced Lua table chunk delimiters"
+            ),
+            _ => {}
+        }
+    }
+    anyhow::ensure!(stack.is_empty(), "unterminated Lua table chunk delimiter");
+    Ok(())
+}
+
+fn lua_tokens_equal(tokens: &[LuaToken<'_>], expected: &[&str]) -> bool {
+    tokens.len() == expected.len()
+        && tokens
+            .iter()
+            .zip(expected)
+            .all(|(actual, expected)| actual.text == *expected)
+}
+
+/// Admit the exact supported chunk ancestry before selecting any table field.
+fn lua_filetypes_owner_open(
+    text: &str,
+    tokens: &[LuaToken<'_>],
+    owner: LuaFiletypesOwner,
+) -> Result<usize> {
+    match owner {
+        LuaFiletypesOwner::ReturnedRootTable => {
+            anyhow::ensure!(
+                tokens.first().is_some_and(|token| token.text == "return"),
+                "expected a root return statement, not a nested function return"
+            );
+            lua_table_chunk_delimiters(&tokens[1..])?;
+            let end = lua_matching_brace(tokens, 1)?;
+            anyhow::ensure!(
+                end + 1 == tokens.len(),
+                "unsupported statements after root return table"
+            );
+            Ok(1)
+        }
+        LuaFiletypesOwner::LspconfigDefaultConfig => {
+            let prefix = [
+                "local",
+                "lspconfig",
+                "=",
+                "require",
+                "(",
+                "<string>",
+                ")",
+                "local",
+                "configs",
+                "=",
+                "require",
+                "(",
+                "<string>",
+                ")",
+                "if",
+                "not",
+                "configs",
+                ".",
+                "tcl_lsp",
+                "then",
+                "configs",
+                ".",
+                "tcl_lsp",
+                "=",
+                "{",
+            ];
+            anyhow::ensure!(
+                tokens.len() >= prefix.len() && lua_tokens_equal(&tokens[..prefix.len()], &prefix),
+                "unsupported lspconfig binding/guard/assignment ancestry"
+            );
+            for (index, module) in [(5, "lspconfig"), (12, "lspconfig.configs")] {
+                let start = tokens[index].start;
+                anyhow::ensure!(
+                    text[start..].starts_with(&format!("'{module}'"))
+                        || text[start..].starts_with(&format!("\"{module}\"")),
+                    "lspconfig owner is not bound to the supported required module"
+                );
+            }
+            let open = prefix.len() - 1;
+            let end = lua_matching_brace(tokens, open)?;
+            lua_table_chunk_delimiters(&tokens[open..=end])?;
+            let setup = ["end", "lspconfig", ".", "tcl_lsp", ".", "setup", "(", "{"];
+            anyhow::ensure!(
+                tokens.len() >= end + 1 + setup.len()
+                    && lua_tokens_equal(&tokens[end + 1..end + 1 + setup.len()], &setup),
+                "unsupported lspconfig root continuation"
+            );
+            let setup_open = end + setup.len();
+            let setup_end = lua_matching_brace(tokens, setup_open)?;
+            lua_table_chunk_delimiters(&tokens[setup_open..=setup_end])?;
+            anyhow::ensure!(
+                lua_tokens_equal(&tokens[setup_end + 1..], &[")"]),
+                "unsupported statements after lspconfig setup"
+            );
+            let defaults = lua_direct_table_fields(tokens, open, "default_config")?;
+            anyhow::ensure!(defaults.len() == 1, "expected one default_config table");
+            Ok(defaults[0] + 2)
+        }
+    }
+}
+
+/// Select the one exact Lua fence belonging to the supported Markdown section.
+/// Markdown prose is never lexed as Lua; offsets are retained in the original
+/// document and only that source region is replaced.
+fn neovim_lspconfig_fence(text: &str) -> Result<std::ops::Range<usize>> {
+    use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
+    let mut ancestry = Vec::new();
+    let mut heading_text = None::<String>;
+    let mut in_section = false;
+    let mut section_count = 0;
+    let mut selected_code = false;
+    let mut selected_range = None::<std::ops::Range<usize>>;
+    let mut result = None;
+    for (event, range) in Parser::new(text).into_offset_iter() {
+        match event {
+            Event::Start(tag) => {
+                if ancestry.is_empty() {
+                    match &tag {
+                        Tag::Heading {
+                            level: HeadingLevel::H1 | HeadingLevel::H2,
+                            ..
+                        } => {
+                            in_section = false;
+                            if matches!(
+                                &tag,
+                                Tag::Heading {
+                                    level: HeadingLevel::H2,
+                                    ..
+                                }
+                            ) {
+                                heading_text = Some(String::new());
+                            }
+                        }
+                        Tag::CodeBlock(kind) if in_section => {
+                            anyhow::ensure!(
+                                matches!(kind, CodeBlockKind::Fenced(info) if info.as_ref() == "lua"),
+                                "unsupported lspconfig code block kind"
+                            );
+                            anyhow::ensure!(result.is_none(), "multiple lspconfig Lua fences");
+                            selected_code = true;
+                            selected_range = None;
+                        }
+                        _ => {}
+                    }
+                }
+                ancestry.push(tag.to_end());
+            }
+            Event::End(end) => {
+                anyhow::ensure!(
+                    ancestry.pop() == Some(end),
+                    "inconsistent Markdown parser ancestry"
+                );
+                if ancestry.is_empty() {
+                    if end == TagEnd::Heading(HeadingLevel::H2) {
+                        if heading_text.take().as_deref() == Some("nvim-lspconfig (Neovim 0.8+)") {
+                            section_count += 1;
+                            anyhow::ensure!(
+                                section_count == 1,
+                                "duplicate lspconfig Markdown section"
+                            );
+                            in_section = true;
+                        }
+                    } else if end == TagEnd::CodeBlock && selected_code {
+                        result = Some(
+                            selected_range
+                                .take()
+                                .ok_or_else(|| anyhow!("empty lspconfig Lua fence"))?,
+                        );
+                        selected_code = false;
+                    }
+                }
+            }
+            Event::Text(value) => {
+                if let Some(heading) = &mut heading_text {
+                    heading.push_str(&value);
+                }
+                if selected_code {
+                    anyhow::ensure!(
+                        text.get(range.clone()) == Some(value.as_ref()),
+                        "Lua fence content requires a transformed Markdown source mapping"
+                    );
+                    if let Some(previous) = &mut selected_range {
+                        anyhow::ensure!(
+                            previous.end == range.start,
+                            "discontinuous Lua fence source mapping"
+                        );
+                        previous.end = range.end;
+                    } else {
+                        selected_range = Some(range);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    result.ok_or_else(|| anyhow!("missing lspconfig Lua fence"))
+}
+
+/// Select a real field from one of the supported table owners, then verify its
+/// canonical source row and neighboring fields before replacing that row.
+fn set_lua_list(
+    text: &str,
+    owner: LuaFiletypesOwner,
+    indent: &str,
+    before: &str,
+    after: &str,
+    items: &[String],
+) -> Result<String> {
+    let tokens = lua_tokens(text)?;
+    let owner_open = lua_filetypes_owner_open(text, &tokens, owner)?;
+    let fields = lua_direct_table_fields(&tokens, owner_open, "filetypes")?;
+    anyhow::ensure!(
+        fields.len() == 1,
+        "expected one filetypes field in the selected Lua table"
+    );
+    let start = tokens[fields[0]].start;
+    let line_index = text[..start].bytes().filter(|byte| *byte == b'\n').count();
+    let lines: Vec<&str> = text.split_inclusive('\n').collect();
+    let line = *lines
+        .get(line_index)
+        .ok_or_else(|| anyhow!("filetypes field has no source line"))?;
+    let body = line.strip_suffix('\n').unwrap_or(line);
+    let body = body.strip_suffix('\r').unwrap_or(body);
+    anyhow::ensure!(
+        body.starts_with(indent)
+            && body[indent.len()..].starts_with("filetypes = { ")
+            && body.ends_with(" },"),
+        "filetypes field is outside the supported canonical source row"
+    );
+    let previous = lines[..line_index]
+        .iter()
+        .rev()
+        .map(|line| line.trim_end_matches(['\r', '\n']))
+        .find(|line| !line.trim().is_empty());
+    let next = lines[line_index + 1..]
+        .iter()
+        .map(|line| line.trim_end_matches(['\r', '\n']))
+        .find(|line| !line.trim().is_empty());
+    anyhow::ensure!(
+        previous.is_some_and(|line| line.trim() == before)
+            && next.is_some_and(|line| line.trim() == after),
+        "filetypes field does not have the supported neighboring owner fields"
+    );
+    let quoted: Vec<String> = items
+        .iter()
+        .map(|item| lua_string(item))
+        .collect::<Result<_>>()?;
+    let replacement = format!("{indent}filetypes = {{ {} }},", quoted.join(", "));
+    let mut output = String::with_capacity(text.len() + replacement.len());
+    for (index, original) in lines.iter().enumerate() {
+        if index == line_index {
+            output.push_str(&replacement);
+            if original.ends_with("\r\n") {
+                output.push_str("\r\n");
+            } else if original.ends_with('\n') {
+                output.push('\n');
+            }
+        } else {
+            output.push_str(original);
+        }
+    }
+    Ok(output)
 }
 
 /// A Lua table key, bare when it is an identifier that is not a reserved
 /// word.
-fn lua_key(key: &str) -> String {
+fn lua_key(key: &str) -> Result<String> {
     let identifier = key
         .chars()
         .next()
         .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
         && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
     if identifier && !LUA_KEYWORDS.contains(&key) {
-        key.to_owned()
+        Ok(key.to_owned())
     } else {
-        format!("['{key}']")
+        Ok(format!("[{}]", lua_string(key)?))
     }
 }
 
@@ -390,24 +822,20 @@ fn helix_block(
     language_id: Option<&str>,
     file_types: &[String],
     shebangs: &[String],
-) -> String {
-    let quoted = |items: &[String]| {
-        items
-            .iter()
-            .map(|item| format!("\"{item}\""))
-            .collect::<Vec<_>>()
-            .join(", ")
-    };
-    let mut out = format!("# {comment}\n[[language]]\nname = \"{name}\"\n");
+) -> Result<String> {
+    if contains_source_line_separator(comment) {
+        bail!("Helix comment contains a line or control separator");
+    }
+    let mut out = format!("# {comment}\n[[language]]\nname = {}\n", toml_string(name)?);
     if let Some(id) = language_id {
-        let _ = writeln!(out, "language-id = \"{id}\"");
+        let _ = writeln!(out, "language-id = {}", toml_string(id)?);
     }
     out.push_str("scope = \"source.tcl\"\n");
     if !file_types.is_empty() {
-        let _ = writeln!(out, "file-types = [{}]", quoted(file_types));
+        let _ = writeln!(out, "file-types = {}", toml_array(file_types)?);
     }
     if !shebangs.is_empty() {
-        let _ = writeln!(out, "shebangs = [{}]", quoted(shebangs));
+        let _ = writeln!(out, "shebangs = {}", toml_array(shebangs)?);
     }
     out.push_str(concat!(
         "comment-tokens = [\"#\"]\n",
@@ -415,7 +843,7 @@ fn helix_block(
         "language-servers = [\"tcl-lsp\"]\n",
         "auto-pairs = { \"{\" = \"}\", \"[\" = \"]\", \"(\" = \")\", \"\\\"\" = \"\\\"\" }\n",
     ));
-    out
+    Ok(out)
 }
 
 /// The environments Helix gets a `[[language]]` block for: each has a file
@@ -443,7 +871,7 @@ fn render_helix_readme(original: &str, model: &Model) -> Result<String> {
             None,
             &plain.extensions,
             &plain.shebang_words,
-        ),
+        )?,
         concat!(
             "# Each environment that owns a file type or a shebang interpreter gets a\n",
             "# language entry of its own, so Helix sends a distinct `language-id`: the id\n",
@@ -458,7 +886,7 @@ fn render_helix_readme(original: &str, model: &Model) -> Result<String> {
             Some(&language_id_of(model, environment)),
             &reg.extensions,
             &reg.shebang_words,
-        ));
+        )?);
     }
     let text = replace_generated_region(original, "helix-languages", &blocks.join("\n"))?;
 
@@ -499,37 +927,42 @@ fn render_helix_readme(original: &str, model: &Model) -> Result<String> {
 
 // Emacs
 
-/// An Emacs regexp matching the file names ending in one of `extensions`,
-/// written as an elisp string.
-fn elisp_extension_regexp(extensions: &[String]) -> String {
-    match extensions {
-        [one] => format!("\"\\\\.{one}\\\\'\""),
-        many => format!("\"\\\\.\\\\({}\\\\)\\\\'\"", many.join("\\\\|")),
+/// Escape one string for literal use in an Emacs regular expression.
+fn elisp_regex_literal(value: &str) -> String {
+    let mut escaped = String::new();
+    for ch in value.chars() {
+        if matches!(ch, '\\' | '.' | '*' | '+' | '?' | '^' | '$' | '[' | ']') {
+            escaped.push('\\');
+        }
+        escaped.push(ch);
     }
+    escaped
+}
+
+/// An Emacs regexp matching the file names ending in one of `extensions`,
+/// emitted as a safely quoted Elisp string while preserving the established
+/// grouped pattern form.
+fn elisp_extension_regexp(extensions: &[String]) -> Result<String> {
+    let escaped: Vec<String> = extensions
+        .iter()
+        .map(|extension| elisp_regex_literal(extension))
+        .collect();
+    let pattern = match escaped.as_slice() {
+        [one] => format!(r"\.{one}\'"),
+        many => format!(r"\.\({}\)\'", many.join(r"\|")),
+    };
+    elisp_string(&pattern)
 }
 
 /// An Emacs regexp matching a path ending in one of the whole basenames, as
-/// an elisp string.
-fn elisp_basename_regexp(names: &[String]) -> String {
-    let escaped: Vec<String> = names
-        .iter()
-        .map(|name| name.replace('.', "\\\\."))
-        .collect();
-    match escaped.as_slice() {
-        [one] => format!("\"/{one}\\\\'\""),
-        many => format!("\"/\\\\({}\\\\)\\\\'\"", many.join("\\\\|")),
-    }
-}
-
-/// The opening of a `(dolist (var '("a" "b" …)) …` form: the quoted `items`
-/// wrapped under the list and closed with `))`.
-fn elisp_dolist_head(var: &str, items: &[String]) -> String {
-    let mut words: Vec<String> = items.iter().map(|item| format!("\"{item}\"")).collect();
-    if let Some(last) = words.last_mut() {
-        last.push_str("))");
-    }
-    let first = format!("(dolist ({var} '(");
-    wrap_words(&first, &" ".repeat(first.len()), &words)
+/// an Elisp string.
+fn elisp_basename_regexp(names: &[String]) -> Result<String> {
+    let escaped: Vec<String> = names.iter().map(|name| elisp_regex_literal(name)).collect();
+    let pattern = match escaped.as_slice() {
+        [one] => format!(r"/{one}\'"),
+        many => format!(r"/\({}\)\'", many.join(r"\|")),
+    };
+    elisp_string(&pattern)
 }
 
 /// An environment with its own Emacs derived mode, and the mode's name.
@@ -568,13 +1001,13 @@ fn derived_modes(model: &Model) -> Vec<DerivedMode<'_>> {
 /// The derived-mode definitions and every `auto-mode-alist` /
 /// `interpreter-mode-alist` row: what each mode owns, then plain `tcl-mode`
 /// for the rest of the family.
-fn emacs_mode_forms(model: &Model, owners: &[DerivedMode<'_>]) -> String {
+fn emacs_mode_forms(model: &Model, owners: &[DerivedMode<'_>]) -> Result<String> {
     let mut body = String::new();
     for (environment, mode) in owners {
         let _ = writeln!(
             body,
-            "(define-derived-mode {mode} tcl-mode \"{}\")",
-            environment.short_name
+            "(define-derived-mode {mode} tcl-mode {})",
+            elisp_string(&environment.short_name)?
         );
     }
     body.push('\n');
@@ -585,20 +1018,21 @@ fn emacs_mode_forms(model: &Model, owners: &[DerivedMode<'_>]) -> String {
             let _ = writeln!(
                 body,
                 "(add-to-list 'auto-mode-alist '({} . {mode}))",
-                elisp_extension_regexp(&reg.extensions)
+                elisp_extension_regexp(&reg.extensions)?
             );
         }
         if !reg.filenames.is_empty() {
             let _ = writeln!(
                 body,
                 "(add-to-list 'auto-mode-alist '({} . {mode}))",
-                elisp_basename_regexp(&reg.filenames)
+                elisp_basename_regexp(&reg.filenames)?
             );
         }
         for word in &reg.shebang_words {
             let _ = writeln!(
                 body,
-                "(add-to-list 'interpreter-mode-alist '(\"{word}\" . {mode}))"
+                "(add-to-list 'interpreter-mode-alist '({} . {mode}))",
+                elisp_string(word)?
             );
         }
     }
@@ -609,42 +1043,42 @@ fn emacs_mode_forms(model: &Model, owners: &[DerivedMode<'_>]) -> String {
         ";; their own name or content, so sending languageId \"tcl\" costs nothing but\n",
         ";; the mode line.\n",
     ));
-    body.push_str(&elisp_dolist_head(
-        "ext",
-        &model.extensions_outside(&derived),
-    ));
-    body.push_str(concat!(
-        "  (add-to-list 'auto-mode-alist\n",
-        "               (cons (concat \"\\\\.\" ext \"\\\\'\") 'tcl-mode)))\n",
-    ));
+    let plain_extensions = model.extensions_outside(&derived);
+    if !plain_extensions.is_empty() {
+        let _ = writeln!(
+            body,
+            "(add-to-list 'auto-mode-alist '({} . tcl-mode))",
+            elisp_extension_regexp(&plain_extensions)?
+        );
+    }
     let names = model.filenames_outside(&derived);
     if !names.is_empty() {
-        body.push_str(&elisp_dolist_head("name", &names));
-        body.push_str(concat!(
-            "  (add-to-list 'auto-mode-alist\n",
-            "               (cons (concat \"/\" (regexp-quote name) \"\\\\'\") 'tcl-mode)))\n",
-        ));
+        let _ = writeln!(
+            body,
+            "(add-to-list 'auto-mode-alist '({} . tcl-mode))",
+            elisp_basename_regexp(&names)?
+        );
     }
-    body
+    Ok(body)
 }
 
 /// The `eglot-server-programs` rows: plain `tcl-mode`, then each derived
 /// mode with the language id it sends.
-fn emacs_eglot_forms(model: &Model, owners: &[DerivedMode<'_>]) -> String {
+fn emacs_eglot_forms(model: &Model, owners: &[DerivedMode<'_>]) -> Result<String> {
     let mut eglot = String::from(concat!(
         "(with-eval-after-load 'eglot\n",
         "  (add-to-list 'eglot-server-programs\n",
         "               '(tcl-mode . (\"/path/to/tcl-lsp-server\")))\n",
     ));
     for (index, (environment, mode)) in owners.iter().enumerate() {
-        let id = language_id_of(model, environment);
+        let id = elisp_string(&language_id_of(model, environment))?;
         let close = if index + 1 == owners.len() { ")" } else { "" };
         let _ = writeln!(
             eglot,
-            "  (add-to-list 'eglot-server-programs\n               '(({mode} :language-id \"{id}\") . (\"/path/to/tcl-lsp-server\"))){close}"
+            "  (add-to-list 'eglot-server-programs\n               '(({mode} :language-id {id}) . (\"/path/to/tcl-lsp-server\"))){close}"
         );
     }
-    eglot
+    Ok(eglot)
 }
 
 /// The `eglot-ensure` hooks: plain `tcl-mode` and each derived mode.
@@ -707,8 +1141,8 @@ fn emacs_notes(model: &Model, owners: &[DerivedMode<'_>]) -> Result<String> {
 fn render_emacs_readme(original: &str, model: &Model) -> Result<String> {
     let owners = derived_modes(model);
     let text =
-        replace_generated_region(original, "emacs-modes", &emacs_mode_forms(model, &owners))?;
-    let text = replace_generated_region(&text, "emacs-eglot", &emacs_eglot_forms(model, &owners))?;
+        replace_generated_region(original, "emacs-modes", &emacs_mode_forms(model, &owners)?)?;
+    let text = replace_generated_region(&text, "emacs-eglot", &emacs_eglot_forms(model, &owners)?)?;
     let text = replace_generated_region(&text, "emacs-hooks", &emacs_hook_forms(&owners))?;
     let text = replace_generated_region(&text, "emacs-notes", &emacs_notes(model, &owners)?)?;
     let text = replace_generated_region(
@@ -727,7 +1161,7 @@ fn render_emacs_readme(original: &str, model: &Model) -> Result<String> {
 /// The `extension = { … }` entries: a comment and a wrapped run of
 /// `ext = 'filetype'` per language. An extra language keeps its own file
 /// type.
-fn neovim_extensions(model: &Model, indent: &str) -> String {
+fn neovim_extensions(model: &Model, indent: &str) -> Result<String> {
     let mut out = String::new();
     for lang in &model.langs {
         if lang.extensions.is_empty() {
@@ -741,23 +1175,27 @@ fn neovim_extensions(model: &Model, indent: &str) -> String {
         let items: Vec<String> = lang
             .extensions
             .iter()
-            .map(|ext| format!("{} = '{file_type}'", lua_key(ext)))
-            .collect();
+            .map(|ext| Ok(format!("{} = {}", lua_key(ext)?, lua_string(file_type)?)))
+            .collect::<Result<_>>()?;
+        anyhow::ensure!(
+            !contains_source_line_separator(&lang.aliases[0]),
+            "Neovim language alias contains a line or control separator"
+        );
         let _ = writeln!(out, "{indent}-- {}", lang.aliases[0]);
         out.push_str(&wrap_words(indent, indent, &comma_separated(&items, true)));
     }
-    out
+    Ok(out)
 }
 
 /// A `pattern` entry that gives a script with no extension the `tcl` file
 /// type from the interpreter its first line names.
-fn neovim_shebangs(model: &Model, indent: &str) -> String {
+fn neovim_shebangs(model: &Model, indent: &str) -> Result<String> {
     let words: Vec<String> = model
         .shebang_stems()
         .iter()
-        .map(|word| format!("'{word}'"))
-        .collect();
-    format!(
+        .map(|word| lua_string(word))
+        .collect::<Result<_>>()?;
+    Ok(format!(
         "{indent}-- Scripts named by their interpreter rather than an extension.\n\
          {indent}['.*'] = {{\n\
          {indent}  function(_, bufnr)\n\
@@ -771,7 +1209,7 @@ fn neovim_shebangs(model: &Model, indent: &str) -> String {
          {indent}  {{ priority = -math.huge }},\n\
          {indent}}},\n",
         words.join(", ")
-    )
+    ))
 }
 
 /// The file types a Neovim server entry attaches to: plain `tcl`, and the
@@ -797,7 +1235,14 @@ fn default_dialect_row_regex() -> &'static Regex {
 }
 
 fn render_neovim_lua(original: &str, model: &Model) -> Result<String> {
-    let text = set_lua_list(original, "filetypes", &neovim_filetypes(model))?;
+    let text = set_lua_list(
+        original,
+        LuaFiletypesOwner::ReturnedRootTable,
+        "  ",
+        "cmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },",
+        "root_markers = { '.git' },",
+        &neovim_filetypes(model),
+    )?;
     let text = replace_generated_region(
         &text,
         "neovim-dialects",
@@ -807,13 +1252,24 @@ fn render_neovim_lua(original: &str, model: &Model) -> Result<String> {
 }
 
 fn render_neovim_readme(original: &str, model: &Model) -> Result<String> {
-    let text = set_lua_list(original, "filetypes", &neovim_filetypes(model))?;
+    let region = neovim_lspconfig_fence(original)?;
+    let rendered = set_lua_list(
+        &original[region.clone()],
+        LuaFiletypesOwner::LspconfigDefaultConfig,
+        "      ",
+        "cmd = { '/path/to/tcl-lsp-server' },",
+        "root_dir = lspconfig.util.root_pattern('.git'),",
+        &neovim_filetypes(model),
+    )?;
+    let mut text = original.to_owned();
+    text.replace_range(region, &rendered);
     let text = replace_generated_region(
         &text,
         "neovim-extensions",
-        &neovim_extensions(model, "    "),
+        &neovim_extensions(model, "    ")?,
     )?;
-    let text = replace_generated_region(&text, "neovim-shebangs", &neovim_shebangs(model, "    "))?;
+    let text =
+        replace_generated_region(&text, "neovim-shebangs", &neovim_shebangs(model, "    ")?)?;
     let text = replace_generated_region(
         &text,
         "neovim-dialects",
@@ -923,8 +1379,8 @@ fn render_install_editors(original: &str, _model: &Model) -> Result<String> {
     }
     let table: Vec<String> = extensions
         .iter()
-        .map(|ext| format!("{} = 'tcl'", lua_key(ext)))
-        .collect();
+        .map(|ext| Ok(format!("{} = {}", lua_key(ext)?, lua_string("tcl")?)))
+        .collect::<Result<_>>()?;
     let out = replace_generated_region(
         &out,
         "install-neovim-extensions",
@@ -950,20 +1406,21 @@ const TARGETS: &[(&str, Render)] = &[
 pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
     let model = Model::load()?;
-    let mut drift = Vec::new();
+    let mut rendered_files = Vec::with_capacity(TARGETS.len());
     for &(rel, render) in TARGETS {
         let path = root.join(rel);
         let original =
             fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
         let rendered = render(&original, &model).with_context(|| format!("rendering {rel}"))?;
+        rendered_files.push((rel, path, original, rendered));
+    }
+    let mut drift = Vec::new();
+    for (rel, _path, original, rendered) in &rendered_files {
         if rendered == original {
             continue;
         }
         if check {
-            drift.push(rel);
-        } else {
-            write_if_changed(&path, &rendered)?;
-            eprintln!("wrote {rel}");
+            drift.push(*rel);
         }
     }
     if check && !drift.is_empty() {
@@ -978,6 +1435,12 @@ pub fn run(check: bool) -> Result<ExitCode> {
     }
     if check {
         eprintln!("OK: editor configuration regions match the environment registry.");
+        return Ok(ExitCode::SUCCESS);
+    }
+    for (rel, path, original, rendered) in rendered_files {
+        if rendered != original && write_if_changed(&path, &rendered)? {
+            eprintln!("wrote {rel}");
+        }
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -1097,8 +1560,8 @@ mod tests {
         let model = Model::load().unwrap();
         let owners = derived_modes(&model);
         for (name, forms) in [
-            ("modes", emacs_mode_forms(&model, &owners)),
-            ("eglot", emacs_eglot_forms(&model, &owners)),
+            ("modes", emacs_mode_forms(&model, &owners).unwrap()),
+            ("eglot", emacs_eglot_forms(&model, &owners).unwrap()),
             ("hooks", emacs_hook_forms(&owners)),
         ] {
             let mut depth: i32 = 0;
@@ -1190,9 +1653,90 @@ mod tests {
 
     #[test]
     fn lua_keys_are_bare_unless_reserved() {
-        assert_eq!(lua_key("tcl"), "tcl");
-        assert_eq!(lua_key("do"), "['do']");
-        assert_eq!(lua_key("3d"), "['3d']");
+        assert_eq!(lua_key("tcl").unwrap(), "tcl");
+        assert_eq!(lua_key("do").unwrap(), "['do']");
+        assert_eq!(lua_key("3d").unwrap(), "['3d']");
+    }
+
+    #[test]
+    fn target_literals_keep_hostile_extension_text_inside_source_values() {
+        let extension = "odd\"\n\u{2028}".to_owned();
+        let helix = helix_block(
+            "safe",
+            "dialect\"name",
+            Some("lang\n-id"),
+            std::slice::from_ref(&extension),
+            &[],
+        )
+        .unwrap();
+        assert!(helix_block("bad\u{2028}comment", "name", None, &[], &[]).is_err());
+        let parsed: toml::Value = toml::from_str(&helix).unwrap();
+        let row = &parsed["language"][0];
+        assert_eq!(row["name"].as_str(), Some("dialect\"name"));
+        assert_eq!(row["language-id"].as_str(), Some("lang\n-id"));
+        assert_eq!(row["file-types"][0].as_str(), Some(extension.as_str()));
+
+        let lua = set_lua_list("return {\n  cmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },\n\n  filetypes = { 'old' },\n  root_markers = { '.git' },\n}", LuaFiletypesOwner::ReturnedRootTable, "  ", "cmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },", "root_markers = { '.git' },", std::slice::from_ref(&extension)).unwrap();
+        assert!(lua.contains(&lua_string(&extension).unwrap()));
+        assert!(!lua.contains("odd\"\n"));
+        assert!(
+            set_lua_list(
+                "return { otherfiletypes = { 'old' }, }\n",
+                LuaFiletypesOwner::ReturnedRootTable,
+                "  ",
+                "cmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },",
+                "root_markers = { '.git' },",
+                &["tcl".into()]
+            )
+            .is_err()
+        );
+        assert!(
+            set_lua_list(
+                "return { -- filetypes = { 'old' },\n}\n",
+                LuaFiletypesOwner::ReturnedRootTable,
+                "  ",
+                "cmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },",
+                "root_markers = { '.git' },",
+                &["tcl".into()]
+            )
+            .is_err()
+        );
+        let long_string_decoy = "local decoy = [[\ncmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },\n  filetypes = { 'old' },\nroot_markers = { '.git' },\n]]\nreturn {}\n";
+        assert!(
+            set_lua_list(
+                long_string_decoy,
+                LuaFiletypesOwner::ReturnedRootTable,
+                "  ",
+                "cmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },",
+                "root_markers = { '.git' },",
+                &["tcl".into()]
+            )
+            .is_err()
+        );
+        let long_comment_decoy = "--[[\ncmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },\n  filetypes = { 'old' },\nroot_markers = { '.git' },\n]]\nreturn {}\n";
+        assert!(
+            set_lua_list(
+                long_comment_decoy,
+                LuaFiletypesOwner::ReturnedRootTable,
+                "  ",
+                "cmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },",
+                "root_markers = { '.git' },",
+                &["tcl".into()]
+            )
+            .is_err()
+        );
+        let key = "x'] = os.execute('bad')";
+        assert_eq!(
+            lua_key(key).unwrap(),
+            format!("[{}]", lua_string(key).unwrap())
+        );
+        assert!(!lua_key(key).unwrap().contains("'] ="));
+
+        let elisp = elisp_extension_regexp(std::slice::from_ref(&extension)).unwrap();
+        let expected_pattern =
+            elisp_string(&format!(r"\.{}\'", elisp_regex_literal(&extension))).unwrap();
+        assert_eq!(elisp, expected_pattern);
+        assert!(!elisp.contains("odd\"\n"));
     }
 
     #[test]
@@ -1200,6 +1744,134 @@ mod tests {
         let items: Vec<String> = (0..40).map(|i| format!("item{i}")).collect();
         for line in wrap_words("  ", "  ", &comma_separated(&items, true)).lines() {
             assert!(line.len() <= WRAP_WIDTH, "{line}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod lua_chunk_owner_v4_tests {
+    use super::*;
+
+    #[test]
+    fn actual_readme_prose_is_outside_the_selected_lua_source() {
+        let original = fs::read_to_string(repo_root().join(NEOVIM_README)).unwrap();
+        assert!(original.contains("Neovim's"));
+        let root = fs::read_to_string(repo_root().join(NEOVIM_LUA)).unwrap();
+        assert!(
+            lua_filetypes_owner_open(
+                &root,
+                &lua_tokens(&root).unwrap(),
+                LuaFiletypesOwner::ReturnedRootTable
+            )
+            .is_ok()
+        );
+        let region = neovim_lspconfig_fence(&original).unwrap();
+        let source = &original[region];
+        let tokens = lua_tokens(source).unwrap();
+        assert!(
+            lua_filetypes_owner_open(source, &tokens, LuaFiletypesOwner::LspconfigDefaultConfig)
+                .is_ok()
+        );
+        let bad = original.replace("```lua\nlocal lspconfig", "```text\nlocal lspconfig");
+        assert!(neovim_lspconfig_fence(&bad).is_err());
+        let decoy = "````text\n## nvim-lspconfig (Neovim 0.8+)\n```lua\nreturn {}\n```\n````\n";
+        assert!(neovim_lspconfig_fence(decoy).is_err());
+        let duplicate = format!("{original}\n## nvim-lspconfig (Neovim 0.8+)\n");
+        assert!(neovim_lspconfig_fence(&duplicate).is_err());
+    }
+
+    #[test]
+    fn nested_function_or_rebound_config_cannot_donate_the_owner() {
+        let decoy = "local function decoy() return { filetypes = {} } end";
+        assert!(
+            lua_filetypes_owner_open(
+                decoy,
+                &lua_tokens(decoy).unwrap(),
+                LuaFiletypesOwner::ReturnedRootTable
+            )
+            .is_err()
+        );
+        let decoy = "return { callback = function() filetypes = {} end }";
+        assert!(
+            lua_filetypes_owner_open(
+                decoy,
+                &lua_tokens(decoy).unwrap(),
+                LuaFiletypesOwner::ReturnedRootTable
+            )
+            .is_err()
+        );
+        let readme = fs::read_to_string(repo_root().join(NEOVIM_README)).unwrap();
+        let region = neovim_lspconfig_fence(&readme).unwrap();
+        let source = &readme[region];
+        let rebound = source.replace(
+            "local configs   = require('lspconfig.configs')",
+            "local configs = require('unrelated')",
+        );
+        assert_ne!(rebound, source);
+        assert!(
+            lua_filetypes_owner_open(
+                &rebound,
+                &lua_tokens(&rebound).unwrap(),
+                LuaFiletypesOwner::LspconfigDefaultConfig
+            )
+            .is_err()
+        );
+        let wrapped = format!("local function decoy()\n{source}\nend");
+        assert!(
+            lua_filetypes_owner_open(
+                &wrapped,
+                &lua_tokens(&wrapped).unwrap(),
+                LuaFiletypesOwner::LspconfigDefaultConfig
+            )
+            .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+mod markdown_and_lua_key_v5_tests {
+    use super::*;
+
+    #[test]
+    fn inert_markdown_containers_cannot_donate_a_lua_fence() {
+        let readme = fs::read_to_string(repo_root().join(NEOVIM_README)).unwrap();
+        let region = neovim_lspconfig_fence(&readme).unwrap();
+        let source = &readme[region];
+        for wrapper in [
+            format!("<!--\n## nvim-lspconfig (Neovim 0.8+)\n```lua\n{source}```\n-->\n"),
+            format!("<script>\n## nvim-lspconfig (Neovim 0.8+)\n```lua\n{source}```\n</script>\n"),
+            "## nvim-lspconfig (Neovim 0.8+)\n```lua\nreturn {}\n```\n"
+                .lines()
+                .map(|line| ["> ", line, "\n"].concat())
+                .collect(),
+        ] {
+            assert!(neovim_lspconfig_fence(&wrapper).is_err());
+        }
+        assert!(neovim_lspconfig_fence(&readme).is_ok());
+    }
+
+    #[test]
+    fn quoted_or_computed_duplicate_keys_refuse_the_whole_owner() {
+        let source = fs::read_to_string(repo_root().join(NEOVIM_LUA)).unwrap();
+        for key in [
+            "['filetypes']",
+            "[\"filetypes\"]",
+            "[name]",
+            "['file' .. 'types']",
+        ] {
+            let changed = source.replace(
+                "  root_markers =",
+                &format!("  {key} = {{ 'shadow' }},\n  root_markers ="),
+            );
+            assert_ne!(changed, source);
+            assert!(
+                lua_filetypes_owner_open(
+                    &changed,
+                    &lua_tokens(&changed).unwrap(),
+                    LuaFiletypesOwner::ReturnedRootTable
+                )
+                .is_err()
+            );
         }
     }
 }

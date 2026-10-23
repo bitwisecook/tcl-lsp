@@ -22,9 +22,9 @@ import {
   getDocUri,
   activateViaWorkbench,
   documentClosed,
-  waitForDiagnostics,
   waitForDeepDiagnostics,
   getServerLogSize,
+  waitForDiagnosticsSnapshot,
 } from "./helper";
 
 // A workspace file that was opened and showed problems must keep its
@@ -47,9 +47,13 @@ suite("Closed-file diagnostics retention (#865)", () => {
     await activateViaWorkbench(docUri);
     // The fixture's `set y 1` (assigned, never read) guarantees a W211, proving
     // the analyser ran while the file was open.
-    const opened = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_opened = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (ds) => ds.some((d) => codeOf(d) === "W211"),
     });
+    if (!currentSnapshotFor_opened.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const opened = [...currentSnapshotFor_opened.report.diagnostics];
     assert.ok(
       opened.some((d) => codeOf(d) === "W211"),
       `open file must surface W211: [${opened.map(codeOf)}]`,

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! F5 iRules BIG-IP object-reference extractor.
+//! F5 original source projections and iRules BIG-IP object references.
 //!
 //! Two layers:
 //!
@@ -27,10 +27,12 @@
 //!   resolution, so it is intentionally not included here.
 //! - the walker (`extract_irules_object_references`) that
 //!   segments an iRule body, asks the table for each command's reference args,
-//!   and resolves them — including names that flow through `set <var> <literal>`.
+//!   as readonly literal source candidates, without runtime set-value propagation.
 //!
 //! Shared by the BIG-IP reference graph (`tcl-bigip`) and the LSP semantic-token
 //! layer (`tcl-lsp-core`).
+
+#![recursion_limit = "256"]
 
 use std::collections::HashSet;
 use std::sync::OnceLock;
@@ -41,10 +43,23 @@ mod walker;
 pub use walker::{
     IrulesObjectReference, IrulesObjectReferenceCategory, extract_irules_event_object_references,
     extract_irules_object_references, extract_irules_object_references_in_closure,
-    object_ref_spans,
+    extract_original_irules_source_object_references, object_ref_spans,
 };
 mod event_handlers;
-pub use event_handlers::{IrulesEventHandler, extract_irules_event_handlers};
+pub use event_handlers::{
+    IrulesEventHandler, extract_irules_event_handlers, extract_original_irules_event_handlers,
+};
+
+mod source_context;
+pub use source_context::{
+    IrulesSourceObligation, IrulesWhenSourceInventory, OriginalHostedSourceVariableReferences,
+    OriginalIrulesSourceCommand, OriginalIrulesSourceContext, OriginalIrulesWhenDeclaration,
+    OriginalIrulesWhenInventory, original_hosted_source_variable_references,
+};
+mod source_object;
+pub use source_object::{
+    IrulesSourceAttachmentKind, IrulesSourceObjectOperand, original_source_object_operands,
+};
 
 mod executable;
 pub use executable::{
@@ -56,27 +71,15 @@ pub use executable::{
     executable_closure_builds_for_tests, reset_executable_closure_builds_for_tests,
 };
 mod when_block;
-pub use when_block::{WhenBlock, when_block_candidates, when_block_is_empty, when_blocks};
+pub use when_block::{
+    WhenBlock, when_block_candidates, when_block_is_empty, when_blocks, when_source_inventory,
+};
 
 pub mod ilx;
 pub use ilx::{
     IlxExtension, IlxMethodCall, IlxMethodRegistration, extension_entry_file,
     extension_registrations, ilx_method_calls,
 };
-
-/// This crate's dialect ingress: every walk here reads **iRules** text, so
-/// its grammar is the `f5-irules` environment's, taken from
-/// [`tcl_registry::model::resolve_environment`] rather than re-derived from a
-/// dialect name at each lexer site.
-///
-/// Resolved once per public entry point and threaded into the walk (through
-/// the walk context), so a recursion never re-resolves it.
-#[must_use]
-pub(crate) fn irules_lexer_config() -> tcl_lexer::LexerConfig {
-    tcl_lexer::LexerConfig::from_grammar(
-        tcl_registry::model::resolve_environment("f5-irules").grammar(),
-    )
-}
 
 mod specs {
     use super::Deserialize;
@@ -148,32 +151,9 @@ fn tables() -> &'static Tables {
     })
 }
 
-/// Delimiters stripped from a positional token before the falsey-keyword check
-/// (strips the leading/trailing characters `{}"'[](),`).
-const STRIP: &[char] = &['{', '}', '"', '\'', '[', ']', '(', ')', ','];
-
-/// Whether `word` is a `class match`/`search` comparison operator — the six
-/// iRules word operators that are string/pattern comparisons, not logical
-/// connectives (`and`/`or`, `tcl_syntax::expr::ast::BinOp::WordAnd`/
-/// `WordOr`, are a distinct, unrelated iRules word-operator family this
-/// command doesn't accept). `word` should already be lowercased by the
-/// caller (`class match`'s operator words are case-insensitive there).
-///
-/// Enum-referenced against `tcl_syntax::expr::ast::BinOp` rather than a raw
-/// string list: a rename of one of these variants is a compile error here,
-/// not a silent drift.
+/// Compatibility projection of the Registry-owned comparison vocabulary.
 fn is_class_operator(word: &str) -> bool {
-    use tcl_syntax::expr::ast::BinOp;
-    [
-        BinOp::Contains,
-        BinOp::StartsWith,
-        BinOp::EndsWith,
-        BinOp::StrEquals,
-        BinOp::MatchesGlob,
-        BinOp::MatchesRegex,
-    ]
-    .iter()
-    .any(|op| op.as_str() == word)
+    tcl_registry::is_data_group_comparison_operator(word)
 }
 
 /// `persist` heads that are type keywords, not a profile-name reference.
@@ -309,6 +289,11 @@ fn resolve_persist_refs(args: &[&str]) -> Vec<(usize, Vec<&'static str>)> {
 /// Return the `(arg_index, kinds)` pairs naming BIG-IP objects in an iRule
 /// `command args…` invocation.
 ///
+/// `args` contains logical operand values for this standalone template query,
+/// not source-word spellings. Literal braces, quotes, brackets and punctuation
+/// remain name data. Source consumers use [`original_source_object_operands`]
+/// with their independently selected original schema and decoded values.
+/// Returned positions are candidates, not object identities or runtime effects.
 /// `rule_module` (`"ltm"` / `"gtm"`) selects the pool-kind family.
 #[must_use]
 pub fn resolve_object_ref_args(
@@ -343,7 +328,7 @@ pub fn resolve_object_ref_args(
         if seen.contains(&idx) {
             return;
         }
-        let token = args[idx].trim_matches(STRIP).to_ascii_lowercase();
+        let token = args[idx].to_ascii_lowercase();
         if t.falsey.contains(&token) {
             return;
         }

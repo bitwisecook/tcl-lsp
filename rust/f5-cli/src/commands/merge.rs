@@ -43,7 +43,10 @@ pub fn run_merge(
         if raw.is_dir() {
             let mut confs: Vec<PathBuf> = std::fs::read_dir(raw)
                 .with_context(|| format!("failed to read directory {}", raw.display()))?
-                .filter_map(|e| e.ok().map(|e| e.path()))
+                .map(|entry| entry.map(|entry| entry.path()))
+                .collect::<std::io::Result<Vec<_>>>()
+                .with_context(|| format!("failed to enumerate directory {}", raw.display()))?
+                .into_iter()
                 .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("conf"))
                 .collect();
             confs.sort();
@@ -58,8 +61,11 @@ pub fn run_merge(
     let opts = crate::cli::PassphraseArgs::default().to_options();
     let mut chunks: Vec<String> = Vec::with_capacity(files.len());
     for f in &files {
-        let (_uri, src) = tcl_bigip_io::read_path(&f.to_string_lossy(), false, &opts)
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let path = f
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("input path is not representable as Unicode"))?;
+        let (_uri, src) =
+            tcl_bigip_io::read_path(path, true, &opts).map_err(|e| anyhow::anyhow!("{e}"))?;
         chunks.push(src);
     }
 

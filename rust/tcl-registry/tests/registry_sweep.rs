@@ -1420,21 +1420,37 @@ fn a_spec_outside_the_core_set_declares_no_backing() {
     }
 }
 
-/// A shipped builtin is attested by the command's own name, spelled as the
-/// spec spells it — a leading `::` kept — which is the identity the VM's
-/// builtin table is keyed by, and a body's source is a library file the
-/// runtime embeds.
+/// Shipped identities name registered commands. A method-context spelling
+/// can refer to a qualified helper; Tcl bodies name embedded library files.
 ///
 /// registry-metadata: `runtime_backing` is registry data.
 #[test]
-fn a_shipped_builtin_is_attested_by_the_commands_own_name() {
+fn a_shipped_builtin_names_its_registered_implementation() {
     use tcl_registry::{BodySource, RuntimeBacking};
 
+    let registry = CommandRegistry::build_default();
     let mut shipped = 0;
     for spec in &tcl_registry::commands::tcl::tcl_command_specs() {
         match spec.runtime_backing {
             RuntimeBacking::ShippedBuiltin { identity } => {
-                assert_eq!(identity, spec.name, "{}", spec.name);
+                let registered =
+                    tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
+                let name = tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name);
+                if registered != name {
+                    assert!(
+                        spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT),
+                        "{}",
+                        spec.name
+                    );
+                    let helper = registry
+                        .get(identity)
+                        .expect("registered method helper spec");
+                    assert_eq!(helper.name, registered, "{}", spec.name);
+                    assert!(matches!(
+                        helper.runtime_backing,
+                        RuntimeBacking::ShippedBuiltin { .. }
+                    ));
+                }
                 shipped += 1;
             }
             RuntimeBacking::TclBody {
@@ -1869,14 +1885,12 @@ fn bigip_lookup_misses_are_graceful() {
     assert!(reg.get("__not_a_real_kind__").is_none());
     assert!(reg.get_by_header("nope", "nope").is_none());
     assert!(reg.kind_for_header("nope", "nope").is_none());
-    assert!(reg.candidate_registry_kinds_for_display("").is_empty());
-    assert!(
-        reg.candidate_kinds_for_key("k", None, None, None)
-            .is_empty()
-    );
-    assert!(
+    assert_eq!(reg.candidate_registry_kinds_for_display("").len(), 0);
+    assert_eq!(reg.candidate_kinds_for_key("k", None, None, None).len(), 0);
+    assert_eq!(
         reg.candidate_kinds_for_section_item("s", Some("nope"), Some("nope"))
-            .is_empty()
+            .len(),
+        0
     );
 }
 
@@ -1967,9 +1981,10 @@ fn sweep_event_command_legality_consistent() {
     }
 
     // An unknown event is illegal for everything and yields an empty listing.
-    assert!(
+    assert_eq!(
         reg.valid_irules_commands_for_event("__FAKE__", &events, &profiles, None)
-            .is_empty()
+            .len(),
+        0
     );
     let unknown = reg.event_info("__fake__", &events, &profiles, None);
     assert!(!unknown.known);
@@ -2838,7 +2853,7 @@ fn callback_and_variable_option_metadata_is_well_formed() {
                 spec.name,
                 spec.arg_roles,
                 spec.callback_taint_inputs,
-                spec.arg_role_resolver.is_some() || spec.command_prefix_resolver.is_some(),
+                spec.has_dynamic_argument_roles() || spec.command_prefix_resolver.is_some(),
                 spec.script_timing_resolver.is_some() || spec.traits.contains(Traits::DEFERS_BODY),
             );
             for sub in spec.subcommands.iter().chain(
@@ -2852,7 +2867,7 @@ fn callback_and_variable_option_metadata_is_well_formed() {
                     &path,
                     sub.arg_roles,
                     sub.callback_taint_inputs,
-                    sub.arg_role_resolver.is_some() || sub.command_prefix_resolver.is_some(),
+                    sub.has_dynamic_argument_roles() || sub.command_prefix_resolver.is_some(),
                     sub.script_timing_resolver.is_some()
                         || sub.traits.contains(Traits::DEFERS_BODY),
                 );

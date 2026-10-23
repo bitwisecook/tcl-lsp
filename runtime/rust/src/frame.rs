@@ -29,23 +29,28 @@
 //! command resolver) lives in [`crate::vars`].
 //!
 //! Representation decisions (see namespace-tree.md §5.3):
-//! - **`BTreeMap`** (not `HashMap`) for both the var table and array elements —
-//!   deterministic iteration (`std::HashMap`'s `RandomState` would make
-//!   `info vars` / `array names` vary run-to-run, poison for an oracle-diffed
-//!   port) and zero external deps.
-//! - **Links resolved by path** ([`Link`] = `{home, name, elem}`), not Tcl's
-//!   direct `linkPtr`, so a target map reallocating can't dangle a pointer. The
-//!   `home` ([`VarHome`]) is either a frame level or a namespace — `global` /
-//!   `variable` / `upvar` all produce one shape.
+//! - **`BTreeMap`** indexes exact variable and element keys. Native iteration
+//!   comes from persistent entry ledgers with independently selected ABI/hash
+//!   recipes; compiled declarations keep their own ordered cell inventory.
+//! - **C links retain actual cells and element entries**. Stable identities
+//!   survive unset and refill; retirement invalidates the old array generation.
+//!   Jim links own the original target-name object and weak selected frame,
+//!   and repeat that engine's original-object lookup. Reporting paths carry
+//!   no authority to replace either selected receiver.
 //! - **`VarTable` releases on `Drop`** (matches `TclFreeVar` and keeps every
 //!   refcount move visible to the leak counters, `crate::counters`) — so a
 //!   dropped frame *or* namespace never leaks, with no hand-written cleanup.
 //!
 //! Refcount discipline (`memory-management.md` MM-B, `refcount-contract.md`):
 //! a scalar cell / array element owns **+1** of its object; storing retains,
-//! overwriting/unsetting/dropping releases. Links own nothing.
+//! overwriting/unsetting/dropping releases. Persistent procedure statics retain
+//! the same raw cell through `Rc<RefCell<_>>`; removing its ordinary name retires
+//! that binding without destroying captured contents. The last cell owner
+//! releases its Tcl objects. A captured alias wrapper retains its link value,
+//! whose Jim target is still a logical level/name lookup on each access.
 
-use std::collections::BTreeMap;
+use std::cell::{Cell as PolicyCell, Ref, RefCell};
+use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -53,6 +58,70 @@ use tcl_runtime_api::{FrameLinkOrigin, VarId};
 
 use crate::namespace::NsId;
 use crate::obj::{self, TclObj};
+
+mod jim_alias_publication;
+mod jim_link_store;
+mod jim_lookup;
+pub(crate) use jim_alias_publication::PreparedJimAliasCell;
+pub(crate) use jim_link_store::{CapturedJimLinkRoot, JimLinkStoreError};
+pub(crate) use jim_lookup::{CapturedJimDictionaryCell, JimVariableRead, WeakJimVariableCell};
+mod container;
+pub(crate) use container::CapturedContainerModel;
+mod destruction;
+mod materialisation;
+pub(crate) use materialisation::PreparedAliasReplacement;
+#[cfg(test)]
+mod materialisation_tests;
+#[cfg(test)]
+mod member_materialisation_tests;
+mod retired_variable;
+mod trace_shell;
+pub(crate) use trace_shell::TraceShellState;
+#[cfg(test)]
+mod stored_link_role_tests;
+#[cfg(test)]
+mod trace_creation_tests;
+pub use destruction::{RetainedArrayCell, WeakArraySearchCell};
+pub(crate) use materialisation::{
+    OriginalVariableLinkObservation, PreparedArrayMember, PreparedVariableReplacement,
+    VariablePublicationObservation,
+};
+pub(crate) use retired_variable::RetiredVariableParts;
+mod native_element_entry;
+pub(crate) use native_element_entry::NativeElementAliasEntry;
+#[cfg(test)]
+pub(crate) use native_element_entry::NativeElementEntryObserver;
+mod pending_scalar;
+pub use pending_scalar::PendingScalar;
+mod rmw;
+pub(crate) use rmw::VariableReceiver;
+mod native_array_target;
+mod native_scalar_alias;
+pub(crate) use native_array_target::NativeArrayTargetCell;
+mod native_variable_names;
+pub(crate) use native_scalar_alias::NativeScalarAliasEntry;
+pub(crate) use native_variable_names::{
+    OriginalJimVariableInventory, OriginalJimVariableInventoryKey,
+};
+
+/// Extracted ownership of an actual array default's two native references.
+/// The storage worker publishes the replacement while borrowed, then its caller
+/// retires this value after releasing the cell and enclosing owner borrows.
+pub(crate) struct RetiredArrayDefault(*mut TclObj);
+impl RetiredArrayDefault {
+    pub(super) fn capture(original: *mut TclObj) -> Self {
+        Self(original)
+    }
+}
+impl Drop for RetiredArrayDefault {
+    fn drop(&mut self) {
+        // SAFETY: this token carries the old actual table's +2, exactly once.
+        unsafe {
+            obj::decr_ref_count(self.0);
+            obj::decr_ref_count(self.0);
+        }
+    }
+}
 
 static NEXT_VAR_ID: AtomicU32 = AtomicU32::new(1);
 
@@ -66,9 +135,12 @@ fn fresh_var_id() -> VarId {
 pub enum Var {
     /// A scalar — owns **+1** of the object.
     Scalar(*mut TclObj),
+    /// A selected setter has published this allocation before taking cell +1.
+    /// Checked scalar consumers refuse until its exact role ticket is settled.
+    PendingScalar(PendingScalar),
     /// An associative array: element key → value (each owns **+1**).
     Array(BTreeMap<Vec<u8>, *mut TclObj>),
-    /// An `upvar`/`global`/`variable` alias to another variable (owns nothing).
+    /// C aliases retain variable cells; Jim aliases own their original target name.
     Link(Link),
 }
 
@@ -87,12 +159,184 @@ pub enum VarHome {
 /// A path-resolved alias target (an `upvar`/`global`/`variable` link).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Link {
+    /// Jim owns one original recursive target-name object and a weak frame receipt.
+    pub(crate) original_jim_target: Option<Rc<OriginalJimLinkTarget>>,
+    /// Actual C scalar alias retains its original target entry, not its spelling.
+    pub(crate) native_scalar_entry: Option<Rc<NativeScalarAliasEntry>>,
+    /// One actual element-entry alias role, independent of borrowed Link views.
+    pub(crate) native_element_entry: Option<Rc<NativeElementAliasEntry>>,
+    /// Captured C Tcl array-root identity. Jim links follow the selected name.
+    pub array_identity: Option<VarId>,
+    /// Physical C array generation retained by an element alias.
+    pub array_cell: Option<RetainedArrayCell>,
     /// Where the target variable lives.
     pub home: VarHome,
     /// Target variable name (simple, within `home`'s table).
     pub name: Vec<u8>,
     /// Target array element, for `upvar … a(b) x`.
     pub elem: Option<Vec<u8>>,
+}
+
+pub(crate) struct OriginalJimLinkTarget {
+    original: crate::obj::NativeObjectLifetime,
+    stored_name: RefCell<Option<crate::obj::Owned>>,
+    pub(crate) frame: tcl_runtime_api::jim_call_frame::JimCallFrameStorageReference,
+}
+impl OriginalJimLinkTarget {
+    pub(crate) fn new(
+        name: crate::obj::Owned,
+        frame: tcl_runtime_api::jim_call_frame::JimCallFrameStorageReference,
+    ) -> Self {
+        Self {
+            original: crate::obj::NativeObjectLifetime::retain(name.as_ptr()),
+            stored_name: RefCell::new(Some(name)),
+            frame,
+        }
+    }
+    pub(crate) fn original_name(&self) -> Result<*mut TclObj, tcl_syntax::value::ValueError> {
+        if self.stored_name.borrow().is_none() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "withdrawn original Jim alias role",
+            ));
+        }
+        crate::obj::check_native_liveness(self.original.as_ptr())?;
+        Ok(self.original.as_ptr())
+    }
+    pub(super) fn take_stored_name(
+        &self,
+    ) -> Result<crate::obj::Owned, tcl_syntax::value::ValueError> {
+        self.stored_name.borrow_mut().take().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "withdrawn original Jim alias role",
+            ),
+        )
+    }
+    pub(crate) fn withdraw_stored_role(&self) -> RetiredVariableParts {
+        let name = self.stored_name.borrow_mut().take();
+        let mut retired = RetiredVariableParts::default();
+        retired.key(name);
+        retired
+    }
+}
+impl std::fmt::Debug for OriginalJimLinkTarget {
+    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        out.debug_struct("OriginalJimLinkTarget")
+            .field("original", &self.original.as_ptr())
+            .finish_non_exhaustive()
+    }
+}
+impl PartialEq for OriginalJimLinkTarget {
+    fn eq(&self, other: &Self) -> bool {
+        self.original.as_ptr() == other.original.as_ptr() && self.frame == other.frame
+    }
+}
+impl Eq for OriginalJimLinkTarget {}
+impl Drop for OriginalJimLinkTarget {
+    fn drop(&mut self) {
+        drop(self.withdraw_stored_role());
+    }
+}
+impl Link {
+    pub(crate) fn check_stored_roles(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        if let Some(role) = &self.native_scalar_entry {
+            role.check_stored_role()?;
+        }
+        if let Some(role) = &self.native_element_entry {
+            role.check_stored_role()?;
+        }
+        if let Some(role) = &self.original_jim_target {
+            role.original_name()?;
+        }
+        Ok(())
+    }
+    pub(crate) fn check_selected_target(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        if let Some(entry) = &self.native_scalar_entry {
+            entry.check_selected_target()?;
+        }
+        if let Some(entry) = &self.native_element_entry {
+            entry.check_selected_target()?;
+        }
+        if let Some(array) = &self.array_cell {
+            if !array.is_live() {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original alias array generation",
+                ));
+            }
+        }
+        if let Some(target) = &self.original_jim_target {
+            target.original_name()?;
+        }
+        Ok(())
+    }
+    pub(crate) fn check_target_identity(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        if let Some(entry) = &self.native_scalar_entry {
+            entry.check_target_identity()?;
+        }
+        if let Some(entry) = &self.native_element_entry {
+            entry.check_target_identity()?;
+        }
+        if let Some(array) = &self.array_cell {
+            if !array.is_live() {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original alias array generation",
+                ));
+            }
+        }
+        Ok(())
+    }
+    pub(crate) fn acquire_selected_roles(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        self.check_selected_target()?;
+        if let Some(entry) = &self.native_scalar_entry {
+            entry.acquire_selected_role()?;
+        }
+        if let Some(entry) = &self.native_element_entry {
+            entry.acquire_selected_role()?;
+        }
+        self.check_stored_roles()
+    }
+    /// An incoming metadata clone does not own the stored role it borrows from
+    /// the original local link. A distinct incoming issuer still retires once.
+    pub(crate) fn withdraw_unshared_roles(&self, original: Option<&Self>) -> RetiredVariableParts {
+        let mut retired = RetiredVariableParts::default();
+        if let Some(role) = &self.native_scalar_entry {
+            if !original
+                .and_then(|old| old.native_scalar_entry.as_ref())
+                .is_some_and(|old| Rc::ptr_eq(old, role))
+            {
+                retired.extend(role.withdraw_stored_role());
+            }
+        }
+        if let Some(role) = &self.native_element_entry {
+            if !original
+                .and_then(|old| old.native_element_entry.as_ref())
+                .is_some_and(|old| Rc::ptr_eq(old, role))
+            {
+                retired.extend(role.withdraw_stored_role());
+            }
+        }
+        if let Some(role) = &self.original_jim_target {
+            if !original
+                .and_then(|old| old.original_jim_target.as_ref())
+                .is_some_and(|old| Rc::ptr_eq(old, role))
+            {
+                retired.extend(role.withdraw_stored_role());
+            }
+        }
+        retired
+    }
+    pub(crate) fn withdraw_stored_roles(&self) -> RetiredVariableParts {
+        let mut retired = RetiredVariableParts::default();
+        if let Some(role) = &self.native_scalar_entry {
+            retired.extend(role.withdraw_stored_role());
+        }
+        if let Some(role) = &self.native_element_entry {
+            retired.extend(role.withdraw_stored_role());
+        }
+        if let Some(role) = &self.original_jim_target {
+            retired.extend(role.withdraw_stored_role());
+        }
+        retired
+    }
 }
 
 impl Var {
@@ -103,12 +347,13 @@ impl Var {
             // SAFETY: a stored cell owns a +1 on each object; releasing balances
             // the retain taken when it was stored.
             Var::Scalar(p) => unsafe { obj::decr_ref_count(p) },
+            Var::PendingScalar(pending) => drop(pending),
             Var::Array(map) => {
                 for (_, p) in map {
                     unsafe { obj::decr_ref_count(p) }
                 }
             }
-            Var::Link(_) => {}
+            Var::Link(link) => drop(link.withdraw_stored_roles()),
         }
     }
 }
@@ -116,6 +361,12 @@ impl Var {
 /// Why a variable write failed (the type-mismatch / namespace cases Tcl reports).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VarError {
+    /// The actual invocation supplies no variable-name protocol.
+    NameProtocolUnavailable,
+    /// A captured alias whose namespace token has lost its variable cells.
+    DeletedNamespace,
+    /// An element alias whose original array root was deleted.
+    DeletedArray,
     /// `set a v` where `a` is an array (`can't set "a": variable is array`).
     IsArray,
     /// `set a(k) v` where `a` is a scalar (`can't set "a(k)": variable isn't array`).
@@ -139,6 +390,15 @@ pub enum VarError {
     Confined,
 }
 
+/// Original indexed alias settlement rejects an occupied or observed local.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NativeCompiledAliasError {
+    Unavailable,
+    SelfLink,
+    Traced,
+    Exists,
+}
+
 // VarTable — the per-frame / per-namespace name→cell store + cell mechanics.
 
 /// One addressable cell of a [`VarTable`]: the name it is bound to and the
@@ -151,21 +411,57 @@ pub enum VarError {
 /// end up looking at two different variables.
 struct Cell {
     name: Vec<u8>,
+    /// Actual unnamed compiler local, never a dynamic hash-table entry.
+    anonymous: bool,
+    contents: Rc<RefCell<CellContents>>,
+}
+
+struct CellContents {
+    /// Native operations holding this exact receiver across guest callbacks.
+    rmw_refs: usize,
+    /// Scalar-root operations retain the root shell through contents reset.
+    rmw_root_refs: usize,
+    /// Whole-array teardown invalidates captured elements independently of roots.
+    rmw_array_epoch: u64,
+    /// Native search invalidation, independent of bucket changes from shell GC.
+    array_search_epoch: u64,
+    array_searches: tcl_core_types::NativeArraySearchChain<crate::obj::Owned>,
+    /// Owner destruction differs from resetting contents of a retained shell.
+    rmw_retirement: Option<VarError>,
+    /// Non-owning old scalar pointer during the selected Jim decrement.
+    jim_scalar_retirement: Option<Rc<jim_alias_publication::JimScalarRetirement>>,
     var: Option<Var>,
+    namespace_declared: bool,
+    undefined_shell: bool,
+    /// Actual selected home which issued an undefined physical self-link marker.
+    undefined_root_home: Option<VarHome>,
+    /// The default belongs to this physical array, with two owning references.
+    array_default: Option<*mut TclObj>,
+    /// Detached array generations whose members retire after the root callback.
+    detached_arrays: std::collections::HashMap<VarId, destruction::DetachedArray>,
     /// Identity of the currently bound variable. The slot survives `unset` for
     /// compiled access, while this token normally does not. An in-flight
     /// operation retains the exact Tcl `Var` cell, so recreation during that
     /// operation refills this identity instead of capturing an unrelated one.
     binding_id: Option<VarId>,
+    /// This physical cell belongs to the activation's declaration-ordered array.
+    compiled_declaration: bool,
     /// In-flight array ensemble operations retaining this binding. A direct
     /// unset leaves the Tcl cell available for same-name recreation until the
     /// final operation releases it, while an ordinary unset starts a new
     /// binding immediately.
     operation_refs: usize,
+    native_alias_refs: usize,
     /// Stable identities of the current array elements. Values stay in
     /// [`Var::Array`]; this parallel identity table lets a trace-aware read tell
     /// an unset-and-recreated element from the one selected before its callback.
     element_ids: BTreeMap<Vec<u8>, VarId>,
+    member_order: tcl_core_types::NativeEntryLedger,
+    native_member_keys: native_element_entry::NativeElementEntries,
+    /// Undefined member births owned by original read/modify/write operations.
+    rmw_member_shells: BTreeSet<Vec<u8>>,
+    /// Original root entry receipt; contains no table or value owning reference.
+    rmw_shell_entry: Option<rmw::RootShellEntry>,
     /// Per-element trace reads currently retaining the selected cell. Tcl
     /// refills that cell when its own callback unsets and recreates the element.
     element_operation_refs: BTreeMap<Vec<u8>, usize>,
@@ -194,6 +490,226 @@ struct Cell {
     traced: core::cell::Cell<(u64, bool)>,
 }
 
+/// Previous genuine stored ownership extracted before releasing owner borrows.
+pub(crate) enum RetiredVariableContents {
+    Value(Option<Var>),
+    Dictionary(Option<container::RetiredRootContents>),
+}
+impl Drop for RetiredVariableContents {
+    fn drop(&mut self) {
+        match self {
+            Self::Value(previous) => {
+                if let Some(previous) = previous.take() {
+                    previous.release();
+                }
+            }
+            Self::Dictionary(previous) => {
+                drop(previous.take());
+            }
+        }
+    }
+}
+
+/// A raw physical variable slot whose contents survive removal of its name.
+#[derive(Clone)]
+pub(crate) struct RetainedVariableCell(Rc<RefCell<CellContents>>);
+
+impl StaticVariables {
+    pub(crate) fn insert_capture(&mut self, name: &[u8], cell: RetainedVariableCell) {
+        self.cells.insert(name.to_vec(), cell.0);
+    }
+
+    pub(crate) fn insert_copy(&mut self, name: &[u8], source: RetainedVariableCell) -> bool {
+        let mut table = VarTable::default();
+        let source = source.0.borrow();
+        if source.check_owned_value_role().is_err() {
+            return false;
+        }
+        match source.var.as_ref() {
+            Some(Var::Scalar(value)) => {
+                table.store_scalar(name, *value).expect("fresh scalar");
+            }
+            Some(Var::Array(values)) => {
+                table.ensure_array(name).expect("fresh array");
+                for (key, value) in values {
+                    table.store_elem(name, key, *value).expect("fresh element");
+                }
+            }
+            Some(Var::PendingScalar(_) | Var::Link(_)) | None => return false,
+        }
+        self.insert_capture(name, table.capture_cell(name).expect("initialised cell"));
+        true
+    }
+
+    pub(crate) fn insert_literal(&mut self, name: &[u8], value: *mut TclObj) {
+        let mut table = VarTable::default();
+        table
+            .store_scalar(name, value)
+            .expect("fresh static scalar");
+        self.insert_capture(name, table.capture_cell(name).expect("initialised cell"));
+    }
+}
+
+impl Cell {
+    fn empty(name: &[u8]) -> Self {
+        Self {
+            name: name.to_vec(),
+            anonymous: false,
+            contents: Rc::new(RefCell::new(CellContents {
+                rmw_refs: 0,
+                rmw_root_refs: 0,
+                rmw_array_epoch: 0,
+                array_search_epoch: 0,
+                array_searches: tcl_core_types::NativeArraySearchChain::default(),
+                detached_arrays: std::collections::HashMap::new(),
+                rmw_retirement: None,
+                jim_scalar_retirement: None,
+                var: None,
+                namespace_declared: false,
+                undefined_shell: false,
+                undefined_root_home: None,
+                array_default: None,
+                binding_id: None,
+                compiled_declaration: false,
+                operation_refs: 0,
+                native_alias_refs: 0,
+                element_ids: BTreeMap::new(),
+                member_order: tcl_core_types::NativeEntryLedger::default(),
+                native_member_keys: Default::default(),
+                rmw_member_shells: BTreeSet::new(),
+                rmw_shell_entry: None,
+                element_operation_refs: BTreeMap::new(),
+                constant: false,
+                link_origin: FrameLinkOrigin::Ordinary,
+                traced: core::cell::Cell::new((0, false)),
+            })),
+        }
+    }
+}
+
+impl CellContents {
+    fn check_owned_value_role(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        if self.jim_scalar_retirement.is_some() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "retiring Jim scalar stored role",
+            ));
+        }
+        if matches!(self.var.as_ref(), Some(Var::PendingScalar(_))) {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unsettled scalar native reference role",
+            ));
+        }
+        Ok(())
+    }
+    fn take_value(&mut self) -> Option<Var> {
+        let previous = self.var.take();
+        if self
+            .jim_scalar_retirement
+            .take()
+            .is_some_and(|ticket| ticket.displace(&previous))
+        {
+            return None;
+        }
+        if let Some(Var::PendingScalar(pending)) = &previous {
+            pending.mark_displaced();
+        }
+        previous
+    }
+    fn replace_value(&mut self, incoming: Var) -> Option<Var> {
+        let previous = self.take_value();
+        self.var = Some(incoming);
+        previous
+    }
+    /// A selected undefined self-link is a physical root, not a scalar value.
+    /// The original slot spelling is marker geometry, never a fresh lookup.
+    fn array_materialisation_needed(&self, root: Option<&[u8]>) -> Result<bool, VarError> {
+        match self.var.as_ref() {
+            Some(Var::Array(_)) => Ok(false),
+            Some(Var::Link(link))
+                if root == Some(link.name.as_slice())
+                    && self.undefined_root_home == Some(link.home)
+                    && link.elem.is_none() =>
+            {
+                Ok(true)
+            }
+            Some(_) => Err(VarError::IsScalar),
+            None => Ok(true),
+        }
+    }
+
+    fn publish_selected_array(&mut self, root: Option<&[u8]>) -> Result<Option<Var>, VarError> {
+        let mut retired = None;
+        if self.array_materialisation_needed(root)? {
+            retired = self.replace_value(Var::Array(Default::default()));
+            self.undefined_shell = false;
+            self.undefined_root_home = None;
+            self.rmw_shell_entry = None;
+        }
+        Ok(retired)
+    }
+
+    fn insert_member_entry(&mut self, key: &[u8]) {
+        if !self.member_order.contains_key(key) {
+            self.array_search_epoch = self.array_search_epoch.wrapping_add(1);
+            self.array_searches.clear();
+        }
+        self.adopt_member_entry(key);
+    }
+
+    /// Metadata adoption after the caller has retired the actual search chain.
+    /// This stage contains no Native header release or String getter.
+    fn adopt_member_entry(&mut self, key: &[u8]) {
+        self.member_order.insert(key);
+        let id = *self
+            .element_ids
+            .entry(key.to_vec())
+            .or_insert_with(fresh_var_id);
+        self.native_member_keys.ensure(id, key, None);
+    }
+
+    fn retire_rmw_shell(&mut self) -> Option<native_variable_names::NativeHashKey> {
+        if self.var.is_some()
+            || self.operation_refs != 0
+            || self.rmw_refs != 0
+            || self.native_alias_refs != 0
+            || self.namespace_declared
+            || self.undefined_shell
+            || self.rmw_retirement.is_some()
+        {
+            return None;
+        }
+        if let Some(entry) = self.rmw_shell_entry.take() {
+            return entry.retire(self.binding_id);
+        }
+        None
+    }
+}
+
+impl Drop for CellContents {
+    fn drop(&mut self) {
+        if let Some(var) = self.take_value() {
+            var.release();
+        }
+        if let Some(value) = self.array_default.take() {
+            unsafe {
+                obj::decr_ref_count(value);
+                obj::decr_ref_count(value);
+            }
+        }
+        for (_, members) in std::mem::take(&mut self.detached_arrays) {
+            Var::Array(members.values).release();
+        }
+    }
+}
+
+/// Persistent raw variable slots retained independently of their original names.
+/// A captured alias retains its mutable link cell, rather than resolving/copying
+/// its current destination. The last cell owner releases its Tcl objects.
+#[derive(Clone, Default)]
+pub(crate) struct StaticVariables {
+    cells: BTreeMap<Vec<u8>, Rc<RefCell<CellContents>>>,
+}
+
 /// A variable table: simple-name → [`Var`] cell, with the refcount discipline
 /// for the objects its scalars/arrays own. **Direct** ops only — no link
 /// following (that crosses tables and is the [`crate::vars`] coordinator's job).
@@ -206,249 +722,352 @@ struct Cell {
 /// `upvar`, `trace`, and `unset` still reach that very cell by name.
 #[derive(Default)]
 pub struct VarTable {
+    hash_recipe: PolicyCell<Option<tcl_core_types::NativeHashRecipe>>,
+    entry_order: Rc<RefCell<tcl_core_types::NativeEntryLedger>>,
+    native_keys: native_variable_names::NativeHashKeys,
+    container_model: PolicyCell<tcl_dialect::VariableContainerModel>,
+    container_transition_pending: Rc<PolicyCell<bool>>,
+    container_transition_busy: Rc<PolicyCell<bool>>,
+    string_protocol: PolicyCell<Option<tcl_syntax::native_string::NativeStringProtocol>>,
     /// The cells, addressed by a stable slot index. A cell is never moved or
     /// dropped while the table lives, so a slot index stays valid.
     cells: Vec<Cell>,
     /// Simple name → slot. Ordered, so `info vars` / `array names` iterate
     /// deterministically (the reason this was a `BTreeMap` to begin with).
     slots: BTreeMap<Vec<u8>, usize>,
-    /// Per-array default values (TIP 508 `array default set`): array name → the
-    /// value returned for a read of a missing element. Each owns a **+1**.
-    array_defaults: BTreeMap<Vec<u8>, *mut TclObj>,
+    declared_slots: Vec<usize>,
+    compiled_protocol: Option<tcl_syntax::naming::NativeCompiledVariableProtocol>,
+    static_slots: BTreeMap<Vec<u8>, usize>,
+    statics: Option<Rc<StaticVariables>>,
 }
 
 impl VarTable {
+    pub(crate) fn prepare_original_alias(
+        &mut self,
+        name: &[u8],
+        link: &Link,
+        traced: bool,
+    ) -> Result<PreparedAliasReplacement, NativeCompiledAliasError> {
+        let contents = self
+            .contents(name)
+            .ok_or(NativeCompiledAliasError::Unavailable)?;
+        PreparedAliasReplacement::capture(contents, link, traced, FrameLinkOrigin::Ordinary)
+    }
+    pub(crate) fn set_hash_recipe(&self, recipe: Option<tcl_core_types::NativeHashRecipe>) {
+        if self.hash_recipe.replace(recipe) == recipe {
+            return;
+        }
+        self.entry_order.borrow_mut().select_recipe(recipe);
+        for cell in &self.cells {
+            cell.contents
+                .borrow_mut()
+                .member_order
+                .select_recipe(recipe);
+        }
+    }
+
+    fn ordered_names(&self) -> Vec<&[u8]> {
+        match self.entry_order.borrow().keys() {
+            Some(keys) => keys
+                .into_iter()
+                .filter_map(|key| self.slots.get_key_value(key).map(|(key, _)| key.as_slice()))
+                .collect(),
+            None => self
+                .entry_order
+                .borrow()
+                .physical_keys()
+                .into_iter()
+                .filter_map(|key| self.slots.get_key_value(key).map(|(key, _)| key.as_slice()))
+                .collect(),
+        }
+    }
+
+    fn lookup_slot(&self, name: &[u8]) -> Option<usize> {
+        if let Some(protocol) = self.compiled_protocol {
+            if let Some(slot) = self
+                .declared_slots
+                .iter()
+                .find(|&&slot| protocol.dynamic_local_names_equal(&self.cells[slot].name, name))
+            {
+                return Some(*slot);
+            }
+        }
+        self.slots
+            .get(name)
+            .or_else(|| self.static_slots.get(name))
+            .copied()
+    }
+
+    pub(crate) fn declare_compiled_cell(&mut self, name: &[u8]) -> usize {
+        let slot = self.cells.len();
+        let cell = Cell::empty(name);
+        cell.contents.borrow_mut().compiled_declaration = true;
+        cell.contents
+            .borrow_mut()
+            .member_order
+            .select_recipe(self.hash_recipe.get());
+        self.cells.push(cell);
+        self.declared_slots.push(slot);
+        slot
+    }
+
+    /// Allocate the actual value cell for one unnamed native compiler slot.
+    /// It has no table key, name-lookup entry, or introspection declaration.
+    pub(crate) fn declare_compiled_temporary(&mut self) -> usize {
+        let slot = self.cells.len();
+        let mut cell = Cell::empty(b"");
+        cell.anonymous = true;
+        cell.contents.borrow_mut().compiled_declaration = true;
+        self.cells.push(cell);
+        slot
+    }
+
+    pub(crate) fn mark_namespace_declared(&mut self, name: &[u8]) {
+        if let Some(contents) = self.contents(name) {
+            contents.borrow_mut().namespace_declared = true;
+        }
+    }
+
+    /// The resolved producer retains its actual home, independently of name text.
+    pub(crate) fn mark_undefined_root(&mut self, name: &[u8], home: VarHome) -> bool {
+        let Some(contents) = self.contents(name) else {
+            return false;
+        };
+        let mut cell = contents.borrow_mut();
+        if matches!(cell.var.as_ref(), Some(Var::Link(link))
+            if link.home == home && link.name == name && link.elem.is_none())
+        {
+            cell.undefined_root_home = Some(home);
+            return true;
+        }
+        false
+    }
+
+    pub(crate) fn mark_trace_shell(&mut self, name: &[u8], home: VarHome) {
+        if self.mark_undefined_root(name, home) {
+            self.contents(name).unwrap().borrow_mut().undefined_shell = true;
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn ensure_element_shell(&mut self, name: &[u8], key: &[u8]) -> Result<(), VarError> {
+        self.ensure_array(name)?;
+        let Some(contents) = self.contents(name) else {
+            return Err(VarError::IsScalar);
+        };
+        let mut cell = contents.borrow_mut();
+        cell.insert_member_entry(key);
+        cell.rmw_member_shells.remove(key);
+        cell.element_ids
+            .entry(key.to_vec())
+            .or_insert_with(fresh_var_id);
+        Ok(())
+    }
+
+    fn visible_cell(&self, slot: usize, include_links: bool) -> bool {
+        let cell = self.cells[slot].contents.borrow();
+        match cell.var.as_ref() {
+            Some(Var::Scalar(_) | Var::PendingScalar(_) | Var::Array(_)) => true,
+            Some(Var::Link(_)) => {
+                include_links && (!cell.undefined_shell || cell.namespace_declared)
+            }
+            None => include_links && cell.namespace_declared,
+        }
+    }
+
     /// The slot `name` occupies, reserving an empty one if it has none yet.
     ///
     /// This is the compiled-local binding operation: after it, the slot and the
     /// name are two ways of addressing one cell, for the table's lifetime.
     pub(crate) fn slot_for(&mut self, name: &[u8]) -> usize {
+        if let Some(slot) = self.lookup_slot(name) {
+            return slot;
+        }
+        if let Some(contents) = self
+            .statics
+            .as_ref()
+            .and_then(|s| s.cells.get(name))
+            .cloned()
+        {
+            let slot = self.cells.len();
+            self.cells.push(Cell {
+                name: name.to_vec(),
+                anonymous: false,
+                contents,
+            });
+            self.static_slots.insert(name.to_vec(), slot);
+            return slot;
+        }
+        self.local_slot_for(name)
+    }
+
+    fn local_slot_for(&mut self, name: &[u8]) -> usize {
+        if let Some(slot) = self.lookup_slot(name) {
+            return slot;
+        }
+        self.counted_dynamic_slot(name)
+    }
+
+    fn counted_dynamic_slot(&mut self, name: &[u8]) -> usize {
         if let Some(slot) = self.slots.get(name) {
             return *slot;
         }
         let slot = self.cells.len();
-        self.cells.push(Cell {
-            name: name.to_vec(),
-            var: None,
-            binding_id: None,
-            operation_refs: 0,
-            element_ids: BTreeMap::new(),
-            element_operation_refs: BTreeMap::new(),
-            constant: false,
-            link_origin: FrameLinkOrigin::Ordinary,
-            traced: core::cell::Cell::new((0, false)),
-        });
+        let cell = Cell::empty(name);
+        cell.contents
+            .borrow_mut()
+            .member_order
+            .select_recipe(self.hash_recipe.get());
+        self.cells.push(cell);
         self.slots.insert(name.to_vec(), slot);
         slot
     }
 
-    /// The variable in `slot`, or `None` when the slot is out of range or its
-    /// cell is currently undefined.
-    pub(crate) fn cell_at(&self, slot: usize) -> Option<&Var> {
-        self.cells.get(slot)?.var.as_ref()
+    fn contents(&self, name: &[u8]) -> Option<&Rc<RefCell<CellContents>>> {
+        if let Some(slot) = self.lookup_slot(name) {
+            return Some(&self.cells[slot].contents);
+        }
+        self.statics.as_ref()?.cells.get(name)
     }
 
-    /// The name `slot` is bound to (an out-of-range slot has none).
+    pub(crate) fn capture_cell(&self, name: &[u8]) -> Option<RetainedVariableCell> {
+        let contents = self.contents(name)?;
+        {
+            let cell = contents.borrow();
+            cell.check_owned_value_role().ok()?;
+            cell.var.as_ref()?;
+        }
+        Some(RetainedVariableCell(contents.clone()))
+    }
+
+    pub(crate) fn install_statics(&mut self, statics: Rc<StaticVariables>) {
+        self.statics = Some(statics);
+    }
+
+    /// Borrow one cell for a synchronous read. Callers release the guard before
+    /// dispatching callbacks, so native reentry never retains a cell borrow.
+    pub(crate) fn cell_at(&self, slot: usize) -> Option<Ref<'_, Var>> {
+        Ref::filter_map(self.cells.get(slot)?.contents.borrow(), |c| {
+            c.check_owned_value_role().ok()?;
+            c.var.as_ref()
+        })
+        .ok()
+    }
+
     pub(crate) fn slot_name(&self, slot: usize) -> Option<&[u8]> {
-        self.cells.get(slot).map(|cell| cell.name.as_slice())
+        self.cells
+            .get(slot)
+            .filter(|cell| !cell.anonymous)
+            .map(|cell| cell.name.as_slice())
     }
 
-    /// `slot`'s cached trace answer, if it was computed for `epoch`.
     pub(crate) fn cached_trace_flag(&self, slot: usize, epoch: u64) -> Option<bool> {
-        let (cached_epoch, traced) = self.cells.get(slot)?.traced.get();
+        let (cached_epoch, traced) = self.cells.get(slot)?.contents.borrow().traced.get();
         (cached_epoch == epoch).then_some(traced)
     }
 
-    /// Record `slot`'s trace answer for `epoch`.
     pub(crate) fn set_cached_trace_flag(&self, slot: usize, epoch: u64, traced: bool) {
         if let Some(cell) = self.cells.get(slot) {
-            cell.traced.set((epoch, traced));
+            cell.contents.borrow().traced.set((epoch, traced));
         }
     }
 
-    /// The cell bound to `name`, if the table has ever reserved one.
-    fn get(&self, name: &[u8]) -> Option<&Var> {
-        self.cells[*self.slots.get(name)?].var.as_ref()
+    fn get(&self, name: &[u8]) -> Option<Ref<'_, Var>> {
+        Ref::filter_map(self.contents(name)?.borrow(), |c| {
+            c.jim_scalar_retirement.is_none().then_some(())?;
+            c.var.as_ref()
+        })
+        .ok()
     }
 
-    fn get_mut(&mut self, name: &[u8]) -> Option<&mut Var> {
-        let slot = *self.slots.get(name)?;
-        self.cells[slot].var.as_mut()
-    }
-
-    /// Store `var` under `name`, returning the variable it displaced.
     fn put(&mut self, name: &[u8], var: Var) -> Option<Var> {
         let slot = self.slot_for(name);
-        let cell = &mut self.cells[slot];
+        if !self.declared_slots.contains(&slot) {
+            self.entry_order.borrow_mut().insert(name);
+        }
+        self.put_at(slot, var)
+    }
+
+    fn put_at(&mut self, slot: usize, var: Var) -> Option<Var> {
+        let mut cell = self.cells[slot].contents.borrow_mut();
+        cell.undefined_shell = false;
+        cell.undefined_root_home = None;
+        cell.rmw_shell_entry = None;
         cell.link_origin = FrameLinkOrigin::Ordinary;
         if cell.binding_id.is_none() {
             cell.binding_id = Some(fresh_var_id());
         }
         cell.element_ids.clear();
+        cell.native_member_keys.clear();
+        cell.rmw_member_shells.clear();
         cell.element_operation_refs.clear();
+        cell.array_search_epoch = cell.array_search_epoch.wrapping_add(1);
+        cell.array_searches.clear();
+        cell.member_order = tcl_core_types::NativeEntryLedger::default();
+        cell.member_order.select_recipe(self.hash_recipe.get());
         if let Var::Array(elements) = &var {
+            for key in elements.keys() {
+                cell.insert_member_entry(key);
+            }
             cell.element_ids
                 .extend(elements.keys().cloned().map(|key| (key, fresh_var_id())));
         }
-        cell.var.replace(var)
-    }
-
-    /// Empty `name`'s cell, returning what it held. The cell and its slot stay
-    /// reserved so a compiled slot keeps addressing the same variable.
-    fn take(&mut self, name: &[u8]) -> Option<Var> {
-        let slot = *self.slots.get(name)?;
-        let cell = &mut self.cells[slot];
-        if cell.operation_refs == 0 {
-            cell.binding_id = None;
-        }
-        cell.element_ids.clear();
-        cell.element_operation_refs.clear();
-        cell.var.take()
+        cell.replace_value(var)
     }
 
     /// Identity of the variable currently bound at `name`.
     pub(crate) fn binding_id(&self, name: &[u8]) -> Option<VarId> {
-        let slot = *self.slots.get(name)?;
-        self.cells[slot].var.as_ref()?;
-        self.cells[slot].binding_id
+        let cell = self.contents(name)?.borrow();
+        cell.var.as_ref()?;
+        cell.binding_id
     }
 
-    /// Retain the exact current binding for an array operation.
-    pub(crate) fn retain_binding(&mut self, name: &[u8], id: VarId) -> bool {
-        let Some(slot) = self.slots.get(name).copied() else {
-            return false;
-        };
-        let cell = &mut self.cells[slot];
-        if cell.binding_id != Some(id) {
-            return false;
-        }
-        cell.operation_refs += 1;
-        true
+    /// Actual allocated binding for trace routing, including undefined roots.
+    /// Definition and value-existence queries keep their separate predicates.
+    pub(crate) fn trace_binding_identity(&self, name: &[u8]) -> Option<VarId> {
+        self.contents(name)?.borrow().binding_id
     }
 
-    /// Release a retained array binding, discarding an undefined identity once
-    /// no operation can still observe it.
-    pub(crate) fn release_binding(&mut self, name: &[u8], id: VarId) {
-        let Some(slot) = self.slots.get(name).copied() else {
-            return;
-        };
-        let cell = &mut self.cells[slot];
-        if cell.binding_id != Some(id) || cell.operation_refs == 0 {
-            return;
-        }
-        cell.operation_refs -= 1;
-        if cell.operation_refs == 0 && cell.var.is_none() {
-            cell.binding_id = None;
-        }
+    /// Existing member allocation of the original root, including undefined shells.
+    /// The root's retained identity selects the cell, rather than its display name.
+    pub(crate) fn native_trace_element_identity(&self, root: VarId, key: &[u8]) -> Option<VarId> {
+        self.cells.iter().find_map(|cell| {
+            let contents = cell.contents.borrow();
+            (contents.binding_id == Some(root))
+                .then(|| contents.element_ids.get(key).copied())
+                .flatten()
+        })
     }
 
     /// Identity of a defined element of the current array binding.
+    #[cfg(test)]
     pub(crate) fn element_id(&self, name: &[u8], key: &[u8]) -> Option<VarId> {
-        let slot = *self.slots.get(name)?;
-        let cell = &self.cells[slot];
+        let cell = self.contents(name)?.borrow();
         matches!(cell.var.as_ref(), Some(Var::Array(map)) if map.contains_key(key))
             .then(|| cell.element_ids.get(key).copied())
             .flatten()
     }
 
-    pub(crate) fn retain_element(&mut self, name: &[u8], key: &[u8], id: VarId) -> bool {
-        let Some(slot) = self.slots.get(name).copied() else {
-            return false;
-        };
-        let cell = &mut self.cells[slot];
-        if cell.element_ids.get(key) != Some(&id) {
-            return false;
-        }
-        *cell.element_operation_refs.entry(key.to_vec()).or_default() += 1;
-        true
+    /// A real namespace hash cell, including a retained undefined shell.
+    pub(crate) fn has_native_namespace_cell(&self, name: &[u8]) -> bool {
+        self.lookup_slot(name)
+            .is_some_and(|slot| self.cells[slot].contents.borrow().binding_id.is_some())
     }
 
-    pub(crate) fn release_element(&mut self, name: &[u8], key: &[u8], id: VarId) {
-        let Some(slot) = self.slots.get(name).copied() else {
-            return;
-        };
-        let cell = &mut self.cells[slot];
-        if cell.element_ids.get(key) != Some(&id) {
-            return;
-        }
-        let Some(count) = cell.element_operation_refs.get_mut(key) else {
-            return;
-        };
-        *count -= 1;
-        if *count == 0 {
-            cell.element_operation_refs.remove(key);
-            let defined = matches!(
-                cell.var.as_ref(),
-                Some(Var::Array(elements)) if elements.contains_key(key)
-            );
-            if !defined {
-                cell.element_ids.remove(key);
-            }
-        }
-    }
-
-    /// Read an element only if both its array and element identities still
-    /// match the cells selected before a trace callback.
-    pub(crate) fn load_elem_with_ids(
-        &self,
-        name: &[u8],
-        array: VarId,
-        key: &[u8],
-        element: VarId,
-    ) -> Option<*mut TclObj> {
-        let slot = *self.slots.get(name)?;
-        let cell = &self.cells[slot];
-        if cell.binding_id != Some(array) || cell.element_ids.get(key) != Some(&element) {
-            return None;
-        }
-        match cell.var.as_ref()? {
-            Var::Array(map) => map.get(key).copied(),
-            Var::Scalar(_) | Var::Link(_) => None,
-        }
-    }
-
-    /// Every defined variable, in name order.
-    fn iter(&self) -> impl Iterator<Item = (&[u8], &Var)> {
-        self.slots
-            .iter()
-            .filter_map(|(name, slot)| Some((name.as_slice(), self.cells[*slot].var.as_ref()?)))
-    }
-    /// The cell bound to `name`, if any (for link inspection / introspection).
-    pub(crate) fn cell(&self, name: &[u8]) -> Option<&Var> {
+    pub(crate) fn cell(&self, name: &[u8]) -> Option<Ref<'_, Var>> {
         self.get(name)
     }
 
-    /// Whether `name` is a `const` scalar here.
     pub(crate) fn is_constant(&self, name: &[u8]) -> bool {
-        self.slots
-            .get(name)
-            .is_some_and(|slot| self.cells[*slot].constant)
+        self.contents(name)
+            .is_some_and(|cell| cell.borrow().constant)
     }
 
-    /// Names of the `const` scalars in this table (`info consts`), sorted.
     pub(crate) fn const_names(&self) -> Vec<&[u8]> {
         self.slots
             .iter()
-            .filter(|(_, slot)| self.cells[**slot].constant)
+            .filter(|(_, slot)| self.cells[**slot].contents.borrow().constant)
             .map(|(name, _)| name.as_slice())
-            .collect()
-    }
-
-    /// Automatic `TclOO` instance links in this table. The variable coordinator
-    /// resolves their targets because those may live in another table.
-    pub(crate) fn tcloo_instance_links(&self) -> Vec<(&[u8], &Link)> {
-        self.slots
-            .iter()
-            .filter_map(|(name, slot)| {
-                let cell = &self.cells[*slot];
-                if cell.link_origin != FrameLinkOrigin::TclOoInstance {
-                    return None;
-                }
-                match cell.var.as_ref()? {
-                    Var::Link(link) => Some((name.as_slice(), link)),
-                    Var::Scalar(_) | Var::Array(_) => None,
-                }
-            })
             .collect()
     }
 
@@ -457,84 +1076,131 @@ impl VarTable {
     /// and one so a read of the default always sees it as *shared* — a
     /// read-modify-write (`lappend`/`append`/`dict`) then copies rather than
     /// mutating the stored default in place (TIP 508 copy-on-write).
+    #[cfg(test)]
     pub(crate) fn set_array_default(&mut self, name: &[u8], obj: *mut TclObj) {
-        // SAFETY: retain the new default twice, release any prior one twice.
+        let retired = self.replace_array_default(name, obj);
+        drop(retired);
+    }
+
+    /// Same selected storage step, with retirement returned to the entered
+    /// caller so no enclosing table/namespace borrow crosses a free callback.
+    pub(crate) fn replace_array_default(
+        &mut self,
+        name: &[u8],
+        original: *mut TclObj,
+    ) -> Option<RetiredArrayDefault> {
+        // The new table default owns +2 before the old default is retired.
         unsafe {
-            obj::incr_ref_count(obj);
-            obj::incr_ref_count(obj);
+            obj::incr_ref_count(original);
+            obj::incr_ref_count(original);
         }
-        if let Some(old) = self.array_defaults.insert(name.to_vec(), obj) {
-            unsafe {
-                obj::decr_ref_count(old);
-                obj::decr_ref_count(old);
-            }
-        }
+        let slot = self.slot_for(name);
+        let old = self.cells[slot]
+            .contents
+            .borrow_mut()
+            .array_default
+            .replace(original);
+        old.map(RetiredArrayDefault::capture)
     }
 
     /// Array `name`'s default value, if one is set (`array default get`, and the
     /// fallback for a read of a missing element). Borrowed; the table keeps its +1.
+    #[cfg(test)]
     pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
-        self.array_defaults.get(name).copied()
+        self.contents(name)?.borrow().array_default
     }
 
     /// Remove array `name`'s default value (`array default unset`).
+    #[cfg(test)]
     pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
-        if let Some(old) = self.array_defaults.remove(name) {
-            // SAFETY: balances the +2 taken in `set_array_default`.
-            unsafe {
-                obj::decr_ref_count(old);
-                obj::decr_ref_count(old);
-            }
-        }
+        let retired = self.take_array_default(name);
+        drop(retired);
+    }
+
+    pub(crate) fn take_array_default(&mut self, name: &[u8]) -> Option<RetiredArrayDefault> {
+        let contents = self.contents(name)?;
+        let old = contents.borrow_mut().array_default.take();
+        old.map(RetiredArrayDefault::capture)
     }
 
     /// Flag the scalar `name` `const` (the `const` command, after its value is
     /// stored). A no-op if already flagged.
     pub(crate) fn mark_constant(&mut self, name: &[u8]) {
         let slot = self.slot_for(name);
-        self.cells[slot].constant = true;
+        self.cells[slot].contents.borrow_mut().constant = true;
     }
 
     /// `set name value` into this table directly. The cell takes a **+1**.
     pub(crate) fn store_scalar(&mut self, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
+        let previous = self.publish_scalar(name, obj)?;
+        drop(previous);
+        Ok(())
+    }
+
+    /// The same scalar store, returning its displaced owning contents.
+    pub(crate) fn publish_scalar(
+        &mut self,
+        name: &[u8],
+        obj: *mut TclObj,
+    ) -> Result<RetiredVariableContents, VarError> {
         if self.is_constant(name) {
             return Err(VarError::IsConstant);
         }
-        match self.get_mut(name) {
+        if self.dictionary_variables() {
+            return self
+                .publish_dictionary_root(name, obj)
+                .map(|previous| RetiredVariableContents::Dictionary(Some(previous)));
+        }
+        let slot = self.slot_for(name);
+        let contents = self.cells[slot].contents.clone();
+        let mut cell = contents.borrow_mut();
+        match cell.var.as_mut() {
             Some(Var::Array(_)) => Err(VarError::IsArray),
-            Some(Var::Scalar(slot)) => {
-                // SAFETY: retain the new value, release the prior occupant
-                // (MM-B.2). Order: retain-then-release is alias-safe (set x $x).
-                unsafe {
-                    obj::incr_ref_count(obj);
-                    obj::decr_ref_count(*slot);
-                }
-                *slot = obj;
-                Ok(())
-            }
-            // The declared-but-undefined marker (a self-link, installed by
-            // `variable` — see `vars::make_variable_mapped`) is exactly the
-            // undefined Var a first write defines; any other link the
-            // coordinator would have followed.
-            Some(Var::Link(l)) if l.name == name && l.elem.is_none() => {
-                // SAFETY: fresh cell takes a +1 (the link owned nothing).
+            Some(Var::Scalar(_)) => {
                 unsafe { obj::incr_ref_count(obj) };
-                self.put(name, Var::Scalar(obj));
-                Ok(())
+                let previous = cell.replace_value(Var::Scalar(obj));
+                drop(cell);
+                Ok(RetiredVariableContents::Value(previous))
+            }
+            Some(Var::PendingScalar(_)) => {
+                unsafe { obj::incr_ref_count(obj) };
+                let previous = cell.replace_value(Var::Scalar(obj));
+                drop(cell);
+                Ok(RetiredVariableContents::Value(previous))
+            }
+            Some(Var::Link(link)) if link.name == name && link.elem.is_none() => {
+                drop(cell);
+                unsafe { obj::incr_ref_count(obj) };
+                Ok(RetiredVariableContents::Value(
+                    self.put(name, Var::Scalar(obj)),
+                ))
             }
             Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
             None => {
-                // SAFETY: fresh cell takes a +1.
+                drop(cell);
                 unsafe { obj::incr_ref_count(obj) };
-                self.put(name, Var::Scalar(obj));
-                Ok(())
+                Ok(RetiredVariableContents::Value(
+                    self.put(name, Var::Scalar(obj)),
+                ))
             }
+        }
+    }
+
+    /// Header-only software observation of actual published scalar storage.
+    /// This cannot issue a scalar reference or allow a checked semantic read.
+    #[cfg(test)]
+    pub(crate) fn published_scalar_header(&self, name: &[u8]) -> Option<*mut TclObj> {
+        let contents = self.contents(name)?.borrow();
+        match contents.var.as_ref() {
+            Some(Var::Scalar(original)) => Some(*original),
+            Some(Var::PendingScalar(pending)) => Some(pending.raw_header()),
+            _ => None,
         }
     }
 
     /// `set name` — the scalar's value (borrowed; the table keeps its +1).
     pub(crate) fn load_scalar(&self, name: &[u8]) -> Option<*mut TclObj> {
-        match self.get(name) {
+        match self.get(name).as_deref() {
             Some(Var::Scalar(p)) => Some(*p),
             _ => None,
         }
@@ -547,25 +1213,40 @@ impl VarTable {
         key: &[u8],
         obj: *mut TclObj,
     ) -> Result<(), VarError> {
-        if let Some(slot) = self.slots.get(name).copied() {
-            let cell = &mut self.cells[slot];
+        let previous = self.publish_elem(name, key, obj)?;
+        drop(previous);
+        Ok(())
+    }
+
+    /// The same member store, returning its displaced owning contents.
+    pub(crate) fn publish_elem(
+        &mut self,
+        name: &[u8],
+        key: &[u8],
+        obj: *mut TclObj,
+    ) -> Result<RetiredVariableContents, VarError> {
+        if self.dictionary_variables() {
+            return self
+                .publish_dictionary_element(name, key, obj)
+                .map(|previous| RetiredVariableContents::Dictionary(Some(previous)));
+        }
+        if let Some(contents) = self.contents(name).cloned() {
+            let mut cell = contents.borrow_mut();
             match cell.var.as_mut() {
-                Some(Var::Scalar(_)) => return Err(VarError::IsScalar),
+                Some(Var::Scalar(_) | Var::PendingScalar(_)) => return Err(VarError::IsScalar),
                 Some(Var::Array(map)) => {
-                    // SAFETY: retain the new element value; release any prior one.
                     unsafe { obj::incr_ref_count(obj) };
                     let fresh = !map.contains_key(key);
-                    if let Some(old) = map.insert(key.to_vec(), obj) {
-                        unsafe { obj::decr_ref_count(old) };
-                    }
+                    let previous = map.insert(key.to_vec(), obj);
+                    cell.insert_member_entry(key);
+                    cell.rmw_member_shells.remove(key);
                     if fresh && !cell.element_ids.contains_key(key) {
                         cell.element_ids.insert(key.to_vec(), fresh_var_id());
                     }
-                    return Ok(());
+                    drop(cell);
+                    return Ok(RetiredVariableContents::Value(previous.map(Var::Scalar)));
                 }
-                // The declared-but-undefined marker: the first element write
-                // defines the array over it (see `store_scalar`).
-                Some(Var::Link(l)) if l.name == name && l.elem.is_none() => {}
+                Some(Var::Link(link)) if link.name == name && link.elem.is_none() => {}
                 Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
                 None => {}
             }
@@ -573,13 +1254,19 @@ impl VarTable {
         let mut map = BTreeMap::new();
         unsafe { obj::incr_ref_count(obj) };
         map.insert(key.to_vec(), obj);
-        self.put(name, Var::Array(map));
-        Ok(())
+        Ok(RetiredVariableContents::Value(
+            self.put(name, Var::Array(map)),
+        ))
     }
 
     /// `set name(key)` — borrowed.
     pub(crate) fn load_elem(&self, name: &[u8], key: &[u8]) -> Option<*mut TclObj> {
-        match self.get(name) {
+        if self.dictionary_variables() {
+            let root = self.load_scalar(name)?;
+            self.prepare_dictionary_root(root).ok()?;
+            return crate::dict::dict_get(root, key).ok().flatten();
+        }
+        match self.get(name).as_deref() {
             Some(Var::Array(map)) => map.get(key).copied(),
             _ => None,
         }
@@ -587,16 +1274,110 @@ impl VarTable {
 
     /// Remove the whole variable `name` (scalar or array); returns whether it
     /// existed. Releases every object it owned.
+    #[cfg(test)]
     pub(crate) fn remove(&mut self, name: &[u8]) -> bool {
-        // A removed array drops its TIP 508 default too.
-        self.unset_array_default(name);
-        match self.take(name) {
-            Some(v) => {
-                v.release();
-                true
-            }
-            None => false,
+        drop(self.take_array_default(name));
+        let (removed, old) = self.publish_remove_after_default(name);
+        drop(old);
+        removed
+    }
+    /// The default is a separate earlier retirement stage. The entered caller
+    /// releases it and checks the original receiver before reaching this stage.
+    pub(crate) fn publish_remove_after_default(
+        &mut self,
+        name: &[u8],
+    ) -> (bool, RetiredVariableParts) {
+        let mut old = RetiredVariableParts::default();
+        let Some(slot) = self.lookup_slot(name) else {
+            return (false, old);
+        };
+        {
+            let mut cell = self.cells[slot].contents.borrow_mut();
+            cell.array_search_epoch = cell.array_search_epoch.wrapping_add(1);
+            cell.array_searches.clear();
         }
+        old.hash_key(self.take_jim_key(name));
+        {
+            let mut cell = self.cells[slot].contents.borrow_mut();
+            cell.namespace_declared = false;
+            cell.undefined_shell = false;
+        }
+        let retire_entry = {
+            let cell = self.cells[slot].contents.borrow();
+            cell.operation_refs == 0 && cell.rmw_root_refs == 0 && cell.native_alias_refs == 0
+        };
+        if retire_entry {
+            old.hash_key(self.take_native_entry(name));
+        }
+        if self.cells[slot].contents.borrow().rmw_refs != 0
+            || self.cells[slot].contents.borrow().native_alias_refs != 0
+        {
+            let mut contents = self.cells[slot].contents.borrow_mut();
+            let is_array = matches!(contents.var.as_ref(), Some(Var::Array(_)));
+            if (contents.rmw_root_refs != 0 || contents.native_alias_refs != 0)
+                && contents.rmw_shell_entry.is_none()
+                && !self.declared_slots.contains(&slot)
+            {
+                if let Some(binding) = contents.binding_id {
+                    contents.rmw_shell_entry = Some(rmw::RootShellEntry::new(
+                        &self.entry_order,
+                        &self.native_keys,
+                        name,
+                        binding,
+                    ));
+                }
+            }
+            let value = contents.take_value();
+            let removed = value.is_some();
+            old.elements(std::mem::take(&mut contents.native_member_keys));
+            old.value(value);
+            let replace = if is_array {
+                contents.rmw_array_epoch = contents.rmw_array_epoch.wrapping_add(1);
+                if contents.rmw_root_refs == 0 && contents.native_alias_refs == 0 {
+                    contents.rmw_retirement = Some(VarError::DeletedArray);
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+            drop(contents);
+            if replace {
+                old.cell(std::mem::replace(&mut self.cells[slot], Cell::empty(name)));
+            }
+            return (removed, old);
+        }
+        if self.cells[slot].contents.borrow().operation_refs != 0 {
+            let mut cell = self.cells[slot].contents.borrow_mut();
+            cell.element_ids.clear();
+            old.elements(std::mem::take(&mut cell.native_member_keys));
+            cell.element_operation_refs.clear();
+            let value = cell.take_value();
+            let removed = value.is_some();
+            old.value(value);
+            return (removed, old);
+        }
+        if Rc::strong_count(&self.cells[slot].contents) > 1 {
+            let removed = self.cells[slot].contents.borrow().var.is_some();
+            // Captured static/cell owners keep their existing value role. Moving
+            // the actual table Rc does not manufacture another native reference.
+            old.cell(std::mem::replace(&mut self.cells[slot], Cell::empty(name)));
+            return (removed, old);
+        }
+        let mut cell = self.cells[slot].contents.borrow_mut();
+        if !cell.compiled_declaration {
+            cell.binding_id = None;
+        }
+        cell.element_ids.clear();
+        old.elements(std::mem::take(&mut cell.native_member_keys));
+        cell.rmw_member_shells.clear();
+        cell.element_operation_refs.clear();
+        let value = cell.take_value();
+        let removed = value.is_some();
+        old.value(value);
+        drop(cell);
+        (removed, old)
     }
 
     /// Ensure `name` is an (at least empty) array — `array default set` creates
@@ -604,39 +1385,60 @@ impl VarTable {
     /// scalar. (`IsScalar` reuses the closest existing variant; the caller maps
     /// it to the `array default set` message.)
     pub(crate) fn ensure_array(&mut self, name: &[u8]) -> Result<(), VarError> {
-        match self.get(name) {
-            Some(Var::Array(_)) => Ok(()),
-            Some(Var::Scalar(_)) => Err(VarError::IsScalar),
-            // The declared-but-undefined marker defines as an array here.
-            Some(Var::Link(l)) if l.name == name && l.elem.is_none() => {
-                self.put(name, Var::Array(BTreeMap::new()));
-                Ok(())
-            }
-            Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
-            None => {
-                self.put(name, Var::Array(BTreeMap::new()));
-                Ok(())
+        if self.dictionary_variables() {
+            return self.ensure_dictionary_root(name);
+        }
+        let contents = self.contents(name).cloned();
+        if let Some(contents) = contents {
+            let cell = contents.borrow();
+            if !cell.array_materialisation_needed(Some(name))? {
+                return Ok(());
             }
         }
+        self.put(name, Var::Array(BTreeMap::new()));
+        Ok(())
     }
 
     /// Remove one array element `name(key)`; returns whether it existed.
+    #[cfg(test)]
     pub(crate) fn remove_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
-        let Some(slot) = self.slots.get(name).copied() else {
-            return false;
-        };
-        let cell = &mut self.cells[slot];
-        if let Some(Var::Array(map)) = cell.var.as_mut() {
-            if let Some(old) = map.remove(key) {
-                if !cell.element_operation_refs.contains_key(key) {
-                    cell.element_ids.remove(key);
-                }
-                // SAFETY: the array element owned a +1; releasing balances it.
-                unsafe { obj::decr_ref_count(old) };
-                return true;
-            }
+        if self.dictionary_variables() {
+            return self.remove_dictionary_element(name, key);
         }
-        false
+        let (removed, old) = self.publish_remove_elem(name, key);
+        drop(old);
+        removed
+    }
+    pub(crate) fn publish_remove_elem(
+        &mut self,
+        name: &[u8],
+        key: &[u8],
+    ) -> (bool, RetiredVariableParts) {
+        let mut old = RetiredVariableParts::default();
+        let Some(contents) = self.contents(name) else {
+            return (false, old);
+        };
+        let mut cell = contents.borrow_mut();
+        if cell.member_order.contains_key(key) {
+            cell.array_search_epoch = cell.array_search_epoch.wrapping_add(1);
+            cell.array_searches.clear();
+        }
+        let value = match cell.var.as_mut() {
+            Some(Var::Array(map)) => map.remove(key),
+            _ => None,
+        };
+        if value.is_some()
+            && !cell.element_operation_refs.contains_key(key)
+            && !cell.native_member_keys.has_aliases(key)
+        {
+            cell.element_ids.remove(key);
+            cell.member_order.remove(key);
+            old.key(cell.native_member_keys.take_key(key));
+        }
+        let removed = value.is_some();
+        old.value(value.map(Var::Scalar));
+        drop(cell);
+        (removed, old)
     }
 
     /// Install `link` under `name`, releasing any cell it replaces.
@@ -651,52 +1453,114 @@ impl VarTable {
         link: Link,
         origin: FrameLinkOrigin,
     ) {
-        let slot = self.slot_for(name);
-        let cell = &mut self.cells[slot];
+        drop(self.publish_link_with_origin(name, link, origin));
+    }
+    pub(crate) fn publish_link_with_origin(
+        &mut self,
+        name: &[u8],
+        link: Link,
+        origin: FrameLinkOrigin,
+    ) -> RetiredVariableParts {
+        let slot = self.local_slot_for(name);
+        if !self.declared_slots.contains(&slot) {
+            self.entry_order.borrow_mut().insert(name);
+        }
+        let mut cell = self.cells[slot].contents.borrow_mut();
+        cell.undefined_shell = false;
+        cell.undefined_root_home = None;
         cell.link_origin = origin;
-        if cell.binding_id.is_none() {
-            cell.binding_id = Some(fresh_var_id());
-        }
+        cell.binding_id.get_or_insert_with(fresh_var_id);
         cell.element_ids.clear();
+        let mut old = RetiredVariableParts::default();
+        old.elements(std::mem::take(&mut cell.native_member_keys));
+        cell.rmw_member_shells.clear();
         cell.element_operation_refs.clear();
-        if let Some(old) = cell.var.replace(Var::Link(link)) {
-            old.release();
-        }
+        let adopted = link.clone(); // Metadata observes the transferred stored role.
+        old.value_preserving_link(cell.replace_value(Var::Link(link)), &adopted);
+        drop(cell);
+        old
     }
 
     /// Whether `name` is an array variable here (the `set a` array-vs-scalar
     /// diagnostic; `array exists`).
+    #[cfg(test)]
     pub(crate) fn is_array(&self, name: &[u8]) -> bool {
-        matches!(self.get(name), Some(Var::Array(_)))
+        if self.dictionary_variables() {
+            return self
+                .load_scalar(name)
+                .is_some_and(|value| self.prepare_dictionary_root(value).is_ok());
+        }
+        matches!(self.get(name).as_deref(), Some(Var::Array(_)))
     }
 
     /// Whether `name` is a defined scalar or array here (not a link) — the
     /// terminal check behind `info exists`.
     pub(crate) fn is_set(&self, name: &[u8]) -> bool {
-        matches!(self.get(name), Some(Var::Scalar(_) | Var::Array(_)))
+        matches!(
+            self.get(name).as_deref(),
+            Some(Var::Scalar(_) | Var::PendingScalar(_) | Var::Array(_))
+        )
     }
 
-    /// Names of all variables in this table, sorted (`info vars`/`locals`/
-    /// `globals`).
-    pub(crate) fn names(&self) -> Vec<&[u8]> {
-        self.iter().map(|(name, _)| name).collect()
-    }
-
-    /// Names of the table's *direct* variables (scalars/arrays), excluding
-    /// links (`global`/`upvar`/`variable` / auto-linked instance vars) — for
-    /// `info locals`, which lists only true locals.
-    pub(crate) fn non_link_names(&self) -> Vec<&[u8]> {
-        self.iter()
-            .filter(|(_, v)| !matches!(v, Var::Link(_)))
-            .map(|(name, _)| name)
+    pub(crate) fn teardown_names(&self) -> Vec<&[u8]> {
+        self.declared_slots
+            .iter()
+            .copied()
+            .filter(|&slot| self.cells[slot].contents.borrow().binding_id.is_some())
+            .map(|slot| self.cells[slot].name.as_slice())
+            .chain(self.ordered_names())
             .collect()
     }
 
-    /// Element names of array `name`, sorted (`array names`); `None` if not an
-    /// array.
-    pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<&[u8]>> {
-        match self.get(name) {
-            Some(Var::Array(map)) => Some(map.keys().map(|k| k.as_slice()).collect()),
+    /// Defined cells and declared namespace variables in original physical entry order.
+    pub(crate) fn names(&self) -> Vec<&[u8]> {
+        self.declared_slots
+            .iter()
+            .copied()
+            .filter(|&slot| self.visible_cell(slot, true))
+            .map(|slot| self.cells[slot].name.as_slice())
+            .chain(self.ordered_names().into_iter().filter(|name| {
+                self.lookup_slot(name)
+                    .is_some_and(|slot| self.visible_cell(slot, true))
+            }))
+            .collect()
+    }
+
+    /// Defined direct compiled declarations followed by the dynamic hash table.
+    pub(crate) fn non_link_names(&self) -> Vec<&[u8]> {
+        self.declared_slots
+            .iter()
+            .copied()
+            .filter(|&slot| self.visible_cell(slot, false))
+            .map(|slot| self.cells[slot].name.as_slice())
+            .chain(self.ordered_names().into_iter().filter(|name| {
+                self.lookup_slot(name)
+                    .is_some_and(|slot| self.visible_cell(slot, false))
+            }))
+            .collect()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<Vec<u8>>> {
+        if self.dictionary_variables() {
+            let root = self.load_scalar(name)?;
+            self.prepare_dictionary_root(root).ok()?;
+            return crate::dict::dict_keys(root)
+                .ok()
+                .map(|keys| keys.into_iter().map(obj::bytes_of).collect());
+        }
+        match self.get(name).as_deref() {
+            Some(Var::Array(map)) => {
+                let cell = self.contents(name)?.borrow();
+                Some(match cell.member_order.keys() {
+                    Some(keys) => keys
+                        .into_iter()
+                        .filter(|key| map.contains_key(*key))
+                        .map(<[u8]>::to_vec)
+                        .collect(),
+                    None => map.keys().cloned().collect(),
+                })
+            }
             _ => None,
         }
     }
@@ -706,27 +1570,50 @@ impl Drop for VarTable {
     /// Release every object every cell owns, so a dropped frame/namespace never
     /// leaks.
     fn drop(&mut self) {
-        for cell in std::mem::take(&mut self.cells) {
-            if let Some(var) = cell.var {
-                var.release();
+        let mut old = RetiredVariableParts::default();
+        for cell in &self.cells {
+            let mut contents = cell.contents.borrow_mut();
+            if contents.rmw_refs != 0
+                || contents.native_alias_refs != 0
+                || contents.native_member_keys.any_aliases()
+            {
+                contents.rmw_retirement = Some(VarError::DeletedNamespace);
+                old.elements(std::mem::take(&mut contents.native_member_keys));
+                old.value(contents.take_value());
             }
         }
-        for (_, obj) in std::mem::take(&mut self.array_defaults) {
-            // SAFETY: balances the +2 taken in `set_array_default`.
-            unsafe {
-                obj::decr_ref_count(obj);
-                obj::decr_ref_count(obj);
-            }
-        }
+        drop(old);
     }
 }
 
 // FrameStack — the proc call frames (level 0 is the global context).
 
-/// One call frame: its local variable table, absolute level, and the namespace
-/// it runs in (so `uplevel` can restore the target frame's namespace context —
-/// the `CallFrame.nsPtr` analogue).
+/// A selected replacement retains its actual native transport through frame cleanup.
+pub(crate) enum PendingTailcall {
+    OriginalNamespaceList(crate::obj::Owned),
+    Jim(crate::interp::native_jim_tailcall::JimSelectedTailcall),
+}
+
 struct Frame {
+    jim_link_birth: Rc<()>,
+    jim_storage: tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot,
+    c_procedure: Option<Rc<crate::interp::ProcDef>>,
+    original_jim_procedure: Option<std::rc::Weak<crate::interp::ProcDef>>,
+    original_jim_variadic: Option<OriginalJimVariadic>,
+    original_jim_import: Option<Rc<crate::interp::OriginalJimImportTraversal>>,
+    original_namespace_info: Option<Rc<crate::interp::OriginalNamespaceInfoFrame>>,
+    oo_variable_resolver: Option<crate::cmd_oo::native_variables::NativeOoVariableResolver>,
+    native_procedure_execution: Option<
+        tcl_runtime_api::native_procedure_roles::NativeProcedureReference<crate::interp::ProcDef>,
+    >,
+    native_local_names:
+        Option<Rc<tcl_runtime_api::native_literal::NativeLocalNameTable<crate::obj::Owned>>>,
+    jim_parameters: Option<crate::obj::Owned>,
+    jim_body: Option<crate::obj::Owned>,
+    jim_namespace: Option<Rc<crate::obj::Owned>>,
+    jim_local_commands: Vec<crate::obj::Owned>,
+    jim_id: u64,
+    tailcall: Option<PendingTailcall>,
     table: VarTable,
     /// Compile-time slot index → the [`VarTable`] cell slot it is bound to.
     /// Indexed and named access address the *same* cell, so dynamic Tcl code
@@ -734,6 +1621,7 @@ struct Frame {
     /// `tcl_codegen_slot_*` calls do — and an indexed access costs one array
     /// index rather than a name clone plus an ordered lookup.
     compiled_slots: Vec<Option<usize>>,
+    original_error_stack_argv: Option<Vec<obj::NativeObjectLifetime>>,
     /// The logical call level (`info level`, `upvar`/`uplevel` arithmetic) — the
     /// invoking var-frame's level + 1, **not** the stack index. They diverge
     /// when a proc is invoked while `uplevel` has redirected the active frame:
@@ -758,11 +1646,67 @@ struct Frame {
     unit: Option<Rc<crate::compiled_locals::ProcUnit>>,
 }
 
+pub(crate) struct OriginalJimVariadic {
+    original: obj::NativeObjectLifetime,
+    backing: crate::list::NativeListBacking,
+}
+
+impl OriginalJimVariadic {
+    pub(crate) fn capture(
+        original: *mut obj::TclObj,
+    ) -> Result<Self, tcl_syntax::value::ValueError> {
+        obj::check_native_liveness(original)?;
+        let backing = crate::list::native_list_backing(original).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "actual Jim variadic List constructor",
+            ),
+        )?;
+        Ok(Self {
+            original: obj::NativeObjectLifetime::retain(original),
+            backing,
+        })
+    }
+
+    fn original(&self) -> Result<*mut obj::TclObj, tcl_syntax::value::ValueError> {
+        let original = self.original.checked_ptr()?;
+        self.backing.check_original_header(original)?;
+        Ok(original)
+    }
+}
+
+impl Drop for Frame {
+    fn drop(&mut self) {
+        drop(self.native_procedure_execution.take());
+        tcl_runtime_api::jim_interpreter::release_jim_call_frame_objects(
+            self.jim_parameters.take(),
+            self.jim_body.take(),
+            self.jim_namespace.take(),
+        );
+    }
+}
+
 impl Frame {
     fn new(level: usize, ns: NsId) -> Self {
         Frame {
+            jim_link_birth: Rc::new(()),
+            jim_storage: tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot::default(),
+            c_procedure: None,
+            original_jim_procedure: None,
+            original_jim_variadic: None,
+            original_jim_import: None,
+            original_namespace_info: None,
+            oo_variable_resolver: None,
+            native_procedure_execution: None,
+            native_local_names: None,
+            jim_parameters: None,
+            jim_body: None,
+            jim_namespace: None,
+            jim_local_commands: Vec::new(),
+            jim_id: 1,
+            tailcall: None,
             table: VarTable::default(),
             compiled_slots: Vec::new(),
+            original_error_stack_argv: None,
             level,
             ns,
             words: Vec::new(),
@@ -780,6 +1724,12 @@ impl Frame {
 /// `uplevel` points it at an enclosing frame for the duration of a body. Frame
 /// index == level.
 pub struct FrameStack {
+    next_jim_frame_id: u64,
+    jim_storage: tcl_runtime_api::jim_call_frame::JimCallFrameStoragePool,
+    pub(crate) variable_container_model: tcl_dialect::VariableContainerModel,
+    pub(crate) variable_string_protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
+    pub(crate) variable_hash_recipe: Option<tcl_core_types::NativeHashRecipe>,
+    pub(crate) variable_lookup_policy: tcl_dialect::VariableLookupPolicy,
     frames: Vec<Frame>,
     active_level: usize,
 }
@@ -790,17 +1740,376 @@ impl Default for FrameStack {
     }
 }
 
+/// A departing frame's concrete local and namespace owners.
+pub(crate) struct RetiredJimFrame {
+    _frame: Frame,
+}
+
+impl RetiredJimFrame {
+    pub(crate) fn release(self) -> tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot {
+        let storage = self._frame.jim_storage.clone();
+        drop(self);
+        storage
+    }
+}
+
 impl FrameStack {
+    pub(crate) fn recycle_jim_storage(
+        &mut self,
+        storage: tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot,
+    ) {
+        if self.variable_lookup_policy == tcl_dialect::VariableLookupPolicy::Jim {
+            self.jim_storage.recycle(storage);
+        }
+    }
+    pub(crate) fn jim_link_storage(
+        &self,
+        level: usize,
+    ) -> Option<tcl_runtime_api::jim_call_frame::JimCallFrameStorageReference> {
+        Some(
+            self.frames
+                .get(self.index_of_level(level)?)?
+                .jim_storage
+                .reference(),
+        )
+    }
+    pub(crate) fn jim_link_level(
+        &self,
+        retained: &tcl_runtime_api::jim_call_frame::JimCallFrameStorageReference,
+    ) -> Option<usize> {
+        let frame = self
+            .frames
+            .iter()
+            .find(|frame| frame.jim_storage.matches(retained))?;
+        self.frames
+            .get(self.index_of_level(frame.level)?)
+            .filter(|selected| selected.jim_storage.matches(retained))
+            .map(|_| frame.level)
+    }
+    pub(crate) fn retain_c_procedure(&mut self, procedure: Rc<crate::interp::ProcDef>) {
+        self.frames
+            .last_mut()
+            .expect("actual C activation")
+            .c_procedure = Some(procedure);
+    }
+
+    pub(crate) fn retain_native_procedure_execution(
+        &mut self,
+        role: tcl_runtime_api::native_procedure_roles::NativeProcedureReference<
+            crate::interp::ProcDef,
+        >,
+    ) {
+        let frame = self.frames.last_mut().expect("actual procedure activation");
+        assert!(frame.native_procedure_execution.is_none());
+        frame.native_procedure_execution = Some(role);
+    }
+
+    pub(crate) fn take_native_procedure_execution(
+        &mut self,
+    ) -> Option<
+        tcl_runtime_api::native_procedure_roles::NativeProcedureReference<crate::interp::ProcDef>,
+    > {
+        self.frames.last_mut()?.native_procedure_execution.take()
+    }
+
+    pub(crate) fn current_c_procedure(&self) -> Option<&Rc<crate::interp::ProcDef>> {
+        self.frames
+            .get(self.current_frame_index())?
+            .c_procedure
+            .as_ref()
+    }
+
+    pub(crate) fn observe_original_jim_procedure(
+        &mut self,
+        procedure: &Rc<crate::interp::ProcDef>,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        let frame = self
+            .frames
+            .last_mut()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "actual Jim procedure activation",
+            ))?;
+        let body = frame
+            .jim_body
+            .as_ref()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "actual Jim procedure body role",
+            ))?;
+        obj::check_native_liveness(body.as_ptr())?;
+        if procedure.body.checked_ptr()? != body.as_ptr() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "actual Jim procedure body owner",
+            ));
+        }
+        frame.original_jim_procedure = Some(Rc::downgrade(procedure));
+        Ok(())
+    }
+
+    pub(crate) fn current_original_jim_procedure(
+        &self,
+    ) -> Result<Option<Rc<crate::interp::ProcDef>>, tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        let Some(frame) = self.frames.get(self.current_frame_index()) else {
+            return Ok(None);
+        };
+        let Some(owner) = frame.original_jim_procedure.as_ref() else {
+            return Ok(None);
+        };
+        let owner = owner
+            .upgrade()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "retired actual Jim procedure owner",
+            ))?;
+        let body = frame
+            .jim_body
+            .as_ref()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "actual Jim procedure body role",
+            ))?;
+        obj::check_native_liveness(body.as_ptr())?;
+        if owner.body.checked_ptr()? != body.as_ptr() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "actual Jim procedure body owner",
+            ));
+        }
+        Ok(Some(owner))
+    }
+
+    pub(crate) fn observe_original_jim_variadic(
+        &mut self,
+        original: OriginalJimVariadic,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        original.original()?;
+        let frame = self
+            .frames
+            .last_mut()
+            .expect("actual Jim formal binding frame");
+        if frame.original_jim_procedure.is_some() {
+            frame.original_jim_variadic = Some(original);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn current_original_jim_variadic(
+        &self,
+    ) -> Result<Option<*mut obj::TclObj>, tcl_syntax::value::ValueError> {
+        if self.current_original_jim_procedure()?.is_none() {
+            return Ok(None);
+        }
+        self.frames
+            .get(self.current_frame_index())
+            .and_then(|frame| frame.original_jim_variadic.as_ref())
+            .map(OriginalJimVariadic::original)
+            .transpose()
+    }
+
+    pub(crate) fn observe_original_jim_import_traversal(
+        &mut self,
+        traversal: Rc<crate::interp::OriginalJimImportTraversal>,
+    ) {
+        self.frames
+            .last_mut()
+            .expect("actual Jim activation")
+            .original_jim_import = Some(traversal);
+    }
+
+    pub(crate) fn observe_original_namespace_info_frame(
+        &mut self,
+        frame: Rc<crate::interp::OriginalNamespaceInfoFrame>,
+    ) {
+        self.frames
+            .last_mut()
+            .expect("actual Jim procedure activation")
+            .original_namespace_info = Some(frame);
+    }
+
+    pub(crate) fn current_original_namespace_info_frame(
+        &self,
+    ) -> Result<Option<Rc<crate::interp::OriginalNamespaceInfoFrame>>, tcl_syntax::value::ValueError>
+    {
+        let frame = self
+            .frames
+            .get(self.current_frame_index())
+            .and_then(|frame| frame.original_namespace_info.as_ref())
+            .cloned();
+        if frame.is_some() && self.current_original_jim_procedure()?.is_none() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original NamespaceInfo selected procedure frame",
+            ));
+        }
+        Ok(frame)
+    }
+
+    pub(crate) fn current_original_jim_import_traversal(
+        &self,
+    ) -> Result<Option<Rc<crate::interp::OriginalJimImportTraversal>>, tcl_syntax::value::ValueError>
+    {
+        let traversal = self
+            .frames
+            .get(self.current_frame_index())
+            .and_then(|frame| frame.original_jim_import.as_ref())
+            .cloned();
+        if traversal.is_some() && self.current_original_jim_procedure()?.is_none() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Import selected procedure frame",
+            ));
+        }
+        Ok(traversal)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn jim_activation_objects(
+        &self,
+    ) -> Option<(
+        *mut crate::obj::TclObj,
+        *mut crate::obj::TclObj,
+        *mut crate::obj::TclObj,
+    )> {
+        let frame = self.frames.last()?;
+        Some((
+            frame.jim_parameters.as_ref()?.as_ptr(),
+            frame.jim_body.as_ref()?.as_ptr(),
+            frame.jim_namespace.as_ref()?.as_ptr(),
+        ))
+    }
+
+    pub(crate) fn retain_jim_frame_body(&mut self, body: crate::obj::Owned) {
+        self.frames
+            .last_mut()
+            .expect("native namespace frame")
+            .jim_body = Some(body);
+    }
+
+    pub(crate) fn retain_jim_root_namespace(&mut self, namespace: Rc<crate::obj::Owned>) {
+        self.frames.first_mut().expect("global frame").jim_namespace = Some(namespace);
+    }
+
+    pub(crate) fn retain_jim_activation_objects(
+        &mut self,
+        parameters: Option<crate::obj::Owned>,
+        body: Option<crate::obj::Owned>,
+        namespace: Rc<crate::obj::Owned>,
+    ) {
+        let frame = self.frames.last_mut().expect("actual activation frame");
+        frame.jim_parameters = parameters;
+        frame.jim_body = body;
+        frame.jim_namespace = Some(namespace);
+    }
+
+    pub(crate) fn take_frame_for_pop(&mut self) -> Option<(NsId, RetiredJimFrame)> {
+        if self.frames.len() <= 1 {
+            return None;
+        }
+        let frame = self.frames.pop().expect("non-global frame");
+        self.active_level = frame.saved_active;
+        Some((frame.ns, RetiredJimFrame { _frame: frame }))
+    }
+
+    pub(crate) fn select_top_for_jim_retirement(&mut self) -> Option<usize> {
+        let level = self.frames.last()?.level;
+        self.active_level = level;
+        Some(level)
+    }
+
+    pub(crate) fn take_top_for_jim_retirement(&mut self) -> Option<RetiredJimFrame> {
+        let frame = self.frames.pop()?;
+        self.active_level = self.frames.last().map_or(0, |frame| frame.level);
+        Some(RetiredJimFrame { _frame: frame })
+    }
+
     /// A new stack with just the global level (0), in the global namespace.
     pub fn new() -> Self {
         FrameStack {
+            next_jim_frame_id: 2,
+            jim_storage: tcl_runtime_api::jim_call_frame::JimCallFrameStoragePool::default(),
+            variable_container_model: tcl_dialect::VariableContainerModel::DistinctArray,
+            variable_string_protocol: None,
+            variable_hash_recipe: None,
+            variable_lookup_policy: tcl_dialect::VariableLookupPolicy::Tcl,
             frames: vec![Frame::new(0, crate::namespace::GLOBAL)],
             active_level: 0,
         }
     }
 
-    /// The **active** variable frame level (`varFramePtr`); what unqualified
-    /// names resolve against. Normally the top frame, but `uplevel` redirects it.
+    pub(crate) fn retain_jim_local_command(&mut self, name: crate::obj::Owned) {
+        let index = self.current_frame_index();
+        self.frames[index].jim_local_commands.push(name);
+    }
+
+    pub(crate) fn take_jim_local_commands(&mut self) -> Vec<crate::obj::Owned> {
+        let index = self.current_frame_index();
+        std::mem::take(&mut self.frames[index].jim_local_commands)
+    }
+
+    /// Install the resolver only in the actual reached method activation.
+    pub(crate) fn install_tcloo_variable_resolver(
+        &mut self,
+        resolver: crate::cmd_oo::native_variables::NativeOoVariableResolver,
+    ) -> Result<(), VarError> {
+        let frame = self
+            .frames
+            .last_mut()
+            .ok_or(VarError::NameProtocolUnavailable)?;
+        if !frame.is_proc || frame.ns != resolver.namespace() {
+            return Err(VarError::NameProtocolUnavailable);
+        }
+        frame.oo_variable_resolver = Some(resolver);
+        Ok(())
+    }
+
+    /// Runtime CString resolution is independent of the installed local table.
+    pub(crate) fn tcloo_variable_target(
+        &self,
+        level: usize,
+        protocol: tcl_syntax::naming::NativeNameProtocol,
+        supplied: &[u8],
+    ) -> Result<Option<(NsId, Vec<u8>)>, VarError> {
+        let Some(frame) = self
+            .index_of_level(level)
+            .and_then(|index| self.frames.get(index))
+        else {
+            return Err(VarError::NameProtocolUnavailable);
+        };
+        let Some(resolver) = &frame.oo_variable_resolver else {
+            return Ok(None);
+        };
+        if !frame.is_proc || frame.ns != resolver.namespace() {
+            return Err(VarError::NameProtocolUnavailable);
+        }
+        resolver
+            .runtime_target(protocol, supplied)
+            .map_err(|_| VarError::NameProtocolUnavailable)
+    }
+
+    pub(crate) fn declared_tcloo_variable_bindings(
+        &self,
+    ) -> Result<Vec<crate::cmd_oo::native_variables::DeclaredVariableBinding>, VarError> {
+        let Some(frame) = self
+            .index_of_level(self.active_level)
+            .and_then(|index| self.frames.get(index))
+        else {
+            return Err(VarError::NameProtocolUnavailable);
+        };
+        frame.oo_variable_resolver.as_ref().map_or_else(
+            || Ok(Vec::new()),
+            |resolver| {
+                if !frame.is_proc || frame.ns != resolver.namespace() {
+                    return Err(VarError::NameProtocolUnavailable);
+                }
+                resolver
+                    .reported_bindings()
+                    .map_err(|_| VarError::NameProtocolUnavailable)
+            },
+        )
+    }
+
+    pub(crate) fn declared_tcloo_variable_names(&self) -> Result<Vec<Vec<u8>>, VarError> {
+        self.declared_tcloo_variable_bindings()
+            .map(|bindings| bindings.into_iter().map(|(_, name, _)| name).collect())
+    }
+
+    /// The active logical variable frame level (`varFramePtr`) used by names.
     pub fn current_level(&self) -> usize {
         self.active_level
     }
@@ -821,6 +2130,12 @@ impl FrameStack {
             .is_some_and(|i| self.frames[i].is_proc)
     }
 
+    /// Whether the selected engine stores ordinary variables in this activation.
+    pub(crate) fn owns_local_variables_at(&self, level: usize) -> bool {
+        self.is_proc_at(level)
+            || (self.variable_lookup_policy == tcl_dialect::VariableLookupPolicy::Jim && level > 0)
+    }
+
     /// The true top-of-stack level (`framePtr`), independent of any `uplevel`
     /// redirection of the active level.
     pub fn top_level(&self) -> usize {
@@ -832,6 +2147,17 @@ impl FrameStack {
     pub fn push(&mut self, ns: NsId) -> usize {
         let level = self.active_level + 1;
         let mut f = Frame::new(level, ns);
+        if self.variable_lookup_policy == tcl_dialect::VariableLookupPolicy::Jim {
+            f.jim_storage = self.jim_storage.acquire();
+        }
+        f.jim_id = self.next_jim_frame_id;
+        self.next_jim_frame_id = self
+            .next_jim_frame_id
+            .checked_add(1)
+            .expect("Jim frame identity exhausted");
+        f.table.set_hash_recipe(self.variable_hash_recipe);
+        f.table
+            .set_container_model(self.variable_container_model, self.variable_string_protocol);
         f.is_proc = true;
         f.saved_active = self.active_level;
         self.frames.push(f);
@@ -848,6 +2174,17 @@ impl FrameStack {
     pub fn push_same_level(&mut self, ns: NsId) -> usize {
         let level = self.active_level;
         let mut f = Frame::new(level, ns);
+        if self.variable_lookup_policy == tcl_dialect::VariableLookupPolicy::Jim {
+            f.jim_storage = self.jim_storage.acquire();
+        }
+        f.jim_id = self.next_jim_frame_id;
+        self.next_jim_frame_id = self
+            .next_jim_frame_id
+            .checked_add(1)
+            .expect("Jim frame identity exhausted");
+        f.table.set_hash_recipe(self.variable_hash_recipe);
+        f.table
+            .set_container_model(self.variable_container_model, self.variable_string_protocol);
         f.is_proc = true;
         f.saved_active = self.active_level;
         self.frames.push(f);
@@ -874,7 +2211,18 @@ impl FrameStack {
     /// its level and makes it active.
     pub fn push_namespace(&mut self, ns: NsId) -> usize {
         let level = self.active_level + 1;
-        let mut f = Frame::new(level, ns); // is_proc = false
+        let mut f = Frame::new(level, ns);
+        if self.variable_lookup_policy == tcl_dialect::VariableLookupPolicy::Jim {
+            f.jim_storage = self.jim_storage.acquire();
+        }
+        f.jim_id = self.next_jim_frame_id;
+        self.next_jim_frame_id = self
+            .next_jim_frame_id
+            .checked_add(1)
+            .expect("Jim frame identity exhausted");
+        f.table.set_hash_recipe(self.variable_hash_recipe);
+        f.table
+            .set_container_model(self.variable_container_model, self.variable_string_protocol); // is_proc = false
         f.saved_active = self.active_level;
         self.frames.push(f);
         self.active_level = level;
@@ -887,12 +2235,10 @@ impl FrameStack {
     /// popped. Returns the namespace the popped frame was running in — the
     /// activation C's `Tcl_PopCallFrame` gives back to the namespace token.
     pub fn pop(&mut self) -> Option<NsId> {
-        if self.frames.len() > 1 {
-            let f = self.frames.pop().expect("non-global frame");
-            self.active_level = f.saved_active;
-            return Some(f.ns);
-        }
-        None
+        let (namespace, owners) = self.take_frame_for_pop()?;
+        let storage = owners.release();
+        self.recycle_jim_storage(storage);
+        Some(namespace)
     }
 
     /// The stack index of the topmost frame with logical `level` (levels are not
@@ -905,6 +2251,23 @@ impl FrameStack {
     /// `CmdFrame` records as its CallFrame (C's `framePtr->framePtr`).
     pub(crate) fn current_frame_index(&self) -> usize {
         self.index_of_level(self.active_level).unwrap_or(0)
+    }
+
+    /// Issued activation identity of the current variable frame, including uplevel selection.
+    pub(crate) fn current_activation(&self) -> u64 {
+        self.frames[self.current_frame_index()].jim_id
+    }
+
+    pub(crate) fn current_activation_owner(&self) -> std::rc::Weak<()> {
+        Rc::downgrade(&self.frames[self.current_frame_index()].jim_link_birth)
+    }
+
+    /// The actual frame incarnation at a reached logical level. A later frame
+    /// at the same level cannot revive this observation.
+    pub(crate) fn original_activation_owner_at(&self, level: usize) -> Option<std::rc::Weak<()>> {
+        Some(Rc::downgrade(
+            &self.frames[self.index_of_level(level)?].jim_link_birth,
+        ))
     }
 
     /// The set of stack indices on the active frame's caller chain (C's
@@ -940,11 +2303,49 @@ impl FrameStack {
         prev
     }
 
+    /// Move retired owners out of the frame before their native free callbacks run.
+    pub(crate) fn replace_tailcall(
+        &mut self,
+        request: Option<PendingTailcall>,
+    ) -> Result<Option<PendingTailcall>, Option<PendingTailcall>> {
+        let Some(index) = self.index_of_level(self.active_level) else {
+            return Err(request);
+        };
+        if !self.frames[index].is_proc {
+            return Err(request);
+        }
+        Ok(std::mem::replace(&mut self.frames[index].tailcall, request))
+    }
+
+    pub(crate) fn take_tailcall(&mut self) -> Option<PendingTailcall> {
+        self.frames.last_mut()?.tailcall.take()
+    }
+
     /// Record the invoking command words on the top frame (`info level N`).
     pub(crate) fn set_words(&mut self, words: Vec<Vec<u8>>) {
         if let Some(f) = self.frames.last_mut() {
             f.words = words;
         }
+    }
+
+    /// Original top call-frame invocation and its active-variable-frame redirect.
+    /// Stack identity is retained even when two TclOO frames share a level.
+    pub(crate) fn error_stack_frame(&self) -> Option<(Option<usize>, &[Vec<u8>])> {
+        let top_index = self.frames.len().checked_sub(1)?;
+        let top = &self.frames[top_index];
+        if top
+            .original_error_stack_argv
+            .as_ref()
+            .map_or_else(|| top.words.is_empty(), Vec::is_empty)
+        {
+            return None;
+        }
+        let delta = if self.current_frame_index() != top_index {
+            Some(top.level.saturating_sub(self.active_level))
+        } else {
+            None
+        };
+        Some((delta, &top.words))
     }
 
     /// The command words that invoked frame `level` (`info level N`); empty if
@@ -960,18 +2361,99 @@ impl FrameStack {
             .map_or(crate::namespace::GLOBAL, |i| self.frames[i].ns)
     }
 
+    /// Temporarily change the existing variable frame's lookup namespace.
+    pub(crate) fn replace_active_namespace(&mut self, namespace: NsId) -> NsId {
+        let Some(index) = self.index_of_level(self.active_level) else {
+            return crate::namespace::GLOBAL;
+        };
+        std::mem::replace(&mut self.frames[index].ns, namespace)
+    }
+
     /// Bind a generated-code slot to `name`'s cell in the active frame,
     /// reserving that cell if the name has none yet.
+    pub(crate) fn install_formal_cells(
+        &mut self,
+        names: &[Vec<u8>],
+        protocol: tcl_syntax::naming::NativeCompiledVariableProtocol,
+    ) {
+        if !protocol.has_indexed_locals() {
+            return;
+        }
+        let index = self.current_frame_index();
+        let frame = &mut self.frames[index];
+        frame.table.compiled_protocol = Some(protocol);
+        for name in names {
+            let cell = frame.table.declare_compiled_cell(name);
+            frame.compiled_slots.push(Some(cell));
+        }
+    }
+
+    pub(crate) fn prepare_formal_cell_store(
+        &mut self,
+        slot: usize,
+        value: *mut TclObj,
+    ) -> Result<PreparedVariableReplacement, tcl_syntax::value::ValueError> {
+        let (frame, cell) = self.compiled_cell(slot).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("original formal cell"),
+        )?;
+        // A pending allocation has no cell +1 to supply ordinary formal-store
+        // authority. Refuse before acquiring the incoming stored reference or
+        // extracting any original member/search metadata.
+        self.frames[frame].table.cells[cell]
+            .contents
+            .borrow()
+            .check_owned_value_role()?;
+        // The same actual incoming stored role is acquired before reached
+        // metadata retirement; it is not an allocation-safety reference.
+        unsafe { obj::incr_ref_count(value) };
+        let table = &self.frames[frame].table;
+        Ok(PreparedVariableReplacement::capture(
+            &table.cells[cell].contents,
+            Var::Scalar(value),
+            table.hash_recipe.get(),
+        ))
+    }
+    pub(crate) fn original_formal_cell_is_current(
+        &self,
+        slot: usize,
+        original: &materialisation::VariablePublicationObservation,
+    ) -> bool {
+        self.compiled_cell(slot).is_some_and(|(frame, cell)| {
+            original.matches(&self.frames[frame].table.cells[cell].contents)
+        })
+    }
+    #[cfg(test)]
+    pub(crate) fn store_formal_cell(
+        &mut self,
+        slot: usize,
+        value: *mut TclObj,
+    ) -> Result<(), VarError> {
+        let prepared = self
+            .prepare_formal_cell_store(slot, value)
+            .map_err(|_| VarError::NameProtocolUnavailable)?;
+        let old = prepared
+            .finish(|| Ok::<_, tcl_syntax::value::ValueError>(()))
+            .map_err(|_| VarError::NameProtocolUnavailable)?;
+        drop(old);
+        Ok(())
+    }
+
     pub(crate) fn bind_compiled_slot(&mut self, slot: usize, name: &[u8]) {
         let Some(i) = self.index_of_level(self.active_level) else {
             return;
         };
-        let cell = self.frames[i].table.slot_for(name);
-        let slots = &mut self.frames[i].compiled_slots;
-        if slots.len() <= slot {
-            slots.resize(slot + 1, None);
+        let frame = &mut self.frames[i];
+        if frame.compiled_slots.get(slot).is_some_and(Option::is_some) {
+            return;
         }
-        slots[slot] = Some(cell);
+        let cell = frame
+            .table
+            .lookup_slot(name)
+            .unwrap_or_else(|| frame.table.declare_compiled_cell(name));
+        if frame.compiled_slots.len() <= slot {
+            frame.compiled_slots.resize(slot + 1, None);
+        }
+        frame.compiled_slots[slot] = Some(cell);
     }
 
     /// The active frame's table cell a generated-code slot is bound to.
@@ -979,6 +2461,52 @@ impl FrameStack {
         let i = self.index_of_level(self.active_level)?;
         let cell = (*self.frames[i].compiled_slots.get(slot)?)?;
         Some((i, cell))
+    }
+
+    pub(crate) fn prepare_original_compiled_alias(
+        &mut self,
+        slot: usize,
+        link: &Link,
+        traced: bool,
+        origin: FrameLinkOrigin,
+    ) -> Result<PreparedAliasReplacement, NativeCompiledAliasError> {
+        let (frame, cell) = self
+            .compiled_cell(slot)
+            .ok_or(NativeCompiledAliasError::Unavailable)?;
+        PreparedAliasReplacement::capture(
+            &self.frames[frame].table.cells[cell].contents,
+            link,
+            traced,
+            origin,
+        )
+    }
+    pub(crate) fn prepare_original_local_alias(
+        &mut self,
+        name: &[u8],
+        link: &Link,
+        traced: bool,
+    ) -> Result<PreparedAliasReplacement, NativeCompiledAliasError> {
+        let frame = self
+            .index_of_level(self.active_level)
+            .ok_or(NativeCompiledAliasError::Unavailable)?;
+        let cell = self.frames[frame]
+            .table
+            .lookup_slot(name)
+            .ok_or(NativeCompiledAliasError::Unavailable)?;
+        PreparedAliasReplacement::capture(
+            &self.frames[frame].table.cells[cell].contents,
+            link,
+            traced,
+            FrameLinkOrigin::Ordinary,
+        )
+    }
+    /// Identity of the physical compiled cell before following its alias.
+    pub(crate) fn original_compiled_slot_identity(&self, slot: usize) -> Option<VarId> {
+        let (frame, cell) = self.compiled_cell(slot)?;
+        self.frames[frame].table.cells[cell]
+            .contents
+            .borrow()
+            .binding_id
     }
 
     /// Tcl-visible name associated with a generated-code slot.
@@ -1006,16 +2534,16 @@ impl FrameStack {
     /// `tcl_codegen_slot_get`. `None` when the slot is unbound or its cell is
     /// currently undefined; a [`Var::Link`] is returned as-is so the caller can
     /// decline the fast path and take the coordinator's link walk.
-    pub(crate) fn compiled_slot_var(&self, slot: usize) -> Option<&Var> {
+    pub(crate) fn compiled_slot_var(&self, slot: usize) -> Option<Ref<'_, Var>> {
         let (frame, cell) = self.compiled_cell(slot)?;
         self.frames[frame].table.cell_at(cell)
     }
 
-    /// Local variable names of the active frame, sorted (`info locals`).
-    pub(crate) fn local_names(&self) -> Vec<Vec<u8>> {
+    /// Defined cells before independently reported TclOO declaration names.
+    pub(crate) fn local_names_without_declared_variables(&self) -> Vec<Vec<u8>> {
         self.index_of_level(self.active_level)
-            .map(|i| {
-                self.frames[i]
+            .map(|index| {
+                self.frames[index]
                     .table
                     .names()
                     .into_iter()
@@ -1023,6 +2551,56 @@ impl FrameStack {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    pub(crate) fn local_name_pattern_inputs(
+        &self,
+        include_links: bool,
+    ) -> Result<Vec<(Vec<u8>, tcl_syntax::native_glob::NativeNameGlobPurpose)>, VarError> {
+        use tcl_syntax::native_glob::NativeNameGlobPurpose;
+        let Some(index) = self.index_of_level(self.active_level) else {
+            return Ok(Vec::new());
+        };
+        let table = &self.frames[index].table;
+        let mut inputs = table
+            .declared_slots
+            .iter()
+            .copied()
+            .filter(|&slot| table.visible_cell(slot, include_links))
+            .map(|slot| {
+                (
+                    table.cells[slot].name.clone(),
+                    NativeNameGlobPurpose::InfoVariablesScan,
+                )
+            })
+            .collect::<Vec<_>>();
+        inputs.extend(table.ordered_names().into_iter().filter_map(|name| {
+            table
+                .lookup_slot(name)
+                .filter(|&slot| table.visible_cell(slot, include_links))
+                .map(|_| (name.to_vec(), NativeNameGlobPurpose::InfoVariablesSearch))
+        }));
+        if include_links {
+            for name in self.declared_tcloo_variable_names()? {
+                if !inputs.iter().any(|(existing, _)| *existing == name) {
+                    inputs.push((name, NativeNameGlobPurpose::InfoVariablesScan));
+                }
+            }
+        }
+        Ok(inputs)
+    }
+
+    /// Actual defined names followed by unused declaring-provider names.
+    pub(crate) fn local_names(&self) -> Vec<Vec<u8>> {
+        let mut names = self.local_names_without_declared_variables();
+        if let Ok(public) = self.declared_tcloo_variable_names() {
+            for name in public {
+                if !names.contains(&name) {
+                    names.push(name);
+                }
+            }
+        }
+        names
     }
 
     /// `info locals` — the active frame's true local variables (no links).
@@ -1053,29 +2631,50 @@ impl FrameStack {
             .unwrap_or_default()
     }
 
-    /// Automatic `TclOO` instance links in the active method frame.
-    pub(crate) fn tcloo_instance_links(&self) -> Vec<(Vec<u8>, Link)> {
-        self.index_of_level(self.active_level)
-            .map(|i| {
-                self.frames[i]
-                    .table
-                    .tcloo_instance_links()
-                    .into_iter()
-                    .map(|(name, link)| (name.to_vec(), link.clone()))
-                    .collect()
-            })
-            .unwrap_or_default()
+    pub(crate) fn original_variable_table_at(&self, level: usize) -> Option<&VarTable> {
+        Some(&self.frames[self.index_of_level(level)?].table)
+    }
+
+    pub(crate) fn capture_container_model_at(
+        &self,
+        level: usize,
+    ) -> Option<(
+        std::rc::Weak<std::cell::RefCell<tcl_core_types::NativeEntryLedger>>,
+        Option<container::CapturedContainerModel>,
+    )> {
+        let i = self.index_of_level(level)?;
+        let table = &self.frames[i].table;
+        table.set_hash_recipe(self.variable_hash_recipe);
+        Some((
+            table.original_table_ledger(),
+            table.capture_container_model(
+                self.variable_container_model,
+                self.variable_string_protocol,
+            ),
+        ))
     }
 
     /// The variable table at `level` (read).
     pub(crate) fn table(&self, level: usize) -> Option<&VarTable> {
         let i = self.index_of_level(level)?;
+        self.frames[i]
+            .table
+            .set_hash_recipe(self.variable_hash_recipe);
+        self.frames[i]
+            .table
+            .set_container_model(self.variable_container_model, self.variable_string_protocol);
         Some(&self.frames[i].table)
     }
 
     /// The variable table at `level` (mutable).
     pub(crate) fn table_mut(&mut self, level: usize) -> Option<&mut VarTable> {
         let i = self.index_of_level(level)?;
+        self.frames[i]
+            .table
+            .set_hash_recipe(self.variable_hash_recipe);
+        self.frames[i]
+            .table
+            .set_container_model(self.variable_container_model, self.variable_string_protocol);
         Some(&mut self.frames[i].table)
     }
 }
@@ -1089,5 +2688,280 @@ pub(crate) fn split_array_ref(name: &[u8]) -> (Vec<u8>, Option<Vec<u8>>) {
     match tcl_syntax::naming::split_element_ref_bytes(name) {
         Some((base, elem)) => (base.to_vec(), Some(elem.to_vec())),
         None => (name.to_vec(), None),
+    }
+}
+
+#[cfg(test)]
+mod native_inventory_tests {
+    use super::*;
+    use tcl_core_types::{NativeHashBytePromotion, NativeHashRecipe, NativeHashWordWidth};
+    use tcl_dialect::TclVersion;
+
+    fn bytes(hex: &str) -> Vec<u8> {
+        hex.as_bytes()
+            .chunks_exact(2)
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn array_entry_ledgers_match_all_320_native_table_controls() {
+        // Native proof naming.variable-table.original-array-growth-and-reinsertion:
+
+        // Native proof naming.variable-table.original-opaque-key-extents:
+
+        crate::counters::reset();
+        {
+            let value = obj::Owned::fresh(obj::new_wide_int_obj(7));
+            let fixture = include_str!(
+                "../../../rust/tcl-core-types/tests/data/native_variable_tables/array-order.tsv"
+            );
+            let mut controls = 0;
+            for line in fixture.lines().filter(|line| !line.starts_with('#')) {
+                let row: Vec<_> = line.split('\t').collect();
+                let version = match row[0] {
+                    "8.4.20" => TclVersion::V8_4,
+                    "8.5.19" => TclVersion::V8_5,
+                    "8.6.18" => TclVersion::V8_6,
+                    "9.0.4" => TclVersion::V9_0,
+                    "9.1.0" => TclVersion::V9_1,
+                    _ => panic!("unknown native fixture"),
+                };
+                let abi =
+                    tcl_runtime_api::native_hash_abi::supported_backend_hash_abi(None).unwrap();
+                let protocol = tcl_registry::InvocationDialect::for_version(version)
+                    .native_variable_table_protocol(abi)
+                    .unwrap();
+                let mut table = VarTable::default();
+                table.set_hash_recipe(Some(protocol.recipe()));
+                for index in 0..row[1].parse::<usize>().unwrap() {
+                    let original = if row[2] == "1" && index < 3 {
+                        [b"k\0x".as_slice(), b"k\xff", b"k\xc0\x80"][index].to_vec()
+                    } else {
+                        format!("k{index:02}").into_bytes()
+                    };
+                    let input = protocol
+                        .names()
+                        .separate_variable_input(b"a", Some(&original));
+                    table
+                        .store_elem(b"a", input.element().unwrap().selected(), value.as_ptr())
+                        .unwrap();
+                }
+                if row[3] == "1" {
+                    table.remove_elem(b"a", b"k03");
+                    table.store_elem(b"a", b"k03", value.as_ptr()).unwrap();
+                }
+                let observed = bytes(row[4]);
+                let expected: Vec<_> = observed
+                    .split(|&byte| byte == b' ')
+                    .map(<[u8]>::to_vec)
+                    .collect();
+                assert_eq!(table.array_names(b"a").unwrap(), expected, "{line}");
+                controls += 1;
+            }
+            assert_eq!(controls, 320);
+        }
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn trace_shells_grow_table_without_becoming_defined_inventory() {
+        // Native proof naming.variable-table.undefined-array-shell-growth:
+
+        crate::counters::reset();
+        {
+            let value = obj::Owned::fresh(obj::new_wide_int_obj(7));
+            let mut table = VarTable::default();
+            table.set_hash_recipe(Some(NativeHashRecipe::Tcl {
+                promotion: NativeHashBytePromotion::Unsigned,
+                width: NativeHashWordWidth::Bits32,
+            }));
+            for index in 0..3 {
+                table
+                    .store_elem(b"a", format!("k{index:02}").as_bytes(), value.as_ptr())
+                    .unwrap();
+            }
+            for index in 3..12 {
+                table
+                    .ensure_element_shell(b"a", format!("k{index:02}").as_bytes())
+                    .unwrap();
+            }
+            assert_eq!(
+                table
+                    .contents(b"a")
+                    .unwrap()
+                    .borrow()
+                    .member_order
+                    .bucket_count(),
+                Some(16)
+            );
+            assert_eq!(
+                table.array_names(b"a").unwrap(),
+                [b"k00".to_vec(), b"k01".to_vec(), b"k02".to_vec()]
+            );
+            let id = table.binding_id(b"a");
+            table.cleanup_trace_shell(b"a", Some(b"k04"), id);
+            assert_eq!(
+                table
+                    .contents(b"a")
+                    .unwrap()
+                    .borrow()
+                    .member_order
+                    .bucket_count(),
+                Some(16)
+            );
+            assert_eq!(
+                table
+                    .contents(b"a")
+                    .unwrap()
+                    .borrow()
+                    .member_order
+                    .physical_keys()
+                    .len(),
+                11
+            );
+            table.store_elem(b"a", b"k03", value.as_ptr()).unwrap();
+            assert_eq!(
+                table.array_names(b"a").unwrap(),
+                [
+                    b"k00".to_vec(),
+                    b"k01".to_vec(),
+                    b"k02".to_vec(),
+                    b"k03".to_vec()
+                ]
+            );
+        }
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn declared_undefined_namespace_cells_remain_visible_without_becoming_defined() {
+        // Native proof: naming.tcloo.explicit-variable-link-counted-target
+
+        let mut table = VarTable::default();
+        let key = b"k\0tail";
+        let alias = table.retain_native_scalar_alias(key);
+        assert!(table.names().is_empty());
+        table.mark_namespace_declared(key);
+        drop(alias);
+        assert_eq!(table.names(), [key.as_slice()]);
+        assert!(table.non_link_names().is_empty());
+        assert!(!table.is_set(key));
+        assert!(table.load_scalar(key).is_none());
+        assert!(table.has_native_namespace_cell(key));
+        table.remove(key);
+        assert!(table.names().is_empty());
+        assert!(!table.is_set(key));
+    }
+
+    #[test]
+    fn trace_member_identity_selects_original_duplicate_root_allocations() {
+        // Rust API coverage: naming.variable.recreated-element-independent-read-trace
+
+        crate::counters::reset();
+        {
+            let mut table = VarTable::default();
+            let first = table.declare_compiled_cell(b"same");
+            let second = table.declare_compiled_cell(b"same");
+            let value = obj::Owned::fresh(obj::new_wide_int_obj(1));
+            let mut members = Vec::new();
+            for slot in [first, second] {
+                let receiver = table
+                    .capture_receiver_at(slot, Some(b"k".to_vec()), true)
+                    .unwrap()
+                    .unwrap();
+                receiver.store(value.as_ptr()).unwrap();
+                let root = receiver.binding_id().unwrap();
+                let member = table.native_trace_element_identity(root, b"k").unwrap();
+                members.push((root, member));
+            }
+            assert_ne!(members[0].0, members[1].0);
+            assert_ne!(members[0].1, members[1].1);
+            for (root, member) in &members {
+                assert_eq!(
+                    table.native_trace_element_identity(*root, b"k"),
+                    Some(*member)
+                );
+                assert_eq!(table.native_trace_element_identity(*root, b"absent"), None);
+            }
+            // A selected old member keeps its trace guard while a current
+            // same-key replacement has an independent member allocation.
+            let receiver = table
+                .capture_receiver_at(first, None, true)
+                .unwrap()
+                .unwrap();
+            let detached = receiver.begin_array_destruction().unwrap();
+            assert_eq!(detached.trace_member_identity(b"k"), Some(members[0].1));
+            receiver.ensure_array().unwrap();
+            let replacement = table
+                .capture_receiver_at(first, Some(b"k".to_vec()), true)
+                .unwrap()
+                .unwrap();
+            replacement.store(value.as_ptr()).unwrap();
+            let (_, replacement_id) = replacement.trace_member().unwrap();
+            assert_ne!(replacement_id, members[0].1);
+            assert_eq!(
+                table.native_trace_element_identity(members[0].0, b"k"),
+                Some(replacement_id)
+            );
+            let old = detached.capture_receiver(b"k".to_vec());
+            assert_eq!(old.trace_member(), Some((b"k".to_vec(), members[0].1)));
+            assert_eq!(old.read().unwrap(), Some(value.as_ptr()));
+            detached.finish_destruction();
+        }
+        assert_eq!(crate::counters::finalize(), 0);
+        assert_eq!(crate::counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn c_declared_cells_preserve_duplicates_before_dynamic_hash_inventory() {
+        crate::counters::reset();
+        {
+            let mut frames = FrameStack::new();
+            frames.variable_hash_recipe = Some(NativeHashRecipe::Tcl {
+                promotion: NativeHashBytePromotion::Unsigned,
+                width: NativeHashWordWidth::Bits32,
+            });
+            frames.push(crate::namespace::GLOBAL);
+            frames.install_formal_cells(
+                &[b"x".to_vec(), b"x".to_vec()],
+                tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(
+                    tcl_registry::InvocationDialect::for_version(TclVersion::V9_0)
+                        .execution_point()
+                        .unwrap(),
+                )
+                .unwrap(),
+            );
+            let one = obj::Owned::fresh(obj::new_wide_int_obj(1));
+            let two = obj::Owned::fresh(obj::new_wide_int_obj(2));
+            frames.store_formal_cell(0, one.as_ptr()).unwrap();
+            frames.store_formal_cell(1, two.as_ptr()).unwrap();
+            frames
+                .table_mut(1)
+                .unwrap()
+                .store_scalar(b"extra", one.as_ptr())
+                .unwrap();
+            assert_eq!(
+                frames.local_names(),
+                [b"x".to_vec(), b"x".to_vec(), b"extra".to_vec()]
+            );
+            assert_eq!(
+                frames.table(1).unwrap().load_scalar(b"x"),
+                Some(one.as_ptr())
+            );
+            assert_eq!(
+                frames
+                    .table(1)
+                    .unwrap()
+                    .entry_order
+                    .borrow()
+                    .physical_keys(),
+                [b"extra".as_slice()]
+            );
+            assert!(
+                matches!(frames.compiled_slot_var(1).as_deref(), Some(Var::Scalar(value)) if *value == two.as_ptr())
+            );
+        }
+        assert_eq!(crate::counters::finalize(), 0);
     }
 }

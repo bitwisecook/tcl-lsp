@@ -76,16 +76,18 @@ pub struct ProbeReport {
     pub package: String,
     /// The version it provided, when it said.
     pub version: Option<String>,
-    /// The commands it added to the shell, qualified, in name order.
+    /// Checked original root-context operands the shell inventory observed.
     pub commands: Vec<String>,
 }
 
-/// One command an extension registers: its draft, at the conservative
-/// default, and the evidence for every proposal in it.
+/// An exact original operand's authoring draft and retained source evidence.
+/// C publication context is unresolved; this is no live binding assertion.
 #[derive(Debug, Clone)]
 pub struct ExtensionCommand {
-    /// The command's name, as the extension spells it.
+    /// The original command operand used to seed this authoring draft.
     pub name: String,
+    /// Original C literal publication operands; their runtime context is unresolved.
+    pub c_registration_operands: Vec<String>,
     /// The sources that found it, in a fixed order.
     pub sources: Vec<ExtensionSource>,
     /// The draft: the extension default with the proposals applied.
@@ -135,6 +137,8 @@ impl ExtensionImport {
             "version": self.version,
             "commands": self.commands.iter().map(|command| json!({
                 "name": command.name,
+                "c_registration_operands": command.c_registration_operands,
+                "c_publication_context": if command.c_registration_operands.is_empty() { None } else { Some("unresolved") },
                 "provenance": command.sources.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
                 "draft": Value::Object(command.draft.clone()),
                 "notes": command.notes.clone(),
@@ -172,12 +176,12 @@ impl ExtensionImport {
         if self.version.is_none() {
             self.version.clone_from(&probe.version);
         }
-        for name in probe.commands.iter().map(|name| normalised(name)) {
+        for name in &probe.commands {
             let note = format!(
                 "probe: `package require {}` added `{name}` to the shell",
                 probe.package
             );
-            if let Some(row) = self.commands.iter_mut().find(|row| row.name == name) {
+            if let Some(row) = self.commands.iter_mut().find(|row| row.name == *name) {
                 row.sources.push(ExtensionSource::Probe);
                 row.sources.sort();
                 row.notes.push(note);
@@ -279,7 +283,7 @@ pub fn import_c_sources(
         }
         for command in &scan.commands {
             match &command.name {
-                CName::Literal(name) => add_command(&mut import, normalised(name), command, file),
+                CName::Literal(name) => add_command(&mut import, name, command, file),
                 CName::Dynamic(expression) => import.dynamic.push(DynamicRegistration {
                     file: file.name.clone(),
                     line: command.line,
@@ -459,12 +463,6 @@ fn blind_text(file: &str, blind: &CBlindSpot) -> String {
     )
 }
 
-/// A command name without its leading `::`: the global namespace spells it
-/// either way, and a scan and a probe must agree on which row a name is.
-fn normalised(name: &str) -> &str {
-    name.strip_prefix("::").unwrap_or(name)
-}
-
 /// Add the row for `command`, or a note on the row already there when a
 /// second registration of the same name is found.
 fn add_command(
@@ -474,6 +472,7 @@ fn add_command(
     file: &SourceFile,
 ) {
     if let Some(row) = import.commands.iter_mut().find(|row| row.name == name) {
+        row.c_registration_operands.push(name.to_owned());
         row.notes.push(format!(
             "c-scan: registered again by {} at {}:{}; the first registration's facts stand",
             command.api, file.name, command.line
@@ -482,6 +481,7 @@ fn add_command(
     }
     let package = import.package.clone();
     let mut row = default_row(name, package.as_deref());
+    row.c_registration_operands.push(name.to_owned());
     row.sources = vec![ExtensionSource::CScan];
     describe(&mut row, command, file);
     import.commands.push(row);
@@ -496,6 +496,7 @@ fn default_row(name: &str, package: Option<&str>) -> ExtensionCommand {
     }
     ExtensionCommand {
         name: name.to_owned(),
+        c_registration_operands: Vec::new(),
         sources: Vec::new(),
         draft,
         notes: Vec::new(),
@@ -690,6 +691,25 @@ mod tests {
     /// the subcommands of its table, the package it provides, and notes that say
     /// where each came from.
     #[test]
+    fn probe_descriptor_projection_keeps_colon_components_separate() {
+        // naming.grammar.shared-written-name-boundaries
+
+        // Supplied reporting descriptors, not new C registration/lookup evidence.
+        let mut import = ExtensionImport::default();
+        import.merge_probe(&ProbeReport {
+            package: "p".into(),
+            version: None,
+            commands: vec![":::::p".into(), "::p".into(), ":p".into()],
+        });
+        let names: Vec<_> = import
+            .commands
+            .iter()
+            .map(|row| row.name.as_str())
+            .collect();
+        assert_eq!(names, [":::::p", "::p", ":p"]);
+    }
+
+    #[test]
     fn pkga_is_described_at_the_default_fact_with_its_proposals() {
         let import = import_c_sources(
             &[file(
@@ -792,7 +812,7 @@ mod tests {
     }
 
     #[test]
-    fn a_leading_double_colon_does_not_make_a_second_row() {
+    fn matching_original_operands_share_a_draft_without_root_reinterpretation() {
         let mut import = import_c_sources(&[file(
             "x.c",
             r#"int Init(Tcl_Interp *i) { Tcl_CreateObjCommand(i, "::x::cmd", P, 0, 0); return 0; }"#,
@@ -804,7 +824,7 @@ mod tests {
             commands: vec!["::x::cmd".to_owned()],
         });
         assert_eq!(import.commands.len(), 1);
-        assert_eq!(import.commands[0].name, "x::cmd");
+        assert_eq!(import.commands[0].name, "::x::cmd");
         assert_eq!(
             import.commands[0].sources,
             [ExtensionSource::CScan, ExtensionSource::Probe]
@@ -1222,5 +1242,56 @@ mod tests {
         let one = import_c_sources(&files[..1], None).expect("one prefix is one extension");
         assert_eq!(one.package.as_deref(), Some("ext"));
         assert!(one.entry.is_none(), "nothing was chosen");
+    }
+
+    #[test]
+    fn literal_registration_inputs_remain_unresolved_and_do_not_fold_root_colons() {
+        let mut import = import_c_sources(
+            &[file(
+                "x.c",
+                r#"
+int Init(Tcl_Interp *i) {
+    Tcl_CreateObjCommand(i, ":::p", P, 0, 0);
+    Tcl_CreateObjCommand(i, ":p", Q, 0, 0);
+    return 0;
+}
+"#,
+            )],
+            None,
+        )
+        .expect("one scanned extension");
+        import.merge_probe(&ProbeReport {
+            package: "x".to_owned(),
+            version: None,
+            commands: vec!["p".to_owned(), ":p".to_owned()],
+        });
+        assert_eq!(
+            import
+                .commands
+                .iter()
+                .map(|row| row.name.as_str())
+                .collect::<Vec<_>>(),
+            [":::p", ":p", "p"]
+        );
+        let scanned = import
+            .commands
+            .iter()
+            .find(|row| row.name == ":::p")
+            .expect("original input");
+        assert_eq!(scanned.c_registration_operands, [":::p"]);
+        assert_eq!(scanned.sources, [ExtensionSource::CScan]);
+        let observed = import
+            .commands
+            .iter()
+            .find(|row| row.name == "p")
+            .expect("root operand");
+        assert!(observed.c_registration_operands.is_empty());
+        assert_eq!(observed.sources, [ExtensionSource::Probe]);
+        let json = import.to_json();
+        assert_eq!(json["commands"][0]["c_publication_context"], "unresolved");
+        assert_eq!(
+            json["commands"][0]["c_registration_operands"],
+            json!([":::p"])
+        );
     }
 }

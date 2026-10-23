@@ -161,7 +161,9 @@ fn runtime_output(script: &str, release: TclVersion, entry: Entry) -> String {
     interp.set_runtime_version(release);
     let tail = match entry {
         Entry::File => {
-            let completion = interp.eval_script_file_completion(script.as_bytes(), b"parity.tcl");
+            let completion = interp
+                .eval_script_file_completion(script.as_bytes(), b"parity.tcl")
+                .expect("no host refusal");
             if completion.code == CompletionCode::Ok {
                 String::new()
             } else {
@@ -170,10 +172,12 @@ fn runtime_output(script: &str, release: TclVersion, entry: Entry) -> String {
         }
         Entry::Stdin => {
             let mut reported = String::new();
-            interp.eval_stdin(script.as_bytes(), |_, message| {
-                reported.push_str(&String::from_utf8_lossy(message));
-                reported.push('\n');
-            });
+            interp
+                .eval_stdin(script.as_bytes(), |_, message| {
+                    reported.push_str(&String::from_utf8_lossy(message));
+                    reported.push('\n');
+                })
+                .expect("no host refusal");
             if reported.is_empty() {
                 reported
             } else {

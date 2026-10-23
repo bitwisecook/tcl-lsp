@@ -22,11 +22,10 @@
 //! The differential tests generate genuine `pkgIndex.tcl` / `tclIndex` files
 //! with C Tcl's own `pkg_mkIndex` / `auto_mkindex`, and query C Tcl's own
 //! `auto_qualify`, then assert we produce the same result. They
-//! skip cleanly when no `tclsh` is on `PATH` (so CI without Tcl still passes),
-//! while the pure unit tests always run.
+//! skip cleanly when neither pinned C Tcl reference release is available (so CI
+//! without Tcl still passes), while the pure unit tests always run.
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::*;
@@ -67,30 +66,41 @@ fn write(path: &Path, content: &str) {
     std::fs::write(path, content).expect("write file");
 }
 
-/// The first usable `tclsh` on `PATH`, or `None` (tests then skip).
-fn find_tclsh() -> Option<&'static str> {
-    ["tclsh9.0", "tclsh8.6", "tclsh"]
-        .into_iter()
-        .find(|&sh| run_tclsh(sh, "puts ok").as_deref().map(str::trim) == Some("ok"))
-        .map(|v| v as _)
+/// Select the preferred validated C Tcl reference interpreter, or skip the
+/// optional differential when neither pinned release is installed.
+fn find_tclsh() -> Option<tcl_test_support::Tclsh> {
+    // Ask the owner about both preferred lanes before choosing: a configured
+    // required lane must fail as missing rather than being skipped because
+    // the other preferred interpreter happened to be available.
+    let tcl_9_0 = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0);
+    let tcl_8_6 = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V8_6);
+    tcl_9_0.or(tcl_8_6)
 }
 
-/// Run `script` through `tclsh` (fed on stdin), returning trimmed stdout.
-fn run_tclsh(sh: &str, script: &str) -> Option<String> {
-    use std::io::Write as _;
-    let mut child = Command::new(sh)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .ok()?;
-    child.stdin.take()?.write_all(script.as_bytes()).ok()?;
-    let out = child.wait_with_output().ok()?;
-    if out.status.success() {
-        Some(String::from_utf8_lossy(&out.stdout).into_owned())
-    } else {
-        None
-    }
+/// Run `script` through the shared validated-interpreter owner, retaining its
+/// exit status and byte channels until the strict text assertion boundary.
+fn run_tclsh(sh: &tcl_test_support::Tclsh, script: &str) -> Option<String> {
+    let outcome = tcl_test_support::run_script(&sh.path, script.as_bytes())
+        .unwrap_or_else(|error| panic!("running Tcl oracle: {error}"));
+    Some(outcome.strict_text().unwrap_or_else(|error| {
+        panic!("Tcl oracle failed ({error}); full process outcome: {outcome:?}")
+    }))
+}
+
+/// Admit an actual temporary host path and construct its Tcl source word
+/// under the selected reference interpreter's own lexer and string profile.
+fn reference_tcl_path_word(sh: &tcl_test_support::Tclsh, path: &Path) -> Option<String> {
+    path.is_absolute().then_some(())?;
+    let path = path.to_str()?;
+    let dialect = tcl_registry::InvocationDialect::for_version(sh.version);
+    let protocol = tcl_syntax::native_string::NativeStringProtocol::for_tcl_version(sh.version);
+    (dialect.lexer_grammar.escapes == protocol.escape_syntax()).then_some(())?;
+    tcl_syntax::backslash::native_literal_source_word(
+        path.as_bytes(),
+        tcl_lexer::SourceChannel::Document,
+        tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+        protocol,
+    )
 }
 
 fn always_exists(_: &Path) -> bool {
@@ -126,7 +136,7 @@ fn auto_qualify_matches_c_tcl_documented_cases() {
 #[test]
 fn auto_qualify_differential_against_tclsh() {
     let Some(sh) = find_tclsh() else {
-        eprintln!("skipping auto_qualify differential: no tclsh on PATH");
+        eprintln!("skipping auto_qualify differential: no pinned Tcl reference interpreter");
         return;
     };
     let cases = [
@@ -144,7 +154,7 @@ fn auto_qualify_differential_against_tclsh() {
     ];
     for (cmd, ns) in cases {
         let script = format!("puts [auto_qualify {{{cmd}}} {{{ns}}}]");
-        let Some(reference) = run_tclsh(sh, &script) else {
+        let Some(reference) = run_tclsh(&sh, &script) else {
             panic!("tclsh failed for auto_qualify {cmd} {ns}");
         };
         let ours = auto_qualify(cmd, ns).join(" ");
@@ -265,7 +275,7 @@ fn parse_pkg_index_rejects_bad_version_and_falls_back_to_dir_listing() {
 #[test]
 fn parse_pkg_index_differential_against_pkg_mkindex() {
     let Some(sh) = find_tclsh() else {
-        eprintln!("skipping pkg_mkIndex differential: no tclsh on PATH");
+        eprintln!("skipping pkg_mkIndex differential: no pinned Tcl reference interpreter");
         return;
     };
     let td = TempDir::new("pkgmk");
@@ -275,8 +285,10 @@ fn parse_pkg_index_differential_against_pkg_mkindex() {
         "package provide foo 2.3\nproc foo {} { return foo }\n",
     );
     // Generate a real pkgIndex.tcl with C Tcl's own pkg_mkIndex.
-    let script = format!("pkg_mkIndex {{{}}} *.tcl", pkg_dir.display());
-    assert!(run_tclsh(sh, &script).is_some(), "pkg_mkIndex failed");
+    let pkg_dir_word = reference_tcl_path_word(&sh, &pkg_dir)
+        .expect("pkg_mkIndex fixture path must be representable in the selected Tcl source");
+    let script = format!("pkg_mkIndex {pkg_dir_word} *.tcl");
+    assert!(run_tclsh(&sh, &script).is_some(), "pkg_mkIndex failed");
     let index_path = pkg_dir.join("pkgIndex.tcl");
     let content = std::fs::read_to_string(&index_path).expect("read generated pkgIndex.tcl");
 
@@ -323,7 +335,7 @@ fn parse_tcl_index_v2_and_old_formats() {
 #[test]
 fn parse_tcl_index_differential_against_auto_mkindex() {
     let Some(sh) = find_tclsh() else {
-        eprintln!("skipping auto_mkindex differential: no tclsh on PATH");
+        eprintln!("skipping auto_mkindex differential: no pinned Tcl reference interpreter");
         return;
     };
     let td = TempDir::new("automk");
@@ -332,8 +344,10 @@ fn parse_tcl_index_differential_against_auto_mkindex() {
         &dir.join("lib.tcl"),
         "proc ::myns::helper {} {}\nproc globalcmd {} {}\n",
     );
-    let script = format!("auto_mkindex {{{}}} *.tcl", dir.display());
-    assert!(run_tclsh(sh, &script).is_some(), "auto_mkindex failed");
+    let dir_word = reference_tcl_path_word(&sh, dir)
+        .expect("auto_mkindex fixture path must be representable in the selected Tcl source");
+    let script = format!("auto_mkindex {dir_word} *.tcl");
+    assert!(run_tclsh(&sh, &script).is_some(), "auto_mkindex failed");
     let content = std::fs::read_to_string(dir.join("tclIndex")).expect("read tclIndex");
 
     let entries = parse_tcl_index(&content, dir, &|p| p.is_file());
@@ -599,14 +613,26 @@ fn prefer_latest_selects_the_prerelease() {
     }
     let mut both = PackageResolver::new();
     both.scan_path(root);
-    // TP — the raise moves the answer onto the prerelease.
+    // A concrete Tcl 8.6 entry selects the prerelease after the raise.
     assert_eq!(
-        both.resolve_require("w", None, false, PackagePrefer::Latest),
+        both.resolve_require_for_profile(
+            "w",
+            &[],
+            false,
+            PackagePrefer::Latest,
+            tcl_dialect::DialectProfile::find("tcl8.6")
+        ),
         vec![root.join("u").join("wu.tcl")],
     );
     // FP guard — the default is untouched.
     assert_eq!(
-        both.resolve_require("w", None, false, PackagePrefer::Stable),
+        both.resolve_require_for_profile(
+            "w",
+            &[],
+            false,
+            PackagePrefer::Stable,
+            tcl_dialect::DialectProfile::find("tcl8.6")
+        ),
         vec![root.join("s").join("ws.tcl")],
     );
     // TN — with no prerelease in the acceptable set the mode changes nothing.
@@ -846,6 +872,31 @@ fn resolver_auto_command_uses_auto_qualify_candidates() {
 }
 
 #[test]
+fn resolver_autoload_keys_preserve_unicode_through_colon_normalisation() {
+    let td = TempDir::new("unicode-autoload");
+    let dir = td.path();
+    write(&dir.join("impl.tcl"), "proc ::工具::café {} {}\n");
+    write(
+        &dir.join("tclIndex"),
+        "# Tcl autoload index file, version 2.0\n\
+         set auto_index(::工具::café) [list source [file join $dir impl.tcl]]\n",
+    );
+    let mut resolver = PackageResolver::new();
+    resolver.scan_path(dir);
+    for (command, namespace) in [
+        ("café", "::工具"),
+        ("工具::::café", "::"),
+        (":::工具::::café", "::ignored"),
+    ] {
+        assert_eq!(
+            resolver.resolve_auto_command(command, namespace),
+            vec![dir.join("impl.tcl")],
+            "{command:?}/{namespace:?}"
+        );
+    }
+}
+
+#[test]
 fn package_requires_in_collects_require_and_provide_names() {
     let content = "package require Tk\n\
                    package require -exact Tcl 8.6\n\
@@ -1056,4 +1107,277 @@ fn package_defined_commands_unions_available_package_sources() {
     // No available packages ⇒ empty, extractor never consulted.
     let empty = resolver.package_defined_commands(&[], None, &extract);
     assert!(empty.is_empty());
+}
+
+#[test]
+fn requirement_candidates_respect_release_and_keep_unpinned_alternatives() {
+    let mut resolver = PackageResolver::new();
+    for version in ["1.0", "2.0b1"] {
+        resolver.add_pkg_index(vec![PackageInfo {
+            name: "p".to_owned(),
+            version: version.to_owned(),
+            source_files: vec![PathBuf::from(format!("/{version}.tcl"))],
+            pkg_index_path: PathBuf::from("/pkgIndex.tcl"),
+            conditions: reachability::Conditions::default(),
+        }]);
+    }
+    let legacy = resolver.candidate_providers_for_require(
+        "p",
+        &[],
+        false,
+        PackagePrefer::Latest,
+        Some(tcl_dialect::TclVersion::V8_4),
+    );
+    assert_eq!(
+        legacy
+            .iter()
+            .map(|info| info.version.as_str())
+            .collect::<Vec<_>>(),
+        ["1.0"]
+    );
+    let modern = resolver.candidate_providers_for_require(
+        "p",
+        &[],
+        false,
+        PackagePrefer::Latest,
+        Some(tcl_dialect::TclVersion::V8_5),
+    );
+    assert_eq!(
+        modern
+            .iter()
+            .map(|info| info.version.as_str())
+            .collect::<Vec<_>>(),
+        ["2.0b1"]
+    );
+    let unpinned =
+        resolver.candidate_providers_for_require("p", &[], false, PackagePrefer::Latest, None);
+    assert_eq!(unpinned.len(), 2);
+    assert!(
+        resolver
+            .candidate_providers_for_require(
+                "p",
+                &["1", "2"],
+                false,
+                PackagePrefer::Latest,
+                Some(tcl_dialect::TclVersion::V8_4)
+            )
+            .is_empty()
+    );
+}
+
+#[test]
+fn package_reference_names_use_original_values_and_selected_source_ordinals() {
+    let source = r#"package require {space name}
+package require -exact {::literal$[name]} 1.0
+package provide {brace{data}} 2.0
+package require "quote\"data"
+package require \u0064ecoded
+package provide QUERY_ONLY
+package require $dynamic
+package require [list computed]
+package require {*}{expanded}
+set fake {package require INERT}
+"#;
+    assert_eq!(
+        package_requires_in(source),
+        [
+            "space name",
+            "::literal$[name]",
+            "brace{data}",
+            "quote\"data",
+            "decoded"
+        ]
+    );
+    assert!(package_requires_in("package require {unterminated").is_empty());
+    assert!(package_requires_in("package require literal\0opaque").is_empty());
+}
+
+#[test]
+fn package_registration_names_and_versions_use_original_values_and_selected_roles() {
+    let directory = Path::new("/library");
+    let index = directory.join("pkgIndex.tcl");
+    let source = r#"
+"package" {ifneeded} { p } {1.0} {source first.tcl}
+package ifneeded {$literal} \u0032.0 {source second.tcl}
+package ifneeded {quoted"name} 3.0 {source third.tcl}
+package ifneeded {} 4.0 {source empty.tcl}
+package ifneeded nested {{5.0}} {source bad.tcl}
+package ifneeded $dynamic 6.0 {source bad.tcl}
+package ifneeded dynamic_version $version {source bad.tcl}
+package ifneeded expanded {*}$names 7.0 {source bad.tcl}
+package ifneeded query 8.0
+"#;
+    let entries = parse_pkg_index(source, directory, &index, &|_| true, &|_| Vec::new());
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| (entry.name.as_str(), entry.version.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            (" p ", "1.0"),
+            ("$literal", "2.0"),
+            ("quoted\"name", "3.0"),
+            ("", "4.0")
+        ]
+    );
+    assert_eq!(entries[0].source_files, vec![directory.join("first.tcl")]);
+    assert_eq!(entries[1].source_files, vec![directory.join("second.tcl")]);
+    assert!(
+        entries
+            .iter()
+            .all(|entry| entry.conditions.is_unconditional())
+    );
+
+    let config = tcl_lexer::LexerConfig::default();
+    let command = "package ifneeded { p } 1.0 {source p.tcl}";
+    let mut tokens = walk_command_words_with_config(command, config).remove(0);
+    let registry = crate::registry_for_dialect("tcl");
+    assert!(registration::select(command, &tokens, registry, config).is_some());
+    let plan = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(command),
+        tcl_lexer::Span::new(0, u32::try_from(command.len()).unwrap()),
+        config,
+    )
+    .unwrap();
+    let mut changed_config = config;
+    changed_config.strict_quoting ^= true;
+    assert!(
+        registration::select_in_plan(command, &tokens, registry, changed_config, &plan).is_none()
+    );
+    assert!(
+        registration::select_in_plan(
+            &format!("{command} # changed"),
+            &tokens,
+            registry,
+            config,
+            &plan
+        )
+        .is_none()
+    );
+    tokens[2][0].span = tcl_lexer::Span::new(0, 1);
+    assert!(registration::select(command, &tokens, registry, config).is_none());
+    let malformed = "package ifneeded p 1.0 {source p.tcl";
+    let tokens = walk_command_words_with_config(malformed, config);
+    assert!(
+        tokens
+            .first()
+            .is_none_or(
+                |tokens| registration::select(malformed, tokens, registry, config).is_none()
+            )
+    );
+}
+
+#[test]
+fn retained_registration_transport_keeps_full_script_words_store_and_config() {
+    let source = "package ifneeded p 1.0 {source p.tcl}\npackage ifneeded p 1.0 {source p.tcl}";
+    let config = tcl_lexer::LexerConfig::default();
+    let registry = crate::registry_for_dialect("tcl");
+    let commands = walk_command_words_with_config(source, config);
+    let mut foreign_registry = tcl_registry::CommandRegistry::build_default();
+    foreign_registry.insert(tcl_registry::CommandSpec {
+        name: "registration_transport_marker",
+        arity: tcl_registry::Arity::exact(0),
+        ..tcl_registry::CommandSpec::DEFAULT
+    });
+    assert_ne!(
+        registry.snapshot().semantic_key(),
+        foreign_registry.snapshot().semantic_key()
+    );
+    let mut changed_config = config;
+    changed_config.strict_quoting ^= true;
+    let mut seen = 0;
+    reachability::scan_selected_registrations(source, registry, config, &mut |selected| {
+        let reached = selected.reached;
+        let registration = &selected.registration;
+        assert_eq!(
+            registration.advertisement(reached.text, reached.words, registry, config),
+            Some(("p", "1.0", 4))
+        );
+        assert!(
+            registration
+                .advertisement(&(source.to_owned() + " "), reached.words, registry, config)
+                .is_none()
+        );
+        assert!(
+            registration
+                .advertisement(reached.text, &commands[1 - seen], registry, config)
+                .is_none()
+        );
+        assert!(
+            registration
+                .advertisement(reached.text, reached.words, &foreign_registry, config)
+                .is_none()
+        );
+        assert!(
+            registration
+                .advertisement(reached.text, reached.words, registry, changed_config)
+                .is_none()
+        );
+        seen += 1;
+    });
+    assert_eq!(seen, 2);
+}
+
+#[test]
+fn retained_registration_transport_keeps_nested_survey_source_and_body_ordinals() {
+    let source = "if {1} {package ifneeded { nested } 2.0 {source nested.tcl}}";
+    let registry = crate::registry_for_dialect("tcl");
+    let config = tcl_lexer::LexerConfig::default();
+    let mut seen = 0;
+    reachability::scan_selected_registrations(source, registry, config, &mut |selected| {
+        let reached = selected.reached;
+        assert_ne!(reached.text, source);
+        let registration = &selected.registration;
+        let (name, version, body) = registration
+            .advertisement(reached.text, reached.words, registry, config)
+            .unwrap();
+        assert_eq!((name, version, body), (" nested ", "2.0", 4));
+        assert_eq!(
+            tcl_lexer::SourceMap::new(reached.text).token_text(reached.words[body][0]),
+            "source nested.tcl"
+        );
+        assert!(
+            registration
+                .advertisement(source, reached.words, registry, config)
+                .is_none()
+        );
+        seen += 1;
+    });
+    assert_eq!(seen, 1);
+    let directory = Path::new("/transport");
+    let entries = parse_pkg_index(
+        source,
+        directory,
+        &directory.join("pkgIndex.tcl"),
+        &always_exists,
+        &no_tcl_files,
+    );
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].name, " nested ");
+    assert_eq!(entries[0].version, "2.0");
+    assert_eq!(entries[0].source_files, vec![directory.join("nested.tcl")]);
+}
+
+#[test]
+fn logical_source_command_coordinate_selects_tcl_index_without_name_roundtrip() {
+    let mut resolver = PackageResolver::default();
+    let first = PathBuf::from("/library/first.tcl");
+    resolver.add_tcl_index(vec![AutoIndexEntry {
+        proc_name: "::widgets::render".to_owned(),
+        source_file: first.clone(),
+    }]);
+
+    let requested = tcl_core_types::ByteCommandSlot::new(
+        tcl_core_types::ByteNamespacePath::from_segments(["widgets"]),
+        tcl_core_types::NameBytes::from("render"),
+    );
+    assert_eq!(
+        resolver.resolve_logical_auto_command(&requested),
+        vec![first]
+    );
+    let unrelated = tcl_core_types::ByteCommandSlot::new(
+        tcl_core_types::ByteNamespacePath::from_segments(["widgets"]),
+        tcl_core_types::NameBytes::from("other"),
+    );
+    assert!(resolver.resolve_logical_auto_command(&unrelated).is_empty());
 }

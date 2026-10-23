@@ -27,8 +27,11 @@
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
-fn coroinject_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (args.len() >= 2)
+fn coroinject_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count >= 2)
         .then_some((1, ScriptTiming::Deferred))
         .into_iter()
         .collect()
@@ -51,6 +54,12 @@ static SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "coroinject",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("coroinject"),
         traits: Traits::EVALUATES_CODE | Traits::COROUTINE_PRIMITIVE,
         surface: Some(SpecSurface::TCL90_PLUS),

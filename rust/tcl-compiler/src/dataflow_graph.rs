@@ -30,10 +30,10 @@
 use std::collections::{BTreeSet, HashMap};
 
 use crate::analyses::{ConstValue, LatticeValue};
-use crate::def_use::{DefKind, DefUseResult, UseKind};
+use crate::def_use::{DefKind, DefUseFacts, UseKind};
 use crate::memory_ssa::{MemoryLocation, MemorySsaFunction};
 use crate::sccp::SccpResult;
-use crate::ssa::{SsaFunction, ValueKey};
+use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
 /// Classification of a data-flow edge.
@@ -59,6 +59,10 @@ impl EdgeKind {
 /// A single SSA value in the data-flow graph.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DataFlowNode {
+    /// Actual SSA symbol within this graph's retained function; pair with `version`.
+    pub symbol: Option<Symbol>,
+    /// Location display text, empty when no location projection is available.
+    pub cell: String,
     /// Variable name.
     pub name: String,
     /// SSA version.
@@ -87,6 +91,8 @@ impl DataFlowNode {
     pub fn new(name: impl Into<String>, version: u32, block: impl Into<String>) -> Self {
         Self {
             name: name.into(),
+            symbol: None,
+            cell: String::new(),
             version,
             block: block.into(),
             def_kind: String::new(),
@@ -102,6 +108,14 @@ impl DataFlowNode {
 /// An edge from a definition to a use site.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DataFlowEdge {
+    /// Actual source SSA symbol within this graph's retained function.
+    pub from_symbol: Option<Symbol>,
+    /// Actual receiving phi symbol, absent for a direct use.
+    pub to_symbol: Option<Symbol>,
+    /// Source location display text, empty when unavailable.
+    pub from_cell: String,
+    /// Receiving location display text, empty for a direct use or unavailable location.
+    pub to_cell: String,
     /// Source variable name.
     pub from_name: String,
     /// Source SSA version.
@@ -129,6 +143,10 @@ impl DataFlowEdge {
         to_statement_index: i32,
     ) -> Self {
         Self {
+            from_symbol: None,
+            to_symbol: None,
+            from_cell: String::new(),
+            to_cell: String::new(),
             from_name: from_name.into(),
             from_version,
             to_block: to_block.into(),
@@ -150,6 +168,10 @@ impl DataFlowEdge {
         to_version: u32,
     ) -> Self {
         Self {
+            from_symbol: None,
+            to_symbol: None,
+            from_cell: String::new(),
+            to_cell: String::new(),
             from_name: from_name.into(),
             from_version,
             to_block: to_block.into(),
@@ -184,6 +206,10 @@ pub struct AliasInfo {
 pub struct FunctionDataFlowGraph {
     /// Qualified function name.
     pub function_name: String,
+    /// Retained local body identity, independent of the display name.
+    pub body_id: Option<crate::ir::ProcedureId>,
+    /// Explicit top-level input; a procedure named `::top` is not this owner.
+    pub is_top_level: bool,
     /// One node per SSA def.
     pub nodes: Vec<DataFlowNode>,
     /// One edge per def-use or phi-incoming pair.
@@ -300,7 +326,7 @@ fn def_kind_name(k: DefKind) -> &'static str {
 pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
     name: &str,
     ssa: &SsaFunction,
-    du: &DefUseResult,
+    du: &DefUseFacts,
     sccp: Option<&SccpResult>,
     mem: Option<&MemorySsaFunction>,
     types: Option<&HashMap<ValueKey, TypeLattice, S>>,
@@ -311,21 +337,29 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
     let mut nodes: Vec<DataFlowNode> = Vec::new();
     let mut edges: Vec<DataFlowEdge> = Vec::new();
 
-    // Sort chain keys so output is deterministic. `du.chains` is keyed by the
-    // String-based `SsaValueKey`, so this already sorts by name then version.
+    // Order diagnostic output by the actual SSA symbol and version. Display
+    // strings are presentation only and cannot replace typed chain identity.
     let mut keys: Vec<&crate::def_use::SsaValueKey> = du.chains.keys().collect();
-    keys.sort();
+    keys.sort_by_key(|(symbol, version)| (*symbol, *version));
 
     for key in keys {
         let chain = &du.chains[key];
-        let (var_name, version) = key;
-        // The SCCP / type maps are keyed by the interned-`Symbol` `ValueKey`;
-        // resolve this chain's display name to its symbol to query them. A name
-        // with no SSA symbol yields `None` (an empty display column, same as a
-        // map miss).
-        let ssa_key: Option<ValueKey> = ssa.var_symbol(var_name).map(|sym| (sym, *version));
+        let (cell, version) = key;
+        let current_cell = du.cell_key(ssa, *cell);
+        if current_cell.is_none() && du.source_variable_symbol(ssa, *cell).is_none() {
+            continue;
+        }
+        let symbol = *cell;
+        let cell_display = current_cell.map_or_else(
+            String::new,
+            crate::var_resolve::VariableCellKey::compatibility_name,
+        );
+        let var_name = ssa.var_name(symbol);
+        let ssa_key = Some((symbol, *version));
         nodes.push(DataFlowNode {
-            name: var_name.clone(),
+            symbol: Some(symbol),
+            cell: cell_display.clone(),
+            name: var_name.to_owned(),
             version: *version,
             block: chain.definition.block.clone(),
             def_kind: def_kind_name(chain.definition.kind).to_owned(),
@@ -337,22 +371,36 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
         });
 
         for use_site in &chain.uses {
-            let edge = if use_site.kind == UseKind::PhiIncoming {
-                DataFlowEdge::phi(
-                    var_name.clone(),
+            let mut edge = if use_site.kind == UseKind::PhiIncoming {
+                let receiving_cell = du.cell_key(ssa, use_site.variable);
+                if receiving_cell.is_none()
+                    && du.source_variable_symbol(ssa, use_site.variable).is_none()
+                {
+                    continue;
+                }
+                let mut edge = DataFlowEdge::phi(
+                    var_name.to_owned(),
                     *version,
                     use_site.block.clone(),
-                    use_site.variable.clone(),
+                    ssa.var_name(use_site.variable).to_owned(),
                     use_site.phi_version,
-                )
+                );
+                edge.to_symbol = Some(use_site.variable);
+                edge.to_cell = receiving_cell.map_or_else(
+                    String::new,
+                    crate::var_resolve::VariableCellKey::compatibility_name,
+                );
+                edge
             } else {
                 DataFlowEdge::direct(
-                    var_name.clone(),
+                    var_name.to_owned(),
                     *version,
                     use_site.block.clone(),
                     use_site.statement_index,
                 )
             };
+            edge.from_symbol = Some(symbol);
+            edge.from_cell.clone_from(&cell_display);
             edges.push(edge);
         }
     }
@@ -393,6 +441,8 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
 
     FunctionDataFlowGraph {
         function_name: name.to_owned(),
+        body_id: None,
+        is_top_level: false,
         nodes,
         edges,
         aliases,
@@ -413,10 +463,14 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
 pub struct FunctionInputs<'a, S = std::collections::hash_map::RandomState> {
     /// Qualified function name.
     pub name: &'a str,
+    /// Retained local body identity from the actual function unit.
+    pub body_id: Option<crate::ir::ProcedureId>,
+    /// Whether this is the actual compilation unit's top-level input.
+    pub is_top_level: bool,
     /// SSA form.
     pub ssa: &'a SsaFunction,
     /// Def-use chains.
-    pub du: &'a DefUseResult,
+    pub du: &'a DefUseFacts,
     /// Optional SCCP result for lattice rendering.
     pub sccp: Option<&'a SccpResult>,
     /// Optional memory-SSA for alias-info extraction.
@@ -437,16 +491,18 @@ pub fn extract_dataflow_graph<S: std::hash::BuildHasher>(
 ) -> DataFlowGraph {
     let mut functions: Vec<FunctionDataFlowGraph> = inputs
         .iter()
-        .map(|i| extract_function_dataflow(i.name, i.ssa, i.du, i.sccp, i.mem, i.types))
+        .map(|i| {
+            let mut graph = extract_function_dataflow(i.name, i.ssa, i.du, i.sccp, i.mem, i.types);
+            graph.body_id = i.body_id;
+            graph.is_top_level = i.is_top_level;
+            graph
+        })
         .collect();
     functions.sort_by(|a, b| {
-        // Top-level (`::top`) sorts before every procedure; the rest go
-        // alphabetically by qualified name.
-        let a_top = a.function_name == "::top";
-        let b_top = b.function_name == "::top";
-        b_top
-            .cmp(&a_top)
+        b.is_top_level
+            .cmp(&a.is_top_level)
             .then_with(|| a.function_name.cmp(&b.function_name))
+            .then_with(|| a.body_id.cmp(&b.body_id))
     });
     DataFlowGraph { functions }
 }
@@ -467,14 +523,14 @@ mod tests {
         assert_eq!(n.statement_index, -1);
         assert_eq!(n.use_count, 0);
         assert!(!n.is_dead);
-        assert!(n.lattice.is_empty());
+        assert_eq!(n.lattice, "");
     }
 
     #[test]
     fn direct_edge_defaults_to_empty_phi_fields() {
         let e = DataFlowEdge::direct("x", 1, "b", 3);
         assert_eq!(e.edge_kind, EdgeKind::Direct);
-        assert!(e.to_name.is_empty());
+        assert_eq!(e.to_name, "");
         assert_eq!(e.to_version, -1);
         assert_eq!(e.to_statement_index, 3);
     }
@@ -514,6 +570,7 @@ mod tests {
             uses: Map::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -530,10 +587,63 @@ mod tests {
     }
 
     #[test]
+    fn source_only_nodes_keep_function_symbols_and_require_the_original_graph() {
+        let source = "proc p {} {global g; set g 1}\np";
+        let (_, unit) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+        let (_, foreign) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+        let function = &unit.top_level;
+        let symbols: std::collections::HashSet<_> = function
+            .ssa
+            .source_variable_symbols()
+            .map(|(symbol, _)| symbol)
+            .collect();
+        assert!(
+            !symbols.is_empty(),
+            "the real source effect producer must run"
+        );
+        let graph = extract_function_dataflow::<std::collections::hash_map::RandomState>(
+            &function.name,
+            &function.ssa,
+            &function.def_use,
+            None,
+            None,
+            None,
+        );
+        for symbol in &symbols {
+            let nodes: Vec<_> = graph
+                .nodes
+                .iter()
+                .filter(|node| node.symbol == Some(*symbol))
+                .collect();
+            assert!(
+                !nodes.is_empty(),
+                "a genuine source definition remains visible"
+            );
+            assert!(nodes.iter().all(|node| node.cell.is_empty()));
+        }
+        let stale = extract_function_dataflow::<std::collections::hash_map::RandomState>(
+            &function.name,
+            &function.ssa,
+            &foreign.top_level.def_use,
+            None,
+            None,
+            None,
+        );
+        assert!(
+            stale
+                .nodes
+                .iter()
+                .all(|node| node.symbol.is_none_or(|symbol| !symbols.contains(&symbol)))
+        );
+    }
+
+    #[test]
     fn extract_node_per_def_with_sccp_lattice() {
         let mut cfg = CfgFunction::new("::top", "entry");
         let entry_id = cfg.entry;
         cfg.blocks.get_mut(&entry_id).unwrap().terminator = Some(crate::cfg::Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -555,6 +665,7 @@ mod tests {
             None,
             FoldPolicy::default(),
             crate::sccp::TraceInputs {
+                source_metadata_input: None,
                 registry: &registry,
                 traced_variables: &BTreeSet::new(),
                 has_dynamic_variable_trace: false,
@@ -627,6 +738,8 @@ mod tests {
         let mut cfg = CfgFunction::new("::top", "entry");
         let entry_id = cfg.entry;
         cfg.blocks.get_mut(&entry_id).unwrap().terminator = Some(crate::cfg::Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -656,6 +769,7 @@ mod tests {
             uses,
             defs: ydefs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         });
@@ -681,14 +795,14 @@ mod tests {
     #[test]
     fn extract_alias_info_from_memory_ssa() {
         use crate::memory_ssa::{AliasSet, MemoryLocation, MemoryLocationKind};
-        let mut locs = BTreeSet::new();
+        let mut locs = std::collections::HashSet::new();
         locs.insert(MemoryLocation::new(MemoryLocationKind::Global, "g"));
         locs.insert(MemoryLocation::new(MemoryLocationKind::Local, "g"));
         let mem = MemorySsaFunction {
             alias_sets: vec![AliasSet::new(locs, "global")],
             ..MemorySsaFunction::default()
         };
-        let du = DefUseResult::default();
+        let du = DefUseFacts::default();
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(
             "::top",
@@ -731,6 +845,8 @@ mod tests {
         let inputs: Vec<FunctionInputs> = vec![
             FunctionInputs {
                 name: "::z",
+                body_id: None,
+                is_top_level: false,
                 ssa: &ssa_b,
                 du: &du_b,
                 sccp: None,
@@ -739,6 +855,8 @@ mod tests {
             },
             FunctionInputs {
                 name: "::a",
+                body_id: None,
+                is_top_level: false,
                 ssa: &ssa_a,
                 du: &du_a,
                 sccp: None,
@@ -756,7 +874,10 @@ mod tests {
     #[test]
     fn extract_dataflow_graph_empty_input() {
         let g = extract_dataflow_graph(&[] as &[FunctionInputs]);
-        assert!(g.functions.is_empty());
+        assert_eq!(
+            g.functions,
+            [] as [crate::dataflow_graph::FunctionDataFlowGraph; 0]
+        );
         assert_eq!(g.total_defs(), 0);
         assert_eq!(g.total_uses(), 0);
         assert_eq!(g.total_aliases(), 0);
@@ -764,13 +885,13 @@ mod tests {
 
     #[test]
     fn extract_empty_when_no_chains() {
-        let du = DefUseResult::default();
+        let du = DefUseFacts::default();
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(
             "::top", &ssa, &du, None, None, None,
         );
-        assert!(g.nodes.is_empty());
-        assert!(g.edges.is_empty());
+        assert_eq!(g.nodes, [] as [crate::dataflow_graph::DataFlowNode; 0]);
+        assert_eq!(g.edges, [] as [crate::dataflow_graph::DataFlowEdge; 0]);
         assert_eq!(g.total_defs, 0);
     }
 
@@ -778,6 +899,8 @@ mod tests {
     fn data_flow_graph_totals() {
         let f1 = FunctionDataFlowGraph {
             function_name: "::a".into(),
+            body_id: None,
+            is_top_level: false,
             nodes: Vec::new(),
             edges: Vec::new(),
             aliases: vec![AliasInfo {
@@ -794,6 +917,8 @@ mod tests {
         };
         let f2 = FunctionDataFlowGraph {
             function_name: "::b".into(),
+            body_id: None,
+            is_top_level: false,
             nodes: Vec::new(),
             edges: Vec::new(),
             aliases: Vec::new(),

@@ -39,7 +39,7 @@ use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::{lower_to_ir, lower_to_ir_with_dialect};
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
+use tcl_vm::{CompileError, CompileService};
 
 struct CompilerSvc {
     registry: CommandRegistry,
@@ -47,14 +47,115 @@ struct CompilerSvc {
 
 impl CompileService for CompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_script_bytes_for_profile(target, profile)
+    }
+    fn compile_substitution_with_entry(
+        &self,
+        target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_substitution_with_entry(target, profile, entry)
+    }
+
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_procedure_bytes_for_profile(target, profile, dispatch)
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
+
+    fn compile_script_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_script_with_entry(target, profile, entry)
+    }
+
+    fn compile_procedure_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_procedure_with_entry(target, profile, entry, dispatch)
+    }
 
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
+            return Err(CompileError::Message(msg));
         }
         let ir = lower_to_ir(src, &self.registry);
         let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
+        Ok(codegen_module(&cfg, &ir, &self.registry).expect("original source namespace"))
     }
 
     /// A VM pinned to a release compiles its run-time scripts for that
@@ -68,7 +169,7 @@ impl CompileService for CompilerSvc {
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
         {
-            return Err(CompileError(msg));
+            return Err(CompileError::Message(msg));
         }
         let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
             src,
@@ -77,7 +178,7 @@ impl CompileService for CompilerSvc {
             Some(profile),
         );
         let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
+        Ok(codegen_module(&cfg, &ir, registry).expect("original source namespace"))
     }
 }
 
@@ -115,10 +216,10 @@ fn run_at(src: &str, version: tcl_dialect::TclVersion) -> String {
         Some(profile),
     );
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, registry);
+    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_runtime_version(version);
+    let mut vm =
+        tcl_vm::test_support::native_vm_for_release(version, Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(CompilerSvc {
         registry: CommandRegistry::build_default(),
     }));

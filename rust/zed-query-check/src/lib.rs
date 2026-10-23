@@ -29,19 +29,29 @@ mod tests {
         fn tree_sitter_bigip() -> *const std::os::raw::c_void;
     }
 
-    /// The grammar each Zed language directory is backed by.
+    /// The grammar a Zed language directory is backed by: the `grammar = "…"`
+    /// its own `config.toml` names, which is what Zed loads for it.
     ///
-    /// Not every language is Tcl. `apl/` and `tmsh/` have their own grammars
+    /// Not every language is Tcl. `apl/` and `bigip/` have their own grammars
     /// — validating their queries against the *Tcl* grammar would reject
     /// every one of them, and validating them against nothing at all would
     /// let a query naming a node that does not exist ship silently and
-    /// simply not highlight.
-    fn language_for(dir: &str) -> Language {
+    /// simply not highlight. Reading the directory's own configuration keeps
+    /// a language that moves grammar (as `tmsh/` did, from the BIG-IP
+    /// configuration grammar to Tcl) checked against the right one.
+    fn language_for(dir: &Path) -> Language {
+        let config = std::fs::read_to_string(dir.join("config.toml")).expect("read config.toml");
+        let grammar = config
+            .lines()
+            .find_map(|line| line.strip_prefix("grammar = \""))
+            .and_then(|rest| rest.strip_suffix('"'))
+            .unwrap_or_else(|| panic!("{} names no grammar", dir.display()));
         let raw = unsafe {
-            match dir {
+            match grammar {
                 "apl" => tree_sitter_apl(),
-                "tmsh" => tree_sitter_bigip(),
-                _ => tree_sitter_tcl(),
+                "bigip" => tree_sitter_bigip(),
+                "tcl" => tree_sitter_tcl(),
+                other => panic!("{}: no vendored grammar {other:?}", dir.display()),
             }
         };
         unsafe { Language::from_raw(raw as *const _) }
@@ -88,13 +98,7 @@ mod tests {
     fn every_committed_query_compiles_against_the_grammar() {
         let mut failures = Vec::new();
         for path in committed_queries() {
-            let dir = path
-                .parent()
-                .and_then(|p| p.file_name())
-                .and_then(|s| s.to_str())
-                .unwrap_or_default()
-                .to_owned();
-            let language = language_for(&dir);
+            let language = language_for(path.parent().expect("query has a directory"));
             let src = std::fs::read_to_string(&path).expect("read query");
             if let Err(e) = Query::new(&language, &src) {
                 failures.push(format!("{}: {e:?}", path.display()));

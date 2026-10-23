@@ -32,7 +32,7 @@
 //! - `tclvm` with piped stdin — read and evaluate it a command at a time,
 //!   reporting an error's message and going on, without prompts or echo.
 //! - `tclvm` on a TTY — an interactive REPL (`info complete`-aware line
-//!   accumulation via `tcl_lexer::script_is_complete`).
+//!   accumulation under the VM's complete Document source configuration).
 //!
 //! `--static-extensions` opts the VM into a `load` command over the C Tcl
 //! extensions the build links in (`tcl-cshim`; the `static-extensions`
@@ -48,7 +48,6 @@ use std::sync::{Arc, Mutex};
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
-use tcl_lexer::script_is_complete;
 use tcl_vm::{CompileService, Value, Vm};
 
 /// The `CompileService` the VM uses for runtime `eval` / command substitution
@@ -184,7 +183,31 @@ fn new_vm(options: &Options) -> Vm {
 /// [`configure_vm`] over a fresh VM writing to `output`, with the `load` the
 /// options ask for.
 fn build_vm(output: Box<dyn Write>, options: &Options) -> Vm {
-    let mut vm = configure_vm(Vm::with_output(output), options.version);
+    // The VM is a native-core interpreter of the selected release: only that
+    // constructor installs the engine's command-name protocol, without which
+    // the interpreter refuses every command lookup.
+    let profile = tcl_registry::model::resolve_environment(
+        options
+            .version
+            .unwrap_or_else(|| {
+                tcl_registry::model::resolve_environment("tcl9.0")
+                    .unit_profile()
+                    .vm_runtime_version
+            })
+            .dialect_name(),
+    )
+    .unit_profile();
+    let vm = Vm::with_native_core(
+        output,
+        std::rc::Rc::new(tcl_vm::host_native::NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs {
+            package_path: Vec::new(),
+            default_library: None,
+        },
+    )
+    .expect("a native core for the selected Tcl release");
+    let mut vm = configure_vm(vm, options.version);
     if options.static_extensions {
         link_static_extensions(&mut vm);
     }
@@ -270,18 +293,19 @@ fn run_script(vm: &mut Vm, src: &str) -> i32 {
     match result.map(|comp| vm.settle_top_level(comp)) {
         Ok(comp) if comp.code.is_ok() => 0,
         Ok(comp) => {
-            vm.report_stderr_text(&comp.result.to_str());
+            report_eval_error(vm, &tcl_vm::TclError::from_completion(comp));
             1
         }
         Err(e) => {
-            vm.report_stderr_text(&e.message);
+            report_eval_error(vm, &e);
             1
         }
     }
 }
 
-/// Run the script file `tclsh` is given as `Tcl_Main` does: a completion
-/// other than `ok` reports its `-errorinfo` to stderr.
+/// Run the script file `tclsh` is given as `Tcl_Main` does: its own commands
+/// evaluated directly, and a completion other than `ok` reporting its
+/// `-errorinfo` to stderr.
 fn run_file(vm: &mut Vm, path: &str, src: &str) -> i32 {
     let result = vm.eval_file(path, src, true);
     if let Some(code) = vm.take_exit() {
@@ -290,21 +314,40 @@ fn run_file(vm: &mut Vm, path: &str, src: &str) -> i32 {
     if result.code.is_ok() {
         return 0;
     }
-    let options = vm.return_options(&result);
-    let info = options
-        .as_list()
-        .ok()
-        .and_then(|pairs| {
-            pairs
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .find(|pair| &*pair[0].to_str() == "-errorinfo")
-                .map(|pair| pair[1].to_str().to_string())
-        })
-        .unwrap_or_default();
+    // `Tcl_Main` reports the interpreter's errorInfo, which `eval_file`
+    // published as it settled the file at level 0; the completion's own
+    // `-errorinfo` can predate the trace that settlement logged (8.5+
+    // `return -code error` at file level).
+    let published = (result.code == tcl_vm::Code::Error)
+        .then(|| vm.get_var("errorInfo"))
+        .flatten()
+        .map(|info| info.to_str().to_string())
+        .filter(|info| !info.is_empty());
+    let info = published.unwrap_or_else(|| {
+        vm.return_options(&result)
+            .as_list()
+            .ok()
+            .and_then(|pairs| {
+                pairs
+                    .chunks(2)
+                    .find(|pair| pair.len() == 2 && &*pair[0].to_str() == "-errorinfo")
+                    .map(|pair| pair[1].to_str().to_string())
+            })
+            .unwrap_or_else(|| result.result.to_str().to_string())
+    });
     vm.report_stderr_text(&info);
     1
+}
+
+fn report_eval_error(vm: &mut Vm, error: &tcl_vm::TclError) {
+    match error.message_unicode_in(vm) {
+        Ok(message) => vm.report_stderr_text(&message),
+        Err(failure) => match failure.message_unicode() {
+            // A getter's guest failure is already an independently retained completion.
+            Ok(message) => vm.report_stderr_text(&message),
+            Err(host) => vm.report_stderr_text(&host.to_string()),
+        },
+    }
 }
 
 fn run() -> i32 {
@@ -358,7 +401,7 @@ fn run() -> i32 {
 
 /// Interactive REPL loop over an arbitrary reader/writer (so it is testable
 /// without a real terminal). Accumulates input lines until they form a complete
-/// command (`tcl_lexer::script_is_complete`, the `info complete` oracle),
+/// original Document under `Vm::source_is_complete`,
 /// evaluates it in the persistent global frame, and writes a non-empty result.
 /// Variables and procs persist across evaluations because each line runs in the
 /// same VM, with no command active, as `Tcl_Main` evaluates them. When
@@ -395,12 +438,23 @@ fn repl_loop<R: std::io::BufRead, W: Write>(
             prompt(out, "% ");
             continue;
         }
-        if !script_is_complete(&buffer) {
-            prompt(out, "> ");
-            continue;
+        match vm.source_is_complete(&buffer) {
+            Ok(true) => {}
+            Ok(false) => {
+                prompt(out, "> ");
+                continue;
+            }
+            Err(error) => {
+                eprintln!("tclvm: original Document completeness unavailable: {error}");
+                buffer.clear();
+                prompt(out, "% ");
+                continue;
+            }
         }
 
-        let comp = vm.eval_interactive(&buffer);
+        // Each command runs with no command active, settled at level 0 as
+        // `Tcl_Main` evaluates it.
+        let result: Result<_, tcl_vm::TclError> = Ok(vm.eval_interactive(&buffer));
         // `exit` in the REPL ends the session with the requested code.
         if let Some(code) = vm.take_exit() {
             if interactive {
@@ -408,13 +462,29 @@ fn repl_loop<R: std::io::BufRead, W: Write>(
             }
             return code;
         }
-        if !comp.code.is_ok() {
-            vm.publish_caught_error(&comp);
-            vm.report_stderr_text(&comp.result.to_str());
-        } else if interactive {
-            let result = comp.result.to_str();
-            if !result.is_empty() {
-                let _ = vm.write_stdout_text(&result, true);
+        match result {
+            // Only a terminal has its results echoed.
+            Ok(comp) if comp.code.is_ok() => {
+                if interactive {
+                    let result = tcl_vm::TclError::from_completion(comp);
+                    match result.message_unicode_in(vm) {
+                        Ok(text) if !text.is_empty() => {
+                            let _ = vm.write_stdout_text(&text, true);
+                        }
+                        Ok(_) => {}
+                        Err(error) => report_eval_error(vm, &error),
+                    }
+                }
+            }
+            Ok(comp) => {
+                // `Tcl_Main` leaves the failure's errorInfo/errorCode for the
+                // next command, as a caught error does: `eval_interactive`
+                // already published them from the interpreter's trace, which
+                // the completion's own `-errorinfo` can predate (8.5+).
+                report_eval_error(vm, &tcl_vm::TclError::from_completion(comp));
+            }
+            Err(e) => {
+                report_eval_error(vm, &e);
             }
         }
         buffer.clear();
@@ -485,6 +555,36 @@ mod tests {
     }
 
     #[test]
+    fn repl_uses_original_result_getter_and_preserves_counted_nul_output() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // Distribution CLI owner and original result/header; no Native-provider comparison.
+        let bytes = Rc::new(RefCell::new(Vec::new()));
+        let capture = Capture(Rc::clone(&bytes));
+        let mut vm = build_vm(Box::new(capture.clone()), &Options::default());
+        let number = Value::int(17);
+        assert!(number.resident_string_bytes().is_none());
+        vm.set_var("number", number.clone()).unwrap();
+        let original = Value::from_string_bytes(b"DISPLAY\0TAIL".as_slice());
+        vm.set_var("original", original.clone()).unwrap();
+        let mut reader = std::io::Cursor::new(b"set number\nset original\n");
+        let mut out = capture;
+        assert_eq!(repl_loop(&mut vm, &mut reader, &mut out, true), 0);
+        let output = bytes.borrow();
+        assert!(output.windows(2).any(|window| window == b"17"));
+        assert!(output.windows(12).any(|window| window == b"DISPLAY\0TAIL"));
+        assert_eq!(number.resident_string_bytes().unwrap().as_ref(), b"17");
+        assert_eq!(
+            vm.get_var("number").unwrap().native_object_identity(),
+            number.native_object_identity()
+        );
+        assert_eq!(
+            vm.get_var("original").unwrap().native_object_identity(),
+            original.native_object_identity()
+        );
+    }
+
+    #[test]
     fn repl_continuation_prompt_for_incomplete_command() {
         // An open brace is incomplete: a continuation `> ` prompt is shown, and
         // the command only evaluates once the brace closes on the next line.
@@ -492,6 +592,42 @@ mod tests {
         assert!(out.contains("> "), "no continuation prompt: {out:?}");
         // `llength {a\nb}` is 2 (two whitespace-separated words).
         assert!(out.contains('2'), "joined value not evaluated: {out:?}");
+    }
+
+    #[test]
+    fn repl_completeness_keeps_selected_source_configuration_and_document_channel() {
+        // naming.source.original-configured-script-completeness
+
+        // Distribution Document contract, independent of native String
+        // observations and native handler/header/entry admission.
+        for version in [TclVersion::V8_4, TclVersion::V8_6, TclVersion::V9_0] {
+            let vm = build_vm(
+                Box::new(Capture(Rc::new(RefCell::new(Vec::new())))),
+                &Options {
+                    version: Some(version),
+                    ..Options::default()
+                },
+            );
+            assert_eq!(
+                vm.source_is_complete("set x ${a{}"),
+                Ok(version != TclVersion::V9_0)
+            );
+            assert_eq!(
+                vm.source_is_complete("set x {*}{"),
+                Ok(version == TclVersion::V8_4)
+            );
+            assert_eq!(vm.source_is_complete("# c\\\r\n"), Ok(false));
+            assert_eq!(vm.source_is_complete("set x \"é"), Ok(false));
+        }
+        let out = drive("set y {a\r\nb}\r\nllength $y\r\n");
+        assert!(
+            out.contains("> "),
+            "no Document continuation prompt: {out:?}"
+        );
+        assert!(
+            out.contains('2'),
+            "continuation did not reach original source: {out:?}"
+        );
     }
 
     #[test]

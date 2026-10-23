@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The pure iRules functions on the direct route
-//! (`docs/design/compiler/value-transfers-migration.md` § *Third-party
+//! (`docs/design/compiler/value-transfer-consumers.md` § *Third-party
 //! commands*, Tier 1): each a registry-owned evaluator over its shared core,
 //! `tcl_cmd_core::irules::call`, which the iRule test simulator registers as
 //! the same command. A core answers only what F5's published reference

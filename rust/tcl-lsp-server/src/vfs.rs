@@ -28,7 +28,12 @@
 //!
 //! [`Backend`]: crate::Backend
 
-pub use tcl_lsp_core::vfs::{DirEntry, MemoryStore, Metadata, NativeStore, SourceStore};
+pub use tcl_lsp_core::vfs::{
+    DirEntry, MemoryStore, Metadata, NativeStore, SourcePathOrigin, SourceStore, SourceUriPath,
+    SourceUriPathKind, SourceUriPathUnavailable, WorkspaceSourceInventoryCompleteness,
+    WorkspaceSourceInventoryObservation, WorkspaceSourceInventoryProvider,
+    WorkspaceSourceInventoryReceipt,
+};
 
 /// The store path a host puts its own `.tclspec` packs under, re-exported here
 /// because it is part of *this* crate's contract with a host: a browser worker

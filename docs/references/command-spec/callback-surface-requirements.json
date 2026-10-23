@@ -1113,20 +1113,20 @@
       "notes": ""
     },
     {
-      "id": "tk/bind/dynamic",
+      "id": "tk/bind/script",
       "family": "tk",
       "owner": "bind",
-      "location": "dynamic-arg-role",
-      "kind": "dynamic",
-      "timing": "dynamic",
+      "location": "arg[2]",
+      "kind": "body-script",
+      "timing": "deferred",
       "appended_arity": null,
       "dialects": [
         "tk"
       ],
-      "source": "Tk bind(n): the script word is present only in the binding form, and a leading `+` makes it an append rather than a replacement",
+      "source": "Tk bind(n): the optional command at argument 2 is evaluated when the event sequence occurs; a leading + appends that same deferred script.",
       "oracle": null,
       "imprecision": null,
-      "notes": ""
+      "notes": "Presence depends on exact argument count. Earlier tag/sequence values do not change the script role or its deferred timing."
     },
     {
       "id": "tk/button/-command",
@@ -1319,6 +1319,70 @@
       "oracle": null,
       "imprecision": null,
       "notes": ""
+    },
+    {
+      "id": "tk/canvas-bind/script",
+      "family": "tk",
+      "owner": "canvas bind",
+      "location": "arg[2]",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk canvas(n), pathName bind tagOrId ?sequence? ?command?: command is evaluated on the matching event; leading + appends the same deferred script.",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "The same authored bind member is projected through the factory and receiver forms, including the tk::canvas alias. Optional argument cardinality filters absent script slots."
+    },
+    {
+      "id": "tk/canvas-instance-bind/script",
+      "family": "tk",
+      "owner": "canvas instance bind",
+      "location": "arg[2]",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk canvas(n), pathName bind tagOrId ?sequence? ?command?: command is evaluated on the matching event; leading + appends the same deferred script.",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "The same authored bind member is projected through the factory and receiver forms, including the tk::canvas alias. Optional argument cardinality filters absent script slots."
+    },
+    {
+      "id": "tk/tk-canvas-bind/script",
+      "family": "tk",
+      "owner": "tk::canvas bind",
+      "location": "arg[2]",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk canvas(n), pathName bind tagOrId ?sequence? ?command?: command is evaluated on the matching event; leading + appends the same deferred script.",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "The same authored bind member is projected through the factory and receiver forms, including the tk::canvas alias. Optional argument cardinality filters absent script slots."
+    },
+    {
+      "id": "tk/tk-canvas-instance-bind/script",
+      "family": "tk",
+      "owner": "tk::canvas instance bind",
+      "location": "arg[2]",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk canvas(n), pathName bind tagOrId ?sequence? ?command?: command is evaluated on the matching event; leading + appends the same deferred script.",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "The same authored bind member is projected through the factory and receiver forms, including the tk::canvas alias. Optional argument cardinality filters absent script slots."
     }
   ],
   "known_gaps": [

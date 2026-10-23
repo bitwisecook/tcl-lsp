@@ -14,7 +14,7 @@
 //! lazy-reset and tag/value-pair invariants are identical. This owner keeps
 //! those rules below both engines; adapters only construct concrete values.
 
-use crate::Code;
+use std::sync::Arc;
 
 /// A rejected explicit `-errorstack` value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,18 +36,38 @@ pub fn validate_error_stack<T, E>(
     Ok(parts)
 }
 
+/// Actual call-frame projection supplied by a reached native command log.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ErrorStackFrame<T> {
+    /// Root or special frame with no reportable invocation words.
+    Unreported,
+    /// Redirected native variable frame, retaining its concrete level-delta value.
+    Redirect(T),
+    /// Ordinary non-root frame, retaining its original invocation list.
+    Call(T),
+}
+
+/// Original execution-frame role retained while its variable frame is redirected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShiftedErrorStackFrame {
+    /// The original special frame has no invocation words, so it logs no frame entry.
+    Unreported,
+    /// An original invocation-bearing frame executes through another variable frame.
+    Redirect(usize),
+}
+
 /// Interpreter-local TIP 348 stack over one engine's concrete Tcl value type.
 #[derive(Debug, Clone)]
 pub struct ErrorStack<T> {
-    entries: Vec<T>,
+    entries: Arc<Vec<T>>,
     reset: bool,
-    shifted_contexts: Vec<(usize, usize)>,
+    shifted_contexts: Vec<(usize, ShiftedErrorStackFrame)>,
 }
 
 impl<T> Default for ErrorStack<T> {
     fn default() -> Self {
         Self {
-            entries: Vec::new(),
+            entries: Arc::new(Vec::new()),
             reset: true,
             shifted_contexts: Vec::new(),
         }
@@ -71,7 +91,7 @@ impl<T> ErrorStack<T> {
         if !entries.len().is_multiple_of(2) {
             return Err(ErrorStackValueError::OddSized);
         }
-        self.entries = entries;
+        self.entries = Arc::new(entries);
         self.reset = false;
         Ok(())
     }
@@ -81,9 +101,7 @@ impl<T> ErrorStack<T> {
         if !self.reset {
             return false;
         }
-        self.entries.clear();
-        self.entries.push(tag);
-        self.entries.push(context);
+        self.entries = Arc::new(vec![tag, context]);
         self.reset = false;
         true
     }
@@ -95,38 +113,43 @@ impl<T> ErrorStack<T> {
     }
 
     /// Extend an active episode with another tag/value pair.
-    pub fn push_pair(&mut self, tag: T, value: T) -> bool {
+    pub fn push_pair(&mut self, tag: T, value: T) -> bool
+    where
+        T: Clone,
+    {
         if self.reset {
             return false;
         }
-        self.entries.push(tag);
-        self.entries.push(value);
+        let entries = Arc::make_mut(&mut self.entries);
+        entries.push(tag);
+        entries.push(value);
         true
     }
 
-    /// Append a procedure `CALL` only when an error unwound through its body.
+    /// Record the actual call-frame role at a reached command-log operation.
     ///
-    /// A positive-level `return -code error` reaches its settling procedure as
-    /// [`Code::Return`] and creates the error there, so that procedure is not a
-    /// frame the error unwound through. Outer procedures see [`Code::Error`]
-    /// and append normally.
-    pub fn push_proc_call(
-        &mut self,
-        body_code: Code,
-        settled_code: Code,
-        tag: T,
-        invocation: T,
-    ) -> bool {
-        if settled_code != Code::Error || body_code == Code::Return {
-            return false;
+    /// The caller's already-logged guard owns whether this operation is reached.
+    /// Catching an error inside a procedure still records its invocation here;
+    /// procedure exit is not the owner of this entry.
+    pub fn log_frame(&mut self, frame: ErrorStackFrame<T>, mut tag: impl FnMut(&str) -> T) -> bool
+    where
+        T: Clone,
+    {
+        match frame {
+            ErrorStackFrame::Unreported => false,
+            ErrorStackFrame::Redirect(value) => self.push_pair(tag("UP"), value),
+            ErrorStackFrame::Call(value) => self.push_pair(tag("CALL"), value),
         }
-        self.push_pair(tag, invocation)
     }
 
     /// Enter an `uplevel`-style redirect, identified by the concrete runtime's
     /// target frame count and the logical level delta recorded by TIP 348.
-    pub fn enter_shifted_context(&mut self, frame_count: usize, delta: usize) {
-        self.shifted_contexts.push((frame_count, delta));
+    pub fn enter_shifted_context(
+        &mut self,
+        frame_count: usize,
+        original_frame: ShiftedErrorStackFrame,
+    ) {
+        self.shifted_contexts.push((frame_count, original_frame));
     }
 
     /// Leave the innermost `uplevel`-style redirect.
@@ -136,11 +159,11 @@ impl<T> ErrorStack<T> {
 
     /// The innermost active shift whose target is the command being logged.
     #[must_use]
-    pub fn shifted_context_delta(&self, frame_count: usize) -> Option<usize> {
+    pub fn shifted_context_frame(&self, frame_count: usize) -> Option<ShiftedErrorStackFrame> {
         self.shifted_contexts
             .iter()
             .rev()
-            .find_map(|(target, delta)| (*target == frame_count).then_some(*delta))
+            .find_map(|(target, frame)| (*target == frame_count).then_some(*frame))
     }
 
     /// Borrow the flat tag/value entries for engine-specific Tcl-list encoding.
@@ -162,9 +185,9 @@ impl<T: Clone> ErrorStack<T> {
     #[must_use]
     pub fn snapshot_or(&self, carried: Option<Vec<T>>) -> Vec<T> {
         if self.reset {
-            carried.unwrap_or_else(|| self.entries.clone())
+            carried.unwrap_or_else(|| self.entries.as_ref().clone())
         } else {
-            self.entries.clone()
+            self.entries.as_ref().clone()
         }
     }
 }
@@ -185,6 +208,36 @@ mod tests {
         assert_eq!(stack.entries(), &["INNER", "first", "CALL", "p"]);
         assert!(stack.begin_inner("INNER", "second"));
         assert_eq!(stack.entries(), &["INNER", "second"]);
+    }
+
+    #[test]
+    fn saving_backing_does_not_clone_children_before_mutation() {
+        use std::cell::Cell;
+        use std::rc::Rc;
+
+        struct Counted(Rc<Cell<usize>>);
+        impl Clone for Counted {
+            fn clone(&self) -> Self {
+                self.0.set(self.0.get() + 1);
+                Self(Rc::clone(&self.0))
+            }
+        }
+        let count = Rc::new(Cell::new(0));
+        let mut stack = ErrorStack::default();
+        stack.begin_inner(Counted(Rc::clone(&count)), Counted(Rc::clone(&count)));
+        let saved = stack.clone();
+        assert_eq!(count.get(), 0);
+        stack.push_pair(Counted(Rc::clone(&count)), Counted(Rc::clone(&count)));
+        assert_eq!(count.get(), 2);
+        assert_eq!(saved.entries().len(), 2);
+        assert_eq!(stack.entries().len(), 4);
+        stack.mark_reset();
+        let reset_saved = stack.clone();
+        stack.begin_inner(Counted(Rc::clone(&count)), Counted(Rc::clone(&count)));
+        assert_eq!(count.get(), 2);
+        assert!(reset_saved.is_reset());
+        assert_eq!(reset_saved.entries().len(), 4);
+        assert_eq!(stack.entries().len(), 2);
     }
 
     #[test]
@@ -220,22 +273,44 @@ mod tests {
     }
 
     #[test]
-    fn return_boundary_suppresses_only_the_error_creating_proc() {
+    fn reached_log_records_call_before_any_procedure_exit() {
         let mut stack = ErrorStack::default();
-        stack.adopt(Vec::<&str>::new()).unwrap();
-        assert!(!stack.push_proc_call(Code::Return, Code::Error, "CALL", "inner"));
-        assert!(stack.push_proc_call(Code::Error, Code::Error, "CALL", "outer"));
-        assert_eq!(stack.entries(), &["CALL", "outer"]);
+        stack.begin_inner("INNER", "error BODY");
+        assert!(
+            stack.log_frame(ErrorStackFrame::Call("p"), |tag| match tag {
+                "CALL" => "CALL",
+                "UP" => "UP",
+                _ => unreachable!(),
+            })
+        );
+        assert!(!stack.log_frame(ErrorStackFrame::Unreported, |_| unreachable!()));
+        assert_eq!(stack.entries(), &["INNER", "error BODY", "CALL", "p"]);
     }
 
     #[test]
     fn shifted_context_uses_the_innermost_matching_target() {
         let mut stack = ErrorStack::<&str>::default();
-        stack.enter_shifted_context(2, 1);
-        stack.enter_shifted_context(2, 3);
-        assert_eq!(stack.shifted_context_delta(2), Some(3));
-        assert_eq!(stack.shifted_context_delta(1), None);
+        stack.enter_shifted_context(2, ShiftedErrorStackFrame::Redirect(1));
+        stack.enter_shifted_context(2, ShiftedErrorStackFrame::Redirect(3));
+        assert_eq!(
+            stack.shifted_context_frame(2),
+            Some(ShiftedErrorStackFrame::Redirect(3))
+        );
+        assert_eq!(stack.shifted_context_frame(1), None);
         stack.leave_shifted_context();
-        assert_eq!(stack.shifted_context_delta(2), Some(1));
+        assert_eq!(
+            stack.shifted_context_frame(2),
+            Some(ShiftedErrorStackFrame::Redirect(1))
+        );
+        stack.enter_shifted_context(2, ShiftedErrorStackFrame::Unreported);
+        assert_eq!(
+            stack.shifted_context_frame(2),
+            Some(ShiftedErrorStackFrame::Unreported)
+        );
+        stack.leave_shifted_context();
+        assert_eq!(
+            stack.shifted_context_frame(2),
+            Some(ShiftedErrorStackFrame::Redirect(1))
+        );
     }
 }

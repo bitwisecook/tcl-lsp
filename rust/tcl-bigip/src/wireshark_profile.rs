@@ -345,43 +345,27 @@ fn find_object<'a>(
     table: &'static str,
     full_path: &str,
 ) -> Option<&'a ModelObject> {
-    cfg.objects
-        .iter()
-        .find(|p| p.table_name == table && p.full_path == full_path)
-        .map(|p| &p.object)
+    crate::object_names::object_name_candidates(
+        full_path,
+        cfg.objects
+            .iter()
+            .filter(|placed| placed.table_name == table)
+            .map(|placed| (placed.full_path.as_str(), &placed.object)),
+        crate::object_names::ObjectNamePolicy::Exact,
+    )
+    .first_in_order()
 }
 
 fn resolve_name(cfg: &BigipConfig, name: &str, table: &'static str) -> Option<String> {
-    if find_object(cfg, table, name).is_some() {
-        return Some(name.to_owned());
-    }
-    if !name.starts_with('/') {
-        let partition = {
-            let p = if cfg.default_partition.is_empty() {
-                "Common"
-            } else {
-                cfg.default_partition.as_str()
-            };
-            p.trim_matches('/').to_owned()
-        };
-        if !partition.is_empty() {
-            let candidate = format!("/{partition}/{name}");
-            if find_object(cfg, table, &candidate).is_some() {
-                return Some(candidate);
-            }
-        }
-        if partition != "Common" {
-            let candidate = format!("/Common/{name}");
-            if find_object(cfg, table, &candidate).is_some() {
-                return Some(candidate);
-            }
-        }
-    }
-    let suffix = format!("/{name}");
-    typed_objects(cfg, table)
-        .map(|(p, _)| p)
-        .find(|key| key.ends_with(&suffix))
-        .map(ToOwned::to_owned)
+    crate::object_names::object_name_candidates(
+        name,
+        typed_objects(cfg, table).map(|(path, _)| (path, path)),
+        crate::object_names::ObjectNamePolicy::Configuration {
+            default_partition: &cfg.default_partition,
+        },
+    )
+    .first_in_order()
+    .map(ToOwned::to_owned)
 }
 
 fn profile_types_for_virtual(

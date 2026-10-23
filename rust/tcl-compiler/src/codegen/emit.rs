@@ -28,7 +28,7 @@
 //!
 //! A backend first receives the lowered statement through
 //! [`Emit::emit_typed_statement`]. Declining it preserves the original-source
-//! runtime fallback through [`Emit::emit_command`].
+//! runtime fallback through [`Emit::emit_command_image`].
 //!
 //! Control flow is **structured** — `if`/`else` and the loop scaffolding — so a
 //! target with no arbitrary branches (WASM) can realise it directly. The
@@ -67,8 +67,18 @@ pub trait Emit {
         false
     }
 
-    /// A leaf command, given its original source text (eval-fallback tier).
-    fn emit_command(&mut self, source_text: &str);
+    /// A leaf command over original bytes and its retained source channel.
+    /// The backend must preserve byte identity without requiring Unicode.
+    fn emit_command_image(&mut self, source: &tcl_lexer::SourceImage);
+
+    /// A leaf command supplied by an authored Unicode source consumer.
+    fn emit_command(&mut self, source_text: &str) {
+        self.emit_command_image(&tcl_lexer::SourceImage::document(source_text));
+    }
+
+    /// Refuse host execution when an entry requires an original native chunk
+    /// that was not retained. This is a host failure, not a Tcl completion.
+    fn refuse_native_compilation_admission(&mut self);
 
     /// Begin an `if` whose condition is the given expression source text; the
     /// `then` region is emitted next (until the matching

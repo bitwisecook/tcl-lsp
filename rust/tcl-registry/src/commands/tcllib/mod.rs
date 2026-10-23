@@ -609,7 +609,8 @@ fn crypto_encoding_specs() -> Vec<CommandSpec> {
 /// each their own package (the command name *is* the package).
 fn tcllib_required_package(name: &str) -> Option<&'static str> {
     // `struct::*` ensembles: the command name is the package.
-    match name {
+    let unrooted = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
+    match unrooted {
         "struct::list" => return Some("struct::list"),
         "struct::queue" => return Some("struct::queue"),
         "struct::set" => return Some("struct::set"),
@@ -617,11 +618,12 @@ fn tcllib_required_package(name: &str) -> Option<&'static str> {
         _ => {}
     }
     // `math::statistics::*` → two-level package namespace.
-    if name.starts_with("math::statistics::") {
+    let components = tcl_syntax::naming::key_segments(name);
+    if components.len() > 2 && components[0] == "math" && components[1] == "statistics" {
         return Some("math::statistics");
     }
     // Otherwise the package is the leading namespace segment.
-    match name.split("::").next()? {
+    match components.first()?.as_str() {
         "base64" => Some("base64"),
         "cmdline" => Some("cmdline"),
         "control" => Some("control"),
@@ -667,6 +669,24 @@ mod tests {
                 spec.name,
             );
         }
+    }
+
+    #[test]
+    fn required_package_uses_constructed_descriptor_components() {
+        assert_eq!(
+            tcllib_required_package("::struct::queue"),
+            Some("struct::queue")
+        );
+        assert_eq!(
+            tcllib_required_package("::math::statistics::mean"),
+            Some("math::statistics")
+        );
+        assert_eq!(
+            tcllib_required_package("::sha2::SHA256Final"),
+            Some("sha256")
+        );
+        assert_eq!(tcllib_required_package("::math::statistics:::mean"), None);
+        assert_eq!(tcllib_required_package("::csv:::split"), None);
     }
 
     #[test]
@@ -995,9 +1015,10 @@ mod tests {
             reg.arg_indices_for_role("control::do", &one, ArgRole::Body),
             vec![0],
         );
-        assert!(
+        assert_eq!(
             reg.arg_indices_for_role("control::do", &one, ArgRole::Keyword)
-                .is_empty(),
+                .len(),
+            0,
         );
         // malformed two-word form (`body` + lone option): no keyword role.
         let two = ["{body}", "while"];
@@ -1006,9 +1027,10 @@ mod tests {
                 .is_empty(),
             "lone option word must not be a keyword",
         );
-        assert!(
+        assert_eq!(
             reg.arg_indices_for_role("control::do", &two, ArgRole::Expr)
-                .is_empty(),
+                .len(),
+            0,
         );
     }
 

@@ -20,19 +20,10 @@
 //!
 //! Two flavours, selected by target in [`crate::interp`]:
 //!
-//! - **[`BrowserHost`]** (`wasm32-unknown-unknown`, no WASI, no JS imports yet):
-//!   the mandatory capabilities ([`Clock`]/[`StdIo`]/[`Env`]) are stubbed and the
-//!   optional ones ([`filesystem`](Host::filesystem)/sockets/process) are absent.
-//!   Its job is to make `runtime/rust` **build and link** for
-//!   `wasm32-unknown-unknown` — the prerequisite for a real browser host (JS
-//!   imports for the console + wall clock, an in-memory VFS) that plugs into the
-//!   same [`Host`] trait later, with nothing else in the runtime changing.
-//!
-//! - **[`WasiHost`]** (`wasm32-wasip1`, `target_os = "wasi"`): identical except
-//!   `stdout`/`stderr` reach the real WASI `fd_write` (via `std::io`), so `puts`
-//!   is **visible** under `wasmtime` / any WASI host — what the AOT-script path
-//!   runs against. Clock + env stay stubbed (the AOT path needs neither yet; a
-//!   fuller WASI host can wire `std::time`/`std::env`/preopens later).
+//! - [`BrowserHost`] has a fixed clock, discarded output, empty environment
+//!   and no optional filesystem/socket/process capabilities.
+//! - [`WasiHost`] retains the fixed clock, writes stdout/stderr through WASI,
+//!   and owns mutable virtual environment state. `wasm_stdlib` seeds its MemFs.
 
 use tcl_platform::{Capabilities, Clock, Env, Host, HostError, StdIo};
 
@@ -93,7 +84,7 @@ impl Clock for BrowserClock {
     }
 }
 
-/// Standard output/error are discarded until a console host import is wired.
+/// Standard output/error are discarded by this host.
 struct BrowserStdIo;
 
 impl StdIo for BrowserStdIo {
@@ -147,6 +138,12 @@ impl Default for WasiHost {
 
 #[cfg(target_os = "wasi")]
 impl Host for WasiHost {
+    #[cfg(target_env = "p1")]
+    fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+        static ENVIRONMENT: tcl_host_c_abi::NativeNumericEnvironment =
+            tcl_host_c_abi::NativeNumericEnvironment;
+        tcl_host_c_abi::NativeNumericEnvironment::supported().then_some(&ENVIRONMENT)
+    }
     fn capabilities(&self) -> Capabilities {
         // stdio reaches WASI; the VFS provides filesystem under `wasm_stdlib`.
         // Sockets/process stay absent under preview 1.

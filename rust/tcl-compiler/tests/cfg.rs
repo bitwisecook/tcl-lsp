@@ -60,6 +60,10 @@
 //! node). The un-rotated, header-tested shape is the codegen build's
 //! (`build_cfg_codegen`), pinned in a separate test so both shapes are covered.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::fixture_id;
+
 use tcl_compiler::cfg::{CfgModule, Function, Terminator};
 use tcl_compiler::cfg_builder::{build_cfg, build_cfg_codegen};
 use tcl_compiler::cfg_layout::{EdgeKind, assign_lanes, build_cfg_edges, ordered_block_names};
@@ -92,7 +96,7 @@ fn top(module: &CfgModule) -> &Function {
 fn proc<'a>(module: &'a CfgModule, qname: &str) -> &'a Function {
     module
         .procedures
-        .get(qname)
+        .get(&fixture_id(&module.procedures, qname))
         .unwrap_or_else(|| panic!("procedure {qname} not found"))
 }
 

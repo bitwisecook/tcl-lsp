@@ -217,6 +217,24 @@ impl<'t> SyntaxToken<'t> {
         self.full_start + self.green.leading_width()
     }
 
+    fn collect_lexer_tokens(&self, out: &mut Vec<Token>) {
+        let mut offset = self.tree.base_offset + self.full_start;
+        for trivia in &self.green.leading {
+            if let Some(token) = trivia.lexical_token_at(offset) {
+                out.push(token);
+            }
+            offset += trivia.width();
+        }
+        out.push(self.to_token());
+        offset += u32::try_from(self.green.raw.len()).expect("tree byte width");
+        for trivia in &self.green.trailing {
+            if let Some(token) = trivia.lexical_token_at(offset) {
+                out.push(token);
+            }
+            offset += trivia.width();
+        }
+    }
+
     /// Absolute `Token.start`.
     #[must_use]
     pub fn start_position(&self) -> SourcePosition {
@@ -341,6 +359,43 @@ impl<'t> SyntaxNode<'t> {
         let mut out = Vec::new();
         self.collect_tokens(&mut out);
         out
+    }
+
+    /// Restore the original lexer stream, including attached separator, EOL
+    /// and comment records. This differs from `tokens()`, whose callers need
+    /// semantic fragments. Original empty tokens are retained, and unlexed
+    /// source prefixes produce no lexical record. No lexer runs here.
+    #[must_use]
+    pub fn lexer_tokens(&self) -> Vec<Token> {
+        let mut out = Vec::new();
+        self.collect_lexer_tokens(&mut out);
+        out
+    }
+
+    fn collect_lexer_tokens(&self, out: &mut Vec<Token>) {
+        for marker in self.expand_markers() {
+            marker.collect_lexer_tokens(out);
+        }
+        for child in self.children() {
+            match child {
+                SyntaxElement::Token(token) => token.collect_lexer_tokens(out),
+                SyntaxElement::Node(node) => node.collect_lexer_tokens(out),
+            }
+        }
+        let trailing_width: u32 = self
+            .green
+            .trailing
+            .iter()
+            .map(super::green::GreenTrivia::width)
+            .sum();
+        let mut offset =
+            self.tree.base_offset + self.full_start + self.green.full_width() - trailing_width;
+        for trivia in &self.green.trailing {
+            if let Some(token) = trivia.lexical_token_at(offset) {
+                out.push(token);
+            }
+            offset += trivia.width();
+        }
     }
 
     fn collect_tokens(&self, out: &mut Vec<SyntaxToken<'t>>) {
@@ -738,5 +793,82 @@ mod tests {
             Vec::new(),
         ));
         assert_eq!(tree.text(), "puts hi\n");
+    }
+    #[test]
+    fn original_cst_lexer_tokens_keep_actual_trivia_and_empty_terminators() {
+        // naming.source.original-point-operand-projection
+
+        // Source/API roundtrip only: actual configured lexer records are the
+        // independent input to the CST projection; no Native execution claim.
+        for dialect in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+        ] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+            for source in [
+                "set $x {a $b}",
+                "# note\r\nset é [list value]; puts \"${é}\"",
+                "set x A\\\n B",
+                "\u{feff}set x 1",
+                "list {*}{one two} {};\n",
+                "foo {a}{b}",
+                "list $$x ${a{b}c}",
+                "",
+                " \t\n",
+            ] {
+                for image in [
+                    tcl_lexer::SourceImage::document(source),
+                    tcl_lexer::SourceImage::native(source.as_bytes()),
+                ] {
+                    let sm = tcl_lexer::SourceMap::from_image(&image);
+                    let original = tcl_lexer::Lexer::with_source_map(sm.clone(), config)
+                        .tokenise_all()
+                        .unwrap();
+                    let (document, _) =
+                        super::super::build::build_document_image(&image, config).unwrap();
+                    let tree = SyntaxTree::new(document.clone());
+                    assert_eq!(
+                        tree.root().lexer_tokens(),
+                        original,
+                        "{dialect}: {source:?}, {:?}",
+                        image.channel()
+                    );
+                    let semantic: Vec<_> = original
+                        .iter()
+                        .filter(|token| {
+                            !matches!(
+                                token.kind,
+                                TokenType::Sep | TokenType::Eol | TokenType::Comment
+                            )
+                        })
+                        .copied()
+                        .collect();
+                    assert_eq!(
+                        tree.root()
+                            .tokens()
+                            .iter()
+                            .map(SyntaxToken::to_token)
+                            .collect::<Vec<_>>(),
+                        semantic
+                    );
+                    let anchored = SyntaxTree::anchored(document, 73, 2, 4);
+                    let shifted: Vec<_> = original
+                        .iter()
+                        .map(|token| Token {
+                            span: Span::new(token.span.start() + 73, token.span.end() + 73),
+                            ..*token
+                        })
+                        .collect();
+                    assert_eq!(anchored.root().lexer_tokens(), shifted);
+                }
+            }
+        }
     }
 }

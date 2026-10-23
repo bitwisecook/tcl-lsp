@@ -36,10 +36,9 @@ use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 
 use crate::compilation_unit::CompilationUnit;
-use crate::ir::when_event_name;
 use crate::taint::is_irules_dialect;
 
-use super::helpers::spans::full_rewrite_span;
+use super::helpers::spans::original_statement_rewrite_span;
 use super::{Optimisation, PassContext};
 
 /// Run the unused-procs pass.
@@ -59,17 +58,27 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         return;
     }
 
-    // Partition procs: event handlers (`::when::*`) vs user procs.
-    let mut event_procs: HashSet<String> = HashSet::new();
+    let Some(registry) = ctx.registry.or_else(|| {
+        ir_module
+            .source_metadata_input
+            .as_ref()
+            .map(|input| input.borrowed_context_registry().commands().as_ref())
+    }) else {
+        return;
+    };
+    let mut event_procs: HashSet<crate::ir::ProcedureId> = HashSet::new();
     let mut event_names: HashSet<String> = HashSet::new();
-    let mut user_procs: Vec<String> = Vec::new();
-
-    for qname in ir_module.procedures.keys() {
-        if qname.starts_with("::when::") {
-            event_procs.insert(qname.clone());
-            event_names.insert(when_event_name(qname).to_owned());
+    let mut user_procs: Vec<crate::ir::ProcedureId> = Vec::new();
+    for (id, procedure) in ir_module.procedures.iter() {
+        if let Some(event) =
+            crate::source_graph::event_body_for_procedure(ir_module, id, procedure, registry)
+        {
+            event_procs.insert(*id);
+            event_names.insert(event.event().to_owned());
+        } else if procedure.body_kind == crate::ir::ProcedureBodyKind::Event {
+            return;
         } else {
-            user_procs.push(qname.clone());
+            user_procs.push(*id);
         }
     }
 
@@ -99,7 +108,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     }
 
     // Report user procs not reachable from any event.
-    let mut unused: Vec<&String> = user_procs
+    let mut unused: Vec<&crate::ir::ProcedureId> = user_procs
         .iter()
         .filter(|q| !reachable.contains(*q))
         .collect();
@@ -109,7 +118,9 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let Some(ir_proc) = ir_module.procedures.get(qname) else {
             continue;
         };
-        let span = full_rewrite_span(ctx.source, ir_proc.span);
+        let Some(span) = original_statement_rewrite_span(ctx, ir_proc.span) else {
+            continue;
+        };
         let range = span.as_range();
         if range.end > ctx.source.len() || range.start >= ctx.source.len() {
             continue;
@@ -137,19 +148,19 @@ fn is_library_irule(event_names: &HashSet<String>) -> bool {
 }
 
 fn reachable_procs(
-    roots: &HashSet<String>,
+    roots: &HashSet<crate::ir::ProcedureId>,
     interproc: &crate::interprocedural::InterproceduralAnalysis,
-) -> HashSet<String> {
-    let mut visited: HashSet<String> = HashSet::new();
-    let mut stack: Vec<String> = roots.iter().cloned().collect();
+) -> HashSet<crate::ir::ProcedureId> {
+    let mut visited: HashSet<crate::ir::ProcedureId> = HashSet::new();
+    let mut stack: Vec<crate::ir::ProcedureId> = roots.iter().copied().collect();
     while let Some(current) = stack.pop() {
-        if !visited.insert(current.clone()) {
+        if !visited.insert(current) {
             continue;
         }
         if let Some(summary) = interproc.procedures.get(&current) {
             for callee in &summary.calls {
                 if !visited.contains(callee) {
-                    stack.push(callee.clone());
+                    stack.push(*callee);
                 }
             }
         }
@@ -178,23 +189,42 @@ fn comment_out(text: &str, proc_name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{edge_labels, fixture_id};
     use std::collections::HashMap;
 
     use super::*;
     use crate::interprocedural::{InterproceduralAnalysis, ProcSummary};
 
-    fn summary_with_calls(name: &str, calls: &[&str], barrier: bool) -> ProcSummary {
+    fn summary_with_calls(
+        name: &str,
+        calls: &[crate::ir::ProcedureId],
+        barrier: bool,
+    ) -> ProcSummary {
         let mut s = ProcSummary::unknown(name);
-        s.calls = calls.iter().map(|c| (*c).to_owned()).collect();
+        s.calls = calls.to_vec();
         s.has_barrier = barrier;
         s
     }
 
     fn ip_with(procs: &[(&str, &[&str], bool)]) -> InterproceduralAnalysis {
+        let issuer = crate::ir::Module::default().procedure_ids;
+        let ids: HashMap<_, _> = procs
+            .iter()
+            .map(|(name, _, _)| (*name, issuer.allocate()))
+            .collect();
+        assert_eq!(
+            ids.len(),
+            procs.len(),
+            "synthetic analytical fixture labels are unique"
+        );
         let mut ip = InterproceduralAnalysis::default();
         for (name, calls, barrier) in procs {
+            let edges: Vec<_> = calls
+                .iter()
+                .map(|name| *ids.get(name).expect("fixture callee declared"))
+                .collect();
             ip.procedures
-                .insert((*name).into(), summary_with_calls(name, calls, *barrier));
+                .insert(ids[name], summary_with_calls(name, &edges, *barrier));
         }
         ip
     }
@@ -217,12 +247,14 @@ mod tests {
             ("::b", &[], false),
             ("::unused", &[], false),
         ]);
-        let roots: HashSet<String> = ["::when::HTTP_REQUEST".to_string()].into_iter().collect();
+        let roots: HashSet<_> = [fixture_id(&ip.procedures, "::when::HTTP_REQUEST")]
+            .into_iter()
+            .collect();
         let reached = reachable_procs(&roots, &ip);
-        assert!(reached.contains("::when::HTTP_REQUEST"));
-        assert!(reached.contains("::a"));
-        assert!(reached.contains("::b"));
-        assert!(!reached.contains("::unused"));
+        assert!(reached.contains(&fixture_id(&ip.procedures, "::when::HTTP_REQUEST")));
+        assert!(reached.contains(&fixture_id(&ip.procedures, "::a")));
+        assert!(reached.contains(&fixture_id(&ip.procedures, "::b")));
+        assert!(!reached.contains(&fixture_id(&ip.procedures, "::unused")));
     }
 
     #[test]
@@ -232,7 +264,9 @@ mod tests {
             ("::a", &["::b"], false),
             ("::b", &["::a"], false),
         ]);
-        let roots: HashSet<String> = ["::when::HTTP_REQUEST".to_string()].into_iter().collect();
+        let roots: HashSet<_> = [fixture_id(&ip.procedures, "::when::HTTP_REQUEST")]
+            .into_iter()
+            .collect();
         let reached = reachable_procs(&roots, &ip);
         assert_eq!(reached.len(), 3);
     }
@@ -288,9 +322,52 @@ mod tests {
         )
         .commands();
         let cu = CompilationUnit::build_for(source, registry, false);
-        let mut ctx = PassContext::with_dialect(&cu.source, ip, dialect);
+        let mut actual = InterproceduralAnalysis::default();
+        for (id, summary) in &ip.procedures {
+            let body_id = fixture_id(&cu.ir_module.procedures, &summary.qualified_name);
+            let mut bound = summary.clone();
+            bound.calls = edge_labels(&ip, &ip.procedures[id].calls)
+                .iter()
+                .map(|label| fixture_id(&cu.ir_module.procedures, label))
+                .collect();
+            actual.procedures.insert(body_id, bound);
+        }
+        let mut ctx = PassContext::with_dialect(&cu.source, actual, dialect);
+        ctx.registry = Some(registry);
         run(&mut ctx, &cu);
         ctx.optimisations
+    }
+
+    #[test]
+    fn event_reporting_name_cannot_turn_request_handler_into_rule_init_library() {
+        let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
+            .default_context_registry();
+        let source = "proc helper {} {return unused}\nwhen HTTP_REQUEST {puts request}\n";
+        let mut cu = CompilationUnit::build_for(source, context.commands(), false);
+        let event_id = *cu.ir_module.irules_event_bodies.keys().next().unwrap();
+        cu.ir_module
+            .procedures
+            .get_mut(&event_id)
+            .unwrap()
+            .qualified_name = "::when::RULE_INIT".into();
+        let mut ctx = PassContext::with_dialect(
+            &cu.source,
+            InterproceduralAnalysis::default(),
+            Some(tcl_dialect::DialectProfile::irules()),
+        );
+        ctx.registry = Some(context.commands());
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations
+                .iter()
+                .any(|candidate| candidate.code == DiagCode::O124)
+        );
+        let mut foreign = cu.ir_module.clone();
+        foreign.irules_event_bodies.clear();
+        cu.ir_module = foreign;
+        ctx.optimisations.clear();
+        run(&mut ctx, &cu);
+        assert!(ctx.optimisations.is_empty());
     }
 
     #[test]
@@ -299,15 +376,19 @@ mod tests {
         // yields no O124 — gated.
         let source = "proc ::foo {} { set x 1 }\n";
         let ip = ip_with(&[("::foo", &[], false)]);
-        assert!(
+        assert_eq!(
             run_pass(
                 source,
                 Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
                 ip.clone()
             )
-            .is_empty()
+            .len(),
+            0
         );
-        assert!(run_pass(source, None, ip).is_empty());
+        assert_eq!(
+            run_pass(source, None, ip),
+            [] as [crate::optimiser::Optimisation; 0]
+        );
     }
 
     #[test]
@@ -316,8 +397,9 @@ mod tests {
         let source = "proc ::helper {} { set x 1 }\nwhen RULE_INIT { set static::y 0 }\n";
         let ip = ip_with(&[("::helper", &[], false), ("::when::RULE_INIT", &[], false)]);
         let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);
-        assert!(
-            opts.is_empty(),
+        assert_eq!(
+            opts.len(),
+            0,
             "library iRule should not emit O124: {opts:?}"
         );
     }
@@ -330,8 +412,9 @@ mod tests {
             ("::when::HTTP_REQUEST", &["::helper"], false),
         ]);
         let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);
-        assert!(
-            opts.is_empty(),
+        assert_eq!(
+            opts.len(),
+            0,
             "reachable proc should not be flagged: {opts:?}"
         );
     }
@@ -347,8 +430,9 @@ mod tests {
             ("::when::HTTP_REQUEST", &["::a"], false),
         ]);
         let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);
-        assert!(
-            opts.is_empty(),
+        assert_eq!(
+            opts.len(),
+            0,
             "barrier in reachable proc should suppress all O124: {opts:?}",
         );
     }
@@ -430,6 +514,9 @@ mod tests {
     // + `has_barrier`).
     #[test]
     fn param_traits_ignored_by_pass() {
+        let issuer = crate::ir::Module::default().procedure_ids;
+        let foo_id = issuer.allocate();
+        let event_id = issuer.allocate();
         let mut ip = InterproceduralAnalysis::default();
         let mut s = summary_with_calls("::foo", &[], false);
         s.param_traits.insert(
@@ -438,13 +525,13 @@ mod tests {
                 .into_iter()
                 .collect(),
         );
-        ip.procedures.insert("::foo".into(), s);
+        ip.procedures.insert(foo_id, s);
         // Force-use the HashMap import the outer module expects.
         let _scratch = HashMap::<&str, i32>::new();
 
         let source = "proc ::foo {x} { return $x }\nwhen HTTP_REQUEST { set x 0 }\n";
         ip.procedures.insert(
-            "::when::HTTP_REQUEST".into(),
+            event_id,
             summary_with_calls("::when::HTTP_REQUEST", &[], false),
         );
         let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);

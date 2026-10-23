@@ -38,7 +38,7 @@ command.
 | `continue` | `c` | Continue to next breakpoint or end |
 | `break <line>` | `b` | Set a breakpoint |
 | `vars` | `locals` | Show variables in the current frame |
-| `print <var>` | `p` | Print a variable value |
+| `print <var>` | `p` | Print a captured variable value; names containing spaces can use `print ${odd name}` or the full captured label |
 | `stack` | `bt` | Show the call stack |
 | `list` | `l` | Show the current stop location |
 | `quit` | `q` | Exit debugger |

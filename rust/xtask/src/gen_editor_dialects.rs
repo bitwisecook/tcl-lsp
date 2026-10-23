@@ -34,6 +34,7 @@
 //! Run `cargo xtask gen-editor-dialects`; `--check` makes the committed VS
 //! Code, `JetBrains`, and Sublime projections a drift gate.
 
+use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs;
 use std::process::ExitCode;
@@ -269,10 +270,83 @@ fn render_sublime_package(original: &str, ds: &[Environment]) -> Result<String> 
     )
 }
 
-/// The `LSP-Tcl` settings file's starting dialect; its `dialect` line is the
-/// only key here the registry decides.
+/// Read Sublime's authored JSONC through its complete syntax tree and validate
+/// the direct `semantic_tokens` object. Comments and nested objects cannot
+/// impersonate this projection, and duplicate/invalid direct entries refuse.
+fn sublime_semantic_token_keys(original: &str) -> Result<BTreeSet<String>> {
+    let parse_options = jsonc_parser::ParseOptions {
+        allow_comments: true,
+        allow_loose_object_property_names: false,
+        allow_trailing_commas: true,
+        allow_missing_commas: false,
+        allow_single_quoted_strings: false,
+        allow_hexadecimal_numbers: false,
+        allow_unary_plus_numbers: false,
+        allow_bare_decimal_point_numbers: false,
+        allow_non_finite_numbers: false,
+        allow_extended_string_escapes: false,
+    };
+    let parsed = jsonc_parser::parse_to_ast(
+        original,
+        &jsonc_parser::CollectOptions::default(),
+        &parse_options,
+    )
+    .context("parsing Sublime settings JSONC")?;
+    let root = parsed
+        .value
+        .context("Sublime settings JSONC has no root value")?;
+    let root = root
+        .as_object()
+        .context("Sublime settings JSONC root must be an object")?;
+    let mut semantic_token_properties = root
+        .properties
+        .iter()
+        .filter(|property| property.name.as_str() == "semantic_tokens");
+    let semantic_tokens = semantic_token_properties
+        .next()
+        .context("missing direct semantic_tokens object")?;
+    anyhow::ensure!(
+        semantic_token_properties.next().is_none(),
+        "duplicate direct semantic_tokens properties"
+    );
+    let map = semantic_tokens
+        .value
+        .as_object()
+        .context("direct semantic_tokens value must be an object")?;
+    let mut keys = BTreeSet::new();
+    for property in &map.properties {
+        let key = property.name.as_str();
+        anyhow::ensure!(
+            keys.insert(key.to_owned()),
+            "duplicate semantic_tokens entry {key:?}"
+        );
+        anyhow::ensure!(
+            property.value.as_string_lit().is_some(),
+            "semantic_tokens entry {key:?} must have a string scope"
+        );
+    }
+    Ok(keys)
+}
+
+/// The `LSP-Tcl` settings file's starting dialect and Sublime custom-scope
+/// keys are checked against their actual owners: the environment registry and
+/// Core's typed semantic-token legend. Scope values remain authored UI policy.
 fn render_sublime_settings(original: &str, _ds: &[Environment]) -> Result<String> {
-    set_string_value(original, 0, "dialect", DEFAULT_ENVIRONMENT_ID)
+    let rendered = set_string_value(original, 0, "dialect", DEFAULT_ENVIRONMENT_ID)?;
+    let actual = sublime_semantic_token_keys(&rendered)?;
+    let expected: BTreeSet<String> = tcl_lsp_core::semantic_tokens::legend_custom_token_types()
+        .context("Core semantic-token kind/legend order is inconsistent")?
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    if actual != expected {
+        let missing: Vec<_> = expected.difference(&actual).cloned().collect();
+        let extra: Vec<_> = actual.difference(&expected).cloned().collect();
+        bail!(
+            "Sublime custom semantic-token scopes drift from Core legend; missing {missing:?}, extra {extra:?}"
+        );
+    }
+    Ok(rendered)
 }
 
 /// The compiler-explorer toolbar dropdown: every selectable environment,
@@ -454,6 +528,17 @@ mod tests {
     }
 
     #[test]
+    fn sublime_custom_scopes_match_the_core_semantic_token_legend() {
+        let settings = committed(SUBLIME_SETTINGS);
+        assert_eq!(
+            render_sublime_settings(&settings, dialects()).unwrap(),
+            settings
+        );
+        let missing = settings.replace("\"bigipInterface\":", "\"missingInterface\":");
+        assert!(render_sublime_settings(&missing, dialects()).is_err());
+    }
+
+    #[test]
     fn membership_mutation_drifts_every_generated_surface() {
         let full = dialects().to_vec();
         let mut removed = full.clone();
@@ -489,5 +574,31 @@ mod tests {
             render_sublime_package(&broken, dialects()).unwrap(),
             original
         );
+    }
+
+    #[test]
+    fn sublime_jsonc_scope_projection_uses_direct_ast_properties() {
+        let text = r#"{
+          // "semantic_tokens": { "decoy": "scope" }
+          "nested": { "semantic_tokens": { "nestedOnly": "scope" } },
+          "semantic\u005ftokens": { "class": "entity.name.class", },
+        }"#;
+        assert_eq!(
+            sublime_semantic_token_keys(text).unwrap(),
+            BTreeSet::from(["class".to_owned()])
+        );
+    }
+
+    #[test]
+    fn sublime_jsonc_scope_projection_rejects_decoys_and_duplicates() {
+        for text in [
+            r#"{ // "semantic_tokens": { "fake": "scope" }
+  "other": {} }"#,
+            r#"{ "semantic_tokens": {}, "semantic\u005ftokens": {} }"#,
+            r#"{ "semantic_tokens": { "class": "one", "cl\u0061ss": "two" } }"#,
+            r#"{ "semantic_tokens": { "class": { "scope": "nested" } } }"#,
+        ] {
+            assert!(sublime_semantic_token_keys(text).is_err(), "{text}");
+        }
     }
 }

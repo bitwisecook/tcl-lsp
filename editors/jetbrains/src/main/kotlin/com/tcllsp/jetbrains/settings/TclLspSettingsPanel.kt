@@ -135,9 +135,10 @@ class TclLspSettingsPanel {
 
     // General
     private val serverPathField = JBTextField(30)
-    private val dialectCombo = JComboBox(
-        TclLspSettings.DIALECT_OPTIONS.map { it.second }.toTypedArray()
+    private var dialectSelection = ConfiguredDialectSelection.forStored(
+        TclLspSettings.DIALECT_OPTIONS, TclLspSettings.DEFAULT_DIALECT,
     )
+    private val dialectCombo = JComboBox(dialectSelection.labels.toTypedArray())
     private val extraCommandsField = JBTextField(30)
     private val libraryPathsField = JBTextField(30)
     private val signatureHelpDisabledCommandsField = JBTextField(30)
@@ -758,7 +759,7 @@ class TclLspSettingsPanel {
     fun isModified(): Boolean {
         val s = TclLspSettings.getInstance()
         return serverPathField.text != s.serverPath ||
-            dialectCombo.selectedIndex != TclLspSettings.DIALECT_OPTIONS.indexOfFirst { it.first == s.dialect } ||
+            dialectSelection.identifierAt(dialectCombo.selectedIndex) != s.dialect ||
             extraCommandsField.text != s.extraCommands ||
             libraryPathsField.text != s.libraryPaths ||
             signatureHelpDisabledCommandsOverride(
@@ -1065,7 +1066,7 @@ class TclLspSettingsPanel {
         // the next request and don't require a restart.
         val oldServerPath = s.serverPath
         s.serverPath = serverPathField.text
-        s.dialect = TclLspSettings.DIALECT_OPTIONS.getOrNull(dialectCombo.selectedIndex)?.first ?: TclLspSettings.DEFAULT_DIALECT
+        s.dialect = dialectSelection.identifierAt(dialectCombo.selectedIndex)
         s.extraCommands = extraCommandsField.text
         s.libraryPaths = libraryPathsField.text
         s.signatureHelpDisabledCommands = signatureHelpDisabledCommandsOverride(
@@ -1419,7 +1420,9 @@ class TclLspSettingsPanel {
     fun reset() {
         val s = TclLspSettings.getInstance()
         serverPathField.text = s.serverPath
-        dialectCombo.selectedIndex = TclLspSettings.DIALECT_OPTIONS.indexOfFirst { it.first == s.dialect }.coerceAtLeast(0)
+        dialectSelection = ConfiguredDialectSelection.forStored(TclLspSettings.DIALECT_OPTIONS, s.dialect)
+        dialectCombo.model = javax.swing.DefaultComboBoxModel(dialectSelection.labels.toTypedArray())
+        dialectCombo.selectedIndex = dialectSelection.selectedIndex
         extraCommandsField.text = s.extraCommands
         libraryPathsField.text = s.libraryPaths
         signatureHelpDisabledCommandsField.text = s.signatureHelpDisabledCommands.orEmpty()

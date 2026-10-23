@@ -167,11 +167,14 @@ pub fn witness_command_spec(spec: &CommandSpec) {
     // not be author-editable, add it here and to `COMMAND_SPEC` as
     // `Surface::Excluded("why")` and skip the first two.
     let CommandSpec {
-        name: _, traits: _,
+        name: _,
+        pack_source_sandbox_helper: _, traits: _,
         surface: _,
         arity: _, arity_windows: _,
         arg_roles: _,
         arg_role_resolver: _,
+        arg_role_count_resolver: _,
+        arg_role_layout_resolver: _,
         arg_role_resolver_roles: _,
         arg_presentation: _,
         repeated_args: _,
@@ -180,6 +183,8 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         command_prefixes: _,
         command_prefix_resolver: _,
         script_timing_resolver: _,
+        script_lookup_scope: _,
+        substitution_resolver: _,
         callback_taint_inputs: _,
         return_type: _,
         return_type_hook: _,
@@ -191,6 +196,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         arg_types: _,
         subcommands: _,
         prefix_matching: _,
+        option_prefix_words: _,
         allow_unknown_subcommands: _,
         default_form_first_word: _,
         hover: _,
@@ -219,16 +225,20 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         state_transitions: _,
         dispatch_dependencies: _,
         result_stability: _,
+        native_result: _,
         literal_argument_validator: _,
+        source_index_bounds: _,
         inferred_storage_type: _,
         required_package: _, tk_geometry: _,
         excluded_events: _,
         unsafe_command: _,
         closed_value_args: _,
+        arg_values_accept_prefix: _,
         event_requires: _,
         event_requirement_forms: _,
         event_emits: _, event_emission_forms: _,
         data_collection: _,
+        irules_source_flow: _,
         side_switch_target: _,
         event_handler_priority: _,
         irules_top_level_effect: _,
@@ -241,7 +251,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         reserved_trailing_words: _,
         arg_values: _, versioned_arg_values: _,
         body_kind: _,
-        body_interpreter: _,
+        body_interpreter: _, body_execution: _, procedure_definition: _, native_compilation: _, successful_handler: _, variable_receivers: _,
         body_arg_implicit_args: _,
         taint_output_sink: _,
         taint_output_sink_subcommands: _,
@@ -255,6 +265,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         taint_sink_gate: _,
         taint_numeric_coercion: _,
         credential_options: _,
+        channel_configuration: _,
         sensitive_headers: _,
         setter_constraints: _,
         pattern_type: _,
@@ -267,6 +278,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         xc_translatable: _,
         deprecated_replacement: _,
         deprecated_replacement_drop_in: _,
+        source_deprecation_advice: _,
         alias_of: _,
         runtime_backing: _,
         byte_array_payload: _,
@@ -281,6 +293,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         remote_method: _,
         creates_instance_at: _,
         defines_command_at: _,
+        teardown_argument_layout: _,
         context_gate: _,
         implementation_namespace: _,
         oo_context_facts: _,
@@ -292,12 +305,26 @@ pub fn witness_command_spec(spec: &CommandSpec) {
 /// `CommandSpec::DEFAULT` order.
 pub const COMMAND_SPEC: &[Field] = &[
     f("name", Surface::Key("name")),
+    f(
+        "pack_source_sandbox_helper",
+        Surface::Excluded(
+            "Stock engine provisioning capability; custom source descriptors cannot author host retention policy.",
+        ),
+    ),
     f("traits", Surface::Key("traits")),
     f("surface", Surface::Key("surface")),
     f("arity", Surface::Key("arity")),
     f("arity_windows", Surface::Key("arity_windows")),
     f("arg_roles", Surface::Key("arg_roles")),
     f("arg_role_resolver", Surface::Key("arg_role_resolver")),
+    f(
+        "arg_role_count_resolver",
+        Surface::Key("arg_role_count_resolver"),
+    ),
+    f(
+        "arg_role_layout_resolver",
+        Surface::Key("arg_role_layout_resolver"),
+    ),
     f(
         "arg_role_resolver_roles",
         Surface::Key("arg_role_resolver_roles"),
@@ -319,6 +346,11 @@ pub const COMMAND_SPEC: &[Field] = &[
         "script_timing_resolver",
         Surface::Key("script_timing_resolver"),
     ),
+    f("script_lookup_scope", Surface::Key("script_lookup_scope")),
+    f(
+        "substitution_resolver",
+        Surface::Key("substitution_resolver"),
+    ),
     f("return_type", Surface::Key("return_type")),
     f("return_type_hook", Surface::Key("return_type_hook")),
     f("var_write_typing", Surface::Key("var_write_typing")),
@@ -335,6 +367,7 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("arg_types", Surface::Key("arg_types")),
     f("subcommands", Surface::Key("subcommands")),
     f("prefix_matching", Surface::Key("prefix_matching")),
+    f("option_prefix_words", Surface::Key("option_prefix_words")),
     f(
         "allow_unknown_subcommands",
         Surface::Key("allow_unknown_subcommands"),
@@ -381,10 +414,12 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("dispatch_dependencies"),
     ),
     f("result_stability", Surface::Key("result_stability")),
+    f("native_result", Surface::Key("native_result")),
     f(
         "literal_argument_validator",
         Surface::Key("literal_argument_validator"),
     ),
+    f("source_index_bounds", Surface::Key("source_index_bounds")),
     f(
         "inferred_storage_type",
         Surface::Key("inferred_storage_type"),
@@ -394,6 +429,10 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("excluded_events", Surface::Key("excluded_events")),
     f("unsafe_command", Surface::Key("unsafe_command")),
     f("closed_value_args", Surface::Key("closed_value_args")),
+    f(
+        "arg_values_accept_prefix",
+        Surface::Key("arg_values_accept_prefix"),
+    ),
     f("event_requires", Surface::Key("event_requires")),
     f(
         "event_requirement_forms",
@@ -402,6 +441,7 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("event_emits", Surface::Key("event_emits")),
     f("event_emission_forms", Surface::Key("event_emission_forms")),
     f("data_collection", Surface::Key("data_collection")),
+    f("irules_source_flow", Surface::Key("irules_source_flow")),
     f("side_switch_target", Surface::Key("side_switch_target")),
     f(
         "event_handler_priority",
@@ -423,6 +463,11 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("versioned_arg_values", Surface::Key("versioned_arg_values")),
     f("body_kind", Surface::Key("body_kind")),
     f("body_interpreter", Surface::Key("body_interpreter")),
+    f("body_execution", Surface::Key("body_execution")),
+    f("procedure_definition", Surface::Key("procedure_definition")),
+    f("native_compilation", Surface::Key("native_compilation")),
+    f("successful_handler", Surface::Key("successful_handler")),
+    f("variable_receivers", Surface::Key("variable_receivers")),
     f(
         "body_arg_implicit_args",
         Surface::Key("body_arg_implicit_args"),
@@ -458,6 +503,10 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("taint_sink_safe_colour"),
     ),
     f("taint_sink_gate", Surface::Key("taint_sink_gate")),
+    f(
+        "channel_configuration",
+        Surface::Key("channel_configuration"),
+    ),
     f("credential_options", Surface::Key("credential_options")),
     f("sensitive_headers", Surface::Key("sensitive_headers")),
     f("setter_constraints", Surface::Key("setter_constraints")),
@@ -484,6 +533,10 @@ pub const COMMAND_SPEC: &[Field] = &[
         "deprecated_replacement_drop_in",
         Surface::Key("deprecated_replacement_drop_in"),
     ),
+    f(
+        "source_deprecation_advice",
+        Surface::Key("source_deprecation_advice"),
+    ),
     f("alias_of", Surface::Key("alias_of")),
     f("runtime_backing", Surface::Key("runtime_backing")),
     f("byte_array_payload", Surface::Key("byte_array_payload")),
@@ -499,6 +552,12 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("remote_method", Surface::Key("remote_method")),
     f("creates_instance_at", Surface::Key("creates_instance_at")),
     f("defines_command_at", Surface::Key("defines_command_at")),
+    f(
+        "teardown_argument_layout",
+        Surface::Excluded(
+            "Registry-only effective argv layout derived from a selected teardown command; SpecTcl has no authored source layout",
+        ),
+    ),
     f("context_gate", Surface::Key("context_gate")),
     f(
         "implementation_namespace",
@@ -525,12 +584,15 @@ pub fn witness_sub_command(sub: &SubCommand) {
         hover: _,
         arg_roles: _,
         arg_role_resolver: _,
+        arg_role_count_resolver: _,
+        arg_role_layout_resolver: _,
         arg_role_resolver_roles: _,
         arg_presentation: _,
         repeated_args: _,
         command_prefixes: _,
         command_prefix_resolver: _,
         script_timing_resolver: _,
+        script_lookup_scope: _,
         callback_taint_inputs: _,
         return_type: _,
         var_write_typing: _,
@@ -558,6 +620,8 @@ pub fn witness_sub_command(sub: &SubCommand) {
         option_placement: _,
         min_abbrev: _,
         prefix_matching: _,
+        option_prefix_words: _,
+        reserved_trailing_words: _,
         arg_values: _,
         versioned_arg_values: _,
         subcommand_forms: _,
@@ -572,6 +636,10 @@ pub fn witness_sub_command(sub: &SubCommand) {
         inferred_storage_type: _,
         body_kind: _,
         body_interpreter: _,
+        body_execution: _,
+        native_compilation: _,
+        successful_handler: _,
+        variable_receivers: _,
         byte_array_effect: _,
         closed_value_args: _,
         arg_values_accept_prefix: _,
@@ -581,6 +649,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         taint_double_encode_colour: _,
         taint_output_sink: _,
         credential_arg: _,
+        channel_configuration: _,
         sensitive_headers: _,
         pattern_type: _,
         format_string_type: _,
@@ -589,9 +658,14 @@ pub fn witness_sub_command(sub: &SubCommand) {
         state_transitions: _,
         dispatch_dependencies: _,
         result_stability: _,
+        native_result: _,
         literal_argument_validator: _,
+        source_index_bounds: _,
         destructive: _,
         returns_path: _,
+        source_path_operation: _,
+        source_package_query: _,
+        source_configuration_reference: _,
         is_unescape: _,
         cfg_rewrite_name: _,
         sub_subcommands: _,
@@ -613,6 +687,14 @@ pub const SUB_COMMAND: &[Field] = &[
     f("arg_roles", Surface::Key("arg_roles")),
     f("arg_role_resolver", Surface::Key("arg_role_resolver")),
     f(
+        "arg_role_count_resolver",
+        Surface::Key("arg_role_count_resolver"),
+    ),
+    f(
+        "arg_role_layout_resolver",
+        Surface::Key("arg_role_layout_resolver"),
+    ),
+    f(
         "arg_role_resolver_roles",
         Surface::Key("arg_role_resolver_roles"),
     ),
@@ -631,6 +713,7 @@ pub const SUB_COMMAND: &[Field] = &[
         "script_timing_resolver",
         Surface::Key("script_timing_resolver"),
     ),
+    f("script_lookup_scope", Surface::Key("script_lookup_scope")),
     f("return_type", Surface::Key("return_type")),
     f("var_write_typing", Surface::Key("var_write_typing")),
     f("return_elements", Surface::Key("return_elements")),
@@ -666,6 +749,11 @@ pub const SUB_COMMAND: &[Field] = &[
     f("option_placement", Surface::Key("option_placement")),
     f("min_abbrev", Surface::Key("min_abbrev")),
     f("prefix_matching", Surface::Key("prefix_matching")),
+    f("option_prefix_words", Surface::Key("option_prefix_words")),
+    f(
+        "reserved_trailing_words",
+        Surface::Key("reserved_trailing_words"),
+    ),
     f("arg_values", Surface::Key("arg_values")),
     f("versioned_arg_values", Surface::Key("versioned_arg_values")),
     f("subcommand_forms", Surface::Key("subcommand_forms")),
@@ -686,6 +774,10 @@ pub const SUB_COMMAND: &[Field] = &[
     ),
     f("body_kind", Surface::Key("body_kind")),
     f("body_interpreter", Surface::Key("body_interpreter")),
+    f("body_execution", Surface::Key("body_execution")),
+    f("native_compilation", Surface::Key("native_compilation")),
+    f("successful_handler", Surface::Key("successful_handler")),
+    f("variable_receivers", Surface::Key("variable_receivers")),
     f("byte_array_effect", Surface::Key("byte_array_effect")),
     f("closed_value_args", Surface::Key("closed_value_args")),
     f(
@@ -703,6 +795,10 @@ pub const SUB_COMMAND: &[Field] = &[
         Surface::Key("taint_double_encode_colour"),
     ),
     f("taint_output_sink", Surface::Key("taint_output_sink")),
+    f(
+        "channel_configuration",
+        Surface::Key("channel_configuration"),
+    ),
     f("credential_arg", Surface::Key("credential_arg")),
     f("sensitive_headers", Surface::Key("sensitive_headers")),
     f("pattern_type", Surface::Key("pattern_type")),
@@ -715,12 +811,28 @@ pub const SUB_COMMAND: &[Field] = &[
         Surface::Key("dispatch_dependencies"),
     ),
     f("result_stability", Surface::Key("result_stability")),
+    f("native_result", Surface::Key("native_result")),
     f(
         "literal_argument_validator",
         Surface::Key("literal_argument_validator"),
     ),
+    f("source_index_bounds", Surface::Key("source_index_bounds")),
     f("destructive", Surface::Key("destructive")),
     f("returns_path", Surface::Key("returns_path")),
+    f(
+        "source_package_query",
+        Surface::Excluded(
+            "Builtin conditional target-survey algebra; custom packs have no provider/subject receipt",
+        ),
+    ),
+    f(
+        "source_path_operation",
+        Surface::Key("source_path_operation"),
+    ),
+    f(
+        "source_configuration_reference",
+        Surface::Key("source_configuration_reference"),
+    ),
     f("is_unescape", Surface::Key("is_unescape")),
     f("cfg_rewrite_name", Surface::Key("cfg_rewrite_name")),
     f("sub_subcommands", Surface::Key("sub_subcommands")),
@@ -742,23 +854,32 @@ pub const SUB_COMMAND: &[Field] = &[
 /// Compile-time witness for [`SUB_SUB_COMMAND`].
 pub fn witness_sub_sub_command(sub: &SubSubCommand) {
     let SubSubCommand {
+        native_compilation: _,
         name: _,
         detail: _,
         synopsis: _,
         surface: _,
         lifecycle: _,
         options: _,
+        option_prefix_words: _,
     } = sub;
 }
 
 /// Where the studio surfaces each [`SubSubCommand`] field.
 pub const SUB_SUB_COMMAND: &[Field] = &[
+    f(
+        "native_compilation",
+        Surface::Excluded(
+            "Nested native compiler registrations require actual interpreter and worker identity proofs; pack authoring cannot supply them.",
+        ),
+    ),
     f("name", Surface::Key("name")),
     f("detail", Surface::Key("detail")),
     f("synopsis", Surface::Key("synopsis")),
     f("surface", Surface::Key("surface")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
     f("options", Surface::Key("options")),
+    f("option_prefix_words", Surface::Key("option_prefix_words")),
 ];
 
 /// Compile-time witness for [`OPTION_SPEC`].
@@ -931,6 +1052,7 @@ pub const SETTER_CONSTRAINT: &[Field] = &[
 pub fn witness_arity(arity: &Arity) {
     let Arity {
         min: _,
+        count: _,
         max: _,
         step: _,
         also_exact: _,
@@ -940,6 +1062,7 @@ pub fn witness_arity(arity: &Arity) {
 /// Where the studio surfaces each [`Arity`] field.
 pub const ARITY: &[Field] = &[
     f("min", Surface::Key("min")),
+    f("count", Surface::Key("count")),
     f("max", Surface::Key("max")),
     f("step", Surface::Key("step")),
     f("also_exact", Surface::Key("also_exact")),
@@ -1139,6 +1262,7 @@ pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {
         family: _,
         members: _,
         implicit_vars: _,
+        implicit_receiver_vars: _,
         member_body_namespace_path: _,
         builtin_type_methods: _,
         builtin_object_methods: _,
@@ -1146,6 +1270,7 @@ pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {
         member_body_commands: _,
         bare_word_construction: _,
         bare_word_construction_hint: _,
+        bare_word_construction_source_hint: _,
         dynamic_method_dispatch: _,
         manufacturers: _,
         unknown_dispatch_method: _,
@@ -1160,6 +1285,10 @@ pub const DEFINITION_BODY_GRAMMAR: &[Field] = &[
     f("family", Surface::Key("family")),
     f("members", Surface::Key("members")),
     f("implicit_vars", Surface::Key("implicit_vars")),
+    f(
+        "implicit_receiver_vars",
+        Surface::Key("implicit_receiver_vars"),
+    ),
     f(
         "member_body_namespace_path",
         Surface::Key("member_body_namespace_path"),
@@ -1181,6 +1310,10 @@ pub const DEFINITION_BODY_GRAMMAR: &[Field] = &[
     f(
         "bare_word_construction_hint",
         Surface::Key("bare_word_construction_hint"),
+    ),
+    f(
+        "bare_word_construction_source_hint",
+        Surface::Key("bare_word_construction_source_hint"),
     ),
     f(
         "dynamic_method_dispatch",
@@ -1301,6 +1434,7 @@ pub fn witness_builtin_object_method(method: &BuiltinObjectMethod) {
         name: _,
         visibility: _,
         receiver: _,
+        operation: _,
         detail: _,
     } = method;
 }
@@ -1311,6 +1445,7 @@ pub const BUILTIN_OBJECT_METHOD: &[Field] = &[
     f("name", Surface::Key("name")),
     f("visibility", Surface::Key("visibility")),
     f("receiver", Surface::Key("receiver")),
+    f("operation", Surface::Excluded(NAMED_CONSTANT)),
     f("detail", Surface::Key("detail")),
 ];
 
@@ -1494,6 +1629,7 @@ pub fn witness_case_list_spec(spec: &CaseListSpec) {
         allow_omitted_final_body: _,
         keyword_patterns: _,
         keyword_patterns_require_final: _,
+        exhaustive_keyword_patterns: _,
         optional_subject_separator: _,
         warn_unbraced_bodies: _,
         default_mode: _,
@@ -1529,6 +1665,10 @@ pub const CASE_LIST_SPEC: &[Field] = &[
         Surface::Excluded(NAMED_CONSTANT),
     ),
     f("keyword_patterns", Surface::Excluded(NAMED_CONSTANT)),
+    f(
+        "exhaustive_keyword_patterns",
+        Surface::Excluded(NAMED_CONSTANT),
+    ),
     f(
         "keyword_patterns_require_final",
         Surface::Excluded(NAMED_CONSTANT),

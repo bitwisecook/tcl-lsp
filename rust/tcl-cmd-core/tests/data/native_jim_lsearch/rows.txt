@@ -1,0 +1,228 @@
+case	0
+argv	61202a	2a
+code	0
+result	int	0	1
+argument	1	list	1	1
+argument	2	string	1	1
+bytes	31
+case	1
+argv	2d67	6162207a7a	612a
+code	1
+result	string	1	1
+argument	1	none	1	2
+argument	2	none	1	2
+argument	3	none	1	2
+bytes	626164206f7074696f6e20222d67223a206d757374206265202d616c6c2c202d626f6f6c2c202d636f6d6d616e642c202d65786163742c202d676c6f622c202d696e6465782c202d696e6c696e652c202d6e6f636173652c202d6e6f742c202d7265676578702c206f72202d737472696465
+case	2
+argv	2d676c6f62	6162207a7a	612a
+code	0
+result	int	0	1
+argument	1	get-enum	1	1
+argument	2	list	1	1
+argument	3	none	1	1
+bytes	30
+case	3
+argv	2d726567657870	6162207a7a	61
+code	0
+result	int	0	1
+argument	1	get-enum	1	1
+argument	2	list	1	1
+argument	3	regexp	1	1
+bytes	30
+case	4
+argv	2d636f6d6d616e64	74776f	6162207a7a	61
+callback	3	command:4	none:3	source:2
+callback	3	command:4	none:3	source:2
+code	0
+result	int	0	1
+argument	1	get-enum	1	1
+argument	2	command	1	1
+argument	3	list	1	1
+argument	4	none	1	1
+bytes	2d31
+case	5
+argv	2d626f6f6c	2d636f6d6d616e64	74776f	6162207a7a	61
+callback	3	command:4	none:3	source:2
+code	0
+result	int	0	1
+argument	1	get-enum	1	1
+argument	2	get-enum	1	1
+argument	3	command	1	1
+argument	4	list	1	1
+argument	5	none	1	1
+bytes	32
+case	6
+argv	2d616c6c	2d626f6f6c	2d636f6d6d616e64	74776f	6162207a7a	61
+callback	3	command:4	none:3	source:2
+callback	3	command:4	none:3	source:2
+code	0
+result	list	0	1
+argument	1	get-enum	1	1
+argument	2	get-enum	1	1
+argument	3	get-enum	1	1
+argument	4	command	1	1
+argument	5	list	1	1
+argument	6	none	1	1
+bytes	322032
+case	7
+argv	2d696e6c696e65	6162207a7a	61
+code	0
+result	none	1	5
+argument	1	get-enum	1	1
+argument	2	list	1	1
+argument	3	string	1	1
+bytes	
+case	8
+argv	2d696e6c696e65	2d726567657870	6162207a7a	61
+callback	4	command:2	none:1	none:3	source:2
+callback	4	command:2	none:1	none:3	source:2
+code	0
+result	int	0	1
+argument	1	get-enum	1	1
+argument	2	get-enum	1	1
+argument	3	list	1	1
+argument	4	none	1	1
+bytes	32
+case	9
+argv	2d616c6c	2d696e6c696e65	2d737472696465	32	61204120622042	61
+code	0
+result	list	0	1
+argument	1	get-enum	1	1
+argument	2	get-enum	1	1
+argument	3	get-enum	1	1
+argument	4	int	1	1
+argument	5	list	1	1
+argument	6	string	1	1
+bytes	612041
+case	10
+argv	2d616c6c	2d696e6c696e65	2d737472696465	32	2d696e646578	30	61204120622042	61
+code	0
+result	list	0	1
+argument	1	get-enum	1	1
+argument	2	get-enum	1	1
+argument	3	get-enum	1	1
+argument	4	int	1	1
+argument	5	get-enum	1	1
+argument	6	list	1	1
+argument	7	list	1	1
+argument	8	string	1	1
+bytes	612041
+case	11
+argv	2d696e6c696e65	2d737472696465	32	2d696e646578	31	61204120622042	41
+code	0
+result	list	0	1
+argument	1	get-enum	1	1
+argument	2	get-enum	1	1
+argument	3	int	1	1
+argument	4	get-enum	1	1
+argument	5	list	1	1
+argument	6	list	1	1
+argument	7	string	1	1
+bytes	612041
+case	12
+argv	2d696e6c696e65	2d696e646578	31	7b6120417d207b6220427d	41
+code	0
+result	string	1	2
+argument	1	get-enum	1	1
+argument	2	get-enum	1	1
+argument	3	list	1	1
+argument	4	list	1	1
+argument	5	string	1	1
+bytes	41
+case	13
+argv	2d626f6f6c	2d6e6f74	612062	7a
+code	0
+result	int	0	1
+argument	1	get-enum	1	1
+argument	2	get-enum	1	1
+argument	3	list	1	1
+argument	4	string	1	1
+bytes	31
+case	14
+argv	2d626f6f6c	2d6e6f74	612062	61
+code	0
+result	int	0	1
+argument	1	get-enum	1	1
+argument	2	get-enum	1	1
+argument	3	list	1	1
+argument	4	string	1	1
+bytes	30
+case	15
+argv	2d6e6f74	612062	61
+code	0
+result	int	0	1
+argument	1	get-enum	1	1
+argument	2	list	1	1
+argument	3	string	1	1
+bytes	31
+case	16
+argv	2d6e6f63617365	ff2058	c3bf
+code	0
+result	int	0	1
+argument	1	get-enum	1	1
+argument	2	list	1	1
+argument	3	string	1	1
+bytes	30
+case	17
+argv	2d726567657870		5b
+code	0
+result	int	0	1
+argument	1	get-enum	1	1
+argument	2	list	1	1
+argument	3	none	1	1
+bytes	2d31
+case	18
+argv	2d726567657870	61	5b
+code	1
+result	none	1	1
+argument	1	get-enum	1	1
+argument	2	list	1	1
+argument	3	none	1	2
+bytes	636f756c646e277420636f6d70696c6520726567756c61722065787072657373696f6e207061747465726e3a20627261636b657473205b5d206e6f742062616c616e636564
+case	19
+argv	2d636f6d6d616e64	72657475726e73	61	61
+code	1
+result	none	1	1
+argument	1	get-enum	1	2
+argument	2	command	1	2
+argument	3	list	1	2
+argument	4	none	1	2
+bytes	4f524947494e414c5f52455455524e
+case	20
+argv	2d616c6c	2d626f6f6c	2d737472696465	32	61204120622042	61
+code	0
+result	list	0	1
+argument	1	get-enum	1	1
+argument	2	get-enum	1	1
+argument	3	get-enum	1	1
+argument	4	int	1	1
+argument	5	list	1	1
+argument	6	string	1	1
+bytes	
+case	21
+argv	2d2d	612062	61
+code	1
+result	string	1	1
+argument	1	none	1	2
+argument	2	none	1	2
+argument	3	none	1	2
+bytes	626164206f7074696f6e20222d2d223a206d757374206265202d616c6c2c202d626f6f6c2c202d636f6d6d616e642c202d65786163742c202d676c6f622c202d696e6465782c202d696e6c696e652c202d6e6f636173652c202d6e6f742c202d7265676578702c206f72202d737472696465
+case	22
+argv	2d726567657870	2d737472696465	32	6120622063	61
+code	1
+result	none	1	1
+argument	1	get-enum	1	2
+argument	2	get-enum	1	2
+argument	3	int	1	2
+argument	4	list	1	2
+argument	5	none	1	2
+bytes	6c6973742073697a65206d7573742062652061206d756c7469706c65206f662074686520737472696465206c656e677468
+case	23
+argv	2d696e646578	656e642b31	7b6120417d207b6220427d	41
+code	1
+result	none	1	1
+argument	1	get-enum	1	2
+argument	2	list	1	2
+argument	3	list	1	2
+argument	4	none	1	2
+bytes	696e6465782022656e642b3122206f7574206f662072616e6765

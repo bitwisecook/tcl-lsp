@@ -581,16 +581,24 @@ fn folder_scoped_dialect_reaches_documents_in_that_folder() {
 
     // The folder URIs themselves resolve through the folder chain: this is what
     // the VS Code suite polls to know the per-folder pull has settled.
-    let uri_a = format!("file://{}", root_a.to_string_lossy());
-    let uri_b = format!("file://{}", root_b.to_string_lossy());
+    let uri_a = tcl_lsp_server::canonical_file_uri(&root_a)
+        .expect("project A root has a representable file URI")
+        .to_string();
+    let uri_b = tcl_lsp_server::canonical_file_uri(&root_b)
+        .expect("project B root has a representable file URI")
+        .to_string();
     settle(&mut lsp, "per-folder dialects", |lsp| {
         lsp.effective_config(&uri_a).get("dialect") == Some(&json!("tcl8.4"))
             && lsp.effective_config(&uri_b).get("dialect") == Some(&json!("f5-irules"))
     });
 
     // …and so do documents inside them, which is what actually changes analysis.
-    let doc_a = format!("file://{}", file_a.to_string_lossy());
-    let doc_b = format!("file://{}", file_b.to_string_lossy());
+    let doc_a = tcl_lsp_server::canonical_file_uri(&file_a)
+        .expect("project A document has a representable file URI")
+        .to_string();
+    let doc_b = tcl_lsp_server::canonical_file_uri(&file_b)
+        .expect("project B document has a representable file URI")
+        .to_string();
     let diags_a = lsp.open_ready(&doc_a, src);
     let diags_b = lsp.open_ready(&doc_b, src);
     assert_eq!(
@@ -686,8 +694,12 @@ fn a_folder_scoped_feature_toggle_is_reported_and_applied_for_that_folder() {
         ],
     );
 
-    let doc_off = format!("file://{}", file_off.to_string_lossy());
-    let doc_on = format!("file://{}", file_on.to_string_lossy());
+    let doc_off = tcl_lsp_server::canonical_file_uri(&file_off)
+        .expect("proj-off path has a representable file URI")
+        .to_string();
+    let doc_on = tcl_lsp_server::canonical_file_uri(&file_on)
+        .expect("proj-on path has a representable file URI")
+        .to_string();
     lsp.open_ready(&doc_off, src);
     lsp.open_ready(&doc_on, src);
 
@@ -908,7 +920,10 @@ fn watched_files_registration_folds_case_and_covers_project_config() {
     let path = root.join("seed.tcl");
     std::fs::write(&path, "set x 1\n").expect("write fixture");
     let mut lsp = Lsp::at_workspace_root(&root);
-    lsp.open_ready(&format!("file://{}", path.to_string_lossy()), "set x 1\n");
+    let path_uri = tcl_lsp_server::canonical_file_uri(&path)
+        .expect("workspace fixture path has a representable file URI")
+        .to_string();
+    lsp.open_ready(&path_uri, "set x 1\n");
 
     let registration = lsp
         .try_await_server_request("client/registerCapability", Duration::from_secs(10), 0)
@@ -963,13 +978,15 @@ fn watched_upper_case_extension_round_trips_through_the_index() {
     let anchor = root.join("anchor.tcl");
     std::fs::write(&anchor, "set anchor 1\n").expect("write anchor");
     let mut lsp = Lsp::at_workspace_root(&root);
-    lsp.open_ready(
-        &format!("file://{}", anchor.to_string_lossy()),
-        "set anchor 1\n",
-    );
+    let anchor_uri = tcl_lsp_server::canonical_file_uri(&anchor)
+        .expect("anchor path has a representable file URI")
+        .to_string();
+    lsp.open_ready(&anchor_uri, "set anchor 1\n");
 
     let upper = root.join("UPPER.TCL");
-    let upper_uri = format!("file://{}", upper.to_string_lossy());
+    let upper_uri = tcl_lsp_server::canonical_file_uri(&upper)
+        .expect("watched path has a representable file URI")
+        .to_string();
     let marker_uris = |lsp: &mut Lsp| -> Vec<String> {
         lsp.workspace_symbols("upper_marker")
             .as_array()
@@ -1059,8 +1076,12 @@ fn watched_delete_retires_an_open_documents_index_entry() {
     std::fs::write(&old_path, src).expect("write fixture");
 
     let mut lsp = Lsp::at_workspace_root(&root);
-    let old_uri = format!("file://{}", old_path.to_string_lossy());
-    let new_uri = format!("file://{}", new_path.to_string_lossy());
+    let old_uri = tcl_lsp_server::canonical_file_uri(&old_path)
+        .expect("old path has a representable file URI")
+        .to_string();
+    let new_uri = tcl_lsp_server::canonical_file_uri(&new_path)
+        .expect("new path has a representable file URI")
+        .to_string();
     lsp.open_ready(&old_uri, src);
 
     let ghost_uris = |lsp: &mut Lsp| -> Vec<String> {

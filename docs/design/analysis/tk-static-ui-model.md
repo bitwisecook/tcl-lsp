@@ -43,6 +43,9 @@ The stable parts of the model are:
 - whether Tk is statically active for the selected dialect/document;
 - a root toplevel and a tree of widget instances;
 - each instance's literal pathname and registry-resolved widget type;
+- `source_parent_path` for each widget: the root has no parent, validated
+  non-root paths carry their source parent, and a missing/null value never
+  authorizes a client to reconstruct one;
 - source spans for the creation and geometry evidence that produced the node;
 - literal option values which can be displayed safely;
 - geometry-manager evidence and the parent/container to which it applies;
@@ -55,7 +58,14 @@ The stable parts of the model are:
 Source spans are evidence, not an assertion that the program will execute that
 line. A model may contain an incomplete tree when the source is conditional,
 dynamic, or malformed. The uncertainty must be visible to the user rather than
-silently filled with invented widgets or default values.
+silently filled with invented widgets or default values. The Registry's checked
+Tk pathname owner supplies source parent and component-depth projections: `.`
+has no parent, valid non-root paths carry their literal parent, and invalid or
+unavailable paths do not acquire one. Orphan nodes retain
+`source_parent_path` in the model even when the parent widget is absent. Clients
+consume this field and do not recover a lexical parent from a rendered pathname.
+It describes source geometry only, not a live Tk widget, existence, or
+construction.
 
 The schema is versioned independently of Tcl/Tk release detection. A client
 must reject an unknown schema version and show a useful “preview unavailable”

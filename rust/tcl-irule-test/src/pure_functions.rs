@@ -28,17 +28,6 @@ use std::rc::Rc;
 use tcl_cmd_core::irules::{self, Output};
 use tcl_vm::{Code, Completion, NativeCommand, Value, Vm};
 
-/// The mock procedure name `::itest::cmd::_mock_proc_name` gives an iRules
-/// command: `NS::sub` is `<ns>_<sub>` with the namespace in lower case, a
-/// top-level command `cmd_<name>`, hyphens and dots as underscores.
-fn mock_name(command: &str) -> String {
-    let safe = |part: &str| part.replace(['-', '.'], "_");
-    match command.split_once("::") {
-        Some((namespace, sub)) => format!("{}_{}", safe(&namespace.to_lowercase()), safe(sub)),
-        None => format!("cmd_{}", safe(command)),
-    }
-}
-
 /// One pure function as a host command.
 struct PureFunction {
     command: &'static str,
@@ -47,35 +36,91 @@ struct PureFunction {
 
 impl NativeCommand for PureFunction {
     fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-        let texts: Vec<Rc<str>> = args.iter().map(Value::to_str).collect();
-        let words: Vec<&str> = texts.iter().map(AsRef::as_ref).collect();
-        let value = match irules::call(self.command, &words) {
-            Ok(Output::Text(text)) => Value::string(text),
-            Ok(Output::Int(value)) => Value::int(value),
-            Ok(Output::Bytes(bytes)) => {
-                Value::string(bytes.iter().copied().map(char::from).collect::<String>())
+        let reached = vm.with_original_operand_projection(|vm, original| {
+            let mut texts = Vec::with_capacity(args.len());
+            for arg in args {
+                texts.push(vm.original_operand_strict_string(original, arg)?);
             }
-            Err(irules::Unmodelled) => return self.stub(vm, args),
-        };
-        Completion::new(Code::Ok, value, Value::empty())
+            let words: Vec<&str> = texts.iter().map(String::as_str).collect();
+            let value = match irules::call(self.command, &words) {
+                Ok(Output::Text(text)) => Value::string(text),
+                Ok(Output::Int(value)) => Value::int(value),
+                Ok(Output::Bytes(bytes)) => match vm.byte_array_result(
+                    Rc::from(bytes),
+                    Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+                ) {
+                    Ok(value) => value,
+                    Err(error) => return Ok(refuse_value_access(vm, &error)),
+                },
+                Err(irules::Unmodelled) => return self.stub_using(vm, args, original),
+            };
+            vm.check_original_operand_projection(original)?;
+            Ok(Completion::new(Code::Ok, value, Value::empty()))
+        });
+        reached.unwrap_or_else(|error| original_completion(vm, error))
+    }
+}
+
+fn original_completion(vm: &mut Vm, error: tcl_vm::TclError) -> Completion<Value> {
+    match error.into_completion() {
+        Ok(guest) => guest,
+        Err(failure) => vm.refuse_tcl_host_failure(failure),
+    }
+}
+
+/// The reference core is a Unicode API. Its input and binary-producer failures
+/// are operational host refusals, independently of guest Tcl completion.
+fn refuse_value_access(vm: &mut Vm, error: &tcl_syntax::value::ValueError) -> Completion<Value> {
+    match error.native_access_refusal() {
+        Some(refusal) => vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::ValueAccess(refusal)),
+        None => vm.refuse_host_command(error.to_string()),
     }
 }
 
 impl PureFunction {
     /// The generated stub's answer for an input the core does not model: the
     /// stub `register_all` would have registered, when the table names one.
+    #[cfg(test)]
     fn stub(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+        let reached =
+            vm.with_original_operand_projection(|vm, original| self.stub_using(vm, args, original));
+        reached.unwrap_or_else(|error| original_completion(vm, error))
+    }
+
+    fn stub_using(
+        &self,
+        vm: &mut Vm,
+        args: &[Value],
+        operation: &tcl_vm::embed::OriginalOperandProjection,
+    ) -> Result<Completion<Value>, tcl_vm::TclError> {
         let table = format!("::itest::cmd::_stub_actions({})", self.mock);
-        let action = vm
-            .read_variable(&table)
-            .ok()
-            .and_then(|action| action.as_list().ok());
-        let Some(action) = action else {
-            return Completion::new(Code::Ok, Value::empty(), Value::empty());
+        let reached = vm.read_variable(&table);
+        vm.check_original_operand_projection(operation)?;
+        let action = match reached {
+            Ok(original) => {
+                let reached = vm.original_operand_list(operation, &original);
+                drop(original);
+                vm.check_original_operand_projection(operation)?;
+                match reached {
+                    Ok(action) => Some(action),
+                    Err(tcl_vm::TclError::Guest(_)) => None,
+                    Err(host) => return Err(host),
+                }
+            }
+            Err(tcl_vm::TclError::Guest(_)) => None,
+            Err(host) => return Err(host),
         };
-        let mut words: Vec<Value> = action.iter().cloned().collect();
+        vm.check_original_operand_projection(operation)?;
+        let Some(mut words) = action else {
+            return Ok(Completion::new(Code::Ok, Value::empty(), Value::empty()));
+        };
         words.extend_from_slice(args);
-        vm.invoke_command("::itest::cmd::_stub", &words)
+        let reached = vm.invoke_command("::itest::cmd::_stub", &words);
+        let before_cleanup = vm.check_original_operand_projection(operation);
+        drop(words);
+        vm.check_original_operand_projection(operation)?;
+        before_cleanup?;
+        Ok(reached)
     }
 }
 
@@ -83,8 +128,13 @@ impl PureFunction {
 /// before `::orch::init` registers the commands.
 pub(crate) fn register(vm: &mut Vm) {
     for &command in irules::COMMANDS {
-        let mock = mock_name(command);
-        let name = format!("::itest::cmd::{mock}");
+        let Some(publication) =
+            tcl_registry::simulator_mock_name::SimulatorMockName::for_label(command)
+        else {
+            continue;
+        };
+        let mock = publication.suffix().to_owned();
+        let name = publication.command_address();
         vm.register_native_command(&name, Rc::new(PureFunction { command, mock }));
     }
 }
@@ -587,3 +637,207 @@ mod tests {
         eprintln!("compared {compared} samples against tclsh");
     }
 }
+
+#[cfg(test)]
+mod stub_transport_tests {
+    use super::*;
+    use std::cell::Cell;
+
+    struct RunStub(PureFunction);
+    impl NativeCommand for RunStub {
+        fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+            self.0.stub(vm, args)
+        }
+    }
+
+    struct CountStub(Rc<Cell<usize>>);
+    impl NativeCommand for CountStub {
+        fn invoke(&self, _: &mut Vm, _: &[Value]) -> Completion<Value> {
+            self.0.set(self.0.get() + 1);
+            Completion::new(Code::Ok, Value::string("ACTION"), Value::empty())
+        }
+    }
+
+    struct RefuseRead;
+    impl NativeCommand for RefuseRead {
+        fn invoke(&self, vm: &mut Vm, _: &[Value]) -> Completion<Value> {
+            vm.set_var("::reached", Value::string("BEFORE")).unwrap();
+            vm.refuse_host_command("original stub-table trace refusal".into())
+        }
+    }
+
+    fn fixture() -> (Vm, Rc<Cell<usize>>) {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut vm =
+            tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        vm.try_eval_source("namespace eval ::itest::cmd {}; set prior BEFORE")
+            .unwrap();
+        let calls = Rc::new(Cell::new(0));
+        vm.register_native_command("::itest::cmd::_stub", Rc::new(CountStub(Rc::clone(&calls))));
+        vm.register_native_command(
+            "probe",
+            Rc::new(RunStub(PureFunction {
+                command: "probe",
+                mock: "cmd_probe".into(),
+            })),
+        );
+        (vm, calls)
+    }
+
+    #[test]
+    fn optional_stub_lookup_preserves_host_failure_before_any_fallback_or_dispatch() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        let (mut vm, calls) = fixture();
+        vm.register_native_command("refuse_read", Rc::new(RefuseRead));
+        vm.try_eval_source("set ::itest::cmd::_stub_actions(cmd_probe) ACTION; trace variable ::itest::cmd::_stub_actions(cmd_probe) r refuse_read").unwrap();
+        let error = vm
+            .try_eval_source("catch {probe input} captured; set after YES")
+            .unwrap_err();
+        let tcl_runtime_api::NativeExecutionError::HostCommandRefusal(original) = error else {
+            panic!("a reached host table refusal cannot supply a fallback answer");
+        };
+        assert_eq!(original.reason, "original stub-table trace refusal");
+        assert_eq!(calls.get(), 0);
+        assert_eq!(
+            vm.get_var("prior").unwrap().string_bytes().as_ref(),
+            b"BEFORE"
+        );
+        assert_eq!(
+            vm.get_var("reached").unwrap().string_bytes().as_ref(),
+            b"BEFORE"
+        );
+        assert!(vm.get_var("captured").is_none());
+        assert!(vm.get_var("after").is_none());
+    }
+
+    #[test]
+    fn optional_stub_lookup_accepts_only_actual_selected_action_members() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        let (mut vm, calls) = fixture();
+        let absent = vm.try_eval_source("probe input").unwrap();
+        assert_eq!(absent.code, Code::Ok);
+        assert!(absent.result.string_bytes().is_empty());
+        assert_eq!(calls.get(), 0);
+        vm.write_variable("::itest::cmd::_stub_actions(cmd_probe)", Value::string("{"))
+            .unwrap();
+        let malformed = vm.try_eval_source("probe input").unwrap();
+        assert_eq!(malformed.code, Code::Ok);
+        assert!(malformed.result.string_bytes().is_empty());
+        assert_eq!(calls.get(), 0);
+        vm.write_variable(
+            "::itest::cmd::_stub_actions(cmd_probe)",
+            Value::string("ACTION"),
+        )
+        .unwrap();
+        let selected = vm.try_eval_source("probe input").unwrap();
+        assert_eq!(selected.result.string_bytes().as_ref(), b"ACTION");
+        assert_eq!(calls.get(), 1);
+    }
+}
+
+#[cfg(test)]
+mod binary_boundary_tests {
+    use super::*;
+    use tcl_registry::native_string_materialization::LogicalStringProvider;
+
+    #[test]
+    fn reference_binary_output_retains_counted_payload_and_authored_constructor_origin() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        let mut session = crate::LiveSession::new(
+            &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tcl"),
+        )
+        .unwrap();
+        let function = PureFunction {
+            command: "b64decode",
+            mock: "cmd_b64decode".into(),
+        };
+        let answer = function.invoke(session.vm_mut(), &[Value::string("/wBB")]);
+        assert_eq!(answer.code, Code::Ok);
+        assert_eq!(
+            answer.result.byte_array_representation().unwrap().as_ref(),
+            b"\xff\0A"
+        );
+        assert!(answer.result.resident_string_bytes().is_none());
+        let origin = answer.result.byte_array_origin().unwrap();
+        assert_eq!(
+            origin.logical_provider(),
+            Some(LogicalStringProvider::Tcl84CoreSimulation)
+        );
+        assert_eq!(
+            answer
+                .result
+                .native_string_bytes(origin.protocol())
+                .unwrap()
+                .as_ref(),
+            b"\xc3\xbf\xc0\x80A"
+        );
+        assert_eq!(answer.result.byte_array_origin(), Some(origin));
+        assert_eq!(
+            answer.result.byte_array_representation().unwrap().as_ref(),
+            b"\xff\0A"
+        );
+    }
+
+    #[test]
+    fn opaque_reference_input_keeps_typed_host_refusal_outside_guest_catch() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut vm =
+            tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        vm.register_native_command(
+            "probe",
+            Rc::new(PureFunction {
+                command: "b64encode",
+                mock: "cmd_probe".into(),
+            }),
+        );
+        vm.set_var("opaque", Value::from_string_bytes(b"\xff".as_slice()))
+            .unwrap();
+        let error = vm
+            .try_eval_source("set before BEFORE; catch {probe $opaque} captured; set after AFTER")
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::Unicode(
+                    tcl_syntax::raw_string::UnicodeAccessError {
+                        valid_up_to: 0,
+                        error_len: Some(1)
+                    }
+                )
+            )
+        ));
+        assert_eq!(
+            vm.get_var("before")
+                .unwrap()
+                .resident_string_bytes()
+                .unwrap()
+                .as_ref(),
+            b"BEFORE"
+        );
+        assert!(vm.get_var("captured").is_none());
+        assert!(vm.get_var("after").is_none());
+        assert_eq!(
+            vm.get_var("opaque")
+                .unwrap()
+                .resident_string_bytes()
+                .unwrap()
+                .as_ref(),
+            b"\xff"
+        );
+    }
+}
+
+#[cfg(test)]
+#[path = "pure_functions/original_projection_tests.rs"]
+mod original_projection_tests;

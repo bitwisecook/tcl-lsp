@@ -55,6 +55,9 @@ if (process.argv.includes("--tests")) {
     target: "node22",
     define: { __SPEC_STUDIO_FRONTEND_VERSION__: JSON.stringify(version) },
     // node's own modules stay external — bundling them would be nonsense.
+    // External packages resolve at test time, so `npm test` runs node with
+    // `--conditions=browser`: `vscode-jsonrpc/browser` (imported by
+    // src/lspClient.ts) exports only a `browser` condition.
     packages: "external",
     logLevel: "info",
   });

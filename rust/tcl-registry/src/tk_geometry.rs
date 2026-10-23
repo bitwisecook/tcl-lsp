@@ -39,6 +39,44 @@ pub fn is_widget_path_or_root(path: &str) -> bool {
     path == "." || is_widget_path(path)
 }
 
+/// Source-only parent and component depth for a validated Tk widget pathname.
+///
+/// The root is valid and has no parent at depth zero. A non-root pathname has
+/// its literal pathname parent and a one-based component depth. Invalid paths
+/// return `None`; this projection says nothing about live Tk widgets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TkWidgetPathParentDepth<'a> {
+    /// Literal source parent, or `None` for the Tk root pathname.
+    pub parent: Option<&'a str>,
+    /// Number of non-root pathname components; zero for the root.
+    pub component_depth: usize,
+}
+
+/// Project the source parent and component depth of a validated Tk pathname.
+#[must_use]
+pub fn widget_path_parent_depth(path: &str) -> Option<TkWidgetPathParentDepth<'_>> {
+    if path == "." {
+        return Some(TkWidgetPathParentDepth {
+            parent: None,
+            component_depth: 0,
+        });
+    }
+    if !is_widget_path(path) {
+        return None;
+    }
+    let component_depth = path.strip_prefix('.')?.split('.').count();
+    let separator = path.rfind('.')?;
+    let parent = if separator == 0 {
+        "."
+    } else {
+        &path[..separator]
+    };
+    Some(TkWidgetPathParentDepth {
+        parent: Some(parent),
+        component_depth,
+    })
+}
+
 /// Whether `candidate` is `ancestor` itself or one of its Tk pathname
 /// descendants.
 ///
@@ -113,6 +151,34 @@ mod tests {
         }
         assert!(is_widget_path_or_root("."));
         assert!(!is_widget_path_or_root("main"));
+    }
+
+    #[test]
+    fn source_parent_depth_projection_distinguishes_root_valid_and_invalid_paths() {
+        assert_eq!(
+            widget_path_parent_depth("."),
+            Some(TkWidgetPathParentDepth {
+                parent: None,
+                component_depth: 0,
+            }),
+        );
+        assert_eq!(
+            widget_path_parent_depth(".main"),
+            Some(TkWidgetPathParentDepth {
+                parent: Some("."),
+                component_depth: 1,
+            }),
+        );
+        assert_eq!(
+            widget_path_parent_depth(".main.child.item-1"),
+            Some(TkWidgetPathParentDepth {
+                parent: Some(".main.child"),
+                component_depth: 3,
+            }),
+        );
+        for invalid in ["", "main", ".main..child", ".main."] {
+            assert_eq!(widget_path_parent_depth(invalid), None, "{invalid:?}");
+        }
     }
 
     #[test]

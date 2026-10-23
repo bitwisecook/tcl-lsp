@@ -16,90 +16,52 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Code-lens provider.
+//! Source declaration reference lenses.
 //!
-//! Surfaces a reference-count lens above every user-proc
-//! definition: `N references` at the proc's name span,
-//! showing how many call sites target it in the current
-//! document.
+//! Native source analysis enumerates genuine declarations through
+//! `original_declaration::declarations` and retains each sealed readonly
+//! identity. Local counts use the same canonical original reference kernel;
+//! indexed command counts remain retained source advice. The server resolves
+//! the identity against independently current participating documents before
+//! publishing its reference locations and final count. Optional labels and
+//! `qname` fields are presentation and cannot reissue the identity.
 //!
-//! Provided lenses:
+//! A source declaration or count supplies no native dispatch, object lifetime
+//! or edit permission. Missing complete source/configuration correspondence
+//! withdraws original advice. Equal bytes in independent URI owners remain
+//! independent candidates.
 //!
-//! * Per-proc lenses — `N references` per user proc.
-//! * Class lenses — `N references` per `oo::class create`
-//!   declaration, counting `ClassName new`, `ClassName create
-//!   <inst>`, and inheritance references in
-//!   `analysis.command_invocations`.
+//! Logical source lenses enumerate actual retained procedure headers (including
+//! superseded declarations), completed class snapshots and original member
+//! vectors. Their distinct opaque identity survives the Server's actual source,
+//! input, provider, publication and index lease. Display labels and old client
+//! ranges never select a declaration. Reference reports retain partial positive
+//! call/class-command occurrences; unsupported property/lifecycle, captured and
+//! noncall references remain debt rather than a complete reference census.
 //!
-//! Per-method / classmethod reference-count lenses: each member
-//! declaration's name span gets a `N references` lens whose count comes
-//! from [`crate::references::method_references_for_class`] — the same
-//! resolver Find All References and rename use — so the lens and the peek
-//! always agree.  That resolver counts intra-class `my method` dispatch,
-//! external `$obj method` call sites (matched through the analyser's
-//! `instance_classes` variable-type tracking), and the sites of any
-//! subclass that inherits the definition.  Each member lens
-//! carries a `qname` ([`tcl_compiler::analyser::class_member_key`]) just
-//! like the proc / class lenses, so it resolves to a clickable
-//! `tcl-lsp.showReferences` command the same way.
-//!
-//! Per-property reference-count lenses: each `property` declaration gets
-//! the same treatment, sourced from
-//! [`crate::references::property_references_for_class`] instead — a
-//! class-local `my <property>` scan, since properties have no `$obj
-//! property` dispatch shape and no inheritance model. Carries a
-//! `{class}::property::{name}` qname
-//! ([`tcl_compiler::analyser::class_property_key`]) so it resolves through
-//! the same click-to-references flow.
-//!
-//! Constructor / destructor next-chain lenses: a class's own explicit
-//! `constructor` / `destructor` also gets a lens, but a conventional
-//! dispatch-count has no general meaning for either (both are invoked
-//! positionally — `ClassName new`/`create`/`destroy` — never by name). The
-//! one name-independent relationship that *is* meaningful: an overriding
-//! subclass's own constructor/destructor chaining up to this one via
-//! `next` / `nextto`. Sourced from
-//! [`crate::references::constructor_next_chain_references`] /
-//! [`crate::references::destructor_next_chain_references`], which resolve
-//! the chain through the full class hierarchy (via
-//! [`tcl_compiler::analyser::class_hierarchy::ClassHierarchy::constructor_next_provider`]
-//! / `destructor_next_provider`), not just the immediate superclass.
-//! Carries a `{class}::constructor` / `{class}::destructor` qname
-//! ([`tcl_compiler::analyser::class_constructor_key`] /
-//! `class_destructor_key`) for the same click-to-references flow.
-//!
-//! Cross-document reference counts: when the
-//! caller threads a [`crate::workspace_index::WorkspaceIndex`]
-//! and the document's URI, the proc / class lens count
-//! includes call sites in sibling documents.
-//!
-//! Scope of the counts this module computes:
-//!
-//! * Class-member counts (method / classmethod / property, and the
-//!   constructor / destructor next-chain) are **current-document only**.
-//!   Resolving a cross-file `$obj method` site needs each sibling
-//!   document's own analysis, which this pure, single-document provider
-//!   has no way to obtain.  Proc / class counts do fold in cross-document
-//!   command-head call sites, since the workspace index carries those
-//!   directly.
-//! * That is not what the editor ends up showing for a member lens.  Every
-//!   lens carrying a `qname` is returned to the client *without* a command,
-//!   so the client must call `codeLens/resolve` before rendering it — and
-//!   the server relabels it there from the workspace-wide site set it
-//!   resolves for the click, via [`reference_count_title`].  The number
-//!   shown and the locations the click opens are therefore one and the same
-//!   set, and both match Find All References on the declaration.  The counts
-//!   here are the single-document floor under that, and
-//!   what a caller with no server gets.
+//! Every clickable resolved lens uses the same location set for its title and
+//! reference command. [`reference_count_title`] renders the count only.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
 
+mod logical_source;
+pub use logical_source::{
+    LogicalLensIdentity, LogicalLensReferenceAdvice, LogicalSourceLens,
+    logical_lens_reference_advice, logical_source_lenses,
+};
+
 /// One code-lens entry — anchor range plus a command label.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeLens {
+    /// Independent current Logical source selection; never a Native identity.
+    pub logical_identity: Option<LogicalLensIdentity>,
+    /// Sealed readonly declaration for current source and wire resolution.
+    pub identity: Option<crate::original_declaration::OriginalDeclarationIdentity>,
+    /// Conditional source-reference availability, separate from its positive count.
+    pub reference_coverage: Option<crate::original_declaration::ReadonlyReferenceCoverage>,
     /// Anchor range for the lens.
     pub range: LspRange,
     /// Command label shown to the user.
@@ -109,6 +71,25 @@ pub struct CodeLens {
     /// Qualified name of the symbol the lens annotates (`::greet`),
     /// surfaced in the LSP lens `data` for the references-jump command.
     pub qname: String,
+}
+
+/// Render positive counts without presenting an unknown source census as absence.
+#[must_use]
+pub fn readonly_reference_count_title(
+    count: usize,
+    coverage: crate::original_declaration::ReadonlyReferenceCoverage,
+) -> String {
+    use crate::original_declaration::ReadonlyReferenceCoverage;
+    match coverage {
+        ReadonlyReferenceCoverage::ExistingInventory
+        | ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus => reference_count_title(count),
+        ReadonlyReferenceCoverage::Partial if count > 0 => {
+            format!("at least {}", reference_count_title(count))
+        }
+        ReadonlyReferenceCoverage::Partial | ReadonlyReferenceCoverage::Unavailable => {
+            "References unavailable".to_owned()
+        }
+    }
 }
 
 /// Compute code lenses for the document.
@@ -122,7 +103,7 @@ pub struct CodeLens {
 #[must_use]
 pub fn code_lenses(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     analysis: Option<&AnalysisResult>,
     workspace: Option<&crate::workspace_index::WorkspaceIndex>,
     current_uri: &str,
@@ -130,245 +111,65 @@ pub fn code_lenses(
     let Some(analysis) = analysis else {
         return Vec::new();
     };
-    // The lens title is a reference *count*, so it has to agree with the peek
-    // it labels — and both must exclude a bare call a live `namespace import
-    // -force` shadows, a fact only whole-program export knowledge can
-    // settle. The workspace index this provider already receives is exactly
-    // that knowledge, so no extra parameter is needed; without one the counts
-    // stay document-only.
-    let exports = workspace.map(crate::workspace_index::WorkspaceIndex::export_snapshot);
-    let resolution = match exports.as_deref() {
-        Some(oracle) => crate::definition::CallResolution::document_only().in_program(
-            crate::definition::ProgramExports {
-                uri: current_uri,
-                oracle,
-            },
-        ),
-        None => crate::definition::CallResolution::document_only(),
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return Vec::new();
     };
-    let line_index = LineIndex::new(source);
-    let mut lenses: Vec<CodeLens> = Vec::new();
-
-    for (qname, proc_def) in &analysis.all_procs {
-        // Derive the local count from the *same* matching the peek (Find All
-        // References) uses, so the lens title and the peek can never drift.
-        // The earlier name-only tally could disagree
-        // with the namespace-aware resolver (e.g. a same-named proc in
-        // another namespace).  `proc_reference_spans` takes the resolved
-        // proc directly, so iterating every proc here doesn't rebuild a
-        // `LineIndex` or rescan the proc table per definition.
-        let mut count =
-            crate::references::proc_reference_spans(analysis, resolution, qname, proc_def).len();
-        if let Some(index) = workspace {
-            count += index
-                .invocations_of(&proc_def.qualified_name, current_uri)
-                .len();
-        }
-        let title = reference_count_title(count);
-        let start = line_index.position_at_utf16(proc_def.name_span.start(), source);
-        let end = line_index.position_at_utf16(proc_def.name_span.end(), source);
-        lenses.push(CodeLens {
-            range: LspRange {
-                start_line: start.line,
-                start_character: start.character.get(),
-                end_line: end.line,
-                end_character: end.character.get(),
-            },
-            command_title: title,
-            // Empty command — the lens is informational only.
-            // Editors render the title as text; clicking is a
-            // no-op until the references-jump command is wired
-            // up.
-            command: String::new(),
-            qname: proc_def.qualified_name.clone(),
-        });
-    }
-
-    // Class lenses.  Surface a reference-
-    // count lens at each `oo::class create ClassName` site.
-    // The count includes constructor calls (`ClassName new`,
-    // `ClassName create instance`) and references in
-    // inheritance chains (`oo::class create Sub { superclass
-    // ClassName ... }`).
-    for (qname, class_def) in &analysis.all_classes {
-        let mut count = count_class_references(qname, class_def, analysis, resolution);
-        if let Some(index) = workspace {
-            count += index
-                .invocations_of(&class_def.qualified_name, current_uri)
-                .len();
-        }
-        let title = reference_count_title(count);
-        let start = line_index.position_at_utf16(class_def.name_span.start(), source);
-        let end = line_index.position_at_utf16(class_def.name_span.end(), source);
-        lenses.push(CodeLens {
-            range: LspRange {
-                start_line: start.line,
-                start_character: start.character.get(),
-                end_line: end.line,
-                end_character: end.character.get(),
-            },
-            command_title: title,
-            command: String::new(),
-            qname: class_def.qualified_name.clone(),
-        });
-        // Per-method / classmethod lenses inside the class body.  The count
-        // is derived from the *same* resolver the peek (Find All References)
-        // uses — `references::method_references_for_class` — so the lens
-        // title and the peek can never drift.  That resolver
-        // counts both intra-class `my method` dispatch and external
-        // `$obj method` call sites (via `instance_classes` plus the
-        // object-type lattice's scoped facts), plus the
-        // call sites of any subclass that inherits this definition.
-        emit_class_member_lenses(
-            source,
-            dialect,
-            qname,
-            class_def,
-            analysis,
-            &line_index,
-            &mut lenses,
-        );
-    }
-
-    lenses
-}
-
-/// Emit per-member reference-count lenses for every method, classmethod, and
-/// property in `class_def`.  The count for a method / classmethod is the
-/// number of call sites [`references::method_references_for_class`]
-/// resolves; for a property it's [`references::property_references_for_class`]
-/// instead (a class-local `my <property>` scan — properties have no `$obj
-/// property` dispatch shape and no inheritance model).  Both are the same
-/// single source of truth also used by Find All References and rename, so
-/// the lens title and the peek can never drift.  The method/classmethod
-/// resolver covers intra-class `my method` dispatch, external `$obj method`
-/// sites (resolved through the analyser's `instance_classes` variable-type
-/// tracking plus the object-type lattice's scope-keyed facts), and the call
-/// sites of any subclass that inherits (does not
-/// override) this definition.
-///
-/// Each lens carries a `{class}::method::{name}` / `{class}::classmethod::{name}`
-/// / `{class}::property::{name}` `qname`
-/// ([`tcl_compiler::analyser::class_member_key`] /
-/// [`tcl_compiler::analyser::class_property_key`]) — the same
-/// `qname`-present shape as the proc / class lenses — so the server's
-/// `code_lens_resolve` treats it as resolvable and attaches the *clickable*
-/// `tcl-lsp.showReferences` command instead of leaving it an inert bare
-/// title that reports "reference is not active".  Properties get the same
-/// treatment.
-fn emit_class_member_lenses(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    class_q: &str,
-    class_def: &tcl_compiler::analyser::ClassDef,
-    analysis: &AnalysisResult,
-    line_index: &LineIndex,
-    lenses: &mut Vec<CodeLens>,
-) {
-    // Reference count for one member, matching the peek exactly: the number
-    // of call sites (declaration excluded) the shared resolver returns.
-    // `is_classmethod` is passed explicitly rather than inferred, so a
-    // `method` and `classmethod` sharing a name each count and resolve only
-    // their own dispatch shape.
-    let member_ref_count = |name: &str, is_classmethod: bool| -> usize {
-        crate::references::method_references_for_class(
-            source,
-            dialect,
-            analysis,
-            class_q,
-            name,
-            is_classmethod,
-        )
-        .map_or(0, |(_decl, calls)| calls.len())
-    };
-    let push_lens =
-        |name_span: tcl_lexer::Span, qname: String, title: String, lenses: &mut Vec<CodeLens>| {
-            let start = line_index.position_at_utf16(name_span.start(), source);
-            let end = line_index.position_at_utf16(name_span.end(), source);
-            lenses.push(CodeLens {
-                range: LspRange {
-                    start_line: start.line,
-                    start_character: start.character.get(),
-                    end_line: end.line,
-                    end_character: end.character.get(),
-                },
-                command_title: title,
-                command: String::new(),
-                qname,
-            });
+    let _dialect = current.profile();
+    if !analysis.allows_lexical_declaration_advice() {
+        let Some(identities) =
+            crate::original_declaration::declarations(current_uri, source, analysis)
+        else {
+            return Vec::new();
         };
-    for (name, m) in &class_def.methods {
-        if m.name_span.is_empty() {
-            continue;
-        }
-        push_lens(
-            m.name_span,
-            tcl_compiler::analyser::class_member_key(class_q, name, false),
-            reference_count_title(member_ref_count(name, false)),
-            lenses,
-        );
+        let index = LineIndex::new(source);
+        return identities.into_iter().filter(|identity| !matches!(identity.role(),
+            crate::original_declaration::OriginalDeclarationRole::Document))
+            .filter_map(|identity| {
+                let report = crate::original_declaration::readonly_reference_report(&identity, source, analysis, true)?;
+                let mut count = report.spans().len();
+                if let Some(workspace) = workspace {
+                    let declaration = identity.procedure_metadata(analysis).map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name)
+                        .or_else(|| identity.class_metadata(analysis).filter(|_| identity.role() == crate::original_declaration::OriginalDeclarationRole::Class).map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name));
+                    if let Some(name) = declaration {
+                        let owners = workspace.original_procedure_declarations().map(|(_, row)| row.name())
+                            .chain(workspace.original_class_declarations().map(|(_, row)| row.name()))
+                            .filter(|row| *row == name).count();
+                        if owners == 1 { count += workspace.original_invocations_of(name, current_uri, true).len(); }
+                    }
+                }
+                Some(CodeLens { logical_identity: None, range: crate::definition::span_to_range(source, &index, identity.span()),
+                    command_title: readonly_reference_count_title(count, report.coverage()), command: String::new(), qname: crate::original_declaration::OriginalDeclarationIdentity::reporting_key(&identity, analysis).unwrap_or_else(|| identity.label()), identity: Some(identity), reference_coverage: Some(report.coverage()) })
+            }).collect();
     }
-    for (name, m) in &class_def.class_methods {
-        if m.name_span.is_empty() {
-            continue;
-        }
-        push_lens(
-            m.name_span,
-            tcl_compiler::analyser::class_member_key(class_q, name, true),
-            reference_count_title(member_ref_count(name, true)),
-            lenses,
-        );
-    }
-    for (name, p) in &class_def.properties {
-        if p.name_span.is_empty() {
-            continue;
-        }
-        let count = crate::references::property_references_for_class(
-            source, dialect, analysis, class_q, name,
-        )
-        .map_or(0, |(_decl, calls)| calls.len());
-        push_lens(
-            p.name_span,
-            tcl_compiler::analyser::class_property_key(class_q, name),
-            reference_count_title(count),
-            lenses,
-        );
-    }
-    // Constructor / destructor next-chain lenses: unlike a
-    // method/classmethod/property, neither has a name to dispatch on, so a
-    // conventional reference count has no general meaning — the one
-    // meaningful, name-independent relationship is an overriding subclass's
-    // own constructor/destructor chaining up to this one via `next`/`nextto`.
-    // Only a class that declares its own effective constructor/destructor
-    // gets one of these lenses, same "declared members only" rule as every
-    // other lens kind.
-    if let Some(ctor) = class_def.constructors.last()
-        && !ctor.name_span.is_empty()
-    {
-        let count = crate::references::constructor_next_chain_references(
-            source, dialect, analysis, class_q,
-        )
-        .map_or(0, |(_decl, calls)| calls.len());
-        push_lens(
-            ctor.name_span,
-            tcl_compiler::analyser::class_constructor_key(class_q),
-            reference_count_title(count),
-            lenses,
-        );
-    }
-    if let Some(dtor) = &class_def.destructor
-        && !dtor.name_span.is_empty()
-    {
-        let count =
-            crate::references::destructor_next_chain_references(source, dialect, analysis, class_q)
-                .map_or(0, |(_decl, calls)| calls.len());
-        push_lens(
-            dtor.name_span,
-            tcl_compiler::analyser::class_destructor_key(class_q),
-            reference_count_title(count),
-            lenses,
-        );
-    }
+    let documents = [crate::original_declaration::OriginalDeclarationDocument {
+        uri: current_uri,
+        source,
+        analysis,
+    }];
+    logical_source_lenses(current_uri, &documents)
+        .into_iter()
+        .flatten()
+        .map(|lens| {
+            let report = logical_lens_reference_advice(lens.identity(), &documents);
+            let coverage = report.as_ref().map_or(
+                crate::original_declaration::ReadonlyReferenceCoverage::Unavailable,
+                LogicalLensReferenceAdvice::coverage,
+            );
+            let count = report
+                .as_ref()
+                .map_or(0, |report| report.possible_source_targets().len());
+            CodeLens {
+                logical_identity: Some(lens.identity().clone()),
+                identity: None,
+                reference_coverage: Some(coverage),
+                range: lens.range(),
+                command_title: readonly_reference_count_title(count, coverage),
+                command: String::new(),
+                qname: lens.label().to_owned(),
+            }
+        })
+        .collect()
 }
 
 /// The lens label for `count` call sites — `"0 references"` /
@@ -387,70 +188,48 @@ pub fn reference_count_title(count: usize) -> String {
     }
 }
 
-/// Whether `qname` names a symbol [`code_lenses`] would emit a lens for in
-/// this document — a proc, a class, or one of a class's members (method /
-/// classmethod / property / constructor / destructor), matching exactly the
-/// same "declared members only" guards `code_lenses` /
-/// `emit_class_member_lenses` apply (a member with an empty `name_span`
-/// gets no lens, so it must not answer `true` here either).
-///
-/// `codeLens/resolve` uses this existence check to decide
-/// whether a lens is genuinely one of this document's own lenses before
-/// resolving its click locations.  Calling [`code_lenses`] in full and
-/// searching its output for a matching `qname` would recompute
-/// every *other* proc's / class's / member's reference count (each itself a
-/// resolver walk) just to answer one boolean. This answers the same
-/// question with direct `HashMap`/`Vec` lookups: O(1) for a plain proc or
-/// class, O(the document's own class count) for a member qname (bounded by
-/// how many classes share its `{class}::…` prefix, never by proc count or
-/// by any reference-resolution work).
+/// Match emitted labels and compatibility keys from current declaration records.
+/// This presentation query grants no original declaration or invocation identity.
 #[must_use]
 pub fn lens_qname_exists(analysis: &AnalysisResult, qname: &str) -> bool {
+    if !analysis.allows_lexical_declaration_advice() {
+        return analysis
+            .retained_command_realm()
+            .and_then(|realm| realm.original_source_image())
+            .and_then(|image| image.try_text().ok())
+            .and_then(|source| crate::original_declaration::declarations("", source, analysis))
+            .is_some_and(|identities| {
+                identities.iter().any(|identity| {
+                    identity.label() == qname
+                        || identity.reporting_key(analysis).as_deref() == Some(qname)
+                        || identity.class_reports_member_key(analysis, qname)
+                })
+            });
+    }
     if analysis.all_procs.contains_key(qname) || analysis.all_classes.contains_key(qname) {
         return true;
     }
-    for (class_q, class_def) in &analysis.all_classes {
-        let Some(rest) = qname.strip_prefix(class_q.as_str()) else {
-            continue;
-        };
-        // A shorter `class_q` can still produce a `rest` that happens to
-        // start with one of these markers (e.g. a class literally named
-        // `method` nested under this one) — only trust a *hit*, and keep
-        // checking the other classes on a miss rather than trusting a wrong
-        // split's "not found" as the final answer.
-        let found = if let Some(name) = rest.strip_prefix("::method::") {
-            class_def
-                .methods
-                .get(name)
-                .is_some_and(|m| !m.name_span.is_empty())
-        } else if let Some(name) = rest.strip_prefix("::classmethod::") {
-            class_def
-                .class_methods
-                .get(name)
-                .is_some_and(|m| !m.name_span.is_empty())
-        } else if let Some(name) = rest.strip_prefix("::property::") {
-            class_def
-                .properties
-                .get(name)
-                .is_some_and(|p| !p.name_span.is_empty())
-        } else if rest == "::constructor" {
-            class_def
-                .constructors
-                .last()
-                .is_some_and(|c| !c.name_span.is_empty())
-        } else if rest == "::destructor" {
-            class_def
+    analysis.all_classes.iter().any(|(class_q, class_def)| {
+        class_def.methods.iter().any(|(name, member)| {
+            !member.name_span.is_empty()
+                && tcl_compiler::analyser::class_member_key(class_q, name, false) == qname
+        }) || class_def.class_methods.iter().any(|(name, member)| {
+            !member.name_span.is_empty()
+                && tcl_compiler::analyser::class_member_key(class_q, name, true) == qname
+        }) || class_def.properties.iter().any(|(name, member)| {
+            !member.name_span.is_empty()
+                && tcl_compiler::analyser::class_property_key(class_q, name) == qname
+        }) || (class_def
+            .constructors
+            .last()
+            .is_some_and(|member| !member.name_span.is_empty())
+            && tcl_compiler::analyser::class_constructor_key(class_q) == qname)
+            || (class_def
                 .destructor
                 .as_ref()
-                .is_some_and(|d| !d.name_span.is_empty())
-        } else {
-            false
-        };
-        if found {
-            return true;
-        }
-    }
-    false
+                .is_some_and(|member| !member.name_span.is_empty())
+                && tcl_compiler::analyser::class_destructor_key(class_q) == qname)
+    })
 }
 
 /// Count invocations targeting the given class — `ClassName
@@ -458,23 +237,51 @@ pub fn lens_qname_exists(analysis: &AnalysisResult, qname: &str) -> bool {
 /// references in `oo::class create Sub { superclass ClassName
 /// ... }`.  Excludes the class's own `oo::class create
 /// ClassName` declaration site.
-fn count_class_references(
-    qname: &str,
-    class_def: &tcl_compiler::analyser::ClassDef,
-    analysis: &AnalysisResult,
-    resolution: crate::definition::CallResolution<'_>,
-) -> usize {
-    // Derive the count from the *same* namespace-aware matching the peek
-    // (Find All References) uses — `references::class_reference_spans` — so
-    // the lens title and the peek can never drift (mirrors the proc lens's
-    // `proc_reference_spans` reuse above).
-    crate::references::class_reference_spans(analysis, resolution, qname, class_def)
-        .into_iter()
-        .filter(|span| {
-            !(span.start() <= class_def.name_span.start()
-                && class_def.name_span.end() <= span.end())
-        })
-        .count()
+#[cfg(test)]
+mod readonly_source_count_tests {
+    use super::*;
+    use crate::original_declaration::ReadonlyReferenceCoverage;
+
+    #[test]
+    fn partial_source_lens_titles_do_not_report_unknown_absence() {
+        // naming.editor.original-method-candidates
+
+        assert_eq!(
+            readonly_reference_count_title(2, ReadonlyReferenceCoverage::Partial),
+            "at least 2 references"
+        );
+        assert_eq!(
+            readonly_reference_count_title(1, ReadonlyReferenceCoverage::Partial),
+            "at least 1 reference"
+        );
+        assert_eq!(
+            readonly_reference_count_title(0, ReadonlyReferenceCoverage::Partial),
+            "References unavailable"
+        );
+        assert_eq!(
+            readonly_reference_count_title(3, ReadonlyReferenceCoverage::Unavailable),
+            "References unavailable"
+        );
+        assert_eq!(
+            readonly_reference_count_title(0, ReadonlyReferenceCoverage::ExistingInventory),
+            "0 references"
+        );
+        assert_eq!(
+            readonly_reference_count_title(2, ReadonlyReferenceCoverage::ExistingInventory),
+            "2 references"
+        );
+    }
+
+    #[test]
+    fn complete_source_census_titles_report_exact_counts() {
+        assert_eq!(
+            readonly_reference_count_title(
+                1,
+                ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
+            ),
+            "1 reference"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -485,6 +292,113 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    fn source_currency_analysis(
+        source: &str,
+        environment: &str,
+        registry: std::sync::Arc<tcl_registry::CommandRegistry>,
+    ) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(
+                tcl_registry::model::ingress::resolve_environment(environment)
+                    .default_context_registry()
+                    .with_command_store(registry),
+            ),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        assert!(analysis.allows_lexical_declaration_advice());
+        analysis
+    }
+
+    #[test]
+    fn original_logical_lenses_keep_complete_source_currency_and_actual_profile() {
+        // naming.consumer.original-code-lens
+
+        let source = "proc p {} {p}; p";
+        let registry = std::sync::Arc::new(tcl_registry::CommandRegistry::build_default());
+        let wrong_profile =
+            tcl_registry::model::ingress::resolve_environment("f5-irules").analyser_profile();
+        let lenses = |text: &str, analysis: &AnalysisResult| {
+            code_lenses(
+                text,
+                wrong_profile,
+                Some(analysis),
+                None,
+                "file:///source.tcl",
+            )
+        };
+        for environment in ["tcl8.4", "tcl8.6"] {
+            let analysis = source_currency_analysis(source, environment, registry.clone());
+            let current = lenses(source, &analysis);
+            assert_eq!(current.len(), 1);
+            assert_eq!(current[0].qname, "::p");
+            assert!(lenses("proc q {} {q}; q", &analysis).is_empty());
+            let mut stale = analysis.clone();
+            let config = stale.body_lexer_config.as_mut().unwrap();
+            config.strict_quoting = !config.strict_quoting;
+            assert!(lenses(source, &stale).is_empty());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(!missing.all_procs.is_empty());
+            assert!(lenses(source, &missing).is_empty());
+            let mut unavailable = analysis.clone();
+            unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+                environment: environment.into(),
+                overlay: u64::MAX - 404,
+            });
+            assert!(lenses(source, &unavailable).is_empty());
+            let mut foreign_store = tcl_registry::CommandRegistry::build_default();
+            let mut descriptor = foreign_store.get("set").unwrap().clone();
+            descriptor.name = "source_currency_pack_control";
+            foreign_store.insert(descriptor);
+            let donor =
+                source_currency_analysis(source, environment, std::sync::Arc::new(foreign_store));
+            let mut foreign = analysis.clone();
+            foreign.resolved_input = donor.resolved_input;
+            assert!(lenses(source, &foreign).is_empty());
+            assert_eq!(lenses(source, &analysis).len(), 1);
+        }
+    }
+
+    #[test]
+    fn original_lenses_keep_repeated_and_opaque_source_declarations_without_ui_maps() {
+        // Implementation contract: naming.consumer.original-code-lens
+
+        let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; proc repeated {} {}; proc repeated {value} {}";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_procs.clear();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let lenses = code_lenses(source, profile, Some(&analysis), None, "file:///lenses.tcl");
+        assert_eq!(lenses.len(), 4);
+        assert_ne!(lenses[0].identity, lenses[1].identity);
+        assert_ne!(lenses[2].identity, lenses[3].identity);
+        assert!(
+            lenses
+                .iter()
+                .all(|lens| lens.identity.as_ref().unwrap().is_current(
+                    "file:///lenses.tcl",
+                    source,
+                    &analysis
+                ))
+        );
+        assert!(
+            code_lenses(
+                "proc changed {} {}",
+                profile,
+                Some(&analysis),
+                None,
+                "file:///lenses.tcl"
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -616,12 +530,12 @@ mod tests {
     fn lens_per_class() {
         let src = "oo::class create Greeter {}\noo::class create Helper {}\n";
         let analysis = analyse(src);
-        // Skip if the analyser doesn't track classes for this
-        // tcl version / shape — the assertion below should still
-        // succeed when the analyser does record them.
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        // This is a positive class-source control: missing class inventory
+        // must fail rather than silently skip the lens assertions.
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -647,9 +561,10 @@ mod tests {
             "MyClass create instance\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -678,9 +593,10 @@ mod tests {
         // object's method).  `greet` is dispatched twice from `twice`.
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -702,12 +618,15 @@ mod tests {
         // FP guard: a bare `greet` inside a sibling method body is a normal
         // command call, NOT TclOO self-dispatch (that is `my greet`), so it
         // must not be counted as a reference to the method.  The old
-        // head-token heuristic wrongly counted these.
+        // head-token heuristic wrongly counted these.  tclsh 8.6/9.0 raise
+        // `invalid command name "greet"` here, but an embedding's `unknown`
+        // or `::greet` can still reach the method, so the count stays partial.
         let src = "oo::class create C {\n    method greet {} {}\n    method other {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -719,16 +638,20 @@ mod tests {
             .iter()
             .find(|l| l.range.start_line == 1)
             .expect("greet lens");
-        assert_eq!(greet_lens.command_title, "0 references", "{lenses:?}");
+        assert_eq!(
+            greet_lens.command_title, "References unavailable",
+            "{lenses:?}"
+        );
     }
 
     #[test]
     fn lens_reports_zero_for_uncalled_method() {
         let src = "oo::class create C {\n    method orphan {} {}\n}\n";
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -845,9 +768,10 @@ mod tests {
         // twice-dispatched method would (`lens_counts_method_calls_within_class_body`).
         let src = "oo::class create Widget {\n    property size -get {return $mySize} -set {set mySize $value}\n    method bump {} { my size ; my size }\n}\n";
         let analysis = analyse90(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
@@ -866,9 +790,10 @@ mod tests {
     fn lens_reports_zero_for_unused_property() {
         let src = "oo::class create Widget {\n    property size\n}\n";
         let analysis = analyse90(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
@@ -1284,10 +1209,7 @@ mod tests {
 
     #[test]
     fn lens_counts_external_obj_method_call_issue_864() {
-        // FN-regression + TP: `puts [$b get foo]` references `Bar`'s `get`
-        // via an instance whose class is known (`set b [Bar new]`).  The
-        // lens on `method get` (line 6) must read `1 reference`, not the
-        // `0 references` the head-scan heuristic produced.
+        // The known Bar instance supplies one reference to its get method.
         let analysis = analyse(ISSUE_864_SRC);
         assert!(!analysis.all_classes.is_empty(), "class not analysed");
         let lenses = code_lenses(
@@ -1345,9 +1267,10 @@ mod tests {
             "puts [$b bark]\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1374,9 +1297,10 @@ mod tests {
             "rex bark\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1407,9 +1331,10 @@ mod tests {
             "$d speak\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1443,9 +1368,10 @@ mod tests {
             "$d speak\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1476,9 +1402,10 @@ mod tests {
             "$w render\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1510,9 +1437,10 @@ mod tests {
             "}\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1531,6 +1459,9 @@ mod tests {
     fn lens_unknown_instance_method_is_not_counted() {
         // TN/FP guard: `$x bark` where `x` has no recorded class is not a
         // resolvable dispatch, so it must not count toward `Dog::bark`.
+        // tclsh 8.6/9.0: with `x` unset the site raises `can't read "x"`, but
+        // an embedding that sets `x` can reach `bark`, so the count stays
+        // partial.
         let src = concat!(
             "oo::class create Dog {\n",
             "    method bark {} {}\n",
@@ -1538,9 +1469,10 @@ mod tests {
             "$x bark\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1552,7 +1484,7 @@ mod tests {
             .iter()
             .find(|l| l.range.start_line == 1)
             .expect("bark lens");
-        assert_eq!(bark.command_title, "0 references", "{lenses:?}");
+        assert_eq!(bark.command_title, "References unavailable", "{lenses:?}");
     }
 
     #[test]
@@ -1595,9 +1527,10 @@ mod tests {
     #[test]
     fn lens_qname_exists_finds_a_plain_class() {
         let analysis = analyse("oo::class create Widget {}\n");
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         assert!(lens_qname_exists(&analysis, "::Widget"));
         assert!(!lens_qname_exists(&analysis, "::Other"));
     }
@@ -1669,6 +1602,45 @@ mod tests {
     }
 
     #[test]
+    fn original_lens_reporting_keys_keep_owner_currency_and_ignore_display_maps() {
+        let source = "namespace eval N {proc helper {} {}}\n";
+        let mut analysis = analyse(source);
+        assert!(lens_qname_exists(&analysis, "helper"));
+        assert!(lens_qname_exists(&analysis, "::N::helper"));
+        assert!(!lens_qname_exists(&analysis, "::helper"));
+        analysis.all_procs.clear();
+        assert!(lens_qname_exists(&analysis, "helper"));
+        assert!(lens_qname_exists(&analysis, "::N::helper"));
+        analysis.resolved_input = None;
+        assert!(!lens_qname_exists(&analysis, "helper"));
+        assert!(!lens_qname_exists(&analysis, "::N::helper"));
+    }
+
+    #[test]
+    fn original_class_member_reporting_keys_require_current_source_without_display_maps() {
+        let source = "oo::class create C {method foo {} {}; classmethod foo {} {}}\n";
+        let mut analysis = analyse(source);
+        analysis.all_classes.clear();
+        for class_side in [false, true] {
+            assert!(lens_qname_exists(
+                &analysis,
+                &tcl_compiler::analyser::class_member_key("::C", "foo", class_side),
+            ));
+            assert!(!lens_qname_exists(
+                &analysis,
+                &tcl_compiler::analyser::class_member_key("::Other", "foo", class_side),
+            ));
+        }
+        analysis.resolved_input = None;
+        for class_side in [false, true] {
+            assert!(!lens_qname_exists(
+                &analysis,
+                &tcl_compiler::analyser::class_member_key("::C", "foo", class_side),
+            ));
+        }
+    }
+
+    #[test]
     fn lens_qname_exists_agrees_with_code_lenses_output() {
         // Structural parity: every qname `code_lenses` actually emits a lens
         // for must be found by the targeted check, and nothing else is.
@@ -1702,5 +1674,42 @@ mod tests {
                 lens.qname,
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod native_lens_presentation_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn native_own_object_method_lens_keeps_identity_when_class_display_key_is_unavailable() {
+        let source = r"oo::class create C {}; C create object; oo::objdefine object method p\uD800 {} {}; object p\uD800";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let configuration = analysis.original_object_configurations().next().unwrap();
+        let method = configuration.members().declarations().next().unwrap();
+        let identity = crate::original_declaration::OriginalDeclarationIdentity::for_object_method(
+            "file:///object.tcl",
+            source,
+            &analysis,
+            configuration.target(),
+            method,
+        )
+        .unwrap();
+        assert!(identity.class_metadata(&analysis).is_none());
+        assert!(identity.reporting_key(&analysis).is_none());
+        let lenses = code_lenses(
+            source,
+            crate::profile_for_dialect("tcl8.6"),
+            Some(&analysis),
+            None,
+            identity.uri(),
+        );
+        let lens = lenses
+            .iter()
+            .find(|lens| lens.identity.as_ref() == Some(&identity))
+            .unwrap();
+        assert_eq!(lens.qname, identity.label());
+        assert_eq!(lens.identity.as_ref(), Some(&identity));
     }
 }

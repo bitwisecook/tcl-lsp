@@ -46,8 +46,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::fs;
 use std::process::ExitCode;
-use tcl_dialect::model::Family;
-use tcl_dialect::model::surface_admits_from;
+use std::rc::Rc;
+use tcl_dialect::TclVersion;
+use tcl_dialect::model::{Family, SurfaceQuery, surface_admits, surface_admits_from};
 use tcl_registry::{BodySource, RuntimeBacking};
 use tcl_runtime_api::{BackingReport, RegisteredBacking};
 
@@ -75,11 +76,11 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "divmod",
-        "TIP 745 (Tcl 9.1) combined quotient/remainder list command; not yet implemented in runtime/rust",
+        "TIP 745 (Tcl 9.1) combined quotient/remainder list command; unsupported in runtime/rust",
     ),
     (
         "fpclassify",
-        "Tcl 9.0 floating-point classifier (TIP 521); not yet implemented in runtime/rust",
+        "Tcl 9.0 floating-point classifier (TIP 521); unsupported in runtime/rust",
     ),
     (
         "frexp",
@@ -87,7 +88,7 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "lfilter",
-        "Tcl 9.1 list-filter command; not yet implemented in runtime/rust",
+        "Tcl 9.1 list-filter command; unsupported in runtime/rust",
     ),
     (
         "link",
@@ -95,27 +96,35 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "modf",
-        "TIP 745 (Tcl 9.1) integer/fractional split; not yet implemented in runtime/rust",
+        "TIP 745 (Tcl 9.1) integer/fractional split; unsupported in runtime/rust",
     ),
     (
         "mymethod",
         "TclOO oo::Helpers::mymethod (issue #923 idx 51) — `callback` under its Tcllib-compatibility name; same missing runtime handler",
     ),
     (
-        "oo::Helpers::",
-        "qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name`",
+        "oo::Helpers::callback",
+        "The qualified callback helper requires a live method frame and has no runtime handler.",
+    ),
+    (
+        "oo::Helpers::classvariable",
+        "The runtime registers only the bare classvariable spelling; the qualified helper has no registration.",
+    ),
+    (
+        "oo::Helpers::link",
+        "The qualified link helper requires per-object method alias installation and has no runtime handler.",
+    ),
+    (
+        "oo::Helpers::mymethod",
+        "The qualified Tcllib-compatible callback helper has no runtime handler.",
     ),
     (
         "remquo",
-        "TIP 745 (Tcl 9.1) IEEE remainder with low quotient bits; not yet implemented in runtime/rust",
-    ),
-    (
-        "tcl::dict::",
-        "standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name`",
+        "TIP 745 (Tcl 9.1) IEEE remainder with low quotient bits; unsupported in runtime/rust",
     ),
     (
         "tcl::unsupported::grapheme",
-        "Tcl 9.1.0 grapheme-cluster ensemble; needs UAX #29 segmentation tables not yet in runtime/rust",
+        "Tcl 9.1.0 grapheme-cluster ensemble; requires UAX #29 segmentation tables absent from runtime/rust",
     ),
     (
         "tcl::zipfs",
@@ -123,15 +132,15 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "timer",
-        "Tcl 9.1 timer command; not yet implemented in runtime/rust",
+        "Tcl 9.1 timer command; unsupported in runtime/rust",
     ),
     (
         "unicode",
-        "Tcl 9.1 Unicode-introspection ensemble; not yet implemented in runtime/rust",
+        "Tcl 9.1 Unicode-introspection ensemble; unsupported in runtime/rust",
     ),
     (
         "zipfs",
-        "ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923",
+        "ZIP virtual filesystem; unsupported in runtime/rust",
     ),
 ];
 
@@ -140,7 +149,7 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
 /// registry carries both fully-qualified and bare spellings of some commands;
 /// this collapses them for cross-referencing.
 fn canon(name: &str) -> &str {
-    name.strip_prefix("::").unwrap_or(name)
+    tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)
 }
 
 /// The reason [`KNOWN_UNBACKED`] gives for the core command `name`, exactly or
@@ -164,6 +173,7 @@ fn waiver(name: &str) -> Option<&'static str> {
 struct CoreCommand {
     name: &'static str,
     declared: RuntimeBacking,
+    version: TclVersion,
 }
 
 /// The core Tcl commands the runtime must back: `tcl-registry`'s built-in
@@ -197,31 +207,103 @@ fn core_commands() -> Result<BTreeMap<&'static str, CoreCommand>> {
     {
         let name: &'static str = spec.name;
         let declared = spec.runtime_backing;
-        if let Some(existing) = core.get(name) {
+        let version = [TclVersion::V9_0, TclVersion::V9_1]
+            .into_iter()
+            .find(|version| {
+                spec.surface.is_none_or(|rows| {
+                    surface_admits(
+                        rows,
+                        Some(&SurfaceQuery::core(Family::Tcl, version.version_string())),
+                    )
+                })
+            })
+            .with_context(|| format!("`{name}` has no admitted supported backing release"))?;
+        if let Some(existing) = core.get_mut(name) {
             anyhow::ensure!(
                 existing.declared == declared,
                 "`{name}` has specs that declare different backings: {:?} and {declared:?}",
                 existing.declared
             );
+            existing.version = existing.version.min(version);
         } else {
-            core.insert(name, CoreCommand { name, declared });
+            core.insert(
+                name,
+                CoreCommand {
+                    name,
+                    declared,
+                    version,
+                },
+            );
         }
     }
     Ok(core)
 }
 
+impl CoreCommand {
+    fn backing_identity(&self) -> &'static str {
+        match self.declared {
+            RuntimeBacking::ShippedBuiltin { identity } => identity,
+            _ => self.name,
+        }
+    }
+}
+
 /// What each runtime reports, asked of a fresh interpreter of each.
 struct Reports {
-    wasm: BackingReport,
-    vm: BackingReport,
+    wasm: BTreeMap<TclVersion, BackingReport>,
+    vm: BTreeMap<TclVersion, BackingReport>,
 }
 
 impl Reports {
-    fn ask() -> Self {
-        Self {
-            wasm: BackingReport::from_entries(tcl_runtime::interp::Interp::new().backing_report()),
-            vm: BackingReport::from_entries(tcl_vm::Vm::new().backing_report()),
+    fn ask() -> Result<Self> {
+        let mut reports = Self {
+            wasm: BTreeMap::new(),
+            vm: BTreeMap::new(),
+        };
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            let profile = tcl_registry::model::resolve_environment(version.dialect_profile_name())
+                .unit_profile();
+            let wasm = tcl_runtime::interp::Interp::with_native_core(
+                Rc::new(tcl_host_native::NativeHost::new()),
+                profile,
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .with_context(|| {
+                format!(
+                    "construct Runtime Tcl {} backing interpreter",
+                    version.version_string()
+                )
+            })?;
+            let vm = tcl_vm::Vm::with_native_core(
+                Box::new(std::io::sink()),
+                Rc::new(tcl_host_native::NativeHost::new()),
+                profile,
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .with_context(|| {
+                format!(
+                    "construct VM Tcl {} backing interpreter",
+                    version.version_string()
+                )
+            })?;
+            reports.wasm.insert(
+                version,
+                BackingReport::from_unrooted_entries(wasm.backing_report()),
+            );
+            reports.vm.insert(
+                version,
+                BackingReport::from_unrooted_entries(vm.backing_report()),
+            );
         }
+        Ok(reports)
+    }
+
+    fn wasm_of(&self, command: &CoreCommand) -> RegisteredBacking {
+        self.wasm[&command.version].of(command.backing_identity())
+    }
+
+    fn vm_of(&self, command: &CoreCommand) -> RegisteredBacking {
+        self.vm[&command.version].of(command.backing_identity())
     }
 }
 
@@ -315,7 +397,10 @@ fn stand(command: &CoreCommand, wasm: RegisteredBacking) -> Standing {
 /// Waivers that no longer apply: an exact entry that names no core command or
 /// a command the runtime now backs, and a prefix entry under which every core
 /// command is backed or which covers none.
-fn stale_waivers(core: &BTreeMap<&'static str, CoreCommand>, wasm: &BackingReport) -> Vec<String> {
+fn stale_waivers(
+    core: &BTreeMap<&'static str, CoreCommand>,
+    wasm_of: impl Fn(&CoreCommand) -> RegisteredBacking,
+) -> Vec<String> {
     let mut stale = Vec::new();
     for (entry, _) in KNOWN_UNBACKED {
         let covered: Vec<&CoreCommand> = core
@@ -339,7 +424,7 @@ fn stale_waivers(core: &BTreeMap<&'static str, CoreCommand>, wasm: &BackingRepor
             .iter()
             .filter(|command| {
                 !matches!(
-                    wasm.of(command.name),
+                    wasm_of(command),
                     RegisteredBacking::Builtin
                         | RegisteredBacking::Object
                         | RegisteredBacking::NeedsNumericTower
@@ -366,8 +451,8 @@ fn render_report(core: &BTreeMap<&'static str, CoreCommand>, reports: &Reports) 
     let mut tally: BTreeMap<(String, String), usize> = BTreeMap::new();
     let mut rows = String::new();
     for command in core.values() {
-        let wasm = reports.wasm.of(command.name);
-        let vm = reports.vm.of(command.name);
+        let wasm = reports.wasm_of(command);
+        let vm = reports.vm_of(command);
         let standing = stand(command, wasm);
         let (status, note) = match (&standing, command.declared, wasm) {
             (Standing::KnownGap(reason), _, _) => (
@@ -381,15 +466,26 @@ fn render_report(core: &BTreeMap<&'static str, CoreCommand>, reports: &Reports) 
                 reported_label(wasm),
                 "registered as an explicit not-supported stub".to_owned(),
             ),
-            _ => (reported_label(wasm), String::new()),
+            _ => (
+                reported_label(wasm),
+                if canon(command.backing_identity()) == canon(command.name) {
+                    String::new()
+                } else {
+                    format!(
+                        "registered implementation `{}`; source spelling requires its lookup context",
+                        command.backing_identity()
+                    )
+                },
+            ),
         };
         *tally
             .entry((declared_label(command.declared), status.clone()))
             .or_default() += 1;
         let _ = writeln!(
             rows,
-            "| `{}` | {} | {status} | {} | {note} |",
+            "| `{}` | {} | {} | {status} | {} | {note} |",
             command.name,
+            command.version.version_string(),
             declared_label(command.declared),
             reported_label(vm),
         );
@@ -407,8 +503,14 @@ fn render_report(core: &BTreeMap<&'static str, CoreCommand>, reports: &Reports) 
          > declared backing and what the WASM runtime reports, on a waiver that\n\
          > no longer applies, and on a stale report.\n\n\
          Source of truth: `tcl-registry` core command specs (`required_package == None`),\n\
-         restricted to those available at Tcl 9.0 or later. `backing` is the spec's own\n\
-         `runtime_backing`. `wasm` is what `runtime/rust` reports for the name\n\
+         restricted to those available at Tcl 9.0 or later.\n\
+         `release` is the earliest supported C Tcl point the spec admits; each row\n\
+         queries separate interpreters constructed for that exact release. These\n\
+         rows do not describe one combined command surface or grant older profiles\n\
+         a command admitted only in a later release. `backing` is the spec's own\n\
+         `runtime_backing`. Shipped builtins query their declared implementation identity;\n\
+         a method-context spelling does not declare a global command. `wasm` is what\n\
+         `runtime/rust` reports for that identity (or the command name for other backings)\n\
          (`Interp::backing_report`, built with the embedded Tcl library), and `vm` what\n\
          `tcl-vm` reports (`Vm::backing_report`); a build of the WASM runtime without the\n\
          numeric tower reports the handlers that need it as needing it, and this report\n\
@@ -417,7 +519,7 @@ fn render_report(core: &BTreeMap<&'static str, CoreCommand>, reports: &Reports) 
          `rust/xtask/src/command_backing.rs` says so; every other disagreement fails the gate.\n\n\
          | backing | wasm | count |\n| --- | --- | --- |\n{counts}\
          | **total** | | {} |\n\n\
-         | command | backing | wasm | vm | note |\n| --- | --- | --- | --- | --- |\n{rows}",
+         | command | release | backing | wasm | vm | note |\n| --- | --- | --- | --- | --- | --- |\n{rows}",
         core.len(),
     );
     out
@@ -507,26 +609,23 @@ fn compare_file_surface(
 pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
     let core = core_commands()?;
-    let reports = Reports::ask();
+    let reports = Reports::ask()?;
     let file_fidelity = file_fidelity_errors(&root)?;
 
     let drift: Vec<String> = core
         .values()
-        .filter_map(
-            |command| match stand(command, reports.wasm.of(command.name)) {
-                Standing::Drift(why) => Some(why),
-                Standing::Backed | Standing::KnownGap(_) => None,
-            },
-        )
+        .filter_map(|command| match stand(command, reports.wasm_of(command)) {
+            Standing::Drift(why) => Some(why),
+            Standing::Backed | Standing::KnownGap(_) => None,
+        })
         .collect();
-    let stale = stale_waivers(&core, &reports.wasm);
+    let stale = stale_waivers(&core, |command| reports.wasm_of(command));
     let report = render_report(&core, &reports);
     let report_path = root.join(REPORT_PATH);
 
-    let tower_gated = reports
-        .wasm
-        .iter()
-        .filter(|(_, backing)| *backing == RegisteredBacking::NeedsNumericTower)
+    let tower_gated = core
+        .values()
+        .filter(|command| reports.wasm_of(command) == RegisteredBacking::NeedsNumericTower)
         .count();
     if tower_gated > 0 {
         eprintln!(
@@ -595,15 +694,54 @@ mod tests {
     };
     use crate::util::repo_root;
     use std::collections::{BTreeMap, BTreeSet};
+    use tcl_dialect::TclVersion;
     use tcl_registry::RuntimeBacking;
     use tcl_runtime_api::{BackingReport, RegisteredBacking};
 
     fn command(name: &'static str, declared: RuntimeBacking) -> CoreCommand {
-        CoreCommand { name, declared }
+        CoreCommand {
+            name,
+            declared,
+            version: TclVersion::V9_0,
+        }
     }
 
     fn shipped(name: &'static str) -> CoreCommand {
         command(name, RuntimeBacking::shipped(name))
+    }
+
+    #[test]
+    fn method_context_backing_uses_the_qualified_registered_identity() {
+        let command = command("next", RuntimeBacking::shipped("::oo::Helpers::next"));
+        let report = BackingReport::from_unrooted_entries([(
+            "oo::Helpers::next".to_owned(),
+            RegisteredBacking::Builtin,
+        )]);
+        assert_eq!(report.of(command.name), RegisteredBacking::Absent);
+        assert_eq!(
+            stand(&command, report.of(command.backing_identity())),
+            Standing::Backed
+        );
+    }
+
+    #[test]
+    fn later_core_backing_keeps_older_profile_absence() {
+        let core = core_commands().expect("core commands");
+        let command = &core["tcl::InitAutoPath"];
+        assert_eq!(command.version, TclVersion::V9_1);
+        let reports = Reports::ask().expect("selected backing interpreters");
+        for report in [&reports.wasm, &reports.vm] {
+            assert_eq!(
+                report[&TclVersion::V9_0].of(command.backing_identity()),
+                RegisteredBacking::Absent
+            );
+            assert_eq!(
+                report[&TclVersion::V9_1].of(command.backing_identity()),
+                RegisteredBacking::Builtin
+            );
+        }
+        assert_eq!(reports.wasm_of(command), RegisteredBacking::Builtin);
+        assert_eq!(reports.vm_of(command), RegisteredBacking::Builtin);
     }
 
     #[test]
@@ -612,10 +750,11 @@ mod tests {
         let (arms, arities) = scan_file_surface(&root).expect("scan file runtime surface");
         assert!(arms.contains("atime"));
         assert_eq!(arities.get("stat"), Some(&(1, 2)));
-        assert!(
+        assert_eq!(
             file_fidelity_errors(&root)
                 .expect("compare file runtime surface")
-                .is_empty()
+                .len(),
+            0
         );
     }
 
@@ -664,7 +803,7 @@ mod tests {
             assert_eq!(stand(&unwaived, backed), Standing::Backed, "{backed:?}");
         }
 
-        for name in ["divmod", "::tcl::dict::get", "oo::Helpers::link"] {
+        for name in ["divmod", "oo::Helpers::link"] {
             let gap = shipped(name);
             assert!(
                 matches!(
@@ -680,9 +819,13 @@ mod tests {
             );
         }
         assert!(
-            waiver("tcl::dict::").is_none(),
-            "a prefix covers what is under it"
+            waiver("tcl::dict::get").is_none(),
+            "registered dictionary workers have no blanket waiver"
         );
+        assert!(matches!(
+            stand(&shipped("::tcl::dict::get"), RegisteredBacking::Absent),
+            Standing::Drift(_)
+        ));
     }
 
     /// A command declared as backed by nothing is drift when the runtime
@@ -736,17 +879,12 @@ mod tests {
         }
     }
 
-    /// A waiver stops applying when its command is backed, when nothing under
-    /// its prefix is left unbacked, and when it names no core command.
+    /// An exact waiver stops applying when its command is backed or it names
+    /// no core command.
     #[test]
     fn a_waiver_that_no_longer_applies_is_stale() {
         let mut core: BTreeMap<&'static str, CoreCommand> = BTreeMap::new();
-        for name in [
-            "divmod",
-            "::tcl::dict::get",
-            "::tcl::dict::set",
-            "oo::Helpers::link",
-        ] {
+        for name in ["divmod", "oo::Helpers::link"] {
             core.insert(name, shipped(name));
         }
         let report = |backed: &[&str]| {
@@ -756,33 +894,32 @@ mod tests {
                     .map(|name| ((*name).to_owned(), RegisteredBacking::Builtin)),
             )
         };
-        let names = |stale: &[String]| stale.join("\n");
+        let names = |backed: &[&str]| {
+            let report = report(backed);
+            stale_waivers(&core, |command| report.of(command.backing_identity())).join("\n")
+        };
 
-        let none_backed = names(&stale_waivers(&core, &report(&[])));
+        let none_backed = names(&[]);
         assert!(!none_backed.contains("`divmod` —"), "{none_backed}");
-        assert!(!none_backed.contains("`tcl::dict::` —"), "{none_backed}");
+        assert!(
+            !none_backed.contains("`oo::Helpers::link` —"),
+            "{none_backed}"
+        );
         assert!(
             none_backed.contains("`callback` — waived but not a core"),
             "{none_backed}"
         );
 
-        let closed = names(&stale_waivers(&core, &report(&["divmod"])));
+        let closed = names(&["divmod"]);
         assert!(
             closed.contains("`divmod` — waived but the runtime now backs it"),
             "{closed}"
         );
 
-        let one_of_two = names(&stale_waivers(&core, &report(&["::tcl::dict::get"])));
-        assert!(!one_of_two.contains("`tcl::dict::` —"), "{one_of_two}");
-        let both = names(&stale_waivers(
-            &core,
-            &report(&["::tcl::dict::get", "tcl::dict::set"]),
-        ));
+        let closed_helper = names(&["oo::Helpers::link"]);
         assert!(
-            both.contains(
-                "`tcl::dict::` — waived but the runtime now backs every command under it"
-            ),
-            "{both}"
+            closed_helper.contains("`oo::Helpers::link` — waived but the runtime now backs it"),
+            "{closed_helper}"
         );
     }
 
@@ -825,7 +962,10 @@ mod tests {
     #[test]
     fn committed_wasm_command_backing_matches_generated() {
         let core = core_commands().expect("the core commands");
-        let report = render_report(&core, &Reports::ask());
+        let report = render_report(
+            &core,
+            &Reports::ask().expect("selected backing interpreters"),
+        );
         let committed = std::fs::read_to_string(repo_root().join(super::REPORT_PATH))
             .expect("reading docs/generated/wasm-command-backing.md");
         assert_eq!(
@@ -839,18 +979,16 @@ mod tests {
     #[test]
     fn every_core_command_declares_what_the_wasm_runtime_bears_out() {
         let core = core_commands().expect("the core commands");
-        let reports = Reports::ask();
+        let reports = Reports::ask().expect("selected backing interpreters");
         let drift: Vec<String> = core
             .values()
-            .filter_map(
-                |command| match stand(command, reports.wasm.of(command.name)) {
-                    Standing::Drift(why) => Some(why),
-                    Standing::Backed | Standing::KnownGap(_) => None,
-                },
-            )
+            .filter_map(|command| match stand(command, reports.wasm_of(command)) {
+                Standing::Drift(why) => Some(why),
+                Standing::Backed | Standing::KnownGap(_) => None,
+            })
             .collect();
         assert!(drift.is_empty(), "drift: {drift:#?}");
-        let stale = stale_waivers(&core, &reports.wasm);
+        let stale = stale_waivers(&core, |command| reports.wasm_of(command));
         assert!(stale.is_empty(), "stale waivers: {stale:#?}");
         let names: BTreeSet<&str> = core.keys().copied().collect();
         assert!(names.len() > 300, "the core set is {}", names.len());

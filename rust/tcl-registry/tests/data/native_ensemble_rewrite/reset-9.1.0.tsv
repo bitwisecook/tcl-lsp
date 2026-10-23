@@ -1,0 +1,4 @@
+lookup	before=1 lookup=0 after=0 code=0	0
+bytecode	before=1 lookup=-1 after=0 code=0	0
+invoke	before=1 lookup=-1 after=1 code=0	0
+missing	before=1 lookup=-1 after=0 code=1	0

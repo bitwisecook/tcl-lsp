@@ -44,15 +44,15 @@ const FORMS: &[FormSpec] = &[
 /// `r`/`w` (confirmed empirically against tclsh 8.6: `close $chan re` and
 /// `close $chan wri` both succeed; `close $chan R`, `close $chan READ`, and
 /// `close $chan rd` all raise `bad direction "...": must be read or
-/// write`) — a flat per-word closed set can't express unique-prefix
-/// matching, so like `open`'s `ACCESS_VALUES` this is completion/hover data
-/// only; `close` has no `closed_value_args` entry for this position.
+/// write`). These rows remain completion/hover data only: `close` currently
+/// leaves this position out of `closed_value_args`, like `open`'s
+/// `ACCESS_VALUES`. The command-level prefix-policy facet does not itself
+/// close a previously open value vocabulary.
 /// `min_tcl` therefore never reaches W137 (which only inspects closed value
 /// sets), so the 8.6 introduction is also stated as a [`Lifecycle`] — the
 /// general version-gate rung, which matches any literal value word.
-/// (`chan close`'s twin subcommand spec models the identical fact via
-/// `arg_values_accept_prefix`, a field only `SubCommand` carries —
-/// top-level `CommandSpec`, which `close` is, has no such flag.)
+/// `chan close`'s twin subcommand spec already pairs its closed values with
+/// `arg_values_accept_prefix`; this descriptor's open-value policy is unchanged.
 const DIRECTION_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "read",
@@ -74,6 +74,12 @@ const DIRECTION_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "close",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("close"),
         surface: Some(SpecSurface::ALL_TCL),
         // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_CloseObjCmd` (tclIOCmd.c) unregisters

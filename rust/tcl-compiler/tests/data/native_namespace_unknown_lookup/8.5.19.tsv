@@ -1,0 +1,5 @@
+existing KNOWN 0
+compiler OK 0
+fallback FALLBACK 1
+rootedExisting KNOWN 1
+rootedFallback FALLBACK 2

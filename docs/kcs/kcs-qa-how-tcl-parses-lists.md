@@ -23,23 +23,28 @@ quotes, and backslashes change where those whitespace boundaries fall.
 ### Braces group an element verbatim
 
 An element that starts with `{` runs to its matching `}`; braces nest, so
-the inner whitespace does **not** split the element. The bytes between the
-braces are taken literally — the one exception is a **backslash-newline**,
-which Tcl always collapses to a single space even inside braces (so the
-element stays one element, just with a space where the wrapped line was).
-
+the inner whitespace does **not** split the element. At the list-parsing
+stage, the text inside a braced element is taken verbatim: list parsing does
+not collapse its backslashes, including a backslash-newline. A different phase
+can run first: when a Tcl script parser constructs a braced word, it collapses
+backslash-newline while parsing that script word, before a later command treats
+the resulting value as a list. Do not attribute that earlier script phase to
+list-value parsing.
 ```tcl
 llength {a {b c} d}   ;# 3 — {b c} is one element containing a space
 ```
 
-### Quotes group with substitution
+### Quotes group and decode escapes
 
-An element that starts with `"` runs to its matching `"`, and Tcl performs
-backslash and variable substitution on the contents. Like braces, the
-enclosed whitespace does not split the element.
+An element that starts with `"` runs to its matching `"` and groups its
+whitespace. List parsing can collapse backslash escapes in a quoted element,
+but it does **not** perform variable substitution. Variable substitution, if
+any, belongs to an earlier Tcl script-evaluation phase that produced the list
+string; parsing a list value does not re-evaluate `$name` text.
 
 ```tcl
 llength {a "b c" d}   ;# 3 — "b c" is one element
+llength {"$x"}         ;# the element is the literal text $x, not x's value
 ```
 
 ### A backslash escapes the next character
@@ -53,13 +58,14 @@ it:
 llength {a\ b c}      ;# 2 — a\ b is one element "a b", then c
 ```
 
-### The wrinkle: a trailing backslash before a newline is a *separator*
+### Backslash-newline in list data is a continuation
 
-The one backslash sequence that does **not** stay inside the element is
-**backslash-newline**. A `\` at the end of a line, immediately followed by
-the newline, collapses to a single space — and outside braces that space
-ends the current element and starts the next one. This is what lets a long
-list, such as a parameter list, wrap across several lines:
+In a bare or quoted list element, **backslash-newline** and following spaces
+or tabs collapse to one space, which stays inside the element rather than
+separating it. Inside a braced list element it remains verbatim at this phase.
+This list-value rule is distinct from the Tcl script parser's earlier
+backslash-newline handling when it constructs a braced word. A continuation in
+list data can therefore let one element wrap across lines:
 
 ```tcl
 method Fdjac2 {funct ifree n x fvec ldfjac epsfcn pdata nfev \
@@ -69,15 +75,16 @@ method Fdjac2 {funct ifree n x fvec ldfjac epsfcn pdata nfev \
 }
 ```
 
-Here `ldfjac … pdata nfev` and the wrapped `step …` are all separate
-parameters, and the last name on each wrapped line — `nfev`, `ddrtol` — is
-just that name. The trailing `\` is consumed as part of the line
-continuation, not kept on the name. Windows `\r\n` line endings behave the
-same way.
+Here the Tcl script parser first consumes each backslash-newline while it
+constructs the braced argument. It leaves whitespace in the resulting list
+string, and the later list parser treats that whitespace as the separator
+between parameter names. This is script construction followed by list parsing,
+not a backslash-newline separator rule in raw list data.
 
-The practical takeaway: wrap a long list wherever you like with a trailing
-`\`; the element that ends the line is complete, and the next element
-begins on the following line.
+The practical takeaway: in a Tcl script's braced parameter-list word, a
+trailing backslash-newline is consumed before the list is split, leaving a
+space between elements. If you parse already-formed list data, the list
+parser's own braced versus bare/quoted rules described above apply.
 
 ## Related
 

@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! tcllib 2.0's procedures on the registry's own spec modules
-//! (`docs/design/compiler/value-transfers-migration.md` § *Third-party
+//! (`docs/design/compiler/value-transfer-consumers.md` § *Third-party
 //! commands*, Tier 2, delivered in the Rust form): the direct routes over
 //! shared cores proven against tcllib itself, and the declarations of the
 //! procedures that write a caller's variable with no route.
@@ -176,8 +176,9 @@ impl CommandSemantics for Base32Semantics {
 
 /// A tcllib procedure that computes what it writes into a caller's
 /// variable from its words alone, for which no route is authored yet:
-/// `base32::core::define` and `valid`, and `cmdline`'s option readers,
-/// each writing scalars.
+/// `base32::core::define` and `valid`, `cmdline`'s option readers, and
+/// `struct::set` / `struct::list` variable mutators. The named cell receives
+/// a scalar value; an element destination retains its containing array.
 pub static WRITES_UNAUTHORED: MayWriteSemantics = MayWriteSemantics {
     targets: &[ArgRole::VarWrite],
     reason: NoRouteReason::Unauthored,

@@ -1045,6 +1045,8 @@ On a real box this is exactly the list to feed into
 `tls_handshake` for the cert expiry audit
 ([§8](#8-live-probes)).
 
+## 7. Logs & timeline
+
 The `multitier/logs/` directory carries representative syslog
 from every device in the multitier. Standard message-code
 families used below (KB **K9970** lists every one):
@@ -1284,12 +1286,14 @@ up as missing characters.
 
 ## 8. Live probes
 
-These queries reach the network and need `--enable-probes`.
-The outputs below were captured against a tiny local Python
-HTTP server on `127.0.0.1:8001` so the responses are real —
-substitute your own backend addresses when running these
-against a real box. (`ping` / `portping` semantics are the
-same regardless.)
+Implemented live probes reach the network and need `--enable-probes`. The
+HTTP examples and output blocks in §8.1–8.2 are retained reference
+transcripts from a local Python server, not current runnable results: the
+current `url_*` backend makes no HTTP request and returns a fixed unsupported
+result (`status: null`, empty `body`, `peer_cert: null`, and an explanatory
+`error`). Keep the transcripts as historical examples of the intended response
+shape; they do not demonstrate support in the current implementation.
+(`ping` / `portping` semantics are separate live-probe behaviour.)
 
 ### 8.1 HTTP probe with response capture
 
@@ -1768,7 +1772,7 @@ probe tool — pair it with `tmsh show` for the full picture.
 | `--json`                   | JSON array output                                                        |
 | `--paths-only`             | Print only the full-path of each result                                  |
 | `--scf`                    | Render results as SCF stanzas when possible                              |
-| `--enable-probes`          | Enable live network builtins (`ping`, `portping`, `url_get`, `tls_handshake`, ...) |
+| `--enable-probes`          | Enable the live-probe gate (`ping`, `portping`, `url_get`, `tls_handshake`, ...); `url_*` HTTP requests remain unimplemented |
 | `--input-json N=PATH`      | Bind a JSON sidecar to `$N`                                              |
 | `--input-jsonl N=PATH`     | Bind a JSON-Lines sidecar to `$N`                                        |
 | `--input-csv N=PATH`       | Bind a CSV sidecar to `$N`                                               |
@@ -1794,7 +1798,7 @@ probe tool — pair it with `tmsh show` for the full picture.
 | `referenced_by(o)` / `references_to(p)` | Reverse references                                           |
 | `refs(o)`                          | Forward references                                               |
 | `ping(ip)` / `portping(ip, port)`  | Live L3 / L4 probes (`--enable-probes`)                          |
-| `url_get(url)` / `url_head(url)`   | Live HTTP — `{status, headers, body, reason, error}`             |
+| `url_get(url)` / `url_head(url)`   | Declared HTTP probes; currently make no request and return an unsupported-result shape |
 | `tls_handshake(host, port[, sni])` | Live TLS handshake — peer cert + verify status                   |
 | `dns(name)` / `rev_dns(ip)`        | Forward / reverse DNS                                            |
 | `f5log_load(path)`                 | Parse `/var/log/ltm`-style file into events                      |

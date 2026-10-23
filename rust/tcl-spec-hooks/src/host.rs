@@ -30,7 +30,7 @@ use tcl_registry::pack_hooks::{self, HookAnswer, HookCall, HookFamily, HookSlot,
 use tcl_registry::value_transfer::ImplementationBudget;
 
 use crate::crash::{CrashKind, CrashRecord};
-use crate::emit::{Reading, Sink, answer_of, verbs_for};
+use crate::emit::{Reading, Sink, answer_of};
 use crate::program::{HookInstallation, HookProgram, PackPrograms};
 use crate::sandbox::{SANDBOX_COMMANDS, builtins};
 
@@ -230,7 +230,12 @@ impl<E: Engine> HookHost<E> {
             }
         }
         for &family in families {
-            for (name, command) in verbs_for(family, sink, reading) {
+            for (name, command) in crate::emit::verbs_for_with_metadata_reader(
+                family,
+                sink,
+                reading,
+                engine.host_metadata_list_reader().as_ref(),
+            ) {
                 if let Err(error) = engine.define_command(name, command) {
                     failures.push(format!("{name}: {error}"));
                 }

@@ -1,0 +1,168 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Pinned Jim lookup primaries. Private payloads retain actual original owners.
+
+use super::{change_type, has_string_rep, internal_rep, obj_type_ptr, Owned, TclObj, TclObjType};
+use tcl_runtime_api::native_compilation::NativeInterpreterIdentity;
+use tcl_syntax::value::ValueError;
+
+#[derive(Clone)]
+pub(crate) struct JimCommandCache {
+    pub interpreter: NativeInterpreterIdentity,
+    pub epoch: u64,
+    pub token: u64,
+    pub namespace: Owned,
+}
+
+#[derive(Clone)]
+pub(crate) struct JimVariableCache {
+    pub interpreter: NativeInterpreterIdentity,
+    pub frame: u64,
+    pub global: bool,
+    pub cell: crate::frame::WeakJimVariableCell,
+}
+
+macro_rules! descriptor {
+    ($ty:ident, $record:ty, $free:ident, $dup:ident, $name:expr) => {
+        extern "C" fn $free(value: *mut TclObj) {
+            // SAFETY: the exact descriptor owns this boxed private payload.
+            unsafe {
+                drop(Box::from_raw(internal_rep(value) as usize as *mut $record));
+            }
+        }
+        extern "C" fn $dup(source: *mut TclObj, duplicate: *mut TclObj) {
+            // SAFETY: the exact source descriptor owns the live private payload.
+            let record = unsafe { &*(internal_rep(source) as usize as *const $record) };
+            change_type(
+                duplicate,
+                &$ty,
+                Box::into_raw(Box::new(record.clone())) as usize as u64,
+            );
+        }
+        pub(crate) static $ty: TclObjType = TclObjType {
+            name: $name.as_ptr(),
+            free_int_rep_proc: Some($free),
+            dup_int_rep_proc: Some($dup),
+            update_string_proc: None,
+            set_from_any_proc: None,
+        };
+    };
+}
+// The two native primary types have no string updater. The command duplicate
+// owns one namespace reference; the variable duplicate owns only a weak cell.
+descriptor!(
+    JIM_COMMAND_TYPE,
+    JimCommandCache,
+    command_free,
+    command_dup,
+    c"command"
+);
+descriptor!(
+    JIM_VARIABLE_TYPE,
+    JimVariableCache,
+    variable_free,
+    variable_dup,
+    c"variable"
+);
+
+pub(crate) fn with_command_cache<R>(
+    value: *mut TclObj,
+    read: impl FnOnce(&JimCommandCache) -> R,
+) -> Option<R> {
+    if !core::ptr::eq(obj_type_ptr(value), &JIM_COMMAND_TYPE) {
+        return None;
+    }
+    // SAFETY: exact descriptor validation precedes borrowing its payload.
+    Some(read(unsafe {
+        &*(internal_rep(value) as usize as *const JimCommandCache)
+    }))
+}
+pub(crate) fn with_variable_cache<R>(
+    value: *mut TclObj,
+    read: impl FnOnce(&JimVariableCache) -> R,
+) -> Option<R> {
+    if !core::ptr::eq(obj_type_ptr(value), &JIM_VARIABLE_TYPE) {
+        return None;
+    }
+    // SAFETY: exact descriptor validation precedes borrowing its payload.
+    Some(read(unsafe {
+        &*(internal_rep(value) as usize as *const JimVariableCache)
+    }))
+}
+fn require_original(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<(), ValueError> {
+    dialect
+        .native_jim_lookup_protocol()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "Jim lookup primary issuer",
+        ))?;
+    if !has_string_rep(value) {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "Jim lookup resident spelling",
+        ));
+    }
+    Ok(())
+}
+pub(crate) fn install_command_cache_with_stage_check(
+    value: *mut TclObj,
+    cache: impl FnOnce() -> Result<JimCommandCache, ValueError>,
+    dialect: tcl_registry::InvocationDialect,
+    stage_check: &dyn Fn() -> Result<(), ValueError>,
+) -> Result<(), ValueError> {
+    super::check_native_liveness(value)?;
+    stage_check()?;
+    require_original(value, dialect)?;
+    if !obj_type_ptr(value).is_null() {
+        let retired = super::discard_native_internal_representation(value);
+        stage_check()?;
+        super::check_native_liveness(value)?;
+        retired?;
+    }
+    stage_check()?;
+    let cache = cache()?;
+    change_type(
+        value,
+        &JIM_COMMAND_TYPE,
+        Box::into_raw(Box::new(cache)) as usize as u64,
+    );
+    stage_check()?;
+    super::check_native_liveness(value)
+}
+pub(crate) fn install_variable_cache_with_stage_check(
+    value: *mut TclObj,
+    cache: JimVariableCache,
+    dialect: tcl_registry::InvocationDialect,
+    stage_check: Option<&dyn Fn() -> Result<(), ValueError>>,
+) -> Result<(), ValueError> {
+    super::check_native_liveness(value)?;
+    if let Some(check) = stage_check {
+        check()?;
+    }
+    require_original(value, dialect)?;
+    let raw = Box::into_raw(Box::new(cache));
+    if let Some(check) = stage_check {
+        let mut current = || {
+            check()?;
+            super::check_native_liveness(value)
+        };
+        let reached = super::change_type_with_stage_check(
+            value,
+            &JIM_VARIABLE_TYPE,
+            raw as usize as u64,
+            &mut current,
+        );
+        if let Err(first) = reached {
+            // The shared worker did not adopt this weak-only cache payload.
+            // Its release adds no native reference or callback-bearing owner.
+            unsafe { drop(Box::from_raw(raw)) };
+            return Err(first);
+        }
+    } else {
+        change_type(value, &JIM_VARIABLE_TYPE, raw as usize as u64);
+    }
+    if let Some(check) = stage_check {
+        check()?;
+    }
+    super::check_native_liveness(value)
+}

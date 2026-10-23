@@ -36,10 +36,13 @@ use tcl_registry::{CommandRegistry, SemanticOperationId};
 
 use crate::expr_ast::ExprNode;
 use crate::ir::{NodeId, Script, SourceSite, Statement, SwitchMode, WordExpr};
+use crate::registry_invocation::{
+    InvocationMetadataContext, RegistryInvocationDecline,
+    resolve_command_tokens_with_metadata_context,
+};
 pub use crate::registry_invocation::{
     OwnedInvocationResolutionUnresolved, RegistryInvocationResolution as InvocationResolution,
 };
-use crate::registry_invocation::{RegistryInvocationDecline, resolve_word_exprs};
 
 /// Identity of one independently executable function body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -207,10 +210,46 @@ pub struct GenericInvoke {
     pub resolution: InvocationResolution,
     /// Original source words, including the command head and `{*}` markers.
     pub original_words: Vec<WordExpr>,
+    /// Point-specific dispatch proof after original argument substitution.
+    /// Explicit unknown/absence is never replaced by written-head metadata.
+    pub source_binding: Option<crate::command_binding::SourceInvocationBinding>,
+    /// Post-binding words and origins for semantic argument-role projection.
+    /// These are facts, not a second argv evaluation sequence.
+    pub effective_words: Option<crate::registry_invocation::EffectiveCommandWords>,
     /// Stable source-semantic node that originated this command.
     pub node: NodeId,
     /// Full command source site and provenance.
     pub source: SourceSite,
+}
+
+impl GenericInvoke {
+    /// Whether registry argument positions map exactly to runtime written argv.
+    /// This is an argument-correspondence condition, not a dispatch proof.
+    /// A backend can specialise an alias prefix only after explicitly composing
+    /// that prefix into its executable argv; ordinary runtime dispatch remains
+    /// valid with the original argv regardless of this answer.
+    #[must_use]
+    pub fn registry_specialisation_arguments_exact(&self) -> bool {
+        if self.source_binding.as_ref().is_some_and(|binding| {
+            binding
+                .proved_execution_target()
+                .is_none_or(|target| !target.registry_backed || !target.prepended.is_empty())
+        }) {
+            return false;
+        }
+        self.effective_words.as_ref().is_none_or(|words| {
+            words.words.len() == self.original_words.len()
+                && words.origins.len() == words.words.len()
+                && words
+                    .origins
+                    .iter()
+                    .enumerate()
+                    .skip(1)
+                    .all(|(index, origin)| {
+                        *origin == crate::registry_invocation::InvocationWordOrigin::Written(index)
+                    })
+        })
+    }
 }
 
 /// A source statement whose registry-selected structural lowering has already
@@ -233,6 +272,9 @@ pub struct LoweredOperation {
     pub footprint: LoweredFootprint,
     /// Exact already-lowered source operation and operands.
     pub statement: Statement,
+    /// Whole original command words retained by the actual Script statement.
+    /// Missing source ownership cannot be reconstructed from the name field.
+    pub original_tokens: Option<std::sync::Arc<crate::ir::CommandTokens>>,
     /// Stable source-semantic node that originated the operation.
     pub node: NodeId,
     /// Full source site and provenance.
@@ -314,6 +356,19 @@ pub enum CellReference {
 }
 
 impl CellReference {
+    /// Project a completed variable-name datum without interpreting it as source.
+    /// Empty and sigil bytes remain name data; shared element partitioning keeps
+    /// an array root distinct from its element. No scope or storage is selected.
+    #[must_use]
+    pub fn from_name_data(name: &str) -> Self {
+        let (name, element) = tcl_syntax::naming::split_element_ref(name)
+            .map_or((name, false), |(root, _)| (root, true));
+        Self::Named {
+            name: name.to_owned(),
+            element,
+        }
+    }
+
     /// Project one retained variable-name word into the cell vocabulary.
     ///
     /// `braced` is the source token's brace-literal flag: a braced name word
@@ -535,6 +590,21 @@ impl LoweredFootprint {
     }
 }
 
+/// Residual wrapper completion after its semantic script phases have executed.
+///
+/// `invocation` retains evaluated argv and original dispatch for a backend that
+/// declines the entire region. It must never invoke that wrapper after running
+/// the expanded phases: that would execute the scripts twice.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvaluatedRegionCompletion {
+    /// Original invocation and wrapper-owned effects/completion contract.
+    pub invocation: GenericInvoke,
+    /// Proved shared phase/completion plan.
+    pub region: crate::execution_region::EvaluatedBodyRegion,
+    /// First phase block; targets must decline before entering this block.
+    pub entry: ExecutableBlockId,
+}
+
 /// One operation in an executable semantic block.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecutableInstruction {
@@ -689,6 +759,8 @@ pub enum ExecutableInstruction {
     /// Produce the completion of a structured control region whose interior is
     /// now executable edges.
     CompleteStructuredRegion(StructuredRegion),
+    /// Complete a proved evaluated-body wrapper without invoking its scripts again.
+    CompleteEvaluatedRegion(EvaluatedRegionCompletion),
 }
 
 /// One branch of a completion-code dispatch.
@@ -713,6 +785,14 @@ pub enum ExecutableTerminator {
         then_target: ExecutableBlockId,
         /// Target when the condition is false.
         else_target: ExecutableBlockId,
+    },
+    /// External wrapper state selects whether its script phases run.
+    /// Both normal alternatives remain possible until that state is resolved.
+    RegionChoice {
+        /// Entry of the script phases.
+        enter: ExecutableBlockId,
+        /// Continuation when the wrapper omits all phases.
+        skip: ExecutableBlockId,
     },
     /// Dispatch the complete Tcl completion triple by its code.
     CompletionSwitch {
@@ -752,15 +832,57 @@ impl ExecutableBlock {
     }
 }
 
+// Immutable original argv geometry shared by the actual evaluation values.
+// This owner supplies source effects only, never a handler or entered cell.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalExecutableArgvSource {
+    tokens: crate::ir::CommandTokens,
+    words: Vec<tcl_lexer::NativeWord>,
+    metadata: crate::registry_invocation::OwnedInvocationMetadataContext,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalExecutableWordSource {
+    owner: std::sync::Arc<OriginalExecutableArgvSource>,
+    ordinal: usize,
+    evaluated: WordExpr,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum OriginalExpressionEffectOwner {
+    Source(std::sync::Arc<crate::ir::CommandTokens>),
+    TrapPrefix,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalExpressionCommandEffect {
+    expression: ExecutableExpr,
+    owner: Option<OriginalExpressionEffectOwner>,
+    runs_commands: Option<bool>,
+}
+
 /// One executable semantic function.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableFunction {
+    /// Native compilation boundary shared with the source and CFG artifacts.
+    pub native_compilation_admission:
+        Option<std::sync::Arc<crate::native_compilation_admission::NativeCompilationAdmission>>,
     /// Function identity that owns every block and value ID in this function.
     pub id: ExecutableFunctionId,
     /// First block to execute.
     pub entry: ExecutableBlockId,
     /// Basic blocks in deterministic ID order.
     pub blocks: Vec<ExecutableBlock>,
+    // Outer None belongs only to the explicit carrierless constructor. A
+    // source-built function owns Some(map), even when it has no word stages;
+    // missing entries and present None both mean unavailable source geometry.
+    original_word_sources:
+        Option<BTreeMap<ExecutableValueId, Option<OriginalExecutableWordSource>>>,
+    // Outer None is the explicit carrierless compatibility constructor. A
+    // production function retains every EvaluateExpr value, with inner None
+    // distinguishing a missing source owner from a complete no-command proof.
+    original_expression_command_effects:
+        Option<BTreeMap<ExecutableValueId, OriginalExpressionCommandEffect>>,
 }
 
 impl ExecutableFunction {
@@ -771,7 +893,82 @@ impl ExecutableFunction {
         entry: ExecutableBlockId,
         blocks: Vec<ExecutableBlock>,
     ) -> Self {
-        Self { id, entry, blocks }
+        Self {
+            id,
+            entry,
+            blocks,
+            native_compilation_admission: None,
+            original_word_sources: None,
+            original_expression_command_effects: None,
+        }
+    }
+
+    /// Original word evaluation geometry under the retained source owner.
+    /// Outer None is explicit carrierless compatibility; inner None is a
+    /// missing/changed source owner and cannot establish effect absence.
+    pub(crate) fn original_word_command_effects(
+        &self,
+        value: ExecutableValueId,
+        word: &WordExpr,
+    ) -> Option<Option<bool>> {
+        let retained = self.original_word_sources.as_ref()?.get(&value);
+        Some((|| {
+            let retained = retained?.as_ref()?;
+            (retained.evaluated == *word).then_some(())?;
+            let owner = &retained.owner;
+            if matches!(
+                owner.metadata,
+                crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+            ) {
+                return None;
+            }
+            let original = owner.words.get(retained.ordinal)?;
+            let written = owner.tokens.words().get(retained.ordinal)?;
+            let evaluated = if let WordExpr::Expand { word, .. } = written {
+                word.as_ref()
+            } else {
+                written
+            };
+            (evaluated == word).then_some(())?;
+            Some(original.executable_parts().all_parts().any(|part| {
+                matches!(
+                    part.part,
+                    tcl_lexer::ExecutablePart::Command { .. }
+                        | tcl_lexer::ExecutablePart::Expression { .. }
+                        | tcl_lexer::ExecutablePart::ParseError(_)
+                )
+            }))
+        })())
+    }
+
+    /// Source-backed command effects for one `EvaluateExpr` value. Outer None
+    /// denotes an explicitly carrierless compatibility function; inner None
+    /// denotes a missing/changed production operand owner.
+    pub(crate) fn original_expression_command_effects(
+        &self,
+        value: ExecutableValueId,
+        expression: &ExecutableExpr,
+    ) -> Option<Option<bool>> {
+        let effects = self.original_expression_command_effects.as_ref()?;
+        let Some(retained) = effects.get(&value) else {
+            return Some(None);
+        };
+        if retained.expression != *expression {
+            return Some(None);
+        }
+        match (&retained.owner, retained.runs_commands) {
+            (Some(OriginalExpressionEffectOwner::Source(tokens)), Some(effect))
+                if tokens.source_binding.is_some() =>
+            {
+                Some(Some(effect))
+            }
+            (Some(OriginalExpressionEffectOwner::TrapPrefix), Some(false))
+                if matches!(expression, ExecutableExpr::TrapPrefix { .. }) =>
+            {
+                Some(Some(false))
+            }
+            _ => Some(None),
+        }
     }
 
     /// Validate the bounded executable-IR invariants.
@@ -1089,6 +1286,11 @@ fn collect_instruction_definition(
         | ExecutableInstruction::WriteCompletionCell { completion, .. } => {
             insert_completion_definition(&mut definitions.completions, *completion, position)
         }
+        ExecutableInstruction::CompleteEvaluatedRegion(region) => insert_completion_definition(
+            &mut definitions.completions,
+            region.invocation.completion,
+            position,
+        ),
         ExecutableInstruction::CompleteStructuredRegion(region) => {
             validate_structured_region(region)?;
             insert_completion_definition(&mut definitions.completions, region.completion, position)
@@ -1125,7 +1327,9 @@ fn validate_lowered_operation(
             completion: operation.completion,
         });
     }
-    if operation.footprint != lowered_operation_footprint(&operation.statement) {
+    if operation.footprint
+        != lowered_operation_footprint(&operation.statement, operation.original_tokens.as_deref())
+    {
         return Err(ExecutableIrValidationError::OperationFootprintMismatch {
             completion: operation.completion,
         });
@@ -1238,6 +1442,14 @@ fn validate_instruction_uses(
         ExecutableInstruction::Invoke(invoke) => {
             validate_invoke_use(function, invoke, position, values, argvs, dominance)
         }
+        ExecutableInstruction::CompleteEvaluatedRegion(region) => validate_invoke_use(
+            function,
+            &region.invocation,
+            position,
+            values,
+            argvs,
+            dominance,
+        ),
     }
 }
 
@@ -1674,6 +1886,7 @@ fn dominator_tree_intervals(
 fn terminator_successors(terminator: &ExecutableTerminator) -> Vec<ExecutableBlockId> {
     match terminator {
         ExecutableTerminator::Goto(target) => vec![*target],
+        ExecutableTerminator::RegionChoice { enter, skip } => vec![*enter, *skip],
         ExecutableTerminator::Branch {
             then_target,
             else_target,
@@ -1778,6 +1991,13 @@ fn validate_instruction_owners(
             require_completion_owner(*completion, function)?;
             require_completion_owner(*payload_of, function)?;
         }
+        ExecutableInstruction::CompleteEvaluatedRegion(region) => {
+            require_completion_owner(region.invocation.completion, function)?;
+            require_argv_owner(region.invocation.argv, function)?;
+            if region.entry.function() != function {
+                return Err(ExecutableIrValidationError::ForeignBlockId(region.entry));
+            }
+        }
         ExecutableInstruction::CompleteStructuredRegion(region) => {
             require_completion_owner(region.completion, function)?;
         }
@@ -1796,6 +2016,10 @@ fn validate_terminator(
 ) -> Result<(), ExecutableIrValidationError> {
     match terminator {
         ExecutableTerminator::Goto(target) => require_target(*target, function.id, blocks),
+        ExecutableTerminator::RegionChoice { enter, skip } => {
+            require_target(*enter, function.id, blocks)?;
+            require_target(*skip, function.id, blocks)
+        }
         ExecutableTerminator::Branch {
             condition,
             then_target,
@@ -1839,6 +2063,10 @@ fn validate_terminator_targets(
 ) -> Result<(), ExecutableIrValidationError> {
     match terminator {
         ExecutableTerminator::Goto(target) => require_target(*target, function, blocks),
+        ExecutableTerminator::RegionChoice { enter, skip } => {
+            require_target(*enter, function, blocks)?;
+            require_target(*skip, function, blocks)
+        }
         ExecutableTerminator::Branch {
             then_target,
             else_target,
@@ -2142,6 +2370,40 @@ pub fn build_linear_executable_ir(
     function: ExecutableFunctionId,
     script: &Script,
 ) -> Result<ExecutableFunction, SourceCompatibilityDecline> {
+    build_executable_ir_with_metadata_context(registry, context.map(Into::into), function, script)
+}
+
+/// Why executable metadata could not be built from the supplied context.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExecutableMetadataBuildDecline {
+    /// Missing or foreign source availability supplies no registry facts.
+    ContextUnavailable,
+    /// The retained source lies outside the executable compatibility subset.
+    Source(SourceCompatibilityDecline),
+}
+
+/// Build under the exact supplied availability generation. Missing and
+/// foreign input refuse before visiting source; nested bodies retain the same
+/// owner. This supplies no Native invocation or compilation authority.
+pub fn build_linear_executable_ir_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    function: ExecutableFunctionId,
+    script: &Script,
+) -> Result<ExecutableFunction, ExecutableMetadataBuildDecline> {
+    let context = context
+        .filter(|context| context.matches_registry(registry))
+        .ok_or(ExecutableMetadataBuildDecline::ContextUnavailable)?;
+    build_executable_ir_with_metadata_context(registry, Some(context), function, script)
+        .map_err(ExecutableMetadataBuildDecline::Source)
+}
+
+fn build_executable_ir_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    function: ExecutableFunctionId,
+    script: &Script,
+) -> Result<ExecutableFunction, SourceCompatibilityDecline> {
     if script.statements.is_empty() {
         return Err(SourceCompatibilityDecline::EmptyScript);
     }
@@ -2169,7 +2431,14 @@ pub fn build_linear_executable_ir(
             completion: None, ..
         } => return Err(SourceCompatibilityDecline::EmptyScript),
     }
-    let executable = ExecutableFunction::new(function, entry, builder.blocks);
+    let mut executable = ExecutableFunction::new(function, entry, builder.blocks);
+    // This is unconditional at production function assembly, including when
+    // the builder emitted only non-word operations and the map is empty.
+    executable.original_word_sources = Some(builder.original_word_sources);
+    executable.original_expression_command_effects =
+        Some(builder.original_expression_command_effects);
+    executable.native_compilation_admission =
+        crate::native_compilation_admission::retained_script_admission(script);
     debug_assert!(
         executable.validate().is_ok(),
         "compatibility builder emitted invalid executable IR: {:?}",
@@ -2253,9 +2522,36 @@ enum ScriptTail {
     Returns,
 }
 
+struct RegionEmissionSite<'a> {
+    context: Option<InvocationMetadataContext<'a>>,
+    statement: &'a Statement,
+    node: &'a NodeId,
+    control: ControlContext,
+    tail: bool,
+}
+
+fn statement_evaluated_region(
+    statement: &Statement,
+) -> Option<&crate::execution_region::EvaluatedBodyRegion> {
+    match statement {
+        Statement::Call {
+            tokens: Some(tokens),
+            ..
+        }
+        | Statement::Barrier {
+            tokens: Some(tokens),
+            ..
+        } => tokens.evaluated_body(),
+        _ => None,
+    }
+}
+
 struct FunctionBuilder {
     allocator: IdAllocator,
     blocks: Vec<ExecutableBlock>,
+    original_word_sources: BTreeMap<ExecutableValueId, Option<OriginalExecutableWordSource>>,
+    original_expression_command_effects:
+        BTreeMap<ExecutableValueId, OriginalExpressionCommandEffect>,
 }
 
 impl FunctionBuilder {
@@ -2263,7 +2559,121 @@ impl FunctionBuilder {
         Self {
             allocator: IdAllocator::new(function),
             blocks: Vec::new(),
+            original_word_sources: BTreeMap::new(),
+            original_expression_command_effects: BTreeMap::new(),
         }
+    }
+
+    fn retain_original_word_sources(
+        &mut self,
+        registry: &CommandRegistry,
+        context: Option<InvocationMetadataContext<'_>>,
+        tokens: &crate::ir::CommandTokens,
+        stages: &[Stage],
+    ) {
+        let owner = (|| {
+            let binding = tokens.source_binding.as_ref()?;
+            if let Some(context) = context {
+                context.matches_registry(registry).then_some(())?;
+                if let Some(input) = context.source_analysis_input() {
+                    binding.original_argument_metadata_for_input(tokens, input, registry)?;
+                }
+            }
+            let config = binding.original_argument_lexer_config(tokens)?;
+            let image = binding.original_argument_source_image(tokens)?;
+            let words = crate::registry_invocation::original_native_compiler_words(
+                image,
+                tokens.words(),
+                tokens.argv.first()?.start(),
+                config,
+            )?;
+            Some(std::sync::Arc::new(OriginalExecutableArgvSource {
+                tokens: tokens.clone(),
+                words,
+                metadata: match context {
+                    // Only the legacy no-context entry or actual static adapter
+                    // selects standalone compatibility. A borrowed availability
+                    // view cannot reconstruct its original Arc/source owner.
+                    None => crate::registry_invocation::OwnedInvocationMetadataContext::Standalone,
+                    Some(context) if context.is_standalone() => {
+                        crate::registry_invocation::OwnedInvocationMetadataContext::Standalone
+                    }
+                    Some(context) => {
+                        crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(
+                            context.source_analysis_input(),
+                        )
+                    }
+                },
+            }))
+        })();
+        // Each original argv word emits exactly one Evaluate stage; an
+        // expanded word's separate Expand stage has no source evaluation.
+        for (ordinal, (value, word)) in stages
+            .iter()
+            .filter_map(|stage| {
+                if let Stage::Evaluate { value, word, .. } = stage {
+                    Some((*value, word))
+                } else {
+                    None
+                }
+            })
+            .enumerate()
+        {
+            let retained = owner.as_ref().map(|owner| OriginalExecutableWordSource {
+                owner: std::sync::Arc::clone(owner),
+                ordinal,
+                evaluated: word.clone(),
+            });
+            self.original_word_sources.insert(value, retained);
+        }
+    }
+
+    fn retain_expression_command_effect(
+        &mut self,
+        value: ExecutableValueId,
+        expression: &ExecutableExpr,
+        original_tokens: Option<&crate::ir::CommandTokens>,
+        operand_argument: Option<usize>,
+    ) {
+        let effect = match expression {
+            ExecutableExpr::Condition { expr, base } => original_tokens.and_then(|tokens| {
+                let (config, _) = crate::registry_invocation::original_lowered_expression_syntax(
+                    expr, *base, tokens,
+                )?;
+                // A failed variable-reference parse cannot prove the absence of
+                // command substitutions. Keep ordinary configured variables,
+                // including their parsed array-index expressions, on the path.
+                let variables_available = expr.evaluation_nodes().into_iter().all(|node| {
+                    !matches!(node, ExprNode::Var { .. })
+                        || matches!(node.variable_reference(config), Ok(Some(_)))
+                });
+                variables_available.then(|| expr_footprint(expr, *base, Some(tokens)).runs_commands)
+            }),
+            ExecutableExpr::Operand { text, braced } => original_tokens.and_then(|tokens| {
+                let argument = operand_argument?;
+                crate::registry_invocation::original_argument_command_effect(
+                    tokens, argument, text, *braced,
+                )
+            }),
+            // This is the registry-parsed handler prefix value, not source
+            // text requiring Tcl substitution.
+            ExecutableExpr::TrapPrefix { .. } => Some(false),
+        };
+        let owner = if matches!(expression, ExecutableExpr::TrapPrefix { .. }) {
+            Some(OriginalExpressionEffectOwner::TrapPrefix)
+        } else {
+            original_tokens.map(|tokens| {
+                OriginalExpressionEffectOwner::Source(std::sync::Arc::new(tokens.clone()))
+            })
+        };
+        self.original_expression_command_effects.insert(
+            value,
+            OriginalExpressionCommandEffect {
+                expression: expression.clone(),
+                owner,
+                runs_commands: effect,
+            },
+        );
     }
 
     /// Allocate one empty block. Allocation order is block-ID order, which is
@@ -2349,7 +2759,7 @@ impl FunctionBuilder {
     fn emit_nested(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         script: &Script,
         path: &[u32],
         block: ExecutableBlockId,
@@ -2371,7 +2781,7 @@ impl FunctionBuilder {
     fn emit_script(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         script: &Script,
         path: &[u32],
         block: ExecutableBlockId,
@@ -2392,6 +2802,7 @@ impl FunctionBuilder {
                 registry,
                 context,
                 statement,
+                script.retained_source_tokens_for_statement(statement),
                 &node,
                 current,
                 control,
@@ -2417,14 +2828,29 @@ impl FunctionBuilder {
     fn emit_statement(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
+        original_tokens: Option<&crate::ir::CommandTokens>,
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
         tail: bool,
     ) -> Result<StatementTail, SourceCompatibilityDecline> {
         let source = SourceSite::source(statement.span());
+        if let Some(region) = statement_evaluated_region(statement) {
+            return self.emit_evaluated_region(
+                registry,
+                &RegionEmissionSite {
+                    context,
+                    statement,
+                    node,
+                    control,
+                    tail,
+                },
+                block,
+                region,
+            );
+        }
         if let Some(descriptor) = lowered_operation_descriptor(statement) {
             let completion = self.allocator.completion();
             self.push(
@@ -2432,8 +2858,9 @@ impl FunctionBuilder {
                 ExecutableInstruction::ExecuteLowered(LoweredOperation {
                     completion,
                     descriptor,
-                    footprint: lowered_operation_footprint(statement),
+                    footprint: lowered_operation_footprint(statement, original_tokens),
                     statement: statement.clone(),
+                    original_tokens: original_tokens.cloned().map(std::sync::Arc::new),
                     node: node.clone(),
                     source,
                 }),
@@ -2441,8 +2868,16 @@ impl FunctionBuilder {
             return Ok(self.finish(block, completion, control, tail));
         }
         if structured_region_projection(statement).is_some() {
-            return self
-                .emit_structured_region(registry, context, statement, node, block, control, tail);
+            return self.emit_structured_region(
+                registry,
+                context,
+                statement,
+                original_tokens,
+                node,
+                block,
+                control,
+                tail,
+            );
         }
         if let Some(descriptor) = opaque_region_descriptor(statement) {
             let completion = self.allocator.completion();
@@ -2467,7 +2902,7 @@ impl FunctionBuilder {
     fn emit_call(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
         node: &NodeId,
         block: ExecutableBlockId,
@@ -2483,9 +2918,11 @@ impl FunctionBuilder {
             source_call.command,
             source_call.args,
         )?;
-        let resolution = resolve_invocation_facts(registry, context, &words, statement_index)?;
+        let resolution =
+            resolve_invocation_facts(registry, context, source_call.tokens, statement_index)?;
         let mut stages = Vec::new();
         let entries = plan_argv_entries(&words, node, &mut self.allocator, &mut stages);
+        self.retain_original_word_sources(registry, context, source_call.tokens, &stages);
         let argv = self.allocator.argv();
         stages.push(Stage::BuildArgv {
             argv,
@@ -2497,6 +2934,10 @@ impl FunctionBuilder {
             completion: self.allocator.completion(),
             resolution,
             original_words: words,
+            source_binding: source_call.tokens.source_binding.clone().map(Box::new),
+            effective_words: crate::registry_invocation::effective_command_words(
+                source_call.tokens,
+            ),
             node: node.clone(),
             source,
         });
@@ -2524,8 +2965,9 @@ impl FunctionBuilder {
     fn emit_structured_region(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
+        original_tokens: Option<&crate::ir::CommandTokens>,
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
@@ -2538,6 +2980,7 @@ impl FunctionBuilder {
                 registry,
                 context,
                 statement,
+                original_tokens,
                 clauses,
                 else_body.as_ref(),
                 node,
@@ -2555,6 +2998,7 @@ impl FunctionBuilder {
                 registry,
                 context,
                 statement,
+                original_tokens,
                 &LoopParts {
                     init: None,
                     condition,
@@ -2580,6 +3024,7 @@ impl FunctionBuilder {
                 registry,
                 context,
                 statement,
+                original_tokens,
                 &LoopParts {
                     init: Some(init),
                     condition,
@@ -2596,7 +3041,16 @@ impl FunctionBuilder {
             Statement::Foreach {
                 iterators, body, ..
             } => self.emit_cursor_loop(
-                registry, context, statement, iterators, body, node, block, control, tail,
+                registry,
+                context,
+                statement,
+                original_tokens,
+                iterators,
+                body,
+                node,
+                block,
+                control,
+                tail,
             ),
             Statement::Catch {
                 body,
@@ -2634,6 +3088,7 @@ impl FunctionBuilder {
             ),
             Statement::Switch {
                 subject,
+                subject_braced,
                 subject_span,
                 arms,
                 default_body,
@@ -2645,8 +3100,10 @@ impl FunctionBuilder {
                 registry,
                 context,
                 statement,
+                original_tokens,
                 &SwitchParts {
                     subject,
+                    subject_braced: *subject_braced,
                     subject_span: *subject_span,
                     arms,
                     default_body: default_body.as_ref(),
@@ -2661,6 +3118,146 @@ impl FunctionBuilder {
             ),
             _ => unreachable!("structured_region_projection selected a non-structured statement"),
         }
+    }
+
+    fn emit_evaluated_region(
+        &mut self,
+        registry: &CommandRegistry,
+        site: &RegionEmissionSite<'_>,
+        block: ExecutableBlockId,
+        region: &crate::execution_region::EvaluatedBodyRegion,
+    ) -> Result<StatementTail, SourceCompatibilityDecline> {
+        use crate::execution_region::RegionSelection;
+        let statement_index = site.node.path().last().copied().unwrap_or(0) as usize;
+        if region.scope.is_some() || region.possible_bodies.is_some() {
+            return Err(SourceCompatibilityDecline::UnsupportedStatement {
+                statement_index,
+                kind: "dictionary scope effect projection",
+            });
+        }
+        let call = source_call(site.statement, statement_index)?;
+        let words = exact_words(call.tokens, statement_index, call.command, call.args)?;
+        let resolution =
+            resolve_invocation_facts(registry, site.context, call.tokens, statement_index)?;
+        let mut stages = Vec::new();
+        let entries = plan_argv_entries(&words, site.node, &mut self.allocator, &mut stages);
+        self.retain_original_word_sources(registry, site.context, call.tokens, &stages);
+        let argv = self.allocator.argv();
+        stages.push(Stage::BuildArgv {
+            argv,
+            completion: self.allocator.completion(),
+            entries,
+        });
+        let mut current = block;
+        for stage in stages {
+            let completion = stage.completion();
+            for instruction in stage.into_instructions() {
+                self.push(current, instruction);
+            }
+            current = self.dispatch(current, completion, site.control);
+        }
+        let phase_entries: Vec<ExecutableBlockId> =
+            region.phases.iter().map(|_| self.new_block()).collect();
+        let join = self.new_block();
+        match region.selection {
+            RegionSelection::Always => {
+                self.terminate(current, ExecutableTerminator::Goto(phase_entries[0]));
+            }
+            RegionSelection::Never => self.terminate(current, ExecutableTerminator::Goto(join)),
+            RegionSelection::MaySkip => self.terminate(
+                current,
+                ExecutableTerminator::RegionChoice {
+                    enter: phase_entries[0],
+                    skip: join,
+                },
+            ),
+        }
+        self.emit_evaluated_phases(registry, site, region, &phase_entries, join)?;
+        let completion = self.allocator.completion();
+        self.push(
+            join,
+            ExecutableInstruction::CompleteEvaluatedRegion(EvaluatedRegionCompletion {
+                invocation: GenericInvoke {
+                    completion,
+                    argv,
+                    resolution,
+                    original_words: words,
+                    source_binding: call.tokens.source_binding.clone(),
+                    effective_words: crate::registry_invocation::effective_command_words(
+                        call.tokens,
+                    ),
+                    node: site.node.clone(),
+                    source: region.source.clone(),
+                },
+                region: region.clone(),
+                entry: phase_entries[0],
+            }),
+        );
+        if region.repetition == crate::execution_region::RegionRepetition::MayRepeat
+            && region.selection != RegionSelection::Never
+        {
+            let next = self.dispatch(join, completion, site.control);
+            let done = self.new_block();
+            self.terminate(
+                next,
+                ExecutableTerminator::RegionChoice {
+                    enter: phase_entries[0],
+                    skip: done,
+                },
+            );
+            Ok(self.finish(done, completion, site.control, site.tail))
+        } else {
+            Ok(self.finish(join, completion, site.control, site.tail))
+        }
+    }
+
+    fn emit_evaluated_phases(
+        &mut self,
+        registry: &CommandRegistry,
+        site: &RegionEmissionSite<'_>,
+        region: &crate::execution_region::EvaluatedBodyRegion,
+        phase_entries: &[ExecutableBlockId],
+        join: ExecutableBlockId,
+    ) -> Result<(), SourceCompatibilityDecline> {
+        use crate::execution_region::RegionTarget;
+        for (index, phase) in region.phases.iter().enumerate() {
+            let target = |route| match route {
+                RegionTarget::Phase(next) => Some(phase_entries[next]),
+                RegionTarget::Exit => Some(join),
+                RegionTarget::Propagate => None,
+            };
+            let handler = target(phase.abrupt).map(|_| self.new_block());
+            let phase_control = handler.map_or(site.control, ControlContext::caught_body);
+            let path = child_path(
+                site.node,
+                u32::try_from(index).expect("phase count fits source node") + 1,
+            );
+            let flow = self.emit_nested(
+                registry,
+                site.context,
+                &phase.script,
+                &path,
+                phase_entries[index],
+                phase_control,
+            )?;
+            self.terminate(
+                flow,
+                ExecutableTerminator::Goto(target(phase.normal).unwrap_or(join)),
+            );
+            if let (Some(handler), Some(destination)) = (handler, target(phase.abrupt)) {
+                let caught = self.allocator.completion();
+                self.push(
+                    handler,
+                    ExecutableInstruction::JoinCompletion {
+                        completion: caught,
+                        node: site.node.clone(),
+                        source: region.source.clone(),
+                    },
+                );
+                self.terminate(handler, ExecutableTerminator::Goto(destination));
+            }
+        }
+        Ok(())
     }
 
     /// Produce the region's completion where its interior edges join, then
@@ -2721,8 +3318,9 @@ impl FunctionBuilder {
     fn emit_if(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
+        original_tokens: Option<&crate::ir::CommandTokens>,
         clauses: &[crate::ir::IfClause],
         else_body: Option<&Script>,
         node: &NodeId,
@@ -2741,6 +3339,11 @@ impl FunctionBuilder {
                 current,
                 control,
             );
+            let expression = ExecutableExpr::Condition {
+                expr: Box::new(clause.condition.clone()),
+                base: clause.condition_base,
+            };
+            self.retain_expression_command_effect(condition, &expression, original_tokens, None);
             let body_entry = self.new_block();
             let next_test = self.new_block();
             self.terminate(
@@ -2772,8 +3375,9 @@ impl FunctionBuilder {
     fn emit_condition_loop(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
+        original_tokens: Option<&crate::ir::CommandTokens>,
         parts: &LoopParts<'_>,
         node: &NodeId,
         block: ExecutableBlockId,
@@ -2797,6 +3401,11 @@ impl FunctionBuilder {
             header,
             control,
         );
+        let expression = ExecutableExpr::Condition {
+            expr: Box::new(parts.condition.clone()),
+            base: parts.condition_base,
+        };
+        self.retain_expression_command_effect(condition, &expression, original_tokens, None);
         let body_entry = self.new_block();
         self.terminate(
             decided,
@@ -2839,8 +3448,9 @@ impl FunctionBuilder {
     fn emit_cursor_loop(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
+        original_tokens: Option<&crate::ir::CommandTokens>,
         iterators: &[crate::ir::ForeachIterator],
         body: &Script,
         node: &NodeId,
@@ -2848,10 +3458,16 @@ impl FunctionBuilder {
         control: ControlContext,
         tail: bool,
     ) -> Result<StatementTail, SourceCompatibilityDecline> {
+        let sources = original_list_iterator_sources(registry, statement, iterators).ok_or(
+            SourceCompatibilityDecline::UnsupportedStatement {
+                statement_index: node.path().last().copied().unwrap_or(0) as usize,
+                kind: "unowned or non-list iteration",
+            },
+        )?;
         let source = SourceSite::source(statement.span());
         let mut current = block;
         let mut groups = Vec::with_capacity(iterators.len());
-        for iterator in iterators {
+        for (iterator, (names, argument)) in iterators.iter().zip(sources) {
             let value = self.allocator.value();
             let completion = self.allocator.completion();
             self.push(
@@ -2867,13 +3483,22 @@ impl FunctionBuilder {
                     source: source.clone(),
                 },
             );
+            let expression = ExecutableExpr::Operand {
+                text: iterator.list_arg.clone(),
+                braced: iterator.list_braced,
+            };
+            self.retain_expression_command_effect(
+                value,
+                &expression,
+                original_tokens,
+                Some(argument),
+            );
             current = self.dispatch(current, completion, control);
             groups.push(IteratorGroup {
                 list: value,
-                variables: iterator
-                    .vars
+                variables: names
                     .iter()
-                    .map(|name| CellReference::from_name(name, false))
+                    .map(|name| CellReference::from_name_data(name))
                     .collect(),
             });
         }
@@ -2913,7 +3538,7 @@ impl FunctionBuilder {
     fn emit_catch(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
         body: &Script,
         result_var: Option<&str>,
@@ -2960,7 +3585,7 @@ impl FunctionBuilder {
                     completion,
                     payload_of: caught,
                     payload,
-                    cell: CellReference::from_name(variable, false),
+                    cell: CellReference::from_name_data(variable),
                     node: node.clone(),
                     source: source.clone(),
                 },
@@ -2975,7 +3600,7 @@ impl FunctionBuilder {
     fn emit_try(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
         body: &Script,
         handlers: &[crate::ir::TryHandler],
@@ -3064,7 +3689,7 @@ impl FunctionBuilder {
     fn emit_try_handlers(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         handlers: &[crate::ir::TryHandler],
         caught: CompletionId,
         node: &NodeId,
@@ -3072,12 +3697,25 @@ impl FunctionBuilder {
         finally_entry: ExecutableBlockId,
         control: ControlContext,
     ) -> Result<Vec<CompletionCase>, SourceCompatibilityDecline> {
+        let numbers = context
+            .and_then(InvocationMetadataContext::source_analysis_input)
+            .map_or(tcl_syntax::number::Numbers::Unknown, |input| {
+                tcl_syntax::number::Numbers::Target(
+                    input
+                        .lexer_config()
+                        .grammar_over(input.unit_profile().grammar)
+                        .numbers,
+                )
+            });
         let mut reachable: Vec<(usize, CompletionCode, bool)> = Vec::new();
         let mut settled: BTreeSet<i64> = BTreeSet::new();
         for (index, handler) in handlers.iter().enumerate() {
-            let Some(code) = try_handler_code(handler) else {
-                continue;
-            };
+            let code = try_handler_code_in(handler, numbers).ok_or(
+                SourceCompatibilityDecline::UnsupportedStatement {
+                    statement_index: node.path().last().copied().unwrap_or(0) as usize,
+                    kind: "try handler selector without exact source grammar",
+                },
+            )?;
             if settled.contains(&code.as_int()) {
                 continue;
             }
@@ -3104,19 +3742,21 @@ impl FunctionBuilder {
                 // already performed, never a local re-parse of the grammar.
                 let value = self.allocator.value();
                 let completion = self.allocator.completion();
+                let expression = ExecutableExpr::TrapPrefix {
+                    completion: caught,
+                    prefix,
+                };
                 self.push(
                     current,
                     ExecutableInstruction::EvaluateExpr {
                         value,
                         completion,
-                        expr: ExecutableExpr::TrapPrefix {
-                            completion: caught,
-                            prefix,
-                        },
+                        expr: expression.clone(),
                         node: node.clone(),
                         source: source.clone(),
                     },
                 );
+                self.retain_expression_command_effect(value, &expression, None, None);
                 let decided = self.dispatch(current, completion, control);
                 let matched = self.new_block();
                 self.terminate(
@@ -3141,7 +3781,7 @@ impl FunctionBuilder {
                         completion,
                         payload_of: caught,
                         payload,
-                        cell: CellReference::from_name(variable, false),
+                        cell: CellReference::from_name_data(variable),
                         node: node.clone(),
                         source: source.clone(),
                     },
@@ -3167,14 +3807,39 @@ impl FunctionBuilder {
     fn emit_switch(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
+        original_tokens: Option<&crate::ir::CommandTokens>,
         parts: &SwitchParts<'_>,
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
         tail: bool,
     ) -> Result<StatementTail, SourceCompatibilityDecline> {
+        let subject_source = original_tokens.and_then(|tokens| {
+            let (command, _) = tokens
+                .source_binding
+                .as_ref()?
+                .original_recorded_command()?;
+            (command.span == statement.span()).then_some(())?;
+            let selected =
+                crate::registry_invocation::original_source_name_roles(registry, tokens)?;
+            (selected.facts().operation
+                == SemanticOperationId::StructuredLowering(LoweringHookId::Switch))
+            .then_some(())?;
+            tokens.words().iter().enumerate().find_map(|(index, word)| {
+                let braced = matches!(word, crate::ir::WordExpr::BracedLiteral { .. });
+                if word.source().span == parts.subject_span
+                    && word.legacy_text() == parts.subject
+                    && braced == parts.subject_braced
+                {
+                    Some((index.checked_sub(1)?, braced))
+                } else {
+                    None
+                }
+            })
+        });
+        let subject_braced = parts.subject_braced;
         let subject_value = self.allocator.value();
         let subject_completion = self.allocator.completion();
         self.push(
@@ -3184,11 +3849,21 @@ impl FunctionBuilder {
                 completion: subject_completion,
                 expr: ExecutableExpr::Operand {
                     text: parts.subject.to_owned(),
-                    braced: false,
+                    braced: subject_braced,
                 },
                 node: node.clone(),
                 source: SourceSite::source(parts.subject_span),
             },
+        );
+        let expression = ExecutableExpr::Operand {
+            text: parts.subject.to_owned(),
+            braced: subject_braced,
+        };
+        self.retain_expression_command_effect(
+            subject_value,
+            &expression,
+            original_tokens,
+            subject_source.map(|(argument, _)| argument),
         );
         let mut current = self.dispatch(block, subject_completion, control);
         let join = self.new_block();
@@ -3266,6 +3941,7 @@ struct LoopParts<'a> {
 /// The registry-parsed `switch` operands one decision tree needs.
 struct SwitchParts<'a> {
     subject: &'a str,
+    subject_braced: bool,
     subject_span: tcl_lexer::Span,
     arms: &'a [crate::ir::SwitchArm],
     default_body: Option<&'a Script>,
@@ -3326,6 +4002,7 @@ fn lowered_operation_descriptor(statement: &Statement) -> Option<LoweringHookId>
         Statement::Return { .. } => Some(LoweringHookId::Return),
         Statement::Call { .. }
         | Statement::Barrier { .. }
+        | Statement::NativeCall { .. }
         | Statement::Block { .. }
         | Statement::UpFrame { .. }
         | Statement::If { .. }
@@ -3388,7 +4065,8 @@ fn opaque_region_descriptor(statement: &Statement) -> Option<OpaqueRegionDescrip
         | Statement::ExprEval { .. }
         | Statement::Call { .. }
         | Statement::Return { .. }
-        | Statement::Barrier { .. } => None,
+        | Statement::Barrier { .. }
+        | Statement::NativeCall { .. } => None,
     }
 }
 
@@ -3438,6 +4116,7 @@ fn structured_region_projection(
         | Statement::Call { .. }
         | Statement::Return { .. }
         | Statement::Barrier { .. }
+        | Statement::NativeCall { .. }
         | Statement::Block { .. }
         | Statement::UpFrame { .. } => None,
     }
@@ -3451,27 +4130,26 @@ fn structured_region_projection(
 /// completion code (`on`) names a code directly. The registry's handler chain
 /// decodes the selector ([`HandlerChain::selected`]), never a local keyword
 /// match.
-fn try_handler_code(handler: &crate::ir::TryHandler) -> Option<CompletionCode> {
-    HandlerChain::selected(
-        handler.kind,
-        &handler.match_arg,
-        tcl_syntax::number::Numbers::of_profile(None),
-    )
+pub(crate) fn try_handler_code_in(
+    handler: &crate::ir::TryHandler,
+    numbers: tcl_syntax::number::Numbers,
+) -> Option<CompletionCode> {
+    HandlerChain::selected(handler.kind, &handler.match_arg, numbers)
 }
 
 /// Project the exact cell and completion footprint of an already-lowered
 /// operation from the statement the registry descriptor authorised.
 ///
-/// This is deliberately computable from the statement alone: validation
-/// recomputes it and rejects a retained footprint that disagrees, so no
-/// consumer can be handed a footprint the IR does not itself prove.
+/// Validation recomputes this from the retained statement and its exact
+/// original source carrier. Missing name ownership keeps an unbounded target.
 #[allow(clippy::too_many_lines)]
-fn lowered_operation_footprint(statement: &Statement) -> LoweredFootprint {
+fn lowered_operation_footprint(
+    statement: &Statement,
+    original_tokens: Option<&crate::ir::CommandTokens>,
+) -> LoweredFootprint {
     match statement {
-        Statement::AssignConst {
-            name, name_braced, ..
-        } => {
-            let write = CellReference::from_name(name, *name_braced);
+        Statement::AssignConst { name, .. } => {
+            let write = lowered_source_name_reference(statement, original_tokens, name);
             let exact = write.name().is_some();
             LoweredFootprint {
                 writes: vec![write],
@@ -3487,15 +4165,14 @@ fn lowered_operation_footprint(statement: &Statement) -> LoweredFootprint {
                 },
             }
         }
-        Statement::AssignValue {
-            name,
-            name_braced,
-            value,
-            ..
-        } => {
+        Statement::AssignValue { name, value, .. } => {
             let operand = operand_text_footprint(value);
             LoweredFootprint {
-                writes: vec![CellReference::from_name(name, *name_braced)],
+                writes: vec![lowered_source_name_reference(
+                    statement,
+                    original_tokens,
+                    name,
+                )],
                 reads: Vec::new(),
                 reads_unbounded: operand.reads_unbounded,
                 runs_commands: operand.runs_commands,
@@ -3504,26 +4181,25 @@ fn lowered_operation_footprint(statement: &Statement) -> LoweredFootprint {
         }
         Statement::AssignExpr {
             name,
-            name_braced,
             expr,
+            expr_base,
             ..
         } => {
-            let operand = expr_footprint(expr);
+            let operand = expr_footprint(expr, *expr_base, original_tokens);
             LoweredFootprint {
-                writes: vec![CellReference::from_name(name, *name_braced)],
+                writes: vec![lowered_source_name_reference(
+                    statement,
+                    original_tokens,
+                    name,
+                )],
                 reads: operand.reads,
                 reads_unbounded: operand.reads_unbounded,
                 runs_commands: operand.runs_commands,
                 completion: vec![CompletionCode::Ok, CompletionCode::Error],
             }
         }
-        Statement::Incr {
-            name,
-            name_braced,
-            amount,
-            ..
-        } => {
-            let target = CellReference::from_name(name, *name_braced);
+        Statement::Incr { name, amount, .. } => {
+            let target = lowered_source_name_reference(statement, original_tokens, name);
             let operand = amount
                 .as_deref()
                 .map_or_else(OperandFootprint::exact, operand_text_footprint);
@@ -3536,8 +4212,10 @@ fn lowered_operation_footprint(statement: &Statement) -> LoweredFootprint {
                 completion: vec![CompletionCode::Ok, CompletionCode::Error],
             }
         }
-        Statement::ExprEval { expr, .. } => {
-            let operand = expr_footprint(expr);
+        Statement::ExprEval {
+            expr, expr_base, ..
+        } => {
+            let operand = expr_footprint(expr, *expr_base, original_tokens);
             LoweredFootprint {
                 writes: Vec::new(),
                 reads: operand.reads,
@@ -3549,11 +4227,12 @@ fn lowered_operation_footprint(statement: &Statement) -> LoweredFootprint {
         Statement::Return {
             value,
             expr,
+            expr_base,
             braced,
             ..
         } => {
             let operand = match (expr, value) {
-                (Some(expr), _) => expr_footprint(expr),
+                (Some(expr), _) => expr_footprint(expr, *expr_base, original_tokens),
                 // A braced result word suppresses substitution entirely.
                 (None, Some(_)) if *braced => OperandFootprint::exact(),
                 (None, Some(value)) => operand_text_footprint(value),
@@ -3574,6 +4253,7 @@ fn lowered_operation_footprint(statement: &Statement) -> LoweredFootprint {
         }
         Statement::Call { .. }
         | Statement::Barrier { .. }
+        | Statement::NativeCall { .. }
         | Statement::Block { .. }
         | Statement::UpFrame { .. }
         | Statement::If { .. }
@@ -3584,6 +4264,84 @@ fn lowered_operation_footprint(statement: &Statement) -> LoweredFootprint {
         | Statement::Try { .. }
         | Statement::Switch { .. } => LoweredFootprint::conservative(),
     }
+}
+
+#[cfg(test)]
+fn original_list_iterator_names(
+    registry: &CommandRegistry,
+    statement: &Statement,
+    iterators: &[crate::ir::ForeachIterator],
+) -> Option<Vec<Vec<String>>> {
+    original_list_iterator_sources(registry, statement, iterators)
+        .map(|sources| sources.into_iter().map(|(names, _)| names).collect())
+}
+
+fn original_list_iterator_sources(
+    registry: &CommandRegistry,
+    statement: &Statement,
+    iterators: &[crate::ir::ForeachIterator],
+) -> Option<Vec<(Vec<String>, usize)>> {
+    let Statement::Foreach {
+        raw_tokens: Some(tokens),
+        is_lmap,
+        ..
+    } = statement
+    else {
+        return None;
+    };
+    let (command, _) = tokens
+        .source_binding
+        .as_ref()?
+        .original_recorded_command()?;
+    (command.span == statement.span()).then_some(())?;
+    let source = crate::registry_invocation::original_source_name_roles(registry, tokens)?;
+    let hook = if *is_lmap {
+        LoweringHookId::Lmap
+    } else {
+        LoweringHookId::Foreach
+    };
+    (source.facts().operation == SemanticOperationId::StructuredLowering(hook)).then_some(())?;
+    let arguments: Vec<_> = source
+        .roles()
+        .iter()
+        .filter_map(|&(argument, role)| {
+            (role == tcl_registry::ArgRole::LoopVarList).then_some(argument)
+        })
+        .collect();
+    (arguments.len() == iterators.len()).then_some(())?;
+    iterators
+        .iter()
+        .zip(arguments)
+        .map(|(iterator, argument)| {
+            let names = crate::registry_invocation::original_name_role_values(
+                registry,
+                tokens,
+                argument,
+                tcl_registry::ArgRole::LoopVarList,
+            )?;
+            (names == iterator.vars).then_some((names, argument.checked_add(1)?))
+        })
+        .collect()
+}
+
+fn lowered_source_name_reference(
+    statement: &Statement,
+    original_tokens: Option<&crate::ir::CommandTokens>,
+    name: &str,
+) -> CellReference {
+    let original_name = || {
+        let tokens = original_tokens?;
+        (tokens.argv_texts.get(1).map(String::as_str) == Some(name)).then_some(())?;
+        let (command, _) = tokens
+            .source_binding
+            .as_ref()?
+            .original_recorded_command()?;
+        (command.span == statement.span()).then_some(())?;
+        crate::registry_invocation::original_literal_argument_data(tokens, 0)
+    };
+    original_name().map_or(CellReference::Computed, |name| {
+        CellReference::from_name_data(&name)
+    })
 }
 
 /// What evaluating one retained operand can read and run.
@@ -3623,44 +4381,188 @@ fn operand_text_footprint(text: &str) -> OperandFootprint {
 /// The walk stops at an unparsed `Raw` node rather than re-lexing its text:
 /// a `Raw` node already makes the footprint unbounded, so enumerating the
 /// variables inside it would change nothing — and this projection is
-/// recomputed by validation from the statement alone
-/// ([`lowered_operation_footprint`]), which carries no document grammar to
-/// re-lex under.
-fn expr_footprint(expr: &ExprNode) -> OperandFootprint {
-    let unparsed = expr_has_raw(expr);
-    let runs_commands = unparsed || !expr.command_texts().is_empty();
-    let mut reads: Vec<CellReference> = expr
-        .vars_parsed_only()
-        .into_iter()
-        .map(|name| CellReference::from_name(&name, false))
-        .collect();
-    reads.sort();
-    reads.dedup();
-    OperandFootprint {
-        reads_unbounded: unparsed || reads.iter().any(|cell| cell.name().is_none()),
-        reads,
-        runs_commands,
+/// recomputed by validation from the retained expression without inventing
+/// a grammar for an unparsed node.
+fn expr_footprint(
+    expr: &ExprNode,
+    expression_base: Option<u32>,
+    original_tokens: Option<&crate::ir::CommandTokens>,
+) -> OperandFootprint {
+    let mut result = OperandFootprint::exact();
+    let syntax = original_tokens.and_then(|tokens| {
+        crate::registry_invocation::original_lowered_expression_syntax(
+            expr,
+            expression_base,
+            tokens,
+        )
+    });
+    for node in expr.evaluation_nodes() {
+        match node {
+            ExprNode::Var { .. } => {
+                let Some((config, policy)) = syntax else {
+                    result.reads.push(CellReference::Computed);
+                    result.reads_unbounded = true;
+                    continue;
+                };
+                let Ok(Some(reference)) = node.variable_reference(config) else {
+                    result.reads.push(CellReference::Computed);
+                    result.reads_unbounded = true;
+                    continue;
+                };
+                result.reads.push(original_reference_cell(
+                    reference.name,
+                    reference.index.is_some(),
+                    policy,
+                ));
+                if let Some(index) = reference.index {
+                    original_substitution_reads(
+                        index,
+                        config,
+                        policy,
+                        tcl_lexer::word_parts::SubstFlags::default(),
+                        true,
+                        &mut result,
+                    );
+                }
+            }
+            ExprNode::String { text, .. } => original_string_reads(text, syntax, &mut result),
+            ExprNode::CompiledWord {
+                text,
+                braced: false,
+            } => {
+                if let Some((config, policy)) = syntax {
+                    if tcl_syntax::word_rules::compiled_word_substitution(text.as_bytes(), config)
+                        == tcl_syntax::word_rules::CompiledWordSubstitution::LiteralValue
+                    {
+                        continue;
+                    }
+                    original_substitution_reads(
+                        text.as_bytes(),
+                        config,
+                        policy,
+                        tcl_lexer::word_parts::SubstFlags::compiled_word(),
+                        false,
+                        &mut result,
+                    );
+                } else {
+                    result.reads_unbounded = true;
+                    result.runs_commands = true;
+                }
+            }
+            ExprNode::Command { .. } | ExprNode::Raw { .. } | ExprNode::Call { .. } => {
+                result.reads_unbounded = true;
+                result.runs_commands = true;
+            }
+            ExprNode::Literal { .. }
+            | ExprNode::CompiledWord { braced: true, .. }
+            | ExprNode::Binary { .. }
+            | ExprNode::Unary { .. }
+            | ExprNode::Ternary { .. } => {}
+        }
+    }
+    result.reads.sort();
+    result.reads.dedup();
+    result.reads_unbounded |= result.reads.iter().any(|cell| cell.name().is_none());
+    result
+}
+
+fn original_string_reads(
+    text: &str,
+    syntax: Option<(
+        tcl_lexer::LexerConfig,
+        Option<tcl_syntax::naming::NamePolicyProtocol>,
+    )>,
+    result: &mut OperandFootprint,
+) {
+    if crate::expr_ast::fixed_string_operand(text).is_some() {
+        return;
+    }
+    if let Some(body) = crate::expr_ast::quoted_string_body(text) {
+        if let Some((config, policy)) = syntax {
+            original_substitution_reads(
+                body.as_bytes(),
+                config,
+                policy,
+                tcl_lexer::word_parts::SubstFlags::default(),
+                false,
+                result,
+            );
+        } else {
+            result.reads_unbounded = true;
+            result.runs_commands = true;
+        }
+    } else if tcl_syntax::word_rules::whole_braced_word(text).is_none() {
+        result.reads_unbounded = true;
+        result.runs_commands = true;
     }
 }
 
-/// Whether any part of the expression fell back to unparsed raw text, which
-/// can hide both variable references and command substitutions.
-fn expr_has_raw(expr: &ExprNode) -> bool {
-    match expr {
-        ExprNode::Raw { .. } => true,
-        ExprNode::Literal { .. }
-        | ExprNode::String { .. }
-        | ExprNode::CompiledWord { .. }
-        | ExprNode::Var { .. }
-        | ExprNode::Command { .. } => false,
-        ExprNode::Binary { left, right, .. } => expr_has_raw(left) || expr_has_raw(right),
-        ExprNode::Unary { operand, .. } => expr_has_raw(operand),
-        ExprNode::Ternary {
-            condition,
-            true_branch,
-            false_branch,
-        } => expr_has_raw(condition) || expr_has_raw(true_branch) || expr_has_raw(false_branch),
-        ExprNode::Call { args, .. } => args.iter().any(expr_has_raw),
+fn original_reference_cell(
+    name: &[u8],
+    separate_index: bool,
+    policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+) -> CellReference {
+    if name.contains(&0) {
+        return CellReference::Computed;
+    }
+    let named = |root: &[u8], element| {
+        std::str::from_utf8(root).map_or(CellReference::Computed, |name| CellReference::Named {
+            name: name.to_owned(),
+            element,
+        })
+    };
+    match policy {
+        Some(policy) if separate_index => {
+            named(policy.recipe().variable_root_input(name).selected(), true)
+        }
+        Some(policy) => {
+            let selected = policy.recipe().combined_variable_input(name);
+            named(selected.root().selected(), selected.element().is_some())
+        }
+        None if !separate_index && tcl_syntax::naming::split_element_ref_bytes(name).is_none() => {
+            named(name, false)
+        }
+        None => CellReference::Computed,
+    }
+}
+
+fn original_substitution_reads(
+    source: &[u8],
+    config: tcl_lexer::LexerConfig,
+    policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+    flags: tcl_lexer::word_parts::SubstFlags,
+    in_index: bool,
+    footprint: &mut OperandFootprint,
+) {
+    use tcl_lexer::word_parts::{WordPart, decompose_spanned_checked};
+    let Ok(parts) = decompose_spanned_checked(source, flags, config) else {
+        footprint.reads_unbounded = true;
+        footprint.runs_commands = true;
+        return;
+    };
+    let mut pending: Vec<_> = parts
+        .into_iter()
+        .map(|part| (part.part, in_index))
+        .collect();
+    while let Some((part, in_index)) = pending.pop() {
+        match part {
+            WordPart::Text(_) => {}
+            WordPart::Variable(reference) => {
+                footprint.reads_unbounded |= in_index;
+                footprint.reads.push(original_reference_cell(
+                    reference.name,
+                    reference.index.is_some(),
+                    policy,
+                ));
+                if let Some(index) = reference.index {
+                    pending.extend(index.into_iter().map(|part| (part, true)));
+                }
+            }
+            WordPart::Command(_) | WordPart::Expression(_) | WordPart::ParseError(_) => {
+                footprint.reads_unbounded = true;
+                footprint.runs_commands = true;
+            }
+        }
     }
 }
 
@@ -3746,7 +4648,7 @@ fn source_call(
             args,
             tokens,
         }),
-        Statement::Call { .. } | Statement::Barrier { .. } => {
+        Statement::Call { .. } | Statement::Barrier { .. } | Statement::NativeCall { .. } => {
             Err(SourceCompatibilityDecline::MissingCommandTokens { statement_index })
         }
         other => Err(SourceCompatibilityDecline::UnsupportedStatement {
@@ -3781,11 +4683,11 @@ fn exact_words(
 /// retained in executable IR.
 fn resolve_invocation_facts(
     registry: &CommandRegistry,
-    context: Option<SemanticContext>,
-    words: &[WordExpr],
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &crate::ir::CommandTokens,
     statement_index: usize,
 ) -> Result<InvocationResolution, SourceCompatibilityDecline> {
-    match resolve_word_exprs(registry, context, words) {
+    match resolve_command_tokens_with_metadata_context(registry, context, tokens) {
         Ok(resolution) => Ok(resolution),
         Err(RegistryInvocationDecline::MissingCommandHead) => {
             Err(SourceCompatibilityDecline::MissingCommandHead { statement_index })
@@ -3806,6 +4708,7 @@ fn statement_kind_name(statement: &Statement) -> &'static str {
         Statement::Call { .. } => "Call",
         Statement::Return { .. } => "Return",
         Statement::Barrier { .. } => "Barrier",
+        Statement::NativeCall { .. } => "NativeCall",
         Statement::Block { .. } => "Block",
         Statement::UpFrame { .. } => "UpFrame",
         Statement::If { .. } => "If",
@@ -3888,6 +4791,8 @@ enum Stage {
         completion: CompletionId,
         resolution: InvocationResolution,
         original_words: Vec<WordExpr>,
+        source_binding: Option<Box<crate::command_binding::SourceInvocationBinding>>,
+        effective_words: Option<crate::registry_invocation::EffectiveCommandWords>,
         node: NodeId,
         source: SourceSite,
     },
@@ -3981,6 +4886,8 @@ impl Stage {
                 completion,
                 resolution,
                 original_words,
+                source_binding,
+                effective_words,
                 node,
                 source,
             } => vec![ExecutableInstruction::Invoke(GenericInvoke {
@@ -3988,6 +4895,8 @@ impl Stage {
                 argv,
                 resolution,
                 original_words,
+                source_binding: source_binding.map(|binding| *binding),
+                effective_words,
                 node,
                 source,
             })],
@@ -4034,6 +4943,12 @@ mod tests {
             all_tokens: Vec::new(),
             expand_word: None,
             synthetic: None,
+            evaluated_body: None,
+            source_binding: None,
+            nested_bindings: Vec::new(),
+            variable_accesses: Vec::new(),
+            hosted_taint_context: None,
+            source_bpf_command: None,
         }
     }
 
@@ -4068,6 +4983,207 @@ mod tests {
                 _ => None,
             })
             .expect("generic invocation")
+    }
+
+    #[test]
+    fn supplied_executable_metadata_keeps_availability_inside_nested_regions() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Fixed IR metadata control, without a Native entry or execution claim.
+        use std::sync::Arc;
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut puts = registry.get("puts").unwrap().clone();
+        puts.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(puts);
+        let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let registry = current.commands();
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(registry)),
+        );
+        let call = call(vec![literal("puts", 0), literal("VALUE", 5)]);
+        let script = Script::from_statements(vec![
+            Statement::If {
+                span: Span::new(0, 20),
+                clauses: vec![crate::ir::IfClause {
+                    condition: ExprNode::Literal {
+                        text: "1".into(),
+                        start: 0,
+                        end: 1,
+                    },
+                    condition_span: Span::new(0, 1),
+                    body: Script::from_statements(vec![call.clone()]),
+                    body_span: Span::new(0, 20),
+                    condition_base: None,
+                }],
+                else_body: None,
+                else_span: None,
+            },
+            call,
+        ]);
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        for (availability, expected) in [(Arc::clone(&current), true), (older, false)] {
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                availability,
+                tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+            );
+            let context = InvocationMetadataContext::for_analysis_input(registry, &input);
+            let function = build_linear_executable_ir_with_metadata_context(
+                registry,
+                context,
+                ExecutableFunctionId::new(398),
+                &script,
+            )
+            .expect("complete supplied metadata");
+            function.validate().unwrap();
+            let calls: Vec<_> = function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .filter_map(|instruction| match instruction {
+                    ExecutableInstruction::Invoke(call) => Some(call),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(calls.len(), 2);
+            assert!(calls.iter().any(|call| call.node.path().len() > 1));
+            assert!(
+                calls.iter().all(|call| matches!(
+                    call.resolution,
+                    InvocationResolution::Resolved(_)
+                ) == expected)
+            );
+        }
+    }
+
+    #[test]
+    fn supplied_executable_metadata_refuses_missing_and_foreign_owners() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        let script =
+            Script::from_statements(vec![call(vec![literal("puts", 0), literal("VALUE", 5)])]);
+        assert_ne!(
+            current.commands().snapshot().semantic_key(),
+            foreign.commands().snapshot().semantic_key()
+        );
+        for context in [None, Some(InvocationMetadataContext::from(foreign))] {
+            assert_eq!(
+                build_linear_executable_ir_with_metadata_context(
+                    current.commands(),
+                    context,
+                    ExecutableFunctionId::new(397),
+                    &script,
+                ),
+                Err(ExecutableMetadataBuildDecline::ContextUnavailable)
+            );
+        }
+    }
+
+    #[test]
+    fn explicit_unknown_dispatch_keeps_runtime_words_without_builtin_facts() {
+        let registry = CommandRegistry::build_default();
+        let mut statement = call(vec![literal("set", 0), literal("x", 4), literal("1", 6)]);
+        let Statement::Call {
+            tokens: Some(tokens),
+            ..
+        } = &mut statement
+        else {
+            unreachable!();
+        };
+        tokens.source_binding = Some(crate::command_binding::SourceInvocationBinding::unknown());
+        let function = build_linear_executable_ir(
+            &registry,
+            Some(test_context()),
+            ExecutableFunctionId::new(399),
+            &Script::from_statements(vec![statement]),
+        )
+        .expect("unknown dispatch remains executable");
+        function.validate().expect("valid runtime invocation");
+        let invocation = find_invoke(&function);
+        assert!(matches!(
+            invocation.resolution,
+            InvocationResolution::Unresolved(_)
+        ));
+        assert!(invocation.effective_words.is_none());
+        assert_eq!(invocation.original_words[0].legacy_text(), "set");
+        assert!(!invocation.registry_specialisation_arguments_exact());
+    }
+
+    #[test]
+    fn alias_prefix_facts_do_not_rewrite_runtime_argument_evaluation() {
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir(
+            "interp alias {} prefixed {} list inserted\nprefixed $value",
+            &registry,
+        );
+        let statement = module
+            .top_level
+            .statements
+            .last()
+            .expect("alias invocation")
+            .clone();
+        let function = build_linear_executable_ir(
+            &registry,
+            Some(test_context()),
+            ExecutableFunctionId::new(400),
+            &Script::from_statements(vec![statement]),
+        )
+        .expect("resolved alias remains executable");
+        function.validate().expect("valid runtime invocation");
+        let invocation = find_invoke(&function);
+        assert!(matches!(
+            invocation.resolution,
+            InvocationResolution::Resolved(_)
+        ));
+        assert_eq!(invocation.original_words.len(), 2);
+        assert_eq!(invocation.original_words[0].legacy_text(), "prefixed");
+        let effective = invocation
+            .effective_words
+            .as_ref()
+            .expect("proved alias arguments");
+        assert_eq!(effective.words[0].legacy_text(), "::list");
+        assert_eq!(effective.words[1].legacy_text(), "inserted");
+        assert_eq!(effective.words.len(), 3);
+        assert!(!invocation.registry_specialisation_arguments_exact());
+        assert_eq!(
+            instructions(&function)
+                .iter()
+                .filter(|instruction| matches!(
+                    instruction,
+                    ExecutableInstruction::EvaluateWord { .. }
+                ))
+                .count(),
+            2,
+            "only written words are evaluated"
+        );
+    }
+
+    #[test]
+    fn completed_cell_names_keep_literal_sigils_empty_roots_and_elements() {
+        for (value, root, element) in [
+            ("", "", false),
+            ("$name", "$name", false),
+            ("[name]", "[name]", false),
+            ("a($key)", "a", true),
+            ("($key)", "", true),
+            ("()", "", true),
+            ("a(b)c", "a(b)c", false),
+        ] {
+            assert_eq!(
+                CellReference::from_name_data(value),
+                CellReference::Named {
+                    name: root.to_owned(),
+                    element,
+                }
+            );
+        }
     }
 
     fn build(source: &str, id: usize) -> ExecutableFunction {
@@ -4468,7 +5584,10 @@ mod tests {
                 element: false
             }]
         );
-        assert!(operation.footprint.reads.is_empty());
+        assert_eq!(
+            operation.footprint.reads,
+            [] as [crate::executable_ir::CellReference; 0]
+        );
         assert!(operation.footprint.is_bounded());
         assert_eq!(operation.footprint.completion, vec![CompletionCode::Ok]);
     }
@@ -4516,7 +5635,10 @@ mod tests {
         assert_eq!(operation.footprint.writes, operation.footprint.reads);
         assert!(operation.footprint.is_bounded());
 
-        let unbounded = build("set total [expr {[step] + 1}]", 214);
+        let unbounded = build(
+            "proc step {} {return 2}; set total [expr {[step] + 1}]",
+            214,
+        );
         let operation = instructions(&unbounded)
             .into_iter()
             .find_map(|instruction| match instruction {
@@ -4529,6 +5651,314 @@ mod tests {
             "a command substitution in the operand is not bounded by a cell footprint"
         );
         assert!(!operation.footprint.is_bounded());
+    }
+
+    #[test]
+    fn source_footprints_use_original_name_data_and_refuse_detached_carriers() {
+        for (source, expected) in [
+            (r"set a\x62 1", "ab"),
+            ("set {$name} 1", "$name"),
+            ("set {} 1", ""),
+        ] {
+            let mut function = build(source, 223);
+            let operation = function
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find_map(|instruction| match instruction {
+                    ExecutableInstruction::ExecuteLowered(operation) => Some(operation),
+                    _ => None,
+                })
+                .expect("genuine original lowered source assignment");
+            assert_eq!(
+                operation.footprint.writes,
+                vec![CellReference::Named {
+                    name: expected.to_owned(),
+                    element: false
+                }]
+            );
+            let original = operation
+                .original_tokens
+                .take()
+                .expect("Script-issued original command");
+            let detached = lowered_operation_footprint(&operation.statement, None);
+            assert_eq!(detached.writes, vec![CellReference::Computed]);
+            assert!(!detached.is_bounded());
+            operation.original_tokens = Some(original);
+            assert!(function.validate().is_ok());
+        }
+    }
+
+    #[test]
+    fn world_word_source_metadata_retains_full_input_not_borrowed_availability() {
+        let fixture = crate::provider_fixtures::original_native_module(
+            "list $array([rename old new])",
+            "tcl8.6",
+        );
+        let (context, module) = &*fixture;
+        let actual = InvocationMetadataContext::for_module(context.commands(), module).unwrap();
+        let availability_only = InvocationMetadataContext::from(context.as_ref());
+        for (metadata, expected) in [(actual, Some(Some(true))), (availability_only, Some(None))] {
+            let function = build_linear_executable_ir_with_metadata_context(
+                context.commands(),
+                Some(metadata),
+                ExecutableFunctionId::new(1740),
+                &module.top_level,
+            )
+            .unwrap();
+            let (value, word) = instructions(&function)
+                .into_iter()
+                .find_map(|instruction| {
+                    if let ExecutableInstruction::EvaluateWord { value, word, .. } = instruction {
+                        (word.source().span.start() > 0).then_some((*value, word))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            assert_eq!(
+                function.original_word_command_effects(value, word),
+                expected
+            );
+        }
+    }
+
+    fn original_expression_source(
+        source: &str,
+        dialect: &str,
+    ) -> (
+        crate::provider_fixtures::OriginalNativeModuleFixture,
+        ExecutableFunction,
+    ) {
+        let fixture = crate::provider_fixtures::original_native_module(source, dialect);
+        let (context, module) = &*fixture;
+        let function = build_linear_executable_ir_with_metadata_context(
+            context.commands(),
+            crate::registry_invocation::InvocationMetadataContext::for_module(
+                context.commands(),
+                module,
+            ),
+            ExecutableFunctionId::new(225),
+            &module.top_level,
+        )
+        .expect("actual retained source expression under live Native owner");
+        (fixture, function)
+    }
+
+    fn expression_operation(function: &ExecutableFunction) -> &LoweredOperation {
+        instructions(function)
+            .into_iter()
+            .find_map(|instruction| match instruction {
+                ExecutableInstruction::ExecuteLowered(operation)
+                    if matches!(operation.statement, Statement::ExprEval { .. }) =>
+                {
+                    Some(operation)
+                }
+                _ => None,
+            })
+            .expect("actual lowered expression source operation")
+    }
+
+    #[test]
+    fn cursor_loop_names_use_original_list_values_and_refuse_changed_receivers() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let (_source_owner, function) = original_expression_source(
+                "foreach {$literal {a b} a($key) {}} {1 2 3 4} {set result 1}",
+                dialect,
+            );
+            function.validate().expect("authentic cursor source");
+            let groups = instructions(&function)
+                .into_iter()
+                .find_map(|instruction| {
+                    if let ExecutableInstruction::IterateLists { groups, .. } = instruction {
+                        Some(groups)
+                    } else {
+                        None
+                    }
+                })
+                .expect("actual list iteration");
+            assert_eq!(
+                groups[0].variables,
+                vec![
+                    CellReference::Named {
+                        name: "$literal".to_owned(),
+                        element: false
+                    },
+                    CellReference::Named {
+                        name: "a b".to_owned(),
+                        element: false
+                    },
+                    CellReference::Named {
+                        name: "a".to_owned(),
+                        element: true
+                    },
+                    CellReference::Named {
+                        name: String::new(),
+                        element: false
+                    },
+                ],
+                "{dialect}"
+            );
+        }
+        let fixture = crate::provider_fixtures::original_native_module(
+            "foreach {$literal} X {set result 1}",
+            "tcl9.0",
+        );
+        let (context, module) = &*fixture;
+        let registry = context.commands();
+        let statement = &module.top_level.statements[0];
+        let Statement::Foreach { iterators, .. } = statement else {
+            panic!("actual loop")
+        };
+        assert!(original_list_iterator_names(registry, statement, iterators).is_some());
+        let mut detached = statement.clone();
+        if let Statement::Foreach {
+            raw_tokens: Some(tokens),
+            ..
+        } = &mut detached
+        {
+            tokens.source_binding = None;
+        }
+        assert!(original_list_iterator_names(registry, &detached, iterators).is_none());
+        let mut changed = iterators.clone();
+        changed[0].vars[0] = "OTHER".to_owned();
+        assert!(original_list_iterator_names(registry, statement, &changed).is_none());
+    }
+
+    #[test]
+    fn file_line_analysis_cannot_be_emitted_as_a_list_cursor() {
+        let registry = CommandRegistry::build_default();
+        let module =
+            crate::lowering::lower_to_ir("foreachLine {a b} input.txt {set result 1}", &registry);
+        let Statement::Foreach { iterators, .. } = &module.top_level.statements[0] else {
+            panic!("actual file-line analysis shape");
+        };
+        assert_eq!(iterators[0].vars, vec!["a b"]);
+        assert!(matches!(
+            build_linear_executable_ir(
+                &registry,
+                Some(test_context()),
+                ExecutableFunctionId::new(226),
+                &module.top_level
+            ),
+            Err(SourceCompatibilityDecline::UnsupportedStatement {
+                kind: "unowned or non-list iteration",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn expression_footprints_keep_original_reference_form_and_index_reads() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            for (source, expected, unbounded, commands) in [
+                ("expr {${a(k)}}", vec![("a", true)], false, false),
+                ("expr {${a($k)}}", vec![("a", true)], false, false),
+                (
+                    "expr {$a($k)}",
+                    vec![("a", true), ("k", false)],
+                    true,
+                    false,
+                ),
+                (
+                    "expr {$a($b($k))}",
+                    vec![("a", true), ("b", true), ("k", false)],
+                    true,
+                    false,
+                ),
+                ("expr {$a([index])}", vec![("a", true)], true, true),
+                ("expr {${a([index])}}", vec![("a", true)], false, false),
+                ("expr {${$name}}", vec![("$name", false)], false, false),
+                ("expr {${}}", vec![("", false)], false, false),
+                ("expr {${a(b)c}}", vec![("a(b)c", false)], false, false),
+                (r#"expr {"pre$k"}"#, vec![("k", false)], false, false),
+                ("expr {{pre$k}}", vec![], false, false),
+                (
+                    r#"expr {"$a($k)"}"#,
+                    vec![("a", true), ("k", false)],
+                    true,
+                    false,
+                ),
+            ] {
+                let (_source_owner, function) = original_expression_source(source, dialect);
+                function.validate().expect("unchanged authentic footprint");
+                let operation = expression_operation(&function);
+                let Statement::ExprEval {
+                    expr, expr_base, ..
+                } = &operation.statement
+                else {
+                    panic!("actual source expression");
+                };
+                assert!(
+                    crate::registry_invocation::original_lowered_expression_syntax(
+                        expr,
+                        *expr_base,
+                        operation.original_tokens.as_deref().unwrap(),
+                    )
+                    .unwrap()
+                    .1
+                    .is_some(),
+                    "{dialect}: {source}: selected original expression and recipe"
+                );
+                let expected = expected
+                    .into_iter()
+                    .map(|(name, element)| CellReference::Named {
+                        name: name.to_owned(),
+                        element,
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(operation.footprint.reads, expected, "{dialect}: {source}");
+                assert_eq!(
+                    operation.footprint.reads_unbounded, unbounded,
+                    "{dialect}: {source}"
+                );
+                assert_eq!(
+                    operation.footprint.runs_commands, commands,
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn expression_footprints_refuse_missing_or_changed_whole_source_syntax() {
+        let (_source_owner, function) = original_expression_source("expr {$a($k)}", "tcl8.6");
+        let operation = expression_operation(&function);
+        let mut detached = operation.original_tokens.as_deref().unwrap().clone();
+        detached.source_binding = None;
+        for tokens in [None, Some(&detached)] {
+            let footprint = lowered_operation_footprint(&operation.statement, tokens);
+            assert_eq!(footprint.reads, vec![CellReference::Computed]);
+            assert!(footprint.reads_unbounded);
+        }
+        let mut changed = operation.original_tokens.as_deref().unwrap().clone();
+        changed.argv_texts[1] = "OTHER".to_owned();
+        let footprint = lowered_operation_footprint(&operation.statement, Some(&changed));
+        assert_eq!(footprint.reads, vec![CellReference::Computed]);
+        assert!(footprint.reads_unbounded);
+
+        let (_other_owner, other) = original_expression_source("expr {$other}", "tcl8.6");
+        let mut changed_ast = operation.statement.clone();
+        if let (Statement::ExprEval { expr, .. }, Statement::ExprEval { expr: other, .. }) =
+            (&mut changed_ast, &expression_operation(&other).statement)
+        {
+            *expr = other.clone();
+        } else {
+            panic!("authentic expression operations");
+        }
+        let footprint =
+            lowered_operation_footprint(&changed_ast, operation.original_tokens.as_deref());
+        assert_eq!(footprint.reads, vec![CellReference::Computed]);
+        assert!(footprint.reads_unbounded);
+
+        let (_foreign_owner, foreign) =
+            original_expression_source("set prefix 1; expr {$a($k)}", "tcl8.6");
+        let footprint = lowered_operation_footprint(
+            &operation.statement,
+            expression_operation(&foreign).original_tokens.as_deref(),
+        );
+        assert_eq!(footprint.reads, vec![CellReference::Computed]);
+        assert!(footprint.reads_unbounded);
     }
 
     #[test]
@@ -4559,7 +5989,7 @@ mod tests {
     #[test]
     fn a_structured_region_still_isolates_the_statements_around_it() {
         let function = build(
-            "set total 0\nforeach item $items {incr total $item}\nreturn $total",
+            "set total 0\nforeach item {1 2} {incr total}\nreturn $total",
             216,
         );
         let descriptors: Vec<_> = instructions(&function)
@@ -4573,6 +6003,33 @@ mod tests {
         assert!(descriptors.contains(&LoweringHookId::Set));
         assert!(descriptors.contains(&LoweringHookId::Foreach));
         assert!(descriptors.contains(&LoweringHookId::Return));
+    }
+
+    #[test]
+    fn unknown_foreach_conversion_preserves_generic_later_dispatch() {
+        let function = build(
+            "set total 0\nforeach item $items {incr total $item}\nreturn $total",
+            217,
+        );
+        assert!(instructions(&function).iter().any(|instruction| matches!(
+            instruction,
+            ExecutableInstruction::CompleteStructuredRegion(StructuredRegion {
+                descriptor: LoweringHookId::Foreach,
+                ..
+            })
+        )));
+        assert!(instructions(&function).iter().any(|instruction| matches!(
+            instruction,
+            ExecutableInstruction::Invoke(invoke)
+                if invoke.original_words.first().is_some_and(|word| word.legacy_text() == "return")
+        )));
+        assert!(!instructions(&function).iter().any(|instruction| matches!(
+            instruction,
+            ExecutableInstruction::ExecuteLowered(LoweredOperation {
+                descriptor: LoweringHookId::Return,
+                ..
+            })
+        )));
     }
 
     #[test]
@@ -4666,7 +6123,10 @@ mod tests {
 
         assert_eq!(facts.canonical_command, "incr");
         assert_ne!(facts.operation, SemanticOperationId::Invoke);
-        assert_eq!(facts.completion, CompletionDescriptor::CONSERVATIVE);
+        assert_eq!(
+            facts.completion,
+            CompletionDescriptor::exact(&[CompletionCode::Ok, CompletionCode::Error])
+        );
         assert!(facts.effects.requires_world_barrier());
         assert_eq!(facts.return_type, Some(TclType::Int));
         assert_eq!(facts.arg_roles, vec![(0, ArgRole::VarWrite)]);
@@ -4788,10 +6248,10 @@ mod tests {
     }
 
     #[test]
-    fn corpus_accumulator_keeps_facts_around_foreach_region() {
+    fn corpus_counter_keeps_facts_around_closed_foreach_region() {
         let registry = CommandRegistry::build_default();
         let module = crate::lowering::lower_to_ir(
-            "set total 0\nforeach item $items {incr total $item}\nreturn $total",
+            "set total 0\nforeach item {1 2} {incr total}\nreturn $total",
             &registry,
         );
         let function = build_linear_executable_ir(
@@ -4999,6 +6459,8 @@ mod tests {
                 },
             ),
             original_words: vec![literal("fixture", 0)],
+            source_binding: None,
+            effective_words: None,
             node: NodeId::from_path(vec![0]),
             source: site.clone(),
         };

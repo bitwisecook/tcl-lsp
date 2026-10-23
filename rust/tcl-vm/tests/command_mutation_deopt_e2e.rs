@@ -29,6 +29,19 @@ use tcl_vm::{
     ProcedureCompileTarget, ProcedureDispatch, ScriptCompileTarget, Value, Vm,
 };
 
+fn sole_compiled_procedure(module: &tcl_bytecode::ModuleAsm) -> &tcl_bytecode::FunctionAsm {
+    assert_eq!(
+        module.procedures.len(),
+        1,
+        "fixture must compile one original procedure"
+    );
+    module
+        .procedures
+        .values()
+        .next()
+        .expect("one compiler-issued body")
+}
+
 struct OptimisedOnlyCompilerSvc(BytecodeCompileService);
 
 struct DishonestPlainCompilerSvc(BytecodeCompileService);
@@ -38,6 +51,55 @@ struct ScriptOnlyCompilerSvc(BytecodeCompileService);
 /// Test-only executable pipeline which opts into the public IR inliner before
 /// CFG/codegen. Production `BytecodeCompileService` deliberately does not.
 struct InliningCompilerSvc(BytecodeCompileService);
+
+impl InliningCompilerSvc {
+    fn compile_script_with_ir(
+        &self,
+        target: ScriptCompileTarget<'_>,
+        profile: &'static DialectProfile,
+    ) -> Result<(tcl_bytecode::ModuleAsm, tcl_compiler::ir::Module), CompileError> {
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let config = LexerConfig::from_grammar(profile.grammar);
+        let ir = lower_script_module_for_bytecode(
+            target.source,
+            target.namespace,
+            registry,
+            config,
+            Some(profile),
+            false,
+        );
+        let ir = inline_module(ir, registry);
+        let cfg = build_cfg_codegen(&ir, false);
+        let module = codegen_module(&cfg, &ir, registry)?;
+        Ok((module, ir))
+    }
+}
+
+fn compiled_body_at_declaration<'a>(
+    ir: &tcl_compiler::ir::Module,
+    module: &'a tcl_bytecode::ModuleAsm,
+    declaration: usize,
+    report_name: &str,
+) -> &'a tcl_bytecode::FunctionAsm {
+    let span = ir.top_level.statements[declaration].span();
+    let mut bodies = ir
+        .procedures
+        .iter()
+        .filter(|(_, procedure)| procedure.span == span);
+    let (id, procedure) = bodies.next().expect("body at the original declaration");
+    assert!(
+        bodies.next().is_none(),
+        "one body at the original declaration"
+    );
+    assert_eq!(
+        procedure.qualified_name, report_name,
+        "fixture reporting name"
+    );
+    module
+        .procedures
+        .get(id)
+        .expect("same-module compiled body")
+}
 
 struct CountingCompilerSvc {
     inner: BytecodeCompileService,
@@ -184,9 +246,11 @@ impl NativeCommand for CompileOrInvokeHandle {
                     *self.0.borrow_mut() = Some(handle);
                     Completion::new(Code::Ok, Value::empty(), Value::empty())
                 }
-                Err(error) => {
-                    Completion::new(Code::Error, Value::string(error.message), Value::empty())
-                }
+                Err(error) => Completion::new(
+                    Code::Error,
+                    error.into_value().expect("guest fixture compilation error"),
+                    Value::empty(),
+                ),
             },
             Some("invoke") => {
                 let handle = self.0.borrow().clone().expect("handle compiled first");
@@ -215,6 +279,97 @@ impl NativeCommand for RunCompiledFunction {
 
 impl CompileService for OptimisedOnlyCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0.compile_script_bytes_for_profile(target, profile)
+    }
+    fn compile_substitution_with_entry(
+        &self,
+        target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_substitution_with_entry(target, profile, entry)
+    }
+
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        _target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        _profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        Err(tcl_runtime_api::CompileError::Unsupported(
+            "plain script compilation unavailable".into(),
+        ))
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        _target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        _profile: &'static tcl_dialect::DialectProfile,
+        _entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        Err(tcl_runtime_api::CompileError::Unsupported(
+            "plain script compilation unavailable".into(),
+        ))
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        if dispatch == tcl_runtime_api::ProcedureDispatch::Plain {
+            return Err(tcl_runtime_api::CompileError::Unsupported(
+                "plain procedure compilation unavailable".into(),
+            ));
+        }
+        self.0
+            .compile_procedure_bytes_for_profile(target, profile, dispatch)
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        if dispatch == tcl_runtime_api::ProcedureDispatch::Plain {
+            return Err(tcl_runtime_api::CompileError::Unsupported(
+                "plain procedure compilation unavailable".into(),
+            ));
+        }
+        self.0
+            .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
         self.0.compile(src)
@@ -227,7 +382,7 @@ impl CompileService for OptimisedOnlyCompilerSvc {
         dispatch: ProcedureDispatch,
     ) -> Result<Self::Module, CompileError> {
         if dispatch == ProcedureDispatch::Plain {
-            return Err(CompileError(
+            return Err(CompileError::Unsupported(
                 "plain procedure compilation unavailable".into(),
             ));
         }
@@ -238,6 +393,110 @@ impl CompileService for OptimisedOnlyCompilerSvc {
 
 impl CompileService for DishonestPlainCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0.compile_script_bytes_for_profile(target, profile)
+    }
+    fn compile_substitution_with_entry(
+        &self,
+        target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_substitution_with_entry(target, profile, entry)
+    }
+
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let mut module = self.0.compile_script_bytes_for_profile(target, profile)?;
+        module.top_level.command_bindings.clear();
+        for procedure in module.procedures.values_mut() {
+            procedure.command_bindings.clear();
+        }
+        Ok(module)
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let mut module = self
+            .0
+            .compile_script_bytes_with_entry(target, profile, entry)?;
+        module.top_level.command_bindings.clear();
+        for procedure in module.procedures.values_mut() {
+            procedure.command_bindings.clear();
+        }
+        Ok(module)
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let mut module = self.0.compile_procedure_bytes_for_profile(
+            target,
+            profile,
+            tcl_runtime_api::ProcedureDispatch::Optimised,
+        )?;
+        if dispatch == tcl_runtime_api::ProcedureDispatch::Plain {
+            module.top_level.command_bindings.clear();
+        }
+        Ok(module)
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let mut module = self.0.compile_procedure_bytes_with_entry(
+            target,
+            profile,
+            entry,
+            tcl_runtime_api::ProcedureDispatch::Optimised,
+        )?;
+        if dispatch == tcl_runtime_api::ProcedureDispatch::Plain {
+            module.top_level.command_bindings.clear();
+        }
+        Ok(module)
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
         self.0.compile(src)
@@ -273,6 +532,96 @@ impl CompileService for DishonestPlainCompilerSvc {
 
 impl CompileService for ScriptOnlyCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0.compile_script_bytes_for_profile(target, profile)
+    }
+    fn compile_substitution_with_entry(
+        &self,
+        target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_substitution_with_entry(target, profile, entry)
+    }
+
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        _target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        _profile: &'static tcl_dialect::DialectProfile,
+        _dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        Err(tcl_runtime_api::CompileError::Unsupported(
+            "procedure compilation unavailable".into(),
+        ))
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        _target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        _profile: &'static tcl_dialect::DialectProfile,
+        _entry: &tcl_runtime_api::NativeCompilationEntry,
+        _dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        Err(tcl_runtime_api::CompileError::Unsupported(
+            "procedure compilation unavailable".into(),
+        ))
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
+
+    fn compile_script_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.0.compile_script_with_entry(target, profile, entry)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
         self.0.compile(src)
@@ -297,6 +646,163 @@ impl CompileService for ScriptOnlyCompilerSvc {
 
 impl CompileService for InliningCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let config = LexerConfig::from_grammar(profile.grammar);
+        let ir = tcl_compiler::lowering::lower_script_bytes_module_for_bytecode_with_options(
+            target,
+            registry,
+            config,
+            Some(profile),
+            false,
+            None,
+        )
+        .map_err(|error| match error {
+            tcl_lexer::NativeWordError::Parse(message) => {
+                tcl_runtime_api::CompileError::Message(message.into())
+            }
+            error => tcl_runtime_api::CompileError::Unsupported(format!(
+                "original native word unavailable: {error:?}"
+            )),
+        })?;
+        let ir = inline_module(ir, registry);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry).expect("original source namespace"))
+    }
+    fn compile_substitution_with_entry(
+        &self,
+        target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        BytecodeCompileService::for_profile(profile)
+            .compile_substitution_with_entry(target, profile, entry)
+    }
+
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let config = LexerConfig::from_grammar(profile.grammar);
+        let ir = tcl_compiler::lowering::lower_script_bytes_module_for_bytecode_with_options(
+            target,
+            registry,
+            config,
+            Some(profile),
+            false,
+            Some(BytecodeCompileService::native_entry_options(
+                entry,
+                Some(profile),
+            )),
+        )
+        .map_err(|error| match error {
+            tcl_lexer::NativeWordError::Parse(message) => {
+                tcl_runtime_api::CompileError::Message(message.into())
+            }
+            error => tcl_runtime_api::CompileError::Unsupported(format!(
+                "original native word unavailable: {error:?}"
+            )),
+        })?;
+        let ir = inline_module(ir, registry);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry).expect("original source namespace"))
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_procedure_bytes_for_profile(target, profile, dispatch)
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
+
+    fn compile_script_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let config = LexerConfig::from_grammar(profile.grammar);
+        let ir = tcl_compiler::lowering::lower_script_module_for_bytecode_with_options(
+            target.source,
+            target.namespace,
+            registry,
+            config,
+            Some(profile),
+            false,
+            Some(BytecodeCompileService::native_entry_options(
+                entry,
+                Some(profile),
+            )),
+        );
+        let ir = inline_module(ir, registry);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry).expect("original source namespace"))
+    }
+
+    fn compile_procedure_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.0
+            .compile_procedure_with_entry(target, profile, entry, dispatch)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
         self.0.compile(src)
@@ -322,19 +828,8 @@ impl CompileService for InliningCompilerSvc {
         target: ScriptCompileTarget<'_>,
         profile: &'static DialectProfile,
     ) -> Result<Self::Module, CompileError> {
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let config = LexerConfig::from_grammar(profile.grammar);
-        let ir = lower_script_module_for_bytecode(
-            target.source,
-            target.namespace,
-            registry,
-            config,
-            Some(profile),
-            false,
-        );
-        let ir = inline_module(ir, registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
+        self.compile_script_with_ir(target, profile)
+            .map(|(module, _)| module)
     }
 
     fn compile_traced_for_profile(
@@ -346,7 +841,7 @@ impl CompileService for InliningCompilerSvc {
         let config = LexerConfig::from_grammar(profile.grammar);
         let ir = lower_to_ir_traced_with_dialect(src, registry, config, Some(profile));
         let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
+        Ok(codegen_module(&cfg, &ir, registry).expect("original source namespace"))
     }
 
     fn compile_plain_script_for_profile(
@@ -370,6 +865,131 @@ impl CompileService for InliningCompilerSvc {
 
 impl CompileService for CountingCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.fast_calls.set(self.fast_calls.get() + 1);
+        self.inner.compile_script_bytes_for_profile(target, profile)
+    }
+    fn compile_substitution_with_entry(
+        &self,
+        target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.fast_calls.set(self.fast_calls.get() + 1);
+        self.inner
+            .compile_substitution_with_entry(target, profile, entry)
+    }
+
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.fast_calls.set(self.fast_calls.get() + 1);
+        self.inner
+            .compile_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.plain_calls.set(self.plain_calls.get() + 1);
+        self.inner
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.plain_calls.set(self.plain_calls.get() + 1);
+        self.inner
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        match dispatch {
+            tcl_runtime_api::ProcedureDispatch::Optimised => {
+                self.fast_calls.set(self.fast_calls.get() + 1);
+            }
+            tcl_runtime_api::ProcedureDispatch::Plain => {
+                self.plain_calls.set(self.plain_calls.get() + 1);
+            }
+        }
+        self.inner
+            .compile_procedure_bytes_for_profile(target, profile, dispatch)
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        match dispatch {
+            tcl_runtime_api::ProcedureDispatch::Optimised => {
+                self.fast_calls.set(self.fast_calls.get() + 1);
+            }
+            tcl_runtime_api::ProcedureDispatch::Plain => {
+                self.plain_calls.set(self.plain_calls.get() + 1);
+            }
+        }
+        self.inner
+            .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.inner
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.inner
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
+
+    fn compile_script_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.fast_calls.set(self.fast_calls.get() + 1);
+        self.inner.compile_script_with_entry(target, profile, entry)
+    }
+
+    fn compile_procedure_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        match dispatch {
+            ProcedureDispatch::Optimised => self.fast_calls.set(self.fast_calls.get() + 1),
+            ProcedureDispatch::Plain => self.plain_calls.set(self.plain_calls.get() + 1),
+        }
+        self.inner
+            .compile_procedure_with_entry(target, profile, entry, dispatch)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
         self.fast_calls.set(self.fast_calls.get() + 1);
@@ -412,7 +1032,7 @@ impl std::io::Write for Capture {
 
 fn vm() -> (Vm, Capture) {
     let output = Capture::default();
-    let mut vm = Vm::with_output(Box::new(output.clone()));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(output.clone()));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     (vm, output)
 }
@@ -436,16 +1056,59 @@ fn eval_ok(vm: &mut Vm, source: &str) -> String {
     completion.result.to_str().to_string()
 }
 
+/// Cluster P test correction (every interpreter is a native core).
+///
+/// A native core's entered operation captures the pinned profile and the
+/// compile service in its currency receipt
+/// (`interp/native_operation_currency.rs`, unit test
+/// `original_vm_context_receipt_refuses_host_profile_compiler_and_pack_change_restore`).
+/// Switching either while bytecode of that operation is still entered or
+/// parked retires the receipt, so the first refusal is this host refusal: it
+/// reaches the embedder as `TclError::Host`, outside every guest `catch`/`try`
+/// and before the stale bytecode can take another step. These scenarios used
+/// to expect the guest error `cannot continue bytecode after … changed`, which
+/// the engine-less VM raised one tick later. tclsh has no mid-run release or
+/// compiler switch, so no C behaviour is at stake; the run still fails closed.
+const MID_RUN_SWITCH_REFUSAL: &str = "entered VM original execution context";
+
+fn is_mid_run_switch_refusal(error: &tcl_runtime_api::NativeExecutionError) -> bool {
+    matches!(
+        error,
+        tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(reason)
+        ) if *reason == MID_RUN_SWITCH_REFUSAL
+    )
+}
+
+fn assert_mid_run_switch_refused(result: Result<Completion<Value>, tcl_vm::TclError>, label: &str) {
+    match result {
+        Err(tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(error)))
+            if is_mid_run_switch_refusal(&error) => {}
+        Err(error) => panic!("{label}: expected the mid-run switch refusal, got {error:?}"),
+        Ok(completion) => {
+            panic!("{label}: a mid-run switch must be refused at the host boundary: {completion:?}")
+        }
+    }
+}
+
 #[test]
 fn explicit_inline_codegen_pipeline_invalidates_after_user_proc_redefinition() {
     let profile = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
     let source = "proc target {} {return OLD}; proc caller {} {target}";
     let service = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
-    let module = service
-        .compile_for_profile(source, profile)
+    let (module, ir) = service
+        .compile_script_with_ir(
+            ScriptCompileTarget {
+                source,
+                namespace: "",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
+            },
+            profile,
+        )
         .expect("explicit inline pipeline compiles");
     assert_eq!(
-        module.procedures["::caller"].procedure_bindings,
+        compiled_body_at_declaration(&ir, &module, ir.top_level.statements.len() - 1, "::caller")
+            .procedure_bindings,
         [tcl_runtime_api::ProcedureBindingIdentity::new(
             "target",
             "::target",
@@ -455,8 +1118,7 @@ fn explicit_inline_codegen_pipeline_invalidates_after_user_proc_redefinition() {
         "the consumed target call must survive codegen as an exact typed dependency",
     );
 
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(InliningCompilerSvc(
         BytecodeCompileService::for_profile(profile),
     )));
@@ -500,11 +1162,24 @@ fn inlined_bare_procedure_call_revalidates_resolution_after_local_shadow() {
         "proc ::N::caller {} {target}",
     );
     let service = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
-    let module = service
-        .compile_for_profile(source, profile)
+    let (module, ir) = service
+        .compile_script_with_ir(
+            ScriptCompileTarget {
+                source,
+                namespace: "",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
+            },
+            profile,
+        )
         .expect("explicit inline pipeline compiles");
     assert_eq!(
-        module.procedures["::N::caller"].procedure_bindings,
+        compiled_body_at_declaration(
+            &ir,
+            &module,
+            ir.top_level.statements.len() - 1,
+            "::N::caller"
+        )
+        .procedure_bindings,
         [tcl_runtime_api::ProcedureBindingIdentity::in_namespace(
             "N",
             "target",
@@ -515,8 +1190,7 @@ fn inlined_bare_procedure_call_revalidates_resolution_after_local_shadow() {
         "the erased call must retain its source resolution and selected definition",
     );
 
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(InliningCompilerSvc(
         BytecodeCompileService::for_profile(profile),
     )));
@@ -560,10 +1234,18 @@ fn inlined_namespaced_body_revalidates_commands_in_its_defining_namespace() {
         "proc caller {} {::n::callee}\n",
     );
     let service = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
-    let module = service
-        .compile_for_profile(source, profile)
+    let (module, ir) = service
+        .compile_script_with_ir(
+            ScriptCompileTarget {
+                source,
+                namespace: "",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
+            },
+            profile,
+        )
         .expect("explicit inline pipeline compiles");
-    let caller = &module.procedures["::caller"];
+    let caller =
+        compiled_body_at_declaration(&ir, &module, ir.top_level.statements.len() - 1, "::caller");
     assert!(
         caller
             .procedure_bindings
@@ -580,8 +1262,7 @@ fn inlined_namespaced_body_revalidates_commands_in_its_defining_namespace() {
         "the copied expr specialisation must retain the callee's defining namespace",
     );
 
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(InliningCompilerSvc(
         BytecodeCompileService::for_profile(profile),
     )));
@@ -641,15 +1322,30 @@ fn active_inlined_namespaced_boundary_replays_in_its_defining_namespace() {
         "proc caller_e {} {::e::callee}\n",
     );
     let service = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
-    let module = service
-        .compile_for_profile(source, profile)
+    let (module, ir) = service
+        .compile_script_with_ir(
+            ScriptCompileTarget {
+                source,
+                namespace: "",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
+            },
+            profile,
+        )
         .expect("explicit inline pipeline compiles");
-    for (caller_name, callee_name, namespace) in [
+    for (index, (caller_name, callee_name, namespace)) in [
         ("::caller_n", "::n::callee", "n"),
         ("::caller_m", "::m::callee", "m"),
         ("::caller_e", "::e::callee", "e"),
-    ] {
-        let caller = &module.procedures[caller_name];
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let caller = compiled_body_at_declaration(
+            &ir,
+            &module,
+            ir.top_level.statements.len() - 3 + index,
+            caller_name,
+        );
         assert!(
             caller
                 .procedure_bindings
@@ -666,13 +1362,13 @@ fn active_inlined_namespaced_boundary_replays_in_its_defining_namespace() {
             })
             .expect("the inlined expr has a stale-command replay boundary");
         assert_eq!(
-            expr_boundary.source_command_namespace, namespace,
+            expr_boundary.source_command_namespace.as_segments(),
+            [tcl_core_types::NameBytes::from(namespace)].as_slice(),
             "the replay target must retain the callee's constructed namespace",
         );
     }
 
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(InliningCompilerSvc(
         BytecodeCompileService::for_profile(profile),
     )));
@@ -734,8 +1430,7 @@ fn namespaced_boundary_replay_preserves_the_frame_namespace_pairing() {
         "llength $::trigger; puts -nonewline {}; expr {40 + 2}}\n",
         "proc caller {} {::n::callee}\n",
     );
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(InliningCompilerSvc(
         BytecodeCompileService::for_profile(profile),
     )));
@@ -766,8 +1461,7 @@ fn top_level_cross_namespace_call_keeps_its_proc_frame_and_matches_tcl90() {
         "a cross-namespace top-level call must keep its Tcl procedure frame",
     );
 
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(InliningCompilerSvc(
         BytecodeCompileService::for_profile(profile),
     )));
@@ -890,7 +1584,7 @@ fn compiler_swap_invalidates_cached_eval_in_both_directions() {
 
 #[test]
 fn owned_registry_controls_value_position_constant_folds() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(custom_compile_service()));
 
     // `set`'s value is emitted through the shared value-position fold and
@@ -935,7 +1629,7 @@ fn source_less_vm_runs_a_self_contained_foreign_module_proc_as_supplied() {
     let module = BytecodeCompileService::default()
         .compile("proc foreign_self {} {list {1 + 2}}; foreign_self")
         .expect("default module compiles");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
 
     let completion = vm.run_module(&module);
     assert_eq!(completion.code, Code::Ok, "{completion:?}");
@@ -956,7 +1650,7 @@ fn source_less_vm_admits_multiple_exact_bodies_for_one_foreign_proc_name() {
     let second = service
         .compile("proc same_name {value} {return SECOND-$value}; same_name ok")
         .expect("second module compiles");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
 
     let completion = vm.run_module(&first);
     assert_eq!(completion.code, Code::Ok, "{completion:?}");
@@ -981,7 +1675,7 @@ fn source_less_vm_uses_each_foreign_modules_same_source_proc_artifact() {
     let custom = custom_compile_service()
         .compile(source)
         .expect("custom module compiles");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
 
     for (module, expected) in [(&default, "{1 + 2}"), (&custom, "3"), (&default, "{1 + 2}")] {
         let completion = vm.run_module(module);
@@ -996,16 +1690,23 @@ fn foreign_proc_provenance_name_must_match_its_module_entry() {
     let mut malformed = service
         .compile("proc wrong {} {return POISON}")
         .expect("malformed source module starts valid");
+    assert_eq!(malformed.procedures.len(), 1, "one original procedure");
+    let id = *malformed
+        .procedures
+        .keys()
+        .next()
+        .expect("compiler-issued body");
     let provenance = malformed
         .procedure_provenance
-        .get_mut("::wrong")
-        .expect("wrong provenance exists");
+        .get_mut(&id)
+        .expect("original procedure provenance exists");
+    assert_eq!(provenance.name, "::wrong");
     provenance.name = "::target".to_owned();
     provenance.body = "return CLAIMED".to_owned();
     let valid = service
         .compile("proc target {} {return CLAIMED}; target")
         .expect("valid module compiles");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
 
     // A source-less VM cannot compile the malformed module's unmatched proc
     // definition, but merely admitting it must not poison another name.
@@ -1053,15 +1754,13 @@ fn suspended_coroutine_fails_closed_after_compiler_swap() {
         "ready"
     );
 
+    // Cluster P correction: the parked coroutine's operation receipt was
+    // captured under the old compile service, so resuming it is refused at
+    // the host boundary (`assert_mid_run_switch_refused`).
     vm.set_compiler(Box::new(custom_compile_service()));
-    let completion = vm.eval_source("c").expect("resume compiles");
-    assert_eq!(completion.code, Code::Error);
-    assert_eq!(
-        completion.result.to_str().as_ref(),
-        "cannot continue bytecode after compile service changed"
-    );
+    assert_mid_run_switch_refused(vm.eval_source("c"), "resume after swap to custom");
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(custom_compile_service()));
     assert_eq!(
         eval_ok(
@@ -1071,12 +1770,7 @@ fn suspended_coroutine_fails_closed_after_compiler_swap() {
         "ready"
     );
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    let completion = vm.eval_source("c").expect("resume compiles");
-    assert_eq!(completion.code, Code::Error);
-    assert_eq!(
-        completion.result.to_str().as_ref(),
-        "cannot continue bytecode after compile service changed"
-    );
+    assert_mid_run_switch_refused(vm.eval_source("c"), "resume after swap to default");
 }
 
 #[test]
@@ -1176,13 +1870,10 @@ fn tailcall_non_ok_after_compiler_swap_rejects_the_stale_parent() {
             ),
         );
 
-        let completion = vm.eval_source("parent").expect("source compiles");
-        assert_eq!(completion.code, Code::Error, "{name}: {completion:?}");
-        assert_eq!(
-            completion.result.to_str().as_ref(),
-            "cannot continue bytecode after compile service changed",
-            "{name}"
-        );
+        // Cluster P correction (`assert_mid_run_switch_refused`): the stale
+        // parent never continues past the tailcall, and `return unreachable`
+        // cannot become the result.
+        assert_mid_run_switch_refused(vm.eval_source("parent"), name);
     }
 }
 
@@ -1204,7 +1895,7 @@ fn final_native_compiler_swap_cannot_settle_old_deferred_bytecode() {
             "{source}"
         );
 
-        let mut vm = Vm::new();
+        let mut vm = tcl_vm::test_support::native_vm();
         vm.set_compiler(Box::new(custom_compile_service()));
         vm.register_native_command("switch_compiler", Rc::new(SwitchCompilerToDefault));
         let completion = vm.eval_source(source).expect("source compiles");
@@ -1225,13 +1916,9 @@ fn stale_coroutine_ancestor_cannot_leak_from_fresh_try_handler_or_finally() {
     ] {
         let (mut vm, _output) = vm();
         vm.register_native_command("switch_compiler", Rc::new(SwitchCompilerToCustom));
-        let completion = vm.eval_source(source).expect("coroutine source compiles");
-        assert_eq!(completion.code, Code::Error, "{source}: {completion:?}");
-        assert_eq!(
-            completion.result.to_str().as_ref(),
-            "cannot continue bytecode after compile service changed",
-            "{source}"
-        );
+        // Cluster P correction (`assert_mid_run_switch_refused`): the fresh
+        // handler or finally clause never yields `leaked`.
+        assert_mid_run_switch_refused(vm.eval_source(source), source);
         assert_eq!(eval_ok(&mut vm, "info commands c"), "");
     }
 }
@@ -1246,13 +1933,12 @@ fn fresh_try_return_cannot_pop_a_stale_directly_invoked_proc() {
         vm.register_native_command("switch_compiler", Rc::new(SwitchCompilerToCustom));
         eval_ok(&mut vm, &format!("proc p {{}} {{{body}}}"));
 
-        let completion = vm.invoke_command("p", &[]);
-        assert_eq!(completion.code, Code::Error, "{body}: {completion:?}");
-        assert_eq!(
-            completion.result.to_str().as_ref(),
-            "cannot continue bytecode after compile service changed",
-            "{body}"
-        );
+        // Cluster P correction (`assert_mid_run_switch_refused`): through the
+        // fallible host entry, since `invoke_command` panics on a host refusal.
+        match vm.try_invoke_command("p", &[]) {
+            Err(error) if is_mid_run_switch_refusal(&error) => {}
+            other => panic!("{body}: expected the mid-run switch refusal, got {other:?}"),
+        }
     }
 }
 
@@ -1267,18 +1953,17 @@ fn terminal_profile_flips_fail_closed_in_catch_try_and_trace() {
         "set head try; $head {switch_profile}",
         "set x 0; trace add variable x write switch_profile; set x 1",
     ] {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(v90);
+        let mut vm = tcl_vm::test_support::native_vm_for_profile(v90, Box::new(std::io::stdout()));
         vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v90)));
         vm.register_native_command("switch_profile", Rc::new(SwitchProfileAndOk(v84)));
 
-        let completion = vm.eval_source(source).expect("Tcl 9.0 source compiles");
-        assert_eq!(completion.code, Code::Error, "{source}: {completion:?}");
-        assert_eq!(
-            completion.result.to_str().as_ref(),
-            "cannot continue bytecode after dialect profile changed",
-            "{source}"
-        );
+        // Cluster P correction: the switch is refused at the host boundary
+        // (see `assert_mid_run_switch_refused`), not as a guest error a
+        // `catch`/`try` or trace could absorb.
+        assert_mid_run_switch_refused(vm.eval_source(source), source);
+        // The refusal is retired at the outer boundary; the interpreter keeps
+        // running under the profile the host selected.
+        assert_eq!(eval_ok(&mut vm, "set after 1"), "1", "{source}");
     }
 }
 
@@ -1363,34 +2048,29 @@ fn runtime_foreach_revalidates_after_a_loop_variable_write_trace() {
 fn runtime_foreach_does_not_tag_old_profile_assembly_as_fresh() {
     let v90 = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
     let v84 = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(v90);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(v90, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v90)));
 
     let body_calls = Rc::new(Cell::new(0));
     vm.register_native_command("count_body", Rc::new(CountCalls(Rc::clone(&body_calls))));
     vm.register_native_command("switch_profile", Rc::new(SwitchProfileAndContinue(v84)));
 
-    let completion = vm
-        .eval_source(
-            "set loop foreach; \
-             $loop i {0 1} {\
-                 count_body; \
-                 if {$i == 0} {switch_profile}; \
-                 lassign {a b} x; \
-                 set x\
-             }",
-        )
-        .expect("Tcl 9.0 source compiles");
+    let result = vm.eval_source(
+        "set loop foreach; \
+         $loop i {0 1} {\
+             count_body; \
+             if {$i == 0} {switch_profile}; \
+             lassign {a b} x; \
+             set x\
+         }",
+    );
 
     // The host command ends iteration one with `continue` as it flips profile.
     // The stored Tcl 9.0 body must fail closed before entering iteration two,
-    // rather than executing its old `lassign` lowering under Tcl 8.4.
-    assert_eq!(completion.code, Code::Error, "{completion:?}");
-    assert_eq!(
-        completion.result.to_str().as_ref(),
-        "cannot continue bytecode after dialect profile changed"
-    );
+    // rather than executing its old `lassign` lowering under Tcl 8.4. Cluster
+    // P correction: on a native core the first refusal is the host-boundary
+    // currency refusal (`assert_mid_run_switch_refused`).
+    assert_mid_run_switch_refused(result, "foreach profile flip");
     assert_eq!(body_calls.get(), 1, "stale body ran a second time");
 }
 
@@ -1461,7 +2141,7 @@ fn active_proc_frame_redispatches_after_nested_command_mutation() {
         .compile("proc p {} {mutate; set x [expr {1+2}]; return $x}")
         .expect("module compiles");
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
             .any(|binding| binding.name == "expr" && binding.identity == "expr"),
@@ -1548,13 +2228,13 @@ fn active_proc_frame_revalidates_a_cfg_consumed_while_head() {
         .compile("proc p {} {mutate; while {0} {}}")
         .expect("module compiles");
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
             .any(|binding| binding.name == "while" && binding.identity == "while")
     );
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .instructions
             .iter()
             .any(|instruction| {
@@ -1588,13 +2268,13 @@ fn active_proc_frame_revalidates_a_cfg_consumed_eval_head() {
         .compile(source)
         .expect("module compiles");
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
             .any(|binding| binding.name == "eval" && binding.identity == "eval")
     );
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .instructions
             .iter()
             .any(|instruction| {
@@ -1681,7 +2361,7 @@ fn fused_expr_alias_uses_the_alias_binding_identity() {
         .compile("interp alias {} e {} expr; proc p {} {set x [e {1+2}]; return $x}")
         .expect("module compiles");
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
             .any(|binding| binding.name == "e" && binding.identity == "expr"),
@@ -1795,7 +2475,10 @@ fn native_reentry_recompiles_module_in_the_running_namespace() {
             profile,
         )
         .expect("namespaced module compiles");
-    assert_eq!(module.source_namespace, "a");
+    assert_eq!(
+        module.source_namespace,
+        tcl_runtime_api::ByteNamespacePath::from_segments(["a"])
+    );
 
     let (mut vm, _output) = vm();
     vm.register_native_command("host_run", Rc::new(RunCompiledModule(Rc::new(module))));
@@ -1921,7 +2604,7 @@ fn non_expr_codegen_hook_redispatches_after_replacement() {
         .compile("proc p {} {mutate; llength {a b c}}")
         .expect("module compiles");
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
             .any(|binding| binding.name == "llength" && binding.identity == "llength")
@@ -2496,7 +3179,7 @@ fn argument_substitution_mutation_keeps_entered_token_then_deopts_at_next_comman
         .compile("proc p {} {set first [llength [mutate]]; return $first}")
         .expect("literal nested command compiles");
     assert!(
-        marker_module.procedures["::p"]
+        sole_compiled_procedure(&marker_module)
             .instructions
             .iter()
             .any(|instruction| {
@@ -2512,7 +3195,7 @@ fn argument_substitution_mutation_keeps_entered_token_then_deopts_at_next_comman
         "compiler lost the typed literal entered-command marker"
     );
     assert!(
-        !marker_module.procedures["::p"]
+        !sole_compiled_procedure(&marker_module)
             .instructions
             .iter()
             .any(|instruction| {
@@ -2525,7 +3208,7 @@ fn argument_substitution_mutation_keeps_entered_token_then_deopts_at_next_comman
         .compile("proc p {} {set first [llength {*}[mutate]]; return $first}")
         .expect("expanded literal nested command compiles");
     assert!(
-        !expanded_marker_module.procedures["::p"]
+        !sole_compiled_procedure(&expanded_marker_module)
             .instructions
             .iter()
             .any(
@@ -2539,7 +3222,7 @@ fn argument_substitution_mutation_keeps_entered_token_then_deopts_at_next_comman
         .compile("proc p {} {set first [string equal -nocase [mutate] X]; return $first}")
         .expect("literal string ensemble command compiles");
     assert!(
-        invoke_replace_marker_module.procedures["::p"]
+        sole_compiled_procedure(&invoke_replace_marker_module)
             .instructions
             .iter()
             .any(|instruction| {
@@ -2641,7 +3324,7 @@ fn precompiled_proc_cache_requires_exact_body_and_parameters() {
 #[test]
 fn exact_static_proc_provenance_preserves_the_precompiled_body() {
     let fast_calls = Rc::new(Cell::new(0));
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(CountingCompilerSvc {
         inner: BytecodeCompileService::default(),
         fast_calls: Rc::clone(&fast_calls),
@@ -2667,7 +3350,7 @@ fn non_expr_lowering_hook_redispatches_after_replacement() {
         .compile("proc p {} {mutate; set x OLD}")
         .expect("module compiles");
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
             .any(|binding| binding.name == "set" && binding.identity == "set"),
@@ -2692,7 +3375,7 @@ fn escaped_head_stays_on_live_dispatch_after_replacement() {
         .compile(r"proc p {} {mutate; se\x74 x OLD}")
         .expect("module compiles");
     assert!(
-        !compiled.procedures["::p"]
+        !sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
             .any(|binding| binding.name == "set"),
@@ -2970,7 +3653,7 @@ fn proc_reoptimises_after_running_plain_under_a_removed_step_trace() {
         &mut vm,
         "proc p {} {expr {1+2}}; proc step_callback args {}",
     );
-    assert_eq!(vm.dispatch("p", &[]).result.to_str().as_ref(), "3");
+    assert_eq!(vm.dispatch("p", &[]).unwrap().result.to_str().as_ref(), "3");
     eval_ok(&mut vm, "trace add execution p enterstep step_callback");
 
     let fast_calls = Rc::new(Cell::new(0));
@@ -2980,7 +3663,7 @@ fn proc_reoptimises_after_running_plain_under_a_removed_step_trace() {
         fast_calls: Rc::clone(&fast_calls),
         plain_calls: Rc::clone(&plain_calls),
     }));
-    assert_eq!(vm.dispatch("p", &[]).result.to_str().as_ref(), "3");
+    assert_eq!(vm.dispatch("p", &[]).unwrap().result.to_str().as_ref(), "3");
     assert!(
         plain_calls.get() > 0,
         "the active step trace must deopt the proc"
@@ -2989,7 +3672,7 @@ fn proc_reoptimises_after_running_plain_under_a_removed_step_trace() {
     eval_ok(&mut vm, "trace remove execution p enterstep step_callback");
     fast_calls.set(0);
     plain_calls.set(0);
-    assert_eq!(vm.dispatch("p", &[]).result.to_str().as_ref(), "3");
+    assert_eq!(vm.dispatch("p", &[]).unwrap().result.to_str().as_ref(), "3");
     assert_eq!(fast_calls.get(), 1, "trace removal must restore fast code");
     assert_eq!(plain_calls.get(), 0);
 }
@@ -3003,6 +3686,7 @@ fn tcloo_method_reoptimises_after_running_plain_during_a_builtin_replacement() {
     );
     assert_eq!(
         vm.dispatch("o", &[Value::string("m")])
+            .unwrap()
             .result
             .to_str()
             .as_ref(),
@@ -3031,6 +3715,7 @@ fn tcloo_method_reoptimises_after_running_plain_during_a_builtin_replacement() {
     plain_calls.set(0);
     assert_eq!(
         vm.dispatch("o", &[Value::string("m")])
+            .unwrap()
             .result
             .to_str()
             .as_ref(),
@@ -3054,6 +3739,7 @@ fn tcloo_method_reoptimises_after_running_plain_under_a_removed_step_trace() {
     );
     assert_eq!(
         vm.dispatch("o", &[Value::string("m")])
+            .unwrap()
             .result
             .to_str()
             .as_ref(),
@@ -3073,6 +3759,7 @@ fn tcloo_method_reoptimises_after_running_plain_under_a_removed_step_trace() {
     }));
     assert_eq!(
         vm.dispatch("o", &[Value::string("m")])
+            .unwrap()
             .result
             .to_str()
             .as_ref(),
@@ -3091,6 +3778,7 @@ fn tcloo_method_reoptimises_after_running_plain_under_a_removed_step_trace() {
     plain_calls.set(0);
     assert_eq!(
         vm.dispatch("o", &[Value::string("m")])
+            .unwrap()
             .result
             .to_str()
             .as_ref(),
@@ -3144,7 +3832,7 @@ fn native_replacement_fails_closed_when_no_plain_compiler_exists() {
     let module = BytecodeCompileService::default()
         .compile("expr {1+2}")
         .expect("module compiles");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.register_native_command("expr", Rc::new(NativeOverride));
 
     let completion = vm.run_module(&module);
@@ -3236,21 +3924,27 @@ fn procedure_recovery_rejects_a_dishonest_plain_compiler() {
 fn procedure_consumers_preserve_a_missing_typed_compiler_capability() {
     const CAUSE: &str = "CompileService does not support procedure-body compilation";
 
-    let mut host_vm = Vm::new();
+    let mut host_vm = tcl_vm::test_support::native_vm();
     host_vm.set_compiler(Box::new(ScriptOnlyCompilerSvc(
         BytecodeCompileService::default(),
     )));
     let host_error = host_vm
         .define_procedure("host_p", &[], "return HOST")
         .expect_err("host procedure needs the typed capability");
-    assert_eq!(host_error.message, format!("procedure \"host_p\": {CAUSE}"));
+    assert_eq!(
+        host_error
+            .message_unicode()
+            .expect("Unicode fixture error")
+            .as_ref(),
+        format!("procedure \"host_p\": {CAUSE}")
+    );
 
     for source in [
         "set body {return PROC}; proc p {} $body",
         "set lambda [list {} {return APPLY}]; apply $lambda",
         "oo::class create C {method m {} {return METHOD}}; set o [C new]; $o m",
     ] {
-        let mut vm = Vm::new();
+        let mut vm = tcl_vm::test_support::native_vm();
         vm.set_compiler(Box::new(ScriptOnlyCompilerSvc(
             BytecodeCompileService::default(),
         )));
@@ -3282,7 +3976,7 @@ fn a_rung_zero_module_is_admitted_under_a_changed_pack_set() {
         evaluator_revision: 0,
     };
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let fast_calls = Rc::new(Cell::new(0));
     let plain_calls = Rc::new(Cell::new(0));
     vm.set_compiler(Box::new(CountingCompilerSvc {
@@ -3330,7 +4024,7 @@ fn a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites() {
     let held = pack_stamp("held", 1);
     let missing = pack_stamp("missing", 2);
     let plain_calls = Rc::new(Cell::new(0));
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(PackRestingCompilerSvc {
         inner: BytecodeCompileService::default(),
         claimed: held.clone(),
@@ -3372,7 +4066,7 @@ fn a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites() {
 #[test]
 fn a_rung_zero_unit_is_admitted_under_a_changed_pack_set() {
     let plain_calls = Rc::new(Cell::new(0));
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(CountingCompilerSvc {
         inner: BytecodeCompileService::default(),
         fast_calls: Rc::new(Cell::new(0)),
@@ -3401,7 +4095,7 @@ fn a_manifest_for_another_world_refuses_the_whole_module() {
     let module = BytecodeCompileService::default()
         .compile("set x 1")
         .expect("module compiles");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     assert_eq!(vm.run_module(&module).code, Code::Ok);
 
@@ -3470,7 +4164,7 @@ fn a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites() {
 
     let run = |module: &tcl_bytecode::ModuleAsm| {
         let plain_calls = Rc::new(Cell::new(0));
-        let mut vm = Vm::new();
+        let mut vm = tcl_vm::test_support::native_vm();
         vm.register_native_command("native_probe", Rc::new(NativeOverride));
         vm.set_compiler(Box::new(CountingCompilerSvc {
             inner: BytecodeCompileService::default(),
@@ -3515,7 +4209,7 @@ fn a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs() {
     let held = pack_stamp("held", 1);
     let other = pack_stamp("other", 2);
     let plain_calls = Rc::new(Cell::new(0));
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(PackRestingCompilerSvc {
         inner: BytecodeCompileService::default(),
         claimed: held.clone(),
@@ -3562,7 +4256,7 @@ fn a_running_function_is_checked_against_its_manifest_when_the_pin_changes() {
     let other = pack_stamp("other", 2);
     let run = |pin_other_floors: bool| {
         let plain_calls = Rc::new(Cell::new(0));
-        let mut vm = Vm::new();
+        let mut vm = tcl_vm::test_support::native_vm();
         vm.set_compiler(Box::new(PackRestingCompilerSvc {
             inner: BytecodeCompileService::default(),
             claimed: held.clone(),

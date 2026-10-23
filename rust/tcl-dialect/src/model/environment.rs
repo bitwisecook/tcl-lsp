@@ -1327,7 +1327,7 @@ fn iapps_environment() -> EnvironmentDefinition {
         kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tcl-iapp"),
         selecting_identities: identities(&["tcl-apl"]),
-        // Per measurement (`docs/design/f5/bigip-irule-parser-measurements.md`
+        // Per measurement (`docs/design/f5/embedded-tcl-contract.md`
         // §4a): the 8.5 baseline hypothesis is falsified — `IAppImplementation`
         // reports patchlevel 8.4.6, fails every 8.5 discriminator, and
         // carries the full `f5-tcl` trunk grammar. The core rides the
@@ -1373,7 +1373,7 @@ fn tmsh_environment() -> EnvironmentDefinition {
         editor_identity: EditorLanguageIdentityId::new("tcl-tmsh"),
         selecting_identities: Vec::new(),
         // CORRECTED by measurement
-        // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a): the
+        // (`docs/design/f5/embedded-tcl-contract.md` §4a): the
         // 8.5/8.5.13 claims are falsified — `TmshCliScript` reports
         // 8.4.6 and reproduces the entire trunk grammar (R-rules,
         // N-rules, inert `{*}`, word operators) identically to TMM. The
@@ -1869,9 +1869,7 @@ mod tests {
         }
     }
 
-    /// A workspace is trusted until the editor says otherwise — the fact the
-    /// `EvalOptions::tier` doc comment used to deny — and a client that says
-    /// nothing leaves it trusted.
+    /// Explicit editor trust determines workspace provenance; silence retains the default.
     #[test]
     fn a_workspace_is_trusted_until_the_editor_says_otherwise_issue_2139() {
         assert!(!Provenance::WorkspaceTrusted.is_untrusted());

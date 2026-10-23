@@ -1,4 +1,4 @@
-// @ts-nocheck -- migrated verbatim from JS; typed incrementally, not in the restructure commit.
+// @ts-nocheck -- Dynamic report fields and DOM controls have no static type annotations.
 // tcl-lsp — a language server and toolchain for Tcl
 // Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 //

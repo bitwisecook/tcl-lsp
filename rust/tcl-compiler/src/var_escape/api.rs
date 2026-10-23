@@ -40,12 +40,10 @@ use std::collections::HashMap;
 
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::Module;
+use tcl_core_types::BodyFrameId;
 
 use super::cfg_propagation::{CfgEscapeResult, analyse_cfg_function_with_registry};
-use super::helpers::default_registry;
-use super::interprocedural::{
-    solve_interprocedural_escape, solve_interprocedural_escape_with_registry,
-};
+use super::interprocedural::solve_interprocedural_escape;
 use super::slot_resolution::populate_local_slots;
 use super::types::{EscapeTag, ProcEscapeSummary};
 use super::walker::{analyse_script, analyse_script_with_registry};
@@ -89,20 +87,31 @@ pub fn cfg_result_to_summary(result: &CfgEscapeResult) -> ProcEscapeSummary {
 pub fn analyse_var_escape(
     module: &Module,
     interprocedural: bool,
-) -> HashMap<String, ProcEscapeSummary> {
-    let mut result: HashMap<String, ProcEscapeSummary> = HashMap::new();
+) -> HashMap<BodyFrameId, ProcEscapeSummary> {
+    if let Some(snapshot) = &module.registry_snapshot {
+        return analyse_var_escape_with_registry(module, interprocedural, snapshot.registry());
+    }
+    let mut result: HashMap<BodyFrameId, ProcEscapeSummary> = HashMap::new();
     result.insert(
-        TOP_LEVEL_QNAME.to_owned(),
+        BodyFrameId::Top(module.procedure_ids.module_id()),
         analyse_script(&module.top_level, std::iter::empty::<String>()),
     );
-    for (qname, proc) in &module.procedures {
+    for (id, proc) in module.procedures.iter().chain(module.body_lowerings()) {
         result.insert(
-            qname.clone(),
+            BodyFrameId::Body(*id),
             analyse_script(&proc.body, proc.params.iter().cloned()),
         );
     }
+    for (id, method) in &module.methods {
+        result.insert(
+            BodyFrameId::Body(*id),
+            analyse_script(&method.body, method.params.iter().cloned()),
+        );
+    }
     if interprocedural {
-        result = solve_interprocedural_escape(&result);
+        for summary in result.values_mut() {
+            summary.pure_leaf = false;
+        }
     }
     populate_local_slots(&result, Some(module))
 }
@@ -114,20 +123,29 @@ pub fn analyse_var_escape_with_registry(
     module: &Module,
     interprocedural: bool,
     registry: &tcl_registry::CommandRegistry,
-) -> HashMap<String, ProcEscapeSummary> {
-    let mut result: HashMap<String, ProcEscapeSummary> = HashMap::new();
+) -> HashMap<BodyFrameId, ProcEscapeSummary> {
+    let mut result: HashMap<BodyFrameId, ProcEscapeSummary> = HashMap::new();
     result.insert(
-        TOP_LEVEL_QNAME.to_owned(),
+        BodyFrameId::Top(module.procedure_ids.module_id()),
         analyse_script_with_registry(&module.top_level, std::iter::empty::<String>(), registry),
     );
-    for (qname, proc) in &module.procedures {
+    for (id, proc) in module.procedures.iter().chain(module.body_lowerings()) {
         result.insert(
-            qname.clone(),
+            BodyFrameId::Body(*id),
             analyse_script_with_registry(&proc.body, proc.params.iter().cloned(), registry),
         );
     }
+    for (id, method) in &module.methods {
+        result.insert(
+            BodyFrameId::Body(*id),
+            analyse_script_with_registry(&method.body, method.params.iter().cloned(), registry),
+        );
+    }
     if interprocedural {
-        result = solve_interprocedural_escape_with_registry(&result, registry);
+        result = solve_interprocedural_escape(
+            &result,
+            &super::interprocedural::EscapeCallGraph::for_module(module, registry),
+        );
     }
     populate_local_slots(&result, Some(module))
 }
@@ -135,16 +153,47 @@ pub fn analyse_var_escape_with_registry(
 /// Per-proc escape summaries from a [`CompilationUnit`] (the flow-sensitive
 /// CFG/SSA path). Used by codegen frame analysis.
 ///
-/// Dialect-blind: this answers from the `tcl8.6` registry whatever the unit
-/// was lowered under. Any caller that *holds* the unit's registry should use
-/// [`analyse_var_escape_cu_with_registry`] instead — the pairing here mirrors
-/// [`analyse_var_escape`] / [`analyse_var_escape_with_registry`].
+/// Uses the immutable command store retained by the unit. Missing ownership
+/// keeps the independent CFG analyses conservative.
 #[must_use]
 pub fn analyse_var_escape_cu(
     cu: &CompilationUnit,
     interprocedural: bool,
-) -> HashMap<String, ProcEscapeSummary> {
-    analyse_var_escape_cu_with_registry(cu, interprocedural, default_registry())
+) -> HashMap<BodyFrameId, ProcEscapeSummary> {
+    if let Some(snapshot) = &cu.ir_module.registry_snapshot {
+        return analyse_var_escape_cu_with_registry(cu, interprocedural, snapshot.registry());
+    }
+    let mut result = HashMap::new();
+    result.insert(
+        BodyFrameId::Top(cu.ir_module.procedure_ids.module_id()),
+        cfg_result_to_summary(&super::cfg_propagation::analyse_cfg_function(
+            &cu.top_level.cfg,
+            &cu.top_level.ssa,
+            std::iter::empty::<String>(),
+        )),
+    );
+    for (id, function) in cu
+        .procedures
+        .iter()
+        .chain(cu.methods.iter())
+        .chain(cu.body_lowering_functions())
+    {
+        result.insert(
+            BodyFrameId::Body(*id),
+            cfg_result_to_summary(&super::cfg_propagation::analyse_cfg_function(
+                &function.cfg,
+                &function.ssa,
+                cu.ir_module
+                    .procedures
+                    .get(id)
+                    .or_else(|| cu.ir_module.body_lowering(id))
+                    .map(|body| body.params.clone())
+                    .or_else(|| cu.ir_module.methods.get(id).map(|body| body.params.clone()))
+                    .unwrap_or_default(),
+            )),
+        );
+    }
+    populate_local_slots(&result, Some(&cu.ir_module))
 }
 
 /// Registry-aware form of [`analyse_var_escape_cu`]. This is the production
@@ -161,27 +210,45 @@ pub fn analyse_var_escape_cu_with_registry(
     cu: &CompilationUnit,
     interprocedural: bool,
     registry: &tcl_registry::CommandRegistry,
-) -> HashMap<String, ProcEscapeSummary> {
-    let mut result: HashMap<String, ProcEscapeSummary> = HashMap::new();
+) -> HashMap<BodyFrameId, ProcEscapeSummary> {
+    let mut result: HashMap<BodyFrameId, ProcEscapeSummary> = HashMap::new();
     let top = analyse_cfg_function_with_registry(
         &cu.top_level.cfg,
         &cu.top_level.ssa,
         std::iter::empty::<String>(),
         registry,
     );
-    result.insert(TOP_LEVEL_QNAME.to_owned(), cfg_result_to_summary(&top));
-    for (qname, fu) in &cu.procedures {
+    result.insert(
+        BodyFrameId::Top(cu.ir_module.procedure_ids.module_id()),
+        cfg_result_to_summary(&top),
+    );
+    for (qname, fu) in cu
+        .procedures
+        .iter()
+        .chain(cu.methods.iter())
+        .chain(cu.body_lowering_functions())
+    {
         let params = cu
             .ir_module
             .procedures
             .get(qname)
+            .or_else(|| cu.ir_module.body_lowering(qname))
             .map(|p| p.params.clone())
+            .or_else(|| {
+                cu.ir_module
+                    .methods
+                    .get(qname)
+                    .map(|method| method.params.clone())
+            })
             .unwrap_or_default();
         let proc = analyse_cfg_function_with_registry(&fu.cfg, &fu.ssa, params, registry);
-        result.insert(qname.clone(), cfg_result_to_summary(&proc));
+        result.insert(BodyFrameId::Body(*qname), cfg_result_to_summary(&proc));
     }
     if interprocedural {
-        result = solve_interprocedural_escape_with_registry(&result, registry);
+        result = solve_interprocedural_escape(
+            &result,
+            &super::interprocedural::EscapeCallGraph::for_module(&cu.ir_module, registry),
+        );
     }
     populate_local_slots(&result, Some(&cu.ir_module))
 }
@@ -192,16 +259,49 @@ mod tests {
     use crate::lowering::lower_to_ir;
     use tcl_registry::CommandRegistry;
 
-    fn summaries(src: &str) -> HashMap<String, ProcEscapeSummary> {
+    fn summaries(src: &str) -> (Module, HashMap<BodyFrameId, ProcEscapeSummary>) {
         let module = lower_to_ir(src, &CommandRegistry::build_default());
-        analyse_var_escape(&module, true)
+        let values = analyse_var_escape(&module, true);
+        (module, values)
+    }
+
+    fn fixture_key(module: &Module, display: &str) -> BodyFrameId {
+        let mut matching = module
+            .procedures
+            .iter()
+            .filter(|(_, body)| body.qualified_name == display);
+        let id = *matching.next().expect("authored fixture body").0;
+        assert!(matching.next().is_none(), "ambiguous authored fixture body");
+        BodyFrameId::Body(id)
+    }
+
+    #[test]
+    fn implicit_escape_driver_uses_the_retained_actual_registry() {
+        let registry = CommandRegistry::build_default();
+        let module = lower_to_ir("info exists literal", &registry);
+        let implicit = analyse_var_escape(&module, false);
+        let explicit = analyse_var_escape_with_registry(&module, false, &registry);
+        assert_eq!(implicit, explicit);
+        let mut detached = module;
+        detached.registry_snapshot = None;
+        for statement in &mut detached.top_level.statements {
+            if let Some(tokens) = statement.tokens_mut() {
+                tokens.source_binding = None;
+            }
+        }
+        detached.top_level.command_binding_sites = Default::default();
+        assert!(
+            analyse_var_escape(&detached, false)
+                .values()
+                .all(|summary| { summary.dynamic_barrier() && !summary.pure_leaf })
+        );
     }
 
     #[test]
     fn pure_leaf_proc_is_flagged() {
         // A leaf proc that only does pure value computation is pure-leaf.
-        let s = summaries("proc ::add {a b} { return [expr {$a + $b}] }");
-        let add = &s["::add"];
+        let (module, s) = summaries("proc ::add {a b} { return [expr {$a + $b}] }");
+        let add = &s[&fixture_key(&module, "::add")];
         assert!(add.pure_leaf, "pure leaf proc should be flagged");
         assert!(add.safe_to_inline());
         assert!(add.safe_to_dce());
@@ -211,32 +311,35 @@ mod tests {
     #[test]
     fn upvar_proc_is_not_pure_leaf() {
         // `upvar` makes the proc observe a caller frame — not pure-leaf.
-        let s = summaries("proc ::setit {name val} { upvar 1 $name v\n set v $val }");
-        assert!(!s["::setit"].pure_leaf, "upvar proc must not be pure-leaf");
+        let (module, s) = summaries("proc ::setit {name val} { upvar 1 $name v\n set v $val }");
+        assert!(
+            !s[&fixture_key(&module, "::setit")].pure_leaf,
+            "upvar proc must not be pure-leaf"
+        );
     }
 
     #[test]
     fn caller_of_impure_proc_is_downgraded() {
         // `::wrap` is locally pure but calls `::setit` (upvar) — the
         // transitive fixpoint downgrades `::wrap`.
-        let s = summaries(
+        let (module, s) = summaries(
             "proc ::setit {name val} { upvar 1 $name v\n set v $val }\n\
              proc ::wrap {} { setit x 1 }",
         );
-        assert!(!s["::setit"].pure_leaf);
+        assert!(!s[&fixture_key(&module, "::setit")].pure_leaf);
         assert!(
-            !s["::wrap"].pure_leaf,
+            !s[&fixture_key(&module, "::wrap")].pure_leaf,
             "caller of an impure proc must be downgraded, got {:?}",
-            s["::wrap"].pure_leaf,
+            s[&fixture_key(&module, "::wrap")].pure_leaf,
         );
     }
 
     #[test]
     fn caller_of_frameless_builtin_stays_pure_leaf() {
         // Calling only frameless runtime builtins (`puts`) keeps pure-leaf.
-        let s = summaries("proc ::log {} { puts hi }");
+        let (module, s) = summaries("proc ::log {} { puts hi }");
         assert!(
-            s["::log"].pure_leaf,
+            s[&fixture_key(&module, "::log")].pure_leaf,
             "wrapper of a frameless builtin is pure-leaf"
         );
     }
@@ -250,8 +353,11 @@ mod tests {
             &CommandRegistry::build_default(),
         );
         let raw = analyse_var_escape(&module, false);
-        assert!(raw["::add"].pure_leaf, "pure leaf flagged with IPA off");
+        assert!(
+            raw[&fixture_key(&module, "::add")].pure_leaf,
+            "pure leaf flagged with IPA off"
+        );
         // And the top level is present under the canonical key.
-        assert!(raw.contains_key(TOP_LEVEL_QNAME));
+        assert!(raw.contains_key(&BodyFrameId::Top(module.procedure_ids.module_id())));
     }
 }

@@ -34,6 +34,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::abstract",
+        native_compilation: Some(super::oo_class::OO_NATIVE_COMPILATION),
         runtime_backing: RuntimeBacking::shipped("oo::abstract"),
         // `oo::abstract create Name { … }` is a four-token `HEAD NAME
         // BRACED BRACED` call — the same shape `oo::class` also matches,
@@ -75,7 +76,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        definition_body: Some(&crate::definer::TCLOO_GRAMMAR),
+        definition_body: Some(&crate::definer::TCLOO_ABSTRACT_GRAMMAR),
         manufacturer_methods: crate::definer::TCLOO_DERIVED_METACLASS_MANUFACTURERS,
         ..CommandSpec::DEFAULT
     }

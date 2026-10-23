@@ -32,6 +32,8 @@
 
 use tcl_lexer::Span;
 
+use crate::workspace_index::WorkspaceDiagnosticSourceContext;
+
 /// The most symbols one `workspace/symbol` answer carries.
 ///
 /// VS Code re-issues the request on every keystroke in its Ctrl+T box, and a
@@ -50,6 +52,8 @@ pub enum WorkspaceSymbolKind {
     Class,
     /// `TclOO` instance / class method.
     Method,
+    /// A Registry-selected named property declaration.
+    Property,
     /// `TclOO` constructor — a member method whose role is
     /// instance construction.
     Constructor,
@@ -76,12 +80,78 @@ impl From<tcl_registry::DefinedSymbolKind> for WorkspaceSymbolKind {
     }
 }
 
+/// Source-owned location for a Logical workspace-symbol report candidate.
+///
+/// The query label remains presentation only. This receipt retains the exact
+/// indexed document image/configuration/Registry context and original span so
+/// the server can refuse to map that span through different source bytes. It
+/// grants no Native identity, lookup, execution or edit authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalWorkspaceSymbolSource {
+    uri: String,
+    context: WorkspaceDiagnosticSourceContext,
+    span: Span,
+    document_revision: u64,
+}
+
+impl LogicalWorkspaceSymbolSource {
+    /// Capture one report span from the selected Logical document context.
+    #[must_use]
+    pub(crate) fn capture(
+        uri: impl Into<String>,
+        context: &WorkspaceDiagnosticSourceContext,
+        span: Span,
+        document_revision: u64,
+    ) -> Option<Self> {
+        let uri = uri.into();
+        let image = context.image();
+        (!uri.is_empty()
+            && !context.uses_original_names()
+            && span.start() <= span.end()
+            && (span.end() as usize) <= image.bytes().len())
+        .then_some(Self {
+            uri,
+            context: context.clone(),
+            span,
+            document_revision,
+        })
+    }
+
+    /// Independent URI owner; equal bytes never merge different documents.
+    #[must_use]
+    pub fn uri(&self) -> &str {
+        &self.uri
+    }
+
+    /// Exact indexed byte span owned by the retained report source.
+    #[must_use]
+    pub const fn span(&self) -> Span {
+        self.span
+    }
+
+    /// Index revision captured with this report source.
+    #[must_use]
+    pub const fn document_revision(&self) -> u64 {
+        self.document_revision
+    }
+
+    /// Whether the source read still names this exact retained Logical image.
+    #[must_use]
+    pub fn matches_source(&self, uri: &str, source: &str) -> bool {
+        self.uri == uri
+            && !self.context.uses_original_names()
+            && self.context.image() == &tcl_lexer::SourceImage::document(source)
+            && (self.span.end() as usize) <= source.len()
+    }
+}
+
 /// One entry in a `workspace/symbol` response.
 ///
 /// The location is a byte [`Span`] in `uri`'s source, not an LSP range: a
-/// range needs the target document's text, which the index does not hold, so
-/// the server resolves it at delivery time — the rule every other
-/// cross-document index answer follows.
+/// range is computed only at delivery time against the target document's
+/// checked current source snapshot. Typed source owners may retain the exact
+/// original image for validation, but they do not supply a mutable display
+/// buffer or replace the independent URI/provider read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IndexedWorkspaceSymbol {
     /// Document the definition is in.
@@ -95,6 +165,154 @@ pub struct IndexedWorkspaceSymbol {
     pub kind: WorkspaceSymbolKind,
     /// Byte span of the definition's name token in `uri`'s source.
     pub name_span: Span,
+    /// Original source ownership to revalidate before projecting navigation.
+    /// None belongs to explicitly logical compatibility records only.
+    pub original_location: Option<crate::original_indexed_location::OriginalIndexedSourceLocation>,
+    /// Source-owned Logical compatibility location, distinct from Native facts.
+    pub logical_source: Option<LogicalWorkspaceSymbolSource>,
+}
+
+pub(crate) fn original_symbols(
+    uri: &str,
+    source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    context: &crate::workspace_index::WorkspaceDiagnosticSourceContext,
+) -> Vec<IndexedWorkspaceSymbol> {
+    use crate::original_declaration::{OriginalDeclarationRole, declarations};
+    use crate::original_indexed_location::OriginalIndexedSourceLocation;
+    let mut symbols = Vec::new();
+    if let Some(cards) = crate::vendor_declaration::declarations(source, analysis) {
+        for card in cards {
+            let Some(name) = crate::vendor_declaration::source_label(card.input(), card.purpose())
+            else {
+                continue;
+            };
+            let kind = if card.procedure_metadata().is_some() {
+                WorkspaceSymbolKind::Function
+            } else if card.class_metadata().is_some() {
+                WorkspaceSymbolKind::Class
+            } else if let Some(metadata) = card.symbol_metadata() {
+                WorkspaceSymbolKind::from(metadata.kind)
+            } else {
+                continue;
+            };
+            let Some(location) =
+                OriginalIndexedSourceLocation::from_vendor_declaration(uri, context, &card)
+            else {
+                continue;
+            };
+            symbols.push(IndexedWorkspaceSymbol {
+                uri: uri.to_owned(),
+                name,
+                container_name: None,
+                kind,
+                name_span: card.span(),
+                original_location: Some(location),
+                logical_source: None,
+            });
+        }
+        return symbols;
+    }
+    for identity in declarations(uri, source, analysis).unwrap_or_default() {
+        let (kind, name, container_name) = match identity.role() {
+            OriginalDeclarationRole::Document => continue,
+            OriginalDeclarationRole::Procedure => {
+                let Some(declaration) = identity.procedure_metadata(analysis) else {
+                    continue;
+                };
+                let (name, container) = command_labels(declaration.name());
+                (WorkspaceSymbolKind::Function, name, container)
+            }
+            OriginalDeclarationRole::Class => {
+                let Some(declaration) = identity.class_metadata(analysis) else {
+                    continue;
+                };
+                let (name, container) = command_labels(declaration.name());
+                (WorkspaceSymbolKind::Class, name, container)
+            }
+            OriginalDeclarationRole::Method(_)
+            | OriginalDeclarationRole::Property(_)
+            | OriginalDeclarationRole::Special(_, _) => {
+                let container = identity.class_metadata(analysis).map(|class| {
+                    let full =
+                        tcl_syntax::naming::native_command_full_name_bytes(class.name().slot());
+                    original_label(&full)
+                });
+                let kind = match identity.role() {
+                    OriginalDeclarationRole::Property(_) => WorkspaceSymbolKind::Property,
+                    OriginalDeclarationRole::Special(
+                        _,
+                        tcl_registry::definer::DefinitionSpecialMemberKind::Constructor,
+                    ) => WorkspaceSymbolKind::Constructor,
+                    _ => WorkspaceSymbolKind::Method,
+                };
+                let name = identity.input().map_or_else(
+                    || identity.label(),
+                    |input| tcl_syntax::native_string::resident_name_label(input.bytes()),
+                );
+                (kind, name, container)
+            }
+        };
+        let Some(location) = OriginalIndexedSourceLocation::from_declaration(context, &identity)
+        else {
+            continue;
+        };
+        symbols.push(IndexedWorkspaceSymbol {
+            uri: uri.to_owned(),
+            name,
+            container_name,
+            kind,
+            name_span: identity.span(),
+            original_location: Some(location),
+            logical_source: None,
+        });
+    }
+    if let Some(registry) = analysis.resolved_registry() {
+        for declaration in analysis.original_symbol_declarations() {
+            if !declaration.matches_source(context.image(), context.config())
+                || !declaration.matches_registry(registry)
+            {
+                continue;
+            }
+            let input = declaration.name_input();
+            let name = original_label(input.bytes());
+            let Some(location) =
+                OriginalIndexedSourceLocation::from_registry_symbol(uri, context, declaration)
+            else {
+                continue;
+            };
+            symbols.push(IndexedWorkspaceSymbol {
+                uri: uri.to_owned(),
+                name,
+                container_name: declaration.original_namespace().and_then(|namespace| {
+                    (!namespace.is_root()).then(|| namespace.reporting_label())
+                }),
+                kind: WorkspaceSymbolKind::from(declaration.descriptor().kind),
+                name_span: declaration.span(),
+                original_location: Some(location),
+                logical_source: None,
+            });
+        }
+    }
+    symbols
+}
+
+fn original_label(bytes: &[u8]) -> String {
+    tcl_syntax::native_string::resident_name_label(bytes)
+}
+
+fn command_labels(
+    command: &tcl_compiler::signature_scan::scope::SignatureSourceCommand,
+) -> (String, Option<String>) {
+    let name = original_label(command.slot().simple.as_bytes());
+    let container = if command.slot().namespace.is_root() {
+        None
+    } else {
+        Some(original_label(
+            &tcl_syntax::naming::native_namespace_full_name_bytes(&command.slot().namespace),
+        ))
+    };
+    (name, container)
 }
 
 /// Whether `name` satisfies `lower_query`: a case-insensitive substring
@@ -130,6 +348,100 @@ mod tests {
         let mut index = WorkspaceIndex::new();
         index.add_document("file:///a.tcl", &analysis);
         index.symbols_matching(query, MAX_WORKSPACE_SYMBOL_RESULTS)
+    }
+
+    #[test]
+    fn original_workspace_symbols_preserve_opaque_owners_and_ignore_reporting_maps() {
+        // Implementation contract: naming.editor.original-indexed-source-location
+
+        let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}";
+        let mut analysis = analyse(source);
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///first.tcl", &analysis);
+        index.add_document("file:///second.tcl", &analysis);
+        let symbols = index.symbols_matching("p", 100);
+        assert_eq!(symbols.len(), 4);
+        assert_ne!(symbols[0].name, symbols[1].name);
+        assert_eq!(symbols[0].uri, "file:///first.tcl");
+        assert_eq!(symbols[2].uri, "file:///second.tcl");
+        for symbol in &symbols {
+            let owner = symbol.original_location.as_ref().unwrap();
+            assert_eq!(owner.uri(), symbol.uri);
+            assert_eq!(
+                owner.validated_span(source, &analysis),
+                Some(symbol.name_span)
+            );
+            let changed = source.replace("D800", "D802");
+            assert!(owner.validated_span(&changed, &analysis).is_none());
+            let foreign = Analyser::new().analyse(source, "tcl9.1");
+            assert!(owner.validated_span(source, &foreign).is_none());
+        }
+        index.remove_document("file:///first.tcl");
+        assert_eq!(index.symbols_matching("p", 100).len(), 2);
+    }
+
+    #[test]
+    fn original_vendor_workspace_headers_retain_unknown_units_and_source_currency() {
+        // Implementation contract: naming.vendor.original-source-declaration-consumers
+
+        let source = "proc helper {} {}\nproc p\\uD800 {} {}\n";
+        let mut analysis = Analyser::new().analyse(source, "f5-iapps");
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///application.tcl", &analysis);
+        let retained = index.original_vendor_declarations().collect::<Vec<_>>();
+        assert_eq!(retained.len(), 2);
+        assert!(retained.iter().any(|(_, _, record)| {
+            let declaration = record.declaration();
+            declaration
+                .input()
+                .literal_units(declaration.purpose())
+                .is_none()
+        }));
+        let symbols = index.symbols_matching("", 100);
+        assert_eq!(symbols.len(), 2);
+        assert!(symbols.iter().any(|symbol| symbol.name == "helper"));
+        assert!(symbols.iter().any(|symbol| symbol.name == r"p\uD800"));
+        for symbol in symbols {
+            let owner = symbol.original_location.unwrap();
+            assert_eq!(
+                owner.validated_span(source, &analysis),
+                Some(symbol.name_span)
+            );
+            let changed = source.replace("helper", "helpex");
+            assert!(owner.validated_span(&changed, &analysis).is_none());
+            let other = Analyser::new().analyse(source, "f5-irules");
+            assert!(owner.validated_span(source, &other).is_none());
+        }
+        assert_eq!(index.original_procedure_declarations().count(), 0);
+    }
+
+    #[test]
+    fn original_registry_workspace_symbols_use_selected_source_cards_after_ui_clear() {
+        // Implementation contract: naming.editor.original-indexed-source-location
+
+        let source = "tcltest::test sample-case {detail} {return pass} pass";
+        let mut analysis = analyse(source);
+        assert_eq!(analysis.original_symbol_declarations().count(), 1);
+        analysis.all_defined_symbols.clear();
+        analysis.global_scope.defined_symbols.clear();
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///cases.tcl", &analysis);
+        let symbols = index.symbols_matching("sample-case", 100);
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].kind, WorkspaceSymbolKind::Test);
+        let owner = symbols[0].original_location.as_ref().unwrap();
+        assert_eq!(
+            owner.validated_span(source, &analysis),
+            Some(symbols[0].name_span)
+        );
+        let changed = source.replace("sample-case", "samplx-case");
+        assert!(owner.validated_span(&changed, &analysis).is_none());
+        index.remove_document("file:///cases.tcl");
+        assert!(index.symbols_matching("", 100).is_empty());
     }
 
     #[test]
@@ -198,15 +510,29 @@ mod tests {
 
     #[test]
     fn classmethod_surfaces_with_method_kind() {
-        let syms = symbols(
-            "oo::class create MyClass {\n\
+        let source = "oo::class create MyClass {\n\
                  classmethod factory {} {}\n\
-             }\n",
-            "factory",
-        );
+             }\n";
+        let analysis = Analyser::new().analyse(source, "tcl9.0");
+        let index = WorkspaceIndex::from_documents([("file:///class.tcl", &analysis)]);
+        let syms = index.symbols_matching("factory", MAX_WORKSPACE_SYMBOL_RESULTS);
         assert_eq!(syms.len(), 1);
         assert_eq!(syms[0].name, "factory");
         assert_eq!(syms[0].kind, WorkspaceSymbolKind::Method);
+        let earlier = Analyser::new().analyse(source, "tcl8.6");
+        assert!(earlier.original_class_declarations().all(|class| {
+            class
+                .metadata()
+                .original_members
+                .declarations()
+                .all(|member| member.original_name_input().bytes() != b"factory")
+        }));
+        let earlier_index = WorkspaceIndex::from_documents([("file:///class.tcl", &earlier)]);
+        assert!(
+            earlier_index
+                .symbols_matching("factory", MAX_WORKSPACE_SYMBOL_RESULTS)
+                .is_empty()
+        );
     }
 
     #[test]

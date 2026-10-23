@@ -119,6 +119,12 @@ static SEMANTICS: crate::value_transfer::selection::CaseSemantics =
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "case",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SURFACE),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::CONTROL_FLOW
@@ -220,7 +226,7 @@ mod tests {
         assert_eq!(case.optional_subject_separator, Some("in"));
         let spec = spec();
         assert!(spec.options.is_empty());
-        assert!(spec.option_effect_families.is_empty());
+        assert_eq!(spec.option_effect_families.len(), 0);
         assert!(case.fallthrough_body.is_none());
         assert_eq!(case.keyword_patterns, ["default"]);
         assert!(!case.keyword_patterns_require_final);

@@ -38,6 +38,11 @@
 //! This pure analyser is consumed directly by the native
 //! `tcl-lsp-server`.
 
+pub(crate) mod authenticated_report;
+pub use authenticated_report::{
+    AnalysisReportComparison, AnalysisReportUnavailable, AuthenticatedAnalysisReport,
+};
+
 pub mod bounds_checks;
 pub mod class_hierarchy;
 /// Object→class binding lattice and dispatch resolver. Experimental: not
@@ -46,35 +51,68 @@ pub mod class_hierarchy;
 pub mod class_lattice;
 pub mod commands;
 pub mod confusables_table;
+mod diagnostic_registry;
+mod diagnostic_subject;
 pub mod diagnostics;
 pub mod dispatch;
 pub mod handlers;
 pub mod indirection;
+mod input;
+mod interp_visibility;
 pub mod irules_event_checks;
 pub mod item_tree;
+#[cfg(test)]
+mod name_producer_tests;
 pub mod oo;
+mod original_definer;
+mod original_members;
 pub mod param_traits;
 pub mod per_item;
 pub mod recovery;
 pub mod scope;
 pub mod snapshot;
 pub mod source_integrity;
+pub(crate) mod source_settings;
 pub mod state;
 pub mod syntax_checks;
 pub mod tk_checks;
 pub mod types;
 pub mod utils;
+mod variable_alias_templates;
+mod variable_source_declarations;
+
+pub use variable_source_declarations::OriginalVariableSourceDeclaration;
 
 pub use class_hierarchy::{ClassHierarchy, build_class_hierarchy};
 pub use class_lattice::{
     AblationConfig, ClassValue, DispatchStats, DispatchVerdict, NsContext, SiteReport, TopReason,
     analyse_dispatch, class_values, next_provider,
 };
-pub use item_tree::{FileDecls, Item, ItemId, ItemKind, ItemSig, ItemTree};
+pub use item_tree::{
+    FileDecls, Item, ItemId, ItemKind, ItemSig, ItemTree, SourceDeclarationSignature,
+};
 // The MRO linearisation lives in `tcl-syntax` so the bytecode VM (which must
 // not depend on the compiler — the `CompileService` injection keeps the wasm
 // core light) can share it. Re-exported here so callers can reach it as
 // `tcl_compiler::analyser::…`.
+pub use diagnostic_registry::{
+    DeclaredSourceDiagnosticKind, DeclaredSourceDiagnosticSubject, RegistrySourceDiagnosticKind,
+    RegistrySourceDiagnosticSubject,
+};
+pub use diagnostic_subject::{
+    DiagnosticSubject, ObjectSourceAritySubject, RegisteredInstanceSourceDiagnosticKind,
+    RegisteredInstanceSourceDiagnosticSubject, SourceCallbackArgumentCounts,
+    SourceCallbackArityIssue, SourceCallbackAritySubject, SourceCallbackSignatureLookup,
+    SourcePrivateTclNamespaceObligation, SourcePrivateTclNamespaceSubject,
+    SourceUnresolvedCommandSubject, SourceUnresolvedMathFunctionSubject,
+    SourceUserCallAritySubject,
+};
+pub use input::ResolvedAnalysisInput;
+pub use interp_visibility::{
+    ConditionalInterpreterVisibilitySubject, InterpreterVisibilityObligation,
+    OriginalInterpreterSourceDomain, OriginalInterpreterSourceLoad,
+    SourceInterpreterVisibilitySnapshot,
+};
 pub use scope::{
     VariableAliasLink, command_resolution_namespace_at, implicit_command_namespace_path_at,
     innermost_scope_is_oo_method_frame, innermost_scope_reaches_oo_helpers,
@@ -87,11 +125,12 @@ pub use state::{Analyser, NonAsciiMode};
 pub use tcl_syntax::mro::{self, MroError, build_mro_map, tcloo_linearise};
 pub use types::{
     AnalysisResult, ClassDef, ClassFactory, ClassFactoryIndex, CodeFix, DefinedSymbol,
-    DefinitionAbortKind, Diagnostic, FactoryMember, FactoryWord, FixSafety, ManufacturerSpec,
-    MemberRetractionRecord, MemberSide, MetaclassProvenance, MethodDef, ObjectMemberState,
-    ObjectMethodDef, ProcArgTrait, ProcDef, PropertyDef, QualifiedVarRef, RenamedMember, Scope,
-    ScopeKind, Severity, StubFlags, SubclassProvidedMethods, UnknownProcInfo, VarDef,
-    class_constructor_key, class_destructor_key, class_member_key, class_property_key,
+    DefinitionAbortKind, Diagnostic, FactoryMember, FactoryWord, FixSafety,
+    LogicalSourceObjectMembers, ManufacturerSpec, MemberRetractionRecord, MemberSide,
+    MetaclassProvenance, MethodDef, ObjectMemberState, ObjectMethodDef, ProcArgTrait, ProcDef,
+    PropertyDef, QualifiedVarRef, RenamedMember, Scope, ScopeKind, Severity, StubFlags,
+    SubclassProvidedMethods, UnknownProcInfo, VarDef, class_constructor_key, class_destructor_key,
+    class_member_key, class_property_key,
 };
 // The one `# noqa` / `# tcl-lsp: disable=…` suppression contract, beside the
 // pre-scan that builds the map it reads. Every diagnostic surface — the

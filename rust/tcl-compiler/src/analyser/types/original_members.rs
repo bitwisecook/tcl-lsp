@@ -1,0 +1,1325 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Original member-name metadata, independent of reporting-name tables.
+//!
+//! The original word producer owns each counted name. This ordered ledger
+//! records declarations and mutations observed by the definition walker; it
+//! proves neither execution of that walker nor a live native method table.
+
+use super::{MemberSide, MethodDef};
+use crate::{
+    command_binding::CommandAllocationSite,
+    signature_scan::{
+        original_name::SourceOriginalNameOccurrence, scope::SignatureSourceNameInput,
+    },
+};
+use tcl_core_types::NameBytes;
+use tcl_syntax::naming::NamePolicyProtocol;
+
+/// Original member declaration syntax and its independently produced name.
+/// A list child or frozen readonly value never becomes a static naming word,
+/// editable name, installed method or entered definition-worker receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourceMemberDeclaration {
+    site: CommandAllocationSite,
+    input: SignatureSourceNameInput,
+    word: tcl_lexer::NativeWord,
+    static_occurrence: Option<SourceOriginalNameOccurrence>,
+    source_installer:
+        Option<std::sync::Arc<crate::command_binding::OriginalCatalogueSourceCandidate>>,
+}
+
+impl OriginalSourceMemberDeclaration {
+    fn from_static(occurrence: SourceOriginalNameOccurrence) -> Self {
+        Self {
+            site: occurrence.site().clone(),
+            input: SignatureSourceNameInput::OriginalWord(occurrence.name_input().clone()),
+            word: occurrence.name_input().original_word().clone(),
+            static_occurrence: Some(occurrence),
+            source_installer: None,
+        }
+    }
+
+    pub(crate) fn from_original_input(
+        site: &CommandAllocationSite,
+        word: &tcl_lexer::NativeWord,
+        input: SignatureSourceNameInput,
+        purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
+    ) -> Option<Self> {
+        if word.image() != site.source.source_image()
+            || site.offset > word.span().start()
+            || word.group().expand
+            || purpose.policy() != Some(input.policy())
+        {
+            return None;
+        }
+        let static_occurrence = match &input {
+            SignatureSourceNameInput::OriginalWord(key) => {
+                (purpose
+                    .key(
+                        word,
+                        tcl_syntax::word_rules::WordValueRules::from_config(&word.config()),
+                    )
+                    .as_ref()
+                    == Some(key))
+                .then_some(())?;
+                Some(SourceOriginalNameOccurrence::new(site, key.clone())?)
+            }
+            SignatureSourceNameInput::OriginalValue(_) => {
+                // Readonly produced values retain their separate original list owner.
+                (word.config().escapes == input.policy().string_protocol().escape_syntax())
+                    .then_some(())?;
+                None
+            }
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
+        };
+        Some(Self {
+            site: site.clone(),
+            input,
+            word: word.clone(),
+            static_occurrence,
+            source_installer: None,
+        })
+    }
+
+    pub(crate) fn with_source_installer(
+        mut self,
+        installer: Option<std::sync::Arc<crate::command_binding::OriginalCatalogueSourceCandidate>>,
+    ) -> Option<Self> {
+        if installer.as_ref().is_some_and(|installer| {
+            !installer.matches_source(self.word.image(), self.word.config())
+                || installer.original_head().name_input().policy() != self.input.policy()
+                || installer.site().source != self.site.source
+                || installer.site().offset >= self.site.offset
+        }) {
+            return None;
+        }
+        self.source_installer = installer;
+        Some(self)
+    }
+
+    /// Conditional Registry schema of a source installer, when this readonly
+    /// declaration comes from its literal list. Applicability obligations remain
+    /// on the schema; neither its body nor its installation is proved executed.
+    #[must_use]
+    pub fn source_installer(
+        &self,
+    ) -> Option<&crate::command_binding::OriginalCatalogueSourceCandidate> {
+        self.source_installer.as_deref()
+    }
+
+    /// Actual whole worker command site, distinct from the value's producer.
+    #[must_use]
+    pub const fn site(&self) -> &CommandAllocationSite {
+        &self.site
+    }
+    /// Canonical declaration name, distinct from its later moved route.
+    #[must_use]
+    pub const fn original_name_input(&self) -> &SignatureSourceNameInput {
+        &self.input
+    }
+    /// Authentic whole worker argument. Its syntax can contain substitution;
+    /// retaining its span does not turn the produced value into an edit recipe.
+    #[must_use]
+    pub const fn original_word(&self) -> &tcl_lexer::NativeWord {
+        &self.word
+    }
+    /// Static complete-word naming provenance, when independently available.
+    #[must_use]
+    pub const fn static_occurrence(&self) -> Option<&SourceOriginalNameOccurrence> {
+        self.static_occurrence.as_ref()
+    }
+}
+
+/// One original method declaration and its current source-metadata route.
+/// A moved route retains its canonical declaration and body independently.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourceMethodMetadata {
+    declaration: OriginalSourceMemberDeclaration,
+    input: SignatureSourceNameInput,
+    purpose: tcl_registry::definer::DefinitionMemberNamePurpose,
+    side: MemberSide,
+    method: MethodDef,
+    exported: bool,
+    native_class_delegate: bool,
+    forward_prefix: Option<Vec<SignatureSourceNameInput>>,
+    parameters: Option<tcl_lexer::NativeWord>,
+    body: Option<tcl_lexer::NativeWord>,
+    source_dialect: Option<tcl_registry::InvocationDialect>,
+    definition_parent: Option<crate::registry_invocation::OriginalSourceScriptBody>,
+}
+
+pub(crate) struct OriginalSourceMethodNameBody<'a> {
+    parameters: Vec<&'a str>,
+    body: &'a tcl_lexer::NativeWord,
+}
+impl<'a> OriginalSourceMethodNameBody<'a> {
+    pub(crate) fn parameter_names(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &'a str> + DoubleEndedIterator + '_ {
+        self.parameters.iter().copied()
+    }
+    pub(crate) const fn body_word(&self) -> &'a tcl_lexer::NativeWord {
+        self.body
+    }
+
+    fn owns_argument(&self, word: &tcl_lexer::NativeWord) -> bool {
+        let Ok(content) = self.body.content_span() else {
+            return false;
+        };
+        word.image() == self.body.image()
+            && word.config() == self.body.config()
+            && content.start() <= word.span().start()
+            && word.span().end() <= content.end()
+    }
+
+    fn parameter_index(&self, name: &[u8]) -> Option<usize> {
+        let mut matches = self
+            .parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| parameter.as_bytes() == name);
+        let (index, _) = matches.next()?;
+        matches.next().is_none().then_some(index)
+    }
+
+    /// A whole actual scalar substitution of one unambiguous original formal.
+    pub(crate) fn scalar_parameter_read(&self, word: &tcl_lexer::NativeWord) -> Option<usize> {
+        (!word.group().expand && self.owns_argument(word)).then_some(())?;
+        self.scalar_parameter_component(word)
+    }
+
+    /// One original expanded scalar formal, retained only as a source splice.
+    pub(crate) fn scalar_parameter_splice(&self, word: &tcl_lexer::NativeWord) -> Option<usize> {
+        (word.group().expand && self.owns_argument(word)).then_some(())?;
+        self.scalar_parameter_component(word)
+    }
+
+    fn scalar_parameter_component(&self, word: &tcl_lexer::NativeWord) -> Option<usize> {
+        let arena = word.executable_parts();
+        let [part] = arena.list(arena.root()) else {
+            return None;
+        };
+        let tcl_lexer::ExecutablePart::Variable { name, index: None } = part.part else {
+            return None;
+        };
+        self.parameter_index(arena.bytes(name)?)
+    }
+
+    /// One direct formal contribution to the body expression. Nested command
+    /// results and other variables cannot supply a parameter-name projection.
+    pub(crate) fn body_parameter_read(&self, word: &tcl_lexer::NativeWord) -> Option<usize> {
+        (!word.group().expand && self.owns_argument(word)).then_some(())?;
+        let arena = word.executable_parts();
+        let mut selected = None;
+        for part in arena.list(arena.root()) {
+            match part.part {
+                tcl_lexer::ExecutablePart::Variable { name, index: None } => {
+                    let index = self.parameter_index(arena.bytes(name)?)?;
+                    if selected.replace(index).is_some() {
+                        return None;
+                    }
+                }
+                tcl_lexer::ExecutablePart::Text(_) | tcl_lexer::ExecutablePart::Command { .. } => {}
+                _ => return None,
+            }
+        }
+        selected
+    }
+}
+
+impl OriginalSourceMethodMetadata {
+    pub(crate) fn new(
+        declaration: SourceOriginalNameOccurrence,
+        side: MemberSide,
+        method: MethodDef,
+        exported: bool,
+        native_class_delegate: bool,
+        forward_prefix: Option<Vec<SignatureSourceNameInput>>,
+        purpose: tcl_registry::definer::DefinitionMemberNamePurpose,
+    ) -> Option<Self> {
+        let declaration = OriginalSourceMemberDeclaration::from_static(declaration);
+        let input = declaration.original_name_input().clone();
+        purpose
+            .admits(input.policy().recipe(), input.bytes())
+            .then_some(())?;
+        Some(Self {
+            declaration,
+            input,
+            purpose,
+            side,
+            method,
+            exported,
+            native_class_delegate,
+            forward_prefix,
+            parameters: None,
+            body: None,
+            source_dialect: None,
+            definition_parent: None,
+        })
+    }
+
+    pub(crate) fn from_declaration(
+        declaration: OriginalSourceMemberDeclaration,
+        side: MemberSide,
+        method: MethodDef,
+        exported: bool,
+        native_class_delegate: bool,
+        forward_prefix: Option<Vec<SignatureSourceNameInput>>,
+        purpose: tcl_registry::definer::DefinitionMemberNamePurpose,
+    ) -> Option<Self> {
+        if let Some(original) = declaration.static_occurrence() {
+            return Self::new(
+                original.clone(),
+                side,
+                method,
+                exported,
+                native_class_delegate,
+                forward_prefix,
+                purpose,
+            );
+        }
+        let input = declaration.original_name_input().clone();
+        purpose
+            .admits(input.policy().recipe(), input.bytes())
+            .then_some(())?;
+        Some(Self {
+            declaration,
+            input,
+            purpose,
+            side,
+            method,
+            exported,
+            native_class_delegate,
+            forward_prefix,
+            parameters: None,
+            body: None,
+            source_dialect: None,
+            definition_parent: None,
+        })
+    }
+
+    pub(crate) fn with_body_role_words(
+        mut self,
+        parameters: Option<tcl_lexer::NativeWord>,
+        body: Option<tcl_lexer::NativeWord>,
+        source_dialect: Option<tcl_registry::InvocationDialect>,
+    ) -> Option<Self> {
+        let original = self.declaration.original_word();
+        if parameters.iter().chain(body.iter()).any(|word| {
+            word.image() != original.image()
+                || word.config() != original.config()
+                || word.group().expand
+        }) {
+            return None;
+        }
+        self.source_dialect = source_dialect.filter(|dialect| {
+            original.config().grammar_over(dialect.lexer_grammar) == dialect.lexer_grammar
+        });
+        self.parameters = parameters;
+        self.body = body;
+        Some(self)
+    }
+
+    pub(crate) fn with_definition_parent(
+        mut self,
+        parent: Option<&crate::registry_invocation::OriginalSourceScriptBody>,
+    ) -> Option<Self> {
+        if let Some(parent) = parent {
+            let word = self.declaration.original_word();
+            let content = parent.content_span();
+            if word.image() != parent.original_container().image()
+                || word.config() != parent.original_container().config()
+                || self.declaration.site().source.source_image() != word.image()
+                || word.span().start() < content.start()
+                || word.span().end() > content.end()
+            {
+                return None;
+            }
+        }
+        self.definition_parent = parent.cloned();
+        Some(self)
+    }
+
+    /// Exact original lexical definition parent, without receiver allocation or
+    /// method dispatch. Independent class/ledger correspondence remains required.
+    #[must_use]
+    pub const fn definition_parent(
+        &self,
+    ) -> Option<&crate::registry_invocation::OriginalSourceScriptBody> {
+        self.definition_parent.as_ref()
+    }
+
+    /// Current original formal names and literal body. Defaults and other
+    /// report fields are not supplied by this view. Class association,
+    /// dispatch and invocation effects remain independent obligations.
+    #[must_use]
+    pub(crate) fn original_parameter_names_and_body(
+        &self,
+        analysis: &crate::analyser::AnalysisResult,
+    ) -> Option<OriginalSourceMethodNameBody<'_>> {
+        let metadata = self.metadata();
+        if metadata.params_computed
+            || self.native_class_delegate()
+            || self.forward_prefix().is_some()
+        {
+            return None;
+        }
+        let input = analysis.resolved_input.as_ref()?;
+        let parameters = self.parameters_word()?;
+        let body = self.body_word()?;
+        let original = self.declaration().original_word();
+        let content = body.content_span().ok()?;
+        if !analysis.matches_original_source_image(original.image(), input.lexer_config())
+            || original
+                .tokens()
+                .first()
+                .is_none_or(|token| token.span != metadata.name_span)
+            || body
+                .tokens()
+                .first()
+                .is_none_or(|token| token.span != metadata.body_span)
+            || body.image() != original.image()
+            || parameters.image() != original.image()
+            || body.config() != input.lexer_config()
+            || parameters.config() != input.lexer_config()
+            || tcl_syntax::word_rules::original_static_word_source_bytes(body).as_deref()
+                != body.image().bytes().get(content.as_range())
+        {
+            return None;
+        }
+        let policy = self.original_name_input().policy();
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                input, None, policy,
+            );
+        let key = purpose.key(
+            parameters,
+            tcl_syntax::word_rules::WordValueRules::from_config(&parameters.config()),
+        )?;
+        let topology =
+            crate::command_binding::formal_topology::OriginalFormalTopology::from_original_key(
+                key,
+                self.source_dialect()?,
+            )?;
+        (topology.parameters().len() == metadata.params.len()
+            && topology
+                .parameters()
+                .iter()
+                .zip(&metadata.params)
+                .all(|(actual, report)| actual.name.as_slice() == report.name.as_bytes()))
+        .then(|| OriginalSourceMethodNameBody {
+            parameters: metadata
+                .params
+                .iter()
+                .map(|parameter| parameter.name.as_str())
+                .collect(),
+            body,
+        })
+    }
+
+    /// Whole original formal-list argument selected by the declaration grammar.
+    /// It supplies source roles, without parameter binding or an activation.
+    #[must_use]
+    pub const fn parameters_word(&self) -> Option<&tcl_lexer::NativeWord> {
+        self.parameters.as_ref()
+    }
+    /// Whole original script argument selected by the declaration grammar.
+    /// It supplies source roles, without entered or complete body execution.
+    #[must_use]
+    pub const fn body_word(&self) -> Option<&tcl_lexer::NativeWord> {
+        self.body.as_ref()
+    }
+
+    /// Independently selected source dialect for the retained argument roles.
+    /// An unknown entry supplies no parameter grammar or execution authority.
+    #[must_use]
+    pub const fn source_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+        self.source_dialect
+    }
+
+    /// Original declaration syntax and independent readonly/static name value.
+    #[must_use]
+    pub const fn declaration(&self) -> &OriginalSourceMemberDeclaration {
+        &self.declaration
+    }
+    /// Current original route operand, distinct from the canonical body name.
+    #[must_use]
+    pub const fn original_name_input(&self) -> &SignatureSourceNameInput {
+        &self.input
+    }
+    /// Registry-selected native method or source-value-only naming axis.
+    #[must_use]
+    pub const fn name_purpose(&self) -> tcl_registry::definer::DefinitionMemberNamePurpose {
+        self.purpose
+    }
+    /// Definition receiver's own member table.
+    #[must_use]
+    pub const fn side(&self) -> MemberSide {
+        self.side
+    }
+    /// Body/signature/report metadata at the canonical declaration.
+    #[must_use]
+    pub const fn metadata(&self) -> &MethodDef {
+        &self.method
+    }
+    /// Declaration or subsequent explicit source visibility state.
+    #[must_use]
+    pub const fn exported(&self) -> bool {
+        self.exported
+    }
+    /// Registry-selected classmethod delegate role, separate from allocation.
+    #[must_use]
+    pub const fn native_class_delegate(&self) -> bool {
+        self.native_class_delegate
+    }
+
+    /// The authored declaration's primary source product. A Registry-described
+    /// classmethod retains both a class-side declaration and an instance-side
+    /// forward at one written name. Only the former selects that declaration
+    /// cursor; the secondary receipt remains available to explicit call lookup.
+    /// This is source presentation/selection, never Native installation.
+    #[must_use]
+    pub fn is_primary_source_declaration(&self) -> bool {
+        !self.native_class_delegate || self.side != MemberSide::Instance
+    }
+
+    /// Original target and captured values of a forward, when independently
+    /// retained. Reporting strings cannot fill a missing prefix.
+    #[must_use]
+    pub fn forward_prefix(&self) -> Option<&[SignatureSourceNameInput]> {
+        self.forward_prefix.as_deref()
+    }
+}
+
+/// Registry-selected effect on original member names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OriginalSourceMemberEffectKind {
+    /// Delete each independently retained operand name.
+    Delete,
+    /// Move the first operand's route to the second operand.
+    Move,
+    /// Apply explicit visibility to each independently retained name.
+    Visibility(bool),
+}
+
+/// One exact original mutation, including its own operation site. Operand
+/// producers and the canonical declaration never donate the mutation time.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourceMemberEffect {
+    site: CommandAllocationSite,
+    side: MemberSide,
+    kind: OriginalSourceMemberEffectKind,
+    inputs: Vec<SignatureSourceNameInput>,
+    purpose: tcl_registry::definer::DefinitionMemberNamePurpose,
+}
+
+impl OriginalSourceMemberEffect {
+    pub(crate) fn new(
+        allocation_site: CommandAllocationSite,
+        side: MemberSide,
+        kind: OriginalSourceMemberEffectKind,
+        inputs: Vec<SignatureSourceNameInput>,
+        purpose: tcl_registry::definer::DefinitionMemberNamePurpose,
+    ) -> Option<Self> {
+        for input in &inputs {
+            match input {
+                SignatureSourceNameInput::OriginalWord(_)
+                | SignatureSourceNameInput::OriginalValue(_) => {}
+                SignatureSourceNameInput::OriginalVariableRoot(_)
+                | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
+            }
+        }
+        let first = inputs.first()?;
+        if inputs.iter().any(|input| {
+            input.policy() != first.policy()
+                || !purpose.admits(input.policy().recipe(), input.bytes())
+        }) {
+            return None;
+        }
+        if kind == OriginalSourceMemberEffectKind::Move && inputs.len() != 2 {
+            return None;
+        }
+        Some(Self {
+            site: allocation_site,
+            side,
+            kind,
+            inputs,
+            purpose,
+        })
+    }
+    /// Actual original mutation command site.
+    #[must_use]
+    pub const fn site(&self) -> &CommandAllocationSite {
+        &self.site
+    }
+    /// Own receiver table affected by this operation.
+    #[must_use]
+    pub const fn side(&self) -> MemberSide {
+        self.side
+    }
+    /// Registry-selected operation, independent of keyword display.
+    #[must_use]
+    pub const fn kind(&self) -> OriginalSourceMemberEffectKind {
+        self.kind
+    }
+    /// Independently selected naming axis of this original effect.
+    #[must_use]
+    pub const fn name_purpose(&self) -> tcl_registry::definer::DefinitionMemberNamePurpose {
+        self.purpose
+    }
+    /// Exact operand producers in Registry-selected operation order.
+    #[must_use]
+    pub fn inputs(&self) -> &[SignatureSourceNameInput] {
+        &self.inputs
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Operation {
+    Declaration(Box<OriginalSourceMethodMetadata>),
+    Effect(OriginalSourceMemberEffect),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LogicalSourceMemberNameOperand {
+    input: crate::analyser::ResolvedAnalysisInput,
+    words: Vec<tcl_lexer::NativeWord>,
+    name_ordinal: usize,
+    body_ordinal: usize,
+    parameter_ordinal: Option<usize>,
+    row: tcl_registry::definer::MemberRow,
+    side: MemberSide,
+    name_span: tcl_lexer::Span,
+    body_span: tcl_lexer::Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LogicalSourceMemberVisibilityOperand {
+    input: crate::analyser::ResolvedAnalysisInput,
+    words: Vec<tcl_lexer::NativeWord>,
+    ordinal: usize,
+    side: MemberSide,
+    effect: tcl_registry::definer::MemberVisibility,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LogicalSourceRelationCommand {
+    pub(crate) input: crate::analyser::ResolvedAnalysisInput,
+    pub(crate) words: Vec<tcl_lexer::NativeWord>,
+    pub(crate) side: Option<MemberSide>,
+    pub(crate) relation: tcl_registry::definer::RelationSlot,
+    pub(crate) slot: Option<tcl_registry::definer::SlotSpec>,
+    pub(crate) operation: Option<tcl_registry::definer::SlotOp>,
+}
+
+/// Ordered original member metadata. Unknown/computed input remains an
+/// explicit coverage gap; the compatibility String table supplies no names.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OriginalSourceMemberLedger {
+    operations: Vec<Operation>,
+    logical_names: Vec<LogicalSourceMemberNameOperand>,
+    logical_relations: Vec<LogicalSourceRelationCommand>,
+    logical_relation_coverage_unavailable: bool,
+    logical_visibility: Vec<LogicalSourceMemberVisibilityOperand>,
+    unavailable: bool,
+}
+
+impl OriginalSourceMemberLedger {
+    pub(crate) fn mark_logical_relation_coverage_unavailable(&mut self) {
+        self.logical_relation_coverage_unavailable = true;
+    }
+    pub(crate) fn logical_relation_coverage_available(&self) -> bool {
+        !self.logical_relation_coverage_unavailable
+    }
+
+    pub(crate) fn retain_logical_relation_command(
+        &mut self,
+        input: crate::analyser::ResolvedAnalysisInput,
+        words: Vec<tcl_lexer::NativeWord>,
+        effect: (
+            Option<MemberSide>,
+            tcl_registry::definer::RelationSlot,
+            Option<tcl_registry::definer::SlotSpec>,
+            Option<tcl_registry::definer::SlotOp>,
+        ),
+    ) {
+        self.logical_relations.push(LogicalSourceRelationCommand {
+            input,
+            words,
+            side: effect.0,
+            relation: effect.1,
+            slot: effect.2,
+            operation: effect.3,
+        });
+    }
+    pub(crate) fn logical_relation_commands(&self) -> &[LogicalSourceRelationCommand] {
+        &self.logical_relations
+    }
+
+    pub(crate) fn retain_logical_name_operand(
+        &mut self,
+        input: crate::analyser::ResolvedAnalysisInput,
+        words: Vec<tcl_lexer::NativeWord>,
+        ordinals: (usize, usize, Option<usize>),
+        side: MemberSide,
+        spans: (tcl_lexer::Span, tcl_lexer::Span),
+        row: tcl_registry::definer::MemberRow,
+    ) {
+        self.logical_names.push(LogicalSourceMemberNameOperand {
+            input,
+            words,
+            row,
+            name_ordinal: ordinals.0,
+            body_ordinal: ordinals.1,
+            parameter_ordinal: ordinals.2,
+            side,
+            name_span: spans.0,
+            body_span: spans.1,
+        });
+    }
+
+    pub(crate) fn logical_declaration_row(
+        &self,
+        side: MemberSide,
+        method: &MethodDef,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<&tcl_registry::definer::MemberRow> {
+        Some(
+            &self
+                .logical_member_operands(side, method, input, image)?
+                .row,
+        )
+    }
+
+    /// Selected original name operands remain separate from native declarations.
+    pub(crate) fn logical_name_operand(
+        &self,
+        side: MemberSide,
+        method: &MethodDef,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<&tcl_lexer::NativeWord> {
+        let selected = self.logical_member_operands(side, method, input, image)?;
+        selected.words.get(selected.name_ordinal)
+    }
+
+    /// Registry-selected body from the same complete original member vector.
+    pub(crate) fn logical_body_operand(
+        &self,
+        side: MemberSide,
+        method: &MethodDef,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<&tcl_lexer::NativeWord> {
+        let selected = self.logical_member_operands(side, method, input, image)?;
+        let body = selected.words.get(selected.body_ordinal)?;
+        (body.tokens().first()?.span == selected.body_span).then_some(body)
+    }
+
+    /// `ParamList` from the same genuine member vector and selected role ordinal.
+    pub(crate) fn logical_parameter_operand(
+        &self,
+        side: MemberSide,
+        method: &MethodDef,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<&tcl_lexer::NativeWord> {
+        let selected = self.logical_member_operands(side, method, input, image)?;
+        selected.words.get(selected.parameter_ordinal?)
+    }
+
+    pub(crate) fn logical_member_body_corresponds(
+        &self,
+        side: MemberSide,
+        method: &MethodDef,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        body: &crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody,
+    ) -> bool {
+        self.logical_member_operands(side, method, input, image)
+            .is_some_and(|selected| {
+                selected.words == body.original_words()
+                    && selected.words.get(selected.body_ordinal) == Some(body.original_container())
+            })
+    }
+
+    fn logical_member_operands(
+        &self,
+        side: MemberSide,
+        method: &MethodDef,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<&LogicalSourceMemberNameOperand> {
+        input.has_logical_source_name_context().then_some(())?;
+        let mut matching = self.logical_names.iter().filter(|entry| {
+            entry.input == *input
+                && entry.side == side
+                && entry.name_span == method.name_span
+                && entry.body_span == method.body_span
+                && entry.words.iter().all(|word| {
+                    word.image() == image && word.config() == input.lexer_config().nested()
+                })
+                && entry.words.get(entry.name_ordinal).is_some_and(|word| {
+                    tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                        .is_some_and(|name| name == method.name.as_bytes())
+                })
+        });
+        let selected = matching.next()?;
+        matching.next().is_none().then_some(())?;
+        Some(selected)
+    }
+
+    pub(crate) fn retain_logical_visibility_operand(
+        &mut self,
+        input: crate::analyser::ResolvedAnalysisInput,
+        words: Vec<tcl_lexer::NativeWord>,
+        ordinal: usize,
+        side: MemberSide,
+        effect: tcl_registry::definer::MemberVisibility,
+    ) {
+        self.logical_visibility
+            .push(LogicalSourceMemberVisibilityOperand {
+                input,
+                words,
+                ordinal,
+                side,
+                effect,
+            });
+    }
+
+    pub(crate) fn logical_visibility_name(
+        &self,
+        name: &str,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<tcl_registry::definer::MemberVisibility> {
+        self.logical_visibility_for_side(name.as_bytes(), MemberSide::Instance, input, image)
+    }
+
+    pub(crate) fn logical_visibility_for_side(
+        &self,
+        name: &[u8],
+        side: MemberSide,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<tcl_registry::definer::MemberVisibility> {
+        if name.contains(&0) {
+            return None;
+        }
+        let matching = self
+            .logical_visibility
+            .iter()
+            .filter(|entry| {
+                entry.input == *input
+                    && entry.side == side
+                    && entry.words.iter().all(|word| {
+                        word.image() == image && word.config() == input.lexer_config().nested()
+                    })
+                    && entry.words.get(entry.ordinal).is_some_and(|word| {
+                        tcl_syntax::word_rules::original_static_word_unicode_value(word).as_deref()
+                            == Some(name)
+                    })
+            })
+            .collect::<Vec<_>>();
+        let last = matching
+            .iter()
+            .map(|entry| entry.words[entry.ordinal].span().start())
+            .max()?;
+        let mut effects = matching
+            .into_iter()
+            .filter(|entry| entry.words[entry.ordinal].span().start() == last)
+            .map(|entry| entry.effect);
+        let selected = effects.next()?;
+        effects.all(|effect| effect == selected).then_some(selected)
+    }
+
+    pub(crate) fn withdraw(&mut self) {
+        self.unavailable = true;
+    }
+    pub(crate) fn declare(&mut self, declaration: OriginalSourceMethodMetadata) {
+        self.operations
+            .push(Operation::Declaration(Box::new(declaration)));
+    }
+    pub(crate) fn effect(&mut self, effect: OriginalSourceMemberEffect) {
+        self.operations.push(Operation::Effect(effect));
+    }
+    pub(crate) fn absorb(&mut self, other: &Self, other_ran_second: bool) {
+        self.unavailable |= other.unavailable;
+        self.logical_relation_coverage_unavailable |= other.logical_relation_coverage_unavailable;
+        for visibility in &other.logical_visibility {
+            if !self.logical_visibility.contains(visibility) {
+                self.logical_visibility.push(visibility.clone());
+            }
+        }
+        for relation in &other.logical_relations {
+            if !self.logical_relations.contains(relation) {
+                self.logical_relations.push(relation.clone());
+            }
+        }
+        for name in &other.logical_names {
+            if !self.logical_names.contains(name) {
+                self.logical_names.push(name.clone());
+            }
+        }
+        let mut operations = if other_ran_second {
+            std::mem::take(&mut self.operations)
+        } else {
+            other.operations.clone()
+        };
+        let tail = if other_ran_second {
+            &other.operations
+        } else {
+            &self.operations
+        };
+        for operation in tail {
+            if !operations.contains(operation) {
+                operations.push(operation.clone());
+            }
+        }
+        self.operations = operations;
+    }
+
+    /// Original declarations, including those later moved or removed. These
+    /// are source candidates; this inventory is not a live dispatch table.
+    pub fn declarations(&self) -> impl Iterator<Item = &OriginalSourceMethodMetadata> {
+        self.operations
+            .iter()
+            .filter_map(|operation| match operation {
+                Operation::Declaration(declaration) => Some(declaration.as_ref()),
+                Operation::Effect(_) => None,
+            })
+    }
+    /// Original effects in the definition walk's actual retained order.
+    pub fn effects(&self) -> impl Iterator<Item = &OriginalSourceMemberEffect> {
+        self.operations
+            .iter()
+            .filter_map(|operation| match operation {
+                Operation::Effect(effect) => Some(effect),
+                Operation::Declaration(_) => None,
+            })
+    }
+    /// Fold exact byte routes through this record's own observed operations.
+    /// Missing names or conflicting moves supply no effective metadata view.
+    #[must_use]
+    pub fn methods(&self, side: MemberSide) -> Option<Vec<OriginalSourceMethodMetadata>> {
+        self.methods_in_source_horizon(side, None)
+    }
+    /// Original source routes strictly before this call in the same immutable
+    /// source origin. This supplies source order, never runtime currency.
+    #[must_use]
+    pub fn methods_before_source_call(
+        &self,
+        side: MemberSide,
+        call: &CommandAllocationSite,
+    ) -> Option<Vec<OriginalSourceMethodMetadata>> {
+        self.methods_in_source_horizon(side, Some(call))
+    }
+    fn methods_in_source_horizon(
+        &self,
+        side: MemberSide,
+        before: Option<&CommandAllocationSite>,
+    ) -> Option<Vec<OriginalSourceMethodMetadata>> {
+        if self.unavailable {
+            return None;
+        }
+        let mut methods = Vec::<OriginalSourceMethodMetadata>::new();
+        for operation in &self.operations {
+            if !operation_in_source_horizon(operation, before)? {
+                continue;
+            }
+            match operation {
+                Operation::Declaration(declaration) if declaration.side == side => {
+                    methods.retain(|method| !same_name(&method.input, &declaration.input));
+                    methods.push(declaration.as_ref().clone());
+                }
+                Operation::Effect(effect) if effect.side == side => {
+                    apply_effect(&mut methods, effect)?;
+                }
+                _ => {}
+            }
+        }
+        Some(methods)
+    }
+    /// Select an exact own-table source metadata route. The caller still
+    /// owns class/receiver identity, method precedence and lookup currency.
+    #[must_use]
+    pub fn method_for_input(
+        &self,
+        side: MemberSide,
+        input: &SignatureSourceNameInput,
+    ) -> Option<OriginalSourceMethodMetadata> {
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
+        }
+        self.methods(side)?.into_iter().find(|method| {
+            method
+                .purpose
+                .admits(input.policy().recipe(), input.bytes())
+                && same_name(&method.input, input)
+        })
+    }
+    /// Visibility advice for a family-owned inherited method. Exact own
+    /// overrides, missing coverage, deletion and route moves decline; original
+    /// explicit export/unexport effects amend the authored default visibility.
+    #[must_use]
+    pub fn inherited_visibility_for_input(
+        &self,
+        side: MemberSide,
+        input: &SignatureSourceNameInput,
+        default_exported: bool,
+    ) -> Option<bool> {
+        self.inherited_visibility_in_source_horizon(side, input, default_exported, None)
+    }
+    /// Same inherited visibility question under exact original before-call
+    /// source order. Later exports, removals and overrides cannot donate facts.
+    #[must_use]
+    pub fn inherited_visibility_before_source_call(
+        &self,
+        side: MemberSide,
+        input: &SignatureSourceNameInput,
+        default_exported: bool,
+        call: &CommandAllocationSite,
+    ) -> Option<bool> {
+        self.inherited_visibility_in_source_horizon(side, input, default_exported, Some(call))
+    }
+    pub(crate) fn inherited_visibility_for_metadata_keyword(
+        &self,
+        side: MemberSide,
+        policy: NamePolicyProtocol,
+        keyword: &'static str,
+        default_exported: bool,
+    ) -> Option<bool> {
+        self.inherited_visibility_for_bytes(
+            side,
+            policy,
+            keyword.as_bytes(),
+            default_exported,
+            None,
+        )
+    }
+
+    fn inherited_visibility_in_source_horizon(
+        &self,
+        side: MemberSide,
+        input: &SignatureSourceNameInput,
+        default_exported: bool,
+        before: Option<&CommandAllocationSite>,
+    ) -> Option<bool> {
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
+        }
+        self.inherited_visibility_for_bytes(
+            side,
+            input.policy(),
+            input.bytes(),
+            default_exported,
+            before,
+        )
+    }
+    fn inherited_visibility_for_bytes(
+        &self,
+        side: MemberSide,
+        policy: NamePolicyProtocol,
+        bytes: &[u8],
+        default_exported: bool,
+        before: Option<&CommandAllocationSite>,
+    ) -> Option<bool> {
+        let matches =
+            |input: &SignatureSourceNameInput| input.policy() == policy && input.bytes() == bytes;
+        if self
+            .methods_in_source_horizon(side, before)?
+            .iter()
+            .any(|method| matches(&method.input))
+        {
+            return None;
+        }
+        let mut exported = default_exported;
+        for effect in self.effects().filter(|effect| effect.side == side) {
+            if !site_in_source_horizon(effect.site(), before)? {
+                continue;
+            }
+            if !effect.inputs.iter().any(&matches) {
+                continue;
+            }
+            match effect.kind {
+                OriginalSourceMemberEffectKind::Visibility(value) => exported = value,
+                OriginalSourceMemberEffectKind::Delete | OriginalSourceMemberEffectKind::Move => {
+                    return None;
+                }
+            }
+        }
+        Some(exported)
+    }
+
+    /// Effective exact native name keys from this record's observed routes.
+    #[must_use]
+    pub fn names(&self, side: MemberSide) -> Option<Vec<(NameBytes, NamePolicyProtocol)>> {
+        Some(
+            self.methods(side)?
+                .into_iter()
+                .map(|method| (NameBytes::from(method.input.bytes()), method.input.policy()))
+                .collect(),
+        )
+    }
+}
+
+fn operation_in_source_horizon(
+    operation: &Operation,
+    before: Option<&CommandAllocationSite>,
+) -> Option<bool> {
+    let site = match operation {
+        Operation::Declaration(declaration) => declaration.declaration().site(),
+        Operation::Effect(effect) => effect.site(),
+    };
+    site_in_source_horizon(site, before)
+}
+fn site_in_source_horizon(
+    site: &CommandAllocationSite,
+    before: Option<&CommandAllocationSite>,
+) -> Option<bool> {
+    before.map_or(Some(true), |call| {
+        (site.source == call.source).then_some(site.offset < call.offset)
+    })
+}
+
+fn same_name(left: &SignatureSourceNameInput, right: &SignatureSourceNameInput) -> bool {
+    left.policy() == right.policy() && left.bytes() == right.bytes()
+}
+
+fn apply_effect(
+    methods: &mut Vec<OriginalSourceMethodMetadata>,
+    effect: &OriginalSourceMemberEffect,
+) -> Option<()> {
+    if methods
+        .iter()
+        .any(|method| method.purpose != effect.purpose)
+    {
+        return None;
+    }
+    match effect.kind {
+        OriginalSourceMemberEffectKind::Delete => {
+            for input in &effect.inputs {
+                methods.retain(|method| !same_name(&method.input, input));
+            }
+        }
+        OriginalSourceMemberEffectKind::Move => {
+            let [from, to] = effect.inputs.as_slice() else {
+                return None;
+            };
+            if same_name(from, to) || methods.iter().any(|method| same_name(&method.input, to)) {
+                return None;
+            }
+            let Some(index) = methods
+                .iter()
+                .position(|method| same_name(&method.input, from))
+            else {
+                // An augmentation may move a declaration owned by another
+                // record. Its effect survives for the independently joined fold.
+                return Some(());
+            };
+            let mut moved = methods.remove(index);
+            moved.input = to.clone();
+            methods.push(moved);
+        }
+        OriginalSourceMemberEffectKind::Visibility(exported) => {
+            for input in &effect.inputs {
+                if let Some(method) = methods
+                    .iter_mut()
+                    .find(|method| same_name(&method.input, input))
+                {
+                    method.exported = exported;
+                }
+            }
+        }
+    }
+    Some(())
+}
+
+#[cfg(test)]
+mod input_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn member_operands_and_effects_require_values_instead_of_lexical_roots() {
+        let analysis = crate::analyser::Analyser::new().analyse(
+            "oo::class create C {method ping {} {}; export inherited}",
+            "tcl8.6",
+        );
+        let class = analysis.original_class_declarations().next().unwrap();
+        let ledger = &class.metadata().original_members;
+        let method = ledger.methods(MemberSide::Instance).unwrap().remove(0);
+        let input = method.original_name_input();
+        let word = input.original_word_key().unwrap().original_word();
+        let config = word.config();
+        let policy = input.policy();
+        let value = SignatureSourceNameInput::OriginalValue(
+            crate::signature_scan::scope::SignatureSourceNameValue::from_original_static_word(
+                word,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                policy,
+            )
+            .unwrap(),
+        );
+        let root = |name: &str| {
+            let source = format!("${name}");
+            let plan = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(&source),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let word = &plan.commands[0].words[0];
+            SignatureSourceNameInput::OriginalVariableRoot(
+                crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_word(
+                    word,
+                    word.span(),
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                    policy,
+                ).unwrap(),
+            )
+        };
+        let lexical = root("ping");
+        assert_eq!(lexical.bytes(), input.bytes());
+        assert_eq!(lexical.policy(), input.policy());
+        for operand in [input, &value] {
+            assert!(
+                ledger
+                    .method_for_input(MemberSide::Instance, operand)
+                    .is_some()
+            );
+            assert!(
+                OriginalSourceMemberEffect::new(
+                    method.declaration().site().clone(),
+                    MemberSide::Instance,
+                    OriginalSourceMemberEffectKind::Visibility(true),
+                    vec![operand.clone()],
+                    method.name_purpose(),
+                )
+                .is_some()
+            );
+        }
+        assert!(
+            ledger
+                .method_for_input(MemberSide::Instance, &lexical)
+                .is_none()
+        );
+        assert!(
+            OriginalSourceMemberEffect::new(
+                method.declaration().site().clone(),
+                MemberSide::Instance,
+                OriginalSourceMemberEffectKind::Visibility(true),
+                vec![lexical],
+                method.name_purpose(),
+            )
+            .is_none()
+        );
+        let inherited = ledger
+            .effects()
+            .find_map(|effect| {
+                effect
+                    .inputs
+                    .iter()
+                    .find(|input| input.bytes() == b"inherited")
+            })
+            .unwrap();
+        assert_eq!(
+            ledger.inherited_visibility_for_input(MemberSide::Instance, inherited, false),
+            Some(true)
+        );
+        assert!(
+            ledger
+                .inherited_visibility_for_input(MemberSide::Instance, &root("inherited"), false)
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod primary_source_declaration_tests {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn classmethod_source_name_selects_primary_without_removing_secondary_product() {
+        let analysis =
+            Analyser::new().analyse("oo::class create C {classmethod make {} {}}", "tcl9.0");
+        let class = analysis.original_class_declarations().next().unwrap();
+        let products = class
+            .metadata()
+            .original_members
+            .declarations()
+            .filter(|method| method.metadata().name == "make")
+            .collect::<Vec<_>>();
+        assert_eq!(products.len(), 2);
+        let primary = products
+            .iter()
+            .copied()
+            .filter(|method| method.is_primary_source_declaration())
+            .collect::<Vec<_>>();
+        assert_eq!(primary.len(), 1);
+        assert_eq!(primary[0].side(), MemberSide::ClassObject);
+        let secondary = products
+            .iter()
+            .copied()
+            .find(|method| method.side() == MemberSide::Instance)
+            .unwrap();
+        assert!(!secondary.is_primary_source_declaration());
+        assert_eq!(
+            primary[0].declaration().original_word(),
+            secondary.declaration().original_word()
+        );
+    }
+}
+
+#[cfg(test)]
+mod logical_unicode_visibility_source_tests {
+    #[test]
+    fn unchanged_unicode_visibility_target_uses_the_original_logical_operand() {
+        let source = "oo::class create C {method café {} {}; unexport café}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let image = tcl_lexer::SourceImage::document(source);
+        let class = analysis
+            .checked_logical_source_class_declarations()
+            .unwrap()[0];
+        let effect = class
+            .original_members
+            .logical_visibility_name("café", input, &image);
+        assert_eq!(
+            effect,
+            Some(tcl_registry::definer::MemberVisibility::Unexported)
+        );
+        let mut changed = input.clone();
+        changed.config.strict_quoting = !changed.config.strict_quoting;
+        assert!(
+            class
+                .original_members
+                .logical_visibility_name("café", &changed, &image)
+                .is_none()
+        );
+        assert!(
+            class
+                .original_members
+                .logical_visibility_name(
+                    "café",
+                    input,
+                    &tcl_lexer::SourceImage::document(&format!("{source}# changed"))
+                )
+                .is_none()
+        );
+        assert!(
+            class
+                .original_members
+                .logical_visibility_name("café\0", input, &image)
+                .is_none()
+        );
+    }
+}

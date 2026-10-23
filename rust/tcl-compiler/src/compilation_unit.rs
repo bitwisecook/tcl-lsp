@@ -39,20 +39,23 @@ use crate::cfg::{CfgModule, Function as CfgFunction};
 use crate::cfg_builder::{
     PreparedCfgContext, build_cfg_with_registry_and_context, prepare_cfg_context_bundle,
 };
-use crate::def_use::{DefUseResult, build_def_use_chains};
+use crate::def_use::{DefUseFacts, build_def_use_chains};
 use crate::interprocedural::InterproceduralAnalysis;
-use crate::ir::Module as IrModule;
-use crate::memory_ssa::{MemorySsaFunction, build_memory_ssa};
-use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
+use crate::ir::{Module as IrModule, Statement};
+use crate::memory_ssa::MemorySsaFunction;
+use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props_with_config};
 use crate::sccp::SccpResult;
 use crate::semantic_analysis::SemanticAnalysisBundle;
-use crate::ssa::{SsaFunction, ValueKey};
-use crate::taint::{TaintGraph, TaintLattice, instance_classes_for_function, propagate_taints};
-use crate::type_infer::propagate_types;
+use crate::ssa::{SsaFunction, ValueKey, build_ssa_with_context_for_entry_and_metadata};
+use crate::taint::{
+    TaintGraph, TaintLattice, TaintPropagationInputs, TaintSourceContext,
+    instance_classes_for_function, propagate_taints,
+};
+use crate::type_infer::{TypePropagationMetadata, propagate_types_with_metadata_context};
 use crate::types::TypeLattice;
 use crate::unit_scope::{
     build_extra_call_site_scan_contexts, collect_call_site_constants,
-    params_constants_from_call_sites,
+    params_constants_from_native_call_sites,
 };
 
 /// Module-wide CFG-determining context (upvar summaries + proc params +
@@ -69,33 +72,53 @@ type CfgContext = crate::cfg_builder::CfgContext;
 /// The body has already been normalised to offset 0 (every span shifted by
 /// `-body_offset`), so a shifted-but-unchanged procedure produces an identical
 /// request — the salsa-native memo (`tcl-lsp-db`'s `function_lattice`) keys on
-/// it position-independently and the builder rebases the returned unit back to
+/// it position-independently for ordinary procedures. Event requests also retain
+/// their full original descriptor, and the builder rebases the returned unit back to
 /// the procedure's real offset.  Carries exactly what
 /// [`crate::cfg_builder::build_cfg_function_with_upvars`] +
 /// [`FunctionUnit::build`] consume: the offset-0 body, the qualified name, the
 /// parameter list, the module-wide upvar / proc-param context (so the rebuilt
 /// CFG is identical to the whole-module build's), and the analysis dialect.
 pub struct LatticeRequest<'a> {
+    pub(crate) original_worker_request:
+        Option<&'a original_lattice_worker::OriginalLatticeRequestSeal>,
+    /// Genuine lowered Module that issued this source body coordinate.
+    pub module: &'a crate::ir::Module,
+    /// Exact current body for memo-result joins; neutral cached facts need no ID key.
+    pub body_id: crate::ir::ProcedureId,
     /// Qualified procedure name (e.g. `::foo::bar`).
     pub qname: &'a str,
     /// The procedure body, normalised to offset 0.
     pub body: &'a crate::ir::Script,
+    /// Actual authored document whose retained carriers own the body proofs.
+    pub source: &'a str,
+    /// Original body base before lexical spans were normalised to zero.
+    pub original_body_offset: u32,
+    /// Actual first executable body byte, independently of its normalisation base.
+    pub executable_body_offset: u32,
+    /// Exact procedure body source, absent for unrepresented synthesised bodies.
+    pub body_source: Option<&'a str>,
+    /// Sealed original event descriptor; absent for ordinary procedures.
+    pub irules_event_body: Option<&'a Arc<crate::ir::SourceIrulesEventBody>>,
+    /// Complete module mutation obligations used by the lattice fold owner.
+    pub command_trust: &'a crate::command_binding::ModuleCommandMutations,
     /// The procedure's declared parameters.
     pub params: &'a [String],
-    /// Module-wide `proc -> upvar summary` context (from
-    /// [`crate::cfg_builder::prepare_cfg_context`]), the resolved command surface,
-    /// and whether command dispatch is trace-visible.
-    pub upvar_procs: &'a HashMap<String, crate::cfg_builder::upvar_info::UpvarInfo>,
-    /// Module-wide `proc -> params` context (from
-    /// [`crate::cfg_builder::prepare_cfg_context`]).
-    pub proc_params: &'a HashMap<String, Vec<String>>,
-    /// Module-wide `proc -> outer-scope write summary` context (from
-    /// [`crate::cfg_builder::prepare_cfg_context`]).
+    /// Body-keyed caller-frame summaries from [`crate::cfg_builder::prepare_cfg_context`].
+    pub upvar_procs: &'a HashMap<crate::ir::ProcedureId, crate::cfg_builder::upvar_info::UpvarInfo>,
+    /// Original parameter lists keyed by the same issued body IDs.
+    pub proc_params: &'a HashMap<crate::ir::ProcedureId, Vec<String>>,
+    /// Outer-place MAY summaries keyed by the same issued body IDs.
     pub global_write_procs:
-        &'a HashMap<String, crate::cfg_builder::global_write_info::GlobalWriteInfo>,
+        &'a HashMap<crate::ir::ProcedureId, crate::cfg_builder::global_write_info::GlobalWriteInfo>,
     /// Closed module command state used to resolve effective direct-call
     /// targets and `interp alias` argument prefixes.
     pub command_bindings: &'a crate::command_binding::ModuleCommandBindings,
+    /// Actual original Module/source owner for procedure-effect selection.
+    pub procedure_summary_owners: &'a crate::cfg_builder::OriginalProcedureSummaryOwners,
+    /// Complete original metadata input for the shared body CFG owner.
+    /// Absence refuses metadata; labels cannot recreate availability or scope.
+    pub source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     /// Exact offset-zero lexer configuration used to lower and rebuild this
     /// body. This is carried independently of `dialect`: callers may layer
     /// grammar overrides without changing the registry profile.
@@ -107,7 +130,7 @@ pub struct LatticeRequest<'a> {
     /// than acquiring registry-declared builtin control-flow edges.
     pub plain_command_dispatch: bool,
     /// Interprocedural caller-uniform-literal SCCP seeds for this procedure
-    /// (from [`params_constants_from_call_sites`]), encoded in the
+    /// (from [`params_constants_from_native_call_sites`]), encoded in the
     /// deterministic, hashable `(param, version, string)` form the memo key
     /// interns (see [`encode_param_constants`]).  Empty means "no seeds".
     /// Position-independent — keyed by parameter name + SSA version, never by
@@ -145,6 +168,86 @@ pub struct LatticeRequest<'a> {
     /// potentially traced". Whole-module, folded into the memo key
     /// alongside `traced_variables`.
     pub has_dynamic_variable_trace: bool,
+}
+
+impl LatticeRequest<'_> {
+    /// Preserve this body's original metadata purpose under its exact current
+    /// declaration and module. Missing supplied input remains unavailable.
+    #[must_use]
+    pub fn original_metadata_context(
+        &self,
+        registry: &CommandRegistry,
+    ) -> crate::registry_invocation::OwnedInvocationMetadataContext {
+        use crate::registry_invocation::OwnedInvocationMetadataContext as Metadata;
+        let Some(procedure) = self.original_source_procedure() else {
+            return Metadata::Unavailable;
+        };
+        let Some(retained) = self.module.retained_source_bindings.as_ref() else {
+            return Metadata::Unavailable;
+        };
+        if self.lexer_config != self.module.lexer_config.nested().normalized()
+            || self
+                .dialect
+                .or_else(|| registry.profile())
+                .map(tcl_dialect::DialectProfile::cache_key)
+                != self
+                    .module
+                    .dialect_profile
+                    .map(tcl_dialect::DialectProfile::cache_key)
+            || retained
+                .positioned_for_module(self.module, registry)
+                .is_none()
+            || !retained.matches_original_procedure_summary(self.body_id, procedure)
+        {
+            return Metadata::Unavailable;
+        }
+        match &self.module.source_entry.metadata_context {
+            Metadata::Standalone if self.source_metadata_input.is_none() => Metadata::Standalone,
+            Metadata::Supplied(context) if self.source_metadata_input.is_none() => {
+                Metadata::Supplied(Arc::clone(context))
+            }
+            Metadata::SuppliedSource(original) => {
+                if crate::registry_invocation::InvocationMetadataContext::for_module(
+                    registry,
+                    self.module,
+                )
+                .is_none()
+                {
+                    return Metadata::Unavailable;
+                }
+                let Some(input) = self.source_metadata_input else {
+                    return Metadata::Unavailable;
+                };
+                if input != original.as_ref() && input != &original.for_nested_source() {
+                    return Metadata::Unavailable;
+                }
+                Metadata::for_source_input(Some(input))
+            }
+            _ => Metadata::Unavailable,
+        }
+    }
+
+    /// Genuine original declaration in this request's current source and issuer.
+    /// Independent declaration cards retain their purpose; no allocation follows.
+    #[must_use]
+    pub fn original_source_procedure(&self) -> Option<&crate::ir::Procedure> {
+        (self.module.source.try_text().ok()? == self.source).then_some(())?;
+        let procedure = self
+            .module
+            .original_source_procedure_bodies()
+            .find_map(|(id, procedure)| (*id == self.body_id).then_some(procedure))?;
+        if procedure.qualified_name != self.qname
+            || procedure.params != self.params
+            || procedure.span.start() != self.original_body_offset
+            || procedure.body_offset != self.executable_body_offset
+            || procedure.body_source.as_deref() != self.body_source
+        {
+            return None;
+        }
+        let mut body = procedure.body.clone();
+        crate::lattice_rebase::rebase_script(&mut body, -i64::from(procedure.span.start()));
+        (&body == self.body).then_some(procedure)
+    }
 }
 
 /// Salsa-native per-procedure lattice memo used by
@@ -208,7 +311,6 @@ pub struct UnitBuildOptions<'a> {
 }
 
 /// The qualified-name prefix of an iRules `when` handler's procedure.
-const WHEN_HANDLER_PREFIX: &str = "::when::";
 
 /// Where a consumer reads a place's existence fact
 /// ([`FunctionUnit::existence`]).
@@ -230,6 +332,7 @@ pub enum ExistencePoint {
 /// of the same one — may have bound them; empty for a module with no
 /// handler.
 fn connection_scoped_names(
+    module: &IrModule,
     cfg_module: &CfgModule,
     registry: &CommandRegistry,
     options: UnitBuildOptions<'_>,
@@ -237,8 +340,12 @@ fn connection_scoped_names(
     let config = options.config;
     let mut names: BTreeSet<String> = BTreeSet::new();
     let mut any = false;
-    for (qname, cfg) in &cfg_module.procedures {
-        if !qname.starts_with(WHEN_HANDLER_PREFIX) {
+    for (id, cfg) in &cfg_module.procedures {
+        if !module
+            .procedures
+            .get(id)
+            .is_some_and(|body| body.body_kind == crate::ir::ProcedureBodyKind::Event)
+        {
             continue;
         }
         any |= crate::dynamic_names::dynamic_name_barrier(cfg, registry, config).writes;
@@ -256,9 +363,7 @@ fn connection_scoped_names(
     let arrays: Vec<String> = names
         .iter()
         .filter_map(|name| {
-            name.split_once('(')
-                .filter(|_| name.ends_with(')'))
-                .map(|(base, _)| base.to_owned())
+            tcl_syntax::naming::split_element_ref(name).map(|(base, _)| base.to_owned())
         })
         .collect();
     names.extend(arrays);
@@ -270,11 +375,29 @@ fn connection_scoped_names(
 
 /// Callback type for [`CompilationUnit::with_interprocedural_memoized`].
 ///
-/// Given a procedure's qualified name and the whole-module
+/// Given the exact body ID, its display name and the whole-module
 /// [`InterproceduralAnalysis`], returns its (memoised) interprocedural taints,
 /// or `None` to fall back to a fresh [`FunctionUnit::interproc_taints`] re-run.
-pub type TaintCascadeCallback<'a> =
-    dyn FnMut(&str, &InterproceduralAnalysis) -> Option<Arc<HashMap<ValueKey, TaintLattice>>> + 'a;
+pub type TaintCascadeCallback<'a> = dyn FnMut(
+        crate::ir::ProcedureId,
+        &str,
+        &InterproceduralAnalysis,
+    ) -> Option<Arc<HashMap<ValueKey, TaintLattice>>>
+    + 'a;
+
+/// Callback for genuine original body taint memo results. The request owns
+/// the actual internally computed summary and current source body roster.
+pub type OriginalTaintCascadeCallback<'a> = dyn FnMut(
+        &OriginalInterproceduralTaintRequest,
+        crate::ir::ProcedureId,
+        &str,
+    ) -> Option<crate::body_analysis_capsule::OriginalInterproceduralTaintReport>
+    + 'a;
+
+enum OriginalTaintCallback<'borrow, 'data> {
+    Legacy(&'borrow mut TaintCascadeCallback<'data>),
+    Original(&'borrow mut OriginalTaintCascadeCallback<'data>),
+}
 
 // Per-function analysis bundle
 
@@ -294,10 +417,19 @@ pub type TaintCascadeCallback<'a> =
 pub struct MethodBodyFacts {
     /// The method's own formal parameter names, in declaration order.
     pub params: Vec<String>,
-    /// Names auto-bound to out-of-frame *object* storage on entry — the
-    /// class-wide cross-definition-block union lowering computes
-    /// ([`crate::ir::MethodDef::instance_vars`]).
+    /// Compatibility names potentially escaping to object storage. Original
+    /// method units retain their actual selected entry context independently;
+    /// these labels cannot supply an original cell or binding.
     pub instance_vars: HashSet<String>,
+    /// Original source identity keeps String compatibility facts advisory.
+    original_source: bool,
+    /// Exact original formal declaration, without an execution grant.
+    pub(crate) original_parameters:
+        Option<Arc<crate::command_binding::formal_topology::OriginalFormalTopology>>,
+    /// Genuine entered receiver/provider state, retained before body effects.
+    pub(crate) original_receiver_context: Option<
+        Arc<crate::command_binding::original_receiver_body_context::OriginalReceiverBodyContext>,
+    >,
 }
 
 impl MethodBodyFacts {
@@ -309,6 +441,9 @@ impl MethodBodyFacts {
         Self {
             params: method.params.clone(),
             instance_vars: method.instance_vars.clone(),
+            original_source: method.body.executed_source.is_some(),
+            original_parameters: method.original_parameters.clone(),
+            original_receiver_context: method.original_receiver_context.clone(),
         }
     }
 
@@ -319,6 +454,23 @@ impl MethodBodyFacts {
     /// not a dead store, another method reads it later).
     #[must_use]
     pub fn known_bound_at_entry(&self) -> HashSet<String> {
+        if self.original_source {
+            return self
+                .original_parameters
+                .as_ref()
+                .map_or_else(HashSet::new, |topology| {
+                    topology
+                        .original_name_fields()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|field| {
+                            std::str::from_utf8(field.name.as_bytes())
+                                .ok()
+                                .map(str::to_owned)
+                        })
+                        .collect()
+                });
+        }
         self.instance_vars
             .iter()
             .chain(self.params.iter())
@@ -333,25 +485,33 @@ impl MethodBodyFacts {
 /// [`function_lattice`](../../tcl_lsp_db/fn.function_lattice.html) query rebuilds
 /// a procedure whose interned body changed but whose lattice came out identical,
 /// the equal comparison lets dependents skip re-execution.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct FunctionUnit {
+    original_lattice_worker: Option<Arc<original_lattice_worker::OriginalFunctionLatticeResult>>,
+    original_lattice_callback_admission: Option<bool>,
+    /// Complete immutable metadata generation retained by the actual build.
+    pub(crate) source_metadata_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    /// Exact source lexer configuration, including body-coordinate policy.
+    pub(crate) source_config: tcl_lexer::LexerConfig,
     /// Qualified function name (e.g. `::top`, `::foo::bar`).
     pub name: String,
+    /// Retained module body identity; the top-level script leaves this absent.
+    pub body_id: Option<crate::ir::ProcedureId>,
     /// Control-flow graph.
     pub cfg: CfgFunction,
     /// SSA form.
     pub ssa: SsaFunction,
-    /// Def-use chains.
-    ///
-    /// Shared behind an `Arc` (like `types` / `taints` / `rendered_props`)
-    /// because it is **span-free**: [`crate::lattice_rebase::rebase_function_unit`]
-    /// never touches it, so a memoised unit taken from the salsa
-    /// `function_lattice` cache and rebased to a new offset keeps the very same
-    /// lattice, so it need not be deep-copied per procedure per read.
-    pub def_use: Arc<DefUseResult>,
+    /// Shared symbol/version graph with its current exact storage-key interpretation.
+    /// Source relocation retains the graph; storage relocation rebinds its interpretation.
+    pub def_use: DefUseFacts,
     /// SCCP result: lattice values, executable blocks, constant
     /// branches.
     pub sccp: SccpResult,
+    /// Lazy immutable analysis-purpose values; caches never affect structural Eq.
+    pub semantic_value_projection: Arc<crate::sccp::SemanticValueProjection>,
+    /// Exact projection issued by this function's construction or central
+    /// graph invalidation. A substituted public cache is not that producer.
+    retained_semantic_value_owner: Option<Arc<crate::sccp::SemanticValueProjection>>,
     /// Type lattice values per SSA definition.
     ///
     /// Computed by the type-propagation pass. Absent entries are
@@ -426,6 +586,12 @@ pub struct FunctionUnit {
     /// an `Arc` like the other shared lattices — the analyser and optimiser
     /// consumers read it many times per unit.
     pub method_facts: Option<Arc<MethodBodyFacts>>,
+    /// Actual selected event body, independent of the function's report name.
+    /// This conditional source frame owns no executing worker or current value.
+    pub irules_event_body: Option<Arc<crate::ir::SourceIrulesEventBody>>,
+    /// Original hosted procedure source card, without an entered worker or ABI.
+    pub original_hosted_procedure_body:
+        Option<Arc<crate::command_binding::OriginalHostedProcedureBody>>,
     /// Target-neutral executable/world semantic facts for this function.
     ///
     /// The sidecar records an explicit availability or decline when the
@@ -433,6 +599,116 @@ pub struct FunctionUnit {
     /// represent this source shape. Scalar SSA remains [`Self::ssa`] and the
     /// optional alias-aware cell SSA remains [`Self::memory_ssa`].
     pub semantic_facts: SemanticAnalysisBundle,
+}
+
+impl PartialEq for FunctionUnit {
+    fn eq(&self, other: &Self) -> bool {
+        self.source_metadata_input == other.source_metadata_input
+            && self.source_config == other.source_config
+            && self.name == other.name
+            && self.body_id == other.body_id
+            && self.cfg == other.cfg
+            && self.ssa == other.ssa
+            && self.def_use == other.def_use
+            && self.sccp == other.sccp
+            && self.semantic_value_projection == other.semantic_value_projection
+            && self.retained_semantic_value_owner == other.retained_semantic_value_owner
+            && self.types == other.types
+            && self.return_type == other.return_type
+            && self.taints == other.taints
+            && self.rendered_props == other.rendered_props
+            && self.memory_ssa == other.memory_ssa
+            && self.dynamic_names == other.dynamic_names
+            && self.complexity_guarded == other.complexity_guarded
+            && self.tier == other.tier
+            && self.base_offset == other.base_offset
+            && self.method_facts == other.method_facts
+            && self.irules_event_body == other.irules_event_body
+            && self.original_hosted_procedure_body == other.original_hosted_procedure_body
+            && self.semantic_facts == other.semantic_facts
+    }
+}
+
+// The inventory witness lives with the types so all private fields can be
+// enumerated exhaustively without exposing their values to reflection clients.
+pub(crate) mod durable_field_inventory {
+    use super::{CompilationUnit, FunctionUnit};
+
+    macro_rules! durable_inventory {
+        ($witness:ident, $fields:ident, $ty:ident, $($field:ident),+ $(,)?) => {
+            /// Every durable field of the type, as `Type::field`.
+            pub const $fields: &[&str] =
+                &[$(concat!(stringify!($ty), "::", stringify!($field))),+];
+
+            fn $witness(value: &$ty) {
+                let $ty { $($field: _),+ } = value;
+            }
+        };
+    }
+
+    durable_inventory!(
+        witness_function_unit,
+        FUNCTION_UNIT_FIELDS,
+        FunctionUnit,
+        original_lattice_worker,
+        original_lattice_callback_admission,
+        source_metadata_input,
+        source_config,
+        name,
+        body_id,
+        cfg,
+        ssa,
+        def_use,
+        sccp,
+        semantic_value_projection,
+        retained_semantic_value_owner,
+        types,
+        return_type,
+        taints,
+        rendered_props,
+        memory_ssa,
+        dynamic_names,
+        complexity_guarded,
+        tier,
+        base_offset,
+        method_facts,
+        irules_event_body,
+        original_hosted_procedure_body,
+        semantic_facts,
+    );
+
+    durable_inventory!(
+        witness_compilation_unit,
+        COMPILATION_UNIT_FIELDS,
+        CompilationUnit,
+        optimiser_source_owner,
+        source,
+        ir_module,
+        cfg_module,
+        command_mutations,
+        source_class_facts,
+        top_level,
+        procedures,
+        methods,
+        body_units,
+        carried_installed_lowerings,
+        source_body_cfgs,
+        interproc,
+        connection_scope,
+        caller_scope,
+        declared_commands,
+        transfers,
+    );
+
+    /// Read-only exhaustive witness for both durable compiler types.
+    ///
+    /// The field-name inventory and each no-`..` destructure share one declaration.
+    /// Private retained inputs remain private; consumers review their names through
+    /// the inventory without obtaining authority to replace their values.
+    pub fn assert_durable_field_inventory(unit: &CompilationUnit) {
+        witness_function_unit(&unit.top_level);
+        witness_compilation_unit(unit);
+    }
 }
 
 /// Whole-module variable-trace fact that [`crate::sccp::sccp`] needs —
@@ -488,6 +764,32 @@ pub struct UnitDialect<'a> {
     pub registry: &'a CommandRegistry,
     /// The document's body-lexing config.
     pub config: tcl_lexer::LexerConfig,
+    /// Actual source availability; standalone callers explicitly supply none.
+    pub source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
+}
+
+/// Complete memo inputs beyond the function's name, CFG and parameters.
+/// The event descriptor remains separate from normalized body geometry.
+#[derive(Clone, Copy)]
+pub struct FunctionLatticeInputs<'a> {
+    /// Actual Registry and body lexer configuration.
+    pub dialect: UnitDialect<'a>,
+    /// Independently established caller-uniform parameter constants.
+    pub param_constants:
+        Option<&'a HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>>,
+    /// Known class names from the complete compilation unit.
+    pub known_classes: &'a HashSet<String>,
+    /// Whole-module variable trace inventory.
+    pub trace_facts: ModuleTraceFacts<'a>,
+    /// Exact upstream value-transfer memo identity, separate from source admission.
+    pub analysis_context: &'a crate::value_transfer::AnalysisContextKey,
+    /// Exact module mutation obligations retained in the memo key.
+    pub command_trust: &'a crate::command_binding::ModuleCommandMutations,
+    /// Sealed original event and the actual normalized body used for this build.
+    pub event_body: Option<(
+        &'a Arc<crate::ir::SourceIrulesEventBody>,
+        &'a crate::ir::Script,
+    )>,
 }
 
 /// A procedure's interprocedural parameter seeds, keyed by parameter and
@@ -504,6 +806,13 @@ type ParamSeeds<'a> = Option<
 /// positional arguments.
 #[derive(Clone, Copy)]
 struct FunctionBuildInputs<'a> {
+    analysis_body: Option<Option<crate::ir::ProcedureId>>,
+    is_event_body: bool,
+    /// Initial presence facts are separate from actual source frame ownership.
+    initial_state: crate::sccp::ExistenceInitialState,
+    source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
+    /// Actual frame entry; synthetic body units must not infer it from their names.
+    entry_context: Option<&'a crate::var_resolve::ResolveContext>,
     /// The document's body-lexing config: what every re-read of a `[…]`
     /// text inside the build (the dynamic-name barrier) lexes under.
     pub config: tcl_lexer::LexerConfig,
@@ -548,19 +857,50 @@ struct FunctionBuildInputs<'a> {
 }
 
 impl<'a> FunctionBuildInputs<'a> {
+    fn value_fact_inputs(
+        self,
+        policy: crate::tcl_expr_eval::FoldPolicy,
+    ) -> crate::sccp::ValueFactInputs<'a> {
+        crate::sccp::ValueFactInputs {
+            param_constants: self.param_constants,
+            policy,
+            extra_escaping: self.extra_global_escaping,
+            trace: crate::sccp::TraceInputs {
+                source_metadata_input: self.source_metadata_input,
+                registry: self.registry,
+                traced_variables: self.trace_facts.traced_variables,
+                has_dynamic_variable_trace: self.trace_facts.has_dynamic_variable_trace,
+                deferred_writes: self.trace_facts.deferred_writes,
+                analysis_context: self.analysis_context,
+                existence: None,
+            },
+            folds: Some(crate::sccp::BuiltinFoldInputs {
+                source_metadata_input: self.source_metadata_input,
+                registry: self.registry,
+                mutations: self.command_trust,
+                dialect: None,
+                defining_class: None,
+                registry_engine: false,
+                trust: crate::sccp::FoldTrust::ObservedBindings,
+                proven_pure_parameters: false,
+            }),
+        }
+    }
+
     /// The frame facts the existence rung enters the function `name` with.
     /// It reads the computed names per statement, so it takes the module's
     /// own trace fact rather than the widened one the values run under; an
     /// iRules `when` handler adds the names its connection may hold.
-    fn existence_entry(&self, name: &str) -> crate::sccp::ExistenceEntry<'a> {
+    fn existence_entry(&self, _name: &str) -> crate::sccp::ExistenceEntry<'a> {
         crate::sccp::ExistenceEntry {
+            initial_state: self.initial_state,
             params: self.params,
             object_state: self.object_state,
             initial_global: self.initial_global,
             connection_scoped: self
                 .analysis_context
                 .map(|key| &key.connection_scoped)
-                .filter(|_| name.starts_with(WHEN_HANDLER_PREFIX)),
+                .filter(|_| self.is_event_body),
             dynamic_trace: self.trace_facts.has_dynamic_variable_trace
                 || self.trace_facts.deferred_writes.any,
             config: self.config,
@@ -596,7 +936,264 @@ impl<'a> ModuleTraceFacts<'a> {
     }
 }
 
+fn relocate_statement_variable_proofs(
+    statement: &mut Statement,
+    relocation: &crate::var_resolve::VariableProofRelocation,
+) {
+    if let Some(tokens) = statement.tokens_mut() {
+        tokens.relocate_variable_proofs(relocation);
+    }
+    if let Statement::Block { body, .. } = statement {
+        for site in body.command_binding_sites.iter_mut() {
+            site.relocate_variable_proofs(relocation);
+        }
+        for statement in &mut body.statements {
+            relocate_statement_variable_proofs(statement, relocation);
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum RetainedSemanticDepth {
+    Interactive,
+    Full,
+}
+
 impl FunctionUnit {
+    pub(crate) fn with_body_id(mut self, id: crate::ir::ProcedureId) -> Self {
+        self.body_id = Some(id);
+        self
+    }
+
+    /// Complete actual source input, independently of Native execution grants.
+    #[must_use]
+    pub fn source_metadata_input(&self) -> Option<&crate::analyser::ResolvedAnalysisInput> {
+        self.source_metadata_input.as_ref()
+    }
+
+    /// Exact grammar used to construct this function's source facts.
+    #[must_use]
+    pub const fn source_lexer_config(&self) -> tcl_lexer::LexerConfig {
+        self.source_config
+    }
+
+    /// Borrow the retained generation only for its actual immutable command store.
+    #[must_use]
+    pub fn invocation_metadata_context<'a>(
+        &'a self,
+        registry: &CommandRegistry,
+    ) -> Option<crate::registry_invocation::InvocationMetadataContext<'a>> {
+        let input = self.source_metadata_input()?;
+        if self.source_config.normalized() != input.lexer_config().normalized() {
+            return None;
+        }
+        crate::registry_invocation::InvocationMetadataContext::for_analysis_input(registry, input)
+    }
+
+    /// Borrow source metadata only when this function and module retain the
+    /// same actual availability owner and source profiles. Each producer's
+    /// lexer configuration is checked independently, so a genuine nested-body
+    /// BOM rule does not have to equal the file-level rule.
+    #[must_use]
+    pub fn invocation_metadata_context_for_module<'a>(
+        &'a self,
+        registry: &CommandRegistry,
+        module: &crate::ir::Module,
+    ) -> Option<crate::registry_invocation::InvocationMetadataContext<'a>> {
+        let module_input =
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?
+                .source_analysis_input()?;
+        let input = self.source_metadata_input()?;
+        if !std::ptr::eq(
+            input.borrowed_context_registry(),
+            module_input.borrowed_context_registry(),
+        ) || input.analyser_profile().cache_key() != module_input.analyser_profile().cache_key()
+            || input.unit_profile().cache_key() != module_input.unit_profile().cache_key()
+            || input.vendor_source_policy() != module_input.vendor_source_policy()
+        {
+            return None;
+        }
+        self.invocation_metadata_context(registry)
+    }
+
+    fn with_source_metadata(
+        mut self,
+        input: Option<&crate::analyser::ResolvedAnalysisInput>,
+        config: tcl_lexer::LexerConfig,
+    ) -> Self {
+        self.source_metadata_input = input.cloned();
+        self.source_config = config;
+        self
+    }
+
+    /// Known contents and producer obligations for diagnostics, without erasure permission.
+    /// Guarded/carrierless fixture units may have no separate semantic projection.
+    #[must_use]
+    pub fn semantic_values(&self) -> Option<&crate::sccp::SemanticValueFacts> {
+        self.has_original_semantic_value_owner().then_some(())?;
+        self.semantic_value_projection.get(&self.cfg, &self.ssa)
+    }
+
+    /// Diagnostic knowledge keeps producers and never grants an executable replacement.
+    pub(crate) fn diagnostic_value_facts(&self) -> crate::sccp::DiagnosticValueFacts<'_> {
+        self.semantic_values().map_or_else(
+            || crate::sccp::DiagnosticValueFacts::compatibility(&self.sccp),
+            crate::sccp::DiagnosticValueFacts::from_semantic,
+        )
+    }
+
+    /// Correspondence to the actual immutable construction cache. Complete
+    /// source metadata and positioned read ownership remain separate guards.
+    pub(crate) fn has_original_semantic_value_owner(&self) -> bool {
+        self.retained_semantic_value_owner
+            .as_ref()
+            .is_some_and(|owner| Arc::ptr_eq(owner, &self.semantic_value_projection))
+    }
+
+    /// Detach lazy values before every CFG/SSA proof transformation. Restoration,
+    /// relocation and lexical rebasing all use this same lifecycle. A swapped
+    /// producer remains unavailable rather than becoming a new original owner.
+    pub fn invalidate_semantic_values(&mut self) {
+        if !self.has_original_semantic_value_owner() {
+            self.retained_semantic_value_owner = None;
+            self.semantic_value_projection = Arc::default();
+            return;
+        }
+        self.semantic_value_projection = Arc::new(self.semantic_value_projection.uncached());
+        self.retained_semantic_value_owner = Some(Arc::clone(&self.semantic_value_projection));
+    }
+
+    /// Analysis constants whose implicit math calls require runtime validation.
+    /// A backend may consume them only while retaining and checking the exact
+    /// dependencies, independently of native compiler admission obligations.
+    #[must_use]
+    pub fn requires_native_math_binding_validation(&self) -> bool {
+        self.cfg
+            .implicit_math_invocations
+            .iter()
+            .any(|call| call.reached().is_none())
+            || !self.cfg.required_math_invocations.is_empty()
+            || !self.sccp.required_math_invocations.is_empty()
+            || !self.cfg.required_expression_preparations.is_empty()
+            || !self.sccp.required_expression_preparations.is_empty()
+    }
+
+    /// Restore actual command and read ownership on an instantiated body template.
+    /// A missing exact site declines the complete artifact without mutating this unit.
+    #[must_use]
+    pub fn restored_source_proofs(
+        &self,
+        proofs: &crate::command_binding::BodySourceProofs,
+    ) -> Option<Self> {
+        if !self.sccp.required_math_invocations.is_empty()
+            || !self.sccp.required_expression_preparations.is_empty()
+        {
+            return None;
+        }
+        let mut unit = self.clone();
+        unit.invalidate_semantic_values();
+        if !proofs.restore_cfg(&mut unit.cfg) || !unit.ssa.restore_source_tokens(&proofs.tokens) {
+            return None;
+        }
+        for block in unit.ssa.blocks.values_mut() {
+            for statement in &mut block.statements {
+                if !proofs.restore_statement(&mut statement.statement) {
+                    return None;
+                }
+            }
+        }
+        Some(unit)
+    }
+
+    /// Restore only independently certified readonly source carriers.
+    pub(crate) fn restored_readonly_source_proofs(
+        &self,
+        proofs: &crate::command_binding::BodySourceProofs,
+    ) -> Option<Self> {
+        if !self.sccp.required_math_invocations.is_empty()
+            || !self.sccp.required_expression_preparations.is_empty()
+        {
+            return None;
+        }
+        let mut unit = self.clone();
+        unit.invalidate_semantic_values();
+        if !proofs.restore_readonly_cfg(&mut unit.cfg)
+            || !unit.ssa.restore_source_tokens(&proofs.tokens)
+        {
+            return None;
+        }
+        for block in unit.ssa.blocks.values_mut() {
+            for statement in &mut block.statements {
+                if !proofs.restore_readonly_statement(&mut statement.statement) {
+                    return None;
+                }
+            }
+        }
+        Some(unit)
+    }
+
+    /// Instantiate an injective alpha-renaming of physical variable allocations.
+    /// Symbols and lattice versions remain stable; lexical source rebasing is separate.
+    /// The source owner must rebuild semantic facts from the actual source before use.
+    /// Ambiguous identities or invalid state graphs decline the memoised artifact.
+    #[must_use]
+    pub fn relocated_variable_proofs(
+        &self,
+        relocation: &crate::var_resolve::VariableProofRelocation,
+    ) -> Option<Self> {
+        relocation.inverse()?;
+        if self.ssa.source_variable_symbols().next().is_some() {
+            return None;
+        }
+        let mut unit = self.clone();
+        unit.invalidate_semantic_values();
+        unit.ssa.relocate_variable_proofs(relocation);
+        unit.cfg.namespace_context = unit
+            .cfg
+            .namespace_context
+            .as_deref()
+            .map(|key| Box::new(relocation.namespace_key(key)));
+        let keys: std::collections::HashSet<_> = unit.ssa.cell_keys().iter().collect();
+        if keys.len() != unit.ssa.cell_keys().len() {
+            return None;
+        }
+        unit.def_use.relocate_variable_proofs(relocation);
+        if let Some(memory) = &mut unit.memory_ssa {
+            memory.relocate_variable_proofs(relocation).ok()?;
+        }
+        for site in unit
+            .cfg
+            .command_binding_sites
+            .iter_mut()
+            .chain(unit.cfg.command_boundary_sites.values_mut())
+            .chain(unit.cfg.condition_binding_sites.values_mut())
+        {
+            site.relocate_variable_proofs(relocation);
+        }
+        for block in unit.cfg.blocks.values_mut() {
+            for statement in &mut block.statements {
+                relocate_statement_variable_proofs(statement, relocation);
+            }
+            if let Some(crate::cfg::Terminator::Return {
+                tokens: Some(tokens),
+                ..
+            }) = &mut block.terminator
+            {
+                tokens.relocate_variable_proofs(relocation);
+            }
+        }
+        for node in unit.cfg.loop_nodes.values_mut() {
+            relocate_statement_variable_proofs(&mut node.statement, relocation);
+        }
+        for block in unit.ssa.blocks.values_mut() {
+            for statement in &mut block.statements {
+                relocate_statement_variable_proofs(&mut statement.statement, relocation);
+            }
+        }
+        unit.semantic_facts = SemanticAnalysisBundle::unavailable(self.semantic_facts.context());
+        Some(unit)
+    }
+
     /// Build per-function analyses from a CFG + its source
     /// parameters. Does *not* populate `memory_ssa`; call
     /// [`FunctionUnit::with_memory_ssa`] when the caller needs
@@ -636,7 +1233,11 @@ impl FunctionUnit {
             name,
             cfg,
             params,
-            UnitDialect { registry, config },
+            UnitDialect {
+                registry,
+                config,
+                source_metadata_input: None,
+            },
             param_constants,
             &HashSet::new(),
             ModuleTraceFacts::none(),
@@ -674,12 +1275,65 @@ impl FunctionUnit {
         known_classes: &HashSet<String>,
         trace_facts: ModuleTraceFacts<'_>,
     ) -> Self {
+        Self::build_for_lattice(
+            name,
+            cfg,
+            params,
+            FunctionLatticeInputs {
+                dialect,
+                param_constants,
+                known_classes,
+                trace_facts,
+                analysis_context: &crate::value_transfer::AnalysisContextKey::detached(),
+                command_trust: &crate::command_binding::ModuleCommandMutations::default(),
+                event_body: None,
+            },
+        )
+    }
+
+    /// Build a memo lattice under its exact sealed source entry.
+    /// A foreign event body, configuration or Registry declines deep analysis.
+    #[must_use]
+    pub fn build_for_lattice(
+        name: impl Into<String>,
+        cfg: CfgFunction,
+        params: &[String],
+        inputs: FunctionLatticeInputs<'_>,
+    ) -> Self {
+        let FunctionLatticeInputs {
+            dialect:
+                UnitDialect {
+                    registry,
+                    config,
+                    source_metadata_input,
+                },
+            param_constants,
+            known_classes,
+            trace_facts,
+            analysis_context,
+            command_trust,
+            event_body,
+        } = inputs;
+        let entry = match event_body {
+            Some((event, body)) => {
+                let Some(entry) = event.conditional_lattice_entry(body, config, registry) else {
+                    return Self::trivial_guarded(name, cfg)
+                        .with_source_metadata(source_metadata_input, config);
+                };
+                Some(entry)
+            }
+            None => None,
+        };
         let no_extra_escaping = HashSet::new();
-        let UnitDialect { registry, config } = dialect;
-        Self::build_full(
-            name.into(),
+        let mut unit = Self::build_full(
+            name,
             cfg,
             FunctionBuildInputs {
+                is_event_body: false,
+                analysis_body: None,
+                initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
+                source_metadata_input,
+                entry_context: entry.as_ref(),
                 config,
                 params,
                 registry,
@@ -687,15 +1341,108 @@ impl FunctionUnit {
                 known_classes,
                 extra_global_escaping: &no_extra_escaping,
                 trace_facts,
+                command_trust,
+                analysis_context: Some(analysis_context),
+                object_state: None,
+                initial_global: false,
+                procedures: None,
+            },
+        );
+        unit.irules_event_body = event_body.map(|(event, _)| Arc::clone(event));
+        unit
+    }
+
+    /// Source declaration analysis with its independently retained namespace.
+    /// The original script supplies no entered activation or Native frame grant.
+    #[must_use]
+    pub fn build_for_original_declaration_lattice(
+        body_id: crate::ir::ProcedureId,
+        name: &str,
+        cfg: CfgFunction,
+        params: &[String],
+        inputs: FunctionLatticeInputs<'_>,
+    ) -> Self {
+        let FunctionLatticeInputs {
+            dialect:
+                UnitDialect {
+                    registry,
+                    config,
+                    source_metadata_input,
+                },
+            param_constants,
+            known_classes,
+            trace_facts,
+            analysis_context: _,
+            command_trust,
+            event_body: _,
+        } = inputs;
+        let entry = conditional_function_source_entry(&cfg, source_metadata_input);
+        Self::build_full(
+            name,
+            cfg,
+            FunctionBuildInputs {
+                is_event_body: false,
+                analysis_body: Some(Some(body_id)),
+                initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
+                source_metadata_input,
+                entry_context: Some(&entry),
+                config,
+                params,
+                registry,
+                param_constants,
+                known_classes,
+                extra_global_escaping: &HashSet::new(),
+                trace_facts,
                 analysis_context: None,
-                // The "no mutations observed" baseline
-                // ([`crate::command_binding::ModuleCommandMutations`]'s
-                // `Default`): this entry point takes a single CFG with no
-                // module to scan, so it has no rebinding to report. A build
-                // under a module's scan goes through
-                // [`Self::build_with_param_constants_and_classes_under`],
-                // whose context key carries that module's trust.
-                command_trust: &crate::command_binding::ModuleCommandMutations::default(),
+                command_trust,
+                object_state: None,
+                initial_global: false,
+                procedures: None,
+            },
+        )
+        .with_body_id(body_id)
+    }
+
+    /// Conditional inherited-frame facts for an admitted original child CFG.
+    /// The actual source namespace is independent of the synthetic report name.
+    fn build_conditional_original_body(
+        cfg: CfgFunction,
+        inputs: FunctionLatticeInputs<'_>,
+    ) -> Self {
+        let FunctionLatticeInputs {
+            dialect:
+                UnitDialect {
+                    registry,
+                    config,
+                    source_metadata_input,
+                },
+            param_constants: _,
+            known_classes,
+            trace_facts,
+            analysis_context,
+            command_trust,
+            event_body: _,
+        } = inputs;
+        let entry = conditional_function_source_entry(&cfg, source_metadata_input);
+        let no_extra_escaping = HashSet::new();
+        Self::build_full(
+            "::conditional_original_body",
+            cfg,
+            FunctionBuildInputs {
+                is_event_body: false,
+                analysis_body: None,
+                initial_state: crate::sccp::ExistenceInitialState::InheritedFrame,
+                source_metadata_input,
+                entry_context: Some(&entry),
+                config,
+                params: &[],
+                registry,
+                param_constants: None,
+                known_classes,
+                extra_global_escaping: &no_extra_escaping,
+                trace_facts,
+                analysis_context: Some(analysis_context),
+                command_trust,
                 object_state: None,
                 initial_global: false,
                 procedures: None,
@@ -726,11 +1473,20 @@ impl FunctionUnit {
         facts: ModuleAnalysisFacts<'_>,
     ) -> Self {
         let no_extra_escaping = HashSet::new();
-        let UnitDialect { registry, config } = dialect;
+        let UnitDialect {
+            registry,
+            config,
+            source_metadata_input,
+        } = dialect;
         Self::build_full(
             name.into(),
             cfg,
             FunctionBuildInputs {
+                is_event_body: false,
+                analysis_body: None,
+                initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
+                source_metadata_input,
+                entry_context: None,
                 config,
                 params,
                 registry,
@@ -752,6 +1508,8 @@ impl FunctionUnit {
     /// names is read from.
     #[must_use]
     fn build_procedure_in_module(
+        id: crate::ir::ProcedureId,
+        is_event_body: bool,
         name: &str,
         cfg: CfgFunction,
         (params, param_constants): (&[String], ParamSeeds<'_>),
@@ -761,11 +1519,20 @@ impl FunctionUnit {
         procedures: Option<&crate::interprocedural::ModuleProcedures<'_>>,
     ) -> Self {
         let no_extra_escaping = HashSet::new();
-        let UnitDialect { registry, config } = dialect;
+        let UnitDialect {
+            registry,
+            config,
+            source_metadata_input,
+        } = dialect;
         Self::build_full(
             name.to_owned(),
             cfg,
             FunctionBuildInputs {
+                is_event_body,
+                analysis_body: Some(Some(id)),
+                initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
+                source_metadata_input,
+                entry_context: None,
                 config,
                 params,
                 registry,
@@ -790,17 +1557,27 @@ impl FunctionUnit {
     #[must_use]
     pub(crate) fn build_top_level(
         cfg: CfgFunction,
-        registry: &CommandRegistry,
-        (known_classes, extra_global_escaping): (&HashSet<String>, &HashSet<String>),
+        dialect: UnitDialect<'_>,
+        known_classes: &HashSet<String>,
+        extra_global_escaping: &HashSet<String>,
         trace_facts: ModuleTraceFacts<'_>,
-        config: tcl_lexer::LexerConfig,
         command_trust: &crate::command_binding::ModuleCommandMutations,
         procedures: Option<&crate::interprocedural::ModuleProcedures<'_>>,
     ) -> Self {
+        let UnitDialect {
+            registry,
+            config,
+            source_metadata_input,
+        } = dialect;
         Self::build_full(
             "::top".to_owned(),
             cfg,
             FunctionBuildInputs {
+                is_event_body: false,
+                analysis_body: Some(None),
+                initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
+                source_metadata_input,
+                entry_context: None,
                 config,
                 params: &[],
                 registry,
@@ -832,21 +1609,67 @@ impl FunctionUnit {
     pub fn build_for_method(
         name: impl Into<String>,
         cfg: CfgFunction,
-        method: &crate::ir::MethodDef,
+        method: (crate::ir::ProcedureId, &crate::ir::MethodDef),
         dialect: UnitDialect<'_>,
         known_classes: &HashSet<String>,
         trace_facts: ModuleTraceFacts<'_>,
         command_trust: &crate::command_binding::ModuleCommandMutations,
     ) -> Self {
+        let (body_id, method) = method;
         let facts = Arc::new(MethodBodyFacts::from_method(method));
+        let mut entry_context = crate::var_resolve::ResolveContext::for_frame(
+            crate::var_resolve::VariableFrameKind::Local,
+            crate::var_resolve::BindingIdentity::Bound,
+            None,
+        );
+        entry_context.instance_vars = if facts.original_source {
+            HashSet::new()
+        } else {
+            method.instance_vars.clone()
+        };
+        entry_context.instance_owner = if facts.original_source {
+            String::new()
+        } else {
+            method.definition_scope.unwrap_or(body_id).reporting_key()
+        };
+        match method
+            .body
+            .execution_namespace(method.execution_namespace.clone())
+        {
+            crate::ir::ExecutionNamespace::Exact(namespace) => {
+                entry_context.namespace.clone_from(&namespace);
+                entry_context.known_namespaces.insert(namespace);
+            }
+            crate::ir::ExecutionNamespace::SourceContext(key) => {
+                entry_context = entry_context.with_namespace_identity(key);
+            }
+            crate::ir::ExecutionNamespace::RuntimeSelected => entry_context.namespace_known = false,
+        }
+
+        if let Some(original) = &facts.original_receiver_context {
+            entry_context = original.context().clone();
+        }
         let no_extra_escaping = HashSet::new();
-        let UnitDialect { registry, config } = dialect;
+        let UnitDialect {
+            registry,
+            config,
+            source_metadata_input,
+        } = dialect;
         let mut unit = Self::build_full(
             name.into(),
             cfg,
             FunctionBuildInputs {
+                is_event_body: false,
+                analysis_body: Some(Some(body_id)),
+                initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
+                source_metadata_input,
+                entry_context: Some(&entry_context),
                 config,
-                params: &facts.params,
+                params: if facts.original_source {
+                    &[]
+                } else {
+                    &facts.params
+                },
                 registry,
                 param_constants: None,
                 known_classes,
@@ -854,11 +1677,12 @@ impl FunctionUnit {
                 trace_facts,
                 analysis_context: None,
                 command_trust,
-                object_state: Some(&facts.instance_vars),
+                object_state: (!facts.original_source).then_some(&facts.instance_vars),
                 initial_global: false,
                 procedures: None,
             },
         );
+        unit.body_id = Some(body_id);
         unit.method_facts = Some(facts);
         unit
     }
@@ -875,7 +1699,12 @@ impl FunctionUnit {
     /// per-procedure build passes an empty set via
     /// [`Self::build_with_param_constants_and_classes`].
     #[must_use]
-    fn build_full(name: String, cfg: CfgFunction, inputs: FunctionBuildInputs<'_>) -> Self {
+    fn build_full(
+        name: impl Into<String>,
+        mut cfg: CfgFunction,
+        inputs: FunctionBuildInputs<'_>,
+    ) -> Self {
+        let name = name.into();
         let existence = inputs.existence_entry(&name);
         // The request's tier: a context key names it, a detached build is
         // deep. Below the deep tier the existence rung is not run, so its
@@ -884,13 +1713,19 @@ impl FunctionUnit {
             .analysis_context
             .map_or(AnalysisTier::Deep, |key| key.tier);
         let FunctionBuildInputs {
+            analysis_body,
+            initial_state,
+            source_metadata_input,
+            entry_context,
             config,
             params,
-            registry,
             param_constants,
+            registry,
             known_classes,
             extra_global_escaping,
             trace_facts,
+            object_state,
+            initial_global,
             analysis_context,
             command_trust,
             procedures,
@@ -903,10 +1738,34 @@ impl FunctionUnit {
         // Backstop for every path through here — `build`, methods, and the
         // salsa `function_lattice` callbacks.
         if crate::ssa::is_complexity_guarded(&cfg) {
-            return Self::trivial_guarded(name, cfg);
+            return Self::trivial_guarded(name, cfg)
+                .with_source_metadata(source_metadata_input, config);
         }
-        let ssa = crate::ssa::build_ssa_for_entry(&cfg, registry, config, Some(params));
+        let entry = function_source_entry(&cfg, entry_context);
+        let fold_policy = crate::tcl_expr_eval::FoldPolicy::for_retained_entry(
+            registry,
+            entry.invocation_dialect,
+            &config,
+        );
+        let metadata = source_metadata_input.and_then(|input| {
+            crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                registry,
+                input,
+                config,
+                Some(input.unit_profile()),
+            )
+        });
+        let ssa = build_ssa_with_context_for_entry_and_metadata(
+            &cfg,
+            registry,
+            config,
+            entry,
+            Some(params),
+            metadata,
+            cfg.metadata_context.is_standalone(),
+        );
         let def_use = build_def_use_chains(&ssa, Some(&cfg), config);
+
         // The registry carries its dialect profile's fold policy: the octal
         // rule, which fixes how a bare leading-zero literal (`08`, `010`) is
         // read when SCCP folds `==`/`!=` — octal in the 8.x runtimes (tcl8.x /
@@ -916,32 +1775,19 @@ impl FunctionUnit {
         // grammar carries the iRules word operators, so `if {$x contains
         // "cd"}` folds under `f5-irules`. A hand-assembled registry without a
         // profile falls back to deriving the octal rule from the loaded packs.
-        // Dynamic-name facts: a `set $var v`
-        // means any name may be defined, an `unset $n` that any name may have
-        // stopped existing — so the existence fold below must abstain in that
-        // direction rather than hand the optimiser a wrong constant branch.
-        //
-        // Computed *before* SCCP because a dynamic write / destroy blinds the
-        // value lattice too: after `set $name v` any variable in
-        // the frame may hold any value, so no definition is a trustworthy
-        // constant. Reuse the "every variable is externally mutable" switch a
-        // dynamic trace target already throws — same lattice consequence, one
-        // chokepoint — so O100 / O101 / branch folds never propagate a value
-        // across the barrier. A dynamic *read* only observes, so it leaves
-        // the value lattice alone.
-        // Split the `[…]` texts this walk re-reads under the very config the
-        // lowering used, so the barrier and the IR agree on word boundaries
-        // — the unit's own, not one derived from the registry's
-        // profile, which is not the document's grammar for a pack-layered
-        // registry or `tk`.
+        // Dynamic names affect the contents at their execution point. They do
+        // not establish a variable trace, nor invalidate earlier definitions.
+        // SSA retains fresh stores and exact read origins across these effects;
+        // the summary remains available for compatibility existence queries.
         let dynamic_names = crate::dynamic_names::dynamic_name_barrier(&cfg, registry, config);
-        let sccp = crate::sccp::sccp_in_module(&crate::sccp::SolveInputs {
+        let mut sccp = crate::sccp::sccp_in_module(&crate::sccp::SolveInputs {
             cfg: &cfg,
             ssa: &ssa,
             param_constants,
-            policy: crate::tcl_expr_eval::FoldPolicy::from_registry(registry),
+            policy: fold_policy,
             extra_escaping: extra_global_escaping,
             trace: crate::sccp::TraceInputs {
+                source_metadata_input,
                 registry,
                 traced_variables: trace_facts.traced_variables,
                 has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace
@@ -957,6 +1803,7 @@ impl FunctionUnit {
             // fold surface is the routes'. The optimiser's own re-run turns
             // the engine on (`crate::optimiser::propagation`).
             folds: Some(crate::sccp::BuiltinFoldInputs {
+                source_metadata_input,
                 registry,
                 mutations: command_trust,
                 dialect: None,
@@ -965,13 +1812,64 @@ impl FunctionUnit {
                 trust: crate::sccp::FoldTrust::ObservedBindings,
                 proven_pure_parameters: false,
             }),
-            module: crate::sccp::ModuleRun::reading(procedures),
+            module: crate::sccp::ModuleRun {
+                analysis_body,
+                ..crate::sccp::ModuleRun::reading(procedures)
+            },
         });
-        let types = propagate_types(
+        let value_inputs = inputs.value_fact_inputs(fold_policy);
+        let semantic_value_projection =
+            Arc::new(crate::sccp::SemanticValueProjection::new(value_inputs));
+        // Surface `[info exists X]` / `[array exists X]`
+        // folds (parameter → exists, never-defined non-param → absent)
+        // as constant branches so the optimiser's O101 fold / DCE sees
+        // them. The analyser's I230 uses the same fold via
+        // `existence_constant_branches`; the SCCP pass proper has no
+        // parameter/existence facts to fold them itself.  A method body's
+        // instance variables are handed over too, so the fold abstains on
+        // object state instead of calling it absent.
+        // Inherited frames need genuine point contexts for this source-presence
+        // extension; only declared frames may use its fresh-local fallback.
+        if initial_state == crate::sccp::ExistenceInitialState::DeclaredFrame
+            || ssa.point_contexts.is_some()
+        {
+            extend_existence_folds(
+                &mut sccp,
+                &cfg,
+                &ssa,
+                crate::sccp::ExistenceFrame {
+                    params,
+                    object_state,
+                    initial_global,
+                },
+                crate::sccp::ExistenceMetadataInputs {
+                    registry,
+                    context: source_metadata_input.and_then(|input| {
+                        crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                            registry, input,
+                        )
+                    }),
+                },
+                config,
+            );
+        }
+        let type_metadata = TypePropagationMetadata {
+            registry,
+            context: source_metadata_input.and_then(|input| {
+                crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                    registry, input,
+                )
+            }),
+            config,
+            numbers: source_metadata_input.map_or(registry.numbers(), |input| {
+                input.unit_profile().grammar.numbers
+            }),
+        };
+        let types = propagate_types_with_metadata_context(
             &cfg,
             &ssa,
             &sccp,
-            registry,
+            type_metadata,
             known_classes,
             extra_global_escaping,
             trace_facts,
@@ -980,28 +1878,46 @@ impl FunctionUnit {
             &cfg,
             &sccp,
             &types,
-            registry,
+            type_metadata,
             known_classes,
             &ssa,
         );
-        let rendered_props = propagate_rendered_props(&cfg, &ssa, &sccp, registry);
-        let instance_classes = instance_classes_for_function(&cfg, registry, None, false);
+        let rendered_props =
+            propagate_rendered_props_with_config(&cfg, &ssa, &sccp, registry, Some(config));
+        let instance_classes = instance_classes_for_function(
+            &cfg,
+            registry,
+            None,
+            false,
+            TaintSourceContext::for_input(registry, source_metadata_input, config),
+        );
         let taints = propagate_taints(
             &TaintGraph::new(&cfg, &ssa, &sccp),
-            registry,
-            Some(&rendered_props),
-            None,
-            None,
-            None,
-            None,
-            &instance_classes,
+            TaintPropagationInputs {
+                registry,
+                rendered_props: Some(&rendered_props),
+                interproc: None,
+                source: TaintSourceContext::for_input(registry, source_metadata_input, config),
+                param_taints: None,
+                taint_summaries: None,
+                instance_classes: &instance_classes,
+            },
         );
+        cfg.retain_math_invocations(&sccp.required_math_invocations);
+        cfg.retain_expression_preparations(&sccp.required_expression_preparations);
         Self {
+            original_lattice_worker: None,
+            original_lattice_callback_admission: None,
+            source_metadata_input: source_metadata_input.cloned(),
+            source_config: config,
             name,
+            body_id: None,
             cfg,
             ssa,
-            def_use: Arc::new(def_use),
+            def_use,
             sccp,
+            retained_semantic_value_owner: Some(Arc::clone(&semantic_value_projection)),
+            semantic_value_projection,
             types: Arc::new(types),
             return_type,
             taints: Arc::new(taints),
@@ -1012,6 +1928,8 @@ impl FunctionUnit {
             tier,
             base_offset: 0,
             method_facts: None,
+            irules_event_body: None,
+            original_hosted_procedure_body: None,
             semantic_facts: SemanticAnalysisBundle::unavailable(None),
         }
     }
@@ -1024,11 +1942,18 @@ impl FunctionUnit {
     pub fn trivial_guarded(name: impl Into<String>, cfg: CfgFunction) -> Self {
         let ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
         Self {
+            original_lattice_worker: None,
+            original_lattice_callback_admission: None,
+            source_metadata_input: None,
+            source_config: tcl_lexer::LexerConfig::default(),
             name: name.into(),
+            body_id: None,
             cfg,
             ssa,
-            def_use: Arc::default(),
+            def_use: DefUseFacts::default(),
             sccp: SccpResult::default(),
+            semantic_value_projection: Arc::default(),
+            retained_semantic_value_owner: None,
             types: Arc::default(),
             return_type: TypeLattice::unknown(),
             taints: Arc::default(),
@@ -1041,6 +1966,8 @@ impl FunctionUnit {
             tier: AnalysisTier::ComplexityGuarded,
             base_offset: 0,
             method_facts: None,
+            irules_event_body: None,
+            original_hosted_procedure_body: None,
             semantic_facts: SemanticAnalysisBundle::unavailable(None),
         }
     }
@@ -1086,8 +2013,8 @@ impl FunctionUnit {
     /// answers `true`, matching the abstention O109 / O126 elimination and
     /// SCCP's existence fold already apply.
     #[must_use]
-    pub const fn dynamic_barrier_blocks_value_motion(&self) -> bool {
-        !self.dynamic_names.is_clear()
+    pub fn dynamic_barrier_blocks_value_motion(&self) -> bool {
+        !self.dynamic_names.is_clear() || self.cfg.has_opaque_native_accesses()
     }
 
     /// Recover the absolute span of `span` (a span carried by this unit's
@@ -1168,17 +2095,47 @@ impl FunctionUnit {
     /// chaining.
     #[must_use]
     pub fn with_memory_ssa(
-        mut self,
+        self,
         registry: &tcl_registry::CommandRegistry,
         context: Option<SemanticContext>,
     ) -> Self {
-        self.memory_ssa = Some(build_memory_ssa(&self.ssa, registry, context));
+        self.with_memory_ssa_with_metadata_context(registry, context.map(Into::into))
+    }
+
+    /// Populate memory facts using the exact supplied metadata generation.
+    /// Missing or foreign actual input cannot borrow a catalogue profile.
+    #[must_use]
+    pub fn with_memory_ssa_with_metadata_context(
+        mut self,
+        registry: &tcl_registry::CommandRegistry,
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    ) -> Self {
+        self.memory_ssa = Some(self.memory_ssa_for_metadata(registry, context));
         self
+    }
+
+    fn memory_ssa_for_metadata(
+        &self,
+        registry: &CommandRegistry,
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    ) -> crate::memory_ssa::MemorySsaFunction {
+        let fallback;
+        let points = if let Some(points) = &self.ssa.point_contexts {
+            points
+        } else {
+            fallback = crate::variable_bindings::build_point_resolve_contexts(
+                &self.cfg, &self.name, registry,
+            );
+            &fallback
+        };
+        crate::memory_ssa::build_memory_ssa_with_cfg_with_metadata_context(
+            &self.cfg, &self.ssa, points, registry, context,
+        )
     }
 
     /// Attach semantic facts for a compilation unit's top-level script.
     ///
-    /// The top-level script is modelled as evaluated in a fresh interpreter
+    /// This explicit standalone context models the top-level script in a fresh interpreter
     /// whose dispatch state is the registry baseline; every other unit kind
     /// runs after arbitrary interposed history and must use
     /// [`Self::with_semantic_analysis`] with an unknown-world entry contract.
@@ -1197,8 +2154,9 @@ impl FunctionUnit {
         )
     }
 
-    /// Attach source-faithful, target-neutral semantic facts under an
-    /// explicitly resolved semantic context and dispatch entry contract.
+    /// Attach standalone source facts under an explicitly supplied default
+    /// context and dispatch contract. Current unit consumers use
+    /// [`Self::with_retained_semantic_analysis`] for their actual input.
     ///
     /// A missing source script remains an explicit unavailable state. A
     /// structured source shape outside the executable compatibility subset is
@@ -1225,6 +2183,69 @@ impl FunctionUnit {
         self
     }
 
+    /// Attach current source facts using this unit's retained input and grammar.
+    /// Missing, foreign or differently parsed input stays unavailable. This
+    /// metadata selection supplies no Native command entry or dispatch proof.
+    #[must_use]
+    pub fn with_retained_semantic_analysis(
+        mut self,
+        registry: &CommandRegistry,
+        script: Option<&crate::ir::Script>,
+        entry_assumption: crate::dispatch_proof::DispatchEntryAssumption,
+    ) -> Self {
+        self.semantic_facts = self.retained_semantic_facts(
+            registry,
+            script,
+            entry_assumption,
+            RetainedSemanticDepth::Interactive,
+        );
+        self
+    }
+
+    fn retained_semantic_facts(
+        &self,
+        registry: &CommandRegistry,
+        script: Option<&crate::ir::Script>,
+        entry_assumption: crate::dispatch_proof::DispatchEntryAssumption,
+        depth: RetainedSemanticDepth,
+    ) -> SemanticAnalysisBundle {
+        Self::semantic_facts_with_metadata(
+            registry,
+            self.invocation_metadata_context(registry),
+            script,
+            entry_assumption,
+            depth,
+        )
+    }
+
+    fn semantic_facts_with_metadata(
+        registry: &CommandRegistry,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        script: Option<&crate::ir::Script>,
+        entry_assumption: crate::dispatch_proof::DispatchEntryAssumption,
+        depth: RetainedSemanticDepth,
+    ) -> SemanticAnalysisBundle {
+        script.map_or_else(
+            || SemanticAnalysisBundle::unavailable_with_metadata_context(registry, metadata),
+            |script| match depth {
+                RetainedSemanticDepth::Interactive => {
+                    SemanticAnalysisBundle::build_for_interactive_analysis_with_metadata_context(
+                        registry,
+                        metadata,
+                        script,
+                        entry_assumption,
+                    )
+                }
+                RetainedSemanticDepth::Full => SemanticAnalysisBundle::build_with_metadata_context(
+                    registry,
+                    metadata,
+                    script,
+                    entry_assumption,
+                ),
+            },
+        )
+    }
+
     /// Re-run interprocedural taint propagation for this unit against `ia`,
     /// returning the taint lattice (it does **not** mutate `self.taints`).
     ///
@@ -1233,23 +2254,43 @@ impl FunctionUnit {
     /// unit yields byte-identical taints to its rebased counterpart.  This is the
     /// property the salsa-native `taint_cascade` memo relies on — it propagates
     /// over the offset-0 baseline and installs the result into the rebased unit.
+    /// This function-only entry retains its supplied metadata but cannot import
+    /// Module-owned procedure or global-receiver facts.
     #[must_use]
     pub fn interproc_taints(
         &self,
         registry: &CommandRegistry,
         ia: &InterproceduralAnalysis,
-        dialect: Option<&'static tcl_dialect::DialectProfile>,
+        _dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> HashMap<ValueKey, TaintLattice> {
-        let instance_classes = instance_classes_for_function(&self.cfg, registry, Some(ia), true);
+        self.interproc_taints_with_source(
+            registry,
+            ia,
+            TaintSourceContext::for_function(registry, self),
+            true,
+        )
+    }
+
+    fn interproc_taints_with_source(
+        &self,
+        registry: &CommandRegistry,
+        ia: &InterproceduralAnalysis,
+        source: TaintSourceContext<'_>,
+        include_globals: bool,
+    ) -> HashMap<ValueKey, TaintLattice> {
+        let instance_classes =
+            instance_classes_for_function(&self.cfg, registry, Some(ia), include_globals, source);
         propagate_taints(
             &TaintGraph::new(&self.cfg, &self.ssa, &self.sccp),
-            registry,
-            Some(&self.rendered_props),
-            Some(ia),
-            dialect,
-            None,
-            None,
-            &instance_classes,
+            TaintPropagationInputs {
+                registry,
+                rendered_props: Some(&self.rendered_props),
+                interproc: Some(ia),
+                source,
+                param_taints: None,
+                taint_summaries: None,
+                instance_classes: &instance_classes,
+            },
         )
     }
 }
@@ -1264,8 +2305,9 @@ impl FunctionUnit {
 /// `tcl-lsp-db`) to return `Arc<CompilationUnit>` — both diagnostics consumers
 /// share one build per edit — using salsa's equality-backed memoisation, exactly
 /// as `FunctionUnit` does for [`function_lattice`].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct CompilationUnit {
+    optimiser_source_owner: Option<optimiser_source_owner::OriginalOptimiserPreparedUnit>,
     /// Source text (kept so downstream passes that need raw
     /// lexing can re-scan ranges without reparsing).
     pub source: String,
@@ -1276,30 +2318,25 @@ pub struct CompilationUnit {
     /// Whole-module command trust projected from the binding summary already
     /// prepared for CFG construction.
     pub command_mutations: crate::command_binding::ModuleCommandMutations,
+    /// Complete descriptive source class roster retained by the genuine CU build.
+    /// Synthetic units explicitly retain absence; names grant no Native identity.
+    pub source_class_facts: Option<Arc<RetainedSourceClassFacts>>,
     /// Top-level script analysis.
     pub top_level: FunctionUnit,
-    /// Per-procedure analyses keyed by qualified name.
-    pub procedures: HashMap<String, FunctionUnit>,
-    /// `TclOO` method bodies lowered to per-method [`FunctionUnit`]s.
-    /// Keyed by `{class_qname}::{method_name}`; empty for
-    /// non-OO sources. Kept separate from [`Self::procedures`] so the
-    /// per-proc diagnostic passes are unaffected — only the optimiser's
-    /// O126 gate iterates these.
-    pub methods: HashMap<String, FunctionUnit>,
-    /// Synthetic *body units* — the bodies of `apply` lambdas and
-    /// `namespace eval` blocks, lowered to [`FunctionUnit`]s so the
-    /// static-analysis pipeline reaches inside them (see
-    /// [`crate::ir::Module::body_units`]). Keyed by a synthetic qualified name
-    /// (`::apply#N`, or `::NS::namespace-eval#N` — `NS` *prefixes* the marker
-    /// so the qname's enclosing namespace, the same "everything before the
-    /// last `::`" convention every proc/method qname uses, is the namespace
-    /// the block actually targets). Kept **separate** from both
-    /// [`Self::procedures`] and [`Self::methods`] so no existing consumer —
-    /// codegen, the optimiser/minifier, the per-proc or OO diagnostic passes —
-    /// changes behaviour; only analyses that explicitly opt in (via
-    /// [`Self::body_function_units`]) read them. Empty for the overwhelmingly
-    /// common source with no `apply`/`namespace eval` body.
-    pub body_units: HashMap<String, FunctionUnit>,
+    /// Per-procedure analyses joined to their retained module body ID.
+    pub procedures: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    /// Method analyses keyed by their actual Module-issued body ID.
+    /// Member kind, declaring source owner and display labels remain separate.
+    pub methods: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    /// Anonymous and selected-namespace body analyses keyed by retained body ID.
+    /// [`Self::body_function_units`] exposes them with their actual source owners.
+    pub body_units: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    /// Analyses of the Installed lowerings that readonly authored body units
+    /// carry, keyed by each lowering's own body ID. [`Self::body_units`]
+    /// holds the analysis units; [`Self::body_lowering_functions`] reaches both.
+    pub carried_installed_lowerings: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    /// Genuine prepared child CFGs, retained before any function analysis.
+    source_body_cfgs: HashMap<crate::ir::ProcedureId, CfgFunction>,
     /// Interprocedural summary (optional — populated when the
     /// interprocedural pass has been run).
     pub interproc: Option<InterproceduralAnalysis>,
@@ -1323,6 +2360,36 @@ pub struct CompilationUnit {
     /// caller's places.
     pub transfers: crate::interprocedural::TransferSummaries,
 }
+// Preserve the existing semantic/cache equality projection exactly. The new
+// producer receipt is validated independently, never a new Salsa dependency.
+impl PartialEq for CompilationUnit {
+    fn eq(&self, other: &Self) -> bool {
+        self.source == other.source
+            && self.ir_module == other.ir_module
+            && self.cfg_module == other.cfg_module
+            && self.command_mutations == other.command_mutations
+            && self.source_class_facts == other.source_class_facts
+            && self.top_level == other.top_level
+            && self.procedures == other.procedures
+            && self.methods == other.methods
+            && self.body_units == other.body_units
+            && self.carried_installed_lowerings == other.carried_installed_lowerings
+            && self.source_body_cfgs == other.source_body_cfgs
+            && self.interproc == other.interproc
+            && self.connection_scope == other.connection_scope
+            && self.caller_scope == other.caller_scope
+            && self.declared_commands == other.declared_commands
+            && self.transfers == other.transfers
+    }
+}
+
+pub(crate) mod original_lattice_worker;
+pub use original_lattice_worker::{OriginalFunctionLatticeInputs, OriginalFunctionLatticeTemplate};
+mod optimiser_source_owner;
+pub(crate) use optimiser_source_owner::OriginalOptimiserPreparedUnit;
+pub use optimiser_source_owner::{
+    OriginalInterproceduralTaintRequest, OriginalOptimiserSourceOrigin,
+};
 
 /// The unit-scope facts a build resolved, kept on the finished
 /// [`CompilationUnit`] so the explorer — and anyone debugging a missing or
@@ -1338,11 +2405,11 @@ pub struct UnitCallerScope {
     pub has_cross_file_evidence: bool,
     /// The merged (in-unit + cross-file) call-site evidence the seed read.
     pub call_sites: crate::unit_scope::CallSiteEvidence,
-    /// The seed each procedure was actually built under, keyed by qualified
+    /// The seed each procedure was actually built under, keyed by body ID.
     /// name and encoded as the same sorted `(param, version, literal)`
     /// triples the lattice memo key interns.  Only procedures that received
     /// a seed appear.  Sorted so the explorer's rendering is deterministic.
-    pub param_constants_by_proc: BTreeMap<String, Vec<(String, u32, String)>>,
+    pub param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
     /// Narrow declared-procedure identity trust projected from the prepared
     /// command-binding summary. Unlike the unit's `command_mutations`, this
     /// excludes transitive opacity introduced by an unresolved/autoloaded
@@ -1351,11 +2418,82 @@ pub struct UnitCallerScope {
     pub(crate) proc_binding_trust: crate::command_binding::ProcBindingTrustProjection,
 }
 
+/// Immutable descriptive class spellings from the genuine source producer.
+/// Construction stays private; the actual Module joins every projection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetainedSourceClassFacts {
+    source: tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    registry: tcl_registry::RegistrySemanticKey,
+    input: Option<crate::analyser::ResolvedAnalysisInput>,
+    entry: crate::command_binding::SourceAnalysisEntry,
+    owner: Option<Arc<crate::command_binding::RetainedSourceModuleBindings>>,
+    names: Arc<HashSet<String>>,
+}
+
+impl RetainedSourceClassFacts {
+    fn retain(
+        module: &IrModule,
+        registry: &CommandRegistry,
+        names: Arc<HashSet<String>>,
+    ) -> Option<Arc<Self>> {
+        if let Some(input) = &module.source_metadata_input {
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+            if input.lexer_config() != module.lexer_config {
+                return None;
+            }
+            module
+                .retained_source_bindings
+                .as_deref()?
+                .positioned_for_module(module, registry)?;
+        } else if !module.source_entry.metadata_context.is_standalone() {
+            return None;
+        }
+        Some(Arc::new(Self {
+            source: module.source.clone(),
+            config: module.lexer_config,
+            registry: registry.snapshot().semantic_key(),
+            input: module.source_metadata_input.clone(),
+            entry: module.source_entry.clone(),
+            owner: module.retained_source_bindings.clone(),
+            names,
+        }))
+    }
+
+    /// Borrow the complete roster only under its actual source/config/input/store.
+    /// Class spellings provide no occupied Native class or receiver allocation.
+    pub(crate) fn for_module(
+        &self,
+        module: &IrModule,
+        registry: &CommandRegistry,
+    ) -> Option<&HashSet<String>> {
+        if self.source != module.source
+            || self.config != module.lexer_config
+            || self.registry != registry.snapshot().semantic_key()
+            || self.input != module.source_metadata_input
+            || self.entry != module.source_entry
+        {
+            return None;
+        }
+        match (&self.owner, &module.retained_source_bindings) {
+            (Some(owner), Some(current)) if Arc::ptr_eq(owner, current) || owner == current => {
+                owner.positioned_for_module(module, registry)?;
+            }
+            (None, None)
+                if module.source_metadata_input.is_none()
+                    && module.source_entry.metadata_context.is_standalone() => {}
+            _ => return None,
+        }
+        Some(&self.names)
+    }
+}
+
 /// Whole-module facts every per-function build in a [`CompilationUnit`] build
 /// consumes, gathered once.
 struct ModuleWideFacts {
     /// Fully-qualified names of every class defined in the unit.
-    known_class_set: HashSet<String>,
+    known_class_set: Arc<HashSet<String>>,
+    source_class_facts: Option<Arc<RetainedSourceClassFacts>>,
     /// [`Self::known_class_set`], sorted — the form each `LatticeRequest`
     /// carries into its memo key, so a class-set change invalidates the
     /// per-procedure lattices.
@@ -1372,11 +2510,19 @@ impl ModuleWideFacts {
         // Classes come from the signature scanner so this build and the
         // incremental/db build derive an identical set (⇒ identical
         // OBJECT-constructor typing on both paths).
-        let known_class_set = collect_known_classes(source, registry);
+        let roster = collect_known_classes(source, ir_module, registry);
+        let available = roster.is_some();
+        let known_class_set = Arc::new(roster.unwrap_or_default());
+        let source_class_facts = available
+            .then(|| {
+                RetainedSourceClassFacts::retain(ir_module, registry, Arc::clone(&known_class_set))
+            })
+            .flatten();
         let mut known_classes: Vec<String> = known_class_set.iter().cloned().collect();
         known_classes.sort_unstable();
         Self {
             known_class_set,
+            source_class_facts,
             known_classes,
             // A top-level bare name already lives in the global frame, so a
             // call to a procedure that declares it `global` can reassign it
@@ -1393,24 +2539,117 @@ impl ModuleWideFacts {
 /// Lower `source` to IR, run the module-level pre-CFG passes, and build the
 /// module CFG — the front half of a [`CompilationUnit`] build, shared by every
 /// entry point.
+#[cfg(test)]
 fn lower_and_build_cfg(
     source: &str,
     options: UnitBuildOptions<'_>,
     body_cache: Option<&BodyLoweringCache<'_>>,
+    source_body_cache: Option<&crate::lowering::SourceBodySyntaxCache<'_>>,
+    source_entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+    context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+    input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    standalone: Option<crate::lowering::StandaloneSourceInput<'_>>,
 ) -> (
     IrModule,
     CfgModule,
-    HashMap<String, HashSet<String>>,
+    HashMap<crate::ir::ProcedureId, HashSet<String>>,
+    PreparedCfgContext,
+) {
+    let integrity = std::cell::Cell::new(true);
+    lower_and_build_cfg_with_original_caches(
+        source,
+        options,
+        OriginalLoweringCaches {
+            legacy: body_cache,
+            source: source_body_cache,
+            original: None,
+            integrity: &integrity,
+        },
+        source_entry,
+        context,
+        input,
+        standalone,
+    )
+}
+
+struct OriginalBodyCacheInputs<'a> {
+    legacy: Option<&'a BodyLoweringCache<'a>>,
+    original: Option<&'a crate::lowering::OriginalBodyLoweringCache<'a>>,
+}
+
+struct OriginalLoweringCaches<'a> {
+    legacy: Option<&'a BodyLoweringCache<'a>>,
+    source: Option<&'a crate::lowering::SourceBodySyntaxCache<'a>>,
+    original: Option<&'a crate::lowering::OriginalBodyLoweringCache<'a>>,
+    integrity: &'a std::cell::Cell<bool>,
+}
+
+fn lower_and_build_cfg_with_original_caches(
+    source: &str,
+    options: UnitBuildOptions<'_>,
+    caches: OriginalLoweringCaches<'_>,
+    source_entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+    context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+    input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    standalone: Option<crate::lowering::StandaloneSourceInput<'_>>,
+) -> (
+    IrModule,
+    CfgModule,
+    HashMap<crate::ir::ProcedureId, HashSet<String>>,
     PreparedCfgContext,
 ) {
     let registry = options.registry;
     // One lowerer shape for both paths, so the document's own declarations
     // (`UnitBuildOptions::declared_commands`) reach the memoised body-cache
     // build and the plain one identically.
-    let lowerer = crate::lowering::Lowerer::with_config(registry, options.config)
-        .with_dialect(options.dialect)
-        .with_declared_commands(options.declared_commands);
-    let mut ir_module = match body_cache {
+    let mut lowerer = if let Some(owner) = standalone {
+        crate::lowering::Lowerer::for_standalone_source_with_input(owner)
+    } else if source_entry.is_none() && context.is_none() && input.is_none() {
+        // The default build API selects authoring. Explicit supplied or driver
+        // ingress keeps its own purpose even when source metadata is missing.
+        crate::lowering::Lowerer::for_standalone_source(registry, options.config, options.dialect)
+    } else {
+        crate::lowering::Lowerer::with_config(registry, options.config)
+            .with_dialect(options.dialect)
+    }
+    .with_declared_commands(options.declared_commands);
+    let context_input = context
+        .as_ref()
+        .zip(options.dialect)
+        .map(|(context, profile)| {
+            crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::clone(context),
+                options.config,
+            )
+        });
+    let input = input.or(context_input.as_ref());
+    if let Some(input) = input.filter(|_| standalone.is_none()) {
+        lowerer = lowerer.with_resolved_analysis_input(input.clone());
+    } else if let Some(context) = context {
+        lowerer = lowerer.with_context_registry(context);
+    }
+    let supplied_entry = (source_entry.is_none() && standalone.is_none())
+        .then(|| {
+            input.map(|input| {
+                crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+                    registry,
+                    input,
+                    options.config,
+                    options.dialect,
+                )
+            })
+        })
+        .flatten();
+    if let Some(entry) = source_entry.or(supplied_entry.as_ref()) {
+        lowerer.set_source_analysis_options(entry.options());
+    }
+    lowerer = lowerer.with_original_optimiser_lowering(caches.original, caches.integrity);
+    if let Some(cache) = caches.source {
+        lowerer = lowerer.with_source_body_syntax_cache(cache);
+    }
+    let mut ir_module = match caches.legacy {
         Some(bc) => crate::lowering::lower_to_ir_with(lowerer.with_body_cache(bc), source),
         None => crate::lowering::lower_to_ir_with(lowerer, source),
     };
@@ -1434,6 +2673,14 @@ fn lower_and_build_cfg(
     let tainted_global_writes =
         crate::interprocedural::enrich_instance_taint_cfg(&ir_module, &mut cfg_module, registry);
     (ir_module, cfg_module, tainted_global_writes, cfg_context)
+}
+
+fn module_source_metadata_input<'a>(
+    module: &'a IrModule,
+    registry: &CommandRegistry,
+) -> Option<&'a crate::analyser::ResolvedAnalysisInput> {
+    crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?
+        .source_analysis_input()
 }
 
 /// Resolve everything the interprocedural constant seed needs to know about
@@ -1463,17 +2710,34 @@ fn resolve_unit_scope(
     // Collect call-site literal arg values per user proc so each callee's SCCP
     // can fold a param every caller passes the same literal for
     // (interprocedural constant propagation).
-    let mut call_sites = collect_call_site_constants(
-        cfg_module,
-        &extra_callers,
-        &ir_module.procedures,
-        &ir_module.namespace_imports,
-        registry,
-        options.declared_commands,
-        options
-            .dialect
-            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
-    );
+    let mut call_sites = if let Some(identities) =
+        crate::realm::document_realm_bindings_for_module(ir_module, registry)
+    {
+        collect_call_site_constants(
+            cfg_module,
+            &extra_callers,
+            &ir_module.procedures,
+            &ir_module.future_call_sites,
+            crate::unit_scope::CallSiteSourceContext {
+                registry,
+                module: ir_module,
+                declared: options.declared_commands,
+                input: module_source_metadata_input(ir_module, registry),
+                identities: &identities,
+            },
+        )
+    } else {
+        // A missing retained interpretation cannot become an unchanged-name
+        // realm or fresh source replay. Every possible local caller is opaque.
+        let mut evidence = crate::unit_scope::CallSiteEvidence::default();
+        let reachable = ir_module
+            .procedures
+            .values()
+            .map(|procedure| procedure.qualified_name.clone())
+            .collect::<Vec<_>>();
+        evidence.record_unenumerable_caller(&reachable);
+        evidence
+    };
     // Fold in the call sites a host with a cross-file view supplied — callers
     // in *other* files, which this single-source unit can never see for itself
     // Merging is monotone: extra evidence can retract a fold,
@@ -1507,20 +2771,9 @@ fn prepared_command_trust(
     )
 }
 
-/// The semantic context a unit's executable IR is resolved under: the
-/// environment the build's already-resolved profile names. `None` — the build
-/// named no dialect — carries no environment, and the semantic bundle records
-/// its `ContextUnavailable` decline rather than inventing one.
-///
-/// Keyed on the environment, not on a name→`SpecSurface` projection: parsing
-/// the profile's own name selects a single bit, which answers `None` (no
-/// executable facts at all) for every environment such an ingress cannot
-/// resolve — the lenient `tcl` sink and the six EDA shells — and a bare
-/// vendor surface for the composite environments. The context's authoring
-/// point is the environment's real one, the same one the deep-analysis and
-/// Explorer paths pass, so the interactive path sees the same registry rather
-/// than a narrower one. It is `pub` so `tcl-lsp-db`'s per-item unit build
-/// reads the **same** projection instead of resolving the environment itself.
+/// Select an explicitly requested default metadata generation.
+/// Actual source consumers retain their `ResolvedAnalysisInput` instead;
+/// this static handle cannot substitute for its keyed store or availability.
 #[must_use]
 pub fn semantic_context(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
@@ -1540,8 +2793,15 @@ struct BodyUnitContext<'a> {
     /// Whole-module command-mutation trust — see
     /// [`FunctionBuildInputs::command_trust`].
     command_trust: &'a crate::command_binding::ModuleCommandMutations,
-    semantic_context: Option<SemanticContext>,
     config: tcl_lexer::LexerConfig,
+}
+
+struct DeclaredBodyMemoContext<'a> {
+    prepared: Option<&'a CfgContext>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    known_classes: &'a [String],
+    traced_variables: &'a [String],
+    analysis_context: &'a crate::value_transfer::AnalysisContextKey,
 }
 
 /// Module-wide, read-only inputs [`build_procedure_units`] shares across
@@ -1574,7 +2834,7 @@ struct ProcedureBuildContext<'a> {
     command_trust: &'a crate::command_binding::ModuleCommandMutations,
     /// Procedures whose CFG has module-derived instance-option writes. Their
     /// annotated CFG cannot be reconstructed from the body-only lattice memo.
-    tainted_global_writes: &'a HashMap<String, HashSet<String>>,
+    tainted_global_writes: &'a HashMap<crate::ir::ProcedureId, HashSet<String>>,
     /// The module's procedures, which a lattice reading another procedure —
     /// a parameter default, a callee's transfer summary — reads. The memo
     /// keys on one procedure's body, so a lattice that read them is built
@@ -1597,7 +2857,7 @@ impl<'a> ProcedureBuildContext<'a> {
 /// ([`crate::interprocedural::ModuleProcedures`]), over the unit's lowering,
 /// its prepared frame and global-write facts, and its command trust.
 fn module_procedures<'a>(
-    (ir_module, cfg_module, prepared): (&'a IrModule, &'a CfgModule, &'a PreparedCfgContext),
+    (ir_module, cfg_module, _prepared): (&'a IrModule, &'a CfgModule, &'a PreparedCfgContext),
     (mutations, projection): (
         &'a crate::command_binding::ModuleCommandMutations,
         &'a crate::command_binding::ProcBindingTrustProjection,
@@ -1608,8 +2868,6 @@ fn module_procedures<'a>(
     crate::interprocedural::ModuleProcedures::new(crate::interprocedural::ModuleInputs {
         ir: ir_module,
         cfg: cfg_module,
-        frames: &prepared.context.0,
-        outer_writes: &prepared.context.2,
         registry,
         mutations,
         projection,
@@ -1619,44 +2877,103 @@ fn module_procedures<'a>(
     })
 }
 
+fn retained_procedure_event_body(
+    ctx: &ProcedureBuildContext<'_>,
+    id: &crate::ir::ProcedureId,
+    proc: Option<&crate::ir::Procedure>,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Arc<crate::ir::SourceIrulesEventBody>> {
+    ctx.ir_module
+        .irules_event_bodies
+        .get(id)
+        .filter(|event| {
+            proc.is_some_and(|procedure| {
+                event.owns_procedure(procedure, &ctx.ir_module.source, config, ctx.registry)
+            })
+        })
+        .cloned()
+}
+
+fn procedure_is_complexity_guarded(proc: Option<&crate::ir::Procedure>, cfg: &CfgFunction) -> bool {
+    let body_bytes = proc.map_or(0usize, |p| {
+        p.span.end().saturating_sub(p.span.start()) as usize
+    });
+    body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES || crate::ssa::is_complexity_guarded(cfg)
+}
+
 /// Build one [`FunctionUnit`] per procedure: seed its SCCP with the
 /// caller-uniform literals [`crate::unit_scope`] proved, route the build
 /// through the per-procedure lattice memo when one is available, and skip
 /// both for an oversized body.
+fn retain_procedure_source_analysis(
+    unit: FunctionUnit,
+    context: &ProcedureBuildContext<'_>,
+    procedure: Option<&crate::ir::Procedure>,
+) -> FunctionUnit {
+    unit.with_retained_semantic_analysis(
+        context.registry,
+        procedure.map(|procedure| &procedure.body),
+        crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
+    )
+}
+
+fn retain_procedure_parameter_constants(
+    retained: &mut BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
+    id: &crate::ir::ProcedureId,
+    encoded: Option<&[(String, u32, String)]>,
+) {
+    if let Some(encoded) = encoded.filter(|values| !values.is_empty()) {
+        retained.insert(*id, encoded.to_vec());
+    }
+}
+
 fn build_procedure_units(
     ctx: &ProcedureBuildContext<'_>,
     mut cache: Option<&mut ProcLatticeCache<'_>>,
     config: tcl_lexer::LexerConfig,
 ) -> BuiltProcedureUnits {
+    let original_request_scope = cache.as_ref().and(ctx.cfg_context).map(|context| {
+        original_lattice_worker::OriginalLatticeRequestScope::capture(ctx.ir_module, context)
+    });
     // Procedure memo bodies are relocated to offset zero. Preserve the exact
     // lexical policy while stripping only source-coordinate bookkeeping so a
     // moved but unchanged body keeps the same cache identity.
     let memo_config = config.nested().normalized();
-    let mut procedures: HashMap<String, FunctionUnit> = HashMap::new();
-    let mut param_constants_by_proc: BTreeMap<String, Vec<(String, u32, String)>> = BTreeMap::new();
-    for (qname, cfg) in &ctx.cfg_module.procedures {
+    let memo_input = module_source_metadata_input(ctx.ir_module, ctx.registry)
+        .map(crate::analyser::ResolvedAnalysisInput::for_nested_source);
+    let mut procedures: HashMap<crate::ir::ProcedureId, FunctionUnit> = HashMap::new();
+    let mut param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>> =
+        BTreeMap::new();
+    for (id, cfg) in &ctx.cfg_module.procedures {
         let params = ctx
             .ir_module
             .procedures
-            .get(qname)
+            .get(id)
             .map_or(&[][..], |p| p.params.as_slice());
-        let param_constants =
-            params_constants_from_call_sites(params, ctx.call_sites, qname, ctx.caller_view);
-        let proc = ctx.ir_module.procedures.get(qname);
+        let proc = ctx.ir_module.procedures.get(id);
+        let qname = cfg.name.as_str();
+        let event_body = retained_procedure_event_body(ctx, id, proc, config);
+        let param_constants = proc.and_then(|procedure| {
+            params_constants_from_native_call_sites(
+                ctx.ir_module,
+                *id,
+                procedure,
+                ctx.ir_module.parameter_grammar(),
+                ctx.call_sites,
+                ctx.caller_view,
+            )
+        });
         // Complexity guard (block-count or body-byte half): skip both the
         // memo and the deep analysis for an oversized body. A flat
         // generated proc is block-light yet byte-huge, so the byte test is
         // what catches it.
-        let body_bytes = proc.map_or(0usize, |p| {
-            p.span.end().saturating_sub(p.span.start()) as usize
-        });
-        if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES
-            || crate::ssa::is_complexity_guarded(cfg)
-        {
-            procedures.insert(
-                qname.clone(),
-                FunctionUnit::trivial_guarded(qname, cfg.clone()),
+        if procedure_is_complexity_guarded(proc, cfg) {
+            let mut unit = FunctionUnit::trivial_guarded(qname, cfg.clone()).with_source_metadata(
+                module_source_metadata_input(ctx.ir_module, ctx.registry),
+                config,
             );
+            unit.irules_event_body = event_body;
+            procedures.insert(*id, unit.with_body_id(*id));
             continue;
         }
         let body_offset = proc.map_or(0, |p| p.span.start());
@@ -1674,16 +2991,22 @@ fn build_procedure_units(
         // and, by its absence, that an indirect or cross-file call site
         // withdrew it.  The non-empty filter keeps the map to procedures
         // that were actually seeded.
-        if let Some(encoded) = encoded_pc.as_ref().filter(|e| !e.is_empty()) {
-            param_constants_by_proc.insert(qname.clone(), encoded.clone());
-        }
+        retain_procedure_parameter_constants(
+            &mut param_constants_by_proc,
+            id,
+            encoded_pc.as_deref(),
+        );
         // Route through the memo only when (a) a cache is present, (b) the
         // procedure has a real body, (c) the module context is available,
         // and (d) the seeds encode into the hashable key form.
         let has_instance_global_writes = ctx
             .tainted_global_writes
-            .get(qname)
+            .get(id)
             .is_some_and(|writes| !writes.is_empty());
+        // The memo request retains the complete module mutation obligations;
+        // a shadow or unknown callback rekeys the lattice rather than borrowing
+        // the untouched-module fold state. Current CFG equality remains an
+        // independent acceptance check after rebasing.
         // The memo key (`LatticeRequest`) carries the module's analysis
         // context, whose command-trust snapshot is the whole-module
         // command-mutation scan — the only place a namespace-local
@@ -1696,26 +3019,45 @@ fn build_procedure_units(
             ctx.cfg_context,
             encoded_pc,
             has_instance_global_writes,
+            ctx.ir_module.source.try_text().ok(),
         ) {
             (
                 Some(memo),
                 Some(proc),
-                Some((upvar_procs, proc_params, global_write_procs, command_bindings)),
+                Some((
+                    upvar_procs,
+                    proc_params,
+                    global_write_procs,
+                    command_bindings,
+                    procedure_summary_owners,
+                )),
                 Some(encoded_pc),
                 false,
+                Some(source),
             ) => {
                 // Normalise the body to offset 0 so a shifted-but-unchanged
                 // procedure produces an identical request (memo hit).
                 let mut body = proc.body.clone();
                 crate::lattice_rebase::rebase_script(&mut body, -i64::from(body_offset));
-                let mut fu = memo(&LatticeRequest {
+                let mut request = LatticeRequest {
+                    original_worker_request: None,
+                    module: ctx.ir_module,
+                    body_id: *id,
                     qname,
                     body: &body,
+                    source,
+                    original_body_offset: body_offset,
+                    executable_body_offset: proc.body_offset,
+                    body_source: proc.body_source.as_deref(),
+                    irules_event_body: event_body.as_ref(),
+                    command_trust: ctx.command_trust,
                     params,
                     upvar_procs,
                     proc_params,
                     global_write_procs,
                     command_bindings,
+                    procedure_summary_owners,
+                    source_metadata_input: memo_input.as_ref(),
                     lexer_config: memo_config,
                     dialect: ctx.dialect,
                     plain_command_dispatch: ctx.ir_module.plain_command_dispatch,
@@ -1724,7 +3066,19 @@ fn build_procedure_units(
                     traced_variables: ctx.traced_variable_names,
                     analysis_context: ctx.analysis_context,
                     has_dynamic_variable_trace: ctx.ir_module.has_dynamic_variable_trace,
-                });
+                };
+                let original_request = original_lattice_worker::OriginalLatticeRequestSeal::capture(
+                    &request,
+                    original_request_scope
+                        .as_ref()
+                        .expect("actual memo context"),
+                    ctx.registry,
+                );
+                request.original_worker_request = Some(&original_request);
+                let mut fu = memo(&request);
+                fu.original_lattice_callback_admission = Some(
+                    LatticeRequest::accepts_original_worker_result(&request, &fu, ctx.registry),
+                );
                 // Rebase the offset-0 memo result to the procedure's real
                 // position so every consumer sees **absolute** spans without
                 // needing offset-awareness — robust against new/upstream
@@ -1735,21 +3089,25 @@ fn build_procedure_units(
                 // without changing the closed module state in the memo key.
                 // Reuse only a unit built under the exact current CFG; the
                 // ordinary fresh path carries any missing timeline effects.
-                // A lattice that read another procedure of the module rests
-                // on more than its key, so the fresh path rebuilds it with
-                // the module's procedures in hand.
-                (fu.cfg == *cfg && !fu.sccp.reads_module).then_some(fu)
+                let matches = fu.cfg == *cfg;
+                (matches && !fu.sccp.reads_module).then_some(fu)
             }
             _ => None,
         };
         let mut fu = memoised.unwrap_or_else(|| {
             FunctionUnit::build_procedure_in_module(
+                *id,
+                proc.is_some_and(|body| body.body_kind == crate::ir::ProcedureBodyKind::Event),
                 qname,
                 cfg.clone(),
                 (params, param_constants.as_ref()),
                 UnitDialect {
                     registry: ctx.registry,
                     config,
+                    source_metadata_input: module_source_metadata_input(
+                        ctx.ir_module,
+                        ctx.registry,
+                    ),
                 },
                 ctx.known_class_set,
                 ctx.module_facts(),
@@ -1764,13 +3122,9 @@ fn build_procedure_units(
         // Procedure bodies run only after arbitrary interposed top-level and
         // cross-file history, so their dispatch proofs start from an unknown
         // world until a workspace-aware entry contract exists.
-        fu = fu.with_semantic_analysis(
-            ctx.registry,
-            semantic_context(ctx.dialect),
-            proc.map(|procedure| &procedure.body),
-            crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
-        );
-        procedures.insert(qname.clone(), fu);
+        fu.irules_event_body = event_body;
+        fu = retain_procedure_source_analysis(fu, ctx, proc);
+        procedures.insert(*id, fu.with_body_id(*id));
     }
     BuiltProcedureUnits {
         procedures,
@@ -1782,11 +3136,118 @@ fn build_procedure_units(
 /// interprocedural seed each was built under (explorer provenance only —
 /// the pipeline consumes the seed where it is produced).
 struct BuiltProcedureUnits {
-    procedures: HashMap<String, FunctionUnit>,
-    param_constants_by_proc: BTreeMap<String, Vec<(String, u32, String)>>,
+    procedures: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
 }
 
 impl CompilationUnit {
+    pub(crate) fn original_lattice_callbacks_are_current(&self) -> bool {
+        std::iter::once(&self.top_level)
+            .chain(self.procedures.values())
+            .chain(self.methods.values())
+            .chain(self.body_units.values())
+            .chain(self.carried_installed_lowerings.values())
+            .all(|function| function.original_lattice_callback_admission != Some(false))
+    }
+
+    /// Re-run one actual body's taints with its complete current source owner.
+    /// Missing metadata or a foreign body ID cannot borrow a function-only context.
+    #[must_use]
+    pub fn original_interproc_taints_for_body(
+        &self,
+        body: Option<crate::ir::ProcedureId>,
+        registry: &CommandRegistry,
+        analysis: &InterproceduralAnalysis,
+    ) -> Option<HashMap<ValueKey, TaintLattice>> {
+        let function = self.function_for_body(body)?;
+        let source = TaintSourceContext::for_module_function(registry, &self.ir_module, function);
+        source.metadata_context()?;
+        source.module()?;
+        let owner = self.ir_module.retained_source_bindings.as_deref()?;
+        if analysis.global_instance_class_owner.as_deref() != Some(owner)
+            || analysis.global_instance_class_input.as_ref()
+                != self.ir_module.source_metadata_input.as_ref()
+        {
+            return None;
+        }
+        (source.body_id() == body).then(|| {
+            function.interproc_taints_with_source(registry, analysis, source, body.is_some())
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_branch_folding_fixture(source: &str, fu: FunctionUnit) -> Self {
+        CompilationUnit {
+            source: source.into(),
+            ir_module: crate::ir::Module {
+                retained_source_bindings: None,
+                source_metadata_input: None,
+                lexer_config: tcl_lexer::LexerConfig::default(),
+                source_entry: crate::command_binding::SourceAnalysisEntry::default(),
+                future_call_sites: Vec::new(),
+                installed_procedure_body_units: std::collections::BTreeMap::default(),
+                carried_installed_lowerings: crate::ir::CarriedInstalledLowerings::default(),
+                original_declaration_body_units: std::collections::BTreeMap::default(),
+                original_native_declaration_body_units: std::collections::BTreeMap::default(),
+                original_logical_declaration_body_units: std::collections::BTreeMap::default(),
+                original_hosted_declaration_body_units: std::collections::BTreeMap::default(),
+                original_authored_declaration_body_units: std::collections::BTreeMap::default(),
+                irules_event_bodies: HashMap::new(),
+                procedure_implementation_bodies: std::sync::Arc::from([]),
+                top_level_kind: crate::ir::TopLevelKind::Script,
+                top_level_evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
+                source: tcl_lexer::SourceImage::default(),
+                native_namespace: None,
+                original_byte_source_namespace: None,
+                top_level_namespace: "::".to_owned(),
+                top_level_namespace_context: None,
+                dialect: None,
+                dialect_profile: None,
+                registry_snapshot: None,
+                plain_command_dispatch: false,
+                top_level: crate::ir::Script::new(),
+                procedure_ids: crate::ir::ProcedureIdIssuer::default(),
+                original_definition_scripts: std::collections::BTreeMap::new(),
+                procedures: crate::ir::ProcedureInventory::default(),
+                methods: crate::ir::MethodInventory::default(),
+                body_units: crate::ir::ProcedureInventory::default(),
+                lambda_body_units: std::collections::BTreeSet::new(),
+                redefined_procedures: std::collections::HashSet::new(),
+                redefined_methods: HashMap::new(),
+                oo_unanalysed_classes: std::collections::HashSet::new(),
+                oo_evidence: crate::ir::OoDefinitionEvidence::default(),
+                class_relations: Vec::new(),
+                namespace_imports: Vec::new(),
+                namespace_exports: Vec::new(),
+                traced_commands: std::collections::BTreeSet::new(),
+                has_dynamic_trace: false,
+                traced_variables: std::collections::BTreeSet::new(),
+                has_dynamic_variable_trace: false,
+                deferred_writes: crate::ir::DeferredWrites::default(),
+                reference_bodies: crate::ir::ReferenceBodies::default(),
+                declared_frame_effects: std::collections::BTreeMap::new(),
+            },
+            cfg_module: crate::cfg::CfgModule {
+                top_level: fu.cfg.clone(),
+                procedures: HashMap::new(),
+            },
+            command_mutations: crate::command_binding::ModuleCommandMutations::default(),
+            source_class_facts: None,
+            top_level: fu,
+            procedures: HashMap::new(),
+            methods: HashMap::new(),
+            body_units: HashMap::new(),
+            carried_installed_lowerings: HashMap::new(),
+            source_body_cfgs: HashMap::new(),
+            interproc: None,
+            connection_scope: None,
+            caller_scope: crate::compilation_unit::UnitCallerScope::default(),
+            declared_commands: tcl_registry::model::DeclaredSurface::new(),
+            transfers: crate::interprocedural::TransferSummaries::default(),
+            optimiser_source_owner: None,
+        }
+    }
+
     /// Build a [`CompilationUnit`] by running the pipeline
     /// end-to-end: `lower_to_ir` → `build_cfg` → per-function
     /// SSA / def-use / SCCP.
@@ -1972,15 +3433,290 @@ impl CompilationUnit {
         Self::build_with(source, options, Some(cache), Some(body_cache))
     }
 
+    /// Memoise procedure lattices and body lowering under the driver's complete
+    /// source input. Execution provenance remains the independent optional entry.
+    #[must_use]
+    pub fn build_memoized_with_analysis_input(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        cache: &mut ProcLatticeCache<'_>,
+        body_cache: &BodyLoweringCache<'_>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Self {
+        Self::build_with_retained_entry(
+            source,
+            options,
+            Some(cache),
+            Some(body_cache),
+            entry,
+            None,
+            Some(input),
+        )
+    }
+
+    /// Memoise conditional source syntax under the original complete driver
+    /// input and entry. Execution-oriented body lowering remains independent.
+    #[must_use]
+    pub fn build_memoized_with_source_body_syntax_cache(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        cache: &mut ProcLatticeCache<'_>,
+        body_cache: &BodyLoweringCache<'_>,
+        source_body_cache: &crate::lowering::SourceBodySyntaxCache<'_>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    ) -> Self {
+        Self::build_with_retained_entry_and_source_syntax(
+            source,
+            options,
+            Some(cache),
+            OriginalBodyCacheInputs {
+                legacy: Some(body_cache),
+                original: None,
+            },
+            entry,
+            None,
+            input,
+            Some(source_body_cache),
+            None,
+        )
+    }
+
+    /// Memoise original procedure lowering and lattices under the driver's
+    /// complete actual source input. Legacy script callbacks remain separate.
+    #[must_use]
+    pub fn build_memoized_with_original_body_lowering(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        cache: &mut ProcLatticeCache<'_>,
+        body_cache: &crate::lowering::OriginalBodyLoweringCache<'_>,
+        source_body_cache: &crate::lowering::SourceBodySyntaxCache<'_>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    ) -> Self {
+        Self::build_with_retained_entry_and_source_syntax(
+            source,
+            options,
+            Some(cache),
+            OriginalBodyCacheInputs {
+                legacy: None,
+                original: Some(body_cache),
+            },
+            entry,
+            None,
+            input,
+            Some(source_body_cache),
+            None,
+        )
+    }
+
+    /// Build with the driver's retained runtime and package-provider entry.
+    /// The entry supplies execution provenance independently of catalogue metadata.
+    #[must_use]
+    pub fn build_with_source_entry(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        entry: &crate::command_binding::SourceAnalysisEntry,
+    ) -> Self {
+        Self::build_with_entry(source, options, None, None, Some(entry), None)
+    }
+
     fn build_with(
         source: &str,
         options: UnitBuildOptions<'_>,
         cache: Option<&mut ProcLatticeCache<'_>>,
         body_cache: Option<&BodyLoweringCache<'_>>,
     ) -> Self {
-        let (registry, dialect) = (options.registry, options.dialect);
+        // A whole source with a known dialect is a document `tclsh file.tcl`
+        // runs in a fresh interpreter, where `proc f` defines `::f`. It takes
+        // the same supplied-source entry as a whole-document analysis
+        // (`SourceAnalysisEntry::for_supplied_source`); a dialect-blind or
+        // foreign command store keeps the standalone authoring purpose.
+        if let Some(input) = Self::fresh_document_input(&options) {
+            return Self::build_with_retained_entry(
+                source,
+                options,
+                cache,
+                body_cache,
+                None,
+                None,
+                Some(&input),
+            );
+        }
+        Self::build_with_entry(source, options, cache, body_cache, None, None)
+    }
+
+    /// The complete source input of a dialect-bearing standalone build: its
+    /// profile, the dialect's default availability over the caller's exact
+    /// command store, and its lexer configuration. Inputs whose metadata does
+    /// not correspond (no dialect, a mismatched profile/config, or a store
+    /// the availability context cannot carry) return `None`.
+    fn fresh_document_input(
+        options: &UnitBuildOptions<'_>,
+    ) -> Option<crate::analyser::ResolvedAnalysisInput> {
+        let profile = options.dialect?;
+        let environment = tcl_registry::model::ingress::resolve_environment(profile.name);
+        let mut context = environment.default_context_registry();
+        if context.commands().snapshot().semantic_key()
+            != options.registry.snapshot().semantic_key()
+        {
+            context = std::sync::Arc::new(
+                tcl_registry::model::ingress::static_context_for_profile(profile)
+                    .with_command_store(options.registry.snapshot().shared_registry()),
+            );
+        }
+        let input =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, options.config);
+        crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            options.registry,
+            &input,
+            options.config,
+            Some(profile),
+        )?;
+        Some(input)
+    }
+
+    /// Build conditional source diagnostics under the caller's complete
+    /// availability context. This context supplies no Native execution entry.
+    #[must_use]
+    pub fn build_with_context_registry(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> Self {
+        Self::build_with_entry(source, options, None, None, entry, Some(context))
+    }
+
+    /// Build using the caller's complete source input and independent entry.
+    /// With no supplied entry, matching Logical and hosted inputs retain their
+    /// source advice and Native inputs start from a fresh interpreter
+    /// ([`crate::command_binding::SourceAnalysisEntry::for_supplied_source`]).
+    #[must_use]
+    pub fn build_with_analysis_input(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Self {
+        Self::build_with_retained_entry(source, options, None, None, entry, None, Some(input))
+    }
+
+    /// Build an explicitly Standalone authoring request with its complete source
+    /// metadata. Availability does not choose this purpose: the caller selects it
+    /// independently. Missing/foreign store, profile or full grammar refuses.
+    /// Supplied-document and driver-entry builders retain their existing purposes;
+    /// this constructor supplies no runtime entry or Native activation.
+    #[must_use]
+    pub fn build_standalone_with_analysis_input(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Self> {
+        let owner = crate::lowering::StandaloneSourceInput::retain(
+            options.registry,
+            input,
+            options.config,
+            options.dialect,
+        )?;
+        Some(Self::build_with_retained_entry_and_source_syntax(
+            source,
+            options,
+            None,
+            OriginalBodyCacheInputs {
+                legacy: None,
+                original: None,
+            },
+            None,
+            None,
+            Some(input),
+            None,
+            Some(owner),
+        ))
+    }
+
+    fn build_with_entry(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        cache: Option<&mut ProcLatticeCache<'_>>,
+        body_cache: Option<&BodyLoweringCache<'_>>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+    ) -> Self {
+        Self::build_with_retained_entry(source, options, cache, body_cache, entry, context, None)
+    }
+
+    fn build_with_retained_entry(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        cache: Option<&mut ProcLatticeCache<'_>>,
+        body_cache: Option<&BodyLoweringCache<'_>>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+        input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    ) -> Self {
+        Self::build_with_retained_entry_and_source_syntax(
+            source,
+            options,
+            cache,
+            OriginalBodyCacheInputs {
+                legacy: body_cache,
+                original: None,
+            },
+            entry,
+            context,
+            input,
+            None,
+            None,
+        )
+    }
+
+    fn build_with_retained_entry_and_source_syntax(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        mut cache: Option<&mut ProcLatticeCache<'_>>,
+        body_caches: OriginalBodyCacheInputs<'_>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+        input: Option<&crate::analyser::ResolvedAnalysisInput>,
+        source_body_cache: Option<&crate::lowering::SourceBodySyntaxCache<'_>>,
+        standalone: Option<crate::lowering::StandaloneSourceInput<'_>>,
+    ) -> Self {
+        // Optional callback/cache outputs need their own authentic analysis
+        // receipts before this source-action producer can reborrow them.
+        // Report construction and all existing analysis remain unchanged.
+        let OriginalBodyCacheInputs {
+            legacy: body_cache,
+            original: original_body_cache,
+        } = body_caches;
+        let lowering_integrity = std::cell::Cell::new(true);
+        let original_source_ingress = if standalone.is_some() {
+            optimiser_source_owner::OriginalSourceBuildIngress::ExplicitStandalone
+        } else if entry.is_none() && context.is_none() && input.is_none() {
+            optimiser_source_owner::OriginalSourceBuildIngress::DefaultAuthoring
+        } else {
+            optimiser_source_owner::OriginalSourceBuildIngress::RetainedEntry
+        };
+
+        let UnitBuildOptions {
+            registry, dialect, ..
+        } = options;
         let (ir_module, cfg_module, tainted_global_writes, prepared_cfg_context) =
-            lower_and_build_cfg(source, options, body_cache);
+            lower_and_build_cfg_with_original_caches(
+                source,
+                options,
+                OriginalLoweringCaches {
+                    legacy: body_cache,
+                    source: source_body_cache,
+                    original: original_body_cache,
+                    integrity: &lowering_integrity,
+                },
+                entry,
+                context,
+                input,
+                standalone,
+            );
         let (command_mutations, proc_binding_trust) =
             prepared_command_trust(&ir_module, registry, &prepared_cfg_context);
         // The module's analysis context: one value every per-procedure
@@ -1991,7 +3727,12 @@ impl CompilationUnit {
         // writes one.
         let analysis_context =
             crate::value_transfer::AnalysisContextKey::for_module(&command_mutations, registry)
-                .with_connection_scoped(connection_scoped_names(&cfg_module, registry, options))
+                .with_connection_scoped(connection_scoped_names(
+                    &ir_module,
+                    &cfg_module,
+                    registry,
+                    options,
+                ))
                 .with_deferred_writes(ir_module.deferred_writes.clone());
         // Module-wide upvar/param context — the CFG-determining context a
         // procedure body is rebuilt under.  Computed once and shared by every
@@ -2008,6 +3749,7 @@ impl CompilationUnit {
         let has_cross_file_evidence = options.external_call_sites.is_some();
         let ModuleWideFacts {
             known_class_set,
+            source_class_facts,
             known_classes,
             top_level_extra_escaping,
             traced_variable_names,
@@ -2016,7 +3758,6 @@ impl CompilationUnit {
         // and stored on `ir_module`, so every per-function build below is a
         // cheap reference pass-through, not a recomputation.
         let trace_facts = ModuleTraceFacts::of(&ir_module);
-        let semantic_context = semantic_context(dialect);
         // The module's procedures, each with its transfer summary: what a
         // lattice reading another procedure reads.
         let module_procedures = module_procedures(
@@ -2027,18 +3768,27 @@ impl CompilationUnit {
         );
         let top_level = FunctionUnit::build_top_level(
             cfg_module.top_level.clone(),
-            registry,
-            (&known_class_set, &top_level_extra_escaping),
+            UnitDialect {
+                registry,
+                config: options.config,
+                source_metadata_input: module_source_metadata_input(&ir_module, registry),
+            },
+            &known_class_set,
+            &top_level_extra_escaping,
             trace_facts,
-            options.config,
             &command_mutations,
             Some(&module_procedures),
         )
-        .with_top_level_semantic_analysis(registry, semantic_context, &ir_module.top_level);
+        .with_retained_semantic_analysis(
+            registry,
+            Some(&ir_module.top_level),
+            crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+        );
         let caller_view = crate::unit_scope::UnitCallerView {
             linkage,
             has_cross_file_evidence,
             proc_binding_trust: &proc_binding_trust,
+            source: ir_module.source.try_text().ok(),
         };
         let built = build_procedure_units(
             &ProcedureBuildContext {
@@ -2058,31 +3808,61 @@ impl CompilationUnit {
                 tainted_global_writes: &tainted_global_writes,
                 procedures: Some(&module_procedures),
             },
-            cache,
+            cache.as_deref_mut(),
             options.config,
         );
-        let procedures = built.procedures;
+        let mut procedures = built.procedures;
         let transfers = module_procedures.into_summaries();
         let body_unit_context = BodyUnitContext {
             registry,
             known_class_set: &known_class_set,
             trace_facts,
             command_trust: &command_mutations,
-            semantic_context,
             config: options.config,
         };
         let methods = Self::build_method_units(&ir_module, &extra_callers, body_unit_context);
-        let body_units = Self::build_body_units(&ir_module, &extra_callers, body_unit_context);
-        let connection_scope = Self::build_connection_scope(&procedures);
-        Self {
+        let source_body_cfgs = ir_module
+            .body_units
+            .iter()
+            .filter_map(|(id, _)| {
+                extra_callers
+                    .iter()
+                    .find_map(|caller| caller.body_analysis_cfg(*id))
+                    .map(|cfg| (*id, cfg.clone()))
+            })
+            .collect();
+        let body_units = Self::build_body_units(
+            &ir_module,
+            &extra_callers,
+            body_unit_context,
+            cache.as_deref_mut(),
+            DeclaredBodyMemoContext {
+                prepared: cfg_context.map(|prepared| &prepared.context),
+                dialect,
+                known_classes: &known_classes,
+                traced_variables: &traced_variable_names,
+                analysis_context: &analysis_context,
+            },
+        );
+        let connection_scope = Self::build_connection_scope(&procedures, registry, &ir_module);
+        Self::drop_cross_event_existence_folds(
+            &mut procedures,
+            connection_scope.as_ref(),
+            registry,
+        );
+        let mut unit = Self {
+            optimiser_source_owner: None,
             source: source.to_owned(),
             ir_module,
             cfg_module,
             command_mutations,
+            source_class_facts,
             top_level,
             procedures,
             methods,
             body_units,
+            carried_installed_lowerings: HashMap::new(),
+            source_body_cfgs,
             interproc: None,
             connection_scope,
             caller_scope: UnitCallerScope {
@@ -2094,7 +3874,16 @@ impl CompilationUnit {
             },
             declared_commands: options.declared_commands.cloned().unwrap_or_default(),
             transfers,
+        };
+        crate::body_analysis_capsule::carry_readonly_authored_lowerings(&mut unit, registry);
+        if lowering_integrity.get() && unit.original_lattice_callbacks_are_current() {
+            unit.retain_original_optimiser_source_origin(
+                options,
+                &analysis_context,
+                original_source_ingress,
+            );
         }
+        unit
     }
 
     /// Lower `TclOO` method bodies (populated in `ir_module.methods` by
@@ -2107,13 +3896,12 @@ impl CompilationUnit {
         ir_module: &IrModule,
         extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
         ctx: BodyUnitContext<'_>,
-    ) -> HashMap<String, FunctionUnit> {
+    ) -> HashMap<crate::ir::ProcedureId, FunctionUnit> {
         let BodyUnitContext {
             registry,
             known_class_set,
             trace_facts,
             command_trust,
-            semantic_context,
             config,
         } = ctx;
         if ir_module.methods.is_empty() {
@@ -2136,10 +3924,11 @@ impl CompilationUnit {
         ir_module
             .methods
             .iter()
-            .map(|(mqname, method)| {
+            .map(|(id, method)| {
+                let mqname = method.reporting_label();
                 let cfg = extra_callers
                     .iter()
-                    .find_map(|caller| caller.analysis_cfg(mqname))
+                    .find_map(|caller| caller.body_analysis_cfg(*id))
                     .expect("call-site scan prepares every method CFG")
                     .clone();
                 let command_resolution_guarded = matches!(
@@ -2159,51 +3948,67 @@ impl CompilationUnit {
                 let body_bytes = method
                     .span
                     .map_or(0usize, |s| s.end().saturating_sub(s.start()) as usize);
-                let fu = if command_resolution_guarded
+                let mut fu = if command_resolution_guarded
                     || body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES
                 {
                     // The guarded unit still carries its method facts: the
                     // deep lattices are skipped, but every consumer of "which
                     // names are bound in this method's frame" must read the
                     // same carrier as the deep path.
-                    let mut fu = FunctionUnit::trivial_guarded(mqname, cfg);
+                    let mut fu = FunctionUnit::trivial_guarded(&mqname, cfg).with_source_metadata(
+                        module_source_metadata_input(ir_module, registry),
+                        config,
+                    );
                     fu.method_facts = Some(Arc::new(MethodBodyFacts::from_method(method)));
                     fu
                 } else {
                     FunctionUnit::build_for_method(
-                        mqname,
+                        &mqname,
                         cfg,
-                        method,
-                        UnitDialect { registry, config },
+                        (*id, method),
+                        UnitDialect {
+                            registry,
+                            config,
+                            source_metadata_input: module_source_metadata_input(
+                                ir_module, registry,
+                            ),
+                        },
                         known_class_set,
                         trace_facts,
                         command_trust,
                     )
                 }
-                .with_semantic_analysis(
+                .with_retained_semantic_analysis(
                     registry,
-                    semantic_context,
                     Some(&method.body),
                     crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
                 );
-                (mqname.clone(), fu)
+                fu.body_id = Some(*id);
+                (*id, fu)
             })
             .collect()
     }
 
-    /// Build the cross-event scope from the `::when::*` procedures.
+    /// Build cross-event facts for every retained event body.
     ///
     /// `None` lets non-iRules consumers skip the empty sweep.
     fn build_connection_scope(
-        procedures: &HashMap<String, FunctionUnit>,
+        procedures: &HashMap<crate::ir::ProcedureId, FunctionUnit>,
+        registry: &CommandRegistry,
+        module: &crate::ir::Module,
     ) -> Option<crate::connection_scope::ConnectionScope> {
-        let when_procs: HashMap<String, FunctionUnit> = procedures
+        let when_procs: HashMap<crate::ir::ProcedureId, FunctionUnit> = procedures
             .iter()
-            .filter(|(qname, _)| qname.starts_with("::when::"))
-            .map(|(qname, unit)| (qname.clone(), unit.clone()))
+            .filter(|(_, unit)| unit.irules_event_body.is_some())
+            .map(|(id, unit)| (*id, unit.clone()))
             .collect();
-        (!when_procs.is_empty())
-            .then(|| crate::connection_scope::build_connection_scope(&when_procs))
+        (!when_procs.is_empty()).then(|| {
+            crate::connection_scope::build_connection_scope_for_module(
+                &when_procs,
+                registry,
+                module,
+            )
+        })
     }
 
     /// Lower the synthetic *body units* (`apply` lambdas and `namespace eval`
@@ -2222,63 +4027,263 @@ impl CompilationUnit {
         ir_module: &IrModule,
         extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
         ctx: BodyUnitContext<'_>,
-    ) -> HashMap<String, FunctionUnit> {
+        mut cache: Option<&mut ProcLatticeCache<'_>>,
+        memo_context: DeclaredBodyMemoContext<'_>,
+    ) -> HashMap<crate::ir::ProcedureId, FunctionUnit> {
         let BodyUnitContext {
             registry,
             known_class_set,
             trace_facts,
             command_trust,
-            semantic_context,
             config,
         } = ctx;
         if ir_module.body_units.is_empty() {
             return HashMap::new();
         }
+        let original_request_scope = cache.as_ref().and(memo_context.prepared).map(|context| {
+            original_lattice_worker::OriginalLatticeRequestScope::capture(ir_module, context)
+        });
         let no_extra_escaping = HashSet::new();
         ir_module
             .body_units
             .iter()
-            .map(|(qname, proc)| {
+            .map(|(id, proc)| {
+                let qname = &proc.qualified_name;
                 let cfg = extra_callers
                     .iter()
-                    .find_map(|caller| caller.analysis_cfg(qname))
+                    .find_map(|caller| caller.body_analysis_cfg(*id))
                     .expect("call-site scan prepares every body-unit CFG")
                     .clone();
                 // Same body-byte complexity guard as procs/methods: a huge
                 // generated lambda body contributes trivial lattices instead of
                 // a deep (and slow) analysis.
                 let body_bytes = proc.span.end().saturating_sub(proc.span.start()) as usize;
-                let fu = if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
-                    FunctionUnit::trivial_guarded(qname, cfg)
-                } else {
-                    FunctionUnit::build_full(
-                        qname.clone(),
-                        cfg,
-                        FunctionBuildInputs {
-                            config,
-                            params: &proc.params,
-                            registry,
-                            param_constants: None,
-                            known_classes: known_class_set,
-                            extra_global_escaping: &no_extra_escaping,
-                            trace_facts,
-                            analysis_context: None,
-                            command_trust,
-                            object_state: None,
-                            initial_global: false,
-                            procedures: None,
-                        },
+                let original_declaration_body =
+                    (ir_module.original_declaration_body_units.contains_key(id)
+                        || ir_module
+                            .original_native_declaration_body_units
+                            .contains_key(id)
+                        || ir_module
+                            .original_logical_declaration_body_units
+                            .contains_key(id)
+                        || ir_module
+                            .original_hosted_declaration_body_units
+                            .contains_key(id)
+                        || ir_module
+                            .original_authored_declaration_body_units
+                            .contains_key(id))
+                        && ir_module
+                            .original_source_procedure_bodies()
+                            .any(|(owned, _)| owned == id);
+                let declaration_body = original_declaration_body
+                    || ir_module.installed_procedure_body_units.contains_key(id);
+                let mut entry_context = if original_declaration_body {
+                    conditional_function_source_entry(
+                        &cfg,
+                        module_source_metadata_input(ir_module, registry),
                     )
-                }
-                .with_semantic_analysis(
-                    registry,
-                    semantic_context,
-                    Some(&proc.body),
-                    crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
-                );
-                (qname.clone(), fu)
+                } else if declaration_body {
+                    if let Some(namespace) = proc.body.namespace_context.as_deref() {
+                        // This is the original declaration's analytical local
+                        // frame, not an actual invocation of this internal unit.
+                        let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+                            namespace: namespace.display().unwrap_or_default(),
+                            identity: id.reporting_key(),
+                        }
+                        .with_namespace_identity(namespace.clone());
+                        crate::var_resolve::ResolveContext::default().in_frame(&frame)
+                    } else {
+                        crate::var_resolve::ResolveContext::default()
+                            .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
+                    }
+                } else if let Some(namespace) = proc.body.namespace_context.as_deref() {
+                    let frame = if ir_module.lambda_body_units.contains(id) {
+                        crate::var_resolve::VariableExecutionFrame::Procedure {
+                            namespace: namespace.display().unwrap_or_default(),
+                            identity: id.reporting_key(),
+                        }
+                    } else {
+                        crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+                            namespace: namespace.display().unwrap_or_default(),
+                            identity: id.reporting_key(),
+                        }
+                    }
+                    .with_namespace_identity(namespace.clone());
+                    crate::var_resolve::ResolveContext::default().in_frame(&frame)
+                } else {
+                    crate::var_resolve::ResolveContext::default()
+                        .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
+                };
+                entry_context.namespace_cells.closed = false;
+                let memoised = (body_bytes <= crate::ssa::DEEP_ANALYSIS_BODY_BYTES
+                    && original_declaration_body)
+                    .then(|| {
+                        let memo = cache.as_mut()?;
+                        let (
+                            upvar_procs,
+                            proc_params,
+                            global_write_procs,
+                            command_bindings,
+                            procedure_summary_owners,
+                        ) = memo_context.prepared?;
+                        let source = ir_module.source.try_text().ok()?;
+                        let memo_config = config.nested().normalized();
+                        let memo_input = module_source_metadata_input(ir_module, registry)
+                            .map(crate::analyser::ResolvedAnalysisInput::for_nested_source);
+                        let mut body = proc.body.clone();
+                        crate::lattice_rebase::rebase_script(
+                            &mut body,
+                            -i64::from(proc.span.start()),
+                        );
+                        let mut request = LatticeRequest {
+                            original_worker_request: None,
+                            module: ir_module,
+                            body_id: *id,
+                            qname,
+                            body: &body,
+                            source,
+                            original_body_offset: proc.span.start(),
+                            executable_body_offset: proc.body_offset,
+                            body_source: proc.body_source.as_deref(),
+                            irules_event_body: None,
+                            command_trust,
+                            params: &proc.params,
+                            upvar_procs,
+                            proc_params,
+                            global_write_procs,
+                            command_bindings,
+                            procedure_summary_owners,
+                            source_metadata_input: memo_input.as_ref(),
+                            lexer_config: memo_config,
+                            dialect: memo_context.dialect,
+                            plain_command_dispatch: ir_module.plain_command_dispatch,
+                            param_constants: &[],
+                            known_classes: memo_context.known_classes,
+                            traced_variables: memo_context.traced_variables,
+                            analysis_context: memo_context.analysis_context,
+                            has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
+                        };
+                        let original_request =
+                            original_lattice_worker::OriginalLatticeRequestSeal::capture(
+                                &request,
+                                original_request_scope
+                                    .as_ref()
+                                    .expect("actual memo context"),
+                                registry,
+                            );
+                        request.original_worker_request = Some(&original_request);
+                        let mut unit = memo(&request);
+                        unit.original_lattice_callback_admission =
+                            Some(LatticeRequest::accepts_original_worker_result(
+                                &request, &unit, registry,
+                            ));
+                        crate::lattice_rebase::rebase_function_unit(
+                            &mut unit,
+                            i64::from(proc.span.start()),
+                        );
+                        (unit.cfg == cfg && !unit.sccp.reads_module).then_some(unit)
+                    })
+                    .flatten();
+                let mut fu = memoised
+                    .unwrap_or_else(|| {
+                        if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
+                            FunctionUnit::trivial_guarded(qname, cfg).with_source_metadata(
+                                module_source_metadata_input(ir_module, registry),
+                                config,
+                            )
+                        } else {
+                            FunctionUnit::build_full(
+                                qname.clone(),
+                                cfg,
+                                FunctionBuildInputs {
+                                    is_event_body: false,
+                                    analysis_body: Some(Some(*id)),
+                                    initial_state:
+                                        crate::sccp::ExistenceInitialState::DeclaredFrame,
+                                    source_metadata_input: module_source_metadata_input(
+                                        ir_module, registry,
+                                    ),
+                                    entry_context: Some(&entry_context),
+                                    config,
+                                    params: &proc.params,
+                                    registry,
+                                    param_constants: None,
+                                    known_classes: known_class_set,
+                                    extra_global_escaping: &no_extra_escaping,
+                                    trace_facts,
+                                    analysis_context: None,
+                                    command_trust,
+                                    object_state: None,
+                                    initial_global: false,
+                                    procedures: None,
+                                },
+                            )
+                        }
+                    })
+                    .with_retained_semantic_analysis(
+                        registry,
+                        Some(&proc.body),
+                        crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
+                    );
+                fu.original_hosted_procedure_body = ir_module
+                    .original_hosted_declaration_body_units
+                    .get(id)
+                    .filter(|card| card.matches_procedure(ir_module, proc, registry))
+                    .cloned();
+                (*id, fu.with_body_id(*id))
             })
             .collect()
+    }
+
+    /// Cross-event existence post-pass: `existence_constant_branches` runs per
+    /// function and folds `[info exists VAR]` → false for any VAR not defined
+    /// *in that event*. That is unsound for an iRules cross-event variable
+    /// (set in another `when` handler), so drop those folds from `::when::*`
+    /// procs once the connection scope is known — otherwise O101 rewrites
+    /// `if {[info exists ans_cleared]}` to `if {0}` even though a sibling event
+    /// set it (a miscompile).
+    fn drop_cross_event_existence_folds(
+        procedures: &mut HashMap<crate::ir::ProcedureId, FunctionUnit>,
+        connection_scope: Option<&crate::connection_scope::ConnectionScope>,
+        registry: &CommandRegistry,
+    ) {
+        let Some(cs) = connection_scope else {
+            return;
+        };
+        for (body_id, fu) in procedures.iter_mut() {
+            let Some(event) = &fu.irules_event_body else {
+                continue;
+            };
+            let entry = event.conditional_entry();
+            let fallback_points;
+            let points = if let Some(points) = &fu.ssa.point_contexts {
+                points
+            } else {
+                fallback_points = crate::place_bridge::build_point_resolve_contexts_with_entry(
+                    &fu.cfg, entry, registry,
+                );
+                &fallback_points
+            };
+            fu.sccp.constant_branches.retain(|cb| {
+                // Consume the actual CFG condition and registry VarRead roles.
+                // Literal strings resembling an info query never become reads.
+                let Some((id, block)) = fu
+                    .cfg
+                    .blocks
+                    .iter()
+                    .find(|(_, block)| block.name == cb.block)
+                else {
+                    return false;
+                };
+                let Some(terminator) = &block.terminator else {
+                    return false;
+                };
+                let context = points.before_terminator(*id);
+                !crate::place_bridge::terminator_read_places(terminator, context, registry)
+                    .iter()
+                    .any(|place| cs.observes_cross_event_place(body_id, place))
+            });
+        }
     }
 
     /// Populate [`InterproceduralAnalysis`] via
@@ -2296,59 +4301,96 @@ impl CompilationUnit {
         registry: &CommandRegistry,
         dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> Self {
+        let original_owner = self.optimiser_source_owner.clone().filter(|owner| {
+            owner.matches_unit(&self)
+                && owner.matches_registry(registry)
+                && owner.matches_dialect(dialect)
+        });
+        self.optimiser_source_owner = None;
+
         // Object-handle → class map (SSA/VTA-derived) so a `$g walk … -command
         // cb` instance-method callback becomes a call-graph / reachability edge.
+        let Some(identities) =
+            crate::realm::document_realm_bindings_for_module(&self.ir_module, registry)
+        else {
+            self.interproc = None;
+            return self;
+        };
         let object_types = crate::object_types::object_handle_classes(&self, registry);
         // The unit's own proven command-identity facts, so the call-graph scan
         // classifies a rebound head as the command it is.
-        let identities = crate::realm::document_realm_bindings_with_config(
-            &self.source,
-            tcl_lexer::LexerConfig::for_profile(dialect),
-            registry,
-        );
         let interproc = crate::interprocedural::build_interprocedural_analysis_for_unit(
             &self,
             registry,
             dialect,
-            crate::interprocedural::ObjectTypeMap(&object_types),
+            crate::interprocedural::ObjectTypeCandidates::candidates(&object_types),
             &identities,
         );
 
         // Re-run taint with the new summary + dialect. We borrow
         // `interproc` immutably while each function unit re-runs
         // `propagate_taints`.
-        let top_instance_classes =
-            instance_classes_for_function(&self.top_level.cfg, registry, Some(&interproc), false);
+        let top_instance_classes = instance_classes_for_function(
+            &self.top_level.cfg,
+            registry,
+            Some(&interproc),
+            false,
+            TaintSourceContext::for_module_function(registry, &self.ir_module, &self.top_level),
+        );
         self.top_level.taints = Arc::new(propagate_taints(
             &TaintGraph::new(
                 &self.top_level.cfg,
                 &self.top_level.ssa,
                 &self.top_level.sccp,
             ),
-            registry,
-            Some(&self.top_level.rendered_props),
-            Some(&interproc),
-            dialect,
-            None,
-            None,
-            &top_instance_classes,
+            TaintPropagationInputs {
+                registry,
+                rendered_props: Some(&self.top_level.rendered_props),
+                interproc: Some(&interproc),
+                source: TaintSourceContext::for_module_function(
+                    registry,
+                    &self.ir_module,
+                    &self.top_level,
+                ),
+                param_taints: None,
+                taint_summaries: None,
+                instance_classes: &top_instance_classes,
+            },
         ));
-        for fu in self.procedures.values_mut() {
-            let instance_classes =
-                instance_classes_for_function(&fu.cfg, registry, Some(&interproc), true);
+        let source_bodies: HashSet<_> = self
+            .ir_module
+            .original_source_procedure_bodies()
+            .map(|(id, _)| *id)
+            .collect();
+        for (id, fu) in self.procedures.iter_mut().chain(self.body_units.iter_mut()) {
+            if !source_bodies.contains(id) {
+                continue;
+            }
+            let instance_classes = instance_classes_for_function(
+                &fu.cfg,
+                registry,
+                Some(&interproc),
+                true,
+                TaintSourceContext::for_module_function(registry, &self.ir_module, fu),
+            );
             fu.taints = Arc::new(propagate_taints(
                 &TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp),
-                registry,
-                Some(&fu.rendered_props),
-                Some(&interproc),
-                dialect,
-                None,
-                None,
-                &instance_classes,
+                TaintPropagationInputs {
+                    registry,
+                    rendered_props: Some(&fu.rendered_props),
+                    interproc: Some(&interproc),
+                    source: TaintSourceContext::for_module_function(registry, &self.ir_module, fu),
+                    param_taints: None,
+                    taint_summaries: None,
+                    instance_classes: &instance_classes,
+                },
             ));
         }
 
         self.interproc = Some(interproc);
+        if let Some(owner) = original_owner {
+            self.retain_enriched_original_optimiser_owner(owner);
+        }
         self
     }
 
@@ -2360,7 +4402,7 @@ impl CompilationUnit {
     /// reachable-callee summaries are unchanged across an edit reuses its cached
     /// taints instead of re-propagating.
     ///
-    /// `taint_cb(qname, &interproc)` returns the procedure's taints, or `None` to
+    /// `taint_cb(id, display, &interproc)` returns the procedure's taints, or `None` to
     /// fall back to a fresh [`FunctionUnit::interproc_taints`] (e.g. a procedure
     /// the lattice memo didn't intern).  The top level is always re-run fresh.
     /// Byte-identical to [`Self::with_interprocedural`] provided `taint_cb`
@@ -2368,73 +4410,225 @@ impl CompilationUnit {
     /// `compiler_check` corpus differential and the taint-cascade edit tests.
     #[must_use]
     pub fn with_interprocedural_memoized(
-        mut self,
+        self,
         registry: &CommandRegistry,
         dialect: Option<&'static tcl_dialect::DialectProfile>,
         taint_cb: &mut TaintCascadeCallback<'_>,
     ) -> Self {
+        self.with_interprocedural_callback(
+            registry,
+            dialect,
+            &mut OriginalTaintCallback::Legacy(taint_cb),
+        )
+    }
+
+    /// Memoise actual body taint reports under the private computed summary
+    /// request. A legacy or foreign callback result remains reporting-only.
+    #[must_use]
+    pub fn with_original_interprocedural_memoized(
+        self,
+        registry: &CommandRegistry,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+        taint_cb: &mut OriginalTaintCascadeCallback<'_>,
+    ) -> Self {
+        self.with_interprocedural_callback(
+            registry,
+            dialect,
+            &mut OriginalTaintCallback::Original(taint_cb),
+        )
+    }
+
+    fn with_interprocedural_callback(
+        mut self,
+        registry: &CommandRegistry,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+        taint_cb: &mut OriginalTaintCallback<'_, '_>,
+    ) -> Self {
+        let original_owner = self.original_optimiser_prepared_unit(registry, dialect);
+        self.optimiser_source_owner = None;
+        let mut original_callbacks = true;
+
+        let Some(identities) =
+            crate::realm::document_realm_bindings_for_module(&self.ir_module, registry)
+        else {
+            self.interproc = None;
+            return self;
+        };
         let object_types = crate::object_types::object_handle_classes(&self, registry);
         // The unit's own proven command-identity facts, so the call-graph scan
         // classifies a rebound head as the command it is.
-        let identities = crate::realm::document_realm_bindings_with_config(
-            &self.source,
-            tcl_lexer::LexerConfig::for_profile(dialect),
-            registry,
-        );
         let interproc = crate::interprocedural::build_interprocedural_analysis_for_unit(
             &self,
             registry,
             dialect,
-            crate::interprocedural::ObjectTypeMap(&object_types),
+            crate::interprocedural::ObjectTypeCandidates::candidates(&object_types),
             &identities,
         );
 
         // Top level is built fresh (no offset-0 lattice key), so its taint
         // re-run stays inline.
+        // A refused Module owner retains the bounded function-only projection;
+        // it cannot reconstruct global receiver or procedure correspondence.
         let top_taints = self
-            .top_level
-            .interproc_taints(registry, &interproc, dialect);
+            .original_interproc_taints_for_body(None, registry, &interproc)
+            .unwrap_or_else(|| {
+                self.top_level
+                    .interproc_taints(registry, &interproc, dialect)
+            });
         self.top_level.taints = Arc::new(top_taints);
+
+        let request = OriginalInterproceduralTaintRequest::from_computed_summary(
+            &self,
+            &interproc,
+            original_owner.as_ref(),
+            dialect,
+        );
 
         // Compute each procedure's taints (memoised via `taint_cb`, or fresh on a
         // miss) before mutating, so the immutable `&self.procedures` borrow the
         // fallback needs doesn't overlap the write-back.
-        let mut new_taints: Vec<(String, Arc<HashMap<ValueKey, TaintLattice>>)> =
-            Vec::with_capacity(self.procedures.len());
-        for (qname, fu) in &self.procedures {
-            let taints = taint_cb(qname, &interproc)
-                .unwrap_or_else(|| Arc::new(fu.interproc_taints(registry, &interproc, dialect)));
-            new_taints.push((qname.clone(), taints));
+        let mut new_taints: Vec<(crate::ir::ProcedureId, Arc<HashMap<ValueKey, TaintLattice>>)> =
+            Vec::with_capacity(self.procedures.len() + self.body_units.len());
+        for (qname, fu) in self.procedures.iter().chain(self.body_units.iter()) {
+            if self.original_procedure_for_body(*qname).is_none() {
+                continue;
+            }
+            let returned = match taint_cb {
+                OriginalTaintCallback::Legacy(callback) => {
+                    callback(*qname, &fu.name, &interproc).map(|taints| (taints, false))
+                }
+                OriginalTaintCallback::Original(callback) => callback(&request, *qname, &fu.name)
+                    .map(|report| {
+                        let current = request.accepts(*qname, registry, &report);
+                        (Arc::clone(report.taints()), current)
+                    }),
+            };
+            let taints = if let Some((taints, issued)) = returned {
+                original_callbacks &= issued;
+                taints
+            } else {
+                Arc::new(
+                    self.original_interproc_taints_for_body(Some(*qname), registry, &interproc)
+                        .unwrap_or_else(|| fu.interproc_taints(registry, &interproc, dialect)),
+                )
+            };
+            new_taints.push((*qname, taints));
         }
         for (qname, taints) in new_taints {
             if let Some(fu) = self.procedures.get_mut(&qname) {
+                fu.taints = taints;
+            } else if let Some(fu) = self.body_units.get_mut(&qname) {
                 fu.taints = taints;
             }
         }
 
         self.interproc = Some(interproc);
+        if original_callbacks && let Some(owner) = original_owner {
+            self.retain_enriched_original_optimiser_owner(owner);
+        }
         self
     }
 
-    /// Populate memory-SSA on the top-level and every procedure under
-    /// `dialect`.
+    /// Populate memory facts from retained module and function inputs.
+    /// The compatibility context argument is ignored; it cannot replace an
+    /// absent or stale actual owner. Actual consumers use
+    /// [`Self::with_retained_memory_ssa`].
     #[must_use]
     pub fn with_memory_ssa(
-        mut self,
+        self,
         registry: &tcl_registry::CommandRegistry,
-        context: Option<SemanticContext>,
+        _context: Option<SemanticContext>,
     ) -> Self {
-        self.top_level = self.top_level.with_memory_ssa(registry, context);
-        let mut out: HashMap<String, FunctionUnit> = HashMap::with_capacity(self.procedures.len());
-        for (k, fu) in self.procedures.drain() {
-            out.insert(k, fu.with_memory_ssa(registry, context));
+        self.with_retained_memory_ssa(registry)
+    }
+
+    /// Populate top-level and procedure memory facts from their matching
+    /// actual source owners. Missing, foreign or stale metadata retains
+    /// opaque variable-memory obligations instead of borrowing a profile.
+    #[must_use]
+    pub fn with_retained_memory_ssa(mut self, registry: &CommandRegistry) -> Self {
+        let original_owner = self
+            .optimiser_source_owner
+            .clone()
+            .filter(|owner| owner.matches_unit(&self) && owner.matches_registry(registry));
+        self.optimiser_source_owner = None;
+
+        let context = self
+            .top_level
+            .invocation_metadata_context_for_module(registry, &self.ir_module);
+        self.top_level.memory_ssa = Some(self.top_level.memory_ssa_for_metadata(registry, context));
+        for unit in self.procedures.values_mut() {
+            let context = unit.invocation_metadata_context_for_module(registry, &self.ir_module);
+            unit.memory_ssa = Some(unit.memory_ssa_for_metadata(registry, context));
         }
-        self.procedures = out;
+        if let Some(owner) = original_owner {
+            self.retain_enriched_original_optimiser_owner(owner);
+        }
         self
     }
 
-    /// Rebuild source-faithful executable facts, including world-state SSA,
-    /// for Explorer and other explicit deep-inspection consumers.
+    /// Build full source sidecars from every function's actual retained input.
+    /// Missing or foreign availability and stale grammar remain unavailable;
+    /// no default metadata context is reconstructed for deep inspection.
+    #[must_use]
+    pub fn with_retained_deep_semantic_analysis(mut self, registry: &CommandRegistry) -> Self {
+        let original_owner = self
+            .optimiser_source_owner
+            .clone()
+            .filter(|owner| owner.matches_unit(&self) && owner.matches_registry(registry));
+        self.optimiser_source_owner = None;
+
+        use crate::dispatch_proof::DispatchEntryAssumption;
+        self.top_level.semantic_facts = FunctionUnit::semantic_facts_with_metadata(
+            registry,
+            self.top_level
+                .invocation_metadata_context_for_module(registry, &self.ir_module),
+            Some(&self.ir_module.top_level),
+            DispatchEntryAssumption::PristineRegistryWorld,
+            RetainedSemanticDepth::Full,
+        );
+        for (name, unit) in &mut self.procedures {
+            unit.semantic_facts = FunctionUnit::semantic_facts_with_metadata(
+                registry,
+                unit.invocation_metadata_context_for_module(registry, &self.ir_module),
+                self.ir_module
+                    .procedures
+                    .get(name)
+                    .map(|procedure| &procedure.body),
+                DispatchEntryAssumption::UnknownWorld,
+                RetainedSemanticDepth::Full,
+            );
+        }
+        for (name, unit) in &mut self.methods {
+            unit.semantic_facts = FunctionUnit::semantic_facts_with_metadata(
+                registry,
+                unit.invocation_metadata_context_for_module(registry, &self.ir_module),
+                self.ir_module.methods.get(name).map(|method| &method.body),
+                DispatchEntryAssumption::UnknownWorld,
+                RetainedSemanticDepth::Full,
+            );
+        }
+        for (name, unit) in self
+            .body_units
+            .iter_mut()
+            .chain(&mut self.carried_installed_lowerings)
+        {
+            unit.semantic_facts = FunctionUnit::semantic_facts_with_metadata(
+                registry,
+                unit.invocation_metadata_context_for_module(registry, &self.ir_module),
+                self.ir_module.body_lowering(name).map(|body| &body.body),
+                DispatchEntryAssumption::UnknownWorld,
+                RetainedSemanticDepth::Full,
+            );
+        }
+        if let Some(owner) = original_owner {
+            self.retain_enriched_original_optimiser_owner(owner);
+        }
+        self
+    }
+
+    /// Rebuild full facts under an explicitly supplied standalone context.
+    /// Actual source consumers use [`Self::with_retained_deep_semantic_analysis`].
     ///
     /// Ordinary interactive analysis intentionally avoids materialising a
     /// world graph when no reusable-value proof can consume it.  A caller
@@ -2447,6 +4641,8 @@ impl CompilationUnit {
         registry: &tcl_registry::CommandRegistry,
         context: Option<SemanticContext>,
     ) -> Self {
+        self.optimiser_source_owner = None;
+
         use crate::dispatch_proof::DispatchEntryAssumption;
         self.top_level.semantic_facts = SemanticAnalysisBundle::build(
             registry,
@@ -2478,8 +4674,12 @@ impl CompilationUnit {
                 DispatchEntryAssumption::UnknownWorld,
             );
         }
-        for (name, unit) in &mut self.body_units {
-            let Some(body) = self.ir_module.body_units.get(name) else {
+        for (name, unit) in self
+            .body_units
+            .iter_mut()
+            .chain(&mut self.carried_installed_lowerings)
+        {
+            let Some(body) = self.ir_module.body_lowering(name) else {
                 unit.semantic_facts = SemanticAnalysisBundle::unavailable(context);
                 continue;
             };
@@ -2493,23 +4693,184 @@ impl CompilationUnit {
         self
     }
 
-    /// Return the function unit for a qualified name, searching
-    /// top-level + procedures.
+    /// Select the current top-level unit (`None`) or a Module-issued procedure,
+    /// method or selected body unit through its matching actual store.
+    /// Foreign IDs and function units with a mismatched body stamp are unavailable.
     #[must_use]
-    pub fn function(&self, name: &str) -> Option<&FunctionUnit> {
-        if name == "::top" {
-            return Some(&self.top_level);
+    pub fn function_for_body(&self, body: Option<crate::ir::ProcedureId>) -> Option<&FunctionUnit> {
+        let Some(id) = body else {
+            return self.top_level.body_id.is_none().then_some(&self.top_level);
+        };
+        if !self.ir_module.procedure_ids.owns(id) {
+            return None;
         }
-        self.procedures.get(name)
+        let owners = [
+            self.ir_module.procedures.contains_key(&id),
+            self.ir_module.methods.contains_key(&id),
+            self.ir_module.body_units.contains_key(&id),
+            self.ir_module.carried_installed_lowerings.contains_key(&id),
+        ];
+        if owners.into_iter().filter(|owns| *owns).count() != 1 {
+            return None;
+        }
+        let stores = [
+            (
+                &self.procedures,
+                self.ir_module.procedures.contains_key(&id),
+            ),
+            (&self.methods, self.ir_module.methods.contains_key(&id)),
+            (
+                &self.body_units,
+                self.ir_module.body_units.contains_key(&id),
+            ),
+            (
+                &self.carried_installed_lowerings,
+                self.ir_module.carried_installed_lowerings.contains_key(&id),
+            ),
+        ];
+        let mut functions = stores
+            .into_iter()
+            .filter_map(|(store, owns)| owns.then(|| store.get(&id)).flatten());
+        let function = functions.next()?;
+        if functions.next().is_some() {
+            return None;
+        }
+        (function.body_id == Some(id)).then_some(function)
     }
 
-    /// Iterate over every function unit in the module: the top-level unit
-    /// first, then procedures **in qualified-name order**.
-    ///
-    /// The procedure store is a `HashMap`, whose iteration order is not
-    /// stable across runs; sorting here gives every consumer
-    /// (taint/gvn/shimmer/callouts/stats…) a deterministic function order,
-    /// so the per-function diagnostics they emit are reproducible.
+    /// Actual CFG prepared from an original source declaration under this issuer.
+    /// Anonymous and installed-only bodies do not supply declaration evidence.
+    #[must_use]
+    pub fn original_procedure_cfg_for_body(
+        &self,
+        id: crate::ir::ProcedureId,
+    ) -> Option<&CfgFunction> {
+        self.ir_module
+            .original_source_procedure_bodies()
+            .any(|(body, _)| *body == id)
+            .then_some(())?;
+        self.prepared_original_cfg(id)
+    }
+
+    /// [`Self::original_procedure_cfg_for_body`] against an original-body set
+    /// the caller computed once from `original_source_procedure_bodies`.
+    pub(crate) fn original_procedure_cfg_in(
+        &self,
+        id: crate::ir::ProcedureId,
+        original: &std::collections::BTreeSet<crate::ir::ProcedureId>,
+    ) -> Option<&CfgFunction> {
+        original.contains(&id).then_some(())?;
+        self.prepared_original_cfg(id)
+    }
+
+    fn prepared_original_cfg(&self, id: crate::ir::ProcedureId) -> Option<&CfgFunction> {
+        if self.ir_module.procedures.contains_key(&id) {
+            self.cfg_module.procedures.get(&id)
+        } else {
+            self.source_body_cfgs.get(&id)
+        }
+    }
+
+    /// Prepared CFG for an actual Installed analysis body, without declaration evidence.
+    pub(crate) fn installed_procedure_cfg_for_body(
+        &self,
+        id: crate::ir::ProcedureId,
+    ) -> Option<&CfgFunction> {
+        (self.ir_module.procedure_ids.owns(id)
+            && self
+                .ir_module
+                .installed_procedure_body_units
+                .contains_key(&id)
+            && self.ir_module.body_lowering(&id)?.body_kind
+                == crate::ir::ProcedureBodyKind::Installed
+            && self.body_lowering_function(id)?.body_id == Some(id))
+        .then_some(())?;
+        self.source_body_cfgs.get(&id)
+    }
+
+    /// The function of one body lowering, from the store its Module lowering
+    /// occupies: a body unit's, or a carried Installed lowering's.
+    #[must_use]
+    pub fn body_lowering_function(&self, id: crate::ir::ProcedureId) -> Option<&FunctionUnit> {
+        if self.ir_module.body_units.contains_key(&id) {
+            self.body_units.get(&id)
+        } else if self.ir_module.carried_installed_lowerings.contains_key(&id) {
+            self.carried_installed_lowerings.get(&id)
+        } else {
+            None
+        }
+    }
+
+    /// Every body lowering's function: each body unit, then each Installed
+    /// lowering a unit carries. [`Self::body_units`] alone counts the units.
+    pub fn body_lowering_functions(
+        &self,
+    ) -> impl Iterator<Item = (&crate::ir::ProcedureId, &FunctionUnit)> {
+        self.body_units
+            .iter()
+            .chain(&self.carried_installed_lowerings)
+    }
+
+    /// Actual original declaration, independently of whether it entered the runtime.
+    #[must_use]
+    pub fn original_procedure_for_body(
+        &self,
+        id: crate::ir::ProcedureId,
+    ) -> Option<&crate::ir::Procedure> {
+        self.ir_module
+            .original_source_procedure_bodies()
+            .find_map(|(body, declaration)| (*body == id).then_some(declaration))
+    }
+
+    /// Whether a memo candidate agrees with this original body's prepared CFG.
+    /// A declined callback cannot supply a downstream baseline for a fresh unit.
+    #[must_use]
+    pub fn accepts_original_procedure_lattice(
+        &self,
+        id: crate::ir::ProcedureId,
+        candidate: &FunctionUnit,
+        registry: &CommandRegistry,
+    ) -> bool {
+        let Some(procedure) = self.original_procedure_for_body(id) else {
+            return false;
+        };
+        let Some(current) = self.function_for_body(Some(id)) else {
+            return false;
+        };
+        let Some(retained) = self.ir_module.retained_source_bindings.as_deref() else {
+            return false;
+        };
+        if retained
+            .positioned_for_module(&self.ir_module, registry)
+            .is_none()
+            || !retained.matches_original_procedure_summary(id, procedure)
+            || self.ir_module.source.try_text().ok() != Some(self.source.as_str())
+            || self.original_procedure_cfg_for_body(id) != Some(&current.cfg)
+            || candidate.sccp.reads_module
+        {
+            return false;
+        }
+        let mut positioned = candidate.clone();
+        crate::lattice_rebase::rebase_function_unit(
+            &mut positioned,
+            i64::from(procedure.span.start()),
+        );
+        positioned.cfg == current.cfg
+    }
+
+    /// Select a uniquely named authored test fixture, then its actual issued body.
+    #[cfg(test)]
+    pub(crate) fn function(&self, name: &str) -> Option<&FunctionUnit> {
+        if name == "::top" {
+            return (!self.ir_module.procedures.has_display(name))
+                .then(|| self.function_for_body(None))
+                .flatten();
+        }
+        let (id, _) = self.ir_module.procedures.unique_display(name)?;
+        self.function_for_body(Some(*id))
+    }
+
+    /// Top-level first, followed by primary procedures ordered by reporting name.
     pub fn functions(&self) -> impl Iterator<Item = &FunctionUnit> {
         let mut procs: Vec<&FunctionUnit> = self.procedures.values().collect();
         procs.sort_by(|a, b| a.name.cmp(&b.name));
@@ -2535,9 +4896,8 @@ impl CompilationUnit {
             .iter()
             .filter_map(|(qname, fu)| Some((self.ir_module.methods.get(qname)?.span?, fu)));
         let bodies = self
-            .body_units
-            .iter()
-            .filter_map(|(qname, fu)| Some((self.ir_module.body_units.get(qname)?.span, fu)));
+            .body_lowering_functions()
+            .filter_map(|(qname, fu)| Some((self.ir_module.body_lowering(qname)?.span, fu)));
         let mut best: Option<(u32, &FunctionUnit)> = None;
         for (range, fu) in procs.chain(methods).chain(bodies) {
             if !(range.start() <= offset && offset <= range.end()) {
@@ -2560,98 +4920,257 @@ impl CompilationUnit {
     #[must_use]
     pub fn method_instance_vars(
         &self,
-        function_name: &str,
+        body_id: Option<crate::ir::ProcedureId>,
     ) -> Option<&std::collections::HashSet<String>> {
         self.ir_module
             .methods
-            .get(function_name)
+            .get(&body_id?)
             .map(|m| &m.instance_vars)
     }
 
-    /// Like [`Self::functions`] but skips the functions the complexity guard
-    /// excluded from deep analysis (oversized bodies). Per-proc diagnostic and
-    /// optimiser passes iterate this so a guarded body — whose `ssa` and
-    /// dataflow lattices are trivial — contributes no findings and costs no
-    /// CFG walk. The relative order of the remaining functions is unchanged.
+    /// The complete descriptive class roster from this actual source build.
+    /// Source, full input/configuration, Registry and immutable Module owner
+    /// must still match. Names grant no Native class or Normal result identity.
+    pub(crate) fn retained_source_class_names(
+        &self,
+        registry: &CommandRegistry,
+    ) -> Option<&HashSet<String>> {
+        if self.ir_module.source != tcl_lexer::SourceImage::document(&self.source) {
+            return None;
+        }
+        self.source_class_facts
+            .as_deref()?
+            .for_module(&self.ir_module, registry)
+    }
+
+    /// Build conditional CFG/lattice facts for an authentic original child body.
+    /// The actual CU function and original parent vector select the source;
+    /// report labels supply no body, namespace or entered-frame assumptions.
+    pub(crate) fn conditional_original_body_unit(
+        &self,
+        registry: &CommandRegistry,
+        original_function: &FunctionUnit,
+        parent: &crate::ir::CommandTokens,
+        argument: usize,
+    ) -> Option<FunctionUnit> {
+        // naming.source.original-collection-body-owner
+
+        let module = &self.ir_module;
+        if module.source != tcl_lexer::SourceImage::document(&self.source) {
+            return None;
+        }
+        let metadata =
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module);
+        metadata?;
+        let input = module.source_metadata_input.as_ref()?;
+        if input.lexer_config() != module.lexer_config {
+            return None;
+        }
+        let positioned = module
+            .retained_source_bindings
+            .as_deref()?
+            .positioned_for_module(module, registry);
+        positioned?;
+        let function_metadata =
+            original_function.invocation_metadata_context_for_module(registry, module);
+        function_metadata?;
+        if !self
+            .all_body_function_units()
+            .any(|owned| std::ptr::eq(owned, original_function))
+        {
+            return None;
+        }
+        let script =
+            crate::lowering::Lowerer::original_body_for_module(module, registry, parent, argument);
+        let script = script?;
+        script.executed_source.as_ref()?;
+        script.namespace_context.as_ref()?;
+        let config = tcl_lexer::SourceSegmentationPurpose::NestedScript
+            .config(original_function.source_lexer_config());
+        let child_input = input.for_nested_source();
+        let cfg = crate::cfg_builder::build_analysis_body(
+            "::conditional_original_body",
+            &script,
+            crate::ir::ExecutionNamespace::RuntimeSelected,
+            registry,
+            config,
+            child_input.context_registry(),
+        );
+        let known_classes = self.retained_source_class_names(registry);
+        let known_classes = known_classes?;
+        let context = crate::value_transfer::AnalysisContextKey::for_module(
+            &self.command_mutations,
+            registry,
+        )
+        .with_deferred_writes(module.deferred_writes.clone());
+        Some(FunctionUnit::build_conditional_original_body(
+            cfg,
+            FunctionLatticeInputs {
+                dialect: UnitDialect {
+                    registry,
+                    config,
+                    source_metadata_input: Some(&child_input),
+                },
+                param_constants: None,
+                known_classes,
+                trace_facts: ModuleTraceFacts {
+                    traced_variables: &module.traced_variables,
+                    has_dynamic_variable_trace: module.has_dynamic_variable_trace,
+                    deferred_writes: &module.deferred_writes,
+                },
+                analysis_context: &context,
+                command_trust: &self.command_mutations,
+                // A child script is not the original enclosing event body.
+                event_body: None,
+            },
+        ))
+    }
+
+    /// Top-level and primary procedure units that permit deep analysis.
     pub fn analysable_functions(&self) -> impl Iterator<Item = &FunctionUnit> {
         self.functions().filter(|fu| !fu.complexity_guarded)
     }
 
-    /// Iterate every *body-bearing* function unit whose body is statically
-    /// analysable: the top-level, every procedure, every `TclOO` method, **and**
-    /// every synthetic body unit (`apply` lambda / `namespace eval` body).
-    ///
-    /// This is the coverage-complete iterator for analyses that must reach
-    /// *inside* every statically-known frame (e.g. regex-source tracking),
-    /// unlike [`Self::functions`] which — for backwards compatibility with the
-    /// per-proc diagnostic passes — yields only top-level + procedures. Order:
-    /// top-level, procedures (name-sorted), then methods and body units
-    /// (name-sorted) for reproducibility.
+    /// Top-level first, then primary procedures, then methods and additional
+    /// bodies together. Each following group is ordered by reporting name.
     pub fn all_body_function_units(&self) -> impl Iterator<Item = &FunctionUnit> {
         let mut extra: Vec<&FunctionUnit> = self
             .methods
             .values()
-            .chain(self.body_units.values())
+            .chain(self.body_lowering_functions().map(|(_, function)| function))
             .collect();
         extra.sort_by(|a, b| a.name.cmp(&b.name));
         self.functions().chain(extra)
     }
 
-    /// Like [`Self::all_body_function_units`] but skips complexity-guarded
-    /// bodies — the coverage-complete counterpart to
-    /// [`Self::analysable_functions`].
-    ///
-    /// `compiler_checks::run_all_checks` (SCCP / GVN / shimmer / taint) used
-    /// to iterate [`Self::analysable_functions`], which — per that method's
-    /// "backwards compatibility" note — never reached `TclOO` method bodies
-    /// or synthetic `apply`/`namespace eval` body units: a tainted value
-    /// flowing into `puts` (or any other sink) *inside a method* produced no
-    /// diagnostic at all, even though the optimiser's whole-module pass
-    /// already iterates `cu.methods` directly (`optimiser::manager`) and
-    /// `all_body_function_units` already exists for other coverage-complete
-    /// analyses (regex-source tracking). This is the drop-in replacement
-    /// that closes that gap without reintroducing a guarded body (whose
-    /// trivial lattices would contribute noise, not findings) — see
-    /// `compiler_checks::push_taint_and_module_checks`.
+    /// All retained function units that permit deep analysis.
     pub fn analysable_body_function_units(&self) -> impl Iterator<Item = &FunctionUnit> {
         self.all_body_function_units()
             .filter(|fu| !fu.complexity_guarded)
     }
 
-    /// The synthetic body units (`apply` / `namespace eval`) alone, name-sorted.
+    /// Additional retained body lowerings, ordered by reporting name.
     pub fn body_function_units(&self) -> impl Iterator<Item = &FunctionUnit> {
-        let mut v: Vec<&FunctionUnit> = self.body_units.values().collect();
+        let mut v: Vec<&FunctionUnit> = self
+            .body_lowering_functions()
+            .map(|(_, function)| function)
+            .collect();
         v.sort_by(|a, b| a.name.cmp(&b.name));
         v.into_iter()
     }
 
-    /// Every `TclOO` method and synthetic body unit (`apply` lambda,
-    /// `namespace eval` body) that isn't complexity-guarded — the extra half
-    /// of [`Self::all_body_function_units`] beyond [`Self::analysable_functions`]
-    /// (top-level + procedures), name-sorted for reproducibility.
-    ///
-    /// Exists for a pass that already reaches top-level + procedures through
-    /// [`Self::analysable_functions`] elsewhere and wants *only* these two
-    /// extra function kinds added, without double-visiting top-level or a
-    /// procedure or double-counting a diagnostic. Used by
-    /// `tcl-lsp-db::proc_taint_solve`'s `function_nontaint_checks` top-up loop:
-    /// that memoised query's main per-function loop still iterates
-    /// [`Self::analysable_functions`] (proc-only), unlike
-    /// `compiler_checks::run_all_checks_with_solved_and_patterns`'s direct
-    /// path, which iterates the wider [`Self::all_body_function_units`]
-    /// (filtered) and so needs no separate top-up — adding this iterator's
-    /// output there too would re-run `function_nontaint_checks` a second time
-    /// over the methods/body units the direct path already covers.
+    /// Methods and additional retained bodies that permit deep analysis,
+    /// ordered by reporting name.
     pub fn analysable_methods_and_body_units(&self) -> impl Iterator<Item = &FunctionUnit> {
         let mut v: Vec<&FunctionUnit> = self
             .methods
             .values()
-            .chain(self.body_units.values())
+            .chain(self.body_lowering_functions().map(|(_, function)| function))
             .filter(|fu| !fu.complexity_guarded)
             .collect();
         v.sort_by(|a, b| a.name.cmp(&b.name));
         v.into_iter()
     }
+}
+
+fn extend_existence_folds(
+    sccp: &mut SccpResult,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    frame: crate::sccp::ExistenceFrame<'_>,
+    metadata: crate::sccp::ExistenceMetadataInputs<'_>,
+    config: tcl_lexer::LexerConfig,
+) {
+    sccp.constant_branches.extend(
+        crate::sccp::existence_constant_branches_with_ssa_with_metadata_context(
+            cfg, frame, metadata, config, ssa,
+        ),
+    );
+}
+
+/// Explicit unknown-frame fallback for an original conditional child.
+/// Genuine child source points still select their own original context.
+fn conditional_function_source_entry(
+    cfg: &CfgFunction,
+    input: Option<&crate::analyser::ResolvedAnalysisInput>,
+) -> crate::var_resolve::ResolveContext {
+    let mut entry = crate::var_resolve::ResolveContext::for_frame(
+        crate::var_resolve::VariableFrameKind::Unknown,
+        crate::var_resolve::BindingIdentity::Bound,
+        input.map(crate::command_binding::source_input_dialect),
+    );
+    entry.source_read_configuration = input.map_or(
+        crate::var_resolve::SourceReadConfiguration::Unavailable,
+        |input| crate::var_resolve::SourceReadConfiguration::Selected(input.lexer_config()),
+    );
+    entry.namespace_known = false;
+    if let Some(namespace) = cfg.namespace_context.as_deref() {
+        entry = entry.with_namespace_identity(namespace.clone());
+    }
+    entry
+}
+
+/// Preserve the actual retained activation before applying a method overlay.
+pub(crate) fn function_source_entry(
+    cfg: &CfgFunction,
+    entry_context: Option<&crate::var_resolve::ResolveContext>,
+) -> crate::var_resolve::ResolveContext {
+    let source_entry = cfg
+        .command_binding_sites
+        .iter()
+        .filter_map(|site| {
+            site.variable_context
+                .as_ref()
+                .map(|context| (site.span.start(), context))
+        })
+        .min_by_key(|(offset, _)| *offset)
+        .map(|(_, context)| context.as_ref());
+    let entry = if let Some(entered) =
+        entry_context.filter(|entry| entry.execution_name_policy.is_some())
+    {
+        entered.clone()
+    } else if let Some(source) = source_entry {
+        let mut entry = source.clone();
+        if let Some(overlay) = entry_context
+            && entry.execution_name_policy.is_none()
+        {
+            entry
+                .instance_vars
+                .extend(overlay.instance_vars.iter().cloned());
+            if !overlay.instance_owner.is_empty() {
+                entry.instance_owner.clone_from(&overlay.instance_owner);
+            }
+            if entry.execution.is_none() {
+                entry.execution = overlay.execution;
+            }
+            if entry.interpreter.is_none() {
+                entry.interpreter.clone_from(&overlay.interpreter);
+            }
+        }
+        entry
+    } else if let Some(entry) = entry_context {
+        entry.clone()
+    } else if !cfg.metadata_context.is_standalone()
+        || cfg.namespace_context.is_some()
+        || cfg.executed_source.is_some()
+        || !cfg.command_binding_sites.is_empty()
+        || cfg.blocks.values().any(|block| {
+            block.statements.iter().any(|statement| {
+                statement
+                    .tokens()
+                    .is_some_and(|tokens| !tokens.words().is_empty())
+            })
+        })
+    {
+        conditional_function_source_entry(cfg, cfg.metadata_context.source_analysis_input())
+    } else {
+        // Explicit source-absent Standalone model data keeps its own frame API.
+        crate::var_resolve::ResolveContext::for_function(&cfg.name)
+    };
+    cfg.namespace_context.as_deref().map_or_else(
+        || entry.clone(),
+        |key| entry.clone().with_namespace_identity(key.clone()),
+    )
 }
 
 /// Fully-qualified names of every class defined in `source`.
@@ -2660,31 +5179,50 @@ impl CompilationUnit {
 /// `itcl::class` definitions) so the standalone analyser build and the
 /// incremental/db build derive an *identical* set from the same source — the
 /// precondition for the two paths agreeing on constructor (`Foo new`) typing.
-/// Gated on a cheap substring probe (`class`, the only token both class-defining
-/// heads share) so the overwhelmingly common non-OO source skips the scan
-/// entirely.  A false-positive probe just runs the (still fast) scan; the probe
-/// can never miss a real definition because both heads contain `class`.
-fn collect_known_classes(source: &str, registry: &CommandRegistry) -> HashSet<String> {
-    // Cheap gate before the full signature scan.  A class is created by
-    // `oo::class` / `itcl::class` (both contain "class") **or** by another stock
-    // `TclOO` metaclass — `oo::configurable` / `oo::abstract` / `oo::singleton`,
-    // none of which contain the word "class" — so also admit any `oo::` head
-    // — skipping one would leave its `[Class new]` untyped.  snit definers
-    // (`snit::type` / `snit::widget` /
-    // `snit::widgetadaptor`) contain neither "class" nor "oo::", so admit
-    // `snit::` too, or a pure-snit file's `[Name create obj]` stays untyped.
-    if !source.contains("class") && !source.contains("oo::") && !source.contains("snit::") {
-        return HashSet::new();
+/// The signature result is a descriptive source inventory, independent of
+/// Native allocation or execution. The actual selected Registry grammar, not
+/// a spelling probe, determines every recorded declaration.
+fn collect_known_classes(
+    source: &str,
+    module: &IrModule,
+    registry: &CommandRegistry,
+) -> Option<HashSet<String>> {
+    if module.source != tcl_lexer::SourceImage::document(source) {
+        return None;
     }
-    crate::signature_scan::extract_signatures(source, registry)
-        .classes
-        .into_keys()
-        .collect()
+    let signatures = if let Some(retained) = module.retained_source_bindings.as_deref() {
+        let bindings = retained.positioned_for_module(module, registry);
+        let Some(bindings) = bindings else {
+            return None;
+        };
+        if !bindings.matches_original_source_image(&module.source, module.lexer_config) {
+            return None;
+        }
+        crate::signature_scan::extract_signatures_with_original_bindings(
+            source,
+            module.lexer_config,
+            registry,
+            bindings,
+        )
+    } else if module.source_metadata_input.is_none()
+        && module.source_entry.metadata_context.is_standalone()
+    {
+        crate::signature_scan::extract_signatures_with_config(source, module.lexer_config, registry)
+    } else {
+        return None;
+    };
+    Some(
+        signatures
+            .class_declarations
+            .into_iter()
+            .filter_map(|declaration| declaration.source_spelling())
+            .collect(),
+    )
 }
 
 /// Encode interprocedural `param_constants` (caller-uniform-literal SCCP seeds)
 /// into the deterministic, hashable form interned into the salsa-native
-/// `FnLatticeKey`.  [`params_constants_from_call_sites`] only ever emits
+/// `FnLatticeKey`.  [`params_constants_from_native_call_sites`] only ever emits
 /// `Const(String)` seeds, so the encoding is a sorted vec of `(param, version,
 /// string)` triples; sorting makes the encoding independent of hash-map
 /// iteration order so equal seeds always intern to the same key.
@@ -2738,35 +5276,1334 @@ pub fn decode_param_constants(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
+    fn fixture_method<'a>(unit: &'a CompilationUnit, label: &str) -> Option<&'a FunctionUnit> {
+        let (id, _) = unit.ir_module.methods.unique_display(label)?;
+        unit.methods.get(&id)
+    }
+
     use super::*;
+
+    #[test]
+    fn standalone_source_input_keeps_authoring_purpose_and_exact_metadata_currency() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let mut store = CommandRegistry::build_default();
+        store.insert(tcl_registry::CommandSpec {
+            name: "standaloneRetainedStoreMarker",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let store = Arc::new(store);
+        let context = tcl_registry::model::ingress::resolve_environment("tcl9.0")
+            .default_context_registry()
+            .with_command_store(Arc::clone(&store));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::new(context),
+            tcl_lexer::LexerConfig {
+                leading_bom: tcl_lexer::LeadingBom::Content,
+                ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+            },
+        );
+        let source = "set value [expr {1 + 2}]";
+        let options = UnitBuildOptions {
+            registry: &store,
+            defer_top_level: false,
+            config: input.lexer_config(),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let standalone =
+            CompilationUnit::build_standalone_with_analysis_input(source, options, &input)
+                .expect("explicit Standalone source request with actual complete input");
+        assert_eq!(
+            standalone.ir_module.source_metadata_input.as_ref(),
+            Some(&input)
+        );
+        assert_eq!(
+            standalone.ir_module.registry_snapshot.as_ref(),
+            Some(&store.snapshot())
+        );
+        assert_eq!(standalone.ir_module.lexer_config, input.lexer_config());
+        assert!(standalone.ir_module.source_entry.native_entry.is_none());
+        assert!(!standalone.ir_module.source_entry.unknown_entry);
+        assert!(
+            standalone
+                .ir_module
+                .source_entry
+                .invocation_dialect
+                .is_some()
+        );
+        assert!(
+            standalone
+                .ir_module
+                .source_entry
+                .logical_source_input
+                .is_none()
+        );
+        // The same metadata does not promote an ordinary supplied-document
+        // request to Standalone; with no entry it starts a fresh interpreter.
+        let supplied = CompilationUnit::build_with_analysis_input(source, options, None, &input);
+        assert_eq!(
+            supplied.ir_module.source_metadata_input.as_ref(),
+            Some(&input)
+        );
+        assert!(supplied.ir_module.source_entry.native_entry.is_none());
+        assert!(!supplied.ir_module.source_entry.unknown_entry);
+        assert!(
+            !supplied
+                .ir_module
+                .source_entry
+                .metadata_context
+                .is_standalone()
+        );
+        let mut changed_config = options.config;
+        changed_config.leading_bom = tcl_lexer::LeadingBom::Skip;
+        assert!(
+            CompilationUnit::build_standalone_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    config: changed_config,
+                    ..options
+                },
+                &input
+            )
+            .is_none()
+        );
+        assert!(
+            CompilationUnit::build_standalone_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    dialect: tcl_dialect::DialectProfile::find("tcl8.6"),
+                    ..options
+                },
+                &input
+            )
+            .is_none()
+        );
+        let foreign_store = CommandRegistry::build_default();
+        assert!(
+            CompilationUnit::build_standalone_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    registry: &foreign_store,
+                    ..options
+                },
+                &input
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn function_consumers_keep_the_actual_generation_and_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let registry = Arc::new(CommandRegistry::build_default());
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let actual = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(&registry)),
+        );
+        let config = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            "proc p {x} {set y $x; return $y}; namespace eval n {set z 1}",
+            UnitBuildOptions {
+                registry: &registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            Arc::clone(&actual),
+        );
+        let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
+        assert!(Arc::ptr_eq(&input.context_registry(), &actual));
+        assert!(!unit.procedures.is_empty());
+        let body_id = fixture_id(&unit.ir_module.procedures, "::p");
+        assert!(std::ptr::eq(
+            unit.function_for_body(Some(body_id)).unwrap(),
+            &unit.procedures[&body_id]
+        ));
+        assert!(std::ptr::eq(
+            unit.function_for_body(None).unwrap(),
+            &unit.top_level
+        ));
+        let mut wrong_stamp = unit.clone();
+        wrong_stamp.procedures.get_mut(&body_id).unwrap().body_id = None;
+        assert!(wrong_stamp.function_for_body(Some(body_id)).is_none());
+        wrong_stamp.top_level.body_id = Some(body_id);
+        assert!(wrong_stamp.function_for_body(None).is_none());
+        let foreign_unit = CompilationUnit::build_with_context_registry(
+            &unit.source,
+            UnitBuildOptions {
+                registry: &registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            Arc::clone(&actual),
+        );
+        let foreign_id = fixture_id(&foreign_unit.ir_module.procedures, "::p");
+        let mut foreign_owner = unit.clone();
+        foreign_owner.ir_module.procedure_ids = foreign_unit.ir_module.procedure_ids.clone();
+        for (&id, function) in unit.methods.iter().chain(unit.body_units.iter()) {
+            assert!(std::ptr::eq(
+                unit.function_for_body(Some(id))
+                    .expect("actual retained body unit"),
+                function
+            ));
+            assert!(foreign_owner.function_for_body(Some(id)).is_none());
+        }
+        assert!(foreign_owner.function_for_body(Some(body_id)).is_none());
+        assert!(unit.function_for_body(Some(foreign_id)).is_none());
+        for function in std::iter::once(&unit.top_level)
+            .chain(unit.procedures.values())
+            .chain(unit.methods.values())
+            .chain(unit.body_units.values())
+        {
+            assert_eq!(function.source_metadata_input(), Some(input));
+            assert_eq!(function.source_lexer_config(), config);
+            let selected = function.invocation_metadata_context(&registry).unwrap();
+            assert!(std::ptr::eq(selected.context(), actual.context()));
+            let foreign = CommandRegistry::build_default().project_for_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl9.1").unit_profile(),
+            );
+            assert!(function.invocation_metadata_context(&foreign).is_none());
+            let mut missing = function.clone();
+            missing.source_metadata_input = None;
+            assert!(missing.invocation_metadata_context(&registry).is_none());
+        }
+    }
+
+    #[test]
+    fn original_module_taint_replay_preserves_receivers_and_refuses_foreign_owners() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tk").default_context_registry();
+        let registry = context.commands();
+        let profile = tcl_registry::model::ingress::resolve_environment("tk").unit_profile();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let source = "entry .e; proc danger {} {set value [.e get]; exec $value}";
+        let build = |source| {
+            CompilationUnit::build_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            )
+        };
+        let unit = build(source);
+        let body = *unit
+            .ir_module
+            .original_source_procedure_bodies()
+            .next()
+            .unwrap()
+            .0;
+        let direct = unit.clone().with_interprocedural(registry, Some(profile));
+        let analysis = direct.interproc.as_ref().unwrap();
+        assert!(analysis.global_instance_classes[&body].contains_key(".e"));
+        let expected = direct.function_for_body(Some(body)).unwrap();
+        assert!(expected.taints.values().any(|taint| taint.is_tainted()));
+        assert_eq!(
+            unit.original_interproc_taints_for_body(Some(body), registry, analysis),
+            Some(expected.taints.as_ref().clone()),
+        );
+        let mut observed = 0;
+        let memoised = unit.clone().with_interprocedural_memoized(
+            registry,
+            Some(profile),
+            &mut |actual_body, _, _| {
+                assert_eq!(actual_body, body);
+                observed += 1;
+                None
+            },
+        );
+        assert_eq!(observed, 1);
+        assert_eq!(memoised.top_level.taints, direct.top_level.taints);
+        assert_eq!(
+            memoised.function_for_body(Some(body)).unwrap().taints,
+            expected.taints
+        );
+
+        let other = build("entry .other; proc danger {} {set value [.other get]; exec $value}");
+        let foreign_body = *other
+            .ir_module
+            .original_source_procedure_bodies()
+            .next()
+            .unwrap()
+            .0;
+        assert!(
+            unit.original_interproc_taints_for_body(Some(foreign_body), registry, analysis)
+                .is_none()
+        );
+        let other = other.with_interprocedural(registry, Some(profile));
+        assert!(
+            unit.original_interproc_taints_for_body(
+                Some(body),
+                registry,
+                other.interproc.as_ref().unwrap()
+            )
+            .is_none()
+        );
+        let mut missing = unit.clone();
+        missing.ir_module.retained_source_bindings = None;
+        assert!(
+            missing
+                .original_interproc_taints_for_body(Some(body), registry, analysis)
+                .is_none()
+        );
+        let mut missing = unit.clone();
+        missing.ir_module.source_metadata_input = None;
+        assert!(
+            missing
+                .original_interproc_taints_for_body(Some(body), registry, analysis)
+                .is_none()
+        );
+        let mut missing = unit.clone();
+        missing.top_level.source_metadata_input = None;
+        assert!(
+            missing
+                .original_interproc_taints_for_body(None, registry, analysis)
+                .is_none()
+        );
+        let mut changed = unit.clone();
+        changed.ir_module.source =
+            tcl_lexer::SourceImage::document(&format!("{source}; puts CHANGED"));
+        assert!(
+            changed
+                .original_interproc_taints_for_body(Some(body), registry, analysis)
+                .is_none()
+        );
+        let mut foreign_registry = registry.project_for_profile(profile);
+        let mut extra = registry.get("puts").unwrap().clone();
+        extra.name = "taint_source_owner_control";
+        foreign_registry.insert(extra);
+        assert!(
+            unit.original_interproc_taints_for_body(Some(body), &foreign_registry, analysis)
+                .is_none()
+        );
+        let mut missing_analysis = analysis.clone();
+        missing_analysis.global_instance_class_owner = None;
+        assert!(
+            unit.original_interproc_taints_for_body(Some(body), registry, &missing_analysis)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results() {
+        // naming.source.retained-positioned-command-realm
+
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let source = "proc retained {x} {list $x}; retained VALUE";
+        let options = UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config,
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let (module, cfg, _, prepared) =
+            lower_and_build_cfg(source, options, None, None, None, None, None, None);
+        assert!(crate::realm::document_realm_bindings_for_module(&module, registry).is_some());
+        let (actual, _, _) = resolve_unit_scope(&module, &cfg, Some(&prepared), options);
+        assert_eq!(
+            actual.get("::retained").unwrap().uniform_literal_at(0),
+            Some("VALUE")
+        );
+        let mut missing = module.clone();
+        missing.retained_source_bindings = None;
+        let mut changed = module.clone();
+        changed.source = tcl_lexer::SourceImage::document("proc other {} {};");
+        let mut missing_snapshot = module;
+        missing_snapshot.registry_snapshot = None;
+        for refused in [missing, changed, missing_snapshot] {
+            let (unknown, _, _) = resolve_unit_scope(&refused, &cfg, Some(&prepared), options);
+            let caller = unknown.get("::retained").unwrap();
+            assert!(caller.opaque_caller);
+            assert_eq!(caller.uniform_literal_at(0), None);
+        }
+        let completed = CompilationUnit::build_for_profile(source, registry, false, profile)
+            .with_interprocedural(registry, Some(profile));
+        assert!(completed.interproc.is_some());
+        let mut missing = completed.clone();
+        missing.ir_module.retained_source_bindings = None;
+        let ordinary = missing
+            .clone()
+            .with_interprocedural(registry, Some(profile));
+        assert!(ordinary.interproc.is_none());
+        let mut callbacks = 0;
+        let mut callback = |_: crate::ir::ProcedureId, _: &str, _: &InterproceduralAnalysis| {
+            callbacks += 1;
+            None
+        };
+        let memoised =
+            missing.with_interprocedural_memoized(registry, Some(profile), &mut callback);
+        assert!(memoised.interproc.is_none());
+        assert_eq!(callbacks, 0);
+    }
+
+    fn semantic_bundle_has_source_metadata(unit: &crate::compilation_unit::FunctionUnit) -> bool {
+        unit.semantic_facts
+            .conditional_source_metadata()
+            .invocations()
+            .next()
+            .is_some()
+    }
+
+    #[test]
+    fn semantic_bundle_requires_retained_availability_and_source_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // These are source metadata and availability assertions, not Native entry facts.
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut puts = registry.get("puts").unwrap().clone();
+        puts.name = "metadata_current";
+        puts.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(puts);
+        let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let registry = current.commands();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&current),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            "metadata_current VALUE",
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let selected = &unit.top_level;
+        assert_eq!(
+            selected.semantic_facts.metadata_context(),
+            Some(current.context())
+        );
+        assert!(semantic_bundle_has_source_metadata(selected));
+        let input = selected.source_metadata_input().unwrap();
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(registry)),
+        );
+        assert!(Arc::ptr_eq(older.commands(), registry));
+        let mut unavailable = selected.clone();
+        unavailable.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            older,
+            input.lexer_config(),
+        ));
+        let unavailable = unavailable.with_retained_semantic_analysis(
+            registry,
+            Some(&unit.ir_module.top_level),
+            crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+        );
+        assert!(!semantic_bundle_has_source_metadata(&unavailable));
+        let mut foreign = selected.clone();
+        foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        ));
+        let mut missing = selected.clone();
+        missing.source_metadata_input = None;
+        let mut different_grammar = selected.clone();
+        different_grammar.source_config.strict_quoting =
+            !different_grammar.source_config.strict_quoting;
+        for negative in [foreign, missing, different_grammar] {
+            let refused = negative.with_retained_semantic_analysis(
+                registry,
+                Some(&unit.ir_module.top_level),
+                crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+            );
+            assert!(matches!(
+                refused.semantic_facts.executable(),
+                crate::semantic_analysis::ExecutableAnalysisAvailability::ContextUnavailable
+            ));
+        }
+    }
+
+    #[test]
+    fn retained_deep_sidecars_keep_availability_and_refuse_missing_function_input() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut registry = baseline.commands().project_for_profile(profile);
+        let mut puts = registry.get("puts").unwrap().clone();
+        puts.name = "metadata_current";
+        puts.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(puts);
+        let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let registry = current.commands();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&current),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            "metadata_current VALUE",
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let selected = unit.clone().with_retained_deep_semantic_analysis(registry);
+        assert!(semantic_bundle_has_source_metadata(&selected.top_level));
+        assert!(
+            selected
+                .top_level
+                .semantic_facts
+                .executable()
+                .world_state_ssa()
+                .is_some()
+        );
+        let input = unit.top_level.source_metadata_input().unwrap();
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(registry)),
+        );
+        let mut unavailable = unit.clone();
+        unavailable.top_level.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                older,
+                input.lexer_config(),
+            ));
+        unavailable.ir_module.source_metadata_input =
+            unavailable.top_level.source_metadata_input.clone();
+        let unavailable = unavailable.with_retained_deep_semantic_analysis(registry);
+        assert!(!semantic_bundle_has_source_metadata(&unavailable.top_level));
+        let mut missing = unit.clone();
+        missing.top_level.source_metadata_input = None;
+        let mut foreign = unit.clone();
+        foreign.top_level.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                tcl_registry::model::ingress::resolve_environment("tcl9.1")
+                    .default_context_registry(),
+                input.lexer_config(),
+            ));
+        let mut stale = unit.clone();
+        stale.top_level.source_config.strict_quoting =
+            !stale.top_level.source_config.strict_quoting;
+        for negative in [missing, foreign, stale] {
+            let refused = negative.with_retained_deep_semantic_analysis(registry);
+            assert!(matches!(
+                refused.top_level.semantic_facts.executable(),
+                crate::semantic_analysis::ExecutableAnalysisAvailability::ContextUnavailable
+            ));
+        }
+    }
+
+    #[test]
+    fn retained_deep_sidecars_require_the_module_source_owner() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Full source sidecars borrow Module scripts; no Native entry is established.
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        let mut unit = retained_memory_fixture(&current);
+        let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
+        let mut missing = unit.clone();
+        missing.ir_module.source_metadata_input = None;
+        let mut stale = unit.clone();
+        stale.ir_module.lexer_config.strict_quoting = !stale.ir_module.lexer_config.strict_quoting;
+        let mut different_owner = unit.clone();
+        different_owner.ir_module.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                Arc::new(current.with_command_store(Arc::clone(registry))),
+                input.lexer_config(),
+            ));
+        assert!(semantic_bundle_has_source_metadata(
+            &unit
+                .clone()
+                .with_retained_deep_semantic_analysis(registry)
+                .top_level
+        ));
+        for refused in [missing, stale, different_owner] {
+            let refused = refused.with_retained_deep_semantic_analysis(registry);
+            assert!(matches!(
+                refused.top_level.semantic_facts.executable(),
+                crate::semantic_analysis::ExecutableAnalysisAvailability::ContextUnavailable
+            ));
+        }
+        // FU's explicit API owns its own supplied script independently of a Module.
+        unit.ir_module.source_metadata_input = None;
+        let standalone = unit.top_level.clone().with_retained_semantic_analysis(
+            registry,
+            Some(&unit.ir_module.top_level),
+            crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+        );
+        assert!(semantic_bundle_has_source_metadata(&standalone));
+    }
+
+    fn retained_memory_fixture(
+        context: &Arc<tcl_registry::model::ContextRegistry>,
+    ) -> CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        CompilationUnit::build_with_context_registry(
+            "dict create key value",
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            Arc::clone(context),
+        )
+    }
+
+    #[test]
+    fn retained_memory_facts_require_matching_module_and_function_owners() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // This checks metadata admission and opaque memory obligations, not Native entry.
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        let unit = retained_memory_fixture(&current);
+        let original = unit.top_level.source_metadata_input().unwrap();
+        let annotated = unit.clone().with_retained_memory_ssa(registry);
+        assert!(
+            !annotated
+                .top_level
+                .memory_ssa
+                .unwrap()
+                .has_wildcard_aliasing
+        );
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(registry)),
+        );
+        let mut unavailable = unit.clone();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            original.analyser_profile(),
+            original.unit_profile(),
+            Arc::clone(&older),
+            original.lexer_config(),
+        );
+        unavailable.ir_module.source_metadata_input = Some(input.clone());
+        unavailable.top_level.source_metadata_input = Some(input);
+        assert!(
+            unavailable
+                .top_level
+                .invocation_metadata_context_for_module(registry, &unavailable.ir_module)
+                .is_some()
+        );
+        let mut missing_module = unit.clone();
+        missing_module.ir_module.source_metadata_input = None;
+        let mut missing_function = unit.clone();
+        missing_function.top_level.source_metadata_input = None;
+        let mut stale_module = unit.clone();
+        stale_module.ir_module.lexer_config.strict_quoting =
+            !stale_module.ir_module.lexer_config.strict_quoting;
+        let mut stale_function = unit.clone();
+        stale_function.top_level.source_config.strict_quoting =
+            !stale_function.top_level.source_config.strict_quoting;
+        let mut different_owner = unit.clone();
+        different_owner.ir_module.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                original.analyser_profile(),
+                original.unit_profile(),
+                older,
+                original.lexer_config(),
+            ));
+        let mut foreign = unit.clone();
+        foreign.top_level.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                original.analyser_profile(),
+                original.unit_profile(),
+                tcl_registry::model::ingress::resolve_environment("tcl9.1")
+                    .default_context_registry(),
+                original.lexer_config(),
+            ));
+        let mut different_profile = unit.clone();
+        different_profile.top_level.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                tcl_dialect::DialectProfile::find("tcl8.4").unwrap(),
+                original.unit_profile(),
+                Arc::clone(&current),
+                original.lexer_config(),
+            ));
+        for refused in [
+            missing_module,
+            missing_function,
+            stale_module,
+            stale_function,
+            different_owner,
+            foreign,
+            different_profile,
+        ] {
+            assert!(
+                refused
+                    .top_level
+                    .invocation_metadata_context_for_module(registry, &refused.ir_module)
+                    .is_none()
+            );
+            let refused = refused.with_retained_memory_ssa(registry);
+            assert!(refused.top_level.memory_ssa.unwrap().has_wildcard_aliasing);
+        }
+        let unavailable = unavailable.with_retained_memory_ssa(registry);
+        assert!(
+            unavailable
+                .top_level
+                .memory_ssa
+                .unwrap()
+                .has_wildcard_aliasing
+        );
+    }
+
+    fn retained_memo_fixture_unit(
+        req: &LatticeRequest<'_>,
+        registry: &CommandRegistry,
+    ) -> FunctionUnit {
+        let prepared = PreparedCfgContext::from_source_input(
+            (
+                req.upvar_procs.clone(),
+                req.proc_params.clone(),
+                req.global_write_procs.clone(),
+                req.command_bindings.clone(),
+                req.procedure_summary_owners.clone(),
+            ),
+            registry,
+            req.source_metadata_input,
+        );
+        let cfg = crate::cfg_builder::build_cfg_function_with_prepared_context(
+            req.qname,
+            req.body,
+            true,
+            registry,
+            req.plain_command_dispatch,
+            &prepared,
+            req.lexer_config,
+        );
+        let known_classes = req.known_classes.iter().cloned().collect();
+        let traced_variables = req.traced_variables.iter().cloned().collect();
+        let parameters = decode_param_constants(req.param_constants);
+        FunctionUnit::build_for_lattice(
+            req.qname,
+            cfg,
+            req.params,
+            FunctionLatticeInputs {
+                dialect: UnitDialect {
+                    registry,
+                    config: req.lexer_config,
+                    source_metadata_input: req.source_metadata_input,
+                },
+                param_constants: parameters.as_ref(),
+                known_classes: &known_classes,
+                trace_facts: ModuleTraceFacts {
+                    traced_variables: &traced_variables,
+                    has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+                    deferred_writes: &req.analysis_context.deferred_writes,
+                },
+                analysis_context: req.analysis_context,
+                command_trust: req.command_trust,
+                event_body: req.irules_event_body.map(|event| (event, req.body)),
+            },
+        )
+        .with_retained_semantic_analysis(
+            registry,
+            Some(req.body),
+            crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
+        )
+    }
+
+    #[test]
+    fn memoised_source_facts_retain_nested_bom_and_lexer_overlays() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig {
+            escapes: tcl_dialect::EscapeSyntax::Tcl84,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let mut requests = 0;
+        let mut memo = |req: &LatticeRequest<'_>| {
+            requests += 1;
+            let input = req.source_metadata_input.unwrap();
+            assert!(Arc::ptr_eq(&input.context_registry(), &current));
+            assert_eq!(input.lexer_config(), config.nested().normalized());
+            assert_eq!(input.lexer_config(), req.lexer_config);
+            assert_eq!(input.unit_profile().cache_key(), profile.cache_key());
+            assert_eq!(
+                req.original_metadata_context(registry),
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    input
+                )),
+            );
+            let wrong_config = LatticeRequest {
+                lexer_config: tcl_lexer::LexerConfig {
+                    strict_quoting: !req.lexer_config.strict_quoting,
+                    ..req.lexer_config
+                },
+                ..*req
+            };
+            assert!(matches!(
+                wrong_config.original_metadata_context(registry),
+                crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+            ));
+            let wrong_profile = LatticeRequest {
+                dialect: Some(tcl_dialect::DialectProfile::find("tcl9.1").unwrap()),
+                ..*req
+            };
+            assert!(matches!(
+                wrong_profile.original_metadata_context(registry),
+                crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+            ));
+            let selected = retained_memo_fixture_unit(req, registry);
+            assert!(semantic_bundle_has_source_metadata(&selected));
+            let mut stale = selected.clone();
+            stale.source_config.escapes = tcl_dialect::EscapeSyntax::Tcl86;
+            assert!(stale.invocation_metadata_context(registry).is_none());
+            let stale = stale.with_retained_semantic_analysis(
+                registry,
+                Some(req.body),
+                crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
+            );
+            assert!(matches!(
+                stale.semantic_facts.executable(),
+                crate::semantic_analysis::ExecutableAnalysisAvailability::ContextUnavailable
+            ));
+            selected
+        };
+        let unit = CompilationUnit::build_with_entry(
+            r"proc p {} {::puts \U00000041}",
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&mut memo),
+            None,
+            None,
+            Some(Arc::clone(&current)),
+        );
+        assert_eq!(requests, 1);
+        assert!(semantic_bundle_has_source_metadata(
+            unit.procedures
+                .get(&fixture_id(&unit.procedures, "::p"))
+                .expect("authored fixture body")
+        ));
+        assert!(
+            unit.procedures
+                .get(&fixture_id(&unit.procedures, "::p"))
+                .expect("authored fixture body")
+                .invocation_metadata_context_for_module(registry, &unit.ir_module)
+                .is_some()
+        );
+        let deep = unit.with_retained_deep_semantic_analysis(registry);
+        assert!(semantic_bundle_has_source_metadata(
+            deep.procedures
+                .get(&fixture_id(&deep.procedures, "::p"))
+                .expect("authored fixture body")
+        ));
+    }
+
+    #[test]
+    fn supplied_source_input_retains_axes_and_independent_logical_entry() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Source declarations and aliases are conditional authored facts, not Native entry.
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&current),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let options = UnitBuildOptions {
+            registry: current.commands(),
+            defer_top_level: false,
+            config: input.lexer_config(),
+            dialect: Some(input.unit_profile()),
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let unit = CompilationUnit::build_with_analysis_input(
+            "proc aliaser {} {global ::n::shared; set shared 1}",
+            options,
+            None,
+            &input,
+        );
+        assert_eq!(unit.ir_module.source_metadata_input.as_ref(), Some(&input));
+        assert_eq!(
+            unit.ir_module.source_entry.logical_source_input.as_ref(),
+            Some(&input)
+        );
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert!(fixture_id_if_present(&unit.procedures, "::aliaser").is_some());
+        let explicit = crate::command_binding::SourceAnalysisEntry::default();
+        let unknown = CompilationUnit::build_with_analysis_input(
+            "proc aliaser {} {global ::n::shared; set shared 1}",
+            options,
+            Some(&explicit),
+            &input,
+        );
+        assert!(
+            unknown
+                .ir_module
+                .source_entry
+                .logical_source_input
+                .is_none()
+        );
+        assert!(unknown.ir_module.source_entry.native_entry.is_none());
+        assert_eq!(
+            unknown.ir_module.source_metadata_input.as_ref(),
+            Some(&input)
+        );
+        let native_profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let native = crate::analyser::ResolvedAnalysisInput::new(
+            native_profile,
+            native_profile,
+            Arc::clone(&current),
+            input.lexer_config(),
+        );
+        let native_unit = CompilationUnit::build_with_analysis_input(
+            "puts VALUE",
+            UnitBuildOptions {
+                dialect: Some(native_profile),
+                ..options
+            },
+            None,
+            &native,
+        );
+        assert!(
+            native_unit
+                .ir_module
+                .source_entry
+                .logical_source_input
+                .is_none()
+        );
+        assert!(native_unit.ir_module.source_entry.native_entry.is_none());
+        // No supplied entry: a fresh interpreter, not unknown history.
+        assert!(!native_unit.ir_module.source_entry.unknown_entry);
+        assert_eq!(
+            native_unit.ir_module.source_metadata_input.as_ref(),
+            Some(&native)
+        );
+    }
+
+    #[test]
+    fn default_unit_source_profile_keeps_explicit_standalone_authoring_purpose() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let options = UnitBuildOptions {
+            registry: context.commands(),
+            config,
+            dialect: Some(profile),
+            defer_top_level: false,
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let source = "proc local {value} {set result $value; return $result}";
+        // A dialect-bearing default build is a whole document in a fresh
+        // interpreter of that dialect (user decision 2026-10-19T14:20Z):
+        // `tclsh8.6` defines `::local`, so the unit publishes it.
+        let fresh = CompilationUnit::build_with_options(source, options);
+        assert!(fresh.ir_module.source_metadata_input.is_some());
+        assert!(fresh.function("::local").is_some());
+        // Explicit Standalone authoring remains the dialect-blind build.
+        let options = UnitBuildOptions {
+            dialect: None,
+            ..options
+        };
+        let unit = CompilationUnit::build_with_options(source, options);
+        let module = &unit.ir_module;
+        assert!(module.source_entry.metadata_context.is_standalone());
+        assert!(module.source_metadata_input.is_none());
+        assert!(module.source_entry.native_entry.is_none());
+        assert_eq!(module.original_authored_declaration_body_units.len(), 1);
+        assert!(module.original_native_declaration_body_units.is_empty());
+        let (id, card) = module
+            .original_authored_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let procedure = module.body_units.get(id).unwrap();
+        assert!(card.matches_procedure(module, procedure));
+        assert!(procedure.publication.is_none());
+        assert!(procedure.body.executed_source.is_none());
+        assert!(procedure.body.native_compilation_admission.is_none());
+        let header = module
+            .top_level
+            .retained_source_tokens_for_statement(&module.top_level.statements[0])
+            .unwrap();
+        assert!(
+            crate::registry_invocation::admitted_native_compiler_invocation(
+                context.commands(),
+                None,
+                header
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn default_source_purpose_does_not_replace_supplied_input_or_unknown_driver_entry() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let options = UnitBuildOptions {
+            registry: context.commands(),
+            config,
+            dialect: Some(profile),
+            defer_top_level: false,
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let source = "proc original {value} {return $value}";
+        let supplied = CompilationUnit::build_with_analysis_input(source, options, None, &input);
+        assert_eq!(
+            supplied.ir_module.source_metadata_input.as_ref(),
+            Some(&input)
+        );
+        assert!(
+            !supplied
+                .ir_module
+                .source_entry
+                .metadata_context
+                .is_standalone()
+        );
+        assert!(
+            supplied
+                .ir_module
+                .original_authored_declaration_body_units
+                .is_empty()
+        );
+        // No supplied entry: a fresh tclsh defines `::original` (user decision
+        // 2026-10-19T14:20Z); an unentered card needs explicit unknown history.
+        assert!(supplied.function("::original").is_some());
+        let unknown_supplied = CompilationUnit::build_with_analysis_input(
+            source,
+            options,
+            Some(&crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input)),
+            &input,
+        );
+        assert_eq!(
+            unknown_supplied
+                .ir_module
+                .original_native_declaration_body_units
+                .len(),
+            1
+        );
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            unknown_entry: true,
+            ..Default::default()
+        };
+        let unknown = CompilationUnit::build_with_source_entry(source, options, &entry);
+        assert!(unknown.ir_module.source_entry.unknown_entry);
+        assert!(
+            unknown
+                .ir_module
+                .original_authored_declaration_body_units
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn supplied_source_producer_refuses_changed_profile_and_lexer_metadata() {
+        // naming.compiler.original-analysis-metadata-context
+
+        // Actual input is retained for reporting; unrelated producer options grant no facts.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let options = UnitBuildOptions {
+            registry: context.commands(),
+            defer_top_level: false,
+            config: input.lexer_config(),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let selected =
+            CompilationUnit::build_with_analysis_input("puts VALUE", options, None, &input);
+        assert!(
+            selected
+                .top_level
+                .invocation_metadata_context_for_module(context.commands(), &selected.ir_module,)
+                .is_some()
+        );
+        let mut wrong_config = options;
+        wrong_config.config.strict_quoting = !wrong_config.config.strict_quoting;
+        let wrong_profile = UnitBuildOptions {
+            dialect: Some(tcl_dialect::DialectProfile::find("tcl8.6").unwrap()),
+            ..options
+        };
+        for options in [wrong_config, wrong_profile] {
+            let refused =
+                CompilationUnit::build_with_analysis_input("puts VALUE", options, None, &input);
+            assert_eq!(
+                refused.ir_module.source_metadata_input.as_ref(),
+                Some(&input)
+            );
+            assert!(refused.ir_module.source_entry.unknown_entry);
+            assert!(
+                refused
+                    .ir_module
+                    .source_entry
+                    .logical_source_input
+                    .is_none()
+            );
+            assert!(refused.top_level.source_metadata_input().is_none());
+            assert!(
+                refused
+                    .top_level
+                    .invocation_metadata_context_for_module(context.commands(), &refused.ir_module,)
+                    .is_none()
+            );
+            assert!(matches!(
+                refused.top_level.semantic_facts.executable(),
+                crate::semantic_analysis::ExecutableAnalysisAvailability::ContextUnavailable
+            ));
+        }
+        let mut stale_module = selected.ir_module.clone();
+        stale_module.dialect_profile = wrong_profile.dialect;
+        assert!(
+            selected
+                .top_level
+                .invocation_metadata_context_for_module(context.commands(), &stale_module,)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn supplied_hosted_source_entry_retains_advice_without_activation() {
+        // naming.compiler.original-analysis-metadata-context
+
+        for environment in ["f5-irules", "f5-iapps"] {
+            let environment = tcl_registry::model::ingress::resolve_environment(environment);
+            let profile = environment.unit_profile();
+            let context = environment.default_context_registry();
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::clone(&context),
+                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            );
+            let unit = CompilationUnit::build_with_analysis_input(
+                "set source_value VALUE",
+                UnitBuildOptions {
+                    registry: context.commands(),
+                    defer_top_level: false,
+                    config: input.lexer_config(),
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            );
+            let entry = &unit.ir_module.source_entry;
+            assert_eq!(entry.vendor_source_input.as_ref(), Some(&input));
+            assert!(entry.native_entry.is_none());
+            assert!(entry.logical_source_input.is_none());
+            assert!(entry.hosted_execution_context.is_none());
+            // Documented correction (user decision 2026-10-21T00:10Z,
+            // "realm-aware command world"): a hosted document supplied without
+            // an entry is a fresh rule load where the dialect admits the
+            // authored F5 naming simulation; elsewhere history stays unknown.
+            match crate::command_binding::SourceAnalysisEntry::for_fresh_hosted_source(&input)
+                .filter(|fresh| !fresh.unknown_entry)
+            {
+                Some(fresh) => {
+                    assert!(!entry.unknown_entry);
+                    assert_eq!(
+                        entry.invocation_realm,
+                        tcl_dialect::model::InvocationRealm::RuleLoader
+                    );
+                    assert_eq!(entry.execution_name_policy, fresh.execution_name_policy);
+                }
+                None => {
+                    assert!(entry.unknown_entry);
+                    assert!(entry.execution_name_policy.is_none());
+                }
+            }
+        }
+    }
 
     fn test_context() -> SemanticContext {
         SemanticContext::for_environment("tcl8.6")
     }
 
     fn registry() -> CommandRegistry {
-        CommandRegistry::build_default()
+        // These fixtures assert concrete C Tcl behaviour, including 9.1 grammar.
+        CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
+        )
     }
 
-    /// Regression: a *short* procedure name shared by two procedures must resolve
-    /// in `prepare_cfg_context` deterministically (qualified-name-sorted-last
-    /// wins), not by `HashMap` iteration order — otherwise the `function_lattice`
-    /// memo key flakes and the per-procedure lattice cache hits or misses by
-    /// random seed (found via the offset-invariance experiments).
     #[test]
-    fn prepare_cfg_context_short_name_collision_is_deterministic() {
+    fn semantic_value_projection_uses_actual_jim_entry_over_c_catalogue() {
+        let registry = registry();
+        // The actual interpreter entry selects Jim independently of the C catalogue.
+        // This software fixture observes no external provider execution.
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        let context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("jim")
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let (_runtime_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    &input,
+                )),
+            native_entry: Some(Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let source =
+            "set x 003; set y [expr {$x}]; set z [expr {9223372036854775807 + 1}]; expr {$z + 1}";
+        let compiled = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: &registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        assert!(compiled.ir_module.source_entry.native_entry.is_some());
+        assert_eq!(
+            compiled.ir_module.source_metadata_input.as_ref(),
+            Some(&input)
+        );
+        let unit = &compiled.top_level;
+        let facts = unit
+            .semantic_values()
+            .expect("retained actual engine inputs");
+        assert!(facts.contents_iter().any(|(_, value)| {
+            *value
+                == crate::analyses::LatticeValue::Const(crate::analyses::ConstValue::String(
+                    "003".to_owned(),
+                ))
+        }));
+        assert!(facts.expression_iter().any(|(_, analysis)| {
+            analysis.evaluation.value == crate::tcl_expr_eval::TclValue::Int(i64::MIN)
+        }));
+        assert!(facts.expression_iter().any(|(_, analysis)| {
+            analysis.evaluation.value == crate::tcl_expr_eval::TclValue::Int(i64::MIN + 1)
+        }));
+        assert_eq!(
+            unit.semantic_value_projection,
+            Arc::new(unit.semantic_value_projection.uncached())
+        );
+        assert!(std::ptr::eq(facts, unit.semantic_values().unwrap()));
+    }
+
+    #[test]
+    fn prepare_cfg_context_retains_same_tailed_body_parameters() {
         let reg = registry();
         let src = "namespace eval ::a { proc x {p1} { set q $p1 } }
-                   namespace eval ::b { proc x {p2 extra} { set q $p2 } }
+namespace eval ::b { proc x {p2 extra} { set q $p2 } }
 ";
         let m =
             crate::lowering::lower_to_ir_with_config(src, &reg, tcl_lexer::LexerConfig::default());
-        let (_, proc_params, _, _) = crate::cfg_builder::prepare_cfg_context(&m);
-        // `::b::x` sorts after `::a::x`, so the short name `x` deterministically
-        // resolves to `::b::x`'s parameters on every run.
+        let (_, proc_params, _, _, _) = crate::cfg_builder::prepare_cfg_context(&m);
+        let a = fixture_id(&m.procedures, "::a::x");
+        let b = fixture_id(&m.procedures, "::b::x");
+        assert_ne!(a, b);
+        assert_eq!(proc_params.len(), 2);
+        assert_eq!(proc_params.get(&a), Some(&vec!["p1".to_string()]));
         assert_eq!(
-            proc_params.get("x"),
-            Some(&vec!["p2".to_string(), "extra".to_string()]),
+            proc_params.get(&b),
+            Some(&vec!["p2".to_string(), "extra".to_string()])
         );
     }
 
@@ -2804,7 +6641,7 @@ mod tests {
                        method m {arg} { ::return $arg }\n\
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
-        let fu = cu.methods.get("::C::m").expect("method unit built");
+        let fu = fixture_method(&cu, "::C::m").expect("method unit built");
         let facts = fu
             .method_facts
             .as_deref()
@@ -2814,7 +6651,12 @@ mod tests {
         let known = facts.known_bound_at_entry();
         assert!(known.contains("arg") && known.contains("state"));
         // The IR the carrier was built from agrees (same construction site).
-        let ir = cu.ir_module.methods.get("::C::m").expect("method IR");
+        let ir = cu
+            .ir_module
+            .methods
+            .unique_display("::C::m")
+            .map(|(_, method)| method)
+            .expect("method IR");
         assert_eq!(facts.instance_vars, ir.instance_vars);
         assert_eq!(facts.params, ir.params);
     }
@@ -2827,7 +6669,9 @@ mod tests {
         let src = "proc p {a} { return $a }\nset x 1\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         assert!(cu.top_level.method_facts.is_none());
-        let fu = cu.procedures.get("::p").expect("proc unit built");
+        let fu = fixture_id_if_present(&cu.procedures, "::p")
+            .and_then(|id| cu.procedures.get(&id))
+            .expect("proc unit built");
         assert!(fu.method_facts.is_none());
     }
 
@@ -2844,83 +6688,61 @@ mod tests {
         );
     }
 
-    /// Regression: a top-level bare name reassigned by *another* procedure's
-    /// own `global NAME` must never resolve to a `Const` in the top-level
-    /// unit's own SCCP lattice — top-level names already live in the global
-    /// frame, so the write is visible there even though the top-level body
-    /// itself never declares `global`. Confirmed against tclsh 8.6/9.0 as a
-    /// real miscompile before `scan_module_global_names` fed into
-    /// `sccp_with_extra_escaping`: the optimiser proposed folding a later
-    /// `puts $g` / `if {$g == …}` to the stale pre-call literal.
-    #[test]
-    fn top_level_var_touched_by_callee_global_is_overdefined() {
-        let reg = registry();
-        let src = "set g 4\nproc helper {} { global g\nset g 17 }\nhelper\n";
-        let cu = CompilationUnit::build_for(src, &reg, false);
-        let sym = cu
-            .top_level
-            .ssa
-            .var_symbol("g")
-            .expect("top-level `g` should be interned");
-        let all_overdefined = cu
+    /// A reached callee write withdraws the old value at later reads without
+    /// poisoning the value that existed before the call.
+    fn assert_callee_global_write_is_positioned(name: &str) {
+        use crate::analyses::{ConstValue, LatticeValue};
+        let src = format!(
+            "set {name} 4\nset before ${name}\nproc helper {{}} {{global {name}; set {name} 17}}\nhelper\nset after ${name}\nif {{${name} == 4}} {{set stale BAD}}\n"
+        );
+        let cu = CompilationUnit::build_for(&src, &registry(), false);
+        let before = cu
             .top_level
             .sccp
             .values
             .iter()
-            .filter(|((s, _), _)| *s == sym)
-            .all(|(_, lv)| !matches!(lv, crate::analyses::LatticeValue::Const(_)));
+            .filter(|((symbol, _), _)| cu.top_level.ssa.var_name(*symbol) == "before")
+            .collect::<Vec<_>>();
         assert!(
-            all_overdefined,
-            "expected every `g` lattice entry to be non-Const, got {:?}",
+            before.iter().any(|(_, value)| matches!(
+                value,
+                LatticeValue::Const(ConstValue::Int(4))
+            ) || matches!(value, LatticeValue::Const(ConstValue::String(value)) if value == "4")),
+            "prior value must remain represented: {before:?}"
+        );
+        let after = cu
+            .top_level
+            .sccp
+            .values
+            .iter()
+            .filter(|((symbol, _), _)| cu.top_level.ssa.var_name(*symbol) == "after")
+            .collect::<Vec<_>>();
+        assert!(!after.is_empty(), "post-call read must remain represented");
+        assert!(
+            after.iter().all(|(_, value)| !matches!(
+                value,
+                LatticeValue::Const(ConstValue::Int(4))
+            ) && !matches!(value, LatticeValue::Const(ConstValue::String(value)) if value == "4")),
+            "post-call read must not reuse the stale value: {after:?}"
+        );
+        assert!(
             cu.top_level
                 .sccp
-                .values
+                .constant_branches
                 .iter()
-                .filter(|((s, _), _)| *s == sym)
-                .collect::<Vec<_>>()
+                .all(|selected| !selected.value),
+            "stale condition cannot select its true body"
         );
     }
 
-    /// Regression, dual-ported-variable flavour of the above: C Tcl's
-    /// interpreter-linked globals (`tcl_precision`, `auto_path`, `env`,
-    /// `tcl_platform`, …) are ordinary Tcl variables from the analysed
-    /// script's point of view — `global`/`set` on them lowers exactly like
-    /// any other name — so they must get exactly the same
-    /// `scan_module_global_names` protection as `g` above, with no
-    /// special-casing needed anywhere in the compiler. `tcl_precision` is
-    /// registered in `tcl_registry::special_vars` (confirmed by the
-    /// `for name in [...]` list in that crate's own tests), so this also
-    /// locks in that the read-side SCCP protection and the write-side
-    /// `special_var_write_effect` side-effect tagging (`side_effects.rs`)
-    /// compose correctly on the same variable rather than one substituting
-    /// for the other.
+    #[test]
+    fn top_level_var_touched_by_callee_global_is_overdefined() {
+        assert_callee_global_write_is_positioned("g");
+    }
+
     #[test]
     fn top_level_dual_ported_var_touched_by_callee_global_is_overdefined() {
-        let reg = registry();
-        let src = "set tcl_precision 4\nproc helper {} { global tcl_precision\nset tcl_precision 17 }\nhelper\n";
-        let cu = CompilationUnit::build_for(src, &reg, false);
-        let sym = cu
-            .top_level
-            .ssa
-            .var_symbol("tcl_precision")
-            .expect("top-level `tcl_precision` should be interned");
-        let all_overdefined = cu
-            .top_level
-            .sccp
-            .values
-            .iter()
-            .filter(|((s, _), _)| *s == sym)
-            .all(|(_, lv)| !matches!(lv, crate::analyses::LatticeValue::Const(_)));
-        assert!(
-            all_overdefined,
-            "expected every `tcl_precision` lattice entry to be non-Const, got {:?}",
-            cu.top_level
-                .sccp
-                .values
-                .iter()
-                .filter(|((s, _), _)| *s == sym)
-                .collect::<Vec<_>>()
-        );
+        assert_callee_global_write_is_positioned("tcl_precision");
     }
 
     /// Control: a top-level name *no* procedure ever `global`-declares must
@@ -2984,6 +6806,7 @@ mod tests {
             UnitDialect {
                 registry: reg,
                 config: tcl_lexer::LexerConfig::default(),
+                source_metadata_input: None,
             },
             None,
             &HashSet::new(),
@@ -3006,7 +6829,8 @@ mod tests {
             );
         }
         let mut fast = deep.clone();
-        fast.procedures.insert("::p".to_owned(), fast_p);
+        let p_id = fixture_id(&deep.ir_module.procedures, "::p");
+        fast.procedures.insert(p_id, fast_p);
 
         let found = lifecycle(deep);
         assert!(
@@ -3060,6 +6884,22 @@ mod tests {
     }
 
     #[test]
+    fn colliding_method_reports_keep_independent_analysis_units() {
+        let source = "namespace eval A {}\noo::class create A::B {method c {} {return LEFT}}\noo::class create A {method B::c {} {return RIGHT}; method <constructor> {} {return NAMED}; constructor {} {set local ACTUAL}; export B::c <constructor>}\n";
+        let unit = CompilationUnit::build_for(source, &registry(), false);
+        assert_eq!(unit.ir_module.methods.len(), 4);
+        assert_eq!(unit.methods.len(), 4);
+        for (id, method) in &unit.ir_module.methods {
+            let function = unit
+                .methods
+                .get(id)
+                .expect("every retained method has its own analysis unit");
+            assert_eq!(function.body_id, Some(*id));
+            assert_eq!(function.name, method.reporting_label());
+        }
+    }
+
+    #[test]
     fn build_for_lowers_oo_methods_to_function_units() {
         // TclOO method bodies get their own
         // FunctionUnit (CFG → SSA → analysis) in `cu.methods`, kept
@@ -3071,7 +6911,7 @@ mod tests {
                    \x20   method get {} { ::return $n }\n\
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
-        let mut keys: Vec<&String> = cu.methods.keys().collect();
+        let mut keys: Vec<&String> = cu.methods.values().map(|method| &method.name).collect();
         keys.sort();
         assert_eq!(
             keys,
@@ -3083,11 +6923,15 @@ mod tests {
         );
         // Each method unit carries a real analysis pipeline (its CFG
         // has the entry block at minimum).
-        let get = &cu.methods["::Counter::get"];
+        let get = fixture_method(&cu, "::Counter::get").expect("unique retained fixture method");
         assert_eq!(get.name, "::Counter::get");
         assert!(!get.cfg.blocks.is_empty());
         // Methods are NOT mixed into the per-proc map.
-        assert!(!cu.procedures.contains_key("::Counter::get"));
+        assert!(
+            !cu.procedures
+                .values()
+                .any(|procedure| procedure.name == "::Counter::get")
+        );
     }
 
     #[test]
@@ -3107,15 +6951,21 @@ mod tests {
             false,
         );
         assert!(
-            cu.methods["::C::relative"].complexity_guarded,
+            fixture_method(&cu, "::C::relative")
+                .expect("unique retained fixture method")
+                .complexity_guarded,
             "a receiver-local command may shadow the lexical builtin"
         );
         assert!(
-            !cu.methods["::C::absolute"].complexity_guarded,
+            !fixture_method(&cu, "::C::absolute")
+                .expect("unique retained fixture method")
+                .complexity_guarded,
             "an absolute-only method is independent of the receiver namespace"
         );
         assert!(
-            cu.methods["::C::absolute_dispatch"].complexity_guarded,
+            fixture_method(&cu, "::C::absolute_dispatch")
+                .expect("unique retained fixture method")
+                .complexity_guarded,
             "the receiver namespace can shadow TclOO's injected dispatch commands"
         );
         for name in [
@@ -3124,13 +6974,17 @@ mod tests {
             "::C::absolute_regex",
         ] {
             assert!(
-                !cu.methods[name].complexity_guarded,
+                !fixture_method(&cu, name)
+                    .expect("unique retained fixture method")
+                    .complexity_guarded,
                 "absolute-only method {name} must retain deep analysis: {:#?}",
-                cu.methods[name]
+                fixture_method(&cu, name).expect("unique retained fixture method")
             );
         }
         assert!(
-            cu.methods["::C::nested_alias"].complexity_guarded,
+            fixture_method(&cu, "::C::nested_alias")
+                .expect("unique retained fixture method")
+                .complexity_guarded,
             "a relative nested binding consumed by typed lowering remains runtime-selected"
         );
     }
@@ -3150,11 +7004,12 @@ mod tests {
             false,
         );
         let fu = cu.function("::p").expect("proc ::p should exist");
-        let col_live = fu
-            .def_use
-            .chains
-            .iter()
-            .any(|(k, c)| k.0 == "col" && !c.is_dead());
+        let col_live = fu.def_use.chains.iter().any(|(key, chain)| {
+            fu.def_use
+                .symbol(&fu.ssa, key.0)
+                .is_some_and(|symbol| fu.ssa.var_name(symbol) == "col")
+                && !chain.is_dead()
+        });
         assert!(
             col_live,
             "switch subject `$col` should register a live use; chains: {:?}",
@@ -3173,11 +7028,12 @@ mod tests {
             let src = format!("proc p {{val}} {{ switch {mode} -- $col {pat} {{puts $val}} }}");
             let cu = CompilationUnit::build_for(&src, &registry(), false);
             let fu = cu.function("::p").expect("proc ::p should exist");
-            let val_live = fu
-                .def_use
-                .chains
-                .iter()
-                .any(|(k, c)| k.0 == "val" && !c.is_dead());
+            let val_live = fu.def_use.chains.iter().any(|(key, chain)| {
+                fu.def_use
+                    .symbol(&fu.ssa, key.0)
+                    .is_some_and(|symbol| fu.ssa.var_name(symbol) == "val")
+                    && !chain.is_dead()
+            });
             assert!(
                 val_live,
                 "{mode} arm-body read `$val` should register a live use; chains: {:?}",
@@ -3254,7 +7110,13 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let facts = &linear.top_level.semantic_facts;
-        assert_eq!(facts.context(), Some(test_context()));
+        assert_eq!(
+            facts.metadata_context(),
+            linear
+                .top_level
+                .source_metadata_input()
+                .map(|input| { input.borrowed_context_registry().context() }),
+        );
         let executable = facts.executable();
         assert_eq!(executable.invocations().count(), 1);
         assert!(executable.world_state_ssa().is_none());
@@ -3316,8 +7178,8 @@ mod tests {
                 .is_some()
         );
         assert!(
-            deep.procedures
-                .get("::p")
+            fixture_id_if_present(&deep.procedures, "::p")
+                .and_then(|id| deep.procedures.get(&id))
                 .unwrap()
                 .semantic_facts
                 .executable()
@@ -3345,7 +7207,7 @@ mod tests {
     }
 
     /// Interprocedural call-site literal seeding (TP/FP/TN/FN suite for
-    /// [`collect_call_site_constants`] / [`params_constants_from_call_sites`]).
+    /// [`collect_call_site_constants`] / [`params_constants_from_native_call_sites`]).
     mod call_site_param_constants {
         use super::*;
         use crate::analyses::LatticeValue;
@@ -3371,19 +7233,18 @@ mod tests {
                 [Widget new] go
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let f = cu.procedures.get("::helper").expect("helper analysed");
+            let f = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
-                !folds_condition_mentioning(f, "mode"),
+                !knows_condition_mentioning(f, "mode"),
                 "helper is called with both \"a\" (external) and \"b\" (from the method body); must not fold: {:?}",
                 f.sccp.constant_branches,
             );
         }
 
-        /// FN regression: a call reached only via a `namespace import` alias
-        /// is a real caller with a differing argument, but
-        /// `resolve_internal_call` alone only tries the caller's own
-        /// namespace and the global one — it doesn't know about imports, so
-        /// the call site would vanish from the evidence.
+        /// Imported calls retain the original implementation allocation and
+        /// contribute their differing arguments to the shared caller evidence.
         #[test]
         fn call_site_via_namespace_import_alias_is_not_missed() {
             let reg = registry();
@@ -3402,22 +7263,21 @@ mod tests {
                 ::app::go
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let f = cu.procedures.get("::lib::helper").expect("helper analysed");
+            let f = fixture_id_if_present(&cu.procedures, "::lib::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
-                !folds_condition_mentioning(f, "mode"),
+                !knows_condition_mentioning(f, "mode"),
                 "helper is called with both \"a\" (direct) and \"b\" (via the ::app import); must not fold: {:?}",
                 f.sccp.constant_branches,
             );
         }
 
-        /// `::lib::helper` has two resolvable callers — one direct, one
-        /// through a `namespace import ::lib::*` wildcard alias — and both
-        /// pass `"prod"`.  Carries no `namespace export`: the scan resolves
-        /// the import from the recorded directive (export *enforcement* is
-        /// not modelled), and an export would cross the `EXPORTS_COMMAND`
-        /// boundary the sibling test below exercises deliberately.
+        /// A real wildcard import requires the source namespace to export
+        /// its procedure. Publishing that command retains an open caller set.
         const WILDCARD_IMPORT_SRC: &str = "
             namespace eval ::lib {
+                namespace export helper
                 proc helper {mode} {
                     if {$mode eq \"prod\"} { set r 1 } else { set r 2 }
                 }
@@ -3430,25 +7290,72 @@ mod tests {
             ::app::go
         ";
 
-        /// TP control: a wildcard `namespace import ::lib::*` alias must
-        /// still resolve correctly (not just exact-name imports), and the
-        /// mechanism must still fold when every resolved caller — direct and
-        /// imported — genuinely agrees on the literal.
         #[test]
-        fn wildcard_namespace_import_alias_resolves_and_still_folds_when_uniform() {
+        fn wildcard_namespace_import_preserves_actual_identity_and_open_callers() {
             let reg = registry();
             let cu = CompilationUnit::build_for(WILDCARD_IMPORT_SRC, &reg, false);
-            let f = cu.procedures.get("::lib::helper").expect("helper analysed");
-            assert!(
-                folds_condition_mentioning(f, "mode"),
-                "both the direct and the wildcard-imported caller pass \"prod\": {:?}",
-                f.sccp.constant_branches,
+            let bindings = crate::command_binding::SourceCommandBindings::analyse(
+                WILDCARD_IMPORT_SRC,
+                tcl_lexer::LexerConfig::default(),
+                &reg,
+            );
+            let imported = bindings.invocation_at(
+                "helper",
+                "::app",
+                u32::try_from(WILDCARD_IMPORT_SRC.find("helper prod").unwrap()).unwrap(),
+            );
+            let direct = bindings.invocation_at(
+                "::lib::helper",
+                "::",
+                u32::try_from(WILDCARD_IMPORT_SRC.find("::lib::helper prod").unwrap()).unwrap(),
+            );
+            let imported_target = imported
+                .proved_handler_target()
+                .expect("reached imported proc");
+            let direct_target = direct.proved_handler_target().expect("reached direct proc");
+            assert_eq!(imported_target.command, "::lib::helper");
+            assert_eq!(imported_target.identity, direct_target.identity);
+            assert_eq!(
+                imported_target.implementation_allocation,
+                direct_target.implementation_allocation,
+            );
+            assert_eq!(imported.evaluated_written_argument_value(0), Some("prod"));
+            assert_eq!(direct.evaluated_written_argument_value(0), Some("prod"));
+            let function = fixture_id_if_present(&cu.procedures, "::lib::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
+            assert!(!knows_condition_mentioning(function, "mode"));
+            assert_eq!(
+                function.sccp.constant_branches,
+                [] as [crate::sccp::ConstantBranch; 0]
             );
         }
 
-        /// FP guard: adding `namespace export *` to the very
-        /// same source must stop the fold — and, unlike a `source` boundary,
-        /// must keep stopping it even when a host supplies a workspace view.
+        #[test]
+        fn wildcard_import_without_export_does_not_manufacture_a_caller() {
+            let reg = registry();
+            let source = WILDCARD_IMPORT_SRC.replace("namespace export helper", "");
+            let bindings = crate::command_binding::SourceCommandBindings::analyse(
+                &source,
+                tcl_lexer::LexerConfig::default(),
+                &reg,
+            );
+            let imported = bindings.invocation_at(
+                "helper",
+                "::app",
+                u32::try_from(source.find("helper prod").unwrap()).unwrap(),
+            );
+            assert!(imported.proved_handler_target().is_none());
+            assert!(
+                imported
+                    .targets
+                    .iter()
+                    .all(|target| target.command != "::lib::helper")
+            );
+        }
+
+        /// Wildcard publication retains an open caller set even when a host
+        /// supplies a closed view of the files in its current workspace.
         /// An export publishes `::lib::helper` for *any* other unit to import
         /// and call with a different literal, including one in a different
         /// checkout that no project enumeration can reach.
@@ -3463,9 +7370,11 @@ mod tests {
                 CompilationUnit::build_for(&exported, &reg, false),
                 build_closed_world(&exported, &reg),
             ] {
-                let f = cu.procedures.get("::lib::helper").expect("helper analysed");
+                let f = fixture_id_if_present(&cu.procedures, "::lib::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
-                    !folds_condition_mentioning(f, "mode"),
+                    !knows_condition_mentioning(f, "mode"),
                     "`namespace export *` publishes helper beyond any enumerable project: {:?}",
                     f.sccp.constant_branches,
                 );
@@ -3504,9 +7413,11 @@ mod tests {
                 CompilationUnit::build_for(src, &reg, false),
                 build_closed_world(src, &reg),
             ] {
-                let f = cu.procedures.get("::helper").expect("helper analysed");
+                let f = fixture_id_if_present(&cu.procedures, "::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
-                    !folds_condition_mentioning(f, "mode"),
+                    !knows_condition_mentioning(f, "mode"),
                     "`myens go dev` reaches helper with \"dev\" (tclsh8.6/9.0-confirmed), \
                      so mode is not caller-invariant: {:?}",
                     f.sccp.constant_branches,
@@ -3548,19 +7459,20 @@ mod tests {
                 [::foo::Widget new] go
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let global_helper = cu.procedures.get("::helper").expect("::helper analysed");
-            let ns_helper = cu
-                .procedures
-                .get("::foo::Widget::helper")
+            let global_helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("::helper analysed");
+            let ns_helper = fixture_id_if_present(&cu.procedures, "::foo::Widget::helper")
+                .and_then(|id| cu.procedures.get(&id))
                 .expect("::foo::Widget::helper analysed");
             assert!(
-                !folds_condition_mentioning(global_helper, "mode"),
+                !knows_condition_mentioning(global_helper, "mode"),
                 "::helper is called with both \"a\" and \"b\" (the method body, once \
                  correctly resolved to global): {:?}",
                 global_helper.sccp.constant_branches,
             );
             assert!(
-                !folds_condition_mentioning(ns_helper, "mode"),
+                !knows_condition_mentioning(ns_helper, "mode"),
                 "::foo::Widget::helper is never actually called by real Tcl semantics, \
                  so no call-site evidence should ever reach it: {:?}",
                 ns_helper.sccp.constant_branches,
@@ -3605,19 +7517,20 @@ mod tests {
                 ::foo::runIt
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let global_helper = cu.procedures.get("::helper").expect("::helper analysed");
-            let ns_helper = cu
-                .procedures
-                .get("::foo::helper")
+            let global_helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("::helper analysed");
+            let ns_helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
+                .and_then(|id| cu.procedures.get(&id))
                 .expect("::foo::helper analysed");
             assert!(
-                !folds_condition_mentioning(global_helper, "mode"),
+                !knows_condition_mentioning(global_helper, "mode"),
                 "::helper is called with both \"a\" and \"b\" (uplevel #0, once correctly \
                  resolved to global): {:?}",
                 global_helper.sccp.constant_branches,
             );
             assert!(
-                !folds_condition_mentioning(ns_helper, "mode"),
+                !knows_condition_mentioning(ns_helper, "mode"),
                 "::foo::helper is never actually called by real Tcl semantics: {:?}",
                 ns_helper.sccp.constant_branches,
             );
@@ -3648,12 +7561,11 @@ mod tests {
                 ::foo::runIt
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu
-                .procedures
-                .get("::foo::helper")
+            let helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
+                .and_then(|id| cu.procedures.get(&id))
                 .expect("::foo::helper analysed");
             assert!(
-                !folds_condition_mentioning(helper, "mode"),
+                !knows_condition_mentioning(helper, "mode"),
                 "`uplevel 0` runs in the current frame, so ::foo::helper sees both \
                  \"a\" (direct) and \"b\" (the uplevel body): {:?}",
                 helper.sccp.constant_branches,
@@ -3682,12 +7594,11 @@ mod tests {
                 ::foo::runIt
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu
-                .procedures
-                .get("::foo::helper")
+            let helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
+                .and_then(|id| cu.procedures.get(&id))
                 .expect("::foo::helper analysed");
             assert!(
-                !folds_condition_mentioning(helper, "mode"),
+                !knows_condition_mentioning(helper, "mode"),
                 "::foo::helper sees both \"a\" (direct) and \"b\" (the relative uplevel \
                  body, approximated to the enclosing namespace): {:?}",
                 helper.sccp.constant_branches,
@@ -3714,9 +7625,11 @@ mod tests {
                 runIt
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("::helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("::helper analysed");
             assert!(
-                !folds_condition_mentioning(helper, "mode"),
+                !knows_condition_mentioning(helper, "mode"),
                 "::helper is called with both \"a\" and \"b\" (the conditionally-defined \
                  runIt's body): {:?}",
                 helper.sccp.constant_branches,
@@ -3750,12 +7663,11 @@ mod tests {
                 runIt
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu
-                .procedures
-                .get("::other::helper")
+            let helper = fixture_id_if_present(&cu.procedures, "::other::helper")
+                .and_then(|id| cu.procedures.get(&id))
                 .expect("::other::helper analysed");
             assert!(
-                !folds_condition_mentioning(helper, "mode"),
+                !knows_condition_mentioning(helper, "mode"),
                 "::other::helper is called with both \"a\" (direct) and \"b\" (via the \
                  namespace eval block nested inside runIt): {:?}",
                 helper.sccp.constant_branches,
@@ -3792,12 +7704,11 @@ mod tests {
                 ::foo::runIt
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu
-                .procedures
-                .get("::foo::helper")
+            let helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
+                .and_then(|id| cu.procedures.get(&id))
                 .expect("::foo::helper analysed");
             assert!(
-                !folds_condition_mentioning(helper, "mode"),
+                !knows_condition_mentioning(helper, "mode"),
                 "::foo::helper is called with both \"a\" (direct) and \"b\" (through the \
                  ::foo-pinned lambda): {:?}",
                 helper.sccp.constant_branches,
@@ -3812,6 +7723,7 @@ mod tests {
         fn apply_without_a_namespace_element_still_resolves_globally() {
             let reg = registry();
             let src = "
+                proc ::helper {x} {return $x}
                 namespace eval ::foo {
                     proc helper {mode} {
                         if {$mode eq \"a\"} { set r 1 } else { set r 2 }
@@ -3824,21 +7736,19 @@ mod tests {
                 ::foo::runIt
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu
-                .procedures
-                .get("::foo::helper")
+            let helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
+                .and_then(|id| cu.procedures.get(&id))
                 .expect("::foo::helper analysed");
             assert!(
-                folds_condition_mentioning(helper, "mode"),
+                knows_condition_mentioning(helper, "mode"),
                 "an unpinned lambda body resolves globally, so ::foo::helper only ever \
                  sees the direct \"a\": {:?}",
                 helper.sccp.constant_branches,
             );
         }
 
-        /// True if any constant-branch condition recorded for `fu` mentions
-        /// `needle` (a variable name) — the ambient SCCP-fold check the I230
-        /// diagnostic, and the O101/O107 optimiser suggestions, all key off.
+        /// Test diagnostic branch knowledge without donating caller contents
+        /// to an executable replacement of retained native object coercions.
         /// Build `src` under a **closed world**: an empty cross-file evidence
         /// set, which is the host asserting "I enumerated the project and no
         /// other file calls into this one" — the semantics for a file that is
@@ -3858,11 +7768,43 @@ mod tests {
             )
         }
 
-        fn folds_condition_mentioning(fu: &FunctionUnit, needle: &str) -> bool {
-            fu.sccp
-                .constant_branches
+        fn knows_condition_mentioning(fu: &FunctionUnit, needle: &str) -> bool {
+            fu.diagnostic_value_facts()
+                .constant_branches()
                 .iter()
-                .any(|b| b.condition.contains(needle))
+                .any(|branch| branch.condition.contains(needle))
+        }
+
+        #[test]
+        fn caller_contents_do_not_license_erasing_retained_parameter_coercions() {
+            let reg = registry();
+            let source = "proc helper {n} {if {$n + 0 == 7} {set result yes} else {set result no}}; helper 007";
+            let unit = CompilationUnit::build_for(source, &reg, false);
+            let function = fixture_id_if_present(&unit.procedures, "::helper")
+                .and_then(|id| unit.procedures.get(&id))
+                .expect("helper analysed");
+            assert!(
+                knows_condition_mentioning(function, "n"),
+                "caller_scope={:?} names={:?} preparations={} branch_bindings={} semantic_expressions={}",
+                unit.caller_scope,
+                function.ssa.var_names(),
+                function.cfg.expression_preparations.len(),
+                function.cfg.condition_binding_sites.len(),
+                function
+                    .semantic_values()
+                    .map_or(0, |facts| facts.expression_iter().count())
+            );
+            assert_eq!(
+                function.sccp.constant_branches,
+                [] as [crate::sccp::ConstantBranch; 0]
+            );
+            let symbol = function.ssa.var_symbol("n").expect("retained formal slot");
+            assert_eq!(
+                function.semantic_values().unwrap().contents((symbol, 0)),
+                Some(&crate::analyses::LatticeValue::Const(
+                    crate::analyses::ConstValue::String("007".to_owned())
+                ))
+            );
         }
 
         /// FN: a proc declared inside a `namespace eval` block recurses into
@@ -3894,9 +7836,11 @@ mod tests {
                 ::graph::dfs 0
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let dfs = cu.procedures.get("::graph::dfs").expect("dfs analysed");
+            let dfs = fixture_id_if_present(&cu.procedures, "::graph::dfs")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("dfs analysed");
             assert!(
-                !folds_condition_mentioning(dfs, "count"),
+                !knows_condition_mentioning(dfs, "count"),
                 "recursive parity check on `count` must not fold to a constant: {:?}",
                 dfs.sccp.constant_branches,
             );
@@ -3916,9 +7860,11 @@ mod tests {
                 count_up 0
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let f = cu.procedures.get("::count_up").expect("count_up analysed");
+            let f = fixture_id_if_present(&cu.procedures, "::count_up")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("count_up analysed");
             assert!(
-                !folds_condition_mentioning(f, "n"),
+                !knows_condition_mentioning(f, "n"),
                 "recursive parity check on `n` must not fold to a constant: {:?}",
                 f.sccp.constant_branches,
             );
@@ -3942,11 +7888,21 @@ mod tests {
                 }
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let go = cu.procedures.get("::a::go").expect("go analysed");
+            let go = fixture_id_if_present(&cu.procedures, "::a::go")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("go analysed");
             assert!(
-                folds_condition_mentioning(go, "mode"),
-                "two same-namespace callers passing the identical literal should still fold: {:?}",
-                go.sccp.constant_branches,
+                knows_condition_mentioning(go, "mode"),
+                "two same-namespace callers passing the identical literal should still fold: caller_scope={:?}, contents={:?}, preparations={}, condition_bindings={}",
+                cu.caller_scope,
+                go.semantic_values()
+                    .map(|facts| facts.contents_iter().collect::<Vec<_>>()),
+                go.cfg.expression_preparations.len(),
+                go.cfg.condition_binding_sites.len(),
+            );
+            assert!(
+                go.sccp.constant_branches.is_empty(),
+                "logical incoming contents do not prove erasure of native operand conversion",
             );
         }
 
@@ -3974,10 +7930,14 @@ mod tests {
                 ::b::go different
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let a_go = cu.procedures.get("::a::go").expect("::a::go analysed");
-            let b_go = cu.procedures.get("::b::go").expect("::b::go analysed");
+            let a_go = fixture_id_if_present(&cu.procedures, "::a::go")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("::a::go analysed");
+            let b_go = fixture_id_if_present(&cu.procedures, "::b::go")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("::b::go analysed");
             assert!(
-                folds_condition_mentioning(a_go, "mode"),
+                knows_condition_mentioning(a_go, "mode"),
                 "::a::go's sole caller passes a uniform literal, should fold: {:?}",
                 a_go.sccp.constant_branches,
             );
@@ -4013,9 +7973,11 @@ mod tests {
                 rename other helper
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
-                !folds_condition_mentioning(helper, "mode"),
+                !knows_condition_mentioning(helper, "mode"),
                 "a callee whose name is later rebound must not fold on stale call-site evidence: {:?}",
                 helper.sccp.constant_branches,
             );
@@ -4044,9 +8006,11 @@ mod tests {
                 $cmd prod
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
-                folds_condition_mentioning(helper, "mode"),
+                knows_condition_mentioning(helper, "mode"),
                 "an unrelated dynamic call site must not disqualify helper's own uniform-literal seed: {:?}",
                 helper.sccp.constant_branches,
             );
@@ -4073,9 +8037,11 @@ mod tests {
                 }
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let f = cu.procedures.get("::is_even").expect("is_even analysed");
+            let f = fixture_id_if_present(&cu.procedures, "::is_even")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("is_even analysed");
             assert!(
-                !folds_condition_mentioning(f, "n"),
+                !knows_condition_mentioning(f, "n"),
                 "is_even is called with both 3 and 4 (the latter inside `catch`); must not fold: {:?}",
                 f.sccp.constant_branches,
             );
@@ -4097,9 +8063,11 @@ mod tests {
                 }
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let f = cu.procedures.get("::is_even").expect("is_even analysed");
+            let f = fixture_id_if_present(&cu.procedures, "::is_even")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("is_even analysed");
             assert!(
-                !folds_condition_mentioning(f, "n"),
+                !knows_condition_mentioning(f, "n"),
                 "is_even is called with both 3 and 4 (the latter inside `uplevel`); must not fold: {:?}",
                 f.sccp.constant_branches,
             );
@@ -4118,18 +8086,42 @@ mod tests {
                     if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
                 }
                 proc noisy {} {
-                    catch { nonexistentCommand abc }
+                    catch { error expected_failure }
                 }
                 helper prod
                 helper prod
                 noisy
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
-                folds_condition_mentioning(helper, "mode"),
+                knows_condition_mentioning(helper, "mode"),
                 "an unrelated catch body must not disqualify helper's own uniform-literal seed: {:?}",
                 helper.sccp.constant_branches,
+            );
+        }
+
+        #[test]
+        fn caught_unresolved_command_keeps_its_callback_mutation_boundary() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                proc noisy {} {catch {unresolved_command}}
+                helper prod
+                noisy
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
+            assert!(!knows_condition_mentioning(helper, "mode"));
+            assert_eq!(
+                helper.sccp.constant_branches,
+                [] as [crate::sccp::ConstantBranch; 0]
             );
         }
 
@@ -4149,9 +8141,11 @@ mod tests {
                 helper prod
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
-                !folds_condition_mentioning(helper, "mode"),
+                !knows_condition_mentioning(helper, "mode"),
                 "a package-providing file must not seed from locally-visible call sites: {:?}",
                 helper.sccp.constant_branches,
             );
@@ -4172,9 +8166,11 @@ mod tests {
                 helper prod
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
-                folds_condition_mentioning(helper, "mode"),
+                knows_condition_mentioning(helper, "mode"),
                 "no package-provide in this file, seed should still fold: {:?}",
                 helper.sccp.constant_branches,
             );
@@ -4196,9 +8192,11 @@ mod tests {
                 helper prod
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
-                folds_condition_mentioning(helper, "mode"),
+                knows_condition_mentioning(helper, "mode"),
                 "a comment merely mentioning the phrase must not disqualify: {:?}",
                 helper.sccp.constant_branches,
             );
@@ -4220,9 +8218,11 @@ mod tests {
                 helper prod
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
-                !folds_condition_mentioning(helper, "mode"),
+                !knows_condition_mentioning(helper, "mode"),
                 "a real (if oddly-spelled) package provide must still disqualify: {:?}",
                 helper.sccp.constant_branches,
             );
@@ -4255,15 +8255,54 @@ mod tests {
 
             /// Cross-file evidence a host builds from `other`, resolved
             /// against the procedures `LIB` declares.
+            fn library_entry() -> crate::command_binding::SourceAnalysisEntry {
+                let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("native profile");
+                crate::command_binding::SourceAnalysisEntry {
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                    trusted_source_modules: vec![
+                        crate::command_binding::TrustedSourceModuleLoader::new(
+                            tcl_dialect::model::Family::Tcl,
+                            "lib.tcl".into(),
+                            None,
+                            "workspace/library/revision-one".into(),
+                            &Arc::from(LIB),
+                        ),
+                    ],
+                    ..crate::command_binding::SourceAnalysisEntry::default()
+                }
+            }
+
             fn evidence_from(other: &str, reg: &CommandRegistry) -> CallSiteEvidence {
                 let known: HashSet<String> = ["::helper".to_owned()].into_iter().collect();
-                crate::unit_scope::scan_source_call_sites(
-                    other,
-                    reg,
+                let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("native profile");
+                let entry = library_entry();
+                // The driver actually loads the library before this caller file.
+                // MAIN already performs that read at its authored source site.
+                let loaded;
+                let source = if other == MAIN || other.starts_with("source lib.tcl") {
+                    other
+                } else {
+                    loaded = format!("source lib.tcl\n{other}");
+                    &loaded
+                };
+                let context = Arc::new(
+                    crate::environment_ingress::context_for_profile(profile)
+                        .with_command_store(reg.snapshot().shared_registry()),
+                );
+                let input = crate::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    context,
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                );
+                crate::unit_scope::scan_source_call_sites_with_source_input(
+                    source,
                     None,
-                    tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
                     &known,
                     &[],
+                    &input,
+                    &entry,
                 )
             }
 
@@ -4272,16 +8311,31 @@ mod tests {
                 reg: &CommandRegistry,
                 evidence: &CallSiteEvidence,
             ) -> CompilationUnit {
-                CompilationUnit::build_with_options(
+                build_with_source_evidence(src, reg, Some(evidence))
+            }
+
+            fn build_with_source_evidence(
+                src: &str,
+                reg: &CommandRegistry,
+                evidence: Option<&CallSiteEvidence>,
+            ) -> CompilationUnit {
+                let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("native profile");
+                let context = Arc::new(
+                    crate::environment_ingress::context_for_profile(profile)
+                        .with_command_store(reg.snapshot().shared_registry()),
+                );
+                CompilationUnit::build_with_context_registry(
                     src,
                     UnitBuildOptions {
                         registry: reg,
                         defer_top_level: false,
-                        config: tcl_lexer::LexerConfig::default(),
-                        dialect: None,
-                        external_call_sites: Some(evidence),
+                        config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                        dialect: Some(profile),
+                        external_call_sites: evidence,
                         declared_commands: None,
                     },
+                    Some(&library_entry()),
+                    context,
                 )
             }
 
@@ -4292,9 +8346,11 @@ mod tests {
                 let reg = registry();
                 let evidence = evidence_from(MAIN, &reg);
                 let cu = build_with_evidence(LIB, &reg, &evidence);
-                let helper = cu.procedures.get("::helper").expect("helper analysed");
+                let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
-                    !folds_condition_mentioning(helper, "mode"),
+                    !knows_condition_mentioning(helper, "mode"),
                     "main.tcl calls helper with \"dev\"; lib.tcl must not fold on \"prod\": {:?}",
                     helper.sccp.constant_branches,
                 );
@@ -4318,9 +8374,11 @@ mod tests {
                 let reg = registry();
                 let evidence = evidence_from("source lib.tcl\nhelper prod\n", &reg);
                 let cu = build_with_evidence(LIB, &reg, &evidence);
-                let helper = cu.procedures.get("::helper").expect("helper analysed");
+                let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
-                    folds_condition_mentioning(helper, "mode"),
+                    knows_condition_mentioning(helper, "mode"),
                     "every caller in the project passes \"prod\"; the seed is sound: {:?}",
                     helper.sccp.constant_branches,
                 );
@@ -4331,12 +8389,25 @@ mod tests {
             #[test]
             fn unrelated_workspace_file_contributes_nothing() {
                 let reg = registry();
-                let evidence = evidence_from("proc other {x} { return $x }\nother 1\n", &reg);
-                assert!(evidence.is_empty(), "no call to ::helper was written");
-                let cu = build_with_evidence(LIB, &reg, &evidence);
-                let helper = cu.procedures.get("::helper").expect("helper analysed");
+                let known = HashSet::from(["::helper".to_owned()]);
+                let evidence = crate::unit_scope::scan_source_call_sites(
+                    "proc other {x} { return $x }\nother 1\n",
+                    &reg,
+                    None,
+                    tcl_dialect::DialectProfile::find("tcl9.0").expect("native profile"),
+                    &known,
+                    &[],
+                );
                 assert!(
-                    folds_condition_mentioning(helper, "mode"),
+                    evidence.get("::helper").is_none(),
+                    "an unrelated file supplies no caller of ::helper: {evidence:?}",
+                );
+                let cu = build_with_evidence(LIB, &reg, &evidence);
+                let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
+                assert!(
+                    knows_condition_mentioning(helper, "mode"),
                     "an unrelated file must not retract a sound fold: {:?}",
                     helper.sccp.constant_branches,
                 );
@@ -4351,28 +8422,31 @@ mod tests {
                 let reg = registry();
                 let evidence = evidence_from("set m dev\nhelper $m\n", &reg);
                 let cu = build_with_evidence(LIB, &reg, &evidence);
-                let helper = cu.procedures.get("::helper").expect("helper analysed");
+                let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
-                    !folds_condition_mentioning(helper, "mode"),
+                    !knows_condition_mentioning(helper, "mode"),
                     "a cross-file caller with a non-literal argument must retract the fold: {:?}",
                     helper.sccp.constant_branches,
                 );
             }
 
-            /// FN guard — a cross-file *deferred* caller (`after 0 helper`,
-            /// a `-command` callback, `trace add variable`) invokes the proc
-            /// with words appended at runtime, so no position is uniform.
-            /// The callback slot comes from `ArgRole::CommandPrefix`, not a
-            /// command-name list in the compiler.
+            /// FN guard — a deferred script reads an unknown value when the
+            /// callback runs. Its possible caller cannot inherit the immediate
+            /// file's uniform argument. The body role and future frame come
+            /// from the selected native descriptor, independently of spelling.
             #[test]
             fn cross_file_command_prefix_callback_poisons_every_position() {
                 let reg = registry();
-                let evidence = evidence_from("after 0 helper\n", &reg);
+                let evidence = evidence_from("after 0 {helper $::runtime_mode}\n", &reg);
                 let cu = build_with_evidence(LIB, &reg, &evidence);
-                let helper = cu.procedures.get("::helper").expect("helper analysed");
+                let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
-                    !folds_condition_mentioning(helper, "mode"),
-                    "a deferred cross-file callback appends unknown words: {:?}",
+                    !knows_condition_mentioning(helper, "mode"),
+                    "a deferred cross-file callback reads an unknown argument: {:?}",
                     helper.sccp.constant_branches,
                 );
             }
@@ -4386,9 +8460,11 @@ mod tests {
                 let reg = registry();
                 let evidence = evidence_from("rename helper legacy_helper\n", &reg);
                 let cu = build_with_evidence(LIB, &reg, &evidence);
-                let helper = cu.procedures.get("::helper").expect("helper analysed");
+                let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
-                    !folds_condition_mentioning(helper, "mode"),
+                    !knows_condition_mentioning(helper, "mode"),
                     "another file renamed helper; its binding has moved: {:?}",
                     helper.sccp.constant_branches,
                 );
@@ -4410,19 +8486,23 @@ mod tests {
                     local prod
                     local prod
                 ";
-                let cu = CompilationUnit::build_for(src, &reg, false);
-                let f = cu.procedures.get("::local").expect("local analysed");
+                let cu = build_with_source_evidence(src, &reg, None);
+                let f = fixture_id_if_present(&cu.procedures, "::local")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("local analysed");
                 assert!(
-                    !folds_condition_mentioning(f, "mode"),
+                    !knows_condition_mentioning(f, "mode"),
                     "the sourced file's script can call ::local with anything: {:?}",
                     f.sccp.constant_branches,
                 );
                 // …and with a workspace view that says otherwise, it folds.
                 let empty = CallSiteEvidence::default();
                 let closed = build_with_evidence(src, &reg, &empty);
-                let f = closed.procedures.get("::local").expect("local analysed");
+                let f = fixture_id_if_present(&closed.procedures, "::local")
+                    .and_then(|id| closed.procedures.get(&id))
+                    .expect("local analysed");
                 assert!(
-                    folds_condition_mentioning(f, "mode"),
+                    knows_condition_mentioning(f, "mode"),
                     "with the project enumerated, the boundary is no longer a blind spot: {:?}",
                     f.sccp.constant_branches,
                 );
@@ -4448,12 +8528,29 @@ mod tests {
                 ::graph::dfs 0
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let dfs = cu.procedures.get("::graph::dfs").expect("dfs analysed");
-            let sym = dfs
+            let dfs = fixture_id_if_present(&cu.procedures, "::graph::dfs")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("dfs analysed");
+            // Incoming activation alternatives do not manufacture one scalar
+            // SSA symbol. If a physical template slot exists, its entry value
+            // must still refuse a recursive caller's constant seed.
+            let v0 = dfs
                 .ssa
                 .var_symbol("count")
-                .expect("count should be interned");
-            let v0 = dfs.sccp.values.get(&(sym, 0));
+                .and_then(|sym| dfs.sccp.values.get(&(sym, 0)));
+            assert_eq!(
+                dfs.sccp.constant_branches,
+                [] as [crate::sccp::ConstantBranch; 0]
+            );
+            assert!(
+                cu.caller_scope
+                    .call_sites
+                    .get("::graph::dfs")
+                    .is_some_and(|calls| calls
+                        .slots
+                        .get(&0)
+                        .is_some_and(|slot| slot.unknown || slot.values.len() > 1))
+            );
             assert!(
                 !matches!(v0, Some(LatticeValue::Const(_))),
                 "recursive param's version-0 lattice entry must not be Const, got {v0:?}",
@@ -4464,6 +8561,8 @@ mod tests {
 
 #[cfg(test)]
 mod smoke {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use tcl_registry::CommandRegistry;
 
     use super::CompilationUnit;
@@ -4477,7 +8576,7 @@ mod smoke {
         let src = "proc double {n} { return [expr {$n * 2}] }\nset r [double 21]\n";
         let unit = CompilationUnit::build_for(src, &registry, false);
         assert!(
-            unit.procedures.contains_key("::double"),
+            fixture_id_if_present(&unit.procedures, "::double").is_some(),
             "expected a lowered ::double procedure, got {:?}",
             unit.procedures.keys().collect::<Vec<_>>()
         );
@@ -4493,6 +8592,7 @@ mod smoke {
 /// the name `tcl`, which would bypass the centralised resolution entirely.
 #[cfg(test)]
 mod jim_ingress_tests {
+
     use super::*;
 
     #[test]
@@ -4519,5 +8619,800 @@ mod jim_ingress_tests {
             let unit = CompilationUnit::build_for_dialect("set x 1\n", &registry, false, spelling);
             assert_eq!(unit.ir_module.dialect.as_deref(), Some("jim"), "{spelling}");
         }
+    }
+}
+
+#[cfg(test)]
+mod original_receiver_method_facts_tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
+    use super::*;
+
+    #[test]
+    // Implementation contract: naming.variable.original-entered-receiver-body-context
+
+    fn original_method_facts_keep_counted_formals_without_class_label_variable_union() {
+        let source = r"oo::class create C {variable state; method m {arg\uD800} {return ${arg\uD800}}}; oo::define C variable later";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6");
+        let method = fixture_id_if_present(&unit.ir_module.methods, "::C::m")
+            .and_then(|id| unit.ir_module.methods.get(&id))
+            .expect("original method");
+        assert!(method.body.executed_source.is_some());
+        let facts = MethodBodyFacts::from_method(method);
+        let formals = facts
+            .original_parameters
+            .as_ref()
+            .expect("exact original ParamList");
+        assert_eq!(formals.parameters()[0].name, b"arg\xed\xa0\x80");
+        assert!(method.instance_vars.is_empty());
+        assert!(facts.instance_vars.is_empty());
+        assert!(!facts.known_bound_at_entry().contains("state"));
+        assert!(!facts.known_bound_at_entry().contains("later"));
+        assert!(facts.original_receiver_context.is_none());
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.original-entered-receiver-body-context
+
+    fn original_source_context_never_inherits_compatibility_instance_or_execution_fields() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = CompilationUnit::build_for_dialect("set x 1", registry, false, "tcl8.6");
+        let mut cfg = unit.top_level.cfg.clone();
+        let mut original = cfg
+            .command_binding_sites
+            .iter()
+            .find_map(|site| site.variable_context.as_ref())
+            .expect("original point")
+            .as_ref()
+            .clone();
+        assert!(original.execution_name_policy.is_some());
+        original.execution = None;
+        original.instance_vars.clear();
+        original.instance_owner.clear();
+        let mut overlay = crate::var_resolve::ResolveContext::default();
+        overlay
+            .instance_vars
+            .insert("compatibility_donor".to_owned());
+        overlay.instance_owner = "::WrongProvider".to_owned();
+        for site in &mut cfg.command_binding_sites {
+            site.variable_context = Some(Arc::new(original.clone()));
+        }
+        let entry = function_source_entry(&cfg, Some(&overlay));
+        assert!(entry.instance_vars.is_empty());
+        assert!(entry.instance_owner.is_empty());
+        assert_eq!(entry.execution, original.execution);
+        assert_eq!(entry.interpreter, original.interpreter);
+    }
+}
+
+#[cfg(test)]
+mod conditional_original_body_tests {
+
+    use super::*;
+
+    fn supplied(
+        source: &str,
+        dialect: &str,
+        config: tcl_lexer::LexerConfig,
+    ) -> (CompilationUnit, Arc<tcl_registry::model::ContextRegistry>) {
+        let environment = tcl_registry::model::resolve_known_environment(dialect).unwrap();
+        let context = environment.default_context_registry();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            Arc::clone(&context),
+            config,
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        (unit, context)
+    }
+
+    fn side_parent(unit: &CompilationUnit) -> (&FunctionUnit, &crate::ir::CommandTokens) {
+        let function = unit
+            .procedures
+            .values()
+            .find(|fu| fu.name.starts_with("::when::"))
+            .expect("actual event function");
+        let tokens = function
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter_map(|statement| statement.tokens())
+            .find(|tokens| {
+                tokens
+                    .argv_texts
+                    .first()
+                    .is_some_and(|head| head == "clientside")
+            })
+            .expect("original side-switch vector");
+        (function, tokens)
+    }
+
+    #[test]
+    fn conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant() {
+        // naming.source.original-collection-body-owner
+
+        // Conditional original syntax/CFG only; no BIG-IP entry or worker claim.
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            base_line: 11,
+            ..tcl_lexer::LexerConfig::from_grammar(environment.grammar())
+        };
+        let (unit, context) = supplied(
+            "when HTTP_REQUEST {clientside {HTTP::collect}; HTTP::release}",
+            "f5-irules",
+            config,
+        );
+        let (function, tokens) = side_parent(&unit);
+        let script = crate::lowering::Lowerer::original_body_for_module(
+            &unit.ir_module,
+            context.commands(),
+            tokens,
+            0,
+        )
+        .expect("genuine retained child source");
+        assert!(script.namespace_context.is_some());
+        let original_source = script.executed_source.as_ref().unwrap();
+        assert_eq!(original_source.try_text().unwrap(), "HTTP::collect");
+        let child = unit
+            .conditional_original_body_unit(context.commands(), function, tokens, 0)
+            .expect("conditional original child");
+        assert_eq!(
+            child.source_lexer_config(),
+            function.source_lexer_config().nested()
+        );
+        assert_eq!(
+            child.source_metadata_input(),
+            Some(
+                &unit
+                    .ir_module
+                    .source_metadata_input
+                    .as_ref()
+                    .unwrap()
+                    .for_nested_source()
+            )
+        );
+        assert_eq!(child.cfg.executed_source.as_ref(), Some(original_source));
+        assert!(child.irules_event_body.is_none());
+        assert!(
+            child
+                .invocation_metadata_context(context.commands())
+                .is_some()
+        );
+        assert!(
+            child
+                .invocation_metadata_context_for_module(context.commands(), &unit.ir_module)
+                .is_some()
+        );
+        assert_eq!(child.cfg.namespace_context, script.namespace_context);
+        assert!(
+            unit.conditional_original_body_unit(context.commands(), &child, tokens, 0)
+                .is_none()
+        );
+        let detached = function.clone();
+        assert!(
+            unit.conditional_original_body_unit(context.commands(), &detached, tokens, 0)
+                .is_none()
+        );
+        let mut changed = tokens.clone();
+        changed.argv_texts[1].push_str("foreign");
+        assert!(
+            unit.conditional_original_body_unit(context.commands(), function, &changed, 0)
+                .is_none()
+        );
+        assert!(
+            unit.conditional_original_body_unit(context.commands(), function, tokens, 1)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn nested_original_children_share_the_actual_root_function_owner() {
+        // naming.source.original-collection-body-owner
+
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let (unit, context) = supplied(
+            "when HTTP_REQUEST {clientside {serverside {TCP::collect}}}",
+            "f5-irules",
+            config,
+        );
+        let (original_function, parent) = side_parent(&unit);
+        let child = unit
+            .conditional_original_body_unit(context.commands(), original_function, parent, 0)
+            .expect("first original child");
+        let nested = child
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter_map(|statement| statement.tokens())
+            .find(|tokens| {
+                tokens
+                    .argv_texts
+                    .first()
+                    .is_some_and(|head| head == "serverside")
+            })
+            .expect("actual nested parent vector");
+        let grandchild = unit
+            .conditional_original_body_unit(context.commands(), original_function, nested, 0)
+            .expect("nested original child");
+        assert_eq!(
+            grandchild
+                .cfg
+                .executed_source
+                .as_ref()
+                .unwrap()
+                .try_text()
+                .unwrap(),
+            "TCP::collect"
+        );
+        assert_eq!(
+            grandchild.source_metadata_input(),
+            original_function.source_metadata_input()
+        );
+        assert!(grandchild.irules_event_body.is_none());
+        assert!(
+            unit.conditional_original_body_unit(context.commands(), &child, nested, 0)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_child_withdraws_missing_foreign_and_changed_complete_owners() {
+        // naming.source.original-collection-body-owner
+
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let source = "when HTTP_REQUEST {clientside {HTTP::collect}}";
+        let (original, context) = supplied(source, "f5-irules", config);
+        let (function, tokens) = side_parent(&original);
+        assert!(
+            original
+                .conditional_original_body_unit(context.commands(), function, tokens, 0)
+                .is_some()
+        );
+        for axis in 0..6 {
+            let mut changed = original.clone();
+            match axis {
+                0 => changed.source.push_str("foreign"),
+                1 => changed.ir_module.source_metadata_input = None,
+                2 => changed.ir_module.retained_source_bindings = None,
+                3 => changed.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Skip,
+                4 => changed.source_class_facts = None,
+                _ => {
+                    for function in changed.procedures.values_mut() {
+                        function.source_metadata_input = None;
+                    }
+                }
+            }
+            let (function, tokens) = side_parent(&changed);
+            assert!(
+                changed
+                    .conditional_original_body_unit(context.commands(), function, tokens, 0)
+                    .is_none(),
+                "axis {axis}"
+            );
+        }
+        let foreign = tcl_registry::model::resolve_known_environment("tcl9.1")
+            .unwrap()
+            .default_context_registry();
+        assert!(
+            original
+                .conditional_original_body_unit(foreign.commands(), function, tokens, 0)
+                .is_none()
+        );
+        let foreign_config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..config
+        };
+        let (fresh, _) = supplied(source, "f5-irules", foreign_config);
+        let mut donated = original.clone();
+        donated.source_class_facts = fresh.source_class_facts;
+        let (function, tokens) = side_parent(&donated);
+        assert!(
+            donated
+                .conditional_original_body_unit(context.commands(), function, tokens, 0)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn genuine_roster_retains_empty_classes_and_refuses_owner_donation() {
+        // naming.source.original-collection-body-owner
+
+        // Descriptive class spelling only; no Native class allocation/constructor.
+        let environment = tcl_registry::model::resolve_known_environment("tcl").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            base_line: 9,
+            ..tcl_lexer::LexerConfig::from_grammar(environment.grammar())
+        };
+        let source = "oo::class create Empty {}";
+        let (unit, context) = supplied(source, "tcl", config);
+        assert!(unit.ir_module.methods.is_empty());
+        let facts = unit.source_class_facts.as_ref().expect("actual roster");
+        assert!(
+            facts
+                .for_module(&unit.ir_module, context.commands())
+                .unwrap()
+                .contains("::Empty")
+        );
+        let same = unit.clone();
+        assert!(Arc::ptr_eq(
+            facts,
+            same.source_class_facts.as_ref().unwrap()
+        ));
+        assert!(
+            facts
+                .for_module(&same.ir_module, context.commands())
+                .is_some()
+        );
+        // A semantic Eq source owner is descriptive, not an allocation or
+        // lifetime receipt. Fresh-vs-memo CU equality must not depend on Arc addresses.
+        let fresh = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            unit.ir_module.source_metadata_input.as_ref().unwrap(),
+        );
+        assert_eq!(
+            unit.ir_module.retained_source_bindings,
+            fresh.ir_module.retained_source_bindings
+        );
+        assert_eq!(unit.source_class_facts, fresh.source_class_facts);
+        assert!(
+            facts
+                .for_module(&fresh.ir_module, context.commands())
+                .is_some()
+        );
+        let (foreign, _) = supplied("oo::class create Foreign {}", "tcl", config);
+        assert!(
+            facts
+                .for_module(&foreign.ir_module, context.commands())
+                .is_none()
+        );
+        let mut changed = unit.ir_module.clone();
+        changed.lexer_config.base_line += 1;
+        assert!(facts.for_module(&changed, context.commands()).is_none());
+        changed = unit.ir_module.clone();
+        changed.source = tcl_lexer::SourceImage::native(source.as_bytes());
+        assert!(facts.for_module(&changed, context.commands()).is_none());
+        changed = unit.ir_module.clone();
+        changed.source_metadata_input = None;
+        assert!(facts.for_module(&changed, context.commands()).is_none());
+    }
+
+    #[test]
+    fn conditional_original_child_inherits_unknown_presence_and_refines_local_stores() {
+        // naming.source.original-collection-body-owner
+
+        // Conditional source/lattice facts only; no provider or physical frame claim.
+        let environment = tcl_registry::model::resolve_known_environment("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let source = "proc p {} {set inherited prior; eval {set copy $inherited; set own fresh; set before $own; unset own; set after $own}}; p";
+        let (unit, context) = supplied(source, "tcl8.6", config);
+        let original = unit.function("::p").expect("actual caller function");
+        let tokens = original
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter_map(|statement| statement.tokens())
+            .find(|tokens| tokens.argv_texts.first().is_some_and(|head| head == "eval"))
+            .expect("original eval parent");
+        let child = unit
+            .conditional_original_body_unit(context.commands(), original, tokens, 0)
+            .expect("actual conditional eval body");
+        let inherited = child.ssa.var_symbol("inherited").expect("inherited read");
+        let own = child.ssa.var_symbol("own").expect("written local");
+        assert_eq!(
+            child.sccp.existence.get(&(inherited, 0)),
+            Some(&tcl_registry::value_transfer::Existence::MayBound)
+        );
+        assert_eq!(
+            child.sccp.existence.get(&(own, 0)),
+            Some(&tcl_registry::value_transfer::Existence::MayBound)
+        );
+        let mut reads: Vec<_> = child.sccp.existence_reads.iter()
+            .filter(|((_, _, symbol), _)| *symbol == own)
+            .filter_map(|(&(block, index, _), &fact)| {
+                let statement = &child.cfg.blocks[&block].statements[index as usize];
+                matches!(statement, crate::ir::Statement::AssignValue { value, .. } if value == "$own")
+                    .then_some((statement.span().start(), fact))
+            }).collect();
+        reads.sort_by_key(|(offset, _)| *offset);
+        assert_eq!(
+            reads.iter().map(|(_, fact)| *fact).collect::<Vec<_>>(),
+            vec![
+                tcl_registry::value_transfer::Existence::Bound(
+                    tcl_registry::value_transfer::BindingKind::Scalar
+                ),
+                tcl_registry::value_transfer::Existence::Unbound,
+            ]
+        );
+        assert!(child.irules_event_body.is_none());
+        assert!(
+            !child
+                .sccp
+                .values
+                .get(&(inherited, 0))
+                .is_some_and(|value| matches!(value, crate::analyses::LatticeValue::Const(_)))
+        );
+    }
+
+    #[test]
+    fn conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation() {
+        // naming.source.original-collection-body-owner
+
+        // Source entry/API control only; no entered caller, event or Native frame.
+        let environment = tcl_registry::model::resolve_known_environment("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let (unit, context) = supplied("eval {}", "tcl8.6", config);
+        let tokens = unit
+            .top_level
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter_map(|statement| statement.tokens())
+            .find(|tokens| tokens.argv_texts.first().is_some_and(|head| head == "eval"))
+            .expect("original empty body parent");
+        let child = unit
+            .conditional_original_body_unit(context.commands(), &unit.top_level, tokens, 0)
+            .expect("genuine empty conditional body");
+        let fallback = conditional_function_source_entry(&child.cfg, child.source_metadata_input());
+        assert_eq!(
+            fallback.frame_kind,
+            crate::var_resolve::VariableFrameKind::Unknown
+        );
+        assert!(fallback.activation.is_none());
+        assert!(fallback.execution.is_none());
+        assert!(fallback.instance_vars.is_empty());
+        assert!(fallback.execution_name_policy.is_none());
+        assert_eq!(
+            fallback.namespace_identity.as_ref(),
+            child.cfg.namespace_context.as_deref()
+        );
+        let selected = function_source_entry(&child.cfg, Some(&fallback));
+        assert_eq!(
+            selected.frame_kind,
+            crate::var_resolve::VariableFrameKind::Unknown
+        );
+        assert!(selected.activation.is_none());
+        let mut renamed = child.cfg.clone();
+        renamed.name = "::invented::procedure".to_owned();
+        assert_eq!(function_source_entry(&renamed, Some(&fallback)), selected);
+        let mut changed = unit.clone();
+        changed.ir_module.source_entry.unknown_entry = true;
+        assert!(
+            changed
+                .conditional_original_body_unit(context.commands(), &changed.top_level, tokens, 0)
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod selected_class_roster_tests {
+
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+
+    fn context(class_grammar: bool) -> Arc<tcl_registry::model::ContextRegistry> {
+        let mut store = CommandRegistry::build_default();
+        let spec = if class_grammar {
+            store.get("oo::class").unwrap().clone()
+        } else {
+            tcl_registry::CommandSpec::DEFAULT
+        };
+        store.insert(tcl_registry::CommandSpec {
+            name: "forge",
+            ..spec
+        });
+        Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl")
+                .with_command_store(Arc::new(store)),
+        )
+    }
+
+    fn unit(source: &str, context: &Arc<tcl_registry::model::ContextRegistry>) -> CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = ResolvedAnalysisInput::new(profile, profile, Arc::clone(context), config);
+        CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        )
+    }
+
+    #[test]
+    fn genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers() {
+        // naming.source.original-collection-body-owner
+
+        let context = context(true);
+        for source in [
+            "forge create Empty {}",
+            "rename forge moved; moved create Empty {}",
+            "interp alias {} build {} forge; build create Empty {}",
+            "namespace eval ns {forge create Empty {}}",
+        ] {
+            assert!(
+                !source.contains("class") && !source.contains("oo::") && !source.contains("snit::")
+            );
+            let unit = unit(source, &context);
+            let expected = if source.starts_with("namespace") {
+                "::ns::Empty"
+            } else {
+                "::Empty"
+            };
+            let facts = unit
+                .source_class_facts
+                .as_ref()
+                .expect("genuine produced roster");
+            assert!(
+                facts
+                    .for_module(&unit.ir_module, context.commands())
+                    .unwrap()
+                    .contains(expected),
+                "{source}"
+            );
+            assert!(
+                unit.methods.is_empty(),
+                "the empty class has no method-derived roster"
+            );
+            let actual =
+                collect_known_classes(source, &unit.ir_module, context.commands()).unwrap();
+            let bindings = unit
+                .ir_module
+                .retained_source_bindings
+                .as_ref()
+                .unwrap()
+                .positioned_for_module(&unit.ir_module, context.commands())
+                .unwrap();
+            let expected_scan: HashSet<_> =
+                crate::signature_scan::extract_signatures_with_original_bindings(
+                    source,
+                    unit.ir_module.lexer_config,
+                    context.commands(),
+                    bindings,
+                )
+                .class_declarations
+                .into_iter()
+                .filter_map(|declaration| declaration.source_spelling())
+                .collect();
+            assert_eq!(actual, expected_scan);
+        }
+    }
+
+    #[test]
+    fn selected_roster_preserves_changed_definition_and_captured_prefix_refusals() {
+        // naming.source.original-collection-body-owner
+
+        let selected = context(true);
+        for source in [
+            "proc forge args {}; forge create Empty {}",
+            "rename forge {}; forge create Empty {}",
+            "interp alias {} build {} forge create; build Empty {}",
+        ] {
+            let unit = unit(source, &selected);
+            assert!(
+                !collect_known_classes(source, &unit.ir_module, selected.commands())
+                    .unwrap()
+                    .contains("::Empty"),
+                "{source}"
+            );
+        }
+        let other = context(false);
+        let source = "forge create Empty {}";
+        let unit = unit(source, &other);
+        assert!(
+            collect_known_classes(source, &unit.ir_module, other.commands())
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn class_source_producer_withdraws_foreign_missing_and_changed_full_owners() {
+        // naming.source.original-collection-body-owner
+
+        let context = context(true);
+        let source = "forge create Empty {}";
+        let unit = unit(source, &context);
+        assert!(collect_known_classes(source, &unit.ir_module, context.commands()).is_some());
+        assert!(
+            collect_known_classes("forge create Other {}", &unit.ir_module, context.commands())
+                .is_none()
+        );
+        assert!(
+            collect_known_classes(source, &unit.ir_module, self::context(false).commands())
+                .is_none()
+        );
+        for axis in 0..4 {
+            let mut module = unit.ir_module.clone();
+            match axis {
+                0 => module.retained_source_bindings = None,
+                1 => module.lexer_config.strict_quoting ^= true,
+                2 => module.source_metadata_input = None,
+                _ => {
+                    module.source =
+                        tcl_lexer::SourceImage::native(Arc::<[u8]>::from(source.as_bytes()))
+                }
+            }
+            assert!(
+                collect_known_classes(source, &module, context.commands()).is_none(),
+                "axis {axis}"
+            );
+        }
+        assert!(
+            collect_known_classes("", &self::unit("", &context).ir_module, context.commands())
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn retained_roster_projection_shares_empty_custom_and_selected_source_classes() {
+        // naming.source.original-collection-body-owner
+
+        let context = context(true);
+        for source in [
+            "forge create Empty {}",
+            "rename forge moved; moved create Empty {}",
+            "interp alias {} build {} forge; build create Empty {}",
+        ] {
+            let unit = unit(source, &context);
+            assert!(unit.ir_module.methods.is_empty());
+            let names = unit
+                .retained_source_class_names(context.commands())
+                .unwrap();
+            assert_eq!(names, &HashSet::from(["::Empty".to_owned()]));
+            assert!(std::ptr::eq(
+                names,
+                unit.source_class_facts
+                    .as_ref()
+                    .unwrap()
+                    .for_module(&unit.ir_module, context.commands())
+                    .unwrap()
+            ));
+        }
+        let empty = unit("", &context);
+        assert!(
+            empty
+                .retained_source_class_names(context.commands())
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn retained_roster_projection_withdraws_changed_cu_module_input_and_store() {
+        // naming.source.original-collection-body-owner
+
+        let context = context(true);
+        let source = "forge create Empty {}";
+        let original = unit(source, &context);
+        assert!(
+            original
+                .retained_source_class_names(context.commands())
+                .is_some()
+        );
+        for axis in 0..8 {
+            let mut changed = original.clone();
+            match axis {
+                0 => changed.source = "forge create Other {}".to_owned(),
+                1 => {
+                    changed.ir_module.source =
+                        tcl_lexer::SourceImage::native(Arc::<[u8]>::from(source.as_bytes()))
+                }
+                2 => changed.ir_module.lexer_config.strict_quoting ^= true,
+                3 => changed.ir_module.source_metadata_input = None,
+                4 => changed.ir_module.source_entry.unknown_entry = true,
+                5 => changed.ir_module.retained_source_bindings = None,
+                6 => changed.source_class_facts = None,
+                _ => {
+                    changed.source_class_facts =
+                        unit("forge create Other {}", &context).source_class_facts
+                }
+            }
+            assert!(
+                changed
+                    .retained_source_class_names(context.commands())
+                    .is_none(),
+                "axis {axis}"
+            );
+        }
+        assert!(
+            original
+                .retained_source_class_names(self::context(false).commands())
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn source_ssa_missing_entry_never_infers_activation_from_the_report_name() {
+        let mut analyser = crate::analyser::Analyser::new();
+        let input = analyser
+            .prepare_analysis_input(tcl_dialect::DialectProfile::plain_tcl().name)
+            .unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let source = "set value TEXT; puts $value";
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry,
+                config: input.lexer_config(),
+                dialect: Some(input.unit_profile()),
+                defer_top_level: false,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let mut cfg = unit.top_level.cfg.clone();
+        cfg.command_binding_sites = Default::default();
+        cfg.namespace_context = None;
+        cfg.name = "::invented::procedure".to_owned();
+        let entry = function_source_entry(&cfg, None);
+        assert_eq!(
+            entry.frame_kind,
+            crate::var_resolve::VariableFrameKind::Unknown
+        );
+        assert!(entry.activation.is_none());
+        assert!(!entry.namespace_known);
+        let first = crate::ssa::build_ssa_with_config(&cfg, registry, input.lexer_config());
+        cfg.name = "::top".to_owned();
+        assert_eq!(function_source_entry(&cfg, None), entry);
+        let second = crate::ssa::build_ssa_with_config(&cfg, registry, input.lexer_config());
+        assert_eq!(first.cell_keys(), second.cell_keys());
+        cfg.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        assert_eq!(
+            function_source_entry(&cfg, None).frame_kind,
+            crate::var_resolve::VariableFrameKind::Unknown
+        );
+        let standalone = crate::cfg::Function::new("::standalone::model", "entry");
+        let compatibility = function_source_entry(&standalone, None);
+        assert_eq!(
+            compatibility.frame_kind,
+            crate::var_resolve::VariableFrameKind::Local
+        );
+        assert_eq!(
+            compatibility.activation.as_deref(),
+            Some("::standalone::model")
+        );
     }
 }

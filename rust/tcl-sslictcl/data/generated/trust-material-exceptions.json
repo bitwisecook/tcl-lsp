@@ -1,1161 +1,3151 @@
 {
   "schema": 1,
-  "notice": "The Observatory YAML lists this root, but the pinned PEM archive does not contain matching complete DER. Trust membership is retained for audit; chain completion and certificate metadata remain Unknown.",
+  "notice": "Certificate material is omitted from the repository. Trust membership is retained; callers supply local certificate material for chain completion.",
   "exceptions": [
     {
       "fingerprint_sha256": "001686cd181f83a1b1217d305b365c41e3470a78a1d37b134a98cd547b92dab3",
       "subject": "Network Solutions Certificate Authority",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "007e452fd5cf838946696dfe37a2db2ef3991436d27bcbab45922053c15a87a8",
       "subject": "POSTArCA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "00ab444abd6bdba33da8de569ac4ecde326d1be1a61442d5eec3975a0c243f04",
       "subject": "ANCERT Certificados Notariales",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "016e1dcd5f78841bbebbae9ddea08c8d7ec54e698e95bb778ecdd1e10d8bf4f9",
+      "subject": "ZETES TSP ROOT CA 001",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "018e13f0772532cf809bd1b17281867283fc48c6e13be9c69812854a490c1b05",
+      "subject": "DigiCert TLS ECC P384 Root G5",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "01a1a03e1f3dd7ed3ccadae4d668b4446065ddf3b2dcf05d1daffdb2591b3838",
+      "subject": "Sectigo Public Document Signing Root E46",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "020786539f02b623cfdf325b2e4e45e0d9e3f1b8e5ec9600ebf0ac8fbf03fbe2",
+      "subject": "AC RAIZ FNMT-RCM G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "02bdf96e2a45dd9bf18fc7e1dbdf21a0379ba3c9c2610344cfd8d606fec1ed81",
+      "subject": "CommScope Public Trust RSA Root-01",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "02ed0eb28c14da45165c566791700d6451d7fb56f0b2ab1d3b8eb070e56edff5",
+      "subject": "Entrust Root Certification Authority - EC1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "0376ab1d54c5f9803ce4b2e201a0ee7eef7b57b636e8a93c9b8d4860c96f5fa7",
+      "subject": "AffirmTrust Commercial",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "03950fb49a531f3e1991942398dfa9e0ea32d7ba1cdd9bc85db57ed9400b434a",
       "subject": "ACEDICOM Root",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "03db9e5e79fe6117177f81c11595af598cb176af766290dbceb2c318b32e39a2",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "04048028bf1f2864d48f9ad4d83294366a828856553f3b14303f90147f5d40ef",
+      "subject": "Autoridad de Certificacion Firmaprofesional CIF A62634068",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "041c6215f8df4137df0f3fc23a0009b46e75ac4619f811727076baa8fe5008c9",
+      "subject": "Actalis Code Signing RSA Root CA 2025",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "04acfb3b24793f300f67ef87e44dd72cb9b28b204f389a7cd5ae28785c7d42cd",
       "subject": "Common Policy",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "04f1bec36951bc1454a904ce32890c5da3cde1356b7900f6e62dfa2041ebad51",
+      "subject": "CHAMBERS OF COMMERCE ROOT - 2016",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "0536801fbb443b3e905fd6d70d8c81eb88551be8061299110d2b4f82e64cade1",
       "subject": "VI Registru Centras RCSC (RootCA)",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "0552e6f83fdf65e8fa9670e666df28a4e21340b510cbe52566f97c4fb94b2bd1",
+      "subject": "D-TRUST BR Root CA 2 2023",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "058a40323ec8c46262c3052a5d357b91ac24d3da26351b3ff4407e99f7a4e9b4",
       "subject": "Certipost E-Trust Primary Qualified CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "05d38c2a70bfc500ccb0cb509159b46b065c6ac9cb42d2e6f16167841434572a",
       "subject": "CA DATEV STD 02",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "063e4afac491dfd332f3089b8542e94617d893d7fe944e10a7937ee29d9693c0",
+      "subject": "Chambers of Commerce Root - 2008",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "0687260331a72403d909f105e69bcf0d32e1bd2493ffc6d9206d11bcd6770739",
+      "subject": "DST Root CA X3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "06c08d7dafd876971eb1124fe67f847ec0c7a158d3ea53cbe940e2ea9791f4c3",
+      "subject": "TrustAsia TLS RSA Root CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "06db3af2db7baee00c03b9578288bbde541d906eb0069327413295ffb486008e",
       "subject": "Application CA G2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "0753e940378c1bd5e3836e395daea5cb839e5046f1bd0eae1951cf10fec7c965",
       "subject": "TrustCor RootCert CA-2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "075bfcca2d55ae6e35742c32afd0ca8ea4c958feefc23224999541c033d69c8d",
       "subject": "PersonalID Trustworthy RootCA 2011",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "0771920c8cb874d5c5a4dc0d6a51a2d495d38c4de2cd5b83d2a06faa051935f6",
       "subject": "CFCA GT CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "07cd9aa9064a9b94c6aef8fb784c1bbc1beda08acbe86878d781a39167626cf8",
+      "subject": "Visa Public RSA Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "08170d1aa36453901a2f959245e347db0c8d37abaabc56b81aa100dc958970db",
+      "subject": "D-TRUST EV Root CA 1 2020",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "08297a4047dba23680c731db6e317653ca7848e1bebd3a0b0179a707f92cf178",
       "subject": "Equifax Secure Certificate Authority",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "08c396c006a21055d00826a5781a5ccfce2c8d053ab3c197637a4a7a5bb9a650",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "098e08a91dbbf77478b96cceb89b1413a5da37b7c862606a955deb07179f4326",
+      "subject": "Telia EC TLS Root CA v3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "0a81ec5a929777f145904af38d5d509f66b5e2c58fcdb531058b0e17f3f0b41b",
+      "subject": "AffirmTrust Networking",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "0b9f26dfca684c2cfce23e4e4dd567c886ba259e1db267f9806f0c5a099711f2",
       "subject": "SSC Root CA B",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "0c0b6b2bd1edd7b27fead157f8e846b335b784a39f06c47216c8746f64c5ceda",
       "subject": "CA DATEV BT 03",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "0c258a12a5674aef25f28ba7dcfaeceea348e541e6f5cc4ee63b71b361606ac3",
+      "subject": "Chambers of Commerce Root",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "0c2cd63df7806fa399ede809116b575bf87989f06518f9808c860503178baf66",
+      "subject": "COMODO Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "0cb9124cadff41d02701f59b477d71e2690b38add9f524c49bbed0140ad9b9ec",
+      "subject": "Apple Platform Code Signing RSA Root CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "0d74ef67c88de3560365e225aef976f915e901347b73352d81ab5b4132bb2150",
+      "subject": "emSign Root CS CA - G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "0d83b611b648a1a75eb8558400795375cad92e264ed8e9d7a757c1f5ee2bb22d",
+      "subject": "Apple Root Certificate Authority",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "0e30d04a94dcc423e26fdc4c24afcf4923bd80d83b661b06a2f5856361560407",
+      "subject": "eSignTrust Root Certification Authority (G03)",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "0e88eb6ea256e19ef8d3abd61a24d38dbad632816dd957294427e4724d81a386",
       "subject": "Autoridad de Certificacion Raiz del Estado Venezolano",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "0f993c8aef97baaf5687140ed59ad1821bb4afacf0aa9a58b5d57a338a3afbcb",
       "subject": "Class 2 Primary CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "11437cda7bb45e41365f45b39a38986b0de00def348e0c7bb0873633800bc38b",
+      "subject": "CommScope Public Trust ECC Root-01",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "125609aa301da0a249b97a8239cb6a34216f44dcac9f3954b14292f2e8c8608f",
+      "subject": "emSign Root CA - C1",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "126bf01c1094d2f0ca2e352380b3c724294546ccc65597bef7f12d8a171f1984",
       "subject": "ApplicationCA2 Root",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "12d480c1a3c664781b99d9df0e9faf3f1cacee1b3c30c3123a337a4a454ffed2",
       "subject": "sigen-ca",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "12ff248372bd87e44ece432198be9b04525f33dee00356fd646f8acc01412f86",
       "subject": "CISRCA1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "136335439334a7698016a0d324de72284e079d7b5220bb8fbd747816eebebaca",
+      "subject": "Global Chambersign Root - 2008",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "1435f225c5d252d7a21948cc3ce62aecfa88001e3dd72d1cc3555100eb372f93",
+      "subject": "SECOM TLS RSA Root CA 2024",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "1465fa205397b876faa6f0a9958e5590e40fcc7faa4fb7c2c8677521fb5fb658",
+      "subject": "Starfield Class 2 Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "14e6d2764a4b06701c6cbc376a253775f79c782fbcb6c0ee6f99de4ba1024add",
       "subject": "JavaFX 1.0 Runtime",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "1501f89c5c4dcf36cf588a17c9fd7cfceb9ee01e8729be355e25de80eb6284b4",
+      "subject": "CAEDICOM Root",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "152a402bfcdf2cd548054d2275b39c7fca3ec0978078b0f0ea76e561a6c7433e",
       "subject": "Certplus Root CA G1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "15d5b8774619ea7d54ce1ca6d0b0c403e037a917f131e8a04e1e6b7a71babce5",
+      "subject": "GTS Root R3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "165c7e810bd37c1d57ce9849accd500e5cb01eea37dc550db07e598aad2474a8",
+      "subject": "GlobalSign Client Authentication Root R45",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "16af57a9f676b0ab126095aa5ebadef22ab31119d644ac95cd4b93dbf3f26aeb",
+      "subject": "Baltimore CyberTrust Root",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "1793927a0614549789adce2f8f34f7f0b66d0f3ae3a3b84d21ec15dbba4fadc7",
+      "subject": "COMODO ECC Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "179fbc148a3dd00fd24ea13458cc43bfa7f59c8182d783a513f6ebec100c8924",
+      "subject": "GlobalSign",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "18ce6cfe7bf14e60b2e347b8dfe868cb31d02ebb3ada271569f50343b46db3a4",
+      "subject": "Amazon Root CA 3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "18f1fc7f205df8adddeb7fe007dd57e3af375a9c4d8d73546bf4f1fed1e18d35",
+      "subject": "QuoVadis Root CA 3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "193144f431e0fddb740717d4de926a571133884b4360d30e272913cbe660ce41",
+      "subject": "SwissSign RSA TLS Root CA 2022 - 1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "1997770a5633fb6d0440abf7d7e87e15d795f094f8c2959dadb00e785866bf48",
+      "subject": "emSign Root TSA CA - G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "19a2fa09332c6d8eac1393d5f30371dd8b4dd687b0e1e50a6b48ae762caba2b5",
+      "subject": "ePKI Root Certification Authority - G4",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "19abcdff3a74402fa8f0ca206bf7fab0dffff3ae2bbd719584d21090a4353207",
       "subject": "PosDigicert Class 2 Root CA G2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "1a0d20445de5ba1862d19ef880858cbce50102b36e8f0a040c3c69e74522fe6e",
+      "subject": "COMODO Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "1a2512cda6744abea11432a2fdc9f8c088db5a98c89e13352574cde4d9e80cdd",
       "subject": "SAPO Class 3 Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "1aa0c2709e831bd6e3b5129a00ba41f7eeef020872f1e6504bf0f6c3f24f3af3",
+      "subject": "emSign Root CA - G2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "1aa980c8c0d316f25029978982f033cbb3a3f4188d669f2de6a8d84ee00a1575",
       "subject": "I.CA - Qualified root certificate",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "1ba5b2aa8c65401a82960118f80bec4f62304d83cec4713a19c39c011ea46db4",
+      "subject": "Amazon Root CA 2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "1ba622b36325544ae922afc22ef9d367943794f6e16874f368a733c65c9d5279",
       "subject": "CA DATEV STD 01",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "1be7abe30686b16348afd1c61b6866a0ea7f4821e67d5e8af937cf8011bc750d",
+      "subject": "HARICA Client RSA Root CA 2021",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "1c01c6f4dbb2fefc22558b2bca32563f49844acfc32b7be4b0ff599f9e8c7af7",
       "subject": "China Internet Network Information Center EV Certificates Root",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "1c5e6985acc09221dbd1a4b7bbc6d3a8c3f8540d19f20763a9537fdd42b4ffe7",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "1cf341ae35341ac3ae1dc68d5b10dc0c9dc1307656f75fd92ca2c68489d52e9a",
+      "subject": "MOIS SSL Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "1d4ca4a2ab21d0093659804fc0eb2175a617279b56a2475245c9517afeb59153",
+      "subject": "SSL.com Client RSA Root CA 2022",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "1e1a6984b4e76bd709aee3e9c9cf3118eac096dab9cc20dc25faab67297e965a",
       "subject": "IGC/A AC racine Etat francais",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "1e49ac5dc69e86d0565da2c1305c419330b0b781bfec50e54a1b35af7fddd501",
       "subject": "SwissSign Silver Root CA - G3",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "1e51942b84fd467bf77d1c89da241c04254dc8f3ef4c22451fe7a89978bdcd4f",
+      "subject": "ePKI Root Certification Authority - G2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "1e910b40c08184c0ca20468e824502ff2485163f77b03bb73296823f03885621",
       "subject": "CA DATEV BT 01",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "1f6bf8a3f2399af7fd04516c2719c566cbad51f412738f66d0457e1e6bde6f2d",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "209e956af04df3996507c887d356230d6eb49fdbdd2d8a058ff50b8f80f690aa",
+      "subject": "Australian Defence Public Root CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "2193cfea381211a1aeaa2de984e630643a87160b1208118145eafb8e1bc69958",
       "subject": "Network Solutions ECC Certificate Authority",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "21db20123660bb2ed418205da11ee7a85a65e2bc6e55b5af7e7899c8a266d92e",
       "subject": "Swisscom Root CA 1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "21e9b3a3a7957b52bf5b9a113cde238619dec8b068735152eaa9b996ba5b8575",
+      "subject": "IdenTrust Commercial Root Client-Auth ECC CA 2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "229ccc196d32c98421cc119e78486eebef603aecd525c6b88b47abb740692b96",
       "subject": "Cisco RXC-R2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "22a2c1f7bded704cc1e701b5f408c310880fe956b5de2a4a44f99c873a25a7c8",
+      "subject": "SSL.com EV Root Certification Authority ECC",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "22d9599234d60f1d4bc7c7e96f43fa555b07301fd475175089dafb8c25e477b3",
+      "subject": "Sectigo Public Email Protection Root E46",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "23804203ca45d8cde716b8c13bf3b448457fa06cc10250997fa01458317c41e5",
       "subject": "Izenpe.com",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2399561127a57125de8cefea610ddf2fa078b5c8067f4e828290bfb860e84b3c",
+      "subject": "VeriSign Universal Root Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "242b69742fcb1e5b2abf98898b94572187544e5b4d9911786573621f6a74b82c",
+      "subject": "Telia Root CA v2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "24a55c2ab051442d0617766541239a4ad032d7c55175aa34ffde2fbc4f5c5294",
+      "subject": "Security Communication RootCA3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2530cc8e98321502bad96f9b1fba1b099e2d299e0f4548bb914f363bc0d4531f",
+      "subject": "Izenpe.com",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "253e3ca36e37e867ee68867b997b9ec724dcc3161063ab0393b54f2bb7b6c315",
+      "subject": "SSL.com Code Signing RSA Root CA 2022",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "25cf3da8e9b97addbf92543c2b82527c8a4e2cff2062a6483040d4b64ace719f",
+      "subject": "GoDaddy TLS Root CA - R1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2605875afcc176b2d66dd66a995d7f8d5ebb86ce120d0e7e9e7c6ef294a27d4c",
+      "subject": "ComSign Global Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "26c56ad2208d1e9b152f66853bf4797cbeb7552c1f3f477251e8cb1ae7e797bf",
+      "subject": "DigiCert CS ECC P384 Root G5",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "26c6c5fd4928fd57a8a4c5724fdd279745869c60c338e262ffe901c31bd1db2b",
+      "subject": "GlobalSign Code Signing Root E45",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "27995829fe6a7515c1bfe848f9c4761db16c225929257bf40d0894f29ea8baf2",
       "subject": "OpenTrust Root CA G2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "2a464e4113141352c7962fbd1706ed4b88533ef24d7bba6ccc5d797fd202f1c4",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2a575471e31340bc21581cbd2cf13e158463203ece94bcf9d3cc196bf09a5472",
+      "subject": "GTS Root R1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2a8da2f8d23e0cd3b5871ecfb0f42276ca73230667f474eede71c5ee32cc3ec6",
+      "subject": "Thailand National Root Certification Authority - G1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2a99f5bc1174b73cbb1d620884e01c34e51ccb3978da125f0e33268883bf4158",
+      "subject": "Certinomis - Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2aa219a1df9e699c513e3304224c0695ab0bc244bf3334f7b1ee8db12e16ae9b",
+      "subject": "Apple Platform ECC Root CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2bcbbfd66282c680491c8cd7735fdbbab7a8079b127bec60c535976834399af7",
+      "subject": "GlobalSign Timestamping Root R45",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2c154235528d701790b675aff6e1970827b10ed665e913835bf46e3460fd5c84",
+      "subject": "SECOM RSA Root CA 2023",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2c4e9b0f8d0fcdc308c077e30dd2349daf871fb3a37214859c486189a9f80adb",
+      "subject": "Telia EC Signing Root CA v3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2cabeafe37d06ca22aba7391c0033d25982952c453647349763a3ab5ad6ccf69",
+      "subject": "GlobalSign",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2ce1cb0bf9d2f9e102993fbe215152c3b2dd0cabde1c68e5319b839154dbb7f5",
+      "subject": "Starfield Root Certificate Authority - G2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "2d47437de17951215a12f3c58e51c729a58026ef1fcc0a5fb3d9dc012f600d19",
       "subject": "ApplicationCA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "2d66a702ae81ba03af8cff55ab318afa919039d9f31b4d64388680f81311b65a",
       "subject": "CCA India 2011",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "2dde9d0c0a90e7b32b5abc01f41799d42e95a1e3c31c3b39373bb8141ea54471",
       "subject": "A-Trust-Root-05",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2e44102ab58cb85419451c8e19d9acf3662cafbc614b6a53960a30f7d0e2eb41",
+      "subject": "TunTrust Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2e7bf16cc22485a7bbe2aa8696750761b0ae39be3b2fe9d0cc6d4ef73491425c",
+      "subject": "SSL.com EV Root Certification Authority RSA R2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "2ffb7f813bbbb3c89ab4e8162d0f16d71509a830cc9d73c262e5140875d1ad4a",
+      "subject": "CommScope Public Trust ECC Root-02",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "30d0895a9a448a262091635522d1f52010b5867acae12c78ef958fd4f4389f2f",
+      "subject": "IdenTrust Public Sector Root CA 1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "30f4e5dd679fde8fd11eb6e0c531615c438b06edd9f59cbab49680aa2b6990d9",
+      "subject": "OATI webCARES Server Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "30fbba2c32238e2a98547af97931e550428b9b3f1c8eeb6633dcfa86c5b27dd3",
+      "subject": "vTrus ECC Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "319af0a7729e6f89269c131ea6a3a16fcd86389fdcab3c47a4a675c161a3f974",
+      "subject": "GlobalSign Secure Mail Root R45",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "31ad6648f8104138c738f39ea4320133393e3a18cc02296ef97c2ac9ef6731d0",
+      "subject": "DigiCert Global Root G3",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "31c8fd37db9b56e708b03d1f01848b068c6da66f36fb5d82c008c6040fa3e133",
       "subject": "DigiNotar PKIoverheid CA Overheid",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "327a3d761abadea034eb998406275cb1a4776efdae2fdf6d0168ea1c4f5567d0",
       "subject": "Microsec e-Szigno Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3347eea8149cd3f6b7796ccaad234ada294372f7b1ea49f87f5adb11c8581624",
+      "subject": "Actalis SMIME ECC Root CA 2025",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3417bb06cc6007da1b961c920b8ab4ce3fad820e4aa30b9acbc4a74ebdcebc65",
+      "subject": "SSL.com Root Certification Authority ECC",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "349dfa4058c5e263123b398ae795573c4e1313c83fe68f93556cd5e8031b3c7d",
+      "subject": "GTS Root R4",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "34bb34e14faed0d3392f2fc441c0ecd5fd88ad88118df2d1ba76cdec1eea10b8",
+      "subject": "Saudi National Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "34d8a73ee208d9bcdb0d956520934b4e40e69482596e8b6f73c8426b010a6f48",
+      "subject": "GTS Root R3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "34ff2a4409dc1383e9f8966e8adfe5719eba373fd0ad5e2f49f90ee07cf5d4c1",
+      "subject": "VRK Gov. Root CA - G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "358df39d764af9e1b766e9c972df352ee15cfac227af6ad1d70e8e4a6edcba02",
+      "subject": "Microsoft ECC Root Certificate Authority 2017",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "35ae5bddd8f7ae635cffba5682a8f00b95f48462c7108ee9a0e5292b074aafb2",
       "subject": "EBG Elektronik Sertifika Hizmet Sa\\u011Flay\\u0131c\\u0131s\\u0131",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3629e7188e00a7cb3232c4426bc84912f1218b1a9ae676c0b0abe1dbfe2182b5",
+      "subject": "SECOM SMIME RSA Root CA 2024",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "36544d2fce03c6c72b70eb1a8064264dc1511768c2d8f76a8b9f1f2bbd153b7d",
       "subject": "ANCERT Corporaciones de Derecho Publico",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3682228d7d678b571440cf1cb34e69fb4135fd6c2a1be38e14163b711e02ae01",
+      "subject": "Telia EC Email Root CA v3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "371a00dc0533b3721a7eeb40e8419e70799d2b0a0f2c1d80693165f7cec4ad75",
+      "subject": "DigiCert TLS RSA4096 Root G5",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "37d51006c512eaab626421f1ec8c92013fc5f82ae98ee533eb4619b8deb4d06c",
+      "subject": "GeoTrust Primary Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "37d8dc8af7867845da3344a6b1bade448d8a80e47b5579f96bf631768f9f30f6",
       "subject": "S-TRUST Authentication and Encryption Root CA 2005:PN",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3808ce3e961ca532682ffb8708b544e8f175aa065601a45902df92128fc38532",
+      "subject": "I.CA Root CA/ECC 05/2022",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "38be6c7eeb4547d82b9287f243af32a9deeb5dc5c9a87a0056f938d91b456a5a",
+      "subject": "GlobalSign Document Signing Root R45",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3945e08a8d4a0554b7605a7b355b10188e3ef842c76a805c54e3657c4d041aaa",
+      "subject": "Hongkong Post Root CA 2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "3946901f46b0071e90d78279e82fababca177231a704be72c5b0e8918566ea66",
       "subject": "DigiNotar PKIoverheid CA Overheid en Bedrijven",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "39ae2e6f304a6236bdf9066718ddc69e51af5ed05a63f2ee8d80ca1d1cc8fe4f",
       "subject": "BYTE Root Certification Authority 001",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3a0072d49ffc04e996c59aeb75991d3c340f3615d6fd4dce90ac0b3d88ead4f4",
+      "subject": "TWCA Global Root CA G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3a43e220fe7f3ea9653d1e21742eac2b75c20fd8980305bc502caf8c2d9b41a1",
+      "subject": "Class 2 Public Primary Certification Authority - G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3ae6df7e0d637a65a8c81612ec6f9a142f85a16834c10280d88e707028518755",
+      "subject": "Telekom Security SMIME ECC Root 2021",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3af21466920fa91fa31f4331e445c16be2330024bfd2c239c0d85ab530714766",
+      "subject": "DigiCert Client RSA4096 Root G5",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3b222e566711e992300dc0b15ab9473dafdef8c84d0cef7d3317b4c1821d1436",
+      "subject": "SwissSign Platinum CA - G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3b48b18d6f20b2369a7d4056a0f5736e7650d653802305a50e83b9c3376d9e18",
+      "subject": "IdenTrust Commercial Root SMIME ECC CA 2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3c4fb0b95ab8b30032f432b86f535fe172c185d0fd39865837cf36187fa6f428",
+      "subject": "Staat der Nederlanden Root CA - G3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3c5f81fea5fab82c64bfa2eaecafcde8e077fc8620a7cae537163df36edbf378",
+      "subject": "Microsec e-Szigno Root CA 2009",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "3ccc3ccfe45496d07b620dbf1328e8a1490018f48633c8a28a995ca60408b0be",
       "subject": "ComSign Advanced Security CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3d2794a0539486a83e8032cf14fe886553e52239cbaec1b9cfef5595adbbf444",
+      "subject": "Thailand National Root Certification Authority - G3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3d4fb84e009c3a6edc4389dfe9be9a22391dbd9aba19417d0d2a9ba102f0bcc8",
+      "subject": "e-Szigno TSA Root CA 2024",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "3e11cf90719f6fb44d94eac9a156b89bebe7b8598f28ec58913f2bfcaf91d0c0",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "3e84ba4342908516e77573c0992f0979ca084e4685681ff195ccba8a229b8a76",
       "subject": "EE Certification Centre Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3e9099b5015e8f486c00bcea9d111ee721faba355a89bcf1df69561e3dc6325c",
+      "subject": "DigiCert Assured ID Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3f034bb5704d44b2d08545a02057de93ebf3905fce721acbc730c06ddaee904e",
+      "subject": "SecureSign Root CA12",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3f63bb2814be174ec8b6439cf08d6d56f0b7c405883a5648a334424d6b3ec558",
+      "subject": "TWCA CYBER Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3f99cc474acfce4dfed58794665e478d1547739f2e780f1bb4ca9b133097d401",
+      "subject": "HARICA TLS ECC Root CA 2021",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "3f9f27d583204b9e09c8a3d2066c4b57d3a2479c3693650880505698105dbce9",
+      "subject": "Thawte Premium Server CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "407c276bead2e4af0661ef6697341dec0a1f9434e4eafb2d3d32a90549d9de4a",
       "subject": "GPKIRootCA1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "40f6af0346a99aa1cd1d555a4e9cce62c7f9634603ee406615833dc8c8d00367",
+      "subject": "emSign Root CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "416b1f9e84e74c1d19b23d8d7191c6ad81246e641601f599132729f507beb3cc",
+      "subject": "GLOBALTRUST 2015",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "417dcf3180f4ed1a3747acf1179316cd48cb05c5788435168aed98c98cdcb615",
       "subject": "Digidentity L3 Root CA - G2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "41c923866ab4cad6b7ad578081582e020797a6cbdf4fff78ce8396b38937d7f5",
+      "subject": "OISTE WISeKey Global Root GA CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "4200f5043ac8590ebb527d209ed1503029fbcbd41ca1b506ec27f15ade7dac69",
+      "subject": "Secure Global CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "420332ef876ebe78f2af5d28aaacde24aad0c10f8ffaac469efd7bd941929568",
+      "subject": "Entrust P384 TLS Root CA - 2022",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "4210f199499a9ac33c8de02ba6dbaa14408bdd8a6e324689c1922d069715a332",
+      "subject": "KEYNECTIS ROOT CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "42143a511a3afcdd80d555debb4191ec6bb285ee66e62ec657ed20adf7d55faa",
       "subject": "Certeurope Root CA 2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "423279423b9fc8cb06f1bb7c3b247522b948d5f18939f378ecc901126de40bfb",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "4348a0e9444c78cb265e058d5e8944b4d84f9662bd26db257f8934a443c70161",
+      "subject": "DigiCert Global Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "43a61038597c31f4e7d75deeb831e38462d968308c68b5a078f719139735da89",
+      "subject": "Sectigo Public Document Signing Root R46",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "43df5774b03e7fef5fe40d931a7bedf1bb2e6b42738c4e6d3841103d3aa7f339",
+      "subject": "Entrust Root Certification Authority - G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "44b545aa8a25e65a73ca15dc27fc36d24c1cb9953a066539b11582dc487b4833",
+      "subject": "Hellenic Academic and Research Institutions ECC RootCA 2015",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "450f1b421bb05c8609854884559c323319619e8b06b001ea2dcbb74a23aa3be2",
       "subject": "DigiNotar Services 1024 CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "45140b3247eb9cc8c5b4f0d7b53091f73292089e6e5a63e2749dd3aca9198eda",
+      "subject": "Go Daddy Root Certificate Authority - G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "46219bbf9148f00e8b7a4c619b57cf7602701ff81348400718870fabd31fc5be",
+      "subject": "SECOM Document Signing RSA Root CA 2023",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "46273285615d96e52da9fc2ed8c036f10af3d9f6280f8d288706c52b2011b4da",
       "subject": "Correo Uruguayo - Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "46cd083b47e80402028df493960ea19c85fe851950d5165f1c7da4faa951e2f8",
+      "subject": "emSign Root CA - C2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "46edc3689046d53a453fb3104ab80dcaec658b2660ea1629dd7e867990648716",
+      "subject": "TUBITAK Kamu SM SSL Kok Sertifikasi - Surum 1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "47911bc8f32a11b029e0bb10a348b459404b87731b870a2f3fa97b4705dc4c25",
+      "subject": "emSign Root SMIME CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "488e134f30c5db56b76473e608086842bf21af8ab3cd7ac67ebdf125d531834e",
       "subject": "ECRaizEstado",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "48e1cf9e43b688a51044160f46d773b8277fe45beaad0e4df90d1974382fea99",
+      "subject": "LAWtrust Root CA2 (4096)",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "4941b001b8a97e961b7817c9d9e960ec4b056bfc915a8c1aabf6ef6b3ac046a5",
+      "subject": "Sectigo Public Time Stamping Root R46",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "49a2762987788d4834b32305d767760f244d507742e8c2539fd4ca3ad52c16ee",
+      "subject": "NAVER Cloud Trust Services RSA Root G1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "49baca97e0d741a4b1b695ee9bdc859f431de9714884f674e97f43707a61f92d",
+      "subject": "Apple Platform TLS RSA Root CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "49e7a442acf0ea6287050054b52564b650e4f49e42e348d6aa38e039e957b1c1",
+      "subject": "D-TRUST Root Class 3 CA 2 2009",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "4b009c1034494f9ab56bba3ba1d62731fc4d20d8955adcec10a925607261e338",
+      "subject": "SecureSign Root CA14",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "4b03f45807ad70f21bfc2cae71c9fde4604c064cf5ffb686bae5dbaad7fdd34c",
+      "subject": "thawte Primary Root CA - G3",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "4b22d5a6aec99f3cdb79aa5ec06838479cd5ecba7164f7f22dc1d65f63d85708",
       "subject": "Certification Authority of WoSign",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "4be8b5a1c76c6aead0611918fccf9dbd398b67fb12294758bdf994d0f9682f60",
       "subject": "ANCERT Certificados Notariales V2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "4c1ccd24f17e950fc18536b33cafe32293cfc33e8467b41e1c693055d7f513bf",
+      "subject": "SecureSign Root CA16",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "4c53d6746d9502530d235a82f9cf8382f5779d5ddddbd373abe1724fc1efe796",
+      "subject": "IdenTrust Commercial Root TLS RSA CA 2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "4cbbf8256bc9888a8007b2f386940a2e394378b0d903cbb3863c5a6394b889ce",
       "subject": "Digisign Server ID - (Enrich)",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "4d9ebb28825c9643ab15d54e5f9614f13cb3e95de3cf4eac971301f320f9226e",
       "subject": "AC RAIZ FNMT-RCM",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "4efaada2543e1e02666998574b3bad96ae264088fa5917f75d32e7a609d1869c",
+      "subject": "Actalis TLS Server ECC Root CA 2025",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "4f4d24ccfbbecd50c4fccf0fcf07d7906003ac07e6c8b912012733de6dd35542",
+      "subject": "IdenTrust Commercial Root Client-Auth RSA CA 2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "4fa3126d8d3a11d1c4855a4f807cbad6cf919d3a5a88b03bea2c6372d93c40c9",
+      "subject": "GlobalSign Root R46",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "4fee0163686ecbd65db968e7494f55d84b25486d438e9de558d629d28cd4d176",
       "subject": "DigiNotar Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "4ff460d54b9c86dabfbcfc5712e0400d2bed3fbc4d4fbdaa86e06adcd2a9ad7a",
+      "subject": "USERTrust ECC Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "507941c74460a0b47086220d4e9932572ab5d1b5bbcb8980ab1cb17651a844d2",
       "subject": "ComSign Secured CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "513b2cecb810d4cde5dd85391adfc6c2dd60d87bb736d2b521484aa47a0ebef6",
+      "subject": "Security Communication RootCA2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5232a304aa4a10cfe6c47842ea3381cb31d619e24f58126d534cd50c5ce7845d",
+      "subject": "QuoVadis SMIME RSA 4096 Root G4",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "52f0e1c4e58ec629291b60317f074671b85d7ea80d5b07273463534b32b40234",
+      "subject": "COMODO RSA Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "535d04dfce027c70bd5f8a9e0ad4f218e9afdcf5bbcf9b6de0d81e148e2e3172",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5367f20c7ade0e2bca790915056d086b720c33c1fa2a2661acf787e3292e1270",
+      "subject": "Microsoft Identity Verification Root Certificate Authority 2020",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "53850dba0b62839fed4c0e3e1b95cb7e9c4cf2ed7c3e5ae2d3d3f535eb5a2653",
+      "subject": "IdenTrust Commercial Root SMIME RSA CA 2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "53dfdfa4e297fcfe07594e8c62d5b8ab06b32c7549f38a163094fd6429d5da43",
       "subject": "Symantec Class 3 Public Primary Certification Authority - G4",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "54455f7129c20b1447c418f997168f24c58fc5023bf5da5be2eb6e1dd8902ed5",
+      "subject": "LuxTrust Global Root 2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "54ae8a683fe2d78ff1ef0e0b3f58425092953ba08c67fe4a95595d1cebcdcb30",
       "subject": "CA DATEV STD 03",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "54b4fc43d44aa4ca9fc03ca7e9949fbae267a064d02da21852412a381b5d1537",
       "subject": "Application CA G3 Root",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "552f7bdcf1a7af9e6ce672017f4f12abf77240c78e761ac203d1d9d20ac89988",
+      "subject": "DigiCert Trusted Root G4",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "5533a0401f612c688ebce5bf53f2ec14a734eb178bfae00e50e85dae6723078a",
       "subject": "Autoridad Certificadora Ra\\xEDz Nacional de Uruguay",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "554153b13d2cf9ddb753bfbe1a4e0ae08d0aa4187058fe60a2b862b2e4b87bcb",
+      "subject": "AC RAIZ FNMT-RCM SERVIDORES SEGUROS",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5546a52504fba74f61ffd4890067529ade3b9c9d07e502592831ccda9b369fd3",
+      "subject": "DVV Gov. Root CA - G3 ECC",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "55903859c8c0c3ebb8759ece4e2557225ff5758bbd38ebd48276601e1bd58097",
+      "subject": "Trustwave Global ECC P384 Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "55926084ec963a64b96e2abe01ce0ba86a64fbfebcc7aab5afc155b37fd76066",
+      "subject": "Actalis Authentication Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "559e1c5406885233cab74780e22766a4f476d717892e6277903397a8172cd42d",
+      "subject": "Apple Platform Code Signing ECC Root CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "5607e260163f49c8ea4175a1c0a53b13195cb7d07845611e943a2ff507036834",
       "subject": "Autoridad de Certificacion de la Abogacia",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "568d6905a2c88708a4b3025190edcfedb1974a606a13c6e5290fcb2ae63edab5",
+      "subject": "Starfield Services Root Certificate Authority - G2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "568faf38d9f155f624838e2181b1ceb4d8459305ee652b0f810c97c3611bfe19",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "574df6931e278039667b720afdc1600fc27eb66dd3092979fb73856487212882",
+      "subject": "BJCA Global Root CA2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "578af4ded0853f4e5998db4aeaf9cbea8d945f60b620a38d1a3c13b2bc7ba8e1",
+      "subject": "Telekom Security TLS ECC Root 2020",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "57de0583efd2b26e0361da99da9df4648def7ee8441c3b728afa9bcde0f9b26a",
+      "subject": "Autoridad de Certificacion Firmaprofesional CIF A62634068",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "585cfe6b7436cbd4e732763a2137d7f49599ba9b1790e688fcec799c58eb84a6",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "59769007f7685d0fcd50872f9f95d5755a5b2b457d81f3692b610a98672f0e1b",
+      "subject": "TWCA Global Root CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "59b3829f1ff443344958fae8bff621b684c848cfbf7ead6b63a6ca50f2794f89",
       "subject": "SwissSign Platinum Root CA - G3",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "5a1b5d6bc65523b40a6deffa45b48e4288ae8dd86dd70a5b858d4a5affc94f71",
       "subject": "Halcom CA FO",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5a2fc03f0c83b090bbfa40604b0988446c7636183df9846e17101a447fb8efd6",
+      "subject": "Hongkong Post Root CA 3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5a5044783b2cc790a92d68a59e1eee167108b204f060a8378d539016f4670bc9",
+      "subject": "Apple Platform RSA Root CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "5a885db19c01d912c5759388938cafbbdf031ab2d48e91ee15589b42971d039c",
       "subject": "TrustCor ECA-1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5ab4fcdb180b5b6af0d262a2375a2c77d25602015d96648756611e2e78c53ad3",
+      "subject": "Fina Root CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "5adfa25013bed3710831572de51c4b9a21171c00313249c4cb4719d37fbb8d20",
       "subject": "SSL.com EV Root Certification Authority RSA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5af98353650c2ac49961f51883600ae5c61101035cdd7782822322127facec6d",
+      "subject": "e-Szigno CodeSigning Root CA 2024",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5b0c502a7d963ba55217396fda9b3dc78171000aeeff42cecc3a20a7938163e8",
+      "subject": "Telia RSA Email Root CA v3",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "5b1d9d24de0afea8b35ba04a1c3e25d0812cdf7c4625de0a89af9fe4bbd1bb15",
       "subject": "AC1 RAIZ MTIN",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "5b789987f3c4055b8700941b33783a5f16e0cff937ea32011fe04779f7635308",
       "subject": "VeriSign, Inc.",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5bb2824aa8d9068fd87e4713434b9ef543669dc95ba9080e7c9b6682333482fe",
+      "subject": "Actalis Time Stamping ECC Root CA 2025",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5c58468d55f58e497e743982d2b50010b6d165374acf83a7d4a32db768c4408e",
+      "subject": "Certum Trusted Network CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5cbf6fb81fd417ea4128cd6f8172a3c9402094f74ab2ed3a06b4405d04f30b19",
+      "subject": "GlobalSign Secure Mail Root E45",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5cc3d78e4e1d5e45547a04e6873e64f90cf9536d1ccc2ef800f355c4c5fd70fd",
+      "subject": "CFCA EV ROOT",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5d56499be4d2e08bcfcad08a3e38723d50503bde706948e42f55603019e528ae",
+      "subject": "IdenTrust Commercial Root CA 1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5e3571f33f45a7df1537a68b5ffb9e036af9d2f5bc4c9717130dc43d7175aac7",
+      "subject": "GLOBALTRUST",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "5e83124d68d24e8e177e306df643d5ea99c5a94d6fc34b072f7544a1cabb7c7b",
       "subject": "Solaris INTERNAL DEVELOPMENT USE ONLY",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5ece6ab27131fb58a887e94177d55bd9e51aaa2ded6c081b54a39be3cb84e1f1",
+      "subject": "SSL.com Document Signing ECC Root CA 2022",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5edb7ac43b82a06a8761e8d7be4979ebf2611f7dd79bf91c1c6b566a219ed766",
+      "subject": "GeoTrust Primary Certification Authority - G2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "5f0b62eab5e353ea6521651658fbb65359f443280a4afbd104d77d10f9f04c07",
       "subject": "Equifax Secure Global eBusiness CA-1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "5fbd45b0303b6247e410328864b795bf91f44856be6cbd8d1949ff60a6f51908",
+      "subject": "Apple Platform Bootstrap ECC Root CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "60109bc6c38328598a112c7a25e38b0f23e5a7511cb815fb64e0c4ff05db7df7",
       "subject": "CCA India 2014",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "604d32d036895aed3bfefaeb727c009ec0f2b3cdfa42a1c71730e6a72c3be9d4",
+      "subject": "MULTICERT Root Certification Authority 01",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "608142da5c675dd47c1aa3a26ee329e24e81d5ff3b94017bc1c1a0c37db4c1a0",
       "subject": "TrustFactory SSL Root Certificate Authority",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "6248199fea4811fd34aa96ef0a26de52134b73a9a2a99678f0c2ebadf8663ef8",
+      "subject": "CA Disig TLS Root R3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "62dd0be9b9f50a163ea0f8e75c053b1eca57ea55c8688f647c6881f2c8357b95",
+      "subject": "SwissSign Gold CA - G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "630ccb83b0180a992495e039d2613c3287a8102f8a8d703db1330a3e86d4e653",
+      "subject": "Certum TLS ECC Root CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "632d80bb096d209677d1734e5b35ea9d3019b9c44f8fcb2640c879039ac94ee8",
       "subject": "TWCA Root Certification Authority",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "63343abfb89a6a03ebb57e9b3f5fa7be7c4f5c756f3017b3a8c488c3653e9179",
+      "subject": "Apple Root CA - G3",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "6468bf8cf3cf688ebb2a6841bd70e97b5229b49df8690d7b74193e9ce3886141",
       "subject": "I.CA - Standard Certification Authority, 09/2009",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "647987d98d52645da4d3de3b80771a0ce02b9b9285e6e86999882170744ec9aa",
+      "subject": "Entrust 4K EV TLS Root CA - 2022",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "6485f6e060934af413ec54b9c65f87bd231929ecfa11de522bad8dc64f001571",
+      "subject": "Telia RSA Client Root CA v3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "65353833cf234c79562164f90849c0d104dbabf8ee41064d83e8cbe03ba1c5a5",
+      "subject": "Netrust Root CA 2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "657cfe2fa73faa38462571f332a2363a46fce7020951710702cdfbb6eeda3305",
+      "subject": "certSIGN ROOT CA G2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "6639d13cab85df1ad9a23c443b3a60901e2b138d456fa71183578108884ec6bf",
       "subject": "Echoworx Root CA2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "668c83947da63b724bece1743c31a0e6aed0db8ec5b31be377bb784f91b6716f",
       "subject": "Staat der Nederlanden Root CA - G2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "687fa451382278fff0c8b11f8d43d576671c6eb2bceab413fb83d965d06d2ff2",
+      "subject": "AddTrust External CA Root",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "68ad50909b04363c605ef13581a939ff2c96372e3f12325b0a6861e1d59f6603",
+      "subject": "Verizon Global Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "69729b8e15a86efc177a57afb7171dfc64add28c2fca8cf1507e34453ccb1470",
+      "subject": "ISRG Root X2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "69ddd7ea90bb57c93e135dc85ea6fcd5480b603239bdc454fc758b2a26cf7f79",
+      "subject": "VeriSign Class 3 Public Primary Certification Authority - G4",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "6ab2ab75f51cb4f4f0156203fbf6f646232f514be059f62833308b82b4d72db1",
+      "subject": "SECOM TLS ECC Root CA 2024",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "6af177b41e97d40c9ea25203533e55c408632e9bd8a4809551001dff2dc9479b",
+      "subject": "CA Disig SMIME Root R4",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "6b328085625318aa50d173c98d8bda09d57e27413d114cf787a0f5d06c030cf6",
+      "subject": "Certum EC-384 CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "6b6c1e01f590f5afc5fcf85cd0b9396884048659fc2c6d1170d68b045216c3fd",
       "subject": "Thawte Timestamping CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "6b9c08e86eb0f767cfad65cd98b62149e5494a67f5845e7bd1ed019f27b86bd6",
+      "subject": "OISTE WISeKey Global Root GB CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "6baf50ae3467eff3c35fefdc76a02a97fab6267723eda91e99f1b3dc2b28f82e",
       "subject": "A-Trust-Qual-03",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "6c61dac3a2def031506be036d2a6fe401994fbd13df9c8d466599274c446ec98",
+      "subject": "NetLock Arany (Class Gold) F\\u0151tan\\xFAs\\xEDtv\\xE1ny",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "6cc05041e6445e74696c4cfbc9f80f543b7eabbb44b4ce6f787c6a9971c42f17",
       "subject": "Certplus Root CA G2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "6ccfd302fc44bf4599329b9750878ea44e7e8566564bcbd586169762dd10c74e",
       "subject": "ADOCA02",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "6d0e47dfde7cf48308cd4c6c1517dd1af033dcc72bb0501c04268b03b58a9085",
+      "subject": "Actalis TLS Server RSA Root CA 2025",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "6dc47172e01cbcb0bf62580d895fe2b8ac9ad4f873801e0c10b9c837d21eb177",
+      "subject": "Entrust.net Certification Authority (2048)",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "6e0bff069a26994c15de2c4888cc54af84882e5495b7fbf66be9ccffec7489f6",
+      "subject": "Autoridade Certificadora Raiz Brasileira v10",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "6e1fd3ae0d2d477c8f5ee5f335cc5b6356872654e5356a73d8c0a30a17c252a2",
+      "subject": "QuoVadis TLS ECC P384 Root G4",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "6ea1db6719d6041a06fc0898e5b3cf349a8fa8ecee85edb005965628f617f7c8",
       "subject": "Macao Post eSignTrust Root Certification Authority (G02)",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "6ec6614e9a8efd47d6318ffdfd0bf65b493a141f77c38d0b319be1bbbc053dd2",
+      "subject": "Swiss Government Root CA I",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "6ed99f7d1b562e464a032c861dbb4137805377fa7f5683f0d4da992b41306a6c",
       "subject": "SAPO Class 4 Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "6fdb3f76c8b801a75338d8a50a7c02879f6198b57e594d318d3832900fedcd79",
       "subject": "KISA RootCA 1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "6fff78e400a70c11011cd85977c459fb5af96a3df0540820d0f4b8607875e58f",
+      "subject": "UTN-USERFirst-Object",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "70a73f7f376b60074248904534b11482d5bf0e698ecc498df52577ebf2e93b9a",
+      "subject": "AffirmTrust Premium",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "70b922bfda0e3f4a342e4ee22d579ae598d071cc5ec9c30f123680340388aea5",
       "subject": "Government Root Certification Authority",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "71cb00749b9130fb2707a2664bff958d0fcc8e161d9674c7450ba0fc2beaf9d3",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "71cca5391f9e794b04802530b363e121da8a3043bb26662fea4dca7fc951a4bd",
+      "subject": "GTS Root R4",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "7286ce249fe9e32bd4752257c17cd8f6991a9c1e6f1a3cc73304ed023e6ae4eb",
       "subject": "Signet Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7353b6d6c2d6da4247773f3f07d075decb5134212bead0928ef1f46115260941",
+      "subject": "DigiCert CS RSA4096 Root G5",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "739710c5245e33ec8a243a1b20048fc9d5f4528599213845c164d004b8b667f9",
       "subject": "AC RAIZ DNIE",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "73c176434f1bc6d5adf45b0e76e727287c8de57616c1e6e6141a2b2cbc7d8e4c",
+      "subject": "Entrust Root Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7431e5f4c3c1ce4690774f0b61e05440883ba9a01ed00ba6abd7806ed3b118cf",
+      "subject": "DigiCert High Assurance EV Root CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "74cb3a4ea791afb0a2d1a0b13301b3bee0e50ad5c79a1a6f2c663e6f4ee7a484",
       "subject": "sigov-ca",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "75d2ce75979cf2a43b172c9f89f733dda2136031db4bbf3698b053714c077155",
+      "subject": "emSign Root TSA CA - G3",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "7600295eefe85b9e1fd624db76062aaaae59818a54d2774cd4c0b2c01131e1b3",
       "subject": "Government Root Certification Authority",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "76a45a496031e4dd2d7ed23e8f6ff97dbdea980baac8b0ba94d7edb551348645",
       "subject": "Digisign Server ID (Enrich)",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "7707bb2be9f7ce057060b8308c3bc087b56529b3638eaf5b2a8049c8e15ed720",
       "subject": "RCSC RootCA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "771535d43d4633bd307eb7b8a3966b5df00707c088089920080c1ae6d3cb0f68",
+      "subject": "QuoVadis Signing ECC P384 Root G4",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "77407312c63a153d5bc00b4e51759cdfdac237dc2a33b67946e98e9bfa680ae3",
       "subject": "America Online Root Certification Authority 1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "77a03f69e4f3955589acaca06f6773a0d98d16dea05c6d94ee3ef6fb2beb7605",
       "subject": "I.CA - Standard root certificate",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "77b82cd8644c4305f7acc5cb156b45675004033d51c60c6202a8e0c33467d3a0",
+      "subject": "Certainly Root R1",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "77e04c9a751c73f23e2a1336112ec8d5153d382a152fed89d7532c3102771f3c",
       "subject": "Autoridad Certificadora Raiz de la Secretaria de Economia",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "78833a783bb2986c254b9370d3c20e5eba8fa7840cbf63fe17297a0b0119685e",
+      "subject": "Atos TrustedRoot Root CA RSA G2 2020",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "78a656344f947e9cc0f734d9053d32f6742086b6b9cd2cae4fae1a2e4efde048",
+      "subject": "Telekom Security SMIME RSA Root 2023",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7908b40314c138100b518d0735807ffbfcf8518a0095337105ba386b153dd927",
+      "subject": "Sonera Class2 CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "794e774638ce7b3cf05ebc8967cf47315316c351dc26387476e0c099c2ed47cc",
+      "subject": "HARICA Code Signing ECC Root CA 2021",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7a38f708a35a31e42e1cf3220f9a2d273e7666354618b2464657d43d8e77adc2",
+      "subject": "A-Trust-Root-09",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7a422ec237b4da7d326c232278f6dbe329b0c9ed5a56aafcc110a8bc83ed0a96",
+      "subject": "e-Szigno SMIME Root CA 2024",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7a77c6c61eeeb9aa65c4ea410d65d895b26a81123283009db104b48de80b2479",
+      "subject": "OATI WebCARES Root CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "7af6ea9f753a1e709bd64d0beb867c11e8c295a56e24a6e0471459dccdaa1558",
       "subject": "SwissSign Gold Root CA - G3",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7afc9d01a62f03a2de9637936d4afe68090d2de18d03f29c88cfb0b1ba63587f",
+      "subject": "Developer ID Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7b9d553e1c92cb6e8803e137f4f287d4363757f5d44b37d52f9fca22fb97df86",
+      "subject": "GlobalSign Code Signing Root R45",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7ba2e6514976af28a6001cda8eade532f7a1aaaf25e4731df8a04db00e7801ca",
+      "subject": "IdenTrust Commercial Root Timestamp ECC CA 2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7bb647a62aeeac88bf257aa522d01ffea395e0ab45c73f93f65654ec38f25a06",
+      "subject": "Sectigo Public Server Authentication Root R46",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7d05ebb682339f8c9451ee094eebfefa7953a114edb2f44949452fab7d2fc185",
+      "subject": "DigiCert Assured ID Root G2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "7d2bf3489ebc9ad3448b8b0827715a3cbfe3d523e3b56a9b5fc1d2a2da2f20fe",
       "subject": "Registradores de Espa\\xF1a - CA Ra\\xEDz",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "7d8ce822222b90c0b14342c7a8145d1f24351f4d1a1fe0edfd312ee73fb00149",
       "subject": "Class 1 Primary CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7dd78d5f4f13459a83dff9abbba62edbaf6f2d102bf257fd712f4d9f2746ed8d",
+      "subject": "emSign Root TLS CA - G3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7e37cb8b4c47090cab36551ba6f45db840680fba166a952db100717f43053fc2",
+      "subject": "DigiCert Assured ID Root G3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7e76260ae69a55d3f060b0fd18b2a8c01443c87b60791030c9fa0b0585101a38",
+      "subject": "Sectigo Public Code Signing Root R46",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "7ef55518de6350c3cc618a9837cbad65ddb6eef652f79da71c69f6b8919d3a12",
+      "subject": "Actalis Code Signing ECC Root CA 2025",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "7f12cd5f7e5e290ec7d85179d5b72c20a5be7508ffdb5bf81ab9684a7fc9f667",
       "subject": "NetLock Kozjegyzoi (Class A) Tanusitvanykiado",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8095210805db4bbc355e4428d8fd6ec2cde3ab5fb97a9942988eb8f4dcd06016",
+      "subject": "AddTrust Qualified CA Root",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "80ac91fa891c79723a61abc77f86e19905a92da27e51695ca0c0b66c1c039bf2",
+      "subject": "QuoVadis Client RSA 4096 Root G4",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8174fdd9db62e04dd18f17d1224406c7a2cc8d5db5816f3dc7f5e900047e7fb7",
+      "subject": "Apple Platform Developer RSA Root CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "8177d1a82ba501afdd1e9483ad7da912ee1e9fcb2a5a061fa3c479fa804ce6ba",
       "subject": "ANCERT Certificados CGN",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "81a9088ea59fb364c548a6f85559099b6f0405efbf18e5324ec9f457ba00112f",
+      "subject": "Atos TrustedRoot Root CA RSA TLS 2021",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "81c2568503eb3be5eec366653960e6d1be9448915e4605b793fbeb34ccb2470f",
       "subject": "CA DATEV BT 02",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "8327bc8c9d69947b3de3c27511537267f59c21b9fa7b613fafbccd53b7024000",
       "subject": "Cisco Root CA 2048",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "83ce3c1229688a593d485f81973c0f9195431eda37cc5e36430e79c7a888638b",
+      "subject": "Class 3 Public Primary Certification Authority - G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "83fddb2fd9dae3b21eebd33cf46251d746f0d6102b683150dd7b98ad8e4bb9f8",
+      "subject": "QuoVadis SMIME ECC P384 Root G4",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8560f91c3624daba9570b5fea0dbe36ff11a8323be9486854fb3f34a5571198d",
+      "subject": "OISTE WISeKey Global Root GC CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "85666a562ee0be5ce925c1d8890a6f76a87ec16d4d7d5f29ea7419cf20123b69",
+      "subject": "SSL.com Root Certification Authority RSA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "85a0dd7dd720adb7ff05f83d542b209dc7ff4528f7d677b18389fea5e5c49e86",
+      "subject": "QuoVadis Root CA 2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "8688e58f4c7a945fadce7f62bfef521b82da7dc38bfdb0163478a5fe42e57870",
       "subject": "A-Trust-nQual-03",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b",
+      "subject": "emSign ECC Root CA - G3",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "873f4685fa7f563625252e6d36bcd7f16fc24951f264e47e1b954f4908cdca13",
       "subject": "E-Tugra Global Root CA ECC v3",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "88497f01602f3154246ae28c4d5aef10f1d87ebb76626f4ae0b7f95ba7968799",
+      "subject": "EC-ACC",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "885de64c340e3ea70658f01e1145f957fcda27aabeea1ab9faa9fdb0102d4077",
       "subject": "Microsoft Root Certificate Authority",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "88ef81de202eb018452e43f864725cea5fbd1fc2d9d205730709c5d8b8690f46",
+      "subject": "QuoVadis Root CA 3 G3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "88f438dcf8ffd1fa8f429115ffe5f82ae1e06e0c70c375faad717b34a49e7265",
+      "subject": "NAVER Global Root Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "894ce6ddb012cb3f736954668de63f436080e95f17b7a81bd924eb21bee9e440",
       "subject": "ACNLB",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "8a1bd21661c60015065212cc98b1abb50dfd14c872a208e66bae890f25c448af",
       "subject": "DigiNotar Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "8a5e4881d42f7475e8ec3726fcd5e51884aa04daa9fa7adac8cd26452cf885d4",
       "subject": "Symantec Enterprise Mobile Root for Microsoft",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8a71de6559336f426c26e53880d00d88a18da4c6a91f0dcb6194e206c5c96387",
+      "subject": "vTrus Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8a866fd1b276b57e578e921c65828a2bed58e9f2f288054134b7f1f4bfc9cc74",
+      "subject": "QuoVadis Root CA 1 G3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8abfc40faeaf13cbc8bb67b61c8d097a321cd2fee047c54256927e0f8bfeadfd",
+      "subject": "emSign Root Client Auth CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8ac552ad577e37ad2c6808d72aa331d6a96b4b3febff34ce9bc0578e08055ec3",
+      "subject": "A-Trust-Root-07",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8b0f0faa2c00fe0532a8a54e7bc5fd139c1922c4f10f0b16e10fb8be1a634964",
+      "subject": "GlobalSign Client Authentication Root E45",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "8b3fdb151af759c566143e07c950ede4f9e8c7cf808453d33bcb78e52a400af9",
       "subject": "Halcom Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "8b45da1c06f791eb0cabf26be588f5fb23165c2e614bf885562d0dce50b29b02",
       "subject": "CA WoSign ECC Root",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "8ba1bd9c88efb3947e60ebe21137f81df7f09994cef27f097055018b8194c634",
       "subject": "CA DATEV INT 03",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "8c4edfd04348f322969e7e29a4cd4dca004655061c16e1b076422ef342ad630e",
       "subject": "Root CA Generalitat Valenciana",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8c7209279ac04e275e16d07fd3b775e80154b5968046e31f52dd25766324e9a7",
+      "subject": "AddTrust Class 1 CA Root",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8d25cd97229dbf70356bda4eb3cc734031e24cf00fafcfd32dc76eb5841c7ea8",
+      "subject": "GTS Root R2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8d722f81a9c113c0791df136a2966db26c950a971db46b4199f4ea54b78bfb9f",
+      "subject": "thawte Primary Root CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "8da084fcf99ce07722f89b3205939806fa5cb811e1c813f6a108c7d336b3408e",
       "subject": "TC TrustCenter Class 3 CA II",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "8da75f1327217c88060fd2529eff2816e50b0c74541ea4ea3dfcee66a71efe09",
       "subject": "D-TRUST Root Class 2 CA 2007",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8dd4b5373cb0de36769c12339280d82746b3aa6cd426e797a31babe4279cf00b",
+      "subject": "HARICA Client ECC Root CA 2021",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8e8221b2e7d4007836a1672f0dcc299c33bc07d316f132fa1a206d587150f1ce",
+      "subject": "D-TRUST EV Root CA 2 2023",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8ecde6884f3d87b1125ba31ac3fcb13d7016de7f57cc904fe1cb97c6ae98196e",
+      "subject": "Amazon Root CA 1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8f6371d8cc5aa7ca149667a98b5496398951e4319f7afbcc6a660d673e438d0b",
+      "subject": "Sectigo Public Code Signing Root E46",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8f9adb6d895dab5adf5c3d3fab83927be0fb64ef82485c62280d584e8bd55d22",
+      "subject": "Swedish Government Root Authority v3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8faf7d2e2cb4709bb8e0b33666bf75a5dd45b5de480f8ea8d4bfe6bebc17f2ed",
+      "subject": "SSL.com TLS RSA Root CA 2022",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "8fe4fb0af93a4d0d67db0bebb23e37c71bf325dcbcdd240ea04daf58b47e1840",
+      "subject": "QuoVadis Root CA 2 G3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "90370d3efa88bf58c30105ba25104a358460a7fa52dfc2011df233a0f417912a",
+      "subject": "DigiCert SMIME RSA4096 Root G5",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "90f3e05396995ff20922c44592db62d7845e1bf64aef512cca75bc669caa2479",
       "subject": "D-TRUST Root Class 3 CA 2007",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "91e2f5788d5810eba7ba58737de1548a8ecacd014598bc0b143e041b17052552",
+      "subject": "T-TeleSec GlobalRoot Class 2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "92a9d9833fe1944db366e8bfae7a95b6480c2d6c6c2a1be65d4236b608fca1bb",
+      "subject": "VeriSign Class 2 Public Primary Certification Authority - G3",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "92bf5119abeccad0b1332dc4e1d05fba75b5679044ee0ca26e931f744f2f33cf",
       "subject": "CA Disig",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "92c4db06c42a130d663574d7741b7f93c806fd6714dce890e84b568fae86e64c",
+      "subject": "TrustFactory Client Root Certificate Authority",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "92d8092ee77bc9208f0897dc05271894e63ef27933ae537fb983eef0eae3eec8",
       "subject": "TRUST2408 OCES Primary CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "937ef8f12276b3c7a3f58e345d09a6eff01f862f8d2794441cd84d511825fa0c",
+      "subject": "Entrust P384 EV TLS Root CA - 2022",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "93e65ec762f055dc718a332582c41a04430d72e3cb87e8b897b67516f0d1aa39",
       "subject": "UCA Root",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "945bbc825ea554f489d1fd51a73ddf2ea624ac7019a05205225c22a78ccfa8b4",
+      "subject": "Trustwave Global ECC P256 Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "958abbaeff760f4fbf66ff0f2c2708f4739b2c686127239a2c4ec87a68a984c8",
       "subject": "Swiss Government Root CA III",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "960adf0063e96356750c2965dd0a0867da0b9cbd6e77714aeafb2349ab393da3",
       "subject": "Cybertrust Global Root",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6",
+      "subject": "ISRG Root X1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "97366da00baf6730a84d1a8cba5bad7961c46bce707e09241cc9c4c7e3c64f10",
+      "subject": "Starfield TLS Root CA - R1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "97552015f5ddfc3c8788c006944555408894450084f100867086bc1a2bb58dc8",
+      "subject": "Trustwave Global Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "97f654859cbde586fd90311e82ec7902c238cba0d6e529564c9c88f44895ec50",
+      "subject": "ACA ROOT",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "983d826ba9c87f653ff9e8384c5413e1d59acf19ddc9c98cecae5fdea2ac229c",
+      "subject": "IdenTrust Commercial Root TLS ECC CA 2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "997e15c5a4481a8598499753971ee2601d1047c3635aff21af4221a817fd2d96",
       "subject": "CA DATEV INT 02",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "99dad8412ff1155b12759717aef5a31e6e089e357539faca3d57e138018493b3",
+      "subject": "Apple Platform Developer ECC Root CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "9a114025197c5bb95d94e63d55cd43790847b646b23cdf11ada4a00eff15fb48",
+      "subject": "Buypass Class 2 Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "9a12c392bfe57891a0c545309d4d9fd567e480cb613d6342278b195c79a7931f",
+      "subject": "SwissSign RSA SMIME Root CA 2022 - 1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "9a296a5182d1d451a2e37f439b74daafa267523329f90f9a0d2007c334e23c9a",
+      "subject": "GLOBALTRUST 2020",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "9a3fd3176798e842ddcb12c262f11cfacca70a8b84c6ea6fda30842a95a94cd8",
+      "subject": "CCA India 2022",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "9a6ec012e1a7da9dbe34194d478ad7c0db1822fb071df12981496ed104384113",
+      "subject": "ACCVRAIZ1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "9acfab7e43c8d880d06b262a94deeee4b4659989c3d0caf19baf6405e41ab7df",
+      "subject": "VeriSign Class 3 Public Primary Certification Authority - G5",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "9ae36232a5189ffddb353dfd26520c015395d22777dac59db57b98c089a651e6",
+      "subject": "OISTE Server Root RSA G1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "9b14e8f5f6ea167666e76dcd6becc190861d5e8970b99a9470f0231236049704",
+      "subject": "LAWtrust Root Certification Authority 2048",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "9bea11c976fe014764c1be56a6f914b5a560317abd9988393382e5161aa0493c",
+      "subject": "UCA Global G2 Root",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "9cefb0cb7b74e642932532831e0dc8f4d68ad414261fc3f474b795e72a164e57",
       "subject": "Swedish Government Root Authority v2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "9d190b2e314566685be8a889e27aa8c7d7ae1d8aaddba3c1ecf9d24863cd34b9",
+      "subject": "Symantec Class 1 Public Primary Certification Authority - G6",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "9ed8f9b0e8e42a1656b8e1dd18f42ba42dc06fe52686173ba2fc70e756f207dc",
       "subject": "DigiNotar Cyber CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "9f8e6db31e740285e0c2c2deb09e442bdd4e74bdeeae2962bc82d1ecb9f39855",
+      "subject": "QuoVadis Signing RSA 4096 Root G4",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "9fadce80d62a959f9930d748488c1e22e821f4e1e4a43584b848c2fc11e04d77",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "a0234f3bc8527ca5628eec81ad5d69895da5680dc91d1cb8477f33f878b95b0b",
       "subject": "GeoTrust Universal CA 2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "a040929a02ce53b4acf4f2ffc6981ce4496f755e6d45fe0b2a692bcd52523f36",
+      "subject": "Hellenic Academic and Research Institutions RootCA 2015",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "a0459b9f63b22559f5fa5d4c6db3f9f72ff19342033578f073bf1d1b46cbb912",
+      "subject": "GeoTrust Universal CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "a1339d33281a0b56e557d3d32b1ce7f9367eb094bd5fa72a7e5004c8ded7cafe",
+      "subject": "SZAFIR ROOT CA2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "a1a86d04121eb87f027c66f53303c28e5739f943fc84b38ad6af009035dd9457",
+      "subject": "D-TRUST Root CA 3 2013",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "a1b2dbeb64e706c6169e3c4118b23baa09018a8427666d8bf0e28891ec051950",
+      "subject": "LuxTrust Global Root",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "a1f05ccb80c2d710ec7d479abdcbb879e58d7edb7149fe78a87884e3d0bad0f9",
       "subject": "UCA Global Root",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "a22dba681e97376e2d397d728aae3a9b6296b9fdba60bc2e11f647f2c675fb37",
       "subject": "Security Communication EV RootCA1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "a31f093053bd12c1f5c3c6efd498023fd2914d7758d05d698ce084b50626e0e5",
       "subject": "Admin-Root-CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "a3cc68595dfe7e86d8ad1772a8b5284add54ace3b8a798df47bccafb1fdb84df",
+      "subject": "Hotspot 2.0 Trust Root CA - 03",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "a3d7435a18c46b23b6a4f8929cd59050c9168b03a7fad532626f297cac5356e4",
       "subject": "Swiss Government Root CA II",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "a4310d50af18a6447190372a86afaf8b951ffb431d837f1e5688b45971ed1557",
+      "subject": "thawte Primary Root CA - G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "a45ede3bbbf09c8ae15c72efc07268d693a21c996fd51e67ca079460fd6d8873",
+      "subject": "QuoVadis Root Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "a4b6b3996fc2f306b3fd8681bd63413d8c5009cc4fa329c2ccf0e2fa1b140305",
+      "subject": "Class 3 Public Primary Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "a53125188d2110aa964b02c7b7c6da3203170894e5fb71fffb6667d5e6810a36",
       "subject": "GTE CyberTrust Global Root",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "a686fee577c88ab664d0787ecdfff035f4806f3de418dc9e4d516324fff02083",
       "subject": "DigiNotar Cyber CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "a6c51e0da5ca0a9309d2e4c0e40c2af9107aae8203857fe198e3e769e343085c",
       "subject": "AC Ra\\xEDz Certic\\xE1mara S.A.",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "a73563e859cbcfa173cf3285debf2578ede15d47a3bee385861ab7a4fb6d7b6e",
       "subject": "ATHEX Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "a7c8681042f3675aa8505d3ba313d80f8ac3250fdf874ad29b834689c087fb11",
+      "subject": "NAVER Cloud Trust Services ECC Root G1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "a7dedf5a842167dd12fdaa0f2080e73295b8b8bea71b2094ea0950945a482fc1",
+      "subject": "AffirmTrust 4K TLS Root CA - 2022",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "a90132cea1d4f7185e4f688effd16f6ac14dfd78356a807599a5dabbeef3333e",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "a9c77af1bcdfaa3739442b0b2734c68eaf2e9833f0d766fbcaa6f2aeb42dec02",
       "subject": "TM Applied Business Root Certificate",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "aaa15bddb1c924ad7a7f22f89e5cd3e2c61407a064e011b7cf4cb618716449a4",
+      "subject": "Notarius Root Certificate Authority",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "aad9ceed5aa6b1cea28596a8e4e1abed9386d6ebc9d4aad9acde0fa36ba069d0",
       "subject": "VAS Latvijas Pasts SSI(RCA)",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "ab7036365c7154aa29c2c29f5d4191163b162a2225011357d56d07ffa7bc1f72",
       "subject": "Thawte Premium Server CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "ab936dfd7f171d3a3cbd08f9bebdc3f3baaabaa79df6a908f8a7b0128627f187",
+      "subject": "Buypass Class 3 Root CA G2 HT",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "ac1fae74b4e97106092131f2e7f746b6734386742bdfd8423731aed14a4ce446",
       "subject": "VeriSign Commercial Software Publishers CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "ac7f7862e685c7a7d9826a58ea32d183d4893fcc8f8fd6d900c9769a987e77f0",
+      "subject": "PostSignum Root QCA 4",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "ad016f958050e0e7e46fae7dcc50197ed8e3ff0a4b262e5ddcdb3edddc7d6578",
       "subject": "PostSignum Root QCA 2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "ad7dd58d03aedb22a30b5084394920ce12230c2d8017ad9b81ab04079bdd026b",
+      "subject": "SSL.com Client ECC Root CA 2022",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "ae4457b40d9eda96677b0d3c92d57b5177abd7ac1037958356d1e094518be5f2",
       "subject": "ComSign CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "afe80a97ea11159190e927e08ec2e60c59a40559483a3fee838a85321b3aeaad",
       "subject": "Actalis Authentication CA G1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "b0428b08c228c43f6f9aa0fc29e9d602ed1098ff6f153c6733383fea17216528",
       "subject": "SSC GDL CA Root A",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "b085d70b964f191a73e4af0d54ae7a0e07aafdaf9b71dd0862138ab7325a24a2",
+      "subject": "GlobalSign",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "b0877aee2d39274df831f66fdeeb7717557c258fc9eb55231a9f8a647a75433f",
       "subject": "Izenpe.com",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "b0b1730ecbc7ff4505142c49f1295e6eda6bcaed7e2c68c5be91b5a11001f024",
+      "subject": "Apple Root CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "b0bfd52bb0d7d9bd92bf5d4dc13da255c02c542f378365ea893911f55e55f23c",
       "subject": "E-Tugra Certification Authority",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "b2f3c4216af7aff72462466dc13cd2810db8eed853eabb9a063a608efc18fbe8",
       "subject": "SITHS CA v3",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "b2fae53e14ccd7ab9212064701ae279c1d8988facb775fa8a008914e663988a8",
+      "subject": "Atos TrustedRoot Root CA ECC TLS 2021",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "b32396746453442f353e616292bb20bbaa5d23b546450fdb9c54b8386167d529",
       "subject": "Symantec Class 3 Public Primary Certification Authority - G6",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "b4410b73e2e6eaca47fbc42f8fa4018af4381dc54cfaa84450461eed09454de9",
       "subject": "Thawte Server CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "b4585f22e4ac756a4e8612a1361c5d9d031a93fd84febb778fa3068b0fc42dc2",
+      "subject": "Certainly Root E1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "b478b812250df878635c2aa7ec7d155eaa625ee82916e2cd294361886cd1fbd4",
+      "subject": "GeoTrust Primary Certification Authority - G3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "b49141502d00663d740f2e7ec340c52800962666121a36d09cf7dd2b90384fb4",
+      "subject": "e-Szigno TLS Root CA 2023",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "b5bd2cb79cbd1907298d6bdf4842e516d8c78fa6fc96d25f71af814e16cc245e",
       "subject": "Starfield Services Root Certificate Authority",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "b644d955fff29b74e3b5687e908ee7c3c9197ba3336cc6328531f6c057d677fd",
       "subject": "ANF Server CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "b676f2eddae8775cd36cb0f63cd1d4603961f49e6265ba013a2f0307b6d0b804",
+      "subject": "Certum Trusted Network CA 2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "b724689b79b2ef9421ef8f5cc733eb093851b170ee715177005a09f226d8c91a",
+      "subject": "CCA India 2022 SPL",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "b7a41ed8096d62716badc7f530942197a9e7e3175ce05d11d01e7ad6c12dcba7",
+      "subject": "Entrust SMIME Root CA - 2022",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "b7c36231706e81078c367cb896198f1e3208dd926949dd8f5709a410f75b6292",
       "subject": "OpenTrust Root CA G3",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "b80847fda453bf6ed876ca7bc046a2481909e15b6ed376e665e7ad09f3864e71",
+      "subject": "Entrust Code Signing Root Certification Authority - CSBR1",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "b8686723e415534bc0dbd16326f9486f85b0b0799bf6639334e61daae67f36cd",
       "subject": "DigiNotar PKIoverheid CA Organisatie - G2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "b8692148ff49c3799fa2347ae28bcc5289623512b67dc19170452ade24ba51d5",
+      "subject": "I.CA Root CA/ECC 12/2016",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "b9bea7860a962ea3611dab97ab6da3e21c1068b97d55575ed0e11279c11c8932",
       "subject": "IGC/A",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "bbd8b3d745efb79198d93b9c482b9d934537325729ea2f02c129261f91be2e3d",
+      "subject": "emSign Root Client Auth CA - G3",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "bc104f15a48be709dca542a7e1d4b9df6f054527e802eaa92d595444258afe71",
       "subject": "Hellenic Academic and Research Institutions RootCA 2011",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "bc4d809b15189d78db3e1d8cf4f9726a795da1643ca5f1358e1ddb0edc0d7eb3",
+      "subject": "emSign ECC Root CA - C3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "bc7c4e46da2dcf0c25866027b7d164d8ea0d2e82deca3b520a67070947b7b5d4",
+      "subject": "IdenTrust Commercial Root Code Signing RSA CA 2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "bd71fdf6da97e4cf62d1647add2581b07d79adf8397eb4ecba9c5e8488821423",
+      "subject": "AffirmTrust Premium ECC",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "be4b56cb5056c0136a526df444508daa36a0b54f42e4ac38f72af470e479654c",
+      "subject": "TrustAsia Global Root CA G4",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "be6c4da2bbb9ba59b6f3939768374246c3c005993fa98f020d1dedbed48a81d5",
+      "subject": "SwissSign Silver CA - G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "beb00b30839b9bc32c32e4447905950641f26421b15ed089198b518ae2ea1b99",
+      "subject": "e-Szigno Root CA 2017",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "bec94911c2955676db6c0a550986d76e3ba005667c442c9762b4fbb773de228c",
+      "subject": "GlobalSign",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "bef256daf26e9c69bdec1602359798f3caf71821a03e018257c53c65617f3d4a",
+      "subject": "FIRMAPROFESIONAL CA ROOT-A WEB",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "bf0feefb9e3a581ad5f9e9db7589985743d261085c4d314f6f5d7259aa421612",
       "subject": "SecureSign RootCA11",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "bfd88fe1101c41ae3e801bf8be56350ee9bad1a6b9bd515edc5c6d5b8711ac44",
+      "subject": "TWCA Root Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "bfff8fd04433487d6a8aa60c1a29767a9fc2bbb05e420f713a13b992891d3893",
+      "subject": "GDCA TrustAUTH R5 ROOT",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c0076b9ef0531fb1a656d67c4ebe97cd5dbaa41ef44598acc2489878c92d8711",
+      "subject": "TrustAsia TLS ECC Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c0a6f4dc63a24bfdcf54ef2a6a082a0a72de35803e2ff5ff527ae5d87206dfd5",
+      "subject": "ePKI Root Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "c0c05a8d8da55eaf27aa9b910b0a6ef0d8bbded346928db872e182c2073e9802",
       "subject": "I.CA - Qualified Certification Authority, 09/2009",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "c0d1f42b9f4bf7acc045b7bb5d4805e10737f67b6310ce505248d543d0d5fe07",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c1468cf2254e6004b24696aba209d1a30ba6e2dff68a9a4e32c6ab414f90c8d9",
+      "subject": "DigiCert ECC P384 Root G5",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "c1727f3b673e6ae7f12f23d789a7be38b918223ef6911c592da1f583444a547e",
       "subject": "ATHEX Root CA G2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "c1b12f480020336e5b04f520bc19c2e2e10ab42c9d9235f05cbec33ffa4d4dea",
       "subject": "Class 3 Primary CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c1d80ce474a51128b77e794a98aa2d62a0225da3f419e5c7ed73dfbf660e7109",
+      "subject": "GLOBAL CHAMBERSIGN ROOT - 2016",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "c2157309d9aee17bf34f4df5e88dbaeba57e0361eb814cbc239f4d54d329a38d",
       "subject": "\"F\\u0151tan\\xFAs\\xEDtv\\xE1nykiad\\xF3 - Korm\\xE1nyzati Hiteles\\xED\\",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c2b9b042dd57830e7d117dac55ac8ae19407d38e41d88f3215bc3a890444a050",
+      "subject": "Apple Root CA - G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c2fb44d8def85126d84fc41fbe667bc811f0d633411cac26d13fbd95ea5be603",
+      "subject": "Telia RSA Signing Root CA v3",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "c31eef5682abb551ebc828ded84098518a6768526d152ee164cfb972a1425d53",
       "subject": "SSC GDL CA Root B",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c32ffd9f46f936d16c3673990959434b9ad60aafbb9e7cf33654f144cc1ba143",
+      "subject": "SSL.com TLS ECC Root CA 2022",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "c34c5df53080078ffe45b21a7f600469917204f4f0293f1d7209393e5265c04f",
       "subject": "CCA India 2015 SPL",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c3846bf24b9e93ca64274c0ec67c1ecc5e024ffcacd2d74019350e81fe546ae4",
+      "subject": "Go Daddy Class 2 Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c40621d2f61c51ce082a8697653d966441a52aaa6523482ed93f87a07ea8bf30",
+      "subject": "Actalis Time Stamping RSA Root CA 2025",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c40ebdcd75a90e4b7496abb23e789a48e33c03284f75d95130575ae6860ae13c",
+      "subject": "HARICA Code Signing RSA Root CA 2021",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c45d7bb08e6d67e62e4235110b564e5f78fd92ef058c840aea4e6455d7585c60",
+      "subject": "GTS Root R2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c57a3acbe8c06ba1988a83485bf326f2448775379849de01ca43571af357e74b",
+      "subject": "Visa Information Delivery Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c741f70f4b2a8d88bf2e71c14122ef53ef10eba0cfa5e64cfa20f418853073e0",
+      "subject": "Microsoft RSA Root Certificate Authority 2017",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "c766a9bef2d4071c863a31aa4920e813b2d198608cb7b7cfe21143b836df09ea",
       "subject": "StartCom Certification Authority",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "c795ff8ff20c966688f064a1e091421d3110a3456c17ec2404b998738741f622",
       "subject": "Tunisian Root Certificate Authority - TunRootCA2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c7b8948feccaace5b509a343f38d0301d07901885604b3f267270e1ebbef0fe7",
+      "subject": "Notarius Root Certificate Authority",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "c7ba6567de93a798ae1faa791e712d378fae1f93c4397fea441bb7cbe6fd5995",
       "subject": "StartCom Certification Authority G2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c8a2d38a24f5ac302d8a08ebd38923d9a750b49220f092e82d1c53249e1533d0",
+      "subject": "QuoVadis TLS RSA 4096 Root G4",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "c90f26f0fb1b4018b22227519b5ca2b53e2ca5b3be5cf18efe1bef47380c5383",
+      "subject": "Sectigo Public Server Authentication Root E46",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "ca2d82a08677072f8ab6764ff035676cfe3e5e325e012172df3f92096db79b85",
       "subject": "GeoTrust Global CA 2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "ca42dd41745fd0b81eb902362cf9d8bf719da1bd1b1efc946f5b4c99f42c1b9e",
+      "subject": "GlobalSign",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "ca7a5e68c53d2c51f72f6b465d3ed753f5903ec7901c8d0f55d868337c81975a",
       "subject": "Autoridad de Certificacion Raiz del Estado Venezolano",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "caa53fc6091c6951887c976e378f6ef89aa6377c55d97b6475422b71ed7e9b17",
+      "subject": "Autoridade Certificadora Raiz Brasileira v5",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "cb3ccbb76031e5e0138f8dd39a23f9de47ffc35e43c1144cea27d46a5ab1cb5f",
+      "subject": "DigiCert Global Root G2",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "cb627d18b58ad56dde331a30456bc65c601a4e9b18dedcea08e7daaa07815ff0",
+      "subject": "Symantec Class 2 Public Primary Certification Authority - G6",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "cb6b05d9e8e57cd882b10b4db70de4bb1de42ba48a7bd0318b635bf6e7781a9d",
+      "subject": "Thawte Timestamping CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "cbb522d7b7f127ad6a0113865bdf1cd4102e7d0759af635a7cf4720dc963c53b",
+      "subject": "GlobalSign",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "cbb5af185e942a2402f9eacbc0ed5bb876eea3c1223623d00447e4f3ba554b65",
+      "subject": "VeriSign Class 1 Public Primary Certification Authority - G3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "cbb9c44d84b8043e1050ea31a69f514955d7bfd2e2c6b49301019ad61d9f5058",
+      "subject": "GlobalSign Root E46",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "cbd8ed38d4a2d677d453d70dd8890af4f6374cba6299943f1ab3a6936c6fd795",
       "subject": "Autoridade Certificadora Raiz Brasileira v1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "ccc89489371bad111c90619bea240a2e6dadd99f9f6e1d4d41e58ed6de3d0285",
       "subject": "Class 3P Primary CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "ccf6a7c3881928cfb1dbebd74eaba50d3bc69633c106274d2c221eccee697e87",
+      "subject": "Telia EC Client Root CA v3",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "cd0b3b2aa174b55f18c7502f3c3a76f2198175ce45637370cf4f48b9c2ce4fbf",
       "subject": "E-ME SSI (RCA)",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "cd201256fe5ced0bfff8df595fff36b1416d5313a999f532ef4a9915df96dee0",
       "subject": "Configuration",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "cd851c5c25467c0095a43927d0b2292d932975e84dce4c5e794542c6574c3aa4",
+      "subject": "DigiCert Client ECC P384 Root G5",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "ce7dd096c8fde2bf5c438edb574bd6454385334ee8ff106c0f93d5051be6bac3",
       "subject": "Class 3TS Primary CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "cecddc905099d8dadfc5b1d209b737cbe2c18cfb2c10c0ff0bcf0d3286fc1aa2",
+      "subject": "XRamp Global Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "cef71e70b7c29addf6c30cd19e614b38fd5f02a435a0eeddd0087e183d101a51",
+      "subject": "emSign Root TLS CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "d0156949f1381943442c6974e9b5b49ef441bb799ef20477b90a89c3f33620ce",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d13db1294c45ebc6fc86c6bbf69fa29bdfe692dff7c713c243c7a956c6a2284c",
+      "subject": "Telia RSA TLS Root CA v3",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "d151962d954970501c60079258ebcfa38502e0a9f03cd640322b08c0a3117fe5",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "d1a0319098034e3aec729a0b5c3111229d9d26e3e623e8c5e6843fa06ee8e2e4",
       "subject": "Application CA G4 Root",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "d24566bf315f4e597d6e381c87119fb4198f5e9e2607f5f4ab362ef7e2e7672f",
       "subject": "Java Media APIs",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d279c01a12e8dd9a6230e459faa447ceb336998477338c2ee4135c96737418eb",
+      "subject": "I.CA Root CA/RSA 05/2022",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "d2a90e5d35cac4d41f7d44ce66aff885e1815fb339185853a87e66c05c9bef1e",
       "subject": "AC Ra\\xEDz Certic\\xE1mara S.A.",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d309931736c8f5aaf3c20ada97fdaf11b5e2d7fd174dc97286acd613a40aea55",
+      "subject": "IdenTrust Commercial Root Timestamp RSA CA 2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "d3a936e1a7775a45217c8296a1f22ac5631dcdec45594099e78eeebbedcba967",
       "subject": "JavaFX Runtime",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d3c07ac44bd8ff1975bc62f1c7e9840ea8e188a4ba51133b8c4eff05e34a2729",
+      "subject": "QuoVadis Client ECC P384 Root G4",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d3d607a9ff24a19523b6da9d2c649446f8788cb96d9fd130972e120c13677730",
+      "subject": "I.CA Root CA/RSA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d3ed3fc40ad26b52e001e1e18f4b9449529deb75a81d5eb680d7b62db23ba96d",
+      "subject": "DVV Gov. Root CA - G3 RSA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "d40e9c86cd8fe468c1776959f49ea774fa548684b6c406f3909261f4dce2575c",
       "subject": "TrustCor RootCert CA-1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "d41d829e8c1659822af93fce62bffcde264fc84e8b950c5ff275d052354695a3",
       "subject": "Staat der Nederlanden Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d43af9b35473755c9684fc06d7d8cb70ee5c28e773fb294eb41ee71722924d24",
+      "subject": "UCA Extended Validation Root",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "d487a56f83b07482e85e963394c1ecc2c9e51d0903ee946b02c301581ed99e16",
       "subject": "Certification Authority of WoSign G2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d48d3d23eedb50a459e55197601c27774b9d7b18c94d5a059511a10250b93168",
+      "subject": "Certigna Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d5917a7791eb7cf20a2e57eb98284a67b28a57e89182da53d546678c9fde2b4f",
+      "subject": "Sectigo Public Email Protection Root R46",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "d6ceae5d9e047faf7d797858d229ac991ad44316d1e2a37a21926d763153593a",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "d6f034bd94aa233f0297eca4245b283973e447aa590f310c77f48fdf83112254",
       "subject": "CA \\u6C83\\u901A\\u6839\\u8BC1\\u4E66",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d7a5514d93f7d53bd27de2051f8e1ff71ca0ac78facfe46a8bcca4589984ae64",
+      "subject": "Japanese Government Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d7a7a0fb5d7e2731d771e9484ebcdef71d5f0c3e0a2948782bc83ee0ea699ef4",
+      "subject": "AAA Certificate Services",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d7ba3f4ff8ad05633451470dda3378a3491b90005e5c687d2b68d53647cfdd66",
+      "subject": "Halcom Root Certificate Authority",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "d80fef910ae3f104723b045cec2d019f441ce6213adf156791e70c1790110a31",
       "subject": "S-TRUST Universal Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d8e0febc1db2e38d00940f37d27d41344d993e734b99d5656d9778d4d8143624",
+      "subject": "Certum CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d92c171f5cf890ba428019292927fe22f3207fd2b54449cb6f675af4922146e2",
+      "subject": "D-Trust SBR Root CA 1 2022",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d947432abde7b7fa90fc2e6b59101b1280e0e1c7e4e40fa3c6887fff57a7f4cf",
+      "subject": "GTS Root R1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "d95d0e8eda79525bf9beb11b14d2100d3294985f0c62d9fabd9cd999eccb7b1d",
+      "subject": "HARICA TLS RSA Root CA 2021",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "d95fea3ca4eedce74cd76e75fc6d1ff62c441f0fa8bc77f034b19e5db258015d",
       "subject": "Swisscom Root EV CA 2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "db3517d1f6732a2d5ab97c533ec70779ee3270a62fb4ac4238372460e6f01e88",
+      "subject": "Entrust Root Certification Authority - G4",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "dba84dd7ef622d485463a90137ea4d574df8550928f6afa03b4d8b1141e636cc",
+      "subject": "D-Trust SBR Root CA 2 2022",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "dd6936fe21f8f077c123a1a521c12224f72255b73e03a7260693e8a24b0fa389",
+      "subject": "TeliaSonera Root CA v1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "dd6c44b39401b053dbe61120748bbb0f6056007665c168e5c286750edc8df129",
+      "subject": "Entrust 4K TLS Root CA - 2022",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "ddbf149733bc2bf8a09d7f012b01a6dea11d7bae26713783ef6407a2495bf189",
       "subject": "Network Solutions RSA Certificate Authority",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "ddff53ecd7743b60bb7b2795ff5732fa785f9a14df1120fb40a38cf84ca2a566",
       "subject": "Certipost E-Trust TOP Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "df21016b00fc54f9fe3bc8b039911bb216e9162fad2fd14d990ab96e951b49be",
       "subject": "BUSTER ASSISTENCIA TECNICA ELETRONICA LTDA - ME",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e0d3226aeb1163c2e48ff9be3b50b4c6431be7bb1eacc5c36b5d5ec509039a08",
+      "subject": "TrustAsia Global Root CA G3",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "e0e740e4b0f8b3548181ff75b5372faf4c70b99ec995d694ed0fb91b03ff8d21",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e17db396afc136ff1d6dcda4bb443da2d817131855be1c4b6fecea221036722a",
+      "subject": "SSL.com Code Signing ECC Root CA 2022",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e23d4a036d7b70e9f595b1422079d2b91edfbb1fb651a0633eaa8a9dc5f80703",
+      "subject": "CA Disig Root R2",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "e28097721a8cab8880af80fdef8902b1f15bc7473ad68ec22991257a910d9ea2",
       "subject": "Digidentity Services Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "e28393773da845a679f2080cc7fb44a3b7a1c3792cb7eb7729fdcb6a8d99aea7",
       "subject": "CNNIC ROOT",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e35d28419ed02025cfa69038cd623962458da5c695fbdea3c22b0bfb25897092",
+      "subject": "Amazon Root CA 4",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e38655f4b0190c84d3b3893d840a687e190a256d98052f159e6d4a39f589a6eb",
+      "subject": "Atos TrustedRoot Root CA ECC G2 2020",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e3b6a2db2ed7ce48842f7ac53241c7b71d54144bfb40c11f3f1d0b42f5eea12d",
+      "subject": "Certigna",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e44ddb7952261f15005cd60c1d0c38c18cbfd17c273a31f8ed4c8f53e2685f32",
+      "subject": "Sectigo Public Time Stamping Root E46",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e46a392204a8dca342a71c1ca9a60c9185b9a930370120c3b9c7e3856f0d8f3b",
+      "subject": "DigiCert RSA4096 Root G5",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "e4c73430d7a5b50925df43370a0d216e9a79b9d6db8373a0c69eb1cc31c7c52a",
       "subject": "\"T\\xDCB\\u0130TAK UEKAE K\\xF6k Sertifika Hizmet Sa\\u011Flay\\u0131c\\u0131\\",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e59aaa816009c22bff5b25bad37df306f049797c1f81d85ab089e657bd8f0044",
+      "subject": "D-TRUST BR Root CA 1 2020",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "e606ddeee2ee7f5cdef5d9058ff8b7d0a9f042877f6a171ed8ff6960e4cc5ea5",
       "subject": "NetLock Minositett Kozjegyzoi (Class QA) Tanusitvanykiado",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "e609078465a419780cb6ac4c1c0bfb4653d9d9cc6eb3946eb7f3d69997bad598",
       "subject": "e-Guven Kok Elektronik Sertifika Hizmet Saglayicisi",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e6be68ce06fe0da0c140f1aeb00b67b636c5eea9422088929362375ce086db39",
+      "subject": "Visa Public ECC Root CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "e6e4a951ecbf7d8edc01bc873f7b6fd35868bdb10ed786f3a1b1ee16d8cec3e9",
       "subject": "SSC Root CA C",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e74fbda55bd564c473a36b441aa799c8a68e077440e8288b9fa1e50e4bbaca11",
+      "subject": "Security Communication ECC RootCA1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e75e72ed9f560eec6eb4800073a43fc3ad19195a392282017895974a99026b6c",
+      "subject": "Security Communication RootCA1",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "e7685634efacf69ace939a6b255b7b4fabef42935b50a265acb5cb6027e44e70",
       "subject": "Class 3 Public Primary Certification Authority",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e778f0f095fe843729cd1a0082179e5314a9c291442805e1fb1d8fb6b8886c3a",
+      "subject": "SecureSign Root CA15",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e793c9b02fd8aa13e21c31228accb08119643b749c898964b1746d46c3d4cbd2",
+      "subject": "USERTrust RSA Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e807d49a859abbc861c72ca907d443ad0fe87eab9d99b913f2cb5b4aadabe641",
+      "subject": "SSL.com Document Signing RSA Root CA 2022",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e874fe2531eae4a4b6b62f37496bbae90eb1d8fc8cedbebb00a182cfacdc7e61",
+      "subject": "Entrust Digital Signing Root Certification Authority - DSR1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e8e8176536a60cc2c4e10187c3befca20ef263497018f566d5bea0f94d0c111b",
+      "subject": "DigiCert SMIME ECC P384 Root G5",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "e90dbeb2d360cc6f98994eefc68c4147f2dfd9c68a3bf063c6a971f3e11baf4e",
+      "subject": "Cybertrust iTrust Root Certification Authority",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "eaa962c4fa4a6bafebe415196d351ccd888d4f53f3fa8ae6d7c466a94e6042bb",
+      "subject": "certSIGN ROOT CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "eac0220c5c9fecc5121d3720872d06707b5266be25d4ebb56ab804bbbf85fe03",
       "subject": "AdminCA-CD-T01",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "eb04cf5eb1f39afa762f2bb120f296cba520c1b97db1589565b81cb9a17b7244",
+      "subject": "VeriSign Class 3 Public Primary Certification Authority - G3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "eb7e05aa58e7bd328a282bf8867033f3c035342b516ee85c01673dffffbbfe58",
+      "subject": "NetLock Platina (Class Platinum) F\\u0151tan\\xFAs\\xEDtv\\xE1ny",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "ebc5570c29018c4d67b1aa127baf12f703b4611ebc17b7dab5573894179b93fa",
+      "subject": "AC RAIZ FNMT-RCM",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "ebd41040e4bb3ec742c9e381d31ef2a41a48b6685c96e7cef3c1df6cd4331c99",
+      "subject": "GlobalSign Root CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "ec30c9c3065a06bb07dc5b1c6b497f370c1ca65c0f30c08e042ba6bcecc78f2c",
       "subject": "eDellRoot",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "ecc3e9c3407503bee091aa952f41348ff88baa863b2264befac807901574e939",
       "subject": "Juur-SK",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "ed12a6e9289239d66ca1d244ce90c623ac305ad05602da352bcfc5fef2c4458d",
+      "subject": "Certum TLS RSA Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "edf7ebbca27a2a384d387b7d4010c666e2edb4843e4c29b4ae1d5b9332e6b24d",
+      "subject": "Buypass Class 3 Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "ee0ec4a0b5e6ecb865f49689b50e3de38d4fd924a4041c0c2a62636db0b6b31d",
+      "subject": "Carillon PKI Services G2 Root CA 1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "eec5496b988ce98625b934092eec2908bed0b0f316c2d4730c84eaf1f3d34881",
+      "subject": "D-TRUST Root Class 3 CA 2 EV 2009",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "eec997c0c30f216f7e3b8b307d2bae42412d753fc8219dafd1520b2572850f49",
+      "subject": "OISTE Server Root ECC G1",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "ef3cb417fc8ebf6f97876c9e4ece39de1ea5fe649141d1028b7d11c0b2298ced",
       "subject": "Global Chambersign Root",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "ef66b0b10a3cdb9f2e3648c76bd2af18ead2bfe6f117655e28c4060da1a3f4c2",
       "subject": "E-Tugra Global Root CA RSA v3",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "efb5157e9c66caa1dcc63c9fac0127cde83b7a426c4579b7b43a41ba46a56deb",
       "subject": "CA DATEV INT 01",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "efc65cadbb59adb6efe84da22311b35624b71b3b1ea0da8b6655174ec8978646",
+      "subject": "Telekom Security TLS RSA Root 2023",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "f00355eef101c7df4e46cce6417dffce3db82dbb1369c3b439c4e33bee445c42",
       "subject": "Certipost E-Trust Primary Normalised CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "f008733ec500dc498763cc9264c6fcea40ec22000e927d053ce9c90bfa046cb2",
       "subject": "VRK Gov. Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "f015ce3cc239bfef064be9f1d2c417e1a0264a0a94be1f0c8d121864eb6949cc",
+      "subject": "HiPKI Root CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "f09b122c7114f4a09bd4ea4f4a99d558b46e4c25cd81140d29c05613914c3841",
       "subject": "Swisscom Root CA 2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "f1b13f5c9a326403b0f31bbe7699cd17c7d1c0b981586dd1a7b219c52508fe99",
       "subject": "SSC Root CA A",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "f1b7c8a8f447b395786e325af0a7571203f3812400ff1905fca7726b858fc44a",
+      "subject": "Actalis SMIME RSA Root CA 2025",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "f1c1b50ae5a20dd8030ec9f6bc24823dd367b5255759b4e71b61fce9f7375d73",
+      "subject": "SecureTrust CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "f28630babf256e567b5821069fcf13148ab9a23e28fc0d70615aae6ed284f4c8",
       "subject": "A-Trust-Qual-02",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "f2edaaff3d9b701fb4d14c9f285f8c0bad90fc3bcc1fa07d47f4718edaba34a5",
+      "subject": "emSign Root CS CA - G3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "f356bea244b7a91eb35d53ca9ad7864ace018e2d35d5f8f96ddf68a6f41aa474",
+      "subject": "Atos TrustedRoot 2011",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "f38406e540d7a9d90cb4a9479299640ffb6df9e224ecc7a01c0d9558d8dad77d",
       "subject": "Microsoft Root Authority",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "f3896f88fe7c0a882766a7fa6ad2749fb57a7f3e98fb769c1fa7b09c2c44d5ae",
+      "subject": "BJCA Global Root CA1",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "f4336bc2ac75950beccf1c1f2f9da6dddafd1f41161ca71f59c76889bd474033",
       "subject": "ANCERT Certificados CGN V2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "f5b6f88f75d391a4b1eb336f9e201239fb6b1377db8cfa7b84736216e5afffd7",
       "subject": "CLEARESULT CONSULTING INC.",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "f5fcc6d6d0e17d462cb2c9f0d08826bd87f10175523766da26c2ceb6460cf7a2",
+      "subject": "Apple Platform TLS ECC Root CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "f76a0d440c418dc5b362be8e11e0a5d06023f4396093e4f455827bf55153d8a4",
+      "subject": "emSign Root SMIME CA - G3",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "f86973bdd0514735e10c1190d0345bf89c77e1c4adbd3f65963b803fd3c9e1ff",
+      "subject": "GlobalSign Document Signing Root E45",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "f96f23f4c3e79c077a46988d5af5900676a0f039cb645dd17549b216c82440ce",
       "subject": "CA Disig Root R1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "f9a17a00e5c294ba9614a715819af57f3fd48cc413453fbb8a5fc7e97964e2bc",
+      "subject": "I.CA TLS Root CA/RSA 05/2022",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "f9e67d336c51002ac054c632022d66dda2e7e3fff10ad061ed31d8bbb410cfb2",
       "subject": "Hongkong Post Root CA 1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "fa760b953dfd935ca420ba9baa5f07067fad4449b5554b9418cbdd12e0a56eda",
+      "subject": "Apple Platform Multipurpose RSA Root CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "fabcf5197cdd7f458ac33832d3284021db2425fd6bea7a2e69b7486e8f51f9cc",
       "subject": "SZAFIR ROOT CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "fad540811afae0dc767cdf6572a088fa3ce8493dd82b3b869a67d10aab4e8124",
+      "subject": "SI-TRUST Root",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "fb47d92a9909fd4fa9bec02737543e1f3514ced747407a8d9cfa397b0915067c",
       "subject": "Autoridade Certificadora Raiz Brasileira v2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "fb8fec759169b9106b1e511644c618c51304373f6c0643088d8beffd1b997599",
+      "subject": "ANF Secure Server Root CA",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "fbb12938abd86c125796edf4162d291028890a7d6c0c1cca75fd4b95ebfa7a1a",
       "subject": "' CERTIFICATE NOT IN REPO: Blacklisted'",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "fc02fd48db92d4dce6f11679d38354cf750cfc7f584a520eb90bde80e241f2bd",
       "subject": "Buster Paper Comercial Ltda",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "fc23ddfb7aa505d605b2f492fa1587e3738a074a17c0cf06fadfc725650fa42a",
+      "subject": "AC RAIZ FNMT-RCM SERVIDORES SEGUROS G2R",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "fc50b26bdc4a8fdf1344cc80157ae13ac671e2706facfc0605fe34e249eb72d6",
       "subject": "SITHS Root CA v1",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "fcbfe2886206f72b27593c8b070297e12d769ed10ed7930705a8098effc14d17",
       "subject": "Certinomis - Autorit\\xE9 Racine",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "fd73dad31c644ff1b43bef0ccdda96710b9cd9875eca7e31707af3e96d522bbd",
+      "subject": "T-TeleSec GlobalRoot Class 3",
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "fd7cca48b745213470f503ec6e969c447fc12d4dd5aa2a7cc6c3d5abbd962b33",
       "subject": "SAPO Class 2 Root CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "fdedb5bdfcb67411513a61aee5cb5b5d7c52af06028efc996cc1b05b1d6cea2b",
       "subject": "DigiNotar Cyber CA",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
     },
     {
       "fingerprint_sha256": "fe7114d07a147759891ff37b4f53eb43568296bc3bf89bc12cafb186985ef28d",
       "subject": "Halcom CA PO 2",
-      "reason": "no matching certificate in the pinned PEM archive"
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "fe7696573855773e37a95e7ad4d9cc96c30157c15d31765ba9b15704e1ae78fd",
+      "subject": "Certum Trusted Root CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "ff856a2d251dcd88d36656f450126798cfabaade40799c722de4d2b5db36a73a",
+      "subject": "GeoTrust Global CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "ffb85c26308a961351249ea641f659d49f639e91daed9c92d046ccdcecc93d2f",
+      "subject": "CFCA Identity CA",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "ffe0e2fab9a71c9dc927b3211efbb315bb0048b1e8a6621947b2b10363051c2f",
+      "subject": "Apple Platform Multipurpose ECC Root CA - G1",
+      "reason": "certificate material omitted; see data/README.md"
+    },
+    {
+      "fingerprint_sha256": "ffe943d793424b4f7c440c1c3d648d5363f34b82dc87aa7a9f118fc5dee101f1",
+      "subject": "CommScope Public Trust RSA Root-02",
+      "reason": "certificate material omitted; see data/README.md"
     }
   ]
 }

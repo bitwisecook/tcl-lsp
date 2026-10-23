@@ -18,7 +18,9 @@
 
 import * as assert from "assert";
 import * as path from "path";
+import * as vscode from "vscode";
 import {
+  allocatedWasiUriMapping,
   bundlePlatformDir,
   bundledWasiModulePath,
   guestMountPoint,
@@ -330,5 +332,66 @@ suite("WASI runtime prompt gating", () => {
   test("a missing host runtime prompts once, then stays quiet", () => {
     assert.strictEqual(wasiRuntimeAction(false, false), "prompt");
     assert.strictEqual(wasiRuntimeAction(false, true), "declined");
+  });
+});
+
+suite("WASI allocated URI correspondence", () => {
+  test("distinct actual roots do not use duplicate display names as identity", () => {
+    const roots = [vscode.Uri.parse("file:///one/proj"), vscode.Uri.parse("file:///two/proj")];
+    const mounts = roots.map((editor, index) => ({
+      editor,
+      guestPath: `/tcl-lsp/workspaces/7/${index}`,
+    }));
+    const map = allocatedWasiUriMapping(
+      mounts,
+      (value) => vscode.Uri.parse(value, true),
+      () => true,
+    );
+    for (let index = 0; index < roots.length; index++) {
+      const uri = vscode.Uri.joinPath(roots[index], "資料 #.tcl");
+      const guest = map.toGuest(uri);
+      assert.strictEqual(
+        guest,
+        `file:///tcl-lsp/workspaces/7/${index}/%E8%B3%87%E6%96%99%20%23.tcl`,
+      );
+      assert.strictEqual(map.toEditor(guest).toString(), uri.toString());
+    }
+    assert.throws(() => map.toEditor("file:///tcl-lsp/workspaces/6/0/a.tcl"));
+    assert.throws(() => map.toEditor("file:///tcl-lsp/workspaces/7/0/a%2Fb.tcl"));
+    assert.throws(() => map.toGuest(vscode.Uri.parse("file://different/one/proj/a.tcl")));
+  });
+
+  test("typed component nesting and generation refusal precede translation", () => {
+    let current = true;
+    const map = allocatedWasiUriMapping(
+      [
+        { editor: vscode.Uri.parse("file:///one/proj"), guestPath: "/tcl-lsp/workspaces/8/0" },
+        {
+          editor: vscode.Uri.parse("file:///one/proj/vendor"),
+          guestPath: "/tcl-lsp/workspaces/8/1",
+        },
+      ],
+      (value) => vscode.Uri.parse(value, true),
+      () => current,
+    );
+    assert.strictEqual(
+      map.toGuest(vscode.Uri.parse("file:///one/proj/vendor/a.tcl")),
+      "file:///tcl-lsp/workspaces/8/1/a.tcl",
+    );
+    assert.throws(() => map.toGuest(vscode.Uri.parse("file:///one/proj2/a.tcl")));
+    current = false;
+    assert.throws(() => map.toGuest(vscode.Uri.parse("file:///one/proj/a.tcl")));
+    assert.throws(() => map.toEditor("file:///tcl-lsp/workspaces/8/0/a.tcl"));
+    const duplicate = {
+      editor: vscode.Uri.parse("file:///one/proj"),
+      guestPath: "/tcl-lsp/workspaces/8/0",
+    };
+    assert.throws(() =>
+      allocatedWasiUriMapping(
+        [duplicate, duplicate],
+        (value) => vscode.Uri.parse(value),
+        () => true,
+      ),
+    );
   });
 });

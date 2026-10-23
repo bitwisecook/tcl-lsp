@@ -17,13 +17,13 @@ Why does the analyser flag a write to a `static::` variable outside `RULE_INIT`?
 
 ## Why
 
-`static::` variables are shared across all connections; writing in a per-request event creates race conditions.
+`static::` variables persist across connections on the executing TMM. A runtime update changes that worker's value and does not propagate to other TMMs.
 
 ## Symptoms
 
 - A yellow squiggle appears under the `set`, with the message "Writing to
-  'static::counter' outside RULE_INIT is dangerous. static:: variables are shared
-  across all connections; concurrent writes can cause race conditions."
+  'static::counter' outside RULE_INIT changes persistent state for connections
+  on this TMM. The update is not propagated to other TMMs."
 
 ## Example that triggers it
 

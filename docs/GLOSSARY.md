@@ -574,9 +574,12 @@ KCS tag: `ssa`.
 
 ### SSA value key
 
-A `(variable_name, version)` tuple that uniquely identifies one
-definition of a variable.  Type alias `SsaValueKey` in
-`tcl_compiler::def_use`.
+A `(Symbol, Version)` pair that identifies one SSA value within a
+function. `Symbol` is that function's interned variable-name identifier;
+`Version` identifies a contents transition. The variable's display spelling
+is recovered separately with `SsaFunction::var_name`; an optional source
+location/name projection is separate from this key. Type alias `SsaValueKey`
+in `tcl_compiler::def_use` aliases `tcl_compiler::ssa::ValueKey`.
 
 See also: [SSA construction](design/compiler/ssa-construction.md).
 KCS tag: `ssa`.
@@ -805,7 +808,7 @@ preserve, unbind, and may-write (`StoreOutcome` in
 `llength`, and `string length` are among the commands the direct route
 answers.
 
-See also: [Value transfers](design/compiler/value-transfers.md), [Value evaluation](design/compiler/value-evaluation.md), [Worked examples](design/compiler/value-transfers-examples.md), [Value-transfer migration](design/compiler/value-transfers-migration.md), [Registry consumer contracts](design/compiler/registry-consumer-contracts.md), [Diagnostic policy](design/compiler/diagnostic-policy.md), and
+See also: [Value transfers](design/compiler/value-transfers.md), [Value evaluation](design/compiler/value-evaluation.md), [Worked examples](design/compiler/value-transfers-examples.md), [Value-transfer migration](design/compiler/value-transfer-consumers.md), [Registry consumer contracts](design/compiler/registry-consumer-contracts.md), [Diagnostic policy](design/compiler/diagnostic-policy.md), and
 [Constant folding](#constant-folding).
 
 ### Cell write
@@ -1082,12 +1085,15 @@ See also: [Name resolution](design/analysis/name-resolution.md).
 
 ### Interpreter domain
 
-The analyser's identity for one child interpreter: its literal `interp`
-path (qualified against enclosing `interp eval` bodies), its safe state
-and hide/expose deltas, and its deletion epoch (a deleted-and-recreated
-path is a fresh domain). Evaluation bodies home under the synthetic
-`@interp@<path>` namespace, unrepresentable in real Tcl, so a parent
-namespace of the same name can never collide.
+The analyser's source identity for one child interpreter: its literal
+`interp` path (qualified against enclosing `interp eval` bodies), safe state,
+hide/expose deltas, and deletion epoch. Evaluation bodies use an
+`@interp@<path>[#<epoch>]` synthetic reporting namespace. That spelling is
+valid Tcl text and is not reserved or unrepresentable; it is not itself a
+native interpreter token. Source-analysis domains and actual Compiler
+interpreter identities are separate: `NativeInterpreterIdentity` carries a
+runtime owner and interpreter slot, so a matching display string does not
+establish the same identity.
 
 See also: [Name resolution](design/analysis/name-resolution.md).
 
@@ -1933,3 +1939,26 @@ so a worker thread can answer queries against a snapshot while the main
 thread sets new inputs.
 
 KCS tag: `codegen`.
+
+### Positioned semantic proof
+
+A result owned by one source invocation or variable read, with its interpreter,
+frame, dialect, and uncertainty retained. Its intended purpose determines what
+a consumer may conclude: a possible name candidate does not prove an executable
+handler, and a variable's unchanged contents do not prove an object's unchanged
+method table. Compiler admission, live lookup, and successful normal effects
+have separate query contracts.
+
+See also: [Resolved semantic queries](design/contracts/resolved-semantic-queries.md)
+and [Implementer guide](design/compiler/name-resolution-implementer-guide.md).
+
+## TLS configuration
+
+### Trust anchor
+
+A certificate authority accepted as the starting point for a certificate
+chain's trust decision. Its membership in a browser or operating-system trust
+store is separate from the certificate bytes needed to verify a chain.
+SslicTcl embeds membership metadata; callers supply certificate material.
+See the [source-data contract](design/contracts/sslictcl-source-data.md) and
+[local verification procedure](../rust/tcl-sslictcl/data/README.md).

@@ -1,24 +1,22 @@
-# Dialects, packages, and environments — the registry model (issue #1631)
+# Dialects, packages, and environments — the registry model
 
-> The implemented model and its remaining limitations (§11). Proposed
-> extensions are identified explicitly.
+> The implemented model and its current limitations (§11).
 >
 > Companions:
 > [dialect-and-package-registry-centralisation.md](dialect-and-package-registry-centralisation.md)
-> (the registration/resolution contract, the retirement ledger's open rows,
-> and the `tcl spec upgrade` specification),
+> (the registration/resolution contract and the `tcl spec upgrade` specification),
 > [spec-packs.md](spec-packs.md) (the SpecTcl format),
 > [dialect-profile-model.md](dialect-profile-model.md) (the interned
 > catalogue the lexer is still keyed on),
 > [eda-library-packages.md](eda-library-packages.md),
 > [contracts/dialect-detection.md](../contracts/dialect-detection.md),
 > [contracts/package-loading.md](../contracts/package-loading.md),
-> [bigip-irule-parser-measurements.md](../f5/bigip-irule-parser-measurements.md)
+> [embedded-tcl-contract.md](../f5/embedded-tcl-contract.md)
 > (the live F5 evidence).
 
-## 0. The ruling, and the model in four layers
+## 0. The model in four layers
 
-Issue #1631 rules that a catalogue must not conflate two kinds of thing:
+The catalogue distinguishes two kinds of thing:
 **dialects** — core-language variants that change how the lexer, parser,
 and analyser behave — and **loadable packages** — plain Tcl plus a command
 surface. The model keeps four layers apart:
@@ -66,9 +64,9 @@ a user can write (configs, language ids, directives, CLI flags, pack
 format-level: every published `speclib` 1.x pack keeps loading, with
 unknown *semantic* vocabulary in newer packs failing closed (§6.1). There
 are **no Rust-side compatibility shims**: `cargo xtask retired-api-gate`
-holds the retired dialect-name validators, registry doors and `DialectSet`
-at zero references. What survives of the pre-#1631 catalogue is the
-interned `DialectProfile` the *lexer* is keyed on — §11's D5.
+holds unsupported dialect-name validators, registry doors and `DialectSet`
+at zero references. The lexer retains its interned `DialectProfile` key
+(§11 D5).
 
 ## 0.05 Standing design principles
 
@@ -125,15 +123,16 @@ ticklecharts `v3.2.8`, pave (`875de1f1`), SpiceGenTcl (`e8aa45ce`).
 Every F5 grammar, command, variable, package, policy and evidence record is
 keyed by `BigIpExecutionContext` (`rust/tcl-registry/src/f5/execution_context.rs`):
 `TmmIRule`, `TmshCliScript`, `IAppImplementation`, `IAppPresentationApl`,
-`IAppPresentationTclCallback`, `HostShellTcl`. Each variant carries its
+`IAppPresentationTclCallback`, `ICallScript`, `HostShellTcl`. Each variant retains its
 family, build profile, environment name and core profile; the two APL
-contexts answer `None` on every one of them, `is_tcl()` is `false` for
+contexts supply no family, environment or core profile; iCall has measured
+family/build facts without a registered environment. `is_tcl()` is `false` for
 APL, and `promotes_facts_to` refuses every cross-context substitution.
 `f5-bigip` is not a catch-all Tcl identity: BIG-IP configuration, APL,
 APL's Tcl callbacks, iRules, tmsh scripts, iApp implementation Tcl, and
 host Tcl are independently routed surfaces.
 
-The measured facts ([measurements](../f5/bigip-irule-parser-measurements.md)):
+The measured facts ([measurements](../f5/embedded-tcl-contract.md)):
 
 - **The fork.** iRules, tmsh `cli script` and iApp implementation Tcl are
   **one parser**, a fork of Tcl 8.4.6 (`info patchlevel` 8.4.6 in all
@@ -197,14 +196,15 @@ collision aborts. The driver is
 document's §11 says which of its sections meet the contract (§3 and §4a
 do; §5–§9 are consumed as `e4_conforming: false` — §11 V4).
 
-**Coverage the corpus still wants** (§11 V1–V3):
+**Current evidence coverage** (§11 V1–V3):
 
-| Context | Lab build (21.1.0.1) | One supported 17.x build | One older build |
+| Context | Lab build (21.1.0.1) | Other supported 17.x builds | Older builds |
 |---|---|---|---|
-| TMM iRules | measured | wanted | wanted |
-| tmsh CLI script, Administrator | measured | wanted | wanted |
-| tmsh CLI script, restricted role | wanted | desirable | desirable |
-| iApp implementation | measured | wanted | desirable |
+| TMM iRules | measured | unmeasured | unmeasured |
+| tmsh CLI script, Administrator | measured | unmeasured | unmeasured |
+| tmsh CLI script, restricted role | unmeasured | unmeasured | unmeasured |
+| iApp implementation | measured | unmeasured | unmeasured |
+| iCall script | measured original resolution inputs | unmeasured | unmeasured |
 | iApp presentation APL / Tcl callback | `Unknown` | `Unknown` | `Unknown` |
 | host `tclsh` | provenance only | provenance only | provenance only |
 
@@ -419,8 +419,9 @@ default, 0.84 `--minimal`):
 `f5_core_expr_grammar()` maps every `F5Tcl`-cored profile to the model
 `ExprGrammar`; the expr lexer reads that table and W003 keys on the family
 grammar, so tmsh and iApp documents accept the operators they measurably
-accept. `RuntimeExprSurface::for_tcl_version` survives for the plain-Tcl
-ladder (§11 D9's neighbour, the centralisation ledger's C12).
+accept. `RuntimeExprSurface::for_tcl_version` supplies the plain-Tcl ladder;
+consumer authority is described in the
+[compiler and analyser contract](dialect-and-package-registry-centralisation.md#22-compiler-and-analyser).
 
 Where a family's data lives: the shipped cores are native Rust; a pack may
 declare a further family with a `dialect` block (§6.2), setting values for
@@ -658,8 +659,9 @@ measured non-equivalent at nine points (`c7_hint_walk_counterexamples`).
   environment; and must/may-active in this realm. Security and
   compilation queries use realm bindings only; completion may opt into
   the broader tiers with annotations. W002's candidate source is still a
-  hardcoded pack list (`all_dialect_command_names`, the centralisation
-  ledger's C10).
+  hardcoded pack list (`all_dialect_command_names`); see the
+  [tooling assistance contract](dialect-and-package-registry-centralisation.md#24-tooling-and-generated-views)
+  for the distinction between declaration views and execution authority.
 
 ## 5. Resolution: from bytes to environment, targets, and realms
 
@@ -851,7 +853,7 @@ loader speaks (2.1 is newest); the spelling tables are
 | `environment NAME { … }` (pack level) | an environment definition — `core`, `ambient` / `hosted` placements (`Pinned` / `tracks-base` / `keyed KEY` / requirement sets), `alias`, `editor_identity` and `selecting_identity` (from the **fixed contributed set**, never minting an id), `file_extension` / `filename` / `signature`, `display_name`, `policy`, `help_terms`, `version_ceiling`. Converted at the declaring tier's `Provenance` and registered through the one publish point (`bundled::set_active` → `registration::publish_pack_set`), so a pack's environments resolve through the ordinary ingress, route documents by claimed extension, and retire when the pack leaves the workspace. Compiled canonical names and aliases are reserved. The block body is an evaluated scope: a version several environments share is one variable. `environment NAME -extend { … }` adds detection facts and placements to an environment declared elsewhere |
 | `co_provides` | parsed and carried as data (Tk 9's predicated `tk`/`Tk` relation); the loader-alias mechanics that consume it are not built |
 | `dynamic_surface` / `unknown_members` | the honesty escape hatch: a provider whose member set is runtime-extensible declares so (`allow_unknown_subcommands` on commands, `allow_unknown_methods` on `object_class`) |
-| `dialect NAME { … }` (pack level) | a language family: `release R ?-build P?` ladder rows and `axis NAME VALUE` rows against a closed axis vocabulary (`expand_syntax`, `braced_var`, `array_index`, `expr_comments`, `numbers`, `escapes`, `irules_brace_separator`, `brace_line_continuation`, `bom_skip`, `word_separators`, `brace_backslash_newline`, `quote_termination`, `var_syntax`, `list_parse`). An unknown axis or value rejects the whole block, naming the axis; a block whose axes reproduce a compiled family release is rejected naming the environment it should have been. A validated block becomes a `tcl_dialect::model::DynamicFamily` (namespaced `PACK/DIALECT` id, one `LexerGrammar` per release, the declaring tier's provenance), and an `environment … { core DIALECT RELEASE }` row registers a `DynamicCore` binding whose grammar `dynamic_core_grammar` answers with. Grammar declarations sit at the top of the §6.4 trust lattice. **Nothing on the analysis path lexes with it yet** (§11 D5) |
+| `dialect NAME { … }` (pack level) | a language family: `release R ?-build P?` ladder rows and `axis NAME VALUE` rows against a closed axis vocabulary (`expand_syntax`, `braced_var`, `array_index`, `expr_comments`, `numbers`, `escapes`, `irules_brace_separator`, `brace_line_continuation`, `bom_skip`, `word_separators`, `brace_backslash_newline`, `quote_termination`, `var_syntax`, `list_parse`, `source_line_endings`). An unknown axis or value rejects the whole block, naming the axis; a block whose axes reproduce a compiled family release is rejected naming the environment it should have been. A validated block becomes a `tcl_dialect::model::DynamicFamily` (namespaced `PACK/DIALECT` id, one `LexerGrammar` per release, the declaring tier's provenance), and an `environment … { core DIALECT RELEASE }` row registers a `DynamicCore` binding whose grammar `dynamic_core_grammar` answers with. Grammar declarations sit at the top of the §6.4 trust lattice. **Nothing on the analysis path lexes with it yet** (§11 D5) |
 | `refine NAME { … }` at command and subcommand scope | the invocation refinement — the declarative replacement for `command_forms` / `subcommand_forms`; Tk's form sites round-trip through it |
 | `include from SOURCE into TARGET ?-available {WINDOW}? {names…}` | the roster of ancestor command names a *reimplementing* family actually has, with the window on the **target's** own ladder. An unrostered pair fails **open**; only a trusted tier may narrow a compiled family. Jim's roster is the one user |
 | `result_stability`, `event_requirement_form` (with a nested `event_requires` block), `data_collection -native ID`, `body_scope`, `side_switch_target`, `event_handler_priority` | loader readers at the shared row-reader seam, riding the export gates |
@@ -876,9 +878,9 @@ loader speaks (2.1 is newest); the spelling tables are
   Rust, and a conversion still needs SpecTcl vocabulary for the
   widget-class and option-database shapes, the Tk co-provide model, and
   the parity harness.
-- **Open**: registry generations (§11 D10), a shared `InvocationSpec`
-  (D11), and a loader-direction round-trip gate that would make a
-  documented-but-unread word fail CI (§11.4 E3).
+- **Current limits**: dynamic loader allocation reclamation (§11 D10),
+  duplicated invocation fields (D11), and no loader-direction gate for
+  documented-but-unread words (§11.4 E3).
 
 ### 6.4 Trust and provenance
 
@@ -912,16 +914,15 @@ capability-specific:
 - per-pack consent for security-weakening overrides and the "which tier
   won this fact" hover field are not built (§11 O8).
 
-## 7. What of the old surface still stands
+## 7. Profile and selectable-environment interfaces
 
 `DialectProfile` with `PLAIN_TCL` and `TK_PROFILE` as interned statics the
 seam consumes — the lexer's grammar key (§11 D5) and the editor
 catalogues' identity key; the selectable environment set
 (`EnvironmentRegistry::selectable`) as the CLI `--dialect`, MCP
 `dialect_schema` and explorer payload vocabulary; and
-`ProfileQueries`, `pub(crate)` to `tcl-registry`. Everything else the
-model replaced is deleted and held at zero by `cargo xtask
-retired-api-gate`.
+`ProfileQueries`, `pub(crate)` to `tcl-registry`. `cargo xtask retired-api-gate`
+checks that consumers use the supported registry interfaces.
 
 ## 8. Invariants
 
@@ -935,70 +936,67 @@ These hold across the tree:
 | I4 | No taint/effect/lowering/codegen hook is selected before binding proof | the three selection primitives require the environment binding proof |
 | I5 | Ambiguity widens effects or abstains; it never picks by catalogue order | load/import/rename permutation tests |
 | I6 | Untrusted data cannot weaken trusted security facts | `security_floor`; `i6_security_floor.rs` |
-| I7 | Dropped registry generations release dynamic specs | **not held** — §11 D10 |
+| I7 | Dropped registry generations release dynamic loader allocations | **not held** — §11 D10; Arc-owned ContextRegistry generations do not establish loader-allocation reclamation |
 | I8 | Every advertised editor identity is actually contributed by that editor package | the fixed contributed editor language identities |
 | I9 | Unknown semantic vocabulary fails closed | `VocabularyClass`; downgrade fixtures |
 | I10 | Pack migration preserves user-observable behaviour, not only serialised bytes | golden-snapshot gate plus behavioural parity per conversion |
 
-## 11. The open-questions ledger
+## 11. Current limitations
 
-**Everything this programme has not closed, in one place.** Each row says
-*what it is*, *what it blocks*, and *what would resolve it*. Where any
-other document says "still open", it points here.
+The following rows describe supported interfaces, unsupported cases and
+measured-evidence boundaries. They supply no additional runtime capability.
 
-Deliberately **not** in this ledger: items the owner ruled out (a
-per-major `tcl` family split; `tcl8`/`tcl9` named-range sugar; contraction
-of a programmed pack back into a program; an ahead-of-time `.tclspec` →
-`.rs` backend — the shipped cores stay native Rust), and the six
-*deliberate* F5 divergences the conformance corpus records.
+The single Tcl family and range algebra remain the contracts in §§2 and 4.1.
+The six deliberate F5 divergences retain their conformance-corpus provenance;
+their unresolved runtime evidence is recorded separately in §11.3 V7.
 
-### 11.1 Owner decisions pending
+### 11.1 Tooling and surface limitations
 
-| # | What it is | What it blocks | What would resolve it |
-|---|---|---|---|
-| O3 | **Standing studio overrides are not yet visible.** The `StudioOverride` patch-pack tier owes two surfaces: a studio indicator, and a `spectcl_check` warning once a patch has outlived a threshold, so an override reads as a staging area rather than a home. `PackStore::standing_overrides` is the queryable report; neither surface reads it yet | Nothing about correctness | The indicator and the warning |
-| O5 | **The iRules surface as a pack.** Six of the seven prerequisite words have loader readers, so the deferral is a standing choice rather than a blocked one | The iRules command surface stays compiled Rust. The dialect (grammar, structure) and the closed-world policy stay compiled either way, so nothing about correctness rides on it | An owner decision to schedule it |
-| O7 | **`primary` for a multi-target project.** The primary is the environment's, always; a declared range never moves it | Multi-target projects cannot choose which release assistance answers under. Compatibility checking evaluates the whole set, so this is an assistance-quality gap | An owner answer plus the settings/directive surface to carry it |
-| O8 | **Per-pack trust consent and provenance in hover.** The registration-time tier gate exists; the consent surface and the "which tier won this fact" hover do not | A workspace pack cannot be granted security-fact overrides at all, which is the safe direction | An owner ruling on where consent is recorded, then the config surface and the hover field |
+| ID | Current behaviour or evidence boundary | Limitation |
+| --- | --- | --- |
+| O3 | `PackStore::standing_overrides` and the Studio view payload report `StudioOverride` patch packs. | The web form has no standing-override indicator or age warning. |
+| O5 | The iRules surface is compiled Rust; grammar and closed-world policy are separately compiled. | No shipped iRules SpecTcl surface pack exists. |
+| O7 | The assistance primary comes from the selected environment; a declared target range does not move it. | A multi-target project cannot select a separate assistance release through the target range. |
+| O8 | Registration tiers enforce the security floor. | No per-pack trust-consent UI or resolved-provenance hover is exposed. |
 
-### 11.2 Deferred model items
+### 11.2 Model limitations
 
-| # | What it is | What it blocks | What would resolve it |
-|---|---|---|---|
-| D3 | **`bpf_op`'s id catalogue.** `CommandSpec::bpf_op` is `Option<&'static BpfOpSpec>` and every shipped value is a private per-command `static OP` under `tcl-registry/src/commands/bpf/`, so `bpf_op -native ID` has nothing to resolve `ID` against | A `bpf` surface pack; and it is the live proof that a loader-direction gate (§11.4 E3) does not exist | A named `id → &'static BpfOpSpec` table in `tcl_registry::bpf_op`, then the ordinary `-native ID` reader |
-| D4 | **Body-scoped completion codes.** `::struct::tree::prune` exits with completion code 5, but *only inside a `walk` body*. A body slot carries a timing and a kind, never the set of codes its command consumes, so `prune` carries **no** control-flow trait (`CONTINUES_LOOP` would be a lie the CFG builder acts on) and the CFG for a `struct::tree` walk is wrong-but-conservative | Every library-defined completion code | `body_completion_codes: &[(u8, CompletionCode, &str)]` on `SubCommand`/`OptionSpec`, plus scoping the `BREAKS_LOOP` machinery to that body |
-| D5 | **Pack-declared dialects cannot lex.** A validated `dialect` block is a `DynamicFamily` with a real `LexerGrammar` per release, and an `environment … { core DIALECT RELEASE }` binding resolves it — but `LexerConfig::for_dialect(name)` is `from_grammar(grammar_of_dialect_name(Some(name)))`, whose `DialectPoint::of_dialect_name` reads the compiled environments' `core` selector, and a pack-declared environment carries `core: None` plus a `DynamicCore` binding, so its name sinks to the default grammar. The salsa lexer key already interns the environment **id**, so the lexer is asked for a grammar by id at exactly one door | The `dialect` block's whole point: a third-party family that actually parses differently | Give `EnvironmentDefinition` its own `LexerGrammar` (and runtime release) — from the compiled profile for a catalogue environment, from `DynamicFamily` for a pack-declared one — and replace `for_dialect(name)` with `for_environment(&ResolvedContext)` at the ~200 boundary call sites. `Family`'s closed enum can stay; `SemanticContext::runtime_version` is the only other surviving profile projection |
-| D7 | **A byte-counting character model.** A non-utf8 Jim build counts bytes, a third rule `StringCharacterModel`'s two Tcl models cannot express; `character_model` answers `None` (every consumer abstains) and the measured fact travels on `CapabilitySet::utf8_character_model` | `string length` folding under `--minimal` jim | A `StringCharacterModel::Bytes` variant and its `count_for` agreement rule, which changes constant folding for **every** dialect and needs the differential gate |
-| D8 | **The multi-realm `AnalysisWorld`.** Child interpreters, safe interpreters and `hide`/`expose` widen everything they touch to `Unknown` rather than being modelled | Precision only: an `interp create` widens more than it must | Build the realm map on `BindingKnowledge` and the transition vocabulary, with the parent/child/safe/ordering e2e suite invariant I3 names |
-| D9 | **The analyser's binding tables are indexes, not typed transitions.** `command_aliases` / `renamed_commands` / `deleted_commands` and the offset maps are populated from `CommandBindingTransition` facts but are `AnalysisResult`-shaped values, and `indirection.rs` walks them in that form | D8 wants one vocabulary; the "no parallel binding tables" half of the one-oracle rule is gated rather than structural | Re-typing the tables reaches ~30 files across `tcl-lsp-core`'s navigation providers — a change of its own |
-| D10 | **Registry generations** (invariant I7). The loader leaks per load (`Box::leak` in `tcl-spectcl/src/loader.rs`); no `RegistryGeneration` type exists | A Spec Studio session editing a large surface leaks ~3.1 MB per generation of ~2,400 specs; a prerequisite for any mass conversion | Move dynamic pack specs into an arena/`Arc<RegistryGeneration>`, return generation-bound handles, key salsa on the generation id — gated by a 1,000-reload allocator test |
-| D11 | **Shared `InvocationSpec`.** Taint sinks, forms, deprecation replacements and effects are copied field by field into `SubCommand` instead of living in one invocation capability model | Honest specs for method-level sinks (ticklecharts' file write, SpiceGenTcl's `runAndRead`) | The refactor, behind the four-surface parity rule |
-| D16 | **The per-distinct-profile reference evaluator** (§5.4). The two shipped detectors are token-local (lifecycle windows, numerals) | Every other range axis: escapes, `${a{b}c}`, expr comments and operators, `{*}`, the leading-BOM rule, numerals *inside* compound `expr` bodies, differential constant folding at the endpoints, `package require` satisfiability per target, per-folder `tclLsp.targets`, and the W151 fix-its | Build the multi-profile evaluation, then admit each per-pair detector after the differential gate proves it equivalent |
-| D17-P | **A package version window in `available` is parsed, reported, and dropped.** `available {package Tk 8.7-}` validates the range and carries only the name, so the row admits wherever Tk is present at any version. The loader says so at load. `SurfaceQuery::packages` carries each package's floor and `SpecSurface::package_in`'s windows are answered against it, so the data model can hold the window; the loader does not yet build the row, and `declarations_for_spec` lowers a package row to the package's whole axis | Per-package version gating from a pack | The loader projects the range onto `SpecSurface::package_in`, and the lowering intersects it with the package axis |
-| D18 | **Gap rulings that did not land as code** (the centralisation companion's §4). **R2** — special variables are `special_vars.rs`'s compiled table rather than SpecTcl declarations, so Jim's `env` and picol 2's capital-initial globals have no home. **R3** — `FILE_SCOPED_ENVS` is a hardcoded one-row Rust table (`("tclpkg.tcl", &TCLPKG_MANIFEST_ENV)`) rather than a detection-scoped environment whose surface is a pack. **R4** — `render_spectcl`'s `is_dialect_set` matches `"surface" \| "safe_on_uninit"` together, conflating a behaviour predicate with availability. **R5** — the hook `ctx` dict carries only a `dialect` key; no `environment` key. **R6** — the `tclpkg.tcl` manifest's `tcl` constraint has no multi-clause range grammar, and the three version comparators (`tcl_dialect`, `tcl_registry::version`, `tcl_pkg::version`) have not collapsed. **R7** — `spectcl_check` is MCP-only; there is no `tcl spec check` verb. **R9** — the KCS "Applies-to" controlled vocabulary is unregenerated | Each blocks a different small thing | Each is independently landable |
+| ID | Current behaviour or evidence boundary | Limitation |
+| --- | --- | --- |
+| D3 | BPF command specs retain per-command static `BpfOpSpec` descriptors. | No public native-ID catalogue resolves `bpf_op -native ID`, so that SpecTcl word is unread. |
+| D4 | Body slots retain timing and kind. Library-specific completion code 5 from `struct::tree::prune` is not a loop-control trait. | The CFG has no body-scoped vocabulary for every library-defined completion code and keeps conservative continuation. |
+| D5 | Pack `dialect` blocks retain DynamicFamily grammar and DynamicCore environment bindings. The lexer still selects compiled environment core profiles through its dialect-name ingress. | A pack-only dynamic core does not establish the lexical configuration consumed by document analysis. |
+| D7 | Jim UTF8 selects `StringCharacterModel::Jim084Utf8`; non-UTF8 or unknown capability selects no character recipe. | The enum has no general byte-counting model; consumers of this profile query decline that projection. |
+| D8 | Original child-interpreter source domains and retained handles remain independent from parent binding facts. | Unsupported dynamic, safe and hidden/exposed realm behaviour retains unknown binding alternatives; a display handle cannot import parent identity. |
+| D9 | Analyser alias, rename and deletion maps are source/reporting indexes over registry transitions. | These maps cannot replace independently retained original invocation, allocation and lifetime receipts. |
+| D10 | ContextRegistry generations are Arc-owned, identity-keyed and cache-bounded. Loader availability-window slices use `Box::leak` in `loader/available.rs::leak_windows`. | Dropping a registry handle does not establish reclamation of dynamic loader allocations. |
+| D11 | Command and subcommand specifications retain their own invocation fields for forms, taint, deprecation and effects. | There is no common `InvocationSpec` carrier for those fields. |
+| D16 | Multi-target compatibility checks have token-local lifecycle and numeral detectors (§5.4). | Those detectors do not provide full per-target lexical, expression, fold, package or fix-it equivalence. |
+| D17-P | **A package version window in `available` is parsed, reported, and dropped.** `available {package Tk 8.7-}` validates the range and carries only the name, so the row admits wherever Tk is present at any version. The loader says so at load. `SurfaceQuery::packages` carries each package's floor and `SpecSurface::package_in`'s windows are answered against it, so the data model can hold the window; the loader does not yet build the row, and `declarations_for_spec` lowers a package row to the package's whole axis | Per-package version gating from a pack |
+| D18 | Special-variable declarations and file-scoped environment detection use compiled data. `render_spectcl::is_dialect_set` groups `surface` and `safe_on_uninit`; pack hook context and manifest grammar have their own bounded vocabulary. | These separate projections do not establish a common declaration, behaviour-predicate, hook-context or multi-clause manifest model. |
 
 ### 11.3 Evidence gaps
 
-Measurements the model wants and does not have. Where the model must
-answer without them it abstains explicitly.
+Unobserved contexts and inputs retain unknown results. Assistance cannot
+replace the missing observation.
 
-| # | What it is | What it blocks | What would resolve it |
-|---|---|---|---|
-| V1 | **The two APL contexts** (`IAppPresentationApl`, `IAppPresentationTclCallback`). Never exercised; both answer `Unknown` through both evidence doors | An APL `tcl` callback has no family, no build profile and no surface, and the model must keep refusing to copy `IAppImplementation`'s row into it. Also blocks a typed **embedded-range descriptor** for APL's `tcl` clauses — a document/range concern for the compiler and server | E4 step 6: exercise a non-interactive presentation renderer on an appliance |
-| V2 | **A second and third BIG-IP build** (one supported 17.x, one older), same suites | Every "since when" question about the F5 tree is `Unknown`: nearest-known assistance answers cannot become interpolation, and the `f5-tcl` ladder's post-fork deltas stay hypothesis | Two more appliance runs |
-| V3 | **A restricted-role tmsh column.** The probe corpus was run as the SSH login user, so the command surface carries no role annotation | The tmsh role/visibility overlay has no measured input and cannot be wired honestly | One appliance run under a restricted role, with `systemauth.disablebash` and the other policy settings captured |
-| V4 | **The E4 re-run of the §5–§9 suites.** The 85-builtin surface, the 120-cell event matrix and the traffic lab are consumed as `e4_conforming: false` | ~180 corpus vectors stay "strong transcript" rather than accepted evidence. §11 of the measurements says the re-run is mechanical — `lib/runner.sh` needs a prefix change and a pre-create absence check | Re-run under the E4 contract |
-| V5 | **`matches` precedence and semantics.** `expr {"abc" matches "abc"}` is a single-operator expression and exercises no binding power, and the same probe is exact equality and discriminates none of the equality/containment/glob readings | The VM answers string equality — the one reading the measured cell exercises — and the compiler refuses to constant-fold it | Two probes: `expr {"abcd" matches "bc"}` and `expr {1 or 0 matches 0}` |
-| V6 | **The realm scope of `tmsh::modify cli version active`.** Script-, tmsh-process-, session-, or system-scoped? | Where the tmsh-syntax transition's state lives; wired with `scope_is_measured: false` | One appliance probe |
-| V7 | **The runtime half of the six deliberate `RULE_INIT` divergences.** Does calling an `HTTP::*` command in `RULE_INIT` always fail at runtime, or only when it touches connection state? | Nothing in the model — the rows are meant to diverge. Confirming it would sharpen the divergence reason from policy to fact | A per-cell runtime re-probe in the traffic lab |
-| V8 | **A jim probe corpus.** The five `jimsh` binaries and their transcripts are on disk, not a hermetic in-tree fixture set keyed by `(release, configure flags, platform, commit)` | Every jim claim is re-derivable only by rebuilding the interpreters; jim has no tripwire of the F5 corpus's kind | Build the corpus in the F5 shape: typed records, two-sided expectations, hermetic vectors |
-| V9 | **Corpus-*generated* F5 rows, the transcript-schema validator, and the prose/rows/tests drift gate.** The 205 vectors *assert* the hand-authored F5 catalogue rows; they do not produce them | A measurement and a registry row can still be edited apart — the corpus catches it at test time rather than making it unrepresentable | The generator, the schema validator (which must never run in CI), and the drift gate |
-| V10 | **The tmsh role overlay and the `tcl_platform` CMP-effect overlay.** Both are recorded as evidence and neither is wired as an overlay | The role overlay is additionally blocked by V3. The CMP overlay has its input — TMM's seven fabricated keys are pinned against `special_vars.rs` | Wire the effect refinement; for the role overlay, V3 first |
-| V11 | **Single-binary probes on the five-version matrix.** `find_tclsh`'s first-hit callers were not upgraded when the five interpreters started building | Release-differentiating behaviours probed by a single binary answer for whichever tclsh is first on `PATH` | Thread `TCL_LSP_TCLSH{84,85,86,90,91}` through those call sites |
-| V12 | **The oracle programme's vector domains** (companion §7.2–§7.5). The reference interpreters, the path fixes, the Tk trees and the command/variable/namespace-op vector files exist; the binding vectors, the package/autoload vectors, the real-corpus index parity and the consumer conformance lattice do not | The lattice is the "every consumer leverages this properly" checklist, and it is not yet a set of passing gates | Land the vector files per §7.2's format and wire the five consumers |
+| ID | Current behaviour or evidence boundary | Limitation |
+| --- | --- | --- |
+| V1 | APL presentation and Tcl-callback contexts answer Unknown; they supply no family, core, build or registered environment. | Implementation-script observations cannot attest APL callbacks or their embedded range semantics. |
+| V2 | Measured BIG-IP facts retain the exact 21.1.0.1 build; nearest-known assistance identifies its actual measured build. | Other release/build rows have no measured interpolation or lifecycle result. |
+| V3 | The tmsh command corpus retains the actual SSH login user and captured environment. | No restricted-role command-surface observation is retained. |
+| V4 | The builtin, event and traffic observations cited from measurements §§5–9 retain `e4_conforming: false`. | These transcripts do not satisfy the E4 probe contract and cannot acquire accepted provenance through documentation changes. |
+| V5 | The measured `matches` expression compares equal strings with one operator. | That input establishes neither precedence nor equality/containment/glob distinctions; executable and fold projections retain their own bounded policy. |
+| V6 | The selected tmsh-syntax transition retains `scope_is_measured: false`. | Its script/process/session/system lifetime is unobserved. |
+| V7 | Six RULE_INIT compile-acceptance rows retain their recorded model divergences. | Compile acceptance supplies no successful HTTP runtime access or connection-state result. |
+| V8 | Hermetic Jim observations are retained with provider, source, configuration and original input provenance in naming experiments and conformance fixtures. | Only the measured provider/input domain is established; one Jim build or corpus cannot attest every release and configure profile. |
+| V9 | Hermetic corpus tests compare retained observations with hand-authored F5 catalogue rows. | These tests do not generate the catalogue or provide a complete transcript-schema/prose drift gate. |
+| V10 | Action metadata, role evidence and TMM platform facts retain separate context and build owners. | Their presence does not install a measured tmsh role or CMP-effect overlay. |
+| V11 | A single-binary probe establishes only its retained selected interpreter and original input. | Cross-release claims require independent observations for every selected C Tcl version and Jim provider. |
+| V12 | Command, variable, namespace, binding, package and consumer controls retain their own original-input and provider boundaries; the [naming consumer matrix](../contracts/naming-consumer-matrix.md) records interface purposes. | Existing controls do not establish a passing conformance gate for every source, native and hosted consumer. |
 
-### 11.4 Doc-and-code divergences
+### 11.4 Loader validation limits
 
-| # | The claim | The code | Disposition |
-|---|---|---|---|
-| E3 | §6.3 once promised a loader-side direction to the round-trip gate, "so a documented word without a loader arm fails CI instead of silently dropping" | No such gate exists. `bpf_op` is documented, unread, and nothing fails | **Open** (D3 is its live instance). The golden-snapshot gate, the static-fast-path gate and the export gates are real, but none exercises a *documented-but-unimplemented* word |
+| ID | Current behaviour or evidence boundary | Limitation |
+| --- | --- | --- |
+| E3 | Golden-snapshot, static-fast-path and export gates validate their own supported surfaces. | No loader-direction gate rejects every documented-but-unimplemented vocabulary word; `bpf_op` remains unread (D3). |

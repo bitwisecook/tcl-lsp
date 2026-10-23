@@ -11,13 +11,16 @@ allowed-tools: mcp__tcl-lsp__diagram, Read
 1. Read `../_prompts/irules_system.md`, then the iRule.
 2. Call `mcp__tcl-lsp__diagram` with the contents as `source`. On a tool
    error report it and suggest fixes.
-3. Draw the flowchart from the structured data (authoritative) with the
-   source for reference.
+3. Treat the structured data as a conditional source-flow projection of the
+   current iRule, and use source spans and source text for reference. It does
+   not establish that a branch or event was reached at runtime; describe the
+   displayed order as source/event ordering metadata, not observed firing.
 
 ## Mermaid rules
 
 - `flowchart TD`; one subgraph per event handler labelled with the event
-  name, in firing order; a non-default priority (not 500) in the label
+  name, in provider-reported event order; a non-default priority (not 500) in
+  the label
 - `{Decision}` diamonds for `if` / `switch` (the subject in the diamond, the
   pattern or condition on each edge); `[Action]` rectangles for `pool`,
   `HTTP::respond`, `HTTP::redirect`, `HTTP::header`, `log`, …; `(Return)` for
@@ -29,8 +32,9 @@ allowed-tools: mcp__tcl-lsp__diagram, Read
 
 ## Output
 
-The diagram in a ```mermaid fence, then two to four paragraphs: firing order
-and cross-event data flow, the key decisions and routing, any
-security-relevant actions.
+The diagram in a ```mermaid fence, then two to four paragraphs: reported
+event ordering and cross-event source data flow, key conditional decisions
+and routing, and security-relevant actions. Label these as source analysis; do
+not claim they executed for a particular flow.
 
 $ARGUMENTS

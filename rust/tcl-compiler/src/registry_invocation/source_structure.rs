@@ -1,0 +1,7004 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Readonly original Registry source structure shared by editor and host consumers.
+
+mod original_body_syntax;
+pub use original_body_syntax::OriginalBodySyntaxInventory;
+
+mod package_target_survey;
+pub use package_target_survey::{
+    OriginalPackageIndexAdvertisement, OriginalPackageIndexControl,
+    OriginalPackageIndexRetainedBody, OriginalPackageIndexSourceSurvey,
+    OriginalPackageIndexTargetGuard,
+};
+
+use crate::analyser::AnalysisResult;
+use tcl_registry::{CommandRegistry, InvocationArguments};
+
+mod source_load;
+pub(crate) use source_load::capture_original_project_source_load_at;
+pub use source_load::{
+    OriginalProjectSourceAssociation, OriginalProjectSourceCurrentCut,
+    OriginalProjectSourceFrontier, OriginalProjectSourceLoad, original_project_source_load_at,
+};
+
+mod logical_variable_operands;
+pub(crate) use logical_variable_operands::OriginalLogicalVariableOperands;
+
+mod project_procedure_roles;
+pub use project_procedure_roles::{
+    OriginalProjectProcedureArguments, OriginalProjectProcedureRoles,
+    original_project_procedure_arguments,
+};
+
+mod project_class_cards;
+pub use project_class_cards::{
+    OriginalProjectClassCards, OriginalProjectReceiverClass, original_project_receiver_class,
+    original_project_receiver_class_in_unit, original_project_receiver_class_with_sources,
+};
+pub(crate) use project_class_cards::{OriginalProjectClassCells, ProjectClassCell};
+
+mod procedure;
+pub use procedure::{
+    OriginalLogicalProcedureArguments, OriginalProcedureSourceDescriptor,
+    original_logical_procedure_arguments, original_procedure_source_descriptor,
+};
+
+/// One original whole word containing exactly one complete child command.
+/// This readonly lexical projection grants no command selection or execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSingleSourceCommandSubstitution {
+    operand: tcl_lexer::NativeWord,
+    command: tcl_lexer::NativeScriptCommandWords,
+}
+impl OriginalSingleSourceCommandSubstitution {
+    /// The original containing operand, with its full image and lexer policy.
+    #[must_use]
+    pub const fn original_operand(&self) -> &tcl_lexer::NativeWord {
+        &self.operand
+    }
+    /// The single complete original child command and its unchanged words.
+    #[must_use]
+    pub const fn command(&self) -> &tcl_lexer::NativeScriptCommandWords {
+        &self.command
+    }
+}
+
+/// Delegate single-child shape to the existing original executable-word owner.
+/// Literal bracket text, concatenations, multiple commands and malformed tails
+/// refuse. Selection still requires the retained analysis at the child site.
+#[must_use]
+pub fn original_single_source_command_substitution(
+    operand: &tcl_lexer::NativeWord,
+) -> Option<OriginalSingleSourceCommandSubstitution> {
+    crate::command_binding::original_single_command_substitution_words(operand).map(|original| {
+        OriginalSingleSourceCommandSubstitution {
+            operand: original.original_operand().clone(),
+            command: original.command().clone(),
+        }
+    })
+}
+
+/// The same original whole-substitution projection reborrowed from its actual
+/// recursively checked parent plan. Public plan rows cannot forge ancestry.
+/// This supplies lexical words only, never a Native key, execution or Normal.
+#[must_use]
+pub fn original_single_source_command_substitution_in_plan(
+    plan: &tcl_lexer::NativeScriptWordsPlan,
+    operand: &tcl_lexer::NativeWord,
+) -> Option<OriginalSingleSourceCommandSubstitution> {
+    crate::command_binding::original_single_command_substitution_words_in_plan(plan, operand).map(
+        |original| OriginalSingleSourceCommandSubstitution {
+            operand: original.original_operand().clone(),
+            command: original.command().clone(),
+        },
+    )
+}
+
+fn retained_document_image(
+    source: &str,
+    realm: &crate::realm::CommandBindingRealm,
+    config: tcl_lexer::LexerConfig,
+) -> Option<tcl_lexer::SourceImage> {
+    let image = matching_document_image(source, realm.original_source_image()?)?;
+    realm
+        .matches_original_source_image(&image, config)
+        .then_some(image)
+}
+
+fn matching_document_image(
+    source: &str,
+    image: &tcl_lexer::SourceImage,
+) -> Option<tcl_lexer::SourceImage> {
+    // naming.source.original-immutable-image-geometry
+
+    (image.channel() == tcl_lexer::SourceChannel::Document && image.bytes() == source.as_bytes())
+        .then(|| image.clone())
+}
+
+/// Original document/workspace assistance at the unchanged complete call.
+/// Known replacements, unsupported lookup scope and missing full source
+/// correspondence decline. This never inherits Registry implementation facts.
+#[must_use]
+pub fn source_declared_command_words(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+) -> Option<crate::command_binding::OriginalDeclaredCommandWords> {
+    // naming.source.original-declared-command-word-contract
+
+    let input = analysis.resolved_input.as_ref()?;
+    let config = input.lexer_config();
+    let realm = analysis.retained_command_realm()?;
+    let image = retained_document_image(source, realm, config)?;
+    if !analysis.matches_original_source_image(&image, config) {
+        return None;
+    }
+    if !realm.matches_resolved_analysis_input(input) {
+        return None;
+    }
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let offset = segment.argv.first()?.span.start();
+    let original = crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        offset,
+        config,
+    )?;
+    let binding = tokens.source_binding.as_ref()?;
+    let selected = binding
+        .original_declared_source_selection(&tokens, input, &original)
+        .or_else(|| realm.original_authored_declared_source_selection(input, &tokens, &original))?;
+    crate::command_binding::OriginalDeclaredCommandWords::from_selected(selected, input)
+}
+
+/// Fresh readonly source grammar with its own complete editing input and
+/// original source interpretation. Conditional applicability cannot supply
+/// execution, complete reference coverage, native entry or rename permission.
+/// Consumers of an existing analysis use `source_registry_words` instead so
+/// its retained native entry, hosted ancestry and sealed input remain owners.
+#[derive(Debug)]
+pub struct OriginalSourceRegistryContext {
+    image: tcl_lexer::SourceImage,
+    input: crate::analyser::ResolvedAnalysisInput,
+    realm: crate::realm::CommandBindingRealm,
+}
+impl OriginalSourceRegistryContext {
+    /// Capture an independently selected fresh source context. This never
+    /// analyses a detached body as a fresh source or invokes diagnostics.
+    #[must_use]
+    pub fn capture(source: &str, input: crate::analyser::ResolvedAnalysisInput) -> Self {
+        let (realm, input) =
+            crate::analyser::Analyser::readonly_source_registry_realm(source, input);
+        Self {
+            image: tcl_lexer::SourceImage::document(source),
+            input,
+            realm,
+        }
+    }
+
+    /// Capture the fixed package-index survey's source context. Its realm
+    /// alone carries the survey-scoped conditional source control.
+    pub(crate) fn capture_package_index_survey(
+        source: &str,
+        input: crate::analyser::ResolvedAnalysisInput,
+    ) -> Self {
+        let (realm, input) =
+            crate::analyser::Analyser::readonly_package_index_survey_realm(source, input);
+        Self {
+            image: tcl_lexer::SourceImage::document(source),
+            input,
+            realm,
+        }
+    }
+
+    pub(crate) fn retained_source_realm(&self) -> &crate::realm::CommandBindingRealm {
+        &self.realm
+    }
+
+    /// Exact immutable availability and full source grammar selected at entry.
+    #[must_use]
+    pub fn editing_input(&self) -> &crate::analyser::ResolvedAnalysisInput {
+        &self.input
+    }
+
+    /// Actual complete source channel; no source substring is its own entry.
+    #[must_use]
+    pub fn source_image(&self) -> &tcl_lexer::SourceImage {
+        &self.image
+    }
+
+    /// Conditional source roles at the unchanged complete original vector.
+    /// Missing positioned lookup retains its own source/future obligations;
+    /// known shadowing or absence cannot fall through to a nominal descriptor.
+    #[must_use]
+    pub fn words(
+        &self,
+        segment: &crate::segmenter::SegmentedCommand,
+    ) -> Option<OriginalRegistryWords> {
+        self.realm
+            .matches_resolved_analysis_input(&self.input)
+            .then_some(())?;
+        let source = self.image.try_text().ok()?;
+        let config = self.input.lexer_config();
+        let context = self.input.context_registry();
+        // Hosted source children require their independently retained body
+        // occurrence owner; a fresh Native grammar cannot supply that issuer.
+        if self.input.has_hosted_source_name_context() {
+            return None;
+        }
+        // This facade owns a fresh source interpretation only. A genuine
+        // positioned selection may project Registry syntax, but cannot issue
+        // lookup-preserving rewrites or execution authority to this consumer.
+        if tcl_registry::InvocationDialect::of_profile(self.input.unit_profile())
+            .authored_name_policy()
+            .is_some()
+            && let Some(mut selected) =
+                selected_registry_words_with_context(source, config, &self.realm, segment, &context)
+        {
+            selected.operands_preserve_source_lookup = false;
+            return Some(selected);
+        }
+        native_source_registry_words(source, config, &self.realm, &context, segment, None)
+    }
+
+    /// Conditional Native source words for the syntax-only case-body walker.
+    /// This retains command-lookup residuals and grants no
+    /// generic body role, source effect, command selection or edit authority.
+    pub(crate) fn conditional_native_case_words(
+        &self,
+        segment: &crate::segmenter::SegmentedCommand,
+    ) -> Option<OriginalRegistryWords> {
+        let source = self.image.try_text().ok()?;
+        let context = self.input.context_registry();
+        conditional_native_case_source_words(
+            source,
+            self.input.lexer_config(),
+            &self.realm,
+            &self.input,
+            &context,
+            segment,
+        )
+    }
+}
+
+/// One effective operand's original source geometry. Captured prefix operands
+/// lack a written location; expansion children cannot acquire a whole word.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalOperandSource {
+    span: tcl_lexer::Span,
+    input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
+    word: Option<tcl_lexer::NativeWord>,
+}
+impl OriginalOperandSource {
+    /// Exact written operand or independently retained readonly child extent.
+    #[must_use]
+    pub const fn span(&self) -> tcl_lexer::Span {
+        self.span
+    }
+    /// Genuine optional naming input, never reconstructed from a label.
+    #[must_use]
+    pub fn input(&self) -> Option<&crate::signature_scan::scope::SignatureSourceNameInput> {
+        self.input.as_ref()
+    }
+    /// Complete original word, absent for a readonly list expansion child.
+    #[must_use]
+    pub fn word(&self) -> Option<&tcl_lexer::NativeWord> {
+        self.word.as_ref()
+    }
+}
+
+/// Selection purpose retained independently of the canonical schema label.
+/// Conditional applicability remains explicit and cannot supply execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OriginalRegistrySource {
+    /// Unanimous original Registry argv/role assistance.
+    Selected,
+    /// Exact scoped command vocabulary from a retained original body issuer.
+    Scoped(std::sync::Arc<super::source_scoped_body::OriginalSourceScopedCommandSchema>),
+    /// Closed document member selected under its genuine original parent.
+    /// This authoring schema carries no runtime lookup or evaluation purpose.
+    DefinitionMember(std::sync::Arc<super::source_scoped_body::OriginalSourceScriptBody>),
+    /// Authored source tape retains its naming purpose, original operands,
+    /// source order and any alias/move lineage with conditional premises.
+    SourceTransitions(
+        std::sync::Arc<crate::command_binding::OriginalSourceCommandTransitionAdvice>,
+    ),
+    /// Future source argv keeps its actual deferred parent and original builder.
+    /// This is neither an evaluated list object nor a reached target invocation.
+    ProducedPrefix(std::sync::Arc<crate::command_binding::OriginalSourceProducedCommandPrefix>),
+    /// Native source schema with unknown and alternative applicability obligations.
+    Conditional(std::sync::Arc<crate::registry_invocation::OriginalConditionalRegistryMetadata>),
+    /// Possible Native schema retained only for conditional case-body source.
+    ConditionalNativeSource(std::sync::Arc<OriginalNativeSourceApplicability>),
+    /// Hosted source schema with its independent policy and cell barriers.
+    Vendor(std::sync::Arc<crate::registry_invocation::OriginalConditionalVendorRegistryMetadata>),
+}
+
+/// Lookup residuals retained with possible Native source words. This does
+/// not establish command selection, effects, entered body or edit authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalNativeSourceApplicability {
+    unknown_residual: bool,
+    may_be_absent: bool,
+    source_advice: Option<(
+        crate::analyser::ResolvedAnalysisInput,
+        std::sync::Arc<crate::command_binding::OriginalSourceCommandTransitionAdvice>,
+    )>,
+}
+impl OriginalNativeSourceApplicability {
+    /// An unresolved or non-Registry lookup alternative remains possible.
+    #[must_use]
+    pub const fn has_unknown_residual(&self) -> bool {
+        self.unknown_residual
+    }
+    /// The source lookup may yield no Registry command.
+    #[must_use]
+    pub const fn may_be_absent(&self) -> bool {
+        self.may_be_absent
+    }
+
+    fn matches_source_context(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> bool {
+        self.source_advice.as_ref().is_none_or(|(input, advice)| {
+            input.lexer_config() == config
+                && std::ptr::eq(input.borrowed_context_registry(), context)
+                && advice.matches_context(context)
+                && advice.matches_source(image, config)
+        })
+    }
+}
+
+/// Readonly continuity from invocation entry to one genuine Logical Written
+/// operand. Every earlier Written head/argument is an original static whole
+/// word; captured alias prefix values remain data from their separate issuer.
+/// This closes only current operand syntax, not prior source/observer debts,
+/// runtime values, a reached invocation or successful execution.
+#[derive(Debug)]
+pub struct OriginalLogicalStaticOperandPrefix<'a> {
+    invocation: &'a OriginalRegistryWords,
+    argument: usize,
+    written: &'a [tcl_lexer::NativeWord],
+}
+impl OriginalLogicalStaticOperandPrefix<'_> {
+    /// Complete effective invocation, retaining both source and alias issuers.
+    #[must_use]
+    pub const fn original_invocation(&self) -> &OriginalRegistryWords {
+        self.invocation
+    }
+    /// Selected effective post-head argument ordinal, without recapturing it.
+    #[must_use]
+    pub const fn argument(&self) -> usize {
+        self.argument
+    }
+    /// Genuine earlier Written words in their original evaluation order.
+    #[must_use]
+    pub const fn original_written_prefix(&self) -> &[tcl_lexer::NativeWord] {
+        self.written
+    }
+}
+
+/// Source-only correspondence of two genuinely retained head purposes.
+/// The complete issuers remain separate: a selected effective `ResolvedHead`
+/// never becomes a Written word, and the Written source head acquires no
+/// selected dispatch, entered frame or replacement authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OriginalSourceHeadCorrespondence {
+    left: OriginalRegistryWords,
+    right: OriginalRegistryWords,
+}
+impl OriginalSourceHeadCorrespondence {
+    #[cfg(test)]
+    pub(crate) const fn left(&self) -> &OriginalRegistryWords {
+        &self.left
+    }
+    #[cfg(test)]
+    pub(crate) const fn right(&self) -> &OriginalRegistryWords {
+        &self.right
+    }
+}
+
+/// Sealed effective source argv and authored Registry roles. This supplies
+/// source structure only: no runtime dispatch, entered frame, cell, compiler,
+/// Normal, reflection equivalence or edit permission follows from this view.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalRegistryWords {
+    command: String,
+    dialect: Option<tcl_registry::InvocationDialect>,
+    arguments: Vec<crate::registry_invocation::EffectiveInvocationWord>,
+    operands: Vec<Option<OriginalOperandSource>>,
+    origins: Vec<crate::registry_invocation::InvocationWordOrigin>,
+    head: Option<OriginalOperandSource>,
+    roles: Option<Vec<(usize, tcl_registry::ArgRole)>>,
+    source: OriginalRegistrySource,
+    captured_values:
+        Option<std::sync::Arc<crate::command_binding::OriginalSourceCommandTransitionAdvice>>,
+    operands_preserve_source_lookup: bool,
+    image: tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    registry: tcl_registry::RegistrySemanticKey,
+    context: Option<tcl_registry::model::ResolvedContext>,
+    /// Parent source proof for a generic child that has no independent root
+    /// command-tape entry. It only revalidates the selected source projection.
+    definition_parent: Option<std::sync::Arc<super::source_scoped_body::OriginalSourceScriptBody>>,
+}
+fn selected_source_package_reference(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<tcl_registry::source_navigation::SourcePackageReference> {
+    schema.authored_source_package_reference()
+}
+
+impl OriginalRegistryWords {
+    /// Canonical authored Registry descriptor; this is not a source spelling.
+    #[must_use]
+    pub fn command(&self) -> &str {
+        &self.command
+    }
+    /// Independently retained invocation dialect, when actual selection owns it.
+    #[must_use]
+    pub const fn dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+        self.dialect
+    }
+    /// Effective post-head operands, retaining dynamic/opaque/expanded states.
+    #[must_use]
+    pub fn arguments(&self) -> &[crate::registry_invocation::EffectiveInvocationWord] {
+        &self.arguments
+    }
+    /// Effective post-head source anchors. No captured operand borrows a span.
+    #[must_use]
+    pub fn operands(&self) -> &[Option<OriginalOperandSource>] {
+        &self.operands
+    }
+    /// Genuine original whole word at this effective operand ordinal.
+    /// A captured prefix retains its allocation producer and explicit origin;
+    /// it gains no written operand at the current call or editable child word.
+    #[must_use]
+    pub fn original_argument_word(&self, argument: usize) -> Option<&tcl_lexer::NativeWord> {
+        use crate::registry_invocation::InvocationWordOrigin;
+        let origin = self.origins.get(argument.checked_add(1)?)?;
+        let word = match origin {
+            InvocationWordOrigin::Written(_) => self.operands.get(argument)?.as_ref()?.word()?,
+            InvocationWordOrigin::BindingPrefix(_) => {
+                let advice = match &self.source {
+                    OriginalRegistrySource::SourceTransitions(advice) => advice,
+                    _ => self.captured_values.as_ref()?,
+                };
+                advice
+                    .matches_source(&self.image, self.config)
+                    .then_some(())?;
+                let captured = advice.arguments().get(argument)?;
+                (captured.origin == *origin).then_some(())?;
+                &captured.original
+            }
+            InvocationWordOrigin::ResolvedHead | InvocationWordOrigin::ExpandedElement { .. } => {
+                return None;
+            }
+        };
+        (word.image() == &self.image && word.config() == self.config && !word.group().expand)
+            .then_some(word)
+    }
+
+    /// Retain a static earlier-Written prefix before lending invocation-entry
+    /// source constants to this operand. The exact Logical input/context,
+    /// image/configuration, selected schema and full original vector remain
+    /// mandatory. Dynamic/expanded prior operands decline, including reads
+    /// which could invoke unclosed observers. No executed quietness is issued.
+    #[must_use]
+    pub fn original_logical_static_operand_prefix_before(
+        &self,
+        context: &tcl_registry::model::ContextRegistry,
+        argument: usize,
+    ) -> Option<OriginalLogicalStaticOperandPrefix<'_>> {
+        // naming.navigation.retained-path-source-inventory
+
+        let OriginalRegistrySource::SourceTransitions(advice) = &self.source else {
+            return None;
+        };
+        let input = advice.logical_source_input()?;
+        if input.lexer_config() != self.config
+            || !std::ptr::eq(input.borrowed_context_registry(), context)
+            || !advice.matches_source(&self.image, self.config)
+            || !advice.matches_context(context)
+        {
+            return None;
+        }
+        self.with_source_schema(context, |_| ())?;
+        let crate::registry_invocation::InvocationWordOrigin::Written(written) =
+            *self.origins.get(argument.checked_add(1)?)?
+        else {
+            return None;
+        };
+        let original = advice.original_words();
+        if written == 0 || self.original_argument_word(argument)? != original.get(written)? {
+            return None;
+        }
+        let prefix = original.get(..written)?;
+        for word in prefix {
+            if word.image() != &self.image
+                || word.config() != self.config
+                || tcl_syntax::word_rules::original_static_word_source_bytes(word).is_none()
+            {
+                return None;
+            }
+        }
+        Some(OriginalLogicalStaticOperandPrefix {
+            invocation: self,
+            argument,
+            written: prefix,
+        })
+    }
+
+    /// Genuine readonly original value input at an effective operand ordinal.
+    /// A captured alias prefix retains its separate declaration producer and
+    /// conditional source obligations. It gains no call-site word extent,
+    /// runtime `AliasPrefix` object, entered frame or invocation authority.
+    #[must_use]
+    pub fn original_argument_value_input(
+        &self,
+        argument: usize,
+    ) -> Option<&crate::signature_scan::scope::SignatureSourceNameInput> {
+        if let Some(input) = self
+            .operands
+            .get(argument)?
+            .as_ref()
+            .and_then(OriginalOperandSource::input)
+        {
+            return Some(input);
+        }
+        let advice = match &self.source {
+            OriginalRegistrySource::SourceTransitions(advice) => advice,
+            _ => self.captured_values.as_ref()?,
+        };
+        advice
+            .arguments()
+            .get(argument)?
+            .input
+            .as_ref()?
+            .native_input()
+    }
+
+    /// Independently retained conditional declaration producers of captured
+    /// operands. Selection, written geometry and execution remain separate.
+    #[must_use]
+    pub fn captured_argument_values(
+        &self,
+    ) -> Option<&crate::command_binding::OriginalSourceCommandTransitionAdvice> {
+        self.captured_values.as_deref()
+    }
+
+    /// Actual written source head, independent of an alias's effective target.
+    /// Hosted words retain their own source word without borrowing Native input.
+    #[must_use]
+    pub fn head_source(&self) -> Option<&OriginalOperandSource> {
+        self.head.as_ref()
+    }
+    /// Original effective argv origins, including the head at ordinal zero.
+    #[must_use]
+    pub fn origins(&self) -> &[crate::registry_invocation::InvocationWordOrigin] {
+        &self.origins
+    }
+    /// Join actual original head words under the same source/config/context
+    /// and selected descriptor, without equating their independent purposes.
+    /// A differing head origin is admitted only for the existing authored
+    /// transition Written(0) and selected effective `ResolvedHead` producers.
+    pub(crate) fn original_source_head_correspondence(
+        &self,
+        other: &Self,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Option<OriginalSourceHeadCorrespondence> {
+        // naming.editor.original-method-candidates
+
+        use crate::registry_invocation::InvocationWordOrigin;
+        if self.image != other.image || self.config != other.config {
+            return None;
+        }
+        let left = self.head_source()?.word()?;
+        let right = other.head_source()?.word()?;
+        if left != right
+            || left.image() != &self.image
+            || left.config() != self.config
+            || left.group().expand
+        {
+            return None;
+        }
+        let left_origin = self.origins.first()?;
+        let right_origin = other.origins.first()?;
+        if left_origin != right_origin {
+            if left_origin != &InvocationWordOrigin::Written(0)
+                || right_origin != &InvocationWordOrigin::ResolvedHead
+            {
+                return None;
+            }
+            let OriginalRegistrySource::SourceTransitions(advice) = self.source() else {
+                return None;
+            };
+            if !matches!(other.source(), OriginalRegistrySource::Selected)
+                || !advice.matches_source(&self.image, self.config)
+                || !advice.matches_context(context)
+                || advice.original_words().first() != Some(left)
+            {
+                return None;
+            }
+        }
+        let same_descriptor = self.with_source_schema(context, |left| {
+            other.with_source_schema(context, |right| {
+                std::ptr::eq(
+                    left.authored_source_descriptors().command,
+                    right.authored_source_descriptors().command,
+                ) && left.semantics.argument_offset == right.semantics.argument_offset
+            })
+        })??;
+        same_descriptor.then_some(())?;
+        Some(OriginalSourceHeadCorrespondence {
+            left: self.clone(),
+            right: other.clone(),
+        })
+    }
+
+    /// Complete unanimous roles at effective post-head ordinals, or unknown.
+    #[must_use]
+    pub fn roles(&self) -> Option<&[(usize, tcl_registry::ArgRole)]> {
+        self.roles.as_deref()
+    }
+    /// Possible authored roles projected onto genuine whole written arguments.
+    /// Captured prefix operands and expanded children provide no whole-word
+    /// position; the head is excluded. This supplies no definite role.
+    #[must_use]
+    pub fn written_argument_roles(&self) -> Vec<(usize, tcl_registry::ArgRole)> {
+        let mut roles = Vec::new();
+        for &(argument, role) in self.roles().unwrap_or(&[]) {
+            let Some(crate::registry_invocation::InvocationWordOrigin::Written(written)) = argument
+                .checked_add(1)
+                .and_then(|ordinal| self.origins.get(ordinal))
+            else {
+                continue;
+            };
+            if let Some(argument) = written.checked_sub(1)
+                && !roles.contains(&(argument, role))
+            {
+                roles.push((argument, role));
+            }
+        }
+        roles.sort_by_key(|(ordinal, _)| *ordinal);
+        roles
+    }
+
+    /// Original selection/conditional applicability without a runtime grant.
+    #[must_use]
+    pub const fn source(&self) -> &OriginalRegistrySource {
+        &self.source
+    }
+    /// Independent original operand-effect check for the selected source
+    /// lookup. Conditional schema applicability cannot supply this facet.
+    /// This is not an execution, compiler, Normal or general edit receipt.
+    #[must_use]
+    pub const fn operands_preserve_source_lookup(&self) -> bool {
+        self.operands_preserve_source_lookup
+    }
+    /// Exact complete source/channel and full lexer config correspondence.
+    #[must_use]
+    pub fn matches_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        self.image == *image && self.config == config
+    }
+    /// Actual complete availability context when the source analysis owns it.
+    /// A realm-only geometry projection does not manufacture this context.
+    #[must_use]
+    pub fn context(&self) -> Option<&tcl_registry::model::ResolvedContext> {
+        self.context.as_ref()
+    }
+    /// Authenticated enclosing definition body when this argv was reborrowed
+    /// from a complete parent source plan.
+    #[must_use]
+    pub fn definition_parent(
+        &self,
+    ) -> Option<&super::source_scoped_body::OriginalSourceScriptBody> {
+        self.definition_parent.as_deref()
+    }
+    /// Borrow the same exact argv's Registry-authored source schema under its
+    /// actual retained context. The projection is source advice only; fields
+    /// describing possible handlers/effects never establish execution here.
+    #[must_use]
+    pub fn with_source_schema<'r, T>(
+        &'r self,
+        context: &'r tcl_registry::model::ContextRegistry,
+        project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+    ) -> Option<T> {
+        let arguments = self
+            .arguments
+            .iter()
+            .map(|word| source_schema_word(word.as_registry_word()))
+            .collect::<Vec<_>>();
+        self.with_source_arguments(context, &arguments, project)
+    }
+
+    /// Query the same selected source descriptor with separately supplied
+    /// advisory values on ordinary original written operands. Captured words,
+    /// expansion cardinality and the original argv stay unchanged. This does
+    /// not establish the values, a Native argv, dispatch or completion.
+    pub(crate) fn with_source_value_projection<'r, T>(
+        &'r self,
+        context: &'r tcl_registry::model::ContextRegistry,
+        values: &[(usize, &str)],
+        project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+    ) -> Option<T> {
+        let mut arguments = self
+            .arguments
+            .iter()
+            .map(|word| source_schema_word(word.as_registry_word()))
+            .collect::<Vec<_>>();
+        let mut seen = std::collections::HashSet::new();
+        for &(ordinal, value) in values {
+            if !seen.insert(ordinal)
+                || !matches!(self.origins.get(ordinal.checked_add(1)?),
+                    Some(crate::registry_invocation::InvocationWordOrigin::Written(written)) if *written > 0)
+            {
+                return None;
+            }
+            let word = self.operands.get(ordinal)?.as_ref()?.word()?;
+            if word.group().expand {
+                return None;
+            }
+            *arguments.get_mut(ordinal)? = tcl_registry::InvocationWord::Literal(value);
+        }
+        self.with_source_arguments(context, &arguments, project)
+    }
+
+    fn with_source_arguments<'r, T>(
+        &'r self,
+        context: &'r tcl_registry::model::ContextRegistry,
+        arguments: &[tcl_registry::InvocationWord<'_>],
+        project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+    ) -> Option<T> {
+        if !self.matches_registry(context.commands())
+            || self.context.as_ref() != Some(context.context())
+            || matches!(&self.source, OriginalRegistrySource::SourceTransitions(advice) if !advice.matches_context(context))
+            || matches!(&self.source, OriginalRegistrySource::ProducedPrefix(prefix) if !prefix.matches_source_context(&self.image, self.config, context))
+            || matches!(&self.source, OriginalRegistrySource::ConditionalNativeSource(applicability) if !applicability.matches_source_context(&self.image, self.config, context))
+            || self.definition_parent.as_ref().is_some_and(|parent| {
+                !parent.matches_source(&self.image, self.config) || !parent.matches_context(context)
+            })
+        {
+            return None;
+        }
+        let invocation = tcl_registry::InvocationWords::structured(
+            tcl_registry::InvocationWord::Literal(&self.command),
+            arguments,
+        );
+        let invocation = self
+            .dialect
+            .map_or(invocation, |dialect| invocation.with_dialect(dialect));
+        if let OriginalRegistrySource::DefinitionMember(parent) = &self.source {
+            if !parent.matches_source(&self.image, self.config) || !parent.matches_context(context)
+            {
+                return None;
+            }
+            let grammar = parent
+                .source_words()
+                .with_source_schema(context, source_definition_body_grammar)
+                .flatten()?;
+            let descriptor = context
+                .commands()
+                .authored_document_member_descriptor(grammar, &self.command)?;
+            let selected = tcl_registry::registry::resolve_source_descriptor_invocation(
+                descriptor,
+                invocation,
+                context.commands().source_descriptor_availability(
+                    descriptor,
+                    Some(context.context().authoring_query()),
+                ),
+                self.dialect.map(|dialect| dialect.numbers),
+            );
+            return Some(project(&selected));
+        }
+        if let OriginalRegistrySource::Scoped(scoped) = &self.source {
+            if scoped.body().context() != context.context()
+                || !scoped.body().matches_source(&self.image, self.config)
+                || !scoped.body().matches_registry(context.commands())
+            {
+                return None;
+            }
+            let selected = tcl_registry::registry::resolve_source_descriptor_invocation(
+                scoped.descriptor(),
+                invocation,
+                context.commands().source_descriptor_availability(
+                    scoped.body().parent_descriptor(),
+                    Some(context.context().authoring_query()),
+                ),
+                self.dialect.map(|dialect| dialect.numbers),
+            );
+            return Some(project(&selected));
+        }
+        let selected = tcl_registry::model::assembly::resolve_invocation_words_in_context(
+            context.commands(),
+            Some(context.context()),
+            invocation,
+        )?;
+        Some(project(&selected))
+    }
+
+    /// Original script regions from the shared source body/role owner.
+    /// Complete context and applicability stay retained; no runtime body entry,
+    /// scoped vocabulary, current cell, Normal or writable authority follows.
+    #[must_use]
+    pub fn source_script_bodies(
+        &self,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Vec<super::source_scoped_body::OriginalSourceScriptBody> {
+        self.source_script_bodies_for(context, super::OriginalSourceScriptPurpose::Syntax)
+    }
+
+    /// The same source inventory under an explicit syntax/evaluation purpose.
+    /// Reference-only syntax remains available independently of potential entry.
+    #[must_use]
+    pub fn source_script_bodies_for(
+        &self,
+        context: &tcl_registry::model::ContextRegistry,
+        purpose: super::OriginalSourceScriptPurpose,
+    ) -> Vec<super::source_scoped_body::OriginalSourceScriptBody> {
+        super::source_scoped_body::source_script_bodies_for(self, context, purpose)
+    }
+
+    /// Possible case-body candidates for source syntax consumers. The separate
+    /// projection retains unknown option/subject selection; it does not change
+    /// the stronger body inventory or establish entry.
+    #[must_use]
+    pub(crate) fn conditional_source_case_bodies(
+        &self,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Option<super::source_scoped_body::OriginalConditionalSourceCaseBodies> {
+        super::source_scoped_body::conditional_source_case_bodies_for(self, context)
+    }
+
+    /// Complete original source-body inventory for a coverage consumer.
+    /// Unlike the partial syntax inventory, a missing, dynamic or malformed
+    /// potentially evaluated body returns `None`. This certifies source
+    /// coverage only, independently of execution, effects, frames or edits.
+    #[must_use]
+    pub fn source_script_bodies_for_mutation_coverage(
+        &self,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Option<Vec<super::source_scoped_body::OriginalSourceScriptBody>> {
+        super::source_scoped_body::source_script_bodies_for_mutation_coverage(self, context)
+    }
+
+    /// Complete original syntax-body coverage, including reference-only
+    /// declarations. Missing/cooked/dynamic/unrepresented bodies remain None.
+    /// This covers source syntax only; no entered body or runtime absence follows.
+    #[must_use]
+    pub fn source_script_bodies_for_syntax_coverage(
+        &self,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Option<Vec<super::source_scoped_body::OriginalSourceScriptBody>> {
+        super::source_scoped_body::source_script_bodies_for_coverage(
+            self,
+            context,
+            super::OriginalSourceScriptPurpose::Syntax,
+        )
+    }
+
+    /// Original expression command regions at the retained AST's actual
+    /// operand-content base. Unique genuine Expr geometry is required;
+    /// unrelated or cooked operands cannot donate a child source span.
+    #[must_use]
+    pub fn source_expression_script_bodies_at(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        expression_base: u32,
+    ) -> Option<Vec<super::OriginalSourceScriptBody>> {
+        super::source_scoped_body::source_expression_script_bodies_at(self, input, expression_base)
+    }
+
+    /// Registry contents used by the issuer, independent of reporting names.
+    #[must_use]
+    pub fn matches_registry(&self, registry: &CommandRegistry) -> bool {
+        self.registry == registry.snapshot().semantic_key()
+    }
+    /// Original expression command regions under the caller's retained complete
+    /// input. Multiple/cooked operands and unknown expression grammar decline.
+    #[must_use]
+    pub fn source_expression_script_bodies(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Vec<super::OriginalSourceScriptBody>> {
+        super::source_scoped_body::source_expression_script_bodies(self, input)
+    }
+}
+
+/// Borrow exact text for Registry source controls without changing the retained
+/// counted value. Opaque units, raw zero, substitution and expansion retain
+/// their independent byte/cardinality facets; no executable argv is issued.
+pub(crate) fn source_schema_word(
+    word: tcl_registry::InvocationWord<'_>,
+) -> tcl_registry::InvocationWord<'_> {
+    let tcl_registry::InvocationWord::KnownBytes(bytes) = word else {
+        return word;
+    };
+    if bytes.contains(&0) {
+        return word;
+    }
+    std::str::from_utf8(bytes).map_or(word, tcl_registry::InvocationWord::Literal)
+}
+
+/// Unanimous Registry advice retains effective argument values and their own
+/// source origins. Captured arguments occupy slots without source anchors;
+/// expanded children use only independently retained readonly extents.
+pub fn selected_registry_words(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+) -> Option<OriginalRegistryWords> {
+    let config = analysis.body_lexer_config?;
+    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
+        return None;
+    }
+    let actual_registry = analysis.resolved_registry()?;
+    if actual_registry.snapshot().semantic_key() != registry.snapshot().semantic_key() {
+        return None;
+    }
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    selected_registry_words_with_context(
+        source,
+        config,
+        analysis.retained_command_realm()?,
+        segment,
+        &context,
+    )
+}
+
+fn selected_registry_words_with_context(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    realm: &crate::realm::CommandBindingRealm,
+    segment: &crate::segmenter::SegmentedCommand,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Option<OriginalRegistryWords> {
+    let mut selected =
+        selected_registry_words_in_realm(source, config, realm, segment, context.commands())?;
+    // Implementation contract: naming.source.authored-registry-role-projection
+
+    selected.context = Some(context.context().clone());
+    selected.roles = selected
+        .with_source_schema(context, |schema| {
+            let (roles, complete) = schema.authored_source_argument_roles();
+            conditional_roles(&roles, schema.semantics.argument_offset, complete)
+        })
+        .flatten();
+    selected.captured_values =
+        selected_captured_argument_values(source, config, realm, segment, context, &selected);
+    Some(selected)
+}
+
+/// A selected call does not inherit the source tape's command selection.
+/// Matching its entire effective vector retains only independently authored
+/// captured value producers and their conditional transition obligations.
+fn selected_captured_argument_values(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    realm: &crate::realm::CommandBindingRealm,
+    segment: &crate::segmenter::SegmentedCommand,
+    context: &tcl_registry::model::ContextRegistry,
+    selected: &OriginalRegistryWords,
+) -> Option<std::sync::Arc<crate::command_binding::OriginalSourceCommandTransitionAdvice>> {
+    use crate::registry_invocation::InvocationWordOrigin;
+    if !selected
+        .origins
+        .iter()
+        .any(|origin| matches!(origin, InvocationWordOrigin::BindingPrefix(_)))
+    {
+        return None;
+    }
+    let image = retained_document_image(source, realm, config)?;
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let advice = realm.original_source_transition_value_advice(context, &tokens)?;
+    let values = source_transition_words_with_segment(source, config, context, segment, advice)?;
+    if values.command != selected.command
+        || values.dialect != selected.dialect
+        || values.origins.get(1..) != selected.origins.get(1..)
+        || values.arguments.len() != selected.arguments.len()
+        || !values
+            .arguments
+            .iter()
+            .zip(&selected.arguments)
+            .all(
+                |(source, actual)| match (source.literal_bytes(), actual.literal_bytes()) {
+                    (Some(source), Some(actual)) => source == actual,
+                    _ => source == actual,
+                },
+            )
+    {
+        return None;
+    }
+    let OriginalRegistrySource::SourceTransitions(advice) = values.source else {
+        return None;
+    };
+    Some(advice)
+}
+
+/// Same selected original argv/role owner for a consumer with an independently
+/// retained realm, complete source and full config. No nominal-head fallback.
+pub fn selected_registry_words_in_realm(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    realm: &crate::realm::CommandBindingRealm,
+    segment: &crate::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+) -> Option<OriginalRegistryWords> {
+    let image = retained_document_image(source, realm, config)?;
+    selected_registry_words_in_original_image(&image, config, realm, segment, registry)
+}
+
+pub(crate) fn selected_registry_words_in_original_image(
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    realm: &crate::realm::CommandBindingRealm,
+    segment: &crate::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+) -> Option<OriginalRegistryWords> {
+    realm
+        .matches_original_source_image(image, config)
+        .then_some(())?;
+    let image = image.clone();
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let assistance = crate::registry_invocation::original_registry_invocation_assistance(
+        registry, None, &tokens,
+    )
+    .or_else(|| {
+        crate::registry_invocation::original_incomplete_body_registry_invocation_assistance(
+            registry, realm, &tokens,
+        )
+    })?;
+    selected_registry_words_from_tokens(&image, config, &tokens, segment, registry, assistance)
+}
+
+fn selected_registry_words_from_tokens(
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    tokens: &crate::ir::CommandTokens,
+    segment: &crate::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    assistance: crate::registry_invocation::RegistryInvocationAssistance,
+) -> Option<OriginalRegistryWords> {
+    let image = image.clone();
+    let selected = assistance.unanimous_command_words()?;
+    let roles = assistance.candidates.first().and_then(|first| {
+        let roles = first
+            .roles
+            .iter()
+            .map(|&(index, role)| {
+                first
+                    .argument_offset
+                    .checked_add(usize::from(index))
+                    .map(|index| (index, role))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        assistance
+            .candidates
+            .iter()
+            .all(|candidate| {
+                candidate.roles_complete
+                    && candidate
+                        .roles
+                        .iter()
+                        .map(|&(index, role)| {
+                            candidate
+                                .argument_offset
+                                .checked_add(usize::from(index))
+                                .map(|index| (index, role))
+                        })
+                        .collect::<Option<Vec<_>>>()
+                        .as_ref()
+                        == Some(&roles)
+            })
+            .then_some(roles)
+    });
+    let effective = selected.effective();
+    let binding = tokens.source_binding.as_ref()?;
+    let native = crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        segment.argv.first()?.span.start(),
+        config,
+    );
+    let dialect = binding.original_source_word_dialect_for_tokens(tokens)?;
+    let protocol = dialect.native_source_string_protocol()?;
+    let arguments =
+        original_source_argument_words(tokens, effective, native.as_deref()?, protocol)?;
+    let words: Vec<_> = arguments
+        .iter()
+        .map(|word| word.as_registry_word())
+        .collect();
+    InvocationArguments::structured(&words).exact_argv_len()?;
+    let operands =
+        effective_operand_sources(segment, tokens, effective, &arguments, native.as_deref())?;
+    let head = native.as_deref().and_then(|words| {
+        Some(OriginalOperandSource {
+            span: words.first()?.span(),
+            input: binding.original_written_name_input(tokens, 0),
+            word: words.first().cloned(),
+        })
+    });
+    Some(OriginalRegistryWords {
+        command: selected.command().to_owned(),
+        dialect: Some(dialect),
+        arguments,
+        operands,
+        origins: effective.origins.clone(),
+        head,
+        roles,
+        source: OriginalRegistrySource::Selected,
+        captured_values: None,
+        operands_preserve_source_lookup: binding
+            .original_source_operands_preserve_lookup(tokens, registry),
+        image,
+        config,
+        registry: registry.snapshot().semantic_key(),
+        context: None,
+        definition_parent: None,
+    })
+}
+
+/// Conditional original Native argv for the narrow possible-case-body
+/// syntax consumer. The exact full input, image/configuration, stamped source
+/// binding, native vector and all Registry lookup residuals remain retained.
+/// Only one identical possible shape is admitted; this does not select it.
+fn conditional_native_case_source_words(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    realm: &crate::realm::CommandBindingRealm,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    context: &tcl_registry::model::ContextRegistry,
+    segment: &crate::segmenter::SegmentedCommand,
+) -> Option<OriginalRegistryWords> {
+    if input.has_hosted_source_name_context()
+        || !realm.matches_resolved_analysis_input(input)
+        || config != input.lexer_config()
+        || !std::ptr::eq(std::sync::Arc::as_ptr(&input.context_registry()), context)
+    {
+        return None;
+    }
+    let image = retained_document_image(source, realm, config)?;
+    let registry = context.commands();
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    if realm.original_source_registry_barrier(context, &tokens) {
+        return None;
+    }
+    let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+        context.commands(),
+        input,
+    )?;
+    if let Some(advice) = realm.original_conditional_case_syntax_advice(input, &tokens) {
+        let mut words =
+            source_transition_words_with_segment(source, config, context, segment, advice)?;
+        let OriginalRegistrySource::SourceTransitions(advice) = words.source else {
+            return None;
+        };
+        words.roles = None;
+        words.source = OriginalRegistrySource::ConditionalNativeSource(std::sync::Arc::new(
+            OriginalNativeSourceApplicability {
+                // This source issuer has no reached lookup or absence proof.
+                unknown_residual: true,
+                may_be_absent: true,
+                source_advice: Some((input.clone(), advice)),
+            },
+        ));
+        return Some(words);
+    }
+    let assistance =
+        crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
+            context.commands(),
+            Some(metadata),
+            &tokens,
+        )?;
+    let shape = assistance.candidates.first()?;
+    if assistance
+        .candidates
+        .iter()
+        .any(|candidate| candidate != shape)
+    {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let native = crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        segment.argv.first()?.span.start(),
+        config,
+    )?;
+    let dialect = binding.original_source_word_dialect_for_tokens(&tokens)?;
+    let protocol = dialect.native_source_string_protocol()?;
+    let arguments = original_source_argument_words(&tokens, &shape.effective, &native, protocol)?;
+    let registry_words: Vec<_> = arguments
+        .iter()
+        .map(|word| word.as_registry_word())
+        .collect();
+    InvocationArguments::structured(&registry_words).exact_argv_len()?;
+    let operands = effective_operand_sources(
+        segment,
+        &tokens,
+        &shape.effective,
+        &arguments,
+        Some(&native),
+    )?;
+    let head = Some(OriginalOperandSource {
+        span: native.first()?.span(),
+        input: binding.original_written_name_input(&tokens, 0),
+        word: native.first().cloned(),
+    });
+    Some(OriginalRegistryWords {
+        command: shape.command.clone(),
+        dialect: Some(dialect),
+        arguments,
+        operands,
+        origins: shape.effective.origins.clone(),
+        head,
+        // Conditional source words do not supply definite authored roles.
+        roles: None,
+        source: OriginalRegistrySource::ConditionalNativeSource(std::sync::Arc::new(
+            OriginalNativeSourceApplicability {
+                unknown_residual: assistance.unknown_residual,
+                may_be_absent: assistance.may_be_absent,
+                source_advice: None,
+            },
+        )),
+        captured_values: None,
+        operands_preserve_source_lookup: false,
+        image,
+        config,
+        registry: registry.snapshot().semantic_key(),
+        context: Some(context.context().clone()),
+        definition_parent: None,
+    })
+}
+
+/// Original lexical values have their own capture purpose. Positioned frozen
+/// runtime values cannot replace static source escapes or promote a written
+/// substitution to a literal. Captured argv and proved expansion children keep
+/// their independent exact bytes and effective cardinality.
+fn original_source_argument_words(
+    tokens: &crate::ir::CommandTokens,
+    effective: &crate::registry_invocation::EffectiveCommandWords,
+    native: &[tcl_lexer::NativeWord],
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+) -> Option<Vec<crate::registry_invocation::EffectiveInvocationWord>> {
+    use crate::registry_invocation::{EffectiveInvocationWord, InvocationWordOrigin};
+    let captured =
+        tcl_registry::native_compiler_words::NativeCompilerWords::capture(native, protocol).ok()?;
+    let frozen = crate::registry_invocation::frozen_argument_words(tokens, effective);
+    effective
+        .origins
+        .iter()
+        .skip(1)
+        .zip(frozen)
+        .map(|(origin, frozen)| {
+            let InvocationWordOrigin::Written(ordinal) = origin else {
+                return Some(frozen);
+            };
+            let word = native.get(*ordinal)?;
+            Some(if word.group().expand {
+                EffectiveInvocationWord::Expanded
+            } else {
+                captured
+                    .literal(*ordinal)
+                    .map_or(EffectiveInvocationWord::Dynamic, |bytes| {
+                        EffectiveInvocationWord::ByteLiteral(std::sync::Arc::from(bytes))
+                    })
+            })
+        })
+        .collect()
+}
+
+fn effective_operand_sources(
+    segment: &crate::segmenter::SegmentedCommand,
+    tokens: &crate::ir::CommandTokens,
+    effective: &crate::registry_invocation::EffectiveCommandWords,
+    arguments: &[crate::registry_invocation::EffectiveInvocationWord],
+    native: Option<&[tcl_lexer::NativeWord]>,
+) -> Option<Vec<Option<OriginalOperandSource>>> {
+    use crate::registry_invocation::InvocationWordOrigin;
+    if effective.origins.len() != arguments.len().checked_add(1)?
+        || effective.words.len() != effective.origins.len()
+    {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    Some(
+        effective
+            .origins
+            .iter()
+            .skip(1)
+            .zip(arguments)
+            .map(|(origin, value)| match origin {
+                InvocationWordOrigin::Written(written) => Some(OriginalOperandSource {
+                    span: segment.argv.get(*written)?.span,
+                    input: binding.original_written_name_input(tokens, *written),
+                    word: native.and_then(|words| words.get(*written)).cloned(),
+                }),
+                InvocationWordOrigin::ExpandedElement { written, element } => {
+                    let parent = binding.original_written_name_input(tokens, *written)?;
+                    let mut children = parent.original_list_elements_with_source_spans()?;
+                    let (input, span) = children.get_mut(*element)?;
+                    (value.literal_bytes()? == input.bytes()).then_some(())?;
+                    let span = (*span)?;
+                    let parent = native?.get(*written)?.span();
+                    if span.start() < parent.start() || span.end() > parent.end() {
+                        return None;
+                    }
+                    Some(OriginalOperandSource {
+                        span,
+                        input: Some(input.clone()),
+                        word: None,
+                    })
+                }
+                InvocationWordOrigin::BindingPrefix(_) | InvocationWordOrigin::ResolvedHead => None,
+            })
+            .collect(),
+    )
+}
+
+/// Readonly source argument topology of the actual retained procedure
+/// implementation. Formal bindings describe argv ordinals only; they do not
+/// install a frame, read a cell, prepare a native call or permit an edit.
+pub struct OriginalProcedureArguments<'a> {
+    declaration: &'a crate::signature_scan::original_name::SourceDeclarationMetadata<
+        crate::analyser::ProcDef,
+    >,
+    formals: crate::signature_scan::formal_parameters::SignatureSourceFormalParameters,
+    bindings: Vec<tcl_syntax::formal_params::FormalByteArgumentBinding>,
+    arguments: Vec<crate::registry_invocation::EffectiveInvocationWord>,
+    operands: Vec<Option<OriginalOperandSource>>,
+    image: tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    registry: tcl_registry::RegistrySemanticKey,
+}
+
+impl<'a> OriginalProcedureArguments<'a> {
+    /// Canonical immutable declaration selected by the implementation allocation.
+    #[must_use]
+    pub const fn declaration(
+        &self,
+    ) -> &'a crate::signature_scan::original_name::SourceDeclarationMetadata<crate::analyser::ProcDef>
+    {
+        self.declaration
+    }
+    /// Actual original `ParamList` and its independently selected source grammar.
+    #[must_use]
+    pub const fn formals(
+        &self,
+    ) -> &crate::signature_scan::formal_parameters::SignatureSourceFormalParameters {
+        &self.formals
+    }
+    /// Required/default/rest/caller-link syntax at this exact effective argc.
+    #[must_use]
+    pub fn bindings(&self) -> &[tcl_syntax::formal_params::FormalByteArgumentBinding] {
+        &self.bindings
+    }
+    /// Effective post-head values, with captured prefix slots preserved.
+    #[must_use]
+    pub fn arguments(&self) -> &[crate::registry_invocation::EffectiveInvocationWord] {
+        &self.arguments
+    }
+    /// Source anchors of those exact effective values; captured operands have none.
+    #[must_use]
+    pub fn operands(&self) -> &[Option<OriginalOperandSource>] {
+        &self.operands
+    }
+    /// Exact immutable complete source/channel and lexer configuration.
+    #[must_use]
+    pub fn matches_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        self.image == *image && self.config == config && self.formals.matches_source(image, config)
+    }
+    /// Registry generation used for the independently selected formal grammar.
+    #[must_use]
+    pub fn matches_registry(&self, registry: &CommandRegistry) -> bool {
+        self.registry == registry.snapshot().semantic_key()
+    }
+}
+
+/// Match an actual original procedure reference to its same-document immutable
+/// declaration and exact effective argv. Alias prefixes and expansion children
+/// retain their own origins; unknown lookup, foreign formals, ambiguous records,
+/// unavailable child extents and changed source cannot acquire another anchor.
+#[must_use]
+pub fn original_procedure_arguments<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+) -> Option<OriginalProcedureArguments<'a>> {
+    // naming.source.original-procedure-argument-topology
+
+    let descriptor = original_procedure_source_descriptor(source, analysis, segment)?;
+    let words = descriptor
+        .arguments
+        .iter()
+        .map(|word| word.as_registry_word())
+        .collect::<Vec<_>>();
+    let count = InvocationArguments::structured(&words).exact_argv_len()?;
+    let bindings = descriptor.formals.bindings(count).ok()?;
+    Some(OriginalProcedureArguments {
+        declaration: descriptor.declaration,
+        formals: descriptor.formals,
+        bindings,
+        arguments: descriptor.arguments,
+        operands: descriptor.operands,
+        image: descriptor.image,
+        config: descriptor.config,
+        registry: descriptor.registry,
+    })
+}
+
+/// Pure original expression gap compaction through the existing Native rewrite
+/// owner. Retained source/configuration and binding are checked before its
+/// independent handler, observer, reflection and finite-completion admission.
+#[must_use]
+pub fn original_expression_gap_compaction(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    candidate: &str,
+) -> Option<crate::command_binding::OriginalExpressionGapCompaction> {
+    let config = analysis.body_lexer_config?;
+    let realm = analysis.retained_command_realm()?;
+    let image = retained_document_image(source, realm, config)?;
+    let input = analysis.resolved_input.as_ref()?;
+    if !analysis.matches_original_source_image(&image, config)
+        || !realm.matches_resolved_analysis_input(input)
+    {
+        return None;
+    }
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    tokens
+        .source_binding
+        .as_ref()?
+        .original_expression_gap_compaction(&tokens, analysis.resolved_registry()?, candidate)
+}
+
+/// Syntax-only whitespace gaps in one whole selected braced Expr operand.
+/// Variable, function and child-script tokens stay exact. This does not prove
+/// pure evaluation, normal completion, source reflection or alpha renaming.
+pub struct OriginalExpressionSyntaxGapCompaction {
+    original: tcl_lexer::NativeWord,
+    gaps: Vec<tcl_lexer::Span>,
+    registry: tcl_registry::RegistrySemanticKey,
+}
+
+impl OriginalExpressionSyntaxGapCompaction {
+    /// Exact original braced operand under its complete source configuration.
+    #[must_use]
+    pub fn original_operand(&self) -> &tcl_lexer::NativeWord {
+        &self.original
+    }
+
+    /// Only configured expression token gaps may disappear.
+    #[must_use]
+    pub fn removed_gaps(&self) -> &[tcl_lexer::Span] {
+        &self.gaps
+    }
+
+    /// Original whole source and complete configuration remain current.
+    #[must_use]
+    pub fn matches_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        self.original.image() == image && self.original.config() == config
+    }
+
+    /// The selected source schema retains its actual Registry generation.
+    #[must_use]
+    pub fn matches_registry(&self, registry: &CommandRegistry) -> bool {
+        self.registry == registry.snapshot().semantic_key()
+    }
+}
+
+/// A selected original Expr-role operand whose checked boolean comparison
+/// is complemented without changing either operand's lexical receipt/order.
+/// This is independent of syntax gaps and constant/normal evaluation proofs.
+pub struct OriginalExpressionBooleanInversion {
+    original: tcl_lexer::NativeWord,
+    replacement: String,
+    input: crate::analyser::ResolvedAnalysisInput,
+}
+
+impl OriginalExpressionBooleanInversion {
+    /// Exact original whole operand; no new word claims its source receipt.
+    #[must_use]
+    pub fn original_operand(&self) -> &tcl_lexer::NativeWord {
+        &self.original
+    }
+
+    /// Separately authored and native-decoding-checked whole braced word.
+    #[must_use]
+    pub fn replacement_source_word(&self) -> &str {
+        &self.replacement
+    }
+
+    /// Complete original source/channel and configuration remain unchanged.
+    #[must_use]
+    pub fn matches_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        self.original.image() == image && self.original.config() == config
+    }
+
+    /// Every retained profile, registry and expression-input axis matches.
+    #[must_use]
+    pub fn matches_input(&self, input: &crate::analyser::ResolvedAnalysisInput) -> bool {
+        &self.input == input
+    }
+}
+
+/// Issue an independent boolean inversion only from the same current quiet
+/// selected Expr-role owner. Conditional advice supplies no edit authority.
+#[must_use]
+pub fn original_expression_boolean_comparison_inversion(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    argument: usize,
+    candidate: &str,
+) -> Option<OriginalExpressionBooleanInversion> {
+    let words = source_registry_words(source, analysis, segment)?;
+    let input = analysis.resolved_input.as_ref()?;
+    let context = input.context_registry();
+    if !matches!(words.source(), OriginalRegistrySource::Selected)
+        || !words.operands_preserve_source_lookup()
+        || !words
+            .roles()?
+            .contains(&(argument, tcl_registry::ArgRole::Expr))
+    {
+        return None;
+    }
+    words.with_source_schema(&context, |_| ())?;
+    let original = words.original_argument_word(argument)?.clone();
+    let image = tcl_lexer::SourceImage::document(source);
+    let config = input.lexer_config();
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    analysis
+        .retained_command_realm()?
+        .stamp_original_tokens(&mut tokens);
+    let replacement = tokens
+        .source_binding
+        .as_ref()?
+        .original_expression_boolean_inversion(
+            &tokens,
+            context.commands(),
+            input,
+            &original,
+            candidate,
+        )?;
+    Some(OriginalExpressionBooleanInversion {
+        original,
+        replacement,
+        input: input.clone(),
+    })
+}
+
+/// Issue syntax gaps only for a selected whole original Expr-role operand.
+/// Conditional source advice and observed or changed dispatch cannot issue it.
+#[must_use]
+pub fn original_expression_syntax_gap_compaction(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    argument: usize,
+    candidate: &str,
+) -> Option<OriginalExpressionSyntaxGapCompaction> {
+    let words = source_registry_words(source, analysis, segment)?;
+    let input = analysis.resolved_input.as_ref()?;
+    let context = input.context_registry();
+    if !matches!(words.source(), OriginalRegistrySource::Selected)
+        || !words.operands_preserve_source_lookup()
+        || !words
+            .roles()?
+            .contains(&(argument, tcl_registry::ArgRole::Expr))
+    {
+        return None;
+    }
+    words.with_source_schema(&context, |_| ())?;
+    let original = words.original_argument_word(argument)?.clone();
+    let image = tcl_lexer::SourceImage::document(source);
+    let config = input.lexer_config();
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    analysis
+        .retained_command_realm()?
+        .stamp_original_tokens(&mut tokens);
+    let gaps = tokens
+        .source_binding
+        .as_ref()?
+        .original_expression_syntax_gaps(
+            &tokens,
+            context.commands(),
+            input,
+            &original,
+            candidate,
+        )?;
+    Some(OriginalExpressionSyntaxGapCompaction {
+        original,
+        gaps,
+        registry: context.commands().snapshot().semantic_key(),
+    })
+}
+
+/// Source structure from the selected original argv, or the independently
+/// retained conditional schema. The latter keeps its applicability obligations
+/// and grants no runtime dispatch, entered frame, compiler or edit permission.
+pub fn source_registry_words(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+) -> Option<OriginalRegistryWords> {
+    source_registry_words_with_definition_parent(source, analysis, segment, None)
+}
+
+/// Same source schema issuer with the actual enclosing definition-body receipt.
+/// The original full argv must reborrow from that parent's complete body plan.
+#[must_use]
+pub fn source_registry_words_in_definition_body(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    parent: &super::source_scoped_body::OriginalSourceScriptBody,
+) -> Option<OriginalRegistryWords> {
+    source_registry_words_with_definition_parent(source, analysis, segment, Some(parent))
+}
+
+/// Reborrow one exact child command from an authenticated definition-body
+/// plan before applying its selected authored source schema. The complete
+/// parent command vector remains mandatory; this is not a fresh child entry.
+#[must_use]
+pub fn source_registry_words_in_definition_body_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+    parent: &super::source_scoped_body::OriginalSourceScriptBody,
+) -> Option<OriginalRegistryWords> {
+    let config = analysis.body_lexer_config?;
+    let input = analysis.resolved_input.as_ref()?;
+    (config == input.lexer_config()).then_some(())?;
+    let realm = analysis.retained_command_realm()?;
+    realm.matches_resolved_analysis_input(input).then_some(())?;
+    let image = retained_document_image(source, realm, config)?;
+    analysis
+        .matches_original_source_image(&image, config)
+        .then_some(())?;
+    if !parent.matches_source(&image, config) || !parent.matches_context(&input.context_registry())
+    {
+        return None;
+    }
+    let segment = if let Some((segment, _)) = realm
+        .invocation_at_source("", offset)
+        .original_recorded_command()
+    {
+        segment
+    } else if let Some(segment) = analysis
+        .resolved_input
+        .as_ref()
+        .and_then(|input| realm.original_source_catalogue_segment_at(input, offset))
+    {
+        segment
+    } else {
+        let tail = source.get(usize::try_from(offset).ok()?..)?;
+        crate::segmenter::segment_commands_with_offset_and_config(tail, offset, config.nested())
+            .into_iter()
+            .next()?
+    };
+    (segment.argv.first()?.span.start() == offset).then_some(())?;
+    let context = input.context_registry();
+    let members = parent.definition_member_region(&context, parent.content_span())?;
+    members.complete_original_commands()?;
+    let original = members.original_command_words_at(offset)?;
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        &segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let selected = crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        offset,
+        config,
+    )?;
+    (selected.as_slice() == original).then_some(())?;
+    use super::source_scoped_body::OriginalSourceDefinitionMemberDisposition as Disposition;
+    match members.script_body_disposition(&context, original) {
+        Disposition::Unavailable => None,
+        Disposition::CompleteNonMember => source_registry_words(source, analysis, &segment)
+            .or_else(|| generic_definition_child_source_words(source, analysis, &segment, parent)),
+        Disposition::CompleteMember(_) => {
+            source_registry_words_in_definition_body(source, analysis, &segment, parent)
+        }
+    }
+}
+
+// naming.source.original-generic-definition-child-registry-roles
+
+fn generic_definition_child_source_words(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    parent: &super::source_scoped_body::OriginalSourceScriptBody,
+) -> Option<OriginalRegistryWords> {
+    use crate::registry_invocation::{EffectiveInvocationWord, InvocationWordOrigin};
+    let input = analysis.resolved_input.as_ref()?;
+    let config = input.lexer_config();
+    let image = retained_document_image(source, analysis.retained_command_realm()?, config)?;
+    let context = input.context_registry();
+    if analysis.body_lexer_config != Some(config)
+        || !analysis.matches_original_source_image(&image, config)
+        || !parent.matches_source(&image, config)
+        || !parent.matches_context(&context)
+    {
+        return None;
+    }
+    let head = segment.argv.first()?;
+    let offset = head.span.start();
+    let members = parent.definition_member_region(&context, parent.content_span())?;
+    let originals = members.complete_original_commands()?;
+    let original = members.original_command_words_at(offset)?;
+    let tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    let native = crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        offset,
+        config,
+    )?;
+    (native.as_slice() == original && originals.iter().any(|words| words == original))
+        .then_some(())?;
+    let head_bytes = tcl_syntax::word_rules::original_static_word_unicode_value(original.first()?)?;
+    let head_text = std::str::from_utf8(&head_bytes).ok()?;
+    let static_values = original
+        .iter()
+        .skip(1)
+        .map(tcl_syntax::word_rules::original_static_word_unicode_value)
+        .collect::<Vec<_>>();
+    let values = original
+        .iter()
+        .skip(1)
+        .zip(&static_values)
+        .map(|(word, value)| {
+            if word.group().expand {
+                tcl_registry::InvocationWord::Expanded
+            } else if let Some(value) = value {
+                tcl_registry::InvocationWord::KnownBytes(value.as_slice())
+            } else {
+                tcl_registry::InvocationWord::Dynamic
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut invocation = tcl_registry::InvocationWords::structured(
+        tcl_registry::InvocationWord::Literal(head_text),
+        &values,
+    );
+    if let Some(dialect) = parent.source_words().dialect() {
+        invocation = invocation.with_dialect(dialect);
+    }
+    // Registry source roles use the actual retained context's authoring realm;
+    // this source-only facet must not manufacture a RuleLoader/runtime realm.
+    let selected = tcl_registry::model::assembly::resolve_invocation_words_in_context(
+        context.commands(),
+        Some(context.context()),
+        invocation,
+    )?;
+    let (selected_roles, complete) = selected.authored_source_argument_roles();
+    if !complete {
+        return None;
+    }
+    let roles = selected_roles
+        .into_iter()
+        .map(|(position, role)| {
+            selected
+                .semantics
+                .argument_offset
+                .checked_add(usize::from(position))
+                .map(|position| (position, role))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let mut arguments = Vec::with_capacity(original.len().saturating_sub(1));
+    let mut operands = Vec::with_capacity(arguments.capacity());
+    let mut origins = vec![InvocationWordOrigin::Written(0)];
+    for (index, word) in original.iter().enumerate().skip(1) {
+        let value = if word.group().expand {
+            EffectiveInvocationWord::Expanded
+        } else if let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(word)
+        {
+            EffectiveInvocationWord::ByteLiteral(std::sync::Arc::from(value))
+        } else {
+            EffectiveInvocationWord::Dynamic
+        };
+        arguments.push(value);
+        operands.push(Some(OriginalOperandSource {
+            span: word.span(),
+            input: None,
+            word: Some(word.clone()),
+        }));
+        origins.push(InvocationWordOrigin::Written(index));
+    }
+    let head = OriginalOperandSource {
+        span: original.first()?.span(),
+        input: None,
+        word: Some(original.first()?.clone()),
+    };
+    Some(OriginalRegistryWords {
+        command: selected.canonical_command.to_owned(),
+        dialect: parent.source_words().dialect(),
+        arguments,
+        operands,
+        origins,
+        head: Some(head),
+        roles: Some(roles),
+        source: OriginalRegistrySource::Selected,
+        captured_values: None,
+        operands_preserve_source_lookup: false,
+        image,
+        config,
+        registry: context.commands().snapshot().semantic_key(),
+        context: Some(context.context().clone()),
+        definition_parent: Some(std::sync::Arc::new(parent.clone())),
+    })
+}
+
+fn source_registry_words_with_definition_parent(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    parent: Option<&super::source_scoped_body::OriginalSourceScriptBody>,
+) -> Option<OriginalRegistryWords> {
+    let config = analysis.body_lexer_config?;
+    let realm = analysis.retained_command_realm()?;
+    let image = retained_document_image(source, realm, config);
+    let image = image?;
+    let matches_image = analysis.matches_original_source_image(&image, config);
+    matches_image.then_some(())?;
+    let registry = analysis.resolved_registry()?;
+    let input = analysis.resolved_input.as_ref()?;
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let blocked = realm.original_source_registry_barrier(&input.context_registry(), &tokens);
+    tokens.source_binding.is_some();
+    if blocked {
+        return None;
+    }
+    if let Some(parent) = parent {
+        return original_definition_member_registry_words(source, analysis, segment, parent);
+    }
+    if let Some(scoped) = original_scoped_registry_words(source, analysis, segment) {
+        return Some(scoped);
+    }
+    if realm
+        .source_bindings_ref()
+        .original_logical_source_name_advice_input()
+        == Some(input)
+    {
+        return logical_source_registry_words(source, realm, input, segment);
+    }
+    if !analysis.has_original_vendor_source_names()
+        && let Some(selected) = selected_registry_words(source, analysis, segment, registry)
+    {
+        return Some(selected);
+    }
+    let offset = segment.argv.first()?.span.start();
+    if analysis.has_original_vendor_source_names() {
+        let (metadata, _) = selected_vendor_registry_words_at(source, analysis, offset)?;
+        let context = analysis.resolved_input.as_ref()?.context_registry();
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_image(&image),
+            config,
+            segment,
+        );
+        analysis
+            .retained_command_realm()?
+            .stamp_original_tokens(&mut tokens);
+        // The shared builder authenticates the complete original native
+        // vector. Resegmentation's comment trivia is not word identity.
+        return original_vendor_registry_words(&context, &tokens, metadata);
+    }
+    let metadata = analysis
+        .original_conditional_registry_metadata_in_source(&image, config, offset)
+        .cloned();
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    native_source_registry_words(
+        source,
+        config,
+        analysis.retained_command_realm()?,
+        &context,
+        segment,
+        metadata,
+    )
+    .or_else(|| {
+        let advice = realm.original_source_prefix_catalogue_advice(input, &tokens)?;
+        source_transition_words_with_segment(source, config, &context, segment, advice)
+    })
+    .or_else(|| {
+        let advice = realm.original_member_source_catalogue_advice(input, &tokens)?;
+        source_transition_words_with_segment(source, config, &context, segment, advice)
+    })
+}
+
+fn source_definition_body_grammar(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+    schema.authored_source_definition_body_grammar()
+}
+
+fn original_definition_member_registry_words(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    parent: &super::source_scoped_body::OriginalSourceScriptBody,
+) -> Option<OriginalRegistryWords> {
+    let config = analysis.body_lexer_config?;
+    let input = analysis.resolved_input.as_ref()?;
+    if config != input.lexer_config() || segment.is_partial {
+        return None;
+    }
+    let context = input.context_registry();
+    let realm = analysis.retained_command_realm()?;
+    if !realm.matches_resolved_analysis_input(input) {
+        return None;
+    }
+    let image = retained_document_image(source, realm, config)?;
+    if !parent.matches_source(&image, config) || !parent.matches_context(&context) {
+        return None;
+    }
+    let region = parent.definition_member_region(&context, parent.content_span())?;
+    region.complete_original_commands()?;
+    let offset = segment.argv.first()?.span.start();
+    let original = region.original_command_words_at(offset)?;
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let selected = crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        offset,
+        config,
+    )?;
+    if selected != original {
+        return None;
+    }
+    let name = tcl_syntax::word_rules::original_static_word_ascii_presentation(original.first()?)?;
+    let name = std::str::from_utf8(&name).ok()?;
+    let grammar = parent
+        .source_words()
+        .with_source_schema(&context, |schema| {
+            schema.authored_source_definition_body_grammar()
+        })
+        .flatten()?;
+    context
+        .commands()
+        .authored_document_member_descriptor(grammar, name)?;
+    original_source_schema_words(
+        &tokens,
+        original,
+        name.to_owned(),
+        OriginalRegistrySource::DefinitionMember(std::sync::Arc::new(parent.clone())),
+        &context,
+    )
+}
+
+fn original_scoped_registry_words(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+) -> Option<OriginalRegistryWords> {
+    let config = analysis.body_lexer_config?;
+    let realm = analysis.retained_command_realm()?;
+    let image = retained_document_image(source, realm, config)?;
+    let offset = segment.argv.first()?.span.start();
+    let body = analysis.original_scoped_body_in_source(&image, config, offset)?;
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let original = crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        offset,
+        config,
+    )?;
+    let first = original.first()?;
+    let last = original.last()?;
+    let extent = body.content_span();
+    if first.span().start() < extent.start() || last.span().end() > extent.end() {
+        return None;
+    }
+    let name = tcl_syntax::word_rules::original_static_word_ascii_presentation(first)?;
+    let name = std::str::from_utf8(&name).ok()?;
+    let schema = super::source_scoped_body::OriginalSourceScopedCommandSchema::select(body, name)?;
+    original_source_schema_words(
+        &tokens,
+        &original,
+        schema.command().name.to_owned(),
+        OriginalRegistrySource::Scoped(std::sync::Arc::new(schema)),
+        &context,
+    )
+}
+
+fn original_source_schema_words(
+    tokens: &crate::ir::CommandTokens,
+    original: &[tcl_lexer::NativeWord],
+    command: String,
+    source: OriginalRegistrySource,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Option<OriginalRegistryWords> {
+    let first = original.first()?;
+    let image = first.image().clone();
+    let config = first.config();
+    let arguments = original
+        .iter()
+        .skip(1)
+        .map(|word| {
+            if word.group().expand {
+                crate::registry_invocation::EffectiveInvocationWord::Expanded
+            } else {
+                tcl_syntax::word_rules::original_static_word_ascii_presentation(word).map_or(
+                    crate::registry_invocation::EffectiveInvocationWord::Dynamic,
+                    |value| {
+                        crate::registry_invocation::EffectiveInvocationWord::ByteLiteral(
+                            std::sync::Arc::from(value),
+                        )
+                    },
+                )
+            }
+        })
+        .collect::<Vec<_>>();
+    let operands = original
+        .iter()
+        .skip(1)
+        .map(|word| {
+            Some(OriginalOperandSource {
+                span: word.span(),
+                input: None,
+                word: Some(word.clone()),
+            })
+        })
+        .collect();
+    let head = Some(OriginalOperandSource {
+        span: first.span(),
+        input: None,
+        word: Some(first.clone()),
+    });
+    let mut words = OriginalRegistryWords {
+        command,
+        dialect: tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.original_source_word_dialect_for_tokens(tokens)),
+        arguments,
+        operands,
+        origins: (0..original.len())
+            .map(crate::registry_invocation::InvocationWordOrigin::Written)
+            .collect(),
+        head,
+        roles: None,
+        source,
+        captured_values: None,
+        operands_preserve_source_lookup: false,
+        image,
+        config,
+        registry: context.commands().snapshot().semantic_key(),
+        context: Some(context.context().clone()),
+        definition_parent: None,
+    };
+    words.roles = words
+        .with_source_schema(context, |schema| {
+            let (roles, complete) = schema.authored_source_argument_roles();
+            conditional_roles(&roles, schema.semantics.argument_offset, complete)
+        })
+        .flatten();
+    Some(words)
+}
+
+/// Source schema at one original invocation offset under the same retained
+/// analysis. A stored complete vector is preferred; conditional future/body
+/// source advice retains its own full-image issuer through the shared builder.
+/// No reporting command string selects the schema or supplies execution.
+#[must_use]
+pub fn source_registry_words_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<OriginalRegistryWords> {
+    // naming.diagnostic.original-package-source-advice
+
+    if let Some(region) = analysis.original_source_region.as_ref()
+        && !region.owns_original_command_at(analysis, offset)
+    {
+        return None;
+    }
+    let config = analysis.body_lexer_config?;
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, config)
+        .then_some(())?;
+    let realm = analysis.retained_command_realm()?;
+    let binding = realm.invocation_at_source("", offset);
+    let segment = if let Some((segment, _)) = binding.original_recorded_command() {
+        segment
+    } else if let Some(segment) = analysis
+        .resolved_input
+        .as_ref()
+        .and_then(|input| realm.original_source_catalogue_segment_at(input, offset))
+    {
+        segment
+    } else {
+        let tail = source.get(usize::try_from(offset).ok()?..)?;
+        crate::segmenter::segment_commands_with_offset_and_config(tail, offset, config.nested())
+            .into_iter()
+            .next()?
+    };
+    (segment.argv.first()?.span.start() == offset).then_some(())?;
+    source_registry_words(source, analysis, &segment)
+}
+
+/// Original whole words under a positively retained Logical source input.
+/// Missing Native or hosted producers cannot enter this compatibility domain.
+/// The vector is readonly geometry, without a Native name or runtime grant.
+#[must_use]
+pub fn original_logical_source_words_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<Vec<tcl_lexer::NativeWord>> {
+    // naming.core.original-package-source-action-context
+
+    let config = analysis.body_lexer_config?;
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, config)
+        .then_some(())?;
+    let realm = analysis.retained_command_realm()?;
+    let input = analysis.resolved_input.as_ref()?;
+    (realm
+        .source_bindings_ref()
+        .original_logical_source_name_advice_input()
+        == Some(input))
+    .then_some(())?;
+    let binding = realm.invocation_at_source("", offset);
+    if let Some((_, tokens)) = binding.original_recorded_command() {
+        return super::original_native_compiler_words(&image, tokens.words(), offset, config);
+    }
+    let original = realm
+        .source_bindings_ref()
+        .original_logical_source_command_at_in_source(input, &image, offset, config)?;
+    Some(original.native_words().to_vec())
+}
+
+/// Original Registry-created instance syntax at its actual source occurrence.
+/// The full existing Analysis owns both factory and invocation; a source slice
+/// is never recaptured as a fresh entry, nor is a reporting class name looked up.
+#[must_use]
+pub fn source_registered_instance_words_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalSourceRegisteredInstanceWords> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_source_registered_instance_words(input, &native)
+}
+
+/// Original whole handle setter and its selected constructor substitution.
+/// This is authored source ownership, without cell, allocation or value proof.
+#[must_use]
+pub fn source_registered_handle_binding_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalSourceRegisteredHandleBinding> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_source_registered_handle_binding(input, &native)
+}
+
+/// Original future command naming layout, retaining source applicability only.
+#[must_use]
+pub fn source_command_publication_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<super::OriginalSourceCommandPublication> {
+    let words = source_registry_words_at(source, analysis, offset)?;
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    super::source_publication::OriginalSourceCommandPublication::capture(words, &context)
+}
+
+/// Genuine setter operands and complete single-command construction syntax.
+/// No value, frame, allocation or successful store is issued.
+#[must_use]
+pub fn source_handle_construction_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<super::OriginalSourceHandleConstruction> {
+    let words = source_registry_words_at(source, analysis, offset)?;
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    super::source_publication::OriginalSourceHandleConstruction::capture(words, &context)
+}
+
+/// Same-horizon Logical name references from genuine selected command-name
+/// operands. This is conditional source advice, not an executed lookup or edit.
+#[must_use]
+pub fn source_logical_name_references(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<crate::command_binding::OriginalLogicalNameReference>> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    realm.original_logical_name_reference_inventory(input)
+}
+
+/// Positive original procedure-body commands with their genuine source callers.
+/// Missing or unsupported bodies do not establish complete command coverage.
+#[must_use]
+pub fn source_native_procedure_body_commands(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<crate::command_binding::OriginalNativeProcedureBodyCommand>> {
+    let input = analysis.resolved_input.as_ref()?;
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, input.lexer_config())
+        .then_some(())?;
+    analysis
+        .retained_command_realm()?
+        .original_native_procedure_body_commands(input)
+}
+
+/// Positive conditional source calls retained by the original Native source walk.
+/// Missing sites and unresolved body coverage cannot prove negative call closure.
+#[must_use]
+pub fn source_original_procedure_calls(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<crate::command_binding::OriginalSourceProcedureCall>> {
+    let input = analysis.resolved_input.as_ref()?;
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, input.lexer_config())
+        .then_some(())?;
+    analysis
+        .retained_command_realm()?
+        .original_source_procedure_calls(input)
+}
+
+/// Conditional Native-authored procedure source relation at the actual call horizon.
+/// Runtime lookup, body entry and transformation authority remain independent.
+#[must_use]
+pub fn source_original_procedure_call_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalSourceProcedureCall> {
+    let input = analysis.resolved_input.as_ref()?;
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, input.lexer_config())
+        .then_some(())?;
+    let realm = analysis.retained_command_realm()?;
+    realm.original_source_procedure_call_at(input, offset)
+}
+
+/// Conditional original procedure header at this exact source call horizon.
+/// Alias prefixes and actual definition transitions stay held; missing original
+/// owners remain unavailable, never a report-name or Native target fallback.
+#[must_use]
+pub fn source_logical_procedure_call_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalLogicalProcedureCall> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    crate::realm::CommandBindingRealm::original_logical_procedure_call_at(realm, input, offset)
+}
+
+/// Represented original Logical procedure calls from the retained source tape.
+/// Reporting invocation records cannot supply or veto this independent source
+/// occurrence owner. Missing candidates remain unavailable, not an empty census.
+#[must_use]
+pub fn source_logical_procedure_calls(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<crate::command_binding::OriginalLogicalProcedureCall>> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    realm.original_logical_procedure_calls(input)
+}
+
+/// Represented Registry-selected Logical ensemble transition receipts from
+/// the exact current source and configuration. The receipt list preserves
+/// original operand ownership without analyzer target reports. Other source
+/// mutations may be unrepresented, so empty or partial results prove neither
+/// an absent ensemble map nor a current dispatch binding.
+#[must_use]
+pub fn source_logical_ensemble_transition_receipts(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<crate::command_binding::OriginalSourceCommandTransition>> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    realm.original_logical_ensemble_transition_receipts(input)
+}
+
+/// Select only the original head containing the cursor. Whole retained argv,
+/// input and definition joins remain owned by the existing source call factory.
+#[must_use]
+pub fn source_logical_procedure_call_for_cursor(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalLogicalProcedureCall> {
+    let mut calls = source_logical_procedure_calls(source, analysis)?
+        .into_iter()
+        .filter(|call| {
+            call.original_words()
+                .first()
+                .is_some_and(|head| head.span().start() <= offset && offset < head.span().end())
+        });
+    let selected = calls.next()?;
+    calls.next().is_none().then_some(selected)
+}
+
+/// Ordered readonly Logical candidates at this exact original source command.
+/// Caller scope, path and name bytes remain source recipes; candidates prove no
+/// installed command, reached declaration, body entry or edit permission.
+#[must_use]
+pub fn source_logical_command_candidates_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalLogicalCommandCandidates> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    realm.original_logical_navigation_candidates(input, offset)
+}
+
+/// Represented readonly Logical occurrences from the complete current source.
+/// Missing frames or grammar contribute no receipt; empty results establish no
+/// command census, installed target or absence.
+#[must_use]
+pub fn source_logical_command_candidates(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<crate::command_binding::OriginalLogicalCommandCandidates>> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    realm.original_logical_navigation_inventory(input)
+}
+
+/// One literal absolute Logical command head from an authentic retained
+/// original body. Caller namespace and method frame remain unavailable; this
+/// coordinate supplies no installed lookup, call binding or absence proof.
+#[must_use]
+pub fn source_logical_absolute_command_candidate_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalLogicalAbsoluteCommandCandidate> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    realm.original_logical_absolute_navigation_candidate(input, offset)
+}
+
+/// Ordered readonly Logical candidates for selected prefix roles at this exact original installer.
+/// Caller scope, path and name bytes remain source recipes; candidates prove no
+/// installed command, reached declaration, body entry or edit permission.
+#[must_use]
+pub fn source_logical_callback_candidates_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<Vec<crate::command_binding::OriginalLogicalCallbackCandidates>> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    realm.original_logical_callback_candidates(input, offset)
+}
+
+// The immutable tape already owns the complete original vectors and body
+// bounds. A source suffix cannot reconstruct that context at a nested closer.
+fn logical_source_candidate_context<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+) -> Option<(
+    &'a crate::analyser::ResolvedAnalysisInput,
+    &'a crate::realm::CommandBindingRealm,
+)> {
+    analysis.allows_lexical_declaration_advice().then_some(())?;
+    let config = analysis.body_lexer_config?;
+    let input = analysis.resolved_input.as_ref()?;
+    if config != input.lexer_config() {
+        return None;
+    }
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, config)
+        .then_some(())?;
+    let realm = analysis.retained_command_realm()?;
+    realm.matches_resolved_analysis_input(input).then_some(())?;
+    Some((input, realm))
+}
+
+/// Genuine Logical callback prefix roles from the current complete source tape.
+/// Missing frames or grammar contribute no candidate. Empty results prove no
+/// complete callback census or absence. Native callbacks retain
+/// their independent source lookup and installation owners.
+#[must_use]
+pub fn source_logical_callback_candidates(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<crate::command_binding::OriginalLogicalCallbackCandidates>> {
+    analysis.allows_lexical_declaration_advice().then_some(())?;
+    let input = analysis.resolved_input.as_ref()?;
+    analysis
+        .matches_original_source_image(
+            &tcl_lexer::SourceImage::document(source),
+            input.lexer_config(),
+        )
+        .then_some(())?;
+    analysis
+        .retained_command_realm()?
+        .original_logical_callback_inventory(input)
+}
+
+/// Original setter and exact factory substitution for source handle-class advice.
+/// This supplies no stored handle, variable cell or successful allocation.
+#[must_use]
+pub fn source_handle_class_advice_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<super::OriginalSourceHandleClassAdvice> {
+    let words = source_registry_words_at(source, analysis, offset)?;
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    super::source_publication::OriginalSourceHandleClassAdvice::capture(
+        source, analysis, words, &context,
+    )
+}
+
+/// Original named Registry factory source declaration. This retains actual
+/// factory/name words and conditional applicability, without successful creation.
+#[must_use]
+pub fn source_registered_factory_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalSourceRegisteredInstance> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_source_registered_factory(input, &native)
+}
+
+/// Actual whole source constructor call and its original selected class definer.
+/// This supplies source advice only, without a class or constructor execution.
+#[must_use]
+pub fn source_constructor_call_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalSourceConstructorCall> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_source_constructor_call(input, &native)
+}
+
+/// Actual whole `Class::proc` call and the [incr Tcl] source class its
+/// qualifier names. Source advice only: member declaration and execution
+/// remain the consumer's facts.
+#[must_use]
+pub fn source_class_proc_call_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalSourceClassProcCall> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_source_class_proc_call(input, &native)
+}
+
+/// Conditional named or symbolic source-class receiver with whole original argv.
+/// This supplies no allocation, stored value, Native dispatch or lifetime grant.
+#[must_use]
+pub fn source_class_instance_words_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalSourceClassInstanceWords> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    let receipt = realm.original_source_class_instance_words(input, &native)?;
+    receipt
+        .instance()
+        .constructor()
+        .constructor_shape(analysis)?;
+    Some(receipt)
+}
+
+/// Final conditional procedure source slots and authentic declaration ancestry.
+/// The represented source graph honours known moves, deletions and replacement;
+/// unknown mutations remain obligations. This grants no completed runtime world.
+#[must_use]
+pub fn source_procedure_publications(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<crate::command_binding::OriginalSourceProcedurePublications> {
+    let input = analysis.resolved_input.as_ref()?;
+    let realm = analysis.retained_command_realm()?;
+    let image = retained_document_image(source, realm, input.lexer_config())?;
+    analysis
+        .matches_original_source_image(&image, input.lexer_config())
+        .then_some(())?;
+    realm.original_source_procedure_publications(input)
+}
+
+/// Final conditional class source slots and their authentic factory ancestry.
+/// Known moves, deletion and replacement withdraw the old source spelling;
+/// unknown operations retain applicability obligations, never Native identity.
+#[must_use]
+pub fn source_class_publications(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<crate::command_binding::OriginalSourceClassPublications> {
+    let input = analysis.resolved_input.as_ref()?;
+    let realm = analysis.retained_command_realm()?;
+    let image = retained_document_image(source, realm, input.lexer_config())?;
+    analysis
+        .matches_original_source_image(&image, input.lexer_config())
+        .then_some(())?;
+    realm.original_source_class_publications(input)
+}
+
+/// Conditional callback procedure target from the original registration horizon.
+/// Captured alias operands and local canonical declaration remain authentic;
+/// callback reach, future table, argv, frame and dispatch stay unresolved.
+#[must_use]
+pub fn source_callback_procedure_target_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    registration_offset: u32,
+    prefix: &crate::command_binding::OriginalCallbackPrefix,
+) -> Option<crate::command_binding::OriginalSourceCallbackProcedureLookup> {
+    let (input, realm, native) =
+        registered_original_words_at(source, analysis, registration_offset)?;
+    realm.original_source_callback_procedure_target(input, &native, prefix)
+}
+
+/// Attach the genuine selected whole source installer to a readonly prefix.
+/// The actual consumer site is checked against the source graph's registration;
+/// captured operand producer spans cannot replace it. This issues no Native
+/// lookup, installed callback, future frame or successful factory capability.
+#[must_use]
+pub fn source_callback_prefix_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    registration_offset: u32,
+    prefix: &crate::command_binding::OriginalCallbackPrefix,
+) -> Option<crate::command_binding::OriginalCallbackPrefix> {
+    let original =
+        source_callback_procedure_target_at(source, analysis, registration_offset, prefix)?;
+    prefix.with_source_registration(&original)
+}
+
+/// Original readonly class reference selected at its genuine source consumer.
+/// Original list children and any earlier procedure producer retain independent
+/// source ownership. This supplies no native class token or runtime inheritance.
+#[must_use]
+pub fn source_class_reference_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+    name: &crate::signature_scan::scope::SignatureSourceNameInput,
+) -> Option<crate::command_binding::OriginalSourceClassReference> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_source_class_reference(input, &native, name)
+}
+
+/// Whole original class configuration target and its pretransition source
+/// declaration. Logical and Native inputs remain separate; this provides no
+/// object identity, entered definition worker, method-table closure or edit.
+#[must_use]
+pub fn source_configured_class_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalSourceConfiguredClassReference> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_source_configured_class(input, &native)
+}
+
+/// Source roles for the exact configured-class invocation retained by the
+/// transition owner. This keeps alias/move lineage and the selected target
+/// schema attached to the original words; a report label cannot select it.
+#[must_use]
+// naming.source.original-configured-class-transition-roles
+
+pub fn source_configured_class_words_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<OriginalRegistryWords> {
+    let config = analysis.body_lexer_config?;
+    let input = analysis.resolved_input.as_ref()?;
+    let context = input.context_registry();
+    let reference = source_configured_class_at(source, analysis, offset)?;
+    let image = retained_document_image(source, analysis.retained_command_realm()?, config)?;
+    if config != input.lexer_config()
+        || !analysis.matches_original_source_image(&image, config)
+        || !reference.matches_source_context(&image, config, &context)
+    {
+        return None;
+    }
+    source_transition_words_from_advice(source, config, &context, reference.consumer().clone())
+}
+
+/// Conditional Jim class lists and base providers from the genuine source tape.
+/// This is separate from Native class-declaration and allocated receiver authority.
+#[must_use]
+pub fn source_authored_jim_class_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<std::sync::Arc<crate::command_binding::OriginalAuthoredJimClass>> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_authored_jim_class(input, &native)
+}
+
+/// Exact original selected class declaration at its authentic source occurrence.
+#[must_use]
+pub fn source_class_declaration_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalSourceClassDeclaration> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    if input.has_logical_source_name_context() {
+        let words = source_registry_words_at(source, analysis, offset)?;
+        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+            return None;
+        };
+        return realm.original_source_class_declaration_for_advice(input, &native, advice);
+    }
+    realm.original_source_class_declaration(input, &native)
+}
+
+fn registered_original_words_at<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+    offset: u32,
+) -> Option<(
+    &'a crate::analyser::ResolvedAnalysisInput,
+    &'a crate::realm::CommandBindingRealm,
+    Vec<tcl_lexer::NativeWord>,
+)> {
+    if let Some(region) = analysis.original_source_region.as_ref()
+        && !region.owns_original_command_at(analysis, offset)
+    {
+        return None;
+    }
+    let config = analysis.body_lexer_config?;
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, config)
+        .then_some(())?;
+    let input = analysis.resolved_input.as_ref()?;
+    let realm = analysis.retained_command_realm()?;
+    realm.matches_resolved_analysis_input(input).then_some(())?;
+    let binding = realm.invocation_at_source("", offset);
+    let native = if let Some((_, tokens)) = binding.original_recorded_command() {
+        super::original_native_compiler_words(&image, tokens.words(), offset, config)?
+    } else {
+        // The original tape remains the body/source-role authority below.
+        // Parsing a suffix only supplies unchanged word geometry for that join.
+        let tail = source.get(usize::try_from(offset).ok()?..)?;
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            tail,
+            offset,
+            config.nested(),
+        )
+        .into_iter()
+        .next()?;
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            &segment,
+        );
+        super::original_native_compiler_words(&image, tokens.words(), offset, config)?
+    };
+    (native.first()?.span().start() == offset).then_some((input, realm, native))
+}
+
+/// Current root insertion geometry shared by missing-package diagnostics and
+/// reviewed package suggestions. Only selected leading root requirements are
+/// header commands; nested scripts, data and prefix-like text cannot supply
+/// this position. The full original input and availability remain owners.
+#[must_use]
+pub fn original_package_require_insert_offset(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<u32> {
+    // naming.core.original-package-source-action-context
+
+    use tcl_registry::source_navigation::SourcePackageReferenceKind as Kind;
+    let config = analysis.body_lexer_config?;
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, config)
+        .then_some(())?;
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    let source_end = u32::try_from(source.len()).ok()?;
+    let original_commands = tcl_lexer::native_script_words_in(
+        image.clone(),
+        tcl_lexer::Span::new(0, source_end),
+        config,
+    )
+    .ok()?;
+    let mut end =
+        if config.leading_bom == tcl_lexer::LeadingBom::Skip && source.starts_with('\u{feff}') {
+            3
+        } else {
+            0
+        };
+    if source.get(end..)?.starts_with("#!") {
+        end = source
+            .get(end..)?
+            .find('\n')
+            .map_or(source.len(), |newline| end + newline + 1);
+    }
+    for (command_index, segment) in
+        crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+            .into_iter()
+            .enumerate()
+    {
+        let Some(words) = source_registry_words(source, analysis, &segment) else {
+            break;
+        };
+        let head = words.head_source()?.word()?;
+        let start = usize::try_from(head.span().start()).ok()?;
+        let original = original_commands.commands.get(command_index)?;
+        let source_extent = original.source_extent?;
+        if original.span.start() != segment.span.start()
+            || original.span.end() < segment.execution_span(source).end()
+            || source_extent.start() != segment.span.start()
+        {
+            return None;
+        }
+        let insertion_end = match original.terminator {
+            Some(terminator) if terminator.start() == source_extent.end() => terminator.end(),
+            None if source_extent.end() == source_end => source_extent.end(),
+            Some(_) | None => return None,
+        };
+        if start < end {
+            continue;
+        }
+        if !source.get(end..start)?.trim().is_empty()
+            || words
+                .package_reference(&context)
+                .is_none_or(|reference| reference.kind() != Kind::Require)
+        {
+            break;
+        }
+        end = usize::try_from(insertion_end).ok()?;
+    }
+    u32::try_from(end).ok()
+}
+
+/// Genuine source package-reference operand under its selected source schema.
+/// Native package purposes retain the original value recipe. Hosted and
+/// Logical source operands keep exact ASCII metadata matching independently;
+/// neither path claims a runtime package table, loader or successful call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourcePackageReference {
+    words: std::sync::Arc<OriginalRegistryWords>,
+    reference: tcl_registry::source_navigation::SourcePackageReference,
+    literal: Vec<u8>,
+    native_key: Option<tcl_registry::native_package::NativePackageNameKey>,
+}
+impl OriginalSourcePackageReference {
+    /// Same selected whole invocation, including its conditional obligations.
+    #[must_use]
+    pub fn words(&self) -> &OriginalRegistryWords {
+        &self.words
+    }
+    /// Requirement or actual version-supplying source provision.
+    #[must_use]
+    pub const fn kind(&self) -> tcl_registry::source_navigation::SourcePackageReferenceKind {
+        self.reference.kind
+    }
+    /// Original effective name ordinal; captured arguments gain no call anchor.
+    #[must_use]
+    pub const fn argument(&self) -> usize {
+        self.reference.argument
+    }
+    /// Compare one explicitly intended Unicode source value with the same
+    /// genuine written package word under its complete source configuration.
+    /// This purpose does not compare Native package keys or imply installation.
+    /// Missing word/configuration/Unicode correspondence is unavailable.
+    #[must_use]
+    pub fn matches_unicode_source_value(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        value: &str,
+    ) -> Option<bool> {
+        self.words.matches_source(image, config).then_some(())?;
+        let word = self.words.original_argument_word(self.reference.argument)?;
+        let original = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+        Some(original.as_slice() == value.as_bytes())
+    }
+
+    /// Match fixed ASCII descriptor metadata under the original package purpose.
+    #[must_use]
+    pub fn matches_ascii(&self, metadata: &str) -> bool {
+        // naming.diagnostic.original-package-source-advice
+
+        self.native_key.as_ref().map_or_else(
+            || metadata.is_ascii() && self.literal == metadata.as_bytes(),
+            |key| key.matches_ascii(metadata),
+        )
+    }
+}
+/// Actual selected package reference or explicit source-coverage uncertainty.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OriginalSourcePackageReferenceSelection {
+    /// Genuine original name under the selected require/provide operation.
+    Reference(OriginalSourcePackageReference),
+    /// Complete selected operation contributes no package reference.
+    NotReference,
+    /// Missing schema, dynamic name or unsupported original operand.
+    Unavailable,
+}
+
+impl OriginalRegistryWords {
+    /// Retain the distinction between missing source representation and an
+    /// actual selected non-package operation. No package-table absence follows.
+    #[must_use]
+    pub fn package_reference_selection(
+        &self,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> OriginalSourcePackageReferenceSelection {
+        use tcl_registry::source_navigation::SourcePackageReferenceSelection as Selection;
+        let Some(selection) = self.with_source_schema(context, |schema| {
+            schema.authored_source_package_reference_selection()
+        }) else {
+            return OriginalSourcePackageReferenceSelection::Unavailable;
+        };
+        match selection {
+            Selection::NotReference => OriginalSourcePackageReferenceSelection::NotReference,
+            Selection::Unavailable => OriginalSourcePackageReferenceSelection::Unavailable,
+            Selection::Reference(_) => self.package_reference(context).map_or(
+                OriginalSourcePackageReferenceSelection::Unavailable,
+                OriginalSourcePackageReferenceSelection::Reference,
+            ),
+        }
+    }
+
+    /// Project a package source reference using the same complete actual
+    /// availability context, selected grammar and original effective operand.
+    #[must_use]
+    pub fn package_reference(
+        &self,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Option<OriginalSourcePackageReference> {
+        // naming.diagnostic.original-package-source-advice
+
+        let reference = self.with_source_schema(context, selected_source_package_reference)??;
+        let literal = self
+            .arguments
+            .get(reference.argument)?
+            .literal_bytes()?
+            .to_vec();
+        let native_key = self
+            .original_argument_value_input(reference.argument)
+            .map(|input| {
+                tcl_registry::native_package::NativePackageNameKey::from_native_units(
+                    input.bytes(),
+                    input.policy(),
+                )
+            });
+        Some(OriginalSourcePackageReference {
+            words: std::sync::Arc::new(self.clone()),
+            reference,
+            literal,
+            native_key,
+        })
+    }
+}
+
+/// Readonly case syntax selected at an unchanged original source point.
+/// Effective captured values keep their origins; only a genuine whole word
+/// supplies pattern geometry. Possible selection and no-match paths remain
+/// explicit, independently of Native handlers and executable IR.
+pub(crate) struct OriginalSourceCase {
+    layout: tcl_registry::spec::CaseInvocation,
+    bodies: tcl_registry::case_bodies::CaseBodyOperands,
+    patterns: Vec<String>,
+    subject: crate::ir::WordExpr,
+    folded_subject: Option<crate::ir::WordExpr>,
+    subject_literal: Option<String>,
+    scripts: Vec<super::OriginalSourceScriptBody>,
+    config: tcl_lexer::LexerConfig,
+}
+
+impl OriginalSourceCase {
+    pub(crate) fn body_operands(&self) -> &tcl_registry::case_bodies::CaseBodyOperands {
+        &self.bodies
+    }
+
+    pub(crate) fn patterns(&self) -> &[String] {
+        &self.patterns
+    }
+
+    pub(crate) const fn mode(&self) -> tcl_registry::spec::CaseMatchMode {
+        self.layout.mode
+    }
+
+    pub(crate) fn references_parameter(&self, parameter: &str) -> bool {
+        original_scalar_reference_is(&self.subject, parameter, self.config)
+            || self.folded_subject.as_ref().is_some_and(|word| {
+                original_scalar_reference_is(word, parameter, self.config.nested())
+            })
+    }
+
+    pub(crate) const fn folds_case(&self) -> bool {
+        self.layout.nocase || self.folded_subject.is_some()
+    }
+
+    /// Literal data or complete scalar syntax from the original subject word.
+    pub(crate) fn subject_data(&self) -> Option<&str> {
+        self.subject_literal.as_deref()
+    }
+
+    pub(crate) fn matches_subject_presentation(&self, subject: &str, braced: bool) -> bool {
+        self.subject.legacy_text() == subject
+            && matches!(&self.subject, crate::ir::WordExpr::BracedLiteral { .. }) == braced
+    }
+
+    pub(crate) fn scalar_subject_name(&self) -> Option<&str> {
+        let (reference, source) = self.subject.sole_variable_substitution()?;
+        (source.provenance == crate::ir::Provenance::Source).then_some(())?;
+        tcl_syntax::naming::whole_scalar_variable_reference_name(reference, self.config)
+    }
+
+    /// Match each current IR body to its genuine case-source script extent.
+    /// Source correspondence grants no Native body entry or executable erasure.
+    pub(crate) fn matches_statement_bodies(
+        &self,
+        arms: &[crate::ir::SwitchArm],
+        default: Option<&crate::ir::Script>,
+    ) -> bool {
+        let actual = arms
+            .iter()
+            .filter_map(|arm| arm.body.as_ref())
+            .chain(default)
+            .collect::<Vec<_>>();
+        actual.len() == self.scripts.len()
+            && self.scripts.len() == self.bodies.bodies.len()
+            && actual.iter().zip(&self.scripts).all(|(script, body)| {
+                let Some(executed) = script.executed_source.as_deref() else {
+                    return false;
+                };
+                let crate::command_binding::ExecutedScriptMapping::Contiguous { base } =
+                    executed.mapping
+                else {
+                    return false;
+                };
+                let span = body.content_span();
+                executed.origin.source_image() == body.original_container().image()
+                    && base == span.start()
+                    && usize::try_from(span.end() - span.start()).ok()
+                        == Some(executed.text.bytes().len())
+                    && executed.origin.source_image().bytes().get(span.as_range())
+                        == Some(executed.text.bytes())
+            })
+    }
+}
+
+fn original_scalar_reference_is(
+    word: &crate::ir::WordExpr,
+    parameter: &str,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
+    let Some((spelling, source)) = word.sole_variable_substitution() else {
+        return false;
+    };
+    if source.provenance != crate::ir::Provenance::Source {
+        return false;
+    }
+    let Ok(Some(reference)) = tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config)
+    else {
+        return false;
+    };
+    reference.index.is_none()
+        && tcl_syntax::naming::split_element_ref_bytes(reference.name).is_none()
+        && reference.name == parameter.as_bytes()
+}
+
+/// Retain the separately selected source-role projection without strengthening
+/// `InvocationFacts`. The original vector, full input and selected descriptor
+/// must all agree before this facade can describe possible case bodies.
+pub(crate) fn original_logical_source_case_for_tokens(
+    tokens: &crate::ir::CommandTokens,
+    registry: &CommandRegistry,
+    metadata: super::InvocationMetadataContext<'_>,
+) -> Option<OriginalSourceCase> {
+    // naming.compiler.original-unknown-handler-source-context
+
+    let binding = tokens.source_binding.as_ref()?;
+    let metadata = binding.original_invocation_metadata_for_input(
+        tokens,
+        metadata.source_analysis_input()?,
+        registry,
+    )?;
+    let selected = super::original_logical_operation_invocation_with_metadata_context(
+        registry, metadata, tokens,
+    )?;
+    original_source_case_projection(tokens, registry, metadata, &selected)
+}
+
+/// An already typed Native Switch may retain its original readonly case
+/// syntax only through its actual normal handler and closed source lookup.
+/// A generic Native call cannot acquire that compiler admission here.
+pub(crate) fn original_native_source_case_for_statement(
+    script: &crate::ir::Script,
+    statement: &crate::ir::Statement,
+    registry: &CommandRegistry,
+    metadata: super::InvocationMetadataContext<'_>,
+) -> Option<OriginalSourceCase> {
+    matches!(statement, crate::ir::Statement::Switch { .. }).then_some(())?;
+    let tokens = script.retained_source_tokens_for_statement(statement)?;
+    let binding = tokens.source_binding.as_ref()?;
+    let metadata = binding.original_invocation_metadata_for_input(
+        tokens,
+        metadata.source_analysis_input()?,
+        registry,
+    )?;
+    let selected = original_native_handler_for_case_source(tokens, registry, metadata)?;
+    let case = original_source_case_projection(tokens, registry, metadata, &selected)?;
+    (!case.body_operands().selection_unknown).then_some(case)
+}
+
+fn original_native_handler_for_case_source(
+    tokens: &crate::ir::CommandTokens,
+    registry: &CommandRegistry,
+    metadata: super::InvocationMetadataContext<'_>,
+) -> Option<super::ResolvedStatementInvocation> {
+    let binding = tokens.source_binding.as_ref()?;
+    if binding.original_invocation_source_purpose(tokens, metadata, registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical
+    {
+        return None;
+    }
+    binding
+        .original_source_word_dialect_for_tokens(tokens)?
+        .native_name_protocol()?;
+    if binding.execution_is_unknown() || binding.execution_may_be_absent() {
+        return None;
+    }
+    let selected =
+        super::resolved_handler_invocation_with_metadata_context(registry, Some(metadata), tokens)?;
+    if !selected.facts.arg_roles_complete
+        || selected.facts.arity_accepts_frozen_arguments() != Some(true)
+        || matches!(
+            selected.facts.subcommand,
+            tcl_registry::OwnedSubcommandResolution::Unknown { .. }
+                | tcl_registry::OwnedSubcommandResolution::Ambiguous { .. }
+                | tcl_registry::OwnedSubcommandResolution::Indeterminate { .. }
+        )
+    {
+        return None;
+    }
+    Some(selected)
+}
+
+fn original_source_case_projection(
+    tokens: &crate::ir::CommandTokens,
+    registry: &CommandRegistry,
+    metadata: super::InvocationMetadataContext<'_>,
+    selected: &super::ResolvedStatementInvocation,
+) -> Option<OriginalSourceCase> {
+    let input = metadata.source_analysis_input()?;
+    let binding = tokens.source_binding.as_ref()?;
+    let logical_source = binding.original_source_advice_purpose(tokens, metadata, registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let realm = if logical_source {
+        binding.original_source_realm_for_input(tokens, input, registry)?
+    } else {
+        binding.invocation_realm()?
+    };
+    selected.with_metadata_schema(registry, metadata, realm, |schema| {
+        schema.semantics.options.case_list.map(|_| ())
+    })?;
+    let words = original_case_registry_words(tokens, registry, metadata, selected)?;
+    let (case, layout, bodies) =
+        words.with_source_schema(input.borrowed_context_registry(), |schema| {
+            selected.with_metadata_schema(registry, metadata, realm, |original| {
+                let source_descriptors = schema.authored_source_descriptors();
+                let selected_descriptors = original.authored_source_descriptors();
+                let same_subcommand = match (
+                    source_descriptors.subcommand,
+                    selected_descriptors.subcommand,
+                ) {
+                    (Some(source), Some(selected)) => std::ptr::eq(source, selected),
+                    (None, None) => true,
+                    _ => false,
+                };
+                // Case grammar belongs directly to the immutable selected
+                // command; form selection cannot replace this descriptor.
+                // Copied transition values supply no further owner identity.
+                if !std::ptr::eq(source_descriptors.command, selected_descriptors.command)
+                    || !same_subcommand
+                {
+                    return None;
+                }
+                let (case, layout) = schema.authored_source_case_invocation()?;
+                let bodies = if logical_source {
+                    schema
+                        .authored_logical_source_role_projection()?
+                        .case_body_operands()?
+                        .clone()
+                } else {
+                    let options = schema.semantics.options.available().collect::<Vec<_>>();
+                    case.possible_body_operands(schema.words.arguments(), &options)?
+                };
+                Some((case, layout, bodies))
+            })
+        })??;
+    let argument = layout.subject_index?;
+    let written = selected.effective.written_argument(argument)?;
+    let subject = tokens.words().get(written + 1)?.clone();
+    let patterns = original_case_patterns(&words, case, &bodies)?;
+    let folded_subject = original_folded_case_subject(tokens, &subject, registry, metadata);
+    let subject_literal = super::original_literal_argument_data(tokens, written);
+    let scripts = words.source_script_bodies_for(
+        input.borrowed_context_registry(),
+        super::OriginalSourceScriptPurpose::PotentialEvaluation,
+    );
+    Some(OriginalSourceCase {
+        layout,
+        bodies,
+        patterns,
+        subject,
+        folded_subject,
+        subject_literal,
+        scripts,
+        config,
+    })
+}
+
+fn original_case_registry_words(
+    tokens: &crate::ir::CommandTokens,
+    registry: &CommandRegistry,
+    metadata: super::InvocationMetadataContext<'_>,
+    selected: &super::ResolvedStatementInvocation,
+) -> Option<OriginalRegistryWords> {
+    use super::{EffectiveInvocationWord, InvocationWordOrigin};
+    let binding = tokens.source_binding.as_ref()?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let (segment, recorded) = binding.original_recorded_command()?;
+    (recorded.words() == tokens.words()).then_some(())?;
+    let site = binding.invocation_site()?;
+    let image = site.source.source_image().clone();
+    let native =
+        super::original_native_compiler_words(&image, tokens.words(), site.offset, config)?;
+    let frozen = super::frozen_argument_words(tokens, &selected.effective);
+    let arguments = selected
+        .effective
+        .origins
+        .iter()
+        .skip(1)
+        .zip(frozen)
+        .map(|(origin, frozen)| {
+            let InvocationWordOrigin::Written(ordinal) = origin else {
+                return Some(frozen);
+            };
+            let word = native.get(*ordinal)?;
+            Some(if word.group().expand {
+                EffectiveInvocationWord::Expanded
+            } else {
+                tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                    .map_or(EffectiveInvocationWord::Dynamic, |value| {
+                        EffectiveInvocationWord::ByteLiteral(std::sync::Arc::from(value))
+                    })
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let operands = effective_operand_sources(
+        &segment,
+        tokens,
+        &selected.effective,
+        &arguments,
+        Some(&native),
+    )?;
+    Some(OriginalRegistryWords {
+        command: selected.facts.canonical_command.clone(),
+        dialect: selected.dialect,
+        arguments,
+        operands,
+        origins: selected.effective.origins.clone(),
+        head: Some(OriginalOperandSource {
+            span: native.first()?.span(),
+            input: None,
+            word: native.first().cloned(),
+        }),
+        roles: None,
+        source: OriginalRegistrySource::Selected,
+        captured_values: None,
+        operands_preserve_source_lookup: false,
+        image,
+        config,
+        registry: registry.snapshot().semantic_key(),
+        context: Some(metadata.context().clone()),
+        definition_parent: None,
+    })
+}
+
+fn original_case_patterns(
+    words: &OriginalRegistryWords,
+    case: tcl_registry::CaseListSpec,
+    bodies: &tcl_registry::case_bodies::CaseBodyOperands,
+) -> Option<Vec<String>> {
+    let mut patterns = Vec::new();
+    for (index, pattern) in bodies.patterns.iter().enumerate() {
+        let original = words.original_argument_word(pattern.argument)?;
+        let value = words.arguments.get(pattern.argument)?.literal_bytes()?;
+        if tcl_syntax::word_rules::original_static_word_unicode_value(original)?.as_slice() != value
+        {
+            return None;
+        }
+        if let Some(element) = pattern.list_element {
+            let fields = tcl_syntax::word_rules::original_static_word_list_elements(original)?;
+            let field = fields.get(element)?;
+            if case.is_keyword_pattern(field.value(), index, bodies.patterns.len()) {
+                continue;
+            }
+            if case.pattern_is_list(field.value()) {
+                patterns.extend(
+                    field
+                        .elements()?
+                        .iter()
+                        .map(|field| field.value().to_owned()),
+                );
+            } else {
+                patterns.push(field.value().to_owned());
+            }
+        } else {
+            let value = std::str::from_utf8(value).ok()?;
+            if !case.is_keyword_pattern(value, index, bodies.patterns.len()) {
+                if case.pattern_is_list(value) {
+                    patterns.extend(
+                        tcl_syntax::word_rules::original_static_word_list_elements(original)?
+                            .iter()
+                            .map(|field| field.value().to_owned()),
+                    );
+                } else {
+                    patterns.push(value.to_owned());
+                }
+            }
+        }
+    }
+    Some(patterns)
+}
+
+fn original_folded_case_subject(
+    parent: &crate::ir::CommandTokens,
+    subject: &crate::ir::WordExpr,
+    registry: &CommandRegistry,
+    metadata: super::InvocationMetadataContext<'_>,
+) -> Option<crate::ir::WordExpr> {
+    let substitution = subject.sole_command_substitution();
+    substitution?;
+    let input = metadata.source_analysis_input()?;
+    let config = parent
+        .source_binding
+        .as_ref()?
+        .original_lexer_config_for_tokens(parent)?;
+    let image = parent
+        .source_binding
+        .as_ref()?
+        .invocation_site()?
+        .source
+        .source_image();
+    let extent = subject.original_command_substitution_span(image.bytes())?;
+    let calls = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+        parent, config, registry, metadata,
+    );
+    let calls = calls?;
+    let call = calls.iter().find(|call| call.span == extent);
+    let call = call?;
+    let child = call.tokens.as_ref()?;
+    let binding = child.source_binding.as_ref()?;
+    let child_metadata = binding.original_invocation_metadata_for_input(child, input, registry);
+    let child_metadata = child_metadata?;
+    let logical_source =
+        binding.original_invocation_source_purpose(child, child_metadata, registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
+    let selected = if logical_source {
+        super::original_logical_operation_invocation_with_metadata_context(
+            registry,
+            child_metadata,
+            child,
+        )
+    } else {
+        original_native_handler_for_case_source(child, registry, child_metadata)
+    };
+    let selected = selected?;
+    let realm = if logical_source {
+        binding.original_source_realm_for_input(child, input, registry)?
+    } else {
+        binding.invocation_realm()?
+    };
+    let value = selected.with_metadata_schema(registry, child_metadata, realm, |schema| {
+        (schema.semantics.byte_array_effect == tcl_registry::ByteArrayEffect::CaseFolds
+            && schema.words.arguments().exact_argv_len()
+                == schema.semantics.argument_offset.checked_add(1))
+        .then_some(schema.semantics.argument_offset)
+    });
+    let value = value?;
+    let written = selected.effective.written_argument(value)?;
+    Some(child.words().get(written + 1)?.clone())
+}
+
+/// Source schema for one retained original complete invocation vector.
+/// The current Analysis remains the owner; no fresh source analysis is made.
+pub(crate) fn original_segment_for_tokens(
+    source: &str,
+    analysis: &AnalysisResult,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<(
+    crate::segmenter::SegmentedCommand,
+    Vec<tcl_lexer::NativeWord>,
+)> {
+    let config = analysis.body_lexer_config?;
+    let image = tcl_lexer::SourceImage::document(source);
+    if !analysis.matches_original_source_image(&image, config) {
+        return None;
+    }
+    let native = super::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        tokens.argv.first()?.start(),
+        config,
+    )?;
+    let start = native.first()?.span().start();
+    let end = native.last()?.span().end();
+    let text = source.get(usize::try_from(start).ok()?..usize::try_from(end).ok()?)?;
+    let mut segments =
+        crate::segmenter::segment_commands_with_offset_and_config(text, start, config.nested());
+    if segments.len() != 1 {
+        return None;
+    }
+    Some((segments.pop()?, native))
+}
+
+/// Selected Registry metadata at the unchanged original complete invocation.
+/// This preserves the retained analysis rather than analysing detached text.
+pub(crate) fn original_registry_words_for_tokens(
+    source: &str,
+    analysis: &AnalysisResult,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<OriginalRegistryWords> {
+    let (segment, native) = original_segment_for_tokens(source, analysis, tokens)?;
+    let words = source_registry_words(source, analysis, &segment)?;
+    (words.head_source()?.word() == native.first()).then_some(words)
+}
+
+/// Original source schema for a supplied compiler consumer. The retained
+/// realm, full input and exact recorded invocation must agree; a report name
+/// or an equal-text parse cannot replace a missing original vector or site.
+/// This delegates the same selected/conditional builders used by editor
+/// source structure. Source applicability never grants entered dispatch,
+/// physical frames, Native arguments, normal results or parameter seeds.
+pub(crate) fn original_registry_words_for_supplied_tokens(
+    realm: &crate::realm::CommandBindingRealm,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<OriginalRegistryWords> {
+    let registry = input.borrowed_context_registry().commands();
+    let binding = tokens.source_binding.as_ref()?;
+    let metadata = binding.original_invocation_metadata_for_input(tokens, input, registry)?;
+    let source_purpose = binding.original_source_advice_purpose(tokens, metadata, registry)?;
+    let site = binding.invocation_site()?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let image = site.source.source_image();
+    if config != input.lexer_config()
+        || !realm.matches_resolved_analysis_input(input)
+        || !realm.matches_original_source_image(image, config)
+    {
+        return None;
+    }
+    let (segment, recorded) = binding.original_recorded_command()?;
+    if recorded.words() != tokens.words() || segment.argv.first()?.span.start() != site.offset {
+        return None;
+    }
+    let mut retained_tokens = recorded;
+    realm.stamp_original_tokens(&mut retained_tokens);
+    let retained = retained_tokens.source_binding.as_ref()?;
+    retained.original_invocation_metadata_for_input(&retained_tokens, input, registry)?;
+    if retained.invocation_site() != Some(site) || retained_tokens.words() != tokens.words() {
+        return None;
+    }
+    let native = super::original_native_compiler_words(image, tokens.words(), site.offset, config)?;
+    let source = image.try_text().ok()?;
+    let context = input.context_registry();
+    if realm.original_source_registry_barrier(&context, tokens) {
+        return None;
+    }
+    let selected =
+        if source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical {
+            logical_source_registry_words(source, realm, input, &segment)
+        } else {
+            selected_registry_words_with_context(source, config, realm, &segment, &context).or_else(
+                || native_source_registry_words(source, config, realm, &context, &segment, None),
+            )
+        }?;
+    if selected.head_source()?.word() != native.first() {
+        return None;
+    }
+    for (argument, origin) in selected.origins().iter().enumerate().skip(1) {
+        if let super::InvocationWordOrigin::Written(written) = origin
+            && selected.operands().get(argument - 1)?.as_ref()?.word() != native.get(*written)
+        {
+            return None;
+        }
+    }
+    Some(selected)
+}
+
+/// Conditional original Registry words under the retained complete Module.
+/// Current source attachments and supplied input remain independent of Normal
+/// completion, entered handlers, native arguments and executable body topology.
+pub(crate) fn original_registry_words_for_module(
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<OriginalRegistryWords> {
+    let input =
+        super::InvocationMetadataContext::for_module(registry, module)?.source_analysis_input()?;
+    let retained = module.retained_source_bindings.as_deref()?;
+    retained.positioned_for_module(module, registry)?;
+    if tokens.synthetic.is_some()
+        || !tokens.original_words_match_argv_text()
+        || !retained.owns_original_analysis_attachment(tokens)
+        || module.native_lexer_config() != input.lexer_config()
+    {
+        return None;
+    }
+    let realm = crate::realm::document_realm_bindings_for_module(module, registry)?;
+    original_registry_words_for_supplied_tokens(&realm, input, tokens)
+}
+
+/// Conditional source argv under the complete current Logical Module.
+/// The retained tape owns deferred child syntax independently of dispatch.
+pub(crate) fn original_logical_registry_words_for_module(
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<OriginalRegistryWords> {
+    let input = module.source_metadata_input.as_ref()?;
+    if !input.has_logical_source_name_context()
+        || module.source_entry.native_entry.is_some()
+        || module.source_entry.hosted_execution_context.is_some()
+        || module.source_entry.unknown_entry
+        || tokens.synthetic.is_some()
+        || !tokens.original_words_match_argv_text()
+        || module.native_lexer_config() != input.lexer_config()
+    {
+        return None;
+    }
+    super::InvocationMetadataContext::for_module(registry, module)?;
+    let realm = crate::realm::document_realm_bindings_for_module(module, registry)?;
+    let binding = tokens.source_binding.as_ref()?;
+    if binding.has_original_source_layout_owner() {
+        return original_registry_words_for_supplied_tokens(&realm, input, tokens);
+    }
+    let retained = binding.original_logical_source_words(tokens, input, registry)?;
+    let offset = tokens.words().first()?.source().span.start();
+    let original = super::original_native_compiler_words(
+        &module.source,
+        tokens.words(),
+        offset,
+        input.lexer_config(),
+    )?;
+    let context = input.borrowed_context_registry();
+    if realm.original_source_registry_barrier(context, tokens) {
+        return None;
+    }
+    let advice = realm.original_source_transition_advice(context, tokens)?;
+    if advice.logical_source_input() != Some(input)
+        || advice.original_words() != original.as_slice()
+        || !advice.matches_source(&module.source, input.lexer_config())
+        || !advice.matches_context(context)
+    {
+        return None;
+    }
+    let current = source_transition_words_from_advice(
+        module.source.try_text().ok()?,
+        input.lexer_config(),
+        context,
+        advice,
+    )?;
+    (current == retained).then_some(current)
+}
+
+/// Complete immediate Plain-body commands under the unchanged Module owner.
+/// Each child retains its own original source point; no body entry is issued.
+pub(crate) fn original_immediate_body_commands_for_module(
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+    parent: &crate::ir::CommandTokens,
+) -> Option<Vec<crate::ir::CommandTokens>> {
+    let input = module.source_metadata_input.as_ref()?;
+    input.has_logical_source_name_context().then_some(())?;
+    let words = original_logical_registry_words_for_module(module, registry, parent)?;
+    let context = input.borrowed_context_registry();
+    let no_script_body = words.with_source_schema(context, |schema| {
+        let (roles, complete) = schema.authored_logical_source_argument_roles();
+        complete
+            && !roles
+                .iter()
+                .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
+            && schema.authored_source_case_invocation().is_none()
+    })?;
+    if no_script_body {
+        return Some(Vec::new());
+    }
+    let realm = crate::realm::document_realm_bindings_for_module(module, registry)?;
+    let immediate = words.with_source_schema(context, |schema| {
+        let mut selected = Vec::new();
+        for &(argument, role) in words.roles()? {
+            if role != tcl_registry::ArgRole::Body {
+                continue;
+            }
+            if schema.authored_source_script_timing_at(argument)?
+                != tcl_registry::ScriptTiming::SameInvocation
+            {
+                continue;
+            }
+            if schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+                || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
+            {
+                return None;
+            }
+            selected.push(words.operands().get(argument)?.as_ref()?.word()?.span());
+        }
+        Some(selected)
+    })??;
+    if immediate.is_empty() {
+        return Some(Vec::new());
+    }
+    let bodies = words.source_script_bodies_for_mutation_coverage(context)?;
+    if immediate.iter().any(|span| {
+        !bodies.iter().any(|body| {
+            span.start() <= body.container_extent_span().start()
+                && body.container_extent_span().end() <= span.end()
+        })
+    }) {
+        return None;
+    }
+    let source = module.source.try_text().ok()?;
+    let map = tcl_lexer::SourceMap::from_image(&module.source);
+    let mut commands = Vec::new();
+    for body in bodies {
+        if !immediate.iter().any(|span| {
+            span.start() <= body.container_extent_span().start()
+                && body.container_extent_span().end() <= span.end()
+        }) {
+            continue;
+        }
+        if !body.matches_source(&module.source, input.lexer_config())
+            || !body.matches_context(context)
+        {
+            return None;
+        }
+        for original in body.original_commands(context)? {
+            let segments = crate::segmenter::segment_commands_with_offset_and_config(
+                source.get(original.span.as_range())?,
+                original.span.start(),
+                input.lexer_config(),
+            );
+            if segments.len() != 1 {
+                return None;
+            }
+            let mut child =
+                crate::ir::CommandTokens::from_segmented(&map, input.lexer_config(), &segments[0]);
+            realm.stamp_original_tokens(&mut child);
+            let selected = original_logical_registry_words_for_module(module, registry, &child)?;
+            let offset = selected.head_source()?.word()?.span().start();
+            let actual = super::original_native_compiler_words(
+                &module.source,
+                child.words(),
+                offset,
+                input.lexer_config(),
+            )?;
+            if actual != original.words {
+                return None;
+            }
+            commands.push(child);
+        }
+    }
+    Some(commands)
+}
+
+/// Authored declaration roles at the unchanged complete invocation, with
+/// their original declaration owner and no inherited Registry implementation.
+pub(crate) fn original_declared_words_for_tokens(
+    source: &str,
+    analysis: &AnalysisResult,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<crate::command_binding::OriginalDeclaredCommandWords> {
+    let (segment, native) = original_segment_for_tokens(source, analysis, tokens)?;
+    let words = source_declared_command_words(source, analysis, &segment)?;
+    (words.original_words() == native).then_some(words)
+}
+
+/// Positioned Logical source schema from the retained immutable Realm and
+/// the exact original command vector. Dynamic values remain unknown; this
+/// supplies no Native naming input, dispatch, Normal or lookup preservation.
+#[must_use]
+pub fn original_logical_registry_words_for_command(
+    realm: &crate::realm::CommandBindingRealm,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    command: &tcl_lexer::NativeScriptCommandWords,
+) -> Option<OriginalRegistryWords> {
+    // naming.minifier.complete-logical-metadata
+
+    let image = command.words.first()?.image();
+    let source = image.try_text().ok()?;
+    let config = input.lexer_config();
+    if command
+        .words
+        .iter()
+        .any(|word| word.image() != image || word.config() != config)
+    {
+        return None;
+    }
+    let text = source.get(command.span.as_range())?;
+    let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
+        text,
+        command.span.start(),
+        config.nested(),
+    );
+    if segments.len() != 1 {
+        return None;
+    }
+    let segment = segments.pop()?;
+    let words = logical_source_registry_words(source, realm, input, &segment)?;
+    let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+        return None;
+    };
+    (advice.original_words() == command.words.as_slice()).then_some(words)
+}
+
+pub(super) fn logical_source_registry_words(
+    source: &str,
+    realm: &crate::realm::CommandBindingRealm,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    segment: &crate::segmenter::SegmentedCommand,
+) -> Option<OriginalRegistryWords> {
+    if realm
+        .source_bindings_ref()
+        .original_logical_source_name_advice_input()
+        != Some(input)
+        || !realm.matches_resolved_analysis_input(input)
+        || !realm.matches_original_source_image(
+            &tcl_lexer::SourceImage::document(source),
+            input.lexer_config(),
+        )
+    {
+        return None;
+    }
+    let context = input.context_registry();
+    let words =
+        source_transition_registry_words(source, input.lexer_config(), realm, &context, segment)
+            .or_else(|| {
+                let mut tokens = crate::ir::CommandTokens::from_segmented(
+                    &tcl_lexer::SourceMap::new(source),
+                    input.lexer_config(),
+                    segment,
+                );
+                realm.stamp_original_tokens(&mut tokens);
+                let advice = realm.original_source_prefix_catalogue_advice(input, &tokens)?;
+                source_transition_words_with_segment(
+                    source,
+                    input.lexer_config(),
+                    &context,
+                    segment,
+                    advice,
+                )
+            })?;
+    let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+        return None;
+    };
+    (advice.original_head().logical_input().is_some()
+        && advice.logical_source_input() == Some(input))
+    .then_some(words)
+}
+
+fn logical_source_registry_words_in_original_image(
+    image: &tcl_lexer::SourceImage,
+    realm: &crate::realm::CommandBindingRealm,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    segment: &crate::segmenter::SegmentedCommand,
+) -> Option<OriginalRegistryWords> {
+    if realm
+        .source_bindings_ref()
+        .original_logical_source_name_advice_input()
+        != Some(input)
+        || !realm.matches_resolved_analysis_input(input)
+        || !realm.matches_original_source_image(image, input.lexer_config())
+    {
+        return None;
+    }
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(image),
+        input.lexer_config(),
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let context = input.context_registry();
+    let advice = realm
+        .original_source_transition_advice(&context, &tokens)
+        .or_else(|| realm.original_source_prefix_catalogue_advice(input, &tokens))?;
+    let words = source_transition_words_with_segment_in_image(
+        image,
+        input.lexer_config(),
+        &context,
+        segment,
+        advice,
+    )?;
+    let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+        return None;
+    };
+    (advice.original_head().logical_input().is_some()
+        && advice.logical_source_input() == Some(input))
+    .then_some(words)
+}
+
+fn native_source_registry_words(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    realm: &crate::realm::CommandBindingRealm,
+    context: &tcl_registry::model::ContextRegistry,
+    segment: &crate::segmenter::SegmentedCommand,
+    retained_metadata: Option<crate::registry_invocation::OriginalConditionalRegistryMetadata>,
+) -> Option<OriginalRegistryWords> {
+    let image = retained_document_image(source, realm, config)?;
+    realm
+        .matches_original_source_image(&image, config)
+        .then_some(())?;
+    if let Some(input) = realm
+        .source_bindings_ref()
+        .original_logical_source_name_advice_input()
+    {
+        // This domain is selected by the validated full Logical input, never
+        // by a missing Native operand or a Registry/profile display label.
+        if config != input.lexer_config()
+            || !std::ptr::eq(std::sync::Arc::as_ptr(&input.context_registry()), context)
+        {
+            return None;
+        }
+        return logical_source_registry_words(source, realm, input, segment);
+    }
+    let Some(metadata) =
+        native_source_metadata(source, config, realm, context, segment, retained_metadata)
+    else {
+        return source_transition_registry_words(source, config, realm, context, segment);
+    };
+    conditional_source_registry_words(source, config, realm, context, segment, metadata)
+}
+
+fn native_source_metadata(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    realm: &crate::realm::CommandBindingRealm,
+    context: &tcl_registry::model::ContextRegistry,
+    segment: &crate::segmenter::SegmentedCommand,
+    retained_metadata: Option<crate::registry_invocation::OriginalConditionalRegistryMetadata>,
+) -> Option<crate::registry_invocation::OriginalConditionalRegistryMetadata> {
+    let registry = context.commands();
+    let image = retained_document_image(source, realm, config)?;
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    if realm.original_source_registry_barrier(context, &tokens) {
+        return None;
+    }
+
+    let metadata = if let Some(metadata) = retained_metadata {
+        metadata
+    } else {
+        let candidate = tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| {
+                binding.original_catalogue_source_candidate_from_tokens(&tokens, registry)
+            })
+            .or_else(|| {
+                realm
+                    .source_bindings_ref()
+                    .original_future_source_catalogue_candidate(&image, config, &tokens, registry)
+            });
+        candidate.and_then(|candidate| {
+            super::conditional_metadata::original_catalogue_registry_metadata(context, candidate)
+        })?
+    };
+    Some(metadata)
+}
+
+fn conditional_source_values(
+    metadata: &crate::registry_invocation::OriginalConditionalRegistryMetadata,
+) -> Option<(
+    Vec<tcl_lexer::NativeWord>,
+    Vec<crate::registry_invocation::EffectiveInvocationWord>,
+)> {
+    use crate::registry_invocation::EffectiveInvocationWord;
+    let native = metadata.original_words().to_vec();
+    let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+        &native,
+        metadata
+            .original_head()
+            .name_input()
+            .policy()
+            .string_protocol(),
+    )
+    .ok()?;
+    let values = native
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(ordinal, word)| {
+            if word.group().expand {
+                EffectiveInvocationWord::Expanded
+            } else {
+                captured
+                    .literal(ordinal)
+                    .map_or(EffectiveInvocationWord::Dynamic, |bytes| {
+                        EffectiveInvocationWord::ByteLiteral(std::sync::Arc::from(bytes))
+                    })
+            }
+        })
+        .collect::<Vec<_>>();
+    Some((native, values))
+}
+
+fn conditional_source_operands(
+    native: &[tcl_lexer::NativeWord],
+    segment: &crate::segmenter::SegmentedCommand,
+    origin: &OriginalRegistrySource,
+) -> Vec<Option<OriginalOperandSource>> {
+    native
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(ordinal, word)| {
+            Some(OriginalOperandSource {
+                span: segment.argv.get(ordinal)?.span,
+                input: match origin {
+                    OriginalRegistrySource::Conditional(metadata) => {
+                        let head = metadata.original_head().name_input();
+                        crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                            word, head.word_value_rules(), head.policy())
+                            .map(crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord)
+                    },
+                    OriginalRegistrySource::Selected | OriginalRegistrySource::ConditionalNativeSource(_) | OriginalRegistrySource::Scoped(_) | OriginalRegistrySource::DefinitionMember(_) | OriginalRegistrySource::Vendor(_) | OriginalRegistrySource::SourceTransitions(_) | OriginalRegistrySource::ProducedPrefix(_) => None,
+                },
+                word: Some(word.clone()),
+            })
+        })
+        .collect()
+}
+
+fn conditional_source_registry_words(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    realm: &crate::realm::CommandBindingRealm,
+    context: &tcl_registry::model::ContextRegistry,
+    segment: &crate::segmenter::SegmentedCommand,
+    metadata: crate::registry_invocation::OriginalConditionalRegistryMetadata,
+) -> Option<OriginalRegistryWords> {
+    use crate::registry_invocation::InvocationWordOrigin;
+    let registry = context.commands();
+    let image = retained_document_image(source, realm, config)?;
+    let offset = segment.argv.first()?.span.start();
+    let (command, native, values, roles, origin) = {
+        let (native, values) = conditional_source_values(&metadata)?;
+        let roles = conditional_roles(
+            metadata.roles(),
+            metadata.argument_offset(),
+            metadata.roles_complete(),
+        );
+        (
+            metadata.command().to_owned(),
+            native,
+            values,
+            roles,
+            OriginalRegistrySource::Conditional(std::sync::Arc::new(metadata)),
+        )
+    };
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let dialect = match &origin {
+        OriginalRegistrySource::Scoped(_)
+        | OriginalRegistrySource::DefinitionMember(_)
+        | OriginalRegistrySource::Vendor(_)
+        | OriginalRegistrySource::SourceTransitions(_)
+        | OriginalRegistrySource::ProducedPrefix(_) => None,
+        OriginalRegistrySource::Conditional(metadata) => metadata.original_source_dialect(),
+        OriginalRegistrySource::Selected | OriginalRegistrySource::ConditionalNativeSource(_) => {
+            tokens
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.original_source_word_dialect_for_tokens(&tokens))
+        }
+    };
+    let original = crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        offset,
+        config,
+    )?;
+    if original != native {
+        return None;
+    }
+    let operands = conditional_source_operands(&native, segment, &origin);
+    let head = native.first().map(|word| OriginalOperandSource {
+        span: word.span(),
+        input: match &origin {
+            OriginalRegistrySource::Conditional(metadata) => Some(
+                crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+                    metadata.original_head().name_input().clone(),
+                ),
+            ),
+            OriginalRegistrySource::Selected
+            | OriginalRegistrySource::ConditionalNativeSource(_)
+            | OriginalRegistrySource::Scoped(_)
+            | OriginalRegistrySource::DefinitionMember(_)
+            | OriginalRegistrySource::Vendor(_)
+            | OriginalRegistrySource::SourceTransitions(_)
+            | OriginalRegistrySource::ProducedPrefix(_) => None,
+        },
+        word: Some(word.clone()),
+    });
+    Some(OriginalRegistryWords {
+        command,
+        dialect,
+        arguments: values,
+        operands,
+        origins: (0..native.len())
+            .map(InvocationWordOrigin::Written)
+            .collect(),
+        roles,
+        head,
+        source: origin,
+        captured_values: None,
+        operands_preserve_source_lookup: false,
+        image,
+        config,
+        registry: registry.snapshot().semantic_key(),
+        context: Some(context.context().clone()),
+        definition_parent: None,
+    })
+}
+
+/// Conditional root-script aliases and moves share one immutable source tape.
+/// Known targets and definite absence do not fall through; an unbounded
+/// snapshot retains conditional source applicability without a dispatch grant.
+fn source_transition_registry_words(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    realm: &crate::realm::CommandBindingRealm,
+    context: &tcl_registry::model::ContextRegistry,
+    segment: &crate::segmenter::SegmentedCommand,
+) -> Option<OriginalRegistryWords> {
+    let image = retained_document_image(source, realm, config)?;
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let advice = realm.original_source_transition_advice(context, &tokens);
+    let result = source_transition_words_with_segment(source, config, context, segment, advice?);
+    result
+}
+
+/// Project a sealed original source receipt through the same role/body owner.
+/// The original vector is recaptured in its whole-image address space; a
+/// detached script or reconstructed argv cannot supply this correspondence.
+pub(crate) fn conditional_lambda_formatting_words(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    context: &tcl_registry::model::ContextRegistry,
+    segment: &crate::segmenter::SegmentedCommand,
+    advice: &crate::command_binding::OriginalSourceCommandTransitionAdvice,
+) -> Option<OriginalRegistryWords> {
+    let mut words =
+        source_transition_words_with_segment(source, config, context, segment, advice.clone())?;
+    words.operands_preserve_source_lookup = false;
+    Some(words)
+}
+
+pub(crate) fn source_transition_words_from_advice(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    context: &tcl_registry::model::ContextRegistry,
+    advice: crate::command_binding::OriginalSourceCommandTransitionAdvice,
+) -> Option<OriginalRegistryWords> {
+    let original = advice.original_words();
+    let span = tcl_lexer::Span::new(
+        original.first()?.span().start(),
+        original.last()?.span().end(),
+    );
+    let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
+        source.get(span.as_range())?,
+        span.start(),
+        config.nested(),
+    );
+    if segments.len() != 1 {
+        return None;
+    }
+    source_transition_words_with_segment(source, config, context, &segments.pop()?, advice)
+}
+
+fn source_transition_words_with_segment(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    context: &tcl_registry::model::ContextRegistry,
+    segment: &crate::segmenter::SegmentedCommand,
+    advice: crate::command_binding::OriginalSourceCommandTransitionAdvice,
+) -> Option<OriginalRegistryWords> {
+    let image = matching_document_image(source, advice.original_words().first()?.image())?;
+    source_transition_words_with_segment_in_image(&image, config, context, segment, advice)
+}
+
+// The caller must retain the actual source image; no Document conversion is
+// permitted for entered materialised script values.
+fn source_transition_words_with_segment_in_image(
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    context: &tcl_registry::model::ContextRegistry,
+    segment: &crate::segmenter::SegmentedCommand,
+    advice: crate::command_binding::OriginalSourceCommandTransitionAdvice,
+) -> Option<OriginalRegistryWords> {
+    use crate::registry_invocation::{EffectiveInvocationWord, InvocationWordOrigin};
+    let image = image.clone();
+    let tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    if crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        segment.argv.first()?.span.start(),
+        config,
+    )?
+    .as_slice()
+        != advice.original_words()
+    {
+        return None;
+    }
+    if !advice.matches_context(context) || !advice.matches_source(&image, config) {
+        return None;
+    }
+    let values = advice
+        .arguments()
+        .iter()
+        .map(|argument| {
+            if argument.original.group().expand {
+                EffectiveInvocationWord::Expanded
+            } else {
+                argument
+                    .value
+                    .as_ref()
+                    .map_or(EffectiveInvocationWord::Dynamic, |bytes| {
+                        EffectiveInvocationWord::ByteLiteral(std::sync::Arc::clone(bytes))
+                    })
+            }
+        })
+        .collect();
+    let operands = advice
+        .arguments()
+        .iter()
+        .map(|argument| {
+            let InvocationWordOrigin::Written(ordinal) = argument.origin else {
+                return None;
+            };
+            let token = segment.argv.get(ordinal)?;
+            // The realm authenticated the exact complete native vector.
+            // Segmented tokens and grouped original words retain different
+            // genuine delimiter extents; both are preserved independently.
+            Some(OriginalOperandSource {
+                span: token.span,
+                input: argument
+                    .input
+                    .as_ref()
+                    .and_then(|input| input.native_input())
+                    .cloned(),
+                word: Some(argument.original.clone()),
+            })
+        })
+        .collect();
+    let mut origins = vec![InvocationWordOrigin::Written(0)];
+    origins.extend(advice.arguments().iter().map(|argument| argument.origin));
+    let head = advice
+        .original_words()
+        .first()
+        .map(|word| OriginalOperandSource {
+            span: word.span(),
+            input: advice.original_head().native_input().cloned(),
+            word: Some(word.clone()),
+        });
+    Some(OriginalRegistryWords {
+        command: advice.command().to_owned(),
+        dialect: Some(advice.dialect()),
+        arguments: values,
+        operands,
+        origins,
+        roles: advice.roles().map(<[_]>::to_vec),
+        head,
+        source: OriginalRegistrySource::SourceTransitions(std::sync::Arc::new(advice)),
+        captured_values: None,
+        operands_preserve_source_lookup: false,
+        image,
+        config,
+        registry: context.commands().snapshot().semantic_key(),
+        context: Some(context.context().clone()),
+        definition_parent: None,
+    })
+}
+
+/// Authored target metadata of a selected original list builder at its actual
+/// source point. Inert list data gains no deferred parent, future lookup,
+/// evaluated result object, current receiver or dispatch authority.
+#[must_use]
+pub fn source_authored_command_prefix(
+    source: &str,
+    analysis: &AnalysisResult,
+    producer: &crate::segmenter::SegmentedCommand,
+) -> Option<crate::command_binding::OriginalSourceAuthoredCommandPrefix> {
+    // naming.source.original-authored-command-prefix-data
+
+    let input = analysis.resolved_input.as_ref()?;
+    let config = input.lexer_config();
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, config)
+        .then_some(())?;
+    (analysis.body_lexer_config == Some(config)).then_some(())?;
+    let realm = analysis.retained_command_realm()?;
+    realm.matches_resolved_analysis_input(input).then_some(())?;
+    let tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        producer,
+    );
+    let original = super::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        producer.argv.first()?.span.start(),
+        config,
+    )?;
+    realm.original_authored_command_prefix(input, &original)
+}
+
+/// Conditional future source argv built by a selected original list invocation
+/// in a retained deferred operand. Every written target operand keeps its own
+/// builder source word; captured target-prefix values acquire no source anchor.
+/// This receipt cannot supply execution, native values or syntax compaction.
+#[must_use]
+pub fn source_produced_command_prefix_words(
+    source: &str,
+    analysis: &AnalysisResult,
+    producer: &crate::segmenter::SegmentedCommand,
+) -> Option<OriginalRegistryWords> {
+    // naming.source.original-produced-command-prefix
+
+    let input = analysis.resolved_input.as_ref()?;
+    analysis
+        .matches_original_source_image(
+            &tcl_lexer::SourceImage::document(source),
+            input.lexer_config(),
+        )
+        .then_some(())?;
+    source_produced_command_prefix_words_in(
+        source,
+        input,
+        analysis.retained_command_realm()?,
+        producer,
+    )
+}
+
+/// The same source producer while an analyser retains the complete input and
+/// realm independently of its final result. No fresh interpretation, default
+/// context or presentation head replaces those owners.
+pub(crate) fn source_produced_command_prefix_words_in(
+    source: &str,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    realm: &crate::realm::CommandBindingRealm,
+    producer: &crate::segmenter::SegmentedCommand,
+) -> Option<OriginalRegistryWords> {
+    let context = input.context_registry();
+    let image = tcl_lexer::SourceImage::document(source);
+    let config = input.lexer_config();
+    (realm.matches_resolved_analysis_input(input)
+        && realm.matches_original_source_image(&image, config))
+    .then_some(())?;
+    let tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::new(source),
+        config,
+        producer,
+    );
+    let original = crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        producer.argv.first()?.span.start(),
+        config,
+    )?;
+    let prefix = realm.original_produced_command_prefix(input, &original)?;
+    // The genuine deferred parent owns this builder's conditional schema.
+    // A standalone nested lookup would require an unrelated entered frame.
+    let builder =
+        source_transition_words_from_advice(source, config, &context, prefix.producer().clone())?;
+    if !builder.with_source_schema(&context, |schema| {
+        schema
+            .semantics
+            .traits
+            .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
+            && schema.semantics.native_result
+                == Some(
+                    tcl_registry::native_result::NativeResultContract::ListArguments { from: 0 },
+                )
+    })? {
+        return None;
+    }
+    if builder.command() != prefix.producer().command()
+        || builder.origins()
+            != (0..original.len())
+                .map(crate::registry_invocation::InvocationWordOrigin::Written)
+                .collect::<Vec<_>>()
+    {
+        return None;
+    }
+    produced_prefix_words(source, config, &context, producer, prefix)
+}
+
+fn produced_prefix_words(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    context: &tcl_registry::model::ContextRegistry,
+    segment: &crate::segmenter::SegmentedCommand,
+    prefix: crate::command_binding::OriginalSourceProducedCommandPrefix,
+) -> Option<OriginalRegistryWords> {
+    use crate::registry_invocation::{EffectiveInvocationWord, InvocationWordOrigin};
+    let image = tcl_lexer::SourceImage::document(source);
+    prefix
+        .matches_source_context(&image, config, context)
+        .then_some(())?;
+    let mut origins = vec![InvocationWordOrigin::Written(1)];
+    origins.extend(
+        prefix
+            .arguments()
+            .iter()
+            .map(|argument| match argument.origin {
+                InvocationWordOrigin::Written(ordinal) => {
+                    ordinal.checked_add(1).map(InvocationWordOrigin::Written)
+                }
+                other => Some(other),
+            })
+            .collect::<Option<Vec<_>>>()?,
+    );
+    let operands = prefix
+        .arguments()
+        .iter()
+        .map(|argument| {
+            let InvocationWordOrigin::Written(_) = argument.origin else {
+                return None;
+            };
+            let word = &argument.original;
+            let token = segment.argv.iter().find(|token| {
+                word.tokens()
+                    .first()
+                    .is_some_and(|first| first.span == token.span)
+            })?;
+            Some(OriginalOperandSource {
+                span: token.span,
+                input: argument
+                    .input
+                    .as_ref()
+                    .and_then(|input| input.native_input())
+                    .cloned(),
+                word: Some(word.clone()),
+            })
+        })
+        .collect();
+    let arguments = prefix
+        .arguments()
+        .iter()
+        .map(|argument| {
+            argument
+                .value
+                .as_ref()
+                .map_or(EffectiveInvocationWord::Dynamic, |value| {
+                    EffectiveInvocationWord::ByteLiteral(std::sync::Arc::clone(value))
+                })
+        })
+        .collect();
+    let head = prefix.original_head().original_word()?;
+    Some(OriginalRegistryWords {
+        command: prefix.command().to_owned(),
+        dialect: Some(prefix.producer().dialect()),
+        arguments,
+        operands,
+        origins,
+        roles: prefix.roles().map(<[_]>::to_vec),
+        head: Some(OriginalOperandSource {
+            span: head.span(),
+            input: prefix.original_head().native_input().cloned(),
+            word: Some(head.clone()),
+        }),
+        source: OriginalRegistrySource::ProducedPrefix(std::sync::Arc::new(prefix)),
+        captured_values: None,
+        operands_preserve_source_lookup: false,
+        image,
+        config,
+        registry: context.commands().snapshot().semantic_key(),
+        context: Some(context.context().clone()),
+        definition_parent: None,
+    })
+}
+
+/// Same sealed hosted source argv for pre-dispatch lexical inventory and
+/// current Analysis consumers. Metadata, complete original words, context and
+/// the authentic token carrier must agree; no handler or body entry follows.
+pub(crate) fn original_vendor_registry_words(
+    context: &tcl_registry::model::ContextRegistry,
+    tokens: &crate::ir::CommandTokens,
+    metadata: crate::registry_invocation::OriginalConditionalVendorRegistryMetadata,
+) -> Option<OriginalRegistryWords> {
+    use crate::registry_invocation::{EffectiveInvocationWord, InvocationWordOrigin};
+    let shape = metadata.shape();
+    let image = shape.original_head().source_image().clone();
+    let config = shape.original_head().lexer_config();
+    if shape.context() != context.context()
+        || shape.registry() != &context.commands().snapshot().semantic_key()
+        || !metadata.matches_source(&image, config)
+        || !metadata.catalogue().matches_invocation(tokens)
+    {
+        return None;
+    }
+    let offset = tokens.argv.first()?.start();
+    let native = crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        offset,
+        config,
+    )?;
+    if native.as_slice() != shape.original_words() || native.len() != tokens.argv.len() {
+        return None;
+    }
+    let arguments = native
+        .iter()
+        .skip(1)
+        .map(|word| {
+            if word.group().expand {
+                EffectiveInvocationWord::Expanded
+            } else {
+                tcl_syntax::naming::vendor_source_literal_units(
+                    shape.original_head().policy(),
+                    word,
+                    tcl_syntax::naming::VendorSourceNamePurpose::SourceName,
+                )
+                .map_or(EffectiveInvocationWord::Dynamic, |bytes| {
+                    EffectiveInvocationWord::ByteLiteral(std::sync::Arc::from(bytes))
+                })
+            }
+        })
+        .collect();
+    let operands = native
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(ordinal, word)| {
+            Some(OriginalOperandSource {
+                span: *tokens.argv.get(ordinal)?,
+                input: None,
+                word: Some(word.clone()),
+            })
+        })
+        .collect();
+    let head = native.first().map(|word| OriginalOperandSource {
+        span: word.span(),
+        input: None,
+        word: Some(word.clone()),
+    });
+    Some(OriginalRegistryWords {
+        command: shape.command().to_owned(),
+        dialect: None,
+        arguments,
+        operands,
+        origins: (0..native.len())
+            .map(InvocationWordOrigin::Written)
+            .collect(),
+        roles: conditional_roles(
+            shape.roles(),
+            shape.argument_offset(),
+            shape.roles_complete(),
+        ),
+        head,
+        source: OriginalRegistrySource::Vendor(std::sync::Arc::new(metadata)),
+        captured_values: None,
+        operands_preserve_source_lookup: false,
+        image,
+        config,
+        registry: context.commands().snapshot().semantic_key(),
+        context: Some(context.context().clone()),
+        definition_parent: None,
+    })
+}
+
+fn conditional_roles(
+    roles: &[(u8, tcl_registry::ArgRole)],
+    offset: usize,
+    complete: bool,
+) -> Option<Vec<(usize, tcl_registry::ArgRole)>> {
+    if !complete {
+        return None;
+    }
+    roles
+        .iter()
+        .map(|&(ordinal, role)| {
+            offset
+                .checked_add(usize::from(ordinal))
+                .map(|index| (index, role))
+        })
+        .collect()
+}
+
+/// Hosted source candidates use their own context/policy and complete retained
+/// native vector. This returns conditional Registry syntax only, without a
+/// C/Jim name recipe or actual handler/table grant.
+pub fn selected_vendor_registry_words_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<(
+    crate::registry_invocation::OriginalConditionalVendorRegistryMetadata,
+    crate::segmenter::SegmentedCommand,
+)> {
+    let config = analysis.body_lexer_config?;
+    analysis
+        .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+        .then_some(())?;
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    let realm = analysis.retained_command_realm()?;
+    let mut selected = None;
+    let mut selected_width = u32::MAX;
+    for occurrence in analysis.original_vendor_source_names() {
+        let words = occurrence.original_words();
+        if words.first()? != occurrence.name_input().original_word() {
+            continue;
+        }
+        let start = words.first()?.span().start();
+        let end = words.last()?.span().end();
+        let immediate_next = cursor > end
+            && source
+                .get(end as usize..cursor as usize)
+                .is_some_and(|text| {
+                    !text.is_empty() && text.chars().all(|c| c == ' ' || c == '\t')
+                });
+        if cursor < start || (cursor > end && !immediate_next) {
+            continue;
+        }
+        let width = end.checked_sub(start)?;
+        if width < selected_width {
+            selected_width = width;
+            selected = Some(occurrence);
+        } else if width == selected_width && selected != Some(occurrence) {
+            return None;
+        }
+    }
+    // Choose the actual innermost original command before querying metadata.
+    // Missing/blocked inner metadata cannot borrow an outer script's roles.
+    let occurrence = selected?;
+    let words = occurrence.original_words();
+    let start = words.first()?.span().start();
+    let end = words.last()?.span().end();
+    let text = source.get(start as usize..end as usize)?;
+    let mut commands =
+        crate::segmenter::segment_commands_with_offset_and_config(text, start, config.nested());
+    if commands.len() != 1 {
+        return None;
+    }
+    let command = commands.pop()?;
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::new(source),
+        config,
+        &command,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let metadata = crate::registry_invocation::original_vendor_occurrence_registry_metadata(
+        &context, &tokens, occurrence,
+    )?;
+    Some((metadata, command))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
+    use super::*;
+
+    fn original_selector_analysis(source: &str) -> crate::analyser::AnalysisResult {
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let profile = environment.analyser_profile();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            environment.default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        crate::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn logical_source_words_keep_complete_receiver_catalogue_vectors_and_current_inputs() {
+        let source = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/positive.tcl"
+        ));
+        let mut analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.find("after idle $cb").unwrap()).unwrap();
+        assert!(
+            analysis
+                .retained_command_realm()
+                .unwrap()
+                .invocation_at_source("", offset)
+                .original_recorded_command()
+                .is_none(),
+            "the source catalogue must supply this complete vector"
+        );
+        let words = original_logical_source_words_at(source, &analysis, offset)
+            .expect("complete original Logical receiver source vector");
+        assert_eq!(
+            words
+                .iter()
+                .map(|word| word.try_text().unwrap())
+                .collect::<Vec<_>>(),
+            ["after", "idle", "$cb"]
+        );
+        let input = analysis.resolved_input.as_ref().unwrap().clone();
+        assert!(words.iter().all(
+            |word| word.image() == &tcl_lexer::SourceImage::document(source)
+                && word.config() == input.lexer_config()
+        ));
+        assert!(
+            original_logical_source_words_at(&format!("{source} "), &analysis, offset).is_none()
+        );
+        assert!(original_logical_source_words_at(source, &analysis, offset + 6).is_none());
+        analysis.resolved_input = None;
+        assert!(original_logical_source_words_at(source, &analysis, offset).is_none());
+        analysis.resolved_input = Some(input.clone());
+        let mut changed = input.lexer_config();
+        changed.strict_quoting = !changed.strict_quoting;
+        analysis.body_lexer_config = Some(changed);
+        assert!(original_logical_source_words_at(source, &analysis, offset).is_none());
+        analysis.body_lexer_config = Some(input.lexer_config());
+        analysis.resolved_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        ));
+        assert!(original_logical_source_words_at(source, &analysis, offset).is_none());
+        let source = "list VALUE";
+        let logical = crate::analyser::Analyser::new().analyse(source, "tcl");
+        assert_eq!(
+            original_logical_source_words_at(source, &logical, 0)
+                .unwrap()
+                .len(),
+            2
+        );
+        let native = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(original_logical_source_words_at(source, &native, 0).is_none());
+    }
+
+    #[test]
+    fn original_source_prefix_catalogue_keeps_fatal_tail_separate() {
+        for dialect in ["tcl", "tcl8.6"] {
+            let source = "set arr(key) 1\nset v $arr(k more stuff\n";
+            let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+            let profile = environment.analyser_profile();
+            let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                environment.default_context_registry(),
+                config,
+            );
+            let analysis = crate::analyser::Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, profile.name);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let context = input.context_registry();
+            let plan = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(source),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert!(plan.fatal_tail.is_some());
+            assert_eq!(plan.commands.len(), 1);
+            let words = source_registry_words_at(source, &analysis, 0)
+                .expect("the genuine complete prefix keeps readonly source roles");
+            if input.has_logical_source_name_context() {
+                assert!(words.head_source().unwrap().input().is_none());
+                assert!(!words.operands_preserve_source_lookup());
+                let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                    panic!("the complete prefix keeps its original Logical source purpose");
+                };
+                assert!(advice.original_head().logical_input().is_some());
+                assert!(advice.original_head().native_input().is_none());
+            }
+            assert_eq!(
+                words.original_argument_word(0),
+                Some(&plan.commands[0].words[1])
+            );
+            assert_eq!(
+                words.with_source_schema(&context, |schema| schema
+                    .authored_source_variable_name_arguments()),
+                Some(vec![(0, tcl_registry::ArgRole::VarWrite)])
+            );
+            assert!(source_registry_words_at(source, &analysis, 15).is_none());
+            assert!(
+                source_registry_words_at(&format!("{source}# changed"), &analysis, 0).is_none()
+            );
+            let foreign = tcl_registry::model::ingress::context_for_profile(
+                tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
+            );
+            assert!(words.with_source_schema(&foreign, |_| ()).is_none());
+        }
+    }
+
+    #[test]
+    fn original_body_catalogue_keeps_source_roles_after_conditional_loop() {
+        for dialect in ["tcl", "tcl8.6"] {
+            for source in [
+                "proc f {n} {while {$n > 0} {set x 1; incr n -1}; puts $x}",
+                "oo::class create C {method f {n} {while {$n > 0} {set x 1; incr n -1}; puts $x}}",
+            ] {
+                let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+                let profile = environment.analyser_profile();
+                let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+                let input = crate::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    environment.default_context_registry(),
+                    config,
+                );
+                let analysis = crate::analyser::Analyser::new()
+                    .with_resolved_input(input)
+                    .analyse(source, profile.name);
+                let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+                for (head, expected) in [
+                    ("set x", vec![(0, tcl_registry::ArgRole::VarWrite)]),
+                    ("incr n", vec![(0, tcl_registry::ArgRole::VarWrite)]),
+                    ("puts $x", vec![]),
+                ] {
+                    let offset = u32::try_from(source.find(head).unwrap()).unwrap();
+                    let words =
+                        source_registry_words_at(source, &analysis, offset).unwrap_or_else(|| {
+                            panic!("conditional original schema absent: {dialect} {head}")
+                        });
+                    let roles = words
+                        .with_source_schema(&context, |schema| {
+                            schema.authored_source_variable_name_arguments()
+                        })
+                        .unwrap();
+                    assert_eq!(roles, expected, "{dialect} {head}");
+                    assert!(
+                        words.matches_source(&tcl_lexer::SourceImage::document(source), config)
+                    );
+                }
+            }
+        }
+        for source in [
+            "proc set args {}; proc f {} {set x 1}",
+            "rename set saved; proc f {} {set x 1}",
+        ] {
+            let analysis = original_selector_analysis(source);
+            let offset = u32::try_from(source.rfind("set x").unwrap()).unwrap();
+            assert!(source_registry_words_at(source, &analysis, offset).is_none());
+        }
+    }
+
+    #[test]
+    fn original_source_schema_keeps_named_selector_and_handler_argument_shape() {
+        // naming.source.original-registry-header-advice
+
+        let source = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/positive.tcl"
+        ));
+        let analysis = original_selector_analysis(source);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let config = input.lexer_config();
+        let setup = analysis.all_classes["::C"]
+            .original_members
+            .declarations()
+            .find(|member| member.original_name_input().bytes() == b"setup")
+            .unwrap();
+        let plan = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(source),
+            setup.body_word().unwrap().content_span().unwrap(),
+            config,
+        )
+        .unwrap();
+        assert!(plan.fatal_tail.is_none());
+        let wrapper =
+            original_single_source_command_substitution(&plan.commands[0].words[2]).unwrap();
+        assert_eq!(wrapper.command().words[1].bytes(), b"code");
+        let span = wrapper.command().span;
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            &source[span.as_range()],
+            span.start(),
+            config,
+        );
+        let [command] = commands.as_slice() else {
+            panic!("one original wrapper");
+        };
+        let realm = analysis.retained_command_realm().unwrap();
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            command,
+        );
+        realm.stamp_original_tokens(&mut tokens);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.named_invocation().is_some());
+        let context = input.context_registry();
+        let handler_advice = crate::registry_invocation::registry_invocation_assistance(
+            context.commands(),
+            None,
+            &tokens,
+        )
+        .unwrap();
+        assert_eq!(
+            handler_advice
+                .unanimous_command_words()
+                .unwrap()
+                .effective()
+                .origins
+                .get(1),
+            Some(&crate::registry_invocation::InvocationWordOrigin::Written(
+                2
+            ))
+        );
+        let words = source_registry_words(source, &analysis, command).unwrap();
+        assert_eq!(
+            words.origins().get(1),
+            Some(&crate::registry_invocation::InvocationWordOrigin::Written(
+                1
+            ))
+        );
+        assert_eq!(
+            words.original_argument_word(0),
+            Some(&wrapper.command().words[1])
+        );
+        assert_eq!(
+            words.original_argument_word(1),
+            Some(&wrapper.command().words[2])
+        );
+        assert_eq!(
+            words.with_source_schema(&context, |schema| (
+                schema
+                    .subcommand
+                    .resolved()
+                    .map(|selected| selected.canonical_name),
+                schema.semantics.argument_offset,
+                schema
+                    .semantics
+                    .traits
+                    .contains(tcl_registry::Traits::WRAPS_COMMAND_PREFIX),
+                schema.authored_source_plain_script_arguments(),
+            )),
+            Some((Some("code"), 1, true, Some(vec![1])))
+        );
+        let changed = format!("{source}# changed complete input\n");
+        assert!(source_registry_words(&changed, &analysis, command).is_none());
+    }
+
+    #[test]
+    fn original_source_schema_withholds_dynamic_and_shadowed_selector_claims() {
+        // naming.source.original-registry-header-advice
+
+        let dynamic = "namespace $selector [list tick]";
+        let analysis = original_selector_analysis(dynamic);
+        let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(dynamic, 0, config).remove(0);
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let wraps = source_registry_words(dynamic, &analysis, &command).and_then(|words| {
+            words.with_source_schema(&context, |schema| {
+                schema
+                    .semantics
+                    .traits
+                    .contains(tcl_registry::Traits::WRAPS_COMMAND_PREFIX)
+            })
+        });
+        assert_ne!(wraps, Some(true));
+        let shadowed = "proc namespace args {}; namespace code [list tick]";
+        let analysis = original_selector_analysis(shadowed);
+        let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(shadowed, 0, config)
+                .pop()
+                .unwrap();
+        assert!(source_registry_words(shadowed, &analysis, &command).is_none());
+    }
+
+    #[test]
+    fn original_single_source_child_keeps_whole_operand_and_refuses_literal_brackets() {
+        // naming.core.original-inlay-retained-context
+
+        for (source, expected) in [
+            ("set x [list cb]", true),
+            ("set x {[list cb]}", false),
+            ("set x \"[list cb]suffix\"", false),
+            ("set x [list cb; list other]", false),
+        ] {
+            let image = tcl_lexer::SourceImage::document(source);
+            let plan = tcl_lexer::native_script_words_in(
+                image.clone(),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                tcl_lexer::LexerConfig::default(),
+            )
+            .unwrap();
+            assert!(plan.fatal_tail.is_none());
+            let operand = &plan.commands[0].words[2];
+            let child = original_single_source_command_substitution(operand);
+            assert_eq!(child.is_some(), expected, "{source}");
+            if let Some(child) = child {
+                assert_eq!(child.original_operand(), operand);
+                assert_eq!(child.command().words.len(), 2);
+                assert!(
+                    child
+                        .command()
+                        .words
+                        .iter()
+                        .all(|word| word.image() == &image)
+                );
+                assert!(child.command().span.start() > operand.span().start());
+                assert!(child.command().span.end() < operand.span().end());
+            }
+        }
+    }
+
+    #[test]
+    fn original_case_fold_child_keeps_declaration_realm_and_refuses_foreign_source_owners() {
+        // naming.compiler.original-unknown-handler-source-context
+
+        // Original conditional child syntax, not a Native folded value or body entry.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let input = logical_schema_input(std::sync::Arc::clone(&context));
+        let source = "proc f {cmd} {puts [string tolower $cmd]}";
+        let mut lowerer =
+            crate::lowering::Lowerer::with_config(context.commands(), input.lexer_config())
+                .with_resolved_analysis_input(input.clone());
+        let module = lowerer.lower(source);
+        let body = &fixture_id_if_present(&module.procedures, "::f")
+            .and_then(|id| module.procedures.get(&id))
+            .unwrap()
+            .body;
+        let tokens = body
+            .retained_source_tokens_for_statement(&body.statements[0])
+            .unwrap();
+        let metadata =
+            super::super::InvocationMetadataContext::for_analysis_input(context.commands(), &input)
+                .unwrap();
+        let subject = &tokens.words()[1];
+        let folded = original_folded_case_subject(tokens, subject, context.commands(), metadata)
+            .expect("original Logical declaration child retains its selected schema realm");
+        assert!(
+            matches!(folded, crate::ir::WordExpr::Variable { ref spelling, .. } if spelling == "$cmd")
+        );
+        assert_eq!(
+            folded.source().span.start(),
+            u32::try_from(source.find("$cmd").unwrap()).unwrap()
+        );
+        let calls = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+            tokens,
+            input.lexer_config(),
+            context.commands(),
+            metadata,
+        )
+        .unwrap();
+        assert_eq!(calls.len(), 1);
+        let child = calls[0].tokens.as_ref().unwrap();
+        let binding = child.source_binding.as_ref().unwrap();
+        assert!(
+            binding.invocation_realm().is_none(),
+            "conditional declaration is not a reached child"
+        );
+        assert!(
+            binding
+                .original_source_realm_for_input(child, &input, context.commands())
+                .is_some()
+        );
+        assert!(
+            binding
+                .original_source_word_dialect_for_tokens(child)
+                .unwrap()
+                .native_name_protocol()
+                .is_none()
+        );
+        let mut missing = tokens.clone();
+        missing.nested_bindings.clear();
+        assert!(
+            original_folded_case_subject(
+                &missing,
+                &missing.words()[1],
+                context.commands(),
+                metadata
+            )
+            .is_none()
+        );
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let mut foreign_store = tcl_registry::CommandRegistry::build_default();
+        foreign_store.insert(tcl_registry::CommandSpec {
+            name: "foreign_case_child_axis",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let foreign =
+            std::sync::Arc::new(context.with_command_store(std::sync::Arc::new(foreign_store)));
+        for changed in [
+            crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                std::sync::Arc::clone(&context),
+                config,
+            ),
+            logical_schema_input(foreign),
+        ] {
+            let metadata = super::super::InvocationMetadataContext::for_analysis_input(
+                changed.borrowed_context_registry().commands(),
+                &changed,
+            )
+            .unwrap();
+            assert!(
+                original_folded_case_subject(tokens, subject, context.commands(), metadata)
+                    .is_none()
+            );
+        }
+    }
+
+    fn selected_subcommand_diagnostic(
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) -> Option<tcl_registry::AuthoredSourceSubcommandDiagnostic> {
+        schema.authored_source_subcommand_diagnostic()
+    }
+    fn selected_argument_roles(
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) -> (Vec<(u8, tcl_registry::ArgRole)>, bool) {
+        schema.authored_source_argument_roles()
+    }
+    fn selected_rule_procedure_operand(
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) -> Option<usize> {
+        schema.authored_source_rule_procedure_operand()
+    }
+
+    fn logical_schema_input(
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> crate::analyser::ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        assert!(input.has_logical_source_name_context());
+        input
+    }
+
+    fn last_logical_schema(
+        source: &str,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<OriginalRegistryWords> {
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "tcl");
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .pop()?;
+        source_registry_words(source, &analysis, &segment)
+    }
+
+    #[test]
+    fn original_logical_schema_matches_selected_descriptors_without_slot_label_equality() {
+        // naming.diagnostic.registry-source-ownership
+
+        let input = logical_schema_input(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+        );
+        for (source, expected) in [
+            ("::eval $script", "eval"),
+            ("::subst $template", "subst"),
+            ("rename eval ::Held; ::Held $script", "eval"),
+            ("interp alias {} run {} eval; run $script", "eval"),
+            (
+                "interp alias {} run {} eval {set local}; run $script",
+                "eval",
+            ),
+        ] {
+            let words = last_logical_schema(source, &input).expect(source);
+            let expected = input
+                .borrowed_context_registry()
+                .context()
+                .resolve_spec(input.borrowed_context_registry().commands(), expected)
+                .unwrap();
+            let selected = words
+                .with_source_schema(input.borrowed_context_registry(), |schema| {
+                    schema.authored_source_descriptors().command
+                })
+                .unwrap();
+            assert!(std::ptr::eq(selected, expected), "{source}");
+            let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                panic!("independent Logical source purpose")
+            };
+            assert_eq!(advice.logical_source_input(), Some(&input));
+            assert!(words.head_source().unwrap().input().is_none());
+            assert!(!words.operands_preserve_source_lookup());
+        }
+        for source in [
+            "proc eval args {}; ::eval $script",
+            "interp alias {} run {} eval; rename eval {}; run $script",
+            "interp alias {} run {} eval; rename eval Held; run $script",
+            "interp alias {} run {} eval; proc eval args {}; run $script",
+        ] {
+            assert!(last_logical_schema(source, &input).is_none(), "{source}");
+        }
+    }
+
+    #[test]
+    fn original_logical_schema_keeps_same_store_availability_and_exact_source_owner() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut command = registry.get("eval").unwrap().clone();
+        command.name = "eval_current";
+        command.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(command);
+        let current =
+            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(registry)));
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(current.commands())),
+        );
+        assert!(std::sync::Arc::ptr_eq(current.commands(), older.commands()));
+        let input = logical_schema_input(current);
+        let source = "::eval_current $script";
+        let words = last_logical_schema(source, &input).expect("actual available descriptor");
+        assert!(last_logical_schema(source, &logical_schema_input(older)).is_none());
+        let original = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "tcl");
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        for axis in 0..4 {
+            let mut analysis = original.clone();
+            match axis {
+                0 => analysis.resolved_input = None,
+                1 => {
+                    analysis.resolved_input = Some(logical_schema_input(
+                        tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                            .default_context_registry(),
+                    ))
+                }
+                2 => {
+                    analysis.body_lexer_config.as_mut().unwrap().strict_quoting =
+                        !input.lexer_config().strict_quoting
+                }
+                _ => analysis.body_lexer_config = None,
+            }
+            assert!(
+                source_registry_words(source, &analysis, &segment).is_none(),
+                "owner axis {axis}"
+            );
+        }
+        assert!(source_registry_words(&(source.to_owned() + " "), &original, &segment).is_none());
+        assert!(
+            words
+                .with_source_schema(
+                    &tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                        .default_context_registry(),
+                    |_| ()
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_captured_word_projection_keeps_producer_geometry_and_origin() {
+        // naming.diagnostic.registry-source-ownership
+
+        let source = "interp alias {} pick {} list {CAPTURE $literal}; pick written";
+        let logical = logical_schema_input(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+        );
+        let native = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let native_segment = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            native.body_lexer_config.unwrap(),
+        )
+        .pop()
+        .unwrap();
+        for words in [
+            last_logical_schema(source, &logical).unwrap(),
+            source_registry_words(source, &native, &native_segment).unwrap(),
+        ] {
+            assert_eq!(
+                words.origins()[1],
+                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(0)
+            );
+            assert!(
+                words.operands()[0].is_none(),
+                "no written call operand is fabricated"
+            );
+            let word = words
+                .original_argument_word(0)
+                .expect("authentic capture allocation word");
+            assert_eq!(&source[word.span().as_range()], "{CAPTURE $literal}");
+            assert!(word.span().end() < words.head_source().unwrap().span().start());
+            assert_eq!(
+                words.arguments()[0].literal_bytes(),
+                Some(b"CAPTURE $literal".as_slice())
+            );
+            assert_eq!(
+                &source[words.original_argument_word(1).unwrap().span().as_range()],
+                "written"
+            );
+            for axis in 0..4 {
+                let mut changed = words.clone();
+                match axis {
+                    0 => {
+                        changed.origins[1] =
+                            crate::registry_invocation::InvocationWordOrigin::BindingPrefix(1)
+                    }
+                    1 => changed.config.strict_quoting = !changed.config.strict_quoting,
+                    2 => changed.image = tcl_lexer::SourceImage::document("unrelated source"),
+                    _ => {
+                        changed.origins[1] =
+                            crate::registry_invocation::InvocationWordOrigin::Written(1)
+                    }
+                }
+                assert!(
+                    changed.original_argument_word(0).is_none(),
+                    "capture axis {axis}"
+                );
+            }
+        }
+        let words = last_logical_schema(source, &logical).unwrap();
+        assert!(
+            words
+                .with_source_value_projection(
+                    logical.borrowed_context_registry(),
+                    &[(0, "CHANGED")],
+                    |_| ()
+                )
+                .is_none(),
+            "capture cannot borrow a CU call operand"
+        );
+    }
+
+    #[test]
+    fn original_logical_payloads_keep_unicode_and_literal_sigils_without_native_names() {
+        // naming.diagnostic.registry-source-ownership
+
+        let input = logical_schema_input(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+        );
+        for (source, captured) in [
+            ("list {é $literal}", false),
+            ("rename list ::λ; ::λ {é $literal}", false),
+            ("interp alias {} κ {} list {é $literal}; κ written", true),
+            (
+                "interp alias {} pick {} list {é $literal}; rename pick ::κ; ::κ written",
+                true,
+            ),
+        ] {
+            let words = last_logical_schema(source, &input).expect(source);
+            assert_eq!(
+                words.arguments()[0].literal_bytes(),
+                Some("é $literal".as_bytes()),
+                "{source}"
+            );
+            let word = words.original_argument_word(0).unwrap();
+            assert_eq!(&source[word.span().as_range()], "{é $literal}");
+            assert_eq!(words.operands()[0].is_none(), captured);
+            assert!(words.original_argument_value_input(0).is_none());
+            let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                panic!("Logical source schema")
+            };
+            assert!(advice.original_head().native_input().is_none());
+            assert_eq!(advice.logical_source_input(), Some(&input));
+        }
+    }
+
+    #[test]
+    fn selected_captured_values_keep_the_original_declaration_producer() {
+        // naming.diagnostic.registry-source-ownership
+
+        let source = "interp alias {} invoke {} apply {{a b} {return ok}}\ninvoke 1";
+        for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, profile);
+            let config = analysis.body_lexer_config.unwrap();
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            let words =
+                source_registry_words(source, &analysis, commands.last().unwrap()).expect(profile);
+            assert!(matches!(
+                words.origins().get(1),
+                Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(0))
+            ));
+            assert!(
+                words.operands()[0].is_none(),
+                "captured value has no written call operand"
+            );
+            let input = words.original_argument_value_input(0).unwrap_or_else(|| {
+                panic!(
+                    "missing original captured producer for {profile}; source purpose {:?}",
+                    std::mem::discriminant(words.source())
+                )
+            });
+            assert_eq!(input.bytes(), b"{a b} {return ok}");
+            let parent = input
+                .original_word_key()
+                .expect("original alias-definition word");
+            assert_eq!(&source[parent.span().as_range()], "{{a b} {return ok}}");
+            assert!(parent.span().end() < words.head_source().unwrap().span().start());
+            let producer = words
+                .captured_argument_values()
+                .expect("separate conditional source-value purpose");
+            assert!(!producer.lineage().is_empty());
+            assert!(!producer.obligations().is_empty());
+            assert!(
+                source_registry_words(
+                    &(source.to_owned() + " "),
+                    &analysis,
+                    commands.last().unwrap()
+                )
+                .is_none()
+            );
+        }
+        for source in [
+            "interp alias {} invoke {} apply $lambda\ninvoke 1",
+            "interp alias {} invoke {} apply {{a b} {return ok}}\nproc invoke {x} {}\ninvoke 1",
+            "interp alias {} invoke {} apply {{a b} {return ok}}\nrename invoke {}\ninvoke 1",
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+            let commands = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                analysis.body_lexer_config.unwrap(),
+            );
+            assert!(
+                source_registry_words(source, &analysis, commands.last().unwrap())
+                    .is_none_or(|words| words.original_argument_value_input(0).is_none())
+            );
+        }
+    }
+
+    #[test]
+    fn original_scoped_words_keep_body_issuer_and_selected_subcommand_schema() {
+        // naming.source.original-scoped-command-schema
+
+        // naming.diagnostic.registry-source-ownership
+
+        // Source advice only: no report package installation or safe-interpreter
+        // aliases are asserted by this candidate schema test.
+        let source = "::report::defstyle st {} {\n    top {bogus}\n}\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let config = analysis.body_lexer_config.unwrap();
+        let start = source.find("top").unwrap();
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            &source[start..start + 11],
+            u32::try_from(start).unwrap(),
+            config,
+        )
+        .remove(0);
+        let words =
+            source_registry_words(source, &analysis, &segment).expect("sealed scoped words");
+        let OriginalRegistrySource::Scoped(scoped) = words.source() else {
+            panic!("scoped issuer required");
+        };
+        assert_eq!(scoped.command().name, "top");
+        assert_eq!(
+            scoped.body().original_body().image(),
+            &tcl_lexer::SourceImage::document(source)
+        );
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        assert!(matches!(
+            words
+                .with_source_schema(&context, selected_subcommand_diagnostic)
+                .flatten(),
+            Some(tcl_registry::AuthoredSourceSubcommandDiagnostic::Unknown { .. })
+        ));
+        assert_eq!(
+            words.operands()[0]
+                .as_ref()
+                .unwrap()
+                .word()
+                .unwrap()
+                .bytes(),
+            b"{bogus}"
+        );
+        assert!(
+            source_registry_words(&source.replace("bogus", "other"), &analysis, &segment).is_none()
+        );
+        assert!(analysis.diagnostics.iter().any(|diagnostic| diagnostic.code
+            == tcl_core_types::DiagCode::W001
+            && diagnostic.registry_source().is_some()));
+    }
+
+    #[test]
+    fn original_source_static_values_keep_escapes_separate_from_frozen_runtime_values() {
+        // naming.core.original-inlay-retained-context
+
+        // This verifies shared source-value capture; it asserts no executed
+        // conversion, runtime handler identity or successful native invocation.
+        // naming.source.original-static-escape-values
+
+        // SourceEscapes173 independently caught bare/quoted/braced values on
+        // all five C releases and Jim. Ordinary ASCII hex projections establish
+        // these values; this test claims no native getter or NUL representation.
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let hex_boundary = if matches!(dialect, "tcl8.4" | "tcl8.5") {
+                b"[".as_slice()
+            } else {
+                b"%b".as_slice()
+            };
+            for (source, expected) in [
+                (r"format \x25b 5", hex_boundary),
+                (r#"format "\x25b" 5"#, hex_boundary),
+                (r"format {\x25b} 5", br"\x25b".as_slice()),
+                (r"format \x25\u0062 5", b"%b".as_slice()),
+                (r#"format "\x25\u0062" 5"#, b"%b".as_slice()),
+                (r"format {\x25\u0062} 5", br"\x25\u0062".as_slice()),
+            ] {
+                let analysis = crate::analyser::Analyser::new().analyse(source, dialect);
+                let config = analysis.body_lexer_config.unwrap();
+                let segment =
+                    crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                        .remove(0);
+                let words = source_registry_words(source, &analysis, &segment)
+                    .unwrap_or_else(|| panic!("{dialect}: {source}"));
+                assert_eq!(
+                    words.arguments()[0].literal_bytes(),
+                    Some(expected),
+                    "{dialect}: {source}"
+                );
+                assert_eq!(
+                    words.operands()[0]
+                        .as_ref()
+                        .unwrap()
+                        .word()
+                        .unwrap()
+                        .bytes(),
+                    source.as_bytes().get(7..source.len() - 2).unwrap()
+                );
+            }
+            let source = "set template %b; format $template 5";
+            let analysis = crate::analyser::Analyser::new().analyse(source, dialect);
+            let config = analysis.body_lexer_config.unwrap();
+            let segment =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .pop()
+                    .unwrap();
+            let words = source_registry_words(source, &analysis, &segment)
+                .unwrap_or_else(|| panic!("{dialect}: dynamic template"));
+            assert!(
+                words.arguments()[0].literal_bytes().is_none(),
+                "{dialect}: source substitution cannot borrow a prior cell value"
+            );
+        }
+    }
+
+    #[test]
+    fn original_logical_source_schema_selects_its_positive_input_before_native_advice() {
+        // naming.minifier.complete-logical-metadata
+
+        let source = "expr $left + $right\n";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, profile.name);
+        let segment =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let words = source_registry_words(source, &analysis, &segment).unwrap();
+        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+            panic!("Logical input must select its own source advice domain");
+        };
+        assert_eq!(advice.logical_source_input(), Some(&input));
+        assert!(advice.original_head().logical_input().is_some());
+        assert!(words.head_source().unwrap().input().is_none());
+        assert!(!words.operands_preserve_source_lookup());
+        assert!(
+            words
+                .roles()
+                .unwrap()
+                .iter()
+                .all(|(_, role)| *role == tcl_registry::ArgRole::Expr)
+        );
+        let command = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(source),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap()
+        .commands
+        .remove(0);
+        let realm = analysis.retained_command_realm().unwrap();
+        assert_eq!(
+            original_logical_registry_words_for_command(realm, &input, &command),
+            Some(words)
+        );
+        let foreign = std::sync::Arc::new(
+            context.with_command_store(context.commands().snapshot().shared_registry()),
+        );
+        let foreign_input =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, foreign, config);
+        assert!(
+            original_logical_registry_words_for_command(realm, &foreign_input, &command).is_none()
+        );
+        let mut changed_config = config;
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        let changed =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, changed_config);
+        assert!(original_logical_registry_words_for_command(realm, &changed, &command).is_none());
+        let native = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            original_logical_registry_words_for_command(
+                native.retained_command_realm().unwrap(),
+                native.resolved_input.as_ref().unwrap(),
+                &command,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn original_vendor_source_schema_keeps_comment_trivia_out_of_word_identity() {
+        // naming.consumer.original-diagnostic-source-actions
+
+        let source = "# proc html_encode is only a comment\nwhen HTTP_REQUEST {HTTP::respond 200 content ok}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "f5-irules");
+        let config = analysis.body_lexer_config.unwrap();
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        assert!(command.preceding_comment.is_some());
+        let offset = command.argv[0].span.start();
+        let (metadata, projected) =
+            selected_vendor_registry_words_at(source, &analysis, offset).unwrap();
+        assert!(projected.preceding_comment.is_none());
+        assert_ne!(command, projected);
+        let words = source_registry_words(source, &analysis, &command).unwrap();
+        assert!(matches!(words.source(), OriginalRegistrySource::Vendor(_)));
+        assert_eq!(
+            words.head_source().unwrap().word().unwrap(),
+            metadata.shape().original_words().first().unwrap()
+        );
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let bodies = words.source_script_bodies(&context);
+        assert_eq!(bodies.len(), 1);
+        assert!(bodies[0].matches_source(&tcl_lexer::SourceImage::document(source), config));
+        assert_eq!(
+            bodies[0].original_container(),
+            words.operands()[1].as_ref().unwrap().word().unwrap()
+        );
+
+        let mut changed_trivia = command.clone();
+        changed_trivia.preceding_comment = Some("proc report_only is presentation".to_owned());
+        assert_eq!(
+            source_registry_words(source, &analysis, &changed_trivia).unwrap(),
+            words
+        );
+        let mut cut = command;
+        let _ = cut.argv.pop();
+        let _ = cut.word_fragments.pop();
+        let _ = cut.texts.pop();
+        let _ = cut.single_token_word.pop();
+        assert!(
+            source_registry_words(source, &analysis, &cut).is_none(),
+            "an incomplete native vector cannot borrow the authentic complete invocation"
+        );
+    }
+
+    #[test]
+    fn original_standalone_source_context_keeps_conditional_bodies_and_alias_order() {
+        // Implementation contract: naming.source.original-editor-body-structure
+
+        // Implementation contract: naming.source.authored-command-transition-advice
+
+        for version in tcl_dialect::TclVersion::ALL {
+            let source = "pick subject {default {puts before}}; interp alias {} pick {} switch; pick subject {default {puts after}}; interp alias {} pick {}; pick subject {default {puts deleted}}";
+            let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+                .analyser_profile();
+            let context = tcl_registry::model::ingress::context_for_profile(profile);
+            let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context.clone(),
+                config,
+            );
+            let syntax = OriginalSourceRegistryContext::capture(source, input);
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            assert!(syntax.words(&commands[0]).is_none());
+            let words = syntax
+                .words(&commands[2])
+                .expect("actual authored alias must retain conditional source grammar");
+            assert!(matches!(
+                words.source(),
+                OriginalRegistrySource::SourceTransitions(_)
+            ));
+            assert!(!words.operands_preserve_source_lookup());
+            assert!(
+                words
+                    .source_script_bodies(&context)
+                    .iter()
+                    .any(|body| source.get(body.content_span().as_range()) == Some("puts after"))
+            );
+            assert!(syntax.words(&commands[4]).is_none());
+        }
+    }
+
+    #[test]
+    fn original_standalone_selected_alias_roles_keep_source_purpose() {
+        // Implementation contract: naming.source.authored-registry-role-projection
+
+        // Implementation contract: naming.source.original-editor-body-structure
+
+        for version in tcl_dialect::TclVersion::ALL {
+            let source = "namespace eval ::A {}; interp alias {} ::pick {} ::switch; interp alias {} ::A::pick {} switch; ::pick subject {default {puts first}}; ::A::pick subject {default {puts second}}";
+            let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+                .analyser_profile();
+            let context = tcl_registry::model::ingress::context_for_profile(profile);
+            let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context.clone(),
+                config,
+            );
+            let syntax = OriginalSourceRegistryContext::capture(source, input);
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            for (ordinal, body) in [(3, "puts first"), (4, "puts second")] {
+                let words = syntax
+                    .words(&commands[ordinal])
+                    .expect("genuine selected alias grammar");
+                assert!(matches!(words.source(), OriginalRegistrySource::Selected));
+                assert!(!words.operands_preserve_source_lookup());
+                assert_eq!(
+                    words.head_source().unwrap().word().unwrap().span(),
+                    commands[ordinal].argv[0].span
+                );
+                assert!(
+                    words
+                        .source_script_bodies(&context)
+                        .iter()
+                        .any(|region| source.get(region.content_span().as_range()) == Some(body))
+                );
+            }
+            for changed in [
+                "interp alias {} pick {} switch; interp alias {} pick {}; pick subject {default {puts stale}}",
+                "interp alias {} pick {} switch; proc pick args {return other}; pick subject {default {puts stale}}",
+            ] {
+                let syntax =
+                    OriginalSourceRegistryContext::capture(changed, syntax.editing_input().clone());
+                let commands =
+                    crate::segmenter::segment_commands_with_offset_and_config(changed, 0, config);
+                assert!(syntax.words(commands.last().unwrap()).is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn original_standalone_source_context_keeps_nested_unknown_selector_source_only() {
+        // Implementation contract: naming.source.original-editor-body-structure
+
+        let source = "set result [switch $kind {alpha {# physical comment\nputs child}}]";
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+        let syntax = OriginalSourceRegistryContext::capture(source, input);
+        let start = source.find("switch").unwrap();
+        let end = source.rfind(']').unwrap();
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            &source[start..end],
+            u32::try_from(start).unwrap(),
+            config,
+        )
+        .remove(0);
+        let words = syntax
+            .words(&command)
+            .expect("physical case grammar survives an unknown selector value");
+        assert!(matches!(
+            words.arguments().first(),
+            Some(crate::registry_invocation::EffectiveInvocationWord::Dynamic)
+        ));
+        let original_selector = words
+            .operands()
+            .first()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .word()
+            .unwrap();
+        assert_eq!(
+            original_selector.image(),
+            &tcl_lexer::SourceImage::document(source)
+        );
+        assert_eq!(original_selector.config(), config);
+        assert!(!words.operands_preserve_source_lookup());
+        let bodies = words.source_script_bodies(&context);
+        assert_eq!(bodies.len(), 1);
+        assert_eq!(
+            source.get(bodies[0].content_span().as_range()),
+            Some("# physical comment\nputs child")
+        );
+        assert_eq!(
+            syntax.source_image(),
+            &tcl_lexer::SourceImage::document(source)
+        );
+        assert_eq!(syntax.editing_input().lexer_config(), config);
+    }
+
+    #[test]
+    fn original_deferred_source_schema_keeps_future_entry_and_current_lookup_distinct() {
+        // naming.package.original-file-candidate-provenance
+
+        let source = "package ifneeded P 1.0 {source actual.tcl}";
+        for version in tcl_dialect::TclVersion::ALL {
+            let analysis = crate::analyser::Analyser::new().analyse(source, version.dialect_name());
+            let config = analysis.body_lexer_config.unwrap();
+            let offset = u32::try_from(source.find("source actual.tcl").unwrap()).unwrap();
+            let command = crate::segmenter::segment_commands_with_offset_and_config(
+                "source actual.tcl",
+                offset,
+                config,
+            )
+            .remove(0);
+            let registry = analysis.resolved_registry().unwrap();
+            assert!(selected_registry_words(source, &analysis, &command, registry).is_none());
+            let words = source_registry_words(source, &analysis, &command)
+                .unwrap_or_else(|| panic!("{}", version.dialect_name()));
+            let OriginalRegistrySource::Conditional(metadata) = words.source() else {
+                panic!("future syntax cannot become selected document lookup");
+            };
+            assert!(metadata.obligations().contains(
+                &crate::command_binding::OriginalCatalogueSourceObligation::UnknownFutureEntry,
+            ));
+            let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+            assert_eq!(
+                words.with_source_schema(&context, |schema| schema.semantics.analyser_hook),
+                Some(Some(tcl_registry::hooks::AnalyserHookId::Source))
+            );
+            assert_eq!(
+                words.operands()[0]
+                    .as_ref()
+                    .unwrap()
+                    .input()
+                    .unwrap()
+                    .bytes(),
+                b"actual.tcl"
+            );
+            assert_eq!(
+                words.head_source().unwrap().word().unwrap().image(),
+                &tcl_lexer::SourceImage::document(source)
+            );
+            assert!(
+                source_registry_words(&source.replace("actual", "other"), &analysis, &command)
+                    .is_none()
+            );
+            let mut changed = analysis.clone();
+            let changed_config = changed.body_lexer_config.as_mut().unwrap();
+            changed_config.strict_quoting = !changed_config.strict_quoting;
+            assert!(source_registry_words(source, &changed, &command).is_none());
+            let mut foreign = analysis.clone();
+            let original = foreign.resolved_input.as_ref().unwrap();
+            let profile = original.analyser_profile();
+            let generation = original.context_registry();
+            foreign.resolved_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                original.unit_profile(),
+                std::sync::Arc::new(
+                    generation
+                        .with_command_store(generation.commands().snapshot().shared_registry()),
+                ),
+                original.lexer_config(),
+            ));
+            assert!(source_registry_words(source, &foreign, &command).is_none());
+        }
+    }
+
+    #[test]
+    fn original_deferred_source_schema_keeps_shadow_and_produced_script_boundaries() {
+        // naming.package.original-file-candidate-provenance
+
+        for prefix in ["proc source args {return custom}\n", "rename source {}\n"] {
+            let source = format!("{prefix}package ifneeded P 1.0 {{source actual.tcl}}");
+            let analysis = crate::analyser::Analyser::new().analyse(&source, "tcl8.6");
+            let config = analysis.body_lexer_config.unwrap();
+            let offset = u32::try_from(source.find("source actual.tcl").unwrap()).unwrap();
+            let command = crate::segmenter::segment_commands_with_offset_and_config(
+                "source actual.tcl",
+                offset,
+                config,
+            )
+            .remove(0);
+            assert!(source_registry_words(&source, &analysis, &command).is_none());
+        }
+        let source = "package ifneeded P 1.0 [list source [file join $dir produced.tcl]]";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let config = analysis.body_lexer_config.unwrap();
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let words = source_registry_words(source, &analysis, &command).unwrap();
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        assert!(words.source_script_bodies(&context).is_empty());
+    }
+
+    #[test]
+    fn selected_source_roles_retain_procedure_grammar_under_the_actual_context() {
+        // naming.source.authored-registry-role-projection
+
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
+            let source = "proc p {a b} {return}";
+            let analysis = crate::analyser::Analyser::new().analyse(source, dialect);
+            let config = analysis.body_lexer_config.unwrap();
+            let command =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let registry = analysis.resolved_registry().unwrap();
+            let words =
+                selected_registry_words(source, &analysis, &command, registry).expect(dialect);
+            assert_eq!(
+                words.roles(),
+                Some(
+                    [
+                        (0, tcl_registry::ArgRole::Name),
+                        (1, tcl_registry::ArgRole::ParamList),
+                        (2, tcl_registry::ArgRole::Body),
+                    ]
+                    .as_slice()
+                ),
+                "{dialect}"
+            );
+            let parameters = words.operands()[1].as_ref().unwrap();
+            let tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                config,
+                &command,
+            );
+            let native = crate::registry_invocation::original_native_compiler_words(
+                &tcl_lexer::SourceImage::document(source),
+                tokens.words(),
+                0,
+                config,
+            )
+            .unwrap();
+            assert_eq!(parameters.span(), command.argv[2].span);
+            assert_eq!(parameters.word().unwrap(), &native[2]);
+            assert!(
+                words.operands()[1].as_ref().unwrap().input().is_some(),
+                "{dialect}"
+            );
+            assert!(
+                selected_registry_words("proc q {a b} {return}", &analysis, &command, registry)
+                    .is_none()
+            );
+            let foreign = tcl_registry::model::context_for_profile(
+                tcl_dialect::DialectProfile::find("tcl8.5").unwrap(),
+            );
+            assert!(words.with_source_schema(&foreign, |_| ()).is_none());
+        }
+    }
+
+    #[test]
+    fn original_source_structure_is_shared_and_owner_checked() {
+        // naming.core.original-command-source-schema
+
+        let source = "set first 1\nset second 2\n";
+        let mut analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        analysis.command_invocations.clear();
+        analysis.global_scope.variables.clear();
+        let config = analysis.body_lexer_config.unwrap();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let words = source_registry_words(source, &analysis, &commands[1]).unwrap();
+        let head = words.head_source().unwrap();
+        assert_eq!(head.input().unwrap().bytes(), b"set");
+        assert_eq!(head.word().unwrap().span(), commands[1].argv[0].span);
+        assert_eq!(words.arguments().len(), 2);
+        assert!(
+            words
+                .roles()
+                .unwrap()
+                .contains(&(0, tcl_registry::ArgRole::VarWrite))
+        );
+        assert_eq!(
+            words.operands()[0].as_ref().unwrap().span(),
+            commands[1].argv[1].span
+        );
+        assert!(words.matches_source(&tcl_lexer::SourceImage::document(source), config));
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let roles = words
+            .with_source_schema(&context, selected_argument_roles)
+            .unwrap();
+        assert!(roles.1);
+        assert!(roles.0.contains(&(0, tcl_registry::ArgRole::VarWrite)));
+        assert!(!words.matches_source(
+            &tcl_lexer::SourceImage::document(&source.replace("second", "absent")),
+            config
+        ));
+        assert!(!words.matches_source(
+            &tcl_lexer::SourceImage::document(source),
+            tcl_lexer::LexerConfig {
+                expand_syntax: !config.expand_syntax,
+                ..config
+            }
+        ));
+        let foreign = tcl_registry::model::context_for_profile(
+            tcl_dialect::DialectProfile::find("tcl9.0").unwrap(),
+        );
+        assert!(words.with_source_schema(&foreign, |_| ()).is_none());
+    }
+    #[test]
+    fn original_hosted_source_schema_keeps_controls_and_unknown_single_slots() {
+        // naming.core.original-command-source-schema
+
+        let source = "call -debug Lib::helper $payload\npool $target\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "f5-irules");
+        let config = analysis.body_lexer_config.unwrap();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let call = source_registry_words(source, &analysis, &commands[0]).unwrap();
+        assert!(matches!(
+            call.arguments()[0],
+            crate::registry_invocation::EffectiveInvocationWord::ByteLiteral(_)
+        ));
+        assert!(matches!(
+            call.arguments()[2],
+            crate::registry_invocation::EffectiveInvocationWord::Dynamic
+        ));
+        assert_eq!(
+            call.with_source_schema(&context, selected_rule_procedure_operand),
+            Some(Some(1))
+        );
+        assert!(matches!(
+            call.arguments()[0],
+            crate::registry_invocation::EffectiveInvocationWord::ByteLiteral(_)
+        ));
+        let pool = source_registry_words(source, &analysis, &commands[1]).unwrap();
+        assert!(matches!(
+            pool.arguments()[0],
+            crate::registry_invocation::EffectiveInvocationWord::Dynamic
+        ));
+        assert_eq!(
+            pool.with_source_schema(&context, |schema| schema.words.arguments().exact_argv_len()),
+            Some(Some(1))
+        );
+        assert!(pool.operands()[0].as_ref().unwrap().word().is_some());
+    }
+    #[test]
+    fn original_conditional_operand_keeps_its_static_word_and_list_lineage() {
+        // naming.core.original-command-source-schema
+
+        let source = "unavailable\n::foreach {a b} {1 2} {}\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            analysis.body_lexer_config.unwrap(),
+        );
+        let words = source_registry_words(source, &analysis, &commands[1]).unwrap();
+        assert!(matches!(
+            words.source(),
+            OriginalRegistrySource::Conditional(_)
+        ));
+        let operand = words.operands()[0].as_ref().unwrap();
+        let input = operand.input().unwrap();
+        assert_eq!(input.bytes(), b"a b");
+        assert_eq!(
+            input.original_word_key().unwrap().original_word(),
+            operand.word().unwrap()
+        );
+        let children = input.original_list_elements_with_source_spans().unwrap();
+        assert_eq!(children.len(), 2);
+        assert_eq!(children[0].0.bytes(), b"a");
+        assert!(
+            children
+                .iter()
+                .all(|(child, span)| child.original_word_key().is_none() && span.is_some())
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_procedure_argument_tests {
+
+    use super::*;
+    use crate::analyser::Analyser;
+    use tcl_syntax::formal_params::FormalByteArgumentBinding;
+
+    #[test]
+    fn original_procedure_arguments_keep_actual_formals_prefixes_and_child_anchors() {
+        // naming.source.original-procedure-argument-topology
+
+        for source in [
+            "proc target {captured written} {}; target {*}{FIXED VALUE}",
+            "proc target {captured written} {}; interp alias {} alias {} target FIXED; alias {*}{VALUE}",
+        ] {
+            let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+            analysis.all_procs.clear();
+            analysis.global_scope.procs.clear();
+            analysis.command_invocations.clear();
+            let config = analysis.body_lexer_config.unwrap();
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            let call = commands.last().unwrap();
+            let prototype = original_procedure_arguments(source, &analysis, call)
+                .expect("actual source prototype");
+            assert_eq!(prototype.formals().parameters().len(), 2);
+            assert_eq!(prototype.arguments().len(), 2);
+            assert_eq!(
+                prototype
+                    .formals()
+                    .name_field(1)
+                    .unwrap()
+                    .original_input()
+                    .bytes(),
+                b"written"
+            );
+            assert!(
+                prototype
+                    .bindings()
+                    .contains(&FormalByteArgumentBinding::Value {
+                        parameter: 1,
+                        argument: 1
+                    })
+            );
+            let operand = prototype.operands()[1]
+                .as_ref()
+                .expect("actual expansion child");
+            assert!(operand.word().is_none());
+            assert_eq!(operand.input().unwrap().bytes(), b"VALUE");
+            assert_eq!(&source[operand.span().as_range()], "VALUE");
+            if source.contains("interp alias") {
+                assert!(prototype.operands()[0].is_none());
+            }
+            assert!(prototype.matches_source(&tcl_lexer::SourceImage::document(source), config));
+            assert!(prototype.matches_registry(analysis.resolved_registry().unwrap()));
+            assert!(original_procedure_arguments(&format!("#{source}"), &analysis, call).is_none());
+        }
+        let source = "proc target {first {second DEFAULT}} {}; target ONLY";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            analysis.body_lexer_config.unwrap(),
+        );
+        let prototype =
+            original_procedure_arguments(source, &analysis, commands.last().unwrap()).unwrap();
+        assert!(
+            prototype
+                .bindings()
+                .contains(&FormalByteArgumentBinding::Default { parameter: 1 })
+        );
+        assert_eq!(prototype.operands().len(), 1);
+    }
+
+    #[test]
+    fn original_procedure_arguments_keep_missing_original_correspondence_terminal() {
+        // naming.source.original-procedure-argument-topology
+
+        let source = "proc target {value} {}; target ONE";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let config = analysis.body_lexer_config.unwrap();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let call = commands.last().unwrap();
+        assert!(original_procedure_arguments(source, &analysis, call).is_some());
+        analysis
+            .command_invocations
+            .iter_mut()
+            .find(|row| row.range.start() == call.argv[0].span.start())
+            .unwrap()
+            .original_lookup = None;
+        assert!(original_procedure_arguments(source, &analysis, call).is_none());
+        let source = "proc target {value} {}; set values ONE; target {*}$values";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            analysis.body_lexer_config.unwrap(),
+        );
+        let prototype =
+            original_procedure_arguments(source, &analysis, commands.last().unwrap()).unwrap();
+        assert_eq!(
+            prototype.arguments()[0].literal_bytes(),
+            Some(b"ONE".as_slice())
+        );
+        assert!(
+            prototype.operands()[0].is_none(),
+            "a frozen list value cannot borrow its earlier setter's source extent"
+        );
+    }
+}
+
+#[cfg(test)]
+mod source_lookup_boundary_tests {
+
+    use super::*;
+
+    #[test]
+    fn original_source_lookup_facet_is_independent_of_advisory_body_roles() {
+        // Implementation contract: naming.source.closed-syntax-script-regions
+
+        for (source, preserved) in [
+            ("if {1} {puts quiet}\n", true),
+            ("if [rename if saved] {puts data}\n", false),
+            ("unavailable\nif {1} {puts advisory}\n", false),
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+            let config = analysis.body_lexer_config.unwrap();
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            let words = source_registry_words(source, &analysis, commands.last().unwrap()).unwrap();
+            assert_eq!(
+                words.roles(),
+                Some(
+                    [
+                        (0, tcl_registry::ArgRole::Expr),
+                        (1, tcl_registry::ArgRole::Body)
+                    ]
+                    .as_slice()
+                ),
+                "ordinary unknown expression payload preserves source positions: {source}"
+            );
+            if source.contains("[rename") {
+                assert!(matches!(
+                    words.arguments()[0],
+                    crate::registry_invocation::EffectiveInvocationWord::Dynamic
+                ));
+            }
+            assert_eq!(
+                words.operands_preserve_source_lookup(),
+                preserved,
+                "{source}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod source_word_dialect_tests {
+
+    use super::*;
+
+    #[test]
+    fn original_source_schema_uses_retained_word_dialect_for_file_grammar() {
+        // naming.core.original-document-link-selection
+
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
+            let source = "source {a $b [c].tcl}";
+            let analysis = crate::analyser::Analyser::new().analyse(source, dialect);
+            let config = analysis.body_lexer_config.unwrap();
+            let command =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let words = source_registry_words(source, &analysis, &command).expect(dialect);
+            let grammar = words
+                .dialect
+                .and_then(tcl_registry::InvocationDialect::source_file_grammar)
+                .expect(dialect);
+            assert!(
+                matches!(
+                    grammar.select_original(
+                        words.arguments.len(),
+                        words
+                            .arguments
+                            .first()
+                            .and_then(|word| word.literal_bytes())
+                    ),
+                    tcl_registry::source_file::SourceFileSelection::Selected(_)
+                ),
+                "{dialect}"
+            );
+            assert_eq!(
+                words.arguments[0].literal_bytes(),
+                Some(b"a $b [c].tcl".as_slice())
+            );
+            assert!(
+                words.operands[0].as_ref().unwrap().input().is_some(),
+                "{dialect}"
+            );
+            assert!(source_registry_words(&format!("#{source}"), &analysis, &command).is_none());
+        }
+    }
+    #[test]
+    fn original_package_source_point_keeps_whole_image_context_and_alias_grammar() {
+        // naming.diagnostic.original-package-source-advice
+
+        let source = "interp alias {} need {} package require -exact csv\nneed 1";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.find("need 1").unwrap()).unwrap();
+        let words = super::source_registry_words_at(source, &analysis, offset).unwrap();
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let reference = words.package_reference(&context).unwrap();
+        assert_eq!(
+            reference.kind(),
+            tcl_registry::source_navigation::SourcePackageReferenceKind::Require
+        );
+        assert!(reference.matches_ascii("csv"));
+        assert!(!reference.matches_ascii("other"));
+        assert!(
+            super::source_registry_words_at(&source.replace("need 1", "need 2"), &analysis, offset)
+                .is_none()
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl8.5");
+        assert!(words.package_reference(foreign).is_none());
+        let mut stale = analysis.clone();
+        let original = stale.resolved_input.as_ref().unwrap();
+        let mut config = original.lexer_config();
+        config.leading_bom = match config.leading_bom {
+            tcl_lexer::LeadingBom::Skip => tcl_lexer::LeadingBom::Content,
+            tcl_lexer::LeadingBom::Content => tcl_lexer::LeadingBom::Skip,
+        };
+        stale.resolved_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            original.analyser_profile(),
+            original.unit_profile(),
+            original.context_registry(),
+            config,
+        ));
+        assert!(super::source_registry_words_at(source, &stale, offset).is_none());
+    }
+    #[test]
+    fn original_package_insertion_uses_root_commands_split_lines_and_full_input() {
+        // naming.core.original-package-source-action-context
+
+        let sources = [
+            (
+                r"#!/usr/bin/env tclsh
+package \
+ require \
+ csv
+set x 1
+",
+                0usize,
+            ),
+            ("proc later {} {\n package require csv\n}\n", 0usize),
+            ("set text {package require csv}\n", 0usize),
+            ("package provide csv\n", 0usize),
+            ("package require csv", "package require csv".len()),
+        ];
+        for (index, (source, fallback)) in sources.into_iter().enumerate() {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+            let expected = if index == 0 {
+                source.find("set x").unwrap()
+            } else {
+                fallback
+            };
+            assert_eq!(
+                super::original_package_require_insert_offset(source, &analysis),
+                Some(u32::try_from(expected).unwrap()),
+                "{source:?}"
+            );
+            assert!(
+                super::original_package_require_insert_offset(
+                    &format!("# foreign\n{source}"),
+                    &analysis
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn original_package_insertion_includes_actual_command_terminator() {
+        let source = "package require bar; http::get /resource\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let after_semicolon = source.find(';').unwrap() + 1;
+        assert_eq!(
+            super::original_package_require_insert_offset(source, &analysis),
+            Some(u32::try_from(after_semicolon).unwrap())
+        );
+    }
+}
+
+#[cfg(test)]
+mod retained_image_geometry_tests {
+
+    use super::{matching_document_image, retained_document_image, source_registry_words};
+
+    #[test]
+    fn source_schema_geometry_reuses_the_whole_retained_image_and_keeps_currency() {
+        // naming.source.original-immutable-image-geometry
+
+        let source = "set café 1\r\nset λ 2";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            config,
+        );
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        let realm = analysis.retained_command_realm().unwrap();
+        let original = realm.original_source_image().unwrap();
+        let reused = retained_document_image(source, realm, config).unwrap();
+        assert_eq!(reused.bytes().as_ptr(), original.bytes().as_ptr());
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        assert_eq!(segments.len(), 2);
+        for segment in &segments {
+            let words = source_registry_words(source, &analysis, segment).unwrap();
+            assert!(words.matches_source(original, config));
+            let word = words.operands()[0].as_ref().unwrap().word().unwrap();
+            assert_eq!(word.image().bytes().as_ptr(), original.bytes().as_ptr());
+            assert_eq!(word.config(), config);
+        }
+        let start = u32::try_from(source.find("set λ").unwrap()).unwrap();
+        let position = reused.source_map().position_at(start);
+        assert_eq!(position.line, 1);
+        assert_eq!(position.character.get(), 0);
+        assert!(retained_document_image(&format!("{source} "), realm, config).is_none());
+        let changed = tcl_lexer::LexerConfig {
+            strict_quoting: !config.strict_quoting,
+            ..config
+        };
+        assert!(retained_document_image(source, realm, changed).is_none());
+        assert!(
+            matching_document_image(source, &tcl_lexer::SourceImage::native(source.as_bytes()))
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_selected_command_purpose_tests {
+
+    use super::*;
+
+    #[test]
+    fn original_selected_commands_keep_the_parent_prologue_and_complete_vector_separate() {
+        // naming.source.original-configured-script-completeness
+
+        // Original Document geometry and conditional source schema, not Native entry.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        for (source, bom, offset, head) in [
+            (
+                "\u{feff}\u{feff}puts value",
+                tcl_lexer::LeadingBom::Skip,
+                3,
+                "\u{feff}puts",
+            ),
+            (
+                "\u{feff}puts value",
+                tcl_lexer::LeadingBom::Content,
+                0,
+                "\u{feff}puts",
+            ),
+            ("\u{feff}puts value", tcl_lexer::LeadingBom::Skip, 3, "puts"),
+            (
+                "rename puts \u{feff}puts; \u{feff}puts value",
+                tcl_lexer::LeadingBom::Skip,
+                21,
+                "\u{feff}puts",
+            ),
+        ] {
+            let config = tcl_lexer::LexerConfig {
+                leading_bom: bom,
+                strict_quoting: true,
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+            };
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::ingress::resolve_environment("tcl9.0")
+                    .default_context_registry(),
+                config,
+            );
+            let analysis = crate::analyser::Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, profile.name);
+            let realm = analysis.retained_command_realm().unwrap();
+            let parent =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            let actual = parent.last().unwrap();
+            assert_eq!(actual.argv[0].span.start(), offset, "{source:?}");
+            let image = tcl_lexer::SourceImage::document(source);
+            let tokens = realm
+                .retained_original_tokens(&image, config, offset, &actual.argv)
+                .unwrap();
+            let (segment, native) =
+                original_segment_for_tokens(source, &analysis, &tokens).unwrap();
+            assert_eq!(segment.texts[0], head, "{source:?}");
+            assert_eq!(segment.argv, actual.argv);
+            assert_eq!(tokens.argv_texts[0], head);
+            assert!(
+                native.iter().all(
+                    |word| word.image().bytes() == source.as_bytes() && word.config() == config
+                )
+            );
+            assert_eq!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .and_then(|binding| binding.original_lexer_config_for_tokens(&tokens)),
+                Some(config)
+            );
+            assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+            if !head.starts_with('\u{feff}') || source.starts_with("rename ") {
+                let selected = original_registry_words_for_tokens(source, &analysis, &tokens)
+                    .expect("actual original conditional handler keeps its full vector");
+                assert_eq!(selected.head_source().unwrap().word(), native.first());
+                assert!(selected.matches_source(&image, config));
+            } else {
+                assert!(original_registry_words_for_tokens(source, &analysis, &tokens).is_none());
+            }
+            assert!(
+                original_segment_for_tokens(&format!("{source} "), &analysis, &tokens).is_none()
+            );
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(original_registry_words_for_tokens(source, &missing, &tokens).is_none());
+            let mut changed = analysis.clone();
+            changed.body_lexer_config = Some(tcl_lexer::LexerConfig {
+                strict_quoting: !config.strict_quoting,
+                ..config
+            });
+            assert!(original_segment_for_tokens(source, &changed, &tokens).is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod member_source_catalogue_tests {
+
+    use super::{OriginalRegistrySource, source_registry_words_at};
+    use crate::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+    use crate::command_binding::SourceCommandTransitionObligation;
+
+    const PRIVATE: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/fixtures/private-positive.tcl"
+    ));
+    const WRITER: &str = "interp alias {} ::write {} ::set\noo::class create C {method setup {} {::write slot value}}";
+
+    fn analyse(source: &str, release: &str) -> AnalysisResult {
+        let environment = tcl_registry::model::ingress::resolve_environment(release);
+        let profile = environment.analyser_profile();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            environment.default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn absolute_member_alias_catalogue_retains_generic_source_metadata() {
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (source, needle) in [
+                (PRIVATE, "::makePrefix my tick"),
+                (WRITER, "::write slot value"),
+            ] {
+                let analysis = analyse(source, release);
+                let offset = u32::try_from(source.find(needle).unwrap()).unwrap();
+                let words = source_registry_words_at(source, &analysis, offset).expect(release);
+                let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                    panic!("{release}: missing conditional member catalogue")
+                };
+                assert!(advice.obligations().contains(
+                    &SourceCommandTransitionObligation::ConditionalMemberBodyCatalogueApplicability
+                ));
+                assert!(advice.matches_source(
+                    &tcl_lexer::SourceImage::document(source),
+                    analysis.body_lexer_config.unwrap()
+                ));
+                assert!(!advice.matches_source(
+                    &tcl_lexer::SourceImage::native(source.as_bytes()),
+                    analysis.body_lexer_config.unwrap()
+                ));
+                let input = analysis.resolved_input.as_ref().unwrap();
+                assert_eq!(
+                    words.with_source_schema(input.borrowed_context_registry(), |schema| schema
+                        .facts()
+                        .arity_accepts_frozen_arguments()),
+                    Some(Some(true))
+                );
+                let realm = analysis.retained_command_realm().unwrap();
+                let config = input.lexer_config();
+                let end = advice.original_words().last().unwrap().span().end();
+                let command = crate::segmenter::segment_commands_with_offset_and_config(
+                    &source[offset as usize..end as usize],
+                    offset,
+                    config.nested(),
+                )
+                .remove(0);
+                let mut tokens = crate::ir::CommandTokens::from_segmented(
+                    &tcl_lexer::SourceMap::from_image(&tcl_lexer::SourceImage::document(source)),
+                    config,
+                    &command,
+                );
+                realm.stamp_original_tokens(&mut tokens);
+                assert!(
+                    crate::registry_invocation::normal_transfer_invocation(
+                        input.borrowed_context_registry().commands(),
+                        None,
+                        &tokens
+                    )
+                    .is_none()
+                );
+                assert!(
+                    crate::registry_invocation::admitted_native_compiler_invocation(
+                        input.borrowed_context_registry().commands(),
+                        None,
+                        &tokens
+                    )
+                    .is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn absolute_member_alias_catalogue_preserves_barriers_and_currency() {
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for source in [
+                PRIVATE.replacen(
+                    "oo::class create",
+                    "proc ::makePrefix args {}\noo::class create",
+                    1,
+                ),
+                PRIVATE.replacen(
+                    "oo::class create",
+                    "rename ::makePrefix {}\noo::class create",
+                    1,
+                ),
+                PRIVATE.replacen("set cb", "rename ::makePrefix {}; set cb", 1),
+                PRIVATE.replacen("[::makePrefix my tick", "[makePrefix my tick", 1),
+            ] {
+                let needle = if source.contains("[makePrefix my tick") {
+                    "makePrefix my tick"
+                } else {
+                    "::makePrefix my tick"
+                };
+                let analysis = analyse(&source, release);
+                let offset = u32::try_from(source.find(needle).unwrap()).unwrap();
+                assert!(
+                    source_registry_words_at(&source, &analysis, offset).is_none(),
+                    "{release}: {source}"
+                );
+            }
+            let analysis = analyse(PRIVATE, release);
+            let offset = u32::try_from(PRIVATE.find("::makePrefix my tick").unwrap()).unwrap();
+            assert!(
+                source_registry_words_at(&format!("{PRIVATE}# changed image\n"), &analysis, offset)
+                    .is_none()
+            );
+            let mut stale = analysis.clone();
+            stale.body_lexer_config.as_mut().unwrap().expand_syntax ^= true;
+            assert!(source_registry_words_at(PRIVATE, &stale, offset).is_none());
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let mut store = tcl_registry::CommandRegistry::build_default();
+            store.insert(tcl_registry::CommandSpec {
+                name: "foreign_member_catalogue_row",
+                ..tcl_registry::CommandSpec::DEFAULT
+            });
+            let mut foreign = analysis.clone();
+            foreign.resolved_input = Some(ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                std::sync::Arc::new(
+                    input
+                        .borrowed_context_registry()
+                        .with_command_store(std::sync::Arc::new(store)),
+                ),
+                input.lexer_config(),
+            ));
+            assert!(source_registry_words_at(PRIVATE, &foreign, offset).is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_logical_operand_prefix_tests {
+    use super::*;
+
+    #[test]
+    fn logical_operand_prefix_retains_only_static_earlier_written_words() {
+        // naming.navigation.retained-path-source-inventory
+
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        for (source, argument, expected_prefix) in [
+            ("set dir /ROOT; source [file join $dir leaf.tcl]", 0, 1),
+            (
+                "set dir /ROOT; source -encoding utf-8 [file join $dir leaf.tcl]",
+                2,
+                3,
+            ),
+            (
+                "set dir /ROOT; interp alias {} picksource {} source -encoding utf-8; picksource [file join $dir leaf.tcl]",
+                2,
+                1,
+            ),
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, profile.name);
+            let context = analysis
+                .resolved_input
+                .as_ref()
+                .unwrap()
+                .borrowed_context_registry();
+            let config = analysis.body_lexer_config.unwrap();
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            let words = source_registry_words(source, &analysis, commands.last().unwrap()).unwrap();
+            let receipt = words
+                .original_logical_static_operand_prefix_before(context, argument)
+                .unwrap();
+            assert_eq!(receipt.original_invocation(), &words);
+            assert_eq!(receipt.argument(), argument);
+            assert_eq!(receipt.original_written_prefix().len(), expected_prefix);
+            let foreign = tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                .default_context_registry();
+            assert!(
+                words
+                    .original_logical_static_operand_prefix_before(&foreign, argument)
+                    .is_none()
+            );
+        }
+        for source in [
+            "set dir /ROOT; source -encoding [set dir /OTHER; list utf-8] [file join $dir leaf.tcl]",
+            "set dir /ROOT; source -encoding [opaque] [file join $dir leaf.tcl]",
+            "set dir /ROOT; source -encoding $encoding [file join $dir leaf.tcl]",
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, profile.name);
+            let context = analysis
+                .resolved_input
+                .as_ref()
+                .unwrap()
+                .borrowed_context_registry();
+            let config = analysis.body_lexer_config.unwrap();
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            let words = source_registry_words(source, &analysis, commands.last().unwrap()).expect(
+                "actual conditional source schema remains independent of operand continuity",
+            );
+            assert!(
+                words
+                    .original_logical_static_operand_prefix_before(context, 2)
+                    .is_none(),
+                "{source}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod conditional_native_case_receipt_tests {
+    use super::*;
+
+    fn source_context(source: &str) -> OriginalSourceRegistryContext {
+        source_context_in(source, "tcl9.0")
+    }
+
+    fn source_context_in(source: &str, dialect: &str) -> OriginalSourceRegistryContext {
+        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let generation = crate::environment_ingress::context_for_profile(profile);
+        let context = std::sync::Arc::new(
+            generation.with_command_store(registry.snapshot().shared_registry()),
+        );
+        OriginalSourceRegistryContext::capture(
+            source,
+            crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context,
+                tcl_lexer::LexerConfig::for_file_dialect(dialect),
+            ),
+        )
+    }
+
+    fn child_command(syntax: &OriginalSourceRegistryContext) -> crate::segmenter::SegmentedCommand {
+        let source = syntax.source_image().try_text().unwrap();
+        let config = syntax.editing_input().lexer_config();
+        let plan = tcl_lexer::native_script_words_in(
+            syntax.source_image().clone(),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let parent = plan.commands.last().unwrap();
+        let child =
+            original_single_source_command_substitution(parent.words.last().unwrap()).unwrap();
+        let original = &child.command().words;
+        let start = original.first().unwrap().span().start();
+        let end = original.last().unwrap().span().end();
+        let mut commands = crate::segmenter::segment_commands_with_offset_and_config(
+            &source[usize::try_from(start).unwrap()..usize::try_from(end).unwrap()],
+            start,
+            config,
+        );
+        assert_eq!(commands.len(), 1);
+        commands.remove(0)
+    }
+
+    #[test]
+    fn nested_native_case_receipt_retains_actual_vector_unknown_selection_and_debts() {
+        let source = "mystery; set result [switch $kind {alpha {# first\nputs first} beta {# second\nputs second}}]";
+        let syntax = source_context_in(source, "tcl8.4");
+        let command = child_command(&syntax);
+        let context = syntax.editing_input().context_registry();
+        let words = syntax.conditional_native_case_words(&command).unwrap();
+        let OriginalRegistrySource::ConditionalNativeSource(applicability) = words.source() else {
+            panic!("case syntax cannot borrow ordinary invocation selection");
+        };
+        let (input, advice) = applicability.source_advice.as_ref().unwrap();
+        assert_eq!(input, syntax.editing_input());
+        assert!(applicability.has_unknown_residual());
+        assert!(applicability.may_be_absent());
+        assert!(words.roles().is_none());
+        assert!(!words.operands_preserve_source_lookup());
+        assert!(matches!(
+            words.arguments().first(),
+            Some(crate::registry_invocation::EffectiveInvocationWord::Dynamic)
+        ));
+        assert_eq!(advice.original_words().len(), command.argv.len());
+        assert!(advice.obligations().contains(
+            &crate::command_binding::SourceCommandTransitionObligation::UnavailableActualLookup
+        ));
+        assert!(advice.obligations().contains(
+            &crate::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation
+        ));
+        assert!(!advice.uncertain_operations().is_empty());
+        let candidates = words.conditional_source_case_bodies(&context).unwrap();
+        assert!(candidates.selection_unknown());
+        assert!(candidates.matches_source(syntax.source_image(), input.lexer_config()));
+        assert_eq!(
+            candidates
+                .bodies()
+                .iter()
+                .map(|body| &source[body.content_span().as_range()])
+                .collect::<Vec<_>>(),
+            vec!["# first\nputs first", "# second\nputs second"]
+        );
+        assert!(
+            super::super::source_scoped_body::source_script_bodies_for_mutation_coverage(
+                &words, &context
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn nested_native_case_receipt_refuses_changed_input_vector_and_actual_replacement() {
+        let source = "set result [switch $kind {alpha {# child\nputs child}}]";
+        let syntax = source_context(source);
+        let command = child_command(&syntax);
+        let input = syntax.editing_input();
+        let context = input.context_registry();
+        assert!(syntax.conditional_native_case_words(&command).is_some());
+        assert!(
+            conditional_native_case_source_words(
+                &format!("{source}\n"),
+                input.lexer_config(),
+                syntax.retained_source_realm(),
+                input,
+                &context,
+                &command
+            )
+            .is_none()
+        );
+        let mut changed = input.lexer_config();
+        changed.leading_bom = tcl_lexer::LeadingBom::Content;
+        if changed == input.lexer_config() {
+            changed.leading_bom = tcl_lexer::LeadingBom::Skip;
+        }
+        assert!(
+            conditional_native_case_source_words(
+                source,
+                changed,
+                syntax.retained_source_realm(),
+                input,
+                &context,
+                &command
+            )
+            .is_none()
+        );
+        let foreign = source_context(source);
+        assert!(
+            conditional_native_case_source_words(
+                source,
+                input.lexer_config(),
+                syntax.retained_source_realm(),
+                foreign.editing_input(),
+                &foreign.editing_input().context_registry(),
+                &command
+            )
+            .is_none()
+        );
+        let mut cut = command;
+        let _ = cut.argv.pop();
+        let _ = cut.word_fragments.pop();
+        let _ = cut.texts.pop();
+        let _ = cut.single_token_word.pop();
+        assert!(syntax.conditional_native_case_words(&cut).is_none());
+        let replaced = source_context(
+            "proc switch args {return other}; set result [switch $kind {alpha {# data\nputs data}}]",
+        );
+        assert!(
+            replaced
+                .conditional_native_case_words(&child_command(&replaced))
+                .is_none()
+        );
+    }
+    #[test]
+    fn nested_native_two_argument_case_retains_selected_optionless_protocol() {
+        let source = "mystery; set result [switch $kind {alpha {# first\nputs first} beta {# second\nputs second}}]";
+        let syntax = source_context(source);
+        let command = child_command(&syntax);
+        let context = syntax.editing_input().context_registry();
+        let words = syntax.conditional_native_case_words(&command).unwrap();
+        let OriginalRegistrySource::ConditionalNativeSource(applicability) = words.source() else {
+            panic!("case syntax cannot borrow ordinary invocation selection");
+        };
+        assert!(applicability.has_unknown_residual());
+        assert!(applicability.may_be_absent());
+        assert!(words.roles().is_none());
+        assert!(!words.operands_preserve_source_lookup());
+        assert!(matches!(
+            words.arguments().first(),
+            Some(crate::registry_invocation::EffectiveInvocationWord::Dynamic)
+        ));
+        let candidates = words.conditional_source_case_bodies(&context).unwrap();
+        assert!(!candidates.selection_unknown());
+        assert_eq!(
+            candidates
+                .bodies()
+                .iter()
+                .map(|body| &source[body.content_span().as_range()])
+                .collect::<Vec<_>>(),
+            vec!["# first\nputs first", "# second\nputs second"]
+        );
+        assert!(
+            super::super::source_scoped_body::source_script_bodies_for_mutation_coverage(
+                &words, &context
+            )
+            .is_none()
+        );
+    }
+}
+
+impl OriginalRegistryWords {
+    /// Project Registry metadata for a deliberately different, complete stock
+    /// source-command proposal under this original source owner's full context.
+    /// The original schema must remain authenticated first. Proposed argv owns
+    /// a separate complete image/configuration and must pass the canonical word
+    /// inventory. It never becomes an original invocation or a detached body's
+    /// entry. Stock lookup, operand materialisation, effects and equivalence
+    /// remain independent review premises; no Native purpose is supplied.
+    pub fn with_stock_source_command_proposal<'r, T>(
+        &'r self,
+        context: &'r tcl_registry::model::ContextRegistry,
+        proposed: &[tcl_lexer::NativeWord],
+        project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+    ) -> Option<T> {
+        self.with_source_schema(context, |_| ())?;
+        let first = proposed.first()?;
+        let image = first.image();
+        if image.channel() != tcl_lexer::SourceChannel::Document
+            || proposed.iter().any(|word| {
+                word.image() != image || word.config() != self.config || word.group().expand
+            })
+        {
+            return None;
+        }
+        let end = u32::try_from(image.bytes().len()).ok()?;
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            image.clone(),
+            tcl_lexer::Span::new(0, end),
+            self.config,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        if plan.fatal_tail.is_some()
+            || command.words.as_slice() != proposed
+            || first.span().start() != 0
+            || proposed.last()?.span().end() != end
+        {
+            return None;
+        }
+        let head_value = tcl_syntax::word_rules::original_static_word_unicode_value(first)?;
+        let head = std::str::from_utf8(&head_value).ok()?;
+        let values = proposed[1..]
+            .iter()
+            .map(|word| {
+                tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                    .and_then(|value| String::from_utf8(value).ok())
+            })
+            .collect::<Vec<_>>();
+        let arguments = values
+            .iter()
+            .map(|value| {
+                value.as_deref().map_or(
+                    tcl_registry::InvocationWord::Dynamic,
+                    tcl_registry::InvocationWord::Literal,
+                )
+            })
+            .collect::<Vec<_>>();
+        let invocation = tcl_registry::InvocationWords::structured(
+            tcl_registry::InvocationWord::Literal(head),
+            &arguments,
+        );
+        let invocation = self
+            .dialect
+            .map_or(invocation, |dialect| invocation.with_dialect(dialect));
+        let selected = tcl_registry::model::assembly::resolve_invocation_words_in_context(
+            context.commands(),
+            Some(context.context()),
+            invocation,
+        )?;
+        Some(project(&selected))
+    }
+}
+
+#[cfg(test)]
+mod stock_source_proposal_metadata_tests {
+    use super::*;
+
+    #[test]
+    fn proposed_metadata_keeps_separate_image_and_refuses_extra_commands_or_expansion() {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+        let source = "puts original";
+        let syntax = OriginalSourceRegistryContext::capture(source, input);
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let original = syntax.words(&commands[0]).unwrap();
+        for (proposal, accepted) in [
+            ("list proposed", true),
+            ("list proposed; puts extra", false),
+            ("list {*}$args", false),
+        ] {
+            let plan = tcl_lexer::native_script_words_in_with_purpose(
+                tcl_lexer::SourceImage::document(proposal),
+                tcl_lexer::Span::new(0, u32::try_from(proposal.len()).unwrap()),
+                config,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            )
+            .unwrap();
+            assert_eq!(
+                original
+                    .with_stock_source_command_proposal(&context, &plan.commands[0].words, |_| ())
+                    .is_some(),
+                accepted
+            );
+        }
+        assert_eq!(original.command(), "puts");
+        assert_eq!(
+            original.head_source().unwrap().word().unwrap().image(),
+            syntax.source_image()
+        );
+    }
+}
+
+/// Genuine selected authored Jim class call, conditional metadata only.
+#[must_use]
+pub fn source_authored_jim_call_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalAuthoredJimClassCall> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_authored_jim_call(input, &native)
+}

@@ -22,6 +22,7 @@ import com.google.gson.Gson
 import com.intellij.openapi.project.Project
 import com.intellij.platform.lsp.api.Lsp4jClient
 import com.intellij.platform.lsp.api.LspServerNotificationsHandler
+import com.tcllsp.jetbrains.TclLspServerDescriptor
 import org.eclipse.lsp4j.jsonrpc.services.JsonNotification
 
 /**
@@ -36,7 +37,12 @@ import org.eclipse.lsp4j.jsonrpc.services.JsonNotification
 class TclLsp4jClient(
     handler: LspServerNotificationsHandler,
     private val project: Project,
+    internal val ownerDescriptor: TclLspServerDescriptor,
 ) : Lsp4jClient(handler) {
+
+    init {
+        TclLspPackAssociations.getInstance().clientCreated(project, this)
+    }
 
     /**
      * `tcl-lsp/specPacksReloaded` — sent once a SpecTcl pack reload has fully
@@ -49,6 +55,6 @@ class TclLsp4jClient(
      */
     @JsonNotification("tcl-lsp/specPacksReloaded")
     fun specPacksReloaded(params: Any?) {
-        TclLspPackAssociations.getInstance().report(project, Gson().toJsonTree(params))
+        TclLspPackAssociations.getInstance().report(project, this, Gson().toJsonTree(params))
     }
 }

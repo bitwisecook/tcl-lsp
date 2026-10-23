@@ -59,6 +59,8 @@ pub enum FieldKind {
     IndexList,
     /// `Option<&'static [u8]>` — tri-state index list (unset vs empty).
     OptIndexList,
+    /// Optional argv positions with their selected variable naming purpose.
+    VariableReceivers,
     /// One variant of a named catalogue; `optional` wraps it in `Option`.
     Enum {
         /// Catalogue id — a key of [`catalogues`].
@@ -167,6 +169,7 @@ impl FieldKind {
             Self::TextList => "textList",
             Self::IndexList => "indexList",
             Self::OptIndexList => "optIndexList",
+            Self::VariableReceivers => "variableReceivers",
             Self::Enum { .. } => "enum",
             Self::FlagSet { .. } => "flagSet",
             Self::EnumList { .. } => "enumList",
@@ -513,6 +516,24 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Callback assigning roles from the actual argument list; wins over `arg_roles`.",
     ),
     f(
+        "arg_role_count_resolver",
+        "Cardinality argument-role resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(my_count_resolver)",
+        },
+        "Callback assigning roles from exact evaluated argument count without reading values. Unknown expansion cardinality keeps roles incomplete.",
+    ),
+    f(
+        "arg_role_layout_resolver",
+        "Structured argument-layout resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(my_layout_resolver)",
+        },
+        "Callback assigning roles from structured argv and the selected available option table; unknown operand values remain unknown. Mutually exclusive with value/count callbacks.",
+    ),
+    f(
         "arg_role_resolver_roles",
         "Resolver role capabilities",
         ARGS,
@@ -577,6 +598,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(my_prefix_resolver)",
         },
         "Callback locating command-prefix positions that depend on the argument list.",
+    ),
+    f(
+        "script_lookup_scope",
+        "Executable lookup frame",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "scriptLookupScope",
+            optional: true,
+        },
+        "Invoking, global or triggering frame at executable entry; independent of timing, operand ownership and command table proof.",
     ),
     f(
         "script_timing_resolver",
@@ -677,6 +708,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         SUBS,
         FieldKind::Bool,
         "Accept a subcommand word that is not declared, without a W001 warning.",
+    ),
+    f(
+        "option_prefix_words",
+        "Positional prefix words",
+        OPTS,
+        FieldKind::Count,
+        "Fixed positional words before the selected invocation's option run.",
     ),
     f(
         "prefix_matching",
@@ -919,6 +957,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Mutable Tcl domains that must remain stable before specialisation.",
     ),
     f(
+        "native_result",
+        "Native result contract",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeResultContract::...)",
+        },
+        "Native selected-cell/argument result dependency; requires actual implementation, observer and completion proofs.",
+    ),
+    f(
         "result_stability",
         "Result stability",
         EFFECTS,
@@ -938,6 +985,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
          option relation reported nothing. Prefer an `option_requires` / \
          `option_forbids` / `option_requires_one_of` row: those are checked \
          natively with no VM entry.",
+    ),
+    f(
+        "source_index_bounds",
+        "Source index bounds",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "sourceIndexBounds",
+            optional: true,
+        },
+        "Conditional original index/container relationship; no native handler or current result.",
     ),
     f(
         "literal_argument_validator",
@@ -994,6 +1051,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Argument indices whose declared values are an exhaustive legal set (W127).",
     ),
     f(
+        "arg_values_accept_prefix",
+        "Values accept a prefix",
+        OPTS,
+        FieldKind::Bool,
+        "Whether a closed value is accepted as a unique prefix rather than an exact match.",
+    ),
+    f(
         "event_requires",
         "Event requirements",
         ADVANCED,
@@ -1037,6 +1101,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(HTTP_COLLECT)",
         },
         "Registry descriptor for a collect, release, or payload operation.",
+    ),
+    f(
+        "irules_source_flow",
+        "iRules source flow",
+        ADVANCED,
+        FieldKind::Enum {
+            catalogue: "irulesSourceFlow",
+            optional: true,
+        },
+        "Conditional source flow grammar for connection drops, DNS returns or event control. No handler, reached effect or body entry is granted.",
     ),
     f(
         "side_switch_target",
@@ -1140,6 +1214,49 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             optional: false,
         },
         "Whether body arguments run in the caller's frame or a separate context.",
+    ),
+    f(
+        "variable_receivers",
+        "Variable receiver purposes",
+        BEHAVIOUR,
+        FieldKind::VariableReceivers,
+        "Argv variable-name receiver positions and their combined or trace-subject naming purpose. Unset inherits; declared empty withdraws. This metadata grants no successful access, trace installation, compiler preparation or whole-array root-only interpretation.",
+    ),
+    f(
+        "successful_handler",
+        "Native normal handler effects",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::VariableOperands)",
+        },
+        "Audited normal transfer after actual native handler identity converges; does not license compiler selection or body execution. Excluded from pack-authored strong analysis.",
+    ),
+    f(
+        "native_compilation",
+        "Native compiler grammar",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeCompilationSpec { .. })",
+        },
+        "Native compiler-hook syntax and script entry protocol; requires actual source compilation and implementation proofs.",
+    ),
+    f(
+        "procedure_definition",
+        "Native procedure grammar",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeProcedureDefinitionSpec::Core)",
+        },
+        "Native definition argv, result and static-storage protocol; requires live native implementation proof.",
+    ),
+    f(
+        "body_execution",
+        "Body execution contract",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(BodyExecutionSpec::CapturedLifecycle(...))",
+        },
+        "Versioned evaluated-body grammar and completion contract; expansion also requires proved implementation and hook dependencies.",
     ),
     f(
         "body_interpreter",
@@ -1267,6 +1384,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Predicate over the call's own flags deciding whether the sink applies.",
     ),
     f(
+        "channel_configuration",
+        "Channel configuration",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "channelConfiguration",
+            optional: true,
+        },
+        "Conditional original encoding/translation option relationship; no channel state or runtime acceptance.",
+    ),
+    f(
         "credential_options",
         "Credential options",
         TAINT,
@@ -1380,6 +1507,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         DEPRECATION,
         FieldKind::OptText,
         "Replacement command name surfaced by the deprecation code action.",
+    ),
+    f(
+        "source_deprecation_advice",
+        "Source deprecation advice",
+        DEPRECATION,
+        FieldKind::Enum {
+            catalogue: "sourceDeprecationAdvice",
+            optional: true,
+        },
+        "Registry-owned source shape advice; original words support a review proposal, without a runtime equivalence claim.",
     ),
     f(
         "deprecated_replacement_drop_in",
@@ -1614,6 +1751,24 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Callback assigning roles from the actual argument list.",
     ),
     f(
+        "arg_role_count_resolver",
+        "Cardinality argument-role resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(my_count_resolver)",
+        },
+        "Callback assigning roles from exact evaluated argument count without reading values. Unknown expansion cardinality keeps roles incomplete.",
+    ),
+    f(
+        "arg_role_layout_resolver",
+        "Structured argument-layout resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(my_layout_resolver)",
+        },
+        "Callback assigning roles from structured argv and the selected available option table; unknown operand values remain unknown. Mutually exclusive with value/count callbacks.",
+    ),
+    f(
         "arg_role_resolver_roles",
         "Resolver role capabilities",
         ARGS,
@@ -1660,6 +1815,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(my_prefix_resolver)",
         },
         "Callback locating command-prefix positions after the subcommand word.",
+    ),
+    f(
+        "script_lookup_scope",
+        "Executable lookup frame",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "scriptLookupScope",
+            optional: true,
+        },
+        "Invoking, global or triggering frame at executable entry; independent of timing, operand ownership and command table proof.",
     ),
     f(
         "script_timing_resolver",
@@ -1889,6 +2054,20 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
          when longer than uniqueness alone requires. Unset = uniqueness only.",
     ),
     f(
+        "option_prefix_words",
+        "Positional prefix words",
+        OPTS,
+        FieldKind::Count,
+        "Fixed positional words before the selected invocation's option run.",
+    ),
+    f(
+        "reserved_trailing_words",
+        "Reserved trailing words",
+        OPTS,
+        FieldKind::Count,
+        "Trailing positional words excluded from this subcommand's option scan.",
+    ),
+    f(
         "prefix_matching",
         "Prefix matching",
         OPTS,
@@ -2032,6 +2211,40 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Whether body arguments run in the caller's frame or a separate context.",
     ),
     f(
+        "variable_receivers",
+        "Variable receiver purposes",
+        BEHAVIOUR,
+        FieldKind::VariableReceivers,
+        "Argv variable-name receiver positions and their combined or trace-subject naming purpose. Unset inherits; declared empty withdraws. This metadata grants no successful access, trace installation, compiler preparation or whole-array root-only interpretation.",
+    ),
+    f(
+        "successful_handler",
+        "Native normal handler effects",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::VariableOperands)",
+        },
+        "Audited normal transfer after actual native handler identity converges; does not license compiler selection or body execution. Excluded from pack-authored strong analysis.",
+    ),
+    f(
+        "native_compilation",
+        "Native compiler grammar",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeCompilationSpec { .. })",
+        },
+        "Native compiler-hook syntax and script entry protocol; requires actual source compilation and implementation proofs.",
+    ),
+    f(
+        "body_execution",
+        "Body execution contract",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(BodyExecutionSpec::CapturedLifecycle(...))",
+        },
+        "Versioned evaluated-body grammar and completion contract; expansion also requires proved implementation and hook dependencies.",
+    ),
+    f(
         "body_interpreter",
         "Body interpreter",
         BEHAVIOUR,
@@ -2107,6 +2320,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Diagnostic code for a subcommand-shaped XSS or header-injection sink.",
     ),
     f(
+        "channel_configuration",
+        "Channel configuration",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "channelConfiguration",
+            optional: true,
+        },
+        "Conditional original encoding/translation option relationship; no channel state or runtime acceptance.",
+    ),
+    f(
         "credential_arg",
         "Credential argument",
         TAINT,
@@ -2177,6 +2400,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Subcommand-specific live-dispatch stability requirements.",
     ),
     f(
+        "native_result",
+        "Native result contract",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeResultContract::...)",
+        },
+        "Native selected-cell/argument result dependency; requires actual implementation, observer and completion proofs.",
+    ),
+    f(
         "result_stability",
         "Result stability",
         EFFECTS,
@@ -2196,6 +2428,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
          option relation reported nothing. Prefer an `option_requires` / \
          `option_forbids` / `option_requires_one_of` row: those are checked \
          natively with no VM entry.",
+    ),
+    f(
+        "source_index_bounds",
+        "Source index bounds",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "sourceIndexBounds",
+            optional: true,
+        },
+        "Conditional original index/container relationship; no native handler or current result.",
     ),
     f(
         "literal_argument_validator",
@@ -2219,6 +2461,26 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         BEHAVIOUR,
         FieldKind::Bool,
         "Returns a filesystem path.",
+    ),
+    f(
+        "source_path_operation",
+        "Source path operation",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "sourcePathOperation",
+            optional: true,
+        },
+        "Conditional source path algebra; no runtime handler, current filename or filesystem fact.",
+    ),
+    f(
+        "source_configuration_reference",
+        "Source configuration reference",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "sourceConfigurationReference",
+            optional: true,
+        },
+        "Registry-owned source operand grammar for a conditional configuration-object reference.",
     ),
     f(
         "is_unescape",
@@ -2406,17 +2668,30 @@ fn custom_catalogues() -> [(&'static str, Value); 7] {
 /// The variant catalogues the form's pickers read, keyed by catalogue id.
 #[must_use]
 pub fn catalogues() -> Value {
-    let standard: [(&str, &[catalogue::Variant]); 25] = [
+    let standard: [(&str, &[catalogue::Variant]); 32] = [
         ("argRole", catalogue::ARG_ROLES),
         ("tclType", catalogue::TCL_TYPES),
         ("bodyKind", catalogue::BODY_KINDS),
         ("scriptTiming", catalogue::SCRIPT_TIMINGS),
+        ("scriptLookupScope", catalogue::SCRIPT_LOOKUP_SCOPES),
+        ("irulesSourceFlow", catalogue::IRULES_SOURCE_FLOWS),
         ("variableScope", catalogue::VARIABLE_SCOPES),
         ("argPresentation", catalogue::ARG_PRESENTATIONS),
         ("storageType", catalogue::STORAGE_TYPES),
         ("byteArrayEffect", catalogue::BYTE_ARRAY_EFFECTS),
+        (
+            "sourceDeprecationAdvice",
+            catalogue::SOURCE_DEPRECATION_ADVICE,
+        ),
         ("commandTableEffect", catalogue::COMMAND_TABLE_EFFECTS),
         ("patternType", catalogue::PATTERN_TYPES),
+        ("sourcePathOperation", catalogue::SOURCE_PATH_OPERATIONS),
+        (
+            "sourceConfigurationReference",
+            catalogue::SOURCE_CONFIGURATION_REFERENCES,
+        ),
+        ("sourceIndexBounds", catalogue::SOURCE_INDEX_BOUNDS),
+        ("channelConfiguration", catalogue::CHANNEL_CONFIGURATIONS),
         (
             "taintTransformCondition",
             catalogue::TAINT_TRANSFORM_CONDITIONS,
@@ -2584,4 +2859,218 @@ mod tests {
                 .is_some()
         );
     }
+}
+
+/// Original complete DSL image and its actual registered vocabulary context.
+/// Unsupported major versions retain source geometry but withhold vocabulary.
+#[derive(Clone)]
+pub struct DslDisplayContext {
+    image: tcl_lexer::SourceImage,
+    vocabulary: Option<String>,
+    registry: Option<&'static tcl_registry::CommandRegistry>,
+}
+impl DslDisplayContext {
+    /// Retain the supplied authored image and the loader's vocabulary decision.
+    #[must_use]
+    pub fn for_source(source: &str) -> Self {
+        let image = tcl_lexer::SourceImage::document(source);
+        let vocabulary = dsl_source_vocabulary(&image);
+        let supported = vocabulary.as_ref().is_some_and(|version| {
+            version.as_deref().is_none_or(|version| {
+                tcl_compiler::parsing::spectcl_source::declared_pack_major(version).is_some()
+                    && !tcl_compiler::parsing::spectcl_source::unsupported_pack_major(version)
+            })
+        });
+        Self {
+            image,
+            vocabulary: vocabulary.flatten(),
+            registry: supported.then(|| crate::environment::store_for_dialect("spectcl")),
+        }
+    }
+    /// Exact original full image; nested display never creates a new source.
+    #[must_use]
+    pub fn image(&self) -> &tcl_lexer::SourceImage {
+        &self.image
+    }
+    /// Actual authored version when present; a fragment invents no version.
+    #[must_use]
+    pub fn vocabulary(&self) -> Option<&str> {
+        self.vocabulary.as_deref()
+    }
+}
+
+// Outer `None`: the source text is unavailable; inner `None`: no vocabulary.
+#[allow(clippy::option_option)]
+fn dsl_source_vocabulary(image: &tcl_lexer::SourceImage) -> Option<Option<String>> {
+    let source = image.try_text().ok()?;
+    let Some((range, _)) = tcl_spectcl::speclib_version_span(source) else {
+        return Some(None);
+    };
+    let config = tcl_spectcl::loader::pack_source_lexer_config(
+        tcl_lexer::SourceSegmentationPurpose::WholeInput,
+    );
+    let region = tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?);
+    let tokens = tcl_lexer::source_region_tokens_in(image, region, config).ok()?;
+    for command in tcl_lexer::group_commands_bytes(&tokens, image.bytes(), config) {
+        for group in command.words {
+            let Ok(word) =
+                tcl_lexer::NativeWord::from_group(image.clone(), config, &tokens, &group)
+            else {
+                continue;
+            };
+            if word
+                .content_span()
+                .is_ok_and(|content| content.as_range() == range)
+            {
+                return Some(Some(dsl_word_value(&word)?));
+            }
+        }
+    }
+    None
+}
+
+/// Actual static definition-body descriptor, retained only for source display.
+#[derive(Debug, Clone, Copy)]
+pub struct DslDisplayGrammar(&'static tcl_registry::definer::DefinitionBodyGrammar);
+impl PartialEq for DslDisplayGrammar {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self.0, other.0)
+    }
+}
+impl Eq for DslDisplayGrammar {}
+
+/// Readonly DSL statement projection from the actual registered descriptor.
+/// Source words retain their original whole image and selected loader grammar.
+#[derive(Debug, Clone)]
+pub struct DslStatementDisplay {
+    /// Original static statement value, used only for DSL metadata lookup.
+    pub head: String,
+    /// Exact original operands the registered statement declares as DSL bodies.
+    pub bodies: Vec<tcl_lexer::NativeWord>,
+    /// Actual declared grammar to retain when projecting the selected body.
+    pub grammar: Option<DslDisplayGrammar>,
+}
+
+impl DslDisplayContext {
+    /// Project body roles from the actual `SpecTcl` registry, without a second
+    /// keyword/alias list or a Native command-selection claim.
+    #[must_use]
+    pub fn statement(
+        &self,
+        words: &[tcl_lexer::NativeWord],
+        parent: Option<DslDisplayGrammar>,
+    ) -> Option<DslStatementDisplay> {
+        let first = words.first()?;
+        (first.image() == &self.image
+            && first.config().nested()
+                == tcl_spectcl::loader::pack_source_lexer_config(
+                    tcl_lexer::SourceSegmentationPurpose::WholeInput,
+                )
+                .nested())
+        .then_some(())?;
+        if first.group().expand
+            || words
+                .iter()
+                .any(|word| word.image() != first.image() || word.config() != first.config())
+        {
+            return None;
+        }
+        let head = String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+            first,
+        )?)
+        .ok()?;
+        if let Some(parent) = parent {
+            parent.0.member(&head)?;
+        }
+        let registry = self.registry?;
+        let spec = registry.get(&head)?;
+        let mut bodies = Vec::new();
+        if spec.definition_body.is_some() {
+            let values = words[1..]
+                .iter()
+                .map(|word| {
+                    tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                        .and_then(|bytes| String::from_utf8(bytes).ok())
+                })
+                .collect::<Vec<_>>();
+            let arguments = words[1..]
+                .iter()
+                .zip(&values)
+                .map(|(word, value)| {
+                    if word.group().expand {
+                        tcl_registry::InvocationWord::Expanded
+                    } else {
+                        value.as_deref().map_or(
+                            tcl_registry::InvocationWord::Dynamic,
+                            tcl_registry::InvocationWord::Literal,
+                        )
+                    }
+                })
+                .collect::<Vec<_>>();
+            let dialect = tcl_registry::InvocationDialect::of_profile(
+                crate::environment::profile_for_dialect("spectcl"),
+            );
+            let args =
+                tcl_registry::InvocationArguments::structured(&arguments).with_dialect(dialect);
+            for ordinal in registry.arg_indices_for_role_words(
+                &head,
+                args,
+                tcl_registry::arg_role::ArgRole::Body,
+            )? {
+                bodies.push(words.get(ordinal.checked_add(1)?)?.clone());
+            }
+        }
+        Some(DslStatementDisplay {
+            head,
+            bodies,
+            grammar: spec.definition_body.map(DslDisplayGrammar),
+        })
+    }
+
+    /// Help for the exact selected DSL statement or one of its declared flags.
+    /// Field help uses exact keys; singular/plural and lifecycle suffixes are not
+    /// invented. Those source spellings are documented by their actual registry row.
+    #[must_use]
+    pub fn help(
+        &self,
+        head: &str,
+        word: &str,
+        parent: Option<DslDisplayGrammar>,
+    ) -> Option<(String, String)> {
+        if let Some(parent) = parent {
+            parent.0.member(head)?;
+        }
+        let spec = self.registry?.get(head)?;
+        if head == word {
+            if let Some(field) = command_field(word).or_else(|| subcommand_field(word)) {
+                return Some((
+                    field.label.to_owned(),
+                    crate::help::field_help(field.key)
+                        .unwrap_or(field.doc)
+                        .to_owned(),
+                ));
+            }
+            let hover = spec.hover.as_ref()?;
+            return Some((
+                format!("{word} — {}", hover.summary),
+                hover.snippet.to_owned(),
+            ));
+        }
+        let option = spec
+            .options
+            .iter()
+            .find(|option| option.name == word || option.aliases.contains(&word))?;
+        Some((word.to_owned(), option.detail.to_owned()))
+    }
+}
+
+/// Original static Unicode word value for readonly DSL display metadata.
+/// Dynamic/expanded operands never become a label-derived selected keyword.
+#[must_use]
+pub fn dsl_word_value(word: &tcl_lexer::NativeWord) -> Option<String> {
+    (!word.group().expand).then_some(())?;
+    String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+        word,
+    )?)
+    .ok()
 }

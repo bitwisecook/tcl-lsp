@@ -758,20 +758,25 @@ const TAG_SUBCOMMANDS: &[SubSubCommand] = &[
     },
 ];
 
-fn treeview_tag_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() == 4 && !args[0].is_empty() && "bind".starts_with(args[0]) {
-        vec![(3, ArgRole::Body)]
-    } else {
-        Vec::new()
-    }
+fn treeview_tag_body(args: crate::InvocationArguments<'_>) -> bool {
+    args.exact_argv_len() == Some(4)
+        && args
+            .literal_at(0)
+            .is_some_and(|name| !name.is_empty() && "bind".starts_with(name))
 }
 
-fn treeview_tag_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    if treeview_tag_arg_roles(args).is_empty() {
-        Vec::new()
-    } else {
-        vec![(3, ScriptTiming::Deferred)]
-    }
+fn treeview_tag_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    treeview_tag_body(crate::InvocationArguments::literals(args))
+        .then_some((3, ArgRole::Body))
+        .into_iter()
+        .collect()
+}
+
+fn treeview_tag_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    treeview_tag_body(args)
+        .then_some((3, ScriptTiming::Deferred))
+        .into_iter()
+        .collect()
 }
 
 const INDEX_ARITY_WINDOWS: &[ArityWindow] = &[
@@ -1697,7 +1702,10 @@ mod tests {
             vec![(3, ArgRole::Body)],
             "unique-prefix tag bind is executable too"
         );
-        assert!(tag.arg_role_resolver.unwrap()(&["bind", "warning", "<Button-1>"]).is_empty());
+        assert_eq!(
+            tag.arg_role_resolver.unwrap()(&["bind", "warning", "<Button-1>"]).len(),
+            0
+        );
         let scope = tag.option_scope(Some("configure"), None, Some("9.1"), spec().surface);
         assert_eq!(scope.sub_subcommand, Some("configure"));
         assert!(

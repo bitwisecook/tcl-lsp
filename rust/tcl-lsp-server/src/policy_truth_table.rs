@@ -56,7 +56,7 @@ fn session_layers(row: &Row) -> PolicyLayers {
 /// and the document's text.
 async fn backend_holding(row: &Row, layers: &PolicyLayers) -> (Backend, Uri, String) {
     let backend = test_backend();
-    backend.apply_session_layers(layers).await;
+    backend.apply_session_layers(layers).await.unwrap();
     let uri = Uri::from_str(&format!("file:///truth/{}.tcl", row.name)).expect("a file URI");
     let (text, decode) = row.text();
     let mut doc = DocumentState::new(text.clone(), row.dialect.to_owned());
@@ -95,7 +95,7 @@ fn code_of(diagnostic: &tower_lsp_server::ls_types::Diagnostic) -> Option<DiagCo
 async fn every_row_publishes_its_shown_set() {
     let mut failures: Vec<String> = Vec::new();
     for row in ROWS.iter().filter(|row| row.runs_on(Surface::Lsp)) {
-        let (backend, uri, text) = backend_holding(row, &session_layers(row)).await;
+        let (backend, uri, text) = Box::pin(backend_holding(row, &session_layers(row))).await;
         let published = backend
             .full_diagnostics_for(
                 &uri,
@@ -103,7 +103,8 @@ async fn every_row_publishes_its_shown_set() {
                 row.dialect.to_owned(),
                 "tcl",
             )
-            .await;
+            .await
+            .unwrap();
         let observed: Vec<Observed> = published
             .iter()
             .filter_map(|diagnostic| {
@@ -141,7 +142,7 @@ async fn every_row_publishes_its_shown_set() {
 async fn every_row_offers_fixes_for_shown_findings_only() {
     let mut failures: Vec<String> = Vec::new();
     for row in ROWS.iter().filter(|row| row.runs_on(Surface::LspActions)) {
-        let (backend, uri, text) = backend_holding(row, &session_layers(row)).await;
+        let (backend, uri, text) = Box::pin(backend_holding(row, &session_layers(row))).await;
         let end_line = u32::try_from(text.lines().count()).expect("a small program");
         let actions = backend
             .code_action(CodeActionParams {
@@ -206,7 +207,7 @@ async fn every_rewrite_row_applies_through_optimise_document() {
             .get_mut("optimiser")
             .and_then(Value::as_object_mut)
             .and_then(|optimiser| optimiser.remove("profile"));
-        let (backend, uri, _) = backend_holding(row, &layers).await;
+        let (backend, uri, _) = Box::pin(backend_holding(row, &layers)).await;
         let mut args = vec![serde_json::json!(uri.as_str())];
         args.extend(profile);
         let result = backend

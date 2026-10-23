@@ -126,6 +126,14 @@ mod issue996_stack_overflow;
 mod jim;
 #[path = "e2e/name_resolution.rs"]
 mod name_resolution;
+#[path = "e2e/naming_edits.rs"]
+mod naming_edits;
+#[path = "e2e/naming_lifecycle.rs"]
+mod naming_lifecycle;
+#[path = "e2e/naming_packages.rs"]
+mod naming_packages;
+#[path = "e2e/naming_source_views.rs"]
+mod naming_source_views;
 #[path = "e2e/navigation.rs"]
 mod navigation;
 #[path = "e2e/navigation_extras.rs"]
@@ -164,3 +172,6 @@ mod tk_dialect;
 mod unicode_positions;
 #[path = "e2e/vscode_parity.rs"]
 mod vscode_parity;
+
+#[path = "e2e/naming_source_view_owners.rs"]
+mod naming_source_view_owners;

@@ -26,6 +26,10 @@
 //! found on `PATH`. A release that is not installed is skipped and the
 //! test says which ran; none at all is reported, never skipped silently.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::fixture_id;
+
 use std::io::Write as _;
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -136,17 +140,21 @@ fn summarised_unit(source: &str, dialect: &str) -> CompilationUnit {
 
 /// The summary of `proc` in `source` under `dialect`.
 fn summary_of(source: &str, dialect: &str, proc: &str) -> ProcSummary {
-    summarised_unit(source, dialect)
-        .interproc
+    let unit = summarised_unit(source, dialect);
+    let id = fixture_id(&unit.ir_module.procedures, proc);
+    unit.interproc
         .expect("the summaries")
         .procedures
-        .remove(proc)
+        .remove(&id)
         .expect("the procedure's summary")
 }
 
 /// The shared lattice's value for `var`'s version `version` in `proc`.
 fn value_at(unit: &CompilationUnit, proc: &str, var: &str, version: u32) -> Option<LatticeValue> {
-    let function = unit.procedures.get(proc).expect("the procedure");
+    let function = unit
+        .procedures
+        .get(&fixture_id(&unit.procedures, proc))
+        .expect("the procedure");
     let symbol = function.ssa.var_symbol(var).expect("the variable");
     function.sccp.values.get(&(symbol, version)).cloned()
 }
@@ -155,7 +163,10 @@ fn value_at(unit: &CompilationUnit, proc: &str, var: &str, version: u32) -> Opti
 /// under `dialect`.
 fn last_value(source: &str, dialect: &str, proc: &str, var: &str) -> LatticeValue {
     let unit = unit_of(source, dialect);
-    let function = unit.procedures.get(proc).expect("the procedure");
+    let function = unit
+        .procedures
+        .get(&fixture_id(&unit.procedures, proc))
+        .expect("the procedure");
     let symbol = function.ssa.var_symbol(var).expect("the variable");
     function
         .sccp
@@ -170,7 +181,7 @@ fn last_value(source: &str, dialect: &str, proc: &str, var: &str) -> LatticeValu
 /// The answers the run recorded for `command`'s statements in `proc`.
 fn answers_for(unit: &CompilationUnit, proc: &str, command: &str) -> Vec<String> {
     unit.procedures
-        .get(proc)
+        .get(&fixture_id(&unit.procedures, proc))
         .expect("the procedure")
         .sccp
         .explanations
@@ -348,14 +359,24 @@ fn a_qualified_nested_cell_update_is_a_global_write() {
         let module = lower_to_ir(&format!("proc bump {{}} {{{body}; return $y}}\n"), registry);
         let writes = detect_global_write_procs(&module);
         assert!(
-            writes["bump"].names.contains("::hits"),
+            writes[&fixture_id(&module.procedures, "::bump")]
+                .names
+                .contains("::hits"),
             "{body}: {writes:?}"
         );
-        assert!(writes["bump"].names.contains("hits"), "{body}: {writes:?}");
+        assert!(
+            writes[&fixture_id(&module.procedures, "::bump")]
+                .names
+                .contains("hits"),
+            "{body}: {writes:?}"
+        );
     }
     let module = lower_to_ir("proc bump {} {set y [incr hits]; return $y}\n", registry);
     let writes = detect_global_write_procs(&module);
-    assert!(writes["bump"].is_empty(), "{writes:?}");
+    assert!(
+        writes[&fixture_id(&module.procedures, "::bump")].is_empty(),
+        "{writes:?}"
+    );
 
     let source = "set hits 0\nproc bump {} {set y [incr ::hits]; return $y}\nbump\nputs $hits\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
@@ -524,7 +545,10 @@ fn simulated_text(dialect: &str, init: &str, statement: &str) -> Option<String> 
 
 /// The interval domain's answer at `x`'s last definition in `::p`.
 fn interval_at(unit: &CompilationUnit, dialect: &str) -> Interval {
-    let function = unit.procedures.get("::p").expect("the procedure");
+    let function = unit
+        .procedures
+        .get(&fixture_id(&unit.procedures, "::p"))
+        .expect("the procedure");
     let profile = resolve_environment(dialect).analyser_profile();
     let intervals = compute_intervals_with(
         &function.cfg,
@@ -798,7 +822,10 @@ fn a_braced_increment_amount_is_its_text() {
             ["evaluated: error after 0 stores"],
             "{dialect}"
         );
-        let function = &unit.procedures["::p"];
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body");
         let n = function.ssa.var_symbol("n").expect("n");
         let increment = function
             .ssa
@@ -1116,9 +1143,9 @@ fn a_rebound_nested_head_declines_the_expression() {
 #[test]
 fn a_finite_condition_decides_when_every_member_agrees() {
     let decided = |source: &str, dialect: &str| -> Vec<(String, bool)> {
-        unit_of(source, dialect)
-            .procedures
-            .get("::p")
+        let unit = unit_of(source, dialect);
+        unit.procedures
+            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
             .expect("the procedure")
             .sccp
             .constant_branches
@@ -1226,9 +1253,9 @@ fn format_folds_through_the_shared_core() {
 #[test]
 fn route_entries_are_counted_per_family() {
     let tally_of = |source: &str, dialect: &str| {
-        unit_of(source, dialect)
-            .procedures
-            .get("::p")
+        let unit = unit_of(source, dialect);
+        unit.procedures
+            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
             .expect("the procedure")
             .sccp
             .route_tally
@@ -1409,7 +1436,10 @@ fn the_mirror_pairs_decline_as_correlated() {
                   }\n";
     for dialect in DIALECTS {
         let unit = unit_of(source, dialect);
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("the procedure");
         for var in ["x", "y"] {
             let symbol = function.ssa.var_symbol(var).expect(var);
             let last = function
@@ -1467,7 +1497,10 @@ fn an_invalid_octal_condition_decides_nothing() {
         );
         for (dialect, decided) in [("tcl8.6", false), ("tcl9.0", true)] {
             let unit = unit_of(&source, dialect);
-            let function = unit.procedures.get("::p").expect("the procedure");
+            let function = unit
+                .procedures
+                .get(&fixture_id(&unit.procedures, "::p"))
+                .expect("the procedure");
             assert_eq!(
                 !function.sccp.constant_branches.is_empty(),
                 decided,
@@ -1766,7 +1799,7 @@ fn a_declared_implementation_folds_through_the_driver() {
                   }\n";
     let routes = |unit: &CompilationUnit| -> Vec<String> {
         unit.procedures
-            .get("::p")
+            .get(&fixture_id(&unit.procedures, "::p"))
             .expect("the procedure")
             .sccp
             .explanations
@@ -1799,7 +1832,7 @@ fn a_declared_implementation_folds_through_the_driver() {
     );
     let tally = unit
         .procedures
-        .get("::p")
+        .get(&fixture_id(&unit.procedures, "::p"))
         .expect("the procedure")
         .sccp
         .route_tally;
@@ -1932,7 +1965,10 @@ fn folded_at(
     var: &str,
     version: u32,
 ) -> Option<tcl_compiler::value_transfer::FoldedType> {
-    let function = unit.procedures.get(proc).expect("the procedure");
+    let function = unit
+        .procedures
+        .get(&fixture_id(&unit.procedures, proc))
+        .expect("the procedure");
     let symbol = function.ssa.var_symbol(var).expect("the variable");
     function.sccp.folded_types.get(&(symbol, version)).cloned()
 }
@@ -1993,7 +2029,10 @@ fn folded_types_state_what_each_route_constructed() {
             .as_deref(),
         Some("bytearray (constructed)")
     );
-    let barrier = unit.procedures.get("::b").expect("the procedure");
+    let barrier = unit
+        .procedures
+        .get(&fixture_id(&unit.procedures, "::b"))
+        .expect("the procedure");
     assert!(
         barrier.sccp.folded_types.is_empty(),
         "{:?}",
@@ -2017,7 +2056,10 @@ fn folded_types_state_what_each_route_constructed() {
         representation: RepresentationEvidence::Unknown,
     });
     assert_eq!(folded_at(&unit, "::p", "r", 1), stated);
-    let function = unit.procedures.get("::p").expect("the procedure");
+    let function = unit
+        .procedures
+        .get(&fixture_id(&unit.procedures, "::p"))
+        .expect("the procedure");
     let r = function.ssa.var_symbol("r").expect("the variable");
     assert_eq!(
         function.types.get(&(r, 1)),
@@ -2084,7 +2126,10 @@ fn every_spelling_answers(
         "proc p {{x}} {{\n    set known [{spelling} acme]\n    set unknown [{spelling} $x]\n    return $known$unknown\n}}\n"
     );
     let unit = CompilationUnit::build_for_dialect(&source, registry, false, dialect);
-    let function = unit.procedures.get("::p").expect("the procedure");
+    let function = unit
+        .procedures
+        .get(&fixture_id(&unit.procedures, "::p"))
+        .expect("the procedure");
     let routes: Vec<&str> = function
         .sccp
         .explanations
@@ -2370,7 +2415,10 @@ fn a_pack_declared_preserve_holds_the_prior_version() {
                   proc q {} {\n    set v before\n    keep::miss v x\n    return $v\n}\n";
     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
     for (proc, prior) in [("::p", 0), ("::q", 1)] {
-        let function = unit.procedures.get(proc).expect("the procedure");
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, proc))
+            .expect("the procedure");
         let symbol = function.ssa.var_symbol("v").expect("the variable");
         assert_eq!(
             function.sccp.preserved.get(&(symbol, prior + 1)),
@@ -2931,7 +2979,10 @@ fn the_repeated_target_witness() {
 /// The existence fact `var`'s last version holds in `proc`: the fact the
 /// solver established where the version was defined.
 fn last_existence(unit: &CompilationUnit, proc: &str, var: &str) -> Option<Existence> {
-    let function = unit.procedures.get(proc).expect("the procedure");
+    let function = unit
+        .procedures
+        .get(&fixture_id(&unit.procedures, proc))
+        .expect("the procedure");
     let symbol = function.ssa.var_symbol(var).expect("the variable");
     function
         .sccp
@@ -3744,7 +3795,7 @@ fn case_selects_its_glob_arm() {
             let unit = unit_of(&source, dialect);
             let records = &unit
                 .procedures
-                .get("::p")
+                .get(&fixture_id(&unit.procedures, "::p"))
                 .expect("the procedure")
                 .sccp
                 .selections;
@@ -3761,7 +3812,10 @@ fn case_selects_its_glob_arm() {
             );
         }
         let unit = unit_of(&source, "tcl9.0");
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("the procedure");
         assert!(function.sccp.selections.is_empty(), "tcl9.0: {source}");
         assert!(
             !function
@@ -4716,7 +4770,10 @@ fn an_error_a_catch_script_raises_is_not_the_statements_own() {
         );
         prints_under_releases_from(&source, "1\n", "8.6");
         let unit = unit_of(&source, "tcl8.6");
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("the procedure");
         let executable: Vec<&str> = function
             .sccp
             .executable_blocks
@@ -5183,7 +5240,7 @@ const FLATTENED_CATCH_RESULTS: &[(&str, &str)] = &[
 /// The number of flattened `catch` regions of `proc`.
 fn flattened_catches(unit: &CompilationUnit, proc: &str) -> usize {
     unit.procedures
-        .get(proc)
+        .get(&fixture_id(&unit.procedures, proc))
         .expect("the procedure")
         .cfg
         .catch_ends
@@ -5961,7 +6018,10 @@ fn the_prefix_rule_holds_in_both_builds() {
                 // The body's blocks are the analysis's own: it proves the fact.
                 for source in [&in_proc, &handled, &split] {
                     let unit = unit_of(source, dialect);
-                    let function = unit.procedures.get("::p").expect("the procedure");
+                    let function = unit
+                        .procedures
+                        .get(&fixture_id(&unit.procedures, "::p"))
+                        .expect("the procedure");
                     assert_eq!(
                         PrefixProgram::claim(fact, function),
                         Claim::Holds,
@@ -6054,7 +6114,10 @@ fn a_certain_error_outside_a_handler_claims_nothing() {
     let source = "proc p {} {\n    array set b {k v}\n    lassign {x y} a b\n    catch {set z 1}\n    return $z\n}\n";
     for dialect in ["tcl8.6", "tcl9.0"] {
         let unit = unit_of(source, dialect);
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("the procedure");
         let reached = function
             .sccp
             .executable_blocks
@@ -7064,15 +7127,22 @@ fn a_stub_that_states_its_frame_effect_is_a_named_head() {
             source,
         );
         let mut reasons = Vec::new();
-        tcl_compiler::ir::for_each_statement(&module.procedures["::p"].body, &mut |statement| {
-            if let Statement::Barrier {
-                command, reason, ..
-            } = statement
-                && command == head
-            {
-                reasons.push(reason.clone());
-            }
-        });
+        tcl_compiler::ir::for_each_statement(
+            &module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .expect("authored fixture body")
+                .body,
+            &mut |statement| {
+                if let Statement::Barrier {
+                    command, reason, ..
+                } = statement
+                    && command == head
+                {
+                    reasons.push(reason.clone());
+                }
+            },
+        );
         reasons
     };
     let timed = barrier_of(
@@ -7800,7 +7870,10 @@ fn a_split_try_body_keeps_what_its_handlers_were_proved() {
 
 /// The blocks of `proc`'s `puts` statements, in source order.
 fn puts_blocks(unit: &CompilationUnit, proc: &str) -> Vec<tcl_compiler::cfg::BlockId> {
-    let function = unit.procedures.get(proc).expect("the procedure");
+    let function = unit
+        .procedures
+        .get(&fixture_id(&unit.procedures, proc))
+        .expect("the procedure");
     let mut found: Vec<(u32, tcl_compiler::cfg::BlockId)> = function
         .cfg
         .blocks
@@ -7828,7 +7901,10 @@ fn value_in(
     var: &str,
     version: u32,
 ) -> Option<LatticeValue> {
-    let function = unit.procedures.get(proc).expect("the procedure");
+    let function = unit
+        .procedures
+        .get(&fixture_id(&unit.procedures, proc))
+        .expect("the procedure");
     let symbol = function.ssa.var_symbol(var).expect("the variable");
     function.sccp.value_at(block, (symbol, version)).cloned()
 }
@@ -7845,7 +7921,10 @@ fn a_merge_drops_the_refinement() {
     let source = "proc p {x} {\n    if {$x eq \"a\"} {\n        set r 1\n    } elseif {$x eq \"b\"} {\n        set r 2\n    } else {\n        return\n    }\n    puts \"$x $r\"\n    puts $x\n}\np a\np b\np c\n";
     for dialect in DIALECTS {
         let unit = unit_of(source, dialect);
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("the procedure");
         let refined: Vec<String> = function
             .sccp
             .refinements
@@ -7910,7 +7989,10 @@ fn a_traced_variable_is_never_refined() {
     for dialect in DIALECTS {
         let unit = unit_of(source, dialect);
         for proc in ["::p", "::q"] {
-            let function = unit.procedures.get(proc).expect("the procedure");
+            let function = unit
+                .procedures
+                .get(&fixture_id(&unit.procedures, proc))
+                .expect("the procedure");
             assert!(
                 function.sccp.refinements.is_empty(),
                 "{dialect} {proc}: {:?}",
@@ -7932,7 +8014,10 @@ fn the_nested_equality_decides() {
     let source = "proc p {x} {\n    if {$x eq \"a\"} {\n        if {$x eq \"b\"} {puts never} else {puts inner}\n    }\n}\nset ::v a\np $::v\nset ::v b\np $::v\n";
     for dialect in DIALECTS {
         let unit = unit_of(source, dialect);
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("the procedure");
         let decided = function
             .sccp
             .constant_branches
@@ -8068,7 +8153,10 @@ fn a_definition_in_a_refined_arm_takes_the_arms_value() {
     let source = "proc p {x} {\n    if {$x eq \"a\"} {\n        set y $x\n        puts $y\n        puts $x\n    }\n}\nset ::v a\np $::v\nset ::v b\np $::v\n";
     for dialect in DIALECTS {
         let unit = unit_of(source, dialect);
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("the procedure");
         let y = function.ssa.var_symbol("y").expect("y");
         assert_eq!(
             function.sccp.values.get(&(y, 1)),
@@ -8181,7 +8269,10 @@ fn the_iteration_cap_publishes_nothing() {
         let condition = format!("$i == {bound}");
         for dialect in DIALECTS {
             let unit = unit_of(&source, dialect);
-            let function = unit.procedures.get("::p").expect("the procedure");
+            let function = unit
+                .procedures
+                .get(&fixture_id(&unit.procedures, "::p"))
+                .expect("the procedure");
             let decided = function
                 .sccp
                 .constant_branches
@@ -8229,7 +8320,7 @@ fn an_enumeration_runs_only_over_places_it_proves() {
         assert!(
             binder_unit
                 .procedures
-                .get("::p")
+                .get(&fixture_id(&binder_unit.procedures, "::p"))
                 .expect("the procedure")
                 .sccp
                 .loop_enumerations
@@ -8237,7 +8328,10 @@ fn an_enumeration_runs_only_over_places_it_proves() {
             "{dialect}"
         );
         let unit = unit_of(array_binder, dialect);
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("the procedure");
         assert!(
             function
                 .sccp
@@ -8334,7 +8428,10 @@ fn the_state_a_loop_leaves_decides_the_branch_after_it() {
     for dialect in DIALECTS {
         assert_eq!(condition_claims(source, dialect), [true, true], "{dialect}");
         let unit = unit_of(source, dialect);
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("the procedure");
         assert_eq!(
             function
                 .sccp
@@ -8651,7 +8748,10 @@ fn the_correlated_pairs_decide_by_enumeration() {
     for dialect in DIALECTS {
         assert_eq!(condition_claims(source, dialect), [true, true], "{dialect}");
         let unit = unit_of(source, dialect);
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("the procedure");
         let published: Vec<(String, LatticeValue)> = function
             .sccp
             .loop_enumerations
@@ -8704,7 +8804,10 @@ fn a_loop_condition_reads_the_math_binding() {
             "{dialect}"
         );
         let unit = unit_of(in_a_procedure, dialect);
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("the procedure");
         assert!(function.sccp.loop_enumerations.is_empty(), "{dialect}");
     }
     prints_under_releases_from(top_level, "other\n", "8.5");
@@ -8934,7 +9037,8 @@ fn o103_summary_path_folds_a_computed_return() {
         let registry = static_context_for(dialect).commands();
         let profile = resolve_environment(dialect).analyser_profile();
         let mut unit = summarised_unit(source, dialect);
-        unit.procedures.remove("::p");
+        let p_id = fixture_id(&unit.ir_module.procedures, "::p");
+        unit.procedures.remove(&p_id);
         let folds = optimise_unit(&unit, registry, Some(profile));
         assert!(
             folds.iter().any(|fold| fold.code == DiagCode::O103

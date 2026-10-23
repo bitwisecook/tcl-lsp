@@ -178,17 +178,37 @@ fn version_from_path(lib: &Path) -> String {
     String::new()
 }
 
-/// The directories on `$TCLLIBPATH` (a Tcl list — whitespace- or
-/// brace-separated). Empty when unset.
+/// The directories on `$TCLLIBPATH`, decoded as Tcl list data.
+///
+/// Discovery precedes selection of a C Tcl installation. Unset, malformed, or
+/// release-dependent list values supply no discovery candidates.
 #[must_use]
 pub fn tcllibpath_dirs() -> Vec<PathBuf> {
     let Ok(raw) = std::env::var("TCLLIBPATH") else {
         return Vec::new();
     };
-    raw.split_whitespace()
-        .map(|s| s.trim_matches(['{', '}']))
-        .filter(|s| !s.is_empty())
-        .map(PathBuf::from)
+    tcllibpath_value_dirs(&raw)
+}
+
+fn tcllibpath_value_dirs(raw: &str) -> Vec<PathBuf> {
+    let mut agreed = None;
+    for version in tcl_dialect::TclVersion::ALL {
+        let grammar = tcl_dialect::model::DialectPoint::for_tcl_version(version).grammar();
+        let Ok(elements) = tcl_syntax::list::split_list_in(raw, grammar.escapes) else {
+            return Vec::new();
+        };
+        if let Some(previous) = &agreed {
+            if previous != &elements {
+                return Vec::new();
+            }
+        } else {
+            agreed = Some(elements);
+        }
+    }
+    agreed
+        .unwrap_or_default()
+        .into_iter()
+        .map(|element| PathBuf::from(element.as_ref()))
         .collect()
 }
 
@@ -328,70 +348,7 @@ pub fn project_config_path(workspace_root: &Path) -> PathBuf {
 /// comma-split for a one-liner. Returns the paths in order; empty when absent.
 #[must_use]
 pub fn library_paths_from_ini(content: &str, section: &str) -> Vec<String> {
-    let Some(raw) = ini_raw_value(content, section, "libraryPaths") else {
-        return Vec::new();
-    };
-    let lines: Vec<String> = raw
-        .lines()
-        .map(|l| l.trim().to_owned())
-        .filter(|l| !l.is_empty())
-        .collect();
-    if lines.len() <= 1 && raw.contains(',') {
-        return raw
-            .replace(',', " ")
-            .split_whitespace()
-            .map(str::to_owned)
-            .collect();
-    }
-    lines
-}
-
-/// The raw value of `key` in `[section]` of an INI `content`, including
-/// `configparser`-style indented continuation lines (joined with `\n`).
-fn ini_raw_value(content: &str, section: &str, key: &str) -> Option<String> {
-    let mut in_section = false;
-    let mut value: Option<String> = None;
-    for line in content.lines() {
-        let trimmed = line.trim_end();
-        let lstripped = trimmed.trim_start();
-        // A new section header.
-        if lstripped.starts_with('[') && lstripped.ends_with(']') {
-            // Stop collecting once we leave the section.
-            if value.is_some() {
-                break;
-            }
-            let name = &lstripped[1..lstripped.len() - 1];
-            in_section = name == section;
-            continue;
-        }
-        if !in_section {
-            continue;
-        }
-        if let Some(v) = value.as_mut() {
-            // Continuation: an indented, non-empty, non-key line.
-            let indented = line.starts_with([' ', '\t']);
-            let is_new_key = lstripped.contains('=') || lstripped.contains(':');
-            if indented && !lstripped.is_empty() && !is_new_key {
-                v.push('\n');
-                v.push_str(lstripped);
-                continue;
-            }
-            // Any other line ends the value.
-            break;
-        }
-        // Look for `key =` / `key:` (comment lines start with # or ;).
-        if lstripped.starts_with('#') || lstripped.starts_with(';') {
-            continue;
-        }
-        if let Some(rest) = lstripped
-            .strip_prefix(key)
-            .map(str::trim_start)
-            .and_then(|r| r.strip_prefix(['=', ':']))
-        {
-            value = Some(rest.trim().to_owned());
-        }
-    }
-    value
+    crate::config_ini::library_paths_from_section(content, section)
 }
 
 #[cfg(test)]

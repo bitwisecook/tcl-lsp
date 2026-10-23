@@ -1,0 +1,42 @@
+version	purpose	stage	details
+8.4.20	next	oo	absent-native-core
+8.5.19	next	oo	absent-native-core
+8.6.18	next	frame	objc=2	same0=0	type0=none	refs0=3	same1=1	type1=list	refs1=4
+8.6.18	next	after	code=1	argType=list	argRefs=3
+8.6.18	next	call	count=2	same0=0	type0=none	refs0=3	same1=1	type1=list	refs1=3
+8.6.18	next	call	count=3	same0=0	type0=cmdName	refs0=2	same1=0	type1=TclOO method name	refs1=3	same2=1	type2=list	refs2=3
+9.0.4	next	frame	objc=2	same0=0	type0=none	refs0=3	same1=1	type1=list	refs1=4
+9.0.4	next	after	code=1	argType=list	argRefs=3
+9.0.4	next	call	count=2	same0=0	type0=none	refs0=3	same1=1	type1=list	refs1=3
+9.0.4	next	call	count=3	same0=0	type0=cmdName	refs0=2	same1=0	type1=TclOO method name	refs1=3	same2=1	type2=list	refs2=3
+9.1.0	next	frame	objc=2	same0=0	type0=none	refs0=3	same1=1	type1=list	refs1=4
+9.1.0	next	after	code=1	argType=list	argRefs=3
+9.1.0	next	call	count=2	same0=0	type0=none	refs0=3	same1=1	type1=list	refs1=3
+9.1.0	next	call	count=3	same0=0	type0=cmdName	refs0=2	same1=0	type1=TclOO method name	refs1=3	same2=1	type2=list	refs2=3
+8.6.18	nextto	frame	objc=3	same0=0	type0=none	refs0=3	same1=0	type1=cmdName	refs1=3	same2=1	type2=list	refs2=4
+8.6.18	nextto	after	code=1	argType=list	argRefs=3
+8.6.18	nextto	call	count=3	same0=0	type0=none	refs0=3	same1=0	type1=cmdName	refs1=3	same2=1	type2=list	refs2=3
+8.6.18	nextto	call	count=3	same0=0	type0=cmdName	refs0=2	same1=0	type1=TclOO method name	refs1=3	same2=1	type2=list	refs2=3
+9.0.4	nextto	frame	objc=3	same0=0	type0=none	refs0=3	same1=0	type1=cmdName	refs1=3	same2=1	type2=list	refs2=4
+9.0.4	nextto	after	code=1	argType=list	argRefs=3
+9.0.4	nextto	call	count=3	same0=0	type0=none	refs0=3	same1=0	type1=cmdName	refs1=3	same2=1	type2=list	refs2=3
+9.0.4	nextto	call	count=3	same0=0	type0=cmdName	refs0=2	same1=0	type1=TclOO method name	refs1=3	same2=1	type2=list	refs2=3
+9.1.0	nextto	frame	objc=3	same0=0	type0=none	refs0=3	same1=0	type1=cmdName	refs1=3	same2=1	type2=list	refs2=4
+9.1.0	nextto	after	code=1	argType=list	argRefs=3
+9.1.0	nextto	call	count=3	same0=0	type0=none	refs0=3	same1=0	type1=cmdName	refs1=3	same2=1	type2=list	refs2=3
+9.1.0	nextto	call	count=3	same0=0	type0=cmdName	refs0=2	same1=0	type1=TclOO method name	refs1=3	same2=1	type2=list	refs2=3
+8.6.18	constructor	frame	objc=4	same0=0	type0=cmdName	refs0=1	same1=0	type1=TclOO method name	refs1=2	same2=0	type2=none	refs2=1	same3=1	type3=list	refs3=2
+8.6.18	constructor	after	code=1	argType=list	argRefs=2
+8.6.18	constructor	call	count=4	same0=0	type0=cmdName	refs0=2	same1=0	type1=TclOO method name	refs1=3	same2=0	type2=none	refs2=2	same3=1	type3=list	refs3=2
+9.0.4	constructor	frame	objc=4	same0=0	type0=cmdName	refs0=1	same1=0	type1=TclOO method name	refs1=2	same2=0	type2=none	refs2=1	same3=1	type3=list	refs3=2
+9.0.4	constructor	after	code=1	argType=list	argRefs=2
+9.0.4	constructor	call	count=4	same0=0	type0=cmdName	refs0=2	same1=0	type1=TclOO method name	refs1=3	same2=0	type2=none	refs2=2	same3=1	type3=list	refs3=2
+9.1.0	constructor	frame	objc=4	same0=0	type0=cmdName	refs0=1	same1=0	type1=TclOO method name	refs1=2	same2=0	type2=none	refs2=1	same3=1	type3=list	refs3=2
+9.1.0	constructor	after	code=1	argType=list	argRefs=2
+9.1.0	constructor	call	count=4	same0=0	type0=cmdName	refs0=2	same1=0	type1=TclOO method name	refs1=3	same2=0	type2=none	refs2=2	same3=1	type3=list	refs3=2
+8.6.18	destructor	frame	objc=0
+8.6.18	destructor	after	code=1	argType=list	argRefs=1
+9.0.4	destructor	frame	objc=0
+9.0.4	destructor	after	code=1	argType=list	argRefs=1
+9.1.0	destructor	frame	objc=0
+9.1.0	destructor	after	code=1	argType=list	argRefs=1

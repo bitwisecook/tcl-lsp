@@ -295,3 +295,71 @@ fn project_config_path_is_dot_tcl_lsp_ini() {
         PathBuf::from("/ws/project/.tcl-lsp.ini")
     );
 }
+
+#[test]
+fn discovery_list_data_preserves_literal_paths_and_refuses_release_ambiguity() {
+    assert_eq!(
+        tcllibpath_value_dirs(
+            r#"{dir with space} {{brace}} {"quoted"} {} plain\ path { trailing }"#
+        ),
+        [
+            "dir with space",
+            "{brace}",
+            "\"quoted\"",
+            "",
+            "plain path",
+            " trailing "
+        ]
+        .map(PathBuf::from)
+    );
+    assert_eq!(tcllibpath_value_dirs(r"a\u0020b"), [PathBuf::from("a b")]);
+    assert_eq!(
+        tcllibpath_value_dirs(r"{\U00010000}"),
+        [PathBuf::from(r"\U00010000")]
+    );
+    for raw in [r"\U00010000", "{unfinished", "\"unfinished", "{path}tail"] {
+        assert!(tcllibpath_value_dirs(raw).is_empty(), "{raw:?}");
+    }
+    assert!(tcllibpath_value_dirs("").is_empty());
+    assert!(tcllibpath_value_dirs(" \t\n").is_empty());
+}
+
+#[test]
+fn library_paths_share_effective_ini_continuation_and_opaque_data() {
+    let content = "[global]\nlibraryPaths =\n    C:\\Tcl Libraries\\lib\n    /opt/a=b/lib\n    # ignored comment\n    ; ignored comment\n    scheme:opaque=value\n\n    /last path\ndialect = tcl9.0\n";
+    let paths = library_paths_from_ini(content, "global");
+    assert_eq!(
+        paths,
+        vec![
+            "C:\\Tcl Libraries\\lib",
+            "/opt/a=b/lib",
+            "scheme:opaque=value",
+            "/last path"
+        ]
+    );
+    let settings = crate::config_ini::settings_from_ini(content, crate::config_ini::Layer::Global);
+    assert_eq!(settings["libraryPaths"], serde_json::json!(paths));
+    assert_eq!(settings["dialect"], "tcl9.0");
+}
+
+#[test]
+fn library_paths_keep_shared_section_key_and_single_line_rules() {
+    let content = "libraryPaths = /outside\n[other]\nlibraryPaths = /other\n[ global ]\nlibraryPathsExtra = /wrong-key\nlibraryPaths: /first, /second\nlibraryPaths = /duplicate-key\n[global]\nlibraryPaths = /duplicate-section\n[project]\nlibraryPaths = /project with spaces\n";
+    assert_eq!(
+        library_paths_from_ini(content, "global"),
+        vec!["/first", "/second"]
+    );
+    assert_eq!(
+        library_paths_from_ini(content, "project"),
+        vec!["/project with spaces"]
+    );
+    assert_eq!(library_paths_from_ini(content, "other"), vec!["/other"]);
+    assert!(library_paths_from_ini(content, "absent").is_empty());
+    assert!(
+        library_paths_from_ini(
+            "[global]\n# libraryPaths = /comment\nlibraryPathsExtra = /wrong\n",
+            "global"
+        )
+        .is_empty()
+    );
+}

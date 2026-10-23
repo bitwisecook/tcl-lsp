@@ -1,0 +1,24 @@
+{
+  "engine": "current JimTcl",
+  "rows": 54,
+  "original_observations_sha256": "e106eaa13bbd98547db7ac337d452221b46999a46d09bbc5a39240d3616c3ed1",
+  "source_sha256": "405b8f9a63a83d52b85f5ffd580848486f0b02780303a718faf660f2bc8873fe",
+  "columns": [
+    "mode",
+    "case",
+    "before_type",
+    "before_resident",
+    "getter_code",
+    "wide",
+    "after_type",
+    "after_resident",
+    "result_hex",
+    "source_hex"
+  ],
+  "modes": [
+    "NULL",
+    "Source",
+    "JimString"
+  ],
+  "source_column": "Original counted operand bytes from the fixed probe constructors."
+}

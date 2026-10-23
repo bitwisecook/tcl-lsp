@@ -27,10 +27,10 @@ use tcl_cli_support::{
     OutputTarget, combine_sources, combine_texts, combined_effective_dialect, read_input_documents,
     registry_for_dialect, write_highlighted_output, write_text_output,
 };
-use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle, formatting_with};
+use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle};
 use tcl_lsp_core::minify::{
-    SymbolMap, minify_tcl, minify_tcl_aggressive_with, minify_tcl_compact, remap_line_references,
-    unminify_error,
+    MinifyOptions as CoreMinifyOptions, MinifyTier as CoreMinifyTier, SymbolMap,
+    minify_with_profile, remap_line_references, unminify_error,
 };
 
 use tcl_compiler::optimiser::profiles::OptimisationProfile;
@@ -77,13 +77,8 @@ fn format_config(
 
 /// `tcl format` — pretty-print each input with canonical style rules.
 ///
-/// Kept on `combine_sources` after #2120's investigation of `run_opt`'s
-/// concatenation bug: the formatter is a pure syntactic rewriter
-/// (`format_tcl(source) -> source`, see `formatter-engine.md`) that never
-/// folds a value from one statement into another the way the optimiser's
-/// constant propagation does, so concatenating documents before formatting
-/// cannot produce the "ran a variable's *value* across a file boundary that
-/// never shares a scope at run time" defect #2120 is about.
+/// Each document retains its own resolved source input and command advice.
+/// Joining the output does not share declarations or aliases across inputs.
 pub fn run_format(
     input: &InputArgs,
     indent_size: Option<usize>,
@@ -92,19 +87,26 @@ pub fn run_format(
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    for document in &documents {
+        document.require_faithful_source()?;
+    }
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
-    let source = combine_sources(&documents);
-    let registry = registry_for_dialect(dialect.name);
-
-    let config = format_config(dialect.name, indent_size, indent_style, max_line_length);
-
-    // `formatting_with` returns a single whole-document edit, or an empty Vec
-    // when the source is already canonical.
-    let edits = formatting_with(&source, &config, &registry);
-    let formatted = edits
-        .into_iter()
-        .next()
-        .map_or(source, |edit| edit.new_text);
+    // Each input keeps its own command table and source ingress. Joined output
+    // does not let a rename or declaration in one input govern another.
+    let formatted = documents
+        .iter()
+        .map(|document| {
+            let profile = document.effective_dialect(input.dialect_profile()?);
+            let registry = registry_for_dialect(profile.name);
+            let config = format_config(profile.name, indent_size, indent_style, max_line_length);
+            Ok(tcl_lsp_core::formatting::format_tcl(
+                &document.source,
+                &config,
+                &registry,
+            ))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?
+        .join("\n");
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
@@ -118,20 +120,10 @@ pub fn run_format(
 /// single pass; only `aggressive` runs multi-pass to a fixpoint (max 5
 /// iterations).
 ///
-/// Unlike `format` and `minify`, each input is *analysed* as its own program —
-/// its own dialect, its own directives, its own policy, its own optimiser
-/// pass — rather than concatenated with the others first. The rendered output
-/// is still one script, so `tcl opt src/ -o build/optimised.tcl` keeps doing
-/// what the README documents. Two files named on one command line
-/// never share a scope at run time (they are two separate `tclsh` loads), so
-/// folding a store in one across into a load in the other is simply wrong: it
-/// forwards a value the second file could never actually see, and can delete
-/// the first file's store as "dead" when the only "use" the optimiser found
-/// was the second file (#2120). `tcl diag`'s cross-file call-site evidence is
-/// a different, opt-in thing — analysing how programs *call* each other, not
-/// asserting they execute in one shared frame — so it does not apply here.
-/// A user who wants several files optimised as one unit can concatenate them
-/// themselves; this verb must not do it silently.
+/// Each input is analysed separately with its own dialect, directives and
+/// policy, so rewrites do not assume a shared scope across files. The rewritten
+/// inputs are joined into one output script. To optimise several files as one
+/// unit, concatenate them before passing them to this verb.
 ///
 /// A rewrite is a finding like any other (`docs/design/compiler/diagnostic-policy.md`
 /// § Adapters): only the rewrites the document's policy shows are applied,
@@ -153,25 +145,17 @@ pub fn run_opt(
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    for document in &documents {
+        document.require_faithful_source()?;
+    }
     let explicit_dialect = input.dialect_profile()?;
 
     let requested = profile.map(OptimisationProfile::parse);
     let layers = ConfigLayers::new(invocation_layer(disable, enable, "optimiser"));
 
     let target = OutputTarget::from_arg(input.output.as_deref());
-    // Per-file is the unit of *analysis*, not of output. The rendered text
-    // stays one program, joined exactly as `combine_sources` joined the
-    // inputs, because `tcl opt src/ -o build/optimised.tcl` is documented
-    // (README, `kcs-feature-tcl-verb-cli`) as optimising a tree "into one
-    // output script": a `# file:` banner in the program text would push a
-    // leading `#!` off byte zero and stop that script being executable.
-    // Which file each rewrite came from is reported in the trailing comment
-    // summary instead, where it cannot corrupt the program.
-    //
-    // Optimising each input separately and then concatenating is safe for
-    // both readings: if the files really are loaded together the result is
-    // merely conservative (cross-file folds are missed), whereas the old
-    // optimise-the-concatenation order was *unsound* when they are not.
+    // Keep file labels in the trailing rewrite summary so a leading shebang
+    // remains at byte zero in the joined output.
     let multi_file = documents.len() > 1;
     let mut sections: Vec<String> = Vec::with_capacity(documents.len());
     let mut per_file: Vec<(String, Vec<String>)> = Vec::with_capacity(documents.len());
@@ -191,10 +175,21 @@ pub fn run_opt(
         // Profile spec (`profile_spec`): only `aggressive` is multi-pass (max 5
         // iters); every other profile (including `full`) is a single pass.
         // Every pass applies only the rewrites the policy shows.
+        let overlay = tcl_cli_support::spec_pack_key(dialect.name);
+        let context = tcl_registry::model::resolve_environment(dialect.name)
+            .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+            .context("resolve optimiser analysis context")?
+            .with_command_store(std::sync::Arc::clone(&registry));
+        let analysis_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            dialect,
+            dialect,
+            std::sync::Arc::new(context),
+            tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
+        );
         let out = optimise_under_policy(
             &source,
             &registry,
-            Some(dialect),
+            Some(&analysis_input),
             policy.optimiser.profile.max_iterations(),
             &policy,
         );
@@ -209,7 +204,7 @@ pub fn run_opt(
         sections.push(out.text);
     }
 
-    // A single input keeps the pre-#2120 bytes exactly — no trim, no join.
+    // Preserve a single input's trailing newlines without joining.
     let mut rendered = if multi_file {
         combine_texts(sections.iter().map(String::as_str))
     } else {
@@ -240,10 +235,8 @@ pub fn run_opt(
         );
     }
 
-    // Highlighting is cosmetic styling of the rendered text, not an analysis
-    // decision, so one dialect for the whole rendered block (the same
-    // detection-order fallback `combined_effective_dialect` always used) is
-    // fine even when the inputs' own dialects differ.
+    // Highlight the joined output with one dialect; analysis uses each input's
+    // own dialect above.
     let dialect = combined_effective_dialect(&documents, explicit_dialect);
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
     write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, dialect)?;
@@ -302,15 +295,9 @@ pub struct MinifyOptions {
 
 /// `tcl minify` — strip comments, collapse whitespace, join commands.
 ///
-/// Kept on `combine_sources` after #2120's investigation of `run_opt`'s
-/// concatenation bug: unlike `opt`, whose output stays N separate files that
-/// are never run together, `minify` has no per-file output (one stream, no
-/// `--in-place`) — several inputs name a bundle that is meant to be sourced
-/// as a single deployment artifact. Once bundled, the files *do* share one
-/// runtime scope, so `--aggressive`'s optimiser pass, name compaction and
-/// cross-command aliasing over the whole bundle are correct for what this
-/// verb produces, not the same defect as `opt` folding across files that stay
-/// separate.
+/// Inputs form one bundle before minification. Aggressive optimisation, name
+/// compaction and cross-command aliasing therefore operate across the bundle,
+/// which must be sourced as one script.
 pub fn run_minify(
     input: &InputArgs,
     symbol_map: Option<&Path>,
@@ -323,6 +310,9 @@ pub fn run_minify(
         isolated,
     } = options;
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    for document in &documents {
+        document.require_faithful_source()?;
+    }
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
     let registry = registry_for_dialect(dialect.name);
@@ -330,28 +320,33 @@ pub fn run_minify(
     let target = OutputTarget::from_arg(input.output.as_deref());
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
 
-    let (rendered, map) = match tier {
-        MinifyTier::Aggressive => {
-            let result =
-                minify_tcl_aggressive_with(&source, dialect, isolated, &registry, abbreviations);
-            (result.source, Some(result.symbol_map))
-        }
-        MinifyTier::Compact => {
-            let (minified, sm) = minify_tcl_compact(&source, dialect, isolated, &registry);
-            (minified, Some(sm))
-        }
-        MinifyTier::Default => (minify_tcl(&source, dialect, &registry), None),
+    let core_tier = match tier {
+        MinifyTier::Aggressive => CoreMinifyTier::Aggressive,
+        MinifyTier::Compact => CoreMinifyTier::Compact,
+        MinifyTier::Default => CoreMinifyTier::Default,
     };
+    let result = minify_with_profile(
+        &source,
+        dialect,
+        &registry,
+        CoreMinifyOptions {
+            tier: core_tier,
+            isolated,
+            abbreviations,
+        },
+    );
+    for refusal in &result.refusals {
+        eprintln!("minify: {}", refusal.reason());
+    }
+    let rendered = result.source;
+    let map = result.symbol_map;
 
     write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, dialect)?;
 
     if let Some(path) = symbol_map {
-        // Always honour `--symbol-map FILE`, even for plain minify (which does
-        // no renaming and so produces an empty, identity symbol map).
-        // Skipping the write left the file uncreated, so a later
-        // `unminify-error` failed on a missing path — and the flag's help
-        // documents no dependency on `--compact`/`--aggressive` (issue 198).
-        let map_text = map.unwrap_or_default().format();
+        // Plain minification also writes the requested map, even though it
+        // performs no renaming and the map is empty.
+        let map_text = map.format();
         write_text_output(&OutputTarget::File(path.to_path_buf()), &map_text)?;
     }
     Ok(0)

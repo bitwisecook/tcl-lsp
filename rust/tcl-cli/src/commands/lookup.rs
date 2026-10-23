@@ -61,34 +61,12 @@ pub fn run_command_info(
     json: bool,
     output: Option<&Path>,
 ) -> anyhow::Result<u8> {
-    let query = command.trim();
-    if query.is_empty() {
-        anyhow::bail!("command name is required");
-    }
+    let query = command;
     let registry = registry_for_dialect(dialect.name);
-    // The dialect's assistance view — the `ResolvedContext` that replaces
-    // `ProfileQueries`. It answers over the pack-layered store this verb
-    // holds rather than its own generation, which is what `resolve_spec`
-    // exists for.
     let context = tcl_cli_support::environment::context_for_dialect(dialect.name);
     let target = OutputTarget::from_arg(output);
 
-    // Exact match, then a case-insensitive fallback (mirrors
-    // lookup_command_info). Resolution is dialect-true (§5.1): a command
-    // that exists in the data but is unavailable under `dialect` — banned
-    // in iRules, version-gated above the profile's base — reports
-    // not-found for that dialect.
-    let resolved_name: Option<String> = if context.resolve_spec(&registry, query).is_some() {
-        Some(query.to_owned())
-    } else {
-        let lowered = query.to_lowercase();
-        registry
-            .command_names()
-            .find(|c| c.to_lowercase() == lowered && context.resolve_spec(&registry, c).is_some())
-            .map(str::to_owned)
-    };
-
-    let Some(resolved_name) = resolved_name else {
+    let Some(spec) = context.resolve_spec(&registry, query) else {
         if json {
             let payload = NotFoundPayload {
                 found: false,
@@ -111,9 +89,6 @@ pub fn run_command_info(
         return Ok(1);
     };
 
-    let spec = context
-        .resolve_spec(&registry, &resolved_name)
-        .expect("resolved command spec");
     let summary = spec
         .hover
         .as_ref()
@@ -123,8 +98,6 @@ pub fn run_command_info(
         .as_ref()
         .map(|h| h.synopsis.iter().map(|s| (*s).to_owned()).collect())
         .unwrap_or_default();
-    // §5.2 option gating (intersects + version ceiling) — the same rule
-    // hover/completion/the snapshot use.
     let mut switches: Vec<String> = context
         .available_option_names(spec)
         .into_iter()
@@ -138,7 +111,7 @@ pub fn run_command_info(
     if json {
         let payload = FoundPayload {
             found: true,
-            command: resolved_name.clone(),
+            command: query.to_owned(),
             dialect: dialect.name.to_owned(),
             summary,
             synopsis,
@@ -153,7 +126,7 @@ pub fn run_command_info(
     }
 
     let mut lines = vec![
-        format!("command: {resolved_name}"),
+        format!("command: {query}"),
         format!("dialect: {}", dialect_label(dialect)),
     ];
     if !summary.is_empty() {

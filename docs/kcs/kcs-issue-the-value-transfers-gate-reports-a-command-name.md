@@ -42,7 +42,7 @@ is waived or gone. Every other file is *ratcheted*: its count of unwaived
 sites is pinned in `RATCHET`, the count may only fall, and a file with no
 pin may hold no site. A pin is lowered beside the review that removes or
 waives the file's sites — never raised, never added — and the ledger in
-`docs/design/compiler/value-transfers-migration.md` § *The ratchet over
+`docs/design/compiler/value-transfer-consumers.md` § *The ratchet over
 unreviewed files* carries the same pins with the review that retires each
 file; the gate fails when the two disagree.
 
@@ -89,4 +89,4 @@ its *The ratchet* table shows the file's new count.
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)
 - [kcs-qa-what-does-a-value-transfer-declaration-say.md](compiler/kcs-qa-what-does-a-value-transfer-declaration-say.md)
-- [value-transfers-migration.md](../design/compiler/value-transfers-migration.md) § *The drift gate and the generated inventory* and § *The ratchet over unreviewed files*
+- [value-transfer-consumers.md](../design/compiler/value-transfer-consumers.md) § *The drift gate and the generated inventory* and § *The ratchet over unreviewed files*

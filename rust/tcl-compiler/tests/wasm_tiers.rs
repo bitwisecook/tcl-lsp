@@ -21,7 +21,7 @@
 //! plus the committed framing budgets a compiled sample must stay under.
 //!
 //! This is the acceptance surface described in
-//! [`docs/design/compiler/wasm-native-lowering-plan.md`] (§2.2 for today's
+//! [`docs/design/compiler/wasm-native-lowering.md`] (§2.2 for today's
 //! divergences). It answers two questions on every commit:
 //!
 //! 1. **Does the compiled program still mean what Tcl means?** Each
@@ -34,7 +34,7 @@
 //!    [`SemanticOptimisationPassId::LegacyAnalysisSpecialisation`] tier.
 //! 2. **How much Tcl framing is left?** [`samples/wasm/budgets.tsv`] records,
 //!    per sample and plan, the number of `call` sites reaching
-//!    `tcl_eval_code` / `tcl_expr_bool` / `tcl_invoke_argv` and the number of
+//!    `tcl_eval_code` / `tcl_codegen_expr_bool` / `tcl_invoke_argv` and the number of
 //!    native 64-bit numeric instructions. A framing reduction lands as a
 //!    *reviewed golden diff* rather than an unmeasured claim.
 //!
@@ -194,7 +194,7 @@ const EXPECTED_DIVERGENCES: &[ExpectedDivergence] = &[
 struct Budget {
     /// `call` sites reaching `tcl_eval_code` — run-time re-parse of source.
     eval_code: usize,
-    /// `call` sites reaching `tcl_expr_bool` — a condition through the interp.
+    /// `call` sites reaching `tcl_codegen_expr_bool` — a condition through the interp.
     expr_bool: usize,
     /// `call` sites reaching `tcl_invoke_argv` — compiled words, runtime
     /// dispatch.
@@ -265,7 +265,7 @@ fn budget_of(module: &WasmModule) -> Budget {
             .map(|index| index as u64)
     };
     let eval_code = index_of(CodegenAbiImportId::EvalCode);
-    let expr_bool = index_of(CodegenAbiImportId::ExprBool);
+    let expr_bool = index_of(CodegenAbiImportId::ExprBoolEval);
     let invoke_argv = index_of(CodegenAbiImportId::InvokeArgv);
 
     let mut budget = Budget {
@@ -493,7 +493,7 @@ fn check_plan(plan: Plan) {
     assert!(
         report.is_empty(),
         "the {} plan does not agree with the expected-divergence ledger \
-         (§2.2 of docs/design/compiler/wasm-native-lowering-plan.md):\n{report}",
+         (§2.2 of docs/design/compiler/wasm-native-lowering.md):\n{report}",
         plan.as_str()
     );
     eprintln!(
@@ -545,7 +545,7 @@ fn render_budgets() -> String {
          # counts native 64-bit numeric instructions (arithmetic, bitwise and\n\
          # comparison; not const/load/store/extend).\n\
          #\n\
-         # Every phase of docs/design/compiler/wasm-native-lowering-plan.md moves\n\
+         # Every phase of docs/design/compiler/wasm-native-lowering.md moves\n\
          # these numbers, and a reviewed diff to this file is how that reduction is\n\
          # claimed. A number that goes UP without a matching design change is a\n\
          # framing regression.\n",

@@ -115,12 +115,8 @@ const CTX_KEYS: &[&str] = &[
 
 /// Whether reading `key` leaves a body inside the shape key.
 ///
-/// Asked of the engine rather than answered from a list kept here: the same
-/// [`HookInputs`] that decides caching at `allocate` time decides it here, so
-/// the two cannot drift. They had drifted in both directions — this tool
-/// called `tcl-version` and `in-event-body` uncacheable when `ShapeKey`
-/// carries both, and called the option trio cacheable when it carries
-/// neither.
+/// Use the engine's [`HookInputs`] rule so this report and cache allocation
+/// agree on which declared inputs are shape-only.
 fn ctx_key_in_shape(key: &str) -> bool {
     HookInputs::parse(&[key]).shape_only()
 }
@@ -163,6 +159,9 @@ fn ctx_key_in_shape(key: &str) -> bool {
 pub fn spectcl_check(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
     let dialect = crate::tools::declared_dialect(args);
+    let hook_config = tcl_lexer::LexerConfig::for_profile(Some(
+        crate::environment::profile_for_dialect(&dialect),
+    ));
     let registry = tcl_spectcl::bundled::registry_for_dialect(&dialect);
     let tier = declared_tier(args);
     let trust = declared_trust(args);
@@ -175,7 +174,7 @@ pub fn spectcl_check(args: &Value) -> Value {
     let commands: Vec<Value> = pack
         .commands
         .iter()
-        .map(|c| command_json(c, &defaults, &sub_defaults))
+        .map(|c| command_json(c, &defaults, &sub_defaults, hook_config))
         .collect();
     let mut notices: Vec<Value> = pack
         .notices
@@ -227,7 +226,7 @@ pub fn spectcl_check(args: &Value) -> Value {
         .commands
         .iter()
         .flat_map(|c| c.hooks.iter())
-        .filter(|h| declaration_conflict(h, &CtxScan::of(h)).is_some())
+        .filter(|h| declaration_conflict(h, &CtxScan::of(h, hook_config)).is_some())
         .count();
     let evaluate_finding_count: usize = pack
         .commands
@@ -436,7 +435,12 @@ pub fn spectcl_expand(args: &Value) -> Value {
 
 /// One command: its name, the draft fields the declaration set, its
 /// subcommands, and its hooks.
-fn command_json(cmd: &PackCommand, defaults: &Draft, sub_defaults: &Draft) -> Value {
+fn command_json(
+    cmd: &PackCommand,
+    defaults: &Draft,
+    sub_defaults: &Draft,
+    config: tcl_lexer::LexerConfig,
+) -> Value {
     let d = draft::from_command_spec(cmd.spec);
     let subcommands: Vec<Value> = d
         .get("subcommands")
@@ -451,7 +455,11 @@ fn command_json(cmd: &PackCommand, defaults: &Draft, sub_defaults: &Draft) -> Va
             })
         })
         .collect();
-    let hooks: Vec<Value> = cmd.hooks.iter().map(|h| hook_json(h, cmd.spec)).collect();
+    let hooks: Vec<Value> = cmd
+        .hooks
+        .iter()
+        .map(|h| hook_json(h, cmd.spec, config))
+        .collect();
     let families: BTreeSet<&str> = cmd.hooks.iter().map(|h| family_key(h.family)).collect();
 
     json!({
@@ -533,13 +541,13 @@ fn owner_label(owner: &HookOwner) -> String {
     }
 }
 
-fn hook_json(hook: &HookDecl, spec: &CommandSpec) -> Value {
+fn hook_json(hook: &HookDecl, spec: &CommandSpec, config: tcl_lexer::LexerConfig) -> Value {
     let (kind, detail) = match &hook.source {
         HookSource::Body { params, .. } => ("body", params.join(" ")),
         HookSource::Native { id } => ("native", id.clone()),
         HookSource::Derived { keyword } => ("derived", keyword.clone()),
     };
-    let scan = CtxScan::of(hook);
+    let scan = CtxScan::of(hook, config);
     let (cacheable, reason) = shape_cacheability(hook);
     json!({
         "owner": owner_label(&hook.owner),
@@ -732,9 +740,9 @@ struct CtxScan {
 impl CtxScan {
     /// Scan a hook's body. A native or derived hook has none, and reads
     /// nothing.
-    fn of(hook: &HookDecl) -> Self {
+    fn of(hook: &HookDecl, config: tcl_lexer::LexerConfig) -> Self {
         match &hook.source {
-            HookSource::Body { body, .. } => ctx_reads(body),
+            HookSource::Body { body, .. } => ctx_reads(body, config),
             HookSource::Native { .. } | HookSource::Derived { .. } => Self::default(),
         }
     }
@@ -860,39 +868,32 @@ fn declaration_conflict(hook: &HookDecl, scan: &CtxScan) -> Option<String> {
     })
 }
 
-/// Scan a hook body for `dict get $ctx KEY`.
-///
-/// Textual on purpose: the pack itself is parsed exactly once, by the loader,
-/// which carries a hook body through as verbatim text because the sandbox that
-/// will eventually run it does not exist yet. Until it does there is no
-/// compiled form to interrogate, and a heuristic that can only be pessimistic
-/// is the honest amount of machinery for a report.
-fn ctx_reads(body: &str) -> CtxScan {
+/// Bounded textual hook-context advice; opaque uses remain unattributed.
+/// This report cannot establish an executed hook or compiled context read.
+fn ctx_reads(body: &str, config: tcl_lexer::LexerConfig) -> CtxScan {
     let mut scan = CtxScan::default();
-    let mut attributed = 0usize;
-    let mut total = 0usize;
-
     let bytes = body.as_bytes();
-    let mut i = 0;
-    while let Some(at) = body[i..].find("$ctx").map(|p| p + i) {
-        let after = at + "$ctx".len();
-        // `$ctxfoo` is a different variable, not a `ctx` reference.
-        let is_ctx = bytes.get(after).is_none_or(|b| !is_name_byte(*b));
-        i = after;
-        if !is_ctx {
+    let mut offset = 0;
+    while let Some(at) = bytes[offset..]
+        .iter()
+        .position(|byte| *byte == b'$')
+        .map(|relative| offset + relative)
+    {
+        offset = at + 1;
+        let Ok(Some(reference)) = tcl_lexer::scan_var_ref(bytes, at, config) else {
+            continue;
+        };
+        if reference.name != b"ctx" {
             continue;
         }
-        total += 1;
-        if let Some(key) = dict_get_key(body, at, after) {
-            attributed += 1;
+        if reference.index.is_none()
+            && let Some(key) = dict_get_key(body, at, reference.next)
+        {
             scan.keys.insert(key);
+            continue;
         }
+        scan.unattributed = true;
     }
-    // `${ctx}` — the braced spelling reads the same variable, and is never
-    // part of the `dict get $ctx KEY` shape this scan recognises.
-    total += body.matches("${ctx}").count();
-
-    scan.unattributed = attributed < total;
     scan
 }
 
@@ -1178,9 +1179,8 @@ speclib mylib 1.0 {
         assert_eq!(result["summary"]["uncacheable_hooks"], 1);
     }
 
-    /// `in-event-body` and `tcl-version` are *in* the shape key — `ShapeKey`
-    /// carries both — so declaring and reading them is cacheable. This is the
-    /// pair this tool used to call uncacheable while the engine cached them.
+    /// `in-event-body` and `tcl-version` are declared shape-only inputs,
+    /// retained by `ShapeKey`, so declaring and reading them is cacheable.
     #[test]
     fn the_shape_key_extends_past_the_words() {
         let source = r"
@@ -1202,10 +1202,9 @@ speclib mylib 1.0 {
         assert_eq!(result["summary"]["uncacheable_hooks"], 0);
     }
 
-    /// The one silent miscompile a pack can cause: the declaration arms the
-    /// cache, the body reads something the key does not carry, and nothing at
-    /// runtime checks one against the other. `dialect` is outside the key, so
-    /// two documents of different dialects share an answer.
+    /// `dialect` is not a declared shape-only input. Reading it under a
+    /// `nwords` declaration is a conflict, even though `ShapeKey` retains the
+    /// call's dialect independently to keep cache entries dialect-specific.
     #[test]
     fn a_body_reading_past_its_declaration_is_flagged_as_a_conflict() {
         let source = r"
@@ -1558,6 +1557,51 @@ speclib mylib 1.0 {
         let set = strings(&sub["fields_set"]);
         assert!(set.contains(&"arity"), "{sub}");
         assert!(set.contains(&"return_type"), "{sub}");
+    }
+
+    #[test]
+    fn hook_context_references_use_the_selected_original_c_and_jim_grammar() {
+        let c = tcl_lexer::LexerConfig::for_profile(Some(crate::environment::profile_for_dialect(
+            "tcl9.0",
+        )));
+        let jim = tcl_lexer::LexerConfig::for_profile(Some(
+            crate::environment::profile_for_dialect("jimtcl"),
+        ));
+        assert!(ctx_reads("$ctxé", c).unattributed);
+        assert!(!ctx_reads("$ctxé", jim).unattributed);
+        for config in [c, jim] {
+            assert!(!ctx_reads("$ctxfoo ${ctxé}", config).unattributed);
+            assert!(ctx_reads("$ctx(key)", config).unattributed);
+            assert!(ctx_reads("${ctx}", config).unattributed);
+            let scan = ctx_reads("dict get ${ctx} nwords", config);
+            assert_eq!(scan.keys, BTreeSet::from(["nwords".to_owned()]));
+            assert!(!scan.unattributed);
+        }
+    }
+
+    #[test]
+    fn hook_context_report_threads_the_requested_target_grammar() {
+        let source = r"speclib contextgrammar 1.0 {
+            command contextgrammar::sample {
+                arity 1
+                arg_role_resolver -inputs {nwords} {ctx} {
+                    set sample $ctxé
+                    role 0 Body
+                }
+            }
+        }";
+        let c = check(source, "tcl9.0");
+        let jim = check(source, "jimtcl");
+        assert!(c["commands"][0]["hooks"][0]["declaration_conflict"].is_string());
+        assert_eq!(
+            jim["commands"][0]["hooks"][0]["declaration_conflict"],
+            Value::Null
+        );
+        assert_eq!(c["commands"][0]["hooks"][0]["shape_cacheable"], json!(true));
+        assert_eq!(
+            jim["commands"][0]["hooks"][0]["shape_cacheable"],
+            json!(true)
+        );
     }
 
     /// `$ctx` the scan cannot attribute to a literal key leaves a declaration

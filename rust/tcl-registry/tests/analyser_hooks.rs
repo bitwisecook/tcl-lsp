@@ -328,8 +328,8 @@ fn command_table_transitions_match_the_former_name_matches() {
     // contract the retired matches had. `interp aliases` is its own
     // subcommand and mutates nothing; a bare `interp` selects no
     // subcommand at all.
-    assert!(bindings(&reg, "interp", &["aliases"]).is_empty());
-    assert!(bindings(&reg, "interp", &[]).is_empty());
+    assert_eq!(bindings(&reg, "interp", &["aliases"]).len(), 0);
+    assert_eq!(bindings(&reg, "interp", &[]).len(), 0);
     // A `::`-qualified head states the same transitions as the bare one:
     // C Tcl resolves the explicitly global spelling to the
     // same command, so `::rename format ::origfmt` / `::interp alias {}
@@ -349,12 +349,12 @@ fn command_table_transitions_match_the_former_name_matches() {
     ));
     // Still nothing for an unrelated qualified name or a non-mutating
     // subcommand word.
-    assert!(bindings(&reg, "::interp", &["aliases"]).is_empty());
-    assert!(bindings(&reg, "::puts", &["x"]).is_empty());
+    assert_eq!(bindings(&reg, "::interp", &["aliases"]).len(), 0);
+    assert_eq!(bindings(&reg, "::puts", &["x"]).len(), 0);
 
     // A `rename` at any arity but two is `wrong # args`, which moves
     // nothing (ledger C8: the arity rule lives with the resolver now,
     // where every consumer sees it).
-    assert!(bindings(&reg, "rename", &["old"]).is_empty());
-    assert!(bindings(&reg, "rename", &["a", "b", "c"]).is_empty());
+    assert_eq!(bindings(&reg, "rename", &["old"]).len(), 0);
+    assert_eq!(bindings(&reg, "rename", &["a", "b", "c"]).len(), 0);
 }

@@ -1033,11 +1033,15 @@ fn arity_label(draft: &Draft) -> String {
         return "unknown".to_owned();
     };
     let min = arity.get("min").and_then(Value::as_u64).unwrap_or(0);
-    match arity.get("max").and_then(Value::as_u64) {
+    let mut label = match arity.get("max").and_then(Value::as_u64) {
         None => format!("{min}.."),
         Some(max) if max == min => min.to_string(),
         Some(max) => format!("{min}..{max}"),
+    };
+    if arity.get("count").and_then(Value::as_str) == Some("positionals") {
+        label.push_str(" positionals");
     }
+    label
 }
 
 /// A draft's inferred argument roles as a note reads them.
@@ -1095,6 +1099,11 @@ mod tests {
         assert_eq!(arity_label(&draft), "2");
         draft.insert("arity".into(), json!({ "min": 1, "max": Value::Null }));
         assert_eq!(arity_label(&draft), "1..");
+        draft.insert(
+            "arity".into(),
+            json!({ "min": 0, "max": 1, "count": "positionals" }),
+        );
+        assert_eq!(arity_label(&draft), "0..1 positionals");
     }
 
     #[test]

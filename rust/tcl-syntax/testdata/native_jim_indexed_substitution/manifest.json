@@ -1,0 +1,53 @@
+{
+  "native_records": 205,
+  "rust_comparisons": 0,
+  "native_proof": {
+    "native_only": true,
+    "rust_comparisons": 0,
+    "runs": [
+      {
+        "mode": "normal",
+        "exit": 0,
+        "windows": 205
+      },
+      {
+        "mode": "fatal-reuse",
+        "exit": 0,
+        "windows": 2
+      },
+      {
+        "mode": "fatal-nul",
+        "exit": -11,
+        "windows": 0
+      }
+    ],
+    "source": "Original native functions compiled with existing native configure headers; no JIM_MAINTAINER added",
+    "facts": [
+      "Normal: 32 selected-flag parses plus optimized four-token cache/duplicate/convert/lookup and ordinary Script reuse",
+      "Ordinary Script reuse enters unsupported token default; this native build disables JimPanic and returns guest Error with no result",
+      "CString open-parenthesis absent behind counted NUL reaches native SIGSEGV; not a successful conformance window"
+    ],
+    "no_uninitialized_fields_observed": [
+      "Substitution firstline",
+      "missing",
+      "linenr"
+    ],
+    "files": {
+      "/workspace/.proofs/2286-jim-indexed-substitution-native/probe.c": "5b7a8b20e98aa9b288bb2c3005e4afdf5412c17a0d84b00dc62d23f5983ba3b5",
+      "/workspace/.proofs/2286-jim-indexed-substitution-native/probe": "5ec7d73ccea00f899aeb05d49dbbcea8d60f6b230cba819bc49a0773795315fb",
+      "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+      "/workspace/.proofs/2286-jim-indexed-substitution-native/normal.tsv": "a39aa07928a9ab24a4813d97ae3e1899c2b149526a92bd2799e9a4c7293ec063",
+      "/workspace/.proofs/2286-jim-indexed-substitution-native/fatal-nul.tsv": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "/workspace/.proofs/2286-jim-indexed-substitution-native/fatal-reuse.tsv": "64c1c5032b74653c171c92c44c996376782075287d753a347904f1074bfa0df5",
+      "/workspace/.proofs/2286-jim-indexed-substitution-native/fatal-reuse.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "/workspace/.proofs/2286-jim-indexed-substitution-native/fatal-nul.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "/workspace/.proofs/2286-jim-indexed-substitution-native/normal.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "files": {
+    "normal.tsv": "a39aa07928a9ab24a4813d97ae3e1899c2b149526a92bd2799e9a4c7293ec063",
+    "probe.c": "d9882bbacee2bf2a96055a9ea31dae4dd3b3002ac8952e908b5c2918f0446f99"
+  }
+}

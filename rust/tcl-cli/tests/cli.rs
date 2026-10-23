@@ -83,6 +83,33 @@ fn run_tcl_in(current_dir: &std::path::Path, args: &[&str]) -> Output {
 }
 
 #[test]
+fn command_info_preserves_exact_command_names() {
+    for (name, found) in [
+        ("puts", true),
+        ("::puts", true),
+        ("", false),
+        ("Puts", false),
+        ("PUTS", false),
+        (" puts", false),
+        ("puts ", false),
+        (" puts ", false),
+        ("\tputs", false),
+        ("puts\n", false),
+        (" ", false),
+    ] {
+        let output = tcl()
+            .args(["command-info", name, "--dialect", "tcl8.6", "--json"])
+            .output()
+            .expect("failed to spawn tcl binary");
+        assert_eq!(output.status.code(), Some(i32::from(!found)), "{name:?}");
+        let payload: serde_json::Value =
+            serde_json::from_slice(&output.stdout).expect("command-info JSON");
+        assert_eq!(payload["command"], name, "{name:?}");
+        assert_eq!(payload["found"], found, "{name:?}");
+    }
+}
+
+#[test]
 fn command_info_discovers_the_current_projects_spec_pack() {
     let project = spec_pack_project();
     let with_pack = tcl()
@@ -420,6 +447,59 @@ fn minimize_reduced_output_still_fires() {
 }
 
 #[test]
+fn transformations_refuse_lossy_source_before_writing_artifacts() {
+    let scratch = Scratch::new("faithful-source");
+    let input = scratch.write_bytes("invalid.tcl", b"proc \xff {} {return HELLO}\n");
+    for verb in ["format", "opt", "minify", "dis", "compwasm", "minimize"] {
+        let output_path = scratch.0.join(format!("{verb}.out"));
+        let sidecar = scratch.0.join(format!("{verb}.sidecar"));
+        let mut command = tcl();
+        command.args([
+            verb,
+            input.to_str().unwrap(),
+            "-o",
+            output_path.to_str().unwrap(),
+        ]);
+        match verb {
+            "minimize" => {
+                command.arg("W100");
+            }
+            "minify" => {
+                command.args(["--symbol-map", sidecar.to_str().unwrap()]);
+            }
+            "compwasm" => {
+                command.args(["--wat-output", sidecar.to_str().unwrap()]);
+            }
+            _ => {}
+        }
+        let output = command.output().expect("spawn tcl");
+        assert!(!output.status.success(), "{verb} accepted altered source");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("decoding errors"),
+            "{verb}: {output:?}"
+        );
+        assert!(!output_path.exists(), "{verb} published an output");
+        assert!(!sidecar.exists(), "{verb} published a sidecar");
+    }
+}
+
+#[test]
+fn literal_replacement_characters_remain_faithful_transform_input() {
+    let scratch = Scratch::new("literal-replacement-character");
+    let input = scratch.write("valid.tcl", "proc \u{fffd} {} {return HELLO}\n");
+    let output = tcl()
+        .args(["format", input.to_str().unwrap()])
+        .output()
+        .expect("spawn tcl");
+    assert!(output.status.success(), "{output:?}");
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .contains('\u{fffd}')
+    );
+}
+
+#[test]
 fn minify_symbol_map_written_for_plain_minify() {
     // `tcl minify --symbol-map FILE` without `--compact`/`--aggressive` must
     // still create the map file (an empty / identity map), not silently skip
@@ -566,11 +646,7 @@ fn opt_over_several_inputs_keeps_the_first_shebang_at_byte_zero() {
     );
 }
 
-/// Regression for #2120: `tcl opt` over several inputs used to concatenate
-/// them into one program before optimising, so a `set` in the first file
-/// could be constant-propagated into a read in the second and the first
-/// file's now-"unused" store eliminated as dead — even though the two files
-/// are never run in the same scope. Each input must be optimised on its own.
+/// Each input is optimised independently; a store cannot flow across files.
 #[test]
 fn opt_does_not_fold_a_store_across_a_file_boundary() {
     let out = String::from_utf8(run_tcl(&[

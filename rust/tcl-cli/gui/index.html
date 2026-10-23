@@ -1164,6 +1164,7 @@ puts $x"></textarea>
 var data = null;
 var compiledSource = '';
 var compiledDialect = '';
+var compiledSourceSnapshot = null;
 var $ = function(s) { return document.querySelector(s); };
 var $$ = function(s) { return document.querySelectorAll(s); };
 function getSource() { return compiledSource || document.querySelector('#source').value; }
@@ -1178,6 +1179,7 @@ let lastDialect = '';
 let workerReady = false;
 let pendingCompile = false;
 let monacoSourceHost = null;
+let activeCompile = null;
 let editorHealthError = '';
 
 function reportEditorStatus(message, kind) {
@@ -1235,6 +1237,8 @@ const worker = new Worker('worker.js');
         report: reportEditorStatus,
       });
       monacoSourceHost = host;
+      // A compiled result from before this model existed has no model receipt.
+      forceCompile();
       // Monaco is the only visible editor. The textarea remains hidden state
       // plumbing for the compiler worker and form events.
       $('#editorContainer').style.display = 'none';
@@ -1252,8 +1256,7 @@ const worker = new Worker('worker.js');
     }
 })();
 
-worker.onmessage = function(e) {
-  const msg = e.data;
+function receiveCompilerMessage(msg, request) {
   switch (msg.type) {
     case 'status':
       if (!editorHealthError) $('#statusMsg').textContent = msg.message;
@@ -1276,10 +1279,15 @@ worker.onmessage = function(e) {
       }
       break;
     case 'result':
+      if (!request || activeCompile !== request || request.worker !== worker
+          || request.source !== textarea.value || request.dialect !== $('#dialect').value
+          || request.optimisations !== enabledPasses.join(',')
+          || (request.sourceSnapshot && !monacoSourceHost?.sourceIsCurrent(request.sourceSnapshot))) return;
       try {
         data = msg.data;
-        compiledSource = lastSource;
-        compiledDialect = lastDialect;
+        compiledSource = request.source;
+        compiledDialect = request.dialect;
+        compiledSourceSnapshot = request.sourceSnapshot;
         populateDialectOptions(data && data.meta && data.meta.dialects);
         populateOptimisationPanel(data && data.semanticOptimisations);
         const failures = renderAll();
@@ -1299,16 +1307,24 @@ worker.onmessage = function(e) {
       }
       break;
     case 'error':
+      if (request && (activeCompile !== request || request.worker !== worker
+          || request.source !== textarea.value || request.dialect !== $('#dialect').value
+          || request.optimisations !== enabledPasses.join(',')
+          || (request.sourceSnapshot && !monacoSourceHost?.sourceIsCurrent(request.sourceSnapshot)))) return;
       showError(msg.error, msg.traceback);
       $('#spinner').style.display = 'none';
       setStatus('dirty');
       break;
   }
-};
+}
+worker.onmessage = function(e) { receiveCompilerMessage(e.data, null); };
 
 // A worker that dies (WASM OOM, an uncaught init failure) never answers, so
 // clear the spinner and say so rather than throbbing forever.
 worker.onerror = function(err) {
+  if (activeCompile) activeCompile.port.close();
+  activeCompile = null;
+  compiledSourceSnapshot = null;
   showError('Compiler worker failed: ' + (err && err.message ? err.message : String(err)));
   $('#spinner').style.display = 'none';
   setStatus('dirty');
@@ -1493,7 +1509,13 @@ function compile() {
   const source = textarea.value;
   const dialect = $('#dialect').value;
   const passes = enabledPasses.join(',');
-  if (!source.trim()) return;
+  if (!source.trim()) {
+    if (activeCompile) activeCompile.port.close();
+    activeCompile = null;
+    $('#spinner').style.display = 'none';
+    setStatus('dirty');
+    return;
+  }
   if (source === lastSource && dialect === lastDialect && passes === lastPasses) return;
 
   if (!workerReady) {
@@ -1510,7 +1532,20 @@ function compile() {
   lastPasses = passes;
   $('#spinner').style.display = 'block';
   setStatus('compiling');
-  worker.postMessage({ type: 'compile', source, dialect, optimisations: passes });
+  const channel = new MessageChannel();
+  const sourceSnapshot = monacoSourceHost?.captureSource() || null;
+  const request = { source, dialect, optimisations: passes, worker, port: channel.port1,
+    sourceSnapshot: sourceSnapshot && sourceSnapshot.source === source && sourceSnapshot.dialect === dialect
+      ? sourceSnapshot : null };
+  if (activeCompile) activeCompile.port.close();
+  activeCompile = request;
+  channel.port1.onmessage = function(event) {
+    try { receiveCompilerMessage(event.data, request); }
+    finally { channel.port1.close(); }
+  };
+  // The transferred reply endpoint belongs to this actual request; no newest
+  // source label or synthetic generation can relabel a different result.
+  worker.postMessage({ type: 'compile', source, dialect, optimisations: passes }, [channel.port2]);
 }
 
 // Force a compile even when the source, dialect and pass selection are
@@ -1583,21 +1618,21 @@ function updateBadges() {
   const counts = {
     'ir': data.ir.procedures ? Object.keys(data.ir.procedures).length + 1 : 1,
     'cfg-pre': data.cfgPreSsa.length,
-    'cfg-post': data.cfgPostSsa.length,
+    'cfg-post': explorerArrayCount(data.cfgPostSsa),
     'interproc': data.interprocedural.length,
     'types': data.types.reduce((n, f) => n + f.entries.length, 0),
     'rendered': (data.renderedProperties||[]).reduce((n, f) => n + f.entries.length, 0),
-    'opt': data.optimisations.length,
-    'optimiser-passes': (data.optimiserPasses||[]).reduce((n, p) => n + p.count, 0),
-    'gvn': data.gvn.length,
-    'shimmer': data.shimmer.length,
-    'taint': data.taintWarnings.length + data.taintTracking.reduce((n, f) => n + f.entries.length, 0),
+    'opt': explorerArrayCount(data.optimisations),
+    'optimiser-passes': Array.isArray(data.optimiserPasses) ? data.optimiserPasses.reduce((n, p) => n + p.count, 0) : undefined,
+    'gvn': explorerArrayCount(data.gvn),
+    'shimmer': explorerArrayCount(data.shimmer),
+    'taint': Array.isArray(data.taintWarnings) ? explorerArrayCount(data.taintWarnings) + data.taintTracking.reduce((n, f) => n + f.entries.length, 0) : undefined,
     'loops': (data.loops || []).reduce((n, f) => n + f.loops.length, 0),
     'intervals': (data.intervals || []).reduce((n, f) => n + f.entries.length, 0),
-    'bounds': (data.bounds || []).reduce((n, f) => n + f.findings.length + f.divzero.length, 0),
-    'irules-flow': (data.eventOrder || []).length + data.irulesFlow.length,
-    'event-order': (data.eventOrder || []).length,
-    'callouts': data.annotations.length,
+    'bounds': Array.isArray(data.bounds) ? data.bounds.reduce((n, f) => n + f.findings.length + f.divzero.length, 0) : undefined,
+    'irules-flow': Array.isArray(data.eventOrder) && Array.isArray(data.irulesFlow) ? explorerArrayCount(data.eventOrder) + explorerArrayCount(data.irulesFlow) : undefined,
+    'event-order': explorerArrayCount(data.eventOrder),
+    'callouts': explorerArrayCount(data.annotations),
     'segments': (data.segments || []).length,
     'asm': instrCount(data.asm),
     'wasm': instrCount(data.wasm),
@@ -1617,14 +1652,14 @@ function updateBadges() {
 
 // Source highlighting (standalone-only)
 function scrollSourceToCenter(start, end) {
-  monacoSourceHost?.highlightRanges([{start, end}]);
+  monacoSourceHost?.highlightRanges([{start, end}], compiledSourceSnapshot);
 }
 function scrollSourceToCenterNoSelect(start, end) {
-  monacoSourceHost?.highlightRanges([{start, end}]);
+  monacoSourceHost?.highlightRanges([{start, end}], compiledSourceSnapshot);
 }
 function highlightSourceRanges(ranges) {
   if (monacoSourceHost) {
-    monacoSourceHost.highlightRanges(ranges || []);
+    monacoSourceHost.highlightRanges(ranges || [], compiledSourceSnapshot);
     return;
   }
   const hl = sourceHighlights;
@@ -1779,6 +1814,7 @@ function setupOptDiffHover(pane) {
 // no per-warning-code colour rules.
 function renderShimmer() {
   const pane=$('#pane-shimmer');
+  if(!Array.isArray(data.shimmer)){pane.innerHTML=explorerViewUnavailableHtml();return;}
   if(!data.shimmer.length){pane.innerHTML='<div class="empty-state">No shimmer warnings</div>';return;}
   let html='<div class="section-header">Warnings</div>';
   for(const w of data.shimmer){
@@ -1891,18 +1927,18 @@ async function renderEventFlowGraph(container, events) {
 
 function renderIrulesFlow() {
   const pane=$('#pane-irules-flow');
-  const events = data.eventOrder || [];
-  const warnings = data.irulesFlow || [];
+  const events = Array.isArray(data.eventOrder) ? data.eventOrder : null;
+  const warnings = Array.isArray(data.irulesFlow) ? data.irulesFlow : null;
 
-  if (!events.length && !warnings.length) {
+  if (events && warnings && !events.length && !warnings.length) {
     pane.innerHTML = '<div class="empty-state">No events detected</div>';
     return;
   }
 
-  let html = '';
+  let html = events && warnings ? '' : explorerViewUnavailableHtml();
 
   // Event flow graph section
-  if (events.length) {
+  if (events && events.length) {
     html += '<div class="event-flow-section-label">Event Flow</div>';
     html += '<div class="event-flow-graph" id="eventFlowGraphContainer"></div>';
     // Store ranges for click navigation
@@ -1913,7 +1949,7 @@ function renderIrulesFlow() {
   }
 
   // Warnings section
-  if (warnings.length) {
+  if (warnings && warnings.length) {
     html += '<div class="event-flow-section-label">Warnings</div>';
     for (const w of warnings) {
       html += `<div class="irules-flow-item"${sourceRangeAttrs(w.range)}><span class="irules-code">${esc(w.code)}</span> ${esc(w.message)} <span style="color:var(--text-dim); font-size:10px">[${spanLabel(w.range)}]</span></div>`;
@@ -1924,7 +1960,7 @@ function renderIrulesFlow() {
   setupHoverHighlighting(pane);
 
   // Render mermaid graph asynchronously
-  if (events.length) {
+  if (events && events.length) {
     const graphContainer = $('#eventFlowGraphContainer');
     renderEventFlowGraph(graphContainer, events);
   }

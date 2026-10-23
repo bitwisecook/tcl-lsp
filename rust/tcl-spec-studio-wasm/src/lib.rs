@@ -234,11 +234,12 @@ pub fn import_package(files_json: &str, dialect: &str) -> String {
 ///
 /// `bytes` is the archive verbatim (a `File`'s `arrayBuffer`, a fetched release
 /// zipball). Returns
-/// `{"entries": [{"name", "text"}], "skipped": […], "members": n, "bytes": n}`
+/// `{"entries": [{"name", "text"}], "unsupported_encodings": […], "skipped": […], "members": n, "bytes": n}`
 /// — every `.tcl` / `.tm` / `.test` / `.itcl` / `.itk` member decoded as text,
 /// plus a line per member the caps or a read error kept out, so the page can
 /// say what it did not look at rather than quietly analysing less than the
-/// author thinks. Unreadable container bytes come back as `{"error": …}`.
+/// author thinks. Unsupported encodings identify preview text that cannot be
+/// used for release inference. Unreadable containers return `{"error": …}`.
 ///
 /// Nothing is written anywhere: the entries exist only as JSON strings handed
 /// straight back to the caller.
@@ -370,6 +371,24 @@ pub fn pack_command(source: &str, name: &str, dialect: &str) -> String {
                 "`{name}` is in neither the pack nor the {dialect} registry"
             )),
         }
+    })
+}
+
+/// Author one literal sample call from the selected pack and installed registry.
+/// Missing source declarations, unknown dialects and unavailable words refuse.
+#[wasm_bindgen]
+#[must_use]
+pub fn sample_call_source(source: &str, name: &str, dialect: &str, sample_source: &str) -> String {
+    let Some(dialect) = tcl_spec_studio::environment::known_catalogue_dialect(dialect) else {
+        return error("the selected sample dialect is unavailable");
+    };
+    with_store(source, |store| {
+        Resolution::new(Builtins::for_dialect(dialect), store)
+            .sample_call_source(name, sample_source)
+            .map_or_else(
+                || error("the selected source command has no sample-call descriptor"),
+                |value| to_string(&value),
+            )
     })
 }
 

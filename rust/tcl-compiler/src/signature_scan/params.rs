@@ -25,9 +25,10 @@
 //! name and whose remainder is the optional default (`a`, `{name default}`, and
 //! the escaped forms such as `a\ b` — which Tcl reads as name `a` default `b`).
 
-use tcl_lexer::backslash_subst;
-use tcl_syntax::formal_params::{FormalParameter, FormalParameterError, parse_formal_parameters};
-use tcl_syntax::list::{find_element, join_list};
+use tcl_syntax::formal_params::{
+    FormalParameter, FormalParameterError, parse_formal_parameters_in,
+};
+use tcl_syntax::list::{find_element, find_element_with_syntax, join_list};
 use tcl_syntax::word_rules::WordValueRules;
 
 use super::types::ParamDef;
@@ -138,7 +139,7 @@ pub fn parse_param_list(param_str: &str, rules: WordValueRules) -> Vec<ParamDef>
     };
     specs
         .iter()
-        .filter_map(|spec| spec_to_param(spec))
+        .filter_map(|spec| spec_to_param(spec, rules))
         .collect()
 }
 
@@ -195,7 +196,8 @@ pub fn bind_proc_formals(
     Some(bound)
 }
 
-/// Parse a complete parameter list with Tcl's strict execution semantics.
+/// Authored C Tcl compatibility form of [`parse_param_list_strict_in`].
+/// Production consumers with a selected engine use the explicit grammar API.
 ///
 /// Unlike [`parse_param_list`], this rejects malformed lists, invalid formal
 /// names, and parameter specifiers with other than one or two fields.  The
@@ -211,8 +213,19 @@ pub fn parse_param_list_strict(
     param_str: &str,
     rules: WordValueRules,
 ) -> Result<Vec<FormalParameter>, FormalParameterError> {
+    parse_param_list_strict_in(param_str, rules, tcl_dialect::ParameterGrammar::Tcl)
+}
+
+/// Parse original formal text under independently selected word and parameter
+/// grammars. Word-value rules cannot select the engine's name, rest, default or
+/// caller-link grammar. This validates syntax; it issues no entered activation.
+pub fn parse_param_list_strict_in(
+    param_str: &str,
+    rules: WordValueRules,
+    grammar: tcl_dialect::ParameterGrammar,
+) -> Result<Vec<FormalParameter>, FormalParameterError> {
     let collapsed = rules.collapse_braced_word(param_str);
-    parse_formal_parameters(&collapsed)
+    parse_formal_parameters_in(&collapsed, grammar)
 }
 
 /// Turn one parameter *spec* (a list element value, delimiters already
@@ -222,14 +235,20 @@ pub fn parse_param_list_strict(
 /// escaped `a\ b`) → name `a` default `b`; and a braced-verbatim `a\ b` (from
 /// `{a\ b}`) → the single name `a b`. Returns `None` for an empty / nameless
 /// spec (which Tcl itself rejects).
-fn spec_to_param(spec: &str) -> Option<ParamDef> {
-    let first = find_element(spec, 0).ok().flatten()?;
-    let name_raw = spec.get(first.value.clone())?;
-    let name = if first.literal {
-        name_raw.to_string()
-    } else {
-        backslash_subst(name_raw).into_owned()
+fn spec_to_param(spec: &str, rules: WordValueRules) -> Option<ParamDef> {
+    let first = find_element_with_syntax(spec, 0, rules.list)
+        .ok()
+        .flatten()?;
+    // The nested spec is a list value too. Its first field must use the same
+    // selected list receiver as the outer list; a default Tcl reparse would
+    // discard a genuine lenient grammar. Keep the original remainder as
+    // tolerant display default data, independently of strict formal binding.
+    let prefix = spec.get(..first.next)?;
+    let names = rules.split_list(prefix).ok()?;
+    let [name] = names.as_slice() else {
+        return None;
     };
+    let name = name.to_string();
     if name.is_empty() {
         return None;
     }
@@ -582,8 +601,14 @@ mod tests {
 
     #[test]
     fn empty_input_yields_no_params() {
-        assert!(parse_param_list("", WordValueRules::TCL).is_empty());
-        assert!(parse_param_list("   \t\n  ", WordValueRules::TCL).is_empty());
+        assert_eq!(
+            parse_param_list("", WordValueRules::TCL),
+            [] as [crate::signature_scan::types::ParamDef; 0]
+        );
+        assert_eq!(
+            parse_param_list("   \t\n  ", WordValueRules::TCL),
+            [] as [crate::signature_scan::types::ParamDef; 0]
+        );
     }
 
     #[test]
@@ -622,7 +647,7 @@ mod tests {
             vec![Span::new(1, 2), Span::new(4, 5), Span::new(9, 10)]
         );
         // Empty list.
-        assert!(param_name_spans("{}", 0).is_empty());
+        assert_eq!(param_name_spans("{}", 0), [] as [tcl_lexer::Span; 0]);
         // Unbraced single word.
         assert_eq!(param_name_spans("args", 5), vec![Span::new(5, 9)]);
     }
@@ -979,7 +1004,7 @@ mod tests {
         let params_tok = nth_word_token(source, 2);
         assert_eq!(&source[params_tok.span.as_range()], "{}");
         let spans = param_name_spans_for_token(source, params_tok);
-        assert!(spans.is_empty());
+        assert_eq!(spans, [] as [tcl_lexer::Span; 0]);
     }
 
     #[test]
@@ -1011,6 +1036,31 @@ mod tests {
             content_offset: 1,
             in_quote: false,
         };
-        assert!(param_name_spans_for_token("short", bogus).is_empty());
+        assert_eq!(
+            param_name_spans_for_token("short", bogus),
+            [] as [tcl_lexer::Span; 0]
+        );
+    }
+}
+
+#[cfg(test)]
+mod selected_nested_formal_rules_tests {
+    use super::*;
+
+    #[test]
+    fn nested_formal_receiver_keeps_selected_lenient_list_grammar() {
+        let source = "{{a}x default}";
+        assert!(parse_param_list(source, WordValueRules::TCL).is_empty());
+        let jim = WordValueRules {
+            list: tcl_dialect::ListParse::Lenient,
+            ..WordValueRules::TCL
+        };
+        let params = parse_param_list(source, jim);
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0].name, "a");
+        assert_eq!(params[0].default_value.as_deref(), Some("x default"));
+        let escaped = parse_param_list("{a\\ b default}", jim);
+        assert_eq!(escaped[0].name, "a b");
+        assert_eq!(escaped[0].default_value.as_deref(), Some("default"));
     }
 }

@@ -505,7 +505,7 @@ fn a_source_through_an_imported_constant_behaves_like_a_local_one() {
     lsp.open_ready(&parent, &parent_text);
     lsp.open_ready(&reader, &reader_text);
 
-    let diags = settled(&lsp, &reader, |d| !has(d, "W120"));
+    let diags = lsp.current_complete_diagnostics(&reader, 1, &reader_text, Duration::from_secs(20));
     assert!(
         !has(&diags, "W120"),
         "the imported constant resolves the reader's source, so Tk is known \

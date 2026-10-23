@@ -40,6 +40,7 @@ pub mod jsonfmt;
 pub mod links;
 pub mod lint;
 pub mod model;
+pub mod object_names;
 pub mod parser;
 pub mod pcap_enrich;
 pub mod pcap_remap;

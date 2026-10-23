@@ -44,7 +44,7 @@ use crate::compilation_unit::CompilationUnit;
 use crate::intervals::Interval;
 use crate::native_integer_proof::{
     NativeAddDecision, NativeAddExecution, NativeAddResult, NativeIntegerPolicy,
-    NativeIntegerProof, prove_native_integer_adds,
+    NativeIntegerProof, prove_native_integer_adds_for_body,
 };
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::types::TypeShape;
@@ -75,10 +75,9 @@ pub(super) fn select(
         return Err(declines.into_vec());
     }
 
-    let common = CommonAotProofPlan::build(
+    let common = CommonAotProofPlan::build_with_retained_metadata(
         unit,
         registry,
-        unit.top_level.semantic_facts.context(),
         config,
         options.common_aot_environment(),
     );
@@ -232,7 +231,7 @@ struct Composition<'a> {
     common: &'a CommonAotProofPlan,
     coverage: Option<&'a ClosedProgramCoverageEvidence>,
     /// The integer proof per callee, since every call to one asks the same.
-    proofs: BTreeMap<String, NativeIntegerProof>,
+    proofs: BTreeMap<crate::ir::ProcedureId, NativeIntegerProof>,
 }
 
 impl Composition<'_> {
@@ -370,12 +369,12 @@ impl Composition<'_> {
         direct: &DirectProcEvidence,
         declines: &mut Declines,
     ) -> Option<(Interval, Interval)> {
-        let callee = direct.callee.qualified_name.as_str();
+        let callee = direct.callee.id;
         let (unit, registry, config, common) = (self.unit, self.registry, self.config, self.common);
-        let proof = self.proofs.entry(callee.to_owned()).or_insert_with(|| {
-            prove_native_integer_adds(
+        let proof = self.proofs.entry(callee).or_insert_with(|| {
+            prove_native_integer_adds_for_body(
                 unit,
-                callee,
+                Some(callee),
                 registry,
                 config,
                 NativeIntegerPolicy::default(),
@@ -399,6 +398,14 @@ impl Composition<'_> {
                 note(NativeDeclineReason::ProofComplexityGuarded);
                 return None;
             }
+            NativeIntegerProof::SourceMetadataUnavailable => {
+                note(NativeDeclineReason::ProofSourceMetadataUnavailable);
+                return None;
+            }
+            NativeIntegerProof::MathBindingPrerequisiteRequired => {
+                note(NativeDeclineReason::ProofMathBindingPrerequisiteRequired);
+                return None;
+            }
         };
         let native = match decisions.as_slice() {
             [NativeAddDecision::Proven(native)] => native,
@@ -420,9 +427,9 @@ impl Composition<'_> {
             note(NativeDeclineReason::CallerSetDiffers);
             accepted = false;
         }
-        let slots_are_integers = [native.left.value, native.right.value]
+        let slots_are_integers = [&native.left.identity, &native.right.identity]
             .into_iter()
-            .all(|value| selected_integer_slot(common, callee, value));
+            .all(|operand| selected_native_operand_argument(common, direct, operand));
         if native.site.result != NativeAddResult::FunctionReturn
             || native.execution != NativeAddExecution::OverflowImpossible
             || !native.composition.requires_frame_plan
@@ -561,6 +568,7 @@ fn covered_shape(
             direct.actual_values.as_slice(),
             [DirectActualValue::Ssa(left), DirectActualValue::Ssa(right)] if left == first && right == second
         )
+        && call.body_id == direct_site.body_id
         && call.function == direct_site.function
         && call.block == direct_site.block
         && call.statement_index == direct_site.statement_index
@@ -714,10 +722,14 @@ mod tests {
 
     #[test]
     fn a_rejected_body_records_each_premise_it_takes_down() {
-        let plan = plan_of(
-            SEALED,
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for_dialect(SEALED, &registry, false, "tcl9.0");
+        let plan = compile_wasm(
+            &unit,
+            &registry,
             options(&without(SemanticOptimisationPassId::NativeInteger)),
-        );
+        )
+        .plan;
         assert_eq!(
             summary(&plan),
             [
@@ -728,6 +740,8 @@ mod tests {
             ]
         );
         let site = DirectCallSiteId {
+            module_id: unit.ir_module.procedure_ids.module_id(),
+            body_id: None,
             function: "::top".to_owned(),
             block: crate::cfg::BlockId(0),
             statement_index: 3,
@@ -797,4 +811,43 @@ mod tests {
             ]
         );
     }
+}
+
+pub(super) fn selected_native_operand_argument(
+    common: &CommonAotProofPlan,
+    direct: &crate::common_aot_plan::DirectProcEvidence,
+    operand: &crate::native_integer_proof::NativeOperandIdentity,
+) -> bool {
+    use crate::native_integer_proof::NativeOperandIdentity;
+    match operand {
+        NativeOperandIdentity::Ssa(value) => {
+            selected_materialisable_int(common, direct.callee.id, *value)
+        }
+        NativeOperandIdentity::IncomingSlot(read) => common
+            .declared_argument_for_incoming_read(&direct.callee, read)
+            .is_some_and(|(identity, evidence)| {
+                evidence.shape() == &TypeShape::Int
+                    && direct.original_formals.as_deref()
+                        == Some(evidence.declaration().arguments())
+                    && usize::try_from(identity.ordinal)
+                        .ok()
+                        .and_then(|ordinal| direct.original_formals.as_ref()?.names().get(ordinal))
+                        .is_some_and(|original| original.as_bytes() == read.slot.as_bytes())
+            }),
+    }
+}
+
+fn selected_materialisable_int(
+    common: &CommonAotProofPlan,
+    body_id: crate::ir::ProcedureId,
+    value: crate::ssa::ValueKey,
+) -> bool {
+    common.materialisable_slots().any(|(identity, decision)| {
+        identity.body_id == Some(body_id)
+            && (identity.symbol, identity.version) == value
+            && matches!(
+                decision,
+                MaterialisableSlotDecision::Selected(evidence) if evidence.shape == TypeShape::Int
+            )
+    })
 }

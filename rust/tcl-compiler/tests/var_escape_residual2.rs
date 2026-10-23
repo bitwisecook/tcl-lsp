@@ -87,23 +87,103 @@ fn registry() -> &'static CommandRegistry {
     static_context_for(TCL).commands()
 }
 
+enum EscapeSource {
+    Unit(Box<CompilationUnit>),
+    Ir(Box<tcl_compiler::Module>),
+}
+
 /// Flow-sensitive CFG/SSA escape summaries (codegen's frame-analysis path),
 /// interprocedural fixpoint folded in.
-fn escape_cu(src: &str) -> HashMap<String, ProcEscapeSummary> {
+struct EscapeSummaries {
+    source: EscapeSource,
+    by_body: HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
+}
+
+impl EscapeSummaries {
+    fn module(&self) -> &tcl_compiler::Module {
+        match &self.source {
+            EscapeSource::Unit(unit) => &unit.ir_module,
+            EscapeSource::Ir(module) => module,
+        }
+    }
+
+    fn fixture_body(&self, label: &str) -> tcl_core_types::BodyFrameId {
+        let module = self.module();
+        if label == tcl_compiler::var_escape::TOP_LEVEL_QNAME {
+            return tcl_core_types::BodyFrameId::Top(module.procedure_ids.module_id());
+        }
+        if std::env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_some() {
+            for (id, body) in module.procedures.iter().chain(module.body_lowerings()) {
+                let original = match &self.source {
+                    EscapeSource::Unit(unit) => unit.original_procedure_for_body(*id).is_some(),
+                    EscapeSource::Ir(_) => module.procedures.contains_key(id),
+                };
+                eprintln!(
+                    "ESCAPE_BODY_OWNER id={id:?} kind={:?} label={:?} span={:?} original={} summary={}",
+                    body.body_kind,
+                    body.qualified_name,
+                    body.span,
+                    original,
+                    self.by_body
+                        .contains_key(&tcl_core_types::BodyFrameId::Body(*id)),
+                );
+            }
+        }
+        let mut bodies = module
+            .procedures
+            .iter()
+            .chain(module.body_lowerings())
+            .filter(|(id, body)| match &self.source {
+                EscapeSource::Unit(unit) => unit
+                    .original_procedure_for_body(**id)
+                    .is_some_and(|original| std::ptr::eq(original, *body)),
+                EscapeSource::Ir(_) => module.procedures.contains_key(*id),
+            })
+            .filter(|(_, body)| body.qualified_name == label);
+        let (id, body) = bodies.next().expect("original authored fixture body");
+        assert!(
+            bodies.next().is_none(),
+            "ambiguous authored fixture body {label}"
+        );
+        assert!(module.procedure_ids.owns(*id));
+        if matches!(&self.source, EscapeSource::Unit(_)) {
+            assert!(matches!(
+                body.body_kind,
+                tcl_compiler::ir::ProcedureBodyKind::Named
+                    | tcl_compiler::ir::ProcedureBodyKind::OriginalDeclaration
+            ));
+        }
+        tcl_core_types::BodyFrameId::Body(*id)
+    }
+}
+
+fn escape_cu(src: &str) -> EscapeSummaries {
     let cu = CompilationUnit::build_for(src, registry(), false);
-    analyse_var_escape_cu(&cu, true)
+    let by_body = analyse_var_escape_cu(&cu, true);
+    EscapeSummaries {
+        source: EscapeSource::Unit(Box::new(cu)),
+        by_body,
+    }
 }
 
 /// CFG/SSA summaries with the interprocedural pass *off* — raw per-proc result.
-fn escape_cu_raw(src: &str) -> HashMap<String, ProcEscapeSummary> {
+fn escape_cu_raw(src: &str) -> EscapeSummaries {
     let cu = CompilationUnit::build_for(src, registry(), false);
-    analyse_var_escape_cu(&cu, false)
+    let by_body = analyse_var_escape_cu(&cu, false);
+    EscapeSummaries {
+        source: EscapeSource::Unit(Box::new(cu)),
+        by_body,
+    }
 }
 
 /// IR-walk escape summaries (the inliner's path), interprocedural on.
-fn escape_ir(src: &str) -> HashMap<String, ProcEscapeSummary> {
+fn escape_ir(src: &str) -> EscapeSummaries {
     let module = lower_to_ir(src, registry());
-    analyse_var_escape(&module, true)
+    let by_body = analyse_var_escape(&module, true);
+    EscapeSummaries {
+        source: EscapeSource::Ir(Box::new(module)),
+        by_body,
+    }
 }
 
 /// Drive the low-level [`analyse_cfg_function`] directly on a top-level script and
@@ -116,13 +196,15 @@ fn cfg_result(src: &str) -> CfgEscapeResult {
     analyse_cfg_function(&cfg, &ssa, std::iter::empty::<String>())
 }
 
-fn summary<'a>(map: &'a HashMap<String, ProcEscapeSummary>, qname: &str) -> &'a ProcEscapeSummary {
-    map.get(qname).unwrap_or_else(|| {
-        panic!(
-            "summary for {qname} not found; keys = {:?}",
-            map.keys().collect::<Vec<_>>()
-        )
-    })
+fn summary<'a>(map: &'a EscapeSummaries, qname: &str) -> &'a ProcEscapeSummary {
+    map.by_body
+        .get(&map.fixture_body(qname))
+        .unwrap_or_else(|| {
+            panic!(
+                "summary for {qname} not found; keys = {:?}",
+                map.by_body.keys().collect::<Vec<_>>()
+            )
+        })
 }
 
 /// True if `(name, version)` is tagged `Frame` in the per-SSA-version map.
@@ -458,15 +540,7 @@ fn cu_catch_dynamic_body_arg_is_pessimistic() {
 
 #[test]
 fn cu_catch_literal_body_threads_its_upvar() {
-    // `catch {upvar 1 cv v; set v $w}` — a brace-literal, straight-line body,
-    // so the CFG now lowers it into real blocks (#2207) and the inner `upvar`
-    // *is* seen: `v` is an alias for the caller's `cv`, which is what
-    // `EscapeTag::Frame` says.
-    //
-    // This used to assert `Local`, because `handle_catch` early-returned on
-    // the body text holding `$w` and never walked in. That answer was
-    // conservative-but-safe rather than right — the test's own comment called
-    // the precise upvar source "simply not threaded". It is threaded now.
+    // The literal catch body retains the original upvar caller-frame alias.
     let s = escape_cu("proc ::p {} { catch {upvar 1 cv v\n set v $w} }");
     let p = summary(&s, "::p");
     assert_eq!(
@@ -1030,7 +1104,10 @@ fn cu_top_level_eval_body_escapes_via_cu_map() {
     let s = escape_cu(
         "eval {if 1 {global tg\n incr tg}}\nproc ::p {} { eval {if 1 {global pg\n incr pg}} }",
     );
-    assert!(s.contains_key(TOP_LEVEL_QNAME), "top-level key present");
+    assert!(
+        s.by_body.contains_key(&s.fixture_body(TOP_LEVEL_QNAME)),
+        "top-level key present"
+    );
     assert!(
         summary(&s, TOP_LEVEL_QNAME).is_frame("tg"),
         "top-level eval global escapes"

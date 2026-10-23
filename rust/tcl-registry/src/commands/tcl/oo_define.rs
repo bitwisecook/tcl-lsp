@@ -50,11 +50,14 @@ const OO_DEFINE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
         },
     },
     resolver: None,
+    source_resolver: None,
     dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
 };
 
 const OO_DEFINE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(oo_define_state_transitions),
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -169,11 +172,20 @@ pub enum TclOoPropertyKind {
     Writable,
 }
 
+impl TclOoPropertyKind {
+    /// Canonical access kind from the independently selected Registry table.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        TCL_OO_PROPERTY_KINDS[self as usize].value
+    }
+}
+
 /// Resolve a configurable-property option from its registry metadata.
 ///
 /// # Errors
 /// Tcl's byte-exact bad/ambiguous option message.
 pub fn resolve_tcloo_property_option(word: &[u8]) -> Result<TclOoPropertyOption, Vec<u8>> {
+    let word = tcl_core_types::c_string_extent(word);
     let names: Vec<&str> = TCL_OO_PROPERTY_OPTIONS
         .iter()
         .map(|option| option.name)
@@ -191,6 +203,7 @@ pub fn resolve_tcloo_property_option(word: &[u8]) -> Result<TclOoPropertyOption,
 /// # Errors
 /// Tcl's byte-exact bad/ambiguous kind message.
 pub fn resolve_tcloo_property_kind(word: &[u8]) -> Result<TclOoPropertyKind, Vec<u8>> {
+    let word = tcl_core_types::c_string_extent(word);
     let names: Vec<&str> = TCL_OO_PROPERTY_KINDS
         .iter()
         .map(|kind| kind.value)
@@ -229,6 +242,7 @@ pub fn resolve_tcloo_property_kind(word: &[u8]) -> Result<TclOoPropertyKind, Vec
 /// still resolve its trailing body correctly. Mirrored, with a
 /// per-entry description and `min_tcl`, by
 /// [`OO_DEFINE_SUBCOMMAND_VALUES`] below.
+#[cfg(test)]
 const OO_DEFINE_SUBCOMMANDS: &[&str] = &[
     "constructor",
     "destructor",
@@ -257,10 +271,9 @@ const OO_DEFINE_SUBCOMMANDS: &[&str] = &[
 /// version table built from the 8.6 / 9.0 / 9.1 `TclCmd/define`
 /// manpages (8.4 and 8.5 have no such page at all — `TclOO` is 8.6+).
 /// Position 1 can *also* legitimately be the entire bare `defScript`
-/// script-form body instead of one of these words (see
-/// [`OO_DEFINE_SUBCOMMANDS`] above), so `oo::define` has no
-/// `closed_value_args` entry for this position — this is
-/// completion/hover data only, mirroring `open`'s `ACCESS_VALUES`.
+/// script-form body instead of one of these words, so `oo::define` has no
+/// `closed_value_args` entry for this position — this is completion/hover
+/// data only, mirroring `open`'s `ACCESS_VALUES`.
 const OO_DEFINE_SUBCOMMAND_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "classmethod",
@@ -380,6 +393,7 @@ const OO_DEFINE_SUBCOMMAND_VALUES: &[ArgValue] = &[
 ///   index.
 /// * `oo::define Target property -set BODY ?-get BODY?` →
 ///   bodies after each `-set` / `-get` flag.
+#[cfg(test)]
 pub(crate) fn oo_define_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let n = args.len();
     if n == 2 && !OO_DEFINE_SUBCOMMANDS.contains(&args[1]) {
@@ -410,10 +424,31 @@ pub(crate) fn oo_define_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     }
 }
 
+pub(crate) fn oo_define_layout_roles(
+    args: crate::InvocationArguments<'_>,
+    _options: crate::resolved_invocation::InvocationOptions<'_, '_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    let count = args.exact_argv_len()?;
+    if count < 2 {
+        return None;
+    }
+    let selector = args.literal_at(1)?;
+    let grammar = &crate::definer::TCLOO_GRAMMAR;
+    if grammar.member(selector).is_none() {
+        return (count == 2).then(|| vec![(1, ArgRole::Body)]);
+    }
+    grammar
+        .source_member_script_layout_arguments(selector.as_bytes(), args.slice_from(2))?
+        .into_iter()
+        .map(|body| Some((u8::try_from(body.argument() + 2).ok()?, ArgRole::Body)))
+        .collect::<Option<Vec<_>>>()
+}
+
 /// `oo::define Target property name ?-set BODY? ?-get BODY?` →
 /// flag-keyed bodies. `start` is the index of the first option flag
 /// (2 for `oo::define Target property`, 0 for inner `property` —
 /// which folding handles separately).
+#[cfg(test)]
 pub(crate) fn collect_property_body_roles(args: &[&str], start: usize) -> Vec<(u8, ArgRole)> {
     let n = args.len();
     if n == 0 {
@@ -436,6 +471,7 @@ pub(crate) fn collect_property_body_roles(args: &[&str], start: usize) -> Vec<(u
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::define",
+        native_compilation: Some(super::oo_class::OO_NATIVE_COMPILATION),
         runtime_backing: RuntimeBacking::shipped("oo::define"),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::LANGUAGE_KEYWORD
@@ -444,10 +480,10 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::Name)],
-        arg_role_resolver: Some(oo_define_arg_roles),
+        arg_role_layout_resolver: Some(oo_define_layout_roles),
         arg_role_resolver_roles: &[ArgRole::Body],
         return_type: Some(TclType::String),
-        // Every body argument that `oo_define_arg_roles`
+        // Every body argument that `oo_define_layout_roles`
         // surfaces is a TclOO definition / dispatch body, never a
         // caller-frame body.  Stamping `Structural` here covers all
         // the script-bearing forms (constructor / destructor /
@@ -482,14 +518,61 @@ mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
 
     use super::{
-        TclOoPropertyKind, TclOoPropertyOption, oo_define_arg_roles, resolve_tcloo_property_kind,
-        resolve_tcloo_property_option,
+        TclOoPropertyKind, TclOoPropertyOption, oo_define_arg_roles, oo_define_layout_roles,
+        resolve_tcloo_property_kind, resolve_tcloo_property_option,
     };
     use crate::arg_role::ArgRole;
     use crate::{
         CallbackKinds, CommandRegistry, ObjectDispatchLayer, ObjectDispatchTransition, Reentrancy,
         StateTransition, StateTransitionCommit, WorldStateDomain,
     };
+
+    fn source_layout_roles(args: &[&str]) -> Option<Vec<(u8, ArgRole)>> {
+        oo_define_layout_roles(
+            crate::InvocationArguments::literals(args),
+            crate::resolved_invocation::InvocationOptions {
+                availability: crate::resolved_invocation::InvocationAvailability::default(),
+                parent_surface: None,
+                form_surface: None,
+                prefix_matching: crate::abbrev::PrefixMatching::Enabled,
+                positional_prefix_words: 0,
+                reserved_trailing_words: 0,
+                case_list: None,
+                base: &[],
+                form: &[],
+            },
+        )
+    }
+
+    #[test]
+    fn source_roles_follow_central_member_and_property_layouts() {
+        assert_eq!(
+            source_layout_roles(&["Target", "method", "name", "args", "body"]),
+            Some(vec![(4, ArgRole::Body)])
+        );
+        assert_eq!(
+            source_layout_roles(&[
+                "Target", "property", "prop", "-set", "setter", "-get", "getter"
+            ]),
+            Some(vec![(4, ArgRole::Body), (6, ArgRole::Body)])
+        );
+        assert_eq!(
+            source_layout_roles(&["Target", "classmethod", "name", "args", "body"]),
+            Some(vec![(4, ArgRole::Body)])
+        );
+        assert_eq!(
+            source_layout_roles(&["Target", "property", "-set"]),
+            Some(Vec::new())
+        );
+        assert_eq!(
+            source_layout_roles(&["Target", "property", "prop", "-unknown", "value"]),
+            None
+        );
+        assert_eq!(
+            source_layout_roles(&["Target", "method", "name", "args", "body", "extra"]),
+            None
+        );
+    }
 
     // POSITIVE: every subcommand merged into the shared `n >= 3 => index 2`
     // arm (`destructor` / `initialise` / `initialize` / `private`) must

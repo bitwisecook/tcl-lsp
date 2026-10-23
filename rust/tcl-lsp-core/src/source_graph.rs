@@ -59,9 +59,11 @@ use std::sync::Arc;
 /// Resolve a literal `source` path argument written in `parent_file` to the
 /// absolute path it refers to.
 ///
-/// A relative `raw_path` resolves against the **directory** of `parent_file`
-/// (Tcl's `source` is relative to the sourcing script's location); an absolute
-/// `raw_path` passes through unchanged.  The result is lexically normalised —
+/// This project association resolves a relative `raw_path` against the
+/// directory of `parent_file`; an absolute path passes through unchanged.
+/// Tcl itself resolves relative `source` paths against its runtime working
+/// directory, which this advisory graph does not establish.
+/// The result is lexically normalised —
 /// `.` and `..` segments are folded without touching the filesystem, so a
 /// symlink is never followed and the call is cheap and deterministic.
 #[must_use]
@@ -72,6 +74,32 @@ pub fn resolve_source_target(parent_file: &Path, raw_path: &str) -> PathBuf {
     )
 }
 
+/// Associate a genuine original `SourceLoad` path under the declared project
+/// script-directory policy. This is neither a reached load nor runtime cwd.
+/// Dynamic paths and unsupported host-path forms preserve unknown topology.
+#[must_use]
+pub fn conditional_project_source_target(
+    document: &Path,
+    load: &tcl_compiler::registry_invocation::source_structure::OriginalProjectSourceLoad,
+) -> Option<PathBuf> {
+    let literal = load.literal_path()?;
+    if literal.is_empty()
+        || literal.starts_with('~')
+        || literal.contains('\0')
+        || !project_source_action_path(document)
+    {
+        return None;
+    }
+    let raw = Path::new(&literal);
+    if host_absolute(raw) && !project_source_action_path(raw)
+        || !host_absolute(raw) && matches!(raw.components().next(), Some(Component::Prefix(_)))
+    {
+        return None;
+    }
+    let target = resolve_source_target(document, &literal);
+    project_source_action_path(&target).then_some(target)
+}
+
 /// Resolve `raw_path` relative to the directory `base_dir` (absolute paths pass
 /// through), lexically normalised.  Used both for a `source` target (relative
 /// to the sourcing file's directory) and for a configured project entry-point
@@ -79,7 +107,7 @@ pub fn resolve_source_target(parent_file: &Path, raw_path: &str) -> PathBuf {
 #[must_use]
 pub fn resolve_under(base_dir: &Path, raw_path: &str) -> PathBuf {
     let raw = Path::new(raw_path);
-    let joined = if raw.is_absolute() {
+    let joined = if host_absolute(raw) {
         raw.to_path_buf()
     } else {
         base_dir.join(raw)
@@ -110,6 +138,135 @@ fn lexically_normalise(path: &Path) -> PathBuf {
     out.iter().collect()
 }
 
+/// The unique declared project base associating a literal source reference
+/// with a host rename. This is an intentional source-action policy, not an
+/// observation of Tcl's working directory, file loading or normal completion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectSourceAssociation {
+    base: Option<PathBuf>,
+}
+
+impl ProjectSourceAssociation {
+    /// Preserve absolute/relative style under this same declared project base.
+    #[must_use]
+    pub fn renamed_literal(&self, new_path: &Path) -> Option<String> {
+        if !project_source_action_path(new_path) {
+            return None;
+        }
+        let target = lexically_normalise(new_path);
+        let value = match &self.base {
+            None => target,
+            Some(base) => relative_source_path(&target, base)?,
+        };
+        let text = value.to_str()?;
+        #[cfg(windows)]
+        let text = text.replace('\\', "/");
+        Some(text.to_owned())
+    }
+}
+
+/// Associate a whole literal FILE operand under the explicitly declared
+/// script-directory/workspace-root project policy. Multiple distinct matching
+/// bases refuse; candidate filesystem existence is never inferred here.
+#[must_use]
+pub fn project_source_association(
+    document: &Path,
+    workspace_roots: &[PathBuf],
+    literal: &str,
+    old_path: &Path,
+) -> Option<ProjectSourceAssociation> {
+    // Home expansion and drive-relative bases have no project-path issuer.
+    if literal.is_empty()
+        || literal.starts_with('~')
+        || literal.contains('\0')
+        || !project_source_action_path(document)
+        || !project_source_action_path(old_path)
+    {
+        return None;
+    }
+    let old = lexically_normalise(old_path);
+    let raw = Path::new(literal);
+    if host_absolute(raw) {
+        project_source_action_path(raw).then_some(())?;
+        return (lexically_normalise(raw) == old)
+            .then_some(ProjectSourceAssociation { base: None });
+    }
+    if matches!(raw.components().next(), Some(Component::Prefix(_))) {
+        return None;
+    }
+    let mut bases = Vec::new();
+    for base in
+        std::iter::once(document.parent()?).chain(workspace_roots.iter().map(PathBuf::as_path))
+    {
+        if !project_source_action_path(base) {
+            return None;
+        }
+        let base = lexically_normalise(base);
+        if resolve_under(&base, literal) == old && !bases.contains(&base) {
+            bases.push(base);
+        }
+    }
+    let [base] = bases.as_slice() else {
+        return None;
+    };
+    Some(ProjectSourceAssociation {
+        base: Some(base.clone()),
+    })
+}
+
+/// `Path::is_absolute`, plus a rooted path in a browser worker
+/// (wasm32-unknown-unknown), where std reports no path as absolute and every
+/// source-store path is a rooted virtual path.
+fn host_absolute(path: &Path) -> bool {
+    path.is_absolute()
+        || cfg!(all(target_family = "wasm", target_os = "unknown")) && path.has_root()
+}
+
+fn project_source_action_path(path: &Path) -> bool {
+    // POSIX double-leading slash may select an implementation-defined root.
+    host_absolute(path)
+        && path
+            .to_str()
+            .is_some_and(|text| !(text.contains('\0') || cfg!(unix) && text.starts_with("//")))
+}
+
+/// Relative spelling in the same host path domain; different roots decline.
+#[must_use]
+pub fn relative_source_path(target: &Path, base: &Path) -> Option<PathBuf> {
+    if !host_absolute(target) || !host_absolute(base) {
+        return None;
+    }
+    let target = lexically_normalise(target);
+    let base = lexically_normalise(base);
+    let target: Vec<_> = target.components().collect();
+    let base: Vec<_> = base.components().collect();
+    if target.first() != base.first() {
+        return None;
+    }
+    let common = target
+        .iter()
+        .zip(&base)
+        .take_while(|(left, right)| left == right)
+        .count();
+    if base[common..]
+        .iter()
+        .any(|part| !matches!(part, Component::Normal(_)))
+    {
+        return None;
+    }
+    let mut result = PathBuf::new();
+    for _ in &base[common..] {
+        result.push("..");
+    }
+    for part in &target[common..] {
+        result.push(part.as_os_str());
+    }
+    if result.as_os_str().is_empty() {
+        result.push(".");
+    }
+    Some(result)
+}
+
 /// The union of `package require` names from every node that transitively
 /// reaches `target` through the `source` graph.
 ///
@@ -125,6 +282,20 @@ pub fn ancestor_requires<S: BuildHasher>(
     edges: &[(String, String)],
     requires: &HashMap<String, Vec<String>, S>,
 ) -> Vec<String> {
+    let mut requirements = ancestor_requirements(target, edges, requires);
+    requirements.sort();
+    requirements
+}
+
+/// Traverse source ancestors while preserving each caller-owned requirement
+/// key. Graph reachability supplies advisory inheritance, not package loading
+/// or source execution. Document identifiers are distinct from Tcl names.
+#[must_use]
+pub fn ancestor_requirements<K: Clone + Eq + std::hash::Hash, S: BuildHasher>(
+    target: &str,
+    edges: &[(String, String)],
+    requires: &HashMap<String, Vec<K>, S>,
+) -> Vec<K> {
     // child -> parents that source it.
     let mut parents_of: HashMap<&str, Vec<&str>> = HashMap::new();
     for (parent, child) in edges {
@@ -147,14 +318,16 @@ pub fn ancestor_requires<S: BuildHasher>(
             }
         }
     }
-    let mut out: Vec<String> = ancestors
+    let mut ancestors = ancestors.into_iter().collect::<Vec<_>>();
+    ancestors.sort_unstable();
+    let mut seen = HashSet::new();
+    let out: Vec<K> = ancestors
         .iter()
         .filter_map(|a| requires.get(*a))
         .flatten()
+        .filter(|key| seen.insert((*key).clone()))
         .cloned()
         .collect();
-    out.sort();
-    out.dedup();
     out
 }
 
@@ -165,9 +338,9 @@ pub fn ancestor_requires<S: BuildHasher>(
 /// runs the child inline at that statement, so a command needing the package
 /// is satisfied *after* the `source` and unsatisfied *before* it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlacedRequire {
+pub struct PlacedRequirement<K> {
     /// The `package require`d name, as written in the sourced file.
-    pub name: String,
+    pub name: K,
     /// Byte offset, **in the document that asked**, of the `source` statement
     /// that brings the package in.
     pub at: u32,
@@ -178,6 +351,9 @@ pub struct PlacedRequire {
     /// body (the whole file loads before any body runs).
     pub enclosing_body: Option<tcl_lexer::Span>,
 }
+
+/// Positioned package-name reporting for compatibility consumers.
+pub type PlacedRequire = PlacedRequirement<String>;
 
 /// The `package require`s a document acquires from the files it (transitively)
 /// `source`s — the **up** direction of the graph.
@@ -207,7 +383,22 @@ pub fn descendant_requires<S: BuildHasher>(
     edges: &[RunEdge],
     requires: &HashMap<String, Vec<String>, S>,
 ) -> Vec<PlacedRequire> {
-    let mut out: Vec<PlacedRequire> = Vec::new();
+    let mut requirements = descendant_requirements(target, edges, requires);
+    requirements.sort_by(|a, b| a.name.cmp(&b.name).then(a.at.cmp(&b.at)));
+    requirements
+}
+
+/// Traverse positioned source descendants without converting the requirement
+/// keys. Original byte policies and document-owned metadata remain separate
+/// from this graph's advisory execution bounds.
+#[must_use]
+pub fn descendant_requirements<K: Clone + Eq + std::hash::Hash, S: BuildHasher>(
+    target: &str,
+    edges: &[RunEdge],
+    requires: &HashMap<String, Vec<K>, S>,
+) -> Vec<PlacedRequirement<K>> {
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
     for edge in edges
         .iter()
         .filter(|e| e.parent == target && e.kind == RunEdgeKind::Source && e.child != target)
@@ -222,11 +413,16 @@ pub fn descendant_requires<S: BuildHasher>(
                 continue;
             }
             if let Some(names) = requires.get(node) {
-                out.extend(names.iter().map(|name| PlacedRequire {
-                    name: name.clone(),
-                    at: edge.at,
-                    enclosing_body: edge.enclosing_body,
-                }));
+                out.extend(
+                    names
+                        .iter()
+                        .filter(|name| seen.insert(((*name).clone(), edge.at, edge.enclosing_body)))
+                        .map(|name| PlacedRequirement {
+                            name: name.clone(),
+                            at: edge.at,
+                            enclosing_body: edge.enclosing_body,
+                        }),
+                );
             }
             for next in edges
                 .iter()
@@ -236,20 +432,17 @@ pub fn descendant_requires<S: BuildHasher>(
             }
         }
     }
-    out.sort_by(|a, b| a.name.cmp(&b.name).then(a.at.cmp(&b.at)));
-    out.dedup();
     out
 }
 
-/// **How** one document enters another's execution — the difference between
-/// a statement that says *exactly* when the child ran and one that only
-/// bounds it.
+/// Coordinate rule of a constructed source-order hypothesis. The kind alone
+/// authenticates neither original source, file entry nor event completion.
+/// Workspace navigation retains those missing premises as Conditional.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RunEdgeKind {
-    /// `source CHILD`: the child's whole body is inlined **at this
-    /// statement**.  The position is exact in both directions — everything
-    /// written above the `source` had run when the child loaded, and nothing
-    /// written below it had.
+    /// Candidate source route: the hypothetical child position is this
+    /// statement's coordinate. Actual file entry and successful completion
+    /// require separate owners; no such premise follows from this variant.
     #[default]
     Source,
     /// `package require P`, with `CHILD` the document that `package provide`s
@@ -278,17 +471,17 @@ pub enum RunEdgeKind {
 }
 
 impl RunEdgeKind {
-    /// Whether the child's position is the edge's `at` exactly, rather than an
-    /// upper bound on it.
+    /// Whether the coordinate is exact within the constructed order model.
+    /// This says nothing about source entry, execution or Normal completion.
     #[must_use]
     pub fn is_exact(self) -> bool {
         matches!(self, Self::Source)
     }
 }
 
-/// One edge of the workspace's **execution timeline**: a statement in `parent`
-/// that brings `child`'s body into the run, with the execution-order facts a
-/// state question needs.
+/// One constructed source-order edge. Its public geometry carries no original
+/// source issuer or executed timeline. The workspace constructor validates its
+/// actual source operation/body/input and retains only conditional navigation.
 ///
 /// [`ancestor_requires`] only asks *whether* one file reaches another, so a
 /// bare `(parent, child)` pair is enough for it.  An **interpreter-state**
@@ -382,9 +575,9 @@ pub fn ancestor_prefer_latest_raised<S: BuildHasher>(
     entered_raised.contains(target)
 }
 
-/// One statement's position in the workspace's **execution timeline**: the
-/// document it is written in, its byte offset there, and the innermost
-/// proc/class body containing it (`None` at load level).
+/// Supplied source position. Workspace navigation reborrows its original
+/// configured command/body owner instead of trusting the supplied body span.
+/// This is not an entered execution point or event-completion receipt.
 ///
 /// The three facts every import-lifecycle event and every query point already
 /// carries, named once so [`RunOrder`] can take a pair of them rather than six
@@ -422,6 +615,939 @@ pub struct Placed {
     pub exact: bool,
 }
 
+/// Purpose of a source navigation relation, never executed chronology.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceNavigationOrderPurpose {
+    /// Explicit constructed-input compatibility model; no source issuer implied.
+    Constructed,
+    /// Both points are straight-line positions of one indexed document: the
+    /// document root, or a body entered once, immediately and in the current
+    /// frame from such a position, outside every definition body, before any
+    /// possible early exit and with no unrepresented script operand around
+    /// the point. The document's own source sequence orders them: when the
+    /// later point is reached, the earlier one has run.
+    DocumentSequence,
+    /// Genuine source geometry with unresolved entry/completion/event effects.
+    Conditional,
+}
+
+/// A sealed purpose-specific source relation. A conditional relation alone
+/// cannot revoke an export/import candidate; only a constructed model or one
+/// document's straight-line sequence can.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceNavigationOrder<T> {
+    relation: T,
+    purpose: SourceNavigationOrderPurpose,
+}
+
+impl<T> SourceNavigationOrder<T> {
+    /// The relation's original purpose, without completion or execution facts.
+    #[must_use]
+    pub const fn purpose(&self) -> SourceNavigationOrderPurpose {
+        self.purpose
+    }
+
+    /// The source relation, without asserting any handler or body executed.
+    #[must_use]
+    pub const fn conditional_relation(&self) -> &T {
+        &self.relation
+    }
+
+    /// An explicit constructed-input model, or the straight-line sequence of
+    /// one document, supports its bounded exclusion. Cross-document,
+    /// deferred-body and conditional-branch geometry, and completed
+    /// command-publication worlds, cannot donate namespace event, tombstone or
+    /// conflict completion.
+    #[must_use]
+    pub fn modeled_source_exclusion(self) -> Option<T> {
+        matches!(
+            self.purpose,
+            SourceNavigationOrderPurpose::Constructed
+                | SourceNavigationOrderPurpose::DocumentSequence
+        )
+        .then_some(self.relation)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalSourceOrderSite {
+    span: tcl_lexer::Span,
+    body: Option<tcl_lexer::Span>,
+    source_load:
+        Option<tcl_compiler::registry_invocation::source_structure::OriginalProjectSourceLoad>,
+    package_require:
+        Option<tcl_compiler::registry_invocation::source_structure::OriginalSourcePackageReference>,
+    words: tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+}
+
+/// Straight-line source sequence of one document.
+///
+/// Built from the same readonly command/body inventory and original selected
+/// Registry words as the sites. Relations between two positions are
+/// reach-conditioned: when the later position is reached, every earlier
+/// position of the sequence has run. A position is admitted only when its
+/// innermost retained script region is straight and it is not inside an
+/// operand that may hold an unrepresented script or inside a definition body.
+/// The root region is straight; a body is straight only when a command of a
+/// straight region outside every caller-context-unavailable body, with
+/// `Selected` words, enters it once and immediately in the current frame
+/// (`ScriptBodyFlow::{Sequence, ConcatenatedScript}` without a frame level
+/// word) and no document declaration shadows its command word. Deferred
+/// bodies, conditional, looping or caught branches, substitutions and frame
+/// shifts are never straight.
+///
+/// Possible early exits: a command whose Registry traits terminate the block
+/// or the process, or a straight command containing one outside definition
+/// bodies (`if {..} return`), ends the known sequence. Every position after
+/// it, and the document end, is withheld.
+///
+/// The document end means "after the document completes normally"; an error
+/// path never reaches it. It is admitted only when no command outside
+/// definition bodies and callbacks may end that completion early: none
+/// transfers control (`break`, `continue`, `tailcall`), evaluates another
+/// file (`source`), runs a script now that is not retained (`apply $l`,
+/// `expr $e`), an expression calling a math function (`expr {f(1)}`) or a
+/// command prefix (`lsort -command`), or lacks selected
+/// Registry words (a user procedure or a dynamic head may
+/// `return -code return`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DocumentSequence {
+    end: u32,
+    /// First offset a possible early exit may leave unreached.
+    cutoff: Option<u32>,
+    /// Whether some command outside definition bodies and callbacks may end
+    /// the document's normal completion early without making any later
+    /// position unreachable unnoticed (see [`Self::record_exits`]); the
+    /// document end, read as "after normal completion", is then withheld.
+    end_withheld: bool,
+    /// Retained script regions, ordered by start and then outermost first.
+    regions: Vec<SequenceRegion>,
+    /// Definition bodies by start, each with the running maximum end.
+    definition_bodies: Vec<(tcl_lexer::Span, u32)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SequenceRegion {
+    span: tcl_lexer::Span,
+    parent: Option<usize>,
+    straight: bool,
+    /// A body a command stores for later (a callback), not run during load.
+    deferred: bool,
+    /// Direct commands of a straight region, by start (they are disjoint).
+    commands: Vec<SequenceCommand>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SequenceCommand {
+    span: tcl_lexer::Span,
+    /// The command word: the command's own position, whatever its arguments.
+    head: Option<tcl_lexer::Span>,
+    /// Operands whose role may carry a script; `None` admits only the command
+    /// word (unselected words, unknown roles, an unrepresented operand or a
+    /// command word the document itself declares).
+    script_operands: Option<Vec<tcl_lexer::Span>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ScriptScheduling {
+    None,
+    Deferred,
+    Immediate { once: bool },
+}
+impl ScriptScheduling {
+    fn runs_now(self) -> bool {
+        matches!(self, Self::Immediate { .. })
+    }
+    fn defers(self) -> bool {
+        matches!(self, Self::Deferred)
+    }
+    fn enters_once(self) -> bool {
+        matches!(self, Self::Immediate { once: true })
+    }
+}
+
+/// Registry control facts of one command, for the sequence.
+#[derive(Debug, Clone, Copy)]
+struct CommandFlow {
+    /// Traits end the block or the process (`return`, `error`, `exit`).
+    terminates: bool,
+    /// Traits transfer control elsewhere (`break`, `continue`, `tailcall`),
+    /// or the command evaluates another file (`source`), whose own `return`
+    /// ends this document's normal completion.
+    may_end_load: bool,
+    /// Mutually exclusive immediate/deferred/no-script scheduling.
+    scheduling: ScriptScheduling,
+    /// The Registry may give it a command prefix to invoke (`lsort -command`,
+    /// `regsub -command`), or cannot rule one out.
+    invokes_prefix: bool,
+}
+
+/// One original Registry selection per command, shared by the sequence and
+/// the site inventory.
+#[derive(Debug, Clone)]
+enum RegistryWordsSlot {
+    Pending,
+    Resolved(
+        Box<Option<tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords>>,
+    ),
+}
+
+impl RegistryWordsSlot {
+    fn get(
+        &mut self,
+        resolve: impl FnOnce() -> Option<
+            tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+        >,
+    ) -> Option<&tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords> {
+        if matches!(self, Self::Pending) {
+            *self = Self::Resolved(Box::new(resolve()));
+        }
+        match self {
+            Self::Resolved(words) => (**words).as_ref(),
+            Self::Pending => None,
+        }
+    }
+
+    fn take(
+        &mut self,
+        resolve: impl FnOnce() -> Option<
+            tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+        >,
+    ) -> Option<tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords> {
+        match std::mem::replace(self, Self::Pending) {
+            Self::Resolved(words) => *words,
+            Self::Pending => resolve(),
+        }
+    }
+}
+
+/// Inputs shared by every step of [`DocumentSequence::capture`].
+struct SequenceCapture<'a> {
+    analysis: &'a tcl_compiler::analyser::AnalysisResult,
+    input: &'a tcl_compiler::analyser::ResolvedAnalysisInput,
+    image: &'a tcl_lexer::SourceImage,
+    structure: &'a crate::source_structure::SourceStructure,
+    declared: rustc_hash::FxHashSet<&'a [u8]>,
+}
+
+impl SequenceCapture<'_> {
+    fn validated<'w>(
+        &self,
+        words: Option<
+            &'w tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+        >,
+    ) -> Option<&'w tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords>
+    {
+        words.filter(|words| {
+            words.matches_source(self.image, self.input.lexer_config())
+                && words.matches_registry(self.input.borrowed_context_registry().commands())
+                && words.context() == Some(self.input.availability_context())
+        })
+    }
+
+    /// The command's Registry control facts, selected once per command.
+    fn flow(
+        &self,
+        words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    ) -> CommandFlow {
+        use tcl_registry::script_body_flow::{ScriptBodyFlow, script_body_flow_for_invocation};
+        words
+            .with_source_schema(self.input.borrowed_context_registry(), |schema| {
+                let flow =
+                    script_body_flow_for_invocation(&schema.facts(), schema.words.arguments());
+                CommandFlow {
+                    terminates: schema.semantics.traits.intersects(
+                        tcl_registry::Traits::TERMINATES_BLOCK
+                            | tcl_registry::Traits::TERMINATES_PROCESS,
+                    ),
+                    may_end_load: schema
+                        .semantics
+                        .traits
+                        .contains(tcl_registry::Traits::TRANSFERS_CONTROL)
+                        || schema.semantics.body_execution
+                            == Some(tcl_registry::body_execution::BodyExecutionSpec::SourceFile),
+                    scheduling: match flow {
+                        ScriptBodyFlow::Deferred => ScriptScheduling::Deferred,
+                        ScriptBodyFlow::None => ScriptScheduling::None,
+                        _ => ScriptScheduling::Immediate {
+                            once: schema.semantics.frame_effect.is_none_or(|effect| {
+                                effect.level_word
+                                    == tcl_registry::frame_effect::FrameLevelWord::None
+                            }) && matches!(
+                                flow,
+                                ScriptBodyFlow::Sequence(_)
+                                    | ScriptBodyFlow::ConcatenatedScript { .. }
+                            ),
+                        },
+                    },
+                    invokes_prefix: schema.authored_source_retains_callback() != Some(false),
+                }
+            })
+            .unwrap_or(CommandFlow {
+                terminates: false,
+                may_end_load: true,
+                scheduling: ScriptScheduling::Immediate { once: false },
+                invokes_prefix: true,
+            })
+    }
+
+    /// Operands whose role may carry a script, for `Selected` words with
+    /// complete roles; the written token and the whole native word are both
+    /// covered.
+    fn script_operands(
+        words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    ) -> Option<Vec<tcl_lexer::Span>> {
+        let mut spans = Vec::new();
+        for &(argument, role) in words.roles()? {
+            if role.carries_script()
+                || matches!(
+                    role,
+                    tcl_registry::ArgRole::OpaqueScript | tcl_registry::ArgRole::CommandPrefix
+                )
+            {
+                let operand = words.operands().get(argument)?.as_ref()?;
+                let written = operand.span();
+                spans.push(operand.word().map_or(written, |word| {
+                    let whole = word.span();
+                    tcl_lexer::Span::new(
+                        whole.start().min(written.start()),
+                        whole.end().max(written.end()),
+                    )
+                }));
+            }
+        }
+        Some(spans)
+    }
+
+    /// Bodies this command enters once, immediately and in the current frame.
+    fn entered_bodies(
+        &self,
+        command: &tcl_compiler::segmenter::SegmentedCommand,
+        words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+        flow: CommandFlow,
+    ) -> Vec<tcl_lexer::Span> {
+        let at = command.span.start();
+        if !flow.scheduling.enters_once()
+            || self
+                .structure
+                .caller_context_unavailable_bodies
+                .iter()
+                .any(|body| body.start() <= at && at < body.end())
+        {
+            return Vec::new();
+        }
+        words
+            .source_script_bodies(self.input.borrowed_context_registry())
+            .iter()
+            .map(tcl_compiler::registry_invocation::OriginalSourceScriptBody::content_span)
+            .filter(|content| {
+                self.analysis
+                    .original_definition_body_span(content.start())
+                    .is_none()
+            })
+            .collect()
+    }
+
+    /// Whether a straight command may now run a script operand this inventory
+    /// does not retain as a region, which could hold an early exit. Deferred
+    /// bodies run later and are no exit of the document.
+    fn may_run_unretained_script(
+        words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+        flow: CommandFlow,
+        regions: &[SequenceRegion],
+    ) -> bool {
+        if !flow.scheduling.runs_now() {
+            return false;
+        }
+        let Some(roles) = words.roles() else {
+            return words
+                .written_argument_roles()
+                .iter()
+                .any(|(_, role)| *role == tcl_registry::ArgRole::Body);
+        };
+        roles
+            .iter()
+            .filter(|(_, role)| *role == tcl_registry::ArgRole::Body)
+            .any(|&(argument, _)| {
+                let Some(operand) = words.operands().get(argument).and_then(Option::as_ref) else {
+                    return true;
+                };
+                !Self::retains(regions, operand.span())
+            })
+    }
+
+    /// End-only: whether a command that does not defer its scripts may run a
+    /// script now that the inventory cannot see — a script-carrying operand
+    /// (`Body`, `Expr`, `LambdaLiteral`, `OpaqueScript`, `CommandPrefix`) not
+    /// retained as a region, an expression calling a math function (a
+    /// command), or any command prefix it invokes. Such a script may
+    /// `return -code return` and end the document's normal completion.
+    fn may_complete_early(
+        &self,
+        words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+        flow: CommandFlow,
+        regions: &[SequenceRegion],
+    ) -> bool {
+        use tcl_registry::ArgRole;
+        let carries = |role: ArgRole| {
+            role.carries_script() || matches!(role, ArgRole::OpaqueScript | ArgRole::CommandPrefix)
+        };
+        if flow.scheduling.defers() {
+            return false;
+        }
+        if flow.invokes_prefix {
+            return true;
+        }
+        let Some(roles) = words.roles() else {
+            return words
+                .written_argument_roles()
+                .iter()
+                .any(|&(_, role)| carries(role));
+        };
+        roles
+            .iter()
+            .filter(|&&(_, role)| carries(role))
+            .any(|&(argument, role)| {
+                let Some(operand) = words.operands().get(argument).and_then(Option::as_ref) else {
+                    return true;
+                };
+                if role == ArgRole::CommandPrefix {
+                    return true;
+                }
+                let literal = operand
+                    .word()
+                    .and_then(tcl_syntax::word_rules::original_static_word_unicode_value);
+                if role == ArgRole::Expr {
+                    return self.expression_may_complete_early(literal.as_deref())
+                        || (literal.as_ref().is_some_and(|value| value.contains(&b'['))
+                            && !Self::retains(regions, operand.span()));
+                }
+                // An empty literal body runs nothing.
+                if literal.is_some_and(|value| value.iter().all(u8::is_ascii_whitespace)) {
+                    return false;
+                }
+                !Self::retains(regions, operand.span())
+            })
+    }
+
+    /// Whether an expression may run a command the inventory cannot see. The
+    /// shared expression owner parses it under the input's dialect; any math
+    /// function call (`f(1)`, a user `::tcl::mathfunc` procedure or an
+    /// undefined name reaching `unknown`) or a parse failure counts. A word
+    /// that is not a literal is substituted twice and counts too. Command
+    /// substitutions are judged by their retained regions.
+    fn expression_may_complete_early(&self, literal: Option<&[u8]>) -> bool {
+        let Some(text) = literal.and_then(|value| std::str::from_utf8(value).ok()) else {
+            return true;
+        };
+        let tree = tcl_syntax::expr::parser::parse_expr_for_profile(
+            text,
+            Some(self.input.analyser_profile()),
+        );
+        tree.evaluation_nodes().iter().any(|node| {
+            matches!(
+                node,
+                tcl_syntax::expr::ast::ExprNode::Call { .. }
+                    | tcl_syntax::expr::ast::ExprNode::Raw { .. }
+            )
+        })
+    }
+
+    /// Whether a retained script region lies inside `span`.
+    fn retains(regions: &[SequenceRegion], span: tcl_lexer::Span) -> bool {
+        let first = regions.partition_point(|region| region.span.start() < span.start());
+        regions.get(first).is_some_and(|region| {
+            region.span.start() < span.end() && region.span.end() <= span.end()
+        })
+    }
+
+    fn selected(
+        words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    ) -> bool {
+        matches!(
+            words.source(),
+            tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::Selected
+        )
+    }
+
+    /// Bodies a deferring command stores for a later invocation.
+    fn deferred_bodies(
+        &self,
+        words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    ) -> Vec<tcl_lexer::Span> {
+        words
+            .source_script_bodies(self.input.borrowed_context_registry())
+            .iter()
+            .map(tcl_compiler::registry_invocation::OriginalSourceScriptBody::content_span)
+            .collect()
+    }
+
+    fn declares_head(&self, command: &tcl_compiler::segmenter::SegmentedCommand) -> bool {
+        command.texts.first().is_some_and(|head| {
+            self.declared
+                .contains(tcl_syntax::naming::key_holder_and_tail(head).1.as_bytes())
+        })
+    }
+}
+
+impl DocumentSequence {
+    fn capture(
+        source: &str,
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        structure: &crate::source_structure::SourceStructure,
+        slots: &mut [RegistryWordsSlot],
+    ) -> Option<Self> {
+        let end = u32::try_from(source.len()).ok()?;
+        let capture = SequenceCapture {
+            analysis,
+            input,
+            image,
+            structure,
+            declared: analysis
+                .original_procedure_declarations()
+                .map(|record| record.name().slot().simple.as_bytes())
+                .chain(
+                    analysis
+                        .original_class_declarations()
+                        .map(|record| record.name().slot().simple.as_bytes()),
+                )
+                .collect(),
+        };
+        let mut sequence = Self {
+            end,
+            cutoff: None,
+            end_withheld: false,
+            regions: Self::regions(structure, end),
+            definition_bodies: Self::definition_bodies(analysis),
+        };
+        // Single start-ordered sweep: the innermost region of each command
+        // is reached from the last region starting at or before it through
+        // parent links, and the open straight commands form a stack.
+        let mut next_region = 0;
+        let mut current: Option<usize> = None;
+        let mut open: Vec<tcl_lexer::Span> = Vec::new();
+        for (index, command) in structure.commands.iter().enumerate() {
+            let at = command.span.start();
+            while sequence
+                .regions
+                .get(next_region)
+                .is_some_and(|region| region.span.start() <= at)
+            {
+                current = Some(next_region);
+                next_region += 1;
+            }
+            current = sequence.innermost_from(current, at);
+            if Self::in_bodies(&sequence.definition_bodies, at) {
+                continue;
+            }
+            while open.last().is_some_and(|span| span.end() <= at) {
+                open.pop();
+            }
+            let straight = current.is_some_and(|region| sequence.regions[region].straight);
+            if straight {
+                open.push(command.span);
+            }
+            let words = capture.validated(slots[index].get(|| {
+                tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                    source, analysis, command,
+                )
+            }));
+            let flow = words.map(|words| capture.flow(words));
+            let completes_early = words.zip(flow).is_some_and(|(words, flow)| {
+                capture.may_complete_early(words, flow, &sequence.regions)
+            });
+            sequence.record_exits(
+                completes_early,
+                current,
+                words,
+                flow,
+                open.last().copied(),
+                at,
+            );
+            if let (Some(words), Some(flow)) = (words, flow)
+                && flow.scheduling.defers()
+            {
+                sequence.mark(&capture.deferred_bodies(words), |region| {
+                    region.deferred = true;
+                });
+            }
+            if let Some(region) = current.filter(|_| straight) {
+                sequence.record_straight(&capture, region, command, words, flow);
+            }
+        }
+        Some(sequence)
+    }
+
+    fn definition_bodies(
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+    ) -> Vec<(tcl_lexer::Span, u32)> {
+        let mut bodies = analysis
+            .original_procedure_declarations()
+            .map(|record| record.metadata().body_span)
+            .chain(
+                analysis
+                    .original_class_declarations()
+                    .map(|record| record.metadata().body_span),
+            )
+            .map(|span| (span, span.end()))
+            .collect::<Vec<_>>();
+        bodies.sort_by_key(|(span, _)| (span.start(), span.end()));
+        let mut reach = 0;
+        for (span, running) in &mut bodies {
+            reach = reach.max(span.end());
+            *running = reach;
+        }
+        bodies
+    }
+
+    /// The innermost region containing `at`, from a region starting at or
+    /// before it, through parent links.
+    fn innermost_from(&self, mut current: Option<usize>, at: u32) -> Option<usize> {
+        while let Some(index) = current
+            && !(self.regions[index].span.start() <= at && at < self.regions[index].span.end())
+        {
+            current = self.regions[index].parent;
+        }
+        current
+    }
+
+    fn in_deferred(&self, mut current: Option<usize>) -> bool {
+        while let Some(index) = current {
+            if self.regions[index].deferred {
+                return true;
+            }
+            current = self.regions[index].parent;
+        }
+        false
+    }
+
+    /// Apply `update` to every retained region with exactly one of `spans`.
+    fn mark(&mut self, spans: &[tcl_lexer::Span], update: impl Fn(&mut SequenceRegion)) {
+        for content in spans {
+            if let Ok(body) = self.regions.binary_search_by(|region| {
+                (region.span.start(), std::cmp::Reverse(region.span.end()))
+                    .cmp(&(content.start(), std::cmp::Reverse(content.end())))
+            }) {
+                update(&mut self.regions[body]);
+            }
+        }
+    }
+
+    /// Record the two kinds of early exit a command outside definition bodies
+    /// may take. A known terminator (or an unretained script that runs now)
+    /// cuts every later position and the end; anything else that may end the
+    /// document's normal completion early — control transfer, a sourced
+    /// file, a script-carrying operand that is not retained or a command
+    /// prefix, words that are not selected Registry words (user procedures,
+    /// dynamic heads) — withholds only the end, since a later position is
+    /// reached only when control did pass.
+    fn record_exits(
+        &mut self,
+        completes_early: bool,
+        current: Option<usize>,
+        words: Option<&tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords>,
+        flow: Option<CommandFlow>,
+        straight_ancestor: Option<tcl_lexer::Span>,
+        at: u32,
+    ) {
+        if self.in_deferred(current) {
+            return;
+        }
+        let straight = current.is_some_and(|region| self.regions[region].straight);
+        let unretained = words.zip(flow).is_some_and(|(words, flow)| {
+            SequenceCapture::may_run_unretained_script(words, flow, &self.regions)
+        });
+        if flow.is_some_and(|flow| flow.terminates) || (straight && unretained) {
+            let exit = straight_ancestor.map_or(at, tcl_lexer::Span::end);
+            self.cutoff = Some(self.cutoff.map_or(exit, |cutoff| cutoff.min(exit)));
+        }
+        self.end_withheld |= unretained
+            || completes_early
+            || flow.is_none_or(|flow| flow.may_end_load)
+            || !words.is_some_and(SequenceCapture::selected);
+    }
+
+    /// Admit one direct command of a straight region and mark the bodies it
+    /// enters once, immediately and in the current frame.
+    fn record_straight(
+        &mut self,
+        capture: &SequenceCapture<'_>,
+        region: usize,
+        command: &tcl_compiler::segmenter::SegmentedCommand,
+        words: Option<&tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords>,
+        flow: Option<CommandFlow>,
+    ) {
+        let selected = words
+            .filter(|words| SequenceCapture::selected(words) && !capture.declares_head(command));
+        let script_operands = selected.and_then(SequenceCapture::script_operands);
+        if script_operands.is_some()
+            && let Some(words) = selected
+            && let Some(flow) = flow
+        {
+            self.mark(&capture.entered_bodies(command, words, flow), |region| {
+                region.straight = true;
+            });
+        }
+        self.regions[region].commands.push(SequenceCommand {
+            span: command.span,
+            head: command.argv.first().map(|word| word.span),
+            script_operands,
+        });
+    }
+
+    /// Retained script regions ordered by start, outermost first, with their
+    /// nesting parents; only the document root starts straight.
+    fn regions(
+        structure: &crate::source_structure::SourceStructure,
+        end: u32,
+    ) -> Vec<SequenceRegion> {
+        let mut spans = structure
+            .scripts
+            .iter()
+            .map(|(span, _)| *span)
+            .collect::<Vec<_>>();
+        spans.sort_by_key(|span| (span.start(), std::cmp::Reverse(span.end())));
+        spans.dedup();
+        let root = tcl_lexer::Span::new(0, end);
+        let mut regions = Vec::with_capacity(spans.len());
+        let mut stack: Vec<usize> = Vec::new();
+        for span in spans {
+            while let Some(&open) = stack.last() {
+                let outer: &SequenceRegion = &regions[open];
+                if outer.span.start() <= span.start() && span.end() <= outer.span.end() {
+                    break;
+                }
+                stack.pop();
+            }
+            regions.push(SequenceRegion {
+                span,
+                parent: stack.last().copied(),
+                straight: span == root,
+                deferred: false,
+                commands: Vec::new(),
+            });
+            stack.push(regions.len() - 1);
+        }
+        regions
+    }
+
+    fn in_bodies(bodies: &[(tcl_lexer::Span, u32)], at: u32) -> bool {
+        let index = bodies.partition_point(|(span, _)| span.start() <= at);
+        index > 0 && bodies[index - 1].1 > at
+    }
+
+    fn contains(&self, at: u32) -> bool {
+        if at >= self.end {
+            return self.cutoff.is_none() && !self.end_withheld;
+        }
+        if self.cutoff.is_some_and(|cutoff| at >= cutoff) {
+            return false;
+        }
+        if Self::in_bodies(&self.definition_bodies, at) {
+            return false;
+        }
+        let mut current = self
+            .regions
+            .partition_point(|region| region.span.start() <= at)
+            .checked_sub(1);
+        while let Some(index) = current
+            && !(self.regions[index].span.start() <= at && at < self.regions[index].span.end())
+        {
+            current = self.regions[index].parent;
+        }
+        let Some(region) = current.map(|index| &self.regions[index]) else {
+            return false;
+        };
+        if !region.straight {
+            return false;
+        }
+        let next = region
+            .commands
+            .partition_point(|command| command.span.start() <= at);
+        let Some(command) = next.checked_sub(1).map(|index| &region.commands[index]) else {
+            return true;
+        };
+        at >= command.span.end()
+            || command
+                .head
+                .is_some_and(|head| head.start() <= at && at < head.end())
+            || command.script_operands.as_ref().is_some_and(|operands| {
+                !operands
+                    .iter()
+                    .any(|operand| operand.start() <= at && at < operand.end())
+            })
+    }
+}
+
+/// Original source-point transport retained at the actual indexing ingress.
+/// Captured source/body/schema owners stay separate from runtime completion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SourceOrderContext {
+    image: tcl_lexer::SourceImage,
+    input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    realm: tcl_compiler::realm::CommandBindingRealm,
+    sites: Vec<OriginalSourceOrderSite>,
+    // Complete only for the retained readonly syntax inventory, never execution.
+    command_spans: Vec<tcl_lexer::Span>,
+    // Same-document straight-line sequence; None keeps every point Conditional.
+    sequence: Option<DocumentSequence>,
+}
+
+impl SourceOrderContext {
+    pub(crate) fn capture(analysis: &tcl_compiler::analyser::AnalysisResult) -> Option<Self> {
+        let input = analysis.resolved_input.as_ref()?;
+        let realm = analysis.retained_command_realm()?;
+        let image = realm.original_source_image()?;
+        let config = input.lexer_config();
+        if image.channel() != tcl_lexer::SourceChannel::Document
+            || !analysis.matches_original_source_image(image, config)
+            || !realm.matches_resolved_analysis_input(input)
+        {
+            return None;
+        }
+        let source = image.try_text().ok()?;
+        // Reuse the original readonly body/command issuer. Missing geometry
+        // remains unrepresented; this partial inventory supplies no closure.
+        let structure =
+            crate::source_structure::SourceStructure::capture(source, Some(analysis), config)?;
+        let command_spans = structure
+            .commands
+            .iter()
+            .map(|command| command.span)
+            .collect();
+        // One original Registry selection per command, shared by both owners.
+        let mut slots = vec![RegistryWordsSlot::Pending; structure.commands.len()];
+        let sequence =
+            DocumentSequence::capture(source, analysis, input, image, &structure, &mut slots);
+        let mut sites = Vec::new();
+        for (index, command) in structure.commands.iter().enumerate() {
+            let at = command.argv.first()?.span.start();
+            let body = analysis.original_definition_body_span(at);
+            if body.is_none()
+                && structure
+                    .caller_context_unavailable_bodies
+                    .iter()
+                    .any(|span| span.start() <= at && at < span.end())
+            {
+                continue;
+            }
+            let Some(words) = slots[index].take(|| {
+                tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                    source, analysis, command,
+                )
+            }) else {
+                continue;
+            };
+            if !words.matches_source(image, config)
+                || !words.matches_registry(input.borrowed_context_registry().commands())
+                || words.context() != Some(input.availability_context())
+            {
+                continue;
+            }
+            let source_load = tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(source, analysis, at);
+            let package_require = words
+                .package_reference(input.borrowed_context_registry())
+                .filter(|reference| {
+                    reference.kind()
+                        == tcl_registry::source_navigation::SourcePackageReferenceKind::Require
+                });
+            sites.push(OriginalSourceOrderSite {
+                span: command.span,
+                body,
+                source_load,
+                package_require,
+                words,
+            });
+        }
+        Some(Self {
+            image: image.clone(),
+            input: input.clone(),
+            realm: realm.clone(),
+            sites,
+            command_spans,
+            sequence,
+        })
+    }
+
+    pub(crate) fn source_text(&self) -> Option<&str> {
+        self.image.try_text().ok()
+    }
+    pub(crate) fn matches_input(
+        &self,
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        &self.input == input && self.realm.matches_resolved_analysis_input(input)
+    }
+
+    fn site(&self, at: u32) -> Option<&OriginalSourceOrderSite> {
+        if !self.realm.matches_resolved_analysis_input(&self.input)
+            || !self
+                .realm
+                .matches_original_source_image(&self.image, self.input.lexer_config())
+        {
+            return None;
+        }
+        // Select syntax before admission: an unissued inner command must not
+        // borrow a wider enclosing declaration command's source/body owner.
+        let command_span = self
+            .command_spans
+            .iter()
+            .filter(|span| span.start() <= at && at < span.end())
+            .min_by_key(|span| span.end() - span.start())?;
+        self.sites
+            .iter()
+            .filter(|site| {
+                site.span == *command_span
+                    && site.span.start() <= at
+                    && at < site.span.end()
+                    && site
+                        .words
+                        .matches_source(&self.image, self.input.lexer_config())
+                    && site
+                        .words
+                        .matches_registry(self.input.borrowed_context_registry().commands())
+            })
+            .min_by_key(|site| site.span.end() - site.span.start())
+    }
+
+    /// The document end when it is a sequence position: the document is
+    /// read after it completes normally.
+    fn sequence_end(&self) -> Option<u32> {
+        let end = self.sequence.as_ref()?.end;
+        self.sequence_position(end).then_some(end)
+    }
+
+    /// Whether `at` is a straight-line sequence position of this document
+    /// under the same retained image/input/Realm currency as [`Self::site`].
+    fn sequence_position(&self, at: u32) -> bool {
+        self.realm.matches_resolved_analysis_input(&self.input)
+            && self
+                .realm
+                .matches_original_source_image(&self.image, self.input.lexer_config())
+            && self
+                .sequence
+                .as_ref()
+                .is_some_and(|sequence| sequence.contains(at))
+    }
+
+    fn edge_site(&self, edge: &RunEdge) -> Option<&OriginalSourceOrderSite> {
+        let site = self.site(edge.at)?;
+        match edge.kind {
+            RunEdgeKind::Source => site
+                .source_load
+                .as_ref()?
+                .matches_source(&self.image, &self.input)
+                .then_some(())?,
+            RunEdgeKind::PackageRequire => {
+                site.package_require.as_ref()?;
+            }
+        }
+        Some(site)
+    }
+}
+
 /// A `String`-keyed map on the [`RunOrder`] hot path.
 ///
 /// Every one of these is probed from inside the cross-document import walk,
@@ -435,9 +1561,18 @@ type UriMap<V> = rustc_hash::FxHashMap<String, V>;
 /// The [`UriMap`] of sets — same keys, same reasoning.
 type UriSet = rustc_hash::FxHashSet<String>;
 
-/// The **load order the workspace proves** — the single relation both
+/// A constructed source-order model, or purpose-bound conditional workspace
+/// navigation when built with authentic indexed source contexts. Neither mode
+/// is an actual interpreter chronology. The relation both
 /// wildcard-import tiers rank cross-document events with (design in
 /// `docs/design/analysis/import-order-source-graph.md` §6).
+///
+/// The coordinate explanation below describes the constructed hypothesis.
+/// Actual `WorkspaceIndex` results keep Conditional purpose even when its
+/// relative coordinates are unique; they do not authorize event suppression.
+/// The one exception is two straight-line positions of the same indexed
+/// document, which that document's own sequence orders
+/// ([`SourceNavigationOrderPurpose::DocumentSequence`]).
 ///
 /// # Why an order exists at all
 ///
@@ -501,6 +1636,9 @@ type UriSet = rustc_hash::FxHashSet<String>;
 /// [`ancestor_prefer_latest_raised`] already applies to the same edges.
 #[derive(Debug, Clone, Default)]
 pub struct RunOrder {
+    /// None is the explicitly constructed compatibility model. Workspace
+    /// navigation always retains Some, including unavailable source owners.
+    source_contexts: Option<UriMap<SourceOrderContext>>,
     /// Root-ward path of every document the graph knows: root-first positions
     /// of the `source` statements that enter the next document down.  Empty
     /// for a root.
@@ -545,7 +1683,9 @@ impl OwnedRunPoint {
 }
 
 impl RunOrder {
-    /// Build the order from the workspace's resolved edges.
+    /// Build an explicitly constructed source-order hypothesis. This pure
+    /// compatibility ingress authenticates no execution or original source.
+    /// Workspace navigation uses `for_source_navigation` and typed answers.
     ///
     /// `edges` are `(parent, child)` with the parent-side position of the
     /// statement that brings `child` into the run; the caller has already
@@ -564,8 +1704,11 @@ impl RunOrder {
     /// earlier, and those can contradict.
     #[must_use]
     pub fn build(edges: &[RunEdge]) -> Self {
+        Self::build_with_source_refusals(edges, UriSet::default())
+    }
+
+    fn build_with_source_refusals(edges: &[RunEdge], mut ambiguous: UriSet) -> Self {
         let mut parent_of: HashMap<&str, (&str, Placed)> = HashMap::new();
-        let mut ambiguous: UriSet = UriSet::default();
         let mut documents: HashSet<&str> = HashSet::new();
         let mut package_entries: HashMap<String, Vec<OwnedRunPoint>> = HashMap::new();
         for edge in edges {
@@ -658,11 +1801,198 @@ impl RunOrder {
         let package_alternatives =
             Self::fold_package_alternatives(&documents, &root_of, &ambiguous, &package_entries);
         Self {
+            source_contexts: None,
             paths,
             root_of,
             ambiguous,
             package_alternatives,
         }
+    }
+
+    /// Reuse the same source forest/cycle/re-source/package-bound algorithm,
+    /// but retain the actual indexed source owners and conditional purpose.
+    pub(crate) fn for_source_navigation(
+        edges: &[RunEdge],
+        contexts: impl Iterator<Item = (String, SourceOrderContext)>,
+    ) -> Self {
+        let source_contexts: UriMap<_> = contexts.collect();
+        let mut unknown = UriSet::default();
+        let edges = edges
+            .iter()
+            .filter_map(|edge| {
+                let Some(site) = source_contexts
+                    .get(&edge.parent)
+                    .and_then(|context| SourceOrderContext::edge_site(context, edge))
+                else {
+                    unknown.insert(edge.child.clone());
+                    return None;
+                };
+                Some(RunEdge {
+                    enclosing_body: site.body,
+                    ..edge.clone()
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut order = Self::build_with_source_refusals(&edges, unknown);
+        order.source_contexts = Some(source_contexts);
+        order
+    }
+
+    /// Source relation for navigation, retaining its own purpose. Two
+    /// straight-line positions of one indexed document are ordered by that
+    /// document's sequence ([`SourceNavigationOrderPurpose::DocumentSequence`]);
+    /// every other source/package path stays Conditional and establishes no
+    /// executed event.
+    #[must_use]
+    pub fn navigation_precedence(
+        &self,
+        event: RunPoint<'_>,
+        query: RunPoint<'_>,
+    ) -> Option<SourceNavigationOrder<bool>> {
+        if let Some(known) = self.document_sequence(event, query, |event, query| {
+            tcl_compiler::analyser::indirection::in_effect_within(event, query, None)
+        }) {
+            return Some(known);
+        }
+        let answer = self.precedence_relation(event, query)?;
+        Some(self.source_navigation_answer(answer))
+    }
+
+    /// Source-model ranking; only a constructed model or one document's
+    /// straight-line sequence can become a conflict.
+    #[must_use]
+    pub fn navigation_comparison(
+        &self,
+        a: RunPoint<'_>,
+        b: RunPoint<'_>,
+    ) -> Option<SourceNavigationOrder<std::cmp::Ordering>> {
+        use crate::namespace_import::load_order;
+        if let Some(known) =
+            self.document_sequence(a, b, |a, b| load_order(a, false).cmp(&load_order(b, false)))
+        {
+            return Some(known);
+        }
+        let answer = self.comparison_relation(a, b)?;
+        Some(self.source_navigation_answer(answer))
+    }
+
+    /// The end of `uri` — after that document completes normally — for a
+    /// consumer with no query point of its own, when the document's
+    /// sequence admits it. None keeps such a consumer conditional.
+    #[must_use]
+    pub(crate) fn document_end<'a>(&self, uri: &'a str) -> Option<RunPoint<'a>> {
+        let at = self.source_contexts.as_ref()?.get(uri)?.sequence_end()?;
+        Some(RunPoint {
+            uri,
+            at,
+            enclosing_body: None,
+        })
+    }
+
+    /// Whether this is purpose-bound workspace navigation rather than an
+    /// explicitly constructed model. Such an order withholds a removal whose
+    /// own position against the query point is not known.
+    #[must_use]
+    pub(crate) const fn is_source_navigation(&self) -> bool {
+        self.source_contexts.is_some()
+    }
+
+    /// The same-document straight-line relation:
+    /// both points in one indexed document and both sequence positions of
+    /// it. Supplied body spans are ignored; the retained inventory decides.
+    fn document_sequence<T>(
+        &self,
+        a: RunPoint<'_>,
+        b: RunPoint<'_>,
+        relation: impl FnOnce(u32, u32) -> T,
+    ) -> Option<SourceNavigationOrder<T>> {
+        if a.uri != b.uri {
+            return None;
+        }
+        let context = self.source_contexts.as_ref()?.get(a.uri)?;
+        (context.sequence_position(a.at) && context.sequence_position(b.at)).then(|| {
+            SourceNavigationOrder {
+                relation: relation(a.at, b.at),
+                purpose: SourceNavigationOrderPurpose::DocumentSequence,
+            }
+        })
+    }
+
+    fn source_navigation_answer<T>(&self, answer: T) -> SourceNavigationOrder<T> {
+        SourceNavigationOrder {
+            relation: answer,
+            purpose: if self.source_contexts.is_some() {
+                SourceNavigationOrderPurpose::Conditional
+            } else {
+                SourceNavigationOrderPurpose::Constructed
+            },
+        }
+    }
+
+    /// Conditional compatibility within an actually represented statement
+    /// horizon. An unentered sibling/deferred body is never a root event.
+    pub(crate) fn source_advice_statement_precedence(
+        &self,
+        event: RunPoint<'_>,
+        query: RunPoint<'_>,
+    ) -> Option<bool> {
+        let event = self.original_point(event)?;
+        let query = self.original_point(query)?;
+        if event.enclosing_body.is_some()
+            && (event.uri != query.uri || event.enclosing_body != query.enclosing_body)
+        {
+            return None;
+        }
+        let (event, query) = self.common_original_frame(event, query)?;
+        let relation = tcl_compiler::analyser::indirection::in_effect_within(
+            event.at,
+            query.at,
+            query.enclosing_body,
+        );
+        Self::trusted(relation, event, query).then_some(relation)
+    }
+
+    pub(crate) fn source_advice_statement_comparison(
+        &self,
+        a: RunPoint<'_>,
+        b: RunPoint<'_>,
+    ) -> Option<std::cmp::Ordering> {
+        let a = self.original_point(a)?;
+        let b = self.original_point(b)?;
+        if (a.enclosing_body.is_some() || b.enclosing_body.is_some())
+            && (a.uri != b.uri || a.enclosing_body != b.enclosing_body)
+        {
+            return None;
+        }
+        self.comparison_relation(a, b)
+    }
+
+    /// A declared readonly end-of-document query, not an original command or
+    /// executed completion. Unknown tails/entry remain debt at the caller.
+    pub(crate) fn source_advice_after_document(
+        &self,
+        event: RunPoint<'_>,
+        uri: &str,
+    ) -> Option<bool> {
+        let contexts = self.source_contexts.as_ref()?;
+        let context = contexts.get(uri)?;
+        let event = self.original_point(event)?;
+        // Root text ending does not enter a deferred procedure/method body.
+        if event.enclosing_body.is_some() {
+            return None;
+        }
+        let query = RunPoint {
+            uri,
+            at: u32::try_from(context.image.bytes().len()).ok()?,
+            enclosing_body: None,
+        };
+        let (event, query) = self.common_original_frame(event, query)?;
+        let relation = tcl_compiler::analyser::indirection::in_effect_within(
+            event.at,
+            query.at,
+            query.enclosing_body,
+        );
+        Self::trusted(relation, event, query).then_some(relation)
     }
 
     /// Resolve [`Self::alternatives`] for every document up front: the root
@@ -701,8 +2031,9 @@ impl RunOrder {
         out
     }
 
-    /// Whether the statement at `event` had already run when the statement at
-    /// `query` ran; `None` when the two have no static order.
+    /// Legacy explicitly constructed model comparison, without an execution
+    /// receipt. Always None for purpose-bound workspace source navigation;
+    /// use `navigation_precedence` to retain its conditional relation.
     ///
     /// The gating question — the leniency is
     /// [`tcl_compiler::analyser::indirection::in_effect_within`]'s, applied in
@@ -712,6 +2043,13 @@ impl RunOrder {
     /// whole file loads before any body runs.
     #[must_use]
     pub fn has_run(&self, event: RunPoint<'_>, query: RunPoint<'_>) -> Option<bool> {
+        if self.source_contexts.is_some() {
+            return None;
+        }
+        self.precedence_relation(event, query)
+    }
+
+    fn precedence_relation(&self, event: RunPoint<'_>, query: RunPoint<'_>) -> Option<bool> {
         self.decide(event, query, |e, q| {
             let ran =
                 tcl_compiler::analyser::indirection::in_effect_within(e.at, q.at, q.enclosing_body);
@@ -719,9 +2057,9 @@ impl RunOrder {
         })
     }
 
-    /// Which of two statements ran first under the **strict** "did this
-    /// definitely already run" order ([`crate::namespace_import::load_order`]);
-    /// `None` when they are incomparable.
+    /// Legacy explicitly constructed model ranking. Always None for
+    /// purpose-bound workspace source navigation; `navigation_comparison`
+    /// retains conditional coordinates without conflict/completion authority.
     ///
     /// The ranking question the latest-wins folds and the import-conflict rule
     /// need.  Deliberately *not* [`Self::has_run`]'s leniency: a conflict
@@ -730,6 +2068,13 @@ impl RunOrder {
     /// has — the reasoning on [`crate::namespace_import::load_order`].
     #[must_use]
     pub fn cmp_run(&self, a: RunPoint<'_>, b: RunPoint<'_>) -> Option<std::cmp::Ordering> {
+        if self.source_contexts.is_some() {
+            return None;
+        }
+        self.comparison_relation(a, b)
+    }
+
+    fn comparison_relation(&self, a: RunPoint<'_>, b: RunPoint<'_>) -> Option<std::cmp::Ordering> {
         use crate::namespace_import::load_order;
         use std::cmp::Ordering;
         self.decide(a, b, |pa, pb| {
@@ -794,6 +2139,10 @@ impl RunOrder {
         b: RunPoint<'_>,
         judge: impl Fn(Placed, Placed) -> Option<T>,
     ) -> Option<T> {
+        // A URI-level package bound cannot replace a refused original point.
+        // Constructed inputs retain original_point's identity behavior.
+        let a = self.original_point(a)?;
+        let b = self.original_point(b)?;
         if let Some((x, y)) = self.common_frame(a, b) {
             return judge(x, y);
         }
@@ -836,11 +2185,28 @@ impl RunOrder {
             .map_or(&[], |sites| &**sites)
     }
 
+    fn original_point<'a>(&self, point: RunPoint<'a>) -> Option<RunPoint<'a>> {
+        let Some(contexts) = &self.source_contexts else {
+            return Some(point);
+        };
+        let site = SourceOrderContext::site(contexts.get(point.uri)?, point.at)?;
+        Some(RunPoint {
+            enclosing_body: site.body,
+            ..point
+        })
+    }
+
     /// Both points as positions in their deepest common document — the single
     /// projection [`Self::has_run`] and [`Self::cmp_run`] share, so the gate
     /// and the conflict rule read one relation and differ only in which
     /// single-document rule they then apply.
     fn common_frame(&self, a: RunPoint<'_>, b: RunPoint<'_>) -> Option<(Placed, Placed)> {
+        let a = self.original_point(a)?;
+        let b = self.original_point(b)?;
+        self.common_original_frame(a, b)
+    }
+
+    fn common_original_frame(&self, a: RunPoint<'_>, b: RunPoint<'_>) -> Option<(Placed, Placed)> {
         let own = |p: RunPoint<'_>| Placed {
             at: p.at,
             enclosing_body: p.enclosing_body,
@@ -1750,5 +3116,652 @@ mod tests {
             [7, 90],
             "{got:?}",
         );
+    }
+}
+
+#[cfg(test)]
+mod project_source_action_tests {
+    use super::*;
+
+    #[test]
+    fn rename_association_requires_a_unique_declared_base_and_same_host_root() {
+        let document = Path::new("/project/sub/main.tcl");
+        let old = Path::new("/project/old.tcl");
+        let one = project_source_association(document, &[], "../old.tcl", old).unwrap();
+        assert_eq!(
+            one.renamed_literal(Path::new("/project/new.tcl"))
+                .as_deref(),
+            Some("../new.tcl")
+        );
+        assert!(
+            project_source_association(
+                document,
+                &[PathBuf::from("/project/other")],
+                "../old.tcl",
+                old
+            )
+            .is_none()
+        );
+        let duplicate = project_source_association(
+            document,
+            &[PathBuf::from("/project/sub")],
+            "../old.tcl",
+            old,
+        )
+        .unwrap();
+        assert_eq!(duplicate, one);
+        assert!(project_source_association(document, &[], "other.tcl", old).is_none());
+        assert!(
+            project_source_association(document, &[PathBuf::from("relative")], "../old.tcl", old)
+                .is_none()
+        );
+        assert!(one.renamed_literal(Path::new("relative/new.tcl")).is_none());
+        assert!(
+            relative_source_path(Path::new("relative/new.tcl"), Path::new("relative")).is_none()
+        );
+        assert!(project_source_association(document, &[], "~/old.tcl", old).is_none());
+        assert!(project_source_association(document, &[], "~other/old.tcl", old).is_none());
+        assert!(project_source_association(document, &[], "", old).is_none());
+        #[cfg(unix)]
+        {
+            assert!(
+                project_source_association(
+                    Path::new("//project/sub/main.tcl"),
+                    &[],
+                    "../old.tcl",
+                    old
+                )
+                .is_none()
+            );
+            assert!(project_source_association(document, &[], "//project/old.tcl", old).is_none());
+            assert!(
+                one.renamed_literal(Path::new("//project/new.tcl"))
+                    .is_none()
+            );
+        }
+    }
+}
+#[cfg(test)]
+mod original_source_navigation_order_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn point(uri: &str, at: u32) -> RunPoint<'_> {
+        RunPoint {
+            uri,
+            at,
+            enclosing_body: None,
+        }
+    }
+
+    #[test]
+    fn original_workspace_order_retains_conditional_purpose_without_tombstone_authority() {
+        let source = "set before 1\nset after 2\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.dialect = "display-only-changed".into();
+        let context = SourceOrderContext::capture(&analysis).unwrap();
+        let order = RunOrder::for_source_navigation(&[], [("doc".into(), context)].into_iter());
+        let before = point("doc", 0);
+        let after = point(
+            "doc",
+            u32::try_from(source.find("set after").unwrap()).unwrap(),
+        );
+        // Two straight-line points of one document are ordered by its own
+        // sequence. The legacy `has_run` and `cmp_run` stay unavailable for
+        // workspace navigation.
+        let relation = order.navigation_precedence(before, after).unwrap();
+        assert_eq!(
+            relation.purpose(),
+            SourceNavigationOrderPurpose::DocumentSequence
+        );
+        assert!(*relation.conditional_relation());
+        assert_eq!(relation.modeled_source_exclusion(), Some(true));
+        assert_eq!(order.has_run(before, after), None);
+        assert_eq!(order.cmp_run(before, after), None);
+        let ranking = order.navigation_comparison(before, after).unwrap();
+        assert_eq!(*ranking.conditional_relation(), std::cmp::Ordering::Less);
+        assert_eq!(
+            ranking.modeled_source_exclusion(),
+            Some(std::cmp::Ordering::Less)
+        );
+
+        let mut events = [
+            crate::namespace_import::ExportEvent {
+                pattern: "p",
+                clears: false,
+                at: before,
+            },
+            crate::namespace_import::ExportEvent {
+                pattern: "",
+                clears: true,
+                at: after,
+            },
+        ]
+        .into_iter();
+        assert!(crate::namespace_import::exported_at_import_site(
+            &mut events,
+            "p",
+            &order,
+            after
+        ));
+        let mut aliases = [
+            crate::namespace_import::AliasEvent {
+                kind: crate::namespace_import::AliasEventKind::Install,
+                at: before,
+            },
+            crate::namespace_import::AliasEvent {
+                kind: crate::namespace_import::AliasEventKind::Remove,
+                at: after,
+            },
+        ]
+        .into_iter();
+        assert!(crate::namespace_import::alias_live_at(
+            &mut aliases,
+            &order,
+            Some(after)
+        ));
+    }
+
+    /// `pattern p` / `-clear` and install / remove event pairs at `first`
+    /// and `second`: whether `p` is exported and the alias live at `query`.
+    fn exported_and_live(
+        order: &RunOrder,
+        first: RunPoint<'_>,
+        second: RunPoint<'_>,
+        query: RunPoint<'_>,
+    ) -> (bool, bool) {
+        use crate::namespace_import::{AliasEvent, AliasEventKind, ExportEvent};
+        let exports = [
+            ExportEvent {
+                pattern: "p",
+                clears: false,
+                at: first,
+            },
+            ExportEvent {
+                pattern: "",
+                clears: true,
+                at: second,
+            },
+        ];
+        let aliases = [
+            AliasEvent {
+                kind: AliasEventKind::Install,
+                at: first,
+            },
+            AliasEvent {
+                kind: AliasEventKind::Remove,
+                at: second,
+            },
+        ];
+        (
+            crate::namespace_import::exported_at_import_site(
+                &mut exports.into_iter(),
+                "p",
+                order,
+                query,
+            ),
+            crate::namespace_import::alias_live_at(&mut aliases.into_iter(), order, Some(query)),
+        )
+    }
+
+    #[test]
+    fn document_end_follows_every_straight_removal_but_no_foreign_one() {
+        let source = "set before 1\nset after 2\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let mut other = Analyser::new().analyse(source, "tcl8.6");
+        other.dialect = "display-only-other".into();
+        let order = RunOrder::for_source_navigation(
+            &[],
+            [
+                (
+                    "doc".into(),
+                    SourceOrderContext::capture(&analysis).unwrap(),
+                ),
+                ("other".into(), SourceOrderContext::capture(&other).unwrap()),
+            ]
+            .into_iter(),
+        );
+        let before = point("doc", 0);
+        let after = point(
+            "doc",
+            u32::try_from(source.find("set after").unwrap()).unwrap(),
+        );
+        let end = point("doc", u32::try_from(source.len()).unwrap());
+        // The same-document clear and removal have run at the document end.
+        assert_eq!(
+            exported_and_live(&order, before, after, end),
+            (false, false)
+        );
+        // One in another document is never ordered after this one's events.
+        let foreign = point("other", after.at);
+        assert!(
+            order
+                .navigation_precedence(before, foreign)
+                .is_none_or(|relation| {
+                    relation.purpose() == SourceNavigationOrderPurpose::Conditional
+                        && relation.modeled_source_exclusion().is_none()
+                })
+        );
+        assert_eq!(
+            exported_and_live(&order, before, foreign, end),
+            (true, true)
+        );
+        // With no query point, as at a link, the document is read after it
+        // completes normally: the same-document removal has run, a foreign
+        // one is not ordered after the install.
+        assert!(!unpositioned_live(&order, before, after));
+        assert!(unpositioned_live(&order, before, foreign));
+    }
+
+    /// Whether an alias installed at `install` and removed at `removal` is
+    /// live for a consumer with no query point.
+    fn unpositioned_live(order: &RunOrder, install: RunPoint<'_>, removal: RunPoint<'_>) -> bool {
+        use crate::namespace_import::{AliasEvent, AliasEventKind};
+        let aliases = [
+            AliasEvent {
+                kind: AliasEventKind::Install,
+                at: install,
+            },
+            AliasEvent {
+                kind: AliasEventKind::Remove,
+                at: removal,
+            },
+        ];
+        crate::namespace_import::alias_live_at(&mut aliases.into_iter(), order, None)
+    }
+
+    #[test]
+    fn an_unpositioned_removal_applies_only_before_an_admitted_document_end() {
+        // tclsh 8.6 / 9.0, with `namespace import` at `set install` and
+        // `namespace forget` at `set removal`: after `source` the forget has
+        // run and the alias is gone. Behind a possible early exit, after an
+        // end-only cutoff, in a procedure body or a branch, or before the
+        // install, the answer stays conditional and the alias stays live.
+        for (source, live) in [
+            ("set install 1\nset removal 2\n", false),
+            (
+                "namespace eval ::app {\n    set install 1\n    set removal 2\n}\n",
+                false,
+            ),
+            ("set install 1\nif {$x} return\nset removal 2\n", true),
+            ("set install 1\nset removal 2\nsource y.tcl\n", true),
+            (
+                "proc myreturn {} {return -code return}\nset install 1\nset removal 2\nmyreturn\n",
+                true,
+            ),
+            ("set install 1\nproc q {} {set removal 2}\n", true),
+            ("set install 1\nif {$x} {set removal 2}\n", true),
+            ("set removal 2\nset install 1\n", true),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let context = SourceOrderContext::capture(&analysis).unwrap();
+            let order = RunOrder::for_source_navigation(&[], [("doc".into(), context)].into_iter());
+            let at =
+                |needle: &str| point("doc", u32::try_from(source.find(needle).unwrap()).unwrap());
+            assert_eq!(
+                unpositioned_live(&order, at("set install"), at("set removal")),
+                live,
+                "{source}"
+            );
+        }
+    }
+
+    fn sequence_purposes(
+        source: &str,
+    ) -> impl Fn(&str, &str) -> Option<SourceNavigationOrderPurpose> + '_ {
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let context = SourceOrderContext::capture(&analysis).unwrap();
+        let order = RunOrder::for_source_navigation(&[], [("doc".into(), context)].into_iter());
+        let at = move |needle: &str| {
+            if needle == "END" {
+                return u32::try_from(source.len()).unwrap();
+            }
+            u32::try_from(source.find(needle).unwrap()).unwrap()
+        };
+        move |a: &str, b: &str| {
+            order
+                .navigation_precedence(point("doc", at(a)), point("doc", at(b)))
+                .map(|relation| relation.purpose())
+        }
+    }
+
+    const KNOWN: Option<SourceNavigationOrderPurpose> =
+        Some(SourceNavigationOrderPurpose::DocumentSequence);
+
+    #[test]
+    fn document_sequence_orders_straight_line_bodies_and_withholds_branches() {
+        // Only top-level unconditional order is known. A `namespace eval`
+        // body is entered once, immediately; an `if` branch and a procedure
+        // body are not straight-line sequence. A `return` inside a procedure
+        // body is no early exit of the document, and neither is a branch
+        // that may or may not run. `x` holds an unknown value read from stdin.
+        let source = "set before 1\ngets stdin x\nnamespace eval ::n {\n    set inner 2\n}\nif {$x} {set branch 3}\nproc q {} {set body 4; return}\nset after 6\n";
+        let purpose = sequence_purposes(source);
+        assert_eq!(purpose("set before", "set inner"), KNOWN);
+        assert_eq!(purpose("set inner", "set after"), KNOWN);
+        assert_eq!(purpose("set after", "END"), KNOWN);
+        // tclsh 8.6 / 9.0: with `x` never set, `if {$x}` fails with
+        // `can't read "x"`, so the document never completes normally and
+        // the later commands are never reached; the end stays withheld.
+        let unset = sequence_purposes(
+            "set before 1\nif {$x} {set branch 3}\nproc q {} {set body 4; return}\nset after 6\n",
+        );
+        assert_ne!(unset("set after", "END"), KNOWN);
+        for withheld in ["set branch", "set body"] {
+            assert_ne!(purpose(withheld, "set after"), KNOWN, "{withheld}");
+            assert_ne!(purpose("set before", withheld), KNOWN, "{withheld}");
+        }
+        // `uplevel` selects its frame from a level word: never entered.
+        let shifted = sequence_purposes("set before 1\nuplevel #0 {set shifted 2}\n");
+        assert_ne!(shifted("set before", "set shifted"), KNOWN);
+        assert_ne!(shifted("set shifted", "END"), KNOWN);
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let context = SourceOrderContext::capture(&analysis).unwrap();
+        let order = RunOrder::for_source_navigation(&[], [("doc".into(), context)].into_iter());
+        assert!(
+            order
+                .navigation_precedence(point("doc", 0), point("elsewhere", 0))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn document_sequence_ends_at_a_possible_early_exit() {
+        // tclsh 8.6 / 9.0: a top-level `return`, unconditional or in a taken
+        // branch, stops the document; nothing after it is a known position
+        // and neither is the document end.
+        for source in [
+            "set before 1\nreturn\nset after 2\n",
+            "set before 1\nif {$x} return\nset after 2\n",
+            "set before 1\nif {$x} {exit 1}\nset after 2\n",
+        ] {
+            let purpose = sequence_purposes(source);
+            assert_ne!(purpose("set before", "set after"), KNOWN, "{source}");
+            assert_ne!(purpose("set before", "END"), KNOWN, "{source}");
+        }
+    }
+
+    #[test]
+    fn document_end_is_after_normal_completion_only() {
+        // tclsh 8.6 / 9.0: a sourced file or a user procedure doing
+        // `return -code return`, or a top-level `break` in a file sourced
+        // inside a loop, completes the load early and the later statement
+        // never runs. A later position is still ordered (it is reached only
+        // when control did pass); the document end is withheld.
+        for source in [
+            "set before 1\nsource y.tcl\nset after 2\n",
+            "proc myreturn {} {return -code return}\nset before 1\nmyreturn\nset after 2\n",
+            "set before 1\nbreak\nset after 2\n",
+            // A script the inventory cannot see runs now: a lambda in a
+            // variable, a command prefix, a doubly substituted expression.
+            "set l {{} {return -code return}}\nset before 1\napply $l\nset after 2\n",
+            "proc cmp {a b} {return -code return}\nset before 1\nlsort -command cmp {b a}\nset after 2\n",
+            "set e {[return -code return]}\nset before 1\nexpr $e\nset after 2\n",
+            // Math functions are commands: a user `::tcl::mathfunc`
+            // procedure, also from a braced `if` condition, or an undefined
+            // name reaching a user `unknown`.
+            "proc ::tcl::mathfunc::f {x} {return -code return}\nset before 1\nexpr {f(1)}\nset after 2\n",
+            "proc ::tcl::mathfunc::f {x} {return -code return}\nset before 1\nif {f(1)} {set y 1}\nset after 2\n",
+            "proc unknown {args} {return -code return}\nset before 1\nexpr {nosuchfn(1)}\nset after 2\n",
+        ] {
+            let purpose = sequence_purposes(source);
+            assert_eq!(purpose("set before", "set after"), KNOWN, "{source}");
+            assert_ne!(purpose("set before", "END"), KNOWN, "{source}");
+            assert_ne!(purpose("set after", "END"), KNOWN, "{source}");
+        }
+    }
+
+    #[test]
+    fn document_sequence_refuses_shadowed_or_namespace_local_entering_commands() {
+        // tclsh 8.6 / 9.0: a namespace-local `proc eval` or `proc namespace`
+        // swallows the body, so the forget never runs; neither body is
+        // straight-line sequence.
+        for source in [
+            "namespace eval dst {proc eval args {}}\nnamespace eval dst {eval {namespace forget ::src::p}}\nset after 1\n",
+            "namespace eval dst {proc namespace args {}}\nnamespace eval dst {namespace forget ::src::p}\nset after 1\n",
+            "proc eval args {}\neval {namespace forget ::src::p}\nset after 1\n",
+            // A renamed procedure takes the built-in's name without a
+            // declaration of that name; the Realm barrier must refuse it.
+            "proc myeval args {}\nrename eval {}\nrename myeval eval\neval {namespace forget ::src::p}\nset after 1\n",
+        ] {
+            let purpose = sequence_purposes(source);
+            assert_ne!(purpose("namespace forget", "set after"), KNOWN, "{source}");
+            assert_ne!(purpose("namespace forget", "END"), KNOWN, "{source}");
+        }
+    }
+
+    #[test]
+    fn original_source_order_context_keeps_full_input_and_missing_body_owners_unknown() {
+        let source = "set value 1\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(SourceOrderContext::capture(&analysis).is_some());
+        let mut changed = analysis.clone();
+        changed.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        assert!(SourceOrderContext::capture(&changed).is_none());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(SourceOrderContext::capture(&missing).is_none());
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let mut foreign = analysis.clone();
+        foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry(),
+            input.lexer_config(),
+        ));
+        assert!(SourceOrderContext::capture(&foreign).is_none());
+        let dynamic = "$head arbitrary\n";
+        let dynamic_analysis = Analyser::new().analyse(dynamic, "tcl8.6");
+        let context = SourceOrderContext::capture(&dynamic_analysis).unwrap();
+        assert!(context.site(0).is_none());
+        let order = RunOrder::for_source_navigation(&[], std::iter::empty());
+        assert!(
+            order
+                .navigation_precedence(point("doc", 0), point("doc", 1))
+                .is_none()
+        );
+        assert_eq!(order.has_run(point("doc", 0), point("doc", 1)), None);
+
+        let source = "proc pending {} {set body 1}\nset root 2\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let body_at = u32::try_from(source.find("set body").unwrap()).unwrap();
+        assert!(analysis.original_definition_body_span(body_at).is_some());
+        let context = SourceOrderContext::capture(&analysis).unwrap();
+        if let Some(site) = context.site(body_at) {
+            assert_eq!(site.body, analysis.original_definition_body_span(body_at));
+        }
+        let original_body = analysis.original_definition_body_span(body_at);
+        analysis.all_procs.clear();
+        // Reporting-map deletion neither erases the independent original body
+        // nor manufactures a source-global point from it.
+        assert_eq!(
+            analysis.original_definition_body_span(body_at),
+            original_body
+        );
+        let context = SourceOrderContext::capture(&analysis).unwrap();
+        if let Some(site) = context.site(body_at) {
+            assert_eq!(site.body, original_body);
+        }
+    }
+
+    #[test]
+    fn original_source_graph_uses_real_points_and_preserves_cycle_and_re_source_refusal() {
+        let parent = "set before 1\nsource child.tcl\nsource child.tcl\nset after 2\n";
+        let child = "set child 1\nsource parent.tcl\n";
+        let parent_analysis = Analyser::new().analyse(parent, "tcl8.6");
+        let child_analysis = Analyser::new().analyse(child, "tcl8.6");
+        let at = u32::try_from(parent.find("source child").unwrap()).unwrap();
+        let contexts = || {
+            [
+                (
+                    "parent".into(),
+                    SourceOrderContext::capture(&parent_analysis).unwrap(),
+                ),
+                (
+                    "child".into(),
+                    SourceOrderContext::capture(&child_analysis).unwrap(),
+                ),
+            ]
+            .into_iter()
+        };
+        let edge = RunEdge {
+            parent: "parent".into(),
+            child: "child".into(),
+            at,
+            enclosing_body: Some(tcl_lexer::Span::new(
+                0,
+                u32::try_from(parent.len()).unwrap(),
+            )),
+            kind: RunEdgeKind::Source,
+        };
+        let order = RunOrder::for_source_navigation(std::slice::from_ref(&edge), contexts());
+        // Supplied report body geometry cannot replace the genuine root point.
+        assert_eq!(order.paths.get("child").unwrap()[0].enclosing_body, None);
+        let relation = order
+            .navigation_precedence(point("parent", 0), point("child", 0))
+            .unwrap();
+        assert!(*relation.conditional_relation());
+        assert_eq!(relation.modeled_source_exclusion(), None);
+        let re_source = RunEdge {
+            at: u32::try_from(parent.rfind("source child").unwrap()).unwrap(),
+            ..edge.clone()
+        };
+        let order = RunOrder::for_source_navigation(&[edge.clone(), re_source], contexts());
+        assert!(
+            order
+                .navigation_precedence(point("parent", 0), point("child", 0))
+                .is_none()
+        );
+        let cycle = RunEdge {
+            parent: "child".into(),
+            child: "parent".into(),
+            at: u32::try_from(child.find("source parent").unwrap()).unwrap(),
+            enclosing_body: None,
+            kind: RunEdgeKind::Source,
+        };
+        let order = RunOrder::for_source_navigation(&[edge, cycle], contexts());
+        assert!(
+            order
+                .navigation_comparison(point("parent", 0), point("child", 0))
+                .is_none()
+        );
+    }
+}
+#[cfg(test)]
+mod original_package_alternative_owner_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn point(uri: &str, at: u32) -> RunPoint<'_> {
+        RunPoint {
+            uri,
+            at,
+            enclosing_body: None,
+        }
+    }
+
+    #[test]
+    fn package_alternatives_cannot_replace_unowned_dynamic_deferred_or_missing_input_points() {
+        let parent_source = "package require P\nset after 1\n";
+        let parent = Analyser::new().analyse(parent_source, "tcl8.6");
+        let query_at = u32::try_from(parent_source.find("set after").unwrap()).unwrap();
+        let edge = RunEdge {
+            parent: "parent".into(),
+            child: "child".into(),
+            at: 0,
+            enclosing_body: None,
+            kind: RunEdgeKind::PackageRequire,
+        };
+        let parent_context = SourceOrderContext::capture(&parent).unwrap();
+        assert!(parent_context.edge_site(&edge).is_some());
+        assert!(parent_context.site(query_at).is_some());
+
+        let child_source = "set owned 1\npackage provide P 1\n$head arbitrary\n";
+        let child = Analyser::new().analyse(child_source, "tcl8.6");
+        let child_context = SourceOrderContext::capture(&child).unwrap();
+        assert!(child_context.site(0).is_some());
+        let dynamic_at = u32::try_from(child_source.find("$head").unwrap()).unwrap();
+        assert!(child_context.site(dynamic_at).is_none());
+        let order = RunOrder::for_source_navigation(
+            std::slice::from_ref(&edge),
+            [
+                ("parent".into(), parent_context.clone()),
+                ("child".into(), child_context),
+            ]
+            .into_iter(),
+        );
+        let parent_point = point("parent", query_at);
+        let owned = point("child", 0);
+        assert!(!order.alternatives(owned).is_empty());
+        let positive = order.navigation_precedence(owned, parent_point).unwrap();
+        assert!(*positive.conditional_relation());
+        assert_eq!(
+            positive.purpose(),
+            SourceNavigationOrderPurpose::Conditional
+        );
+        assert_eq!(positive.modeled_source_exclusion(), None);
+        let dynamic = point("child", dynamic_at);
+        assert!(order.navigation_precedence(dynamic, parent_point).is_none());
+        assert!(order.navigation_precedence(parent_point, dynamic).is_none());
+        assert!(order.navigation_comparison(dynamic, parent_point).is_none());
+        assert!(order.navigation_comparison(parent_point, dynamic).is_none());
+
+        let deferred_source = "package provide P 1\nproc pending {} {$head arbitrary}\n";
+        let deferred = Analyser::new().analyse(deferred_source, "tcl8.6");
+        let deferred_at = u32::try_from(deferred_source.find("$head").unwrap()).unwrap();
+        assert!(
+            deferred
+                .original_definition_body_span(deferred_at)
+                .is_some()
+        );
+        let context = SourceOrderContext::capture(&deferred).unwrap();
+        assert!(context.site(deferred_at).is_none());
+        let order = RunOrder::for_source_navigation(
+            std::slice::from_ref(&edge),
+            [
+                ("parent".into(), parent_context.clone()),
+                ("child".into(), context),
+            ]
+            .into_iter(),
+        );
+        let unowned_body = point("child", deferred_at);
+        assert!(!order.alternatives(unowned_body).is_empty());
+        assert!(
+            order
+                .navigation_precedence(unowned_body, parent_point)
+                .is_none()
+        );
+        assert!(
+            order
+                .navigation_precedence(parent_point, unowned_body)
+                .is_none()
+        );
+        assert!(
+            order
+                .navigation_comparison(unowned_body, parent_point)
+                .is_none()
+        );
+        assert!(
+            order
+                .navigation_comparison(parent_point, unowned_body)
+                .is_none()
+        );
+
+        let mut missing = child.clone();
+        missing.resolved_input = None;
+        assert!(SourceOrderContext::capture(&missing).is_none());
+        let order = RunOrder::for_source_navigation(
+            &[edge],
+            [("parent".into(), parent_context)].into_iter(),
+        );
+        // The actual require route remains. Missing original source transport
+        // cannot become a point merely because its document has that route.
+        assert!(!order.alternatives(owned).is_empty());
+        assert!(order.navigation_precedence(owned, parent_point).is_none());
+        assert!(order.navigation_precedence(parent_point, owned).is_none());
+        assert!(order.navigation_comparison(owned, parent_point).is_none());
+        assert!(order.navigation_comparison(parent_point, owned).is_none());
+        assert_eq!(order.has_run(owned, parent_point), None);
+        assert_eq!(order.cmp_run(owned, parent_point), None);
     }
 }

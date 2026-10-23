@@ -736,7 +736,10 @@ impl Lsp {
     /// pay that barrier.
     pub fn at_workspace_root(root: &std::path::Path) -> Self {
         let mut lsp = Self::spawn(json!({ "features": { "linkedEditingRange": true } }));
-        lsp.initialize_at(&format!("file://{}", root.to_string_lossy()));
+        let root_uri = tcl_lsp_server::canonical_file_uri(root)
+            .expect("workspace root has a representable file URI")
+            .to_string();
+        lsp.initialize_at(&root_uri);
         lsp
     }
 
@@ -763,7 +766,10 @@ impl Lsp {
         env: &[(&str, &str)],
     ) -> Self {
         let mut lsp = Self::spawn_with_env(config, env);
-        lsp.initialize_at(&format!("file://{}", root.to_string_lossy()));
+        let root_uri = tcl_lsp_server::canonical_file_uri(root)
+            .expect("workspace root has a representable file URI")
+            .to_string();
+        lsp.initialize_at(&root_uri);
         let requested = lsp.shared.tcllsp_config.lock().unwrap().clone();
         lsp.settle_config(&requested);
         lsp
@@ -781,14 +787,20 @@ impl Lsp {
         {
             let mut map = lsp.shared.folder_configs.lock().unwrap();
             for (root, config) in folders {
-                map.insert(format!("file://{}", root.to_string_lossy()), config.clone());
+                let uri = tcl_lsp_server::canonical_file_uri(root)
+                    .expect("workspace folder has a representable file URI")
+                    .to_string();
+                map.insert(uri, config.clone());
             }
         }
         let roots: Vec<Value> = folders
             .iter()
             .enumerate()
             .map(|(i, (root, _))| {
-                json!({ "uri": format!("file://{}", root.to_string_lossy()), "name": format!("root{i}") })
+                let uri = tcl_lsp_server::canonical_file_uri(root)
+                    .expect("workspace folder has a representable file URI")
+                    .to_string();
+                json!({ "uri": uri, "name": format!("root{i}") })
             })
             .collect();
         lsp.initialize_with_folders(&roots);
@@ -845,6 +857,30 @@ impl Lsp {
         resp.get("result").cloned().unwrap_or(Value::Null)
     }
 
+    /// Send one request under an existing absolute deadline. Settled helpers
+    /// use this so each request, completion marker and required refresh shares
+    /// one load-scaled backstop.
+    fn request_before(
+        &mut self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+        deadline: Instant,
+    ) -> Value {
+        let id = self.send_request_no_wait(method, params);
+        let response = self.await_response_before(id, method, timeout, deadline);
+        assert!(
+            Instant::now() < deadline,
+            "timed out after {timeout:?} waiting for response to {method:?}; stderr:\n{}{}",
+            self.stderr_text(),
+            latency_barrier_timeout_note(),
+        );
+        if let Some(err) = response.get("error") {
+            panic!("{method} -> error {err}");
+        }
+        response.get("result").cloned().unwrap_or(Value::Null)
+    }
+
     /// The whole JSON-RPC response object, `error` included.
     ///
     /// [`Lsp::request`] panics on an error response, which is right for every
@@ -873,6 +909,17 @@ impl Lsp {
     /// Wait for a previously-sent request id.
     pub fn await_response(&self, id: i64, method: &str, timeout: Duration) -> Value {
         let deadline = Instant::now() + scaled_timeout(timeout);
+        self.await_response_before(id, method, timeout, deadline)
+    }
+
+    /// Reuse one actual response owner without restarting a caller's deadline.
+    fn await_response_before(
+        &self,
+        id: i64,
+        method: &str,
+        timeout: Duration,
+        deadline: Instant,
+    ) -> Value {
         loop {
             {
                 let mut responses = self.shared.responses.lock().unwrap();
@@ -1025,6 +1072,94 @@ impl Lsp {
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default()
+    }
+
+    /// Query the existing publisher owner for this exact client-authored source.
+    /// Only an actual complete report can support a negative assertion. Pending
+    /// work retries inside one load-scaled deadline; unavailable/suppressed or
+    /// malformed replies never become empty findings. This does not schedule
+    /// analysis or infer completion from a diagnostic count/delivery event.
+    pub fn current_complete_diagnostics(
+        &mut self,
+        uri: &str,
+        version: i64,
+        source: &str,
+        timeout: Duration,
+    ) -> Vec<Value> {
+        let deadline = Instant::now() + scaled_timeout(timeout);
+        let method = "workspace/executeCommand";
+        loop {
+            assert!(
+                Instant::now() < deadline,
+                "current diagnostics exceeded {timeout:?}: {uri}"
+            );
+            let id = self.send_request_no_wait(
+                method,
+                json!({
+                    "command": "tcl-lsp.currentDiagnostics",
+                    "arguments": [{ "uri": uri, "version": version, "source": source }],
+                }),
+            );
+            let response = self.await_response_before(id, method, timeout, deadline);
+            assert!(
+                Instant::now() < deadline,
+                "current diagnostics exceeded {timeout:?}: {uri}"
+            );
+            assert!(
+                response.get("error").is_none(),
+                "current diagnostics failed: {response}"
+            );
+            let report = response
+                .get("result")
+                .expect("current diagnostics response has a result");
+            match report.get("status").and_then(Value::as_str) {
+                Some("complete") => {
+                    assert_eq!(report.get("uri").and_then(Value::as_str), Some(uri));
+                    assert_eq!(report.get("version").and_then(Value::as_i64), Some(version));
+                    assert_eq!(report.get("source").and_then(Value::as_str), Some(source));
+                    for field in ["revision", "inputsEpoch"] {
+                        assert!(
+                            report
+                                .get(field)
+                                .and_then(Value::as_str)
+                                .is_some_and(|value| {
+                                    !value.is_empty()
+                                        && value.bytes().all(|byte| byte.is_ascii_digit())
+                                }),
+                            "current diagnostics has invalid {field}: {report}"
+                        );
+                    }
+                    assert!(
+                        report
+                            .get("resultId")
+                            .and_then(Value::as_str)
+                            .is_some_and(|value| !value.is_empty()),
+                        "current diagnostics lacks report identity: {report}"
+                    );
+                    let findings = report
+                        .get("diagnostics")
+                        .and_then(Value::as_array)
+                        .expect("complete diagnostics must contain the actual findings array");
+                    let _: Vec<tower_lsp_server::ls_types::Diagnostic> =
+                        serde_json::from_value(Value::Array(findings.clone()))
+                            .expect("completed findings must be valid LSP diagnostics");
+                    assert!(
+                        Instant::now() < deadline,
+                        "current diagnostics exceeded {timeout:?}: {uri}"
+                    );
+                    return findings.clone();
+                }
+                Some("unavailable")
+                    if matches!(
+                        report.get("reason").and_then(Value::as_str),
+                        Some("pending" | "stale")
+                    ) => {}
+                _ => panic!("current diagnostics is not complete for {uri}: {report}"),
+            }
+            std::thread::sleep(
+                Duration::from_millis(2).min(deadline.saturating_duration_since(Instant::now())),
+            );
+        }
     }
 
     /// A marker into the notification log for `await_log(..., since)`.
@@ -1386,10 +1521,35 @@ impl Lsp {
         self.try_await_log(needles, timeout, since)
             .unwrap_or_else(|| {
                 panic!(
-                    "no window/logMessage containing all of {needles:?} within {timeout:?}{}",
-                    latency_barrier_timeout_note()
+                    "no window/logMessage containing all of {needles:?} within {timeout:?}{}\n{}",
+                    latency_barrier_timeout_note(),
+                    self.log_barrier_failure_context(since)
                 )
             })
+    }
+
+    /// Bounded captured evidence for a failed log barrier, without another request.
+    fn log_barrier_failure_context(&self, since: usize) -> String {
+        const LIMIT: usize = 16_384;
+        let notes = self.shared.notifications.lock().unwrap();
+        let mut recent = String::new();
+        for note in notes.iter().skip(since).rev().take(16).rev() {
+            let text = note.to_string();
+            for character in text.chars().take(1_024) {
+                recent.push(character);
+            }
+            recent.push('\n');
+        }
+        drop(notes);
+        let stderr = self.shared.stderr.lock().unwrap();
+        let mut start = stderr.len().saturating_sub(LIMIT);
+        while !stderr.is_char_boundary(start) {
+            start += 1;
+        }
+        format!(
+            "Recent captured notifications (at most16,1024 chars each):\n{recent}Server stderr tail (at most {LIMIT} bytes):\n{}",
+            &stderr[start..]
+        )
     }
 
     /// [`Lsp::await_log`] for a `window/logMessage` of type `Warning` alone: a
@@ -1428,6 +1588,16 @@ impl Lsp {
         since: usize,
     ) -> Option<String> {
         let deadline = Instant::now() + scaled_timeout(timeout);
+        self.try_await_log_of_type_before(needles, message_type, deadline, since)
+    }
+
+    fn try_await_log_of_type_before(
+        &self,
+        needles: &[&str],
+        message_type: Option<i64>,
+        deadline: Instant,
+        since: usize,
+    ) -> Option<String> {
         let mut notes = self.shared.notifications.lock().unwrap();
         loop {
             for note in notes.iter().skip(since) {
@@ -1515,6 +1685,15 @@ impl Lsp {
         since: usize,
     ) -> Option<Value> {
         let deadline = Instant::now() + scaled_timeout(timeout);
+        self.try_await_server_request_before(method, deadline, since)
+    }
+
+    fn try_await_server_request_before(
+        &self,
+        method: &str,
+        deadline: Instant,
+        since: usize,
+    ) -> Option<Value> {
         let mut reqs = self.shared.server_requests.lock().unwrap();
         loop {
             if let Some(req) = reqs
@@ -1635,56 +1814,74 @@ impl Lsp {
     /// refresh was warranted. A cancelled read or a repeat-suppressed refresh
     /// also re-races: neither has served the enriched stream. Only a response
     /// marked `served-enriched`, `compared-equal`, or `no-analysis` is final.
-    /// Returns the last response, so a genuine content divergence is still
-    /// reported by the caller's assertion rather than hanging here.
+    /// Missing convergence evidence or a required refresh fails within the
+    /// same deadline; genuine token-content divergence remains the caller's
+    /// assertion to report.
     pub fn semantic_tokens_settled(&mut self, uri: &str) -> Value {
         let deadline = Instant::now() + scaled_timeout(DEFAULT_TIMEOUT);
         loop {
+            assert!(
+                Instant::now() < deadline,
+                "semantic token full result did not settle within {DEFAULT_TIMEOUT:?} for {uri}{}",
+                latency_barrier_timeout_note()
+            );
             let req_since = self.server_request_cursor();
             let log_since = self.notification_cursor();
-            let response = self.semantic_tokens(uri);
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                return response;
-            }
-            // The server logs the marker for *every* `full` request, so this
-            // arrives promptly whichever tier answered — no fixed grace, no
-            // wall-clock guess. A miss means the server stopped talking.
-            let Some(settled) = self.try_await_log(
+            let response = self.request_before(
+                "textDocument/semanticTokens/full",
+                json!({ "textDocument": { "uri": uri } }),
+                DEFAULT_TIMEOUT,
+                deadline,
+            );
+            let Some(settled) = self.try_await_log_of_type_before(
                 &["semantic_tokens.full_convergence.settled", uri],
-                remaining,
+                None,
+                deadline,
                 log_since,
             ) else {
-                return response;
+                panic!(
+                    "semantic token full convergence marker missing before {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                    latency_barrier_timeout_note()
+                );
             };
+            assert!(
+                Instant::now() < deadline,
+                "semantic token full convergence marker arrived after {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                latency_barrier_timeout_note()
+            );
             if settled.contains("refresh=true") || settled.contains("outcome=coalesced") {
-                // A coalesced request's holder schedules the refresh when it
-                // releases its claim, so wait for that just as we do a refresh
-                // already recorded by this request's own continuation.
-                let remaining = deadline.saturating_duration_since(Instant::now());
                 if self
-                    .try_await_server_request(
+                    .try_await_server_request_before(
                         "workspace/semanticTokens/refresh",
-                        remaining,
+                        deadline,
                         req_since,
                     )
                     .is_none()
                 {
-                    return response;
+                    panic!(
+                        "semantic token full refresh was required but absent before {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                        latency_barrier_timeout_note()
+                    );
                 }
+                assert!(
+                    Instant::now() < deadline,
+                    "semantic token full refresh arrived after {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                    latency_barrier_timeout_note()
+                );
             } else if settled.contains("outcome=served-enriched")
                 || settled.contains("outcome=compared-equal")
                 || settled.contains("outcome=no-analysis")
             {
-                // These are the only outcomes whose response is known to be
-                // final. In particular, `refresh-suppressed` has a differing
-                // enriched stream, but the server deliberately will not emit a
-                // second workspace-wide refresh for those same bytes.
+                assert!(
+                    Instant::now() < deadline,
+                    "semantic token full result settled after {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                    latency_barrier_timeout_note()
+                );
                 return response;
             }
             // A cancelled read, a repeat-suppressed refresh, or an unexpected
-            // marker has not established that this response is enriched. Loop
-            // and re-race under the existing overall deadline.
+            // marker has not established that this response is enriched. Retry
+            // only while the original request/marker/refresh deadline remains.
         }
     }
 
@@ -1717,41 +1914,74 @@ impl Lsp {
     ) -> Value {
         let deadline = Instant::now() + scaled_timeout(DEFAULT_TIMEOUT);
         loop {
+            assert!(
+                Instant::now() < deadline,
+                "semantic token range result did not settle within {DEFAULT_TIMEOUT:?} for {uri}{}",
+                latency_barrier_timeout_note()
+            );
             let req_since = self.server_request_cursor();
             let log_since = self.notification_cursor();
-            let response = self.semantic_tokens_range(uri, start, end);
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                return response;
-            }
-            let Some(settled) = self.try_await_log(
+            let params = json!({
+                "textDocument": { "uri": uri },
+                "range": {
+                    "start": { "line": start.0, "character": start.1 },
+                    "end": { "line": end.0, "character": end.1 },
+                },
+            });
+            let response = self.request_before(
+                "textDocument/semanticTokens/range",
+                params,
+                DEFAULT_TIMEOUT,
+                deadline,
+            );
+            let Some(settled) = self.try_await_log_of_type_before(
                 &["semantic_tokens.range_convergence.settled", uri],
-                remaining,
+                None,
+                deadline,
                 log_since,
             ) else {
-                return response;
+                panic!(
+                    "semantic token range convergence marker missing before {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                    latency_barrier_timeout_note()
+                );
             };
+            assert!(
+                Instant::now() < deadline,
+                "semantic token range convergence marker arrived after {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                latency_barrier_timeout_note()
+            );
             if settled.contains("refresh=true") || settled.contains("outcome=coalesced") {
-                let remaining = deadline.saturating_duration_since(Instant::now());
                 if self
-                    .try_await_server_request(
+                    .try_await_server_request_before(
                         "workspace/semanticTokens/refresh",
-                        remaining,
+                        deadline,
                         req_since,
                     )
                     .is_none()
                 {
-                    return response;
+                    panic!(
+                        "semantic token range refresh was required but absent before {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                        latency_barrier_timeout_note()
+                    );
                 }
+                assert!(
+                    Instant::now() < deadline,
+                    "semantic token range refresh arrived after {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                    latency_barrier_timeout_note()
+                );
             } else if settled.contains("outcome=served-enriched")
                 || settled.contains("outcome=compared-equal")
             {
+                assert!(
+                    Instant::now() < deadline,
+                    "semantic token range result settled after {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                    latency_barrier_timeout_note()
+                );
                 return response;
             }
             // A suppressed refresh, cancelled read, or coalesced continuation
-            // establishes no enriched answer for this response. Retry under the
-            // same overall deadline rather than blessing one as the cold oracle
-            // used by convergence tests.
+            // establishes no enriched answer for this response. Retry only
+            // within the same original deadline.
         }
     }
 
@@ -1972,17 +2202,16 @@ fn config_reflected(requested: &Value, effective: &Value) -> bool {
         "libraryPaths" => effective
             .get("library_paths")
             .is_some_and(|got| got == want),
-        // `tclLsp.specPacks` is reported verbatim, *and* the packs it produced
-        // are reported beside it — so this barrier waits for the discovery +
-        // load pass, not merely for the setting to be recorded.  Without that
-        // second half a test could open a document before its pack was in the
-        // registry and see the very W123 the pack exists to remove.
+        // Configured paths need the actual settled discovery/provider receipt.
+        // A nonempty roster from an earlier generation cannot close this gate.
         "specPacks" => {
             effective.get("spec_packs").is_some_and(|got| got == want)
-                && effective.get("spec_packs_loaded").is_some_and(|loaded| {
-                    want.as_array().is_none_or(|w| {
-                        w.is_empty() || loaded.as_array().is_some_and(|l| !l.is_empty())
-                    })
+                && want.as_array().is_some_and(|paths| {
+                    paths.is_empty()
+                        || effective.get("spec_pack_publication").is_some_and(|publication| {
+                            publication.get("status").and_then(Value::as_str) == Some("complete")
+                                && publication.get("configured") == Some(want)
+                        })
                 })
         }
         // Nested formatting settings; only `docstringStyle` has a settle
@@ -2237,5 +2466,28 @@ mod tests {
             scaled_timeout(base) >= base,
             "a scaled barrier must never be shorter than the constant it scales"
         );
+    }
+}
+
+#[cfg(test)]
+mod pack_configuration_settle_tests {
+    use super::*;
+
+    #[test]
+    fn nonempty_old_roster_cannot_settle_a_new_requested_pack() {
+        let requested = json!({"specPacks": ["new/provider"]});
+        let mut effective = json!({
+            "spec_packs": ["new/provider"],
+            "spec_packs_loaded": [{"name": "old-provider"}],
+        });
+        assert!(!config_reflected(&requested, &effective));
+        effective["spec_pack_publication"] = json!({
+            "status": "complete", "configured": ["old/provider"],
+        });
+        assert!(!config_reflected(&requested, &effective));
+        effective["spec_pack_publication"] = json!({
+            "status": "complete", "configured": ["new/provider"],
+        });
+        assert!(config_reflected(&requested, &effective));
     }
 }

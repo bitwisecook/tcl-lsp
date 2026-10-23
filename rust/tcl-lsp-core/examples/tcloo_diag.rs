@@ -23,16 +23,19 @@
 // Coverage-stat arithmetic: counts cast to f64 for percentages and to u32 for
 // LSP positions; the magnitudes are tiny, so truncation/precision loss is moot.
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+// A diagnostic example reads top to bottom as one scenario.
+#![allow(clippy::too_many_lines)]
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::Arc;
 
-use tcl_compiler::analyser::Analyser;
-use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::ir::Statement;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_compiler::value_shapes::parse_command_substitution_with_config;
-use tcl_lexer::{LexerConfig, TokenType};
+use tcl_lexer::{LexerConfig, LineIndex, TokenType};
 use tcl_registry::CommandRegistry;
 
 fn main() {
@@ -41,12 +44,17 @@ fn main() {
         eprintln!("usage: tcloo_diag <dir|file>...");
         std::process::exit(2);
     }
-    let registry = CommandRegistry::build_default();
-    let func_idx = tcl_lsp_core::semantic_tokens::legend_token_types()
-        .iter()
-        .position(|t| *t == "function")
-        .expect("function token type in legend") as u32;
     let dialect = "tcl9.0";
+    let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+    let context = environment.default_context_registry();
+    let registry = context.commands().as_ref();
+    let config = LexerConfig::for_file_grammar(environment.grammar());
+    let input = ResolvedAnalysisInput::new(
+        environment.analyser_profile(),
+        environment.unit_profile(),
+        Arc::clone(&context),
+        config,
+    );
 
     let mut paths = Vec::new();
     for d in &args {
@@ -58,6 +66,7 @@ fn main() {
     let mut cmd_cats: HashMap<&'static str, usize> = HashMap::new();
     let mut unresolved_var = 0usize;
     let mut unresolved_cmd = 0usize;
+    let mut query_without_candidate = 0usize;
     let mut files = 0usize;
     let mut unbound_names: HashMap<String, usize> = HashMap::new();
 
@@ -69,30 +78,56 @@ fn main() {
             continue;
         }
         files += 1;
-        let cu = CompilationUnit::build_for(&src, &registry, false);
-        let analysis = Analyser::new().analyse(&src, dialect);
-        let st = tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
+        let cu = CompilationUnit::build_with_analysis_input(
             &src,
-            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
-            &registry,
-            Some(&cu),
-            Some(&analysis),
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(input.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
         );
-        let kinds = decode_kinds(&st.data);
-        let line_starts = line_starts(&src);
+        let analysis = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(&src, environment.id());
+        let source_query_spans: HashSet<u32> =
+            tcl_lsp_core::method_symbol::source_queries(&analysis)
+                .into_iter()
+                .filter(|query| !query.is_declaration())
+                .map(|query| query.span().start())
+                .collect();
 
         // Var-binding category map over the whole CU (name-keyed, object-
         // insensitive — the same economy the provenance passes use).
-        let bindings = binding_categories(&cu, &registry);
+        let bindings = binding_categories(&cu, registry);
         // Parameter names (proc + method).
         let params = param_names(&cu);
 
+        let line_index = LineIndex::new(&src);
         let mut sites = Vec::new();
-        collect_sites(&src, 0, dialect, &mut sites, 0);
+        collect_sites(&src, 0, config, &mut sites, 0);
         for site in sites {
-            let (line, col) = byte_to_line_col(&line_starts, &src, site.method_start);
-            let resolved = kinds.get(&(line, col)) == Some(&func_idx);
-            if resolved {
+            let position = line_index.position_at_utf16(site.method_start, &src);
+            let selected = src.get(..site.method_start as usize).is_some()
+                && line_index.offset_at_utf16(position.line, position.character, &src)
+                    == site.method_start
+                && matches!(
+                    tcl_lsp_core::method_symbol::local_candidate(
+                        &src,
+                        &analysis,
+                        position.line,
+                        position.character.get()
+                    ),
+                    std::ops::ControlFlow::Break(Some(_)),
+                );
+            if source_query_spans.contains(&site.method_start) && !selected {
+                query_without_candidate += 1;
+            }
+            if selected {
                 continue;
             }
             match site.form {
@@ -120,6 +155,10 @@ fn main() {
     print_hist("$var receivers (unresolved)", unresolved_var, &var_cats);
     println!();
     print_hist("[cmd] receivers (unresolved)", unresolved_cmd, &cmd_cats);
+    println!();
+    println!(
+        "non-declaration source queries without a selected candidate at a dispatch site: {query_without_candidate}"
+    );
 
     println!();
     println!("## top 30 unbound $var receiver names");
@@ -284,15 +323,13 @@ fn cmd_head_category(head: &str) -> &'static str {
     }
 }
 
-fn collect_sites(source: &str, base: u32, dialect: &str, out: &mut Vec<Site>, depth: u32) {
+fn collect_sites(source: &str, base: u32, config: LexerConfig, out: &mut Vec<Site>, depth: u32) {
     if depth > 40 {
         return;
     }
-    for seg in segment_commands_with_offset_and_config(source, 0, LexerConfig::for_dialect(dialect))
-    {
+    for seg in segment_commands_with_offset_and_config(source, 0, config) {
         if let (Some(head), Some(method_tok)) = (seg.argv.first(), seg.argv.get(1))
-            && let Some((form, receiver)) =
-                receiver_form(head, &seg, LexerConfig::for_dialect(dialect))
+            && let Some((form, receiver)) = receiver_form(head, &seg, config)
         {
             out.push(Site {
                 form,
@@ -319,7 +356,7 @@ fn collect_sites(source: &str, base: u32, dialect: &str, out: &mut Vec<Site>, de
                 collect_sites(
                     inner,
                     base + u32::try_from(s).unwrap_or(0),
-                    dialect,
+                    config,
                     out,
                     depth + 1,
                 );
@@ -336,13 +373,10 @@ fn receiver_form(
 ) -> Option<(&'static str, String)> {
     match head.kind {
         TokenType::Var => {
-            // Strip the leading `$` (and `${…}`) to the bare variable name.
-            let t = seg.texts.first()?.trim();
-            let name = t.strip_prefix('$').map_or(t, |r| {
-                r.strip_prefix('{')
-                    .and_then(|x| x.strip_suffix('}'))
-                    .unwrap_or(r)
-            });
+            let name = tcl_syntax::naming::whole_scalar_variable_reference_name(
+                seg.texts.first()?,
+                config,
+            )?;
             Some(("$var", name.to_owned()))
         }
         TokenType::Cmd => {
@@ -356,45 +390,6 @@ fn receiver_form(
         }
         _ => None,
     }
-}
-
-fn decode_kinds(data: &[u32]) -> HashMap<(u32, u32), u32> {
-    let mut out = HashMap::new();
-    let (mut line, mut col) = (0u32, 0u32);
-    for c in data.chunks(5) {
-        let [dl, dc, _len, kind, _mods] = *c else {
-            break;
-        };
-        if dl > 0 {
-            line += dl;
-            col = dc;
-        } else {
-            col += dc;
-        }
-        out.insert((line, col), kind);
-    }
-    out
-}
-
-fn line_starts(src: &str) -> Vec<usize> {
-    let mut v = vec![0usize];
-    for (i, b) in src.bytes().enumerate() {
-        if b == b'\n' {
-            v.push(i + 1);
-        }
-    }
-    v
-}
-
-fn byte_to_line_col(line_starts: &[usize], src: &str, byte: u32) -> (u32, u32) {
-    let byte = byte as usize;
-    let line = line_starts
-        .partition_point(|&s| s <= byte)
-        .saturating_sub(1);
-    let col = src
-        .get(line_starts[line]..byte.min(src.len()))
-        .map_or(0, |s| s.chars().map(|c| c.len_utf16() as u32).sum());
-    (line as u32, col)
 }
 
 fn collect_tcl(p: &Path, out: &mut Vec<std::path::PathBuf>) {

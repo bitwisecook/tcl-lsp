@@ -27,7 +27,8 @@
 
 use std::collections::HashSet;
 
-use crate::{backslash_continuation_end, close_quote_offset, command_substitution_end};
+use crate::backslash_continuation_end;
+use crate::ranges::{close_quote_offset_in, command_substitution_end_bytes_in};
 
 /// Token types specific to Tcl expressions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -109,15 +110,190 @@ impl ExprTokenType {
 
 /// A token in a Tcl expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExprToken {
+pub struct ExprToken<Text = std::string::String> {
     /// Token kind.
     pub kind: ExprTokenType,
     /// The token's text (owned).
-    pub text: std::string::String,
+    pub text: Text,
     /// Byte offset of the first character.
     pub start: u32,
     /// Byte offset of the last character (inclusive).
     pub end: u32,
+}
+
+/// An original expression operand's lexical purpose.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ExprTermKind {
+    /// A numeric candidate; native construction selects its numeric type.
+    Number,
+    /// A Boolean word, independently of numeric object construction.
+    Boolean,
+    /// A literal string operand.
+    String,
+    /// A quoted operand containing native substitution syntax.
+    EscapedString,
+    /// An original variable name.
+    Variable,
+    /// An original variable name and unsubstituted index.
+    IndexedVariable,
+    /// An original command body.
+    Command,
+}
+
+/// Source-owned operand geometry, without constructing native objects.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExprTerm {
+    /// Original token extent, with an exclusive end.
+    pub source: std::ops::Range<u32>,
+    /// Original native operand spelling, without its source wrapper.
+    pub value: std::ops::Range<u32>,
+    /// Purpose selected by the shared token and variable scanners.
+    pub kind: ExprTermKind,
+    /// Raw LF count preceding the token, added to the native signed base line.
+    pub line_delta: u32,
+    /// Original Jim numeric token constructor; absent for other term kinds.
+    pub jim_numeric_kind: Option<tcl_dialect::JimExpressionNumberKind>,
+}
+
+/// Project a complete token into its original native operand geometry.
+/// Operators and recovery tokens cannot issue an operand receipt. Empty
+/// operand bodies retain an empty range at their actual source position.
+#[must_use]
+pub fn expression_term(
+    source: &[u8],
+    token: &ExprToken<Vec<u8>>,
+    config: crate::LexerConfig,
+) -> Option<ExprTerm> {
+    let line_delta =
+        u32::try_from(bytecount::count(source.get(..token.start as usize)?, b'\n')).ok()?;
+    expression_term_at_line(source, token, config, line_delta)
+}
+
+/// Project an ordered token stream's operands with one raw line scan.
+/// All token geometry must still refer to the same original source.
+#[must_use]
+pub fn expression_terms(
+    source: &[u8],
+    tokens: &[ExprToken<Vec<u8>>],
+    config: crate::LexerConfig,
+) -> Option<Vec<ExprTerm>> {
+    let mut line_delta = 0_u32;
+    let mut previous = 0;
+    let mut terms = Vec::new();
+    for token in tokens {
+        let start = token.start as usize;
+        let skipped = source.get(previous..start)?;
+        line_delta =
+            line_delta.checked_add(u32::try_from(bytecount::count(skipped, b'\n')).ok()?)?;
+        previous = start;
+        if matches!(
+            token.kind,
+            ExprTokenType::Number
+                | ExprTokenType::Bool
+                | ExprTokenType::String
+                | ExprTokenType::Variable
+                | ExprTokenType::Command
+        ) {
+            terms.push(expression_term_at_line(source, token, config, line_delta)?);
+        }
+    }
+    Some(terms)
+}
+
+fn expression_term_at_line(
+    source: &[u8],
+    token: &ExprToken<Vec<u8>>,
+    config: crate::LexerConfig,
+    line_delta: u32,
+) -> Option<ExprTerm> {
+    let start = token.start as usize;
+    let end = token.end.checked_add(1)? as usize;
+    let spelling = source.get(start..end)?;
+    if spelling != token.text {
+        return None;
+    }
+    let (kind, value) = expression_term_value(source, token.kind, start..end, config)?;
+    Some(ExprTerm {
+        source: token.start..token.end.checked_add(1)?,
+        value: u32::try_from(value.start).ok()?..u32::try_from(value.end).ok()?,
+        kind,
+        line_delta,
+        jim_numeric_kind: if kind == ExprTermKind::Number && config.var_syntax.has_expr_sugar() {
+            let scanned = tcl_dialect::scan_jim_expression_number(
+                source,
+                token.start as usize,
+                tcl_dialect::NumberSyntax::Jim,
+            )?;
+            if scanned.end() != end {
+                return None;
+            }
+            scanned.jim_kind()
+        } else {
+            None
+        },
+    })
+}
+
+fn expression_term_value(
+    source: &[u8],
+    kind: ExprTokenType,
+    range: std::ops::Range<usize>,
+    config: crate::LexerConfig,
+) -> Option<(ExprTermKind, std::ops::Range<usize>)> {
+    match kind {
+        ExprTokenType::Number => Some((ExprTermKind::Number, range)),
+        ExprTokenType::Bool => Some((ExprTermKind::Boolean, range)),
+        ExprTokenType::Variable => {
+            let reference = crate::word_parts::scan_var_ref(source, range.start, config).ok()??;
+            if reference.next != range.end {
+                return None;
+            }
+            let start = (reference.name.as_ptr() as usize).checked_sub(source.as_ptr() as usize)?;
+            let (kind, end) = if reference.index.is_some() {
+                (ExprTermKind::IndexedVariable, reference.next)
+            } else {
+                (
+                    ExprTermKind::Variable,
+                    start.checked_add(reference.name.len())?,
+                )
+            };
+            Some((kind, start..end))
+        }
+        ExprTokenType::Command | ExprTokenType::String => {
+            expression_wrapped_term(source, kind, range)
+        }
+        _ => None,
+    }
+}
+
+fn expression_wrapped_term(
+    source: &[u8],
+    kind: ExprTokenType,
+    range: std::ops::Range<usize>,
+) -> Option<(ExprTermKind, std::ops::Range<usize>)> {
+    let spelling = source.get(range.clone())?;
+    let (open, close) = match spelling.first()? {
+        b'[' if kind == ExprTokenType::Command => (b'[', b']'),
+        b'"' if kind == ExprTokenType::String => (b'"', b'"'),
+        b'{' if kind == ExprTokenType::String => (b'{', b'}'),
+        _ => return None,
+    };
+    if spelling.len() < 2 || spelling.last() != Some(&close) {
+        return None;
+    }
+    let value = range.start + 1..range.end - 1;
+    let kind = if open == b'[' {
+        ExprTermKind::Command
+    } else if open == b'"'
+        && source[value.clone()]
+            .iter()
+            .any(|b| matches!(b, b'\\' | b'$' | b'['))
+    {
+        ExprTermKind::EscapedString
+    } else {
+        ExprTermKind::String
+    };
+    Some((kind, value))
 }
 
 #[inline]
@@ -245,7 +421,7 @@ pub fn tokenise_expr_for_profile(
     profile: &tcl_dialect::DialectProfile,
 ) -> Vec<ExprToken> {
     let mut lex = Inner::new(source, profile);
-    lex.run()
+    unicode_tokens(lex.run())
 }
 
 /// Tokenise from a compatibility name boundary and report skipped characters.
@@ -272,9 +448,27 @@ pub fn tokenise_expr_checked_with_grammar(
     source: &str,
     grammar: &tcl_dialect::LexerGrammar,
 ) -> (Vec<ExprToken>, bool) {
-    let mut lex = Inner::from_grammar(source, grammar, None, None);
+    let mut lex = Inner::from_grammar(source.as_bytes(), grammar, None, None);
     let tokens = lex.run();
-    (tokens, lex.unknown)
+    (unicode_tokens(tokens), lex.unknown)
+}
+
+/// Tokenise with independent lexical, operator-release and host word-operator axes.
+#[must_use]
+pub fn tokenise_expr_checked_with_expression_grammar(
+    source: &str,
+    grammar: &tcl_dialect::LexerGrammar,
+    expr_grammar_base: Option<tcl_dialect::TclVersion>,
+    f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
+) -> (Vec<ExprToken>, bool) {
+    let mut lex = Inner::from_grammar(
+        source.as_bytes(),
+        grammar,
+        expr_grammar_base,
+        f5_word_grammar,
+    );
+    let tokens = lex.run();
+    (unicode_tokens(tokens), lex.unknown)
 }
 
 /// Tokenise under an already-resolved profile and report skipped characters.
@@ -285,14 +479,220 @@ pub fn tokenise_expr_checked_for_profile(
 ) -> (Vec<ExprToken>, bool) {
     let mut lex = Inner::new(source, profile);
     let tokens = lex.run();
-    (tokens, lex.unknown)
+    (unicode_tokens(tokens), lex.unknown)
+}
+
+/// A rejected original expression component from the shared scanner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ExprLexicalFailure {
+    /// Original source byte offset.
+    pub at: usize,
+    /// Native lexical operation that could not consume the component.
+    pub kind: ExprLexicalFailureKind,
+}
+
+/// The scanner's failure, independently of native error presentation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ExprLexicalFailureKind {
+    /// A byte does not begin an expression lexeme.
+    InvalidCharacter,
+    /// A dollar sign is not followed by a variable name.
+    MissingVariableName,
+    /// The shared variable scanner rejected a delimiter or index.
+    Variable(&'static str),
+    /// A bracketed script has no closing delimiter.
+    MissingBracket,
+    /// A quoted operand has no closing delimiter.
+    MissingQuote,
+    /// A braced operand has no closing delimiter.
+    MissingBrace,
+}
+
+/// Complete lexical and expression axes retained by an authoring cursor.
+/// This selects source grammar only, never a Native expression policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExpressionCursorGrammar {
+    /// Full original word configuration, including caller overrides and bases.
+    pub config: crate::LexerConfig,
+    /// Independently selected expression comments and numeral grammar.
+    pub grammar: tcl_dialect::LexerGrammar,
+    /// Actual source release for expression operators.
+    pub expr_grammar_base: Option<tcl_dialect::TclVersion>,
+    /// Independently selected host expression word operators, when present.
+    pub f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
+}
+
+/// Original expression-prefix geometry at a cursor. Incomplete source stays
+/// incomplete; this supplies no parsed AST, result, evaluation or edit grant.
+#[derive(Debug, Clone)]
+pub struct OriginalExpressionCursor {
+    image: crate::SourceImage,
+    grammar: ExpressionCursorGrammar,
+    region: crate::Span,
+    prefix: crate::Span,
+    expression_position: bool,
+    failures: Vec<ExprLexicalFailure>,
+}
+
+impl OriginalExpressionCursor {
+    /// Exact complete image/channel and all original configured grammar axes.
+    #[must_use]
+    pub fn matches_source(
+        &self,
+        image: &crate::SourceImage,
+        grammar: ExpressionCursorGrammar,
+    ) -> bool {
+        self.image == *image && self.grammar == grammar
+    }
+
+    /// Original selected expression operand content, including its real suffix.
+    #[must_use]
+    pub const fn region_span(&self) -> crate::Span {
+        self.region
+    }
+
+    /// Actual source through the cursor; no closing delimiter is inserted.
+    #[must_use]
+    pub const fn prefix_span(&self) -> crate::Span {
+        self.prefix
+    }
+
+    /// Whether this lexical prefix ends in expression space rather than inside
+    /// a quoted/braced operand, script substitution, comment or rejected token.
+    /// This proves no complete expression or actual function-call production.
+    #[must_use]
+    pub const fn is_expression_position(&self) -> bool {
+        self.expression_position
+    }
+
+    /// Actual incomplete lexical issues, with offsets relative to the region.
+    /// They are source observations, never a proved Native syntax failure.
+    #[must_use]
+    pub fn lexical_failures(&self) -> &[ExprLexicalFailure] {
+        &self.failures
+    }
+}
+
+/// Inspect one genuine expression region's original prefix with the same
+/// configured lexer that owns complete expression tokens. Quotes, braces,
+/// expression comments, nested scripts and variable syntax use its existing
+/// scanners. Unknown characters and malformed variables withhold a receipt;
+/// unfinished quote/brace/script tokens retain their real failure coordinates.
+/// The caller independently owns the outer Expr role and original word.
+#[must_use]
+pub fn original_expression_cursor_in(
+    image: &crate::SourceImage,
+    region: crate::Span,
+    cursor: u32,
+    grammar: ExpressionCursorGrammar,
+) -> Option<OriginalExpressionCursor> {
+    if region.start() > cursor || cursor > region.end() {
+        return None;
+    }
+    image.bytes().get(region.as_range())?;
+    let prefix = crate::Span::new(region.start(), cursor);
+    let source = image.bytes().get(prefix.as_range())?;
+    let lexical = grammar.config.grammar_over(grammar.grammar);
+    let mut lexer = Inner::from_grammar(
+        source,
+        &lexical,
+        grammar.expr_grammar_base,
+        grammar.f5_word_grammar,
+    );
+    // Preserve caller configuration for the existing variable, quote and
+    // bracket scanners instead of reconstructing it from a profile label.
+    lexer.variable_config = grammar.config;
+    let tokens = lexer.run();
+    if lexer.failures.iter().any(|failure| {
+        !matches!(
+            failure.kind,
+            ExprLexicalFailureKind::MissingBracket
+                | ExprLexicalFailureKind::MissingQuote
+                | ExprLexicalFailureKind::MissingBrace
+        )
+    }) {
+        return None;
+    }
+    let expression_position = lexer.failures.is_empty()
+        && tokens
+            .last()
+            .is_none_or(|token| token.kind != ExprTokenType::Comment);
+    Some(OriginalExpressionCursor {
+        image: image.clone(),
+        grammar,
+        region,
+        prefix,
+        expression_position,
+        failures: lexer.failures,
+    })
+}
+
+/// Scan original byte source and retain every rejected component in source order.
+#[must_use]
+pub fn tokenise_expr_bytes_with_failures(
+    source: &[u8],
+    grammar: &tcl_dialect::LexerGrammar,
+    expr_grammar_base: Option<tcl_dialect::TclVersion>,
+    f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
+) -> (Vec<ExprToken<Vec<u8>>>, Vec<ExprLexicalFailure>) {
+    let mut lexer = Inner::from_grammar(source, grammar, expr_grammar_base, f5_word_grammar);
+    let tokens = lexer.run();
+    (tokens, lexer.failures)
+}
+
+/// Scan original expression bytes with the complete retained script configuration.
+/// Comment/numeral/operator axes remain selected by the supplied expression
+/// grammar; nested variables, quotes and scripts receive every caller knob.
+#[must_use]
+pub fn tokenise_expr_bytes_with_config_and_failures(
+    source: &[u8],
+    grammar: &tcl_dialect::LexerGrammar,
+    expr_grammar_base: Option<tcl_dialect::TclVersion>,
+    f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
+    config: crate::LexerConfig,
+) -> (Vec<ExprToken<Vec<u8>>>, Vec<ExprLexicalFailure>) {
+    let mut lexer = Inner::from_grammar(
+        source,
+        &config.grammar_over(*grammar),
+        expr_grammar_base,
+        f5_word_grammar,
+    );
+    lexer.variable_config = config;
+    let tokens = lexer.run();
+    (tokens, lexer.failures)
+}
+
+/// Tokenise original native expression bytes without Unicode projection.
+/// Offsets and token payloads refer to the unmodified input; quoted operands,
+/// variable names and nested scripts retain arbitrary byte sequences.
+#[must_use]
+pub fn tokenise_expr_bytes_checked_with_expression_grammar(
+    source: &[u8],
+    grammar: &tcl_dialect::LexerGrammar,
+    expr_grammar_base: Option<tcl_dialect::TclVersion>,
+    f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
+) -> (Vec<ExprToken<Vec<u8>>>, bool) {
+    let mut lexer = Inner::from_grammar(source, grammar, expr_grammar_base, f5_word_grammar);
+    let tokens = lexer.run();
+    (tokens, lexer.unknown)
+}
+
+fn unicode_tokens(tokens: Vec<ExprToken<Vec<u8>>>) -> Vec<ExprToken> {
+    tokens
+        .into_iter()
+        .map(|token| ExprToken {
+            kind: token.kind,
+            text: String::from_utf8(token.text).expect("Unicode source token boundary"),
+            start: token.start,
+            end: token.end,
+        })
+        .collect()
 }
 
 // Dialect-derived grammar knobs plus one output flag, not a state machine.
 #[allow(clippy::struct_excessive_bools)]
 struct Inner<'s> {
     b: &'s [u8],
-    s: &'s str,
     i: usize,
     /// The F5-family core `expr` grammar when the dialect's runtime core is
     /// on the F5 tree, else `None` — resolved once through the profile
@@ -300,7 +700,7 @@ struct Inner<'s> {
     /// the canonical name). Gates the word-form operators
     /// (`starts_with`, `and`, …), which are an `f5-tcl` **trunk** fact —
     /// measured valid in tmsh and iApp `expr` too, not iRules-only
-    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a) — so the
+    /// (`docs/design/f5/embedded-tcl-contract.md` §4a) — so the
     /// acceptance reads `tcl_dialect`'s `ExprGrammar` word table directly
     /// instead of a lexer-local iRules list.
     f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
@@ -318,11 +718,10 @@ struct Inner<'s> {
     /// `if {${a{b}c} > 3}` does; re-deriving it here with a first-`}` scan made
     /// the VM answer one expression grammar two ways depending on the carrying
     /// command (issue #1601).
-    braced_var: tcl_dialect::BracedVarStyle,
+    variable_config: crate::LexerConfig,
     /// The release's source-level array-index grammar. Kept with the other
     /// profile grammar facts so `expr` cannot accept an index the containing
     /// script lexer rejects (issue #1732).
-    array_index: tcl_dialect::ArrayIndexSyntax,
     /// The release whose `expr` lexeme table this dialect uses, for the
     /// word-shaped operators (`eq`, `in`, `lt`, …) — the profile's
     /// `expr_grammar_base`, resolved through
@@ -339,12 +738,13 @@ struct Inner<'s> {
     /// this point, so a word operator then has only a right-side boundary.
     numeric_suffix_probe: bool,
     unknown: bool,
+    failures: Vec<ExprLexicalFailure>,
 }
 
 impl<'s> Inner<'s> {
     fn new(s: &'s str, profile: &tcl_dialect::DialectProfile) -> Self {
         Self::from_grammar(
-            s,
+            s.as_bytes(),
             &profile.grammar,
             profile.expr_grammar_base,
             profile.f5_core_expr_grammar(),
@@ -356,30 +756,34 @@ impl<'s> Inner<'s> {
     /// [`tcl_dialect::LexerGrammar`], so a caller holding only a grammar
     /// (an environment with no catalogue profile) loses nothing.
     fn from_grammar(
-        s: &'s str,
+        source: &'s [u8],
         grammar: &tcl_dialect::LexerGrammar,
         expr_grammar_base: Option<tcl_dialect::TclVersion>,
         f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
     ) -> Self {
         Self {
-            b: s.as_bytes(),
-            s,
+            b: source,
             i: 0,
             f5_word_grammar,
             expr_comments: grammar.expr_comments.comments(),
             numbers: grammar.numbers,
-            braced_var: grammar.braced_var,
-            array_index: grammar.array_index,
+            variable_config: crate::LexerConfig::default().with_grammar(*grammar),
             expr_grammar_base,
             numeric_suffix_probe: false,
             unknown: false,
+            failures: Vec::new(),
         }
     }
 
-    fn tok(&self, kind: ExprTokenType, start: usize) -> ExprToken {
+    fn reject(&mut self, at: usize, kind: ExprLexicalFailureKind) {
+        self.unknown = true;
+        self.failures.push(ExprLexicalFailure { at, kind });
+    }
+
+    fn tok(&self, kind: ExprTokenType, start: usize) -> ExprToken<Vec<u8>> {
         ExprToken {
             kind,
-            text: self.s[start..self.i].to_owned(),
+            text: self.b[start..self.i].to_vec(),
             start: p(start),
             end: if self.i > start {
                 p(self.i - 1)
@@ -389,12 +793,12 @@ impl<'s> Inner<'s> {
         }
     }
 
-    fn single(&mut self, kind: ExprTokenType, text: &str) -> ExprToken {
+    fn single(&mut self, kind: ExprTokenType, text: &str) -> ExprToken<Vec<u8>> {
         let start = self.i;
         self.i += 1;
         ExprToken {
             kind,
-            text: text.to_owned(),
+            text: text.as_bytes().to_vec(),
             start: p(start),
             end: p(start),
         }
@@ -412,7 +816,18 @@ impl<'s> Inner<'s> {
         backslash_continuation_end(self.b, i)
     }
 
-    fn run(&mut self) -> Vec<ExprToken> {
+    fn number(&self) -> Option<tcl_dialect::ExprNumberLexeme> {
+        if matches!(
+            self.numbers,
+            tcl_dialect::NumberSyntax::Jim | tcl_dialect::NumberSyntax::Jim080
+        ) {
+            tcl_dialect::scan_jim_expression_number(self.b, self.i, self.numbers)
+        } else {
+            tcl_dialect::scan_expr_number(self.b, self.i, self.numbers, self.expr_grammar_base)
+        }
+    }
+
+    fn run(&mut self) -> Vec<ExprToken<Vec<u8>>> {
         let mut out = Vec::new();
         while self.i < self.b.len() {
             let follows_numeric_lexeme = self.numeric_suffix_probe;
@@ -433,15 +848,13 @@ impl<'s> Inner<'s> {
                 out.push(self.tok(ExprTokenType::Whitespace, start));
             } else if ch == b'#' && self.expr_comments {
                 out.push(self.comment());
-            } else if let Some(number) =
-                tcl_dialect::scan_expr_number(self.b, self.i, self.numbers, self.expr_grammar_base)
-            {
+            } else if let Some(number) = self.number() {
                 let start = self.i;
                 self.i = number.end();
                 out.push(self.tok(ExprTokenType::Number, start));
                 self.numeric_suffix_probe = true;
             } else if ch == b'$' {
-                out.extend(self.variable());
+                out.push(self.variable());
             } else if ch == b'[' {
                 out.push(self.command());
             } else if ch == b'"' {
@@ -461,7 +874,7 @@ impl<'s> Inner<'s> {
             } else if is_single_op(ch) {
                 out.push(ExprToken {
                     kind: ExprTokenType::Operator,
-                    text: self.s[self.i..=self.i].to_owned(),
+                    text: vec![self.b[self.i]],
                     start: p(self.i),
                     end: p(self.i),
                 });
@@ -480,7 +893,7 @@ impl<'s> Inner<'s> {
             } else if ch == b'{' {
                 out.push(self.braced());
             } else {
-                self.unknown = true;
+                self.reject(self.i, ExprLexicalFailureKind::InvalidCharacter);
                 self.i += 1;
             }
         }
@@ -501,7 +914,7 @@ impl<'s> Inner<'s> {
     /// byte-wise and stops at the first raw `\n`, so
     /// [`Self::is_backslash_nl`]'s continuation rule deliberately does not
     /// apply here.
-    fn comment(&mut self) -> ExprToken {
+    fn comment(&mut self) -> ExprToken<Vec<u8>> {
         let start = self.i;
         self.i = self.b[start..]
             .iter()
@@ -525,93 +938,63 @@ impl<'s> Inner<'s> {
     /// release-blind first-`}` walk gave the 8.x answer at every release, so
     /// the VM disagreed with its own `if` / `while` / `for` conditions on the
     /// identical expression (issue #1601).
-    fn variable(&mut self) -> Option<ExprToken> {
+    fn variable(&mut self) -> ExprToken<Vec<u8>> {
         let start = self.i;
-        self.i += 1;
-        if self.i < self.b.len() && self.b[self.i] == b'{' {
-            // The name starts just past the `${`.
-            match crate::ranges::braced_var_name_end(self.b, self.i + 1, self.braced_var) {
-                crate::ranges::BracedVarEnd::Closed(end) => self.i = end + 1,
-                crate::ranges::BracedVarEnd::Unterminated => {
-                    // Preserve a recovery token for editor callers, but a
-                    // variable whose `${…}` closer is absent cannot participate
-                    // in an executable expression.
-                    self.i = self.b.len();
-                    self.unknown = true;
+        match crate::word_parts::scan_var_ref(self.b, start, self.variable_config) {
+            Ok(Some(reference)) => self.i = reference.next,
+            Ok(None) => {
+                self.i += 1;
+                // `Tcl_ParseVarName` reads a `$` with no name as text: 8.4's
+                // expression keeps that text, while from 8.5 it is an invalid
+                // character.
+                if !lone_dollar_is_text(self.expr_grammar_base) {
+                    self.reject(start, ExprLexicalFailureKind::MissingVariableName);
                 }
             }
-        } else {
-            // A bare `$name` consumes alphanumerics / `_`, and `:` only as part
-            // of a `::` namespace-separator pair — a *single* colon ends the
-            // name, exactly like the main lexer's `parse_var`. Accepting a lone
-            // `:` made `expr {$x>0?$y:$z}` lex `$y:` as one variable, swallowing
-            // the ternary separator so the whole expr degraded to Raw.
-            while self.i < self.b.len() {
-                let c = self.b[self.i];
-                if c.is_ascii_alphanumeric() || c == b'_' {
-                    self.i += 1;
-                } else if c == b':' && self.i + 1 < self.b.len() && self.b[self.i + 1] == b':' {
-                    self.i += 2;
-                } else {
-                    break;
-                }
-            }
-            if self.i < self.b.len() && self.b[self.i] == b'(' {
-                let scan =
-                    crate::scan_array_index(self.b, self.i, self.array_index, self.braced_var);
-                self.i = match scan.end {
-                    crate::ArrayIndexEnd::Closed(end) => end,
-                    crate::ArrayIndexEnd::Unterminated => self.b.len(),
-                };
-                // The expression parser has no diagnostic channel, so any
-                // malformed index makes this recovery token inexecutable.
-                self.unknown |= scan.invalid.is_some()
-                    || matches!(scan.end, crate::ArrayIndexEnd::Unterminated);
-            } else if self.i == start + 1 && !lone_dollar_is_text(self.expr_grammar_base) {
-                // `Tcl_ParseVarName` reads a `$` with no name as text, which
-                // an expression from 8.5 refuses as an invalid character.
-                self.unknown = true;
-                return None;
+            Err(message) => {
+                self.i = self.b.len();
+                self.reject(start, ExprLexicalFailureKind::Variable(message));
             }
         }
-        Some(self.tok(ExprTokenType::Variable, start))
+        self.tok(ExprTokenType::Variable, start)
     }
 
-    fn command(&mut self) -> ExprToken {
+    fn command(&mut self) -> ExprToken<Vec<u8>> {
         let start = self.i;
-        if let Some(end) = command_substitution_end(self.s, start) {
+        if let Some(end) = command_substitution_end_bytes_in(self.b, start, self.variable_config) {
             self.i = end;
         } else {
             // Keep a recovery token for callers that need the incomplete
             // source slice, but make `tokenise_expr_checked`/`parse_expr`
             // reject it. A missing `]` cannot execute a command.
             self.i = self.b.len();
-            self.unknown = true;
+            self.reject(start, ExprLexicalFailureKind::MissingBracket);
         }
         self.tok(ExprTokenType::Command, start)
     }
 
-    fn quoted(&mut self) -> ExprToken {
+    fn quoted(&mut self) -> ExprToken<Vec<u8>> {
         let start = self.i;
-        if let Some(close) = close_quote_offset(self.s, start) {
+        if let Some(close) = close_quote_offset_in(self.b, start, self.variable_config) {
             self.i = close + 1;
         } else {
             // As with an unterminated command substitution, retain the
             // recovery token but reject the expression as non-executable.
             self.i = self.b.len();
-            self.unknown = true;
+            self.reject(start, ExprLexicalFailureKind::MissingQuote);
         }
         self.tok(ExprTokenType::String, start)
     }
 
-    fn ident(&mut self) -> ExprToken {
+    fn ident(&mut self) -> ExprToken<Vec<u8>> {
         let start = self.i;
         while self.i < self.b.len()
             && (self.b[self.i].is_ascii_alphanumeric() || self.b[self.i] == b'_')
         {
             self.i += 1;
         }
-        let text = &self.s[start..self.i];
+        let text =
+            std::str::from_utf8(&self.b[start..self.i]).expect("identifier scanner consumes ASCII");
         // Tcl boolean literals are case-insensitive (`True`, `YES`, `Off`,
         // …) per `Tcl_GetBoolean`; compare without allocating.
         let is_bool = ["true", "false", "yes", "no", "on", "off"]
@@ -633,16 +1016,15 @@ impl<'s> Inner<'s> {
         };
         ExprToken {
             kind,
-            text: text.to_owned(),
+            text: text.as_bytes().to_vec(),
             start: p(start),
             end: p(self.i - 1),
         }
     }
 
-    fn braced(&mut self) -> ExprToken {
+    fn braced(&mut self) -> ExprToken<Vec<u8>> {
         let start = self.i;
         self.i += 1;
-        let saved = self.i;
         let mut lvl = 1u32;
         while self.i < self.b.len() && lvl > 0 {
             match self.b[self.i] {
@@ -661,10 +1043,11 @@ impl<'s> Inner<'s> {
             self.i += 1;
         }
         if lvl != 0 {
-            self.i = saved;
+            self.reject(start, ExprLexicalFailureKind::MissingBrace);
+            self.i = self.b.len();
             return ExprToken {
                 kind: ExprTokenType::String,
-                text: "{".to_owned(),
+                text: b"{".to_vec(),
                 start: p(start),
                 end: p(start),
             };
@@ -706,7 +1089,7 @@ impl<'s> Inner<'s> {
             || tcl_dialect::is_expr_word_operator(op, self.expr_grammar_base))
     }
 
-    fn multi_op(&mut self, after_numeric_lexeme: bool) -> Option<ExprToken> {
+    fn multi_op(&mut self, after_numeric_lexeme: bool) -> Option<ExprToken<Vec<u8>>> {
         for &op in MULTI_OPS {
             // Compare on bytes, not `self.s[self.i..]`: `self.i` is a byte index
             // that the byte-wise scanner can leave *inside* a multi-byte UTF-8
@@ -723,7 +1106,7 @@ impl<'s> Inner<'s> {
                 self.i += op.len();
                 return Some(ExprToken {
                     kind: ExprTokenType::Operator,
-                    text: op.to_owned(),
+                    text: op.as_bytes().to_vec(),
                     start: p(start),
                     end: p(start + op.len() - 1),
                 });
@@ -736,6 +1119,76 @@ impl<'s> Inner<'s> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn jim_expression_frontiers_retain_original_constructor_spans() {
+        let grammar = tcl_dialect::model::grammar(
+            tcl_dialect::model::Family::Jim,
+            tcl_dialect::model::Release::JIM_0_84,
+        );
+        let config = crate::LexerConfig::from_grammar(grammar);
+        for (source, first) in [
+            (b"0x1p4".as_slice(), b"0x1".as_slice()),
+            (b"0x1.8p1", b"0x1.8p1"),
+            (b"0x1.", b"0x1."),
+            (b"0x.p4", b"0"),
+            (b"Infinity", b"Inf"),
+            (b"12x", b"12"),
+            (b".5", b".5"),
+        ] {
+            let (tokens, unknown) = tokenise_expr_bytes_checked_with_expression_grammar(
+                source,
+                &grammar,
+                Some(tcl_dialect::TclVersion::V9_0),
+                None,
+            );
+            // The malformed radix suffix still contains its actual invalid dot.
+            // Its first numeral has a valid native integer-prefix extent.
+            assert_eq!(unknown, source == b"0x.p4", "{source:?}");
+            assert_eq!(tokens[0].kind, ExprTokenType::Number, "{source:?}");
+            assert_eq!(tokens[0].text, first, "{source:?}");
+            let term = expression_term(source, &tokens[0], config).unwrap();
+            assert_eq!(term.source, 0..u32::try_from(first.len()).unwrap());
+            assert!(term.jim_numeric_kind.is_some());
+        }
+    }
+
+    #[test]
+    fn native_expression_tokens_retain_opaque_leaf_bytes_and_offsets() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let source = b"\"\xff\0tail\" eq {\xff\0tail} && ${\xff} == [set {\xff}]";
+        let (tokens, unknown) = super::tokenise_expr_bytes_checked_with_expression_grammar(
+            source,
+            &profile.grammar,
+            profile.expr_grammar_base,
+            profile.f5_core_expr_grammar(),
+        );
+        assert!(!unknown);
+        for token in &tokens {
+            assert_eq!(
+                token.text.as_slice(),
+                &source[token.start as usize..=token.end as usize]
+            );
+        }
+        assert!(
+            tokens
+                .iter()
+                .any(|token| token.kind == super::ExprTokenType::String
+                    && token.text.contains(&0xff))
+        );
+        assert!(
+            tokens
+                .iter()
+                .any(|token| token.kind == super::ExprTokenType::Variable
+                    && token.text == b"${\xff}")
+        );
+        assert!(
+            tokens
+                .iter()
+                .any(|token| token.kind == super::ExprTokenType::Command
+                    && token.text == b"[set {\xff}]")
+        );
+    }
 
     fn types(source: &str) -> Vec<ExprTokenType> {
         tokenise_expr(source, None)
@@ -875,7 +1328,7 @@ mod tests {
 
     /// The F5 word-form operators are an `f5-tcl` **trunk** fact — measured
     /// valid in tmsh and iApp `expr` too, not iRules-only
-    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a) — so every
+    /// (`docs/design/f5/embedded-tcl-contract.md` §4a) — so every
     /// F5Tcl-cored profile lexes them as one `Operator` token, derived from
     /// the family's `ExprGrammar` word table.
     #[test]
@@ -1009,6 +1462,34 @@ mod tests {
             "9.x has no closer left, so the expression is inexecutable"
         );
         assert_eq!(tokens.first().map(|t| t.text.as_str()), Some("${a{b}"));
+    }
+
+    #[test]
+    fn quoted_and_command_boundaries_retain_the_selected_variable_grammar() {
+        for profile in ["tcl8.6", "tcl9.0"] {
+            let profile = tcl_dialect::DialectProfile::find(profile).unwrap();
+            for style in [
+                tcl_dialect::BracedVarStyle::FirstClose,
+                tcl_dialect::BracedVarStyle::Tcl9Nesting,
+            ] {
+                let grammar = tcl_dialect::LexerGrammar {
+                    braced_var: style,
+                    ..profile.grammar
+                };
+                for source in [r#""${a{b}""#, "[list ${a{b}]"] {
+                    let (tokens, unknown) = tokenise_expr_checked_with_grammar(source, &grammar);
+                    assert_eq!(unknown, style.nests(), "{source:?}: {style:?}");
+                    assert_eq!(
+                        tokens.first().map(|token| token.text.as_str()),
+                        Some(source)
+                    );
+                }
+                for source in [r#""${missing""#, "[list ${missing]"] {
+                    let (_, unknown) = tokenise_expr_checked_with_grammar(source, &grammar);
+                    assert!(unknown, "{source:?}: {style:?}");
+                }
+            }
+        }
     }
 
     #[test]
@@ -1205,8 +1686,7 @@ mod tests {
     /// (`tclCompExpr.c:701`), so it may sit anywhere whitespace may.
     #[test]
     fn a_comment_may_appear_wherever_whitespace_may() {
-        // Trailing: the case that used to set `unknown` and degrade the whole
-        // expression to `ExprNode::Raw`.
+        // A trailing comment preserves the preceding expression tokens.
         assert_eq!(comments("1 + 2 # note"), vec!["# note"]);
         assert_eq!(
             types("1 + 2 # note"),
@@ -1632,5 +2112,94 @@ mod separator_boundary_tests {
         // is one bareword there and a number + operator after.
         assert_eq!(tokenise_expr("1lt 2", Some("tcl8.6"))[0].text, "1lt");
         assert_eq!(tokenise_expr("1lt 2", Some("tcl9.0"))[0].text, "1");
+    }
+}
+
+#[cfg(test)]
+mod original_expression_cursor_tests {
+    use super::*;
+    use crate::{LexerConfig, SourceImage, Span};
+
+    fn at(marked: &str, dialect: &str) -> Option<OriginalExpressionCursor> {
+        let offset = u32::try_from(marked.find('|')?).ok()?;
+        let source = marked.replacen('|', "", 1);
+        let profile = tcl_dialect::DialectProfile::find(dialect)?;
+        let grammar = ExpressionCursorGrammar {
+            config: LexerConfig::for_profile(Some(profile)),
+            grammar: profile.grammar,
+            expr_grammar_base: profile.expr_grammar_base,
+            f5_word_grammar: profile.f5_core_expr_grammar(),
+        };
+        let image = SourceImage::document(&source);
+        original_expression_cursor_in(
+            &image,
+            Span::new(0, u32::try_from(source.len()).ok()?),
+            offset,
+            grammar,
+        )
+    }
+
+    #[test]
+    fn original_expression_cursor_keeps_literal_comment_and_script_phases() {
+        for source in ["si|", "{[} eq {[} ? si|", "1 # [ inert\n + si|"] {
+            assert!(
+                at(source, "tcl9.0").unwrap().is_expression_position(),
+                "{source}"
+            );
+        }
+        for source in [
+            "[puts si|",
+            "\"literal si|",
+            "{literal si|",
+            "1 # [ inert|\n+2",
+        ] {
+            assert!(
+                !at(source, "tcl9.0").unwrap().is_expression_position(),
+                "{source}"
+            );
+        }
+        assert!(at("1 # inert|", "tcl8.6").is_none());
+        assert!(at("${unfinished|", "tcl9.0").is_none());
+    }
+
+    #[test]
+    fn original_expression_cursor_retains_unfinished_bytes_without_a_closer() {
+        let cursor = at("[puts si|", "tcl8.6").unwrap();
+        assert_eq!(cursor.prefix_span(), Span::new(0, 8));
+        assert_eq!(cursor.region_span(), Span::new(0, 8));
+        assert_eq!(
+            cursor.lexical_failures()[0].kind,
+            ExprLexicalFailureKind::MissingBracket
+        );
+        assert_eq!(cursor.image.bytes(), b"[puts si");
+        assert!(!cursor.is_expression_position());
+    }
+
+    #[test]
+    fn original_expression_cursor_refuses_foreign_image_configuration_and_geometry() {
+        let cursor = at("si|", "tcl9.0").unwrap();
+        assert!(cursor.matches_source(&SourceImage::document("si"), cursor.grammar));
+        assert!(!cursor.matches_source(&SourceImage::document("so"), cursor.grammar));
+        let mut changed = cursor.grammar;
+        changed.config.strict_quoting ^= true;
+        assert!(!cursor.matches_source(&SourceImage::document("si"), changed));
+        assert!(
+            original_expression_cursor_in(
+                &SourceImage::document("si"),
+                Span::new(0, 3),
+                2,
+                cursor.grammar
+            )
+            .is_none()
+        );
+        assert!(
+            original_expression_cursor_in(
+                &SourceImage::document("si"),
+                Span::new(1, 2),
+                0,
+                cursor.grammar
+            )
+            .is_none()
+        );
     }
 }

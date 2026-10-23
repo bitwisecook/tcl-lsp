@@ -534,7 +534,8 @@ impl Scan<'_, '_> {
                     }
                 }
                 WordPart::Command(script) => self.script(script),
-                WordPart::Text(_) | WordPart::ParseError(_) => {}
+                // Jim's `$(expr)` is no C Tcl compile: it creates no locals.
+                WordPart::Text(_) | WordPart::Expression(_) | WordPart::ParseError(_) => {}
             }
         }
     }

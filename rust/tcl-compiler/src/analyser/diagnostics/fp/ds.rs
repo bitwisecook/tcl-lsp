@@ -432,6 +432,51 @@ proc demo {} {
 }
 ";
 
+fn computed_head_liveness_diagnostics(source: &str) -> Vec<(String, tcl_lexer::Span, String)> {
+    let mut diagnostics = crate::analyser::Analyser::new()
+        .analyse(source, D)
+        .diagnostics
+        .into_iter()
+        .map(|diagnostic| {
+            (
+                diagnostic.code.to_string(),
+                diagnostic.span,
+                diagnostic.message,
+            )
+        })
+        .collect::<Vec<_>>();
+    let registry = tcl_registry::model::ingress::static_context_for(D).commands();
+    let profile = tcl_registry::model::ingress::resolve_environment(D).analyser_profile();
+    let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+        source, registry, false, profile,
+    );
+    diagnostics.extend(
+        crate::compiler_checks::run_all_checks(&unit, registry, Some(profile))
+            .into_iter()
+            .map(|diagnostic| {
+                (
+                    diagnostic.code.to_string(),
+                    diagnostic.span,
+                    diagnostic.message,
+                )
+            }),
+    );
+    diagnostics
+}
+
+fn assert_computed_head_initializer_is_used(source: &str) {
+    let initializer = source.find("set x set").expect("authored initializer");
+    let start = u32::try_from(initializer).unwrap();
+    let end = start + u32::try_from("set x set".len()).unwrap();
+    let diagnostics = computed_head_liveness_diagnostics(source);
+    assert!(
+        diagnostics.iter().all(|(code, span, _)| {
+            !matches!(code.as_str(), "W211" | "W220") || span.start() < start || span.start() >= end
+        }),
+        "the original x initializer is consumed by the nested command head: {diagnostics:?}"
+    );
+}
+
 #[test]
 fn fp_ds_10_command_name_read_in_dict_for_if_keeps_store_live() {
     // FP-DS-10: the command-name read of `x`, nested inside `if` inside
@@ -441,11 +486,7 @@ fn fp_ds_10_command_name_read_in_dict_for_if_keeps_store_live() {
         "FP-DS-10: nested command-name read must NOT fire W220; emitted: {:?}",
         codes(FP_DS_10_REPRO, D)
     );
-    assert!(
-        !fires(FP_DS_10_REPRO, D, "W211"),
-        "FP-DS-10: `x` is read, must NOT fire W211; emitted: {:?}",
-        codes(FP_DS_10_REPRO, D)
-    );
+    assert_computed_head_initializer_is_used(FP_DS_10_REPRO);
 }
 
 #[test]
@@ -463,7 +504,21 @@ proc demo {} {
         "FP-DS-10: dict map nested read must NOT fire W220; emitted: {:?}",
         codes(src, D)
     );
-    assert!(!fires(src, D, "W211"), "emitted: {:?}", codes(src, D));
+    assert_computed_head_initializer_is_used(src);
+}
+
+#[test]
+fn fp_ds_10_proved_computed_set_still_reports_its_unused_destination() {
+    let diagnostics = computed_head_liveness_diagnostics(FP_DS_10_REPRO);
+    assert!(
+        diagnostics.iter().any(|(code, span, message)| {
+            code == "W211"
+                && FP_DS_10_REPRO.get(span.start() as usize..span.end() as usize) == Some("a")
+                && message == "Variable 'a' is set but never used"
+        }),
+        "the selected set destination remains unused: {diagnostics:?}"
+    );
+    assert_computed_head_initializer_is_used(FP_DS_10_REPRO);
 }
 
 #[test]
@@ -830,7 +885,9 @@ proc gen {fp} {
 #[test]
 fn fp_ds_13_overwritten_store_beside_a_quoted_read_still_fires() {
     // TP control: the same shape with a genuinely overwritten first store.
-    let src = "proc f {} { set ns \"ctx\"\n set ns \"other\"\n return \"{ $ns\" }\n";
+    // The outer braced procedure body still counts braces inside quotes.
+    // Escape the literal opening brace so every native engine accepts the body.
+    let src = "proc f {} { set ns \"ctx\"\n set ns \"other\"\n return \"\\{ $ns\" }\n";
     assert!(
         fires(src, D, "W220"),
         "FP-DS-13 TP: a real dead store beside a quoted read still fires; \
@@ -858,7 +915,7 @@ fn fp_ds_14_brace_quoted_name_keeps_unrelated_diagnostics_live() {
         ),
         (
             "read",
-            "proc f {} { set b [set {$n}]\n set a 1\n set a 2\n return \"$a$b\" }\n",
+            "proc f {} { set {$n} VALUE\n set b [set {$n}]\n set a 1\n set a 2\n return \"$a$b\" }\n",
         ),
         (
             "destroy",
@@ -872,6 +929,21 @@ blind the dead-store pass; emitted: {:?}",
             codes(src, D)
         );
     }
+}
+
+#[test]
+fn fp_ds_14_missing_literal_read_stops_before_the_later_stores() {
+    // All six pinned engines fail this read before either later store runs.
+    let src = "proc f {} {set b [set {$n}]; set a 1; set a 2; return \"$a$b\"}\n";
+    assert!(
+        fires(src, D, "W210"),
+        "a known absent literal is still diagnosed"
+    );
+    assert!(
+        !fires(src, D, "W220"),
+        "failed literal lookup cannot donate a reaching store: {:?}",
+        codes(src, D)
+    );
 }
 
 #[test]

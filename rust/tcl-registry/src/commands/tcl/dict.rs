@@ -29,6 +29,9 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     ..SideEffect::DEFAULT
 }];
 
+const CREATE_IMPLEMENTATION: crate::native_compilation::NativeCompilerImplementationLookup =
+    crate::native_dictionary::NativeDictionaryCommand::Create.lookup();
+
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "dict option arg ?arg ...?",
     ..FormSpec::DEFAULT
@@ -101,15 +104,36 @@ fn dict_last_arg_body(args: &[&str]) -> Vec<(u8, ArgRole)> {
     roles
 }
 
-/// Dynamic resolver: body only when filter type is "script".
-fn dict_filter_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() >= 3 && args[1] == "script" {
-        u8::try_from(args.len() - 1)
-            .map(|last| vec![(last, ArgRole::Body)])
-            .unwrap_or_default()
-    } else {
-        Vec::new()
+/// Source roles from this descriptor's selected closed filter-mode table.
+/// Script mode has a fixed binder/body pair; malformed widths never turn the
+/// last arbitrary operand into a body. This is not a reached-body proof.
+fn dict_filter_arg_roles(
+    args: crate::InvocationArguments<'_>,
+    _options: crate::resolved_invocation::InvocationOptions<'_, '_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    let count = args.exact_argv_len()?;
+    let mode = args.get(1)?;
+    let bytes = mode
+        .literal()
+        .map(str::as_bytes)
+        .or_else(|| mode.native_bytes())?;
+    if bytes.contains(&0) {
+        return None;
     }
+    let table = crate::abbrev::KeywordTable::new(
+        FILTER_TYPE_VALUES.iter().map(|value| value.value),
+        FILTER_TYPE_PREFIX_MATCHING,
+    );
+    if table.resolve_bytes(bytes).unique()? == "script" {
+        return (count == 4).then(|| vec![(2, ArgRole::LoopVarList), (3, ArgRole::Body)]);
+    }
+    let release = args.dialect().and_then(|dialect| dialect.tcl_version);
+    let valid = match release {
+        Some(tcl_dialect::TclVersion::V8_4) => false,
+        Some(tcl_dialect::TclVersion::V8_5) | None => count == 3,
+        Some(_) => count >= 2,
+    };
+    valid.then(Vec::new)
 }
 
 /// `dict filter dictionaryValue filterType ...`'s `filterType` word (index 1
@@ -126,6 +150,8 @@ fn dict_filter_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// nuance can't be expressed as an `ArgValue.min_tcl` (the *value* `key` is
 /// legal in every dict-supporting release; only what may follow it changed),
 /// so it lives in prose in each entry's `detail` instead.
+const FILTER_TYPE_PREFIX_MATCHING: PrefixMatching = PrefixMatching::Enabled;
+
 const FILTER_TYPE_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "key",
@@ -147,6 +173,9 @@ const FILTER_TYPE_VALUES: &[ArgValue] = &[
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "append",
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::Append.spec(true),
+        ),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictAppend)),
         // A keyed update reads the dictionary it rewrites: the store that
         // feeds `dict set d k v` is observed, not overwritten, whatever the
@@ -181,6 +210,22 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "create",
+        native_result: Some(
+            crate::native_result::NativeResultContract::DictionaryArguments { from: 0 },
+        ),
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::DictionaryConstructor {
+                lookup: &CREATE_IMPLEMENTATION,
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::Create.spec(true),
+        ),
         const_fold: Some(crate::const_fold::fold_dict_create),
         // `?key value ...?` — an even count, 0 or more (confirmed against
         // tclsh 8.6.14: `dict create a` fails "wrong # args").
@@ -190,13 +235,20 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Dict),
         return_elements: Some(ReturnElements::DictOfPairs { from: 0 }),
+        // Unknown key objects still require string materialisation. Only the
+        // successful-handler projection closes this phase for known keys;
+        // unknown values are retained without coercion.
+        world_effects: None,
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "exists",
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::Exists.spec(true),
+        ),
         const_fold: Some(crate::const_fold::fold_dict_exists),
         arity: Arity::at_least(2),
         detail: "Test whether a key exists in a dictionary.",
@@ -214,15 +266,20 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "filter",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::ScriptObject,
+        }),
         arity: Arity::at_least(2),
         detail: "Filter a dictionary.",
         synopsis: "dict filter dictionaryValue filterType ...",
-        arg_role_resolver: Some(dict_filter_arg_roles),
-        arg_role_resolver_roles: &[ArgRole::Body],
+        arg_role_layout_resolver: Some(dict_filter_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::LoopVarList, ArgRole::Body],
         return_type: Some(TclType::Dict),
         arg_types: &[(
             0,
@@ -238,7 +295,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         closed_value_args: &[1],
         // `Tcl_GetIndexFromObj` accepts any unique prefix (see
         // `FILTER_TYPE_VALUES`'s doc comment).
-        arg_values_accept_prefix: true,
+        arg_values_accept_prefix: FILTER_TYPE_PREFIX_MATCHING.accepts_prefixes(),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
@@ -246,6 +303,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "for",
+        native_compilation: Some(crate::native_dictionary::NativeDictionaryCommand::For.spec(true)),
         traits: Traits::CONTROL_FLOW.union(Traits::HAS_LOOP_BODY),
         arity: Arity::exact(3),
         detail: "Iterate over dictionary key/value pairs.",
@@ -273,6 +331,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "get",
+        native_compilation: Some(crate::native_dictionary::NativeDictionaryCommand::Get.spec(true)),
+        native_result: Some(
+            crate::native_result::NativeResultContract::DictionaryValue {
+                dictionary_at: 0,
+                keys_from: 1,
+            },
+        ),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictGet)),
         const_fold: Some(crate::const_fold::fold_dict_get),
         inline_codegen_hook: Some(InlineCodegenHookId::DictGet),
@@ -295,10 +360,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "incr",
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::Incr.spec(true),
+        ),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictIncr)),
         // A keyed update reads the dictionary it rewrites: the store that
         // feeds `dict set d k v` is observed, not overwritten, whatever the
@@ -325,6 +393,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "keys",
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::Keys.spec(true),
+        ),
         const_fold: Some(crate::const_fold::fold_dict_keys),
         arity: Arity::new(1, 2),
         detail: "Return the keys of a dictionary.",
@@ -342,10 +413,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "lappend",
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::Lappend.spec(true),
+        ),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictListAppend)),
         // A keyed update reads the dictionary it rewrites: the store that
         // feeds `dict set d k v` is observed, not overwritten, whatever the
@@ -377,6 +451,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "map",
+        native_compilation: Some(crate::native_dictionary::NativeDictionaryCommand::Map.spec(true)),
         traits: Traits::CONTROL_FLOW.union(Traits::HAS_LOOP_BODY),
         arity: Arity::exact(3),
         detail: "Apply a transformation to each dictionary entry.",
@@ -402,6 +477,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "merge",
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::Merge.spec(true),
+        ),
         const_fold: Some(crate::const_fold::fold_dict_merge),
         arity: Arity::any(),
         detail: "Merge one or more dictionaries.",
@@ -411,10 +489,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "remove",
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::Remove.spec(true),
+        ),
         arity: Arity::at_least(1),
         detail: "Remove keys from a dictionary value.",
         synopsis: "dict remove dictionaryValue ?key ...?",
@@ -435,6 +516,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "replace",
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::Replace.spec(true),
+        ),
         // `dictionaryValue ?key value ...?` — an odd count from 1
         // (confirmed against tclsh 8.6.14: `dict replace $d a` fails
         // "wrong # args").
@@ -458,6 +542,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "set",
+        native_compilation: Some(crate::native_dictionary::NativeDictionaryCommand::Set.spec(true)),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictSet)),
         // A keyed update reads the dictionary it rewrites: the store that
         // feeds `dict set d k v` is observed, not overwritten, whatever the
@@ -485,6 +570,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "size",
+        // Pinned Tcl_DictObjSize/Jim_DictSize on normal ordinary containers.
+        representation_effect: Some(RepresentationEffect::CoerceOrdinaryDictionary { operand: 0 }),
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::Size.spec(true),
+        ),
         const_fold: Some(crate::const_fold::fold_dict_size),
         arity: Arity::exact(1),
         detail: "Return the number of key/value pairs.",
@@ -502,10 +592,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "unset",
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::Unset.spec(true),
+        ),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictUnset)),
         // The key removal keeps every other key: the prior dictionary is read.
         traits: Traits::FIRE_AND_FORGET_TEARDOWN
@@ -544,6 +637,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "update",
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::DictionaryScope),
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::DictionaryScope(
+            crate::dictionary_scope::DictionaryScopeSpec::Update,
+        )),
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::Update.spec(true),
+        ),
         surface: None,
         // `dictionaryVariable key varName ?key varName ...? body` — an
         // even count from 4 (1 dict var + 2n key/varName pairs, n >= 1,
@@ -588,6 +688,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "values",
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::Values.spec(true),
+        ),
         const_fold: Some(crate::const_fold::fold_dict_values),
         arity: Arity::new(1, 2),
         detail: "Return the values of a dictionary.",
@@ -605,10 +708,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "with",
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::DictionaryScope),
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::DictionaryScope(
+            crate::dictionary_scope::DictionaryScopeSpec::With,
+        )),
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::With.spec(true),
+        ),
         arity: Arity::at_least(2),
         detail: "Map all dictionary keys to variables, execute body, write back.",
         synopsis: "dict with dictionaryVariable ?key ...? body",
@@ -634,6 +744,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "info",
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::Info.spec(true),
+        ),
         arity: Arity::exact(1),
         detail: "This returns information (intended for display to people) about the given dictionary though the format of this data is dependent on the implementation of the dictionary.",
         synopsis: "dict info dictionaryValue",
@@ -681,6 +794,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "getdef",
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::GetDefault.spec(true),
+        ),
         arity: Arity::at_least(3),
         // Added by TIP 342 in Tcl 9.0.
         surface: Some(SpecSurface::TCL90_PLUS),
@@ -707,6 +823,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "getwithdefault",
+        native_compilation: Some(
+            crate::native_dictionary::NativeDictionaryCommand::GetWithDefault.spec(true),
+        ),
         arity: Arity::at_least(3),
         // Added by TIP 342 in Tcl 9.0 (the long-form spelling of `getdef`).
         surface: Some(SpecSurface::TCL90_PLUS),
@@ -737,6 +856,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dict",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Unresolved,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("dict"),
         // The `unset` subform removes keys (`DictUnsetCmd`, tclDictObj.c) —
         // `FIRE_AND_FORGET_TEARDOWN` and the `destructive` flag live on
@@ -947,14 +1071,21 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
             Some(CommandSpec {
                 name: qualified,
                 runtime_backing: RuntimeBacking::shipped(qualified),
-                traits: sub.traits
-                    | if sub.pure {
-                        Traits::PURE
-                    } else {
-                        Traits::empty()
-                    },
+                traits: sub.semantic_traits(),
                 surface: sub.surface.or(parent_surface),
                 arity: sub.arity,
+                native_compilation: sub.native_compilation.map(|mut spec| {
+                    if let crate::native_compilation::NativeCompilationGrammar::Dictionary {
+                        command,
+                        ..
+                    } = spec.grammar
+                    {
+                        spec = command.spec(false);
+                    }
+                    spec
+                }),
+                body_execution: sub.body_execution,
+                successful_handler: sub.successful_handler,
                 return_type: sub.return_type,
                 arg_types: sub.arg_types,
                 const_fold: sub.const_fold,
@@ -969,7 +1100,11 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
                 // would not mark `d` written and `::tcl::dict::for {k v} $d
                 // {…}` would neither bind its loop vars nor analyse its body.
                 arg_roles: sub.arg_roles,
+                clause_grammar: sub.clause_grammar,
+                repeated_args: sub.repeated_args,
                 arg_role_resolver: sub.arg_role_resolver,
+                arg_role_count_resolver: sub.arg_role_count_resolver,
+                arg_role_layout_resolver: sub.arg_role_layout_resolver,
                 arg_role_resolver_roles: sub.arg_role_resolver_roles,
                 command_prefixes: sub.command_prefixes,
                 command_prefix_resolver: sub.command_prefix_resolver,
@@ -984,6 +1119,13 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
                 // dictionary operand found by its role in either layout.
                 semantics: sub.semantics,
                 options: sub.options,
+                prefix_matching: sub.prefix_matching,
+                option_prefix_words: sub.option_prefix_words,
+                reserved_trailing_words: sub.reserved_trailing_words,
+                arg_values: sub.arg_values,
+                closed_value_args: sub.closed_value_args,
+                arg_values_accept_prefix: sub.arg_values_accept_prefix,
+                versioned_arg_values: sub.versioned_arg_values,
                 hover: Some(HoverSnippet::brief(
                     summary,
                     synopsis,
@@ -1145,7 +1287,7 @@ mod tests {
         // never `None`.
         let dict_dialects = spec().surface;
         for s in qualified_specs() {
-            let bare = s.name.rsplit("::").next().unwrap();
+            let bare = tcl_syntax::naming::key_tail(s.name);
             let sub = SUBCOMMANDS.iter().find(|sc| sc.name == bare).unwrap();
             assert_eq!(
                 s.surface,
@@ -1155,5 +1297,58 @@ mod tests {
                 s.name,
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod selected_dictionary_layout_tests {
+    use super::*;
+
+    #[test]
+    fn filter_script_prefix_uses_fixed_binder_body_geometry() {
+        let registry = crate::CommandRegistry::build_default();
+        for selector in ["s", "sc", "script"] {
+            let words = ["filter", "value", selector, "k v", "body"];
+            let selected = registry.resolve_invocation("dict", &words, None).unwrap();
+            let (roles, complete) = selected.authored_source_argument_roles();
+            assert!(complete);
+            assert!(roles.contains(&(2, ArgRole::LoopVarList)));
+            assert!(roles.contains(&(3, ArgRole::Body)));
+        }
+        for words in [
+            &["filter", "d", "script", "body"][..],
+            &["filter", "d", "script", "k v", "body", "extra"][..],
+        ] {
+            let selected = registry.resolve_invocation("dict", words, None).unwrap();
+            assert!(!selected.authored_source_argument_roles().1);
+        }
+    }
+
+    #[test]
+    fn qualified_projection_keeps_authentic_source_facets() {
+        let specs = qualified_specs();
+        for (bare, qualified) in QUALIFIED_NAMES {
+            let sub = SUBCOMMANDS.iter().find(|sub| sub.name == *bare).unwrap();
+            let worker = specs.iter().find(|spec| spec.name == *qualified).unwrap();
+            assert_eq!(worker.traits, sub.semantic_traits());
+            assert_eq!(worker.repeated_args, sub.repeated_args);
+            assert!(match (worker.clause_grammar, sub.clause_grammar) {
+                (Some(a), Some(b)) => std::ptr::eq(a, b),
+                (None, None) => true,
+                _ => false,
+            });
+            assert_eq!(
+                worker.arg_values_accept_prefix,
+                sub.arg_values_accept_prefix
+            );
+        }
+        let update = specs
+            .iter()
+            .find(|spec| spec.name == "::tcl::dict::update")
+            .unwrap();
+        assert!(update.traits.contains(Traits::CREATES_SCOPE_ALIAS));
+        assert_ne!(update.repeated_args.len(), 0);
+        assert!(update.repeated_args[0].conditional_binding);
+        assert_eq!(update.repeated_args[0].exclude_trailing, 1);
     }
 }

@@ -61,10 +61,8 @@
 
 use tcl_core_types::DiagCode;
 use tcl_dialect::model::{Family, SpecProvider};
-use tcl_lexer::{Span, Token, TokenType};
-use tcl_registry::deprecation::{
-    DeprecationFixContext, DeprecationFixSafety, DeprecationFixTarget, DeprecationFixWord,
-};
+use tcl_lexer::Span;
+use tcl_registry::deprecation::{DeprecationFixContext, DeprecationFixTarget, DeprecationFixWord};
 use tcl_registry::lifecycle::{Lifecycle, LifecycleState};
 
 use super::super::state::Analyser;
@@ -86,7 +84,7 @@ pub(in crate::analyser) struct VersionGateSite {
     /// Complete generic invocation context for a registry deprecation-fix hook.
     fix_payload: DeprecationFixPayload,
     /// Active profile name, supplied to a context-aware registry hook.
-    dialect: &'static str,
+    dialect: String,
 }
 
 /// A proven **W147** option conflict whose [`OptionRelation`] is
@@ -122,72 +120,28 @@ pub(in crate::analyser) struct GatedOptionConflict {
     pub(in crate::analyser) diagnostic: Diagnostic,
 }
 
-/// A call to a command whose signature **changed across releases**, held
-/// until the whole-file floor picks which shape applies.
-///
-/// A command with no [`tcl_registry::arity::ArityWindow`]s — which is almost
-/// every command — never reaches this buffer: its arity is the same in every
-/// release, so the verdict is computed and queued inline at the dispatch
-/// site. When windows *do* exist the verdict cannot be computed
-/// during the walk at all, in either direction: a count that fits the
-/// fallback might not fit the selected window, and a count that fails the
-/// fallback might be exactly right for it. Both are wrong answers, so the
-/// whole verdict waits.
+/// Retained selected source signature whose window depends on a later floor.
+/// Each window recounts the same effective operands under its own count axis.
 #[derive(Debug, Clone)]
 pub(in crate::analyser) struct GatedArityCall {
-    /// The axis governing the windows, or `None` when the owning spec sits on
-    /// no version axis (permissive — the fallback arity decides).
     pub(in crate::analyser) axis: Option<VersionGateAxis>,
-    /// The declared windows, in declaration order.
     pub(in crate::analyser) windows: &'static [tcl_registry::arity::ArityWindow],
-    /// The shape to use when no window covers the resolved floor, or no floor
-    /// resolves at all.
-    pub(in crate::analyser) fallback: tcl_registry::arity::Arity,
-    /// Command name as the message spells it.
+    pub(in crate::analyser) fallback: tcl_registry::Arity,
     pub(in crate::analyser) display_name: String,
-    /// Base command name the post-walk arity flush resolves shadowing against.
-    pub(in crate::analyser) resolution_name: String,
-    /// Call-site command-resolution namespace.
-    pub(in crate::analyser) namespace: String,
-    /// Whether a shadowing definition must lexically precede the call.
-    pub(in crate::analyser) enforce_order: bool,
-    /// Observed positional-argument count (a lower bound under `{*}`).
-    pub(in crate::analyser) nargs_min: usize,
-    /// Whether any positional word was `{*}`-expanded, which makes the count
-    /// a lower bound and abstains from the too-few verdict.
-    pub(in crate::analyser) positional_any_expand: bool,
-    /// Span the count diagnostic anchors to.
-    pub(in crate::analyser) span: Span,
-    /// The inputs the surplus-argument span and its delete fix are recomputed
-    /// from, once the floor has selected a window and fixed the `max`.
-    pub(in crate::analyser) excess_inputs: super::validity::ExcessInputs,
-    /// The resolved spec's primary synopsis, for the "usage: …" suffix.
+    pub(in crate::analyser) original:
+        super::super::diagnostic_registry::OriginalDiagnosticInvocation,
     pub(in crate::analyser) synopsis: Option<&'static str>,
 }
 
-/// A bare call to an ensemble whose *parent* arity is versioned.
-///
-/// `SubcommandSig::subcommand_required` is derived from the fallback arity,
-/// so an ensemble that gained (or lost) a mandatory subcommand word across
-/// releases would be judged against the wrong shape. The inputs are buffered
-/// and the question re-asked once the floor is known, exactly as
-/// [`GatedArityCall`] does for the count.
+/// A bare ensemble with original head geometry and selected parent windows.
 #[derive(Debug)]
 pub(in crate::analyser) struct GatedBareEnsemble {
-    /// The axis governing the windows, or `None` for a spec on no axis.
     pub(in crate::analyser) axis: Option<VersionGateAxis>,
-    /// The parent's declared windows, in declaration order.
     pub(in crate::analyser) windows: &'static [tcl_registry::arity::ArityWindow],
-    /// The parent shape to use when no window covers the resolved floor.
-    pub(in crate::analyser) fallback: tcl_registry::arity::Arity,
-    /// Command name, as the message spells it and as shadowing resolves it.
-    pub(in crate::analyser) cmd_name: String,
-    /// Call-site command-resolution namespace.
-    pub(in crate::analyser) namespace: String,
-    /// Whether a shadowing definition must lexically precede the call.
-    pub(in crate::analyser) enforce_order: bool,
-    /// Span the diagnostic anchors to (the command word).
-    pub(in crate::analyser) span: Span,
+    pub(in crate::analyser) fallback: tcl_registry::Arity,
+    pub(in crate::analyser) display_name: String,
+    pub(in crate::analyser) original:
+        super::super::diagnostic_registry::OriginalDiagnosticInvocation,
 }
 
 /// Version axes supported by the generic lifecycle consumer.
@@ -235,6 +189,8 @@ pub(in crate::analyser) struct RangeGateSite {
     requires: Option<String>,
     /// The declared targets the gate does not cover.
     uncovered: tcl_dialect::model::VersionSet,
+    /// Typed source ownership, when this is an original Registry use.
+    subject: Option<crate::analyser::DiagnosticSubject>,
 }
 
 /// The names a range diagnostic lists for `set`: the touched ladder
@@ -263,53 +219,54 @@ struct DeprecationFixPayload {
     word_spans: Vec<Option<Span>>,
     words: Vec<StoredDeprecationFixWord>,
     matched_word_index: usize,
+    subject: crate::analyser::DiagnosticSubject,
 }
 
-/// One registry invocation while its lifecycle sites are being recorded.
+/// One retained source invocation while its lifecycle uses are recorded.
 #[derive(Clone, Copy)]
 struct LifecycleInvocation<'a> {
+    original: &'a super::super::diagnostic_registry::OriginalDiagnosticInvocation,
     command: &'a str,
-    command_token: Token,
-    args: &'a [String],
-    arg_tokens: &'a [Token],
     axis: VersionGateAxis,
 }
 
 fn deprecation_fix_payload(
-    command: &str,
-    command_token: Token,
-    args: &[String],
-    arg_tokens: &[Token],
-    matched_word_index: usize,
-    source_map: &tcl_lexer::SourceMap<'_>,
-) -> DeprecationFixPayload {
-    let command_span = super::super::utils::full_word_span_in(source_map, command_token);
-    let mut word_spans = vec![Some(command_span)];
+    invocation: LifecycleInvocation<'_>,
+    argument: Option<usize>,
+) -> Option<DeprecationFixPayload> {
+    let original = invocation.original;
+    let head = original.head();
+    let mut word_spans = vec![Some(head.span())];
     let mut words = vec![StoredDeprecationFixWord {
-        spelling: command.to_owned(),
+        spelling: original.command().to_owned(),
         literal: true,
     }];
-    for (index, arg) in args.iter().enumerate() {
-        let token = arg_tokens.get(index).copied();
-        word_spans
-            .push(token.map(|token| super::super::utils::full_word_span_in(source_map, token)));
+    for (index, value) in original.words().arguments().iter().enumerate() {
+        word_spans.push(original.word(index).map(tcl_lexer::NativeWord::span));
+        let literal = value
+            .literal_bytes()
+            .and_then(|bytes| std::str::from_utf8(bytes).ok());
         words.push(StoredDeprecationFixWord {
-            spelling: arg.clone(),
-            literal: token
-                .is_some_and(|token| !matches!(token.kind, TokenType::Var | TokenType::Cmd)),
+            spelling: literal.unwrap_or_default().to_owned(),
+            literal: literal.is_some(),
         });
     }
     let end = word_spans
         .iter()
         .flatten()
-        .last()
-        .map_or(command_span.end(), |span| span.end());
-    DeprecationFixPayload {
-        invocation: Span::new(command_span.start(), end),
+        .map(|span| span.end())
+        .max()
+        .unwrap_or(head.span().end());
+    Some(DeprecationFixPayload {
+        invocation: Span::new(head.span().start(), end),
         word_spans,
         words,
-        matched_word_index,
-    }
+        matched_word_index: argument.map_or(0, |index| index + 1),
+        subject: original.subject(
+            crate::analyser::RegistrySourceDiagnosticKind::Lifecycle,
+            argument,
+        )?,
+    })
 }
 
 /// Payload distinguishing the package-version gate's syntax granularity.
@@ -378,20 +335,6 @@ fn arg_value_gates(
         }
     }
     gates
-}
-
-fn is_literal_option(arg: &str, token: Option<&Token>) -> bool {
-    if !arg.starts_with('-') || arg.len() < 2 {
-        return false;
-    }
-    // Negative-number literals (`-1`, `-1.5`) are positional values, not
-    // options.
-    let rest = arg[1..].trim_start_matches('-');
-    if !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit() || c == '.') {
-        return false;
-    }
-    // A `Var`/`Cmd` token's text is not a literal option name.
-    !token.is_some_and(|tok| matches!(tok.kind, TokenType::Var | TokenType::Cmd))
 }
 
 /// Human phrase naming the gated syntax, reused by every lifecycle message.
@@ -520,8 +463,36 @@ impl Analyser {
             lifecycle,
             item,
             fix_payload,
-            dialect: self.profile.name,
+            dialect: self.environment_label(),
         });
+    }
+
+    fn record_source_lifecycle_site(
+        &mut self,
+        invocation: LifecycleInvocation<'_>,
+        argument: Option<usize>,
+        lifecycle: Lifecycle,
+        item: VersionGateItem,
+        surface: Option<&'static [SpecSurface]>,
+    ) {
+        let Some(payload) = deprecation_fix_payload(invocation, argument) else {
+            return;
+        };
+        let span = match argument {
+            Some(index) => invocation
+                .original
+                .word(index)
+                .expect("payload retains original operand")
+                .span(),
+            None => invocation.original.head().span(),
+        };
+        self.record_range_gate_site_with_subject(
+            span,
+            &item,
+            surface,
+            Some(payload.subject.clone()),
+        );
+        self.record_lifecycle_site(span, invocation.axis, lifecycle, item, payload);
     }
 
     fn record_subcommand_version_sites(
@@ -530,50 +501,25 @@ impl Analyser {
         spec: &tcl_registry::CommandSpec,
         sub: &tcl_registry::SubCommand,
     ) {
-        // A subcommand the active profile does not have at all is W002's,
-        // exactly as a missing `package require` is W120's: one word, one
-        // diagnostic. Its inner gates are moot for the same reason.
-        if !self
-            .analysis_context()
+        if !invocation
+            .original
+            .context()
             .context()
             .subcommand_available(spec, sub)
         {
             return;
         }
-        let sub_is_literal = invocation
-            .arg_tokens
-            .first()
-            .is_some_and(|tok| !matches!(tok.kind, TokenType::Var | TokenType::Cmd));
-        if sub_is_literal {
-            // Span and payload are computed against one hoisted `SourceMap`
-            // and bound to locals before the `&mut self` call below, so the
-            // map's immutable borrow of `self.source` has already ended.
-            let (span, payload) = {
-                let source_map = self.cached_source_map();
-                (
-                    super::super::utils::full_word_span_in(&source_map, invocation.arg_tokens[0]),
-                    deprecation_fix_payload(
-                        invocation.command,
-                        invocation.command_token,
-                        invocation.args,
-                        invocation.arg_tokens,
-                        1,
-                        &source_map,
-                    ),
-                )
-            };
-            let item = VersionGateItem::Subcommand {
+        self.record_source_lifecycle_site(
+            invocation,
+            Some(0),
+            sub.lifecycle,
+            VersionGateItem::Subcommand {
                 command: invocation.command.to_owned(),
                 subcommand: sub.name.to_owned(),
-            };
-            // §5.4 range mode: the subcommand's inherited mask gate
-            // across the declared core targets.
-            self.record_range_gate_site(span, &item, sub.surface.or(spec.surface));
-            self.record_lifecycle_site(span, invocation.axis, sub.lifecycle, item, payload);
-        }
-        if sub_is_literal && !sub.sub_subcommands.is_empty() {
-            self.record_sub_subcommand_version_site(invocation, sub);
-        }
+            },
+            sub.surface.or(spec.surface),
+        );
+        self.record_sub_subcommand_version_site(invocation, sub);
         self.record_arg_value_version_sites(
             invocation,
             &arg_value_gates(sub.arg_values, sub.versioned_arg_values),
@@ -582,262 +528,137 @@ impl Analyser {
         );
     }
 
-    /// Buffer the third-level word of a two-level ensemble (`info object
-    /// class`) against its [`SubSubCommand`]'s lifecycle.
-    ///
-    /// Resolution is the registry's own — exact match or unique prefix — so an
-    /// abbreviated `info object prop` is gated exactly as the spelt-out word
-    /// is.
-    ///
-    /// [`SubSubCommand`]: tcl_registry::SubSubCommand
     fn record_sub_subcommand_version_site(
         &mut self,
         invocation: LifecycleInvocation<'_>,
         sub: &tcl_registry::SubCommand,
     ) {
-        let (Some(word), Some(tok)) = (invocation.args.get(1), invocation.arg_tokens.get(1)) else {
+        let Some(word) = invocation.original.literal(1) else {
             return;
         };
-        if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
-            return;
-        }
-        let Some(sub_sub) = sub.resolve_sub_subcommand(word) else {
+        let Some(nested) = sub.resolve_sub_subcommand_gated(
+            word,
+            Some(invocation.original.context().context().authoring_query()),
+            None,
+        ) else {
             return;
         };
-        // Span and payload are computed against one hoisted `SourceMap` and
-        // bound to locals before the `&mut self` call below, so the map's
-        // immutable borrow of `self.source` has already ended.
-        let (span, payload) = {
-            let source_map = self.cached_source_map();
-            (
-                super::super::utils::full_word_span_in(&source_map, *tok),
-                deprecation_fix_payload(
-                    invocation.command,
-                    invocation.command_token,
-                    invocation.args,
-                    invocation.arg_tokens,
-                    2,
-                    &source_map,
-                ),
-            )
-        };
-        self.record_lifecycle_site(
-            span,
-            invocation.axis,
-            sub_sub.lifecycle,
+        self.record_source_lifecycle_site(
+            invocation,
+            Some(1),
+            nested.lifecycle,
             VersionGateItem::SubSubCommand {
                 command: invocation.command.to_owned(),
                 subcommand: sub.name.to_owned(),
-                sub_subcommand: sub_sub.name.to_owned(),
+                sub_subcommand: nested.name.to_owned(),
             },
-            payload,
+            nested.surface.or(sub.surface),
         );
     }
 
-    /// Buffer every literal positional word that matches a lifecycle-bearing
-    /// declared value.
-    ///
-    /// `arg_offset` is where the gated positions start in `args` — 0 for a
-    /// command-level table, 1 for a subcommand's (whose indices are relative
-    /// to the word after the subcommand). `subcommand` names the owning
-    /// subcommand for the message, or `None` at command level.
     fn record_arg_value_version_sites(
         &mut self,
         invocation: LifecycleInvocation<'_>,
         gates: &[(u8, &'static str, Lifecycle)],
-        arg_offset: usize,
+        argument_offset: usize,
         subcommand: Option<&str>,
     ) {
         for &(index, value, lifecycle) in gates {
-            let arg_idx = arg_offset + usize::from(index);
-            let (Some(arg), Some(tok)) = (
-                invocation.args.get(arg_idx),
-                invocation.arg_tokens.get(arg_idx),
-            ) else {
-                continue;
-            };
-            if arg != value || matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
+            let argument = argument_offset + usize::from(index);
+            if invocation.original.literal(argument) != Some(value) {
                 continue;
             }
-            let (span, payload) = {
-                let source_map = self.cached_source_map();
-                (
-                    super::super::utils::full_word_span_in(&source_map, *tok),
-                    deprecation_fix_payload(
-                        invocation.command,
-                        invocation.command_token,
-                        invocation.args,
-                        invocation.arg_tokens,
-                        arg_idx + 1,
-                        &source_map,
-                    ),
-                )
-            };
-            self.record_lifecycle_site(
-                span,
-                invocation.axis,
+            self.record_source_lifecycle_site(
+                invocation,
+                Some(argument),
                 lifecycle,
                 VersionGateItem::ArgumentValue {
                     command: invocation.command.to_owned(),
                     subcommand: subcommand.map(ToOwned::to_owned),
                     value: value.to_owned(),
                 },
-                payload,
+                None,
             );
         }
     }
 
-    fn record_option_version_sites(
-        &mut self,
-        invocation: LifecycleInvocation<'_>,
-        options: &[tcl_registry::hover::OptionSpec],
-        start_idx: usize,
-        parent_gate: Option<&'static [SpecSurface]>,
-    ) {
-        let mut i = start_idx;
-        while i < invocation.args.len() {
-            let arg = invocation.args[i].as_str();
-            if arg == "--" {
-                break;
-            }
-            if !is_literal_option(arg, invocation.arg_tokens.get(i)) {
-                i += 1;
+    fn record_option_version_sites(&mut self, invocation: LifecycleInvocation<'_>) {
+        let Some(scan) = invocation
+            .original
+            .with_schema(crate::analyser::diagnostic_registry::source_diagnostic_options)
+            .flatten()
+        else {
+            return;
+        };
+        for selected in scan.options {
+            let Some(spelling) = invocation.original.literal(selected.argument) else {
                 continue;
-            }
-            if let Some(opt) = options.iter().find(|o| o.matches(arg)) {
-                if let Some(tok) = invocation.arg_tokens.get(i) {
-                    let (span, payload) = {
-                        let source_map = self.cached_source_map();
-                        (
-                            super::super::utils::full_word_span_in(&source_map, *tok),
-                            deprecation_fix_payload(
-                                invocation.command,
-                                invocation.command_token,
-                                invocation.args,
-                                invocation.arg_tokens,
-                                i + 1,
-                                &source_map,
-                            ),
-                        )
-                    };
-                    let item = VersionGateItem::Option {
-                        command: invocation.command.to_owned(),
-                        option: arg.to_owned(),
-                    };
-                    // §5.4 range mode: the option's inherited mask gate
-                    // across the declared core targets.
-                    self.record_range_gate_site(span, &item, opt.surface.or(parent_gate));
-                    self.record_lifecycle_site(span, invocation.axis, opt.lifecycle, item, payload);
-                }
-                i += 1 + opt.value_word_count(invocation.args, i);
-                continue;
-            }
-            i += 1;
+            };
+            self.record_source_lifecycle_site(
+                invocation,
+                Some(selected.argument),
+                selected.option.lifecycle,
+                VersionGateItem::Option {
+                    command: invocation.command.to_owned(),
+                    option: spelling.to_owned(),
+                },
+                selected.surface,
+            );
         }
     }
 
-    /// Buffer package-version-gated syntax uses at a dispatch site.
-    ///
-    /// The command's [`Lifecycle`] (if declared) records a candidate at the
-    /// command head; each option argument matching a lifecycle-bearing
-    /// [`OptionSpec`] records one at the option token.
-    /// Option scanning mirrors [`Analyser::emit_w004_dialect_invalid_option`]:
-    /// it stops at `--`, skips negative-number literals and dynamic
-    /// (`Var`/`Cmd`) tokens, and resolves subcommand-scoped options.
-    ///
-    /// [`OptionSpec`]: tcl_registry::OptionSpec
+    /// Buffer command, selector, option and literal-value lifecycle syntax
+    /// from one retained source schema. Effective captured ordinals can select
+    /// a table, but only genuine written operands can anchor a diagnostic.
     pub(in crate::analyser) fn record_version_gate_sites(
         &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[Token],
-        cmd_tok: Token,
+        original: Option<&super::super::diagnostic_registry::OriginalDiagnosticInvocation>,
+        command: &str,
     ) {
-        let Some(registry) = self.registry.clone() else {
+        let Some(original) = original else {
             return;
         };
-        let Some(spec) = registry.get(cmd_name) else {
+        let Some(selected) =
+            original.with_schema(crate::analyser::diagnostic_registry::source_descriptors)
+        else {
             return;
         };
-        // Command-level gate. On a keyed ambient axis (the F5 surfaces)
-        // the effective range applies — an explicit introduction release,
-        // or the declared 15.0 baseline, plus any removal release (W139) —
-        // and a vendor-own spec needs no `required_package` to sit on the
-        // axis (its pin resolves through the profile's vendor bit).
-        let keyed = self.analysis_context().context().keyed_version_range(spec);
+        let spec = selected.command;
         let Some(axis) = self.lifecycle_axis(spec) else {
             return;
         };
         let invocation = LifecycleInvocation {
-            command: cmd_name,
-            command_token: cmd_tok,
-            args,
-            arg_tokens,
+            original,
+            command,
             axis,
         };
-        let effective = keyed.map_or(spec.lifecycle, |(min, max)| Lifecycle {
-            introduced: min.or(spec.lifecycle.introduced),
-            deprecated: spec.lifecycle.deprecated,
-            retired: max.or(spec.lifecycle.retired),
-            deprecation_fix: spec.lifecycle.deprecation_fix,
-        });
-        let (span, payload) = {
-            let source_map = self.cached_source_map();
-            (
-                super::super::utils::full_word_span_in(&source_map, cmd_tok),
-                deprecation_fix_payload(cmd_name, cmd_tok, args, arg_tokens, 0, &source_map),
-            )
-        };
-        self.record_lifecycle_site(
-            span,
-            axis,
+        let effective = original
+            .context()
+            .context()
+            .keyed_version_range(spec)
+            .map_or(spec.lifecycle, |(min, max)| Lifecycle {
+                introduced: min.or(spec.lifecycle.introduced),
+                deprecated: spec.lifecycle.deprecated,
+                retired: max.or(spec.lifecycle.retired),
+                deprecation_fix: spec.lifecycle.deprecation_fix,
+            });
+        self.record_source_lifecycle_site(
+            invocation,
+            None,
             effective,
-            VersionGateItem::Command(cmd_name.to_owned()),
-            payload,
+            VersionGateItem::Command(command.to_owned()),
+            spec.surface,
         );
-
-        // §5.4 range mode: the command's mask-spelled availability across
-        // the declared core targets. Only an item the *primary* resolves
-        // is a range question — one absent at the primary stays W002's.
-        if self.range_context.is_some() && self.analysis_context().context().spec_available(spec) {
-            self.record_range_gate_site(
-                span,
-                &VersionGateItem::Command(cmd_name.to_owned()),
-                spec.surface,
-            );
-        }
-
-        // Command-level literal argument values (`HTTP::respond <status>
-        // noserver`, a vendor mode word) — the same gate the subcommand arm
-        // applies, one level up.
         self.record_arg_value_version_sites(
             invocation,
             &arg_value_gates(spec.arg_values, spec.versioned_arg_values),
             0,
             None,
         );
-
-        // Option-level gates.  Resolve subcommand-scoped options when the first
-        // argument names a subcommand.
-        let sub_match = (!spec.subcommands.is_empty())
-            .then(|| {
-                let first = args.first().map(String::as_str).unwrap_or_default();
-                spec.resolve_subcommand(first)
-            })
-            .flatten();
-
-        if let Some(sub) = sub_match {
+        if let Some(sub) = selected.subcommand {
             self.record_subcommand_version_sites(invocation, spec, sub);
         }
-        let (options, start_idx, parent_gate) = match sub_match {
-            Some(sub) => (sub.options, 1usize, sub.surface.or(spec.surface)),
-            None => (spec.options, 0usize, spec.surface),
-        };
-        if options.is_empty() {
-            return;
-        }
-
-        self.record_option_version_sites(invocation, options, start_idx, parent_gate);
+        self.record_option_version_sites(invocation);
     }
 
     /// Emit W135/W136 for each buffered site whose package's resolved
@@ -883,7 +704,8 @@ impl Analyser {
                         message,
                         Severity::Warning,
                     )
-                    .with_fixes(fixes),
+                    .with_fixes(fixes)
+                    .with_subject(site.fix_payload.subject.clone()),
                 );
                 continue;
             }
@@ -892,12 +714,15 @@ impl Analyser {
             // the item's lifecycle window — the assistance range warning.
             if let Some(message) = self.range_window_message(&site) {
                 reported.insert((site.span.start(), site.span.end()));
-                new_diags.push(crate::analyser::types::Diagnostic::new(
-                    DiagCode::W150,
-                    site.span,
-                    message,
-                    Severity::Warning,
-                ));
+                new_diags.push(
+                    crate::analyser::types::Diagnostic::new(
+                        DiagCode::W150,
+                        site.span,
+                        message,
+                        Severity::Warning,
+                    )
+                    .with_subject(site.fix_payload.subject.clone()),
+                );
             }
         }
         self.result.diagnostics.extend(new_diags);
@@ -932,14 +757,12 @@ impl Analyser {
         ))
     }
 
-    /// Buffer a §5.4 mask-gated range site: `gate` is the item's
-    /// effective `SpecSurface` availability gate (own or inherited). A
-    /// walk with no declared core targets records nothing.
-    pub(in crate::analyser) fn record_range_gate_site(
+    fn record_range_gate_site_with_subject(
         &mut self,
         span: Span,
         item: &VersionGateItem,
         gate: Option<&'static [SpecSurface]>,
+        subject: Option<crate::analyser::DiagnosticSubject>,
     ) {
         let Some(context) = self.range_context.as_ref() else {
             return;
@@ -955,6 +778,7 @@ impl Analyser {
             what: item_phrase(item),
             requires,
             uncovered,
+            subject,
         });
     }
 
@@ -991,14 +815,16 @@ impl Analyser {
                     site.what
                 ),
             };
-            self.result
-                .diagnostics
-                .push(crate::analyser::types::Diagnostic::new(
-                    DiagCode::W150,
-                    site.span,
-                    message,
-                    Severity::Warning,
-                ));
+            let mut diagnostic = crate::analyser::types::Diagnostic::new(
+                DiagCode::W150,
+                site.span,
+                message,
+                Severity::Warning,
+            );
+            if let Some(subject) = site.subject {
+                diagnostic = diagnostic.with_subject(subject);
+            }
+            self.result.diagnostics.push(diagnostic);
         }
     }
 
@@ -1060,42 +886,6 @@ impl Analyser {
         }
     }
 
-    /// Buffer a *proven* option conflict whose [`OptionRelation`] carries a
-    /// lifecycle, to be decided once the whole-file floor is known.
-    ///
-    /// The caller has already established that the conflict is violated and
-    /// built the diagnostic; the only open question is whether the
-    /// relationship *exists* at the release this file targets, and that is a
-    /// post-walk fact for the same reason every other lifecycle check is one
-    /// — `package require` may appear anywhere.
-    ///
-    /// [`OptionRelation`]: tcl_registry::OptionRelation
-    pub(in crate::analyser) fn record_gated_option_conflict(
-        &mut self,
-        resolution_name: &str,
-        lifecycle: Lifecycle,
-        namespace: String,
-        enforce_order: bool,
-        diagnostic: Diagnostic,
-    ) {
-        // The constraint's axis is its owning command's — a relationship
-        // between two of that command's options ages on the same axis the
-        // options themselves do.
-        let axis = self.registry.clone().and_then(|registry| {
-            registry
-                .get(resolution_name)
-                .and_then(|spec| self.lifecycle_axis(spec))
-        });
-        self.pending_option_conflicts.push(GatedOptionConflict {
-            axis,
-            lifecycle,
-            resolution_name: resolution_name.to_owned(),
-            namespace,
-            enforce_order,
-            diagnostic,
-        });
-    }
-
     /// Promote every buffered gated option conflict the resolved floor
     /// actually has onto [`Analyser::pending_arity`], and drop the rest.
     ///
@@ -1129,121 +919,72 @@ impl Analyser {
         }
     }
 
-    /// Decide every call to a command whose signature changed across
-    /// releases, now that the whole-file floor is known.
-    ///
-    /// Three outcomes, in the order they are checked:
-    ///
-    /// 1. The count fits the shape the floor selects — silence. This is also
-    ///    what an unresolved floor gives, because selection falls back to the
-    ///    plain `arity` and that is exactly today's answer.
-    /// 2. The count fails the selected shape but fits **another declared
-    ///    window** — **W149**. This is the interesting case and the reason
-    ///    the diagnostic exists: the call is not malformed, it is written for
-    ///    a different release of the command, and saying "too many arguments"
-    ///    would send the author to fix a call that is already correct
-    ///    somewhere. The message names the release whose window it fits and
-    ///    which direction it points.
-    /// 3. The count fits no window at all — the ordinary E002 / E003 / E005,
-    ///    unchanged. There is no version story to tell and inventing one
-    ///    would be noise.
-    ///
-    /// Runs before [`Analyser::flush_arity_diagnostics`] so whatever it
-    /// produces goes through the same shadowing suppression an ungated call
-    /// does: a user proc named `switch` still silences the check.
+    /// Select the whole-file floor, then recount every candidate shape using
+    /// the same retained source operands and each window's authored count axis.
     pub(in crate::analyser) fn flush_gated_arity_calls(&mut self) {
-        if self.pending_gated_arity.is_empty() {
-            return;
-        }
         for call in std::mem::take(&mut self.pending_gated_arity) {
             let floor = call
                 .axis
                 .and_then(|axis| self.axis_floor(axis))
-                .map(|(floor, _guarantee)| floor);
+                .map(|(floor, _)| floor);
             let selected = tcl_registry::arity::ArityWindow::select(call.windows, floor.as_deref());
             let arity = selected.map_or(call.fallback, |window| window.arity);
-            // Anchored to the shape actually being reported against, not the
-            // fallback: a narrower window has a longer surplus run, and the
-            // deletion fix has to remove all of it.
-            let excess = call.excess_inputs.at(usize::from(arity.max));
-
-            let Some(diagnostic) = super::validity::arity_verdict(
+            let Some(count) = call.original.count_for_arity(arity) else {
+                continue;
+            };
+            let Some(diagnostic) = super::validity::source_arity_verdict(
+                &call.original,
                 &call.display_name,
                 arity,
-                call.nargs_min,
-                call.positional_any_expand,
-                call.span,
-                excess,
+                &count,
                 call.synopsis,
             ) else {
                 continue;
             };
-
-            // The count is wrong for the selected shape. Before reporting it
-            // as a plain arity error, ask whether some *other* declared
-            // window accepts it — that is a different fault with a different
-            // fix, and the author needs to be told which one they have.
             let elsewhere = call.windows.iter().find(|window| {
                 Some(**window) != selected
-                    && super::validity::arity_verdict(
-                        &call.display_name,
-                        window.arity,
-                        call.nargs_min,
-                        call.positional_any_expand,
-                        call.span,
-                        None,
-                        None,
-                    )
-                    .is_none()
+                    && call
+                        .original
+                        .count_for_arity(window.arity)
+                        .is_some_and(|other| {
+                            !other.indeterminate && window.arity.accepts(other.minimum)
+                        })
             });
-
             let diagnostic = match (elsewhere, floor.as_deref()) {
-                (Some(window), Some(floor)) => {
-                    Self::window_mismatch_diagnostic(&call, *window, floor, selected)
-                }
-                // With no resolved floor there is nothing to compare a window
-                // against, so a fitting sibling proves nothing about which
-                // release this file targets and the plain verdict stands.
+                (Some(window), Some(floor)) => Self::window_mismatch_diagnostic(
+                    &call,
+                    *window,
+                    floor,
+                    selected,
+                    usize::from(count.minimum),
+                ),
                 _ => diagnostic,
             };
-            self.pending_arity.push((
-                call.resolution_name,
-                call.namespace,
-                call.enforce_order,
-                diagnostic,
-            ));
+            self.queue_source_arity_diagnostic(&call.original, diagnostic);
         }
     }
 
-    /// Decide the buffered bare-ensemble calls now that floors are known.
-    ///
-    /// The parent's window at the resolved floor decides whether a subcommand
-    /// word was required; the verdict then joins `pending_arity` so an earlier
-    /// shadowing definition suppresses it exactly as an ungated E001 is.
+    /// The selected parent window determines whether a bare ensemble needs
+    /// a selector. The original source receipt owns its naming applicability.
     pub(in crate::analyser) fn flush_gated_bare_ensembles(&mut self) {
-        if self.pending_gated_bare_ensemble.is_empty() {
-            return;
-        }
         for call in std::mem::take(&mut self.pending_gated_bare_ensemble) {
             let floor = call
                 .axis
                 .and_then(|axis| self.axis_floor(axis))
-                .map(|(floor, _guarantee)| floor);
+                .map(|(floor, _)| floor);
             let arity = tcl_registry::arity::ArityWindow::select(call.windows, floor.as_deref())
                 .map_or(call.fallback, |window| window.arity);
-            // A zero minimum at this floor means a bare call has a defined
-            // default in this release — not an error at all, exactly as the
-            // inline path treats a zero-minimum spec.
-            if arity.min == 0 {
-                continue;
+            if arity.min > 0 {
+                self.queue_source_arity_diagnostic(
+                    &call.original,
+                    Diagnostic::new(
+                        DiagCode::E001,
+                        call.original.head().span(),
+                        format!("'{}' requires a subcommand", call.display_name),
+                        Severity::Error,
+                    ),
+                );
             }
-            let message = format!("'{}' requires a subcommand", call.cmd_name);
-            self.pending_arity.push((
-                call.cmd_name,
-                call.namespace,
-                call.enforce_order,
-                Diagnostic::new(DiagCode::E001, call.span, message, Severity::Error),
-            ));
         }
     }
 
@@ -1260,9 +1001,9 @@ impl Analyser {
         window: tcl_registry::arity::ArityWindow,
         floor: &str,
         selected: Option<tcl_registry::arity::ArityWindow>,
+        count: usize,
     ) -> Diagnostic {
         let package = call.axis.map_or("the package", VersionGateAxis::name);
-        let count = call.nargs_min;
         let name = &call.display_name;
         let fits = window.lifecycle.introduced.map_or_else(
             || "another release".to_owned(),
@@ -1308,7 +1049,7 @@ impl Analyser {
         };
         Diagnostic::new(
             DiagCode::W149,
-            call.span,
+            call.original.invocation_span(),
             format!("{count} arguments to '{name}' matches {fits}, but {now} — {tail}"),
             Severity::Warning,
         )
@@ -1479,6 +1220,9 @@ fn lifecycle_deprecation_fix(
     site: &VersionGateSite,
     floor: &str,
 ) -> Option<super::super::types::CodeFix> {
+    if site.fix_payload.word_spans.iter().any(Option::is_none) {
+        return None;
+    }
     let words: Vec<DeprecationFixWord<'_>> = site
         .fix_payload
         .words
@@ -1494,19 +1238,16 @@ fn lifecycle_deprecation_fix(
         .resolve(DeprecationFixContext {
             words: &words,
             matched_word_index: site.fix_payload.matched_word_index,
-            dialect: Some(site.dialect),
+            dialect: Some(&site.dialect),
             effective_version: Some(floor),
         })?;
     let span = match resolved.target {
         DeprecationFixTarget::Word(index) => site.fix_payload.word_spans.get(index).copied()??,
         DeprecationFixTarget::Invocation => site.fix_payload.invocation,
     };
-    let safety = match resolved.safety {
-        DeprecationFixSafety::SemanticsEquivalent => {
-            crate::irules_checks::FixSafety::SemanticsEquivalent
-        }
-        DeprecationFixSafety::RequiresReview => crate::irules_checks::FixSafety::RequiresReview,
-    };
+    // Source applicability establishes no entered handler or equivalent
+    // rewrite. The hook supplies a proposal for explicit review only.
+    let safety = crate::irules_checks::FixSafety::RequiresReview;
     Some(super::super::types::CodeFix {
         span,
         new_text: resolved.new_text,
@@ -1578,7 +1319,7 @@ impl Analyser {
 
     /// Buffer format/scan %-string DSL uses at a dispatch site — the registry
     /// locates the format-string words *and* names the mini-language each is
-    /// written in ([`CommandRegistry::format_string_args`]), so no command
+    /// written in ([`ResolvedInvocation::authored_source_format_arguments`]), so no command
     /// name is matched here.
     ///
     /// The family check is load-bearing, not decoration: `clock`'s field
@@ -1593,50 +1334,28 @@ impl Analyser {
     ///
     /// [`ArgRole::FormatString`]: tcl_registry::arg_role::ArgRole
     /// [`ArgRole::ScanFormat`]: tcl_registry::arg_role::ArgRole
-    /// [`CommandRegistry::format_string_args`]: tcl_registry::CommandRegistry::format_string_args
+    /// [`ResolvedInvocation::authored_source_format_arguments`]: crate::analyser::diagnostic_registry::source_format_arguments
     /// [`FormatType::Sprintf`]: tcl_registry::patterns::FormatType
     pub(in crate::analyser) fn record_dsl_format_sites(
         &mut self,
         cmd_name: &str,
-        cmd_tok: Token,
-        args: &[String],
-        arg_tokens: &[Token],
+        templates: &[crate::analyser::commands::OriginalFormatTemplate],
     ) {
         use tcl_registry::patterns::FormatType;
-        let Some(registry) = self.registry.as_deref() else {
-            return;
-        };
-        // Which command this head *is*, exactly as the W200/W202 binary gate
-        // and the semantic-token walk resolve it: a `proc format` shadow — at
-        // document level or local to the namespace the call sits in — a
-        // `rename` or an alias means the built-in's conversion table does not
-        // apply, and a proven alias of it means it does, whatever the
-        // spelling. The written spelling stays in the message, because that
-        // is the word the reader has to fix.
-        let resolved = self
-            .head_identities
-            .resolve(cmd_name, cmd_tok.span.start())
-            .spec_name();
-        if resolved.is_empty() {
-            return;
-        }
-        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        for found in registry.format_string_args(resolved, &arg_strs) {
-            if found.kind != FormatType::Sprintf {
+        // Written command names are reporting labels only. The template's
+        // kind, effective ordinal and literal bytes come from the same sealed
+        // source projection as the binary-field and editor consumers.
+        for template in templates {
+            if template.format.kind != FormatType::Sprintf {
                 continue;
             }
-            let (Some(fmt), Some(tok)) = (args.get(found.index), arg_tokens.get(found.index))
-            else {
+            let Ok(fmt) = std::str::from_utf8(&template.bytes) else {
                 continue;
             };
-            // A dynamic token's text is not the literal %-string.
-            if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
-                continue;
-            }
-            if found.scan {
+            if template.format.scan {
                 for (_, feature, min) in tcl_syntax::scan::version_gated_uses(fmt) {
                     self.dsl_gate_sites.push(DslGateSite {
-                        span: tok.span,
+                        span: template.span,
                         code: DiagCode::W138,
                         what: format!("`scan` conversion {feature} in '{cmd_name}'"),
                         min,
@@ -1645,7 +1364,7 @@ impl Analyser {
             } else {
                 for use_ in tcl_syntax::format::version_gated_uses(fmt) {
                     self.dsl_gate_sites.push(DslGateSite {
-                        span: tok.span,
+                        span: template.span,
                         code: DiagCode::W138,
                         what: format!("`format` conversion {} in '{cmd_name}'", use_.feature),
                         min: use_.min,
@@ -1733,6 +1452,51 @@ mod tests {
             .iter()
             .filter(|(c, _)| c == code)
             .count()
+    }
+
+    #[test]
+    fn original_lifecycle_gates_keep_alias_operands_and_typed_source_subjects() {
+        // naming.diagnostic.registry-source-ownership
+
+        // naming.source.authored-command-transition-advice
+
+        // These assertions cover source selection and diagnostic coordinates;
+        // they do not establish runtime alias installation or widget creation.
+        for source in [
+            "package require Tk 8.6\ninterp alias {} createEntry {} entry .e\ncreateEntry -placeholder text\n",
+            "package require Tk 8.6\nrename entry createEntry\ncreateEntry .e -placeholder text\n",
+        ] {
+            let result = Analyser::new().analyse(source, "tcl8.6");
+            let found = result
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W136)
+                .collect::<Vec<_>>();
+            assert_eq!(found.len(), 1, "{source}: {found:?}");
+            let subject = found[0]
+                .registry_source()
+                .expect("typed Registry lifecycle ownership");
+            assert_eq!(
+                subject.kind(),
+                crate::analyser::RegistrySourceDiagnosticKind::Lifecycle
+            );
+            assert_eq!(subject.argument(), Some(1));
+            assert_eq!(&source[subject.span().as_range()], "-placeholder");
+        }
+        for source in [
+            "package require Tk 8.6\nproc entry args {}; entry .e -placeholder text\n",
+            "package require Tk 8.6\ninterp alias {} createEntry {} entry .e -placeholder text\ncreateEntry\n",
+            "package require Tk 8.6\nentry .e $flag text -placeholder text\n",
+        ] {
+            assert!(
+                !Analyser::new()
+                    .analyse(source, "tcl8.6")
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W136),
+                "{source}"
+            );
+        }
     }
 
     #[test]
@@ -1825,8 +1589,9 @@ mod tests {
         // Tk is hosted (not ambient) on `tcl8.6`, so with no require and no
         // pack there is no floor at all and the 8.7 option is not gated.
         let src = "entry .e -placeholder hi\n";
-        assert!(
-            version_diags_for(src, "tcl8.6", None).is_empty(),
+        assert_eq!(
+            version_diags_for(src, "tcl8.6", None).len(),
+            0,
             "baseline: no floor, no gate"
         );
 
@@ -1870,8 +1635,9 @@ mod tests {
             .filter(|d| d.code.as_str() == "W120")
             .map(|d| d.message.clone())
             .collect();
-        assert!(
-            w120.is_empty(),
+        assert_eq!(
+            w120.len(),
+            0,
             "a pack declaring Tk ambient means there is nothing to require: {w120:?}"
         );
     }
@@ -1883,26 +1649,28 @@ mod tests {
         // The pack claims 8.7; the profile pin claims 8.6. The higher claim
         // holds, so the 8.7-introduced option is no longer gated.
         let mut analyser = analyser_with_ambient("tcl8.6", 0x1627_0002, &[("Tk", "8.7")]);
-        assert!(
+        assert_eq!(
             gate_messages(
                 &mut analyser,
                 "package require Tk\nentry .e -placeholder hi\n",
                 "tcl8.6"
             )
-            .is_empty(),
+            .len(),
+            0,
             "the pack's 8.7 outranks the profile's 8.6"
         );
 
         // The require claims 8.7; the pack claims only 8.6. Same outcome from
         // the other direction.
         let mut analyser = analyser_with_ambient("tcl8.6", 0x1627_0003, &[("Tk", "8.6")]);
-        assert!(
+        assert_eq!(
             gate_messages(
                 &mut analyser,
                 "package require Tk 8.7\nentry .e -placeholder hi\n",
                 "tcl8.6"
             )
-            .is_empty(),
+            .len(),
+            0,
             "the require's 8.7 outranks the pack's 8.6"
         );
     }
@@ -2128,8 +1896,9 @@ mod tests {
         // Below the window: the fallback's zero minimum stands, so a bare
         // call is a defined default and not an error.
         let mut low = analyser_with_versioned_ensemble(0x1642_0003);
-        assert!(
-            e001(&mut low, "package require Probe 1.0\nprobe::ens\n").is_empty(),
+        assert_eq!(
+            e001(&mut low, "package require Probe 1.0\nprobe::ens\n").len(),
+            0,
             "below 3.0 a bare call is legal"
         );
 
@@ -2143,8 +1912,9 @@ mod tests {
 
         // ...and naming the subcommand is fine at that floor.
         let mut named = analyser_with_versioned_ensemble(0x1642_0005);
-        assert!(
-            e001(&mut named, "package require Probe 3.0\nprobe::ens go\n").is_empty(),
+        assert_eq!(
+            e001(&mut named, "package require Probe 3.0\nprobe::ens go\n").len(),
+            0,
             "a named subcommand satisfies the requirement"
         );
     }
@@ -2166,15 +1936,17 @@ mod tests {
         // Floor 3.0 selects the two-argument window, so two words are right
         // and one is too few even though the plain `arity` is exactly 1.
         let mut a = analyser_with_windows(0x1627_1001, None);
-        assert!(
-            arity_diags(&mut a, "package require Probe 3.0\nprobe::grew a b\n").is_empty(),
+        assert_eq!(
+            arity_diags(&mut a, "package require Probe 3.0\nprobe::grew a b\n").len(),
+            0,
             "two arguments fit the 3.0 window"
         );
 
         // Floor 5.0 selects the three-argument window.
         let mut a = analyser_with_windows(0x1627_1002, None);
-        assert!(
-            arity_diags(&mut a, "package require Probe 5.0\nprobe::grew a b c\n").is_empty(),
+        assert_eq!(
+            arity_diags(&mut a, "package require Probe 5.0\nprobe::grew a b c\n").len(),
+            0,
             "three arguments fit the 5.0 window"
         );
     }
@@ -2227,8 +1999,9 @@ mod tests {
     #[test]
     fn no_resolvable_floor_falls_back_to_the_plain_arity() {
         let mut a = analyser_with_windows(0x1627_1006, None);
-        assert!(
-            arity_diags(&mut a, "probe::grew a\n").is_empty(),
+        assert_eq!(
+            arity_diags(&mut a, "probe::grew a\n").len(),
+            0,
             "the plain arity is exactly 1"
         );
 
@@ -2247,8 +2020,9 @@ mod tests {
     #[test]
     fn a_pack_ambient_floor_selects_the_window() {
         let mut a = analyser_with_windows(0x1627_1008, Some("5.0"));
-        assert!(
-            arity_diags(&mut a, "probe::grew a b c\n").is_empty(),
+        assert_eq!(
+            arity_diags(&mut a, "probe::grew a b c\n").len(),
+            0,
             "the ambient 5.0 selects the three-argument window"
         );
 
@@ -2273,14 +2047,18 @@ mod tests {
             "TracksBase floor names the runtime as the guarantor: {diags:?}"
         );
         // TN: Tk 9.0 (tracking the tcl9.0 base) carries the 8.7 additions.
-        assert!(
-            version_diags_for(src, "tcl9.0", None).is_empty(),
+        assert_eq!(
+            version_diags_for(src, "tcl9.0", None).len(),
+            0,
             "Tk 9.0 meets an 8.7 introduction"
         );
         // An explicit require can only RAISE the pin floor, never lower it:
         // requiring 8.7 on the 8.6 base is satisfied at 8.7.
         let raised = "package require Tk 8.7\nentry .e -placeholder hi\n";
-        assert!(version_diags_for(raised, "tcl8.6", None).is_empty());
+        assert_eq!(
+            version_diags_for(raised, "tcl8.6", None),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2302,8 +2080,9 @@ mod tests {
             "a 15.1.0 pin exposes the 16.1.0 introduction: {below:?}"
         );
         // …TN pinned above.
-        assert!(
-            version_diags_for(src, "f5-irules", Some("17.1.0")).is_empty(),
+        assert_eq!(
+            version_diags_for(src, "f5-irules", Some("17.1.0")).len(),
+            0,
             "a 17.1.0 pin satisfies a 16.1.0 introduction"
         );
     }
@@ -2321,8 +2100,9 @@ mod tests {
                     && message.contains("requires f5-irules-cmds 21.1.0")),
                 "21.0 must reject the 21.1 subcommand: {below:?}"
             );
-            assert!(
-                version_diags_for(source, "f5-irules", Some("21.1.0")).is_empty(),
+            assert_eq!(
+                version_diags_for(source, "f5-irules", Some("21.1.0")).len(),
+                0,
                 "21.1 must admit {source:?}"
             );
         }
@@ -2339,8 +2119,9 @@ mod tests {
                     && message.contains("requires f5-irules-cmds 21.1.0")),
                 "21.0 must reject persist {operation} mcp: {below:?}"
             );
-            assert!(
-                version_diags_for(&source, "f5-irules", Some("21.1.0")).is_empty(),
+            assert_eq!(
+                version_diags_for(&source, "f5-irules", Some("21.1.0")).len(),
+                0,
                 "21.1 must admit persist {operation} mcp"
             );
         }
@@ -2358,6 +2139,106 @@ mod tests {
     }
 
     #[test]
+    fn original_format_gates_keep_alias_ordinals_and_written_template_anchors() {
+        // naming.core.original-inlay-retained-context
+
+        // This checks readonly source metadata and diagnostic geometry, not
+        // alias installation or successful execution in a native interpreter.
+        for source in [
+            "interp alias {} encode {} binary format\nencode cu 5\n",
+            "rename binary encode\nencode format cu 5\n",
+            "::binary format cu 5\n",
+            "binary fo cu 5\n",
+            "set output [binary format cu 5]\n",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.4");
+            let found = analysis
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W200)
+                .collect::<Vec<_>>();
+            assert_eq!(found.len(), 1, "{source}: {found:?}");
+            assert_eq!(&source[found[0].span.as_range()], "cu", "{source}");
+        }
+        // The effective template is a captured prefix. No invocation operand
+        // can borrow its location from the alias declaration or a later value.
+        assert!(
+            dsl_diags(
+                "interp alias {} encode {} binary format cu\nencode 5\n",
+                "tcl8.4",
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn original_format_gates_read_literal_values_without_promoting_dynamic_words() {
+        // naming.core.original-inlay-retained-context
+
+        // These source-consumer controls do not claim native runtime results.
+        for (source, template) in [
+            (r"format \x25\u0062 5", b"%b".as_slice()),
+            (r"binary format c\u0075 5", b"cu".as_slice()),
+        ] {
+            let result = Analyser::new().analyse(source, "tcl8.4");
+            let config = result.body_lexer_config.unwrap();
+            let segment =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let words = crate::registry_invocation::source_structure::source_registry_words(
+                source, &result, &segment,
+            )
+            .unwrap_or_else(|| panic!("source schema missing: {source}"));
+            let context = result.resolved_input.as_ref().unwrap().context_registry();
+            let formats = words
+                .with_source_schema(
+                    &context,
+                    crate::analyser::diagnostic_registry::source_format_arguments,
+                )
+                .flatten()
+                .unwrap_or_else(|| panic!("format schema missing: {source}"));
+            assert_eq!(formats.len(), 1, "format role missing: {source}");
+            assert_eq!(
+                words.arguments()[formats[0].index].literal_bytes(),
+                Some(template),
+                "shared literal bytes: {source}"
+            );
+            assert_eq!(dsl_diags(source, "tcl8.4").len(), 1, "{source}");
+        }
+        // naming.source.original-static-escape-values
+
+        // SourceEscapes173 records pre-8.6 greedy hex as '[' for this exact
+        // spelling. It therefore contains no percent conversion to version-gate.
+        for dialect in ["tcl8.4", "tcl8.5"] {
+            assert!(
+                dsl_diags(r"format \x25b 5", dialect).is_empty(),
+                "{dialect}"
+            );
+        }
+        for source in [
+            r"format {\x25b} 5",
+            r#"format "%b$part" 5"#,
+            "format $template 5",
+            "format [makeTemplate] 5",
+            "binary {*}$selector cu 5",
+            "binary $selector cu 5",
+            "proc format args {}; format %b 5",
+            "proc binary args {}; binary format cu 5",
+            "rename format {}; format %b 5",
+            "namespace eval n {proc binary args {}; binary format cu 5}",
+            "clock format 0 -format {%b}",
+        ] {
+            assert!(dsl_diags(source, "tcl8.4").is_empty(), "{source}");
+        }
+        for dialect in ["tcl8.5", "tcl8.6"] {
+            assert!(
+                dsl_diags("format {*}$arguments %llu 5", dialect).is_empty(),
+                "{dialect}: unknown expansion supplies no template ordinal"
+            );
+        }
+    }
+
+    #[test]
     fn w202_gated_field_letter_names_the_letter_and_the_floor() {
         let diags = dsl_diags("binary format q 1.0\n", "tcl8.4");
         let (code, msg) = diags
@@ -2368,7 +2249,10 @@ mod tests {
         assert!(msg.contains("'q'"), "{msg}");
         assert!(msg.contains("8.5"), "{msg}");
         // Clean once the floor is met.
-        assert!(dsl_diags("binary format q 1.0\n", "tcl8.6").is_empty());
+        assert_eq!(
+            dsl_diags("binary format q 1.0\n", "tcl8.6"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     /// The argument-DSL gates run against the command a head *is*, not the
@@ -2399,8 +2283,9 @@ mod tests {
             // As does a name the document renamed the built-in away from.
             ("rename format origfmt\nformat %b 5\n", "W138"),
         ] {
-            assert!(
-                dsl_diags(src, "tcl8.4").is_empty(),
+            assert_eq!(
+                dsl_diags(src, "tcl8.4").len(),
+                0,
                 "{code} must not gate a head the document rebound: {src}"
             );
         }
@@ -2438,14 +2323,23 @@ mod tests {
         }
         // TN: 8.6+ runtimes.
         for d in ["tcl8.6", "tcl9.0", "expect", "bpf", "synopsys-eda-tcl"] {
-            assert!(dsl_diags(src, d).is_empty(), "{d}: %b is real on 8.6+");
+            assert_eq!(dsl_diags(src, d).len(), 0, "{d}: %b is real on 8.6+");
         }
         // FP-guard: `%%b` is a literal percent + `b`, not the conversion;
         // a dynamic format string abstains.
-        assert!(dsl_diags("format %%b 5\n", "tcl8.4").is_empty());
-        assert!(dsl_diags("format $fmt 5\n", "tcl8.4").is_empty());
+        assert_eq!(
+            dsl_diags("format %%b 5\n", "tcl8.4"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
+        assert_eq!(
+            dsl_diags("format $fmt 5\n", "tcl8.4"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
         // The permissive fallback abstains entirely (§8).
-        assert!(dsl_diags(src, "tcl").is_empty());
+        assert_eq!(
+            dsl_diags(src, "tcl"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2458,9 +2352,12 @@ mod tests {
             diags.iter().any(|(c, m)| c == "W138" && m.contains("%llu")),
             "tcl8.6: %llu needs 9.0, got {diags:?}"
         );
-        assert!(dsl_diags(src, "tcl9.0").is_empty(), "9.0 renders %llu");
+        assert_eq!(dsl_diags(src, "tcl9.0").len(), 0, "9.0 renders %llu");
         // Plain %lld is fine everywhere the ladder models.
-        assert!(dsl_diags("format %lld 5\n", "tcl8.6").is_empty());
+        assert_eq!(
+            dsl_diags("format %lld 5\n", "tcl8.6"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2471,7 +2368,10 @@ mod tests {
             diags.iter().any(|(c, m)| c == "W138" && m.contains("%b")),
             "tcl8.5: scan %b needs 8.6, got {diags:?}"
         );
-        assert!(dsl_diags(src, "tcl8.6").is_empty());
+        assert_eq!(
+            dsl_diags(src, "tcl8.6"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2489,7 +2389,7 @@ mod tests {
             );
         }
         for d in ["tcl9.0", "tcl9.1", "bpf"] {
-            assert!(dsl_diags(src, d).is_empty(), "{d}: dict class is real");
+            assert_eq!(dsl_diags(src, d).len(), 0, "{d}: dict class is real");
         }
         // entier is 8.6+; wideinteger is 8.5+.
         assert!(
@@ -2498,19 +2398,34 @@ mod tests {
                 .any(|(c, _)| c == "W137"),
             "entier needs 8.6"
         );
-        assert!(dsl_diags("string is entier 5\n", "tcl8.6").is_empty());
+        assert_eq!(
+            dsl_diags("string is entier 5\n", "tcl8.6"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
         assert!(
             dsl_diags("string is wideinteger 5\n", "tcl8.4")
                 .iter()
                 .any(|(c, _)| c == "W137"),
             "wideinteger needs 8.5"
         );
-        assert!(dsl_diags("string is wideinteger 5\n", "tcl8.5").is_empty());
+        assert_eq!(
+            dsl_diags("string is wideinteger 5\n", "tcl8.5"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
         // FP-guards: an always-available class, a dynamic class, and the
         // unique-prefix abbreviation of an ungated class stay silent.
-        assert!(dsl_diags("string is alpha abc\n", "tcl8.4").is_empty());
-        assert!(dsl_diags("string is $cls abc\n", "tcl8.4").is_empty());
-        assert!(dsl_diags("string is xd abc\n", "tcl8.4").is_empty());
+        assert_eq!(
+            dsl_diags("string is alpha abc\n", "tcl8.4"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
+        assert_eq!(
+            dsl_diags("string is $cls abc\n", "tcl8.4"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
+        assert_eq!(
+            dsl_diags("string is xd abc\n", "tcl8.4"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2518,8 +2433,9 @@ mod tests {
         // §6.1: `package require Tcl 9.0` raises the effective version
         // above the ambient tcl8.6 dialect — the file validates as 9.0.
         let src = "package require Tcl 9.0\nformat %llu 5\nstring is dict {a 1}\n";
-        assert!(
-            dsl_diags(src, "tcl8.6").is_empty(),
+        assert_eq!(
+            dsl_diags(src, "tcl8.6").len(),
+            0,
             "a 9.0 core floor admits 9.0 DSL features"
         );
     }
@@ -2528,7 +2444,7 @@ mod tests {
     fn w200_binary_modifiers_follow_the_effective_version() {
         // TIP 275: binary format/scan u/s modifiers are 8.5+. The F5
         // trunk profiles all ride the fork of Tcl at 8.4.6 — measured,
-        // bigip-irule-parser-measurements.md §4a: iApps/tmsh fail every
+        // embedded-tcl-contract.md §4a: iApps/tmsh fail every
         // 8.5 discriminator, so the modifiers flag there too.
         let src = "binary format cu 5\n";
         for d in ["tcl8.4", "f5-irules", "f5-iapps", "f5-tmsh"] {
@@ -2539,8 +2455,9 @@ mod tests {
             );
         }
         for d in ["tcl8.5", "tcl8.6"] {
-            assert!(
-                dsl_diags(src, d).is_empty(),
+            assert_eq!(
+                dsl_diags(src, d).len(),
+                0,
                 "{d}: binary u modifier is real on 8.5+"
             );
         }
@@ -2561,10 +2478,7 @@ mod tests {
                 .filter(|d| d.code.as_str() == "W135")
                 .map(|d| d.message.clone())
                 .collect();
-            assert!(
-                w135.is_empty(),
-                "pin {pin:?}: baseline is met, got {w135:?}"
-            );
+            assert_eq!(w135.len(), 0, "pin {pin:?}: baseline is met, got {w135:?}");
         }
         // …TP below the baseline: the whole modelled surface is declared
         // 15.0+, so a 14.x target flags it.
@@ -2644,8 +2558,9 @@ mod tests {
             .map(|d| d.code.as_str())
             .filter(|c| matches!(*c, "W120" | "W123" | "W002"))
             .collect();
-        assert!(
-            noisy.is_empty(),
+        assert_eq!(
+            noisy.len(),
+            0,
             "ambient vendor surface must not draw require/unknown codes: {noisy:?}"
         );
     }
@@ -2666,8 +2581,9 @@ mod tests {
         // shipped version floors it instead (§7.1 — see
         // `tracksbase_tk_pin_floors_an_unversioned_require`).
         let src = "package require Tk\nentry .e -placeholder hi\n";
-        assert!(
-            version_diags_for(src, "tcl", None).is_empty(),
+        assert_eq!(
+            version_diags_for(src, "tcl", None).len(),
+            0,
             "{:?}",
             version_diags_for(src, "tcl", None)
         );
@@ -2702,8 +2618,9 @@ mod tests {
         // On a tcl8.6 host the same source is FINE: `package require Tk
         // 8.4` states a minimum, it does not downgrade the shipped Tk 8.6 —
         // the old require-only floor drew a false positive here.
-        assert!(
-            version_diags_for(src, "tcl8.6", None).is_empty(),
+        assert_eq!(
+            version_diags_for(src, "tcl8.6", None).len(),
+            0,
             "the shipped Tk 8.6 satisfies an 8.5 introduction"
         );
     }
@@ -2754,15 +2671,22 @@ mod tests {
             );
         }
         for dialect in ["tcl8.6", "tcl9.0"] {
-            assert!(
-                lifecycle_diags(src, dialect).is_empty(),
+            assert_eq!(
+                lifecycle_diags(src, dialect).len(),
+                0,
                 "{dialect}: half-close is real from 8.6"
             );
         }
         // FP-guards: the plain one-argument form has no direction word at
         // all, and a dynamic direction is not a literal value.
-        assert!(lifecycle_diags("close $s\n", "tcl8.5").is_empty());
-        assert!(lifecycle_diags("close $s $dir\n", "tcl8.5").is_empty());
+        assert_eq!(
+            lifecycle_diags("close $s\n", "tcl8.5"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
+        assert_eq!(
+            lifecycle_diags("close $s $dir\n", "tcl8.5"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2780,14 +2704,18 @@ mod tests {
                     .any(|(code, message)| code == "W135" && message.contains("requires Tcl 9.0")),
                 "8.6 must reject {src:?}: {diags:?}"
             );
-            assert!(
-                lifecycle_diags(src, "tcl9.0").is_empty(),
+            assert_eq!(
+                lifecycle_diags(src, "tcl9.0").len(),
+                0,
                 "9.0 must admit {src:?}"
             );
         }
         // The 8.6 operations of the same ensembles stay silent, and a unique
         // prefix of a gated operation is gated exactly as the full word is.
-        assert!(lifecycle_diags("info object class $o\n", "tcl8.6").is_empty());
+        assert_eq!(
+            lifecycle_diags("info object class $o\n", "tcl8.6"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
         assert!(
             lifecycle_diags("info class definitionn $c\n", "tcl8.6")
                 .iter()
@@ -2809,8 +2737,9 @@ mod tests {
         );
         // On 9.0 the form is gone from the profile entirely — that is W002's
         // word, and the version gate must not flag it a second time.
-        assert!(
-            lifecycle_diags(src, "tcl9.0").is_empty(),
+        assert_eq!(
+            lifecycle_diags(src, "tcl9.0").len(),
+            0,
             "a dialect-absent subcommand stays W002's alone"
         );
     }
@@ -2945,7 +2874,7 @@ mod tests {
             // The relationship does not exist in Fauxpkg 1.x, so enforcing it
             // would report a rule that release has not got.
             let src = "package require Fauxpkg 1.0\nfauxgated -alpha -beta\n";
-            assert!(conflicts(src).is_empty(), "{:?}", conflicts(src));
+            assert_eq!(conflicts(src).len(), 0, "{:?}", conflicts(src));
         }
 
         #[test]
@@ -3033,7 +2962,7 @@ mod tests {
             let src = "package require Fauxpkg 2.0\n\
                        proc fauxgated args {}\n\
                        fauxgated -alpha -beta\n";
-            assert!(conflicts(src).is_empty(), "{:?}", conflicts(src));
+            assert_eq!(conflicts(src).len(), 0, "{:?}", conflicts(src));
         }
 
         #[test]
@@ -3042,7 +2971,7 @@ mod tests {
             // follow the call: buffering is what makes this work.
             let below = "proc use {} { fauxgated -alpha -beta }\n\
                          package require Fauxpkg 1.0\n";
-            assert!(conflicts(below).is_empty(), "{:?}", conflicts(below));
+            assert_eq!(conflicts(below).len(), 0, "{:?}", conflicts(below));
             let met = "proc use {} { fauxgated -alpha -beta }\n\
                        package require Fauxpkg 2.0\n";
             assert_eq!(conflicts(met).len(), 1, "{:?}", conflicts(met));

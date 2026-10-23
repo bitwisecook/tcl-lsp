@@ -29,6 +29,7 @@ authors.workspace = true
 
 [dependencies]
 tcl-dialect = { path = "../tcl-dialect" }
+tcl-syntax = { path = "../tcl-syntax" }
 # The manifest, lockfile, version and error types, re-exported below: the
 # pack loader reads the same ones and cannot depend on this crate.
 tcl-pkg-model = { path = "../tcl-pkg-model" }

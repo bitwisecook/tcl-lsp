@@ -53,9 +53,8 @@
 
 use tcl_dialect::{ArrayIndexSyntax, BracedVarStyle};
 
-use crate::source_map::SourceMap;
-use crate::substitution::backslash_escape_end;
-use crate::tokens::{ByteCol, SourcePosition, Token};
+use crate::source_map::{SourceMap, token_bytes_in};
+use crate::tokens::{ByteCol, SourcePosition, Token, TokenType};
 
 /// The closing delimiter for an opening `"` / `{` / `[`, or `None`.
 const fn closer_for(opener: u8) -> Option<u8> {
@@ -97,6 +96,35 @@ pub struct ArrayIndexScan {
     pub invalid: Option<usize>,
 }
 
+/// Jim's parenthesis-body boundary, starting just after its opening `(`.
+/// Escapes hide one byte and plain parentheses nest. The returned offset is
+/// on the matched `)`, or at the recovered end when the body is unterminated.
+/// This is shared by expression sugar and dictionary-index source readers.
+pub(crate) fn jim_parenthesis_body_end(source: &[u8], start: usize) -> usize {
+    let mut at = start;
+    let mut depth = 1_u32;
+    let mut last_close = None;
+    while let Some(&byte) = source.get(at) {
+        match byte {
+            b'\\' if at + 1 < source.len() => {
+                at += 2;
+                continue;
+            }
+            b'(' => depth += 1,
+            b')' => {
+                last_close = Some(at);
+                depth -= 1;
+                if depth == 0 {
+                    return at;
+                }
+            }
+            _ => {}
+        }
+        at += 1;
+    }
+    last_close.map_or(at, |close| close + 1)
+}
+
 /// Scan the `$name(index)` beginning at `open_parenthesis`.
 ///
 /// This is the single structural owner used by the main lexer, expression
@@ -116,6 +144,28 @@ pub fn scan_array_index(
     syntax: ArrayIndexSyntax,
     braced_var: BracedVarStyle,
 ) -> ArrayIndexScan {
+    scan_array_index_in(
+        source,
+        open_parenthesis,
+        crate::LexerConfig {
+            array_index: syntax,
+            braced_var,
+            ..crate::LexerConfig::default()
+        },
+    )
+}
+
+/// Scan one array index under the complete retained source configuration.
+/// Nested command substitutions and braced variable references use that same
+/// configuration. This provides source boundaries and lexical errors only.
+#[must_use]
+pub fn scan_array_index_in(
+    source: &[u8],
+    open_parenthesis: usize,
+    config: crate::LexerConfig,
+) -> ArrayIndexScan {
+    let syntax = config.array_index;
+    let braced_var = config.braced_var;
     if source.get(open_parenthesis) != Some(&b'(') {
         return ArrayIndexScan {
             end: ArrayIndexEnd::Unterminated,
@@ -139,7 +189,7 @@ pub fn scan_array_index(
             }
             b'\\' => position = (position + 2).min(source.len()),
             b'[' => {
-                let Some(end) = command_substitution_end_bytes(source, position) else {
+                let Some(end) = command_substitution_end_bytes_in(source, position, config) else {
                     return ArrayIndexScan {
                         end: ArrayIndexEnd::Unterminated,
                         invalid: first_invalid,
@@ -161,7 +211,7 @@ pub fn scan_array_index(
                     }
                     continue;
                 }
-                position = scan_bare_var_name(source, after_dollar);
+                position = tcl_core_types::naming::scan_var_name_end(source, after_dollar);
                 if position > after_dollar && source.get(position) == Some(&b'(') {
                     nested_indices += 1;
                     position += 1;
@@ -179,23 +229,6 @@ pub fn scan_array_index(
         end: ArrayIndexEnd::Unterminated,
         invalid: first_invalid,
     }
-}
-
-fn scan_bare_var_name(source: &[u8], mut position: usize) -> usize {
-    while position < source.len() {
-        let byte = source[position];
-        if byte.is_ascii_alphanumeric() || byte == b'_' {
-            position += 1;
-        } else if byte == b':' && source.get(position + 1) == Some(&b':') {
-            position += 2;
-            while source.get(position) == Some(&b':') {
-                position += 1;
-            }
-        } else {
-            break;
-        }
-    }
-    position
 }
 
 /// Where a `${…}` variable name ends — the result of [`braced_var_name_end`].
@@ -342,18 +375,26 @@ fn closer_position(end: SourcePosition, last_inner: Option<u8>) -> SourcePositio
 /// matching closer).  *tok* and *sm* must share a coordinate frame.
 #[must_use]
 pub fn word_closer_offset(sm: &SourceMap<'_>, tok: Token) -> Option<u32> {
-    let bytes = sm.source().as_bytes();
+    token_closer_offset(sm.source_bytes(), tok)
+}
+
+fn token_closer_offset(source: &[u8], tok: Token) -> Option<u32> {
+    let bytes = source;
     let start = tok.span.start();
     let opener = *bytes.get(start as usize)?;
-    let closer = closer_for(opener)?;
+    let closer = if tok.kind == TokenType::ExprSugar {
+        b')'
+    } else {
+        closer_for(opener)?
+    };
     // `end.offset` is `tok.end.offset` (inclusive end): the
     // last inner byte for a non-empty word, or the closer itself for an
     // empty `{}` / `[]` / `""`.
-    let (_first, end) = sm.range_positions(tok.span);
-    let closer_off = if sm.token_text(tok).is_empty() {
-        end.offset
+    let end = tok.span.end().saturating_sub(1).max(start);
+    let closer_off = if token_bytes_in(source, tok).is_empty() {
+        end
     } else {
-        end.offset + 1
+        end + 1
     };
     if bytes.get(closer_off as usize) == Some(&closer) {
         Some(closer_off)
@@ -460,6 +501,14 @@ pub fn word_span(sm: &SourceMap<'_>, tok: Token) -> crate::Span {
     crate::Span::new(tok.span.start(), word_append_offset(sm, tok))
 }
 
+/// Retain the selected token kind when widening an original component.
+/// Token-free spans cannot distinguish Jim expression sugar from a literal
+/// Tcl `$(` word.
+pub(crate) fn token_word_span(source: impl AsRef<[u8]>, tok: Token) -> crate::Span {
+    let end = token_closer_offset(source.as_ref(), tok).map_or(tok.span.end(), |at| at + 1);
+    crate::Span::new(tok.span.start(), end)
+}
+
 /// Byte offset of the closing `}` / `]` / `"` of the word whose **lexer
 /// span** is *span*, or `None`.
 ///
@@ -491,8 +540,8 @@ pub fn word_span(sm: &SourceMap<'_>, tok: Token) -> crate::Span {
 /// open with a delimiter, or when the word is unterminated (the computed
 /// position is not the matching closer).
 #[must_use]
-pub fn word_closer_offset_at(source: &str, span: crate::Span) -> Option<u32> {
-    let bytes = source.as_bytes();
+pub fn word_closer_offset_at(source: impl AsRef<[u8]>, span: crate::Span) -> Option<u32> {
+    let bytes = source.as_ref();
     let (start, end) = (span.start() as usize, span.end() as usize);
     if start >= end || end > bytes.len() {
         return None;
@@ -529,7 +578,7 @@ pub fn word_closer_offset_at(source: &str, span: crate::Span) -> Option<u32> {
 /// assert_eq!(word_span_at("{}", Span::new(0, 2)), Span::new(0, 2));
 /// ```
 #[must_use]
-pub fn word_span_at(source: &str, span: crate::Span) -> crate::Span {
+pub fn word_span_at(source: impl AsRef<[u8]>, span: crate::Span) -> crate::Span {
     match word_closer_offset_at(source, span) {
         Some(closer) => crate::Span::new(span.start(), closer.saturating_add(1)),
         None => span,
@@ -557,7 +606,7 @@ pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
         // Empty `{}` / `[]` / `""`: the inclusive end already is the closer.
         return end;
     }
-    let last_inner = sm.source().as_bytes().get(end.offset as usize).copied();
+    let last_inner = sm.source_bytes().get(end.offset as usize).copied();
     closer_position(end, last_inner)
 }
 
@@ -575,7 +624,7 @@ pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
 /// The scan follows the same rules the lexer's own quoted-word and
 /// command-substitution parsers use:
 ///
-/// * a `\`-escape is skipped as one unit via [`backslash_escape_end`], so
+/// * a `\`-escape is skipped as one unit via [`crate::backslash_escape_end`], so
 ///   `\"` is content and `\[` opens nothing.  The release-blind (Tcl 9.0) form
 ///   is deliberate: the escape grammar is release-variant in *width*, but every
 ///   form's payload is hex or octal digits, none of which is a delimiter, so no
@@ -601,8 +650,16 @@ pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
 /// assert_eq!(close_quote_offset(r#""abc"#, 0), None);
 /// ```
 #[must_use]
-pub fn close_quote_offset(source: &str, open_quote: usize) -> Option<usize> {
-    let bytes = source.as_bytes();
+pub fn close_quote_offset(source: impl AsRef<[u8]>, open_quote: usize) -> Option<usize> {
+    close_quote_offset_in(source, open_quote, crate::LexerConfig::default())
+}
+
+pub(crate) fn close_quote_offset_in(
+    source: impl AsRef<[u8]>,
+    open_quote: usize,
+    config: crate::LexerConfig,
+) -> Option<usize> {
+    let bytes = source.as_ref();
     if bytes.get(open_quote) != Some(&b'"') {
         return None;
     }
@@ -610,8 +667,19 @@ pub fn close_quote_offset(source: &str, open_quote: usize) -> Option<usize> {
     while pos < bytes.len() {
         match bytes[pos] {
             b'"' => return Some(pos),
-            b'\\' => pos = backslash_escape_end(source, pos),
-            b'[' => pos = command_substitution_end(source, pos)?,
+            b'\\' => {
+                pos =
+                    crate::substitution::backslash_escape_end_bytes_in(bytes, pos, config.escapes);
+            }
+            b'$' if bytes.get(pos + 1) == Some(&b'{') => {
+                let BracedVarEnd::Closed(end) =
+                    braced_var_name_end(bytes, pos + 2, config.braced_var)
+                else {
+                    return None;
+                };
+                pos = end + 1;
+            }
+            b'[' => pos = command_substitution_end_bytes_in(bytes, pos, config)?,
             _ => pos += 1,
         }
     }
@@ -649,7 +717,24 @@ pub fn command_substitution_end(source: &str, open_bracket: usize) -> Option<usi
 /// [`command_substitution_end`] over raw bytes — the form
 /// [`crate::word_parts`] scans with (a Tcl word is bytes to the runtimes).
 pub(crate) fn command_substitution_end_bytes(bytes: &[u8], open_bracket: usize) -> Option<usize> {
-    match scan_command_substitution(bytes, open_bracket, Continuation::Script, &mut |_| false) {
+    command_substitution_end_bytes_in(bytes, open_bracket, crate::LexerConfig::default())
+}
+
+/// A bracket boundary under the containing word's complete lexical grammar.
+/// Braced variable names are inert name bytes, rather than script delimiters,
+/// and end where the grammar's `${...}` close rule ends them.
+pub(crate) fn command_substitution_end_bytes_in(
+    bytes: &[u8],
+    open_bracket: usize,
+    config: crate::LexerConfig,
+) -> Option<usize> {
+    match scan_command_substitution(
+        bytes,
+        open_bracket,
+        Continuation::Script,
+        config.braced_var,
+        &mut |_| false,
+    ) {
         SubstitutionEnd::Closed(end) => Some(end),
         SubstitutionEnd::Ghost(_) | SubstitutionEnd::Unterminated => None,
     }
@@ -680,7 +765,8 @@ pub(crate) enum SubstitutionEnd {
 /// [`command_substitution_end`] describes. `ghost` says whether a recovery
 /// ghost `]` sits before the byte at an offset: a ghost closes the innermost
 /// substitution open there, whatever word it is in, and is asked about once
-/// per offset the scan stops at.
+/// per offset the scan stops at. `braced_var` is the release's `${...}` close
+/// rule ([`braced_var_name_end`]).
 ///
 /// The nesting lives on an explicit stack, so no depth of brackets can
 /// exhaust the native one.
@@ -688,6 +774,7 @@ pub(crate) fn scan_command_substitution(
     bytes: &[u8],
     open_bracket: usize,
     continuation: Continuation,
+    braced_var: BracedVarStyle,
     ghost: &mut dyn FnMut(usize) -> bool,
 ) -> SubstitutionEnd {
     if bytes.get(open_bracket) != Some(&b'[') {
@@ -761,7 +848,7 @@ pub(crate) fn scan_command_substitution(
                 {
                     stack.pop();
                 } else {
-                    match word_char_end(bytes, pos, &mut stack) {
+                    match word_char_end(bytes, pos, braced_var, &mut stack) {
                         Some(end) => pos = end,
                         None => return SubstitutionEnd::Unterminated,
                     }
@@ -777,7 +864,7 @@ pub(crate) fn scan_command_substitution(
                     stack.pop();
                     pos += 1;
                 } else {
-                    match word_char_end(bytes, pos, &mut stack) {
+                    match word_char_end(bytes, pos, braced_var, &mut stack) {
                         Some(end) => pos = end,
                         None => return SubstitutionEnd::Unterminated,
                     }
@@ -860,7 +947,12 @@ fn braced_word_end(bytes: &[u8], mut pos: usize) -> Option<usize> {
 /// One past the unit of a bare or quoted word, or of an array index, that
 /// starts at `pos`: an escape, a character, or a substitution, whose
 /// nesting it pushes on `stack`.
-fn word_char_end(bytes: &[u8], pos: usize, stack: &mut Vec<Nesting>) -> Option<usize> {
+fn word_char_end(
+    bytes: &[u8],
+    pos: usize,
+    braced_var: BracedVarStyle,
+    stack: &mut Vec<Nesting>,
+) -> Option<usize> {
     match bytes[pos] {
         b'\\' => Some((pos + 2).min(bytes.len())),
         b'[' => {
@@ -869,19 +961,25 @@ fn word_char_end(bytes: &[u8], pos: usize, stack: &mut Vec<Nesting>) -> Option<u
             });
             Some(pos + 1)
         }
-        b'$' => variable_name_end(bytes, pos, stack),
+        b'$' => variable_name_end(bytes, pos, braced_var, stack),
         _ => Some(pos + 1),
     }
 }
 
 /// One past the name of the variable whose `$` is at `dollar`, as
-/// `Tcl_ParseVarName` reads it: a `${…}` name runs to its `}` (9.x's
-/// nesting rule, [`braced_var_name_end`]), and a name followed by `(` opens
-/// an index, pushed on `stack`. A `$` that opens no name is itself text.
-fn variable_name_end(bytes: &[u8], dollar: usize, stack: &mut Vec<Nesting>) -> Option<usize> {
+/// `Tcl_ParseVarName` reads it: a `${…}` name runs to its `}` under the
+/// release's `braced_var` rule ([`braced_var_name_end`]), and a name followed
+/// by `(` opens an index, pushed on `stack`. A `$` that opens no name is
+/// itself text.
+fn variable_name_end(
+    bytes: &[u8],
+    dollar: usize,
+    braced_var: BracedVarStyle,
+    stack: &mut Vec<Nesting>,
+) -> Option<usize> {
     let mut pos = dollar + 1;
     if bytes.get(pos) == Some(&b'{') {
-        return match braced_var_name_end(bytes, pos + 1, BracedVarStyle::Tcl9Nesting) {
+        return match braced_var_name_end(bytes, pos + 1, braced_var) {
             BracedVarEnd::Closed(close) => Some(close + 1),
             BracedVarEnd::Unterminated => None,
         };
@@ -911,6 +1009,40 @@ fn variable_name_end(bytes: &[u8], dollar: usize, stack: &mut Vec<Nesting>) -> O
 mod tests {
     use super::*;
     use crate::{Lexer, SourceMap, Span, TokenType};
+
+    #[test]
+    fn jim_expression_component_extent_retains_its_actual_closer() {
+        use tcl_dialect::model::{Family, Release, grammar};
+        let config = crate::LexerConfig::from_grammar(grammar(Family::Jim, Release::JIM_0_84));
+        for (source, content) in [
+            ("$(k)", "k"),
+            ("$()", ""),
+            ("$(($a+1)*2)", "($a+1)*2"),
+            (r"$(a\)b)", r"a\)b"),
+            ("prefix$(k)", "k"),
+        ] {
+            let map = SourceMap::new(source);
+            let token = Lexer::with_config(source, config)
+                .tokenise_all()
+                .unwrap()
+                .into_iter()
+                .find(|token| token.kind == TokenType::ExprSugar)
+                .unwrap();
+            assert_eq!(map.token_text(token), content, "{source}");
+            assert_eq!(word_span(&map, token).end() as usize, source.len());
+            assert_eq!(token_word_span(source, token), word_span(&map, token));
+        }
+        let source = "$(k";
+        let map = SourceMap::new(source);
+        let token = Lexer::with_config(source, config)
+            .tokenise_all()
+            .unwrap()
+            .into_iter()
+            .find(|token| token.kind == TokenType::ExprSugar)
+            .unwrap();
+        assert_eq!(word_closer_offset(&map, token), None);
+        assert_eq!(word_span(&map, token), token.span);
+    }
 
     #[test]
     fn array_index_source_mask_follows_the_release() {
@@ -1634,6 +1766,69 @@ mod tests {
         assert!(
             off as usize <= src.len(),
             "append point must stay in bounds"
+        );
+    }
+}
+
+#[cfg(test)]
+mod shared_boundary_tests {
+    use super::*;
+
+    #[test]
+    fn array_index_nested_variables_use_the_shared_ascii_name_scanner() {
+        // Implementation contract: naming.grammar.shared-written-name-boundaries
+
+        // Actual array-index scan; ASCII nested bare variables keep the old door.
+        for (source, end) in [
+            ("$a($n:::v(k))", 13),
+            ("$a($foo:::(k))", 14),
+            ("$a($:(k))", 8),
+            ("$a($é(k))", 9),
+        ] {
+            let bytes = source.as_bytes();
+            let scan =
+                scan_array_index(bytes, 2, ArrayIndexSyntax::Tcl8, BracedVarStyle::FirstClose);
+            assert_eq!(scan.end, ArrayIndexEnd::Closed(end));
+            assert_eq!(scan.invalid, None);
+        }
+    }
+}
+
+#[cfg(test)]
+mod retained_array_nested_configuration_tests {
+    use super::*;
+
+    #[test]
+    fn nested_command_in_array_retains_actual_braced_variable_axis() {
+        let source = b"$a([puts ${x{]}])";
+        let tcl8 = crate::LexerConfig {
+            braced_var: BracedVarStyle::FirstClose,
+            array_index: ArrayIndexSyntax::Tcl8,
+            ..crate::LexerConfig::default()
+        };
+        assert_eq!(
+            scan_array_index_in(source, 2, tcl8).end,
+            ArrayIndexEnd::Closed(source.len())
+        );
+        let tcl9 = crate::LexerConfig {
+            braced_var: BracedVarStyle::Tcl9Nesting,
+            ..tcl8
+        };
+        assert_eq!(
+            scan_array_index_in(source, 2, tcl9).end,
+            ArrayIndexEnd::Unterminated
+        );
+        let text = std::str::from_utf8(source).unwrap();
+        let reference = crate::word_parts::scan_var_ref(source, 0, tcl8)
+            .unwrap()
+            .unwrap();
+        assert_eq!(reference.next, source.len());
+        let tokens = crate::Lexer::with_config(text, tcl8)
+            .tokenise_all()
+            .unwrap();
+        assert_eq!(
+            tokens.iter().map(|token| token.kind).collect::<Vec<_>>(),
+            [crate::TokenType::Var, crate::TokenType::Eol]
         );
     }
 }

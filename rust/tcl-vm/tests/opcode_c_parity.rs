@@ -90,6 +90,11 @@ impl Asm {
             labels: resolved,
             loop_targets: HashMap::new(),
             body_base_line: 0,
+            native_compilation_failure: None,
+            native_compilation_preflight: tcl_runtime_api::NativeCompilationPreflight::NotRequired,
+            native_math_table_prerequisite: None,
+            native_compiler_prerequisites: Vec::new(),
+            required_compiled_local_layout: None,
             proc_body_src: None,
             error_regions: Vec::new(),
             plain_command_dispatch: false,
@@ -107,7 +112,7 @@ fn run(vm: &mut Vm, asm: Asm) -> Completion<Value> {
 
 /// Run a hand-built function on a fresh `Vm`, returning `(vm, completion)`.
 fn run_fresh(asm: Asm) -> (Vm, Completion<Value>) {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     let c = run(&mut vm, asm);
     (vm, c)
@@ -168,7 +173,7 @@ fn load_store_scalar_stk_round_trip() {
 fn load_scalar_stk_missing_variable_errors() {
     let mut a = Asm::new();
     a.push("nope").op(Op::LOAD_SCALAR_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "can't read \"nope\": no such variable");
 }
 
@@ -182,7 +187,7 @@ fn load_store_array4_round_trip() {
     let slot = a.slot("arr");
     a.push("k").push("v1").op(Op::STORE_ARRAY4, &[slot]);
     a.op(Op::POP, &[]).push("k").op(Op::LOAD_ARRAY4, &[slot]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "v1");
 }
 
@@ -195,7 +200,7 @@ fn load_array4_missing_element_errors() {
     a.op(Op::POP, &[])
         .push("other")
         .op(Op::LOAD_ARRAY4, &[slot]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(
         err_str(&c),
         "can't read \"arr(other)\": no such element in array"
@@ -214,7 +219,7 @@ fn incr_scalar_stk_forms() {
     a.push("n").push("5").op(Op::INCR_SCALAR_STK, &[]);
     a.op(Op::POP, &[]);
     a.push("n").op(Op::INCR_SCALAR_STK_IMM, &[-2]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "10");
 }
 
@@ -223,7 +228,7 @@ fn incr_scalar_stk_forms() {
 fn incr_scalar_stk_bad_amount_errors() {
     let mut a = Asm::new();
     a.push("n").push("abc").op(Op::INCR_SCALAR_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "expected integer but got \"abc\"");
 }
 
@@ -247,7 +252,7 @@ fn incr_array_forms() {
         .push("k")
         .push("10")
         .op(Op::INCR_ARRAY_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "20");
 }
 
@@ -259,7 +264,7 @@ fn incr_array_stk_creates_from_zero() {
         .push("fresh")
         .push("3")
         .op(Op::INCR_ARRAY_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "3");
 }
 
@@ -308,7 +313,7 @@ fn append_and_lappend_array_stk() {
         .op(Op::LAPPEND_ARRAY_STK, &[]);
     a.op(Op::POP, &[]);
     a.push("arr").push("k").op(Op::LOAD_ARRAY_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "xy");
 }
 
@@ -320,7 +325,7 @@ fn lappend_array_stk_appends_one_element() {
         .push("li")
         .push("p q")
         .op(Op::LAPPEND_ARRAY_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "{p q}");
 }
 
@@ -334,7 +339,7 @@ fn lappend_list_stk_appends_each_element() {
     a.push("l").push("a").op(Op::LAPPEND_STK, &[]);
     a.op(Op::POP, &[]);
     a.push("l").push("b c").op(Op::LAPPEND_LIST_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "a b c");
 }
 
@@ -360,8 +365,195 @@ fn lappend_list_array_forms() {
         .push("k")
         .push("c d")
         .op(Op::LAPPEND_LIST_ARRAY_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "a b c d");
+}
+
+fn record_lappend_trace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let op = args.last().unwrap().to_str();
+    let op = match op.as_ref() {
+        "r" => "read",
+        "w" => "write",
+        op => op,
+    };
+    let seen = vm.get_var("seen").unwrap().to_str();
+    vm.set_var("seen", Value::string(format!("{seen}{op} ")))
+        .unwrap();
+    if op == "read" {
+        let action = vm.get_var("action").unwrap().to_str();
+        let name = if args[1].to_str().is_empty() {
+            "x"
+        } else {
+            "a"
+        };
+        if action.as_ref() == "error" {
+            return Completion::new(Code::Error, Value::string("READ_FAILURE"), Value::empty());
+        }
+        if action.as_ref() == "retarget" {
+            let result = vm.invoke_command(
+                "upvar",
+                &[Value::string("0"), Value::string("new"), Value::string("x")],
+            );
+            assert!(result.code.is_ok(), "{result:?}");
+        }
+        if action.as_ref() == "unset" || action.as_ref() == "recreate" {
+            vm.unset_var(name);
+        }
+        if action.as_ref() == "recreate" {
+            let name = if name == "a" { "a(k)" } else { "x" };
+            vm.set_var(name, Value::string("REPLACED")).unwrap();
+        }
+    }
+    Completion::new(Code::Ok, Value::empty(), Value::empty())
+}
+
+#[test]
+fn lappend_list_retains_the_original_cell_when_read_trace_retargets_alias() {
+    let mut vm = tcl_vm::test_support::native_vm();
+    vm.set_compiler(Box::new(compiler::svc()));
+    vm.register("record", record_lappend_trace);
+    for (name, value) in [
+        ("old", "OLD"),
+        ("new", "NEW"),
+        ("seen", ""),
+        ("action", "retarget"),
+    ] {
+        vm.set_var(name, Value::string(value)).unwrap();
+    }
+    let link = vm.invoke_command(
+        "upvar",
+        &[Value::string("0"), Value::string("old"), Value::string("x")],
+    );
+    assert!(link.code.is_ok(), "{link:?}");
+    let trace = vm.invoke_command(
+        "trace",
+        &[
+            Value::string("add"),
+            Value::string("variable"),
+            Value::string("old"),
+            Value::string("read write"),
+            Value::string("record"),
+        ],
+    );
+    assert!(trace.code.is_ok(), "{trace:?}");
+    let mut asm = Asm::new();
+    asm.push("x").push("Z").op(Op::LAPPEND_LIST_STK, &[]);
+    assert_eq!(ok_str(&run(&mut vm, asm)), "OLD Z");
+    assert_eq!(vm.get_var("old").unwrap().to_str().as_ref(), "OLD Z");
+    assert_eq!(vm.get_var("x").unwrap().to_str().as_ref(), "NEW");
+    assert_eq!(vm.get_var("seen").unwrap().to_str().as_ref(), "read write ");
+}
+
+fn empty_lappend_asm(op: Op) -> Asm {
+    let mut asm = Asm::new();
+    let slot = asm.slot(
+        if matches!(op, Op::LAPPEND_LIST_ARRAY | Op::LAPPEND_LIST_ARRAY_STK) {
+            "a"
+        } else {
+            "x"
+        },
+    );
+    match op {
+        Op::LAPPEND_LIST => {
+            asm.push("").op(op, &[slot]);
+        }
+        Op::LAPPEND_LIST_STK => {
+            asm.push("x").push("").op(op, &[]);
+        }
+        Op::LAPPEND_LIST_ARRAY => {
+            asm.push("k").push("").op(op, &[slot]);
+        }
+        Op::LAPPEND_LIST_ARRAY_STK => {
+            asm.push("a").push("k").push("").op(op, &[]);
+        }
+        _ => unreachable!(),
+    }
+    asm
+}
+
+#[test]
+fn empty_lappend_list_forms_preserve_read_only_values_and_captured_cells() {
+    let profiles = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"];
+    let ops = [
+        Op::LAPPEND_LIST,
+        Op::LAPPEND_LIST_STK,
+        Op::LAPPEND_LIST_ARRAY,
+        Op::LAPPEND_LIST_ARRAY_STK,
+    ];
+    for profile in profiles {
+        for op in ops {
+            for initial in [None, Some(" A  B "), Some("{")] {
+                for action in ["", "unset", "recreate", "error"] {
+                    check_empty_lappend(profile, op, initial, action);
+                }
+            }
+        }
+    }
+}
+
+fn check_empty_lappend(profile: &str, op: Op, initial: Option<&str>, action: &str) {
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(
+        tcl_dialect::DialectProfile::find(profile).unwrap(),
+        Box::new(std::io::stdout()),
+    );
+    vm.set_compiler(Box::new(compiler::svc()));
+    vm.register("record", record_lappend_trace);
+    vm.set_var("seen", Value::empty()).unwrap();
+    vm.set_var("action", Value::string(action)).unwrap();
+    let array = matches!(op, Op::LAPPEND_LIST_ARRAY | Op::LAPPEND_LIST_ARRAY_STK);
+    let name = if array { "a(k)" } else { "x" };
+    if let Some(initial) = initial {
+        vm.set_var(name, Value::string(initial)).unwrap();
+    }
+    let words = if profile == "tcl8.4" {
+        vec!["variable", name, "rw", "record"]
+    } else {
+        vec!["add", "variable", name, "read write", "record"]
+    };
+    let trace = vm.invoke_command(
+        "trace",
+        &words.into_iter().map(Value::string).collect::<Vec<_>>(),
+    );
+    assert!(trace.code.is_ok(), "{profile} {op:?}: {trace:?}");
+    let module = tcl_bytecode::ModuleAsm {
+        profile: vm.dialect_profile(),
+        source: tcl_lexer::SourceImage::default(),
+        source_namespace: tcl_runtime_api::ByteNamespacePath::root(),
+        plain_command_dispatch: false,
+        top_level: empty_lappend_asm(op).build(),
+        top_level_body: FunctionAsm::default(),
+        procedures: HashMap::new(),
+        procedure_provenance: HashMap::new(),
+        manifest: None,
+    };
+    let result = vm.run_module(&module);
+    if array && matches!(action, "unset" | "recreate") {
+        assert_eq!(
+            err_str(&result),
+            "can't set \"a(k)\": upvar refers to element in deleted array"
+        );
+    } else if initial == Some("{") && action.is_empty() {
+        assert_eq!(err_str(&result), "unmatched open brace in list");
+    } else {
+        let expected = if action == "recreate" {
+            "REPLACED"
+        } else if matches!(action, "unset" | "error") {
+            ""
+        } else {
+            initial.unwrap_or("")
+        };
+        assert_eq!(ok_str(&result), expected, "{profile} {op:?} {action}");
+    }
+    let expected = if (initial.is_none() && action.is_empty()) || action == "error" {
+        "read write "
+    } else {
+        "read "
+    };
+    assert_eq!(
+        vm.get_var("seen").unwrap().to_str().as_ref(),
+        expected,
+        "{profile} {op:?} {initial:?} {action}"
+    );
 }
 
 // `existArray` / `existArrayStk`.
@@ -381,7 +573,7 @@ fn exist_array_forms_never_error() {
         .push("k")
         .op(Op::EXIST_ARRAY_STK, &[]);
     a.op(Op::LIST, &[4]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "1 0 1 0");
 }
 
@@ -390,7 +582,7 @@ fn exist_array_forms_never_error() {
 /// still reports 0 for a missing element.
 #[test]
 fn exist_array_fires_read_traces() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     // `;#` swallows the trailing `name elem op` words the trace appends.
     let setup = "set arr(seed) 1\ntrace add variable arr read {lappend ::fired 1;#}";
@@ -420,7 +612,7 @@ fn unset_array_stk_nocomplain() {
     a.push("arr").push("gone").op(Op::UNSET_ARRAY_STK, &[0]);
     a.push("arr").push("k").op(Op::UNSET_ARRAY_STK, &[0]);
     a.push("k").op(Op::EXIST_ARRAY, &[slot]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "0");
 }
 
@@ -433,7 +625,7 @@ fn unset_array_stk_complain_flag_errors() {
     a.push("k").push("v").op(Op::STORE_ARRAY4, &[slot]);
     a.op(Op::POP, &[]);
     a.push("arr").push("gone").op(Op::UNSET_ARRAY_STK, &[1]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(
         err_str(&c),
         "can't unset \"arr(gone)\": no such element in array"
@@ -444,12 +636,12 @@ fn unset_array_stk_complain_flag_errors() {
     a.push("s").push("v").op(Op::STORE_SCALAR_STK, &[]);
     a.op(Op::POP, &[]);
     a.push("s").push("k").op(Op::UNSET_ARRAY_STK, &[1]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "can't unset \"s(k)\": variable isn't array");
 
     let mut a = Asm::new();
     a.push("nope").push("k").op(Op::UNSET_ARRAY_STK, &[1]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "can't unset \"nope(k)\": no such variable");
 }
 
@@ -466,7 +658,7 @@ fn array_make_stk_creates_empty_array() {
     a.push("arr").op(Op::ARRAY_MAKE_STK, &[]); // idempotent
     a.push("arr").op(Op::ARRAY_EXISTS_STK, &[]);
     a.op(Op::LIST, &[3]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "0 1 1");
 }
 
@@ -477,7 +669,7 @@ fn array_make_imm_creates_empty_array() {
     let slot = a.slot("arr");
     a.op(Op::ARRAY_MAKE_IMM, &[slot]);
     a.op(Op::ARRAY_EXISTS_IMM, &[slot]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "1");
 }
 
@@ -488,13 +680,13 @@ fn array_make_over_scalar_errors() {
     let mut a = Asm::new();
     a.push("s").push("v").op(Op::STORE_SCALAR_STK, &[]);
     a.op(Op::POP, &[]).push("s").op(Op::ARRAY_MAKE_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "can't array set \"s\": variable isn't array");
 
     // An array *element* name is equally rejected.
     let mut a = Asm::new();
     a.push("arr(k)").op(Op::ARRAY_MAKE_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(
         err_str(&c),
         "can't array set \"arr(k)\": variable isn't array"
@@ -506,7 +698,7 @@ fn array_make_over_scalar_errors() {
     let slot = a.slot("s");
     a.push("v").op(Op::STORE_SCALAR1, &[slot]);
     a.op(Op::POP, &[]).op(Op::ARRAY_MAKE_IMM, &[slot]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "can't array set \"s\": variable isn't array");
 }
 
@@ -521,7 +713,7 @@ fn variable_links_local_to_namespace_var() {
     let slot = a.slot("v");
     a.push("ns::v").op(Op::VARIABLE, &[slot]);
     a.push("42").op(Op::STORE_SCALAR1, &[slot]);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     assert_eq!(ok_str(&eval(&mut vm, "namespace eval ns {}")), "");
     let c = run(&mut vm, a);
@@ -541,7 +733,7 @@ fn variable_rejects_a_missing_parent_namespace() {
     let mut a = Asm::new();
     let slot = a.slot("v");
     a.push("::missing::v").op(Op::VARIABLE, &[slot]);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     let c = run(&mut vm, a);
     assert_eq!(
@@ -563,7 +755,7 @@ fn current_namespace_and_info_level_number() {
     a.op(Op::CURRENT_NAMESPACE, &[]);
     a.op(Op::INFO_LEVEL_NUM, &[]);
     a.op(Op::LIST, &[2]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), ":: 0");
 }
 
@@ -572,7 +764,7 @@ fn current_namespace_and_info_level_number() {
 /// coercion error for a non-numeric level.
 #[test]
 fn info_level_args_matches_the_command() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     let cmd_bad_level = vm
         .eval_source("catch {info level 1} m; set m")
@@ -604,7 +796,7 @@ fn resolve_cmd_pushes_fqn_or_empty() {
     a.push("set").op(Op::RESOLVE_CMD, &[]);
     a.push("no_such_cmd_xyz").op(Op::RESOLVE_CMD, &[]);
     a.op(Op::LIST, &[2]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "::set {}");
 }
 
@@ -614,12 +806,12 @@ fn resolve_cmd_pushes_fqn_or_empty() {
 fn origin_cmd_pushes_origin_and_rejects_unknown() {
     let mut a = Asm::new();
     a.push("set").op(Op::ORIGIN_CMD, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "::set");
 
     let mut a = Asm::new();
     a.push("no_such_cmd_xyz").op(Op::ORIGIN_CMD, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "invalid command name \"no_such_cmd_xyz\"");
 }
 
@@ -627,7 +819,7 @@ fn origin_cmd_pushes_origin_and_rejects_unknown() {
 /// `TclGetOriginalCommand` does.
 #[test]
 fn origin_cmd_follows_import_chain() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     let setup = "namespace eval src {proc p {} {return 1}; namespace export p}\n\
                  namespace import ::src::p";
@@ -651,7 +843,7 @@ fn clock_read_units_agree() {
     a.op(Op::CLOCK_READ, &[2]);
     a.op(Op::CLOCK_READ, &[3]);
     a.op(Op::LIST, &[4]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     let vals: Vec<i64> = ok_str(&c)
         .split_whitespace()
         .map(|s| s.parse::<i64>().expect("wide integer reading"))
@@ -681,7 +873,7 @@ fn dict_get_def_reads_or_defaults() {
         .push("b")
         .push("dflt")
         .op(Op::DICT_GET_DEF, &[1]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "2");
 
     // Missing leaf key → the default.
@@ -690,7 +882,7 @@ fn dict_get_def_reads_or_defaults() {
         .push("z")
         .push("dflt")
         .op(Op::DICT_GET_DEF, &[1]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "dflt");
 
     // Nested path, present and then missing at the first level.
@@ -700,7 +892,7 @@ fn dict_get_def_reads_or_defaults() {
         .push("a")
         .push("dflt")
         .op(Op::DICT_GET_DEF, &[2]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "1");
 
     let mut a = Asm::new();
@@ -709,7 +901,7 @@ fn dict_get_def_reads_or_defaults() {
         .push("a")
         .push("dflt")
         .op(Op::DICT_GET_DEF, &[2]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "dflt");
 }
 
@@ -722,7 +914,7 @@ fn dict_get_def_rejects_malformed_dict() {
         .push("a")
         .push("dflt")
         .op(Op::DICT_GET_DEF, &[1]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "missing value to go with key");
 }
 
@@ -747,7 +939,7 @@ fn dict_recombine_stk_writes_back() {
     a.op(Op::POP, &[]);
     a.op(Op::DICT_RECOMBINE_STK, &[]);
     a.push("d").op(Op::LOAD_SCALAR_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "a 99 b 2");
 }
 
@@ -763,7 +955,7 @@ fn dict_recombine_stk_drops_unset_keys() {
     a.push("b").op(Op::UNSET_STK, &[0]);
     a.op(Op::DICT_RECOMBINE_STK, &[]);
     a.push("d").op(Op::LOAD_SCALAR_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "a 1");
 }
 
@@ -778,7 +970,7 @@ fn const_imm_defines_and_redefines_silently() {
     a.push("1").op(Op::CONST_IMM, &[slot]);
     a.push("2").op(Op::CONST_IMM, &[slot]); // silent no-op
     a.op(Op::LOAD_SCALAR1, &[slot]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "1", "the second const must not overwrite");
 }
 
@@ -790,7 +982,7 @@ fn const_stk_defines_and_reports_conflicts() {
     let mut a = Asm::new();
     a.push("k").push("v").op(Op::CONST_STK, &[]);
     a.push("k").op(Op::LOAD_SCALAR_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "v");
 
     // Over an existing scalar.
@@ -798,7 +990,7 @@ fn const_stk_defines_and_reports_conflicts() {
     a.push("x").push("1").op(Op::STORE_SCALAR_STK, &[]);
     a.op(Op::POP, &[]);
     a.push("x").push("2").op(Op::CONST_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(
         err_str(&c),
         "can't make constant \"x\": variable already exists"
@@ -808,7 +1000,7 @@ fn const_stk_defines_and_reports_conflicts() {
     let mut a = Asm::new();
     a.push("arr").op(Op::ARRAY_MAKE_STK, &[]);
     a.push("arr").push("2").op(Op::CONST_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(
         err_str(&c),
         "can't make constant \"arr\": variable is array"
@@ -817,7 +1009,7 @@ fn const_stk_defines_and_reports_conflicts() {
     // An array element name.
     let mut a = Asm::new();
     a.push("arr(k)").push("2").op(Op::CONST_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(
         err_str(&c),
         "can't make constant \"arr(k)\": name refers to an element in an array"
@@ -830,7 +1022,7 @@ fn const_blocks_later_writes() {
     let mut a = Asm::new();
     a.push("k").push("1").op(Op::CONST_STK, &[]);
     a.push("k").push("2").op(Op::STORE_SCALAR_STK, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "can't set \"k\": variable is a constant");
 }
 
@@ -845,7 +1037,7 @@ fn invoke_expanded_with_no_words_returns_empty_success() {
         .push("")
         .op(Op::EXPAND_STKTOP, &[1])
         .op(Op::INVOKE_EXPANDED, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "");
 }
 
@@ -857,7 +1049,7 @@ fn expand_stktop_preserves_list_error_code() {
     a.op(Op::EXPAND_START, &[])
         .push("list {")
         .op(Op::EXPAND_STKTOP, &[1]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "unmatched open brace in list");
     assert_eq!(err_code(&c), "TCL VALUE LIST BRACE");
 }
@@ -873,7 +1065,7 @@ fn expand_drop_restores_pre_expansion_depth() {
     a.op(Op::EXPAND_DROP, &[]);
     // Only `keep` is left, so the trailing `list 1` sees exactly it.
     a.op(Op::LIST, &[1]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "keep");
 }
 
@@ -888,7 +1080,7 @@ fn expand_drop_leaves_marker_stack_clean() {
     a.op(Op::EXPAND_START, &[]);
     a.push("string").push("cat a b").op(Op::EXPAND_STKTOP, &[]);
     a.op(Op::INVOKE_EXPANDED, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "ab");
 }
 
@@ -900,7 +1092,7 @@ fn expand_drop_leaves_marker_stack_clean() {
 fn str_map_stack_order_and_mapping() {
     let mut a = Asm::new();
     a.push("ab").push("X").push("abcab").op(Op::STR_MAP, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "XcX");
 }
 
@@ -918,7 +1110,7 @@ fn str_map_edge_cases() {
     ] {
         let mut a = Asm::new();
         a.push(from).push(to).push(subject).op(Op::STR_MAP, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(ok_str(&c), want, "strmap {from} {to} {subject}");
     }
 }
@@ -926,7 +1118,7 @@ fn str_map_edge_cases() {
 /// The opcode and the `string map` command agree on the same one-pair map.
 #[test]
 fn str_map_matches_string_map_command() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     let cmd = vm
         .eval_source("string map {ab X} abcab")
@@ -941,6 +1133,63 @@ fn str_map_matches_string_map_command() {
 }
 
 // iRules dialect operators.
+
+fn authored_f5_vm() -> Vm {
+    let mut vm = tcl_vm::test_support::native_vm();
+    vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+    assert!(vm.set_native_engine_profile(
+        tcl_registry::model::resolve_environment("tcl9.0").unit_profile()
+    ));
+    assert!(vm.set_logical_expression_parse_provider(
+        tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+    ));
+    vm
+}
+
+fn run_f5_module(vm: &mut Vm, asm: Asm) -> Completion<Value> {
+    let module = tcl_bytecode::ModuleAsm {
+        profile: vm.dialect_profile(),
+        source: tcl_lexer::SourceImage::default(),
+        source_namespace: tcl_runtime_api::ByteNamespacePath::root(),
+        plain_command_dispatch: false,
+        top_level: asm.build(),
+        top_level_body: FunctionAsm::default(),
+        procedures: HashMap::new(),
+        procedure_provenance: HashMap::new(),
+        manifest: None,
+    };
+    vm.run_module(&module)
+}
+
+#[test]
+fn bare_matches_opcode_withdraws_without_authored_policy() {
+    for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        let mut vm = tcl_vm::test_support::native_vm_for_profile(
+            tcl_registry::model::resolve_environment(name).unit_profile(),
+            Box::new(std::io::stdout()),
+        );
+        let mut asm = Asm::new();
+        asm.push("abcd").push("a*").op(Op::IRULE_MATCHES, &[]);
+        let module = tcl_bytecode::ModuleAsm {
+            profile: vm.dialect_profile(),
+            source: tcl_lexer::SourceImage::default(),
+            source_namespace: tcl_runtime_api::ByteNamespacePath::root(),
+            plain_command_dispatch: false,
+            top_level: asm.build(),
+            top_level_body: FunctionAsm::default(),
+            procedures: HashMap::new(),
+            procedure_provenance: HashMap::new(),
+            manifest: None,
+        };
+        assert!(vm.try_run_module(&module).is_err(), "{name}");
+    }
+}
+
+fn run_authored_f5(asm: Asm) -> (Vm, Completion<Value>) {
+    let mut vm = authored_f5_vm();
+    let completion = run_f5_module(&mut vm, asm);
+    (vm, completion)
+}
 
 /// The dialect string tests (`contains` / `starts_with` / `ends_with` /
 /// `equals` / `matches`), both outcomes each. The operands sit on the stack subject-first
@@ -963,21 +1212,20 @@ fn irule_string_tests_both_outcomes() {
         // comparison even when both operands look numeric.
         (Op::IRULE_EQUALS, "foobar", "FOOBAR", "0"),
         (Op::IRULE_EQUALS, "1", "1.0", "0"),
-        // The bare `matches`. Row one is the measured appliance cell
-        // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a
-        // `e_matches`: `expr {"abc" matches "abc"}` → `1`); the rest
-        // record the reading the VM takes — a string equality, the one
-        // that measured cell exercises. §12 carries the discriminating
-        // re-probe, and until it is run the compiler refuses to
-        // constant-fold this operator rather than commit a fold to an
-        // unmeasured semantics.
+        // Exact BIG-IP 21.1.0.1 build 0.0.26 wildcard discriminators.
+        (Op::IRULE_MATCHES, "abcd", "a*", "1"),
+        (Op::IRULE_MATCHES, "a*", "a*", "1"),
+        (Op::IRULE_MATCHES, "a*", "abcd", "0"),
+        (Op::IRULE_MATCHES, "abcd", "a.*", "0"),
+        (Op::IRULE_MATCHES, "abcd", "bc", "0"),
+        (Op::IRULE_MATCHES, "abcd", "abcd", "1"),
         (Op::IRULE_MATCHES, "abc", "abc", "1"),
         (Op::IRULE_MATCHES, "foobar", "oob", "0"),
         (Op::IRULE_MATCHES, "foobar", "FOOBAR", "0"),
     ] {
         let mut a = Asm::new();
         a.push(subject).push(operand).op(op, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_authored_f5(a);
         assert_eq!(ok_str(&c), want, "{} {subject} {operand}", op.mnemonic());
     }
 }
@@ -1003,7 +1251,7 @@ fn irule_glob_and_regex_matching() {
     ] {
         let mut a = Asm::new();
         a.push(subject).push(pattern).op(op, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_authored_f5(a);
         assert_eq!(ok_str(&c), want, "{} {subject} {pattern}", op.mnemonic());
     }
 }
@@ -1016,14 +1264,14 @@ fn irule_glob_and_regex_matching() {
 fn irule_matches_regex_rejects_a_bad_pattern() {
     let mut a = Asm::new();
     a.push("foobar").push("[").op(Op::IRULE_MATCHES_REGEX, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "brackets [] not balanced");
 
     // `Op::REGEXP` takes its operands the other way round (pattern under the
     // string) and `TCL_REG_ADVANCED` as its flags operand.
     let mut a = Asm::new();
     a.push("[").push("foobar").op(Op::REGEXP, &[3]);
-    let (_, regexp_op) = run_fresh(a);
+    let (_vm, regexp_op) = run_fresh(a);
     assert_eq!(
         err_str(&regexp_op),
         format!("cannot compile regular expression pattern: {}", err_str(&c))
@@ -1048,7 +1296,7 @@ fn irule_word_and_or_truth_table() {
     ] {
         let mut a = Asm::new();
         a.push(left).push(right).op(op, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(ok_str(&c), want, "{} {left} {right}", op.mnemonic());
     }
 }
@@ -1065,7 +1313,7 @@ fn irule_word_logic_short_circuits_its_coercion() {
     ] {
         let mut a = Asm::new();
         a.push(left).push("zzz").op(op, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(
             ok_str(&c),
             want,
@@ -1076,7 +1324,7 @@ fn irule_word_logic_short_circuits_its_coercion() {
     for (op, left) in [(Op::IRULE_WORD_AND, "1"), (Op::IRULE_WORD_OR, "0")] {
         let mut a = Asm::new();
         a.push(left).push("zzz").op(op, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(
             err_str(&c),
             "expected boolean value but got \"zzz\"",
@@ -1087,7 +1335,7 @@ fn irule_word_logic_short_circuits_its_coercion() {
     // A junk *left* operand always errors, whatever the operator.
     let mut a = Asm::new();
     a.push("zzz").push("1").op(Op::IRULE_WORD_AND, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "expected boolean value but got \"zzz\"");
 }
 
@@ -1104,12 +1352,12 @@ fn irule_word_not_negates_truthiness() {
     ] {
         let mut a = Asm::new();
         a.push(v).op(Op::IRULE_WORD_NOT, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(ok_str(&c), want, "not {v}");
     }
     let mut a = Asm::new();
     a.push("zzz").op(Op::IRULE_WORD_NOT, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(
         err_str(&c),
         "cannot use non-numeric string \"zzz\" as operand of \"not\""
@@ -1121,8 +1369,9 @@ fn irule_word_not_negates_truthiness() {
 /// `[string match]` / `[regexp]`.
 #[test]
 fn irule_operators_agree_with_the_core_commands() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
+    let mut predicate_vm = authored_f5_vm();
     for (op, subject, operand, cmd) in [
         (
             Op::IRULE_CONTAINS,
@@ -1169,7 +1418,7 @@ fn irule_operators_agree_with_the_core_commands() {
             .to_string();
         let mut a = Asm::new();
         a.push(subject).push(operand).op(op, &[]);
-        let c = run(&mut vm, a);
+        let c = run_f5_module(&mut predicate_vm, a);
         assert_eq!(ok_str(&c), want, "{} vs [{cmd}]", op.mnemonic());
     }
 }
@@ -1190,7 +1439,7 @@ fn irule_operators_agree_with_the_core_commands() {
 /// procedures are recompiled through that service before reuse. These streams
 /// instead need to be artifacts of the VM's current compiler generation.
 fn vm_with_seeded_proc(body: Asm) -> Vm {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::seeded_proc(body.build())));
     vm.eval_source(compiler::SEEDED_PROC_DEF)
         .expect("proc defines");
@@ -1210,7 +1459,7 @@ fn eval(vm: &mut Vm, src: &str) -> Completion<Value> {
 fn coro_name_outside_and_inside_a_coroutine() {
     let mut a = Asm::new();
     a.op(Op::CORO_NAME, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "");
 
     // Inside: the seeded body pushes `coroName` and yields it, so the
@@ -1233,7 +1482,7 @@ fn yield_opcodes_outside_a_coroutine_match_c() {
     assert_eq!(err_str(&c), "yield can only be called in a coroutine");
 
     let mut a = Asm::new();
-    a.push("list a").op(Op::YIELD_TO_INVOKE, &[]);
+    a.push(":: list a").op(Op::YIELD_TO_INVOKE, &[]);
     let c = run(&mut vm, a);
     assert_eq!(err_str(&c), "yieldto can only be called in a coroutine");
 
@@ -1279,7 +1528,7 @@ fn yield_opcode_still_rejects_a_yield_across_a_host_re_entry() {
 #[test]
 fn yield_to_invoke_runs_the_command_list_in_the_resumer() {
     let mut body = Asm::new();
-    body.push("list a b").op(Op::YIELD_TO_INVOKE, &[]);
+    body.push(":: list a b").op(Op::YIELD_TO_INVOKE, &[]);
     let mut vm = vm_with_seeded_proc(body);
     assert_eq!(ok_str(&eval(&mut vm, "coroutine c p")), "a b");
     assert_eq!(ok_str(&eval(&mut vm, "c x y")), "x y");
@@ -1292,7 +1541,7 @@ fn yield_to_invoke_runs_the_command_list_in_the_resumer() {
 /// opcode) performs.
 #[test]
 fn tcloo_is_object_reports_without_erroring() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     eval(&mut vm, "oo::class create C {}\nC create o");
     for (name, want) in [("o", "1"), ("C", "1"), ("junk", "0"), ("", "0")] {
@@ -1309,7 +1558,7 @@ fn tcloo_is_object_reports_without_erroring() {
 /// `info object namespace` do (the command forms C compiles to them).
 #[test]
 fn tcloo_class_and_namespace_match_info_object() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     eval(&mut vm, "oo::class create C {}\nC create o");
     for (op, cmd) in [
@@ -1333,7 +1582,7 @@ fn tcloo_class_and_namespace_match_info_object() {
 /// `%s does not refer to an object`), identical to the command form's.
 #[test]
 fn tcloo_class_and_namespace_reject_a_non_object() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     for (op, cmd) in [
         (Op::TCLOO_CLASS, "info object class junk"),
@@ -1358,17 +1607,17 @@ fn tcloo_class_and_namespace_reject_a_non_object() {
 fn tcloo_self_next_and_nextto_outside_a_method() {
     let mut a = Asm::new();
     a.op(Op::TCLOO_SELF, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "self may only be called from inside a method");
 
     let mut a = Asm::new();
     a.push("next").op(Op::TCLOO_NEXT, &[1]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "next may only be called from inside a method");
 
     let mut a = Asm::new();
     a.push("nextto").push("C").op(Op::TCLOO_NEXT_CLASS, &[2]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(
         err_str(&c),
         "nextto may only be called from inside a method"
@@ -1382,10 +1631,10 @@ fn tcloo_self_pushes_the_current_object() {
     let mut body = Asm::new();
     body.op(Op::TCLOO_SELF, &[]);
     let mut vm = vm_with_seeded_proc(body);
-    // `m` reaches the opcode (through the seeded proc); `n` asks the command.
+    // `m` compiles the stream in its own method frame; `n` asks the command.
     eval(
         &mut vm,
-        "oo::class create C {\nmethod m {} {p}\nmethod n {} {self object}\n}\nC create o",
+        "oo::class create C {\nmethod m {} {string length native_opcode_body}\nmethod n {} {self object}\n}\nC create o",
     );
     let via_opcode = ok_str(&eval(&mut vm, "o m"));
     assert_eq!(via_opcode, "::o");
@@ -1399,7 +1648,7 @@ fn tcloo_self_pushes_the_current_object() {
 #[test]
 fn tcloo_next_and_next_class_invoke_the_chain() {
     let classes = "oo::class create B {method m {} {return base}}\n\
-                   oo::class create D {superclass B\nmethod m {} {p}}\n\
+                   oo::class create D {superclass B\nmethod m {} {string length native_opcode_body}}\n\
                    D create o";
     let mut body = Asm::new();
     body.push("next").op(Op::TCLOO_NEXT, &[1]);
@@ -1423,7 +1672,10 @@ fn tcloo_next_at_the_end_of_the_chain_and_underflow() {
     let mut body = Asm::new();
     body.push("next").op(Op::TCLOO_NEXT, &[1]);
     let mut vm = vm_with_seeded_proc(body);
-    eval(&mut vm, "oo::class create B {method m {} {p}}\nB create o");
+    eval(
+        &mut vm,
+        "oo::class create B {method m {} {string length native_opcode_body}}\nB create o",
+    );
     assert_eq!(
         err_str(&eval(&mut vm, "o m")),
         "no next method implementation"
@@ -1431,8 +1683,45 @@ fn tcloo_next_at_the_end_of_the_chain_and_underflow() {
 
     let mut a = Asm::new();
     a.op(Op::TCLOO_NEXT, &[0]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "tclooNext: stack underflow");
+}
+
+#[test]
+fn tcloo_opcodes_reject_a_nested_ordinary_procedure() {
+    for (opcode, words, message) in [
+        (
+            Op::TCLOO_SELF,
+            vec![],
+            "self may only be called from inside a method",
+        ),
+        (
+            Op::TCLOO_NEXT,
+            vec!["next"],
+            "next may only be called from inside a method",
+        ),
+        (
+            Op::TCLOO_NEXT_CLASS,
+            vec!["nextto", "B"],
+            "nextto may only be called from inside a method",
+        ),
+    ] {
+        let mut body = Asm::new();
+        for word in &words {
+            body.push(word);
+        }
+        if opcode == Op::TCLOO_SELF {
+            body.op(opcode, &[]);
+        } else {
+            body.op(opcode, &[i32::try_from(words.len()).unwrap()]);
+        }
+        let mut vm = vm_with_seeded_proc(body);
+        eval(
+            &mut vm,
+            "oo::class create B {method m {} {return BASE}}; oo::class create D {superclass B; method m {} {p}}; D create o",
+        );
+        assert_eq!(err_str(&eval(&mut vm, "o m")), message);
+    }
 }
 
 // `unsetArray` (LVT slot form).
@@ -1453,7 +1742,7 @@ fn unset_array_flag_clear_is_silent() {
     a.push("gone").op(Op::UNSET_ARRAY, &[0, slot]);
     a.push("k").op(Op::UNSET_ARRAY, &[0, slot]);
     a.push("k").op(Op::EXIST_ARRAY, &[slot]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "0");
 }
 
@@ -1467,7 +1756,7 @@ fn unset_array_complain_flag_errors() {
     a.push("k").push("v").op(Op::STORE_ARRAY4, &[slot]);
     a.op(Op::POP, &[]);
     a.push("gone").op(Op::UNSET_ARRAY, &[1, slot]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(
         err_str(&c),
         "can't unset \"arr(gone)\": no such element in array"
@@ -1478,13 +1767,13 @@ fn unset_array_complain_flag_errors() {
     a.push("v").op(Op::STORE_SCALAR4, &[slot]);
     a.op(Op::POP, &[]);
     a.push("k").op(Op::UNSET_ARRAY, &[1, slot]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "can't unset \"s(k)\": variable isn't array");
 
     let mut a = Asm::new();
     let slot = a.slot("nope");
     a.push("k").op(Op::UNSET_ARRAY, &[1, slot]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "can't unset \"nope(k)\": no such variable");
 }
 
@@ -1497,7 +1786,7 @@ fn unset_array_trace_only_miss_kind_precedes_callback_mutation() {
         "unset -nocomplain ::a; set ::a scalar",
     ];
     for action in cases {
-        let mut vm = Vm::new();
+        let mut vm = tcl_vm::test_support::native_vm();
         vm.set_compiler(Box::new(compiler::svc()));
         let setup = format!(
             "set fired 0\n\
@@ -1543,17 +1832,17 @@ fn str_find_empty_needle_is_minus_one() {
     for (op, want) in [(Op::STR_FIND, "-1"), (Op::STR_RFIND, "-1")] {
         let mut a = Asm::new();
         a.push("").push("abc").op(op, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(ok_str(&c), want, "{op:?} with an empty needle");
     }
     // A non-empty needle keeps its character index (first vs last occurrence).
     let mut a = Asm::new();
     a.push("l").push("hello").op(Op::STR_FIND, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "2");
     let mut a = Asm::new();
     a.push("l").push("hello").op(Op::STR_RFIND, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "3");
 }
 
@@ -1561,7 +1850,7 @@ fn str_find_empty_needle_is_minus_one() {
 /// already returned -1 for an empty needle.
 #[test]
 fn str_find_matches_string_first_last_commands() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     for (sub, op) in [("first", Op::STR_FIND), ("last", Op::STR_RFIND)] {
         let cmd = vm
@@ -1605,7 +1894,7 @@ fn str_case_ops_use_simple_unicode_mapping() {
     ] {
         let mut a = Asm::new();
         a.push(subject).op(op, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(ok_str(&c), want, "{op:?} {subject:?}");
     }
 }
@@ -1614,7 +1903,7 @@ fn str_case_ops_use_simple_unicode_mapping() {
 /// simple-mapping helpers, so they cannot drift apart again.
 #[test]
 fn str_case_ops_match_string_case_commands() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     for (sub, op) in [
         ("toupper", Op::STR_UPPER),
@@ -1664,7 +1953,7 @@ fn try_cvt_to_boolean_pushes_flag_and_keeps_value() {
         let mut a = Asm::new();
         a.push(subject).op(Op::TRY_CVT_TO_BOOLEAN, &[]);
         a.push(want_flag).op(Op::STR_EQ, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(ok_str(&c), "1", "tryCvtToBoolean {subject:?} flag");
 
         // Discard the flag and the original value must still be there — the +1
@@ -1672,7 +1961,7 @@ fn try_cvt_to_boolean_pushes_flag_and_keeps_value() {
         let mut a = Asm::new();
         a.push(subject).op(Op::TRY_CVT_TO_BOOLEAN, &[]);
         a.op(Op::POP, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(ok_str(&c), subject, "tryCvtToBoolean {subject:?} value");
     }
 }
@@ -1696,7 +1985,7 @@ fn list_index_implements_tcl_lindex_list() {
     ] {
         let mut a = Asm::new();
         a.push(list).push(idx).op(Op::LIST_INDEX, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(ok_str(&c), want, "listIndex {list:?} {idx:?}");
     }
 }
@@ -1707,7 +1996,7 @@ fn list_index_bad_index_errors() {
     for idx in ["foo", "1.5", "end-"] {
         let mut a = Asm::new();
         a.push("a b c").push(idx).op(Op::LIST_INDEX, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(
             err_str(&c),
             format!("bad index \"{idx}\": must be integer?[+-]integer? or end?[+-]integer?"),
@@ -1724,19 +2013,19 @@ fn lindex_multi_validates_every_index() {
     let mut a = Asm::new();
     a.push("{a b} {c d}").push("1").push("0");
     a.op(Op::LINDEX_MULTI, &[3]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "c");
 
     let mut a = Asm::new();
     a.push("{a b} {c d}").push("0").push("9");
     a.op(Op::LINDEX_MULTI, &[3]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "");
 
     let mut a = Asm::new();
     a.push("{a b} {c d}").push("0").push("foo");
     a.op(Op::LINDEX_MULTI, &[3]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(
         err_str(&c),
         "bad index \"foo\": must be integer?[+-]integer? or end?[+-]integer?"
@@ -1747,7 +2036,7 @@ fn lindex_multi_validates_every_index() {
 /// implemented `TclLindexList`/`TclLindexFlat` faithfully.
 #[test]
 fn list_index_matches_lindex_command() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     let cmd = vm
         .eval_source("lindex {{a b} {c d}} {1 0}")
@@ -1776,25 +2065,25 @@ fn str_index_and_range_reject_bad_indices() {
     };
     let mut a = Asm::new();
     a.push("abc").push("foo").op(Op::STR_INDEX, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), bad("foo"));
 
     // A list-valued index is not an index spec for the string ops.
     let mut a = Asm::new();
     a.push("abc").push("1 0").op(Op::STR_INDEX, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), bad("1 0"));
 
     // `first` is validated before `last`, matching C's two sequential
     // `TclGetIntForIndexM` calls.
     let mut a = Asm::new();
     a.push("abcde").push("foo").push("2").op(Op::STR_RANGE, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), bad("foo"));
 
     let mut a = Asm::new();
     a.push("abcde").push("1").push("bar").op(Op::STR_RANGE, &[]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), bad("bar"));
 }
 
@@ -1804,7 +2093,7 @@ fn str_index_and_range_still_clamp_valid_indices() {
     for (idx, want) in [("0", "a"), ("2", "c"), ("end", "c"), ("9", ""), ("-1", "")] {
         let mut a = Asm::new();
         a.push("abc").push(idx).op(Op::STR_INDEX, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(ok_str(&c), want, "strindex abc {idx}");
     }
     for (from, to, want) in [
@@ -1818,7 +2107,7 @@ fn str_index_and_range_still_clamp_valid_indices() {
     ] {
         let mut a = Asm::new();
         a.push("abcde").push(from).push(to).op(Op::STR_RANGE, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(ok_str(&c), want, "strrange abcde {from} {to}");
     }
 }
@@ -1858,7 +2147,7 @@ fn expr_stk_raises_c_syntax_errors() {
     ] {
         let mut a = Asm::new();
         a.push(expr).op(Op::EXPR_STK, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(err_str(&c), message, "exprStk over {expr:?}");
         // The opcode must publish C's structured `-errorcode`, not just the
         // message (`tclCompExpr.c:1467`).
@@ -1872,7 +2161,7 @@ fn expr_stk_still_evaluates_a_valid_expression() {
     for (expr, want) in [("2+3", "5"), ("1 ? 2 : 3", "2"), ("\"a\" eq \"a\"", "1")] {
         let mut a = Asm::new();
         a.push(expr).op(Op::EXPR_STK, &[]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(ok_str(&c), want, "exprStk over {expr:?}");
     }
 }
@@ -1897,7 +2186,7 @@ fn return_imm_positive_level_raises_tcl_return() {
     for (code, level) in [(0, 1), (1, 1), (3, 1), (4, 1), (1, 2)] {
         let mut a = Asm::new();
         a.push("v").push("").op(Op::RETURN_IMM, &[code, level]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(
             c.code,
             Code::Return,
@@ -1928,7 +2217,7 @@ fn return_imm_level_zero_code_ok_continues_with_result_on_stack() {
     // Still executing: append a second value and concatenate the two, proving
     // `kept` stayed on the stack and the stream did not end at the returnImm.
     a.push("-after").op(Op::STR_CONCAT1, &[2]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "kept-after");
 }
 
@@ -1939,7 +2228,7 @@ fn return_imm_level_zero_code_error_raises() {
     let mut a = Asm::new();
     a.push("boom").push("").op(Op::RETURN_IMM, &[1, 0]);
     a.push("unreachable").op(Op::STR_CONCAT1, &[2]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "boom");
 }
 
@@ -1951,12 +2240,12 @@ fn return_imm_level_zero_passes_other_codes_and_syntax_shares_the_arm() {
     for (code, want) in [(3, Code::Break), (4, Code::Continue), (7, Code::Other(7))] {
         let mut a = Asm::new();
         a.push("v").push("").op(Op::RETURN_IMM, &[code, 0]);
-        let (_, c) = run_fresh(a);
+        let (_vm, c) = run_fresh(a);
         assert_eq!(c.code, want, "returnImm {code} 0");
     }
     let mut a = Asm::new();
     a.push("bad expr").push("").op(Op::SYNTAX, &[1, 0]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "bad expr");
 }
 
@@ -1968,7 +2257,7 @@ fn return_imm_merges_literal_options_dict() {
     a.push("v")
         .push("-errorcode {MY CODE} -level 9")
         .op(Op::RETURN_IMM, &[1, 0]);
-    let (_, c) = run_fresh(a);
+    let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "v");
     assert_eq!(err_code(&c), "MY CODE", "dict keys survive");
     let opts = c.options.as_list().expect("options are a dict");
@@ -1984,7 +2273,7 @@ fn return_imm_merges_literal_options_dict() {
 /// `catch` reports 2 while the outer call errors.
 #[test]
 fn return_level_two_counts_down_across_two_proc_boundaries() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     let c = vm
         .eval_source(
@@ -2076,7 +2365,7 @@ fn return_forms_behave_as_c_tcl() {
             "1 kaboom",
         ),
     ] {
-        let mut vm = Vm::new();
+        let mut vm = tcl_vm::test_support::native_vm();
         vm.set_compiler(Box::new(compiler::svc()));
         let c = vm.eval_source(src).expect("compiles");
         assert_eq!(ok_str(&c), want, "script: {src}");
@@ -2087,7 +2376,7 @@ fn return_forms_behave_as_c_tcl() {
 /// statements after it, which is exactly what a `(0, 0)` encoding would do.
 #[test]
 fn top_level_return_ends_the_script() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(compiler::svc()));
     let c = vm
         .eval_source("set x before\nreturn done\nset x after")
@@ -2110,6 +2399,8 @@ mod compiler {
         CompileError, CompileService, ProcedureCompileTarget, ProcedureDispatch,
     };
 
+    pub const SEEDED_METHOD_BODY: &str = "string length native_opcode_body";
+
     pub const SEEDED_PROC_DEF: &str = "proc p {} {this body is replaced by the seeded one}";
 
     /// Test compiler that replaces exactly one compiler-produced procedure
@@ -2123,19 +2414,26 @@ mod compiler {
     }
 
     impl SeededProcCompileService {
-        fn inject(&self, src: &str, mut module: ModuleAsm) -> ModuleAsm {
-            if src == SEEDED_PROC_DEF {
-                module
+        fn inject(&self, src: &[u8], mut module: ModuleAsm) -> ModuleAsm {
+            if src == SEEDED_PROC_DEF.as_bytes() {
+                assert_eq!(module.procedures.len(), 1, "one seed procedure");
+                let id = *module
                     .procedures
-                    .get("::p")
-                    .expect("seed source must compile procedure ::p");
-                // `cmd_proc` asks the sidecar cache for its runtime-qualified
-                // (unrooted) command key. The compiler's analysis key remains
-                // rooted, so install the executable replacement under `p`.
+                    .keys()
+                    .next()
+                    .expect("compiler-issued seed body");
+                let original = module.procedures.get(&id).expect("seed body");
+                assert_eq!(original.name, "::p", "seed reporting name");
                 let mut body = self.body.clone();
                 body.plain_command_dispatch = module.plain_command_dispatch;
                 body.command_bindings.clear();
-                module.procedures.insert("::p".to_string(), body);
+                module.procedures.insert(id, body);
+            }
+            if src == SEEDED_METHOD_BODY.as_bytes() {
+                let mut body = self.body.clone();
+                body.plain_command_dispatch = module.plain_command_dispatch;
+                body.command_bindings.clear();
+                module.top_level = body;
             }
             module
         }
@@ -2143,11 +2441,120 @@ mod compiler {
 
     impl CompileService for SeededProcCompileService {
         type Module = ModuleAsm;
+        fn compile_substitution_with_entry(
+            &self,
+            target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.inner
+                .compile_substitution_with_entry(target, profile, entry)
+        }
+
+        fn compile_script_bytes_for_profile(
+            &self,
+            target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.inner
+                .compile_script_bytes_for_profile(target, profile)
+                .map(|module| self.inject(target.source.bytes(), module))
+        }
+        fn compile_script_bytes_with_entry(
+            &self,
+            target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.inner
+                .compile_script_bytes_with_entry(target, profile, entry)
+                .map(|module| self.inject(target.source.bytes(), module))
+        }
+        fn compile_plain_script_bytes_for_profile(
+            &self,
+            target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.inner
+                .compile_plain_script_bytes_for_profile(target, profile)
+                .map(|module| self.inject(target.source.bytes(), module))
+        }
+        fn compile_plain_script_bytes_with_entry(
+            &self,
+            target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.inner
+                .compile_plain_script_bytes_with_entry(target, profile, entry)
+                .map(|module| self.inject(target.source.bytes(), module))
+        }
+        fn compile_procedure_bytes_for_profile(
+            &self,
+            target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+            dispatch: tcl_runtime_api::ProcedureDispatch,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.inner
+                .compile_procedure_bytes_for_profile(target, profile, dispatch)
+                .map(|module| self.inject(target.source.bytes(), module))
+        }
+        fn compile_procedure_bytes_with_entry(
+            &self,
+            target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+            dispatch: tcl_runtime_api::ProcedureDispatch,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.inner
+                .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+                .map(|module| self.inject(target.source.bytes(), module))
+        }
+        fn script_command_plan_bytes_for_profile(
+            &self,
+            source: &tcl_runtime_api::SourceImage,
+            profile: &'static tcl_dialect::DialectProfile,
+        ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+            self.inner
+                .script_command_plan_bytes_for_profile(source, profile)
+        }
+        fn script_command_plan_bytes_with_entry(
+            &self,
+            source: &tcl_runtime_api::SourceImage,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+            self.inner
+                .script_command_plan_bytes_with_entry(source, profile, entry)
+        }
+
+        fn compile_script_with_entry(
+            &self,
+            target: tcl_runtime_api::ScriptCompileTarget<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_vm::CompileError> {
+            self.inner
+                .compile_script_with_entry(target, profile, entry)
+                .map(|module| self.inject(target.source.as_bytes(), module))
+        }
+
+        fn compile_procedure_with_entry(
+            &self,
+            target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+            dispatch: tcl_runtime_api::ProcedureDispatch,
+        ) -> Result<Self::Module, tcl_vm::CompileError> {
+            self.inner
+                .compile_procedure_with_entry(target, profile, entry, dispatch)
+                .map(|module| self.inject(target.source.as_bytes(), module))
+        }
 
         fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
             self.inner
                 .compile(src)
-                .map(|module| self.inject(src, module))
+                .map(|module| self.inject(src.as_bytes(), module))
         }
 
         fn compile_for_profile(
@@ -2157,13 +2564,13 @@ mod compiler {
         ) -> Result<Self::Module, CompileError> {
             self.inner
                 .compile_for_profile(src, profile)
-                .map(|module| self.inject(src, module))
+                .map(|module| self.inject(src.as_bytes(), module))
         }
 
         fn compile_traced(&self, src: &str) -> Result<Self::Module, CompileError> {
             self.inner
                 .compile_traced(src)
-                .map(|module| self.inject(src, module))
+                .map(|module| self.inject(src.as_bytes(), module))
         }
 
         fn compile_traced_for_profile(
@@ -2173,7 +2580,7 @@ mod compiler {
         ) -> Result<Self::Module, CompileError> {
             self.inner
                 .compile_traced_for_profile(src, profile)
-                .map(|module| self.inject(src, module))
+                .map(|module| self.inject(src.as_bytes(), module))
         }
 
         fn compile_plain_dispatch_for_profile(
@@ -2183,7 +2590,7 @@ mod compiler {
         ) -> Result<Self::Module, CompileError> {
             self.inner
                 .compile_plain_dispatch_for_profile(src, profile)
-                .map(|module| self.inject(src, module))
+                .map(|module| self.inject(src.as_bytes(), module))
         }
 
         fn compile_procedure_for_profile(
@@ -2194,6 +2601,7 @@ mod compiler {
         ) -> Result<Self::Module, CompileError> {
             self.inner
                 .compile_procedure_for_profile(target, profile, dispatch)
+                .map(|module| self.inject(target.source.as_bytes(), module))
         }
     }
 

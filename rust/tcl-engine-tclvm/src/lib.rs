@@ -61,9 +61,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_engine_api::OriginalObject;
 use tcl_engine_api::{
-    Budget, BudgetKind, CommandRegistrar, CompileUnit, CompletionCode, Engine, EngineError,
-    HostCommand, HostOutcome, Value,
+    Budget, BudgetKind, CommandPublicationKey, CommandPublicationPurpose,
+    CommandPublicationService, CommandRegistrar, CompileUnit, CompletionCode, Engine, EngineError,
+    HostCommand, HostOutcome, PreparedCommandPublication, Value,
 };
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, Completion, LimitKind, NativeCommand, Vm};
@@ -73,6 +75,7 @@ use tcl_vm::{Code, Completion, LimitKind, NativeCommand, Vm};
 pub struct VmHandle {
     procedure: String,
     parameters: usize,
+    token: tcl_vm::NativeRegisteredCommandToken,
 }
 
 impl VmHandle {
@@ -83,10 +86,10 @@ impl VmHandle {
     }
 }
 
-/// The names registered through [`Engine::define_command`] — shared with
+/// The actual generations registered through [`Engine::define_command`] — shared with
 /// every [`HostCommandShim`] so a command registered from inside another's
 /// invocation is kept by a later [`Engine::restrict_commands`] too.
-type HostCommandNames = Rc<RefCell<Vec<String>>>;
+type HostCommandNames = Rc<RefCell<Vec<tcl_vm::NativeRegisteredCommandToken>>>;
 
 /// Adapts a [`HostCommand`] to the VM's [`NativeCommand`], converting values
 /// at the boundary in both directions.
@@ -97,73 +100,474 @@ struct HostCommandShim {
 
 /// The registration door a host command gets while it runs: the VM the
 /// native-command seam already hands over, plus the engine's name list.
+struct VmOriginalObject {
+    value: VmOriginalValue,
+    dialect: tcl_registry::InvocationDialect,
+    interpreter: (u64, u64),
+}
+
+enum VmOriginalValue {
+    Header(tcl_vm::NativeObjectLifetimeLease),
+    ListMember {
+        backing: tcl_vm::NativeListItems,
+        index: usize,
+    },
+}
+impl std::ops::Deref for VmOriginalValue {
+    type Target = tcl_vm::Value;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Header(lease) => lease.value(),
+            Self::ListMember { backing, index } => &backing[*index],
+        }
+    }
+}
+struct VmListBackingReceipt {
+    backing: tcl_vm::NativeListItems,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    interpreter: (u64, u64),
+}
+
+// This private receipt can duplicate a descriptor, but owns no callable or Value.
+struct VmCommandNameCacheReceipt {
+    cache: Option<tcl_runtime_api::native_command_name::NativeCommandNameCache>,
+    version: tcl_dialect::TclVersion,
+    interpreter: (u64, u64),
+}
+
+struct VmNamespaceNameCacheReceipt {
+    cache: tcl_runtime_api::native_namespace_name::NativeNamespaceNameCache,
+    interpreter: (u64, u64),
+}
+
+impl tcl_engine_api::OriginalObject for VmOriginalObject {
+    fn native_c_version(&self) -> Option<tcl_engine_api::NativeCVersion> {
+        self.dialect
+            .native_scalar_getter_protocol()
+            .and_then(tcl_syntax::scalar_getter::NativeScalarGetterProtocol::tcl_version)
+            .map(export_version)
+    }
+    fn scope_identity(&self) -> (u64, u64) {
+        self.interpreter
+    }
+    fn resident_string(&self) -> Option<(Rc<[u8]>, tcl_engine_api::NativeStringStorageIdentity)> {
+        self.value
+            .resident_string_bytes()
+            .map(|bytes| (bytes, export_storage(&self.value)))
+    }
+    fn identity(&self) -> usize {
+        self.value.native_object_identity()
+    }
+    fn is_shared(&self) -> bool {
+        self.value.native_object_is_shared()
+    }
+    fn snapshot(&self) -> Result<Value, EngineError> {
+        if !self.value.native_object_is_live() {
+            return Err(EngineError::ExecutionRefusal(
+                "retired original native object header".into(),
+            ));
+        }
+        from_vm_object_value(&self.value)
+    }
+    fn engine_receipt(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn index_cache(
+        &self,
+    ) -> Option<(
+        tcl_engine_api::NativeIndexCache,
+        tcl_engine_api::NativeCVersion,
+    )> {
+        self.value
+            .native_index_cache()
+            .map(|(cache, version)| (cache, export_version(version)))
+    }
+    fn string_cache(&self) -> Option<tcl_engine_api::NativeStringCache> {
+        use tcl_syntax::native_object::NativeObjectCacheSnapshot as S;
+        match self.value.native_object_snapshot().cache {
+            S::String {
+                protocol,
+                num_chars,
+                unicode,
+            } => protocol
+                .tcl_version()
+                .map(|version| tcl_engine_api::NativeStringCache::C {
+                    origin: export_version(version),
+                    num_chars,
+                    unicode,
+                }),
+            S::JimString { num_chars } => {
+                Some(tcl_engine_api::NativeStringCache::Jim { num_chars })
+            }
+            _ => None,
+        }
+    }
+    fn command_name_cache_origin(&self) -> Option<tcl_engine_api::NativeCVersion> {
+        self.value
+            .native_command_name_cache_origin()
+            .map(export_version)
+    }
+    fn command_name_cache(&self) -> Option<tcl_engine_api::NativeCommandNameCache> {
+        let version = self.value.native_command_name_cache_origin()?;
+        Some(tcl_engine_api::NativeCommandNameCache::new(
+            export_version(version),
+            self.interpreter,
+            Rc::new(VmCommandNameCacheReceipt {
+                cache: self.value.native_command_name_cache(),
+                version,
+                interpreter: self.interpreter,
+            }),
+        ))
+    }
+    fn namespace_name_cache(&self) -> Option<tcl_engine_api::NativeNamespaceNameCache> {
+        let cache = self.value.native_namespace_name_cache()?;
+        Some(tcl_engine_api::NativeNamespaceNameCache::new(
+            export_version(cache.version()),
+            self.interpreter,
+            Rc::new(VmNamespaceNameCacheReceipt {
+                cache,
+                interpreter: self.interpreter,
+            }),
+        ))
+    }
+    fn list_backing(&self) -> Result<Option<tcl_engine_api::NativeListBacking>, EngineError> {
+        let Some(protocol) = self.dialect.native_string_protocol() else {
+            return Err(EngineError::ExecutionRefusal(
+                "original List issuer unavailable".into(),
+            ));
+        };
+        let Some(backing) = self
+            .value
+            .native_list_backing_in(protocol)
+            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?
+        else {
+            return Ok(None);
+        };
+        let version = protocol.tcl_version().ok_or_else(|| {
+            EngineError::ExecutionRefusal("C List backing issuer unavailable".into())
+        })?;
+        let canonical = backing.canonical_state();
+        let sharing = backing.lifetime_view();
+        let count = backing.len();
+        Ok(Some(tcl_engine_api::NativeListBacking::new(
+            export_version(version),
+            self.interpreter,
+            count,
+            canonical,
+            Rc::new(move || sharing.native_is_shared()),
+            Rc::new(VmListBackingReceipt {
+                backing,
+                protocol,
+                interpreter: self.interpreter,
+            }),
+        )))
+    }
+    fn list_backing_matches(
+        &self,
+        carrier: &tcl_engine_api::NativeListBacking,
+    ) -> Result<bool, EngineError> {
+        let receipt = checked_list_backing_receipt(carrier, self.dialect, self.interpreter)?;
+        Ok(receipt.backing.has_native_header()
+            && self.value.native_list_attachment_matches(&receipt.backing))
+    }
+
+    fn duplicate_native_header(
+        &self,
+    ) -> Result<Rc<dyn tcl_engine_api::OriginalObject>, EngineError> {
+        let protocol = self.dialect.native_string_protocol().ok_or_else(|| {
+            EngineError::ExecutionRefusal("native duplicate issuer unavailable".into())
+        })?;
+        drop(
+            self.value
+                .native_list_backing_in(protocol)
+                .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?,
+        );
+        let duplicate = self.value.duplicate_native_object_in(protocol);
+        Ok(Rc::new(Self {
+            value: VmOriginalValue::Header(duplicate.native_lifetime_lease()),
+            dialect: self.dialect,
+            interpreter: self.interpreter,
+        }))
+    }
+    fn list_members(
+        &self,
+    ) -> Result<Option<(Vec<Rc<dyn tcl_engine_api::OriginalObject>>, bool)>, EngineError> {
+        Ok(self
+            .value
+            .cached_list_representation()
+            .map(|(items, canonical)| {
+                let members = (0..items.len())
+                    .map(|index| {
+                        Rc::new(Self {
+                            value: VmOriginalValue::ListMember {
+                                backing: items.lifetime_view(),
+                                index,
+                            },
+                            dialect: self.dialect,
+                            interpreter: self.interpreter,
+                        }) as Rc<dyn tcl_engine_api::OriginalObject>
+                    })
+                    .collect();
+                (members, canonical)
+            }))
+    }
+    fn dictionary_members(
+        &self,
+    ) -> Result<
+        Option<(
+            Vec<(
+                Rc<dyn tcl_engine_api::OriginalObject>,
+                Rc<dyn tcl_engine_api::OriginalObject>,
+            )>,
+            Option<usize>,
+        )>,
+        EngineError,
+    > {
+        Ok(self
+            .value
+            .with_cached_dictionary_representation(|entries, buckets| {
+                let members = entries
+                    .iter()
+                    .map(|(key, value)| {
+                        (
+                            Rc::new(Self {
+                                value: VmOriginalValue::Header(key.native_lifetime_lease()),
+                                dialect: self.dialect,
+                                interpreter: self.interpreter,
+                            })
+                                as Rc<dyn tcl_engine_api::OriginalObject>,
+                            Rc::new(Self {
+                                value: VmOriginalValue::Header(value.native_lifetime_lease()),
+                                dialect: self.dialect,
+                                interpreter: self.interpreter,
+                            })
+                                as Rc<dyn tcl_engine_api::OriginalObject>,
+                        )
+                    })
+                    .collect();
+                (members, Some(buckets))
+            }))
+    }
+    fn apply(
+        &self,
+        value: &tcl_engine_api::OriginalObjectResult,
+        string_mutation: tcl_engine_api::ResidentStringMutation,
+    ) -> Result<(), EngineError> {
+        let mut reached = value;
+        loop {
+            reached = match reached {
+                tcl_engine_api::OriginalObjectResult::Resident { value, .. } => value,
+                tcl_engine_api::OriginalObjectResult::Shared(value) => value,
+                _ => break,
+            };
+        }
+        if let tcl_engine_api::OriginalObjectResult::RetainedList(backing) = reached
+            && !self.list_backing_matches(backing)?
+        {
+            return Err(EngineError::ExecutionRefusal(
+                "retired original List attachment".into(),
+            ));
+        }
+        let donor = recover_original_result(value, self.dialect, self.interpreter)?;
+        self.value
+            .adopt_native_object_representation_with_string_mutation(
+                &donor,
+                self.dialect,
+                string_mutation,
+            )
+            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))
+    }
+}
+
 struct VmRegistrar<'a> {
     vm: &'a mut Vm,
     host_commands: HostCommandNames,
+    original: &'a tcl_vm::embed::OriginalOperandProjection,
 }
 
-impl CommandRegistrar for VmRegistrar<'_> {
-    fn define_command(
-        &mut self,
-        name: &str,
-        command: Rc<dyn HostCommand>,
+struct VmPublicationService(tcl_vm::NativePublicationService);
+
+struct VmPublicationReceipt {
+    service: tcl_vm::NativePublicationService,
+    publication: tcl_vm::NativePreparedPublication,
+}
+
+fn native_publication_error(error: tcl_vm::NativePublicationError) -> EngineError {
+    EngineError::ExecutionRefusal(error.to_string())
+}
+
+fn publication_key(publication: &tcl_vm::NativePreparedPublication) -> CommandPublicationKey {
+    let key = publication.key();
+    CommandPublicationKey {
+        owner: key.owner,
+        interpreter: key.interpreter,
+        namespace: key.namespace,
+        simple: Rc::from(key.simple.as_bytes()),
+    }
+}
+
+fn publication_receipt(
+    publication: &PreparedCommandPublication,
+) -> Result<&VmPublicationReceipt, EngineError> {
+    let receipt = publication
+        .receipt
+        .downcast_ref::<VmPublicationReceipt>()
+        .ok_or_else(|| {
+            EngineError::ExecutionRefusal("foreign command publication receipt".into())
+        })?;
+    if publication.key != publication_key(&receipt.publication)
+        || publication.original != receipt.publication.original()
+    {
+        return Err(EngineError::ExecutionRefusal(
+            "command publication reporting fields do not match its receipt".into(),
+        ));
+    }
+    Ok(receipt)
+}
+
+impl CommandPublicationService for VmPublicationService {
+    fn prepare(
+        &self,
+        original: &[u8],
+        purpose: CommandPublicationPurpose,
+    ) -> Result<PreparedCommandPublication, EngineError> {
+        let purpose = match purpose {
+            CommandPublicationPurpose::CreateCCommand => {
+                tcl_vm::NativePublicationPurpose::CreateCCommand
+            }
+            CommandPublicationPurpose::DeleteCCommand => {
+                tcl_vm::NativePublicationPurpose::DeleteCCommand
+            }
+        };
+        let publication = self
+            .0
+            .prepare(original, purpose)
+            .map_err(native_publication_error)?;
+        Ok(PreparedCommandPublication {
+            original: publication.original(),
+            key: publication_key(&publication),
+            receipt: Rc::new(VmPublicationReceipt {
+                service: self.0.clone(),
+                publication,
+            }),
+        })
+    }
+
+    fn observed_presence(
+        &self,
+        publication: &PreparedCommandPublication,
+    ) -> Result<bool, EngineError> {
+        self.0
+            .observed_presence(&publication_receipt(publication)?.publication)
+            .map_err(native_publication_error)
+    }
+
+    fn note_publication(
+        &self,
+        publication: &PreparedCommandPublication,
+        present: bool,
     ) -> Result<(), EngineError> {
-        define_host_command(self.vm, &self.host_commands, name, command);
-        Ok(())
+        self.0
+            .note_publication(&publication_receipt(publication)?.publication, present)
+            .map_err(native_publication_error)
     }
+}
 
-    fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
-        Ok(remove_host_command(self.vm, &self.host_commands, name))
-    }
+fn open_publication_service(vm: &Vm) -> Result<Rc<dyn CommandPublicationService>, EngineError> {
+    vm.native_publication_service()
+        .map(|service| Rc::new(VmPublicationService(service)) as Rc<dyn CommandPublicationService>)
+        .map_err(native_publication_error)
+}
 
-    fn provide_package(&mut self, name: &str, version: &str) -> Result<(), EngineError> {
-        provide_package(self.vm, name, version)
+fn define_prepared_host_command(
+    vm: &mut Vm,
+    host_commands: &HostCommandNames,
+    publication: &PreparedCommandPublication,
+    command: Rc<dyn HostCommand>,
+) -> Result<(), EngineError> {
+    let receipt = publication_receipt(publication)?;
+    let token = vm
+        .define_prepared_native_command(
+            &receipt.service,
+            &receipt.publication,
+            Rc::new(HostCommandShim {
+                command,
+                host_commands: Rc::clone(host_commands),
+            }),
+        )
+        .map_err(native_publication_error)?;
+    if let Some(token) = token {
+        host_commands.borrow_mut().push(token);
     }
+    Ok(())
+}
 
-    fn library_loaded(&mut self, file_name: &str, prefix: &str) -> Result<(), EngineError> {
-        self.vm.library_loaded(file_name, prefix);
-        Ok(())
-    }
-
-    fn variable(&mut self, name: &str) -> Result<Value, EngineError> {
-        read_variable(self.vm, name)
-    }
-
-    fn set_variable(&mut self, name: &str, value: Value) -> Result<(), EngineError> {
-        set_variable(self.vm, name, &value)
-    }
-
-    fn unset_variable(&mut self, name: &str) -> Result<(), EngineError> {
-        unset_variable(self.vm, name)
-    }
-
-    fn eval_in_invocation(&mut self, script: &str) -> Result<HostOutcome, EngineError> {
-        evaluate(self.vm, script)
-    }
+fn remove_prepared_host_command(
+    vm: &mut Vm,
+    publication: &PreparedCommandPublication,
+) -> Result<bool, EngineError> {
+    let receipt = publication_receipt(publication)?;
+    vm.remove_prepared_native_command(&receipt.service, &receipt.publication)
+        .map_err(native_publication_error)
 }
 
 fn provide_package(vm: &mut Vm, name: &str, version: &str) -> Result<(), EngineError> {
     vm.package_provide(name, version)
-        .map_err(|error| EngineError::Script {
-            message: error.message,
-            code: error.error_code,
-        })
+        .map_err(|error| internal_error(vm, error))
 }
 
 fn read_variable(vm: &mut Vm, name: &str) -> Result<Value, EngineError> {
-    vm.read_variable(name)
-        .map(|value| from_vm_value(&value))
-        .map_err(|completion| script_error(vm, &completion))
+    with_engine_projection(vm, |vm, original| read_variable_using(vm, original, name))
+}
+
+fn read_variable_using(
+    vm: &mut Vm,
+    original: &tcl_vm::embed::OriginalOperandProjection,
+    name: &str,
+) -> Result<Value, EngineError> {
+    check_projection(vm, original)?;
+    let reached = vm
+        .read_variable(name)
+        .map_err(|error| projection_error(vm, original, error));
+    check_projection(vm, original)?;
+    let value = reached?;
+    let reached = from_vm_value_using(vm, original, &value);
+    if let Err(error) = &reached {
+        retain_engine_failure(vm, original, error);
+    }
+    drop(value);
+    check_projection(vm, original)?;
+    reached
 }
 
 fn set_variable(vm: &mut Vm, name: &str, value: &Value) -> Result<(), EngineError> {
-    vm.write_variable(name, to_vm_value(value))
-        .map_err(|completion| script_error(vm, &completion))
+    let original = vm
+        .capture_original_scalar_ingress()
+        .map_err(EngineError::execution_failure)?;
+    let dialect = vm.native_scalar_carrier_dialect();
+    let reached = (|| {
+        let imported = {
+            let actual = ActualScalarImport {
+                vm: RefCell::new(&mut *vm),
+                original: &original,
+            };
+            to_vm_value_using(value, dialect, Some(&actual))?
+        };
+        let reached = vm
+            .write_variable(name, imported)
+            .map_err(|error| internal_error(vm, error));
+        vm.check_original_scalar_ingress(&original)
+            .map_err(EngineError::execution_failure)?;
+        reached
+    })();
+    vm.finish_original_scalar_ingress(original)
+        .map_err(EngineError::execution_failure)?;
+    reached
 }
 
 fn unset_variable(vm: &mut Vm, name: &str) -> Result<(), EngineError> {
     vm.unset_variable(name)
-        .map_err(|completion| script_error(vm, &completion))
+        .map_err(|error| internal_error(vm, error))
 }
 
 /// Evaluate `script` in the VM's current frame and report how it completed: a
@@ -176,72 +580,182 @@ fn evaluate(vm: &mut Vm, script: &str) -> Result<HostOutcome, EngineError> {
     }
     let completion = match evaluated {
         Ok(completion) => completion,
-        Err(error) => {
-            let options = error
-                .error_code
-                .as_deref()
-                .map_or_else(tcl_vm::Value::empty, |code| {
-                    tcl_vm::Value::list(vec![
-                        tcl_vm::Value::string("-errorcode"),
-                        tcl_vm::Value::string(code),
-                    ])
-                });
-            vm.publish_caught_error(&Completion::new(
-                Code::Error,
-                tcl_vm::Value::string(error.message.as_str()),
-                options,
-            ));
-            return Err(EngineError::Script {
-                message: error.message,
-                code: error.error_code,
-            });
-        }
+        Err(error) => error.into_completion().map_err(host_failure)?,
     };
+    with_engine_projection(vm, |vm, original| {
+        let reached = evaluate_completion_using(vm, original, &completion);
+        if let Err(error) = &reached {
+            retain_engine_failure(vm, original, error);
+        }
+        drop(completion);
+        check_projection(vm, original)?;
+        reached
+    })
+}
+
+fn evaluate_using(
+    vm: &mut Vm,
+    original: &tcl_vm::embed::OriginalOperandProjection,
+    script: &str,
+) -> Result<HostOutcome, EngineError> {
+    check_projection(vm, original)?;
+    let reached = vm
+        .eval_source(script)
+        .map_err(|error| projection_error(vm, original, error));
+    check_projection(vm, original)?;
+    let completion = reached?;
+    let reached = evaluate_completion_using(vm, original, &completion);
+    if let Err(error) = &reached {
+        retain_engine_failure(vm, original, error);
+    }
+    drop(completion);
+    check_projection(vm, original)?;
+    reached
+}
+
+fn evaluate_completion_using(
+    vm: &mut Vm,
+    original: &tcl_vm::embed::OriginalOperandProjection,
+    completion: &Completion<tcl_vm::Value>,
+) -> Result<HostOutcome, EngineError> {
+    check_projection(vm, original)?;
     let code = match completion.code {
         Code::Ok => CompletionCode::Ok,
         Code::Return => CompletionCode::Return,
         Code::Break => CompletionCode::Break,
         Code::Continue => CompletionCode::Continue,
         Code::Error => {
-            let failure = script_error(vm, &completion);
-            if matches!(failure, EngineError::Script { .. }) {
-                // The host command takes the error as its own, so `$errorCode`
-                // and `$errorInfo` are what a `catch` of the script would leave.
-                vm.publish_caught_error(&completion);
+            let failure = TclVmEngine::completion_to_result_using(vm, original, completion)
+                .expect_err("an error completion has no normal value");
+            if matches!(
+                failure,
+                EngineError::Script { .. } | EngineError::ScriptBytes { .. }
+            ) {
+                vm.publish_caught_error(completion)
+                    .map_err(|error| projection_error(vm, original, error))?;
+                check_projection(vm, original)?;
             }
             return Err(failure);
         }
         Code::Other(other) => CompletionCode::Other(other),
     };
-    let value = from_vm_value(&completion.result);
+    let value = from_vm_value_using(vm, original, &completion.result)?;
     Ok(if code == CompletionCode::Return {
-        HostOutcome::returning(value, from_vm_value(&completion.options))
+        HostOutcome::returning(
+            value,
+            from_vm_value_using(vm, original, &completion.options)?,
+        )
     } else {
         HostOutcome::completing(code, value)
     })
 }
 
-/// The error a failed completion is, with the `-errorcode` its options carry —
-/// or the budget the invocation outran, which the VM keeps whatever became of
-/// the error it raised.
-fn script_error(vm: &Vm, completion: &Completion<tcl_vm::Value>) -> EngineError {
-    if let Some(kind) = vm.limit_exceeded() {
-        return EngineError::BudgetExceeded(budget_kind(kind));
+/// Export an internal VM failure without rebuilding its guest completion.
+fn internal_error(vm: &mut Vm, error: tcl_vm::TclError) -> EngineError {
+    match error.into_completion() {
+        Ok(completion) => with_engine_projection(vm, |vm, original| {
+            let reached = TclVmEngine::completion_to_result_using(vm, original, &completion);
+            if let Err(error) = &reached {
+                retain_engine_failure(vm, original, error);
+            }
+            let current = check_projection(vm, original);
+            drop(completion);
+            current?;
+            check_projection(vm, original)?;
+            reached
+        })
+        .expect_err("an internal Guest error has no ordinary Engine value"),
+        Err(failure) => host_failure(failure),
     }
-    let message = completion.result.to_str().to_string();
-    let code = error_code_of(&completion.options);
-    EngineError::Script { message, code }
 }
 
-/// The `-errorcode` in a completion's options dict, as list text.
-fn error_code_of(options: &tcl_vm::Value) -> Option<String> {
-    let items = options.as_list().ok()?;
-    items
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .find(|pair| &*pair[0].to_str() == "-errorcode")
-        .map(|pair| pair[1].to_str().to_string())
+fn host_failure(failure: tcl_vm::TclHostFailure) -> EngineError {
+    match failure {
+        tcl_vm::TclHostFailure::Execution(first) => EngineError::execution_failure(first),
+        tcl_vm::TclHostFailure::ValueAccess(first) => EngineError::execution_failure(
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(first),
+        ),
+        tcl_vm::TclHostFailure::PrimitiveErrorStateRequired(error) => {
+            EngineError::ExecutionRefusal(format!(
+                "primitive error state is unavailable at this context-free conversion: {error:?}"
+            ))
+        }
+    }
+}
+
+fn projection_error(
+    vm: &mut Vm,
+    original: &tcl_vm::embed::OriginalOperandProjection,
+    error: tcl_vm::TclError,
+) -> EngineError {
+    match error.into_completion() {
+        Err(failure) => host_failure(
+            vm.retain_original_operand_failure(original, failure)
+                .into_completion()
+                .expect_err("retained Host cause has no Guest completion"),
+        ),
+        Ok(completion) => {
+            let reached = TclVmEngine::completion_to_result_using(vm, original, &completion);
+            drop(completion);
+            match vm.check_original_operand_projection(original) {
+                Ok(()) => reached.expect_err("Guest error has no ordinary Engine value"),
+                Err(first) => host_failure(
+                    first
+                        .into_completion()
+                        .expect_err("original check is operational"),
+                ),
+            }
+        }
+    }
+}
+
+fn check_projection(
+    vm: &mut Vm,
+    original: &tcl_vm::embed::OriginalOperandProjection,
+) -> Result<(), EngineError> {
+    vm.check_original_operand_projection(original)
+        .map_err(|error| projection_error(vm, original, error))
+}
+
+fn retain_engine_failure(
+    vm: &mut Vm,
+    original: &tcl_vm::embed::OriginalOperandProjection,
+    error: &EngineError,
+) {
+    if let Some(first) = error.native_execution_failure() {
+        let _ = vm.retain_original_operand_failure(
+            original,
+            tcl_vm::TclHostFailure::Execution(first.clone()),
+        );
+    } else if let EngineError::ExecutionRefusal(reason) = error {
+        drop(vm.refuse_host_command(reason.clone()));
+    }
+}
+
+fn with_engine_projection<T>(
+    vm: &mut Vm,
+    work: impl FnOnce(&mut Vm, &tcl_vm::embed::OriginalOperandProjection) -> Result<T, EngineError>,
+) -> Result<T, EngineError> {
+    let original = vm
+        .capture_original_operand_projection()
+        .map_err(|error| internal_error(vm, error))?;
+    let reached = work(vm, &original);
+    if let Err(error) = &reached {
+        retain_engine_failure(vm, &original, error);
+    }
+    if let Err(first) = check_projection(vm, &original) {
+        drop(reached);
+        let _ = vm.finish_original_operand_projection(original);
+        return Err(first);
+    }
+    let retired = vm
+        .finish_original_operand_projection(original)
+        .map_err(|error| internal_error(vm, error));
+    if let Err(first) = retired {
+        drop(reached);
+        return Err(first);
+    }
+    reached
 }
 
 /// The interface's name for a VM limit.
@@ -267,121 +781,934 @@ fn to_vm_code(code: CompletionCode) -> Code {
     Code::from_int(code.as_int())
 }
 
-/// The options a host command's completion carries to the VM: those of the
-/// `return` behind a `Return`, which the calling procedure's boundary reads, and
-/// none for any other code.
-fn completion_options(outcome: &HostOutcome) -> tcl_vm::Value {
-    if outcome.code == CompletionCode::Return {
-        to_vm_value(&outcome.options)
-    } else {
-        tcl_vm::Value::string(String::new())
-    }
-}
-
 fn define_host_command(
     vm: &mut Vm,
     host_commands: &HostCommandNames,
-    name: &str,
+    name: &[u8],
     command: Rc<dyn HostCommand>,
-) {
-    vm.register_native_command(
-        name,
-        Rc::new(HostCommandShim {
-            command,
-            host_commands: Rc::clone(host_commands),
-        }),
-    );
-    host_commands.borrow_mut().push(name.to_owned());
+) -> Result<(), EngineError> {
+    let service = open_publication_service(vm)?;
+    let publication = service.prepare(name, CommandPublicationPurpose::CreateCCommand)?;
+    service.note_publication(&publication, true)?;
+    define_prepared_host_command(vm, host_commands, &publication, command)
 }
 
-/// Register `command` as the host command `name` on a bare [`Vm`].
-///
-/// What [`Engine::define_command`] does, for an embedder that drives a VM
-/// itself and not through the interface (the `tclvm` binary): the command
-/// converts values at the boundary the same way, and runs with the
-/// registration door open, so a command that creates commands publishes them
-/// before the calling script's next statement.
+fn remove_host_command(vm: &mut Vm, name: &[u8]) -> Result<bool, EngineError> {
+    let service = open_publication_service(vm)?;
+    let publication = service.prepare(name, CommandPublicationPurpose::DeleteCCommand)?;
+    let present = service.observed_presence(&publication)?;
+    service.note_publication(&publication, false)?;
+    let removed = remove_prepared_host_command(vm, &publication)?;
+    Ok(present && removed)
+}
+
+impl CommandRegistrar for VmRegistrar<'_> {
+    fn native_c_version(&self) -> Option<tcl_engine_api::NativeCVersion> {
+        self.vm
+            .native_scalar_carrier_dialect()
+            .native_scalar_getter_protocol()
+            .and_then(tcl_syntax::scalar_getter::NativeScalarGetterProtocol::tcl_version)
+            .map(export_version)
+    }
+
+    fn command_publication_service(
+        &mut self,
+    ) -> Result<Rc<dyn CommandPublicationService>, EngineError> {
+        open_publication_service(self.vm)
+    }
+    fn define_prepared_command(
+        &mut self,
+        publication: PreparedCommandPublication,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        define_prepared_host_command(self.vm, &self.host_commands, &publication, command)
+    }
+    fn remove_prepared_command(
+        &mut self,
+        publication: PreparedCommandPublication,
+    ) -> Result<bool, EngineError> {
+        remove_prepared_host_command(self.vm, &publication)
+    }
+    fn define_command_bytes(
+        &mut self,
+        name: &[u8],
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        define_host_command(self.vm, &self.host_commands, name, command)
+    }
+    fn remove_command_bytes(&mut self, name: &[u8]) -> Result<bool, EngineError> {
+        remove_host_command(self.vm, name)
+    }
+    fn define_command(
+        &mut self,
+        name: &str,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        self.define_command_bytes(name.as_bytes(), command)
+    }
+    fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
+        self.remove_command_bytes(name.as_bytes())
+    }
+    fn provide_package(&mut self, name: &str, version: &str) -> Result<(), EngineError> {
+        provide_package(self.vm, name, version)
+    }
+
+    fn library_loaded(&mut self, file_name: &str, prefix: &str) -> Result<(), EngineError> {
+        self.vm.library_loaded(file_name, prefix);
+        Ok(())
+    }
+
+    fn variable(&mut self, name: &str) -> Result<Value, EngineError> {
+        read_variable_using(self.vm, self.original, name)
+    }
+
+    fn set_variable(&mut self, name: &str, value: Value) -> Result<(), EngineError> {
+        set_variable(self.vm, name, &value)
+    }
+
+    fn unset_variable(&mut self, name: &str) -> Result<(), EngineError> {
+        unset_variable(self.vm, name)
+    }
+
+    fn eval_in_invocation(&mut self, script: &str) -> Result<HostOutcome, EngineError> {
+        evaluate_using(self.vm, self.original, script)
+    }
+}
+
+/// Register a host command through the VM's checked publication owner.
 pub fn register_host_command(vm: &mut Vm, name: &str, command: Rc<dyn HostCommand>) {
-    define_host_command(vm, &Rc::new(RefCell::new(Vec::new())), name, command);
+    if let Err(error) = define_host_command(
+        vm,
+        &Rc::new(RefCell::new(Vec::new())),
+        name.as_bytes(),
+        command,
+    ) {
+        let _ = vm.refuse_host_command(error.to_string());
+    }
 }
 
-/// Whether `name` is the direct form of a subcommand of an ensemble `allowed`
-/// names: `tcl::ENSEMBLE::SUBCOMMAND`, in the VM's canonical unrooted spelling.
-fn is_subcommand_of_allowed(name: &str, allowed: &[&str]) -> bool {
-    name.strip_prefix("tcl::")
-        .and_then(|rest| rest.split_once("::"))
-        .is_some_and(|(ensemble, _)| allowed.contains(&ensemble))
+fn host_error_completion(vm: &mut Vm, error: EngineError) -> Completion<tcl_vm::Value> {
+    match error {
+        EngineError::Script { message, code } => {
+            let options = code.map_or_else(tcl_vm::Value::empty, |code| {
+                tcl_vm::Value::list(vec![
+                    tcl_vm::Value::string("-code"),
+                    tcl_vm::Value::int(1),
+                    tcl_vm::Value::string("-level"),
+                    tcl_vm::Value::int(0),
+                    tcl_vm::Value::string("-errorcode"),
+                    tcl_vm::Value::string(code),
+                ])
+            });
+            Completion::new(Code::Error, tcl_vm::Value::string(message), options)
+        }
+        EngineError::ScriptBytes {
+            message,
+            code,
+            options,
+        } => {
+            let options =
+                options.map_or_else(|| error_options(code), tcl_vm::Value::from_string_bytes);
+            Completion::new(
+                Code::Error,
+                tcl_vm::Value::from_string_bytes(message),
+                options,
+            )
+        }
+        EngineError::ExecutionFailure(first) => {
+            vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::Execution(*first))
+        }
+        EngineError::ExecutionRefusal(reason) => vm.refuse_host_command(reason),
+        // A budget the host command outran is recorded as the VM's own
+        // breach, so the invocation reports it even past a `catch`.
+        EngineError::BudgetExceeded(kind) => vm.exceed_limit(limit_kind(kind)),
+        error => vm.refuse_host_command(error.to_string()),
+    }
 }
 
-fn remove_host_command(vm: &mut Vm, host_commands: &HostCommandNames, name: &str) -> bool {
-    host_commands.borrow_mut().retain(|command| command != name);
-    vm.remove_command(name)
+fn retirement_error_completion(vm: &mut Vm, error: EngineError) -> Completion<tcl_vm::Value> {
+    match error {
+        EngineError::ExecutionFailure(first) => {
+            vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::Execution(*first))
+        }
+        error => vm.refuse_host_command(error.to_string()),
+    }
+}
+
+fn projection_unwind(vm: &mut Vm, error: tcl_vm::TclError) -> Completion<tcl_vm::Value> {
+    match error.into_completion() {
+        Ok(completion) => completion,
+        Err(first) => vm.refuse_tcl_host_failure(first),
+    }
+}
+
+impl HostCommandShim {
+    fn invoke_projected(
+        &self,
+        vm: &mut Vm,
+        original: &tcl_vm::embed::OriginalOperandProjection,
+        scalar: &tcl_vm::NativeScalarIngress,
+        source: &[tcl_vm::Value],
+    ) -> Result<Completion<tcl_vm::Value>, EngineError> {
+        let dialect = vm.native_scalar_carrier_dialect();
+        let interpreter = vm.native_object_bridge_identity();
+        let view = self.command.argument_view();
+        let mut originals: Vec<Rc<dyn tcl_engine_api::OriginalObject>> = Vec::new();
+        let mut arguments = Vec::new();
+        let reached = (|| {
+            if view == tcl_engine_api::HostArgumentView::OriginalObjects {
+                for value in source {
+                    vm.check_original_projected_value(original, value)
+                        .map_err(|error| projection_error(vm, original, error))?;
+                    originals.push(Rc::new(VmOriginalObject {
+                        value: VmOriginalValue::Header(value.native_lifetime_lease()),
+                        dialect,
+                        interpreter,
+                    }));
+                }
+            }
+            for value in source {
+                vm.check_original_projected_value(original, value)
+                    .map_err(|error| projection_error(vm, original, error))?;
+                let reached = match view {
+                    tcl_engine_api::HostArgumentView::MaterializedStrings => {
+                        from_vm_value_using(vm, original, value)
+                    }
+                    tcl_engine_api::HostArgumentView::NativeObjectSnapshots => {
+                        from_vm_object_value(value)
+                    }
+                    tcl_engine_api::HostArgumentView::OriginalObjects => Ok(Value::Empty),
+                };
+                if let Err(error) = &reached {
+                    retain_engine_failure(vm, original, error);
+                }
+                check_projection(vm, original)?;
+                arguments.push(reached?);
+            }
+            vm.check_original_scalar_ingress(scalar)
+                .map_err(EngineError::execution_failure)?;
+            let mut registrar = VmRegistrar {
+                vm,
+                host_commands: Rc::clone(&self.host_commands),
+                original,
+            };
+            let outcome = if view == tcl_engine_api::HostArgumentView::OriginalObjects {
+                self.command
+                    .invoke_original_completion_with_registrar(&mut registrar, &originals)
+            } else {
+                self.command
+                    .invoke_with_registrar(&mut registrar, &arguments)
+                    .map(|outcome| {
+                        Completion::new(
+                            to_vm_code(outcome.code),
+                            tcl_engine_api::OriginalObjectResult::Value(outcome.value),
+                            tcl_engine_api::OriginalObjectResult::Value(outcome.options),
+                        )
+                    })
+            };
+            if let Err(error) = &outcome {
+                retain_engine_failure(registrar.vm, original, error);
+            }
+            // Retain the original callback cause before its returned ownership retires.
+            let current = check_projection(registrar.vm, original);
+            let scalar_current = registrar
+                .vm
+                .check_original_scalar_ingress(scalar)
+                .map_err(EngineError::execution_failure);
+            if let Err(first) = current.and(scalar_current) {
+                drop(outcome);
+                check_projection(registrar.vm, original)?;
+                return Err(first);
+            }
+            let reached = match outcome {
+                Ok(result) => {
+                    let reached = {
+                        let actual = ActualScalarImport {
+                            vm: RefCell::new(&mut *registrar.vm),
+                            original: scalar,
+                        };
+                        recover_original_completion(&result, dialect, interpreter, &actual)
+                    };
+                    if let Err(error) = &reached {
+                        retain_engine_failure(registrar.vm, original, error);
+                    }
+                    let current = check_projection(registrar.vm, original);
+                    drop(result);
+                    check_projection(registrar.vm, original)?;
+                    current?;
+                    reached
+                }
+                Err(error) => Ok(host_error_completion(registrar.vm, error)),
+            };
+            reached
+        })();
+        if let Err(error) = &reached {
+            retain_engine_failure(vm, original, error);
+        }
+        drop(arguments);
+        drop(originals);
+        check_projection(vm, original)?;
+        reached
+    }
 }
 
 impl NativeCommand for HostCommandShim {
-    fn invoke(&self, vm: &mut Vm, arguments: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
-        let arguments: Vec<Value> = arguments.iter().map(from_vm_value).collect();
-        let mut registrar = VmRegistrar {
-            vm,
-            host_commands: Rc::clone(&self.host_commands),
+    fn retire(&self, vm: &mut Vm) -> Completion<tcl_vm::Value> {
+        let original = match vm.capture_original_operand_projection() {
+            Ok(original) => original,
+            Err(error) => return projection_unwind(vm, error),
         };
-        match self
-            .command
-            .invoke_with_registrar(&mut registrar, &arguments)
-        {
-            Ok(outcome) => Completion::new(
-                to_vm_code(outcome.code),
-                to_vm_value(&outcome.value),
-                completion_options(&outcome),
-            ),
-            // A script error crosses as the Tcl error it is: the message
-            // verbatim, and its `-errorcode` in the completion's options so
-            // `catch` and `$errorCode` see what the host command set.
-            Err(EngineError::Script { message, code }) => {
-                let options = code.map_or_else(tcl_vm::Value::empty, |code| {
-                    tcl_vm::Value::list(vec![
-                        tcl_vm::Value::string("-code"),
-                        tcl_vm::Value::int(1),
-                        tcl_vm::Value::string("-level"),
-                        tcl_vm::Value::int(0),
-                        tcl_vm::Value::string("-errorcode"),
-                        tcl_vm::Value::string(code),
-                    ])
-                });
-                Completion::new(Code::Error, tcl_vm::Value::string(message), options)
-            }
-            // A budget the host command outran is recorded as the VM's own
-            // breach, so the invocation reports it even past a `catch`.
-            Err(EngineError::BudgetExceeded(kind)) => vm.exceed_limit(limit_kind(kind)),
-            Err(error) => Completion::new(
-                Code::Error,
-                tcl_vm::Value::string(error.to_string()),
-                tcl_vm::Value::string(String::new()),
-            ),
+        let reached = {
+            let mut registrar = VmRegistrar {
+                vm,
+                host_commands: Rc::clone(&self.host_commands),
+                original: &original,
+            };
+            self.command.retire_with_registrar(&mut registrar)
+        };
+        if let Err(error) = &reached {
+            // Every retirement failure remains Host, including Script/Budget;
+            // latch it before mandatory original-owner settlement.
+            drop(retirement_error_completion(vm, error.clone()));
+        }
+        let current = check_projection(vm, &original);
+        let retired = vm.finish_original_operand_projection(original);
+        match current {
+            Err(first) => retirement_error_completion(vm, first),
+            Ok(()) => match retired {
+                Err(first) => projection_unwind(vm, first),
+                Ok(()) => match reached {
+                    Ok(()) => {
+                        Completion::new(Code::Ok, tcl_vm::Value::empty(), tcl_vm::Value::empty())
+                    }
+                    Err(error) => retirement_error_completion(vm, error),
+                },
+            },
         }
     }
+
+    fn invoke(&self, vm: &mut Vm, arguments: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
+        let scalar = match vm.capture_original_scalar_ingress() {
+            Ok(original) => original,
+            Err(first) => {
+                return vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::Execution(first));
+            }
+        };
+        let original = match vm.capture_original_operand_projection() {
+            Ok(original) => original,
+            Err(error) => {
+                let completion = projection_unwind(vm, error);
+                let _ = vm.finish_original_scalar_ingress(scalar);
+                return completion;
+            }
+        };
+        let reached = self.invoke_projected(vm, &original, &scalar, arguments);
+        if let Err(error) = &reached {
+            retain_engine_failure(vm, &original, error);
+        }
+        if let Err(first) = check_projection(vm, &original) {
+            drop(reached);
+            let _ = check_projection(vm, &original);
+            let _ = vm.finish_original_operand_projection(original);
+            let _ = vm.finish_original_scalar_ingress(scalar);
+            return host_error_completion(vm, first);
+        }
+        if let Err(first) = vm.finish_original_scalar_ingress(scalar) {
+            drop(reached);
+            let _ = check_projection(vm, &original);
+            let _ = vm.finish_original_operand_projection(original);
+            return vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::Execution(first));
+        }
+        if let Err(first) = vm.finish_original_operand_projection(original) {
+            drop(reached);
+            return projection_unwind(vm, first);
+        }
+        reached.unwrap_or_else(|error| host_error_completion(vm, error))
+    }
+}
+
+fn error_options(code: Option<Vec<u8>>) -> tcl_vm::Value {
+    code.map_or_else(tcl_vm::Value::empty, |code| {
+        tcl_vm::Value::list(vec![
+            tcl_vm::Value::string("-code"),
+            tcl_vm::Value::int(1),
+            tcl_vm::Value::string("-level"),
+            tcl_vm::Value::int(0),
+            tcl_vm::Value::string("-errorcode"),
+            tcl_vm::Value::from_string_bytes(code),
+        ])
+    })
+}
+
+fn recover_original_result(
+    result: &tcl_engine_api::OriginalObjectResult,
+    dialect: tcl_registry::InvocationDialect,
+    interpreter: (u64, u64),
+) -> Result<tcl_vm::Value, EngineError> {
+    recover_original_result_in(
+        result,
+        dialect,
+        interpreter,
+        &mut std::collections::BTreeMap::new(),
+        None,
+    )
+}
+
+fn recover_original_completion(
+    completion: &tcl_engine_api::OriginalObjectCompletion,
+    dialect: tcl_registry::InvocationDialect,
+    interpreter: (u64, u64),
+    actual: &ActualScalarImport<'_>,
+) -> Result<Completion<tcl_vm::Value>, EngineError> {
+    let mut memo = std::collections::BTreeMap::new();
+    let result = recover_original_result_in(
+        &completion.result,
+        dialect,
+        interpreter,
+        &mut memo,
+        Some(actual),
+    )?;
+    let options = recover_original_result_in(
+        &completion.options,
+        dialect,
+        interpreter,
+        &mut memo,
+        Some(actual),
+    )?;
+    Ok(Completion::new(completion.code, result, options))
+}
+
+enum OriginalRecoveryWork<'a> {
+    Visit(&'a tcl_engine_api::OriginalObjectResult),
+    List(usize, bool),
+    Dictionary(usize, Option<usize>),
+    Resident(&'a Rc<[u8]>, tcl_engine_api::NativeStringStorageIdentity),
+    Shared(usize),
+}
+
+fn recover_original_leaf(
+    result: &tcl_engine_api::OriginalObjectResult,
+    dialect: tcl_registry::InvocationDialect,
+    interpreter: (u64, u64),
+    actual: Option<&ActualScalarImport<'_>>,
+) -> Result<Option<tcl_vm::Value>, EngineError> {
+    use tcl_engine_api::OriginalObjectResult as R;
+    Ok(Some(match result {
+        R::Value(value) => to_vm_value_using(value, dialect, actual)?,
+        R::Index { cache, origin } => tcl_vm::Value::from_native_index_cache(
+            cache.clone(),
+            import_version(*origin),
+            dialect,
+            None,
+        )
+        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?,
+        R::String(cache) => recover_native_string_cache(cache, dialect, None)?,
+        R::CommandName(_) => {
+            return Err(EngineError::ExecutionRefusal(
+                "native command-name cache requires resident string storage".into(),
+            ));
+        }
+        R::NamespaceName(cache) => {
+            recover_native_namespace_name_cache(cache, dialect, interpreter, None)?
+        }
+        R::Original(original) => recover_original_handle(original, dialect, interpreter)?,
+        R::RetainedList(carrier) => {
+            let receipt = checked_list_backing(carrier, dialect, interpreter)?;
+            tcl_vm::Value::from_retained_native_list_backing(&receipt.backing, receipt.protocol)
+                .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?
+        }
+        R::Shared(_) | R::List { .. } | R::Dictionary { .. } | R::Resident { .. } => {
+            return Ok(None);
+        }
+    }))
+}
+
+fn recover_original_resident(
+    value: &tcl_engine_api::OriginalObjectResult,
+    string: &Rc<[u8]>,
+    storage: tcl_engine_api::NativeStringStorageIdentity,
+    dialect: tcl_registry::InvocationDialect,
+    interpreter: (u64, u64),
+    actual: Option<&ActualScalarImport<'_>>,
+) -> Result<Option<tcl_vm::Value>, EngineError> {
+    use tcl_engine_api::OriginalObjectResult as R;
+    let value = match value {
+        R::Value(Value::NativeScalar(cache)) => import_vm_scalar(
+            cache,
+            dialect,
+            Some((Rc::clone(string), import_storage(storage))),
+            actual,
+        )?,
+        R::CommandName(cache) => recover_native_command_name_cache(
+            cache,
+            dialect,
+            interpreter,
+            Rc::clone(string),
+            import_storage(storage),
+        )?,
+        R::NamespaceName(cache) => recover_native_namespace_name_cache(
+            cache,
+            dialect,
+            interpreter,
+            Some((Rc::clone(string), import_storage(storage))),
+        )?,
+        R::String(cache) => recover_native_string_cache(
+            cache,
+            dialect,
+            Some((Rc::clone(string), import_storage(storage))),
+        )?,
+        _ => return Ok(None),
+    };
+    Ok(Some(value))
+}
+
+fn recover_original_result_in(
+    result: &tcl_engine_api::OriginalObjectResult,
+    dialect: tcl_registry::InvocationDialect,
+    interpreter: (u64, u64),
+    memo: &mut std::collections::BTreeMap<usize, tcl_vm::Value>,
+    actual: Option<&ActualScalarImport<'_>>,
+) -> Result<tcl_vm::Value, EngineError> {
+    use OriginalRecoveryWork as Work;
+    use tcl_engine_api::OriginalObjectResult as R;
+    if let Some(actual) = actual {
+        actual.check()?;
+    }
+    let reached = (|| {
+        let mut work = vec![Work::Visit(result)];
+        let mut values = Vec::new();
+        let mut active = std::collections::BTreeSet::new();
+        while let Some(next) = work.pop() {
+            if let Some(actual) = actual {
+                actual.check()?;
+            }
+            if let Work::Visit(result) = &next
+                && let Some(value) = recover_original_leaf(result, dialect, interpreter, actual)?
+            {
+                if let Some(actual) = actual {
+                    actual.check()?;
+                }
+                values.push(value);
+                continue;
+            }
+            match next {
+                Work::Visit(R::Shared(node)) => {
+                    let identity = Rc::as_ptr(node) as usize;
+                    if let Some(value) = memo.get(&identity) {
+                        values.push(value.clone());
+                    } else {
+                        if !active.insert(identity) {
+                            return Err(EngineError::ExecutionRefusal(
+                                "cyclic callback object graph".into(),
+                            ));
+                        }
+                        work.push(Work::Shared(identity));
+                        work.push(Work::Visit(node));
+                    }
+                }
+                Work::Visit(R::List { items, canonical }) => {
+                    work.push(Work::List(items.len(), *canonical));
+                    work.extend(items.iter().rev().map(Work::Visit));
+                }
+                Work::Visit(R::Dictionary { entries, buckets }) => {
+                    work.push(Work::Dictionary(entries.len(), *buckets));
+                    for (key, value) in entries.iter().rev() {
+                        work.push(Work::Visit(value));
+                        work.push(Work::Visit(key));
+                    }
+                }
+                Work::Visit(R::Resident {
+                    value,
+                    string,
+                    storage,
+                }) => {
+                    if let Some(recovered) = recover_original_resident(
+                        value,
+                        string,
+                        *storage,
+                        dialect,
+                        interpreter,
+                        actual,
+                    )? {
+                        values.push(recovered);
+                    } else {
+                        work.push(Work::Resident(string, *storage));
+                        work.push(Work::Visit(value));
+                    }
+                }
+                Work::Visit(_) => unreachable!("original leaf already recovered"),
+                Work::List(count, canonical) => {
+                    let start = values
+                        .len()
+                        .checked_sub(count)
+                        .expect("visited callback List children");
+                    let items = values.split_off(start);
+                    let protocol = dialect.native_string_protocol().ok_or_else(|| {
+                        EngineError::ExecutionRefusal(
+                            "callback List updater issuer unavailable".into(),
+                        )
+                    })?;
+                    values.push(tcl_vm::Value::list_with_native_canonical_in(
+                        items, canonical, protocol,
+                    ));
+                }
+                Work::Dictionary(count, buckets) => {
+                    let protocol = dialect.native_string_protocol().ok_or_else(|| {
+                        EngineError::ExecutionRefusal(
+                            "callback Dictionary updater issuer unavailable".into(),
+                        )
+                    })?;
+                    let value = recover_dictionary_children(&mut values, count, buckets, protocol)?;
+                    values.push(value);
+                }
+                Work::Resident(string, storage) => {
+                    let value = values
+                        .pop()
+                        .expect("visited resident callback representation");
+                    values.push(
+                        value
+                            .with_resident_string_bytes_and_storage(
+                                Rc::clone(string),
+                                import_storage(storage),
+                            )
+                            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?,
+                    );
+                }
+                Work::Shared(identity) => {
+                    memo.insert(
+                        identity,
+                        values.last().expect("visited callback graph node").clone(),
+                    );
+                    active.remove(&identity);
+                }
+            }
+        }
+        Ok(values.pop().expect("visited callback result"))
+    })();
+    if let Some(actual) = actual {
+        actual.check()?;
+    }
+    reached
+}
+
+fn checked_list_backing_receipt(
+    carrier: &tcl_engine_api::NativeListBacking,
+    dialect: tcl_registry::InvocationDialect,
+    interpreter: (u64, u64),
+) -> Result<&VmListBackingReceipt, EngineError> {
+    let receipt = carrier
+        .engine_receipt()
+        .downcast_ref::<VmListBackingReceipt>()
+        .ok_or_else(|| {
+            EngineError::ExecutionRefusal("foreign native List backing authority".into())
+        })?;
+    let protocol = dialect
+        .native_string_protocol()
+        .ok_or_else(|| EngineError::ExecutionRefusal("native List issuer unavailable".into()))?;
+    if receipt.interpreter != interpreter
+        || carrier.scope_identity() != interpreter
+        || receipt.protocol != protocol
+        || protocol.tcl_version().map(export_version) != Some(carrier.origin())
+        || carrier.member_count() != receipt.backing.len()
+        || !Rc::ptr_eq(
+            &carrier.canonical_state(),
+            &receipt.backing.canonical_state(),
+        )
+        || !receipt.backing.is_whole_backing()
+    {
+        return Err(EngineError::ExecutionRefusal(
+            "native List backing scope, issuer or shape mismatch".into(),
+        ));
+    }
+    Ok(receipt)
+}
+
+fn checked_list_backing(
+    carrier: &tcl_engine_api::NativeListBacking,
+    dialect: tcl_registry::InvocationDialect,
+    interpreter: (u64, u64),
+) -> Result<&VmListBackingReceipt, EngineError> {
+    let receipt = checked_list_backing_receipt(carrier, dialect, interpreter)?;
+    if !receipt.backing.has_native_header() {
+        return Err(EngineError::ExecutionRefusal(
+            "retired native List backing".into(),
+        ));
+    }
+    Ok(receipt)
+}
+
+fn recover_original_handle(
+    original: &Rc<dyn tcl_engine_api::OriginalObject>,
+    dialect: tcl_registry::InvocationDialect,
+    interpreter: (u64, u64),
+) -> Result<tcl_vm::Value, EngineError> {
+    let Some(receipt) = original.engine_receipt().downcast_ref::<VmOriginalObject>() else {
+        return Err(EngineError::ExecutionRefusal(
+            "foreign original-object engine authority".into(),
+        ));
+    };
+    if receipt.interpreter != interpreter
+        || receipt.native_c_version()
+            != dialect
+                .native_scalar_getter_protocol()
+                .and_then(tcl_syntax::scalar_getter::NativeScalarGetterProtocol::tcl_version)
+                .map(export_version)
+    {
+        return Err(EngineError::ExecutionRefusal(
+            "foreign original-object interpreter or native issuer".into(),
+        ));
+    }
+    Ok((*receipt.value).clone())
+}
+
+fn recover_dictionary_children(
+    values: &mut Vec<tcl_vm::Value>,
+    count: usize,
+    buckets: Option<usize>,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+) -> Result<tcl_vm::Value, EngineError> {
+    let start = values
+        .len()
+        .checked_sub(count * 2)
+        .expect("visited callback Dictionary children");
+    let children = values.split_off(start);
+    let mut children = children.into_iter();
+    let entries = (0..count)
+        .map(|_| {
+            (
+                children.next().expect("key"),
+                children.next().expect("value"),
+            )
+        })
+        .collect();
+    tcl_vm::Value::native_dictionary_constructor(entries, buckets, protocol)
+        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))
+}
+
+fn recover_native_namespace_name_cache(
+    carrier: &tcl_engine_api::NativeNamespaceNameCache,
+    dialect: tcl_registry::InvocationDialect,
+    interpreter: (u64, u64),
+    resident: Option<(
+        Rc<[u8]>,
+        tcl_syntax::native_string::NativeStringStorageIdentity,
+    )>,
+) -> Result<tcl_vm::Value, EngineError> {
+    let receipt = carrier
+        .engine_receipt()
+        .downcast_ref::<VmNamespaceNameCacheReceipt>()
+        .ok_or_else(|| {
+            EngineError::ExecutionRefusal("foreign namespace-name cache authority".into())
+        })?;
+    let cache = &receipt.cache;
+    if carrier.scope_identity() != interpreter
+        || receipt.interpreter != interpreter
+        || (cache.interpreter().owner, cache.interpreter().interpreter) != interpreter
+        || carrier.origin() != export_version(cache.version())
+        || dialect
+            .native_namespace_name_protocol()
+            .is_none_or(|protocol| protocol.recipe().version() != cache.version())
+    {
+        return Err(EngineError::ExecutionRefusal(
+            "foreign namespace-name cache interpreter or origin".into(),
+        ));
+    }
+    tcl_vm::Value::from_native_namespace_name_cache(cache.clone(), dialect, resident)
+        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))
+}
+
+fn recover_native_command_name_cache(
+    carrier: &tcl_engine_api::NativeCommandNameCache,
+    dialect: tcl_registry::InvocationDialect,
+    interpreter: (u64, u64),
+    resident: Rc<[u8]>,
+    storage: tcl_syntax::native_string::NativeStringStorageIdentity,
+) -> Result<tcl_vm::Value, EngineError> {
+    let receipt = carrier
+        .engine_receipt()
+        .downcast_ref::<VmCommandNameCacheReceipt>()
+        .ok_or_else(|| {
+            EngineError::ExecutionRefusal("foreign command-name cache authority".into())
+        })?;
+    if carrier.scope_identity() != interpreter
+        || receipt.interpreter != interpreter
+        || carrier.origin() != export_version(receipt.version)
+        || !dialect
+            .native_command_name_protocol()
+            .is_some_and(|protocol| protocol.accepts_cache_origin(receipt.version))
+        || receipt.cache.as_ref().is_some_and(|cache| {
+            (cache.interpreter.owner, cache.interpreter.interpreter) != interpreter
+                || cache.version != receipt.version
+        })
+    {
+        return Err(EngineError::ExecutionRefusal(
+            "foreign command-name cache interpreter or origin".into(),
+        ));
+    }
+    let value = tcl_vm::Value::new_native_string_bytes(Rc::clone(&resident))
+        .with_resident_string_bytes_and_storage(resident, storage)
+        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+    if let Some(cache) = &receipt.cache {
+        value.install_native_command_name_cache(cache.clone(), dialect)
+    } else {
+        value.install_unresolved_native_command_name_cache(dialect)
+    }
+    .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+    Ok(value)
+}
+
+fn recover_native_string_cache(
+    cache: &tcl_engine_api::NativeStringCache,
+    dialect: tcl_registry::InvocationDialect,
+    resident: Option<(
+        Rc<[u8]>,
+        tcl_syntax::native_string::NativeStringStorageIdentity,
+    )>,
+) -> Result<tcl_vm::Value, EngineError> {
+    use tcl_syntax::native_object::NativeObjectCacheSnapshot as S;
+    let cache = match cache {
+        tcl_engine_api::NativeStringCache::C {
+            origin,
+            num_chars,
+            unicode,
+        } => S::String {
+            protocol: tcl_syntax::native_string::NativeStringProtocol::C(import_version(*origin)),
+            num_chars: *num_chars,
+            unicode: unicode.clone(),
+        },
+        tcl_engine_api::NativeStringCache::Jim { num_chars } => S::JimString {
+            num_chars: *num_chars,
+        },
+    };
+    tcl_vm::Value::from_native_string_cache(cache, dialect, resident)
+        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))
 }
 
 /// Convert an interface value to the VM's representation.
 ///
-/// A dict becomes the flat key/value list that *is* a Tcl dict — no string
-/// round-trip, and `dict get` works on it directly.
-fn to_vm_value(value: &Value) -> tcl_vm::Value {
-    match value {
-        Value::Empty => tcl_vm::Value::string(String::new()),
-        Value::Str(text) => tcl_vm::Value::string(text.to_string()),
-        Value::Int(number) => tcl_vm::Value::int(*number),
-        Value::Double(number) => tcl_vm::Value::double(*number),
-        Value::List(items) => tcl_vm::Value::list(items.iter().map(to_vm_value).collect()),
-        Value::Dict(entries) => {
-            let mut flat = Vec::with_capacity(entries.len() * 2);
-            for (key, item) in entries.iter() {
-                flat.push(to_vm_value(key));
-                flat.push(to_vm_value(item));
-            }
-            tcl_vm::Value::list(flat)
-        }
+/// A Dictionary retains its member objects without a string round-trip.
+// The actual VM receipt spans recursive transport and mandatory cleanup.
+struct ActualScalarImport<'a> {
+    vm: RefCell<&'a mut Vm>,
+    original: &'a tcl_vm::NativeScalarIngress,
+}
+impl ActualScalarImport<'_> {
+    fn check(&self) -> Result<(), EngineError> {
+        self.vm
+            .borrow_mut()
+            .check_original_scalar_ingress(self.original)
+            .map_err(EngineError::execution_failure)
     }
+    fn scalar(
+        &self,
+        facts: &tcl_engine_api::NativeScalarCache,
+        resident: Option<(
+            Rc<[u8]>,
+            tcl_syntax::native_string::NativeStringStorageIdentity,
+        )>,
+    ) -> Result<tcl_vm::Value, EngineError> {
+        self.vm
+            .borrow_mut()
+            .import_original_native_scalar(self.original, facts, resident)
+            .map_err(EngineError::execution_failure)
+    }
+}
+
+fn import_vm_scalar(
+    facts: &tcl_engine_api::NativeScalarCache,
+    dialect: tcl_registry::InvocationDialect,
+    resident: Option<(
+        Rc<[u8]>,
+        tcl_syntax::native_string::NativeStringStorageIdentity,
+    )>,
+    actual: Option<&ActualScalarImport<'_>>,
+) -> Result<tcl_vm::Value, EngineError> {
+    if let Some(actual) = actual {
+        return actual.scalar(facts, resident);
+    }
+    let (cache, origin) = import_scalar_cache(facts);
+    tcl_vm::Value::from_native_scalar_cache_with_storage(cache, origin, dialect, resident)
+        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))
+}
+
+#[cfg(test)]
+fn to_vm_value(
+    value: &Value,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<tcl_vm::Value, EngineError> {
+    to_vm_value_using(value, dialect, None)
+}
+
+fn to_vm_value_using(
+    value: &Value,
+    dialect: tcl_registry::InvocationDialect,
+    actual: Option<&ActualScalarImport<'_>>,
+) -> Result<tcl_vm::Value, EngineError> {
+    if let Some(actual) = actual {
+        actual.check()?;
+    }
+    let refusal = |error: &dyn std::fmt::Display| EngineError::ExecutionRefusal(error.to_string());
+    let reached = (|| {
+        Ok(match value {
+            Value::Empty => tcl_vm::Value::string(String::new()),
+            Value::Str(text) => tcl_vm::Value::from_string_bytes(text.as_bytes()),
+            Value::StringBytes(bytes) => tcl_vm::Value::from_string_bytes(bytes.as_ref()),
+            Value::ByteArray(bytes) => {
+                tcl_vm::Value::from_native_byte_array(Rc::clone(bytes), dialect)
+                    .map_err(|error| refusal(&error))?
+            }
+            Value::NativeScalar(cache) => import_vm_scalar(cache, dialect, None, actual)?,
+            Value::Resident {
+                value,
+                string,
+                storage,
+            } => {
+                let storage =
+                    tcl_syntax::scalar_getter::carrier::checked_storage(*storage, string.len())
+                        .map_err(|error| refusal(&error))?;
+                if let Value::NativeScalar(cache) = value.as_ref() {
+                    import_vm_scalar(cache, dialect, Some((Rc::clone(string), storage)), actual)?
+                } else {
+                    to_vm_value_using(value, dialect, actual)?
+                        .with_resident_string_bytes_and_storage(Rc::clone(string), storage)
+                        .map_err(|error| refusal(&error))?
+                }
+            }
+            Value::Int(number) => tcl_vm::Value::int(*number),
+            Value::Double(number) => tcl_vm::Value::double(*number),
+            Value::List(items) => tcl_vm::Value::native_list_constructor(
+                items
+                    .iter()
+                    .map(|value| to_vm_value_using(value, dialect, actual))
+                    .collect::<Result<_, _>>()?,
+                dialect.native_string_protocol().ok_or_else(|| {
+                    EngineError::ExecutionRefusal("List import updater issuer unavailable".into())
+                })?,
+            ),
+            Value::Dict(entries) => tcl_vm::Value::native_dictionary_constructor(
+                entries
+                    .iter()
+                    .map(|(key, value)| {
+                        Ok((
+                            to_vm_value_using(key, dialect, actual)?,
+                            to_vm_value_using(value, dialect, actual)?,
+                        ))
+                    })
+                    .collect::<Result<_, EngineError>>()?,
+                None,
+                dialect.native_string_protocol().ok_or_else(|| {
+                    EngineError::ExecutionRefusal(
+                        "Dictionary import updater issuer unavailable".into(),
+                    )
+                })?,
+            )
+            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?,
+        })
+    })();
+    if let Some(actual) = actual {
+        actual.check()?;
+    }
+    reached
 }
 
 /// Convert a VM value to the interface's representation.
@@ -391,8 +1718,165 @@ fn to_vm_value(value: &Value) -> tcl_vm::Value {
 /// installs a list intrep on every string that happens to parse as one and
 /// changes what the body's own later use of that value costs. The host parses
 /// what its protocol expects; the boundary reports what the body produced.
-fn from_vm_value(value: &tcl_vm::Value) -> Value {
-    Value::string(&*value.to_str())
+fn import_version(version: tcl_engine_api::NativeCVersion) -> tcl_dialect::TclVersion {
+    tcl_syntax::scalar_getter::carrier::import_version(version)
+}
+fn export_version(version: tcl_dialect::TclVersion) -> tcl_engine_api::NativeCVersion {
+    tcl_syntax::scalar_getter::carrier::export_version(version)
+}
+fn import_storage(
+    storage: tcl_engine_api::NativeStringStorageIdentity,
+) -> tcl_syntax::native_string::NativeStringStorageIdentity {
+    tcl_syntax::scalar_getter::carrier::import_storage(storage)
+}
+fn export_storage(value: &tcl_vm::Value) -> tcl_engine_api::NativeStringStorageIdentity {
+    tcl_syntax::scalar_getter::carrier::export_storage(
+        value
+            .resident_string_storage_identity()
+            .unwrap_or(tcl_syntax::native_string::NativeStringStorageIdentity::Unknown),
+    )
+}
+fn import_scalar_cache(
+    cache: &tcl_engine_api::NativeScalarCache,
+) -> (
+    tcl_syntax::scalar_getter::NativeScalarCache,
+    Option<tcl_dialect::TclVersion>,
+) {
+    tcl_syntax::scalar_getter::carrier::import_scalar(cache)
+}
+fn export_scalar_cache(
+    cache: tcl_syntax::scalar_getter::NativeScalarCache,
+    origin: Option<tcl_dialect::TclVersion>,
+) -> Result<tcl_engine_api::NativeScalarCache, EngineError> {
+    tcl_syntax::scalar_getter::carrier::export_scalar(cache, origin)
+        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))
+}
+
+fn from_vm_object_value(value: &tcl_vm::Value) -> Result<Value, EngineError> {
+    let payload = if let Some(bytes) = value.byte_array_representation() {
+        Value::byte_array(bytes)
+    } else if let Some(cache) = value.native_scalar_cache() {
+        Value::NativeScalar(export_scalar_cache(
+            cache,
+            value.native_scalar_descriptor_origin(),
+        )?)
+    } else if value.has_list_representation() {
+        if !matches!(
+            value.native_object_snapshot().cache,
+            tcl_syntax::native_object::NativeObjectCacheSnapshot::List {
+                canonical: true,
+                ..
+            }
+        ) {
+            return Err(EngineError::ExecutionRefusal(
+                "native noncanonical list carrier is unavailable".into(),
+            ));
+        }
+        let (items, _) = value.cached_list_representation().ok_or_else(|| {
+            EngineError::ExecutionRefusal("native List carrier cache is unavailable".into())
+        })?;
+        Value::list(
+            items
+                .iter()
+                .map(from_vm_object_value)
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    } else {
+        // Other primary caches need their own explicit carrier. This view may
+        // not convert a stringless object to obtain a convenient representation.
+        if !matches!(
+            value.native_object_snapshot().cache,
+            tcl_syntax::native_object::NativeObjectCacheSnapshot::None
+        ) {
+            return Err(EngineError::ExecutionRefusal(
+                "native object cache carrier is unavailable".into(),
+            ));
+        }
+        let Some(bytes) = value.resident_string_bytes() else {
+            return Err(EngineError::ExecutionRefusal(
+                "native object cache carrier is unavailable".into(),
+            ));
+        };
+        return Ok(Value::Empty.with_resident_string_storage(bytes, export_storage(value)));
+    };
+    Ok(if let Some(bytes) = value.resident_string_bytes() {
+        payload.with_resident_string_storage(bytes, export_storage(value))
+    } else {
+        payload
+    })
+}
+
+fn from_vm_value_using(
+    vm: &mut Vm,
+    original: &tcl_vm::embed::OriginalOperandProjection,
+    value: &tcl_vm::Value,
+) -> Result<Value, EngineError> {
+    vm.check_original_projected_value(original, value)
+        .map_err(|error| projection_error(vm, original, error))?;
+    if let Some(bytes) = value.byte_array_representation() {
+        let payload = Value::byte_array(bytes);
+        let result = if let Some(string) = value.resident_string_bytes() {
+            payload.with_resident_string_storage(string, export_storage(value))
+        } else {
+            payload
+        };
+        check_projection(vm, original)?;
+        return Ok(result);
+    }
+    if let Some(cache) = value.native_scalar_cache() {
+        let payload = Value::NativeScalar(export_scalar_cache(
+            cache,
+            value.native_scalar_descriptor_origin(),
+        )?);
+        let string = vm
+            .original_operand_native_raw_string(original, value)
+            .map_err(|error| projection_error(vm, original, error))?;
+        return Ok(payload.with_resident_string_storage(string, export_storage(value)));
+    }
+    vm.original_operand_native_raw_string(original, value)
+        .map(Value::string_bytes)
+        .map_err(|error| projection_error(vm, original, error))
+}
+
+#[cfg(test)]
+fn from_vm_value(
+    value: &tcl_vm::Value,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<Value, EngineError> {
+    if let Some(bytes) = value.byte_array_representation() {
+        let payload = Value::byte_array(bytes);
+        return Ok(if let Some(string) = value.resident_string_bytes() {
+            payload.with_resident_string_storage(string, export_storage(value))
+        } else {
+            payload
+        });
+    }
+    if let Some(cache) = value.native_scalar_cache() {
+        let payload = Value::NativeScalar(export_scalar_cache(
+            cache,
+            value.native_scalar_descriptor_origin(),
+        )?);
+        // Retain the bridge's string-valued host view while carrying the full
+        // primary cache. Numeric string generation does not narrow that cache.
+        let string = native_string_bytes(value, dialect)?;
+        return Ok(payload.with_resident_string_storage(string, export_storage(value)));
+    }
+    Ok(Value::string_bytes(native_string_bytes(value, dialect)?))
+}
+
+#[cfg(test)]
+fn native_string_bytes(
+    value: &tcl_vm::Value,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<Rc<[u8]>, EngineError> {
+    let protocol = dialect.native_string_protocol().ok_or_else(|| {
+        EngineError::ExecutionRefusal(
+            "native string materialisation protocol is unavailable".into(),
+        )
+    })?;
+    value
+        .native_string_bytes(protocol)
+        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))
 }
 
 /// Hands the thread back the numeral grammar it had when dropped.
@@ -433,14 +1917,14 @@ pub struct TclVmEngine {
     release: Option<&'static str>,
     /// Mints the internal procedure name each compiled unit is defined as.
     units: u32,
-    /// Command names registered through [`Engine::define_command`] or a
+    /// Command generations registered through [`Engine::define_command`] or a
     /// running command's registrar, kept so a later
     /// [`Engine::restrict_commands`] does not remove them.
     host_commands: HostCommandNames,
-    /// The procedures compiled units were defined as — likewise kept, since a
+    /// Actual procedure generations captured for compiled units — likewise kept, since a
     /// unit compiled before the whitelist was applied must still be callable
     /// after it.
-    unit_commands: Vec<String>,
+    unit_commands: Vec<tcl_vm::NativeRegisteredCommandToken>,
 }
 
 impl TclVmEngine {
@@ -450,13 +1934,25 @@ impl TclVmEngine {
         Self::with_registry(CommandRegistry::build_default())
     }
 
-    /// A fresh engine whose compiler resolves against `registry`.
+    /// A fresh engine whose compiler resolves against `registry` and whose
+    /// native issuer is the C9.0 contract exposed by this adapter.
     #[must_use]
     pub fn with_registry(registry: CommandRegistry) -> Self {
         // Building the VM pins its default release, which installs that
         // release's grammar for the whole thread.
         let _grammar = GrammarGuard::keep();
-        let mut vm = Vm::new();
+        let native = tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
+        let host = tcl_vm::standard_host();
+        let mut vm = Vm::with_native_core(
+            Box::new(std::io::stdout()),
+            Rc::clone(&host),
+            native,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .expect("the C9.0 native core");
+        // The core bootstraps only the core's own roots; the embedding host
+        // seeds its globals (`tcl_library`, `auto_path`, `env`, `tcl_platform`).
+        vm.set_host(host);
         vm.set_compiler(Box::new(BytecodeCompileService::new(registry)));
         Self {
             vm,
@@ -486,21 +1982,62 @@ impl TclVmEngine {
         GrammarGuard::claim(self.vm.runtime_version().number_syntax())
     }
 
-    /// Translate a VM completion into the interface's result. A budget the
-    /// invocation outran is [`EngineError::BudgetExceeded`] however the body
-    /// completed — a `catch` of the limit error does not turn an exhausted
-    /// hook into an answer — so the host can tell "your hook is too
-    /// expensive" from "your hook is wrong".
+    /// Translate a VM completion into the interface's result, mapping the
+    /// budget errors the VM reports as ordinary Tcl errors back to
+    /// [`EngineError::BudgetExceeded`] — the host must be able to tell "your
+    /// hook is too expensive" from "your hook is wrong".
+    #[cfg(test)]
     fn completion_to_result(
-        vm: &Vm,
+        vm: &mut Vm,
         completion: &Completion<tcl_vm::Value>,
     ) -> Result<Value, EngineError> {
-        if vm.limit_exceeded().is_none()
-            && (completion.code.is_ok() || completion.code == Code::Return)
-        {
-            return Ok(from_vm_value(&completion.result));
+        with_engine_projection(vm, |vm, original| {
+            Self::completion_to_result_using(vm, original, completion)
+        })
+    }
+
+    fn completion_to_result_using(
+        vm: &mut Vm,
+        original: &tcl_vm::embed::OriginalOperandProjection,
+        completion: &Completion<tcl_vm::Value>,
+    ) -> Result<Value, EngineError> {
+        check_projection(vm, original)?;
+        // A budget the invocation outran is the failure however the body
+        // completed: a `catch` of the limit error does not turn an exhausted
+        // hook into an answer.
+        if let Some(kind) = vm.limit_exceeded() {
+            return Err(EngineError::BudgetExceeded(budget_kind(kind)));
         }
-        Err(script_error(vm, completion))
+        if completion.code.is_ok() || completion.code == Code::Return {
+            return from_vm_value_using(vm, original, &completion.result);
+        }
+        let code = vm
+            .original_completion_option_bytes(original, completion, b"-errorcode")
+            .map_err(|error| projection_error(vm, original, error))?;
+        let message = vm
+            .original_operand_native_raw_string(original, &completion.result)
+            .map_err(|error| projection_error(vm, original, error))?;
+        match message.as_ref() {
+            b"command count limit exceeded" => {
+                Err(EngineError::BudgetExceeded(BudgetKind::Commands))
+            }
+            b"time limit exceeded" => Err(EngineError::BudgetExceeded(BudgetKind::WallClock)),
+            b"value size limit exceeded" => Err(EngineError::BudgetExceeded(BudgetKind::ValueSize)),
+            _ => {
+                let options = vm
+                    .original_operand_native_raw_string(original, &completion.options)
+                    .map_err(|error| projection_error(vm, original, error))?;
+                if options.is_empty() {
+                    Err(EngineError::script_bytes(message.to_vec(), code))
+                } else {
+                    Err(EngineError::ScriptBytes {
+                        message: message.to_vec(),
+                        code,
+                        options: Some(options.to_vec()),
+                    })
+                }
+            }
+        }
     }
 }
 
@@ -511,23 +2048,71 @@ impl Default for TclVmEngine {
 }
 
 impl Engine for TclVmEngine {
+    fn host_metadata_list_reader(&self) -> Option<tcl_engine_api::HostMetadataListReader> {
+        let profile = self.vm.dialect_profile();
+        if profile.is_fallback() {
+            return None;
+        }
+        let syntax = profile.grammar.list_parse;
+        let escapes = self.vm.escape_syntax();
+        Some(Rc::new(move |source| {
+            tcl_syntax::list::split_list_with_syntax(source, syntax, escapes)
+                .map(|items| {
+                    items
+                        .into_iter()
+                        .map(std::borrow::Cow::into_owned)
+                        .collect()
+                })
+                .map_err(|error| EngineError::Script {
+                    message: format!("invalid host metadata list: {}", error.full_message(source)),
+                    code: None,
+                })
+        }))
+    }
+
     type Handle = VmHandle;
 
     fn name(&self) -> &'static str {
         "tclvm"
     }
 
+    fn command_publication_service(
+        &mut self,
+    ) -> Result<Rc<dyn CommandPublicationService>, EngineError> {
+        open_publication_service(&self.vm)
+    }
+    fn define_prepared_command(
+        &mut self,
+        publication: PreparedCommandPublication,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        define_prepared_host_command(&mut self.vm, &self.host_commands, &publication, command)
+    }
+    fn remove_prepared_command(
+        &mut self,
+        publication: PreparedCommandPublication,
+    ) -> Result<bool, EngineError> {
+        remove_prepared_host_command(&mut self.vm, &publication)
+    }
+    fn define_command_bytes(
+        &mut self,
+        name: &[u8],
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        define_host_command(&mut self.vm, &self.host_commands, name, command)
+    }
+    fn remove_command_bytes(&mut self, name: &[u8]) -> Result<bool, EngineError> {
+        remove_host_command(&mut self.vm, name)
+    }
     fn define_command(
         &mut self,
         name: &str,
         command: Rc<dyn HostCommand>,
     ) -> Result<(), EngineError> {
-        define_host_command(&mut self.vm, &self.host_commands, name, command);
-        Ok(())
+        self.define_command_bytes(name.as_bytes(), command)
     }
-
     fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
-        Ok(remove_host_command(&mut self.vm, &self.host_commands, name))
+        self.remove_command_bytes(name.as_bytes())
     }
 
     fn provide_package(&mut self, name: &str, version: &str) -> Result<(), EngineError> {
@@ -570,19 +2155,15 @@ impl Engine for TclVmEngine {
     /// compiler lowers `string trim` to a call of `::tcl::string::trim`, so
     /// naming `string` names them too.
     fn restrict_commands(&mut self, allowed: &[&str]) -> Result<(), EngineError> {
-        let host_commands = self.host_commands.borrow().clone();
-        let unit_commands = self.unit_commands.clone();
-        let math = allowed.contains(&"expr");
-        self.vm.retain_commands(&|name| {
-            allowed.contains(&name)
-                || host_commands.iter().any(|command| command == name)
-                || unit_commands.iter().any(|command| command == name)
-                || (math
-                    && name
-                        .strip_prefix("tcl::mathfunc::")
-                        .is_some_and(|function| !matches!(function, "rand" | "srand")))
-                || is_subcommand_of_allowed(name, allowed)
-        });
+        let mut tokens = self.host_commands.borrow().clone();
+        tokens.extend(self.unit_commands.iter().cloned());
+        tokens.extend(
+            allowed
+                .iter()
+                .filter_map(|name| self.vm.registered_command_token_bytes(name.as_bytes())),
+        );
+        let tokens = self.vm.registered_stock_implementation_tokens(&tokens);
+        self.vm.retain_registered_command_tokens(&tokens);
         Ok(())
     }
 
@@ -597,21 +2178,39 @@ impl Engine for TclVmEngine {
         // recurses raises — the budget or the nesting limit — and its
         // caller declines. Nothing in the sandbox defines a command, so no
         // body can shadow a unit.
-        let procedure = format!("::spectcl::unit::{}", self.units);
+        let procedure = tcl_syntax::naming::compiled_unit_procedure_name(self.units);
         self.vm
-            .define_procedure(&procedure, unit.parameters, unit.body)
-            .map_err(|error| EngineError::Compile(error.message))?;
+            .try_define_procedure(&procedure, unit.parameters, unit.body)
+            .map_err(|error| match error {
+                tcl_vm::VmCompilationError::Host(first) => EngineError::execution_failure(first),
+                tcl_vm::VmCompilationError::Tcl(error) => internal_error(&mut self.vm, error),
+            })?;
         // The VM's command table is keyed by the canonical *unrooted* name, so
         // that is what the whitelist sweep compares against.
-        self.unit_commands
-            .push(procedure.trim_start_matches("::").to_owned());
+        let token = self
+            .vm
+            .registered_command_token_bytes(procedure.as_bytes())
+            .ok_or_else(|| {
+                EngineError::ExecutionRefusal("compiled procedure token is unavailable".into())
+            })?;
+        self.unit_commands.push(token.clone());
         Ok(VmHandle {
             procedure,
             parameters: unit.parameters.len(),
+            token,
         })
     }
 
     fn invoke(&mut self, handle: &Self::Handle, arguments: &[Value]) -> Result<Value, EngineError> {
+        if self
+            .vm
+            .registered_command_token_bytes(handle.procedure.as_bytes())
+            != Some(handle.token.clone())
+        {
+            return Err(EngineError::ExecutionRefusal(
+                "compiled procedure binding was retired or replaced".into(),
+            ));
+        }
         if arguments.len() != handle.parameters {
             return Err(EngineError::Script {
                 message: format!(
@@ -622,17 +2221,61 @@ impl Engine for TclVmEngine {
                 code: None,
             });
         }
-        let arguments: Vec<tcl_vm::Value> = arguments.iter().map(to_vm_value).collect();
-        let _grammar = self.claim_grammar();
-        // Fuel is per invocation, so refill before every call rather than
-        // letting a long-lived engine starve its own later hooks.
-        self.vm.reset_command_count();
-        if let Some(wall_clock) = self.budget.wall_clock {
-            self.vm.set_wall_clock_budget(Some(wall_clock));
-        }
-        let completion = self.vm.invoke_command(&handle.procedure, &arguments);
-        self.vm.charge_value_size(&completion.result);
-        Self::completion_to_result(&self.vm, &completion)
+        let original = self
+            .vm
+            .capture_original_scalar_ingress()
+            .map_err(EngineError::execution_failure)?;
+        let dialect = self.vm.native_scalar_carrier_dialect();
+        let wall_clock = self.budget.wall_clock;
+        let reached = with_engine_projection(&mut self.vm, |vm, projected| {
+            let arguments: Vec<tcl_vm::Value> = {
+                let actual = ActualScalarImport {
+                    vm: RefCell::new(&mut *vm),
+                    original: &original,
+                };
+                let imported = arguments
+                    .iter()
+                    .map(|value| to_vm_value_using(value, dialect, Some(&actual)))
+                    .collect::<Result<_, _>>();
+                actual.check()?;
+                imported?
+            };
+            let _grammar = GrammarGuard::claim(vm.runtime_version().number_syntax());
+            // Fuel is per invocation, so refill before every call rather than
+            // letting a long-lived engine starve its own later hooks.
+            vm.reset_command_count();
+            if let Some(wall_clock) = wall_clock {
+                vm.set_wall_clock_budget(Some(wall_clock));
+            }
+            let invoked = vm.try_invoke_command(&handle.procedure, &arguments);
+            let current = vm.check_original_scalar_ingress(&original);
+            let projected_current = check_projection(vm, projected);
+            drop(arguments);
+            let retired = vm.check_original_scalar_ingress(&original);
+            let completed = (|| {
+                projected_current?;
+                current.map_err(EngineError::execution_failure)?;
+                retired.map_err(EngineError::execution_failure)?;
+                let completion = invoked
+                    .as_ref()
+                    .map_err(|error| EngineError::execution_failure(error.clone()))?;
+                Self::completion_to_result_using(vm, projected, completion)
+            })();
+            if let Err(error) = &completed {
+                retain_engine_failure(vm, projected, error);
+            }
+            let current = check_projection(vm, projected);
+            drop(invoked);
+            current?;
+            vm.check_original_scalar_ingress(&original)
+                .map_err(|error| EngineError::execution_failure(error.clone()))?;
+            check_projection(vm, projected)?;
+            completed
+        });
+        self.vm
+            .finish_original_scalar_ingress(original)
+            .map_err(EngineError::execution_failure)?;
+        reached
     }
 
     fn set_budget(&mut self, budget: Budget) -> Result<(), EngineError> {
@@ -683,13 +2326,301 @@ impl Engine for TclVmEngine {
 #[cfg(test)]
 mod tests {
     use std::cell::RefCell;
+    use std::rc::Rc;
     use std::time::Duration;
+    use tcl_vm::{Code, Completion};
 
-    use super::{Engine, TclVmEngine, register_host_command};
+    use super::{Engine, TclVmEngine, recover_dictionary_children, register_host_command};
     use tcl_engine_api::{
         Budget, BudgetKind, CommandRegistrar, CompileUnit, EngineError, HostCommand, HostOutcome,
         Value,
     };
+
+    #[test]
+    fn retained_list_bridge_keeps_actual_storage_and_native_header_sharing() {
+        use tcl_engine_api::{OriginalObject, OriginalObjectResult as R, ResidentStringMutation};
+        let vm = tcl_vm::test_support::native_vm();
+        let dialect = vm.native_scalar_carrier_dialect();
+        let scope = vm.native_object_bridge_identity();
+        let protocol = dialect.native_string_protocol().unwrap();
+        let child = tcl_vm::Value::new_native_string_bytes(b"member".as_slice());
+        let original =
+            tcl_vm::Value::list_with_native_canonical_in(vec![child.clone()], false, protocol);
+        drop(child);
+        let capability = super::VmOriginalObject {
+            value: super::VmOriginalValue::Header(original.native_lifetime_lease()),
+            dialect,
+            interpreter: scope,
+        };
+        let carrier = capability.list_backing().unwrap().unwrap();
+        assert!(!carrier.is_shared());
+        let members = capability.list_members().unwrap().unwrap().0;
+        assert!(!members[0].is_shared());
+        let second_view = capability.list_members().unwrap().unwrap().0;
+        assert!(!members[0].is_shared());
+        let duplicate = capability.duplicate_native_header().unwrap();
+        assert!(carrier.is_shared());
+        let duplicate_backing = duplicate.list_backing().unwrap().unwrap();
+        assert!(duplicate.list_backing_matches(&carrier).unwrap());
+        assert!(capability.list_backing_matches(&duplicate_backing).unwrap());
+        assert!(!members[0].is_shared());
+        drop(duplicate);
+        assert!(!carrier.is_shared());
+        assert_eq!(
+            original.native_string_bytes(protocol).unwrap().as_ref(),
+            b"member"
+        );
+        assert!(carrier.canonical_state().get());
+        let resident = R::Resident {
+            value: Box::new(R::RetainedList(carrier.clone())),
+            string: original.resident_string_bytes().unwrap(),
+            storage: super::export_storage(&original),
+        };
+        capability
+            .apply(&resident, ResidentStringMutation::Preserve)
+            .unwrap();
+        assert!(capability.list_backing_matches(&carrier).unwrap());
+        assert!(!carrier.is_shared());
+        assert_eq!(members[0].identity(), second_view[0].identity());
+        assert!(super::checked_list_backing(&carrier, dialect, (scope.0 + 1, scope.1)).is_err());
+        let forged = tcl_engine_api::NativeListBacking::new(
+            carrier.origin(),
+            scope,
+            1,
+            carrier.canonical_state(),
+            Rc::new(|| false),
+            Rc::new(()),
+        );
+        assert!(super::checked_list_backing(&forged, dialect, scope).is_err());
+        let replacement = tcl_vm::Value::new_native_string_bytes(b"replacement".as_slice());
+        original
+            .adopt_native_object_representation(&replacement, dialect)
+            .unwrap();
+        assert!(!members[0].is_shared());
+        assert!(!capability.list_backing_matches(&carrier).unwrap());
+        assert!(super::checked_list_backing(&carrier, dialect, scope).is_err());
+        assert!(
+            capability
+                .apply(&R::RetainedList(carrier), ResidentStringMutation::Preserve)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn callback_cmdname_retains_private_scope_and_distinct_duplicate_identity() {
+        use tcl_engine_api::{OriginalObject, OriginalObjectResult as R};
+        use tcl_runtime_api::native_command_name::NativeCommandNameCache;
+        use tcl_runtime_api::native_compilation::NativeInterpreterIdentity;
+        let vm = tcl_vm::test_support::native_vm();
+        let dialect = vm.native_scalar_carrier_dialect();
+        let scope = vm.native_object_bridge_identity();
+        let original = tcl_vm::Value::new_native_string_bytes(b"head".as_slice());
+        let cache = NativeCommandNameCache {
+            interpreter: NativeInterpreterIdentity {
+                owner: scope.0,
+                interpreter: scope.1,
+            },
+            version: tcl_dialect::TclVersion::V9_0,
+            slot: tcl_runtime_api::CommandSlot::new(
+                tcl_runtime_api::ByteNamespacePath::root(),
+                b"head".as_slice().into(),
+            ),
+            namespace_token: 0,
+            token: 17,
+            implementation_generation: 17,
+            command_epoch: 0,
+            reference: None,
+        };
+        original
+            .install_native_command_name_cache(cache.clone(), dialect)
+            .unwrap();
+        let capability = Rc::new(super::VmOriginalObject {
+            value: super::VmOriginalValue::Header(original.native_lifetime_lease()),
+            dialect,
+            interpreter: scope,
+        });
+        let retained = R::Original(capability.clone());
+        let same = super::recover_original_result(&retained, dialect, scope).unwrap();
+        assert_eq!(
+            same.native_object_identity(),
+            original.native_object_identity()
+        );
+        let carrier = capability.command_name_cache().unwrap();
+        let duplicate = R::Resident {
+            value: Box::new(R::CommandName(carrier.clone())),
+            string: Rc::from(b"head".as_slice()),
+            storage: tcl_engine_api::NativeStringStorageIdentity::Allocated,
+        };
+        let restored = super::recover_original_result(&duplicate, dialect, scope).unwrap();
+        assert_ne!(
+            restored.native_object_identity(),
+            original.native_object_identity()
+        );
+        assert_eq!(restored.native_command_name_cache(), Some(cache));
+        capability
+            .apply(&duplicate, tcl_engine_api::ResidentStringMutation::Preserve)
+            .unwrap();
+        assert!(original.native_command_name_cache().is_some());
+        assert!(
+            duplicate.snapshot().is_err(),
+            "opaque native descriptor is not a data snapshot"
+        );
+        let foreign = tcl_vm::test_support::native_vm().native_object_bridge_identity();
+        assert!(super::recover_original_result(&duplicate, dialect, foreign).is_err());
+        let forged = R::Resident {
+            value: Box::new(R::CommandName(tcl_engine_api::NativeCommandNameCache::new(
+                tcl_engine_api::NativeCVersion::V9_0,
+                scope,
+                Rc::new(()),
+            ))),
+            string: Rc::from(b"head".as_slice()),
+            storage: tcl_engine_api::NativeStringStorageIdentity::Allocated,
+        };
+        assert!(super::recover_original_result(&forged, dialect, scope).is_err());
+    }
+
+    #[test]
+    fn callback_namespace_primary_retains_private_scope_and_descriptor() {
+        use tcl_engine_api::{OriginalObject, OriginalObjectResult as R};
+        let mut vm = tcl_vm::test_support::native_vm();
+        let dialect = vm.native_scalar_carrier_dialect();
+        let scope = vm.native_object_bridge_identity();
+        let completion = vm.invoke_command("namespace", &[tcl_vm::Value::string("current")]);
+        assert_eq!(completion.code, tcl_runtime_api::Code::Ok);
+        let original = completion.result;
+        let cache = original
+            .native_namespace_name_cache()
+            .expect("actual C9 current producer");
+        let capability = Rc::new(super::VmOriginalObject {
+            value: super::VmOriginalValue::Header(original.native_lifetime_lease()),
+            dialect,
+            interpreter: scope,
+        });
+        let carrier = capability.namespace_name_cache().unwrap();
+        let retained = R::Resident {
+            value: Box::new(R::NamespaceName(carrier.clone())),
+            string: original.resident_string_bytes().unwrap(),
+            storage: super::export_storage(&original),
+        };
+        let restored = super::recover_original_result(&retained, dialect, scope).unwrap();
+        assert_ne!(
+            restored.native_object_identity(),
+            original.native_object_identity()
+        );
+        assert!(cache.same_descriptor(&restored.native_namespace_name_cache().unwrap()));
+        assert!(retained.snapshot().is_err());
+        assert!(
+            super::recover_original_result(&R::NamespaceName(carrier.clone()), dialect, scope)
+                .is_err()
+        );
+        assert!(
+            super::recover_original_result(&retained, dialect, (scope.0 + 1, scope.1)).is_err()
+        );
+        let forged = R::Resident {
+            value: Box::new(R::NamespaceName(
+                tcl_engine_api::NativeNamespaceNameCache::new(carrier.origin(), scope, Rc::new(())),
+            )),
+            string: Rc::from(b"::".as_slice()),
+            storage: tcl_engine_api::NativeStringStorageIdentity::Allocated,
+        };
+        assert!(super::recover_original_result(&forged, dialect, scope).is_err());
+        let duplicate = capability.duplicate_native_header().unwrap();
+        let duplicate = duplicate.namespace_name_cache().unwrap();
+        let receipt = duplicate
+            .engine_receipt()
+            .downcast_ref::<super::VmNamespaceNameCacheReceipt>()
+            .unwrap();
+        assert!(cache.same_descriptor(&receipt.cache));
+    }
+
+    #[test]
+    fn original_result_requires_its_actual_interpreter_and_native_issuer() {
+        let first = tcl_vm::test_support::native_vm();
+        let second = tcl_vm::test_support::native_vm();
+        let original = tcl_vm::Value::from_native_string_bytes(b"a\0\xff".as_slice());
+        let dialect = first.native_scalar_carrier_dialect();
+        let scope = first.native_object_bridge_identity();
+        let result = tcl_engine_api::OriginalObjectResult::Original(std::rc::Rc::new(
+            super::VmOriginalObject {
+                value: super::VmOriginalValue::Header(original.native_lifetime_lease()),
+                dialect,
+                interpreter: scope,
+            },
+        ));
+        let result = tcl_engine_api::OriginalObjectResult::Shared(std::rc::Rc::new(result));
+        let returned = super::recover_original_result(&result, dialect, scope).unwrap();
+        assert_eq!(
+            returned.native_object_identity(),
+            original.native_object_identity()
+        );
+        assert_eq!(
+            returned.resident_string_bytes().unwrap().as_ref(),
+            b"a\0\xff"
+        );
+        assert!(matches!(
+            super::recover_original_result(
+                &result,
+                dialect,
+                second.native_object_bridge_identity()
+            ),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+        assert!(matches!(
+            super::recover_original_result(
+                &result,
+                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+                scope,
+            ),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+    }
+
+    #[test]
+    fn native_callback_view_does_not_materialize_original_scalar_storage() {
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let original = tcl_vm::Value::from_native_scalar_cache(
+            tcl_syntax::scalar_getter::NativeScalarCache::Number(
+                tcl_syntax::number::Number::Double(1.5),
+            ),
+            None,
+            dialect,
+        )
+        .unwrap();
+        let carrier = super::from_vm_object_value(&original).unwrap();
+        assert!(
+            matches!(carrier,tcl_engine_api::Value::NativeScalar(tcl_engine_api::NativeScalarCache::Double(value)) if value.to_bits() == 1.5_f64.to_bits())
+        );
+        assert!(original.resident_string_bytes().is_none());
+        let copied = super::to_vm_value(&carrier, dialect).unwrap();
+        assert!(copied.resident_string_bytes().is_none());
+        assert!(
+            matches!(copied.native_scalar_cache(),Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(tcl_syntax::number::Number::Double(value))) if value.to_bits() == 1.5_f64.to_bits())
+        );
+    }
+
+    #[test]
+    fn compiled_handle_does_not_invoke_a_replacement_binding() {
+        let mut engine = TclVmEngine::new();
+        let handle = engine
+            .compile(CompileUnit {
+                name: "binding",
+                parameters: &[],
+                body: "return ORIGINAL",
+            })
+            .unwrap();
+        assert_eq!(
+            engine.invoke(&handle, &[]).unwrap().as_str(),
+            Some("ORIGINAL")
+        );
+        engine
+            .vm
+            .try_define_procedure(handle.procedure(), &[], "return REPLACED")
+            .unwrap();
+        assert!(matches!(
+            engine.invoke(&handle, &[]),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+    }
 
     struct Collector {
         emitted: RefCell<Vec<Vec<String>>>,
@@ -722,6 +2653,181 @@ mod tests {
         custom.inline_codegen_hook = Some(tcl_registry::hooks::InlineCodegenHookId::Expr);
         registry.insert(custom);
         registry
+    }
+
+    struct RefusingHostCommand;
+
+    impl HostCommand for RefusingHostCommand {
+        fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+            Err(EngineError::ExecutionRefusal(
+                "host provider unavailable".into(),
+            ))
+        }
+    }
+
+    #[test]
+    fn reached_host_refusal_preserves_prior_effects_and_cannot_be_caught() {
+        let mut engine = TclVmEngine::new();
+        engine
+            .define_command("host_refuse", std::rc::Rc::new(RefusingHostCommand))
+            .unwrap();
+        let collector = std::rc::Rc::new(Collector {
+            emitted: RefCell::new(Vec::new()),
+        });
+        engine.define_command("record", collector.clone()).unwrap();
+        let handle = engine
+            .compile(unit(
+                "record BEFORE; catch {host_refuse} result; record AFTER; return $result",
+            ))
+            .unwrap();
+        let error = engine
+            .invoke(&handle, &[Value::Empty, Value::Empty])
+            .unwrap_err();
+        assert!(matches!(error.native_execution_failure(),
+            Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(actual))
+                if actual.reason == "host provider unavailable"
+        ));
+        assert_eq!(*collector.emitted.borrow(), [vec!["BEFORE".to_owned()]]);
+        // Refusal cleanup permits a separate accepted operation without replaying
+        // the first invocation or publishing its internal empty unwind carrier.
+        let handle = engine.compile(unit("record NEXT; return OK")).unwrap();
+        assert_eq!(
+            engine
+                .invoke(&handle, &[Value::Empty, Value::Empty])
+                .unwrap()
+                .as_str(),
+            Some("OK")
+        );
+        assert_eq!(
+            *collector.emitted.borrow(),
+            [vec!["BEFORE".to_owned()], vec!["NEXT".to_owned()]]
+        );
+    }
+
+    #[test]
+    fn invocation_evaluation_keeps_host_refusal_outside_guest_completion() {
+        let mut engine = TclVmEngine::new();
+        engine
+            .define_command("host_refuse", Rc::new(RefusingHostCommand))
+            .unwrap();
+        let collector = Rc::new(Collector {
+            emitted: RefCell::new(Vec::new()),
+        });
+        engine.define_command("record", collector.clone()).unwrap();
+        let error = engine
+            .eval_in_invocation("record BEFORE; catch {host_refuse} result; record AFTER")
+            .unwrap_err();
+        assert!(matches!(error.native_execution_failure(),
+            Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(actual))
+                if actual.reason == "host provider unavailable"
+        ));
+        assert_eq!(*collector.emitted.borrow(), [vec!["BEFORE".to_owned()]]);
+        assert!(error.script_message_bytes().is_none());
+        assert!(error.script_options_bytes().is_none());
+    }
+
+    #[test]
+    fn variable_consumers_report_trace_host_refusal_without_guest_projection() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        for operation in ["r", "w", "u"] {
+            let mut engine = TclVmEngine::new();
+            engine
+                .define_command("host_refuse", Rc::new(RefusingHostCommand))
+                .unwrap();
+            let collector = Rc::new(Collector {
+                emitted: RefCell::new(Vec::new()),
+            });
+            engine.define_command("record", collector.clone()).unwrap();
+            engine.eval_in_invocation(&format!(
+                "set target ORIGINAL; proc trace_refusal args {{record BEFORE; host_refuse; record AFTER}}; trace variable target {operation} trace_refusal",
+            )).unwrap();
+            let error = match operation {
+                "r" => engine.variable("target").map(|_| ()),
+                "w" => engine.set_variable("target", Value::string("REPLACEMENT")),
+                "u" => engine.unset_variable("target"),
+                _ => unreachable!(),
+            }
+            .expect_err("actual reached host trace refusal");
+            assert!(matches!(error.native_execution_failure(),
+                Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(actual))
+                    if actual.reason == "host provider unavailable"
+            ));
+            assert!(error.script_message_bytes().is_none());
+            assert!(error.script_options_bytes().is_none());
+            assert_eq!(*collector.emitted.borrow(), [vec!["BEFORE".to_owned()]]);
+        }
+    }
+
+    #[test]
+    fn checked_dictionary_import_materializes_original_keys_with_the_actual_issuer() {
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let protocol = dialect.native_string_protocol().unwrap();
+        let key = tcl_vm::Value::from_native_byte_array(Rc::from(&b"\0\xff"[..]), dialect).unwrap();
+        let identity = key.native_object_identity();
+        let mut children = vec![key.clone(), tcl_vm::Value::string("member")];
+        let dictionary = recover_dictionary_children(&mut children, 1, Some(4), protocol).unwrap();
+        assert!(children.is_empty());
+        assert_eq!(
+            key.resident_string_bytes().unwrap().as_ref(),
+            b"\xc0\x80\xc3\xbf"
+        );
+        let members = dictionary.cached_dictionary_representation().unwrap();
+        assert_eq!(dictionary.cached_dictionary_bucket_count(), Some(4));
+        assert_eq!(members[0].0.native_object_identity(), identity);
+        assert_eq!(
+            members[0].0.byte_array_representation().unwrap().as_ref(),
+            b"\0\xff"
+        );
+    }
+
+    #[test]
+    fn native_dictionary_search_fatal_refusal_crosses_the_engine_boundary_outside_guest_handlers() {
+        use tcl_syntax::raw_string::NativeFatalCondition;
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        for add in [false, true] {
+            for body in [
+                "record BEFORE;catch {advance} result;record AFTER;return $result",
+                "record BEFORE;try {advance} on error {r o} {record CAUGHT};record AFTER",
+            ] {
+                let mut engine = TclVmEngine::new();
+                let driver =
+                    tcl_vm::native_conformance::dictionary_search_mutation_driver(dialect, add)
+                        .unwrap();
+                engine.vm.register_native_command("advance", driver);
+                let collector = Rc::new(Collector {
+                    emitted: RefCell::new(Vec::new()),
+                });
+                engine.define_command("record", collector.clone()).unwrap();
+                let handle = engine.compile(unit(body)).unwrap();
+                let error = engine
+                    .invoke(&handle, &[Value::Empty, Value::Empty])
+                    .unwrap_err();
+                assert_eq!(
+                    error,
+                    EngineError::execution_failure(
+                        tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                            tcl_syntax::raw_string::NativeValueAccessRefusal::FatalCondition(
+                                NativeFatalCondition::DictionarySearchConcurrentMutation
+                            )
+                        )
+                    )
+                );
+                assert_eq!(*collector.emitted.borrow(), [vec!["BEFORE".to_owned()]]);
+                let next = engine.compile(unit("record NEXT;return OK")).unwrap();
+                assert_eq!(
+                    engine
+                        .invoke(&next, &[Value::Empty, Value::Empty])
+                        .unwrap()
+                        .as_str(),
+                    Some("OK")
+                );
+                assert_eq!(
+                    *collector.emitted.borrow(),
+                    [vec!["BEFORE".to_owned()], vec!["NEXT".to_owned()]]
+                );
+            }
+        }
     }
 
     #[test]
@@ -856,7 +2962,7 @@ mod tests {
             .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
             .expect_err("the body raises");
         assert!(
-            matches!(&error, EngineError::Script { message, .. } if message == "boom"),
+            error.script_message_bytes() == Some(b"boom".as_slice()),
             "{error:?}"
         );
     }
@@ -1037,9 +3143,11 @@ mod tests {
         assert!(matches!(error, EngineError::Script { .. }), "{error:?}");
     }
 
-    /// A loop the compiler inlines dispatches nothing, so the command budget
-    /// never fires on it — the wall clock is what contains that case, and the
-    /// two together are why the host sets both.
+    /// A loop the compiler inlines dispatches nothing. Its commands still count
+    /// against the command budget at each command's start, as C's
+    /// `INST_START_CMD` counts them, but a budget sized for real work is far
+    /// from spent when the wall clock runs out. The wall clock is what contains
+    /// that case, and the two together are why the host sets both.
     #[test]
     fn the_wall_clock_budget_stops_a_loop_the_command_budget_cannot_see() {
         let mut engine = TclVmEngine::new();
@@ -1091,8 +3199,10 @@ mod tests {
             .invoke(&opener, &[Value::list([]), Value::dict_of::<&str>([])])
             .expect_err("but cannot run it");
         assert!(
-            matches!(&error, EngineError::Script { message, .. }
-                if message.contains("invalid command name")),
+            error
+                .script_message_bytes()
+                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                .is_some_and(|message| message.contains("invalid command name")),
             "{error:?}"
         );
     }
@@ -1480,5 +3590,423 @@ mod tests {
                 .expect("runs");
             assert_eq!(result.as_str(), Some("fresh"));
         }
+    }
+    #[test]
+    fn byte_bridge_keeps_resident_spelling_and_binary_purity() {
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        for bytes in [b"a\0z".as_slice(), b"a\xC0\x80z", b"a\xFFz"] {
+            let value = super::to_vm_value(&Value::string_bytes(bytes), dialect).unwrap();
+            assert_eq!(value.string_bytes().as_ref(), bytes);
+            assert_eq!(
+                super::from_vm_value(&value, dialect).unwrap().as_bytes(),
+                Some(bytes)
+            );
+        }
+        let pure = super::to_vm_value(&Value::byte_array(&b"\0\xFF"[..]), dialect).unwrap();
+        let carrier = super::from_vm_value(&pure, dialect).unwrap();
+        assert_eq!(carrier.as_byte_array(), Some(b"\0\xFF".as_slice()));
+        assert_eq!(carrier.as_bytes(), None);
+        assert!(pure.resident_string_bytes().is_none());
+        let resident = Value::byte_array(&b"\0\xFF"[..]).with_resident_string(&b"custom\xFF"[..]);
+        let value = super::to_vm_value(&resident, dialect).unwrap();
+        assert_eq!(
+            value
+                .byte_array_representation()
+                .expect("binary backing")
+                .as_ref(),
+            b"\0\xFF"
+        );
+        assert_eq!(
+            value.resident_string_bytes().expect("resident").as_ref(),
+            b"custom\xFF"
+        );
+    }
+
+    #[test]
+    fn c84_long_carrier_retains_original_descriptor_and_refuses_foreign_release() {
+        use tcl_engine_api::{NativeScalarCache, NativeStringStorageIdentity};
+        let original = Value::NativeScalar(NativeScalarCache::Tcl84Long(17))
+            .with_resident_string_storage(
+                &b"17\0suffix"[..],
+                NativeStringStorageIdentity::Allocated,
+            );
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+        let native = super::to_vm_value(&original, dialect).unwrap();
+        assert_eq!(
+            native.native_scalar_cache(),
+            Some(tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(17))
+        );
+        let exported = super::from_vm_value(&native, dialect).unwrap();
+        assert_eq!(exported.as_bytes(), original.as_bytes());
+        let Value::Resident { value, storage, .. } = exported else {
+            panic!("resident native long")
+        };
+        assert_eq!(storage, NativeStringStorageIdentity::Allocated);
+        assert!(matches!(
+            value.as_ref(),
+            Value::NativeScalar(NativeScalarCache::Tcl84Long(17))
+        ));
+        let foreign = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        assert!(super::to_vm_value(&original, foreign).is_err());
+    }
+
+    #[test]
+    fn binary_bridge_seals_actual_constructor_and_validates_recorded_resident_storage() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+
+        use tcl_engine_api::NativeStringStorageIdentity;
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let binary = Value::byte_array(b"\xff\0A".as_slice());
+        let original = super::to_vm_value(&binary, dialect).unwrap();
+        let recipe = original.byte_array_origin().unwrap();
+        assert_eq!(recipe.logical_provider(), None);
+        assert_eq!(
+            recipe.protocol(),
+            tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6)
+        );
+        assert!(original.resident_string_bytes().is_none());
+        assert_eq!(
+            original.byte_array_representation().unwrap().as_ref(),
+            b"\xff\0A"
+        );
+        assert_eq!(
+            original
+                .native_string_bytes(recipe.protocol())
+                .unwrap()
+                .as_ref(),
+            b"\xc3\xbf\xc0\x80A"
+        );
+        assert_eq!(original.byte_array_origin(), Some(recipe));
+        let resident = binary.clone().with_resident_string_storage(
+            b"RECORDED\0\xff".as_slice(),
+            NativeStringStorageIdentity::Allocated,
+        );
+        let imported = super::to_vm_value(&resident, dialect).unwrap();
+        assert_eq!(
+            imported.resident_string_bytes().unwrap().as_ref(),
+            b"RECORDED\0\xff"
+        );
+        assert_eq!(
+            imported.byte_array_representation().unwrap().as_ref(),
+            b"\xff\0A"
+        );
+        assert_eq!(imported.byte_array_origin().unwrap(), recipe);
+        for bad in [
+            NativeStringStorageIdentity::Unknown,
+            NativeStringStorageIdentity::CanonicalEmpty,
+        ] {
+            let invalid = binary
+                .clone()
+                .with_resident_string_storage(b"NONEMPTY".as_slice(), bad);
+            assert!(matches!(
+                super::to_vm_value(&invalid, dialect),
+                Err(EngineError::ExecutionRefusal(_))
+            ));
+        }
+        let jim = tcl_registry::InvocationDialect::of_profile(
+            tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
+        );
+        assert!(super::to_vm_value(&binary, jim).is_err());
+        let authored =
+            tcl_registry::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
+        assert!(super::to_vm_value(&binary, authored).is_err());
+    }
+
+    #[test]
+    fn scalar_bridge_retains_full_cache_storage_and_descriptor_origin() {
+        use tcl_engine_api::{
+            NativeCVersion, NativeIntegerRadix, NativeScalarCache, NativeStringStorageIdentity,
+        };
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let original = Value::NativeScalar(NativeScalarCache::BigInteger {
+            negative: false,
+            radix: NativeIntegerRadix::Decimal,
+            digits: Rc::from("18446744073709551617"),
+        })
+        .with_resident_string_storage(
+            &b"0x10000000000000001\0tail"[..],
+            NativeStringStorageIdentity::Allocated,
+        );
+        let native = super::to_vm_value(&original, dialect).unwrap();
+        let exported = super::from_vm_value(&native, dialect).unwrap();
+        assert_eq!(exported.as_bytes(), original.as_bytes());
+        let Value::Resident { value, storage, .. } = exported else {
+            panic!("resident scalar")
+        };
+        assert_eq!(storage, NativeStringStorageIdentity::Allocated);
+        assert!(
+            matches!(value.as_ref(), Value::NativeScalar(NativeScalarCache::BigInteger { digits, .. }) if digits.as_ref()=="18446744073709551617")
+        );
+
+        let word = Value::NativeScalar(NativeScalarCache::WordBoolean {
+            value: true,
+            origin: NativeCVersion::V9_0,
+        });
+        assert!(super::to_vm_value(&word, dialect).is_err());
+        let resident = word.with_resident_string(&b"YES\xFF"[..]);
+        let native = super::to_vm_value(&resident, dialect).unwrap();
+        assert_eq!(
+            native.native_word_boolean_version(),
+            Some(tcl_dialect::TclVersion::V9_0)
+        );
+        assert_eq!(native.resident_string_bytes().unwrap().as_ref(), b"YES\xFF");
+        assert!(
+            super::to_vm_value(
+                &resident,
+                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+            )
+            .is_err()
+        );
+
+        let bits = 0xfff8_1234_0000_4321;
+        let native = super::to_vm_value(
+            &Value::NativeScalar(NativeScalarCache::Double(f64::from_bits(bits))),
+            dialect,
+        )
+        .unwrap();
+        let Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(
+            tcl_syntax::number::Number::Double(value),
+        )) = native.native_scalar_cache()
+        else {
+            panic!("Double cache")
+        };
+        assert_eq!(value.to_bits(), bits);
+    }
+
+    #[test]
+    fn checked_completion_projection_keeps_guest_option_conversion_error_guest() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // A constructed malformed carrier reaches the actual checked guest
+        // conversion owner; this is not an original-provider observation.
+        let mut engine = TclVmEngine::new();
+        let completion = Completion::new(
+            Code::Error,
+            tcl_vm::Value::int(17),
+            tcl_vm::Value::list(vec![tcl_vm::Value::string("-errorcode")]),
+        );
+        let error = TclVmEngine::completion_to_result(&mut engine.vm, &completion).unwrap_err();
+        assert!(matches!(
+            &error,
+            EngineError::Script { .. } | EngineError::ScriptBytes { .. }
+        ));
+        assert_eq!(
+            error.script_code_bytes(),
+            Some(b"TCL VALUE DICTIONARY".as_slice())
+        );
+        assert!(error.script_options_bytes().is_some());
+        assert!(completion.result.resident_string_bytes().is_none());
+        assert!(completion.options.resident_string_bytes().is_none());
+    }
+
+    #[test]
+    fn checked_completion_projection_retains_host_before_original_result_getter() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        // This deliberately retained owner failure proves adapter channel and
+        // ordering only; no getter failure or original-provider pass is claimed.
+        let mut engine = TclVmEngine::new();
+        engine
+            .vm
+            .set_var("before", tcl_vm::Value::string("RETAINED"))
+            .unwrap();
+        let key = tcl_vm::Value::int(41);
+        let value = tcl_vm::Value::int(42);
+        let completion = Completion::new(
+            Code::Error,
+            tcl_vm::Value::int(17),
+            tcl_vm::Value::list(vec![key.clone(), value.clone()]),
+        );
+        let cause = tcl_syntax::raw_string::NativeValueAccessRefusal::ExpressionEngineUnavailable;
+        engine
+            .vm
+            .refuse_tcl_host_failure(tcl_vm::TclHostFailure::ValueAccess(cause));
+        assert!(matches!(
+            TclVmEngine::completion_to_result(&mut engine.vm, &completion),
+            Err(EngineError::ExecutionFailure(first)) if *first == tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(cause)
+        ));
+        assert!(key.resident_string_bytes().is_none());
+        assert!(value.resident_string_bytes().is_none());
+        assert!(completion.result.resident_string_bytes().is_none());
+        assert!(completion.options.resident_string_bytes().is_none());
+        let error = engine.vm.try_eval_source("set late UNREACHED").unwrap_err();
+        assert!(matches!(error,
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(original)
+                if original == cause
+        ));
+        assert!(engine.vm.get_var("late").is_none());
+        assert_eq!(
+            engine
+                .vm
+                .get_var("before")
+                .unwrap()
+                .resident_string_bytes()
+                .unwrap()
+                .as_ref(),
+            b"RETAINED"
+        );
+    }
+
+    #[test]
+    fn guest_byte_error_retains_complete_native_options() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        let completion = tcl_vm::Completion::new(
+            tcl_vm::Code::Error,
+            tcl_vm::Value::from_string_bytes(b"prefix\0\xFF".as_slice()),
+            tcl_vm::Value::list(vec![
+                tcl_vm::Value::string("-errorcode"),
+                tcl_vm::Value::from_string_bytes(b"CODE\0\xFF".as_slice()),
+                tcl_vm::Value::string("-custom"),
+                tcl_vm::Value::string("retained"),
+            ]),
+        );
+        let expected_options = completion.options.string_bytes();
+        let mut engine = TclVmEngine::new();
+        let error = super::internal_error(
+            &mut engine.vm,
+            tcl_vm::TclError::from_completion(completion),
+        );
+        let EngineError::ScriptBytes {
+            message,
+            code,
+            options,
+        } = error
+        else {
+            panic!("byte guest carrier")
+        };
+        assert_eq!(message, b"prefix\0\xFF");
+        assert_eq!(code.as_deref(), Some(b"CODE\0\xFF".as_slice()));
+        assert_eq!(options.as_deref(), Some(expected_options.as_ref()));
+    }
+
+    #[test]
+    fn guest_error_export_preserves_original_stringless_dictionary_and_members() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        use tcl_dialect::TclVersion;
+        for version in [
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let native = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+                .unit_profile();
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(native, Box::new(std::io::stdout()));
+            let key = tcl_vm::Value::new_native_string_bytes(b"-errorcode".as_slice());
+            let code = tcl_vm::Value::new_native_string_bytes(b"CODE\0\xff".as_slice());
+            let key_identity = key.native_object_identity();
+            let code_identity = code.native_object_identity();
+            let original = tcl_vm::Value::native_dictionary_constructor(
+                vec![(key.clone(), code.clone())],
+                Some(4),
+                dialect.native_string_protocol().unwrap(),
+            )
+            .unwrap();
+            let identity = original.native_object_identity();
+            assert!(original.resident_string_bytes().is_none());
+            let completion = tcl_vm::Completion::new(
+                tcl_vm::Code::Error,
+                tcl_vm::Value::new_native_string_bytes(b"FAILED\0\xff".as_slice()),
+                original,
+            );
+            let EngineError::ScriptBytes {
+                message,
+                code: exported_code,
+                options,
+            } = TclVmEngine::completion_to_result(&mut vm, &completion).unwrap_err()
+            else {
+                panic!("original guest-error export")
+            };
+            assert_eq!(message, b"FAILED\0\xff");
+            assert_eq!(exported_code.as_deref(), Some(b"CODE\0\xff".as_slice()));
+            assert_eq!(
+                options.as_deref(),
+                completion.options.resident_string_bytes().as_deref()
+            );
+            assert_eq!(completion.options.native_object_identity(), identity);
+            assert_eq!(completion.options.cached_dictionary_bucket_count(), Some(4));
+            assert!(completion.options.cached_list_representation().is_none());
+            drop(key);
+            drop(code);
+            completion
+                .options
+                .with_cached_dictionary_representation(|pairs, _| {
+                    assert_eq!(pairs[0].0.native_object_identity(), key_identity);
+                    assert_eq!(pairs[0].1.native_object_identity(), code_identity);
+                    assert!(!pairs[0].0.native_object_is_shared());
+                    assert!(!pairs[0].1.native_object_is_shared());
+                })
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn guest_dictionary_options_refuse_an_unknown_native_issuer_without_shimmer() {
+        // naming.embedding.original-host-publication-and-fact-transport
+
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let options = tcl_vm::Value::native_dictionary_constructor(
+            vec![(
+                tcl_vm::Value::string("-errorcode"),
+                tcl_vm::Value::string("CODE"),
+            )],
+            Some(4),
+            dialect.native_string_protocol().unwrap(),
+        )
+        .unwrap();
+        let identity = options.native_object_identity();
+        let completion = tcl_vm::Completion::new(
+            tcl_vm::Code::Error,
+            tcl_vm::Value::string("FAILED"),
+            options,
+        );
+        let mut vm = tcl_vm::test_support::native_vm();
+        let unknown = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        )));
+        vm.set_dialect_profile(unknown);
+        assert!(
+            vm.native_scalar_carrier_dialect()
+                .native_string_protocol()
+                .is_none()
+        );
+        assert!(matches!(
+            TclVmEngine::completion_to_result(&mut vm, &completion),
+            Err(EngineError::ExecutionFailure(_))
+        ));
+        assert_eq!(completion.options.native_object_identity(), identity);
+        assert!(completion.options.resident_string_bytes().is_none());
+        assert_eq!(completion.options.cached_dictionary_bucket_count(), Some(4));
+        assert!(completion.options.cached_list_representation().is_none());
+    }
+}
+
+#[cfg(test)]
+#[path = "c84_wide_transport_tests.rs"]
+mod c84_wide_transport_tests;
+
+#[cfg(test)]
+#[path = "original_projection_tests.rs"]
+mod original_projection_tests;
+
+#[cfg(test)]
+mod metadata_reader_unknown_profile_controls {
+    use super::*;
+
+    #[test]
+    fn metadata_string_reader_does_not_turn_unknown_source_profile_into_tcl9() {
+        let mut engine = TclVmEngine::new();
+        assert!(engine.host_metadata_list_reader().is_some());
+        engine
+            .vm
+            .set_dialect_profile(tcl_dialect::DialectProfile::plain_tcl());
+        assert!(engine.host_metadata_list_reader().is_none());
     }
 }

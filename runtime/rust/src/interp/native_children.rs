@@ -1,0 +1,1145 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Child command identity remains independent of its parent table spelling.
+
+use super::{Cell, Code, Interp, InterpState, Rc};
+use crate::obj::{self, TclObj};
+use std::rc::Weak;
+
+/// A retained child-command allocation; it keeps no interpreter lifetime lease.
+#[derive(Clone)]
+pub struct ChildInterpreterCommand {
+    name: Vec<u8>,
+    interpreter: Weak<InterpState>,
+    deleted: Rc<Cell<bool>>,
+}
+
+impl ChildInterpreterCommand {
+    pub(super) fn new(name: Vec<u8>, interpreter: Interp) -> Self {
+        Self {
+            name,
+            interpreter: Rc::downgrade(&interpreter.0),
+            deleted: Rc::new(Cell::new(false)),
+        }
+    }
+
+    pub(super) fn name(&self) -> &[u8] {
+        &self.name
+    }
+
+    pub(super) fn is_current_for(&self, parent: &Interp) -> bool {
+        !self.deleted.get()
+            && parent
+                .children
+                .borrow()
+                .get(&self.name)
+                .is_some_and(|child| Weak::ptr_eq(&Rc::downgrade(&child.0), &self.interpreter))
+    }
+
+    pub(crate) fn same_allocation(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.deleted, &other.deleted)
+    }
+
+    pub(crate) fn retire(&self) {
+        self.deleted.set(true);
+        if let Some(state) = self.interpreter.upgrade() {
+            let interpreter = Interp(state);
+            interpreter.pending_delete.set(true);
+            interpreter.invalidate_interpreter_policy();
+        }
+    }
+}
+
+impl Interp {
+    /// The actual child factory tag survives the temporary parent-call scope.
+    pub(crate) fn engine_replay_root_interpreter(&self) -> bool {
+        !self.native_child_interpreter.get()
+    }
+
+    /// A retained activation keeps storage alive, without permitting further eval.
+    pub(super) fn evaluation_is_live(&mut self) -> bool {
+        if self.check_entered_native_operation().is_err() {
+            return false;
+        }
+        if !self.pending_delete.get() {
+            return true;
+        }
+        if let Some((message, code)) = self
+            .native_invocation_dialect()
+            .native_eval_object_protocol()
+            .and_then(tcl_registry::native_eval_object::NativeEvalObjectProtocol::deleted_interpreter_error)
+        {
+            self.error_with_code(message, code);
+        } else {
+            self.error(b"attempt to call eval in deleted interpreter");
+        }
+        false
+    }
+
+    pub(super) fn dispatch_original_child(
+        &mut self,
+        command: &ChildInterpreterCommand,
+        argv: &[*mut TclObj],
+    ) -> Code {
+        self.dispatch_child(command, argv)
+    }
+
+    pub(super) fn check_original_child_command(
+        &mut self,
+        command: &ChildInterpreterCommand,
+        arguments: &super::native_arguments::OriginalArguments,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        arguments.check_for(self)?;
+        if !command.is_current_for(self) {
+            return Err(tcl_cmd_core::CmdError::from_execution_refusal(
+                self.refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "changed original child command allocation",
+                    ),
+                ),
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn retire_pending_children(&mut self) {
+        let changed = {
+            let mut children = self.children.borrow_mut();
+            let before = children.len();
+            children.retain(|_, child| !child.pending_delete.get());
+            children.len() != before
+        };
+        if changed {
+            self.invalidate_interpreter_policy();
+        }
+    }
+
+    fn transfer_child_completion(&mut self, result: obj::Owned, options: obj::Owned) -> Code {
+        use tcl_cmd_core::return_options::{self, ReturnOptionsPurpose};
+        let (mut ops, protocol) = match crate::return_options::NativeReturnOps::selected(self) {
+            Ok(selected) => selected,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let purpose = ReturnOptionsPurpose::InternalDictionary;
+        let prepared = return_options::prepare_option_pairs(&mut ops, protocol, &options, purpose)
+            .and_then(|pairs| {
+                return_options::prepare_return_pairs(
+                    &mut ops,
+                    protocol,
+                    pairs,
+                    Some(result),
+                    purpose,
+                )
+            });
+        match prepared {
+            Ok(prepared) => crate::return_options::publish(self, &mut ops, prepared),
+            Err(error) => self.report_cmd_error(error),
+        }
+    }
+
+    pub(super) fn child_eval_original(&mut self, name: &[u8], arguments: &[*mut TclObj]) -> Code {
+        if self.native_invocation_dialect().native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            return self.eval_original_jim_child(name, arguments);
+        }
+        let script = if arguments.len() == 1 {
+            obj::Owned::retain(arguments[0])
+        } else {
+            match self.concat_original_arguments(arguments) {
+                Ok(script) => obj::Owned::retain(script),
+                Err(error) => return self.report_cmd_error(error),
+            }
+        };
+        match self.with_child(name, |child| {
+            let scope = match super::native_operation_currency::NativeOperationScope::enter(child) {
+                Ok(scope) => scope,
+                Err(first) => {
+                    child.refuse_native_execution(first);
+                    return Err(child.clone());
+                }
+            };
+            let code = child.eval_body_obj(script.as_ptr());
+            let completion = match crate::state_traits::capture_completion_checked(
+                child,
+                scope.currency(),
+                code,
+            ) {
+                Ok(completion) => completion,
+                Err(first) => {
+                    child.refuse_native_execution(first);
+                    return Err(child.clone());
+                }
+            };
+            // SAFETY: checked capture transfers one owning reference to each handle.
+            Ok(unsafe {
+                (
+                    obj::Owned::from_raw(completion.result),
+                    obj::Owned::from_raw(completion.options),
+                )
+            })
+        }) {
+            Some(Ok((result, options))) => self.transfer_child_completion(result, options),
+            Some(Err(child)) => self.transport_host_refusal_from(&child),
+            None => self.error(b"could not find interpreter"),
+        }
+    }
+
+    /// JimInterpCopyObj crosses a counted String, never a Script/Source/List
+    /// header or its interpreter-owned children. Foreign direct binds remain refusals.
+    fn copy_original_jim_object_to(
+        &self,
+        destination: &Interp,
+        original: *mut TclObj,
+    ) -> Result<obj::Owned, tcl_syntax::value::ValueError> {
+        self.copy_original_jim_object_with_purpose_to(
+            destination,
+            original,
+            tcl_registry::special_vars::NativeJimInterpreterCopyPurpose::Object,
+        )
+    }
+
+    fn copy_original_jim_object_with_purpose_to(
+        &self,
+        destination: &Interp,
+        original: *mut TclObj,
+        purpose: tcl_registry::special_vars::NativeJimInterpreterCopyPurpose,
+    ) -> Result<obj::Owned, tcl_syntax::value::ValueError> {
+        use super::native_operation_currency::NativeOperationScope;
+        use tcl_syntax::value::ValueError;
+        let producer_scope = NativeOperationScope::enter(self).map_err(|first| {
+            self.clone().refuse_native_execution(first);
+            ValueError::CommandProtocolUnavailable("original Jim copy producer entry")
+        })?;
+        let producer = self.native_jim_object_context()?;
+        crate::native_source::bind_context(original, &producer)?;
+        let bytes = self.native_object_string_bytes(original)?;
+        producer_scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim copy producer currency")
+            })?;
+        let receiver_scope = NativeOperationScope::enter(destination).map_err(|first| {
+            destination.clone().refuse_native_execution(first);
+            ValueError::CommandProtocolUnavailable("original Jim copy receiver entry")
+        })?;
+        let receiver = destination.native_jim_object_context()?;
+        let copied = obj::Owned::fresh(obj::new_string_bytes(purpose.input(&bytes)));
+        receiver_scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim copy receiver currency")
+            })?;
+        crate::native_source::bind_context(copied.as_ptr(), &receiver)?;
+        Ok(copied)
+    }
+
+    /// Install only implemented members of the selected pinned Jim static
+    /// distribution, then copy the exact original global startup operands.
+    pub(super) fn initialise_original_jim_child(
+        &self,
+        child: &mut Interp,
+        initialisation: tcl_registry::special_vars::NativeChildInitialisation,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        // naming.interpreter.original-child-bootstrap-context
+
+        if !initialisation.initialises_jim_static_extensions() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim original child distribution initialisation",
+            ));
+        }
+        // Namespace, package, interp and array installers are already included
+        // in this backend's supported core inventory. Binary is distribution-owned
+        // in Jim and is installed here, separately from with_native_core.
+        crate::cmd_binary::install(child);
+        for name in initialisation.copied_parent_variables() {
+            let Some(original) = self.var_get_at(name, 0) else {
+                continue;
+            };
+            let value = self.copy_original_jim_object_with_purpose_to(
+                child,
+                original,
+                tcl_registry::special_vars::NativeJimInterpreterCopyPurpose::ChildStartupVariable,
+            )?;
+            child.var_set_at(name, value.as_ptr(), 0).map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "Jim original child global variable publication",
+                )
+            })?;
+        }
+        child.seal_native_compiler_tokens();
+        Ok(())
+    }
+
+    /// interp_cmd_eval performs Concat even for one argument, then string
+    /// copies in both directions. Jim returns the raw code without C options.
+    fn eval_original_jim_child(&mut self, name: &[u8], arguments: &[*mut TclObj]) -> Code {
+        // naming.interpreter.jim-original-object-crossing
+
+        let script = match self.concat_original_arguments(arguments) {
+            Ok(script) => obj::Owned::retain(script),
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let parent = self.clone();
+        match self.with_child(name, |child| {
+            let copied = match parent.copy_original_jim_object_to(child, script.as_ptr()) {
+                Ok(copied) => copied,
+                Err(_) if child.host_refusal_pending() => return Err(child.clone()),
+                Err(error) => return Ok(Err(error)),
+            };
+            let code = child.eval_body_obj(copied.as_ptr());
+            if child.host_refusal_pending() {
+                return Err(child.clone());
+            }
+            Ok(child
+                .copy_original_jim_object_to(&parent, child.result_obj())
+                .map(|result| (code, result)))
+        }) {
+            Some(Ok(Ok((code, result)))) => {
+                self.set_result(result.as_ptr());
+                code
+            }
+            Some(Ok(Err(error))) => self.report_cmd_error(error.into()),
+            Some(Err(child)) => self.transport_host_refusal_from(&child),
+            None => self.error(b"could not find interpreter"),
+        }
+    }
+
+    /// Capture the parent's original List before the child name getter.
+    /// Its members retain their actual producing interpreter until retirement.
+    pub(crate) fn original_jim_parent_alias_prefix(
+        &mut self,
+        arguments: &[*mut TclObj],
+    ) -> Result<std::rc::Rc<super::NativeAliasHeader>, tcl_syntax::value::ValueError> {
+        self.associate_native_jim_arguments(arguments)?;
+        let context = self.native_jim_object_context()?;
+        let original = obj::Owned::fresh(self.new_list_object(arguments));
+        crate::native_source::bind_context(original.as_ptr(), &context)?;
+        Ok(std::rc::Rc::new(super::NativeAliasHeader::new(original)))
+    }
+
+    pub(super) fn dispatch_original_jim_parent_alias(
+        &mut self,
+        parent: &mut Interp,
+        original_prefix: &super::NativeAliasHeader,
+        argv: &[*mut TclObj],
+    ) -> Code {
+        // JimInterpAliasProc duplicates the original parent-owned List;
+        // every appended child argument crosses as a fresh counted String.
+        let prepared = (|| {
+            let scope = super::native_operation_currency::NativeOperationScope::enter(parent)
+                .map_err(|first| {
+                    parent.refuse_native_execution(first);
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original Jim parent alias entry",
+                    )
+                })?;
+            let context = parent.native_jim_object_context()?;
+            crate::native_source::bind_context(original_prefix.checked_ptr()?, &context)?;
+            let target_script = obj::Owned::fresh(obj::duplicate(original_prefix.checked_ptr()?));
+            let copies = argv[1..]
+                .iter()
+                .map(|&word| self.copy_original_jim_object_to(parent, word))
+                .collect::<Result<Vec<_>, _>>()?;
+            let pointers = copies.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+            crate::list::append_prepared_native_elements(
+                target_script.as_ptr(),
+                &pointers,
+                tcl_syntax::native_string::NativeStringProtocol::Jim084,
+            )?;
+            scope.currency().ensure_current_or_refuse().map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original Jim parent alias constructor currency",
+                )
+            })?;
+            crate::native_source::bind_context(target_script.as_ptr(), &context)?;
+            Ok::<_, tcl_syntax::value::ValueError>(target_script)
+        })();
+        let target_script = match prepared {
+            Ok(script) => script,
+            Err(_) if parent.host_refusal_pending() => {
+                return self.transport_host_refusal_from(parent);
+            }
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        super::CROSS_INTERP_DEPTH.with(|depth| depth.set(depth.get() + 1));
+        let code = parent.eval_body_obj(target_script.as_ptr());
+        super::CROSS_INTERP_DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1)));
+        if parent.host_refusal_pending() {
+            return self.transport_host_refusal_from(parent);
+        }
+        match parent.copy_original_jim_object_to(self, parent.result_obj()) {
+            Ok(result) => {
+                self.set_result(result.as_ptr());
+                code
+            }
+            Err(error) => self.report_cmd_error(error.into()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::interp::{default_host, Command};
+    use crate::namespace::GLOBAL;
+
+    fn parent(engine: &str) -> Interp {
+        Interp::with_native_core(
+            default_host(),
+            crate::environment::profile_for_dialect(engine),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+
+    fn token(parent: &Interp, namespace: usize, name: &[u8]) -> ChildInterpreterCommand {
+        let Some(Command::ChildInterp(command)) =
+            parent.namespaces.borrow().command_in(namespace, name)
+        else {
+            panic!("actual child command allocation");
+        };
+        command
+    }
+
+    #[test]
+    fn jim_child_crossing_copies_counted_strings_and_preserves_original_context_refusal() {
+        // naming.interpreter.jim-original-object-crossing
+
+        // This Rust ownership control complements public native rows; it is no
+        // claim about private pointer identities observed from jimsh.
+        let producer_interp = parent("jim");
+        let child = parent("jim");
+        let producer = producer_interp.native_jim_object_context().unwrap();
+        let receiver = child.native_jim_object_context().unwrap();
+        let original = obj::Owned::fresh(obj::new_string_bytes(b"A\0\xc3\xa9\xe2\x82\xac"));
+        crate::native_source::bind_context(original.as_ptr(), &producer).unwrap();
+        crate::native_source::install_source(
+            original.as_ptr(),
+            crate::native_source::NativeJimSourceInfo {
+                filename: producer.empty_object().clone(),
+                line: 7,
+            },
+            &producer,
+        )
+        .unwrap();
+        let copied = producer_interp
+            .copy_original_jim_object_to(&child, original.as_ptr())
+            .unwrap();
+        assert_ne!(copied.as_ptr(), original.as_ptr());
+        assert_eq!(obj::bytes_of(copied.as_ptr()), b"A\0\xc3\xa9\xe2\x82\xac");
+        assert!(Rc::ptr_eq(
+            &crate::native_source::context(copied.as_ptr()).unwrap(),
+            &receiver
+        ));
+        assert!(Rc::ptr_eq(
+            &crate::native_source::context(original.as_ptr()).unwrap(),
+            &producer
+        ));
+        assert_eq!(
+            crate::native_source::pin_source_info(original.as_ptr(), &producer)
+                .unwrap()
+                .line,
+            7
+        );
+        assert_eq!(
+            crate::native_source::pin_source_info(copied.as_ptr(), &receiver)
+                .unwrap()
+                .line,
+            1
+        );
+        assert!(crate::native_source::bind_context(original.as_ptr(), &receiver).is_err());
+        assert!(child
+            .copy_original_jim_object_to(&producer_interp, original.as_ptr())
+            .is_err());
+        assert!(producer_interp
+            .copy_original_jim_object_to(&parent("tcl9.0"), original.as_ptr())
+            .is_err());
+    }
+    #[test]
+    fn jim_crossing_constructs_in_the_actual_receiver_allocator() {
+        use super::super::native_operation_currency::NativeOperationScope;
+        let producer = parent("jim");
+        let receiver = parent("jim");
+        let producer_context = producer.native_jim_object_context().unwrap();
+        let receiver_context = receiver.native_jim_object_context().unwrap();
+        let original = {
+            let _scope = NativeOperationScope::enter(&producer).unwrap();
+            obj::Owned::fresh(obj::new_string_bytes(b"A\0B"))
+        };
+        crate::native_source::bind_context(original.as_ptr(), &producer_context).unwrap();
+        let original_count = unsafe { (*original.as_ptr()).ref_count };
+        let copied = {
+            let _ambient = NativeOperationScope::enter(&receiver).unwrap();
+            producer
+                .copy_original_jim_object_to(&receiver, original.as_ptr())
+                .unwrap()
+        };
+        obj::validate_jim_allocator(copied.as_ptr(), &receiver_context.allocation_pool()).unwrap();
+        assert!(
+            obj::validate_jim_allocator(copied.as_ptr(), &producer_context.allocation_pool())
+                .is_err()
+        );
+        assert!(crate::native_source::bind_context(original.as_ptr(), &receiver_context).is_err());
+        assert_eq!(unsafe { (*original.as_ptr()).ref_count }, original_count);
+        assert_eq!(unsafe { (*copied.as_ptr()).ref_count }, 1);
+        assert_eq!(obj::bytes_of(copied.as_ptr()), b"A\0B");
+        let returned = {
+            let _ambient = NativeOperationScope::enter(&producer).unwrap();
+            receiver
+                .copy_original_jim_object_to(&producer, copied.as_ptr())
+                .unwrap()
+        };
+        obj::validate_jim_allocator(returned.as_ptr(), &producer_context.allocation_pool())
+            .unwrap();
+        assert!(obj::validate_jim_allocator(
+            returned.as_ptr(),
+            &receiver_context.allocation_pool()
+        )
+        .is_err());
+        assert_eq!(obj::bytes_of(returned.as_ptr()), b"A\0B");
+        assert_eq!(unsafe { (*returned.as_ptr()).ref_count }, 1);
+        assert_eq!(unsafe { (*copied.as_ptr()).ref_count }, 1);
+        assert!(!producer.host_refusal_pending());
+        assert!(!receiver.host_refusal_pending());
+    }
+
+    #[test]
+    fn jim_receiver_entry_refusal_retains_the_actual_child_first_cause() {
+        let mut parent = parent("jim");
+        let child_name = parent.create_child(Some(b"receiver".to_vec()));
+        let first = parent
+            .with_child(&child_name, |child| {
+                child.refuse_host_command("actual child receiver entry");
+                child.native_execution_refusal().unwrap()
+            })
+            .unwrap();
+        let script = obj::Owned::fresh(obj::new_string_bytes(b"set untouched VALUE"));
+        assert_eq!(
+            parent.child_eval_original(&child_name, &[script.as_ptr()]),
+            Code::Error
+        );
+        assert_eq!(parent.native_execution_refusal(), Some(first));
+        parent
+            .with_child(&child_name, |child| {
+                assert!(child.var_get_at(b"untouched", 0).is_none());
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn jim_parent_alias_entry_refusal_retains_the_actual_parent_first_cause() {
+        use super::super::native_operation_currency::NativeOperationScope;
+        let mut child = parent("jim");
+        let mut parent = parent("jim");
+        let prefix = {
+            let _scope = NativeOperationScope::enter(&parent).unwrap();
+            let target = obj::Owned::fresh(obj::new_string_bytes(b"set"));
+            super::super::NativeAliasHeader::new(obj::Owned::fresh(
+                parent.new_list_object(&[target.as_ptr()]),
+            ))
+        };
+        let invoked = {
+            let _scope = NativeOperationScope::enter(&child).unwrap();
+            obj::Owned::fresh(obj::new_string_bytes(b"alias"))
+        };
+        parent.refuse_host_command("actual parent alias entry");
+        let first = parent.native_execution_refusal().unwrap();
+        assert!(!child.host_refusal_pending());
+        assert_eq!(
+            child.dispatch_original_jim_parent_alias(&mut parent, &prefix, &[invoked.as_ptr()]),
+            Code::Error
+        );
+        assert_eq!(child.native_execution_refusal(), Some(first.clone()));
+        assert_eq!(parent.native_execution_refusal(), Some(first));
+    }
+
+    #[test]
+    fn child_constructor_uses_the_explicit_parent_profile_recipe() {
+        // Native proof: naming.bootstrap.original-root-cells
+
+        // The constructor fixture establishes the native core's root-cell
+        // presence. The logical-child control checks only embedding behavior.
+        let mut logical = Interp::new();
+        let logical_profile = logical.dialect_profile();
+        assert!(tcl_registry::InvocationDialect::of_profile(logical_profile)
+            .native_bootstrap_protocol()
+            .is_none());
+        logical.create_child(Some(b"logical".to_vec()));
+        logical
+            .with_child(b"logical", |child| {
+                assert!(std::ptr::eq(child.dialect_profile(), logical_profile));
+                assert!(child
+                    .namespaces
+                    .borrow()
+                    .var_table(GLOBAL)
+                    .has_native_namespace_cell(b"argv"));
+            })
+            .unwrap();
+
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut parent = parent(engine);
+            let profile = parent.dialect_profile();
+            assert!(tcl_registry::InvocationDialect::of_profile(profile)
+                .native_bootstrap_protocol()
+                .is_some());
+            parent.create_child(Some(b"native".to_vec()));
+            parent
+                .with_child(b"native", |child| {
+                    assert!(std::ptr::eq(child.dialect_profile(), profile), "{engine}");
+                    assert_eq!(
+                        child.runtime_version(),
+                        profile.vm_runtime_version,
+                        "{engine}"
+                    );
+                    let namespaces = child.namespaces.borrow();
+                    let variables = namespaces.var_table(GLOBAL);
+                    for name in [b"argv".as_slice(), b"argc", b"argv0", b"tcl_library"] {
+                        assert!(
+                            !variables.has_native_namespace_cell(name),
+                            "{engine}: {name:?}"
+                        );
+                    }
+                    assert!(child.find_command_id(GLOBAL, b"set").is_some(), "{engine}");
+                    assert!(
+                        child.find_command_id(GLOBAL, b"binary").is_some(),
+                        "{engine}"
+                    );
+                })
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn jim_child_bootstrap_copies_global_variable_extents_without_parent_object_sharing() {
+        // naming.interpreter.original-child-bootstrap-context
+
+        // Public native startup-value controls and source anchors govern this
+        // purpose; no exhaustive extension roster or native header identity claim.
+        let mut parent = parent("jim");
+        assert!(parent.find_command_id(GLOBAL, b"binary").is_none());
+        assert_eq!(parent.eval_str(br#"set ::argv "A\u0000B"; set ::argc COUNT; set ::argv0 "\u00e9\u20ac"; namespace eval ::jim {}; set ::jim::argv0 JARGV; set ::jim::exe JEXE; set ::jim::lineedit JLINE; namespace eval ::N {proc make {} {set argv LOCAL; return [interp]}}; ::N::make"#), Code::Ok);
+        assert!(
+            !parent.host_refusal_pending(),
+            "{:?}",
+            parent.native_access_refusal()
+        );
+        let name = parent.result_bytes();
+        let parent_value = parent.var_get_at(b"argv", 0).unwrap();
+        assert_eq!(
+            parent
+                .native_object_string_bytes(parent_value)
+                .unwrap()
+                .as_ref(),
+            b"A\0B"
+        );
+        parent
+            .with_child(&name, |child| {
+                for command in [
+                    b"namespace".as_slice(),
+                    b"package",
+                    b"interp",
+                    b"array",
+                    b"binary",
+                ] {
+                    assert!(child.find_command_id(GLOBAL, command).is_some());
+                }
+                let argv = child.var_get_at(b"argv", 0).unwrap();
+                assert_ne!(argv, parent_value);
+                assert_eq!(
+                    child.native_object_string_bytes(argv).unwrap().as_ref(),
+                    b"A"
+                );
+                assert_eq!(
+                    child
+                        .native_object_string_bytes(child.var_get_at(b"argc", 0).unwrap())
+                        .unwrap()
+                        .as_ref(),
+                    b"COUNT"
+                );
+                assert_eq!(
+                    child
+                        .native_object_string_bytes(child.var_get_at(b"argv0", 0).unwrap())
+                        .unwrap()
+                        .as_ref(),
+                    b"\xc3\xa9\xe2\x82\xac"
+                );
+                for (name, expected) in [
+                    (b"jim::argv0".as_slice(), b"JARGV".as_slice()),
+                    (b"jim::exe", b"JEXE"),
+                    (b"jim::lineedit", b"JLINE"),
+                ] {
+                    assert_eq!(
+                        child
+                            .native_object_string_bytes(child.var_get_at(name, 0).unwrap())
+                            .unwrap()
+                            .as_ref(),
+                        expected
+                    );
+                }
+                assert!(matches!(
+                    child.namespaces.borrow().resolve(GLOBAL, b"binary"),
+                    Some(Command::Proc(_))
+                ));
+                assert!(child
+                    .find_command_id(GLOBAL, b"::tcl::binary::format")
+                    .is_none());
+            })
+            .unwrap();
+        parent.delete_child(&name);
+        assert_eq!(
+            parent.eval_str(b"unset ::argv; set child [interp]; $child eval {info exists ::argv}"),
+            Code::Ok
+        );
+        assert_eq!(parent.result_bytes(), b"0");
+    }
+
+    #[test]
+    fn child_commands_keep_namespace_and_allocation_through_rename_and_recreation() {
+        // Native proof: naming.interpreter.child-command-allocation-lifetime
+
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut parent = parent(engine);
+            let namespace = parent
+                .namespaces
+                .borrow_mut()
+                .ensure_namespace(GLOBAL, b"::N");
+            parent.set_current_ns(namespace);
+            parent.create_child(Some(b"kid".to_vec()));
+            let original = token(&parent, GLOBAL, b"kid");
+            assert!(parent
+                .namespaces
+                .borrow()
+                .command_in(namespace, b"kid")
+                .is_none());
+            assert_eq!(
+                parent.rename_command(b"kid", b"moved"),
+                crate::namespace::RenameOutcome::Renamed
+            );
+            parent.set_current_ns(GLOBAL);
+            assert!(parent.delete_child(b"kid"));
+            assert!(!parent.child_exists(b"kid"));
+            assert!(parent
+                .namespaces
+                .borrow()
+                .command_in(namespace, b"moved")
+                .is_none());
+            parent.create_child(Some(b"kid".to_vec()));
+            let recreated = token(&parent, GLOBAL, b"kid");
+            assert!(!original.same_allocation(&recreated));
+            let argv = [
+                obj::Owned::fresh(obj::new_string_bytes(b"kid")),
+                obj::Owned::fresh(obj::new_string_bytes(b"issafe")),
+            ];
+            let pointers: Vec<_> = argv.iter().map(obj::Owned::as_ptr).collect();
+            assert_eq!(
+                parent.dispatch_original_child(&original, &pointers),
+                Code::Error
+            );
+            assert_eq!(
+                parent.dispatch_original_child(&recreated, &pointers),
+                Code::Ok
+            );
+        }
+    }
+
+    #[test]
+    fn replacing_or_deleting_child_command_retires_only_its_actual_interpreter() {
+        // Native proof: naming.interpreter.child-command-allocation-lifetime
+
+        fn replacement(interp: &mut Interp, _: &[*mut TclObj]) -> Code {
+            interp.set_result_bytes(b"replacement");
+            Code::Ok
+        }
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut parent = parent(engine);
+            parent.create_child(Some(b"kid".to_vec()));
+            parent.ns_register(b"kid", Command::Builtin(replacement));
+            assert!(!parent.child_exists(b"kid"));
+            assert!(matches!(
+                parent.namespaces.borrow().command_in(GLOBAL, b"kid"),
+                Some(Command::Builtin(_))
+            ));
+            parent.create_child(Some(b"active".to_vec()));
+            let mut reentrant = parent.clone();
+            parent
+                .with_child(b"active", |old| {
+                    assert!(reentrant.delete_child(b"active"));
+                    reentrant.create_child(Some(b"active".to_vec()));
+                    assert!(old.pending_delete.get());
+                    assert!(old.eval_active.get() > 0);
+                })
+                .unwrap();
+            assert!(parent.child_exists(b"active"));
+            assert!(!parent
+                .children
+                .borrow()
+                .get(b"active".as_slice())
+                .unwrap()
+                .pending_delete
+                .get());
+        }
+    }
+
+    #[test]
+    fn child_host_failure_keeps_its_typed_cause_and_parent_result() {
+        // naming.interpreter.original-child-host-refusal-transport
+
+        // A host-worker control in the authored model, not native Tcl evidence.
+        use tcl_syntax::raw_string::NativeValueAccessRefusal;
+        fn worker(interp: &mut Interp, _: &[*mut TclObj]) -> Code {
+            interp.refuse_native_access(NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "explicit child host provider",
+            ))
+        }
+        for prior in [None, Some("earlier parent host provider")] {
+            let mut parent = Interp::new();
+            parent.create_child(Some(b"child".to_vec()));
+            parent
+                .with_child(b"child", |child| {
+                    child.ns_register(b"host_worker", Command::Builtin(worker));
+                })
+                .unwrap();
+            parent.set_result_bytes(b"PARENT RESULT");
+            if let Some(prior) = prior {
+                parent.refuse_native_access(NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    prior,
+                ));
+            }
+            let original = obj::Owned::fresh(obj::new_string_bytes(b"host_worker"));
+            assert_eq!(
+                parent.child_eval_original(b"child", &[original.as_ptr()]),
+                Code::Error
+            );
+            assert_eq!(
+                parent.native_access_refusal(),
+                Some(NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    prior.unwrap_or("explicit child host provider")
+                ))
+            );
+            assert!(parent.host_refusal_pending());
+            assert_eq!(parent.result_bytes(), b"PARENT RESULT");
+            assert_eq!(
+                parent
+                    .children
+                    .borrow()
+                    .get(b"child".as_slice())
+                    .unwrap()
+                    .native_access_refusal(),
+                Some(NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "explicit child host provider"
+                ))
+            );
+        }
+    }
+    fn hex_bytes(value: &str) -> Vec<u8> {
+        assert!(value.len().is_multiple_of(2));
+        value
+            .as_bytes()
+            .chunks_exact(2)
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn child_source_controls_match_native_creation_and_retirement_windows() {
+        // Native proof: naming.interpreter.child-command-root-and-qualified-publication
+
+        // Native proof: naming.interpreter.child-command-rename-replacement-deletion
+
+        // Native proof: naming.interpreter.deleted-child-evaluation-and-recreation
+
+        let providers = [
+            (
+                "tcl8.4",
+                include_str!(
+                    "../../tests/data/native_child_command_lifetime/v2/capture/8.4.20/stdout.tsv"
+                ),
+            ),
+            (
+                "tcl8.5",
+                include_str!(
+                    "../../tests/data/native_child_command_lifetime/v2/capture/8.5.19/stdout.tsv"
+                ),
+            ),
+            (
+                "tcl8.6",
+                include_str!(
+                    "../../tests/data/native_child_command_lifetime/v2/capture/8.6.18/stdout.tsv"
+                ),
+            ),
+            (
+                "tcl9.0",
+                include_str!(
+                    "../../tests/data/native_child_command_lifetime/v2/capture/9.0.4/stdout.tsv"
+                ),
+            ),
+            (
+                "tcl9.1",
+                include_str!(
+                    "../../tests/data/native_child_command_lifetime/v2/capture/9.1.0/stdout.tsv"
+                ),
+            ),
+        ];
+        let controls = [
+            ("namespace-publication-intermediate", include_bytes!("../../tests/data/native_child_command_lifetime/v2/protocol/inputs/namespace-publication-intermediate.tcl").as_slice()),
+            ("namespace-relative-root-lookup", include_bytes!("../../tests/data/native_child_command_lifetime/v2/protocol/inputs/namespace-relative-root-lookup.tcl").as_slice()),
+            ("namespace-root-child-survives-delete", include_bytes!("../../tests/data/native_child_command_lifetime/v2/protocol/inputs/namespace-root-child-survives-delete.tcl").as_slice()),
+            ("namespace-qualified-publication", include_bytes!("../../tests/data/native_child_command_lifetime/v2/protocol/inputs/namespace-qualified-publication.tcl").as_slice()),
+            ("namespace-relative-qualified-publication", include_bytes!("../../tests/data/native_child_command_lifetime/v2/protocol/inputs/namespace-relative-qualified-publication.tcl").as_slice()),
+            ("namespace-renamed-child-deleted-with-namespace", include_bytes!("../../tests/data/native_child_command_lifetime/v2/protocol/inputs/namespace-renamed-child-deleted-with-namespace.tcl").as_slice()),
+            ("renamed-child-delete-recreate", include_bytes!("../../tests/data/native_child_command_lifetime/v2/protocol/inputs/renamed-child-delete-recreate.tcl").as_slice()),
+            ("active-child-continuation-errors", include_bytes!("../../tests/data/native_child_command_lifetime/v2/protocol/inputs/active-child-continuation-errors.tcl").as_slice()),
+            ("active-child-replacement-survives-error", include_bytes!("../../tests/data/native_child_command_lifetime/v2/protocol/inputs/active-child-replacement-survives-error.tcl").as_slice()),
+        ];
+        for (engine, original) in providers {
+            for (case, source) in controls {
+                let code = original
+                    .lines()
+                    .find_map(|line| {
+                        let words: Vec<_> = line.split('|').collect();
+                        (words.first() == Some(&"CODE") && words[1] == case && words[2] == "direct")
+                            .then(|| words[3].parse::<i32>().unwrap())
+                    })
+                    .unwrap();
+                let result = original
+                    .lines()
+                    .find_map(|line| {
+                        let words: Vec<_> = line.split('|').collect();
+                        (words.first() == Some(&"VALUE")
+                            && words[1] == case
+                            && words[2] == "direct"
+                            && words[3] == "result")
+                            .then(|| hex_bytes(words.last().unwrap()))
+                    })
+                    .unwrap();
+                let mut interp = parent(engine);
+                let actual = interp.eval_str(source);
+                assert!(
+                    !interp.host_refusal_pending(),
+                    "{engine}/{case}: genuine selected runtime provider"
+                );
+                assert_eq!(actual.as_int(), i64::from(code), "{engine}/{case}");
+                assert_eq!(interp.result_bytes(), result, "{engine}/{case}");
+                if case == "active-child-continuation-errors" && engine != "tcl8.4" {
+                    let original_options = original
+                        .lines()
+                        .find_map(|line| {
+                            let words: Vec<_> = line.split('|').collect();
+                            (words.first() == Some(&"VALUE")
+                                && words[1] == case
+                                && words[2] == "direct"
+                                && words[3] == "return-options")
+                                .then(|| hex_bytes(words.last().unwrap()))
+                        })
+                        .unwrap();
+                    let original_options = String::from_utf8(original_options).unwrap();
+                    let fields = tcl_syntax::list::split_list(&original_options).unwrap();
+                    let original_code = fields
+                        .chunks_exact(2)
+                        .find(|pair| pair[0] == "-errorcode")
+                        .unwrap();
+                    assert_eq!(
+                        interp.error_code(),
+                        original_code[1].as_bytes(),
+                        "{engine}/{case} error code"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod completion_capture_tests {
+    use super::*;
+    use crate::interp::{default_host, Command, WeakInterp};
+    use tcl_runtime_api::NativeExecutionError;
+    use tcl_syntax::raw_string::NativeValueAccessRefusal;
+
+    struct Metadata {
+        interpreter: WeakInterp,
+        mode: u8,
+        getters: Rc<Cell<usize>>,
+        retired: Rc<Cell<usize>>,
+        capture_references: Rc<Cell<obj::TclSize>>,
+    }
+
+    extern "C" fn update_metadata(value: *mut TclObj) {
+        // SAFETY: this descriptor retains the original boxed extension record.
+        let state = unsafe { &*(obj::internal_rep(value) as usize as *const Metadata) };
+        state.getters.set(state.getters.get() + 1);
+        let mut child = state.interpreter.upgrade().unwrap();
+        match state.mode {
+            1 => {
+                child.refuse_host_command("first child completion metadata getter");
+            }
+            2 => {
+                let original = child.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("child-completion-metadata".into(), "1.0".into())];
+                child.pin_context(&changed).unwrap();
+                child.pin_context(&original).unwrap();
+                assert_eq!(child.runtime_context(), original);
+            }
+            _ => {}
+        }
+        // SAFETY: the reached updater owns the original counted String result.
+        unsafe { obj::set_native_updater_string_rep(value, b"REACHED CHILD METADATA", false) };
+    }
+
+    extern "C" fn retire_metadata(value: *mut TclObj) {
+        // SAFETY: the original extension retires its one boxed state once.
+        let state = unsafe { Box::from_raw(obj::internal_rep(value) as usize as *mut Metadata) };
+        state.retired.set(state.retired.get() + 1);
+    }
+
+    static METADATA: obj::TclObjType = obj::TclObjType {
+        name: c"originalChildCompletionMetadata".as_ptr(),
+        free_int_rep_proc: Some(retire_metadata),
+        dup_int_rep_proc: None,
+        update_string_proc: Some(update_metadata),
+        set_from_any_proc: None,
+    };
+
+    fn original_worker(child: &mut Interp, arguments: &[*mut TclObj]) -> Code {
+        let original = arguments[1];
+        // SAFETY: the original List owns the actual extension operand.
+        let state = unsafe { &*(obj::internal_rep(original) as usize as *const Metadata) };
+        assert!(child.eval_depth.get() > 1);
+        assert_eq!(state.getters.get(), 0);
+        assert!(!obj::has_string_rep(original));
+        child.set_error_state(b"ORIGINAL CHILD CODE");
+        child.set_result(original);
+        // SAFETY: the exact original operand remains owned by the List and result.
+        state
+            .capture_references
+            .set(unsafe { (*original).ref_count });
+        if state.mode == 0 {
+            Code::Other(7)
+        } else {
+            Code::Error
+        }
+    }
+
+    fn run_original_capture(mode: u8) {
+        let getters = Rc::new(Cell::new(0));
+        let retired = Rc::new(Cell::new(0));
+        let capture_references = Rc::new(Cell::new(0));
+        {
+            let mut parent = Interp::with_native_core(
+                default_host(),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            parent.create_child(Some(b"child".to_vec()));
+            let (weak, child_context) = parent
+                .with_child(b"child", |child| {
+                    child.ns_register(b"original_metadata", Command::Builtin(original_worker));
+                    assert!(child.codegen_activation_enter());
+                    (child.downgrade(), child.runtime_context())
+                })
+                .unwrap();
+            let original = obj::Owned::fresh(obj::alloc_typed(
+                &METADATA,
+                Box::into_raw(Box::new(Metadata {
+                    interpreter: weak.clone(),
+                    mode,
+                    getters: getters.clone(),
+                    retired: retired.clone(),
+                    capture_references: capture_references.clone(),
+                })) as usize as u64,
+            ));
+            let head = obj::Owned::fresh(obj::new_string_bytes(b"original_metadata"));
+            let script = obj::Owned::fresh(crate::list::new_list_obj_native(
+                &[head.as_ptr(), original.as_ptr()],
+                parent
+                    .native_invocation_dialect()
+                    .native_string_protocol()
+                    .unwrap(),
+            ));
+            parent.set_result_bytes(b"PARENT RESULT\0\xff");
+            let prior = parent.result_obj();
+            let code = parent.child_eval_original(b"child", &[script.as_ptr()]);
+            let child = weak.upgrade().unwrap();
+            assert_eq!(child.runtime_context(), child_context);
+            assert_eq!(child.result_obj(), original.as_ptr());
+            assert!(child.entered_native_operations.borrow().is_empty());
+            assert!(parent.entered_native_operations.borrow().is_empty());
+            assert_eq!(obj::obj_type_ptr(original.as_ptr()), &METADATA as *const _);
+            if mode == 0 {
+                assert_eq!(code, Code::Other(7));
+                assert_eq!(parent.result_obj(), original.as_ptr());
+                assert_eq!(getters.get(), 0);
+                assert!(!obj::has_string_rep(original.as_ptr()));
+                assert!(parent.native_execution_refusal().is_none());
+                assert!(child.native_execution_refusal().is_none());
+                // Only the parent result gains a reference; capture's own
+                // transferred result has been consumed exactly once.
+                assert_eq!(
+                    unsafe { (*original.as_ptr()).ref_count },
+                    capture_references.get() + 1
+                );
+            } else {
+                assert_eq!(code, Code::Error);
+                let first = if mode == 1 {
+                    let Some(first @ NativeExecutionError::HostCommandRefusal(_)) =
+                        child.native_execution_refusal()
+                    else {
+                        panic!("original child Host cause");
+                    };
+                    if let NativeExecutionError::HostCommandRefusal(ref cause) = first {
+                        assert_eq!(cause.reason, "first child completion metadata getter");
+                    }
+                    first
+                } else {
+                    NativeExecutionError::ValueAccessRefusal(
+                        NativeValueAccessRefusal::CommandProtocolUnavailable(
+                            "stale entered native operation",
+                        ),
+                    )
+                };
+                assert_eq!(child.native_execution_refusal(), Some(first.clone()));
+                assert_eq!(parent.native_execution_refusal(), Some(first));
+                assert_eq!(parent.result_obj(), prior);
+                assert_eq!(parent.result_bytes(), b"PARENT RESULT\0\xff");
+                assert_eq!(getters.get(), 1);
+                assert_eq!(obj::bytes_of(original.as_ptr()), b"REACHED CHILD METADATA");
+                // The reached error-info owner retains the original result;
+                // failed capture releases its additional temporary handle.
+                let error_info = child.native_private_error_object(true).unwrap();
+                assert_eq!(error_info.as_ptr(), original.as_ptr());
+                drop(error_info);
+                assert_eq!(
+                    unsafe { (*original.as_ptr()).ref_count },
+                    capture_references.get() + 1
+                );
+            }
+            parent
+                .with_child(b"child", |child| child.codegen_activation_leave(code))
+                .unwrap();
+            assert_eq!(retired.get(), 0);
+        }
+        assert_eq!(retired.get(), 1);
+    }
+
+    #[test]
+    fn original_child_completion_capture_keeps_guest_handles_and_custom_code() {
+        // naming.interpreter.original-child-host-refusal-transport
+
+        // Software actual-object/+1 control; no external native completion claim.
+        run_original_capture(0);
+    }
+
+    #[test]
+    fn original_child_completion_capture_transports_reached_metadata_host_and_aba() {
+        // naming.interpreter.original-child-host-refusal-transport
+
+        // Real extension getter during capture, under the actual child scope;
+        // original provider observations remain independent.
+        run_original_capture(1);
+        run_original_capture(2);
+    }
+}

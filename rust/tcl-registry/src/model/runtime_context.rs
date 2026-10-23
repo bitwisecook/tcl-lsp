@@ -381,7 +381,7 @@ mod tests {
         let mut pin = PinnedContext::for_profile(profile);
         let bare = pin.context.identity(&[], intrinsic_table_hash());
         assert_eq!(pin.identity(), &bare);
-        assert!(pin.identity().packs.is_empty());
+        assert_eq!(pin.identity().packs.len(), 0);
 
         let stamp = PackFactStamp {
             pack: "vendor".to_owned(),

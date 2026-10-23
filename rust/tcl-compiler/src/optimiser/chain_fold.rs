@@ -63,24 +63,24 @@
 //!   cross-event iRules state variable — folding would drop a trace
 //!   callback or a value a later scope / event observes.
 //!
-//! These gates make the fold conservative (it can miss a chain a
-//! flow-sensitive pass would fold) but never unsound.
+//! The actual function metadata and typed selected operation own the source
+//! recipe. Executable grouped rewrites require retained Logical compatibility
+//! and a separate setter-binding guard. Native layouts remain hints because
+//! source pattern and quiet hazards do not certify Native erasure equivalence.
 
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 
-use tcl_lexer::TokenType;
-use tcl_registry::native_lowering::CellUpdate;
-use tcl_registry::{CommandRegistry, SemanticOperationId, hooks::LoweringHookId};
+use tcl_lexer::LexerConfig;
+use tcl_registry::CommandRegistry;
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-use crate::ir::{Script, Statement};
-use crate::naming::normalise_var_name;
-use crate::ssa::SsaStatement;
-use crate::var_observability::analyse_var_observability;
+use crate::ir::{CommandTokens, Script, Statement};
+use crate::registry_invocation::InvocationMetadataContext;
+use crate::var_observability::analyse_var_observability_with_metadata_context;
 
-use super::helpers::literals::render_static_string_word;
-use super::helpers::spans::{full_rewrite_span, statement_delete_rewrite_range};
+use super::helpers::literals::render_static_string_word_in;
+use super::helpers::spans::{original_statement_rewrite_span, statement_delete_rewrite_range};
 use super::{Optimisation, PassContext};
 
 /// Run the chain-fold pass over the whole compilation unit.
@@ -97,58 +97,40 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // unqualified while the trace names `::var` — the same
     // fact SCCP and O102 already consult.
     cross.extend(cu.ir_module.traced_variables.iter().cloned());
-    // `ctx.registry` is always set by the `optimise*` entry points; a bare
-    // hand-built `PassContext` (some pass-level unit tests) leaves it
-    // `None`, so fall back to a default-dialect registry rather than
-    // panic — `trace`'s `ESTABLISHES_VARIABLE_TRACE` grammar is core Tcl,
-    // present in every dialect's registry.
-    let registry: &CommandRegistry = ctx
-        .registry
-        .unwrap_or_else(|| tcl_registry::default_registry());
-    // The pass mutates `ctx` as it folds, so the trust fact it reads is the
-    // module's, taken once.
-    let mutations = ctx.command_mutations.clone();
-    let trust = ChainHeadTrust::of(&mutations, registry);
-    if !cu.top_level.dynamic_barrier_blocks_value_motion() {
-        let top_protected = protected_vars(&cu.top_level, &cross, registry);
-        let lattice = FunctionLattice::of(&cu.top_level);
-        let chains = Chains {
-            registry,
-            trust,
-            lattice: &lattice,
-            protected: &top_protected,
-        };
-        fold_script(ctx, &cu.ir_module.top_level, chains, 0);
+    let Some(registry) = ctx.registry else {
+        return;
+    };
+    if ctx.source != cu.source
+        || ctx.retained_metadata_context().is_none()
+        || ctx.ir_module.is_none_or(|module| {
+            module.source != cu.ir_module.source
+                || module.source_metadata_input != cu.ir_module.source_metadata_input
+                || module.lexer_config != cu.ir_module.lexer_config
+        })
+    {
+        return;
     }
-    for (qname, proc) in &cu.ir_module.procedures {
-        let fu = cu.procedures.get(qname);
-        // A computed variable name (`set $name …`) can write the accumulator
-        // mid-chain under a spelling `classify_write` cannot see, so the
-        // whole function abstains.
-        if fu.is_some_and(FunctionUnit::dynamic_barrier_blocks_value_motion) {
+    fold_function(
+        ctx,
+        &cu.top_level,
+        &cu.ir_module.top_level,
+        &cross,
+        registry,
+        &cu.command_mutations,
+    );
+    for (qname, procedure) in &cu.ir_module.procedures {
+        let Some(function) = cu.procedures.get(qname) else {
             continue;
-        }
-        let protected = fu.map_or_else(|| cross.clone(), |fu| protected_vars(fu, &cross, registry));
-        let lattice = fu.map(FunctionLattice::of).unwrap_or_default();
-        let chains = Chains {
-            registry,
-            trust,
-            lattice: &lattice,
-            protected: &protected,
         };
-        fold_script(ctx, &proc.body, chains, 0);
+        fold_function(
+            ctx,
+            function,
+            &procedure.body,
+            &cross,
+            registry,
+            &cu.command_mutations,
+        );
     }
-}
-
-/// What one function's chains fold under: the registry that says which
-/// call is a cell update, the module's trust in each head, the function's
-/// lattice for a `$var` value word, and the variables no chain may touch.
-#[derive(Clone, Copy)]
-struct Chains<'a> {
-    registry: &'a CommandRegistry,
-    trust: ChainHeadTrust<'a>,
-    lattice: &'a FunctionLattice<'a>,
-    protected: &'a HashSet<String>,
 }
 
 /// A function's SSA statements by span, with where each sits, over its
@@ -157,48 +139,41 @@ struct Chains<'a> {
 #[derive(Default)]
 struct FunctionLattice<'a> {
     unit: Option<&'a FunctionUnit>,
-    statements: HashMap<(u32, u32), LocatedStatement<'a>>,
+    statements: HashMap<(u32, u32), Option<LocatedStatement>>,
 }
 
 /// One SSA statement and its place in the function: its block and its
 /// index there.
 #[derive(Clone, Copy)]
-struct LocatedStatement<'a> {
+struct LocatedStatement {
     block: crate::cfg::BlockId,
     index: usize,
-    statement: &'a SsaStatement,
 }
 
 impl<'a> FunctionLattice<'a> {
     fn of(unit: &'a FunctionUnit) -> Self {
         // A synthetic call the CFG builder emitted beside a host statement
         // shares the host's span; the host is the statement the chain reads.
-        let statements = unit
-            .ssa
-            .blocks
-            .iter()
-            .flat_map(|(&block, ssa_block)| {
-                ssa_block
-                    .statements
-                    .iter()
-                    .enumerate()
-                    .map(move |(index, statement)| LocatedStatement {
-                        block,
-                        index,
-                        statement,
-                    })
-            })
-            .filter(|located| {
-                !matches!(
-                    &located.statement.statement,
-                    Statement::Call { tokens: Some(tokens), .. } if tokens.synthetic.is_some()
-                )
-            })
-            .map(|located| {
-                let span = located.statement.statement.span();
-                ((span.start(), span.end()), located)
-            })
-            .collect();
+        let mut statements = HashMap::new();
+        for (&block, ssa_block) in &unit.ssa.blocks {
+            for (index, statement) in ssa_block.statements.iter().enumerate() {
+                if statement
+                    .statement
+                    .tokens()
+                    .is_some_and(|tokens| tokens.synthetic.is_some())
+                {
+                    continue;
+                }
+                if unit.cfg.source_tokens_at(block, index).is_none() {
+                    continue;
+                }
+                let span = unit.abs_span(statement.statement.span());
+                statements
+                    .entry((span.start(), span.end()))
+                    .and_modify(|candidate| *candidate = None)
+                    .or_insert(Some(LocatedStatement { block, index }));
+            }
+        }
         Self {
             unit: Some(unit),
             statements,
@@ -207,17 +182,30 @@ impl<'a> FunctionLattice<'a> {
 
     /// The constant `name` holds at the statement spanning `span`, when
     /// the lattice proves one.
-    fn constant_at(&self, span: tcl_lexer::Span, name: &str) -> Option<String> {
+    fn constant_at(&self, span: tcl_lexer::Span, word: &crate::ir::WordExpr) -> Option<String> {
         let unit = self.unit?;
-        let stmt = self.statements.get(&(span.start(), span.end()))?.statement;
-        // A byte array a route constructed is never written into the folded
-        // string ([`crate::sccp::SccpResult::materialises`]).
-        let symbol = unit.ssa.var_symbol(name)?;
-        let version = *stmt.uses.get(&symbol)?;
-        if !unit.sccp.materialises((symbol, version)) {
+        let located = self.statements.get(&(span.start(), span.end()))?.as_ref()?;
+        let crate::ir::WordExpr::Variable { spelling, source } = word else {
+            return None;
+        };
+        let read = crate::ssa::SsaSourceView::at_statement(&unit.ssa, located.block, located.index)
+            .read_reference(source, spelling)?;
+        let key = (read.symbol, read.version?);
+        if !unit.sccp.materialises(key) {
             return None;
         }
-        crate::value_transfer::lattice_const_text(name, &stmt.uses, &unit.sccp.values, &unit.ssa)
+        let crate::analyses::LatticeValue::Const(value) = unit.sccp.values.get(&key)? else {
+            return None;
+        };
+        super::helpers::literals::format_constant_with_policy(
+            value,
+            crate::tcl_expr_eval::FoldPolicy::for_profile(
+                crate::tcl_expr_eval::leading_zero_is_octal(
+                    unit.source_metadata_input()?.unit_profile(),
+                ),
+                Some(unit.source_metadata_input()?.unit_profile()),
+            ),
+        )
     }
 
     /// The existence fact `name`'s place holds where the statement
@@ -233,38 +221,73 @@ impl<'a> FunctionLattice<'a> {
         name: &str,
     ) -> Option<tcl_registry::value_transfer::Existence> {
         let unit = self.unit?;
-        let located = self.statements.get(&(span.start(), span.end()))?;
-        let symbol = unit.ssa.var_symbol(name)?;
+        let located = self.statements.get(&(span.start(), span.end()))?.as_ref()?;
+        let symbol = unit.ssa.var_symbol_at(located.block, located.index, name)?;
         unit.sccp
             .existence_before(located.block, located.index, symbol)
     }
 }
 
-/// Variables that must never have a write-chain folded: those that escape
-/// the frame (aliased / traced) plus the iRules cross-event state set and
-/// the whole-module traced names the caller folded into `cross_event`.
-fn protected_vars(
-    fu: &FunctionUnit,
+/// One function's actual command generation and complete source grammar.
+#[derive(Clone, Copy)]
+struct ChainSourceContext<'a> {
+    registry: &'a CommandRegistry,
+    metadata: InvocationMetadataContext<'a>,
+    config: LexerConfig,
+    mutations: &'a crate::command_binding::ModuleCommandMutations,
+    lattice: &'a FunctionLattice<'a>,
+}
+
+fn fold_function(
+    ctx: &mut PassContext<'_>,
+    function: &FunctionUnit,
+    script: &Script,
     cross_event: &HashSet<String>,
     registry: &CommandRegistry,
-) -> HashSet<String> {
-    let mut set = analyse_var_observability(&fu.cfg, registry).escaping_var_names();
-    set.extend(cross_event.iter().cloned());
-    set
+    mutations: &crate::command_binding::ModuleCommandMutations,
+) {
+    if function.dynamic_barrier_blocks_value_motion() {
+        return;
+    }
+    let Some(module) = ctx.ir_module else {
+        return;
+    };
+    let Some(metadata) = function.invocation_metadata_context_for_module(registry, module) else {
+        return;
+    };
+    let mut protected =
+        analyse_var_observability_with_metadata_context(&function.cfg, registry, Some(metadata))
+            .escaping_var_names();
+    protected.extend(cross_event.iter().cloned());
+    let lattice = FunctionLattice::of(function);
+    let semantics = ChainSourceContext {
+        registry,
+        metadata,
+        config: function.source_lexer_config(),
+        mutations,
+        lattice: &lattice,
+    };
+    fold_script(ctx, script, &protected, semantics, 0);
 }
 
 /// Fold chains in `script`, then recurse into control-flow bodies (a
 /// chain never crosses a control-flow boundary, so each body is folded
 /// independently). `depth` is the nesting level of `script` — see
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].
-fn fold_script(ctx: &mut PassContext<'_>, script: &Script, chains: Chains<'_>, depth: u32) {
+fn fold_script(
+    ctx: &mut PassContext<'_>,
+    script: &Script,
+    protected: &HashSet<String>,
+    semantics: ChainSourceContext<'_>,
+    depth: u32,
+) {
     if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return;
     }
     let stmts = &script.statements;
     let mut i = 0;
     while i < stmts.len() {
-        if let Some(consumed) = try_fold_chain_at(ctx, stmts, i, chains) {
+        if let Some(consumed) = try_fold_chain_at(ctx, script, i, protected, semantics) {
             i += consumed;
         } else {
             i += 1;
@@ -276,34 +299,36 @@ fn fold_script(ctx: &mut PassContext<'_>, script: &Script, chains: Chains<'_>, d
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    fold_script(ctx, &c.body, chains, depth + 1);
+                    fold_script(ctx, &c.body, protected, semantics, depth + 1);
                 }
                 if let Some(b) = else_body {
-                    fold_script(ctx, b, chains, depth + 1);
+                    fold_script(ctx, b, protected, semantics, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                fold_script(ctx, init, chains, depth + 1);
-                fold_script(ctx, next, chains, depth + 1);
-                fold_script(ctx, body, chains, depth + 1);
+                fold_script(ctx, init, protected, semantics, depth + 1);
+                fold_script(ctx, next, protected, semantics, depth + 1);
+                fold_script(ctx, body, protected, semantics, depth + 1);
             }
             Statement::While { body, .. }
             | Statement::Catch { body, .. }
-            | Statement::Foreach { body, .. } => fold_script(ctx, body, chains, depth + 1),
+            | Statement::Foreach { body, .. } => {
+                fold_script(ctx, body, protected, semantics, depth + 1);
+            }
             Statement::Try {
                 body,
                 handlers,
                 finally_body,
                 ..
             } => {
-                fold_script(ctx, body, chains, depth + 1);
+                fold_script(ctx, body, protected, semantics, depth + 1);
                 for h in handlers {
-                    fold_script(ctx, &h.body, chains, depth + 1);
+                    fold_script(ctx, &h.body, protected, semantics, depth + 1);
                 }
                 if let Some(fb) = finally_body {
-                    fold_script(ctx, fb, chains, depth + 1);
+                    fold_script(ctx, fb, protected, semantics, depth + 1);
                 }
             }
             Statement::Switch {
@@ -311,11 +336,11 @@ fn fold_script(ctx: &mut PassContext<'_>, script: &Script, chains: Chains<'_>, d
             } => {
                 for a in arms {
                     if let Some(b) = &a.body {
-                        fold_script(ctx, b, chains, depth + 1);
+                        fold_script(ctx, b, protected, semantics, depth + 1);
                     }
                 }
                 if let Some(b) = default_body {
-                    fold_script(ctx, b, chains, depth + 1);
+                    fold_script(ctx, b, protected, semantics, depth + 1);
                 }
             }
             _ => {}
@@ -323,266 +348,281 @@ fn fold_script(ctx: &mut PassContext<'_>, script: &Script, chains: Chains<'_>, d
     }
 }
 
-/// A single static write to a variable.
+/// Static source operands of one selected variable operation.
 enum Write {
-    /// `set var <static>` — establishes the chain's initial value.
-    Set { var: String, value: String },
-    /// `append var <static>…` — string-concat extension.
+    Set {
+        var: String,
+        value: String,
+        setter: String,
+    },
     Append {
         var: String,
-        word: String,
         pieces: Vec<String>,
     },
-    /// `lappend var <static>…` — list extension.
     Lappend {
         var: String,
-        word: String,
         elements: Vec<String>,
     },
 }
 
-/// The (normalised) target variable name of a classified write.
-fn write_var(w: &Write) -> &str {
-    match w {
+fn write_var(write: &Write) -> &str {
+    match write {
         Write::Set { var, .. } | Write::Append { var, .. } | Write::Lappend { var, .. } => var,
     }
 }
 
-/// Whether a chain statement's head still denotes its registry builtin,
-/// asked of the module's own observed bindings
-/// ([`crate::command_binding::ModuleCommandMutations::observed_binding_is_the_builtin`]).
-///
-/// Each write [`classify_write`] recognises *is* its command's write
-/// semantics, so it may only fold while the head still denotes that command.
-/// With `proc append {varName args} {return ZZZ}` in scope, `append s foo`
-/// calls that proc and never touches `s` — tclsh 8.6.18 / 9.0.4 return the
-/// empty string for `set s ""; append s foo; append s bar; return $s`, where
-/// the ungated fold answered `foobar`. Same defect family as #2164.
-///
-/// A call is asked about its own resolved head; a typed assignment keeps no
-/// head, so it is asked about every registry spelling of the assignment
-/// operation its lowering stands for. No command is named here.
-///
-/// Keyed on the **named-subject** half of the trust fact, not the whole of
-/// [`crate::command_binding::ModuleCommandMutations::trusts`]. The hazard
-/// this gate exists for is a shadowing `proc append` (or a rename or alias
-/// onto the name), which is exactly what `observed_binding_is_the_builtin`
-/// answers. `trusts` additionally folds in the `dynamic` unbounded top,
-/// which a single unresolved command head anywhere in the module raises —
-/// and that declined a legitimate `append` chain in
-/// `samples/optimiser/input.tcl`, which shadows nothing. This pass had **no**
-/// trust gate at all before, so under `dynamic` it folded unconditionally;
-/// the named half is still strictly tighter than that. And the shared value
-/// lattice — which feeds O100's rewrites — already uses the named half, so
-/// gating this one harder would leave the two disagreeing about the same
-/// question, which is the defect #2164 was about. The residual that leaves
-/// under a computed rename is #2168, and it applies to both alike.
 #[derive(Clone, Copy)]
-struct ChainHeadTrust<'a> {
-    mutations: &'a crate::command_binding::ModuleCommandMutations,
-    /// Whether every command whose lowering yields a typed assignment still
-    /// denotes its builtin.
-    typed_assignment: bool,
+enum WriteKind {
+    Set,
+    Append,
+    Lappend,
 }
 
-impl<'a> ChainHeadTrust<'a> {
-    fn of(
-        mutations: &'a crate::command_binding::ModuleCommandMutations,
-        registry: &CommandRegistry,
-    ) -> Self {
-        let typed_assignment = registry
-            .command_names_for_semantic_operation(SemanticOperationId::StructuredLowering(
-                LoweringHookId::Set,
-            ))
-            .all(|name| mutations.observed_binding_is_the_builtin(name));
-        Self {
-            mutations,
-            typed_assignment,
-        }
-    }
-
-    /// Whether the call head `head` still denotes its builtin.
-    fn call(self, head: &str) -> bool {
-        self.mutations.observed_binding_is_the_builtin(head)
-    }
+struct WriteLayout {
+    kind: WriteKind,
+    variable: usize,
+    values: std::ops::Range<usize>,
 }
 
-/// Classify `stmt` as a static write, or `None` for anything else
-/// (dynamic operand, other command, control flow, or a head the module no
-/// longer leaves denoting its builtin).
-fn classify_write(stmt: &Statement, chains: Chains<'_>) -> Option<Write> {
-    match stmt {
-        Statement::AssignConst { name, value, .. } if chains.trust.typed_assignment => {
-            Some(Write::Set {
-                var: normalise_var_name(name).to_owned(),
-                value: value.clone(),
-            })
-        }
-        // `set s ""` / `set s foo` lower to `AssignValue`; only a static
-        // single-token literal value (no command/var substitution) anchors
-        // a foldable chain.
-        Statement::AssignValue {
-            name,
-            value,
-            value_needs_backsubst,
-            tokens,
-            ..
-        } if chains.trust.typed_assignment => {
-            if *value_needs_backsubst {
-                return None;
-            }
-            let tokens = tokens.as_ref()?;
-            let kind = tokens.argv_kinds.get(2)?;
-            let single = tokens.single_token_word.get(2).copied()?;
-            if !single || !matches!(kind, TokenType::Esc | TokenType::Str) {
-                return None;
-            }
-            Some(Write::Set {
-                var: normalise_var_name(name).to_owned(),
-                value: value.clone(),
-            })
-        }
-        // Which call extends the string and which the list is the
-        // registry's declaration: the resolved cell update, on the chain's
-        // shape (the variable first). A `set` anchors a chain only as the
-        // typed assignments above.
-        Statement::Call {
-            span,
-            command,
-            canonical_command,
-            args,
-            tokens,
-            ..
-        } => {
-            let tokens = tokens.as_ref()?;
-            let head = canonical_command.as_deref().unwrap_or(command);
-            if !chains.trust.call(head) {
-                return None;
-            }
-            let (operation, target) =
-                crate::value_transfer::resolved_cell_update(chains.registry, head, args)?;
-            if target.0 != 0 {
-                return None;
-            }
-            // Value words are argv index `vararg + 1 ..` (argv[0] is the
-            // command, argv[1] is the variable).
-            let var_word = args.first()?.clone();
-            let var = normalise_var_name(&var_word).to_owned();
-            let value_words = &args[1..];
-            let mut values = Vec::with_capacity(value_words.len());
-            for (j, val) in value_words.iter().enumerate() {
-                let argv_idx = j + 2; // skip command + variable
-                let kind = tokens.argv_kinds.get(argv_idx)?;
-                let single = tokens.single_token_word.get(argv_idx).copied()?;
-                if single && matches!(kind, TokenType::Esc | TokenType::Str) {
-                    // A piece is its value, not its spelling: a bare or
-                    // quoted piece that needs backslash substitution ends
-                    // the run, as a `set` anchor that needs it does, and a
-                    // braced piece's backslash-newlines collapse.
-                    if *kind == TokenType::Esc && val.contains('\\') {
-                        return None;
-                    }
-                    values.push(
-                        tcl_syntax::word_rules::WordValueRules::of_profile(
-                            chains.registry.profile(),
-                        )
-                        .collapse_braced_word(val)
-                        .into_owned(),
-                    );
-                } else {
-                    // A `$var` piece folds through the lattice value the
-                    // function proves at this statement; any other word, or
-                    // an unproven one, ends the run.
-                    let name = crate::static_loops::simple_var_ref(val)?;
-                    values.push(chains.lattice.constant_at(*span, &name)?);
+/// The selected schema owns effective ordinals, including compound selectors
+/// and captured alias operands. This layout is not an erasure or cell proof.
+fn source_write_layout(
+    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
+    semantics: ChainSourceContext<'_>,
+    realm: tcl_dialect::model::InvocationRealm,
+) -> Option<WriteLayout> {
+    use tcl_registry::SemanticOperationId::StructuredLowering;
+    use tcl_registry::hooks::LoweringHookId;
+
+    invocation.with_metadata_schema(semantics.registry, semantics.metadata, realm, |schema| {
+        match invocation.facts.operation {
+            StructuredLowering(LoweringHookId::Set) => {
+                let assignments = schema.authored_source_assignment_arguments()?;
+                let [(variable, Some(value))] = assignments.as_slice() else {
+                    return None;
+                };
+                // The emitted setter has no compound-prefix recipe. A source
+                // assignment layout cannot invent that independent edit input.
+                if *variable != 0 || *value != 1 || invocation.arguments.len() != 2 {
+                    return None;
                 }
+                Some(WriteLayout {
+                    kind: WriteKind::Set,
+                    variable: *variable,
+                    values: *value..value.checked_add(1)?,
+                })
             }
-            if values.is_empty() {
-                return None;
+            StructuredLowering(LoweringHookId::AppendOrLappend) => {
+                let (kind, layout) = schema.authored_source_append_arguments().map_or_else(
+                    || {
+                        schema
+                            .authored_source_list_append_arguments()
+                            .map(|layout| (WriteKind::Lappend, layout))
+                    },
+                    |layout| Some((WriteKind::Append, layout)),
+                )?;
+                (!layout.values.is_empty()).then_some(WriteLayout {
+                    kind,
+                    variable: layout.variable,
+                    values: layout.values,
+                })
             }
-            match operation {
-                CellUpdate::Append => Some(Write::Append {
-                    var,
-                    word: var_word,
-                    pieces: values,
-                }),
-                CellUpdate::ListAppend => Some(Write::Lappend {
-                    var,
-                    word: var_word,
-                    elements: values,
-                }),
-                CellUpdate::Increment => None,
-            }
+            _ => None,
         }
-        _ => None,
+    })
+}
+
+/// Typed source recipe only. Frozen values of substitutions cannot stand in
+/// for static operands because removing a read could remove an observer.
+fn classify_write(
+    tokens: &CommandTokens,
+    semantics: ChainSourceContext<'_>,
+    span: tcl_lexer::Span,
+) -> Option<Write> {
+    let binding = tokens.source_binding.as_ref()?;
+    if binding
+        .original_lexer_config_for_tokens(tokens)?
+        .normalized()
+        != semantics.config.normalized()
+    {
+        return None;
+    }
+    let purpose = binding.original_invocation_source_purpose(
+        tokens,
+        semantics.metadata,
+        semantics.registry,
+    )?;
+    let invocation = if purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical
+    {
+        crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            semantics.registry,
+            semantics.metadata,
+            tokens,
+        )?
+    } else {
+        crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+            semantics.registry,
+            Some(semantics.metadata),
+            tokens,
+        )?
+    };
+    if !invocation.facts.arg_roles_complete
+        || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
+    {
+        return None;
+    }
+    let layout = source_write_layout(&invocation, semantics, binding.invocation_realm()?)?;
+    let rules = tcl_syntax::word_rules::WordValueRules::from_config(&semantics.config);
+    let var =
+        invocation
+            .effective
+            .argument_literal(layout.variable, semantics.config.escapes, rules)?;
+    // Complete array operands need their own index/cell proof. A malformed
+    // final parenthesis is an unchanged scalar, including any literal '$'.
+    if tcl_syntax::naming::split_element_ref(&var).is_some() {
+        return None;
+    }
+    let values = layout
+        .values
+        .map(|index| {
+            invocation
+                .effective
+                .argument_literal(index, semantics.config.escapes, rules)
+                .or_else(|| {
+                    (purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+                        .then_some(())?;
+                    semantics
+                        .lattice
+                        .constant_at(span, invocation.effective.words.get(index + 1)?)
+                })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    match layout.kind {
+        WriteKind::Set => Some(Write::Set {
+            var,
+            value: values.into_iter().next()?,
+            setter: invocation.facts.canonical_command.clone(),
+        }),
+        WriteKind::Append => Some(Write::Append {
+            var,
+            pieces: values,
+        }),
+        WriteKind::Lappend => Some(Write::Lappend {
+            var,
+            elements: values,
+        }),
     }
 }
 
-/// The state a write chain starts from at `stmt`: the variable, its string
-/// value, and its list elements once a `lappend` has read it as a list. A
-/// chain anchors at a literal `set`, or at the absent cell's own first
-/// write: the release rule creates the cell in every release for `append`
-/// and `lappend` (§ *Existence*'s release table), so a place the existence
-/// rung proves `Unbound` immediately before this statement starts the chain
-/// exactly as an implicit `set var ""` would (the O104 / O130 row's "an
-/// absent-start chain folds through the value at the last write").
-fn chain_anchor(
-    stmt: &Statement,
-    chains: Chains<'_>,
-) -> Option<(String, String, Option<Vec<String>>)> {
-    let write = classify_write(stmt, chains)?;
+fn replacement_setter(semantics: ChainSourceContext<'_>) -> Option<String> {
+    semantics
+        .registry
+        .command_names_for_semantic_operation(
+            tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::Set,
+            ),
+        )
+        .find(|name| {
+            semantics.mutations.trusts(name)
+                && semantics
+                    .metadata
+                    .context()
+                    .resolve_spec(semantics.registry, name)
+                    .is_some()
+        })
+        .map(str::to_owned)
+}
+
+struct InitialChainValue {
+    variable: String,
+    value: String,
+    elements: Option<Vec<String>>,
+    setter: String,
+}
+
+fn initial_chain_value(
+    write: Write,
+    semantics: ChainSourceContext<'_>,
+    span: tcl_lexer::Span,
+) -> Option<InitialChainValue> {
     let absent = !matches!(write, Write::Set { .. })
-        && chains
+        && semantics
             .lattice
-            .existence_at_statement(stmt.span(), write_var(&write))
+            .existence_at_statement(span, write_var(&write))
             == Some(tcl_registry::value_transfer::Existence::Unbound);
-    match write {
-        Write::Set { var, value } => Some((var, value, None)),
-        Write::Append { var, pieces, .. } if absent => Some((var, pieces.concat(), None)),
-        Write::Lappend { var, elements, .. } if absent => {
-            Some((var, String::new(), Some(elements)))
+    let (var, chain_value, elements, setter) = match write {
+        Write::Set { var, value, setter } => (var, value, None, setter),
+        Write::Append { var, pieces } if absent => {
+            (var, pieces.concat(), None, replacement_setter(semantics)?)
         }
-        Write::Append { .. } | Write::Lappend { .. } => None,
-    }
+        Write::Lappend { var, elements } if absent => (
+            var,
+            String::new(),
+            Some(elements),
+            replacement_setter(semantics)?,
+        ),
+        Write::Append { .. } | Write::Lappend { .. } => return None,
+    };
+    Some(InitialChainValue {
+        variable: var,
+        value: chain_value,
+        elements,
+        setter,
+    })
 }
 
-/// Attempt to fold a write-chain starting at `stmts[start]`. Returns the
+/// Attempt to fold a write-chain starting at `script.statements[start]`. Returns the
 /// number of statements consumed (the run length) when a fold fires, else
 /// `None`.
 fn try_fold_chain_at(
     ctx: &mut PassContext<'_>,
-    stmts: &[Statement],
+    script: &Script,
     start: usize,
-    chains: Chains<'_>,
+    protected: &HashSet<String>,
+    semantics: ChainSourceContext<'_>,
 ) -> Option<usize> {
-    let (var, mut chain_value, mut elements) = chain_anchor(&stmts[start], chains)?;
+    let stmts = &script.statements;
+    let original = script.retained_source_tokens_for_statement(&stmts[start])?;
+    let write = classify_write(original, semantics, stmts[start].span())?;
+    let logical = original
+        .source_binding
+        .as_ref()?
+        .original_invocation_source_purpose(original, semantics.metadata, semantics.registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
+    let InitialChainValue {
+        variable: var,
+        value: mut chain_value,
+        mut elements,
+        setter,
+    } = initial_chain_value(write, semantics, stmts[start].span())?;
+    if !semantics.mutations.trusts(&setter) {
+        return None;
+    }
+    let replacement_head = tcl_syntax::naming::qualify("::", &setter);
     let mut writes = vec![start];
-    let mut last_word: Option<String> = None;
 
     let mut j = start + 1;
     while j < stmts.len() {
-        match classify_write(&stmts[j], chains) {
-            Some(Write::Append {
-                var: v,
-                word,
-                pieces,
-            }) if v == var && elements.is_none() => {
+        match script
+            .retained_source_tokens_for_statement(&stmts[j])
+            .and_then(|tokens| classify_write(tokens, semantics, stmts[j].span()))
+        {
+            Some(Write::Append { var: v, pieces }) if v == var && elements.is_none() => {
                 for p in pieces {
                     chain_value.push_str(&p);
                 }
-                last_word = Some(word);
                 writes.push(j);
                 j += 1;
             }
             Some(Write::Lappend {
                 var: v,
-                word,
                 elements: els,
             }) if v == var => {
                 if elements.is_none() {
                     // First lappend after the set — reinterpret the current
                     // string value as a list (bail if it is not one).
-                    let rules = tcl_syntax::word_rules::WordValueRules::of_profile(ctx.dialect);
+                    let rules =
+                        tcl_syntax::word_rules::WordValueRules::from_config(&semantics.config);
                     let Ok(base) = rules.split_list(&chain_value) else {
                         break;
                     };
@@ -591,17 +631,16 @@ fn try_fold_chain_at(
                 if let Some(list) = elements.as_mut() {
                     list.extend(els);
                 }
-                last_word = Some(word);
                 writes.push(j);
                 j += 1;
             }
-            // Precise-flow (O104/O130): a *static-literal* write to a
-            // **different** variable cannot read or write the accumulator,
-            // has no side effect, and is not a barrier (`classify_write`
-            // only matches single-token `Esc`/`Str` value words with no
-            // substitution), so the chain continues past it — the
-            // interleaved statement stays in place and is not folded.
-            Some(other) if write_var(&other) != var => {
+            // A separate unobserved literal write stays in place. An
+            // escaped/traced interleaved target can observe the accumulator
+            // through its callback, so it ends this source chain.
+            Some(other)
+                if write_var(&other) != var
+                    && !crate::variable_observation_names::variable_name_may_be_observed(protected, write_var(&other), false, crate::variable_observation_names::VariableProtectionPurpose::MixedSourceProtection) =>
+            {
                 j += 1;
             }
             _ => break,
@@ -611,56 +650,83 @@ fn try_fold_chain_at(
     // The whole-module traced-variable fact is stored `::`-stripped (see
     // `populate_variable_trace_facts`), so a `::`-qualified chain target is
     // checked under that canonical spelling too.
-    if writes.len() < 2
-        || chains.protected.contains(&var)
-        || chains.protected.contains(var.trim_start_matches("::"))
-    {
+    if writes.len() < 2 || chain_target_is_protected(protected, &var) {
         return None;
     }
-    // `last_word` is always set: a run of ≥2 writes has at least one
-    // append/lappend after the anchoring set.
-    let var_word = last_word?;
+    let var_word = tcl_syntax::word_rules::lexical_unicode_source_word(&var, semantics.config)?;
 
-    let (code, fold_msg, dead_msg, rendered) = if let Some(els) = &elements {
+    let (code, fold_msg, dead_msg, rendered) = render_chain_value(
+        elements.as_deref(),
+        &chain_value,
+        semantics.config,
+        ctx.dialect,
+    )?;
+
+    let source = ctx.source;
+    let extents = writes
+        .iter()
+        .map(|index| original_statement_rewrite_span(ctx, stmts[*index].span()))
+        .collect::<Option<Vec<_>>>()?;
+    let group = ctx.alloc_group();
+
+    let last_span = *extents.last()?;
+    let mut fold = Optimisation::new(
+        code,
+        fold_msg,
+        last_span,
+        format!("{replacement_head} {var_word} {rendered}"),
+    );
+    // A selected Native layout is source advice; no chain result/erasure
+    // owner has certified changing its original objects or intermediate writes.
+    fold.hint_only = !logical;
+    fold.group = Some(group);
+    ctx.report(fold);
+
+    for (&w, full) in writes[..writes.len() - 1]
+        .iter()
+        .zip(extents.iter().copied())
+    {
+        let next_start = stmts.get(w + 1).map(|s| s.span().start() as usize);
+        let del_span = statement_delete_rewrite_range(source, full, next_start);
+        let mut del = Optimisation::new(code, dead_msg, del_span, "");
+        del.hint_only = !logical;
+        del.group = Some(group);
+        ctx.report(del);
+    }
+
+    Some(writes.len())
+}
+
+fn chain_target_is_protected(protected: &HashSet<String>, var: &str) -> bool {
+    crate::variable_observation_names::variable_name_may_be_observed(
+        protected,
+        var,
+        false,
+        crate::variable_observation_names::VariableProtectionPurpose::MixedSourceProtection,
+    )
+}
+
+fn render_chain_value(
+    elements: Option<&[String]>,
+    value: &str,
+    config: LexerConfig,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> Option<(DiagCode, &'static str, &'static str, String)> {
+    Some(if let Some(els) = elements {
         (
             DiagCode::O130,
             "Fold write-only list build chain",
             "Remove dead intermediate list write",
-            render_list_word(els, ctx.dialect)?,
+            render_list_word(els, dialect)?,
         )
     } else {
         (
             DiagCode::O104,
             "Fold write-only string build chain",
             "Remove dead intermediate string write",
-            render_static_string_word(&chain_value)?,
+            render_static_string_word_in(value, config)?,
         )
-    };
-
-    let source = ctx.source;
-    let group = ctx.alloc_group();
-
-    let last = *writes.last().unwrap();
-    let last_span = full_rewrite_span(source, stmts[last].span());
-    let mut fold = Optimisation::new(
-        code,
-        fold_msg,
-        last_span,
-        format!("set {var_word} {rendered}"),
-    );
-    fold.group = Some(group);
-    ctx.report(fold);
-
-    for &w in &writes[..writes.len() - 1] {
-        let full = full_rewrite_span(source, stmts[w].span());
-        let next_start = stmts.get(w + 1).map(|s| s.span().start() as usize);
-        let del_span = statement_delete_rewrite_range(source, full, next_start);
-        let mut del = Optimisation::new(code, dead_msg, del_span, "");
-        del.group = Some(group);
-        ctx.report(del);
-    }
-
-    Some(writes.len())
+    })
 }
 
 /// Render `elements` as the single `set` value-word that recreates the
@@ -688,9 +754,22 @@ mod tests {
     }
 
     fn run_pass(source: &str) -> Vec<Optimisation> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let registry = registry();
+        let cu = CompilationUnit::build_for_profile(
+            source,
+            &registry,
+            false,
+            tcl_dialect::DialectProfile::plain_tcl(),
+        );
+        run_unit(&cu, &registry)
+    }
+
+    fn run_unit(cu: &CompilationUnit, registry: &CommandRegistry) -> Vec<Optimisation> {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
-        run(&mut ctx, &cu);
+        ctx.registry = Some(registry);
+        ctx.ir_module = Some(&cu.ir_module);
+        ctx.command_mutations.clone_from(&cu.command_mutations);
+        run(&mut ctx, cu);
         ctx.optimisations
     }
 
@@ -713,18 +792,8 @@ mod tests {
         out
     }
 
-    /// `fold_script` recurses once per
-    /// nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch` body,
-    /// so it needs a depth cap of its own. Transitively bounded
-    /// to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass today, so this
-    /// is defence-in-depth / consistency with every other full-tree walker
-    /// in this crate, not a currently-reproducible crash. 1000 levels of
-    /// source nesting is comfortably past this new cap; the assertion is
-    /// that `run_pass` returns at all, not what it returns. Spawns its own
-    /// big-stack thread since the lexer/CST/segmenter stages upstream of
-    /// the lowering cap still walk the full un-truncated source nesting
-    /// before that cap trims it — same rationale as
-    /// `codegen::structured::tests::deeply_nested_if_survives_structured_walk`.
+    /// The original 1000-level source must return without changing its depth.
+    /// The larger test stack accommodates full lexical/source traversal.
     #[test]
     fn deeply_nested_if_survives_fold_script() {
         const DEPTH: usize = 1000;
@@ -747,14 +816,321 @@ mod tests {
             .unwrap();
     }
 
+    fn logical_unit_at(
+        source: &str,
+        registry: &CommandRegistry,
+        availability: &str,
+    ) -> CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for(availability)
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+        let unit = CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: LexerConfig::from_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            context,
+        );
+        assert!(
+            unit.top_level
+                .source_metadata_input()
+                .unwrap()
+                .has_logical_source_name_context()
+        );
+        unit
+    }
+
+    #[test]
+    fn chain_uses_authentic_alias_captures_and_moved_append() {
+        // naming.optimiser.original-chain-write-metadata
+
+        for (source, code, expected) in [
+            (
+                "interp alias {} extend {} append s PRE; set s {}; extend A; extend B",
+                DiagCode::O104,
+                "::set s PREAPREB",
+            ),
+            (
+                "rename append moved; set s {}; moved s A; moved s B",
+                DiagCode::O104,
+                "::set s AB",
+            ),
+            (
+                "interp alias {} extend {} lappend l {PRE VALUE}; set l {}; extend A; extend B",
+                DiagCode::O130,
+                "::set l {{PRE VALUE} A {PRE VALUE} B}",
+            ),
+        ] {
+            let opts = run_pass(source);
+            assert!(
+                opts.iter()
+                    .any(|opt| opt.code == code && opt.replacement == expected && !opt.hint_only),
+                "{source}: {opts:?}"
+            );
+        }
+        for source in [
+            "proc append args {return CUSTOM}; set s {}; append s A; append s B",
+            "interp alias {} extend {} append s; rename append {}; proc append args {return CUSTOM}; set s {}; extend A; extend B",
+            "rename set moved_set; moved_set s {}; append s A; append s B",
+            "namespace eval N {proc append args {return CUSTOM}; set s {}; append s A; append s B}",
+        ] {
+            assert!(
+                run_pass(source)
+                    .iter()
+                    .all(|opt| opt.code != DiagCode::O104),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn chain_preserves_literal_scalar_names_and_closed_array_refusal() {
+        // naming.optimiser.original-chain-write-metadata
+
+        for (name, expected) in [
+            ("$scalar(open", "{$scalar(open}"),
+            ("café", "{café}"),
+            ("a b", "{a b}"),
+            (r"a\b", r#""a\\b""#),
+        ] {
+            let source = format!("set {{{name}}} {{}}; append {{{name}}} A; append {{{name}}} B");
+            let opts = run_pass(&source);
+            assert!(
+                opts.iter().any(|opt| opt.code == DiagCode::O104
+                    && opt.replacement == format!("::set {expected} AB")),
+                "{source}: {opts:?}"
+            );
+        }
+        for source in [
+            "set {a(k)} {}; append {a(k)} A; append {a(k)} B",
+            "set {$s} {}; append s A; append s B",
+            "set {scalar(open} {}; append scalar A; append scalar B",
+            // A known value of the receiver's variable is not an erasure
+            // receipt for its original read while forming that receiver.
+            "set receiver s; set $receiver {}; append $receiver A; append $receiver B",
+        ] {
+            assert!(
+                run_pass(source)
+                    .iter()
+                    .all(|opt| opt.code != DiagCode::O104),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn chain_requires_supplied_function_and_module_metadata() {
+        // naming.optimiser.original-chain-write-metadata
+
+        let registry = registry();
+        let source = "set s {}; append s A; append s B";
+        let original = logical_unit_at(source, &registry, "tcl9.0");
+        assert!(
+            run_unit(&original, &registry)
+                .iter()
+                .any(|opt| opt.code == DiagCode::O104)
+        );
+        let mut missing_function = original.clone();
+        missing_function.top_level.source_metadata_input = None;
+        assert!(run_unit(&missing_function, &registry).is_empty());
+        let mut stale_grammar = original.clone();
+        stale_grammar.top_level.source_config.expand_syntax =
+            !stale_grammar.top_level.source_config.expand_syntax;
+        assert!(run_unit(&stale_grammar, &registry).is_empty());
+        let mut missing_module = original.clone();
+        missing_module.ir_module.source_metadata_input = None;
+        assert!(run_unit(&missing_module, &registry).is_empty());
+        let mut foreign = original.clone();
+        let input = original.top_level.source_metadata_input().unwrap();
+        foreign.top_level.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0")
+                    .default_context_registry(),
+                input.lexer_config(),
+            ));
+        assert!(run_unit(&foreign, &registry).is_empty());
+        // Both inputs individually belong to this command store. A different
+        // availability owner must still not be borrowed across the function/module join.
+        let mut different_owner = original.clone();
+        different_owner.top_level.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                std::sync::Arc::new(
+                    tcl_registry::model::ingress::static_context_for("tcl8.4")
+                        .with_command_store(registry.snapshot().shared_registry()),
+                ),
+                input.lexer_config(),
+            ));
+        assert!(
+            different_owner
+                .top_level
+                .invocation_metadata_context(&registry)
+                .is_some()
+        );
+        assert!(run_unit(&different_owner, &registry).is_empty());
+        let mut detached = PassContext::new(&original.source, InterproceduralAnalysis::default());
+        run(&mut detached, &original);
+        assert!(detached.optimisations.is_empty());
+    }
+
+    #[test]
+    fn chain_requires_original_statement_tape_after_structured_lowering() {
+        // naming.optimiser.original-chain-write-metadata
+
+        // The source sidecar survives typed lowering without becoming a Native receipt.
+        let registry = registry();
+        let source = "set s {}; append s A; append s B";
+        let original = logical_unit_at(source, &registry, "tcl9.0");
+        let script = &original.ir_module.top_level;
+        assert!(script.statements[0].tokens().is_none());
+        assert!(
+            script
+                .retained_source_tokens_for_statement(&script.statements[0])
+                .is_some()
+        );
+        assert!(
+            run_unit(&original, &registry)
+                .iter()
+                .any(|opt| opt.code == DiagCode::O104)
+        );
+        let mut missing = original;
+        missing.ir_module.top_level.command_binding_sites = Default::default();
+        assert!(run_unit(&missing, &registry).is_empty());
+    }
+
+    #[test]
+    fn chain_uses_retained_availability_over_catalogue_generation() {
+        // naming.optimiser.original-chain-write-metadata
+
+        let mut registry = registry();
+        let append = registry.get("append").unwrap().clone();
+        registry.insert(tcl_registry::CommandSpec {
+            surface: registry.get("dict").unwrap().surface,
+            ..append
+        });
+        let source = "set s {}; append s A; append s B";
+        let available = logical_unit_at(source, &registry, "tcl9.0");
+        let unavailable = logical_unit_at(source, &registry, "tcl8.4");
+        assert!(
+            run_unit(&available, &registry)
+                .iter()
+                .any(|opt| opt.code == DiagCode::O104)
+        );
+        assert!(run_unit(&unavailable, &registry).is_empty());
+    }
+
+    #[test]
+    fn native_chain_layout_never_grants_erasure() {
+        // naming.optimiser.original-chain-write-metadata
+
+        // Original API receipts only; this is not a native execution comparison.
+        let source = "set s {}; append s A; append s B";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let context = tcl_registry::model::ingress::static_context_for(dialect);
+            let registry = context.commands();
+            let profile = registry.profile().unwrap();
+            let capture = crate::environment_ingress::captured_native_entry(profile);
+            let entry = crate::command_binding::SourceAnalysisEntry {
+                native_entry: Some(std::sync::Arc::new(capture.as_entry().clone())),
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                    mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            let config = LexerConfig::from_grammar(profile.grammar);
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::ingress::resolve_environment(dialect)
+                    .default_context_registry(),
+                config,
+            );
+            let unit = CompilationUnit::build_with_analysis_input(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                Some(&entry),
+                &input,
+            );
+            assert!(
+                !unit
+                    .top_level
+                    .source_metadata_input()
+                    .unwrap()
+                    .has_logical_source_name_context()
+            );
+            if dialect == "tcl8.6" {
+                let function = &unit.top_level;
+                let statement = &unit.ir_module.top_level.statements[0];
+                let lattice = FunctionLattice::of(function);
+                let semantics = ChainSourceContext {
+                    registry,
+                    metadata: unit
+                        .top_level
+                        .invocation_metadata_context(registry)
+                        .unwrap(),
+                    config: unit.top_level.source_lexer_config(),
+                    mutations: &unit.command_mutations,
+                    lattice: &lattice,
+                };
+                assert!(
+                    classify_write(
+                        unit.ir_module
+                            .top_level
+                            .retained_source_tokens_for_statement(statement)
+                            .unwrap(),
+                        semantics,
+                        statement.span(),
+                    )
+                    .is_some(),
+                    "the positive Native API layout remains distinct from erasure admission"
+                );
+            }
+            let opts = run_unit(&unit, registry);
+            assert!(opts.iter().all(|opt| opt.hint_only), "{dialect}: {opts:?}");
+            assert_eq!(super::super::apply_optimisations(source, &opts), source);
+        }
+    }
+
+    #[test]
+    fn traced_interleaved_write_ends_chain() {
+        // naming.optimiser.original-chain-write-metadata
+
+        let source = "proc observe args {puts $::s}; trace add variable ::t write observe; set s {}; set t A; append s B";
+        assert!(
+            run_pass(source)
+                .iter()
+                .all(|opt| opt.code != DiagCode::O104)
+        );
+    }
+
     #[test]
     fn string_chain_folds_to_single_set() {
         let opts = run_pass("set s \"\"\nappend s foo\nappend s bar");
         let fold = opts
             .iter()
-            .find(|o| o.code == DiagCode::O104 && o.replacement.starts_with("set"))
+            .find(|o| o.code == DiagCode::O104 && o.replacement.starts_with("::set"))
             .expect("expected an O104 fold");
-        assert_eq!(fold.replacement, "set s foobar");
+        assert_eq!(fold.replacement, "::set s foobar");
         // One fold + two deletions, all in one group.
         let o104: Vec<_> = opts.iter().filter(|o| o.code == DiagCode::O104).collect();
         assert_eq!(o104.len(), 3);
@@ -766,11 +1142,11 @@ mod tests {
     fn string_chain_rewrite_applies_cleanly() {
         assert_eq!(
             apply("set s \"\"\nappend s foo\nappend s bar"),
-            "set s foobar"
+            "::set s foobar"
         );
         assert_eq!(
             apply("set s start\nappend s _mid\nappend s _end"),
-            "set s start_mid_end",
+            "::set s start_mid_end",
         );
     }
 
@@ -781,7 +1157,7 @@ mod tests {
         // statement stays in place.
         assert_eq!(
             apply("set s \"\"\nset t 1\nappend s foo\nappend s bar"),
-            "set t 1\nset s foobar",
+            "set t 1\n::set s foobar",
         );
     }
 
@@ -793,7 +1169,7 @@ mod tests {
         let opts = run_pass("set s \"\"\nputs $s\nappend s foo\nappend s bar");
         let fold = opts
             .iter()
-            .find(|o| o.code == DiagCode::O104 && o.replacement.starts_with("set s"));
+            .find(|o| o.code == DiagCode::O104 && o.replacement.starts_with("::set s"));
         // The `set s ""; puts $s` prefix breaks; the two trailing appends
         // have no anchoring `set`, so no fold fires.
         assert!(
@@ -806,7 +1182,7 @@ mod tests {
     fn list_chain_folds_with_lappend() {
         assert_eq!(
             apply("set l {}\nlappend l a\nlappend l b c"),
-            "set l {a b c}"
+            "::set l {a b c}"
         );
     }
 
@@ -815,7 +1191,7 @@ mod tests {
         // An element containing a space must be re-quoted as a list word.
         assert_eq!(
             apply("set l {}\nlappend l {a b}\nlappend l c"),
-            "set l {{a b} c}"
+            "::set l {{a b} c}"
         );
     }
 
@@ -894,7 +1270,7 @@ mod tests {
         // set + one append = 2 writes → folds (the chain needs >= 2 writes).
         assert!(opts.iter().any(|o| o.code == DiagCode::O104));
         // But a lone set is not a chain.
-        let opts = run_pass("set s foo");
+        let opts = run_pass("::set s foo");
         assert!(opts.iter().all(|o| o.code != DiagCode::O104));
     }
 
@@ -905,7 +1281,7 @@ mod tests {
         let opts = run_pass("set s \"\"\nappend s foo\nappend s $x");
         assert!(
             opts.iter()
-                .any(|o| o.code == DiagCode::O104 && o.replacement == "set s foo")
+                .any(|o| o.code == DiagCode::O104 && o.replacement == "::set s foo")
         );
     }
 
@@ -918,10 +1294,10 @@ mod tests {
         let opts = run_pass("set s \"\"\nappend s foo\nputs $s\nappend s bar");
         let folds: Vec<&str> = opts
             .iter()
-            .filter(|o| o.code == DiagCode::O104 && o.replacement.starts_with("set"))
+            .filter(|o| o.code == DiagCode::O104 && o.replacement.starts_with("::set"))
             .map(|o| o.replacement.as_str())
             .collect();
-        assert_eq!(folds, ["set s foo"], "got {opts:?}");
+        assert_eq!(folds, ["::set s foo"], "got {opts:?}");
     }
 
     #[test]
@@ -937,8 +1313,17 @@ mod tests {
     #[test]
     fn cross_event_var_not_folded() {
         let src = "set s \"\"\nappend s foo\nappend s bar";
-        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let registry = registry();
+        let cu = CompilationUnit::build_for_profile(
+            src,
+            &registry,
+            false,
+            tcl_dialect::DialectProfile::plain_tcl(),
+        );
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.registry = Some(&registry);
+        ctx.ir_module = Some(&cu.ir_module);
+        ctx.command_mutations.clone_from(&cu.command_mutations);
         ctx.cross_event_vars.insert("s".to_owned());
         run(&mut ctx, &cu);
         assert!(ctx.optimisations.iter().all(|o| o.code != DiagCode::O104));
@@ -948,7 +1333,7 @@ mod tests {
     fn folds_inside_proc_body() {
         assert_eq!(
             apply("proc ::f {} {\n    set s \"\"\n    append s a\n    append s b\n}"),
-            "proc ::f {} {\n    set s ab\n}",
+            "proc ::f {} {\n    ::set s ab\n}",
         );
     }
 
@@ -990,5 +1375,127 @@ mod tests {
             opts.iter().all(|o| o.code != DiagCode::O130),
             "dynamic trace target must block every chain fold, got {opts:?}",
         );
+    }
+    #[test]
+    fn actual_jim_chain_advice_cannot_become_a_logical_rewrite() {
+        // naming.optimisation.original-source-purpose
+
+        let source = "set s {}; append s FIRST; append s SECOND";
+        // Actual software Vm entry; no external Jim/provider execution.
+        let environment = tcl_registry::model::ingress::resolve_environment("jimtcl");
+        let profile = environment.unit_profile();
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let (_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        assert!(captured.command_name_policy().is_none());
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let native = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_file_grammar(environment.grammar()),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &native.ir_module,
+        )
+        .unwrap();
+        assert!(metadata.permits_logical_source_names());
+        assert_eq!(
+            native
+                .ir_module
+                .original_invocation_source_purpose(registry, metadata),
+            Some(crate::command_binding::OriginalInvocationSourcePurpose::Execution)
+        );
+        assert!(
+            run_unit(&native, registry)
+                .iter()
+                .all(|advice| advice.hint_only)
+        );
+        // Same assistance input, independently retained Logical source driver.
+        let input = metadata.source_analysis_input().unwrap();
+        let logical_entry =
+            crate::command_binding::SourceAnalysisEntry::for_logical_source(input).unwrap();
+        let logical = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&logical_entry),
+            std::sync::Arc::clone(&context),
+        );
+        let advice = run_unit(&logical, registry);
+        assert!(!advice.is_empty());
+        assert!(advice.iter().all(|advice| !advice.hint_only));
+    }
+    #[test]
+    fn retained_authored_simulation_chain_layout_stays_hint_only() {
+        // naming.optimisation.original-source-purpose
+
+        // Actual authored source entry/policy; no supplied Native interpreter.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let policy = tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V9_0),
+        );
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    &input,
+                )),
+            execution_name_policy: Some(policy),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            "set s {}; append s FIRST; append s SECOND",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let metadata = InvocationMetadataContext::for_module(registry, &unit.ir_module).unwrap();
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert_eq!(
+            unit.ir_module
+                .original_invocation_source_purpose(registry, metadata),
+            Some(crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation)
+        );
+        let advice = run_unit(&unit, registry);
+        assert!(!advice.is_empty());
+        assert!(advice.iter().all(|advice| advice.hint_only));
     }
 }

@@ -88,6 +88,14 @@ impl<'a> LiteralInputs<'a> {
         }
     }
 
+    /// Retain the caller's complete analytical context, including its selected
+    /// grammar. This does not prove a literal's evaluation or a native handler.
+    #[must_use]
+    pub fn with_context(mut self, context: AnalysisContext) -> Self {
+        self.context = context;
+        self
+    }
+
     /// Operand `id` as a brace-quoted word: its structure is its text as one
     /// literal run from offset 1, past the opening brace — what a template
     /// plan decomposes. An operand given no structure has none.

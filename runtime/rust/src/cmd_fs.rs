@@ -38,16 +38,120 @@ use tcl_dialect::model::{surface_admits, SurfaceQuery};
 use tcl_platform::{Filesystem, HostError};
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};
-use crate::list;
 use crate::obj::TclObj;
 
 /// Register `source`, `file`, `glob`, `pwd`, `cd`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"source", source_cmd);
-    interp.register_builtin(b"file", file_cmd);
-    interp.register_builtin(b"glob", glob_cmd);
-    interp.register_builtin(b"pwd", pwd_cmd);
-    interp.register_builtin(b"cd", cd_cmd);
+    interp.register_stock_builtin(b"source", source_cmd);
+    install_file(interp);
+    interp.register_stock_builtin(b"glob", glob_cmd);
+    interp.register_stock_builtin(b"pwd", pwd_cmd);
+    interp.register_stock_builtin(b"cd", cd_cmd);
+}
+
+pub(crate) fn install_file(interp: &mut Interp) {
+    const NAMES: &[&[u8]] = &[
+        b"atime",
+        b"attributes",
+        b"channels",
+        b"copy",
+        b"delete",
+        b"dirname",
+        b"executable",
+        b"exists",
+        b"extension",
+        b"home",
+        b"isdirectory",
+        b"isfile",
+        b"join",
+        b"link",
+        b"lstat",
+        b"mkdir",
+        b"mtime",
+        b"nativename",
+        b"normalize",
+        b"owned",
+        b"pathtype",
+        b"readable",
+        b"readlink",
+        b"rename",
+        b"rootname",
+        b"separator",
+        b"size",
+        b"split",
+        b"stat",
+        b"system",
+        b"tail",
+        b"tempdir",
+        b"tempfile",
+        b"tildeexpand",
+        b"type",
+        b"volumes",
+        b"writable",
+    ];
+    let admitted = crate::environment::release_subcommands(
+        interp.native_ensemble_profile_name(),
+        "file",
+        NAMES,
+    );
+    interp.register_stock_ensemble(
+        tcl_registry::invocation_words::EnsembleImplementationFamily::File,
+        b"file",
+        file_cmd,
+        FILE_MEMBERS,
+        admitted,
+    );
+}
+
+macro_rules! file_members {
+    ($($function:ident => $member:literal),+ $(,)?) => {
+        const FILE_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
+            $(($member, $function)),+
+        ];
+        $(fn $function(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+            interp.invoke_stock_worker(argv, &[b"file", $member], file_cmd)
+        })+
+    };
+}
+
+file_members! {
+    stock_file_atime => b"atime",
+    stock_file_attributes => b"attributes",
+    stock_file_channels => b"channels",
+    stock_file_copy => b"copy",
+    stock_file_delete => b"delete",
+    stock_file_dirname => b"dirname",
+    stock_file_executable => b"executable",
+    stock_file_exists => b"exists",
+    stock_file_extension => b"extension",
+    stock_file_home => b"home",
+    stock_file_isdirectory => b"isdirectory",
+    stock_file_isfile => b"isfile",
+    stock_file_join => b"join",
+    stock_file_link => b"link",
+    stock_file_lstat => b"lstat",
+    stock_file_mkdir => b"mkdir",
+    stock_file_mtime => b"mtime",
+    stock_file_nativename => b"nativename",
+    stock_file_normalize => b"normalize",
+    stock_file_owned => b"owned",
+    stock_file_pathtype => b"pathtype",
+    stock_file_readable => b"readable",
+    stock_file_readlink => b"readlink",
+    stock_file_rename => b"rename",
+    stock_file_rootname => b"rootname",
+    stock_file_separator => b"separator",
+    stock_file_size => b"size",
+    stock_file_split => b"split",
+    stock_file_stat => b"stat",
+    stock_file_system => b"system",
+    stock_file_tail => b"tail",
+    stock_file_tempdir => b"tempdir",
+    stock_file_tempfile => b"tempfile",
+    stock_file_tildeexpand => b"tildeexpand",
+    stock_file_type => b"type",
+    stock_file_volumes => b"volumes",
+    stock_file_writable => b"writable",
 }
 
 fn as_str(b: &[u8]) -> &str {
@@ -56,37 +160,91 @@ fn as_str(b: &[u8]) -> &str {
 
 // source
 
-/// `source ?-encoding name? ?-nopkg? fileName` — read and evaluate a file.
-/// We are UTF-8 internally so `-encoding` is accepted and ignored; `-nopkg`
-/// (Tcl 9's "don't register for `package files`") is likewise a no-op here.
+/// Read a file after the actual native source grammar selects its operands.
 fn source_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    const USAGE: &[u8] = b"source ?-encoding encoding? ?-nopkg? fileName";
-    let mut i = 1;
-    while i < argv.len() {
-        match obj_bytes(argv[i]).as_slice() {
-            b"-encoding" if i + 1 < argv.len() => i += 2,
-            b"-nopkg" => i += 1,
-            _ => break,
+    use crate::interp::{
+        native_arguments::OriginalArguments, native_operation_currency::NativeOperationScope,
+    };
+    let operation = match NativeOperationScope::enter(interp) {
+        Ok(operation) => operation,
+        Err(error) => {
+            return interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error));
         }
+    };
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let reached = source_in_scope(interp, argv, &arguments);
+    let reached = arguments.finish(reached);
+    drop(arguments);
+    if operation.currency().ensure_current_or_refuse().is_err() {
+        return Code::Error;
     }
-    if i != argv.len() - 1 {
-        return interp.wrong_args(USAGE);
-    }
-    let path = obj_bytes(argv[i]);
-    let read = interp
-        .host()
-        .filesystem()
-        .map_or(Err(HostError::NotFound), |fs| fs.read(as_str(&path)));
-    match read {
-        Ok(bytes) => interp.eval_sourced(&bytes, &path),
-        Err(e) => {
-            let mut m = b"couldn't read file \"".to_vec();
-            m.extend_from_slice(&path);
-            m.extend_from_slice(b"\": ");
-            m.extend_from_slice(e.reason().as_bytes());
-            interp.set_error(&m)
+    reached
+}
+
+fn source_in_scope(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &crate::interp::native_arguments::OriginalArguments,
+) -> Code {
+    use tcl_registry::source_file::{SourceFileGrammar, SourceFileSelection};
+    let dialect = interp.native_invocation_dialect();
+    let Some(grammar) = dialect.source_file_grammar() else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("native source grammar")
+                .into(),
+        );
+    };
+    let Some(protocol) = dialect.native_source_file_protocol() else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native source file protocol",
+            )
+            .into(),
+        );
+    };
+    let count = argv.len().saturating_sub(1);
+    let selector = if count > 1 && grammar != SourceFileGrammar::Filename {
+        match arguments.bytes(1) {
+            Ok(bytes) => Some(bytes),
+            Err(error) => return interp.report_cmd_error(error),
         }
+    } else {
+        None
+    };
+    let SourceFileSelection::Selected(selected) =
+        grammar.select_original(count, selector.as_deref())
+    else {
+        return interp.wrong_args_for_invocation(argv, grammar.usage_suffix().as_bytes());
+    };
+    let prepared = tcl_cmd_core::encoding::prepare_source_file(
+        &mut crate::interp::native_encoding_source::SourceOps {
+            interpreter: interp,
+            arguments,
+            encoding_at: selected.encoding_at,
+            reached: Vec::new(),
+        },
+        protocol,
+        selected.path_at,
+        selected.encoding_at,
+    );
+    let prepared = match prepared {
+        Ok(prepared) => prepared,
+        Err(error) => return interp.report_cmd_error(arguments.retain_refusal(error)),
+    };
+    if let Err(error) = arguments.check_for(interp) {
+        return interp.report_cmd_error(error);
     }
+    let package_scope = selected
+        .no_package
+        .then(|| interp.take_package_file_scope());
+    let code = interp.eval_sourced(&prepared.script, &prepared.path);
+    if let Some(scope) = package_scope {
+        interp.restore_package_file_scope(scope);
+    }
+    arguments.finish(code)
 }
 
 // file
@@ -215,11 +373,11 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"lstat" => file_stat(interp, argv, true),
         b"split" => {
             let name = arg(2).unwrap_or_default();
-            let objs: Vec<*mut TclObj> = path::split(&name, reading(interp))
+            let elems: Vec<*mut TclObj> = path::split(&name, reading(interp))
                 .iter()
                 .map(|element| new_string(element))
                 .collect();
-            interp.set_result(list::new_list_obj(&objs));
+            interp.set_result(interp.new_list_object(&elems));
             Code::Ok
         }
         b"normalize" => {
@@ -464,10 +622,7 @@ fn into_directory(interp: &Interp, target: &[u8], source: &[u8]) -> Result<Vec<u
 fn path_result(interp: &mut Interp, path: Result<Vec<u8>, CmdError>) -> Code {
     match path {
         Ok(path) => str_result(interp, &path),
-        Err(error) => match error.into_parts() {
-            (message, Some(code)) => interp.error_with_code(message.as_bytes(), code.as_bytes()),
-            (message, None) => interp.set_error(message.as_bytes()),
-        },
+        Err(error) => interp.report_cmd_error(error),
     }
 }
 
@@ -564,7 +719,7 @@ fn file_attributes(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .iter()
             .flat_map(|(k, v)| [new_string(k), new_string(v)])
             .collect();
-        interp.set_result(list::new_list_obj(&objs));
+        interp.set_result(interp.new_list_object(&objs));
         return Code::Ok;
     }
     if argv.len() == 4 && obj_bytes(argv[3]) == b"-permissions" {
@@ -603,7 +758,7 @@ fn file_channels(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         })
         .collect();
     let objs: Vec<*mut TclObj> = names.iter().map(|n| new_string(n)).collect();
-    interp.set_result(list::new_list_obj(&objs));
+    interp.set_result(interp.new_list_object(&objs));
     Code::Ok
 }
 
@@ -800,7 +955,7 @@ fn file_stat(interp: &mut Interp, argv: &[*mut TclObj], no_follow: bool) -> Code
             .iter()
             .flat_map(|(k, v)| [new_string(k), new_string(v)])
             .collect();
-        interp.set_result(list::new_list_obj(&objs));
+        interp.set_result(interp.new_list_object(&objs));
     }
     Code::Ok
 }
@@ -981,7 +1136,7 @@ fn file_volumes(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.set_error(b"filesystem not available");
     }
     let root = new_string(b"/");
-    interp.set_result(list::new_list_obj(&[root]));
+    interp.set_result(interp.new_list_object(&[root]));
     Code::Ok
 }
 
@@ -1067,7 +1222,7 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if !word.starts_with(b"-") {
             break;
         }
-        match GLOB_OPTIONS.index_of(&word) {
+        match interp.native_static_option_index(argv[i], GLOB_OPTIONS.names(), false, "option") {
             // `-directory dir` and `-path prefix` are distinct in C; this
             // runtime models both as the search root.
             Ok(0 | 3) => {
@@ -1079,8 +1234,7 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Ok(4) => tails = true,
             Ok(5) => {
                 i += 1;
-                // The value is a list of type specifiers (`d`, `f`, `r`, …); a
-                // name must satisfy every requested test (`tclFileName.c`).
+                // File kinds form a union; permission qualifiers all apply.
                 if let Some(&a) = argv.get(i) {
                     types = crate::parse::split_list(&obj_bytes(a))
                         .unwrap_or_default()
@@ -1094,7 +1248,7 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 i += 1;
                 break;
             }
-            Err(m) => return interp.set_error(&m),
+            Err(m) => return interp.report_cmd_error(m),
         }
         i += 1;
     }
@@ -1130,7 +1284,7 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.set_error(&m);
     }
     let objs: Vec<*mut TclObj> = hits.iter().map(|h| new_string(h)).collect();
-    interp.set_result(list::new_list_obj(&objs));
+    interp.set_result(interp.new_list_object(&objs));
     Code::Ok
 }
 
@@ -1199,7 +1353,7 @@ fn walk(
         }
         child_path.extend_from_slice(name_b);
         if last {
-            // `-types`: keep only entries that satisfy every requested test.
+            // Apply file-kind and permission filters.
             if !entry_matches_types(fs, &child_path, types) {
                 continue;
             }
@@ -1210,16 +1364,9 @@ fn walk(
     }
 }
 
-/// Whether the entry at `path` satisfies every `-types` specifier. An empty list
-/// matches everything. Recognised portably: file-kind `d f l` and permission
-/// `r w x` (mirrors `tclFileName.c`'s `GLOB_TYPE_*`). A name passes only if it
-/// matches every requested test.
-///
-/// The Unix special-device kinds `p s b c` (fifo/socket/block/char) are **not**
-/// expressible through the portable [`Filesystem`] seam — a WASI/browser host
-/// has none — so they never match here (the maturity-asymmetry tax: the prior
-/// native-only path could match them via `std::os::unix`). `r`/`w` stay
-/// best-effort `true`; `x` reads the host's executable bit.
+/// File-kind selectors form a union, intersected with permission qualifiers.
+/// The portable filesystem supports `d f l`; other kinds cannot match here.
+/// `r`/`w` retain their best-effort checks and `x` uses the executable flag.
 fn entry_matches_types(fs: Option<&dyn Filesystem>, path: &[u8], types: &[u8]) -> bool {
     if types.is_empty() {
         return true;
@@ -1228,21 +1375,31 @@ fn entry_matches_types(fs: Option<&dyn Filesystem>, path: &[u8], types: &[u8]) -
     let Some(meta) = fs.and_then(|fs| fs.symlink_metadata(as_str(path)).ok()) else {
         return false;
     };
+    let mut kind_requested = false;
+    let mut kind_matched = false;
     for &t in types {
+        let kind = match t {
+            b'd' => Some(meta.is_dir),
+            b'f' => Some(meta.is_file),
+            b'l' => Some(meta.is_symlink),
+            b'p' | b's' | b'b' | b'c' => Some(false),
+            _ => None,
+        };
+        if let Some(matched) = kind {
+            kind_requested = true;
+            kind_matched |= matched;
+            continue;
+        }
         let ok = match t {
-            b'd' => meta.is_dir,
-            b'f' => meta.is_file,
-            b'l' => meta.is_symlink,
             b'r' | b'w' => true, // permission probes — best-effort (assume yes)
             b'x' => meta.executable,
-            b'p' | b's' | b'b' | b'c' => false, // special devices: not portable
-            _ => true,                          // unknown specifier: don't exclude
+            _ => true, // unknown specifier: don't exclude
         };
         if !ok {
             return false;
         }
     }
-    true
+    !kind_requested || kind_matched
 }
 
 /// Whether a single path segment matches a glob segment. A literal segment (no
@@ -1263,7 +1420,74 @@ fn glob_seg_match(pat: &[u8], name: &[u8]) -> bool {
 mod tests {
     use super::file_permissions;
     use crate::interp::{Code, Interp};
+    #[cfg(unix)]
+    use crate::obj;
     use tcl_dialect::TclVersion;
+
+    #[test]
+    fn file_worker_runtime_headers_match_all_190_original_native_snapshots() {
+        use tcl_runtime_api::native_compilation::NativeCompilerHookPresence as Hook;
+        let fixtures = [
+            (
+                TclVersion::V8_4,
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_file_compilers/8.4.20.tsv"
+                ),
+            ),
+            (
+                TclVersion::V8_5,
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_file_compilers/8.5.19.tsv"
+                ),
+            ),
+            (
+                TclVersion::V8_6,
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_file_compilers/8.6.18.tsv"
+                ),
+            ),
+            (
+                TclVersion::V9_0,
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_file_compilers/9.0.4.tsv"
+                ),
+            ),
+            (
+                TclVersion::V9_1,
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_file_compilers/9.1.0.tsv"
+                ),
+            ),
+        ];
+        let mut checked = 0;
+        for (version, fixture) in fixtures {
+            let mut interp = Interp::new();
+            interp.set_runtime_version(version);
+            for row in fixture.lines().skip(1) {
+                let (identity, expected) = row.split_once('\t').unwrap();
+                let namespaces = interp.namespaces();
+                let actual = match namespaces
+                    .resolve_generation(crate::namespace::GLOBAL, identity.as_bytes())
+                {
+                    None => -1,
+                    Some(generation) => match namespaces.native_compiler_hook(generation) {
+                        Some(Hook::Absent) => 0,
+                        Some(Hook::Present) => 1,
+                        value => panic!(
+                            "unknown original file registration: {version:?}/{identity}: {value:?}"
+                        ),
+                    },
+                };
+                assert_eq!(
+                    actual,
+                    expected.parse::<i32>().unwrap(),
+                    "{version:?}/{identity}"
+                );
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 190);
+    }
 
     /// `file` on names the releases read apart, as tclsh 8.4.20, 8.5.19,
     /// 8.6.18 and 9.0.4 (9.1.0 as 9.0.4) answer: a leading `//` (#2420), a
@@ -1642,6 +1866,163 @@ mod tests {
         assert_eq!(ok(&mut i, cmd.as_bytes()), b"done"); // top-level return → ok
         assert_eq!(ok(&mut i, b"set sourced"), b"42");
         std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn source_uses_actual_argument_and_return_protocols() {
+        let jim = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        )));
+        let path =
+            std::env::temp_dir().join(format!("tclrt_source_protocol_{}.tcl", std::process::id()));
+        std::fs::write(&path, b"return -level 2 -code error BOOM\n").unwrap();
+        for (profile, expected_code) in [
+            (
+                crate::environment::profile_for_dialect("tcl8.6"),
+                b"2".as_slice(),
+            ),
+            (jim, b"0".as_slice()),
+        ] {
+            let mut interp = Interp::new();
+            interp.set_dialect_profile(profile);
+            let script = format!("catch {{source {}}} result", path.display());
+            assert_eq!(ok(&mut interp, script.as_bytes()), expected_code);
+            assert_eq!(ok(&mut interp, b"set result"), b"BOOM");
+            let invalid = format!("catch {{source -encoding utf-8 {}}}", path.display());
+            if std::ptr::eq(profile, jim) {
+                assert_eq!(ok(&mut interp, invalid.as_bytes()), b"1");
+            }
+        }
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[cfg(unix)]
+    struct GlobTypeFixture(std::path::PathBuf);
+
+    #[cfg(unix)]
+    impl Drop for GlobTypeFixture {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.0).unwrap();
+        }
+    }
+
+    #[cfg(unix)]
+    fn glob_type_fixture(label: &str) -> (Interp, GlobTypeFixture) {
+        use std::os::unix::{ffi::OsStrExt, fs::PermissionsExt};
+        let directory =
+            std::env::temp_dir().join(format!("tclrt_glob_types_{}_{label}", std::process::id()));
+        std::fs::create_dir(&directory).unwrap();
+        let fixture = GlobTypeFixture(directory);
+        for (name, mode) in [
+            ("plain.txt", 0o600),
+            ("executable.txt", 0o700),
+            ("readonly.txt", 0o400),
+        ] {
+            let path = fixture.0.join(name);
+            std::fs::write(&path, b"ordinary fixture\n").unwrap();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).unwrap();
+        }
+        let child = fixture.0.join("directory");
+        std::fs::create_dir(&child).unwrap();
+        std::fs::set_permissions(child, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("tcl8.6"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let path = obj::Owned::fresh(obj::new_string_bytes(fixture.0.as_os_str().as_bytes()));
+        interp.var_set(b"fixture", path.as_ptr()).unwrap();
+        (interp, fixture)
+    }
+
+    #[cfg(unix)]
+    fn assert_glob_type_row(interp: &mut Interp, capture: &str, label: &str, types: &[u8]) {
+        let prefix = format!("ROW {label} ");
+        let row = capture
+            .lines()
+            .find(|line| line.starts_with(&prefix))
+            .unwrap();
+        let fields = tcl_syntax::list::split_native_list_bytes(
+            row.as_bytes(),
+            tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6),
+        )
+        .unwrap();
+        assert_eq!(fields[2].as_ref(), b"0");
+        let selected = obj::Owned::fresh(obj::new_string_bytes(types));
+        interp.var_set(b"types", selected.as_ptr()).unwrap();
+        assert_eq!(
+            interp.eval_str(
+                b"lsort [glob -nocomplain -tails -directory $fixture -types $types -- *]"
+            ),
+            Code::Ok,
+            "{label}: {:?}",
+            interp.result_bytes()
+        );
+        assert_eq!(interp.result_bytes(), fields[3].as_ref(), "{label}");
+    }
+
+    #[cfg(unix)]
+    const GLOB_TYPE_C86_ROWS: &str = include_str!(
+        "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/glob-type-union-question/capture-01/8.6.18/stdout.txt"
+    );
+
+    #[cfg(unix)]
+    #[test]
+    fn glob_type_regular_file_directory_unions_match_original_c86_rows() {
+        let (mut interp, _fixture) = glob_type_fixture("ordinary_union");
+        for (label, types) in [
+            ("file", b"f".as_slice()),
+            ("directory", b"d".as_slice()),
+            ("file-directory", b"f d".as_slice()),
+            ("directory-file", b"d f".as_slice()),
+            ("duplicated-union", b"f d f".as_slice()),
+        ] {
+            assert_glob_type_row(&mut interp, GLOB_TYPE_C86_ROWS, label, types);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn glob_type_original_tcltest_selector_keeps_supported_kind_alternatives() {
+        let (mut interp, _fixture) = glob_type_fixture("tcltest_union");
+        for (label, types) in [
+            ("union-with-unrepresented", b"b c f p s".as_slice()),
+            ("directory-with-unrepresented", b"b c d p s".as_slice()),
+            ("unrepresented-only", b"b c p s".as_slice()),
+        ] {
+            assert_glob_type_row(&mut interp, GLOB_TYPE_C86_ROWS, label, types);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn glob_type_kind_union_still_requires_executable_qualification() {
+        let (mut interp, _fixture) = glob_type_fixture("qualified_union");
+        for (label, types) in [
+            ("file-executable", b"f x".as_slice()),
+            ("union-executable", b"f d x".as_slice()),
+        ] {
+            assert_glob_type_row(&mut interp, GLOB_TYPE_C86_ROWS, label, types);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn glob_type_readable_writable_executable_qualifiers_remain_conjunctive() {
+        let (mut interp, _fixture) = glob_type_fixture("rwx_qualifiers");
+        let capture = include_str!(
+            "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/glob-type-union-rwx-question/capture-01/8.6.18/stdout.txt"
+        );
+        assert_glob_type_row(
+            &mut interp,
+            capture,
+            "readable-writable-executable",
+            b"r w x",
+        );
     }
 
     #[test]

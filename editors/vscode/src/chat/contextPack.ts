@@ -19,10 +19,25 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import { isTclLanguage } from "../extension";
-import { resolveIruleCode } from "./codeUtils";
-import { waitForDiagnostics } from "./diagnosticAccess";
-import { DEFAULT_DIALECT } from "./dialectCatalog";
-import { IRULES_EVENT_PATTERN } from "./canonicalDiagnostics";
+import {
+  resolveIruleCode,
+  resolveIruleSource,
+  ensureDocumentOpen,
+  type DocumentSourceSnapshot,
+  snapshotDocumentSource,
+  isDocumentSourceSnapshotCurrent,
+} from "./codeUtils";
+import {
+  captureAnalysisContext,
+  isAnalysisContextCurrent,
+  resourceConfiguration,
+  currentDiagnosticsReportMatches,
+  validateCurrentDiagnosticsPublication,
+  waitForDiagnosticsReport,
+  type CurrentDiagnosticsReport,
+  type SessionDialectOverrideLease,
+} from "./diagnosticAccess";
+import { buildPrompt } from "./promptLoader";
 import { CommandContext } from "./types";
 
 const DEFAULT_DIAGNOSTIC_TIMEOUT_MS = 2500;
@@ -33,7 +48,9 @@ const DEFAULT_MAX_EVENTS = 6;
 interface IruleEventInfo {
   event: string;
   known: boolean;
+  /** The event-completion detail flag, not an F5 deprecation verdict. */
   deprecated: boolean;
+  lifecycle?: { introduced: string | null; retired: string | null } | null;
   validCommandCount: number;
   sampleCommands: string[];
 }
@@ -48,6 +65,12 @@ export interface SourceSymbolDefinition {
 export interface PromptContextOptions {
   code?: string;
   document?: vscode.TextDocument;
+  /** Captured source language/version label; this is descriptive, not a dialect authority. */
+  sourceContextLabel?: string;
+  /** A completed report already obtained for this exact document and source. */
+  completedDiagnosticsReport?: CurrentDiagnosticsReport;
+  /** Recheck the exact source snapshot after awaits and before each model request. */
+  isSourceCurrent?: () => boolean;
   allowAmbientContext?: boolean;
   includeDiagnostics?: boolean;
   includeSymbolDefinitions?: boolean;
@@ -56,6 +79,188 @@ export interface PromptContextOptions {
   maxDiagnostics?: number;
   maxSymbols?: number;
   maxEvents?: number;
+}
+
+/** Retained source/report composition for a user-invoked analysis operation.
+ * Reporting and canonical proposal topics issue no source-write authority.
+ */
+export class DiagnosticSourceOperation {
+  private report: CurrentDiagnosticsReport | undefined;
+
+  private constructor(
+    private snapshot: DocumentSourceSnapshot,
+    private readonly configuration: string,
+    private readonly origin: DocumentSourceSnapshot | undefined,
+    private readonly originConfiguration: string | undefined,
+    private readonly token: vscode.CancellationToken,
+  ) {
+    this.snapshot = Object.freeze({ ...snapshot });
+  }
+
+  get sourceSnapshot(): DocumentSourceSnapshot {
+    return this.snapshot;
+  }
+
+  /** Preserve the handlers' active-full-document preference and attached extent.
+   * A selected/inline source is analysed as an explicit detached document while
+   * its authentic original selection remains a current dependency.
+   */
+  static async resolve(ctx: CommandContext): Promise<DiagnosticSourceOperation | undefined> {
+    const initialContext = captureAnalysisContext();
+    if (!isAnalysisContextCurrent(initialContext)) {
+      throw new Error("No current analysis session is available for this operation");
+    }
+    const editor = vscode.window.activeTextEditor;
+    const resolved =
+      editor && isTclLanguage(editor.document.languageId)
+        ? { source: editor.document.getText(), snapshot: snapshotDocumentSource(editor.document) }
+        : await resolveIruleSource(ctx);
+    if (!isAnalysisContextCurrent(initialContext)) {
+      throw new Error("Analysis session changed while source was resolved");
+    }
+    if (!resolved?.source) return undefined;
+    const origin = resolved.snapshot;
+    const originConfiguration = origin ? resourceConfiguration(origin.document) : undefined;
+    if (origin && (!isDocumentSourceSnapshotCurrent(origin) || originConfiguration === undefined)) {
+      throw new Error("The original source or resource configuration is unavailable");
+    }
+    const document =
+      origin &&
+      isTclLanguage(origin.document.languageId) &&
+      origin.source === origin.fullSource &&
+      !origin.selection
+        ? origin.document
+        : await ensureDocumentOpen(resolved.source);
+    if (
+      !isAnalysisContextCurrent(initialContext) ||
+      (origin &&
+        (!isDocumentSourceSnapshotCurrent(origin) ||
+          resourceConfiguration(origin.document) !== originConfiguration))
+    ) {
+      throw new Error("The original source changed while its analysis document was opened");
+    }
+    const snapshot =
+      origin && origin.document === document ? origin : snapshotDocumentSource(document);
+    const configuration = resourceConfiguration(document);
+    if (configuration === undefined || snapshot.fullSource !== resolved.source) {
+      throw new Error("The analysis document does not retain the requested full source/input");
+    }
+    const operation = new DiagnosticSourceOperation(
+      snapshot,
+      configuration,
+      origin,
+      originConfiguration,
+      ctx.token,
+    );
+    if (!operation.isCurrent()) throw new Error("The analysis source is no longer current");
+    return operation;
+  }
+
+  /** Only an actual acknowledged lease may advance this operation's override.
+   * Original source/resource/session identity must survive its own async await.
+   */
+  adoptOverride(lease: SessionDialectOverrideLease): void {
+    const before = this.sourceSnapshot.analysisContext;
+    if (
+      this.report ||
+      !before ||
+      !this.sourceUnchanged() ||
+      !isAnalysisContextCurrent(lease.analysisContext) ||
+      before.transport.sessionIdentity !== lease.analysisContext.transport.sessionIdentity
+    ) {
+      throw new Error("The source operation cannot adopt this analysis override");
+    }
+    this.snapshot = Object.freeze({
+      ...this.sourceSnapshot,
+      analysisContext: lease.analysisContext,
+      requestedAnalysisDialect: lease.dialect,
+    });
+  }
+
+  /** Pure original-source/settings check, also used across an owned restore. */
+  sourceUnchanged(): boolean {
+    return (
+      isDocumentSourceSnapshotCurrent(this.sourceSnapshot) &&
+      resourceConfiguration(this.sourceSnapshot.document) === this.configuration &&
+      (!this.origin ||
+        (isDocumentSourceSnapshotCurrent(this.origin) &&
+          resourceConfiguration(this.origin.document) === this.originConfiguration))
+    );
+  }
+
+  isCurrent(): boolean {
+    const snapshot = this.sourceSnapshot;
+    return (
+      !this.token.isCancellationRequested &&
+      this.sourceUnchanged() &&
+      isAnalysisContextCurrent(snapshot.analysisContext) &&
+      (!this.report ||
+        currentDiagnosticsReportMatches(this.report, {
+          document: snapshot.document,
+          uri: snapshot.uri,
+          version: snapshot.version,
+          source: snapshot.fullSource,
+        }))
+    );
+  }
+
+  async readReport(timeout = 5000): Promise<CurrentDiagnosticsReport> {
+    if (this.report || !this.isCurrent()) throw new Error("The analysis operation is not current");
+    const snapshot = this.sourceSnapshot;
+    const report = await waitForDiagnosticsReport(snapshot.uri, {
+      timeout,
+      expectedSource: snapshot.fullSource,
+    });
+    if (
+      !this.isCurrent() ||
+      report.analysisContext.overrideGeneration !== snapshot.analysisContext?.overrideGeneration ||
+      report.sessionIdentity !== snapshot.analysisContext?.transport.sessionIdentity ||
+      !currentDiagnosticsReportMatches(report, {
+        document: snapshot.document,
+        uri: snapshot.uri,
+        version: snapshot.version,
+        source: snapshot.fullSource,
+      })
+    ) {
+      throw new Error("The completed report does not belong to this original source operation");
+    }
+    this.report = report;
+    return report;
+  }
+
+  async assertPublished(): Promise<void> {
+    const snapshot = this.sourceSnapshot;
+    if (
+      !this.isCurrent() ||
+      !this.report ||
+      !(await validateCurrentDiagnosticsPublication(this.report, {
+        document: snapshot.document,
+        uri: snapshot.uri,
+        version: snapshot.version,
+        source: snapshot.fullSource,
+      })) ||
+      !this.isCurrent()
+    ) {
+      throw new Error("The source operation's completed publication is no longer current");
+    }
+  }
+
+  promptOptions(): PromptContextOptions {
+    if (!this.report || !this.isCurrent()) throw new Error("No current completed source report");
+    return {
+      code: this.sourceSnapshot.fullSource,
+      document: this.sourceSnapshot.document,
+      completedDiagnosticsReport: this.report,
+      isSourceCurrent: () => this.isCurrent(),
+      allowAmbientContext: false,
+      ...(this.origin && this.origin.document !== this.sourceSnapshot.document
+        ? {
+            sourceContextLabel:
+              "Original attached extent analysed as an explicit detached source document",
+          }
+        : {}),
+    };
+  }
 }
 
 function diagnosticCode(diagnostic: vscode.Diagnostic): string {
@@ -80,10 +285,6 @@ function diagnosticSeverity(severity: vscode.DiagnosticSeverity): string {
     return "info";
   }
   return "hint";
-}
-
-function activeDialect(): string {
-  return vscode.workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT);
 }
 
 function formatDocumentLabel(document: vscode.TextDocument): string {
@@ -186,133 +387,66 @@ async function resolveContextCode(
   return resolveIruleCode(ctx);
 }
 
-export function detectIruleEvents(source: string, maxEvents = DEFAULT_MAX_EVENTS): string[] {
-  if (!source.trim()) {
-    return [];
-  }
-
-  const events: string[] = [];
-  const seen = new Set<string>();
-
-  IRULES_EVENT_PATTERN.lastIndex = 0;
-  for (const match of source.matchAll(IRULES_EVENT_PATTERN)) {
-    const eventName = match[1];
-    if (seen.has(eventName)) {
-      continue;
-    }
-    seen.add(eventName);
-    events.push(eventName);
-    if (events.length >= maxEvents) {
-      break;
-    }
-  }
-
-  return events;
+export function detectIruleEvents(
+  definitions: readonly SourceSymbolDefinition[],
+  maxEvents = DEFAULT_MAX_EVENTS,
+): string[] {
+  return [
+    ...new Set(definitions.filter((entry) => entry.kind === "Event").map((entry) => entry.name)),
+  ].slice(0, Math.max(0, maxEvents));
 }
 
-export function extractSourceSymbolDefinitions(
+/** Names come from the shared provider for the exact requested source. */
+export async function extractSourceSymbolDefinitions(
   source: string,
   maxSymbols = DEFAULT_MAX_SYMBOLS,
-): SourceSymbolDefinition[] {
-  const definitions: SourceSymbolDefinition[] = [];
-  const lines = source.split("\n");
-
-  for (let idx = 0; idx < lines.length; idx++) {
-    const line = lines[idx];
-
-    const procMatch = line.match(/^\s*proc\s+([^\s{}]+)\s+\{([^}]*)\}/);
-    if (procMatch) {
-      definitions.push({
-        kind: "Function",
-        name: procMatch[1],
-        detail: `{${procMatch[2].trim()}}`,
-        line: idx + 1,
-      });
-      if (definitions.length >= maxSymbols) {
-        break;
-      }
-      continue;
+  document?: vscode.TextDocument,
+  languageId?: string,
+): Promise<SourceSymbolDefinition[] | undefined> {
+  try {
+    const language =
+      languageId ?? (document && isTclLanguage(document.languageId) ? document.languageId : "tcl");
+    if (!isTclLanguage(language)) {
+      return undefined;
     }
-
-    const namespaceMatch = line.match(/^\s*namespace\s+eval\s+([^\s{}]+)/);
-    if (namespaceMatch) {
-      definitions.push({
-        kind: "Namespace",
-        name: namespaceMatch[1],
-        line: idx + 1,
-      });
-      if (definitions.length >= maxSymbols) {
-        break;
-      }
-      continue;
+    const original =
+      document?.getText() === source &&
+      isTclLanguage(document.languageId) &&
+      document.languageId === language
+        ? document
+        : undefined;
+    const owner =
+      original ?? (await vscode.workspace.openTextDocument({ language, content: source }));
+    const version = owner.version;
+    const symbols = await vscode.commands.executeCommand<
+      ReadonlyArray<vscode.DocumentSymbol | vscode.SymbolInformation> | undefined
+    >("vscode.executeDocumentSymbolProvider", owner.uri);
+    if (
+      !symbols ||
+      owner.isClosed ||
+      owner.version !== version ||
+      owner.getText() !== source ||
+      !isTclLanguage(owner.languageId) ||
+      owner.languageId !== language
+    ) {
+      return undefined;
     }
-
-    const eventMatch = line.match(/^\s*when\s+([A-Z][A-Z0-9_]{2,})\b/);
-    if (eventMatch) {
-      definitions.push({
-        kind: "Event",
-        name: eventMatch[1],
-        line: idx + 1,
-      });
-      if (definitions.length >= maxSymbols) {
-        break;
+    const definitions: SourceSymbolDefinition[] = [];
+    for (const symbol of symbols) {
+      if (isDocumentSymbol(symbol)) {
+        flattenDocumentSymbols([symbol], definitions);
+      } else {
+        definitions.push({
+          kind: (vscode.SymbolKind[symbol.kind] ?? "Symbol") as string,
+          name: symbol.name,
+          line: symbol.location.range.start.line + 1,
+        });
       }
     }
+    return definitions.slice(0, Math.max(0, maxSymbols));
+  } catch {
+    return undefined;
   }
-
-  return definitions;
-}
-
-async function collectSymbolDefinitions(
-  document: vscode.TextDocument | undefined,
-  source: string,
-  maxSymbols: number,
-): Promise<SourceSymbolDefinition[]> {
-  if (document) {
-    try {
-      const symbols = await vscode.commands.executeCommand<
-        ReadonlyArray<vscode.DocumentSymbol | vscode.SymbolInformation> | undefined
-      >("vscode.executeDocumentSymbolProvider", document.uri);
-
-      if (symbols && symbols.length > 0) {
-        const flattened: SourceSymbolDefinition[] = [];
-        if (isDocumentSymbol(symbols[0])) {
-          flattenDocumentSymbols(symbols as readonly vscode.DocumentSymbol[], flattened);
-        } else {
-          for (const symbol of symbols as readonly vscode.SymbolInformation[]) {
-            const kindLabel = (vscode.SymbolKind[symbol.kind] ?? "Symbol") as string;
-            flattened.push({
-              kind: kindLabel,
-              name: symbol.name,
-              line: symbol.location.range.start.line + 1,
-            });
-          }
-        }
-
-        const unique: SourceSymbolDefinition[] = [];
-        const seen = new Set<string>();
-        for (const entry of flattened) {
-          const key = `${entry.kind}:${entry.name}:${entry.line}`;
-          if (seen.has(key)) {
-            continue;
-          }
-          seen.add(key);
-          unique.push(entry);
-          if (unique.length >= maxSymbols) {
-            break;
-          }
-        }
-
-        if (unique.length > 0) {
-          return unique;
-        }
-      }
-    } catch {
-      // Fall back to source-based extraction below.
-    }
-  }
-
-  return extractSourceSymbolDefinitions(source, maxSymbols);
 }
 
 async function collectEventMetadata(
@@ -336,16 +470,22 @@ async function collectEventMetadata(
 
 async function buildDiagnosticsSection(
   document: vscode.TextDocument | undefined,
+  expectedSource: string | undefined,
   maxDiagnostics: number,
   timeoutMs: number,
-): Promise<string> {
+): Promise<{ text: string; report?: CurrentDiagnosticsReport }> {
   if (!document) {
-    return "Diagnostics: unavailable (no open Tcl document URI).";
+    return { text: "Diagnostics: unavailable (no open Tcl document URI)." };
+  }
+  if (expectedSource === undefined) {
+    return { text: "Diagnostics: unavailable (no resolved source snapshot)." };
   }
 
-  const diagnostics = await waitForDiagnostics(document.uri, {
+  const report = await waitForDiagnosticsReport(document.uri, {
     timeout: timeoutMs,
+    expectedSource,
   });
+  const diagnostics = [...report.diagnostics];
 
   const actionable = diagnostics
     .filter((diagnostic) => diagnostic.severity <= vscode.DiagnosticSeverity.Warning)
@@ -358,7 +498,10 @@ async function buildDiagnosticsSection(
     });
 
   if (actionable.length === 0) {
-    return "Diagnostics: no errors/warnings.";
+    return {
+      text: `Diagnostics: no errors/warnings (completed ${report.response.dialectId} report for source version ${report.response.version}).`,
+      report,
+    };
   }
 
   const visible = actionable.slice(0, maxDiagnostics);
@@ -374,12 +517,21 @@ async function buildDiagnosticsSection(
     lines.push(`- ... and ${actionable.length - visible.length} more issue(s).`);
   }
 
-  return [`Diagnostics (${actionable.length}):`, ...lines].join("\n");
+  return {
+    text: [
+      `Diagnostics (${actionable.length}; completed ${report.response.dialectId} report, source version ${report.response.version}):`,
+      ...lines,
+    ].join("\n"),
+    report,
+  };
 }
 
-function buildSymbolSection(symbols: readonly SourceSymbolDefinition[]): string {
+function buildSymbolSection(symbols: readonly SourceSymbolDefinition[] | undefined): string {
+  if (!symbols) {
+    return "Symbol definitions: unavailable.";
+  }
   if (symbols.length === 0) {
-    return "Symbol definitions: none detected.";
+    return "Symbol definitions: none reported.";
   }
 
   const lines = symbols.map((symbol) => {
@@ -408,31 +560,97 @@ function buildEventSection(
     }
 
     const sample = info.sampleCommands.slice(0, 6).join(", ");
+    const lifecycle = info.lifecycle
+      ? `, declaredBigipLifecycle=${info.lifecycle.introduced ?? "-"}..${info.lifecycle.retired ?? "-"}`
+      : "";
     lines.push(
-      `- ${eventName}: known=${info.known ? "yes" : "no"}, deprecated=${info.deprecated ? "yes" : "no"}, validCommands=${info.validCommandCount}` +
+      `- ${eventName}: known=${info.known ? "yes" : "no"}${lifecycle}, validCommands=${info.validCommandCount}` +
         (sample ? `, sample=${sample}` : ""),
     );
   }
 
-  return [`iRules event metadata (${events.length}):`, ...lines].join("\n");
+  return [
+    `iRules event metadata from the standalone registry catalogue (${events.length}; not checked against the document's BIG-IP release):`,
+    ...lines,
+  ].join("\n");
 }
 
-export async function buildPromptContextBlock(
+async function buildPromptContextWithReport(
   ctx: CommandContext,
   options: PromptContextOptions = {},
-): Promise<string> {
+): Promise<{
+  block: string;
+  diagnosticsReport?: CurrentDiagnosticsReport;
+  assertCurrent?: () => void;
+}> {
+  const diagnosticDeadline =
+    Date.now() + (options.diagnosticsTimeoutMs ?? DEFAULT_DIAGNOSTIC_TIMEOUT_MS);
+  const remainingDiagnosticBudget = () => Math.max(0, diagnosticDeadline - Date.now());
   const allowAmbientContext = options.allowAmbientContext ?? true;
   const includeDiagnostics = options.includeDiagnostics ?? true;
   const includeSymbolDefinitions = options.includeSymbolDefinitions ?? true;
   const includeEventMetadata = options.includeEventMetadata ?? true;
 
   const document = await resolveContextDocument(ctx, options.document, allowAmbientContext);
+  // Retain the actual document image and resource input before any provider await.
+  // A detached code proposal remains source-only; a configured dialect is a hint,
+  // while only a completed resource report supplies an analysed dialect.
+  const snapshot = document ? snapshotDocumentSource(document) : undefined;
+  const analysisContext = snapshot?.analysisContext ?? captureAnalysisContext();
+  const configuration = document ? resourceConfiguration(document) : undefined;
+  const assertCurrent = () => {
+    if (
+      (snapshot && !isDocumentSourceSnapshotCurrent(snapshot)) ||
+      (document && resourceConfiguration(document) !== configuration) ||
+      (analysisContext && !isAnalysisContextCurrent(analysisContext)) ||
+      (options.isSourceCurrent && !options.isSourceCurrent())
+    ) {
+      throw new Error("The captured prompt source or analysis input changed");
+    }
+  };
   const code = await resolveContextCode(ctx, options.code, document, allowAmbientContext);
+  assertCurrent();
   if (!document && !code) {
-    return "";
+    return { block: "" };
   }
 
-  const summary: string[] = ["Deterministic context (Tcl LSP):", `- Dialect: ${activeDialect()}`];
+  let diagnosticsReport = options.completedDiagnosticsReport;
+  let diagnosticsText: string | undefined;
+  if (diagnosticsReport) {
+    if (
+      !document ||
+      code === undefined ||
+      !currentDiagnosticsReportMatches(diagnosticsReport, {
+        document,
+        uri: document.uri,
+        version: document.version,
+        source: code,
+      })
+    ) {
+      throw new Error("The supplied completed diagnostics report does not match this source");
+    }
+  }
+  if (includeDiagnostics && !diagnosticsReport) {
+    const diagnosticSection = await buildDiagnosticsSection(
+      document,
+      code,
+      options.maxDiagnostics ?? DEFAULT_MAX_DIAGNOSTICS,
+      remainingDiagnosticBudget(),
+    );
+    diagnosticsReport = diagnosticSection.report;
+    diagnosticsText = diagnosticSection.text;
+  }
+
+  const summary: string[] = ["Deterministic context (Tcl LSP):"];
+  summary.push(
+    diagnosticsReport
+      ? `- Completed resource analysis: ${diagnosticsReport.response.dialectId} (source version ${diagnosticsReport.response.version})`
+      : options.sourceContextLabel
+        ? `- Captured source: ${options.sourceContextLabel}`
+        : snapshot
+          ? `- Captured resource dialect hint (not completed analysis): ${snapshot.resourceDialectHint}`
+          : "- Detached source: no resource analysis dialect is available",
+  );
   if (document) {
     summary.push(`- File: ${formatDocumentLabel(document)}`);
   }
@@ -442,37 +660,119 @@ export async function buildPromptContextBlock(
 
   const sections: string[] = [summary.join("\n")];
 
-  if (includeDiagnostics) {
-    sections.push(
-      await buildDiagnosticsSection(
-        document,
-        options.maxDiagnostics ?? DEFAULT_MAX_DIAGNOSTICS,
-        options.diagnosticsTimeoutMs ?? DEFAULT_DIAGNOSTIC_TIMEOUT_MS,
-      ),
-    );
+  if (includeDiagnostics && diagnosticsReport) {
+    if (diagnosticsText !== undefined) {
+      sections.push(diagnosticsText);
+    } else {
+      const diagnostics = [...diagnosticsReport.diagnostics];
+      const actionable = diagnostics
+        .filter((diagnostic) => diagnostic.severity <= vscode.DiagnosticSeverity.Warning)
+        .sort((left, right) => {
+          const lineDiff = left.range.start.line - right.range.start.line;
+          return lineDiff !== 0
+            ? lineDiff
+            : left.range.start.character - right.range.start.character;
+        });
+      if (actionable.length === 0) {
+        sections.push(
+          `Diagnostics: no errors/warnings (completed ${diagnosticsReport.response.dialectId} report for source version ${diagnosticsReport.response.version}).`,
+        );
+      } else {
+        const visible = actionable.slice(0, options.maxDiagnostics ?? DEFAULT_MAX_DIAGNOSTICS);
+        const lines = visible.map((diagnostic) => {
+          const code = diagnosticCode(diagnostic) || "unknown";
+          return (
+            `- [${code}] line ${diagnostic.range.start.line + 1} (${diagnosticSeverity(diagnostic.severity)}): ` +
+            diagnostic.message.replace(/\s+/g, " ").trim()
+          );
+        });
+        if (actionable.length > visible.length) {
+          lines.push(`- ... and ${actionable.length - visible.length} more issue(s).`);
+        }
+        sections.push([`Diagnostics (${actionable.length} actionable):`, ...lines].join("\n"));
+      }
+    }
+  } else if (includeDiagnostics && diagnosticsText !== undefined) {
+    sections.push(diagnosticsText);
   }
 
+  const sourceSymbols =
+    code && (includeSymbolDefinitions || includeEventMetadata)
+      ? await extractSourceSymbolDefinitions(code, Number.POSITIVE_INFINITY, document)
+      : undefined;
   if (includeSymbolDefinitions && code) {
-    const symbolDefs = await collectSymbolDefinitions(
-      document,
-      code,
-      options.maxSymbols ?? DEFAULT_MAX_SYMBOLS,
+    sections.push(
+      buildSymbolSection(sourceSymbols?.slice(0, options.maxSymbols ?? DEFAULT_MAX_SYMBOLS)),
     );
-    sections.push(buildSymbolSection(symbolDefs));
   }
 
-  if (includeEventMetadata && code) {
-    const events = detectIruleEvents(code, options.maxEvents ?? DEFAULT_MAX_EVENTS);
+  if (includeEventMetadata && code && !sourceSymbols) {
+    sections.push("Event metadata: unavailable.");
+  }
+  if (includeEventMetadata && sourceSymbols) {
+    const events = detectIruleEvents(sourceSymbols, options.maxEvents ?? DEFAULT_MAX_EVENTS);
     if (events.length > 0) {
       const metadata = await collectEventMetadata(ctx, events);
       sections.push(buildEventSection(events, metadata));
     }
   }
 
-  return [
-    "Use this deterministic project/editor context when generating the answer:",
-    ...sections,
-  ].join("\n\n");
+  assertCurrent();
+  if (
+    diagnosticsReport &&
+    !(await validateCurrentDiagnosticsPublication(
+      diagnosticsReport,
+      {
+        document: diagnosticsReport.document,
+        uri: diagnosticsReport.document.uri,
+        version: diagnosticsReport.response.version,
+        source: diagnosticsReport.response.source,
+      },
+      remainingDiagnosticBudget(),
+    ))
+  ) {
+    throw new Error("The completed report was retired while prompt context was packed");
+  }
+  assertCurrent();
+  return {
+    assertCurrent,
+    block: [
+      "Use this deterministic project/editor context when generating the answer:",
+      ...sections,
+    ].join("\n\n"),
+    diagnosticsReport,
+  };
+}
+
+export async function buildPromptContextBlock(
+  ctx: CommandContext,
+  options: PromptContextOptions = {},
+): Promise<string> {
+  return (await buildPromptContextWithReport(ctx, options)).block;
+}
+
+async function buildContextualMessagesWithReport(
+  ctx: CommandContext,
+  prompt: string,
+  options: PromptContextOptions = {},
+): Promise<{
+  messages: vscode.LanguageModelChatMessage[];
+  diagnosticsReport?: CurrentDiagnosticsReport;
+  assertCurrent?: () => void;
+}> {
+  const packed = await buildPromptContextWithReport(ctx, options);
+  const userPrompt = packed.block ? `${prompt.trimEnd()}\n\n${packed.block}` : prompt;
+  const systemPrompt = packed.diagnosticsReport
+    ? buildPrompt(packed.diagnosticsReport.response.dialectId)
+    : ctx.systemPrompt;
+  return {
+    messages: [
+      vscode.LanguageModelChatMessage.User(systemPrompt),
+      vscode.LanguageModelChatMessage.User(userPrompt),
+    ],
+    diagnosticsReport: packed.diagnosticsReport,
+    assertCurrent: packed.assertCurrent,
+  };
 }
 
 export async function buildContextualMessages(
@@ -480,13 +780,7 @@ export async function buildContextualMessages(
   prompt: string,
   options: PromptContextOptions = {},
 ): Promise<vscode.LanguageModelChatMessage[]> {
-  const packedContext = await buildPromptContextBlock(ctx, options);
-  const userPrompt = packedContext ? `${prompt.trimEnd()}\n\n${packedContext}` : prompt;
-
-  return [
-    vscode.LanguageModelChatMessage.User(ctx.systemPrompt),
-    vscode.LanguageModelChatMessage.User(userPrompt),
-  ];
+  return (await buildContextualMessagesWithReport(ctx, prompt, options)).messages;
 }
 
 /**
@@ -531,16 +825,43 @@ export async function sendContextualRequest(
   prompt: string,
   options: PromptContextOptions = {},
 ): Promise<vscode.LanguageModelChatResponse> {
-  const messages = await buildContextualMessages(ctx, prompt, options);
+  const built = await buildContextualMessagesWithReport(ctx, prompt, options);
+  const messages = built.messages;
+  const assertSourceCurrent = async () => {
+    built.assertCurrent?.();
+    if (options.isSourceCurrent && !options.isSourceCurrent()) {
+      throw new Error("The captured source changed before the model request could be sent");
+    }
+    const report = built.diagnosticsReport;
+    if (
+      report &&
+      !(await validateCurrentDiagnosticsPublication(report, {
+        document: report.document,
+        uri: report.document.uri,
+        version: report.response.version,
+        source: report.response.source,
+      }))
+    ) {
+      throw new Error(
+        "The completed diagnostics report is no longer current for its source/session",
+      );
+    }
+    // The publisher check itself awaits: rejoin the original host image/input.
+    built.assertCurrent?.();
+  };
+  await assertSourceCurrent();
   const sendOpts = {
     justification:
       "The iRule Assistant uses the language model to generate, explain, and analyse iRule code.",
   };
 
   const model = await resolveModel(ctx.request.model);
+  await assertSourceCurrent();
 
   try {
-    return await model.sendRequest(messages, sendOpts, ctx.token);
+    const response = await model.sendRequest(messages, sendOpts, ctx.token);
+    await assertSourceCurrent();
+    return response;
   } catch (firstErr) {
     if (ctx.token.isCancellationRequested) {
       throw firstErr;
@@ -549,9 +870,13 @@ export async function sendContextualRequest(
     const models = await vscode.lm.selectChatModels();
     for (const candidate of models) {
       if (candidate.id === model.id) continue;
+      await assertSourceCurrent();
       try {
-        return await candidate.sendRequest(messages, sendOpts, ctx.token);
+        const response = await candidate.sendRequest(messages, sendOpts, ctx.token);
+        await assertSourceCurrent();
+        return response;
       } catch {
+        await assertSourceCurrent();
         continue;
       }
     }

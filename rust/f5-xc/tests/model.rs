@@ -112,6 +112,26 @@ fn header_insert_records_request_action() {
 }
 
 #[test]
+fn event_shaped_procedure_names_do_not_select_response_event_semantics() {
+    let result = translate_irule(
+        "proc ::when::HTTP_RESPONSE {} {HTTP::header insert X-Ordinary ordinary}\n\
+         when HTTP_RESPONSE {HTTP::header insert X-Event event}",
+    );
+    let ordinary = result
+        .header_actions
+        .iter()
+        .find(|action| action.name == "X-Ordinary")
+        .expect("ordinary procedure action");
+    let event = result
+        .header_actions
+        .iter()
+        .find(|action| action.name == "X-Event")
+        .expect("actual event action");
+    assert_eq!(ordinary.target, "request");
+    assert_eq!(event.target, "response");
+}
+
+#[test]
 fn header_in_response_event_targets_response() {
     let src = "when HTTP_RESPONSE {\n    HTTP::header replace \"Server\" \"Acme\"\n}";
     let result = translate_irule(src);
@@ -169,7 +189,7 @@ fn untranslatable_event_is_flagged() {
 #[test]
 fn empty_rule_is_full_coverage() {
     let result = translate_irule("when HTTP_REQUEST {\n}");
-    assert!(result.items.is_empty());
+    assert_eq!(result.items, [] as [f5_xc::model::TranslationItem; 0]);
     assert!((result.coverage_pct - 100.0).abs() < 1e-9);
 }
 

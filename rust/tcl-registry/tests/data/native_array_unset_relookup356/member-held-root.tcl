@@ -1,0 +1,1 @@
+set a(x) OLD; set b(x) FOREIGN; upvar #0 a held; proc redirect args {uplevel #0 {upvar #0 b held}}; trace add variable a array redirect; array unset held x; list [array exists a] [info exists a(x)] [array exists b] [info exists b(x)]

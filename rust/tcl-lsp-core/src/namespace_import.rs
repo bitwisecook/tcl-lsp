@@ -142,8 +142,87 @@
 //! Every one of those rows is oracle-confirmed byte-identically on tclsh
 //! 9.0.4 and 8.6.14; the transcripts sit on the individual items.
 
+// Workspace source order is conditional navigation, not event completion.
+// Its typed adapter cannot remove a candidate using a source-only tombstone,
+// except between straight-line positions of one document, whose own sequence
+// orders them; explicitly constructed compatibility
+// inputs retain their original model.
 use crate::source_graph::{RunOrder, RunPoint};
 use tcl_syntax::glob::string_match;
+
+/// Temporal interpretation private to the namespace source-report owner.
+/// A `SourceHorizon` result is conditional advice, never an alias liveness fact.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NamespaceStatementPurpose {
+    Modeled,
+    SourceHorizon,
+}
+impl NamespaceStatementPurpose {
+    pub(crate) fn precedence(
+        self,
+        order: &RunOrder,
+        event: RunPoint<'_>,
+        query: RunPoint<'_>,
+    ) -> Option<bool> {
+        match self {
+            Self::Modeled => order
+                .navigation_precedence(event, query)?
+                .modeled_source_exclusion(),
+            Self::SourceHorizon if query.at == u32::MAX => {
+                order.source_advice_after_document(event, query.uri)
+            }
+            Self::SourceHorizon => order.source_advice_statement_precedence(event, query),
+        }
+    }
+    pub(crate) fn comparison(
+        self,
+        order: &RunOrder,
+        a: RunPoint<'_>,
+        b: RunPoint<'_>,
+    ) -> Option<std::cmp::Ordering> {
+        let answer = order.navigation_comparison(a, b)?;
+        match self {
+            Self::Modeled => answer.modeled_source_exclusion(),
+            Self::SourceHorizon => order.source_advice_statement_comparison(a, b),
+        }
+    }
+    fn in_effect(self, order: &RunOrder, event: RunPoint<'_>, query: Option<RunPoint<'_>>) -> bool {
+        match self {
+            Self::Modeled => in_effect_at(order, event, query),
+            Self::SourceHorizon => {
+                query.is_none_or(|query| self.precedence(order, event, query).unwrap_or(true))
+            }
+        }
+    }
+    /// The gate for a removal (`-clear` tombstone, forget, redefinition,
+    /// source deletion) when it may revoke a candidate. On workspace
+    /// navigation a removal applies only at a query point against which its
+    /// own position is known, so a conditional or unplaced removal never pairs
+    /// with a known [`Self::after`]. With no query point the state after the
+    /// removal's document completes normally is read: the removal applies
+    /// when that document's end is admitted and the removal is a sequence
+    /// position before it; otherwise none applies, which is the conditional
+    /// answer. Constructed models and `SourceHorizon` keep [`Self::in_effect`].
+    fn removal_in_effect(
+        self,
+        order: &RunOrder,
+        event: RunPoint<'_>,
+        query: Option<RunPoint<'_>>,
+    ) -> bool {
+        match self {
+            Self::Modeled if order.is_source_navigation() => query
+                .or_else(|| order.document_end(event.uri))
+                .is_some_and(|query| self.precedence(order, event, query) == Some(true)),
+            _ => self.in_effect(order, event, query),
+        }
+    }
+    fn after(self, order: &RunOrder, later: RunPoint<'_>, earlier: RunPoint<'_>) -> bool {
+        match self {
+            Self::Modeled => ran_after(order, later, earlier),
+            Self::SourceHorizon => self.precedence(order, later, earlier) == Some(false),
+        }
+    }
+}
 
 /// What is known about "had `source_ns` exported this name when the import
 /// ran?" — three-valued, because *absence of an export record* is only
@@ -161,7 +240,8 @@ use tcl_syntax::glob::string_match;
 /// | [`Unknown`](Self::Unknown) | do not resolve (no evidence to resolve *on*) | yes — answering with a command the import may have deleted is worse than answering nothing |
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportVerdict {
-    /// A `namespace export` covering the name had run at the import site.
+    /// The selected policy admits the name: a C export covers it, or Jim
+    /// performs no export filtering. This alone grants no command or alias.
     Exported,
     /// The exporting namespace's export list is visible **and** nothing in it
     /// covers the name at that point — a fact, not a gap.
@@ -218,14 +298,39 @@ pub trait NamespaceExportOracle {
     /// the `source`-graph run order — an export the graph proves runs *after*
     /// this import is not retroactive, exactly as within one document.
     fn exported_at(&self, source_ns: &str, name: &str, import_site: RunPoint<'_>) -> ExportVerdict;
+
+    /// Exact original slot query. The default is an explicitly authored oracle
+    /// adapter for names with an exact UTF-8 rendering, without issuing a native
+    /// producer. Opaque values remain unknown.
+    fn exported_at_original(
+        &self,
+        slot: &tcl_core_types::ByteCommandSlot,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        import_site: RunPoint<'_>,
+    ) -> ExportVerdict {
+        if !tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy)
+            .export_filter_applies()
+        {
+            return ExportVerdict::Exported;
+        }
+        let Ok(name) = slot.simple.try_utf8() else {
+            return ExportVerdict::Unknown;
+        };
+        let Some(namespace) =
+            tcl_syntax::naming::native_namespace_source_spelling(policy.recipe(), &slot.namespace)
+        else {
+            return ExportVerdict::Unknown;
+        };
+        self.exported_at(&namespace, name, import_site)
+    }
 }
 
 /// One `namespace export` event as either tier sees it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ExportEvent<'a> {
+pub struct ExportEvent<'a, P = &'a str> {
     /// The exported glob pattern exactly as written, relative to the
     /// exporting namespace. Empty (and ignored) when [`Self::clears`].
-    pub pattern: &'a str,
+    pub pattern: P,
     /// `true` for a `namespace export -clear` tombstone.
     pub clears: bool,
     /// Where the event sits in the workspace's execution timeline. Ordering it
@@ -235,7 +340,10 @@ pub struct ExportEvent<'a> {
     pub at: RunPoint<'a>,
 }
 
-/// Whether `later` is **known** to have run strictly after `earlier`.
+/// Whether the explicit constructed model, or one document's straight-line
+/// sequence, authorizes the removal. Every other genuine source navigation
+/// relation retains its unresolved completion and returns false here,
+/// preserving candidates and unknown barriers.
 ///
 /// The one direction both folds below need, stated once over
 /// [`RunOrder::has_run`] so the gate ("had this run by the query point?") and
@@ -246,13 +354,22 @@ pub struct ExportEvent<'a> {
 /// Incomparable answers `false`: a removal that cannot be placed revokes
 /// nothing, the abstain-toward-answering direction this whole family takes.
 fn ran_after(order: &RunOrder, later: RunPoint<'_>, earlier: RunPoint<'_>) -> bool {
-    order.has_run(later, earlier) == Some(false)
+    order
+        .navigation_precedence(later, earlier)
+        .and_then(crate::source_graph::SourceNavigationOrder::modeled_source_exclusion)
+        == Some(false)
 }
 
-/// Whether an event had already run at the query point, abstaining toward
-/// *yes* when the two have no static order.
+/// Admit a candidate unless an explicitly constructed model, or one
+/// document's straight-line sequence, excludes it. Conditional original
+/// source order never supplies a negative completion.
 fn in_effect_at(order: &RunOrder, event: RunPoint<'_>, query: Option<RunPoint<'_>>) -> bool {
-    query.is_none_or(|q| order.has_run(event, q).unwrap_or(true))
+    query.is_none_or(|q| {
+        order
+            .navigation_precedence(event, q)
+            .and_then(crate::source_graph::SourceNavigationOrder::modeled_source_exclusion)
+            .unwrap_or(true)
+    })
 }
 
 /// Whether the source namespace exported `name` **at the point the import
@@ -332,10 +449,40 @@ pub fn exports_in_effect<'e>(
     order: &RunOrder,
     import_site: RunPoint<'_>,
 ) -> Vec<&'e str> {
-    let mut patterns: Vec<(&'e str, RunPoint<'e>)> = Vec::new();
-    let mut clears: Vec<RunPoint<'e>> = Vec::new();
+    export_patterns_in_effect(events, order, import_site)
+}
+
+/// The same temporal fold over retained typed pattern payloads. Name purpose
+/// and producer correspondence remain the responsibility of the payload owner.
+#[must_use]
+pub fn export_patterns_in_effect<'e, P>(
+    events: impl Iterator<Item = ExportEvent<'e, P>>,
+    order: &RunOrder,
+    import_site: RunPoint<'_>,
+) -> Vec<P> {
+    export_patterns_for_purpose(
+        events,
+        order,
+        import_site,
+        NamespaceStatementPurpose::Modeled,
+    )
+}
+
+pub(crate) fn export_patterns_for_purpose<'e, P>(
+    events: impl Iterator<Item = ExportEvent<'e, P>>,
+    order: &RunOrder,
+    import_site: RunPoint<'_>,
+    purpose: NamespaceStatementPurpose,
+) -> Vec<P> {
+    let mut patterns = Vec::new();
+    let mut clears = Vec::new();
     for ev in events {
-        if !in_effect_at(order, ev.at, Some(import_site)) {
+        let in_effect = if ev.clears {
+            purpose.removal_in_effect(order, ev.at, Some(import_site))
+        } else {
+            purpose.in_effect(order, ev.at, Some(import_site))
+        };
+        if !in_effect {
             continue;
         }
         if ev.clears {
@@ -346,9 +493,84 @@ pub fn exports_in_effect<'e>(
     }
     patterns
         .into_iter()
-        .filter(|&(_, p)| !clears.iter().any(|&c| ran_after(order, c, p)))
+        .filter(|(_, p)| !clears.iter().any(|&c| purpose.after(order, c, *p)))
         .map(|(pattern, _)| pattern)
         .collect()
+}
+
+/// The source advice verdict for an authentic counted command slot and original
+/// export events. Unknown policy, namespace or native glob semantics decline.
+#[must_use]
+pub fn exported_original_at_import_site<'e>(
+    events: impl Iterator<
+        Item = (
+            &'e tcl_compiler::signature_scan::original_name::SourceNamespaceExport,
+            RunPoint<'e>,
+        ),
+    >,
+    slot: &tcl_core_types::ByteCommandSlot,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    order: &RunOrder,
+    import_site: RunPoint<'_>,
+) -> ExportVerdict {
+    exported_original_for_purpose(
+        events,
+        slot,
+        policy,
+        order,
+        import_site,
+        NamespaceStatementPurpose::Modeled,
+    )
+}
+
+pub(crate) fn exported_original_for_purpose<'e>(
+    events: impl Iterator<
+        Item = (
+            &'e tcl_compiler::signature_scan::original_name::SourceNamespaceExport,
+            RunPoint<'e>,
+        ),
+    >,
+    slot: &tcl_core_types::ByteCommandSlot,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    order: &RunOrder,
+    import_site: RunPoint<'_>,
+    purpose: NamespaceStatementPurpose,
+) -> ExportVerdict {
+    use tcl_compiler::signature_scan::scope::SignatureNamespaceScope;
+    if !tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy)
+        .export_filter_applies()
+    {
+        return ExportVerdict::Exported;
+    }
+    let matching = events.filter(|(event, _)| event.policy() == policy
+        && matches!(event.context(), SignatureNamespaceScope::C(path) if *path == slot.namespace))
+        .collect::<Vec<_>>();
+    if matching.is_empty() {
+        return ExportVerdict::Unknown;
+    }
+    let surviving = export_patterns_for_purpose(
+        matching.into_iter().map(|(event, at)| ExportEvent {
+            pattern: event,
+            clears: event.clears(),
+            at,
+        }),
+        order,
+        import_site,
+        purpose,
+    );
+    let mut unknown = false;
+    for event in surviving {
+        match event.matches_command(slot, policy) {
+            Some(true) => return ExportVerdict::Exported,
+            Some(false) => {}
+            None => unknown = true,
+        }
+    }
+    if unknown {
+        ExportVerdict::Unknown
+    } else {
+        ExportVerdict::NotExported
+    }
 }
 
 /// The **load-order** position of a statement in its own document: `false`
@@ -488,7 +710,9 @@ pub struct AliasEvent<'a> {
 /// `query` is `None` for a caller with no query point of its own — the
 /// whole-index liveness mask over exact import links
 /// (`WildcardImportIndex::link_alias_live`), which asks "does this alias exist
-/// for navigation at all". Every event then counts as having run, and the only
+/// for navigation at all". Every install then counts as having run; on
+/// workspace navigation a removal counts only when its document's end is
+/// admitted and it precedes that end in the document's sequence, and the only
 /// ordering left is each removal's position relative to the install.
 ///
 /// Gating the *install* is what makes a bare call written **before** its own
@@ -525,10 +749,23 @@ pub fn alias_live_at(
     order: &RunOrder,
     query: Option<RunPoint<'_>>,
 ) -> bool {
+    alias_for_purpose(events, order, query, NamespaceStatementPurpose::Modeled)
+}
+
+pub(crate) fn alias_for_purpose(
+    events: &mut dyn Iterator<Item = AliasEvent<'_>>,
+    order: &RunOrder,
+    query: Option<RunPoint<'_>>,
+    purpose: NamespaceStatementPurpose,
+) -> bool {
     let mut installs: Vec<RunPoint<'_>> = Vec::new();
     let mut removals: Vec<RunPoint<'_>> = Vec::new();
     for ev in events {
-        if !in_effect_at(order, ev.at, query) {
+        let in_effect = match ev.kind {
+            AliasEventKind::Install => purpose.in_effect(order, ev.at, query),
+            AliasEventKind::Remove => purpose.removal_in_effect(order, ev.at, query),
+        };
+        if !in_effect {
             continue;
         }
         match ev.kind {
@@ -538,7 +775,46 @@ pub fn alias_live_at(
     }
     installs
         .iter()
-        .any(|&i| !removals.iter().any(|&r| ran_after(order, r, i)))
+        .any(|&i| !removals.iter().any(|&r| purpose.after(order, r, i)))
+}
+
+/// Whether the alias is **certainly** live at `query` — the premise an
+/// import conflict needs, since a conflict cancels a later install.
+///
+/// On workspace navigation an install must be known to have run at `query`,
+/// and every removal is possibly in effect unless it is known not to have run
+/// at `query` or known to have run before that install (which the install
+/// then undoes). A removal in another document, a deferred body or a
+/// conditional branch therefore leaves the alias possibly dead, and no
+/// install Tcl would perform is dropped. Constructed models and `SourceHorizon`
+/// keep [`alias_for_purpose`].
+pub(crate) fn alias_certainly_live(
+    events: &mut dyn Iterator<Item = AliasEvent<'_>>,
+    order: &RunOrder,
+    query: RunPoint<'_>,
+    purpose: NamespaceStatementPurpose,
+) -> bool {
+    if purpose != NamespaceStatementPurpose::Modeled || !order.is_source_navigation() {
+        return alias_for_purpose(events, order, Some(query), purpose);
+    }
+    let mut installs: Vec<RunPoint<'_>> = Vec::new();
+    let mut removals: Vec<RunPoint<'_>> = Vec::new();
+    for ev in events {
+        match ev.kind {
+            AliasEventKind::Install => {
+                if purpose.precedence(order, ev.at, query) == Some(true) {
+                    installs.push(ev.at);
+                }
+            }
+            AliasEventKind::Remove => removals.push(ev.at),
+        }
+    }
+    installs.iter().any(|&install| {
+        removals.iter().all(|&removal| {
+            purpose.precedence(order, removal, query) == Some(false)
+                || purpose.precedence(order, removal, install) == Some(true)
+        })
+    })
 }
 
 #[cfg(test)]
@@ -1254,5 +1530,97 @@ mod tests {
         // FP guard: nothing written after the import site is visible.
         let mut evs = [ev("a", 200)].into_iter();
         assert!(exports_in_effect(&mut evs, &order, at(DOC, 100)).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod original_export_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_export_fold_preserves_counted_identity_and_clear_at_import_time() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+
+        let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; namespace export p\uD800; namespace export -clear p\uD801";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let declarations = analysis
+            .original_procedure_declarations()
+            .collect::<Vec<_>>();
+        assert_eq!(declarations.len(), 2);
+        let events = analysis.original_namespace_exports().collect::<Vec<_>>();
+        assert_eq!(events.len(), 3);
+        let ask =
+            |at, declaration: &tcl_compiler::signature_scan::scope::SignatureSourceCommand| {
+                exported_original_at_import_site(
+                    events.iter().map(|event| {
+                        (
+                            *event,
+                            RunPoint {
+                                uri: "doc",
+                                at: event.span().start(),
+                                enclosing_body: None,
+                            },
+                        )
+                    }),
+                    declaration.slot(),
+                    declaration.policy(),
+                    &RunOrder::default(),
+                    RunPoint {
+                        uri: "doc",
+                        at,
+                        enclosing_body: None,
+                    },
+                )
+            };
+        let first = declarations
+            .iter()
+            .find(|record| record.name().slot().simple.as_bytes() == b"p\xed\xa0\x80")
+            .unwrap()
+            .name();
+        let second = declarations
+            .iter()
+            .find(|record| record.name().slot().simple.as_bytes() == b"p\xed\xa0\x81")
+            .unwrap()
+            .name();
+        let clear_at = events
+            .iter()
+            .find(|event| event.clears())
+            .unwrap()
+            .span()
+            .start();
+        assert_eq!(ask(clear_at - 1, first), ExportVerdict::Exported);
+        assert_eq!(ask(clear_at - 1, second), ExportVerdict::NotExported);
+        assert_eq!(
+            ask(u32::try_from(source.len()).unwrap(), first),
+            ExportVerdict::NotExported
+        );
+        assert_eq!(
+            ask(u32::try_from(source.len()).unwrap(), second),
+            ExportVerdict::Exported
+        );
+        let foreign =
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V9_0);
+        assert_eq!(
+            exported_original_at_import_site(
+                events.iter().map(|event| (
+                    *event,
+                    RunPoint {
+                        uri: "doc",
+                        at: event.span().start(),
+                        enclosing_body: None,
+                    }
+                )),
+                first.slot(),
+                foreign,
+                &RunOrder::default(),
+                RunPoint {
+                    uri: "doc",
+                    at: u32::MAX,
+                    enclosing_body: None
+                }
+            ),
+            ExportVerdict::Unknown
+        );
     }
 }

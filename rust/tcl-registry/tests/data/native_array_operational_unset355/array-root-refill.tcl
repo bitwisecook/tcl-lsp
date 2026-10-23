@@ -1,0 +1,1 @@
+set log {}; proc fresh args {lappend ::log FRESH}; proc old args {lappend ::log OLD; set ::a(x) REFILL; trace add variable ::a unset fresh}; set a(x) START; trace add variable a unset old; array unset a; set before [list $a(x) [trace info variable a]]; unset a; list $before $log

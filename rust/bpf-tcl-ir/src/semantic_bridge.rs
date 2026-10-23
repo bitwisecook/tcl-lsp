@@ -5,13 +5,9 @@
 
 //! Conservative bridge from common Tcl semantic facts to the BPF-Tcl subset.
 //!
-//! BPF-Tcl has always been a typed Tcl *front end*, rather than a Tcl runtime
-//! embedded in eBPF.  Its existing lowerer therefore consumes the
-//! registry-owned [`BpfOpSpec`] descriptor and emits BPF-IR directly.  This
-//! module is a deliberately disconnected migration adapter: it audits the
-//! common [`SemanticAnalysisBundle`] before a future eBPF backend uses those
-//! facts for selection.  It does not alter the established frontend, typed
-//! lowerer, BPF-IR, or emitter.
+//! The typed BPF-Tcl lowerer consumes registry-owned [`BpfOpSpec`] descriptors
+//! and emits BPF-IR. This independent audit checks common
+//! [`SemanticAnalysisBundle`] facts for the no-runtime eBPF subset.
 //!
 //! The common [`SemanticOperationId`] currently has no BPF-Tcl operation
 //! variants: BPF command specs resolve to the generic `Invoke` identity.  A
@@ -19,8 +15,7 @@
 //! Consequently this bridge derives a private, descriptor-based operation key
 //! from the registry's `BpfOpSpec`, and only assesses that key *after* it has
 //! proved that common completion, transition, callback, and world-effect facts
-//! are closed.  Once BPF operations gain shared semantic-operation identities,
-//! this adapter can be replaced without changing the BPF lowerer.
+//! are closed.
 //!
 //! The explicit BPF dialect selects the sealed syntax and descriptor-dispatch
 //! policy while the source is compiled.  A BPF-Tcl program does not run inside
@@ -66,6 +61,7 @@ impl SemanticOperationKey for EbpfOperationKey {}
 impl EbpfOperationKey {
     fn from_descriptor(descriptor: BpfOpSpec) -> Result<Self, EbpfOperationKindDecline> {
         match descriptor.kind {
+            BpfOpKind::Conditional => Err(EbpfOperationKindDecline::UnexpandedConditional),
             BpfOpKind::ScalarSet(_) => Ok(Self::Scalar),
             BpfOpKind::BindPacket | BpfOpKind::PacketLoad { .. } | BpfOpKind::PacketLen => {
                 Ok(Self::PacketAccess)
@@ -85,6 +81,8 @@ impl EbpfOperationKey {
 /// A registry BPF descriptor that is not an executable eBPF operation yet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EbpfOperationKindDecline {
+    /// Conditional syntax must become CFG branches before legalisation.
+    UnexpandedConditional,
     /// `loop` must have been expanded before an executable eBPF region exists.
     UnexpandedLoopMacro,
     /// A framework declaration belongs to frontend processing, not an eBPF body.
@@ -174,6 +172,10 @@ impl EbpfSemanticBridge {
             }
         };
 
+        if !bundle.matches_registry(registry) {
+            return EbpfRegionEligibility::Declined(EbpfRegionDecline::RegistryUnavailable);
+        }
+
         let shape = audit_executable_shape(executable);
         if !shape.is_empty() {
             return EbpfRegionEligibility::Declined(EbpfRegionDecline::ExecutableShape(shape));
@@ -222,7 +224,9 @@ impl EbpfSemanticBridge {
                 });
             }
         };
-        let descriptor = registry.bpf_op(&facts.canonical_command).copied();
+        let descriptor = registry
+            .bpf_op_for_descriptor(facts.descriptor_key())
+            .copied();
         let Some(descriptor) = descriptor else {
             return Err(EbpfInvocationDecline {
                 index,
@@ -289,7 +293,8 @@ fn audit_executable_shape(
                 | ExecutableInstruction::IterateLists { .. }
                 | ExecutableInstruction::JoinCompletion { .. }
                 | ExecutableInstruction::WriteCompletionCell { .. }
-                | ExecutableInstruction::CompleteStructuredRegion(_) => {
+                | ExecutableInstruction::CompleteStructuredRegion(_)
+                | ExecutableInstruction::CompleteEvaluatedRegion(_) => {
                     declines.push(EbpfExecutableShapeDecline::NonInvocationInstruction {
                         block: block.id.index(),
                         instruction,
@@ -312,6 +317,12 @@ fn audit_executable_shape(
                 declines.push(EbpfExecutableShapeDecline::UnsupportedControlFlow {
                     block: block.id.index(),
                     kind: EbpfControlFlowKind::Branch,
+                });
+            }
+            Some(ExecutableTerminator::RegionChoice { .. }) => {
+                declines.push(EbpfExecutableShapeDecline::UnsupportedControlFlow {
+                    block: block.id.index(),
+                    kind: EbpfControlFlowKind::RegionChoice,
                 });
             }
             None => declines.push(EbpfExecutableShapeDecline::UnsupportedControlFlow {
@@ -410,6 +421,8 @@ pub enum EbpfRegionDecline {
     /// The semantic bundle carried no resolved environment: an absent
     /// context, rather than a mask naming no profile.
     ContextUnavailable,
+    /// The supplied store does not match the retained invocation catalogue.
+    RegistryUnavailable,
     /// The source was outside the current executable semantic subset.
     SourceDeclined(tcl_compiler::executable_ir::SourceCompatibilityDecline),
     /// Common world-state SSA could not be built for the executable function.
@@ -453,6 +466,8 @@ pub enum EbpfControlFlowKind {
     Goto,
     /// A value-dependent CFG branch.
     Branch,
+    /// External runtime state selects entry of an evaluated script region.
+    RegionChoice,
     /// An incomplete executable block.
     MissingTerminator,
 }
@@ -515,6 +530,22 @@ mod tests {
     }
 
     #[test]
+    fn selected_bpf_descriptor_cannot_borrow_a_written_root_fallback() {
+        let registry = bpf_registry();
+        let mut separately_selected = registry.get_exact("drop").unwrap().clone();
+        separately_selected.name = "::drop";
+        let key = separately_selected.descriptor_key();
+        assert_eq!(key.label(), "::drop");
+        assert!(registry.bpf_op("::drop").is_some());
+        assert!(registry.bpf_op_for_descriptor(key).is_none());
+        assert!(
+            registry
+                .bpf_op_for_descriptor(registry.get_exact("drop").unwrap().descriptor_key())
+                .is_some()
+        );
+    }
+
+    #[test]
     fn bpf_descriptor_alone_never_seals_a_generic_tcl_invocation() {
         let registry = bpf_registry();
         let module = lower_to_ir("setint result {1}", registry);
@@ -536,6 +567,43 @@ mod tests {
             &declines[0].reason,
             EbpfInvocationDeclineReason::Semantic(_)
         ));
+    }
+
+    #[test]
+    fn semantic_audit_requires_the_actual_registry_store() {
+        let registry = bpf_registry();
+        let module = lower_to_ir("setint result {1}", registry);
+        let bundle = SemanticAnalysisBundle::build(
+            registry,
+            Some(bpf_context()),
+            &module.top_level,
+            tcl_compiler::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+        );
+        let bridge = EbpfSemanticBridge::new();
+        let original = bridge.assess(registry, &bundle);
+        assert!(bundle.matches_registry(registry));
+        assert!(matches!(
+            &original,
+            EbpfRegionEligibility::Declined(EbpfRegionDecline::Invocations(_))
+        ));
+
+        let mut foreign = registry.project_for_profile(registry.profile().unwrap());
+        let mut replacement = registry.get_exact("setint").unwrap().clone();
+        replacement.bpf_op = registry.get_exact("drop").unwrap().bpf_op;
+        foreign.insert(replacement);
+        assert_eq!(foreign.profile(), registry.profile());
+        let facts = first_resolved_facts(&bundle);
+        let descriptor = facts.descriptor_key();
+        assert_ne!(
+            foreign.bpf_op_for_descriptor(descriptor),
+            registry.bpf_op_for_descriptor(descriptor)
+        );
+        assert!(!bundle.matches_registry(&foreign));
+        assert_eq!(
+            bridge.assess(&foreign, &bundle),
+            EbpfRegionEligibility::Declined(EbpfRegionDecline::RegistryUnavailable)
+        );
+        assert_eq!(bridge.assess(registry, &bundle), original);
     }
 
     #[test]
@@ -661,6 +729,9 @@ mod tests {
                     ..
                 }
                 | tcl_compiler::executable_ir::ExecutableInstruction::CompleteStructuredRegion(
+                    _,
+                )
+                | tcl_compiler::executable_ir::ExecutableInstruction::CompleteEvaluatedRegion(
                     _,
                 ) => None,
             })

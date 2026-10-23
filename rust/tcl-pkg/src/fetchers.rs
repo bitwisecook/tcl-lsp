@@ -28,6 +28,7 @@
 // real filesystem paths, so `Path::extension` would be the wrong tool.
 #![allow(clippy::case_sensitive_file_extension_comparisons)]
 
+use std::ffi::OsString;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -155,11 +156,12 @@ pub fn fetch_bytes(
 }
 
 /// Validate that `name` resolves inside `dest_root`, returning the safe target.
-fn safe_join(dest_root: &Path, name: &str) -> Result<PathBuf, TclPkgError> {
-    let candidate = Path::new(name);
+fn safe_join(dest_root: &Path, name: impl AsRef<Path>) -> Result<PathBuf, TclPkgError> {
+    let candidate = name.as_ref();
     if candidate.is_absolute() {
         return Err(fetch_error(format!(
-            "archive member has absolute path: {name}"
+            "archive member has absolute path: {}",
+            candidate.display()
         )));
     }
     if candidate
@@ -167,7 +169,8 @@ fn safe_join(dest_root: &Path, name: &str) -> Result<PathBuf, TclPkgError> {
         .any(|c| matches!(c, std::path::Component::ParentDir))
     {
         return Err(fetch_error(format!(
-            "archive member escapes target directory: {name}"
+            "archive member escapes target directory: {}",
+            candidate.display()
         )));
     }
     Ok(dest_root.join(candidate))
@@ -200,9 +203,7 @@ fn extract_tar(bytes: &[u8], dest: &Path, lower: &str) -> Result<(), TclPkgError
         }
         let path = entry
             .path()
-            .map_err(|e| fetch_error(format!("invalid tar path: {e}")))?
-            .to_string_lossy()
-            .into_owned();
+            .map_err(|e| fetch_error(format!("invalid tar path: {e}")))?;
         let target = safe_join(dest, &path)?;
         if entry_type.is_dir() {
             std::fs::create_dir_all(&target)
@@ -241,8 +242,7 @@ fn extract_zip(bytes: &[u8], dest: &Path) -> Result<(), TclPkgError> {
                 String::from_utf8_lossy(file.name_raw())
             )));
         };
-        let name_str = name.to_string_lossy().into_owned();
-        let target = safe_join(dest, &name_str)?;
+        let target = safe_join(dest, name)?;
         // Skip symlinks (Unix mode S_IFLNK in the upper bits).
         if let Some(mode) = file.unix_mode()
             && mode & 0o170_000 == 0o120_000
@@ -357,13 +357,13 @@ pub fn fetch_git(url: &str, dest: &Path, rev: Option<&str>) -> Result<String, Tc
     let git = crate::venv::which("git").unwrap_or_else(|| std::path::PathBuf::from("git"));
     let parent = dest.parent().unwrap_or_else(|| Path::new("."));
 
-    let mut clone_args: Vec<String> = vec!["clone".into(), "--depth".into(), "1".into()];
+    let mut clone_args: Vec<OsString> = vec!["clone".into(), "--depth".into(), "1".into()];
     if let Some(r) = &rev {
         clone_args.push("--branch".into());
-        clone_args.push(r.clone());
+        clone_args.push(r.as_str().into());
     }
-    clone_args.push(url.clone());
-    clone_args.push(dest.to_string_lossy().into_owned());
+    clone_args.push(url.as_str().into());
+    clone_args.push(dest.as_os_str().to_owned());
 
     // git fetches over the network, so this is the one trusted tool that runs
     // with network granted. The environment is still scrubbed of credentials
@@ -436,6 +436,113 @@ mod tests {
         );
         assert!(fetch_path("/no/such/dir/xyz", &base.join("d2")).is_err());
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_git_fetch_preserves_distinct_non_unicode_destination_paths() {
+        use std::os::unix::ffi::OsStringExt as _;
+        let base = std::env::temp_dir().join(format!(
+            "tclpkg-git-os-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let source = base.join("source");
+        std::fs::create_dir_all(&source).unwrap();
+        let git = crate::venv::which("git").expect("git required for local source fixture");
+        for args in [
+            vec!["init", "--quiet"],
+            vec!["add", "fixture.tcl"],
+            vec![
+                "-c",
+                "user.name=PackageFixture",
+                "-c",
+                "user.email=package-fixture@example.invalid",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "commit",
+                "--quiet",
+                "--no-gpg-sign",
+                "-m",
+                "fixture",
+            ],
+        ] {
+            if args[0] == "add" {
+                std::fs::write(source.join("fixture.tcl"), b"original source bytes").unwrap();
+            }
+            let profile = git_profile("local-git-fixture", &git, &source).args(args);
+            let result = crate::exec::execute(&profile, &SandboxPolicy::default()).unwrap();
+            assert!(
+                result.success,
+                "{}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+        }
+        let url = source
+            .to_str()
+            .expect("Unicode source URL for local fixture");
+        for name in [b"destination-\xff".to_vec(), b"destination-\xfe".to_vec()] {
+            let destination = base.join(OsString::from_vec(name));
+            let revision = fetch_git(url, &destination, None).unwrap();
+            assert!(
+                !revision.is_empty(),
+                "revision query must use the same actual destination"
+            );
+            assert_eq!(
+                std::fs::read(destination.join("fixture.tcl")).unwrap(),
+                b"original source bytes"
+            );
+            assert!(!destination.join(".git").exists());
+        }
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn archive_members_keep_distinct_original_os_names() {
+        use std::os::unix::ffi::OsStringExt;
+        let opaque = PathBuf::from(OsString::from_vec(b"original-\xff.tcl".to_vec()));
+        let unicode = PathBuf::from("original-\u{fffd}.tcl");
+        let base = std::env::temp_dir().join(format!(
+            "tclpkg-original-archive-names-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&base).unwrap();
+        assert_eq!(safe_join(&base, &opaque).unwrap(), base.join(&opaque));
+        assert_ne!(
+            safe_join(&base, &opaque).unwrap(),
+            safe_join(&base, &unicode).unwrap()
+        );
+        let mut bytes = Vec::new();
+        {
+            let mut builder = tar::Builder::new(&mut bytes);
+            for (name, content) in [
+                (&opaque, b"opaque".as_slice()),
+                (&unicode, b"unicode".as_slice()),
+            ] {
+                let mut header = tar::Header::new_gnu();
+                header.set_path(name).unwrap();
+                header.set_size(u64::try_from(content.len()).unwrap());
+                header.set_mode(0o644);
+                header.set_cksum();
+                builder.append(&header, content).unwrap();
+            }
+            builder.finish().unwrap();
+        }
+        extract_tar(&bytes, &base, ".tar").unwrap();
+        assert_eq!(std::fs::read(base.join(&opaque)).unwrap(), b"opaque");
+        assert_eq!(std::fs::read(base.join(&unicode)).unwrap(), b"unicode");
+        assert_eq!(std::fs::read_dir(&base).unwrap().count(), 2);
+        let traversal = PathBuf::from(OsString::from_vec(b"../original-\xff".to_vec()));
+        assert!(safe_join(&base, traversal).is_err());
+        std::fs::remove_dir_all(base).unwrap();
     }
 
     #[test]

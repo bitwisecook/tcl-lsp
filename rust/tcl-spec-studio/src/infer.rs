@@ -165,12 +165,14 @@ pub fn infer_from_body(params: &str, body: &str, dialect: &str) -> InferredFacts
     let mut analyser = Analyser::new();
     analyser.deep_param_traits = true;
     let result = analyser.analyse(&source, dialect);
-    let callbacks = result
-        .all_procs
-        .get(NAME)
-        .map(callback_slots)
-        .unwrap_or_default();
-    facts_in(&unit_of(&source, dialect), NAME, callbacks)
+    let mut declarations = result.original_procedure_declarations();
+    let Some(declaration) = declarations.next() else {
+        return InferredFacts::default();
+    };
+    if declarations.next().is_some() {
+        return InferredFacts::default();
+    }
+    facts_in(&source, &result, &unit_of(&source, dialect), declaration)
 }
 
 /// The compilation unit of `source` with its interprocedural summaries.
@@ -198,24 +200,92 @@ fn callback_slots(proc_def: &tcl_compiler::analyser::types::ProcDef) -> Vec<usiz
         .collect()
 }
 
-/// The facts `unit` holds for the procedure `qualified`, with the callback slots
-/// the analyser found. Nothing is proposed for a procedure the unit has no
-/// summary of.
-fn facts_in(unit: &CompilationUnit, qualified: &str, callbacks: Vec<usize>) -> InferredFacts {
+/// Readonly body-value data from the actual declaring instruction and layout.
+fn original_body_data(
+    source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    procedure: &tcl_compiler::analyser::types::ProcDef,
+) -> Option<(String, tcl_lexer::LexerConfig)> {
+    let mut declarations = analysis
+        .original_procedure_declarations()
+        .filter(|declaration| declaration.metadata() == procedure);
+    let declaration = declarations.next()?;
+    declarations.next().is_none().then_some(())?;
+    let words = tcl_compiler::registry_invocation::source_structure::source_registry_words_at(
+        source,
+        analysis,
+        declaration.declaration_site().offset,
+    )?;
+    let input = analysis.resolved_input.as_ref()?;
+    let registry = analysis.resolved_registry()?;
+    words.matches_registry(registry).then_some(())?;
+    let layout = words.with_source_schema(&input.context_registry(), |selected| {
+        selected.authored_source_procedure_arguments()
+    })??;
+    let written = |argument: usize| {
+        matches!(
+            words.origins().get(argument.checked_add(1)?),
+            Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(_))
+        )
+        .then_some(())?;
+        words.original_argument_word(argument)
+    };
+    let name = written(layout.name)?;
+    let body = written(layout.body)?;
+    if name != declaration.name_input().original_word() || body.group().span != procedure.body_span
+    {
+        return None;
+    }
+    let bodies = words.source_script_bodies(&input.context_registry());
+    let mut matching = bodies
+        .iter()
+        .filter(|original| original.original_container() == body);
+    matching.next()?;
+    matching.next().is_none().then_some(())?;
+    let value = tcl_syntax::word_rules::original_static_word_unicode_value(body)?;
+    Some((String::from_utf8(value).ok()?, body.config().nested()))
+}
+
+/// Conditional facts from this original declaration's independently retained body.
+/// Display names neither select summaries nor recover unavailable body admission.
+fn facts_in(
+    source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    unit: &CompilationUnit,
+    declaration: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::types::ProcDef,
+    >,
+) -> InferredFacts {
+    let Some((id, _)) = tcl_compiler::source_graph::procedure_body_for_declaration(
+        source,
+        analysis,
+        &unit.ir_module,
+        declaration,
+    ) else {
+        return InferredFacts::default();
+    };
     let Some(summary) = unit
         .interproc
         .as_ref()
-        .and_then(|analysis| analysis.procedures.get(qualified))
+        .and_then(|analysis| analysis.procedures.get(&id))
     else {
         return InferredFacts::default();
     };
+    let Some(function) = unit
+        .procedures
+        .get(&id)
+        .or_else(|| unit.body_lowering_function(id))
+    else {
+        return InferredFacts::default();
+    };
+    if function.body_id != Some(id) {
+        return InferredFacts::default();
+    }
     InferredFacts {
         pure: summary.pure,
         side_effects: effects_of(summary),
-        return_type: unit
-            .function(qualified)
-            .and_then(|function| function.return_type.tcl_type()),
-        callback_slots: callbacks,
+        return_type: function.return_type.tcl_type(),
+        callback_slots: callback_slots(declaration.metadata()),
     }
 }
 
@@ -404,29 +474,30 @@ fn synopsis(name: &str, params: &[ParamDef]) -> String {
 
 /// Turn one analysed procedure into a draft.
 ///
-/// `body` is the proc's own source between its braces, so the corpus shape
+/// `body` retains the original procedure's static value and full grammar, so corpus shape
 /// heuristics ([`crate::corpus`]) can read what the *body* says about the
 /// interface — option tables, mode words, closed value sets, callback arity —
-/// which the parameter list alone cannot show. `dialect` is the registry the
-/// body walk resolves script arguments against.
+/// which the parameter list alone cannot show. Its held Registry resolves script
+/// arguments; unavailable original body data contributes no corpus evidence.
 fn draft_for_proc(
     proc_def: &tcl_compiler::analyser::types::ProcDef,
     package: Option<&str>,
     version: Option<&str>,
     file: &str,
-    body: &str,
-    dialect: &str,
+    body: Option<(&str, tcl_lexer::LexerConfig, &tcl_registry::CommandRegistry)>,
     facts: &InferredFacts,
 ) -> Inferred {
     let mut d = draft::default_command_draft();
     let mut notes: Vec<String> = Vec::new();
 
-    // The unqualified name is what a caller writes once the namespace is
-    // imported; the qualified one is what resolution actually binds.
-    let name = if proc_def.qualified_name.trim_start_matches("::").is_empty() {
+    // Draft keys are optional-root presentation labels, independent of the
+    // retained allocation that selects body facts.
+    let qualified = tcl_syntax::naming::unroot_rooted_key(&proc_def.qualified_name)
+        .unwrap_or(&proc_def.qualified_name);
+    let name = if qualified.is_empty() {
         proc_def.name.clone()
     } else {
-        proc_def.qualified_name.trim_start_matches("::").to_owned()
+        qualified.to_owned()
     };
     d.insert("name".into(), json!(name));
     notes.push(format!(
@@ -450,6 +521,7 @@ fn draft_for_proc(
             "max": if unbounded { Value::Null } else { json!(arity.max) },
             "step": 0,
             "also_exact": null,
+            "count": "arguments",
         }),
     );
     notes.push(if unbounded {
@@ -471,7 +543,9 @@ fn draft_for_proc(
     // What the body says about the caller-visible shape, each conclusion with
     // its own evidence line. Runs after the signature pass so a role the
     // analyser proved is never overwritten by a shape guess.
-    crate::corpus::scan(body, params, dialect).apply(&mut d, &mut notes);
+    if let Some((body, config, registry)) = body {
+        crate::corpus::scan_in(body, params, registry, config).apply(&mut d, &mut notes);
+    }
     facts.apply(&mut d, &mut notes);
     describe(&mut d, proc_def, &name, package, version, file, &mut notes);
 
@@ -583,9 +657,8 @@ fn describe(
 #[must_use]
 pub fn import_package(files: &[SourceFile], dialect: &str) -> Import {
     let mut out = Import::default();
-    // Deduplicate by qualified name: a package that sources a file twice, or
-    // redefines a proc in a later file, should yield one draft — the last
-    // definition wins, matching what the interpreter would end up with.
+    // Draft keys are presentation labels. Repeated rows seed one authoring
+    // draft without selecting an installed implementation.
     let mut by_name: BTreeMap<String, Inferred> = BTreeMap::new();
 
     for file in files {
@@ -600,25 +673,34 @@ pub fn import_package(files: &[SourceFile], dialect: &str) -> Import {
             out.version.clone_from(&provide.version);
         }
 
-        if result.all_procs.is_empty() {
+        let Some(declarations) = tcl_lsp_core::procedure_symbol::declarations(&file.text, &result)
+        else {
+            out.warnings.push(format!(
+                "{}: current source declaration inventory unavailable",
+                file.name
+            ));
+            continue;
+        };
+        if declarations.is_empty() {
             out.warnings
                 .push(format!("{}: no `proc` definitions found", file.name));
             continue;
         }
 
         let unit = unit_of(&file.text, dialect);
-        for proc_def in result.all_procs.values() {
-            let facts = facts_in(&unit, &proc_def.qualified_name, callback_slots(proc_def));
-            let start = proc_def.body_span.start() as usize;
-            let end = proc_def.body_span.end() as usize;
-            // The recorded span runs from the body word's opening brace to the
-            // last byte before its close, so strip whichever delimiters are
-            // actually there — the heuristics read a *script*, and a body
-            // still wrapped in braces segments as one word and says nothing.
-            let body = file.text.get(start..end).unwrap_or_default();
-            let body = body.strip_prefix('{').unwrap_or(body);
-            let body = body.strip_suffix('}').unwrap_or(body);
-            let inferred = draft_for_proc(proc_def, None, None, &file.name, body, dialect, &facts);
+        for proc_def in declarations {
+            let mut original = result
+                .original_procedure_declarations()
+                .filter(|declaration| declaration.metadata() == proc_def);
+            let facts = match (original.next(), original.next()) {
+                (Some(declaration), None) => facts_in(&file.text, &result, &unit, declaration),
+                _ => InferredFacts::default(),
+            };
+            let body = original_body_data(&file.text, &result, proc_def);
+            let body = body.as_ref().and_then(|(body, config)| {
+                Some((body.as_str(), *config, result.resolved_registry()?))
+            });
+            let inferred = draft_for_proc(proc_def, None, None, &file.name, body, &facts);
             by_name.insert(proc_def.qualified_name.clone(), inferred);
         }
     }
@@ -667,6 +749,20 @@ mod tests {
                     import.commands.iter().map(|c| &c.name).collect::<Vec<_>>()
                 )
             })
+    }
+
+    #[test]
+    fn imported_procedure_descriptor_keeps_colon_named_namespace_holder() {
+        // naming.grammar.shared-written-name-boundaries
+
+        // Real analyser/import consumer; no native dispatch or compiler body authority.
+        let import = import_package(
+            &file("namespace eval : { proc p {} { return OK } }"),
+            "tcl9.0",
+        );
+        let procedure = find(&import, ":::p");
+        assert_eq!(procedure.draft["name"], json!(":::p"));
+        assert!(!import.commands.iter().any(|row| row.name == "p"));
     }
 
     #[test]
@@ -977,5 +1073,138 @@ mod tests {
         let import = import_package(&file("set x 1"), "tcl9.0");
         assert!(import.commands.is_empty());
         assert!(import.warnings.iter().any(|w| w.contains("no `proc`")));
+    }
+    #[test]
+    fn original_body_facts_keep_ids_when_presentation_names_collide() {
+        let source = "proc p {} {return 42}\nproc q {} {set ::seen 1}\np\nq\n";
+        let analysis = Analyser::new().analyse(source, "tcl9.0");
+        let declarations = analysis
+            .original_procedure_declarations()
+            .collect::<Vec<_>>();
+        assert_eq!(declarations.len(), 2);
+        let mut unit = unit_of(source, "tcl9.0");
+        let p = facts_in(source, &analysis, &unit, declarations[0]);
+        let q = facts_in(source, &analysis, &unit, declarations[1]);
+        assert!(p.pure, "{p:?}");
+        assert!(!q.pure, "{q:?}");
+        assert_eq!(p.return_type, Some(TclType::Int));
+        for procedure in unit
+            .ir_module
+            .procedures
+            .values_mut()
+            .chain(unit.ir_module.body_units.values_mut())
+        {
+            procedure.name = "same-report".to_owned();
+            procedure.qualified_name = "::same-report".to_owned();
+        }
+        for function in unit
+            .procedures
+            .values_mut()
+            .chain(unit.body_units.values_mut())
+        {
+            function.name = "::same-report".to_owned();
+        }
+        assert_eq!(facts_in(source, &analysis, &unit, declarations[0]), p);
+        assert_eq!(facts_in(source, &analysis, &unit, declarations[1]), q);
+    }
+
+    #[test]
+    fn original_body_facts_refuse_changed_source_and_foreign_declaration_rows() {
+        let source = "proc p {} {return 42}\np\n";
+        let changed = "proc q {} {return 42}\nq\n";
+        let analysis = Analyser::new().analyse(source, "tcl9.0");
+        let foreign = Analyser::new().analyse(changed, "tcl9.0");
+        let declaration = analysis
+            .original_procedure_declarations()
+            .next()
+            .expect("original declaration");
+        let other = foreign
+            .original_procedure_declarations()
+            .next()
+            .expect("independent original declaration");
+        let unit = unit_of(source, "tcl9.0");
+        assert!(facts_in(source, &analysis, &unit, declaration).pure);
+        assert_eq!(
+            facts_in(changed, &analysis, &unit, declaration),
+            InferredFacts::default()
+        );
+        assert_eq!(
+            facts_in(source, &analysis, &unit, other),
+            InferredFacts::default()
+        );
+        let changed_unit = unit_of(changed, "tcl9.0");
+        assert_eq!(
+            facts_in(source, &analysis, &changed_unit, declaration),
+            InferredFacts::default()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_body_value_tests {
+    use super::*;
+
+    #[test]
+    fn imported_body_values_keep_nested_closers_and_literal_reference_data() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            for (source, expected) in [
+                ("proc p {} {return {${literal}}}", "return {${literal}}"),
+                ("proc p {} {}", ""),
+                ("proc p {} \"return VALUE\"", "return VALUE"),
+            ] {
+                let analysis = Analyser::new().analyse(source, dialect);
+                let declaration = analysis.original_procedure_declarations().next().unwrap();
+                let (body, config) = original_body_data(source, &analysis, declaration.metadata())
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "actual retained declaration and original Body word: {dialect}/{source}"
+                        )
+                    });
+                assert_eq!(body, expected, "{dialect}/{source}");
+                assert_eq!(config, analysis.body_lexer_config.unwrap().nested());
+            }
+            let import = import_package(
+                &[SourceFile {
+                    name: "original.tcl".into(),
+                    text: "proc p {mode args} {switch -- $mode {alpha {} beta {}}}".into(),
+                }],
+                dialect,
+            );
+            let procedure = import.commands.iter().find(|row| row.name == "p").unwrap();
+            assert_eq!(
+                procedure.draft["subcommands"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|row| row["name"].as_str().unwrap())
+                    .collect::<Vec<_>>(),
+                ["alpha", "beta"],
+                "{dialect}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_body_values_refuse_changed_or_unavailable_declaration_owners() {
+        let source = "proc p {} {return {${literal}}}";
+        let analysis = Analyser::new().analyse(source, "tcl9.0");
+        let declaration = analysis.original_procedure_declarations().next().unwrap();
+        let procedure = declaration.metadata();
+        assert!(original_body_data(source, &analysis, procedure).is_some());
+        assert!(original_body_data(&format!("{source} # changed"), &analysis, procedure).is_none());
+        let mut changed = procedure.clone();
+        changed.body_span = tcl_lexer::Span::new(0, 1);
+        assert!(original_body_data(source, &analysis, &changed).is_none());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(original_body_data(source, &missing, procedure).is_none());
+        let mut missing = analysis.clone();
+        missing.body_lexer_config = None;
+        assert!(original_body_data(source, &missing, procedure).is_none());
+        let dynamic = "set body {return VALUE}; proc p {} $body";
+        let analysis = Analyser::new().analyse(dynamic, "tcl9.0");
+        if let Some(declaration) = analysis.original_procedure_declarations().next() {
+            assert!(original_body_data(dynamic, &analysis, declaration.metadata()).is_none());
+        }
     }
 }

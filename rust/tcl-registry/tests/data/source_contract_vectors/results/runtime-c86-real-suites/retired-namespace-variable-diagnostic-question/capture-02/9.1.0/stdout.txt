@@ -1,0 +1,5 @@
+PROVIDER 9.1.0
+MARK variable-head-scalar before-write
+ROW variable-head-scalar 0 {0 2 1 {can't set "foo": upvar refers to variable in deleted namespace} {TCL WRITE VARNAME}} {TCL WRITE VARNAME}
+MARK variable-head-element before-write
+ROW variable-head-element 0 {0 2 1 {can't set "foo(3)": upvar refers to variable in deleted namespace} {TCL LOOKUP VARNAME foo}} {TCL LOOKUP VARNAME foo}

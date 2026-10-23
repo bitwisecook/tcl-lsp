@@ -108,7 +108,27 @@ where
 {
     match body {
         WordBody::Literal(b) => b.to_vec(),
-        WordBody::Parts(parts) => resolve_parts(parts, var, cmd, 0),
+        WordBody::Parts(parts) => resolve_parts(parts, var, cmd, &|_| None, 0),
+    }
+}
+
+/// Resolve expression components through their own callback, independently of
+/// named command substitution. The compatibility `resolve_with` helper has no
+/// expression engine and leaves these components unresolved.
+pub fn resolve_with_expression<V, C, E>(
+    body: &WordBody,
+    var: &V,
+    cmd: &C,
+    expression: &E,
+) -> Vec<u8>
+where
+    V: Fn(&[u8], Option<&[u8]>) -> Option<Vec<u8>>,
+    C: Fn(&[u8]) -> Option<Vec<u8>>,
+    E: Fn(&[u8]) -> Option<Vec<u8>>,
+{
+    match body {
+        WordBody::Literal(bytes) => bytes.to_vec(),
+        WordBody::Parts(parts) => resolve_parts(parts, var, cmd, expression, 0),
     }
 }
 
@@ -119,10 +139,17 @@ where
 /// instead of recursively resolving the index's own components) rather than
 /// recursing further — a bounded, defined fallback instead of an uncatchable
 /// native-stack overflow.
-fn resolve_parts<V, C>(parts: &[WordPart], var: &V, cmd: &C, depth: u32) -> Vec<u8>
+fn resolve_parts<V, C, E>(
+    parts: &[WordPart],
+    var: &V,
+    cmd: &C,
+    expression: &E,
+    depth: u32,
+) -> Vec<u8>
 where
     V: Fn(&[u8], Option<&[u8]>) -> Option<Vec<u8>>,
     C: Fn(&[u8]) -> Option<Vec<u8>>,
+    E: Fn(&[u8]) -> Option<Vec<u8>>,
 {
     let past_cap = MAX_RESOLVE_PARTS_DEPTH.exceeded(depth);
     let mut out = Vec::new();
@@ -135,10 +162,15 @@ where
                 } else {
                     v.index
                         .as_ref()
-                        .map(|p| resolve_parts(p, var, cmd, depth + 1))
+                        .map(|p| resolve_parts(p, var, cmd, expression, depth + 1))
                 };
                 if let Some(val) = var(v.name, index.as_deref()) {
                     out.extend_from_slice(&val);
+                }
+            }
+            WordPart::Expression(source) => {
+                if let Some(value) = expression(source) {
+                    out.extend_from_slice(&value);
                 }
             }
             WordPart::Command(script) => {

@@ -167,7 +167,8 @@ fn render_row(pack: &str, environment: &PackEnvironment) -> Result<String> {
 /// The generated module text, formatted.
 fn render() -> Result<String> {
     let root = repo_root();
-    let set = tcl_spectcl::bundled::load_from(&root.join("specs"));
+    let set = tcl_spectcl::bundled::load_from_required(&root.join("specs"))
+        .map_err(anyhow::Error::msg)?;
     let mut text = HEADER.to_owned();
     let mut rows = 0_usize;
     for pack in &set.packs {

@@ -28,35 +28,58 @@
 
 use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
 
-use crate::frame::{split_array_ref, VarError};
-use crate::interp::drop_fresh;
+use crate::frame::VarError;
+use crate::interp::native_arguments::OriginalArguments;
 use crate::interp::{obj_bytes, Code, Interp};
+// The transient `1` of a tower `incr` is the only fresh object left to drop
+// by hand; every other path now stores through `store_var_result`.
+use crate::interp::drop_fresh;
 use crate::obj::{self, TclObj};
-use tcl_runtime_api::error_stack::{validate_error_stack, ErrorStackValueError};
 
 /// Register the starter builtins on a fresh interp.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"set", set);
-    interp.register_builtin(b"incr", incr);
-    interp.register_builtin(b"const", const_cmd);
-    interp.register_builtin(b"return", ret);
-    interp.register_builtin(b"unset", unset);
-    interp.register_builtin(b"exit", exit_cmd);
-    interp.register_builtin(b"subst", subst_cmd);
+    install_for_bootstrap(interp, None);
+}
+
+/// Register core commands without sourcing distribution-owned procedures.
+pub(crate) fn install_native_core(
+    interp: &mut Interp,
+    protocol: tcl_registry::special_vars::NativeBootstrapProtocol,
+) {
+    install_for_bootstrap(interp, Some(protocol));
+}
+
+fn install_for_bootstrap(
+    interp: &mut Interp,
+    protocol: Option<tcl_registry::special_vars::NativeBootstrapProtocol>,
+) {
+    interp.register_stock_builtin(b"set", set);
+    interp.register_stock_builtin(b"incr", incr);
+    interp.register_stock_builtin(b"const", const_cmd);
+    interp.register_stock_builtin(b"return", ret);
+    interp.register_stock_builtin(b"unset", unset);
+    interp.register_stock_builtin(b"exit", exit_cmd);
+    interp.register_stock_builtin(b"subst", subst_cmd);
     crate::cmd_scan::install(interp);
     crate::cmd_format::install(interp);
-    crate::cmd_binary::install(interp);
+    if protocol.is_none_or(|protocol| protocol.registers_core_binary()) {
+        crate::cmd_binary::install(interp);
+    }
     crate::cmd_clock::install(interp);
     // `expr` needs the numeric tower (libtommath); registered only when linked.
     #[cfg(have_tommath)]
-    interp.register_builtin(b"expr", expr_cmd);
+    interp.register_stock_builtin(b"expr", expr_cmd);
     // `::tcl::mathfunc::*` are real commands `expr`'s function path resolves
     // through (overridable); they need the tower too.
     #[cfg(have_tommath)]
     crate::cmd_mathfunc::install(interp);
     // `::tcl::mathop::*` — the operators as real commands (tower-gated).
     #[cfg(have_tommath)]
-    crate::cmd_mathop::install(interp);
+    if protocol
+        .is_none_or(tcl_registry::special_vars::NativeBootstrapProtocol::registers_core_mathop)
+    {
+        crate::cmd_mathop::install(interp);
+    }
     crate::cmd_list::install(interp);
     #[cfg(have_tommath)]
     crate::cmd_lseq::install(interp);
@@ -66,9 +89,14 @@ pub fn install(interp: &mut Interp) {
     crate::cmd_var::install(interp);
     crate::cmd_control::install(interp);
     crate::cmd_proc::install(interp);
-    crate::cmd_error::install(interp);
+    if protocol.is_some() {
+        crate::cmd_error::install_for_bootstrap(interp, protocol);
+    } else {
+        crate::cmd_error::install(interp);
+    }
     crate::cmd_eval::install(interp);
     crate::cmd_info::install(interp);
+    crate::cmd_jim_exists::install(interp);
     crate::cmd_array::install(interp);
     crate::cmd_switch::install(interp);
     crate::cmd_package::install(interp);
@@ -85,8 +113,11 @@ pub fn install(interp: &mut Interp) {
     crate::cmd_regex::install(interp);
     // TclOO last: its `variable`/`self`/`my`/`next` intentionally override the
     // base `variable` (OO-aware inside `oo::define`, forwarding otherwise).
-    crate::cmd_oo::install(interp);
-    // `string` last, as the registration order has always had it.
+    if protocol.is_none_or(|protocol| protocol.initializes_tcl_oo()) {
+        crate::cmd_oo::install(interp);
+    }
+    // Register the spec-backed string implementation after the ordinary
+    // startup sweep so its derived intrinsic identities remain attested.
     crate::cmd_string::install(interp);
     // With the handler table complete, attach the registry's identities to the
     // builtins in it.
@@ -162,7 +193,45 @@ pub(crate) fn mathfunc_names() -> Vec<&'static str> {
         .collect()
 }
 
+/// Report a store through an already split array reference. This display name
+/// is never reparsed to select storage; keys containing parentheses remain intact.
+pub(crate) fn var_element_error(
+    interp: &mut Interp,
+    base: &[u8],
+    key: &[u8],
+    error: VarError,
+) -> Code {
+    let mut display = Vec::with_capacity(base.len() + key.len() + 2);
+    display.extend_from_slice(base);
+    display.push(b'(');
+    display.extend_from_slice(key);
+    display.push(b')');
+    var_error(interp, &display, error)
+}
+
 pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
+    var_error_using(interp, name, e, None)
+}
+
+pub(crate) fn var_error_using(
+    interp: &mut Interp,
+    name: &[u8],
+    e: VarError,
+    stage: Option<&dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>,
+) -> Code {
+    if let Some(check) = stage {
+        if let Err(first) = check() {
+            return interp.report_cmd_error(first);
+        }
+    }
+
+    if e == VarError::NameProtocolUnavailable {
+        return interp.refuse_native_access(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "variable naming",
+            ),
+        );
+    }
     // A write-trace error: wrap the trace's own message (stashed in pending_err)
     // as `can't set "name": <msg>` (C's TclObjVarErrMsg), *keeping* the
     // errorInfo chain the trace machinery already built.
@@ -173,14 +242,17 @@ pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
             .pending_err
             .take()
             .unwrap_or_default();
-        return interp.var_trace_error(name, b"write", &reason);
+        return interp.var_trace_error_using(name, b"write", &reason, stage);
     }
     if e == VarError::Confined {
-        return interp.confined_store_error(name);
+        return interp.confined_store_error_using(name, stage);
     }
     let verb = match e {
+        VarError::NameProtocolUnavailable => unreachable!("host refusal handled above"),
         VarError::IsArray => &b"\": variable is array"[..],
         VarError::IsScalar => &b"\": variable isn't array"[..],
+        VarError::DeletedNamespace => &b"\": upvar refers to variable in deleted namespace"[..],
+        VarError::DeletedArray => &b"\": upvar refers to element in deleted array"[..],
         VarError::NoSuchNamespace => &b"\": parent namespace doesn't exist"[..],
         VarError::IsConstant => &b"\": variable is a constant"[..],
         VarError::TraceError | VarError::Confined => unreachable!("handled above"),
@@ -188,7 +260,7 @@ pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
     let mut msg = b"can't set \"".to_vec();
     msg.extend_from_slice(name);
     msg.extend_from_slice(verb);
-    interp.set_error(&msg)
+    interp.error_using(&msg, stage)
 }
 
 /// `can't incr "name": variable is a constant` when `incr` targets a `const`
@@ -216,7 +288,10 @@ fn const_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"const varName value");
     }
     let name = obj_bytes(argv[1]);
-    let (base, elem) = split_array_ref(&name);
+    let (base, elem) = match interp.variable_name_parts(&name) {
+        Ok(parts) => parts,
+        Err(error) => return var_error(interp, &name, error),
+    };
     // `const X(a)` — a constant may not be an array element.
     if elem.is_some() {
         return make_constant_error(interp, &name, b"name refers to an element in an array");
@@ -258,10 +333,37 @@ fn make_constant_error(interp: &mut Interp, name: &[u8], reason: &[u8]) -> Code 
 
 /// `set varName ?value?` — write (returns the value) or read (returns it).
 fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if interp.observed_name_policy_selected() && matches!(argv.len(), 2 | 3) {
+        let name = obj_bytes(argv[1]);
+        let level = interp.frames.borrow().current_level();
+        return match argv.len() {
+            2 => match interp.observed_variable_get(&name, level) {
+                Ok(Some(value)) => {
+                    interp.set_result(value);
+                    Code::Ok
+                }
+                Ok(None) => {
+                    let _ = interp.observed_refusal::<()>();
+                    Code::Error
+                }
+                Err(_) => Code::Error,
+            },
+            _ => match interp.observed_variable_set(&name, level, argv[2]) {
+                Ok(()) => {
+                    interp.set_result(argv[2]);
+                    Code::Ok
+                }
+                Err(_) => Code::Error,
+            },
+        };
+    }
     match argv.len() {
         2 => {
             let name = obj_bytes(argv[1]);
-            let (base, elem) = split_array_ref(&name);
+            let (base, elem) = match interp.variable_name_parts(&name) {
+                Ok(parts) => parts,
+                Err(error) => return var_error(interp, &name, error),
+            };
             // A read trace fires before the read (C's Tcl_ObjGetVar2); a trace
             // error fails the read with `can't read "name": <msg>`.
             if let Some(c) = interp.fire_read_trace(&base, elem.as_deref()) {
@@ -288,7 +390,10 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         3 => {
             let name = obj_bytes(argv[1]);
-            let (base, elem) = split_array_ref(&name);
+            let (base, elem) = match interp.variable_name_parts(&name) {
+                Ok(parts) => parts,
+                Err(error) => return var_error(interp, &name, error),
+            };
             let value = argv[2];
             let stored = match &elem {
                 Some(k) => interp.var_set_elem(&base, k, value),
@@ -302,7 +407,7 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Err(e) => var_error(interp, &name, e),
             }
         }
-        _ => interp.wrong_args(b"set varName ?newValue?"),
+        _ => interp.wrong_args_for_invocation(argv, b"varName ?newValue?"),
     }
 }
 
@@ -310,18 +415,152 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// `incr varName ?increment?` — add (default 1) over the **numeric tower**,
 /// storing and returning the sum. Both operands must be integers; the sum
-/// promotes to a bignum on overflow (Tcl integers never wrap) and an existing
+/// follows the selected native overflow policy, and an existing
 /// bignum cell increments correctly. Object-preserving (reads the cell's value
 /// object, not its string).
-#[cfg(have_tommath)]
 pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
         return interp.wrong_args(b"incr varName ?increment?");
     }
-    let name = obj_bytes(argv[1]);
-    let (base, elem) = split_array_ref(&name);
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = incr_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn incr_original(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
+    let legacy_amount = if let Some(protocol) = interp
+        .native_invocation_dialect()
+        .native_legacy_increment_protocol()
+    {
+        let recipe = protocol.recipe();
+        Some(match argv.get(2) {
+            Some(original) => match tcl_cmd_core::native_increment::prepare_legacy_amount(
+                &mut crate::value_ops::RuntimeLegacyIncrementAmountOps(interp),
+                recipe,
+                original,
+            ) {
+                Ok(amount) => amount,
+                Err(error) => return interp.report_cmd_error(error),
+            },
+            None => tcl_cmd_core::native_increment::default_legacy_amount(recipe),
+        })
+    } else {
+        None
+    };
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    if interp.native_c_variable_name_protocol().is_some() {
+        return interp.increment_original_c_variable(argv[1], argv.get(2).copied(), legacy_amount);
+    }
+    if let Some(amount) = legacy_amount {
+        if interp
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_some()
+        {
+            let code = interp.increment_native_jim_original(argv[1], amount);
+            return arguments.finish(code);
+        }
+    }
+    let name = match arguments.bytes(1) {
+        Ok(name) => name,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let (base, elem) = match interp.variable_name_parts(&name) {
+        Ok(parts) => parts,
+        Err(error) => return var_error(interp, &name, error),
+    };
     if let Some(c) = incr_constant_error(interp, &base, &elem, &name) {
         return c;
+    }
+    if let Some(amount) = legacy_amount {
+        if interp.native_invocation_dialect().native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            return interp.increment_native_jim_original(argv[1], amount);
+        }
+        if let Some(code) = interp.increment_captured(
+            &name,
+            &base,
+            elem.as_deref(),
+            argv.get(2).copied(),
+            Some(amount),
+        ) {
+            return code;
+        }
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native legacy increment container",
+            )
+            .into(),
+        );
+    }
+
+    let normalized_amount = match (
+        argv.get(2),
+        interp
+            .native_invocation_dialect()
+            .native_rmw_amount_grammar(tcl_registry::native_rmw::NativeRmwOperation::Increment),
+    ) {
+        (
+            Some(&amount),
+            Some(grammar @ tcl_registry::native_rmw::NativeRmwAmountGrammar::SafeIntegerExpression),
+        ) => match grammar.prepare(interp, &amount) {
+            Ok(value) => Some(crate::obj::Owned::fresh(value)),
+            Err(error) => {
+                if let Err(first) = arguments.check() {
+                    return interp.report_cmd_error(first);
+                }
+                match error {
+                    tcl_syntax::value::IntegerOperandError::Integer(error) => {
+                        return crate::value_ops::integer_error(interp, error);
+                    }
+                    error @ tcl_syntax::value::IntegerOperandError::SafeExpression => {
+                        let bytes = match arguments.bytes(2) {
+                            Ok(bytes) => bytes,
+                            Err(error) => return interp.report_cmd_error(error),
+                        };
+                        let Some(message) = error.safe_expression_message_bytes(&bytes) else {
+                            return interp.report_cmd_error(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "selected increment amount presentation",
+                                )
+                                .into(),
+                            );
+                        };
+                        return interp.set_error(&message);
+                    }
+                }
+            }
+        },
+        _ => None,
+    };
+    let selected_amount = normalized_amount
+        .as_ref()
+        .map(crate::obj::Owned::as_ptr)
+        .or_else(|| argv.get(2).copied());
+
+    if interp
+        .native_invocation_dialect()
+        .native_rmw_amount_validation(tcl_registry::native_rmw::NativeRmwOperation::Increment)
+        == Some(tcl_registry::native_rmw::NativeRmwAmountValidation::BeforeRead)
+    {
+        if let Some(amount) = selected_amount {
+            match tcl_syntax::value::ValueOps::int_add(interp, None, &amount) {
+                Ok(validated) => drop_fresh(validated),
+                Err(error) => return crate::value_ops::integer_error(interp, error),
+            }
+        }
+    }
+
+    if let Some(code) =
+        interp.increment_captured(&name, &base, elem.as_deref(), selected_amount, None)
+    {
+        return code;
     }
 
     // Current cell value (borrowed; `None` for an unset variable → the shared
@@ -332,9 +571,12 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `read` and then `write`. A read trace that *errors* leaves
     // the fetch NULL, which C counts as 0 — so the error is swallowed here too,
     // exactly as `lappend` does.
-    let cur = interp.read_for_update(&base, elem.as_deref());
+    let cur = match interp.read_for_update(&base, elem.as_deref()) {
+        Ok(value) => value,
+        Err(first) => return interp.refuse_native_execution(first),
+    };
     let one = obj::new_wide_int_obj(1);
-    let amount = if argv.len() == 3 { argv[2] } else { one };
+    let amount = selected_amount.unwrap_or(one);
 
     // The numeric-tower addition is the shared `ValueOps::int_add` seam, run over
     // this runtime's bignum (overflow widens; a non-integer operand is the
@@ -345,13 +587,13 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     drop_fresh(one); // the transient `1` (used or not) is no longer needed
     let sum = match sum {
         Ok(s) => s, // rc 0
-        Err(e) => return interp.report_cmd_error(e.into()),
+        Err(e) => return crate::value_ops::integer_error(interp, e),
     };
 
     // The protected store: a write trace that rewrites or unsets
     // the cell drops the store's reference to this fresh sum, so a bare
-    // `set_result` would read freed memory. `cmd_var::incr_cmd` overrides this
-    // command in the table, but the body must be safe on its own — a direct
+    // `set_result` would read freed memory. the installed command and
+    // compiled ABI share this same protected body — a direct
     // caller (the codegen ABI was one) must not be able to reach a use-after-free.
     match interp.store_var_result(&base, elem.as_deref(), sum) {
         Ok(()) => Code::Ok,
@@ -359,100 +601,7 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-/// `incr` fallback for a build without the bignum tower (`have_tommath` off):
-/// `i64` only, failing loudly on overflow rather than wrapping.
-#[cfg(not(have_tommath))]
-pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 || argv.len() > 3 {
-        return interp.wrong_args(b"incr varName ?increment?");
-    }
-    let name = obj_bytes(argv[1]);
-    let (base, elem) = split_array_ref(&name);
-    if let Some(c) = incr_constant_error(interp, &base, &elem, &name) {
-        return c;
-    }
-
-    let cur = match read_cell(interp, &base, &elem) {
-        Some(bytes) => match parse_i64(&bytes) {
-            Some(n) => n,
-            None => return not_integer(interp, &bytes),
-        },
-        None => 0, // incr of an unset variable starts at 0 (Tcl)
-    };
-    let amount = if argv.len() == 3 {
-        let b = obj_bytes(argv[2]);
-        match parse_i64(&b) {
-            Some(n) => n,
-            None => return not_integer(interp, &b),
-        }
-    } else {
-        1
-    };
-    let sum = match cur.checked_add(amount) {
-        Some(s) => s,
-        None => return interp.set_error(b"integer overflow (bignum promotion needs the tower)"),
-    };
-    let obj = obj::new_wide_int_obj(sum); // rc 0
-                                          // The protected store, as the tower build's `cmd_var::incr_cmd` uses: a
-                                          // write trace that rewrites or unsets the cell drops the store's reference
-                                          // to this fresh sum, and a bare `set_result` would then read freed memory.
-                                          // It also publishes the cell's post-trace value, which is
-                                          // what C returns.
-    match interp.store_var_result(&base, elem.as_deref(), obj) {
-        Ok(()) => Code::Ok,
-        Err(e) => var_error(interp, &name, e),
-    }
-}
-
-/// The tower-less `incr`'s current-value read, through the **same**
-/// read-trace chokepoint the tower build uses.
-///
-/// C's `TclPtrIncrObjVar` fetches with `TclPtrGetVarIdx`, so `incr x` on a
-/// read-traced `x` fires `read` and then `write`, and a read trace that
-/// errors leaves the fetch NULL — which C counts as 0 (pinned in
-/// `tests/trace_semantics.rs`). Reaching for `var_get`/`var_get_elem`
-/// directly instead would skip the read entirely: `incr` and an array
-/// element would fire only their `write`.
-#[cfg(not(have_tommath))]
-fn read_cell(interp: &mut Interp, base: &[u8], elem: &Option<Vec<u8>>) -> Option<Vec<u8>> {
-    let obj = interp.read_for_update(base, elem.as_deref())?;
-    Some(obj_bytes(obj))
-}
-
-/// The canonical `expected integer but got "…"` for the no-tower `incr`
-/// fallback. The tower build reports this through the shared `ValueOps::int_add`
-/// seam instead, so this is only needed when `have_tommath` is off.
-#[cfg(not(have_tommath))]
-fn not_integer(interp: &mut Interp, bytes: &[u8]) -> Code {
-    let mut msg = b"expected integer but got \"".to_vec();
-    msg.extend_from_slice(bytes);
-    msg.push(b'"');
-    interp.set_error(&msg)
-}
-
 // return
-
-/// Map a `-code` word (`ok`/`error`/`return`/`break`/`continue` or any integer)
-/// to a [`Code`]; `None` for an unrecognised spelling. A non-0..4 integer maps to
-/// [`Code::Other`] (`TclGetCompletionCodeFromObj`).
-fn parse_code(b: &[u8]) -> Option<Code> {
-    match b {
-        b"ok" => Some(Code::Ok),
-        b"error" => Some(Code::Error),
-        b"return" => Some(Code::Return),
-        b"break" => Some(Code::Break),
-        b"continue" => Some(Code::Continue),
-        _ => crate::interp::parse_completion_int(b).map(Code::from_int),
-    }
-}
-
-/// A `return -level` word as C reads it: a C `int` that is not negative.
-fn return_level(word: &[u8]) -> Option<usize> {
-    let obj = obj::new_string_bytes(word);
-    let level = crate::typed_value::int(obj).ok();
-    drop_fresh(obj);
-    level.and_then(|level| usize::try_from(level).ok())
-}
 
 /// `exit ?returnCode?` — record the requested exit code and unwind uncatchably.
 ///
@@ -465,9 +614,12 @@ fn exit_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         1 => 0,
         2 => {
             let bytes = obj_bytes(argv[1]);
-            match tcl_cmd_core::sort::parse_wide(&bytes) {
-                // C truncates an out-of-`int`-range exit status.
-                Some(n) => i32::try_from(n).unwrap_or(n as i32),
+            let dialect = interp.native_invocation_dialect();
+            match dialect.process_exit_conversion.and_then(|conversion| {
+                tcl_syntax::number::Numbers::Target(dialect.numbers)
+                    .parse_exit_status(&String::from_utf8_lossy(&bytes), conversion)
+            }) {
+                Some(status) => status,
                 None => {
                     let mut m = b"expected integer but got \"".to_vec();
                     m.extend_from_slice(&bytes);
@@ -476,7 +628,10 @@ fn exit_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 }
             }
         }
-        _ => return interp.set_error(b"wrong # args: should be \"exit ?returnCode?\""),
+        _ => {
+            return interp
+                .wrong_arguments_message(b"wrong # args: should be \"exit ?returnCode?\"");
+        }
     };
     interp.set_exit(code);
     interp.set_result_bytes(b"");
@@ -488,188 +643,115 @@ fn exit_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// proc/source boundaries (`Tcl_ReturnObjCmd`). A `-options` dict (as produced
 /// by `catch`) seeds the options; explicit flags override it.
 pub(crate) fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    fn set_carried(options: &mut Vec<(Vec<u8>, Vec<u8>)>, key: &[u8], value: &[u8]) {
-        if let Some((_, current)) = options.iter_mut().find(|(candidate, _)| candidate == key) {
-            *current = value.to_vec();
-        } else {
-            options.push((key.to_vec(), value.to_vec()));
-        }
+    let code = crate::return_options::command(interp, &argv[1..]);
+    if let Err(error) = interp.record_original_namespace_info_return(argv, code) {
+        return interp.report_cmd_error(error.into());
     }
-
-    // `-code` and `-level` merge last-wins across the flags and any `-options`
-    // dict, and are validated once merged (`TclMergeReturnOptions`).
-    let mut code_word: Option<Vec<u8>> = None;
-    let mut level_word: Option<Vec<u8>> = None;
-    let mut errorcode: Option<Vec<u8>> = None;
-    let mut errorinfo: Option<Vec<u8>> = None;
-    let mut errorstack: Option<Vec<u8>> = None;
-    let mut carried: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
-
-    let release = interp.runtime_version();
-    let mut i = 1;
-    while i + 1 < argv.len() {
-        let opt = obj_bytes(argv[i]);
-        if let Some(message) = tcl_cmd_core::error::return_option_error(&opt, release) {
-            return interp.set_error(message.as_bytes());
-        }
-        match opt.as_slice() {
-            b"-code" => code_word = Some(obj_bytes(argv[i + 1])),
-            b"-level" => level_word = Some(obj_bytes(argv[i + 1])),
-            b"-errorcode" => {
-                let value = obj_bytes(argv[i + 1]);
-                set_carried(&mut carried, &opt, &value);
-                errorcode = Some(value);
-            }
-            b"-errorinfo" => {
-                let value = obj_bytes(argv[i + 1]);
-                set_carried(&mut carried, &opt, &value);
-                errorinfo = Some(value);
-            }
-            b"-errorstack" => {
-                let value = obj_bytes(argv[i + 1]);
-                set_carried(&mut carried, &opt, &value);
-                errorstack = Some(value);
-            }
-            b"-options" => {
-                // Seed control and carried pairs from the options dict.
-                let opts = obj_bytes(argv[i + 1]);
-                let Ok(d) = crate::parse::split_list(&opts) else {
-                    return interp.set_error(b"bad -options value: expected a dictionary");
-                };
-                if d.len() % 2 != 0 {
-                    return interp.set_error(b"bad -options value: expected a dictionary");
-                }
-                let mut j = 0;
-                while j + 1 < d.len() {
-                    match d[j].as_slice() {
-                        b"-code" => code_word = Some(d[j + 1].clone()),
-                        b"-level" => level_word = Some(d[j + 1].clone()),
-                        b"-errorcode" => errorcode = Some(d[j + 1].clone()),
-                        b"-errorinfo" => errorinfo = Some(d[j + 1].clone()),
-                        b"-errorstack" => errorstack = Some(d[j + 1].clone()),
-                        _ => {}
-                    }
-                    if !matches!(d[j].as_slice(), b"-code" | b"-level") {
-                        set_carried(&mut carried, &d[j], &d[j + 1]);
-                    }
-                    j += 2;
-                }
-            }
-            _ => set_carried(&mut carried, &opt, &obj_bytes(argv[i + 1])),
-        }
-        i += 2;
-    }
-    let code = match code_word {
-        None => Code::Ok,
-        Some(word) => match parse_code(&word) {
-            Some(code) => code,
-            None => {
-                let mut m = b"bad completion code \"".to_vec();
-                m.extend_from_slice(&word);
-                m.extend_from_slice(
-                    b"\": must be ok, error, return, break, continue, or an integer",
-                );
-                return interp.error_with_code(&m, b"TCL RESULT ILLEGAL_CODE");
-            }
-        },
-    };
-    let level = match level_word {
-        None => 1,
-        Some(word) => match return_level(&word) {
-            Some(level) => level,
-            None => {
-                let mut m = b"bad -level value: expected non-negative integer but got \"".to_vec();
-                m.extend_from_slice(&word);
-                m.push(b'"');
-                return interp.error_with_code(&m, b"TCL RESULT ILLEGAL_LEVEL");
-            }
-        },
-    };
-    // Validate -errorcode / -errorstack (`TclMergeReturnOptions`). A malformed
-    // value errors before the return takes effect, with a specific `-errorcode`.
-    if let Some(ec) = &errorcode {
-        if crate::parse::split_list(ec).is_err() {
-            let mut m = b"bad -errorcode value: expected a list but got \"".to_vec();
-            m.extend_from_slice(ec);
-            m.push(b'"');
-            return interp.error_with_code(&m, b"TCL RESULT ILLEGAL_ERRORCODE");
-        }
-    }
-    if let Some(es) = errorstack
-        .as_ref()
-        .filter(|_| interp.runtime_version().has_error_stack())
-    {
-        match validate_error_stack(crate::parse::split_list(es)) {
-            Err(ErrorStackValueError::NonList) => {
-                let mut m = b"bad -errorstack value: expected a list but got \"".to_vec();
-                m.extend_from_slice(es);
-                m.push(b'"');
-                return interp.error_with_code(&m, b"TCL RESULT NONLIST_ERRORSTACK");
-            }
-            Err(ErrorStackValueError::OddSized) => {
-                let mut m = b"forbidden odd-sized list for -errorstack: \"".to_vec();
-                m.extend_from_slice(es);
-                m.push(b'"');
-                return interp.error_with_code(&m, b"TCL RESULT ODDSIZEDLIST_ERRORSTACK");
-            }
-            Ok(_) => {}
-        }
-    }
-    // The optional trailing result word.
-    if i < argv.len() {
-        interp.set_result(argv[i]);
-    } else {
-        interp.set_result_bytes(b"");
-    }
-    // On an error completion, populate the live exception state from the error
-    // options (`TclProcessReturn`) — *not* the `::errorInfo`/`::errorCode`
-    // globals, which are written only when the error is reported. This runs
-    // regardless of `-level`, so a deferred (`-level > 0`) error carries its
-    // info/code once the return boundary turns it into a real error.
-    if code == Code::Error {
-        interp.process_return_error(
-            errorinfo.as_deref(),
-            errorcode.as_deref(),
-            errorstack.as_deref(),
-        );
-    }
-    interp.set_return_options(carried);
-    if level == 0 {
-        // No unwinding: complete with `code` right here.
-        code
-    } else {
-        interp.set_return_state(level, code);
-        Code::Return
-    }
+    code
 }
 
 // unset
 
 /// `unset varName ...` — remove variables (scalars or array elements).
 fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    // `unset ?-nocomplain? ?--? ?name name ...?`. `-nocomplain` suppresses the
-    // no-such-variable error; `--` ends option parsing (so a var literally named
-    // `-nocomplain` can still be unset).
-    let mut i = 1;
-    let mut nocomplain = false;
-    while i < argv.len() {
-        match obj_bytes(argv[i]).as_slice() {
-            b"-nocomplain" => {
-                nocomplain = true;
-                i += 1;
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = unset_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn unset_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
+    let Some(protocol) = interp.native_invocation_dialect().unset_option_protocol() else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("unset option grammar")
+                .into(),
+        );
+    };
+    let options = match protocol.parse(argv.len() - 1, |index| {
+        arguments
+            .bytes(index + 1)
+            .map_err(|error| interp.report_cmd_error(error))
+    }) {
+        Ok(options) => options,
+        Err(code) => return code,
+    };
+    let i = options.names_from + 1;
+    let nocomplain = !options.complain;
+    for index in i..argv.len() {
+        let a = match arguments.original(index) {
+            Ok(original) => original,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        if interp.observed_name_policy_selected() {
+            let name = match arguments.bytes(index) {
+                Ok(name) => name,
+                Err(error) => return interp.report_cmd_error(error),
+            };
+            let level = interp.frames.borrow().current_level();
+            let reached = interp.observed_variable_unset(&name, level);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
             }
-            b"--" => {
-                i += 1;
-                break;
+            match reached {
+                Ok(true) => continue,
+                Ok(false) if nocomplain => continue,
+                Ok(false) => {
+                    let _ = interp.observed_refusal::<()>();
+                    return Code::Error;
+                }
+                Err(_) => return Code::Error,
             }
-            _ => break,
         }
-    }
-    for &a in &argv[i..] {
-        let name = obj_bytes(a);
-        let (base, elem) = split_array_ref(&name);
-        // Confined stores refuse the removal of a variable outside the
-        // activation; `-nocomplain` quiets only a missing one.
+        if interp.native_c_variable_name_protocol().is_some() {
+            let reached = interp.unset_original_c_variable(a, !nocomplain);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            if let Err(code) = reached {
+                return code;
+            }
+            continue;
+        }
+        if interp
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_some()
+        {
+            let reached = interp.unset_original_jim_variable(a);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            match reached {
+                Ok(true) => continue,
+                Ok(false) if nocomplain => continue,
+                Ok(false) => {
+                    let name = match arguments.bytes(index) {
+                        Ok(name) => name,
+                        Err(error) => return interp.report_cmd_error(error),
+                    };
+                    let mut message = b"can't unset \"".to_vec();
+                    message.extend_from_slice(&name);
+                    message.extend_from_slice(b"\": no such variable");
+                    return interp.set_error(&message);
+                }
+                Err(_) if nocomplain && !interp.host_refusal_pending() => continue,
+                Err(code) => return code,
+            }
+        }
+        let name = match arguments.bytes(index) {
+            Ok(name) => name,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        let (base, elem) = match interp.variable_name_parts(&name) {
+            Ok(parts) => parts,
+            Err(error) => return var_error(interp, &name, error),
+        };
         if interp.store_escapes(&base) {
             return interp.confined_unset_error(&name);
         }
@@ -688,6 +770,9 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Some(k) => interp.var_unset_elem(&base, k),
             None => interp.var_unset(&base),
         };
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
         if !existed && !nocomplain {
             let mut msg = b"can't unset \"".to_vec();
             msg.extend_from_slice(&name);
@@ -703,22 +788,81 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// requested substitutions on `string` (default: all three). Errors from an
 /// unset variable or a failing command substitution propagate.
 fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    const USAGE: &[u8] = b"subst ?-nobackslashes? ?-nocommands? ?-novariables? string";
+    use tcl_registry::substitution::{NativeSubstitutionOptions, SubstitutionOptionError};
+    let Some(options) = NativeSubstitutionOptions::select(interp.native_invocation_dialect())
+    else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Subst option declaration is unavailable",
+            )
+            .into(),
+        );
+    };
     if argv.len() < 2 {
-        return interp.wrong_args(USAGE);
+        return interp.wrong_args(options.usage().as_bytes());
     }
-    // Every argument before the last is an option (C's `TclSubstOptions` over
-    // `objv[1 .. objc-1]`), matched with Tcl's unambiguous-prefix rule.
-    let mut flags = crate::subst::SubstFlags::default();
+    let table = tcl_cmd_core::prefix::OptionTable::abbreviating(options.noun(), options.names());
+    let mut selected = Vec::with_capacity(argv.len() - 2);
     for &opt in &argv[1..argv.len() - 1] {
-        match SUBST_OPTIONS.index_of(&obj_bytes(opt)) {
-            Ok(0) => flags.backslashes = false,
-            Ok(1) => flags.cmds = false,
-            Ok(_) => flags.vars = false,
-            Err(m) => return interp.set_error(&m),
+        match table.index_of_original(interp, &opt) {
+            Ok(index) => selected.push(index),
+            Err(error) => return interp.report_cmd_error(error),
         }
     }
+    let kinds = match options.kinds(&selected) {
+        Ok(kinds) => kinds,
+        Err(SubstitutionOptionError::MixedFamilies) => {
+            return interp.set_error(b"cannot combine positive and negative options");
+        }
+        Err(SubstitutionOptionError::UnknownOption) => {
+            return interp.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "foreign Subst option ordinal",
+                )
+                .into(),
+            );
+        }
+    };
+    let flags = crate::subst::SubstFlags {
+        backslashes: kinds.backslashes,
+        cmds: kinds.commands,
+        vars: kinds.variables,
+    };
     let last = argv[argv.len() - 1];
+    if interp
+        .native_invocation_dialect()
+        .native_string_protocol()
+        .is_some_and(|protocol| protocol.is_jim084())
+    {
+        let flags = u8::from(!flags.vars)
+            | (u8::from(!flags.cmds) << 1)
+            | (u8::from(!flags.backslashes) << 2)
+            | 128;
+        return match interp.substitute_native_jim_original(last, flags) {
+            Ok(value) => {
+                interp.set_result(value);
+                Code::Ok
+            }
+            Err(code) => code,
+        };
+    }
+    if matches!(
+        interp.native_invocation_dialect().tcl_version,
+        Some(
+            tcl_dialect::TclVersion::V8_6
+                | tcl_dialect::TclVersion::V9_0
+                | tcl_dialect::TclVersion::V9_1
+        )
+    ) {
+        return interp.substitute_original_c_template(
+            last,
+            tcl_runtime_api::native_substitution::NativeSubstitutionFlags::new(
+                flags.backslashes,
+                flags.cmds,
+                flags.vars,
+            ),
+        );
+    }
     let src = obj_bytes(last);
     // TIP 280: a `[...]` inside the substituted string reports the line it sits
     // on, derived from the argument word's recorded source location.
@@ -732,59 +876,7 @@ fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-/// `subst`'s option words. C's `TclSubstOptions` (`tclCmdMZ.c:3341`) resolves
-/// them with `Tcl_GetIndexFromObj` at flags `0`, so abbreviations match and the
-/// *empty* word — which prefixes all three entries — is `ambiguous`, not `bad`.
-/// Shared with the bytecode VM through the one `tcl-cmd-core::prefix` matcher.
-const SUBST_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
-    tcl_cmd_core::prefix::OptionTable::abbreviating(
-        "option",
-        &[b"-nobackslashes", b"-nocommands", b"-novariables"],
-    );
-
 // helpers
-
-/// Minimal Tcl integer parse for the no-tower `incr` fallback (the tower build
-/// reads operands through `tcl_syntax::number` via `bignum`).
-#[cfg(not(have_tommath))]
-fn parse_i64(bytes: &[u8]) -> Option<i64> {
-    let s = bytes;
-    let mut i = 0;
-    let len = s.len();
-    while i < len && s[i].is_ascii_whitespace() {
-        i += 1;
-    }
-    let mut end = len;
-    while end > i && s[end - 1].is_ascii_whitespace() {
-        end -= 1;
-    }
-    let s = &s[i..end];
-    if s.is_empty() {
-        return None;
-    }
-    let (neg, s) = match s[0] {
-        b'-' => (true, &s[1..]),
-        b'+' => (false, &s[1..]),
-        _ => (false, s),
-    };
-    if s.is_empty() {
-        return None;
-    }
-    let (radix, digits) = if s.len() > 2 && s[0] == b'0' && (s[1] == b'x' || s[1] == b'X') {
-        (16u32, &s[2..])
-    } else {
-        (10u32, s)
-    };
-    if digits.is_empty() {
-        return None;
-    }
-    let mut acc: i64 = 0;
-    for &c in digits {
-        let d = (c as char).to_digit(radix)? as i64;
-        acc = acc.checked_mul(radix as i64)?.checked_add(d)?;
-    }
-    Some(if neg { -acc } else { acc })
-}
 
 // expr
 
@@ -809,95 +901,234 @@ struct InterpExprCtx<'a> {
     propagated_code: Code,
 }
 
+/// Original arithmetic over existing owned operands, sharing the interpreter
+/// expression context and its selected getter/currency/error owners.
 #[cfg(have_tommath)]
-impl crate::expr::ExprCtx for InterpExprCtx<'_> {
-    fn read_var(&mut self, name: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
-        let (base, elem) = split_array_ref(name.as_bytes());
+pub(crate) fn eval_binary_operands(
+    interp: &mut Interp,
+    op: tcl_syntax::expr::BinOp,
+    left: crate::obj::Owned,
+    right: crate::obj::Owned,
+) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
+    let mut context = InterpExprCtx {
+        interp,
+        propagated: false,
+        propagated_code: Code::Error,
+    };
+    crate::expr::eval_binary_operands(op, left, right, &mut context)
+}
+
+/// Enter an actual math-function operand operation through the same
+/// interpreter expression context as arithmetic and Boolean producers.
+#[cfg(have_tommath)]
+pub(crate) fn math_operation(
+    interp: &mut Interp,
+) -> Result<crate::expr::MathOperation, crate::expr_error::ExprError> {
+    crate::expr::MathOperation::enter(&mut InterpExprCtx {
+        interp,
+        propagated: false,
+        propagated_code: Code::Error,
+    })
+}
+
+#[cfg(have_tommath)]
+impl InterpExprCtx<'_> {
+    fn propagated_error(&mut self, code: Code) -> crate::expr_error::ExprError {
+        self.propagated = true;
+        self.propagated_code = code;
+        if let Some(error) = self.interp.native_execution_refusal() {
+            return crate::expr_error::ExprError::from_execution_refusal(error);
+        }
+        match self.interp.completion_result_bytes_checked() {
+            Ok(message) => crate::expr_error::ExprError::from_bytes(message),
+            Err(error) => crate::expr_error::ExprError::from_execution_refusal(error),
+        }
+    }
+
+    fn read_selected_variable(
+        &mut self,
+        base: &[u8],
+        elem: Option<Vec<u8>>,
+        substitute_index: bool,
+    ) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
         // `expr {$arr($i)}`: the array index is itself substituted (Tcl parses
         // `$name(index)` with `$`/`[`/`\` substitution in the index).
         let elem = match elem {
-            Some(k) if k.iter().any(|&c| matches!(c, b'$' | b'[' | b'\\')) => {
-                match self
-                    .interp
-                    .do_subst(&k, crate::subst::SubstFlags::default())
-                {
+            Some(k) if substitute_index && k.iter().any(|&c| matches!(c, b'$' | b'[' | b'\\')) => {
+                match self.interp.do_expression_subst(&k, false) {
                     Ok(v) => Some(v),
                     // The index's `[cmd]` completed with a non-OK code — carry it
                     // (error, or `return`/`break`/`continue`) out of the whole
                     // expression, exactly like a `[cmd]` operand.
                     Err(code) => {
-                        self.propagated = true;
-                        self.propagated_code = code;
-                        return Err(crate::expr::ExprError::from_bytes(obj_bytes(
-                            self.interp.get_obj_result(),
-                        )));
+                        return Err(self.propagated_error(code));
                     }
                 }
             }
             other => other,
         };
+        if let Some(code) = self.interp.fire_read_trace(base, elem.as_deref()) {
+            return Err(self.propagated_error(code));
+        }
+        if let Some(error) = self.interp.native_execution_refusal() {
+            return Err(crate::expr_error::ExprError::from_execution_refusal(error));
+        }
         let obj = match &elem {
-            Some(k) => self.interp.var_get_elem(&base, k),
-            None => self.interp.var_get(&base),
+            Some(k) => self.interp.var_get_elem(base, k),
+            None => self.interp.var_get(base),
         };
         match obj {
-            Some(o) => Ok(crate::expr::Owned::retain(o)),
+            Some(o) => Ok(crate::obj::Owned::retain(o)),
             None => {
-                let m = self.interp.read_miss_msg(&base, elem.as_deref());
-                Err(crate::expr::ExprError::from_bytes(m))
+                let m = self.interp.read_miss_msg(base, elem.as_deref());
+                Err(crate::expr_error::ExprError::from_bytes(m))
             }
         }
     }
+}
 
-    fn eval_command(&mut self, script: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
+#[cfg(have_tommath)]
+impl crate::expr::ExprCtx for InterpExprCtx<'_> {
+    fn boolean_interpreter(&mut self) -> Option<&mut Interp> {
+        Some(self.interp)
+    }
+    fn numeric_host(&self) -> Option<std::rc::Rc<dyn tcl_platform::Host>> {
+        Some(self.interp.host())
+    }
+    fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+        self.interp.native_invocation_dialect()
+    }
+    fn f5_string_predicate_provider(
+        &self,
+    ) -> Option<tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider> {
+        tcl_registry::native_expression_program::authored_f5_string_predicate_provider(
+            self.interp.expression_evaluation_policy().as_ref(),
+        )
+    }
+    fn read_var(&mut self, name: &str) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
+        let (base, elem) = self
+            .interp
+            .variable_name_parts(name.as_bytes())
+            .map_err(|_| {
+                crate::expr_error::ExprError::host_refusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "variable naming",
+                    ),
+                )
+            })?;
+        self.read_selected_variable(&base, elem, true)
+    }
+
+    fn read_variable_reference(
+        &mut self,
+        reference: &str,
+    ) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
+        self.read_variable_reference_bytes(reference.as_bytes())
+    }
+
+    fn read_variable_reference_bytes(
+        &mut self,
+        reference: &[u8],
+    ) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
+        let scanned = tcl_lexer::scan_var_ref(reference, 0, self.interp.lexer_config())
+            .map_err(|message| {
+                crate::expr_error::ExprError::from_bytes(message.as_bytes().to_vec())
+            })?
+            .ok_or_else(|| {
+                crate::expr_error::ExprError::from_bytes(b"invalid variable reference".to_vec())
+            })?;
+        if let Some(index) = scanned.index {
+            self.read_selected_variable(scanned.name, Some(index.to_vec()), true)
+        } else {
+            let (base, elem) = self.interp.variable_name_parts(scanned.name).map_err(|_| {
+                crate::expr_error::ExprError::host_refusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "variable naming",
+                    ),
+                )
+            })?;
+            self.read_selected_variable(&base, elem, false)
+        }
+    }
+
+    fn eval_command(
+        &mut self,
+        script: &str,
+    ) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
+        self.eval_command_bytes(script.as_bytes())
+    }
+
+    fn eval_command_bytes(
+        &mut self,
+        script: &[u8],
+    ) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
         // A `[cmd]` operand that completes with any non-OK code (`error`, or a
         // `return`/`break`/`continue`) propagates that code out of the whole
         // expression. C does this implicitly: the bytecode for the substitution
         // returns the code, which unwinds the `expr`-bearing command. For an
         // error the interp result already holds the message + `::errorInfo`; for
         // the others it holds the substitution's result value.
-        let code = self.interp.eval_str(script.as_bytes());
+        let code = self.interp.eval_str(script);
         if code != Code::Ok {
-            self.propagated = true;
-            self.propagated_code = code;
-            return Err(crate::expr::ExprError::from_bytes(obj_bytes(
-                self.interp.get_obj_result(),
-            )));
+            return Err(self.propagated_error(code));
         }
-        Ok(crate::expr::Owned::retain(self.interp.get_obj_result()))
+        Ok(crate::obj::Owned::retain(self.interp.get_obj_result()))
     }
 
-    fn subst_string(&mut self, inner: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
+    fn eval_command_object(
+        &mut self,
+        original: &crate::obj::Owned,
+    ) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
+        let code = self.interp.eval_body_obj(original.as_ptr());
+        if code != Code::Ok {
+            return Err(self.propagated_error(code));
+        }
+        Ok(crate::obj::Owned::retain(self.interp.get_obj_result()))
+    }
+
+    fn subst_string(
+        &mut self,
+        inner: &str,
+    ) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
+        self.subst_string_bytes(inner.as_bytes())
+    }
+
+    fn subst_string_bytes(
+        &mut self,
+        inner: &[u8],
+    ) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
         // A `"…"` operand substitutes like a double-quoted word ($var/[cmd]/\).
-        match self
-            .interp
-            .do_subst(inner.as_bytes(), crate::subst::SubstFlags::default())
-        {
-            Ok(v) => Ok(crate::expr::Owned::fresh(crate::obj::new_string_bytes(&v))),
+        match self.interp.do_expression_subst(inner, true) {
+            Ok(v) => Ok(crate::obj::Owned::fresh(crate::obj::new_string_bytes(&v))),
             // A `"…"` operand whose `[cmd]` completed non-OK carries that code
             // (error, or `return`/`break`/`continue`) out of the expression.
-            Err(code) => {
-                self.propagated = true;
-                self.propagated_code = code;
-                Err(crate::expr::ExprError::from_bytes(obj_bytes(
-                    self.interp.get_obj_result(),
-                )))
-            }
+            Err(code) => Err(self.propagated_error(code)),
         }
     }
 
     fn call_function(
         &mut self,
         name: &str,
-        args: &[crate::expr::Owned],
-    ) -> Result<crate::expr::Owned, crate::expr::ExprError> {
+        args: &[crate::obj::Owned],
+    ) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
+        tcl_registry::native_expression_program::expression_function_dispatch(
+            self.interp.expression_evaluation_policy().as_ref(),
+            self.interp.native_invocation_dialect(),
+        )
+        .ok_or_else(|| {
+            crate::expr_error::ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "expression function dispatch policy",
+                ),
+            )
+        })?;
         // Tcl 8.4 uses its closed C function table; later releases route through
         // the open command table so overridden/renamed `::tcl::mathfunc::NAME`
         // entries win. The registry owns that distinction. Args are passed as
         // live objects (object-preserving).
-        let arg_ptrs: Vec<*mut TclObj> = args.iter().map(crate::expr::Owned::as_ptr).collect();
-        let surface = tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(
-            self.interp.runtime_version(),
+        let arg_ptrs: Vec<*mut TclObj> = args.iter().map(crate::obj::Owned::as_ptr).collect();
+        let surface = tcl_registry::expr_surface::RuntimeExprSurface::for_profile(
+            self.interp.dialect_profile(),
         );
         let code = match surface.math_function_call_target(name) {
             tcl_registry::expr_surface::MathFunctionCallTarget::FixedBuiltin(spec) => {
@@ -919,11 +1150,27 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
             // propagated; `expr` raises it as its own (`while executing`). Carry
             // the math function's `-errorcode` (TCL WRONGARGS / ARITH DOMAIN) so
             // `expr`'s re-raise preserves it.
-            let msg = obj_bytes(self.interp.get_obj_result());
-            let code = self.interp.error_code();
-            return Err(crate::expr::ExprError::from_parts(msg, code));
+            let code = self
+                .interp
+                .error_code_bytes_checked()
+                .map_err(crate::expr_error::ExprError::from_execution_refusal)?;
+            let msg = self
+                .interp
+                .native_object_string_bytes(self.interp.get_obj_result())
+                .map_err(|error| {
+                    crate::expr_error::ExprError::from_execution_refusal(
+                        self.interp.refuse_completion_value_access(error),
+                    )
+                })?;
+            if let Some(cause) = self.interp.native_execution_refusal() {
+                return Err(crate::expr_error::ExprError::from_execution_refusal(cause));
+            }
+            return Err(crate::expr_error::ExprError::from_guest_parts(
+                msg.to_vec(),
+                code,
+            ));
         }
-        Ok(crate::expr::Owned::retain(self.interp.get_obj_result()))
+        Ok(crate::obj::Owned::retain(self.interp.get_obj_result()))
     }
 }
 
@@ -932,34 +1179,69 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
 /// ([shared walk](tcl_syntax::expr::eval)).
 #[cfg(have_tommath)]
 fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 {
-        return interp.wrong_args(b"expr arg ?arg ...?");
+    let Some(arguments) = interp.native_invocation_dialect().expression_arguments() else {
+        return interp.set_error(b"expression argument dialect is not selected");
+    };
+    if !arguments.accepts_len(argv.len().saturating_sub(1)) {
+        return interp.wrong_args(arguments.synopsis().as_bytes());
     }
-    let mut text = Vec::new();
-    for (i, &a) in argv[1..].iter().enumerate() {
-        if i > 0 {
-            text.push(b' ');
-        }
-        text.extend_from_slice(&obj_bytes(a));
-    }
-    let Ok(src) = core::str::from_utf8(&text) else {
-        return interp.set_error(b"expr operand is not valid UTF-8");
+    let values: Vec<_> = match argv[1..]
+        .iter()
+        .map(|value| {
+            tcl_syntax::value::ValueOps::native_string_bytes(interp, value)
+                .map(|bytes| bytes.to_vec())
+        })
+        .collect::<Result<_, _>>()
+    {
+        Ok(values) => values,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    let src = if values.len() == 1 {
+        values[0].clone()
+    } else {
+        tcl_syntax::list::concat_bytes(values.iter().map(Vec::as_slice))
     };
     // The one-word form — `expr {$a < $b}`, the shape every compiled or hot
     // expression takes — is exactly the text of `argv[1]`, so its parse caches
     // on that object. A multi-word `expr` concatenates into fresh text that
     // belongs to no object, and re-parses.
     let cached_on = (argv.len() == 2).then(|| argv[1]);
+    eval_expr_prepared_source(interp, cached_on, &src)
+}
+
+/// Evaluate an original expression token without command lookup or argv reconstruction.
+#[cfg(have_tommath)]
+pub(crate) fn eval_expr_original(interp: &mut Interp, original: *mut TclObj) -> Code {
+    let bytes = match tcl_syntax::value::ValueOps::native_string_bytes(interp, &original) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    eval_expr_prepared_source(interp, Some(original), &bytes)
+}
+
+#[cfg(have_tommath)]
+fn eval_expr_prepared_source(
+    interp: &mut Interp,
+    cached_on: Option<*mut TclObj>,
+    src: &[u8],
+) -> Code {
     let node = match parse_runtime_expr_cached(interp, cached_on, src) {
         Ok(node) => node,
-        Err(e) => return raise_expr_parse_error(interp, src, &e),
+        Err(e) => {
+            return raise_expr_parse_error(interp, src, e);
+        }
     };
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,
         propagated: false,
         propagated_code: Code::Error,
     };
-    let result = crate::expr::eval_expr(&node, &mut ctx);
+    let _lease = cached_on.and_then(crate::expr::retain_expression_primary);
+    let result = match cached_on.and_then(crate::expr::native_jim_expression_objects) {
+        Some(objects) => crate::expr::eval_jim_expr(&node, &mut ctx, objects, false),
+        None => crate::expr::eval_expr(&node, &mut ctx),
+    };
+    drop(_lease);
     let propagated = ctx.propagated;
     let propagated_code = ctx.propagated_code;
     match result {
@@ -972,7 +1254,158 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // command — preserve it (an error keeps its `::errorInfo`; a
         // `return`/`break`/`continue` keeps the substitution's value).
         Err(_) if propagated => propagated_code,
-        Err(e) => raise_expr_error(interp, &node, &e),
+        Err(e) => raise_expr_error(interp, &node, e),
+    }
+}
+
+/// Evaluate `src` as a Tcl expression, returning the result object (owned — the
+/// caller holds a `+1` and must release it) or the error `Code` (interp result =
+/// message). Used where an argument "may be a valid expression" — e.g. `lseq`'s
+/// numeric arguments (`SequenceIdentifyArgument`).
+#[cfg(have_tommath)]
+pub(crate) fn eval_expr_obj(interp: &mut Interp, src: &[u8]) -> Result<*mut TclObj, Code> {
+    eval_expr_obj_at_original(interp, None, src)
+}
+
+/// Preserve a caller's actual expression object and retained Jim terms while
+/// performing the same single public expression result operation.
+#[cfg(have_tommath)]
+pub(crate) fn eval_expr_obj_original(
+    interp: &mut Interp,
+    original: *mut TclObj,
+    src: &[u8],
+) -> Result<*mut TclObj, Code> {
+    eval_expr_obj_at_original(interp, Some(original), src)
+}
+
+#[cfg(have_tommath)]
+fn eval_expr_obj_at_original(
+    interp: &mut Interp,
+    original: Option<*mut TclObj>,
+    src: &[u8],
+) -> Result<*mut TclObj, Code> {
+    let currency = crate::interp::native_operation_currency::NativeOperationCurrency::issue(interp)
+        .map_err(|error| {
+            interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+        })?;
+    let node = parse_runtime_expr_cached(interp, original, src)
+        .map_err(|e| raise_expr_parse_error(interp, src, e))?;
+    let mut ctx = InterpExprCtx {
+        interp: &mut *interp,
+        propagated: false,
+        propagated_code: Code::Error,
+    };
+    let lease = original.and_then(crate::expr::retain_expression_primary);
+    let result = match original.and_then(crate::expr::native_jim_expression_objects) {
+        Some(objects) => crate::expr::eval_jim_expr(&node, &mut ctx, objects, false),
+        None => crate::expr::eval_compiled_expression_node(&node, &mut ctx),
+    };
+    drop(lease);
+    let propagated = ctx.propagated;
+    let propagated_code = ctx.propagated_code;
+    // This check precedes every success and propagated Guest branch. Re-entry
+    // cannot replace the original world before the public result producer.
+    currency.ensure_current().map_err(|error| {
+        interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+    })?;
+    let result = match result {
+        Ok(value) => crate::typed_value::normalize_boolean_result_for_interp(
+            interp,
+            value.as_ptr(),
+            tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi,
+        ).map_err(|e| interp.report_cmd_error(e)),
+        Err(_) if propagated => Err(propagated_code),
+        Err(e) => Err(raise_expr_error(interp, &node, e)),
+    };
+    currency.ensure_current().map_err(|error| {
+        interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+    })?;
+    result.map(crate::obj::Owned::into_raw)
+}
+
+/// Whether `error` is a guest error (not a host refusal) an expression frame
+/// may annotate.
+#[cfg(have_tommath)]
+fn is_guest_expr_error(error: &crate::expr_error::ExprError) -> bool {
+    error.native_execution_refusal.is_none() && error.native_access_refusal.is_none()
+}
+
+/// The outermost operations of `node` C folds at compile time (an operator
+/// over constant operands), in order (`ExprNode::folded_operations` over the
+/// byte-leaf tree the runtime parses).
+#[cfg(have_tommath)]
+fn folded_operations<Text: tcl_syntax::expr::ExprText>(
+    node: &tcl_syntax::expr::ExprNode<Text>,
+) -> Vec<&tcl_syntax::expr::ExprNode<Text>> {
+    use tcl_syntax::expr::{BinOp, ExprNode, UnaryOp};
+    fn foldable<Text>(node: &ExprNode<Text>) -> bool {
+        match node {
+            ExprNode::Binary { op, .. } => matches!(
+                op,
+                BinOp::Add
+                    | BinOp::Sub
+                    | BinOp::Mul
+                    | BinOp::Div
+                    | BinOp::Mod
+                    | BinOp::Pow
+                    | BinOp::LShift
+                    | BinOp::RShift
+                    | BinOp::BitAnd
+                    | BinOp::BitOr
+                    | BinOp::BitXor
+                    | BinOp::And
+                    | BinOp::Or
+                    | BinOp::Eq
+                    | BinOp::Ne
+                    | BinOp::Lt
+                    | BinOp::Le
+                    | BinOp::Gt
+                    | BinOp::Ge
+            ),
+            ExprNode::Unary { op, .. } => matches!(
+                op,
+                UnaryOp::Neg | UnaryOp::Pos | UnaryOp::BitNot | UnaryOp::Not
+            ),
+            _ => false,
+        }
+    }
+    fn constant<Text: tcl_syntax::expr::ExprText>(node: &ExprNode<Text>) -> bool {
+        match node {
+            ExprNode::Literal { .. } => true,
+            ExprNode::String { text, .. } => {
+                let bytes = text.bytes();
+                bytes.first() == Some(&b'{') || !(bytes.contains(&b'$') || bytes.contains(&b'['))
+            }
+            ExprNode::Binary { left, right, .. } => constant(left) && constant(right),
+            ExprNode::Unary { operand, .. } => constant(operand),
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => constant(condition) && constant(true_branch) && constant(false_branch),
+            _ => false,
+        }
+    }
+    if foldable(node) && constant(node) {
+        return vec![node];
+    }
+    match node {
+        ExprNode::Binary { left, right, .. } => {
+            let mut folded = folded_operations(left);
+            folded.extend(folded_operations(right));
+            folded
+        }
+        ExprNode::Unary { operand, .. } => folded_operations(operand),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => [condition, true_branch, false_branch]
+            .into_iter()
+            .flat_map(|node| folded_operations(node))
+            .collect(),
+        ExprNode::Call { args, .. } => args.iter().flat_map(|arg| folded_operations(arg)).collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -982,11 +1415,13 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 #[cfg(have_tommath)]
 fn raise_expr_error(
     interp: &mut Interp,
-    node: &tcl_syntax::expr::ExprNode,
-    error: &crate::expr::ExprError,
+    node: &tcl_syntax::expr::NativeExprNode,
+    error: crate::expr_error::ExprError,
 ) -> Code {
-    let folded = interp.runtime_version().raises_folded_expr_errors()
-        && node.folded_operations().into_iter().any(|operation| {
+    let folded = is_guest_expr_error(&error)
+        && !interp.uses_jim_error_stack()
+        && interp.runtime_version().raises_folded_expr_errors()
+        && folded_operations(node).into_iter().any(|operation| {
             let mut ctx = InterpExprCtx {
                 interp: &mut *interp,
                 propagated: false,
@@ -994,39 +1429,35 @@ fn raise_expr_error(
             };
             matches!(crate::expr::eval_expr(operation, &mut ctx), Err(e) if e.msg == error.msg)
         });
-    let code = match &error.code {
-        Some(c) => interp.error_with_code(&error.msg, c),
-        None => interp.set_error(&error.msg),
-    };
-    if folded {
+    let code = interp.report_expr_error(error);
+    if folded && !interp.host_refusal_pending() {
         interp.start_error_info_at_message();
     }
     code
 }
 
-/// Evaluate `src` as a Tcl expression, returning the result object (owned — the
-/// caller holds a `+1` and must release it) or the error `Code` (interp result =
-/// message). Used where an argument "may be a valid expression" — e.g. `lseq`'s
-/// numeric arguments (`SequenceIdentifyArgument`).
+/// Raise the parse error `error` of the expression `source`: from 8.5 with
+/// the `(parsing expression "…")` frame `ParseExpr` adds, so the command
+/// holding the expression logs itself as invoked from within.
 #[cfg(have_tommath)]
-pub(crate) fn eval_expr_obj(interp: &mut Interp, src: &[u8]) -> Result<*mut TclObj, Code> {
-    let Ok(s) = core::str::from_utf8(src) else {
-        return Err(interp.set_error(b"expr operand is not valid UTF-8"));
-    };
-    let node = parse_runtime_expr(interp, s).map_err(|e| raise_expr_parse_error(interp, s, &e))?;
-    let mut ctx = InterpExprCtx {
-        interp: &mut *interp,
-        propagated: false,
-        propagated_code: Code::Error,
-    };
-    let result = crate::expr::eval_expr(&node, &mut ctx);
-    let propagated = ctx.propagated;
-    let propagated_code = ctx.propagated_code;
-    match result {
-        Ok(r) => Ok(r.into_raw()), // transfer the +1 to the caller
-        Err(_) if propagated => Err(propagated_code),
-        Err(e) => Err(raise_expr_error(interp, &node, &e)),
+fn raise_expr_parse_error(
+    interp: &mut Interp,
+    source: &[u8],
+    error: crate::expr_error::ExprError,
+) -> Code {
+    let guest = is_guest_expr_error(&error);
+    let code = interp.report_expr_error(error);
+    if guest
+        && !interp.host_refusal_pending()
+        && !interp.uses_jim_error_stack()
+        && !interp.runtime_version().parses_expressions_as_8_4()
+    {
+        let frame = tcl_syntax::expr::ExprSyntaxError::error_info_frame_bytes(source);
+        let text = frame.strip_prefix(b"\n    (".as_slice()).unwrap_or(&frame);
+        let text = text.strip_suffix(b")".as_slice()).unwrap_or(text);
+        interp.append_frame_noline(text);
     }
+    code
 }
 
 /// Evaluate the condition object `cond` as a Tcl expression and coerce the result
@@ -1037,21 +1468,26 @@ pub(crate) fn eval_expr_obj(interp: &mut Interp, src: &[u8]) -> Result<*mut TclO
 /// line (TIP 280); the base is restored afterward.
 #[cfg(have_tommath)]
 pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<bool, Code> {
-    let src = obj_bytes(cond);
-    let Ok(s) = core::str::from_utf8(&src) else {
-        return Err(interp.set_error(b"expr operand is not valid UTF-8"));
-    };
+    let currency = crate::interp::native_operation_currency::NativeOperationCurrency::issue(interp)
+        .map_err(|error| {
+            interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+        })?;
+    let src = tcl_syntax::value::ValueOps::native_string_bytes(interp, &cond)
+        .map_err(|error| interp.report_cmd_error(error.into()))?;
+    currency.ensure_current().map_err(|error| {
+        interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+    })?;
     let saved = match interp.arg_location(cond) {
         Some((_, line)) => interp.push_cond_line_base(line),
         None => None,
     };
-    let node = match parse_runtime_expr_cached(interp, Some(cond), s) {
+    let node = match parse_runtime_expr_cached(interp, Some(cond), &src) {
         Ok(node) => node,
         Err(e) => {
             if let Some(old) = saved {
                 interp.restore_line_base(old);
             }
-            return Err(raise_expr_parse_error(interp, s, &e));
+            return Err(raise_expr_parse_error(interp, &src, e));
         }
     };
     let mut ctx = InterpExprCtx {
@@ -1059,50 +1495,39 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
         propagated: false,
         propagated_code: Code::Error,
     };
-    let result = crate::expr::eval_expr(&node, &mut ctx);
+    let _lease = crate::expr::retain_expression_primary(cond);
+    let result = match crate::expr::native_jim_expression_objects(cond) {
+        Some(objects) => crate::expr::eval_jim_expr(&node, &mut ctx, objects, false),
+        None => crate::expr::eval_compiled_expression_node(&node, &mut ctx),
+    };
+    drop(_lease);
     let propagated = ctx.propagated;
     let propagated_code = ctx.propagated_code;
     if let Some(old) = saved {
         interp.restore_line_base(old);
     }
-    match result {
+    // Keep the entry world across effectful raw evaluation. A changed-and-
+    // restored engine cannot donate a fresh result-producer receipt.
+    currency.ensure_current().map_err(|error| {
+        interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+    })?;
+    let result = match result {
         // The boolean-context refusal keeps its own `-errorcode` (tclsh:
         // `set x o; if {$x} {}` is `TCL VALUE NUMBER`, a NaN condition is
         // `TCL VALUE DOUBLE NAN`), exactly as the eval failure below does.
-        Ok(r) => crate::expr::to_bool(r.as_ptr()).map_err(|e| match e.code {
-            Some(c) => interp.error_with_code(&e.msg, &c),
-            None => interp.set_error(&e.msg),
-        }),
+        Ok(r) => crate::typed_value::expression_boolean_for_interp(interp, r.as_ptr(),
+            tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi)
+            .map_err(|e| interp.report_cmd_error(e)),
         // A propagated sub-eval code unwinds the condition: an error keeps its
         // trace (no condition `expr` frame); a `return`/`break`/`continue` from a
         // `[cmd]` substitution carries that code out of the loop/`if`.
         Err(_) if propagated => Err(propagated_code),
-        Err(e) => Err(raise_expr_error(interp, &node, &e)),
-    }
-}
-
-/// Raise the parse error `error` of the expression `source`: from 8.5 with
-/// the `(parsing expression "…")` frame `ParseExpr` adds, so the command
-/// holding the expression logs itself as invoked from within.
-#[cfg(have_tommath)]
-fn raise_expr_parse_error(
-    interp: &mut Interp,
-    source: &str,
-    error: &crate::expr::ExprError,
-) -> Code {
-    let code = match &error.code {
-        Some(code) => interp.error_with_code(&error.msg, code),
-        None => interp.set_error(&error.msg),
+        Err(e) => Err(raise_expr_error(interp, &node, e)),
     };
-    if !interp.runtime_version().parses_expressions_as_8_4() {
-        let frame = tcl_syntax::expr::ExprSyntaxError::error_info_frame(source);
-        let text = frame
-            .trim_start_matches("\n    (")
-            .strip_suffix(')')
-            .unwrap_or(&frame);
-        interp.append_frame_noline(text.as_bytes());
-    }
-    code
+    currency.ensure_current().map_err(|error| {
+        interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+    })?;
+    result
 }
 
 /// Parse an expression against the registry-owned surface for this
@@ -1114,48 +1539,254 @@ fn raise_expr_parse_error(
 #[cfg(have_tommath)]
 fn parse_runtime_expr(
     interp: &Interp,
-    source: &str,
-) -> Result<tcl_syntax::expr::ExprNode, crate::expr::ExprError> {
+    source: &[u8],
+) -> Result<tcl_syntax::expr::NativeExprNode, crate::expr_error::ExprError> {
     #[cfg(test)]
     crate::expr::note_expr_parse();
-    let release = interp.runtime_version();
-    let error = |message: String, code: Option<String>| match code {
-        Some(code) => crate::expr::ExprError::from_parts(message.into_bytes(), code.into_bytes()),
-        None => crate::expr::ExprError::from_bytes(message.into_bytes()),
-    };
-    // 8.4 parses with its own parser first, whose errors carry a code only
-    // for a numeral it cannot read, and reads what it accepts as 8.4 does.
-    let eight_four = release.parses_expressions_as_8_4();
-    if eight_four {
-        if let Err(refused) = tcl_syntax::expr::syntax_84::parse_tcl84(source) {
-            return Err(error(
-                refused.message,
-                refused.error_code.map(str::to_owned),
+    let context = interp.expression_parse_context();
+    if tcl_registry::runtime_expr_validation::requires_fixed_function_preparation(&context) {
+        return prepare_runtime_fixed_expression(interp, source);
+    }
+    let node = match tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(
+        source, &context,
+    ) {
+        tcl_syntax::expr::parser::CheckedExprParse::Parsed(node) => node,
+        tcl_syntax::expr::parser::CheckedExprParse::ProvedSyntaxFailure(failure) => {
+            let diagnostic = failure.native_diagnostic_bytes_with_context(source, &context).ok_or_else(||
+                crate::expr_error::ExprError::host_refusal(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("native expression syntax presentation")))?;
+            return Err(crate::expr_error::ExprError::syntax(
+                diagnostic.message,
+                diagnostic.error_code,
+                context.native_syntax,
             ));
         }
-    }
-    let node = tcl_syntax::expr::parse_expr(source, eight_four.then(|| release.dialect_name()));
-    if matches!(node, tcl_syntax::expr::ExprNode::Raw { .. }) {
-        // C's own reason for the failure, as `ParseExpr` words it, under the
-        // emulated release's grammar.
-        let diagnosis =
-            tcl_syntax::expr::ExprSyntaxError::diagnose(source, Some(release.dialect_name()));
-        return Err(error(
-            diagnosis.message(source),
-            diagnosis.error_code_in(release),
-        ));
-    }
-    tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(release)
+        tcl_syntax::expr::parser::CheckedExprParse::Unsupported(_) => {
+            return Err(crate::expr_error::ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native expression source grammar",
+                ),
+            ));
+        }
+    };
+    tcl_registry::expr_surface::RuntimeExprSurface::for_profile(interp.dialect_profile())
         .validate(&node)
-        .map_err(|surface| {
-            error(
-                surface.message(source),
-                release
-                    .tags_expression_parse_errors()
-                    .then(|| surface.error_code().to_owned()),
+        .map_err(|_| {
+            crate::expr_error::ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native expression operator surface",
+                ),
             )
         })?;
     Ok(node)
+}
+
+#[cfg(have_tommath)]
+fn expression_value_error(error: tcl_syntax::value::ValueError) -> crate::expr_error::ExprError {
+    crate::expr_error::ExprError::host_refusal(
+        error
+            .native_access_refusal()
+            .expect("original expression storage refusal"),
+    )
+}
+
+/// Actual Jim GetWideExpr on the same original object; safe mode never performs
+/// variable lookup or evaluates a reached command/escaped substitution.
+pub(crate) fn native_jim_wide_expression(
+    interp: &mut Interp,
+    original: *mut TclObj,
+) -> Result<i64, tcl_cmd_core::CmdError> {
+    let arguments = OriginalArguments::enter(interp, &[original])?;
+    let reached = (|| {
+        #[cfg(have_tommath)]
+        use tcl_syntax::scalar_getter::NativeScalarGetterValue;
+        use tcl_syntax::scalar_getter::{NativeScalarCache, NativeScalarGetterKind};
+        let dialect = interp.native_invocation_dialect();
+        let context = interp.native_jim_object_context()?;
+        let bound = crate::native_source::bind_context(original, &context);
+        arguments.check()?;
+        bound?;
+        let kind = obj::obj_type_ptr(original);
+        if kind.is_null() || kind == &crate::native_source::JIM_SOURCE_TYPE {
+            let reached = crate::typed_value::native_scalar_probe(
+                original,
+                dialect,
+                NativeScalarGetterKind::Wide,
+            );
+            arguments.check()?;
+            let _ = reached?;
+        }
+        let cached = obj::native_scalar_cache(original);
+        arguments.check()?;
+        if let Some(NativeScalarCache::Number(tcl_syntax::number::Number::Int(value))) = cached? {
+            return Ok(value);
+        }
+        #[cfg(not(have_tommath))]
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native Jim integer expression backend",
+        )
+        .into());
+        #[cfg(have_tommath)]
+        {
+            let source = arguments.bytes(0)?;
+            let parsed = parse_runtime_expr_cached(interp, Some(original), &source);
+            arguments.check()?;
+            let evaluated = match parsed {
+                Ok(node) => {
+                    let _lease = crate::expr::retain_expression_primary(original);
+                    let objects = crate::expr::native_jim_expression_objects(original).ok_or(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original Jim integer expression terms",
+                        ),
+                    )?;
+                    let mut ctx = InterpExprCtx {
+                        interp,
+                        propagated: false,
+                        propagated_code: Code::Error,
+                    };
+                    crate::expr::eval_jim_expr(&node, &mut ctx, objects, true)
+                }
+                Err(error) => Err(error),
+            };
+            arguments.check()?;
+            match evaluated {
+                Ok(result) => {
+                    let bound = crate::native_source::bind_context(result.as_ptr(), &context);
+                    arguments.check()?;
+                    bound?;
+                    interp.set_result(result.as_ptr());
+                    arguments.check()?;
+                    let reached = crate::typed_value::native_scalar_probe(
+                        result.as_ptr(),
+                        dialect,
+                        NativeScalarGetterKind::Wide,
+                    );
+                    arguments.check()?;
+                    if let Ok(NativeScalarGetterValue::Wide(value)) = reached? {
+                        return Ok(value);
+                    }
+                }
+                Err(error) if error.native_execution_refusal.is_some() => {
+                    return Err(tcl_cmd_core::CmdError::from_execution_refusal(
+                        error
+                            .native_execution_refusal
+                            .expect("matched original host refusal"),
+                    ));
+                }
+                Err(error) if error.native_access_refusal.is_some() => {
+                    return Err(error
+                        .native_access_refusal
+                        .expect("matched exact native refusal")
+                        .into());
+                }
+                Err(_) => {}
+            }
+            let message = tcl_syntax::expr::native_objects::jim_integer_expression_message(&source);
+            interp.set_result_bytes(&message);
+            Err(tcl_cmd_core::CmdError::from_byte_details(
+                tcl_cmd_core::CmdErrorDetails {
+                    string_result: None,
+                    message,
+                    error_code: tcl_cmd_core::CmdErrorCodeUpdate::Unchanged,
+                    error_info: None,
+                    error_line: None,
+                    primitive_getter: None,
+                },
+            ))
+        }
+    })();
+    // Retire evaluated temporaries under the same original operation before settlement.
+    arguments.check()?;
+    reached
+}
+
+/// Jim prepares all functions before substitution and executes its native term tree.
+#[cfg(have_tommath)]
+pub(crate) fn prepare_runtime_fixed_expression(
+    interp: &Interp,
+    source: impl AsRef<[u8]>,
+) -> Result<tcl_syntax::expr::NativeExprNode, crate::expr_error::ExprError> {
+    prepare_runtime_fixed_expression_on(interp, source.as_ref(), None, None)
+}
+
+#[cfg(have_tommath)]
+fn prepare_runtime_fixed_expression_on(
+    interp: &Interp,
+    source: &[u8],
+    cached_on: Option<*mut TclObj>,
+    source_info: Option<&crate::native_source::NativeJimSourceInfo>,
+) -> Result<tcl_syntax::expr::NativeExprNode, crate::expr_error::ExprError> {
+    use tcl_registry::native_compilation::NativeMathFunctionResolution as Resolution;
+    use tcl_registry::runtime_expr_validation::RuntimeExpressionPreparation as Preparation;
+    let context = interp.expression_parse_context();
+    let table = interp.native_math_function_table();
+    let prepared = tcl_registry::runtime_expr_validation::prepare_fixed_function_expression_bytes_with_preparation(
+        source,
+        &context,
+        |name| {
+            let Some(table) = &table else {
+                return Resolution::Unknown;
+            };
+            use tcl_runtime_api::native_compilation::NativeMathFunctionResolution as Lookup;
+            match table.lookup(name) {
+                Lookup::Present(binding) => binding
+                    .arity
+                    .map_or(Resolution::Unknown, |arity| Resolution::Known { arity }),
+                Lookup::Absent => Resolution::Absent,
+                Lookup::Unknown => Resolution::Unknown,
+            }
+        },
+    );
+    if let Some(original) = cached_on {
+        if prepared.jim.as_ref().is_some_and(|preparation| {
+            preparation.action
+                == tcl_syntax::expr::native_objects::JimExpressionCacheAction::Rejected
+        }) {
+            crate::expr::prepare_expr_cache(
+                original,
+                interp.native_invocation_dialect(),
+                interp.logical_expression_parse_policy(),
+            );
+        }
+    }
+    match prepared.tree {
+        Preparation::Parsed(node) => {
+            if let (Some(original), Some(info), Some(preparation)) =
+                (cached_on, source_info, prepared.jim.as_ref())
+            {
+                if crate::expr::cached_expr(
+                    original,
+                    interp.native_invocation_dialect(),
+                    interp.logical_expression_parse_policy(),
+                )
+                .is_none()
+                {
+                    crate::expr::install_jim_expression(
+                        original,
+                        crate::expr::JimExpressionInstall {
+                            dialect: interp.native_invocation_dialect(),
+                            parser_policy: interp.logical_expression_parse_policy(),
+                            node: &node,
+                            source,
+                            preparation,
+                            info,
+                        },
+                    )
+                    .map_err(expression_value_error)?;
+                }
+            }
+            Ok(node)
+        }
+        Preparation::Rejected(diagnostic) => Err(crate::expr_error::ExprError::syntax(
+            diagnostic.message,
+            diagnostic.error_code,
+            context.native_syntax,
+        )),
+        Preparation::Unknown => Err(crate::expr_error::ExprError::host_refusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "native expression function preparation",
+            ),
+        )),
+    }
 }
 
 /// [`parse_runtime_expr`] with the parsed, validated AST cached on the object
@@ -1166,30 +1797,190 @@ fn parse_runtime_expr(
 /// is `None` where the text belongs to no single object (a multi-word
 /// `expr`), which simply re-parses.
 ///
-/// Only a *successful* parse is cached: an invalid expression must raise its
-/// error on every evaluation, and caching a failure would need the message to be
-/// replayed rather than recomputed.
+/// Successful parses retain their validated tree. Jim preparation separately
+/// records rejected Expression storage when its native action retires the prior
+/// primary; empty input and missing wrappers preserve that prior representation.
 #[cfg(have_tommath)]
 fn parse_runtime_expr_cached(
     interp: &Interp,
     cached_on: Option<*mut TclObj>,
-    source: &str,
-) -> Result<std::rc::Rc<tcl_syntax::expr::ExprNode>, crate::expr::ExprError> {
-    let version = interp.runtime_version();
-    if let Some(obj) = cached_on {
-        if let Some(node) = crate::expr::cached_expr(obj, version) {
-            return Ok(node);
+    source: &[u8],
+) -> Result<std::rc::Rc<tcl_syntax::expr::NativeExprNode>, crate::expr_error::ExprError> {
+    let dialect = interp.native_invocation_dialect();
+    let source_info = if dialect.native_string_protocol()
+        == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+    {
+        cached_on
+            .map(|original| {
+                let context = interp
+                    .native_jim_object_context()
+                    .map_err(expression_value_error)?;
+                crate::native_source::bind_context(original, &context)
+                    .map_err(expression_value_error)?;
+                crate::native_source::pin_source_info(original, &context)
+                    .map_err(expression_value_error)
+            })
+            .transpose()?
+    } else {
+        None
+    };
+    if dialect.native_string_protocol()
+        == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        && cached_on.is_some_and(|original| {
+            crate::expr::expression_rejected(
+                original,
+                dialect,
+                interp.logical_expression_parse_policy(),
+            )
+        })
+    {
+        return Err(crate::expr_error::ExprError::retained_result());
+    }
+    let materialized;
+    let source = if let Some(original) = cached_on {
+        materialized = if crate::obj::has_string_rep(original) {
+            crate::obj::bytes_of(original)
+        } else {
+            let protocol = match interp.logical_expression_parse_policy() {
+                Some((_, host)) => tcl_registry::InvocationDialect::of_profile(host.profile())
+                    .native_string_protocol(),
+                None => dialect.native_string_materialization(Some(
+                    tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+                )).map(|recipe| recipe.protocol()),
+            }.ok_or_else(|| crate::expr_error::ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native expression original source string",
+                ),
+            ))?;
+            crate::dict::native_object_bytes(original, protocol).map_err(|error| {
+                crate::expr_error::ExprError::host_refusal(
+                    error
+                        .native_access_refusal()
+                        .expect("checked native string access has a host refusal"),
+                )
+            })?
+        };
+        materialized.as_slice()
+    } else {
+        source
+    };
+    if !tcl_registry::runtime_expr_validation::requires_fixed_function_preparation(
+        &tcl_syntax::expr::parser::ExprParseContext::for_profile(interp.dialect_profile()),
+    ) {
+        if let Some(obj) = cached_on {
+            if let Some(node) =
+                crate::expr::cached_expr(obj, dialect, interp.logical_expression_parse_policy())
+            {
+                return Ok(node);
+            }
         }
     }
-    let node = std::rc::Rc::new(parse_runtime_expr(interp, source)?);
+    let preparation = interp
+        .expression_parse_context()
+        .native_syntax
+        .source_cache_preparation()
+        .ok_or_else(|| {
+            crate::expr_error::ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native expression source preparation",
+                ),
+            )
+        })?;
+    if preparation == tcl_syntax::expr::parser::ExpressionSourceCachePreparation::BeforeParsing {
+        if let Some(object) = cached_on {
+            crate::expr::prepare_expr_cache(
+                object,
+                dialect,
+                interp.logical_expression_parse_policy(),
+            );
+        }
+    }
+    let node = std::rc::Rc::new(
+        if preparation == tcl_syntax::expr::parser::ExpressionSourceCachePreparation::JimOutcome {
+            #[cfg(test)]
+            crate::expr::note_expr_parse();
+            prepare_runtime_fixed_expression_on(interp, source, cached_on, source_info.as_ref())?
+        } else {
+            parse_runtime_expr(interp, source)?
+        },
+    );
     if let Some(obj) = cached_on {
-        crate::expr::cache_expr(obj, version, &node);
+        crate::expr::cache_expr(
+            obj,
+            dialect,
+            interp.logical_expression_parse_policy(),
+            &node,
+        );
     }
     Ok(node)
 }
 
 #[cfg(test)]
 mod tests {
+    #[cfg(have_tommath)]
+    #[test]
+    fn measured_bare_matches_runtime_requires_independent_authored_policy() {
+        use tcl_registry::invocation_words::{
+            LogicalExpressionParseProvider, LogicalSourceWordProvider,
+        };
+        let fixture =
+            include_str!("../../../rust/tcl-syntax/tests/data/f5-matches-21.1.0.1-0.0.26.tsv");
+        leak_free(|interp| {
+            interp.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+            assert!(super::parse_runtime_expr(interp, b"\"abcd\" matches \"a*\"").is_err());
+            assert!(interp.set_logical_expression_parse_provider(
+                LogicalExpressionParseProvider::Tcl84CoreSimulation,
+                crate::environment::profile_for_dialect("tcl9.0"),
+            ));
+            // Quoted operands retain their independently installed source-word
+            // interpretation; the expression parser cannot supply that policy.
+            assert!(interp.source_string_protocol().is_none());
+            assert!(interp.set_logical_source_word_provider(
+                LogicalSourceWordProvider::Tcl84CoreSimulation,
+                crate::environment::profile_for_dialect("tcl9.0"),
+            ));
+            for row in fixture.lines().take(6) {
+                let fields = row.split('\t').collect::<Vec<_>>();
+                assert_eq!(
+                    super::eval_expr_prepared_source(interp, None, fields[0].as_bytes()),
+                    Code::Ok,
+                    "{row}: {:?}",
+                    interp.result_bytes()
+                );
+                assert_eq!(interp.result_bytes(), fields[2].as_bytes(), "{row}");
+            }
+            for (expression, expected) in [
+                (r#""foobar" contains "oob""#, "1"),
+                (r#""foobar" starts_with "foo""#, "1"),
+                (r#""foobar" ends_with "foo""#, "0"),
+                (r#""foobar" matches_glob "f?o*""#, "1"),
+            ] {
+                assert_eq!(
+                    super::eval_expr_prepared_source(interp, None, expression.as_bytes()),
+                    Code::Ok
+                );
+                assert_eq!(interp.result_bytes(), expected.as_bytes());
+            }
+            assert_eq!(
+                super::eval_expr_prepared_source(interp, None, br#""foobar" matches_regex "o+b""#),
+                Code::Error
+            );
+        });
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(crate::environment::profile_for_dialect(name));
+                for row in fixture.lines() {
+                    let expression = row.split('\t').next().unwrap();
+                    assert_eq!(
+                        super::eval_expr_prepared_source(interp, None, expression.as_bytes()),
+                        Code::Error,
+                        "{name}: {row}"
+                    );
+                }
+            });
+        }
+    }
+
     use crate::counters;
     use crate::interp::{Code, Interp};
 
@@ -1213,11 +2004,527 @@ mod tests {
         assert_eq!(
             i.eval_str(src),
             Code::Ok,
-            "eval {:?} → {:?}",
+            "eval {:?} → {:?}; host refusal: {:?}",
             String::from_utf8_lossy(src),
-            String::from_utf8_lossy(&i.result_bytes())
+            String::from_utf8_lossy(&i.result_bytes()),
+            i.native_access_refusal()
         );
         i.result_bytes()
+    }
+
+    #[cfg(have_tommath)]
+    #[test]
+    fn logical_parser_requires_an_independent_host_and_separate_cache_policy() {
+        use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+        let provider = LogicalExpressionParseProvider::Tcl84CoreSimulation;
+        leak_free(|interp| {
+            let source = tcl_dialect::DialectProfile::irules();
+            let host = crate::environment::profile_for_dialect("tcl9.0");
+            interp.set_dialect_profile(source);
+            assert!(super::parse_runtime_expr(interp, b"{\xff\0tail}").is_err());
+            assert!(!interp.set_logical_expression_parse_provider(provider, source));
+            assert!(interp.set_logical_expression_parse_provider(provider, host));
+            let object = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"{\xff\0tail}"));
+            super::parse_runtime_expr_cached(interp, Some(object.as_ptr()), b"{\xff\0tail}")
+                .expect("explicit logical parsing");
+            let dialect = interp.native_invocation_dialect();
+            assert!(crate::expr::cached_expr(object.as_ptr(), dialect, None).is_none());
+            assert!(crate::expr::cached_expr(
+                object.as_ptr(),
+                dialect,
+                interp.logical_expression_parse_policy()
+            )
+            .is_some());
+            assert_eq!(crate::interp::obj_bytes(object.as_ptr()), b"{\xff\0tail}");
+            assert!(dialect.execution_point().is_none());
+        });
+    }
+
+    #[cfg(have_tommath)]
+    #[test]
+    fn logical_parser_host_changes_retire_cached_policy_without_rebinding_objects() {
+        use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+        let provider = LogicalExpressionParseProvider::Tcl84CoreSimulation;
+        leak_free(|interp| {
+            let source = tcl_dialect::DialectProfile::irules();
+            let host = crate::environment::profile_for_dialect("tcl9.0");
+            let replacement = crate::environment::profile_for_dialect("tcl9.1");
+            interp.set_dialect_profile(source);
+            assert!(interp.set_logical_expression_parse_provider(provider, host));
+            let original = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"{\xff\0tail}"));
+            let pointer = original.as_ptr();
+            let dialect = interp.native_invocation_dialect();
+            let policy = interp.logical_expression_parse_policy();
+            let parsed = super::parse_runtime_expr_cached(interp, Some(pointer), b"{\xff\0tail}")
+                .expect("authored logical parser");
+
+            assert!(interp.set_logical_expression_parse_provider(provider, host));
+            assert!(!interp.set_logical_expression_parse_provider(provider, source));
+            assert_eq!(interp.logical_expression_parse_policy(), policy);
+            let retained = crate::expr::cached_expr(pointer, dialect, policy).unwrap();
+            assert!(std::rc::Rc::ptr_eq(&parsed, &retained));
+
+            assert!(interp.set_logical_expression_parse_provider(provider, replacement));
+            let current_policy = interp.logical_expression_parse_policy();
+            assert_ne!(current_policy, policy);
+            assert!(crate::expr::cached_expr(pointer, dialect, current_policy).is_none());
+            assert!(std::rc::Rc::ptr_eq(
+                &parsed,
+                &crate::expr::cached_expr(pointer, dialect, policy).unwrap(),
+            ));
+            assert_eq!(original.as_ptr(), pointer);
+            assert_eq!(crate::interp::obj_bytes(pointer), b"{\xff\0tail}");
+
+            let reparsed = super::parse_runtime_expr_cached(interp, Some(pointer), b"{\xff\0tail}")
+                .expect("replacement host policy");
+            assert!(!std::rc::Rc::ptr_eq(&parsed, &reparsed));
+            assert!(crate::expr::cached_expr(pointer, dialect, policy).is_none());
+            assert!(std::rc::Rc::ptr_eq(
+                &reparsed,
+                &crate::expr::cached_expr(pointer, dialect, current_policy).unwrap(),
+            ));
+            assert!(interp
+                .native_compiler_cache_epochs(crate::namespace::GLOBAL)
+                .is_none());
+        });
+    }
+
+    #[cfg(have_tommath)]
+    #[test]
+    fn logical_expression_materialises_original_storage_under_its_actual_host() {
+        use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+        leak_free(|interp| {
+            let source = tcl_dialect::DialectProfile::irules();
+            let host = crate::environment::profile_for_dialect("tcl9.0");
+            interp.set_dialect_profile(source);
+            assert!(interp.set_logical_expression_parse_provider(
+                LogicalExpressionParseProvider::Tcl84CoreSimulation,
+                host,
+            ));
+            let recipe = tcl_registry::InvocationDialect::of_profile(host)
+                .byte_array_string_recipe(None)
+                .unwrap();
+            let object = crate::obj::Owned::fresh(crate::bytearray::new_byte_array(b"1+2", recipe));
+            assert!(!crate::obj::has_string_rep(object.as_ptr()));
+            super::parse_runtime_expr_cached(interp, Some(object.as_ptr()), b"IGNORED")
+                .expect("actual host byte-array materialisation and logical syntax");
+            assert_eq!(crate::obj::bytes_of(object.as_ptr()), b"1+2");
+            assert!(crate::expr::cached_expr(
+                object.as_ptr(),
+                interp.native_invocation_dialect(),
+                interp.logical_expression_parse_policy()
+            )
+            .is_some());
+        });
+    }
+
+    #[cfg(have_tommath)]
+    #[test]
+    fn jim_safe_integer_expression_matches_54_original_native_objects() {
+        fn unhex(encoded: &str) -> Vec<u8> {
+            if encoded == "-" {
+                return Vec::new();
+            }
+            encoded
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect()
+        }
+        leak_free(|interp| {
+            interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+            let context = interp.native_jim_object_context().unwrap();
+            interp.set_result_bytes(b"k 10");
+            let mut compared = 0;
+            for row in include_str!(
+                "../../../rust/tcl-syntax/testdata/native_jim_safe_expression/observations.tsv"
+            )
+            .lines()
+            {
+                let fields: Vec<_> = row.split('\t').collect();
+                let bytes = unhex(fields[9]);
+                let original = crate::obj::Owned::fresh(crate::obj::new_string_bytes(&bytes));
+                crate::native_source::bind_context(original.as_ptr(), &context).unwrap();
+                let filename = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"file"));
+                match fields[0] {
+                    "0" => {}
+                    "1" => crate::native_source::install_source(
+                        original.as_ptr(),
+                        crate::native_source::NativeJimSourceInfo { filename, line: 7 },
+                        &context,
+                    )
+                    .unwrap(),
+                    "2" => {
+                        crate::obj::jim_character_count(original.as_ptr());
+                    }
+                    _ => panic!("fixed native original mode"),
+                }
+                let result = super::native_jim_wide_expression(interp, original.as_ptr());
+                if let Err(error) = &result {
+                    assert!(
+                        error.native_access_refusal().is_none(),
+                        "native getter guest failure must retain its channel"
+                    );
+                }
+                assert_eq!(
+                    result.is_err(),
+                    fields[4] == "1",
+                    "mode{} case{}",
+                    fields[0],
+                    fields[1]
+                );
+                assert_eq!(
+                    result.unwrap_or(123),
+                    fields[5].parse::<i64>().unwrap(),
+                    "mode{} case{}",
+                    fields[0],
+                    fields[1]
+                );
+                let kind = crate::obj::obj_type_ptr(original.as_ptr());
+                let primary = if kind.is_null() {
+                    "none"
+                } else if kind == &crate::expr::JIM_EXPR_TYPE {
+                    "expression"
+                } else if kind == &crate::native_source::JIM_SOURCE_TYPE {
+                    "source"
+                } else if kind == &crate::obj::TCL_INT_TYPE {
+                    "int"
+                } else if kind == &crate::obj::JIM_STRING_TYPE {
+                    "string"
+                } else {
+                    panic!("unexpected original Jim primary")
+                };
+                assert_eq!(primary, fields[6], "mode{} case{}", fields[0], fields[1]);
+                assert_eq!(
+                    crate::obj::has_string_rep(original.as_ptr()),
+                    fields[7] == "1"
+                );
+                assert_eq!(
+                    interp.result_bytes(),
+                    unhex(fields[8]),
+                    "mode{} case{}",
+                    fields[0],
+                    fields[1]
+                );
+                compared += 1;
+            }
+            assert_eq!(compared, 54);
+        });
+    }
+
+    #[cfg(have_tommath)]
+    #[test]
+    fn jim_expression_preparation_uses_native_cache_action() {
+        leak_free(|interp| {
+            interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+            let context = interp.native_jim_object_context().unwrap();
+            let filename = crate::obj::Owned::fresh(crate::obj::new_wide_int_obj(17));
+            for (bytes, preserves_source) in [
+                (&b""[..], true),
+                (&b"{"[..], true),
+                (&b"\""[..], true),
+                (&b"["[..], true),
+                (&b"$"[..], false),
+                (&b"1+"[..], false),
+                (&b"1 2"[..], false),
+                (&b"."[..], false),
+            ] {
+                let original = crate::obj::Owned::fresh(crate::obj::new_string_bytes(bytes));
+                crate::native_source::install_source(
+                    original.as_ptr(),
+                    crate::native_source::NativeJimSourceInfo {
+                        filename: filename.clone(),
+                        line: 10,
+                    },
+                    &context,
+                )
+                .unwrap();
+                assert!(
+                    super::parse_runtime_expr_cached(interp, Some(original.as_ptr()), bytes)
+                        .is_err()
+                );
+                let expected = if preserves_source {
+                    &crate::native_source::JIM_SOURCE_TYPE
+                } else {
+                    &crate::expr::JIM_EXPR_TYPE
+                };
+                assert!(std::ptr::eq(
+                    crate::obj::obj_type_ptr(original.as_ptr()),
+                    expected
+                ));
+                assert!(!crate::obj::has_string_rep(filename.as_ptr()));
+                assert_eq!(crate::obj::bytes_of(original.as_ptr()), bytes);
+            }
+        });
+    }
+
+    #[cfg(have_tommath)]
+    #[test]
+    fn expression_source_preparation_replaces_actual_typed_storage() {
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
+                let one = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"1"));
+                let plus = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"+"));
+                let two = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"2"));
+                for valid in [true, false] {
+                    let elements = [one.as_ptr(), plus.as_ptr(), two.as_ptr()];
+                    let source = crate::obj::Owned::fresh(
+                        interp.new_list_object(&elements[..if valid { 3 } else { 2 }]),
+                    );
+                    let previous = crate::obj::obj_type_ptr(source.as_ptr());
+                    let bytes = crate::interp::obj_bytes(source.as_ptr());
+                    let result =
+                        super::parse_runtime_expr_cached(interp, Some(source.as_ptr()), &bytes);
+                    assert_eq!(result.is_ok(), valid, "{environment}");
+                    if valid || environment != "tcl8.4" {
+                        assert!(
+                            core::ptr::eq(
+                                crate::obj::obj_type_ptr(source.as_ptr()),
+                                if environment == "jim" {
+                                    &crate::expr::JIM_EXPR_TYPE
+                                } else {
+                                    &crate::expr::TCL_EXPR_TYPE
+                                }
+                            ),
+                            "{environment}"
+                        );
+                    } else {
+                        assert_eq!(crate::obj::obj_type_ptr(source.as_ptr()), previous);
+                    }
+                    assert_eq!(
+                        crate::interp::obj_bytes(source.as_ptr()),
+                        if valid { &b"1 + 2"[..] } else { &b"1 +"[..] }
+                    );
+                }
+            });
+        }
+    }
+
+    #[cfg(have_tommath)]
+    #[test]
+    fn source_word_simulation_is_independent_of_expression_parser_installation() {
+        leak_free(|interp| {
+            let source = tcl_dialect::DialectProfile::irules();
+            let host = crate::environment::profile_for_dialect("tcl9.0");
+            let provider =
+                tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation;
+            interp.set_dialect_profile(source);
+            assert!(interp.source_string_protocol().is_none());
+            assert!(!interp.set_logical_source_word_provider(provider, source));
+            assert!(interp.set_logical_source_word_provider(provider, host));
+            assert!(interp.logical_expression_parse_policy().is_none());
+            assert_eq!(
+                interp.source_string_protocol(),
+                Some(tcl_syntax::native_string::NativeStringProtocol::C(
+                    tcl_dialect::TclVersion::V8_4
+                ))
+            );
+            assert_eq!(
+                interp.do_expression_subst(br"\u0000", false),
+                Ok(vec![0xc0, 0x80])
+            );
+            assert!(interp
+                .native_invocation_dialect()
+                .execution_point()
+                .is_none());
+        });
+    }
+
+    #[cfg(have_tommath)]
+    #[test]
+    fn original_expression_objects_preserve_opaque_source_and_values() {
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
+                let stored = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"7"));
+                interp
+                    .var_set(b"\xff", stored.as_ptr())
+                    .expect("original byte variable name");
+                let head = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"expr"));
+                for (source, expected) in [
+                    (&b"\"\xff\0tail\""[..], &b"\xff\0tail"[..]),
+                    (&b"{\xff\0tail}"[..], &b"\xff\0tail"[..]),
+                    (&b"${\xff}"[..], &b"7"[..]),
+                    (&b"\"${\xff}\""[..], &b"7"[..]),
+                    (&b"0 && \"${\xffmissing}\""[..], &b"0"[..]),
+                ] {
+                    let object = crate::obj::Owned::fresh(crate::obj::new_string_bytes(source));
+                    for _ in 0..2 {
+                        assert_eq!(
+                            super::expr_cmd(interp, &[head.as_ptr(), object.as_ptr()]),
+                            Code::Ok,
+                            "{environment}: {:?}",
+                            interp.result_bytes()
+                        );
+                        assert_eq!(interp.result_bytes(), expected, "{environment}");
+                        assert_eq!(crate::interp::obj_bytes(object.as_ptr()), source);
+                    }
+                }
+            });
+        }
+    }
+
+    #[cfg(have_tommath)]
+    #[test]
+    fn expression_arguments_use_native_concatenation_and_selected_cardinality() {
+        let case = tcl_syntax::execution_conformance::vectors(
+            tcl_syntax::execution_conformance::ExecutionDomain::CommandBinding,
+        )
+        .into_iter()
+        .find(|case| case.id == "expression_argument_concatenation_preserves_native_values")
+        .expect("shared native expression argument vector");
+        let script = format!("list [catch {{{}}} value] $value", case.source);
+        for reference in tcl_test_support::available_tclshs() {
+            let expected = tcl_test_support::run_script(&reference.path, case.script().as_bytes())
+                .expect("native expression arguments")
+                .strict_text()
+                .expect("native result");
+            leak_free(|interp| {
+                interp.set_runtime_version(reference.version);
+                assert_eq!(interp.eval_str(script.as_bytes()), Code::Ok);
+                assert_eq!(interp.result_bytes(), expected.as_bytes());
+            });
+        }
+        if let Some(reference) = tcl_test_support::locate_jimsh().expect("Jim discovery") {
+            let expected = tcl_test_support::run_script(&reference.path, case.script().as_bytes())
+                .expect("native Jim expression arguments")
+                .strict_text()
+                .expect("native result");
+            leak_free(|interp| {
+                interp.set_dialect_profile(
+                    tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+                );
+                assert_eq!(interp.eval_str(script.as_bytes()), Code::Ok);
+                assert_eq!(interp.result_bytes(), expected.as_bytes());
+            });
+        }
+    }
+
+    #[cfg(have_tommath)]
+    #[test]
+    fn expression_variable_references_preserve_literal_indices_and_fire_traces() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|i| {
+                let profile = if dialect == "jim" {
+                    Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+                        "jim",
+                        &[],
+                        "Jim",
+                        tcl_dialect::model::DialectPoint::canonical(
+                            tcl_dialect::model::Release::JIM_0_84,
+                        ),
+                    )))
+                } else {
+                    tcl_dialect::DialectProfile::find(dialect).expect("profile")
+                };
+                i.set_dialect_profile(profile);
+                assert_eq!(ok(i, br#"set {a([step])} LITERAL; set a(k) LIVE; set hits 0; proc step {} {incr ::hits; return k}; set literal [expr {${a([step])}}]; set live [expr {$a([step])}]; list $literal $live $hits"#), b"LITERAL LIVE 1", "{dialect}");
+                if dialect != "jim" {
+                    assert_eq!(ok(i, br#"set x 5; set reads 0; proc tr {args} {incr ::reads}; trace add variable x read tr; list [expr {$x + 1}] $reads"#), b"6 1", "{dialect}");
+                }
+            });
+        }
+    }
+
+    #[cfg(have_tommath)]
+    #[test]
+    fn native_expression_and_increment_follow_selected_numeric_towers() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(
+                    tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
+                );
+                let fixed = matches!(dialect, "tcl8.4" | "jim");
+                assert_eq!(
+                    ok(interp, b"expr {(9223372036854775807 + 1) < 0}"),
+                    if fixed {
+                        b"1".as_slice()
+                    } else {
+                        b"0".as_slice()
+                    },
+                    "{dialect}"
+                );
+                assert_eq!(
+                    ok(interp, b"set n 9223372036854775807; incr n; expr {$n < 0}"),
+                    if fixed {
+                        b"1".as_slice()
+                    } else {
+                        b"0".as_slice()
+                    },
+                    "{dialect}"
+                );
+                assert_eq!(
+                    ok(interp, b"set n 18446744073709551615; incr n"),
+                    if fixed {
+                        b"0".as_slice()
+                    } else {
+                        b"18446744073709551616".as_slice()
+                    },
+                    "{dialect}"
+                );
+                assert_eq!(
+                    ok(interp, b"set n 010; incr n"),
+                    if matches!(dialect, "jim" | "tcl9.0" | "tcl9.1") {
+                        b"11".as_slice()
+                    } else {
+                        b"9".as_slice()
+                    },
+                    "{dialect}"
+                );
+                assert_eq!(
+                    ok(interp, b"expr {-(-9223372036854775808) < 0}"),
+                    if fixed {
+                        b"1".as_slice()
+                    } else {
+                        b"0".as_slice()
+                    },
+                    "{dialect}"
+                );
+                assert_eq!(
+                    ok(interp, b"expr {\"010\"}"),
+                    if dialect == "jim" {
+                        b"010".as_slice()
+                    } else if fixed {
+                        b"8".as_slice()
+                    } else if matches!(dialect, "tcl9.0" | "tcl9.1") {
+                        b"10".as_slice()
+                    } else {
+                        b"8".as_slice()
+                    }
+                );
+                assert_eq!(
+                    ok(interp, b"set n 18446744073709551615; expr {$n + 0.0 < 0.0}"),
+                    if fixed {
+                        b"1".as_slice()
+                    } else {
+                        b"0".as_slice()
+                    }
+                );
+                assert_eq!(
+                    ok(interp, b"set n 18446744073709551615; expr {$n > 0.0}"),
+                    if fixed {
+                        b"0".as_slice()
+                    } else {
+                        b"1".as_slice()
+                    }
+                );
+                if dialect == "tcl8.4" {
+                    assert_eq!(
+                        interp.eval_str(b"set n 18446744073709551616; incr n"),
+                        Code::Error
+                    );
+                    assert_eq!(
+                        ok(interp, b"set ::errorCode"),
+                        b"ARITH IOVERFLOW {integer value too large to represent}"
+                    );
+                } else if dialect == "jim" {
+                    assert_eq!(ok(interp, b"set n 18446744073709551616; incr n"), b"0");
+                    assert_eq!(ok(interp, b"expr {1 << 64}"), b"1");
+                    assert_eq!(interp.eval_str(b"expr {bool(1)}"), Code::Error);
+                }
+            });
+        }
     }
 
     /// A loop's condition is parsed **once**, not once per iteration: the
@@ -1561,3 +2868,9 @@ mod tests {
         });
     }
 }
+
+#[cfg(test)]
+mod native_subst_operand_tests;
+
+#[cfg(test)]
+mod native_variable_operand_tests;

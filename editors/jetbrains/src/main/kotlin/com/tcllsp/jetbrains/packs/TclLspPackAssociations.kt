@@ -32,11 +32,15 @@ import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.fileTypes.UnknownFileType
 import com.intellij.openapi.project.Project
 import com.intellij.platform.lsp.api.LspServer
+import com.intellij.platform.lsp.api.LspServerDescriptor
 import com.intellij.platform.lsp.api.LspServerManager
 import com.tcllsp.jetbrains.TclFileType
 import com.tcllsp.jetbrains.TclIruleFileType
+import com.tcllsp.jetbrains.TclLspServerDescriptor
 import com.tcllsp.jetbrains.TclLspServerSupportProvider
 import org.eclipse.lsp4j.ExecuteCommandParams
+import org.eclipse.lsp4j.InitializeResult
+import java.lang.ref.WeakReference
 import java.util.WeakHashMap
 
 private val LOG = Logger.getInstance(TclLspPackAssociations::class.java)
@@ -75,7 +79,20 @@ class TclLspPackAssociations : PersistentStateComponent<TclLspPackAssociations.S
 
     private val lock = Any()
     private var owned: MutableMap<String, String> = LinkedHashMap()
-    private val claimsByProject = WeakHashMap<Project, Map<String, String>>()
+    private class ProjectClaims(owner: Any, val claims: Map<String, String>) {
+        val owner = WeakReference(owner)
+        val initializedResult = (owner as? LspServer)?.initializeResult
+    }
+
+    private data class PendingPull(
+        val server: LspServer,
+        val initializedResult: InitializeResult,
+        val baseline: ProjectClaims?,
+    )
+
+    private val activeClients = WeakHashMap<Project, WeakReference<TclLsp4jClient>>()
+    private val claimsByProject = WeakHashMap<Project, ProjectClaims>()
+    private val pullsInFlight = WeakHashMap<Project, WeakReference<LspServer>>()
 
     override fun getState(): State = State().also {
         it.owned = synchronized(lock) { LinkedHashMap(owned) }
@@ -90,14 +107,33 @@ class TclLspPackAssociations : PersistentStateComponent<TclLspPackAssociations.S
         PackClaimedExtensions.replaceWith(state.owned.keys.toSet())
     }
 
-    /** Record what one project's server says its packs claim, then reconcile. */
-    fun report(project: Project, payload: JsonElement?) {
-        val claims = PackAssociationReconciler.claimsFrom(payload)
-        synchronized(lock) {
-            claimsByProject.keys.removeAll { it.isDisposed }
-            claimsByProject[project] = claims
+    /** Retain the actual client endpoint created for this project's current server. */
+    fun clientCreated(project: Project, client: TclLsp4jClient) {
+        val changed = synchronized(lock) {
+            if (project.isDisposed || activeClients[project]?.get() === client) {
+                false
+            } else {
+                activeClients[project] = WeakReference(client)
+                claimsByProject.remove(project)
+                pullsInFlight.remove(project)
+                true
+            }
         }
-        scheduleReconcile()
+        if (changed) scheduleReconcile()
+    }
+
+    /** Record a push only while it comes from the actual currently registered client. */
+    fun report(project: Project, client: TclLsp4jClient, payload: JsonElement?) {
+        val claims = PackAssociationReconciler.claimsFrom(payload)
+        val accepted = synchronized(lock) {
+            if (project.isDisposed || activeClients[project]?.get() !== client) {
+                false
+            } else {
+                claimsByProject[project] = ProjectClaims(client, claims)
+                true
+            }
+        }
+        if (accepted) scheduleReconcile()
     }
 
     /**
@@ -112,7 +148,11 @@ class TclLspPackAssociations : PersistentStateComponent<TclLspPackAssociations.S
     fun projectClosed(project: Project) {
         val remaining = synchronized(lock) {
             claimsByProject.remove(project)
+            activeClients.remove(project)
+            pullsInFlight.remove(project)
             claimsByProject.keys.removeAll { it.isDisposed }
+            activeClients.keys.removeAll { it.isDisposed }
+            pullsInFlight.keys.removeAll { it.isDisposed }
             claimsByProject.size
         }
         if (PackAssociationReconciler.reconcileAfterProjectClose(remaining)) {
@@ -128,37 +168,72 @@ class TclLspPackAssociations : PersistentStateComponent<TclLspPackAssociations.S
      * is synchronous, and the caller is the platform's own server-initialised
      * callback, which is no place to block.
      */
-    fun pull(project: Project) {
+    @Suppress("UnstableApiUsage")
+    fun pull(
+        project: Project,
+        descriptor: TclLspServerDescriptor,
+        initializedResult: InitializeResult,
+    ) {
+        if (project.isDisposed) return
+        val server = currentServer(project, descriptor, initializedResult) ?: return
+        val pending = synchronized(lock) {
+            if (project.isDisposed) return@synchronized null
+            if (pullsInFlight[project]?.get() === server) return@synchronized null
+            PendingPull(server, initializedResult, claimsByProject[project]).also {
+                pullsInFlight[project] = WeakReference(server)
+            }
+        } ?: return
         ApplicationManager.getApplication().executeOnPooledThread(
             Runnable {
-                val result = try {
-                    requestEffectiveConfig(project)
-                } catch (error: Exception) {
-                    // A server still starting, or already stopped, has nothing
-                    // to say about packs yet; the push brings the answer when
-                    // it does.
-                    LOG.debug("Tcl spec-pack extension pull skipped", error)
-                    return@Runnable
-                }
-                if (result != null) {
-                    report(project, result)
+                try {
+                    val result = try {
+                        requestEffectiveConfig(server)
+                    } catch (error: Exception) {
+                        // A server still starting, or already stopped, has nothing
+                        // to say about packs yet; the push brings the answer when it does.
+                        LOG.debug("Tcl spec-pack extension pull skipped", error)
+                        return@Runnable
+                    }
+                    if (result == null || project.isDisposed ||
+                        currentServer(project, descriptor, pending.initializedResult) !== server
+                    ) return@Runnable
+                    val claims = PackAssociationReconciler.claimsFrom(result)
+                    val accepted = synchronized(lock) {
+                        if (project.isDisposed || claimsByProject[project] !== pending.baseline ||
+                            pullsInFlight[project]?.get() !== server
+                        ) {
+                            false
+                        } else {
+                            claimsByProject[project] = ProjectClaims(server, claims)
+                            true
+                        }
+                    }
+                    if (accepted) scheduleReconcile()
+                } finally {
+                    synchronized(lock) {
+                        if (pullsInFlight[project]?.get() === server) pullsInFlight.remove(project)
+                    }
                 }
             },
         )
     }
 
-    private fun requestEffectiveConfig(project: Project): JsonElement? {
-        @Suppress("UnstableApiUsage")
-        val server = LspServerManager.getInstance(project)
+    @Suppress("UnstableApiUsage")
+    private fun currentServer(
+        project: Project,
+        descriptor: LspServerDescriptor,
+        initializedResult: InitializeResult,
+    ): LspServer? =
+        LspServerManager.getInstance(project)
             .getServersForProvider(TclLspServerSupportProvider::class.java)
-            .firstOrNull() ?: return null
+            .singleOrNull { it.descriptor === descriptor && it.initializeResult === initializedResult }
+
+    @Suppress("UnstableApiUsage")
+    private fun requestEffectiveConfig(server: LspServer): JsonElement? {
         // The timeout is passed explicitly on purpose — see the note in
         // TclLspActionBase.runCommand and the jetbrains-plugin-compat skill.
         val result = server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { lsp4j ->
             lsp4j.workspaceService.executeCommand(
-                // The pack set is process-global on the server — one reload
-                // covers the bundled tier and every workspace folder — so this
-                // asks with no document rather than implying a per-file answer.
                 ExecuteCommandParams("tcl-lsp.getEffectiveConfig", listOf("")),
             )
         } ?: return null
@@ -180,48 +255,54 @@ class TclLspPackAssociations : PersistentStateComponent<TclLspPackAssociations.S
 
     private fun reconcile() {
         val fileTypeManager = FileTypeManager.getInstance()
-        val claimed: Map<String, String>
-        val ledger: Map<String, String>
         synchronized(lock) {
             claimsByProject.keys.removeAll { it.isDisposed }
-            claimed = PackAssociationReconciler.union(claimsByProject.values.toList())
-            ledger = LinkedHashMap(owned)
-        }
-
-        val plan = PackAssociationReconciler.plan(claimed, ledger) { extension ->
-            associatedFileTypeName(fileTypeManager, extension)
-        }
-        for (claim in plan.disassociate) {
-            fileTypeFor(claim.fileTypeName)?.let {
-                fileTypeManager.removeAssociation(it, ExtensionFileNameMatcher(claim.extension))
+            activeClients.keys.removeAll { it.isDisposed }
+            claimsByProject.entries.removeAll { (project, snapshot) ->
+                val owner = snapshot.owner.get()
+                when (owner) {
+                    is TclLsp4jClient -> project.isDisposed || activeClients[project]?.get() !== owner
+                    is LspServer -> project.isDisposed || snapshot.initializedResult == null ||
+                        currentServer(project, owner.descriptor, snapshot.initializedResult) !== owner
+                    else -> true
+                }
             }
-        }
-        for (claim in plan.associate) {
-            fileTypeFor(claim.fileTypeName)?.let {
-                fileTypeManager.associate(it, ExtensionFileNameMatcher(claim.extension))
+            val claimed = PackAssociationReconciler.union(claimsByProject.values.map { it.claims })
+            val plan = PackAssociationReconciler.plan(claimed, LinkedHashMap(owned)) { extension ->
+                associatedFileTypeName(fileTypeManager, extension)
             }
-        }
-        synchronized(lock) { owned = LinkedHashMap(plan.owned) }
+            for (claim in plan.disassociate) {
+                fileTypeFor(claim.fileTypeName)?.let {
+                    fileTypeManager.removeAssociation(it, ExtensionFileNameMatcher(claim.extension))
+                }
+            }
+            for (claim in plan.associate) {
+                fileTypeFor(claim.fileTypeName)?.let {
+                    fileTypeManager.associate(it, ExtensionFileNameMatcher(claim.extension))
+                }
+            }
+            owned = LinkedHashMap(plan.owned)
 
-        // Everything a pack claims that now resolves to one of our file
-        // types — including an extension the user associated by hand, which
-        // the plan deliberately leaves alone but the server still routes.
-        PackClaimedExtensions.replaceWith(
-            claimed.keys.filterTo(HashSet()) { isOurs(fileTypeManager.getFileTypeByExtension(it)) },
-        )
+            // Everything a pack claims that now resolves to one of our file
+            // types — including an extension the user associated by hand, which
+            // the plan deliberately leaves alone but the server still routes.
+            PackClaimedExtensions.replaceWith(
+                claimed.keys.filterTo(HashSet()) { isOurs(fileTypeManager.getFileTypeByExtension(it)) },
+            )
 
-        if (!plan.isEmpty) {
-            LOG.info(
-                "Tcl pack file associations: +" +
-                    plan.associate.joinToString(",") { it.extension }.ifEmpty { "-" } +
-                    " -" + plan.disassociate.joinToString(",") { it.extension }.ifEmpty { "-" },
-            )
-        }
-        for (claim in plan.deferred) {
-            LOG.info(
-                "Tcl pack file association for .${claim.extension} skipped: " +
-                    "already associated with \"${claim.fileTypeName}\"",
-            )
+            if (!plan.isEmpty) {
+                LOG.info(
+                    "Tcl pack file associations: +" +
+                        plan.associate.joinToString(",") { it.extension }.ifEmpty { "-" } +
+                        " -" + plan.disassociate.joinToString(",") { it.extension }.ifEmpty { "-" },
+                )
+            }
+            for (claim in plan.deferred) {
+                LOG.info(
+                    "Tcl pack file association for .${claim.extension} skipped: " +
+                        "already associated with \"${claim.fileTypeName}\"",
+                )
+            }
         }
     }
 

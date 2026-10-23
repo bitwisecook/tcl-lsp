@@ -62,7 +62,16 @@ struct Segments {
 
 impl Segmenter for Segments {
     fn segment<'s>(&self, source: &'s str) -> Script<'s> {
-        let parsed = crate::lowering::command_at_time_script_with_config(source, self.config);
+        // Without the lexer's ownership of the source there is no command
+        // boundary to follow, so no 8.4 compile verdict: the runtime's own
+        // admission decides the script.
+        let Ok(parsed) = crate::lowering::command_at_time_script_with_config(source, self.config)
+        else {
+            return Script {
+                commands: Vec::new(),
+                fatal: None,
+            };
+        };
         Script {
             commands: parsed
                 .commands

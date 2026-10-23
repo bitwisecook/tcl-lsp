@@ -66,7 +66,7 @@ pub const fn spec() -> CommandSpec {
         // current event context (HTTP_RESPONSE)`, even though the event
         // carries an HTTP profile — the request URI is simply not
         // addressable once the response is in hand
-        // (`docs/design/f5/bigip-irule-parser-measurements.md` §8, which
+        // (`docs/design/f5/embedded-tcl-contract.md` §8, which
         // names this cell as *"exactly the mistakes an editor should
         // catch"*).
         excluded_events: &["HTTP_RESPONSE"],

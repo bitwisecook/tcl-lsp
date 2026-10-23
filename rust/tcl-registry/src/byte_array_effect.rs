@@ -116,6 +116,8 @@ pub enum ByteArrayEffect {
     ///
     /// `encoding convertto`. The reverse direction, `encoding convertfrom`,
     /// is the legitimate decode and stays [`ByteArrayEffect::None`].
+    /// The final evaluated operand is the character data; preceding operands
+    /// select the encoding and options and do not supply its byte provenance.
     Encodes,
     /// Reads a value operand **as bytes**, installing the byte-array internal
     /// rep on that operand *in place* — the documented S110 fix (F5
@@ -137,6 +139,17 @@ pub enum ByteArrayEffect {
 }
 
 impl ByteArrayEffect {
+    /// Data operand of an encoder, relative to the selected handler's operands.
+    /// Only an exact evaluated cardinality can locate the final data object.
+    #[must_use]
+    pub const fn encoded_value_argument(self, argument_count: usize) -> Option<usize> {
+        if matches!(self, Self::Encodes) {
+            argument_count.checked_sub(1)
+        } else {
+            None
+        }
+    }
+
     /// Every effect, in declaration order; `Rebinarifies` is listed with
     /// `binary scan`'s operand index.
     pub const ALL: &'static [Self] = &[
@@ -248,6 +261,40 @@ impl BytePayloadSpec {
         first_arg.is_none_or(|sub| !Self::NON_GETTER_SUBS.contains(&sub))
     }
 
+    /// Classify a getter after argv evaluation. Unknown subcommands retain
+    /// uncertainty instead of being treated as a getter with no arguments.
+    #[must_use]
+    pub fn is_getter_invocation(arguments: crate::InvocationArguments<'_>) -> Option<bool> {
+        if !arguments.has_exact_argv_len() {
+            return None;
+        }
+        match arguments.len() {
+            0 => Some(true),
+            _ => Some(Self::is_getter_call(Some(arguments.literal_at(0)?))),
+        }
+    }
+
+    /// Select a replacement's data operand from frozen argv. Only the selector
+    /// words need literal values; the data itself can remain dynamic.
+    #[must_use]
+    pub fn replace_data_arg_for_invocation(
+        &self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> Option<usize> {
+        if !arguments.has_exact_argv_len() {
+            return None;
+        }
+        let length = arguments.len();
+        if arguments.literal_at(0)? != Self::REPLACE_SUB {
+            return None;
+        }
+        let mut index = usize::from(self.replace_data_index);
+        if self.message_flag_shift && arguments.literal_at(1)? == Self::MESSAGE_FLAG {
+            index += 2;
+        }
+        (length > index).then_some(index)
+    }
+
     /// For a `<cmd> replace … <data>` sink call, the index (within `args`,
     /// which exclude the command name) of the `<data>` operand; `None` when
     /// the call is not a complete `replace` sink form. Applies this layout's
@@ -276,6 +323,50 @@ mod tests {
     use super::*;
     use crate::types::example_checks::assert_examples_valid;
     use crate::{CommandRegistry, TclType};
+
+    #[test]
+    fn payload_selection_retains_dynamic_data_and_unknown_selectors() {
+        use crate::{InvocationArguments, InvocationWord};
+        let dynamic_data = [
+            InvocationWord::Literal("replace"),
+            InvocationWord::Literal("0"),
+            InvocationWord::Literal("1"),
+            InvocationWord::Dynamic,
+        ];
+        assert_eq!(
+            BytePayloadSpec::DEFAULT
+                .replace_data_arg_for_invocation(InvocationArguments::structured(&dynamic_data)),
+            Some(3)
+        );
+        let unknown_selector = [
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("0"),
+            InvocationWord::Literal("1"),
+            InvocationWord::Dynamic,
+        ];
+        assert_eq!(
+            BytePayloadSpec::DEFAULT.replace_data_arg_for_invocation(
+                InvocationArguments::structured(&unknown_selector)
+            ),
+            None
+        );
+        assert_eq!(
+            BytePayloadSpec::is_getter_invocation(InvocationArguments::structured(
+                &unknown_selector
+            )),
+            None
+        );
+        let expanded = [InvocationWord::Literal("replace"), InvocationWord::Expanded];
+        assert_eq!(
+            BytePayloadSpec::DEFAULT
+                .replace_data_arg_for_invocation(InvocationArguments::structured(&expanded)),
+            None
+        );
+        assert_eq!(
+            BytePayloadSpec::is_getter_invocation(InvocationArguments::literals(&[])),
+            Some(true)
+        );
+    }
 
     #[test]
     fn every_effect_has_a_distinct_source_aligned_example() {

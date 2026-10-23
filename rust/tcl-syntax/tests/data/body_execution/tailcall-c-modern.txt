@@ -1,0 +1,8 @@
+available 1
+root-empty 1
+root-target 1
+pending 2
+after 1
+outer 0 TARGET
+empty 2
+empty-outer 0 EMPTY

@@ -36,7 +36,7 @@
 //! so a statement whose last word is quoted / braced / bracketed
 //! stops *on* its closer. Every span this pass replays or
 //! rewrites is therefore widened through
-//! [`full_rewrite_span`](super::helpers::spans::full_rewrite_span),
+//! [`original_statement_rewrite_span`](super::helpers::spans::original_statement_rewrite_span),
 //! without which the emitted script does not re-parse.
 //!
 //! Both emissions share a group id (via
@@ -59,7 +59,7 @@ use crate::ir::{Script, Statement};
 use tcl_core_types::DiagCode;
 
 use super::helpers::expr_simplify::expr_has_command_subst;
-use super::helpers::spans::{full_rewrite_span, statement_delete_rewrite_range};
+use super::helpers::spans::{original_statement_rewrite_span, statement_delete_rewrite_range};
 use super::helpers::var_refs::bareword_occurrences;
 use super::{Optimisation, PassContext};
 
@@ -92,7 +92,7 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script, depth: u32) {
     }
     let stmts = &script.statements;
     for i in 0..stmts.len().saturating_sub(1) {
-        consider_sink_at(ctx, stmts, i, depth);
+        consider_sink_at(ctx, script, i, depth);
     }
 
     // Recurse into nested compound statements.
@@ -151,7 +151,8 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script, depth: u32) {
 
 /// Evaluate `stmts[i]` as a sink candidate whose decision is `stmts[i + 1]`,
 /// emitting the O125 when every gate passes. Extracted from [`walk_script`].
-fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, depth: u32) {
+fn consider_sink_at(ctx: &mut PassContext<'_>, script: &Script, i: usize, depth: u32) {
+    let stmts = &script.statements;
     let stmt = &stmts[i];
     let Some((var, span)) = sinkable_assignment(stmt) else {
         return;
@@ -182,7 +183,10 @@ fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, de
     if decision_condition_uses_var(decision, &var, braced_var) {
         return;
     }
-    if decision_condition_substitution_touches_var(decision, &var, ctx.registry) {
+    if original_condition_source_read(ctx, script, decision, &var).is_some()
+        || original_condition_reads_store_cell(ctx, script, stmt, decision).is_some()
+        || decision_condition_substitution_touches_var(decision, &var, ctx.registry)
+    {
         return;
     }
     if !any_decision_body_uses_var(decision, &var, depth, braced_var) {
@@ -200,13 +204,7 @@ fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, de
     // computation would observe a different value — a miscompile. The
     // earlier guards only protect the assigned variable itself, not its
     // read-set.
-    if sink_rhs_clobbered_by_decision(
-        stmt,
-        decision,
-        braced_var,
-        ctx.dialect
-            .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
-    ) {
+    if sink_rhs_clobbered_by_decision(stmt, decision, braced_var, ctx.lexer_config()) {
         return;
     }
     let targets = decision_sink_targets(decision, &var, braced_var);
@@ -216,9 +214,14 @@ fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, de
     // real sink, and anchoring one there could move the def past an earlier
     // by-name read the textual scan cannot see. Decline instead.
     if targets.is_empty()
-        || targets
-            .iter()
-            .any(|t| matches!(t, Statement::Barrier { .. } | Statement::UpFrame { .. }))
+        || targets.iter().any(|t| {
+            matches!(
+                t,
+                Statement::Barrier { .. }
+                    | Statement::NativeCall { .. }
+                    | Statement::UpFrame { .. }
+            )
+        })
     {
         return;
     }
@@ -242,11 +245,16 @@ fn emit_sink(
     // rewritten extents cover whole written statements: replaying the raw span
     // of `set msg "error"` would emit `set msg "error`, and the closing quote
     // left behind would swallow the rest of the line.
-    let original_span = full_rewrite_span(ctx.source, original_span);
-    let target_spans: Vec<tcl_lexer::Span> = targets
+    let Some(original_span) = original_statement_rewrite_span(ctx, original_span) else {
+        return;
+    };
+    let Some(target_spans) = targets
         .iter()
-        .map(|s| full_rewrite_span(ctx.source, s.span()))
-        .collect();
+        .map(|s| original_statement_rewrite_span(ctx, s.span()))
+        .collect::<Option<Vec<tcl_lexer::Span>>>()
+    else {
+        return;
+    };
 
     if let Some(set_text) = extract_source(ctx.source, original_span)
         && !target_spans.is_empty()
@@ -407,6 +415,9 @@ fn try_deeper_sink<'a>(
 /// Whether `stmt` writes `var` (an assignment to it, or a call whose
 /// `defs` include it).
 fn statement_defines_var(stmt: &Statement, var: &str) -> bool {
+    if stmt.has_opaque_native_accesses() {
+        return true;
+    }
     match stmt {
         Statement::AssignConst { name, .. }
         | Statement::AssignValue { name, .. }
@@ -446,9 +457,9 @@ fn sink_rhs_clobbered_by_decision(
     sink: &Statement,
     decision: &Statement,
     braced_var: tcl_dialect::BracedVarStyle,
-    grammar: tcl_dialect::LexerGrammar,
+    config: tcl_lexer::LexerConfig,
 ) -> bool {
-    if assignment_reads_any_var(sink, grammar) && decision_condition_has_command_subst(decision) {
+    if assignment_reads_any_var(sink, config) && decision_condition_has_command_subst(decision) {
         return true;
     }
     decision_branch_bodies(decision)
@@ -457,10 +468,10 @@ fn sink_rhs_clobbered_by_decision(
 }
 
 /// Whether the assignment `sink` reads at least one variable in its RHS.
-fn assignment_reads_any_var(sink: &Statement, grammar: tcl_dialect::LexerGrammar) -> bool {
+fn assignment_reads_any_var(sink: &Statement, config: tcl_lexer::LexerConfig) -> bool {
     match sink {
         Statement::AssignValue { value, .. } => value.contains('$'),
-        Statement::AssignExpr { expr, .. } => !expr.vars_with_grammar(grammar).is_empty(),
+        Statement::AssignExpr { expr, .. } => !expr.vars_with_config(config).is_empty(),
         // A constant assignment (and anything else) reads nothing.
         _ => false,
     }
@@ -508,7 +519,7 @@ fn stmt_redefines_sink_read(
     depth: u32,
     braced_var: tcl_dialect::BracedVarStyle,
 ) -> bool {
-    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) || stmt.has_opaque_native_accesses() {
         return true;
     }
     if stmt_defined_vars(stmt)
@@ -616,6 +627,152 @@ fn is_decision(stmt: &Statement) -> bool {
     matches!(stmt, Statement::If { .. } | Statement::Switch { .. })
 }
 
+/// An actual physical-cell overlap is an additional veto only. Missing read,
+/// store, observer or condition coverage never permits a sink.
+fn original_condition_reads_store_cell(
+    ctx: &PassContext<'_>,
+    script: &Script,
+    store: &Statement,
+    decision: &Statement,
+) -> Option<()> {
+    let Statement::If { clauses, .. } = decision else {
+        return None;
+    };
+    let module = ctx.ir_module?;
+    if module.source.try_text().ok()? != ctx.source || module.lexer_config != ctx.lexer_config() {
+        return None;
+    }
+    let registry = ctx.registry?;
+    let tokens = script.retained_source_tokens_for_statement(store)?;
+    let binding = tokens.source_binding.as_ref()?;
+    let metadata = binding.original_invocation_metadata_for_module(tokens, module, registry)?;
+    let invocation = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        registry,
+        Some(metadata),
+        tokens,
+    )?;
+    let context = match invocation.variable_binding_phase() {
+        tcl_registry::native_compilation::VariableOperandBindingPhase::NormalContinuation => {
+            binding.normal_variable_continuation()?
+        }
+        tcl_registry::native_compilation::VariableOperandBindingPhase::AfterArguments => {
+            binding.variable_context.as_ref()
+        }
+        tcl_registry::native_compilation::VariableOperandBindingPhase::BodyProtocol => return None,
+    };
+    if context.binding_identity != crate::var_resolve::BindingIdentity::Bound
+        || context.execution_name_policy.is_none()
+    {
+        return None;
+    }
+    let crate::var_resolve::SourceReadConfiguration::Selected(config) =
+        context.source_read_configuration
+    else {
+        return None;
+    };
+    if config.normalized() != ctx.lexer_config().normalized() {
+        return None;
+    }
+    let cells = invocation
+        .definition_places(context, registry)
+        .iter()
+        .filter_map(|place| {
+            (place.cell.is_some() && !place.observed && !place.dynamic)
+                .then(|| crate::var_resolve::canonical_place_key(place))
+                .flatten()
+        })
+        .collect::<Vec<_>>();
+    for clause in clauses {
+        let Some(bindings) =
+            crate::math_function_binding::ExpressionMathBindings::for_module_statement(
+                module,
+                clause.condition_span,
+            )
+        else {
+            continue;
+        };
+        if bindings
+            .physical_condition_reads(module, registry, &clause.condition)
+            .is_some_and(|reads| reads.cells().iter().any(|cell| cells.contains(cell)))
+        {
+            return Some(());
+        }
+    }
+    None
+}
+
+/// A positive-only original source read veto. No witness is never absence,
+/// effect closure or permission to move a value; the independent guards remain.
+/// The shared original substitution owner supplies complete image/config/role
+/// correspondence, including expression and array-index command phases.
+fn original_condition_source_read(
+    ctx: &PassContext<'_>,
+    script: &Script,
+    decision: &Statement,
+    variable: &str,
+) -> Option<()> {
+    if !matches!(decision, Statement::If { .. }) {
+        return None;
+    }
+    let module = ctx.ir_module?;
+    if module.source.try_text().ok()? != ctx.source {
+        return None;
+    }
+    let registry = ctx.registry?;
+    let parent = script.retained_source_tokens_for_statement(decision)?;
+    let metadata = parent
+        .source_binding
+        .as_ref()?
+        .original_invocation_metadata_for_module(parent, module, registry)?;
+    let calls = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+        parent,
+        ctx.lexer_config(),
+        registry,
+        metadata,
+    )?;
+    for call in calls {
+        let tokens = call.tokens.as_ref()?;
+        let binding = tokens.source_binding.as_ref()?;
+        binding.original_invocation_metadata_for_module(tokens, module, registry)?;
+        let site = binding.invocation_site()?;
+        let original = site.source.original_lexical_command(
+            tokens.words(),
+            site.offset,
+            ctx.lexer_config(),
+        )?;
+        for word in original.native_words() {
+            let arena = word.executable_parts();
+            if arena.all_parts().any(|part| {
+                matches!(&part.part, tcl_lexer::word_parts::ExecutablePart::Variable { name, .. }
+                    if arena.bytes(*name) == Some(variable.as_bytes()))
+            }) {
+                return Some(());
+            }
+        }
+        // Literal by-name reads are source MAY facts only. Their exact name
+        // comes from the same selected original invocation, never call.command.
+        if let Some(names) =
+            crate::registry_invocation::original_source_name_roles(registry, tokens)
+        {
+            for &(argument, role) in names.roles() {
+                if role == tcl_registry::ArgRole::VarRead
+                    && names
+                        .original_variable_name_operand(argument)
+                        .is_some_and(|name| name.as_str() == variable)
+                {
+                    return Some(());
+                }
+            }
+        }
+        if crate::ir_helpers::original_invocation_possible_name_writes(tokens, registry)
+            .is_some_and(|writes| writes.read_names.iter().any(|name| name == variable))
+        {
+            return Some(());
+        }
+    }
+    None
+}
+
 /// Whether a `[…]` in the decision's condition reads or writes `var`.
 ///
 /// [`decision_condition_uses_var`] scans the expression for a `$var`
@@ -663,7 +820,8 @@ fn decision_condition_substitution_touches_var(
         // An unnameable read (`[info exists $p]`) may be of *this* variable,
         // which is enough to block a sink — unlike the condition's effect
         // summary, where the opaque flag would have claimed a write.
-        writes.opaque
+        embedded.opaque
+            || writes.opaque
             || reads.opaque
             || writes.names.iter().any(|name| name == var)
             || writes.read_names.iter().any(|name| name == var)
@@ -788,7 +946,9 @@ fn statement_uses_var(
         // An `UpFrame` (literal-body `uplevel`/`interp eval`)
         // evaluates in a *different* frame that can reach this one, so it
         // gets the same conservative answer rather than a body recursion.
-        Statement::Barrier { .. } | Statement::UpFrame { .. } => true,
+        Statement::Barrier { .. } | Statement::NativeCall { .. } | Statement::UpFrame { .. } => {
+            true
+        }
         Statement::AssignValue { value, .. } => text_references_var(value, var, braced_var),
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
             expr_references_var(expr, var)
@@ -981,6 +1141,8 @@ fn expr_references_var_at(node: &ExprNode, var: &str, depth: u32) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
     use tcl_registry::CommandRegistry;
 
@@ -991,10 +1153,34 @@ mod tests {
     }
 
     fn run_pass(source: &str) -> Vec<Optimisation> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let registry = registry();
+        let cu = CompilationUnit::build_for(source, &registry, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.registry = Some(&registry);
+        ctx.ir_module = Some(&cu.ir_module);
         run(&mut ctx, &cu);
         ctx.optimisations
+    }
+
+    #[test]
+    fn sinking_raw_read_inventory_uses_the_complete_selected_lexer_configuration() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        config.irules_brace_separator = true;
+        let expression = ExprNode::Raw {
+            text: "{inert}$live".to_owned(),
+        };
+        assert!(expression.vars_with_config(config).contains("live"));
+        let statement = Statement::AssignExpr {
+            span: tcl_lexer::Span::new(0, 1),
+            name: "result".to_owned(),
+            name_braced: false,
+            expr: expression,
+            command_binding: None,
+            fallback_value: "[expr {{inert}$live}]".to_owned(),
+            expr_base: None,
+        };
+        assert!(assignment_reads_any_var(&statement, config));
     }
 
     /// `expr_references_var` recurses
@@ -1223,7 +1409,9 @@ mod tests {
         // The pin must exercise the Barrier arm of `statement_uses_var`, not
         // the dynamic-name whole-function gate — assert the barrier is clear.
         let cu = CompilationUnit::build_for(src, &registry(), false);
-        let fu = cu.procedures.get("::f").expect("::f built");
+        let fu = fixture_id_if_present(&cu.procedures, "::f")
+            .and_then(|id| cu.procedures.get(&id))
+            .expect("::f built");
         assert!(
             !fu.dynamic_barrier_blocks_value_motion(),
             "shape must not raise the dynamic-name barrier",
@@ -1258,6 +1446,24 @@ mod tests {
     /// an `UpFrame`) answers "uses every variable", matching
     /// `propagation`'s `has_intervening_barrier`.
     #[test]
+    fn opaque_native_call_blocks_sinking_a_read_across_unknown_writes() {
+        let native = crate::ir::native_call_for_test(b"opaque \xff");
+        let braced = tcl_dialect::BracedVarStyle::default();
+        let sink = Statement::AssignValue {
+            span: tcl_lexer::Span::new(0, 12),
+            name: "result".into(),
+            name_braced: false,
+            value: "$source".into(),
+            value_needs_backsubst: false,
+            tokens: None,
+        };
+        assert!(statement_uses_var(&native, "result", 0, braced));
+        assert!(statement_defines_var(&native, "source"));
+        assert!(stmt_redefines_sink_read(&native, &sink, 0, braced));
+        assert!(stmt_defined_vars(&native).is_empty());
+    }
+
+    #[test]
     fn barrier_statement_conservatively_uses_every_var() {
         let barrier = Statement::Barrier {
             span: tcl_lexer::Span::new(0, 4),
@@ -1281,6 +1487,135 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::CodeSinking]);
         // Single `set` with no following decision → no O125.
-        assert!(ctx.optimisations.is_empty());
+        assert_eq!(ctx.optimisations, [] as [crate::optimiser::Optimisation; 0]);
+    }
+    #[test]
+    fn actual_condition_source_read_veto_retains_nested_word_reads_without_inert_data() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        for (source, expected) in [
+            ("set n 5; if {[string length $n]} {puts $n}", true),
+            ("set n 5; if {[info exists n]} {puts $n}", true),
+            ("set n 5; if {[string length {$n}]} {puts $n}", false),
+        ] {
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+                .with_resolved_analysis_input(input.clone());
+            lowerer.lower(source);
+            let module = lowerer.finish_module(source);
+            let decision = module.top_level.statements.last().unwrap();
+            assert!(matches!(decision, Statement::If { .. }));
+            let mut ctx = PassContext::new(source, InterproceduralAnalysis::default());
+            ctx.registry = Some(registry);
+            ctx.ir_module = Some(&module);
+            assert_eq!(
+                original_condition_source_read(&ctx, &module.top_level, decision, "n").is_some(),
+                expected
+            );
+            ctx.source = "if 1 {}";
+            assert!(
+                original_condition_source_read(&ctx, &module.top_level, decision, "n").is_none()
+            );
+        }
+    }
+    #[test]
+    fn an_original_unsupported_condition_keeps_its_opaque_substitution_residual() {
+        let registry = registry();
+        let source = "set n 1; if {unknown(} {puts $n}";
+        let unit = CompilationUnit::build_for(source, &registry, false);
+        let decision = unit.ir_module.top_level.statements.last().unwrap();
+        let Statement::If { clauses, .. } = decision else {
+            panic!("actual original conditional lowering");
+        };
+        assert!(matches!(clauses[0].condition, ExprNode::Raw { .. }));
+        let inventory = crate::ir_helpers::expression_command_substitutions(
+            &clauses[0].condition,
+            &registry,
+            None,
+        );
+        assert!(inventory.opaque);
+        assert!(decision_condition_substitution_touches_var(
+            decision,
+            "n",
+            Some(&registry)
+        ));
+    }
+    #[test]
+    fn physical_condition_cell_overlap_is_only_a_positive_veto() {
+        for (source, expected) in [
+            ("set n 0; set n 5; if {$n} {puts $n}", true),
+            (
+                "set n 0; set n 5; trace add variable n read callback; if {$n} {puts $n}",
+                false,
+            ),
+        ] {
+            let fixture = crate::provider_fixtures::original_native_module(source, "tcl8.6");
+            let (context, module) = &*fixture;
+            let store = &module.top_level.statements[1];
+            let decision = module.top_level.statements.last().unwrap();
+            let mut ctx = PassContext::new(
+                source,
+                crate::interprocedural::InterproceduralAnalysis::default(),
+            );
+            ctx.registry = Some(context.commands());
+            ctx.ir_module = Some(module);
+            assert_eq!(
+                super::original_condition_reads_store_cell(
+                    &ctx,
+                    &module.top_level,
+                    store,
+                    decision
+                )
+                .is_some(),
+                expected
+            );
+            ctx.source = "foreign source";
+            assert!(
+                super::original_condition_reads_store_cell(
+                    &ctx,
+                    &module.top_level,
+                    store,
+                    decision
+                )
+                .is_none()
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod physical_condition_alias_veto_tests {
+    use super::*;
+
+    #[test]
+    fn canonical_condition_overlap_vetoes_distinct_lexical_names() {
+        let source = "set n 0; set ::n 5; if {$n} {puts $::n}";
+        let fixture = crate::provider_fixtures::original_native_module(source, "tcl8.6");
+        let (context, module) = &*fixture;
+        let store = &module.top_level.statements[1];
+        let decision = module.top_level.statements.last().unwrap();
+        assert!(!decision_condition_uses_var(
+            decision,
+            "::n",
+            module.lexer_config.braced_var,
+        ));
+        let mut ctx = PassContext::new(
+            source,
+            crate::interprocedural::InterproceduralAnalysis::default(),
+        );
+        ctx.registry = Some(context.commands());
+        ctx.ir_module = Some(module);
+        assert!(
+            original_condition_reads_store_cell(&ctx, &module.top_level, store, decision,)
+                .is_some()
+        );
     }
 }

@@ -31,6 +31,8 @@ workspace = true
 
 [dependencies]
 tcl-dialect = { path = "../tcl-dialect" }
+tcl-core-types = { path = "../tcl-core-types" }
+tcl-syntax = { path = "../tcl-syntax" }
 # `default-features = false` drops salsa's `rayon` (its default `macros` +
 # `rayon` + `salsa_unstable`-adjacent set): the parallel query machinery needs
 # real threads, which wasm32-unknown-unknown does not have, and nothing in this
@@ -44,6 +46,9 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 
 [dev-dependencies]
+serde_json = "1"
+tcl-vm = { path = "../tcl-vm" }
+tcl-runtime-api = { path = "../tcl-runtime-api" }
 rayon = "1"
 # The value-transfer parity tests load a workspace pack, install its
 # overlay registry and publish its hook plan exactly as the server does, so

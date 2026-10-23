@@ -69,9 +69,8 @@ impl LimitKind {
 const DISPATCHES_PER_CLOCK_READ: u32 = 64;
 
 /// How many iterations of a loop that dispatches nothing pass between two reads
-/// of the clock — the throttle `interp limit time` uses. The loop commands need
-/// the numeric tower, so without it there is no loop to charge.
-#[cfg(have_tommath)]
+/// of the clock — the throttle `interp limit time` uses. Compiled control
+/// callers retain this independent budget worker when no numeric tower exists.
 const TICKS_PER_CLOCK_READ: u32 = 4096;
 
 /// The limits, and where the running evaluation stands against them.
@@ -190,7 +189,6 @@ impl Interp {
     /// Charge one iteration of a loop that may dispatch nothing (`while 1 {}`):
     /// the clock, every [`TICKS_PER_CLOCK_READ`] iterations, and a limit
     /// already exceeded.
-    #[cfg(have_tommath)]
     pub(crate) fn charge_tick(&mut self) -> Option<Code> {
         let kind = {
             let mut budget = self.budget.borrow_mut();

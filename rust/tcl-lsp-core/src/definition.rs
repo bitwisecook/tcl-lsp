@@ -16,107 +16,55 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Definition / declaration / type-definition / implementation
-//! provider.
+//! Definition and declaration source selection.
 //!
-//! The four LSP methods all answer the same fundamental question
-//! ("where is the symbol at this position defined?") with slightly
-//! different priorities for proc / class / variable matches.  The
-//! four share the same core function and the server lifts each
-//! method onto it.
+//! Native naming profiles select retained original inputs before presenting a
+//! location. The complete current source image, full lexer configuration and
+//! selected Registry must agree with the analysis. A missing, stale or unknown
+//! original query is terminal; reporting labels cannot reconstruct that query.
 //!
-//! Resolved here:
+//! The local provider composes the shared readonly owners:
 //!
-//! * `$var` references resolve to the `definition_span` of the
-//!   matching `VarDef` in the global scope.  Scope-chain
-//!   descent is not done — the analyser's body-span line index
-//!   is not threaded into the search path.
-//! * Bare-word references resolve to a user-defined `proc` or
-//!   `TclOO` class via `name_span`.  Proc resolution follows C
-//!   Tcl's command lookup (`Tcl_FindCommand`, `tclNamesp.c`):
-//!   the caller's namespace first, then the global namespace;
-//!   an absolute `::`-prefixed word resolves exactly.  When no
-//!   candidate is defined and the word doesn't name a registry
-//!   builtin, a deterministic tail match keeps the lenient
-//!   behaviour for procs whose defining namespace isn't
-//!   statically visible at the call.
+//! * [`crate::namespace_symbol`] selects exact namespace bytes and policy,
+//!   including written implicit-parent geometry.
+//! * [`crate::variable_symbol`] selects an authentic variable occurrence and
+//!   its source frame, then exposes matching declaration spans. This grants no
+//!   runtime cell, value or observer capability.
+//! * [`crate::method_symbol`] keeps an actual call-point method entry separate
+//!   from a possible source declaration. Own-object workers retain their own
+//!   allocation and generation; class and instance tables cannot replace them.
+//! * Original procedure and class lookups retain their selected source
+//!   allocation. Alias and renamed routes can lead to that allocation without
+//!   becoming direct declaration spellings or editable references.
 //!
-//! Command-table indirection: Tcl's command table is mutable, so a
-//! word's spelling does not by itself name the definition the call
-//! reaches. When `analysis.renamed_commands` / `analysis.command_aliases`
-//! record a `rename OLD NEW` or an `interp alias {} ALIAS {} TARGET`
-//! that is **in effect at the cursor**, the provider follows the chain
-//! (via the shared walk in `tcl_compiler::analyser::indirection`, which
-//! the analyser's own constructor typing uses) and resolves the terminal
-//! name from the global namespace — where an alias target and a rename
-//! source are both looked up when the binding fires. This is asked
-//! *before* the ordinary call resolution, because an alias silently
-//! replaces a same-named command. It is order-gated: a call written
-//! before the mutation resolves the ordinary way, matching tclsh, where
-//! it is `invalid command name`. An argument-prepending alias is
-//! declined — it is not the call the target would receive.
+//! Source-declaration advice requires a unique current original candidate.
+//! Repeated publications, earlier occupied non-class slots and unresolved
+//! operands are preserved as selection boundaries. Exact expression function
+//! occurrences use their independently selected fixed-table or command-lookup
+//! purpose; an expression identifier is not fabricated as a command-head word.
 //!
-//! Redefinition: a proc declared twice in one document is two
-//! definitions of one command. `all_procs` keeps the last (plain Tcl's
-//! own rule) and `AnalysisResult::superseded_procs` keeps the rest, so a
-//! call between the two resolves to the definition in effect there and a
-//! cursor on either header stays on that header.
+//! The server supplies independently owned current document inventories for
+//! workspace selection. A returned byte span supplies source geometry only;
+//! conversion to an LSP range does not issue identity or edit permission.
+//! Type-definition and implementation navigation use their own typed readonly
+//! declaration and relation owners rather than a nominal object-type map.
 //!
-//! Class-member lookup: when the cursor sits on a
-//! word inside a class body span, the provider walks that
-//! class's `methods` / `class_methods` / `properties` /
-//! `constructors` / `destructor` looking for a name match
-//! and jumps to the member's `name_span`.  Catches `my
-//! method` calls inside the body and bare references to the
-//! class's own members.
-//!
-//! `$obj method` dispatch: when the cursor sits on
-//! the method-name token of a `$obj method` / `[$obj method]`
-//! call and `$obj`'s class is known (recorded in
-//! `analysis.instance_classes` from a `set obj [Cls new]` /
-//! `Cls create obj` site), the provider jumps to the method
-//! declaration on that class.
-//!
-//! `apply` namespace override: a bareword call
-//! inside `apply {{params} body ns}`'s body resolves against `ns`, not
-//! wherever the `apply` call is lexically written — `namespace_context_at`
-//! / `innermost_namespace_at` consult `analysis.namespace_overrides`
-//! (populated by `Analyser::handle_apply_command`) ahead of the ordinary
-//! lexical scope-chain walk. Also resolves one hop through a `$var` or
-//! `[list {params} $body ns]` indirection (`set lambda {...}; apply
-//! $lambda`), bounded to that one hop by design.
-//!
-//! Limitations:
-//!
-//! * Flow-sensitive / scope-aware instance-class tracking —
-//!   `analysis.instance_classes` is a best-effort global
-//!   var-name → class map (last assignment wins).  Re-binding
-//!   the same name to a different class, or two locals of the
-//!   same name in different procs, isn't disambiguated.
-//! * `BigIP` definition — a separate provider keyed off iRules
-//!   dialect that resolves pool / data-group / iRule /
-//!   virtual-server names against a parsed `bigip.conf` — is
-//!   not implemented here.
-//! * `apply` reached only through a registry `command_prefixes` slot
-//!   (`coroutine co ::apply $lambda`) is not modelled — that slot is
-//!   consulted today only for IR-level interprocedural call-graph
-//!   reachability, never re-dispatched through `AnalyserHookId::Apply`.
-//!   Nor is a proc that re-injects its own arguments as a script via a
-//!   captured `uplevel`-namespace + trace/callback (tcllib generator.tcl's
-//!   `finally`) — there is no static/lexical connection between such
-//!   a call and the token it eventually invokes, so this is a considered,
-//!   permanent limitation rather than an oversight. Deeper `$var`-to-`$var`
-//!   indirection beyond one hop (`set a $lambda; apply $a`) is the same
-//!   kind of deliberate, bounded gap, not a special case of this one.
+//! Profiles that explicitly allow lexical declaration advice retain a separate
+//! compatibility path. Its reporting procedure/class/variable maps, namespace
+//! helpers and bounded legacy member scans do not participate in Native
+//! original selection. BIG-IP configuration object navigation is a separate
+//! dialect consumer and does not supply Tcl command or cell authority.
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::analyser::indirection;
 use tcl_lexer::{LineIndex, Utf16Col};
+use tcl_registry::CommandRegistry;
 use tcl_registry::definer::DeclaredMemberVisibility;
 
-use crate::hover::{find_var_at_position, find_word_span_at_position};
+use crate::hover::find_word_span_at_position;
 use crate::namespace_import::{ExportVerdict, NamespaceExportOracle};
+use crate::original_context::CurrentSourcePosition;
 use crate::source_graph::{RunOrder, RunPoint};
 
 /// Whole-program export knowledge, paired with the URI of the document being
@@ -139,26 +87,10 @@ pub struct ProgramExports<'a> {
     pub oracle: &'a dyn NamespaceExportOracle,
 }
 
-/// Everything a call-site resolution consults **besides the document in front
-/// of it** — the context [`resolve_called_proc`] and its helpers carry.
-///
-/// Two facts, both optional, both meaning "keep the document-only answer" when
-/// absent:
-///
-/// * [`registry`](Self::registry) — the dialect's command registry, the
-///   builtin gate. A caller without one keeps the lenient behaviour; there is
-///   no builtin to protect.
-/// * [`program`](Self::program) — the whole-program export oracle. A caller
-///   without one (a single-document unit test, the `tcl` CLI, a buffer the
-///   workspace has not indexed) falls back to the document-only rule: an
-///   in-document export record decides, and its
-///   absence is read as evidence only where this document holds *some* export
-///   for the namespace.
-///
-/// One context rather than two more parameters at each of the fourteen
-/// [`resolve_called_proc`] call sites, and rather than a global: the facts are
-/// per-request, and a global would make a single-document unit test and a
-/// live server disagree about what "no workspace" means.
+/// Request-local compatibility context for [`resolve_called_proc`].
+/// The optional Registry protects builtin bindings. Without a program export
+/// oracle, in-document export records decide; absence is evidence only when
+/// this document records an export for that namespace.
 #[derive(Clone, Copy, Default)]
 pub struct CallResolution<'a> {
     /// The dialect's command registry, when the caller has one.
@@ -257,17 +189,6 @@ pub fn definition(
     definition_with(source, line, character, analysis, None)
 }
 
-/// The document's own lexing configuration, from the analysis result's
-/// resolved dialect.
-///
-/// The cursor-shape helpers below re-read a slice of the document (a `[…]`
-/// receiver, a dispatch head), and that re-read must draw the word
-/// boundaries the document's grammar draws — `}{` breaks a word under the
-/// iRules grammar and does not under plain Tcl.
-pub(crate) fn dialect_config(analysis: &AnalysisResult) -> tcl_lexer::LexerConfig {
-    tcl_lexer::LexerConfig::for_profile(Some(crate::profile_for_dialect(&analysis.dialect)))
-}
-
 /// [`definition`] with the caller's whole-program export view attached.
 ///
 /// `program` is `None` for a host with no workspace index (a single-document
@@ -280,13 +201,59 @@ pub fn definition_with(
     analysis: &AnalysisResult,
     program: Option<ProgramExports<'_>>,
 ) -> Vec<LspRange> {
+    let Some(position) = CurrentSourcePosition::capture(source, analysis, line, character) else {
+        return Vec::new();
+    };
     let view = CallResolution {
         registry: None,
         program,
     };
     let line_index = LineIndex::new(source);
 
-    let decl_byte_offset = byte_offset_at(&line_index, source, line, character);
+    let decl_byte_offset = position.offset();
+    if program_forced_import_abstains(analysis, program, decl_byte_offset) {
+        return Vec::new();
+    }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::vendor_declaration::select_at_offset(source, analysis, decl_byte_offset)
+    {
+        return selected
+            .into_iter()
+            .map(|selected| span_to_range(source, &line_index, selected.span()))
+            .collect();
+    }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::namespace_symbol::select_at_offset(source, analysis, decl_byte_offset)
+    {
+        return selected.map_or_else(Vec::new, |symbol| {
+            crate::namespace_symbol::original_namespace_declaration_spans(source, analysis, &symbol)
+                .into_iter()
+                .map(|span| span_to_range(source, &line_index, span))
+                .collect()
+        });
+    }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::variable_symbol::select_navigation(source, analysis, line, character, view)
+    {
+        return selected.map_or_else(Vec::new, |occurrence| {
+            occurrence
+                .declaration_spans(analysis)
+                .into_iter()
+                .map(|span| span_to_range(source, &line_index, span))
+                .collect()
+        });
+    }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::method_symbol::local_candidate(source, analysis, line, character)
+    {
+        return selected.map_or_else(Vec::new, |candidate| {
+            vec![span_to_range(
+                source,
+                &line_index,
+                candidate.declaration_span(),
+            )]
+        });
+    }
     // Steps 1a-1d are cursor-position decisions: a `$var` read, bareword
     // declaration, `expr` math-function call, and two pure-data positions.
     // `Some` is definitive (including `Some(vec![])`).
@@ -329,8 +296,9 @@ pub fn definition_with(
     // independently looks up `make` as a command (only the pair `widget make`
     // dispatches), so a coincidental same-named proc elsewhere in the
     // workspace must never win.
-    let config = dialect_config(analysis);
-    if let Some((head, sub, false)) = instance_method_at_cursor(source, line, character, config) {
+    if let Some((head, sub, false)) =
+        original_instance_method_at_cursor(source, analysis, line, character)
+    {
         // The cursor offset here is `decl_byte_offset`, already computed above.
         let namespace = namespace_context_at(
             &analysis.global_scope,
@@ -344,7 +312,7 @@ pub fn definition_with(
                 "::",
                 target,
                 decl_byte_offset,
-                view.with_registry(crate::registry_for_dialect(&analysis.dialect)),
+                view.with_registry(crate::registry_for_analysis(analysis)),
             )
         {
             return vec![span_to_range(source, &line_index, proc_def.name_span)];
@@ -365,21 +333,23 @@ pub fn definition_with(
     // later same-named `proc` displaced still resolves to itself instead of
     // silently jumping to its own successor — `all_procs` only ever keeps the
     // winner's span.
-    let cursor_offset = byte_offset_at(&line_index, source, line, character);
-    if let Some((_, span)) = analysis
-        .proc_declaration_sites
-        .iter()
-        .find(|(_, span)| span.start() <= cursor_offset && cursor_offset < span.end())
-    {
-        return vec![span_to_range(source, &line_index, *span)];
+    let cursor_offset = decl_byte_offset;
+    if let Some(span) = procedure_name_at_cursor(analysis, cursor_offset) {
+        return vec![span_to_range(source, &line_index, span)];
     }
     // An **already-resolved indirect head** the analyser settled — a
     // `${ns}::setdef` whose `$ns` is a constant, a constant `$cmd` dispatch —
     // is asked before every name-based path below: the span does not carry
     // the written command name, so the bareword lookup can only ever answer
     // with a coincidentally same-named decoy.
-    if let Some(span) = resolved_indirect_head_target(analysis, cursor_offset) {
+    if !analysis.allows_retained_logical_declaration_advice()
+        && let Some(span) = resolved_indirect_head_target(analysis, cursor_offset)
+    {
         return vec![span_to_range(source, &line_index, span)];
+    }
+    if let Some(target) = positioned_definition_target(analysis, source, &line_index, cursor_offset)
+    {
+        return target;
     }
     // Otherwise it is a CALL — resolve namespace-aware, following C Tcl's
     // command resolution (`Tcl_FindCommand`, `tclNamesp.c`): the caller's
@@ -426,14 +396,23 @@ pub fn definition_with(
     // head. Without this the pure text scan lets an ordinary *argument*
     // resolve as a command name — see
     // [`offset_is_command_head`] for the gate and its one documented limit.
-    if offset_is_command_head(analysis, cursor_offset)
+    if analysis.allows_retained_logical_declaration_advice() {
+        if let Some(call) = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_for_cursor(
+                source, analysis, cursor_offset,
+            )
+        {
+            return call.declaration(analysis).map_or_else(Vec::new, |header| {
+                vec![span_to_range(source, &line_index, header.metadata().name_span)]
+            });
+        }
+    } else if offset_is_command_head(analysis, cursor_offset)
         && let Some(proc_def) = resolve_called_proc(
             analysis,
             source,
             &namespace,
             &word,
             cursor_offset,
-            view.with_registry(crate::registry_for_dialect(&analysis.dialect)),
+            view.with_registry(crate::registry_for_analysis(analysis)),
         )
     {
         // A proc redefined later in the document is two definitions sharing
@@ -444,7 +423,7 @@ pub fn definition_with(
             .unwrap_or(proc_def);
         return vec![span_to_range(source, &line_index, in_effect.name_span)];
     }
-    if let Some(span) = class_declaration_at(analysis, &word, cursor_offset) {
+    if let Some(span) = class_declaration_at(source, analysis, view, &word, cursor_offset) {
         return vec![span_to_range(source, &line_index, span)];
     }
     // Class-member lookup — when the cursor sits inside a
@@ -452,7 +431,7 @@ pub fn definition_with(
     // constructors / destructor for a name match.  Covers
     // `my method` calls inside the body plus bare member
     // references.
-    if let Some(span) = lookup_class_member(analysis, &word, cursor_offset) {
+    if let Some(span) = lookup_class_member(source, analysis, &word, cursor_offset) {
         return vec![span_to_range(source, &line_index, span)];
     }
     Vec::new()
@@ -465,20 +444,9 @@ fn list_built_self_method_definition(
     word: &str,
     cursor_offset: u32,
 ) -> Option<Vec<LspRange>> {
-    let (provider, is_classmethod) = crate::references::list_built_self_method_target_at_cursor(
-        source,
-        crate::profile_for_dialect(&analysis.dialect),
-        analysis,
-        word,
-        cursor_offset,
-    )?;
-    let class_def = analysis.all_classes.get(&provider)?;
-    let method = if is_classmethod {
-        class_def.class_methods.get(word)
-    } else {
-        class_def.methods.get(word)
-    }?;
-    Some(vec![span_to_range(source, line_index, method.name_span)])
+    let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)?;
+    (selected.method.name == word)
+        .then(|| vec![span_to_range(source, line_index, selected.method.name_span)])
 }
 
 fn next_dispatch_definition(
@@ -487,11 +455,9 @@ fn next_dispatch_definition(
     line_index: &LineIndex,
     line: u32,
     character: u32,
-    word: &str,
+    _word: &str,
 ) -> Option<Vec<LspRange>> {
-    is_next_chain_keyword_in(crate::profile_for_dialect(&analysis.dialect), word)
-        .then(|| next_dispatch_target(analysis, source, line_index, line, character, word))
-        .flatten()
+    next_dispatch_target(analysis, source, line_index, line, character)
         .map(|span| vec![span_to_range(source, line_index, span)])
 }
 
@@ -522,13 +488,40 @@ fn indirect_definition_target(
     cursor_off: u32,
     word: &str,
 ) -> Option<tcl_lexer::Span> {
+    if let Some(reference) = invocation_reference_at(analysis, cursor_off)
+        .and_then(|invocation| invocation.resolved_command_reference.as_ref())
+    {
+        let definition = reference
+            .linked_definition()
+            .or_else(|| reference.definition())?;
+        return analysis
+            .proc_for_definition(definition, source)
+            .map(|declaration| declaration.name_span)
+            .or_else(|| {
+                analysis
+                    .class_for_definition(definition, source)
+                    .map(|declaration| declaration.name_span)
+            });
+    }
+    if analysis.allows_retained_logical_declaration_advice() {
+        let call =
+            tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_for_cursor(
+                source,
+                analysis,
+                cursor_off,
+            )?;
+        return call
+            .declaration(analysis)
+            .map(|header| header.metadata().name_span);
+    }
     let hop = command_indirection(analysis, word, cursor_off)?;
-    let registry = crate::registry_for_dialect(&analysis.dialect);
+    let lookup = hop.lookup_spelling()?;
+    let registry = crate::registry_for_analysis(analysis);
     if let Some(proc_def) = resolve_called_proc(
         analysis,
         source,
         "::",
-        &hop.target,
+        &lookup,
         cursor_off,
         ctx.with_registry(registry),
     ) {
@@ -537,7 +530,71 @@ fn indirect_definition_target(
             .unwrap_or(proc_def);
         return Some(captured.name_span);
     }
-    class_declaration_at(analysis, &hop.target, cursor_off)
+    class_declaration_at(source, analysis, ctx, &hop.target, cursor_off)
+}
+
+/// Original written procedure header, including displaced declarations.
+fn procedure_name_at_cursor(
+    analysis: &AnalysisResult,
+    cursor_offset: u32,
+) -> Option<tcl_lexer::Span> {
+    if analysis.allows_retained_logical_declaration_advice() {
+        let mut selected = analysis
+            .logical_source_procedure_declarations()
+            .filter_map(|header| {
+                let span = header.original_name_word()?.span();
+                (span.start() <= cursor_offset && cursor_offset < span.end()).then_some(span)
+            });
+        let span = selected.next()?;
+        return selected.next().is_none().then_some(span);
+    }
+    analysis
+        .proc_declaration_sites
+        .iter()
+        .find(|(_, span)| span.start() <= cursor_offset && cursor_offset < span.end())
+        .map(|(_, span)| *span)
+}
+
+/// A known called slot settles local navigation even when it has no source
+/// definition. `Some([])` preserves that refusal against name assistance.
+fn positioned_definition_target(
+    analysis: &AnalysisResult,
+    source: &str,
+    line_index: &LineIndex,
+    cursor_offset: u32,
+) -> Option<Vec<LspRange>> {
+    if analysis.allows_retained_logical_declaration_advice() {
+        let call = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_for_cursor(
+            source, analysis, cursor_offset,
+        )?;
+        return Some(call.declaration(analysis).map_or_else(Vec::new, |header| {
+            vec![span_to_range(
+                source,
+                line_index,
+                header.metadata().name_span,
+            )]
+        }));
+    }
+    let reference = invocation_reference_at(analysis, cursor_offset)?
+        .resolved_command_reference
+        .as_ref()?;
+    let span = reference
+        .linked_definition()
+        .or_else(|| reference.definition())
+        .and_then(|definition| {
+            analysis
+                .proc_for_definition(definition, source)
+                .map(|declaration| declaration.name_span)
+                .or_else(|| {
+                    analysis
+                        .class_for_definition(definition, source)
+                        .map(|declaration| declaration.name_span)
+                })
+        });
+    Some(
+        span.map(|span| vec![span_to_range(source, line_index, span)])
+            .unwrap_or_default(),
+    )
 }
 
 /// The cursor context [`position_definition`] needs beyond the offset.
@@ -586,6 +643,15 @@ fn position_definition(
     cursor_off: u32,
     ctx: DefCtx<'_>,
 ) -> Option<Vec<LspRange>> {
+    if crate::receiver_identity::definition_reference_at_cursor(ctx.analysis, source, cursor_off)
+        .is_some()
+    {
+        return Some(
+            crate::receiver_identity::method_at_cursor(ctx.analysis, source, cursor_off)
+                .map(|selected| vec![span_to_range(source, line_index, selected.method.name_span)])
+                .unwrap_or_default(),
+        );
+    }
     let DefCtx {
         line,
         character,
@@ -596,21 +662,10 @@ fn position_definition(
     // inside a brace-quoted variable-name word (`set {$n} 1`) is not a `$n`
     // reference, and must fall through to the declaration-span search below
     // so it answers the *literal* cell.
-    if let Some(var_name) = substituting_var_at_position(
-        source,
-        crate::profile_for_dialect(""),
-        line,
-        character,
-        cursor_off,
-    ) {
-        if let Some(var_def) = lookup_var_read_at(
-            &analysis.global_scope,
-            source,
-            crate::profile_for_dialect(""),
-            cursor_off,
-            &var_name,
-            analysis.ns_var_global_fallback(),
-        ) {
+    if let Some(var_name) =
+        substituting_var_at_position(source, analysis, line, character, cursor_off)
+    {
+        if let Some(var_def) = lookup_var_read_at(analysis, source, cursor_off, &var_name) {
             return Some(vec![span_to_range(
                 source,
                 line_index,
@@ -664,7 +719,20 @@ fn position_definition(
                 .collect(),
         );
     }
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::math_function_symbol::select_at_offset(source, analysis, cursor_off)
+    {
+        return Some(
+            selected
+                .and_then(|selected| selected.procedure_metadata())
+                .map(|row| vec![span_to_range(source, line_index, row.metadata().name_span)])
+                .unwrap_or_default(),
+        );
+    }
     if let Some(inv) = crate::expr_context::mathfunc_call_at(analysis, cursor_off) {
+        if !analysis.allows_lexical_declaration_advice() {
+            return Some(Vec::new());
+        }
         return Some(
             inv.resolved_qualified_name
                 .as_deref()
@@ -693,8 +761,12 @@ fn caller_frame_definition(
     let bindings = crate::caller_frame::caller_frame_bindings(
         analysis,
         source,
-        crate::profile_for_dialect(""),
-        resolution.with_registry(crate::registry_for_dialect("")),
+        crate::profile_for_analysis(analysis),
+        resolution.with_registry(
+            resolution
+                .registry
+                .unwrap_or_else(|| crate::registry_for_analysis(analysis)),
+        ),
         cursor_off,
         name,
     );
@@ -719,143 +791,35 @@ fn instance_method_definition(
     line: u32,
     character: u32,
 ) -> Option<Vec<LspRange>> {
-    let (inst, method, is_dollar) =
-        instance_method_at_cursor(source, line, character, dialect_config(analysis))?;
-    // The folded per-object member state for this receiver binding, when
-    // `oo::objdefine` gave it one — it carries the per-object visibility
-    // flips.
-    let object_state = object_member_state_at(analysis, source, &inst, line, character);
-    // A per-object method (`oo::objdefine $obj { method m … }`) is layered
-    // ahead of the object's class methods, so resolve it first — `$obj m`
-    // must reach the per-object override, not a same-named class method.
-    // Binding-identity keyed: the lookup honours the
-    // receiver's scope, not just its textual tail.
-    if let Some(span) = lookup_object_method(analysis, source, &inst, &method, line, character) {
-        // An unexported per-object member masks the name for an external
-        // dispatch outright — oracle, tclsh 9.0.4 / 8.6.14: after
-        // `oo::objdefine $o { method M {} {…} }` (name-rule unexported) or
-        // `… { method m {} {…}; unexport m }`, `$o M` / `$o m` answer
-        // `unknown method`, the class chain notwithstanding.
-        if let Some(st) = object_state
-            && let Some(md) = st.methods.get(&method)
-            && md.visibility != DeclaredMemberVisibility::Public.as_str()
-        {
-            return Some(Vec::new());
-        }
-        return Some(vec![span_to_range(source, line_index, span)]);
+    let cursor = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
+    if let Some(selected) = crate::receiver_identity::method_at_cursor(analysis, source, cursor) {
+        return Some(vec![span_to_range(
+            source,
+            line_index,
+            selected.method.name_span,
+        )]);
     }
-    // `my m` / `[self] m` / `[self object] m` — an internal call: dispatch
-    // starts at the *enclosing* class and reaches unexported methods too
-    // (including the `[self]` spellings).
-    if is_self_dispatch_keyword(&inst)
-        || is_self_receiver_call(
-            &inst,
-            tcl_lexer::LexerConfig::for_profile(Some(crate::profile_for_dialect(
-                &analysis.dialect,
-            ))),
-        )
-    {
-        let cursor = byte_offset_at(line_index, source, line, character);
-        if let Some(class_q) = enclosing_class_at(analysis, cursor) {
-            return Some(method_dispatch_definition(
-                analysis,
-                source,
-                line_index,
-                class_q,
-                &method,
-                false,
-                MethodBucket::Instance,
-            ));
-        }
-    }
-    let cursor = byte_offset_at(line_index, source, line, character);
-    let class_q = receiver_instance_class_at(analysis, &inst, is_dollar, cursor)?;
-    let bucket = receiver_method_bucket(analysis, &inst, is_dollar);
-    let class_q = class_q.clone();
-    // Per-object visibility flips on a *class*-provided member:
-    // `oo::objdefine $o { unexport m }` masks the member for this
-    // object's external dispatch even though the class exports it (`$o m` →
-    // `unknown method`, tclsh 9.0.4 / 8.6.14), and `… { export m }` revives
-    // an unexported one — the dispatch then enters the first implementation
-    // regardless of the class-side export state, which is what an internal
-    // walk resolves.
-    if bucket == MethodBucket::Instance
-        && let Some(st) = object_state
-    {
-        if st.unexports.contains(&method) {
-            return Some(Vec::new());
-        }
-        if st.exports.contains(&method) {
-            return Some(method_dispatch_definition(
-                analysis,
-                source,
-                line_index,
-                &class_q,
-                &method,
-                false,
-                MethodBucket::Instance,
-            ));
-        }
-    }
-    // External `$obj m` / `CLASS m`: the C-faithful dispatch entry — the
-    // first exported implementation on the receiver's linearisation
-    // (mixins before the class, subclasses before bases).  A resolved
-    // receiver is a definitive answer either
-    // way: an unexported/undefined method yields *nothing* rather than
-    // falling through to a same-named proc.
-    let dispatch = method_dispatch_definition(
-        analysis, source, line_index, &class_q, &method, true, bucket,
-    );
-    if !dispatch.is_empty() {
-        return Some(dispatch);
-    }
-    // `configure` / `cget` accessors and properties have no method entry;
-    // keep the property fallback before giving up.
-    if let Some(p) = analysis
-        .all_classes
-        .get(&class_q)
-        .and_then(|cd| cd.properties.get(method.as_str()))
-    {
-        return Some(vec![span_to_range(source, line_index, p.name_span)]);
-    }
-    Some(Vec::new())
+    None
 }
 
-/// Walk every class whose `body_span` contains the cursor
-/// offset and look up `word` in that class's methods,
-/// class-methods, or properties — but ONLY when `word` is
-/// itself genuinely bareword-callable from a method body of
-/// this class: a bareword sibling call only actually dispatches
-/// when `link` (`oo::Helpers::link`) exposed it that way
-/// (`ClassDef::linked_members`); an
-/// un-linked member of the same name errors "invalid command
-/// name" at runtime, so it must not resolve here either. Also
-/// checks constructors/destructor, unconditionally (a distinct,
-/// unrelated feature — see [`ClassDef::linked_members`]'s doc).
-/// Returns the matched member's `name_span` when found.
-///
-/// The keyword a constructor or destructor was declared by (`constructor`,
-/// `destructor`) matches that member — the recorded member says which, not
-/// the word's spelling.  Other words match against the member's `name`.
+/// Original linked command heads select their retained method declaration.
+/// Constructor and destructor keywords retain their own declaration path.
 fn lookup_class_member(
+    source: &str,
     analysis: &AnalysisResult,
     word: &str,
     cursor_offset: u32,
 ) -> Option<tcl_lexer::Span> {
+    if let Some(linked) = tcl_compiler::analyser::types::original_source_linked_member_at(
+        analysis,
+        source,
+        cursor_offset,
+    ) {
+        return Some(linked.target().metadata().name_span);
+    }
     let class_def = analysis
         .all_classes
         .get(enclosing_class_at(analysis, cursor_offset)?)?;
-    if let Some(target) = class_def.linked_members.get(word) {
-        if let Some(m) = class_def.methods.get(target) {
-            return Some(m.name_span);
-        }
-        if let Some(m) = class_def.class_methods.get(target) {
-            return Some(m.name_span);
-        }
-        if let Some(p) = class_def.properties.get(target) {
-            return Some(p.name_span);
-        }
-    }
     // A constructor or destructor keyword: the member it declared says so.
     if let Some(c) = class_def
         .constructors
@@ -885,49 +849,10 @@ fn lookup_class_member(
     None
 }
 
-/// Look up `method` among the per-object methods added by `oo::objdefine`
-/// to the object the receiver variable at the *call site* denotes — the
-/// per-object override `TclOO` layers ahead of the object's class methods.
-/// Returns the declaration's `name_span`.
-///
-/// Keyed by **binding identity**, not the receiver's textual tail: two
-/// unrelated locals both named `o` in different procs
-/// are different objects with different per-object methods, so the
-/// candidate set is scoped to the `oo::objdefine` sites whose receiver
-/// resolves to the *same variable binding* as the call site's receiver —
-/// the innermost scope (proc / method body, else the top level) declaring
-/// the name that encloses both.  A dispatch whose binding cannot be
-/// matched to exactly one `objdefine` receiver abstains.
-fn lookup_object_method(
-    analysis: &AnalysisResult,
-    source: &str,
-    receiver: &str,
-    method: &str,
-    line: u32,
-    character: u32,
-) -> Option<tcl_lexer::Span> {
-    let records = analysis.object_methods.get(receiver)?;
-    let line_index = LineIndex::new(source);
-    let call_offset = byte_offset_at(&line_index, source, line, character);
-    let call_scope = variable_scope_extent(analysis, receiver, call_offset);
-    let matched: Vec<&tcl_compiler::analyser::ObjectMethodDef> = records
-        .iter()
-        .filter(|m| variable_scope_extent(analysis, receiver, m.objdefine_offset) == call_scope)
-        .filter(|m| m.def.name == method)
-        .collect();
-    // Exactly one binding-compatible override may answer; several distinct
-    // same-scope objects (reassignment) or none at all abstain to the
-    // class chain.
-    match matched.as_slice() {
-        [only] => Some(only.def.name_span),
-        _ => None,
-    }
-}
-
 /// The folded per-object member state for the receiver binding at the call
 /// site: the [`tcl_compiler::analyser::ObjectMemberState`]
 /// whose anchor resolves to the same variable binding as the call — the
-/// same binding-identity rule [`lookup_object_method`] applies.  `None`
+/// same lexical variable-scope extent used by the object-state summary. `None`
 /// when no `oo::objdefine` touched the receiver, or when the binding is
 /// ambiguous (several same-scope states — abstain rather than guess).
 pub(crate) fn object_member_state_at<'a>(
@@ -938,8 +863,7 @@ pub(crate) fn object_member_state_at<'a>(
     character: u32,
 ) -> Option<&'a tcl_compiler::analyser::ObjectMemberState> {
     let states = analysis.object_member_state.get(receiver)?;
-    let line_index = LineIndex::new(source);
-    let call_offset = byte_offset_at(&line_index, source, line, character);
+    let call_offset = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
     let call_scope = variable_scope_extent(analysis, receiver, call_offset);
     let matched: Vec<&tcl_compiler::analyser::ObjectMemberState> = states
         .iter()
@@ -951,48 +875,305 @@ pub(crate) fn object_member_state_at<'a>(
     }
 }
 
-/// Whether the cursor sits on an **external** instance-method call whose
-/// receiver's per-object member state masks the method name:
-/// an `oo::objdefine` unexport of the name, or an unexported per-object
-/// member — either makes `$obj m` answer `unknown method` (tclsh 9.0.4 /
-/// 8.6.14) regardless of what the class chain provides.
-///
-/// The in-document provider already answers a masked call with a definitive
-/// empty result, but an empty result is indistinguishable from "no local
-/// answer" at the server boundary, so the cross-file method tier would
-/// resolve the class's own member right past it — this predicate is the
-/// gate that tier (and the in-document hover) consults.  `false` for `my`
-/// dispatches (internal — the mask is about external visibility) and
-/// whenever the binding has no state or an ambiguous one.
+/// Withhold workspace method fallback for a retained external visibility mask
+/// or an unavailable current source query. Per-object source summaries remain
+/// conditional source advice; they do not establish Native method visibility.
+/// Missing source currency withholds fallback without asserting a hidden method.
 #[must_use]
-pub fn object_masks_external_dispatch(
+pub fn object_dispatch_mask(
     analysis: &AnalysisResult,
     source: &str,
     line: u32,
     character: u32,
+) -> ExternalObjectDispatchMask {
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return ExternalObjectDispatchMask::Unavailable;
+    };
+    let Some(position) = CurrentSourcePosition::capture(source, analysis, line, character) else {
+        return ExternalObjectDispatchMask::Unavailable;
+    };
+    let cursor = position.offset();
+    let mut mask = ExternalObjectDispatchMask::Clear;
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            if !command
+                .argv
+                .get(1)
+                .is_some_and(|word| word.span.start() <= cursor && cursor < word.span.end())
+            {
+                return false;
+            }
+            mask = object_dispatch_mask_at_command(analysis, source, command, &current, cursor);
+            true
+        },
+    );
+    mask
+}
+
+/// Original visibility and conditional source advice stay separate. None of
+/// these outcomes proves method execution or permission to resolve a fallback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExternalObjectDispatchMask {
+    /// This local source query supplies no visibility mask.
+    Clear,
+    /// A retained original Native receiver entry is not exported.
+    Native,
+    /// Selected per-object source configuration describes a possible mask.
+    ConditionalSource,
+    /// Current source or the mask's required original input is unavailable.
+    Unavailable,
+}
+
+impl ExternalObjectDispatchMask {
+    /// Withhold workspace selection for a mask or an unavailable source query.
+    #[must_use]
+    pub const fn withholds_workspace_fallback(self) -> bool {
+        match self {
+            Self::Clear => false,
+            Self::Native | Self::ConditionalSource | Self::Unavailable => true,
+        }
+    }
+}
+
+fn object_dispatch_mask_at_command(
+    analysis: &AnalysisResult,
+    source: &str,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    current: &crate::original_context::CurrentSourceContext<'_>,
+    cursor: u32,
+) -> ExternalObjectDispatchMask {
+    use tcl_compiler::command_binding::SourceOriginKind;
+    let Some(head) = command.argv.first() else {
+        return ExternalObjectDispatchMask::Unavailable;
+    };
+    let Some(realm) = analysis.retained_command_realm() else {
+        return ExternalObjectDispatchMask::Unavailable;
+    };
+    let binding = realm.invocation_at_source(command.name(), head.span.start());
+    if !matches!(binding.source_origin().map(|origin| origin.kind()),
+        Some(SourceOriginKind::Authored(bytes)) if bytes.as_ref() == source.as_bytes())
+    {
+        return ExternalObjectDispatchMask::Unavailable;
+    }
+    let image = tcl_lexer::SourceImage::document(source);
+    let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        current.config(),
+        command,
+    );
+    let Some(original) = tcl_compiler::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        head.span.start(),
+        tokens.native_lexer_config(current.config()),
+    ) else {
+        return ExternalObjectDispatchMask::Unavailable;
+    };
+    let Some(head) = tokens.word_exprs.first() else {
+        return ExternalObjectDispatchMask::Unavailable;
+    };
+    if binding
+        .receiver_self_method_entry(current.registry())
+        .is_some()
+        || original_internal_dispatch(source, analysis, command, current)
+    {
+        return ExternalObjectDispatchMask::Clear;
+    }
+    let variable_receiver = head.sole_variable_substitution().is_some();
+    let accesses = variable_receiver
+        .then(|| realm.variable_accesses_for_invocation_args(head.source().span.start()));
+    let selected = if let Some(accesses) = &accesses {
+        accesses
+            .iter()
+            .find_map(|access| binding.object_receiver_method_entry(access, head))
+    } else {
+        binding
+            .frozen_object_receiver_method_entry(head)
+            .or_else(|| binding.named_object_receiver_method_entry())
+    };
+    if let Some((class, entry, _)) = selected {
+        if crate::receiver_identity::original_class(analysis, source, class).is_none()
+            || !matches!(entry.declaration().source.kind(), SourceOriginKind::Authored(bytes)
+                if bytes.as_ref() == source.as_bytes())
+        {
+            return ExternalObjectDispatchMask::Unavailable;
+        }
+        return if entry.is_exported() {
+            ExternalObjectDispatchMask::Clear
+        } else {
+            ExternalObjectDispatchMask::Native
+        };
+    }
+    if original
+        .first()
+        .is_some_and(|head| original_self_receiver_head(source, analysis, head, current))
+    {
+        // An original self result identifies the receiver only. External
+        // visibility requires its independent actual method entry above.
+        return ExternalObjectDispatchMask::Unavailable;
+    }
+    let position = LineIndex::new(source).position_at_utf16(cursor, source);
+    let Some((receiver, method, _)) = original_instance_method_at_cursor(
+        source,
+        analysis,
+        position.line,
+        position.character.get(),
+    ) else {
+        return ExternalObjectDispatchMask::Clear;
+    };
+    let Some(state) = object_member_state_at(
+        analysis,
+        source,
+        &receiver,
+        position.line,
+        position.character.get(),
+    ) else {
+        return if analysis.object_member_state.contains_key(&receiver) {
+            ExternalObjectDispatchMask::Unavailable
+        } else {
+            ExternalObjectDispatchMask::Clear
+        };
+    };
+    let same_namespace = analysis
+        .original_namespace_scope_at(cursor)
+        .zip(analysis.original_namespace_scope_at(state.anchor_offset))
+        .is_some_and(|(call, anchor)| call == anchor);
+    if !same_namespace
+        || state.anchor_offset > cursor
+        || state.conditional
+        || !original_object_configuration_anchor(source, analysis, state.anchor_offset, current)
+    {
+        return ExternalObjectDispatchMask::Unavailable;
+    }
+    if state
+        .methods
+        .get(&method)
+        .is_some_and(|method| method.visibility != DeclaredMemberVisibility::Public.as_str())
+        || state.unexports.contains(&method)
+    {
+        ExternalObjectDispatchMask::ConditionalSource
+    } else {
+        ExternalObjectDispatchMask::Clear
+    }
+}
+
+/// The summary's source anchor belongs to a selected per-object configuration.
+/// This authenticates source advice, without identifying a Native receiver.
+fn original_object_configuration_anchor(
+    source: &str,
+    analysis: &AnalysisResult,
+    anchor: u32,
+    current: &crate::original_context::CurrentSourceContext<'_>,
 ) -> bool {
-    let Some((inst, method, _is_dollar)) =
-        instance_method_at_cursor(source, line, character, dialect_config(analysis))
+    use tcl_compiler::registry_invocation::source_structure;
+    let context = current.context();
+    let mut selected = false;
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            if !command.argv.iter().any(|word| word.span.start() == anchor) {
+                return false;
+            }
+            let Some(words) = source_structure::source_registry_words(source, analysis, command)
+            else {
+                return false;
+            };
+            selected = words.with_source_schema(&context, |schema| {
+                schema.authored_source_definition_body_grammar().is_some()
+                    && schema.state_transitions().facts().iter().any(|fact| {
+                        let tcl_registry::StateTransition::ObjectDispatch(
+                            tcl_registry::ObjectDispatchTransition::Configure {
+                                target,
+                                layer: tcl_registry::ObjectDispatchLayer::Object,
+                            },
+                        ) = &fact.transition
+                        else {
+                            return false;
+                        };
+                        target
+                            .argument_index()
+                            .and_then(|index| words.original_argument_word(index))
+                            .is_some_and(|word| word.span().start() == anchor)
+                    })
+            }) == Some(true);
+            selected
+        },
+    );
+    selected
+}
+
+/// Conditional internal dispatch through the original selected descriptor.
+/// Self identity alone never changes an external call's visibility purpose.
+fn original_internal_dispatch(
+    source: &str,
+    analysis: &AnalysisResult,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    current: &crate::original_context::CurrentSourceContext<'_>,
+) -> bool {
+    use tcl_compiler::registry_invocation::source_structure;
+    let context = current.context();
+    source_structure::source_registry_words(source, analysis, command).and_then(|words| {
+        words.with_source_schema(&context, |schema| {
+            schema
+                .semantics
+                .traits
+                .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
+        })
+    }) == Some(true)
+}
+
+/// The selected source head may describe the current object's identity.
+/// This shape grants no internal dispatcher or external visibility receipt.
+fn original_self_receiver_head(
+    source: &str,
+    analysis: &AnalysisResult,
+    head: &tcl_lexer::NativeWord,
+    current: &crate::original_context::CurrentSourceContext<'_>,
+) -> bool {
+    use tcl_compiler::registry_invocation::source_structure;
+    let context = current.context();
+    let Some(child) = source_structure::original_single_source_command_substitution(head) else {
+        return false;
+    };
+    let Some(head) = child.command().words.first() else {
+        return false;
+    };
+    let Some(words) =
+        source_structure::source_registry_words_at(source, analysis, head.span().start())
     else {
         return false;
     };
-    if is_self_dispatch_keyword(&inst)
-        || is_self_receiver_call(
-            &inst,
-            tcl_lexer::LexerConfig::for_profile(Some(crate::profile_for_dialect(
-                &analysis.dialect,
-            ))),
-        )
-    {
+    if words.head_source().and_then(|head| head.word()) != Some(head) {
         return false;
     }
-    let Some(st) = object_member_state_at(analysis, source, &inst, line, character) else {
-        return false;
-    };
-    if let Some(md) = st.methods.get(&method) {
-        return md.visibility != DeclaredMemberVisibility::Public.as_str();
-    }
-    st.unexports.contains(&method)
+    words.with_source_schema(&context, |schema| {
+        let Some(shape) = schema.authored_source_arity() else {
+            return false;
+        };
+        if shape.command.self_receiver_words.is_empty() {
+            return false;
+        }
+        match schema.words.arguments().exact_argv_len() {
+            Some(0) => shape.arity.accepts(0),
+            Some(1) => {
+                shape.arity.accepts(1)
+                    && shape.command.self_receiver_words.iter().any(|word| {
+                        match schema.words.arguments().get(0) {
+                            Some(tcl_registry::InvocationWord::Literal(value)) => value == *word,
+                            Some(tcl_registry::InvocationWord::KnownBytes(value)) => {
+                                value == word.as_bytes()
+                            }
+                            _ => false,
+                        }
+                    })
+            }
+            _ => false,
+        }
+    }) == Some(true)
 }
 
 /// The extent (byte range) of the innermost proc / method body scope that
@@ -1005,6 +1186,11 @@ fn variable_scope_extent(
     _name: &str,
     offset: u32,
 ) -> Option<(u32, u32)> {
+    source_frame_extent(analysis, offset)
+}
+
+/// Lexical source-frame boundary only; no entered-frame identity is issued.
+pub(crate) fn source_frame_extent(analysis: &AnalysisResult, offset: u32) -> Option<(u32, u32)> {
     fn innermost(
         scope: &tcl_compiler::analyser::Scope,
         offset: u32,
@@ -1066,8 +1252,8 @@ pub(crate) fn enclosing_class_at(analysis: &AnalysisResult, offset: u32) -> Opti
 
 /// Which of a class's two method buckets a dispatch receiver reaches,
 /// consulted by [`method_dispatch_definition`] and,
-/// via [`receiver_method_bucket`], by every other consumer of
-/// [`receiver_instance_class`] that also needs its own method lookup
+/// via [`logical_receiver_candidate_at`], by every other consumer of
+/// [`logical_receiver_candidate_at`] that also needs its own method lookup
 /// restricted to the matching bucket (`completion.rs`'s `method_items`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MethodBucket {
@@ -1092,108 +1278,6 @@ pub(crate) enum MethodBucket {
     Class,
 }
 
-/// Go-to-definition for a method call dispatched on an instance of
-/// `class_q`: the **first applicable implementation** on the class's
-/// `TclOO` linearisation (the entry `$obj m` / `my m` actually runs),
-/// visibility-filtered:
-/// `external` keeps exported implementations only; an internal (`my`)
-/// dispatch reaches unexported ones, and `private` ones only in the
-/// receiver's own class.  Empty when no implementation is callable in
-/// this context — a definitive "unknown method" answer, mirroring C.
-fn method_dispatch_definition(
-    analysis: &AnalysisResult,
-    source: &str,
-    line_index: &LineIndex,
-    class_q: &str,
-    method: &str,
-    external: bool,
-    bucket: MethodBucket,
-) -> Vec<LspRange> {
-    // The walk itself lives in `crate::oo_dispatch` so hover and
-    // find-references answer from the same linearisation; a direct-only
-    // lookup on the receiver's own class silently disagrees with this
-    // function.
-    crate::oo_dispatch::method_dispatch_provider(analysis, class_q, method, external, bucket)
-        .map(|(_, md)| vec![span_to_range(source, line_index, md.name_span)])
-        .unwrap_or_default()
-}
-
-/// The `TclOO` method-context keyword `word` is under `dialect`, or `None`.
-///
-/// The crate's single entry to
-/// [`tcl_registry::CommandRegistry::method_dispatch_keyword`], so every
-/// provider asks the registry through one place rather than carrying a
-/// `head == "my"` / `matches!(head, "my" | "next" | "nextto")` literal.
-/// A dialect that gains or loses one of
-/// these keywords propagates through its `CommandSpec`, never through a
-/// walker edit.
-///
-/// `definition` threads `AnalysisResult::dialect` — the dialect the document
-/// was actually analysed under — through its own registry lookups.
-/// The remaining `""` callers are the ones with no analysis in scope;
-/// `""` resolves to the permissive plain-Tcl profile (availability mask
-/// `ALL_TCL`), so every 8.6+ `TclOO` keyword still resolves there.
-pub(crate) fn method_dispatch_keyword_in(
-    dialect: &'static tcl_dialect::DialectProfile,
-    word: &str,
-) -> Option<tcl_registry::MethodDispatchKind> {
-    crate::registry_for_dialect_profile(dialect).method_dispatch_keyword(word)
-}
-
-/// Whether `word` is the `TclOO` self-dispatch keyword (`my`) — the word
-/// after it names a method on the *enclosing* class, reaching non-exported
-/// methods a `$obj` dispatch cannot.
-pub(crate) fn is_self_dispatch_keyword(word: &str) -> bool {
-    method_dispatch_keyword_in(crate::profile_for_dialect(""), word)
-        == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
-}
-
-/// Whether `receiver` (as returned by [`instance_method_at_cursor`]) is a
-/// `TclOO` self-receiver command substitution — `[self]` / `[self
-/// object]` — which dispatches exactly like `my`: the word after it names
-/// a method on the *enclosing* class, not an inferred type.
-///
-/// Registry data via [`tcl_registry::CommandRegistry::is_self_receiver_call`]
-/// (same `""`-dialect convention as [`is_self_dispatch_keyword`]) rather
-/// than matching `receiver` by name — `receiver` is parsed generically as a
-/// command substitution first, so this answers `false` for any receiver
-/// that isn't even bracket-shaped without special-casing that here either.
-pub(crate) fn is_self_receiver_call(receiver: &str, config: tcl_lexer::LexerConfig) -> bool {
-    let Some((cmd, args)) =
-        tcl_compiler::value_shapes::parse_command_substitution_with_config(receiver, config)
-    else {
-        return false;
-    };
-    crate::registry_for_dialect("").is_self_receiver_call(&cmd, args.first().map(String::as_str))
-}
-
-/// Whether `word` is a `TclOO` next-chain keyword (`next` / `nextto`) under
-/// `dialect` — a registry that predates `TclOO` answers `false`.
-fn is_next_chain_keyword_in(dialect: &'static tcl_dialect::DialectProfile, word: &str) -> bool {
-    method_dispatch_keyword_in(dialect, word) == Some(tcl_registry::MethodDispatchKind::NextChain)
-}
-
-/// Whether a next-chain keyword names an explicit resume-from class in its
-/// first argument — `nextto`'s structural marker, an
-/// [`tcl_registry::ArgRole::Name`] at index 0 on the spec, which `next` does
-/// not declare. Distinguishing the two structurally rather than by name is
-/// what `TCLOO_NEXT_CHAIN`'s own documentation asks consumers to do.
-pub(crate) fn next_chain_names_a_target_in(
-    dialect: &'static tcl_dialect::DialectProfile,
-    word: &str,
-) -> bool {
-    method_dispatch_keyword_in(dialect, word) == Some(tcl_registry::MethodDispatchKind::NextChain)
-        && crate::registry_for_dialect_profile(dialect)
-            .get(word)
-            .is_some_and(|spec| spec.arg_role_at(0) == Some(tcl_registry::ArgRole::Name))
-}
-
-/// [`next_chain_names_a_target_in`] against the dialect-less plain-Tcl
-/// profile.
-fn next_chain_names_a_target(word: &str) -> bool {
-    next_chain_names_a_target_in(crate::profile_for_dialect(""), word)
-}
-
 /// Resolve `TclOO` `next` / `nextto` at the cursor to the super-method's
 /// `name_span`.
 ///
@@ -1205,22 +1289,26 @@ fn next_chain_names_a_target(word: &str) -> bool {
 fn next_dispatch_target(
     analysis: &AnalysisResult,
     source: &str,
-    line_index: &LineIndex,
+    _line_index: &LineIndex,
     line: u32,
     character: u32,
-    keyword: &str,
 ) -> Option<tcl_lexer::Span> {
-    let cursor = byte_offset_at(line_index, source, line, character);
-    let (class_q, method) = enclosing_method(analysis, cursor)?;
-    let start_from: Option<String> = if next_chain_names_a_target(keyword) {
-        // Byte offset of the cursor within its line, so `word_after` can pick
-        // the occurrence the cursor is on (not merely the first).
-        let line_start = byte_offset_at(line_index, source, line, 0);
-        let cursor_in_line = cursor.saturating_sub(line_start) as usize;
-        let target = word_after(source, line, cursor_in_line, keyword)?;
-        Some(canonicalise_class(analysis, &class_q, &target))
-    } else {
-        None
+    let cursor = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
+    let input = analysis.resolved_input.as_ref()?;
+    let (class_q, method, body) =
+        tcl_compiler::analyser::class_hierarchy::original_source_member_at(
+            analysis,
+            &tcl_lexer::SourceImage::document(source),
+            input.lexer_config(),
+            cursor,
+        )?;
+    let (_, target) =
+        crate::references::scan_next_dispatch_sites_with_target(source, analysis, body)
+            .into_iter()
+            .find(|(head, _)| head.start() <= cursor && cursor < head.end())?;
+    let start_from = match target {
+        Some(target) => Some(canonicalise_class(analysis, cursor, &target)?),
+        None => None,
     };
     let hierarchy = analysis.class_hierarchy();
     let next_class = hierarchy.member_next_provider(
@@ -1234,128 +1322,56 @@ fn next_dispatch_target(
     tcl_compiler::analyser::class_hierarchy::class_member_def(cd, &method).map(|md| md.name_span)
 }
 
-/// The `(qualified_class, member_name)` whose member body contains the
-/// cursor offset, or `None` when the cursor is not inside one.
+/// Canonicalise a written `nextto` class name to the qualified form keyed in
+/// `all_classes`, or `None` when the name does not resolve unambiguously.
 ///
-/// Covers all four member slots, not just the named ones: a `constructor`
-/// / `destructor` body reports the synthetic
-/// `<constructor>` / `<destructor>` label
-/// (`tcl_compiler::analyser::class_hierarchy::CONSTRUCTOR_MEMBER`), which
-/// `member_next_provider` routes to the matching provider. Without them a
-/// cursor inside a constructor matches nothing here, and `next` — the
-/// ordinary way a subclass forwards to its superclass's constructor —
-/// resolves to no location at all.
-fn enclosing_method(analysis: &AnalysisResult, cursor: u32) -> Option<(String, String)> {
-    use tcl_compiler::analyser::class_hierarchy::{CONSTRUCTOR_MEMBER, DESTRUCTOR_MEMBER};
-    let cd = analysis
-        .all_classes
-        .get(enclosing_class_at(analysis, cursor)?)?;
-    let named = cd
-        .methods
-        .iter()
-        .chain(cd.class_methods.iter())
-        .map(|(mname, m)| (mname.as_str(), m));
-    let ctors = cd
-        .constructors
-        .iter()
-        .map(|c| (CONSTRUCTOR_MEMBER, c))
-        .chain(cd.destructor.iter().map(|d| (DESTRUCTOR_MEMBER, d)));
-    named
-        .chain(ctors)
-        .find(|(_, m)| m.body_span.start() <= cursor && cursor <= m.body_span.end())
-        .map(|(mname, _)| (cd.qualified_name.clone(), mname.to_owned()))
-}
-
-/// The whitespace-delimited word that follows `keyword` on the cursor's
-/// line (used to read the class name in `nextto Class`).
-///
-/// `cursor_in_line` is the cursor's byte offset within the line.  When a
-/// line has several `keyword` occurrences (a comment, a string, or a second
-/// statement), the occurrence the cursor sits on — or the nearest one
-/// starting at or before the cursor — is chosen, so `nextto` go-to-def
-/// resolves the class the user is actually pointing at rather than the
-/// first match on the line.
-fn word_after(source: &str, line: u32, cursor_in_line: usize, keyword: &str) -> Option<String> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    // Select the keyword occurrence anchored on the cursor.
-    let mut chosen: Option<usize> = None;
-    let mut search = 0;
-    while let Some(rel) = line_text[search..].find(keyword) {
-        let idx = search + rel;
-        let end = idx + keyword.len();
-        if idx <= cursor_in_line && cursor_in_line <= end {
-            chosen = Some(idx); // cursor is on the keyword itself
-            break;
-        }
-        if idx <= cursor_in_line {
-            chosen = Some(idx); // best occurrence at/before the cursor so far
-        }
-        search = end;
+/// A `TclOO` member body resolves a command word through the object's own
+/// namespace, the registry's implicit member-body path, then `::` — never the
+/// class's declaring namespace (tclsh 8.6.18 / 9.0.4: `nextto A` inside
+/// `::Ns::B` raises `A does not refer to an object`). A class created inside
+/// the object namespace at run time is not distinguished from a root class,
+/// so the root lookup answers unless the name reaches a class under a path
+/// namespace first; that case is refused rather than guessed. Outside a
+/// member body the written scope resolves it.
+pub(crate) fn canonicalise_class(analysis: &AnalysisResult, at: u32, name: &str) -> Option<String> {
+    use tcl_compiler::analyser::class_hierarchy::{
+        resolve_written_class_name, resolve_written_class_name_in_scope, source_namespace_at,
+    };
+    let path = tcl_compiler::analyser::scope::implicit_command_namespace_path_at(
+        &analysis.global_scope,
+        at,
+    );
+    if path.is_empty() {
+        let namespace = source_namespace_at(&analysis.global_scope, at)?;
+        return resolve_written_class_name_in_scope(name, namespace, &analysis.all_classes);
     }
-    // Fall back to the first occurrence when the cursor precedes them all.
-    let idx = chosen.or_else(|| line_text.find(keyword))?;
-    let rest = line_text[idx + keyword.len()..].trim_start();
-    let word: String = rest
-        .chars()
-        .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == ':')
-        .collect();
-    (!word.is_empty()).then_some(word)
+    let shadowed = !name.starts_with("::")
+        && path.iter().any(|namespace| {
+            resolve_written_class_name(
+                &tcl_syntax::naming::qualify(namespace, name),
+                &analysis.all_classes,
+            )
+            .is_some()
+        });
+    if shadowed {
+        return None;
+    }
+    resolve_written_class_name(name, &analysis.all_classes)
 }
 
-/// Canonicalise a written class name to the qualified form keyed in
-/// `all_classes`, **owner-aware** — resolved relative to `owner`'s namespace
-/// (the class writing the `nextto`) via the shared [`resolve_class_name`]
-/// resolver: exact, `::name`, an outward namespace walk, then a unique tail.
-/// This lets `nextto Base` reach a namespaced base class (`::Ns::Base`) named
-/// bare from a sibling in the same namespace, instead of only matching a
-/// global `::Base`.  Falls back to the written name when nothing resolves so
-/// the caller's `next_provider` lookup simply finds no target.
-fn canonicalise_class(analysis: &AnalysisResult, owner: &str, name: &str) -> String {
-    let tail_index =
-        tcl_compiler::analyser::class_hierarchy::build_tail_index(analysis.all_classes.keys());
-    tcl_compiler::analyser::class_hierarchy::resolve_class_name(
-        name,
-        owner,
-        |cand| analysis.all_classes.contains_key(cand),
-        &tail_index,
-    )
-    .unwrap_or_else(|| name.to_string())
+/// Current complete command-head and selector syntax. Actual receiver identity,
+/// method visibility and source edits require their independent owners.
+pub(crate) fn original_instance_method_at_cursor(
+    source: &str,
+    analysis: &AnalysisResult,
+    line: u32,
+    character: u32,
+) -> Option<(String, String, bool)> {
+    let cursor = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
+    crate::source_structure::original_method_site_at(source, analysis, cursor)
 }
 
-/// Detect a `$obj method ...` / `[$obj method ...]` or
-/// `objcmd method ...` call where the cursor sits on the *method-name*
-/// token.  Returns `(receiver_name, method_name, receiver_is_dollar)`:
-/// `receiver_is_dollar` is `true` for a `$var` / `${var}` receiver (a
-/// variable holding an object) and `false` for a bare object-command
-/// receiver (`objcmd`, e.g. one bound by `CLASS create objcmd`).
-///
-/// The receiver must be the command-segment head (a single token
-/// immediately preceding the method), so the method sits at word-index 1.
-/// Command segments are delimited by `;`, `[`, `{`, and the line start —
-/// a single-line approximation that covers the common editor cases.
-///
-/// Whether a bare receiver actually resolves to a class is decided by
-/// [`receiver_instance_class`], which gates bare receivers on
-/// `created_instance_commands` (so a plain variable's bare name — never a
-/// valid dispatch — does not resolve).
-///
-/// The method-name word is bounded by [`crate::hover::word_char_bounds`] —
-/// the same lexer-faithful rule every other cursor-word consumer uses — so
-/// a method whose name is not a programming-language identifier still
-/// resolves.  Tcl imposes no character restriction on a method name:
-/// `$obj with-dash`, `$obj a.b`, and TIP 558's generated property accessors
-/// (`my <ReadProp-x>` / `my <WriteProp-x>`, produced by `oo::configurable`'s
-/// `property`) all dispatch for real (verified against tclsh 8.6.14 and
-/// 9.0.4), and an identifier rule stopping at `-` / `<` / `>` would silently
-/// truncate those names to something no class declares.
-///
-/// A word carrying no alphanumeric / `_` content at all — `<`, `<=`, `-`,
-/// `::` — is rejected: those are expression operators and separators, so
-/// `expr {$a < $b}` must not read as `$a` dispatching a method named `<`.
-/// Tcl *would* let a class declare a method literally named `+` or `<`, and
-/// this deliberately does not resolve those: `expr` bodies are far more
-/// common than operator-named methods, so rejecting them trades a rare gap
-/// for no false positives.
+#[cfg(test)]
 pub(crate) fn instance_method_at_cursor(
     source: &str,
     line: u32,
@@ -1372,6 +1388,15 @@ pub(crate) fn instance_method_at_cursor(
     if !method.chars().any(|c| c.is_alphanumeric() || c == '_') {
         return None;
     }
+
+    // A complete variable at this line's head already has canonical geometry.
+    // FirstClose names may contain a literal `{`; it is not an enclosing script.
+    let line_prefix: String = chars[..wstart].iter().collect();
+    let line_head = line_prefix.trim();
+    let sole_line_head = tcl_lexer::word_parts::whole_var_ref(line_head.as_bytes(), config)
+        .ok()
+        .flatten()
+        .map(|_| line_head);
 
     // Command-segment start: nearest *unmatched* `;` / `[` / `{` to the
     // left, else the line start. Depth-tracked — a `]`/`}`
@@ -1404,23 +1429,25 @@ pub(crate) fn instance_method_at_cursor(
     // `split_whitespace`, which would otherwise split it in two.
     let prefix: String = chars[seg_start..wstart].iter().collect();
     let trimmed = prefix.trim();
-    let head =
-        if tcl_compiler::value_shapes::parse_command_substitution_with_config(trimmed, config)
-            .is_some()
-        {
-            trimmed
-        } else {
-            let head_tokens: Vec<&str> = prefix.split_whitespace().collect();
-            if head_tokens.len() != 1 {
-                return None;
-            }
-            head_tokens[0]
-        };
+    let head = if let Some(head) = sole_line_head {
+        head
+    } else if tcl_compiler::value_shapes::parse_command_substitution_with_config(trimmed, config)
+        .is_some()
+    {
+        trimmed
+    } else {
+        let head_tokens: Vec<&str> = prefix.split_whitespace().collect();
+        if head_tokens.len() != 1 {
+            return None;
+        }
+        head_tokens[0]
+    };
     if head.starts_with('$') {
-        // `$var` / `${var}` receiver — a variable holding an object.
-        // `var_reference` deliberately leaves an unclosed `${x` decorated,
-        // so malformed input cannot resolve as the real variable `x`.
-        let inst = tcl_syntax::naming::var_reference(head);
+        // A complete sole substitution is source geometry, not receiver identity.
+        // Its configured closer must consume the whole head before a reporting
+        // name can reach the independent method/source owner below.
+        tcl_lexer::word_parts::whole_var_ref(head.as_bytes(), config).ok()??;
+        let inst = tcl_syntax::naming::var_reference_for_style(head, config.braced_var);
         if inst.is_empty() {
             return None;
         }
@@ -1433,7 +1460,7 @@ pub(crate) fn instance_method_at_cursor(
         // resolves at compile time regardless of the object's runtime name
         // This function only extracts the receiver text;
         // whether `head` names anything real is answered downstream by the
-        // registry (`is_self_dispatch_keyword` / `is_self_receiver_call`)
+        // original selected descriptor (`original_internal_dispatch`)
         // exactly as for a bareword receiver below — most substitutions
         // resolve to nothing there, which is the correct outcome, not a
         // reason to reject the shape here.
@@ -1441,7 +1468,7 @@ pub(crate) fn instance_method_at_cursor(
     } else {
         // Bare `objcmd` receiver — a plain word naming an object command.
         // Any other decorated head (`{…}`, quoted, an ill-formed `[…]`) is
-        // not a bare object command; `receiver_instance_class` further
+        // not a bare object command; `logical_receiver_candidate_at` further
         // gates this on `created_instance_commands`.
         if head.is_empty() || head.contains(['[', ']', '{', '}', '"', '(', ')', '$']) {
             return None;
@@ -1450,39 +1477,29 @@ pub(crate) fn instance_method_at_cursor(
     }
 }
 
-/// Resolve a method-dispatch receiver at the cursor (as returned by
-/// [`instance_method_at_cursor`]) to its class's qualified name.
-///
-/// A `$var` receiver (`is_dollar`) is any object-holding variable, looked
-/// up in `instance_classes`.  A bare receiver is a valid *instance*
-/// dispatch only when it names an object *command* (`CLASS create NAME`) —
-/// a plain variable's bare name (`set v [CLASS new]` then `v method`) is
-/// not a command and must not resolve — so it is additionally gated on
-/// `created_instance_commands`.
-///
-/// A bare receiver that instead names a class *directly* (`ActiveRecord
-/// find`, `TclOO`'s and `ooutil`'s class-command dispatch) resolves too:
-/// `oo::class create NAME` always binds `NAME` as the
-/// class's own command, so any class name written in the source is
-/// unconditionally dispatchable this way. A `$var` can't textually denote
-/// a class — it holds an object handle read from a variable, never the
-/// class's own written name — so this path is bare-word only.
-///
-/// Shared by the definition / references / rename / hover cursor paths so
-/// they agree on which receivers dispatch (and, via
-/// `method_references_for_class`, so those match the code-lens count).
-pub(crate) fn receiver_instance_class<'a>(
+/// Logical method-completion candidates retain their class and bucket together.
+/// Bare names require an authored instance-command declaration or class name;
+/// a variable receiver requires its positioned unique class projection. Native
+/// source construction and temporal receiver identity retain separate owners.
+pub(crate) fn logical_receiver_candidate_at<'a>(
     analysis: &'a AnalysisResult,
     receiver: &str,
     is_dollar: bool,
-) -> Option<&'a String> {
-    if let Some(class) = analysis.instance_classes.get(receiver)
-        && (is_dollar || analysis.created_instance_commands.contains(receiver))
-    {
-        return Some(class);
+    offset: u32,
+) -> Option<(&'a String, MethodBucket)> {
+    // Logical declaration advice is the sole compatibility ingress. Native
+    // source construction and current receiver identity retain separate owners.
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
     }
     if is_dollar {
-        return None;
+        return lattice_singleton_class(analysis, receiver, offset)
+            .map(|class| (class, MethodBucket::Instance));
+    }
+    if analysis.created_instance_commands.contains(receiver)
+        && let Some(class) = analysis.instance_classes.get(receiver)
+    {
+        return Some((class, MethodBucket::Instance));
     }
     let qualified = tcl_compiler::analyser::class_hierarchy::resolve_written_class_name(
         receiver,
@@ -1491,42 +1508,11 @@ pub(crate) fn receiver_instance_class<'a>(
     analysis
         .all_classes
         .get(&qualified)
-        .map(|cd| &cd.qualified_name)
+        .map(|class| (&class.qualified_name, MethodBucket::Class))
 }
 
-/// [`receiver_instance_class`] plus the compiler's object-type lattice as the
-/// fallback for a `$var` receiver.
-///
-/// `instance_classes` answers first.  When it has no
-/// binding, a **singleton** class in the lattice's scope-keyed map
-/// ([`ObjectHandleFacts::by_scope`], read through `classes_in_scope` at the
-/// dispatch site's own `offset`) resolves the receiver — the same sound map
-/// the compiler's W307 / W308 / E001 emitters consult, so definition,
-/// references, rename, hover, completion, and the code lens cannot disagree
-/// with the diagnostics (or with each other) about one document.
-/// A multi-class binding abstains: every consumer of this accessor edits or
-/// navigates, and a guess there is a wrong edit, not a missed one.
-///
-/// [`ObjectHandleFacts::by_scope`]: tcl_compiler::object_types::ObjectHandleFacts
-pub(crate) fn receiver_instance_class_at<'a>(
-    analysis: &'a AnalysisResult,
-    receiver: &str,
-    is_dollar: bool,
-    offset: u32,
-) -> Option<&'a String> {
-    if let Some(class) = receiver_instance_class(analysis, receiver, is_dollar) {
-        return Some(class);
-    }
-    if !is_dollar {
-        return None;
-    }
-    lattice_singleton_class(analysis, receiver, offset)
-}
-
-/// The one class the object-type lattice's scope-keyed map binds `receiver`
-/// to in the scope containing `offset`, or `None` when there is no binding or
-/// the binding is ambiguous (multi-class).  The lattice's "no evidence is not
-/// proof of absence" contract carries over verbatim.
+/// The unique class of the original variable read containing `offset`, or
+/// `None` when its reaching contents are unknown or admit multiple classes.
 pub(crate) fn lattice_singleton_class<'a>(
     analysis: &'a AnalysisResult,
     receiver: &str,
@@ -1539,255 +1525,6 @@ pub(crate) fn lattice_singleton_class<'a>(
         return None;
     }
     classes.iter().next()
-}
-
-/// Which [`MethodBucket`] `receiver` reaches, given how
-/// [`receiver_instance_class`] resolved it: recomputes that function's own
-/// first condition (the *instance* path —
-/// an object handle, `$var`, or a bound `CLASS create NAME` command)
-/// rather than inferring it from the outside (e.g. merely checking
-/// `instance_classes.contains_key`), so a same-named instance-command /
-/// class collision can't misclassify it. `false` on that check, with
-/// `receiver_instance_class` having still resolved a `class_q`, can only
-/// mean the bare-word-names-a-class-directly path fired instead.
-pub(crate) fn receiver_method_bucket(
-    analysis: &AnalysisResult,
-    receiver: &str,
-    is_dollar: bool,
-) -> MethodBucket {
-    // A `$var` receiver is always an *instance* dispatch: a variable holds an
-    // object handle read at run time, never the class's own written command
-    // name — so the bucket does not depend on which map resolved its class
-    // (`instance_classes` or the object-type lattice's scoped fallback in
-    // [`receiver_instance_class_at`]).  A bare receiver reaches the instance
-    // bucket only through a `CLASS create NAME` object-command binding.
-    let is_instance_path = is_dollar
-        || (analysis.instance_classes.contains_key(receiver)
-            && analysis.created_instance_commands.contains(receiver));
-    if is_instance_path {
-        MethodBucket::Instance
-    } else {
-        MethodBucket::Class
-    }
-}
-
-/// Resolve a bare `ClassName method` call-site receiver directly to the
-/// class whose `classmethod` provides `method` — the reverse of
-/// [`crate::references::find_obj_method_call_sites`]'s forward "given the
-/// class, which bare names dispatch it" fold, needed to resolve
-/// Find-References / Rename / go-to-definition triggered *from* the call
-/// site itself rather than from the declaration or a code lens.
-///
-/// `receiver` must name a class (simple or fully-qualified) that declares
-/// or *inherits* (does not override) `method` as a `classmethod` — `None`
-/// for an instance-command receiver (that's [`receiver_instance_class`]'s
-/// job) or a class with no such classmethod.  Doesn't itself exclude
-/// [incr Tcl] classes (whose class-scoped `proc` dispatches as
-/// `Factory::method`, not this bare two-word shape): every downstream
-/// consumer of the `(class, method, is_classmethod)` triple this feeds —
-/// `find_obj_method_call_sites` and friends — already re-checks the
-/// definer's family before treating any site as a dispatch, so a
-/// same-named itcl class-proc resolves here but then correctly yields no
-/// call sites rather than a false one.
-#[must_use]
-pub(crate) fn classmethod_dispatch_class(
-    analysis: &AnalysisResult,
-    receiver: &str,
-    method: &str,
-) -> Option<String> {
-    classmethod_dispatch_class_in_workspace(analysis, receiver, method, None)
-}
-
-/// [`classmethod_dispatch_class`] with the **workspace tier** available.
-///
-/// The local analysis answers whenever this document declares or extends the
-/// class. When it does not — an ordinary *pure consumer* file, holding nothing
-/// but `C cm` — the class's member tables live in another document, and the
-/// server's workspace-class oracle reanalysis does not help: it supplies class
-/// **names** only (`Analyser::with_workspace_classes`, which exists to let
-/// instance inference resolve `[Cls new]`), never their `class_methods`. So
-/// without a workspace tier, classification falls through both receiver
-/// branches and definition / references / rename from a consumer answers
-/// nothing, even though the workspace index holds the fact.
-///
-/// `index` closes that gap by consulting the same class-side dispatch chain
-/// the cross-file resolvers use — [`WorkspaceIndex::class_method_dispatch_chain`],
-/// not a second walk of its own, so the tier that classifies a call and the
-/// tier that resolves it can never disagree about which members exist.
-///
-/// [`MethodAccess::Internal`] is deliberate here: this asks *"is there a
-/// class-side member of this name at all"*, which is a question about the
-/// tables, not about the caller's access. An unexported class-side member must
-/// still classify as class-side — the caller's own access is applied afterwards
-/// by the resolver, which is what makes a `self unexport`ed member classify
-/// here and then correctly resolve to nothing.
-#[must_use]
-pub(crate) fn classmethod_dispatch_class_in_workspace(
-    analysis: &AnalysisResult,
-    receiver: &str,
-    method: &str,
-    workspace: Option<WorkspaceReceiver<'_>>,
-) -> Option<String> {
-    let Some(named) = analysis
-        .all_classes
-        .values()
-        .find(|cd| cd.name == receiver || cd.qualified_name == receiver)
-    else {
-        // No local record for the receiver at all — the pure-consumer shape.
-        return workspace.and_then(|w| workspace_classmethod_class(&w, receiver, method));
-    };
-    if named.class_methods.contains_key(method) {
-        return Some(named.qualified_name.clone());
-    }
-    let local = local_inherited_classmethod(analysis, &named.qualified_name, method);
-    if local.is_some() {
-        return local;
-    }
-    // A local record that does not itself declare the member is no proof there
-    // is none: this document may hold only an `oo::define C { … }` extension
-    // while the `self method` lives in the class's own file. Same workspace
-    // tier as the no-local-record case above.
-    workspace.and_then(|w| workspace_classmethod_class(&w, receiver, method))
-}
-
-/// The class an *inherited* `classmethod` resolves to, using this document's
-/// own hierarchy — the local half of
-/// [`classmethod_dispatch_class_in_workspace`].
-fn local_inherited_classmethod(
-    analysis: &AnalysisResult,
-    class_q: &str,
-    method: &str,
-) -> Option<String> {
-    let hierarchy = analysis.class_hierarchy();
-    let provider_q = hierarchy.method_target(class_q, method)?;
-    analysis
-        .all_classes
-        .get(provider_q)
-        .and_then(|cd| cd.class_methods.get(method))
-        // A stock `TclOO` `self method` is **not** inherited: it lives on the
-        // class object that declared it, and a subclass's own command never
-        // reaches it — `Gadget make` against a parent's `self method make`
-        // errors `unknown method "make": must be create, destroy or new` under
-        // tclsh 8.6 and 9.0.4 alike. An `ooutil`-style `classmethod` shares the
-        // receiver bucket but does propagate, which is what
-        // [`MethodDef::is_self_method`] distinguishes. Same rule
-        // [`crate::oo_dispatch::method_dispatch_provider`] applies for the
-        // in-document answer; without it here an inherited `self method` is
-        // reported as the receiver's dispatch target.
-        .filter(|md| !md.is_self_method)
-        .map(|_| provider_q.to_string())
-}
-
-/// Where a bare receiver word was written, with the workspace tier to resolve
-/// it against — everything the cross-file classmethod arm needs to reach a
-/// class this document never mentions.
-#[derive(Clone, Copy)]
-pub(crate) struct WorkspaceReceiver<'a> {
-    /// The workspace index.
-    pub index: &'a crate::workspace_index::WorkspaceIndex,
-    /// The `::`-prefixed namespace in effect at the cursor
-    /// ([`namespace_context_at`]).
-    pub namespace: &'a str,
-    /// The call's own site — its offset and enclosing body span — so
-    /// import resolution is gated the way the interpreter orders it.
-    pub call: crate::workspace_index::CallSite<'a>,
-}
-
-/// The qualified class a bare `receiver method` names, decided from the
-/// **workspace index** — the tier that knows a class this document never
-/// mentions.
-///
-/// The receiver is resolved the way Tcl resolves any command word, not by a
-/// bare-name match: [`tcl_syntax::naming::bareword_resolution_candidates`] is
-/// the canonical encoding of `Tcl_FindCommand`'s order (current namespace
-/// first, then the global one), so `namespace eval ::a { C cm }` reaches
-/// `::a::C` and — when only a global `::C` exists — falls through to it. A
-/// literal `C`/`::C` check would miss the relative spelling entirely, which is
-/// the shape a namespaced class is normally *called* in.
-///
-/// Two tiers, in Tcl's own order:
-///
-/// 1. **Lexical.** The first candidate naming an indexed class that carries the
-///    member wins, so an inner `::a::C` shadows a global `::C` rather than
-///    racing it.
-/// 2. **Import-mediated.** `namespace import` makes a class reachable under a
-///    name no candidate spells. Both spellings are asked through the machinery
-///    that already models them — an exact import is a `WorkspaceCommandLink`
-///    ([`WorkspaceIndex::resolve_command_target`]) and a glob one is resolved
-///    per call ([`WorkspaceIndex::resolve_wildcard_import`]) — so the import
-///    lifecycle and ordering rules come for free rather than being restated
-///    here. That includes the invariant that an import which has not run at
-///    this call's site does not resolve.
-///
-/// The two-classes-one-name abstention applies at each tier: guessing between
-/// them is a namespace-blind match.
-fn workspace_classmethod_class(
-    workspace: &WorkspaceReceiver<'_>,
-    receiver: &str,
-    method: &str,
-) -> Option<String> {
-    let index = workspace.index;
-    let candidates =
-        tcl_syntax::naming::bareword_resolution_candidates(workspace.namespace, receiver);
-    // Tier 1 — lexical, in Tcl's resolution order.
-    for cand in &candidates {
-        if let Some(hit) = class_side_member_owner(index, cand, method) {
-            return Some(hit);
-        }
-    }
-    // Tier 2 — import-mediated. An exact `namespace import ::a::C` records a
-    // fixed link, a glob one is decided per call; ask each through its own
-    // existing resolver.
-    for cand in &candidates {
-        let linked = index.resolve_command_target(cand);
-        if linked != *cand
-            && let Some(hit) = class_side_member_owner(index, &linked, method)
-        {
-            return Some(hit);
-        }
-    }
-    let imported = index.resolve_wildcard_import(receiver, &candidates, workspace.call)?;
-    class_side_member_owner(index, &imported, method)
-}
-
-/// The qualified name of the class `candidate` names, when the workspace has
-/// exactly one such class and its **class-object side** carries `method`.
-///
-/// Membership goes through [`WorkspaceIndex::class_method_dispatch_chain`]
-/// rather than reading `WorkspaceClass::class_method` here, so the
-/// `self method`-is-not-inherited rule, the class-side export union and the
-/// class-side retraction tombstones are applied exactly once, in the walk this
-/// and the resolver share. [`MethodAccess::Internal`] is deliberate: this asks
-/// *"is there a class-side member of this name at all"*, a question about the
-/// tables, not about the caller's access — which is applied afterwards by the
-/// resolver, and is what lets a `self unexport`ed member classify here and then
-/// correctly resolve to nothing.
-fn class_side_member_owner(
-    index: &crate::workspace_index::WorkspaceIndex,
-    candidate: &str,
-    method: &str,
-) -> Option<String> {
-    let mut named = index
-        .classes_named(candidate)
-        .into_iter()
-        .map(|c| c.qualified_name.clone())
-        .collect::<std::collections::BTreeSet<_>>()
-        .into_iter();
-    // Exactly one indexed class may answer: two same-named classes leave the
-    // receiver genuinely ambiguous, and guessing one is a namespace-blind
-    // match.
-    let class_q = named.next()?;
-    if named.next().is_some() {
-        return None;
-    }
-    (!index
-        .class_method_dispatch_chain(
-            &class_q,
-            method,
-            crate::workspace_index::MethodAccess::Internal,
-        )
-        .is_empty())
-    .then_some(class_q)
 }
 
 /// The command name a word written at `cursor_off` actually reaches once the
@@ -1831,7 +1568,9 @@ pub(crate) fn command_indirection_target(
     word: &str,
     cursor_off: u32,
 ) -> Option<String> {
-    command_indirection(analysis, word, cursor_off).map(|hop| hop.target)
+    let hop = command_indirection(analysis, word, cursor_off)?;
+    hop.lookup_spelling()?;
+    Some(hop.target)
 }
 
 /// Whether `qualified` is a name **this document** only gains through a
@@ -1864,7 +1603,7 @@ pub fn indirection_pending_at(analysis: &AnalysisResult, qualified: &str, cursor
     })
 }
 
-/// Resolve `head sub` (as returned by [`instance_method_at_cursor`], with
+/// Resolve `head sub` (as returned by [`original_instance_method_at_cursor`], with
 /// `is_dollar == false`) to the target command it dispatches to, when
 /// `head` names a known `namespace ensemble create -map`/`-subcommands`
 /// ensemble and `sub` resolves against its literal, statically-recorded
@@ -1897,14 +1636,21 @@ pub(crate) fn ensemble_subcommand_target<'a>(
 /// The `greet` of `proc greet {…} {…}` is an *argument* of `proc`, never a
 /// command head, so a provider gated on head position
 /// ([`offset_is_command_head`]) must answer it here instead. Declaration
-/// sites are consulted after `all_procs` so a declaration a later same-named
-/// `proc` displaced still resolves — to whichever definition currently wins
-/// the name, the same rule `resolve_proc_target_at` applies.
+/// cursors in the retained Logical domain select their own genuine original
+/// header, including a declaration displaced by a later same-named procedure.
+/// The separate legacy branch retains its reporting-map behaviour.
 #[must_use]
 pub(crate) fn proc_declaration_at(
     analysis: &AnalysisResult,
     cursor_off: u32,
 ) -> Option<&tcl_compiler::analyser::ProcDef> {
+    let image = analysis.retained_command_realm()?.original_source_image()?;
+    let retained_source = std::str::from_utf8(image.bytes()).ok()?;
+    crate::original_context::CurrentSourceContext::capture(retained_source, analysis)?;
+    if analysis.allows_retained_logical_declaration_advice() {
+        return logical_procedure_header_at(analysis, cursor_off)
+            .map(tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::metadata);
+    }
     let covers = |span: tcl_lexer::Span| span.start() <= cursor_off && cursor_off < span.end();
     if let Some(proc_def) = analysis.all_procs.values().find(|p| covers(p.name_span)) {
         return Some(proc_def);
@@ -1914,6 +1660,39 @@ pub(crate) fn proc_declaration_at(
         .iter()
         .find(|(_, span)| covers(*span))?;
     analysis.all_procs.get(qualified)
+}
+
+/// Select the unique genuine original Logical header under this source cursor.
+/// The header owner checks the complete retained image, input and realm.
+fn logical_procedure_header_at(
+    analysis: &AnalysisResult,
+    cursor_off: u32,
+) -> Option<&tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration> {
+    let mut selected = analysis
+        .logical_source_procedure_declarations()
+        .filter(|header| {
+            header.original_name_word().is_some_and(|word| {
+                word.span().start() <= cursor_off && cursor_off < word.span().end()
+            })
+        });
+    let header = selected.next()?;
+    selected.next().is_none().then_some(header)
+}
+
+/// Select readonly metadata through this actual original Logical source call.
+fn logical_called_procedure_at<'a>(
+    analysis: &'a AnalysisResult,
+    source: &str,
+    cursor_off: u32,
+) -> Option<&'a tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration> {
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let call =
+        tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_for_cursor(
+            source,
+            analysis,
+            cursor_off,
+        )?;
+    call.declaration(analysis)
 }
 
 /// The command invocation the analyser recorded whose **head token** covers
@@ -1928,6 +1707,24 @@ pub(crate) fn proc_declaration_at(
 /// bareword fallbacks otherwise run on.
 #[must_use]
 pub(crate) fn invocation_head_at(
+    analysis: &AnalysisResult,
+    cursor_off: u32,
+) -> Option<&tcl_compiler::signature_scan::types::SignatureCommandInvocation> {
+    analysis
+        .command_invocations
+        .iter()
+        .filter(|inv| {
+            inv.lookup.is_execution_site()
+                && inv.range.start() <= cursor_off
+                && cursor_off < inv.range.end()
+        })
+        .min_by_key(|inv| inv.range.end() - inv.range.start())
+}
+
+/// A positioned name reference, including names consumed by another command.
+/// Its lookup point is retained independently of the editable name span.
+#[must_use]
+pub(crate) fn invocation_reference_at(
     analysis: &AnalysisResult,
     cursor_off: u32,
 ) -> Option<&tcl_compiler::signature_scan::types::SignatureCommandInvocation> {
@@ -1989,6 +1786,26 @@ fn resolved_indirect_head_target(
     if let Some(proc_def) = resolved_indirect_head_proc(analysis, cursor_off) {
         return Some(proc_def.name_span);
     }
+    let invocation = indirect_invocation_head_at(analysis, cursor_off)?;
+    let definition = if let Some(reference) = &invocation.resolved_command_reference {
+        Some(
+            reference
+                .linked_definition()
+                .or_else(|| reference.definition())?,
+        )
+    } else {
+        invocation.resolved_definition.as_ref()
+    };
+    if let Some(definition) = definition {
+        let tcl_compiler::command_binding::SourceOriginKind::Authored(source) =
+            definition.allocation().site.source.kind()
+        else {
+            return None;
+        };
+        return analysis
+            .class_for_definition(definition, source.try_text().ok()?)
+            .map(|declaration| declaration.name_span);
+    }
     let resolved = resolved_indirect_head_name(analysis, cursor_off)?;
     analysis
         .all_classes
@@ -2000,15 +1817,25 @@ fn resolved_indirect_head_target(
 /// settled on — the shared first half of [`resolved_indirect_head_target`]
 /// and [`resolved_indirect_head_proc`].
 fn resolved_indirect_head_name(analysis: &AnalysisResult, cursor_off: u32) -> Option<&str> {
+    indirect_invocation_head_at(analysis, cursor_off)?
+        .resolved_qualified_name
+        .as_deref()
+}
+
+fn indirect_invocation_head_at(
+    analysis: &AnalysisResult,
+    cursor_off: u32,
+) -> Option<&tcl_compiler::signature_scan::types::SignatureCommandInvocation> {
     analysis
         .command_invocations
         .iter()
         .filter(|inv| {
-            inv.indirect && inv.range.start() <= cursor_off && cursor_off < inv.range.end()
+            inv.lookup.is_execution_site()
+                && inv.indirect
+                && inv.range.start() <= cursor_off
+                && cursor_off < inv.range.end()
         })
-        .min_by_key(|inv| inv.range.end() - inv.range.start())?
-        .resolved_qualified_name
-        .as_deref()
+        .min_by_key(|inv| inv.range.end() - inv.range.start())
 }
 
 /// The `ProcDef` an already-resolved indirect head at `cursor_off` reaches —
@@ -2019,6 +1846,24 @@ pub(crate) fn resolved_indirect_head_proc(
     analysis: &AnalysisResult,
     cursor_off: u32,
 ) -> Option<&tcl_compiler::analyser::ProcDef> {
+    let invocation = indirect_invocation_head_at(analysis, cursor_off)?;
+    let definition = if let Some(reference) = &invocation.resolved_command_reference {
+        Some(
+            reference
+                .linked_definition()
+                .or_else(|| reference.definition())?,
+        )
+    } else {
+        invocation.resolved_definition.as_ref()
+    };
+    if let Some(definition) = definition {
+        let tcl_compiler::command_binding::SourceOriginKind::Authored(source) =
+            definition.allocation().site.source.kind()
+        else {
+            return None;
+        };
+        return analysis.proc_for_definition(definition, source.try_text().ok()?);
+    }
     let resolved = resolved_indirect_head_name(analysis, cursor_off)?;
     let proc_def = analysis.all_procs.get(resolved)?;
     Some(
@@ -2031,8 +1876,10 @@ pub(crate) fn resolved_indirect_head_proc(
 /// Compute the byte offset of a 0-based LSP `(line, character)`
 /// pair in `source`. `character` is a UTF-16 code-unit offset.
 ///
-/// Takes a pre-built `line_index` so callers that perform several
-/// position conversions per request share a single index.
+/// Clamped geometry for compatibility/presentation callers. Exact source
+/// selection uses `CurrentSourcePosition` instead. A returned offset alone
+/// supplies no current-source, declaration or edit authority.
+/// Takes a pre-built index so repeated presentation conversions can share it.
 pub(crate) fn byte_offset_at(
     line_index: &LineIndex,
     source: &str,
@@ -2042,262 +1889,59 @@ pub(crate) fn byte_offset_at(
     line_index.offset_at_utf16(line, Utf16Col::new(character), source)
 }
 
-/// Whether an `uplevel` body's frame semantics hide the scope at index `i` of
-/// the resolution `chain` (outermost-first) from the cursor.
-///
-/// Inside `uplevel #0 { … }` the script runs in the **global** frame, so the
-/// enclosing proc's locals are dropped and resolution reaches the
-/// global/namespace variable (a same-named proc-local must not shadow it).
-/// Inside a non-`#0` `uplevel N { … }` the script runs in a **caller** frame
-/// that is statically unknown, so everything *outside* the uplevel body is
-/// dropped — the body's own locals resolve, but a name it does not declare
-/// abstains rather than mis-attributing to the enclosing proc *or* the global
-/// frame (the level word, recorded as the uplevel scope's name, distinguishes
-/// the two).
-fn uplevel_hides_scope(chain: &[&tcl_compiler::analyser::Scope], i: usize) -> bool {
-    use tcl_compiler::analyser::ScopeKind;
-    let Some(up) = chain.iter().rposition(|sc| sc.kind == ScopeKind::Uplevel) else {
-        return false;
-    };
-    if chain[up].name == "#0" {
-        chain[i].kind == ScopeKind::Proc
-    } else {
-        i < up
-    }
-}
-
-/// Walk the scope tree to find the variable definition that
-/// the cursor's `byte_offset` would see — the innermost
-/// scope whose body span contains the offset takes precedence
-/// over any enclosing scope.
-///
-/// Descend into the innermost matching child, then walk the
-/// scope chain outward for the var lookup.
+/// Query declaration tables eligible under the checked Logical source owner.
 pub(crate) fn lookup_var_in_scope_chain<'a>(
-    scope: &'a tcl_compiler::analyser::Scope,
+    analysis: &'a AnalysisResult,
+    source: &str,
     byte_offset: u32,
     name: &str,
-    ns_global_fallback: bool,
 ) -> Option<&'a tcl_compiler::analyser::VarDef> {
-    use tcl_compiler::analyser::ScopeKind;
-    // A `::`-qualified name first tries a direct, single-table lookup in
-    // exactly the namespace the qualifier names (tclsh 9.0.4/8.6.16-verified:
-    // `$other::v` referenced from inside namespace ::mine never tries
-    // ::mine::other::v — only the one namespace the qualifier actually
-    // resolves to). An absolute qualifier (leading `::`) resolves from the
-    // global namespace; a relative one resolves under the cursor's own
-    // command-resolution namespace — empirically the *same* namespace an
-    // unqualified command there would resolve against, including the
-    // `oo::class` method global-only special case and the `uplevel #0`
-    // reset, so [`innermost_namespace_at`] (already the single canonical
-    // implementation of that rule) doubles as the qualifier's base with no
-    // separate variable-specific namespace logic. This alone covers every
-    // `variable`-declared namespace cell from *anywhere* in the file — the
-    // case the qualified outward walk below can't reach, since it only
-    // ever sees scopes on the cursor's own lexical chain.
-    //
-    // A miss falls through to that walk rather than returning early: a
-    // literal-qualified write with no preceding `namespace eval` / `variable`
-    // (`set ns::var val`) records its `VarDef` verbatim under the writer's
-    // own active scope, with no namespace-tree node to find by path — that
-    // shape is only reachable when the cursor's own chain happens to include
-    // the scope that wrote it (`chain[0]`, the global scope, always does).
-    if name.contains("::") {
-        // Variable ($var) resolution deliberately does not consult
-        // `namespace_overrides` (an `apply` namespace override scopes
-        // command/bareword resolution only) — `&[]` keeps this call
-        // provably unaffected; `scope` alone (no `analysis`) is available
-        // here regardless.
-        let here = innermost_namespace_at(scope, byte_offset, &[]);
-        let qualified = tcl_compiler::naming::qualify(&here, name);
-        let (target_ns, base_name) = tcl_compiler::naming::key_holder_and_tail(&qualified);
-        if let Some(v) =
-            tcl_compiler::analyser::lookup_var_in_namespace(scope, target_ns, base_name)
-        {
-            return Some(v);
-        }
-    }
-    // First, find the innermost scope containing the cursor.
-    let chain = scope_chain_at(scope, byte_offset);
-    // A bare name at a **namespace frame** (cursor directly in a `namespace
-    // eval` body) follows C Tcl's two-table rule: the namespace's own
-    // variables, then — only under a Tcl 8.x dialect (TIP 278;
-    // `ns_global_fallback`, from
-    // `AnalysisResult::ns_var_global_fallback`) — the global namespace.
-    // Enclosing *intermediate* namespaces are never consulted in **any**
-    // version.  Qualified names (the direct namespace lookup above already
-    // missed) and proc-like frames (proc / method / uplevel bodies) keep the
-    // lenient outward walk below.  (An `interp eval` child scope shares the
-    // `Namespace` kind, so under 8.x the global leg can still cross the
-    // interp boundary — a leniency this rule narrows from "every enclosing
-    // scope" to "the global table only".)
-    if !name.contains("::")
-        && chain.len() > 1
-        && chain
-            .last()
-            .is_some_and(|sc| sc.kind == ScopeKind::Namespace)
-    {
-        let ns = chain.last().expect("guarded: chain has a last element");
-        if let Some(v) = ns.variables.get(name) {
-            return Some(v);
-        }
-        return ns_global_fallback
-            .then(|| {
-                chain
-                    .first()
-                    .expect("guarded: chain has a first element")
-                    .variables
-                    .get(name)
-            })
-            .flatten();
-    }
-    // Walk outward (innermost-first) looking for the var, honouring the
-    // `uplevel` frame semantics (see [`uplevel_hides_scope`]).
-    for (i, sc) in chain.iter().enumerate().rev() {
-        if uplevel_hides_scope(&chain, i) {
-            continue;
-        }
-        if let Some(v) = sc.variables.get(name) {
-            return Some(v);
-        }
-    }
-    None
+    let config = analysis.body_lexer_config?;
+    let advice = analysis.logical_variable_scope_advice(
+        &tcl_lexer::SourceImage::document(source),
+        config,
+        byte_offset,
+    )?;
+    lookup_var_in_logical_scope(&advice, name)
 }
 
-/// Every reference span (other than `var_def`'s own declaration) for the
-/// variable `var_def` denotes, gathered across the whole scope tree by
-/// unifying the aliases Tcl treats as one cell:
-///
-/// * **Namespace / global aliases** — `global v`, `variable v`, `namespace
-///   upvar ns v local` each record a `link_target` (the qualified cell name);
-///   every alias of that cell, and the namespace-level declaration itself,
-///   shares the target, so their declarations (each spells the name) and uses
-///   all unify.  This is the analyser analogue of Tcl's `VAR_LINK`.
-/// * **`TclOO` instance variables** — pre-bound into every method scope with
-///   the *same* `variable v` declaration span; unioning by that shared span
-///   links the per-method copies into the one per-object cell.
-///
-/// A zero-width declaration span (the fallback for a declaration-less
-/// grammar-injected implicit) can't be unioned safely — several such seeds in
-/// one body share it — so that case returns exactly `var_def`'s own
-/// references.  The caller adds `var_def`'s own declaration span itself (when
-/// including the declaration), so it is excluded here.
+pub(crate) fn lookup_var_in_logical_scope<'a>(
+    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'a>,
+    name: &str,
+) -> Option<&'a tcl_compiler::analyser::VarDef> {
+    advice.variable_definition(name)
+}
+
+/// Current original source occurrences related to the actual declaration.
+/// Conditional aliases remain readonly source candidates, with no successful
+/// link, physical cell or editable-reference-set claim. Missing provenance is
+/// definitive; reporting names and shared declaration spans are not identities.
 #[must_use]
 pub(crate) fn linked_var_reference_spans(
-    scope: &tcl_compiler::analyser::Scope,
+    source: &str,
+    analysis: &AnalysisResult,
     var_def: &tcl_compiler::analyser::VarDef,
-) -> Vec<tcl_lexer::Span> {
-    let mut out = Vec::new();
-    match var_def.link_target.as_deref() {
-        Some(target) => {
-            collect_alias_spans(scope, target, var_def.definition_span, &mut out, 0);
-            // `target`'s own canonical cell (a plain `set` / declaration with
-            // no `link_target` of its own) is never found by the alias-only
-            // scan above, since that scan only unions records that name
-            // `target` as *their own* link target: fold
-            // it in directly.
-            if let Some(canonical) =
-                tcl_compiler::analyser::lookup_var_by_qualified_name(scope, target)
-                && canonical.definition_span != var_def.definition_span
-            {
-                out.push(canonical.definition_span);
-                out.extend(canonical.references.iter().copied());
-            }
-        }
-        None if !var_def.definition_span.is_empty() => {
-            collect_shared_span_refs(scope, var_def.definition_span, &mut out, 0);
-            // The inverse of the fold-in above: `var_def` might itself BE the
-            // canonical cell some `global` / `variable` / `namespace upvar`
-            // alias elsewhere points at — its own
-            // `link_target` is `None` precisely because it isn't an alias, so
-            // this can only be discovered by finding its own qualified name
-            // and searching for aliases of it.
-            if let Some(own_qualified) =
-                tcl_compiler::analyser::qualified_name_for_var_decl(scope, var_def.definition_span)
-            {
-                collect_alias_spans(scope, &own_qualified, var_def.definition_span, &mut out, 0);
-            }
-        }
-        None => out.extend(var_def.references.iter().copied()),
-    }
-    out
+    cursor: u32,
+) -> Option<Vec<tcl_lexer::Span>> {
+    let declaration =
+        crate::variable_symbol::declaration_at_cursor(source, analysis, var_def, cursor)?;
+    Some(
+        crate::variable_symbol::alias_template_reference_spans(
+            source,
+            analysis,
+            declaration.symbol(),
+            true,
+        )
+        .into_iter()
+        .filter(|span| *span != declaration.declaration_span())
+        .collect(),
+    )
 }
 
-/// Declarations (other than `own_decl`) and uses of every variable aliasing the
-/// cell `target`.
-fn collect_alias_spans(
-    scope: &tcl_compiler::analyser::Scope,
-    target: &str,
-    own_decl: tcl_lexer::Span,
-    out: &mut Vec<tcl_lexer::Span>,
-    depth: u32,
-) {
-    if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
-        return;
-    }
-    for v in scope.variables.values() {
-        if v.link_target.as_deref() == Some(target) {
-            if v.definition_span != own_decl {
-                out.push(v.definition_span);
-            }
-            out.extend(v.references.iter().copied());
-        }
-    }
-    for child in &scope.children {
-        collect_alias_spans(child, target, own_decl, out, depth + 1);
-    }
-}
-
-/// Uses of every variable sharing the declaration span `def_span` (the `TclOO`
-/// instance-variable case).
-fn collect_shared_span_refs(
-    scope: &tcl_compiler::analyser::Scope,
-    def_span: tcl_lexer::Span,
-    out: &mut Vec<tcl_lexer::Span>,
-    depth: u32,
-) {
-    if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
-        return;
-    }
-    for v in scope.variables.values() {
-        if v.definition_span == def_span {
-            out.extend(v.references.iter().copied());
-        }
-    }
-    for child in &scope.children {
-        collect_shared_span_refs(child, def_span, out, depth + 1);
-    }
-}
-
-/// The `::`-rooted **namespace variable cell** the cursor names, when it names
-/// one — the single entry point the cross-document variable tier
-/// (go-to-definition / hover / find-references against
-/// [`WorkspaceIndex`](crate::workspace_index::WorkspaceIndex)'s variable
-/// tables) resolves through.
-///
-/// Two cursor shapes answer, and only these two:
-///
-/// 1. A **qualified occurrence** — `$::tomato::version`, `$app::colors::palette`,
-///    `set ::ns::v 1`.  A relative qualifier roots against the cursor's own
-///    command-resolution namespace, exactly as
-///    [`lookup_var_in_scope_chain`] already roots the in-document lookup, so
-///    the local and cross-document tiers agree on which cell a written name
-///    means.
-/// 2. A **namespace-scoped declaration** the current document holds — the
-///    `version` token of `namespace eval tomato { variable version 1.3 }`, or
-///    any same-cell write.  This is what lets find-references run *from* the
-///    declaration and reach consumers in sibling files.
-///
-/// An **unqualified** occurrence that is not such a declaration answers
-/// `None`: a bare `$v` names whichever cell the local scope chain supplies,
-/// which no other document can know, so widening it to a workspace search
-/// would be a guess.  A `$name`-shaped substring inside a comment or a data
-/// brace answers `None` too — Tcl substitutes nothing there, and the
-/// cross-document tier must not invent a reference the in-document one
-/// correctly refuses.
-///
-/// The gap this closes is `$::NS::var` whose declaring `namespace eval NS {
-/// variable var }` lives in a sibling file.
+/// Logical namespace-variable coordinate for the cross-document tier.
+/// Relative qualified occurrences require the same checked source namespace
+/// as the in-document lookup; unknown callers supply no namespace.
+/// Bare declarations use their independently retained declaration table.
 #[must_use]
 pub fn qualified_variable_cell_at(
     source: &str,
@@ -2306,27 +1950,124 @@ pub fn qualified_variable_cell_at(
     line: u32,
     character: u32,
 ) -> Option<String> {
-    let line_index = LineIndex::new(source);
-    let cursor_off = byte_offset_at(&line_index, source, line, character);
-    if let Some(name) = substituting_var_at_position(source, dialect, line, character, cursor_off) {
-        let base = tcl_compiler::naming::normalise_var_name(&name);
-        if !base.contains("::") {
+    if !analysis.allows_lexical_declaration_advice()
+        || !std::ptr::eq(analysis.resolved_profile()?, dialect)
+    {
+        return None;
+    }
+    let cursor_off = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
+    let scope = analysis.logical_variable_scope_advice(
+        &tcl_lexer::SourceImage::document(source),
+        analysis.body_lexer_config?,
+        cursor_off,
+    )?;
+    if let Some(name) = substituting_var_at_position(source, analysis, line, character, cursor_off)
+    {
+        let base = name.as_str();
+        if !tcl_syntax::naming::is_qualified(base.as_bytes()) {
             return None;
         }
-        let here = innermost_namespace_at(&analysis.global_scope, cursor_off, &[]);
-        return Some(tcl_compiler::naming::qualify(&here, base));
+        return scope.namespace_variable_coordinate(base);
     }
-    // A bareword sitting on a namespace-scoped declaration (or a later
-    // same-cell write): the scope tree already knows the cell's qualified
-    // name, so read it off rather than re-deriving one from the word.
-    tcl_compiler::analyser::namespace_variables(&analysis.global_scope)
-        .into_iter()
-        .find(|(_, var)| {
-            let contains =
-                |span: tcl_lexer::Span| span.start() <= cursor_off && cursor_off < span.end();
-            contains(var.definition_span) || var.references.iter().any(|&r| contains(r))
+    var_def_at_declaration_offset(&analysis.global_scope, cursor_off)
+        .and_then(|variable| {
+            crate::variable_symbol::declaration_at_cursor(source, analysis, variable, cursor_off)
         })
-        .map(|(qualified, _)| qualified)
+        .and_then(|declaration| declaration.symbol().checked_c_namespace_key())
+        .or_else(|| logical_variable_write_coordinate(source, analysis, cursor_off, &scope))
+}
+
+fn logical_variable_write_coordinate(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+    scope: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
+) -> Option<String> {
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    let mut coordinate = None;
+    for advice in &analysis.original_variable_write_advice {
+        let span = advice.span();
+        if !(span.start() <= cursor
+            && cursor < span.end()
+            && advice.matches_context(&context)
+            && crate::original_name_edit::original_input_matches_source(
+                source,
+                analysis,
+                advice.original_name_input(),
+                span,
+            ))
+        {
+            continue;
+        }
+        let input = advice.original_name_input();
+        let protocol = input.policy().recipe();
+        let selected = match advice.receiver_form().input_form(protocol, input.bytes())? {
+            tcl_syntax::naming::NativeVariableInputForm::Combined(bytes) => {
+                protocol.combined_variable_input(bytes)
+            }
+            tcl_syntax::naming::NativeVariableInputForm::Separate { root, element } => {
+                protocol.separate_variable_input(root, element)
+            }
+        };
+        let written = std::str::from_utf8(selected.root().selected()).ok()?;
+        let current = scope.namespace_variable_coordinate(written)?;
+        if coordinate
+            .as_ref()
+            .is_some_and(|previous| previous != &current)
+        {
+            return None;
+        }
+        coordinate = Some(current);
+    }
+    coordinate
+}
+
+/// Whether a retained original namespace-variable producer or conflict covers
+/// this cursor, or whether exact current cursor ownership is unavailable.
+/// This only withdraws legacy fallback; it issues no symbol.
+#[must_use]
+pub fn original_variable_cursor_retained(
+    source: &str,
+    analysis: &AnalysisResult,
+    line: u32,
+    character: u32,
+) -> bool {
+    let Some(position) = CurrentSourcePosition::capture(source, analysis, line, character) else {
+        return true;
+    };
+    let offset = position.offset();
+    let contains = |span: tcl_lexer::Span| span.start() <= offset && offset < span.end();
+    analysis
+        .original_variable_symbols
+        .iter()
+        .any(|occurrence| contains(occurrence.span()))
+        || analysis
+            .original_variable_symbol_conflicts
+            .iter()
+            .copied()
+            .any(contains)
+        || analysis
+            .qualified_var_refs
+            .iter()
+            .any(|reference| reference.original_name_input.is_some() && contains(reference.span))
+}
+
+/// Original namespace-variable occurrence at a cursor in the exact retained
+/// document and grammar. Byte identity comes from the shared source issuer;
+/// optional display keys supply no fallback for missing or stale receipts.
+#[must_use]
+pub fn original_variable_occurrence_at<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+    line: u32,
+    character: u32,
+) -> Option<&'a tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
+    let offset = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
+    analysis.original_variable_symbol_in_source(
+        &tcl_lexer::SourceImage::document(source),
+        analysis.body_lexer_config?,
+        offset,
+    )
 }
 
 /// Resolve the [`VarDef`](tcl_compiler::analyser::VarDef) whose declaration
@@ -2365,90 +2106,55 @@ pub(crate) fn var_def_at_declaration_offset(
         .find_map(|child| var_def_at_declaration_offset(child, byte_offset))
 }
 
-/// The [`VarDef`](tcl_compiler::analyser::VarDef) a `$name` **read** at
-/// `cursor_off` resolves to — [`lookup_var_in_scope_chain`] gated on the
-/// occurrence being one Tcl actually substitutes.
-///
-/// The cursor-word scan ([`crate::hover::find_var_at_position`]) is a
-/// delimiter-based character scan with no idea whether the `$name` text it
-/// matched is in a substituting position.  It therefore matches a
-/// `$level`-shaped substring inside an inert Tcl comment, or inside a
-/// brace-quoted word Tcl emits byte-for-byte unsubstituted (`set t {plain
-/// $level here}` prints `$level` verbatim on tclsh 8.6 and 9.0) — and hover /
-/// go-to-definition / find-references / rename would then confidently resolve
-/// it to a real declaration, contradicting the LSP's own semantic tokens (one
-/// opaque comment / string token, no nested variable) and its own W220
-/// "assignment is never read" (which correctly treats those as non-reads).
-///
-/// [`crate::inert_text`] holds both proofs, and both are conservative — they
-/// answer "inert" only when the position provably is, so abstaining on them
-/// can never drop a genuine reference.  The scope-chain lookup runs first
-/// because it is the cheap half: the data-brace proof re-segments the source,
-/// and there is nothing to suppress when no `VarDef` resolved anyway.
+/// A lexical `$name` read at the cursor, independently of the original
+/// source syntax label. Scope lookup requires explicit lexical declaration
+/// advice; Native providers consume their original variable naming owners.
 pub(crate) fn lookup_var_read_at<'a>(
-    global: &'a tcl_compiler::analyser::Scope,
+    analysis: &'a AnalysisResult,
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
     cursor_off: u32,
     name: &str,
-    ns_global_fallback: bool,
 ) -> Option<&'a tcl_compiler::analyser::VarDef> {
-    let var_def = lookup_var_in_scope_chain(global, cursor_off, name, ns_global_fallback)?;
-    (!offset_is_inert(source, dialect, cursor_off)).then_some(var_def)
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
+    let var_def = lookup_var_in_scope_chain(analysis, source, cursor_off, name)?;
+    (!offset_is_inert(source, analysis, cursor_off)?).then_some(var_def)
 }
 
-/// Whether `cursor_off` sits in text Tcl substitutes nothing in — a `#`
-/// comment or a braced *data* word.  The two [`crate::inert_text`] proofs
-/// under one name, so every caller asks the same question the same way.
+/// Original comment/data source classification shared by every variable
+/// cursor and lexical caller-reference gate. Unknown ownership stays unknown.
 #[must_use]
 pub(crate) fn offset_is_inert(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     cursor_off: u32,
-) -> bool {
-    crate::inert_text::offset_in_comment(source, cursor_off)
-        || crate::inert_text::offset_in_data_brace(
-            source,
-            cursor_off,
-            crate::registry_for_dialect_profile(dialect),
-            dialect,
-        )
+) -> Option<bool> {
+    if crate::inert_text::offset_in_physical_comment_in_analysis(source, analysis, cursor_off)? {
+        Some(true)
+    } else {
+        crate::inert_text::offset_in_data_brace_in_analysis(source, analysis, cursor_off)
+    }
 }
 
-/// **The one entry point** for "is the cursor on a live `$`-substitution, and
-/// which variable does it name?" — every variable provider (go-to-definition,
-/// hover, find-references, document-highlight, rename) resolves its `$ref`
-/// cursor through this, so the five cannot disagree.
-///
-/// [`crate::hover::find_var_at_position`] alone cannot answer it: it is a
-/// delimiter-based character scan, so it happily reports `n` for a cursor on
-/// the `n` of `set {$n} 1`. That word is **brace-quoted** — Tcl substitutes
-/// nothing inside it, so the `$n` there is not a reference to `n` at all; it
-/// is part of the literal *name* of a different variable (tclsh 9.0.4 /
-/// 8.6.14: `set {$n} v; info exists {$n}` → 1 while `info exists n` → 0).
-/// Answering `n` there makes every provider report the unrelated plain cell's
-/// sites — or, once the scope gate rejects it, nothing at all — for a cursor
-/// sitting inside the literal cell's own declaration word.
-///
-/// Returning `None` for such a cursor is what lets each provider fall through
-/// to its declaration-span search
-/// ([`var_def_at_declaration_offset`]), which resolves the literal cell
-/// correctly — as it does for a cursor on the word's opening `{`, where the
-/// character scan finds no `$`. Both columns of the same word answer alike.
-///
-/// The same `None` covers the inert cases (`puts {$v}`, a `$v` inside a `#`
-/// comment).  Proving it here rather than one layer further down is what keeps
-/// the declaration-span search reachable behind it.
+/// Shared lexical variable-cursor entry. The actual analysis, selected
+/// grammar, complete original words and comment/data applicability issue the
+/// syntax label. Scope resolution remains a separate Logical-only operation;
+/// unknown source applicability declines rather than borrowing nominal roles.
 #[must_use]
 pub(crate) fn substituting_var_at_position(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    line: u32,
-    character: u32,
+    analysis: &AnalysisResult,
+    _line: u32,
+    _character: u32,
     cursor_off: u32,
 ) -> Option<String> {
-    let name = find_var_at_position(source, line, character)?;
-    (!offset_is_inert(source, dialect, cursor_off)).then_some(name)
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
+    let reference =
+        crate::source_structure::original_variable_reference_at(source, analysis, cursor_off)?;
+    Some(reference.root.to_owned())
 }
 
 /// Whether `off` sits inside a **literal** parameter-list word of a proc or
@@ -2518,9 +2224,15 @@ pub(crate) fn parameter_list_position_at(
 ) -> ParamListPosition {
     // The parameter-list word divides under the document's own grammar, the
     // same one every other provider in this module reads off the analysis.
-    let config = dialect_config(analysis);
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return ParamListPosition::Outside;
+    };
+    let config = current.config();
     let classify = |name_span: tcl_lexer::Span, body_span: tcl_lexer::Span| {
-        param_word_position(source, name_span.end(), body_span.start(), off, config)
+        // A token content span can omit its real name-word closing delimiter.
+        let name = tcl_lexer::word_span_at(source, name_span);
+        param_word_position(source, name.end(), body_span.start(), off, config)
     };
     let routines = analysis
         .all_procs
@@ -2554,132 +2266,105 @@ fn param_word_position(
     if start > end || off < start || off >= end || end > source.len() {
         return ParamListPosition::Outside;
     }
-    // The parameter list is the first word of the region; skip the whitespace
-    // the segmenter left between the name token and it.
-    let bytes = source.as_bytes();
-    let mut word_start = start;
-    while word_start < end && matches!(bytes[word_start], b' ' | b'\t' | b'\r' | b'\n') {
-        word_start += 1;
-    }
-    if word_start >= end {
-        return ParamListPosition::Outside;
-    }
-    let word_end = crate::expr_context::word_end(source, word_start, end);
-    if off < word_start || off >= word_end {
-        return ParamListPosition::Outside;
-    }
-    let Some(word) = source.get(word_start..word_end) else {
+    let image = tcl_lexer::SourceImage::document(source);
+    // Lex the original tail, not a truncated prefix ending at the body opener.
+    // The first grouped word is the candidate; no closer or word is invented.
+    let Some(source_end) = u32::try_from(source.len()).ok() else {
         return ParamListPosition::Outside;
     };
-    // The literalness rule is shared with the analyser and the signature-scan
-    // tier so the three cannot disagree about a word. A local character scan
-    // reads the substitution-free quoted list `proc r "m n" {…}` as computed,
-    // while the analyser — correctly, per the oracle (`info args r` → `m n`) —
-    // treats it as literal.
-    if tcl_compiler::signature_scan::params::param_word_text_is_literal(word, config) {
+    let Ok(tokens) = tcl_lexer::source_region_tokens_in(
+        &image,
+        tcl_lexer::Span::new(region_start, source_end),
+        config,
+    ) else {
+        return ParamListPosition::Outside;
+    };
+    let commands = tcl_lexer::group_commands_bytes(&tokens, image.bytes(), config);
+    let Some(word) = commands.first().and_then(|command| command.words.first()) else {
+        return ParamListPosition::Outside;
+    };
+    let Ok(span) =
+        tcl_lexer::NativeWord::written_span_from_group(image.bytes(), config, &tokens, word)
+    else {
+        return ParamListPosition::Outside;
+    };
+    if span.start() < region_start
+        || span.end() > region_end
+        || off < span.start() as usize
+        || off >= span.end() as usize
+    {
+        return ParamListPosition::Outside;
+    }
+    let Some(fragments) = tokens.get(word.tokens.clone()) else {
+        return ParamListPosition::Outside;
+    };
+    let literal = !word.expand
+        && fragments.len() == 1
+        && fragments.first().is_some_and(|token| {
+            tcl_compiler::signature_scan::params::param_word_is_literal(token.kind, true)
+        });
+    if literal {
         ParamListPosition::LiteralData
     } else {
         ParamListPosition::Computed
     }
 }
 
-/// Collect every variable name visible at `byte_offset` — the union
-/// of `variables` across the scope chain (innermost first, then
-/// enclosing scopes up to the global root).  Used by variable
-/// completion so a `$`-trigger inside a proc / namespace body offers
-/// that scope's locals + params alongside the globals.
-///
-/// Inside an `uplevel #0 { … }` body the script runs in the global
-/// frame, so the enclosing proc's locals are *not* visible — only the
-/// global / namespace frame's variables plus the uplevel body's own
-/// locals.  When the chain contains an [`ScopeKind::Uplevel`] scope,
-/// proc-scope variables are dropped from the visible set.
+/// Source declaration candidates from the shared Logical scope owner.
 pub(crate) fn visible_variable_names(
-    scope: &tcl_compiler::analyser::Scope,
-    byte_offset: u32,
+    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
 ) -> Vec<String> {
-    let chain = scope_chain_at(scope, byte_offset);
-    let mut names: Vec<String> = Vec::new();
-    for (i, sc) in chain.iter().enumerate().rev() {
-        // Honour the `uplevel` frame semantics (see [`uplevel_hides_scope`]):
-        // `#0` drops the enclosing proc's locals, a non-`#0` level drops
-        // everything outside the uplevel body.
-        if uplevel_hides_scope(&chain, i) {
-            continue;
+    let mut names = Vec::new();
+    for scope in advice.eligible_scopes().rev() {
+        for name in scope.variables.keys() {
+            if !names.contains(name) {
+                names.push(name.clone());
+            }
         }
-        for k in sc.variables.keys() {
-            if !names.iter().any(|n| n == k) {
-                names.push(k.clone());
+    }
+    if advice.root_names_require_qualification()
+        || (advice.is_namespace_frame() && advice.namespace_global_fallback())
+    {
+        for name in advice.root().variables.keys() {
+            if !names.contains(name) {
+                names.push(name.clone());
             }
         }
     }
     names
 }
 
-/// For completion: the set of variable names defined in the *global/root*
-/// scope, returned only when the cursor sits where an unqualified reference
-/// does NOT resolve to the global — inside a proc (unqualified names are the
-/// proc's locals) or inside a nested `namespace eval` (they resolve within
-/// that namespace).  Such a global must be offered `::`-qualified (`$::foo`)
-/// so the inserted reference actually reaches it, matching Tcl's name
-/// resolution.  Returns `None` at global scope, where bare names are correct.
-///
-/// `ns_global_fallback` carries the document dialect's TIP 278 semantics
-/// (`AnalysisResult::ns_var_global_fallback`): under a Tcl 8.x dialect a
-/// bare name at a namespace frame *does* reach an unshadowed global, so a
-/// namespace context only forces qualification under 9.0+ semantics.  Proc
-/// bodies never had the fallback in any version.
+/// Independently declared root candidates requiring rooted completion insertion.
 pub(crate) fn global_vars_needing_qualification(
-    scope: &tcl_compiler::analyser::Scope,
-    byte_offset: u32,
-    ns_global_fallback: bool,
+    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
 ) -> Option<FxHashSet<String>> {
-    use tcl_compiler::analyser::ScopeKind;
-    let chain = scope_chain_at(scope, byte_offset);
-    let in_local_context = chain.iter().any(|sc| {
-        matches!(sc.kind, ScopeKind::Proc)
-            || (matches!(sc.kind, ScopeKind::Namespace)
-                && !sc.name.is_empty()
-                && sc.name != "::"
-                && !ns_global_fallback)
-    });
-    if !in_local_context {
+    if !advice.root_names_require_qualification() {
         return None;
     }
-    // Collect root/global names, but drop any that a closer (proc / namespace /
-    // uplevel) scope also defines: a local of the same name *shadows* the
-    // global, so the bare `$name` correctly resolves to the local and must not
-    // be rewritten to `$::name` (which would silently retarget the reference).
-    let mut globals = FxHashSet::default();
-    let mut shadows = FxHashSet::default();
-    for sc in &chain {
-        if matches!(sc.kind, ScopeKind::Global) {
-            globals.extend(sc.variables.keys().cloned());
-        } else {
-            shadows.extend(sc.variables.keys().cloned());
-        }
-    }
-    for name in &shadows {
+    let mut globals = advice
+        .root()
+        .variables
+        .keys()
+        .cloned()
+        .collect::<FxHashSet<_>>();
+    globals.extend(
+        advice
+            .readonly_root_variable_names()
+            .into_iter()
+            .map(str::to_owned),
+    );
+    for name in advice.readonly_variable_names() {
         globals.remove(name);
     }
-    Some(globals)
-}
-
-/// Names of every namespace / global scope in the cursor's lexical chain.
-/// Used by completion to skip cross-namespace candidates already offered as
-/// bare names.
-pub(crate) fn lexical_namespace_chain(
-    scope: &tcl_compiler::analyser::Scope,
-    byte_offset: u32,
-) -> FxHashSet<String> {
-    use tcl_compiler::analyser::ScopeKind;
-    let mut chain = FxHashSet::default();
-    for sc in scope_chain_at(scope, byte_offset) {
-        if matches!(sc.kind, ScopeKind::Namespace | ScopeKind::Global) {
-            chain.insert(sc.name.clone());
+    for scope in advice.eligible_scopes() {
+        if std::ptr::eq(scope, advice.root()) {
+            continue;
+        }
+        for name in scope.variables.keys() {
+            globals.remove(name);
         }
     }
-    chain
+    Some(globals)
 }
 
 /// Namespace an unqualified command invoked at `byte_offset` resolves
@@ -2718,11 +2403,14 @@ pub(crate) fn innermost_namespace_at(
         .filter(|(span, _)| span.start() <= byte_offset && byte_offset < span.end())
         .min_by_key(|(span, _)| span.end() - span.start());
     if let Some((_, ns)) = pinned {
-        return ns.trim_start_matches("::").to_string();
+        return tcl_syntax::naming::unroot_rooted_key(ns)
+            .unwrap_or(ns)
+            .to_owned();
     }
-    tcl_compiler::analyser::command_resolution_namespace_at(scope, byte_offset)
-        .trim_start_matches("::")
-        .to_string()
+    let namespace = tcl_compiler::analyser::command_resolution_namespace_at(scope, byte_offset);
+    tcl_syntax::naming::unroot_rooted_key(&namespace)
+        .unwrap_or(&namespace)
+        .to_owned()
 }
 
 /// The `::`-prefixed namespace context at `byte_offset` (`"::"` at global
@@ -2736,11 +2424,73 @@ pub(crate) fn namespace_context_at(
     overrides: &[(tcl_lexer::Span, String)],
 ) -> String {
     let ns = innermost_namespace_at(scope, byte_offset, overrides);
-    if ns.is_empty() {
-        "::".to_owned()
-    } else {
-        format!("::{ns}")
+    tcl_syntax::naming::root_unrooted_key(&ns)
+}
+
+/// Original C loader advice at one complete current command-head producer.
+/// This retains caller geometry without proving loading or a callable target.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalAutoloadRequest {
+    name: tcl_compiler::signature_scan::original_name::SignatureSourceNameKey,
+    invocation: tcl_compiler::command_binding::SourceInvocationBinding,
+}
+
+impl OriginalAutoloadRequest {
+    /// Files selected by genuine `auto_index` entries and the retained caller scope.
+    #[must_use]
+    pub fn files(
+        &self,
+        resolver: &crate::package_resolver::PackageResolver,
+    ) -> Vec<std::path::PathBuf> {
+        resolver.resolve_original_auto_command(&self.name, &self.invocation)
     }
+}
+
+/// Select original autoload advice only at the retained complete invocation head.
+#[must_use]
+pub fn original_autoload_request_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    line: u32,
+    character: u32,
+) -> Option<OriginalAutoloadRequest> {
+    use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
+    let input = analysis.resolved_input.as_ref()?;
+    let config = analysis.body_lexer_config?;
+    let image = tcl_lexer::SourceImage::document(source);
+    let realm = analysis.retained_command_realm()?;
+    if !analysis.matches_original_source_image(&image, config)
+        || !realm.matches_resolved_analysis_input(input)
+    {
+        return None;
+    }
+    let offset = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
+    let mut sites = analysis.command_invocations.iter().filter(|site| {
+        site.lookup == tcl_compiler::signature_scan::types::SignatureCommandLookup::InvocationHead
+            && site.range.start() <= offset
+            && offset < site.range.end()
+    });
+    let site = sites.next()?;
+    if sites.next().is_some() {
+        return None;
+    }
+    let invocation = realm.invocation_at_source("", site.range.start());
+    let name_input = invocation.original_recorded_head_name_input()?;
+    if site.original_name_input.as_ref() != Some(&name_input)
+        || !crate::original_name_edit::original_input_matches_source(
+            source,
+            analysis,
+            &name_input,
+            site.range,
+        )
+    {
+        return None;
+    }
+    let SignatureSourceNameInput::OriginalWord(name) = name_input else {
+        return None;
+    };
+    invocation.original_autoload_command_candidates(&name)?;
+    Some(OriginalAutoloadRequest { name, invocation })
 }
 
 /// The bare command word at `(line, character)` together with the
@@ -2760,9 +2510,50 @@ pub fn command_head_and_namespace_at(
     line: u32,
     character: u32,
 ) -> Option<(String, String)> {
+    let config = analysis.body_lexer_config?;
+    if analysis.allows_retained_logical_declaration_advice() {
+        let image = tcl_lexer::SourceImage::document(source);
+        if !analysis.matches_original_source_image(&image, config) {
+            return None;
+        }
+        let offset = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
+        let mut candidates =
+            tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates(
+                source, analysis,
+            )?
+            .into_iter()
+            .filter(|candidate| {
+                candidate
+                    .original_head()
+                    .is_some_and(|head| head.span().start() <= offset && offset < head.span().end())
+            });
+        let candidate = candidates.next()?;
+        if candidates.next().is_some() {
+            return None;
+        }
+        let head = candidate.original_head()?;
+        let word = String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+            head,
+        )?)
+        .ok()?;
+        let namespace = candidate
+            .declared_source_context()
+            .map_or_else(tcl_core_types::ByteNamespacePath::root, |context| {
+                context.namespace_recipe().clone()
+            });
+        return Some((
+            word,
+            tcl_syntax::naming::checked_namespace_path_key(&namespace)?,
+        ));
+    }
+    if !analysis.allows_retained_logical_declaration_advice()
+        || !analysis
+            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+    {
+        return None;
+    }
     let (word, _start, _end) = crate::hover::find_word_span_at_position(source, line, character)?;
-    let line_index = LineIndex::new(source);
-    let offset = byte_offset_at(&line_index, source, line, character);
+    let offset = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
     let namespace = namespace_context_at(
         &analysis.global_scope,
         offset,
@@ -2786,12 +2577,28 @@ fn proc_visible_from_namespace<'a>(
     analysis: &'a AnalysisResult,
     namespace: &str,
     word: &str,
+    call_off: u32,
 ) -> Option<&'a tcl_compiler::analyser::ProcDef> {
+    if let Some(input) = invocation_head_at(analysis, call_off)
+        .and_then(|invocation| invocation.original_name_input.as_ref())
+    {
+        let scope = analysis.original_namespace_scope_at(call_off)?;
+        // This is declaration assistance. The positioned implementation
+        // receipt is selected first by resolve_called_proc.
+        let candidates = analysis.procedures_for_original_name(input, scope);
+        return match candidates.as_slice() {
+            [candidate] => Some(*candidate),
+            _ => None,
+        };
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
     let path = analysis
         .namespace_paths
         .get(namespace)
         .map_or(&[][..], Vec::as_slice);
-    tcl_syntax::naming::command_resolution_candidates(namespace, path, word)
+    tcl_syntax::naming::command_resolution_candidates_from_namespace_keys(namespace, path, word)
         .into_iter()
         .find_map(|qname| analysis.all_procs.get(&qname))
 }
@@ -2831,28 +2638,45 @@ pub(crate) fn resolved_command_name(
         .namespace_paths
         .get(namespace)
         .map_or(&[][..], Vec::as_slice);
-    tcl_syntax::naming::command_resolution_candidates(namespace, path, word)
+    tcl_syntax::naming::command_resolution_candidates_from_namespace_keys(namespace, path, word)
         .into_iter()
         .find(|qname| exists(qname))
 }
 
-/// Whether `cd`'s definer command dispatches its class-scoped members as a
-/// single `::`-qualified identifier (`Factory::make`) rather than the
-/// two-word `Factory make` shape — true for [incr Tcl] only.  Registry data
-/// ([`tcl_registry::definer::DefinerFamily`]), not a hardcoded command-name
-/// check: `cd.metaclass` is looked up in `dialect`'s registry and its
-/// attached [`tcl_registry::definer::DefinitionBodyGrammar::family`]
-/// compared.  A metaclass the registry does not recognise as a definer
-/// (which should not happen for a real `ClassDef`) is conservatively treated
-/// as *not* itcl.
-pub(crate) fn is_itcl_class(
-    cd: &tcl_compiler::analyser::types::ClassDef,
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> bool {
-    crate::registry_for_dialect_profile(dialect)
-        .get(&cd.metaclass)
-        .and_then(|spec| spec.definition_body)
-        .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)
+/// Family metadata from the complete input and command store retained by the
+/// analysis. Missing metadata is distinct from a known non-Itcl family; it does
+/// not establish native class identity, package loading or edit permission.
+pub(crate) fn class_definer_family(
+    analysis: &AnalysisResult,
+    class: &tcl_compiler::analyser::types::ClassDef,
+) -> Option<tcl_registry::definer::DefinerFamily> {
+    definer_family_in_registry(class, class_family_registry(analysis)?)
+}
+
+fn class_family_registry(analysis: &AnalysisResult) -> Option<&CommandRegistry> {
+    if analysis.analysis_context_unavailable.is_some() {
+        return None;
+    }
+    let input = analysis.resolved_input.as_ref()?;
+    if !analysis
+        .retained_command_realm()?
+        .matches_resolved_analysis_input(input)
+    {
+        return None;
+    }
+    analysis.resolved_registry()
+}
+
+/// Family metadata in an explicitly supplied store. This does not establish a
+/// native class, current command table, loader effect or editable identity.
+fn definer_family_in_registry(
+    class: &tcl_compiler::analyser::types::ClassDef,
+    registry: &CommandRegistry,
+) -> Option<tcl_registry::definer::DefinerFamily> {
+    registry
+        .get(&class.metaclass)?
+        .definition_body
+        .map(|grammar| grammar.family)
 }
 
 /// Read `qname` as an [incr Tcl] class-scoped `proc` — itcl's equivalent of
@@ -2869,18 +2693,27 @@ pub(crate) fn is_itcl_class(
 /// not a class namespace` — so only `class_methods` is consulted.
 pub(crate) fn itcl_class_proc_at<'a>(
     analysis: &'a AnalysisResult,
-    dialect: &'static tcl_dialect::DialectProfile,
     qname: &str,
 ) -> Option<(&'a String, String)> {
-    let separator = qname.rfind("::")?;
-    let (parent, tail) = qname.split_at(separator);
-    let member = tail.trim_start_matches(':');
+    itcl_class_proc_at_in_registry(analysis, class_family_registry(analysis)?, qname)
+}
+
+/// Standalone constructed metadata can supply its store explicitly. Contextual
+/// callers use their analysis-owned Registry and never recapture a profile.
+fn itcl_class_proc_at_in_registry<'a>(
+    analysis: &'a AnalysisResult,
+    registry: &CommandRegistry,
+    qname: &str,
+) -> Option<(&'a String, String)> {
+    let (parent, member) = tcl_syntax::naming::key_holder_and_tail(qname);
     if member.is_empty() {
         return None;
     }
     let (class_q, class_def) = analysis.all_classes.get_key_value(parent)?;
-    (is_itcl_class(class_def, dialect) && class_def.class_methods.contains_key(member))
-        .then(|| (class_q, member.to_owned()))
+    (definer_family_in_registry(class_def, registry)
+        == Some(tcl_registry::definer::DefinerFamily::Itcl)
+        && class_def.class_methods.contains_key(member))
+    .then(|| (class_q, member.to_owned()))
 }
 
 /// Resolve a written command word to the [incr Tcl] class-scoped `proc` it
@@ -2898,24 +2731,23 @@ pub(crate) fn itcl_class_proc_at<'a>(
 ///    proc or class command shadows it exactly as it would at runtime.
 pub(crate) fn itcl_class_proc_target<'a>(
     analysis: &'a AnalysisResult,
-    dialect: &'static tcl_dialect::DialectProfile,
     namespace: &str,
     word: &str,
 ) -> Option<(&'a String, String)> {
-    let winner = itcl_self_qualified_candidate(analysis, dialect, namespace, word)
+    let winner = itcl_self_qualified_candidate(analysis, namespace, word)
         // The custom resolver only claims a member the class really declares;
         // anything else falls through to the stock candidates (oracle: a
         // sibling class's `Other::omake`, and an undeclared `Factory::nope`,
         // both raise `invalid command name` rather than resolving).
-        .filter(|candidate| itcl_class_proc_at(analysis, dialect, candidate).is_some())
+        .filter(|candidate| itcl_class_proc_at(analysis, candidate).is_some())
         .or_else(|| {
             resolved_command_name(analysis, namespace, word, &|candidate| {
                 analysis.all_procs.contains_key(candidate)
                     || analysis.all_classes.contains_key(candidate)
-                    || itcl_class_proc_at(analysis, dialect, candidate).is_some()
+                    || itcl_class_proc_at(analysis, candidate).is_some()
             })
         })?;
-    itcl_class_proc_at(analysis, dialect, &winner)
+    itcl_class_proc_at(analysis, &winner)
 }
 
 /// [incr Tcl]'s own class-namespace command resolver: written *inside* a
@@ -2949,19 +2781,18 @@ pub(crate) fn itcl_class_proc_target<'a>(
 /// [`resolved_command_name`].
 fn itcl_self_qualified_candidate(
     analysis: &AnalysisResult,
-    dialect: &'static tcl_dialect::DialectProfile,
     namespace: &str,
     word: &str,
 ) -> Option<String> {
     let class_def = analysis.all_classes.get(namespace)?;
-    if !is_itcl_class(class_def, dialect) {
+    if class_definer_family(analysis, class_def) != Some(tcl_registry::definer::DefinerFamily::Itcl)
+    {
         return None;
     }
-    let member = word
-        .strip_prefix(class_def.name.as_str())?
-        .strip_prefix("::")?;
-    (!member.is_empty() && !member.contains("::"))
-        .then(|| format!("{}::{member}", class_def.qualified_name))
+    let member =
+        tcl_syntax::naming::unroot_rooted_key(word.strip_prefix(class_def.name.as_str())?)?;
+    (!member.is_empty() && !tcl_syntax::naming::is_qualified(member.as_bytes()))
+        .then(|| tcl_syntax::naming::qualify(&class_def.qualified_name, member))
 }
 
 /// The declaration name span of the class the cursor names: the class whose
@@ -2974,41 +2805,44 @@ fn itcl_self_qualified_candidate(
 /// the local extension would shadow the true definition.  When the class *is*
 /// created here, `via_define` is false and this is that creation site.
 fn class_declaration_at(
+    source: &str,
     analysis: &AnalysisResult,
+    resolution: CallResolution<'_>,
     word: &str,
     cursor_offset: u32,
 ) -> Option<tcl_lexer::Span> {
-    if let Some((_, class_def)) = analysis
-        .all_classes
-        .iter()
-        .find(|(_, c)| c.name_span.start() <= cursor_offset && cursor_offset < c.name_span.end())
-    {
-        return Some(class_def.name_span);
+    if !analysis.allows_lexical_declaration_advice() {
+        let std::ops::ControlFlow::Break(Some(identity)) =
+            crate::original_declaration::select_at_offset("", source, analysis, cursor_offset)
+        else {
+            return None;
+        };
+        if identity.role() != crate::original_declaration::OriginalDeclarationRole::Class {
+            return None;
+        }
+        return identity
+            .class_metadata(analysis)
+            .map(|declaration| declaration.metadata().name_span);
     }
-    analysis
-        .all_classes
-        .iter()
-        .find(|(qname, c)| {
-            !c.via_define
-                && (c.name == word || qname.as_str() == word || *qname == &format!("::{word}"))
-        })
-        .map(|(_, class_def)| class_def.name_span)
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let (_, class) = resolve_class_target_at(analysis, source, resolution, cursor_offset, word)?;
+    (class.name_span.start() <= cursor_offset && cursor_offset < class.name_span.end()
+        || !class.via_define)
+        .then_some(class.name_span)
 }
 
 /// The declaration name span of the [incr Tcl] class-scoped `proc` that the
 /// written word `word`, called from `namespace`, dispatches — go-to-definition's
 /// half of [`itcl_class_proc_target`].
 ///
-/// The empty dialect string picks the default Tcl registry, which is where
-/// the itcl definer grammar lives; `definition` has no dialect of its own to
-/// thread through.
+/// Family metadata comes from the analysis-owned command store, independently
+/// of the written member prefix and the original declaration-name span.
 fn itcl_class_proc_declaration(
     analysis: &AnalysisResult,
     namespace: &str,
     word: &str,
 ) -> Option<tcl_lexer::Span> {
-    let (class_q, member) =
-        itcl_class_proc_target(analysis, crate::profile_for_dialect(""), namespace, word)?;
+    let (class_q, member) = itcl_class_proc_target(analysis, namespace, word)?;
     analysis
         .all_classes
         .get(class_q)
@@ -3027,20 +2861,20 @@ fn itcl_class_proc_declaration(
 #[must_use]
 pub fn itcl_class_proc_target_at(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
 ) -> Option<(String, String)> {
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let (word, _start, _end) = crate::hover::find_word_span_at_position(source, line, character)?;
-    let line_index = LineIndex::new(source);
-    let cursor = byte_offset_at(&line_index, source, line, character);
+    let cursor = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
     let namespace = namespace_context_at(
         &analysis.global_scope,
         cursor,
         &analysis.namespace_overrides,
     );
-    itcl_class_proc_target(analysis, dialect, &namespace, &word)
+    itcl_class_proc_target(analysis, &namespace, &word)
         .map(|(class_q, member)| (class_q.clone(), member))
 }
 
@@ -3104,7 +2938,7 @@ pub(crate) fn forced_import_shadows(
     word: &str,
     call_off: u32,
 ) -> bool {
-    if word.contains("::") {
+    if tcl_syntax::naming::is_qualified(word.as_bytes()) {
         return false;
     }
     let path = analysis
@@ -3141,7 +2975,7 @@ pub fn forced_import_shadows_call(
     resolution_candidates: &[String],
     call_off: u32,
 ) -> bool {
-    if word.contains("::") {
+    if tcl_syntax::naming::is_qualified(word.as_bytes()) {
         return false;
     }
     live_import_over_candidates(
@@ -3153,6 +2987,50 @@ pub fn forced_import_shadows_call(
         ImportQuery::ForcedShadow,
     )
     .is_some()
+}
+
+/// Whether the original-name providers abstain at the call whose head covers
+/// `offset` (user decision 2026-10-22T07:18Z, `force_import_shadow_direction`).
+///
+/// A `namespace import -force` that the document alone shows binding nothing
+/// leaves the fresh-interpreter answer (the local command) in place. When
+/// only the caller's whole-program export view says a sibling exports the
+/// name, the shadow depends on cross-document execution order, which stays
+/// conditional (decision 2026-10-17T20:30Z `export_order`): neither the
+/// local definition nor the sibling's export is proven, so no provider
+/// answers for that call.
+#[must_use]
+pub fn program_forced_import_abstains(
+    analysis: &AnalysisResult,
+    program: Option<ProgramExports<'_>>,
+    offset: u32,
+) -> bool {
+    let Some(program) = program else {
+        return false;
+    };
+    let Some(invocation) = invocation_head_at(analysis, offset) else {
+        return false;
+    };
+    let word = invocation.name.as_str();
+    let call_off = invocation.range.start();
+    let namespace = namespace_context_at(
+        &analysis.global_scope,
+        call_off,
+        &analysis.namespace_overrides,
+    );
+    forced_import_shadows(
+        analysis,
+        CallResolution::document_only().in_program(program),
+        &namespace,
+        word,
+        call_off,
+    ) && !forced_import_shadows(
+        analysis,
+        CallResolution::document_only(),
+        &namespace,
+        word,
+        call_off,
+    )
 }
 
 /// Which question [`import_hop`] / [`live_import_at`] are being asked, and
@@ -3228,40 +3106,122 @@ fn export_verdict(
     source_ns: &str,
     word: &str,
     import_at: u32,
+    order: &DocumentOrderCell,
 ) -> ExportVerdict {
-    if exported_at_import(analysis, ctx, source_ns, word, import_at) {
-        return ExportVerdict::Exported;
+    let Some(name) = original_export_command(analysis, source_ns, word) else {
+        return ExportVerdict::Unknown;
+    };
+    export_verdict_for_slot_in(analysis, ctx, name.slot(), name.policy(), import_at, order)
+}
+
+#[cfg(test)]
+fn export_verdict_for_slot(
+    analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
+    slot: &tcl_core_types::ByteCommandSlot,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    import_at: u32,
+) -> ExportVerdict {
+    export_verdict_for_slot_in(
+        analysis,
+        ctx,
+        slot,
+        policy,
+        import_at,
+        &DocumentOrderCell::new(),
+    )
+}
+
+fn export_verdict_for_slot_in(
+    analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
+    slot: &tcl_core_types::ByteCommandSlot,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    import_at: u32,
+    order: &DocumentOrderCell,
+) -> ExportVerdict {
+    let local = exported_original_slot_at_import_in(analysis, ctx, slot, policy, import_at, order);
+    if local == ExportVerdict::Exported {
+        return local;
     }
     if let Some(program) = ctx.program {
-        return program.oracle.exported_at(
-            source_ns,
-            word,
+        return program.oracle.exported_at_original(
+            slot,
+            policy,
             in_document_point(analysis, ctx, import_at),
         );
     }
-    if namespace_exports_observable(analysis, source_ns) {
-        ExportVerdict::NotExported
+    let scope =
+        tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(slot.namespace.clone());
+    let observable = namespace_exports_observable(analysis, &scope, policy);
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        eprintln!(
+            "ORIGINAL_EXPORT_SOURCE_QUERY at={import_at} scope={scope:?} tail={:?} local={local:?} observable={observable} exports={} unknown={}",
+            slot.simple.as_bytes(),
+            analysis.original_namespace_exports().count(),
+            analysis.original_namespace_export_unknowns().len()
+        );
+    }
+    if observable {
+        local
     } else {
         ExportVerdict::Unknown
     }
 }
 
 /// Whether this document holds *any* `namespace export` record for
-/// `source_ns` — the document-only fallback [`export_verdict`] uses when no
+/// the exact namespace scope and policy — the document-only fallback
+/// [`export_verdict`] uses when no
 /// whole-program oracle is attached.
 ///
 /// The proposition being asserted is about the export list, so the evidence
 /// has to be the export list: a document that declares no export at all for
-/// `source_ns` knows nothing about what it exports. Its **residual** — a
-/// document holding some of `source_ns`'s exports but not the covering one
+/// that namespace knows nothing about what it exports. Its **residual** — a
+/// document holding some of the namespace's exports but not the covering one
 /// still reads the gap as a fact — is precisely what the oracle removes when
 /// one is available, and what remains, deliberately, when one is not.
-fn namespace_exports_observable(analysis: &AnalysisResult, source_ns: &str) -> bool {
-    let bare = source_ns.trim_start_matches("::");
+fn namespace_exports_observable(
+    analysis: &AnalysisResult,
+    scope: &tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+) -> bool {
     analysis
-        .namespace_exports
-        .iter()
-        .any(|e| e.ns.trim_start_matches("::") == bare)
+        .original_namespace_exports()
+        .any(|event| event.context() == scope && event.policy() == policy)
+}
+
+/// Associate an advisory qualified label with already retained original source
+/// publication records. A label cannot create bytes; disagreeing publications
+/// and missing original records are terminal.
+fn original_export_command<'a>(
+    analysis: &'a AnalysisResult,
+    source_ns: &str,
+    word: &str,
+) -> Option<&'a tcl_compiler::signature_scan::scope::SignatureSourceCommand> {
+    let label = tcl_syntax::naming::qualify(source_ns, word);
+    let names = analysis
+        .original_procedure_declarations()
+        .filter(|record| record.metadata().qualified_name == label)
+        .map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name)
+        .chain(
+            analysis
+                .original_class_declarations()
+                .filter(|record| record.metadata().qualified_name == label)
+                .map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name),
+        );
+    let mut found = None;
+    for name in names {
+        if found.is_some_and(
+            |previous: &tcl_compiler::signature_scan::scope::SignatureSourceCommand| {
+                previous.slot() != name.slot() || previous.policy() != name.policy()
+            },
+        ) {
+            return None;
+        }
+        found = Some(name);
+    }
+    found
 }
 
 /// Shared candidate walk behind [`proc_visible_via_wildcard_import`],
@@ -3305,7 +3265,7 @@ fn wildcard_import_source_namespace(
     word: &str,
     call_off: u32,
 ) -> Option<String> {
-    if word.contains("::") {
+    if tcl_syntax::naming::is_qualified(word.as_bytes()) {
         return None;
     }
     let mut current = namespace.to_owned();
@@ -3358,7 +3318,9 @@ fn import_hop<S: AsRef<str>>(
     call_off: u32,
     query: ImportQuery,
 ) -> Option<String> {
-    let candidates = tcl_syntax::naming::command_resolution_candidates(namespace, path, word);
+    let candidates = tcl_syntax::naming::command_resolution_candidates_from_namespace_keys(
+        namespace, path, word,
+    );
     live_import_over_candidates(
         analysis,
         ctx,
@@ -3381,9 +3343,7 @@ fn live_import_over_candidates<'c>(
     query: ImportQuery,
 ) -> Option<String> {
     for candidate in candidates {
-        let Some((prefix, tail)) = candidate.rsplit_once("::") else {
-            continue;
-        };
+        let (prefix, tail) = tcl_syntax::naming::key_holder_and_tail(candidate);
         if tail != word {
             continue;
         }
@@ -3435,8 +3395,7 @@ impl SlotEvent<'_> {
 
 /// Whether a forget event covers an alias taken from `source_ns`.
 fn forget_covers(forget_source: Option<&str>, source_ns: &str) -> bool {
-    forget_source
-        .is_none_or(|src| src.trim_start_matches("::") == source_ns.trim_start_matches("::"))
+    forget_source.is_none_or(|src| same_namespace(src, source_ns))
 }
 
 /// The source namespace of the import alias `importing_ns` holds for `word`
@@ -3451,7 +3410,7 @@ fn forget_covers(forget_source: Option<&str>, source_ns: &str) -> bool {
 ///
 /// 1. **The import installs it** — gated by the source namespace's export
 ///    snapshot at the import's own position
-///    ([`exported_at_import`]).
+///    ([`exported_original_slot_at_import`]).
 /// 2. **A conflict makes it install nothing.** Without `-force`, importing
 ///    onto a name the target namespace already holds raises `can't import
 ///    command "p": already exists`; the existing command survives and
@@ -3507,7 +3466,8 @@ fn live_import_at(
     query: ImportQuery,
 ) -> Option<String> {
     use crate::namespace_import::{AliasEvent, AliasEventKind};
-    let events = slot_events(analysis, ctx, importing_ns, word, query);
+    let order = DocumentOrderCell::new();
+    let events = slot_events(analysis, ctx, importing_ns, word, query, call_off, &order);
     // Which imports actually install something: an unforced import onto a
     // slot the namespace already holds (a local declaration, or a live alias
     // from a *different* source) raises `already exists` and binds nothing.
@@ -3608,7 +3568,7 @@ fn live_import_at(
         .into_iter();
     crate::namespace_import::alias_live_at(
         &mut log,
-        &RunOrder::default(),
+        document_order(&order, analysis, ctx),
         Some(in_document_point(analysis, ctx, call_off)),
     )
     .then(|| source_ns.to_owned())
@@ -3647,7 +3607,12 @@ fn in_document_point<'a>(
     RunPoint {
         uri: ctx.uri(),
         at,
-        enclosing_body: analysis.innermost_definition_body_span(at),
+        enclosing_body: analysis.original_definition_body_span(at).or_else(|| {
+            analysis
+                .allows_lexical_declaration_advice()
+                .then(|| analysis.innermost_definition_body_span(at))
+                .flatten()
+        }),
     }
 }
 
@@ -3694,8 +3659,24 @@ fn slot_events<'a>(
     importing_ns: &str,
     word: &str,
     query: ImportQuery,
+    call_off: u32,
+    order: &DocumentOrderCell,
 ) -> Vec<SlotEvent<'a>> {
     let mut events: Vec<SlotEvent<'a>> = Vec::new();
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        eprintln!(
+            "ORIGINAL_IMPORT_SOURCE_QUERY ns={importing_ns} word={word} at={call_off} imports={} patterns={} exports={} unknown={}",
+            analysis
+                .namespace_imports
+                .iter()
+                .filter(|imp| imp.ns == importing_ns)
+                .count(),
+            analysis.original_namespace_patterns().count(),
+            analysis.original_namespace_exports().count(),
+            analysis.original_namespace_export_unknowns().len()
+        );
+    }
     for imp in analysis
         .namespace_imports
         .iter()
@@ -3704,9 +3685,11 @@ fn slot_events<'a>(
         if query == ImportQuery::ForcedShadow && !imp.forced {
             continue;
         }
-        let Some((source_ns, export_tail)) = imp.pattern.rsplit_once("::") else {
+        let Some(source) = &imp.source else {
             continue;
         };
+        let source_ns = source.namespace.as_str();
+        let export_tail = source.tail_pattern.as_str();
         // A pattern rooted at the global namespace (`namespace import ::p`,
         // `namespace import ::*`) splits to an *empty* source namespace, which
         // is easy to read as "no source" and skip — the one import shape that
@@ -3722,11 +3705,84 @@ fn slot_events<'a>(
         } else {
             source_ns
         };
-        if !tcl_syntax::glob::string_match(export_tail, word) {
-            continue;
-        }
         let at = imp.range.start();
-        if !query.installs(export_verdict(analysis, ctx, source_ns, word, at)) {
+        let original = analysis.original_namespace_patterns().find(|pattern| {
+            pattern.span() == imp.range
+                && pattern.purpose()
+                    == tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern
+        });
+        let input = analysis
+            .command_invocations
+            .iter()
+            .filter(|invocation| {
+                invocation.range.start() == call_off
+                    || invocation
+                        .original_lookup
+                        .as_ref()
+                        .is_some_and(|lookup| lookup.site().offset == call_off)
+            })
+            .filter_map(|invocation| {
+                invocation
+                    .original_lookup
+                    .as_ref()
+                    .map(tcl_compiler::command_binding::OriginalCommandLookup::name_input)
+            })
+            .collect::<Vec<_>>();
+        let verdict = if let (Some(original), Some(first)) = (original, input.first()) {
+            if input.iter().any(|other| *other != *first) {
+                continue;
+            }
+            let Some(slot) = original.source_slot_for_call_input(first) else {
+                continue;
+            };
+            if original.matches_imported_command(&slot, first.policy()) != Some(true) {
+                continue;
+            }
+            export_verdict_for_slot_in(analysis, ctx, &slot, first.policy(), at, order)
+        } else if let Some(original) = original {
+            // Explicit authored query labels associate existing original
+            // publication tails; they cannot produce native name bytes.
+            let names = analysis
+                .original_procedure_declarations()
+                .map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name)
+                .chain(analysis.original_class_declarations().map(
+                    tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name,
+                ))
+                .filter(|name| name.slot().simple.try_utf8().ok() == Some(word))
+                .collect::<Vec<_>>();
+            let Some(first) = names.first() else {
+                continue;
+            };
+            if names.iter().any(|other| {
+                other.slot().simple != first.slot().simple || other.policy() != first.policy()
+            }) {
+                continue;
+            }
+            let Some(slot) = original.source_slot_for_command_slot(first.slot(), first.policy())
+            else {
+                continue;
+            };
+            if original.matches_imported_command(&slot, first.policy()) != Some(true) {
+                continue;
+            }
+            export_verdict_for_slot_in(analysis, ctx, &slot, first.policy(), at, order)
+        } else {
+            if !analysis.allows_lexical_declaration_advice()
+                || !tcl_syntax::glob::string_match(export_tail, word)
+            {
+                continue;
+            }
+            export_verdict(analysis, ctx, source_ns, word, at, order)
+        };
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+            eprintln!(
+                "ORIGINAL_IMPORT_SOURCE_PATTERN ns={importing_ns} source={source_ns} at={at} original={} call_inputs={} verdict={verdict:?}",
+                original.is_some(),
+                input.len()
+            );
+        }
+        if !query.installs(verdict) {
             continue;
         }
         events.push(SlotEvent::Import {
@@ -3781,50 +3837,83 @@ fn slot_events<'a>(
     events
 }
 
-/// Whether `source_ns` had exported `word` by the time the `namespace import`
-/// at `import_at` ran — the same-document binding of the shared decision
-/// function [`crate::namespace_import::exported_at_import_site`].
-///
-/// Every export event in this document is ordered against the import, so all
-/// of them carry an `at`; the "had it run?" primitive is
-/// [`tcl_compiler::analyser::indirection::in_effect`], reused rather than
-/// re-derived so an export written inside a proc body is judged by exactly the
-/// same load-order rule the `rename` / `interp alias` timeline applies (the
-/// whole file loads before any body runs, but a statement of the *same* body
-/// stays offset-ordered).
-///
-/// `pub(crate)` because `references.rs` asks the identical question about the
-/// identical records — one decision, not two.
-pub(crate) fn exported_at_import(
+/// One lazily captured in-document source order per resolution, shared by
+/// every import site's export snapshot and the alias lifecycle fold.
+type DocumentOrderCell = std::cell::OnceCell<RunOrder>;
+
+fn document_order<'o>(
+    order: &'o DocumentOrderCell,
     analysis: &AnalysisResult,
     ctx: CallResolution<'_>,
-    source_ns: &str,
-    word: &str,
+) -> &'o RunOrder {
+    order.get_or_init(|| in_document_source_order(analysis, ctx))
+}
+
+/// Retain the actual analysis owner even without an attached workspace view.
+/// Missing source transport stays conditional/unavailable, never constructed.
+/// Straight-line positions of this document are ordered by its own sequence;
+/// deferred bodies, conditional branches and possible early exits stay
+/// Conditional.
+fn in_document_source_order(analysis: &AnalysisResult, ctx: CallResolution<'_>) -> RunOrder {
+    RunOrder::for_source_navigation(
+        &[],
+        crate::source_graph::SourceOrderContext::capture(analysis)
+            .map(|owner| (ctx.uri().to_owned(), owner))
+            .into_iter(),
+    )
+}
+
+#[cfg(test)]
+fn exported_original_slot_at_import(
+    analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
+    slot: &tcl_core_types::ByteCommandSlot,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
     import_at: u32,
-) -> bool {
-    let mut events = analysis
-        .namespace_exports
+) -> ExportVerdict {
+    exported_original_slot_at_import_in(
+        analysis,
+        ctx,
+        slot,
+        policy,
+        import_at,
+        &DocumentOrderCell::new(),
+    )
+}
+
+fn exported_original_slot_at_import_in(
+    analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
+    slot: &tcl_core_types::ByteCommandSlot,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    import_at: u32,
+    order: &DocumentOrderCell,
+) -> ExportVerdict {
+    let site = in_document_point(analysis, ctx, import_at);
+    let order = document_order(order, analysis, ctx);
+    if analysis
+        .original_namespace_export_unknowns()
         .iter()
-        .filter(|e| e.ns == source_ns)
-        .map(|e| crate::namespace_import::ExportEvent {
-            pattern: &e.pattern,
-            clears: e.clears,
-            // No enclosing-body span: the index stores none per export row
-            // either, so both tiers rank a `-clear` against a pattern by
-            // position alone. Symmetric, and the safe direction — a
-            // body-local export the tombstone cannot be proven to follow
-            // keeps the name exported.
-            at: RunPoint {
-                uri: ctx.uri(),
-                at: e.range.start(),
-                enclosing_body: None,
-            },
-        });
-    crate::namespace_import::exported_at_import_site(
-        &mut events,
-        word,
-        &RunOrder::default(),
-        in_document_point(analysis, ctx, import_at),
+        .any(|span| {
+            order
+                .navigation_precedence(in_document_point(analysis, ctx, span.start()), site)
+                .and_then(crate::source_graph::SourceNavigationOrder::modeled_source_exclusion)
+                .unwrap_or(true)
+        })
+    {
+        return ExportVerdict::Unknown;
+    }
+    crate::namespace_import::exported_original_at_import_site(
+        analysis.original_namespace_exports().map(|event| {
+            (
+                event,
+                in_document_point(analysis, ctx, event.span().start()),
+            )
+        }),
+        slot,
+        policy,
+        order,
+        site,
     )
 }
 
@@ -3881,6 +3970,33 @@ pub(crate) fn resolve_called_proc<'a>(
     call_off: u32,
     ctx: CallResolution<'_>,
 ) -> Option<&'a tcl_compiler::analyser::ProcDef> {
+    if !analysis.allows_lexical_declaration_advice() {
+        let std::ops::ControlFlow::Break(Some(identity)) =
+            crate::original_declaration::select_at_offset(ctx.uri(), source, analysis, call_off)
+        else {
+            return None;
+        };
+        return Some(identity.procedure_metadata(analysis)?.metadata());
+    }
+    if analysis.allows_retained_logical_declaration_advice() {
+        return logical_called_procedure_at(analysis, source, call_off)
+            .map(tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::metadata);
+    }
+    if let Some(reference) = invocation_head_at(analysis, call_off)
+        .and_then(|invocation| invocation.resolved_command_reference.as_ref())
+    {
+        return reference
+            .linked_definition()
+            .or_else(|| reference.definition())
+            .and_then(|definition| analysis.proc_for_definition(definition, source));
+    }
+    if let Some(invocation) = invocation_head_at(analysis, call_off)
+        && let Some(definition) = &invocation.resolved_definition
+    {
+        // A retained actual implementation outranks all document-final name
+        // assistance, including definitions installed later in a reached body.
+        return analysis.proc_for_definition(definition, source);
+    }
     let has_builtin = ctx.registry.is_some_and(|r| r.get(word).is_some());
     // A `namespace import -force` *replaces* a same-named command the
     // importing namespace already holds, so from its own position onward the
@@ -3891,7 +4007,8 @@ pub(crate) fn resolve_called_proc<'a>(
     // definition would be the wrong answer and the cross-document resolver is
     // the one that can answer.
     let forced_shadow = forced_import_shadows(analysis, ctx, namespace, word, call_off);
-    if !forced_shadow && let Some(proc_def) = proc_visible_from_namespace(analysis, namespace, word)
+    if !forced_shadow
+        && let Some(proc_def) = proc_visible_from_namespace(analysis, namespace, word, call_off)
     {
         let nested_shadow = has_builtin
             && analysis.offset_is_inside_any_definition_body(proc_def.name_span.start());
@@ -3983,12 +4100,10 @@ fn only_route_is_a_dead_import(
     call_off: u32,
     target_qname: &str,
 ) -> bool {
-    if word.contains("::") {
+    if tcl_syntax::naming::is_qualified(word.as_bytes()) {
         return false;
     }
-    let Some((target_ns, tail)) = target_qname.rsplit_once("::") else {
-        return false;
-    };
+    let (target_ns, tail) = tcl_syntax::naming::key_holder_and_tail(target_qname);
     if tail != word {
         return false;
     }
@@ -4002,23 +4117,21 @@ fn only_route_is_a_dead_import(
         .get(namespace)
         .map_or(&[][..], Vec::as_slice);
     let in_scope: Vec<String> =
-        tcl_syntax::naming::command_resolution_candidates(namespace, path, word)
-            .into_iter()
-            .filter_map(|cand| {
-                cand.rsplit_once("::").map(|(prefix, _)| {
-                    if prefix.is_empty() {
-                        "::".to_owned()
-                    } else {
-                        prefix.to_owned()
-                    }
-                })
-            })
-            .collect();
+        tcl_syntax::naming::command_resolution_candidates_from_namespace_keys(
+            namespace, path, word,
+        )
+        .into_iter()
+        .map(|candidate| {
+            tcl_syntax::naming::key_holder_and_tail(&candidate)
+                .0
+                .to_owned()
+        })
+        .collect();
     let covered = analysis.namespace_imports.iter().any(|imp| {
         in_scope.contains(&imp.ns)
-            && imp.pattern.rsplit_once("::").is_some_and(|(src, pat)| {
-                let src = if src.is_empty() { "::" } else { src };
-                same_namespace(src, target_ns) && tcl_syntax::glob::string_match(pat, word)
+            && imp.source.as_ref().is_some_and(|source| {
+                same_namespace(&source.namespace, target_ns)
+                    && tcl_syntax::glob::string_match(&source.tail_pattern, word)
             })
     });
     covered
@@ -4029,11 +4142,15 @@ fn only_route_is_a_dead_import(
 /// Namespace-name equality, ignoring the leading `::` one spelling carries and
 /// the other does not.
 fn same_namespace(a: &str, b: &str) -> bool {
-    a.trim_start_matches("::") == b.trim_start_matches("::")
+    tcl_syntax::naming::unroot_rooted_key(a).unwrap_or(a)
+        == tcl_syntax::naming::unroot_rooted_key(b).unwrap_or(b)
 }
 
-/// Resolve the `(all_procs key, ProcDef)` that a proc-oriented editor
-/// operation (rename / references / call-hierarchy) targets at `cursor_off`:
+/// Readonly procedure metadata at the cursor. Retained Logical declarations
+/// and calls use their genuine original header; its qualified name is reporting
+/// data, never an independent allocation or edit permission.
+///
+/// The separate legacy `(all_procs key, ProcDef)` route resolves:
 ///
 /// 1. the proc whose declaration name span covers the cursor (a declaration
 ///    -site invocation), else
@@ -4052,6 +4169,33 @@ pub(crate) fn resolve_proc_target_at<'a>(
     word: &str,
     ctx: CallResolution<'_>,
 ) -> Option<(&'a String, &'a tcl_compiler::analyser::ProcDef)> {
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::math_function_symbol::select_at_offset(source, analysis, cursor_off)
+    {
+        let declaration = selected?.procedure_metadata()?;
+        return Some((
+            &declaration.metadata().qualified_name,
+            declaration.metadata(),
+        ));
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        let std::ops::ControlFlow::Break(Some(identity)) =
+            crate::original_declaration::select_at_offset(ctx.uri(), source, analysis, cursor_off)
+        else {
+            return None;
+        };
+        let declaration = identity.procedure_metadata(analysis)?;
+        return Some((
+            &declaration.metadata().qualified_name,
+            declaration.metadata(),
+        ));
+    }
+    if analysis.allows_retained_logical_declaration_advice() {
+        crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        let header = logical_procedure_header_at(analysis, cursor_off)
+            .or_else(|| logical_called_procedure_at(analysis, source, cursor_off))?;
+        return Some((&header.metadata().qualified_name, header.metadata()));
+    }
     if let Some(hit) = analysis
         .all_procs
         .iter()
@@ -4079,6 +4223,9 @@ pub(crate) fn resolve_proc_target_at<'a>(
     // from the declaration reaches. `word` is unusable at such a cursor
     // anyway — the word-span scan hands back `li(`.
     if let Some(inv) = crate::expr_context::mathfunc_call_at(analysis, cursor_off) {
+        if !analysis.allows_lexical_declaration_advice() {
+            return None;
+        }
         return inv
             .resolved_qualified_name
             .as_deref()
@@ -4112,10 +4259,23 @@ pub(crate) fn resolve_proc_target_at<'a>(
 /// key equals `ClassDef::qualified_name`.
 pub(crate) fn resolve_class_target_at<'a>(
     analysis: &'a AnalysisResult,
+    source: &str,
     ctx: CallResolution<'_>,
     cursor_off: u32,
     word: &str,
 ) -> Option<(&'a String, &'a tcl_compiler::analyser::ClassDef)> {
+    if !analysis.allows_lexical_declaration_advice() {
+        let std::ops::ControlFlow::Break(Some(identity)) =
+            crate::original_declaration::select_at_offset(ctx.uri(), source, analysis, cursor_off)
+        else {
+            return None;
+        };
+        let declaration = identity.class_metadata(analysis)?;
+        return Some((
+            &declaration.metadata().qualified_name,
+            declaration.metadata(),
+        ));
+    }
     if let Some(hit) = analysis
         .all_classes
         .iter()
@@ -4156,7 +4316,11 @@ pub(crate) fn resolve_class_target_at<'a>(
         .get_key_value(&tcl_syntax::naming::qualify(&source_ns, word))
 }
 
-/// Deterministic tail match, in place of a first-`HashMap`-hit one: of
+/// Simple-name reporting assistance, separate from actual source call targets.
+/// Retained Logical candidates are genuine headers from the current image;
+/// their deterministic order grants no lookup, allocation or edit authority.
+///
+/// The separate legacy deterministic tail match considers
 /// every proc whose simple name equals `word`, prefer one defined in this
 /// document ([`name_token_in_document`]), then the lexicographically
 /// smallest qualified name.  `HashMap` iteration order never decides the
@@ -4175,6 +4339,29 @@ pub(crate) fn fallback_proc_by_simple_name<'a>(
     source: &str,
     word: &str,
 ) -> Option<&'a tcl_compiler::analyser::ProcDef> {
+    if analysis.allows_retained_logical_declaration_advice() {
+        crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        // Reporting assistance only: actual call/target selection is terminal
+        // through its independent original source receipt before this path.
+        return analysis
+            .logical_source_procedure_declarations()
+            .filter(|header| header.name() == Some(word))
+            .filter(|header| {
+                !tcl_registry::mathfunc::is_in_mathfunc_namespace(&header.metadata().qualified_name)
+            })
+            .min_by(|left, right| {
+                left.metadata()
+                    .qualified_name
+                    .cmp(&right.metadata().qualified_name)
+                    .then_with(|| {
+                        left.metadata()
+                            .name_span
+                            .start()
+                            .cmp(&right.metadata().name_span.start())
+                    })
+            })
+            .map(tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::metadata);
+    }
     analysis
         .all_procs
         .iter()
@@ -4197,15 +4384,18 @@ fn name_token_in_document(source: &str, proc_def: &tcl_compiler::analyser::ProcD
         .is_some_and(|text| text.ends_with(proc_def.name.as_str()))
 }
 
-/// Fully-qualified `::ns::var` form for a var stored in a namespace / global
-/// scope.
+/// Test-only display coordinate for isolated scope-walk geometry controls.
+/// Production insertion uses current Logical source namespace advice.
+#[cfg(test)]
 fn qualified_var_name(scope: &tcl_compiler::analyser::Scope, var: &str) -> String {
     use tcl_compiler::analyser::ScopeKind;
-    if var.starts_with("::") {
+    if tcl_syntax::naming::unroot_rooted_key(var).is_some() {
         var.to_string()
     } else if scope.kind == ScopeKind::Global {
-        format!("::{var}")
+        tcl_syntax::naming::root_unrooted_key(var)
     } else {
+        // Join constructed Logical display coordinates without reparsing
+        // literal colon components as a written name.
         format!("{}::{var}", scope.name)
     }
 }
@@ -4213,6 +4403,7 @@ fn qualified_var_name(scope: &tcl_compiler::analyser::Scope, var: &str) -> Strin
 /// Walk the scope tree and return the fully-qualified names of every
 /// namespace / global variable whose enclosing namespace is not in the
 /// cursor's lexical `chain` (proc locals excluded).
+#[cfg(test)]
 pub(crate) fn cross_namespace_qualified_vars(
     global: &tcl_compiler::analyser::Scope,
     chain: &FxHashSet<String>,
@@ -4238,53 +4429,105 @@ pub(crate) fn cross_namespace_qualified_vars(
     out
 }
 
-/// Return the chain of scopes from `root` down to the
-/// innermost child whose `body_span` contains `byte_offset`.
-/// The chain is ordered outermost (`root`) to innermost.
-fn scope_chain_at(
-    root: &tcl_compiler::analyser::Scope,
-    byte_offset: u32,
-) -> Vec<&tcl_compiler::analyser::Scope> {
-    let mut chain = vec![root];
-    let mut cursor = root;
-    loop {
-        let next = cursor.children.iter().find(|c| {
-            // `Span` is half-open `[start, end)` — the byte at
-            // `s.end()` lives outside the scope.
-            c.body_span
-                .is_some_and(|s| s.start() <= byte_offset && byte_offset < s.end())
-        });
-        match next {
-            Some(child) => {
-                chain.push(child);
-                cursor = child;
-            }
-            None => break,
-        }
-    }
-    chain
+/// Current readonly scan geometry. Document visibility is explicit, rather
+/// than inferred from an empty or unavailable collection of body spans.
+pub(crate) enum SourceScopeBodySpans {
+    Document(tcl_lexer::Span),
+    Bodies(Vec<tcl_lexer::Span>),
 }
 
-/// Return the `body_span`s of the scope chain containing
-/// `byte_offset`, innermost first.  The global scope has no
-/// `body_span`, so an empty result means "the whole file is
-/// visible" — an empty list signals a file-wide walk.
+/// Join the actual Logical scope owner to genuine original script interiors.
+/// Missing/foreign body geometry withdraws the scan, never widens it to a file.
 pub(crate) fn scope_body_spans_at(
-    root: &tcl_compiler::analyser::Scope,
-    byte_offset: u32,
-) -> Vec<tcl_lexer::Span> {
-    scope_chain_at(root, byte_offset)
-        .into_iter()
-        .rev()
-        .filter_map(|s| s.body_span)
-        .collect()
+    position: &CurrentSourcePosition<'_>,
+) -> Option<SourceScopeBodySpans> {
+    use tcl_compiler::analyser::ScopeKind;
+    let source = position.source();
+    let analysis = position.analysis();
+    let offset = position.offset();
+    let image = tcl_lexer::SourceImage::document(source);
+    let advice =
+        analysis.logical_variable_scope_advice(&image, position.context().config(), offset)?;
+    let root = advice.root();
+    if !std::ptr::eq(root, &raw const analysis.global_scope)
+        || root.kind != ScopeKind::Global
+        || root.body_span.is_some()
+    {
+        return None;
+    }
+    let structure = crate::source_structure::SourceStructure::capture(
+        source,
+        Some(analysis),
+        position.context().config(),
+    )?;
+    let mut pending = root
+        .children
+        .iter()
+        .map(|scope| (scope, 1))
+        .collect::<Vec<_>>();
+    while let Some((scope, depth)) = pending.pop() {
+        if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
+            return None;
+        }
+        let body = scope.body_span?;
+        source.get(body.as_range())?;
+        if !structure
+            .scripts
+            .iter()
+            .any(|(span, nesting)| *nesting > 0 && *span == body)
+        {
+            return None;
+        }
+        pending.extend(scope.children.iter().map(|child| (child, depth + 1)));
+    }
+    let mut selected = root;
+    let mut spans = Vec::new();
+    loop {
+        let mut children = selected
+            .children
+            .iter()
+            .filter_map(|child| {
+                let body = child.body_span?;
+                (body.start() <= offset && offset < body.end()).then_some((child, body))
+            })
+            .collect::<Vec<_>>();
+        children.sort_by_key(|(_, body)| body.len());
+        let Some((child, body)) = children.first().copied() else {
+            break;
+        };
+        if children
+            .get(1)
+            .is_some_and(|(_, other)| other.len() == body.len())
+        {
+            return None;
+        }
+        spans.push(body);
+        selected = child;
+    }
+    if let Some(body) = structure
+        .caller_context_unavailable_bodies
+        .iter()
+        .filter(|body| body.start() <= offset && offset < body.end())
+        .min_by_key(|body| body.len())
+        && !spans.contains(body)
+    {
+        return None;
+    }
+    if spans.is_empty() {
+        Some(SourceScopeBodySpans::Document(tcl_lexer::Span::new(
+            0,
+            u32::try_from(source.len()).ok()?,
+        )))
+    } else {
+        spans.reverse();
+        Some(SourceScopeBodySpans::Bodies(spans))
+    }
 }
 
-pub(crate) fn span_to_range(
-    source: &str,
-    line_index: &LineIndex,
-    span: tcl_lexer::Span,
-) -> LspRange {
+/// Convert a byte extent to editor UTF-16 geometry in its owning source.
+/// This supplies no name, declaration, source-currency or edit authority.
+#[must_use]
+pub fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
     let start = line_index.position_at_utf16(span.start(), source);
     let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
@@ -4306,15 +4549,803 @@ mod tests {
         a.analyse(source, "tcl8.6").clone()
     }
 
+    fn logical_procedure_navigation_analysis(source: &str) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn logical_autoload_head_uses_the_retained_source_namespace_and_refuses_stale_heads() {
+        let source = "namespace eval ::scope {proc p {} {}; p 1}";
+        let analysis = logical_procedure_navigation_analysis(source);
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        let cursor = source.rfind("p 1").unwrap();
+        assert_eq!(
+            command_head_and_namespace_at(source, &analysis, 0, u32::try_from(cursor).unwrap(),),
+            Some(("p".to_owned(), "::scope".to_owned()))
+        );
+        assert!(
+            command_head_and_namespace_at(
+                &format!("{source} "),
+                &analysis,
+                0,
+                u32::try_from(cursor).unwrap(),
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            command_head_and_namespace_at(source, &missing, 0, u32::try_from(cursor).unwrap(),)
+                .is_none()
+        );
+
+        let computed = "namespace eval ::scope {set head p; $head}";
+        let computed_analysis = logical_procedure_navigation_analysis(computed);
+        let computed_cursor = computed.rfind("$head").unwrap() + 1;
+        assert!(
+            command_head_and_namespace_at(
+                computed,
+                &computed_analysis,
+                0,
+                u32::try_from(computed_cursor).unwrap(),
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_proc_targets_keep_displaced_original_declaration_allocations() {
+        let source =
+            "proc repeated {first} {return $first}\nproc repeated {second} {return $second}\n";
+        let mut analysis = logical_procedure_navigation_analysis(source);
+        analysis.all_procs.clear();
+        analysis.proc_declaration_sites.clear();
+        for offset in [
+            source.find("repeated").unwrap(),
+            source.rfind("repeated").unwrap(),
+        ] {
+            let cursor = u32::try_from(offset + 1).unwrap();
+            let declaration = logical_procedure_header_at(&analysis, cursor).unwrap();
+            let target = resolve_proc_target_at(
+                &analysis,
+                source,
+                cursor,
+                "repeated",
+                CallResolution::document_only(),
+            )
+            .unwrap();
+            assert!(std::ptr::eq(target.1, declaration.metadata()));
+            assert_eq!(target.1.name_span.start(), u32::try_from(offset).unwrap());
+            assert!(std::ptr::eq(
+                proc_declaration_at(&analysis, cursor).unwrap(),
+                target.1
+            ));
+        }
+    }
+
+    #[test]
+    fn logical_proc_targets_retain_alias_move_and_redefinition_call_owners() {
+        let source = "proc join {first second} {}\ninterp alias {} joined {} join captured\njoined value\nrename join archived\nproc join {new} {}\narchived alpha beta\njoin one\n";
+        let mut analysis = logical_procedure_navigation_analysis(source);
+        analysis.all_procs.clear();
+        analysis.proc_declaration_sites.clear();
+        for needle in ["joined value", "archived alpha", "join one"] {
+            let start = u32::try_from(source.find(needle).unwrap()).unwrap();
+            let call = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
+                source, &analysis, start,
+            ).unwrap();
+            let header = call.declaration(&analysis).unwrap();
+            let target = resolve_proc_target_at(
+                &analysis,
+                source,
+                start + 1,
+                "unrelated-display",
+                CallResolution::document_only(),
+            )
+            .unwrap();
+            assert!(std::ptr::eq(target.1, header.metadata()));
+            assert!(std::ptr::eq(
+                resolve_called_proc(
+                    &analysis,
+                    source,
+                    "::unrelated",
+                    "unrelated-display",
+                    start + 1,
+                    CallResolution::document_only()
+                )
+                .unwrap(),
+                header.metadata(),
+            ));
+        }
+    }
+
+    #[test]
+    fn logical_simple_name_assistance_does_not_supply_call_target_authority() {
+        let source = "namespace eval other {proc helper {value} {return $value}}\nhelper data\n";
+        let mut analysis = logical_procedure_navigation_analysis(source);
+        analysis.all_procs.clear();
+        analysis.proc_declaration_sites.clear();
+        let suggestion = fallback_proc_by_simple_name(&analysis, source, "helper").unwrap();
+        assert_eq!(suggestion.name, "helper");
+        let cursor = u32::try_from(source.rfind("helper data").unwrap() + 1).unwrap();
+        assert!(
+            resolve_proc_target_at(
+                &analysis,
+                source,
+                cursor,
+                "helper",
+                CallResolution::document_only()
+            )
+            .is_none()
+        );
+        assert!(
+            resolve_called_proc(
+                &analysis,
+                source,
+                "::",
+                "helper",
+                cursor,
+                CallResolution::document_only()
+            )
+            .is_none()
+        );
+        assert!(
+            fallback_proc_by_simple_name(&analysis, &format!("{source}# changed"), "helper")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_proc_targets_refuse_deleted_dynamic_argument_and_stale_input() {
+        let source = "proc helper {value} {}\nhelper data\nrename helper {}\nhelper ignored\ninterp alias {} builtin {} puts\nbuiltin text\nset data helper\n$head data\n";
+        let analysis = logical_procedure_navigation_analysis(source);
+        let call = u32::try_from(source.find("helper data").unwrap() + 1).unwrap();
+        assert!(
+            resolve_proc_target_at(
+                &analysis,
+                source,
+                call,
+                "helper",
+                CallResolution::document_only()
+            )
+            .is_some()
+        );
+        for offset in [
+            source.find("helper ignored").unwrap(),
+            source.find("builtin text").unwrap(),
+            source.find("$head data").unwrap(),
+            source.find("data helper").unwrap() + 5,
+        ] {
+            assert!(
+                resolve_proc_target_at(
+                    &analysis,
+                    source,
+                    u32::try_from(offset + 1).unwrap(),
+                    "helper",
+                    CallResolution::document_only()
+                )
+                .is_none()
+            );
+        }
+        assert!(
+            resolve_proc_target_at(
+                &analysis,
+                &source.replace("helper data", "helper other"),
+                call,
+                "helper",
+                CallResolution::document_only()
+            )
+            .is_none()
+        );
+        let mut stale = analysis.clone();
+        stale.resolved_input = None;
+        assert!(
+            resolve_proc_target_at(
+                &stale,
+                source,
+                call,
+                "helper",
+                CallResolution::document_only()
+            )
+            .is_none()
+        );
+        let mut stale = analysis.clone();
+        stale.body_lexer_config = None;
+        assert!(
+            resolve_proc_target_at(
+                &stale,
+                source,
+                call,
+                "helper",
+                CallResolution::document_only()
+            )
+            .is_none()
+        );
+        let mut stale = analysis.clone();
+        stale.resolved_input = Analyser::new().analyse(source, "tcl8.6").resolved_input;
+        assert!(
+            resolve_proc_target_at(
+                &stale,
+                source,
+                call,
+                "helper",
+                CallResolution::document_only()
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_definition_calls_retain_original_alias_move_and_redefinition_headers() {
+        let source = "proc join {first second} {}\ninterp alias {} joined {} join captured\njoined value\nrename join archived\nproc join {new} {}\narchived alpha beta\njoin one\n";
+        let mut analysis = logical_procedure_navigation_analysis(source);
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        analysis.all_procs.clear();
+        analysis.proc_declaration_sites.clear();
+        for (needle, expected_line) in [("joined value", 0), ("archived alpha", 0), ("join one", 4)]
+        {
+            let offset = u32::try_from(source.find(needle).unwrap() + 1).unwrap();
+            let position = LineIndex::new(source).position_at_utf16(offset, source);
+            let call = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
+                source, &analysis, u32::try_from(source.find(needle).unwrap()).unwrap(),
+            ).expect("genuine original call survives reporting-map removal");
+            assert_eq!(
+                call.declaration(&analysis)
+                    .unwrap()
+                    .metadata()
+                    .name_span
+                    .start(),
+                if expected_line == 0 {
+                    5
+                } else {
+                    u32::try_from(source.find("proc join {new}").unwrap() + 5).unwrap()
+                }
+            );
+            let ranges = definition(source, position.line, position.character.get(), &analysis);
+            assert_eq!(
+                ranges
+                    .iter()
+                    .map(|range| range.start_line)
+                    .collect::<Vec<_>>(),
+                vec![expected_line]
+            );
+        }
+        let offset = u32::try_from(source.find("proc join").unwrap() + 5).unwrap();
+        assert_eq!(
+            procedure_name_at_cursor(&analysis, offset).unwrap().start(),
+            offset
+        );
+    }
+
+    #[test]
+    fn logical_definition_call_refusals_do_not_resurrect_report_procedure_names() {
+        let source = "proc helper {value} {}\nrename helper {}\nhelper ignored\ninterp alias {} builtin {} puts\nbuiltin text\nset data helper\n$head data\n";
+        let analysis = logical_procedure_navigation_analysis(source);
+        for needle in ["helper ignored", "builtin text", "$head data"] {
+            let offset = u32::try_from(source.find(needle).unwrap()).unwrap();
+            assert!(tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
+                source, &analysis, offset,
+            ).is_none());
+            let position = LineIndex::new(source).position_at_utf16(offset + 1, source);
+            assert!(
+                definition(source, position.line, position.character.get(), &analysis).is_empty()
+            );
+        }
+        let offset = u32::try_from(source.find("data helper").unwrap() + 5).unwrap();
+        assert!(
+            indirect_definition_target(
+                &analysis,
+                CallResolution::document_only(),
+                source,
+                offset,
+                "helper"
+            )
+            .is_none()
+        );
+        let changed = source.replace("helper ignored", "helper altered");
+        assert!(definition(&changed, 2, 1, &analysis).is_empty());
+    }
+
+    #[test]
+    fn logical_definition_call_requires_current_complete_analysis_input() {
+        let source = "proc helper {value} {}\nhelper data\n";
+        let analysis = logical_procedure_navigation_analysis(source);
+        assert_eq!(definition(source, 1, 1, &analysis).len(), 1);
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(definition(source, 1, 1, &missing).is_empty());
+        let mut foreign = analysis.clone();
+        foreign.resolved_input = Analyser::new().analyse(source, "tcl8.6").resolved_input;
+        assert!(definition(source, 1, 1, &foreign).is_empty());
+    }
+
+    fn external_mask_at(
+        source: &str,
+        analysis: &AnalysisResult,
+        selector: &str,
+    ) -> ExternalObjectDispatchMask {
+        let cursor = u32::try_from(source.rfind(selector).unwrap()).unwrap();
+        let position = LineIndex::new(source).position_at_utf16(cursor, source);
+        object_dispatch_mask(analysis, source, position.line, position.character.get())
+    }
+
+    #[test]
+    fn original_external_visibility_keeps_variable_and_object_names_separate_from_self_dispatch() {
+        // naming.core.original-dispatch-region-context
+
+        for (construction, receiver) in [
+            ("C create my", "my"),
+            ("set my [C new]", "$my"),
+            ("C create {[self]}", "{[self]}"),
+        ] {
+            for (method, expected) in [
+                ("Hidden", ExternalObjectDispatchMask::Native),
+                ("visible", ExternalObjectDispatchMask::Clear),
+            ] {
+                let source = format!(
+                    "oo::class create C {{}}; {construction}; oo::objdefine {receiver} {{method {method} {{}} {{}}}}; {receiver} {method}"
+                );
+                let mut analysis = Analyser::new().analyse(&source, "tcl8.6");
+                assert!(
+                    analysis.original_object_configurations().next().is_some(),
+                    "{source}"
+                );
+                analysis.object_member_state.clear();
+                analysis.dialect = "presentation label".into();
+                assert_eq!(
+                    external_mask_at(&source, &analysis, method),
+                    expected,
+                    "{source}"
+                );
+                assert_eq!(expected.withholds_workspace_fallback(), method == "Hidden");
+            }
+        }
+    }
+
+    #[test]
+    fn original_internal_visibility_uses_the_selected_receiver_local_head() {
+        // naming.core.original-dispatch-region-context
+
+        let source = "proc my args {return DECOY}; oo::class create C {method Hidden {} {}; method run {} {my Hidden}}; C create obj; obj run";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.find("my Hidden").unwrap()).unwrap();
+        let selected = analysis
+            .retained_command_realm()
+            .unwrap()
+            .invocation_at_source("my", offset);
+        assert!(
+            selected
+                .receiver_self_method_entry(analysis.resolved_registry().unwrap())
+                .is_some()
+        );
+        assert_eq!(
+            external_mask_at(source, &analysis, "Hidden}"),
+            ExternalObjectDispatchMask::Clear
+        );
+        assert!(!external_mask_at(source, &analysis, "Hidden}").withholds_workspace_fallback());
+    }
+
+    #[test]
+    fn original_external_self_visibility_requires_its_own_entry_after_internal_dispatch() {
+        // naming.core.original-dispatch-region-context
+
+        // Measured EXTERNAL_SELF_UNEXPORTED in native_method_visibility/v2
+        // rejects on C8.6/C9. UNEXPORT_FULL_INTERNAL uses actual my dispatch.
+        // C9 EXTERNAL_SELF_PRIVATE is a separate declaring-class scope rule,
+        // not evidence that an unexported entry is externally callable.
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (head, method, expected) in [
+                ("my", "Hidden", ExternalObjectDispatchMask::Clear),
+                ("[self]", "Hidden", ExternalObjectDispatchMask::Native),
+                ("[self]", "visible", ExternalObjectDispatchMask::Clear),
+            ] {
+                let source = format!(
+                    "oo::class create C {{method {method} {{}} {{}}; method invoke {{}} {{{head} {method}}}}}; C create c; c invoke"
+                );
+                let analysis = Analyser::new().analyse(&source, dialect);
+                let call = format!("{head} {method}");
+                let offset = u32::try_from(source.find(&call).unwrap()).unwrap();
+                let binding = analysis
+                    .retained_command_realm()
+                    .unwrap()
+                    .invocation_at_source(head, offset);
+                if head == "my" {
+                    assert!(
+                        binding
+                            .receiver_self_method_entry(analysis.resolved_registry().unwrap())
+                            .is_some()
+                    );
+                } else {
+                    let selected =
+                        tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+                            &call,
+                            offset,
+                            analysis.body_lexer_config.unwrap(),
+                        )
+                        .into_iter()
+                        .next()
+                        .unwrap();
+                    let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+                        &tcl_lexer::SourceMap::new(&source),
+                        analysis.body_lexer_config.unwrap(),
+                        &selected,
+                    );
+                    let (_, entry, _) = binding
+                        .frozen_object_receiver_method_entry(tokens.word_exprs.first().unwrap())
+                        .expect(
+                            "the reached self head retains an independent external method entry",
+                        );
+                    assert_eq!(entry.is_exported(), method == "visible");
+                }
+                assert_eq!(
+                    external_mask_at(&source, &analysis, &format!("{method}}}")),
+                    expected,
+                    "{dialect}: {source}"
+                );
+            }
+            let deferred =
+                "oo::class create C {method Hidden {} {}; method invoke {} {[self] Hidden}}";
+            let analysis = Analyser::new().analyse(deferred, dialect);
+            assert_eq!(
+                external_mask_at(deferred, &analysis, "Hidden}}"),
+                ExternalObjectDispatchMask::Unavailable,
+                "source self identity cannot donate a missing actual method entry"
+            );
+        }
+    }
+
+    #[test]
+    fn original_source_visibility_keeps_full_lexer_input_and_conditional_mask_purpose() {
+        // naming.core.original-dispatch-region-context
+
+        let source = "\u{feff}oo::class create C {method m {} {}}; set my [C new]; oo::objdefine $my {unexport m}; $my m";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+        };
+        let input =
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+        let mut analysis = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "presentation label");
+        assert_eq!(analysis.body_lexer_config, Some(config));
+        assert!(
+            analysis
+                .object_member_state
+                .get("my")
+                .is_some_and(|states| { states.iter().any(|state| state.unexports.contains("m")) })
+        );
+        assert!(
+            analysis.original_object_configurations().next().is_none(),
+            "source advice cannot invent a Native allocation"
+        );
+        assert_eq!(
+            external_mask_at(source, &analysis, "m"),
+            ExternalObjectDispatchMask::ConditionalSource
+        );
+        analysis.dialect = "jim".into();
+        assert_eq!(
+            external_mask_at(source, &analysis, "m"),
+            ExternalObjectDispatchMask::ConditionalSource
+        );
+        let other_namespace = "oo::class create C {method m {} {}}; set my [C new]; oo::objdefine $my {unexport m}; namespace eval other {set my [C new]; $my m}";
+        let other = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(other_namespace, "presentation label");
+        assert!(other.object_member_state.contains_key("my"));
+        let mask = external_mask_at(other_namespace, &other, "m}");
+        assert_eq!(mask, ExternalObjectDispatchMask::Unavailable);
+        assert!(mask.withholds_workspace_fallback());
+    }
+
+    #[test]
+    fn original_external_visibility_withholds_populated_unavailable_stale_and_foreign_input() {
+        // naming.core.original-dispatch-region-context
+
+        let source = "oo::class create C {}; C create obj; oo::objdefine obj {method visible {} {return VISIBLE}}; obj visible";
+        let baseline = Analyser::new().analyse(source, "tcl8.6");
+        assert!(baseline.original_object_configurations().next().is_some());
+        assert_eq!(
+            external_mask_at(source, &baseline, "visible"),
+            ExternalObjectDispatchMask::Clear
+        );
+        let input = baseline.resolved_input.as_ref().unwrap();
+        let older =
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry();
+        let older_same_store = std::sync::Arc::new(
+            older.with_command_store(
+                input
+                    .context_registry()
+                    .commands()
+                    .snapshot()
+                    .shared_registry(),
+            ),
+        );
+        for unavailable in [
+            {
+                let mut next = baseline.clone();
+                next.resolved_input = None;
+                next
+            },
+            {
+                let mut next = baseline.clone();
+                next.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+                    environment: "tcl8.6".into(),
+                    overlay: 999,
+                });
+                next
+            },
+            {
+                let mut next = baseline.clone();
+                next.body_lexer_config.as_mut().unwrap().strict_quoting =
+                    !input.lexer_config().strict_quoting;
+                next
+            },
+            {
+                let mut next = baseline.clone();
+                next.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    older_same_store,
+                    input.lexer_config(),
+                ));
+                next
+            },
+            {
+                let mut next = baseline.clone();
+                next.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    older,
+                    input.lexer_config(),
+                ));
+                next
+            },
+        ] {
+            assert!(
+                unavailable
+                    .original_object_configurations()
+                    .next()
+                    .is_some()
+            );
+            let mask = external_mask_at(source, &unavailable, "visible");
+            assert_eq!(mask, ExternalObjectDispatchMask::Unavailable);
+            assert!(mask.withholds_workspace_fallback());
+        }
+        let changed = source.replace("return VISIBLE", "return CHANGED");
+        let mask = external_mask_at(&changed, &baseline, "visible");
+        assert_eq!(mask, ExternalObjectDispatchMask::Unavailable);
+        assert!(mask.withholds_workspace_fallback());
+    }
+
+    #[test]
+    fn original_declaration_advice_cannot_choose_between_redefinitions() {
+        // Implementation contract: naming.consumer.original-declaration-advice-ambiguity
+
+        let source = "proc p {} {}\nproc p {} {}\np";
+        let analysis = analyse(source);
+        let offset = u32::try_from(source.rfind('p').unwrap()).unwrap();
+        let invocation = invocation_head_at(&analysis, offset).expect("actual original call");
+        let input = invocation
+            .original_name_input
+            .as_ref()
+            .expect("retained operand");
+        let scope = analysis
+            .original_namespace_scope_at(offset)
+            .expect("original namespace");
+        assert_eq!(analysis.procedures_for_original_name(input, scope).len(), 2);
+        assert!(
+            proc_visible_from_namespace(&analysis, "::", "counterfactual label", offset).is_none()
+        );
+    }
+
+    #[test]
+    fn original_vendor_definition_uses_current_direct_source_headers() {
+        // Implementation contract: naming.vendor.original-source-declaration-consumers
+
+        for (dialect, source, line, character) in [
+            (
+                "f5-iapps",
+                "proc helper {argument} {return $argument}\nhelper 1",
+                0,
+                7,
+            ),
+            ("f5-iapps", r"proc {p\uD800} {} {}", 0, 9),
+            ("f5-irules", "when HTTP_REQUEST {set local 1}", 0, 9),
+        ] {
+            let mut analysis = Analyser::new().analyse(source, dialect);
+            analysis.all_procs.clear();
+            analysis.global_scope.procs.clear();
+            analysis.all_defined_symbols.clear();
+            analysis.global_scope.defined_symbols.clear();
+            let offset = byte_offset_at(&LineIndex::new(source), source, line, character);
+            let std::ops::ControlFlow::Break(Some(selected)) =
+                crate::vendor_declaration::select_at_offset(source, &analysis, offset)
+            else {
+                panic!("actual selected hosted header must retain its source card");
+            };
+            assert_eq!(
+                definition(source, line, character, &analysis),
+                vec![span_to_range(
+                    source,
+                    &LineIndex::new(source),
+                    selected.span()
+                )]
+            );
+            assert!(
+                definition(
+                    &format!("# displaced\n{source}"),
+                    line,
+                    character,
+                    &analysis
+                )
+                .is_empty()
+            );
+            assert!(
+                analysis.original_procedure_declarations().next().is_none(),
+                "source-card selection cannot create a native publication"
+            );
+        }
+    }
+
+    #[test]
+    fn original_proc_and_class_selection_uses_current_typed_publications() {
+        // Implementation contract: naming.editor.original-declaration-wire-identity
+
+        let source = r"proc p\uD800 {} {}
+proc p\uD801 {} {}
+p\uD800";
+        let call = u32::try_from(source.rfind(r"p\uD800").unwrap()).unwrap();
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut analysis = Analyser::new().analyse(source, dialect);
+            let span = analysis
+                .original_procedure_declarations()
+                .next()
+                .unwrap()
+                .metadata()
+                .name_span;
+            let mut counterfeit = analysis.all_procs.values().next().unwrap().clone();
+            counterfeit.name_span = tcl_lexer::Span::new(0, 1);
+            analysis.all_procs.clear();
+            analysis
+                .all_procs
+                .insert("::counterfactual".to_owned(), counterfeit);
+            assert_eq!(
+                resolve_called_proc(
+                    &analysis,
+                    source,
+                    "::counterfactual",
+                    "counterfactual",
+                    call,
+                    CallResolution::document_only(),
+                )
+                .unwrap()
+                .name_span,
+                span,
+                "{dialect}"
+            );
+            assert_eq!(
+                resolve_proc_target_at(
+                    &analysis,
+                    source,
+                    call,
+                    "counterfactual",
+                    CallResolution::document_only(),
+                )
+                .unwrap()
+                .1
+                .name_span,
+                span,
+                "{dialect}"
+            );
+            assert!(
+                resolve_proc_target_at(
+                    &analysis,
+                    &format!("{source}\n# changed"),
+                    call,
+                    "counterfactual",
+                    CallResolution::document_only(),
+                )
+                .is_none()
+            );
+            let config = analysis.body_lexer_config.as_mut().unwrap();
+            config.strict_quoting = !config.strict_quoting;
+            assert!(
+                resolve_proc_target_at(
+                    &analysis,
+                    source,
+                    call,
+                    "counterfactual",
+                    CallResolution::document_only(),
+                )
+                .is_none()
+            );
+        }
+        let source = r"oo::class create c\uD800 {}
+oo::class create c\uD801 {}
+c\uD800";
+        let call = u32::try_from(source.rfind(r"c\uD800").unwrap()).unwrap();
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut analysis = Analyser::new().analyse(source, dialect);
+            let span = analysis
+                .original_class_declarations()
+                .next()
+                .unwrap()
+                .metadata()
+                .name_span;
+            let mut counterfeit = analysis.all_classes.values().next().unwrap().clone();
+            counterfeit.name_span = tcl_lexer::Span::new(0, 1);
+            analysis.all_classes.clear();
+            analysis
+                .all_classes
+                .insert("::counterfactual".to_owned(), counterfeit);
+            assert_eq!(
+                resolve_class_target_at(
+                    &analysis,
+                    source,
+                    CallResolution::document_only(),
+                    call,
+                    "counterfactual",
+                )
+                .unwrap()
+                .1
+                .name_span,
+                span,
+                "{dialect}"
+            );
+            assert!(
+                resolve_class_target_at(
+                    &analysis,
+                    &format!("{source}\n# changed"),
+                    CallResolution::document_only(),
+                    call,
+                    "counterfactual",
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn constructed_colon_namespace_context_survives_editor_projection() {
+        let source = "namespace eval : {namespace eval : {list HERE}}";
+        let offset = u32::try_from(source.find("list HERE").unwrap()).unwrap();
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(source, dialect);
+            assert_eq!(
+                namespace_context_at(&analysis.global_scope, offset, &[]),
+                "::::::",
+                "{dialect}"
+            );
+        }
+        for namespace in ["::", ":::", "::a:::b", "::::::"] {
+            let overrides = [(tcl_lexer::Span::new(0, 100), namespace.to_owned())];
+            assert_eq!(
+                namespace_context_at(&tcl_compiler::analyser::Scope::global(), 1, &overrides),
+                namespace
+            );
+        }
+    }
+
     /// The document-only resolution context: no registry, no whole-program
     /// export oracle — what a single-document test resolves against.
     const DOC: CallResolution<'static> = CallResolution::document_only();
 
-    /// `variable_scope_extent`'s nested `innermost` fn and
-    /// `linked_var_reference_spans`'s
-    /// `collect_alias_spans`/`collect_shared_span_refs` all recurse once
-    /// per nested namespace/proc scope, capped by
-    /// `MAX_SCOPE_WALK_DEPTH` (`crate::lib`). 80 nested `namespace eval`
+    /// Scope extent and source-declaration membership must handle nested
+    /// namespace scopes without overflowing. 80 nested `namespace eval`
     /// levels is past the point (confirmed empirically: 100+) where
     /// unguarded namespace-scope recursion overflows `cargo test`'s bare
     /// ~2 MiB per-test default. The assertion is that both return at all,
@@ -4332,8 +5363,18 @@ mod tests {
         }
         let analysis = analyse(&source);
         let _ = variable_scope_extent(&analysis, "x", 0);
-        if let Some(var_def) = analysis.all_variables.values().next() {
-            let _ = linked_var_reference_spans(&analysis.global_scope, var_def);
+        let mut scopes = vec![&analysis.global_scope];
+        while let Some(scope) = scopes.pop() {
+            if let Some(var_def) = scope.variables.values().next() {
+                let _ = linked_var_reference_spans(
+                    &source,
+                    &analysis,
+                    var_def,
+                    var_def.definition_span.start(),
+                );
+                break;
+            }
+            scopes.extend(&scope.children);
         }
         let _ = cross_namespace_qualified_vars(&analysis.global_scope, &FxHashSet::default());
     }
@@ -4462,12 +5503,8 @@ mod tests {
 
     #[test]
     fn bareword_inside_list_and_qualified_var_apply_resolves_against_the_lambdas_namespace() {
-        // TP — direct list-substitution + namespace-qualified var, `apply`
-        // as a literal command word: `apply [list {} $lexical::body
-        // ::real]`, where `lexical::body` itself holds the literal
-        // `{cleanup done}`. Exercises BOTH new pieces together
-        // (`lookup_const_string_in_namespace` + the list-folding
-        // `TokenType::Cmd` branch).
+        // Original list components retain the qualified scalar value and
+        // the lambda's independent namespace.
         let src = "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n    set body {cleanup done}\n}\napply [list {} $lexical::body ::real]\n";
         let analysis = analyse(src);
         // Cursor on `cleanup` inside `set body {cleanup done}` (line 5, col 14).
@@ -4640,7 +5677,7 @@ mod tests {
         let analysis = analyse(src);
         let line_index = LineIndex::new(src);
         let cursor_off = byte_offset_at(&line_index, src, 5, 0);
-        let hit = resolve_class_target_at(&analysis, DOC, cursor_off, "Widget");
+        let hit = resolve_class_target_at(&analysis, src, DOC, cursor_off, "Widget");
         assert!(
             hit.is_some(),
             "must resolve Widget through the wildcard import"
@@ -4658,7 +5695,7 @@ mod tests {
         let analysis = analyse(src);
         let line_index = LineIndex::new(src);
         let cursor_off = byte_offset_at(&line_index, src, 6, 0);
-        let hit = resolve_class_target_at(&analysis, DOC, cursor_off, "Other");
+        let hit = resolve_class_target_at(&analysis, src, DOC, cursor_off, "Other");
         assert!(
             hit.is_none(),
             "an unexported sibling class must stay unresolved: {hit:?}"
@@ -4725,7 +5762,7 @@ mod tests {
         // `namespace eval ::src {proc p {} {return P}}; namespace eval ::dst
         // {namespace import ::src::*}; namespace eval ::src {namespace export
         // p}; ::dst::p` → `invalid command name "::dst::p"`.
-        let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\n";
         let analysis = analyse(src);
         let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX);
         assert!(
@@ -4768,7 +5805,7 @@ mod tests {
         // document. Oracle (8.6.14 / 9.0.4): the bare call is `invalid command
         // name "p"` and `info commands ::dst::*` is empty, so go-to-definition
         // must not answer `::src::p` through `fallback_proc_by_simple_name`.
-        let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\nnamespace eval dst {\n    p\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
         let locs = definition(src, 10, 4, &analysis);
         assert!(
@@ -4822,7 +5859,7 @@ mod tests {
         // not just the export snapshot: after `namespace forget ::src::p` the
         // bare call is `invalid command name` (oracle on `alias_live_at`), so
         // the fallback must not answer either.
-        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\nnamespace eval dst {\n    p\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
         let locs = definition(src, 11, 4, &analysis);
         assert!(locs.is_empty(), "{locs:?}");
@@ -4872,7 +5909,7 @@ mod tests {
         // written *before* the import leaves nothing for it to bind.
         // Oracle: after `namespace export -clear`, `namespace export`
         // returns the empty list, and the later import binds no command.
-        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n    namespace export -clear\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n    namespace export p\n    namespace export -clear\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
         let analysis = analyse(src);
         let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX);
         assert!(
@@ -4886,7 +5923,7 @@ mod tests {
         // TP + TN — `namespace export a b; namespace export -clear p` leaves
         // exactly `p` exported (oracle: `namespace export` → `p`), so an
         // import after it binds `p` and not `a`.
-        let src = "namespace eval src {\n    proc a {} { return A }\n    proc p {} { return P }\n    namespace export a\n    namespace export -clear p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc a {} { return A }\n    proc p {} { return P }\n    namespace export a\n    namespace export -clear p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
         let analysis = analyse(src);
         assert!(
             proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX).is_some(),
@@ -5039,6 +6076,17 @@ mod tests {
         u32::try_from(src.find(needle).expect("needle present")).expect("tiny test source")
     }
 
+    /// Byte offset of the head word of the last call written on its own
+    /// indented line as `    word`. A call-site query sits on the call's own
+    /// head word, which is what the original declaration selection reads
+    /// (test-input correction, user decision 2026-10-18T16:00Z
+    /// `forced_import_sibling_offsets`; fixtures and expected values are
+    /// unchanged).
+    fn last_call_head(src: &str, word: &str) -> u32 {
+        let line = format!("    {word}\n");
+        u32::try_from(src.rfind(&line).expect("call line present") + 4).expect("tiny test source")
+    }
+
     // Behaviour 1 — `namespace forget`.
 
     #[test]
@@ -5050,7 +6098,7 @@ mod tests {
         //   namespace eval ::dst { namespace forget ::src::p }
         //   namespace eval ::dst { p }                        → invalid command name "p"
         //   info commands ::dst::*                            → (empty)
-        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\n";
         let analysis = analyse(src);
         let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX);
         assert!(
@@ -5077,7 +6125,7 @@ mod tests {
     fn a_glob_forget_removes_every_matching_alias() {
         // TN — oracle: `namespace forget ::src::*` empties `info commands
         // ::dst::*` entirely.
-        let src = "namespace eval src {\n    proc p {} { return P }\n    proc q {} { return Q }\n    namespace export *\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::*\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n    proc q {} { return Q }\n    namespace export *\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::*\n}\n";
         let analysis = analyse(src);
         for name in ["p", "q"] {
             assert!(
@@ -5105,7 +6153,7 @@ mod tests {
     /// this pins the consequence a consumer actually sees.
     #[test]
     fn a_dynamic_forget_pattern_revokes_nothing() {
-        let dynamic = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::$name\n}\n";
+        let dynamic = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::$name\n}\n";
         let analysis = analyse(dynamic);
         let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX);
         assert!(
@@ -5174,21 +6222,8 @@ mod tests {
         );
     }
 
-    /// TP (both tiers agree): a `namespace forget` at the file's **load
-    /// level** runs before a body-local `namespace import`, which then
-    /// installs the alias — so a call in that body still resolves.
-    ///
-    /// The in-document twin of
-    /// `workspace_index::tests::a_body_local_exact_import_survives_a_top_level_forget`.
-    /// Ranking the two by raw offset said the forget "came later" and dropped
-    /// the alias; the load-order rule the shared fold now uses reads a removal
-    /// written outside the import's own body as having run before it, which is
-    /// what actually happens — the whole file loads, forget included, before
-    /// any body runs. Oracle (8.6.14 / 9.0.4): with `proc ::dst::setup {}
-    /// {namespace import ::src::* ; p}` and a top-level `namespace eval ::dst
-    /// {namespace forget ::src::p}` below it, `::dst::setup` returns `P` — the
-    /// forget ran during load, found nothing imported, and the import inside
-    /// the body then installed the alias the call reaches.
+    /// A load-level forget precedes a body-local import, so the call resolves.
+    /// C Tcl 8.6.14/9.0.4 return `P` for this original ordering.
     #[test]
     fn a_load_level_forget_before_a_body_local_import_revokes_nothing() {
         let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    proc setup {} { namespace import ::src::* ; p }\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\n";
@@ -5218,7 +6253,7 @@ mod tests {
         // against this namespace's own imported command names, whatever their
         // origin. Oracle: `namespace eval ::dst {namespace forget p}` leaves
         // `info commands ::dst::*` empty and raises no error.
-        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget p\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget p\n}\n";
         let analysis = analyse(src);
         assert!(
             proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX).is_none(),
@@ -5380,7 +6415,7 @@ mod tests {
         //   namespace origin ::dst::p                  → ::src::p
         let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
-        let call = after_last(src, "    p\n");
+        let call = last_call_head(src, "p");
         let hit = resolve_called_proc(&analysis, src, "::dst", "p", call, DOC);
         assert!(
             hit.is_some_and(|p| p.qualified_name == "::src::p"),
@@ -5421,7 +6456,7 @@ mod tests {
         //   namespace eval ::dst {proc p {} {return LOCAL}}    (rc 0, silent)
         //   ::dst::p                    → LOCAL ; origin → ::dst::p
         //   ::src::p                    → SRC   (untouched)
-        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\np\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\np\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\n";
         let analysis = analyse(src);
         // TP — between the import and the redefinition, the alias is live.
         let between = at_first(src, "\np\n") + 1;
@@ -5451,7 +6486,7 @@ mod tests {
         // the valid local definition and answer the import source forever.
         // Oracle: `proc ::dst::p` after `namespace import -force ::src::*`
         // returns LOCAL2 with `namespace origin ::dst::p` → `::dst::p`.
-        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    proc p {} { return LOCAL2 }\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    proc p {} { return LOCAL2 }\n}\n";
         let analysis = analyse(src);
         let between = at_first(src, "namespace import -force")
             + u32::try_from("namespace import -force ::src::*".len()).expect("tiny");
@@ -5548,7 +6583,7 @@ mod tests {
         // FN guard for the conflict rule — the conflict is the *live* alias, not the
         // fact that one was ever installed. Oracle: forgetting `::A::p` first
         // makes the unforced `::B::*` import succeed (`origin` → `::B::p`).
-        let src = "namespace eval A {\n    proc p {} { return AP }\n    namespace export p\n}\nnamespace eval B {\n    proc p {} { return BP }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::A::*\n}\nnamespace eval dst {\n    namespace forget ::A::p\n}\nnamespace eval dst {\n    namespace import ::B::*\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval A {\n    proc p {} { return AP }\n    namespace export p\n}\nnamespace eval B {\n    proc p {} { return BP }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::A::*\n}\nnamespace eval dst {\n    namespace forget ::A::p\n}\nnamespace eval dst {\n    namespace import ::B::*\n}\n";
         let analysis = analyse(src);
         let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX);
         assert!(
@@ -5587,16 +6622,20 @@ mod tests {
 
     #[test]
     fn a_forced_import_before_the_call_does_not_shadow_a_later_call_site() {
-        // FP guard on the `-force` shortcut: it outranks the local lookup
-        // only where a live import edge really covers the word. With the
-        // forced import forgotten again, the local definition wins back.
+        // The forced import replaces the local `::dst::p`, and forgetting it
+        // removes the only `::dst::p` left, so the local definition does not
+        // come back. Oracle (tclsh 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0):
+        // the forced import makes `namespace origin ::dst::p` `::src::p`, the
+        // forget leaves no `::dst::p`, and the call raises
+        // `invalid command name "p"`. The query sits on the call's own head
+        // word, which is what the original declaration selection reads.
         let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
-        let call = after_last(src, "    p\n");
+        let call = last_call_head(src, "p");
         let hit = resolve_called_proc(&analysis, src, "::dst", "p", call, DOC);
         assert!(
-            hit.is_some_and(|p| p.qualified_name == "::dst::p"),
-            "after the forget the local definition is what the call reaches: {hit:?}"
+            hit.is_none(),
+            "after the forget no `p` is left for the call to reach: {hit:?}"
         );
     }
 
@@ -5613,7 +6652,7 @@ mod tests {
         // `namespace origin ::app::helper` → `::src::helper`.
         let src = "namespace eval src {\n    proc helper {} { return SRC }\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
         let analysis = analyse(src);
-        let call = after_last(src, "    helper\n");
+        let call = last_call_head(src, "helper");
         assert!(
             forced_import_shadows(&analysis, DOC, "::app", "helper", call),
             "a `-force` import of a namespace whose exports this file cannot \
@@ -5634,7 +6673,7 @@ mod tests {
         // `namespace export other`, `::app::helper` → LOCAL).
         let src = "namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
         let analysis = analyse(src);
-        let call = after_last(src, "    helper\n");
+        let call = last_call_head(src, "helper");
         assert!(!forced_import_shadows(
             &analysis, DOC, "::app", "helper", call
         ));
@@ -5683,7 +6722,7 @@ mod tests {
             name: &str,
             _import_site: RunPoint<'_>,
         ) -> ExportVerdict {
-            let bare = source_ns.trim_start_matches("::");
+            let bare = tcl_syntax::naming::unroot_rooted_key(source_ns).unwrap_or(source_ns);
             match self.0.iter().find(|(ns, _)| *ns == bare) {
                 None => ExportVerdict::Unknown,
                 Some((_, names)) if names.contains(&name) => ExportVerdict::Exported,
@@ -5695,7 +6734,7 @@ mod tests {
     /// [`PARTLY_OBSERVABLE`] resolved against `oracle`.
     fn partly_observable_target(oracle: &dyn NamespaceExportOracle) -> Option<String> {
         let analysis = analyse(PARTLY_OBSERVABLE);
-        let call = after_last(PARTLY_OBSERVABLE, "    helper\n");
+        let call = last_call_head(PARTLY_OBSERVABLE, "helper");
         let ctx = DOC.in_program(ProgramExports {
             uri: "file:///main.tcl",
             oracle,
@@ -5759,7 +6798,7 @@ mod tests {
         // CLI, a buffer the workspace has not indexed — must get exactly the
         // document-only answer rather than a panic or the abstention above.
         let analysis = analyse(PARTLY_OBSERVABLE);
-        let call = after_last(PARTLY_OBSERVABLE, "    helper\n");
+        let call = last_call_head(PARTLY_OBSERVABLE, "helper");
         assert!(!forced_import_shadows(
             &analysis, DOC, "::app", "helper", call
         ));
@@ -5785,9 +6824,9 @@ mod tests {
         //
         // Deliberately run against the real `WorkspaceIndex` snapshot rather
         // than [`FakeExports`], which is position-blind by design.
-        let src = "namespace eval src {\n    proc p {} { return SRC }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\nnamespace eval dst {\n    p\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return SRC }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
-        let call = after_last(src, "    p\n");
+        let call = last_call_head(src, "p");
         let index = crate::workspace_index::WorkspaceIndex::from_documents([(
             "file:///main.tcl",
             &analysis,
@@ -5833,7 +6872,7 @@ mod tests {
         //   rename ::src::p {}
         //   ::dst::p              → invalid command name "::dst::p"
         //   info commands ::dst::* → (empty)
-        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nrename ::src::p {}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nrename ::src::p {}\n";
         let analysis = analyse(src);
         let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX);
         assert!(
@@ -5922,7 +6961,7 @@ mod tests {
         // `::A::p` an `invalid command name` too, because deleting an imported
         // command deletes the commands imported *from* it. Both `info commands
         // ::A::*` and `::B::*` come back empty.
-        let src = "namespace eval C {\n    proc p {} { return CP }\n    namespace export p\n}\nnamespace eval B {\n    namespace import ::C::*\n    namespace export p\n}\nnamespace eval A {\n    namespace import ::B::*\n}\nnamespace eval B {\n    namespace forget ::C::p\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval C {\n    proc p {} { return CP }\n    namespace export p\n}\nnamespace eval B {\n    namespace import ::C::*\n    namespace export p\n}\nnamespace eval A {\n    namespace import ::B::*\n}\nnamespace eval B {\n    namespace forget ::C::p\n}\n";
         let analysis = analyse(src);
         assert!(
             proc_visible_via_wildcard_import(&analysis, DOC, "A", "p", u32::MAX).is_none(),
@@ -6132,9 +7171,10 @@ mod tests {
             "}\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.len() < 2 {
-            return;
-        }
+        assert!(
+            analysis.all_classes.len() >= 2,
+            "both positive class definitions must be present in the analysis"
+        );
         let locs_ab = definition(src, 2, 26, &analysis);
         assert_eq!(locs_ab.len(), 1, "{locs_ab:?}");
         assert_eq!(locs_ab[0].start_line, 2, "must resolve to ::a::b::Widget");
@@ -6171,15 +7211,54 @@ mod tests {
     #[test]
     fn jump_to_nextto_namespaced_class_method() {
         // `nextto A` names a namespaced sibling bare from within `::Ns::C`.
-        // Owner-aware canonicalisation resolves it to `::Ns::A` (a global-only
-        // `::A` match would produce nothing here).
+        // A method body resolves `A` through the object namespace, its
+        // `::oo::Helpers` path, then `::` — never `::Ns` — so tclsh 8.6/9.0
+        // raise "A does not refer to an object" and there is no target.
         let src = "namespace eval Ns {\n    oo::class create A {\n        method greet {} { return hi }\n    }\n    oo::class create B {\n        superclass A\n        method greet {} { next }\n    }\n    oo::class create C {\n        superclass B\n        method greet {} { nextto A }\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `nextto` inside C::greet (line 10).
+        let locs = definition(src, 10, 28, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn jump_to_nextto_relative_qualified_class_method() {
+        // `nextto Ns::A` inside `::Ns::C` falls back to `::` and reaches
+        // `::Ns::A` (tclsh 8.6/9.0 dispatch `::Ns::A::greet`).
+        let src = "namespace eval Ns {\n    oo::class create A {\n        method greet {} { return hi }\n    }\n    oo::class create B {\n        superclass A\n        method greet {} { next }\n    }\n    oo::class create C {\n        superclass B\n        method greet {} { nextto Ns::A }\n    }\n}\n";
         let analysis = analyse(src);
         // Cursor on `nextto` inside C::greet (line 10).
         let locs = definition(src, 10, 28, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
         // ::Ns::A::greet's name token is on line 2.
         assert_eq!(locs[0].start_line, 2, "should land on ::Ns::A::greet");
+    }
+
+    #[test]
+    fn jump_to_nextto_fully_qualified_class_method() {
+        // `nextto ::Ns::A` inside `::Ns::C` (tclsh 8.6/9.0 dispatch
+        // `::Ns::A::greet`).
+        let src = "namespace eval Ns {\n    oo::class create A {\n        method greet {} { return hi }\n    }\n    oo::class create B {\n        superclass A\n        method greet {} { next }\n    }\n    oo::class create C {\n        superclass B\n        method greet {} { nextto ::Ns::A }\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `nextto` inside C::greet (line 10).
+        let locs = definition(src, 10, 28, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // ::Ns::A::greet's name token is on line 2.
+        assert_eq!(locs[0].start_line, 2, "should land on ::Ns::A::greet");
+    }
+
+    #[test]
+    fn nextto_refuses_a_class_name_reached_through_the_helpers_path() {
+        // Bare `A` reaches `::oo::Helpers::A` through the method body's
+        // namespace path before `::A`: tclsh 8.6/9.0 dispatch
+        // `::oo::Helpers::A::greet` (line 2), never `::A::greet` (line 6).
+        // The run-time object namespace is not modelled, so the answer is
+        // refused rather than guessed.
+        let src = "namespace eval ::oo::Helpers {\n    oo::class create A {\n        method greet {} { return helpers }\n    }\n}\noo::class create A {\n    method greet {} { return root }\n}\noo::class create C {\n    superclass ::A ::oo::Helpers::A\n    method greet {} { nextto A }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `nextto` inside C::greet (line 10).
+        let locs = definition(src, 10, 22, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
     }
 
     #[test]
@@ -6392,9 +7471,8 @@ mod tests {
         let analysis = analyse(src);
         // Cursor on `Greeter` on line 1.
         let locs = definition(src, 1, 2, &analysis);
-        if !locs.is_empty() {
-            assert_eq!(locs[0].start_line, 0);
-        }
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 0);
     }
 
     // alias resolution
@@ -6406,6 +7484,15 @@ mod tests {
         // resolve to `greet`'s definition.
         let src = "proc greet {} {}\ninterp alias {} mycmd {} greet\nmycmd\n";
         let analysis = analyse(src);
+        let call_offset = u32::try_from(src.rfind("mycmd").unwrap()).unwrap();
+        let reference = invocation_head_at(&analysis, call_offset)
+            .and_then(|invocation| invocation.resolved_command_reference.as_ref())
+            .expect("actual alias slot reference");
+        assert!(reference.definition().is_none());
+        assert_eq!(
+            reference.linked_definition().unwrap().kind(),
+            tcl_compiler::command_binding::SourceCommandDefinitionKind::Procedure
+        );
         // Cursor on `mycmd` invocation on line 2.
         let locs = definition(src, 2, 2, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
@@ -6436,9 +7523,11 @@ mod tests {
         // Whether find_word_span_at_position includes leading
         // `::` depends on the implementation; both should
         // jump to the target proc when matched.
-        if !locs.is_empty() {
-            assert_eq!(locs[0].start_line, 0);
-        }
+        assert!(
+            !locs.is_empty(),
+            "qualified alias form should resolve to the target proc"
+        );
+        assert_eq!(locs[0].start_line, 0);
     }
 
     #[test]
@@ -6694,7 +7783,7 @@ mod tests {
         // genuinely bareword-callable from every method body of this class, so
         // the bare call resolves to the method's declaration.
         let src = "oo::class create C {\n    constructor {} { link greet }\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 3: `    method twice {} { greet ; greet }` — same text/col
         // as the un-linked test above, one line further down.
         let locs = definition(src, 3, 22, &analysis);
@@ -6767,7 +7856,7 @@ mod tests {
         // TP — `link factory` makes the classmethod
         // call resolve.
         let src = "oo::class create C {\n    constructor {} { link factory }\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 3: `    method use {} { factory }` — same text/col as the
         // un-linked test above, one line further down.
         let locs = definition(src, 3, 20, &analysis);
@@ -6954,7 +8043,7 @@ mod tests {
     fn instance_method_at_cursor_reports_bare_head_as_non_dollar() {
         // `foo bark` — a bare-word receiver (an object command); reported
         // with `is_dollar == false`.  Whether it actually resolves to a
-        // class is decided later by `receiver_instance_class`.
+        // class is decided later by `logical_receiver_candidate_at`.
         let src = "foo bark\n";
         assert_eq!(
             instance_method_at_cursor(src, 0, 5, tcl_lexer::LexerConfig::default()),
@@ -6967,8 +8056,7 @@ mod tests {
         // `[x] bark` — a command-substitution head is not a bare object
         // command, but this function only extracts the receiver text;
         // whether `[x]` names anything a caller can resolve is a semantic
-        // question answered downstream (`is_self_dispatch_keyword` /
-        // `is_self_receiver_call`), not here. Rejecting every bracketed head
+        // question answered downstream by the original selected descriptor, not here. Rejecting every bracketed head
         // outright would also reject `[self]` / `[self object]`, TclOO's own
         // same-object dispatch spelling.
         let src = "[x] bark\n";
@@ -6982,7 +8070,7 @@ mod tests {
     fn instance_method_at_cursor_extracts_a_self_receiver_head_with_brackets_intact() {
         // `[self] m`. The brackets must survive
         // extraction: `parse_command_substitution` (and so
-        // `is_self_receiver_call`) requires them.
+        // `original_internal_dispatch`) requires them.
         let src = "[self] mrun\n";
         assert_eq!(
             instance_method_at_cursor(src, 0, 8, tcl_lexer::LexerConfig::default()),
@@ -7108,17 +8196,34 @@ mod tests {
     }
 
     #[test]
-    fn receiver_instance_class_gates_bare_on_created_commands() {
-        // `set b [Bar new]` binds `b` as a variable; `Bar create rex` binds
-        // `rex` as an object command.  A bare receiver resolves only for the
-        // command (`rex`), not the variable (`b`); a `$`-receiver resolves
-        // for either.
-        let src =
-            "oo::class create Bar {\n    method get {} {}\n}\nset b [Bar new]\nBar create rex\n";
-        let analysis = analyse(src);
-        assert!(receiver_instance_class(&analysis, "rex", false).is_some());
-        assert!(receiver_instance_class(&analysis, "b", false).is_none());
-        assert!(receiver_instance_class(&analysis, "b", true).is_some());
+    fn logical_receiver_candidates_keep_instance_and_class_buckets_together() {
+        // naming.core.original-source-instance-completion
+
+        let source = "oo::class create Bar {method get {} {}}; Bar create rex; set b [Bar new]";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        assert!(analysis.allows_lexical_declaration_advice());
+        assert!(matches!(
+            logical_receiver_candidate_at(&analysis, "rex", false, 0),
+            Some((_, MethodBucket::Instance))
+        ));
+        assert!(logical_receiver_candidate_at(&analysis, "b", false, 0).is_none());
+        assert!(matches!(
+            logical_receiver_candidate_at(&analysis, "Bar", false, 0),
+            Some((_, MethodBucket::Class))
+        ));
+        let native = analyse(source);
+        for receiver in ["rex", "b", "Bar"] {
+            assert!(logical_receiver_candidate_at(&native, receiver, false, 0).is_none());
+        }
     }
 
     // Class-command dispatch: `CLASS method` for a
@@ -7127,12 +8232,9 @@ mod tests {
 
     #[test]
     fn classmethod_call_on_its_own_class_resolves() {
-        // TP — the finding's own `ActiveRecord find` shape: a classmethod
-        // called directly on the class that declares it (Part 2 alone;
-        // ooutil's `classmethod` keyword was already correctly extracted
-        // into `class_methods` by the existing class-body walker).
+        // Native C9 classmethod on its original declaring class.
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\nActiveRecord find foo bar\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         let locs = definition(src, 3, 14, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 1);
@@ -7141,12 +8243,9 @@ mod tests {
 
     #[test]
     fn classmethod_call_on_an_inheriting_subclass_resolves() {
-        // TP — the finding's second repro shape: `Table find`, where
-        // `Table` inherits `find` from `ActiveRecord` via the ordinary
-        // superclass MRO walk (ooutil's `classmethod` propagates to a
-        // subclass's own bound command — confirmed against tclsh).
+        // Native C9 delegates inherit the original declaring-class method.
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         let locs = definition(src, 6, 7, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 1);
@@ -7181,13 +8280,8 @@ mod tests {
 
     #[test]
     fn instance_calling_a_classmethod_does_not_resolve() {
-        // TN — a real instance can never dispatch a classmethod (real
-        // tclsh: `unknown method "find": must be <cloned>, create, ...`).
-        // This is the companion tightening bundled with Part 2 (the two
-        // pre-existing instance-dispatch call sites now pass
-        // `MethodBucket::Instance`, which excludes `class_methods`
-        // entirely) — `completion.rs`'s `method_items` already documented
-        // and implemented this same exclusion for its own suggestions.
+        // C8.6 provides no native classmethod worker or package extension.
+        // C9's instance-side delegate is a distinct native forwarding protocol.
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\nActiveRecord create rec1\nrec1 find foo bar\n";
         let analysis = analyse(src);
         let locs = definition(src, 4, 5, &analysis);
@@ -7195,14 +8289,26 @@ mod tests {
     }
 
     #[test]
+    fn native_classmethod_requires_the_selected_engine_or_a_provider() {
+        let source = "oo::class create C {classmethod find {} {return OK}}\nC find\n";
+        let unavailable = Analyser::new().analyse(source, "tcl8.6").clone();
+        assert!(definition(source, 1, 2, &unavailable).is_empty());
+        let provided = Analyser::new().analyse(source, "tcl9.1").clone();
+        let locations = definition(source, 1, 2, &provided);
+        assert_eq!(locations.len(), 1, "{locations:?}");
+        assert_eq!(locations[0].start_line, 0);
+        assert_eq!(locations[0].start_character, 32);
+    }
+
+    #[test]
     fn bare_var_receiver_without_a_bound_command_does_not_resolve_class_dispatch() {
         // TN — mirrors
-        // `receiver_instance_class_gates_bare_on_created_commands`: `d` is
+        // `logical_receiver_candidates_keep_instance_and_class_buckets_together`: `d` is
         // a plain variable (never bound as a command by `create`), so
         // neither the instance-command branch nor the
         // class-command branch may fire for it.
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} {}\n}\nset d [ActiveRecord new]\nd find foo bar\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         let locs = definition(src, 4, 2, &analysis);
         assert!(locs.is_empty(), "{locs:?}");
     }
@@ -7338,6 +8444,138 @@ mod tests {
     }
 
     #[test]
+    fn consumed_command_names_navigate_without_becoming_execution_heads() {
+        let source = "proc target {} {return OK}\ninfo args target\nrename target moved\nmoved\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        for (written, prefix, line, column) in [
+            ("info args target", "info args ", 1, 10),
+            ("rename target moved", "rename ", 2, 7),
+        ] {
+            let offset = u32::try_from(source.find(written).unwrap() + prefix.len()).unwrap();
+            let invocation = invocation_reference_at(&analysis, offset).expect("consumed name");
+            assert!(!invocation.lookup.is_execution_site());
+            assert!(invocation.resolved_command_reference.is_some());
+            assert!(invocation_head_at(&analysis, offset).is_none());
+            assert!(!offset_is_command_head(&analysis, offset));
+            let locations = definition(source, line, column, &analysis);
+            assert_eq!(locations.len(), 1, "{written}: {locations:?}");
+            assert_eq!(locations[0].start_line, 0);
+        }
+        let offset = u32::try_from(source.rfind("moved").unwrap()).unwrap();
+        assert!(invocation_head_at(&analysis, offset).is_some());
+        assert!(offset_is_command_head(&analysis, offset));
+        let locations = definition(source, 3, 1, &analysis);
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].start_line, 0);
+    }
+
+    #[test]
+    fn retained_loaded_indirect_definition_does_not_use_a_local_qname_decoy() {
+        use std::sync::Arc;
+        use tcl_compiler::command_binding::{
+            SourceAnalysisEntry, SourceOriginKind, TrustedSourceModuleLoader,
+        };
+        let source = "proc greet {} { return local }\nsource provider.tcl\nset cmd greet\n$cmd\n";
+        let entry = Arc::new(SourceAnalysisEntry {
+            trusted_source_modules: vec![TrustedSourceModuleLoader::new(
+                tcl_dialect::model::Family::Tcl,
+                "provider.tcl".to_owned(),
+                None,
+                "loaded-provider".to_owned(),
+                &Arc::from("proc greet {} {return loaded}"),
+            )],
+            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                tcl_dialect::TclVersion::V8_6,
+            )),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let analysis = Analyser::new()
+            .with_source_analysis_entry(entry)
+            .analyse(source, "tcl8.6")
+            .clone();
+        let invocation = analysis
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.indirect)
+            .expect("positioned indirect call");
+        let offset = invocation.range.start();
+        let definition = invocation
+            .resolved_definition
+            .as_ref()
+            .expect("actual loaded definition receipt");
+        assert!(matches!(
+            definition.allocation().site.source.kind(),
+            SourceOriginKind::Loaded { .. }
+        ));
+        let reference = invocation
+            .resolved_command_reference
+            .as_ref()
+            .expect("full actual loaded reference");
+        assert_eq!(reference.definition(), Some(definition));
+        if let Some(linked) = reference.linked_definition() {
+            assert!(
+                matches!(
+                    linked.allocation().site.source.kind(),
+                    SourceOriginKind::Loaded { .. }
+                ),
+                "linked current definition must retain its foreign implementation: {linked:?}"
+            );
+        }
+        assert!(resolved_indirect_head_proc(&analysis, offset).is_none());
+    }
+
+    #[test]
+    fn indirect_alias_wrapper_does_not_borrow_a_displaced_class_definition() {
+        let source = "oo::class create C {}\nrename C savedClass\ninterp alias {} C {} list ALIAS\nset ns ::\n${ns}C\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        let invocation = analysis
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.indirect)
+            .expect("retained indirect alias lookup");
+        let reference = invocation
+            .resolved_command_reference
+            .as_ref()
+            .unwrap_or_else(|| {
+                panic!(
+                    "actual alias slot reference: {:?}",
+                    analysis
+                        .command_invocations
+                        .iter()
+                        .map(|call| (
+                            call.range,
+                            call.name.as_str(),
+                            call.resolved_qualified_name.as_deref(),
+                            call.resolved_command_reference.as_ref().and_then(
+                                tcl_compiler::command_binding::SourceCommandReference::slot
+                            ),
+                        ))
+                        .collect::<Vec<_>>()
+                )
+            });
+        assert!(reference.definition().is_none());
+        assert!(reference.linked_definition().is_none());
+        assert!(matches!(
+            reference.binding(),
+            tcl_compiler::command_binding::SourceCommandReferenceBinding::Direct {
+                kind: tcl_compiler::command_binding::BindingKind::Alias,
+                ..
+            }
+        ));
+        assert!(invocation.resolved_definition.is_none());
+        assert!(!invocation.resolved_user_definition);
+        assert!(
+            resolved_indirect_head_target(&analysis, invocation.range.start()).is_none(),
+            "the alias slot has no current class definition"
+        );
+        assert!(definition(source, 4, 5, &analysis).is_empty());
+    }
+
+    #[test]
     fn tn_a_bare_dollar_cmd_head_still_answers_the_variable_it_reads() {
         // TN / documented limit — a whole-word `$cmd` head *is* a variable
         // read, and the position tier answers that first (it is asked long
@@ -7409,5 +8647,1631 @@ mod tests {
         let locs = definition(src, 2, 20, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 0, "{locs:?}");
+    }
+    #[test]
+    fn variable_receiver_never_promotes_a_filewide_candidate_to_runtime_proof() {
+        let mut analysis = analyse("");
+        analysis
+            .instance_classes
+            .insert("receiver".to_owned(), "::Stale".to_owned());
+        assert!(logical_receiver_candidate_at(&analysis, "receiver", true, 0).is_none());
+        analysis
+            .created_instance_commands
+            .insert("receiver".to_owned());
+        assert!(logical_receiver_candidate_at(&analysis, "receiver", false, 0).is_none());
+    }
+
+    #[test]
+    fn constructed_itcl_member_projection_preserves_colon_tail_and_actual_family_guard() {
+        // naming.analysis.constructed-key-consumer-projections
+
+        // Explicit descriptive rows; no native class or reached dispatch issuer.
+        use tcl_compiler::analyser::types::{ClassDef, MethodDef};
+        let mut analysis = Analyser::new().analyse("", "tcl");
+        let member = |name: &str| MethodDef {
+            name: name.to_owned(),
+            params: Vec::new(),
+            formal_count: tcl_compiler::signature_scan::formal_count::SourceFormalCount::Unknown,
+            params_computed: true,
+            name_span: tcl_lexer::Span::new(0, 0),
+            body_span: tcl_lexer::Span::new(0, 0),
+            kind: "classmethod".to_owned(),
+            is_self_method: false,
+            visibility: "public".to_owned(),
+            doc: String::new(),
+            forward_target: None,
+        };
+        let mut class = ClassDef {
+            qualified_name: "::茶".to_owned(),
+            metaclass: "itcl::class".to_owned(),
+            ..ClassDef::default()
+        };
+        class.class_methods.insert(":".to_owned(), member(":"));
+        class
+            .class_methods
+            .insert("méthode".to_owned(), member("méthode"));
+        class
+            .methods
+            .insert("instance".to_owned(), member("instance"));
+        analysis
+            .all_classes
+            .insert(class.qualified_name.clone(), class);
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let registry = crate::registry_for_dialect_profile(profile);
+        assert_eq!(
+            itcl_class_proc_at_in_registry(&analysis, registry, "::茶:::"),
+            Some((&"::茶".to_owned(), ":".to_owned()))
+        );
+        assert_eq!(
+            itcl_class_proc_at_in_registry(&analysis, registry, "::茶::méthode"),
+            Some((&"::茶".to_owned(), "méthode".to_owned()))
+        );
+        for key in [
+            "méthode",
+            "::茶::",
+            "::茶::missing",
+            "::茶::instance",
+            "::other::méthode",
+        ] {
+            assert!(
+                itcl_class_proc_at_in_registry(&analysis, registry, key).is_none(),
+                "{key}"
+            );
+        }
+        analysis.all_classes.get_mut("::茶").unwrap().metaclass = "oo::class".to_owned();
+        assert!(itcl_class_proc_at_in_registry(&analysis, registry, "::茶:::").is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_namespace_export_advice_tests {
+    use super::{CallResolution, ImportQuery, exported_original_slot_at_import, live_import_at};
+    use crate::namespace_import::ExportVerdict;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_document_export_query_uses_retained_slot_after_reporting_rows_are_removed() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+
+        let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; namespace export p\uD800; namespace export -clear p\uD801";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let names = analysis
+            .original_procedure_declarations()
+            .map(|record| record.name().clone())
+            .collect::<Vec<_>>();
+        assert_eq!(names.len(), 2);
+        analysis.namespace_exports.clear();
+        analysis.all_procs.clear();
+        let at = u32::try_from(source.len()).unwrap();
+        let ask = |bytes: &[u8]| {
+            let name = names
+                .iter()
+                .find(|name| name.slot().simple.as_bytes() == bytes)
+                .unwrap();
+            exported_original_slot_at_import(
+                &analysis,
+                CallResolution::document_only(),
+                name.slot(),
+                name.policy(),
+                at,
+            )
+        };
+        assert_eq!(ask(b"p\xed\xa0\x80"), ExportVerdict::NotExported);
+        assert_eq!(ask(b"p\xed\xa0\x81"), ExportVerdict::Exported);
+    }
+
+    #[test]
+    fn original_document_export_observability_keeps_opaque_namespace_and_policy() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+
+        let source = r"namespace eval n\uD800 {proc p {} {}; namespace export other}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let name = analysis
+            .original_procedure_declarations()
+            .next()
+            .unwrap()
+            .name();
+        let scope = tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(
+            name.slot().namespace.clone(),
+        );
+        assert!(scope.display().is_none());
+        assert!(super::namespace_exports_observable(
+            &analysis,
+            &scope,
+            name.policy()
+        ));
+        assert_eq!(
+            super::export_verdict_for_slot(
+                &analysis,
+                CallResolution::document_only(),
+                name.slot(),
+                name.policy(),
+                u32::try_from(source.len()).unwrap()
+            ),
+            ExportVerdict::NotExported
+        );
+        let foreign = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+            .authored_name_policy()
+            .unwrap();
+        assert!(!super::namespace_exports_observable(
+            &analysis, &scope, foreign
+        ));
+    }
+
+    #[test]
+    fn original_import_query_keeps_intermediate_source_geometry_without_a_local_declaration() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+
+        let source = "namespace eval C {proc p {} {}; namespace export p}\nnamespace eval B {namespace import ::C::*; namespace export p}\nnamespace eval A {namespace import ::B::*}\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            analysis
+                .original_procedure_declarations()
+                .all(|record| record.name().slot().namespace.as_segments().len() == 1)
+        );
+        assert_eq!(
+            live_import_at(
+                &analysis,
+                CallResolution::document_only(),
+                "::A",
+                "p",
+                u32::MAX,
+                ImportQuery::Resolve
+            ),
+            Some("::B".to_owned())
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_next_source_context_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn analyse(source: &str, environment: &str) -> AnalysisResult {
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let surface = Some(tcl_dialect::model::SpecSurface::TCL90_PLUS);
+        registry.insert(tcl_registry::CommandSpec {
+            name: "source_next_named",
+            traits: tcl_registry::Traits::TCLOO_NEXT_CHAIN,
+            arg_roles: &[(0, tcl_registry::ArgRole::Name)],
+            arity: tcl_registry::Arity::at_least(1),
+            surface,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let context = Arc::new(
+            tcl_registry::model::ingress::static_context_for(environment)
+                .with_command_store(Arc::new(registry)),
+        );
+        Analyser::new()
+            .with_resolved_input(ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            ))
+            .analyse(source, profile.name)
+    }
+
+    fn target(source: &str, analysis: &AnalysisResult, needle: &str) -> Option<tcl_lexer::Span> {
+        let offset = source.rfind(needle).unwrap();
+        let index = LineIndex::new(source);
+        let position = index.position_at_utf16(u32::try_from(offset).unwrap(), source);
+        next_dispatch_target(
+            analysis,
+            source,
+            &index,
+            position.line,
+            position.character.get(),
+        )
+    }
+
+    #[test]
+    fn original_next_definition_uses_captured_target_and_selected_availability() {
+        // naming.core.original-dispatch-region-context
+
+        let source = "oo::class create Base {method m {} {}}\ninterp alias {} jump {} source_next_named Base\noo::class create C {superclass Base; method m {} {jump}}";
+        let current = analyse(source, "tcl9.0");
+        let base = current
+            .all_classes
+            .values()
+            .find(|class| class.name == "Base")
+            .unwrap();
+        assert_eq!(
+            target(source, &current, "jump"),
+            Some(base.methods["m"].name_span)
+        );
+        let old = analyse(source, "tcl8.6");
+        assert!(target(source, &old, "jump").is_none());
+        let shadow = source.replace(
+            "interp alias",
+            "proc source_next_named args {}; interp alias",
+        );
+        assert!(target(&shadow, &analyse(&shadow, "tcl9.0"), "jump").is_none());
+        let unknown = source.replace("source_next_named Base", "source_next_named $unknown");
+        assert!(target(&unknown, &analyse(&unknown, "tcl9.0"), "jump").is_none());
+        assert!(target(&source.replace("Base", "Else"), &current, "jump").is_none());
+    }
+}
+
+#[cfg(test)]
+mod configured_receiver_head_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn configured_method_heads_require_the_whole_variable_operand() {
+        // naming.core.original-source-instance-completion
+
+        let method = |head: &str, config| {
+            let source = format!("{head} longMethod\n");
+            let character = u32::try_from(
+                source[..source.find("longMethod").unwrap()]
+                    .encode_utf16()
+                    .count(),
+            )
+            .unwrap();
+            instance_method_at_cursor(&source, 0, character, config)
+        };
+        let first = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let mut nested = first;
+        nested.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        for config in [first, nested] {
+            assert_eq!(
+                method("${箱}", config),
+                Some(("箱".to_owned(), "longMethod".to_owned(), true))
+            );
+            assert_eq!(
+                method("$arr(k)", config),
+                Some(("arr(k)".to_owned(), "longMethod".to_owned(), true))
+            );
+            for head in ["${x}suffix", "$x-suffix", "${x}[suffix]", "${x", "$箱"] {
+                assert!(method(head, config).is_none(), "{head}");
+            }
+        }
+        assert_eq!(
+            method("${a{b}c}", nested),
+            Some(("a{b}c".to_owned(), "longMethod".to_owned(), true))
+        );
+        assert!(method("${a{b}c}", first).is_none());
+        assert_eq!(
+            method("${a{b}", first),
+            Some(("a{b".to_owned(), "longMethod".to_owned(), true))
+        );
+        assert!(method("${a{b}", nested).is_none());
+        assert_eq!(
+            method(r"${a\}b}", nested),
+            Some((r"a\}b".to_owned(), "longMethod".to_owned(), true)),
+        );
+        assert!(method(r"${a\}b}", first).is_none());
+    }
+
+    #[test]
+    fn actual_method_navigation_does_not_promote_compound_variable_syntax() {
+        // naming.core.original-source-instance-completion
+
+        for dialect in ["tcl8.6", "tcl9.1"] {
+            for (head, present) in [
+                ("${箱}", true),
+                ("${箱}suffix", false),
+                ("${箱}[list suffix]", false),
+            ] {
+                let source = format!(
+                    "oo::class create C {{method longMethod {{}} {{}}}}\nset {{箱}} [C new]\n{head} longMethod\n"
+                );
+                let analysis = Analyser::new().analyse(&source, dialect);
+                let line = source.lines().nth(2).unwrap();
+                let character = u32::try_from(
+                    line[..line.find("longMethod").unwrap()]
+                        .encode_utf16()
+                        .count(),
+                )
+                .unwrap();
+                let locations = definition(&source, 2, character, &analysis);
+                assert_eq!(
+                    !locations.is_empty(),
+                    present,
+                    "{dialect}: {head}: {locations:?}"
+                );
+                if present {
+                    assert!(locations.iter().all(|location| location.start_line == 0));
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod itcl_family_context_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+    use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, ITCL_GRAMMAR};
+
+    const OTHER_FAMILY: DefinitionBodyGrammar = DefinitionBodyGrammar {
+        family: DefinerFamily::Snit,
+        ..ITCL_GRAMMAR
+    };
+
+    fn analyse(source: &str, grammar: Option<&'static DefinitionBodyGrammar>) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut registry = CommandRegistry::build_default();
+        let mut spec = registry.get("itcl::class").unwrap().clone();
+        spec.name = "source_class";
+        spec.required_package = None;
+        spec.definition_body = grammar;
+        registry.insert(spec);
+        let context = tcl_registry::model::ingress::context_for_profile(profile)
+            .with_command_store(Arc::new(registry));
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::new(context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn contextual_itcl_targets_use_the_actual_store_instead_of_a_display_profile() {
+        // naming.core.original-dispatch-region-context
+
+        // Authored Logical definition grammar; no Native Itcl loader or class issuer.
+        let source = "source_class C {proc make {} {return OK}}\nC::make\n";
+        let analysis = analyse(source, Some(&ITCL_GRAMMAR));
+        assert!(analysis.allows_lexical_declaration_advice());
+        let class = &analysis.all_classes["::C"];
+        assert_eq!(class.metaclass, "source_class");
+        assert!(
+            crate::registry_for_dialect_profile(tcl_dialect::DialectProfile::plain_tcl())
+                .get("source_class")
+                .is_none()
+        );
+        assert_eq!(
+            class_definer_family(&analysis, class),
+            Some(DefinerFamily::Itcl)
+        );
+        let expected = Some(("::C".to_owned(), "make".to_owned()));
+        for nominal in ["tcl8.4", "tcl9.1"] {
+            assert_eq!(
+                itcl_class_proc_target_at(
+                    source,
+                    tcl_dialect::DialectProfile::find(nominal).unwrap(),
+                    1,
+                    4,
+                    &analysis
+                ),
+                expected
+            );
+        }
+        assert_eq!(
+            itcl_class_proc_declaration(&analysis, "::", "C::make"),
+            Some(class.class_methods["make"].name_span)
+        );
+        assert_eq!(
+            itcl_self_qualified_candidate(&analysis, "::C", "C::make"),
+            Some("::C::make".to_owned())
+        );
+        assert!(itcl_self_qualified_candidate(&analysis, "::C", "C::make::extra").is_none());
+        assert!(itcl_self_qualified_candidate(&analysis, "::C", "Other::make").is_none());
+        assert!(
+            itcl_class_proc_target_at(
+                &format!("{source}# changed"),
+                tcl_dialect::DialectProfile::plain_tcl(),
+                1,
+                4,
+                &analysis
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn same_profile_family_metadata_keeps_known_non_itcl_and_missing_grammar_distinct() {
+        // naming.core.original-dispatch-region-context
+
+        let source = "source_class C {proc make {} {return OK}}\nC::make\nC make\n";
+        let itcl = analyse(source, Some(&ITCL_GRAMMAR));
+        let other = analyse(source, Some(&OTHER_FAMILY));
+        assert_eq!(
+            itcl.resolved_profile().unwrap().name,
+            other.resolved_profile().unwrap().name
+        );
+        assert_ne!(
+            itcl.resolved_registry().unwrap().snapshot().semantic_key(),
+            other.resolved_registry().unwrap().snapshot().semantic_key()
+        );
+        assert_eq!(
+            class_definer_family(&other, &other.all_classes["::C"]),
+            Some(DefinerFamily::Snit)
+        );
+        assert!(itcl_class_proc_at(&other, "::C::make").is_none());
+        let missing = analyse(source, None);
+        // An explicitly supplied descriptive class row is insufficient without
+        // its actual store's grammar; it does not acquire the old class receipt.
+        assert!(class_definer_family(&missing, &itcl.all_classes["::C"]).is_none());
+        assert!(itcl_class_proc_at(&missing, "::C::make").is_none());
+    }
+
+    #[test]
+    fn contextual_itcl_family_refuses_missing_or_foreign_retained_input() {
+        // naming.core.original-dispatch-region-context
+
+        let source = "source_class C {proc make {} {return OK}}\nC::make\n";
+        let original = analyse(source, Some(&ITCL_GRAMMAR));
+        let mut changed = original.clone();
+        changed.resolved_input = None;
+        assert!(class_definer_family(&changed, &changed.all_classes["::C"]).is_none());
+        assert!(itcl_class_proc_at(&changed, "::C::make").is_none());
+        let other = analyse(source, Some(&OTHER_FAMILY));
+        changed.resolved_input = other.resolved_input.clone();
+        assert!(class_definer_family(&changed, &changed.all_classes["::C"]).is_none());
+        assert!(
+            itcl_class_proc_target_at(
+                source,
+                tcl_dialect::DialectProfile::plain_tcl(),
+                1,
+                4,
+                &changed
+            )
+            .is_none()
+        );
+        changed = original;
+        changed.dialect = "a reporting label".to_owned();
+        assert_eq!(
+            class_definer_family(&changed, &changed.all_classes["::C"]),
+            Some(DefinerFamily::Itcl)
+        );
+    }
+
+    #[test]
+    fn actual_itcl_reference_calls_keep_source_currency_and_the_selected_family() {
+        // naming.core.original-dispatch-region-context
+
+        let source = "source_class C {proc make {} {return OK}}\nC::make\nC make\n";
+        let itcl = analyse(source, Some(&ITCL_GRAMMAR));
+        let sites = crate::references::obj_method_call_sites(
+            source,
+            tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
+            &itcl,
+            "::C",
+            "make",
+            true,
+            &[],
+        );
+        assert_eq!(sites.len(), 1);
+        assert_eq!(
+            &source[sites[0].start() as usize..sites[0].end() as usize],
+            "make"
+        );
+        assert_eq!(
+            sites[0].start() as usize,
+            source.find("C::make").unwrap() + 3
+        );
+        let changed = format!("{source}# changed");
+        assert!(
+            crate::references::obj_method_call_sites(
+                &changed,
+                tcl_dialect::DialectProfile::plain_tcl(),
+                &itcl,
+                "::C",
+                "make",
+                true,
+                &[]
+            )
+            .is_empty()
+        );
+        let mut missing = itcl.clone();
+        missing.resolved_input = None;
+        assert!(
+            crate::references::obj_method_call_sites(
+                source,
+                tcl_dialect::DialectProfile::plain_tcl(),
+                &missing,
+                "::C",
+                "make",
+                true,
+                &[]
+            )
+            .is_empty()
+        );
+        let other = analyse(source, Some(&OTHER_FAMILY));
+        assert!(
+            crate::references::obj_method_call_sites(
+                source,
+                tcl_dialect::DialectProfile::plain_tcl(),
+                &other,
+                "::C",
+                "make",
+                true,
+                &[]
+            )
+            .iter()
+            .all(|span| span.start() as usize != source.find("C::make").unwrap() + 3)
+        );
+    }
+}
+
+#[cfg(test)]
+mod logical_variable_scope_owner_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn native_class_navigation_cannot_borrow_a_deleted_head_or_unknown_argument() {
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (source, missing) in [
+                ("oo::class create C {}\nrename C {}\nC new\n", "C new"),
+                (
+                    "oo::class create C {}\nunknown_command C\n",
+                    "unknown_command C",
+                ),
+            ] {
+                let analysis = Analyser::new().analyse(source, release);
+                assert!(!analysis.allows_lexical_declaration_advice());
+                let (_, line, character) = cursor(source, "oo::class create C");
+                assert_eq!(
+                    definition(source, line, character, &analysis)
+                        .iter()
+                        .map(|range| range.start_line)
+                        .collect::<Vec<_>>(),
+                    vec![0],
+                    "current source header {release}"
+                );
+                let missing_offset = u32::try_from(
+                    source.find(missing).unwrap()
+                        + if missing == "C new" {
+                            0
+                        } else {
+                            "unknown_command ".len()
+                        },
+                )
+                .unwrap();
+                let missing_position =
+                    LineIndex::new(source).position_at_utf16(missing_offset, source);
+                let (line, character) = (missing_position.line, missing_position.character.get());
+                assert!(
+                    definition(source, line, character, &analysis).is_empty(),
+                    "{release}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn logical_unknown_namespace_retains_body_tables_without_a_coordinate() {
+        let source = "set root ROOT\nnamespace eval $unknown {\n set local OWN\n puts $local\n puts $Target::x\n}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let (offset, line, character) = cursor(source, "puts $local");
+        let advice = analysis
+            .logical_variable_scope_advice(
+                &tcl_lexer::SourceImage::document(source),
+                analysis.body_lexer_config.unwrap(),
+                offset,
+            )
+            .unwrap();
+        assert!(advice.namespace().is_none());
+        assert!(!advice.is_namespace_frame());
+        assert!(
+            advice
+                .eligible_scopes()
+                .any(|scope| scope.variables.contains_key("local"))
+        );
+        assert_eq!(
+            definition(source, line, character, &analysis)
+                .iter()
+                .map(|range| range.start_line)
+                .collect::<Vec<_>>(),
+            vec![2]
+        );
+        let (_, line, character) = cursor(source, "puts $Target::x");
+        assert!(
+            qualified_variable_cell_at(
+                source,
+                analysis.resolved_profile().unwrap(),
+                &analysis,
+                line,
+                character
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_interpreter_source_body_cannot_borrow_the_parent_root() {
+        for source in [
+            "set x PARENT\ninterp create child\ninterp eval child {puts $x}\n",
+            "set x PARENT\ninterp eval $child {puts $x}\n",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            assert!(analysis.allows_lexical_declaration_advice());
+            let (offset, line, character) = cursor(source, "puts $x");
+            assert!(
+                analysis
+                    .logical_variable_scope_advice(
+                        &tcl_lexer::SourceImage::document(source),
+                        analysis.body_lexer_config.unwrap(),
+                        offset
+                    )
+                    .is_none()
+            );
+            assert!(definition(source, line, character, &analysis).is_empty());
+        }
+    }
+
+    #[test]
+    fn logical_array_completion_keeps_the_actual_cursor_edit_extent() {
+        for (source, character, expected_end) in [
+            ("set arr(key) 1\nset v $arr(k more stuff\n", 12, 12),
+            ("set arr(key) 1\nset v $arr(k)\n", 12, 13),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            assert!(analysis.allows_lexical_declaration_advice());
+            let items = crate::completion::completions(
+                source,
+                1,
+                character,
+                &analysis,
+                analysis.resolved_registry(),
+                None,
+                analysis.resolved_profile().unwrap(),
+            );
+            let candidate = items
+                .iter()
+                .find(|item| item.label == "$arr(key)")
+                .expect("current Logical source array candidate");
+            let edit = candidate.text_edit.as_ref().expect("cursor replacement");
+            assert_eq!((edit.start_char, edit.end_char), (6, expected_end));
+            assert_eq!(edit.new_text, "$arr(key)");
+            let stale = format!("{source} ");
+            assert!(
+                crate::completion::completions(
+                    &stale,
+                    1,
+                    character,
+                    &analysis,
+                    analysis.resolved_registry(),
+                    None,
+                    analysis.resolved_profile().unwrap()
+                )
+                .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn logical_namespace_write_coordinates_require_current_source_and_store_cards() {
+        use std::sync::Arc;
+        use tcl_compiler::analyser::ResolvedAnalysisInput;
+        let source = "namespace eval N {variable x FIRST; set x AGAIN; puts $x}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.find("set x AGAIN").unwrap() + "set ".len()).unwrap();
+        let position = LineIndex::new(source).position_at_utf16(offset, source);
+        let query = |source: &str, analysis: &AnalysisResult| {
+            qualified_variable_cell_at(
+                source,
+                analysis.resolved_profile().unwrap(),
+                analysis,
+                position.line,
+                position.character.get(),
+            )
+        };
+        assert_eq!(query(source, &analysis).as_deref(), Some("::N::x"));
+        let mut missing = analysis.clone();
+        missing.original_variable_write_advice.clear();
+        assert!(query(source, &missing).is_none());
+        assert!(query(&format!("{source} "), &analysis).is_none());
+
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let mut registry = analysis
+            .resolved_registry()
+            .unwrap()
+            .project_for_profile(input.unit_profile());
+        let mut changed = registry.get("puts").unwrap().clone();
+        if changed
+            .traits
+            .contains(tcl_registry::Traits::EVALUATES_CODE)
+        {
+            changed.traits.remove(tcl_registry::Traits::EVALUATES_CODE);
+        } else {
+            changed.traits.insert(tcl_registry::Traits::EVALUATES_CODE);
+        }
+        registry.insert(changed);
+        let context = Arc::new(
+            input
+                .context_registry()
+                .with_command_store(Arc::new(registry)),
+        );
+        let foreign_input = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            context,
+            input.lexer_config(),
+        );
+        let foreign = Analyser::new()
+            .with_resolved_input(foreign_input)
+            .analyse(source, "tcl");
+        assert!(!foreign.original_variable_write_advice.is_empty());
+        let mut donated = analysis.clone();
+        donated.original_variable_write_advice = foreign.original_variable_write_advice;
+        assert!(query(source, &donated).is_none());
+    }
+
+    #[test]
+    fn logical_bare_procedure_writes_cannot_publish_namespace_coordinates() {
+        let source = "set x ROOT\nproc p {} {set x FIRST; set x AGAIN; set N::x QUALIFIED}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        for (needle, expected) in [
+            ("set x AGAIN", None),
+            ("set N::x QUALIFIED", Some("::N::x")),
+        ] {
+            let offset = u32::try_from(source.find(needle).unwrap() + "set ".len()).unwrap();
+            let position = LineIndex::new(source).position_at_utf16(offset, source);
+            assert_eq!(
+                qualified_variable_cell_at(
+                    source,
+                    analysis.resolved_profile().unwrap(),
+                    &analysis,
+                    position.line,
+                    position.character.get(),
+                )
+                .as_deref(),
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn native_conditional_publication_navigation_preserves_source_table_refusals() {
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (source, needle, expected) in [
+                (
+                    "oo::class create C {}\nproc p {} {C new}\n",
+                    "C new",
+                    Some(0),
+                ),
+                (
+                    "proc p {} {Future new}\noo::class create Future {}\n",
+                    "Future new",
+                    Some(1),
+                ),
+                (
+                    "oo::class create C {}\nrename C {}\nproc p {} {C new}\n",
+                    "C new",
+                    None,
+                ),
+                (
+                    "oo::class create C {}\nproc C args {}\nproc p {} {C new}\n",
+                    "C new",
+                    Some(1),
+                ),
+                (
+                    "oo::class create C {}\nproc p {} {unknown_mutator; C new}\n",
+                    "C new",
+                    None,
+                ),
+            ] {
+                let analysis = Analyser::new().analyse(source, release);
+                assert!(!analysis.allows_lexical_declaration_advice());
+                let offset = u32::try_from(source.find(needle).unwrap()).unwrap();
+                let position = LineIndex::new(source).position_at_utf16(offset, source);
+                let selected =
+                    definition(source, position.line, position.character.get(), &analysis)
+                        .into_iter()
+                        .map(|range| range.start_line)
+                        .collect::<Vec<_>>();
+                assert_eq!(
+                    selected,
+                    expected.into_iter().collect::<Vec<_>>(),
+                    "{release}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables() {
+        let analysis = Analyser::new().analyse(SCOPED, "tcl");
+        for (needle, expected) in [
+            ("uplevel #0 {puts $x", Some(0)),
+            ("uplevel 0 {puts $x", Some(4)),
+            ("uplevel 1 {puts $x", None),
+        ] {
+            let (_, line, character) = cursor(SCOPED, needle);
+            let spans = crate::references::references(
+                SCOPED,
+                analysis.resolved_profile().unwrap(),
+                line,
+                character,
+                &analysis,
+                true,
+            );
+            let lines = spans.iter().map(|span| span.start_line).collect::<Vec<_>>();
+            if let Some(declaration) = expected {
+                assert!(lines.contains(&declaration), "{needle}: {lines:?}");
+                assert!(
+                    lines.contains(&line),
+                    "original selected read {needle}: {lines:?}"
+                );
+            } else {
+                assert!(lines.is_empty(), "unknown caller {needle}: {lines:?}");
+            }
+            assert!(
+                !lines.contains(&2),
+                "namespace cannot replace frame {needle}: {lines:?}"
+            );
+        }
+    }
+
+    const SCOPED: &str = "set x ROOT\nnamespace eval N {\n variable x NAMESPACE\n proc p {} {\n  set x PROCEDURE\n  uplevel #0 {puts $x}\n  uplevel 0 {puts $x}\n  uplevel 1 {puts $x}\n }\n}\n";
+
+    fn cursor(source: &str, needle: &str) -> (u32, u32, u32) {
+        let offset = u32::try_from(source.find(needle).unwrap() + needle.len() - 1).unwrap();
+        let position = LineIndex::new(source).position_at_utf16(offset, source);
+        (offset, position.line, position.character.get())
+    }
+
+    #[test]
+    fn logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables() {
+        let analysis = Analyser::new().analyse(SCOPED, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        for (needle, expected_line) in [
+            ("uplevel #0 {puts $x", Some(0)),
+            ("uplevel 0 {puts $x", Some(4)),
+            ("uplevel 1 {puts $x", None),
+        ] {
+            let (offset, line, character) = cursor(SCOPED, needle);
+            let scope = analysis
+                .logical_variable_scope_advice(
+                    &tcl_lexer::SourceImage::document(SCOPED),
+                    analysis.body_lexer_config.unwrap(),
+                    offset,
+                )
+                .unwrap();
+            let selected = definition(SCOPED, line, character, &analysis);
+            match expected_line {
+                Some(expected) => assert_eq!(
+                    selected
+                        .iter()
+                        .map(|range| range.start_line)
+                        .collect::<Vec<_>>(),
+                    vec![expected],
+                    "{needle}"
+                ),
+                None => assert!(selected.is_empty(), "{needle}: {selected:?}"),
+            }
+            let references = crate::references::references(
+                SCOPED,
+                analysis.resolved_profile().unwrap(),
+                line,
+                character,
+                &analysis,
+                true,
+            );
+            assert!(
+                !references.iter().any(|range| range.start_line == 2),
+                "outer namespace cannot substitute for the selected frame: {references:?}"
+            );
+            if expected_line.is_none() {
+                assert!(
+                    !references
+                        .iter()
+                        .any(|range| matches!(range.start_line, 0 | 4))
+                );
+            }
+            assert!(scope.eligible_scopes().all(|candidate| !matches!(
+                candidate.kind,
+                tcl_compiler::analyser::ScopeKind::Namespace
+            )));
+        }
+    }
+
+    #[test]
+    fn logical_method_root_and_nested_declared_local_frames_stay_distinct() {
+        for (source, needle, expected_line) in [
+            (
+                "set x ROOT\noo::class create C {\n method m {} {\n  set x METHOD\n  uplevel #0 {puts $x}\n  uplevel 0 {puts $x}\n }\n}\n",
+                "uplevel #0 {puts $x",
+                0,
+            ),
+            (
+                "set x ROOT\noo::class create C {\n method m {} {\n  set x METHOD\n  uplevel #0 {puts $x}\n  uplevel 0 {puts $x}\n }\n}\n",
+                "uplevel 0 {puts $x",
+                3,
+            ),
+            (
+                "set x ROOT\nproc outer {} {uplevel #0 {\n proc inner {} {\n  set x INNER\n  puts $x\n }\n}}\n",
+                "puts $x",
+                3,
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            assert!(analysis.allows_lexical_declaration_advice());
+            let (offset, line, character) = cursor(source, needle);
+            assert!(
+                analysis
+                    .logical_variable_scope_advice(
+                        &tcl_lexer::SourceImage::document(source),
+                        analysis.body_lexer_config.unwrap(),
+                        offset
+                    )
+                    .is_some()
+            );
+            let selected = definition(source, line, character, &analysis);
+            assert_eq!(
+                selected
+                    .iter()
+                    .map(|range| range.start_line)
+                    .collect::<Vec<_>>(),
+                vec![expected_line],
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_root_namespace_eval_keeps_the_same_root_declaration_table() {
+        let source = "set x ROOT\nnamespace eval :: {puts $x}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let (offset, line, character) = cursor(source, "puts $x");
+        let advice = analysis
+            .logical_variable_scope_advice(
+                &tcl_lexer::SourceImage::document(source),
+                analysis.body_lexer_config.unwrap(),
+                offset,
+            )
+            .unwrap();
+        assert!(!advice.root_names_require_qualification());
+        assert_eq!(
+            definition(source, line, character, &analysis)
+                .iter()
+                .map(|range| range.start_line)
+                .collect::<Vec<_>>(),
+            vec![0]
+        );
+    }
+
+    #[test]
+    fn logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner() {
+        let source = "namespace eval Target {variable x ROOT_TARGET}\nnamespace eval N {\n namespace eval Target {variable x N_TARGET}\n proc p {} {\n  uplevel #0 {puts $Target::x}\n  uplevel 0 {puts $Target::x}\n  uplevel 1 {puts $Target::x}\n  uplevel 1 {puts $::Target::x}\n }\n}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        for (needle, expected) in [
+            ("uplevel #0 {puts $Target::x", Some("::Target::x")),
+            ("uplevel 0 {puts $Target::x", Some("::N::Target::x")),
+            ("uplevel 1 {puts $Target::x", None),
+            ("uplevel 1 {puts $::Target::x", Some("::Target::x")),
+        ] {
+            let (_, line, character) = cursor(source, needle);
+            assert_eq!(
+                qualified_variable_cell_at(
+                    source,
+                    analysis.resolved_profile().unwrap(),
+                    &analysis,
+                    line,
+                    character
+                )
+                .as_deref(),
+                expected,
+                "{needle}"
+            );
+            assert!(
+                qualified_variable_cell_at(
+                    &format!("{source} "),
+                    analysis.resolved_profile().unwrap(),
+                    &analysis,
+                    line,
+                    character
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn logical_scope_selector_current_image_and_domain_do_not_grant_edits() {
+        let analysis = Analyser::new().analyse(SCOPED, "tcl");
+        let image = tcl_lexer::SourceImage::document(SCOPED);
+        let config = analysis.body_lexer_config.unwrap();
+        let (offset, line, character) = cursor(SCOPED, "uplevel #0 {puts $x");
+        assert!(
+            analysis
+                .logical_variable_scope_advice(&image, config, offset)
+                .is_some()
+        );
+        assert!(
+            analysis
+                .logical_variable_scope_advice(
+                    &tcl_lexer::SourceImage::document(&format!("{SCOPED} ")),
+                    config,
+                    offset
+                )
+                .is_none()
+        );
+        assert!(
+            analysis
+                .logical_variable_scope_advice(
+                    &tcl_lexer::SourceImage::native(SCOPED.as_bytes()),
+                    config,
+                    offset
+                )
+                .is_none()
+        );
+        assert!(
+            analysis
+                .logical_variable_scope_advice(
+                    &image,
+                    tcl_lexer::LexerConfig {
+                        strict_quoting: !config.strict_quoting,
+                        ..config
+                    },
+                    offset
+                )
+                .is_none()
+        );
+        assert!(
+            analysis
+                .logical_variable_scope_advice(
+                    &image,
+                    config,
+                    u32::try_from(SCOPED.len() + 1).unwrap()
+                )
+                .is_none()
+        );
+        for release in ["tcl8.6", "tcl9.0", "jim", "f5-iapps"] {
+            let original = Analyser::new().analyse(SCOPED, release);
+            assert!(
+                original
+                    .logical_variable_scope_advice(
+                        &image,
+                        original.body_lexer_config.unwrap(),
+                        offset
+                    )
+                    .is_none()
+            );
+        }
+        let mut detached = analysis.clone();
+        detached.resolved_input = None;
+        assert!(
+            detached
+                .logical_variable_scope_advice(&image, config, offset)
+                .is_none()
+        );
+        let stale = format!("{SCOPED} ");
+        assert!(
+            crate::rename::rename(
+                &stale,
+                analysis.resolved_profile().unwrap(),
+                line,
+                character,
+                "other",
+                &analysis,
+                None
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn native_source_alias_candidates_cannot_borrow_logical_scope_or_edit_selection() {
+        let source =
+            "set shared 1\nproc first {argument} {global shared; upvar #0 shared link; puts $}\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.body_lexer_config.unwrap();
+        assert!(
+            analysis
+                .original_variable_alias_advice_in_source(&image, config)
+                .unwrap()
+                .iter()
+                .any(|alias| alias.local_name().as_bytes() == b"link")
+        );
+        analysis.original_variable_symbols.clear();
+        let offset = u32::try_from(source.find("puts $").unwrap() + "puts $".len()).unwrap();
+        let position = LineIndex::new(source).position_at_utf16(offset, source);
+        assert!(
+            analysis
+                .logical_variable_scope_advice(&image, config, offset)
+                .is_none()
+        );
+        let candidates = crate::completion::completions(
+            source,
+            position.line,
+            position.character.get(),
+            &analysis,
+            analysis.resolved_registry(),
+            None,
+            analysis.resolved_profile().unwrap(),
+        );
+        assert!(
+            candidates
+                .iter()
+                .any(|candidate| candidate.insert_text == "$link"
+                    && candidate.detail.as_deref()
+                        == Some("variable — source alias declaration candidate"))
+        );
+        let alias = u32::try_from(source.find("link;").unwrap()).unwrap();
+        let position = LineIndex::new(source).position_at_utf16(alias, source);
+        assert!(
+            crate::rename::rename(
+                source,
+                analysis.resolved_profile().unwrap(),
+                position.line,
+                position.character.get(),
+                "other",
+                &analysis,
+                analysis.resolved_registry()
+            )
+            .is_empty()
+        );
+    }
+    #[test]
+    fn original_autoload_requests_keep_original_heads_current_input_and_caller_scope() {
+        let source = "namespace eval N {requested arg}\n";
+        let offset = u32::try_from(source.find("requested").unwrap()).unwrap();
+        let position = LineIndex::new(source).position_at_utf16(offset, source);
+        let mut resolver = crate::package_resolver::PackageResolver::default();
+        resolver.add_original_tcl_index(
+            "# Tcl autoload index file, version 2.0\nset auto_index(::N::requested) [list source [file join $dir nested.tcl]]\nset auto_index(requested) [list source [file join $dir global.tcl]]\n",
+            std::path::Path::new("/library"), &|_| true,
+        );
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let analysis = Analyser::new().analyse(source, dialect);
+            let query = |source: &str, analysis: &AnalysisResult| {
+                original_autoload_request_at(
+                    source,
+                    analysis,
+                    position.line,
+                    position.character.get(),
+                )
+            };
+            let request = query(source, &analysis).expect("retained original C caller");
+            assert_eq!(
+                request.files(&resolver),
+                [std::path::PathBuf::from("/library/nested.tcl")],
+                "{dialect}"
+            );
+            let mut presentation = analysis.clone();
+            for invocation in &mut presentation.command_invocations {
+                invocation.name = "changed label".into();
+                invocation.resolution_candidates = vec!["::other::requested".into()];
+            }
+            assert_eq!(query(source, &presentation), Some(request.clone()));
+            assert!(query(&format!("{source} "), &analysis).is_none());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(query(source, &missing).is_none());
+            let mut changed = analysis.clone();
+            changed.body_lexer_config.as_mut().unwrap().strict_quoting =
+                !analysis.body_lexer_config.unwrap().strict_quoting;
+            assert!(query(source, &changed).is_none());
+            let arg_position = LineIndex::new(source)
+                .position_at_utf16(u32::try_from(source.find("arg").unwrap()).unwrap(), source);
+            assert!(
+                original_autoload_request_at(
+                    source,
+                    &analysis,
+                    arg_position.line,
+                    arg_position.character.get()
+                )
+                .is_none()
+            );
+            assert!(
+                command_head_and_namespace_at(
+                    source,
+                    &analysis,
+                    position.line,
+                    position.character.get()
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn logical_autoload_words_require_current_retained_logical_source() {
+        let source = "namespace eval N {requested arg}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let position = LineIndex::new(source).position_at_utf16(
+            u32::try_from(source.find("requested").unwrap()).unwrap(),
+            source,
+        );
+        assert_eq!(
+            command_head_and_namespace_at(
+                source,
+                &analysis,
+                position.line,
+                position.character.get()
+            ),
+            Some(("requested".into(), "::N".into()))
+        );
+        assert!(
+            command_head_and_namespace_at(
+                &format!("{source} "),
+                &analysis,
+                position.line,
+                position.character.get()
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            command_head_and_namespace_at(
+                source,
+                &missing,
+                position.line,
+                position.character.get()
+            )
+            .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod logical_class_navigation_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_class_navigation_uses_the_shared_namespace_target() {
+        let source = concat!(
+            "namespace eval left {oo::class create Widget {}}\n",
+            "namespace eval right {oo::class create Widget {}}\n",
+            "namespace eval left {Widget new}\n",
+            "namespace eval right {Widget new}\n",
+            "namespace eval other {Widget new}\n",
+            "namespace eval left {::right::Widget new}\n",
+        );
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        assert_eq!(analysis.all_classes.len(), 2);
+        for (written, word, target) in [
+            ("left {Widget new}", "Widget", Some("::left::Widget")),
+            ("right {Widget new}", "Widget", Some("::right::Widget")),
+            ("other {Widget new}", "Widget", None),
+            (
+                "left {::right::Widget new}",
+                "::right::Widget",
+                Some("::right::Widget"),
+            ),
+        ] {
+            let cursor = source.find(written).unwrap() + written.find(word).unwrap();
+            let selected = class_declaration_at(
+                source,
+                &analysis,
+                CallResolution::document_only(),
+                word,
+                u32::try_from(cursor).unwrap(),
+            );
+            assert_eq!(
+                selected,
+                target.map(|name| analysis.all_classes[name].name_span),
+                "{written}"
+            );
+        }
+        let call = u32::try_from(source.find("left {Widget new}").unwrap() + 6).unwrap();
+        assert!(
+            class_declaration_at(
+                &format!("{source} "),
+                &analysis,
+                CallResolution::document_only(),
+                "Widget",
+                call,
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            class_declaration_at(
+                source,
+                &missing,
+                CallResolution::document_only(),
+                "Widget",
+                call,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_class_navigation_uses_shared_imports_and_excludes_extension_stubs() {
+        let source = concat!(
+            "namespace eval exported {oo::class create Imported {}; namespace export Imported}\n",
+            "namespace eval client {namespace import ::exported::*; Imported new}\n",
+            "oo::define Remote {method extra {} {}}\n",
+            "Remote new\n",
+        );
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let call = u32::try_from(source.find("Imported new").unwrap()).unwrap();
+        assert_eq!(
+            class_declaration_at(
+                source,
+                &analysis,
+                CallResolution::document_only(),
+                "Imported",
+                call,
+            ),
+            Some(analysis.all_classes["::exported::Imported"].name_span)
+        );
+        let call = u32::try_from(source.find("Remote new").unwrap()).unwrap();
+        assert!(
+            class_declaration_at(
+                source,
+                &analysis,
+                CallResolution::document_only(),
+                "Remote",
+                call,
+            )
+            .is_none()
+        );
+        let stub = analysis
+            .all_classes
+            .get("::Remote")
+            .expect("actual source extension stub");
+        assert!(stub.via_define);
+        assert_eq!(
+            class_declaration_at(
+                source,
+                &analysis,
+                CallResolution::document_only(),
+                "Remote",
+                stub.name_span.start(),
+            ),
+            Some(stub.name_span)
+        );
+    }
+}
+
+#[cfg(test)]
+mod exact_source_position_advice_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn exact_current_cursor_keeps_unicode_endline_and_declines_clamped_coordinates() {
+        let source = "proc café {} {}; café\nset emoji 😀";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let valid = CurrentSourcePosition::capture(source, &analysis, 0, 18).unwrap();
+        assert_eq!(
+            &source[usize::try_from(valid.offset()).unwrap()..],
+            "afé\nset emoji 😀"
+        );
+        let index = LineIndex::new_lsp(source);
+        let end =
+            index.position_at_utf16(u32::try_from(source.find('\n').unwrap()).unwrap(), source);
+        assert!(
+            CurrentSourcePosition::capture(source, &analysis, end.line, end.character.get())
+                .is_some()
+        );
+        assert!(
+            CurrentSourcePosition::capture(source, &analysis, 1, 11).is_none(),
+            "surrogate interior"
+        );
+        assert!(
+            CurrentSourcePosition::capture(source, &analysis, 0, end.character.get() + 1).is_none()
+        );
+        assert!(CurrentSourcePosition::capture(source, &analysis, 20, 0).is_none());
+        assert!(definition(source, 1, 11, &analysis).is_empty());
+        assert!(definition(source, 0, u32::MAX, &analysis).is_empty());
+        assert!(definition(source, u32::MAX, 0, &analysis).is_empty());
+        assert!(!definition(source, 0, 18, &analysis).is_empty());
+    }
+
+    #[test]
+    fn exact_source_cursor_withdraws_stale_input_and_full_grammar_changes() {
+        let source = "proc p {} {}; p";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        assert!(CurrentSourcePosition::capture(source, &analysis, 0, 14).is_some());
+        assert!(CurrentSourcePosition::capture("proc q {} {}; q", &analysis, 0, 14).is_none());
+        let config = analysis.body_lexer_config.unwrap();
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+        assert!(CurrentSourcePosition::capture(source, &analysis, 0, 14).is_none());
+        assert!(definition(source, 0, 14, &analysis).is_empty());
+        analysis.body_lexer_config = Some(config);
+        analysis.resolved_input = None;
+        assert!(CurrentSourcePosition::capture(source, &analysis, 0, 14).is_none());
+    }
+
+    #[test]
+    fn source_scope_visibility_requires_original_body_correspondence_before_document_walk() {
+        let source = "set top 1; proc p {} {global top; return $top}; p";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let body_cursor = u32::try_from(source.find("return").unwrap()).unwrap();
+        let root = CurrentSourcePosition::capture(source, &analysis, 0, 0).unwrap();
+        assert!(
+            matches!(scope_body_spans_at(&root), Some(SourceScopeBodySpans::Document(span)) if span == tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()))
+        );
+        let body = CurrentSourcePosition::capture(source, &analysis, 0, body_cursor).unwrap();
+        assert!(
+            matches!(scope_body_spans_at(&body), Some(SourceScopeBodySpans::Bodies(spans)) if spans == vec![analysis.global_scope.children[0].body_span.unwrap()])
+        );
+        let original = analysis.global_scope.children[0].body_span;
+        let child = analysis.global_scope.children.remove(0);
+        let removed = CurrentSourcePosition::capture(source, &analysis, 0, body_cursor).unwrap();
+        assert!(
+            scope_body_spans_at(&removed).is_none(),
+            "absent scope cannot borrow the enclosing document"
+        );
+        analysis.global_scope.children.insert(0, child);
+        analysis.global_scope.children[0].body_span = None;
+        let missing = CurrentSourcePosition::capture(source, &analysis, 0, body_cursor).unwrap();
+        assert!(
+            scope_body_spans_at(&missing).is_none(),
+            "missing body cannot mean whole file"
+        );
+        analysis.global_scope.children[0].body_span =
+            Some(tcl_lexer::Span::new(body_cursor, body_cursor + 3));
+        let foreign = CurrentSourcePosition::capture(source, &analysis, 0, body_cursor).unwrap();
+        assert!(
+            scope_body_spans_at(&foreign).is_none(),
+            "an arbitrary valid substring is no original body owner"
+        );
+        analysis.global_scope.children[0].body_span = original;
+        let restored = CurrentSourcePosition::capture(source, &analysis, 0, body_cursor).unwrap();
+        assert!(matches!(
+            scope_body_spans_at(&restored),
+            Some(SourceScopeBodySpans::Bodies(_))
+        ));
+    }
+    #[test]
+    fn exact_current_cursor_preserves_crlf_multibyte_and_empty_final_line() {
+        let source = "p😀é\r\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        for (line, column, byte) in [(0, 0, 0), (0, 1, 1), (0, 3, 5), (0, 4, 7), (1, 0, 9)] {
+            assert_eq!(
+                CurrentSourcePosition::capture(source, &analysis, line, column)
+                    .unwrap()
+                    .offset(),
+                byte
+            );
+        }
+        for (line, column) in [(0, 2), (0, 5), (1, 1), (2, 0)] {
+            assert!(CurrentSourcePosition::capture(source, &analysis, line, column).is_none());
+        }
+    }
+
+    #[test]
+    fn declaration_caller_uses_exact_source_cursor_before_any_fallback() {
+        let source = "proc p {} {}; p";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let profile = analysis.resolved_profile().unwrap();
+        let registry = analysis.resolved_registry().unwrap();
+        assert!(
+            !crate::declaration::declaration(source, 0, 14, profile, &analysis, registry)
+                .is_empty()
+        );
+        assert!(
+            crate::declaration::declaration(source, 0, 100, profile, &analysis, registry)
+                .is_empty()
+        );
+        assert!(
+            crate::declaration::declaration(source, 2, 0, profile, &analysis, registry).is_empty()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_document_source_order_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn document_export_adopter_keeps_conditional_clear_and_missing_input_unknown() {
+        // One document's straight-line sequence orders its own removals, so
+        // an unconditional top-level `-clear` written after the pattern
+        // revokes it at the document end (tclsh 8.6/9.0: `namespace export`
+        // answers empty after `namespace export p; namespace export -clear`).
+        let source = "proc p {} {}; namespace export p; namespace export -clear\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let declaration = analysis
+            .original_procedure_declarations()
+            .next()
+            .unwrap()
+            .name();
+        let ctx = CallResolution::document_only();
+        assert_eq!(
+            exported_original_slot_at_import(
+                &analysis,
+                ctx,
+                declaration.slot(),
+                declaration.policy(),
+                u32::try_from(source.len()).unwrap()
+            ),
+            ExportVerdict::NotExported
+        );
+        // A clear in a conditional branch is not straight-line sequence: it
+        // stays withheld and the positive export evidence remains.
+        let conditional = "proc p {} {}; namespace export p; if {$x} {namespace export -clear}\n";
+        let branch = Analyser::new().analyse(conditional, "tcl8.6");
+        assert_eq!(branch.original_namespace_exports().count(), 2);
+        let declaration = branch
+            .original_procedure_declarations()
+            .next()
+            .unwrap()
+            .name();
+        assert_eq!(
+            exported_original_slot_at_import(
+                &branch,
+                ctx,
+                declaration.slot(),
+                declaration.policy(),
+                u32::try_from(conditional.len()).unwrap()
+            ),
+            ExportVerdict::Exported
+        );
+        let order = in_document_source_order(&analysis, ctx);
+        let point = in_document_point(&analysis, ctx, 0);
+        assert_eq!(order.has_run(point, point), None);
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let order = in_document_source_order(&missing, ctx);
+        assert_eq!(order.has_run(point, point), None);
+        assert!(order.navigation_precedence(point, point).is_none());
+    }
+}
+
+#[cfg(test)]
+mod configured_parameter_word_extent_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn parameter_positions_use_whole_grouped_literal_and_computed_words() {
+        for (source, needle) in [
+            (
+                "proc {p} {mé {option {default with spaces}}} {return 1}",
+                "default",
+            ),
+            ("proc p \"mé option\" {return 1}", "option"),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let at = u32::try_from(source.find(needle).unwrap()).unwrap();
+            assert_eq!(
+                parameter_list_position_at(&analysis, source, at),
+                ParamListPosition::LiteralData,
+                "{source}"
+            );
+            let body = u32::try_from(source.find("return").unwrap()).unwrap();
+            assert_eq!(
+                parameter_list_position_at(&analysis, source, body),
+                ParamListPosition::Outside
+            );
+        }
+        let source = "proc p \"[list {name with spaces}]\" {return 1}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let at = u32::try_from(source.find("name").unwrap()).unwrap();
+        assert_eq!(
+            parameter_list_position_at(&analysis, source, at),
+            ParamListPosition::Computed
+        );
+    }
+
+    #[test]
+    fn parameter_positions_refuse_foreign_source_and_configuration() {
+        let source = "proc p {mé {option default}} {return 1}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let at = u32::try_from(source.find("option").unwrap()).unwrap();
+        assert_eq!(
+            parameter_list_position_at(&analysis, source, at),
+            ParamListPosition::LiteralData
+        );
+        assert_eq!(
+            parameter_list_position_at(&analysis, &source.replace("default", "changed"), at),
+            ParamListPosition::Outside
+        );
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        assert_eq!(
+            parameter_list_position_at(&analysis, source, at),
+            ParamListPosition::Outside
+        );
     }
 }

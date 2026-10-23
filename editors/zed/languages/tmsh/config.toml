@@ -17,7 +17,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 name = "TMSH"
-grammar = "bigip"
+grammar = "tcl"
 path_suffixes = ["tmsh"]
 line_comments = ["#"]
 tab_size = 4

@@ -1848,7 +1848,7 @@ mod interp_alias {
             .analyse(src, D)
             .command_aliases
             .get(name)
-            .map(|a| (a.target.clone(), a.extras.clone()))
+            .map(|a| (a.target.as_str().to_owned(), a.extras.clone()))
     }
 
     #[test]
@@ -2054,7 +2054,7 @@ mod interp_value_flow {
             .analyse(src, D)
             .command_aliases
             .iter()
-            .map(|(k, v)| (k.clone(), v.target.clone()))
+            .map(|(k, v)| (k.clone(), v.target.as_str().to_owned()))
             .collect()
     }
 
@@ -2151,18 +2151,17 @@ mod interp_value_flow {
 
     #[test]
     fn existing_literal_top_level_behaviour_is_unchanged() {
-        // TN — byte-for-byte unchanged control (scratchpad/audit/a): the
-        // same shape as the primary repro, but with a literal path
-        // throughout instead of a tracked variable binding.
+        // TN — byte-for-byte unchanged literal-path control: the same shape
+        // as the primary repro, but with a literal path throughout instead
+        // of a tracked variable binding.
         let src = "namespace eval ::app {}\nproc ::app::Helper {} { return 42 }\ninterp create -safe s\ninterp alias s greet {} ::app::Helper\ninterp eval s { greet }\n";
         assert!(codes(src, D).is_empty(), "{:?}", codes(src, D));
     }
 
     #[test]
     fn builtins_only_dynamic_interp_eval_body_stays_silent() {
-        // TN — a tracked dynamic-path eval body containing only builtins
-        // must stay diagnostic-free, confirming the fix doesn't newly
-        // over-fire (scratchpad/audit/c).
+        // A tracked dynamic-path eval body containing only builtins stays
+        // diagnostic-free.
         let src = "set s [interp create -safe]\ninterp eval $s {\n    set x 1\n    expr {$x + 1}\n    puts \"hi\"\n}\n";
         assert!(codes(src, D).is_empty(), "{:?}", codes(src, D));
     }

@@ -116,7 +116,7 @@ pub enum WordKind {
 }
 
 /// One word of a command, as spans and token indices only.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WordSpan {
     /// How the word was written.
     pub kind: WordKind,
@@ -202,6 +202,24 @@ pub struct CommandSpan {
 }
 
 impl CommandSpan {
+    /// Physical command source from its first content token through the byte
+    /// before its terminator, retaining trailing trivia and closing delimiters.
+    /// `tokens` and `source_length` must describe the original grouped region.
+    /// This lexical fact supplies no provider's frame or error-log protocol.
+    #[must_use]
+    pub fn source_extent(&self, tokens: &[Token], source_length: usize) -> Option<Span> {
+        let source_end = u32::try_from(source_length).ok()?;
+        let end = match self.terminator {
+            Some(index) => {
+                let terminator = tokens.get(index)?;
+                (terminator.kind == TokenType::Eol).then_some(())?;
+                terminator.span.start()
+            }
+            None => source_end,
+        };
+        (self.span.end() <= end && end <= source_end).then(|| Span::new(self.span.start(), end))
+    }
+
     /// The command's preceding comment, rendered the way `build.rs` and the
     /// segmenter render it: each comment line's leading `#`s stripped, the
     /// remainder trimmed, consecutive lines joined with `\n`.  `None` when
@@ -244,6 +262,16 @@ pub fn group_commands(tokens: &[Token], src: &str, config: LexerConfig) -> Vec<C
     // lands here rather than at the ~300 call sites, and so this entry point
     // matches every sibling in the crate.
     let _ = config;
+    group_commands_bytes(tokens, src.as_bytes(), config)
+}
+
+/// Group a shared lexer stream over original source bytes.
+///
+/// The source and tokens must have the same local byte coordinates. This uses
+/// the same token-stream grouper as the Unicode document entry.
+#[must_use]
+pub fn group_commands_bytes(tokens: &[Token], src: &[u8], config: LexerConfig) -> Vec<CommandSpan> {
+    let _ = config;
     Grouper::new(tokens, src).run()
 }
 
@@ -260,7 +288,7 @@ struct PendingWord {
 /// everything that is CST- rather than boundary-shaped.
 struct Grouper<'a> {
     tokens: &'a [Token],
-    src: &'a str,
+    src: &'a [u8],
     out: Vec<CommandSpan>,
 
     words: Vec<WordSpan>,
@@ -280,7 +308,7 @@ struct Grouper<'a> {
 }
 
 impl<'a> Grouper<'a> {
-    fn new(tokens: &'a [Token], src: &'a str) -> Self {
+    fn new(tokens: &'a [Token], src: &'a [u8]) -> Self {
         Self {
             tokens,
             src,
@@ -389,7 +417,7 @@ impl<'a> Grouper<'a> {
             && self
                 .prev_tok
                 .and_then(|i| self.tokens.get(i))
-                .and_then(|t| self.src.as_bytes().get(t.span.start() as usize))
+                .and_then(|t| self.src.get(t.span.start() as usize))
                 == Some(&b'{')
     }
 
@@ -417,7 +445,7 @@ impl<'a> Grouper<'a> {
         if self.prev_type != TokenType::Esc {
             return false;
         }
-        let bytes = self.src.as_bytes();
+        let bytes = self.src;
         let opened_with_quote = self
             .cur
             .as_ref()
@@ -431,7 +459,7 @@ impl<'a> Grouper<'a> {
             return false;
         };
         let end = prev.span.end() as usize;
-        let closer = if crate::source_map::token_text_in(self.src, *prev).is_empty() {
+        let closer = if crate::source_map::token_bytes_in(self.src, *prev).is_empty() {
             end.checked_sub(1)
         } else {
             Some(end)
@@ -460,7 +488,7 @@ impl<'a> Grouper<'a> {
         let last = self.tokens[word.end];
         let kind = if word.start == word.end && first.kind == TokenType::Str {
             WordKind::Braced
-        } else if self.src.as_bytes().get(first.span.start() as usize) == Some(&b'"') {
+        } else if self.src.get(first.span.start() as usize) == Some(&b'"') {
             WordKind::Quoted
         } else {
             WordKind::Bare
@@ -500,7 +528,7 @@ impl<'a> Grouper<'a> {
                 && self
                     .src
                     .get(self.tokens[i].span.as_range())
-                    .is_some_and(|raw| raw.bytes().filter(|&b| b == b'\n').count() > 1)
+                    .is_some_and(|raw| bytecount::count(raw, b'\n') > 1)
             {
                 self.comment.clear();
             }
@@ -543,6 +571,37 @@ mod tests {
                 src[w.span.start() as usize..end as usize].to_string()
             })
             .collect()
+    }
+
+    #[test]
+    fn original_command_source_extent_keeps_terminator_trivia_separate() {
+        // naming.runtime.original-command-source-extent
+
+        for (source, expected) in [
+            (" error marker   ", "error marker   "),
+            (" error marker   ; next", "error marker   "),
+            (" error marker   \nnext", "error marker   "),
+            (" error \"marker\"   ", "error \"marker\"   "),
+            (" error {marker}   ", "error {marker}   "),
+            ("\terror marker\t \t", "error marker\t \t"),
+        ] {
+            let (tokens, commands) = group(source);
+            let command = &commands[0];
+            let extent = command.source_extent(&tokens, source.len()).unwrap();
+            assert_eq!(&source[extent.as_range()], expected);
+            assert!(extent.end() > command.span.end());
+            assert!(
+                command
+                    .source_extent(&tokens, extent.end() as usize - 1)
+                    .is_none()
+            );
+            if command.terminator.is_some() {
+                assert!(command.source_extent(&[], source.len()).is_none());
+            }
+        }
+        let (tokens, mut commands) = group("error marker; next");
+        commands[0].terminator = Some(0);
+        assert!(commands[0].source_extent(&tokens, 18).is_none());
     }
 
     #[test]
@@ -651,7 +710,7 @@ mod tests {
         let src = "foo \"q\"{*}$z";
         let (toks, cmds) = group(src);
         assert_eq!(word_texts(src, &cmds[0], &toks), ["foo", "\"q\"{*}$z"]);
-        assert!(cmds[0].expand_markers.is_empty());
+        assert_eq!(cmds[0].expand_markers, [] as [usize; 0]);
         assert!(cmds[0].words.iter().all(|w| !w.expand));
         // The close-quote weld is the sibling flag, not this one.
         assert!(!cmds[0].words[1].welded_after_close);
@@ -674,7 +733,7 @@ mod tests {
         let src = "foo {*}";
         let (_toks, cmds) = group(src);
         assert_eq!(cmds[0].words.len(), 2);
-        assert!(cmds[0].expand_markers.is_empty());
+        assert_eq!(cmds[0].expand_markers, [] as [usize; 0]);
         assert_eq!(cmds[0].words[1].kind, WordKind::Braced);
     }
 
@@ -695,7 +754,7 @@ mod tests {
         let cmds = group_commands(&tokens, src, LexerConfig::default());
         assert_eq!(cmds.len(), 1, "the marker-only command is discarded");
         assert_eq!(cmds[0].span, Span::new(4, 7));
-        assert!(cmds[0].expand_markers.is_empty());
+        assert_eq!(cmds[0].expand_markers, [] as [usize; 0]);
     }
 
     #[test]
@@ -721,7 +780,7 @@ mod tests {
         let src = "foo {*}$b";
         let (_toks, cmds) = group_with(src, LexerConfig::for_dialect("tcl8.4"));
         assert_eq!(cmds[0].words.len(), 2);
-        assert!(cmds[0].expand_markers.is_empty());
+        assert_eq!(cmds[0].expand_markers, [] as [usize; 0]);
         assert!(!cmds[0].words[1].expand);
         // `{*}$b` is one word: a braced `{*}` welded to `$b`.
         assert!(cmds[0].words[1].welded_after_close);
@@ -836,7 +895,7 @@ mod tests {
     #[test]
     fn f5_ghost_separator_after_a_close_quote_is_not_a_weld() {
         // F5 splits `"a"b` into two words with no diagnostic
-        // (bigip-irule-parser-measurements.md, "Word-formation evidence");
+        // (embedded-tcl-contract.md, "Word-formation evidence");
         // the ghost `Sep` the lexer emits starts a new word here, so nothing
         // is welded.
         let src = "set y \"a\"b";
@@ -952,6 +1011,6 @@ mod tests {
         let mut tokens = Lexer::new(src).tokenise_all().unwrap();
         tokens.insert(0, Token::new(TokenType::Eof, Span::empty(0)));
         let cmds = group_commands(&tokens, src, LexerConfig::default());
-        assert!(cmds.is_empty());
+        assert_eq!(cmds, [] as [CommandSpan; 0]);
     }
 }

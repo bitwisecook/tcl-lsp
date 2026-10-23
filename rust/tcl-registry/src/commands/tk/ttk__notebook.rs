@@ -384,7 +384,7 @@ mod tests {
         let configure = sub("configure");
         assert!(configure.traits.is_empty());
         assert!(!configure.mutator);
-        assert!(configure.side_effects.is_empty());
+        assert_eq!(configure.side_effects.len(), 0);
         let setter = configure
             .subcommand_forms
             .iter()

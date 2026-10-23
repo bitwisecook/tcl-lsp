@@ -298,6 +298,11 @@ pub fn build_reserved_runtime() -> Result<PathBuf, String> {
             String::from_utf8_lossy(&out.stderr),
         ));
     }
+    eprintln!(
+        "\n{}\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
     let artifact = target_dir.join("wasm32-wasip1/debug/tcl_runtime.wasm");
     if !artifact.is_file() {
         return Err(format!(

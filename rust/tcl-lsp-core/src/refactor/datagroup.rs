@@ -22,15 +22,24 @@
 
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::{ArgRole, CommandRegistry};
 
+use super::equality_source::scalar_string_disjunction as try_or_chain;
 use super::{
-    RefactorEdit, Refactoring, command_span_offsets, find_command_at, line_indent, reindent_body,
-    token_end_offset,
+    RefactorEdit, Refactoring, configured_command_span_offsets, find_command_at, line_indent,
+    reindent_body,
 };
 use crate::code_actions::ActionKind;
+
+mod source_subject;
+pub use source_subject::{
+    OriginalExactCaseSource, OriginalExactSwitchSource, OriginalScalarVariableSubject,
+    ScalarVariableSourceSyntax, original_exact_case_source_at_analysis,
+    original_exact_switch_source_at_analysis, scalar_variable_source_syntax,
+};
 
 /// A generated data-group artefact (separate from the iRule edits).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,8 +78,8 @@ pub fn data_group_tcl(dg: &DataGroupDefinition) -> String {
 
 /// `true` when `value` looks like an IPv4/IPv6 address or CIDR range.
 ///
-/// Quote stripping belongs to the caller (see [`infer_value_type`]); this
-/// only tolerates the whitespace a quoted literal can still carry.
+/// The caller supplies completed literal data; whitespace is tolerated by
+/// this type heuristic without decoding source delimiters.
 fn is_ip_or_cidr(value: &str) -> bool {
     let v = value.trim();
     is_ip_address(v) || is_ip_network(v)
@@ -105,11 +114,8 @@ fn is_integer(value: &str) -> bool {
 
 /// Infer the data-group value type from a list of keys/values.
 ///
-/// `values` are the records as they will be written to the data group,
-/// which both call sites have already normalised with [`strip_quotes`] —
-/// stripping again here would peel a second pair off a value whose quotes
-/// *are* part of the record, and type the group as `ip`/`integer` when the
-/// record itself is the quoted string.
+/// Values are completed literal data. Quote characters that belong to a
+/// record remain part of its value and cannot supply another decoding layer.
 fn infer_value_type(values: &[String]) -> &'static str {
     if values.is_empty() {
         return "string";
@@ -123,159 +129,15 @@ fn infer_value_type(values: &[String]) -> &'static str {
     "string"
 }
 
-fn strip_quotes(s: &str) -> &str {
-    let s = s.trim();
-    let b = s.as_bytes();
-    if b.len() >= 2 && b[0] == b'"' && b[b.len() - 1] == b'"' {
-        &s[1..s.len() - 1]
-    } else {
-        s
-    }
-}
-
-/// Derive a clean data-group name from a descriptive string:
-/// non-alphanumeric → `_`, collapse runs, trim, lower-case.
-fn normalise_dg_name(name: &str) -> String {
-    let mut out = String::with_capacity(name.len());
-    let mut prev_underscore = false;
-    for ch in name.chars() {
-        if ch.is_ascii_alphanumeric() || ch == '_' {
-            out.push(ch.to_ascii_lowercase());
-            prev_underscore = false;
-        } else if !prev_underscore {
-            out.push('_');
-            prev_underscore = true;
-        }
-    }
-    let trimmed = out.trim_matches('_');
-    if trimmed.is_empty() {
-        "extracted_dg".to_owned()
-    } else {
-        trimmed.to_owned()
-    }
-}
-
 // Equality-condition parsing
 
-/// Recognised equality operators.
-// registry-axis-ok: irreducible — `eq` / `ne` are expr comparison-operator
-// spellings (`tcl_syntax::expr::operators`'s own vocabulary), read here as
-// parsed condition text; they coincide with `::tcl::mathop::eq` / `ne`'s
-// bare registration only by spelling; until never
-const EQ_OPS: &[&str] = &["==", "!=", "eq", "ne"];
-
-/// Parse a simple equality test `(var, value, negated)`.  Used by the
-/// datagroup transform; mirrors the shape of
-/// `if_to_switch::parse_eq_test` minus the operator capture.
-fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
-    let mut cond = cond.trim();
-    if cond.starts_with('{') && cond.ends_with('}') && cond.len() >= 2 {
-        cond = cond[1..cond.len() - 1].trim();
-    }
-    let mut negated = false;
-    if let Some(rest) = cond.strip_prefix('!') {
-        let inner = rest.trim();
-        if inner.starts_with('(') && inner.ends_with(')') && inner.len() >= 2 {
-            cond = inner[1..inner.len() - 1].trim();
-            negated = true;
-        }
-    }
-
-    // `$var OP value`.
-    for op in EQ_OPS {
-        let needle = format!(" {op} ");
-        if let Some(pos) = cond.find(&needle)
-            && let Some(var) = parse_var_word(cond[..pos].trim())
-        {
-            // registry-axis-ok: irreducible — expr operator text, not a
-            // command name; until never
-            let is_ne = *op == "ne" || *op == "!=";
-            return Some((
-                var,
-                cond[pos + needle.len()..].trim().to_owned(),
-                negated ^ is_ne,
-            ));
-        }
-    }
-    // `value OP $var`.
-    for op in EQ_OPS {
-        let needle = format!(" {op} ");
-        if let Some(pos) = cond.rfind(&needle)
-            && let Some(var) = parse_var_word(cond[pos + needle.len()..].trim())
-        {
-            // registry-axis-ok: irreducible — expr operator text, not a
-            // command name; until never
-            let is_ne = *op == "ne" || *op == "!=";
-            return Some((var, cond[..pos].trim().to_owned(), negated ^ is_ne));
-        }
-    }
-    None
-}
-
-/// Parse `$var` / `${var}` / `"$var"` to its bare name.
-fn parse_var_word(word: &str) -> Option<String> {
-    let mut w = word.trim();
-    if w.len() >= 2 && w.starts_with('"') && w.ends_with('"') {
-        w = &w[1..w.len() - 1];
-    }
-    let w = w.strip_prefix('$')?;
-    let w = w.strip_prefix('{').unwrap_or(w);
-    let w = w.strip_suffix('}').unwrap_or(w);
-    if !w.is_empty() && w.chars().all(|c| c.is_alphanumeric() || c == '_') {
-        Some(w.to_owned())
-    } else {
-        None
-    }
-}
-
-/// Detect `$var eq "a" || $var eq "b" || …` chains.
-fn try_or_chain(condition: &str) -> Option<(String, Vec<String>)> {
-    let mut cond = condition.trim();
-    if cond.starts_with('{') && cond.ends_with('}') && cond.len() >= 2 {
-        cond = cond[1..cond.len() - 1].trim();
-    }
-    let parts: Vec<&str> = cond.split("||").collect();
-    if parts.len() < 2 {
-        return None;
-    }
-    let mut target_var: Option<String> = None;
-    let mut values = Vec::new();
-    for part in parts {
-        let (var, value, negated) = parse_eq(part.trim())?;
-        if negated {
-            return None;
-        }
-        match &target_var {
-            None => target_var = Some(var),
-            Some(v) if *v != var => return None,
-            _ => {}
-        }
-        values.push(value);
-    }
-    let target_var = target_var?;
-    if values.len() < 2 {
-        return None;
-    }
-    Some((target_var, values))
-}
-
-/// Extract a variable name from `$var` / `${var}` subject.
-fn extract_var_name(subject: &str) -> Option<String> {
-    let s = subject.trim();
-    if let Some(inner) = s.strip_prefix("${").and_then(|x| x.strip_suffix('}')) {
-        return Some(inner.to_owned());
-    }
-    if let Some(name) = s.strip_prefix('$')
-        && !name.is_empty()
-        && name
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_alphabetic() || c == '_')
-        && name.chars().all(|c| c.is_alphanumeric() || c == '_')
-    {
-        return Some(name.to_owned());
-    }
-    None
+fn parse_eq(
+    condition: &str,
+    config: LexerConfig,
+    context: &tcl_syntax::expr::parser::ExprParseContext,
+) -> Option<(ScalarVariableSourceSyntax, String, bool)> {
+    super::equality_source::scalar_string_equality(condition, config, context)
+        .map(super::equality_source::ScalarStringEquality::into_parts)
 }
 
 // set/return body parsing
@@ -288,29 +150,29 @@ enum SetOrReturn {
 
 /// Parse a single-command arm body via the tokeniser.
 ///
-/// `config` is the document's [`LexerConfig`].
+/// `config` is the document's [`LexerConfig`]; this extracted arm selects
+/// its nested projection without changing the retained parent input.
 fn parse_set_or_return(text: &str, config: LexerConfig) -> Option<SetOrReturn> {
-    let commands = segment_commands_with_offset_and_config(text, 0, config);
+    let commands = segment_commands_with_offset_and_config(text, 0, config.nested());
     if commands.len() != 1 || commands[0].texts.is_empty() {
         return None;
     }
     let cmd = &commands[0];
-    let raw = |index: usize| -> String {
-        let tok = cmd.argv[index];
-        text[tok.span.start() as usize..token_end_offset(text, tok) as usize].to_owned()
+    let words = super::configured_command_words(text, cmd, config.nested())?;
+    let raw = |index: usize| -> Option<String> {
+        text.get(words.get(index)?.span().as_range())
+            .map(str::to_owned)
     };
-    // registry-axis-ok: irreducible — `set` and `return` are recognised as
-    // Tcl's own primitive syntax for this one-command-body shape, not as a
-    // pack-authorable command; no registry query narrower than "is the word
-    // literally `set`/`return`" answers this, and neither is ever a pack's
-    // to redeclare; until never
+    // registry-axis-ok: representation — this renderer accepts the literal
+    // proposal template syntax. The actual-document route independently
+    // validates each original arm's selected Set/Return operation before
+    // calling it; these spellings establish no command identity or effects.
     if cmd.texts[0] == "set" && cmd.texts.len() == 3 {
-        return Some(SetOrReturn::Set(cmd.texts[1].clone(), raw(2)));
+        return Some(SetOrReturn::Set(cmd.texts[1].clone(), raw(2)?));
     }
-    // registry-axis-ok: irreducible — same primitive-syntax reason; until
-    // never
+    // registry-axis-ok: representation — same proposal-template boundary.
     if cmd.texts[0] == "return" && cmd.texts.len() == 2 {
-        return Some(SetOrReturn::Return(raw(1)));
+        return Some(SetOrReturn::Return(raw(1)?));
     }
     None
 }
@@ -324,10 +186,8 @@ fn extract_set_or_return_values(
     let mut use_return: Option<bool> = None;
     let mut values = Vec::new();
     for (_pattern, body) in pairs {
-        let mut text = body.trim();
-        if text.starts_with('{') && text.ends_with('}') && text.len() >= 2 {
-            text = text[1..text.len() - 1].trim();
-        }
+        // This is an already-decoded script value, not another source word.
+        let text = body.as_str();
         match parse_set_or_return(text, config) {
             Some(SetOrReturn::Set(var, val)) => {
                 match &target_var {
@@ -368,15 +228,27 @@ fn extract_single_value(
     target_var: &str,
     config: LexerConfig,
 ) -> Option<String> {
-    let mut text = body.trim();
-    if text.starts_with('{') && text.ends_with('}') && text.len() >= 2 {
-        text = text[1..text.len() - 1].trim();
-    }
-    match parse_set_or_return(text, config)? {
+    match parse_set_or_return(body, config)? {
         SetOrReturn::Return(val) if use_return => Some(val),
         SetOrReturn::Set(var, val) if !use_return && var == target_var => Some(val),
         _ => None,
     }
+}
+
+// The output words are explicitly authored proposals, not original source
+// inputs. Availability is selected by this Registry; it does not prove their
+// current command-table implementation or permit Native insertion/movement.
+fn emitted_forms_available(registry: &CommandRegistry) -> bool {
+    [
+        ["match", "ITEM", "equals", "GROUP"].as_slice(),
+        ["lookup", "ITEM", "GROUP"].as_slice(),
+    ]
+    .iter()
+    .all(|arguments| {
+        registry
+            .resolve_invocation("class", arguments, registry.own_surface_query())
+            .is_some_and(|selected| selected.subcommand.is_resolved())
+    })
 }
 
 // if-chain extraction
@@ -391,21 +263,57 @@ pub fn extract_to_datagroup_from_if(
     line_index: &LineIndex,
     config: LexerConfig,
 ) -> Option<Refactoring> {
+    if !emitted_forms_available(registry) {
+        return None;
+    }
     let cmd = find_command_at(source, cursor, Some("if"), registry, config)?;
-    let chain = parse_if_chain(&cmd.texts, registry)?;
+    let chain = parse_if_chain(&cmd.texts, registry, config)?;
+    render_if_extraction(
+        DataGroupRenderSource {
+            source,
+            command: &cmd,
+            extent: configured_command_span_offsets(source, &cmd, config)?,
+            config,
+        },
+        &chain,
+        dg_name,
+        line_index,
+        || Some(()),
+    )
+}
+
+/// Rendering inputs; the analysis entry supplies independently checked
+/// original extents, while standalone convenience calls retain their own syntax.
+#[derive(Clone, Copy)]
+struct DataGroupRenderSource<'a> {
+    source: &'a str,
+    command: &'a SegmentedCommand,
+    extent: (u32, u32),
+    config: LexerConfig,
+}
+
+fn render_if_extraction(
+    rendering: DataGroupRenderSource<'_>,
+    chain: &IfChain,
+    dg_name: &str,
+    line_index: &LineIndex,
+    mapping_selected: impl FnOnce() -> Option<()>,
+) -> Option<Refactoring> {
+    let DataGroupRenderSource {
+        source,
+        command: cmd,
+        extent,
+        config,
+    } = rendering;
     if chain.values.len() < 2 {
         return None;
     }
 
-    let stripped_values: Vec<String> = chain
-        .values
-        .iter()
-        .map(|v| strip_quotes(v).to_owned())
-        .collect();
-    let value_type = infer_value_type(&stripped_values);
-    let dg_name = resolve_dg_name(dg_name, &format!("{}_whitelist", chain.target_var));
+    let keys = chain.values.clone();
+    let value_type = infer_value_type(&keys);
+    let dg_name = resolve_dg_name(dg_name, &format!("{}_whitelist", chain.target_var.name()));
 
-    let indent = command_indent(source, &cmd, line_index).to_owned();
+    let indent = command_indent(source, cmd, line_index).to_owned();
     let bodies_identical = {
         let set: std::collections::BTreeSet<&str> = chain.bodies.iter().map(|b| b.trim()).collect();
         set.len() <= 1
@@ -413,15 +321,19 @@ pub fn extract_to_datagroup_from_if(
 
     let (data_group, replacement) = if bodies_identical && !chain.bodies.is_empty() {
         membership_extraction(
-            &stripped_values,
+            &keys,
             value_type,
             &dg_name,
-            &chain.target_var,
-            &chain.bodies[0],
-            chain.else_body.as_deref(),
-            &indent,
-        )
+            chain.target_var.reference(),
+            &MembershipArms {
+                body: &chain.bodies[0],
+                else_body: chain.else_body.as_deref(),
+                indent: &indent,
+            },
+            config,
+        )?
     } else {
+        mapping_selected()?;
         let pairs: Vec<(String, String)> = chain
             .values
             .iter()
@@ -429,26 +341,24 @@ pub fn extract_to_datagroup_from_if(
             .zip(chain.bodies.iter().cloned())
             .collect();
         let (set_var, use_return, value_entries) = extract_set_or_return_values(&pairs, config)?;
-        let records = zip_records(&stripped_values, &value_entries);
+        let records = zip_records(&keys, &value_entries, config)?;
         let dg = DataGroupDefinition {
             name: dg_name.clone(),
             value_type: "string".to_owned(),
             records,
         };
+        let lookup = class_lookup_command(chain.target_var.reference(), &dg_name, config)?;
         let replacement = if use_return {
-            format!("return [class lookup ${} {dg_name}]", chain.target_var)
+            format!("return [{lookup}]")
         } else {
-            format!(
-                "set {set_var} [class lookup ${} {dg_name}]",
-                chain.target_var
-            )
+            set_command(&set_var, &format!("[{lookup}]"), config)?
         };
         (dg, replacement)
     };
 
+    complete_single_command_source(&replacement, config)?;
     Some(build_result(
-        source,
-        &cmd,
+        extent,
         &dg_name,
         value_type,
         replacement,
@@ -456,9 +366,94 @@ pub fn extract_to_datagroup_from_if(
     ))
 }
 
+/// One generated command whose words at `expected` indices carry exactly the
+/// intended literal values — an operand-value check on top of the syntax
+/// check, so a supplied name with spaces, braces or `$` is still the one word
+/// it was meant to be. No command availability or execution follows.
+fn generated_operand_values(
+    command: &str,
+    config: LexerConfig,
+    expected: &[(usize, &str)],
+) -> Option<()> {
+    let generated = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(command),
+        tcl_lexer::Span::new(0, u32::try_from(command.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    let [parsed] = generated.commands.as_slice() else {
+        return None;
+    };
+    if generated.fatal_tail.is_some() {
+        return None;
+    }
+    expected.iter().try_for_each(|&(index, value)| {
+        let word = parsed.words.get(index)?;
+        (!word.group().expand
+            && tcl_syntax::word_rules::original_static_word_unicode_value(word)?.as_slice()
+                == value.as_bytes())
+        .then_some(())
+    })
+}
+
+/// An authored operand: one literal source word whose value is exactly the
+/// supplied data (a data-group name stays verbatim — it is never sanitised).
+fn literal_operand(value: &str, config: LexerConfig) -> Option<String> {
+    tcl_syntax::word_rules::lexical_unicode_source_word(value, config)
+}
+
+/// `class match <subject> equals <data-group>`, its data-group operand
+/// checked to be exactly `dg_name`.
+fn class_match_command(
+    subject_reference: &str,
+    dg_name: &str,
+    config: LexerConfig,
+) -> Option<String> {
+    let command = format!(
+        "class match {subject_reference} equals {}",
+        literal_operand(dg_name, config)?
+    );
+    generated_operand_values(&command, config, &[(4, dg_name)])?;
+    Some(command)
+}
+
+/// `class lookup <subject> <data-group>`, its data-group operand checked to
+/// be exactly `dg_name`.
+fn class_lookup_command(
+    subject_reference: &str,
+    dg_name: &str,
+    config: LexerConfig,
+) -> Option<String> {
+    let command = format!(
+        "class lookup {subject_reference} {}",
+        literal_operand(dg_name, config)?
+    );
+    generated_operand_values(&command, config, &[(3, dg_name)])?;
+    Some(command)
+}
+
+/// `set <variable> <value>`, the variable operand checked to be exactly the
+/// decoded name the original arms assigned; `value_source` is source text.
+fn set_command(variable: &str, value_source: &str, config: LexerConfig) -> Option<String> {
+    let command = format!("set {} {value_source}", literal_operand(variable, config)?);
+    generated_operand_values(&command, config, &[(1, variable)])?;
+    Some(command)
+}
+
+/// Proposed syntax is checked independently of scalar grammar and permissions.
+fn complete_single_command_source(source: &str, config: LexerConfig) -> Option<()> {
+    let generated = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(source),
+        tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    (generated.fatal_tail.is_none() && generated.commands.len() == 1).then_some(())
+}
+
 /// A parsed if/elseif equality chain.
 struct IfChain {
-    target_var: String,
+    target_var: ScalarVariableSourceSyntax,
     values: Vec<String>,
     bodies: Vec<String>,
     else_body: Option<String>,
@@ -468,24 +463,38 @@ struct IfChain {
 /// `elseif` ladder) through `if`'s own clause grammar — the condition and
 /// body of each clause, and the default (`else`, or its optional-keyword
 /// bare final body) — rather than comparing keyword spellings by hand.
-fn parse_if_chain(texts: &[String], registry: &CommandRegistry) -> Option<IfChain> {
+fn parse_if_chain(
+    texts: &[String],
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Option<IfChain> {
     let args: Vec<&str> = texts.get(1..)?.iter().map(String::as_str).collect();
     let resolved = registry.resolve_call("if", &args, None)?;
     let plan = resolved.clause_plan(&args, None)?;
+    let mut context = tcl_syntax::expr::parser::ExprParseContext::for_profile(registry.profile()?);
+    context.lexer_grammar = config.grammar_over(context.lexer_grammar);
+    if_chain_from_plan(texts, &plan, config, &context)
+}
+
+fn if_chain_from_plan(
+    texts: &[String],
+    plan: &tcl_registry::clause_grammar::ClausePlan,
+    config: LexerConfig,
+    context: &tcl_syntax::expr::parser::ExprParseContext,
+) -> Option<IfChain> {
+    let args: Vec<&str> = texts.get(1..)?.iter().map(String::as_str).collect();
     if plan.defect.is_some() {
         return None;
     }
 
-    // OR-chain in a single condition: `if {$x eq "a" || $x eq "b"} {…}` is
-    // one clause whose *condition* carries the `||`, which the grammar
-    // reads as one opaque `Expr` operand — tried on the head clause first
-    // and, when it matches, returned regardless of what follows, exactly
-    // as the retired word walk did.
-    if let Some(head) = plan.clauses.first()
+    // A single-clause OR chain supplies one shared body. Mixed clause shapes
+    // require their own control-flow treatment and remain unsupported here.
+    if plan.clauses.len() == 1
+        && let Some(head) = plan.clauses.first()
         && !head.is_default
         && let Some(cond_idx) = head.operand(ArgRole::Expr)
         && let Some(body_idx) = head.operand(ArgRole::Body)
-        && let Some((target_var, values)) = try_or_chain(args[cond_idx])
+        && let Some((target_var, values)) = try_or_chain(args[cond_idx], config, context)
     {
         return Some(IfChain {
             target_var,
@@ -495,7 +504,7 @@ fn parse_if_chain(texts: &[String], registry: &CommandRegistry) -> Option<IfChai
         });
     }
 
-    let mut target_var: Option<String> = None;
+    let mut target_var: Option<ScalarVariableSourceSyntax> = None;
     let mut values: Vec<String> = Vec::new();
     let mut bodies: Vec<String> = Vec::new();
     let mut else_body: Option<String> = None;
@@ -506,13 +515,13 @@ fn parse_if_chain(texts: &[String], registry: &CommandRegistry) -> Option<IfChai
             continue;
         }
         let condition = args[clause.operand(ArgRole::Expr)?];
-        let (var, value, negated) = parse_eq(condition)?;
+        let (var, value, negated) = parse_eq(condition, config, context)?;
         if negated {
             return None;
         }
         match &target_var {
             None => target_var = Some(var),
-            Some(v) if *v != var => return None,
+            Some(v) if v.name() != var.name() => return None,
             _ => {}
         }
         values.push(value);
@@ -527,48 +536,85 @@ fn parse_if_chain(texts: &[String], registry: &CommandRegistry) -> Option<IfChai
 }
 
 /// Build a membership-test (`class match`) extraction.
+/// The shared arm body a membership extraction keeps, its optional `else`
+/// body and the command's indent.
+struct MembershipArms<'a> {
+    body: &'a str,
+    else_body: Option<&'a str>,
+    indent: &'a str,
+}
+
 fn membership_extraction(
-    stripped_values: &[String],
+    keys: &[String],
     value_type: &str,
     dg_name: &str,
-    target_var: &str,
-    body: &str,
-    else_body: Option<&str>,
-    indent: &str,
-) -> (DataGroupDefinition, String) {
-    let records: Vec<(String, String)> = stripped_values
-        .iter()
-        .map(|v| (v.clone(), String::new()))
-        .collect();
+    subject_reference: &str,
+    arms: &MembershipArms<'_>,
+    config: LexerConfig,
+) -> Option<(DataGroupDefinition, String)> {
+    let MembershipArms {
+        body,
+        else_body,
+        indent,
+    } = *arms;
+    let records: Vec<(String, String)> = keys.iter().map(|v| (v.clone(), String::new())).collect();
     let dg = DataGroupDefinition {
         name: dg_name.to_owned(),
         value_type: value_type.to_owned(),
         records,
     };
+    let matches = class_match_command(subject_reference, dg_name, config)?;
     let body_text = reindent_body(body, &format!("{indent}    "));
     let replacement = if let Some(eb) = else_body {
         let else_text = reindent_body(eb, &format!("{indent}    "));
-        format!(
-            "if {{ [class match ${target_var} equals {dg_name}] }} {{\n{body_text}\n{indent}}} else {{\n{else_text}\n{indent}}}"
-        )
+        format!("if {{ [{matches}] }} {{\n{body_text}\n{indent}}} else {{\n{else_text}\n{indent}}}")
     } else {
-        format!("if {{ [class match ${target_var} equals {dg_name}] }} {{\n{body_text}\n{indent}}}")
+        format!("if {{ [{matches}] }} {{\n{body_text}\n{indent}}}")
     };
-    (dg, replacement)
+    Some((dg, replacement))
 }
 
-/// Pair stripped keys with stripped values into data-group records.
-fn zip_records(keys: &[String], values: &[String]) -> Vec<(String, String)> {
+/// Pair completed keys with independently decoded literal record values.
+fn zip_records(
+    keys: &[String],
+    values: &[String],
+    config: LexerConfig,
+) -> Option<Vec<(String, String)>> {
+    if keys.len() != values.len() {
+        return None;
+    }
     keys.iter()
-        .zip(values.iter())
-        .map(|(k, v)| (strip_quotes(k).to_owned(), strip_quotes(v).to_owned()))
+        .zip(values)
+        .map(|(key, value)| Some((key.clone(), literal_record_value(value, config.nested())?)))
         .collect()
+}
+
+fn literal_record_value(source: &str, config: LexerConfig) -> Option<String> {
+    let parsed = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(source),
+        tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    let [command] = parsed.commands.as_slice() else {
+        return None;
+    };
+    let [word] = command.words.as_slice() else {
+        return None;
+    };
+    if parsed.fatal_tail.is_some() || word.bytes() != source.as_bytes() {
+        return None;
+    }
+    String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+        word,
+    )?)
+    .ok()
 }
 
 /// Resolve a possibly-empty `dg_name` against a generated default.
 fn resolve_dg_name(dg_name: &str, default_descriptor: &str) -> String {
     if dg_name.is_empty() {
-        normalise_dg_name(default_descriptor)
+        tcl_syntax::naming::suggested_data_group_name(default_descriptor)
     } else {
         dg_name.to_owned()
     }
@@ -589,14 +635,13 @@ fn command_indent<'a>(
 
 /// Assemble the final [`Refactoring`] from the computed replacement.
 fn build_result(
-    source: &str,
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    extent: (u32, u32),
     dg_name: &str,
     value_type: &str,
     replacement: String,
     data_group: DataGroupDefinition,
 ) -> Refactoring {
-    let (start, end) = command_span_offsets(source, cmd);
+    let (start, end) = extent;
     Refactoring {
         title: format!("Extract to data-group '{dg_name}' ({value_type})"),
         edits: vec![RefactorEdit {
@@ -622,24 +667,64 @@ pub fn extract_to_datagroup_from_switch(
     line_index: &LineIndex,
     config: LexerConfig,
 ) -> Option<Refactoring> {
+    if !emitted_forms_available(registry) {
+        return None;
+    }
     let cmd = find_command_at(source, cursor, Some("switch"), registry, config)?;
-    let (subject, pairs) = super::parse_exact_switch(&cmd.texts)?;
-    let subject_var = extract_var_name(&subject)?;
+    let original = source_subject::standalone_exact_switch_source(source, &cmd, registry, config)?;
+    let case_list = registry.get("switch").and_then(|spec| spec.case_list)?;
+    render_switch_extraction(
+        DataGroupRenderSource {
+            source,
+            command: &cmd,
+            extent: configured_command_span_offsets(source, &cmd, config)?,
+            config,
+        },
+        dg_name,
+        line_index,
+        &SwitchExtraction {
+            original,
+            default_word: case_list
+                .keyword_patterns
+                .first()
+                .map(|word| (*word).to_owned()),
+            fallthrough_word: case_list.fallthrough_body.map(str::to_owned),
+        },
+        || Some(()),
+    )
+}
+
+struct SwitchExtraction {
+    original: OriginalExactSwitchSource,
+    default_word: Option<String>,
+    fallthrough_word: Option<String>,
+}
+
+fn render_switch_extraction(
+    rendering: DataGroupRenderSource<'_>,
+    dg_name: &str,
+    line_index: &LineIndex,
+    selected: &SwitchExtraction,
+    mapping_selected: impl FnOnce() -> Option<()>,
+) -> Option<Refactoring> {
+    let DataGroupRenderSource {
+        source,
+        command: cmd,
+        extent,
+        config,
+    } = rendering;
+    let subject = selected.original.subject();
+    let pairs = selected.original.pairs();
     if pairs.len() < 3 {
         return None;
     }
-    // `switch`'s own case-list descriptor: the keyword pattern (`default`)
-    // and the fallthrough marker (`-`), read rather than hardcoded so a
-    // pack's differently-shaped case list (Expect's `timeout` / `eof`) is
-    // never silently read as `switch`'s.
-    let case_list = registry.get("switch").and_then(|spec| spec.case_list)?;
-    let default_word = case_list.keyword_patterns.first().copied();
-    let fallthrough_word = case_list.fallthrough_body;
+    let default_word = selected.default_word.as_deref();
+    let fallthrough_word = selected.fallthrough_word.as_deref();
 
     // Separate default from regular arms.
     let mut default_body: Option<String> = None;
     let mut regular_pairs: Vec<(String, String)> = Vec::new();
-    for (pattern, body) in &pairs {
+    for (pattern, body) in pairs {
         if Some(pattern.as_str()) == default_word {
             default_body = Some(body.clone());
         } else if fallthrough_word.is_some_and(|marker| body.trim() == marker) {
@@ -652,13 +737,10 @@ pub fn extract_to_datagroup_from_switch(
         return None;
     }
 
-    let keys: Vec<String> = regular_pairs
-        .iter()
-        .map(|(p, _)| strip_quotes(p).to_owned())
-        .collect();
+    let keys: Vec<String> = regular_pairs.iter().map(|(p, _)| p.clone()).collect();
     let value_type = infer_value_type(&keys);
-    let dg_name = resolve_dg_name(dg_name, &format!("{subject_var}_map"));
-    let indent = command_indent(source, &cmd, line_index).to_owned();
+    let dg_name = resolve_dg_name(dg_name, &format!("{}_map", subject.name()));
+    let indent = command_indent(source, cmd, line_index).to_owned();
 
     let all_same = {
         let set: std::collections::BTreeSet<&str> =
@@ -671,16 +753,20 @@ pub fn extract_to_datagroup_from_switch(
             &keys,
             value_type,
             &dg_name,
-            &subject_var,
-            &regular_pairs[0].1,
-            default_body.as_deref(),
-            &indent,
-        )
+            subject.reference(),
+            &MembershipArms {
+                body: &regular_pairs[0].1,
+                else_body: default_body.as_deref(),
+                indent: &indent,
+            },
+            config,
+        )?
     } else {
+        mapping_selected()?;
         switch_mapping_extraction(
             &regular_pairs,
             &keys,
-            &subject_var,
+            subject.reference(),
             &dg_name,
             default_body.as_deref(),
             &indent,
@@ -688,9 +774,9 @@ pub fn extract_to_datagroup_from_switch(
         )?
     };
 
+    complete_single_command_source(&replacement, config)?;
     Some(build_result(
-        source,
-        &cmd,
+        extent,
         &dg_name,
         value_type,
         replacement,
@@ -702,7 +788,7 @@ pub fn extract_to_datagroup_from_switch(
 fn switch_mapping_extraction(
     regular_pairs: &[(String, String)],
     keys: &[String],
-    subject_var: &str,
+    subject_reference: &str,
     dg_name: &str,
     default_body: Option<&str>,
     indent: &str,
@@ -710,12 +796,13 @@ fn switch_mapping_extraction(
 ) -> Option<(DataGroupDefinition, String)> {
     let (target_var, use_return, value_entries) =
         extract_set_or_return_values(regular_pairs, config)?;
-    let records = zip_records(keys, &value_entries);
+    let records = zip_records(keys, &value_entries, config)?;
     let dg = DataGroupDefinition {
         name: dg_name.to_owned(),
         value_type: "string".to_owned(),
         records,
     };
+    let lookup = class_lookup_command(subject_reference, dg_name, config)?;
     let replacement = if let Some(default) = default_body {
         // A default that is not a clean value mapping in the same form/target
         // (it sets a *different* variable, or runs a command) cannot be
@@ -724,19 +811,22 @@ fn switch_mapping_extraction(
         // assigning the literal string instead of running the command. Decline
         // the refactor rather than emit a lossy, semantics-changing edit.
         let default_val = extract_single_value(default, use_return, &target_var, config)?;
+        let matches = class_match_command(subject_reference, dg_name, config)?;
         if use_return {
             format!(
-                "if {{ [class match ${subject_var} equals {dg_name}] }} {{\n{indent}    return [class lookup ${subject_var} {dg_name}]\n{indent}}} else {{\n{indent}    return {default_val}\n{indent}}}"
+                "if {{ [{matches}] }} {{\n{indent}    return [{lookup}]\n{indent}}} else {{\n{indent}    return {default_val}\n{indent}}}"
             )
         } else {
+            let found = set_command(&target_var, &format!("[{lookup}]"), config)?;
+            let fallback = set_command(&target_var, &default_val, config)?;
             format!(
-                "if {{ [class match ${subject_var} equals {dg_name}] }} {{\n{indent}    set {target_var} [class lookup ${subject_var} {dg_name}]\n{indent}}} else {{\n{indent}    set {target_var} {default_val}\n{indent}}}"
+                "if {{ [{matches}] }} {{\n{indent}    {found}\n{indent}}} else {{\n{indent}    {fallback}\n{indent}}}"
             )
         }
     } else if use_return {
-        format!("return [class lookup ${subject_var} {dg_name}]")
+        format!("return [{lookup}]")
     } else {
-        format!("set {target_var} [class lookup ${subject_var} {dg_name}]")
+        set_command(&target_var, &format!("[{lookup}]"), config)?
     };
     Some((dg, replacement))
 }
@@ -757,15 +847,265 @@ pub fn extract_to_datagroup(
     )
 }
 
+// A free function retains the higher-ranked source-word lifetime required by
+// with_source_schema; the inherent method item fixes that lifetime too early.
+fn selected_clause_plan(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<tcl_registry::ClausePlan> {
+    schema.clause_plan()
+}
+
+/// Compatibility proposal from a complete current Logical document. The
+/// selected source descriptor supplies layout only; Native insertion, movement
+/// and execution permissions remain outside this authoring API.
+#[must_use]
+pub fn extract_to_datagroup_with_analysis(
+    source: &str,
+    cursor: u32,
+    dg_name: &str,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Option<Refactoring> {
+    if !analysis.allows_retained_logical_declaration_advice() {
+        return None;
+    }
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let walk = super::FrameWalk::new(source, analysis)?;
+    let cmd = super::find_original_command_at(source, cursor, analysis)?;
+    let words = walk.source_words(source, &cmd)?;
+    // These proposal parsers retain written clause/arm spelling. An alias may
+    // rename the head; captured operands cannot borrow those written positions.
+    if !written_operands_match(&words)
+        || !selected_output_forms_available(analysis, current.registry(), cmd.span.start())
+    {
+        return None;
+    }
+    let hook =
+        words.with_source_schema(&current.context(), |schema| schema.semantics.lowering_hook)??;
+    let mapping = || original_mapping_arms(&walk, source, &cmd);
+    let rendering = DataGroupRenderSource {
+        source,
+        command: &cmd,
+        extent: walk.command_span_offsets(source, &cmd)?,
+        config: current.config(),
+    };
+    match hook {
+        tcl_registry::hooks::LoweringHookId::If => {
+            let plan = words.with_source_schema(&current.context(), selected_clause_plan)??;
+            let mut expression = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+                analysis.resolved_input.as_ref()?.unit_profile(),
+            );
+            expression.lexer_grammar = current.config().grammar_over(expression.lexer_grammar);
+            let chain = if_chain_from_plan(&cmd.texts, &plan, current.config(), &expression)?;
+            render_if_extraction(rendering, &chain, dg_name, line_index, mapping)
+        }
+        tcl_registry::hooks::LoweringHookId::Switch => {
+            let original =
+                original_exact_switch_source_at_analysis(source, analysis, cmd.span.start())?;
+            let (default_word, fallthrough_word) =
+                words.with_source_schema(&current.context(), |schema| {
+                    let cases = schema.semantics.options.case_list?;
+                    Some((
+                        cases
+                            .keyword_patterns
+                            .first()
+                            .map(|word| (*word).to_owned()),
+                        cases.fallthrough_body.map(str::to_owned),
+                    ))
+                })??;
+            render_switch_extraction(
+                rendering,
+                dg_name,
+                line_index,
+                &SwitchExtraction {
+                    original,
+                    default_word,
+                    fallthrough_word,
+                },
+                mapping,
+            )
+        }
+        _ => None,
+    }
+}
+
+fn written_operands_match(
+    words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+) -> bool {
+    words.origins().iter().enumerate().skip(1).all(|(index, origin)| {
+        matches!(origin, tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written) if *written == index)
+    })
+}
+
+/// Newly authored output words have no original invocation to project. This
+/// positive Logical query retains the current descriptor at the proposal
+/// horizon, independently of output execution or insertion permissions.
+fn selected_proposed_spec(
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    at: u32,
+    name: &str,
+) -> Option<&'static tcl_registry::CommandSpec> {
+    if !analysis.allows_retained_logical_declaration_advice() {
+        return None;
+    }
+    let context = analysis.resolved_input.as_ref()?.availability_context();
+    let expected = context.resolve_spec(registry, name)?;
+    let retained = match analysis.retained_command_realm()?.binding_at(name, at) {
+        tcl_compiler::realm::RealmBindingFact::Unchanged => true,
+        tcl_compiler::realm::RealmBindingFact::Command(target) => context
+            .resolve_spec(registry, target)
+            .is_some_and(|selected| std::ptr::eq(selected, expected)),
+        tcl_compiler::realm::RealmBindingFact::Rebound => false,
+    };
+    retained.then_some(expected)
+}
+
+fn selected_output_forms_available(
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    at: u32,
+) -> bool {
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    if selected_proposed_spec(analysis, registry, at, "class").is_none()
+        || !selected_proposed_spec(analysis, registry, at, "if").is_some_and(|selected| {
+            selected.lowering_hook == Some(tcl_registry::hooks::LoweringHookId::If)
+        })
+    {
+        return false;
+    }
+    [
+        ["match", "ITEM", "equals", "GROUP"].as_slice(),
+        ["lookup", "ITEM", "GROUP"].as_slice(),
+    ]
+    .iter()
+    .all(|arguments| {
+        tcl_registry::model::resolve_invocation_in_context(
+            registry,
+            Some(input.availability_context()),
+            "class",
+            arguments,
+        )
+        .is_some_and(|selected| selected.subcommand.is_resolved())
+    })
+}
+
+/// Mapping syntax may name a primitive only after every genuine original arm
+/// selects that operation at its own horizon. Matching text is insufficient.
+fn original_mapping_arms(
+    walk: &super::FrameWalk<'_>,
+    source: &str,
+    command: &SegmentedCommand,
+) -> Option<()> {
+    super::source_rewrite::mapping_arms(walk, source, command).map(|_| ())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use tcl_dialect::model::{Family, SurfaceLayer};
 
-    fn reg() -> CommandRegistry {
-        let mut r = CommandRegistry::build_default();
-        r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
-        r
+    #[test]
+    fn selected_if_scalar_source_keeps_reference_spelling_in_proposals() {
+        // Implementation contract: naming.refactor.selected-if-scalar-source-syntax
+
+        for subject in [
+            "${a b}",
+            "\"${café}\"",
+            "${literal$name}",
+            "${a(k)tail}",
+            r"${a\b}",
+        ] {
+            let source = format!(
+                "if {{{subject} eq \"a\"}} {{drop}} elseif {{{subject} eq \"b\"}} {{drop}}"
+            );
+            let action = if_dg(&source, "subjects").expect("selected scalar membership syntax");
+            let proposed = action.apply(&source);
+            assert!(
+                proposed.contains(&format!("class match {subject} equals subjects")),
+                "{proposed}"
+            );
+            let source = format!(
+                "if {{{subject} eq \"a\"}} {{return one}} elseif {{{subject} eq \"b\"}} {{return two}}"
+            );
+            let proposed = if_dg(&source, "subjects")
+                .expect("selected scalar mapping syntax")
+                .apply(&source);
+            assert_eq!(
+                proposed,
+                format!("return [class lookup {subject} subjects]")
+            );
+        }
+        for subject in [
+            "$a(k)",
+            "${a(k)}",
+            "$café",
+            "\"$x[set y]\"",
+            "{$x}",
+            "$x.tail",
+        ] {
+            let source = format!(
+                "if {{{subject} eq \"a\"}} {{drop}} elseif {{{subject} eq \"b\"}} {{drop}}"
+            );
+            assert!(if_dg(&source, "subjects").is_none(), "{subject:?}");
+        }
+    }
+
+    #[test]
+    fn selected_if_scalar_conditions_keep_eq_and_or_shape_under_actual_config() {
+        // Implementation contract: naming.refactor.selected-if-scalar-source-syntax
+
+        let first = LexerConfig::for_dialect("tcl8.6");
+        let nested = LexerConfig::for_dialect("tcl9.1");
+        let jim = LexerConfig::for_dialect("jim");
+        let first_context = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+            tcl_registry::model::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let nested_context = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+            tcl_registry::model::resolve_environment("tcl9.1").analyser_profile(),
+        );
+        let jim_context = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+            tcl_registry::model::resolve_environment("jim").analyser_profile(),
+        );
+        assert!(parse_eq(r#"${a{b}c} eq "one""#, first, &first_context).is_none());
+        assert_eq!(
+            parse_eq(r#"${a{b}c} eq "one""#, nested, &nested_context)
+                .unwrap()
+                .0
+                .name(),
+            "a{b}c"
+        );
+        assert!(parse_eq(r#"$café eq "one""#, first, &first_context).is_none());
+        assert_eq!(
+            parse_eq(r#""one" eq $café"#, jim, &jim_context)
+                .unwrap()
+                .0
+                .name(),
+            "café"
+        );
+        let (subject, values) = try_or_chain(
+            r#"${a b} eq "one" || "${a b}" eq "two""#,
+            first,
+            &first_context,
+        )
+        .unwrap();
+        assert_eq!(subject.name(), "a b");
+        assert_eq!(subject.reference(), "${a b}");
+        assert_eq!(values, ["one", "two"]);
+        assert!(try_or_chain(r#"$x eq "one" || $y eq "two""#, first, &first_context).is_none());
+        assert!(try_or_chain(r#"$x eq "one" || !($x eq "two")"#, first, &first_context).is_none());
+        for subject in ["$a(k)", "${a(k)}", "${missing", "\"$x[set y]\""] {
+            assert!(parse_eq(&format!("{subject} eq \"one\""), first, &first_context).is_none());
+        }
+    }
+
+    use super::*;
+
+    fn reg() -> std::sync::Arc<CommandRegistry> {
+        tcl_registry::model::resolve_environment("f5-irules")
+            .default_context_registry()
+            .commands()
+            .clone()
     }
 
     /// This module's transforms only ever fire meaningfully over iRules
@@ -787,8 +1127,191 @@ mod tests {
         extract_to_datagroup_from_switch(source, 0, name, &r, &li, config())
     }
 
+    fn authored_output_registry() -> std::sync::Arc<CommandRegistry> {
+        // An independently authored source surface, not an F5 execution model.
+        const OUTPUTS: &[tcl_registry::SubCommand] = &[
+            tcl_registry::SubCommand {
+                name: "match",
+                arity: tcl_registry::Arity::exact(3),
+                ..tcl_registry::SubCommand::DEFAULT
+            },
+            tcl_registry::SubCommand {
+                name: "lookup",
+                arity: tcl_registry::Arity::exact(2),
+                ..tcl_registry::SubCommand::DEFAULT
+            },
+        ];
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "class",
+            surface: Some(tcl_dialect::model::SpecSurface::TCL90_PLUS),
+            subcommands: OUTPUTS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        std::sync::Arc::new(registry)
+    }
+
+    #[test]
+    fn supplied_datagroup_advice_keeps_actual_output_availability_and_arm_horizons() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let source =
+            "if {$x eq \"one\"} {set answer FIRST} elseif {$x eq \"two\"} {set answer SECOND}";
+        let registry = authored_output_registry();
+        let analysis = super::super::test_logical_analysis(source, "tcl9.0", registry.clone());
+        let index = LineIndex::new(source);
+        let action = extract_to_datagroup_with_analysis(source, 0, "answers", &analysis, &index)
+            .expect("current authored output metadata and genuine original arm operations");
+        assert_eq!(action.apply(source), "set answer [class lookup $x answers]");
+        assert_eq!(dg(&action).records.len(), 2);
+        let older = super::super::test_logical_analysis(source, "tcl8.4", registry.clone());
+        assert!(extract_to_datagroup_with_analysis(source, 0, "answers", &older, &index).is_none());
+        for prefix in ["proc set args {}; ", "proc class args {}; "] {
+            let replaced = format!("{prefix}{source}");
+            let analysis =
+                super::super::test_logical_analysis(&replaced, "tcl9.0", registry.clone());
+            let cursor = u32::try_from(prefix.len()).unwrap();
+            assert!(
+                extract_to_datagroup_with_analysis(
+                    &replaced,
+                    cursor,
+                    "answers",
+                    &analysis,
+                    &LineIndex::new(&replaced)
+                )
+                .is_none(),
+                "{prefix}"
+            );
+        }
+    }
+
+    #[test]
+    fn supplied_datagroup_advice_keeps_written_clauses_and_current_document_owner() {
+        // naming.core.original-dispatch-region-context
+
+        let tail = "choose {$x eq \"one\"} {puts SAME} elseif {$x eq \"two\"} {puts SAME}";
+        let source = format!("interp alias {{}} choose {{}} if\n{tail}");
+        let registry = authored_output_registry();
+        let analysis = super::super::test_logical_analysis(&source, "tcl9.0", registry.clone());
+        let cursor = u32::try_from(source.rfind("choose").unwrap()).unwrap();
+        let index = LineIndex::new(&source);
+        assert!(
+            extract_to_datagroup_with_analysis(&source, cursor, "answers", &analysis, &index)
+                .is_some()
+        );
+        let captured = "interp alias {} choose {} if {$x eq \"one\"}\nchoose {puts SAME} elseif {$x eq \"two\"} {puts SAME}";
+        let captured_analysis = super::super::test_logical_analysis(captured, "tcl9.0", registry);
+        assert!(
+            extract_to_datagroup_with_analysis(
+                captured,
+                u32::try_from(captured.rfind("choose").unwrap()).unwrap(),
+                "answers",
+                &captured_analysis,
+                &LineIndex::new(captured)
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let mut stale = analysis.clone();
+        stale.body_lexer_config.as_mut().unwrap().strict_quoting =
+            !analysis.body_lexer_config.unwrap().strict_quoting;
+        let mut foreign = analysis.clone();
+        let input = analysis.resolved_input.as_ref().unwrap();
+        foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::resolve_environment("tcl9.0").default_context_registry(),
+            input.lexer_config(),
+        ));
+        for unavailable in [missing, stale, foreign] {
+            assert!(
+                extract_to_datagroup_with_analysis(
+                    &source,
+                    cursor,
+                    "answers",
+                    &unavailable,
+                    &index
+                )
+                .is_none()
+            );
+        }
+        assert!(
+            extract_to_datagroup_with_analysis("# stale", cursor, "answers", &analysis, &index)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn supplied_datagroup_alias_does_not_restore_a_removed_output_handler() {
+        // naming.compiler.original-analysis-metadata-context
+
+        let source = "rename if saved_if\ninterp alias {} choose {} saved_if\nchoose {$x eq \"one\"} {puts SAME} elseif {$x eq \"two\"} {puts SAME}";
+        let registry = authored_output_registry();
+        let analysis = super::super::test_logical_analysis(source, "tcl9.0", registry);
+        let cursor = u32::try_from(source.rfind("choose").unwrap()).unwrap();
+        let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+        let command = super::super::find_original_command_at(source, cursor, &analysis).unwrap();
+        assert_eq!(
+            walk.source_words(source, &command)
+                .unwrap()
+                .with_source_schema(&walk.source_context(), |schema| schema
+                    .semantics
+                    .lowering_hook),
+            Some(Some(tcl_registry::hooks::LoweringHookId::If))
+        );
+        assert!(
+            extract_to_datagroup_with_analysis(
+                source,
+                cursor,
+                "answers",
+                &analysis,
+                &LineIndex::new(source)
+            )
+            .is_none()
+        );
+        for dialect in ["tcl9.0", "f5-irules"] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, dialect);
+            assert!(!analysis.allows_retained_logical_declaration_advice());
+            assert!(
+                extract_to_datagroup_with_analysis(
+                    source,
+                    cursor,
+                    "answers",
+                    &analysis,
+                    &LineIndex::new(source)
+                )
+                .is_none()
+            );
+        }
+    }
+
     fn dg(r: &Refactoring) -> &DataGroupDefinition {
         r.data_group.as_ref().expect("data group")
+    }
+
+    #[test]
+    fn original_datagroup_proposals_require_the_selected_output_surface() {
+        let source = "if {$host eq \"a.com\"} {pool web_pool} elseif {$host eq \"b.com\"} {pool web_pool} elseif {$host eq \"c.com\"} {pool web_pool}";
+        let index = LineIndex::new(source);
+        for (dialect, available) in [("tcl8.6", false), ("f5-irules", true)] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, dialect);
+            let registry = analysis.resolved_registry().unwrap();
+            assert_eq!(emitted_forms_available(registry), available, "{dialect}");
+            assert_eq!(
+                extract_to_datagroup(
+                    source,
+                    0,
+                    "",
+                    registry,
+                    &index,
+                    analysis.body_lexer_config.unwrap()
+                )
+                .is_some(),
+                available,
+                "{dialect}"
+            );
+        }
     }
 
     #[test]
@@ -880,6 +1403,35 @@ mod tests {
         assert!(extract_to_datagroup(source, 0, "uri_pool", &r, &li, config()).is_some());
     }
 
+    /// A supplied data-group name stays verbatim data, and every emitted
+    /// operand is one literal word with exactly the intended value — a name
+    /// with spaces or Tcl metacharacters is not spliced in as source.
+    #[test]
+    fn supplied_names_are_emitted_as_exact_literal_operands() {
+        let source = "if {$host eq \"a.com\"} {\n    pool web_pool\n} elseif {$host eq \"b.com\"} {\n    pool web_pool\n}";
+        let r = if_dg(source, "my hosts $x").expect("result");
+        assert_eq!(
+            dg(&r).name,
+            "my hosts $x",
+            "the supplied name is not sanitised"
+        );
+        let applied = r.apply(source);
+        assert_eq!(
+            applied,
+            "if { [class match $host equals {my hosts $x}] } {\n    pool web_pool\n}"
+        );
+
+        let mapping = "switch -exact -- $method {\n    GET { set {the handler} get }\n    POST { set {the handler} post }\n    PUT { set {the handler} put }\n}";
+        let r = switch_dg(mapping, "methods[1]").expect("result");
+        assert_eq!(
+            r.apply(mapping),
+            "set {the handler} [class lookup $method {methods[1]}]"
+        );
+        assert!(generated_operand_values("set a b", config(), &[(1, "a")]).is_some());
+        assert!(generated_operand_values("set {a b} c", config(), &[(1, "a")]).is_none());
+        assert!(generated_operand_values("set a b; set c d", config(), &[(1, "a")]).is_none());
+    }
+
     #[test]
     fn data_group_tcl_rendering() {
         let source = "if {$host eq \"a.com\"} {\n    pool web_pool\n} elseif {$host eq \"b.com\"} {\n    pool web_pool\n}";
@@ -968,11 +1520,8 @@ mod tests {
         );
     }
 
-    /// `infer_value_type` is handed values its callers have already run
-    /// through `strip_quotes`, so a value that still carries quotes is a
-    /// string literal, not a number.  (Before the fix a second strip here
-    /// peeled that pair off and typed the group `integer`, disagreeing with
-    /// the record actually written out.)
+    /// Completed record data keeps literal quotes and cannot be decoded again
+    /// to infer a numeric type from different bytes.
     #[test]
     fn infer_value_type_does_not_restrip() {
         assert_eq!(
@@ -991,9 +1540,303 @@ mod tests {
             infer_value_type(&["\"10.0.0.0/8\"".to_owned(), "\"192.168.0.0/16\"".to_owned()]),
             "string"
         );
-        // Whitespace inside a quoted literal survives the caller's strip;
-        // the predicates still tolerate it.
+        // Whitespace remains completed data; the type heuristics tolerate it.
         assert_eq!(infer_value_type(&[" 80 ".to_owned()]), "integer");
         assert_eq!(infer_value_type(&[" 10.0.0.0/8 ".to_owned()]), "ip");
+    }
+}
+
+#[cfg(test)]
+mod original_arm_parser_tests {
+    use super::*;
+    #[test]
+    fn original_datagroup_arm_parsing_keeps_nested_marks_and_literal_extents() {
+        // naming.refactor.selected-if-scalar-source-syntax
+
+        // Proposal shape only; selected source handlers and edits remain separate.
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::default()
+        };
+        let Some(SetOrReturn::Set(name, raw)) =
+            parse_set_or_return("set answer {\u{feff}ONE}", config)
+        else {
+            panic!("nested set shape");
+        };
+        assert_eq!(name, "answer");
+        assert_eq!(raw, "{\u{feff}ONE}");
+        let Some(SetOrReturn::Return(raw)) = parse_set_or_return("return \"\u{feff}TWO\"", config)
+        else {
+            panic!("nested return shape");
+        };
+        assert_eq!(raw, "\"\u{feff}TWO\"");
+        for body in ["\u{feff}set answer ONE", "\u{feff}return TWO"] {
+            assert!(parse_set_or_return(body, config).is_none());
+            assert!(
+                extract_set_or_return_values(
+                    &[
+                        ("a".into(), body.into()),
+                        ("b".into(), "return OTHER".into())
+                    ],
+                    config
+                )
+                .is_none()
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_arm_value_geometry_tests {
+    use super::*;
+
+    #[test]
+    fn data_group_arm_values_keep_complete_original_variable_and_compound_words() {
+        let config = LexerConfig::for_profile(Some(tcl_dialect::DialectProfile::plain_tcl()));
+        for value in [
+            "${value}",
+            "prefix${value}suffix",
+            "\"prefix ${value} suffix\"",
+            "{}",
+        ] {
+            let body = format!("return {value}");
+            let Some(SetOrReturn::Return(raw)) = parse_set_or_return(&body, config) else {
+                panic!("complete original return proposal");
+            };
+            assert_eq!(raw, value);
+            let body = format!("set output {value}");
+            let Some(SetOrReturn::Set(name, raw)) = parse_set_or_return(&body, config) else {
+                panic!("complete original set proposal");
+            };
+            assert_eq!(name, "output");
+            assert_eq!(raw, value);
+        }
+        assert!(parse_set_or_return("return ${unterminated", config).is_none());
+    }
+}
+
+#[cfg(test)]
+mod decoded_arm_script_value_tests {
+    use super::*;
+
+    #[test]
+    fn data_group_mapping_does_not_unwrap_literal_command_name_data_twice() {
+        let source = "switch -exact -- {$x} {a {{return one}} b {return two}}";
+        let registry = crate::refactor::test_registry();
+        let analysis = crate::refactor::source_rewrite::lexical_analysis(source, &registry);
+        let original =
+            crate::refactor::original_exact_case_source_at_analysis(source, &analysis, 0).unwrap();
+        let config = analysis.body_lexer_config.unwrap();
+        assert_eq!(original.pairs()[0].1, "{return one}");
+        assert!(extract_set_or_return_values(original.pairs(), config).is_none());
+        assert!(extract_single_value(&original.pairs()[0].1, true, "unused", config).is_none());
+        let source = "switch -exact -- {$x} {a {return one} b {return two}}";
+        let analysis = crate::refactor::source_rewrite::lexical_analysis(source, &registry);
+        let original =
+            crate::refactor::original_exact_case_source_at_analysis(source, &analysis, 0).unwrap();
+        assert!(extract_set_or_return_values(original.pairs(), config).is_some());
+        assert_eq!(
+            extract_single_value(&original.pairs()[0].1, true, "unused", config).as_deref(),
+            Some("one")
+        );
+        let mut registry = CommandRegistry::build_default();
+        registry.load_surface(tcl_dialect::model::SurfaceLayer::Core(
+            tcl_dialect::model::Family::F5Irules,
+            "",
+        ));
+        let config = LexerConfig::from_grammar(
+            tcl_registry::model::resolve_environment("f5-irules").grammar(),
+        );
+        let source = "switch -exact -- $x {a {{return one}} b {return two} c {return three}}";
+        assert!(
+            extract_to_datagroup_from_switch(
+                source,
+                0,
+                "mapping",
+                &registry,
+                &LineIndex::new(source),
+                config
+            )
+            .is_none()
+        );
+        let source = "switch -exact -- $x {a {return one} b {return two} c {return three}}";
+        assert!(
+            extract_to_datagroup_from_switch(
+                source,
+                0,
+                "mapping",
+                &registry,
+                &LineIndex::new(source),
+                config
+            )
+            .is_some()
+        );
+    }
+}
+
+#[cfg(test)]
+mod decoded_membership_script_indentation_tests {
+    use super::*;
+
+    #[test]
+    fn membership_proposals_keep_literal_command_name_braces_from_original_case_values() {
+        let source = "switch -exact -- $x {a {{return one}} b {{return one}} c {{return one}} default {{return other}}}";
+        let registry = crate::refactor::test_registry();
+        let analysis = crate::refactor::source_rewrite::lexical_analysis(source, &registry);
+        let original =
+            source_subject::original_exact_switch_source_at_analysis(source, &analysis, 0)
+                .expect("actual original case container and scalar subject");
+        assert_eq!(original.pairs()[0].1, "{return one}");
+        assert_eq!(original.pairs()[3].1, "{return other}");
+        let keys = original.pairs()[..3]
+            .iter()
+            .map(|(key, _)| key.clone())
+            .collect::<Vec<_>>();
+        let (_, proposal) = membership_extraction(
+            &keys,
+            "string",
+            "names",
+            original.subject().reference(),
+            &MembershipArms {
+                body: &original.pairs()[0].1,
+                else_body: Some(&original.pairs()[3].1),
+                indent: "",
+            },
+            LexerConfig::for_dialect("tcl8.6"),
+        )
+        .expect("a literal data-group name");
+        assert!(proposal.contains("    {return one}\n"), "{proposal}");
+        assert!(proposal.contains("    {return other}\n"), "{proposal}");
+        assert!(!proposal.contains("    return one\n"));
+    }
+}
+
+#[cfg(test)]
+mod completed_literal_record_tests {
+    use super::*;
+
+    #[test]
+    fn data_group_record_values_decode_original_literal_words_without_losing_data() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = LexerConfig::for_dialect(dialect);
+            for (source, expected) in [
+                (r#""80""#, "80"),
+                (r#"{"80"}"#, r#""80""#),
+                ("{ 80 }", " 80 "),
+                ("{$value[missing]}", "$value[missing]"),
+                (r"\u0038\u0030", "80"),
+                ("{}", ""),
+            ] {
+                let records = zip_records(&["key".into()], &[source.into()], config).unwrap();
+                assert_eq!(
+                    records,
+                    [("key".into(), expected.into())],
+                    "{dialect}: {source}"
+                );
+            }
+            for source in [
+                "$value",
+                "[list computed]",
+                "prefix${value}",
+                "{*}{value}",
+                "first second",
+                "first; second",
+                "{missing",
+            ] {
+                assert!(
+                    zip_records(&["key".into()], &[source.into()], config).is_none(),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod shared_expression_data_tests {
+    use super::*;
+
+    #[test]
+    fn data_group_conditions_share_configured_expression_topology_and_completed_literals() {
+        for dialect in ["tcl8.6", "tcl9.1", "jim"] {
+            let environment = tcl_registry::model::resolve_environment(dialect);
+            let config = LexerConfig::for_profile(Some(environment.analyser_profile()));
+            let mut context = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+                environment.analyser_profile(),
+            );
+            context.lexer_grammar = config.grammar_over(context.lexer_grammar);
+            let (subject, values) =
+                try_or_chain(r#"($x eq "a||b") || ($x eq {$literal})"#, config, &context)
+                    .expect("actual OR nodes preserve literal operator and sigil data");
+            assert_eq!(subject.name(), "x");
+            assert_eq!(values, ["a||b", "$literal"]);
+            let (_, values) =
+                try_or_chain(r#"$x eq {"80"} || $x eq { 80 }"#, config, &context).unwrap();
+            assert_eq!(values, ["\"80\"", " 80 "]);
+            assert_eq!(infer_value_type(&values), "string");
+            assert!(parse_eq(r#"$x == "GET""#, config, &context).is_some());
+            for condition in [
+                r#"$x == "01""#,
+                r#"$x eq one"#,
+                r#"$x eq "$dynamic""#,
+                r#"{$x eq "one"}"#,
+            ] {
+                assert!(
+                    parse_eq(condition, config, &context).is_none(),
+                    "{dialect}: {condition}"
+                );
+            }
+            assert!(try_or_chain(r#"$x eq "one" || $y eq "two""#, config, &context).is_none());
+            let mut incompatible = config;
+            incompatible.expand_syntax = !config.expand_syntax;
+            assert!(parse_eq(r#"$x eq "one""#, incompatible, &context).is_none());
+        }
+        let environment = tcl_registry::model::resolve_environment("f5-irules");
+        let registry = environment.default_context_registry();
+        let config = LexerConfig::from_grammar(environment.grammar());
+        let source = r#"if {$x eq {"80"} || $x eq { 80 }} {puts SAME}"#;
+        let action = extract_to_datagroup_from_if(
+            source,
+            0,
+            "literal_keys",
+            registry.commands(),
+            &LineIndex::new(source),
+            config,
+        )
+        .expect("standalone source proposal has independently retained expression axes");
+        let group = action.data_group.as_ref().unwrap();
+        assert_eq!(
+            group.records,
+            [
+                ("\"80\"".to_owned(), String::new()),
+                (" 80 ".to_owned(), String::new())
+            ]
+        );
+        assert_eq!(group.value_type, "string");
+        let unavailable = CommandRegistry::build_default();
+        assert!(
+            extract_to_datagroup_from_if(
+                source,
+                0,
+                "literal_keys",
+                &unavailable,
+                &LineIndex::new(source),
+                config,
+            )
+            .is_none()
+        );
+        let mixed =
+            r#"if {$x eq "one" || $x eq "two"} {puts FIRST} elseif {$x eq "three"} {puts SECOND}"#;
+        assert!(
+            extract_to_datagroup_from_if(
+                mixed,
+                0,
+                "literal_keys",
+                registry.commands(),
+                &LineIndex::new(mixed),
+                config,
+            )
+            .is_none()
+        );
     }
 }

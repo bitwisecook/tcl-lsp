@@ -776,7 +776,7 @@ fn hover_resolves_an_autoloaded_library_proc_1018() {
     .expect("write tclIndex");
 
     let mut lsp = Lsp::with_config(serde_json::json!({
-        "libraryPaths": [ libdir.to_string_lossy() ],
+        "libraryPaths": [ libdir.to_str().expect("temporary autoload path is Unicode") ],
     }));
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "package require math\nmath::zzqfrobnicate 1 2 3 4\n");

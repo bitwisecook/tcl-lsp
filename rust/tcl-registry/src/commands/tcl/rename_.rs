@@ -56,6 +56,12 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "rename",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("rename"),
         surface: Some(SpecSurface::ALL_TCL),
         // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_RenameObjCmd` → `TclRenameCommand`
@@ -73,6 +79,10 @@ pub fn spec() -> CommandSpec {
         arity: Arity::exact(2),
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Name)],
         return_type: Some(TclType::String),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         hover: Some(HoverSnippet {
             summary: "Rename or delete a command",
             synopsis: &["rename oldName newName"],
@@ -113,14 +123,14 @@ mod tests {
                     &ensure.transition,
                     StateTransition::Namespace(NamespaceTransition::Ensure {
                         namespace: NamespaceTransitionTarget::Named(
-                            TransitionSubject::Literal(namespace),
+                            TransitionSubject::LocatedLiteral { value: namespace, .. },
                         ),
                     }) if namespace == "::fresh::nested"
                 ) && matches!(
                     &moved.transition,
                     StateTransition::CommandBinding(CommandBindingTransition::Move {
-                        from: TransitionSubject::Literal(from),
-                        to: TransitionSubject::Literal(to),
+                        from: TransitionSubject::LocatedLiteral { value: from, .. },
+                        to: TransitionSubject::LocatedLiteral { value: to, .. },
                     }) if from == "::old" && to == "::fresh::nested::new"
                 )
         ));
@@ -138,7 +148,7 @@ mod tests {
                     &fact.transition,
                     StateTransition::CommandBinding(CommandBindingTransition::Delete {
                         interpreter: None,
-                        name: TransitionSubject::Literal(name),
+                        name: TransitionSubject::LocatedLiteral { value: name, .. },
                     }) if name == "old"
                 )
         ));

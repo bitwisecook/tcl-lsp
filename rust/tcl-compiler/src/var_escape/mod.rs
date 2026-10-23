@@ -28,8 +28,6 @@
 //! * [`types`]: vocabulary + summary types.
 //! * [`cfg_propagation`]: intra-procedural rule application and
 //!   flow-sensitive SSA-version propagation.
-//! * [`info_subcommands`]: which `info` subcommands
-//!   force pessimism.
 //! * [`interprocedural`]: thread escapes across call
 //!   edges.
 //! * [`slot_resolution`]: compile-time slot indices for
@@ -39,9 +37,11 @@ pub mod api;
 pub mod cfg_propagation;
 pub mod handlers;
 pub mod helpers;
-pub mod info_subcommands;
+#[cfg(test)]
+mod info_subcommands;
 pub mod interprocedural;
 pub mod known_names;
+pub mod original_slots;
 pub mod slot_resolution;
 pub mod state;
 pub mod types;
@@ -52,16 +52,10 @@ pub use api::{
     analyse_var_escape_cu_with_registry, analyse_var_escape_with_registry, cfg_result_to_summary,
 };
 pub use cfg_propagation::{analyse_cfg_function, analyse_cfg_function_with_registry};
-pub use interprocedural::{
-    solve_interprocedural_escape, solve_interprocedural_escape_with_registry,
-};
+pub use interprocedural::{EscapeCallGraph, solve_interprocedural_escape};
 pub use slot_resolution::{LOCALS_ARRAY_CAP, assign_local_slots, populate_local_slots};
 pub use walker::{analyse_script, analyse_script_with_registry};
 
-pub use info_subcommands::{
-    FRAME_INSPECTING_SUBCOMMANDS, INTERPRETER_GLOBAL_SUBCOMMANDS,
-    is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
-};
 pub use types::{
     Barrier, BarrierKind, EscapeReason, EscapeReasonKind, EscapeTag, ProcEscapeSummary, join,
 };

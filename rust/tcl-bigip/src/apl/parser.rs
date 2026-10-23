@@ -25,27 +25,7 @@ use regex::Regex;
 use crate::range::{Position, Range};
 
 use super::model::{AplField, AplInclude, AplModel, AplSection, AplTable};
-
-/// APL field-type keywords (sorted into the canonical set order used to build
-/// the alternation).
-const FIELD_TYPE_KEYWORDS: &[&str] = &[
-    "addrport",
-    "choice",
-    "disena",
-    "editchoice",
-    "enadis",
-    "enadisdry",
-    "falsetrue",
-    "indefint",
-    "message",
-    "multichoice",
-    "noyes",
-    "password",
-    "string",
-    "tcpprof",
-    "truefalse",
-    "yesno",
-];
+use super::tokens::FIELD_TYPE_KEYWORDS;
 
 fn field_decl_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();

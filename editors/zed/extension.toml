@@ -21,7 +21,7 @@ name = "Tcl LSP"
 version = "2.2.5"
 schema_version = 1
 authors = ["tcl-lsp contributors"]
-description = "Tcl, iRules, iApps, and TMSH language-server support via tcl-lsp"
+description = "Tcl, iRules, iApps, TMSH, and BIG-IP language-server support via tcl-lsp"
 repository = "https://github.com/bitwisecook/tcl-lsp"
 
 [grammars.tcl]
@@ -31,7 +31,7 @@ rev = "850a72ab6436e06645b33b11cfa60cbdb04b1f01"
 [language_servers.tcl-lsp]
 name = "tcl-lsp"
 # <generated: zed-languages> the `name` of each `languages/*/config.toml`
-languages = ["Tcl", "Expect", "iApps", "iRules", "TMSH", "APL"]
+languages = ["Tcl", "Expect", "iApps", "iRules", "TMSH", "BIG-IP", "APL"]
 # </generated>
 
 # Bridge Zed's language *names* to the `languageId` strings the server
@@ -40,24 +40,21 @@ languages = ["Tcl", "Expect", "iApps", "iRules", "TMSH", "APL"]
 # which the server does not recognise, so every non-Tcl buffer silently falls
 # back to the default `tcl8.6` dialect. The right-hand ids match the VS Code
 # extension's contributions (`tcl-irule`, `tcl-iapp`, `tcl-apl`, `tcl-bigip`,
-# `tcl-expect`).
+# `tcl-tmsh`, `tcl-expect`).
 #
-# `TMSH` maps to `tcl-bigip`, not to the `f5-tmsh` profile's `tcl-tmsh`, and
-# that is deliberate: this language is backed by the *BIG-IP configuration*
-# grammar (`grammars/tree-sitter-bigip`, with `languages/tmsh/injections.scm`
-# re-parsing an `ltm rule` body as Tcl), which is the `f5-bigip` language, not
-# the Tcl-script dialect the dialect catalogue attaches to `.tmsh`. Routing this
-# language to `tcl-tmsh` would analyse config files as tmsh scripts. Splitting
-# it — a `BIG-IP` language on `.scf` plus a Tcl-grammar `tmsh` language on
-# `.tmsh` — is the real fix and needs the query generator to grow a target, so
-# the mapping stays as-is.
+# Each language sends the id of the environment whose files it registers, so
+# the server analyses a buffer in the context its file belongs to: `TMSH` (the
+# `.tmsh` script dialect, on the Tcl grammar) sends `tcl-tmsh`, and `BIG-IP`
+# (configuration, on `grammars/tree-sitter-bigip`, with `languages/bigip/
+# injections.scm` re-parsing an `ltm rule` body as Tcl) sends `tcl-bigip`.
 [language_servers.tcl-lsp.language_ids]
 # <generated: zed-language-ids> one row per `languages/*/config.toml`
 "Tcl" = "tcl"
 "Expect" = "tcl-expect"
 "iApps" = "tcl-iapp"
 "iRules" = "tcl-irule"
-"TMSH" = "tcl-bigip"
+"TMSH" = "tcl-tmsh"
+"BIG-IP" = "tcl-bigip"
 "APL" = "tcl-apl"
 # </generated>
 

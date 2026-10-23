@@ -29,7 +29,7 @@
 use std::path::Path;
 
 use tcl_bigip_io::resolve_passphrase;
-use tcl_bigip_io::ucs::{is_pgp_bytes, is_ucs_bytes, ucs_archive_to_scf};
+use tcl_bigip_io::ucs::{is_pgp_bytes, is_ucs_bytes, ucs_archive_to_scf_source};
 use tcl_cli_support::{OutputTarget, write_text_output};
 
 use crate::cli::{FormatArgs, PassphraseArgs};
@@ -60,11 +60,12 @@ pub fn run_extract(
     let provider = || resolve_passphrase(&opts);
 
     let label = ucs.display().to_string();
-    let scf = ucs_archive_to_scf(&raw, &provider, include_extras, &label)
+    let scf = ucs_archive_to_scf_source(&raw, &provider, include_extras, &label)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
+    scf.require_faithful()?;
     let rendered = crate::commands::emit::render_config(
-        &scf,
+        scf.text(),
         &format.format,
         "create",
         format.transaction,

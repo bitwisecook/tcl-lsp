@@ -33,10 +33,11 @@
 //! barrier.
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::hash::{Hash as _, Hasher as _};
 use std::rc::Rc;
 
+use crate::ir::CommandTokens;
 use tcl_core_types::RecursionLimit;
 use tcl_registry::CommandRegistry;
 use tcl_registry::completion::{CompletionCode, CompletionCodeDomain};
@@ -46,7 +47,11 @@ use tcl_registry::value_transfer::{
     ParameterDefault, PlaceRef,
 };
 use tcl_registry::world_effect::EffectFootprint;
-use tcl_syntax::word_rules::WordValueRules;
+use tcl_syntax::formal_params::{FormalArgumentBinding, FormalParameter};
+
+mod source_context;
+pub(crate) use source_context::{OriginalSummaryExpression, OriginalSummaryScript};
+use source_context::{ProcedureCall, SourceSummaryContext};
 
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::cfg_builder::global_write_info::GlobalWriteInfo;
@@ -61,6 +66,10 @@ use crate::ssa::SsaFunction;
 use crate::value_transfer::ExistenceStep;
 
 use super::ReturnKind;
+use crate::signature_scan::variable_symbol::{
+    SignatureSourceVariableOccurrence, SignatureSourceVariableSlot,
+};
+type OuterSourcePlace = SignatureSourceVariableOccurrence;
 
 /// What a call to one procedure does to its caller's places, from the
 /// procedure's own analysis: each parameter's role, the places outside its
@@ -73,6 +82,8 @@ pub(crate) struct TransferSummary {
     /// The places outside the procedure's frame it may write, each with its
     /// outcome, in order.
     pub(crate) globals: Vec<(PlaceRef, ExistenceOutcome)>,
+    /// Conditional original source coordinates, independent of physical cells.
+    global_sources: Vec<(OuterSourcePlace, ExistenceOutcome)>,
     /// The return shape the interprocedural analysis derives over the
     /// seedless lattice; a computed result until that analysis states one.
     pub(crate) result: ReturnKind,
@@ -90,7 +101,7 @@ pub(crate) struct TransferSummary {
 /// Each procedure's transfer summary, by qualified name; a procedure a call
 /// to which is a barrier has none.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct TransferSummaries(pub(crate) HashMap<String, TransferSummary>);
+pub struct TransferSummaries(pub(crate) HashMap<crate::ir::ProcedureId, TransferSummary>);
 
 impl TransferSummaries {
     /// `qname`'s summary as the Explorer prints it, its parameters named
@@ -98,7 +109,7 @@ impl TransferSummaries {
     /// how a call may complete. `None` for a procedure with none, a call to
     /// which is a barrier.
     #[must_use]
-    pub fn describe(&self, qname: &str, params: &[String]) -> Option<String> {
+    pub fn describe(&self, qname: &crate::ir::ProcedureId, params: &[String]) -> Option<String> {
         let summary = self.0.get(qname)?;
         let mut parts: Vec<String> = summary
             .params
@@ -224,9 +235,7 @@ pub(crate) struct ModuleInputs<'a> {
     /// Its flow graphs.
     pub(crate) cfg: &'a crate::cfg::CfgModule,
     /// Each procedure's caller-frame effects, keyed by every spelling.
-    pub(crate) frames: &'a HashMap<String, UpvarInfo>,
     /// Each procedure's writes to global and namespace places.
-    pub(crate) outer_writes: &'a HashMap<String, GlobalWriteInfo>,
     /// The registry the module resolved against.
     pub(crate) registry: &'a CommandRegistry,
     /// The module's command mutations.
@@ -245,16 +254,20 @@ pub(crate) struct ModuleInputs<'a> {
 /// and defaults, whether a name still denotes one, and their transfer
 /// summaries.
 pub(crate) struct ModuleProcedures<'a> {
-    procedures: &'a HashMap<String, crate::ir::Procedure>,
+    /// Actual lowered source owner for fresh CFGs and procedure reruns.
+    ir: &'a crate::ir::Module,
+    procedures: &'a crate::ir::ProcedureInventory,
+    frame_facts: HashMap<crate::ir::ProcedureId, UpvarInfo>,
+    outer_facts: HashMap<crate::ir::ProcedureId, GlobalWriteInfo>,
     redefined: &'a HashSet<String>,
     mutations: &'a ModuleCommandMutations,
     projection: &'a ProcBindingTrustProjection,
-    word_rules: WordValueRules,
+    source: Option<SourceSummaryContext<'a>>,
     /// The finished summaries, by qualified name.
-    summaries: RefCell<HashMap<String, TransferSummary>>,
+    summaries: RefCell<HashMap<crate::ir::ProcedureId, TransferSummary>>,
     /// The roles of the procedures of a cycle being solved: `None` while a
     /// procedure is not yet known to complete normally.
-    provisional: RefCell<HashMap<String, Option<Vec<ParamRole>>>>,
+    provisional: RefCell<HashMap<crate::ir::ProcedureId, Option<Vec<ParamRole>>>>,
     /// The revision every summary rides on.
     revision: u64,
     /// The module's flow graphs.
@@ -270,9 +283,9 @@ pub(crate) struct ModuleProcedures<'a> {
     analysis_context: Option<&'a crate::value_transfer::AnalysisContextKey>,
     /// The built unit's procedures, once there is a unit: their flow graphs
     /// and SSA are what a re-run solves.
-    units: Option<&'a HashMap<String, crate::compilation_unit::FunctionUnit>>,
+    units: Option<&'a HashMap<crate::ir::ProcedureId, crate::compilation_unit::FunctionUnit>>,
     /// Each procedure's SSA, built or borrowed once for its re-runs.
-    ssa: RefCell<HashMap<String, Rc<SsaFunction>>>,
+    ssa: RefCell<HashMap<crate::ir::ProcedureId, Rc<SsaFunction>>>,
     /// Each re-run made: by callee, seeds and whole-module trust.
     reruns: RefCell<HashMap<RerunKey, Option<Rc<Rerun>>>>,
     /// The re-runs under way, innermost last.
@@ -288,7 +301,7 @@ pub(crate) struct ModuleProcedures<'a> {
 /// per unit build, one per seedless stage and one per O103 fold — so every
 /// re-run it holds shares them.
 type RerunKey = (
-    String,
+    crate::ir::ProcedureId,
     Vec<Option<Vec<u8>>>,
     Vec<(Option<Vec<u8>>, Existence)>,
     bool,
@@ -359,11 +372,21 @@ impl<'a> ModuleProcedures<'a> {
     /// [`Self::new`] with a cycle given at most `rounds` rounds to settle.
     pub(crate) fn with_rounds(inputs: ModuleInputs<'a>, rounds: RecursionLimit) -> Self {
         let procedures = Self {
+            ir: inputs.ir,
             procedures: &inputs.ir.procedures,
+            frame_facts: crate::cfg_builder::detect_upvar_bodies_with_registry(
+                inputs.ir,
+                inputs.registry,
+            ),
+            outer_facts:
+                crate::cfg_builder::global_write_info::detect_global_write_bodies_with_registry(
+                    inputs.ir,
+                    inputs.registry,
+                ),
             redefined: &inputs.ir.redefined_procedures,
             mutations: inputs.mutations,
             projection: inputs.projection,
-            word_rules: WordValueRules::of_dialect_name(inputs.ir.dialect.as_deref()),
+            source: SourceSummaryContext::for_module(inputs.ir, inputs.registry, inputs.config),
             summaries: RefCell::new(HashMap::new()),
             provisional: RefCell::new(HashMap::new()),
             revision: revision_of(inputs.ir, inputs.mutations),
@@ -392,17 +415,31 @@ impl<'a> ModuleProcedures<'a> {
         registry: &'a CommandRegistry,
     ) -> Self {
         Self {
+            ir: &cu.ir_module,
             procedures: &cu.ir_module.procedures,
+            frame_facts: crate::cfg_builder::detect_upvar_bodies_with_registry(
+                &cu.ir_module,
+                registry,
+            ),
+            outer_facts:
+                crate::cfg_builder::global_write_info::detect_global_write_bodies_with_registry(
+                    &cu.ir_module,
+                    registry,
+                ),
             redefined: &cu.ir_module.redefined_procedures,
             mutations: &cu.command_mutations,
             projection: &cu.caller_scope.proc_binding_trust,
-            word_rules: WordValueRules::of_dialect_name(cu.ir_module.dialect.as_deref()),
+            source: SourceSummaryContext::for_module(
+                &cu.ir_module,
+                registry,
+                cu.ir_module.lexer_config,
+            ),
             summaries: RefCell::new(cu.transfers.0.clone()),
             provisional: RefCell::new(HashMap::new()),
             revision: revision_of(&cu.ir_module, &cu.command_mutations),
             cfg: &cu.cfg_module,
             registry,
-            config: crate::dynamic_names::lexer_config_for(registry),
+            config: cu.ir_module.lexer_config,
             trace: crate::compilation_unit::ModuleTraceFacts::of(&cu.ir_module),
             analysis_context: None,
             units: Some(&cu.procedures),
@@ -425,23 +462,141 @@ impl<'a> ModuleProcedures<'a> {
         TransferSummaries(self.summaries.into_inner())
     }
 
-    /// The procedure of the module `head` names from `function`, where its
-    /// binding stands under `trust`: no redefinition, and no `rename` or
-    /// alias that moves the name ([`FoldTrust::WholeModule`] also asks that
-    /// no binding in the module is computed).
-    pub(crate) fn resolve(&self, head: &str, function: &str, trust: FoldTrust) -> Option<String> {
-        let qname = super::resolve_internal_call_with(head, function, |qname| {
-            self.procedures.contains_key(qname)
-        })?;
-        let stands = !self.redefined.contains(&qname)
+    fn resolve_original_word(
+        &self,
+        tokens: &CommandTokens,
+        word: &str,
+        trust: FoldTrust,
+    ) -> Option<crate::ir::ProcedureId> {
+        let ids = crate::registry_invocation::original_source_procedure_ids_for_word_for_module(
+            tokens,
+            word,
+            self.ir,
+            self.registry,
+        )?;
+        let [id] = ids.as_slice() else {
+            return None;
+        };
+        let procedure = self.source.as_ref()?.procedure(id)?;
+        let name = &procedure.qualified_name;
+        let stands = !self.redefined.contains(name)
             && match trust {
-                FoldTrust::WholeModule => self.mutations.trusts_proc_binding(&qname),
+                FoldTrust::WholeModule => self.mutations.trusts_proc_binding(name),
                 FoldTrust::ObservedBindings => {
-                    self.projection.trusts_proc_binding(&qname)
-                        && self.mutations.observed_proc_binding(&qname)
+                    self.projection.trusts_proc_binding(name)
+                        && self.mutations.observed_proc_binding(name)
                 }
             };
-        stands.then_some(qname)
+        stands.then_some(*id)
+    }
+
+    pub(crate) fn body_for_cfg(&self, cfg: &CfgFunction) -> Option<Option<crate::ir::ProcedureId>> {
+        if std::ptr::eq(cfg, std::ptr::from_ref(&self.cfg.top_level)) {
+            return Some(None);
+        }
+        let mut candidates = self
+            .cfg
+            .procedures
+            .iter()
+            .filter(|(_, row)| std::ptr::eq(cfg, *row))
+            .map(|(id, _)| *id)
+            .chain(
+                self.units
+                    .into_iter()
+                    .flat_map(|units| units.iter())
+                    .filter(|(_, row)| std::ptr::eq(cfg, std::ptr::from_ref(&row.cfg)))
+                    .map(|(id, _)| *id),
+            );
+        let first = candidates.next()?;
+        candidates.all(|id| id == first).then_some(Some(first))
+    }
+
+    /// A procedure summary call requires the same retained source point,
+    /// original declaration and effective argv. A reporting head is no join.
+    pub(crate) fn original_call_arguments(
+        &self,
+        call: &ProcedureCall<'_>,
+    ) -> Option<Vec<Option<String>>> {
+        call.literal_arguments(self.ir)
+    }
+
+    pub(crate) fn original_statement_tokens(
+        &self,
+        body_id: Option<crate::ir::ProcedureId>,
+        statement: &Statement,
+    ) -> Option<CommandTokens> {
+        self.source.as_ref()?.statement_tokens(body_id, statement)
+    }
+
+    pub(crate) fn original_expression(
+        &self,
+        parent: &CommandTokens,
+        expression: &crate::expr_ast::ExprNode,
+        base: Option<u32>,
+    ) -> Option<OriginalSummaryExpression> {
+        self.source.as_ref()?.expression(parent, expression, base)
+    }
+
+    pub(crate) fn original_expression_substitution(
+        &self,
+        expression: &OriginalSummaryExpression,
+        script: &str,
+        start: u32,
+        end: u32,
+    ) -> Option<OriginalSummaryScript> {
+        self.source
+            .as_ref()?
+            .expression_substitution(expression, script, start, end)
+    }
+
+    pub(crate) fn original_substitution(
+        &self,
+        parent: &CommandTokens,
+        site: &crate::ir::SourceSite,
+        script: &str,
+    ) -> Option<OriginalSummaryScript> {
+        self.source.as_ref()?.substitution(parent, site, script)
+    }
+
+    pub(crate) fn original_body(
+        &self,
+        parent: &CommandTokens,
+        argument: usize,
+        script: &str,
+    ) -> Option<OriginalSummaryScript> {
+        self.source.as_ref()?.body(parent, argument, script)
+    }
+
+    pub(crate) fn resolve_call_at(
+        &self,
+        tokens: &CommandTokens,
+        trust: FoldTrust,
+    ) -> Option<ProcedureCall<'a>> {
+        let call = self.source.as_ref()?.procedure_call(tokens)?;
+        let name = &call.procedure.qualified_name;
+        let stands = !self.redefined.contains(name)
+            && match trust {
+                FoldTrust::WholeModule => self.mutations.trusts_proc_binding(name),
+                FoldTrust::ObservedBindings => {
+                    self.projection.trusts_proc_binding(name)
+                        && self.mutations.observed_proc_binding(name)
+                }
+            };
+        stands.then_some(call)
+    }
+
+    /// Borrow the selected original operation and its effective source argv
+    /// under this Module's complete point metadata. This is conditional value
+    /// modelling, independently of Native execution and observer permissions.
+    pub(crate) fn with_original_operation<T>(
+        &self,
+        tokens: &CommandTokens,
+        apply: impl FnOnce(
+            &crate::registry_invocation::ResolvedStatementInvocation,
+            &tcl_registry::ResolvedInvocation<'_, '_>,
+        ) -> Option<T>,
+    ) -> Option<T> {
+        self.source.as_ref()?.with_operation(tokens, apply)
     }
 
     /// The default `info default` reads for `procedure`'s `parameter`, the
@@ -450,20 +605,16 @@ impl<'a> ModuleProcedures<'a> {
     /// the procedure has no such parameter.
     pub(crate) fn parameter_default(
         &self,
-        function: &str,
+        original: Option<&CommandTokens>,
         (procedure, parameter): (&str, &str),
         trust: FoldTrust,
     ) -> ParameterDefault {
-        let Some(declared) = self
-            .resolve(procedure, function, trust)
-            .and_then(|qname| self.procedures.get(&qname))
+        let Some(id) =
+            original.and_then(|tokens| self.resolve_original_word(tokens, procedure, trust))
         else {
             return ParameterDefault::Unknown;
         };
-        let Ok(formals) = crate::signature_scan::params::parse_param_list_strict(
-            &declared.params_raw,
-            self.word_rules,
-        ) else {
+        let Some((formals, _)) = self.formals(&id) else {
             return ParameterDefault::Unknown;
         };
         match formals.into_iter().find(|formal| formal.name == parameter) {
@@ -485,13 +636,22 @@ impl<'a> ModuleProcedures<'a> {
     /// names an element or names the place another one does.
     pub(crate) fn call_transfer(
         &self,
-        callee: &str,
+        callee: &crate::ir::ProcedureId,
         words: &[Option<&str>],
     ) -> Option<CallTransfer> {
-        let formals = self.formals(callee)?;
-        if !accepts(&formals, words.len()) {
+        let (formals, grammar) = self.formals(callee)?;
+        let shape = tcl_syntax::formal_params::formal_argument_count_shape(
+            formals
+                .iter()
+                .map(|formal| (formal.name == "args", formal.default.is_some())),
+            grammar,
+        );
+        if !shape.accepts(words.len()) {
             return Some(CallTransfer::Never);
         }
+        let bindings =
+            tcl_syntax::formal_params::bind_formal_arguments(&formals, words.len(), grammar)
+                .ok()?;
         let roles = match self.provisional.borrow().get(callee) {
             Some(None) => return Some(CallTransfer::Never),
             Some(Some(roles)) => roles.clone(),
@@ -512,14 +672,23 @@ impl<'a> ModuleProcedures<'a> {
             if *level != FrameLevel::Relative(1) {
                 return None;
             }
-            let word = match words.get(index) {
-                Some(word) => (*word)?,
-                None => formals.get(index)?.default_value.as_deref()?,
+            let binding = bindings.iter().find(|binding| match binding {
+                FormalArgumentBinding::Value { parameter, .. }
+                | FormalArgumentBinding::Default { parameter }
+                | FormalArgumentBinding::Rest { parameter, .. }
+                | FormalArgumentBinding::CallerLink { parameter, .. } => *parameter == index,
+            })?;
+            let word = match binding {
+                FormalArgumentBinding::Value { argument, .. } => (*words.get(*argument)?)?,
+                FormalArgumentBinding::Default { parameter } => {
+                    formals.get(*parameter)?.default.as_deref()?
+                }
+                FormalArgumentBinding::Rest { .. } | FormalArgumentBinding::CallerLink { .. } => {
+                    return None;
+                }
             };
-            // A word that is not the name it normalises to — an element,
-            // whose index normalising drops — names no whole place.
             if word.is_empty()
-                || crate::naming::normalise_var_name(word) != word
+                || tcl_syntax::naming::split_element_ref_bytes(word.as_bytes()).is_some()
                 || places.iter().any(|(held, _)| held == word)
             {
                 return None;
@@ -531,35 +700,21 @@ impl<'a> ModuleProcedures<'a> {
 
     /// The existence step a call to `callee` takes on each outer place it
     /// may write, by the place's name.
-    pub(crate) fn outer_steps(&self, callee: &str) -> Vec<(String, ExistenceStep)> {
+    pub(crate) fn outer_steps(
+        &self,
+        callee: &crate::ir::ProcedureId,
+    ) -> Option<Vec<(String, ExistenceStep)>> {
         let summaries = self.summaries.borrow();
-        let Some(summary) = summaries.get(callee) else {
-            return Vec::new();
-        };
-        let mut steps: Vec<(String, ExistenceStep)> = Vec::new();
-        for (place, outcome) in &summary.globals {
-            let step = ExistenceStep::of(*outcome);
-            match steps.iter_mut().find(|(name, _)| *name == place.name) {
-                Some((_, held)) => *held = held.then(step),
-                None => steps.push((place.name.clone(), step)),
-            }
-        }
-        steps
-    }
-
-    /// The document's lexer configuration.
-    pub(crate) const fn lexer_config(&self) -> tcl_lexer::LexerConfig {
-        self.config
-    }
-
-    /// The registry the module resolved against.
-    pub(crate) const fn registry(&self) -> &'a CommandRegistry {
-        self.registry
+        let summary = summaries.get(callee)?;
+        // Source coordinates cannot select a current cell or grant Normal.
+        // Until that independent application owner exists, retain a barrier.
+        summary.global_sources.is_empty().then(Vec::new)
     }
 
     /// Whether a call to `callee` reaches no place outside its frame: it has
     /// a summary, names no place and writes no outer one.
-    pub(crate) fn keeps_to_its_frame(&self, callee: &str) -> bool {
+    #[cfg(test)]
+    fn keeps_to_its_frame(&self, callee: &crate::ir::ProcedureId) -> bool {
         self.summaries
             .borrow()
             .get(callee)
@@ -568,15 +723,16 @@ impl<'a> ModuleProcedures<'a> {
 
     /// The parameters of the procedure `qname` names, where it is one of
     /// the module's.
-    pub(crate) fn params_of(&self, qname: &str) -> Option<&'a [String]> {
-        self.procedures
-            .get(qname)
+    pub(crate) fn params_of(&self, qname: &crate::ir::ProcedureId) -> Option<&'a [String]> {
+        self.source
+            .as_ref()?
+            .procedure(qname)
             .map(|declared| declared.params.as_slice())
     }
 
     /// `callee`'s `Name` links: each such parameter's index and the local
     /// its body links to the place it names.
-    pub(crate) fn links(&self, callee: &str) -> Option<Vec<(usize, String)>> {
+    pub(crate) fn links(&self, callee: &crate::ir::ProcedureId) -> Option<Vec<(usize, String)>> {
         Some(self.summaries.borrow().get(callee)?.links.clone())
     }
 
@@ -587,37 +743,54 @@ impl<'a> ModuleProcedures<'a> {
     /// parameters do not accept the call.
     pub(crate) fn parameter_values(
         &self,
-        callee: &str,
+        callee: &crate::ir::ProcedureId,
         arguments: &[Option<ExactValue>],
-        dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> Option<Vec<Option<ExactValue>>> {
-        let params = self.formals(callee)?;
-        if !accepts(&params, arguments.len()) {
-            return None;
-        }
-        let variadic = crate::signature_scan::arity::is_variadic(&params);
-        let fixed = params.len() - usize::from(variadic);
-        let mut values: Vec<Option<ExactValue>> = params
-            .iter()
-            .take(fixed)
-            .enumerate()
-            .map(|(index, param)| match arguments.get(index) {
-                Some(argument) => argument.clone(),
-                None => param.default_value.as_deref().map(ExactValue::from_literal),
-            })
-            .collect();
-        if variadic {
-            let rest: Option<Vec<&str>> = arguments
-                .get(fixed..)
-                .unwrap_or_default()
-                .iter()
-                .map(|argument| argument.as_ref()?.as_str().ok())
-                .collect();
-            values.push(rest.and_then(|rest| {
-                tcl_registry::value_transfer::TargetSemantics::of(dialect)
-                    .render_list(&rest)
-                    .map(|text| ExactValue::from_literal(&text))
-            }));
+        let (parameters, grammar) = self.formals(callee)?;
+        let bindings =
+            tcl_syntax::formal_params::bind_formal_arguments(&parameters, arguments.len(), grammar)
+                .ok()?;
+        let mut values = vec![None; parameters.len()];
+        for binding in bindings {
+            let (parameter, value) = match binding {
+                FormalArgumentBinding::Value {
+                    parameter,
+                    argument,
+                } => (parameter, arguments.get(argument)?.clone()),
+                FormalArgumentBinding::Default { parameter } => (
+                    parameter,
+                    parameters
+                        .get(parameter)?
+                        .default
+                        .as_deref()
+                        .map(ExactValue::from_literal),
+                ),
+                FormalArgumentBinding::Rest {
+                    parameter,
+                    start,
+                    len,
+                    ..
+                } => {
+                    let rest: Option<Vec<&str>> = arguments
+                        .get(start..start.checked_add(len)?)?
+                        .iter()
+                        .map(|argument| argument.as_ref()?.as_str().ok())
+                        .collect();
+                    (
+                        parameter,
+                        rest.and_then(|rest| {
+                            tcl_registry::value_transfer::TargetSemantics::of(Some(
+                                self.ir.source_metadata_input.as_ref()?.unit_profile(),
+                            ))
+                            .render_list(&rest)
+                            .map(|text| ExactValue::from_literal(&text))
+                        }),
+                    )
+                }
+                // A Jim caller link is a cell binding, not a copied scalar value.
+                FormalArgumentBinding::CallerLink { .. } => return None,
+            };
+            *values.get_mut(parameter)? = value;
         }
         Some(values)
     }
@@ -632,7 +805,7 @@ impl<'a> ModuleProcedures<'a> {
     /// count bounds.
     pub(crate) fn rerun(
         &self,
-        callee: &str,
+        callee: &crate::ir::ProcedureId,
         (params, places): RerunSeeds<'_>,
         stance: RerunStance<'_>,
     ) -> Option<Rc<Rerun>> {
@@ -668,11 +841,11 @@ impl<'a> ModuleProcedures<'a> {
     /// [`Self::rerun`]'s run, uncached.
     fn solve_rerun(
         &self,
-        callee: &str,
+        callee: &crate::ir::ProcedureId,
         (params, places): RerunSeeds<'_>,
         stance: RerunStance<'_>,
     ) -> Option<Rerun> {
-        let declared = self.procedures.get(callee)?;
+        let declared = self.source.as_ref()?.procedure(callee)?;
         let links = self.links(callee)?;
         let (cfg, ssa) = self.flow_of(callee)?;
         let mut seed: HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue> =
@@ -698,6 +871,27 @@ impl<'a> ModuleProcedures<'a> {
         let owned: HashSet<String> = entries.keys().cloned().collect();
         let caller_places = CallerPlaces { entries };
         let trace = self.trace;
+        let source_metadata_input = self.source_metadata_input_for(callee);
+        if source_metadata_input.is_none() && !cfg.metadata_context.is_standalone() {
+            return None;
+        }
+        let config = self.units.and_then(|units| units.get(callee)).map_or(
+            self.config,
+            crate::compilation_unit::FunctionUnit::source_lexer_config,
+        );
+        let callee_folds = BuiltinFoldInputs {
+            source_metadata_input,
+            dialect: source_metadata_input
+                .map(crate::analyser::ResolvedAnalysisInput::unit_profile)
+                .or_else(|| {
+                    cfg.metadata_context
+                        .is_standalone()
+                        .then_some(stance.folds.dialect)
+                        .flatten()
+                }),
+            proven_pure_parameters: false,
+            ..stance.folds
+        };
         let result = crate::sccp::sccp_in_module(&SolveInputs {
             cfg,
             ssa: &ssa,
@@ -705,26 +899,26 @@ impl<'a> ModuleProcedures<'a> {
             policy: stance.policy,
             extra_escaping: &HashSet::new(),
             trace: TraceInputs {
+                source_metadata_input,
                 registry: self.registry,
                 traced_variables: trace.traced_variables,
                 has_dynamic_variable_trace: trace.has_dynamic_variable_trace,
                 deferred_writes: trace.deferred_writes,
                 analysis_context: self.analysis_context,
                 existence: Some(ExistenceEntry {
+                    initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                     params: &declared.params,
                     object_state: None,
                     initial_global: false,
                     connection_scoped: None,
                     dynamic_trace: trace.has_dynamic_variable_trace || trace.deferred_writes.any,
-                    config: self.config,
+                    config,
                     caller_places: Some(&caller_places),
                 }),
             },
-            folds: Some(BuiltinFoldInputs {
-                proven_pure_parameters: false,
-                ..stance.folds
-            }),
+            folds: Some(callee_folds),
             module: ModuleRun {
+                analysis_body: Some(Some(*callee)),
                 procedures: Some(self),
                 owned: Some(&owned),
                 level: ModuleLevel::Results,
@@ -740,13 +934,14 @@ impl<'a> ModuleProcedures<'a> {
             });
         let reading = super::ExitReading {
             policy: stance.policy,
-            grammar: stance
-                .folds
-                .dialect
-                .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
-                    profile.grammar
-                }),
-            folds: stance.folds,
+            grammar: config.grammar_over(
+                callee_folds
+                    .dialect
+                    .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
+                        profile.grammar
+                    }),
+            ),
+            folds: callee_folds,
             module: Some((self, callee)),
         };
         Some(Rerun {
@@ -763,10 +958,62 @@ impl<'a> ModuleProcedures<'a> {
         })
     }
 
+    /// Retained source Module; callers still own their declaration/input joins.
+    pub(crate) const fn original_source_module(&self) -> &'a crate::ir::Module {
+        self.ir
+    }
+
+    /// Reborrow this function's complete input only under the same Module owner.
+    pub(crate) fn invocation_metadata_context_for_function<'f>(
+        &self,
+        function: &'f crate::compilation_unit::FunctionUnit,
+        registry: &CommandRegistry,
+    ) -> Option<crate::registry_invocation::InvocationMetadataContext<'f>> {
+        function.invocation_metadata_context_for_module(registry, self.ir)
+    }
+
+    /// Metadata for an exact original function point under this Module owner.
+    /// Availability, whole source and original vector correspondence remain
+    /// distinct from a successful command or physical variable operation.
+    pub(crate) fn original_invocation_metadata_for_function<'f>(
+        &self,
+        function: &crate::compilation_unit::FunctionUnit,
+        tokens: &'f crate::ir::CommandTokens,
+        registry: &CommandRegistry,
+    ) -> Option<crate::registry_invocation::InvocationMetadataContext<'f>> {
+        self.invocation_metadata_context_for_function(function, registry)?;
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_module(tokens, self.ir, registry)
+    }
+
+    /// A built callee keeps its own source input. Its missing input is not
+    /// repaired from a sibling module record; fresh CFGs use the actual module.
+    fn source_metadata_input_for(
+        &self,
+        callee: &crate::ir::ProcedureId,
+    ) -> Option<&'a crate::analyser::ResolvedAnalysisInput> {
+        match self.units {
+            Some(units) => units
+                .get(callee)?
+                .invocation_metadata_context_for_module(self.registry, self.ir)?
+                .source_analysis_input(),
+            None => crate::registry_invocation::InvocationMetadataContext::for_module(
+                self.registry,
+                self.ir,
+            )?
+            .source_analysis_input(),
+        }
+    }
+
     /// `callee`'s flow graph and SSA: the built unit's where there is one,
     /// else the module's flow graph with its SSA built once. `None` for a
     /// body the complexity guard stops.
-    fn flow_of(&self, callee: &str) -> Option<(&'a CfgFunction, Rc<SsaFunction>)> {
+    fn flow_of(
+        &self,
+        callee: &crate::ir::ProcedureId,
+    ) -> Option<(&'a CfgFunction, Rc<SsaFunction>)> {
         let declared = self.procedures.get(callee)?;
         let unit = self.units.and_then(|units| units.get(callee));
         let cfg = match unit {
@@ -785,11 +1032,17 @@ impl<'a> ModuleProcedures<'a> {
             .or_insert_with(|| {
                 Rc::new(unit.map_or_else(
                     || {
-                        crate::ssa::build_ssa_for_entry(
+                        crate::ssa::build_ssa_with_context_for_entry_and_metadata(
                             cfg,
                             self.registry,
                             self.config,
+                            crate::compilation_unit::function_source_entry(cfg, None),
                             Some(&declared.params),
+                            crate::registry_invocation::InvocationMetadataContext::for_module(
+                                self.registry,
+                                self.ir,
+                            ),
+                            cfg.metadata_context.is_standalone(),
                         )
                     },
                     |unit| unit.ssa.clone(),
@@ -801,54 +1054,39 @@ impl<'a> ModuleProcedures<'a> {
 
     /// `callee`'s formal parameters, each with the default Tcl binds an
     /// omitted argument to.
-    fn formals(&self, callee: &str) -> Option<Vec<crate::signature_scan::types::ParamDef>> {
-        let declared = self.procedures.get(callee)?;
-        let formals = crate::signature_scan::params::parse_param_list_strict(
-            &declared.params_raw,
-            self.word_rules,
-        )
-        .ok()?;
-        Some(
-            formals
-                .into_iter()
-                .map(|formal| crate::signature_scan::types::ParamDef {
-                    name: formal.name,
-                    has_default: formal.default.is_some(),
-                    default_value: formal.default,
-                })
-                .collect(),
-        )
+    fn formals(
+        &self,
+        callee: &crate::ir::ProcedureId,
+    ) -> Option<(Vec<FormalParameter>, tcl_dialect::ParameterGrammar)> {
+        let declared = self.source.as_ref()?.procedure(callee)?;
+        crate::registry_invocation::original_procedure_parameters(self.ir, declared, self.registry)
     }
 
     /// Compute every procedure's summary, callees before callers.
     fn summarise(&self, inputs: &ModuleInputs<'_>, rounds: RecursionLimit) {
         // A module that may rebind a builtin may turn a typed statement into
         // a call this scan cannot see.
-        if inputs.mutations.rebinds_builtins() {
+        if self.source.is_none() || inputs.mutations.rebinds_builtins() {
             return;
         }
-        let mut names: Vec<&str> = inputs.cfg.procedures.keys().map(String::as_str).collect();
+        let mut names: Vec<crate::ir::ProcedureId> = inputs.ir.procedures.keys().copied().collect();
         names.sort_unstable();
-        let mut calls: HashMap<&str, BTreeSet<String>> = names
+        let mut calls: HashMap<crate::ir::ProcedureId, BTreeSet<crate::ir::ProcedureId>> = names
             .iter()
-            .filter_map(|&qname| Some((qname, self.local_calls(qname, inputs)?)))
+            .filter_map(|&qname| Some((qname, self.local_calls(&qname, inputs)?)))
             .collect();
         // A procedure that calls a barrier is one.
         loop {
-            let barred: Vec<&str> = calls
+            let barred: Vec<crate::ir::ProcedureId> = calls
                 .iter()
-                .filter(|(_, callees)| {
-                    callees
-                        .iter()
-                        .any(|callee| !calls.contains_key(callee.as_str()))
-                })
+                .filter(|(_, callees)| callees.iter().any(|callee| !calls.contains_key(callee)))
                 .map(|(&qname, _)| qname)
                 .collect();
             if barred.is_empty() {
                 break;
             }
             for qname in barred {
-                calls.remove(qname);
+                calls.remove(&qname);
             }
         }
         for component in components(&names, &calls) {
@@ -860,18 +1098,30 @@ impl<'a> ModuleProcedures<'a> {
     /// commands their words substitute and its terminators' words; `None`
     /// when it reaches code or a frame the module cannot see, names a
     /// variable it computes, or is too large to analyse.
-    fn local_calls(&self, qname: &str, inputs: &ModuleInputs<'_>) -> Option<BTreeSet<String>> {
+    fn local_calls(
+        &self,
+        qname: &crate::ir::ProcedureId,
+        inputs: &ModuleInputs<'_>,
+    ) -> Option<BTreeSet<crate::ir::ProcedureId>> {
         let cfg = inputs.cfg.procedures.get(qname)?;
-        let declared = inputs.ir.procedures.get(qname)?;
+        let source = self.source.as_ref()?;
+        let declared = source.procedure(qname)?;
+        // Count/formal syntax is not an activation. This conditional scalar
+        // model also needs the existing selected binder's local scalar closure.
+        crate::registry_invocation::original_procedure_scalar_bindings(
+            self.ir,
+            declared,
+            self.registry,
+        )?;
         let body_bytes = declared.span.end().saturating_sub(declared.span.start()) as usize;
         if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES
             || crate::ssa::is_complexity_guarded(cfg)
-            || inputs
-                .frames
+            || self
+                .frame_facts
                 .get(qname)
                 .is_some_and(|frame| !frame_is_closed(frame, &declared.params))
-            || inputs
-                .outer_writes
+            || self
+                .outer_facts
                 .get(qname)
                 .is_some_and(|writes| writes.opaque_global_frame)
         {
@@ -882,48 +1132,56 @@ impl<'a> ModuleProcedures<'a> {
         if computed.writes || computed.destroys {
             return None;
         }
-        let surface = tcl_registry::model::DocumentCommandSurface::new(inputs.registry, None);
         let mut callees = BTreeSet::new();
-        let mut blocks: Vec<_> = cfg.blocks.iter().collect();
-        blocks.sort_unstable_by_key(|(id, _)| **id);
-        for (_, block) in blocks {
+        for block in cfg.blocks.values() {
             for statement in &block.statements {
-                self.statement_calls(statement, qname, inputs, &mut callees)?;
-            }
-            let lifted = match &block.terminator {
-                Some(Terminator::Return {
-                    value_word, expr, ..
-                }) => {
-                    let mut lifted = crate::word_subst::lifted_calls_in_word(
-                        value_word.as_ref(),
-                        inputs.config,
-                        &surface,
-                    );
-                    if let Some(expr) = expr {
-                        lifted.extend(crate::word_subst::lifted_calls_in_expr(
-                            expr,
-                            None,
-                            inputs.config,
-                            &surface,
-                        ));
+                match statement {
+                    Statement::Call { tokens, .. }
+                        if tokens
+                            .as_ref()
+                            .and_then(|tokens| tokens.synthetic)
+                            .is_some() =>
+                    {
+                        if matches!(
+                            statement.synthetic_marker(),
+                            Some(
+                                SyntheticMarker::UnseenCall
+                                    | SyntheticMarker::GlobalFrameScript
+                                    | SyntheticMarker::CallerFrameOpaque
+                                    | SyntheticMarker::ArmWrites
+                            )
+                        ) {
+                            return None;
+                        }
                     }
-                    lifted
+                    Statement::Call { .. }
+                    | Statement::AssignConst { .. }
+                    | Statement::AssignExpr { .. }
+                    | Statement::AssignValue { .. }
+                    | Statement::Incr { .. }
+                    | Statement::ExprEval { .. }
+                    | Statement::Return { .. } => {
+                        let original = source.statement_tokens(Some(*qname), statement)?;
+                        if crate::ir_helpers::evaluated_command_substitutions_with_metadata_context(
+                            statement,
+                            self.registry,
+                            Some(source.metadata(&original)?),
+                            self.config,
+                        )
+                        .opaque
+                        {
+                            return None;
+                        }
+                    }
+                    _ => return None,
                 }
-                Some(Terminator::Branch {
-                    condition,
-                    condition_base,
-                    ..
-                }) => crate::word_subst::lifted_calls_in_expr(
-                    condition,
-                    *condition_base,
-                    inputs.config,
-                    &surface,
-                ),
-                Some(Terminator::Goto { .. }) | None => Vec::new(),
-            };
-            for call in lifted {
-                self.callee(&call.command, qname, inputs, &mut callees)?;
             }
+        }
+        for tokens in source.body_commands(qname)? {
+            if aliases_unnamed_place(&tokens, source)? {
+                return None;
+            }
+            self.callee_at(&tokens, &mut callees)?;
         }
         self.outer_arguments(qname, inputs)?;
         Some(callees)
@@ -936,69 +1194,38 @@ impl<'a> ModuleProcedures<'a> {
     /// procedure has no summary.
     fn outer_arguments(
         &self,
-        qname: &str,
+        qname: &crate::ir::ProcedureId,
         inputs: &ModuleInputs<'_>,
     ) -> Option<Vec<OuterArgument>> {
         let cfg = inputs.cfg.procedures.get(qname)?;
-        let (namespace, _) = tcl_syntax::naming::key_holder_and_tail(qname);
-        let linked = linked_locals(cfg, namespace, inputs.registry);
+        let source = self.source.as_ref()?;
+        let linked = linked_locals(cfg, qname, source)?;
         let mut found = Vec::new();
         let mut blocks: Vec<_> = cfg.blocks.iter().collect();
         blocks.sort_unstable_by_key(|(id, _)| **id);
         for (&id, block) in blocks {
             for (index, statement) in block.statements.iter().enumerate() {
-                if let Statement::Call {
-                    command,
-                    args,
-                    tokens,
-                    foreach_groups: None,
-                    ..
-                } = statement
-                    && tokens
-                        .as_ref()
-                        .is_none_or(|tokens| tokens.synthetic.is_none())
-                    && let Some(words) = crate::value_transfer::call_literal_words(
-                        args,
-                        tokens.as_ref(),
-                        &inputs.config,
-                    )
-                {
-                    let site = (id == cfg.entry).then_some((id, index));
-                    let call = OuterCall {
-                        head: command,
-                        words: &words,
-                        site,
-                    };
-                    self.outer_call_arguments(
-                        qname,
-                        call,
-                        (&linked, namespace),
-                        inputs,
-                        &mut found,
-                    )?;
+                if statement.synthetic_marker().is_some() {
+                    continue;
                 }
-                let nested =
-                    crate::ir_helpers::evaluated_command_substitutions(statement, inputs.registry);
-                for words in nested.all_commands() {
-                    let Some((head, rest)) = words.split_first() else {
-                        continue;
-                    };
-                    if head.substituted || head.expanded || rest.iter().any(|word| word.expanded) {
-                        continue;
-                    }
-                    let words: Vec<Option<String>> = rest
-                        .iter()
-                        .map(|word| (!word.substituted).then(|| word.text.clone()))
-                        .collect();
-                    let call = OuterCall {
-                        head: &head.text,
-                        words: &words,
-                        site: None,
-                    };
+                let parent = source.statement_tokens(Some(*qname), statement)?;
+                let site = (id == cfg.entry).then_some((id, index));
+                self.outer_call_arguments(
+                    OuterCall {
+                        tokens: &parent,
+                        site,
+                    },
+                    &linked,
+                    inputs,
+                    &mut found,
+                )?;
+                for child in source.children(&parent)? {
                     self.outer_call_arguments(
-                        qname,
-                        call,
-                        (&linked, namespace),
+                        OuterCall {
+                            tokens: &child,
+                            site: None,
+                        },
+                        &linked,
                         inputs,
                         &mut found,
                     )?;
@@ -1008,52 +1235,86 @@ impl<'a> ModuleProcedures<'a> {
         Some(found)
     }
 
-    /// [`Self::outer_arguments`] for one call `qname` makes.
+    /// [`Self::outer_arguments`] for one genuine original call.
     fn outer_call_arguments(
         &self,
-        qname: &str,
         call: OuterCall<'_>,
-        (linked, namespace): (&HashMap<String, LinkedLocal>, &str),
+        linked: &HashMap<tcl_core_types::NameBytes, LinkedLocal>,
         inputs: &ModuleInputs<'_>,
         found: &mut Vec<OuterArgument>,
     ) -> Option<()> {
-        let Some(callee) = self.resolve_any(call.head, qname) else {
+        let source = self.source.as_ref()?;
+        let Some(selected) = source.procedure_call(call.tokens) else {
+            source.operation(call.tokens)?;
             return Some(());
         };
-        let Some(declared) = inputs.ir.procedures.get(&callee) else {
+        let callee = &selected.id;
+        let declared = source.procedure(callee)?;
+        let words = selected.literal_arguments(inputs.ir)?;
+        let (formals, grammar) = self.formals(callee)?;
+        let shape = tcl_syntax::formal_params::formal_argument_count_shape(
+            formals
+                .iter()
+                .map(|formal| (formal.name == "args", formal.default.is_some())),
+            grammar,
+        );
+        if !shape.accepts(words.len()) {
             return Some(());
-        };
-        let formals = self.formals(&callee);
-        for (param, _) in links_of(declared, inputs) {
-            let word = match call.words.get(param) {
-                Some(Some(word)) => word.as_str(),
-                // A substituted `Name` argument is the flow graph's barrier.
-                Some(None) => continue,
-                None => match formals
-                    .as_ref()
-                    .and_then(|formals| formals.get(param))
-                    .and_then(|formal| formal.default_value.as_deref())
-                {
-                    Some(default) => default,
-                    // Omitted with no default, the call raises.
-                    None => continue,
-                },
+        }
+        let bindings =
+            tcl_syntax::formal_params::bind_formal_arguments(&formals, words.len(), grammar)
+                .ok()?;
+        for (param, local) in links_of(callee, declared, &self.frame_facts) {
+            let binding = bindings.iter().find(|binding| match binding {
+                FormalArgumentBinding::Value { parameter, .. }
+                | FormalArgumentBinding::Default { parameter }
+                | FormalArgumentBinding::Rest { parameter, .. }
+                | FormalArgumentBinding::CallerLink { parameter, .. } => *parameter == param,
+            })?;
+            let argument = match binding {
+                FormalArgumentBinding::Value { argument, .. } => {
+                    if words.get(*argument)?.is_none() {
+                        continue;
+                    }
+                    selected.arguments.written_argument(*argument)?
+                }
+                // Defaults need their own retained formal-value source owner.
+                FormalArgumentBinding::Default { .. }
+                | FormalArgumentBinding::Rest { .. }
+                | FormalArgumentBinding::CallerLink { .. } => return None,
             };
-            let (places, unconditional) = if word.contains("::") {
-                (outer_places(word, namespace), call.site.is_some())
-            } else {
-                match linked.get(word) {
+            let (cfg, ssa) = self.flow_of(callee)?;
+            if !linked_cleanly(cfg, &ssa, &local, &formals.get(param)?.name, callee, source) {
+                return None;
+            }
+            let mut receiver = None;
+            for statement in &cfg.blocks.get(&cfg.entry)?.statements {
+                if links_local(statement, &local, callee, source)? {
+                    let original = source.statement_tokens(Some(*callee), statement)?;
+                    let selected = source.alias_receiver_for_local(&original, &local)?;
+                    if receiver.replace(selected).is_some() {
+                        return None;
+                    }
+                }
+            }
+            let place = source.argument_source_place(call.tokens, argument, receiver?)?;
+            let (places, unconditional) = match place.symbol().slot() {
+                SignatureSourceVariableSlot::Local { simple, .. } => match linked.get(simple) {
                     None | Some(LinkedLocal::Caller) => continue,
                     Some(LinkedLocal::Unnameable) => return None,
                     Some(LinkedLocal::Outer(place, link)) => (
                         vec![place.clone()],
-                        call.site
-                            .is_some_and(|(block, index)| link.0 == block && link.1 < index),
+                        call.site.is_some_and(|(block, index)| {
+                            link.is_some_and(|link| link.0 == block && link.1 < index)
+                        }),
                     ),
+                },
+                SignatureSourceVariableSlot::C { .. } | SignatureSourceVariableSlot::Jim(_) => {
+                    (vec![place], call.site.is_some())
                 }
             };
             found.push(OuterArgument {
-                callee: callee.clone(),
+                callee: *callee,
                 param,
                 places,
                 unconditional,
@@ -1062,110 +1323,37 @@ impl<'a> ModuleProcedures<'a> {
         Some(())
     }
 
-    /// Record the procedures of the module one statement calls; `None` for
-    /// a statement that runs code or reaches a frame the module cannot see.
-    fn statement_calls(
+    /// Classify only original selected source operations and original
+    /// procedure allocations. Catalogue assistance cannot close this graph.
+    fn callee_at(
         &self,
-        statement: &Statement,
-        qname: &str,
-        inputs: &ModuleInputs<'_>,
-        callees: &mut BTreeSet<String>,
+        tokens: &CommandTokens,
+        callees: &mut BTreeSet<crate::ir::ProcedureId>,
     ) -> Option<()> {
-        match statement {
-            Statement::Call {
-                tokens, command, ..
-            } => match tokens.as_ref().and_then(|t| t.synthetic) {
-                Some(
-                    SyntheticMarker::UnseenCall
-                    | SyntheticMarker::GlobalFrameScript
-                    | SyntheticMarker::CallerFrameOpaque
-                    | SyntheticMarker::ArmWrites,
-                ) => return None,
-                Some(_) => {}
-                None => {
-                    if aliases_unnamed_place(statement, inputs.registry) {
-                        return None;
-                    }
-                    let head = if self.resolve_any(command, qname).is_some() {
-                        command.as_str()
-                    } else {
-                        statement.canonical_command_or_source()
-                    };
-                    self.callee(head, qname, inputs, callees)?;
-                }
-            },
-            Statement::AssignConst { .. }
-            | Statement::AssignExpr { .. }
-            | Statement::AssignValue { .. }
-            | Statement::Incr { .. }
-            | Statement::ExprEval { .. }
-            | Statement::Return { .. } => {}
-            _ => return None,
-        }
-        let nested = crate::ir_helpers::evaluated_command_substitutions(statement, inputs.registry);
-        if nested.opaque {
-            return None;
-        }
-        for words in nested.all_commands() {
-            let head = words.first()?;
-            if head.substituted || head.expanded {
-                return None;
-            }
-            self.callee(&head.text, qname, inputs, callees)?;
-        }
-        Some(())
-    }
-
-    /// The procedure of the module `head` spells from `function`, whatever
-    /// its binding.
-    fn resolve_any(&self, head: &str, function: &str) -> Option<String> {
-        super::resolve_internal_call_with(head, function, |qname| {
-            self.procedures.contains_key(qname)
-        })
-    }
-
-    /// Classify one command head `function` runs: a procedure of the module
-    /// whose binding stands is a callee, a command the registry knows is no
-    /// callee, and anything else is a barrier. A registry command can still
-    /// run a script of the module's — `eval`, `uplevel`, `apply`, `after`,
-    /// `namespace eval` — and the summary stays right for it by other facts:
-    /// a script that reaches the caller's frame leaves the frame open
-    /// ([`frame_is_closed`]), a script word the scan cannot read is opaque
-    /// (`evaluated_command_substitutions(...).opaque`), and a local such a
-    /// script writes is one the lattice takes as written by unseen code.
-    fn callee(
-        &self,
-        head: &str,
-        function: &str,
-        inputs: &ModuleInputs<'_>,
-        callees: &mut BTreeSet<String>,
-    ) -> Option<()> {
-        if head.is_empty() || head.contains(['$', '[']) {
-            return None;
-        }
-        if self.resolve_any(head, function).is_some() {
-            callees.insert(self.resolve(head, function, FoldTrust::ObservedBindings)?);
+        let source = self.source.as_ref()?;
+        if source.procedure_call(tokens).is_some() {
+            callees.insert(
+                self.resolve_call_at(tokens, FoldTrust::ObservedBindings)?
+                    .id,
+            );
             return Some(());
         }
-        inputs
-            .registry
-            .get(head.strip_prefix("::").unwrap_or(head))
-            .map(|_| ())
+        source.operation(tokens).map(|_| ())
     }
 
     /// Summarise one strongly connected set of procedures, whose callees
     /// outside it are summarised already.
     fn summarise_component(
         &self,
-        component: &[&str],
-        calls: &HashMap<&str, BTreeSet<String>>,
+        component: &[crate::ir::ProcedureId],
+        calls: &HashMap<crate::ir::ProcedureId, BTreeSet<crate::ir::ProcedureId>>,
         inputs: &ModuleInputs<'_>,
         rounds: RecursionLimit,
     ) {
         let recursive = component.len() > 1
             || component
                 .first()
-                .is_some_and(|qname| calls[qname].contains(*qname));
+                .is_some_and(|qname| calls[qname].contains(qname));
         let mut roles: Vec<Option<Vec<ParamRole>>> = vec![None; component.len()];
         let mut settled = !recursive;
         if recursive {
@@ -1195,37 +1383,61 @@ impl<'a> ModuleProcedures<'a> {
                 }
             }
             for qname in component {
-                self.provisional.borrow_mut().remove(*qname);
+                self.provisional.borrow_mut().remove(qname);
             }
         } else if let Some(qname) = component.first() {
             roles[0] = self.roles(qname, inputs);
         }
-        let outer = self.component_outer_writes(component, calls, inputs);
+        let Some(outer) = self.component_outer_writes(component, calls, inputs) else {
+            return;
+        };
+        let Some(outer_report) = outer
+            .iter()
+            .map(|(place, outcome)| {
+                Some((
+                    PlaceRef::scalar(place.symbol().checked_c_namespace_key()?),
+                    *outcome,
+                ))
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            return;
+        };
         for (index, qname) in component.iter().enumerate() {
-            let Some(declared) = inputs.ir.procedures.get(*qname) else {
+            let Some(declared) = inputs.ir.procedures.get(qname) else {
                 continue;
             };
             let (params, completion) = if !settled {
                 (
-                    linked_roles(declared, inputs, &ANY_OUTCOME),
+                    linked_roles(qname, declared, inputs, &self.frame_facts, &ANY_OUTCOME),
                     CompletionCodeDomain::Any,
                 )
             } else if let Some(roles) = roles[index].take() {
                 (roles, self.completion_of(calls, qname))
             } else {
                 (
-                    linked_roles(declared, inputs, &[ExistenceOutcome::Preserve]),
+                    linked_roles(
+                        qname,
+                        declared,
+                        inputs,
+                        &self.frame_facts,
+                        &[ExistenceOutcome::Preserve],
+                    ),
                     CompletionCodeDomain::Exact(ERROR_ONLY),
                 )
             };
+            let Some(effects) = self.effects_of(qname, calls, inputs) else {
+                continue;
+            };
             let summary = TransferSummary {
                 params,
-                globals: outer.clone(),
+                globals: outer_report.clone(),
+                global_sources: outer.clone(),
                 result: ReturnKind::Other,
                 completion,
-                effects: self.effects_of(qname, calls, inputs),
+                effects,
                 evidence: self.evidence_of(qname, calls),
-                links: links_of(declared, inputs),
+                links: links_of(qname, declared, &self.frame_facts),
             };
             self.summaries
                 .borrow_mut()
@@ -1237,8 +1449,8 @@ impl<'a> ModuleProcedures<'a> {
     /// normal completion, once every callee completes so.
     fn completion_of(
         &self,
-        calls: &HashMap<&str, BTreeSet<String>>,
-        qname: &str,
+        calls: &HashMap<crate::ir::ProcedureId, BTreeSet<crate::ir::ProcedureId>>,
+        qname: &crate::ir::ProcedureId,
     ) -> CompletionCodeDomain {
         let summaries = self.summaries.borrow();
         let exact = calls[qname].iter().all(|callee| {
@@ -1258,22 +1470,21 @@ impl<'a> ModuleProcedures<'a> {
     /// its callees' summarised effects.
     fn effects_of(
         &self,
-        qname: &str,
-        calls: &HashMap<&str, BTreeSet<String>>,
-        inputs: &ModuleInputs<'_>,
-    ) -> EffectFootprint {
+        qname: &crate::ir::ProcedureId,
+        calls: &HashMap<crate::ir::ProcedureId, BTreeSet<crate::ir::ProcedureId>>,
+        _inputs: &ModuleInputs<'_>,
+    ) -> Option<EffectFootprint> {
+        let source = self.source.as_ref()?;
         let mut effects = EffectFootprint::default();
-        if let Some(cfg) = inputs.cfg.procedures.get(qname) {
-            let mut blocks: Vec<_> = cfg.blocks.iter().collect();
-            blocks.sort_unstable_by_key(|(id, _)| **id);
-            for (_, block) in blocks {
-                for statement in &block.statements {
-                    if let Some(facts) =
-                        crate::var_escape::helpers::invocation_facts(statement, inputs.registry)
-                    {
-                        effects.extend(facts.world_state_effects().clone());
-                    }
-                }
+        for tokens in source.body_commands(qname)? {
+            if source.procedure_call(&tokens).is_none() {
+                effects.extend(
+                    source
+                        .operation(&tokens)?
+                        .facts
+                        .world_state_effects()
+                        .clone(),
+                );
             }
         }
         let summaries = self.summaries.borrow();
@@ -1282,20 +1493,22 @@ impl<'a> ModuleProcedures<'a> {
                 effects.extend(summary.effects.clone());
             }
         }
-        effects
+        Some(effects)
     }
 
     /// The bindings `qname`'s summary rests on: each procedure it calls,
     /// and what each of their summaries rests on.
     fn evidence_of(
         &self,
-        qname: &str,
-        calls: &HashMap<&str, BTreeSet<String>>,
+        qname: &crate::ir::ProcedureId,
+        calls: &HashMap<crate::ir::ProcedureId, BTreeSet<crate::ir::ProcedureId>>,
     ) -> DependencyEvidence {
         let summaries = self.summaries.borrow();
         let mut bindings: Vec<BindingIdentity> = Vec::new();
         for callee in &calls[qname] {
-            bindings.push(procedure_binding(callee));
+            if let Some(procedure) = self.procedures.get(callee) {
+                bindings.push(procedure_binding(&procedure.qualified_name));
+            }
             if let Some(summary) = summaries.get(callee) {
                 bindings.extend(summary.evidence.bindings.iter().cloned());
             }
@@ -1318,37 +1531,36 @@ impl<'a> ModuleProcedures<'a> {
     /// the set runs destroys a variable or a callee may unbind such a place.
     fn component_outer_writes(
         &self,
-        component: &[&str],
-        calls: &HashMap<&str, BTreeSet<String>>,
+        component: &[crate::ir::ProcedureId],
+        calls: &HashMap<crate::ir::ProcedureId, BTreeSet<crate::ir::ProcedureId>>,
         inputs: &ModuleInputs<'_>,
-    ) -> Vec<(PlaceRef, ExistenceOutcome)> {
-        let mut names: BTreeSet<String> = BTreeSet::new();
-        let mut precise: Vec<(String, Vec<ExistenceOutcome>)> = Vec::new();
+    ) -> Option<Vec<(OuterSourcePlace, ExistenceOutcome)>> {
+        let mut names: Vec<OuterSourcePlace> = Vec::new();
+        let mut precise: Vec<(OuterSourcePlace, Vec<ExistenceOutcome>)> = Vec::new();
         let mut destroys = false;
         let summaries = self.summaries.borrow();
+        let source = self.source.as_ref()?;
         for qname in component {
-            if let Some(writes) = inputs.outer_writes.get(*qname) {
-                let (namespace, _) = tcl_syntax::naming::key_holder_and_tail(qname);
-                for name in &writes.names {
-                    names.extend(outer_places(name, namespace));
-                }
+            for place in self.outer_facts.get(qname)?.original_source_writes()? {
+                insert_outer_source(&mut names, place.clone());
             }
-            destroys |= inputs
-                .cfg
-                .procedures
-                .get(*qname)
-                .is_some_and(|cfg| destroys_a_variable(cfg, inputs.registry));
+            destroys |= destroys_a_variable(source, qname)?;
             for callee in &calls[qname] {
                 let Some(summary) = summaries.get(callee) else {
-                    continue;
+                    if component.contains(callee) {
+                        continue;
+                    }
+                    return None;
                 };
                 destroys |= summary
-                    .globals
+                    .global_sources
                     .iter()
                     .any(|(_, outcome)| *outcome == ExistenceOutcome::Unbind);
-                names.extend(summary.globals.iter().map(|(place, _)| place.name.clone()));
+                for (place, _) in &summary.global_sources {
+                    insert_outer_source(&mut names, place.clone());
+                }
             }
-            for argument in self.outer_arguments(qname, inputs).unwrap_or_default() {
+            for argument in self.outer_arguments(qname, inputs)? {
                 let outcomes = summaries.get(&argument.callee).and_then(|summary| {
                     match summary.params.get(argument.param) {
                         Some(ParamRole::Name { outcomes, .. }) => Some(outcomes.clone()),
@@ -1360,11 +1572,11 @@ impl<'a> ModuleProcedures<'a> {
                         precise.push((place.clone(), outcomes));
                     }
                     (_, _, outcomes) => {
-                        // A callee that may unbind the place destroys a
-                        // variable the set may write.
                         destroys |= outcomes
                             .is_none_or(|outcomes| outcomes.contains(&ExistenceOutcome::Unbind));
-                        names.extend(argument.places);
+                        for place in argument.places {
+                            insert_outer_source(&mut names, place);
+                        }
                     }
                 }
             }
@@ -1372,55 +1584,59 @@ impl<'a> ModuleProcedures<'a> {
         let shared: Vec<bool> = precise
             .iter()
             .map(|(place, _)| {
-                names.contains(place)
-                    || precise.iter().filter(|(other, _)| other == place).count() > 1
+                names.iter().any(|other| other.symbol() == place.symbol())
+                    || precise
+                        .iter()
+                        .filter(|(other, _)| other.symbol() == place.symbol())
+                        .count()
+                        > 1
             })
             .collect();
         destroys |= precise
             .iter()
             .zip(&shared)
             .any(|((_, outcomes), &shared)| shared && outcomes.contains(&ExistenceOutcome::Unbind));
-        let mut places: BTreeMap<String, Vec<ExistenceOutcome>> = BTreeMap::new();
+        let mut places = Vec::new();
         for ((place, outcomes), shared) in precise.into_iter().zip(shared) {
             if destroys || shared {
-                names.insert(place);
+                insert_outer_source(&mut names, place);
             } else {
-                places.insert(place, outcomes);
+                places.extend(outcomes.into_iter().map(|outcome| (place.clone(), outcome)));
             }
         }
-        for name in names {
-            let mut outcomes = Vec::new();
+        for place in names {
             if destroys {
-                outcomes.push(ExistenceOutcome::Unbind);
+                places.push((place.clone(), ExistenceOutcome::Unbind));
             }
-            outcomes.push(ExistenceOutcome::MayBind(BindingKind::Either));
-            places.insert(name, outcomes);
+            places.push((place, ExistenceOutcome::MayBind(BindingKind::Either)));
         }
-        places
-            .into_iter()
-            .flat_map(|(name, outcomes)| {
-                let place = PlaceRef::scalar(name);
-                outcomes
-                    .into_iter()
-                    .map(move |outcome| (place.clone(), outcome))
-            })
-            .collect()
+        Some(places)
     }
 
     /// `qname`'s parameter roles under the summaries in hand: `None` when no
     /// normal exit of its body is reached.
-    fn roles(&self, qname: &str, inputs: &ModuleInputs<'_>) -> Option<Vec<ParamRole>> {
+    fn roles(
+        &self,
+        qname: &crate::ir::ProcedureId,
+        inputs: &ModuleInputs<'_>,
+    ) -> Option<Vec<ParamRole>> {
         let declared = inputs.ir.procedures.get(qname)?;
         let cfg = inputs.cfg.procedures.get(qname)?;
-        let links = links_of(declared, inputs);
+        let links = links_of(qname, declared, &self.frame_facts);
         if links.is_empty() {
-            return Some(value_roles(declared));
+            return Some(value_roles(qname, declared, inputs));
         }
-        let ssa = crate::ssa::build_ssa_for_entry(
+        let ssa = crate::ssa::build_ssa_with_context_for_entry_and_metadata(
             cfg,
             inputs.registry,
             inputs.config,
+            crate::compilation_unit::function_source_entry(cfg, None),
             Some(&declared.params),
+            crate::registry_invocation::InvocationMetadataContext::for_module(
+                inputs.registry,
+                inputs.ir,
+            ),
+            cfg.metadata_context.is_standalone(),
         );
         let owned: HashSet<String> = links.iter().map(|(_, local)| local.clone()).collect();
         let runs = [Existence::Bound(BindingKind::Either), Existence::Unbound]
@@ -1445,10 +1661,11 @@ impl<'a> ModuleProcedures<'a> {
             .iter()
             .flat_map(|run| run.executable_blocks.iter().copied())
             .collect();
-        let mut roles = value_roles(declared);
+        let mut roles = value_roles(qname, declared, inputs);
         for (slot, (index, local)) in links.iter().enumerate() {
             let param = &declared.params[*index];
-            let outcomes = if linked_cleanly(cfg, &ssa, local, param, inputs.registry) {
+            let outcomes = if linked_cleanly(cfg, &ssa, local, param, qname, self.source.as_ref()?)
+            {
                 let [bound, unbound] = facts
                     .each_ref()
                     .map(|facts| facts.as_ref().map(|facts| facts[slot]));
@@ -1468,13 +1685,17 @@ impl<'a> ModuleProcedures<'a> {
     /// its own and entering as `entry` says.
     fn summary_run(
         &self,
-        qname: &str,
+        qname: &crate::ir::ProcedureId,
         (cfg, ssa): (&CfgFunction, &SsaFunction),
         owned: &HashSet<String>,
         entry: Existence,
         inputs: &ModuleInputs<'_>,
     ) -> SccpResult {
-        let declared = &inputs.ir.procedures[qname];
+        let declared = inputs
+            .ir
+            .procedures
+            .get(qname)
+            .expect("the selected analytical summary retains an unambiguous declaration");
         let places = CallerPlaces::each(owned, entry);
         let trace = inputs.trace;
         crate::sccp::sccp_in_module(&SolveInputs {
@@ -1484,12 +1705,14 @@ impl<'a> ModuleProcedures<'a> {
             policy: crate::tcl_expr_eval::FoldPolicy::from_registry(inputs.registry),
             extra_escaping: &HashSet::new(),
             trace: TraceInputs {
+                source_metadata_input: inputs.ir.source_metadata_input.as_ref(),
                 registry: inputs.registry,
                 traced_variables: trace.traced_variables,
                 has_dynamic_variable_trace: trace.has_dynamic_variable_trace,
                 deferred_writes: trace.deferred_writes,
                 analysis_context: Some(inputs.analysis_context),
                 existence: Some(ExistenceEntry {
+                    initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                     params: &declared.params,
                     object_state: None,
                     initial_global: false,
@@ -1500,6 +1723,7 @@ impl<'a> ModuleProcedures<'a> {
                 }),
             },
             folds: Some(BuiltinFoldInputs {
+                source_metadata_input: inputs.ir.source_metadata_input.as_ref(),
                 registry: inputs.registry,
                 mutations: inputs.mutations,
                 dialect: None,
@@ -1509,6 +1733,7 @@ impl<'a> ModuleProcedures<'a> {
                 proven_pure_parameters: false,
             }),
             module: ModuleRun {
+                analysis_body: Some(Some(*qname)),
                 procedures: Some(self),
                 owned: Some(owned),
                 level: ModuleLevel::Outcomes,
@@ -1520,10 +1745,13 @@ impl<'a> ModuleProcedures<'a> {
 
 /// Each parameter of `declared` whose value names the place one frame up
 /// its body links a local to, by index, with that local.
-fn links_of(declared: &crate::ir::Procedure, inputs: &ModuleInputs<'_>) -> Vec<(usize, String)> {
-    let mut links: Vec<(usize, String)> = inputs
-        .frames
-        .get(&declared.qualified_name)
+fn links_of(
+    id: &crate::ir::ProcedureId,
+    declared: &crate::ir::Procedure,
+    frames: &HashMap<crate::ir::ProcedureId, UpvarInfo>,
+) -> Vec<(usize, String)> {
+    let mut links: Vec<(usize, String)> = frames
+        .get(id)
         .map(|frame| {
             frame
                 .param_targets
@@ -1544,13 +1772,13 @@ fn links_of(declared: &crate::ir::Procedure, inputs: &ModuleInputs<'_>) -> Vec<(
 /// procedure links to a namespace's variable.
 #[derive(Debug, Clone)]
 struct OuterArgument {
-    /// The callee, by qualified name.
-    callee: String,
+    /// The exact retained callee body.
+    callee: crate::ir::ProcedureId,
     /// The `Name` parameter's index.
     param: usize,
     /// The places the argument may name: one, or for a relative name its
     /// namespace's and the global namespace's.
-    places: Vec<String>,
+    places: Vec<OuterSourcePlace>,
     /// Whether every normal completion of the procedure makes the call with
     /// the argument naming that place: a statement of the entry block, after
     /// the one link the argument reads.
@@ -1562,8 +1790,7 @@ struct OuterArgument {
 /// `(block, index)` where it is a statement of the entry block.
 #[derive(Clone, Copy)]
 struct OuterCall<'c> {
-    head: &'c str,
-    words: &'c [Option<String>],
+    tokens: &'c CommandTokens,
     site: Option<(crate::cfg::BlockId, usize)>,
 }
 
@@ -1572,7 +1799,7 @@ struct OuterCall<'c> {
 enum LinkedLocal {
     /// A namespace's variable, by qualified name, linked by the statement at
     /// `(block, index)`.
-    Outer(String, (crate::cfg::BlockId, usize)),
+    Outer(OuterSourcePlace, Option<(crate::cfg::BlockId, usize)>),
     /// The place one frame up a `Name` parameter names, which the
     /// parameter's role states.
     Caller,
@@ -1585,108 +1812,101 @@ enum LinkedLocal {
 /// plans; a local linked twice, to two places, is unnameable.
 fn linked_locals(
     cfg: &CfgFunction,
-    namespace: &str,
-    registry: &CommandRegistry,
-) -> HashMap<String, LinkedLocal> {
+    qname: &crate::ir::ProcedureId,
+    source: &SourceSummaryContext<'_>,
+) -> Option<HashMap<tcl_core_types::NameBytes, LinkedLocal>> {
     use tcl_registry::{CallerFrameSelection, VariableAliasTarget};
-    let mut linked: HashMap<String, LinkedLocal> = HashMap::new();
-    let mut record = |local: &str, place: LinkedLocal| {
-        let local = crate::naming::normalise_var_name(local).to_owned();
-        let same = |held: &LinkedLocal| match (held, &place) {
-            (LinkedLocal::Outer(held, _), LinkedLocal::Outer(new, _)) => held == new,
-            (held, new) => held == new,
-        };
-        match linked.get(&local) {
-            Some(held) if same(held) => {}
-            Some(_) => {
-                linked.insert(local, LinkedLocal::Unnameable);
+    let mut linked = HashMap::new();
+    for tokens in source.body_commands(qname)? {
+        let mut sites = Vec::new();
+        for (&block, body) in &cfg.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                if statement.synthetic_marker().is_none()
+                    && source.statement_tokens(Some(*qname), statement).as_ref() == Some(&tokens)
+                {
+                    sites.push((block, index));
+                }
             }
-            None => {
+        }
+        let at = (sites.len() == 1).then(|| sites[0]);
+        let (aliases, dialect) = alias_facts(&tokens, source)?;
+        for alias in aliases {
+            let local = source.alias_local(&tokens, &alias)?;
+            let place = match &alias.target {
+                VariableAliasTarget::CallerSelectedFrame { frame, variable } => {
+                    let level = match frame {
+                        CallerFrameSelection::DefaultCaller => Some(FrameLevel::Relative(1)),
+                        CallerFrameSelection::Explicit(level) => {
+                            level.literal().and_then(|level| {
+                                dialect.and_then(|dialect| {
+                                    FrameLevel::parse_for_dialect(level, dialect)
+                                })
+                            })
+                        }
+                    };
+                    match (level, variable.literal()) {
+                        (Some(FrameLevel::Relative(1)), None) => LinkedLocal::Caller,
+                        (Some(FrameLevel::Absolute(0)), Some(_)) => source
+                            .alias_source_place(&tokens, &alias)
+                            .map_or(LinkedLocal::Unnameable, |place| {
+                                LinkedLocal::Outer(place, at)
+                            }),
+                        _ => LinkedLocal::Unnameable,
+                    }
+                }
+                _ => source
+                    .alias_source_place(&tokens, &alias)
+                    .map_or(LinkedLocal::Unnameable, |place| {
+                        LinkedLocal::Outer(place, at)
+                    }),
+            };
+            let same = linked.get(&local).is_some_and(|held| match (held, &place) {
+                (LinkedLocal::Outer(held, _), LinkedLocal::Outer(new, _)) => {
+                    held.symbol() == new.symbol()
+                }
+                (held, new) => held == new,
+            });
+            if !same {
+                let place = if linked.contains_key(&local) {
+                    LinkedLocal::Unnameable
+                } else {
+                    place
+                };
                 linked.insert(local, place);
             }
         }
-    };
-    let mut blocks: Vec<_> = cfg.blocks.iter().collect();
-    blocks.sort_unstable_by_key(|(id, _)| **id);
-    for (&id, block) in blocks {
-        for (index, statement) in block.statements.iter().enumerate() {
-            let at = (id, index);
-            for alias in alias_facts(statement, registry) {
-                let Some(local) = alias.local.literal() else {
-                    continue;
-                };
-                let place = match &alias.target {
-                    VariableAliasTarget::Global { variable } => variable
-                        .literal()
-                        .map_or(LinkedLocal::Unnameable, |variable| {
-                            LinkedLocal::Outer(in_namespace(variable, "::"), at)
-                        }),
-                    VariableAliasTarget::CurrentNamespace { variable } => variable
-                        .literal()
-                        .map_or(LinkedLocal::Unnameable, |variable| {
-                            LinkedLocal::Outer(in_namespace(variable, namespace), at)
-                        }),
-                    VariableAliasTarget::Namespace {
-                        namespace: named,
-                        variable,
-                    } => match (named.literal(), variable.literal()) {
-                        (Some(named), Some(variable)) if named.starts_with("::") => {
-                            LinkedLocal::Outer(in_namespace(variable, named), at)
-                        }
-                        _ => LinkedLocal::Unnameable,
-                    },
-                    VariableAliasTarget::CallerSelectedFrame { frame, variable } => {
-                        let level = match frame {
-                            CallerFrameSelection::DefaultCaller => Some(FrameLevel::Relative(1)),
-                            CallerFrameSelection::Explicit(level) => level
-                                .literal()
-                                .and_then(|level| FrameLevel::parse_in(level, registry)),
-                        };
-                        match (level, variable.literal()) {
-                            (Some(FrameLevel::Absolute(0)), Some(variable)) => {
-                                LinkedLocal::Outer(in_namespace(variable, "::"), at)
-                            }
-                            (Some(FrameLevel::Relative(1)), None) => LinkedLocal::Caller,
-                            _ => LinkedLocal::Unnameable,
-                        }
-                    }
-                };
-                record(local, place);
-            }
-            let Statement::Call { args, .. } = statement else {
-                continue;
-            };
-            let head = statement.canonical_command_or_source();
-            let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        if let Some(operation) = source.operation(&tokens) {
+            let metadata = source.metadata(&tokens)?;
+            let realm = tokens.source_binding.as_ref()?.invocation_realm()?;
+            let frame =
+                operation.with_metadata_schema(source.registry(), metadata, realm, |schema| {
+                    Some(schema.semantics.value.alias_frame())
+                })?;
             if matches!(
-                registry.alias_frame(head, &words, None),
+                frame,
                 Some(
                     tcl_registry::value_transfer::AliasFrame::Object
                         | tcl_registry::value_transfer::AliasFrame::Connection
                 )
             ) {
-                for index in
-                    registry.arg_indices_for_role(head, &words, tcl_registry::ArgRole::VarWrite)
+                // An object/connection local is not a source namespace coordinate.
+                if operation
+                    .facts
+                    .arg_roles
+                    .iter()
+                    .any(|(_, role)| *role == tcl_registry::ArgRole::VarWrite)
                 {
-                    if let Some(word) = args.get(index) {
-                        record(word, LinkedLocal::Unnameable);
-                    }
+                    return None;
                 }
             }
         }
     }
-    linked
+    Some(linked)
 }
 
-/// `variable`'s qualified name as a variable of `namespace` names it: an
-/// absolute name is itself, and a relative one is in `namespace`.
-fn in_namespace(variable: &str, namespace: &str) -> String {
-    if variable.starts_with("::") {
-        variable.to_owned()
-    } else if namespace.is_empty() || namespace == "::" {
-        format!("::{variable}")
-    } else {
-        format!("{namespace}::{variable}")
+fn insert_outer_source(places: &mut Vec<OuterSourcePlace>, place: OuterSourcePlace) {
+    if !places.iter().any(|other| other.symbol() == place.symbol()) {
+        places.push(place);
     }
 }
 
@@ -1796,55 +2016,53 @@ fn frame_is_closed(frame: &UpvarInfo, params: &[String]) -> bool {
         && frame.unnameable_local_aliases.is_empty()
 }
 
-/// The places an outer name a procedure in `namespace` writes may be: an
-/// absolute name is one place; a relative one is in the global namespace
-/// for a procedure there, and elsewhere either the procedure's namespace's
-/// (a `variable`) or the global one's (a `global`).
-fn outer_places(name: &str, namespace: &str) -> Vec<String> {
-    if name.starts_with("::") {
-        return vec![name.to_owned()];
-    }
-    let global = format!("::{name}");
-    if namespace.is_empty() || namespace == "::" {
-        vec![global]
-    } else {
-        vec![format!("{namespace}::{name}"), global]
-    }
-}
-
 /// Whether some statement of `cfg` may destroy a variable.
-fn destroys_a_variable(cfg: &CfgFunction, registry: &CommandRegistry) -> bool {
-    let surface = registry.own_surface_query();
-    cfg.blocks
-        .values()
-        .flat_map(|block| &block.statements)
-        .any(|statement| {
-            let Statement::Call { args, .. } = statement else {
-                return false;
-            };
-            let head = statement.canonical_command_or_source();
-            let texts: Vec<&str> = args.iter().map(String::as_str).collect();
-            registry
-                .invocation_traits(head, &texts, surface)
-                .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
-                || registry
-                    .resolve_call(head, &texts, surface)
-                    .is_some_and(|call| call.sub.is_some_and(|sub| sub.destructive))
-        })
+fn destroys_a_variable(
+    source: &SourceSummaryContext<'_>,
+    qname: &crate::ir::ProcedureId,
+) -> Option<bool> {
+    let mut destroys = false;
+    for tokens in source.body_commands(qname)? {
+        if source.procedure_call(&tokens).is_none() {
+            destroys |= source
+                .operation(&tokens)?
+                .facts
+                .traits
+                .contains(tcl_registry::Traits::DESTROYS_VARIABLE);
+        }
+    }
+    Some(destroys)
 }
 
-/// Each parameter's role as a value: unused when the body's text never
-/// mentions it, a value otherwise.
-fn value_roles(declared: &crate::ir::Procedure) -> Vec<ParamRole> {
+/// Parameter uses from the existing SSA owner under the complete retained
+/// metadata and lexer configuration. This is reached only after the source
+/// graph/frame/dynamic-name guards close the summary; a missing graph cannot
+/// establish that a parameter is unused.
+fn value_roles(
+    qname: &crate::ir::ProcedureId,
+    declared: &crate::ir::Procedure,
+    inputs: &ModuleInputs<'_>,
+) -> Vec<ParamRole> {
+    let Some(cfg) = inputs.cfg.procedures.get(qname) else {
+        return vec![ParamRole::Value; declared.params.len()];
+    };
+    let ssa = crate::ssa::build_ssa_with_context_for_entry_and_metadata(
+        cfg,
+        inputs.registry,
+        inputs.config,
+        crate::compilation_unit::function_source_entry(cfg, None),
+        Some(&declared.params),
+        crate::registry_invocation::InvocationMetadataContext::for_module(
+            inputs.registry,
+            inputs.ir,
+        ),
+        cfg.metadata_context.is_standalone(),
+    );
     declared
         .params
         .iter()
-        .map(|param| {
-            let mentioned = declared
-                .body_source
-                .as_deref()
-                .is_none_or(|body| mentions(body, param));
-            if mentioned {
+        .map(|parameter| {
+            if ssa.var_symbol(parameter).is_some() {
                 ParamRole::Value
             } else {
                 ParamRole::Unused
@@ -1857,16 +2075,17 @@ fn value_roles(declared: &crate::ir::Procedure) -> Vec<ParamRole> {
 /// the body applies `outcomes` to: the roles of a procedure that never
 /// completes normally, or of a cycle that did not settle.
 fn linked_roles(
+    qname: &crate::ir::ProcedureId,
     declared: &crate::ir::Procedure,
     inputs: &ModuleInputs<'_>,
+    frames: &HashMap<crate::ir::ProcedureId, UpvarInfo>,
     outcomes: &[ExistenceOutcome],
 ) -> Vec<ParamRole> {
-    let linked: HashSet<&str> = inputs
-        .frames
-        .get(&declared.qualified_name)
+    let linked: HashSet<&str> = frames
+        .get(qname)
         .map(|frame| frame.param_targets.values().map(String::as_str).collect())
         .unwrap_or_default();
-    value_roles(declared)
+    value_roles(qname, declared, inputs)
         .into_iter()
         .zip(&declared.params)
         .map(|(role, param)| {
@@ -1880,13 +2099,6 @@ fn linked_roles(
             }
         })
         .collect()
-}
-
-/// Whether `text` mentions `name` as a whole word.
-fn mentions(text: &str, name: &str) -> bool {
-    let word = |c: char| c.is_alphanumeric() || c == '_' || c == ':';
-    text.match_indices(name)
-        .any(|(at, _)| !text[..at].ends_with(word) && !text[at + name.len()..].starts_with(word))
 }
 
 /// The blocks a run reaches whose end completes the procedure normally: a
@@ -1955,13 +2167,20 @@ fn linked_cleanly(
     ssa: &SsaFunction,
     local: &str,
     param: &str,
-    registry: &CommandRegistry,
+    qname: &crate::ir::ProcedureId,
+    source: &SourceSummaryContext<'_>,
 ) -> bool {
-    let element = format!("{local}(");
-    if ssa
-        .var_names()
-        .iter()
-        .any(|name| name.starts_with(&element))
+    if ssa.var_names().iter().any(|name| {
+        tcl_syntax::naming::split_element_ref_bytes(name.as_bytes())
+            .is_some_and(|(root, _)| root == local.as_bytes())
+    }) {
+        return false;
+    }
+    if cfg
+        .blocks
+        .values()
+        .flat_map(|block| &block.statements)
+        .any(|statement| links_local(statement, local, qname, source).is_none())
     {
         return false;
     }
@@ -1973,7 +2192,9 @@ fn linked_cleanly(
                 .statements
                 .iter()
                 .enumerate()
-                .filter(|(_, statement)| links_local(statement, local, registry))
+                .filter(|(_, statement)| {
+                    links_local(statement, local, qname, source).unwrap_or(false)
+                })
                 .map(move |(index, _)| (*id, index))
         })
         .collect();
@@ -1994,61 +2215,77 @@ fn linked_cleanly(
         && entry.statements[index].uses.get(&param_symbol) == Some(&0)
 }
 
-/// The variable aliases one statement declares.
+/// Alias declarations from the same selected original argv, including captures.
 fn alias_facts(
-    statement: &Statement,
-    registry: &CommandRegistry,
-) -> Vec<tcl_registry::VariableCellAliasTransition> {
-    let Some(facts) = crate::var_escape::helpers::invocation_facts(statement, registry) else {
-        return Vec::new();
-    };
-    let Some(transitions) = facts.state_transitions.declared() else {
-        return Vec::new();
-    };
-    transitions
-        .facts()
-        .iter()
-        .filter_map(|fact| match &fact.transition {
-            tcl_registry::StateTransition::VariableCellAlias(alias) => Some(alias.clone()),
-            _ => None,
-        })
-        .collect()
+    tokens: &CommandTokens,
+    source: &SourceSummaryContext<'_>,
+) -> Option<(
+    Vec<tcl_registry::VariableCellAliasTransition>,
+    Option<tcl_registry::InvocationDialect>,
+)> {
+    if source.procedure_call(tokens).is_some() {
+        return Some((Vec::new(), None));
+    }
+    let operation = source.operation(tokens)?;
+    let transitions = operation.facts.state_transitions.declared()?;
+    Some((
+        transitions
+            .facts()
+            .iter()
+            .filter_map(|fact| match &fact.transition {
+                tcl_registry::StateTransition::VariableCellAlias(alias) => Some(alias.clone()),
+                _ => None,
+            })
+            .collect(),
+        operation.dialect,
+    ))
 }
 
-/// Whether a statement links a local to a place outside the frame whose
-/// name it computes: `upvar #0 $name v`, `global $name`.
-fn aliases_unnamed_place(statement: &Statement, registry: &CommandRegistry) -> bool {
+/// A computed outside-cell target prevents a closed conditional summary.
+fn aliases_unnamed_place(
+    tokens: &CommandTokens,
+    source: &SourceSummaryContext<'_>,
+) -> Option<bool> {
     use tcl_registry::{CallerFrameSelection, VariableAliasTarget};
-    alias_facts(statement, registry)
-        .iter()
-        .any(|alias| match &alias.target {
-            VariableAliasTarget::Global { variable }
-            | VariableAliasTarget::CurrentNamespace { variable } => variable.literal().is_none(),
-            VariableAliasTarget::Namespace {
-                namespace,
-                variable,
-            } => namespace.literal().is_none() || variable.literal().is_none(),
-            VariableAliasTarget::CallerSelectedFrame { frame, variable } => {
-                let caller = match frame {
-                    CallerFrameSelection::DefaultCaller => true,
-                    CallerFrameSelection::Explicit(level) => level
-                        .literal()
-                        .and_then(|level| FrameLevel::parse_in(level, registry))
-                        .is_some_and(|level| level == FrameLevel::Relative(1)),
-                };
-                !caller && variable.literal().is_none()
-            }
-        })
+    let (aliases, dialect) = alias_facts(tokens, source)?;
+    Some(aliases.iter().any(|alias| match &alias.target {
+        VariableAliasTarget::Global { variable }
+        | VariableAliasTarget::CurrentNamespace { variable } => variable.literal().is_none(),
+        VariableAliasTarget::Namespace {
+            namespace,
+            variable,
+        } => namespace.literal().is_none() || variable.literal().is_none(),
+        VariableAliasTarget::CallerSelectedFrame { frame, variable } => {
+            let caller = match frame {
+                CallerFrameSelection::DefaultCaller => true,
+                CallerFrameSelection::Explicit(level) => level
+                    .literal()
+                    .and_then(|level| {
+                        dialect.and_then(|dialect| FrameLevel::parse_for_dialect(level, dialect))
+                    })
+                    .is_some_and(|level| level == FrameLevel::Relative(1)),
+            };
+            !caller && variable.literal().is_none()
+        }
+    }))
 }
 
-/// Whether a statement links the local `local` to another cell.
-fn links_local(statement: &Statement, local: &str, registry: &CommandRegistry) -> bool {
-    alias_facts(statement, registry).iter().any(|alias| {
-        alias
-            .local
-            .literal()
-            .is_some_and(|name| crate::naming::normalise_var_name(name) == local)
-    })
+fn links_local(
+    statement: &Statement,
+    local: &str,
+    qname: &crate::ir::ProcedureId,
+    source: &SourceSummaryContext<'_>,
+) -> Option<bool> {
+    if statement.synthetic_marker().is_some() {
+        return Some(false);
+    }
+    let tokens = source.statement_tokens(Some(*qname), statement)?;
+    let (aliases, _) = alias_facts(&tokens, source)?;
+    Some(aliases.iter().any(|alias| {
+        alias.local.literal().is_some_and(|name| {
+            tcl_syntax::naming::split_element_ref_bytes(name.as_bytes()).is_none() && name == local
+        })
+    }))
 }
 
 /// The outcomes a body applies to a linked place, from where the two runs
@@ -2095,12 +2332,6 @@ fn step_of(outcomes: &[ExistenceOutcome]) -> ExistenceStep {
         })
 }
 
-/// Whether parameters `formals` accept `count` argument words.
-fn accepts(formals: &[crate::signature_scan::types::ParamDef], count: usize) -> bool {
-    u16::try_from(count)
-        .is_ok_and(|count| crate::signature_scan::arity::arity_of(formals).accepts(count))
-}
-
 /// The binding a call to `qname` rests on.
 fn procedure_binding(qname: &str) -> BindingIdentity {
     BindingIdentity {
@@ -2115,10 +2346,10 @@ fn procedure_binding(qname: &str) -> BindingIdentity {
 fn revision_of(ir: &crate::ir::Module, mutations: &ModuleCommandMutations) -> u64 {
     let mut hasher = rustc_hash::FxHasher::default();
     mutations.snapshot().hash(&mut hasher);
-    let mut names: Vec<&String> = ir.procedures.keys().collect();
+    let mut names: Vec<&crate::ir::ProcedureId> = ir.procedures.keys().collect();
     names.sort_unstable();
     for name in names {
-        let declared = &ir.procedures[name];
+        let declared = ir.procedures.get(name).expect("body inventory key");
         name.hash(&mut hasher);
         declared.params_raw.hash(&mut hasher);
         declared.body_source.hash(&mut hasher);
@@ -2131,30 +2362,30 @@ fn revision_of(ir: &crate::ir::Module, mutations: &ModuleCommandMutations) -> u6
 
 /// The strongly connected sets of `calls`' procedures, each after every set
 /// it calls (Tarjan's algorithm, iterative).
-fn components<'n>(
-    names: &[&'n str],
-    calls: &HashMap<&'n str, BTreeSet<String>>,
-) -> Vec<Vec<&'n str>> {
+fn components(
+    names: &[crate::ir::ProcedureId],
+    calls: &HashMap<crate::ir::ProcedureId, BTreeSet<crate::ir::ProcedureId>>,
+) -> Vec<Vec<crate::ir::ProcedureId>> {
     struct Node {
         index: usize,
         low: usize,
         on_stack: bool,
     }
-    let mut nodes: HashMap<&str, Node> = HashMap::new();
-    let mut stack: Vec<&str> = Vec::new();
-    let mut out: Vec<Vec<&'n str>> = Vec::new();
+    let mut nodes: HashMap<crate::ir::ProcedureId, Node> = HashMap::new();
+    let mut stack: Vec<crate::ir::ProcedureId> = Vec::new();
+    let mut out: Vec<Vec<crate::ir::ProcedureId>> = Vec::new();
     let mut next = 0usize;
     for &root in names {
-        if !calls.contains_key(root) || nodes.contains_key(root) {
+        if !calls.contains_key(&root) || nodes.contains_key(&root) {
             continue;
         }
         // Each frame: the node and the successors still to visit.
-        let mut work: Vec<(&'n str, Vec<&'n str>)> = Vec::new();
-        let successors = |qname: &str| -> Vec<&'n str> {
+        let mut work: Vec<(crate::ir::ProcedureId, Vec<crate::ir::ProcedureId>)> = Vec::new();
+        let successors = |qname: &crate::ir::ProcedureId| -> Vec<crate::ir::ProcedureId> {
             calls[qname]
                 .iter()
                 .rev()
-                .filter_map(|callee| calls.get_key_value(callee.as_str()).map(|(key, _)| *key))
+                .filter_map(|callee| calls.get_key_value(callee).map(|(key, _)| *key))
                 .collect()
         };
         nodes.insert(
@@ -2167,11 +2398,11 @@ fn components<'n>(
         );
         next += 1;
         stack.push(root);
-        work.push((root, successors(root)));
+        work.push((root, successors(&root)));
         while let Some((node, pending)) = work.last_mut() {
             let node = *node;
             if let Some(callee) = pending.pop() {
-                match nodes.get(callee) {
+                match nodes.get(&callee) {
                     None => {
                         nodes.insert(
                             callee,
@@ -2183,11 +2414,11 @@ fn components<'n>(
                         );
                         next += 1;
                         stack.push(callee);
-                        work.push((callee, successors(callee)));
+                        work.push((callee, successors(&callee)));
                     }
                     Some(seen) if seen.on_stack => {
                         let index = seen.index;
-                        let entry = nodes.get_mut(node).expect("visited");
+                        let entry = nodes.get_mut(&node).expect("visited");
                         entry.low = entry.low.min(index);
                     }
                     Some(_) => {}
@@ -2196,17 +2427,17 @@ fn components<'n>(
             }
             work.pop();
             let (index, low) = {
-                let entry = &nodes[node];
+                let entry = &nodes[&node];
                 (entry.index, entry.low)
             };
             if let Some((parent, _)) = work.last() {
-                let parent = nodes.get_mut(*parent).expect("visited");
+                let parent = nodes.get_mut(parent).expect("visited");
                 parent.low = parent.low.min(low);
             }
             if low == index {
                 let mut component = Vec::new();
                 while let Some(member) = stack.pop() {
-                    nodes.get_mut(member).expect("visited").on_stack = false;
+                    nodes.get_mut(&member).expect("visited").on_stack = false;
                     component.push(member);
                     if member == node {
                         break;
@@ -2222,6 +2453,8 @@ fn components<'n>(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use super::*;
     use crate::compilation_unit::CompilationUnit;
 
@@ -2237,42 +2470,53 @@ mod tests {
     /// The transfer summaries the build of `source` computes under the
     /// `environment` profile.
     fn summaries(source: &str, environment: &str) -> HashMap<String, TransferSummary> {
-        let profile =
-            tcl_registry::model::ingress::resolve_environment(environment).analyser_profile();
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        CompilationUnit::build_for_dialect(source, registry, false, environment)
-            .transfers
-            .0
+        let (_, unit) = crate::interprocedural::logical_completion_unit(source, environment);
+        fixture_transfer_labels(&unit.ir_module, unit.transfers.0)
+    }
+
+    fn fixture_transfer_labels(
+        module: &crate::ir::Module,
+        rows: HashMap<crate::ir::ProcedureId, TransferSummary>,
+    ) -> HashMap<String, TransferSummary> {
+        let mut shown = HashMap::new();
+        for (id, summary) in rows {
+            let body = module
+                .procedures
+                .get(&id)
+                .expect("actual transfer fixture body");
+            assert!(
+                shown.insert(body.qualified_name.clone(), summary).is_none(),
+                "authored transfer fixture labels must be unique"
+            );
+        }
+        shown
     }
 
     /// The summaries of `source` with a cycle given at most `rounds` rounds.
     fn summaries_within(source: &str, rounds: RecursionLimit) -> HashMap<String, TransferSummary> {
-        let profile =
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let unit = CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6");
-        let prepared = crate::cfg_builder::prepare_cfg_context_bundle(&unit.ir_module, registry);
+        let (context_owner, unit) =
+            crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+        let registry = context_owner.commands();
         let context = crate::value_transfer::AnalysisContextKey::for_module(
             &unit.command_mutations,
             registry,
         );
-        ModuleProcedures::with_rounds(
+        let summaries = ModuleProcedures::with_rounds(
             ModuleInputs {
                 ir: &unit.ir_module,
                 cfg: &unit.cfg_module,
-                frames: &prepared.context.0,
-                outer_writes: &prepared.context.2,
                 registry,
                 mutations: &unit.command_mutations,
                 projection: &unit.caller_scope.proc_binding_trust,
                 trace: crate::compilation_unit::ModuleTraceFacts::of(&unit.ir_module),
-                config: tcl_lexer::LexerConfig::for_profile(Some(profile)),
+                config: unit.ir_module.lexer_config,
                 analysis_context: &context,
             },
             rounds,
         )
         .into_summaries()
-        .0
+        .0;
+        fixture_transfer_labels(&unit.ir_module, summaries)
     }
 
     const CALLEES: &str = "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\n\
@@ -2387,27 +2631,35 @@ mod tests {
     /// names an element is a barrier, as an element argument is.
     #[test]
     fn a_call_names_its_omitted_parameters_default() {
-        let profile =
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let source = "proc bumpd {{name n} {by 1}} {upvar 1 $name v; incr v $by}\n\
             proc cell {{name a(1)}} {upvar 1 $name v; incr v}\n";
-        let unit = CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6");
+        let (context_owner, unit) =
+            crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+        let registry = context_owner.commands();
         let module = ModuleProcedures::of_unit(&unit, registry);
         let bind = step_of(&[BIND]);
         assert_eq!(
-            module.call_transfer("::bumpd", &[]),
+            module.call_transfer(&fixture_id(&unit.ir_module.procedures, "::bumpd"), &[]),
             Some(CallTransfer::Places(vec![("n".to_owned(), bind)]))
         );
         assert_eq!(
-            module.call_transfer("::bumpd", &[Some("m"), None]),
+            module.call_transfer(
+                &fixture_id(&unit.ir_module.procedures, "::bumpd"),
+                &[Some("m"), None]
+            ),
             Some(CallTransfer::Places(vec![("m".to_owned(), bind)]))
         );
         assert_eq!(
-            module.call_transfer("::bumpd", &[Some("m"), Some("1"), Some("x")]),
+            module.call_transfer(
+                &fixture_id(&unit.ir_module.procedures, "::bumpd"),
+                &[Some("m"), Some("1"), Some("x")]
+            ),
             Some(CallTransfer::Never)
         );
-        assert_eq!(module.call_transfer("::cell", &[]), None);
+        assert_eq!(
+            module.call_transfer(&fixture_id(&unit.ir_module.procedures, "::cell"), &[]),
+            None
+        );
     }
 
     /// A `Name` argument naming a place outside the caller's frame — a
@@ -2420,10 +2672,28 @@ mod tests {
     /// so that caller has no summary. tclsh 8.4 to 9.1 print 2 for `puts
     /// [c]`.
     #[test]
+    fn conditional_source_outer_places_do_not_issue_physical_steps() {
+        let (context, unit) = crate::interprocedural::logical_completion_unit(
+            "proc p {} {global g; set g 1}",
+            "tcl8.6",
+        );
+        let id = fixture_id(&unit.ir_module.procedures, "::p");
+        let summary = &unit.transfers.0[&id];
+        assert_eq!(summary.global_sources.len(), 1);
+        assert_eq!(
+            summary.global_sources[0]
+                .0
+                .symbol()
+                .checked_c_namespace_key()
+                .as_deref(),
+            Some("::g")
+        );
+        let procedures = ModuleProcedures::of_unit(&unit, context.commands());
+        assert!(procedures.outer_steps(&id).is_none());
+    }
+
+    #[test]
     fn a_name_argument_naming_an_outer_place_is_a_global_write() {
-        let profile =
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let source = "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\n\
             set g 1\n\
             proc c {} {bump ::g; return $::g}\n\
@@ -2435,39 +2705,50 @@ mod tests {
             proc reset {name} {upvar 1 $name v; unset v}\n\
             proc r {} {reset ::q}\n\
             proc s {c} {if {$c} {reset ::q}}\n";
-        let unit = CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6");
+        let (context_owner, unit) =
+            crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+        let registry = context_owner.commands();
         let module = ModuleProcedures::of_unit(&unit, registry);
         let g = PlaceRef::scalar("::g".to_owned());
         for caller in ["::c", "::d", "::e"] {
             assert_eq!(
-                unit.transfers.0[caller].globals,
+                unit.transfers.0[&fixture_id(&unit.ir_module.procedures, caller)].globals,
                 vec![(g.clone(), BIND)],
                 "{caller}"
             );
-            assert!(!module.keeps_to_its_frame(caller), "{caller}");
+            assert!(
+                !module.keeps_to_its_frame(&fixture_id(&unit.ir_module.procedures, caller)),
+                "{caller}"
+            );
         }
         assert_eq!(
-            unit.transfers.0["::h"].globals,
+            unit.transfers.0[&fixture_id(&unit.ir_module.procedures, "::h")].globals,
             vec![(g, ExistenceOutcome::MayBind(BindingKind::Either))]
         );
         assert_eq!(
-            unit.transfers.0["::ns::w"].globals,
+            unit.transfers.0[&fixture_id(&unit.ir_module.procedures, "::ns::w")].globals,
             vec![(PlaceRef::scalar("::ns::v".to_owned()), BIND)]
         );
         let q = PlaceRef::scalar("::q".to_owned());
         assert_eq!(
-            unit.transfers.0["::r"].globals,
+            unit.transfers.0[&fixture_id(&unit.ir_module.procedures, "::r")].globals,
             vec![(q.clone(), ExistenceOutcome::Unbind)]
         );
         assert_eq!(
-            unit.transfers.0["::s"].globals,
+            unit.transfers.0[&fixture_id(&unit.ir_module.procedures, "::s")].globals,
             vec![
                 (q.clone(), ExistenceOutcome::Unbind),
                 (q, ExistenceOutcome::MayBind(BindingKind::Either))
             ]
         );
-        assert!(!unit.transfers.0.contains_key("::f"));
-        assert!(unit.transfers.0.contains_key("::bump"));
+        assert!(
+            !fixture_id_if_present(&unit.ir_module.procedures, "::f")
+                .is_some_and(|id| unit.transfers.0.contains_key(&id))
+        );
+        assert!(
+            fixture_id_if_present(&unit.ir_module.procedures, "::bump")
+                .is_some_and(|id| unit.transfers.0.contains_key(&id))
+        );
     }
 
     const CYCLE: &str =
@@ -2528,5 +2809,108 @@ mod tests {
         assert_ne!(same, revision(&format!("{base}rename bump bump2\n")));
         assert_ne!(same, revision(&format!("{base}proc bump {{name}} {{}}\n")));
         assert_ne!(same, revision(&base.replace("incr v", "incr v 2")));
+    }
+
+    #[test]
+    fn transfer_formals_keep_selected_tcl_and_jim_binders_separate() {
+        // naming.interprocedural.original-transfer-summary-source-context
+
+        // Selected software formal binding, not native local slots or activation.
+        let source = "proc optional {{a A} b} {return 1}\nproc middle {a args b} {return 1}\nproc linked {&v} {return 1}";
+        for environment in ["tcl8.6", "jim"] {
+            let (context, unit) =
+                crate::interprocedural::logical_completion_unit(source, environment);
+            let module = ModuleProcedures::of_unit(&unit, context.commands());
+            let grammar = module
+                .formals(&fixture_id(&unit.ir_module.procedures, "::optional"))
+                .unwrap()
+                .1;
+            if grammar == tcl_dialect::ParameterGrammar::Jim {
+                let values = module
+                    .parameter_values(
+                        &fixture_id(&unit.ir_module.procedures, "::optional"),
+                        &[Some(ExactValue::from_literal("B"))],
+                    )
+                    .unwrap();
+                assert_eq!(
+                    values,
+                    [
+                        Some(ExactValue::from_literal("A")),
+                        Some(ExactValue::from_literal("B"))
+                    ]
+                );
+                let arguments: Vec<_> = ["A", "B", "C", "D"]
+                    .into_iter()
+                    .map(|value| Some(ExactValue::from_literal(value)))
+                    .collect();
+                assert_eq!(
+                    module
+                        .parameter_values(
+                            &fixture_id(&unit.ir_module.procedures, "::middle"),
+                            &arguments
+                        )
+                        .unwrap(),
+                    [
+                        Some(ExactValue::from_literal("A")),
+                        Some(ExactValue::from_literal("B C")),
+                        Some(ExactValue::from_literal("D"))
+                    ]
+                );
+                assert!(
+                    module
+                        .parameter_values(
+                            &fixture_id(&unit.ir_module.procedures, "::linked"),
+                            &[Some(ExactValue::from_literal("caller"))]
+                        )
+                        .is_none()
+                );
+                assert!(
+                    !fixture_id_if_present(&unit.ir_module.procedures, "::linked")
+                        .is_some_and(|id| unit.transfers.0.contains_key(&id))
+                );
+            } else {
+                assert_eq!(grammar, tcl_dialect::ParameterGrammar::Tcl);
+                assert!(
+                    module
+                        .parameter_values(
+                            &fixture_id(&unit.ir_module.procedures, "::optional"),
+                            &[Some(ExactValue::from_literal("B"))]
+                        )
+                        .is_none()
+                );
+                assert_eq!(
+                    module
+                        .parameter_values(
+                            &fixture_id(&unit.ir_module.procedures, "::linked"),
+                            &[Some(ExactValue::from_literal("value"))]
+                        )
+                        .unwrap(),
+                    [Some(ExactValue::from_literal("value"))]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn transfer_unused_formals_use_actual_variable_roots_and_metadata() {
+        // naming.interprocedural.original-transfer-summary-source-context
+
+        // Conditional SSA use inventory, not native frame or replacement proof.
+        let source = "proc p {{a b} {$tag} é unused} {return \"${a b}${$tag}${é}\"}";
+        let result = summaries(source, "tcl8.6");
+        assert_eq!(
+            result["::p"].params,
+            [
+                ParamRole::Value,
+                ParamRole::Value,
+                ParamRole::Value,
+                ParamRole::Unused
+            ]
+        );
+        let array = summaries("proc p {a(k)} {return 1}", "tcl8.6");
+        assert!(
+            !array.contains_key("::p"),
+            "formal syntax supplies no scalar activation closure"
+        );
     }
 }

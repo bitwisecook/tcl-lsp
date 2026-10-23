@@ -1,0 +1,20 @@
+normal code 0 events {setup body cleanup ready} x ready result {}
+reordered code 0 events {setup body cleanup ready} x ready result {}
+setupError code 0 events {setup cleanup partial} x partial result {}
+setupReturn code 0 events {setup cleanup unset} x unset result {}
+bodyReturn code 0 events {setup body cleanup ready} x ready result {}
+bodyError code 0 events {setup body cleanup ready} x ready result {}
+cleanupError code 0 events {setup body cleanup} x ready result {}
+cleanupReturn code 0 events {setup body cleanup} x ready result {}
+skipped code 0 events {} x unset result {}
+duplicateBody code 0 events last x last result {}
+duplicateSetup code 0 events {setup body cleanup ready} x ready result {}
+unknownOption code 1 events {} x unset result {bad option "-invalid": must be -body, -cleanup, -constraints, -errorCode, -errorOutput, -match, -output, -result, -returnCodes, or -setup}
+oddArgv code 1 events {} x unset result {list must have an even number of elements}
+legacy code 0 events body x legacy result {}
+singleOptionsList code 0 events {setup body cleanup ready} x ready result {}
+overriddenHooks code 0 events {setupHook body cleanupHook} x hook result {}
+overriddenAllHooks code 0 events {setupHook bodyHook cleanupHook} x body-hook result {}
+computedConstraint code 0 events body x body result {}
+computedConstraint-global-write 1
+putsRebinding code 0 events ::tcltest::Replace::puts x unset result {}

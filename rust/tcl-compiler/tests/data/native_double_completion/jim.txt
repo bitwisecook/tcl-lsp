@@ -1,0 +1,10 @@
+double21 0 21.0
+invalid 1 {expected boolean but got "invalid"}
+infinity 0 Inf
+negative 0 -21.0
+arity_zero 1 {too few arguments for math function}
+arity_two 1 {too many arguments for math function}
+argument_return 0 EARLY
+argument_error 1 ARGUMENT
+read_trace_unavailable 0 unavailable
+replacement 0 21.0

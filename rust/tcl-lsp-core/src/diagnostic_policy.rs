@@ -129,7 +129,13 @@ impl From<analyser::CodeFix> for Fix {
 /// The extra payload an adapter may need beyond the finding itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FindingData {
-    /// An optimiser rewrite.
+    /// The original analyser issuer, including its structured semantic subject.
+    Analyser(Box<analyser::Diagnostic>),
+    /// The original compiler issuer, including whole-source/config provenance.
+    CompilerCheck(Box<compiler_checks::Diagnostic>),
+    /// An actual finalized optimiser member with its sealed worker batch.
+    IssuedOptimiser(Box<Optimisation>),
+    /// An optimiser rewrite. Manual payloads have no source edit authority.
     Rewrite {
         /// The text that replaces the finding's span.
         replacement: String,
@@ -170,13 +176,14 @@ pub struct Finding {
 
 impl From<analyser::Diagnostic> for Finding {
     fn from(d: analyser::Diagnostic) -> Self {
+        let original = Box::new(d.clone());
         Self {
             code: d.code,
             span: d.span,
             severity: d.severity,
             message: d.message,
             fixes: d.fixes.into_iter().map(Fix::from).collect(),
-            data: None,
+            data: Some(FindingData::Analyser(original)),
             producer: Producer::Analyser,
         }
     }
@@ -187,6 +194,7 @@ impl From<compiler_checks::Diagnostic> for Finding {
     /// titled with the message, classified [`FixSafety::RequiresReview`]
     /// because the check never proved more.
     fn from(d: compiler_checks::Diagnostic) -> Self {
+        let original = Box::new(d.clone());
         let mut fixes: Vec<Fix> = d.fixes.into_iter().map(Fix::from).collect();
         if let Some(replacement) = d.replacement {
             fixes.push(Fix {
@@ -202,7 +210,7 @@ impl From<compiler_checks::Diagnostic> for Finding {
             severity: d.severity,
             message: d.message,
             fixes,
-            data: None,
+            data: Some(FindingData::CompilerCheck(original)),
             producer: Producer::CompilerCheck,
         }
     }
@@ -213,16 +221,23 @@ impl From<Optimisation> for Finding {
     /// [`FindingData::Rewrite`] rather than on `fixes`, because whether it
     /// may be applied is the adapter's reading of `hint_only`.
     fn from(o: Optimisation) -> Self {
+        let original = o
+            .original_rewrite_batch()
+            .is_some()
+            .then(|| Box::new(o.clone()));
         Self {
             code: o.code,
             span: o.span,
             severity: Severity::Hint,
             message: o.message,
             fixes: Vec::new(),
-            data: Some(FindingData::Rewrite {
-                replacement: o.replacement,
-                group: o.group,
-                hint_only: o.hint_only,
+            data: Some(match original {
+                Some(original) => FindingData::IssuedOptimiser(original),
+                None => FindingData::Rewrite {
+                    replacement: o.replacement,
+                    group: o.group,
+                    hint_only: o.hint_only,
+                },
             }),
             producer: Producer::Optimiser,
         }
@@ -230,6 +245,61 @@ impl From<Optimisation> for Finding {
 }
 
 impl Finding {
+    /// Reporting payload shared by issued and manual optimiser findings.
+    /// This view alone supplies no source correspondence or edit permission.
+    #[must_use]
+    pub fn rewrite_payload(&self) -> Option<(&str, Option<u32>, bool)> {
+        match self.data.as_ref()? {
+            FindingData::Rewrite {
+                replacement,
+                group,
+                hint_only,
+            } => Some((replacement, *group, *hint_only)),
+            FindingData::IssuedOptimiser(original) => {
+                Some((&original.replacement, original.group, original.hint_only))
+            }
+            _ => None,
+        }
+    }
+    /// Actual finalized worker member, never reconstructed from report fields.
+    #[must_use]
+    pub fn original_optimiser_rewrite(&self) -> Option<&Optimisation> {
+        match self.data.as_ref()? {
+            FindingData::IssuedOptimiser(original) => Some(original),
+            _ => None,
+        }
+    }
+
+    /// Structured original analyser issuer; reporting text is never parsed.
+    #[must_use]
+    pub fn original_analyser_diagnostic(&self) -> Option<&analyser::Diagnostic> {
+        match self.data.as_ref()? {
+            FindingData::Analyser(original) => Some(original),
+            _ => None,
+        }
+    }
+
+    /// Independent compiler source issuer, retained through report policy.
+    #[must_use]
+    pub fn original_compiler_diagnostic(&self) -> Option<&compiler_checks::Diagnostic> {
+        match self.data.as_ref()? {
+            FindingData::CompilerCheck(original) => Some(original),
+            _ => None,
+        }
+    }
+
+    /// Consumer DTO from the original semantic subject, independent of prose.
+    #[must_use]
+    pub fn structured_data(&self) -> Option<serde_json::Value> {
+        if let Some(original) = self.original_analyser_diagnostic() {
+            return crate::diagnostic_subject::diagnostic_subject_data(original);
+        }
+        crate::code_actions::ContextDiagnosticData::from_compiler_diagnostic(
+            self.original_compiler_diagnostic()?,
+        )
+        .map(|subject| subject.to_value())
+    }
+
     /// A source-style or byte-integrity finding.
     ///
     /// The style pass reports LSP ranges; `line_index` (built over `text`
@@ -443,10 +513,7 @@ pub struct ApplicableRewrite<'a> {
 
 /// The optimisation group `finding`'s rewrite belongs to, if any.
 fn rewrite_group(finding: &Finding) -> Option<u32> {
-    match &finding.data {
-        Some(FindingData::Rewrite { group, .. }) => *group,
-        _ => None,
-    }
+    finding.rewrite_payload().and_then(|(_, group, _)| group)
 }
 
 /// A producer a surface did not run, and the codes only it emits that the
@@ -484,6 +551,7 @@ struct DeclaredSkip {
 /// codes a producer declared it left uncomputed.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Report {
+    analysis_context_unavailable: Option<tcl_registry::model::OverlayMiss>,
     outcomes: Vec<(Finding, Outcome)>,
     /// The declared skips, with the policy's reason for each code — so a
     /// gap where nothing was produced is explained rather than read as
@@ -493,12 +561,29 @@ pub struct Report {
 }
 
 impl Report {
+    /// A refused generation is distinct from a successful analysis with no findings.
+    pub fn retain_analysis_context(&mut self, analysis: &analyser::AnalysisResult) {
+        self.analysis_context_unavailable
+            .clone_from(&analysis.analysis_context_unavailable);
+    }
+    /// Original generation failure; display text supplies no replacement context.
+    #[must_use]
+    pub fn analysis_context_unavailable(&self) -> Option<&tcl_registry::model::OverlayMiss> {
+        self.analysis_context_unavailable.as_ref()
+    }
+    /// Reporting-only typed unavailable input fields.
+    #[must_use]
+    pub fn analysis_context_status_data(&self) -> Option<serde_json::Value> {
+        self.analysis_context_unavailable().map(|miss| serde_json::json!({"kind":"analysisContextUnavailable", "environment":miss.environment, "overlay":miss.overlay}))
+    }
+
     /// The report over `outcomes`, with nothing declared skipped.
     #[must_use]
     pub fn new(outcomes: Vec<(Finding, Outcome)>) -> Self {
         Self {
             outcomes,
             skipped: BTreeMap::new(),
+            analysis_context_unavailable: None,
         }
     }
 
@@ -688,12 +773,7 @@ impl Report {
         let mut out: Vec<ApplicableRewrite<'_>> = Vec::new();
         let mut group_at: BTreeMap<u32, usize> = BTreeMap::new();
         for (finding, outcome) in &self.outcomes {
-            let Some(FindingData::Rewrite {
-                replacement,
-                group,
-                hint_only,
-            }) = &finding.data
-            else {
+            let Some((replacement, group, hint_only)) = finding.rewrite_payload() else {
                 continue;
             };
             match group {
@@ -708,13 +788,13 @@ impl Report {
                         });
                     }
                 }
-                Some(g) if whole.contains(g) => {
-                    if let Some(&at) = group_at.get(g) {
+                Some(g) if whole.contains(&g) => {
+                    if let Some(&at) = group_at.get(&g) {
                         out[at].members.push(finding);
                     } else {
-                        group_at.insert(*g, out.len());
+                        group_at.insert(g, out.len());
                         out.push(ApplicableRewrite {
-                            group: Some(*g),
+                            group: Some(g),
                             members: vec![finding],
                         });
                     }
@@ -752,18 +832,13 @@ impl Report {
         let mut seen: BTreeSet<u32> = BTreeSet::new();
         let mut broken: BTreeSet<u32> = BTreeSet::new();
         for (finding, outcome) in &self.outcomes {
-            let Some(FindingData::Rewrite {
-                group: Some(g),
-                hint_only,
-                ..
-            }) = &finding.data
-            else {
+            let Some((_, Some(g), hint_only)) = finding.rewrite_payload() else {
                 continue;
             };
-            seen.insert(*g);
+            seen.insert(g);
             let shows = matches!(outcome, Outcome::Shown { .. });
-            if !shows || (members == GroupMembers::Actionable && *hint_only) {
-                broken.insert(*g);
+            if !shows || (members == GroupMembers::Actionable && hint_only) {
+                broken.insert(g);
             }
         }
         seen.difference(&broken).copied().collect()
@@ -1657,7 +1732,39 @@ mod tests {
         assert_eq!(f.producer, Producer::Analyser);
         assert_eq!(f.fixes.len(), 1);
         assert_eq!(f.fixes[0].safety, FixSafety::SemanticsEquivalent);
-        assert!(f.data.is_none());
+        assert!(f.original_analyser_diagnostic().is_some());
+    }
+
+    #[test]
+    fn report_retains_typed_subjects_independently_of_diagnostic_presentation() {
+        // naming.diagnostic.typed-subject-reporting
+
+        // Problem: Report conversion must retain counted subject units, even when prose changes.
+        // This transport control asserts no Native publication or handler execution.
+        let key = tcl_registry::native_package::NativePackageNameKey::from_native_units(
+            b"Pkg'\0tail",
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6),
+        );
+        let diagnostic = analyser::Diagnostic::new(
+            DiagCode::W120,
+            Span::new(0, 1),
+            "presentation",
+            Severity::Hint,
+        )
+        .with_subject(analyser::DiagnosticSubject::RequiredPackage(key.clone()));
+        let expected = crate::diagnostic_subject::diagnostic_subject_data(&diagnostic);
+        let mut changed = diagnostic;
+        changed.message = "unrelated text with no quoted package".to_owned();
+        let report = apply(vec![Finding::from(changed)], &Policy::unrestricted());
+        let finding = report.shown().next().unwrap().finding;
+        assert_eq!(finding.structured_data(), expected);
+        assert_eq!(
+            finding
+                .original_analyser_diagnostic()
+                .unwrap()
+                .required_package_key(),
+            Some(&key)
+        );
     }
 
     #[test]
@@ -1665,7 +1772,9 @@ mod tests {
         let d = compiler_checks::Diagnostic {
             span: Span::new(0, 7),
             code: DiagCode::W201,
+            source_context: None,
             category: "path".to_owned(),
+            taint_subject: None,
             severity: Severity::Warning,
             message: "Use file join".to_owned(),
             replacement: Some("[file join a b]".to_owned()),
@@ -1677,7 +1786,7 @@ mod tests {
         assert_eq!(f.fixes[0].span, Span::new(0, 7));
         assert_eq!(f.fixes[0].new_text, "[file join a b]");
         assert_eq!(f.fixes[0].safety, FixSafety::RequiresReview);
-        assert!(f.data.is_none());
+        assert!(f.original_compiler_diagnostic().is_some());
     }
 
     #[test]

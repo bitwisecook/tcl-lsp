@@ -30,9 +30,8 @@
 
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
-use crate::word_subst::whole_word_command_tokens;
 
-use super::super::cmd_subst::is_pure_cmd_subst;
+use super::super::cmd_subst::is_pure_cmd_subst_with_config;
 use super::super::{CodegenCtx, Op, Operand};
 use super::ordering::fold_const_branch;
 
@@ -85,6 +84,9 @@ impl CodegenCtx<'_> {
             } => {
                 self.emit_return(value.as_deref(), expr.as_ref(), *braced);
             }
+            Terminator::Complete { .. } => {
+                unreachable!("analysis completion summary cannot be emitted as bytecode");
+            }
         }
     }
 
@@ -93,7 +95,14 @@ impl CodegenCtx<'_> {
     /// an error evaluating its test leaves; an instruction of a command
     /// substitution in the test keeps naming its own command.
     fn name_condition_command(&mut self, begin: usize, owner: tcl_lexer::Span) {
-        let text = self.error_info_source_text(owner);
+        // A non-UTF-8 command has no text view to stamp; it names none.
+        let Ok(text) = self
+            .error_info_source_text(owner)
+            .try_text()
+            .map(str::to_owned)
+        else {
+            return;
+        };
         let line = self.source_line(owner);
         // Evaluated directly, the command is invoked, and logs its own level
         // after a substitution in its test logs the command inside; it
@@ -151,16 +160,25 @@ impl CodegenCtx<'_> {
                 }
             }
             None => {
-                self.emit_expr(cond);
-                // tclsh emits a nop between a simple variable condition
-                // and the conditional jump (placeholder for tryCvtToNumeric).
-                if matches!(cond, ExprNode::Var { .. } | ExprNode::Raw { .. }) {
-                    self.emit(Op::NOP, vec![]);
-                } else if let ExprNode::Command { text, .. } = cond {
-                    let inner = text.trim();
-                    let stripped = inner.strip_prefix('[').unwrap_or(inner);
-                    if stripped.starts_with("catch ") {
-                        self.emit(Op::NOP, vec![]);
+                let numeric = self.emit_expr(cond);
+                if !numeric && cond.needs_numeric_result_conversion() {
+                    use tcl_registry::native_expression_program::ScalarResultConversion;
+                    let conversion = self
+                        .native_hook_dialect()
+                        .and_then(|dialect| {
+                            (dialect.family() == Some(tcl_dialect::model::Family::Tcl))
+                                .then_some(dialect.tcl_version)
+                                .flatten()
+                        })
+                        .map(ScalarResultConversion::for_c_version);
+                    match conversion {
+                        Some(ScalarResultConversion::TryNumeric) => {
+                            self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
+                        }
+                        Some(ScalarResultConversion::NoOp) => {
+                            self.emit(Op::NOP, vec![]);
+                        }
+                        None => self.refuse_native_dependency(),
                     }
                 }
                 if Some(false_target) == next_block {
@@ -262,7 +280,8 @@ impl CodegenCtx<'_> {
         // braces already stripped, so without `braced` it is indistinguishable
         // from `return [id 9]` — which is exactly how tclvm came to call `id`
         // where tclsh 8.4.20 through 9.1b0 all return the literal (#2228).
-        let is_cmd_subst = !*braced && expr.is_none() && is_pure_cmd_subst(val);
+        let is_cmd_subst =
+            !*braced && expr.is_none() && is_pure_cmd_subst_with_config(val, self.lexer_config());
         let is_final = next_block.is_none();
 
         // startCommand count: 2 when return wraps [expr {...}]
@@ -307,12 +326,7 @@ impl CodegenCtx<'_> {
             }
         } else if self.is_proc && is_cmd_subst {
             // In a proc body, a return value of [cmd ...] inlines.
-            let tokens = value_word.as_ref().and_then(|word| {
-                whole_word_command_tokens(
-                    word,
-                    tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
-                )
-            });
+            let tokens = self.nested_command_tokens(value_word.as_ref());
             self.emit_inline_cmd_subst_with_tokens(val, tokens.as_ref());
         } else if *braced {
             // Literal text, pushed verbatim so the VM's runtime word
@@ -510,7 +524,7 @@ mod tests {
         };
         ctx.emit_term(&cfg, &term, Some("next_0"));
         // No jump emitted on fallthrough
-        assert!(ctx.instructions.is_empty());
+        assert_eq!(ctx.instructions, [] as [tcl_bytecode::Instruction; 0]);
     }
 
     #[test]
@@ -597,6 +611,8 @@ mod tests {
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let cfg = cfg_with_blocks(&["entry"]);
         let term = Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: Some("hello".into()),
             value_word: None,
             span: None,
@@ -613,6 +629,8 @@ mod tests {
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let cfg = cfg_with_blocks(&["entry"]);
         let term = Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -702,5 +720,50 @@ mod tests {
 
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::JUMP_TABLE));
+    }
+    #[test]
+    fn scalar_command_conditions_use_result_geometry_without_command_name_classification() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        for version in [
+            tcl_dialect::TclVersion::V8_4,
+            tcl_dialect::TclVersion::V8_5,
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            for source in [
+                "[catch {set x 1}]",
+                "[::catch {set x 1}]",
+                "[\"catch\" {set x 1}]",
+                "[original_catch {set x 1}]",
+                "[set x 0]",
+                "[catch {set x 1}; set x 0]",
+            ] {
+                let mut context = CodegenCtx::new(false, &[], &registry);
+                context.invocation_dialect =
+                    Some(tcl_registry::InvocationDialect::for_version(version));
+                let condition = ExprNode::Command {
+                    text: source.into(),
+                    start: 0,
+                    end: u32::try_from(source.len()).unwrap(),
+                };
+                context.emit_branch(&condition, "true", "false", Some("false"));
+                let branch = context
+                    .instructions
+                    .iter()
+                    .position(|instruction| instruction.op == Op::JUMP_TRUE4)
+                    .unwrap();
+                let expected = if version <= tcl_dialect::TclVersion::V8_5 {
+                    Op::TRY_CVT_TO_NUMERIC
+                } else {
+                    Op::NOP
+                };
+                assert_eq!(
+                    context.instructions[branch - 1].op,
+                    expected,
+                    "{version:?}/{source}"
+                );
+            }
+        }
     }
 }

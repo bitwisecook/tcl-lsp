@@ -26,10 +26,55 @@
 //! the [`Namespaces`] role trait + [`ValueOps`].
 
 use tcl_runtime_api::{Namespaces, NsId};
-use tcl_syntax::glob::{string_match, string_match_bytes};
+use tcl_syntax::glob::string_match;
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
+
+/// Report an original unresolved namespace subcommand through its selected
+/// dispatcher. C8.4/8.5 use `Tcl_GetIndexFromObj`'s option grammar; modern C uses
+/// its ensemble, while Jim's namespace helper owns its command enumeration.
+/// The caller retains the original operand and supplies the available grammar.
+#[must_use]
+pub fn unknown_subcommand_message(
+    protocol: tcl_syntax::naming::NativeNameProtocol,
+    available: &[&str],
+    original: &[u8],
+) -> Vec<u8> {
+    use crate::prefix::Resolution;
+    use tcl_syntax::naming::NativeNameProtocol;
+    let ambiguous = matches!(
+        crate::prefix::scan(available, original, false),
+        Resolution::Ambiguous
+    );
+    match protocol {
+        NativeNameProtocol::C(version) if version <= tcl_dialect::TclVersion::V8_5 => {
+            crate::prefix::bad_key_message(available, b"option", original, ambiguous)
+        }
+        NativeNameProtocol::C(_) => crate::ensemble::unknown_subcommand_message(
+            available,
+            original,
+            true,
+            b"::tcl::namespace",
+        ),
+        NativeNameProtocol::Jim084 => {
+            let mut names = available.to_vec();
+            names.sort_unstable();
+            let mut message = b"namespace, ".to_vec();
+            message.extend_from_slice(if ambiguous { b"ambiguous" } else { b"unknown" });
+            message.extend_from_slice(b" command \"");
+            message.extend_from_slice(original);
+            message.extend_from_slice(b"\": should be ");
+            for (index, name) in names.iter().enumerate() {
+                if index != 0 {
+                    message.extend_from_slice(b", ");
+                }
+                message.extend_from_slice(name.as_bytes());
+            }
+            message
+        }
+    }
+}
 
 /// The byte range `(start, end)` of the last `::` separator **run** (two or more
 /// consecutive colons) in `s`: `s[..start]` is the qualifier, `s[end..]` the
@@ -37,23 +82,8 @@ use crate::error::CmdError;
 /// colon-run handling — a run of 3+ colons is one separator (so `foo:::` has
 /// qualifier `foo` and an empty tail), where a naive `rsplit("::")` diverges.
 fn last_sep_run(s: &[u8]) -> Option<(usize, usize)> {
-    // Scan back for the last "::" pair, then extend over every adjacent colon.
-    let mut i = s.len();
-    while i >= 2 {
-        if s[i - 1] == b':' && s[i - 2] == b':' {
-            let mut start = i - 2;
-            while start > 0 && s[start - 1] == b':' {
-                start -= 1;
-            }
-            let mut end = i;
-            while end < s.len() && s[end] == b':' {
-                end += 1;
-            }
-            return Some((start, end));
-        }
-        i -= 1;
-    }
-    None
+    tcl_syntax::naming::written_separator_extent(s)
+        .map(|separator| (separator.start, separator.end))
 }
 
 /// The namespace portion of a written qualified name, retaining whether the
@@ -139,6 +169,48 @@ pub fn imported_command_candidate(pattern: &str, name: &str) -> Option<String> {
     }
 }
 
+/// Original Jim parser diagnostic using its actual head and command-list result.
+/// The caller obtains the list through its reached mutable `lsort` dispatch.
+#[must_use]
+pub fn jim_namespace_subcommand_diagnostic(
+    head: &[u8],
+    selector: &[u8],
+    joined_commands: &[u8],
+    ambiguous: bool,
+) -> Vec<u8> {
+    let mut message = tcl_core_types::c_string_extent(head).to_vec();
+    message.extend_from_slice(if ambiguous {
+        b", ambiguous command \""
+    } else {
+        b", unknown command \""
+    });
+    message.extend_from_slice(tcl_core_types::c_string_extent(selector));
+    message.extend_from_slice(b"\": should be ");
+    message.extend_from_slice(tcl_core_types::c_string_extent(joined_commands));
+    message
+}
+
+/// Original Jim top-level usage, after actual command-list production.
+#[must_use]
+pub fn jim_namespace_subcommand_usage(head: &[u8], joined_commands: &[u8]) -> Vec<u8> {
+    let mut message = b"Usage: \"".to_vec();
+    message.extend_from_slice(tcl_core_types::c_string_extent(head));
+    message.extend_from_slice(b" command ... \", where command is one of: ");
+    message.extend_from_slice(tcl_core_types::c_string_extent(joined_commands));
+    message
+}
+
+/// Original Jim missing-member synopsis; both head getters precede publication.
+#[must_use]
+pub fn jim_namespace_missing_subcommand(first_head: &[u8], second_head: &[u8]) -> Vec<u8> {
+    let mut message = b"wrong # args: should be \"".to_vec();
+    message.extend_from_slice(tcl_core_types::c_string_extent(first_head));
+    message.extend_from_slice(b" command ...\"\nUse \"");
+    message.extend_from_slice(tcl_core_types::c_string_extent(second_head));
+    message.extend_from_slice(b" -help ?command?\" for help");
+    message
+}
+
 /// What `namespace which` should resolve its name as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WhichKind {
@@ -148,20 +220,26 @@ pub enum WhichKind {
     Variable,
 }
 
-/// Parse the words after `namespace which` as C's `NamespaceWhichCmd` does.
-///
-/// One word is always the name, even when it starts with `-`. Two words are
-/// accepted only when the first is an unambiguous abbreviation of `-command`
-/// or `-variable`; every other shape is the command's wrong-arity path.
+/// Select the original positional option grammar for `namespace which`.
+/// C8.4 and Jim require full option names; C8.5+ accept prefixes. A single
+/// operand is always the name, including one beginning with `-`.
 #[must_use]
-pub fn which_request<T: AsRef<[u8]>>(args: &[T]) -> Option<(WhichKind, usize)> {
+pub fn which_request_in<T: AsRef<[u8]>>(
+    protocol: tcl_syntax::naming::NativeNameProtocol,
+    args: &[T],
+) -> Option<(WhichKind, usize)> {
+    use tcl_syntax::naming::NativeNameProtocol;
+    let prefixes = matches!(protocol, NativeNameProtocol::C(version) if version >= tcl_dialect::TclVersion::V8_5);
     match args {
         [_] => Some((WhichKind::Command, 0)),
         [option, _] => {
             let option = option.as_ref();
-            if option.len() > 1 && b"-command".starts_with(option) {
+            let matches = |full: &[u8]| {
+                option == full || (prefixes && option.len() > 1 && full.starts_with(option))
+            };
+            if matches(b"-command") {
                 Some((WhichKind::Command, 1))
-            } else if option.len() > 1 && b"-variable".starts_with(option) {
+            } else if matches(b"-variable") {
                 Some((WhichKind::Variable, 1))
             } else {
                 None
@@ -241,17 +319,51 @@ pub fn import_pattern<O: Namespaces + ?Sized>(
     destination: NsId,
     pattern: &[u8],
 ) -> Result<ImportPattern, ImportPatternError> {
+    let qualifier = import_pattern_qualifier(pattern)?;
+    let source = ops.find_namespace_bytes(destination, qualifier);
+    import_pattern_from_source(ops, destination, pattern, source)
+}
+
+/// The same import gate with full checked namespace lookup refusal transport.
+/// It resolves once and returns that selected source/tail to the binding owner.
+///
+/// # Errors
+/// A host lookup refusal remains outside the ordinary pattern diagnostic.
+pub fn import_pattern_checked<O: Namespaces + ?Sized>(
+    ops: &O,
+    destination: NsId,
+    pattern: &[u8],
+) -> Result<Result<ImportPattern, ImportPatternError>, tcl_syntax::value::ValueError> {
+    let qualifier = match import_pattern_qualifier(pattern) {
+        Ok(qualifier) => qualifier,
+        Err(error) => return Ok(Err(error)),
+    };
+    let source = ops.find_namespace_bytes_checked(destination, qualifier)?;
+    Ok(import_pattern_from_source(
+        ops,
+        destination,
+        pattern,
+        source,
+    ))
+}
+
+fn import_pattern_qualifier(pattern: &[u8]) -> Result<&[u8], ImportPatternError> {
     if pattern.is_empty() {
         return Err(ImportPatternError::Empty);
     }
-    let qualifier = match qualifier(pattern) {
-        Qualifier::Absolute(prefix) | Qualifier::Relative(prefix) => prefix,
-        Qualifier::Unqualified => {
-            return Err(ImportPatternError::Unqualified(pattern.to_vec()));
-        }
-    };
-    let source = ops
-        .find_namespace_bytes(destination, qualifier)
+    match qualifier(pattern) {
+        Qualifier::Absolute(prefix) | Qualifier::Relative(prefix) => Ok(prefix),
+        Qualifier::Unqualified => Err(ImportPatternError::Unqualified(pattern.to_vec())),
+    }
+}
+
+fn import_pattern_from_source<O: Namespaces + ?Sized>(
+    ops: &O,
+    destination: NsId,
+    pattern: &[u8],
+    source: Option<NsId>,
+) -> Result<ImportPattern, ImportPatternError> {
+    let source = source
         .filter(|source| ops.namespace_is_live(*source))
         .ok_or_else(|| ImportPatternError::Unknown(pattern.to_vec()))?;
     if source == destination {
@@ -272,8 +384,281 @@ pub fn import_pattern<O: Namespaces + ?Sized>(
 /// (`"::"` at the global level).
 pub fn current<O: ValueOps + Namespaces>(ops: &mut O) -> O::Value {
     let ns = Namespaces::current(ops);
-    let name = ops.name(ns);
-    ops.new_string(name)
+    let name = ops.name_bytes(ns);
+    ops.new_bytes(&name)
+}
+
+/// Actual native namespace-result object production, separate from reporting.
+pub trait NamespaceObjectBackend: ValueOps + Namespaces {
+    /// Produce the original current-namespace result using actual issuer and token.
+    ///
+    /// # Errors
+    /// Refuses unavailable physical production without reparsing reporting bytes.
+    fn current_namespace_object(&mut self) -> Result<Self::Value, tcl_syntax::value::ValueError>;
+
+    /// Produce a result from an already selected actual namespace incarnation.
+    /// Reporting bytes are never parsed to recover this token.
+    ///
+    /// # Errors
+    /// Refuses an unavailable physical producer or retired namespace lifetime.
+    fn produce_namespace_object(
+        &mut self,
+        _namespace: NsId,
+        _producer: tcl_syntax::native_namespace_name::NativeNamespaceObjectProducer,
+    ) -> Result<Self::Value, tcl_syntax::value::ValueError> {
+        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native namespace result producer",
+        ))
+    }
+}
+
+/// Actual namespace retirement, separate from original-object cache lookup.
+pub trait NamespaceDeleteBackend: ValueOps + Namespaces {
+    /// Retire an already selected namespace through its actual lifecycle owner.
+    ///
+    /// # Errors
+    /// Preserves actual host capability refusals from the retirement callback.
+    fn delete_selected_namespace(
+        &mut self,
+        namespace: NsId,
+    ) -> Result<(), tcl_syntax::value::ValueError>;
+}
+
+/// Validate every original written name before retiring any namespace.
+/// Names are materialised and looked up again after earlier retirements, so
+/// callback deletion of another target becomes a harmless second-pass absence.
+/// Jim's flat script helper has a separate operation and cannot use this door.
+///
+/// # Errors
+/// Preserves original storage, lookup and retirement refusals. A missing first
+/// pass operand is returned by its original index for operation-specific reporting.
+pub fn delete_original<O: NamespaceDeleteBackend>(
+    ops: &mut O,
+    names: &[O::Value],
+) -> Result<Option<usize>, tcl_syntax::value::ValueError> {
+    delete_original_with_selected_retirement(ops, names, |ops, namespace| {
+        ops.delete_selected_namespace(namespace)
+    })
+}
+
+/// Run the same two-pass original-name deletion with its actual selected
+/// retirement operation. The callback receives only a namespace selected by
+/// the second lookup; it supplies no name, lookup or target-selection evidence.
+///
+/// # Errors
+/// Preserves original validation, lookup and selected retirement refusals.
+pub fn delete_original_with_selected_retirement<O: NamespaceDeleteBackend>(
+    ops: &mut O,
+    names: &[O::Value],
+    mut retire: impl FnMut(&mut O, NsId) -> Result<(), tcl_syntax::value::ValueError>,
+) -> Result<Option<usize>, tcl_syntax::value::ValueError> {
+    use tcl_syntax::value::ValueError;
+    let policy = ops
+        .name_policy_protocol()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "namespace deletion issuer",
+        ))?;
+    if policy.recipe().is_jim084() {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "C namespace retirement in Jim",
+        ));
+    }
+    for (index, original) in names.iter().enumerate() {
+        let bytes = ops.native_string_bytes(original)?;
+        if ops
+            .find_namespace_bytes_checked(Namespaces::current(ops), &bytes)?
+            .is_none()
+        {
+            return Ok(Some(index));
+        }
+    }
+    for original in names {
+        let bytes = ops.native_string_bytes(original)?;
+        if let Some(namespace) =
+            ops.find_namespace_bytes_checked(Namespaces::current(ops), &bytes)?
+        {
+            retire(ops, namespace)?;
+        }
+    }
+    Ok(None)
+}
+
+/// Produce the physical parent's original result from an already selected token.
+///
+/// # Errors
+/// Preserves selected physical production refusal without name relookup.
+pub fn parent_original<O: NamespaceObjectBackend>(
+    ops: &mut O,
+    namespace: NsId,
+) -> Result<O::Value, tcl_syntax::value::ValueError> {
+    match ops.parent(namespace) {
+        Some(parent) => ops.produce_namespace_object(
+            parent,
+            tcl_syntax::native_namespace_name::NativeNamespaceObjectProducer::Parent,
+        ),
+        None => Ok(ops.empty()),
+    }
+}
+
+/// Produce original child objects from the native ordered and filtered token inventory.
+/// Filtering belongs to the independently selected name-query owner.
+///
+/// # Errors
+/// Preserves actual physical production refusal for each reached child.
+pub fn children_original<O: NamespaceObjectBackend>(
+    ops: &mut O,
+    children: &[NsId],
+) -> Result<O::Value, tcl_syntax::value::ValueError> {
+    namespace_objects_original(
+        ops,
+        children,
+        tcl_syntax::native_namespace_name::NativeNamespaceObjectProducer::Child,
+    )
+}
+
+/// Produce an ordered list of original objects from selected namespace tokens.
+///
+/// # Errors
+/// Releases earlier producer results before propagating a reached refusal.
+pub fn namespace_objects_original<O: NamespaceObjectBackend>(
+    ops: &mut O,
+    namespaces: &[NsId],
+    producer: tcl_syntax::native_namespace_name::NativeNamespaceObjectProducer,
+) -> Result<O::Value, tcl_syntax::value::ValueError> {
+    let mut items = Vec::with_capacity(namespaces.len());
+    for namespace in namespaces {
+        match ops.produce_namespace_object(*namespace, producer) {
+            Ok(item) => {
+                ops.pin_value(&item);
+                items.push(item);
+            }
+            Err(error) => {
+                for item in &items {
+                    ops.unpin_value(item);
+                }
+                return Err(error);
+            }
+        }
+    }
+    let result = ops.new_list(items.clone());
+    for item in &items {
+        ops.unpin_value(item);
+    }
+    Ok(result)
+}
+
+/// Select the actual child tokens with the native query's lookup or scan rule.
+/// The selected namespace is never recovered from its reporting name.
+///
+/// # Errors
+/// Preserves missing name-policy authority, lookup refusal and matcher refusal.
+pub fn children_tokens_checked<O: ValueOps + Namespaces>(
+    ops: &O,
+    namespace: NsId,
+    pattern: Option<&[u8]>,
+) -> Result<Vec<NsId>, tcl_syntax::value::ValueError> {
+    use tcl_syntax::{
+        native_glob::{
+            NativeGlobProtocol, NativeNameGlobPurpose, NativeNamespaceChildrenLookup,
+            namespace_children_lookup,
+        },
+        value::ValueError,
+    };
+    let policy = ops
+        .name_policy_protocol()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "namespace children name policy",
+        ))?;
+    let target = ops.name_bytes(namespace);
+    let qualified = pattern.map(|pattern| {
+        if pattern.starts_with(b"::") {
+            pattern.to_vec()
+        } else {
+            let mut qualified = target.clone();
+            if qualified != b"::" {
+                qualified.extend_from_slice(b"::");
+            }
+            qualified.extend_from_slice(pattern);
+            qualified
+        }
+    });
+    let purpose = NativeNameGlobPurpose::NamespaceChildrenSearch;
+    if let Some(pattern) = qualified.as_deref() {
+        match namespace_children_lookup(policy.recipe(), &target, pattern) {
+            NativeNamespaceChildrenLookup::FullName(name) => {
+                return Ok(ops
+                    .find_namespace_bytes_checked(namespace, name)?
+                    .filter(|child| ops.parent(*child) == Some(namespace))
+                    .into_iter()
+                    .collect());
+            }
+            NativeNamespaceChildrenLookup::ChildKey(key) => {
+                return Ok(match key {
+                    Some(key) => ops.find_namespace_child_bytes_checked(namespace, key)?,
+                    None => None,
+                }
+                .into_iter()
+                .collect());
+            }
+            NativeNamespaceChildrenLookup::Scan => {}
+        }
+    }
+    let matcher = NativeGlobProtocol::from_name_policy(policy);
+    let mut children = Vec::new();
+    for child in ops.children_hash_order(namespace) {
+        let keep = match qualified.as_deref() {
+            Some(pattern) => matcher
+                .match_name_pattern(purpose, pattern, &ops.name_bytes(child))
+                .map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("namespace children native match")
+                })?,
+            None => true,
+        };
+        if keep {
+            children.push(child);
+        }
+    }
+    Ok(children)
+}
+
+/// Invoke the genuine current-namespace producer instead of its reporting factory.
+///
+/// # Errors
+/// Preserves the actual object producer's host capability refusal.
+pub fn current_original<O: NamespaceObjectBackend>(ops: &mut O) -> Result<O::Value, CmdError> {
+    Ok(ops.current_namespace_object()?)
+}
+
+/// Validate actual original arguments before current-namespace object production.
+///
+/// # Errors
+/// Reports native wrong arguments or preserves the selected physical refusal.
+pub fn current_original_with_arguments<O: NamespaceObjectBackend>(
+    ops: &mut O,
+    args: &[O::Value],
+    usage: &[u8],
+) -> Result<O::Value, CmdError> {
+    if !args.is_empty() {
+        return Err(CmdError::wrong_args_bytes(usage));
+    }
+    current_original(ops)
+}
+
+/// Invoke the selected current-namespace handler with its actual usage header.
+/// The shared adapter supplies the retained ensemble/alias rewrite, independently
+/// of the worker's implementation spelling.
+///
+/// # Errors
+/// Reports native arity validation before reading namespace state.
+pub fn current_with_arguments<O: ValueOps + Namespaces>(
+    ops: &mut O,
+    args: &[O::Value],
+    usage: &[u8],
+) -> Result<O::Value, CmdError> {
+    if !args.is_empty() {
+        return Err(CmdError::wrong_args_bytes(usage));
+    }
+    Ok(current(ops))
 }
 
 /// `namespace which -command name` — the fully-qualified name `name` resolves to
@@ -298,23 +683,47 @@ pub fn which_command_bytes<O: Namespaces + ?Sized>(ops: &O, name: &[u8]) -> Opti
         .and_then(|id| ops.command_name_bytes(id))
 }
 
-/// `namespace which -variable name` — the fully-qualified name `name` resolves
-/// to as a **namespace** variable from the current namespace, or the empty
-/// string.
+/// Checked byte command query; an unavailable operation is not a missing name.
 ///
-/// C's `NamespaceWhichCmd` case 1 calls `Tcl_FindNamespaceVar(interp, name,
-/// NULL, 0)` (`tclNamesp.c:4657-4664`), which walks namespace `varTable`s and
-/// **never** the call frame: a proc-local variable answers the empty string
-/// even while it is set, and a qualified name commits to the namespace its
-/// qualifier resolves to.
+/// # Errors
+/// Propagates the actual namespace adapter's native lookup refusal.
+pub fn which_command_bytes_checked<O: Namespaces + ?Sized>(
+    ops: &O,
+    name: &[u8],
+) -> Result<Option<Vec<u8>>, tcl_syntax::value::ValueError> {
+    match ops.find_command_bytes_checked(ops.current(), name)? {
+        Some(id) => command_name_from_command_checked(ops, id).map(Some),
+        None => Ok(None),
+    }
+}
+
+/// Report the current full name of an already selected command token. Imports
+/// keep their own names here; origin reporting is a separate query.
 ///
-/// The one release axis is the *alternate* search. `ObjFindNamespaceVar`
-/// (`tclVar.c`) hands `TclGetNamespaceForQualName` two candidate namespaces
-/// and tries both; Tcl 9.0 added `flags |= TCL_NAMESPACE_ONLY`
-/// (`tcl9.0.4 tclVar.c:5951-5953`), which blanks the second, so 8.x falls back
-/// to the **global** namespace where 9.0 does not — tclsh-pinned:
-/// `set ::gv 1; namespace eval n {namespace which -variable gv}` is `::gv` on
-/// 8.6.16 and `{}` on 9.0.4.
+/// # Errors
+/// Refuses when the actual selected token cannot report its current name.
+pub fn command_name_from_command_checked<O: Namespaces + ?Sized>(
+    ops: &O,
+    command: tcl_runtime_api::CommandId,
+) -> Result<Vec<u8>, tcl_syntax::value::ValueError> {
+    ops.command_name_bytes(command).ok_or(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable("command name reporting"),
+    )
+}
+
+/// Checked native namespace-variable query, independently of scalar access.
+///
+/// # Errors
+/// Propagates the adapter's unavailable actual query protocol.
+pub fn which_variable_bytes_checked<O: Namespaces + ?Sized>(
+    ops: &O,
+    name: &[u8],
+) -> Result<Option<Vec<u8>>, tcl_syntax::value::ValueError> {
+    ops.namespace_variable_name_bytes_checked(ops.current(), name)
+}
+
+/// Render explicit Logical namespace-variable advice.
+/// Original receivers use [`which_variable_bytes_checked`].
 pub fn which_variable<O: ValueOps + Namespaces>(
     ops: &mut O,
     name: &str,
@@ -326,59 +735,57 @@ pub fn which_variable<O: ValueOps + Namespaces>(
     }
 }
 
-/// [`which_variable`]'s resolution step over a **byte-valued** name — the
-/// `&self` form for adapters that hold names as bytes.
-///
-/// A Tcl variable name is a byte string (`set [binary format c 255] 1`), so
-/// the resolution runs on bytes end to end: the qualifier split is already a
-/// byte op, and the namespace/table probes go through the `Namespaces`
-/// byte-valued spellings. A byte-native runtime therefore never has to route
-/// a name through `str`.
+/// Explicit Logical namespace-variable reporting over the supplied table adapter.
+/// Original native queries use [`which_variable_bytes_checked`].
 pub fn variable_fqn_bytes<O: Namespaces + ?Sized>(
     ops: &O,
     name: &[u8],
     profile: &tcl_dialect::DialectProfile,
 ) -> Option<Vec<u8>> {
+    use tcl_syntax::naming::{VariableLookupBase, variable_namespace_lookup_bases};
     let cur = ops.current();
-    // Variable resolution has no existence-checked fall-through the way
-    // command resolution does (`tclVar.c`'s `TclLookupSimpleVar`): the
-    // qualifier names the namespace outright.
-    let (primary, simple): (Option<tcl_runtime_api::NsId>, Vec<u8>) = match qualifier(name) {
-        Qualifier::Unqualified => (Some(cur), name.to_vec()),
-        Qualifier::Absolute(prefix) | Qualifier::Relative(prefix) => {
-            (ops.find_namespace_bytes(cur, prefix), tail(name).to_vec())
-        }
+    let qualifier = qualifier(name);
+    let simple = match qualifier {
+        Qualifier::Unqualified => name,
+        Qualifier::Absolute(_) | Qualifier::Relative(_) => tail(name),
     };
-    // The alternate (global-rooted) candidate — TIP 278, dropped from 9.0 on.
-    // The release test is the dialect layer's to own (it follows the vendor
-    // shells' embedded core version, which a bare `TCL90_PLUS` mask test gets
-    // wrong), so ask it rather than re-deriving the comparison here. An
-    // absolute name has no alternate in any release: it already names the
-    // global-rooted namespace.
-    let alternate = match qualifier(name) {
-        _ if !profile.namespace_var_global_fallback() => None,
-        Qualifier::Absolute(_) => None,
-        Qualifier::Unqualified => ops.find_namespace_bytes(cur, b"::"),
-        Qualifier::Relative(prefix) => {
+    let namespaces: Vec<_> = variable_namespace_lookup_bases(
+        matches!(qualifier, Qualifier::Absolute(_)),
+        cur,
+        profile.namespace_var_global_fallback(),
+    )
+    .map(|base| match (base, &qualifier) {
+        (VariableLookupBase::Context(current), Qualifier::Unqualified) => Some(current),
+        (VariableLookupBase::Context(current), Qualifier::Relative(prefix)) => {
+            ops.find_namespace_bytes(current, prefix)
+        }
+        (VariableLookupBase::Root, Qualifier::Unqualified) => ops.find_namespace_bytes(cur, b"::"),
+        (VariableLookupBase::Root, Qualifier::Absolute(prefix)) => {
+            ops.find_namespace_bytes(cur, prefix)
+        }
+        (VariableLookupBase::Root, Qualifier::Relative(prefix)) => {
             let mut rooted = b"::".to_vec();
             rooted.extend_from_slice(prefix);
             ops.find_namespace_bytes(cur, &rooted)
         }
-    };
-    let ns = [primary, alternate]
+        (VariableLookupBase::Context(_), Qualifier::Absolute(_)) => {
+            unreachable!("absolute names have only a root base")
+        }
+    })
+    .collect();
+    let ns = namespaces
         .into_iter()
         .flatten()
-        .find(|ns| ops.namespace_var_exists_bytes(*ns, &simple))?;
+        .find(|ns| ops.namespace_var_exists_bytes(*ns, simple))?;
     let mut fqn = ops.name_bytes(ns);
     if fqn != b"::" {
         fqn.extend_from_slice(b"::");
     }
-    fqn.extend_from_slice(&simple);
+    fqn.extend_from_slice(simple);
     Some(fqn)
 }
 
-/// [`variable_fqn_bytes`] for the UTF-8-keyed adapters (the VM), whose own
-/// tables cannot hold a non-UTF-8 name in the first place.
+/// Lossy UTF-8 presentation of the explicit Logical reporting result.
 pub fn variable_fqn<O: Namespaces + ?Sized>(
     ops: &O,
     name: &str,
@@ -388,23 +795,69 @@ pub fn variable_fqn<O: Namespaces + ?Sized>(
         .map(|fqn| String::from_utf8_lossy(&fqn).into_owned())
 }
 
-/// `namespace origin command` over a **byte-valued** name — the fully-qualified
-/// name of the *original* command `name` resolves to, following `namespace
-/// import` links to their source. This is `NamespaceOriginCmd`
-/// (`tclNamesp.c`): resolve the word to a command token, ask
-/// `TclGetOriginalCommand` for the token it was imported from (falling back to
-/// the token itself when it was not imported), and report that token's
-/// fully-qualified name. `None` when the word resolves to no command at all —
-/// the caller reports `invalid command name "<name>"`.
-pub fn origin_bytes<O: Namespaces + ?Sized>(ops: &O, name: &[u8]) -> Option<Vec<u8>> {
-    let cur = ops.current();
-    let cmd = ops.find_command_bytes(cur, name)?;
-    ops.command_name_bytes(ops.command_origin(cmd).unwrap_or(cmd))
+/// Checked original-token query, retaining native byte aliases and refusals.
+///
+/// # Errors
+/// Propagates checked command/namespace lookup failures at each alias hop.
+pub fn origin_bytes_checked<O: Namespaces + ?Sized>(
+    ops: &mut O,
+    name: &[u8],
+) -> Result<Option<Vec<u8>>, crate::CmdError>
+where
+    O::OriginalNameError: Into<crate::CmdError>,
+{
+    let Some(mut command) = ops.find_command_bytes_checked(ops.current(), name)? else {
+        return Ok(None);
+    };
+    if ops.namespace_import_binding() == Some(tcl_dialect::NamespaceImportBinding::SourceName) {
+        let Some(root) = ops.root_command_context_checked()? else {
+            return Ok(None);
+        };
+        let mut visited = std::collections::HashSet::new();
+        while let Some(prefix) = ops
+            .command_alias_prefix_bytes_checked(command)
+            .map_err(Into::into)?
+        {
+            if !visited.insert(command) {
+                return Ok(None);
+            }
+            let target = if let [target] = prefix.as_slice() {
+                target.clone()
+            } else {
+                let mut list = Vec::new();
+                for (index, word) in prefix.iter().enumerate() {
+                    tcl_syntax::list::append_list_element(&mut list, word, index == 0);
+                }
+                list
+            };
+            let Some(target) = ops.find_command_bytes_checked(root, &target)? else {
+                return Ok(None);
+            };
+            command = target;
+        }
+        return ops.command_name_bytes(command).map(Some).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("command origin reporting")
+                .into(),
+        );
+    }
+    origin_from_command_checked(ops, command)
+        .map(Some)
+        .map_err(Into::into)
 }
 
-/// [`origin_bytes`] for the UTF-8-keyed adapters (the VM).
-pub fn origin<O: Namespaces + ?Sized>(ops: &O, name: &str) -> Option<String> {
-    origin_bytes(ops, name.as_bytes()).map(|fqn| String::from_utf8_lossy(&fqn).into_owned())
+/// Report the original command from an already resolved, retained command token.
+/// This performs no command-name lookup or original-object String conversion.
+///
+/// # Errors
+/// Refuses when the selected original token cannot report its current full name.
+pub fn origin_from_command_checked<O: Namespaces + ?Sized>(
+    ops: &O,
+    command: tcl_runtime_api::CommandId,
+) -> Result<Vec<u8>, tcl_syntax::value::ValueError> {
+    ops.command_name_bytes(ops.command_origin(command).unwrap_or(command))
+        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "command origin reporting",
+        ))
 }
 
 /// A byte-valued namespace target that did not resolve.
@@ -475,46 +928,24 @@ pub fn parent<O: ValueOps + Namespaces>(
 
 /// `namespace children ?name? ?pattern?` over byte-valued namespace names.
 ///
-/// Child names and results remain byte-exact. Valid-UTF-8 patterns use Tcl's
-/// Unicode glob semantics; an invalid-UTF-8 pattern or name follows the shared
-/// collision-free byte policy in [`string_match_bytes`]: byte identity only.
+/// The shared token-query owner selects the release's exact child-table lookup
+/// or opaque-byte glob scan. This reporting adapter constructs byte-valued names
+/// only after the original namespace tokens have been selected.
 ///
 /// # Errors
-/// `namespace "<name>" not found` if `name` is given and does not resolve.
+/// Preserves missing namespaces and unavailable native lookup or matcher policy.
 pub fn children_bytes<O: ValueOps + Namespaces>(
     ops: &mut O,
     name: Option<&[u8]>,
     pattern: Option<&[u8]>,
-) -> Result<O::Value, NamespaceLookupError> {
-    let ns = resolve_target_bytes(ops, name)?;
-    let target_fqn = ops.name_bytes(ns);
-    let qualified = pattern.map(|pattern| {
-        if pattern.starts_with(b"::") {
-            pattern.to_vec()
-        } else if target_fqn == b"::" {
-            let mut qualified = b"::".to_vec();
-            qualified.extend_from_slice(pattern);
-            qualified
-        } else {
-            let mut qualified = target_fqn.clone();
-            qualified.extend_from_slice(b"::");
-            qualified.extend_from_slice(pattern);
-            qualified
-        }
-    });
-    // Adapters retain the shared string-key hash table because its capacity and
-    // bucket chains survive entry deletion. Tcl_FirstHashEntry order is an
-    // observable part of this command's result.
-    let mut names: Vec<Vec<u8>> = ops
-        .children_hash_order(ns)
+) -> Result<O::Value, CmdError> {
+    let ns =
+        resolve_target_bytes(ops, name).map_err(|error| CmdError::new_bytes(error.message()))?;
+    let tokens = children_tokens_checked(ops, ns, pattern)?;
+    let names: Vec<_> = tokens
         .into_iter()
         .map(|child| ops.name_bytes(child))
         .collect();
-    names.retain(|name| {
-        qualified
-            .as_deref()
-            .is_none_or(|pattern| string_match_bytes(pattern, name))
-    });
     let items = names.iter().map(|name| ops.new_bytes(name)).collect();
     Ok(ops.new_list(items))
 }
@@ -533,7 +964,6 @@ pub fn children<O: ValueOps + Namespaces>(
     pattern: Option<&str>,
 ) -> Result<O::Value, CmdError> {
     children_bytes(ops, name.map(str::as_bytes), pattern.map(str::as_bytes))
-        .map_err(|error| CmdError::new(String::from_utf8_lossy(&error.message()).into_owned()))
 }
 
 /// The observable order owner for Tcl's `TCL_STRING_KEYS` hash table.
@@ -547,43 +977,37 @@ pub fn children<O: ValueOps + Namespaces>(
 /// deleting each token.
 #[derive(Clone, Debug)]
 pub struct TclStringHashOrder {
-    buckets: Vec<Vec<Vec<u8>>>,
-    entries: usize,
+    order: tcl_core_types::NativeHashOrder,
 }
 
 impl Default for TclStringHashOrder {
     fn default() -> Self {
-        Self {
-            buckets: vec![Vec::new(); 4],
-            entries: 0,
-        }
+        // The legacy pure helper preserves its unsigned host-word arithmetic.
+        // This convenience constructor does not issue native ABI authority.
+        let width = if usize::BITS == 32 {
+            tcl_core_types::NativeHashWordWidth::Bits32
+        } else {
+            tcl_core_types::NativeHashWordWidth::Bits64
+        };
+        Self::with_recipe(tcl_core_types::NativeHashRecipe::Tcl {
+            promotion: tcl_core_types::NativeHashBytePromotion::Unsigned,
+            width,
+        })
     }
 }
 
 impl TclStringHashOrder {
-    fn hash(bytes: &[u8]) -> usize {
-        let mut iter = bytes.iter().copied();
-        let mut result = usize::from(iter.next().unwrap_or(0));
-        for byte in iter {
-            result = result
-                .wrapping_add(result.wrapping_shl(3))
-                .wrapping_add(usize::from(byte));
+    /// Use an independently selected ABI-aware recipe with the shared chain kernel.
+    #[must_use]
+    pub fn with_recipe(recipe: tcl_core_types::NativeHashRecipe) -> Self {
+        Self {
+            order: tcl_core_types::NativeHashOrder::new(recipe),
         }
-        result
     }
 
-    /// Insert `key`, returning `false` when it already exists.
+    /// Insert a physical entry, returning false when it already exists.
     pub fn insert(&mut self, key: &[u8]) -> bool {
-        let bucket = Self::hash(key) & (self.buckets.len() - 1);
-        if self.buckets[bucket].iter().any(|entry| entry == key) {
-            return false;
-        }
-        self.buckets[bucket].insert(0, key.to_vec());
-        self.entries += 1;
-        if self.entries >= self.buckets.len() * 3 {
-            self.rebuild();
-        }
-        true
+        self.order.insert(key)
     }
 
     /// Re-create `key`'s entry at its bucket head, as C's
@@ -598,13 +1022,13 @@ impl TclStringHashOrder {
     /// Live entry count (`Tcl_HashTable.numEntries`).
     #[must_use]
     pub fn len(&self) -> usize {
-        self.entries
+        self.order.len()
     }
 
     /// Whether the table holds no live entries.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.entries == 0
+        self.order.is_empty()
     }
 
     /// Retain at least `bucket_count` buckets without adding entries.
@@ -613,40 +1037,29 @@ impl TclStringHashOrder {
     /// bucket array grows but never shrinks, so rebuilding only from the live
     /// entries would lose observable `dict info` history after removals.
     pub fn retain_bucket_count(&mut self, bucket_count: usize) {
-        while self.buckets.len() < bucket_count {
-            self.rebuild();
-        }
+        self.order.retain_bucket_count(bucket_count);
     }
 
     /// Current bucket-array size (`Tcl_HashTable.numBuckets`).
     #[must_use]
     pub fn bucket_count(&self) -> usize {
-        self.buckets.len()
+        self.order.bucket_count()
     }
 
     /// Delete `key` without shrinking or rebuilding the bucket array.
     pub fn remove(&mut self, key: &[u8]) -> bool {
-        let bucket = Self::hash(key) & (self.buckets.len() - 1);
-        let Some(index) = self.buckets[bucket].iter().position(|entry| entry == key) else {
-            return false;
-        };
-        self.buckets[bucket].remove(index);
-        self.entries -= 1;
-        true
+        self.order.remove(key)
     }
 
     /// Reset a deleted namespace's table to Tcl's four static buckets.
     pub fn clear(&mut self) {
-        *self = Self::default();
+        self.order = tcl_core_types::NativeHashOrder::new(self.order.recipe());
     }
 
     /// Live keys in `Tcl_FirstHashEntry`/`Tcl_NextHashEntry` order.
     #[must_use]
     pub fn keys(&self) -> Vec<&[u8]> {
-        self.buckets
-            .iter()
-            .flat_map(|chain| chain.iter().map(Vec::as_slice))
-            .collect()
+        self.order.keys()
     }
 
     /// Render Tcl's human-readable hash-table statistics.
@@ -664,19 +1077,19 @@ impl TclStringHashOrder {
         let mut overflow = 0_usize;
         let mut average = 0.0;
         let total_entries = self
-            .entries
+            .order
+            .len()
             .to_string()
             .parse::<f64>()
             .expect("usize decimal representation is a finite f64");
 
-        for chain in &self.buckets {
-            let entries = chain.len();
+        for entries in self.order.bucket_lengths() {
             if entries < COUNTERS {
                 counts[entries] += 1;
             } else {
                 overflow += 1;
             }
-            if self.entries != 0 {
+            if !self.order.is_empty() {
                 // Tcl_HashStats accumulates one `double` contribution per
                 // bucket before formatting with `%.1f`. Preserve that exact
                 // operation order: an exact rational calculation differs at
@@ -692,8 +1105,8 @@ impl TclStringHashOrder {
 
         let mut result = format!(
             "{} entries in table, {} buckets\n",
-            self.entries,
-            self.buckets.len()
+            self.order.len(),
+            self.order.bucket_count()
         );
         for (entries, count) in counts.into_iter().enumerate() {
             writeln!(result, "number of buckets with {entries} entries: {count}")
@@ -707,17 +1120,6 @@ impl TclStringHashOrder {
         write!(result, "average search distance for entry: {average:.1}")
             .expect("writing to a String cannot fail");
         result
-    }
-
-    fn rebuild(&mut self) {
-        let old = std::mem::take(&mut self.buckets);
-        self.buckets = vec![Vec::new(); old.len() * 4];
-        for chain in old {
-            for key in chain {
-                let bucket = Self::hash(&key) & (self.buckets.len() - 1);
-                self.buckets[bucket].insert(0, key);
-            }
-        }
     }
 }
 
@@ -829,20 +1231,47 @@ mod tests {
     }
 
     #[test]
-    fn which_request_matches_namespace_whichs_positional_option_rule() {
-        assert_eq!(which_request(&["puts"]), Some((WhichKind::Command, 0)));
-        assert_eq!(which_request(&["-command"]), Some((WhichKind::Command, 0)));
-        assert_eq!(
-            which_request(&["-com", "puts"]),
-            Some((WhichKind::Command, 1))
-        );
-        assert_eq!(
-            which_request(&["-var", "name"]),
-            Some((WhichKind::Variable, 1))
-        );
-        assert_eq!(which_request::<&str>(&[]), None);
-        assert_eq!(which_request(&["-zork", "puts"]), None);
-        assert_eq!(which_request(&["-command", "-variable", "puts"]), None);
+    fn which_request_matches_retained_provider_option_results() {
+        use tcl_syntax::naming::NativeNameProtocol;
+        for protocol in [
+            NativeNameProtocol::C(tcl_dialect::TclVersion::V8_4),
+            NativeNameProtocol::C(tcl_dialect::TclVersion::V8_5),
+            NativeNameProtocol::C(tcl_dialect::TclVersion::V8_6),
+            NativeNameProtocol::C(tcl_dialect::TclVersion::V9_0),
+            NativeNameProtocol::C(tcl_dialect::TclVersion::V9_1),
+            NativeNameProtocol::Jim084,
+        ] {
+            assert_eq!(
+                which_request_in(protocol, &["puts"]),
+                Some((WhichKind::Command, 0))
+            );
+            assert_eq!(
+                which_request_in(protocol, &["-command"]),
+                Some((WhichKind::Command, 0))
+            );
+            assert_eq!(
+                which_request_in(protocol, &["-command", "puts"]),
+                Some((WhichKind::Command, 1))
+            );
+            assert_eq!(
+                which_request_in(protocol, &["-variable", "name"]),
+                Some((WhichKind::Variable, 1))
+            );
+            let abbreviates = matches!(protocol, NativeNameProtocol::C(version) if version >= tcl_dialect::TclVersion::V8_5);
+            for option in ["-c", "-comman"] {
+                assert_eq!(
+                    which_request_in(protocol, &[option, "puts"]),
+                    abbreviates.then_some((WhichKind::Command, 1))
+                );
+            }
+            assert_eq!(which_request_in::<&str>(protocol, &[]), None);
+            assert_eq!(which_request_in(protocol, &["-", "puts"]), None);
+            assert_eq!(which_request_in(protocol, &["-zork", "puts"]), None);
+            assert_eq!(
+                which_request_in(protocol, &["-command", "-variable", "puts"]),
+                None
+            );
+        }
     }
 
     #[test]
@@ -1038,5 +1467,74 @@ mod tests {
              number of buckets with 10 or more entries: 0\n\
              average search distance for entry: 1.1"
         );
+    }
+}
+
+#[cfg(test)]
+mod native_dispatch_diagnostic_tests {
+    #[test]
+    fn original_namespace_dispatch_errors_match_all_eighteen_native_results() {
+        // Native proof naming.namespace.dispatch-error-noun-and-ambiguity:
+
+        // Native proof naming.namespace.dispatch-prefix-worker-availability:
+
+        use tcl_syntax::naming::NativeNameProtocol;
+        let mut compared = 0;
+        for row in include_str!("../tests/data/native_namespace_dispatch/errors.tsv").lines() {
+            let fields: Vec<_> = row.split('\t').collect();
+            let available = include_str!("../tests/data/native_namespace_dispatch/available.tsv")
+                .lines()
+                .find_map(|line| {
+                    let (engine, words) = line.split_once('\t')?;
+                    (engine == fields[0]).then(|| words.split(' ').collect::<Vec<_>>())
+                })
+                .expect("same native engine's captured available command words");
+            let protocol = if fields[0] == "jim" {
+                NativeNameProtocol::Jim084
+            } else {
+                NativeNameProtocol::C(
+                    tcl_dialect::TclVersion::from_dialect(Some(&format!("tcl{}", fields[0])))
+                        .expect("captured native C release"),
+                )
+            };
+            let expected: Vec<_> = fields[2]
+                .as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|digits| u8::from_str_radix(std::str::from_utf8(digits).unwrap(), 16).unwrap())
+                .collect();
+            assert_eq!(
+                super::unknown_subcommand_message(protocol, &available, fields[1].as_bytes()),
+                expected,
+                "{row}"
+            );
+            compared += 1;
+        }
+        assert_eq!(compared, 18);
+    }
+}
+
+#[cfg(test)]
+mod shared_boundary_tests {
+    use super::*;
+
+    #[test]
+    fn neutral_namespace_boundaries_share_counted_written_spans() {
+        // Implementation contract: naming.grammar.shared-written-name-boundaries
+
+        // Neutral counted geometry; selected Native C/Jim input is independent.
+        for (written, expected_qualifier, expected_tail) in [
+            (b"::a:::b".as_slice(), b"::a".as_slice(), b"b".as_slice()),
+            (b"a:::".as_slice(), b"a".as_slice(), b"".as_slice()),
+            (b":".as_slice(), b"".as_slice(), b":".as_slice()),
+            (b"a\0x:::b".as_slice(), b"a\0x".as_slice(), b"b".as_slice()),
+        ] {
+            assert_eq!(qualifiers(written), expected_qualifier);
+            assert_eq!(tail(written), expected_tail);
+        }
+        assert_eq!(qualifier(b"::::p"), Qualifier::Absolute(b"::"));
+        assert_eq!(qualifier(b"a:::p"), Qualifier::Relative(b"a"));
+        assert_eq!(qualifier(b"p"), Qualifier::Unqualified);
     }
 }

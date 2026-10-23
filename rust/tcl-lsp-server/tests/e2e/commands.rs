@@ -750,6 +750,7 @@ const CORE_COMMANDS: &[&str] = &[
     "tcl-lsp.diagramData",
     "tcl-lsp.tkPreview",
     "tcl-lsp.xcTranslate",
+    "tcl-lsp.xcTranslateDocument",
     "tcl-lsp.listRules",
     "tcl-lsp.extractRule",
     "tcl-lsp.writeRuleBack",
@@ -787,17 +788,15 @@ fn core_commands_are_advertised() {
 }
 
 #[test]
-fn minify_compact_round_trip() {
-    // Compact renaming shortens identifiers and reports the reverse map, so a name
-    // in the minified source resolves back to the original.  Proc renaming
-    // needs `isolated` (the 4th argument): a proc name is a public command
-    // identity the non-isolated tier must preserve.
+fn minify_compact_reports_naming_refusal_and_preserves_result() {
+    // Review N15 and decision 2026-10-22T13:17Z preserve the unsupported
+    // public-name refusal. Isolation cannot authorize a partial rename.
+    // The added puts makes the old callable fixture's result observable to C Tcl.
+    let original_source =
+        "proc addNumbers {a b} { return [expr {$a + $b}] }\nputs [addNumbers 1 2]\n";
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(
-        &uri,
-        "proc addNumbers {a b} { return [expr {$a + $b}] }\naddNumbers 1 2\n",
-    );
+    lsp.open_ready(&uri, original_source);
     let result = lsp.execute_command("tcl-lsp.minifyDocument", json!([uri, true, false, true]));
     assert!(!result.is_null());
     let minified = result
@@ -809,21 +808,39 @@ fn minify_compact_round_trip() {
         .and_then(Value::as_i64)
         .unwrap();
     assert!(minified < original);
-    assert!(
-        !source(&result).contains("addNumbers"),
-        "{}",
-        source(&result)
+    assert_eq!(
+        source(&result),
+        "proc addNumbers {a b} {return [expr {$a+$b}]};puts [addNumbers 1 2]"
     );
-    // The minified source must still map back to the original name. The server
-    // may report `symbolMap` as an object or as a formatted string, so accept a
-    // key on the object and a substring in the string.
-    let symbol_map = result.get("symbolMap").cloned().unwrap_or(Value::Null);
-    let maps_back = match &symbol_map {
-        Value::Object(_) => symbol_map.get("addNumbers").is_some(),
-        Value::String(s) => s.contains("addNumbers"),
-        _ => false,
-    };
-    assert!(maps_back, "{symbol_map}");
+    assert!(
+        result["refusals"]
+            .as_array()
+            .expect("typed refusals")
+            .iter()
+            .any(|refusal| refusal["code"] == "missing-alpha-rename-contract")
+    );
+    let encoded = result["symbolMap"].as_str().expect("lossless symbol map");
+    let symbol_map = tcl_lsp_core::minify::SymbolMap::parse_structured(encoded)
+        .expect("valid complete lossless symbol map");
+    assert_eq!(
+        symbol_map.format(),
+        encoded,
+        "the map retains its complete report"
+    );
+    assert!(symbol_map.procs.is_empty(), "{symbol_map:?}");
+    assert!(symbol_map.variables.is_empty(), "{symbol_map:?}");
+    for version in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
+        if let Some(oracle) = tcl_test_support::witness_tclsh(version) {
+            let before = tcl_test_support::run_script(&oracle.path, original_source.as_bytes())
+                .expect("original command fixture execution");
+            let after = tcl_test_support::run_script(&oracle.path, source(&result).as_bytes())
+                .expect("actual server minified source execution");
+            assert!(before.success() && after.success(), "{result}");
+            assert_eq!(before.stdout, b"3\n");
+            assert_eq!(after.stdout, before.stdout);
+            assert_eq!(after.stderr, before.stderr);
+        }
+    }
 }
 
 #[test]

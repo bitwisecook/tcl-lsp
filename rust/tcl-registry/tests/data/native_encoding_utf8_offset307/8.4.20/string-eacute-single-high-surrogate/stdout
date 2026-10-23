@@ -1,0 +1,5 @@
+VERSION|0|382e342e3230
+INPUT|string-eacute-single-high-surrogate|none|1|c3a9eda0bd
+RETURN|0|bytearray|0
+INPUT_AFTER|none|1
+RAW|5|c3a9eda0bd

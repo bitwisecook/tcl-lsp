@@ -41,6 +41,10 @@
 //! (see `mod skipped_divergences`); the only genuine one is `ceil`/`floor`,
 //! where the pass infers `Int` but `tclsh` proves the value is a `Double`.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::fixture_id;
+
 use std::collections::HashMap;
 
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -58,7 +62,7 @@ fn var_types(src: &str, qname: &str, var: &str) -> HashMap<u32, TypeLattice> {
         &cu.top_level
     } else {
         cu.procedures
-            .get(qname)
+            .get(&fixture_id(&cu.procedures, qname))
             .unwrap_or_else(|| panic!("procedure {qname} not found"))
     };
     let mut out = HashMap::new();
@@ -171,8 +175,17 @@ fn command_return_types() {
     assert_eq!(tcl_type("set x [join {a b c} ,]", "x"), TclType::String);
     // tclsh: `string length hello` -> 5, `string is integer 5` = 1 => Int
     assert_eq!(tcl_type("set x [string length hello]", "x"), TclType::Int);
-    // tclsh: `concat {a b} {c d}` -> "a b c d", `string is list` = 1 => List
-    assert_eq!(tcl_type("set x [concat {a b} {c d}]", "x"), TclType::List);
+    // Native C8.4–9.1 concat windows retain NULL/String result headers.
+    // `string is list` can convert these bytes; it does not prove a List header.
+    assert_eq!(tcl_type("set x [concat {a b} {c d}]", "x"), TclType::String);
+}
+
+#[test]
+fn concat_string_results_do_not_donate_list_representations() {
+    // Real C Tcl accepts this concatenation, then rejects it as a list.
+    assert_eq!(tcl_type("set x [concat \\{ foo]", "x"), TclType::String);
+    // A valid list value also retains the selected String result classification.
+    assert_eq!(tcl_type("set x [concat {a b} {c d}]", "x"), TclType::String);
 }
 
 // expr known int
@@ -778,7 +791,7 @@ proc wire_namespace_vars {} {
     // The proc unit exists and carries a (possibly empty) type map.
     let fu = cu
         .procedures
-        .get("::wire_namespace_vars")
+        .get(&fixture_id(&cu.procedures, "::wire_namespace_vars"))
         .expect("proc ::wire_namespace_vars built");
     // Accessing `types` proves the map is present and the build did not panic.
     let _ = fu.types.len();

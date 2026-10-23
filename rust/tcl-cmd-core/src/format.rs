@@ -65,7 +65,7 @@ pub fn format_cmd_with_syntax<O: ValueOps>(
     let Some((fmt, rest)) = args.split_first() else {
         return Err(CmdError::wrong_args("format formatString ?arg ...?"));
     };
-    let fmt = ops.as_str(fmt).to_string();
+    let fmt = ops.try_as_str(fmt)?.to_string();
     let rendered = render(ops, &fmt, rest, syntax)?;
     Ok(ops.new_string(rendered))
 }
@@ -308,7 +308,7 @@ fn utf8_len(b: u8) -> usize {
 /// objects modulo 2^64, then applies the conversion's selected width. Tcl 8.4
 /// and Jim have no corresponding bignum format path, so they retain the legacy
 /// wide-integer coercion and overflow error.
-fn fixed_integer_value<O: ValueOps>(
+pub(crate) fn fixed_integer_value<O: ValueOps>(
     ops: &mut O,
     value: &O::Value,
     syntax: tcl_dialect::NumberSyntax,
@@ -319,7 +319,19 @@ fn fixed_integer_value<O: ValueOps>(
     ) {
         return Ok(ops.as_int(value)?);
     }
-    let IntegerMagnitude { negative, digits } = ops.integer_magnitude(value, Radix::Dec, syntax)?;
+    Ok(fixed_integer_magnitude(ops.integer_magnitude(
+        value,
+        Radix::Dec,
+        syntax,
+    )?))
+}
+
+/// Reduce an already obtained magnitude through the same fixed-width owner.
+/// Checked adapters supply their original getter; this pure projection adds no
+/// parsing, caching or object access.
+#[must_use]
+pub(crate) fn fixed_integer_magnitude(magnitude: IntegerMagnitude) -> i64 {
+    let IntegerMagnitude { negative, digits } = magnitude;
     let magnitude = digits.bytes().fold(0_u64, |bits, digit| {
         debug_assert!(digit.is_ascii_digit());
         bits.wrapping_mul(10).wrapping_add(u64::from(digit - b'0'))
@@ -329,7 +341,7 @@ fn fixed_integer_value<O: ValueOps>(
     } else {
         magnitude
     };
-    Ok(i64::from_ne_bytes(bits.to_ne_bytes()))
+    i64::from_ne_bytes(bits.to_ne_bytes())
 }
 
 /// Reject a size modifier the release predates, naming the byte it reads as
@@ -435,7 +447,7 @@ fn render_spec<O: ValueOps>(
             ))
         }
         b's' => {
-            let mut s = ops.as_str(arg).to_string();
+            let mut s = ops.try_as_str(arg)?.to_string();
             if let Some(p) = spec.precision {
                 s = s.chars().take(p).collect();
             }
@@ -587,15 +599,7 @@ fn pointer_digits(u: u64, spec: &Spec) -> String {
     format!("0x{digits}")
 }
 
-/// Whether `verb` is a floating-point conversion (`e`/`E`/`f`/`g`/`G`).
-///
-/// `F` is **not** one, despite C: tclsh8.6.18 and tclsh9.0.4 both answer
-/// `format %F 1.5` with `bad field specifier "F"`, and
-/// [`tcl_syntax::format::is_verb`] agrees. It used to be listed here anyway,
-/// which classified a `%F` as float for argument coercion and then dropped it
-/// through `render_spec`'s float arm — unreachable only because the grammar
-/// stopped it one layer earlier (#2077). This set and the renderer's arm are
-/// now the same six-letter answer minus `F`.
+/// Floating-point conversion verbs; Tcl does not accept C's `%F`.
 fn is_float_verb(verb: u8) -> bool {
     matches!(verb, b'e' | b'E' | b'f' | b'g' | b'G')
 }
@@ -673,63 +677,14 @@ fn float_digits(x: f64, spec: &Spec) -> String {
             }
             out
         }
-        // g/G (C semantics): precision P (0 → 1) is the number of significant
-        // digits. Using the decimal exponent X (from an %e render at P-1
-        // fractional digits), pick %e when X < -4 or X >= P, else %f with
-        // P-1-X fractional digits; then strip trailing zeros / a bare `.`
-        // (unless the `#` alternate form keeps them).
-        _ => {
-            let p = prec.max(1);
-            let upper = spec.verb == b'G';
-            let probe = format!("{m:.*e}", p - 1);
-            let exp: i32 = probe
-                .find('e')
-                .and_then(|i| probe[i + 1..].parse().ok())
-                .unwrap_or(0);
-            let keep_zeros = spec.flags.contains(FmtFlags::HASH);
-            if exp < -4 || exp >= i32::try_from(p).unwrap_or(i32::MAX) {
-                let body = c_style_exp(&format!("{m:.*e}", p - 1));
-                let mut out = if keep_zeros { body } else { trim_g_exp(&body) };
-                if x.is_finite() && keep_zeros {
-                    let exponent = out.find(['e', 'E']).unwrap_or(out.len());
-                    if !out[..exponent].contains('.') {
-                        out.insert(exponent, '.');
-                    }
-                }
-                if upper { out.replace('e', "E") } else { out }
-            } else {
-                let fprec = usize::try_from(i32::try_from(p).unwrap_or(0) - 1 - exp).unwrap_or(0);
-                let body = format!("{m:.fprec$}");
-                if keep_zeros {
-                    if body.contains('.') {
-                        body
-                    } else {
-                        format!("{body}.")
-                    }
-                } else if !body.contains('.') {
-                    body
-                } else {
-                    body.trim_end_matches('0').trim_end_matches('.').to_string()
-                }
-            }
-        }
+        // Shared `%g` owner also drives native legacy double strings.
+        _ => tcl_syntax::number::format_general_float(
+            m,
+            prec,
+            spec.flags.contains(FmtFlags::HASH),
+            spec.verb == b'G',
+        ),
     }
-}
-
-/// Trim trailing mantissa zeros (and a bare `.`) from a C-style `%e` body
-/// without disturbing the exponent: `1.20000e+06` → `1.2e+06`,
-/// `1.00000e+06` → `1e+06`.
-fn trim_g_exp(body: &str) -> String {
-    let Some(epos) = body.find(['e', 'E']) else {
-        return body.to_string();
-    };
-    let (mantissa, exp) = body.split_at(epos);
-    let trimmed = if mantissa.contains('.') {
-        mantissa.trim_end_matches('0').trim_end_matches('.')
-    } else {
-        mantissa
-    };
-    format!("{trimmed}{exp}")
 }
 
 /// Left-pad `mag` with `0` up to `.precision` digits. Tcl 8.5+ and Tcl 9
@@ -864,8 +819,13 @@ mod tests {
         fn new_list(&mut self, items: Vec<String>) -> String {
             items.join(" ")
         }
-        fn as_str(&mut self, v: &String) -> std::rc::Rc<str> {
-            std::rc::Rc::from(v.as_str())
+        fn as_bytes(&mut self, v: &String) -> std::rc::Rc<[u8]> {
+            std::rc::Rc::from(v.as_bytes())
+        }
+        fn new_bytes(&mut self, bytes: &[u8]) -> String {
+            std::str::from_utf8(bytes)
+                .expect("Unicode-only fixture input")
+                .to_owned()
         }
         fn as_int(&mut self, v: &String) -> Result<i64, ValueError> {
             v.parse().map_err(|_| ValueError::NotInteger(v.clone()))

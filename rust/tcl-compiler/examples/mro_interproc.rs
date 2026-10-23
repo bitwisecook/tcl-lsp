@@ -291,7 +291,8 @@ fn classes_of(v: &ClassValue) -> Option<HashSet<String>> {
     }
 }
 
-/// Resolve a call head to a qualified proc name in the corpus registry.
+/// Select a corpus reporting label, with a unique-leaf fallback for the ceiling.
+/// This approximation supplies no current source target or executable identity.
 fn resolve_call(
     head: &str,
     proc_params: &HashMap<String, Vec<String>>,
@@ -300,11 +301,12 @@ fn resolve_call(
     if proc_params.contains_key(head) {
         return Some(head.to_string());
     }
-    let q = format!("::{head}");
+    let q = tcl_syntax::naming::qualify("::", head);
     if proc_params.contains_key(&q) {
         return Some(q);
     }
-    let bare = head.rsplit("::").next().unwrap_or(head);
+    let bare = core::str::from_utf8(tcl_syntax::naming::written_command_tail(head.as_bytes()))
+        .expect("tail of a Unicode command");
     match bare_to_q.get(bare) {
         Some(v) if v.len() == 1 => Some(v[0].clone()),
         _ => None,
@@ -363,7 +365,7 @@ fn build_proc_registry(
     }
     let mut bare_to_q: HashMap<String, Vec<String>> = HashMap::new();
     for qn in proc_params.keys() {
-        let bare = qn.rsplit("::").next().unwrap_or(qn).to_string();
+        let bare = tcl_syntax::naming::key_tail(qn).to_owned();
         bare_to_q.entry(bare).or_default().push(qn.clone());
     }
     (proc_params, bare_to_q)
@@ -393,8 +395,7 @@ fn build_coll_elem(
         if sub != "new" && sub != "create" {
             return None;
         }
-        let bare = head.trim_start_matches("::");
-        let cand = format!("::{bare}");
+        let cand = tcl_syntax::naming::qualify("::", head);
         if merged.contains_key(&cand) {
             Some(cand)
         } else if merged.contains_key(head) {
@@ -583,10 +584,10 @@ fn parameter_ceiling(
         let mut next = param_class.clone();
         let mut changed = false;
         for u in units {
-            let cu_units = std::iter::once(("::top", &u.cu.top_level))
-                .chain(u.cu.procedures.iter().map(|(q, fu)| (q.as_str(), fu)))
-                .chain(u.cu.methods.iter().map(|(q, fu)| (q.as_str(), fu)));
-            for (_qn, fu) in cu_units {
+            let cu_units = std::iter::once(&u.cu.top_level)
+                .chain(u.cu.procedures.values())
+                .chain(u.cu.methods.values());
+            for fu in cu_units {
                 for block in fu.cfg.blocks.values() {
                     for stmt in &block.statements {
                         let (Statement::Call {
@@ -826,4 +827,39 @@ fn main() {
         &param_class,
         &ceiling_by_hop,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_call;
+    use std::collections::HashMap;
+
+    #[test]
+    fn corpus_labels_keep_constructed_colons_and_refuse_ambiguous_leafs() {
+        let parameters = HashMap::from([
+            ("::ns::command".to_owned(), Vec::new()),
+            (":::".to_owned(), Vec::new()),
+        ]);
+        let leaves = HashMap::from([
+            ("command".to_owned(), vec!["::ns::command".to_owned()]),
+            (":".to_owned(), vec![":::".to_owned()]),
+            (
+                "ambiguous".to_owned(),
+                vec!["::a::ambiguous".to_owned(), "::b::ambiguous".to_owned()],
+            ),
+        ]);
+        assert_eq!(
+            resolve_call("ns:::command", &parameters, &leaves).as_deref(),
+            Some("::ns::command")
+        );
+        assert_eq!(
+            resolve_call(":", &parameters, &leaves).as_deref(),
+            Some(":::")
+        );
+        assert_eq!(
+            resolve_call(":::", &parameters, &leaves).as_deref(),
+            Some(":::")
+        );
+        assert!(resolve_call("ambiguous", &parameters, &leaves).is_none());
+    }
 }

@@ -51,7 +51,7 @@
     clippy::many_single_char_names
 )]
 
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap};
 
 use tcl_dialect::{NumberSpelling, NumberSyntax, StringCharacterModel};
 use tcl_registry::value_transfer::{
@@ -61,6 +61,8 @@ use tcl_registry::value_transfer::{
 };
 
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
+mod native_constant;
+pub(crate) use native_constant::{NativeConstantResult, eval_native_constant};
 
 /// Result of evaluating a constant Tcl expression.
 #[derive(Debug, Clone, PartialEq)]
@@ -138,6 +140,126 @@ pub enum EnvValue {
 /// Variable environment for evaluation.
 pub type Env = HashMap<String, EnvValue>;
 
+/// Exact retained numeric object read without conversion at the reached site.
+/// The owner supplying this evidence must prove the object's live identity,
+/// current native numeric representation and absence of read observers. Value
+/// constants, type shapes and a physical variable cell alone are insufficient.
+#[derive(Debug, Clone)]
+pub enum NativeOperandObjectIdentity {
+    /// One actual interpreter-owned runtime object and representation generation.
+    Runtime {
+        /// Actual interpreter identity.
+        interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+        /// Native object token.
+        object: u64,
+        /// Native representation generation.
+        generation: u64,
+    },
+    /// Source-produced numeric family at an exact retained physical read.
+    /// Distinct cells remain distinct; this supplies no unique object aliasing.
+    Source {
+        /// Original numeric producer and native preparation.
+        producer: std::sync::Arc<crate::native_numeric::SourceNativeNumericObject>,
+        /// Exact original read extent.
+        read: crate::ir::SourceSite,
+        /// Every actual physical alternative at this read.
+        cells: Vec<crate::place::CellIdentity>,
+    },
+}
+
+/// Retained object evidence supplied independently of mathematical values.
+#[derive(Debug, Clone)]
+pub struct RetainedNativeOperandProof {
+    /// Actual native grammar/protocol of the object evidence's interpreter.
+    pub dialect: tcl_registry::InvocationDialect,
+    /// Actual runtime allocation or retained source producer and physical reads.
+    pub identity: NativeOperandObjectIdentity,
+    /// Numeric value read from its already native representation.
+    pub value: TclValue,
+    /// Existing cached bytes, if known without materialising a string.
+    pub existing_string: Option<String>,
+}
+
+/// Reached operands whose real object state licenses a read without coercion.
+pub type NativeOperandProofs = HashMap<String, RetainedNativeOperandProof>;
+
+/// Native object conversion required by a reached expression operation.
+/// These are execution obligations, independent of the known mathematical value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeCoercionKind {
+    /// Arithmetic or native math-function numeric ingress.
+    Number,
+    /// Boolean ingress for conditions and logical operators.
+    Boolean,
+    /// Numeric classification for a polymorphic comparison.
+    NumericComparison,
+    /// List conversion for membership.
+    List,
+    /// String materialisation from an actual retained operand object.
+    String,
+    /// C Tcl's final expression result normalization.
+    ResultNormalization,
+}
+
+/// An unresolved conversion of an actual retained operand object.
+/// The site belongs to the original expression AST, before constant substitution.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NativeCoercionObligation {
+    /// Authored variable reference, preserving bracing and index syntax.
+    pub reference: String,
+    /// Parser offset in the original expression; absent for an unpositioned lookup.
+    pub start: Option<u32>,
+    /// Required native conversion.
+    pub kind: NativeCoercionKind,
+}
+
+/// A native expression result whose object or existing string must be retained.
+/// Its numeric interpretation alone cannot establish a numeric result spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NativeExpressionResultDependency {
+    /// Jim returns the selected retained operand object unchanged.
+    SelectedOperand {
+        /// Original reference identifying the selected read.
+        reference: String,
+        /// Original parser offset of the selected reference.
+        start: Option<u32>,
+        /// Existing bytes, if already known without materialising the object.
+        existing_bytes: Option<String>,
+    },
+    /// The native engine retains string bytes without numeric normalization.
+    StringResult {
+        /// Exact returned string bytes.
+        bytes: String,
+    },
+}
+
+/// Analysis value together with execution effects which must remain represented.
+/// Knowing this value does not license replacing its source expression.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FoldEvaluation {
+    /// Known numeric result under the selected native semantics.
+    pub value: TclValue,
+    /// Reached conversions lacking actual live-object representation evidence.
+    pub coercions: Vec<NativeCoercionObligation>,
+    /// Native object/string result which must not be replaced by `value`.
+    pub result_dependency: Option<NativeExpressionResultDependency>,
+}
+
+impl FoldEvaluation {
+    /// Whether both reached object conversions and native result preservation
+    /// are discharged. Dispatch and observer dependencies still require proof.
+    #[must_use]
+    pub fn native_value_effects_are_proved(&self) -> bool {
+        self.coercions.is_empty() && self.result_dependency.is_none()
+    }
+    /// Whether replacing evaluation erases no unresolved native object conversion.
+    /// Native dispatch dependencies and observer proofs remain separate obligations.
+    #[must_use]
+    pub fn coercions_are_proved(&self) -> bool {
+        self.coercions.is_empty()
+    }
+}
+
 // Public API
 
 /// Evaluate an expression AST against `env`. Returns `None` when the
@@ -149,8 +271,12 @@ pub type Env = HashMap<String, EnvValue>;
 #[must_use]
 pub fn eval_tcl_expr(node: &ExprNode, env: &Env) -> Option<TclValue> {
     // No dialect context: decline the iRules word-operator fold rather than
-    // assume plain Tcl (safe — see `FoldOps::is_irules`).
-    eval_with_config(node, env, FoldPolicy::from_octal(None), None, true)
+    // assume plain Tcl (safe — see `FoldOps::f5_predicates`).
+    eval_with_config(
+        node,
+        env,
+        FoldPolicy::from_octal(None).with_intrinsic_math(),
+    )
 }
 
 /// Like [`eval_tcl_expr`] but resolves the *dialect* so a leading-zero decimal
@@ -159,9 +285,8 @@ pub fn eval_tcl_expr(node: &ExprNode, env: &Env) -> Option<TclValue> {
 /// Tcl 9.0 (`08` → 8, `010` → 10). All non-9.x dialects (tcl8.4/8.5/8.6,
 /// f5-irules ≈ 8.4, f5-iapps ≈ 8.5/8.6, EDA) use the 8.x octal rule.
 ///
-/// The dialect also bounds the math functions that fold: `min`/`max` (8.5) or
-/// an `is*` classification (9.0) used in an older core folds nothing, since
-/// the `::tcl::mathfunc::*` command it would call does not exist there.
+/// A profile supplies numeric grammar, not installed function identity. Reached
+/// math calls need the resolved binding API; this adapter declines them.
 #[must_use]
 pub fn eval_tcl_expr_in_dialect(
     node: &ExprNode,
@@ -172,8 +297,6 @@ pub fn eval_tcl_expr_in_dialect(
         node,
         env,
         FoldPolicy::for_profile(leading_zero_is_octal(dialect), Some(dialect)),
-        Some(fold_math_ceiling(dialect)),
-        widens_past_a_wide(Some(dialect)),
     )
 }
 
@@ -183,9 +306,8 @@ pub fn eval_tcl_expr_in_dialect(
 /// that hold a `CommandRegistry` rather than a dialect string derive the flag
 /// via `CommandRegistry::leading_zero_is_octal`.
 ///
-/// Without a dialect the math-function set is unbounded (any known function
-/// folds) — the caller has already decided the octal policy but not the
-/// version tier, so this path never over-restricts.
+/// An octal policy supplies no installed math-function evidence. Reached
+/// function calls require the separate resolved binding API.
 #[must_use]
 pub fn eval_tcl_expr_with_octal(
     node: &ExprNode,
@@ -195,13 +317,13 @@ pub fn eval_tcl_expr_with_octal(
     // The caller has resolved the octal policy but not a dialect string, so
     // (as with `eval_tcl_expr`) decline the iRules word-operator fold rather
     // than assume plain Tcl.
-    eval_with_config(node, env, FoldPolicy::from_octal(octal), None, true)
+    eval_with_config(node, env, FoldPolicy::from_octal(octal))
 }
 
 /// Like [`eval_tcl_expr_with_octal`] but for the (more common) optimiser call
 /// sites that already have both an `octal` policy and a resolved dialect
 /// profile in scope — so, unlike `eval_tcl_expr_with_octal`'s plain
-/// `None`-profile callers, these can resolve [`FoldOps::is_irules`] precisely
+/// `None`-profile callers, these can resolve [`FoldOps::f5_predicates`] precisely
 /// instead of defaulting it to declined.  A profile used only for
 /// `leading_zero_is_octal` and never to gate the iRules word-operator fold
 /// leaves that fold silently off.
@@ -227,6 +349,11 @@ pub fn eval_tcl_expr_with_octal_and_dialect(
 /// of every signature on the chain.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FoldPolicy {
+    /// Exact invocation snapshot for engine-owned native function tables.
+    pub invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    /// Integer representation and overflow policy of the selected engine.
+    /// Legacy callers without an engine retain the modern Tcl tower.
+    pub arithmetic: Option<tcl_dialect::NativeArithmetic>,
     /// Leading-zero octal policy: `Some(true)` = the 8.x octal rule,
     /// `Some(false)` = the 9.0 decimal rule, `None` = decline to fold a
     /// dialect-ambiguous leading-zero operand.
@@ -235,10 +362,9 @@ pub struct FoldPolicy {
     /// `[expr …]` while folding: the parse must use the same grammar the
     /// document was lexed under, never the ambient one.
     pub dialect: Option<&'static tcl_dialect::DialectProfile>,
-    /// Whether the active dialect's `expr` grammar has the iRules word
-    /// operators.  `false` (the default) declines that fold, which is always
-    /// safe — see [`FoldOps::is_irules`].
-    pub is_irules: bool,
+    /// Explicit authored F5 predicate recipe for this fold. It grants no
+    /// native C/Jim execution or measured appliance-context capability.
+    pub f5_predicates: Option<tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider>,
     /// What the active dialect counts as a string character: `Some(model)`
     /// folds character counts under that model, `None` declines a fold whose
     /// answer the Tcl 8 and Tcl 9 models disagree on — the same
@@ -259,9 +385,34 @@ pub struct FoldPolicy {
     /// literal list must split it the way the document's own list parser
     /// does.  Defaults to C Tcl for a caller with no dialect.
     pub word_rules: tcl_syntax::word_rules::WordValueRules,
+    /// Explicit engine identity, including registry-less native snapshots.
+    pub native_family: Option<tcl_dialect::model::Family>,
+    /// Pure mathematical evaluation explicitly requested by a caller. This is
+    /// not a Tcl execution proof; execution consumers leave it false and supply
+    /// the reached native function-binding query instead.
+    pub intrinsic_math: bool,
 }
 
 impl FoldPolicy {
+    /// Select mathematical intrinsic semantics without claiming Tcl dispatch.
+    /// Use only for an explicitly mathematical evaluation API or after another
+    /// owner has proved the exact native implementation for every reached call.
+    #[must_use]
+    pub const fn with_intrinsic_math(mut self) -> Self {
+        self.intrinsic_math = true;
+        self
+    }
+
+    /// Render a floating result only when native precision is immutable.
+    /// Numeric folding itself can proceed under mutable precision; string
+    /// materialisation requires this independent interpreter-world proof.
+    #[must_use]
+    pub fn double_format(self) -> Option<tcl_dialect::DoubleFormat> {
+        self.invocation_dialect
+            .and_then(tcl_registry::InvocationDialect::double_string_policy)
+            .and_then(tcl_dialect::DoubleStringPolicy::constant_format)
+    }
+
     /// The numeral grammar this policy reads operands under: the dialect's,
     /// or for a caller that names none, the one its leading-zero rule
     /// implies (the 8.x octal rule, 8.5's grammar; anything else, 9.0's).
@@ -290,12 +441,16 @@ impl FoldPolicy {
     #[must_use]
     pub const fn from_octal(octal: Option<bool>) -> Self {
         Self {
+            invocation_dialect: None,
+            arithmetic: None,
             dialect: None,
+            native_family: None,
             octal,
-            is_irules: false,
+            f5_predicates: None,
             characters: None,
             numbers: None,
             word_rules: tcl_syntax::word_rules::WordValueRules::TCL,
+            intrinsic_math: false,
         }
     }
 
@@ -308,13 +463,71 @@ impl FoldPolicy {
         profile: Option<&'static tcl_dialect::DialectProfile>,
     ) -> Self {
         Self {
+            invocation_dialect: profile.map(tcl_registry::InvocationDialect::of_profile),
+            arithmetic: profile.and_then(|profile| {
+                tcl_registry::InvocationDialect::of_profile(profile).arithmetic()
+            }),
             octal,
             dialect: profile,
-            is_irules: profile.is_some_and(tcl_dialect::DialectProfile::is_irules),
+            native_family: profile
+                .and_then(|profile| tcl_registry::InvocationDialect::of_profile(profile).family()),
+            f5_predicates: profile
+                .is_some_and(tcl_dialect::DialectProfile::is_irules)
+                .then_some(tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider::F5Trunk),
             characters: profile.and_then(tcl_dialect::DialectProfile::character_model),
             numbers: profile.map(|p| NumberSyntax::of_profile(Some(p))),
             word_rules: tcl_syntax::word_rules::WordValueRules::of_profile(profile),
+            intrinsic_math: false,
         }
+    }
+
+    /// Complete parser axes expected by a native expression preparation proof.
+    /// Missing engine and source profile remain unknown; display names and
+    /// mathematical intrinsic mode do not establish executable preparation.
+    #[must_use]
+    pub fn preparation_context(self) -> Option<tcl_syntax::expr::parser::ExprParseContext> {
+        self.invocation_dialect
+            .map(|dialect| dialect.expression_parse_context(self.dialect))
+            .or_else(|| {
+                self.dialect
+                    .map(tcl_syntax::expr::parser::ExprParseContext::for_profile)
+            })
+    }
+
+    /// Preserve native execution policy independently of the catalogue's
+    /// authoring expression profile, applying only the retained lexer overlay.
+    #[must_use]
+    pub fn for_retained_entry(
+        registry: &tcl_registry::CommandRegistry,
+        invocation: Option<tcl_registry::InvocationDialect>,
+        config: &tcl_lexer::LexerConfig,
+    ) -> Self {
+        let policy = Self::from_registry(registry);
+        let Some(mut actual) = invocation else {
+            return policy;
+        };
+        actual.lexer_grammar = config.grammar_over(actual.lexer_grammar);
+        actual.word_values =
+            tcl_syntax::word_rules::WordValueRules::from_grammar(&actual.lexer_grammar);
+        policy.with_invocation_dialect(actual)
+    }
+
+    /// Retain the exact invocation's engine and grammar instead of inferring
+    /// them from a catalogue profile which may be absent or unrelated.
+    #[must_use]
+    pub fn with_invocation_dialect(mut self, dialect: tcl_registry::InvocationDialect) -> Self {
+        self.invocation_dialect = Some(dialect);
+        self.arithmetic = dialect.arithmetic();
+        self.numbers = Some(dialect.numbers);
+        self.octal = Some(dialect.numbers.leading_zero_is_octal());
+        self.word_rules = dialect.word_values;
+        self.native_family = dialect.family();
+        self.characters = dialect.characters;
+        if self.native_family == Some(tcl_dialect::model::Family::Jim) {
+            self.characters = None;
+            self.f5_predicates = None;
+        }
+        self
     }
 
     /// The policy a registry's own dialect profile implies — both facts from
@@ -323,14 +536,25 @@ impl FoldPolicy {
     #[must_use]
     pub fn from_registry(registry: &tcl_registry::CommandRegistry) -> Self {
         Self {
+            invocation_dialect: registry
+                .profile()
+                .map(tcl_registry::InvocationDialect::of_profile),
+            arithmetic: registry.profile().and_then(|profile| {
+                tcl_registry::InvocationDialect::of_profile(profile).arithmetic()
+            }),
             octal: registry.octal_fold_policy(),
             dialect: registry.profile(),
-            is_irules: registry
+            native_family: registry
                 .profile()
-                .is_some_and(tcl_dialect::DialectProfile::is_irules),
+                .and_then(|profile| tcl_registry::InvocationDialect::of_profile(profile).family()),
+            f5_predicates: registry
+                .profile()
+                .is_some_and(tcl_dialect::DialectProfile::is_irules)
+                .then_some(tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider::F5Trunk),
             characters: registry.character_model(),
             numbers: Some(registry.numbers()),
             word_rules: tcl_syntax::word_rules::WordValueRules::of_profile(registry.profile()),
+            intrinsic_math: false,
         }
     }
 }
@@ -343,13 +567,7 @@ pub fn eval_tcl_expr_with_policy(
     env: &Env,
     policy: FoldPolicy,
 ) -> Option<TclValue> {
-    eval_with_config(
-        node,
-        env,
-        policy,
-        policy.dialect.map(fold_math_ceiling),
-        widens_past_a_wide(policy.dialect),
-    )
+    eval_with_config(node, env, policy)
 }
 
 /// Evaluate an expression under `env` to an integer: `Some(int)` when the
@@ -414,6 +632,7 @@ fn past_the_wide_tower(value: &FoldValue, octal: Option<bool>, numbers: NumberSy
         FoldValue::Big(_) => true,
         FoldValue::Float(f) => f.is_infinite(),
         FoldValue::Int(_) => false,
+        FoldValue::RetainedNativeObject { value, .. } => past_the_wide_tower(value, octal, numbers),
         FoldValue::Str(text) => match strict_number_for_dialect(value, octal, numbers) {
             Some(TclValue::Big(_)) => true,
             Some(TclValue::Float(f)) => {
@@ -531,6 +750,127 @@ pub fn mathfunc_command_wrappers_available_in_dialect(
     tcl_registry::mathfunc::command_wrappers_available(dialect)
 }
 
+fn eval_with_config(node: &ExprNode, env: &Env, policy: FoldPolicy) -> Option<TclValue> {
+    eval_with_math_bindings(node, env, policy, None)
+}
+
+/// Fold only reached native function calls proved at their exact AST sites.
+/// The query runs after the evaluator has reduced the call's operands and is
+/// never consulted for a branch skipped by Tcl's lazy expression evaluation.
+#[must_use]
+pub fn eval_tcl_expr_with_math_bindings(
+    node: &ExprNode,
+    env: &Env,
+    policy: FoldPolicy,
+    bindings: &IntrinsicMathQuery<'_>,
+) -> Option<TclValue> {
+    eval_with_math_bindings(node, env, policy, Some(bindings))
+}
+
+/// Resolved native math handler with its already evaluated alias prefix.
+/// Construction requires actual dispatch evidence, independently of the name
+/// written in the expression and the catalogue's function roster.
+pub struct NativeMathFunctionTarget {
+    /// Bare stock implementation identity.
+    pub function: String,
+    /// Frozen prefix values whose existing bytes are known.
+    pub prepended: Vec<String>,
+}
+
+/// Exact-site query licensing the unchanged native function and argument shape.
+pub type IntrinsicMathQuery<'a> = dyn Fn(&str, u32) -> bool + 'a;
+
+/// Exact-site query resolving the actual handler and proved operand prefix.
+pub type ResolvedMathQuery<'a> = dyn Fn(&str, u32) -> Option<NativeMathFunctionTarget> + 'a;
+
+/// Evaluate reached calls through their exact native handler and frozen prefix.
+/// Unknown target words, handlers, or prefixes decline that reached call only.
+#[must_use]
+pub fn eval_tcl_expr_with_resolved_math_bindings(
+    node: &ExprNode,
+    env: &Env,
+    policy: FoldPolicy,
+    calls: &ResolvedMathQuery<'_>,
+) -> Option<TclValue> {
+    eval_with_math_queries(node, env, policy, None, Some(calls), None)
+}
+
+/// Fold with actual reached operand-object evidence and exact math dispatch.
+/// Unknown object identity/representation remains a required runtime coercion;
+/// this API never treats an environment constant as a freshly allocated value.
+#[must_use]
+pub fn eval_tcl_expr_with_proved_operands(
+    node: &ExprNode,
+    env: &Env,
+    policy: FoldPolicy,
+    calls: &ResolvedMathQuery<'_>,
+    operands: &NativeOperandProofs,
+) -> Option<TclValue> {
+    eval_with_math_queries(node, env, policy, None, Some(calls), Some(operands))
+}
+
+/// Analyse the original expression without erasing reached native conversions.
+/// Callers may use the value for semantic facts, but must retain `coercions` at
+/// this execution point. Source replacement, branch deletion and constant native
+/// emission require discharging those obligations or retaining residual evaluation.
+/// Do not pass an AST whose retained references were substituted with literals.
+#[must_use]
+pub fn analyse_tcl_expr_with_resolved_math_bindings(
+    node: &ExprNode,
+    env: &Env,
+    policy: FoldPolicy,
+    calls: &ResolvedMathQuery<'_>,
+    operands: Option<&NativeOperandProofs>,
+) -> Option<FoldEvaluation> {
+    evaluate_with_math_queries(
+        node,
+        env,
+        policy,
+        None,
+        Some(calls),
+        FoldNativeInputs::objects(operands),
+        true,
+    )
+}
+
+/// Analyse using independently accepted integer contents at exact original
+/// source reads. The conversion receipt cannot stand in for a numeric primary.
+pub(crate) fn analyse_tcl_expr_with_integer_contents(
+    node: &ExprNode,
+    env: &Env,
+    policy: FoldPolicy,
+    calls: &ResolvedMathQuery<'_>,
+    operands: &NativeOperandProofs,
+    integer_contents: &crate::native_numeric::SourceIntegerContentsReads,
+) -> Option<FoldEvaluation> {
+    evaluate_with_math_queries(
+        node,
+        env,
+        policy,
+        None,
+        Some(calls),
+        FoldNativeInputs {
+            operands: Some(operands),
+            integer_contents: Some(integer_contents),
+        },
+        true,
+    )
+}
+
+#[derive(Clone, Copy)]
+struct FoldNativeInputs<'a> {
+    operands: Option<&'a NativeOperandProofs>,
+    integer_contents: Option<&'a crate::native_numeric::SourceIntegerContentsReads>,
+}
+impl<'a> FoldNativeInputs<'a> {
+    const fn objects(operands: Option<&'a NativeOperandProofs>) -> Self {
+        Self {
+            operands,
+            integer_contents: None,
+        }
+    }
+}
+
 /// Whether every operator in `node` is one the release `policy` names has
 /// ([`tcl_registry::expr_surface::validate_operators`]): tclsh 8.4.20
 /// rejects `2**3` as a syntax error and `1 in {1 2}` as a bareword, and
@@ -542,31 +882,94 @@ fn operators_in_release(node: &ExprNode, policy: FoldPolicy) -> bool {
         .is_none_or(|profile| tcl_registry::expr_surface::validate_operators(profile, node).is_ok())
 }
 
-fn eval_with_config(
+fn eval_with_math_bindings(
     node: &ExprNode,
     env: &Env,
     policy: FoldPolicy,
-    math_since: Option<tcl_syntax::expr::mathfunc::MathFuncSince>,
-    widens: bool,
+    bindings: Option<&IntrinsicMathQuery<'_>>,
 ) -> Option<TclValue> {
-    let mut ops = FoldOps {
+    eval_with_math_queries(node, env, policy, bindings, None, None)
+}
+
+fn eval_with_math_queries(
+    node: &ExprNode,
+    env: &Env,
+    policy: FoldPolicy,
+    bindings: Option<&IntrinsicMathQuery<'_>>,
+    calls: Option<&ResolvedMathQuery<'_>>,
+    operands: Option<&NativeOperandProofs>,
+) -> Option<TclValue> {
+    evaluate_with_math_queries(
+        node,
+        env,
+        policy,
+        bindings,
+        calls,
+        FoldNativeInputs::objects(operands),
+        false,
+    )
+    .map(|evaluation| evaluation.value)
+}
+
+fn make_fold_ops<'a>(
+    env: &'a Env,
+    policy: FoldPolicy,
+    bindings: Option<&'a IntrinsicMathQuery<'a>>,
+    calls: Option<&'a ResolvedMathQuery<'a>>,
+    native_inputs: FoldNativeInputs<'a>,
+    analysis: bool,
+) -> FoldOps<'a> {
+    FoldOps {
+        purpose: if analysis {
+            FoldPurpose::AnalysisValue
+        } else {
+            FoldPurpose::Executable
+        },
+        coercions: RefCell::new(Vec::new()),
+        intrinsic_math: policy.intrinsic_math,
+        math_bindings: bindings,
+        math_calls: calls,
+        operand_proofs: native_inputs.operands,
+        integer_contents: native_inputs.integer_contents,
+        invocation_dialect: policy.invocation_dialect,
+        characters: policy.characters,
+        arithmetic: policy
+            .arithmetic
+            .unwrap_or(tcl_dialect::NativeArithmetic::TclBignum),
         env,
         declined: None,
-        tower: if widens { Tower::Widens } else { Tower::Wide },
-        octal: policy.octal,
-        // Without an explicit grammar, infer from the leading-zero policy the
-        // caller did resolve: the 8.x octal rule implies the 8.x numeric
-        // grammar, and anything else is read as 9.0.
-        numbers: if policy.octal == Some(true) {
-            NumberSyntax::Tcl85
+        tower: if widens_past_a_wide(policy.dialect) || policy.arithmetic.is_some() {
+            Tower::Widens
         } else {
-            NumberSyntax::default()
+            Tower::Wide
         },
+        octal: policy.octal,
+        numbers: policy.numbers.unwrap_or_else(|| {
+            if policy.octal == Some(true) {
+                NumberSyntax::Tcl85
+            } else {
+                NumberSyntax::default()
+            }
+        }),
         spelling: policy.spelling(),
-        math_since,
-        is_irules: policy.is_irules,
+        math_since: policy.dialect.and_then(math_func_ceiling_for_dialect),
+        f5_predicates: policy.f5_predicates,
         word_rules: policy.word_rules,
-    };
+        native_family: policy.native_family,
+        constant_compilation: ConstantCompilation::default(),
+    }
+}
+
+fn evaluate_with_math_queries(
+    node: &ExprNode,
+    env: &Env,
+    policy: FoldPolicy,
+    bindings: Option<&IntrinsicMathQuery<'_>>,
+    calls: Option<&ResolvedMathQuery<'_>>,
+    native_inputs: FoldNativeInputs<'_>,
+    analysis: bool,
+) -> Option<FoldEvaluation> {
+    let mut ops = make_fold_ops(env, policy, bindings, calls, native_inputs, analysis);
     if !operators_in_release(node, policy) {
         return None;
     }
@@ -581,7 +984,78 @@ fn eval_with_config(
         // pick one.
         return None;
     }
-    result.to_number(ops.numbers)
+    let result_dependency = native_result_dependency(&result, ops.arithmetic, ops.numbers);
+    if !analysis && result_dependency.is_some() {
+        return None;
+    }
+    let result = if result_dependency.is_some() {
+        // This is a numeric analysis projection, not a native conversion or a
+        // licence to emit the resulting number as the returned value.
+        let value = match &result {
+            FoldValue::RetainedNativeObject { value, .. } => value.as_ref(),
+            value => value,
+        };
+        ops.normalize_number(value.to_number(ops.numbers)?)?
+    } else {
+        ops.number_for(&result, NativeCoercionKind::ResultNormalization)?
+    };
+    // Tcl 8.4's signed-minimum decimal formatter is not portable across
+    // builds. Preserve runtime formatting rather than manufacture a string.
+    if ops.arithmetic == tcl_dialect::NativeArithmetic::Tcl84Wide
+        && matches!(result, TclValue::Int(i64::MIN))
+    {
+        return None;
+    }
+    Some(FoldEvaluation {
+        value: result,
+        coercions: ops.coercions.into_inner(),
+        result_dependency,
+    })
+}
+
+fn native_result_dependency(
+    result: &FoldValue,
+    arithmetic: tcl_dialect::NativeArithmetic,
+    numbers: NumberSyntax,
+) -> Option<NativeExpressionResultDependency> {
+    let contents = match result {
+        FoldValue::RetainedNativeObject { value, .. } => value.as_ref(),
+        value => value,
+    };
+    // C's final conversion attempts the numeric grammar, not boolean-word
+    // coercion. A bare `false` retains its original bytes and native object.
+    if arithmetic.normalizes_expression_result() && strict_number(contents, numbers).is_some() {
+        return None;
+    }
+    match result {
+        FoldValue::Str(bytes) => Some(NativeExpressionResultDependency::StringResult {
+            bytes: bytes.clone(),
+        }),
+        FoldValue::RetainedNativeObject {
+            value,
+            proof,
+            reference,
+            start,
+            ..
+        } => {
+            let existing_bytes = proof
+                .as_ref()
+                .and_then(|proof| proof.existing_string.clone())
+                .or_else(|| {
+                    if let FoldValue::Str(bytes) = value.as_ref() {
+                        Some(bytes.clone())
+                    } else {
+                        None
+                    }
+                });
+            Some(NativeExpressionResultDependency::SelectedOperand {
+                reference: reference.clone(),
+                start: *start,
+                existing_bytes,
+            })
+        }
+        _ => None,
+    }
 }
 
 // FoldOps — the const-folder's value ops for the shared expr walk
@@ -596,6 +1070,15 @@ pub(crate) enum FoldValue {
     Big(num_bigint::BigInt),
     Float(f64),
     Str(String),
+    /// An environment value retains an actual runtime object. Missing evidence
+    /// cannot erase a representation-changing conversion of a shared object.
+    RetainedNativeObject {
+        value: Box<FoldValue>,
+        proof: Option<Box<RetainedNativeOperandProof>>,
+        integer_contents: Option<Box<crate::native_numeric::SourceIntegerContentsRead>>,
+        reference: String,
+        start: Option<u32>,
+    },
 }
 
 impl FoldValue {
@@ -606,7 +1089,37 @@ impl FoldValue {
             FoldValue::Big(b) => Some(TclValue::from_big(b.clone())),
             FoldValue::Float(f) => Some(TclValue::Float(*f)),
             FoldValue::Str(s) => parse_literal_in(s, numbers),
+            FoldValue::RetainedNativeObject {
+                proof,
+                integer_contents,
+                ..
+            } => proof.as_ref().map(|proof| proof.value.clone()).or_else(|| {
+                integer_contents
+                    .as_ref()
+                    .map(|receipt| receipt.number().clone())
+            }),
         }
+    }
+    /// Render as a string: raw for `Str`, canonical for numbers.
+    fn to_string_val(&self, format: Option<tcl_dialect::DoubleFormat>) -> Option<String> {
+        Some(match self {
+            FoldValue::Str(s) => s.clone(),
+            FoldValue::Int(i) => i.to_string(),
+            FoldValue::Big(b) => b.to_string(),
+            FoldValue::Float(f) => tcl_syntax::number::format_double_selected(*f, format?),
+            FoldValue::RetainedNativeObject {
+                proof,
+                integer_contents,
+                ..
+            } => proof
+                .as_ref()
+                .and_then(|proof| proof.existing_string.clone())
+                .or_else(|| {
+                    integer_contents
+                        .as_ref()
+                        .map(|receipt| receipt.contents().to_owned())
+                })?,
+        })
     }
     fn from_tcl(v: TclValue) -> FoldValue {
         match v {
@@ -634,8 +1147,34 @@ enum Tower {
 /// The const-folder's [`ExprOps`](tcl_syntax::expr::ExprOps). `Error = ()` is the
 /// "can't fold" signal (mapped to the public `Option`); `$var` resolves from the
 /// `env`, `[cmd]`/`Raw` are opaque.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FoldPurpose {
+    Executable,
+    AnalysisValue,
+}
+
+/// Constant compiler evaluation mode and its retained guest failure.
+#[derive(Default)]
+struct ConstantCompilation {
+    enabled: bool,
+    failure: Option<tcl_registry::native_compilation::NativeCompilationFailure>,
+}
+
 struct FoldOps<'a> {
+    constant_compilation: ConstantCompilation,
+    /// Actual native ordering units; missing original Jim counts remain unknown.
+    characters: Option<StringCharacterModel>,
+    purpose: FoldPurpose,
+    coercions: RefCell<Vec<NativeCoercionObligation>>,
+    intrinsic_math: bool,
+    math_bindings: Option<&'a IntrinsicMathQuery<'a>>,
+    math_calls: Option<&'a ResolvedMathQuery<'a>>,
+    operand_proofs: Option<&'a NativeOperandProofs>,
+    integer_contents: Option<&'a crate::native_numeric::SourceIntegerContentsReads>,
+    invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    arithmetic: tcl_dialect::NativeArithmetic,
     env: &'a Env,
+    native_family: Option<tcl_dialect::model::Family>,
     /// Why the walk's value is unreliable though every hook answered, so
     /// [`eval_tcl_expr`] declines to fold rather than risk a false I230
     /// unreachable-branch; the first reason stands
@@ -671,21 +1210,73 @@ struct FoldOps<'a> {
     /// core, so the runtime would error rather than produce a constant.
     /// `None` leaves the set unbounded (dialect not resolved).
     math_since: Option<tcl_syntax::expr::mathfunc::MathFuncSince>,
-    /// Whether the active dialect is iRules — the only dialect the iRules
-    /// word operators (`contains`/`starts_with`/`equals`/`matches_glob`/
-    /// `matches_regex`/…) are real in (see [`Self::binary_other`]).
-    /// Lexing already gates which operators can appear in the AST at all
-    /// (`irules_ops()`), but several call sites into this evaluator (the
-    /// optimiser's `parse_expr(text, None)` sites) have no dialect to hand,
-    /// so this is a defence-in-depth check at the fold site itself rather
-    /// than trusting the lexer gate alone.
-    /// `false` — including when the dialect is genuinely unknown — declines
-    /// the fold; that is always safe, it just forgoes an optimisation.
-    is_irules: bool,
+    /// Explicit authored string-predicate policy for an admitted iRules fold.
+    f5_predicates: Option<tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider>,
     /// The active dialect's word-value rules — how a list-shaped value
     /// divides.  `in` / `ni` membership and the `llength` folds split a list
     /// here, so they must split it the way the document's own runtime does.
     word_rules: tcl_syntax::word_rules::WordValueRules,
+}
+
+impl FoldOps<'_> {
+    fn operand_for<'a>(&self, value: &'a FoldValue, kind: NativeCoercionKind) -> &'a FoldValue {
+        if self.purpose == FoldPurpose::AnalysisValue
+            && let FoldValue::RetainedNativeObject {
+                value,
+                proof: None,
+                integer_contents,
+                reference,
+                start,
+            } = value
+        {
+            if kind == NativeCoercionKind::Number && integer_contents.is_some() {
+                return value;
+            }
+            let obligation = NativeCoercionObligation {
+                reference: reference.clone(),
+                start: *start,
+                kind,
+            };
+            let mut coercions = self.coercions.borrow_mut();
+            if !coercions.contains(&obligation) {
+                coercions.push(obligation);
+            }
+            value
+        } else {
+            value
+        }
+    }
+
+    fn normalize_number(&self, value: TclValue) -> Option<TclValue> {
+        match value {
+            TclValue::Big(value) if self.arithmetic != tcl_dialect::NativeArithmetic::TclBignum => {
+                tcl_syntax::expr::wide::literal(self.arithmetic, &value)
+                    .ok()
+                    .map(TclValue::Int)
+            }
+            value => Some(value),
+        }
+    }
+
+    fn number_for(&self, value: &FoldValue, kind: NativeCoercionKind) -> Option<TclValue> {
+        let value = self.operand_for(value, kind);
+        self.normalize_number(value.to_number(self.numbers)?)
+    }
+
+    fn strict_number(&self, value: &FoldValue) -> Option<TclValue> {
+        let value = self.operand_for(value, NativeCoercionKind::Number);
+        self.normalize_number(strict_number_for_dialect(value, self.octal, self.numbers)?)
+    }
+
+    fn classify(&self, value: &FoldValue) -> Operand {
+        let value = self.operand_for(value, NativeCoercionKind::NumericComparison);
+        match classify_operand(value, self.octal, self.numbers) {
+            Operand::Num(value) => self
+                .normalize_number(value)
+                .map_or(Operand::Str, Operand::Num),
+            result => result,
+        }
+    }
 }
 
 /// A comparison operand's numeric classification under the active dialect.
@@ -709,6 +1300,21 @@ fn classify_operand(value: &FoldValue, octal: Option<bool>, numbers: NumberSynta
             return Operand::Num(value.to_number(NumberSyntax::default()).unwrap());
         }
         FoldValue::Str(s) => s.as_str(),
+        FoldValue::RetainedNativeObject {
+            proof,
+            integer_contents,
+            ..
+        } => {
+            return proof
+                .as_ref()
+                .map(|proof| Operand::Num(proof.value.clone()))
+                .or_else(|| {
+                    integer_contents
+                        .as_ref()
+                        .map(|receipt| Operand::Num(receipt.number().clone()))
+                })
+                .unwrap_or(Operand::Ambiguous);
+        }
     };
     if is_bare_leading_zero(s) {
         return match octal {
@@ -744,24 +1350,28 @@ fn parse_octal_literal(s: &str) -> Option<TclValue> {
 
 impl FoldOps<'_> {
     /// `value` as a string operation reads it: a string's own text, a
-    /// number's string rep under the target's spelling. A number the
-    /// spelling cannot give — a double under a precision the program may
-    /// set, an `INT64_MIN` the release prints as `-8` — declines the fold
+    /// number's string rep under the target's spelling
+    /// ([`FoldValue::to_string_val`] under `format`). A number the spelling
+    /// cannot give — a double under a precision the program may set, an
+    /// `INT64_MIN` the release prints as `-8`
+    /// ([`NumberSpelling::garbles_wide_min`]) — declines the fold
     /// (`Unspellable`).
-    fn text_of(&mut self, value: &FoldValue) -> String {
+    fn text_of(
+        &mut self,
+        value: &FoldValue,
+        format: Option<tcl_dialect::DoubleFormat>,
+    ) -> Option<String> {
         let spelled = match value {
-            FoldValue::Str(s) => return s.clone(),
-            FoldValue::Big(b) => return b.to_string(),
             FoldValue::Int(i) => tcl_syntax::number::spell_wide(*i, self.spelling),
-            FoldValue::Float(f) => self
-                .spelling
-                .doubles()
-                .map(|spelling| tcl_syntax::number::format_double_as(*f, spelling)),
+            // A program that may set the precision leaves a computed double
+            // no spelling known here ([`NumberSpelling::doubles`]).
+            FoldValue::Float(_) if self.spelling.doubles().is_none() => None,
+            value => value.to_string_val(format),
         };
-        spelled.unwrap_or_else(|| {
+        if spelled.is_none() && matches!(value, FoldValue::Int(_) | FoldValue::Float(_)) {
             self.decline(DeclineReason::Unspellable);
-            String::new()
-        })
+        }
+        spelled
     }
 
     /// Record why the fold declines; the first reason stands.
@@ -773,14 +1383,6 @@ impl FoldOps<'_> {
     /// ([`Self::tower`]).
     fn beyond_tower(&self, value: &FoldValue) -> bool {
         self.tower != Tower::Widens && past_the_wide_tower(value, self.octal, self.numbers)
-    }
-
-    /// `Err` when any of `values` is past the target's tower.
-    fn within_tower(&self, values: &[&FoldValue]) -> Result<(), ()> {
-        if values.iter().any(|value| self.beyond_tower(value)) {
-            return Err(());
-        }
-        Ok(())
     }
 
     /// Whether `left % right` is the wide remainder `i64::MIN % -1`: `0` from
@@ -800,7 +1402,10 @@ impl FoldOps<'_> {
     /// over `args` through the shared dispatcher, the one the runtime
     /// evaluates with; `Err` when it declines.
     fn math_call(&self, name: &str, args: &[FoldValue]) -> Result<FoldValue, ()> {
-        use tcl_syntax::expr::mathfunc::{Num, accepts_boolean_operand, dispatch_under};
+        use tcl_syntax::expr::mathfunc::{
+            IntWidth, NativeMathProtocol, Num, accepts_boolean_operand, dispatch_under,
+            try_dispatch_with_backend_protocol,
+        };
         // Map `TclValue` → `Num` → result. Every function except `bool`
         // reads its operand as a strict number — `Tcl_GetBoolean` coercion
         // (`true`→1) would let the folder turn an error (`abs(true)`) into
@@ -808,15 +1413,13 @@ impl FoldOps<'_> {
         // boolean words (the registry of that fact is the mathfunc module,
         // not a name check here).
         let boolean_ok = accepts_boolean_operand(name);
-        let octal = self.octal;
-        let numbers = self.numbers;
         let nums: Option<Vec<Num>> = args
             .iter()
             .map(|v| {
                 let parsed = if boolean_ok {
-                    v.to_number(numbers)
+                    self.number_for(v, NativeCoercionKind::Boolean)
                 } else {
-                    strict_number_for_dialect(v, octal, numbers)
+                    self.strict_number(v)
                 };
                 parsed.and_then(|t| match t {
                     TclValue::Int(i) => Some(Num::Int(i)),
@@ -828,10 +1431,32 @@ impl FoldOps<'_> {
                 })
             })
             .collect();
-        // The release's own semantics: Jim's `pow` is its `**` operator.
-        match dispatch_under(name, &nums.ok_or(())?, self.spelling.numbers()).ok_or(())? {
+        let protocol = self
+            .invocation_dialect
+            .and_then(tcl_registry::mathfunc::native_math_protocol)
+            .or_else(|| self.intrinsic_math.then_some(NativeMathProtocol::Tcl))
+            .ok_or(())?;
+        let nums = nums.ok_or(())?;
+        // The release's own semantics: Jim's `pow` is its `**` operator
+        // ([`dispatch_under`]), which the Tcl table does not compute. The
+        // Jim protocol computes it natively; the Tcl table declines it under
+        // a grammar whose integer `pow` is an integer.
+        if protocol == NativeMathProtocol::Tcl
+            && dispatch_under(name, &nums, self.spelling.numbers()).is_none()
+        {
+            return Err(());
+        }
+        match try_dispatch_with_backend_protocol(
+            name,
+            &nums,
+            IntWidth::for_native_arithmetic(self.arithmetic),
+            protocol,
+        )
+        .map_err(|_| ())?
+        {
             Num::Int(i) => Ok(FoldValue::Int(i)),
             Num::Float(f) => Ok(FoldValue::Float(f)),
+            Num::Big(never) => match never {},
         }
     }
 }
@@ -841,74 +1466,236 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     type Error = ();
 
     fn literal(&mut self, text: &str) -> Result<FoldValue, ()> {
+        if self.arithmetic == tcl_dialect::NativeArithmetic::JimWide
+            && let Some(number) = self.strict_number(&FoldValue::Str(text.to_owned()))
+        {
+            return Ok(FoldValue::from_tcl(number));
+        }
         Ok(FoldValue::Str(text.to_owned()))
     }
-    /// A `"…"` operand is substituted by `expr` — `$var`, `[cmd]` and
-    /// backslashes — so its spelling is its value only when it holds none of
-    /// them, and a `{…}` operand's backslash-newline is a space in Tcl and
-    /// stays as written in Jim. This environment cannot substitute a script,
-    /// decode under the document's grammar or tell the two apart, so such an
-    /// operand declines: read as its spelling, `if {"$a" eq "x"}` was folded
-    /// false where tclsh 8.4 to 9.1 take the branch. The analysis services
-    /// substitute a quoted operand ([`ExprServices`]).
     fn string(&mut self, inner: &str, substitutes: bool) -> Result<FoldValue, ()> {
+        // A `"…"` operand substitutes `$var`, `[cmd]` and backslashes, and a
+        // folded constant must be the value Tcl computes, not the spelling.
+        // Taking the text as-is folded `expr {"pre$x"}` to `pre$x` and
+        // `if {"$x" eq "5"}` to false, and O112 then deleted the live branch
+        // (#2227). Declining costs an optimisation; folding wrong costs the
+        // program.
+        // A `{…}` operand's backslash-newline folds to a space in Tcl and
+        // stays as written in Jim; the folder does not know which, so it
+        // declines that too rather than guess.
         tcl_syntax::expr::fixed_string_body(inner, substitutes)
             .map(|body| FoldValue::Str(body.to_owned()))
             .ok_or(())
     }
     fn var(&mut self, name: &str) -> Result<FoldValue, ()> {
-        match self.env.get(name) {
-            Some(EnvValue::Int(i)) => Ok(FoldValue::Int(*i)),
-            Some(EnvValue::Float(f)) => Ok(FoldValue::Float(*f)),
-            Some(EnvValue::Str(s)) => Ok(FoldValue::Str(s.clone())),
-            None => Err(()), // unbound → can't fold
+        let value = match self.env.get(name) {
+            Some(EnvValue::Int(i)) => FoldValue::Int(*i),
+            Some(EnvValue::Float(f)) => FoldValue::Float(*f),
+            Some(EnvValue::Str(s)) => FoldValue::Str(s.clone()),
+            None => return Err(()), // unbound → can't fold
+        };
+        if self.intrinsic_math {
+            return Ok(value);
         }
+        let proof = self
+            .operand_proofs
+            .and_then(|proofs| proofs.get(name))
+            .cloned();
+        if proof.as_ref().is_some_and(|proof| {
+            Some(proof.dialect) != self.invocation_dialect
+                || value.to_number(self.numbers).as_ref() != Some(&proof.value)
+        }) {
+            return Err(());
+        }
+        let integer_contents = self
+            .integer_contents
+            .and_then(|proofs| proofs.get(name))
+            .cloned();
+        if let Some(receipt) = &integer_contents {
+            let FoldValue::Str(contents) = &value else {
+                return Err(());
+            };
+            if proof.is_some() || !receipt.accepts_number(self.invocation_dialect, contents) {
+                return Err(());
+            }
+        }
+        Ok(FoldValue::RetainedNativeObject {
+            value: Box::new(value),
+            proof: proof.map(Box::new),
+            integer_contents: integer_contents.map(Box::new),
+            reference: name.to_owned(),
+            start: None,
+        })
+    }
+    fn variable_reference_at(&mut self, reference: &str, start: u32) -> Result<FoldValue, ()> {
+        let name = if let Some(dialect) = self.invocation_dialect {
+            crate::native_lowering::cells::variable_reference_place(
+                reference,
+                tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+            )
+            .map_err(|_| ())?
+            .spelling()
+        } else if self.intrinsic_math {
+            // Explicit mathematical compatibility evaluation grants no native
+            // effects or erasure proof. Execution needs the actual grammar.
+            tcl_syntax::naming::var_reference(reference).to_owned()
+        } else {
+            return Err(());
+        };
+        let mut value = self.var(&name)?;
+        if let FoldValue::RetainedNativeObject {
+            reference: original,
+            start: site,
+            ..
+        } = &mut value
+        {
+            reference.clone_into(original);
+            *site = Some(start);
+        }
+        Ok(value)
     }
     fn command(&mut self, _script: &str) -> Result<FoldValue, ()> {
         Err(()) // command substitution is opaque at compile time
     }
+    fn call_at(
+        &mut self,
+        function: &str,
+        args: Vec<FoldValue>,
+        start: u32,
+    ) -> Result<FoldValue, ()> {
+        if let Some(query) = self.math_calls {
+            let target = query(function, start).ok_or(())?;
+            let mut composed = target
+                .prepended
+                .into_iter()
+                .map(FoldValue::Str)
+                .collect::<Vec<_>>();
+            composed.extend(args);
+            return self.call(&target.function, composed);
+        }
+        if !self.intrinsic_math
+            && !self
+                .math_bindings
+                .is_some_and(|proof| proof(function, start))
+        {
+            return Err(());
+        }
+        self.call(function, args)
+    }
+
     fn call(&mut self, function: &str, args: Vec<FoldValue>) -> Result<FoldValue, ()> {
-        use tcl_syntax::expr::mathfunc::added_in;
-        // A math function's name is case-sensitive: `ABS(-2)` calls
-        // `tcl::mathfunc::ABS`, which no release defines (tclsh 8.4 raises
-        // `unknown math function "ABS"`, 8.5 to 9.1 `invalid command name`).
-        let name = function;
-        if reads_the_generator(name) {
+        use tcl_syntax::expr::mathfunc::{
+            IntWidth, NativeMathProtocol, Num, accepts_boolean_operand, added_in, dispatch_under,
+            try_dispatch_with_backend_protocol,
+        };
+        let name = function.to_owned();
+        if self.native_family == Some(tcl_dialect::model::Family::Jim) {
+            let functions = self
+                .invocation_dialect
+                .and_then(tcl_registry::mathfunc::jim_fixed_math_function_names)
+                .ok_or(())?;
+            if !functions.contains(&function) {
+                return Err(());
+            }
+        }
+        if matches!(name.as_str(), "rand" | "srand") {
             return Err(()); // non-deterministic
         }
         // A function newer than the dialect provides has no `::tcl::mathfunc`
         // command to run — folding it would invent a value the real
         // interpreter never yields (it would error), so decline.
-        if let (Some(ceiling), Some(since)) = (self.math_since, added_in(name))
+        if let (Some(ceiling), Some(since)) = (self.math_since, added_in(&name))
             && since > ceiling
         {
             return Err(());
         }
-        self.within_tower(&args.iter().collect::<Vec<_>>())?;
-        let value = self.math_call(name, &args)?;
-        self.within_tower(&[&value])?;
-        Ok(value)
+        // Math functions are the shared `tcl_syntax::expr::mathfunc` (the same
+        // dispatch the runtime evaluates). Map `TclValue` → `Num` → result.
+        // Every function except `bool` reads its operand as a strict number —
+        // `Tcl_GetBoolean` coercion (`true`→1) would let the folder turn an
+        // error (`abs(true)`) into a value, so parse strictly unless the
+        // function itself accepts boolean words (the registry of that fact is
+        // the mathfunc module, not a name check here).
+        let boolean_ok = accepts_boolean_operand(&name);
+        let nums: Option<Vec<Num>> = args
+            .iter()
+            .map(|v| {
+                let parsed = if boolean_ok {
+                    self.number_for(v, NativeCoercionKind::Boolean)
+                } else {
+                    self.strict_number(v)
+                };
+                parsed.and_then(|t| match t {
+                    TclValue::Int(i) => Some(Num::Int(i)),
+                    TclValue::Float(f) => Some(Num::Float(f)),
+                    // A beyond-wide integer argument: the math functions
+                    // dispatch over the wide/double pair, so decline rather
+                    // than approximate.
+                    TclValue::Big(_) => None,
+                })
+            })
+            .collect();
+        let protocol = self
+            .invocation_dialect
+            .and_then(tcl_registry::mathfunc::native_math_protocol)
+            .or_else(|| self.intrinsic_math.then_some(NativeMathProtocol::Tcl))
+            .ok_or(())?;
+        let nums = nums.ok_or(())?;
+        // The release's own semantics: Jim's `pow` is its `**` operator
+        // ([`dispatch_under`]), which the Tcl table does not compute. The
+        // Jim protocol computes it natively; the Tcl table declines it under
+        // a grammar whose integer `pow` is an integer.
+        if protocol == NativeMathProtocol::Tcl
+            && dispatch_under(&name, &nums, self.spelling.numbers()).is_none()
+        {
+            return Err(());
+        }
+        match try_dispatch_with_backend_protocol(
+            &name,
+            &nums,
+            IntWidth::for_native_arithmetic(self.arithmetic),
+            protocol,
+        )
+        .map_err(|_| ())?
+        {
+            Num::Int(i) => Ok(FoldValue::Int(i)),
+            Num::Float(f) => Ok(FoldValue::Float(f)),
+            Num::Big(never) => match never {},
+        }
     }
 
     fn arith(&mut self, op: BinOp, left: FoldValue, right: FoldValue) -> Result<FoldValue, ()> {
+        self.check_native_constant_arithmetic(op, &left, &right)?;
+        if self.tower != Tower::Widens && self.is_trapping_wide_remainder(op, &left, &right) {
+            return Err(());
+        }
         // Arithmetic operands are strict numbers: Tcl's `+`/`-`/`*`/… read
         // them with `Tcl_GetNumberFromObj`, which rejects boolean words, so
         // `expr {true + 0}` is an error, not `1`. `strict_number_for_dialect`
         // omits the boolean coercion `to_number`/`parse_literal` add, and
         // additionally honours the dialect's leading-zero rule (see its doc).
-        self.within_tower(&[&left, &right])?;
-        if self.tower != Tower::Widens && self.is_trapping_wide_remainder(op, &left, &right) {
-            return Err(());
+        let a = self.strict_number(&left).ok_or(())?;
+        let b = self.strict_number(&right).ok_or(())?;
+        if self.arithmetic != tcl_dialect::NativeArithmetic::TclBignum
+            && let (TclValue::Int(x), TclValue::Int(y)) = (&a, &b)
+        {
+            return tcl_syntax::expr::wide::binary(self.arithmetic, op, *x, *y)
+                .map(FoldValue::Int)
+                .map_err(|_| ());
         }
-        let a = strict_number_for_dialect(&left, self.octal, self.numbers).ok_or(())?;
-        let b = strict_number_for_dialect(&right, self.octal, self.numbers).ok_or(())?;
-        let value = apply_binary(op, a, b).map(FoldValue::from_tcl).ok_or(())?;
-        self.within_tower(&[&value])?;
-        Ok(value)
+        apply_binary(op, a, b).map(FoldValue::from_tcl).ok_or(())
     }
     fn unary(&mut self, op: UnaryOp, value: FoldValue) -> Result<FoldValue, ()> {
-        self.within_tower(&[&value])?;
-        let result = match op {
+        self.check_native_constant_unary(op, &value)?;
+        if self.arithmetic != tcl_dialect::NativeArithmetic::TclBignum
+            && matches!(op, UnaryOp::Pos | UnaryOp::Neg | UnaryOp::BitNot)
+            && let TclValue::Int(value) = self.strict_number(&value).ok_or(())?
+        {
+            return tcl_syntax::expr::wide::unary(self.arithmetic, op, value)
+                .map(FoldValue::Int)
+                .map_err(|_| ());
+        }
+        match op {
             // Logical negation *does* take a boolean (`expr {!true}` → 0), so
             // it keeps the boolean-accepting `to_number` coercion. Truthiness
             // of a bare leading-zero operand is dialect-invariant (a run of
@@ -918,7 +1705,10 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             UnaryOp::Not | UnaryOp::WordNot => {
                 // `!NaN` is the same boolean-context domain error as `?:` on
                 // NaN — decline, never fold a truth value.
-                let truthy = match value.to_number(self.numbers).ok_or(())? {
+                let truthy = match self
+                    .number_for(&value, NativeCoercionKind::Boolean)
+                    .ok_or(())?
+                {
                     TclValue::Float(f) if f.is_nan() => return Err(()),
                     v => v.is_truthy(),
                 };
@@ -929,16 +1719,14 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             // are dialect-sensitive the same way `arith` is (`expr {-010}`
             // is `-8` in tcl8.x, `-10` in tcl9.0).
             UnaryOp::Pos => {
-                match strict_number_for_dialect(&value, self.octal, self.numbers).ok_or(())? {
+                match self.strict_number(&value).ok_or(())? {
                     // `+NaN` is "can't use non-numeric floating-point value as
                     // operand" in C — never a foldable value.
                     TclValue::Float(f) if f.is_nan() => Err(()),
                     v => Ok(FoldValue::from_tcl(v)),
                 }
             }
-            UnaryOp::Neg => match strict_number_for_dialect(&value, self.octal, self.numbers)
-                .ok_or(())?
-            {
+            UnaryOp::Neg => match self.strict_number(&value).ok_or(())? {
                 TclValue::Int(i) => Ok(match i.checked_neg() {
                     Some(n) => FoldValue::Int(n),
                     // −i64::MIN promotes to the bignum tier, exactly as C.
@@ -950,16 +1738,14 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                 TclValue::Float(f) => Ok(FoldValue::Float(-f)),
             },
             UnaryOp::BitNot => {
-                match strict_number_for_dialect(&value, self.octal, self.numbers).ok_or(())? {
+                match self.strict_number(&value).ok_or(())? {
                     TclValue::Int(i) => Ok(FoldValue::Int(!i)),
                     // Two's-complement `~x` is `-x - 1` at any width.
                     TclValue::Big(b) => Ok(FoldValue::from_tcl(TclValue::from_big(-b - 1))),
                     TclValue::Float(_) => Err(()),
                 }
             }
-        }?;
-        self.within_tower(&[&result])?;
-        Ok(result)
+        }
     }
 
     fn compare_numeric(
@@ -978,14 +1764,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         // `compare_string`, matching Tcl. A leading-zero operand under an
         // unknown dialect is `Ambiguous` → mark the fold unreliable so
         // `eval_tcl_expr` declines entirely rather than pick a dialect.
-        if self.beyond_tower(left) || self.beyond_tower(right) {
-            self.tower = Tower::Breached;
-            return None;
-        }
-        let (lo, ro) = (
-            classify_operand(left, self.octal, self.numbers),
-            classify_operand(right, self.octal, self.numbers),
-        );
+        let (lo, ro) = (self.classify(left), self.classify(right));
         if matches!(lo, Operand::Ambiguous) || matches!(ro, Operand::Ambiguous) {
             self.decline(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar));
             return None;
@@ -1006,51 +1785,148 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             _ => None,
         }
     }
-    fn compare_string(&mut self, left: &FoldValue, right: &FoldValue) -> std::cmp::Ordering {
-        let left = self.text_of(left);
-        left.cmp(&self.text_of(right))
+    fn compare_string(
+        &mut self,
+        left: &FoldValue,
+        right: &FoldValue,
+    ) -> Result<std::cmp::Ordering, ()> {
+        let left = self.operand_for(left, NativeCoercionKind::String);
+        let right = self.operand_for(right, NativeCoercionKind::String);
+        let format = self
+            .invocation_dialect
+            .and_then(tcl_registry::InvocationDialect::double_string_policy)
+            .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
+        let result = (|| {
+            let model = self.characters?;
+            // Jim ordering consumes cached native character counts. Known
+            // bytes alone cannot reconstruct those original object caches.
+            if model == StringCharacterModel::Jim084Utf8 {
+                return None;
+            }
+            let left = tcl_syntax::raw_string::RawString::from_unicode(self.text_of(left, format)?);
+            let right =
+                tcl_syntax::raw_string::RawString::from_unicode(self.text_of(right, format)?);
+            left.compare_character_units(model, &right, (0, 0)).ok()
+        })();
+        result.ok_or_else(|| {
+            self.decline(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar));
+        })
+    }
+    fn equal_string(&mut self, left: &FoldValue, right: &FoldValue) -> Result<bool, ()> {
+        if self
+            .invocation_dialect
+            .and_then(|dialect| dialect.characters)
+            != Some(StringCharacterModel::Jim084Utf8)
+        {
+            return self
+                .compare_string(left, right)
+                .map(std::cmp::Ordering::is_eq);
+        }
+        // Jim's eq/ne operation compares byte lengths and bytes directly;
+        // unlike ordering it does not require a retained character cache.
+        let left = self.operand_for(left, NativeCoercionKind::String);
+        let right = self.operand_for(right, NativeCoercionKind::String);
+        let format = self
+            .invocation_dialect
+            .and_then(tcl_registry::InvocationDialect::double_string_policy)
+            .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
+        let left = self.text_of(left, format).ok_or(())?;
+        let right = self.text_of(right, format).ok_or(())?;
+        Ok(left.as_bytes() == right.as_bytes())
     }
     fn in_list(&mut self, needle: &FoldValue, list: &FoldValue) -> Result<bool, ()> {
-        let n = self.text_of(needle);
-        let list = self.text_of(list);
+        // Membership converts its list operand. Numeric/value-only evidence
+        // cannot prove that changing a retained shared object's list
+        // representation is unobserved.
+        if self.purpose == FoldPurpose::Executable
+            && matches!(list, FoldValue::RetainedNativeObject { .. })
+        {
+            return Err(());
+        }
+        let needle = self.operand_for(needle, NativeCoercionKind::String);
+        let list = self.operand_for(list, NativeCoercionKind::List);
+        let format = self
+            .invocation_dialect
+            .and_then(tcl_registry::InvocationDialect::double_string_policy)
+            .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
+        let n = self.text_of(needle, format).ok_or(())?;
+        let list = self.text_of(list, format).ok_or(())?;
         Ok(split_tcl_list(&list, self.word_rules).contains(&n))
     }
 
     fn to_bool(&mut self, value: &FoldValue) -> Result<bool, ()> {
+        self.check_native_constant_boolean(value)?;
         // Boolean contexts (`?:`, `&&`, `||`) reject NaN — a domain error in
         // C Tcl ("floating point value is Not a Number"), so the fold
         // declines rather than pick a truth value.
-        self.within_tower(&[value])?;
-        match value.to_number(self.numbers).ok_or(())? {
+        match self
+            .number_for(value, NativeCoercionKind::Boolean)
+            .ok_or(())?
+        {
             TclValue::Float(f) if f.is_nan() => Err(()),
             v => Ok(v.is_truthy()),
         }
     }
+    fn to_bool_for_purpose(
+        &mut self,
+        value: &FoldValue,
+        purpose: tcl_syntax::native_boolean_truth::NativeBooleanTruthPurpose,
+    ) -> Result<bool, ()> {
+        if purpose.requires_expression_result()
+            || (self.purpose == FoldPurpose::Executable
+                && matches!(value, FoldValue::RetainedNativeObject { .. }))
+        {
+            return Err(());
+        }
+        // Mathematical values are explicit here. A retained executable object
+        // needs its independently reached native stage, not this value result.
+        self.to_bool(value)
+    }
+
+    fn logical_right_truth(
+        &mut self,
+        left: &FoldValue,
+        right: &FoldValue,
+        _conjunction: bool,
+    ) -> Result<bool, ()> {
+        if self.purpose == FoldPurpose::Executable
+            && [left, right]
+                .into_iter()
+                .any(|value| matches!(value, FoldValue::RetainedNativeObject { .. }))
+        {
+            return Err(());
+        }
+        self.to_bool(right)
+    }
+
     fn bool_value(&mut self, b: bool) -> FoldValue {
         FoldValue::Int(i64::from(b))
     }
     fn unsupported(&mut self, _what: &str) {}
 
-    /// The iRules dialect string operators (`contains`/`starts_with`/`equals`/
-    /// `matches_glob`/`matches_regex`/…) — apply to the operands as strings.
-    /// Declines the fold outright unless [`Self::is_irules`] is set: these
-    /// operators are only real Tcl outside iRules by way of a lexer bug the
-    /// lexer's own `irules_ops()` gate already prevents, but this is the
-    /// defence-in-depth check for the call sites that reach this evaluator
-    /// with no dialect context to gate on at lex time.
+    /// Evaluate shared F5 predicates only under the selected authored policy.
+    /// Native C/Jim and absent dialect policies decline these operations.
     fn binary_other(
         &mut self,
         op: BinOp,
         left: FoldValue,
         right: FoldValue,
     ) -> Result<FoldValue, ()> {
-        if !self.is_irules {
-            return Err(());
-        }
-        let (left, right) = (self.text_of(&left), self.text_of(&right));
-        apply_irules_string_op(op, &left, &right)
-            .map(FoldValue::from_tcl)
-            .ok_or(())
+        let provider = self.f5_predicates.ok_or(())?;
+        let left = self.operand_for(&left, NativeCoercionKind::String);
+        let right = self.operand_for(&right, NativeCoercionKind::String);
+        let format = self
+            .invocation_dialect
+            .and_then(tcl_registry::InvocationDialect::double_string_policy)
+            .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
+        apply_irules_string_op(
+            provider,
+            op,
+            &self.text_of(left, format).ok_or(())?,
+            &self.text_of(right, format).ok_or(())?,
+        )
+        .map(FoldValue::from_tcl)
+        .ok_or(())
     }
 }
 
@@ -1065,6 +1941,19 @@ pub fn format_tcl_value(v: &TclValue) -> String {
         TclValue::Float(f) => tcl_syntax::number::format_double(*f),
         // A bignum's canonical string rep is its decimal spelling.
         TclValue::Big(b) => b.to_string(),
+    }
+}
+
+/// Render a folded numeric value using its exact native string policy.
+/// Mutable or unknown floating precision remains a runtime operation.
+#[must_use]
+pub fn format_tcl_value_with_policy(value: &TclValue, policy: FoldPolicy) -> Option<String> {
+    match value {
+        TclValue::Float(value) => Some(tcl_syntax::number::format_double_selected(
+            *value,
+            policy.double_format()?,
+        )),
+        _ => Some(format_tcl_value(value)),
     }
 }
 
@@ -1096,7 +1985,7 @@ pub fn parse_literal_in(text: &str, numbers: NumberSyntax) -> Option<TclValue> {
     // The numeric grammar is the shared `tcl_syntax::number` (the same
     // `TclParseNumber` port the runtime const-folds with): `0x`/`0o`/`0b`,
     // leading-zero decimal, `_` separators, `Inf`/`NaN`. A magnitude past a
-    // wide builds the exact bignum (`type-tracking.md`), matching C
+    // wide builds the exact bignum (P4 of type-tracking.md), matching C
     // Tcl's seamless promotion.
     match tcl_syntax::number::parse_whole_with(
         text,
@@ -1140,6 +2029,15 @@ fn strict_number(value: &FoldValue, numbers: NumberSyntax) -> Option<TclValue> {
         FoldValue::Int(i) => Some(TclValue::Int(*i)),
         FoldValue::Float(f) => Some(TclValue::Float(*f)),
         FoldValue::Big(b) => Some(TclValue::from_big(b.clone())),
+        FoldValue::RetainedNativeObject {
+            proof,
+            integer_contents,
+            ..
+        } => proof.as_ref().map(|proof| proof.value.clone()).or_else(|| {
+            integer_contents
+                .as_ref()
+                .map(|receipt| receipt.number().clone())
+        }),
         FoldValue::Str(s) => match tcl_syntax::number::parse_whole_with(
             s,
             tcl_syntax::number::ParseFlags::for_syntax(numbers),
@@ -1616,31 +2514,14 @@ pub(crate) fn split_tcl_list(
 /// re-implemented them were unreachable, and re-implementing `in`/`ni` with
 /// a private list split risked disagreeing with the shared `in_list`
 /// semantics if either drifted.
-fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue> {
-    let res = match op {
-        BinOp::Contains => left.contains(right),
-        BinOp::StartsWith => left.starts_with(right),
-        BinOp::EndsWith => left.ends_with(right),
-        BinOp::MatchesGlob => tcl_syntax::glob::string_match(right, left),
-        // `matches_regex` is deliberately *not* constant-folded (along
-        // with any other / unsupported operator): the Rust `regex` crate
-        // is not Tcl's ARE engine — classes, anchors, word boundaries,
-        // embedded options and greediness all differ — so folding here
-        // could disagree with runtime.  Decline to evaluate and defer to
-        // the runtime regex engine.
-        //
-        // The bare `matches` ([`BinOp::Matches`]) declines through the
-        // same arm, for a different reason: only its *presence* is
-        // measured (`docs/design/f5/bigip-irule-parser-measurements.md` §4a
-        // `e_matches`), and the probe — `expr {"abc" matches "abc"}` — is
-        // an exact-equality case that discriminates none of the
-        // string-match readings.  The VM answers it as a string equality
-        // so the measured cell reproduces; folding it here would bake an
-        // unmeasured semantics into a rewrite, which §12's outstanding
-        // re-probe has not yet earned.
-        _ => return None,
-    };
-    Some(TclValue::Int(i64::from(res)))
+fn apply_irules_string_op(
+    provider: tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider,
+    op: BinOp,
+    left: &str,
+    right: &str,
+) -> Option<TclValue> {
+    let predicate = provider.predicate(op)?;
+    Some(TclValue::Int(i64::from(predicate.evaluate(left, right))))
 }
 
 // The engine adapter: the shared walk over the analysis services
@@ -1734,7 +2615,9 @@ impl<'a> ExprServices<'a> {
         state: &'a mut EvaluationState,
         budget: &'a mut Budget,
     ) -> Self {
-        let profile = inputs.context().profile;
+        let lexer = inputs
+            .source_lexer_config()
+            .unwrap_or_else(|| tcl_lexer::LexerConfig::from_grammar(inputs.context().grammar));
         Self {
             inputs,
             state,
@@ -1743,8 +2626,99 @@ impl<'a> ExprServices<'a> {
             widens: Some(true),
             stopped: None,
             ended: None,
-            lexer: tcl_lexer::LexerConfig::for_profile(profile),
+            lexer,
         }
+    }
+
+    fn nested_result(&mut self, answer: EvalAnswer) -> Result<FoldValue, ExprStop> {
+        let outcome = match answer {
+            EvalAnswer::Evaluated(outcome) => outcome,
+            answer => return Err(ExprStop::of_answer(&answer)),
+        };
+        if outcome.completion != CompletionOutcome::Normal {
+            self.ended = Some(outcome.completion);
+            return Err(ExprStop::Ended);
+        }
+        match &outcome.result {
+            ExactValueOrUnavailable::Exact(value) => Self::operand_of(value),
+            ExactValueOrUnavailable::Unavailable(_) => {
+                Err(ExprStop::Declined(DeclineReason::NotExact))
+            }
+        }
+    }
+
+    fn string_parts(
+        &mut self,
+        inner: &str,
+        substitutes: bool,
+        inner_start: Option<u32>,
+    ) -> Result<FoldValue, ExprStop> {
+        use tcl_lexer::word_parts::{SubstFlags, WordPart as Part, decompose_spanned_checked};
+        if !substitutes {
+            return tcl_syntax::expr::fixed_string_body(inner, false)
+                .map(|body| FoldValue::Str(body.to_owned()))
+                .ok_or(ExprStop::Declined(DeclineReason::NotExact));
+        }
+        let parts = decompose_spanned_checked(inner.as_bytes(), SubstFlags::default(), self.lexer)
+            .map_err(|_| ExprStop::Declined(DeclineReason::Unsupported))?;
+        let mut bytes = Vec::with_capacity(inner.len());
+        let format = self
+            .fold
+            .invocation_dialect
+            .and_then(tcl_registry::InvocationDialect::double_string_policy)
+            .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
+        for component in parts {
+            match component.part {
+                Part::Text(text) => bytes.extend_from_slice(&text),
+                Part::Variable(reference) => {
+                    let name = crate::value_transfer::variable_name(&reference)
+                        .map_err(ExprStop::Declined)?;
+                    let value = tcl_syntax::expr::ExprOps::var(self, &name)?;
+                    bytes.extend_from_slice(
+                        self.fold
+                            .text_of(&value, format)
+                            .ok_or_else(|| self.fold_refused())?
+                            .as_bytes(),
+                    );
+                }
+                Part::Command(script) => {
+                    let value = if let Some(base) = inner_start {
+                        let start = u32::try_from(component.start)
+                            .ok()
+                            .and_then(|offset| base.checked_add(offset))
+                            .ok_or(ExprStop::Declined(DeclineReason::NotExact))?;
+                        let end = u32::try_from(component.end)
+                            .ok()
+                            .and_then(|offset| base.checked_add(offset))
+                            .ok_or(ExprStop::Declined(DeclineReason::NotExact))?;
+                        tcl_syntax::expr::ExprOps::command_bytes_at(
+                            self,
+                            script,
+                            start,
+                            end.checked_sub(1)
+                                .ok_or(ExprStop::Declined(DeclineReason::NotExact))?,
+                        )?
+                    } else {
+                        let script = std::str::from_utf8(script)
+                            .map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
+                        tcl_syntax::expr::ExprOps::command(self, script)?
+                    };
+                    bytes.extend_from_slice(
+                        self.fold
+                            .text_of(&value, format)
+                            .ok_or_else(|| self.fold_refused())?
+                            .as_bytes(),
+                    );
+                }
+                Part::Expression(_) => return Err(ExprStop::Declined(DeclineReason::Unsupported)),
+                Part::ParseError(_) => {
+                    return Err(ExprStop::Declined(DeclineReason::WrongRepresentation));
+                }
+            }
+        }
+        String::from_utf8(bytes)
+            .map(FoldValue::Str)
+            .map_err(|_| ExprStop::Declined(DeclineReason::NotText))
     }
 
     /// Take the value semantics `policy` states.
@@ -1867,6 +2841,9 @@ impl<'a> ExprServices<'a> {
             FoldValue::Int(i) => TclValue::Int(*i),
             FoldValue::Big(b) => TclValue::from_big(b.clone()),
             FoldValue::Float(f) => TclValue::Float(*f),
+            FoldValue::RetainedNativeObject { .. } => {
+                return Err(DeclineReason::WrongRepresentation);
+            }
         };
         match number {
             // The release's own string rep, or none where it would not be
@@ -1902,17 +2879,17 @@ impl FoldOps<'static> {
     /// numeral grammar and operator set, reading no environment. The math
     /// functions' availability is the `math_function` service's.
     fn for_services(policy: FoldPolicy) -> Self {
-        Self {
-            env: &NO_ENV,
-            declined: None,
-            tower: Tower::Widens,
-            octal: policy.octal,
-            numbers: policy.numbers_or_inferred(),
-            spelling: policy.spelling(),
-            math_since: None,
-            is_irules: policy.is_irules,
-            word_rules: policy.word_rules,
-        }
+        let mut fold = make_fold_ops(
+            &NO_ENV,
+            policy.with_intrinsic_math(),
+            None,
+            None,
+            FoldNativeInputs::objects(None),
+            true,
+        );
+        fold.tower = Tower::Widens;
+        fold.math_since = None;
+        fold
     }
 }
 
@@ -1923,6 +2900,18 @@ const fn refused(_: ()) -> ExprStop {
     ExprStop::Declined(DeclineReason::WrongRepresentation)
 }
 
+impl ExprServices<'_> {
+    /// A string operation's refusal: the reason the fold recorded
+    /// ([`FoldOps::decline`], such as `Unspellable`), else [`refused`]'s.
+    fn fold_refused(&self) -> ExprStop {
+        ExprStop::Declined(
+            self.fold
+                .declined
+                .unwrap_or(DeclineReason::WrongRepresentation),
+        )
+    }
+}
+
 impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
     type Value = FoldValue;
     type Error = ExprStop;
@@ -1931,45 +2920,30 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
         Ok(FoldValue::Str(text.to_owned()))
     }
 
-    /// A `"…"` operand is substituted as a quoted word is: its variables
-    /// read through `variable`, its scripts through `nested`, its escapes
-    /// decoded under the document's grammar. A `{…}` operand is its body,
-    /// unless a backslash-newline in it leaves the value to the dialect.
+    /// An unpositioned string retains the explicit compatibility callback.
     fn string(&mut self, inner: &str, substitutes: bool) -> Result<FoldValue, ExprStop> {
-        use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
-        if !substitutes {
-            return tcl_syntax::expr::fixed_string_body(inner, false)
-                .map(|body| FoldValue::Str(body.to_owned()))
-                .ok_or(ExprStop::Declined(DeclineReason::NotExact));
+        self.string_parts(inner, substitutes, None)
+    }
+
+    fn string_bytes_at(
+        &mut self,
+        inner: &[u8],
+        substitutes: bool,
+        start: u32,
+        end: u32,
+    ) -> Result<FoldValue, ExprStop> {
+        let inner =
+            std::str::from_utf8(inner).map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
+        let inner_start = start
+            .checked_add(1)
+            .ok_or(ExprStop::Declined(DeclineReason::NotExact))?;
+        if inner_start.checked_add(
+            u32::try_from(inner.len()).map_err(|_| ExprStop::Declined(DeclineReason::NotExact))?,
+        ) != Some(end)
+        {
+            return Err(ExprStop::Declined(DeclineReason::NotExact));
         }
-        let parts = match decompose(inner.as_bytes(), SubstFlags::default(), self.lexer) {
-            WordBody::Literal(_) => return Ok(FoldValue::Str(inner.to_owned())),
-            WordBody::Parts(parts) => parts,
-        };
-        let mut bytes = Vec::with_capacity(inner.len());
-        for part in parts {
-            match part {
-                Part::Text(text) => bytes.extend_from_slice(&text),
-                Part::Variable(reference) => {
-                    let name = crate::value_transfer::variable_name(&reference)
-                        .map_err(ExprStop::Declined)?;
-                    let value = tcl_syntax::expr::ExprOps::var(self, &name)?;
-                    bytes.extend_from_slice(self.fold.text_of(&value).as_bytes());
-                }
-                Part::Command(script) => {
-                    let script = std::str::from_utf8(script)
-                        .map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
-                    let value = tcl_syntax::expr::ExprOps::command(self, script)?;
-                    bytes.extend_from_slice(self.fold.text_of(&value).as_bytes());
-                }
-                Part::ParseError(_) => {
-                    return Err(ExprStop::Declined(DeclineReason::WrongRepresentation));
-                }
-            }
-        }
-        String::from_utf8(bytes)
-            .map(FoldValue::Str)
-            .map_err(|_| ExprStop::Declined(DeclineReason::NotText))
+        self.string_parts(inner, substitutes, Some(inner_start))
     }
 
     /// A read consults the state's own writes before the inputs at the
@@ -1991,20 +2965,23 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
 
     fn command(&mut self, script: &str) -> Result<FoldValue, ExprStop> {
         self.checkpoint()?;
-        let outcome = match self.inputs.nested(script, self.state) {
-            EvalAnswer::Evaluated(outcome) => outcome,
-            answer => return Err(ExprStop::of_answer(&answer)),
-        };
-        if outcome.completion != CompletionOutcome::Normal {
-            self.ended = Some(outcome.completion);
-            return Err(ExprStop::Ended);
-        }
-        match &outcome.result {
-            ExactValueOrUnavailable::Exact(value) => Self::operand_of(value),
-            ExactValueOrUnavailable::Unavailable(_) => {
-                Err(ExprStop::Declined(DeclineReason::NotExact))
-            }
-        }
+        let answer = self.inputs.nested(script, self.state);
+        self.nested_result(answer)
+    }
+
+    fn command_bytes_at(
+        &mut self,
+        script: &[u8],
+        start: u32,
+        end: u32,
+    ) -> Result<FoldValue, ExprStop> {
+        self.checkpoint()?;
+        let script =
+            std::str::from_utf8(script).map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
+        let answer = self
+            .inputs
+            .nested_expression_at(script, start, end, self.state);
+        self.nested_result(answer)
     }
 
     fn call(&mut self, function: &str, args: Vec<FoldValue>) -> Result<FoldValue, ExprStop> {
@@ -2075,17 +3052,54 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
         self.fold.compare_numeric(left, right)
     }
 
-    fn compare_string(&mut self, left: &FoldValue, right: &FoldValue) -> std::cmp::Ordering {
-        self.fold.compare_string(left, right)
+    fn compare_string(
+        &mut self,
+        left: &FoldValue,
+        right: &FoldValue,
+    ) -> Result<std::cmp::Ordering, ExprStop> {
+        self.fold
+            .compare_string(left, right)
+            .map_err(|()| self.fold_refused())
+    }
+
+    fn equal_string(&mut self, left: &FoldValue, right: &FoldValue) -> Result<bool, ExprStop> {
+        self.fold
+            .equal_string(left, right)
+            .map_err(|()| self.fold_refused())
     }
 
     fn in_list(&mut self, needle: &FoldValue, list: &FoldValue) -> Result<bool, ExprStop> {
-        self.fold.in_list(needle, list).map_err(refused)
+        self.fold
+            .in_list(needle, list)
+            .map_err(|()| self.fold_refused())
     }
 
     fn to_bool(&mut self, value: &FoldValue) -> Result<bool, ExprStop> {
         self.tower(&[value])?;
         self.fold.to_bool(value).map_err(refused)
+    }
+
+    fn to_bool_for_purpose(
+        &mut self,
+        value: &FoldValue,
+        purpose: tcl_syntax::native_boolean_truth::NativeBooleanTruthPurpose,
+    ) -> Result<bool, ExprStop> {
+        self.tower(&[value])?;
+        self.fold
+            .to_bool_for_purpose(value, purpose)
+            .map_err(refused)
+    }
+
+    fn logical_right_truth(
+        &mut self,
+        left: &FoldValue,
+        right: &FoldValue,
+        conjunction: bool,
+    ) -> Result<bool, ExprStop> {
+        self.tower(&[left, right])?;
+        self.fold
+            .logical_right_truth(left, right, conjunction)
+            .map_err(refused)
     }
 
     fn bool_value(&mut self, b: bool) -> FoldValue {
@@ -2247,6 +3261,8 @@ pub(crate) struct ConditionReading<'a> {
     /// Whether the module leaves a command head denoting the registry's
     /// command, which a `string is` test asks of `string`.
     pub(crate) trusted: &'a dyn Fn(&str) -> bool,
+    /// Actual CFG metadata and original expression geometry for existence calls.
+    pub(crate) existence: crate::existence_query::QueryReading<'a>,
 }
 
 /// The `Selection` transfer of a branch condition over its tree: per edge,
@@ -2303,12 +3319,10 @@ pub(crate) fn condition_edge_facts(node: &ExprNode, reading: ConditionReading<'_
             EdgeFacts::when_false(on_false)
         }
         ExprNode::Binary { op, left, right } => comparison_facts(*op, left, right, reading),
-        ExprNode::Command { text, .. } => {
-            crate::existence_query::in_text(text, reading.registry, reading.config).map_or_else(
-                || EdgeFacts::when_true(string_is_fact(text, reading).into_iter().collect()),
-                |(name, kind)| query_facts(&name, kind),
-            )
-        }
+        ExprNode::Command { .. } => reading.existence.in_expr(node).map_or_else(
+            || EdgeFacts::when_true(string_is_fact(node, reading).into_iter().collect()),
+            |query| query_facts(&query.var, query.kind),
+        ),
         _ => EdgeFacts::default(),
     }
 }
@@ -2319,10 +3333,10 @@ pub(crate) fn condition_edge_facts(node: &ExprNode, reading: ConditionReading<'_
 /// and an unparsed operand may be anything, so neither is.
 fn changes_no_place(node: &ExprNode, reading: ConditionReading<'_>) -> bool {
     match node {
-        ExprNode::Command { text, .. } => {
-            crate::existence_query::in_text(text, reading.registry, reading.config)
-                .is_some_and(|(name, _)| !name.contains('['))
-        }
+        ExprNode::Command { .. } => reading
+            .existence
+            .in_expr(node)
+            .is_some_and(|query| !query.var.contains('[')),
         ExprNode::Binary { left, right, .. } => {
             changes_no_place(left, reading) && changes_no_place(right, reading)
         }
@@ -2402,14 +3416,13 @@ fn comparison_facts(
     right: &ExprNode,
     reading: ConditionReading<'_>,
 ) -> EdgeFacts {
-    let style = reading.config.braced_var;
-    let operands = variable_operand(left, style)
+    let operands = variable_operand(left, reading.config)
         .zip(literal_operand(right))
         .map(|(place, literal)| (op, place, literal))
         .or_else(|| {
             let turned = turned_round(op)?;
             literal_operand(left)
-                .zip(variable_operand(right, style))
+                .zip(variable_operand(right, reading.config))
                 .map(|(literal, place)| (turned, place, literal))
         });
     let Some((op, place, literal)) = operands else {
@@ -2554,7 +3567,59 @@ fn membership_facts(place: &str, list: &str, policy: FoldPolicy) -> Vec<PlaceFac
 /// ([`tcl_registry::commands::tcl::string_is_member_type`]), for the one
 /// variable the test's last word reads. Every other word is literal, and
 /// the head is the registry's command the module has not rebound.
-fn string_is_fact(text: &str, reading: ConditionReading<'_>) -> Option<PlaceFact> {
+fn string_is_fact(node: &ExprNode, reading: ConditionReading<'_>) -> Option<PlaceFact> {
+    if !reading.existence.is_standalone() {
+        let tokens = reading.existence.original_command(node)?;
+        let invocation =
+            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                reading.registry,
+                reading.existence.metadata_context(),
+                &tokens,
+            )?;
+        if invocation.facts.operation
+            != tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::StringIs)
+            || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
+        {
+            return None;
+        }
+        let value_index = invocation.arguments.len().checked_sub(1)?;
+        if !matches!(
+            invocation
+                .effective
+                .origins
+                .get(value_index.checked_add(1)?),
+            Some(crate::registry_invocation::InvocationWordOrigin::Written(_))
+        ) {
+            return None;
+        }
+        let value = invocation
+            .effective
+            .words
+            .get(value_index.checked_add(1)?)?;
+        let (spelling, _) = value.sole_variable_substitution()?;
+        let place = variable_name(spelling, reading.config)?;
+        let mut values = (invocation.facts.argument_offset..value_index)
+            .map(|index| invocation.argument_literal(index))
+            .collect::<Option<Vec<_>>>()?;
+        // Class selection consumes the final value's shape, not its contents.
+        values.push(String::new());
+        let arguments = values.iter().map(String::as_str).collect::<Vec<_>>();
+        let member = tcl_registry::commands::tcl::string_is_member_type_for_dialect(
+            &arguments,
+            invocation.dialect?,
+        )?;
+        return Some(PlaceFact::domain(
+            place,
+            FactDomain::Type,
+            DomainFact::Type {
+                intrep: Some(member),
+                shape: None,
+            },
+        ));
+    }
+    let ExprNode::Command { text, .. } = node else {
+        return None;
+    };
     let inner = text.strip_prefix('[')?.strip_suffix(']')?;
     let commands = crate::ir_helpers::tokenise_command_words(inner, reading.config);
     let [words] = commands.as_slice() else {
@@ -2566,7 +3631,7 @@ fn string_is_fact(text: &str, reading: ConditionReading<'_>) -> Option<PlaceFact
     if value.expanded || !(reading.trusted)(head) {
         return None;
     }
-    let place = variable_name(&value.raw, reading.config.braced_var)?;
+    let place = variable_name(&value.raw, reading.config)?;
     let mut texts: Vec<&str> = options
         .iter()
         .map(crate::ir_helpers::CommandWord::literal)
@@ -2596,18 +3661,18 @@ fn string_is_fact(text: &str, reading: ConditionReading<'_>) -> Option<PlaceFact
 /// The plain local variable an operand reads whole: a `$x` or `${x}`
 /// reference, or the flattened `switch` subject that carries one as `Raw`
 /// text. A qualified name or an array element is no plain local.
-fn variable_operand(node: &ExprNode, style: tcl_dialect::BracedVarStyle) -> Option<String> {
+fn variable_operand(node: &ExprNode, config: tcl_lexer::LexerConfig) -> Option<String> {
     match node {
         ExprNode::Var { text, .. } | ExprNode::Raw { text } => {
-            variable_name(text, style).map(str::to_owned)
+            variable_name(text, config).map(str::to_owned)
         }
         _ => None,
     }
 }
 
 /// The plain local name a `$x` or `${x}` spelling reads.
-fn variable_name(text: &str, style: tcl_dialect::BracedVarStyle) -> Option<&str> {
-    crate::value_transfer::whole_variable_operand(text, style)
+fn variable_name(text: &str, config: tcl_lexer::LexerConfig) -> Option<&str> {
+    crate::value_transfer::whole_variable_operand(text, config)
         .filter(|name| !name.is_empty() && !name.contains("::") && !name.contains('('))
 }
 
@@ -2674,6 +3739,80 @@ mod tests {
         assert_eq!(read("yes "), None);
         assert_eq!(read(" true"), None);
         assert_eq!(read(" 7 "), Some(TclValue::Int(7)));
+    }
+
+    #[test]
+    fn original_boolean_value_advice_cannot_attest_a_retained_native_truth_stage() {
+        // naming.numeric.original-primitive-boolean-vs-expression-truth
+
+        use tcl_syntax::expr::ExprOps;
+        use tcl_syntax::native_boolean_truth::NativeBooleanTruthPurpose as Purpose;
+        let env = Env::new();
+        let mut executable = make_fold_ops(
+            &env,
+            FoldPolicy::default(),
+            None,
+            None,
+            FoldNativeInputs::objects(None),
+            false,
+        );
+        let mut advice = make_fold_ops(
+            &env,
+            FoldPolicy::default(),
+            None,
+            None,
+            FoldNativeInputs::objects(None),
+            true,
+        );
+        let retained = FoldValue::RetainedNativeObject {
+            value: Box::new(FoldValue::Int(4_294_967_296)),
+            proof: None,
+            integer_contents: None,
+            reference: "$original".into(),
+            start: Some(0),
+        };
+        assert!(
+            advice
+                .to_bool_for_purpose(&retained, Purpose::LogicalAnd)
+                .unwrap()
+        );
+        assert!(
+            advice
+                .logical_right_truth(&retained, &FoldValue::Int(1), true)
+                .unwrap()
+        );
+        assert!(
+            advice
+                .coercions
+                .borrow()
+                .iter()
+                .any(|obligation| obligation.kind == NativeCoercionKind::Boolean)
+        );
+        assert!(
+            executable
+                .to_bool_for_purpose(&retained, Purpose::LogicalAnd)
+                .is_err()
+        );
+        assert!(
+            executable
+                .logical_right_truth(&retained, &FoldValue::Int(1), true)
+                .is_err()
+        );
+        assert!(
+            executable
+                .logical_right_truth(&FoldValue::Int(1), &retained, true)
+                .is_err()
+        );
+        assert!(
+            executable
+                .to_bool_for_purpose(&FoldValue::Int(1), Purpose::ConditionalJump)
+                .unwrap()
+        );
+        assert!(
+            executable
+                .to_bool_for_purpose(&FoldValue::Int(1), Purpose::ExpressionApiResult)
+                .is_err()
+        );
     }
 
     // evaluate_expr_with_constants
@@ -2783,12 +3922,48 @@ mod tests {
         eval_tcl_expr(&parse_expr(expr, None), env)
     }
 
+    #[test]
+    fn string_ordering_uses_selected_native_units_and_jim_equality_uses_bytes() {
+        for (profile, ordered) in [
+            ("tcl8.4", Some(0)),
+            ("tcl8.5", Some(0)),
+            ("tcl8.6", Some(0)),
+            ("tcl9.0", Some(1)),
+            ("tcl9.1", Some(1)),
+            ("jim", None),
+        ] {
+            let supplied = tcl_registry::model::ingress::static_context_for(profile);
+            let registry = supplied.commands();
+            let selected = registry.profile().unwrap();
+            let policy = FoldPolicy::for_retained_entry(
+                registry,
+                Some(tcl_registry::InvocationDialect::of_profile(selected)),
+                &tcl_lexer::LexerConfig::from_grammar(selected.grammar),
+            );
+            for (expression, expected) in [
+                ("\"\u{10000}\" > \"\u{e000}\"", ordered),
+                ("\"\u{10000}\" eq \"\u{10000}\"", Some(1)),
+                ("\"\u{10000}\" eq \"\u{e000}\"", Some(0)),
+            ] {
+                let tree = tcl_syntax::expr::parser::parse_expr_with_syntax_context(
+                    expression,
+                    &policy.preparation_context().unwrap(),
+                );
+                assert_eq!(
+                    eval_tcl_expr_with_policy(&tree, &Env::new(), policy),
+                    expected.map(TclValue::Int),
+                    "{profile}: {expression}"
+                );
+            }
+        }
+    }
+
     /// Parse + evaluate using the iRules dialect, which enables
     /// `contains`/`starts_with`/`ends_with`/`equals`/`matches_glob`/
     /// `matches_regex`/`in`/`ni` word operators. Must use the
     /// dialect-threading evaluator, not the bare [`eval_tcl_expr`] — the
     /// word operators parse under any dialect gate, but only actually
-    /// *fold* when [`FoldOps::is_irules`] is set, which only
+    /// *fold* when [`FoldOps::f5_predicates`] is set, which only
     /// [`eval_tcl_expr_in_dialect`] does.
     fn eval_irules(expr: &str) -> Option<TclValue> {
         let env = Env::new();
@@ -2811,10 +3986,15 @@ mod tests {
     fn math_functions_fold_only_from_their_introducing_release() {
         let env = Env::new();
         let fold = |expr: &str, dialect: &str| {
-            eval_tcl_expr_in_dialect(
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            // This test selects mathematical implementation grammar explicitly;
+            // it supplies no executable command-table proof.
+            eval_tcl_expr_with_policy(
                 &parse_expr(expr, Some(dialect)),
                 &env,
-                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+                FoldPolicy::for_profile(leading_zero_is_octal(profile), Some(profile))
+                    .with_intrinsic_math(),
             )
         };
         // `min`/`max` are 8.5+: fold from 8.5, decline under 8.4.
@@ -2825,6 +4005,15 @@ mod tests {
         assert_eq!(fold("isinf(1.0)", "tcl8.6"), None);
         // An 8.4-era function folds everywhere.
         assert_eq!(fold("abs(-5)", "tcl8.4"), Some(TclValue::Int(5)));
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            assert_eq!(
+                eval_tcl_expr_in_dialect(&parse_expr("abs(-5)", Some(dialect)), &env, profile),
+                None,
+                "a profile alone cannot establish a reached native function"
+            );
+        }
     }
 
     /// The old folder stays within the target's tower, as the route does:
@@ -2886,6 +4075,34 @@ mod tests {
     /// releases disagree on the answer anyway: tclsh 8.5 to 9.1 give
     /// `9223372036854775808`, 8.4 raises `ARITH IOVERFLOW`, and jimsh 0.84
     /// wraps to `-9223372036854775808`.
+    /// jimsh 0.84's `pow` is its `**` operator: `pow(2,3)` is `8` and
+    /// `pow(2,-1)` is `0`, where tclsh 8.4.20 to 9.1.0 give `8.0` and `0.5`
+    /// (`mathfunc::dispatch_under`). A fold under Jim never gives Tcl's
+    /// double answer, and the Tcl table declines Jim's integer power.
+    #[test]
+    fn jims_integer_pow_never_folds_to_tcls_double() {
+        let env = Env::new();
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").analyser_profile();
+        let fold = |expr: &str| {
+            eval_tcl_expr_with_policy(
+                &parse_expr(expr, Some("jim")),
+                &env,
+                FoldPolicy::for_profile(leading_zero_is_octal(profile), Some(profile)),
+            )
+        };
+        assert!(matches!(fold("pow(2, 3)"), None | Some(TclValue::Int(8))));
+        assert!(matches!(fold("pow(2, -1)"), None | Some(TclValue::Int(0))));
+        let jim_grammar = FoldPolicy {
+            numbers: Some(NumberSyntax::Jim),
+            ..FoldPolicy::from_octal(Some(false))
+        }
+        .with_intrinsic_math();
+        assert_eq!(
+            eval_tcl_expr_with_policy(&parse_expr("pow(2, 3)", None), &env, jim_grammar),
+            None
+        );
+    }
+
     #[test]
     fn abs_of_the_most_negative_wide_declines_in_every_dialect() {
         let env = Env::new();
@@ -3074,7 +4291,18 @@ mod tests {
             assert_eq!(eval_d("010 + 1", d), Some(TclValue::Int(9)), "{d}");
             assert_eq!(eval_d("010 * 2", d), Some(TclValue::Int(16)), "{d}");
             assert_eq!(eval_d("-010", d), Some(TclValue::Int(-8)), "{d}");
-            assert_eq!(eval_d("abs(-010)", d), Some(TclValue::Int(8)), "{d}");
+            assert_eq!(eval_d("abs(-010)", d), None, "unproved function: {d}");
+            let profile = tcl_registry::model::ingress::resolve_environment(d).analyser_profile();
+            assert_eq!(
+                eval_tcl_expr_with_policy(
+                    &parse_expr("abs(-010)", Some(d)),
+                    &Env::new(),
+                    FoldPolicy::for_profile(leading_zero_is_octal(profile), Some(profile))
+                        .with_intrinsic_math(),
+                ),
+                Some(TclValue::Int(8)),
+                "selected mathematical grammar: {d}"
+            );
         }
         // tcl9.0 decimal (TIP 472): `010 + 1` = 11 (decimal 10+1).
         assert_eq!(eval_d("010 + 1", "tcl9.0"), Some(TclValue::Int(11)));
@@ -3565,6 +4793,42 @@ mod tests {
     /// everywhere else — the defence-in-depth check for
     /// call sites that reach this evaluator without a dialect string
     /// (`eval_tcl_expr`/`eval_tcl_expr_with_octal`).
+    #[test]
+    fn measured_bigip_bare_matches_glob_discriminators_fold_only_under_authored_policy() {
+        let env = Env::new();
+        for (row_index, row) in
+            include_str!("../../tcl-syntax/tests/data/f5-matches-21.1.0.1-0.0.26.tsv")
+                .lines()
+                .enumerate()
+        {
+            let fields = row.split('\t').collect::<Vec<_>>();
+            let expression = fields[0];
+            let expected = if fields[1] == "0" {
+                Some(TclValue::Int(fields[2].parse().unwrap()))
+            } else {
+                None
+            };
+            assert_eq!(eval_irules(expression), expected, "{expression}");
+            let node = parse_expr(expression, Some("f5-irules"));
+            if row_index >= 6 {
+                continue;
+            }
+            assert_eq!(eval_tcl_expr(&node, &env), None);
+            for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+                assert_eq!(
+                    eval_tcl_expr_in_dialect(
+                        &node,
+                        &env,
+                        tcl_registry::model::ingress::resolve_environment(engine)
+                            .analyser_profile()
+                    ),
+                    None,
+                    "{engine}: {expression}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn irules_contains_folds_under_irules_and_declines_under_plain_tcl() {
         let node_irules = parse_expr(r#""abc" contains "b""#, Some("f5-irules"));
@@ -4103,5 +5367,336 @@ mod tests {
     #[test]
     fn math_unknown_function_is_none() {
         assert_eq!(eval_str("thereisnosuchfn(1)"), None);
+    }
+}
+
+#[cfg(test)]
+mod double_string_policy_tests {
+    use super::*;
+
+    fn selected(version: tcl_dialect::TclVersion) -> FoldPolicy {
+        FoldPolicy::default()
+            .with_invocation_dialect(tcl_registry::InvocationDialect::for_version(version))
+    }
+
+    #[test]
+    fn floating_string_folds_require_proved_native_precision() {
+        let value = TclValue::Float(1.0 / 3.0);
+        for version in [
+            tcl_dialect::TclVersion::V8_4,
+            tcl_dialect::TclVersion::V8_5,
+            tcl_dialect::TclVersion::V8_6,
+        ] {
+            assert_eq!(
+                format_tcl_value_with_policy(&value, selected(version)),
+                None
+            );
+        }
+        assert_eq!(
+            format_tcl_value_with_policy(&value, selected(tcl_dialect::TclVersion::V9_1)),
+            Some("0.3333333333333333".to_owned())
+        );
+        let jim = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
+        assert_eq!(
+            format_tcl_value_with_policy(
+                &value,
+                FoldPolicy::default().with_invocation_dialect(jim)
+            ),
+            Some("0.333333333333".to_owned())
+        );
+    }
+
+    #[test]
+    fn mutable_precision_blocks_string_comparison_but_keeps_numeric_comparison() {
+        let policy = selected(tcl_dialect::TclVersion::V8_6);
+        let string = crate::expr_parser::parse_expr(r#"(1.0/3) eq "0.3333333333333333""#, None);
+        let numeric = crate::expr_parser::parse_expr("(1.0/3) < 1", None);
+        assert_eq!(
+            eval_tcl_expr_with_policy(&string, &Env::new(), policy),
+            None
+        );
+        assert_eq!(
+            eval_tcl_expr_with_policy(&numeric, &Env::new(), policy),
+            Some(TclValue::Int(1))
+        );
+    }
+}
+
+#[cfg(test)]
+mod reached_math_binding_tests {
+    use super::*;
+
+    #[test]
+    fn analysis_preserves_jim_selected_operand_result_bytes_and_sharing() {
+        let jim = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
+        let policy = FoldPolicy::default().with_invocation_dialect(jim);
+        let env = Env::from([("x".into(), EnvValue::Str("003".into()))]);
+        let original = crate::expr_parser::parse_expr("1?$x:0", None);
+        let result = analyse_tcl_expr_with_resolved_math_bindings(
+            &original,
+            &env,
+            policy,
+            &|_, _| None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(result.value, TclValue::Int(3));
+        assert_eq!(
+            result.coercions,
+            [] as [crate::tcl_expr_eval::NativeCoercionObligation; 0]
+        );
+        assert_eq!(
+            result.result_dependency,
+            Some(NativeExpressionResultDependency::SelectedOperand {
+                reference: "$x".into(),
+                start: Some(2),
+                existing_bytes: Some("003".into()),
+            },)
+        );
+        assert!(!result.native_value_effects_are_proved());
+        assert_eq!(
+            eval_tcl_expr_with_resolved_math_bindings(&original, &env, policy, &|_, _| None,),
+            None
+        );
+    }
+
+    #[test]
+    fn analysis_retains_values_and_only_reached_coercion_obligations() {
+        let policy = FoldPolicy::default().with_invocation_dialect(
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        let env = Env::from([("x".into(), EnvValue::Int(3))]);
+        let calls = |function: &str, _| {
+            Some(NativeMathFunctionTarget {
+                function: function.to_owned(),
+                prepended: Vec::new(),
+            })
+        };
+        for (source, kind, start) in [
+            ("$x+1", NativeCoercionKind::Number, 0),
+            ("!!$x", NativeCoercionKind::Boolean, 2),
+            ("$x==3", NativeCoercionKind::NumericComparison, 0),
+            ("abs($x)", NativeCoercionKind::Number, 4),
+            ("$x", NativeCoercionKind::ResultNormalization, 0),
+        ] {
+            let original = crate::expr_parser::parse_expr(source, None);
+            let result =
+                analyse_tcl_expr_with_resolved_math_bindings(&original, &env, policy, &calls, None)
+                    .unwrap();
+            assert_eq!(
+                result.coercions,
+                vec![NativeCoercionObligation {
+                    reference: "$x".into(),
+                    start: Some(start),
+                    kind,
+                }],
+                "{source}"
+            );
+            assert!(!result.coercions_are_proved());
+        }
+        let original = crate::expr_parser::parse_expr("$x+1", None);
+        assert_eq!(
+            analyse_tcl_expr_with_resolved_math_bindings(&original, &env, policy, &calls, None,)
+                .unwrap()
+                .value,
+            TclValue::Int(4)
+        );
+        let skipped = crate::expr_parser::parse_expr("1?abs(-3):$x+1", None);
+        let result =
+            analyse_tcl_expr_with_resolved_math_bindings(&skipped, &env, policy, &calls, None)
+                .unwrap();
+        assert_eq!(result.value, TclValue::Int(3));
+        assert!(result.coercions_are_proved());
+        // Mathematical constants cannot turn the original retained read into a
+        // fresh object simply because its value happens to be known.
+        assert_eq!(
+            eval_tcl_expr_with_resolved_math_bindings(&original, &env, policy, &calls,),
+            None
+        );
+    }
+
+    #[test]
+    fn known_string_bytes_do_not_erase_an_unproved_operand_materialisation() {
+        let policy = FoldPolicy::default().with_invocation_dialect(
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        let original = crate::expr_parser::parse_expr("$x eq \"hello\"", None);
+        let environment = Env::from([("x".into(), EnvValue::Str("hello".into()))]);
+        let analysis = analyse_tcl_expr_with_resolved_math_bindings(
+            &original,
+            &environment,
+            policy,
+            &|_, _| None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(analysis.value, TclValue::Int(1));
+        assert_eq!(
+            analysis.coercions,
+            vec![NativeCoercionObligation {
+                reference: "$x".into(),
+                start: Some(0),
+                kind: NativeCoercionKind::String,
+            }]
+        );
+        assert!(!analysis.native_value_effects_are_proved());
+        assert_eq!(
+            eval_tcl_expr_with_resolved_math_bindings(&original, &environment, policy, &|_, _| {
+                None
+            },),
+            None
+        );
+    }
+
+    #[test]
+    fn retained_value_constants_do_not_prove_required_native_coercions() {
+        let policy = FoldPolicy::default().with_invocation_dialect(
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        let env = Env::from([("x".into(), EnvValue::Int(3))]);
+        for source in ["$x", "$x+0", "!!$x", "$x==3", "abs($x)"] {
+            let expression = crate::expr_parser::parse_expr(source, None);
+            assert_eq!(
+                eval_tcl_expr_with_resolved_math_bindings(
+                    &expression,
+                    &env,
+                    policy,
+                    &|function, _| {
+                        Some(NativeMathFunctionTarget {
+                            function: function.to_owned(),
+                            prepended: Vec::new(),
+                        })
+                    },
+                ),
+                None,
+                "a value constant cannot erase a retained-object conversion: {source}",
+            );
+        }
+        let lazy = crate::expr_parser::parse_expr("1?abs(-3):$x+0", None);
+        assert_eq!(
+            eval_tcl_expr_with_resolved_math_bindings(&lazy, &env, policy, &|function, _| {
+                Some(NativeMathFunctionTarget {
+                    function: function.to_owned(),
+                    prepended: Vec::new(),
+                })
+            }),
+            Some(TclValue::Int(3)),
+        );
+    }
+
+    #[test]
+    fn already_native_object_proof_licenses_only_matching_numeric_reads() {
+        let expression = crate::expr_parser::parse_expr("abs($x)", None);
+        let policy = FoldPolicy::default().with_invocation_dialect(
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        let env = Env::from([("x".into(), EnvValue::Int(-3))]);
+        let mut operands = NativeOperandProofs::from([(
+            "x".into(),
+            RetainedNativeOperandProof {
+                dialect: tcl_registry::InvocationDialect::for_version(
+                    tcl_dialect::TclVersion::V8_6,
+                ),
+                identity: NativeOperandObjectIdentity::Runtime {
+                    interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity {
+                        owner: 12,
+                        interpreter: 2,
+                    },
+                    object: 7,
+                    generation: 4,
+                },
+                value: TclValue::Int(-3),
+                existing_string: None,
+            },
+        )]);
+        let calls = |function: &str, _| {
+            Some(NativeMathFunctionTarget {
+                function: function.to_owned(),
+                prepended: Vec::new(),
+            })
+        };
+        assert_eq!(
+            eval_tcl_expr_with_proved_operands(&expression, &env, policy, &calls, &operands),
+            Some(TclValue::Int(3))
+        );
+        operands.get_mut("x").unwrap().value = TclValue::Int(8);
+        assert_eq!(
+            eval_tcl_expr_with_proved_operands(&expression, &env, policy, &calls, &operands),
+            None
+        );
+    }
+
+    #[test]
+    fn resolved_native_alias_uses_its_terminal_handler_and_frozen_prefix() {
+        let expression = crate::expr_parser::parse_expr("chosen()", None);
+        let policy = FoldPolicy::default().with_invocation_dialect(
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        let folded = eval_tcl_expr_with_resolved_math_bindings(
+            &expression,
+            &Env::new(),
+            policy,
+            &|function, start| {
+                (function == "chosen" && start == 0).then(|| NativeMathFunctionTarget {
+                    function: "abs".to_owned(),
+                    prepended: vec!["-3".to_owned()],
+                })
+            },
+        );
+        assert_eq!(folded, Some(TclValue::Int(3)));
+        assert_eq!(
+            eval_tcl_expr_with_resolved_math_bindings(&expression, &Env::new(), policy, &|_, _| {
+                None
+            }),
+            None
+        );
+    }
+
+    #[test]
+    fn execution_folding_requires_the_reached_native_implementation() {
+        let expression = crate::expr_parser::parse_expr("abs(-3)", None);
+        let policy = FoldPolicy::default().with_invocation_dialect(
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        );
+        assert_eq!(
+            eval_tcl_expr_with_policy(&expression, &Env::new(), policy),
+            None
+        );
+        assert_eq!(
+            eval_tcl_expr_with_math_bindings(
+                &expression,
+                &Env::new(),
+                policy,
+                &|function, start| { function == "abs" && start == 0 }
+            ),
+            Some(TclValue::Int(3)),
+        );
+        assert_eq!(
+            eval_tcl_expr_with_math_bindings(&expression, &Env::new(), policy, &|_, _| false),
+            None,
+        );
+    }
+
+    #[test]
+    fn unproved_unreached_function_does_not_suppress_a_valid_lazy_fold() {
+        let expression = crate::expr_parser::parse_expr("1 ? abs(-3) : abs(-7)", None);
+        let reached = std::cell::RefCell::new(Vec::new());
+        let folded = eval_tcl_expr_with_math_bindings(
+            &expression,
+            &Env::new(),
+            FoldPolicy::default().with_invocation_dialect(
+                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            ),
+            &|function, start| {
+                reached.borrow_mut().push((function.to_owned(), start));
+                function == "abs" && start == 4
+            },
+        );
+        assert_eq!(folded, Some(TclValue::Int(3)));
+        assert_eq!(*reached.borrow(), [("abs".to_owned(), 4)]);
     }
 }

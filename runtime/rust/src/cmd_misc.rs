@@ -28,16 +28,16 @@ use crate::obj::TclObj;
 
 /// Register the misc bootstrap commands.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"encoding", encoding_cmd);
+    interp.register_stock_builtin(b"encoding", encoding_cmd);
     // init.tcl calls this clock configuration helper during startup. The
     // runtime has no clock configuration state, so the helper is a no-op.
-    interp.register_builtin(b"::tcl::unsupported::clock::configure", noop);
+    interp.register_stock_builtin(b"::tcl::unsupported::clock::configure", noop);
     // `tcl::build-info` — build metadata; the tcltest helper (`tcltests.tcl`)
     // queries it for the `debug`/`purify`/`memdebug`/`deprecated` constraints.
-    interp.register_builtin(b"::tcl::build-info", build_info_cmd);
+    interp.register_stock_builtin(b"::tcl::build-info", build_info_cmd);
     // `pid ?channelId?` — the process id (a channel argument would list the pids
     // of the pipeline behind it, which the WASM runtime has none of).
-    interp.register_builtin(b"pid", pid_cmd);
+    interp.register_stock_builtin(b"pid", pid_cmd);
     // Commands with a registry spec but no portable WASM backing: report an
     // explicit "not supported under the WASM runtime" error rather than the
     // generic `invalid command name` an unregistered command yields.
@@ -124,10 +124,40 @@ fn noop(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
 const ENCODING_SUBS: &[&[u8]] = &[b"convertfrom", b"convertto", b"dirs", b"names", b"system"];
 
 fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    use crate::interp::{
+        native_arguments::OriginalArguments, native_operation_currency::NativeOperationScope,
+    };
+    let operation = match NativeOperationScope::enter(interp) {
+        Ok(operation) => operation,
+        Err(error) => {
+            return interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error));
+        }
+    };
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let reached = encoding_in_scope(interp, argv, &arguments);
+    let reached = arguments.finish(reached);
+    drop(arguments);
+    if operation.currency().ensure_current_or_refuse().is_err() {
+        return Code::Error;
+    }
+    reached
+}
+
+fn encoding_in_scope(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &crate::interp::native_arguments::OriginalArguments,
+) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"encoding subcommand ?arg ...?");
     }
-    let word = obj_bytes(argv[1]);
+    let word = match arguments.bytes(1) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     let subs = crate::environment::release_subcommands(
         interp.runtime_version().dialect_profile_name(),
         "encoding",
@@ -152,10 +182,40 @@ fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 interp.set_result_bytes(interp.system_encoding().as_str().as_bytes());
                 Code::Ok
             }
-            [_, _, value] => {
-                let value = obj_bytes(*value);
-                let value = String::from_utf8_lossy(&value);
-                match tcl_cmd_core::channel::resolve_system_encoding(&value) {
+            [_, _, _value] => {
+                let Some(protocol) = interp
+                    .native_invocation_dialect()
+                    .native_encoding_name_protocol()
+                else {
+                    return interp.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original encoding system protocol",
+                        )
+                        .into(),
+                    );
+                };
+                let bytes = match arguments.bytes(2) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return interp.report_cmd_error(error),
+                };
+                let default = interp.default_system_encoding();
+                let encoding = crate::interp::native_encoding_source::lookup(
+                    interp,
+                    arguments,
+                    2,
+                    protocol,
+                    tcl_cmd_core::encoding::NativeEncodingNamePurpose::System(default),
+                    &bytes,
+                )
+                .and_then(|encoding| {
+                    encoding.system_encoding().ok_or_else(|| {
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "system encoding representation",
+                        )
+                        .into()
+                    })
+                });
+                match encoding {
                     Ok(encoding) => {
                         interp.set_system_encoding(encoding);
                         interp.set_result_bytes(b"");
@@ -170,10 +230,49 @@ fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(b"utf-8 unicode ascii iso8859-1");
             Code::Ok
         }
+        b"convertto" => {
+            // naming.encoding.original-utf8-convertto-object-storage
+
+            let data = match argv {
+                [_, _, data] if interp.system_encoding() == tcl_platform::SystemEncoding::Utf8 => {
+                    *data
+                }
+                [_, _, encoding, data] => {
+                    let encoding = match interp.native_object_string_bytes(*encoding) {
+                        Ok(bytes) => bytes,
+                        Err(error) => return interp.report_cmd_error(error.into()),
+                    };
+                    if encoding.as_ref() != b"utf-8" {
+                        // Another target converts through the shared owner.
+                        return encoding_convert(
+                            interp,
+                            tcl_cmd_core::encoding::Direction::To,
+                            &argv[2..],
+                        );
+                    }
+                    *data
+                }
+                // The system target, `-profile`/`-failindex` and the usage
+                // error follow the shared grammar and conversions.
+                _ => {
+                    return encoding_convert(
+                        interp,
+                        tcl_cmd_core::encoding::Direction::To,
+                        &argv[2..],
+                    );
+                }
+            };
+            match tcl_cmd_core::encoding::convert_to_utf8(interp, &data) {
+                Ok(result) => {
+                    interp.set_result(result);
+                    Code::Ok
+                }
+                Err(error) => interp.report_cmd_error(error),
+            }
+        }
         b"convertfrom" => {
             encoding_convert(interp, tcl_cmd_core::encoding::Direction::From, &argv[2..])
         }
-        b"convertto" => encoding_convert(interp, tcl_cmd_core::encoding::Direction::To, &argv[2..]),
         other => interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
             subs,
             other,
@@ -242,10 +341,12 @@ fn encoding_convert(
         }
     }
     match result {
-        Output::Text(text) => interp.set_result_bytes(text.as_bytes()),
+        Output::Text(text) => {
+            interp.set_result_bytes(text.as_bytes());
+            Code::Ok
+        }
         Output::Bytes(bytes) => interp.set_result_byte_array(&bytes),
     }
-    Code::Ok
 }
 
 #[cfg(test)]
@@ -357,3 +458,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod native_encoding_tests;
